@@ -1,0 +1,229 @@
+:root {
+  --bg: #07060c;
+  --ink: #f2eefc;
+  --muted: #9b93b0;
+  --line: rgba(167, 139, 250, 0.22);
+  --violet: #a78bfa;
+  --magenta: #d946ef;
+  --panel: rgba(16, 12, 28, 0.78);
+  --font-display: var(--font-oxanium), "Oxanium", sans-serif;
+  --font-body: var(--font-manrope), "Manrope", sans-serif;
+  --win: #34d399;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  color: var(--ink);
+  font-family: var(--font-body);
+  background: var(--bg);
+}
+
+body {
+  background:
+    radial-gradient(900px 520px at 12% -8%, rgba(124, 58, 237, 0.38), transparent 60%),
+    radial-gradient(700px 480px at 92% 8%, rgba(217, 70, 239, 0.16), transparent 55%),
+    linear-gradient(180deg, #0b0914 0%, #07060c 100%);
+  background-attachment: fixed;
+}
+
+a { color: var(--violet); text-decoration: none; }
+a:hover { color: #c4b5fd; }
+
+.shell {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 28px 18px 64px;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 40px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: inherit;
+}
+
+.brand img {
+  width: 56px;
+  height: auto;
+  filter: drop-shadow(0 0 18px rgba(167, 139, 250, 0.35));
+}
+
+.brand strong {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  letter-spacing: 0.06em;
+}
+
+.auth-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.avatar {
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+
+.nick-link {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.btn {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 10px 16px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.btn:hover { background: rgba(167, 139, 250, 0.12); }
+.btn:disabled { opacity: 0.6; cursor: wait; }
+
+.btn.steam {
+  background: linear-gradient(120deg, #1b2838, #2a475e);
+  border-color: rgba(102, 192, 244, 0.35);
+}
+
+.btn.primary {
+  background: linear-gradient(120deg, #7c3aed, #a21caf);
+  border-color: transparent;
+}
+
+.btn.ghost {
+  padding: 8px 12px;
+  font-size: 0.9rem;
+}
+
+.hero {
+  margin-bottom: 36px;
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  color: var(--violet);
+  font-family: var(--font-display);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.hero h1 {
+  margin: 0 0 12px;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 6vw, 3.4rem);
+  letter-spacing: 0.04em;
+  line-height: 1;
+  background: linear-gradient(120deg, #fff 10%, #c4b5fd 50%, #e879f9 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.lead {
+  margin: 0;
+  color: var(--muted);
+  max-width: 42ch;
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 22px;
+  backdrop-filter: blur(12px);
+}
+
+.card h2 {
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+}
+
+.muted { color: var(--muted); }
+
+.form {
+  display: grid;
+  gap: 14px;
+  max-width: 420px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.field span {
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.field input {
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font: inherit;
+}
+
+.field input:disabled {
+  opacity: 0.7;
+}
+
+.error {
+  margin: 0;
+  color: #f87171;
+  font-size: 0.9rem;
+}
+
+.profile-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.stats-stub {
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+  padding: 20px;
+  color: var(--muted);
+}
+
+.kv-link {
+  display: inline-block;
+  margin-top: 18px;
+}
+
+.meta-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(167, 139, 250, 0.1);
+}
+
+.meta-row:last-child { border-bottom: none; }
+.meta-row span:first-child { color: var(--muted); }
