@@ -1,9 +1,10 @@
 import { getSession } from "@/lib/auth";
 import {
+  assignableRoles,
   canChangeRole,
   effectiveRole,
+  getUserRole,
   isAdmin,
-  isSuperAdmin,
   syncBuiltinAdmins,
   type AppRole,
 } from "@/lib/admin";
@@ -18,8 +19,8 @@ export default async function AdminPage() {
   await syncBuiltinAdmins();
   if (!(await isAdmin(session.user.steamId))) redirect("/profile");
 
-  const actorIsSuper = await isSuperAdmin(session.user.steamId);
-  const actorRole: AppRole = actorIsSuper ? "SUPER_ADMIN" : "ADMIN";
+  const actorRole = (await getUserRole(session.user.steamId)) || "USER";
+  const roleOptions = assignableRoles(actorRole);
 
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "desc" },
@@ -61,7 +62,6 @@ export default async function AdminPage() {
         <h1>Панель</h1>
         <p className="lead">
           Пользователи платформы. Кликни по нику — правка анкеты и аватара.
-          {actorIsSuper ? " Роли админов снимает только главный админ." : ""}
         </p>
         <div className="admin-tabs" role="tablist">
           <span className="admin-tab active">Пользователи</span>
@@ -73,7 +73,7 @@ export default async function AdminPage() {
         </p>
       </section>
 
-      <AdminUsersTable initialUsers={rows} actorIsSuper={actorIsSuper} />
+      <AdminUsersTable initialUsers={rows} roleOptions={roleOptions} />
     </main>
   );
 }

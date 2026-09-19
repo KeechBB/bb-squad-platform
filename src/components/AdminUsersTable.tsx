@@ -22,7 +22,7 @@ type SortKey = "createdAt" | "nick" | "name" | "age" | "steamId" | "role";
 
 type Props = {
   initialUsers: AdminUserRow[];
-  actorIsSuper: boolean;
+  roleOptions: AppRole[];
 };
 
 function fmtDate(iso: string) {
@@ -39,7 +39,7 @@ function fmtDate(iso: string) {
   }
 }
 
-export function AdminUsersTable({ initialUsers, actorIsSuper }: Props) {
+export function AdminUsersTable({ initialUsers, roleOptions }: Props) {
   const [users, setUsers] = useState(initialUsers);
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<SortKey>("createdAt");
@@ -186,15 +186,18 @@ export function AdminUsersTable({ initialUsers, actorIsSuper }: Props) {
                 <td className="mono">{u.steamId}</td>
                 <td>{fmtDate(u.createdAt)}</td>
                 <td>
-                  {u.canEditRole && actorIsSuper ? (
+                  {u.canEditRole && roleOptions.length > 0 ? (
                     <select
                       className="role-select"
-                      value={u.role === "SUPER_ADMIN" ? "ADMIN" : u.role}
+                      value={roleOptions.includes(u.role) ? u.role : roleOptions[0]}
                       disabled={busyId === u.id}
                       onChange={(e) => void setRole(u.id, e.target.value as AppRole)}
                     >
-                      <option value="USER">Игрок</option>
-                      <option value="ADMIN">Админ</option>
+                      {roleOptions.map((r) => (
+                        <option key={r} value={r}>
+                          {roleLabel(r)}
+                        </option>
+                      ))}
                     </select>
                   ) : (
                     <span className="role-static">{roleLabel(u.role)}</span>

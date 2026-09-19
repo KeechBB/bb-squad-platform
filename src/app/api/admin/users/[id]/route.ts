@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/requireAdmin";
 import {
-  canChangeRole,
+  canSetRole,
   effectiveRole,
+  getUserRole,
+  isBuiltinDeputy,
   isBuiltinSuperAdmin,
-  isSuperAdmin,
   isValidSteamId,
   parseRole,
   type AppRole,
@@ -16,6 +17,12 @@ import { removeUserAvatarFiles } from "@/lib/avatar";
 export const runtime = "nodejs";
 
 type Ctx = { params: Promise<{ id: string }> };
+
+function lockedRoleForSteam(steamId: string, role: AppRole): AppRole {
+  if (isBuiltinSuperAdmin(steamId)) return "SUPER_ADMIN";
+  if (isBuiltinDeputy(steamId)) return "DEPUTY";
+  return role;
+}
 
 export async function GET(_req: Request, ctx: Ctx) {
   const { error } = await requireAdmin();
@@ -33,8 +40,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   const gate = await requireAdmin();
   if (gate.error) return gate.error;
   const actorSteamId = gate.session!.user.steamId;
-  const actorIsSuper = await isSuperAdmin(actorSteamId);
-  const actorRole: AppRole = actorIsSuper ? "SUPER_ADMIN" : "ADMIN";
+  const actorRole = (await getUserRole(actorSteamId)) || "USER";
 
   const { id } = await ctx.params;
   const existing = await prisma.user.findUnique({ where: { id } });
@@ -69,20 +75,17 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
   if (b.roleOnly || (b.role && b.name === undefined && b.nick === undefined)) {
     const role = parseRole(String(b.role || ""));
-    if (!role || role === "SUPER_ADMIN") {
-      return NextResponse.json(
-        { error: "Можно выдать только Игрок или Админ" },
-        { status: 400 }
-      );
-    }
-    if (!canChangeRole(actorRole, existingRole, existing.steamId)) {
-      return NextResponse.json(
-        { error: "Только главный админ может менять роли админов" },
-        { status: 403 }
-      );
+    if (!role) {
+      return NextResponse.json({ error: "Некорректная роль" }, { status: 400 });
     }
     if (existing.steamId === actorSteamId) {
       return NextResponse.json({ error: "Нельзя менять свою роль" }, { status: 403 });
+    }
+    if (!canSetRole(actorRole, existingRole, existing.steamId, role)) {
+      return NextResponse.json(
+        { error: "Недостаточно прав для этой роли" },
+        { status: 403 }
+      );
     }
     const user = await prisma.user.update({
       where: { id },
@@ -115,20 +118,17 @@ export async function PATCH(req: Request, ctx: Ctx) {
   let nextRole = existingRole;
   if (b.role != null) {
     const role = parseRole(String(b.role));
-    if (!role || role === "SUPER_ADMIN") {
-      return NextResponse.json(
-        { error: "Можно выдать только Игрок или Админ" },
-        { status: 400 }
-      );
-    }
-    if (!canChangeRole(actorRole, existingRole, existing.steamId)) {
-      return NextResponse.json(
-        { error: "Только главный админ может менять роли админов" },
-        { status: 403 }
-      );
+    if (!role) {
+      return NextResponse.json({ error: "Некорректная роль" }, { status: 400 });
     }
     if (existing.steamId === actorSteamId) {
       return NextResponse.json({ error: "Нельзя менять свою роль" }, { status: 403 });
+    }
+    if (!canSetRole(actorRole, existingRole, existing.steamId, role)) {
+      return NextResponse.json(
+        { error: "Недостаточно прав для этой роли" },
+        { status: 403 }
+      );
     }
     nextRole = role;
   }
@@ -155,7 +155,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
         nick,
         age,
         steamId,
-        role: isBuiltinSuperAdmin(steamId) ? "SUPER_ADMIN" : nextRole,
+        role: lockedRoleForSteam(steamId, nextRole),
       },
     });
     return NextResponse.json({ ok: true, user });

@@ -19,16 +19,17 @@ type Props = {
     createdAt: string;
   };
   canEditRole: boolean;
+  roleOptions: AppRole[];
 };
 
-export function AdminUserEditForm({ user, canEditRole }: Props) {
+export function AdminUserEditForm({ user, canEditRole, roleOptions }: Props) {
   const router = useRouter();
   const [name, setName] = useState(user.name || "");
   const [nick, setNick] = useState(user.nick || "");
   const [age, setAge] = useState(user.age != null ? String(user.age) : "");
   const [steamId, setSteamId] = useState(user.steamId);
   const [role, setRole] = useState<AppRole>(
-    user.role === "SUPER_ADMIN" ? "ADMIN" : user.role
+    roleOptions.includes(user.role) ? user.role : roleOptions[0] || "USER"
   );
   const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl);
   const [error, setError] = useState("");
@@ -157,14 +158,17 @@ export function AdminUserEditForm({ user, canEditRole }: Props) {
       </label>
       <label className="field">
         <span>Роль</span>
-        {canEditRole ? (
+        {canEditRole && roleOptions.length > 0 ? (
           <select
             className="role-select"
             value={role}
             onChange={(e) => setRole(e.target.value as AppRole)}
           >
-            <option value="USER">Игрок</option>
-            <option value="ADMIN">Админ</option>
+            {roleOptions.map((r) => (
+              <option key={r} value={r}>
+                {roleLabel(r)}
+              </option>
+            ))}
           </select>
         ) : (
           <input value={roleLabel(user.role)} readOnly disabled />

@@ -1,9 +1,10 @@
 import { getSession } from "@/lib/auth";
 import {
+  assignableRoles,
   canChangeRole,
   effectiveRole,
+  getUserRole,
   isAdmin,
-  isSuperAdmin,
   syncBuiltinAdmins,
   type AppRole,
 } from "@/lib/admin";
@@ -32,8 +33,11 @@ export default async function AdminUserPage({ params }: Props) {
   if (!user) notFound();
 
   const role = effectiveRole(user.steamId, user.role as AppRole);
-  const actorIsSuper = await isSuperAdmin(session.user.steamId);
-  const actorRole: AppRole = actorIsSuper ? "SUPER_ADMIN" : "ADMIN";
+  const actorRole = (await getUserRole(session.user.steamId)) || "USER";
+  const roleOptions = assignableRoles(actorRole);
+  const canEditRole =
+    user.steamId !== session.user.steamId &&
+    canChangeRole(actorRole, role, user.steamId);
 
   return (
     <main className="admin-page">
@@ -54,10 +58,8 @@ export default async function AdminUserPage({ params }: Props) {
           avatarUrl: resolveAvatarSrc(user.avatarUrl),
           createdAt: user.createdAt.toISOString(),
         }}
-        canEditRole={
-          user.steamId !== session.user.steamId &&
-          canChangeRole(actorRole, role, user.steamId)
-        }
+        canEditRole={canEditRole}
+        roleOptions={roleOptions}
       />
     </main>
   );
