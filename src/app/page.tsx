@@ -16,7 +16,7 @@ export default async function HomePage() {
     ReturnType<typeof buildUpcomingMatchPreviews>
   >["previews"] = [];
   try {
-    const data = await buildUpcomingMatchPreviews(5);
+    const data = await buildUpcomingMatchPreviews(8);
     previews = data.previews;
   } catch {
     previews = [];
@@ -24,6 +24,8 @@ export default async function HomePage() {
 
   return (
     <main className="home-page">
+      <div className="home-bg-pattern" aria-hidden="true" />
+
       <HomeUpcomingMatches previews={previews} />
 
       <div className="home-hero">
