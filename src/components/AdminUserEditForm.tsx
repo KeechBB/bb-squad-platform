@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import type { AppRole } from "@/lib/admin";
 
 type Props = {
   user: {
@@ -12,16 +13,19 @@ type Props = {
     name: string | null;
     nick: string | null;
     age: number | null;
+    role: AppRole;
     createdAt: string;
   };
+  roleLocked: boolean;
 };
 
-export function AdminUserEditForm({ user }: Props) {
+export function AdminUserEditForm({ user, roleLocked }: Props) {
   const router = useRouter();
   const [name, setName] = useState(user.name || "");
   const [nick, setNick] = useState(user.nick || "");
   const [age, setAge] = useState(user.age != null ? String(user.age) : "");
   const [steamId, setSteamId] = useState(user.steamId);
+  const [role, setRole] = useState<AppRole>(user.role);
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
   const [loading, setLoading] = useState(false);
@@ -40,6 +44,7 @@ export function AdminUserEditForm({ user }: Props) {
           nick,
           age: Number(age),
           steamId,
+          role,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -97,6 +102,18 @@ export function AdminUserEditForm({ user }: Props) {
           inputMode="numeric"
           required
         />
+      </label>
+      <label className="field">
+        <span>Роль</span>
+        <select
+          className="role-select"
+          value={role}
+          disabled={roleLocked}
+          onChange={(e) => setRole(e.target.value as AppRole)}
+        >
+          <option value="USER">Игрок</option>
+          <option value="ADMIN">Админ</option>
+        </select>
       </label>
       {error ? <p className="error">{error}</p> : null}
       {ok ? <p className="ok">{ok}</p> : null}

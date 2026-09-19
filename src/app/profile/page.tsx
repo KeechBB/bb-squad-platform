@@ -2,7 +2,7 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { AvatarEditor } from "@/components/AvatarEditor";
-import { isAdminSteamId } from "@/lib/admin";
+import { isAdmin, syncBuiltinAdmins } from "@/lib/admin";
 
 export default async function ProfilePage() {
   const session = await getSession();
@@ -11,7 +11,8 @@ export default async function ProfilePage() {
 
   const u = session.user;
   const displayAvatar = u.avatarUrl || u.steamAvatar || null;
-  const admin = isAdminSteamId(u.steamId);
+  await syncBuiltinAdmins();
+  const admin = await isAdmin(u.steamId);
 
   return (
     <main className="profile-grid">

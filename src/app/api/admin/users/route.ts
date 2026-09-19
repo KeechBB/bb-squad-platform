@@ -44,6 +44,7 @@ export async function GET(req: Request) {
       name: true,
       nick: true,
       age: true,
+      role: true,
       profileComplete: true,
       createdAt: true,
     },

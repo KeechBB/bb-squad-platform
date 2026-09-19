@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import type { AppRole } from "@/lib/admin";
 
 export type AdminUserRow = {
   id: string;
@@ -10,11 +11,13 @@ export type AdminUserRow = {
   name: string | null;
   nick: string | null;
   age: number | null;
+  role: AppRole;
   profileComplete: boolean;
   createdAt: string;
+  roleLocked: boolean;
 };
 
-type SortKey = "createdAt" | "nick" | "name" | "age" | "steamId";
+type SortKey = "createdAt" | "nick" | "name" | "age" | "steamId" | "role";
 
 type Props = {
   initialUsers: AdminUserRow[];
@@ -35,16 +38,19 @@ function fmtDate(iso: string) {
 }
 
 export function AdminUsersTable({ initialUsers }: Props) {
+  const [users, setUsers] = useState(initialUsers);
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<SortKey>("createdAt");
   const [order, setOrder] = useState<"asc" | "desc">("desc");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState("");
 
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    let list = initialUsers;
+    let list = users;
     if (needle) {
       list = list.filter((u) => {
-        const blob = [u.nick, u.name, u.steamId, u.steamName]
+        const blob = [u.nick, u.name, u.steamId, u.steamName, u.role]
           .filter(Boolean)
           .join(" ")
           .toLowerCase();
@@ -61,11 +67,13 @@ export function AdminUsersTable({ initialUsers }: Props) {
       if (sort === "age") {
         return (((av as number | null) ?? -1) - ((bv as number | null) ?? -1)) * dir;
       }
-      return String(av ?? "").localeCompare(String(bv ?? ""), "ru", {
-        sensitivity: "base",
-      }) * dir;
+      return (
+        String(av ?? "").localeCompare(String(bv ?? ""), "ru", {
+          sensitivity: "base",
+        }) * dir
+      );
     });
-  }, [initialUsers, q, sort, order]);
+  }, [users, q, sort, order]);
 
   function toggleSort(key: SortKey) {
     if (sort === key) {
@@ -81,6 +89,32 @@ export function AdminUsersTable({ initialUsers }: Props) {
     return order === "asc" ? " ↑" : " ↓";
   }
 
+  async function setRole(userId: string, role: AppRole) {
+    setError("");
+    setBusyId(userId);
+    const prev = users;
+    setUsers((list) =>
+      list.map((u) => (u.id === userId ? { ...u, role } : u))
+    );
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role, roleOnly: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setUsers(prev);
+        setError(data.error || "Не удалось сменить роль");
+      }
+    } catch {
+      setUsers(prev);
+      setError("Сеть или сервер недоступны");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <div className="admin-panel">
       <div className="admin-toolbar">
@@ -93,9 +127,10 @@ export function AdminUsersTable({ initialUsers }: Props) {
           />
         </label>
         <p className="muted admin-count">
-          Найдено: {rows.length} / {initialUsers.length}
+          Найдено: {rows.length} / {users.length}
         </p>
       </div>
+      {error ? <p className="error">{error}</p> : null}
 
       <div className="admin-table-wrap">
         <table className="admin-table">
@@ -127,6 +162,11 @@ export function AdminUsersTable({ initialUsers }: Props) {
                   Регистрация{sortMark("createdAt")}
                 </button>
               </th>
+              <th>
+                <button type="button" className="sort-btn" onClick={() => toggleSort("role")}>
+                  Роль{sortMark("role")}
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -145,11 +185,23 @@ export function AdminUsersTable({ initialUsers }: Props) {
                 <td>{u.age ?? "—"}</td>
                 <td className="mono">{u.steamId}</td>
                 <td>{fmtDate(u.createdAt)}</td>
+                <td>
+                  <select
+                    className="role-select"
+                    value={u.role}
+                    disabled={u.roleLocked || busyId === u.id}
+                    title={u.roleLocked ? "Главный админ" : undefined}
+                    onChange={(e) => void setRole(u.id, e.target.value as AppRole)}
+                  >
+                    <option value="USER">Игрок</option>
+                    <option value="ADMIN">Админ</option>
+                  </select>
+                </td>
               </tr>
             ))}
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="muted">
+                <td colSpan={7} className="muted">
                   Никого не найдено
                 </td>
               </tr>
