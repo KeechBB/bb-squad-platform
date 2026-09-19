@@ -8,6 +8,7 @@ import {
   detectClanLogoMime,
   saveClanLogo,
 } from "@/lib/clanLogo";
+import { ensureDefaultSquads } from "@/lib/squads";
 
 export const runtime = "nodejs";
 
@@ -96,5 +97,6 @@ export async function POST(req: Request) {
   }
 
   const full = await prisma.clan.findUnique({ where: { id: clan.id } });
+  await ensureDefaultSquads(clan.id);
   return NextResponse.json({ ok: true, clan: full });
 }

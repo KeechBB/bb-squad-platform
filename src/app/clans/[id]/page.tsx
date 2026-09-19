@@ -7,6 +7,7 @@ import {
   type ClanRole,
 } from "@/lib/clan";
 import { ClanDetailClient } from "@/components/ClanDetailClient";
+import { ensureDefaultSquads } from "@/lib/squads";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -34,12 +35,16 @@ export default async function ClanPage({ params }: Props) {
   });
   if (!clan) notFound();
 
+  await ensureDefaultSquads(clan.id);
+
   let myRole: ClanRole | null = null;
+  let myUserId: string | null = null;
   if (session?.user?.steamId) {
     const me = await prisma.user.findUnique({
       where: { steamId: session.user.steamId },
     });
     if (me) {
+      myUserId = me.id;
       const membership = clan.members.find((m) => m.userId === me.id);
       myRole = (membership?.role as ClanRole) || null;
     }
@@ -63,6 +68,7 @@ export default async function ClanPage({ params }: Props) {
           joinedAt: m.joinedAt.toISOString(),
           user: m.user,
         }))}
+        myUserId={myUserId}
         myRole={myRole}
         canManage={canManage}
         assignableRoles={assignable}

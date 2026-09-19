@@ -1,10 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ClanRole } from "@/lib/clan";
-import { CLAN_ROLE_LABEL, canKickClanMember } from "@/lib/clan";
+import {
+  assignableClanRoles,
+  canKickClanMember,
+  canManageClanMembers,
+  CLAN_ROLE_LABEL,
+} from "@/lib/clan";
 
 type Member = {
   id: string;
@@ -19,6 +24,18 @@ type Member = {
   };
 };
 
+type SquadMember = {
+  id: string;
+  user: Member["user"];
+};
+
+type Squad = {
+  id: string;
+  name: string;
+  sortOrder: number;
+  members: SquadMember[];
+};
+
 type Props = {
   clan: {
     id: string;
@@ -27,12 +44,13 @@ type Props = {
     logoUrl: string | null;
   };
   members: Member[];
+  myUserId: string | null;
   myRole: ClanRole | null;
   canManage: boolean;
   assignableRoles: ClanRole[];
 };
 
-type Tab = "members" | "matches" | "stats";
+type Tab = "members" | "squads" | "matches" | "stats";
 
 const ROLE_ORDER: ClanRole[] = [
   "LEADER",
@@ -43,7 +61,6 @@ const ROLE_ORDER: ClanRole[] = [
   "MEMBER",
 ];
 
-/** Мок-стата для теста радиальной диаграммы */
 const MAP_STATS = [
   { map: "Gorodok", games: 5 },
   { map: "Yehorivka", games: 3 },
@@ -55,18 +72,27 @@ const MAP_STATS = [
 export function ClanDetailClient({
   clan,
   members: initialMembers,
-  myRole,
-  canManage,
-  assignableRoles,
+  myUserId,
+  myRole: initialMyRole,
+  canManage: initialCanManage,
+  assignableRoles: initialAssignable,
 }: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("members");
   const [members, setMembers] = useState(initialMembers);
+  const [myRole, setMyRole] = useState(initialMyRole);
+  const [squads, setSquads] = useState<Squad[]>([]);
+  const [newSquad, setNewSquad] = useState("");
   const [inviteNick, setInviteNick] = useState("");
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
   const [loading, setLoading] = useState(false);
   const [hoverMap, setHoverMap] = useState<string | null>(null);
+
+  const canManage = myRole ? canManageClanMembers(myRole) : initialCanManage;
+  const assignableRoles = myRole
+    ? assignableClanRoles(myRole)
+    : initialAssignable;
 
   const sorted = useMemo(
     () =>
@@ -75,6 +101,72 @@ export function ClanDetailClient({
       ),
     [members]
   );
+
+  const refreshMembers = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/clans/${clan.id}`, { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      const list = (data.clan?.members || []) as Array<{
+        id: string;
+        role: ClanRole;
+        joinedAt: string;
+        userId?: string;
+        user: Member["user"];
+      }>;
+      setMembers(
+        list.map((m) => ({
+          id: m.id,
+          role: m.role,
+          joinedAt:
+            typeof m.joinedAt === "string"
+              ? m.joinedAt
+              : new Date(m.joinedAt).toISOString(),
+          user: m.user,
+        }))
+      );
+      if (myUserId) {
+        const mine = list.find((m) => m.user?.id === myUserId);
+        if (mine) setMyRole(mine.role);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [clan.id, myUserId]);
+
+  const refreshSquads = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/clans/${clan.id}/squads`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setSquads(data.squads || []);
+    } catch {
+      /* ignore */
+    }
+  }, [clan.id]);
+
+  useEffect(() => {
+    void refreshSquads();
+  }, [refreshSquads]);
+
+  useEffect(() => {
+    const tick = () => {
+      void refreshMembers();
+      if (tab === "squads") void refreshSquads();
+    };
+    const id = window.setInterval(tick, 4000);
+    const onFocus = () => tick();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") tick();
+    });
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [refreshMembers, refreshSquads, tab]);
 
   async function invite() {
     setError("");
@@ -102,6 +194,9 @@ export function ClanDetailClient({
 
   async function setRole(memberId: string, role: ClanRole) {
     setError("");
+    setMembers((list) =>
+      list.map((m) => (m.id === memberId ? { ...m, role } : m))
+    );
     const res = await fetch(`/api/clans/${clan.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -110,11 +205,9 @@ export function ClanDetailClient({
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       setError(data.error || "Не удалось сменить роль");
+      void refreshMembers();
       return;
     }
-    setMembers((list) =>
-      list.map((m) => (m.id === memberId ? { ...m, role } : m))
-    );
   }
 
   async function kick(memberId: string) {
@@ -128,9 +221,73 @@ export function ClanDetailClient({
       return;
     }
     setMembers((list) => list.filter((m) => m.id !== memberId));
+    void refreshSquads();
+  }
+
+  async function createSquad() {
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/clans/${clan.id}/squads`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newSquad }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Не удалось создать состав");
+        return;
+      }
+      setNewSquad("");
+      await refreshSquads();
+    } catch {
+      setError("Сеть недоступна");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function setSquadMember(
+    squadId: string,
+    userId: string,
+    action: "add" | "remove"
+  ) {
+    setError("");
+    const res = await fetch(`/api/clans/${clan.id}/squads`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ squadId, userId, action }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(data.error || "Не удалось обновить состав");
+      return;
+    }
+    await refreshSquads();
+  }
+
+  async function deleteSquad(squadId: string) {
+    setError("");
+    const res = await fetch(
+      `/api/clans/${clan.id}/squads?squadId=${encodeURIComponent(squadId)}`,
+      { method: "DELETE" }
+    );
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(data.error || "Не удалось удалить");
+      return;
+    }
+    await refreshSquads();
   }
 
   const maxGames = Math.max(...MAP_STATS.map((m) => m.games), 1);
+  const squadUserIds = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of squads) {
+      for (const m of s.members) map.set(m.user.id, s.name);
+    }
+    return map;
+  }, [squads]);
 
   return (
     <div className="clan-detail">
@@ -153,27 +310,23 @@ export function ClanDetailClient({
       </section>
 
       <div className="admin-tabs clan-tabs">
-        <button
-          type="button"
-          className={`admin-tab${tab === "members" ? " active" : ""}`}
-          onClick={() => setTab("members")}
-        >
-          Список игроков
-        </button>
-        <button
-          type="button"
-          className={`admin-tab${tab === "matches" ? " active" : ""}`}
-          onClick={() => setTab("matches")}
-        >
-          История матчей
-        </button>
-        <button
-          type="button"
-          className={`admin-tab${tab === "stats" ? " active" : ""}`}
-          onClick={() => setTab("stats")}
-        >
-          Статистика
-        </button>
+        {(
+          [
+            ["members", "Список игроков"],
+            ["squads", "Составы"],
+            ["matches", "История матчей"],
+            ["stats", "Статистика"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            className={`admin-tab${tab === id ? " active" : ""}`}
+            onClick={() => setTab(id)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {tab === "members" ? (
@@ -207,6 +360,7 @@ export function ClanDetailClient({
                 <tr>
                   <th>#</th>
                   <th>Игрок</th>
+                  <th>Состав</th>
                   <th>Роль</th>
                   {canManage ? <th></th> : null}
                 </tr>
@@ -228,6 +382,7 @@ export function ClanDetailClient({
                         <span>{m.user.nick || m.user.steamName || "—"}</span>
                       </div>
                     </td>
+                    <td>{squadUserIds.get(m.user.id) || "—"}</td>
                     <td>
                       {canManage &&
                       myRole &&
@@ -271,6 +426,110 @@ export function ClanDetailClient({
         </section>
       ) : null}
 
+      {tab === "squads" ? (
+        <section className="card">
+          <p className="muted" style={{ marginTop: 0 }}>
+            Main и Junior — базовые составы. Можно создать ещё и раскидать игроков
+            клана. В рейтинге КВ появятся колонки «Клан» и «Состав».
+          </p>
+          {canManage ? (
+            <div className="clan-invite-row" style={{ marginTop: 12 }}>
+              <label className="field" style={{ flex: 1, margin: 0 }}>
+                <span>Новый состав</span>
+                <input
+                  value={newSquad}
+                  onChange={(e) => setNewSquad(e.target.value)}
+                  placeholder="Academy"
+                  maxLength={24}
+                />
+              </label>
+              <button
+                type="button"
+                className="btn primary"
+                disabled={loading || newSquad.trim().length < 2}
+                onClick={() => void createSquad()}
+              >
+                Создать
+              </button>
+            </div>
+          ) : null}
+          {error ? <p className="error">{error}</p> : null}
+
+          <div className="squad-grid">
+            {squads.map((s) => {
+              const inSquad = new Set(s.members.map((m) => m.user.id));
+              const available = members.filter((m) => !inSquad.has(m.user.id));
+              const locked = ["main", "junior"].includes(s.name.toLowerCase());
+              return (
+                <div key={s.id} className="squad-card">
+                  <div className="squad-card-head">
+                    <strong>{s.name}</strong>
+                    <span className="muted">{s.members.length} чел.</span>
+                    {canManage && myRole === "LEADER" && !locked ? (
+                      <button
+                        type="button"
+                        className="btn ghost"
+                        onClick={() => void deleteSquad(s.id)}
+                      >
+                        Удалить
+                      </button>
+                    ) : null}
+                  </div>
+                  <ul className="squad-list">
+                    {s.members.length === 0 ? (
+                      <li className="muted">Пока пусто — добавь игроков ниже</li>
+                    ) : (
+                      s.members.map((m) => (
+                        <li key={m.id} className="squad-list-row">
+                          <span>{m.user.nick || m.user.steamName || "—"}</span>
+                          {canManage ? (
+                            <button
+                              type="button"
+                              className="btn ghost"
+                              onClick={() =>
+                                void setSquadMember(s.id, m.user.id, "remove")
+                              }
+                            >
+                              Убрать
+                            </button>
+                          ) : null}
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                  {canManage ? (
+                    <label className="field" style={{ marginTop: 8 }}>
+                      <span>Добавить в {s.name}</span>
+                      <select
+                        className="role-select"
+                        defaultValue=""
+                        onChange={(e) => {
+                          const uid = e.target.value;
+                          e.target.value = "";
+                          if (uid) void setSquadMember(s.id, uid, "add");
+                        }}
+                      >
+                        <option value="" disabled>
+                          Выбери игрока…
+                        </option>
+                        {available.map((m) => (
+                          <option key={m.user.id} value={m.user.id}>
+                            {m.user.nick || m.user.steamName || m.user.id}
+                            {squadUserIds.has(m.user.id)
+                              ? ` (сейчас ${squadUserIds.get(m.user.id)})`
+                              : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+
       {tab === "matches" ? (
         <section className="card">
           <p className="muted">
@@ -279,7 +538,9 @@ export function ClanDetailClient({
           <button
             type="button"
             className="btn primary"
-            onClick={() => router.push(`/cw?clan=${encodeURIComponent(clan.tag)}`)}
+            onClick={() =>
+              router.push(`/cw?clan=${encodeURIComponent(clan.tag)}`)
+            }
           >
             Открыть календарь КВ →
           </button>
@@ -358,13 +619,10 @@ export function ClanDetailClient({
             </svg>
             <p className="radar-hint">
               {hoverMap
-                ? `${hoverMap}: ${MAP_STATS.find((m) => m.map === hoverMap)?.games} игр`
+                ? `${hoverMap}: ${MAP_STATS.find((x) => x.map === hoverMap)?.games} игр`
                 : "Наведи на точку"}
             </p>
           </div>
-          <p className="muted" style={{ fontSize: "0.8rem" }}>
-            Цифры пока тестовые — подключим к КВ позже.
-          </p>
         </section>
       ) : null}
 

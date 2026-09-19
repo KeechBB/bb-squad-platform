@@ -48,6 +48,7 @@ model User {
   clanInvites     ClanInvite[] @relation("Invitee")
   sentInvites     ClanInvite[] @relation("Inviter")
   ledClans        Clan[]       @relation("ClanLeader")
+  squadMemberships ClanSquadMember[]
 }
 
 model Clan {
@@ -62,6 +63,34 @@ model Clan {
 
   members ClanMember[]
   invites ClanInvite[]
+  squads  ClanSquad[]
+}
+
+model ClanSquad {
+  id        String   @id @default(cuid())
+  clanId    String
+  name      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  clan    Clan              @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  members ClanSquadMember[]
+
+  @@unique([clanId, name])
+  @@index([clanId])
+}
+
+model ClanSquadMember {
+  id       String   @id @default(cuid())
+  squadId  String
+  userId   String
+  joinedAt DateTime @default(now())
+
+  squad ClanSquad @relation(fields: [squadId], references: [id], onDelete: Cascade)
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([squadId, userId])
+  @@index([userId])
 }
 
 model ClanMember {
