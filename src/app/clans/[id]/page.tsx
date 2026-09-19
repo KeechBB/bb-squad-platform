@@ -27,6 +27,8 @@ export default async function ClanPage({ params }: Props) {
               name: true,
               avatarUrl: true,
               steamName: true,
+              reserveUntil: true,
+              reserveReason: true,
             },
           },
         },
@@ -66,7 +68,11 @@ export default async function ClanPage({ params }: Props) {
           id: m.id,
           role: m.role as ClanRole,
           joinedAt: m.joinedAt.toISOString(),
-          user: m.user,
+          user: {
+            ...m.user,
+            reserveUntil: m.user.reserveUntil?.toISOString() ?? null,
+            reserveReason: m.user.reserveReason,
+          },
         }))}
         myUserId={myUserId}
         myRole={myRole}

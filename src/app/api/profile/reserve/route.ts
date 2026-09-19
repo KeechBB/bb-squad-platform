@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parseFutureOrTodayDate } from "@/lib/validation";
+import { clanLiveChannel, livePublish, userLiveChannel } from "@/lib/liveBus";
+import type { ClanRole } from "@prisma/client";
 
 export const runtime = "nodejs";
 
@@ -19,7 +21,10 @@ export async function POST(req: Request) {
   const until = parseFutureOrTodayDate(untilRaw);
   if (!until) {
     return NextResponse.json(
-      { error: "Укажи дату до которой уходишь в резерв (ДД.ММ.ГГГГ, не в прошлом)" },
+      {
+        error:
+          "Укажи дату до которой уходишь в резерв (ДД.ММ.ГГГГ, не в прошлом)",
+      },
       { status: 400 }
     );
   }
@@ -30,14 +35,38 @@ export async function POST(req: Request) {
     );
   }
 
-  const user = await prisma.user.update({
+  const me = await prisma.user.findUnique({
     where: { steamId: session.user.steamId },
-    data: { reserveUntil: until, reserveReason: reason },
-    select: {
-      reserveUntil: true,
-      reserveReason: true,
-    },
+    include: { clanMemberships: true },
   });
+  if (!me) {
+    return NextResponse.json({ error: "Не найден" }, { status: 404 });
+  }
+
+  const user = await prisma.user.update({
+    where: { id: me.id },
+    data: { reserveUntil: until, reserveReason: reason },
+    select: { id: true, reserveUntil: true, reserveReason: true },
+  });
+
+  // В кланах роль → Резерв (главу не трогаем)
+  for (const m of me.clanMemberships) {
+    if (m.role === "LEADER") continue;
+    if (m.role === "RESERVE" && m.roleBeforeReserve) continue;
+    await prisma.clanMember.update({
+      where: { id: m.id },
+      data: {
+        roleBeforeReserve: m.role as ClanRole,
+        role: "RESERVE",
+      },
+    });
+    livePublish(
+      clanLiveChannel(m.clanId),
+      JSON.stringify({ type: "reserve", userId: me.id })
+    );
+  }
+
+  livePublish(userLiveChannel(me.id), JSON.stringify({ type: "reserve" }));
 
   return NextResponse.json({ ok: true, reserve: user });
 }
@@ -48,11 +77,37 @@ export async function DELETE() {
     return NextResponse.json({ error: "Нужен вход" }, { status: 401 });
   }
 
-  const user = await prisma.user.update({
+  const me = await prisma.user.findUnique({
     where: { steamId: session.user.steamId },
-    data: { reserveUntil: null, reserveReason: null },
-    select: { reserveUntil: true, reserveReason: true },
+    include: { clanMemberships: true },
   });
+  if (!me) {
+    return NextResponse.json({ error: "Не найден" }, { status: 404 });
+  }
+
+  const user = await prisma.user.update({
+    where: { id: me.id },
+    data: { reserveUntil: null, reserveReason: null },
+    select: { id: true, reserveUntil: true, reserveReason: true },
+  });
+
+  for (const m of me.clanMemberships) {
+    if (m.role !== "RESERVE") continue;
+    const restore = (m.roleBeforeReserve || "MEMBER") as ClanRole;
+    await prisma.clanMember.update({
+      where: { id: m.id },
+      data: {
+        role: restore === "LEADER" ? "MEMBER" : restore,
+        roleBeforeReserve: null,
+      },
+    });
+    livePublish(
+      clanLiveChannel(m.clanId),
+      JSON.stringify({ type: "reserve-exit", userId: me.id })
+    );
+  }
+
+  livePublish(userLiveChannel(me.id), JSON.stringify({ type: "reserve" }));
 
   return NextResponse.json({ ok: true, reserve: user });
 }

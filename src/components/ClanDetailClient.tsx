@@ -10,6 +10,7 @@ import {
   canManageClanMembers,
   CLAN_ROLE_LABEL,
 } from "@/lib/clan";
+import { formatRuDate, isActiveReserve } from "@/lib/validation";
 
 type Member = {
   id: string;
@@ -21,6 +22,8 @@ type Member = {
     name: string | null;
     avatarUrl: string | null;
     steamName: string | null;
+    reserveUntil?: string | null;
+    reserveReason?: string | null;
   };
 };
 
@@ -52,6 +55,40 @@ type Props = {
 
 type Tab = "members" | "squads" | "matches" | "stats";
 
+type ClanStatsData = {
+  total: number;
+  played: number;
+  upcoming: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  winrate: number;
+  byStack: {
+    name: string;
+    played: number;
+    wins: number;
+    draws: number;
+    losses: number;
+    winrate: number;
+  }[];
+  maps: {
+    map: string;
+    full: string;
+    games: number;
+    wins: number;
+    losses: number;
+    draws: number;
+  }[];
+  recent: {
+    day: number;
+    opp: string;
+    map: string;
+    stack: string;
+    status: string;
+    meeting: string;
+  }[];
+};
+
 const ROLE_ORDER: ClanRole[] = [
   "LEADER",
   "DEPUTY",
@@ -61,13 +98,11 @@ const ROLE_ORDER: ClanRole[] = [
   "MEMBER",
 ];
 
-const MAP_STATS = [
-  { map: "Gorodok", games: 5 },
-  { map: "Yehorivka", games: 3 },
-  { map: "Narva", games: 2 },
-  { map: "Chora", games: 4 },
-  { map: "Kohat", games: 1 },
-];
+const STATUS_RU: Record<string, string> = {
+  win: "победа",
+  lose: "поражение",
+  draw: "ничья",
+};
 
 export function ClanDetailClient({
   clan,
@@ -88,6 +123,9 @@ export function ClanDetailClient({
   const [ok, setOk] = useState("");
   const [loading, setLoading] = useState(false);
   const [hoverMap, setHoverMap] = useState<string | null>(null);
+  const [stats, setStats] = useState<ClanStatsData | null>(null);
+  const [statsError, setStatsError] = useState("");
+  const [liveOk, setLiveOk] = useState(false);
 
   const canManage = myRole ? canManageClanMembers(myRole) : initialCanManage;
   const assignableRoles = myRole
@@ -112,7 +150,7 @@ export function ClanDetailClient({
         role: ClanRole;
         joinedAt: string;
         userId?: string;
-        user: Member["user"];
+        user: Member["user"] & { reserveUntil?: string | Date | null };
       }>;
       setMembers(
         list.map((m) => ({
@@ -122,7 +160,15 @@ export function ClanDetailClient({
             typeof m.joinedAt === "string"
               ? m.joinedAt
               : new Date(m.joinedAt).toISOString(),
-          user: m.user,
+          user: {
+            ...m.user,
+            reserveUntil: m.user.reserveUntil
+              ? typeof m.user.reserveUntil === "string"
+                ? m.user.reserveUntil
+                : new Date(m.user.reserveUntil).toISOString()
+              : null,
+            reserveReason: m.user.reserveReason ?? null,
+          },
         }))
       );
       if (myUserId) {
@@ -147,26 +193,56 @@ export function ClanDetailClient({
     }
   }, [clan.id]);
 
+  const refreshStats = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/clans/${clan.id}/stats`, { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setStatsError(data.error || "Стата недоступна");
+        return;
+      }
+      setStatsError("");
+      setStats(data.stats as ClanStatsData);
+    } catch {
+      setStatsError("Не удалось загрузить стату КВ");
+    }
+  }, [clan.id]);
+
   useEffect(() => {
     void refreshSquads();
   }, [refreshSquads]);
 
   useEffect(() => {
-    const tick = () => {
+    if (tab === "stats") void refreshStats();
+  }, [tab, refreshStats]);
+
+  useEffect(() => {
+    const sync = () => {
       void refreshMembers();
-      if (tab === "squads") void refreshSquads();
+      void refreshSquads();
+      if (tab === "stats") void refreshStats();
     };
-    const id = window.setInterval(tick, 4000);
-    const onFocus = () => tick();
+
+    let es: EventSource | null = null;
+    try {
+      es = new EventSource(`/api/live/clan/${clan.id}`);
+      es.addEventListener("hello", () => setLiveOk(true));
+      es.addEventListener("clan", () => sync());
+      es.onerror = () => setLiveOk(false);
+    } catch {
+      setLiveOk(false);
+    }
+
+    const poll = window.setInterval(sync, 8000);
+    const onFocus = () => sync();
     window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") tick();
-    });
+
     return () => {
-      window.clearInterval(id);
+      es?.close();
+      window.clearInterval(poll);
       window.removeEventListener("focus", onFocus);
     };
-  }, [refreshMembers, refreshSquads, tab]);
+  }, [clan.id, refreshMembers, refreshSquads, refreshStats, tab]);
 
   async function invite() {
     setError("");
@@ -280,7 +356,8 @@ export function ClanDetailClient({
     await refreshSquads();
   }
 
-  const maxGames = Math.max(...MAP_STATS.map((m) => m.games), 1);
+  const maxGames = Math.max(...(stats?.maps.map((m) => m.games) || [1]), 1);
+  const mapPoints = stats?.maps.slice(0, 8) || [];
   const squadUserIds = useMemo(() => {
     const map = new Map<string, string>();
     for (const s of squads) {
@@ -304,7 +381,15 @@ export function ClanDetailClient({
             [{clan.tag}] {clan.name}
           </h1>
           {myRole ? (
-            <p className="muted">Твоя роль: {CLAN_ROLE_LABEL[myRole]}</p>
+            <p className="muted">
+              Твоя роль: {CLAN_ROLE_LABEL[myRole]}
+              {liveOk ? (
+                <span className="live-dot" title="Обновления в реальном времени">
+                  {" "}
+                  · live
+                </span>
+              ) : null}
+            </p>
           ) : null}
         </div>
       </section>
@@ -379,7 +464,32 @@ export function ClanDetailClient({
                             {(m.user.nick || "?").slice(0, 1)}
                           </span>
                         )}
-                        <span>{m.user.nick || m.user.steamName || "—"}</span>
+                        {m.user.nick ? (
+                          <Link
+                            className="player-nick-link"
+                            href={`/players/${encodeURIComponent(m.user.nick)}`}
+                          >
+                            {m.user.nick}
+                          </Link>
+                        ) : (
+                          <span>{m.user.steamName || "—"}</span>
+                        )}
+                        {isActiveReserve(
+                          m.user.reserveUntil
+                            ? new Date(m.user.reserveUntil)
+                            : null
+                        ) ? (
+                          <span
+                            className="reserve-badge"
+                            title={
+                              m.user.reserveReason
+                                ? `До ${formatRuDate(new Date(m.user.reserveUntil!))}: ${m.user.reserveReason}`
+                                : `До ${formatRuDate(new Date(m.user.reserveUntil!))}`
+                            }
+                          >
+                            резерв
+                          </span>
+                        ) : null}
                       </div>
                     </td>
                     <td>{squadUserIds.get(m.user.id) || "—"}</td>
@@ -549,80 +659,203 @@ export function ClanDetailClient({
 
       {tab === "stats" ? (
         <section className="card clan-stats">
-          <div className="clan-stat-cards">
-            <div>
-              <span className="muted">Игр</span>
-              <strong>15</strong>
-            </div>
-            <div>
-              <span className="muted">Победы</span>
-              <strong>7</strong>
-            </div>
-            <div>
-              <span className="muted">Winrate</span>
-              <strong>47%</strong>
-            </div>
-          </div>
-          <p className="muted" style={{ marginTop: 8 }}>
-            Карты (тест). Наведи на луч — увидишь название.
-          </p>
-          <div className="radar-wrap">
-            <svg viewBox="0 0 200 200" className="radar-svg" aria-label="Карты">
-              {[1, 2, 3, 4].map((ring) => (
-                <circle
-                  key={ring}
-                  cx="100"
-                  cy="100"
-                  r={ring * 20}
-                  fill="none"
-                  stroke="rgba(167,139,250,0.2)"
-                />
-              ))}
-              {MAP_STATS.map((m, i) => {
-                const angle = (Math.PI * 2 * i) / MAP_STATS.length - Math.PI / 2;
-                const r = 20 + (m.games / maxGames) * 70;
-                const x = 100 + Math.cos(angle) * r;
-                const y = 100 + Math.sin(angle) * r;
-                const lx = 100 + Math.cos(angle) * 92;
-                const ly = 100 + Math.sin(angle) * 92;
-                return (
-                  <g key={m.map}>
-                    <line
-                      x1="100"
-                      y1="100"
-                      x2={100 + Math.cos(angle) * 80}
-                      y2={100 + Math.sin(angle) * 80}
-                      stroke="rgba(167,139,250,0.25)"
-                    />
-                    <circle
-                      cx={x}
-                      cy={y}
-                      r={hoverMap === m.map ? 7 : 5}
-                      fill="#a78bfa"
-                      style={{ cursor: "pointer" }}
-                      onMouseEnter={() => setHoverMap(m.map)}
-                      onMouseLeave={() => setHoverMap(null)}
-                    />
-                    <text
-                      x={lx}
-                      y={ly}
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      fill="#9b93b0"
-                      fontSize="8"
-                    >
-                      {m.map.slice(0, 6)}
-                    </text>
-                  </g>
-                );
-              })}
-            </svg>
-            <p className="radar-hint">
-              {hoverMap
-                ? `${hoverMap}: ${MAP_STATS.find((x) => x.map === hoverMap)?.games} игр`
-                : "Наведи на точку"}
-            </p>
-          </div>
+          {statsError ? <p className="error">{statsError}</p> : null}
+          {!stats && !statsError ? <p className="muted">Считаем стату из КВ…</p> : null}
+          {stats ? (
+            <>
+              <div className="clan-stat-cards clan-stat-cards-rich">
+                <div>
+                  <span className="muted">Всего слотов</span>
+                  <strong>{stats.total}</strong>
+                  <em className="stat-sub">
+                    сыграно {stats.played} · впереди {stats.upcoming}
+                  </em>
+                </div>
+                <div>
+                  <span className="muted">W–D–L</span>
+                  <strong>
+                    {stats.wins}–{stats.draws}–{stats.losses}
+                  </strong>
+                  <em className="stat-sub">встречи с результатом</em>
+                </div>
+                <div className="stat-winrate">
+                  <span className="muted">Winrate</span>
+                  <strong>{stats.winrate}%</strong>
+                  <em className="stat-sub">победы / сыгранные</em>
+                </div>
+              </div>
+
+              {stats.byStack.length > 0 ? (
+                <div className="stack-stats">
+                  <h3 className="stats-h3">По составам</h3>
+                  <div className="stack-stats-row">
+                    {stats.byStack.map((s) => (
+                      <div key={s.name} className="stack-stat-pill">
+                        <strong>{s.name}</strong>
+                        <span>
+                          {s.played} игр · {s.wins}W {s.draws}D {s.losses}L ·{" "}
+                          <b>{s.winrate}%</b>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="maps-stats-grid">
+                <div>
+                  <h3 className="stats-h3">Карты</h3>
+                  <p className="muted" style={{ marginTop: 0, fontSize: "0.85rem" }}>
+                    Сколько раз играли и чем закончилось
+                  </p>
+                  <ul className="map-bars">
+                    {mapPoints.length === 0 ? (
+                      <li className="muted">Пока нет сыгранных карт</li>
+                    ) : (
+                      mapPoints.map((m) => (
+                        <li key={m.map}>
+                          <div className="map-bar-head">
+                            <span title={m.full}>{m.map}</span>
+                            <span className="map-bar-nums">
+                              {m.games} · {m.wins}W/{m.draws}D/{m.losses}L
+                            </span>
+                          </div>
+                          <div className="map-bar-track">
+                            <div
+                              className="map-bar-fill"
+                              style={{ width: `${(m.games / maxGames) * 100}%` }}
+                            />
+                          </div>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                </div>
+                <div>
+                  <h3 className="stats-h3">Радар карт</h3>
+                  <div className="radar-wrap">
+                    <svg viewBox="0 0 220 220" className="radar-svg" aria-label="Карты">
+                      {[1, 2, 3, 4].map((ring) => (
+                        <circle
+                          key={ring}
+                          cx="110"
+                          cy="110"
+                          r={ring * 22}
+                          fill="none"
+                          stroke="rgba(167,139,250,0.18)"
+                        />
+                      ))}
+                      {mapPoints.length >= 3
+                        ? (() => {
+                            const pts = mapPoints.map((m, i) => {
+                              const angle =
+                                (Math.PI * 2 * i) / mapPoints.length - Math.PI / 2;
+                              const r = 24 + (m.games / maxGames) * 64;
+                              return [110 + Math.cos(angle) * r, 110 + Math.sin(angle) * r];
+                            });
+                            return (
+                              <polygon
+                                points={pts.map((p) => p.join(",")).join(" ")}
+                                fill="rgba(167,139,250,0.18)"
+                                stroke="#a78bfa"
+                                strokeWidth="1.5"
+                              />
+                            );
+                          })()
+                        : null}
+                      {mapPoints.map((m, i) => {
+                        const angle =
+                          (Math.PI * 2 * i) / Math.max(mapPoints.length, 1) -
+                          Math.PI / 2;
+                        const r = 24 + (m.games / maxGames) * 64;
+                        const x = 110 + Math.cos(angle) * r;
+                        const y = 110 + Math.sin(angle) * r;
+                        const lx = 110 + Math.cos(angle) * 100;
+                        const ly = 110 + Math.sin(angle) * 100;
+                        return (
+                          <g key={m.map}>
+                            <line
+                              x1="110"
+                              y1="110"
+                              x2={110 + Math.cos(angle) * 88}
+                              y2={110 + Math.sin(angle) * 88}
+                              stroke="rgba(167,139,250,0.22)"
+                            />
+                            <circle
+                              cx={x}
+                              cy={y}
+                              r={hoverMap === m.map ? 7 : 5}
+                              fill="#c4b5fd"
+                              style={{ cursor: "pointer" }}
+                              onMouseEnter={() => setHoverMap(m.map)}
+                              onMouseLeave={() => setHoverMap(null)}
+                            />
+                            <text
+                              x={lx}
+                              y={ly}
+                              textAnchor="middle"
+                              dominantBaseline="middle"
+                              fill="#d4c8f0"
+                              fontSize="9"
+                              fontWeight="600"
+                            >
+                              {m.map.slice(0, 8)}
+                            </text>
+                          </g>
+                        );
+                      })}
+                    </svg>
+                    <p className="radar-hint">
+                      {hoverMap
+                        ? (() => {
+                            const m = mapPoints.find((x) => x.map === hoverMap);
+                            return m
+                              ? `${m.map}: ${m.games} игр (${m.wins}W ${m.draws}D ${m.losses}L)`
+                              : "";
+                          })()
+                        : "Наведи на точку — цифры по карте"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {stats.recent.length > 0 ? (
+                <div style={{ marginTop: 18 }}>
+                  <h3 className="stats-h3">Последние матчи</h3>
+                  <div className="admin-table-wrap">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>День</th>
+                          <th>Соперник</th>
+                          <th>Карта</th>
+                          <th>Состав</th>
+                          <th>Счёт</th>
+                          <th>Итог</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stats.recent.map((m, i) => (
+                          <tr key={`${m.day}-${m.opp}-${i}`}>
+                            <td>{String(m.day).padStart(2, "0")}</td>
+                            <td>{m.opp}</td>
+                            <td>{m.map}</td>
+                            <td>{m.stack}</td>
+                            <td>{m.meeting}</td>
+                            <td>
+                              <span className={`status-chip ${m.status}`}>
+                                {STATUS_RU[m.status] || m.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : null}
+            </>
+          ) : null}
         </section>
       ) : null}
 

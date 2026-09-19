@@ -483,6 +483,46 @@ a:hover { color: #c4b5fd; }
   color: var(--muted);
   font-weight: 600;
   white-space: nowrap;
+  text-align: center;
+}
+
+.clan-detail .admin-table td:nth-child(2) {
+  text-align: left;
+}
+
+.player-nick-link {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(167, 139, 250, 0.35);
+}
+
+.player-nick-link:hover {
+  color: #c4b5fd;
+  border-bottom-color: #c4b5fd;
+}
+
+.reserve-badge {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.14);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  white-space: nowrap;
+}
+
+.profile-head-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.reserve-banner {
+  border-color: rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.06);
 }
 
 .admin-table tr:last-child td {
@@ -755,15 +795,148 @@ a:hover { color: #c4b5fd; }
 .clan-stat-cards > div {
   border: 1px solid var(--line);
   border-radius: 12px;
-  padding: 12px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  background: linear-gradient(160deg, rgba(167, 139, 250, 0.1), rgba(0, 0, 0, 0.25));
 }
 
 .clan-stat-cards strong {
-  font-size: 1.4rem;
+  font-size: 1.55rem;
   font-family: var(--font-display);
+  letter-spacing: 0.02em;
+}
+
+.clan-stat-cards .stat-sub {
+  font-style: normal;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.stat-winrate strong {
+  background: linear-gradient(120deg, #c4b5fd, #e879f9);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.stats-h3 {
+  margin: 18px 0 8px;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #efe8ff;
+}
+
+.stack-stats-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.stack-stat-pill {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.28);
+  min-width: 160px;
+}
+
+.stack-stat-pill strong {
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+}
+
+.stack-stat-pill span {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.stack-stat-pill b {
+  color: var(--violet);
+  font-weight: 700;
+}
+
+.maps-stats-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 18px;
+  margin-top: 8px;
+}
+
+@media (max-width: 720px) {
+  .maps-stats-grid,
+  .clan-stat-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+.map-bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.map-bar-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.88rem;
+  margin-bottom: 4px;
+}
+
+.map-bar-nums {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.map-bar-track {
+  height: 8px;
+  border-radius: 99px;
+  background: rgba(167, 139, 250, 0.12);
+  overflow: hidden;
+}
+
+.map-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #7c3aed, #e879f9);
+}
+
+.status-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  text-transform: lowercase;
+}
+
+.status-chip.win {
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.12);
+}
+
+.status-chip.lose {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.12);
+}
+
+.status-chip.draw {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.12);
+}
+
+.live-dot {
+  color: #34d399;
+  font-size: 0.85em;
 }
 
 .radar-wrap {

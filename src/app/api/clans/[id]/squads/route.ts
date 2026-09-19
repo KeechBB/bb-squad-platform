@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canManageClanMembers } from "@/lib/clan";
 import { ensureDefaultSquads } from "@/lib/squads";
+import { clanLiveChannel, livePublish } from "@/lib/liveBus";
 
 export const runtime = "nodejs";
 
@@ -68,6 +69,7 @@ export async function POST(req: Request, ctx: Ctx) {
       data: { clanId, name, sortOrder: count + 10 },
       include: { members: true },
     });
+    livePublish(clanLiveChannel(clanId), JSON.stringify({ type: "squad" }));
     return NextResponse.json({ ok: true, squad });
   } catch {
     return NextResponse.json({ error: "Такой состав уже есть" }, { status: 409 });
@@ -108,6 +110,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
   if (action === "remove") {
     await prisma.clanSquadMember.deleteMany({ where: { squadId, userId } });
+    livePublish(clanLiveChannel(clanId), JSON.stringify({ type: "squad" }));
     return NextResponse.json({ ok: true });
   }
 
@@ -131,6 +134,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     update: {},
   });
 
+  livePublish(clanLiveChannel(clanId), JSON.stringify({ type: "squad" }));
   return NextResponse.json({ ok: true });
 }
 
@@ -159,5 +163,6 @@ export async function DELETE(req: Request, ctx: Ctx) {
   }
 
   await prisma.clanSquad.delete({ where: { id: squadId } });
+  livePublish(clanLiveChannel(clanId), JSON.stringify({ type: "squad" }));
   return NextResponse.json({ ok: true });
 }

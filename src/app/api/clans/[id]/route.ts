@@ -8,6 +8,7 @@ import {
   canManageClanMembers,
   type ClanRole,
 } from "@/lib/clan";
+import { clanLiveChannel, livePublish, userLiveChannel } from "@/lib/liveBus";
 
 export const runtime = "nodejs";
 
@@ -37,6 +38,8 @@ export async function GET(_req: Request, ctx: Ctx) {
               name: true,
               avatarUrl: true,
               steamName: true,
+              reserveUntil: true,
+              reserveReason: true,
             },
           },
         },
@@ -101,6 +104,9 @@ export async function POST(req: Request, ctx: Ctx) {
     },
   });
 
+  livePublish(clanLiveChannel(clanId), JSON.stringify({ type: "invite" }));
+  livePublish(userLiveChannel(target.id), JSON.stringify({ type: "invite" }));
+
   return NextResponse.json({ ok: true, invite });
 }
 
@@ -148,6 +154,14 @@ export async function PATCH(req: Request, ctx: Ctx) {
     where: { id: memberId },
     data: { role },
   });
+  livePublish(
+    clanLiveChannel(clanId),
+    JSON.stringify({ type: "role", memberId, role })
+  );
+  livePublish(
+    userLiveChannel(target.userId),
+    JSON.stringify({ type: "role", role })
+  );
   return NextResponse.json({ ok: true, member: updated });
 }
 
@@ -175,5 +189,7 @@ export async function DELETE(req: Request, ctx: Ctx) {
   }
 
   await prisma.clanMember.delete({ where: { id: memberId } });
+  livePublish(clanLiveChannel(clanId), JSON.stringify({ type: "kick", memberId }));
+  livePublish(userLiveChannel(target.userId), JSON.stringify({ type: "kick" }));
   return NextResponse.json({ ok: true });
 }

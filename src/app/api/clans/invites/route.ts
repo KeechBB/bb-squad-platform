@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { clanLiveChannel, livePublish, userLiveChannel } from "@/lib/liveBus";
 
 export const runtime = "nodejs";
 
@@ -59,6 +60,7 @@ export async function POST(req: Request) {
       where: { id: inviteId },
       data: { status: "DECLINED" },
     });
+    livePublish(userLiveChannel(me.id), JSON.stringify({ type: "invite" }));
     return NextResponse.json({ ok: true });
   }
 
@@ -80,6 +82,9 @@ export async function POST(req: Request) {
     where: { id: inviteId },
     data: { status: "ACCEPTED" },
   });
+
+  livePublish(clanLiveChannel(invite.clanId), JSON.stringify({ type: "join" }));
+  livePublish(userLiveChannel(me.id), JSON.stringify({ type: "join" }));
 
   return NextResponse.json({ ok: true, clanId: invite.clanId });
 }

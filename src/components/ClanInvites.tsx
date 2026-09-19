@@ -1,7 +1,7 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 
 type Invite = {
   id: string;
@@ -15,7 +15,34 @@ export function ClanInvites({ initial }: { initial: Invite[] }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState<string | null>(null);
 
-  if (invites.length === 0) return null;
+  const reload = useCallback(async () => {
+    try {
+      const res = await fetch("/api/clans/invites", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      setInvites(data.invites || []);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    let es: EventSource | null = null;
+    try {
+      es = new EventSource("/api/live/me");
+      es.addEventListener("user", () => {
+        void reload();
+        router.refresh();
+      });
+    } catch {
+      /* */
+    }
+    const id = window.setInterval(() => void reload(), 10000);
+    return () => {
+      es?.close();
+      window.clearInterval(id);
+    };
+  }, [reload, router]);
 
   async function act(inviteId: string, action: "accept" | "decline") {
     setError("");
@@ -44,6 +71,8 @@ export function ClanInvites({ initial }: { initial: Invite[] }) {
       setLoading(null);
     }
   }
+
+  if (invites.length === 0) return null;
 
   return (
     <section className="card">

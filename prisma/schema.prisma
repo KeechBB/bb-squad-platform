@@ -96,11 +96,12 @@ model ClanSquadMember {
 }
 
 model ClanMember {
-  id       String   @id @default(cuid())
-  clanId   String
-  userId   String
-  role     ClanRole @default(MEMBER)
-  joinedAt DateTime @default(now())
+  id                String    @id @default(cuid())
+  clanId            String
+  userId            String
+  role              ClanRole  @default(MEMBER)
+  roleBeforeReserve ClanRole?
+  joinedAt          DateTime  @default(now())
 
   clan Clan @relation(fields: [clanId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
