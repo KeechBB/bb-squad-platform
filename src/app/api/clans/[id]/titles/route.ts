@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { ClanRole } from "@/lib/clan";
 import {
+  canAssignTitleToMember,
   canManageClanTitles,
   ensureDefaultTitles,
   isValidTitleName,
@@ -120,6 +121,18 @@ export async function PATCH(req: Request, ctx: Ctx) {
   });
   if (!target) {
     return NextResponse.json({ error: "Участник не найден" }, { status: 404 });
+  }
+
+  if (
+    !canAssignTitleToMember(
+      actor.member.role as ClanRole,
+      target.role as ClanRole
+    )
+  ) {
+    return NextResponse.json(
+      { error: "HR не может менять должность главе клана" },
+      { status: 403 }
+    );
   }
 
   if (titleId) {

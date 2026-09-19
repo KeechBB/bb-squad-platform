@@ -34,3 +34,12 @@ export function canManageClanTitles(
   if (role === "LEADER") return true;
   return Boolean(titleName && titleName.toLowerCase() === "hr");
 }
+
+/** HR не может менять должность главе клана — только сам глава */
+export function canAssignTitleToMember(
+  actorRole: ClanRole,
+  targetRole: ClanRole
+): boolean {
+  if (targetRole === "LEADER") return actorRole === "LEADER";
+  return true;
+}

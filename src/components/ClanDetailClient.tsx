@@ -12,6 +12,7 @@ import {
 } from "@/lib/clan";
 import { formatRuDate, isActiveReserve } from "@/lib/validation";
 import { withAvatarCacheBust } from "@/lib/avatarUrl";
+import { canAssignTitleToMember } from "@/lib/titles";
 
 type Member = {
   id: string;
@@ -720,7 +721,9 @@ export function ClanDetailClient({
                       )}
                     </td>
                     <td>
-                      {canTitles ? (
+                      {canTitles &&
+                      myRole &&
+                      canAssignTitleToMember(myRole, m.role) ? (
                         <select
                           className="role-select"
                           value={m.title?.id || ""}
