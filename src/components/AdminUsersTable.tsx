@@ -16,6 +16,7 @@ export type AdminUserRow = {
   profileComplete: boolean;
   createdAt: string;
   canEditRole: boolean;
+  canDelete: boolean;
 };
 
 type SortKey = "createdAt" | "nick" | "name" | "age" | "steamId" | "role";
@@ -142,6 +143,39 @@ export function AdminUsersTable({ initialUsers, roleOptions, actorRole }: Props)
     }
   }
 
+  async function deleteUser(userId: string) {
+    const target = users.find((u) => u.id === userId);
+    if (!target || !target.canDelete) return;
+
+    const label = target.nick || target.steamId;
+    const hint = target.profileComplete
+      ? `Удалить пользователя ${label}? Анкета и данные будут стёрты.`
+      : `Удалить незавершённую регистрацию ${label}?`;
+    if (!window.confirm(hint)) return;
+
+    setError("");
+    setOk("");
+    setBusyId(userId);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: "DELETE",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Не удалось удалить");
+        return;
+      }
+      setUsers((list) => list.filter((u) => u.id !== userId));
+      setOk(`Удалён: ${label}`);
+    } catch {
+      setError("Сеть или сервер недоступны");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const showDeleteCol = users.some((u) => u.canDelete);
+
   return (
     <div className="admin-panel">
       <div className="admin-toolbar">
@@ -195,6 +229,7 @@ export function AdminUsersTable({ initialUsers, roleOptions, actorRole }: Props)
                   Роль{sortMark("role")}
                 </button>
               </th>
+              {showDeleteCol ? <th></th> : null}
             </tr>
           </thead>
           <tbody>
@@ -238,12 +273,26 @@ export function AdminUsersTable({ initialUsers, roleOptions, actorRole }: Props)
                       <span className="role-static">{roleLabel(u.role)}</span>
                     )}
                   </td>
+                  {showDeleteCol ? (
+                    <td>
+                      {u.canDelete ? (
+                        <button
+                          type="button"
+                          className="btn ghost leave-clan-btn"
+                          disabled={busyId === u.id}
+                          onClick={() => void deleteUser(u.id)}
+                        >
+                          Удалить
+                        </button>
+                      ) : null}
+                    </td>
+                  ) : null}
                 </tr>
               );
             })}
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="muted">
+                <td colSpan={showDeleteCol ? 8 : 7} className="muted">
                   Никого не найдено
                 </td>
               </tr>

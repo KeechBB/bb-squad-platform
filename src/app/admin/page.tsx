@@ -2,6 +2,7 @@ import { getSession } from "@/lib/auth";
 import {
   assignableRoles,
   canChangeRole,
+  canDeleteUser,
   effectiveRole,
   getUserRole,
   isAdmin,
@@ -55,6 +56,12 @@ export default async function AdminPage() {
       canEditRole:
         u.steamId !== session.user.steamId &&
         canChangeRole(actorRole, role, u.steamId),
+      canDelete: canDeleteUser(
+        actorRole,
+        role,
+        u.steamId,
+        u.steamId === session.user.steamId
+      ),
     };
   });
 
@@ -65,6 +72,7 @@ export default async function AdminPage() {
         <h1>Панель</h1>
         <p className="lead">
           Пользователи платформы. Кликни по нику — правка анкеты и аватара.
+          Удаление (в т.ч. незавершённых) — главный админ и HR.
         </p>
         <div className="admin-tabs" role="tablist">
           <span className="admin-tab active">Пользователи</span>

@@ -154,3 +154,27 @@ export function canSetRole(
   }
   return true;
 }
+
+/**
+ * Удаление пользователей: только Главный админ или HR.
+ * Нельзя удалить себя, главного админа; HR не удаляет зама.
+ */
+export function canDeleteUser(
+  actorRole: AppRole,
+  targetRole: AppRole,
+  targetSteamId: string,
+  isSelf: boolean
+): boolean {
+  if (isSelf) return false;
+  if (actorRole !== "SUPER_ADMIN" && actorRole !== "HR") return false;
+  if (isBuiltinSuperAdmin(targetSteamId) || targetRole === "SUPER_ADMIN") {
+    return false;
+  }
+  if (
+    actorRole === "HR" &&
+    (targetRole === "DEPUTY" || isBuiltinDeputy(targetSteamId))
+  ) {
+    return false;
+  }
+  return true;
+}

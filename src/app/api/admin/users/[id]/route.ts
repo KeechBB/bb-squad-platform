@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/requireAdmin";
 import {
   canEditProfile,
+  canDeleteUser,
   canSetRole,
   effectiveRole,
   getUserRole,
@@ -207,4 +208,56 @@ export async function PATCH(req: Request, ctx: Ctx) {
   } catch {
     return NextResponse.json({ error: "Не удалось сохранить" }, { status: 500 });
   }
+}
+
+export async function DELETE(_req: Request, ctx: Ctx) {
+  const gate = await requireAdmin();
+  if (gate.error) return gate.error;
+  const actorSteamId = gate.session!.user.steamId;
+  const actorRole = (await getUserRole(actorSteamId)) || "USER";
+
+  const { id } = await ctx.params;
+  const existing = await prisma.user.findUnique({
+    where: { id },
+    include: {
+      ledClans: { select: { id: true, tag: true, name: true } },
+    },
+  });
+  if (!existing) {
+    return NextResponse.json({ error: "Не найден" }, { status: 404 });
+  }
+
+  const existingRole = effectiveRole(existing.steamId, existing.role as AppRole);
+  const isSelf = existing.steamId === actorSteamId;
+  if (!canDeleteUser(actorRole, existingRole, existing.steamId, isSelf)) {
+    return NextResponse.json(
+      { error: "Удалять могут только главный админ и HR" },
+      { status: 403 }
+    );
+  }
+
+  for (const clan of existing.ledClans) {
+    const others = await prisma.clanMember.count({
+      where: { clanId: clan.id, NOT: { userId: existing.id } },
+    });
+    if (others > 0) {
+      return NextResponse.json(
+        {
+          error: `Сначала передай главу или распусти клан [${clan.tag}] ${clan.name}`,
+        },
+        { status: 409 }
+      );
+    }
+    await prisma.clan.delete({ where: { id: clan.id } });
+  }
+
+  await removeUserAvatarFiles(existing.id);
+  await prisma.user.delete({ where: { id: existing.id } });
+
+  livePublish(
+    userLiveChannel(existing.id),
+    JSON.stringify({ type: "deleted" })
+  );
+
+  return NextResponse.json({ ok: true });
 }
