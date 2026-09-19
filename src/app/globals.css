@@ -483,11 +483,26 @@ a:hover { color: #c4b5fd; }
   color: var(--muted);
   font-weight: 600;
   white-space: nowrap;
-  text-align: center;
+  text-align: left;
 }
 
-.clan-detail .admin-table td:nth-child(2) {
+.clan-detail .admin-table th,
+.clan-detail .admin-table td {
   text-align: left;
+  vertical-align: middle;
+}
+
+.clan-detail .admin-table th:first-child,
+.clan-detail .admin-table td:first-child {
+  text-align: center;
+  width: 3rem;
+}
+
+.clan-detail .admin-table th:last-child,
+.clan-detail .admin-table td:last-child {
+  text-align: right;
+  width: 1%;
+  white-space: nowrap;
 }
 
 .player-nick-link {
