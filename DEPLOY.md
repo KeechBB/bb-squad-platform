@@ -4,23 +4,16 @@ GitHub Pages (таблица КВ) и эта платформа — **разны
 
 ## Важно про базу
 
-SQLite на Vercel **не сохраняется**. Для продакшена:
+Прод и нормальная разработка — **Postgres в Neon** (облако).
 
-1. Создай бесплатную БД [Neon](https://neon.tech) (Postgres).
-2. В `prisma/schema.prisma` поменяй:
+1. Neon → проект → **Connect** → скопируй Connection string.
+2. Вставь в `platform/.env` как `DATABASE_URL=...` (в чат не кидать).
+3. В `prisma/schema.prisma` уже `provider = "postgresql"`.
+4. Локально: `npm run db:push` — создаст таблицы в Neon.
 
-```prisma
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-```
+SQLite (`file:./dev.db`) больше не используем для платформы.
 
-3. `DATABASE_URL` = connection string из Neon.
-
-Пока тестируешь только локально — оставляй `sqlite`.
-
-## Шаги
+Старый чеклист Vercel:
 
 1. Залей репо на GitHub (например `KeechBB/bb-squad-platform`).
 2. [vercel.com](https://vercel.com) → Login with GitHub → Import project.

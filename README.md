@@ -2,6 +2,12 @@
 
 Вход через Steam, ник латиницей, профиль. Статистика — следующим этапом.
 
+**Документы (не терять цели):**
+
+- [docs/VISION.md](./docs/VISION.md) — что строим
+- [docs/ROADMAP.md](./docs/ROADMAP.md) — этапы
+- [docs/JOURNAL.md](./docs/JOURNAL.md) — что уже сделали
+
 ## Локально
 
 1. Node 20+
