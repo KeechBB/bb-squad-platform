@@ -2,7 +2,8 @@ import { mkdir, readdir, unlink, writeFile } from "fs/promises";
 import path from "path";
 
 export const AVATAR_DIR = path.join(process.cwd(), "public", "uploads", "avatars");
-export const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+export const AVATAR_MAX_BYTES = 1024 * 1024;
+
 export const AVATAR_TYPES = {
   "image/jpeg": "jpg",
   "image/png": "png",

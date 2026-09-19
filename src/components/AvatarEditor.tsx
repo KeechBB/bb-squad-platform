@@ -24,15 +24,30 @@ export function AvatarEditor({ nick, name, initialAvatar, hasCustom }: Props) {
     setError("");
     setLoading(true);
     try {
+      if (file.size > 1024 * 1024) {
+        setError("Файл больше 1 МБ — сожми картинку");
+        return;
+      }
       const body = new FormData();
       body.set("avatar", file);
       const res = await fetch("/api/avatar", { method: "POST", body });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(data.error || "Не удалось загрузить");
+      const text = await res.text();
+      let data: { error?: string; avatarUrl?: string } = {};
+      try {
+        data = JSON.parse(text) as typeof data;
+      } catch {
+        if (res.status === 413) {
+          setError("Файл слишком большой для сервера (лимит nginx)");
+          return;
+        }
+        setError(`Ошибка сервера (${res.status})`);
         return;
       }
-      setPreview(data.avatarUrl);
+      if (!res.ok) {
+        setError(data.error || `Не удалось загрузить (${res.status})`);
+        return;
+      }
+      setPreview(data.avatarUrl || null);
       setCustom(true);
       await update({ avatarUrl: data.avatarUrl });
       router.refresh();
@@ -107,7 +122,7 @@ export function AvatarEditor({ nick, name, initialAvatar, hasCustom }: Props) {
           ) : null}
         </div>
         {error ? <p className="error">{error}</p> : null}
-        <p className="avatar-hint">jpg / png / webp, до 2 МБ</p>
+        <p className="avatar-hint">jpg / png / webp, до 1 МБ</p>
       </div>
       <div>
         <p className="eyebrow">профиль</p>
