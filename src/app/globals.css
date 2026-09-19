@@ -184,10 +184,10 @@ a:hover { color: #c4b5fd; }
 }
 
 .profile-avatar {
-  width: 112px;
-  height: 112px;
+  width: 176px;
+  height: 176px;
   object-fit: cover;
-  border-radius: 18px;
+  border-radius: 22px;
   border: 1px solid var(--line);
   background: rgba(16, 12, 28, 0.9);
   box-shadow: 0 0 28px rgba(167, 139, 250, 0.18);
@@ -197,7 +197,7 @@ a:hover { color: #c4b5fd; }
   display: grid;
   place-items: center;
   font-family: var(--font-display);
-  font-size: 2.4rem;
+  font-size: 3.2rem;
   font-weight: 700;
   color: var(--violet);
 }

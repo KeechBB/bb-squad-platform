@@ -85,7 +85,7 @@ export function AvatarEditor({ nick, name, initialAvatar, hasCustom }: Props) {
       <div className="profile-avatar-wrap">
         {preview ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img className="profile-avatar" src={preview} alt="" width={112} height={112} />
+          <img className="profile-avatar" src={preview} alt="" width={176} height={176} />
         ) : (
           <div className="profile-avatar profile-avatar-fallback" aria-hidden>
             {(nick || "?").slice(0, 1).toUpperCase()}
