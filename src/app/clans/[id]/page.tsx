@@ -14,6 +14,7 @@ import {
   canReviewClanJoinRequests,
   ensureDefaultTitles,
 } from "@/lib/titles";
+import { loadTierIndex } from "@/lib/tiers";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -133,6 +134,9 @@ export default async function ClanPage({ params }: Props) {
     myRole == null &&
     !inOtherClan;
 
+  const tierMap = await loadTierIndex();
+  const tierEntries = Array.from(tierMap.entries());
+
   return (
     <main className="clan-page">
       <ClanDetailClient
@@ -169,6 +173,7 @@ export default async function ClanPage({ params }: Props) {
         myPendingRequestId={myPendingRequestId}
         joinRequests={joinRequests}
         assignableRoles={assignable}
+        tierEntries={tierEntries}
       />
     </main>
   );

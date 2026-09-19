@@ -40,7 +40,7 @@ a:hover { color: #c4b5fd; }
 
 .shell:has(.clan-page),
 .shell:has(.clan-detail) {
-  max-width: 1000px;
+  max-width: 1200px;
   margin-left: auto;
   margin-right: auto;
 }
@@ -1322,6 +1322,115 @@ body:has(.home-page) {
   margin-bottom: 16px;
 }
 
+.clan-members-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+  gap: 20px;
+  align-items: start;
+  margin-top: 4px;
+}
+
+.clan-members-main {
+  min-width: 0;
+}
+
+.clan-roster-chart {
+  position: sticky;
+  top: 88px;
+  padding: 14px 14px 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background:
+    linear-gradient(160deg, rgba(22, 16, 40, 0.92), rgba(10, 8, 18, 0.88));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.clan-roster-chart-title {
+  margin: 2px 0 0;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  letter-spacing: 0.02em;
+}
+
+.clan-roster-chart-lead {
+  margin: 6px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.clan-roster-chart-viz {
+  display: grid;
+  place-items: center;
+  margin-top: 10px;
+}
+
+.clan-roster-svg {
+  width: min(220px, 100%);
+  height: auto;
+}
+
+.clan-roster-slice {
+  cursor: default;
+  transition: opacity 0.15s ease;
+}
+
+.clan-roster-center-num {
+  fill: #f2eefc;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.clan-roster-center-label {
+  fill: #9b93b0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.clan-roster-legend {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.clan-roster-legend li {
+  display: grid;
+  grid-template-columns: 10px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  padding: 5px 6px;
+  border-radius: 8px;
+}
+
+.clan-roster-legend li.is-active {
+  background: rgba(167, 139, 250, 0.1);
+}
+
+.clan-roster-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.clan-roster-legend-label {
+  color: var(--muted);
+}
+
+.roster-rank-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
 .clan-titles-panel {
   margin-top: 16px;
   padding-top: 12px;
@@ -1935,6 +2044,15 @@ body:has(.home-page) {
   .home-upcoming-window {
     width: 100%;
     max-width: 100%;
+  }
+
+  .clan-members-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .clan-roster-chart {
+    position: static;
+    order: -1;
   }
 
   .invite-row {

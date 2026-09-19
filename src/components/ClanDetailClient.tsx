@@ -21,6 +21,13 @@ import {
   canManageClanTitles,
   canReviewClanJoinRequests,
 } from "@/lib/titles";
+import {
+  classifyRosterMember,
+  ROSTER_BUCKET_COLOR,
+  ROSTER_BUCKET_LABEL,
+  tallyRosterBuckets,
+} from "@/lib/tiers";
+import { ClanRosterChart } from "@/components/ClanRosterChart";
 
 type Member = {
   id: string;
@@ -91,6 +98,7 @@ type Props = {
   myPendingRequestId: string | null;
   joinRequests: JoinRequest[];
   assignableRoles: ClanRole[];
+  tierEntries: Array<[string, 1 | 2 | 3]>;
 };
 
 type Tab = "members" | "squads" | "matches" | "stats";
@@ -162,6 +170,7 @@ export function ClanDetailClient({
   myPendingRequestId: initialPendingRequestId,
   joinRequests: initialJoinRequests,
   assignableRoles: initialAssignable,
+  tierEntries,
 }: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("members");
@@ -740,6 +749,22 @@ export function ClanDetailClient({
     return memberOrder === "asc" ? " ↑" : " ↓";
   }
 
+  const tierMap = useMemo(() => new Map(tierEntries), [tierEntries]);
+
+  const rosterBuckets = useMemo(
+    () =>
+      tallyRosterBuckets(
+        members.map((m) => ({
+          nick: m.user.nick,
+          role: m.role,
+          reserveUntil: m.user.reserveUntil,
+          squadName: squadUserIds.get(m.user.id) || null,
+        })),
+        tierMap
+      ),
+    [members, squadUserIds, tierMap]
+  );
+
   return (
     <div className="clan-detail">
       <section className="hero clan-detail-hero">
@@ -944,161 +969,191 @@ export function ClanDetailClient({
             </div>
           ) : null}
 
-          <div className="admin-table-wrap" style={{ marginTop: 12 }}>
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>
-                    <button
-                      type="button"
-                      className="sort-btn"
-                      onClick={() => toggleMemberSort("player")}
-                    >
-                      Игрок{memberSortMark("player")}
-                    </button>
-                  </th>
-                  <th>
-                    <button
-                      type="button"
-                      className="sort-btn"
-                      onClick={() => toggleMemberSort("squad")}
-                    >
-                      Состав{memberSortMark("squad")}
-                    </button>
-                  </th>
-                  <th>
-                    <button
-                      type="button"
-                      className="sort-btn"
-                      onClick={() => toggleMemberSort("role")}
-                    >
-                      Роль{memberSortMark("role")}
-                    </button>
-                  </th>
-                  <th>
-                    <button
-                      type="button"
-                      className="sort-btn"
-                      onClick={() => toggleMemberSort("title")}
-                    >
-                      Должность{memberSortMark("title")}
-                    </button>
-                  </th>
-                  {showKickCol ? <th></th> : null}
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.map((m, i) => {
-                  const avatarSrc = withAvatarCacheBust(
-                    m.user.avatarUrl,
-                    m.user.updatedAt || m.user.avatarUrl
-                  );
-                  return (
-                  <tr key={m.id}>
-                    <td>{i + 1}</td>
-                    <td>
-                      <div className="clan-member-cell">
-                        {avatarSrc ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={avatarSrc} alt="" width={28} height={28} />
-                        ) : (
-                          <span className="clan-member-fallback">
-                            {(m.user.nick || "?").slice(0, 1)}
-                          </span>
-                        )}
-                        {m.user.nick ? (
-                          <Link
-                            className="player-nick-link"
-                            href={`/players/${encodeURIComponent(m.user.nick)}`}
-                          >
-                            {m.user.nick}
-                          </Link>
-                        ) : (
-                          <span>{m.user.steamName || "—"}</span>
-                        )}
-                        {isActiveReserve(
-                          m.user.reserveUntil
-                            ? new Date(m.user.reserveUntil)
-                            : null
-                        ) ? (
-                          <span
-                            className="reserve-badge"
-                            title={
-                              m.user.reserveReason
-                                ? `До ${formatRuDate(new Date(m.user.reserveUntil!))}: ${m.user.reserveReason}`
-                                : `До ${formatRuDate(new Date(m.user.reserveUntil!))}`
-                            }
-                          >
-                            резерв
-                          </span>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td>{squadUserIds.get(m.user.id) || "—"}</td>
-                    <td>
-                      {canAssignRoles &&
-                      myRole &&
-                      assignableRoles.includes(m.role) &&
-                      m.role !== "LEADER" ? (
-                        <select
-                          className="role-select"
-                          value={m.role}
-                          onChange={(e) =>
-                            void setRole(m.id, e.target.value as ClanRole)
-                          }
+          <div className="clan-members-layout">
+            <div className="clan-members-main">
+              <div className="admin-table-wrap" style={{ marginTop: 12 }}>
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>
+                        <button
+                          type="button"
+                          className="sort-btn"
+                          onClick={() => toggleMemberSort("player")}
                         >
-                          {assignableRoles.map((r) => (
-                            <option key={r} value={r}>
-                              {CLAN_ROLE_LABEL[r]}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        CLAN_ROLE_LABEL[m.role]
-                      )}
-                    </td>
-                    <td>
-                      {canTitles &&
-                      myRole &&
-                      canAssignTitleToMember(myRole, m.role) ? (
-                        <select
-                          className="role-select"
-                          value={m.title?.id || ""}
-                          onChange={(e) =>
-                            void setMemberTitle(m.id, e.target.value)
-                          }
+                          Игрок{memberSortMark("player")}
+                        </button>
+                      </th>
+                      <th>
+                        <button
+                          type="button"
+                          className="sort-btn"
+                          onClick={() => toggleMemberSort("squad")}
                         >
-                          <option value="">—</option>
-                          {titles.map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.name}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        m.title?.name || "—"
-                      )}
-                    </td>
-                    {showKickCol ? (
-                      <td>
-                        {myRole &&
-                        canKickClanMember(myRole, m.role, myTitleName) ? (
-                          <button
-                            type="button"
-                            className="btn ghost"
-                            onClick={() => void kick(m.id)}
-                          >
-                            Кик
-                          </button>
-                        ) : null}
-                      </td>
-                    ) : null}
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                          Состав{memberSortMark("squad")}
+                        </button>
+                      </th>
+                      <th>Ранг</th>
+                      <th>
+                        <button
+                          type="button"
+                          className="sort-btn"
+                          onClick={() => toggleMemberSort("role")}
+                        >
+                          Роль{memberSortMark("role")}
+                        </button>
+                      </th>
+                      <th>
+                        <button
+                          type="button"
+                          className="sort-btn"
+                          onClick={() => toggleMemberSort("title")}
+                        >
+                          Должность{memberSortMark("title")}
+                        </button>
+                      </th>
+                      {showKickCol ? <th></th> : null}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sorted.map((m, i) => {
+                      const avatarSrc = withAvatarCacheBust(
+                        m.user.avatarUrl,
+                        m.user.updatedAt || m.user.avatarUrl
+                      );
+                      const rankBucket = classifyRosterMember({
+                        nick: m.user.nick,
+                        role: m.role,
+                        reserveUntil: m.user.reserveUntil,
+                        squadName: squadUserIds.get(m.user.id) || null,
+                        tierMap,
+                      });
+                      return (
+                        <tr key={m.id}>
+                          <td>{i + 1}</td>
+                          <td>
+                            <div className="clan-member-cell">
+                              {avatarSrc ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={avatarSrc}
+                                  alt=""
+                                  width={28}
+                                  height={28}
+                                />
+                              ) : (
+                                <span className="clan-member-fallback">
+                                  {(m.user.nick || "?").slice(0, 1)}
+                                </span>
+                              )}
+                              {m.user.nick ? (
+                                <Link
+                                  className="player-nick-link"
+                                  href={`/players/${encodeURIComponent(m.user.nick)}`}
+                                >
+                                  {m.user.nick}
+                                </Link>
+                              ) : (
+                                <span>{m.user.steamName || "—"}</span>
+                              )}
+                              {isActiveReserve(
+                                m.user.reserveUntil
+                                  ? new Date(m.user.reserveUntil)
+                                  : null
+                              ) ? (
+                                <span
+                                  className="reserve-badge"
+                                  title={
+                                    m.user.reserveReason
+                                      ? `До ${formatRuDate(new Date(m.user.reserveUntil!))}: ${m.user.reserveReason}`
+                                      : `До ${formatRuDate(new Date(m.user.reserveUntil!))}`
+                                  }
+                                >
+                                  резерв
+                                </span>
+                              ) : null}
+                            </div>
+                          </td>
+                          <td>{squadUserIds.get(m.user.id) || "—"}</td>
+                          <td>
+                            <span
+                              className="roster-rank-badge"
+                              style={{
+                                color: ROSTER_BUCKET_COLOR[rankBucket],
+                                borderColor: `${ROSTER_BUCKET_COLOR[rankBucket]}55`,
+                                background: `${ROSTER_BUCKET_COLOR[rankBucket]}18`,
+                              }}
+                            >
+                              {ROSTER_BUCKET_LABEL[rankBucket]}
+                            </span>
+                          </td>
+                          <td>
+                            {canAssignRoles &&
+                            myRole &&
+                            assignableRoles.includes(m.role) &&
+                            m.role !== "LEADER" ? (
+                              <select
+                                className="role-select"
+                                value={m.role}
+                                onChange={(e) =>
+                                  void setRole(m.id, e.target.value as ClanRole)
+                                }
+                              >
+                                {assignableRoles.map((r) => (
+                                  <option key={r} value={r}>
+                                    {CLAN_ROLE_LABEL[r]}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              CLAN_ROLE_LABEL[m.role]
+                            )}
+                          </td>
+                          <td>
+                            {canTitles &&
+                            myRole &&
+                            canAssignTitleToMember(myRole, m.role) ? (
+                              <select
+                                className="role-select"
+                                value={m.title?.id || ""}
+                                onChange={(e) =>
+                                  void setMemberTitle(m.id, e.target.value)
+                                }
+                              >
+                                <option value="">—</option>
+                                {titles.map((t) => (
+                                  <option key={t.id} value={t.id}>
+                                    {t.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              m.title?.name || "—"
+                            )}
+                          </td>
+                          {showKickCol ? (
+                            <td>
+                              {myRole &&
+                              canKickClanMember(myRole, m.role, myTitleName) ? (
+                                <button
+                                  type="button"
+                                  className="btn ghost"
+                                  onClick={() => void kick(m.id)}
+                                >
+                                  Кик
+                                </button>
+                              ) : null}
+                            </td>
+                          ) : null}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <ClanRosterChart buckets={rosterBuckets} />
           </div>
         </section>
       ) : null}
