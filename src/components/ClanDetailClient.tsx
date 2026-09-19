@@ -176,6 +176,10 @@ export function ClanDetailClient({
   const [myPendingRequestId, setMyPendingRequestId] = useState(
     initialPendingRequestId
   );
+  const [memberSort, setMemberSort] = useState<
+    "player" | "squad" | "role" | "title"
+  >("role");
+  const [memberOrder, setMemberOrder] = useState<"asc" | "desc">("asc");
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
   const [loading, setLoading] = useState(false);
@@ -206,14 +210,6 @@ export function ClanDetailClient({
     myRole != null
       ? canAssignClanMemberRoles(myRole, myTitleName)
       : assignableRoles.length > 0;
-
-  const sorted = useMemo(
-    () =>
-      [...members].sort(
-        (a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role)
-      ),
-    [members]
-  );
 
   const refreshMembers = useCallback(async () => {
     try {
@@ -696,6 +692,48 @@ export function ClanDetailClient({
     return map;
   }, [squads]);
 
+  const sorted = useMemo(() => {
+    const dir = memberOrder === "asc" ? 1 : -1;
+    return [...members].sort((a, b) => {
+      if (memberSort === "role") {
+        return (ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role)) * dir;
+      }
+      if (memberSort === "squad") {
+        const as = squadUserIds.get(a.user.id) || "";
+        const bs = squadUserIds.get(b.user.id) || "";
+        return (
+          as.localeCompare(bs, "ru", { sensitivity: "base" }) * dir ||
+          (ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role))
+        );
+      }
+      if (memberSort === "title") {
+        const at = a.title?.name || "";
+        const bt = b.title?.name || "";
+        return (
+          at.localeCompare(bt, "ru", { sensitivity: "base" }) * dir ||
+          (ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role))
+        );
+      }
+      const an = a.user.nick || a.user.steamName || "";
+      const bn = b.user.nick || b.user.steamName || "";
+      return an.localeCompare(bn, "ru", { sensitivity: "base" }) * dir;
+    });
+  }, [members, memberSort, memberOrder, squadUserIds]);
+
+  function toggleMemberSort(key: typeof memberSort) {
+    if (memberSort === key) {
+      setMemberOrder((o) => (o === "asc" ? "desc" : "asc"));
+    } else {
+      setMemberSort(key);
+      setMemberOrder("asc");
+    }
+  }
+
+  function memberSortMark(key: typeof memberSort) {
+    if (memberSort !== key) return "";
+    return memberOrder === "asc" ? " ↑" : " ↓";
+  }
+
   return (
     <div className="clan-detail">
       <section className="hero clan-detail-hero">
@@ -905,10 +943,42 @@ export function ClanDetailClient({
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Игрок</th>
-                  <th>Состав</th>
-                  <th>Роль</th>
-                  <th>Должность</th>
+                  <th>
+                    <button
+                      type="button"
+                      className="sort-btn"
+                      onClick={() => toggleMemberSort("player")}
+                    >
+                      Игрок{memberSortMark("player")}
+                    </button>
+                  </th>
+                  <th>
+                    <button
+                      type="button"
+                      className="sort-btn"
+                      onClick={() => toggleMemberSort("squad")}
+                    >
+                      Состав{memberSortMark("squad")}
+                    </button>
+                  </th>
+                  <th>
+                    <button
+                      type="button"
+                      className="sort-btn"
+                      onClick={() => toggleMemberSort("role")}
+                    >
+                      Роль{memberSortMark("role")}
+                    </button>
+                  </th>
+                  <th>
+                    <button
+                      type="button"
+                      className="sort-btn"
+                      onClick={() => toggleMemberSort("title")}
+                    >
+                      Должность{memberSortMark("title")}
+                    </button>
+                  </th>
                   {canManage ? <th></th> : null}
                 </tr>
               </thead>
