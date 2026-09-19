@@ -708,7 +708,7 @@ export function ClanDetailClient({
             <>
               <div className="clan-stat-cards clan-stat-cards-rich">
                 <div>
-                  <span className="muted">Всего слотов</span>
+                  <span className="muted">Всего матчей</span>
                   <strong>{stats.total}</strong>
                   <em className="stat-sub">
                     сыграно {stats.played} · впереди {stats.upcoming}
