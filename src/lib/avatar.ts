@@ -1,6 +1,8 @@
 import { mkdir, readdir, readFile, unlink, writeFile } from "fs/promises";
 import path from "path";
 
+export { resolveAvatarSrc, withAvatarCacheBust } from "@/lib/avatarUrl";
+
 export const AVATAR_DIR = path.join(process.cwd(), "storage", "avatars");
 export const AVATAR_DIR_LEGACY = path.join(
   process.cwd(),
@@ -48,33 +50,6 @@ export function isSafeAvatarFilename(name: string): boolean {
 export function publicAvatarPath(userId: string, ext: string, bust?: number) {
   const q = bust ? `?v=${bust}` : "";
   return `/api/avatars/${userId}.${ext}${q}`;
-}
-
-/** Old links /uploads/avatars/... → /api/avatars/... */
-export function resolveAvatarSrc(url: string | null | undefined): string | null {
-  if (!url) return null;
-  if (url.startsWith("/uploads/avatars/")) {
-    return url.replace("/uploads/avatars/", "/api/avatars/");
-  }
-  return url;
-}
-
-/** Сброс кэша браузера: один и тот же файл после замены иначе «залипает» */
-export function withAvatarCacheBust(
-  url: string | null | undefined,
-  version: number | string | Date | null | undefined
-): string | null {
-  const resolved = resolveAvatarSrc(url);
-  if (!resolved) return null;
-  if (/^https?:\/\//i.test(resolved)) return resolved;
-  const v =
-    version instanceof Date
-      ? version.getTime()
-      : version != null && version !== ""
-        ? String(version)
-        : Date.now();
-  const base = resolved.split("?")[0];
-  return `${base}?v=${v}`;
 }
 
 export async function ensureAvatarDir() {

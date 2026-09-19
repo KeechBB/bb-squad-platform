@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { formatRuDate, isActiveReserve } from "@/lib/validation";
 import { CLAN_ROLE_LABEL, type ClanRole } from "@/lib/clan";
-import { withAvatarCacheBust } from "@/lib/avatar";
+import { withAvatarCacheBust } from "@/lib/avatarUrl";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;

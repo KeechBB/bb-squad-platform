@@ -11,7 +11,7 @@ import {
   CLAN_ROLE_LABEL,
 } from "@/lib/clan";
 import { formatRuDate, isActiveReserve } from "@/lib/validation";
-import { withAvatarCacheBust } from "@/lib/avatar";
+import { withAvatarCacheBust } from "@/lib/avatarUrl";
 
 type Member = {
   id: string;
