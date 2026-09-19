@@ -28,7 +28,7 @@ export default async function HomePage() {
           Нажми «Войти через Steam» сверху. После первого входа заполним имя,
           ник и возраст — и ты в системе.
         </p>
-        <Link className="kv-link" href="https://keechbb.github.io/blackberry-kv/">
+        <Link className="kv-link" href="https://kv.bb-squad.ru/">
           Таблица КВ (публичная) →
         </Link>
       </section>

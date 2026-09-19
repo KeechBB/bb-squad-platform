@@ -4,6 +4,8 @@
 
 ## 2026-09-19
 
+- Домен без IP: инструкция `docs/DOMAIN.md` — A `@`/`www` → `91.222.237.91`, CNAME `kv` → `keechbb.github.io`; nginx; HTTPS; Steam Domain `bb-squad.ru`. КВ → `kv.bb-squad.ru`.
+- На `bb-squad.ru` (таблица КВ) справа сверху **Войти / Регистрация** → платформа `http://91.222.237.91:3000`. На платформе AuthBar: Войти + Регистрация (Steam).
 - Зафиксирована шпаргалка восстановления и оплат: `docs/RECOVERY.md` (+ HOSTING). Timeweb ~900 ₽/мес, Neon Free, домен раз в год. IP `91.222.237.91`, pm2 `bb-squad`, URL :3000. Агент напоминает про оплату.
 - Phase 0 хостинг: сайт на VPS **online** (pm2 `bb-squad`). URL временно: http://91.222.237.91:3000 . Steam Domain = IP. Дальше: проверка входа, домен, Telegram в анкете.
 - Phase 0 хостинг: Vercel отпал (SMS/санкции). Взят **Timeweb Cloud VPS** — сервер **Mysterious Lacerta**, Ubuntu, СПб, 2 CPU / 2 ГБ / 40 ГБ. **IPv4: `91.222.237.91`**. SSH: `ssh root@91.222.237.91`. База по-прежнему Neon. Дальше: поставить Node + деплой `bb-squad-platform` на этот IP.

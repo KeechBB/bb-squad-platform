@@ -46,7 +46,7 @@ export default async function ProfilePage() {
         <p style={{ margin: "8px 0 0" }}>
           Скоро: КВ, тренировки, K/D. Пока смотри публичную таблицу слотов.
         </p>
-        <Link className="kv-link" href="https://keechbb.github.io/blackberry-kv/">
+        <Link className="kv-link" href="https://kv.bb-squad.ru/">
           Таблица КВ →
         </Link>
       </section>
