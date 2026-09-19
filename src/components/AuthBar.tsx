@@ -32,14 +32,15 @@ export function AuthBar() {
   }
 
   const label = session.user.nick || session.user.steamName || "Игрок";
+  const avatar = session.user.avatarUrl || session.user.steamAvatar;
 
   return (
     <div className="auth-bar">
-      {session.user.steamAvatar ? (
+      {avatar ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           className="avatar"
-          src={session.user.steamAvatar}
+          src={avatar}
           alt=""
           width={36}
           height={36}

@@ -51,12 +51,14 @@ const callbacks: NextAuthOptions["callbacks"] = {
         nick?: string;
         age?: number;
         profileComplete?: boolean;
+        avatarUrl?: string | null;
       };
       if (s.name !== undefined) token.name = s.name;
       if (s.nick !== undefined) token.nick = s.nick;
       if (s.age !== undefined) token.age = s.age;
       if (s.profileComplete !== undefined)
         token.profileComplete = s.profileComplete;
+      if (s.avatarUrl !== undefined) token.avatarUrl = s.avatarUrl;
     }
 
     if (token.steamId) {
@@ -70,6 +72,7 @@ const callbacks: NextAuthOptions["callbacks"] = {
         token.age = user.age;
         token.steamName = user.steamName;
         token.steamAvatar = user.steamAvatar;
+        token.avatarUrl = user.avatarUrl;
         token.profileComplete = user.profileComplete;
       }
     }
@@ -81,10 +84,12 @@ const callbacks: NextAuthOptions["callbacks"] = {
       session.user.steamId = token.steamId || "";
       session.user.steamName = token.steamName;
       session.user.steamAvatar = token.steamAvatar;
+      session.user.avatarUrl = token.avatarUrl;
       session.user.name = token.name;
       session.user.nick = token.nick;
       session.user.age = token.age ?? null;
       session.user.profileComplete = Boolean(token.profileComplete);
+      session.user.image = token.avatarUrl || token.steamAvatar || undefined;
     }
     return session;
   },

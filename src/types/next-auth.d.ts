@@ -7,6 +7,7 @@ declare module "next-auth" {
       steamId: string;
       steamName?: string | null;
       steamAvatar?: string | null;
+      avatarUrl?: string | null;
       name?: string | null;
       nick?: string | null;
       age?: number | null;
@@ -21,6 +22,7 @@ declare module "next-auth/jwt" {
     steamId?: string;
     steamName?: string | null;
     steamAvatar?: string | null;
+    avatarUrl?: string | null;
     name?: string | null;
     nick?: string | null;
     age?: number | null;

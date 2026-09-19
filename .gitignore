@@ -35,6 +35,10 @@ yarn-error.log*
 .env.local
 .env.*.local
 
+# uploaded avatars (kept on server disk)
+/public/uploads/avatars/*
+!/public/uploads/avatars/.gitkeep
+
 # prisma
 /prisma/*.db
 /prisma/*.db-journal

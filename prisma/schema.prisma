@@ -12,6 +12,7 @@ model User {
   steamId         String   @unique
   steamName       String?
   steamAvatar     String?
+  avatarUrl       String?
   name            String?
   nick            String?  @unique
   age             Int?

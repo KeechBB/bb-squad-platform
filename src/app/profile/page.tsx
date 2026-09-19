@@ -1,6 +1,7 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { AvatarEditor } from "@/components/AvatarEditor";
 
 export default async function ProfilePage() {
   const session = await getSession();
@@ -8,14 +9,16 @@ export default async function ProfilePage() {
   if (!session.user.profileComplete) redirect("/register");
 
   const u = session.user;
+  const displayAvatar = u.avatarUrl || u.steamAvatar || null;
 
   return (
     <main className="profile-grid">
-      <section className="hero">
-        <p className="eyebrow">профиль</p>
-        <h1>{u.nick}</h1>
-        <p className="lead">{u.name}</p>
-      </section>
+      <AvatarEditor
+        nick={u.nick || "Игрок"}
+        name={u.name || ""}
+        initialAvatar={displayAvatar}
+        hasCustom={Boolean(u.avatarUrl)}
+      />
 
       <section className="card">
         <h2>Аккаунт</h2>
