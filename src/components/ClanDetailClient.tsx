@@ -7,6 +7,7 @@ import type { ClanRole } from "@/lib/clan";
 import {
   assignableClanRoles,
   canAssignClanMemberRoles,
+  canInviteClanMembers,
   canKickClanMember,
   canManageClanMembers,
   canDeleteClanSquad,
@@ -189,6 +190,10 @@ export function ClanDetailClient({
   const [liveOk, setLiveOk] = useState(false);
 
   const canManage = myRole ? canManageClanMembers(myRole) : initialCanManage;
+  const canInvite =
+    myRole != null
+      ? canInviteClanMembers(myRole, myTitleName)
+      : initialCanManage;
   const canTitles =
     myRole != null
       ? canManageClanTitles(myRole, myTitleName)
@@ -210,6 +215,7 @@ export function ClanDetailClient({
     myRole != null
       ? canAssignClanMemberRoles(myRole, myTitleName)
       : assignableRoles.length > 0;
+  const showKickCol = canInvite;
 
   const refreshMembers = useCallback(async () => {
     try {
@@ -871,7 +877,7 @@ export function ClanDetailClient({
             </div>
           ) : null}
 
-          {canManage ? (
+          {canInvite ? (
             <div className="clan-invite-row">
               <label className="field" style={{ flex: 1, margin: 0 }}>
                 <span>Пригласить по нику</span>
@@ -979,7 +985,7 @@ export function ClanDetailClient({
                       Должность{memberSortMark("title")}
                     </button>
                   </th>
-                  {canManage ? <th></th> : null}
+                  {showKickCol ? <th></th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -1074,9 +1080,10 @@ export function ClanDetailClient({
                         m.title?.name || "—"
                       )}
                     </td>
-                    {canManage ? (
+                    {showKickCol ? (
                       <td>
-                        {myRole && canKickClanMember(myRole, m.role) ? (
+                        {myRole &&
+                        canKickClanMember(myRole, m.role, myTitleName) ? (
                           <button
                             type="button"
                             className="btn ghost"

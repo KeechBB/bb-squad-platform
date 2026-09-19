@@ -6,6 +6,7 @@ import {
   canAssignClanMemberRoles,
   canAssignClanRole,
   canChangeClanMemberRole,
+  canInviteClanMembers,
   canKickClanMember,
   canManageClanMembers,
   type ClanRole,
@@ -66,7 +67,13 @@ export async function POST(req: Request, ctx: Ctx) {
   }
   const { id: clanId } = await ctx.params;
   const actor = await actorMembership(clanId, session.user.steamId);
-  if (!actor || !canManageClanMembers(actor.member.role)) {
+  if (
+    !actor ||
+    !canInviteClanMembers(
+      actor.member.role as ClanRole,
+      actor.member.title?.name
+    )
+  ) {
     return NextResponse.json({ error: "Нет прав приглашать" }, { status: 403 });
   }
 
@@ -186,7 +193,11 @@ export async function DELETE(req: Request, ctx: Ctx) {
   }
   const { id: clanId } = await ctx.params;
   const actor = await actorMembership(clanId, session.user.steamId);
-  if (!actor || !canManageClanMembers(actor.member.role)) {
+  const actorTitle = actor?.member.title?.name;
+  if (
+    !actor ||
+    !canInviteClanMembers(actor.member.role as ClanRole, actorTitle)
+  ) {
     return NextResponse.json({ error: "Нет прав кикать" }, { status: 403 });
   }
 
@@ -198,7 +209,13 @@ export async function DELETE(req: Request, ctx: Ctx) {
   if (!target) {
     return NextResponse.json({ error: "Участник не найден" }, { status: 404 });
   }
-  if (!canKickClanMember(actor.member.role, target.role)) {
+  if (
+    !canKickClanMember(
+      actor.member.role as ClanRole,
+      target.role as ClanRole,
+      actorTitle
+    )
+  ) {
     return NextResponse.json({ error: "Нельзя кикнуть этого игрока" }, { status: 403 });
   }
 

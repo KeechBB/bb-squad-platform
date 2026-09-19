@@ -50,6 +50,15 @@ export function canManageClanMembers(role: ClanRole): boolean {
   return role === "LEADER" || role === "DEPUTY";
 }
 
+/** Глава, зам или HR — приглашать в клан */
+export function canInviteClanMembers(
+  role: ClanRole,
+  titleName?: string | null
+): boolean {
+  if (role === "LEADER" || role === "DEPUTY") return true;
+  return isHrTitle(titleName);
+}
+
 /** Глава, зам или HR — менять роли в списке игроков */
 export function canAssignClanMemberRoles(
   role: ClanRole,
@@ -84,11 +93,16 @@ export function canChangeClanMemberRole(
   return false;
 }
 
-export function canKickClanMember(actor: ClanRole, target: ClanRole): boolean {
+/** Кик: HR как зам — нельзя кикнуть главу и зама */
+export function canKickClanMember(
+  actor: ClanRole,
+  target: ClanRole,
+  titleName?: string | null
+): boolean {
   if (target === "LEADER") return false;
   if (target === "DEPUTY") return actor === "LEADER";
   if (actor === "LEADER" || actor === "DEPUTY") return true;
-  return false;
+  return isHrTitle(titleName);
 }
 
 export function canDeleteClan(role: ClanRole): boolean {
