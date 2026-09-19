@@ -33,7 +33,38 @@ export default async function PlayerProfilePage({ params }: Props) {
       },
     },
   });
-  if (!user) notFound();
+
+  if (!user) {
+    return (
+      <main className="profile-grid">
+        <section className="card profile-head-public">
+          <div className="profile-head-row">
+            <div className="admin-user-avatar admin-user-avatar-empty">
+              {nick.slice(0, 1).toUpperCase()}
+            </div>
+            <div className="profile-head-text">
+              <p className="eyebrow">профиль игрока</p>
+              <h1>{nick}</h1>
+              <p className="muted">Игрок не зареган на платформе</p>
+            </div>
+          </div>
+        </section>
+        <section className="card">
+          <h2>Пустой профиль</h2>
+          <p className="muted" style={{ margin: "8px 0 0", lineHeight: 1.5 }}>
+            Ник <strong>{nick}</strong> есть в таблице КВ, но аккаунта на
+            bb-squad.ru ещё нет. Когда игрок войдёт через Steam и завершит
+            регистрацию — здесь появятся аватар, клан и резерв.
+          </p>
+        </section>
+        <p>
+          <Link className="kv-link" href="/cw">
+            ← К клановым войнам
+          </Link>
+        </p>
+      </main>
+    );
+  }
 
   const isSelf = session.user.steamId === user.steamId;
   if (isSelf) redirect("/profile");
