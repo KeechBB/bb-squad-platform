@@ -431,6 +431,58 @@ a:hover { color: #c4b5fd; }
 .meta-row:last-child { border-bottom: none; }
 .meta-row span:first-child { color: var(--muted); }
 
+.profile-edit-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.profile-edit-head h2 {
+  margin: 0;
+}
+
+.profile-edit-form {
+  margin-top: 12px;
+}
+
+.contact-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.contact-link {
+  color: #c4b5fd;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(167, 139, 250, 0.35);
+}
+
+.contact-link:hover {
+  color: #e9e0ff;
+  border-bottom-color: #e9e0ff;
+}
+
+.btn-mini {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-mini:hover {
+  color: var(--ink);
+  border-color: rgba(167, 139, 250, 0.45);
+}
+
 .ok {
   margin: 0;
   color: var(--win);

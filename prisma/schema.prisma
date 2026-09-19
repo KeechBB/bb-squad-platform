@@ -40,6 +40,9 @@ model User {
   nick            String?  @unique
   age             Int?
   birthDate       DateTime?
+  discordTag      String?
+  discordId       String?
+  telegram        String?
   reserveUntil    DateTime?
   reserveReason   String?
   role            Role     @default(USER)

@@ -5,6 +5,12 @@ import Link from "next/link";
 import { formatRuDate, isActiveReserve } from "@/lib/validation";
 import { CLAN_ROLE_LABEL, type ClanRole } from "@/lib/clan";
 import { withAvatarCacheBust } from "@/lib/avatarUrl";
+import {
+  discordProfileUrl,
+  formatDiscordDisplay,
+  formatTelegramDisplay,
+  telegramProfileUrl,
+} from "@/lib/social";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -126,6 +132,39 @@ export default async function PlayerProfilePage({ params }: Props) {
         <div className="meta-row">
           <span>Возраст</span>
           <span>{user.age ?? "—"}</span>
+        </div>
+        <div className="meta-row">
+          <span>Discord</span>
+          <span>
+            {(() => {
+              const label = formatDiscordDisplay(user.discordTag, user.discordId);
+              const url = discordProfileUrl(user.discordId);
+              if (!label) return "—";
+              if (url) {
+                return (
+                  <a className="contact-link" href={url} target="_blank" rel="noreferrer">
+                    {label}
+                  </a>
+                );
+              }
+              return label;
+            })()}
+          </span>
+        </div>
+        <div className="meta-row">
+          <span>Telegram</span>
+          <span>
+            {(() => {
+              const label = formatTelegramDisplay(user.telegram);
+              const url = telegramProfileUrl(user.telegram);
+              if (!label || !url) return label || "—";
+              return (
+                <a className="contact-link" href={url} target="_blank" rel="noreferrer">
+                  {label}
+                </a>
+              );
+            })()}
+          </span>
         </div>
         <div className="meta-row">
           <span>Steam</span>

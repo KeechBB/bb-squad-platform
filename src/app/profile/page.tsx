@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { ClanInvites } from "@/components/ClanInvites";
 import { ReservePanel } from "@/components/ReservePanel";
 import { AdminPanelLink } from "@/components/AdminPanelLink";
+import { ProfileEditForm } from "@/components/ProfileEditForm";
 import { formatRuDate, isActiveReserve } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
@@ -39,23 +40,27 @@ export default async function ProfilePage() {
     },
   });
 
+  if (!me) redirect("/");
+
   const invites =
-    me?.clanInvites.map((inv) => ({
+    me.clanInvites.map((inv) => ({
       id: inv.id,
       clan: inv.clan,
       inviter: inv.inviter,
     })) || [];
 
-  const clans = me?.clanMemberships.map((m) => m.clan) || [];
-  const reserveActive = isActiveReserve(me?.reserveUntil);
+  const clans = me.clanMemberships.map((m) => m.clan) || [];
+  const reserveActive = isActiveReserve(me.reserveUntil);
   const reserveUntilLabel =
-    me?.reserveUntil && reserveActive ? formatRuDate(me.reserveUntil) : null;
+    me.reserveUntil && reserveActive ? formatRuDate(me.reserveUntil) : null;
+
+  const birthRu = me.birthDate ? formatRuDate(me.birthDate) : null;
 
   return (
     <main className="profile-grid">
       <AvatarEditor
-        nick={u.nick || "Игрок"}
-        name={u.name || ""}
+        nick={me.nick || u.nick || "Игрок"}
+        name={me.name || u.name || ""}
         initialAvatar={displayAvatar}
         steamAvatar={u.steamAvatar || null}
       />
@@ -65,7 +70,7 @@ export default async function ProfilePage() {
       <ReservePanel
         active={reserveActive}
         untilLabel={reserveUntilLabel}
-        reason={reserveActive ? me?.reserveReason || null : null}
+        reason={reserveActive ? me.reserveReason || null : null}
       />
 
       {clans.length > 0 ? (
@@ -93,35 +98,20 @@ export default async function ProfilePage() {
         </section>
       ) : null}
 
-      <section className="card">
-        <h2>Аккаунт</h2>
-        <div className="meta-row">
-          <span>Ник</span>
-          <span>{u.nick}</span>
-        </div>
-        <div className="meta-row">
-          <span>Имя</span>
-          <span>{u.name}</span>
-        </div>
-        <div className="meta-row">
-          <span>Возраст</span>
-          <span>
-            {u.age}
-            {me?.birthDate
-              ? ` (др. ${me.birthDate.toISOString().slice(0, 10).split("-").reverse().join(".")})`
-              : ""}
-          </span>
-        </div>
-        <div className="meta-row">
-          <span>Steam ID</span>
-          <span>{u.steamId}</span>
-        </div>
-        <div className="meta-row">
-          <span>Steam</span>
-          <span>{u.steamName || "—"}</span>
-        </div>
-        <AdminPanelLink initialAdmin={admin} />
-      </section>
+      <ProfileEditForm
+        initial={{
+          nick: me.nick || "",
+          name: me.name || "",
+          birthDate: birthRu,
+          age: me.age,
+          discordTag: me.discordTag,
+          discordId: me.discordId,
+          telegram: me.telegram,
+          steamId: me.steamId,
+          steamName: me.steamName,
+        }}
+        adminLink={<AdminPanelLink initialAdmin={admin} />}
+      />
 
       <section className="stats-stub">
         <strong style={{ color: "var(--ink)" }}>Статистика</strong>
