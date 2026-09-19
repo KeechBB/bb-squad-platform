@@ -73,3 +73,34 @@ export function formatBirthDateInput(value: string): string {
   if (digits.length <= 4) return `${digits.slice(0, 2)}.${digits.slice(2)}`;
   return `${digits.slice(0, 2)}.${digits.slice(2, 4)}.${digits.slice(4)}`;
 }
+
+/** ДД.ММ.ГГГГ → Date UTC midnight, если дата валидна и не в прошлом */
+export function parseFutureOrTodayDate(raw: string): Date | null {
+  const iso = toIsoBirthDate(raw);
+  if (!iso) return null;
+  const [y, mo, d] = iso.split("-").map(Number);
+  const date = new Date(Date.UTC(y, mo - 1, d));
+  const now = new Date();
+  const todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  if (date.getTime() < todayUtc) return null;
+  return date;
+}
+
+export function formatRuDate(d: Date): string {
+  const y = d.getUTCFullYear();
+  const mo = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${day}.${mo}.${y}`;
+}
+
+export function isActiveReserve(until: Date | null | undefined): boolean {
+  if (!until) return false;
+  const now = new Date();
+  const todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const untilUtc = Date.UTC(
+    until.getUTCFullYear(),
+    until.getUTCMonth(),
+    until.getUTCDate()
+  );
+  return untilUtc >= todayUtc;
+}

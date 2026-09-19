@@ -5,6 +5,8 @@ import { AvatarEditor } from "@/components/AvatarEditor";
 import { isAdmin, syncBuiltinAdmins } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 import { ClanInvites } from "@/components/ClanInvites";
+import { ReservePanel } from "@/components/ReservePanel";
+import { formatRuDate, isActiveReserve } from "@/lib/validation";
 
 export default async function ProfilePage() {
   const session = await getSession();
@@ -41,6 +43,9 @@ export default async function ProfilePage() {
     })) || [];
 
   const clans = me?.clanMemberships.map((m) => m.clan) || [];
+  const reserveActive = isActiveReserve(me?.reserveUntil);
+  const reserveUntilLabel =
+    me?.reserveUntil && reserveActive ? formatRuDate(me.reserveUntil) : null;
 
   return (
     <main className="profile-grid">
@@ -52,6 +57,12 @@ export default async function ProfilePage() {
       />
 
       <ClanInvites initial={invites} />
+
+      <ReservePanel
+        active={reserveActive}
+        untilLabel={reserveUntilLabel}
+        reason={reserveActive ? me?.reserveReason || null : null}
+      />
 
       {clans.length > 0 ? (
         <section className="card">

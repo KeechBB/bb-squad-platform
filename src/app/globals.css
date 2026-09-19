@@ -327,8 +327,24 @@ a:hover { color: #c4b5fd; }
   font: inherit;
 }
 
+.field textarea {
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font: inherit;
+  resize: vertical;
+  min-height: 72px;
+}
+
 .field input:disabled {
   opacity: 0.7;
+}
+
+.reserve-status {
+  margin: 8px 0 14px;
+  line-height: 1.45;
 }
 
 .field-hint {
