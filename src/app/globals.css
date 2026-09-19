@@ -756,7 +756,7 @@ a:hover { color: #c4b5fd; }
   height: 48px;
   object-fit: contain;
   border-radius: 10px;
-  background: rgba(7, 6, 12, 0.6);
+  background: transparent;
   flex-shrink: 0;
 }
 
@@ -799,6 +799,7 @@ a:hover { color: #c4b5fd; }
   height: 72px;
   object-fit: contain;
   border-radius: 14px;
+  background: transparent;
   flex-shrink: 0;
 }
 
