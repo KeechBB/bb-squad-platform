@@ -1,7 +1,13 @@
-import { mkdir, readdir, unlink, writeFile } from "fs/promises";
+import { mkdir, readdir, readFile, unlink, writeFile } from "fs/promises";
 import path from "path";
 
-export const AVATAR_DIR = path.join(process.cwd(), "public", "uploads", "avatars");
+export const AVATAR_DIR = path.join(process.cwd(), "storage", "avatars");
+export const AVATAR_DIR_LEGACY = path.join(
+  process.cwd(),
+  "public",
+  "uploads",
+  "avatars"
+);
 export const AVATAR_MAX_BYTES = 20 * 1024 * 1024;
 
 export const AVATAR_TYPES = {
@@ -35,6 +41,10 @@ export function detectAvatarMime(buf: Buffer): AvatarMime | null {
   return null;
 }
 
+export function isSafeAvatarFilename(name: string): boolean {
+  return /^[a-z0-9_-]+\.(jpg|jpeg|png|webp)$/i.test(name);
+}
+
 export function publicAvatarPath(userId: string, ext: string, bust?: number) {
   const q = bust ? `?v=${bust}` : "";
   return `/uploads/avatars/${userId}.${ext}${q}`;
@@ -44,14 +54,23 @@ export async function ensureAvatarDir() {
   await mkdir(AVATAR_DIR, { recursive: true });
 }
 
+async function clearDirForUser(dir: string, userId: string) {
+  try {
+    const files = await readdir(dir);
+    await Promise.all(
+      files
+        .filter((f) => f.startsWith(`${userId}.`))
+        .map((f) => unlink(path.join(dir, f)).catch(() => undefined))
+    );
+  } catch {
+    /* dir may not exist */
+  }
+}
+
 export async function removeUserAvatarFiles(userId: string) {
   await ensureAvatarDir();
-  const files = await readdir(AVATAR_DIR);
-  await Promise.all(
-    files
-      .filter((f) => f.startsWith(`${userId}.`))
-      .map((f) => unlink(path.join(AVATAR_DIR, f)).catch(() => undefined))
-  );
+  await clearDirForUser(AVATAR_DIR, userId);
+  await clearDirForUser(AVATAR_DIR_LEGACY, userId);
 }
 
 export async function saveUserAvatar(userId: string, buf: Buffer, mime: AvatarMime) {
@@ -61,4 +80,31 @@ export async function saveUserAvatar(userId: string, buf: Buffer, mime: AvatarMi
   const filePath = path.join(AVATAR_DIR, `${userId}.${ext}`);
   await writeFile(filePath, buf);
   return publicAvatarPath(userId, ext, Date.now());
+}
+
+export async function readAvatarFile(filename: string): Promise<{
+  buf: Buffer;
+  contentType: string;
+} | null> {
+  if (!isSafeAvatarFilename(filename)) return null;
+  const candidates = [
+    path.join(AVATAR_DIR, filename),
+    path.join(AVATAR_DIR_LEGACY, filename),
+  ];
+  for (const filePath of candidates) {
+    try {
+      const buf = await readFile(filePath);
+      const ext = path.extname(filename).slice(1).toLowerCase();
+      const contentType =
+        ext === "png"
+          ? "image/png"
+          : ext === "webp"
+            ? "image/webp"
+            : "image/jpeg";
+      return { buf, contentType };
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
 }

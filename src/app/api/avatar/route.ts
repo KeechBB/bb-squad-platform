@@ -23,7 +23,7 @@ function prismaHint(err: unknown): string {
     return "На сервере нет поля avatarUrl — выполни: npx prisma db push";
   }
   if (/EACCES|EPERM|ENOENT|read-only/i.test(msg)) {
-    return "Нет прав записать файл в public/uploads/avatars";
+    return "Нет прав записать файл в storage/avatars";
   }
   return "Ошибка сервера при загрузке";
 }

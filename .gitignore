@@ -38,6 +38,8 @@ yarn-error.log*
 # uploaded avatars (kept on server disk)
 /public/uploads/avatars/*
 !/public/uploads/avatars/.gitkeep
+/storage/avatars/*
+!/storage/avatars/.gitkeep
 
 # prisma
 /prisma/*.db
