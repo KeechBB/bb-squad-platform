@@ -116,7 +116,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     const parsed = parseBirthDate(birthRaw);
     if (fromBirth == null || !parsed) {
       return NextResponse.json(
-        { error: "Дата рождения некорректна (возраст 14–99)" },
+        { error: "Дата рождения: ДД.ММ.ГГГГ или календарь (возраст 14–99)" },
         { status: 400 }
       );
     }

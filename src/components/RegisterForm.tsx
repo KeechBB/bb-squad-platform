@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { ageFromBirthDate } from "@/lib/validation";
+import { ageFromBirthDate, formatBirthDateInput } from "@/lib/validation";
 
 export function RegisterForm() {
   const router = useRouter();
@@ -15,7 +15,7 @@ export function RegisterForm() {
   const [loading, setLoading] = useState(false);
 
   const previewAge = useMemo(
-    () => (birthDate ? ageFromBirthDate(birthDate) : null),
+    () => (birthDate.length === 10 ? ageFromBirthDate(birthDate) : null),
     [birthDate]
   );
 
@@ -86,14 +86,17 @@ export function RegisterForm() {
       <label className="field">
         <span>Дата рождения</span>
         <input
-          type="date"
+          type="text"
+          inputMode="numeric"
+          autoComplete="bday"
+          placeholder="ДД.ММ.ГГГГ"
           value={birthDate}
-          onChange={(e) => setBirthDate(e.target.value)}
+          onChange={(e) => setBirthDate(formatBirthDateInput(e.target.value))}
+          maxLength={10}
           required
-          max={new Date().toISOString().slice(0, 10)}
         />
         <span className="field-hint">
-          Возраст посчитается сам
+          Формат ДД.ММ.ГГГГ, точки можно ставить. Возраст посчитается сам
           {previewAge != null ? `: ${previewAge} лет` : " (от 14 до 99)"}.
         </span>
       </label>

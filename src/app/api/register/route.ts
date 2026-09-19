@@ -44,7 +44,10 @@ export async function POST(req: Request) {
   const birthDate = parseBirthDate(birthRaw);
   if (age == null || !birthDate) {
     return NextResponse.json(
-      { error: "Укажи корректную дату рождения (возраст 14–99)" },
+      {
+        error:
+          "Дата рождения: формат ДД.ММ.ГГГГ, возраст должен быть от 14 до 99",
+      },
       { status: 400 }
     );
   }
