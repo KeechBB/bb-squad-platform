@@ -47,7 +47,16 @@ export function isSafeAvatarFilename(name: string): boolean {
 
 export function publicAvatarPath(userId: string, ext: string, bust?: number) {
   const q = bust ? `?v=${bust}` : "";
-  return `/uploads/avatars/${userId}.${ext}${q}`;
+  return `/api/avatars/${userId}.${ext}${q}`;
+}
+
+/** Old links /uploads/avatars/... → /api/avatars/... */
+export function resolveAvatarSrc(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith("/uploads/avatars/")) {
+    return url.replace("/uploads/avatars/", "/api/avatars/");
+  }
+  return url;
 }
 
 export async function ensureAvatarDir() {
@@ -77,8 +86,13 @@ export async function saveUserAvatar(userId: string, buf: Buffer, mime: AvatarMi
   await ensureAvatarDir();
   await removeUserAvatarFiles(userId);
   const ext = AVATAR_TYPES[mime];
-  const filePath = path.join(AVATAR_DIR, `${userId}.${ext}`);
+  const fileName = `${userId}.${ext}`;
+  const filePath = path.join(AVATAR_DIR, fileName);
   await writeFile(filePath, buf);
+  const check = await readAvatarFile(fileName);
+  if (!check) {
+    throw new Error("Файл записан, но сервер его не видит (проверь storage/avatars)");
+  }
   return publicAvatarPath(userId, ext, Date.now());
 }
 

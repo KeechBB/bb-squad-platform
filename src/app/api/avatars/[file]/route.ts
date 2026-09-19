@@ -6,7 +6,6 @@ export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ file: string }> };
 
-/** Legacy URLs still in DB: /uploads/avatars/... */
 export async function GET(_req: Request, ctx: Ctx) {
   const { file } = await ctx.params;
   const data = await readAvatarFile(file);

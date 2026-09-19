@@ -84,12 +84,18 @@ const callbacks: NextAuthOptions["callbacks"] = {
       session.user.steamId = token.steamId || "";
       session.user.steamName = token.steamName;
       session.user.steamAvatar = token.steamAvatar;
-      session.user.avatarUrl = token.avatarUrl;
+  session.user.avatarUrl = token.avatarUrl;
       session.user.name = token.name;
       session.user.nick = token.nick;
       session.user.age = token.age ?? null;
       session.user.profileComplete = Boolean(token.profileComplete);
-      session.user.image = token.avatarUrl || token.steamAvatar || undefined;
+      const custom = token.avatarUrl
+        ? token.avatarUrl.startsWith("/uploads/avatars/")
+          ? token.avatarUrl.replace("/uploads/avatars/", "/api/avatars/")
+          : token.avatarUrl
+        : null;
+      session.user.image = custom || token.steamAvatar || undefined;
+      if (custom) session.user.avatarUrl = custom;
     }
     return session;
   },
