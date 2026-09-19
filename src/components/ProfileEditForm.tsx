@@ -22,6 +22,7 @@ type Props = {
     telegram: string | null;
     steamId: string;
     steamName: string | null;
+    siteRole?: string;
   };
   adminLink?: ReactNode;
 };
@@ -162,6 +163,10 @@ export function ProfileEditForm({ initial, adminLink }: Props) {
           <div className="meta-row">
             <span>Ник</span>
             <span>{saved.nick}</span>
+          </div>
+          <div className="meta-row">
+            <span>Роль на сайте</span>
+            <span>{initial.siteRole || "Игрок"}</span>
           </div>
           <div className="meta-row">
             <span>Имя</span>

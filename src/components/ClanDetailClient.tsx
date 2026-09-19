@@ -17,6 +17,7 @@ type Member = {
   id: string;
   role: ClanRole;
   joinedAt: string;
+  title: { id: string; name: string } | null;
   user: {
     id: string;
     nick: string | null;
@@ -40,6 +41,12 @@ type Squad = {
   members: SquadMember[];
 };
 
+type ClanTitle = {
+  id: string;
+  name: string;
+  sortOrder?: number;
+};
+
 type Props = {
   clan: {
     id: string;
@@ -48,9 +55,12 @@ type Props = {
     logoUrl: string | null;
   };
   members: Member[];
+  titles: ClanTitle[];
   myUserId: string | null;
   myRole: ClanRole | null;
+  myTitleName: string | null;
   canManage: boolean;
+  canManageTitles: boolean;
   assignableRoles: ClanRole[];
 };
 
@@ -108,15 +118,21 @@ const STATUS_RU: Record<string, string> = {
 export function ClanDetailClient({
   clan,
   members: initialMembers,
+  titles: initialTitles,
   myUserId,
   myRole: initialMyRole,
+  myTitleName: initialMyTitleName,
   canManage: initialCanManage,
+  canManageTitles: initialCanManageTitles,
   assignableRoles: initialAssignable,
 }: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("members");
   const [members, setMembers] = useState(initialMembers);
+  const [titles, setTitles] = useState(initialTitles);
   const [myRole, setMyRole] = useState(initialMyRole);
+  const [myTitleName, setMyTitleName] = useState(initialMyTitleName);
+  const [newTitle, setNewTitle] = useState("");
   const [squads, setSquads] = useState<Squad[]>([]);
   const [newSquad, setNewSquad] = useState("");
   const [inviteNick, setInviteNick] = useState("");
@@ -129,6 +145,10 @@ export function ClanDetailClient({
   const [liveOk, setLiveOk] = useState(false);
 
   const canManage = myRole ? canManageClanMembers(myRole) : initialCanManage;
+  const canTitles =
+    myRole != null
+      ? myRole === "LEADER" || (myTitleName || "").toLowerCase() === "hr"
+      : initialCanManageTitles;
   const assignableRoles = myRole
     ? assignableClanRoles(myRole)
     : initialAssignable;
@@ -151,6 +171,7 @@ export function ClanDetailClient({
         role: ClanRole;
         joinedAt: string;
         userId?: string;
+        title?: { id: string; name: string } | null;
         user: Member["user"] & {
           reserveUntil?: string | Date | null;
           updatedAt?: string | Date | null;
@@ -164,6 +185,7 @@ export function ClanDetailClient({
             typeof m.joinedAt === "string"
               ? m.joinedAt
               : new Date(m.joinedAt).toISOString(),
+          title: m.title ? { id: m.title.id, name: m.title.name } : null,
           user: {
             ...m.user,
             reserveUntil: m.user.reserveUntil
@@ -181,13 +203,27 @@ export function ClanDetailClient({
         }))
       );
       if (myUserId) {
-        const mine = list.find((m) => m.user?.id === myUserId);
-        if (mine) setMyRole(mine.role);
+        const mine = list.find((m) => m.user.id === myUserId || m.userId === myUserId);
+        if (mine) {
+          setMyRole(mine.role);
+          setMyTitleName(mine.title?.name || null);
+        }
       }
     } catch {
       /* ignore */
     }
   }, [clan.id, myUserId]);
+
+  const refreshTitles = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/clans/${clan.id}/titles`, { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      setTitles(data.titles || []);
+    } catch {
+      /* ignore */
+    }
+  }, [clan.id]);
 
   const refreshSquads = useCallback(async () => {
     try {
@@ -229,6 +265,7 @@ export function ClanDetailClient({
     const sync = () => {
       void refreshMembers();
       void refreshSquads();
+      void refreshTitles();
       if (tab === "stats") void refreshStats();
     };
 
@@ -251,7 +288,86 @@ export function ClanDetailClient({
       window.clearInterval(poll);
       window.removeEventListener("focus", onFocus);
     };
-  }, [clan.id, refreshMembers, refreshSquads, refreshStats, tab]);
+  }, [clan.id, refreshMembers, refreshSquads, refreshTitles, refreshStats, tab]);
+
+  useEffect(() => {
+    void refreshTitles();
+  }, [refreshTitles]);
+
+  async function createTitle() {
+    setError("");
+    setOk("");
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/clans/${clan.id}/titles`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newTitle }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Не удалось создать должность");
+        return;
+      }
+      setNewTitle("");
+      setOk("Должность создана");
+      void refreshTitles();
+    } catch {
+      setError("Сеть недоступна");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteTitle(titleId: string, name: string) {
+    if (!window.confirm(`Удалить должность «${name}»?`)) return;
+    setError("");
+    const res = await fetch(
+      `/api/clans/${clan.id}/titles?titleId=${encodeURIComponent(titleId)}`,
+      { method: "DELETE" }
+    );
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(data.error || "Не удалось удалить");
+      return;
+    }
+    void refreshTitles();
+    void refreshMembers();
+  }
+
+  async function setMemberTitle(memberId: string, titleId: string) {
+    setError("");
+    const nextId = titleId || null;
+    setMembers((list) =>
+      list.map((m) => {
+        if (m.id !== memberId) return m;
+        const title = nextId
+          ? titles.find((t) => t.id === nextId) || null
+          : null;
+        return {
+          ...m,
+          title: title ? { id: title.id, name: title.name } : null,
+        };
+      })
+    );
+    const res = await fetch(`/api/clans/${clan.id}/titles`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberId, titleId: nextId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(data.error || "Не удалось сменить должность");
+      void refreshMembers();
+      return;
+    }
+    if (myUserId) {
+      const mine = members.find((m) => m.id === memberId && m.user.id === myUserId);
+      if (mine || members.some((m) => m.id === memberId && m.user.id === myUserId)) {
+        void refreshMembers();
+      }
+    }
+  }
 
   async function invite() {
     setError("");
@@ -420,6 +536,7 @@ export function ClanDetailClient({
           {myRole ? (
             <p className="muted">
               Твоя роль: {CLAN_ROLE_LABEL[myRole]}
+              {myTitleName ? ` · должность: ${myTitleName}` : ""}
               {liveOk ? (
                 <span className="live-dot" title="Обновления в реальном времени">
                   {" "}
@@ -476,6 +593,50 @@ export function ClanDetailClient({
           {error ? <p className="error">{error}</p> : null}
           {ok ? <p className="ok">{ok}</p> : null}
 
+          {canTitles ? (
+            <div className="clan-titles-panel">
+              <p className="muted" style={{ margin: "0 0 8px" }}>
+                Должности клана (не влияют на права сайта). Создавать и удалять —
+                глава и HR.
+              </p>
+              <div className="clan-invite-row">
+                <label className="field" style={{ flex: 1, margin: 0 }}>
+                  <span>Новая должность</span>
+                  <input
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    placeholder="Например Officer"
+                    maxLength={32}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="btn primary"
+                  disabled={loading || !newTitle.trim()}
+                  onClick={() => void createTitle()}
+                >
+                  Создать
+                </button>
+              </div>
+              {titles.length > 0 ? (
+                <ul className="clan-title-list">
+                  {titles.map((t) => (
+                    <li key={t.id}>
+                      <span>{t.name}</span>
+                      <button
+                        type="button"
+                        className="btn ghost"
+                        onClick={() => void deleteTitle(t.id, t.name)}
+                      >
+                        Удалить
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="admin-table-wrap" style={{ marginTop: 12 }}>
             <table className="admin-table">
               <thead>
@@ -484,6 +645,7 @@ export function ClanDetailClient({
                   <th>Игрок</th>
                   <th>Состав</th>
                   <th>Роль</th>
+                  <th>Должность</th>
                   {canManage ? <th></th> : null}
                 </tr>
               </thead>
@@ -555,6 +717,26 @@ export function ClanDetailClient({
                         </select>
                       ) : (
                         CLAN_ROLE_LABEL[m.role]
+                      )}
+                    </td>
+                    <td>
+                      {canTitles ? (
+                        <select
+                          className="role-select"
+                          value={m.title?.id || ""}
+                          onChange={(e) =>
+                            void setMemberTitle(m.id, e.target.value)
+                          }
+                        >
+                          <option value="">—</option>
+                          {titles.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        m.title?.name || "—"
                       )}
                     </td>
                     {canManage ? (

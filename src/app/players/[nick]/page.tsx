@@ -11,6 +11,7 @@ import {
   formatTelegramDisplay,
   telegramProfileUrl,
 } from "@/lib/social";
+import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -35,6 +36,7 @@ export default async function PlayerProfilePage({ params }: Props) {
       clanMemberships: {
         include: {
           clan: { select: { id: true, name: true, tag: true, logoUrl: true } },
+          title: { select: { name: true } },
         },
       },
     },
@@ -126,6 +128,12 @@ export default async function PlayerProfilePage({ params }: Props) {
           <span>{user.nick}</span>
         </div>
         <div className="meta-row">
+          <span>Роль на сайте</span>
+          <span>
+            {roleLabel(effectiveRole(user.steamId, user.role as AppRole))}
+          </span>
+        </div>
+        <div className="meta-row">
           <span>Имя</span>
           <span>{user.name || "—"}</span>
         </div>
@@ -198,6 +206,7 @@ export default async function PlayerProfilePage({ params }: Props) {
                   </strong>
                   <span className="muted">
                     {CLAN_ROLE_LABEL[m.role as ClanRole]}
+                    {m.title?.name ? ` · ${m.title.name}` : ""}
                     {inReserve && m.role === "RESERVE" ? " · в резерве" : ""}
                   </span>
                 </div>

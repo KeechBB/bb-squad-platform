@@ -9,6 +9,7 @@ import { ReservePanel } from "@/components/ReservePanel";
 import { AdminPanelLink } from "@/components/AdminPanelLink";
 import { ProfileEditForm } from "@/components/ProfileEditForm";
 import { formatRuDate, isActiveReserve } from "@/lib/validation";
+import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -55,6 +56,9 @@ export default async function ProfilePage() {
     me.reserveUntil && reserveActive ? formatRuDate(me.reserveUntil) : null;
 
   const birthRu = me.birthDate ? formatRuDate(me.birthDate) : null;
+  const siteRole = roleLabel(
+    effectiveRole(me.steamId, me.role as AppRole)
+  );
 
   return (
     <main className="profile-grid">
@@ -109,6 +113,7 @@ export default async function ProfilePage() {
           telegram: me.telegram,
           steamId: me.steamId,
           steamName: me.steamName,
+          siteRole,
         }}
         adminLink={<AdminPanelLink initialAdmin={admin} />}
       />

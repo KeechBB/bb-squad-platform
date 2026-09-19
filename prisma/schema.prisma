@@ -70,6 +70,21 @@ model Clan {
   members ClanMember[]
   invites ClanInvite[]
   squads  ClanSquad[]
+  titles  ClanTitle[]
+}
+
+model ClanTitle {
+  id        String   @id @default(cuid())
+  clanId    String
+  name      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  clan    Clan         @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  members ClanMember[]
+
+  @@unique([clanId, name])
+  @@index([clanId])
 }
 
 model ClanSquad {
@@ -105,13 +120,16 @@ model ClanMember {
   userId            String
   role              ClanRole  @default(MEMBER)
   roleBeforeReserve ClanRole?
+  titleId           String?
   joinedAt          DateTime  @default(now())
 
-  clan Clan @relation(fields: [clanId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clan  Clan       @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title ClanTitle? @relation(fields: [titleId], references: [id], onDelete: SetNull)
 
   @@unique([clanId, userId])
   @@index([userId])
+  @@index([titleId])
 }
 
 model ClanInvite {

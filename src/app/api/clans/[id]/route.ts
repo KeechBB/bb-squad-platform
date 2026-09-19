@@ -43,6 +43,7 @@ export async function GET(_req: Request, ctx: Ctx) {
               updatedAt: true,
             },
           },
+          title: { select: { id: true, name: true } },
         },
         orderBy: [{ role: "asc" }, { joinedAt: "asc" }],
       },
