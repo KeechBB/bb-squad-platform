@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { ClanRole } from "@/lib/clan";
 import {
   assignableClanRoles,
+  canAssignClanMemberRoles,
   canKickClanMember,
   canManageClanMembers,
   canDeleteClanSquad,
@@ -199,8 +200,12 @@ export function ClanDetailClient({
   const canDisband = myRole ? myRole === "LEADER" : initialCanDisband;
   const canApply = !myRole && initialCanApply;
   const assignableRoles = myRole
-    ? assignableClanRoles(myRole)
+    ? assignableClanRoles(myRole, myTitleName)
     : initialAssignable;
+  const canAssignRoles =
+    myRole != null
+      ? canAssignClanMemberRoles(myRole, myTitleName)
+      : assignableRoles.length > 0;
 
   const sorted = useMemo(
     () =>
@@ -956,7 +961,7 @@ export function ClanDetailClient({
                     </td>
                     <td>{squadUserIds.get(m.user.id) || "—"}</td>
                     <td>
-                      {canManage &&
+                      {canAssignRoles &&
                       myRole &&
                       assignableRoles.includes(m.role) &&
                       m.role !== "LEADER" ? (

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
+  canAssignClanMemberRoles,
   canAssignClanRole,
   canChangeClanMemberRole,
   canKickClanMember,
@@ -20,6 +21,7 @@ async function actorMembership(clanId: string, steamId: string) {
   if (!user) return null;
   const member = await prisma.clanMember.findUnique({
     where: { clanId_userId: { clanId, userId: user.id } },
+    include: { title: { select: { name: true } } },
   });
   if (!member) return null;
   return { user, member };
@@ -120,7 +122,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
   const { id: clanId } = await ctx.params;
   const actor = await actorMembership(clanId, session.user.steamId);
-  if (!actor || !canManageClanMembers(actor.member.role)) {
+  const actorTitle = actor?.member.title?.name;
+  if (
+    !actor ||
+    !canAssignClanMemberRoles(actor.member.role as ClanRole, actorTitle)
+  ) {
     return NextResponse.json({ error: "Нет прав" }, { status: 403 });
   }
 
@@ -145,7 +151,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
     !canChangeClanMemberRole(
       actor.member.role as ClanRole,
       target.role as ClanRole,
-      role
+      role,
+      actorTitle
     )
   ) {
     return NextResponse.json(
@@ -153,7 +160,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
       { status: 403 }
     );
   }
-  if (!canAssignClanRole(actor.member.role as ClanRole, role)) {
+  if (!canAssignClanRole(actor.member.role as ClanRole, role, actorTitle)) {
     return NextResponse.json({ error: "Нельзя выдать эту роль" }, { status: 403 });
   }
 

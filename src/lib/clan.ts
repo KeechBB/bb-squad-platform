@@ -15,7 +15,7 @@ export const CLAN_ROLE_LABEL: Record<ClanRole, string> = {
   MEMBER: "Обычный игрок",
 };
 
-/** Роли, которые заместитель может выдавать (не трогает зам. и главу) */
+/** Роли, которые зам и HR могут выдавать (не трогают зам. и главу) */
 export const DEPUTY_ASSIGNABLE: ClanRole[] = [
   "MAIN",
   "SUB",
@@ -32,9 +32,17 @@ export const LEADER_ASSIGNABLE: ClanRole[] = [
   "MEMBER",
 ];
 
-export function assignableClanRoles(actor: ClanRole): ClanRole[] {
+function isHrTitle(titleName: string | null | undefined): boolean {
+  return Boolean(titleName && titleName.toLowerCase() === "hr");
+}
+
+export function assignableClanRoles(
+  actor: ClanRole,
+  titleName?: string | null
+): ClanRole[] {
   if (actor === "LEADER") return LEADER_ASSIGNABLE;
   if (actor === "DEPUTY") return DEPUTY_ASSIGNABLE;
+  if (isHrTitle(titleName)) return DEPUTY_ASSIGNABLE;
   return [];
 }
 
@@ -42,23 +50,36 @@ export function canManageClanMembers(role: ClanRole): boolean {
   return role === "LEADER" || role === "DEPUTY";
 }
 
-export function canAssignClanRole(actor: ClanRole, targetRole: ClanRole): boolean {
-  return assignableClanRoles(actor).includes(targetRole);
+/** Глава, зам или HR — менять роли в списке игроков */
+export function canAssignClanMemberRoles(
+  role: ClanRole,
+  titleName?: string | null
+): boolean {
+  return assignableClanRoles(role, titleName).length > 0;
 }
 
-/** Сменить роль участника: зам. нельзя трогать никому, кроме главы */
+export function canAssignClanRole(
+  actor: ClanRole,
+  targetRole: ClanRole,
+  titleName?: string | null
+): boolean {
+  return assignableClanRoles(actor, titleName).includes(targetRole);
+}
+
+/** Сменить роль: зам/главу трогает только глава; HR как зам */
 export function canChangeClanMemberRole(
   actor: ClanRole,
   targetCurrent: ClanRole,
-  newRole: ClanRole
+  newRole: ClanRole,
+  titleName?: string | null
 ): boolean {
   if (targetCurrent === "LEADER") return false;
   if (actor === "LEADER") {
-    return canAssignClanRole("LEADER", newRole);
+    return LEADER_ASSIGNABLE.includes(newRole);
   }
-  if (actor === "DEPUTY") {
+  if (actor === "DEPUTY" || isHrTitle(titleName)) {
     if (targetCurrent === "DEPUTY" || newRole === "DEPUTY") return false;
-    return canAssignClanRole("DEPUTY", newRole);
+    return DEPUTY_ASSIGNABLE.includes(newRole);
   }
   return false;
 }

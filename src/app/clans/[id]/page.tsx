@@ -119,7 +119,7 @@ export default async function ClanPage({ params }: Props) {
   }
 
   const canManage = myRole ? canManageClanMembers(myRole) : false;
-  const assignable = myRole ? assignableClanRoles(myRole) : [];
+  const assignable = myRole ? assignableClanRoles(myRole, myTitleName) : [];
   const canTitles =
     myRole != null ? canManageClanTitles(myRole, myTitleName) : false;
   const canReviewJoins =
