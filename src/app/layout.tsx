@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Oxanium, Manrope } from "next/font/google";
 import { Providers } from "@/components/Providers";
 import { AuthBar } from "@/components/AuthBar";
@@ -22,6 +22,12 @@ export const metadata: Metadata = {
   description: "Платформа клана BlackBerry — Squad",
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -40,9 +46,18 @@ export default function RootLayout({
                   <strong>BLACKBERRY</strong>
                 </Link>
                 <nav className="top-nav" aria-label="Разделы">
-                  <Link href="/">Главная</Link>
-                  <Link href="/cw">Клановые войны</Link>
-                  <Link href="/clans">Кланы</Link>
+                  <Link href="/">
+                    <span className="nav-full">Главная</span>
+                    <span className="nav-short">Глав</span>
+                  </Link>
+                  <Link href="/cw" title="Клановые войны">
+                    <span className="nav-full">Клановые войны</span>
+                    <span className="nav-short">КВ</span>
+                  </Link>
+                  <Link href="/clans">
+                    <span className="nav-full">Кланы</span>
+                    <span className="nav-short">Кланы</span>
+                  </Link>
                 </nav>
               </div>
               <AuthBar />

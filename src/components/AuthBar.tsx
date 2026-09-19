@@ -54,10 +54,11 @@ export function AuthBar() {
       <div className="auth-bar">
         <button
           type="button"
-          className="btn ghost"
+          className="btn ghost auth-register-btn"
           onClick={() => signIn("steam", { callbackUrl: "/register" })}
         >
-          Регистрация
+          <span className="nav-full">Регистрация</span>
+          <span className="nav-short">Рег.</span>
         </button>
         <button
           type="button"
@@ -85,7 +86,7 @@ export function AuthBar() {
           height={36}
         />
       ) : null}
-      <Link className="nick-link" href="/profile">
+      <Link className="nick-link" href="/profile" title={label}>
         {label}
       </Link>
       {admin ? (
@@ -94,12 +95,18 @@ export function AuthBar() {
         </Link>
       ) : null}
       {!session.user.profileComplete ? (
-        <Link className="btn ghost" href="/register">
-          Завершить регистрацию
+        <Link className="btn ghost auth-finish-btn" href="/register">
+          <span className="nav-full">Завершить регистрацию</span>
+          <span className="nav-short">Анкету</span>
         </Link>
       ) : null}
-      <button type="button" className="btn ghost" onClick={() => signOut({ callbackUrl: "/" })}>
-        Выйти
+      <button
+        type="button"
+        className="btn ghost auth-logout-btn"
+        onClick={() => signOut({ callbackUrl: "/" })}
+      >
+        <span className="nav-full">Выйти</span>
+        <span className="nav-short">✕</span>
       </button>
     </div>
   );

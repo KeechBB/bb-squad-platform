@@ -193,19 +193,9 @@ a:hover { color: #c4b5fd; }
   flex: 0 0 auto;
 }
 
-@media (max-width: 720px) {
-  .brand strong {
-    display: none;
-  }
-  .top-nav a {
-    padding: 8px 10px;
-    font-size: 0.72rem;
-    letter-spacing: 0.05em;
-  }
-  .site-top-inner {
-    padding: 8px 12px;
-    gap: 10px;
-  }
+/* Короткие подписи — только на телефоне (см. mobile block в конце) */
+.nav-short {
+  display: none;
 }
 
 .avatar {
@@ -1669,4 +1659,286 @@ body:has(.home-page) {
 .leave-clan-btn:hover {
   background: rgba(248, 113, 113, 0.12);
   color: #fecaca;
+}
+
+/* ——— Mobile only (ПК не затрагиваем) ——— */
+@media (max-width: 720px) {
+  html,
+  body {
+    overflow-x: clip;
+    max-width: 100%;
+  }
+
+  body {
+    background-attachment: scroll;
+  }
+
+  img,
+  svg,
+  video {
+    max-width: 100%;
+  }
+
+  .shell {
+    padding: 14px 12px 40px;
+    max-width: 100%;
+  }
+
+  .shell:has(.clan-page),
+  .shell:has(.clan-detail),
+  .shell:has(.home-page),
+  .shell:has(.cw-embed) {
+    max-width: 100%;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .site-top-inner {
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 8px 10px;
+    gap: 8px 10px;
+  }
+
+  .top-left {
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 8px;
+    margin-right: 0;
+  }
+
+  .brand strong {
+    display: none;
+  }
+
+  .brand img {
+    width: 36px;
+  }
+
+  .top-nav {
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .top-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .top-nav a {
+    padding: 8px 9px;
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+  }
+
+  .top-nav a::after {
+    left: 9px;
+    right: 9px;
+    bottom: 4px;
+  }
+
+  .nav-full {
+    display: none;
+  }
+
+  .nav-short {
+    display: inline;
+  }
+
+  .auth-bar {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .auth-bar .nick-link {
+    max-width: 34vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.85rem;
+  }
+
+  .auth-bar .btn {
+    padding: 7px 10px;
+    font-size: 0.8rem;
+  }
+
+  .auth-bar .avatar {
+    width: 30px;
+    height: 30px;
+  }
+
+  .hero {
+    margin-bottom: 22px;
+  }
+
+  .hero h1 {
+    font-size: clamp(1.55rem, 8vw, 2.2rem);
+    letter-spacing: 0.02em;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+  }
+
+  .lead {
+    max-width: none;
+    font-size: 0.95rem;
+  }
+
+  .card {
+    padding: 14px;
+    border-radius: 14px;
+  }
+
+  .form {
+    max-width: none;
+    width: 100%;
+  }
+
+  .field input,
+  .field textarea,
+  .role-select {
+    font-size: 16px; /* без автозума iOS */
+    max-width: 100%;
+  }
+
+  .profile-avatar {
+    width: 112px;
+    height: 112px;
+    border-radius: 16px;
+  }
+
+  .profile-avatar-fallback {
+    font-size: 2.2rem;
+  }
+
+  .profile-head-row {
+    gap: 12px;
+  }
+
+  .clan-detail-hero {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .clan-detail-logo {
+    width: 56px;
+    height: 56px;
+  }
+
+  .clan-invite-row,
+  .clan-footer-actions,
+  .avatar-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .clan-invite-row .btn,
+  .clan-footer-actions .btn {
+    width: 100%;
+  }
+
+  .admin-tabs,
+  .clan-tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 6px;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+  }
+
+  .admin-tabs::-webkit-scrollbar,
+  .clan-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .admin-tab {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .admin-table-wrap {
+    margin-left: -4px;
+    margin-right: -4px;
+    border-radius: 12px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-table {
+    font-size: 0.8rem;
+    min-width: 560px;
+  }
+
+  .admin-table th,
+  .admin-table td {
+    padding: 8px 10px;
+  }
+
+  .mono {
+    word-break: break-all;
+    white-space: normal;
+  }
+
+  .admin-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-search {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .cw-embed {
+    margin: 0;
+    height: calc(100dvh - 120px);
+    min-height: 420px;
+    border-radius: 12px;
+  }
+
+  .clan-row {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .clan-row-body strong {
+    overflow-wrap: anywhere;
+  }
+
+  .squad-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .home-match-row {
+    grid-template-columns: 72px minmax(0, 1fr) 40px;
+    gap: 6px;
+    padding: 10px 8px;
+  }
+
+  .home-match-row-map {
+    display: none;
+  }
+
+  .home-match-row-vs,
+  .home-match-row-date {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .home-upcoming-window {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .invite-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
