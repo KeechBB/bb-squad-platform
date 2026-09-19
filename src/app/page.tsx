@@ -1,6 +1,8 @@
-import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
+
+/** KV on GitHub Pages; HTTPS cert for kv.* not ready yet — use HTTP until Pages shows the lock. */
+const KV_TABLE_URL = "http://kv.bb-squad.ru/";
 
 export default async function HomePage() {
   const session = await getSession();
@@ -28,9 +30,14 @@ export default async function HomePage() {
           Нажми «Войти через Steam» сверху. После первого входа заполним имя,
           ник и возраст — и ты в системе.
         </p>
-        <Link className="kv-link" href="https://kv.bb-squad.ru/">
+        <a
+          className="kv-link"
+          href={KV_TABLE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           Таблица КВ (публичная) →
-        </Link>
+        </a>
       </section>
     </main>
   );

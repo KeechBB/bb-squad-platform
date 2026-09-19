@@ -1,6 +1,8 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import Link from "next/link";
+
+/** KV on GitHub Pages; HTTPS cert for kv.* not ready yet — use HTTP until Pages shows the lock. */
+const KV_TABLE_URL = "http://kv.bb-squad.ru/";
 
 export default async function ProfilePage() {
   const session = await getSession();
@@ -46,9 +48,14 @@ export default async function ProfilePage() {
         <p style={{ margin: "8px 0 0" }}>
           Скоро: КВ, тренировки, K/D. Пока смотри публичную таблицу слотов.
         </p>
-        <Link className="kv-link" href="https://kv.bb-squad.ru/">
+        <a
+          className="kv-link"
+          href={KV_TABLE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           Таблица КВ →
-        </Link>
+        </a>
       </section>
     </main>
   );
