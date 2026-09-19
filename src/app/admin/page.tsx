@@ -13,6 +13,9 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { AdminUsersTable } from "@/components/AdminUsersTable";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function AdminPage() {
   const session = await getSession();
   if (!session?.user?.steamId) redirect("/");
@@ -73,7 +76,11 @@ export default async function AdminPage() {
         </p>
       </section>
 
-      <AdminUsersTable initialUsers={rows} roleOptions={roleOptions} />
+      <AdminUsersTable
+        initialUsers={rows}
+        roleOptions={roleOptions}
+        actorRole={actorRole}
+      />
     </main>
   );
 }

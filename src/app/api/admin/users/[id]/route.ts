@@ -96,11 +96,12 @@ export async function PATCH(req: Request, ctx: Ctx) {
         { status: 403 }
       );
     }
+    const nextRole = lockedRoleForSteam(existing.steamId, role);
     const user = await prisma.user.update({
       where: { id },
-      data: { role },
+      data: { role: nextRole },
     });
-    notifyRoleChange(user.id, role);
+    notifyRoleChange(user.id, nextRole);
     return NextResponse.json({ ok: true, user });
   }
 

@@ -397,6 +397,12 @@ a:hover { color: #c4b5fd; }
   font-size: 0.9rem;
 }
 
+.ok-msg {
+  margin: 0 0 12px;
+  color: #86efac;
+  font-size: 0.9rem;
+}
+
 .profile-grid {
   display: grid;
   gap: 18px;

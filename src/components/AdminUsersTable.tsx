@@ -23,6 +23,7 @@ type SortKey = "createdAt" | "nick" | "name" | "age" | "steamId" | "role";
 type Props = {
   initialUsers: AdminUserRow[];
   roleOptions: AppRole[];
+  actorRole: AppRole;
 };
 
 function fmtDate(iso: string) {
@@ -39,13 +40,22 @@ function fmtDate(iso: string) {
   }
 }
 
-export function AdminUsersTable({ initialUsers, roleOptions }: Props) {
+function canEditTarget(actorRole: AppRole, targetRole: AppRole, isSelf: boolean) {
+  if (isSelf) return false;
+  if (targetRole === "SUPER_ADMIN") return false;
+  if (actorRole === "SUPER_ADMIN" || actorRole === "DEPUTY") return true;
+  if (actorRole === "ADMIN") return targetRole === "USER";
+  return false;
+}
+
+export function AdminUsersTable({ initialUsers, roleOptions, actorRole }: Props) {
   const [users, setUsers] = useState(initialUsers);
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<SortKey>("createdAt");
   const [order, setOrder] = useState<"asc" | "desc">("desc");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [ok, setOk] = useState("");
 
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -92,10 +102,12 @@ export function AdminUsersTable({ initialUsers, roleOptions }: Props) {
   }
 
   async function setRole(userId: string, role: AppRole) {
+    const target = users.find((u) => u.id === userId);
+    if (!target || target.role === role) return;
+
     setError("");
+    setOk("");
     setBusyId(userId);
-    const prev = users;
-    setUsers((list) => list.map((u) => (u.id === userId ? { ...u, role } : u)));
     try {
       const res = await fetch(`/api/admin/users/${userId}`, {
         method: "PATCH",
@@ -104,11 +116,25 @@ export function AdminUsersTable({ initialUsers, roleOptions }: Props) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setUsers(prev);
         setError(data.error || "Не удалось сменить роль");
+        return;
       }
+      const saved = (data.user?.role as AppRole) || role;
+      setUsers((list) =>
+        list.map((u) =>
+          u.id === userId
+            ? {
+                ...u,
+                role: saved,
+                canEditRole: canEditTarget(actorRole, saved, false),
+              }
+            : u
+        )
+      );
+      setOk(
+        `${target.nick || target.steamId}: роль «${roleLabel(saved)}» сохранена`
+      );
     } catch {
-      setUsers(prev);
       setError("Сеть или сервер недоступны");
     } finally {
       setBusyId(null);
@@ -131,6 +157,7 @@ export function AdminUsersTable({ initialUsers, roleOptions }: Props) {
         </p>
       </div>
       {error ? <p className="error">{error}</p> : null}
+      {ok ? <p className="ok-msg">{ok}</p> : null}
 
       <div className="admin-table-wrap">
         <table className="admin-table">
@@ -170,41 +197,49 @@ export function AdminUsersTable({ initialUsers, roleOptions }: Props) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((u, i) => (
-              <tr key={u.id}>
-                <td>{i + 1}</td>
-                <td>
-                  <Link className="admin-user-link" href={`/admin/users/${u.id}`}>
-                    {u.nick || "—"}
-                  </Link>
-                  {!u.profileComplete ? (
-                    <span className="admin-badge">не завершил</span>
-                  ) : null}
-                </td>
-                <td>{u.name || "—"}</td>
-                <td>{u.age ?? "—"}</td>
-                <td className="mono">{u.steamId}</td>
-                <td>{fmtDate(u.createdAt)}</td>
-                <td>
-                  {u.canEditRole && roleOptions.length > 0 ? (
-                    <select
-                      className="role-select"
-                      value={roleOptions.includes(u.role) ? u.role : roleOptions[0]}
-                      disabled={busyId === u.id}
-                      onChange={(e) => void setRole(u.id, e.target.value as AppRole)}
-                    >
-                      {roleOptions.map((r) => (
-                        <option key={r} value={r}>
-                          {roleLabel(r)}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span className="role-static">{roleLabel(u.role)}</span>
-                  )}
-                </td>
-              </tr>
-            ))}
+            {rows.map((u, i) => {
+              const editable = u.canEditRole && roleOptions.length > 0;
+              const options = editable
+                ? Array.from(new Set<AppRole>([u.role, ...roleOptions])).filter(
+                    (r) => r === u.role || roleOptions.includes(r)
+                  )
+                : [];
+              return (
+                <tr key={u.id}>
+                  <td>{i + 1}</td>
+                  <td>
+                    <Link className="admin-user-link" href={`/admin/users/${u.id}`}>
+                      {u.nick || "—"}
+                    </Link>
+                    {!u.profileComplete ? (
+                      <span className="admin-badge">не завершил</span>
+                    ) : null}
+                  </td>
+                  <td>{u.name || "—"}</td>
+                  <td>{u.age ?? "—"}</td>
+                  <td className="mono">{u.steamId}</td>
+                  <td>{fmtDate(u.createdAt)}</td>
+                  <td>
+                    {editable ? (
+                      <select
+                        className="role-select"
+                        value={u.role}
+                        disabled={busyId === u.id}
+                        onChange={(e) => void setRole(u.id, e.target.value as AppRole)}
+                      >
+                        {options.map((r) => (
+                          <option key={r} value={r}>
+                            {roleLabel(r)}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="role-static">{roleLabel(u.role)}</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={7} className="muted">

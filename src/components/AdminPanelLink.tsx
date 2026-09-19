@@ -13,7 +13,10 @@ export function AdminPanelLink({ initialAdmin }: Props) {
   const check = useCallback(async () => {
     try {
       const res = await fetch("/api/me/admin", { cache: "no-store" });
-      if (!res.ok) return;
+      if (!res.ok) {
+        setAdmin(false);
+        return;
+      }
       const data = (await res.json()) as { admin?: boolean };
       setAdmin(Boolean(data.admin));
     } catch {
@@ -35,8 +38,13 @@ export function AdminPanelLink({ initialAdmin }: Props) {
     } catch {
       /* */
     }
-    const id = window.setInterval(() => void check(), 8000);
     void check();
+    let ticks = 0;
+    const id = window.setInterval(() => {
+      void check();
+      ticks += 1;
+      if (ticks > 40) window.clearInterval(id);
+    }, 3000);
     return () => {
       es?.close();
       window.clearInterval(id);

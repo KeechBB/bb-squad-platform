@@ -2,9 +2,48 @@
 
 import { signIn, signOut, useSession } from "next-auth/react";
 import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 
 export function AuthBar() {
   const { data: session, status } = useSession();
+  const [admin, setAdmin] = useState(false);
+
+  const checkAdmin = useCallback(async () => {
+    if (!session?.user?.profileComplete) {
+      setAdmin(false);
+      return;
+    }
+    try {
+      const res = await fetch("/api/me/admin", { cache: "no-store" });
+      if (!res.ok) {
+        setAdmin(false);
+        return;
+      }
+      const data = (await res.json()) as { admin?: boolean };
+      setAdmin(Boolean(data.admin));
+    } catch {
+      /* ignore */
+    }
+  }, [session?.user?.profileComplete]);
+
+  useEffect(() => {
+    void checkAdmin();
+    if (!session?.user?.profileComplete) return;
+    let es: EventSource | null = null;
+    try {
+      es = new EventSource("/api/live/me");
+      es.addEventListener("user", () => {
+        void checkAdmin();
+      });
+    } catch {
+      /* */
+    }
+    const id = window.setInterval(() => void checkAdmin(), 10000);
+    return () => {
+      es?.close();
+      window.clearInterval(id);
+    };
+  }, [checkAdmin, session?.user?.profileComplete]);
 
   if (status === "loading") {
     return <div className="auth-bar muted">…</div>;
@@ -49,6 +88,11 @@ export function AuthBar() {
       <Link className="nick-link" href="/profile">
         {label}
       </Link>
+      {admin ? (
+        <Link className="btn primary" href="/admin">
+          Админ
+        </Link>
+      ) : null}
       {!session.user.profileComplete ? (
         <Link className="btn ghost" href="/register">
           Завершить регистрацию
