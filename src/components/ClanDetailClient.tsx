@@ -880,11 +880,11 @@ export function ClanDetailClient({
           {canInvite ? (
             <div className="clan-invite-row">
               <label className="field" style={{ flex: 1, margin: 0 }}>
-                <span>Пригласить по нику</span>
+                <span>Пригласить по нику или Steam ID</span>
                 <input
                   value={inviteNick}
                   onChange={(e) => setInviteNick(e.target.value)}
-                  placeholder="Nick"
+                  placeholder="Nick или 7656119…"
                 />
               </label>
               <button

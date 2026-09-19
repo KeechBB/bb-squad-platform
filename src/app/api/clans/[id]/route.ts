@@ -79,12 +79,19 @@ export async function POST(req: Request, ctx: Ctx) {
   const body = await req.json().catch(() => null);
   const nickOrId = String((body as { user?: string })?.user || "").trim();
   if (!nickOrId) {
-    return NextResponse.json({ error: "Укажи ник или id" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Укажи ник или Steam ID" },
+      { status: 400 }
+    );
   }
 
   const target = await prisma.user.findFirst({
     where: {
-      OR: [{ id: nickOrId }, { nick: { equals: nickOrId, mode: "insensitive" } }],
+      OR: [
+        { id: nickOrId },
+        { steamId: nickOrId },
+        { nick: { equals: nickOrId, mode: "insensitive" } },
+      ],
       profileComplete: true,
     },
   });
