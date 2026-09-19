@@ -29,6 +29,7 @@ export default async function ClanPage({ params }: Props) {
               steamName: true,
               reserveUntil: true,
               reserveReason: true,
+              updatedAt: true,
             },
           },
         },
@@ -72,6 +73,7 @@ export default async function ClanPage({ params }: Props) {
             ...m.user,
             reserveUntil: m.user.reserveUntil?.toISOString() ?? null,
             reserveReason: m.user.reserveReason,
+            updatedAt: m.user.updatedAt.toISOString(),
           },
         }))}
         myUserId={myUserId}

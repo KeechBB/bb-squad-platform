@@ -4,16 +4,12 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { formatRuDate, isActiveReserve } from "@/lib/validation";
 import { CLAN_ROLE_LABEL, type ClanRole } from "@/lib/clan";
+import { withAvatarCacheBust } from "@/lib/avatar";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type Props = { params: Promise<{ nick: string }> };
-
-function resolveAvatar(url: string | null | undefined): string | null {
-  if (!url) return null;
-  if (url.startsWith("/uploads/avatars/")) {
-    return url.replace("/uploads/avatars/", "/api/avatars/");
-  }
-  return url;
-}
 
 export default async function PlayerProfilePage({ params }: Props) {
   const session = await getSession();
@@ -42,7 +38,7 @@ export default async function PlayerProfilePage({ params }: Props) {
   const isSelf = session.user.steamId === user.steamId;
   if (isSelf) redirect("/profile");
 
-  const avatar = resolveAvatar(user.avatarUrl);
+  const avatar = withAvatarCacheBust(user.avatarUrl, user.updatedAt);
   const inReserve = isActiveReserve(user.reserveUntil);
 
   return (

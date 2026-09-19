@@ -8,6 +8,7 @@ import {
   removeUserAvatarFiles,
   saveUserAvatar,
 } from "@/lib/avatar";
+import { clanLiveChannel, livePublish, userLiveChannel } from "@/lib/liveBus";
 
 export const runtime = "nodejs";
 
@@ -43,11 +44,25 @@ export async function POST(req: Request) {
 
     const dbUser = await prisma.user.findUnique({
       where: { steamId: session.user.steamId },
-      select: { id: true, steamAvatar: true },
+      select: {
+        id: true,
+        steamAvatar: true,
+        clanMemberships: { select: { clanId: true } },
+      },
     });
     if (!dbUser) {
       return NextResponse.json({ error: "Пользователь не найден" }, { status: 404 });
     }
+
+    const notifyAvatar = () => {
+      livePublish(userLiveChannel(dbUser.id), JSON.stringify({ type: "avatar" }));
+      for (const m of dbUser.clanMemberships) {
+        livePublish(
+          clanLiveChannel(m.clanId),
+          JSON.stringify({ type: "avatar", userId: dbUser.id })
+        );
+      }
+    };
 
     const contentType = req.headers.get("content-type") || "";
 
@@ -66,6 +81,7 @@ export async function POST(req: Request) {
           where: { steamId: session.user.steamId },
           data: { avatarUrl: dbUser.steamAvatar },
         });
+        notifyAvatar();
         return NextResponse.json({ ok: true, avatarUrl: user.avatarUrl });
       }
       return NextResponse.json({ error: "Некорректный запрос" }, { status: 400 });
@@ -97,6 +113,8 @@ export async function POST(req: Request) {
       where: { steamId: session.user.steamId },
       data: { avatarUrl },
     });
+
+    notifyAvatar();
 
     return NextResponse.json({
       ok: true,

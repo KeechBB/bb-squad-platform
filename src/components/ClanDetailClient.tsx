@@ -11,6 +11,7 @@ import {
   CLAN_ROLE_LABEL,
 } from "@/lib/clan";
 import { formatRuDate, isActiveReserve } from "@/lib/validation";
+import { withAvatarCacheBust } from "@/lib/avatar";
 
 type Member = {
   id: string;
@@ -24,9 +25,9 @@ type Member = {
     steamName: string | null;
     reserveUntil?: string | null;
     reserveReason?: string | null;
+    updatedAt?: string | null;
   };
 };
-
 type SquadMember = {
   id: string;
   user: Member["user"];
@@ -150,7 +151,10 @@ export function ClanDetailClient({
         role: ClanRole;
         joinedAt: string;
         userId?: string;
-        user: Member["user"] & { reserveUntil?: string | Date | null };
+        user: Member["user"] & {
+          reserveUntil?: string | Date | null;
+          updatedAt?: string | Date | null;
+        };
       }>;
       setMembers(
         list.map((m) => ({
@@ -168,6 +172,11 @@ export function ClanDetailClient({
                 : new Date(m.user.reserveUntil).toISOString()
               : null,
             reserveReason: m.user.reserveReason ?? null,
+            updatedAt: m.user.updatedAt
+              ? typeof m.user.updatedAt === "string"
+                ? m.user.updatedAt
+                : new Date(m.user.updatedAt).toISOString()
+              : null,
           },
         }))
       );
@@ -451,14 +460,19 @@ export function ClanDetailClient({
                 </tr>
               </thead>
               <tbody>
-                {sorted.map((m, i) => (
+                {sorted.map((m, i) => {
+                  const avatarSrc = withAvatarCacheBust(
+                    m.user.avatarUrl,
+                    m.user.updatedAt || m.user.avatarUrl
+                  );
+                  return (
                   <tr key={m.id}>
                     <td>{i + 1}</td>
                     <td>
                       <div className="clan-member-cell">
-                        {m.user.avatarUrl ? (
+                        {avatarSrc ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={m.user.avatarUrl} alt="" width={28} height={28} />
+                          <img src={avatarSrc} alt="" width={28} height={28} />
                         ) : (
                           <span className="clan-member-fallback">
                             {(m.user.nick || "?").slice(0, 1)}
@@ -529,7 +543,8 @@ export function ClanDetailClient({
                       </td>
                     ) : null}
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

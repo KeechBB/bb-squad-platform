@@ -40,6 +40,7 @@ export async function GET(_req: Request, ctx: Ctx) {
               steamName: true,
               reserveUntil: true,
               reserveReason: true,
+              updatedAt: true,
             },
           },
         },
