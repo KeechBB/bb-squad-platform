@@ -19,11 +19,17 @@ type Props = {
     avatarUrl: string | null;
     createdAt: string;
   };
+  canEditProfile: boolean;
   canEditRole: boolean;
   roleOptions: AppRole[];
 };
 
-export function AdminUserEditForm({ user, canEditRole, roleOptions }: Props) {
+export function AdminUserEditForm({
+  user,
+  canEditProfile,
+  canEditRole,
+  roleOptions,
+}: Props) {
   const router = useRouter();
   const [name, setName] = useState(user.name || "");
   const [nick, setNick] = useState(user.nick || "");
@@ -40,6 +46,7 @@ export function AdminUserEditForm({ user, canEditRole, roleOptions }: Props) {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!canEditProfile) return;
     setError("");
     setOk("");
     setLoading(true);
@@ -77,6 +84,7 @@ export function AdminUserEditForm({ user, canEditRole, roleOptions }: Props) {
   }
 
   async function clearAvatar() {
+    if (!canEditProfile) return;
     setError("");
     setOk("");
     setLoading(true);
@@ -101,6 +109,8 @@ export function AdminUserEditForm({ user, canEditRole, roleOptions }: Props) {
     }
   }
 
+  const locked = !canEditProfile;
+
   return (
     <form className="card form" onSubmit={onSubmit}>
       <div className="admin-avatar-block">
@@ -111,7 +121,7 @@ export function AdminUserEditForm({ user, canEditRole, roleOptions }: Props) {
         ) : (
           <div className="admin-user-avatar admin-user-avatar-empty">нет</div>
         )}
-        {avatarUrl ? (
+        {avatarUrl && canEditProfile ? (
           <button
             type="button"
             className="btn ghost"
@@ -133,6 +143,7 @@ export function AdminUserEditForm({ user, canEditRole, roleOptions }: Props) {
           onChange={(e) => setNick(e.target.value)}
           maxLength={24}
           required
+          disabled={locked}
         />
         <span className="field-hint">Латиница, цифры и символы, 3–24.</span>
       </label>
@@ -143,6 +154,7 @@ export function AdminUserEditForm({ user, canEditRole, roleOptions }: Props) {
           onChange={(e) => setName(e.target.value)}
           maxLength={40}
           required
+          disabled={locked}
         />
       </label>
       <label className="field">
@@ -152,6 +164,7 @@ export function AdminUserEditForm({ user, canEditRole, roleOptions }: Props) {
           value={birthDate}
           onChange={(e) => setBirthDate(e.target.value)}
           max={new Date().toISOString().slice(0, 10)}
+          disabled={locked}
         />
         <span className="field-hint">
           Если пусто — сохранится возраст ниже вручную.
@@ -164,7 +177,7 @@ export function AdminUserEditForm({ user, canEditRole, roleOptions }: Props) {
           onChange={(e) => setAge(e.target.value)}
           inputMode="numeric"
           required={!birthDate}
-          disabled={Boolean(birthDate)}
+          disabled={locked || Boolean(birthDate)}
         />
       </label>
       <label className="field">
@@ -174,6 +187,7 @@ export function AdminUserEditForm({ user, canEditRole, roleOptions }: Props) {
           onChange={(e) => setSteamId(e.target.value)}
           inputMode="numeric"
           required
+          disabled={locked}
         />
       </label>
       <label className="field">
@@ -184,22 +198,26 @@ export function AdminUserEditForm({ user, canEditRole, roleOptions }: Props) {
             value={role}
             onChange={(e) => setRole(e.target.value as AppRole)}
           >
-            {roleOptions.map((r) => (
-              <option key={r} value={r}>
-                {roleLabel(r)}
-              </option>
-            ))}
+            {Array.from(new Set<AppRole>([user.role, ...roleOptions]))
+              .filter((r) => r === user.role || roleOptions.includes(r))
+              .map((r) => (
+                <option key={r} value={r}>
+                  {roleLabel(r)}
+                </option>
+              ))}
           </select>
         ) : (
           <input value={roleLabel(user.role)} readOnly disabled />
         )}
       </label>
       {error ? <p className="error">{error}</p> : null}
-      {ok ? <p className="ok">{ok}</p> : null}
+      {ok ? <p className="ok-msg">{ok}</p> : null}
       <div className="avatar-actions">
-        <button type="submit" className="btn primary" disabled={loading}>
-          {loading ? "…" : "Сохранить"}
-        </button>
+        {canEditProfile ? (
+          <button type="submit" className="btn primary" disabled={loading}>
+            {loading ? "…" : "Сохранить"}
+          </button>
+        ) : null}
         <Link className="btn ghost" href="/admin">
           ← К списку
         </Link>

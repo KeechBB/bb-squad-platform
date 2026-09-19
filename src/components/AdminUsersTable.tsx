@@ -44,6 +44,7 @@ function canEditTarget(actorRole: AppRole, targetRole: AppRole, isSelf: boolean)
   if (isSelf) return false;
   if (targetRole === "SUPER_ADMIN") return false;
   if (actorRole === "SUPER_ADMIN" || actorRole === "DEPUTY") return true;
+  if (actorRole === "HR") return targetRole !== "DEPUTY";
   if (actorRole === "ADMIN") return targetRole === "USER";
   return false;
 }

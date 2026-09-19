@@ -2,6 +2,7 @@ import { getSession } from "@/lib/auth";
 import {
   assignableRoles,
   canChangeRole,
+  canEditProfile,
   effectiveRole,
   getUserRole,
   isAdmin,
@@ -35,16 +36,20 @@ export default async function AdminUserPage({ params }: Props) {
   const role = effectiveRole(user.steamId, user.role as AppRole);
   const actorRole = (await getUserRole(session.user.steamId)) || "USER";
   const roleOptions = assignableRoles(actorRole);
-  const canEditRole =
-    user.steamId !== session.user.steamId &&
-    canChangeRole(actorRole, role, user.steamId);
+  const isSelf = user.steamId === session.user.steamId;
+  const canEdit = isSelf || canEditProfile(actorRole, role, user.steamId);
+  const canEditRole = !isSelf && canChangeRole(actorRole, role, user.steamId);
 
   return (
     <main className="admin-page">
       <section className="hero">
         <p className="eyebrow">админ · пользователь</p>
         <h1>{user.nick || user.steamName || "Игрок"}</h1>
-        <p className="lead">Правка анкеты, роли и аватара.</p>
+        <p className="lead">
+          {canEdit
+            ? "Правка анкеты, роли и аватара."
+            : "Нет прав править этот профиль (Зам / Главный админ)."}
+        </p>
       </section>
       <AdminUserEditForm
         user={{
@@ -61,6 +66,7 @@ export default async function AdminUserPage({ params }: Props) {
           avatarUrl: resolveAvatarSrc(user.avatarUrl),
           createdAt: user.createdAt.toISOString(),
         }}
+        canEditProfile={canEdit}
         canEditRole={canEditRole}
         roleOptions={roleOptions}
       />

@@ -61,7 +61,12 @@ export async function getUserRole(steamId: string): Promise<AppRole | null> {
 export async function isAdmin(steamId: string | null | undefined): Promise<boolean> {
   if (!steamId) return false;
   const role = await getUserRole(steamId);
-  return role === "ADMIN" || role === "DEPUTY" || role === "SUPER_ADMIN";
+  return (
+    role === "ADMIN" ||
+    role === "HR" ||
+    role === "DEPUTY" ||
+    role === "SUPER_ADMIN"
+  );
 }
 
 export async function isSuperAdmin(steamId: string | null | undefined): Promise<boolean> {
@@ -97,11 +102,10 @@ export async function syncBuiltinAdmins() {
 }
 
 /**
- * Можно ли актору менять роль цели.
- * - Главный админ / Заместитель: все, кроме главного админа (Keech)
- * - Админ: только игроки (USER)
+ * Можно ли править анкету / аватар цели.
+ * HR — все, кроме Зама и Главного админа.
  */
-export function canChangeRole(
+export function canEditProfile(
   actorRole: AppRole,
   targetRole: AppRole,
   targetSteamId: string
@@ -112,10 +116,27 @@ export function canChangeRole(
   if (actorRole === "SUPER_ADMIN" || actorRole === "DEPUTY") {
     return true;
   }
+  if (actorRole === "HR") {
+    return targetRole !== "DEPUTY";
+  }
   if (actorRole === "ADMIN") {
     return targetRole === "USER";
   }
   return false;
+}
+
+/**
+ * Можно ли актору менять роль цели.
+ * - Главный / Зам: все, кроме главного админа
+ * - HR: все, кроме Зама и главного
+ * - Админ: только игроки (USER)
+ */
+export function canChangeRole(
+  actorRole: AppRole,
+  targetRole: AppRole,
+  targetSteamId: string
+): boolean {
+  return canEditProfile(actorRole, targetRole, targetSteamId);
 }
 
 export function canSetRole(
@@ -128,5 +149,8 @@ export function canSetRole(
   if (newRole === "SUPER_ADMIN") return false;
   if (!assignableRoles(actorRole).includes(newRole)) return false;
   if (actorRole === "ADMIN" && targetRole !== "USER") return false;
+  if (actorRole === "HR" && (newRole === "DEPUTY" || targetRole === "DEPUTY")) {
+    return false;
+  }
   return true;
 }

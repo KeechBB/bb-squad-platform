@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/requireAdmin";
 import {
+  canEditProfile,
   canSetRole,
   effectiveRole,
   getUserRole,
@@ -56,6 +57,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Не найден" }, { status: 404 });
   }
   const existingRole = effectiveRole(existing.steamId, existing.role as AppRole);
+  const isSelf = existing.steamId === actorSteamId;
+  const mayEditProfile =
+    isSelf || canEditProfile(actorRole, existingRole, existing.steamId);
 
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object") {
@@ -74,6 +78,12 @@ export async function PATCH(req: Request, ctx: Ctx) {
   };
 
   if (b.clearAvatar) {
+    if (!mayEditProfile) {
+      return NextResponse.json(
+        { error: "Недостаточно прав для правки этого профиля" },
+        { status: 403 }
+      );
+    }
     await removeUserAvatarFiles(existing.id);
     const user = await prisma.user.update({
       where: { id },
@@ -87,7 +97,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     if (!role) {
       return NextResponse.json({ error: "Некорректная роль" }, { status: 400 });
     }
-    if (existing.steamId === actorSteamId) {
+    if (isSelf) {
       return NextResponse.json({ error: "Нельзя менять свою роль" }, { status: 403 });
     }
     if (!canSetRole(actorRole, existingRole, existing.steamId, role)) {
@@ -103,6 +113,13 @@ export async function PATCH(req: Request, ctx: Ctx) {
     });
     notifyRoleChange(user.id, nextRole);
     return NextResponse.json({ ok: true, user });
+  }
+
+  if (!mayEditProfile) {
+    return NextResponse.json(
+      { error: "Недостаточно прав для правки этого профиля" },
+      { status: 403 }
+    );
   }
 
   const name = String(b.name ?? "").trim();
@@ -145,7 +162,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     if (!role) {
       return NextResponse.json({ error: "Некорректная роль" }, { status: 400 });
     }
-    if (existing.steamId === actorSteamId) {
+    if (isSelf) {
       return NextResponse.json({ error: "Нельзя менять свою роль" }, { status: 403 });
     }
     if (!canSetRole(actorRole, existingRole, existing.steamId, role)) {
