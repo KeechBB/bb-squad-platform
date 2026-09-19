@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isValidAge, isValidName, isValidNick } from "@/lib/validation";
+import {
+  ageFromBirthDate,
+  isValidName,
+  isValidNick,
+  parseBirthDate,
+} from "@/lib/validation";
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -17,26 +22,29 @@ export async function POST(req: Request) {
 
   const name = String((body as { name?: string }).name ?? "").trim();
   const nick = String((body as { nick?: string }).nick ?? "").trim();
-  const age = Number((body as { age?: number }).age);
+  const birthRaw = String((body as { birthDate?: string }).birthDate ?? "").trim();
 
+  if (!isValidNick(nick)) {
+    return NextResponse.json(
+      {
+        error:
+          "Ник: латиница, цифры и символы, длина 3–24 (это игровой никнейм)",
+      },
+      { status: 400 }
+    );
+  }
   if (!isValidName(name)) {
     return NextResponse.json(
       { error: "Имя: от 2 до 40 символов" },
       { status: 400 }
     );
   }
-  if (!isValidNick(nick)) {
+
+  const age = ageFromBirthDate(birthRaw);
+  const birthDate = parseBirthDate(birthRaw);
+  if (age == null || !birthDate) {
     return NextResponse.json(
-      {
-        error:
-          "Ник: только латиница, цифры, _ и -, длина 3–20",
-      },
-      { status: 400 }
-    );
-  }
-  if (!isValidAge(age)) {
-    return NextResponse.json(
-      { error: "Возраст: целое число от 14 до 99" },
+      { error: "Укажи корректную дату рождения (возраст 14–99)" },
       { status: 400 }
     );
   }
@@ -60,6 +68,7 @@ export async function POST(req: Request) {
       name,
       nick,
       age,
+      birthDate,
       profileComplete: true,
     },
   });
@@ -71,6 +80,7 @@ export async function POST(req: Request) {
       name: user.name,
       nick: user.nick,
       age: user.age,
+      birthDate: user.birthDate?.toISOString().slice(0, 10) ?? null,
       profileComplete: user.profileComplete,
     },
   });

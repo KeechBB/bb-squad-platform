@@ -1,17 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { ageFromBirthDate } from "@/lib/validation";
 
 export function RegisterForm() {
   const router = useRouter();
   const { data: session, update } = useSession();
   const [name, setName] = useState("");
   const [nick, setNick] = useState("");
-  const [age, setAge] = useState("");
+  const [birthDate, setBirthDate] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const previewAge = useMemo(
+    () => (birthDate ? ageFromBirthDate(birthDate) : null),
+    [birthDate]
+  );
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -24,7 +30,7 @@ export function RegisterForm() {
         body: JSON.stringify({
           name,
           nick,
-          age: Number(age),
+          birthDate,
         }),
       });
       const data = await res.json();
@@ -54,37 +60,42 @@ export function RegisterForm() {
         <input value={session?.user?.steamId || ""} readOnly disabled />
       </label>
       <label className="field">
-        <span>Имя</span>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Как к тебе обращаться"
-          maxLength={40}
-          required
-        />
-      </label>
-      <label className="field">
-        <span>Ник на сайте (только латиница)</span>
+        <span>Ник</span>
         <input
           value={nick}
           onChange={(e) => setNick(e.target.value)}
           placeholder="Keech"
-          pattern="[A-Za-z0-9_-]{3,20}"
-          title="A–Z, a–z, 0–9, _ или -, 3–20 символов"
-          maxLength={20}
+          maxLength={24}
           required
         />
+        <span className="field-hint">
+          Это ваш игровой никнейм. Можно латиницу, цифры и символы (без кириллицы).
+        </span>
       </label>
       <label className="field">
-        <span>Возраст</span>
+        <span>Имя</span>
         <input
-          type="number"
-          min={14}
-          max={99}
-          value={age}
-          onChange={(e) => setAge(e.target.value)}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Как вас зовут"
+          maxLength={40}
           required
         />
+        <span className="field-hint">Как вас зовут в жизни / как обращаться.</span>
+      </label>
+      <label className="field">
+        <span>Дата рождения</span>
+        <input
+          type="date"
+          value={birthDate}
+          onChange={(e) => setBirthDate(e.target.value)}
+          required
+          max={new Date().toISOString().slice(0, 10)}
+        />
+        <span className="field-hint">
+          Возраст посчитается сам
+          {previewAge != null ? `: ${previewAge} лет` : " (от 14 до 99)"}.
+        </span>
       </label>
       {error ? <p className="error">{error}</p> : null}
       <button className="btn primary" type="submit" disabled={loading}>

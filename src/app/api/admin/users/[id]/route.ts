@@ -11,7 +11,7 @@ import {
   parseRole,
   type AppRole,
 } from "@/lib/admin";
-import { isValidAge, isValidName, isValidNick } from "@/lib/validation";
+import { ageFromBirthDate, isValidAge, isValidName, isValidNick, parseBirthDate } from "@/lib/validation";
 import { removeUserAvatarFiles } from "@/lib/avatar";
 
 export const runtime = "nodejs";
@@ -58,6 +58,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     name?: string;
     nick?: string;
     age?: number;
+    birthDate?: string;
     steamId?: string;
     role?: string;
     roleOnly?: boolean;
@@ -96,7 +97,6 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
   const name = String(b.name ?? "").trim();
   const nick = String(b.nick ?? "").trim();
-  const age = Number(b.age);
   const steamId = String(b.steamId ?? "").trim();
 
   if (!isValidName(name)) {
@@ -104,11 +104,25 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
   if (!isValidNick(nick)) {
     return NextResponse.json(
-      { error: "Ник: латиница, цифры, _ и -, 3–20" },
+      { error: "Ник: латиница, цифры и символы, 3–24" },
       { status: 400 }
     );
   }
-  if (!isValidAge(age)) {
+  const birthRaw = String(b.birthDate ?? "").trim();
+  let age = Number(b.age);
+  let birthDate: Date | null = null;
+  if (birthRaw) {
+    const fromBirth = ageFromBirthDate(birthRaw);
+    const parsed = parseBirthDate(birthRaw);
+    if (fromBirth == null || !parsed) {
+      return NextResponse.json(
+        { error: "Дата рождения некорректна (возраст 14–99)" },
+        { status: 400 }
+      );
+    }
+    age = fromBirth;
+    birthDate = parsed;
+  } else if (!isValidAge(age)) {
     return NextResponse.json({ error: "Возраст: 14–99" }, { status: 400 });
   }
   if (!isValidSteamId(steamId)) {
@@ -154,6 +168,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
         name,
         nick,
         age,
+        ...(birthDate ? { birthDate } : {}),
         steamId,
         role: lockedRoleForSteam(steamId, nextRole),
       },

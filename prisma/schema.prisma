@@ -38,6 +38,7 @@ model User {
   name            String?
   nick            String?  @unique
   age             Int?
+  birthDate       DateTime?
   role            Role     @default(USER)
   profileComplete Boolean  @default(false)
   createdAt       DateTime @default(now())

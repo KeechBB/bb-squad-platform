@@ -90,7 +90,12 @@ export default async function ProfilePage() {
         </div>
         <div className="meta-row">
           <span>Возраст</span>
-          <span>{u.age}</span>
+          <span>
+            {u.age}
+            {me?.birthDate
+              ? ` (др. ${me.birthDate.toISOString().slice(0, 10).split("-").reverse().join(".")})`
+              : ""}
+          </span>
         </div>
         <div className="meta-row">
           <span>Steam ID</span>

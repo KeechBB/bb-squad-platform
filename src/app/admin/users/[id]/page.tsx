@@ -54,6 +54,9 @@ export default async function AdminUserPage({ params }: Props) {
           name: user.name,
           nick: user.nick,
           age: user.age,
+          birthDate: user.birthDate
+            ? user.birthDate.toISOString().slice(0, 10)
+            : null,
           role,
           avatarUrl: resolveAvatarSrc(user.avatarUrl),
           createdAt: user.createdAt.toISOString(),

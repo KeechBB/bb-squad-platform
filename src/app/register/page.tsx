@@ -15,7 +15,7 @@ export default async function RegisterPage() {
         <p className="lead">
           Steam уже подтверждён
           {session.user.steamName ? ` (${session.user.steamName})` : ""}.
-          Ник на сайте — только латиница.
+          Заполни ник, имя и дату рождения.
         </p>
       </section>
       <RegisterForm />

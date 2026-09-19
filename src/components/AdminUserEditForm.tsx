@@ -14,6 +14,7 @@ type Props = {
     name: string | null;
     nick: string | null;
     age: number | null;
+    birthDate: string | null;
     role: AppRole;
     avatarUrl: string | null;
     createdAt: string;
@@ -26,6 +27,7 @@ export function AdminUserEditForm({ user, canEditRole, roleOptions }: Props) {
   const router = useRouter();
   const [name, setName] = useState(user.name || "");
   const [nick, setNick] = useState(user.nick || "");
+  const [birthDate, setBirthDate] = useState(user.birthDate || "");
   const [age, setAge] = useState(user.age != null ? String(user.age) : "");
   const [steamId, setSteamId] = useState(user.steamId);
   const [role, setRole] = useState<AppRole>(
@@ -45,9 +47,13 @@ export function AdminUserEditForm({ user, canEditRole, roleOptions }: Props) {
       const payload: Record<string, unknown> = {
         name,
         nick,
-        age: Number(age),
         steamId,
       };
+      if (birthDate) {
+        payload.birthDate = birthDate;
+      } else {
+        payload.age = Number(age);
+      }
       if (canEditRole) payload.role = role;
 
       const res = await fetch(`/api/admin/users/${user.id}`, {
@@ -61,6 +67,7 @@ export function AdminUserEditForm({ user, canEditRole, roleOptions }: Props) {
         return;
       }
       setOk("Сохранено");
+      if (data.user?.age != null) setAge(String(data.user.age));
       router.refresh();
     } catch {
       setError("Сеть или сервер недоступны");
@@ -120,14 +127,14 @@ export function AdminUserEditForm({ user, canEditRole, roleOptions }: Props) {
         Steam ник: {user.steamName || "—"} · id: <span className="mono">{user.id}</span>
       </p>
       <label className="field">
-        <span>Ник</span>
+        <span>Ник (игровой)</span>
         <input
           value={nick}
           onChange={(e) => setNick(e.target.value)}
-          pattern="[A-Za-z0-9_-]{3,20}"
-          maxLength={20}
+          maxLength={24}
           required
         />
+        <span className="field-hint">Латиница, цифры и символы, 3–24.</span>
       </label>
       <label className="field">
         <span>Имя</span>
@@ -139,12 +146,25 @@ export function AdminUserEditForm({ user, canEditRole, roleOptions }: Props) {
         />
       </label>
       <label className="field">
+        <span>Дата рождения</span>
+        <input
+          type="date"
+          value={birthDate}
+          onChange={(e) => setBirthDate(e.target.value)}
+          max={new Date().toISOString().slice(0, 10)}
+        />
+        <span className="field-hint">
+          Если пусто — сохранится возраст ниже вручную.
+        </span>
+      </label>
+      <label className="field">
         <span>Возраст</span>
         <input
           value={age}
           onChange={(e) => setAge(e.target.value)}
           inputMode="numeric"
-          required
+          required={!birthDate}
+          disabled={Boolean(birthDate)}
         />
       </label>
       <label className="field">
