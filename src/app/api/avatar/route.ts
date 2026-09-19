@@ -56,7 +56,7 @@ export async function POST(req: Request) {
     }
     if (blob.size <= 0 || blob.size > AVATAR_MAX_BYTES) {
       return NextResponse.json(
-        { error: "Файл до 1 МБ (jpg, png, webp)" },
+        { error: "Файл до 20 МБ (jpg, png, webp)" },
         { status: 400 }
       );
     }

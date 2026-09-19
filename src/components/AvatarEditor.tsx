@@ -24,8 +24,8 @@ export function AvatarEditor({ nick, name, initialAvatar, hasCustom }: Props) {
     setError("");
     setLoading(true);
     try {
-      if (file.size > 1024 * 1024) {
-        setError("Файл больше 1 МБ — сожми картинку");
+      if (file.size > 20 * 1024 * 1024) {
+        setError("Файл больше 20 МБ — сожми картинку");
         return;
       }
       const body = new FormData();
@@ -122,7 +122,7 @@ export function AvatarEditor({ nick, name, initialAvatar, hasCustom }: Props) {
           ) : null}
         </div>
         {error ? <p className="error">{error}</p> : null}
-        <p className="avatar-hint">jpg / png / webp, до 1 МБ</p>
+        <p className="avatar-hint">jpg / png / webp, до 20 МБ</p>
       </div>
       <div>
         <p className="eyebrow">профиль</p>
