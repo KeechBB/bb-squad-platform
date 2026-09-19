@@ -4,6 +4,9 @@
 
 ## 2026-09-19
 
+- Зафиксирована шпаргалка восстановления и оплат: `docs/RECOVERY.md` (+ HOSTING). Timeweb ~900 ₽/мес, Neon Free, домен раз в год. IP `91.222.237.91`, pm2 `bb-squad`, URL :3000. Агент напоминает про оплату.
+- Phase 0 хостинг: сайт на VPS **online** (pm2 `bb-squad`). URL временно: http://91.222.237.91:3000 . Steam Domain = IP. Дальше: проверка входа, домен, Telegram в анкете.
+- Phase 0 хостинг: Vercel отпал (SMS/санкции). Взят **Timeweb Cloud VPS** — сервер **Mysterious Lacerta**, Ubuntu, СПб, 2 CPU / 2 ГБ / 40 ГБ. **IPv4: `91.222.237.91`**. SSH: `ssh root@91.222.237.91`. База по-прежнему Neon. Дальше: поставить Node + деплой `bb-squad-platform` на этот IP.
 - Phase 0: Neon `bb-squad` — DATABASE_URL в `.env`, `prisma db push` успешен (таблица User в облаке). Дальше: @Telegram в анкете, Vercel, DNS.
 - Phase 0: Кич создал Neon-проект `bb-squad` (Free, London). Prisma в platform переведена с sqlite на postgresql. Дальше: вставить DATABASE_URL в `.env` (не в чат) → `npm run db:push` → Vercel.
 
