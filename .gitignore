@@ -40,6 +40,8 @@ yarn-error.log*
 !/public/uploads/avatars/.gitkeep
 /storage/avatars/*
 !/storage/avatars/.gitkeep
+/storage/clans/*
+!/storage/clans/.gitkeep
 
 # prisma
 /prisma/*.db

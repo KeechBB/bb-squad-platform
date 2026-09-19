@@ -37,9 +37,18 @@ export async function middleware(req: NextRequest) {
     }
   }
 
+  if (pathname.startsWith("/clans/new")) {
+    if (!isAuthed) {
+      return NextResponse.redirect(new URL("/", req.url));
+    }
+    if (!complete) {
+      return NextResponse.redirect(new URL("/register", req.url));
+    }
+  }
+
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/register", "/profile", "/admin/:path*"],
+  matcher: ["/register", "/profile", "/admin/:path*", "/clans/new"],
 };

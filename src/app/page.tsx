@@ -7,31 +7,35 @@ export default async function HomePage() {
   if (session?.user?.steamId && !session.user.profileComplete) {
     redirect("/register");
   }
-  if (session?.user?.profileComplete) {
-    redirect("/profile");
-  }
 
   return (
-    <main>
-      <section className="hero">
-        <p className="eyebrow">bbsquad · platform</p>
+    <main className="home-stub">
+      <div className="home-stub-inner">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          className="home-crest"
+          src="/blackberry.png"
+          alt="BlackBerry"
+          width={200}
+          height={200}
+        />
         <h1>BLACKBERRY</h1>
-        <p className="lead">
-          Клановая платформа Squad. Войди через Steam, укажи ник латиницей —
-          аккаунт сразу готов. Статистика профиля появится позже.
-        </p>
-      </section>
-
-      <section className="card">
-        <h2>Как начать</h2>
-        <p className="muted">
-          Нажми «Войти» сверху. После первого входа заполним имя, ник и возраст —
-          и ты в системе. Таблица КВ смотришь уже из аккаунта.
-        </p>
-        <Link className="kv-link" href="/cw">
-          Таблица КВ →
-        </Link>
-      </section>
+        <p className="home-stub-label">В разработке</p>
+        {!session?.user ? (
+          <p className="muted home-stub-hint">
+            Войди через Steam сверху, чтобы открыть профиль и кланы.
+          </p>
+        ) : (
+          <p className="muted home-stub-hint">
+            Разделы:{" "}
+            <Link href="/cw">Клановые войны</Link>
+            {" · "}
+            <Link href="/clans">Кланы</Link>
+            {" · "}
+            <Link href="/profile">Профиль</Link>
+          </p>
+        )}
+      </div>
     </main>
   );
 }

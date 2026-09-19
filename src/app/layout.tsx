@@ -34,13 +34,15 @@ export default function RootLayout({
           <div className="shell">
             <header className="top">
               <div className="top-left">
-                <Link className="brand" href="/">
+                <Link className="brand" href="/" title="Главная">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="/blackberry.png" alt="BlackBerry" width={56} height={56} />
                   <strong>BLACKBERRY</strong>
                 </Link>
                 <nav className="top-nav" aria-label="Разделы">
+                  <Link href="/">Главная</Link>
                   <Link href="/cw">Клановые войны</Link>
+                  <Link href="/clans">Кланы</Link>
                 </nav>
               </div>
               <AuthBar />

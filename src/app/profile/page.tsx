@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { AvatarEditor } from "@/components/AvatarEditor";
 import { isAdmin, syncBuiltinAdmins } from "@/lib/admin";
+import { prisma } from "@/lib/prisma";
+import { ClanInvites } from "@/components/ClanInvites";
 
 export default async function ProfilePage() {
   const session = await getSession();
@@ -14,6 +16,32 @@ export default async function ProfilePage() {
   await syncBuiltinAdmins();
   const admin = await isAdmin(u.steamId);
 
+  const me = await prisma.user.findUnique({
+    where: { steamId: u.steamId },
+    include: {
+      clanMemberships: {
+        include: { clan: { select: { id: true, name: true, tag: true, logoUrl: true } } },
+      },
+      clanInvites: {
+        where: { status: "PENDING" },
+        include: {
+          clan: { select: { id: true, name: true, tag: true, logoUrl: true } },
+          inviter: { select: { nick: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      },
+    },
+  });
+
+  const invites =
+    me?.clanInvites.map((inv) => ({
+      id: inv.id,
+      clan: inv.clan,
+      inviter: inv.inviter,
+    })) || [];
+
+  const clans = me?.clanMemberships.map((m) => m.clan) || [];
+
   return (
     <main className="profile-grid">
       <AvatarEditor
@@ -22,6 +50,33 @@ export default async function ProfilePage() {
         initialAvatar={displayAvatar}
         steamAvatar={u.steamAvatar || null}
       />
+
+      <ClanInvites initial={invites} />
+
+      {clans.length > 0 ? (
+        <section className="card">
+          <h2>Клан</h2>
+          <div className="clan-list" style={{ marginTop: 8 }}>
+            {clans.map((c) => (
+              <Link key={c.id} className="clan-row" href={`/clans/${c.id}`}>
+                {c.logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img className="clan-row-logo" src={c.logoUrl} alt="" width={40} height={40} />
+                ) : (
+                  <div className="clan-row-logo clan-row-logo-empty">{c.tag.slice(0, 2)}</div>
+                )}
+                <div className="clan-row-body">
+                  <strong>
+                    [{c.tag}] {c.name}
+                  </strong>
+                  <span className="muted">Открыть страницу клана</span>
+                </div>
+                <span className="clan-row-arrow">→</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="card">
         <h2>Аккаунт</h2>

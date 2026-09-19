@@ -16,7 +16,7 @@ Vercel не используем (SMS). Сайт крутится на VPS, ба
 
 Пароль root — только в панели Timeweb (в чат/репо не писать).
 
-Сайт после деплоя: **https://bb-squad.ru** (nginx → pm2).  
+Сайт: **https://bb-squad.ru** / **https://www.bb-squad.ru** (HTTPS Let's Encrypt, 2026-09-19).  
 Запасной IP: `http://91.222.237.91:3000`  
 Таблица КВ: **https://kv.bb-squad.ru/**  
-Инструкция домена: [DOMAIN.md](./DOMAIN.md)
+Инструкция: [DOMAIN.md](./DOMAIN.md)

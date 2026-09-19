@@ -14,6 +14,21 @@ enum Role {
   SUPER_ADMIN
 }
 
+enum ClanRole {
+  LEADER
+  DEPUTY
+  MAIN
+  SUB
+  RESERVE
+  MEMBER
+}
+
+enum ClanInviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
 model User {
   id              String   @id @default(cuid())
   steamId         String   @unique
@@ -27,4 +42,54 @@ model User {
   profileComplete Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  clanMemberships ClanMember[]
+  clanInvites     ClanInvite[] @relation("Invitee")
+  sentInvites     ClanInvite[] @relation("Inviter")
+  ledClans        Clan[]       @relation("ClanLeader")
+}
+
+model Clan {
+  id        String   @id @default(cuid())
+  name      String
+  tag       String   @unique
+  logoUrl   String?
+  leaderId  String
+  leader    User     @relation("ClanLeader", fields: [leaderId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members ClanMember[]
+  invites ClanInvite[]
+}
+
+model ClanMember {
+  id       String   @id @default(cuid())
+  clanId   String
+  userId   String
+  role     ClanRole @default(MEMBER)
+  joinedAt DateTime @default(now())
+
+  clan Clan @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([clanId, userId])
+  @@index([userId])
+}
+
+model ClanInvite {
+  id        String           @id @default(cuid())
+  clanId    String
+  userId    String
+  invitedBy String
+  status    ClanInviteStatus @default(PENDING)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  clan    Clan @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  user    User @relation("Invitee", fields: [userId], references: [id], onDelete: Cascade)
+  inviter User @relation("Inviter", fields: [invitedBy], references: [id], onDelete: Cascade)
+
+  @@index([clanId, userId])
+  @@index([userId, status])
 }
