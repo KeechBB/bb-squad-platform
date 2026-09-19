@@ -13,6 +13,7 @@ import {
 } from "@/lib/admin";
 import { ageFromBirthDate, isValidAge, isValidName, isValidNick, parseBirthDate } from "@/lib/validation";
 import { removeUserAvatarFiles } from "@/lib/avatar";
+import { livePublish, userLiveChannel } from "@/lib/liveBus";
 
 export const runtime = "nodejs";
 
@@ -22,6 +23,13 @@ function lockedRoleForSteam(steamId: string, role: AppRole): AppRole {
   if (isBuiltinSuperAdmin(steamId)) return "SUPER_ADMIN";
   if (isBuiltinDeputy(steamId)) return "DEPUTY";
   return role;
+}
+
+function notifyRoleChange(userId: string, role: AppRole) {
+  livePublish(
+    userLiveChannel(userId),
+    JSON.stringify({ type: "role", role })
+  );
 }
 
 export async function GET(_req: Request, ctx: Ctx) {
@@ -92,6 +100,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
       where: { id },
       data: { role },
     });
+    notifyRoleChange(user.id, role);
     return NextResponse.json({ ok: true, user });
   }
 
@@ -173,6 +182,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
         role: lockedRoleForSteam(steamId, nextRole),
       },
     });
+    if (nextRole !== existingRole) {
+      notifyRoleChange(user.id, lockedRoleForSteam(steamId, nextRole));
+    }
     return NextResponse.json({ ok: true, user });
   } catch {
     return NextResponse.json({ error: "Не удалось сохранить" }, { status: 500 });

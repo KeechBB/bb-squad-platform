@@ -6,7 +6,11 @@ import { isAdmin, syncBuiltinAdmins } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 import { ClanInvites } from "@/components/ClanInvites";
 import { ReservePanel } from "@/components/ReservePanel";
+import { AdminPanelLink } from "@/components/AdminPanelLink";
 import { formatRuDate, isActiveReserve } from "@/lib/validation";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function ProfilePage() {
   const session = await getSession();
@@ -116,13 +120,7 @@ export default async function ProfilePage() {
           <span>Steam</span>
           <span>{u.steamName || "—"}</span>
         </div>
-        {admin ? (
-          <div style={{ marginTop: 18 }}>
-            <Link className="btn primary" href="/admin">
-              Войти в админ панель
-            </Link>
-          </div>
-        ) : null}
+        <AdminPanelLink initialAdmin={admin} />
       </section>
 
       <section className="stats-stub">
