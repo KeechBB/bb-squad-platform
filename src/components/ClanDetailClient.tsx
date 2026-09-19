@@ -12,7 +12,7 @@ import {
 } from "@/lib/clan";
 import { formatRuDate, isActiveReserve } from "@/lib/validation";
 import { withAvatarCacheBust } from "@/lib/avatarUrl";
-import { canAssignTitleToMember } from "@/lib/titles";
+import { canAssignTitleToMember, canAssignClanSquadMembers } from "@/lib/titles";
 
 type Member = {
   id: string;
@@ -150,6 +150,10 @@ export function ClanDetailClient({
     myRole != null
       ? myRole === "LEADER" || (myTitleName || "").toLowerCase() === "hr"
       : initialCanManageTitles;
+  const canAssignSquads =
+    myRole != null
+      ? canAssignClanSquadMembers(myRole, myTitleName)
+      : canManage;
   const assignableRoles = myRole
     ? assignableClanRoles(myRole)
     : initialAssignable;
@@ -820,7 +824,7 @@ export function ClanDetailClient({
                       s.members.map((m) => (
                         <li key={m.id} className="squad-list-row">
                           <span>{m.user.nick || m.user.steamName || "—"}</span>
-                          {canManage ? (
+                          {canAssignSquads ? (
                             <button
                               type="button"
                               className="btn ghost"
@@ -835,7 +839,7 @@ export function ClanDetailClient({
                       ))
                     )}
                   </ul>
-                  {canManage ? (
+                  {canAssignSquads ? (
                     <label className="field" style={{ marginTop: 8 }}>
                       <span>Добавить в {s.name}</span>
                       <select

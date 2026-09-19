@@ -27,12 +27,25 @@ export function isValidTitleName(name: string): boolean {
 }
 
 /** Глава или носитель должности HR в этом клане */
+export function isClanHrTitle(titleName: string | null | undefined): boolean {
+  return Boolean(titleName && titleName.toLowerCase() === "hr");
+}
+
 export function canManageClanTitles(
   role: ClanRole,
   titleName: string | null | undefined
 ): boolean {
   if (role === "LEADER") return true;
-  return Boolean(titleName && titleName.toLowerCase() === "hr");
+  return isClanHrTitle(titleName);
+}
+
+/** Глава, зам или HR — раскидывать игроков по составам */
+export function canAssignClanSquadMembers(
+  role: ClanRole,
+  titleName: string | null | undefined
+): boolean {
+  if (role === "LEADER" || role === "DEPUTY") return true;
+  return isClanHrTitle(titleName);
 }
 
 /** HR не может менять должность главе клана — только сам глава */

@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canManageClanMembers } from "@/lib/clan";
+import { canManageClanMembers, type ClanRole } from "@/lib/clan";
 import { ensureDefaultSquads } from "@/lib/squads";
+import { canAssignClanSquadMembers } from "@/lib/titles";
 import { clanLiveChannel, livePublish } from "@/lib/liveBus";
 
 export const runtime = "nodejs";
@@ -15,6 +16,7 @@ async function actorMembership(clanId: string, steamId: string) {
   if (!user) return null;
   const member = await prisma.clanMember.findUnique({
     where: { clanId_userId: { clanId, userId: user.id } },
+    include: { title: { select: { name: true } } },
   });
   if (!member) return null;
   return { user, member };
@@ -53,7 +55,7 @@ export async function POST(req: Request, ctx: Ctx) {
   }
   const { id: clanId } = await ctx.params;
   const actor = await actorMembership(clanId, session.user.steamId);
-  if (!actor || !canManageClanMembers(actor.member.role)) {
+  if (!actor || !canManageClanMembers(actor.member.role as ClanRole)) {
     return NextResponse.json({ error: "Нет прав" }, { status: 403 });
   }
 
@@ -83,7 +85,13 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
   const { id: clanId } = await ctx.params;
   const actor = await actorMembership(clanId, session.user.steamId);
-  if (!actor || !canManageClanMembers(actor.member.role)) {
+  if (
+    !actor ||
+    !canAssignClanSquadMembers(
+      actor.member.role as ClanRole,
+      actor.member.title?.name
+    )
+  ) {
     return NextResponse.json({ error: "Нет прав" }, { status: 403 });
   }
 
