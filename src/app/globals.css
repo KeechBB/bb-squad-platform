@@ -1051,3 +1051,20 @@ a:hover { color: #c4b5fd; }
 .shell:has(.cw-embed) .cw-clan-filter {
   padding: 0 4px;
 }
+
+.clan-footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+
+.leave-clan-btn {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
+.leave-clan-btn:hover {
+  background: rgba(248, 113, 113, 0.12);
+  color: #fecaca;
+}

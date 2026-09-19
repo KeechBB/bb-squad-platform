@@ -309,6 +309,34 @@ export function ClanDetailClient({
     void refreshSquads();
   }
 
+  async function leaveClan() {
+    if (
+      !window.confirm(
+        myRole === "LEADER"
+          ? "Ты глава. Если в клане никого больше нет — клан удалится. Выйти?"
+          : "Точно выйти из клана?"
+      )
+    ) {
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/clans/${clan.id}/leave`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Не удалось выйти");
+        return;
+      }
+      router.push("/clans");
+      router.refresh();
+    } catch {
+      setError("Сеть недоступна");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function createSquad() {
     setError("");
     setLoading(true);
@@ -874,7 +902,17 @@ export function ClanDetailClient({
         </section>
       ) : null}
 
-      <p style={{ marginTop: 16 }}>
+      <p style={{ marginTop: 16 }} className="clan-footer-actions">
+        {myRole ? (
+          <button
+            type="button"
+            className="btn ghost leave-clan-btn"
+            disabled={loading}
+            onClick={() => void leaveClan()}
+          >
+            Выйти из клана
+          </button>
+        ) : null}
         <Link className="kv-link" href="/clans">
           ← Все кланы
         </Link>
