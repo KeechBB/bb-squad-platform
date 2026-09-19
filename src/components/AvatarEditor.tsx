@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
@@ -8,75 +8,143 @@ type Props = {
   nick: string;
   name: string;
   initialAvatar: string | null;
-  hasCustom: boolean;
+  steamAvatar: string | null;
 };
 
-export function AvatarEditor({ nick, name, initialAvatar, hasCustom }: Props) {
+type Phase = "idle" | "chooser" | "pending";
+
+export function AvatarEditor({ nick, name, initialAvatar, steamAvatar }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const { update } = useSession();
+  const [saved, setSaved] = useState(initialAvatar);
   const [preview, setPreview] = useState(initialAvatar);
-  const [custom, setCustom] = useState(hasCustom);
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingSteam, setPendingSteam] = useState(false);
+  const [localUrl, setLocalUrl] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function upload(file: File) {
+  useEffect(() => {
+    setSaved(initialAvatar);
+    if (phase === "idle") setPreview(initialAvatar);
+  }, [initialAvatar, phase]);
+
+  useEffect(() => {
+    return () => {
+      if (localUrl) URL.revokeObjectURL(localUrl);
+    };
+  }, [localUrl]);
+
+  function openChooser() {
+    setError("");
+    setPendingFile(null);
+    setPendingSteam(false);
+    if (localUrl) URL.revokeObjectURL(localUrl);
+    setLocalUrl(null);
+    setPreview(saved);
+    setPhase("chooser");
+  }
+
+  function cancelEdit() {
+    setError("");
+    setPendingFile(null);
+    setPendingSteam(false);
+    if (localUrl) URL.revokeObjectURL(localUrl);
+    setLocalUrl(null);
+    setPreview(saved);
+    setPhase("idle");
+    if (inputRef.current) inputRef.current.value = "";
+  }
+
+  function pickFile(file: File) {
+    setError("");
+    if (file.size > 20 * 1024 * 1024) {
+      setError("Файл больше 20 МБ — сожми картинку");
+      return;
+    }
+    if (localUrl) URL.revokeObjectURL(localUrl);
+    const url = URL.createObjectURL(file);
+    setLocalUrl(url);
+    setPendingFile(file);
+    setPendingSteam(false);
+    setPreview(url);
+    setPhase("pending");
+  }
+
+  function pickSteam() {
+    setError("");
+    if (!steamAvatar) {
+      setError("У Steam нет фото");
+      return;
+    }
+    if (localUrl) URL.revokeObjectURL(localUrl);
+    setLocalUrl(null);
+    setPendingFile(null);
+    setPendingSteam(true);
+    setPreview(steamAvatar);
+    setPhase("pending");
+  }
+
+  async function save() {
     setError("");
     setLoading(true);
     try {
-      if (file.size > 20 * 1024 * 1024) {
-        setError("Файл больше 20 МБ — сожми картинку");
-        return;
-      }
-      const body = new FormData();
-      body.set("avatar", file);
-      const res = await fetch("/api/avatar", { method: "POST", body });
-      const text = await res.text();
-      let data: { error?: string; avatarUrl?: string } = {};
-      try {
-        data = JSON.parse(text) as typeof data;
-      } catch {
-        if (res.status === 413) {
-          setError("Файл слишком большой для сервера (лимит nginx)");
+      let nextUrl: string | null = saved;
+
+      if (pendingFile) {
+        const body = new FormData();
+        body.set("avatar", pendingFile);
+        const res = await fetch("/api/avatar", { method: "POST", body });
+        const text = await res.text();
+        let data: { error?: string; avatarUrl?: string } = {};
+        try {
+          data = JSON.parse(text) as typeof data;
+        } catch {
+          if (res.status === 413) {
+            setError("Файл слишком большой для сервера (лимит nginx)");
+            return;
+          }
+          setError(`Ошибка сервера (${res.status})`);
           return;
         }
-        setError(`Ошибка сервера (${res.status})`);
+        if (!res.ok) {
+          setError(data.error || `Не удалось сохранить (${res.status})`);
+          return;
+        }
+        nextUrl = data.avatarUrl || null;
+      } else if (pendingSteam) {
+        const res = await fetch("/api/avatar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ source: "steam" }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setError(data.error || "Не удалось сохранить");
+          return;
+        }
+        nextUrl = data.avatarUrl || null;
+      } else {
+        setPhase("idle");
         return;
       }
-      if (!res.ok) {
-        setError(data.error || `Не удалось загрузить (${res.status})`);
-        return;
-      }
-      setPreview(data.avatarUrl || null);
-      setCustom(true);
-      await update({ avatarUrl: data.avatarUrl });
+
+      setSaved(nextUrl);
+      setPreview(nextUrl);
+      setPendingFile(null);
+      setPendingSteam(false);
+      if (localUrl) URL.revokeObjectURL(localUrl);
+      setLocalUrl(null);
+      setPhase("idle");
+      await update({ avatarUrl: nextUrl });
       router.refresh();
     } catch {
       setError("Сеть или сервер недоступны");
     } finally {
       setLoading(false);
       if (inputRef.current) inputRef.current.value = "";
-    }
-  }
-
-  async function resetToSteam() {
-    setError("");
-    setLoading(true);
-    try {
-      const res = await fetch("/api/avatar", { method: "DELETE" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(data.error || "Не удалось сбросить");
-        return;
-      }
-      setPreview(data.steamAvatar || null);
-      setCustom(false);
-      await update({ avatarUrl: null });
-      router.refresh();
-    } catch {
-      setError("Сеть или сервер недоступны");
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -105,31 +173,55 @@ export function AvatarEditor({ nick, name, initialAvatar, hasCustom }: Props) {
         hidden
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) void upload(file);
+          if (file) pickFile(file);
         }}
       />
+
       <div className="avatar-actions">
-        <button
-          type="button"
-          className="btn ghost"
-          disabled={loading}
-          onClick={() => inputRef.current?.click()}
-        >
-          {loading ? "…" : "Загрузить аватар"}
-        </button>
-        {custom ? (
-          <button
-            type="button"
-            className="btn ghost"
-            disabled={loading}
-            onClick={() => void resetToSteam()}
-          >
-            С фото Steam
+        {phase === "idle" ? (
+          <button type="button" className="btn ghost" onClick={openChooser}>
+            Загрузить аватар
           </button>
+        ) : null}
+
+        {phase === "chooser" ? (
+          <>
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={() => inputRef.current?.click()}
+            >
+              С компьютера
+            </button>
+            <button type="button" className="btn ghost" onClick={pickSteam}>
+              С фото Steam
+            </button>
+            <button type="button" className="btn ghost" onClick={cancelEdit}>
+              Отмена
+            </button>
+          </>
+        ) : null}
+
+        {phase === "pending" ? (
+          <>
+            <button
+              type="button"
+              className="btn primary"
+              disabled={loading}
+              onClick={() => void save()}
+            >
+              {loading ? "…" : "Сохранить"}
+            </button>
+            <button type="button" className="btn ghost" disabled={loading} onClick={cancelEdit}>
+              Отмена
+            </button>
+          </>
         ) : null}
       </div>
       {error ? <p className="error">{error}</p> : null}
-      <p className="avatar-hint">jpg / png / webp, до 20 МБ</p>
+      {phase !== "idle" ? (
+        <p className="avatar-hint">jpg / png / webp, до 20 МБ</p>
+      ) : null}
     </section>
   );
 }

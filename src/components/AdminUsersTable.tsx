@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import type { AppRole } from "@/lib/admin";
+import type { AppRole } from "@/lib/roles";
+import { roleLabel } from "@/lib/roles";
 
 export type AdminUserRow = {
   id: string;
@@ -14,13 +15,14 @@ export type AdminUserRow = {
   role: AppRole;
   profileComplete: boolean;
   createdAt: string;
-  roleLocked: boolean;
+  canEditRole: boolean;
 };
 
 type SortKey = "createdAt" | "nick" | "name" | "age" | "steamId" | "role";
 
 type Props = {
   initialUsers: AdminUserRow[];
+  actorIsSuper: boolean;
 };
 
 function fmtDate(iso: string) {
@@ -37,7 +39,7 @@ function fmtDate(iso: string) {
   }
 }
 
-export function AdminUsersTable({ initialUsers }: Props) {
+export function AdminUsersTable({ initialUsers, actorIsSuper }: Props) {
   const [users, setUsers] = useState(initialUsers);
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<SortKey>("createdAt");
@@ -50,7 +52,7 @@ export function AdminUsersTable({ initialUsers }: Props) {
     let list = users;
     if (needle) {
       list = list.filter((u) => {
-        const blob = [u.nick, u.name, u.steamId, u.steamName, u.role]
+        const blob = [u.nick, u.name, u.steamId, u.steamName, roleLabel(u.role)]
           .filter(Boolean)
           .join(" ")
           .toLowerCase();
@@ -93,9 +95,7 @@ export function AdminUsersTable({ initialUsers }: Props) {
     setError("");
     setBusyId(userId);
     const prev = users;
-    setUsers((list) =>
-      list.map((u) => (u.id === userId ? { ...u, role } : u))
-    );
+    setUsers((list) => list.map((u) => (u.id === userId ? { ...u, role } : u)));
     try {
       const res = await fetch(`/api/admin/users/${userId}`, {
         method: "PATCH",
@@ -186,16 +186,19 @@ export function AdminUsersTable({ initialUsers }: Props) {
                 <td className="mono">{u.steamId}</td>
                 <td>{fmtDate(u.createdAt)}</td>
                 <td>
-                  <select
-                    className="role-select"
-                    value={u.role}
-                    disabled={u.roleLocked || busyId === u.id}
-                    title={u.roleLocked ? "Главный админ" : undefined}
-                    onChange={(e) => void setRole(u.id, e.target.value as AppRole)}
-                  >
-                    <option value="USER">Игрок</option>
-                    <option value="ADMIN">Админ</option>
-                  </select>
+                  {u.canEditRole && actorIsSuper ? (
+                    <select
+                      className="role-select"
+                      value={u.role === "SUPER_ADMIN" ? "ADMIN" : u.role}
+                      disabled={busyId === u.id}
+                      onChange={(e) => void setRole(u.id, e.target.value as AppRole)}
+                    >
+                      <option value="USER">Игрок</option>
+                      <option value="ADMIN">Админ</option>
+                    </select>
+                  ) : (
+                    <span className="role-static">{roleLabel(u.role)}</span>
+                  )}
                 </td>
               </tr>
             ))}

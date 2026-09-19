@@ -1,8 +1,9 @@
 import { getSession } from "@/lib/auth";
 import {
+  canChangeRole,
   effectiveRole,
   isAdmin,
-  isBuiltinAdmin,
+  isSuperAdmin,
   syncBuiltinAdmins,
   type AppRole,
 } from "@/lib/admin";
@@ -11,6 +12,14 @@ import { redirect, notFound } from "next/navigation";
 import { AdminUserEditForm } from "@/components/AdminUserEditForm";
 
 type Props = { params: Promise<{ id: string }> };
+
+function resolveAvatarSrc(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith("/uploads/avatars/")) {
+    return url.replace("/uploads/avatars/", "/api/avatars/");
+  }
+  return url;
+}
 
 export default async function AdminUserPage({ params }: Props) {
   const session = await getSession();
@@ -23,13 +32,15 @@ export default async function AdminUserPage({ params }: Props) {
   if (!user) notFound();
 
   const role = effectiveRole(user.steamId, user.role as AppRole);
+  const actorIsSuper = await isSuperAdmin(session.user.steamId);
+  const actorRole: AppRole = actorIsSuper ? "SUPER_ADMIN" : "ADMIN";
 
   return (
     <main className="admin-page">
       <section className="hero">
         <p className="eyebrow">админ · пользователь</p>
         <h1>{user.nick || user.steamName || "Игрок"}</h1>
-        <p className="lead">Правка анкеты и роли.</p>
+        <p className="lead">Правка анкеты, роли и аватара.</p>
       </section>
       <AdminUserEditForm
         user={{
@@ -40,10 +51,12 @@ export default async function AdminUserPage({ params }: Props) {
           nick: user.nick,
           age: user.age,
           role,
+          avatarUrl: resolveAvatarSrc(user.avatarUrl),
           createdAt: user.createdAt.toISOString(),
         }}
-        roleLocked={
-          isBuiltinAdmin(user.steamId) || user.steamId === session.user.steamId
+        canEditRole={
+          user.steamId !== session.user.steamId &&
+          canChangeRole(actorRole, role, user.steamId)
         }
       />
     </main>

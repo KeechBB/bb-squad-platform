@@ -481,6 +481,41 @@ a:hover { color: #c4b5fd; }
   cursor: not-allowed;
 }
 
+.role-static {
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.admin-avatar-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.field-label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.admin-user-avatar {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(7, 6, 12, 0.9);
+}
+
+.admin-user-avatar-empty {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 .profile-head-text .eyebrow {
   margin-bottom: 6px;
 }

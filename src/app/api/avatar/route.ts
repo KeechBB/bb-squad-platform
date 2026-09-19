@@ -43,10 +43,32 @@ export async function POST(req: Request) {
 
     const dbUser = await prisma.user.findUnique({
       where: { steamId: session.user.steamId },
-      select: { id: true },
+      select: { id: true, steamAvatar: true },
     });
     if (!dbUser) {
       return NextResponse.json({ error: "Пользователь не найден" }, { status: 404 });
+    }
+
+    const contentType = req.headers.get("content-type") || "";
+
+    // Аватар с Steam (сохраняем URL Steam в avatarUrl)
+    if (contentType.includes("application/json")) {
+      const body = await req.json().catch(() => null);
+      if ((body as { source?: string } | null)?.source === "steam") {
+        if (!dbUser.steamAvatar) {
+          return NextResponse.json(
+            { error: "У Steam нет фото" },
+            { status: 400 }
+          );
+        }
+        await removeUserAvatarFiles(dbUser.id);
+        const user = await prisma.user.update({
+          where: { steamId: session.user.steamId },
+          data: { avatarUrl: dbUser.steamAvatar },
+        });
+        return NextResponse.json({ ok: true, avatarUrl: user.avatarUrl });
+      }
+      return NextResponse.json({ error: "Некорректный запрос" }, { status: 400 });
     }
 
     const form = await req.formData().catch(() => null);
@@ -102,7 +124,7 @@ export async function DELETE() {
     }
 
     await removeUserAvatarFiles(dbUser.id);
-    const user = await prisma.user.update({
+    await prisma.user.update({
       where: { steamId: session.user.steamId },
       data: { avatarUrl: null },
     });
@@ -110,7 +132,6 @@ export async function DELETE() {
     return NextResponse.json({
       ok: true,
       avatarUrl: null,
-      steamAvatar: user.steamAvatar,
     });
   } catch (err) {
     console.error("[avatar DELETE]", err);

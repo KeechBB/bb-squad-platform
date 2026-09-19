@@ -94,8 +94,8 @@ const callbacks: NextAuthOptions["callbacks"] = {
           ? token.avatarUrl.replace("/uploads/avatars/", "/api/avatars/")
           : token.avatarUrl
         : null;
-      session.user.image = custom || token.steamAvatar || undefined;
-      if (custom) session.user.avatarUrl = custom;
+      session.user.avatarUrl = custom;
+      session.user.image = custom || undefined;
     }
     return session;
   },

@@ -1,8 +1,9 @@
 import { getSession } from "@/lib/auth";
 import {
+  canChangeRole,
   effectiveRole,
   isAdmin,
-  isBuiltinAdmin,
+  isSuperAdmin,
   syncBuiltinAdmins,
   type AppRole,
 } from "@/lib/admin";
@@ -16,6 +17,9 @@ export default async function AdminPage() {
   if (!session?.user?.steamId) redirect("/");
   await syncBuiltinAdmins();
   if (!(await isAdmin(session.user.steamId))) redirect("/profile");
+
+  const actorIsSuper = await isSuperAdmin(session.user.steamId);
+  const actorRole: AppRole = actorIsSuper ? "SUPER_ADMIN" : "ADMIN";
 
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "desc" },
@@ -44,8 +48,9 @@ export default async function AdminPage() {
       role,
       profileComplete: u.profileComplete,
       createdAt: u.createdAt.toISOString(),
-      roleLocked:
-        isBuiltinAdmin(u.steamId) || u.steamId === session.user.steamId,
+      canEditRole:
+        u.steamId !== session.user.steamId &&
+        canChangeRole(actorRole, role, u.steamId),
     };
   });
 
@@ -55,7 +60,8 @@ export default async function AdminPage() {
         <p className="eyebrow">админ</p>
         <h1>Панель</h1>
         <p className="lead">
-          Пользователи платформы. Кликни по нику — правка анкеты. Справа — роль.
+          Пользователи платформы. Кликни по нику — правка анкеты и аватара.
+          {actorIsSuper ? " Роли админов снимает только главный админ." : ""}
         </p>
         <div className="admin-tabs" role="tablist">
           <span className="admin-tab active">Пользователи</span>
@@ -67,7 +73,7 @@ export default async function AdminPage() {
         </p>
       </section>
 
-      <AdminUsersTable initialUsers={rows} />
+      <AdminUsersTable initialUsers={rows} actorIsSuper={actorIsSuper} />
     </main>
   );
 }

@@ -32,7 +32,7 @@ export function AuthBar() {
   }
 
   const label = session.user.nick || session.user.steamName || "Игрок";
-  const avatar = session.user.avatarUrl || session.user.steamAvatar;
+  const avatar = session.user.avatarUrl;
 
   return (
     <div className="auth-bar">

@@ -10,7 +10,7 @@ export default async function ProfilePage() {
   if (!session.user.profileComplete) redirect("/register");
 
   const u = session.user;
-  const displayAvatar = u.avatarUrl || u.steamAvatar || null;
+  const displayAvatar = u.avatarUrl || null;
   await syncBuiltinAdmins();
   const admin = await isAdmin(u.steamId);
 
@@ -20,7 +20,7 @@ export default async function ProfilePage() {
         nick={u.nick || "Игрок"}
         name={u.name || ""}
         initialAvatar={displayAvatar}
-        hasCustom={Boolean(u.avatarUrl)}
+        steamAvatar={u.steamAvatar || null}
       />
 
       <section className="card">
