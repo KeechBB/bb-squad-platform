@@ -15,10 +15,17 @@ export function AuthBar() {
       <div className="auth-bar">
         <button
           type="button"
+          className="btn ghost"
+          onClick={() => signIn("steam", { callbackUrl: "/register" })}
+        >
+          Регистрация
+        </button>
+        <button
+          type="button"
           className="btn steam"
           onClick={() => signIn("steam", { callbackUrl: "/" })}
         >
-          Войти через Steam
+          Войти
         </button>
       </div>
     );
