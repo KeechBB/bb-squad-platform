@@ -2,6 +2,7 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { AvatarEditor } from "@/components/AvatarEditor";
+import { isAdminSteamId } from "@/lib/admin";
 
 export default async function ProfilePage() {
   const session = await getSession();
@@ -10,6 +11,7 @@ export default async function ProfilePage() {
 
   const u = session.user;
   const displayAvatar = u.avatarUrl || u.steamAvatar || null;
+  const admin = isAdminSteamId(u.steamId);
 
   return (
     <main className="profile-grid">
@@ -42,6 +44,13 @@ export default async function ProfilePage() {
           <span>Steam</span>
           <span>{u.steamName || "—"}</span>
         </div>
+        {admin ? (
+          <div style={{ marginTop: 18 }}>
+            <Link className="btn primary" href="/admin">
+              Войти в админ панель
+            </Link>
+          </div>
+        ) : null}
       </section>
 
       <section className="stats-stub">

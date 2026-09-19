@@ -82,7 +82,7 @@ export function AvatarEditor({ nick, name, initialAvatar, hasCustom }: Props) {
 
   return (
     <section className="hero hero-profile">
-      <div className="profile-avatar-wrap">
+      <div className="profile-head-row">
         {preview ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img className="profile-avatar" src={preview} alt="" width={176} height={176} />
@@ -91,44 +91,45 @@ export function AvatarEditor({ nick, name, initialAvatar, hasCustom }: Props) {
             {(nick || "?").slice(0, 1).toUpperCase()}
           </div>
         )}
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          hidden
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) void upload(file);
-          }}
-        />
-        <div className="avatar-actions">
+        <div className="profile-head-text">
+          <p className="eyebrow">профиль</p>
+          <h1>{nick}</h1>
+          <p className="lead">{name}</p>
+        </div>
+      </div>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void upload(file);
+        }}
+      />
+      <div className="avatar-actions">
+        <button
+          type="button"
+          className="btn ghost"
+          disabled={loading}
+          onClick={() => inputRef.current?.click()}
+        >
+          {loading ? "…" : "Загрузить аватар"}
+        </button>
+        {custom ? (
           <button
             type="button"
             className="btn ghost"
             disabled={loading}
-            onClick={() => inputRef.current?.click()}
+            onClick={() => void resetToSteam()}
           >
-            {loading ? "…" : "Загрузить аватар"}
+            С фото Steam
           </button>
-          {custom ? (
-            <button
-              type="button"
-              className="btn ghost"
-              disabled={loading}
-              onClick={() => void resetToSteam()}
-            >
-              С фото Steam
-            </button>
-          ) : null}
-        </div>
-        {error ? <p className="error">{error}</p> : null}
-        <p className="avatar-hint">jpg / png / webp, до 20 МБ</p>
+        ) : null}
       </div>
-      <div>
-        <p className="eyebrow">профиль</p>
-        <h1>{nick}</h1>
-        <p className="lead">{name}</p>
-      </div>
+      {error ? <p className="error">{error}</p> : null}
+      <p className="avatar-hint">jpg / png / webp, до 20 МБ</p>
     </section>
   );
 }

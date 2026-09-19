@@ -31,9 +31,15 @@ export async function middleware(req: NextRequest) {
     }
   }
 
+  if (pathname.startsWith("/admin")) {
+    if (!isAuthed) {
+      return NextResponse.redirect(new URL("/", req.url));
+    }
+  }
+
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/register", "/profile"],
+  matcher: ["/register", "/profile", "/admin/:path*"],
 };
