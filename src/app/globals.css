@@ -771,6 +771,7 @@ a:hover { color: #c4b5fd; }
   padding: 16px 20px;
   overflow: hidden;
   box-sizing: border-box;
+  position: relative;
 }
 
 html:has(.home-page),
@@ -782,10 +783,7 @@ body:has(.home-page) {
 .home-page {
   position: relative;
   z-index: 0;
-  display: grid;
-  grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
-  gap: 24px 32px;
-  align-items: stretch;
+  display: block;
   height: 100%;
   max-height: 100%;
   overflow: hidden;
@@ -808,14 +806,21 @@ body:has(.home-page) {
 }
 
 .home-hero {
-  position: relative;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   z-index: 1;
   display: grid;
   place-items: center;
   text-align: center;
-  align-self: center;
-  justify-self: center;
-  animation: home-fade-up 0.7s ease both;
+  pointer-events: none;
+  animation: home-hero-in 0.7s ease both;
+}
+
+.home-hero a,
+.home-hero .home-stub-hint {
+  pointer-events: auto;
 }
 
 .home-hero h1 {
@@ -868,14 +873,13 @@ body:has(.home-page) {
 
 .home-upcoming-window {
   position: relative;
-  z-index: 1;
-  align-self: start;
-  width: 100%;
-  max-height: min(68vh, 520px);
+  z-index: 2;
+  width: min(100%, 600px);
+  max-height: min(78vh, 720px);
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px 14px 12px;
+  gap: 12px;
+  padding: 18px 18px 14px;
   border: 1px solid var(--line);
   border-radius: 16px;
   background:
@@ -892,13 +896,13 @@ body:has(.home-page) {
 .home-upcoming-head h2 {
   margin: 2px 0 0;
   font-family: var(--font-display);
-  font-size: 1.25rem;
+  font-size: 1.45rem;
   letter-spacing: 0.02em;
 }
 
 .home-upcoming-empty {
   margin: 8px 0 0;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
 }
 
 .home-match-rows {
@@ -910,16 +914,16 @@ body:has(.home-page) {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .home-match-row {
   width: 100%;
   display: grid;
-  grid-template-columns: 78px minmax(64px, 0.9fr) minmax(0, 1.2fr) 44px;
+  grid-template-columns: 92px minmax(72px, 0.9fr) minmax(0, 1.2fr) 52px;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 10px;
+  padding: 11px 12px;
   border: 1px solid transparent;
   border-radius: 10px;
   background: rgba(0, 0, 0, 0.22);
@@ -936,14 +940,14 @@ body:has(.home-page) {
 }
 
 .home-match-row-date {
-  font-size: 0.78rem;
+  font-size: 0.84rem;
   color: var(--muted);
   white-space: nowrap;
 }
 
 .home-match-row-vs {
   font-family: var(--font-display);
-  font-size: 0.88rem;
+  font-size: 0.98rem;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -951,7 +955,7 @@ body:has(.home-page) {
 }
 
 .home-match-row-map {
-  font-size: 0.78rem;
+  font-size: 0.84rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -960,7 +964,7 @@ body:has(.home-page) {
 .home-match-row-pct {
   justify-self: end;
   font-family: var(--font-display);
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   font-weight: 700;
   color: #e9e2ff;
 }
@@ -979,7 +983,7 @@ body:has(.home-page) {
   overflow: auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   animation: home-fade-up 0.3s ease both;
 }
 
@@ -989,7 +993,7 @@ body:has(.home-page) {
   background: transparent;
   color: var(--violet);
   font: inherit;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   padding: 0;
   cursor: pointer;
 }
@@ -1007,7 +1011,7 @@ body:has(.home-page) {
 
 .home-match-detail-when {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
 }
 
 .home-match-detail-vs {
@@ -1016,14 +1020,14 @@ body:has(.home-page) {
   align-items: baseline;
   gap: 8px;
   font-family: var(--font-display);
-  font-size: 1.15rem;
+  font-size: 1.3rem;
 }
 
 .home-match-pct {
   display: grid;
   place-items: center;
-  min-width: 58px;
-  padding: 6px 8px;
+  min-width: 64px;
+  padding: 8px 10px;
   border-radius: 12px;
   border: 1px solid var(--line);
   background: rgba(0, 0, 0, 0.28);
@@ -1032,7 +1036,7 @@ body:has(.home-page) {
 
 .home-match-pct-num {
   font-family: var(--font-display);
-  font-size: 1.2rem;
+  font-size: 1.35rem;
   font-weight: 700;
   color: #e9e2ff;
 }
@@ -1046,7 +1050,7 @@ body:has(.home-page) {
 }
 
 .home-match-pct-label {
-  font-size: 0.65rem;
+  font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--muted);
@@ -1073,13 +1077,13 @@ body:has(.home-page) {
   flex-wrap: wrap;
   gap: 6px;
   margin: 4px 0 0;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: var(--muted);
 }
 
 .home-match-bar {
   display: flex;
-  height: 5px;
+  height: 6px;
   border-radius: 999px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.06);
@@ -1104,12 +1108,12 @@ body:has(.home-page) {
 
 .home-match-confidence {
   margin: 0;
-  font-size: 0.75rem;
+  font-size: 0.78rem;
 }
 
 .home-match-summary {
   margin: 0;
-  font-size: 0.84rem;
+  font-size: 0.9rem;
   line-height: 1.45;
   color: #d6d0e6;
 }
@@ -1119,15 +1123,15 @@ body:has(.home-page) {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 5px;
+  gap: 6px;
 }
 
 .home-match-factors li {
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  font-size: 0.76rem;
-  padding: 5px 8px;
+  font-size: 0.82rem;
+  padding: 7px 10px;
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.22);
 }
@@ -1146,12 +1150,12 @@ body:has(.home-page) {
 
 .home-match-note {
   margin: 0;
-  font-size: 0.76rem;
+  font-size: 0.8rem;
 }
 
 .home-upcoming-foot {
   margin: 4px 0 0;
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   flex-shrink: 0;
 }
 
@@ -1163,6 +1167,17 @@ body:has(.home-page) {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes home-hero-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 12px));
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
   }
 }
 
@@ -1190,7 +1205,8 @@ body:has(.home-page) {
   }
 
   .home-page {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
     height: auto;
     max-height: none;
     overflow: visible;
@@ -1198,10 +1214,16 @@ body:has(.home-page) {
   }
 
   .home-hero {
+    position: relative;
+    left: auto;
+    top: auto;
+    transform: none;
     order: -1;
+    pointer-events: auto;
   }
 
   .home-upcoming-window {
+    width: 100%;
     max-height: none;
   }
 
@@ -1214,7 +1236,7 @@ body:has(.home-page) {
   }
 
   .home-match-row {
-    grid-template-columns: 70px minmax(56px, 1fr) 40px;
+    grid-template-columns: 78px minmax(56px, 1fr) 44px;
   }
 
   .home-match-row-map {
