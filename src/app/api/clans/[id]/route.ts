@@ -8,7 +8,6 @@ import {
   canChangeClanMemberRole,
   canInviteClanMembers,
   canKickClanMember,
-  canManageClanMembers,
   type ClanRole,
 } from "@/lib/clan";
 import { clanLiveChannel, livePublish, userLiveChannel } from "@/lib/liveBus";
