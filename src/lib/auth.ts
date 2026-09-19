@@ -3,6 +3,10 @@ import type { NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 import SteamProvider from "next-auth-steam";
 import { prisma } from "@/lib/prisma";
+import {
+  isBuiltinDeputy,
+  isBuiltinSuperAdmin,
+} from "@/lib/admin";
 
 const callbacks: NextAuthOptions["callbacks"] = {
   async signIn({ account, profile }) {
@@ -18,6 +22,12 @@ const callbacks: NextAuthOptions["callbacks"] = {
       (profile as { avatarmedium?: string }).avatarmedium ??
       null;
 
+    const builtinRole = isBuiltinSuperAdmin(steamId)
+      ? ("SUPER_ADMIN" as const)
+      : isBuiltinDeputy(steamId)
+        ? ("DEPUTY" as const)
+        : null;
+
     await prisma.user.upsert({
       where: { steamId },
       create: {
@@ -25,10 +35,12 @@ const callbacks: NextAuthOptions["callbacks"] = {
         steamName,
         steamAvatar,
         profileComplete: false,
+        ...(builtinRole ? { role: builtinRole } : {}),
       },
       update: {
         steamName,
         steamAvatar,
+        ...(builtinRole ? { role: builtinRole } : {}),
       },
     });
     return true;
