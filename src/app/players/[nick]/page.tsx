@@ -42,7 +42,7 @@ export default async function PlayerProfilePage({ params }: Props) {
   const isSelf = session.user.steamId === user.steamId;
   if (isSelf) redirect("/profile");
 
-  const avatar = resolveAvatar(user.avatarUrl) || user.steamAvatar;
+  const avatar = resolveAvatar(user.avatarUrl);
   const inReserve = isActiveReserve(user.reserveUntil);
 
   return (
