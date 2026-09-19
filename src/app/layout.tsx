@@ -31,8 +31,8 @@ export default function RootLayout({
     <html lang="ru" className={`${oxanium.variable} ${manrope.variable}`}>
       <body>
         <Providers>
-          <div className="shell">
-            <header className="top">
+          <header className="site-top">
+            <div className="site-top-inner">
               <div className="top-left">
                 <Link className="brand" href="/" title="Главная">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -46,9 +46,9 @@ export default function RootLayout({
                 </nav>
               </div>
               <AuthBar />
-            </header>
-            {children}
-          </div>
+            </div>
+          </header>
+          <div className="shell">{children}</div>
         </Providers>
       </body>
     </html>

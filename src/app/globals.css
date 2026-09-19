@@ -35,12 +35,12 @@ a:hover { color: #c4b5fd; }
 .shell {
   max-width: 960px;
   margin: 0 auto;
-  padding: 28px 18px 64px;
+  padding: 24px 18px 64px;
 }
 
 .shell:has(.cw-embed) {
   max-width: none;
-  padding: 16px 12px 0;
+  padding: 12px 12px 0;
 }
 
 .cw-embed {
@@ -61,44 +61,61 @@ a:hover { color: #c4b5fd; }
   background: #07060c;
 }
 
-.top {
+.site-top {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  width: 100%;
+  border-bottom: 1px solid var(--line);
+  background: rgba(7, 6, 12, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.site-top-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 10px 18px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  flex-wrap: wrap;
-  margin-bottom: 40px;
-}
-
-.shell:has(.cw-embed) .top {
-  margin-bottom: 12px;
+  flex-wrap: nowrap;
 }
 
 .top-left {
   display: flex;
   align-items: center;
-  gap: 22px;
-  flex-wrap: wrap;
+  gap: 18px;
+  flex-wrap: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .top-nav {
   display: flex;
   align-items: center;
   gap: 2px;
+  flex-wrap: nowrap;
   font-family: var(--font-display);
+  font-size: 0.8rem;
 }
 
 .top-nav a {
   position: relative;
+  flex: 0 0 auto;
   color: #efe8ff;
+  font-family: var(--font-display);
   font-weight: 700;
   font-size: 0.8rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  line-height: 1;
   padding: 9px 14px;
   border-radius: 9px;
   text-shadow: 0 0 18px rgba(167, 139, 250, 0.35);
   transition: color 0.18s ease, background 0.18s ease, text-shadow 0.18s ease;
+  white-space: nowrap;
 }
 
 .top-nav a::after {
@@ -131,27 +148,45 @@ a:hover { color: #c4b5fd; }
 .brand {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   color: inherit;
+  flex: 0 0 auto;
 }
 
 .brand img {
-  width: 56px;
+  width: 48px;
   height: auto;
   filter: drop-shadow(0 0 18px rgba(167, 139, 250, 0.35));
 }
 
 .brand strong {
   font-family: var(--font-display);
-  font-size: 1.25rem;
+  font-size: 1.15rem;
   letter-spacing: 0.06em;
+  white-space: nowrap;
 }
 
 .auth-bar {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 720px) {
+  .brand strong {
+    display: none;
+  }
+  .top-nav a {
+    padding: 8px 10px;
+    font-size: 0.72rem;
+    letter-spacing: 0.05em;
+  }
+  .site-top-inner {
+    padding: 8px 12px;
+    gap: 10px;
+  }
 }
 
 .avatar {
