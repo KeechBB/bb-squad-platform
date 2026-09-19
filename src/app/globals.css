@@ -681,6 +681,11 @@ a:hover { color: #c4b5fd; }
 
 .profile-head-text h1 {
   margin-bottom: 6px;
+  background: none;
+  -webkit-background-clip: unset;
+  background-clip: unset;
+  color: #fff;
+  -webkit-text-fill-color: #fff;
 }
 
 .home-stub {
