@@ -176,7 +176,7 @@ export default async function PlayerProfilePage({ params }: Props) {
         </div>
         <div className="meta-row">
           <span>Steam</span>
-          <span>{user.steamName || "—"}</span>
+          <span>{user.steamId || "—"}</span>
         </div>
       </section>
 
