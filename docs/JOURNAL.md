@@ -4,7 +4,10 @@
 
 ## 2026-09-19
 
+- Вход через Steam на https://bb-squad.ru работает (профиль Keech в Neon). Фикс: IPv4 для Neon (`gai.conf` / disable IPv6 на VPS).
+- HTTPS: certbot на Timeweb для `bb-squad.ru` + `www` — ок. Дальше: `NEXTAUTH_URL=https://bb-squad.ru`, Steam Domain `bb-squad.ru`.
 - Домен без IP: инструкция `docs/DOMAIN.md` — A `@`/`www` → `91.222.237.91`, CNAME `kv` → `keechbb.github.io`; nginx; HTTPS; Steam Domain `bb-squad.ru`. КВ → `kv.bb-squad.ru`.
+- 2026-09-19: КВ внутри аккаунта — `/cw` на платформе (шапка Keech/Выйти + iframe таблицы). Публичный `kv.bb-squad.ru` без сессии — это нормально.
 - На `bb-squad.ru` (таблица КВ) справа сверху **Войти / Регистрация** → платформа `http://91.222.237.91:3000`. На платформе AuthBar: Войти + Регистрация (Steam).
 - Зафиксирована шпаргалка восстановления и оплат: `docs/RECOVERY.md` (+ HOSTING). Timeweb ~900 ₽/мес, Neon Free, домен раз в год. IP `91.222.237.91`, pm2 `bb-squad`, URL :3000. Агент напоминает про оплату.
 - Phase 0 хостинг: сайт на VPS **online** (pm2 `bb-squad`). URL временно: http://91.222.237.91:3000 . Steam Domain = IP. Дальше: проверка входа, домен, Telegram в анкете.

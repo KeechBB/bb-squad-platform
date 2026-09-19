@@ -38,6 +38,29 @@ a:hover { color: #c4b5fd; }
   padding: 28px 18px 64px;
 }
 
+.shell:has(.cw-embed) {
+  max-width: none;
+  padding: 16px 12px 0;
+}
+
+.cw-embed {
+  margin: 0 -12px;
+  height: calc(100vh - 88px);
+  min-height: 640px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #07060c;
+}
+
+.cw-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #07060c;
+}
+
 .top {
   display: flex;
   align-items: center;
@@ -45,6 +68,31 @@ a:hover { color: #c4b5fd; }
   gap: 16px;
   flex-wrap: wrap;
   margin-bottom: 40px;
+}
+
+.shell:has(.cw-embed) .top {
+  margin-bottom: 12px;
+}
+
+.top-left {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex-wrap: wrap;
+}
+
+.top-nav {
+  display: flex;
+  gap: 14px;
+  font-size: 0.92rem;
+}
+
+.top-nav a {
+  color: var(--muted);
+}
+
+.top-nav a:hover {
+  color: var(--ink);
 }
 
 .brand {

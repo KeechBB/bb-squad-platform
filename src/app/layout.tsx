@@ -33,11 +33,16 @@ export default function RootLayout({
         <Providers>
           <div className="shell">
             <header className="top">
-              <Link className="brand" href="/">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/blackberry.png" alt="BlackBerry" width={56} height={56} />
-                <strong>BLACKBERRY</strong>
-              </Link>
+              <div className="top-left">
+                <Link className="brand" href="/">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/blackberry.png" alt="BlackBerry" width={56} height={56} />
+                  <strong>BLACKBERRY</strong>
+                </Link>
+                <nav className="top-nav" aria-label="Разделы">
+                  <Link href="/cw">Клановые войны</Link>
+                </nav>
+              </div>
               <AuthBar />
             </header>
             {children}
