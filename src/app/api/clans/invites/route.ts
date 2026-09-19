@@ -64,6 +64,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   }
 
+  const inClan = await prisma.clanMember.findFirst({
+    where: { userId: me.id },
+    include: { clan: { select: { tag: true, name: true } } },
+  });
+  if (inClan) {
+    return NextResponse.json(
+      {
+        error: `Сначала выйди из [${inClan.clan.tag}] ${inClan.clan.name}`,
+      },
+      { status: 409 }
+    );
+  }
+
   const already = await prisma.clanMember.findUnique({
     where: {
       clanId_userId: { clanId: invite.clanId, userId: me.id },

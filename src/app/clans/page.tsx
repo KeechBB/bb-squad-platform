@@ -17,6 +17,20 @@ export default async function ClansPage() {
     },
   });
 
+  let myClan: { id: string; tag: string; name: string } | null = null;
+  if (session?.user?.steamId) {
+    const me = await prisma.user.findUnique({
+      where: { steamId: session.user.steamId },
+      select: {
+        clanMemberships: {
+          take: 1,
+          include: { clan: { select: { id: true, tag: true, name: true } } },
+        },
+      },
+    });
+    myClan = me?.clanMemberships[0]?.clan ?? null;
+  }
+
   return (
     <main className="clans-page">
       <section className="hero clans-hero">
@@ -26,9 +40,20 @@ export default async function ClansPage() {
           <p className="lead">Создай клан, зови игроков, смотри состав и стату.</p>
         </div>
         {session?.user?.profileComplete ? (
-          <Link className="btn primary" href="/clans/new">
-            Создать клан
-          </Link>
+          myClan ? (
+            <div className="clans-hero-actions">
+              <Link className="btn primary" href={`/clans/${myClan.id}`}>
+                Мой клан [{myClan.tag}]
+              </Link>
+              <p className="muted" style={{ margin: "8px 0 0", fontSize: "0.85rem" }}>
+                Чтобы создать новый — сначала выйди из текущего.
+              </p>
+            </div>
+          ) : (
+            <Link className="btn primary" href="/clans/new">
+              Создать клан
+            </Link>
+          )
         ) : (
           <p className="muted">Войди и заверши профиль, чтобы создать клан.</p>
         )}

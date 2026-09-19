@@ -36,6 +36,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Пользователь не найден" }, { status: 404 });
   }
 
+  const existing = await prisma.clanMember.findFirst({
+    where: { userId: me.id },
+    include: { clan: { select: { id: true, tag: true, name: true } } },
+  });
+  if (existing) {
+    return NextResponse.json(
+      {
+        error: `Сначала выйди из [${existing.clan.tag}] ${existing.clan.name}`,
+        clanId: existing.clan.id,
+      },
+      { status: 409 }
+    );
+  }
+
   const form = await req.formData().catch(() => null);
   if (!form) {
     return NextResponse.json({ error: "Некорректные данные" }, { status: 400 });
