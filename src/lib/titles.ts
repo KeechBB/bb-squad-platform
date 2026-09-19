@@ -35,12 +35,21 @@ export function canManageClanTitles(
   role: ClanRole,
   titleName: string | null | undefined
 ): boolean {
-  if (role === "LEADER") return true;
+  if (role === "LEADER" || role === "DEPUTY") return true;
   return isClanHrTitle(titleName);
 }
 
 /** Глава, зам или HR — раскидывать игроков по составам */
 export function canAssignClanSquadMembers(
+  role: ClanRole,
+  titleName: string | null | undefined
+): boolean {
+  if (role === "LEADER" || role === "DEPUTY") return true;
+  return isClanHrTitle(titleName);
+}
+
+/** Принимать заявки на вступление: глава, зам, HR */
+export function canReviewClanJoinRequests(
   role: ClanRole,
   titleName: string | null | undefined
 ): boolean {

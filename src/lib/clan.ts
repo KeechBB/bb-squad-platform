@@ -8,14 +8,14 @@ export type ClanRole =
 
 export const CLAN_ROLE_LABEL: Record<ClanRole, string> = {
   LEADER: "Глава клана",
-  DEPUTY: "Заместитель главы",
+  DEPUTY: "Заместитель главы клана",
   MAIN: "Основной состав",
   SUB: "Замена",
   RESERVE: "Резерв",
   MEMBER: "Обычный игрок",
 };
 
-/** Роли, которые заместитель может выдавать (включительно до MAIN) */
+/** Роли, которые заместитель может выдавать (не трогает зам. и главу) */
 export const DEPUTY_ASSIGNABLE: ClanRole[] = [
   "MAIN",
   "SUB",
@@ -23,6 +23,7 @@ export const DEPUTY_ASSIGNABLE: ClanRole[] = [
   "MEMBER",
 ];
 
+/** Только глава выдаёт и снимает заместителя */
 export const LEADER_ASSIGNABLE: ClanRole[] = [
   "DEPUTY",
   "MAIN",
@@ -45,13 +46,36 @@ export function canAssignClanRole(actor: ClanRole, targetRole: ClanRole): boolea
   return assignableClanRoles(actor).includes(targetRole);
 }
 
-export function canKickClanMember(actor: ClanRole, target: ClanRole): boolean {
-  if (target === "LEADER") return false;
-  if (actor === "LEADER") return true;
+/** Сменить роль участника: зам. нельзя трогать никому, кроме главы */
+export function canChangeClanMemberRole(
+  actor: ClanRole,
+  targetCurrent: ClanRole,
+  newRole: ClanRole
+): boolean {
+  if (targetCurrent === "LEADER") return false;
+  if (actor === "LEADER") {
+    return canAssignClanRole("LEADER", newRole);
+  }
   if (actor === "DEPUTY") {
-    return target !== "DEPUTY";
+    if (targetCurrent === "DEPUTY" || newRole === "DEPUTY") return false;
+    return canAssignClanRole("DEPUTY", newRole);
   }
   return false;
+}
+
+export function canKickClanMember(actor: ClanRole, target: ClanRole): boolean {
+  if (target === "LEADER") return false;
+  if (target === "DEPUTY") return actor === "LEADER";
+  if (actor === "LEADER" || actor === "DEPUTY") return true;
+  return false;
+}
+
+export function canDeleteClan(role: ClanRole): boolean {
+  return role === "LEADER";
+}
+
+export function canDeleteClanSquad(role: ClanRole): boolean {
+  return role === "LEADER" || role === "DEPUTY";
 }
 
 export function isValidClanTag(tag: string): boolean {

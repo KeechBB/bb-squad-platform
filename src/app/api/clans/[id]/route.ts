@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
   canAssignClanRole,
+  canChangeClanMemberRole,
   canKickClanMember,
   canManageClanMembers,
   type ClanRole,
@@ -140,16 +141,20 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if (target.userId === actor.user.id) {
     return NextResponse.json({ error: "Нельзя менять свою роль" }, { status: 403 });
   }
-  if (!canAssignClanRole(actor.member.role, role)) {
+  if (
+    !canChangeClanMemberRole(
+      actor.member.role as ClanRole,
+      target.role as ClanRole,
+      role
+    )
+  ) {
+    return NextResponse.json(
+      { error: "Нельзя выдать или снять эту роль" },
+      { status: 403 }
+    );
+  }
+  if (!canAssignClanRole(actor.member.role as ClanRole, role)) {
     return NextResponse.json({ error: "Нельзя выдать эту роль" }, { status: 403 });
-  }
-  if (target.role === "LEADER") {
-    return NextResponse.json({ error: "Главу сменить нельзя" }, { status: 403 });
-  }
-  if (actor.member.role === "DEPUTY") {
-    if (target.role === "DEPUTY" || !canAssignClanRole("DEPUTY", target.role as ClanRole)) {
-      return NextResponse.json({ error: "Заместитель не может менять эту роль" }, { status: 403 });
-    }
   }
 
   const updated = await prisma.clanMember.update({

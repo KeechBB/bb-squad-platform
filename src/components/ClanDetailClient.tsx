@@ -8,11 +8,17 @@ import {
   assignableClanRoles,
   canKickClanMember,
   canManageClanMembers,
+  canDeleteClanSquad,
   CLAN_ROLE_LABEL,
 } from "@/lib/clan";
 import { formatRuDate, isActiveReserve } from "@/lib/validation";
 import { withAvatarCacheBust } from "@/lib/avatarUrl";
-import { canAssignTitleToMember, canAssignClanSquadMembers } from "@/lib/titles";
+import {
+  canAssignTitleToMember,
+  canAssignClanSquadMembers,
+  canManageClanTitles,
+  canReviewClanJoinRequests,
+} from "@/lib/titles";
 
 type Member = {
   id: string;
@@ -48,6 +54,18 @@ type ClanTitle = {
   sortOrder?: number;
 };
 
+type JoinRequest = {
+  id: string;
+  createdAt: string;
+  user: {
+    id: string;
+    nick: string | null;
+    name: string | null;
+    avatarUrl: string | null;
+    steamName: string | null;
+  };
+};
+
 type Props = {
   clan: {
     id: string;
@@ -62,6 +80,14 @@ type Props = {
   myTitleName: string | null;
   canManage: boolean;
   canManageTitles: boolean;
+  canReviewJoins: boolean;
+  canDisband: boolean;
+  canApply: boolean;
+  inOtherClan: boolean;
+  isLoggedIn: boolean;
+  profileComplete: boolean;
+  myPendingRequestId: string | null;
+  joinRequests: JoinRequest[];
   assignableRoles: ClanRole[];
 };
 
@@ -125,6 +151,14 @@ export function ClanDetailClient({
   myTitleName: initialMyTitleName,
   canManage: initialCanManage,
   canManageTitles: initialCanManageTitles,
+  canReviewJoins: initialCanReviewJoins,
+  canDisband: initialCanDisband,
+  canApply: initialCanApply,
+  inOtherClan,
+  isLoggedIn,
+  profileComplete,
+  myPendingRequestId: initialPendingRequestId,
+  joinRequests: initialJoinRequests,
   assignableRoles: initialAssignable,
 }: Props) {
   const router = useRouter();
@@ -137,6 +171,10 @@ export function ClanDetailClient({
   const [squads, setSquads] = useState<Squad[]>([]);
   const [newSquad, setNewSquad] = useState("");
   const [inviteNick, setInviteNick] = useState("");
+  const [joinRequests, setJoinRequests] = useState(initialJoinRequests);
+  const [myPendingRequestId, setMyPendingRequestId] = useState(
+    initialPendingRequestId
+  );
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
   const [loading, setLoading] = useState(false);
@@ -148,12 +186,18 @@ export function ClanDetailClient({
   const canManage = myRole ? canManageClanMembers(myRole) : initialCanManage;
   const canTitles =
     myRole != null
-      ? myRole === "LEADER" || (myTitleName || "").toLowerCase() === "hr"
+      ? canManageClanTitles(myRole, myTitleName)
       : initialCanManageTitles;
   const canAssignSquads =
     myRole != null
       ? canAssignClanSquadMembers(myRole, myTitleName)
       : canManage;
+  const canReviewJoins =
+    myRole != null
+      ? canReviewClanJoinRequests(myRole, myTitleName)
+      : initialCanReviewJoins;
+  const canDisband = myRole ? myRole === "LEADER" : initialCanDisband;
+  const canApply = !myRole && initialCanApply;
   const assignableRoles = myRole
     ? assignableClanRoles(myRole)
     : initialAssignable;
@@ -243,6 +287,20 @@ export function ClanDetailClient({
     }
   }, [clan.id]);
 
+  const refreshJoinRequests = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/clans/${clan.id}/join-requests`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setJoinRequests(data.requests || []);
+      setMyPendingRequestId(data.myRequest?.id ?? null);
+    } catch {
+      /* ignore */
+    }
+  }, [clan.id]);
+
   const refreshStats = useCallback(async () => {
     try {
       const res = await fetch(`/api/clans/${clan.id}/stats`, { cache: "no-store" });
@@ -271,6 +329,7 @@ export function ClanDetailClient({
       void refreshMembers();
       void refreshSquads();
       void refreshTitles();
+      void refreshJoinRequests();
       if (tab === "stats") void refreshStats();
     };
 
@@ -293,7 +352,7 @@ export function ClanDetailClient({
       window.clearInterval(poll);
       window.removeEventListener("focus", onFocus);
     };
-  }, [clan.id, refreshMembers, refreshSquads, refreshTitles, refreshStats, tab]);
+  }, [clan.id, refreshMembers, refreshSquads, refreshTitles, refreshJoinRequests, refreshStats, tab]);
 
   useEffect(() => {
     void refreshTitles();
@@ -458,6 +517,114 @@ export function ClanDetailClient({
     }
   }
 
+  async function disbandClan() {
+    if (
+      !window.confirm(
+        `Удалить клан [${clan.tag}] ${clan.name}? Это действие необратимо.`
+      )
+    ) {
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/clans/${clan.id}/disband`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Не удалось удалить клан");
+        return;
+      }
+      router.push("/clans");
+      router.refresh();
+    } catch {
+      setError("Сеть недоступна");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function applyToClan() {
+    setError("");
+    setOk("");
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/clans/${clan.id}/join-requests`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Не удалось подать заявку");
+        return;
+      }
+      setMyPendingRequestId(data.request?.id ?? "pending");
+      setOk("Заявка отправлена");
+    } catch {
+      setError("Сеть недоступна");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function cancelJoinRequest() {
+    if (!myPendingRequestId) return;
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/clans/${clan.id}/join-requests`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requestId: myPendingRequestId,
+          action: "cancel",
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Не удалось отменить заявку");
+        return;
+      }
+      setMyPendingRequestId(null);
+      setOk("Заявка отменена");
+    } catch {
+      setError("Сеть недоступна");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function reviewJoinRequest(
+    requestId: string,
+    action: "accept" | "decline"
+  ) {
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/clans/${clan.id}/join-requests`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId, action }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Не удалось обработать заявку");
+        void refreshJoinRequests();
+        return;
+      }
+      setJoinRequests((list) => list.filter((r) => r.id !== requestId));
+      if (action === "accept") {
+        setOk("Заявка принята");
+        void refreshMembers();
+        void refreshSquads();
+      }
+    } catch {
+      setError("Сеть недоступна");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function createSquad() {
     setError("");
     setLoading(true);
@@ -549,7 +716,46 @@ export function ClanDetailClient({
                 </span>
               ) : null}
             </p>
-          ) : null}
+          ) : (
+            <div className="clan-guest-actions">
+              {!isLoggedIn ? (
+                <p className="muted">Войди, чтобы подать заявку в клан.</p>
+              ) : !profileComplete ? (
+                <p className="muted">
+                  Заверши профиль, чтобы подать заявку.{" "}
+                  <Link href="/register">Перейти →</Link>
+                </p>
+              ) : inOtherClan ? (
+                <p className="muted">
+                  Ты уже в другом клане. Сначала выйди из него, чтобы подать
+                  заявку сюда.
+                </p>
+              ) : myPendingRequestId ? (
+                <div className="clan-invite-row">
+                  <p className="muted" style={{ margin: 0 }}>
+                    Заявка на вступление отправлена.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    disabled={loading}
+                    onClick={() => void cancelJoinRequest()}
+                  >
+                    Отменить
+                  </button>
+                </div>
+              ) : canApply ? (
+                <button
+                  type="button"
+                  className="btn primary"
+                  disabled={loading}
+                  onClick={() => void applyToClan()}
+                >
+                  Подать заявку
+                </button>
+              ) : null}
+            </div>
+          )}
         </div>
       </section>
 
@@ -575,6 +781,53 @@ export function ClanDetailClient({
 
       {tab === "members" ? (
         <section className="card">
+          {canReviewJoins ? (
+            <div className="clan-join-requests">
+              <h3 className="stats-h3" style={{ marginTop: 0 }}>
+                Заявки на вступление
+                {joinRequests.length > 0 ? ` (${joinRequests.length})` : ""}
+              </h3>
+              {joinRequests.length === 0 ? (
+                <p className="muted" style={{ marginTop: 0 }}>
+                  Пока нет заявок.
+                </p>
+              ) : (
+                <ul className="invite-list">
+                  {joinRequests.map((r) => (
+                    <li key={r.id} className="invite-row">
+                      <div>
+                        <Link href={`/players/${encodeURIComponent(r.user.nick || r.user.id)}`}>
+                          {r.user.nick || r.user.steamName || "Игрок"}
+                        </Link>
+                        <span className="muted" style={{ marginLeft: 8 }}>
+                          {formatRuDate(new Date(r.createdAt))}
+                        </span>
+                      </div>
+                      <div className="clan-invite-row" style={{ margin: 0, gap: 8 }}>
+                        <button
+                          type="button"
+                          className="btn primary"
+                          disabled={loading}
+                          onClick={() => void reviewJoinRequest(r.id, "accept")}
+                        >
+                          Принять
+                        </button>
+                        <button
+                          type="button"
+                          className="btn ghost"
+                          disabled={loading}
+                          onClick={() => void reviewJoinRequest(r.id, "decline")}
+                        >
+                          Отклонить
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : null}
+
           {canManage ? (
             <div className="clan-invite-row">
               <label className="field" style={{ flex: 1, margin: 0 }}>
@@ -602,7 +855,7 @@ export function ClanDetailClient({
             <div className="clan-titles-panel">
               <p className="muted" style={{ margin: "0 0 8px" }}>
                 Должности клана (не влияют на права сайта). Создавать и удалять —
-                глава и HR.
+                глава, заместитель и HR.
               </p>
               <div className="clan-invite-row">
                 <label className="field" style={{ flex: 1, margin: 0 }}>
@@ -807,7 +1060,7 @@ export function ClanDetailClient({
                   <div className="squad-card-head">
                     <strong>{s.name}</strong>
                     <span className="muted">{s.members.length} чел.</span>
-                    {canManage && myRole === "LEADER" && !locked ? (
+                    {canManage && myRole && canDeleteClanSquad(myRole) && !locked ? (
                       <button
                         type="button"
                         className="btn ghost"
@@ -1107,6 +1360,16 @@ export function ClanDetailClient({
             onClick={() => void leaveClan()}
           >
             Выйти из клана
+          </button>
+        ) : null}
+        {canDisband ? (
+          <button
+            type="button"
+            className="btn ghost leave-clan-btn"
+            disabled={loading}
+            onClick={() => void disbandClan()}
+          >
+            Удалить клан
           </button>
         ) : null}
         <Link className="kv-link" href="/clans">

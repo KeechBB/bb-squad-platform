@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canManageClanMembers, type ClanRole } from "@/lib/clan";
+import { canManageClanMembers, canDeleteClanSquad, type ClanRole } from "@/lib/clan";
 import { ensureDefaultSquads } from "@/lib/squads";
 import { canAssignClanSquadMembers } from "@/lib/titles";
 import { clanLiveChannel, livePublish } from "@/lib/liveBus";
@@ -153,8 +153,14 @@ export async function DELETE(req: Request, ctx: Ctx) {
   }
   const { id: clanId } = await ctx.params;
   const actor = await actorMembership(clanId, session.user.steamId);
-  if (!actor || actor.member.role !== "LEADER") {
-    return NextResponse.json({ error: "Только глава может удалять составы" }, { status: 403 });
+  if (
+    !actor ||
+    !canDeleteClanSquad(actor.member.role as ClanRole)
+  ) {
+    return NextResponse.json(
+      { error: "Удалять составы могут глава и заместитель" },
+      { status: 403 }
+    );
   }
 
   const url = new URL(req.url);

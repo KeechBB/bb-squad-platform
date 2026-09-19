@@ -30,6 +30,13 @@ enum ClanInviteStatus {
   DECLINED
 }
 
+enum ClanJoinRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
 model User {
   id              String   @id @default(cuid())
   steamId         String   @unique
@@ -55,6 +62,8 @@ model User {
   sentInvites     ClanInvite[] @relation("Inviter")
   ledClans        Clan[]       @relation("ClanLeader")
   squadMemberships ClanSquadMember[]
+  clanJoinRequests ClanJoinRequest[] @relation("JoinApplicant")
+  reviewedJoinRequests ClanJoinRequest[] @relation("JoinReviewer")
 }
 
 model Clan {
@@ -67,10 +76,11 @@ model Clan {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members ClanMember[]
-  invites ClanInvite[]
-  squads  ClanSquad[]
-  titles  ClanTitle[]
+  members      ClanMember[]
+  invites      ClanInvite[]
+  squads       ClanSquad[]
+  titles       ClanTitle[]
+  joinRequests ClanJoinRequest[]
 }
 
 model ClanTitle {
@@ -146,5 +156,22 @@ model ClanInvite {
   inviter User @relation("Inviter", fields: [invitedBy], references: [id], onDelete: Cascade)
 
   @@index([clanId, userId])
+  @@index([userId, status])
+}
+
+model ClanJoinRequest {
+  id         String                 @id @default(cuid())
+  clanId     String
+  userId     String
+  status     ClanJoinRequestStatus  @default(PENDING)
+  reviewedBy String?
+  createdAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
+
+  clan     Clan  @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  user     User  @relation("JoinApplicant", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer User? @relation("JoinReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@index([clanId, status])
   @@index([userId, status])
 }
