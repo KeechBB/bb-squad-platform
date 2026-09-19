@@ -777,12 +777,12 @@ export function ClanDetailClient({
                 <div>
                   <h3 className="stats-h3">Радар карт</h3>
                   <div className="radar-wrap">
-                    <svg viewBox="0 0 220 220" className="radar-svg" aria-label="Карты">
+                    <svg viewBox="0 0 300 300" className="radar-svg" aria-label="Карты">
                       {[1, 2, 3, 4].map((ring) => (
                         <circle
                           key={ring}
-                          cx="110"
-                          cy="110"
+                          cx="150"
+                          cy="150"
                           r={ring * 22}
                           fill="none"
                           stroke="rgba(167,139,250,0.18)"
@@ -794,7 +794,7 @@ export function ClanDetailClient({
                               const angle =
                                 (Math.PI * 2 * i) / mapPoints.length - Math.PI / 2;
                               const r = 24 + (m.games / maxGames) * 64;
-                              return [110 + Math.cos(angle) * r, 110 + Math.sin(angle) * r];
+                              return [150 + Math.cos(angle) * r, 150 + Math.sin(angle) * r];
                             });
                             return (
                               <polygon
@@ -810,18 +810,25 @@ export function ClanDetailClient({
                         const angle =
                           (Math.PI * 2 * i) / Math.max(mapPoints.length, 1) -
                           Math.PI / 2;
+                        const cos = Math.cos(angle);
+                        const sin = Math.sin(angle);
                         const r = 24 + (m.games / maxGames) * 64;
-                        const x = 110 + Math.cos(angle) * r;
-                        const y = 110 + Math.sin(angle) * r;
-                        const lx = 110 + Math.cos(angle) * 100;
-                        const ly = 110 + Math.sin(angle) * 100;
+                        const x = 150 + cos * r;
+                        const y = 150 + sin * r;
+                        const lx = 150 + cos * 112;
+                        const ly = 150 + sin * 112;
+                        const anchor =
+                          cos > 0.35 ? "start" : cos < -0.35 ? "end" : "middle";
+                        const dy = sin > 0.55 ? 4 : sin < -0.55 ? -2 : 0;
+                        const label =
+                          m.map.length > 12 ? `${m.map.slice(0, 11)}…` : m.map;
                         return (
                           <g key={m.map}>
                             <line
-                              x1="110"
-                              y1="110"
-                              x2={110 + Math.cos(angle) * 88}
-                              y2={110 + Math.sin(angle) * 88}
+                              x1="150"
+                              y1="150"
+                              x2={150 + cos * 88}
+                              y2={150 + sin * 88}
                               stroke="rgba(167,139,250,0.22)"
                             />
                             <circle
@@ -835,14 +842,14 @@ export function ClanDetailClient({
                             />
                             <text
                               x={lx}
-                              y={ly}
-                              textAnchor="middle"
+                              y={ly + dy}
+                              textAnchor={anchor}
                               dominantBaseline="middle"
                               fill="#d4c8f0"
-                              fontSize="9"
+                              fontSize="10"
                               fontWeight="600"
                             >
-                              {m.map.slice(0, 8)}
+                              {label}
                             </text>
                           </g>
                         );
