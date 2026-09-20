@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { clanLiveChannel, livePublish, userLiveChannel } from "@/lib/liveBus";
+import { personLabel, writeActionLog } from "@/lib/actionLog";
 
 export const runtime = "nodejs";
 
@@ -50,15 +51,27 @@ export async function POST(req: Request) {
 
   const invite = await prisma.clanInvite.findFirst({
     where: { id: inviteId, userId: me.id, status: "PENDING" },
+    include: { clan: { select: { tag: true, name: true } } },
   });
   if (!invite) {
     return NextResponse.json({ error: "Приглашение не найдено" }, { status: 404 });
   }
 
+  const meNick = personLabel(me);
+
   if (action === "decline") {
     await prisma.clanInvite.update({
       where: { id: inviteId },
       data: { status: "DECLINED" },
+    });
+    await writeActionLog({
+      category: "clan",
+      action: "invite_decline",
+      message: `${meNick} отклонил приглашение в [${invite.clan.tag}]`,
+      actorId: me.id,
+      actorNick: meNick,
+      clanId: invite.clanId,
+      clanTag: invite.clan.tag,
     });
     livePublish(userLiveChannel(me.id), JSON.stringify({ type: "invite" }));
     return NextResponse.json({ ok: true });
@@ -94,6 +107,16 @@ export async function POST(req: Request) {
   await prisma.clanInvite.update({
     where: { id: inviteId },
     data: { status: "ACCEPTED" },
+  });
+
+  await writeActionLog({
+    category: "clan",
+    action: "invite_accept",
+    message: `${meNick} принял приглашение и вступил в [${invite.clan.tag}] ${invite.clan.name}`,
+    actorId: me.id,
+    actorNick: meNick,
+    clanId: invite.clanId,
+    clanTag: invite.clan.tag,
   });
 
   livePublish(clanLiveChannel(invite.clanId), JSON.stringify({ type: "join" }));

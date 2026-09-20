@@ -8,9 +8,11 @@ import {
   canChangeClanMemberRole,
   canInviteClanMembers,
   canKickClanMember,
+  CLAN_ROLE_LABEL,
   type ClanRole,
 } from "@/lib/clan";
 import { clanLiveChannel, livePublish, userLiveChannel } from "@/lib/liveBus";
+import { personLabel, writeActionLog } from "@/lib/actionLog";
 
 export const runtime = "nodejs";
 
@@ -25,6 +27,13 @@ async function actorMembership(clanId: string, steamId: string) {
   });
   if (!member) return null;
   return { user, member };
+}
+
+async function clanBrief(clanId: string) {
+  return prisma.clan.findUnique({
+    where: { id: clanId },
+    select: { id: true, tag: true, name: true },
+  });
 }
 
 export async function GET(_req: Request, ctx: Ctx) {
@@ -122,6 +131,21 @@ export async function POST(req: Request, ctx: Ctx) {
     },
   });
 
+  const clan = await clanBrief(clanId);
+  const actorNick = personLabel(actor.user);
+  const targetNick = personLabel(target);
+  await writeActionLog({
+    category: "clan",
+    action: "invite",
+    message: `${actorNick} пригласил ${targetNick} в [${clan?.tag || "?"}] ${clan?.name || ""}`.trim(),
+    actorId: actor.user.id,
+    actorNick,
+    targetId: target.id,
+    targetNick,
+    clanId,
+    clanTag: clan?.tag,
+  });
+
   livePublish(clanLiveChannel(clanId), JSON.stringify({ type: "invite" }));
   livePublish(userLiveChannel(target.id), JSON.stringify({ type: "invite" }));
 
@@ -153,6 +177,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
   const target = await prisma.clanMember.findFirst({
     where: { id: memberId, clanId },
+    include: {
+      user: { select: { id: true, nick: true, name: true, steamName: true } },
+    },
   });
   if (!target) {
     return NextResponse.json({ error: "Участник не найден" }, { status: 404 });
@@ -177,9 +204,25 @@ export async function PATCH(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Нельзя выдать эту роль" }, { status: 403 });
   }
 
+  const fromRole = target.role as ClanRole;
   const updated = await prisma.clanMember.update({
     where: { id: memberId },
     data: { role },
+  });
+  const clan = await clanBrief(clanId);
+  const actorNick = personLabel(actor.user);
+  const targetNick = personLabel(target.user);
+  await writeActionLog({
+    category: "clan",
+    action: "role_set",
+    message: `${actorNick} выдал ${targetNick} в [${clan?.tag || "?"}] роль «${CLAN_ROLE_LABEL[role] || role}» (было «${CLAN_ROLE_LABEL[fromRole] || fromRole}»)`,
+    actorId: actor.user.id,
+    actorNick,
+    targetId: target.userId,
+    targetNick,
+    clanId,
+    clanTag: clan?.tag,
+    meta: { from: fromRole, to: role },
   });
   livePublish(
     clanLiveChannel(clanId),
@@ -211,6 +254,9 @@ export async function DELETE(req: Request, ctx: Ctx) {
   const memberId = url.searchParams.get("memberId") || "";
   const target = await prisma.clanMember.findFirst({
     where: { id: memberId, clanId },
+    include: {
+      user: { select: { id: true, nick: true, name: true, steamName: true } },
+    },
   });
   if (!target) {
     return NextResponse.json({ error: "Участник не найден" }, { status: 404 });
@@ -225,7 +271,21 @@ export async function DELETE(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Нельзя кикнуть этого игрока" }, { status: 403 });
   }
 
+  const clan = await clanBrief(clanId);
   await prisma.clanMember.delete({ where: { id: memberId } });
+  const actorNick = personLabel(actor.user);
+  const targetNick = personLabel(target.user);
+  await writeActionLog({
+    category: "clan",
+    action: "kick",
+    message: `${actorNick} исключил ${targetNick} из [${clan?.tag || "?"}]`,
+    actorId: actor.user.id,
+    actorNick,
+    targetId: target.userId,
+    targetNick,
+    clanId,
+    clanTag: clan?.tag,
+  });
   livePublish(clanLiveChannel(clanId), JSON.stringify({ type: "kick", memberId }));
   livePublish(userLiveChannel(target.userId), JSON.stringify({ type: "kick" }));
   return NextResponse.json({ ok: true });

@@ -10,6 +10,7 @@ import {
   isValidTitleName,
 } from "@/lib/titles";
 import { clanLiveChannel, livePublish } from "@/lib/liveBus";
+import { personLabel, writeActionLog } from "@/lib/actionLog";
 
 export const runtime = "nodejs";
 
@@ -147,7 +148,27 @@ export async function PATCH(req: Request, ctx: Ctx) {
   const member = await prisma.clanMember.update({
     where: { id: memberId },
     data: { titleId },
-    include: { title: true },
+    include: {
+      title: true,
+      user: { select: { nick: true, name: true, steamName: true } },
+    },
+  });
+  const clan = await prisma.clan.findUnique({
+    where: { id: clanId },
+    select: { tag: true },
+  });
+  const titleName = member.title?.name || "без должности";
+  await writeActionLog({
+    category: "clan",
+    action: "title_set",
+    message: `${personLabel(actor.user)} назначил ${personLabel(member.user)} должность «${titleName}» в [${clan?.tag || "?"}]`,
+    actorId: actor.user.id,
+    actorNick: personLabel(actor.user),
+    targetId: member.userId,
+    targetNick: personLabel(member.user),
+    clanId,
+    clanTag: clan?.tag,
+    meta: { titleId, titleName },
   });
   livePublish(clanLiveChannel(clanId), JSON.stringify({ type: "title" }));
   return NextResponse.json({ ok: true, member });

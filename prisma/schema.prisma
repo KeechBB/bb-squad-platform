@@ -210,3 +210,29 @@ model SquadEosSteamMap {
 
   @@index([steamId])
 }
+
+/// Накопительный журнал действий (админ-права, клан, профиль).
+model ActionLog {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+  /// admin | clan | profile
+  category   String
+  /// role_set, invite, kick, join, leave, create_clan, disband, …
+  action     String
+  /// Человекочитаемая строка для чата и поиска
+  message    String
+  /// Нижний регистр message + ники для ILIKE-поиска
+  searchText String
+  actorId    String?
+  actorNick  String?
+  targetId   String?
+  targetNick String?
+  clanId     String?
+  clanTag    String?
+  meta       Json?
+
+  @@index([createdAt])
+  @@index([category])
+  @@index([action])
+  @@index([searchText])
+}

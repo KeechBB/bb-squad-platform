@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { clanLiveChannel, livePublish, userLiveChannel } from "@/lib/liveBus";
+import { personLabel, writeActionLog } from "@/lib/actionLog";
 
 export const runtime = "nodejs";
 
@@ -29,6 +30,12 @@ export async function POST(_req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Ты не в этом клане" }, { status: 404 });
   }
 
+  const clan = await prisma.clan.findUnique({
+    where: { id: clanId },
+    select: { tag: true, name: true },
+  });
+  const meNick = personLabel(me);
+
   if (membership.role === "LEADER") {
     const others = await prisma.clanMember.count({
       where: { clanId, NOT: { userId: me.id } },
@@ -44,6 +51,15 @@ export async function POST(_req: Request, ctx: Ctx) {
     }
     // последний участник — удаляем клан
     await prisma.clan.delete({ where: { id: clanId } });
+    await writeActionLog({
+      category: "clan",
+      action: "disband",
+      message: `${meNick} распустил [${clan?.tag || "?"}] (вышел последним)`,
+      actorId: me.id,
+      actorNick: meNick,
+      clanId,
+      clanTag: clan?.tag,
+    });
     livePublish(clanLiveChannel(clanId), JSON.stringify({ type: "disband" }));
     livePublish(userLiveChannel(me.id), JSON.stringify({ type: "leave" }));
     return NextResponse.json({ ok: true, disbanded: true });
@@ -63,6 +79,16 @@ export async function POST(_req: Request, ctx: Ctx) {
   }
 
   await prisma.clanMember.delete({ where: { id: membership.id } });
+
+  await writeActionLog({
+    category: "clan",
+    action: "leave",
+    message: `${meNick} вышел из [${clan?.tag || "?"}] ${clan?.name || ""}`.trim(),
+    actorId: me.id,
+    actorNick: meNick,
+    clanId,
+    clanTag: clan?.tag,
+  });
 
   livePublish(
     clanLiveChannel(clanId),

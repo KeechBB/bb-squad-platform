@@ -1036,6 +1036,127 @@ a:hover { color: #c4b5fd; }
   background: rgba(167, 139, 250, 0.12);
 }
 
+.journal-card {
+  margin-top: 18px;
+}
+
+.journal-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+
+.journal-window {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(8, 6, 16, 0.55);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 420px;
+  max-height: min(70vh, 720px);
+}
+
+.journal-window-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(167, 139, 250, 0.15);
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.journal-chat {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.journal-empty {
+  margin: auto;
+  text-align: center;
+  padding: 24px;
+}
+
+.journal-load-older {
+  align-self: center;
+  appearance: none;
+  border: 1px solid var(--line);
+  background: rgba(167, 139, 250, 0.1);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+  margin-bottom: 4px;
+}
+
+.journal-load-older:hover {
+  color: var(--ink);
+  border-color: rgba(167, 139, 250, 0.4);
+}
+
+.journal-msg {
+  max-width: min(720px, 100%);
+  padding: 10px 12px;
+  border-radius: 12px 12px 12px 4px;
+  background: rgba(167, 139, 250, 0.08);
+  border: 1px solid rgba(167, 139, 250, 0.12);
+}
+
+.journal-msg-cat-admin {
+  background: rgba(124, 58, 237, 0.14);
+  border-color: rgba(167, 139, 250, 0.28);
+}
+
+.journal-msg-cat-clan {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(74, 222, 128, 0.18);
+}
+
+.journal-msg-cat-profile {
+  background: rgba(56, 189, 248, 0.08);
+  border-color: rgba(56, 189, 248, 0.18);
+}
+
+.journal-msg-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.journal-msg-badge {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: rgba(196, 181, 253, 0.95);
+}
+
+.journal-msg-tag {
+  color: #86efac;
+  font-weight: 600;
+}
+
+.journal-msg-body {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .admin-toolbar {
   display: flex;
   flex-wrap: wrap;

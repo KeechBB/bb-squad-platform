@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import type { ClanRole } from "@/lib/clan";
 import { canReviewClanJoinRequests } from "@/lib/titles";
 import { clanLiveChannel, livePublish, userLiveChannel } from "@/lib/liveBus";
+import { personLabel, writeActionLog } from "@/lib/actionLog";
 
 export const runtime = "nodejs";
 
@@ -128,6 +129,16 @@ export async function POST(_req: Request, ctx: Ctx) {
     data: { clanId, userId: me.id, status: "PENDING" },
   });
 
+  await writeActionLog({
+    category: "clan",
+    action: "join_request",
+    message: `${personLabel(me)} подал заявку в [${clan.tag}] ${clan.name}`,
+    actorId: me.id,
+    actorNick: personLabel(me),
+    clanId,
+    clanTag: clan.tag,
+  });
+
   livePublish(clanLiveChannel(clanId), JSON.stringify({ type: "join-request" }));
   return NextResponse.json({ ok: true, request });
 }
@@ -198,6 +209,25 @@ export async function PATCH(req: Request, ctx: Ctx) {
         reviewedBy: actor.user.id,
       },
     });
+    const applicant = await prisma.user.findUnique({
+      where: { id: request.userId },
+      select: { nick: true, name: true, steamName: true },
+    });
+    const clan = await prisma.clan.findUnique({
+      where: { id: clanId },
+      select: { tag: true },
+    });
+    await writeActionLog({
+      category: "clan",
+      action: "join_decline",
+      message: `${personLabel(actor.user)} отклонил заявку ${personLabel(applicant || {})} в [${clan?.tag || "?"}]`,
+      actorId: actor.user.id,
+      actorNick: personLabel(actor.user),
+      targetId: request.userId,
+      targetNick: personLabel(applicant || {}),
+      clanId,
+      clanTag: clan?.tag,
+    });
     livePublish(
       clanLiveChannel(clanId),
       JSON.stringify({ type: "join-request" })
@@ -251,6 +281,26 @@ export async function PATCH(req: Request, ctx: Ctx) {
       data: { status: "CANCELLED" },
     }),
   ]);
+
+  const applicant = await prisma.user.findUnique({
+    where: { id: request.userId },
+    select: { nick: true, name: true, steamName: true },
+  });
+  const clan = await prisma.clan.findUnique({
+    where: { id: clanId },
+    select: { tag: true, name: true },
+  });
+  await writeActionLog({
+    category: "clan",
+    action: "join_accept",
+    message: `${personLabel(actor.user)} принял ${personLabel(applicant || {})} в [${clan?.tag || "?"}] ${clan?.name || ""}`.trim(),
+    actorId: actor.user.id,
+    actorNick: personLabel(actor.user),
+    targetId: request.userId,
+    targetNick: personLabel(applicant || {}),
+    clanId,
+    clanTag: clan?.tag,
+  });
 
   livePublish(clanLiveChannel(clanId), JSON.stringify({ type: "join" }));
   livePublish(userLiveChannel(request.userId), JSON.stringify({ type: "join" }));

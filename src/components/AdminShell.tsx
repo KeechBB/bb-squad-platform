@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { AdminUsersTable, type AdminUserRow } from "@/components/AdminUsersTable";
 import { AdminAttendancePanel } from "@/components/AdminAttendancePanel";
+import { AdminJournalPanel } from "@/components/AdminJournalPanel";
 import type { AppRole } from "@/lib/roles";
 
 type Props = {
@@ -12,8 +13,18 @@ type Props = {
   actorRole: AppRole;
 };
 
+type Tab = "users" | "attendance" | "journal";
+
+const TAB_LEAD: Record<Tab, string> = {
+  users: "Пользователи платформы. Кликни по нику — правка анкеты и аватара.",
+  attendance:
+    "Посещаемость по логам TR1 (тренировка) и PB1/TPUB1 (паблик). Таблица до 30 дней.",
+  journal:
+    "Накопительный журнал: кто кому что выдал, админ-права и движения по клану. Поиск по словам.",
+};
+
 export function AdminShell({ users, roleOptions, actorRole }: Props) {
-  const [tab, setTab] = useState<"users" | "attendance">("users");
+  const [tab, setTab] = useState<Tab>("users");
 
   return (
     <main
@@ -24,11 +35,7 @@ export function AdminShell({ users, roleOptions, actorRole }: Props) {
       <section className="hero">
         <p className="eyebrow">админ</p>
         <h1>Панель</h1>
-        <p className="lead">
-          {tab === "users"
-            ? "Пользователи платформы. Кликни по нику — правка анкеты и аватара."
-            : "Посещаемость по логам TR1 (тренировка) и PB1/TPUB1 (паблик). Таблица до 30 дней."}
-        </p>
+        <p className="lead">{TAB_LEAD[tab]}</p>
         <div className="admin-tabs" role="tablist">
           <button
             type="button"
@@ -44,6 +51,13 @@ export function AdminShell({ users, roleOptions, actorRole }: Props) {
           >
             Посещаемость тренировок
           </button>
+          <button
+            type="button"
+            className={`admin-tab ${tab === "journal" ? "active" : ""}`}
+            onClick={() => setTab("journal")}
+          >
+            Журнал действий
+          </button>
         </div>
         <p style={{ marginTop: 12 }}>
           <Link className="kv-link" href="/profile">
@@ -58,9 +72,9 @@ export function AdminShell({ users, roleOptions, actorRole }: Props) {
           roleOptions={roleOptions}
           actorRole={actorRole}
         />
-      ) : (
-        <AdminAttendancePanel />
-      )}
+      ) : null}
+      {tab === "attendance" ? <AdminAttendancePanel /> : null}
+      {tab === "journal" ? <AdminJournalPanel /> : null}
     </main>
   );
 }

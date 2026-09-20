@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { parseFutureOrTodayDate } from "@/lib/validation";
 import { clanLiveChannel, livePublish, userLiveChannel } from "@/lib/liveBus";
 import type { ClanRole } from "@prisma/client";
+import { personLabel, writeActionLog } from "@/lib/actionLog";
 
 export const runtime = "nodejs";
 
@@ -68,6 +69,15 @@ export async function POST(req: Request) {
 
   livePublish(userLiveChannel(me.id), JSON.stringify({ type: "reserve" }));
 
+  await writeActionLog({
+    category: "profile",
+    action: "reserve_enter",
+    message: `${personLabel(me)} ушёл в резерв до ${untilRaw}: ${reason}`,
+    actorId: me.id,
+    actorNick: personLabel(me),
+    meta: { until: until.toISOString(), reason },
+  });
+
   return NextResponse.json({ ok: true, reserve: user });
 }
 
@@ -108,6 +118,14 @@ export async function DELETE() {
   }
 
   livePublish(userLiveChannel(me.id), JSON.stringify({ type: "reserve" }));
+
+  await writeActionLog({
+    category: "profile",
+    action: "reserve_exit",
+    message: `${personLabel(me)} вышел из резерва`,
+    actorId: me.id,
+    actorNick: personLabel(me),
+  });
 
   return NextResponse.json({ ok: true, reserve: user });
 }

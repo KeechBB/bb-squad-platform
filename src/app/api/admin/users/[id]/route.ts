@@ -11,11 +11,13 @@ import {
   isBuiltinSuperAdmin,
   isValidSteamId,
   parseRole,
+  roleLabel,
   type AppRole,
 } from "@/lib/admin";
 import { ageFromBirthDate, isValidAge, isValidName, isValidNick, parseBirthDate } from "@/lib/validation";
 import { removeUserAvatarFiles } from "@/lib/avatar";
 import { livePublish, userLiveChannel } from "@/lib/liveBus";
+import { personLabel, writeActionLog } from "@/lib/actionLog";
 
 export const runtime = "nodejs";
 
@@ -32,6 +34,16 @@ function notifyRoleChange(userId: string, role: AppRole) {
     userLiveChannel(userId),
     JSON.stringify({ type: "role", role })
   );
+}
+
+async function actorPerson(steamId: string) {
+  const u = await prisma.user.findUnique({
+    where: { steamId },
+    select: { id: true, nick: true, name: true, steamName: true },
+  });
+  return u
+    ? { id: u.id, nick: personLabel(u) }
+    : { id: null as string | null, nick: steamId };
 }
 
 export async function GET(_req: Request, ctx: Ctx) {
@@ -51,6 +63,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if (gate.error) return gate.error;
   const actorSteamId = gate.session!.user.steamId;
   const actorRole = (await getUserRole(actorSteamId)) || "USER";
+  const actor = await actorPerson(actorSteamId);
 
   const { id } = await ctx.params;
   const existing = await prisma.user.findUnique({ where: { id } });
@@ -61,6 +74,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   const isSelf = existing.steamId === actorSteamId;
   const mayEditProfile =
     isSelf || canEditProfile(actorRole, existingRole, existing.steamId);
+  const targetNick = personLabel(existing);
 
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object") {
@@ -90,6 +104,15 @@ export async function PATCH(req: Request, ctx: Ctx) {
       where: { id },
       data: { avatarUrl: null },
     });
+    await writeActionLog({
+      category: "admin",
+      action: "clear_avatar",
+      message: `${actor.nick} сбросил аватар у ${targetNick}`,
+      actorId: actor.id,
+      actorNick: actor.nick,
+      targetId: existing.id,
+      targetNick,
+    });
     return NextResponse.json({ ok: true, user });
   }
 
@@ -113,6 +136,16 @@ export async function PATCH(req: Request, ctx: Ctx) {
       data: { role: nextRole },
     });
     notifyRoleChange(user.id, nextRole);
+    await writeActionLog({
+      category: "admin",
+      action: "role_set",
+      message: `${actor.nick} выдал ${targetNick} роль «${roleLabel(nextRole)}» (было «${roleLabel(existingRole)}»)`,
+      actorId: actor.id,
+      actorNick: actor.nick,
+      targetId: existing.id,
+      targetNick,
+      meta: { from: existingRole, to: nextRole },
+    });
     return NextResponse.json({ ok: true, user });
   }
 
@@ -190,6 +223,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
 
   try {
+    const locked = lockedRoleForSteam(steamId, nextRole);
     const user = await prisma.user.update({
       where: { id },
       data: {
@@ -198,12 +232,31 @@ export async function PATCH(req: Request, ctx: Ctx) {
         age,
         ...(birthDate ? { birthDate } : {}),
         steamId,
-        role: lockedRoleForSteam(steamId, nextRole),
+        role: locked,
       },
     });
-    if (nextRole !== existingRole) {
-      notifyRoleChange(user.id, lockedRoleForSteam(steamId, nextRole));
+    if (locked !== existingRole) {
+      notifyRoleChange(user.id, locked);
+      await writeActionLog({
+        category: "admin",
+        action: "role_set",
+        message: `${actor.nick} выдал ${targetNick} роль «${roleLabel(locked)}» (было «${roleLabel(existingRole)}»)`,
+        actorId: actor.id,
+        actorNick: actor.nick,
+        targetId: existing.id,
+        targetNick,
+        meta: { from: existingRole, to: locked },
+      });
     }
+    await writeActionLog({
+      category: "admin",
+      action: "edit_profile",
+      message: `${actor.nick} изменил анкету ${targetNick}${nick !== existing.nick ? ` → ${nick}` : ""}`,
+      actorId: actor.id,
+      actorNick: actor.nick,
+      targetId: existing.id,
+      targetNick: nick || targetNick,
+    });
     return NextResponse.json({ ok: true, user });
   } catch {
     return NextResponse.json({ error: "Не удалось сохранить" }, { status: 500 });
@@ -215,6 +268,7 @@ export async function DELETE(_req: Request, ctx: Ctx) {
   if (gate.error) return gate.error;
   const actorSteamId = gate.session!.user.steamId;
   const actorRole = (await getUserRole(actorSteamId)) || "USER";
+  const actor = await actorPerson(actorSteamId);
 
   const { id } = await ctx.params;
   const existing = await prisma.user.findUnique({
@@ -251,6 +305,7 @@ export async function DELETE(_req: Request, ctx: Ctx) {
     await prisma.clan.delete({ where: { id: clan.id } });
   }
 
+  const targetNick = personLabel(existing);
   await removeUserAvatarFiles(existing.id);
   await prisma.user.delete({ where: { id: existing.id } });
 
@@ -258,6 +313,16 @@ export async function DELETE(_req: Request, ctx: Ctx) {
     userLiveChannel(existing.id),
     JSON.stringify({ type: "deleted" })
   );
+
+  await writeActionLog({
+    category: "admin",
+    action: "delete_user",
+    message: `${actor.nick} удалил пользователя ${targetNick}`,
+    actorId: actor.id,
+    actorNick: actor.nick,
+    targetId: existing.id,
+    targetNick,
+  });
 
   return NextResponse.json({ ok: true });
 }

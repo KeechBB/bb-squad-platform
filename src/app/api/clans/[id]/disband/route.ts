@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canDeleteClan, type ClanRole } from "@/lib/clan";
 import { clanLiveChannel, livePublish, userLiveChannel } from "@/lib/liveBus";
+import { personLabel, writeActionLog } from "@/lib/actionLog";
 
 export const runtime = "nodejs";
 
@@ -36,6 +37,10 @@ export async function POST(_req: Request, ctx: Ctx) {
     );
   }
 
+  const clan = await prisma.clan.findUnique({
+    where: { id: clanId },
+    select: { tag: true, name: true },
+  });
   const memberUserIds = (
     await prisma.clanMember.findMany({
       where: { clanId },
@@ -44,6 +49,17 @@ export async function POST(_req: Request, ctx: Ctx) {
   ).map((m) => m.userId);
 
   await prisma.clan.delete({ where: { id: clanId } });
+
+  const meNick = personLabel(me);
+  await writeActionLog({
+    category: "clan",
+    action: "disband",
+    message: `${meNick} распустил клан [${clan?.tag || "?"}] ${clan?.name || ""}`.trim(),
+    actorId: me.id,
+    actorNick: meNick,
+    clanId,
+    clanTag: clan?.tag,
+  });
 
   livePublish(clanLiveChannel(clanId), JSON.stringify({ type: "disband" }));
   for (const uid of memberUserIds) {
