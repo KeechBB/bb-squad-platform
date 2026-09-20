@@ -422,6 +422,65 @@ a:hover { color: #c4b5fd; }
   color: var(--muted);
 }
 
+.training-stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.training-stat-row > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(10, 8, 18, 0.35);
+}
+
+.training-stat-row strong {
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.training-sessions-table td,
+.training-sessions-table th {
+  white-space: nowrap;
+}
+
+.att-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  border: 1px solid transparent;
+}
+
+.att-tag.on-time {
+  color: #86efac;
+  background: rgba(134, 239, 172, 0.12);
+  border-color: rgba(134, 239, 172, 0.25);
+}
+
+.att-tag.late-ok {
+  color: #fde047;
+  background: rgba(253, 224, 71, 0.12);
+  border-color: rgba(253, 224, 71, 0.25);
+}
+
+.att-tag.late {
+  color: #fca5a5;
+  background: rgba(252, 165, 165, 0.12);
+  border-color: rgba(252, 165, 165, 0.25);
+}
+
+.att-tag.other {
+  color: var(--muted);
+  background: rgba(148, 163, 184, 0.1);
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
 .kv-link {
   display: inline-block;
   margin-top: 18px;

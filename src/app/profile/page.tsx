@@ -8,8 +8,10 @@ import { ClanInvites } from "@/components/ClanInvites";
 import { ReservePanel } from "@/components/ReservePanel";
 import { AdminPanelLink } from "@/components/AdminPanelLink";
 import { ProfileEditForm } from "@/components/ProfileEditForm";
+import { TrainingSessionsCard } from "@/components/TrainingSessionsCard";
 import { formatRuDate, isActiveReserve } from "@/lib/validation";
 import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
+import { loadUserTrainingStats } from "@/lib/trainingStats";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -59,6 +61,7 @@ export default async function ProfilePage() {
   const siteRole = roleLabel(
     effectiveRole(me.steamId, me.role as AppRole)
   );
+  const training = await loadUserTrainingStats(me.id);
 
   return (
     <main className="profile-grid">
@@ -118,10 +121,17 @@ export default async function ProfilePage() {
         adminLink={<AdminPanelLink initialAdmin={admin} />}
       />
 
+      <TrainingSessionsCard
+        sessions={training.sessions}
+        minutes30d={training.minutes30d}
+        sessions30d={training.sessions30d}
+        openNow={training.openNow}
+      />
+
       <section className="stats-stub">
-        <strong style={{ color: "var(--ink)" }}>Статистика</strong>
+        <strong style={{ color: "var(--ink)" }}>Статистика КВ</strong>
         <p style={{ margin: "8px 0 0" }}>
-          Скоро: КВ, тренировки, K/D. Пока смотри таблицу слотов в аккаунте.
+          Игровая стата КВ (K/D, ресы) — следующим этапом. Слоты месяца уже здесь:
         </p>
         <Link className="kv-link" href="/cw">
           Таблица КВ →

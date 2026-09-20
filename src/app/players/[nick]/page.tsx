@@ -12,6 +12,8 @@ import {
   telegramProfileUrl,
 } from "@/lib/social";
 import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
+import { TrainingSessionsCard } from "@/components/TrainingSessionsCard";
+import { loadUserTrainingStats } from "@/lib/trainingStats";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -79,6 +81,7 @@ export default async function PlayerProfilePage({ params }: Props) {
 
   const avatar = withAvatarCacheBust(user.avatarUrl, user.updatedAt);
   const inReserve = isActiveReserve(user.reserveUntil);
+  const training = await loadUserTrainingStats(user.id);
 
   return (
     <main className="profile-grid">
@@ -216,6 +219,13 @@ export default async function PlayerProfilePage({ params }: Props) {
           </div>
         </section>
       ) : null}
+
+      <TrainingSessionsCard
+        sessions={training.sessions}
+        minutes30d={training.minutes30d}
+        sessions30d={training.sessions30d}
+        openNow={training.openNow}
+      />
 
       <p>
         <Link className="kv-link" href="/clans">

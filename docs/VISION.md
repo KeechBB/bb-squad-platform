@@ -102,7 +102,7 @@
 
 Нужно от капитана: доступ к логам (путь/SFTP) или возможность поставить SquadJS/webhook на хост сервера.
 
-**Статус:** идея принята, не начато.
+**Статус:** каркас готов — `POST /api/ingest/squad-sessions`, модели `SquadServerSession` / `SquadEosSteamMap`, блок в профиле, коллектор `scripts/squad_log_collector.py`. Нужно: `SQUAD_INGEST_SECRET` на VPS, `prisma db push`, постоянно крутить коллектор.
 
 ### 3. Статистика клана (вместо только Excel)
 
