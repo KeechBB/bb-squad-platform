@@ -14,8 +14,8 @@ export const REACTION_MISS_PENALTY_MS = 1000;
 
 /** Уровень 3 — волна шариков */
 export const REACTION_L3_DURATION_MS = 30_000;
-export const REACTION_L3_SPAWN_EVERY_MS = 300;
-export const REACTION_L3_BALL_LIFE_MS = 1000;
+export const REACTION_L3_SPAWN_EVERY_MS = 400;
+export const REACTION_L3_BALL_LIFE_MS = 1100;
 export const REACTION_L3_SPAWN_MIN = 3;
 export const REACTION_L3_SPAWN_MAX = 5;
 export const REACTION_L3_HIT_POINTS = 10;

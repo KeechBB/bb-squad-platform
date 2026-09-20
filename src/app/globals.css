@@ -3867,7 +3867,7 @@ body:has(.home-page) {
   width: 44px;
   height: 44px;
   margin: -22px 0 0 -22px;
-  animation: reaction-dot-pop 1s linear forwards;
+  animation: reaction-dot-pop 1.1s linear forwards;
 }
 
 @keyframes reaction-dot-pop {
