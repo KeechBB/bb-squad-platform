@@ -552,19 +552,6 @@ a:hover { color: #c4b5fd; }
   line-height: 1;
 }
 
-.shell:has(.admin-attendance-page) {
-  max-width: none;
-  width: min(100%, 1600px);
-}
-
-.admin-attendance-page {
-  max-width: none;
-}
-
-.admin-attendance-page .hero {
-  max-width: 1100px;
-}
-
 .attend-matrix-wrap {
   width: 100%;
   overflow: auto;
@@ -760,6 +747,28 @@ a:hover { color: #c4b5fd; }
 
 .shell:has(.admin-page) {
   max-width: 1100px;
+}
+
+/* Посещаемость — шире обычной админки (перебивает max-width выше) */
+.shell:has(.admin-attendance-page) {
+  max-width: none;
+  width: 100%;
+  padding-left: clamp(12px, 2vw, 28px);
+  padding-right: clamp(12px, 2vw, 28px);
+}
+
+.admin-page.admin-attendance-page {
+  max-width: none;
+  width: 100%;
+}
+
+.admin-attendance-page .hero {
+  max-width: 1100px;
+}
+
+.admin-attendance-page .card {
+  max-width: none;
+  width: 100%;
 }
 
 .admin-tabs {
