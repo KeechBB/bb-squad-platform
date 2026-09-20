@@ -800,6 +800,13 @@ a:hover { color: #c4b5fd; }
   opacity: 0.45;
 }
 
+.attend-absent {
+  color: #f87171;
+  font-weight: 700;
+  opacity: 1;
+  min-width: 78px;
+}
+
 .attend-time-pair {
   display: inline-flex;
   align-items: baseline;

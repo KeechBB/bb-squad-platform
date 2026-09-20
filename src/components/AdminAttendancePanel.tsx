@@ -71,6 +71,23 @@ function leaveTone(hm: string): "ok" | "warn" | "bad" {
   return "ok";
 }
 
+/** Сессия пересекается с окном тренировки 21:00–00:00 МСК */
+function overlapsEveningWindow(c: Cell): boolean {
+  const inM = parseHm(c.in);
+  if (inM == null) return false;
+  let outM = c.out ? parseHm(c.out) : null;
+  // выход после полуночи (00:xx) — продолжение вечера
+  if (outM != null && outM < inM) outM += 24 * 60;
+  // без выхода: если зашёл до 21:00 и не отмечен выход — не считаем вечерним
+  // (частый случай потерянного leave); если зашёл ≥21:00 — был на тренировке
+  if (outM == null) {
+    return inM >= 21 * 60 && inM < 24 * 60;
+  }
+  const winStart = 21 * 60;
+  const winEnd = 24 * 60;
+  return inM < winEnd && outM > winStart;
+}
+
 function defaultRange(): { from: string; to: string } {
   const now = new Date();
   const to = now.toLocaleDateString("en-CA", { timeZone: "Europe/Moscow" });
@@ -292,6 +309,9 @@ export function AdminAttendancePanel() {
         {" · Автообновление ~5 сек"}
         {tab === "table"
           ? [
+              server === "TR1"
+                ? " · TR1: нет в окне 21:00–00:00 → «не было»"
+                : "",
               showIn
                 ? " · Цвет захода: ≤21:00 зел., 21:00–21:30 жёлт., после 21:30 красн."
                 : "",
@@ -335,17 +355,30 @@ export function AdminAttendancePanel() {
                   <td className="mono">{r.steamId}</td>
                   {data.days.map((d) => {
                     const cells = r.cells[d] || [];
-                    if (!cells.length || (!showIn && !showOut)) {
+                    const isTr = (data.server || server) === "TR1";
+                    const eveningCells = isTr
+                      ? cells.filter((c) => overlapsEveningWindow(c))
+                      : cells;
+                    if (
+                      !eveningCells.length ||
+                      (!showIn && !showOut)
+                    ) {
                       return (
                         <td key={d}>
-                          <span className="attend-cell empty">—</span>
+                          {isTr && (showIn || showOut) ? (
+                            <span className="attend-cell attend-absent">
+                              не было
+                            </span>
+                          ) : (
+                            <span className="attend-cell empty">—</span>
+                          )}
                         </td>
                       );
                     }
                     return (
                       <td key={d}>
                         <div className="attend-cell">
-                          {cells.map((c, i) => (
+                          {eveningCells.map((c, i) => (
                             <span key={i} className="attend-time-pair">
                               {showIn ? (
                                 <span className={`attend-time ${joinTone(c.in)}`}>
@@ -357,7 +390,9 @@ export function AdminAttendancePanel() {
                               ) : null}
                               {showOut ? (
                                 c.out ? (
-                                  <span className={`attend-time ${leaveTone(c.out)}`}>
+                                  <span
+                                    className={`attend-time ${leaveTone(c.out)}`}
+                                  >
                                     {c.out}
                                   </span>
                                 ) : (
