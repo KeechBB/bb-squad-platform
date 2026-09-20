@@ -2,7 +2,15 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { isAdmin, syncBuiltinAdmins } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
-import { mskParts, ATTENDANCE_CANON_START_YMD, clampAttendanceFromYmd } from "@/lib/squadSessions";
+import {
+  mskParts,
+  ATTENDANCE_CANON_START_YMD,
+  TRAINING_PRESENT_MIN_MINUTES,
+  clampAttendanceFromYmd,
+  eveningWindowOverlapMinutes,
+  isTrainingPresentMinutes,
+  trainingDayYmd,
+} from "@/lib/squadSessions";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -190,9 +198,10 @@ export async function GET(req: Request) {
   };
   const weekday = [0, 0, 0, 0, 0, 0, 0];
   /**
-   * TR1: уникальные игроки в окне 21:00–00:00 МСК (тренировка)
+   * TR1: уникальные игроки с ≥60 мин в окне 21:00–00:00 МСК
    * PB1: уникальные игроки за полные сутки (24ч) по дню захода
    */
+  const eveningMinsByDayUser: Record<string, Record<string, number>> = {};
   const playersPerDay: Record<string, Set<string>> = {};
   const isPublic = serverKey === "TPUB1";
 
@@ -226,27 +235,18 @@ export async function GET(req: Request) {
       leaveBucket[key] = (leaveBucket[key] || 0) + 1;
     }
 
-    const day = ymdMsk(s.joinedAt);
-    const sessEnd = s.leftAt ?? now;
-    let countsForDay = false;
     if (isPublic) {
-      // Паблик: любые сессии за календарные сутки МСК
-      countsForDay = true;
-    } else {
-      // TR1: пересечение с окном 21:00–00:00 МСК дня захода
-      const winStart = new Date(
-        Date.UTC(jp.y, jp.m - 1, jp.day, 21, 0, 0) - 3 * 3600 * 1000
-      );
-      const winEnd = new Date(
-        Date.UTC(jp.y, jp.m - 1, jp.day + 1, 0, 0, 0) - 3 * 3600 * 1000
-      );
-      countsForDay =
-        s.joinedAt.getTime() < winEnd.getTime() &&
-        sessEnd.getTime() > winStart.getTime();
-    }
-    if (countsForDay) {
+      const day = ymdMsk(s.joinedAt);
       if (!playersPerDay[day]) playersPerDay[day] = new Set();
       playersPerDay[day].add(s.userId);
+    } else {
+      const day = trainingDayYmd(s.joinedAt);
+      const mins = eveningWindowOverlapMinutes(s.joinedAt, s.leftAt, now);
+      if (mins > 0) {
+        if (!eveningMinsByDayUser[day]) eveningMinsByDayUser[day] = {};
+        eveningMinsByDayUser[day][s.userId] =
+          (eveningMinsByDayUser[day][s.userId] || 0) + mins;
+      }
     }
 
     const wi = (() => {
@@ -255,6 +255,16 @@ export async function GET(req: Request) {
       return dow === 0 ? 6 : dow - 1;
     })();
     weekday[wi] += 1;
+  }
+
+  if (!isPublic) {
+    for (const [day, byUser] of Object.entries(eveningMinsByDayUser)) {
+      for (const [uid, mins] of Object.entries(byUser)) {
+        if (!isTrainingPresentMinutes(mins)) continue;
+        if (!playersPerDay[day]) playersPerDay[day] = new Set();
+        playersPerDay[day].add(uid);
+      }
+    }
   }
 
   const dayPlayerCounts = days.map((d) => ({
@@ -270,7 +280,9 @@ export async function GET(req: Request) {
         ) / 10
       : 0;
 
-  const windowLabel = isPublic ? "00:00–24:00 МСК" : "21:00–00:00 МСК";
+  const windowLabel = isPublic
+    ? "00:00–24:00 МСК"
+    : `21:00–00:00 МСК (≥${TRAINING_PRESENT_MIN_MINUTES} мин)`;
 
   return NextResponse.json({
     from: fromYmd,

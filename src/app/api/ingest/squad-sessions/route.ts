@@ -106,15 +106,18 @@ export async function POST(req: Request) {
         where: { steamId, serverKey, leftAt: null },
         orderBy: { joinedAt: "desc" },
       });
-      // Если выход потерялся — закрываем старую сессию моментом нового захода
       if (open) {
-        const closeAt =
-          at.getTime() > open.joinedAt.getTime()
-            ? at
-            : new Date(open.joinedAt.getTime() + 1000);
+        const deltaMs = at.getTime() - open.joinedAt.getTime();
+        // Дубль Login/PostLogin в ту же секунду: не закрывать живую сессию
+        // (иначе leftAt = joinedAt+1с и в таблице «нет времени»).
+        if (deltaMs <= 15_000) {
+          skipped += 1;
+          continue;
+        }
+        // Выход потерялся — закрываем старую сессию моментом нового захода
         await prisma.squadServerSession.update({
           where: { id: open.id },
-          data: { leftAt: closeAt },
+          data: { leftAt: at },
         });
         leaves += 1;
         accepted += 1;

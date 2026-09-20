@@ -1277,6 +1277,16 @@ a:hover { color: #c4b5fd; }
   min-width: 148px;
 }
 
+.attend-filter-row .attend-nick-search {
+  min-width: 200px;
+  flex: 1 1 200px;
+  max-width: 280px;
+}
+
+.attend-filter-row .attend-nick-search input {
+  cursor: text;
+}
+
 .attend-date-input {
   color-scheme: dark;
   cursor: pointer;

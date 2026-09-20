@@ -116,3 +116,60 @@ export const ATTENDANCE_LABEL: Record<AttendanceTag, string> = {
   late: "после 21:30",
   other: "день",
 };
+
+/** Окно тренировки TR1: 21:00–00:00 МСК; «был» = ≥60 мин в окне. */
+export const TRAINING_EVENING_START_MIN = 21 * 60;
+export const TRAINING_EVENING_END_MIN = 24 * 60;
+export const TRAINING_PRESENT_MIN_MINUTES = 60;
+
+export function ymdFromMskParts(y: number, m: number, day: number): string {
+  return `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/** Календарный день тренировки по заходу (после полуночи до полудня → вчера). */
+export function trainingDayYmd(joinedAt: Date): string {
+  const p = mskParts(joinedAt);
+  if (p.h < 12) {
+    const prev = new Date(Date.UTC(p.y, p.m - 1, p.day - 1));
+    return ymdFromMskParts(
+      prev.getUTCFullYear(),
+      prev.getUTCMonth() + 1,
+      prev.getUTCDate()
+    );
+  }
+  return ymdFromMskParts(p.y, p.m, p.day);
+}
+
+/**
+ * Минуты пересечения сессии с окном 21:00–00:00 МСК дня тренировки.
+ * Без leave: если зашёл до 21:00 — 0 (часто потерянный leave); если ≥21:00 —
+ * считаем до min(now, 00:00).
+ */
+export function eveningWindowOverlapMinutes(
+  joinedAt: Date,
+  leftAt: Date | null,
+  now = new Date()
+): number {
+  const dayYmd = trainingDayYmd(joinedAt);
+  const [y, m, d] = dayYmd.split("-").map(Number);
+  // МСК = UTC+3 → 21:00 МСК = 18:00 UTC, 00:00 МСК след. дня = 21:00 UTC того же UTC-дня
+  const winStart = new Date(Date.UTC(y, m - 1, d, 18, 0, 0));
+  const winEnd = new Date(Date.UTC(y, m - 1, d, 21, 0, 0));
+
+  if (!leftAt && joinedAt.getTime() < winStart.getTime()) {
+    // Ещё онлайн, зашёл до 21:00 — считаем пересечение с окном (ранний приход).
+    // Глухие «вечные» сессии без leave отсекаем: старше 12ч до старта окна.
+    if (joinedAt.getTime() < winStart.getTime() - 12 * 3600 * 1000) {
+      return 0;
+    }
+  }
+  const end = leftAt ?? now;
+  const startMs = Math.max(joinedAt.getTime(), winStart.getTime());
+  const endMs = Math.min(end.getTime(), winEnd.getTime());
+  if (endMs <= startMs) return 0;
+  return Math.round((endMs - startMs) / 60000);
+}
+
+export function isTrainingPresentMinutes(minutesInWindow: number): boolean {
+  return minutesInWindow >= TRAINING_PRESENT_MIN_MINUTES;
+}

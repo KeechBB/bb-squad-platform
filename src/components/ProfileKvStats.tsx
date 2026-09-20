@@ -176,11 +176,11 @@ export function ProfileKvStats({ stats, error }: Props) {
                 <th>День</th>
                 <th>Соперник</th>
                 <th>Карта</th>
+                <th>RES</th>
+                <th>Ноки</th>
                 <th>K</th>
                 <th>D</th>
                 <th>DMG</th>
-                <th>RES</th>
-                <th>Ноки</th>
                 <th>Итог</th>
               </tr>
             </thead>
@@ -190,11 +190,11 @@ export function ProfileKvStats({ stats, error }: Props) {
                   <td>{String(m.day).padStart(2, "0")}</td>
                   <td>{m.opp}</td>
                   <td title={m.map}>{m.map}</td>
+                  <td>{m.res}</td>
+                  <td>{m.nok}</td>
                   <td>{m.kills}</td>
                   <td>{m.deaths}</td>
                   <td>{m.dmg}</td>
-                  <td>{m.res}</td>
-                  <td>{m.nok}</td>
                   <td>
                     <span className={statusClass(m.status)}>
                       {statusLabel(m.status)}

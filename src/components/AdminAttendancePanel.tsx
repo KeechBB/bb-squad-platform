@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
-import { ATTENDANCE_CANON_START_YMD } from "@/lib/squadSessions";
+import {
+  ATTENDANCE_CANON_START_YMD,
+  TRAINING_PRESENT_MIN_MINUTES,
+  isTrainingPresentMinutes,
+} from "@/lib/squadSessions";
 
 type Cell = { in: string; out: string | null; mins: number };
 
@@ -84,21 +88,50 @@ function leaveTonePb(hm: string): "ok" | "warn" | "bad" {
   return "ok";
 }
 
-/** Сессия пересекается с окном тренировки 21:00–00:00 МСК */
-function overlapsEveningWindow(c: Cell): boolean {
+/**
+ * Минуты в окне 21:00–00:00 МСК по ячейке.
+ * Без выхода: до 21:00 → 0; ≥21:00 → до 00:00 (или «сейчас», если день сегодня).
+ */
+function eveningOverlapMinutes(c: Cell, dayYmd: string): number {
   const inM = parseHm(c.in);
-  if (inM == null) return false;
-  let outM = c.out ? parseHm(c.out) : null;
-  // выход после полуночи (00:xx) — продолжение вечера
-  if (outM != null && outM < inM) outM += 24 * 60;
-  // без выхода: если зашёл до 21:00 и не отмечен выход — не считаем вечерним
-  // (частый случай потерянного leave); если зашёл ≥21:00 — был на тренировке
-  if (outM == null) {
-    return inM >= 21 * 60 && inM < 24 * 60;
-  }
+  if (inM == null) return 0;
   const winStart = 21 * 60;
   const winEnd = 24 * 60;
-  return inM < winEnd && outM > winStart;
+  let outM = c.out ? parseHm(c.out) : null;
+  if (outM != null && outM < inM) outM += 24 * 60;
+  if (outM == null) {
+    // ещё онлайн: до 21:00 — копим с 21:00; после 21:00 — с момента захода
+    if (inM >= winEnd) return 0;
+    if (dayYmd === todayYmdMsk()) {
+      const nowM = nowMinsMsk();
+      if (nowM < winStart) return 0; // тренировка ещё не началась
+      outM = Math.min(nowM, winEnd);
+      if (outM < Math.max(inM, winStart)) return 0;
+    } else {
+      // прошлый день без leave: считаем до конца окна (иначе «потерянный leave» днём даст 0)
+      if (inM < winStart) {
+        // зашёл днём и нет leave — не угадываем весь вечер
+        return 0;
+      }
+      outM = winEnd;
+    }
+  }
+  const start = Math.max(inM, winStart);
+  const end = Math.min(outM, winEnd);
+  return Math.max(0, end - start);
+}
+
+function eveningMinutesForDay(cells: Cell[], dayYmd: string): number {
+  return cells.reduce((s, c) => s + eveningOverlapMinutes(c, dayYmd), 0);
+}
+
+function wasPresentTr1(cells: Cell[], dayYmd: string): boolean {
+  return isTrainingPresentMinutes(eveningMinutesForDay(cells, dayYmd));
+}
+
+/** Сессия пересекается с окном тренировки 21:00–00:00 МСК */
+function overlapsEveningWindow(c: Cell, dayYmd: string): boolean {
+  return eveningOverlapMinutes(c, dayYmd) > 0;
 }
 
 function todayYmdMsk(): string {
@@ -117,20 +150,26 @@ function nowMinsMsk(): number {
   return h * 60 + m;
 }
 
-/** День уже «закрыт» для оценки отсутствия (прошлое или сегодня после 21:00). */
-function absenceDecided(dayYmd: string): boolean {
+/**
+ * День закрыт для «не было»:
+ * прошлое — да; сегодня — когда уже нельзя набрать 60 мин до 00:00.
+ */
+function absenceDecided(dayYmd: string, eveningMins = 0): boolean {
   const today = todayYmdMsk();
   if (dayYmd < today) return true;
   if (dayYmd > today) return false;
-  return nowMinsMsk() >= 21 * 60;
+  if (isTrainingPresentMinutes(eveningMins)) return true;
+  const now = nowMinsMsk();
+  if (now < 21 * 60) return false;
+  const remaining = 24 * 60 - now;
+  return eveningMins + remaining < TRAINING_PRESENT_MIN_MINUTES;
 }
 
 /**
- * Пустая ячейка TR1:
- * будущее / сегодня до 21:00 → —
+ * Пустая ячейка TR1 / вечер < 1ч:
+ * будущее / сегодня ещё можно успеть → —
  * сегодня 21:00–21:30 → опаздывает
- * сегодня после 21:30 → не был
- * прошлые дни → не было
+ * иначе не был / не было
  */
 function emptyTrLabel(dayYmd: string): { text: string; className: string } {
   const today = todayYmdMsk();
@@ -146,6 +185,10 @@ function emptyTrLabel(dayYmd: string): { text: string; className: string } {
   }
   if (mins < 21 * 60 + 30) {
     return { text: "опаздывает", className: "attend-cell attend-late" };
+  }
+  const remaining = 24 * 60 - mins;
+  if (remaining >= TRAINING_PRESENT_MIN_MINUTES) {
+    return { text: "—", className: "attend-cell empty" };
   }
   return { text: "не был", className: "attend-cell attend-absent" };
 }
@@ -200,6 +243,7 @@ export function AdminAttendancePanel() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [onlyAbsent, setOnlyAbsent] = useState(false);
+  const [nickQuery, setNickQuery] = useState("");
   const [showIn, setShowIn] = useState(true);
   const [showOut, setShowOut] = useState(true);
   const [server, setServer] = useState<ServerFilter>("TR1");
@@ -238,22 +282,33 @@ export function AdminAttendancePanel() {
 
   const rows = useMemo(() => {
     if (!data) return [];
-    if (!onlyAbsent) return data.rows;
+    const q = nickQuery.trim().toLowerCase();
+    let list = data.rows;
+    if (q) {
+      list = list.filter((r) => {
+        const nick = (r.nick || "").toLowerCase();
+        const steam = (r.steamId || "").toLowerCase();
+        return nick.includes(q) || steam.includes(q);
+      });
+    }
+    if (!onlyAbsent) return list;
     const isTr = (data.server || server) === "TR1";
-    const decidedDays = data.days.filter((d) =>
-      isTr ? absenceDecided(d) : d <= todayYmdMsk()
-    );
-    if (!decidedDays.length) return [];
-    return data.rows.filter((r) => {
+    return list.filter((r) => {
+      const decidedDays = data.days.filter((d) => {
+        if (!isTr) return d <= todayYmdMsk();
+        const mins = eveningMinutesForDay(r.cells[d] || [], d);
+        return absenceDecided(d, mins);
+      });
+      if (!decidedDays.length) return false;
       const wasPresent = decidedDays.some((d) => {
         const cells = r.cells[d] || [];
         if (!cells.length) return false;
         if (!isTr) return true;
-        return cells.some((c) => overlapsEveningWindow(c));
+        return wasPresentTr1(cells, d);
       });
       return !wasPresent;
     });
-  }, [data, onlyAbsent, server]);
+  }, [data, onlyAbsent, server, nickQuery]);
 
   return (
     <section className="card" style={{ marginTop: 8 }}>
@@ -330,6 +385,17 @@ export function AdminAttendancePanel() {
         <button type="button" className="btn" onClick={() => void load()} disabled={loading}>
           {loading ? "…" : "Применить"}
         </button>
+        <label className="field attend-nick-search">
+          <span>Ник</span>
+          <input
+            type="search"
+            className="attend-date-input"
+            placeholder="поиск по нику / Steam"
+            value={nickQuery}
+            onChange={(e) => setNickQuery(e.target.value)}
+            autoComplete="off"
+          />
+        </label>
         <div className="attend-mode-toggle" role="group" aria-label="Зашёл и вышел">
           <button
             type="button"
@@ -378,12 +444,15 @@ export function AdminAttendancePanel() {
       <p className="muted" style={{ marginTop: 0 }}>
         Окно не больше 30 дней. Старт учёта: 15.09.2026 (логов раньше нет).
         {data ? ` · Показано дней: ${data.days.length}` : ""}
+        {data && nickQuery.trim()
+          ? ` · Найдено: ${rows.length} из ${data.rows.length}`
+          : ""}
         {` · Сервер: ${server === "TR1" ? "TR1 (тренировка)" : "PB1 (паблик)"}`}
         {" · Автообновление ~5 сек"}
         {tab === "table"
           ? [
               server === "TR1"
-                ? " · TR1: будущее/до 21:00 —; 21:00–21:30 «опаздывает»; после 21:30 «не был»; прошлые без вечера «не было»"
+                ? ` · TR1 «был»: ≥${TRAINING_PRESENT_MIN_MINUTES} мин в 21:00–00:00; меньше часа / нет = не был; 21:00–21:30 «опаздывает»`
                 : "",
               showIn
                 ? " · Цвет захода: ≤21:00 зел., 21:00–21:30 жёлт., после 21:30 красн."
@@ -432,11 +501,19 @@ export function AdminAttendancePanel() {
                     const cells = r.cells[d] || [];
                     const isTr = (data.server || server) === "TR1";
                     const eveningCells = isTr
-                      ? cells.filter((c) => overlapsEveningWindow(c))
+                      ? cells.filter(
+                          (c) =>
+                            overlapsEveningWindow(c, d) ||
+                            // до 21:00 тоже показываем заход (ранний приход на тренировку)
+                            parseHm(c.in) != null
+                        )
                       : cells;
+                    const presentEnough =
+                      !isTr || wasPresentTr1(cells, d);
                     if (
                       !eveningCells.length ||
-                      (!showIn && !showOut)
+                      (!showIn && !showOut) ||
+                      (isTr && !presentEnough && absenceDecided(d, eveningMinutesForDay(cells, d)))
                     ) {
                       if (!(showIn || showOut)) {
                         return (
@@ -445,7 +522,7 @@ export function AdminAttendancePanel() {
                           </td>
                         );
                       }
-                      if (isTr) {
+                      if (isTr && (!eveningCells.length || !presentEnough)) {
                         const empty = emptyTrLabel(d);
                         return (
                           <td key={d}>

@@ -4,10 +4,13 @@ import { useMemo, useState } from "react";
 import {
   ATTENDANCE_CANON_START_YMD,
   ATTENDANCE_LABEL,
+  TRAINING_PRESENT_MIN_MINUTES,
   attendanceTag,
+  eveningWindowOverlapMinutes,
   formatDurationMinutes,
   formatMskDateTime,
-  mskParts,
+  isTrainingPresentMinutes,
+  trainingDayYmd,
   type AttendanceTag,
 } from "@/lib/squadSessions";
 
@@ -93,49 +96,21 @@ function todayYmdMsk(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Moscow" });
 }
 
-function nowMinsMsk(): number {
-  const p = mskParts(new Date());
-  return p.h * 60 + p.min;
-}
-
-/** Сессия пересекает окно тренировки 21:00–00:00 МСК */
-function isTrainingEvening(s: NormSession): boolean {
-  if (serverLabel(s.serverKey) !== "TR1") return false;
-  const jp = mskParts(s.joinedAt);
-  const inM = jp.h * 60 + jp.min;
-  let outM: number | null = null;
-  if (s.leftAt) {
-    const lp = mskParts(s.leftAt);
-    outM = lp.h * 60 + lp.min;
-    const jDay = ymdFromParts(jp.y, jp.m, jp.day);
-    const lDay = ymdFromParts(lp.y, lp.m, lp.day);
-    if (lDay > jDay) outM += 24 * 60;
-    else if (outM < inM) outM += 24 * 60;
-  }
-  if (outM == null) {
-    return inM >= 21 * 60 && inM < 24 * 60;
-  }
-  return inM < 24 * 60 && outM > 21 * 60;
-}
-
 type DayMark = "present" | "absent" | "pending" | "outside";
 
-function dayMark(
-  ymd: string,
-  presentDays: Set<string>
-): DayMark {
+function dayMark(ymd: string, presentDays: Set<string>): DayMark {
   if (ymd < ATTENDANCE_CANON_START_YMD) return "outside";
   const today = todayYmdMsk();
   if (ymd > today) return "pending";
-  if (ymd === today && nowMinsMsk() < 21 * 60) return "pending";
   if (presentDays.has(ymd)) return "present";
+  // Сегодня окно 21:00–00:00 ещё может добрать час — не ставим «нет» раньше
+  if (ymd === today) return "pending";
   return "absent";
 }
 
 function buildMonthGrid(year: number, month: number) {
-  // month 1-12
   const first = new Date(Date.UTC(year, month - 1, 1));
-  const startDow = first.getUTCDay(); // 0 Sun
+  const startDow = first.getUTCDay();
   const mondayOffset = startDow === 0 ? 6 : startDow - 1;
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const cells: Array<{ day: number | null; ymd: string | null }> = [];
@@ -161,20 +136,17 @@ export function TrainingSessionsCard({
   const [viewM, setViewM] = useState(tm);
 
   const presentTrainingDays = useMemo(() => {
-    const set = new Set<string>();
+    const minsByDay = new Map<string, number>();
     for (const s of normalized) {
-      if (!isTrainingEvening(s)) continue;
-      const p = mskParts(s.joinedAt);
-      let day = ymdFromParts(p.y, p.m, p.day);
-      if (p.h < 12) {
-        const prev = new Date(Date.UTC(p.y, p.m - 1, p.day - 1));
-        day = ymdFromParts(
-          prev.getUTCFullYear(),
-          prev.getUTCMonth() + 1,
-          prev.getUTCDate()
-        );
-      }
-      set.add(day);
+      if (serverLabel(s.serverKey) !== "TR1") continue;
+      const mins = eveningWindowOverlapMinutes(s.joinedAt, s.leftAt);
+      if (mins <= 0) continue;
+      const day = trainingDayYmd(s.joinedAt);
+      minsByDay.set(day, (minsByDay.get(day) || 0) + mins);
+    }
+    const set = new Set<string>();
+    for (const [day, mins] of minsByDay) {
+      if (isTrainingPresentMinutes(mins)) set.add(day);
     }
     return set;
   }, [normalized]);
@@ -216,7 +188,8 @@ export function TrainingSessionsCard({
     <section className="card training-sessions-card">
       <h2>Посещаемость тренировок</h2>
       <p className="muted" style={{ marginTop: 6, marginBottom: 0 }}>
-        TR1 — тренировка (вечер), PB1 — паблик. Учёт с 15.09.2026.
+        TR1 — тренировка (вечер), PB1 — паблик. Учёт с 15.09.2026. «Был» =
+        ≥{TRAINING_PRESENT_MIN_MINUTES} мин на TR1 в окне 21:00–00:00 МСК.
       </p>
 
       <div className="training-stat-row">
@@ -285,11 +258,11 @@ export function TrainingSessionsCard({
                   }`}
                   title={
                     mark === "present"
-                      ? "Был на тренировке"
+                      ? `Был ≥${TRAINING_PRESENT_MIN_MINUTES} мин (21:00–00:00)`
                       : mark === "absent"
-                        ? "Не был"
+                        ? `Не был (<${TRAINING_PRESENT_MIN_MINUTES} мин вечером)`
                         : mark === "pending"
-                          ? "Ещё рано"
+                          ? "Ещё рано / окно не закрыто"
                           : "Вне учёта"
                   }
                 >
@@ -306,9 +279,9 @@ export function TrainingSessionsCard({
             })}
           </div>
           <p className="muted training-cal-legend">
-            Зелёный — был на TR1 вечером · красный — не было · серый — ещё
-            не считаем. В этом месяце:{" "}
-            <strong>{presentInView}</strong> был /{" "}
+            Зелёный — ≥{TRAINING_PRESENT_MIN_MINUTES} мин на TR1 с 21:00 до
+            00:00 · красный — меньше часа / не было · серый — ещё не считаем. В
+            этом месяце: <strong>{presentInView}</strong> был /{" "}
             <strong>{absentInView}</strong> нет
           </p>
         </div>
