@@ -13,6 +13,14 @@ export const REACTION_MAX_MS = 5000;
 export const REACTION_MISS_PENALTY_MS = 1000;
 /** Присутствие на вкладке */
 export const REACTION_PRESENCE_MS = 45_000;
+/** Окно чата на вкладке — очистка каждые 30 мин */
+export const REACTION_CHAT_WINDOW_MS = 30 * 60 * 1000;
+export const REACTION_CHAT_MAX_LEN = 200;
+
+export function reactionChatWindowStart(now = Date.now()): Date {
+  const start = Math.floor(now / REACTION_CHAT_WINDOW_MS) * REACTION_CHAT_WINDOW_MS;
+  return new Date(start);
+}
 
 export function roundMs3(ms: number): number {
   return Math.round(ms * 1000) / 1000;

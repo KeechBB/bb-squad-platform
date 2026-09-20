@@ -11,6 +11,7 @@ import {
   formatSec3,
   roundMs3,
 } from "@/lib/reaction";
+import { ReactionAimChat } from "@/components/ReactionAimChat";
 
 type LivePlayer = {
   userId: string;
@@ -511,29 +512,32 @@ export function ReactionTrainingClient() {
           </ol>
         </section>
 
-        <aside className="reaction-session card">
-          <h2>Этот сеанс</h2>
-          <p className="muted" style={{ marginTop: 0, fontSize: "0.82rem" }}>
-            Серии ур. {level} · среднее за 10 попыток
-          </p>
-          {sessionForLevel.length === 0 ? (
-            <p className="muted" style={{ margin: "8px 0 0", fontSize: "0.85rem" }}>
-              Пока пусто — заверши серию, и среднее появится здесь.
+        <div className="reaction-side-col">
+          <aside className="reaction-session card">
+            <h2>Этот сеанс</h2>
+            <p className="muted" style={{ marginTop: 0, fontSize: "0.82rem" }}>
+              Серии ур. {level} · среднее за 10 попыток
             </p>
-          ) : (
-            <ol className="reaction-session-list">
-              {sessionForLevel.map((s, idx) => (
-                <li key={s.id}>
-                  <span>
-                    Серия {idx + 1}
-                    <em className="muted"> · среднее</em>
-                  </span>
-                  <strong>{formatSec3(s.avgMs)} с</strong>
-                </li>
-              ))}
-            </ol>
-          )}
-        </aside>
+            {sessionForLevel.length === 0 ? (
+              <p className="muted" style={{ margin: "8px 0 0", fontSize: "0.85rem" }}>
+                Пока пусто — заверши серию, и среднее появится здесь.
+              </p>
+            ) : (
+              <ol className="reaction-session-list">
+                {sessionForLevel.map((s, idx) => (
+                  <li key={s.id}>
+                    <span>
+                      Серия {idx + 1}
+                      <em className="muted"> · среднее</em>
+                    </span>
+                    <strong>{formatSec3(s.avgMs)} с</strong>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </aside>
+          <ReactionAimChat />
+        </div>
       </div>
     </div>
   );

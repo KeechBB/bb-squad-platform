@@ -71,6 +71,7 @@ model User {
   squadSessions   SquadServerSession[]
   reactionRuns    ReactionRun[]
   reactionPresence ReactionPresence?
+  reactionChatMessages ReactionChatMessage[]
 }
 
 /// Серия из 10 попыток тренировки на реакцию (уровень 1)
@@ -99,6 +100,17 @@ model ReactionPresence {
   lastAvgL1Ms Float?
   lastAvgL2Ms Float?
   updatedAt   DateTime @updatedAt
+}
+
+/// Сообщения чата на вкладке тренировки (живут ~30 мин)
+model ReactionChatMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
 }
 
 model Clan {

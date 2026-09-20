@@ -3668,10 +3668,18 @@ body:has(.home-page) {
 
 .reaction-layout {
   display: grid;
-  grid-template-columns: minmax(180px, 220px) minmax(720px, 1fr) minmax(200px, 260px);
+  grid-template-columns: minmax(180px, 220px) minmax(720px, 1fr) minmax(220px, 280px);
   gap: 14px;
   flex: 1;
   min-height: 0;
+}
+
+.reaction-side-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  max-height: calc(100dvh - 220px);
 }
 
 .reaction-board {
@@ -3873,26 +3881,28 @@ body:has(.home-page) {
 .reaction-session {
   display: flex;
   flex-direction: column;
-  min-height: 320px;
-  max-height: calc(100dvh - 220px);
+  flex: 0 0 auto;
+  max-height: min(220px, 42%);
+  min-height: 120px;
   overflow: hidden;
 }
 
 .reaction-session-list {
   list-style: none;
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   padding: 0;
   overflow: auto;
   flex: 1;
+  min-height: 0;
 }
 
 .reaction-session-list li {
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  padding: 9px 0;
+  padding: 6px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
 .reaction-session-list strong {
@@ -3903,6 +3913,79 @@ body:has(.home-page) {
 
 .reaction-session-list em {
   font-style: normal;
+}
+
+.reaction-chat {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 180px;
+  overflow: hidden;
+  gap: 8px;
+}
+
+.reaction-chat-head h2 {
+  margin: 0 0 2px;
+  font-size: 1.05rem;
+}
+
+.reaction-chat-head p {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.3;
+}
+
+.reaction-chat-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 2px;
+}
+
+.reaction-chat-empty {
+  margin: 8px 0 0;
+  font-size: 0.82rem;
+}
+
+.reaction-chat-row p {
+  margin: 2px 0 0;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.reaction-chat-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.reaction-chat-form {
+  display: flex;
+  gap: 6px;
+  margin-top: auto;
+}
+
+.reaction-chat-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.35);
+  color: inherit;
+  font: inherit;
+  font-size: 0.88rem;
+}
+
+.reaction-chat-form .btn {
+  padding: 8px 12px;
+  min-width: 42px;
 }
 
 .reaction-profile-card {
@@ -4052,10 +4135,17 @@ body:has(.home-page) {
     grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
   }
 
-  .reaction-session {
+  .reaction-side-col {
     grid-column: 1 / -1;
-    max-height: 240px;
-    min-height: 0;
+    max-height: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .reaction-session,
+  .reaction-chat {
+    max-height: 260px;
   }
 }
 
@@ -4076,8 +4166,13 @@ body:has(.home-page) {
   }
 
   .reaction-board,
-  .reaction-session {
+  .reaction-session,
+  .reaction-chat {
     max-height: 220px;
+  }
+
+  .reaction-side-col {
+    grid-template-columns: 1fr;
   }
 
   .reaction-attempts {
