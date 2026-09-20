@@ -47,6 +47,20 @@ STEAM_EOS_RE = re.compile(
 )
 
 
+def load_dotenv_file(path: Path) -> None:
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        key = key.strip()
+        val = val.strip().strip("'").strip('"')
+        if key and key not in os.environ:
+            os.environ[key] = val
+
+
 def env(name: str, default: str | None = None) -> str:
     v = os.environ.get(name, default)
     if v is None or v == "":
@@ -289,4 +303,6 @@ class Collector:
 
 
 if __name__ == "__main__":
+    here = Path(__file__).resolve().parent
+    load_dotenv_file(here / ".squad-collector.env")
     Collector().run()

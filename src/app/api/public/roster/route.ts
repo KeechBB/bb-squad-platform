@@ -12,11 +12,15 @@ const CORS = {
   "Cache-Control": "no-store",
 };
 
+function nickKey(nick: string): string {
+  return nick.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS });
 }
 
-/** Публичная карта ник → клан/состав для рейтинга КВ */
+/** Публичная карта ник → клан/состав/номер регистрации для рейтинга КВ */
 export async function GET() {
   await ensureBbDefaultSquads();
 
@@ -42,9 +46,28 @@ export async function GET() {
     },
   });
 
+  const registered = await prisma.user.findMany({
+    where: { profileComplete: true, nick: { not: null } },
+    orderBy: { createdAt: "asc" },
+    select: { nick: true, steamId: true, createdAt: true },
+  });
+
+  const regByNick = new Map<string, number>();
+  registered.forEach((u, i) => {
+    const nick = (u.nick || "").trim();
+    if (!nick) return;
+    regByNick.set(nickKey(nick), i + 1);
+  });
+
   const byNick: Record<
     string,
-    { clan: string; tag: string; squad: string | null }
+    {
+      clan: string;
+      tag: string;
+      squad: string | null;
+      regNo: number | null;
+      steamId?: string;
+    }
   > = {};
 
   for (const clan of refreshed) {
@@ -53,22 +76,54 @@ export async function GET() {
       for (const m of squad.members) {
         const nick = (m.user.nick || "").trim();
         if (!nick) continue;
-        const key = nick.toLowerCase();
-        byNick[key] = { clan: clan.name, tag: clan.tag, squad: squad.name };
+        const key = nickKey(nick);
+        byNick[key] = {
+          clan: clan.name,
+          tag: clan.tag,
+          squad: squad.name,
+          regNo: regByNick.get(key) ?? null,
+        };
         nickInSquad.add(key);
       }
     }
     for (const m of clan.members) {
       const nick = (m.user.nick || "").trim();
       if (!nick) continue;
-      const key = nick.toLowerCase();
+      const key = nickKey(nick);
       if (nickInSquad.has(key) || byNick[key]) continue;
-      byNick[key] = { clan: clan.name, tag: clan.tag, squad: null };
+      byNick[key] = {
+        clan: clan.name,
+        tag: clan.tag,
+        squad: null,
+        regNo: regByNick.get(key) ?? null,
+      };
+    }
+  }
+
+  for (const u of registered) {
+    const nick = (u.nick || "").trim();
+    if (!nick) continue;
+    const key = nickKey(nick);
+    if (!byNick[key]) {
+      byNick[key] = {
+        clan: "—",
+        tag: "",
+        squad: null,
+        regNo: regByNick.get(key) ?? null,
+        steamId: u.steamId,
+      };
+    } else {
+      byNick[key].regNo = regByNick.get(key) ?? null;
+      byNick[key].steamId = u.steamId;
     }
   }
 
   return NextResponse.json(
-    { byNick, updatedAt: new Date().toISOString() },
+    {
+      byNick,
+      registeredCount: registered.length,
+      updatedAt: new Date().toISOString(),
+    },
     { headers: CORS }
   );
 }

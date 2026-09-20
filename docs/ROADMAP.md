@@ -67,10 +67,11 @@
 
 ## Phase 2c — логи Squad (join/leave по Steam ID)
 
-- [ ] Доступ к логам сервера или SquadJS/webhook
-- [ ] Парсер connect/disconnect → SteamID64 + timestamp
-- [ ] Сессии в БД; витрина в профиле / админке
-- [ ] Уточнение посещаемости через точное время захода (вместо/вместе с sqstat)
+- [x] Доступ к логам сервера (SSH TPUB1)
+- [x] Парсер connect/disconnect → SteamID64 + timestamp (`scripts/squad_log_collector.py`)
+- [x] Сессии в БД; витрина в профиле / публичном профиле
+- [ ] Коллектор крутится постоянно + `SQUAD_INGEST_SECRET` на VPS
+- [ ] Уточнение посещаемости через точное время захода (метки уже в UI)
 
 ## Phase 2d — живой ростер клана (TG → ves-klan)
 

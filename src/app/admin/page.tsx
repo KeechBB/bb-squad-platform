@@ -11,8 +11,7 @@ import {
 } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { AdminUsersTable } from "@/components/AdminUsersTable";
+import { AdminShell } from "@/components/AdminShell";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -66,29 +65,10 @@ export default async function AdminPage() {
   });
 
   return (
-    <main className="admin-page">
-      <section className="hero">
-        <p className="eyebrow">админ</p>
-        <h1>Панель</h1>
-        <p className="lead">
-          Пользователи платформы. Кликни по нику — правка анкеты и аватара.
-          Удаление (в т.ч. незавершённых) — главный админ и HR.
-        </p>
-        <div className="admin-tabs" role="tablist">
-          <span className="admin-tab active">Пользователи</span>
-        </div>
-        <p style={{ marginTop: 12 }}>
-          <Link className="kv-link" href="/profile">
-            ← В профиль
-          </Link>
-        </p>
-      </section>
-
-      <AdminUsersTable
-        initialUsers={rows}
-        roleOptions={roleOptions}
-        actorRole={actorRole}
-      />
-    </main>
+    <AdminShell
+      users={rows}
+      roleOptions={roleOptions}
+      actorRole={actorRole}
+    />
   );
 }
