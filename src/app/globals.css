@@ -718,8 +718,9 @@ a:hover { color: #c4b5fd; }
 
 .attend-matrix-wrap {
   width: 100%;
-  overflow: auto;
-  max-height: min(75vh, 900px);
+  overflow-x: auto;
+  overflow-y: visible;
+  max-height: none;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: rgba(10, 8, 18, 0.4);
