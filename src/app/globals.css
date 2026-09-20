@@ -977,6 +977,13 @@ a:hover { color: #c4b5fd; }
   min-width: 78px;
 }
 
+.attend-late {
+  color: #facc15;
+  font-weight: 700;
+  opacity: 1;
+  min-width: 78px;
+}
+
 .attend-time-pair {
   display: inline-flex;
   align-items: baseline;

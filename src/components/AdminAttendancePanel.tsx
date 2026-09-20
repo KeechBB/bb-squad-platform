@@ -100,6 +100,55 @@ function overlapsEveningWindow(c: Cell): boolean {
   return inM < winEnd && outM > winStart;
 }
 
+function todayYmdMsk(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Moscow" });
+}
+
+function nowMinsMsk(): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Moscow",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const h = Number(parts.find((p) => p.type === "hour")?.value || 0);
+  const m = Number(parts.find((p) => p.type === "minute")?.value || 0);
+  return h * 60 + m;
+}
+
+/** День уже «закрыт» для оценки отсутствия (прошлое или сегодня после 21:00). */
+function absenceDecided(dayYmd: string): boolean {
+  const today = todayYmdMsk();
+  if (dayYmd < today) return true;
+  if (dayYmd > today) return false;
+  return nowMinsMsk() >= 21 * 60;
+}
+
+/**
+ * Пустая ячейка TR1:
+ * будущее / сегодня до 21:00 → —
+ * сегодня 21:00–21:30 → опаздывает
+ * сегодня после 21:30 → не был
+ * прошлые дни → не было
+ */
+function emptyTrLabel(dayYmd: string): { text: string; className: string } {
+  const today = todayYmdMsk();
+  if (dayYmd > today) {
+    return { text: "—", className: "attend-cell empty" };
+  }
+  if (dayYmd < today) {
+    return { text: "не было", className: "attend-cell attend-absent" };
+  }
+  const mins = nowMinsMsk();
+  if (mins < 21 * 60) {
+    return { text: "—", className: "attend-cell empty" };
+  }
+  if (mins < 21 * 60 + 30) {
+    return { text: "опаздывает", className: "attend-cell attend-late" };
+  }
+  return { text: "не был", className: "attend-cell attend-absent" };
+}
+
 function defaultRange(): { from: string; to: string } {
   const now = new Date();
   const to = now.toLocaleDateString("en-CA", { timeZone: "Europe/Moscow" });
@@ -190,8 +239,12 @@ export function AdminAttendancePanel() {
     if (!data) return [];
     if (!onlyAbsent) return data.rows;
     const isTr = (data.server || server) === "TR1";
+    const decidedDays = data.days.filter((d) =>
+      isTr ? absenceDecided(d) : d <= todayYmdMsk()
+    );
+    if (!decidedDays.length) return [];
     return data.rows.filter((r) => {
-      const wasPresent = data.days.some((d) => {
+      const wasPresent = decidedDays.some((d) => {
         const cells = r.cells[d] || [];
         if (!cells.length) return false;
         if (!isTr) return true;
@@ -329,7 +382,7 @@ export function AdminAttendancePanel() {
         {tab === "table"
           ? [
               server === "TR1"
-                ? " · TR1: нет в окне 21:00–00:00 → «не было»"
+                ? " · TR1: будущее/до 21:00 —; 21:00–21:30 «опаздывает»; после 21:30 «не был»; прошлые без вечера «не было»"
                 : "",
               showIn
                 ? " · Цвет захода: ≤21:00 зел., 21:00–21:30 жёлт., после 21:30 красн."
@@ -384,15 +437,24 @@ export function AdminAttendancePanel() {
                       !eveningCells.length ||
                       (!showIn && !showOut)
                     ) {
+                      if (!(showIn || showOut)) {
+                        return (
+                          <td key={d}>
+                            <span className="attend-cell empty">—</span>
+                          </td>
+                        );
+                      }
+                      if (isTr) {
+                        const empty = emptyTrLabel(d);
+                        return (
+                          <td key={d}>
+                            <span className={empty.className}>{empty.text}</span>
+                          </td>
+                        );
+                      }
                       return (
                         <td key={d}>
-                          {isTr && (showIn || showOut) ? (
-                            <span className="attend-cell attend-absent">
-                              не было
-                            </span>
-                          ) : (
-                            <span className="attend-cell empty">—</span>
-                          )}
+                          <span className="attend-cell empty">—</span>
                         </td>
                       );
                     }
