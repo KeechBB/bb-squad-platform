@@ -3598,6 +3598,11 @@ body:has(.home-page) {
   font-size: 1.55rem;
 }
 
+.reaction-head .muted {
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
 .reaction-best-chip {
   display: flex;
   flex-direction: column;
@@ -3678,11 +3683,11 @@ body:has(.home-page) {
 }
 
 .reaction-tab strong {
-  font-size: 0.98rem;
+  font-size: 1.05rem;
 }
 
 .reaction-tab span {
-  font-size: 0.78rem;
+  font-size: 0.9rem;
   color: var(--muted);
 }
 
