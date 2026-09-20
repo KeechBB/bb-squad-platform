@@ -190,19 +190,19 @@ export function TrainingSessionsCard({
       <div className="training-stat-row">
         <div>
           <strong>{sessions30d}</strong>
-          <span className="muted">сессий / 30 дн</span>
+          <span className="muted">вечеров / 30 дн</span>
         </div>
         <div>
           <strong>{minutes30d}</strong>
-          <span className="muted">мин / 30 дн</span>
+          <span className="muted">мин 21–00 / 30 дн</span>
         </div>
         <div>
           <strong>{avgMin || "—"}</strong>
-          <span className="muted">сред. мин / сессия</span>
+          <span className="muted">сред. мин / вечер</span>
         </div>
         <div>
           <strong>{openNow ? "онлайн" : "—"}</strong>
-          <span className="muted">сейчас</span>
+          <span className="muted">сейчас на TR1</span>
         </div>
       </div>
 
@@ -294,19 +294,20 @@ export function TrainingSessionsCard({
           </p>
         </div>
         <div className="training-chart-block">
-          <h3>Среднее время на сервере</h3>
+          <h3>Среднее время на тренировке</h3>
           <p className="training-avg-big">
             {avgMin > 0 ? (
               <>
                 <strong>{avgMin}</strong>
-                <span>мин за заход</span>
+                <span>мин за вечер (21:00–00:00)</span>
               </>
             ) : (
               <span className="muted">Пока мало данных</span>
             )}
           </p>
           <p className="muted" style={{ margin: "8px 0 0", fontSize: "0.85rem" }}>
-            Сумма за 30 дней: {minutes30d} мин · {sessions30d} заходов (TR1+PB1)
+            Сумма за 30 дней в окне 21:00–00:00: {minutes30d} мин ·{" "}
+            {sessions30d} вечеров (только TR1)
           </p>
         </div>
       </div>
