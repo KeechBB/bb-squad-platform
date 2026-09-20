@@ -1,4 +1,5 @@
 export type KvMatch = {
+  id?: string;
   day?: number;
   opp?: string;
   map?: string;
@@ -6,6 +7,58 @@ export type KvMatch = {
   status?: string;
   meeting?: string;
   size?: string;
+  playersUrl?: string;
+};
+
+export type PlayerKvRound = {
+  matchId: string;
+  day: number;
+  opp: string;
+  map: string;
+  stack: string;
+  status: string;
+  meeting: string;
+  round: "r1" | "r2";
+  kills: number;
+  deaths: number;
+  dmg: number;
+  res: number;
+  nok: number;
+};
+
+export type PlayerKvAward = {
+  matchId: string;
+  day: number;
+  opp: string;
+  round: string;
+  type: string;
+  label: string;
+};
+
+export type PlayerKvStats = {
+  nick: string;
+  rounds: number;
+  matches: number;
+  kills: number;
+  deaths: number;
+  dmg: number;
+  res: number;
+  nok: number;
+  kd: number;
+  avgKills: number;
+  avgDmg: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  winrate: number;
+  awards: PlayerKvAward[];
+  mvpDamage: number;
+  mvpKiller: number;
+  mvpMedic: number;
+  antiDeath: number;
+  byStack: { name: string; rounds: number; kills: number; deaths: number; dmg: number }[];
+  recent: PlayerKvRound[];
+  source: string;
 };
 
 export type ClanStats = {
@@ -148,6 +201,158 @@ export async function buildClanKvStats(clanTag: string): Promise<ClanStats> {
     winrate: summary.winrate,
     byStack,
     maps,
+    recent,
+    source,
+  };
+}
+
+function n(v: unknown): number {
+  const x = Number(v);
+  return Number.isFinite(x) ? x : 0;
+}
+
+function nickEq(a: string, b: string) {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+/** Личная стата игрока по раундам из data/players + mvp-ledger */
+export async function buildPlayerKvStats(nick: string): Promise<PlayerKvStats> {
+  const { matches, source } = await loadAllMatches();
+  const base = source.replace(/\/$/, "");
+  const want = nick.trim();
+  const rounds: PlayerKvRound[] = [];
+  const matchMeta = new Map<string, KvMatch>();
+
+  for (const m of matches) {
+    const mid = String(m.id || "").trim();
+    if (mid) matchMeta.set(mid, m);
+    const playersUrl = String(m.playersUrl || "").trim();
+    if (!playersUrl || !mid) continue;
+    const url = playersUrl.startsWith("http")
+      ? playersUrl
+      : `${base}/${playersUrl.replace(/^\//, "")}`;
+    try {
+      const data = await fetchJson(url);
+      for (const rnd of ["r1", "r2"] as const) {
+        for (const row of data[rnd] || []) {
+          if (!nickEq(String(row?.nick || ""), want)) continue;
+          rounds.push({
+            matchId: mid,
+            day: Number(m.day) || Number(data.day) || 0,
+            opp: String(m.opp || data.opp || "—"),
+            map: shortMap(String(m.map || "—")),
+            stack: String(m.stack || "—"),
+            status: String(m.status || ""),
+            meeting: String(m.meeting || "—"),
+            round: rnd,
+            kills: n(row.kills),
+            deaths: n(row.deaths),
+            dmg: n(row.dmg),
+            res: n(row.res),
+            nok: n(row.nok),
+          });
+        }
+      }
+    } catch {
+      /* нет файла игроков — пропускаем */
+    }
+  }
+
+  const matchIds = [...new Set(rounds.map((r) => r.matchId))];
+  let wins = 0;
+  let draws = 0;
+  let losses = 0;
+  for (const id of matchIds) {
+    const st = matchMeta.get(id)?.status;
+    if (st === "win") wins += 1;
+    else if (st === "draw") draws += 1;
+    else if (st === "lose") losses += 1;
+  }
+  const playedMatches = wins + draws + losses;
+  const kills = rounds.reduce((s, r) => s + r.kills, 0);
+  const deaths = rounds.reduce((s, r) => s + r.deaths, 0);
+  const dmg = rounds.reduce((s, r) => s + r.dmg, 0);
+  const res = rounds.reduce((s, r) => s + r.res, 0);
+  const nok = rounds.reduce((s, r) => s + r.nok, 0);
+
+  const stacks = new Map<string, PlayerKvRound[]>();
+  for (const r of rounds) {
+    const name = r.stack || "—";
+    if (!stacks.has(name)) stacks.set(name, []);
+    stacks.get(name)!.push(r);
+  }
+  const byStack = Array.from(stacks.entries()).map(([name, arr]) => ({
+    name,
+    rounds: arr.length,
+    kills: arr.reduce((s, r) => s + r.kills, 0),
+    deaths: arr.reduce((s, r) => s + r.deaths, 0),
+    dmg: arr.reduce((s, r) => s + r.dmg, 0),
+  }));
+
+  let awards: PlayerKvAward[] = [];
+  let mvpDamage = 0;
+  let mvpKiller = 0;
+  let mvpMedic = 0;
+  let antiDeath = 0;
+  try {
+    const ledger = await fetchJson(`${base}/data/mvp-ledger.json`);
+    const entry =
+      ledger?.players?.[want] ||
+      Object.entries(ledger?.players || {}).find(([k]) => nickEq(k, want))?.[1];
+    if (entry) {
+      mvpDamage = n(entry.mvpDamage);
+      mvpKiller = n(entry.mvpKiller);
+      mvpMedic = n(entry.mvpMedic);
+      antiDeath = n(entry.antiDeath);
+      awards = (entry.awards || []).map(
+        (a: {
+          matchId?: string;
+          day?: number;
+          opp?: string;
+          round?: string;
+          type?: string;
+          label?: string;
+        }) => ({
+          matchId: String(a.matchId || ""),
+          day: Number(a.day) || 0,
+          opp: String(a.opp || "—"),
+          round: String(a.round || ""),
+          type: String(a.type || ""),
+          label: String(a.label || a.type || "Награда"),
+        })
+      );
+    }
+  } catch {
+    /* ledger optional */
+  }
+
+  const recent = [...rounds].sort((a, b) => {
+    if (b.day !== a.day) return b.day - a.day;
+    return b.round.localeCompare(a.round);
+  });
+
+  return {
+    nick: want,
+    rounds: rounds.length,
+    matches: matchIds.length,
+    kills,
+    deaths,
+    dmg,
+    res,
+    nok,
+    kd: deaths > 0 ? Math.round((100 * kills) / deaths) / 100 : kills,
+    avgKills: rounds.length ? Math.round((10 * kills) / rounds.length) / 10 : 0,
+    avgDmg: rounds.length ? Math.round(dmg / rounds.length) : 0,
+    wins,
+    draws,
+    losses,
+    winrate: playedMatches ? Math.round((100 * wins) / playedMatches) : 0,
+    awards,
+    mvpDamage,
+    mvpKiller,
+    mvpMedic,
+    antiDeath,
+    byStack,
     recent,
     source,
   };

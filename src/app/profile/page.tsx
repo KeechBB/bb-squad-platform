@@ -10,9 +10,11 @@ import { AdminPanelLink } from "@/components/AdminPanelLink";
 import { ProfileEditForm } from "@/components/ProfileEditForm";
 import { TrainingSessionsCard } from "@/components/TrainingSessionsCard";
 import { LivePageRefresh } from "@/components/LivePageRefresh";
+import { ProfileKvStats } from "@/components/ProfileKvStats";
 import { formatRuDate, isActiveReserve } from "@/lib/validation";
 import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
 import { loadUserTrainingStats } from "@/lib/trainingStats";
+import { buildPlayerKvStats } from "@/lib/kvStats";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -63,6 +65,16 @@ export default async function ProfilePage() {
     effectiveRole(me.steamId, me.role as AppRole)
   );
   const training = await loadUserTrainingStats(me.id);
+  const nickForKv = me.nick || u.nick || "";
+  let kvStats = null as Awaited<ReturnType<typeof buildPlayerKvStats>> | null;
+  let kvError: string | null = null;
+  if (nickForKv) {
+    try {
+      kvStats = await buildPlayerKvStats(nickForKv);
+    } catch {
+      kvError = "Не удалось загрузить стату КВ";
+    }
+  }
 
   return (
     <main className="profile-page">
@@ -72,6 +84,7 @@ export default async function ProfilePage() {
           name={me.name || u.name || ""}
           initialAvatar={displayAvatar}
           steamAvatar={u.steamAvatar || null}
+          adminLink={<AdminPanelLink initialAdmin={admin} />}
         />
       </div>
 
@@ -123,8 +136,8 @@ export default async function ProfilePage() {
             siteRole,
             regNo: me.regNo,
           }}
-          adminLink={<AdminPanelLink initialAdmin={admin} />}
         />
+        <ProfileKvStats stats={kvStats} error={kvError} />
       </div>
 
       <div className="profile-area-training">
@@ -135,15 +148,6 @@ export default async function ProfilePage() {
           sessions30d={training.sessions30d}
           openNow={training.openNow}
         />
-        <section className="stats-stub profile-kv-stub">
-          <strong style={{ color: "var(--ink)" }}>Статистика КВ</strong>
-          <p style={{ margin: "6px 0 0" }}>
-            Игровая стата КВ — следующим этапом.{" "}
-            <Link className="kv-link" href="/cw" style={{ marginTop: 0 }}>
-              Таблица КВ →
-            </Link>
-          </p>
-        </section>
       </div>
     </main>
   );

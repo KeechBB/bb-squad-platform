@@ -54,10 +54,8 @@ export function AdminPanelLink({ initialAdmin }: Props) {
   if (!admin) return null;
 
   return (
-    <div style={{ marginTop: 18 }}>
-      <Link className="btn primary" href="/admin">
-        Войти в админ панель
-      </Link>
-    </div>
+    <Link className="btn primary admin-panel-btn-inline" href="/admin">
+      Админ панель
+    </Link>
   );
 }

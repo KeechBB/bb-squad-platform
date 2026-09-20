@@ -452,6 +452,10 @@ a:hover { color: #c4b5fd; }
 
 .profile-area-account {
   grid-area: account;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  min-width: 0;
 }
 
 .profile-area-training {
@@ -492,6 +496,171 @@ a:hover { color: #c4b5fd; }
   line-height: 1.1;
 }
 
+.profile-head-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+
+.admin-panel-btn-inline {
+  padding: 7px 14px;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.profile-kv-card .profile-kv-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.profile-kv-card .profile-kv-head h2 {
+  margin: 0;
+}
+
+.profile-kv-card .profile-kv-head .kv-link {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.profile-kv-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.profile-kv-summary > div,
+.profile-kv-extra > div {
+  background: rgba(167, 139, 250, 0.06);
+  border: 1px solid rgba(167, 139, 250, 0.12);
+  border-radius: 12px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.profile-kv-summary strong,
+.profile-kv-extra strong {
+  font-size: 1.15rem;
+  color: var(--ink);
+  line-height: 1.15;
+}
+
+.profile-kv-summary strong em,
+.profile-kv-extra strong em {
+  font-style: normal;
+  font-weight: 500;
+  opacity: 0.65;
+  font-size: 0.85em;
+}
+
+.profile-kv-summary .stat-sub,
+.profile-kv-extra .muted {
+  font-size: 0.75rem;
+}
+
+.profile-kv-extra {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.profile-kv-awards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.profile-kv-award {
+  font-size: 0.78rem;
+  color: var(--muted);
+  background: rgba(10, 8, 18, 0.45);
+  border: 1px solid rgba(167, 139, 250, 0.16);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+.profile-kv-award b {
+  color: #c4b5fd;
+  margin-left: 4px;
+}
+
+.profile-kv-stacks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.profile-kv-block {
+  margin-top: 14px;
+}
+
+.profile-kv-award-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.profile-kv-award-list li {
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.84rem;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(167, 139, 250, 0.08);
+}
+
+.profile-kv-table-wrap {
+  margin-top: 6px;
+  max-height: 280px;
+  overflow: auto;
+  border: 1px solid rgba(167, 139, 250, 0.12);
+  border-radius: 12px;
+}
+
+.profile-kv-table {
+  font-size: 0.8rem;
+}
+
+.kv-pill {
+  display: inline-block;
+  min-width: 1.4em;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+.kv-pill.win {
+  color: #4ade80;
+}
+
+.kv-pill.draw {
+  color: #fbbf24;
+}
+
+.kv-pill.lose {
+  color: #f87171;
+}
+
+@media (max-width: 900px) {
+  .profile-kv-summary,
+  .profile-kv-extra {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .profile-page .lead,
 .profile-page .profile-head-text .muted {
   margin-top: 4px;
@@ -512,6 +681,7 @@ a:hover { color: #c4b5fd; }
 .profile-kv-stub {
   padding: 12px 14px;
 }
+
 
 .profile-page .training-sessions-card .muted {
   font-size: 0.82rem;

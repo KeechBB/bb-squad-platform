@@ -14,7 +14,9 @@ import {
 import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
 import { TrainingSessionsCard } from "@/components/TrainingSessionsCard";
 import { LivePageRefresh } from "@/components/LivePageRefresh";
+import { ProfileKvStats } from "@/components/ProfileKvStats";
 import { loadUserTrainingStats } from "@/lib/trainingStats";
+import { buildPlayerKvStats } from "@/lib/kvStats";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -83,6 +85,15 @@ export default async function PlayerProfilePage({ params }: Props) {
   const avatar = withAvatarCacheBust(user.avatarUrl, user.updatedAt);
   const inReserve = isActiveReserve(user.reserveUntil);
   const training = await loadUserTrainingStats(user.id);
+  let kvStats = null as Awaited<ReturnType<typeof buildPlayerKvStats>> | null;
+  let kvError: string | null = null;
+  if (user.nick) {
+    try {
+      kvStats = await buildPlayerKvStats(user.nick);
+    } catch {
+      kvError = "Не удалось загрузить стату КВ";
+    }
+  }
 
   return (
     <main className="profile-page">
@@ -235,6 +246,7 @@ export default async function PlayerProfilePage({ params }: Props) {
             </div>
           </div>
         </section>
+        <ProfileKvStats stats={kvStats} error={kvError} />
       </div>
 
       <div className="profile-area-training">

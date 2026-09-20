@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
@@ -9,11 +9,18 @@ type Props = {
   name: string;
   initialAvatar: string | null;
   steamAvatar: string | null;
+  adminLink?: ReactNode;
 };
 
 type Phase = "idle" | "chooser" | "pending";
 
-export function AvatarEditor({ nick, name, initialAvatar, steamAvatar }: Props) {
+export function AvatarEditor({
+  nick,
+  name,
+  initialAvatar,
+  steamAvatar,
+  adminLink,
+}: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const { update } = useSession();
@@ -161,7 +168,10 @@ export function AvatarEditor({ nick, name, initialAvatar, steamAvatar }: Props) 
         )}
         <div className="profile-head-text">
           <p className="eyebrow">профиль</p>
-          <h1>{nick}</h1>
+          <div className="profile-head-title-row">
+            <h1>{nick}</h1>
+            {adminLink}
+          </div>
           <p className="lead">{name}</p>
         </div>
       </div>
