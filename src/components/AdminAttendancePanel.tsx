@@ -734,7 +734,11 @@ export function AdminAttendancePanel() {
           </div>
 
           <div className="training-chart-block" style={{ gridColumn: "1 / -1" }}>
-            <h3>Выходы — сколько и во сколько ушли</h3>
+            <h3>Выходы — ушёл и больше не заходил</h3>
+            <p className="muted" style={{ marginTop: 0, marginBottom: 8 }}>
+              Только финальный выход за вечер (21:00–02:00). Промежуточные
+              «вышел → снова зашёл» не считаются.
+            </p>
             <TimelineTable
               rows={data.stats.leaveTimeline || []}
               countLabel="Ушли"

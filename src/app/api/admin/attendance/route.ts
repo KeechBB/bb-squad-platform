@@ -285,6 +285,12 @@ export async function GET(req: Request) {
   ];
   const joinSlotUsers: Array<Set<string>> = joinSlots.map(() => new Set());
 
+  /** Сессии по user → для финального выхода (ушёл и больше не заходил) */
+  const sessionsByUserChrono = new Map<
+    string,
+    Array<{ joinedAt: Date; leftAt: Date | null }>
+  >();
+
   for (const s of sessions) {
     totalSessions += 1;
     const end = s.leftAt ?? now;
@@ -315,6 +321,14 @@ export async function GET(req: Request) {
       leaveBucket[key] = (leaveBucket[key] || 0) + 1;
     }
 
+    if (!sessionsByUserChrono.has(s.userId)) {
+      sessionsByUserChrono.set(s.userId, []);
+    }
+    sessionsByUserChrono.get(s.userId)!.push({
+      joinedAt: s.joinedAt,
+      leftAt: s.leftAt,
+    });
+
     const day = isPublic ? ymdMsk(s.joinedAt) : trainingDayYmd(s.joinedAt);
 
     if (isPublic) {
@@ -337,26 +351,6 @@ export async function GET(req: Request) {
           firstEveningJoinMin.set(fk, jmin);
         }
       }
-
-      if (s.leftAt) {
-        const lp = mskParts(s.leftAt);
-        const lmin = lp.h * 60 + lp.min;
-        // Дневные выходы в статистику вечера не входят
-        if (!isEveningLeaveMinutes(lmin)) {
-          // skip
-        } else {
-          const leaveDay = trainingDayFromLeave(s.leftAt);
-          if (daySet.has(leaveDay)) {
-            for (let i = 0; i < leaveSlots.length; i++) {
-              const sl = leaveSlots[i];
-              if (lmin >= sl.minFrom && lmin < sl.minTo) {
-                leaveSlotUsers[i].add(`${s.userId}|${leaveDay}`);
-                break;
-              }
-            }
-          }
-        }
-      }
     }
 
     const wi = (() => {
@@ -365,6 +359,37 @@ export async function GET(req: Request) {
       return dow === 0 ? 6 : dow - 1;
     })();
     weekday[wi] += 1;
+  }
+
+  // Финальный выход за тренировочный вечер: последняя сессия дня, ушёл и не вернулся
+  if (!isPublic) {
+    for (const [userId, list] of sessionsByUserChrono) {
+      list.sort((a, b) => a.joinedAt.getTime() - b.joinedAt.getTime());
+      const byTrainDay = new Map<string, typeof list>();
+      for (const s of list) {
+        const d = trainingDayYmd(s.joinedAt);
+        if (!byTrainDay.has(d)) byTrainDay.set(d, []);
+        byTrainDay.get(d)!.push(s);
+      }
+      for (const [trainDay, daySessions] of byTrainDay) {
+        if (!daySet.has(trainDay)) continue;
+        const last = daySessions[daySessions.length - 1];
+        if (!last.leftAt) continue; // ещё на сервере / не зафиксирован выход
+        const lp = mskParts(last.leftAt);
+        const lmin = lp.h * 60 + lp.min;
+        if (!isEveningLeaveMinutes(lmin)) continue;
+        const leaveDay = trainingDayFromLeave(last.leftAt);
+        // выход после полуночи должен относиться к этой же тренировке
+        if (leaveDay !== trainDay) continue;
+        for (let i = 0; i < leaveSlots.length; i++) {
+          const sl = leaveSlots[i];
+          if (lmin >= sl.minFrom && lmin < sl.minTo) {
+            leaveSlotUsers[i].add(`${userId}|${trainDay}`);
+            break;
+          }
+        }
+      }
+    }
   }
 
   // Пересчитать first-join слоты по уникальному первому заходу вечера
