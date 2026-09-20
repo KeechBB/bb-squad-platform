@@ -979,6 +979,143 @@ a:hover { color: #c4b5fd; }
   max-width: 1100px;
 }
 
+/* Вся админка: текст и блоки по центру */
+.admin-page {
+  text-align: center;
+}
+
+.admin-page .hero {
+  text-align: center;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.admin-page .lead,
+.admin-page .eyebrow,
+.admin-page .muted,
+.admin-page p {
+  text-align: center;
+}
+
+.admin-page .admin-tabs {
+  justify-content: center;
+}
+
+.admin-page .kv-link {
+  display: inline-block;
+}
+
+.admin-page .card {
+  text-align: center;
+}
+
+.admin-page .field {
+  align-items: center;
+  text-align: center;
+}
+
+.admin-page .field span {
+  text-align: center;
+  width: 100%;
+}
+
+.admin-page .field input,
+.admin-page .field textarea,
+.admin-page .field select {
+  text-align: center;
+}
+
+.admin-page .attend-filter-row {
+  justify-content: center;
+  align-items: center;
+}
+
+.admin-page .attend-filter-row .field {
+  align-items: center;
+}
+
+.admin-page .attend-date-input {
+  text-align: center;
+}
+
+.admin-page .admin-toolbar {
+  justify-content: center;
+  align-items: center;
+}
+
+.admin-page .admin-search {
+  text-align: center;
+}
+
+.admin-page .admin-count {
+  text-align: center;
+}
+
+.admin-page .admin-table th,
+.admin-page .admin-table td {
+  text-align: center;
+}
+
+.admin-page .attend-matrix th,
+.admin-page .attend-matrix td {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.admin-page .attend-cell {
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-page .meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px 12px;
+  grid-template-columns: unset;
+}
+
+.admin-page .training-chart-block {
+  text-align: center;
+}
+
+.admin-page .training-chart-block h3 {
+  text-align: center;
+}
+
+.admin-page label.field[style] {
+  justify-content: center;
+}
+
+.admin-page .journal-toolbar {
+  justify-content: center;
+  align-items: center;
+}
+
+.admin-page .journal-window-head {
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.admin-page .journal-msg {
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+}
+
+.admin-page .journal-msg-meta {
+  justify-content: center;
+}
+
+.admin-page .journal-msg-body {
+  text-align: center;
+}
+
+.admin-page .journal-chat {
+  align-items: center;
+}
+
 .shell:has(.admin-page) {
   max-width: 1100px;
 }
