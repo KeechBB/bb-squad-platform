@@ -54,6 +54,10 @@ export default function RootLayout({
                     <span className="nav-full">Клановые войны</span>
                     <span className="nav-short">КВ</span>
                   </Link>
+                  <Link href="/tm" title="Тренировочные матчи">
+                    <span className="nav-full">Тренировочные матчи</span>
+                    <span className="nav-short">Трен.</span>
+                  </Link>
                   <Link href="/clans">
                     <span className="nav-full">Кланы</span>
                     <span className="nav-short">Кланы</span>
