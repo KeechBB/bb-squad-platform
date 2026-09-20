@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { ATTENDANCE_CANON_START_YMD } from "@/lib/squadSessions";
 
 type Cell = { in: string; out: string | null; mins: number };
 
@@ -152,12 +153,12 @@ function emptyTrLabel(dayYmd: string): { text: string; className: string } {
 function defaultRange(): { from: string; to: string } {
   const now = new Date();
   const to = now.toLocaleDateString("en-CA", { timeZone: "Europe/Moscow" });
-  // from: max(2026-09-01, to-29d)
+  // from: max(канон 15.09.2026, to-29d)
   const [y, m, d] = to.split("-").map(Number);
   const end = new Date(Date.UTC(y, m - 1, d));
   const start = new Date(end);
   start.setUTCDate(start.getUTCDate() - 29);
-  const floor = new Date(Date.UTC(2026, 8, 1));
+  const floor = new Date(Date.UTC(2026, 8, 15));
   const fromD = start < floor ? floor : start;
   const from = `${fromD.getUTCFullYear()}-${String(fromD.getUTCMonth() + 1).padStart(2, "0")}-${String(fromD.getUTCDate()).padStart(2, "0")}`;
   return { from, to };
@@ -280,7 +281,7 @@ export function AdminAttendancePanel() {
             type="date"
             className="attend-date-input"
             value={from}
-            min="2026-09-01"
+            min={ATTENDANCE_CANON_START_YMD}
             onChange={(e) => setFrom(e.target.value)}
             onClick={(e) => {
               const el = e.currentTarget;
@@ -306,7 +307,7 @@ export function AdminAttendancePanel() {
             type="date"
             className="attend-date-input"
             value={to}
-            min="2026-09-01"
+            min={ATTENDANCE_CANON_START_YMD}
             onChange={(e) => setTo(e.target.value)}
             onClick={(e) => {
               const el = e.currentTarget;
@@ -375,7 +376,7 @@ export function AdminAttendancePanel() {
         </label>
       </div>
       <p className="muted" style={{ marginTop: 0 }}>
-        Окно не больше 30 дней. Старт канона: 01.09.2026.
+        Окно не больше 30 дней. Старт учёта: 15.09.2026 (логов раньше нет).
         {data ? ` · Показано дней: ${data.days.length}` : ""}
         {` · Сервер: ${server === "TR1" ? "TR1 (тренировка)" : "PB1 (паблик)"}`}
         {" · Автообновление ~5 сек"}

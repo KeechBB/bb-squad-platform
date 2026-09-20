@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { isAdmin, syncBuiltinAdmins } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
-import { mskParts } from "@/lib/squadSessions";
+import { mskParts, ATTENDANCE_CANON_START_YMD, clampAttendanceFromYmd } from "@/lib/squadSessions";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -40,7 +40,9 @@ export async function GET(req: Request) {
   const now = new Date();
   const p = mskParts(now);
   const defaultTo = `${p.y}-${String(p.m).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
-  let fromYmd = url.searchParams.get("from") || "2026-09-01";
+  let fromYmd = clampAttendanceFromYmd(
+    url.searchParams.get("from") || ATTENDANCE_CANON_START_YMD
+  );
   let toYmd = url.searchParams.get("to") || defaultTo;
 
   // TR1 = тренировка, PB1/TPUB1 = паблик
@@ -67,6 +69,8 @@ export async function GET(req: Request) {
       fromYmd = toYmd;
       toYmd = t;
     }
+    fromYmd = clampAttendanceFromYmd(fromYmd);
+    if (toYmd < fromYmd) toYmd = fromYmd;
     const s2 = new Date(Date.UTC(
       Number(fromYmd.slice(0, 4)),
       Number(fromYmd.slice(5, 7)) - 1,

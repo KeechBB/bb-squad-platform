@@ -1,10 +1,15 @@
 import { prisma } from "@/lib/prisma";
-import { formatDurationMinutes } from "@/lib/squadSessions";
+import {
+  attendanceCanonStartUtc,
+  formatDurationMinutes,
+} from "@/lib/squadSessions";
 
 export async function loadUserTrainingStats(userId: string) {
-  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const canonStart = attendanceCanonStartUtc();
+  const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const since = since30 > canonStart ? since30 : canonStart;
   const sessions = await prisma.squadServerSession.findMany({
-    where: { userId },
+    where: { userId, joinedAt: { gte: canonStart } },
     orderBy: { joinedAt: "desc" },
     take: 40,
   });

@@ -87,6 +87,20 @@ export function formatDurationMinutes(
  */
 export type AttendanceTag = "on_time" | "late_ok" | "late" | "other";
 
+/** Старт учёта посещаемости (логов раньше нет). Дальше — по месяцам. */
+export const ATTENDANCE_CANON_START_YMD = "2026-09-15";
+
+/** Начало 15.09.2026 МСК в UTC */
+export function attendanceCanonStartUtc(): Date {
+  return new Date(Date.UTC(2026, 8, 14, 21, 0, 0));
+}
+
+export function clampAttendanceFromYmd(fromYmd: string): string {
+  return fromYmd < ATTENDANCE_CANON_START_YMD
+    ? ATTENDANCE_CANON_START_YMD
+    : fromYmd;
+}
+
 export function attendanceTag(joinedAt: Date): AttendanceTag {
   const p = mskParts(joinedAt);
   const mins = p.h * 60 + p.min;
