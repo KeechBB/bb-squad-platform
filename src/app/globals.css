@@ -3977,13 +3977,13 @@ body:has(.home-page) {
 
 .reaction-chat-empty {
   margin: 8px 0 0;
-  font-size: 0.82rem;
+  font-size: 0.9rem;
 }
 
 .reaction-chat-row p {
   margin: 2px 0 0;
-  font-size: 0.88rem;
-  line-height: 1.35;
+  font-size: 0.98rem;
+  line-height: 1.4;
   word-break: break-word;
 }
 
@@ -3991,12 +3991,13 @@ body:has(.home-page) {
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  font-size: 0.72rem;
+  font-size: 0.82rem;
   color: var(--muted);
 }
 
 .reaction-chat-nick {
   font-weight: 600;
+  font-size: 0.95rem;
   text-decoration: none;
 }
 
@@ -4019,7 +4020,7 @@ body:has(.home-page) {
   background: rgba(0, 0, 0, 0.35);
   color: inherit;
   font: inherit;
-  font-size: 0.88rem;
+  font-size: 0.95rem;
 }
 
 .reaction-chat-form .btn {
