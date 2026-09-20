@@ -6,11 +6,9 @@ import {
   ATTENDANCE_LABEL,
   TRAINING_PRESENT_MIN_MINUTES,
   attendanceTag,
-  eveningWindowOverlapMinutes,
   formatDurationMinutes,
   formatMskDateTime,
-  isTrainingPresentMinutes,
-  trainingDayYmd,
+  presentTrainingDaysFromSessions,
   type AttendanceTag,
 } from "@/lib/squadSessions";
 
@@ -135,21 +133,10 @@ export function TrainingSessionsCard({
   const [viewY, setViewY] = useState(ty);
   const [viewM, setViewM] = useState(tm);
 
-  const presentTrainingDays = useMemo(() => {
-    const minsByDay = new Map<string, number>();
-    for (const s of normalized) {
-      if (serverLabel(s.serverKey) !== "TR1") continue;
-      const mins = eveningWindowOverlapMinutes(s.joinedAt, s.leftAt);
-      if (mins <= 0) continue;
-      const day = trainingDayYmd(s.joinedAt);
-      minsByDay.set(day, (minsByDay.get(day) || 0) + mins);
-    }
-    const set = new Set<string>();
-    for (const [day, mins] of minsByDay) {
-      if (isTrainingPresentMinutes(mins)) set.add(day);
-    }
-    return set;
-  }, [normalized]);
+  const presentTrainingDays = useMemo(
+    () => presentTrainingDaysFromSessions(normalized),
+    [normalized]
+  );
 
   const avgMin = useMemo(() => {
     if (!sessions30d) return 0;

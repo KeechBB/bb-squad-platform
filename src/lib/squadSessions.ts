@@ -142,8 +142,10 @@ export function trainingDayYmd(joinedAt: Date): string {
 
 /**
  * Минуты пересечения сессии с окном 21:00–00:00 МСК дня тренировки.
- * Без leave: если зашёл до 21:00 — 0 (часто потерянный leave); если ≥21:00 —
- * считаем до min(now, 00:00).
+ * Без leave:
+ * - окно дня уже закрыто и заход до 21:00 → 0 (потерянный leave / ghost open);
+ * - окно закрыто и заход ≥21:00 → до 00:00;
+ * - день ещё идёт → до min(now, 00:00).
  */
 export function eveningWindowOverlapMinutes(
   joinedAt: Date,
@@ -156,13 +158,11 @@ export function eveningWindowOverlapMinutes(
   const winStart = new Date(Date.UTC(y, m - 1, d, 18, 0, 0));
   const winEnd = new Date(Date.UTC(y, m - 1, d, 21, 0, 0));
 
-  if (!leftAt && joinedAt.getTime() < winStart.getTime()) {
-    // Ещё онлайн, зашёл до 21:00 — считаем пересечение с окном (ранний приход).
-    // Глухие «вечные» сессии без leave отсекаем: старше 12ч до старта окна.
-    if (joinedAt.getTime() < winStart.getTime() - 12 * 3600 * 1000) {
-      return 0;
-    }
+  if (!leftAt && now.getTime() >= winEnd.getTime()) {
+    // Прошлый вечер без leave: до 21:00 не угадываем весь вечер (как в админке).
+    if (joinedAt.getTime() < winStart.getTime()) return 0;
   }
+
   const end = leftAt ?? now;
   const startMs = Math.max(joinedAt.getTime(), winStart.getTime());
   const endMs = Math.min(end.getTime(), winEnd.getTime());
@@ -172,4 +172,68 @@ export function eveningWindowOverlapMinutes(
 
 export function isTrainingPresentMinutes(minutesInWindow: number): boolean {
   return minutesInWindow >= TRAINING_PRESENT_MIN_MINUTES;
+}
+
+/**
+ * Окно тренировочного дня: с 21:00 МСК до endHourMsk (24 = 00:00, 25 = 01:00).
+ */
+export function trainingEveningWindowUtc(
+  dayYmd: string,
+  endHourMsk: number
+): { start: Date; end: Date } {
+  const [y, m, d] = dayYmd.split("-").map(Number);
+  const start = new Date(Date.UTC(y, m - 1, d, 18, 0, 0)); // 21:00 МСК
+  const end = new Date(start.getTime() + (endHourMsk - 21) * 3600 * 1000);
+  return { start, end };
+}
+
+/** Минуты пересечения сессии с окном 21:00–endHour МСК дня тренировки. */
+export function trainingWindowOverlapMinutes(
+  joinedAt: Date,
+  leftAt: Date | null,
+  endHourMsk: number,
+  now = new Date()
+): number {
+  const dayYmd = trainingDayYmd(joinedAt);
+  const { start: winStart, end: winEnd } = trainingEveningWindowUtc(
+    dayYmd,
+    endHourMsk
+  );
+
+  if (!leftAt && now.getTime() >= winEnd.getTime()) {
+    if (joinedAt.getTime() < winStart.getTime()) return 0;
+  }
+
+  const end = leftAt ?? now;
+  const startMs = Math.max(joinedAt.getTime(), winStart.getTime());
+  const endMs = Math.min(end.getTime(), winEnd.getTime());
+  if (endMs <= startMs) return 0;
+  return Math.round((endMs - startMs) / 60000);
+}
+
+export type SessionForAttendance = {
+  joinedAt: Date;
+  leftAt: Date | null;
+  serverKey?: string | null;
+};
+
+/** Дни «был» на TR1 (≥60 мин в 21:00–00:00 МСК) — общий источник для профиля и админки. */
+export function presentTrainingDaysFromSessions(
+  sessions: SessionForAttendance[],
+  now = new Date()
+): Set<string> {
+  const minsByDay = new Map<string, number>();
+  for (const s of sessions) {
+    const key = (s.serverKey || "").toUpperCase();
+    if (key && key !== "TR1") continue;
+    const mins = eveningWindowOverlapMinutes(s.joinedAt, s.leftAt, now);
+    if (mins <= 0) continue;
+    const day = trainingDayYmd(s.joinedAt);
+    minsByDay.set(day, (minsByDay.get(day) || 0) + mins);
+  }
+  const set = new Set<string>();
+  for (const [day, mins] of minsByDay) {
+    if (isTrainingPresentMinutes(mins)) set.add(day);
+  }
+  return set;
 }

@@ -122,6 +122,24 @@ export async function POST(req: Request) {
         leaves += 1;
         accepted += 1;
       }
+
+      // Уже есть заход в пределах 15с (закрытый twin Login/PostLogin) — не плодим вторую строку
+      const recent = await prisma.squadServerSession.findFirst({
+        where: {
+          steamId,
+          serverKey,
+          joinedAt: {
+            gte: new Date(at.getTime() - 15_000),
+            lte: new Date(at.getTime() + 15_000),
+          },
+        },
+        orderBy: { joinedAt: "desc" },
+      });
+      if (recent) {
+        skipped += 1;
+        continue;
+      }
+
       const eventKey = sessionEventKey(serverKey, steamId, at);
       try {
         await prisma.squadServerSession.create({

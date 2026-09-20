@@ -5,11 +5,10 @@ import { prisma } from "@/lib/prisma";
 import {
   mskParts,
   ATTENDANCE_CANON_START_YMD,
-  TRAINING_PRESENT_MIN_MINUTES,
   clampAttendanceFromYmd,
-  eveningWindowOverlapMinutes,
-  isTrainingPresentMinutes,
+  presentTrainingDaysFromSessions,
   trainingDayYmd,
+  trainingWindowOverlapMinutes,
 } from "@/lib/squadSessions";
 
 export const dynamic = "force-dynamic";
@@ -148,35 +147,73 @@ export async function GET(req: Request) {
 
   type Cell = { in: string; out: string | null; mins: number };
   const byUserDay = new Map<string, Map<string, Cell[]>>();
+  const sessionsByUser = new Map<
+    string,
+    Array<{ joinedAt: Date; leftAt: Date | null; serverKey: string }>
+  >();
+
+  function cellKey(c: Cell): string {
+    return `${c.in}|${c.out ?? "…"}`;
+  }
+
+  function pushCell(userId: string, day: string, cell: Cell) {
+    if (!byUserDay.has(userId)) byUserDay.set(userId, new Map());
+    const m = byUserDay.get(userId)!;
+    if (!m.has(day)) m.set(day, []);
+    const list = m.get(day)!;
+    // не показывать Login/PostLogin-близнецов с тем же in/out
+    if (list.some((x) => cellKey(x) === cellKey(cell))) return;
+    // почти тот же заход (±1 мин) с тем же выходом — оставить один
+    const inM = Number(cell.in.slice(0, 2)) * 60 + Number(cell.in.slice(3, 5));
+    const near = list.findIndex((x) => {
+      const xm = Number(x.in.slice(0, 2)) * 60 + Number(x.in.slice(3, 5));
+      return Math.abs(xm - inM) <= 1 && (x.out ?? "") === (cell.out ?? "");
+    });
+    if (near >= 0) {
+      if (cell.mins >= list[near].mins) list[near] = cell;
+      return;
+    }
+    list.push(cell);
+  }
 
   for (const s of sessions) {
-    const day = ymdMsk(s.joinedAt);
+    if (!sessionsByUser.has(s.userId)) sessionsByUser.set(s.userId, []);
+    sessionsByUser.get(s.userId)!.push({
+      joinedAt: s.joinedAt,
+      leftAt: s.leftAt,
+      serverKey: s.serverKey,
+    });
+
+    // TR1: колонка = день тренировки; PB1: календарный день захода
+    const day = serverKey === "TR1" ? trainingDayYmd(s.joinedAt) : ymdMsk(s.joinedAt);
     if (!days.includes(day)) continue;
     const end = s.leftAt ?? now;
     const mins = Math.max(
       0,
       Math.round((end.getTime() - s.joinedAt.getTime()) / 60000)
     );
-    if (!byUserDay.has(s.userId)) byUserDay.set(s.userId, new Map());
-    const m = byUserDay.get(s.userId)!;
-    if (!m.has(day)) m.set(day, []);
-    m.get(day)!.push({
+    pushCell(s.userId, day, {
       in: hmMsk(s.joinedAt),
       out: s.leftAt ? hmMsk(s.leftAt) : null,
       mins,
     });
   }
 
+  const daySet = new Set(days);
   const rows = users.map((u) => {
     const dayMap = byUserDay.get(u.id) || new Map();
     const cells: Record<string, Cell[]> = {};
     for (const d of days) cells[d] = dayMap.get(d) || [];
+    const presentDays = [...presentTrainingDaysFromSessions(sessionsByUser.get(u.id) || [], now)]
+      .filter((d) => daySet.has(d))
+      .sort();
     return {
       regNo: u.regNo ?? 0,
       userId: u.id,
       nick: u.nick,
       steamId: u.steamId,
       cells,
+      presentDays,
     };
   });
 
@@ -197,13 +234,40 @@ export async function GET(req: Request) {
     after2130: 0,
   };
   const weekday = [0, 0, 0, 0, 0, 0, 0];
-  /**
-   * TR1: уникальные игроки с ≥60 мин в окне 21:00–00:00 МСК
-   * PB1: уникальные игроки за полные сутки (24ч) по дню захода
-   */
-  const eveningMinsByDayUser: Record<string, Record<string, number>> = {};
-  const playersPerDay: Record<string, Set<string>> = {};
   const isPublic = serverKey === "TPUB1";
+
+  /** Уникальные в окне 21:00–00:00 (для средних) */
+  const uniqueMidnightByDay: Record<string, Set<string>> = {};
+  /** Уникальные в окне 21:00–01:00 (для календаря) */
+  const uniqueUntil01ByDay: Record<string, Set<string>> = {};
+  /** Первое вечернее касание окна 21–01: user|day → join minutes MSK */
+  const firstEveningJoinMin = new Map<string, number>();
+
+  type Slot = { label: string; minFrom: number; minTo: number };
+  const leaveSlots: Slot[] = [
+    { label: "21:00", minFrom: 21 * 60, minTo: 21 * 60 + 30 },
+    { label: "21:30", minFrom: 21 * 60 + 30, minTo: 22 * 60 },
+    { label: "22:00", minFrom: 22 * 60, minTo: 22 * 60 + 30 },
+    { label: "22:30", minFrom: 22 * 60 + 30, minTo: 23 * 60 },
+    { label: "23:00", minFrom: 23 * 60, minTo: 23 * 60 + 30 },
+    { label: "23:30", minFrom: 23 * 60 + 30, minTo: 24 * 60 },
+    { label: "00:00", minFrom: 0, minTo: 30 },
+    { label: "00:30", minFrom: 30, minTo: 60 },
+    { label: "01:00+", minFrom: 60, minTo: 21 * 60 }, // 01:00–20:59 «ранний/др»
+  ];
+  const leaveSlotUsers: Array<Set<string>> = leaveSlots.map(() => new Set());
+  const leaveOtherUsers = new Set<string>();
+
+  const joinSlots: Slot[] = [
+    { label: "≤20:00", minFrom: 0, minTo: 20 * 60 },
+    { label: "20:00", minFrom: 20 * 60, minTo: 20 * 60 + 30 },
+    { label: "20:30", minFrom: 20 * 60 + 30, minTo: 21 * 60 },
+    { label: "21:00", minFrom: 21 * 60, minTo: 21 * 60 + 30 },
+    { label: "21:30", minFrom: 21 * 60 + 30, minTo: 22 * 60 },
+    { label: "22:00", minFrom: 22 * 60, minTo: 22 * 60 + 30 },
+    { label: "22:30+", minFrom: 22 * 60 + 30, minTo: 24 * 60 },
+  ];
+  const joinSlotUsers: Array<Set<string>> = joinSlots.map(() => new Set());
 
   for (const s of sessions) {
     totalSessions += 1;
@@ -235,17 +299,54 @@ export async function GET(req: Request) {
       leaveBucket[key] = (leaveBucket[key] || 0) + 1;
     }
 
+    const day = isPublic ? ymdMsk(s.joinedAt) : trainingDayYmd(s.joinedAt);
+
     if (isPublic) {
-      const day = ymdMsk(s.joinedAt);
-      if (!playersPerDay[day]) playersPerDay[day] = new Set();
-      playersPerDay[day].add(s.userId);
+      if (!uniqueMidnightByDay[day]) uniqueMidnightByDay[day] = new Set();
+      uniqueMidnightByDay[day].add(s.userId);
+      if (!uniqueUntil01ByDay[day]) uniqueUntil01ByDay[day] = new Set();
+      uniqueUntil01ByDay[day].add(s.userId);
     } else {
-      const day = trainingDayYmd(s.joinedAt);
-      const mins = eveningWindowOverlapMinutes(s.joinedAt, s.leftAt, now);
-      if (mins > 0) {
-        if (!eveningMinsByDayUser[day]) eveningMinsByDayUser[day] = {};
-        eveningMinsByDayUser[day][s.userId] =
-          (eveningMinsByDayUser[day][s.userId] || 0) + mins;
+      if (trainingWindowOverlapMinutes(s.joinedAt, s.leftAt, 24, now) > 0) {
+        if (!uniqueMidnightByDay[day]) uniqueMidnightByDay[day] = new Set();
+        uniqueMidnightByDay[day].add(s.userId);
+      }
+      if (trainingWindowOverlapMinutes(s.joinedAt, s.leftAt, 25, now) > 0) {
+        if (!uniqueUntil01ByDay[day]) uniqueUntil01ByDay[day] = new Set();
+        uniqueUntil01ByDay[day].add(s.userId);
+
+        const fk = `${s.userId}|${day}`;
+        const prev = firstEveningJoinMin.get(fk);
+        if (prev == null || jmin < prev) {
+          firstEveningJoinMin.set(fk, jmin);
+        }
+      }
+
+      if (s.leftAt) {
+        const lp = mskParts(s.leftAt);
+        const lmin = lp.h * 60 + lp.min;
+        let placed = false;
+        for (let i = 0; i < leaveSlots.length; i++) {
+          const sl = leaveSlots[i];
+          if (sl.label === "01:00+") {
+            if (lmin >= 60 && lmin < 21 * 60) {
+              leaveSlotUsers[i].add(`${s.userId}|${day}`);
+              placed = true;
+              break;
+            }
+          } else if (sl.minFrom >= 21 * 60) {
+            if (lmin >= sl.minFrom && lmin < sl.minTo) {
+              leaveSlotUsers[i].add(`${s.userId}|${day}`);
+              placed = true;
+              break;
+            }
+          } else if (lmin >= sl.minFrom && lmin < sl.minTo) {
+            leaveSlotUsers[i].add(`${s.userId}|${day}`);
+            placed = true;
+            break;
+          }
+        }
+        if (!placed) leaveOtherUsers.add(`${s.userId}|${day}`);
       }
     }
 
@@ -257,20 +358,29 @@ export async function GET(req: Request) {
     weekday[wi] += 1;
   }
 
+  // Пересчитать first-join слоты по уникальному первому заходу вечера
   if (!isPublic) {
-    for (const [day, byUser] of Object.entries(eveningMinsByDayUser)) {
-      for (const [uid, mins] of Object.entries(byUser)) {
-        if (!isTrainingPresentMinutes(mins)) continue;
-        if (!playersPerDay[day]) playersPerDay[day] = new Set();
-        playersPerDay[day].add(uid);
+    for (let i = 0; i < joinSlotUsers.length; i++) joinSlotUsers[i].clear();
+    for (const [fk, jmin] of firstEveningJoinMin) {
+      for (let i = 0; i < joinSlots.length; i++) {
+        const sl = joinSlots[i];
+        if (jmin >= sl.minFrom && jmin < sl.minTo) {
+          joinSlotUsers[i].add(fk);
+          break;
+        }
       }
     }
   }
 
   const dayPlayerCounts = days.map((d) => ({
     day: d,
-    players: playersPerDay[d]?.size || 0,
+    players: uniqueMidnightByDay[d]?.size || 0,
   }));
+  const calendarUnique = days.map((d) => ({
+    day: d,
+    players: uniqueUntil01ByDay[d]?.size || 0,
+  }));
+
   const avgPlayers =
     dayPlayerCounts.length > 0
       ? Math.round(
@@ -280,9 +390,75 @@ export async function GET(req: Request) {
         ) / 10
       : 0;
 
+  // week / month averages from 21:00–00:00 daily uniques
+  const byWeek = new Map<string, number[]>();
+  const byMonth = new Map<string, number[]>();
+  for (const { day, players } of dayPlayerCounts) {
+    const [y, m, d] = day.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    const dow = dt.getUTCDay(); // 0 Sun
+    const mondayOffset = dow === 0 ? -6 : 1 - dow;
+    const monday = new Date(dt);
+    monday.setUTCDate(dt.getUTCDate() + mondayOffset);
+    const weekKey = monday.toISOString().slice(0, 10);
+    const monthKey = `${y}-${String(m).padStart(2, "0")}`;
+    if (!byWeek.has(weekKey)) byWeek.set(weekKey, []);
+    byWeek.get(weekKey)!.push(players);
+    if (!byMonth.has(monthKey)) byMonth.set(monthKey, []);
+    byMonth.get(monthKey)!.push(players);
+  }
+  const weekSums = [...byWeek.values()].map((arr) =>
+    arr.reduce((a, b) => a + b, 0)
+  );
+  const monthSums = [...byMonth.values()].map((arr) =>
+    arr.reduce((a, b) => a + b, 0)
+  );
+  const avgPlayersPerWeek =
+    weekSums.length > 0
+      ? Math.round((10 * weekSums.reduce((a, b) => a + b, 0)) / weekSums.length) /
+        10
+      : 0;
+  const avgPlayersPerMonth =
+    monthSums.length > 0
+      ? Math.round(
+          (10 * monthSums.reduce((a, b) => a + b, 0)) / monthSums.length
+        ) / 10
+      : 0;
+
+  let leaveCum = 0;
+  const leaveTimeline = leaveSlots.map((sl, i) => {
+    const count = leaveSlotUsers[i].size;
+    leaveCum += count;
+    return { label: sl.label, count, cumulative: leaveCum };
+  });
+  if (leaveOtherUsers.size) {
+    leaveCum += leaveOtherUsers.size;
+    leaveTimeline.push({
+      label: "др",
+      count: leaveOtherUsers.size,
+      cumulative: leaveCum,
+    });
+  }
+
+  let joinCum = 0;
+  const joinTimeline = joinSlots.map((sl, i) => {
+    const count = joinSlotUsers[i].size;
+    joinCum += count;
+    return { label: sl.label, count, cumulative: joinCum };
+  });
+
+  let onTime = 0;
+  let lateOk = 0;
+  let late = 0;
+  for (const jmin of firstEveningJoinMin.values()) {
+    if (jmin <= 21 * 60) onTime += 1;
+    else if (jmin <= 21 * 60 + 30) lateOk += 1;
+    else late += 1;
+  }
+
   const windowLabel = isPublic
     ? "00:00–24:00 МСК"
-    : `21:00–00:00 МСК (≥${TRAINING_PRESENT_MIN_MINUTES} мин)`;
+    : `21:00–00:00 МСК (средние) · календарь 21:00–01:00`;
 
   return NextResponse.json({
     from: fromYmd,
@@ -300,7 +476,13 @@ export async function GET(req: Request) {
       joinBucket,
       weekday,
       dayPlayerCounts,
+      calendarUnique,
       avgPlayersPerDay: avgPlayers,
+      avgPlayersPerWeek,
+      avgPlayersPerMonth,
+      leaveTimeline,
+      joinTimeline,
+      joinNorm: { onTime, lateOk, late, total: onTime + lateOk + late },
       windowLabel,
       windowMode: isPublic ? "day" : "evening",
     },

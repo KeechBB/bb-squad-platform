@@ -17,6 +17,8 @@ type Row = {
   nick: string | null;
   steamId: string;
   cells: Record<string, Cell[]>;
+  /** Дни «был» (≥60 мин вечером TR1) — тот же расчёт, что календарь профиля */
+  presentDays?: string[];
 };
 
 type Stats = {
@@ -28,7 +30,18 @@ type Stats = {
   joinBucket: Record<string, number>;
   weekday: number[];
   dayPlayerCounts: Array<{ day: string; players: number }>;
+  calendarUnique?: Array<{ day: string; players: number }>;
   avgPlayersPerDay: number;
+  avgPlayersPerWeek?: number;
+  avgPlayersPerMonth?: number;
+  leaveTimeline?: Array<{ label: string; count: number; cumulative: number }>;
+  joinTimeline?: Array<{ label: string; count: number; cumulative: number }>;
+  joinNorm?: {
+    onTime: number;
+    lateOk: number;
+    late: number;
+    total: number;
+  };
   windowLabel?: string;
   windowMode?: "day" | "evening";
 };
@@ -46,6 +59,20 @@ type Payload = {
 type ServerFilter = "TR1" | "PB1";
 
 const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+const MONTHS_RU = [
+  "январь",
+  "февраль",
+  "март",
+  "апрель",
+  "май",
+  "июнь",
+  "июль",
+  "август",
+  "сентябрь",
+  "октябрь",
+  "ноябрь",
+  "декабрь",
+];
 
 function ymdLabel(ymd: string): string {
   const [, m, d] = ymd.split("-");
@@ -89,8 +116,8 @@ function leaveTonePb(hm: string): "ok" | "warn" | "bad" {
 }
 
 /**
- * Минуты в окне 21:00–00:00 МСК по ячейке.
- * Без выхода: до 21:00 → 0; ≥21:00 → до 00:00 (или «сейчас», если день сегодня).
+ * Минуты в окне 21:00–00:00 МСК по ячейке (только для UI тонов).
+ * Явка «был» берётся из row.presentDays (общий расчёт с профилем).
  */
 function eveningOverlapMinutes(c: Cell, dayYmd: string): number {
   const inM = parseHm(c.in);
@@ -100,19 +127,14 @@ function eveningOverlapMinutes(c: Cell, dayYmd: string): number {
   let outM = c.out ? parseHm(c.out) : null;
   if (outM != null && outM < inM) outM += 24 * 60;
   if (outM == null) {
-    // ещё онлайн: до 21:00 — копим с 21:00; после 21:00 — с момента захода
     if (inM >= winEnd) return 0;
     if (dayYmd === todayYmdMsk()) {
       const nowM = nowMinsMsk();
-      if (nowM < winStart) return 0; // тренировка ещё не началась
+      if (nowM < winStart) return 0;
       outM = Math.min(nowM, winEnd);
       if (outM < Math.max(inM, winStart)) return 0;
     } else {
-      // прошлый день без leave: считаем до конца окна (иначе «потерянный leave» днём даст 0)
-      if (inM < winStart) {
-        // зашёл днём и нет leave — не угадываем весь вечер
-        return 0;
-      }
+      if (inM < winStart) return 0;
       outM = winEnd;
     }
   }
@@ -125,8 +147,9 @@ function eveningMinutesForDay(cells: Cell[], dayYmd: string): number {
   return cells.reduce((s, c) => s + eveningOverlapMinutes(c, dayYmd), 0);
 }
 
-function wasPresentTr1(cells: Cell[], dayYmd: string): boolean {
-  return isTrainingPresentMinutes(eveningMinutesForDay(cells, dayYmd));
+function wasPresentTr1(row: Row, dayYmd: string): boolean {
+  if (row.presentDays?.length) return row.presentDays.includes(dayYmd);
+  return isTrainingPresentMinutes(eveningMinutesForDay(row.cells[dayYmd] || [], dayYmd));
 }
 
 /** Сессия пересекается с окном тренировки 21:00–00:00 МСК */
@@ -210,7 +233,7 @@ function defaultRange(): { from: string; to: string } {
 function BarChart({
   items,
 }: {
-  items: Array<{ label: string; value: number; color?: string }>;
+  items: Array<{ label: string; value: number; color?: string; sub?: string }>;
 }) {
   const max = Math.max(1, ...items.map((i) => i.value));
   return (
@@ -228,8 +251,118 @@ function BarChart({
           </div>
           <span>{i.label}</span>
           <strong>{i.value}</strong>
+          {i.sub ? <em className="attend-bar-sub">{i.sub}</em> : null}
         </div>
       ))}
+    </div>
+  );
+}
+
+function TimelineTable({
+  rows,
+  countLabel,
+}: {
+  rows: Array<{ label: string; count: number; cumulative: number }>;
+  countLabel: string;
+}) {
+  if (!rows.length) {
+    return <p className="muted">Нет данных за период</p>;
+  }
+  return (
+    <div className="admin-table-wrap attend-timeline-wrap">
+      <table className="admin-table attend-timeline-table">
+        <thead>
+          <tr>
+            <th>Время</th>
+            <th>{countLabel}</th>
+            <th>Накопительно</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.label}>
+              <td>{r.label}</td>
+              <td>{r.count}</td>
+              <td>{r.cumulative}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function StatsMonthCalendar({
+  days,
+  counts,
+}: {
+  days: string[];
+  counts: Map<string, number>;
+}) {
+  const months = useMemo(() => {
+    const set = new Set<string>();
+    for (const d of days) set.add(d.slice(0, 7));
+    return [...set].sort();
+  }, [days]);
+
+  return (
+    <div className="attend-stats-cal-list">
+      {months.map((ym) => {
+        const [y, m] = ym.split("-").map(Number);
+        const first = new Date(Date.UTC(y, m - 1, 1));
+        const startDow = first.getUTCDay();
+        const mondayOffset = startDow === 0 ? 6 : startDow - 1;
+        const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+        const cells: Array<{ day: number | null; ymd: string | null }> = [];
+        for (let i = 0; i < mondayOffset; i++) cells.push({ day: null, ymd: null });
+        for (let d = 1; d <= daysInMonth; d++) {
+          const ymd = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+          cells.push({ day: d, ymd });
+        }
+        while (cells.length % 7 !== 0) cells.push({ day: null, ymd: null });
+        const monthName = MONTHS_RU[m - 1];
+        return (
+          <div key={ym} className="attend-stats-cal">
+            <h4>
+              {monthName} {y}
+            </h4>
+            <div className="attend-stats-cal-weekdays">
+              {WEEKDAYS.map((w) => (
+                <span key={w}>{w}</span>
+              ))}
+            </div>
+            <div className="attend-stats-cal-grid">
+              {cells.map((c, i) => {
+                if (!c.ymd || c.day == null) {
+                  return <div key={`e-${ym}-${i}`} className="attend-stats-cal-cell empty" />;
+                }
+                const inRange = days.includes(c.ymd);
+                const n = counts.get(c.ymd) || 0;
+                return (
+                  <div
+                    key={c.ymd}
+                    className={`attend-stats-cal-cell${inRange ? " in-range" : ""}${
+                      n > 0 ? " has-players" : ""
+                    }`}
+                    title={
+                      inRange
+                        ? `${c.ymd}: ${n} уникальных (21:00–01:00)`
+                        : "Вне выбранного периода"
+                    }
+                  >
+                    <span className="attend-stats-cal-day">{c.day}</span>
+                    {inRange ? (
+                      <span className="attend-stats-cal-num">{n || "·"}</span>
+                    ) : (
+                      <span className="attend-stats-cal-num muted">·</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -296,15 +429,17 @@ export function AdminAttendancePanel() {
     return list.filter((r) => {
       const decidedDays = data.days.filter((d) => {
         if (!isTr) return d <= todayYmdMsk();
-        const mins = eveningMinutesForDay(r.cells[d] || [], d);
+        const mins = wasPresentTr1(r, d)
+          ? TRAINING_PRESENT_MIN_MINUTES
+          : eveningMinutesForDay(r.cells[d] || [], d);
         return absenceDecided(d, mins);
       });
       if (!decidedDays.length) return false;
       const wasPresent = decidedDays.some((d) => {
         const cells = r.cells[d] || [];
-        if (!cells.length) return false;
-        if (!isTr) return true;
-        return wasPresentTr1(cells, d);
+        if (!cells.length && !(r.presentDays || []).includes(d)) return false;
+        if (!isTr) return cells.length > 0;
+        return wasPresentTr1(r, d);
       });
       return !wasPresent;
     });
@@ -511,6 +646,13 @@ export function AdminAttendancePanel() {
                         );
                       }
                       if (isTr) {
+                        if (wasPresentTr1(r, d)) {
+                          return (
+                            <td key={d}>
+                              <span className="attend-cell attend-present">был</span>
+                            </td>
+                          );
+                        }
                         const empty = emptyTrLabel(d);
                         return (
                           <td key={d}>
@@ -571,98 +713,115 @@ export function AdminAttendancePanel() {
       ) : null}
 
       {tab === "stats" && data ? (
-        <div className="attend-stats-grid">
+        <div className="attend-stats-grid attend-stats-grid-v2">
           <div className="training-chart-block">
-            <h3>Сводка</h3>
+            <h3>Средние (окно 21:00–00:00)</h3>
             <div className="meta-row">
-              <span>Сессий</span>
-              <span>{data.stats.totalSessions}</span>
-            </div>
-            <div className="meta-row">
-              <span>Уникальных игроков</span>
-              <span>{data.stats.uniquePlayers}</span>
-            </div>
-            <div className="meta-row">
-              <span>Сумма минут</span>
-              <span>{data.stats.totalMinutes}</span>
-            </div>
-            <div className="meta-row">
-              <span>Сред. мин / сессия</span>
-              <span>{data.stats.avgSessionMin}</span>
-            </div>
-            <div className="meta-row">
-              <span>
-                {data.stats.windowMode === "day" || data.server === "PB1"
-                  ? "Сред. игроков / сутки"
-                  : "Сред. игроков / вечер"}
-              </span>
+              <span>В среднем за день</span>
               <span>{data.stats.avgPlayersPerDay}</span>
             </div>
-            <p className="muted" style={{ margin: "6px 0 0", fontSize: "0.78rem" }}>
-              Окно{" "}
-              {data.stats.windowLabel ||
-                (data.server === "PB1" ? "00:00–24:00 МСК" : "21:00–00:00 МСК")}
+            <div className="meta-row">
+              <span>В среднем за неделю</span>
+              <span>{data.stats.avgPlayersPerWeek ?? "—"}</span>
+            </div>
+            <div className="meta-row">
+              <span>В среднем за месяц</span>
+              <span>{data.stats.avgPlayersPerMonth ?? "—"}</span>
+            </div>
+            <p className="muted" style={{ margin: "8px 0 0", fontSize: "0.78rem" }}>
+              Уникальные игроки с пересечением 21:00–00:00 МСК. Неделя/месяц —
+              сумма вечерних уникальных по дням, усреднённая по неделям/месяцам
+              в выбранном периоде.
             </p>
           </div>
 
           <div className="training-chart-block">
-            <h3>Выход по часам (МСК)</h3>
-            <BarChart
-              items={[
-                { label: "21", value: data.stats.leaveBucket["21"] || 0 },
-                { label: "22", value: data.stats.leaveBucket["22"] || 0, color: "linear-gradient(180deg,#86efac,#16a34a)" },
-                { label: "23", value: data.stats.leaveBucket["23"] || 0, color: "linear-gradient(180deg,#fde047,#ca8a04)" },
-                { label: "00", value: data.stats.leaveBucket["00"] || 0, color: "linear-gradient(180deg,#fca5a5,#dc2626)" },
-                { label: "01", value: data.stats.leaveBucket["01"] || 0 },
-                { label: "др", value: data.stats.leaveBucket.other || 0 },
-              ]}
-            />
+            <h3>Норма захода</h3>
+            {data.stats.joinNorm ? (
+              <>
+                <div className="attend-norm-row">
+                  <div className="attend-norm-pill ok">
+                    <strong>{data.stats.joinNorm.onTime}</strong>
+                    <span>≤21:00 норм</span>
+                  </div>
+                  <div className="attend-norm-pill warn">
+                    <strong>{data.stats.joinNorm.lateOk}</strong>
+                    <span>21:00–21:30</span>
+                  </div>
+                  <div className="attend-norm-pill bad">
+                    <strong>{data.stats.joinNorm.late}</strong>
+                    <span>после 21:30</span>
+                  </div>
+                </div>
+                <p className="muted" style={{ margin: "8px 0 0", fontSize: "0.78rem" }}>
+                  По первому заходу в вечер (21:00–01:00), человек×день:{" "}
+                  {data.stats.joinNorm.total}
+                </p>
+              </>
+            ) : (
+              <p className="muted">Для PB1 норма захода не считается</p>
+            )}
           </div>
 
-          <div className="training-chart-block">
-            <h3>Заход (метка)</h3>
+          <div className="training-chart-block" style={{ gridColumn: "1 / -1" }}>
+            <h3>Выходы — сколько и во сколько ушли</h3>
             <BarChart
-              items={[
-                {
-                  label: "≤21:00",
-                  value: data.stats.joinBucket.before21 || 0,
-                  color: "linear-gradient(180deg,#86efac,#16a34a)",
-                },
-                {
-                  label: "21–21:30",
-                  value: data.stats.joinBucket["2130"] || 0,
-                  color: "linear-gradient(180deg,#fde047,#ca8a04)",
-                },
-                {
-                  label: ">21:30",
-                  value: data.stats.joinBucket.after2130 || 0,
-                  color: "linear-gradient(180deg,#fca5a5,#dc2626)",
-                },
-              ]}
-            />
-          </div>
-
-          <div className="training-chart-block">
-            <h3>По дням недели</h3>
-            <BarChart
-              items={WEEKDAYS.map((label, i) => ({
-                label,
-                value: data.stats.weekday[i] || 0,
+              items={(data.stats.leaveTimeline || []).map((x) => ({
+                label: x.label,
+                value: x.count,
+                sub: `Σ${x.cumulative}`,
+                color:
+                  x.label.startsWith("23") || x.label.startsWith("00")
+                    ? "linear-gradient(180deg,#86efac,#16a34a)"
+                    : x.label.startsWith("22")
+                      ? "linear-gradient(180deg,#fde047,#ca8a04)"
+                      : undefined,
               }))}
+            />
+            <TimelineTable
+              rows={data.stats.leaveTimeline || []}
+              countLabel="Ушли"
             />
           </div>
 
           <div className="training-chart-block" style={{ gridColumn: "1 / -1" }}>
-            <h3>
-              {data.stats.windowMode === "day" || data.server === "PB1"
-                ? "Игроков по суткам (24ч)"
-                : "Игроков по вечерам (21:00–00:00)"}
-            </h3>
+            <h3>Заходы — сколько и когда зашли (+ накопительно)</h3>
             <BarChart
-              items={data.stats.dayPlayerCounts.map((x) => ({
-                label: ymdLabel(x.day),
-                value: x.players,
+              items={(data.stats.joinTimeline || []).map((x) => ({
+                label: x.label,
+                value: x.count,
+                sub: `Σ${x.cumulative}`,
+                color:
+                  x.label === "21:00" ||
+                  x.label.startsWith("≤") ||
+                  x.label.startsWith("20")
+                    ? "linear-gradient(180deg,#86efac,#16a34a)"
+                    : x.label === "21:30"
+                      ? "linear-gradient(180deg,#fde047,#ca8a04)"
+                      : "linear-gradient(180deg,#fca5a5,#dc2626)",
               }))}
+            />
+            <TimelineTable
+              rows={data.stats.joinTimeline || []}
+              countLabel="Зашли"
+            />
+          </div>
+
+          <div className="training-chart-block" style={{ gridColumn: "1 / -1" }}>
+            <h3>Календарь уникальных (21:00–01:00)</h3>
+            <p className="muted" style={{ marginTop: 0 }}>
+              Цифра на дате — сколько уникальных было в окне 21:00–01:00 МСК.
+              Вне этого окна в цифру не входят.
+            </p>
+            <StatsMonthCalendar
+              days={data.days}
+              counts={
+                new Map(
+                  (data.stats.calendarUnique || data.stats.dayPlayerCounts).map(
+                    (x) => [x.day, x.players]
+                  )
+                )
+              }
             />
           </div>
         </div>
