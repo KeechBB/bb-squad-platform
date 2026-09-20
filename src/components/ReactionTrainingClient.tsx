@@ -13,6 +13,7 @@ import {
   REACTION_L3_SPAWN_EVERY_MS,
   REACTION_L3_SPAWN_MAX,
   REACTION_L3_SPAWN_MIN,
+  REACTION_MISS_PENALTY_MS,
   averageMs,
   formatScore,
   formatSec3,
@@ -86,6 +87,7 @@ export function ReactionTrainingClient() {
   const [level, setLevel] = useState<Level>(1);
   const [phase, setPhase] = useState<Phase>("idle");
   const [attempts, setAttempts] = useState<number[]>([]);
+  const [missFlags, setMissFlags] = useState<boolean[]>([]);
   const [live, setLive] = useState<LivePlayer[]>([]);
   const [lastAvg, setLastAvg] = useState<number | null>(null);
   const [myBest, setMyBest] = useState<number | null>(null);
@@ -274,6 +276,7 @@ export function ReactionTrainingClient() {
       return;
     }
     setAttempts([]);
+    setMissFlags([]);
     setLastAvg(null);
     setMsg("");
     startAttempt();
@@ -366,6 +369,7 @@ export function ReactionTrainingClient() {
     clearL3Timers();
     setLevel(lv);
     setAttempts([]);
+    setMissFlags([]);
     setLastAvg(null);
     setMsg("");
     setCircle(null);
@@ -378,11 +382,17 @@ export function ReactionTrainingClient() {
     setPhase("idle");
   }
 
-  function recordAttempt(ms: number) {
+  function recordAttempt(ms: number, missed: boolean) {
     const next = [...attempts, ms];
+    const nextMiss = [...missFlags, missed];
     setAttempts(next);
+    setMissFlags(nextMiss);
     setCircle(null);
-    setMsg("");
+    setMsg(
+      missed
+        ? `Промах · штраф ${formatSec3(REACTION_MISS_PENALTY_MS)} с`
+        : ""
+    );
 
     if (next.length >= REACTION_ATTEMPTS) {
       void finishSeries(next);
@@ -533,14 +543,12 @@ export function ReactionTrainingClient() {
     const target = e.target as HTMLElement;
     if (!target.closest(".reaction-dot")) {
       clearTimer();
-      setMsg("Мимо! Жди следующий круг — попытка заново.");
-      setCircle(null);
-      startAttempt();
+      recordAttempt(REACTION_MISS_PENALTY_MS, true);
       return;
     }
 
     const ms = roundMs3(performance.now() - appearAtRef.current);
-    recordAttempt(ms);
+    recordAttempt(ms, false);
   }
 
   const busy =
@@ -566,7 +574,7 @@ export function ReactionTrainingClient() {
           <p className="muted" style={{ margin: "6px 0 0" }}>
             {level === 3
               ? "30 с · каждые 0.3 с 3–5 шариков · живут 1 с · попадание +10 · промах −5"
-              : "10 попыток · круг через 1–10 с · результат в секундах · промах = попытка заново"}
+              : "10 попыток · круг через 1–10 с · результат в секундах · промах = штраф 1.000 с"}
           </p>
         </div>
         <div className="reaction-best-chip">
@@ -735,6 +743,7 @@ export function ReactionTrainingClient() {
                     setPhase("idle");
                     setCircle(null);
                     setAttempts([]);
+                    setMissFlags([]);
                     setL3Balls([]);
                     l3BallsRef.current = [];
                     setMsg("Остановлено");
@@ -844,8 +853,16 @@ export function ReactionTrainingClient() {
           ) : (
             <ol className="reaction-attempts">
               {Array.from({ length: REACTION_ATTEMPTS }, (_, i) => (
-                <li key={i} className={attempts[i] != null ? "filled" : ""}>
-                  <span>#{i + 1}</span>
+                <li
+                  key={i}
+                  className={`${attempts[i] != null ? "filled" : ""}${
+                    missFlags[i] ? " miss" : ""
+                  }`}
+                >
+                  <span>
+                    #{i + 1}
+                    {missFlags[i] ? " · штраф" : ""}
+                  </span>
                   <strong>
                     {attempts[i] != null ? `${formatSec3(attempts[i])} с` : "—"}
                   </strong>

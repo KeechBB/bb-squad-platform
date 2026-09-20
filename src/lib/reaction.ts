@@ -9,7 +9,7 @@ export const REACTION_DELAY_MAX_S = 10;
 /** Слишком быстро = чит / промах по замеру */
 export const REACTION_MIN_MS = 80;
 export const REACTION_MAX_MS = 5000;
-/** @deprecated штраф больше не используется на ур.1–2 */
+/** Штраф за клик мимо круга на ур.1–2 (1 секунда) */
 export const REACTION_MISS_PENALTY_MS = 1000;
 
 /** Уровень 3 — волна шариков */
