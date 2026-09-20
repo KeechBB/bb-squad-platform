@@ -431,7 +431,7 @@ a:hover { color: #c4b5fd; }
     "head head"
     "account training";
   gap: 8px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .profile-page-empty {
@@ -441,6 +441,7 @@ a:hover { color: #c4b5fd; }
 
 .profile-area-head {
   grid-area: head;
+  align-self: start;
 }
 
 .profile-head-cluster {
@@ -516,18 +517,38 @@ a:hover { color: #c4b5fd; }
 
 .profile-area-account {
   grid-area: account;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-  align-content: start;
   min-width: 0;
+  min-height: 0;
+  align-self: stretch;
 }
 
 .profile-area-training {
   grid-area: training;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-  align-content: start;
   min-width: 0;
+  min-height: 0;
+  align-self: stretch;
+}
+
+.profile-area-account > .profile-kv-card,
+.profile-area-training > .training-sessions-card {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.profile-area-account > .profile-kv-card > .profile-kv-block:last-child {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin-top: auto;
 }
 
 .profile-page .card {
@@ -743,7 +764,7 @@ a:hover { color: #c4b5fd; }
 
 .profile-kv-table-wrap {
   margin-top: 4px;
-  max-height: 220px;
+  max-height: 280px;
   overflow: auto;
   border: 1px solid rgba(167, 139, 250, 0.12);
   border-radius: 10px;
@@ -841,11 +862,20 @@ a:hover { color: #c4b5fd; }
 }
 
 .profile-page .training-sessions-card .admin-table-wrap {
-  margin-top: 6px;
-  max-height: 220px;
+  margin-top: auto;
+  flex: 1 1 auto;
+  min-height: 180px;
+  max-height: none;
   overflow: auto;
   border: 1px solid rgba(167, 139, 250, 0.12);
   border-radius: 10px;
+}
+
+.profile-page .profile-kv-table-wrap {
+  flex: 1 1 auto;
+  min-height: 180px;
+  max-height: none;
+  overflow: auto;
 }
 
 .profile-page .training-sessions-table {
