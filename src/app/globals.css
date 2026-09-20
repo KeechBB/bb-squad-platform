@@ -40,9 +40,12 @@ a:hover { color: #c4b5fd; }
 
 .shell:has(.clan-page),
 .shell:has(.clan-detail) {
-  max-width: 1200px;
+  max-width: 1800px;
   margin-left: auto;
   margin-right: auto;
+  width: 100%;
+  padding-left: clamp(12px, 2vw, 28px);
+  padding-right: clamp(12px, 2vw, 28px);
 }
 
 .clan-page,
