@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { SitePresenceBadge } from "@/components/SitePresenceBadge";
 
 type Props = {
   nick: string;
@@ -10,6 +11,7 @@ type Props = {
   initialAvatar: string | null;
   steamAvatar: string | null;
   adminLink?: ReactNode;
+  lastSeenAt?: string | Date | null;
 };
 
 type Phase = "idle" | "chooser" | "pending";
@@ -20,6 +22,7 @@ export function AvatarEditor({
   initialAvatar,
   steamAvatar,
   adminLink,
+  lastSeenAt,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -170,6 +173,7 @@ export function AvatarEditor({
           <p className="eyebrow">профиль</p>
           <div className="profile-head-title-row">
             <h1>{nick}</h1>
+            <SitePresenceBadge lastSeenAt={lastSeenAt} />
             {adminLink}
           </div>
           <p className="lead">{name}</p>

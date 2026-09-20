@@ -86,6 +86,7 @@ export default async function ProfilePage() {
             initialAvatar={displayAvatar}
             steamAvatar={u.steamAvatar || null}
             adminLink={<AdminPanelLink initialAdmin={admin} />}
+            lastSeenAt={me.lastSeenAt}
           />
           <ReservePanel
             compact

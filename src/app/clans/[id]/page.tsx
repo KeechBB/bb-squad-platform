@@ -40,6 +40,7 @@ export default async function ClanPage({ params }: Props) {
               reserveUntil: true,
               reserveReason: true,
               updatedAt: true,
+              lastSeenAt: true,
             },
           },
           title: { select: { id: true, name: true } },
@@ -156,6 +157,7 @@ export default async function ClanPage({ params }: Props) {
             reserveUntil: m.user.reserveUntil?.toISOString() ?? null,
             reserveReason: m.user.reserveReason,
             updatedAt: m.user.updatedAt.toISOString(),
+            lastSeenAt: m.user.lastSeenAt?.toISOString() ?? null,
           },
         }))}
         titles={clan.titles}

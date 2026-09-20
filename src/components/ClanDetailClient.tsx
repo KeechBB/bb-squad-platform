@@ -28,6 +28,7 @@ import {
   tallyRosterBuckets,
 } from "@/lib/tiers";
 import { ClanRosterChart } from "@/components/ClanRosterChart";
+import { SitePresenceBadge } from "@/components/SitePresenceBadge";
 
 type Member = {
   id: string;
@@ -43,6 +44,7 @@ type Member = {
     reserveUntil?: string | null;
     reserveReason?: string | null;
     updatedAt?: string | null;
+    lastSeenAt?: string | null;
   };
 };
 type SquadMember = {
@@ -264,6 +266,11 @@ export function ClanDetailClient({
               ? typeof m.user.updatedAt === "string"
                 ? m.user.updatedAt
                 : new Date(m.user.updatedAt).toISOString()
+              : null,
+            lastSeenAt: m.user.lastSeenAt
+              ? typeof m.user.lastSeenAt === "string"
+                ? m.user.lastSeenAt
+                : new Date(m.user.lastSeenAt).toISOString()
               : null,
           },
         }))
@@ -1098,6 +1105,10 @@ export function ClanDetailClient({
                               ) : (
                                 <span>{m.user.steamName || "—"}</span>
                               )}
+                              <SitePresenceBadge
+                                lastSeenAt={m.user.lastSeenAt}
+                                compact
+                              />
                               {isActiveReserve(
                                 m.user.reserveUntil
                                   ? new Date(m.user.reserveUntil)

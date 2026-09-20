@@ -15,6 +15,7 @@ import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
 import { TrainingSessionsCard } from "@/components/TrainingSessionsCard";
 import { LivePageRefresh } from "@/components/LivePageRefresh";
 import { ProfileKvStats } from "@/components/ProfileKvStats";
+import { SitePresenceBadge } from "@/components/SitePresenceBadge";
 import { loadUserTrainingStats } from "@/lib/trainingStats";
 import { buildPlayerKvStats } from "@/lib/kvStats";
 
@@ -116,7 +117,10 @@ export default async function PlayerProfilePage({ params }: Props) {
             )}
             <div className="profile-head-text">
               <p className="eyebrow">профиль игрока</p>
-              <h1>{user.nick}</h1>
+              <div className="profile-head-title-row">
+                <h1>{user.nick}</h1>
+                <SitePresenceBadge lastSeenAt={user.lastSeenAt} />
+              </div>
               <p className="muted">{user.name || "—"}</p>
               <p style={{ marginTop: 10 }}>
                 <Link className="kv-link" href="/clans" style={{ marginTop: 0 }}>

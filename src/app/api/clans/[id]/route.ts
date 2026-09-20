@@ -53,6 +53,7 @@ export async function GET(_req: Request, ctx: Ctx) {
               reserveUntil: true,
               reserveReason: true,
               updatedAt: true,
+              lastSeenAt: true,
             },
           },
           title: { select: { id: true, name: true } },
