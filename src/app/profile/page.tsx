@@ -79,22 +79,25 @@ export default async function ProfilePage() {
   return (
     <main className="profile-page">
       <div className="profile-area-head">
-        <AvatarEditor
-          nick={me.nick || u.nick || "Игрок"}
-          name={me.name || u.name || ""}
-          initialAvatar={displayAvatar}
-          steamAvatar={u.steamAvatar || null}
-          adminLink={<AdminPanelLink initialAdmin={admin} />}
-        />
+        <div className="profile-head-cluster">
+          <AvatarEditor
+            nick={me.nick || u.nick || "Игрок"}
+            name={me.name || u.name || ""}
+            initialAvatar={displayAvatar}
+            steamAvatar={u.steamAvatar || null}
+            adminLink={<AdminPanelLink initialAdmin={admin} />}
+          />
+          <ReservePanel
+            compact
+            active={reserveActive}
+            untilLabel={reserveUntilLabel}
+            reason={reserveActive ? me.reserveReason || null : null}
+          />
+        </div>
       </div>
 
       <div className="profile-area-side">
         <ClanInvites initial={invites} />
-        <ReservePanel
-          active={reserveActive}
-          untilLabel={reserveUntilLabel}
-          reason={reserveActive ? me.reserveReason || null : null}
-        />
         {clans.length > 0 ? (
           <section className="card">
             <h2>Клан</h2>

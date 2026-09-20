@@ -8,9 +8,10 @@ type Props = {
   active: boolean;
   untilLabel: string | null;
   reason: string | null;
+  compact?: boolean;
 };
 
-export function ReservePanel({ active, untilLabel, reason }: Props) {
+export function ReservePanel({ active, untilLabel, reason, compact = false }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [until, setUntil] = useState("");
@@ -63,7 +64,7 @@ export function ReservePanel({ active, untilLabel, reason }: Props) {
   }
 
   return (
-    <section className="card">
+    <section className={`card reserve-panel${compact ? " reserve-panel-compact" : ""}`}>
       <h2>Резерв</h2>
       {active ? (
         <>
@@ -86,9 +87,9 @@ export function ReservePanel({ active, untilLabel, reason }: Props) {
           </button>
         </>
       ) : open ? (
-        <form className="form" onSubmit={enterReserve} style={{ marginTop: 8 }}>
+        <form className="form" onSubmit={enterReserve} style={{ marginTop: 6 }}>
           <label className="field">
-            <span>Укажите дату до которой уходите в резерв</span>
+            <span>Дата до</span>
             <input
               type="text"
               inputMode="numeric"
@@ -98,23 +99,22 @@ export function ReservePanel({ active, untilLabel, reason }: Props) {
               maxLength={10}
               required
             />
-            <span className="field-hint">Формат ДД.ММ.ГГГГ</span>
           </label>
           <label className="field">
-            <span>Причина резерва</span>
+            <span>Причина</span>
             <textarea
               value={why}
               onChange={(e) => setWhy(e.target.value)}
-              rows={3}
+              rows={compact ? 2 : 3}
               maxLength={300}
               required
-              placeholder="Учёба, работа, отпуск…"
+              placeholder="Учёба, работа…"
             />
           </label>
           {error ? <p className="error">{error}</p> : null}
           <div className="avatar-actions">
             <button type="submit" className="btn primary" disabled={loading}>
-              {loading ? "…" : "Подтвердить"}
+              {loading ? "…" : "Ок"}
             </button>
             <button
               type="button"
@@ -131,13 +131,16 @@ export function ReservePanel({ active, untilLabel, reason }: Props) {
         </form>
       ) : (
         <>
-          <p className="muted" style={{ marginTop: 4 }}>
-            Если не можешь играть какое-то время — уйди в резерв с датой и причиной.
-          </p>
+          {!compact ? (
+            <p className="muted" style={{ marginTop: 4 }}>
+              Если не можешь играть какое-то время — уйди в резерв с датой и причиной.
+            </p>
+          ) : (
+            <p className="muted reserve-panel-hint">Не играешь — в резерв</p>
+          )}
           <button
             type="button"
             className="btn primary"
-            style={{ marginTop: 12 }}
             onClick={() => setOpen(true)}
           >
             Уйти в резерв

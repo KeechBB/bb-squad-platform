@@ -421,7 +421,7 @@ a:hover { color: #c4b5fd; }
 /* Широкий профиль: всё в одном экране, без длинной колонки */
 .shell:has(.profile-page) {
   max-width: 1760px;
-  padding: 20px 22px 28px;
+  padding: 10px 16px 14px;
 }
 
 .profile-page {
@@ -430,7 +430,7 @@ a:hover { color: #c4b5fd; }
   grid-template-areas:
     "head side"
     "account training";
-  gap: 14px;
+  gap: 8px;
   align-items: start;
 }
 
@@ -443,17 +443,33 @@ a:hover { color: #c4b5fd; }
   grid-area: head;
 }
 
+.profile-head-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 10px 12px;
+}
+
+.profile-page .hero {
+  margin-bottom: 0;
+}
+
+.profile-page .hero-profile {
+  gap: 8px;
+}
+
 .profile-area-side {
   grid-area: side;
   display: grid;
-  gap: 12px;
+  gap: 8px;
   align-content: start;
 }
 
 .profile-area-account {
   grid-area: account;
   display: grid;
-  gap: 12px;
+  gap: 8px;
   align-content: start;
   min-width: 0;
 }
@@ -461,39 +477,86 @@ a:hover { color: #c4b5fd; }
 .profile-area-training {
   grid-area: training;
   display: grid;
-  gap: 12px;
+  gap: 8px;
   align-content: start;
   min-width: 0;
 }
 
 .profile-page .card {
-  padding: 14px 16px;
+  padding: 10px 12px;
 }
 
 .profile-page .card h2 {
-  margin: 0 0 6px;
-  font-size: 1.05rem;
+  margin: 0 0 4px;
+  font-size: 0.98rem;
 }
 
 .profile-page .profile-avatar {
-  width: 132px;
-  height: 132px;
-  border-radius: 18px;
+  width: 96px;
+  height: 96px;
+  border-radius: 14px;
 }
 
 .profile-page .profile-avatar-fallback {
-  font-size: 2.4rem;
+  font-size: 1.8rem;
 }
 
 .profile-page .eyebrow {
-  margin-bottom: 4px;
+  margin-bottom: 2px;
+  font-size: 0.72rem;
 }
 
 .profile-page .profile-head-text h1 {
   margin: 0;
-  font-size: clamp(1.6rem, 2.4vw, 2.2rem);
+  font-size: clamp(1.35rem, 2vw, 1.85rem);
   font-family: var(--font-display);
   line-height: 1.1;
+}
+
+.profile-page .lead {
+  margin-top: 2px;
+  font-size: 0.9rem;
+}
+
+.reserve-panel-compact {
+  max-width: 200px;
+  width: 100%;
+  flex: 0 0 auto;
+  align-self: flex-start;
+  padding: 8px 10px;
+}
+
+.reserve-panel-compact h2 {
+  font-size: 0.88rem;
+  margin: 0 0 2px;
+}
+
+.reserve-panel-compact .reserve-panel-hint {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  line-height: 1.25;
+}
+
+.reserve-panel-compact .btn {
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  width: 100%;
+  margin-top: 0;
+}
+
+.reserve-panel-compact .reserve-status {
+  font-size: 0.78rem;
+  margin: 0 0 6px;
+  line-height: 1.3;
+}
+
+.reserve-panel-compact .form {
+  gap: 6px;
+}
+
+.reserve-panel-compact .field span,
+.reserve-panel-compact .field-hint {
+  font-size: 0.72rem;
 }
 
 .profile-head-title-row {
@@ -530,24 +593,24 @@ a:hover { color: #c4b5fd; }
 .profile-kv-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 10px;
+  gap: 6px;
+  margin-top: 6px;
 }
 
 .profile-kv-summary > div,
 .profile-kv-extra > div {
   background: rgba(167, 139, 250, 0.06);
   border: 1px solid rgba(167, 139, 250, 0.12);
-  border-radius: 12px;
-  padding: 8px 10px;
+  border-radius: 10px;
+  padding: 6px 8px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .profile-kv-summary strong,
 .profile-kv-extra strong {
-  font-size: 1.15rem;
+  font-size: 1rem;
   color: var(--ink);
   line-height: 1.15;
 }
@@ -568,24 +631,24 @@ a:hover { color: #c4b5fd; }
 .profile-kv-extra {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 8px;
+  gap: 6px;
+  margin-top: 6px;
 }
 
 .profile-kv-awards {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
+  gap: 4px;
+  margin-top: 6px;
 }
 
 .profile-kv-award {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   color: var(--muted);
   background: rgba(10, 8, 18, 0.45);
   border: 1px solid rgba(167, 139, 250, 0.16);
   border-radius: 999px;
-  padding: 4px 10px;
+  padding: 3px 8px;
 }
 
 .profile-kv-award b {
@@ -596,20 +659,22 @@ a:hover { color: #c4b5fd; }
 .profile-kv-stacks {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
+  gap: 6px;
+  margin-top: 6px;
 }
 
 .profile-kv-block {
-  margin-top: 14px;
+  margin-top: 8px;
 }
 
 .profile-kv-award-list {
   list-style: none;
-  margin: 6px 0 0;
+  margin: 4px 0 0;
   padding: 0;
   display: grid;
-  gap: 4px;
+  gap: 2px;
+  max-height: 72px;
+  overflow: auto;
 }
 
 .profile-kv-award-list li {
@@ -617,17 +682,17 @@ a:hover { color: #c4b5fd; }
   grid-template-columns: 36px 1fr auto;
   gap: 8px;
   align-items: center;
-  font-size: 0.84rem;
-  padding: 4px 0;
+  font-size: 0.78rem;
+  padding: 2px 0;
   border-bottom: 1px solid rgba(167, 139, 250, 0.08);
 }
 
 .profile-kv-table-wrap {
-  margin-top: 6px;
-  max-height: 280px;
+  margin-top: 4px;
+  max-height: 140px;
   overflow: auto;
   border: 1px solid rgba(167, 139, 250, 0.12);
-  border-radius: 12px;
+  border-radius: 10px;
 }
 
 .profile-kv-table {
@@ -663,19 +728,19 @@ a:hover { color: #c4b5fd; }
 
 .profile-page .lead,
 .profile-page .profile-head-text .muted {
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .profile-account-meta {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  column-gap: 18px;
+  column-gap: 14px;
 }
 
 .profile-page .meta-row {
-  padding: 5px 0;
-  grid-template-columns: 110px 1fr;
-  font-size: 0.9rem;
+  padding: 3px 0;
+  grid-template-columns: 100px 1fr;
+  font-size: 0.84rem;
 }
 
 .profile-kv-stub {
@@ -688,45 +753,45 @@ a:hover { color: #c4b5fd; }
 }
 
 .profile-page .training-stat-row {
-  margin-top: 10px;
-  gap: 8px;
+  margin-top: 6px;
+  gap: 6px;
 }
 
 .profile-page .training-stat-row > div {
-  padding: 8px 10px;
+  padding: 6px 8px;
 }
 
 .profile-page .training-stat-row strong {
-  font-size: 1.05rem;
+  font-size: 0.95rem;
 }
 
 .profile-page .training-charts {
-  margin-top: 10px;
-  gap: 10px;
+  margin-top: 6px;
+  gap: 6px;
 }
 
 .profile-page .training-chart-block {
-  padding: 10px 12px;
+  padding: 8px 10px;
 }
 
 .profile-page .training-bars {
-  min-height: 72px;
+  min-height: 56px;
 }
 
 .profile-page .training-bar-track {
-  height: 56px;
+  height: 44px;
 }
 
 .profile-page .training-avg-big strong {
-  font-size: 1.8rem;
+  font-size: 1.4rem;
 }
 
 .profile-page .training-sessions-card .admin-table-wrap {
-  margin-top: 10px;
-  max-height: 220px;
+  margin-top: 6px;
+  max-height: 140px;
   overflow: auto;
   border: 1px solid rgba(167, 139, 250, 0.12);
-  border-radius: 12px;
+  border-radius: 10px;
 }
 
 .profile-page .training-sessions-table {
