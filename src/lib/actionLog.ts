@@ -14,6 +14,8 @@ export type WriteActionLogInput = {
   clanId?: string | null;
   clanTag?: string | null;
   meta?: Record<string, unknown> | null;
+  /** Для бэкофилла исторических событий */
+  createdAt?: Date | null;
 };
 
 export function personLabel(u: {
@@ -54,6 +56,7 @@ export async function writeActionLog(input: WriteActionLogInput): Promise<void> 
           input.meta == null
             ? undefined
             : (input.meta as Prisma.InputJsonValue),
+        ...(input.createdAt ? { createdAt: input.createdAt } : {}),
       },
     });
   } catch (err) {

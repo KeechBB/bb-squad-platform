@@ -72,7 +72,7 @@ export async function POST(req: Request) {
   await writeActionLog({
     category: "profile",
     action: "reserve_enter",
-    message: `${personLabel(me)} ушёл в резерв до ${untilRaw}: ${reason}`,
+    message: `${personLabel(me)} ушёл в резерв до ${untilRaw} (причина: ${reason})`,
     actorId: me.id,
     actorNick: personLabel(me),
     meta: { until: until.toISOString(), reason },
@@ -122,7 +122,7 @@ export async function DELETE() {
   await writeActionLog({
     category: "profile",
     action: "reserve_exit",
-    message: `${personLabel(me)} вышел из резерва`,
+    message: `${personLabel(me)} вернулся из резерва`,
     actorId: me.id,
     actorNick: personLabel(me),
   });

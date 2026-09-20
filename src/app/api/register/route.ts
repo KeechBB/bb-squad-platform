@@ -9,6 +9,7 @@ import {
   parseBirthDate,
 } from "@/lib/validation";
 import { assignRegNoIfNeeded } from "@/lib/regNo";
+import { personLabel, writeActionLog } from "@/lib/actionLog";
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -66,6 +67,12 @@ export async function POST(req: Request) {
     );
   }
 
+  const existing = await prisma.user.findUnique({
+    where: { steamId: session.user.steamId },
+    select: { id: true, profileComplete: true },
+  });
+  const wasIncomplete = existing ? !existing.profileComplete : true;
+
   const user = await prisma.user.update({
     where: { steamId: session.user.steamId },
     data: {
@@ -78,6 +85,18 @@ export async function POST(req: Request) {
   });
 
   const regNo = await assignRegNoIfNeeded(user.id);
+  const label = personLabel(user);
+
+  if (wasIncomplete) {
+    await writeActionLog({
+      category: "profile",
+      action: "register",
+      message: `${label} зарегистрировался на сайте${regNo != null ? ` (№${regNo})` : ""}`,
+      actorId: user.id,
+      actorNick: label,
+      meta: { regNo, steamId: user.steamId },
+    });
+  }
 
   return NextResponse.json({
     ok: true,

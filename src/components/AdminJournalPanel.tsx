@@ -181,7 +181,8 @@ export function AdminJournalPanel() {
           ) : null}
           {!loading && entries.length === 0 ? (
             <p className="journal-empty muted">
-              Пока нет записей. Действия админов и клана появятся здесь.
+              Пока нет записей. Сюда попадают регистрации, кики, резерв,
+              роли и другие движения по клану.
             </p>
           ) : null}
           {entries.map((e) => (

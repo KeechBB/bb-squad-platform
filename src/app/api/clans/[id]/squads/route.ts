@@ -6,6 +6,7 @@ import { canManageClanMembers, canDeleteClanSquad, type ClanRole } from "@/lib/c
 import { ensureDefaultSquads } from "@/lib/squads";
 import { canAssignClanSquadMembers } from "@/lib/titles";
 import { clanLiveChannel, livePublish } from "@/lib/liveBus";
+import { personLabel, writeActionLog } from "@/lib/actionLog";
 
 export const runtime = "nodejs";
 
@@ -117,7 +118,27 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
 
   if (action === "remove") {
+    const target = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { nick: true, name: true, steamName: true },
+    });
+    const clan = await prisma.clan.findUnique({
+      where: { id: clanId },
+      select: { tag: true, name: true },
+    });
     await prisma.clanSquadMember.deleteMany({ where: { squadId, userId } });
+    await writeActionLog({
+      category: "clan",
+      action: "squad_kick",
+      message: `${personLabel(actor.user)} убрал ${personLabel(target || {})} из состава «${squad.name}» клана [${clan?.tag || "?"}]`,
+      actorId: actor.user.id,
+      actorNick: personLabel(actor.user),
+      targetId: userId,
+      targetNick: personLabel(target || {}),
+      clanId,
+      clanTag: clan?.tag,
+      meta: { squadId, squadName: squad.name },
+    });
     livePublish(clanLiveChannel(clanId), JSON.stringify({ type: "squad" }));
     return NextResponse.json({ ok: true });
   }
@@ -140,6 +161,27 @@ export async function PATCH(req: Request, ctx: Ctx) {
     where: { squadId_userId: { squadId, userId } },
     create: { squadId, userId },
     update: {},
+  });
+
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { nick: true, name: true, steamName: true },
+  });
+  const clan = await prisma.clan.findUnique({
+    where: { id: clanId },
+    select: { tag: true },
+  });
+  await writeActionLog({
+    category: "clan",
+    action: "squad_add",
+    message: `${personLabel(actor.user)} добавил ${personLabel(target || {})} в состав «${squad.name}» [${clan?.tag || "?"}]`,
+    actorId: actor.user.id,
+    actorNick: personLabel(actor.user),
+    targetId: userId,
+    targetNick: personLabel(target || {}),
+    clanId,
+    clanTag: clan?.tag,
+    meta: { squadId, squadName: squad.name },
   });
 
   livePublish(clanLiveChannel(clanId), JSON.stringify({ type: "squad" }));

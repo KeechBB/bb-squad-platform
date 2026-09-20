@@ -272,19 +272,24 @@ export async function DELETE(req: Request, ctx: Ctx) {
   }
 
   const clan = await clanBrief(clanId);
+  const fromRole = target.role as ClanRole;
   await prisma.clanMember.delete({ where: { id: memberId } });
   const actorNick = personLabel(actor.user);
   const targetNick = personLabel(target.user);
+  const clanLabel = clan
+    ? `[${clan.tag}] ${clan.name}`
+    : "[?]";
   await writeActionLog({
     category: "clan",
     action: "kick",
-    message: `${actorNick} исключил ${targetNick} из [${clan?.tag || "?"}]`,
+    message: `${actorNick} кикнул ${targetNick} из ${clanLabel} (был: ${CLAN_ROLE_LABEL[fromRole] || fromRole})`,
     actorId: actor.user.id,
     actorNick,
     targetId: target.userId,
     targetNick,
     clanId,
     clanTag: clan?.tag,
+    meta: { fromRole },
   });
   livePublish(clanLiveChannel(clanId), JSON.stringify({ type: "kick", memberId }));
   livePublish(userLiveChannel(target.userId), JSON.stringify({ type: "kick" }));
