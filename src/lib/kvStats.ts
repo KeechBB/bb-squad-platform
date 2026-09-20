@@ -1,6 +1,8 @@
 export type KvMatch = {
   id?: string;
   day?: number;
+  year?: number;
+  month?: number;
   opp?: string;
   map?: string;
   stack?: string;
@@ -46,6 +48,7 @@ export type PlayerKvMatch = {
 export type PlayerKvAward = {
   matchId: string;
   day: number;
+  dateLabel: string;
   opp: string;
   round: string;
   type: string;
@@ -126,7 +129,11 @@ async function loadAllMatches(): Promise<{ matches: KvMatch[]; source: string }>
           ? m.url
           : `${base.replace(/\/$/, "")}/${String(m.url || "").replace(/^\//, "")}`;
         const data = await fetchJson(url);
-        for (const match of data.matches || []) matches.push(match);
+        const year = Number(m.year) || Number(data.year) || 2026;
+        const month = Number(m.month) || Number(data.month) || 9;
+        for (const match of data.matches || []) {
+          matches.push({ ...match, year, month });
+        }
       }
       return { matches, source: base };
     } catch (e) {
@@ -330,14 +337,26 @@ export async function buildPlayerKvStats(nick: string): Promise<PlayerKvStats> {
           round?: string;
           type?: string;
           label?: string;
-        }) => ({
-          matchId: String(a.matchId || ""),
-          day: Number(a.day) || 0,
-          opp: String(a.opp || "—"),
-          round: String(a.round || ""),
-          type: String(a.type || ""),
-          label: String(a.label || a.type || "Награда"),
-        })
+        }) => {
+          const matchId = String(a.matchId || "");
+          const meta = matchMeta.get(matchId);
+          const day = Number(a.day) || Number(meta?.day) || 0;
+          const year = Number(meta?.year) || 2026;
+          const month = Number(meta?.month) || 9;
+          const dateLabel =
+            day > 0
+              ? `${String(day).padStart(2, "0")}.${String(month).padStart(2, "0")}.${year}`
+              : "—";
+          return {
+            matchId,
+            day,
+            dateLabel,
+            opp: String(a.opp || meta?.opp || "—"),
+            round: String(a.round || ""),
+            type: String(a.type || ""),
+            label: String(a.label || a.type || "Награда"),
+          };
+        }
       );
     }
   } catch {

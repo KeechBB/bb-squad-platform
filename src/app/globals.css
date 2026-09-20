@@ -679,12 +679,18 @@ a:hover { color: #c4b5fd; }
 
 .profile-kv-award-list li {
   display: grid;
-  grid-template-columns: 36px 1fr auto;
+  grid-template-columns: 72px 1fr auto;
   gap: 8px;
   align-items: center;
   font-size: 0.78rem;
   padding: 2px 0;
   border-bottom: 1px solid rgba(167, 139, 250, 0.08);
+}
+
+.profile-kv-award-date {
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 0.75rem;
 }
 
 .profile-kv-table-wrap {
