@@ -1279,21 +1279,22 @@ a:hover { color: #c4b5fd; }
 }
 
 .admin-page .journal-msg {
-  margin-left: auto;
+  margin-left: 0;
   margin-right: auto;
-  text-align: center;
+  text-align: left;
+  align-self: flex-start;
 }
 
 .admin-page .journal-msg-meta {
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 .admin-page .journal-msg-body {
-  text-align: center;
+  text-align: left;
 }
 
 .admin-page .journal-chat {
-  align-items: center;
+  align-items: stretch;
 }
 
 .shell:has(.admin-page) {
