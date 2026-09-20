@@ -27,7 +27,7 @@ export function AdminShell({ users, roleOptions, actorRole }: Props) {
         <p className="lead">
           {tab === "users"
             ? "Пользователи платформы. Кликни по нику — правка анкеты и аватара."
-            : "Посещаемость тренировок по логам TPUB1. Таблица до 30 дней, фильтры периода."}
+            : "Посещаемость по логам TR1 (тренировка) и PB1/TPUB1 (паблик). Таблица до 30 дней."}
         </p>
         <div className="admin-tabs" role="tablist">
           <button

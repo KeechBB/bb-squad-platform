@@ -43,6 +43,13 @@ export async function GET(req: Request) {
   let fromYmd = url.searchParams.get("from") || "2026-09-01";
   let toYmd = url.searchParams.get("to") || defaultTo;
 
+  // TR1 = тренировка, PB1/TPUB1 = паблик
+  const serverRaw = (url.searchParams.get("server") || "TR1").trim().toUpperCase();
+  const serverKey =
+    serverRaw === "PB1" || serverRaw === "TPUB1" || serverRaw === "PUB"
+      ? "TPUB1"
+      : "TR1";
+
   // clamp inclusive window to ≤ 30 days
   {
     const start = new Date(Date.UTC(
@@ -114,6 +121,7 @@ export async function GET(req: Request) {
   const sessions = await prisma.squadServerSession.findMany({
     where: {
       joinedAt: { gte: from, lt: to },
+      serverKey,
     },
     orderBy: { joinedAt: "asc" },
     select: {
@@ -122,6 +130,7 @@ export async function GET(req: Request) {
       joinedAt: true,
       leftAt: true,
       nickAtJoin: true,
+      serverKey: true,
     },
   });
 
@@ -236,6 +245,7 @@ export async function GET(req: Request) {
   return NextResponse.json({
     from: fromYmd,
     to: toYmd,
+    server: serverKey === "TPUB1" ? "PB1" : "TR1",
     days,
     rows,
     stats: {

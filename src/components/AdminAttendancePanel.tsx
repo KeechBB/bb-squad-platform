@@ -28,12 +28,15 @@ type Stats = {
 type Payload = {
   from: string;
   to: string;
+  server?: string;
   days: string[];
   rows: Row[];
   stats: Stats;
 };
 
 type TimeMode = "in" | "out";
+/** UI labels; PB1 maps to TPUB1 in DB */
+type ServerFilter = "TR1" | "PB1";
 
 const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
@@ -117,12 +120,13 @@ export function AdminAttendancePanel() {
   const [loading, setLoading] = useState(false);
   const [onlyPresent, setOnlyPresent] = useState(true);
   const [timeMode, setTimeMode] = useState<TimeMode>("in");
+  const [server, setServer] = useState<ServerFilter>("TR1");
 
   const load = useCallback(async () => {
     setLoading(true);
     setErr(null);
     try {
-      const q = new URLSearchParams({ from, to });
+      const q = new URLSearchParams({ from, to, server });
       const res = await fetch(`/api/admin/attendance?${q}`, {
         cache: "no-store",
       });
@@ -134,7 +138,7 @@ export function AdminAttendancePanel() {
     } finally {
       setLoading(false);
     }
-  }, [from, to]);
+  }, [from, to, server]);
 
   useEffect(() => {
     void load();
@@ -239,6 +243,24 @@ export function AdminAttendancePanel() {
             Вышел
           </button>
         </div>
+        <div className="attend-mode-toggle" role="group" aria-label="Сервер">
+          <button
+            type="button"
+            className={server === "TR1" ? "active" : ""}
+            onClick={() => setServer("TR1")}
+            title="Тренировочный сервер"
+          >
+            TR1
+          </button>
+          <button
+            type="button"
+            className={server === "PB1" ? "active" : ""}
+            onClick={() => setServer("PB1")}
+            title="Паблик (TPUB1)"
+          >
+            PB1
+          </button>
+        </div>
         <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <input
             type="checkbox"
@@ -251,6 +273,7 @@ export function AdminAttendancePanel() {
       <p className="muted" style={{ marginTop: 0 }}>
         Окно не больше 30 дней. Старт канона: 01.09.2026.
         {data ? ` · Показано дней: ${data.days.length}` : ""}
+        {` · Сервер: ${server === "TR1" ? "TR1 (тренировка)" : "PB1 (паблик)"}`}
         {tab === "table"
           ? timeMode === "in"
             ? " · Цвет захода: ≤21:00 зел., 21:00–21:30 жёлт., после 21:30 красн."
