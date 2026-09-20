@@ -62,8 +62,20 @@ function joinTone(hm: string): "ok" | "warn" | "bad" {
   return "bad";
 }
 
-/** Выход: <23:00 красный, 23:00–23:30 жёлтый, >23:30 зелёный */
-function leaveTone(hm: string): "ok" | "warn" | "bad" {
+/** Выход TR1: вне 21:00–01:00 белый; 23:30–01:00 зелёный; раньше — как было */
+function leaveToneTr(hm: string): "ok" | "warn" | "bad" | "neutral" {
+  const mins = parseHm(hm);
+  if (mins == null) return "bad";
+  const inEvening = mins >= 21 * 60 || mins < 1 * 60;
+  if (!inEvening) return "neutral";
+  const t = mins < 1 * 60 ? mins + 24 * 60 : mins;
+  if (t >= 23 * 60 + 30 && t < 25 * 60) return "ok";
+  if (t >= 23 * 60) return "warn";
+  return "bad";
+}
+
+/** Выход PB1: <23:00 красный, 23:00–23:30 жёлтый, >23:30 зелёный */
+function leaveTonePb(hm: string): "ok" | "warn" | "bad" {
   const mins = parseHm(hm);
   if (mins == null) return "bad";
   if (mins < 23 * 60) return "bad";
@@ -316,7 +328,9 @@ export function AdminAttendancePanel() {
                 ? " · Цвет захода: ≤21:00 зел., 21:00–21:30 жёлт., после 21:30 красн."
                 : "",
               showOut
-                ? " · Цвет выхода: до 23:00 красн., 23:00–23:30 жёлт., после 23:30 зел."
+                ? server === "TR1"
+                  ? " · Цвет выхода TR1: 23:30–01:00 зел.; до 23:30 в окне — жёлт./красн.; вне 21:00–01:00 белый."
+                  : " · Цвет выхода: до 23:00 красн., 23:00–23:30 жёлт., после 23:30 зел."
                 : "",
             ].join("")
           : ""}
@@ -391,7 +405,11 @@ export function AdminAttendancePanel() {
                               {showOut ? (
                                 c.out ? (
                                   <span
-                                    className={`attend-time ${leaveTone(c.out)}`}
+                                    className={`attend-time ${
+                                      isTr
+                                        ? leaveToneTr(c.out)
+                                        : leaveTonePb(c.out)
+                                    }`}
                                   >
                                     {c.out}
                                   </span>

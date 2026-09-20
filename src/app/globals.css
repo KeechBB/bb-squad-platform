@@ -1005,6 +1005,11 @@ a:hover { color: #c4b5fd; }
   color: #f87171;
 }
 
+.attend-time.neutral {
+  color: #f5f5f5;
+  font-weight: 500;
+}
+
 .attend-mode-toggle {
   display: inline-flex;
   gap: 0;
