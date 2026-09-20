@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AdminUsersTable, type AdminUserRow } from "@/components/AdminUsersTable";
 import { AdminAttendancePanel } from "@/components/AdminAttendancePanel";
 import { AdminJournalPanel } from "@/components/AdminJournalPanel";
@@ -23,8 +23,32 @@ const TAB_LEAD: Record<Tab, string> = {
     "Накопительный журнал: кто кому что выдал, админ-права и движения по клану. Поиск по словам.",
 };
 
+function readTab(): Tab {
+  if (typeof window === "undefined") return "users";
+  const t = new URLSearchParams(window.location.search).get("tab");
+  if (t === "attendance" || t === "journal" || t === "users") return t;
+  return "users";
+}
+
 export function AdminShell({ users, roleOptions, actorRole }: Props) {
   const [tab, setTab] = useState<Tab>("users");
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setTab(readTab());
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", tab);
+    window.history.replaceState(
+      null,
+      "",
+      `${url.pathname}?${url.searchParams.toString()}`
+    );
+  }, [tab, hydrated]);
 
   return (
     <main

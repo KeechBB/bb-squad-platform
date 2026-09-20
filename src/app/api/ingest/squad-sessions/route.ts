@@ -29,6 +29,27 @@ function checkSecret(req: Request): boolean {
   return bearer === secret || header === secret;
 }
 
+async function resolveSteam(
+  rawSteam: string,
+  eosId: string | null
+): Promise<{ steamId: string; userId: string } | null> {
+  let steamId = normalizeSteamId(rawSteam);
+  if (!steamId && eosId) {
+    const mapped = await prisma.squadEosSteamMap.findUnique({
+      where: { eosId },
+      select: { steamId: true },
+    });
+    steamId = normalizeSteamId(mapped?.steamId || "") || "";
+  }
+  if (!steamId) return null;
+  const user = await prisma.user.findUnique({
+    where: { steamId },
+    select: { id: true },
+  });
+  if (!user) return null;
+  return { steamId, userId: user.id };
+}
+
 export async function POST(req: Request) {
   if (!checkSecret(req)) return unauthorized();
 
@@ -54,11 +75,6 @@ export async function POST(req: Request) {
   let leaves = 0;
 
   for (const raw of events) {
-    const steamId = normalizeSteamId(String(raw.steamId || ""));
-    if (!steamId) {
-      skipped += 1;
-      continue;
-    }
     const at = new Date(raw.at);
     if (Number.isNaN(at.getTime())) {
       skipped += 1;
@@ -69,37 +85,45 @@ export async function POST(req: Request) {
     const nick = raw.nick?.trim() || null;
     const type = raw.type === "leave" ? "leave" : "join";
 
-    if (eosId) {
+    if (eosId && normalizeSteamId(String(raw.steamId || ""))) {
+      const steamForMap = normalizeSteamId(String(raw.steamId || ""))!;
       await prisma.squadEosSteamMap.upsert({
         where: { eosId },
-        create: { eosId, steamId, nick },
-        update: { steamId, nick: nick || undefined },
+        create: { eosId, steamId: steamForMap, nick },
+        update: { steamId: steamForMap, nick: nick || undefined },
       });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { steamId },
-      select: { id: true },
-    });
-    if (!user) {
+    const resolved = await resolveSteam(String(raw.steamId || ""), eosId);
+    if (!resolved) {
       skipped += 1;
       continue;
     }
+    const { steamId, userId } = resolved;
 
     if (type === "join") {
       const open = await prisma.squadServerSession.findFirst({
         where: { steamId, serverKey, leftAt: null },
         orderBy: { joinedAt: "desc" },
       });
+      // Если выход потерялся — закрываем старую сессию моментом нового захода
       if (open) {
-        skipped += 1;
-        continue;
+        const closeAt =
+          at.getTime() > open.joinedAt.getTime()
+            ? at
+            : new Date(open.joinedAt.getTime() + 1000);
+        await prisma.squadServerSession.update({
+          where: { id: open.id },
+          data: { leftAt: closeAt },
+        });
+        leaves += 1;
+        accepted += 1;
       }
       const eventKey = sessionEventKey(serverKey, steamId, at);
       try {
         await prisma.squadServerSession.create({
           data: {
-            userId: user.id,
+            userId,
             steamId,
             eosId,
             nickAtJoin: nick,
@@ -111,7 +135,7 @@ export async function POST(req: Request) {
         accepted += 1;
         joins += 1;
         livePublish(
-          userLiveChannel(user.id),
+          userLiveChannel(userId),
           JSON.stringify({ type: "session", action: "join", serverKey })
         );
       } catch {
@@ -120,7 +144,7 @@ export async function POST(req: Request) {
       continue;
     }
 
-    // leave — сначала тот же сервер, иначе любая открытая сессия этого Steam
+    // leave — сначала тот же сервер, иначе любая открытая; запасной путь по eos
     let open = await prisma.squadServerSession.findFirst({
       where: { steamId, serverKey, leftAt: null },
       orderBy: { joinedAt: "desc" },
@@ -128,6 +152,12 @@ export async function POST(req: Request) {
     if (!open) {
       open = await prisma.squadServerSession.findFirst({
         where: { steamId, leftAt: null },
+        orderBy: { joinedAt: "desc" },
+      });
+    }
+    if (!open && eosId) {
+      open = await prisma.squadServerSession.findFirst({
+        where: { eosId, leftAt: null },
         orderBy: { joinedAt: "desc" },
       });
     }
@@ -146,7 +176,7 @@ export async function POST(req: Request) {
     accepted += 1;
     leaves += 1;
     livePublish(
-      userLiveChannel(user.id),
+      userLiveChannel(userId),
       JSON.stringify({ type: "session", action: "leave", serverKey })
     );
   }

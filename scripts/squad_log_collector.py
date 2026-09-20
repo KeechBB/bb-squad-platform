@@ -44,7 +44,7 @@ LOGIN_RE = re.compile(
 )
 REMOVE_RE = re.compile(
     r"^\[(?P<ts>\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}):\d+\]"
-    r".*RemovePlayer\(UserId: (?P<eos>[0-9a-fA-F]{32})\)",
+    r".*RemovePlayer\(UserId:\s*(?P<eos>[0-9a-fA-F]{32})\)",
 )
 # Steam64 = 17 digits (7656 + 13). Shorter capture truncated IDs and broke ingest.
 STEAM_EOS_RE = re.compile(
@@ -126,6 +126,8 @@ class Collector:
         self.eos_steam: dict[str, str] = {}
         # eos -> {nick, at, serverKey}
         self.pending_joins: dict[str, dict[str, Any]] = {}
+        # leave до появления steam-карты
+        self.pending_leaves: dict[str, dict[str, Any]] = {}
         # serverKey -> {offset, inode}
         self.log_state: dict[str, dict[str, Any]] = {
             key: {"offset": 0, "inode": None} for key, _ in self.targets
@@ -144,6 +146,7 @@ class Collector:
                 k: v for k, v in raw_map.items() if re.fullmatch(r"7656\d{13}", v)
             }
             self.pending_joins = data.get("pending_joins") or {}
+            self.pending_leaves = data.get("pending_leaves") or {}
             logs = data.get("logs")
             if isinstance(logs, dict):
                 for key, meta in logs.items():
@@ -176,6 +179,7 @@ class Collector:
             "logs": self.log_state,
             "eos_steam": self.eos_steam,
             "pending_joins": self.pending_joins,
+            "pending_leaves": self.pending_leaves,
         }
         # keep legacy fields for the first target (compat)
         if self.targets:
@@ -246,7 +250,6 @@ class Collector:
             return []
         steam = steam_ok
         events: list[dict[str, Any]] = []
-        prev = self.eos_steam.get(eos)
         self.eos_steam[eos] = steam
         if eos in self.pending_joins:
             pj = self.pending_joins.pop(eos)
@@ -260,9 +263,53 @@ class Collector:
                     "serverKey": pj.get("serverKey") or self.targets[0][0],
                 }
             )
-        elif prev != steam:
-            pass
+        if eos in self.pending_leaves:
+            pl = self.pending_leaves.pop(eos)
+            events.append(
+                {
+                    "type": "leave",
+                    "steamId": steam,
+                    "eosId": eos,
+                    "at": pl["at"],
+                    "serverKey": pl.get("serverKey") or self.targets[0][0],
+                }
+            )
         return events
+
+    def _emit_leave(
+        self, eos: str, at: str, server_key: str
+    ) -> list[dict[str, Any]]:
+        self.pending_joins.pop(eos, None)
+        # дедуп UnregisterPlayer + RemovePlayer в одну секунду
+        prev = self.pending_leaves.get(eos)
+        if prev and prev.get("at") == at and prev.get("serverKey") == server_key:
+            return []
+        steam = self.eos_steam.get(eos)
+        if steam:
+            self.pending_leaves.pop(eos, None)
+            return [
+                {
+                    "type": "leave",
+                    "steamId": steam,
+                    "eosId": eos,
+                    "at": at,
+                    "serverKey": server_key,
+                }
+            ]
+        self.pending_leaves[eos] = {"at": at, "serverKey": server_key}
+        print(
+            f"leave without steam map → eos-only {eos[:8]}… @ {server_key}",
+            flush=True,
+        )
+        return [
+            {
+                "type": "leave",
+                "steamId": "",
+                "eosId": eos,
+                "at": at,
+                "serverKey": server_key,
+            }
+        ]
 
     def _handle_line(self, line: str, server_key: str) -> list[dict[str, Any]]:
         events: list[dict[str, Any]] = []
@@ -302,18 +349,7 @@ class Collector:
         if rm:
             eos = rm.group("eos").lower()
             at = parse_ts(rm.group("ts"))
-            self.pending_joins.pop(eos, None)
-            steam = self.eos_steam.get(eos)
-            if steam:
-                events.append(
-                    {
-                        "type": "leave",
-                        "steamId": steam,
-                        "eosId": eos,
-                        "at": at,
-                        "serverKey": server_key,
-                    }
-                )
+            events.extend(self._emit_leave(eos, at, server_key))
         return events
 
     def _poll_one(
