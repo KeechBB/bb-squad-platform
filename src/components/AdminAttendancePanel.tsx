@@ -23,6 +23,8 @@ type Stats = {
   weekday: number[];
   dayPlayerCounts: Array<{ day: string; players: number }>;
   avgPlayersPerDay: number;
+  windowLabel?: string;
+  windowMode?: "day" | "evening";
 };
 
 type Payload = {
@@ -384,11 +386,17 @@ export function AdminAttendancePanel() {
               <span>{data.stats.avgSessionMin}</span>
             </div>
             <div className="meta-row">
-              <span>Сред. игроков / вечер</span>
+              <span>
+                {data.stats.windowMode === "day" || data.server === "PB1"
+                  ? "Сред. игроков / сутки"
+                  : "Сред. игроков / вечер"}
+              </span>
               <span>{data.stats.avgPlayersPerDay}</span>
             </div>
             <p className="muted" style={{ margin: "6px 0 0", fontSize: "0.78rem" }}>
-              Окно 21:30–00:00 МСК
+              Окно{" "}
+              {data.stats.windowLabel ||
+                (data.server === "PB1" ? "00:00–24:00 МСК" : "21:00–00:00 МСК")}
             </p>
           </div>
 
@@ -440,7 +448,11 @@ export function AdminAttendancePanel() {
           </div>
 
           <div className="training-chart-block" style={{ gridColumn: "1 / -1" }}>
-            <h3>Игроков по вечерам (21:30–00:00)</h3>
+            <h3>
+              {data.stats.windowMode === "day" || data.server === "PB1"
+                ? "Игроков по суткам (24ч)"
+                : "Игроков по вечерам (21:00–00:00)"}
+            </h3>
             <BarChart
               items={data.stats.dayPlayerCounts.map((x) => ({
                 label: ymdLabel(x.day),

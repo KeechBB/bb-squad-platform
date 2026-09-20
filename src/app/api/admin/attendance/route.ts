@@ -185,8 +185,12 @@ export async function GET(req: Request) {
     after2130: 0,
   };
   const weekday = [0, 0, 0, 0, 0, 0, 0];
-  /** Уникальные игроки в окне тренировки 21:30–00:00 МСК по дню захода */
-  const playersPerEvening: Record<string, Set<string>> = {};
+  /**
+   * TR1: уникальные игроки в окне 21:00–00:00 МСК (тренировка)
+   * PB1: уникальные игроки за полные сутки (24ч) по дню захода
+   */
+  const playersPerDay: Record<string, Set<string>> = {};
+  const isPublic = serverKey === "TPUB1";
 
   for (const s of sessions) {
     totalSessions += 1;
@@ -219,17 +223,26 @@ export async function GET(req: Request) {
     }
 
     const day = ymdMsk(s.joinedAt);
-    // Окно 21:30–00:00 МСК дня захода (тренировочный вечер)
-    const winStart = new Date(
-      Date.UTC(jp.y, jp.m - 1, jp.day, 21, 30, 0) - 3 * 3600 * 1000
-    );
-    const winEnd = new Date(
-      Date.UTC(jp.y, jp.m - 1, jp.day + 1, 0, 0, 0) - 3 * 3600 * 1000
-    );
     const sessEnd = s.leftAt ?? now;
-    if (s.joinedAt.getTime() < winEnd.getTime() && sessEnd.getTime() > winStart.getTime()) {
-      if (!playersPerEvening[day]) playersPerEvening[day] = new Set();
-      playersPerEvening[day].add(s.userId);
+    let countsForDay = false;
+    if (isPublic) {
+      // Паблик: любые сессии за календарные сутки МСК
+      countsForDay = true;
+    } else {
+      // TR1: пересечение с окном 21:00–00:00 МСК дня захода
+      const winStart = new Date(
+        Date.UTC(jp.y, jp.m - 1, jp.day, 21, 0, 0) - 3 * 3600 * 1000
+      );
+      const winEnd = new Date(
+        Date.UTC(jp.y, jp.m - 1, jp.day + 1, 0, 0, 0) - 3 * 3600 * 1000
+      );
+      countsForDay =
+        s.joinedAt.getTime() < winEnd.getTime() &&
+        sessEnd.getTime() > winStart.getTime();
+    }
+    if (countsForDay) {
+      if (!playersPerDay[day]) playersPerDay[day] = new Set();
+      playersPerDay[day].add(s.userId);
     }
 
     const wi = (() => {
@@ -242,7 +255,7 @@ export async function GET(req: Request) {
 
   const dayPlayerCounts = days.map((d) => ({
     day: d,
-    players: playersPerEvening[d]?.size || 0,
+    players: playersPerDay[d]?.size || 0,
   }));
   const avgPlayers =
     dayPlayerCounts.length > 0
@@ -253,10 +266,12 @@ export async function GET(req: Request) {
         ) / 10
       : 0;
 
+  const windowLabel = isPublic ? "00:00–24:00 МСК" : "21:00–00:00 МСК";
+
   return NextResponse.json({
     from: fromYmd,
     to: toYmd,
-    server: serverKey === "TPUB1" ? "PB1" : "TR1",
+    server: isPublic ? "PB1" : "TR1",
     days,
     rows,
     stats: {
@@ -270,6 +285,8 @@ export async function GET(req: Request) {
       weekday,
       dayPlayerCounts,
       avgPlayersPerDay: avgPlayers,
+      windowLabel,
+      windowMode: isPublic ? "day" : "evening",
     },
   });
 }
