@@ -101,12 +101,13 @@ export async function GET(req: Request) {
 
   const users = await prisma.user.findMany({
     where: { profileComplete: true },
-    orderBy: { createdAt: "asc" },
+    orderBy: [{ regNo: "asc" }, { createdAt: "asc" }],
     select: {
       id: true,
       nick: true,
       steamId: true,
       createdAt: true,
+      regNo: true,
     },
   });
 
@@ -145,12 +146,12 @@ export async function GET(req: Request) {
     });
   }
 
-  const rows = users.map((u, i) => {
+  const rows = users.map((u) => {
     const dayMap = byUserDay.get(u.id) || new Map();
     const cells: Record<string, Cell[]> = {};
     for (const d of days) cells[d] = dayMap.get(d) || [];
     return {
-      regNo: i + 1,
+      regNo: u.regNo ?? 0,
       userId: u.id,
       nick: u.nick,
       steamId: u.steamId,

@@ -48,15 +48,15 @@ export async function GET() {
 
   const registered = await prisma.user.findMany({
     where: { profileComplete: true, nick: { not: null } },
-    orderBy: { createdAt: "asc" },
-    select: { nick: true, steamId: true, createdAt: true },
+    orderBy: [{ regNo: "asc" }, { createdAt: "asc" }],
+    select: { nick: true, steamId: true, createdAt: true, regNo: true },
   });
 
   const regByNick = new Map<string, number>();
-  registered.forEach((u, i) => {
+  registered.forEach((u) => {
     const nick = (u.nick || "").trim();
-    if (!nick) return;
-    regByNick.set(nickKey(nick), i + 1);
+    if (!nick || u.regNo == null) return;
+    regByNick.set(nickKey(nick), u.regNo);
   });
 
   const byNick: Record<

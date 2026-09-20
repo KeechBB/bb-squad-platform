@@ -23,6 +23,7 @@ type Props = {
     steamId: string;
     steamName: string | null;
     siteRole?: string;
+    regNo?: number | null;
   };
   adminLink?: ReactNode;
 };
@@ -163,6 +164,10 @@ export function ProfileEditForm({ initial, adminLink }: Props) {
           <div className="meta-row">
             <span>Ник</span>
             <span>{saved.nick}</span>
+          </div>
+          <div className="meta-row">
+            <span>№ регистрации</span>
+            <span>{initial.regNo ?? "—"}</span>
           </div>
           <div className="meta-row">
             <span>Роль на сайте</span>

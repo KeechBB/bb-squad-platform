@@ -8,6 +8,7 @@ import {
   isValidNick,
   parseBirthDate,
 } from "@/lib/validation";
+import { assignRegNoIfNeeded } from "@/lib/regNo";
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -76,6 +77,8 @@ export async function POST(req: Request) {
     },
   });
 
+  const regNo = await assignRegNoIfNeeded(user.id);
+
   return NextResponse.json({
     ok: true,
     user: {
@@ -85,6 +88,7 @@ export async function POST(req: Request) {
       age: user.age,
       birthDate: user.birthDate?.toISOString().slice(0, 10) ?? null,
       profileComplete: user.profileComplete,
+      regNo,
     },
   });
 }

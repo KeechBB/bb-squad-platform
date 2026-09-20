@@ -14,12 +14,13 @@ export type AdminUserRow = {
   age: number | null;
   role: AppRole;
   profileComplete: boolean;
+  regNo: number | null;
   createdAt: string;
   canEditRole: boolean;
   canDelete: boolean;
 };
 
-type SortKey = "createdAt" | "nick" | "name" | "age" | "steamId" | "role";
+type SortKey = "regNo" | "createdAt" | "nick" | "name" | "age" | "steamId" | "role";
 
 type Props = {
   initialUsers: AdminUserRow[];
@@ -78,8 +79,10 @@ export function AdminUsersTable({ initialUsers, roleOptions, actorRole }: Props)
       if (sort === "createdAt") {
         return (new Date(String(av)).getTime() - new Date(String(bv)).getTime()) * dir;
       }
-      if (sort === "age") {
-        return (((av as number | null) ?? -1) - ((bv as number | null) ?? -1)) * dir;
+      if (sort === "regNo" || sort === "age") {
+        const an = (av as number | null) ?? -1;
+        const bn = (bv as number | null) ?? -1;
+        return (an - bn) * dir;
       }
       return (
         String(av ?? "").localeCompare(String(bv ?? ""), "ru", {
@@ -198,7 +201,11 @@ export function AdminUsersTable({ initialUsers, roleOptions, actorRole }: Props)
         <table className="admin-table">
           <thead>
             <tr>
-              <th>#</th>
+              <th>
+                <button type="button" className="sort-btn" onClick={() => toggleSort("regNo")}>
+                  №{sortMark("regNo")}
+                </button>
+              </th>
               <th>
                 <button type="button" className="sort-btn" onClick={() => toggleSort("nick")}>
                   Ник{sortMark("nick")}
@@ -233,7 +240,7 @@ export function AdminUsersTable({ initialUsers, roleOptions, actorRole }: Props)
             </tr>
           </thead>
           <tbody>
-            {rows.map((u, i) => {
+            {rows.map((u) => {
               const editable = u.canEditRole && roleOptions.length > 0;
               const options = editable
                 ? Array.from(new Set<AppRole>([u.role, ...roleOptions])).filter(
@@ -242,7 +249,7 @@ export function AdminUsersTable({ initialUsers, roleOptions, actorRole }: Props)
                 : [];
               return (
                 <tr key={u.id}>
-                  <td>{i + 1}</td>
+                  <td>{u.regNo ?? "—"}</td>
                   <td>
                     <Link className="admin-user-link" href={`/admin/users/${u.id}`}>
                       {u.nick || "—"}

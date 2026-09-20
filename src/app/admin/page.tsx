@@ -36,6 +36,7 @@ export default async function AdminPage() {
       age: true,
       role: true,
       profileComplete: true,
+      regNo: true,
       createdAt: true,
     },
   });
@@ -51,6 +52,7 @@ export default async function AdminPage() {
       age: u.age,
       role,
       profileComplete: u.profileComplete,
+      regNo: u.regNo,
       createdAt: u.createdAt.toISOString(),
       canEditRole:
         u.steamId !== session.user.steamId &&

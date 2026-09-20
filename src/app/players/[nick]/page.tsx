@@ -131,6 +131,10 @@ export default async function PlayerProfilePage({ params }: Props) {
           <span>{user.nick}</span>
         </div>
         <div className="meta-row">
+          <span>№ регистрации</span>
+          <span>{user.regNo ?? "—"}</span>
+        </div>
+        <div className="meta-row">
           <span>Роль на сайте</span>
           <span>
             {roleLabel(effectiveRole(user.steamId, user.role as AppRole))}

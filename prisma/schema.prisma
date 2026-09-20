@@ -54,6 +54,8 @@ model User {
   reserveReason   String?
   role            Role     @default(USER)
   profileComplete Boolean  @default(false)
+  /// Постоянный номер регистрации (1 = первый). Не пересчитывается при удалении других.
+  regNo           Int?     @unique
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

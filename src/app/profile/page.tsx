@@ -117,6 +117,7 @@ export default async function ProfilePage() {
           steamId: me.steamId,
           steamName: me.steamName,
           siteRole,
+          regNo: me.regNo,
         }}
         adminLink={<AdminPanelLink initialAdmin={admin} />}
       />
