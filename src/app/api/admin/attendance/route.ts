@@ -273,6 +273,10 @@ export async function GET(req: Request) {
     { label: "01:30", minFrom: 90, minTo: 120 },
   ];
   const leaveSlotUsers: Array<Set<string>> = leaveSlots.map(() => new Set());
+  /** Ники финальных уходов до 23:00 (userId|day → nick) */
+  const leaveSlotNicks: Array<Map<string, string>> = leaveSlots.map(
+    () => new Map()
+  );
 
   const joinSlots: Slot[] = [
     { label: "≤20:00", minFrom: 0, minTo: 20 * 60 },
@@ -288,8 +292,11 @@ export async function GET(req: Request) {
   /** Сессии по user → для финального выхода (ушёл и больше не заходил) */
   const sessionsByUserChrono = new Map<
     string,
-    Array<{ joinedAt: Date; leftAt: Date | null }>
+    Array<{ joinedAt: Date; leftAt: Date | null; nick: string | null }>
   >();
+  const nickByUserId = new Map(
+    users.map((u) => [u.id, (u.nick || "").trim() || u.steamId])
+  );
 
   for (const s of sessions) {
     totalSessions += 1;
@@ -327,6 +334,7 @@ export async function GET(req: Request) {
     sessionsByUserChrono.get(s.userId)!.push({
       joinedAt: s.joinedAt,
       leftAt: s.leftAt,
+      nick: s.nickAtJoin,
     });
 
     const day = isPublic ? ymdMsk(s.joinedAt) : trainingDayYmd(s.joinedAt);
@@ -381,10 +389,19 @@ export async function GET(req: Request) {
         const leaveDay = trainingDayFromLeave(last.leftAt);
         // выход после полуночи должен относиться к этой же тренировке
         if (leaveDay !== trainDay) continue;
+        const key = `${userId}|${trainDay}`;
+        const displayNick =
+          nickByUserId.get(userId) ||
+          (last.nick || "").trim() ||
+          userId;
         for (let i = 0; i < leaveSlots.length; i++) {
           const sl = leaveSlots[i];
           if (lmin >= sl.minFrom && lmin < sl.minTo) {
-            leaveSlotUsers[i].add(`${userId}|${trainDay}`);
+            leaveSlotUsers[i].add(key);
+            // Ники только для окончательных уходов до 23:00
+            if (sl.minFrom < 23 * 60) {
+              leaveSlotNicks[i].set(key, displayNick);
+            }
             break;
           }
         }
@@ -463,7 +480,13 @@ export async function GET(req: Request) {
   const leaveTimeline = leaveSlots.map((sl, i) => {
     const count = leaveSlotUsers[i].size;
     leaveCum += count;
-    return { label: sl.label, count, cumulative: leaveCum };
+    const nicks =
+      sl.minFrom < 23 * 60
+        ? [...leaveSlotNicks[i].values()].sort((a, b) =>
+            a.localeCompare(b, "ru", { sensitivity: "base" })
+          )
+        : undefined;
+    return { label: sl.label, count, cumulative: leaveCum, nicks };
   });
 
   let joinCum = 0;

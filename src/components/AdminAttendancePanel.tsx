@@ -34,7 +34,12 @@ type Stats = {
   avgPlayersPerDay: number;
   avgPlayersPerWeek?: number;
   avgPlayersPerMonth?: number;
-  leaveTimeline?: Array<{ label: string; count: number; cumulative: number }>;
+  leaveTimeline?: Array<{
+    label: string;
+    count: number;
+    cumulative: number;
+    nicks?: string[];
+  }>;
   joinTimeline?: Array<{ label: string; count: number; cumulative: number }>;
   joinNorm?: {
     onTime: number;
@@ -234,12 +239,18 @@ function TimelineTable({
   rows,
   countLabel,
 }: {
-  rows: Array<{ label: string; count: number; cumulative?: number }>;
+  rows: Array<{
+    label: string;
+    count: number;
+    cumulative?: number;
+    nicks?: string[];
+  }>;
   countLabel: string;
 }) {
   if (!rows.length) {
     return <p className="muted">Нет данных за период</p>;
   }
+  const showNicks = rows.some((r) => (r.nicks?.length || 0) > 0);
   return (
     <div className="admin-table-wrap attend-timeline-wrap">
       <table className="admin-table attend-timeline-table">
@@ -247,6 +258,7 @@ function TimelineTable({
           <tr>
             <th>Время</th>
             <th>{countLabel}</th>
+            {showNicks ? <th>Ники (до 23:00)</th> : null}
           </tr>
         </thead>
         <tbody>
@@ -254,6 +266,11 @@ function TimelineTable({
             <tr key={r.label}>
               <td>{r.label}</td>
               <td>{r.count}</td>
+              {showNicks ? (
+                <td className="attend-leave-nicks">
+                  {r.nicks?.length ? r.nicks.join(", ") : "—"}
+                </td>
+              ) : null}
             </tr>
           ))}
         </tbody>
@@ -737,7 +754,8 @@ export function AdminAttendancePanel() {
             <h3>Выходы — ушёл и больше не заходил</h3>
             <p className="muted" style={{ marginTop: 0, marginBottom: 8 }}>
               Только финальный выход за вечер (21:00–02:00). Промежуточные
-              «вышел → снова зашёл» не считаются.
+              «вышел → снова зашёл» не считаются. Ники — у тех, кто окончательно
+              ушёл с 21:00 до 23:00.
             </p>
             <TimelineTable
               rows={data.stats.leaveTimeline || []}
