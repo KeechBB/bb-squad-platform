@@ -6,6 +6,7 @@ import {
   mskParts,
   ATTENDANCE_CANON_START_YMD,
   clampAttendanceFromYmd,
+  mergeSessionsWithRejoinGap,
   presentTrainingDaysFromSessions,
   trainingDayYmd,
   trainingWindowOverlapMinutes,
@@ -369,10 +370,9 @@ export async function GET(req: Request) {
     weekday[wi] += 1;
   }
 
-  // Финальный выход за тренировочный вечер: последняя сессия дня, ушёл и не вернулся
+  // Финальный выход за тренировочный вечер: ушёл и не вернулся за 5 минут
   if (!isPublic) {
     for (const [userId, list] of sessionsByUserChrono) {
-      list.sort((a, b) => a.joinedAt.getTime() - b.joinedAt.getTime());
       const byTrainDay = new Map<string, typeof list>();
       for (const s of list) {
         const d = trainingDayYmd(s.joinedAt);
@@ -381,24 +381,23 @@ export async function GET(req: Request) {
       }
       for (const [trainDay, daySessions] of byTrainDay) {
         if (!daySet.has(trainDay)) continue;
-        const last = daySessions[daySessions.length - 1];
-        if (!last.leftAt) continue; // ещё на сервере / не зафиксирован выход
-        const lp = mskParts(last.leftAt);
+        const spans = mergeSessionsWithRejoinGap(daySessions);
+        const last = spans[spans.length - 1];
+        if (!last?.leave) continue;
+        const lp = mskParts(last.leave);
         const lmin = lp.h * 60 + lp.min;
         if (!isEveningLeaveMinutes(lmin)) continue;
-        const leaveDay = trainingDayFromLeave(last.leftAt);
-        // выход после полуночи должен относиться к этой же тренировке
+        const leaveDay = trainingDayFromLeave(last.leave);
         if (leaveDay !== trainDay) continue;
         const key = `${userId}|${trainDay}`;
         const displayNick =
           nickByUserId.get(userId) ||
-          (last.nick || "").trim() ||
+          (daySessions[daySessions.length - 1]?.nick || "").trim() ||
           userId;
         for (let i = 0; i < leaveSlots.length; i++) {
           const sl = leaveSlots[i];
           if (lmin >= sl.minFrom && lmin < sl.minTo) {
             leaveSlotUsers[i].add(key);
-            // Ники только для окончательных уходов до 23:00
             if (sl.minFrom < 23 * 60) {
               leaveSlotNicks[i].set(key, displayNick);
             }

@@ -35,6 +35,8 @@ type Props = {
   openNow: boolean;
   /** Готовые дни «был» с сервера (чтобы не тащить все сессии на клиент) */
   presentDays?: string[];
+  /** Заход / итоговый выход по дням (с 19:00, gap ≤5 мин = не выход) */
+  visitBounds?: Record<string, { joinHm: string; leaveHm: string | null }>;
 };
 
 const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
@@ -128,6 +130,7 @@ export function TrainingSessionsCard({
   sessions30d,
   openNow,
   presentDays: presentDaysProp,
+  visitBounds: visitBoundsProp,
 }: Props) {
   const normalized = useMemo(() => normalizeSessions(sessions), [sessions]);
   const today = todayYmdMsk();
@@ -140,6 +143,8 @@ export function TrainingSessionsCard({
     if (presentDaysProp?.length) return new Set(presentDaysProp);
     return presentTrainingDaysFromSessions(normalized);
   }, [normalized, presentDaysProp]);
+
+  const visitBounds = visitBoundsProp || {};
 
   const avgMin = useMemo(() => {
     if (!sessions30d) return 0;
@@ -240,6 +245,11 @@ export function TrainingSessionsCard({
                 return <div key={`e-${i}`} className="training-cal-cell empty" />;
               }
               const mark = dayMark(c.ymd, presentTrainingDays);
+              const bounds = c.ymd ? visitBounds[c.ymd] : undefined;
+              const timeLabel =
+                bounds != null
+                  ? `${bounds.joinHm}–${bounds.leaveHm ?? "…"}`
+                  : null;
               return (
                 <div
                   key={c.ymd}
@@ -248,9 +258,13 @@ export function TrainingSessionsCard({
                   }`}
                   title={
                     mark === "present"
-                      ? `Был ≥${TRAINING_PRESENT_MIN_MINUTES} мин (21:00–00:00)`
+                      ? `Был ≥${TRAINING_PRESENT_MIN_MINUTES} мин (21:00–00:00)${
+                          timeLabel ? ` · ${timeLabel}` : ""
+                        }`
                       : mark === "absent"
-                        ? `Не был (<${TRAINING_PRESENT_MIN_MINUTES} мин вечером)`
+                        ? `Не был (<${TRAINING_PRESENT_MIN_MINUTES} мин вечером)${
+                            timeLabel ? ` · ${timeLabel}` : ""
+                          }`
                         : mark === "pending"
                           ? "Ещё рано / окно не закрыто"
                           : "Вне учёта"
@@ -264,14 +278,18 @@ export function TrainingSessionsCard({
                   ) : (
                     <span className="training-cal-dot muted">·</span>
                   )}
+                  {timeLabel && (mark === "present" || mark === "absent") ? (
+                    <span className="training-cal-times">{timeLabel}</span>
+                  ) : null}
                 </div>
               );
             })}
           </div>
           <p className="muted training-cal-legend">
             Зелёный — ≥{TRAINING_PRESENT_MIN_MINUTES} мин на TR1 с 21:00 до
-            00:00 · красный — меньше часа / не было · серый — ещё не считаем. В
-            этом месяце: <strong>{presentInView}</strong> был /{" "}
+            00:00 · мелким шрифтом заход (≥19:00) и итоговый выход (вылет ≤5 мин
+            не считается) · красный — меньше часа / не было · серый — ещё не
+            считаем. В этом месяце: <strong>{presentInView}</strong> был /{" "}
             <strong>{absentInView}</strong> нет
           </p>
         </div>

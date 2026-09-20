@@ -969,7 +969,7 @@ a:hover { color: #c4b5fd; }
 }
 
 .training-cal-cell {
-  min-height: 48px;
+  min-height: 56px;
   border-radius: 10px;
   border: 1px solid rgba(167, 139, 250, 0.12);
   background: rgba(10, 8, 18, 0.35);
@@ -978,12 +978,13 @@ a:hover { color: #c4b5fd; }
   flex-direction: column;
   align-items: flex-start;
   justify-content: space-between;
+  gap: 1px;
 }
 
 .training-cal-cell.empty {
   border: none;
   background: transparent;
-  min-height: 48px;
+  min-height: 56px;
 }
 
 .training-cal-day {
@@ -996,6 +997,19 @@ a:hover { color: #c4b5fd; }
   font-size: 0.65rem;
   font-weight: 700;
   line-height: 1.1;
+}
+
+.training-cal-times {
+  font-size: 0.58rem;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.training-cal-cell.mark-present .training-cal-times {
+  color: rgba(187, 247, 208, 0.9);
 }
 
 .training-cal-cell.mark-present {

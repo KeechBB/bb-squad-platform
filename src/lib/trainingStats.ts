@@ -3,6 +3,7 @@ import {
   attendanceCanonStartUtc,
   formatDurationMinutes,
   presentTrainingDaysFromSessions,
+  trainingDayVisitBoundsFromSessions,
 } from "@/lib/squadSessions";
 
 const LIST_LIMIT = 80;
@@ -12,7 +13,6 @@ export async function loadUserTrainingStats(userId: string) {
   const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const since = since30 > canonStart ? since30 : canonStart;
 
-  // Лёгкий select для календаря «был» + ограниченный список для таблицы
   const lean = await prisma.squadServerSession.findMany({
     where: { userId, joinedAt: { gte: canonStart } },
     orderBy: { joinedAt: "desc" },
@@ -25,15 +25,19 @@ export async function loadUserTrainingStats(userId: string) {
     },
   });
 
-  const presentDays = [
-    ...presentTrainingDaysFromSessions(
-      lean.map((s) => ({
-        joinedAt: s.joinedAt,
-        leftAt: s.leftAt,
-        serverKey: s.serverKey,
-      }))
-    ),
-  ];
+  const forAtt = lean.map((s) => ({
+    joinedAt: s.joinedAt,
+    leftAt: s.leftAt,
+    serverKey: s.serverKey,
+  }));
+
+  const presentDays = [...presentTrainingDaysFromSessions(forAtt)];
+  const visitBoundsMap = trainingDayVisitBoundsFromSessions(forAtt);
+  const visitBounds: Record<string, { joinHm: string; leaveHm: string | null }> =
+    {};
+  for (const [day, b] of visitBoundsMap) {
+    visitBounds[day] = b;
+  }
 
   const sessions = lean.slice(0, LIST_LIMIT);
   const last30 = lean.filter((s) => s.joinedAt >= since);
@@ -46,6 +50,7 @@ export async function loadUserTrainingStats(userId: string) {
   return {
     sessions,
     presentDays,
+    visitBounds,
     minutes30d,
     sessions30d: last30.length,
     openNow,

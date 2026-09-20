@@ -217,6 +217,106 @@ export type SessionForAttendance = {
   serverKey?: string | null;
 };
 
+/** Если вернулся ≤5 мин — вылет, не выход. */
+export const REJOIN_GAP_MS = 5 * 60 * 1000;
+
+export type DayVisitBounds = {
+  /** Заход МСК HH:MM */
+  joinHm: string;
+  /** Итоговый выход МСК HH:MM; null = ещё на сервере */
+  leaveHm: string | null;
+};
+
+function hmMskFromDate(d: Date): string {
+  const p = mskParts(d);
+  return `${String(p.h).padStart(2, "0")}:${String(p.min).padStart(2, "0")}`;
+}
+
+type Span = { join: Date; leave: Date | null };
+
+/** Склеить сессии дня: разрыв leave→join ≤5 мин = один заход. */
+export function mergeSessionsWithRejoinGap(
+  sessions: Array<{ joinedAt: Date; leftAt: Date | null }>,
+  gapMs = REJOIN_GAP_MS
+): Span[] {
+  if (!sessions.length) return [];
+  const sorted = [...sessions].sort(
+    (a, b) => a.joinedAt.getTime() - b.joinedAt.getTime()
+  );
+  const spans: Span[] = [];
+  let cur: Span = { join: sorted[0].joinedAt, leave: sorted[0].leftAt };
+  for (let i = 1; i < sorted.length; i++) {
+    const s = sorted[i];
+    if (
+      cur.leave &&
+      s.joinedAt.getTime() - cur.leave.getTime() <= gapMs
+    ) {
+      cur.leave = s.leftAt;
+    } else if (!cur.leave) {
+      // открытая сессия + новый join — закрываем на момент нового захода
+      cur.leave = s.joinedAt;
+      spans.push(cur);
+      cur = { join: s.joinedAt, leave: s.leftAt };
+    } else {
+      spans.push(cur);
+      cur = { join: s.joinedAt, leave: s.leftAt };
+    }
+  }
+  spans.push(cur);
+  return spans;
+}
+
+/**
+ * Заход (с вечера от 19:00) и итоговый выход по дням тренировки TR1.
+ * Выход = ушёл и не вернулся за 5 минут (и больше не заходил в этот вечер).
+ */
+export function trainingDayVisitBoundsFromSessions(
+  sessions: SessionForAttendance[],
+  now = new Date()
+): Map<string, DayVisitBounds> {
+  const byDay = new Map<string, Array<{ joinedAt: Date; leftAt: Date | null }>>();
+  for (const s of sessions) {
+    const key = (s.serverKey || "").toUpperCase();
+    if (key && key !== "TR1") continue;
+    const day = trainingDayYmd(s.joinedAt);
+    if (!byDay.has(day)) byDay.set(day, []);
+    byDay.get(day)!.push({ joinedAt: s.joinedAt, leftAt: s.leftAt });
+  }
+
+  const out = new Map<string, DayVisitBounds>();
+  for (const [day, list] of byDay) {
+    const [y, m, d] = day.split("-").map(Number);
+    // 19:00 МСК = 16:00 UTC; 02:00 МСК след. = 23:00 UTC
+    const from19 = new Date(Date.UTC(y, m - 1, d, 16, 0, 0));
+    const until02 = new Date(Date.UTC(y, m - 1, d, 23, 0, 0));
+
+    const spans = mergeSessionsWithRejoinGap(list);
+    const evening = spans.filter((sp) => {
+      const end = sp.leave ?? now;
+      return sp.join.getTime() < until02.getTime() && end.getTime() > from19.getTime();
+    });
+    if (!evening.length) continue;
+
+    // Берём первый вечерний блок (основной заход), итог — leave последнего блока вечера
+    const first = evening[0];
+    const last = evening[evening.length - 1];
+
+    // Заход: если зашёл до 19:00, но сидел вечером — показываем факт; иначе время join
+    // «начиная с 19:00» — показываем время, если активность с 19:00 есть
+    let joinAt = first.join;
+    if (joinAt.getTime() < from19.getTime()) {
+      // уже был до 19:00 — пишем 19:00 как старт вечернего учёта на календаре
+      joinAt = from19;
+    }
+
+    out.set(day, {
+      joinHm: hmMskFromDate(joinAt),
+      leaveHm: last.leave ? hmMskFromDate(last.leave) : null,
+    });
+  }
+  return out;
+}
+
 /** Дни «был» на TR1 (≥60 мин в 21:00–00:00 МСК) — общий источник для профиля и админки. */
 export function presentTrainingDaysFromSessions(
   sessions: SessionForAttendance[],
