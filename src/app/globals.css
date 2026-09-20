@@ -3965,6 +3965,15 @@ body:has(.home-page) {
   color: var(--muted);
 }
 
+.reaction-chat-nick {
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.reaction-chat-nick:hover {
+  text-decoration: underline;
+}
+
 .reaction-chat-form {
   display: flex;
   gap: 6px;
