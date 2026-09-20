@@ -14,7 +14,8 @@ export type SquadSessionIngestEvent = {
 
 export function normalizeSteamId(raw: string): string | null {
   const s = raw.trim();
-  if (!/^7656\d{12}$/.test(s)) return null;
+  // Steam64 = 17 digits, always starts with 7656
+  if (!/^7656\d{13}$/.test(s)) return null;
   return s;
 }
 

@@ -40,9 +40,10 @@ REMOVE_RE = re.compile(
     r"^\[(?P<ts>\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}):\d+\]"
     r".*RemovePlayer\(UserId: (?P<eos>[0-9a-fA-F]{32})\)",
 )
+# Steam64 = 17 digits (7656 + 13). Shorter capture truncated IDs and broke ingest.
 STEAM_EOS_RE = re.compile(
-    r"EOS:\s*(?P<eos>[0-9a-fA-F]{32}).*?steam:\s*(?P<steam>7656\d{12})"
-    r"|steam:\s*(?P<steam2>7656\d{12}).*?EOS:\s*(?P<eos2>[0-9a-fA-F]{32})",
+    r"EOS:\s*(?P<eos>[0-9a-fA-F]{32}).*?steam:\s*(?P<steam>7656\d{13})"
+    r"|steam:\s*(?P<steam2>7656\d{13}).*?EOS:\s*(?P<eos2>[0-9a-fA-F]{32})",
     re.IGNORECASE,
 )
 
@@ -104,12 +105,25 @@ class Collector:
             data = json.loads(self.state_path.read_text(encoding="utf-8"))
             self.offset = int(data.get("offset", 0))
             self.inode = data.get("inode")
-            self.eos_steam = {
+            raw_map = {
                 str(k).lower(): str(v) for k, v in (data.get("eos_steam") or {}).items()
             }
+            # Drop truncated Steam64 (was 16 digits) — rebuild from live lines.
+            self.eos_steam = {
+                k: v for k, v in raw_map.items() if re.fullmatch(r"7656\d{13}", v)
+            }
             self.pending_joins = data.get("pending_joins") or {}
+            if len(self.eos_steam) != len(raw_map):
+                print(
+                    f"state: dropped {len(raw_map) - len(self.eos_steam)} truncated steam ids",
+                    file=sys.stderr,
+                )
         except Exception as e:
             print("state load fail", e, file=sys.stderr)
+
+    def _valid_steam(self, steam: str) -> str | None:
+        steam = (steam or "").strip()
+        return steam if re.fullmatch(r"7656\d{13}", steam) else None
 
     def _save_state(self) -> None:
         payload = {
@@ -177,6 +191,10 @@ class Collector:
 
     def _remember_map(self, eos: str, steam: str) -> list[dict[str, Any]]:
         eos = eos.lower()
+        steam_ok = self._valid_steam(steam)
+        if not steam_ok:
+            return []
+        steam = steam_ok
         events: list[dict[str, Any]] = []
         prev = self.eos_steam.get(eos)
         self.eos_steam[eos] = steam
