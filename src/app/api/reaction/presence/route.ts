@@ -112,9 +112,8 @@ export async function GET() {
     globalRecord(2),
   ]);
 
-  return NextResponse.json({
-    ok: true,
-    players: rows.map((r) => ({
+  const players = rows
+    .map((r) => ({
       userId: r.userId,
       nick: r.user.nick || r.user.steamName || "Игрок",
       avatarUrl: r.user.avatarUrl,
@@ -122,7 +121,28 @@ export async function GET() {
       lastAvgL1Ms: r.lastAvgL1Ms,
       lastAvgL2Ms: r.lastAvgL2Ms,
       updatedAt: r.updatedAt.toISOString(),
-    })),
+    }))
+    .sort((a, b) => {
+      const best = (p: { lastAvgL1Ms: number | null; lastAvgL2Ms: number | null }) => {
+        const vals = [p.lastAvgL1Ms, p.lastAvgL2Ms].filter(
+          (v): v is number => v != null && Number.isFinite(v)
+        );
+        return vals.length ? Math.min(...vals) : null;
+      };
+      const av = best(a);
+      const bv = best(b);
+      if (av == null && bv == null) {
+        return String(a.nick).localeCompare(String(b.nick), "ru");
+      }
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      if (av !== bv) return av - bv;
+      return String(a.nick).localeCompare(String(b.nick), "ru");
+    });
+
+  return NextResponse.json({
+    ok: true,
+    players,
     records: {
       l1: recordL1,
       l2: recordL2,

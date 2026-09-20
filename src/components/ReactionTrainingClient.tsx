@@ -110,7 +110,25 @@ export function ReactionTrainingClient() {
       const res = await fetch("/api/reaction/presence", { cache: "no-store" });
       if (!res.ok) return;
       const data = await res.json();
-      setLive(data.players || []);
+      const players = (data.players || []) as LivePlayer[];
+      const bestOf = (p: LivePlayer) => {
+        const vals = [p.lastAvgL1Ms, p.lastAvgL2Ms].filter(
+          (v): v is number => v != null && Number.isFinite(v)
+        );
+        return vals.length ? Math.min(...vals) : null;
+      };
+      players.sort((a, b) => {
+        const av = bestOf(a);
+        const bv = bestOf(b);
+        if (av == null && bv == null) {
+          return String(a.nick).localeCompare(String(b.nick), "ru");
+        }
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        if (av !== bv) return av - bv;
+        return String(a.nick).localeCompare(String(b.nick), "ru");
+      });
+      setLive(players);
       if (data.records?.l1 !== undefined) setRecordL1(data.records.l1);
       if (data.records?.l2 !== undefined) setRecordL2(data.records.l2);
     } catch {
