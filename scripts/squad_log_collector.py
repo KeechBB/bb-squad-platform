@@ -8,8 +8,12 @@ Env (не коммитить секреты):
   SQUAD_SSH_PORT=2022
   SQUAD_SSH_USER=squad
   SQUAD_SSH_PASSWORD=...
+  # Один лог (legacy):
   SQUAD_LOG_PATH=/home/squad/servers/TPUB1/SquadGame/Saved/Logs/SquadGame.log
   SQUAD_SERVER_KEY=TPUB1
+  # Или несколько серверов (тренировка TR1 + паб):
+  SQUAD_SERVERS=TR1,TPUB1
+  SQUAD_LOG_ROOT=/home/squad/servers
   SQUAD_INGEST_URL=https://bb-squad.ru/api/ingest/squad-sessions
   SQUAD_INGEST_SECRET=...
   SQUAD_STATE_PATH=./squad_collector_state.json
@@ -31,10 +35,12 @@ from typing import Any
 import paramiko
 import requests
 
+# Name may be followed by ?PASSWORD=… on passworded training servers.
 LOGIN_RE = re.compile(
     r"^\[(?P<ts>\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}):\d+\]"
-    r".*LogNet: Login request: \?Name=(?P<name>.+?) "
-    r"userId: RedpointEOS:(?P<eos>[0-9a-fA-F]{32})",
+    r".*LogNet: Login request: \?Name=(?P<name>[^?\s]+)"
+    r"(?:\?[^\s]*)?"
+    r" userId: RedpointEOS:(?P<eos>[0-9a-fA-F]{32})",
 )
 REMOVE_RE = re.compile(
     r"^\[(?P<ts>\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}):\d+\]"
@@ -75,17 +81,42 @@ def parse_ts(ts: str) -> str:
     return dt.isoformat().replace("+00:00", "Z")
 
 
+def clean_nick(raw: str) -> str:
+    nick = (raw or "").strip()
+    if "?" in nick:
+        nick = nick.split("?", 1)[0]
+    return nick.strip()
+
+
+def resolve_log_targets() -> list[tuple[str, str]]:
+    """Return list of (serverKey, logPath)."""
+    servers = os.environ.get("SQUAD_SERVERS", "").strip()
+    root = os.environ.get("SQUAD_LOG_ROOT", "/home/squad/servers").rstrip("/")
+    if servers:
+        out: list[tuple[str, str]] = []
+        for key in servers.split(","):
+            key = key.strip()
+            if not key:
+                continue
+            path = f"{root}/{key}/SquadGame/Saved/Logs/SquadGame.log"
+            out.append((key, path))
+        if out:
+            return out
+    path = os.environ.get(
+        "SQUAD_LOG_PATH",
+        f"{root}/TPUB1/SquadGame/Saved/Logs/SquadGame.log",
+    )
+    key = os.environ.get("SQUAD_SERVER_KEY", "TPUB1")
+    return [(key, path)]
+
+
 class Collector:
     def __init__(self) -> None:
         self.host = env("SQUAD_SSH_HOST")
         self.port = int(os.environ.get("SQUAD_SSH_PORT", "2022"))
         self.user = env("SQUAD_SSH_USER")
         self.password = env("SQUAD_SSH_PASSWORD")
-        self.log_path = env(
-            "SQUAD_LOG_PATH",
-            "/home/squad/servers/TPUB1/SquadGame/Saved/Logs/SquadGame.log",
-        )
-        self.server_key = os.environ.get("SQUAD_SERVER_KEY", "TPUB1")
+        self.targets = resolve_log_targets()
         self.ingest_url = env("SQUAD_INGEST_URL")
         self.ingest_secret = env("SQUAD_INGEST_SECRET")
         self.state_path = Path(
@@ -93,9 +124,12 @@ class Collector:
         )
         self.poll_sec = float(os.environ.get("SQUAD_POLL_SEC", "5"))
         self.eos_steam: dict[str, str] = {}
+        # eos -> {nick, at, serverKey}
         self.pending_joins: dict[str, dict[str, Any]] = {}
-        self.offset = 0
-        self.inode: str | None = None
+        # serverKey -> {offset, inode}
+        self.log_state: dict[str, dict[str, Any]] = {
+            key: {"offset": 0, "inode": None} for key, _ in self.targets
+        }
         self._load_state()
 
     def _load_state(self) -> None:
@@ -103,16 +137,28 @@ class Collector:
             return
         try:
             data = json.loads(self.state_path.read_text(encoding="utf-8"))
-            self.offset = int(data.get("offset", 0))
-            self.inode = data.get("inode")
             raw_map = {
                 str(k).lower(): str(v) for k, v in (data.get("eos_steam") or {}).items()
             }
-            # Drop truncated Steam64 (was 16 digits) — rebuild from live lines.
             self.eos_steam = {
                 k: v for k, v in raw_map.items() if re.fullmatch(r"7656\d{13}", v)
             }
             self.pending_joins = data.get("pending_joins") or {}
+            logs = data.get("logs")
+            if isinstance(logs, dict):
+                for key, meta in logs.items():
+                    if key in self.log_state and isinstance(meta, dict):
+                        self.log_state[key] = {
+                            "offset": int(meta.get("offset", 0)),
+                            "inode": meta.get("inode"),
+                        }
+            elif len(self.targets) == 1:
+                # legacy single-log state
+                key = self.targets[0][0]
+                self.log_state[key] = {
+                    "offset": int(data.get("offset", 0)),
+                    "inode": data.get("inode"),
+                }
             if len(self.eos_steam) != len(raw_map):
                 print(
                     f"state: dropped {len(raw_map) - len(self.eos_steam)} truncated steam ids",
@@ -127,11 +173,15 @@ class Collector:
 
     def _save_state(self) -> None:
         payload = {
-            "offset": self.offset,
-            "inode": self.inode,
+            "logs": self.log_state,
             "eos_steam": self.eos_steam,
             "pending_joins": self.pending_joins,
         }
+        # keep legacy fields for the first target (compat)
+        if self.targets:
+            key = self.targets[0][0]
+            payload["offset"] = self.log_state[key]["offset"]
+            payload["inode"] = self.log_state[key]["inode"]
         self.state_path.write_text(
             json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
         )
@@ -151,22 +201,22 @@ class Collector:
         )
         return c
 
-    def _stat(self, client: paramiko.SSHClient) -> tuple[int, str]:
-        cmd = f'stat -c "%s %i" {self.log_path}'
+    def _stat(self, client: paramiko.SSHClient, log_path: str) -> tuple[int, str]:
+        cmd = f'stat -c "%s %i" {log_path}'
         _, out, _ = client.exec_command(cmd, timeout=30)
         text = out.read().decode("utf-8", "replace").strip()
         size_s, ino_s = text.split()
         return int(size_s), ino_s
 
-    def _read_chunk(self, client: paramiko.SSHClient, start: int, size: int) -> bytes:
-        # dd skip bytes
+    def _read_chunk(
+        self, client: paramiko.SSHClient, log_path: str, start: int, size: int
+    ) -> bytes:
         length = max(0, size - start)
         if length == 0:
             return b""
-        # cap chunk to 8MB per poll
         length = min(length, 8 * 1024 * 1024)
         cmd = (
-            f"dd if={self.log_path} bs=1 skip={start} count={length} "
+            f"dd if={log_path} bs=1 skip={start} count={length} "
             f"2>/dev/null"
         )
         _, out, _ = client.exec_command(cmd, timeout=120)
@@ -181,7 +231,7 @@ class Collector:
                 "Authorization": f"Bearer {self.ingest_secret}",
                 "Content-Type": "application/json",
             },
-            json={"serverKey": self.server_key, "events": events},
+            json={"events": events},
             timeout=30,
         )
         if r.status_code >= 300:
@@ -207,15 +257,14 @@ class Collector:
                     "eosId": eos,
                     "nick": pj.get("nick"),
                     "at": pj["at"],
-                    "serverKey": self.server_key,
+                    "serverKey": pj.get("serverKey") or self.targets[0][0],
                 }
             )
         elif prev != steam:
-            # map updated; nothing else
             pass
         return events
 
-    def _handle_line(self, line: str) -> list[dict[str, Any]]:
+    def _handle_line(self, line: str, server_key: str) -> list[dict[str, Any]]:
         events: list[dict[str, Any]] = []
         m = STEAM_EOS_RE.search(line)
         if m:
@@ -227,7 +276,7 @@ class Collector:
         lm = LOGIN_RE.search(line)
         if lm:
             eos = lm.group("eos").lower()
-            nick = lm.group("name").strip()
+            nick = clean_nick(lm.group("name"))
             at = parse_ts(lm.group("ts"))
             steam = self.eos_steam.get(eos)
             if steam:
@@ -238,11 +287,15 @@ class Collector:
                         "eosId": eos,
                         "nick": nick,
                         "at": at,
-                        "serverKey": self.server_key,
+                        "serverKey": server_key,
                     }
                 )
             else:
-                self.pending_joins[eos] = {"nick": nick, "at": at}
+                self.pending_joins[eos] = {
+                    "nick": nick,
+                    "at": at,
+                    "serverKey": server_key,
+                }
             return events
 
         rm = REMOVE_RE.search(line)
@@ -258,60 +311,79 @@ class Collector:
                         "steamId": steam,
                         "eosId": eos,
                         "at": at,
-                        "serverKey": self.server_key,
+                        "serverKey": server_key,
                     }
                 )
         return events
 
+    def _poll_one(
+        self, client: paramiko.SSHClient, server_key: str, log_path: str
+    ) -> list[dict[str, Any]]:
+        st = self.log_state[server_key]
+        size, inode = self._stat(client, log_path)
+        if st.get("inode") and inode != st["inode"]:
+            print(f"log rotated {server_key}, reset offset")
+            st["offset"] = 0
+        st["inode"] = inode
+        if size < int(st["offset"]):
+            st["offset"] = 0
+
+        offset = int(st["offset"])
+        if (
+            offset == 0
+            and size > 256 * 1024
+            and os.environ.get("SQUAD_BACKFILL") != "1"
+            and not self.eos_steam
+            and not self.pending_joins
+        ):
+            print(f"bootstrap {server_key}: seek end size={size}")
+            st["offset"] = size
+            return []
+
+        raw = self._read_chunk(client, log_path, offset, size)
+        if not raw:
+            return []
+        text = raw.decode("utf-8", "replace")
+        if not text.endswith("\n"):
+            cut = text.rfind("\n")
+            if cut < 0:
+                return []
+            consumed = len(raw[: cut + 1])
+            text = text[: cut + 1]
+        else:
+            consumed = len(raw)
+
+        batch: list[dict[str, Any]] = []
+        for line in text.splitlines():
+            batch.extend(self._handle_line(line, server_key))
+        st["offset"] = offset + consumed
+        return batch
+
     def poll_once(self) -> None:
         client = self._ssh()
         try:
-            size, inode = self._stat(client)
-            if self.inode and inode != self.inode:
-                print("log rotated, reset offset")
-                self.offset = 0
-            self.inode = inode
-            if size < self.offset:
-                self.offset = 0
-            # Первый старт: не гонять весь архив (55MB+), только live.
-            # Для истории: SQUAD_BACKFILL=1
-            if (
-                self.offset == 0
-                and size > 256 * 1024
-                and os.environ.get("SQUAD_BACKFILL") != "1"
-                and not self.eos_steam
-                and not self.pending_joins
-            ):
-                print(f"bootstrap: seek end size={size}")
-                self.offset = size
-                self._save_state()
-                return
-
-            raw = self._read_chunk(client, self.offset, size)
-            if not raw:
-                return
-            # incomplete last line → keep remainder
-            text = raw.decode("utf-8", "replace")
-            if not text.endswith("\n"):
-                cut = text.rfind("\n")
-                if cut < 0:
-                    return
-                consumed = len(raw[: cut + 1])
-                text = text[: cut + 1]
-            else:
-                consumed = len(raw)
-
             batch: list[dict[str, Any]] = []
-            for line in text.splitlines():
-                batch.extend(self._handle_line(line))
-            self.offset += consumed
+            for server_key, log_path in self.targets:
+                try:
+                    batch.extend(self._poll_one(client, server_key, log_path))
+                except Exception as e:
+                    print(
+                        f"poll {server_key} error",
+                        type(e).__name__,
+                        e,
+                        file=sys.stderr,
+                    )
             self._post(batch)
             self._save_state()
         finally:
             client.close()
 
     def run(self) -> None:
-        print("collector start", self.host, self.log_path)
+        print(
+            "collector start",
+            self.host,
+            ", ".join(f"{k}={p}" for k, p in self.targets),
+        )
         while True:
             try:
                 self.poll_once()

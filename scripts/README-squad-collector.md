@@ -26,8 +26,11 @@ export SQUAD_SSH_HOST=194.93.2.107
 export SQUAD_SSH_PORT=2022
 export SQUAD_SSH_USER=squad
 export SQUAD_SSH_PASSWORD='…'
-export SQUAD_LOG_PATH=/home/squad/servers/TPUB1/SquadGame/Saved/Logs/SquadGame.log
-export SQUAD_SERVER_KEY=TPUB1
+export SQUAD_SERVERS=TR1,TPUB1
+export SQUAD_LOG_ROOT=/home/squad/servers
+# legacy single-log still works:
+# export SQUAD_LOG_PATH=/home/squad/servers/TR1/SquadGame/Saved/Logs/SquadGame.log
+# export SQUAD_SERVER_KEY=TR1
 export SQUAD_INGEST_URL=https://bb-squad.ru/api/ingest/squad-sessions
 export SQUAD_INGEST_SECRET='тот же секрет'
 export SQUAD_STATE_PATH=./squad_collector_state.json
@@ -37,6 +40,7 @@ python squad_log_collector.py
 
 Держать процесс постоянно (pm2 / systemd / screen). Пароль SSH и state-файл в git не класть.
 Первый старт читает лог с конца (live). История: `SQUAD_BACKFILL=1`.
+Тренировки обычно на **TR1** (пароль на сервере) — без TR1 в `SQUAD_SERVERS` заходы на тренировку не попадут в таблицу.
 
 ## 3. Профиль
 
