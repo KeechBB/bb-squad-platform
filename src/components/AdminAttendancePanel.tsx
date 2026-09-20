@@ -785,29 +785,6 @@ export function AdminAttendancePanel() {
           </div>
 
           <div className="training-chart-block" style={{ gridColumn: "1 / -1" }}>
-            <h3>Заходы — сколько и когда зашли (+ накопительно)</h3>
-            <BarChart
-              items={(data.stats.joinTimeline || []).map((x) => ({
-                label: x.label,
-                value: x.count,
-                sub: `Σ${x.cumulative}`,
-                color:
-                  x.label === "21:00" ||
-                  x.label.startsWith("≤") ||
-                  x.label.startsWith("20")
-                    ? "linear-gradient(180deg,#86efac,#16a34a)"
-                    : x.label === "21:30"
-                      ? "linear-gradient(180deg,#fde047,#ca8a04)"
-                      : "linear-gradient(180deg,#fca5a5,#dc2626)",
-              }))}
-            />
-            <TimelineTable
-              rows={data.stats.joinTimeline || []}
-              countLabel="Зашли"
-            />
-          </div>
-
-          <div className="training-chart-block" style={{ gridColumn: "1 / -1" }}>
             <h3>Календарь уникальных (21:00–01:00)</h3>
             <p className="muted" style={{ marginTop: 0 }}>
               Цифра на дате — сколько уникальных было в окне 21:00–01:00 МСК.
