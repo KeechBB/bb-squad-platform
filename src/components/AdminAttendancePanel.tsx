@@ -262,7 +262,7 @@ function TimelineTable({
   rows,
   countLabel,
 }: {
-  rows: Array<{ label: string; count: number; cumulative: number }>;
+  rows: Array<{ label: string; count: number; cumulative?: number }>;
   countLabel: string;
 }) {
   if (!rows.length) {
@@ -275,7 +275,6 @@ function TimelineTable({
           <tr>
             <th>Время</th>
             <th>{countLabel}</th>
-            <th>Накопительно</th>
           </tr>
         </thead>
         <tbody>
@@ -283,7 +282,6 @@ function TimelineTable({
             <tr key={r.label}>
               <td>{r.label}</td>
               <td>{r.count}</td>
-              <td>{r.cumulative}</td>
             </tr>
           ))}
         </tbody>
@@ -769,7 +767,6 @@ export function AdminAttendancePanel() {
               items={(data.stats.leaveTimeline || []).map((x) => ({
                 label: x.label,
                 value: x.count,
-                sub: `Σ${x.cumulative}`,
                 color:
                   x.label.startsWith("23") || x.label.startsWith("00")
                     ? "linear-gradient(180deg,#86efac,#16a34a)"
