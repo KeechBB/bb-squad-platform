@@ -33,6 +33,8 @@ type Props = {
   minutes30d: number;
   sessions30d: number;
   openNow: boolean;
+  /** Готовые дни «был» с сервера (чтобы не тащить все сессии на клиент) */
+  presentDays?: string[];
 };
 
 const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
@@ -125,6 +127,7 @@ export function TrainingSessionsCard({
   minutes30d,
   sessions30d,
   openNow,
+  presentDays: presentDaysProp,
 }: Props) {
   const normalized = useMemo(() => normalizeSessions(sessions), [sessions]);
   const today = todayYmdMsk();
@@ -133,10 +136,10 @@ export function TrainingSessionsCard({
   const [viewY, setViewY] = useState(ty);
   const [viewM, setViewM] = useState(tm);
 
-  const presentTrainingDays = useMemo(
-    () => presentTrainingDaysFromSessions(normalized),
-    [normalized]
-  );
+  const presentTrainingDays = useMemo(() => {
+    if (presentDaysProp?.length) return new Set(presentDaysProp);
+    return presentTrainingDaysFromSessions(normalized);
+  }, [normalized, presentDaysProp]);
 
   const avgMin = useMemo(() => {
     if (!sessions30d) return 0;

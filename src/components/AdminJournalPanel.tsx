@@ -87,7 +87,7 @@ export function AdminJournalPanel() {
   }, [load]);
 
   useAutoRefresh(() => load({ silent: true }), {
-    intervalMs: 5000,
+    intervalMs: 15000,
     kinds: ["journal"],
   });
 

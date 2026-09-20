@@ -250,9 +250,10 @@ export default async function PlayerProfilePage({ params }: Props) {
       </div>
 
       <div className="profile-area-training">
-        <LivePageRefresh intervalMs={5000} />
+        <LivePageRefresh intervalMs={15000} />
         <TrainingSessionsCard
           sessions={training.sessions}
+          presentDays={training.presentDays}
           minutes30d={training.minutes30d}
           sessions30d={training.sessions30d}
           openNow={training.openNow}

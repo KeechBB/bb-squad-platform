@@ -3,9 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-/** Тихий router.refresh без F5: SSE /api/live/me + поллинг. */
+/** Тихий router.refresh: SSE + редкий поллинг; в фоне вкладки не дергаем. */
 export function LivePageRefresh({
-  intervalMs = 5000,
+  intervalMs = 15000,
   sseUrl = "/api/live/me",
 }: {
   intervalMs?: number;
@@ -15,14 +15,28 @@ export function LivePageRefresh({
 
   useEffect(() => {
     let cancelled = false;
+    let debounce: number | null = null;
+    let inFlight = false;
+
     const refresh = () => {
-      if (!cancelled) router.refresh();
+      if (cancelled || document.visibilityState === "hidden") return;
+      if (inFlight) return;
+      inFlight = true;
+      router.refresh();
+      window.setTimeout(() => {
+        inFlight = false;
+      }, 800);
+    };
+
+    const schedule = () => {
+      if (debounce != null) window.clearTimeout(debounce);
+      debounce = window.setTimeout(refresh, 400);
     };
 
     let es: EventSource | null = null;
     try {
       es = new EventSource(sseUrl);
-      es.addEventListener("user", refresh);
+      es.addEventListener("user", schedule);
       es.onerror = () => {
         /* poll covers */
       };
@@ -39,6 +53,7 @@ export function LivePageRefresh({
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      if (debounce != null) window.clearTimeout(debounce);
       document.removeEventListener("visibilitychange", onVis);
       es?.close();
     };

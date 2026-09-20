@@ -409,7 +409,7 @@ export function AdminAttendancePanel() {
   }, [load]);
 
   useAutoRefresh(() => load({ silent: true }), {
-    intervalMs: 5000,
+    intervalMs: 15000,
     kinds: ["attendance"],
   });
 
@@ -583,7 +583,7 @@ export function AdminAttendancePanel() {
           ? ` · Найдено: ${rows.length} из ${data.rows.length}`
           : ""}
         {` · Сервер: ${server === "TR1" ? "TR1 (тренировка)" : "PB1 (паблик)"}`}
-        {" · Автообновление ~5 сек"}
+        {" · Автообновление ~15 сек"}
         {tab === "table"
           ? [
               server === "TR1"

@@ -13,8 +13,8 @@ type Options = {
 };
 
 /**
- * Автообновление без F5: SSE + короткий поллинг.
- * onRefresh вызывается без «мигания» loading — сам решай silent.
+ * Автообновление без F5: SSE + поллинг.
+ * Пока вкладка скрыта — не долбим API.
  */
 export function useAutoRefresh(
   onRefresh: () => void | Promise<void>,
@@ -22,7 +22,7 @@ export function useAutoRefresh(
 ) {
   const {
     url = "/api/live/site",
-    intervalMs = 5000,
+    intervalMs = 15000,
     kinds,
     enabled = true,
   } = opts;
@@ -37,10 +37,15 @@ export function useAutoRefresh(
     let cancelled = false;
     let timer: number | null = null;
     let debounce: number | null = null;
+    let inFlight = false;
 
     const run = () => {
-      if (cancelled) return;
-      void Promise.resolve(cb.current());
+      if (cancelled || document.visibilityState === "hidden") return;
+      if (inFlight) return;
+      inFlight = true;
+      void Promise.resolve(cb.current()).finally(() => {
+        inFlight = false;
+      });
     };
 
     const schedule = (payload?: string) => {
@@ -53,7 +58,7 @@ export function useAutoRefresh(
         }
       }
       if (debounce != null) window.clearTimeout(debounce);
-      debounce = window.setTimeout(run, 200);
+      debounce = window.setTimeout(run, 400);
     };
 
     let es: EventSource | null = null;
