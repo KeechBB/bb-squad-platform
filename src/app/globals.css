@@ -883,6 +883,152 @@ a:hover { color: #c4b5fd; }
   border-color: rgba(148, 163, 184, 0.2);
 }
 
+.server-pill {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(167, 139, 250, 0.25);
+  color: #d4c8f0;
+}
+
+.server-pill.tr1 {
+  background: rgba(167, 139, 250, 0.18);
+  border-color: rgba(167, 139, 250, 0.4);
+  color: #ddd6fe;
+}
+
+.server-pill.pb1 {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.35);
+  color: #7dd3fc;
+}
+
+.training-cal-block {
+  min-width: 0;
+}
+
+.training-cal-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.training-cal-head h3 {
+  margin: 0;
+}
+
+.training-cal-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.training-cal-nav .btn {
+  padding: 4px 10px;
+  min-width: 36px;
+}
+
+.training-cal-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  min-width: 9.5rem;
+  text-align: center;
+}
+
+.training-cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.training-cal-weekdays span {
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.training-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.training-cal-cell {
+  min-height: 48px;
+  border-radius: 10px;
+  border: 1px solid rgba(167, 139, 250, 0.12);
+  background: rgba(10, 8, 18, 0.35);
+  padding: 4px 5px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.training-cal-cell.empty {
+  border: none;
+  background: transparent;
+  min-height: 48px;
+}
+
+.training-cal-day {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.training-cal-dot {
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.training-cal-cell.mark-present {
+  background: rgba(74, 222, 128, 0.14);
+  border-color: rgba(74, 222, 128, 0.4);
+}
+
+.training-cal-cell.mark-present .training-cal-dot {
+  color: #4ade80;
+}
+
+.training-cal-cell.mark-absent {
+  background: rgba(248, 113, 113, 0.1);
+  border-color: rgba(248, 113, 113, 0.28);
+}
+
+.training-cal-cell.mark-absent .training-cal-dot {
+  color: #f87171;
+}
+
+.training-cal-cell.mark-pending,
+.training-cal-cell.mark-outside {
+  opacity: 0.55;
+}
+
+.training-cal-cell.is-today {
+  box-shadow: inset 0 0 0 1px rgba(167, 139, 250, 0.55);
+}
+
+.training-cal-legend {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.training-cal-legend strong {
+  color: var(--ink);
+}
+
 .training-charts {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);

@@ -11,7 +11,7 @@ export async function loadUserTrainingStats(userId: string) {
   const sessions = await prisma.squadServerSession.findMany({
     where: { userId, joinedAt: { gte: canonStart } },
     orderBy: { joinedAt: "desc" },
-    take: 40,
+    take: 120,
   });
 
   const last30 = sessions.filter((s) => s.joinedAt >= since);
