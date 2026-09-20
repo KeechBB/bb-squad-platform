@@ -69,6 +69,33 @@ model User {
   clanJoinRequests ClanJoinRequest[] @relation("JoinApplicant")
   reviewedJoinRequests ClanJoinRequest[] @relation("JoinReviewer")
   squadSessions   SquadServerSession[]
+  reactionRuns    ReactionRun[]
+  reactionPresence ReactionPresence?
+}
+
+/// Серия из 10 попыток тренировки на реакцию (уровень 1)
+model ReactionRun {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  level     Int      @default(1)
+  /// Среднее время реакции, мс (до тысячных)
+  avgMs     Float
+  /// 10 попыток в мс
+  attempts  Json
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([avgMs])
+}
+
+/// Кто сейчас на вкладке «Тренировка стрельбы»
+model ReactionPresence {
+  userId      String   @id
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Последний средний результат в этой сессии на вкладке (мс)
+  lastAvgMs   Float?
+  updatedAt   DateTime @updatedAt
 }
 
 model Clan {

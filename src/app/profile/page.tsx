@@ -15,6 +15,8 @@ import { formatRuDate, isActiveReserve } from "@/lib/validation";
 import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
 import { loadUserTrainingStats } from "@/lib/trainingStats";
 import { buildPlayerKvStats } from "@/lib/kvStats";
+import { ReactionBestCard } from "@/components/ReactionBestCard";
+import { REACTION_LEVEL } from "@/lib/reaction";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -76,6 +78,20 @@ export default async function ProfilePage() {
     }
   }
 
+  const [reactionBest, reactionHistory] = await Promise.all([
+    prisma.reactionRun.findFirst({
+      where: { userId: me.id, level: REACTION_LEVEL },
+      orderBy: { avgMs: "asc" },
+      select: { avgMs: true },
+    }),
+    prisma.reactionRun.findMany({
+      where: { userId: me.id, level: REACTION_LEVEL },
+      orderBy: { createdAt: "desc" },
+      take: 15,
+      select: { id: true, avgMs: true, createdAt: true },
+    }),
+  ]);
+
   return (
     <main className="profile-page">
       <div className="profile-area-head">
@@ -93,6 +109,14 @@ export default async function ProfilePage() {
             active={reserveActive}
             untilLabel={reserveUntilLabel}
             reason={reserveActive ? me.reserveReason || null : null}
+          />
+          <ReactionBestCard
+            bestAvgMs={reactionBest?.avgMs ?? null}
+            history={reactionHistory.map((h) => ({
+              id: h.id,
+              avgMs: h.avgMs,
+              createdAt: h.createdAt.toISOString(),
+            }))}
           />
         </div>
       </div>

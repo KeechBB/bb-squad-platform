@@ -3486,3 +3486,272 @@ body:has(.home-page) {
     align-items: stretch;
   }
 }
+
+/* ЧЧЧ “ренировка стрельбы (реакци€) ЧЧЧ */
+.reaction-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: calc(100dvh - 100px);
+}
+
+.reaction-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reaction-head h1 {
+  margin: 0;
+  font-size: 1.55rem;
+}
+
+.reaction-best-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.28);
+}
+
+.reaction-best-chip strong {
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.reaction-layout {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(0, 3fr);
+  gap: 14px;
+  flex: 1;
+  min-height: 0;
+}
+
+.reaction-board {
+  display: flex;
+  flex-direction: column;
+  min-height: 320px;
+  max-height: calc(100dvh - 180px);
+  overflow: hidden;
+}
+
+.reaction-board h2 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+}
+
+.reaction-live-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  overflow: auto;
+  flex: 1;
+}
+
+.reaction-live-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.9rem;
+}
+
+.reaction-live-avg {
+  font-variant-numeric: tabular-nums;
+  color: #86efac;
+  white-space: nowrap;
+}
+
+.reaction-main {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 420px;
+}
+
+.reaction-main-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.reaction-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.reaction-avg-now {
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.reaction-arena {
+  position: relative;
+  flex: 1;
+  min-height: 360px;
+  border-radius: 12px;
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(56, 189, 248, 0.08), transparent 50%),
+    radial-gradient(ellipse at 70% 80%, rgba(34, 197, 94, 0.06), transparent 45%),
+    rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: crosshair;
+  overflow: hidden;
+  user-select: none;
+}
+
+.reaction-hint {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: var(--muted);
+  pointer-events: none;
+  text-align: center;
+  padding: 20px;
+}
+
+.reaction-dot {
+  position: absolute;
+  width: 52px;
+  height: 52px;
+  margin: -26px 0 0 -26px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  background: radial-gradient(circle at 35% 30%, #86efac, #16a34a 55%, #14532d);
+  box-shadow:
+    0 0 0 3px rgba(34, 197, 94, 0.35),
+    0 0 24px rgba(34, 197, 94, 0.55);
+  animation: reaction-pop 0.12s ease-out;
+}
+
+@keyframes reaction-pop {
+  from {
+    transform: scale(0.4);
+    opacity: 0.3;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.reaction-msg {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #fbbf24;
+}
+
+.reaction-attempts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.reaction-attempts li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.78rem;
+}
+
+.reaction-attempts li.filled {
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.reaction-attempts li span {
+  color: var(--muted);
+}
+
+.reaction-attempts li strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.reaction-profile-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 160px;
+}
+
+.reaction-profile-best {
+  display: flex;
+  flex-direction: column;
+}
+
+.reaction-profile-num {
+  font-size: 1.65rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  margin-top: 4px;
+}
+
+.reaction-profile-num span {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.reaction-profile-history h3 {
+  margin: 0 0 6px;
+  font-size: 0.9rem;
+}
+
+.reaction-profile-history ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 160px;
+  overflow: auto;
+}
+
+.reaction-profile-history li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.78rem;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.reaction-profile-history strong {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .reaction-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .reaction-board {
+    max-height: 220px;
+  }
+
+  .reaction-attempts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .reaction-arena {
+    min-height: 280px;
+  }
+}
