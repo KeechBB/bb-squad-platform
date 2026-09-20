@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { AppRole } from "@/lib/roles";
 import { roleLabel } from "@/lib/roles";
+import { isSiteOnline } from "@/lib/presence";
+import { SitePresenceBadge } from "@/components/SitePresenceBadge";
 
 export type AdminUserRow = {
   id: string;
@@ -16,11 +18,20 @@ export type AdminUserRow = {
   profileComplete: boolean;
   regNo: number | null;
   createdAt: string;
+  lastSeenAt?: string | null;
   canEditRole: boolean;
   canDelete: boolean;
 };
 
-type SortKey = "regNo" | "createdAt" | "nick" | "name" | "age" | "steamId" | "role";
+type SortKey =
+  | "regNo"
+  | "createdAt"
+  | "nick"
+  | "name"
+  | "age"
+  | "steamId"
+  | "role"
+  | "online";
 
 type Props = {
   initialUsers: AdminUserRow[];
@@ -60,6 +71,56 @@ export function AdminUsersTable({ initialUsers, roleOptions, actorRole }: Props)
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
 
+  useEffect(() => {
+    setUsers(initialUsers);
+  }, [initialUsers]);
+
+  /** Подтягиваем lastSeenAt раз в 30 сек, чтобы статусы не устаревали */
+  useEffect(() => {
+    let cancelled = false;
+    async function refreshPresence() {
+      try {
+        const res = await fetch("/api/admin/users?sort=createdAt&order=desc", {
+          cache: "no-store",
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const list = (data.users || []) as Array<{
+          id: string;
+          lastSeenAt?: string | Date | null;
+        }>;
+        if (!list.length || cancelled) return;
+        const map = new Map(
+          list.map((u) => [
+            u.id,
+            u.lastSeenAt
+              ? typeof u.lastSeenAt === "string"
+                ? u.lastSeenAt
+                : new Date(u.lastSeenAt).toISOString()
+              : null,
+          ])
+        );
+        setUsers((prev) =>
+          prev.map((u) =>
+            map.has(u.id) ? { ...u, lastSeenAt: map.get(u.id) ?? null } : u
+          )
+        );
+      } catch {
+        /* ignore */
+      }
+    }
+    const id = window.setInterval(() => void refreshPresence(), 30_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, []);
+
+  const onlineCount = useMemo(
+    () => users.filter((u) => isSiteOnline(u.lastSeenAt)).length,
+    [users]
+  );
+
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
     let list = users;
@@ -74,10 +135,17 @@ export function AdminUsersTable({ initialUsers, roleOptions, actorRole }: Props)
     }
     const dir = order === "asc" ? 1 : -1;
     return [...list].sort((a, b) => {
-      const av = a[sort];
-      const bv = b[sort];
+      if (sort === "online") {
+        const ao = isSiteOnline(a.lastSeenAt) ? 1 : 0;
+        const bo = isSiteOnline(b.lastSeenAt) ? 1 : 0;
+        return (ao - bo) * dir;
+      }
+      const av = a[sort as keyof AdminUserRow];
+      const bv = b[sort as keyof AdminUserRow];
       if (sort === "createdAt") {
-        return (new Date(String(av)).getTime() - new Date(String(bv)).getTime()) * dir;
+        return (
+          (new Date(String(av)).getTime() - new Date(String(bv)).getTime()) * dir
+        );
       }
       if (sort === "regNo" || sort === "age") {
         const an = (av as number | null) ?? -1;
@@ -97,7 +165,7 @@ export function AdminUsersTable({ initialUsers, roleOptions, actorRole }: Props)
       setOrder((o) => (o === "asc" ? "desc" : "asc"));
     } else {
       setSort(key);
-      setOrder(key === "createdAt" ? "desc" : "asc");
+      setOrder(key === "createdAt" || key === "online" ? "desc" : "asc");
     }
   }
 
@@ -192,6 +260,8 @@ export function AdminUsersTable({ initialUsers, roleOptions, actorRole }: Props)
         </label>
         <p className="muted admin-count">
           Найдено: {rows.length} / {users.length}
+          {" · "}
+          Онлайн на сайте: {onlineCount}
         </p>
       </div>
       {error ? <p className="error">{error}</p> : null}
@@ -202,37 +272,74 @@ export function AdminUsersTable({ initialUsers, roleOptions, actorRole }: Props)
           <thead>
             <tr>
               <th>
-                <button type="button" className="sort-btn" onClick={() => toggleSort("regNo")}>
+                <button
+                  type="button"
+                  className="sort-btn"
+                  onClick={() => toggleSort("regNo")}
+                >
                   №{sortMark("regNo")}
                 </button>
               </th>
               <th>
-                <button type="button" className="sort-btn" onClick={() => toggleSort("nick")}>
+                <button
+                  type="button"
+                  className="sort-btn"
+                  onClick={() => toggleSort("nick")}
+                >
                   Ник{sortMark("nick")}
                 </button>
               </th>
               <th>
-                <button type="button" className="sort-btn" onClick={() => toggleSort("name")}>
+                <button
+                  type="button"
+                  className="sort-btn"
+                  onClick={() => toggleSort("online")}
+                >
+                  Сайт{sortMark("online")}
+                </button>
+              </th>
+              <th>
+                <button
+                  type="button"
+                  className="sort-btn"
+                  onClick={() => toggleSort("name")}
+                >
                   Имя{sortMark("name")}
                 </button>
               </th>
               <th>
-                <button type="button" className="sort-btn" onClick={() => toggleSort("age")}>
+                <button
+                  type="button"
+                  className="sort-btn"
+                  onClick={() => toggleSort("age")}
+                >
                   Возраст{sortMark("age")}
                 </button>
               </th>
               <th>
-                <button type="button" className="sort-btn" onClick={() => toggleSort("steamId")}>
+                <button
+                  type="button"
+                  className="sort-btn"
+                  onClick={() => toggleSort("steamId")}
+                >
                   Steam ID{sortMark("steamId")}
                 </button>
               </th>
               <th>
-                <button type="button" className="sort-btn" onClick={() => toggleSort("createdAt")}>
+                <button
+                  type="button"
+                  className="sort-btn"
+                  onClick={() => toggleSort("createdAt")}
+                >
                   Регистрация{sortMark("createdAt")}
                 </button>
               </th>
               <th>
-                <button type="button" className="sort-btn" onClick={() => toggleSort("role")}>
+                <button
+                  type="button"
+                  className="sort-btn"
+                  onClick={() => toggleSort("role")}
+                >
                   Роль{sortMark("role")}
                 </button>
               </th>
@@ -251,12 +358,22 @@ export function AdminUsersTable({ initialUsers, roleOptions, actorRole }: Props)
                 <tr key={u.id}>
                   <td>{u.regNo ?? "—"}</td>
                   <td>
-                    <Link className="admin-user-link" href={`/admin/users/${u.id}`}>
+                    <Link
+                      className="admin-user-link"
+                      href={`/admin/users/${u.id}`}
+                    >
                       {u.nick || "—"}
                     </Link>
                     {!u.profileComplete ? (
                       <span className="admin-badge">не завершил</span>
                     ) : null}
+                  </td>
+                  <td>
+                    <SitePresenceBadge
+                      lastSeenAt={u.lastSeenAt}
+                      compact
+                      showOffline
+                    />
                   </td>
                   <td>{u.name || "—"}</td>
                   <td>{u.age ?? "—"}</td>
@@ -268,7 +385,9 @@ export function AdminUsersTable({ initialUsers, roleOptions, actorRole }: Props)
                         className="role-select"
                         value={u.role}
                         disabled={busyId === u.id}
-                        onChange={(e) => void setRole(u.id, e.target.value as AppRole)}
+                        onChange={(e) =>
+                          void setRole(u.id, e.target.value as AppRole)
+                        }
                       >
                         {options.map((r) => (
                           <option key={r} value={r}>
@@ -299,7 +418,7 @@ export function AdminUsersTable({ initialUsers, roleOptions, actorRole }: Props)
             })}
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={showDeleteCol ? 8 : 7} className="muted">
+                <td colSpan={showDeleteCol ? 9 : 8} className="muted">
                   Никого не найдено
                 </td>
               </tr>

@@ -2027,6 +2027,17 @@ a:hover { color: #c4b5fd; }
   height: 6px;
 }
 
+.site-presence-compact-off {
+  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.12);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.site-presence-compact-off .site-presence-dot {
+  background: #64748b;
+  box-shadow: none;
+}
+
 .profile-head-row {
   display: flex;
   align-items: center;

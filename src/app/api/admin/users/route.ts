@@ -48,6 +48,7 @@ export async function GET(req: Request) {
       profileComplete: true,
       regNo: true,
       createdAt: true,
+      lastSeenAt: true,
     },
   });
 

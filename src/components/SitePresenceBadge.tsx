@@ -2,16 +2,25 @@ import { isSiteOnline } from "@/lib/presence";
 
 type Props = {
   lastSeenAt?: Date | string | null;
-  /** Компактный вариант для списков (точка + «онлайн») */
+  /** Компактный вариант для списков */
   compact?: boolean;
+  /** В compact по умолчанию офлайн скрыт; true — показывать «офлайн» */
+  showOffline?: boolean;
 };
 
-export function SitePresenceBadge({ lastSeenAt, compact }: Props) {
+export function SitePresenceBadge({
+  lastSeenAt,
+  compact,
+  showOffline,
+}: Props) {
   const online = isSiteOnline(lastSeenAt);
   if (!online) {
-    if (compact) return null;
+    if (compact && !showOffline) return null;
     return (
-      <span className="site-presence site-presence-off" title="Не на сайте">
+      <span
+        className={`site-presence site-presence-off${compact ? " site-presence-compact site-presence-compact-off" : ""}`}
+        title="Не на сайте"
+      >
         <span className="site-presence-dot" aria-hidden />
         офлайн
       </span>
