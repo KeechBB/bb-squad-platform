@@ -3698,7 +3698,7 @@ body:has(.home-page) {
 
 .reaction-layout {
   display: grid;
-  grid-template-columns: minmax(180px, 220px) minmax(720px, 1fr) minmax(220px, 280px);
+  grid-template-columns: minmax(260px, 320px) minmax(720px, 1fr) minmax(220px, 280px);
   gap: 14px;
   flex: 1;
   min-height: 0;
@@ -4228,7 +4228,7 @@ body:has(.home-page) {
 
 @media (max-width: 1200px) {
   .reaction-layout {
-    grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
+    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
   }
 
   .reaction-side-col {
