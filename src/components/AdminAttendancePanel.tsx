@@ -94,14 +94,14 @@ function joinTone(hm: string): "ok" | "warn" | "bad" {
   return "bad";
 }
 
-/** Выход TR1: вне 21:00–01:00 белый; 23:30–01:00 зелёный; раньше — как было */
+/** Выход TR1: вне 21:00–02:00 белый; 23:30–02:00 зелёный; раньше — как было */
 function leaveToneTr(hm: string): "ok" | "warn" | "bad" | "neutral" {
   const mins = parseHm(hm);
   if (mins == null) return "bad";
-  const inEvening = mins >= 21 * 60 || mins < 1 * 60;
+  const inEvening = mins >= 21 * 60 || mins < 2 * 60;
   if (!inEvening) return "neutral";
-  const t = mins < 1 * 60 ? mins + 24 * 60 : mins;
-  if (t >= 23 * 60 + 30 && t < 25 * 60) return "ok";
+  const t = mins < 2 * 60 ? mins + 24 * 60 : mins;
+  if (t >= 23 * 60 + 30 && t < 26 * 60) return "ok";
   if (t >= 23 * 60) return "warn";
   return "bad";
 }
@@ -316,7 +316,7 @@ function StatsMonthCalendar({
                     }`}
                     title={
                       inRange
-                        ? `${c.ymd}: ${n} уникальных (21:00–01:00)`
+                        ? `${c.ymd}: ${n} уникальных (21:00–02:00)`
                         : "Вне выбранного периода"
                     }
                   >
@@ -564,7 +564,7 @@ export function AdminAttendancePanel() {
                 : "",
               showOut
                 ? server === "TR1"
-                  ? " · Цвет выхода TR1: 23:30–01:00 зел.; до 23:30 в окне — жёлт./красн.; вне 21:00–01:00 белый."
+                  ? " · Цвет выхода TR1: 23:30–02:00 зел.; до 23:30 в окне — жёлт./красн.; вне 21:00–02:00 белый."
                   : " · Цвет выхода: до 23:00 красн., 23:00–23:30 жёлт., после 23:30 зел."
                 : "",
             ].join("")
@@ -724,7 +724,7 @@ export function AdminAttendancePanel() {
                   </div>
                 </div>
                 <p className="muted" style={{ margin: "8px 0 0", fontSize: "0.78rem" }}>
-                  По первому заходу в вечер (21:00–01:00), человек×день:{" "}
+                  По первому заходу в вечер (21:00–02:00), человек×день:{" "}
                   {data.stats.joinNorm.total}
                 </p>
               </>
@@ -742,10 +742,11 @@ export function AdminAttendancePanel() {
           </div>
 
           <div className="training-chart-block" style={{ gridColumn: "1 / -1" }}>
-            <h3>Календарь уникальных (21:00–01:00)</h3>
+            <h3>Календарь уникальных (21:00–02:00)</h3>
             <p className="muted" style={{ marginTop: 0 }}>
-              Цифра на дате — сколько уникальных было в окне 21:00–01:00 МСК.
-              Вне этого окна в цифру не входят.
+              Цифра на дате — сколько уникальных было в окне 21:00–02:00 МСК
+              (выход до 02:00 относится к вчерашней тренировке). Вне этого окна в
+              цифру не входят.
             </p>
             <StatsMonthCalendar
               days={data.days}

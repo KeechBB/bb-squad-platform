@@ -33,6 +33,22 @@ function hmMsk(d: Date): string {
   return `${String(p.h).padStart(2, "0")}:${String(p.min).padStart(2, "0")}`;
 }
 
+/** Выход до 02:00 МСК → день вчерашней тренировки. */
+function trainingDayFromLeave(leftAt: Date): string {
+  const p = mskParts(leftAt);
+  const lmin = p.h * 60 + p.min;
+  if (lmin < 2 * 60) {
+    const prev = new Date(Date.UTC(p.y, p.m - 1, p.day - 1));
+    return `${prev.getUTCFullYear()}-${String(prev.getUTCMonth() + 1).padStart(2, "0")}-${String(prev.getUTCDate()).padStart(2, "0")}`;
+  }
+  return `${p.y}-${String(p.m).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
+}
+
+/** Выход в окне вечерней тренировки 21:00–02:00 МСК. */
+function isEveningLeaveMinutes(lmin: number): boolean {
+  return lmin >= 21 * 60 || lmin < 2 * 60;
+}
+
 export async function GET(req: Request) {
   const session = await getSession();
   if (!session?.user?.steamId) {
@@ -238,9 +254,9 @@ export async function GET(req: Request) {
 
   /** Уникальные в окне 21:00–00:00 (для средних) */
   const uniqueMidnightByDay: Record<string, Set<string>> = {};
-  /** Уникальные в окне 21:00–01:00 (для календаря) */
-  const uniqueUntil01ByDay: Record<string, Set<string>> = {};
-  /** Первое вечернее касание окна 21–01: user|day → join minutes MSK */
+  /** Уникальные в окне 21:00–02:00 (для календаря; до 02:00 = вчерашняя тренировка) */
+  const uniqueUntil02ByDay: Record<string, Set<string>> = {};
+  /** Первое вечернее касание окна 21–02: user|day → join minutes MSK */
   const firstEveningJoinMin = new Map<string, number>();
 
   type Slot = { label: string; minFrom: number; minTo: number };
@@ -253,10 +269,10 @@ export async function GET(req: Request) {
     { label: "23:30", minFrom: 23 * 60 + 30, minTo: 24 * 60 },
     { label: "00:00", minFrom: 0, minTo: 30 },
     { label: "00:30", minFrom: 30, minTo: 60 },
-    { label: "01:00+", minFrom: 60, minTo: 21 * 60 }, // 01:00–20:59 «ранний/др»
+    { label: "01:00", minFrom: 60, minTo: 90 },
+    { label: "01:30", minFrom: 90, minTo: 120 },
   ];
   const leaveSlotUsers: Array<Set<string>> = leaveSlots.map(() => new Set());
-  const leaveOtherUsers = new Set<string>();
 
   const joinSlots: Slot[] = [
     { label: "≤20:00", minFrom: 0, minTo: 20 * 60 },
@@ -304,16 +320,16 @@ export async function GET(req: Request) {
     if (isPublic) {
       if (!uniqueMidnightByDay[day]) uniqueMidnightByDay[day] = new Set();
       uniqueMidnightByDay[day].add(s.userId);
-      if (!uniqueUntil01ByDay[day]) uniqueUntil01ByDay[day] = new Set();
-      uniqueUntil01ByDay[day].add(s.userId);
+      if (!uniqueUntil02ByDay[day]) uniqueUntil02ByDay[day] = new Set();
+      uniqueUntil02ByDay[day].add(s.userId);
     } else {
       if (trainingWindowOverlapMinutes(s.joinedAt, s.leftAt, 24, now) > 0) {
         if (!uniqueMidnightByDay[day]) uniqueMidnightByDay[day] = new Set();
         uniqueMidnightByDay[day].add(s.userId);
       }
-      if (trainingWindowOverlapMinutes(s.joinedAt, s.leftAt, 25, now) > 0) {
-        if (!uniqueUntil01ByDay[day]) uniqueUntil01ByDay[day] = new Set();
-        uniqueUntil01ByDay[day].add(s.userId);
+      if (trainingWindowOverlapMinutes(s.joinedAt, s.leftAt, 26, now) > 0) {
+        if (!uniqueUntil02ByDay[day]) uniqueUntil02ByDay[day] = new Set();
+        uniqueUntil02ByDay[day].add(s.userId);
 
         const fk = `${s.userId}|${day}`;
         const prev = firstEveningJoinMin.get(fk);
@@ -325,28 +341,21 @@ export async function GET(req: Request) {
       if (s.leftAt) {
         const lp = mskParts(s.leftAt);
         const lmin = lp.h * 60 + lp.min;
-        let placed = false;
-        for (let i = 0; i < leaveSlots.length; i++) {
-          const sl = leaveSlots[i];
-          if (sl.label === "01:00+") {
-            if (lmin >= 60 && lmin < 21 * 60) {
-              leaveSlotUsers[i].add(`${s.userId}|${day}`);
-              placed = true;
-              break;
+        // Дневные выходы в статистику вечера не входят
+        if (!isEveningLeaveMinutes(lmin)) {
+          // skip
+        } else {
+          const leaveDay = trainingDayFromLeave(s.leftAt);
+          if (daySet.has(leaveDay)) {
+            for (let i = 0; i < leaveSlots.length; i++) {
+              const sl = leaveSlots[i];
+              if (lmin >= sl.minFrom && lmin < sl.minTo) {
+                leaveSlotUsers[i].add(`${s.userId}|${leaveDay}`);
+                break;
+              }
             }
-          } else if (sl.minFrom >= 21 * 60) {
-            if (lmin >= sl.minFrom && lmin < sl.minTo) {
-              leaveSlotUsers[i].add(`${s.userId}|${day}`);
-              placed = true;
-              break;
-            }
-          } else if (lmin >= sl.minFrom && lmin < sl.minTo) {
-            leaveSlotUsers[i].add(`${s.userId}|${day}`);
-            placed = true;
-            break;
           }
         }
-        if (!placed) leaveOtherUsers.add(`${s.userId}|${day}`);
       }
     }
 
@@ -378,7 +387,7 @@ export async function GET(req: Request) {
   }));
   const calendarUnique = days.map((d) => ({
     day: d,
-    players: uniqueUntil01ByDay[d]?.size || 0,
+    players: uniqueUntil02ByDay[d]?.size || 0,
   }));
 
   const avgPlayers =
@@ -431,14 +440,6 @@ export async function GET(req: Request) {
     leaveCum += count;
     return { label: sl.label, count, cumulative: leaveCum };
   });
-  if (leaveOtherUsers.size) {
-    leaveCum += leaveOtherUsers.size;
-    leaveTimeline.push({
-      label: "др",
-      count: leaveOtherUsers.size,
-      cumulative: leaveCum,
-    });
-  }
 
   let joinCum = 0;
   const joinTimeline = joinSlots.map((sl, i) => {
@@ -458,7 +459,7 @@ export async function GET(req: Request) {
 
   const windowLabel = isPublic
     ? "00:00–24:00 МСК"
-    : `21:00–00:00 МСК (средние) · календарь 21:00–01:00`;
+    : `21:00–00:00 МСК (средние) · календарь 21:00–02:00`;
 
   return NextResponse.json({
     from: fromYmd,

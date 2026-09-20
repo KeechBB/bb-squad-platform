@@ -175,7 +175,7 @@ export function isTrainingPresentMinutes(minutesInWindow: number): boolean {
 }
 
 /**
- * Окно тренировочного дня: с 21:00 МСК до endHourMsk (24 = 00:00, 25 = 01:00).
+ * Окно тренировочного дня: с 21:00 МСК до endHourMsk (24 = 00:00, 25 = 01:00, 26 = 02:00).
  */
 export function trainingEveningWindowUtc(
   dayYmd: string,
