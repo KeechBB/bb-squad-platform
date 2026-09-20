@@ -230,34 +230,6 @@ function defaultRange(): { from: string; to: string } {
   return { from, to };
 }
 
-function BarChart({
-  items,
-}: {
-  items: Array<{ label: string; value: number; color?: string; sub?: string }>;
-}) {
-  const max = Math.max(1, ...items.map((i) => i.value));
-  return (
-    <div className="training-bars" style={{ minHeight: 140 }}>
-      {items.map((i) => (
-        <div key={i.label} className="training-bar-col">
-          <div className="training-bar-track" style={{ height: 110 }}>
-            <div
-              className="training-bar-fill"
-              style={{
-                height: `${Math.round((100 * i.value) / max)}%`,
-                background: i.color || undefined,
-              }}
-            />
-          </div>
-          <span>{i.label}</span>
-          <strong>{i.value}</strong>
-          {i.sub ? <em className="attend-bar-sub">{i.sub}</em> : null}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function TimelineTable({
   rows,
   countLabel,
@@ -763,18 +735,6 @@ export function AdminAttendancePanel() {
 
           <div className="training-chart-block" style={{ gridColumn: "1 / -1" }}>
             <h3>Выходы — сколько и во сколько ушли</h3>
-            <BarChart
-              items={(data.stats.leaveTimeline || []).map((x) => ({
-                label: x.label,
-                value: x.count,
-                color:
-                  x.label.startsWith("23") || x.label.startsWith("00")
-                    ? "linear-gradient(180deg,#86efac,#16a34a)"
-                    : x.label.startsWith("22")
-                      ? "linear-gradient(180deg,#fde047,#ca8a04)"
-                      : undefined,
-              }))}
-            />
             <TimelineTable
               rows={data.stats.leaveTimeline || []}
               countLabel="Ушли"
