@@ -3616,10 +3616,10 @@ body:has(.home-page) {
 
 .reaction-tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 8px;
-  flex: 1 1 420px;
-  max-width: 720px;
+  flex: 1 1 520px;
+  max-width: 860px;
 }
 
 .reaction-tabs-row {
@@ -3632,10 +3632,10 @@ body:has(.home-page) {
 
 .reaction-records {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 8px;
-  flex: 0 1 360px;
-  min-width: 260px;
+  flex: 0 1 460px;
+  min-width: 280px;
 }
 
 .reaction-record-card {
@@ -3728,7 +3728,7 @@ body:has(.home-page) {
 
 .reaction-live-head {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 52px 52px;
+  grid-template-columns: minmax(0, 1fr) 44px 44px 44px;
   gap: 6px;
   margin-top: 8px;
   padding: 0 0 6px;
@@ -3754,7 +3754,7 @@ body:has(.home-page) {
 
 .reaction-live-list li {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 52px 52px;
+  grid-template-columns: minmax(0, 1fr) 44px 44px 44px;
   gap: 6px;
   align-items: center;
   padding: 8px 0;
@@ -3845,10 +3845,66 @@ body:has(.home-page) {
   border: none;
   cursor: pointer;
   background: radial-gradient(circle at 35% 30%, #86efac, #16a34a 55%, #14532d);
+  z-index: 2;
   box-shadow:
     0 0 0 3px rgba(34, 197, 94, 0.35),
     0 0 24px rgba(34, 197, 94, 0.55);
   animation: reaction-pop 0.12s ease-out;
+}
+
+.reaction-dot-lg {
+  width: 104px;
+  height: 104px;
+  margin: -52px 0 0 -52px;
+}
+
+.reaction-dot-l3 {
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  animation: reaction-dot-pop 1s linear forwards;
+}
+
+@keyframes reaction-dot-pop {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.85;
+  }
+  15% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  85% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+}
+
+.reaction-l3-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.reaction-l3-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.reaction-l3-stats strong {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.05rem;
+  color: #86efac;
 }
 
 @keyframes reaction-pop {
@@ -4055,7 +4111,7 @@ body:has(.home-page) {
 
 .reaction-profile-levels {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 8px;
   margin-top: 6px;
 }

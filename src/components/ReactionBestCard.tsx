@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { formatSec3 } from "@/lib/reaction";
+import { formatScore, formatSec3 } from "@/lib/reaction";
 
 type Props = {
   bestAvgMs: number | null;
   bestLevel?: number | null;
   bestL1?: number | null;
   bestL2?: number | null;
+  bestL3?: number | null;
   history: Array<{
     id: string;
     avgMs: number;
@@ -31,7 +32,12 @@ function fmtDate(iso: string) {
   }
 }
 
-export function ReactionBestCard({ bestL1, bestL2, history }: Props) {
+function formatHistoryValue(level: number | undefined, avgMs: number) {
+  if (level === 3) return `${formatScore(avgMs)} оч.`;
+  return `${formatSec3(avgMs)} с`;
+}
+
+export function ReactionBestCard({ bestL1, bestL2, bestL3, history }: Props) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -52,6 +58,12 @@ export function ReactionBestCard({ bestL1, bestL2, history }: Props) {
               <span className="muted">2 ур</span>
               <strong>
                 {bestL2 != null ? `${formatSec3(bestL2)} с` : "—"}
+              </strong>
+            </div>
+            <div className="reaction-profile-level">
+              <span className="muted">3 ур</span>
+              <strong>
+                {bestL3 != null ? `${formatScore(bestL3)} оч.` : "—"}
               </strong>
             </div>
           </div>
@@ -105,7 +117,7 @@ export function ReactionBestCard({ bestL1, bestL2, history }: Props) {
                     {fmtDate(h.createdAt)}
                     {h.level != null ? ` · ур.${h.level}` : ""}
                   </span>
-                  <strong>{formatSec3(h.avgMs)} с</strong>
+                  <strong>{formatHistoryValue(h.level, h.avgMs)}</strong>
                 </li>
               ))}
             </ul>

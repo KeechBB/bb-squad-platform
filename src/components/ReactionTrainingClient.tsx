@@ -6,10 +6,19 @@ import {
   REACTION_ATTEMPTS,
   REACTION_DELAY_MAX_S,
   REACTION_DELAY_MIN_S,
-  REACTION_MISS_PENALTY_MS,
+  REACTION_L3_BALL_LIFE_MS,
+  REACTION_L3_DURATION_MS,
+  REACTION_L3_HIT_POINTS,
+  REACTION_L3_MISS_POINTS,
+  REACTION_L3_SPAWN_EVERY_MS,
+  REACTION_L3_SPAWN_MAX,
+  REACTION_L3_SPAWN_MIN,
   averageMs,
+  formatScore,
   formatSec3,
+  isScoreLevel,
   roundMs3,
+  type ReactionLevel,
 } from "@/lib/reaction";
 import { ReactionAimChat } from "@/components/ReactionAimChat";
 
@@ -20,6 +29,7 @@ type LivePlayer = {
   lastAvgMs: number | null;
   lastAvgL1Ms: number | null;
   lastAvgL2Ms: number | null;
+  lastAvgL3Ms: number | null;
 };
 
 type GlobalRecord = {
@@ -28,13 +38,20 @@ type GlobalRecord = {
   nick: string;
 };
 
-type Phase = "idle" | "wait" | "ready" | "done";
-type Level = 1 | 2;
+type Phase = "idle" | "wait" | "ready" | "play" | "done";
+type Level = ReactionLevel;
 
 type SessionSeries = {
   id: number;
   level: Level;
   avgMs: number;
+};
+
+type L3Ball = {
+  id: number;
+  x: number;
+  y: number;
+  expiresAt: number;
 };
 
 function randomDelayMs() {
@@ -44,30 +61,66 @@ function randomDelayMs() {
   return Math.round(s * 1000);
 }
 
+function spawnCount() {
+  return (
+    REACTION_L3_SPAWN_MIN +
+    Math.floor(
+      Math.random() * (REACTION_L3_SPAWN_MAX - REACTION_L3_SPAWN_MIN + 1)
+    )
+  );
+}
+
+function formatRecord(level: Level, rec: GlobalRecord | null) {
+  if (!rec) return "—";
+  return isScoreLevel(level)
+    ? `${formatScore(rec.avgMs)} оч.`
+    : `${formatSec3(rec.avgMs)} с`;
+}
+
+function formatResult(level: Level, value: number | null) {
+  if (value == null) return "—";
+  return isScoreLevel(level) ? `${formatScore(value)} оч.` : `${formatSec3(value)} с`;
+}
+
 export function ReactionTrainingClient() {
   const [level, setLevel] = useState<Level>(1);
   const [phase, setPhase] = useState<Phase>("idle");
   const [attempts, setAttempts] = useState<number[]>([]);
-  const [missFlags, setMissFlags] = useState<boolean[]>([]);
   const [live, setLive] = useState<LivePlayer[]>([]);
   const [lastAvg, setLastAvg] = useState<number | null>(null);
   const [myBest, setMyBest] = useState<number | null>(null);
   const [recordL1, setRecordL1] = useState<GlobalRecord | null>(null);
   const [recordL2, setRecordL2] = useState<GlobalRecord | null>(null);
+  const [recordL3, setRecordL3] = useState<GlobalRecord | null>(null);
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
   const [circle, setCircle] = useState<{ x: number; y: number } | null>(null);
   const [sessionSeries, setSessionSeries] = useState<SessionSeries[]>([]);
+  const [l3Balls, setL3Balls] = useState<L3Ball[]>([]);
+  const [l3Score, setL3Score] = useState(0);
+  const [l3Hits, setL3Hits] = useState(0);
+  const [l3Misses, setL3Misses] = useState(0);
+  const [l3LeftMs, setL3LeftMs] = useState(REACTION_L3_DURATION_MS);
 
   const phaseRef = useRef<Phase>("idle");
   const levelRef = useRef<Level>(1);
   const appearAtRef = useRef(0);
   const timerRef = useRef<number | null>(null);
+  const spawnTimerRef = useRef<number | null>(null);
+  const endTimerRef = useRef<number | null>(null);
+  const tickTimerRef = useRef<number | null>(null);
   const arenaRef = useRef<HTMLDivElement>(null);
   const lastAvgRef = useRef<number | null>(null);
   const lastL1Ref = useRef<number | null>(null);
   const lastL2Ref = useRef<number | null>(null);
+  const lastL3Ref = useRef<number | null>(null);
   const seriesSeqRef = useRef(0);
+  const ballSeqRef = useRef(0);
+  const l3ScoreRef = useRef(0);
+  const l3HitsRef = useRef(0);
+  const l3MissesRef = useRef(0);
+  const l3StartRef = useRef(0);
+  const l3BallsRef = useRef<L3Ball[]>([]);
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -81,10 +134,29 @@ export function ReactionTrainingClient() {
     lastAvgRef.current = lastAvg;
   }, [lastAvg]);
 
+  useEffect(() => {
+    l3BallsRef.current = l3Balls;
+  }, [l3Balls]);
+
   const clearTimer = () => {
     if (timerRef.current != null) {
       window.clearTimeout(timerRef.current);
       timerRef.current = null;
+    }
+  };
+
+  const clearL3Timers = () => {
+    if (spawnTimerRef.current != null) {
+      window.clearInterval(spawnTimerRef.current);
+      spawnTimerRef.current = null;
+    }
+    if (endTimerRef.current != null) {
+      window.clearTimeout(endTimerRef.current);
+      endTimerRef.current = null;
+    }
+    if (tickTimerRef.current != null) {
+      window.clearInterval(tickTimerRef.current);
+      tickTimerRef.current = null;
     }
   };
 
@@ -97,6 +169,7 @@ export function ReactionTrainingClient() {
           lastAvgMs: lastAvgRef.current,
           lastAvgL1Ms: lastL1Ref.current,
           lastAvgL2Ms: lastL2Ref.current,
+          lastAvgL3Ms: lastL3Ref.current,
         }),
         cache: "no-store",
       });
@@ -131,6 +204,7 @@ export function ReactionTrainingClient() {
       setLive(players);
       if (data.records?.l1 !== undefined) setRecordL1(data.records.l1);
       if (data.records?.l2 !== undefined) setRecordL2(data.records.l2);
+      if (data.records?.l3 !== undefined) setRecordL3(data.records.l3);
     } catch {
       /* ignore */
     }
@@ -158,6 +232,7 @@ export function ReactionTrainingClient() {
       window.clearInterval(presenceId);
       window.clearInterval(liveId);
       clearTimer();
+      clearL3Timers();
     };
   }, [pingPresence, loadLive]);
 
@@ -174,7 +249,7 @@ export function ReactionTrainingClient() {
       setCircle({ x: w / 2, y: h / 2 });
       return;
     }
-    const pad = 48;
+    const pad = levelRef.current === 2 ? 56 : 48;
     const x = pad + Math.random() * Math.max(40, w - pad * 2);
     const y = pad + Math.random() * Math.max(40, h - pad * 2);
     setCircle({ x, y });
@@ -194,41 +269,133 @@ export function ReactionTrainingClient() {
   }
 
   function startSeries() {
+    if (levelRef.current === 3) {
+      startL3();
+      return;
+    }
     setAttempts([]);
-    setMissFlags([]);
     setLastAvg(null);
     setMsg("");
     startAttempt();
   }
 
+  function pruneL3Balls(now = performance.now()) {
+    const next = l3BallsRef.current.filter((b) => b.expiresAt > now);
+    if (next.length !== l3BallsRef.current.length) {
+      l3BallsRef.current = next;
+      setL3Balls(next);
+    }
+  }
+
+  function spawnL3Wave() {
+    const el = arenaRef.current;
+    const w = el?.clientWidth || 400;
+    const h = el?.clientHeight || 400;
+    const pad = 36;
+    const now = performance.now();
+    pruneL3Balls(now);
+    const count = spawnCount();
+    const added: L3Ball[] = [];
+    for (let i = 0; i < count; i++) {
+      ballSeqRef.current += 1;
+      added.push({
+        id: ballSeqRef.current,
+        x: pad + Math.random() * Math.max(40, w - pad * 2),
+        y: pad + Math.random() * Math.max(40, h - pad * 2),
+        expiresAt: now + REACTION_L3_BALL_LIFE_MS,
+      });
+    }
+    const next = [...l3BallsRef.current, ...added];
+    l3BallsRef.current = next;
+    setL3Balls(next);
+  }
+
+  function finishL3() {
+    clearL3Timers();
+    pruneL3Balls();
+    setL3Balls([]);
+    l3BallsRef.current = [];
+    const score = l3ScoreRef.current;
+    const hits = l3HitsRef.current;
+    const misses = l3MissesRef.current;
+    setL3LeftMs(0);
+    void finishScoreRun(score, hits, misses);
+  }
+
+  function startL3() {
+    clearTimer();
+    clearL3Timers();
+    setAttempts([]);
+    setCircle(null);
+    setLastAvg(null);
+    setMsg("");
+    setL3Balls([]);
+    l3BallsRef.current = [];
+    ballSeqRef.current = 0;
+    l3ScoreRef.current = 0;
+    l3HitsRef.current = 0;
+    l3MissesRef.current = 0;
+    setL3Score(0);
+    setL3Hits(0);
+    setL3Misses(0);
+    setL3LeftMs(REACTION_L3_DURATION_MS);
+    l3StartRef.current = performance.now();
+    setPhase("play");
+    spawnL3Wave();
+    spawnTimerRef.current = window.setInterval(() => {
+      if (phaseRef.current !== "play") return;
+      spawnL3Wave();
+    }, REACTION_L3_SPAWN_EVERY_MS);
+    tickTimerRef.current = window.setInterval(() => {
+      if (phaseRef.current !== "play") return;
+      const left = Math.max(
+        0,
+        REACTION_L3_DURATION_MS - (performance.now() - l3StartRef.current)
+      );
+      setL3LeftMs(left);
+      pruneL3Balls();
+    }, 100);
+    endTimerRef.current = window.setTimeout(() => {
+      finishL3();
+    }, REACTION_L3_DURATION_MS);
+  }
+
   function selectLevel(lv: Level) {
     if (phase !== "idle" && phase !== "done") return;
+    clearTimer();
+    clearL3Timers();
     setLevel(lv);
     setAttempts([]);
-    setMissFlags([]);
     setLastAvg(null);
     setMsg("");
     setCircle(null);
+    setL3Balls([]);
+    l3BallsRef.current = [];
+    setL3Score(0);
+    setL3Hits(0);
+    setL3Misses(0);
+    setL3LeftMs(REACTION_L3_DURATION_MS);
     setPhase("idle");
   }
 
-  function recordAttempt(ms: number, missed: boolean) {
+  function recordAttempt(ms: number) {
     const next = [...attempts, ms];
-    const nextMiss = [...missFlags, missed];
     setAttempts(next);
-    setMissFlags(nextMiss);
     setCircle(null);
-    setMsg(
-      missed
-        ? `Промах · штраф ${formatSec3(REACTION_MISS_PENALTY_MS)} с`
-        : ""
-    );
+    setMsg("");
 
     if (next.length >= REACTION_ATTEMPTS) {
       void finishSeries(next);
     } else {
       startAttempt();
     }
+  }
+
+  function rememberLevelResult(lv: Level, value: number) {
+    if (lv === 1) lastL1Ref.current = value;
+    else if (lv === 2) lastL2Ref.current = value;
+    else lastL3Ref.current = value;
+    lastAvgRef.current = value;
   }
 
   async function finishSeries(finalAttempts: number[]) {
@@ -239,10 +406,7 @@ export function ReactionTrainingClient() {
     setCircle(null);
     setSaving(true);
     setMsg("Сохраняем…");
-
-    if (lv === 1) lastL1Ref.current = avg;
-    else lastL2Ref.current = avg;
-    lastAvgRef.current = avg;
+    rememberLevelResult(lv, avg);
 
     seriesSeqRef.current += 1;
     const localId = seriesSeqRef.current;
@@ -267,15 +431,14 @@ export function ReactionTrainingClient() {
       }
       const savedAvg = data.run?.avgMs ?? avg;
       setLastAvg(savedAvg);
-      if (lv === 1) lastL1Ref.current = savedAvg;
-      else lastL2Ref.current = savedAvg;
-      lastAvgRef.current = savedAvg;
+      rememberLevelResult(lv, savedAvg);
       setSessionSeries((prev) =>
         prev.map((s) => (s.id === localId ? { ...s, avgMs: savedAvg } : s))
       );
       if (data.bestAvgMs != null) setMyBest(data.bestAvgMs);
       if (data.records?.l1 !== undefined) setRecordL1(data.records.l1);
       if (data.records?.l2 !== undefined) setRecordL2(data.records.l2);
+      if (data.records?.l3 !== undefined) setRecordL3(data.records.l3);
       setMsg("Серия сохранена в профиль");
       void pingPresence();
       void loadLive();
@@ -286,7 +449,78 @@ export function ReactionTrainingClient() {
     }
   }
 
+  async function finishScoreRun(score: number, hits: number, misses: number) {
+    const lv = 3 as Level;
+    setLastAvg(score);
+    setPhase("done");
+    setSaving(true);
+    setMsg("Сохраняем…");
+    rememberLevelResult(lv, score);
+
+    seriesSeqRef.current += 1;
+    const localId = seriesSeqRef.current;
+    setSessionSeries((prev) => [
+      { id: localId, level: lv, avgMs: score },
+      ...prev,
+    ]);
+
+    try {
+      const res = await fetch("/api/reaction/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ level: 3, score, hits, misses }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg(data.error || "Не удалось сохранить");
+        return;
+      }
+      const saved = data.run?.avgMs ?? score;
+      setLastAvg(saved);
+      rememberLevelResult(lv, saved);
+      setSessionSeries((prev) =>
+        prev.map((s) => (s.id === localId ? { ...s, avgMs: saved } : s))
+      );
+      if (data.bestAvgMs != null) setMyBest(data.bestAvgMs);
+      if (data.records?.l1 !== undefined) setRecordL1(data.records.l1);
+      if (data.records?.l2 !== undefined) setRecordL2(data.records.l2);
+      if (data.records?.l3 !== undefined) setRecordL3(data.records.l3);
+      setMsg(`Раунд сохранён · ${formatScore(saved)} оч.`);
+      void pingPresence();
+      void loadLive();
+    } catch {
+      setMsg("Сеть недоступна — результат не сохранён");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function onArenaClick(e: React.MouseEvent) {
+    if (levelRef.current === 3) {
+      if (phaseRef.current !== "play") return;
+      const target = e.target as HTMLElement;
+      const hit = target.closest(".reaction-dot") as HTMLElement | null;
+      if (hit?.dataset.ballId) {
+        const id = Number(hit.dataset.ballId);
+        const next = l3BallsRef.current.filter((b) => b.id !== id);
+        if (next.length === l3BallsRef.current.length) return;
+        l3BallsRef.current = next;
+        setL3Balls(next);
+        l3HitsRef.current += 1;
+        l3ScoreRef.current += REACTION_L3_HIT_POINTS;
+        setL3Hits(l3HitsRef.current);
+        setL3Score(l3ScoreRef.current);
+        setMsg(`+${REACTION_L3_HIT_POINTS}`);
+        return;
+      }
+      l3MissesRef.current += 1;
+      l3ScoreRef.current += REACTION_L3_MISS_POINTS;
+      setL3Misses(l3MissesRef.current);
+      setL3Score(l3ScoreRef.current);
+      setMsg(`${REACTION_L3_MISS_POINTS}`);
+      return;
+    }
+
     if (phaseRef.current === "wait") {
       clearTimer();
       setMsg("Рано! Жди круг — эта попытка заново.");
@@ -299,15 +533,18 @@ export function ReactionTrainingClient() {
     const target = e.target as HTMLElement;
     if (!target.closest(".reaction-dot")) {
       clearTimer();
-      recordAttempt(REACTION_MISS_PENALTY_MS, true);
+      setMsg("Мимо! Жди следующий круг — попытка заново.");
+      setCircle(null);
+      startAttempt();
       return;
     }
 
     const ms = roundMs3(performance.now() - appearAtRef.current);
-    recordAttempt(ms, false);
+    recordAttempt(ms);
   }
 
-  const busy = phase === "wait" || phase === "ready";
+  const busy =
+    phase === "wait" || phase === "ready" || phase === "play";
   const attemptNo = Math.min(
     attempts.length + (phase === "done" || phase === "idle" ? 0 : 1),
     REACTION_ATTEMPTS
@@ -318,6 +555,8 @@ export function ReactionTrainingClient() {
     .slice()
     .reverse();
 
+  const l3SecLeft = Math.ceil(l3LeftMs / 1000);
+
   return (
     <div className="reaction-page">
       <header className="reaction-head">
@@ -325,13 +564,14 @@ export function ReactionTrainingClient() {
           <p className="eyebrow">тренировка</p>
           <h1>Тренировка стрельбы</h1>
           <p className="muted" style={{ margin: "6px 0 0" }}>
-            10 попыток · круг через 1–10 с · результат в секундах (например 0.730) ·
-            промах = штраф 1.000 с
+            {level === 3
+              ? "30 с · каждые 0.3 с 3–5 шариков · живут 1 с · попадание +10 · промах −5"
+              : "10 попыток · круг через 1–10 с · результат в секундах · промах = попытка заново"}
           </p>
         </div>
         <div className="reaction-best-chip">
           <span className="muted">Твой лучший · ур. {level}</span>
-          <strong>{formatSec3(myBest)} с</strong>
+          <strong>{formatResult(level, myBest)}</strong>
         </div>
       </header>
 
@@ -359,12 +599,23 @@ export function ReactionTrainingClient() {
             <strong>2 уровень</strong>
             <span>круг в случайном месте</span>
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={level === 3}
+            className={`reaction-tab${level === 3 ? " active" : ""}`}
+            disabled={busy || saving}
+            onClick={() => selectLevel(3)}
+          >
+            <strong>3 уровень</strong>
+            <span>волна шариков · очки</span>
+          </button>
         </div>
 
         <div className="reaction-records" aria-label="Рекорды клана">
           <div className="reaction-record-card">
             <span className="muted">Рекорд · 1 ур</span>
-            <strong>{recordL1 ? `${formatSec3(recordL1.avgMs)} с` : "—"}</strong>
+            <strong>{formatRecord(1, recordL1)}</strong>
             <span className="reaction-record-nick">
               {recordL1?.nick ? (
                 <Link
@@ -380,7 +631,7 @@ export function ReactionTrainingClient() {
           </div>
           <div className="reaction-record-card">
             <span className="muted">Рекорд · 2 ур</span>
-            <strong>{recordL2 ? `${formatSec3(recordL2.avgMs)} с` : "—"}</strong>
+            <strong>{formatRecord(2, recordL2)}</strong>
             <span className="reaction-record-nick">
               {recordL2?.nick ? (
                 <Link
@@ -394,6 +645,22 @@ export function ReactionTrainingClient() {
               )}
             </span>
           </div>
+          <div className="reaction-record-card">
+            <span className="muted">Рекорд · 3 ур</span>
+            <strong>{formatRecord(3, recordL3)}</strong>
+            <span className="reaction-record-nick">
+              {recordL3?.nick ? (
+                <Link
+                  className="player-nick-link"
+                  href={`/players/${encodeURIComponent(recordL3.nick)}`}
+                >
+                  {recordL3.nick}
+                </Link>
+              ) : (
+                "пока нет"
+              )}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -401,19 +668,20 @@ export function ReactionTrainingClient() {
         <aside className="reaction-board card">
           <h2>Сейчас на вкладке</h2>
           <p className="muted" style={{ marginTop: 0, fontSize: "0.82rem" }}>
-            Онлайн · среднее последней серии по уровню
+            Онлайн · последняя серия по уровню
           </p>
-          <div className="reaction-live-head">
+          <div className="reaction-live-head reaction-live-head-3">
             <span>Ник</span>
-            <span>1 ур</span>
-            <span>2 ур</span>
+            <span>1</span>
+            <span>2</span>
+            <span>3</span>
           </div>
           <ul className="reaction-live-list">
             {live.length === 0 ? (
               <li className="muted reaction-live-empty">Пока никого нет</li>
             ) : (
               live.map((p) => (
-                <li key={p.userId}>
+                <li key={p.userId} className="reaction-live-row-3">
                   <span className="reaction-live-nick">
                     {p.nick ? (
                       <Link
@@ -432,6 +700,9 @@ export function ReactionTrainingClient() {
                   <span className="reaction-live-avg">
                     {p.lastAvgL2Ms != null ? formatSec3(p.lastAvgL2Ms) : "—"}
                   </span>
+                  <span className="reaction-live-avg">
+                    {p.lastAvgL3Ms != null ? formatScore(p.lastAvgL3Ms) : "—"}
+                  </span>
                 </li>
               ))
             )}
@@ -448,7 +719,11 @@ export function ReactionTrainingClient() {
                   disabled={saving}
                   onClick={startSeries}
                 >
-                  {phase === "done" ? "Ещё раз" : "Старт · 10 попыток"}
+                  {phase === "done"
+                    ? "Ещё раз"
+                    : level === 3
+                      ? "Старт · 30 секунд"
+                      : "Старт · 10 попыток"}
                 </button>
               ) : (
                 <button
@@ -456,30 +731,55 @@ export function ReactionTrainingClient() {
                   className="btn ghost"
                   onClick={() => {
                     clearTimer();
+                    clearL3Timers();
                     setPhase("idle");
                     setCircle(null);
                     setAttempts([]);
-                    setMissFlags([]);
+                    setL3Balls([]);
+                    l3BallsRef.current = [];
                     setMsg("Остановлено");
                   }}
                 >
                   Стоп
                 </button>
               )}
-              <span className="muted">
-                Попытка {attemptNo} / {REACTION_ATTEMPTS}
-              </span>
+              {level === 3 ? (
+                <span className="muted">
+                  {phase === "play"
+                    ? `${l3SecLeft} с · ${formatScore(l3Score)} оч.`
+                    : "30 секунд · +10 / −5"}
+                </span>
+              ) : (
+                <span className="muted">
+                  Попытка {attemptNo} / {REACTION_ATTEMPTS}
+                </span>
+              )}
             </div>
-            {lastAvg != null ? (
+            {lastAvg != null && phase !== "play" ? (
               <div className="reaction-avg-now">
-                Среднее: <strong>{formatSec3(lastAvg)} с</strong>
+                {level === 3 ? (
+                  <>
+                    Счёт: <strong>{formatScore(lastAvg)} оч.</strong>
+                  </>
+                ) : (
+                  <>
+                    Среднее: <strong>{formatSec3(lastAvg)} с</strong>
+                  </>
+                )}
+              </div>
+            ) : null}
+            {phase === "play" ? (
+              <div className="reaction-avg-now">
+                Попадания {l3Hits} · промахи {l3Misses}
               </div>
             ) : null}
           </div>
 
           <div
             ref={arenaRef}
-            className={`reaction-arena phase-${phase}`}
+            className={`reaction-arena phase-${phase}${
+              level === 2 ? " level-2" : ""
+            }${level === 3 ? " level-3" : ""}`}
             onClick={onArenaClick}
             role="presentation"
           >
@@ -487,7 +787,9 @@ export function ReactionTrainingClient() {
               <p className="reaction-hint">
                 {level === 1
                   ? "Ур. 1 — шарик всегда в центре. Нажми «Старт» и жди кружок."
-                  : "Ур. 2 — шарик в случайном месте. Нажми «Старт» и жди кружок."}
+                  : level === 2
+                    ? "Ур. 2 — большой шарик в случайном месте. Нажми «Старт»."
+                    : "Ур. 3 — 30 секунд волны шариков. Попадание +10, промах −5."}
               </p>
             ) : null}
             {phase === "wait" ? (
@@ -496,59 +798,87 @@ export function ReactionTrainingClient() {
             {phase === "ready" && circle ? (
               <button
                 type="button"
-                className="reaction-dot"
+                className={`reaction-dot${level === 2 ? " reaction-dot-lg" : ""}`}
                 style={{ left: circle.x, top: circle.y }}
                 aria-label="Цель"
               />
             ) : null}
+            {phase === "play"
+              ? l3Balls.map((b) => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    className="reaction-dot reaction-dot-l3"
+                    data-ball-id={b.id}
+                    style={{ left: b.x, top: b.y }}
+                    aria-label="Цель"
+                  />
+                ))
+              : null}
             {phase === "done" ? (
               <p className="reaction-hint">
-                Серия завершена · среднее {formatSec3(lastAvg)} с
+                {level === 3
+                  ? `Раунд завершён · ${formatScore(lastAvg)} оч.`
+                  : `Серия завершена · среднее ${formatSec3(lastAvg)} с`}
               </p>
             ) : null}
           </div>
 
           {msg ? <p className="reaction-msg">{msg}</p> : null}
 
-          <ol className="reaction-attempts">
-            {Array.from({ length: REACTION_ATTEMPTS }, (_, i) => (
-              <li
-                key={i}
-                className={`${attempts[i] != null ? "filled" : ""}${
-                  missFlags[i] ? " miss" : ""
-                }`}
-              >
-                <span>
-                  #{i + 1}
-                  {missFlags[i] ? " · штраф" : ""}
-                </span>
-                <strong>
-                  {attempts[i] != null ? `${formatSec3(attempts[i])} с` : "—"}
-                </strong>
-              </li>
-            ))}
-          </ol>
+          {level === 3 ? (
+            <div className="reaction-l3-stats">
+              <div>
+                <span className="muted">Счёт</span>
+                <strong>{formatScore(phase === "play" ? l3Score : lastAvg)}</strong>
+              </div>
+              <div>
+                <span className="muted">Попадания</span>
+                <strong>{phase === "play" || phase === "done" ? l3Hits : "—"}</strong>
+              </div>
+              <div>
+                <span className="muted">Промахи</span>
+                <strong>{phase === "play" || phase === "done" ? l3Misses : "—"}</strong>
+              </div>
+            </div>
+          ) : (
+            <ol className="reaction-attempts">
+              {Array.from({ length: REACTION_ATTEMPTS }, (_, i) => (
+                <li key={i} className={attempts[i] != null ? "filled" : ""}>
+                  <span>#{i + 1}</span>
+                  <strong>
+                    {attempts[i] != null ? `${formatSec3(attempts[i])} с` : "—"}
+                  </strong>
+                </li>
+              ))}
+            </ol>
+          )}
         </section>
 
         <div className="reaction-side-col">
           <aside className="reaction-session card">
             <h2>Этот сеанс</h2>
             <p className="muted" style={{ marginTop: 0, fontSize: "0.82rem" }}>
-              Серии ур. {level} · среднее за 10 попыток
+              {level === 3
+                ? `Раунды ур. ${level} · итоговый счёт`
+                : `Серии ур. ${level} · среднее за 10 попыток`}
             </p>
             {sessionForLevel.length === 0 ? (
               <p className="muted" style={{ margin: "8px 0 0", fontSize: "0.85rem" }}>
-                Пока пусто — заверши серию, и среднее появится здесь.
+                Пока пусто — заверши{" "}
+                {level === 3 ? "раунд" : "серию"}, и результат появится здесь.
               </p>
             ) : (
               <ol className="reaction-session-list">
                 {sessionForLevel.map((s, idx) => (
                   <li key={s.id}>
                     <span>
-                      Серия {idx + 1}
-                      <em className="muted"> · среднее</em>
+                      {level === 3 ? "Раунд" : "Серия"} {idx + 1}
+                      <em className="muted">
+                        {level === 3 ? " · счёт" : " · среднее"}
+                      </em>
                     </span>
-                    <strong>{formatSec3(s.avgMs)} с</strong>
+                    <strong>{formatResult(level, s.avgMs)}</strong>
                   </li>
                 ))}
               </ol>

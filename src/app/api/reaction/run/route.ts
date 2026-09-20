@@ -4,14 +4,60 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
   averageMs,
+  isScoreLevel,
   normalizeLevel,
   validateAttempts,
+  validateL3Score,
+  type ReactionLevel,
 } from "@/lib/reaction";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Сохранить серию из 10 попыток */
+type RecRow = {
+  avgMs: number;
+  userId: string;
+  user: { nick: string | null; steamName: string | null };
+} | null;
+
+function mapRec(r: RecRow) {
+  return r
+    ? {
+        avgMs: r.avgMs,
+        userId: r.userId,
+        nick: r.user.nick || r.user.steamName || "Игрок",
+      }
+    : null;
+}
+
+async function bestForLevel(userId: string, level: ReactionLevel) {
+  return prisma.reactionRun.findFirst({
+    where: { userId, level },
+    orderBy: { avgMs: isScoreLevel(level) ? "desc" : "asc" },
+    select: { avgMs: true },
+  });
+}
+
+async function globalRecord(level: ReactionLevel) {
+  const best = await prisma.reactionRun.findFirst({
+    where: { level },
+    orderBy: { avgMs: isScoreLevel(level) ? "desc" : "asc" },
+    select: {
+      avgMs: true,
+      userId: true,
+      user: { select: { nick: true, steamName: true } },
+    },
+  });
+  return mapRec(best);
+}
+
+function presencePatch(level: ReactionLevel, value: number) {
+  if (level === 1) return { lastAvgL1Ms: value };
+  if (level === 2) return { lastAvgL2Ms: value };
+  return { lastAvgL3Ms: value };
+}
+
+/** Сохранить серию ур.1–2 или счёт ур.3 */
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.steamId || !session.user.profileComplete) {
@@ -27,80 +73,67 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => null);
-  const attempts = validateAttempts(body?.attempts);
-  if (!attempts) {
-    return NextResponse.json(
-      { error: "Нужны 10 корректных попыток" },
-      { status: 400 }
-    );
-  }
-
-  const avgMs = averageMs(attempts);
   const level = normalizeLevel(body?.level);
+
+  let avgMs: number;
+  let attemptsPayload: unknown;
+
+  if (level === 3) {
+    const parsed = validateL3Score(body);
+    if (!parsed) {
+      return NextResponse.json(
+        { error: "Нужен корректный счёт ур.3" },
+        { status: 400 }
+      );
+    }
+    avgMs = parsed.score;
+    attemptsPayload = {
+      hits: parsed.hits,
+      misses: parsed.misses,
+      score: parsed.score,
+    };
+  } else {
+    const attempts = validateAttempts(body?.attempts);
+    if (!attempts) {
+      return NextResponse.json(
+        { error: "Нужны 10 корректных попыток" },
+        { status: 400 }
+      );
+    }
+    avgMs = averageMs(attempts);
+    attemptsPayload = attempts;
+  }
 
   const run = await prisma.reactionRun.create({
     data: {
       userId: user.id,
       level,
       avgMs,
-      attempts,
+      attempts: attemptsPayload as object,
     },
   });
 
+  const levelPatch = presencePatch(level, avgMs);
   await prisma.reactionPresence.upsert({
     where: { userId: user.id },
     create: {
       userId: user.id,
       lastAvgMs: avgMs,
-      ...(level === 1 ? { lastAvgL1Ms: avgMs } : { lastAvgL2Ms: avgMs }),
+      ...levelPatch,
     },
     update: {
       lastAvgMs: avgMs,
-      ...(level === 1 ? { lastAvgL1Ms: avgMs } : { lastAvgL2Ms: avgMs }),
+      ...levelPatch,
       updatedAt: new Date(),
     },
   });
 
-  const [best, recordL1, recordL2] = await Promise.all([
-    prisma.reactionRun.findFirst({
-      where: { userId: user.id, level },
-      orderBy: { avgMs: "asc" },
-      select: { avgMs: true },
-    }),
-    prisma.reactionRun.findFirst({
-      where: { level: 1 },
-      orderBy: { avgMs: "asc" },
-      select: {
-        avgMs: true,
-        userId: true,
-        user: { select: { nick: true, steamName: true } },
-      },
-    }),
-    prisma.reactionRun.findFirst({
-      where: { level: 2 },
-      orderBy: { avgMs: "asc" },
-      select: {
-        avgMs: true,
-        userId: true,
-        user: { select: { nick: true, steamName: true } },
-      },
-    }),
+  const [best, recordL1, recordL2, recordL3] = await Promise.all([
+    bestForLevel(user.id, level),
+    globalRecord(1),
+    globalRecord(2),
+    globalRecord(3),
   ]);
-
-  const mapRec = (
-    r: {
-      avgMs: number;
-      userId: string;
-      user: { nick: string | null; steamName: string | null };
-    } | null
-  ) =>
-    r
-      ? {
-          avgMs: r.avgMs,
-          userId: r.userId,
-          nick: r.user.nick || r.user.steamName || "Игрок",
-        }
-      : null;
 
   return NextResponse.json({
     ok: true,
@@ -113,8 +146,9 @@ export async function POST(req: Request) {
     },
     bestAvgMs: best?.avgMs ?? avgMs,
     records: {
-      l1: mapRec(recordL1),
-      l2: mapRec(recordL2),
+      l1: recordL1,
+      l2: recordL2,
+      l3: recordL3,
     },
   });
 }
@@ -147,6 +181,9 @@ export async function GET(req: Request) {
     ...(levelFilter != null ? { level: levelFilter } : {}),
   };
 
+  const orderBest =
+    levelFilter != null && isScoreLevel(levelFilter) ? ("desc" as const) : ("asc" as const);
+
   const [runs, best] = await Promise.all([
     prisma.reactionRun.findMany({
       where,
@@ -156,7 +193,7 @@ export async function GET(req: Request) {
     }),
     prisma.reactionRun.findFirst({
       where,
-      orderBy: { avgMs: "asc" },
+      orderBy: { avgMs: orderBest },
       select: { avgMs: true, level: true, createdAt: true },
     }),
   ]);

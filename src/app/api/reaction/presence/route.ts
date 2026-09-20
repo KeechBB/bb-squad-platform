@@ -2,15 +2,20 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { REACTION_PRESENCE_MS, normalizeLevel } from "@/lib/reaction";
+import {
+  REACTION_PRESENCE_MS,
+  isScoreLevel,
+  normalizeLevel,
+  type ReactionLevel,
+} from "@/lib/reaction";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function globalRecord(level: 1 | 2) {
+async function globalRecord(level: ReactionLevel) {
   const best = await prisma.reactionRun.findFirst({
     where: { level },
-    orderBy: { avgMs: "asc" },
+    orderBy: { avgMs: isScoreLevel(level) ? "desc" : "asc" },
     select: {
       avgMs: true,
       userId: true,
@@ -41,6 +46,7 @@ export async function POST(req: Request) {
   let lastAvgMs: number | null | undefined;
   let lastAvgL1Ms: number | null | undefined;
   let lastAvgL2Ms: number | null | undefined;
+  let lastAvgL3Ms: number | null | undefined;
   try {
     const body = await req.json().catch(() => ({}));
     if (body && typeof body.lastAvgMs === "number" && Number.isFinite(body.lastAvgMs)) {
@@ -52,6 +58,9 @@ export async function POST(req: Request) {
     if (body && typeof body.lastAvgL2Ms === "number" && Number.isFinite(body.lastAvgL2Ms)) {
       lastAvgL2Ms = body.lastAvgL2Ms;
     }
+    if (body && typeof body.lastAvgL3Ms === "number" && Number.isFinite(body.lastAvgL3Ms)) {
+      lastAvgL3Ms = body.lastAvgL3Ms;
+    }
     if (
       body &&
       typeof body.lastAvgMs === "number" &&
@@ -60,7 +69,8 @@ export async function POST(req: Request) {
     ) {
       const lv = normalizeLevel(body.level);
       if (lv === 1) lastAvgL1Ms = body.lastAvgMs;
-      else lastAvgL2Ms = body.lastAvgMs;
+      else if (lv === 2) lastAvgL2Ms = body.lastAvgMs;
+      else lastAvgL3Ms = body.lastAvgMs;
     }
   } catch {
     /* ignore */
@@ -73,11 +83,13 @@ export async function POST(req: Request) {
       lastAvgMs: lastAvgMs ?? null,
       lastAvgL1Ms: lastAvgL1Ms ?? null,
       lastAvgL2Ms: lastAvgL2Ms ?? null,
+      lastAvgL3Ms: lastAvgL3Ms ?? null,
     },
     update: {
       ...(lastAvgMs !== undefined ? { lastAvgMs } : {}),
       ...(lastAvgL1Ms !== undefined ? { lastAvgL1Ms } : {}),
       ...(lastAvgL2Ms !== undefined ? { lastAvgL2Ms } : {}),
+      ...(lastAvgL3Ms !== undefined ? { lastAvgL3Ms } : {}),
       updatedAt: new Date(),
     },
   });
@@ -85,7 +97,7 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true });
 }
 
-/** Кто сейчас на вкладке + глобальные рекорды ур.1 / ур.2 */
+/** Кто сейчас на вкладке + глобальные рекорды ур.1 / ур.2 / ур.3 */
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.steamId || !session.user.profileComplete) {
@@ -93,7 +105,7 @@ export async function GET() {
   }
 
   const since = new Date(Date.now() - REACTION_PRESENCE_MS);
-  const [rows, recordL1, recordL2] = await Promise.all([
+  const [rows, recordL1, recordL2, recordL3] = await Promise.all([
     prisma.reactionPresence.findMany({
       where: { updatedAt: { gte: since } },
       orderBy: [{ updatedAt: "desc" }],
@@ -110,6 +122,7 @@ export async function GET() {
     }),
     globalRecord(1),
     globalRecord(2),
+    globalRecord(3),
   ]);
 
   const players = rows
@@ -120,10 +133,14 @@ export async function GET() {
       lastAvgMs: r.lastAvgMs,
       lastAvgL1Ms: r.lastAvgL1Ms,
       lastAvgL2Ms: r.lastAvgL2Ms,
+      lastAvgL3Ms: r.lastAvgL3Ms,
       updatedAt: r.updatedAt.toISOString(),
     }))
     .sort((a, b) => {
-      const best = (p: { lastAvgL1Ms: number | null; lastAvgL2Ms: number | null }) => {
+      const best = (p: {
+        lastAvgL1Ms: number | null;
+        lastAvgL2Ms: number | null;
+      }) => {
         const vals = [p.lastAvgL1Ms, p.lastAvgL2Ms].filter(
           (v): v is number => v != null && Number.isFinite(v)
         );
@@ -146,6 +163,7 @@ export async function GET() {
     records: {
       l1: recordL1,
       l2: recordL2,
+      l3: recordL3,
     },
   });
 }

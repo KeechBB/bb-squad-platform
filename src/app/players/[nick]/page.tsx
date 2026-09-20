@@ -97,10 +97,10 @@ export default async function PlayerProfilePage({ params }: Props) {
     }
   }
 
-  const [reactionBest, reactionBestL1, reactionBestL2, reactionHistory] =
+  const [reactionBest, reactionBestL1, reactionBestL2, reactionBestL3, reactionHistory] =
     await Promise.all([
       prisma.reactionRun.findFirst({
-        where: { userId: user.id },
+        where: { userId: user.id, level: { in: [1, 2] } },
         orderBy: { avgMs: "asc" },
         select: { avgMs: true },
       }),
@@ -112,6 +112,11 @@ export default async function PlayerProfilePage({ params }: Props) {
       prisma.reactionRun.findFirst({
         where: { userId: user.id, level: 2 },
         orderBy: { avgMs: "asc" },
+        select: { avgMs: true },
+      }),
+      prisma.reactionRun.findFirst({
+        where: { userId: user.id, level: 3 },
+        orderBy: { avgMs: "desc" },
         select: { avgMs: true },
       }),
       prisma.reactionRun.findMany({
@@ -177,6 +182,7 @@ export default async function PlayerProfilePage({ params }: Props) {
           bestAvgMs={reactionBest?.avgMs ?? null}
           bestL1={reactionBestL1?.avgMs ?? null}
           bestL2={reactionBestL2?.avgMs ?? null}
+          bestL3={reactionBestL3?.avgMs ?? null}
           history={reactionHistory.map((h) => ({
             id: h.id,
             avgMs: h.avgMs,

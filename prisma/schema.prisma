@@ -74,20 +74,21 @@ model User {
   reactionChatMessages ReactionChatMessage[]
 }
 
-/// Серия из 10 попыток тренировки на реакцию (уровень 1)
+/// Серия тренировки на реакцию (ур.1–2: среднее мс; ур.3: очки в avgMs)
 model ReactionRun {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   level     Int      @default(1)
-  /// Среднее время реакции, мс (до тысячных)
+  /// Ур.1–2: среднее мс; ур.3: итоговый счёт
   avgMs     Float
-  /// 10 попыток в мс
+  /// Ур.1–2: 10 попыток в мс; ур.3: { hits, misses, score }
   attempts  Json
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
   @@index([avgMs])
+  @@index([level, avgMs])
 }
 
 /// Кто сейчас на вкладке «Тренировка стрельбы»
@@ -96,9 +97,10 @@ model ReactionPresence {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// Последний средний результат в этой сессии на вкладке (мс)
   lastAvgMs   Float?
-  /// Последняя серия ур.1 / ур.2 на вкладке (мс)
+  /// Последняя серия ур.1 / ур.2 (мс) / ур.3 (очки)
   lastAvgL1Ms Float?
   lastAvgL2Ms Float?
+  lastAvgL3Ms Float?
   updatedAt   DateTime @updatedAt
 }
 
