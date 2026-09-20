@@ -452,7 +452,7 @@ export function AdminAttendancePanel() {
         {tab === "table"
           ? [
               server === "TR1"
-                ? ` · TR1 «был»: ≥${TRAINING_PRESENT_MIN_MINUTES} мин в 21:00–00:00; меньше часа / нет = не был; 21:00–21:30 «опаздывает»`
+                ? ` · Заход виден сразу (… = ещё на сервере). «Был» = ≥${TRAINING_PRESENT_MIN_MINUTES} мин в 21:00–00:00`
                 : "",
               showIn
                 ? " · Цвет захода: ≤21:00 зел., 21:00–21:30 жёлт., после 21:30 красн."
@@ -500,21 +500,9 @@ export function AdminAttendancePanel() {
                   {data.days.map((d) => {
                     const cells = r.cells[d] || [];
                     const isTr = (data.server || server) === "TR1";
-                    const eveningCells = isTr
-                      ? cells.filter(
-                          (c) =>
-                            overlapsEveningWindow(c, d) ||
-                            // до 21:00 тоже показываем заход (ранний приход на тренировку)
-                            parseHm(c.in) != null
-                        )
-                      : cells;
-                    const presentEnough =
-                      !isTr || wasPresentTr1(cells, d);
-                    if (
-                      !eveningCells.length ||
-                      (!showIn && !showOut) ||
-                      (isTr && !presentEnough && absenceDecided(d, eveningMinutesForDay(cells, d)))
-                    ) {
+                    // Любой заход за день сразу виден (не только окно 21:00–00:00)
+                    const dayCells = cells;
+                    if (!dayCells.length || (!showIn && !showOut)) {
                       if (!(showIn || showOut)) {
                         return (
                           <td key={d}>
@@ -522,7 +510,7 @@ export function AdminAttendancePanel() {
                           </td>
                         );
                       }
-                      if (isTr && (!eveningCells.length || !presentEnough)) {
+                      if (isTr) {
                         const empty = emptyTrLabel(d);
                         return (
                           <td key={d}>
@@ -539,7 +527,7 @@ export function AdminAttendancePanel() {
                     return (
                       <td key={d}>
                         <div className="attend-cell">
-                          {eveningCells.map((c, i) => (
+                          {dayCells.map((c, i) => (
                             <span key={i} className="attend-time-pair">
                               {showIn ? (
                                 <span className={`attend-time ${joinTone(c.in)}`}>
@@ -561,7 +549,12 @@ export function AdminAttendancePanel() {
                                     {c.out}
                                   </span>
                                 ) : (
-                                  <span className="attend-cell empty">…</span>
+                                  <span
+                                    className="attend-time attend-online"
+                                    title="Сейчас на сервере"
+                                  >
+                                    …
+                                  </span>
                                 )
                               ) : null}
                             </span>
