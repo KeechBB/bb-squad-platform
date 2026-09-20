@@ -122,7 +122,7 @@ class Collector:
         self.state_path = Path(
             os.environ.get("SQUAD_STATE_PATH", "squad_collector_state.json")
         )
-        self.poll_sec = float(os.environ.get("SQUAD_POLL_SEC", "5"))
+        self.poll_sec = float(os.environ.get("SQUAD_POLL_SEC", "3"))
         self.eos_steam: dict[str, str] = {}
         # eos -> {nick, at, serverKey}
         self.pending_joins: dict[str, dict[str, Any]] = {}

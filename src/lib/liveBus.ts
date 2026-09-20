@@ -34,3 +34,12 @@ export function clanLiveChannel(clanId: string) {
 export function userLiveChannel(userId: string) {
   return `user:${userId}`;
 }
+
+/** Общий канал сайта: посещаемость, журнал, админка */
+export function siteLiveChannel() {
+  return "site:all";
+}
+
+export function livePublishSite(payload: Record<string, unknown>) {
+  livePublish(siteLiveChannel(), JSON.stringify(payload));
+}

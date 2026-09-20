@@ -13,6 +13,7 @@ import {
 } from "@/lib/social";
 import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
 import { TrainingSessionsCard } from "@/components/TrainingSessionsCard";
+import { LivePageRefresh } from "@/components/LivePageRefresh";
 import { loadUserTrainingStats } from "@/lib/trainingStats";
 
 export const dynamic = "force-dynamic";
@@ -237,6 +238,7 @@ export default async function PlayerProfilePage({ params }: Props) {
       </div>
 
       <div className="profile-area-training">
+        <LivePageRefresh intervalMs={5000} />
         <TrainingSessionsCard
           sessions={training.sessions}
           minutes30d={training.minutes30d}

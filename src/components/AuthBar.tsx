@@ -38,7 +38,7 @@ export function AuthBar() {
     } catch {
       /* */
     }
-    const id = window.setInterval(() => void checkAdmin(), 10000);
+    const id = window.setInterval(() => void checkAdmin(), 5000);
     return () => {
       es?.close();
       window.clearInterval(id);

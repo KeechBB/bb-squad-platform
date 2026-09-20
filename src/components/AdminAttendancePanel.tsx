@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 type Cell = { in: string; out: string | null; mins: number };
 
@@ -124,9 +125,11 @@ export function AdminAttendancePanel() {
   const [showOut, setShowOut] = useState(true);
   const [server, setServer] = useState<ServerFilter>("TR1");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setErr(null);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) {
+      setLoading(true);
+      setErr(null);
+    }
     try {
       const q = new URLSearchParams({ from, to, server });
       const res = await fetch(`/api/admin/attendance?${q}`, {
@@ -135,16 +138,24 @@ export function AdminAttendancePanel() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Ошибка загрузки");
       setData(json as Payload);
+      if (opts?.silent) setErr(null);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Ошибка");
+      if (!opts?.silent) {
+        setErr(e instanceof Error ? e.message : "Ошибка");
+      }
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, [from, to, server]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useAutoRefresh(() => load({ silent: true }), {
+    intervalMs: 5000,
+    kinds: ["attendance"],
+  });
 
   const rows = useMemo(() => {
     if (!data) return [];
@@ -278,6 +289,7 @@ export function AdminAttendancePanel() {
         Окно не больше 30 дней. Старт канона: 01.09.2026.
         {data ? ` · Показано дней: ${data.days.length}` : ""}
         {` · Сервер: ${server === "TR1" ? "TR1 (тренировка)" : "PB1 (паблик)"}`}
+        {" · Автообновление ~5 сек"}
         {tab === "table"
           ? [
               showIn

@@ -9,6 +9,7 @@ import { ReservePanel } from "@/components/ReservePanel";
 import { AdminPanelLink } from "@/components/AdminPanelLink";
 import { ProfileEditForm } from "@/components/ProfileEditForm";
 import { TrainingSessionsCard } from "@/components/TrainingSessionsCard";
+import { LivePageRefresh } from "@/components/LivePageRefresh";
 import { formatRuDate, isActiveReserve } from "@/lib/validation";
 import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
 import { loadUserTrainingStats } from "@/lib/trainingStats";
@@ -127,6 +128,7 @@ export default async function ProfilePage() {
       </div>
 
       <div className="profile-area-training">
+        <LivePageRefresh intervalMs={5000} />
         <TrainingSessionsCard
           sessions={training.sessions}
           minutes30d={training.minutes30d}

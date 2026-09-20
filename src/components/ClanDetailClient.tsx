@@ -359,7 +359,7 @@ export function ClanDetailClient({
       setLiveOk(false);
     }
 
-    const poll = window.setInterval(sync, 8000);
+    const poll = window.setInterval(sync, 5000);
     const onFocus = () => sync();
     window.addEventListener("focus", onFocus);
 

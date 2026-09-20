@@ -2,6 +2,10 @@
 
 Писать коротко после сессий. Старые строки не затирать.
 
+## 2026-09-20
+
+- Автообновление без F5: посещаемость/журнал админки ~5с (SSE `/api/live/site` + поллинг); профили `LivePageRefresh`; ingest шлёт live при join/leave; leave закрывает любую открытую сессию Steam если serverKey не совпал. Сборщик логов default poll 3с.
+
 ## 2026-09-19
 
 - Вход через Steam на https://bb-squad.ru работает (профиль Keech в Neon). Фикс: IPv4 для Neon (`gai.conf` / disable IPv6 на VPS).

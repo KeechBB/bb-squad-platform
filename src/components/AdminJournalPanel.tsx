@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 type JournalEntry = {
   id: string;
@@ -43,9 +44,11 @@ export function AdminJournalPanel() {
   const stickBottom = useRef(true);
 
   const load = useCallback(
-    async (opts?: { prepend?: boolean; before?: string }) => {
-      setLoading(true);
-      setErr(null);
+    async (opts?: { prepend?: boolean; before?: string; silent?: boolean }) => {
+      if (!opts?.silent) {
+        setLoading(true);
+        setErr(null);
+      }
       try {
         const params = new URLSearchParams({ limit: "200" });
         if (qApplied) params.set("q", qApplied);
@@ -66,12 +69,14 @@ export function AdminJournalPanel() {
           });
         } else {
           setEntries(next);
-          stickBottom.current = true;
+          if (!opts?.silent) stickBottom.current = true;
         }
       } catch (e) {
-        setErr(e instanceof Error ? e.message : "Ошибка");
+        if (!opts?.silent) {
+          setErr(e instanceof Error ? e.message : "Ошибка");
+        }
       } finally {
-        setLoading(false);
+        if (!opts?.silent) setLoading(false);
       }
     },
     [qApplied, category]
@@ -80,6 +85,11 @@ export function AdminJournalPanel() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useAutoRefresh(() => load({ silent: true }), {
+    intervalMs: 5000,
+    kinds: ["journal"],
+  });
 
   useEffect(() => {
     if (!stickBottom.current) return;

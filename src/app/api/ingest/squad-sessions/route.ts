@@ -6,6 +6,7 @@ import {
   sessionEventKey,
   type SquadSessionIngestEvent,
 } from "@/lib/squadSessions";
+import { livePublish, livePublishSite, userLiveChannel } from "@/lib/liveBus";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -49,6 +50,8 @@ export async function POST(req: Request) {
   const defaultServer = (body.serverKey || "TPUB1").trim() || "TPUB1";
   let accepted = 0;
   let skipped = 0;
+  let joins = 0;
+  let leaves = 0;
 
   for (const raw of events) {
     const steamId = normalizeSteamId(String(raw.steamId || ""));
@@ -106,17 +109,28 @@ export async function POST(req: Request) {
           },
         });
         accepted += 1;
+        joins += 1;
+        livePublish(
+          userLiveChannel(user.id),
+          JSON.stringify({ type: "session", action: "join", serverKey })
+        );
       } catch {
         skipped += 1;
       }
       continue;
     }
 
-    // leave
-    const open = await prisma.squadServerSession.findFirst({
+    // leave — сначала тот же сервер, иначе любая открытая сессия этого Steam
+    let open = await prisma.squadServerSession.findFirst({
       where: { steamId, serverKey, leftAt: null },
       orderBy: { joinedAt: "desc" },
     });
+    if (!open) {
+      open = await prisma.squadServerSession.findFirst({
+        where: { steamId, leftAt: null },
+        orderBy: { joinedAt: "desc" },
+      });
+    }
     if (!open || open.joinedAt.getTime() > at.getTime()) {
       skipped += 1;
       continue;
@@ -130,7 +144,22 @@ export async function POST(req: Request) {
       },
     });
     accepted += 1;
+    leaves += 1;
+    livePublish(
+      userLiveChannel(user.id),
+      JSON.stringify({ type: "session", action: "leave", serverKey })
+    );
   }
 
-  return NextResponse.json({ ok: true, accepted, skipped });
+  if (accepted > 0) {
+    livePublishSite({
+      kind: "attendance",
+      joins,
+      leaves,
+      accepted,
+      t: Date.now(),
+    });
+  }
+
+  return NextResponse.json({ ok: true, accepted, skipped, joins, leaves });
 }

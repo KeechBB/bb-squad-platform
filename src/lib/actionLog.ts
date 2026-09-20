@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { livePublishSite } from "@/lib/liveBus";
 
 export type ActionCategory = "admin" | "clan" | "profile";
 
@@ -58,6 +59,12 @@ export async function writeActionLog(input: WriteActionLogInput): Promise<void> 
             : (input.meta as Prisma.InputJsonValue),
         ...(input.createdAt ? { createdAt: input.createdAt } : {}),
       },
+    });
+    livePublishSite({
+      kind: "journal",
+      action: input.action,
+      category: input.category,
+      t: Date.now(),
     });
   } catch (err) {
     console.error("[actionLog]", err);
