@@ -172,18 +172,52 @@ export function AdminAttendancePanel() {
           <span>С</span>
           <input
             type="date"
+            className="attend-date-input"
             value={from}
             min="2026-09-01"
             onChange={(e) => setFrom(e.target.value)}
+            onClick={(e) => {
+              const el = e.currentTarget;
+              try {
+                el.showPicker?.();
+              } catch {
+                /* older browsers */
+              }
+            }}
+            onFocus={(e) => {
+              const el = e.currentTarget;
+              try {
+                el.showPicker?.();
+              } catch {
+                /* ignore */
+              }
+            }}
           />
         </label>
         <label className="field">
           <span>По</span>
           <input
             type="date"
+            className="attend-date-input"
             value={to}
             min="2026-09-01"
             onChange={(e) => setTo(e.target.value)}
+            onClick={(e) => {
+              const el = e.currentTarget;
+              try {
+                el.showPicker?.();
+              } catch {
+                /* older browsers */
+              }
+            }}
+            onFocus={(e) => {
+              const el = e.currentTarget;
+              try {
+                el.showPicker?.();
+              } catch {
+                /* ignore */
+              }
+            }}
           />
         </label>
         <button type="button" className="btn" onClick={() => void load()} disabled={loading}>

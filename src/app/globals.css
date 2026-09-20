@@ -686,7 +686,23 @@ a:hover { color: #c4b5fd; }
 
 .attend-filter-row .field {
   margin: 0;
-  min-width: 120px;
+  min-width: 148px;
+}
+
+.attend-date-input {
+  color-scheme: dark;
+  cursor: pointer;
+  min-width: 148px;
+  position: relative;
+}
+
+.attend-date-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 1;
+  filter: invert(0.85);
+  scale: 1.15;
+  padding: 4px;
+  margin-left: 4px;
 }
 
 @media (max-width: 720px) {
