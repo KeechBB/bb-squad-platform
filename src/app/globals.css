@@ -1234,6 +1234,11 @@ a:hover { color: #c4b5fd; }
   font-weight: 500;
 }
 
+.attend-time.attend-online {
+  color: #86efac;
+  font-weight: 600;
+}
+
 .attend-mode-toggle {
   display: inline-flex;
   gap: 0;
