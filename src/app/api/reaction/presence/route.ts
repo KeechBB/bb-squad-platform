@@ -2,10 +2,28 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { REACTION_PRESENCE_MS } from "@/lib/reaction";
+import { REACTION_PRESENCE_MS, normalizeLevel } from "@/lib/reaction";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+async function globalRecord(level: 1 | 2) {
+  const best = await prisma.reactionRun.findFirst({
+    where: { level },
+    orderBy: { avgMs: "asc" },
+    select: {
+      avgMs: true,
+      userId: true,
+      user: { select: { nick: true, steamName: true } },
+    },
+  });
+  if (!best) return null;
+  return {
+    avgMs: best.avgMs,
+    userId: best.userId,
+    nick: best.user.nick || best.user.steamName || "Игрок",
+  };
+}
 
 /** Heartbeat: я на вкладке тренировки */
 export async function POST(req: Request) {
@@ -21,10 +39,28 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ ok: false }, { status: 404 });
 
   let lastAvgMs: number | null | undefined;
+  let lastAvgL1Ms: number | null | undefined;
+  let lastAvgL2Ms: number | null | undefined;
   try {
     const body = await req.json().catch(() => ({}));
     if (body && typeof body.lastAvgMs === "number" && Number.isFinite(body.lastAvgMs)) {
       lastAvgMs = body.lastAvgMs;
+    }
+    if (body && typeof body.lastAvgL1Ms === "number" && Number.isFinite(body.lastAvgL1Ms)) {
+      lastAvgL1Ms = body.lastAvgL1Ms;
+    }
+    if (body && typeof body.lastAvgL2Ms === "number" && Number.isFinite(body.lastAvgL2Ms)) {
+      lastAvgL2Ms = body.lastAvgL2Ms;
+    }
+    if (
+      body &&
+      typeof body.lastAvgMs === "number" &&
+      Number.isFinite(body.lastAvgMs) &&
+      body.level != null
+    ) {
+      const lv = normalizeLevel(body.level);
+      if (lv === 1) lastAvgL1Ms = body.lastAvgMs;
+      else lastAvgL2Ms = body.lastAvgMs;
     }
   } catch {
     /* ignore */
@@ -35,9 +71,13 @@ export async function POST(req: Request) {
     create: {
       userId: user.id,
       lastAvgMs: lastAvgMs ?? null,
+      lastAvgL1Ms: lastAvgL1Ms ?? null,
+      lastAvgL2Ms: lastAvgL2Ms ?? null,
     },
     update: {
       ...(lastAvgMs !== undefined ? { lastAvgMs } : {}),
+      ...(lastAvgL1Ms !== undefined ? { lastAvgL1Ms } : {}),
+      ...(lastAvgL2Ms !== undefined ? { lastAvgL2Ms } : {}),
       updatedAt: new Date(),
     },
   });
@@ -45,7 +85,7 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true });
 }
 
-/** Кто сейчас на вкладке */
+/** Кто сейчас на вкладке + глобальные рекорды ур.1 / ур.2 */
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.steamId || !session.user.profileComplete) {
@@ -53,20 +93,24 @@ export async function GET() {
   }
 
   const since = new Date(Date.now() - REACTION_PRESENCE_MS);
-  const rows = await prisma.reactionPresence.findMany({
-    where: { updatedAt: { gte: since } },
-    orderBy: [{ lastAvgMs: "asc" }, { updatedAt: "desc" }],
-    include: {
-      user: {
-        select: {
-          id: true,
-          nick: true,
-          avatarUrl: true,
-          steamName: true,
+  const [rows, recordL1, recordL2] = await Promise.all([
+    prisma.reactionPresence.findMany({
+      where: { updatedAt: { gte: since } },
+      orderBy: [{ updatedAt: "desc" }],
+      include: {
+        user: {
+          select: {
+            id: true,
+            nick: true,
+            avatarUrl: true,
+            steamName: true,
+          },
         },
       },
-    },
-  });
+    }),
+    globalRecord(1),
+    globalRecord(2),
+  ]);
 
   return NextResponse.json({
     ok: true,
@@ -75,7 +119,13 @@ export async function GET() {
       nick: r.user.nick || r.user.steamName || "Игрок",
       avatarUrl: r.user.avatarUrl,
       lastAvgMs: r.lastAvgMs,
+      lastAvgL1Ms: r.lastAvgL1Ms,
+      lastAvgL2Ms: r.lastAvgL2Ms,
       updatedAt: r.updatedAt.toISOString(),
     })),
+    records: {
+      l1: recordL1,
+      l2: recordL2,
+    },
   });
 }

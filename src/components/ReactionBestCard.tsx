@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import { formatSec3 } from "@/lib/reaction";
 
@@ -28,53 +31,87 @@ function fmtDate(iso: string) {
   }
 }
 
-export function ReactionBestCard({
-  bestAvgMs,
-  bestL1,
-  bestL2,
-  history,
-}: Props) {
+export function ReactionBestCard({ bestL1, bestL2, history }: Props) {
+  const [open, setOpen] = useState(false);
+
   return (
-    <section className="card reaction-profile-card">
-      <div className="reaction-profile-best">
-        <p className="eyebrow" style={{ marginBottom: 4 }}>
-          реакция
-        </p>
-        <p className="muted" style={{ margin: 0, fontSize: "0.8rem" }}>
-          Лучший средний
-        </p>
-        <strong className="reaction-profile-num">
-          {bestAvgMs != null ? `${formatSec3(bestAvgMs)}` : "—"}
-          <span> с</span>
-        </strong>
-        <div className="reaction-profile-levels muted">
-          <span>ур.1: {bestL1 != null ? `${formatSec3(bestL1)} с` : "—"}</span>
-          <span>ур.2: {bestL2 != null ? `${formatSec3(bestL2)} с` : "—"}</span>
+    <>
+      <section className="card reaction-profile-card">
+        <div className="reaction-profile-best">
+          <p className="eyebrow" style={{ marginBottom: 4 }}>
+            реакция
+          </p>
+          <div className="reaction-profile-levels">
+            <div className="reaction-profile-level">
+              <span className="muted">1 ур</span>
+              <strong>
+                {bestL1 != null ? `${formatSec3(bestL1)} с` : "—"}
+              </strong>
+            </div>
+            <div className="reaction-profile-level">
+              <span className="muted">2 ур</span>
+              <strong>
+                {bestL2 != null ? `${formatSec3(bestL2)} с` : "—"}
+              </strong>
+            </div>
+          </div>
+          <div className="reaction-profile-actions">
+            {history.length > 0 ? (
+              <button
+                type="button"
+                className="kv-link reaction-history-btn"
+                onClick={() => setOpen(true)}
+              >
+                История →
+              </button>
+            ) : (
+              <span className="muted" style={{ fontSize: "0.78rem" }}>
+                Пока нет серий
+              </span>
+            )}
+            <Link className="kv-link" href="/aim">
+              Тренировка →
+            </Link>
+          </div>
         </div>
-        <Link className="kv-link" href="/aim" style={{ marginTop: 8 }}>
-          Тренировка стрельбы →
-        </Link>
-      </div>
-      {history.length > 0 ? (
-        <div className="reaction-profile-history">
-          <h3>История</h3>
-          <ul>
-            {history.map((h) => (
-              <li key={h.id}>
-                <span>
-                  {fmtDate(h.createdAt)}
-                  {h.level != null ? ` · ур.${h.level}` : ""}
-                </span>
-                <strong>{formatSec3(h.avgMs)} с</strong>
-              </li>
-            ))}
-          </ul>
+      </section>
+
+      {open ? (
+        <div
+          className="reaction-history-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label="История реакции"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="reaction-history-dialog card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="reaction-history-dialog-head">
+              <h2>История реакции</h2>
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={() => setOpen(false)}
+              >
+                Закрыть
+              </button>
+            </div>
+            <ul className="reaction-history-dialog-list">
+              {history.map((h) => (
+                <li key={h.id}>
+                  <span>
+                    {fmtDate(h.createdAt)}
+                    {h.level != null ? ` · ур.${h.level}` : ""}
+                  </span>
+                  <strong>{formatSec3(h.avgMs)} с</strong>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
-      ) : (
-        <p className="muted" style={{ margin: "8px 0 0", fontSize: "0.82rem" }}>
-          Пока нет серий — сыграй 10 попыток на вкладке тренировки.
-        </p>
-      )}
-    </section>
+      ) : null}
+    </>
   );
 }

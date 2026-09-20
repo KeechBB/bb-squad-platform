@@ -49,15 +49,58 @@ export async function POST(req: Request) {
 
   await prisma.reactionPresence.upsert({
     where: { userId: user.id },
-    create: { userId: user.id, lastAvgMs: avgMs },
-    update: { lastAvgMs: avgMs, updatedAt: new Date() },
+    create: {
+      userId: user.id,
+      lastAvgMs: avgMs,
+      ...(level === 1 ? { lastAvgL1Ms: avgMs } : { lastAvgL2Ms: avgMs }),
+    },
+    update: {
+      lastAvgMs: avgMs,
+      ...(level === 1 ? { lastAvgL1Ms: avgMs } : { lastAvgL2Ms: avgMs }),
+      updatedAt: new Date(),
+    },
   });
 
-  const best = await prisma.reactionRun.findFirst({
-    where: { userId: user.id, level },
-    orderBy: { avgMs: "asc" },
-    select: { avgMs: true },
-  });
+  const [best, recordL1, recordL2] = await Promise.all([
+    prisma.reactionRun.findFirst({
+      where: { userId: user.id, level },
+      orderBy: { avgMs: "asc" },
+      select: { avgMs: true },
+    }),
+    prisma.reactionRun.findFirst({
+      where: { level: 1 },
+      orderBy: { avgMs: "asc" },
+      select: {
+        avgMs: true,
+        userId: true,
+        user: { select: { nick: true, steamName: true } },
+      },
+    }),
+    prisma.reactionRun.findFirst({
+      where: { level: 2 },
+      orderBy: { avgMs: "asc" },
+      select: {
+        avgMs: true,
+        userId: true,
+        user: { select: { nick: true, steamName: true } },
+      },
+    }),
+  ]);
+
+  const mapRec = (
+    r: {
+      avgMs: number;
+      userId: string;
+      user: { nick: string | null; steamName: string | null };
+    } | null
+  ) =>
+    r
+      ? {
+          avgMs: r.avgMs,
+          userId: r.userId,
+          nick: r.user.nick || r.user.steamName || "Игрок",
+        }
+      : null;
 
   return NextResponse.json({
     ok: true,
@@ -69,6 +112,10 @@ export async function POST(req: Request) {
       createdAt: run.createdAt.toISOString(),
     },
     bestAvgMs: best?.avgMs ?? avgMs,
+    records: {
+      l1: mapRec(recordL1),
+      l2: mapRec(recordL2),
+    },
   });
 }
 

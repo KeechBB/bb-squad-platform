@@ -17,6 +17,14 @@ type LivePlayer = {
   nick: string;
   avatarUrl: string | null;
   lastAvgMs: number | null;
+  lastAvgL1Ms: number | null;
+  lastAvgL2Ms: number | null;
+};
+
+type GlobalRecord = {
+  avgMs: number;
+  userId: string;
+  nick: string;
 };
 
 type Phase = "idle" | "wait" | "ready" | "done";
@@ -42,7 +50,9 @@ export function ReactionTrainingClient() {
   const [missFlags, setMissFlags] = useState<boolean[]>([]);
   const [live, setLive] = useState<LivePlayer[]>([]);
   const [lastAvg, setLastAvg] = useState<number | null>(null);
-  const [bestAvg, setBestAvg] = useState<number | null>(null);
+  const [myBest, setMyBest] = useState<number | null>(null);
+  const [recordL1, setRecordL1] = useState<GlobalRecord | null>(null);
+  const [recordL2, setRecordL2] = useState<GlobalRecord | null>(null);
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
   const [circle, setCircle] = useState<{ x: number; y: number } | null>(null);
@@ -54,6 +64,8 @@ export function ReactionTrainingClient() {
   const timerRef = useRef<number | null>(null);
   const arenaRef = useRef<HTMLDivElement>(null);
   const lastAvgRef = useRef<number | null>(null);
+  const lastL1Ref = useRef<number | null>(null);
+  const lastL2Ref = useRef<number | null>(null);
   const seriesSeqRef = useRef(0);
 
   useEffect(() => {
@@ -82,6 +94,8 @@ export function ReactionTrainingClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           lastAvgMs: lastAvgRef.current,
+          lastAvgL1Ms: lastL1Ref.current,
+          lastAvgL2Ms: lastL2Ref.current,
         }),
         cache: "no-store",
       });
@@ -96,19 +110,21 @@ export function ReactionTrainingClient() {
       if (!res.ok) return;
       const data = await res.json();
       setLive(data.players || []);
+      if (data.records?.l1 !== undefined) setRecordL1(data.records.l1);
+      if (data.records?.l2 !== undefined) setRecordL2(data.records.l2);
     } catch {
       /* ignore */
     }
   }, []);
 
-  const loadBest = useCallback(async (lv: Level) => {
+  const loadMyBest = useCallback(async (lv: Level) => {
     try {
       const res = await fetch(`/api/reaction/run?limit=1&level=${lv}`, {
         cache: "no-store",
       });
       if (!res.ok) return;
       const d = await res.json();
-      setBestAvg(d?.bestAvgMs ?? null);
+      setMyBest(d?.bestAvgMs ?? null);
     } catch {
       /* ignore */
     }
@@ -128,8 +144,8 @@ export function ReactionTrainingClient() {
 
   useEffect(() => {
     if (phase !== "idle" && phase !== "done") return;
-    void loadBest(level);
-  }, [level, phase, loadBest]);
+    void loadMyBest(level);
+  }, [level, phase, loadMyBest]);
 
   function placeCircle() {
     const el = arenaRef.current;
@@ -205,6 +221,10 @@ export function ReactionTrainingClient() {
     setSaving(true);
     setMsg("Сохраняем…");
 
+    if (lv === 1) lastL1Ref.current = avg;
+    else lastL2Ref.current = avg;
+    lastAvgRef.current = avg;
+
     seriesSeqRef.current += 1;
     const localId = seriesSeqRef.current;
     setSessionSeries((prev) => [
@@ -228,12 +248,16 @@ export function ReactionTrainingClient() {
       }
       const savedAvg = data.run?.avgMs ?? avg;
       setLastAvg(savedAvg);
+      if (lv === 1) lastL1Ref.current = savedAvg;
+      else lastL2Ref.current = savedAvg;
+      lastAvgRef.current = savedAvg;
       setSessionSeries((prev) =>
         prev.map((s) => (s.id === localId ? { ...s, avgMs: savedAvg } : s))
       );
-      if (data.bestAvgMs != null) setBestAvg(data.bestAvgMs);
+      if (data.bestAvgMs != null) setMyBest(data.bestAvgMs);
+      if (data.records?.l1 !== undefined) setRecordL1(data.records.l1);
+      if (data.records?.l2 !== undefined) setRecordL2(data.records.l2);
       setMsg("Серия сохранена в профиль");
-      lastAvgRef.current = savedAvg;
       void pingPresence();
       void loadLive();
     } catch {
@@ -287,45 +311,87 @@ export function ReactionTrainingClient() {
           </p>
         </div>
         <div className="reaction-best-chip">
-          <span className="muted">Лучший · ур. {level}</span>
-          <strong>{formatSec3(bestAvg)} с</strong>
+          <span className="muted">Твой лучший · ур. {level}</span>
+          <strong>{formatSec3(myBest)} с</strong>
         </div>
       </header>
 
-      <div className="reaction-tabs" role="tablist" aria-label="Уровень">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={level === 1}
-          className={`reaction-tab${level === 1 ? " active" : ""}`}
-          disabled={busy || saving}
-          onClick={() => selectLevel(1)}
-        >
-          <strong>1 уровень</strong>
-          <span>круг строго в центре</span>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={level === 2}
-          className={`reaction-tab${level === 2 ? " active" : ""}`}
-          disabled={busy || saving}
-          onClick={() => selectLevel(2)}
-        >
-          <strong>2 уровень</strong>
-          <span>круг в случайном месте</span>
-        </button>
+      <div className="reaction-tabs-row">
+        <div className="reaction-tabs" role="tablist" aria-label="Уровень">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={level === 1}
+            className={`reaction-tab${level === 1 ? " active" : ""}`}
+            disabled={busy || saving}
+            onClick={() => selectLevel(1)}
+          >
+            <strong>1 уровень</strong>
+            <span>круг строго в центре</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={level === 2}
+            className={`reaction-tab${level === 2 ? " active" : ""}`}
+            disabled={busy || saving}
+            onClick={() => selectLevel(2)}
+          >
+            <strong>2 уровень</strong>
+            <span>круг в случайном месте</span>
+          </button>
+        </div>
+
+        <div className="reaction-records" aria-label="Рекорды клана">
+          <div className="reaction-record-card">
+            <span className="muted">Рекорд · 1 ур</span>
+            <strong>{recordL1 ? `${formatSec3(recordL1.avgMs)} с` : "—"}</strong>
+            <span className="reaction-record-nick">
+              {recordL1?.nick ? (
+                <Link
+                  className="player-nick-link"
+                  href={`/players/${encodeURIComponent(recordL1.nick)}`}
+                >
+                  {recordL1.nick}
+                </Link>
+              ) : (
+                "пока нет"
+              )}
+            </span>
+          </div>
+          <div className="reaction-record-card">
+            <span className="muted">Рекорд · 2 ур</span>
+            <strong>{recordL2 ? `${formatSec3(recordL2.avgMs)} с` : "—"}</strong>
+            <span className="reaction-record-nick">
+              {recordL2?.nick ? (
+                <Link
+                  className="player-nick-link"
+                  href={`/players/${encodeURIComponent(recordL2.nick)}`}
+                >
+                  {recordL2.nick}
+                </Link>
+              ) : (
+                "пока нет"
+              )}
+            </span>
+          </div>
+        </div>
       </div>
 
       <div className="reaction-layout">
         <aside className="reaction-board card">
           <h2>Сейчас на вкладке</h2>
           <p className="muted" style={{ marginTop: 0, fontSize: "0.82rem" }}>
-            Онлайн здесь · среднее серии
+            Онлайн · среднее последней серии по уровню
           </p>
+          <div className="reaction-live-head">
+            <span>Ник</span>
+            <span>1 ур</span>
+            <span>2 ур</span>
+          </div>
           <ul className="reaction-live-list">
             {live.length === 0 ? (
-              <li className="muted">Пока никого нет</li>
+              <li className="muted reaction-live-empty">Пока никого нет</li>
             ) : (
               live.map((p) => (
                 <li key={p.userId}>
@@ -342,7 +408,10 @@ export function ReactionTrainingClient() {
                     )}
                   </span>
                   <span className="reaction-live-avg">
-                    {p.lastAvgMs != null ? `${formatSec3(p.lastAvgMs)} с` : "—"}
+                    {p.lastAvgL1Ms != null ? formatSec3(p.lastAvgL1Ms) : "—"}
+                  </span>
+                  <span className="reaction-live-avg">
+                    {p.lastAvgL2Ms != null ? formatSec3(p.lastAvgL2Ms) : "—"}
                   </span>
                 </li>
               ))
@@ -430,7 +499,10 @@ export function ReactionTrainingClient() {
                   missFlags[i] ? " miss" : ""
                 }`}
               >
-                <span>#{i + 1}{missFlags[i] ? " · штраф" : ""}</span>
+                <span>
+                  #{i + 1}
+                  {missFlags[i] ? " · штраф" : ""}
+                </span>
                 <strong>
                   {attempts[i] != null ? `${formatSec3(attempts[i])} с` : "—"}
                 </strong>

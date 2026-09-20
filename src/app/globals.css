@@ -499,19 +499,15 @@ a:hover { color: #c4b5fd; }
 }
 
 .profile-head-cluster .reaction-profile-card {
-  flex: 1 1 240px;
-  max-width: 340px;
-  min-width: 200px;
-  max-height: 210px;
-  overflow: hidden;
+  flex: 0 1 240px;
+  max-width: 280px;
+  min-width: 180px;
+  max-height: none;
+  overflow: visible;
 }
 
 .profile-head-cluster .reaction-profile-history {
-  margin-top: 4px;
-}
-
-.profile-head-cluster .reaction-profile-history ul {
-  max-height: 72px;
+  display: none;
 }
 
 .profile-head-cluster .reaction-profile-num {
@@ -3592,7 +3588,49 @@ body:has(.home-page) {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+  flex: 1 1 420px;
   max-width: 720px;
+}
+
+.reaction-tabs-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.reaction-records {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  flex: 0 1 360px;
+  min-width: 260px;
+}
+
+.reaction-record-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(34, 197, 94, 0.28);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.reaction-record-card strong {
+  font-size: 1.2rem;
+  font-variant-numeric: tabular-nums;
+  color: #86efac;
+  line-height: 1.15;
+}
+
+.reaction-record-nick {
+  font-size: 0.8rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .reaction-tab {
@@ -3650,27 +3688,58 @@ body:has(.home-page) {
   font-size: 1.05rem;
 }
 
+.reaction-live-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 52px 52px;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 0 0 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  text-align: right;
+}
+
+.reaction-live-head span:first-child {
+  text-align: left;
+}
+
 .reaction-live-list {
   list-style: none;
-  margin: 10px 0 0;
+  margin: 0;
   padding: 0;
   overflow: auto;
   flex: 1;
 }
 
 .reaction-live-list li {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 52px 52px;
+  gap: 6px;
+  align-items: center;
   padding: 8px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   font-size: 0.9rem;
+}
+
+.reaction-live-list li.reaction-live-empty {
+  display: block;
+}
+
+.reaction-live-nick {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .reaction-live-avg {
   font-variant-numeric: tabular-nums;
   color: #86efac;
   white-space: nowrap;
+  text-align: right;
+  font-size: 0.82rem;
 }
 
 .reaction-main {
@@ -3862,11 +3931,93 @@ body:has(.home-page) {
 }
 
 .reaction-profile-levels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.reaction-profile-level {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.reaction-profile-level strong {
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.reaction-profile-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px 16px;
-  margin-top: 8px;
-  font-size: 0.8rem;
+  gap: 10px 14px;
+  margin-top: 10px;
+  align-items: center;
+}
+
+.reaction-history-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.reaction-history-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.reaction-history-dialog {
+  width: min(420px, 100%);
+  max-height: min(70dvh, 520px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.reaction-history-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.reaction-history-dialog-head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.reaction-history-dialog-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+}
+
+.reaction-history-dialog-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.85rem;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.reaction-history-dialog-list strong {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .reaction-profile-history h3 {
@@ -3913,8 +4064,15 @@ body:has(.home-page) {
     grid-template-columns: 1fr;
   }
 
-  .reaction-tabs {
+  .reaction-tabs-row {
+    flex-direction: column;
+  }
+
+  .reaction-tabs,
+  .reaction-records {
     max-width: none;
+    width: 100%;
+    flex: 1 1 auto;
   }
 
   .reaction-board,

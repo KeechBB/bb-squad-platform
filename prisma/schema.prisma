@@ -95,6 +95,9 @@ model ReactionPresence {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// Последний средний результат в этой сессии на вкладке (мс)
   lastAvgMs   Float?
+  /// Последняя серия ур.1 / ур.2 на вкладке (мс)
+  lastAvgL1Ms Float?
+  lastAvgL2Ms Float?
   updatedAt   DateTime @updatedAt
 }
 
