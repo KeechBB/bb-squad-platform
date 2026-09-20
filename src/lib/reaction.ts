@@ -1,6 +1,7 @@
-/** Тренировка стрельбы — реакция, уровень 1 */
+/** Тренировка стрельбы — реакция */
 
 export const REACTION_LEVEL = 1;
+export const REACTION_LEVEL_MAX = 2;
 export const REACTION_ATTEMPTS = 10;
 /** Задержка до появления круга, секунды */
 export const REACTION_DELAY_MIN_S = 1;
@@ -8,6 +9,8 @@ export const REACTION_DELAY_MAX_S = 10;
 /** Слишком быстро = чит / промах по замеру */
 export const REACTION_MIN_MS = 80;
 export const REACTION_MAX_MS = 5000;
+/** Штраф за клик мимо круга (1 секунда) */
+export const REACTION_MISS_PENALTY_MS = 1000;
 /** Присутствие на вкладке */
 export const REACTION_PRESENCE_MS = 45_000;
 
@@ -21,9 +24,21 @@ export function averageMs(attempts: number[]): number {
   return roundMs3(sum / attempts.length);
 }
 
-export function formatMs3(ms: number | null | undefined): string {
+/** Показ реакции в секундах с точностью до 0.001 (730 мс → «0.730») */
+export function formatSec3(ms: number | null | undefined): string {
   if (ms == null || !Number.isFinite(ms)) return "—";
-  return ms.toFixed(3);
+  return (ms / 1000).toFixed(3);
+}
+
+/** @deprecated используй formatSec3 */
+export function formatMs3(ms: number | null | undefined): string {
+  return formatSec3(ms);
+}
+
+export function normalizeLevel(raw: unknown): 1 | 2 {
+  const n = Number(raw);
+  if (n === 2) return 2;
+  return 1;
 }
 
 export function validateAttempts(raw: unknown): number[] | null {

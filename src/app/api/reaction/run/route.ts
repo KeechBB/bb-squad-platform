@@ -3,8 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
-  REACTION_LEVEL,
   averageMs,
+  normalizeLevel,
   validateAttempts,
 } from "@/lib/reaction";
 
@@ -30,13 +30,13 @@ export async function POST(req: Request) {
   const attempts = validateAttempts(body?.attempts);
   if (!attempts) {
     return NextResponse.json(
-      { error: "Нужны 10 корректных попыток (мс)" },
+      { error: "Нужны 10 корректных попыток" },
       { status: 400 }
     );
   }
 
   const avgMs = averageMs(attempts);
-  const level = Number(body?.level) === REACTION_LEVEL ? REACTION_LEVEL : REACTION_LEVEL;
+  const level = normalizeLevel(body?.level);
 
   const run = await prisma.reactionRun.create({
     data: {
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
   });
 
   const best = await prisma.reactionRun.findFirst({
-    where: { userId: user.id, level: REACTION_LEVEL },
+    where: { userId: user.id, level },
     orderBy: { avgMs: "asc" },
     select: { avgMs: true },
   });
@@ -63,6 +63,7 @@ export async function POST(req: Request) {
     ok: true,
     run: {
       id: run.id,
+      level: run.level,
       avgMs: run.avgMs,
       attempts: run.attempts,
       createdAt: run.createdAt.toISOString(),
@@ -88,28 +89,40 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const limit = Math.min(50, Math.max(1, Number(url.searchParams.get("limit")) || 20));
+  const levelParam = url.searchParams.get("level");
+  const levelFilter =
+    levelParam == null || levelParam === ""
+      ? undefined
+      : normalizeLevel(levelParam);
+
+  const where = {
+    userId: user.id,
+    ...(levelFilter != null ? { level: levelFilter } : {}),
+  };
 
   const [runs, best] = await Promise.all([
     prisma.reactionRun.findMany({
-      where: { userId: user.id, level: REACTION_LEVEL },
+      where,
       orderBy: { createdAt: "desc" },
       take: limit,
-      select: { id: true, avgMs: true, createdAt: true },
+      select: { id: true, avgMs: true, level: true, createdAt: true },
     }),
     prisma.reactionRun.findFirst({
-      where: { userId: user.id, level: REACTION_LEVEL },
+      where,
       orderBy: { avgMs: "asc" },
-      select: { avgMs: true, createdAt: true },
+      select: { avgMs: true, level: true, createdAt: true },
     }),
   ]);
 
   return NextResponse.json({
     ok: true,
     bestAvgMs: best?.avgMs ?? null,
+    bestLevel: best?.level ?? null,
     bestAt: best?.createdAt?.toISOString() ?? null,
     history: runs.map((r) => ({
       id: r.id,
       avgMs: r.avgMs,
+      level: r.level,
       createdAt: r.createdAt.toISOString(),
     })),
   });

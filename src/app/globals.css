@@ -196,7 +196,7 @@ a:hover { color: #c4b5fd; }
   flex: 0 0 auto;
 }
 
-/* Короткие подписи — только на телефоне (см. mobile block в конце) */
+/* ???????? ??????? ? ?????? ?? ???????? (??. mobile block ? ?????) */
 .nav-short {
   display: none;
 }
@@ -418,7 +418,7 @@ a:hover { color: #c4b5fd; }
   gap: 18px;
 }
 
-/* Широкий профиль: всё в одном экране, без длинной колонки */
+/* ??????? ???????: ??? ? ????? ??????, ??? ??????? ??????? */
 .shell:has(.profile-page) {
   max-width: 1760px;
   padding: 10px 16px 14px;
@@ -428,7 +428,7 @@ a:hover { color: #c4b5fd; }
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
   grid-template-areas:
-    "head side"
+    "head head"
     "account training";
   gap: 8px;
   align-items: start;
@@ -446,7 +446,7 @@ a:hover { color: #c4b5fd; }
 .profile-head-cluster {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: stretch;
   justify-content: flex-start;
   gap: 10px 12px;
 }
@@ -464,6 +464,58 @@ a:hover { color: #c4b5fd; }
   display: grid;
   gap: 8px;
   align-content: start;
+}
+
+.profile-clan-card {
+  flex: 0 1 260px;
+  max-width: 280px;
+  min-width: 200px;
+  align-self: stretch;
+}
+
+.profile-clan-list {
+  margin-top: 6px;
+  gap: 6px;
+}
+
+.profile-clan-card .clan-row {
+  padding: 8px 10px;
+  gap: 10px;
+  border-radius: 10px;
+}
+
+.profile-clan-card .clan-row-logo {
+  width: 36px;
+  height: 36px;
+}
+
+.profile-clan-card .clan-row-body strong {
+  font-size: 0.9rem;
+  line-height: 1.2;
+}
+
+.profile-clan-card .clan-row-body .muted {
+  font-size: 0.72rem;
+}
+
+.profile-head-cluster .reaction-profile-card {
+  flex: 1 1 240px;
+  max-width: 340px;
+  min-width: 200px;
+  max-height: 210px;
+  overflow: hidden;
+}
+
+.profile-head-cluster .reaction-profile-history {
+  margin-top: 4px;
+}
+
+.profile-head-cluster .reaction-profile-history ul {
+  max-height: 72px;
+}
+
+.profile-head-cluster .reaction-profile-num {
+  font-size: 1.35rem;
 }
 
 .profile-area-account {
@@ -809,9 +861,14 @@ a:hover { color: #c4b5fd; }
     grid-template-columns: 1fr;
     grid-template-areas:
       "head"
-      "side"
       "account"
       "training";
+  }
+
+  .profile-clan-card,
+  .profile-head-cluster .reaction-profile-card {
+    max-width: none;
+    flex: 1 1 100%;
   }
 
   .profile-account-meta {
@@ -1571,7 +1628,7 @@ a:hover { color: #c4b5fd; }
   max-width: 1100px;
 }
 
-/* Вся админка: текст и блоки по центру */
+/* ??? ???????: ????? ? ????? ?? ?????? */
 .admin-page {
   text-align: center;
 }
@@ -1713,7 +1770,7 @@ a:hover { color: #c4b5fd; }
   max-width: 1100px;
 }
 
-/* Посещаемость — шире обычной админки (перебивает max-width выше) */
+/* ???????????? ? ???? ??????? ??????? (?????????? max-width ????) */
 .shell:has(.admin-attendance-page) {
   max-width: none;
   width: 100%;
@@ -3195,7 +3252,7 @@ body:has(.home-page) {
   color: #fecaca;
 }
 
-/* ——— Mobile only (ПК не затрагиваем) ——— */
+/* ??? Mobile only (?? ?? ???????????) ??? */
 @media (max-width: 720px) {
   html,
   body {
@@ -3338,7 +3395,7 @@ body:has(.home-page) {
   .field input,
   .field textarea,
   .role-select {
-    font-size: 16px; /* без автозума iOS */
+    font-size: 16px; /* ??? ???????? iOS */
     max-width: 100%;
   }
 
@@ -3487,7 +3544,14 @@ body:has(.home-page) {
   }
 }
 
-/* ��� ���������� �������� (�������) ��� */
+/* ??? ?????????? ???????? (???????) ??? */
+.shell:has(.reaction-page) {
+  max-width: none;
+  width: min(100%, 1920px);
+  margin-inline: auto;
+  padding-inline: 20px;
+}
+
 .reaction-page {
   display: flex;
   flex-direction: column;
@@ -3524,9 +3588,49 @@ body:has(.home-page) {
   font-variant-numeric: tabular-nums;
 }
 
+.reaction-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  max-width: 720px;
+}
+
+.reaction-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(167, 139, 250, 0.28);
+  background: rgba(255, 255, 255, 0.03);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.reaction-tab strong {
+  font-size: 0.98rem;
+}
+
+.reaction-tab span {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.reaction-tab.active {
+  border-color: rgba(167, 139, 250, 0.7);
+  background: rgba(167, 139, 250, 0.18);
+}
+
+.reaction-tab:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .reaction-layout {
   display: grid;
-  grid-template-columns: minmax(200px, 1fr) minmax(0, 3fr);
+  grid-template-columns: minmax(180px, 220px) minmax(720px, 1fr) minmax(200px, 260px);
   gap: 14px;
   flex: 1;
   min-height: 0;
@@ -3536,11 +3640,12 @@ body:has(.home-page) {
   display: flex;
   flex-direction: column;
   min-height: 320px;
-  max-height: calc(100dvh - 180px);
+  max-height: calc(100dvh - 220px);
   overflow: hidden;
 }
 
-.reaction-board h2 {
+.reaction-board h2,
+.reaction-session h2 {
   margin: 0 0 4px;
   font-size: 1.05rem;
 }
@@ -3572,7 +3677,8 @@ body:has(.home-page) {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  min-height: 420px;
+  min-height: 480px;
+  min-width: 0;
 }
 
 .reaction-main-top {
@@ -3598,7 +3704,8 @@ body:has(.home-page) {
 .reaction-arena {
   position: relative;
   flex: 1;
-  min-height: 360px;
+  min-height: 420px;
+  width: 100%;
   border-radius: 12px;
   background:
     radial-gradient(ellipse at 30% 20%, rgba(56, 189, 248, 0.08), transparent 50%),
@@ -3678,12 +3785,55 @@ body:has(.home-page) {
   border-color: rgba(34, 197, 94, 0.35);
 }
 
+.reaction-attempts li.miss {
+  border-color: rgba(251, 191, 36, 0.45);
+}
+
+.reaction-attempts li.miss strong {
+  color: #fbbf24;
+}
+
 .reaction-attempts li span {
   color: var(--muted);
 }
 
 .reaction-attempts li strong {
   font-variant-numeric: tabular-nums;
+}
+
+.reaction-session {
+  display: flex;
+  flex-direction: column;
+  min-height: 320px;
+  max-height: calc(100dvh - 220px);
+  overflow: hidden;
+}
+
+.reaction-session-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  overflow: auto;
+  flex: 1;
+}
+
+.reaction-session-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.9rem;
+}
+
+.reaction-session-list strong {
+  font-variant-numeric: tabular-nums;
+  color: #86efac;
+  white-space: nowrap;
+}
+
+.reaction-session-list em {
+  font-style: normal;
 }
 
 .reaction-profile-card {
@@ -3709,6 +3859,14 @@ body:has(.home-page) {
   font-size: 0.85rem;
   color: var(--muted);
   font-weight: 500;
+}
+
+.reaction-profile-levels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-top: 8px;
+  font-size: 0.8rem;
 }
 
 .reaction-profile-history h3 {
@@ -3738,12 +3896,29 @@ body:has(.home-page) {
   white-space: nowrap;
 }
 
+@media (max-width: 1200px) {
+  .reaction-layout {
+    grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
+  }
+
+  .reaction-session {
+    grid-column: 1 / -1;
+    max-height: 240px;
+    min-height: 0;
+  }
+}
+
 @media (max-width: 900px) {
   .reaction-layout {
     grid-template-columns: 1fr;
   }
 
-  .reaction-board {
+  .reaction-tabs {
+    max-width: none;
+  }
+
+  .reaction-board,
+  .reaction-session {
     max-height: 220px;
   }
 

@@ -16,7 +16,6 @@ import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
 import { loadUserTrainingStats } from "@/lib/trainingStats";
 import { buildPlayerKvStats } from "@/lib/kvStats";
 import { ReactionBestCard } from "@/components/ReactionBestCard";
-import { REACTION_LEVEL } from "@/lib/reaction";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -78,19 +77,30 @@ export default async function ProfilePage() {
     }
   }
 
-  const [reactionBest, reactionHistory] = await Promise.all([
-    prisma.reactionRun.findFirst({
-      where: { userId: me.id, level: REACTION_LEVEL },
-      orderBy: { avgMs: "asc" },
-      select: { avgMs: true },
-    }),
-    prisma.reactionRun.findMany({
-      where: { userId: me.id, level: REACTION_LEVEL },
-      orderBy: { createdAt: "desc" },
-      take: 15,
-      select: { id: true, avgMs: true, createdAt: true },
-    }),
-  ]);
+  const [reactionBest, reactionBestL1, reactionBestL2, reactionHistory] =
+    await Promise.all([
+      prisma.reactionRun.findFirst({
+        where: { userId: me.id },
+        orderBy: { avgMs: "asc" },
+        select: { avgMs: true },
+      }),
+      prisma.reactionRun.findFirst({
+        where: { userId: me.id, level: 1 },
+        orderBy: { avgMs: "asc" },
+        select: { avgMs: true },
+      }),
+      prisma.reactionRun.findFirst({
+        where: { userId: me.id, level: 2 },
+        orderBy: { avgMs: "asc" },
+        select: { avgMs: true },
+      }),
+      prisma.reactionRun.findMany({
+        where: { userId: me.id },
+        orderBy: { createdAt: "desc" },
+        take: 6,
+        select: { id: true, avgMs: true, level: true, createdAt: true },
+      }),
+    ]);
 
   return (
     <main className="profile-page">
@@ -112,41 +122,49 @@ export default async function ProfilePage() {
           />
           <ReactionBestCard
             bestAvgMs={reactionBest?.avgMs ?? null}
+            bestL1={reactionBestL1?.avgMs ?? null}
+            bestL2={reactionBestL2?.avgMs ?? null}
             history={reactionHistory.map((h) => ({
               id: h.id,
               avgMs: h.avgMs,
+              level: h.level,
               createdAt: h.createdAt.toISOString(),
             }))}
           />
+          {clans.length > 0 ? (
+            <section className="card profile-clan-card">
+              <h2>Клан</h2>
+              <div className="clan-list profile-clan-list">
+                {clans.map((c) => (
+                  <Link key={c.id} className="clan-row" href={`/clans/${c.id}`}>
+                    {c.logoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        className="clan-row-logo"
+                        src={c.logoUrl}
+                        alt=""
+                        width={36}
+                        height={36}
+                      />
+                    ) : (
+                      <div className="clan-row-logo clan-row-logo-empty">
+                        {c.tag.slice(0, 2)}
+                      </div>
+                    )}
+                    <div className="clan-row-body">
+                      <strong>
+                        [{c.tag}] {c.name}
+                      </strong>
+                      <span className="muted">Открыть</span>
+                    </div>
+                    <span className="clan-row-arrow">→</span>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          ) : null}
+          <ClanInvites initial={invites} />
         </div>
-      </div>
-
-      <div className="profile-area-side">
-        <ClanInvites initial={invites} />
-        {clans.length > 0 ? (
-          <section className="card">
-            <h2>Клан</h2>
-            <div className="clan-list" style={{ marginTop: 8 }}>
-              {clans.map((c) => (
-                <Link key={c.id} className="clan-row" href={`/clans/${c.id}`}>
-                  {c.logoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img className="clan-row-logo" src={c.logoUrl} alt="" width={40} height={40} />
-                  ) : (
-                    <div className="clan-row-logo clan-row-logo-empty">{c.tag.slice(0, 2)}</div>
-                  )}
-                  <div className="clan-row-body">
-                    <strong>
-                      [{c.tag}] {c.name}
-                    </strong>
-                    <span className="muted">Открыть страницу клана</span>
-                  </div>
-                  <span className="clan-row-arrow">→</span>
-                </Link>
-              ))}
-            </div>
-          </section>
-        ) : null}
       </div>
 
       <div className="profile-area-account">

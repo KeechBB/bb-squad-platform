@@ -6,8 +6,9 @@ import {
   REACTION_ATTEMPTS,
   REACTION_DELAY_MAX_S,
   REACTION_DELAY_MIN_S,
+  REACTION_MISS_PENALTY_MS,
   averageMs,
-  formatMs3,
+  formatSec3,
   roundMs3,
 } from "@/lib/reaction";
 
@@ -19,6 +20,13 @@ type LivePlayer = {
 };
 
 type Phase = "idle" | "wait" | "ready" | "done";
+type Level = 1 | 2;
+
+type SessionSeries = {
+  id: number;
+  level: Level;
+  avgMs: number;
+};
 
 function randomDelayMs() {
   const s =
@@ -28,24 +36,33 @@ function randomDelayMs() {
 }
 
 export function ReactionTrainingClient() {
+  const [level, setLevel] = useState<Level>(1);
   const [phase, setPhase] = useState<Phase>("idle");
   const [attempts, setAttempts] = useState<number[]>([]);
+  const [missFlags, setMissFlags] = useState<boolean[]>([]);
   const [live, setLive] = useState<LivePlayer[]>([]);
   const [lastAvg, setLastAvg] = useState<number | null>(null);
   const [bestAvg, setBestAvg] = useState<number | null>(null);
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
   const [circle, setCircle] = useState<{ x: number; y: number } | null>(null);
+  const [sessionSeries, setSessionSeries] = useState<SessionSeries[]>([]);
 
   const phaseRef = useRef<Phase>("idle");
+  const levelRef = useRef<Level>(1);
   const appearAtRef = useRef(0);
   const timerRef = useRef<number | null>(null);
   const arenaRef = useRef<HTMLDivElement>(null);
   const lastAvgRef = useRef<number | null>(null);
+  const seriesSeqRef = useRef(0);
 
   useEffect(() => {
     phaseRef.current = phase;
   }, [phase]);
+
+  useEffect(() => {
+    levelRef.current = level;
+  }, [level]);
 
   useEffect(() => {
     lastAvgRef.current = lastAvg;
@@ -84,17 +101,24 @@ export function ReactionTrainingClient() {
     }
   }, []);
 
+  const loadBest = useCallback(async (lv: Level) => {
+    try {
+      const res = await fetch(`/api/reaction/run?limit=1&level=${lv}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const d = await res.json();
+      setBestAvg(d?.bestAvgMs ?? null);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   useEffect(() => {
     void pingPresence();
     void loadLive();
     const presenceId = window.setInterval(() => void pingPresence(), 12_000);
     const liveId = window.setInterval(() => void loadLive(), 5_000);
-    fetch("/api/reaction/run?limit=1", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (d?.bestAvgMs != null) setBestAvg(d.bestAvgMs);
-      })
-      .catch(() => {});
     return () => {
       window.clearInterval(presenceId);
       window.clearInterval(liveId);
@@ -102,11 +126,20 @@ export function ReactionTrainingClient() {
     };
   }, [pingPresence, loadLive]);
 
+  useEffect(() => {
+    if (phase !== "idle" && phase !== "done") return;
+    void loadBest(level);
+  }, [level, phase, loadBest]);
+
   function placeCircle() {
     const el = arenaRef.current;
-    const pad = 48;
     const w = el?.clientWidth || 400;
     const h = el?.clientHeight || 400;
+    if (levelRef.current === 1) {
+      setCircle({ x: w / 2, y: h / 2 });
+      return;
+    }
+    const pad = 48;
     const x = pad + Math.random() * Math.max(40, w - pad * 2);
     const y = pad + Math.random() * Math.max(40, h - pad * 2);
     setCircle({ x, y });
@@ -114,7 +147,6 @@ export function ReactionTrainingClient() {
 
   function startAttempt() {
     clearTimer();
-    setMsg("");
     setCircle(null);
     setPhase("wait");
     const delay = randomDelayMs();
@@ -122,38 +154,86 @@ export function ReactionTrainingClient() {
       appearAtRef.current = performance.now();
       placeCircle();
       setPhase("ready");
+      setMsg("");
     }, delay);
   }
 
   function startSeries() {
     setAttempts([]);
+    setMissFlags([]);
     setLastAvg(null);
     setMsg("");
     startAttempt();
   }
 
+  function selectLevel(lv: Level) {
+    if (phase !== "idle" && phase !== "done") return;
+    setLevel(lv);
+    setAttempts([]);
+    setMissFlags([]);
+    setLastAvg(null);
+    setMsg("");
+    setCircle(null);
+    setPhase("idle");
+  }
+
+  function recordAttempt(ms: number, missed: boolean) {
+    const next = [...attempts, ms];
+    const nextMiss = [...missFlags, missed];
+    setAttempts(next);
+    setMissFlags(nextMiss);
+    setCircle(null);
+    setMsg(
+      missed
+        ? `Промах · штраф ${formatSec3(REACTION_MISS_PENALTY_MS)} с`
+        : ""
+    );
+
+    if (next.length >= REACTION_ATTEMPTS) {
+      void finishSeries(next);
+    } else {
+      startAttempt();
+    }
+  }
+
   async function finishSeries(finalAttempts: number[]) {
     const avg = averageMs(finalAttempts);
+    const lv = levelRef.current;
     setLastAvg(avg);
     setPhase("done");
     setCircle(null);
     setSaving(true);
     setMsg("Сохраняем…");
+
+    seriesSeqRef.current += 1;
+    const localId = seriesSeqRef.current;
+    setSessionSeries((prev) => [
+      { id: localId, level: lv, avgMs: avg },
+      ...prev,
+    ]);
+
     try {
       const res = await fetch("/api/reaction/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ attempts: finalAttempts, level: 1 }),
+        body: JSON.stringify({
+          attempts: finalAttempts,
+          level: lv,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setMsg(data.error || "Не удалось сохранить");
         return;
       }
-      setLastAvg(data.run?.avgMs ?? avg);
+      const savedAvg = data.run?.avgMs ?? avg;
+      setLastAvg(savedAvg);
+      setSessionSeries((prev) =>
+        prev.map((s) => (s.id === localId ? { ...s, avgMs: savedAvg } : s))
+      );
       if (data.bestAvgMs != null) setBestAvg(data.bestAvgMs);
       setMsg("Серия сохранена в профиль");
-      lastAvgRef.current = data.run?.avgMs ?? avg;
+      lastAvgRef.current = savedAvg;
       void pingPresence();
       void loadLive();
     } catch {
@@ -175,25 +255,25 @@ export function ReactionTrainingClient() {
 
     const target = e.target as HTMLElement;
     if (!target.closest(".reaction-dot")) {
-      setMsg("Промах — попытка заново.");
       clearTimer();
-      setCircle(null);
-      startAttempt();
+      recordAttempt(REACTION_MISS_PENALTY_MS, true);
       return;
     }
 
     const ms = roundMs3(performance.now() - appearAtRef.current);
-    const next = [...attempts, ms];
-    setAttempts(next);
-    setCircle(null);
-    setMsg("");
-
-    if (next.length >= REACTION_ATTEMPTS) {
-      void finishSeries(next);
-    } else {
-      startAttempt();
-    }
+    recordAttempt(ms, false);
   }
+
+  const busy = phase === "wait" || phase === "ready";
+  const attemptNo = Math.min(
+    attempts.length + (phase === "done" || phase === "idle" ? 0 : 1),
+    REACTION_ATTEMPTS
+  );
+
+  const sessionForLevel = sessionSeries
+    .filter((s) => s.level === level)
+    .slice()
+    .reverse();
 
   return (
     <div className="reaction-page">
@@ -202,21 +282,46 @@ export function ReactionTrainingClient() {
           <p className="eyebrow">тренировка</p>
           <h1>Тренировка стрельбы</h1>
           <p className="muted" style={{ margin: "6px 0 0" }}>
-            Уровень 1 — реакция. Круг появляется через 1–10 с · 10 попыток ·
-            среднее до 0.001 мс
+            10 попыток · круг через 1–10 с · результат в секундах (например 0.730) ·
+            промах = штраф 1.000 с
           </p>
         </div>
         <div className="reaction-best-chip">
-          <span className="muted">Твой лучший</span>
-          <strong>{formatMs3(bestAvg)} мс</strong>
+          <span className="muted">Лучший · ур. {level}</span>
+          <strong>{formatSec3(bestAvg)} с</strong>
         </div>
       </header>
+
+      <div className="reaction-tabs" role="tablist" aria-label="Уровень">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={level === 1}
+          className={`reaction-tab${level === 1 ? " active" : ""}`}
+          disabled={busy || saving}
+          onClick={() => selectLevel(1)}
+        >
+          <strong>1 уровень</strong>
+          <span>круг строго в центре</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={level === 2}
+          className={`reaction-tab${level === 2 ? " active" : ""}`}
+          disabled={busy || saving}
+          onClick={() => selectLevel(2)}
+        >
+          <strong>2 уровень</strong>
+          <span>круг в случайном месте</span>
+        </button>
+      </div>
 
       <div className="reaction-layout">
         <aside className="reaction-board card">
           <h2>Сейчас на вкладке</h2>
           <p className="muted" style={{ marginTop: 0, fontSize: "0.82rem" }}>
-            Онлайн здесь · средний результат серии
+            Онлайн здесь · среднее серии
           </p>
           <ul className="reaction-live-list">
             {live.length === 0 ? (
@@ -237,7 +342,7 @@ export function ReactionTrainingClient() {
                     )}
                   </span>
                   <span className="reaction-live-avg">
-                    {p.lastAvgMs != null ? `${formatMs3(p.lastAvgMs)} мс` : "—"}
+                    {p.lastAvgMs != null ? `${formatSec3(p.lastAvgMs)} с` : "—"}
                   </span>
                 </li>
               ))
@@ -266,6 +371,7 @@ export function ReactionTrainingClient() {
                     setPhase("idle");
                     setCircle(null);
                     setAttempts([]);
+                    setMissFlags([]);
                     setMsg("Остановлено");
                   }}
                 >
@@ -273,13 +379,12 @@ export function ReactionTrainingClient() {
                 </button>
               )}
               <span className="muted">
-                Попытка {Math.min(attempts.length + (phase === "done" ? 0 : phase === "idle" ? 0 : 1), REACTION_ATTEMPTS)} /{" "}
-                {REACTION_ATTEMPTS}
+                Попытка {attemptNo} / {REACTION_ATTEMPTS}
               </span>
             </div>
             {lastAvg != null ? (
               <div className="reaction-avg-now">
-                Среднее: <strong>{formatMs3(lastAvg)} мс</strong>
+                Среднее: <strong>{formatSec3(lastAvg)} с</strong>
               </div>
             ) : null}
           </div>
@@ -291,7 +396,11 @@ export function ReactionTrainingClient() {
             role="presentation"
           >
             {phase === "idle" ? (
-              <p className="reaction-hint">Нажми «Старт» и жди кружок</p>
+              <p className="reaction-hint">
+                {level === 1
+                  ? "Ур. 1 — шарик всегда в центре. Нажми «Старт» и жди кружок."
+                  : "Ур. 2 — шарик в случайном месте. Нажми «Старт» и жди кружок."}
+              </p>
             ) : null}
             {phase === "wait" ? (
               <p className="reaction-hint">Жди… не кликай раньше времени</p>
@@ -306,7 +415,7 @@ export function ReactionTrainingClient() {
             ) : null}
             {phase === "done" ? (
               <p className="reaction-hint">
-                Серия завершена · среднее {formatMs3(lastAvg)} мс
+                Серия завершена · среднее {formatSec3(lastAvg)} с
               </p>
             ) : null}
           </div>
@@ -315,15 +424,44 @@ export function ReactionTrainingClient() {
 
           <ol className="reaction-attempts">
             {Array.from({ length: REACTION_ATTEMPTS }, (_, i) => (
-              <li key={i} className={attempts[i] != null ? "filled" : ""}>
-                <span>#{i + 1}</span>
+              <li
+                key={i}
+                className={`${attempts[i] != null ? "filled" : ""}${
+                  missFlags[i] ? " miss" : ""
+                }`}
+              >
+                <span>#{i + 1}{missFlags[i] ? " · штраф" : ""}</span>
                 <strong>
-                  {attempts[i] != null ? `${formatMs3(attempts[i])} мс` : "—"}
+                  {attempts[i] != null ? `${formatSec3(attempts[i])} с` : "—"}
                 </strong>
               </li>
             ))}
           </ol>
         </section>
+
+        <aside className="reaction-session card">
+          <h2>Этот сеанс</h2>
+          <p className="muted" style={{ marginTop: 0, fontSize: "0.82rem" }}>
+            Серии ур. {level} · среднее за 10 попыток
+          </p>
+          {sessionForLevel.length === 0 ? (
+            <p className="muted" style={{ margin: "8px 0 0", fontSize: "0.85rem" }}>
+              Пока пусто — заверши серию, и среднее появится здесь.
+            </p>
+          ) : (
+            <ol className="reaction-session-list">
+              {sessionForLevel.map((s, idx) => (
+                <li key={s.id}>
+                  <span>
+                    Серия {idx + 1}
+                    <em className="muted"> · среднее</em>
+                  </span>
+                  <strong>{formatSec3(s.avgMs)} с</strong>
+                </li>
+              ))}
+            </ol>
+          )}
+        </aside>
       </div>
     </div>
   );

@@ -18,7 +18,6 @@ import { ProfileKvStats } from "@/components/ProfileKvStats";
 import { SitePresenceBadge } from "@/components/SitePresenceBadge";
 import { loadUserTrainingStats } from "@/lib/trainingStats";
 import { buildPlayerKvStats } from "@/lib/kvStats";
-import { REACTION_LEVEL } from "@/lib/reaction";
 import { ReactionBestCard } from "@/components/ReactionBestCard";
 
 export const dynamic = "force-dynamic";
@@ -98,19 +97,30 @@ export default async function PlayerProfilePage({ params }: Props) {
     }
   }
 
-  const [reactionBest, reactionHistory] = await Promise.all([
-    prisma.reactionRun.findFirst({
-      where: { userId: user.id, level: REACTION_LEVEL },
-      orderBy: { avgMs: "asc" },
-      select: { avgMs: true },
-    }),
-    prisma.reactionRun.findMany({
-      where: { userId: user.id, level: REACTION_LEVEL },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-      select: { id: true, avgMs: true, createdAt: true },
-    }),
-  ]);
+  const [reactionBest, reactionBestL1, reactionBestL2, reactionHistory] =
+    await Promise.all([
+      prisma.reactionRun.findFirst({
+        where: { userId: user.id },
+        orderBy: { avgMs: "asc" },
+        select: { avgMs: true },
+      }),
+      prisma.reactionRun.findFirst({
+        where: { userId: user.id, level: 1 },
+        orderBy: { avgMs: "asc" },
+        select: { avgMs: true },
+      }),
+      prisma.reactionRun.findFirst({
+        where: { userId: user.id, level: 2 },
+        orderBy: { avgMs: "asc" },
+        select: { avgMs: true },
+      }),
+      prisma.reactionRun.findMany({
+        where: { userId: user.id },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        select: { id: true, avgMs: true, level: true, createdAt: true },
+      }),
+    ]);
 
   return (
     <main className="profile-page">
@@ -165,9 +175,12 @@ export default async function PlayerProfilePage({ params }: Props) {
         ) : null}
         <ReactionBestCard
           bestAvgMs={reactionBest?.avgMs ?? null}
+          bestL1={reactionBestL1?.avgMs ?? null}
+          bestL2={reactionBestL2?.avgMs ?? null}
           history={reactionHistory.map((h) => ({
             id: h.id,
             avgMs: h.avgMs,
+            level: h.level,
             createdAt: h.createdAt.toISOString(),
           }))}
         />
