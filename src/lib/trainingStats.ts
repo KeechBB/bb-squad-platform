@@ -1,9 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import {
   attendanceCanonStartUtc,
-  formatDurationMinutes,
+  eveningWindowOverlapMinutes,
   presentTrainingDaysFromSessions,
   trainingDayVisitBoundsFromSessions,
+  trainingDayYmd,
 } from "@/lib/squadSessions";
 
 const LIST_LIMIT = 80;
@@ -40,19 +41,30 @@ export async function loadUserTrainingStats(userId: string) {
   }
 
   const sessions = lean.slice(0, LIST_LIMIT);
-  const last30 = lean.filter((s) => s.joinedAt >= since);
-  const minutes30d = last30.reduce(
-    (sum, s) => sum + formatDurationMinutes(s.joinedAt, s.leftAt),
-    0
+
+  /** Минуты в окне 21:00–00:00 МСК на TR1 по дням тренировки (за 30 дн) */
+  const eveningMinsByDay = new Map<string, number>();
+  for (const s of lean) {
+    if (s.joinedAt < since) continue;
+    if ((s.serverKey || "").toUpperCase() !== "TR1") continue;
+    const mins = eveningWindowOverlapMinutes(s.joinedAt, s.leftAt);
+    if (mins <= 0) continue;
+    const day = trainingDayYmd(s.joinedAt);
+    eveningMinsByDay.set(day, (eveningMinsByDay.get(day) || 0) + mins);
+  }
+  const minutes30d = [...eveningMinsByDay.values()].reduce((a, b) => a + b, 0);
+  /** Вечера с ненулевым временем в окне 21:00–00:00 */
+  const sessions30d = eveningMinsByDay.size;
+  const openNow = lean.some(
+    (s) => s.leftAt == null && (s.serverKey || "").toUpperCase() === "TR1"
   );
-  const openNow = lean.some((s) => s.leftAt == null);
 
   return {
     sessions,
     presentDays,
     visitBounds,
     minutes30d,
-    sessions30d: last30.length,
+    sessions30d,
     openNow,
   };
 }
