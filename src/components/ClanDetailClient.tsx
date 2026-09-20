@@ -190,6 +190,7 @@ export function ClanDetailClient({
     "player" | "squad" | "role" | "title"
   >("role");
   const [memberOrder, setMemberOrder] = useState<"asc" | "desc">("asc");
+  const [memberQuery, setMemberQuery] = useState("");
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
   const [loading, setLoading] = useState(false);
@@ -709,7 +710,18 @@ export function ClanDetailClient({
 
   const sorted = useMemo(() => {
     const dir = memberOrder === "asc" ? 1 : -1;
-    return [...members].sort((a, b) => {
+    const q = memberQuery.trim().toLowerCase();
+    const filtered = q
+      ? members.filter((m) => {
+          const nick = (m.user.nick || "").toLowerCase();
+          const steam = (m.user.steamName || "").toLowerCase();
+          const name = (m.user.name || "").toLowerCase();
+          return (
+            nick.includes(q) || steam.includes(q) || name.includes(q)
+          );
+        })
+      : members;
+    return [...filtered].sort((a, b) => {
       if (memberSort === "role") {
         return (ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role)) * dir;
       }
@@ -733,7 +745,7 @@ export function ClanDetailClient({
       const bn = b.user.nick || b.user.steamName || "";
       return an.localeCompare(bn, "ru", { sensitivity: "base" }) * dir;
     });
-  }, [members, memberSort, memberOrder, squadUserIds]);
+  }, [members, memberSort, memberOrder, squadUserIds, memberQuery]);
 
   function toggleMemberSort(key: typeof memberSort) {
     if (memberSort === key) {
@@ -971,7 +983,23 @@ export function ClanDetailClient({
 
           <div className="clan-members-layout">
             <div className="clan-members-main">
-              <div className="admin-table-wrap" style={{ marginTop: 12 }}>
+              <div className="clan-member-search">
+                <label className="field" style={{ margin: 0, flex: 1 }}>
+                  <span>Поиск по нику</span>
+                  <input
+                    value={memberQuery}
+                    onChange={(e) => setMemberQuery(e.target.value)}
+                    placeholder="Ник или Steam…"
+                    autoComplete="off"
+                  />
+                </label>
+                {memberQuery.trim() ? (
+                  <span className="muted clan-member-search-count">
+                    {sorted.length} из {members.length}
+                  </span>
+                ) : null}
+              </div>
+              <div className="admin-table-wrap" style={{ marginTop: 8 }}>
                 <table className="admin-table">
                   <thead>
                     <tr>
@@ -1017,6 +1045,19 @@ export function ClanDetailClient({
                     </tr>
                   </thead>
                   <tbody>
+                    {sorted.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={showKickCol ? 7 : 6}
+                          className="muted"
+                          style={{ textAlign: "center", padding: "18px 8px" }}
+                        >
+                          {memberQuery.trim()
+                            ? "Никого не найдено"
+                            : "Нет игроков"}
+                        </td>
+                      </tr>
+                    ) : null}
                     {sorted.map((m, i) => {
                       const avatarSrc = withAvatarCacheBust(
                         m.user.avatarUrl,

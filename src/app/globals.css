@@ -2344,6 +2344,24 @@ body:has(.home-page) {
   min-width: 0;
 }
 
+.clan-member-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 14px;
+  margin-top: 8px;
+}
+
+.clan-member-search .field {
+  min-width: min(100%, 280px);
+  max-width: 360px;
+}
+
+.clan-member-search-count {
+  font-size: 0.82rem;
+  padding-bottom: 8px;
+}
+
 .clan-roster-chart {
   position: sticky;
   top: 88px;
