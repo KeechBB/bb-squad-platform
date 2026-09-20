@@ -5,7 +5,7 @@ import type { Prisma } from "@prisma/client";
 
 export const runtime = "nodejs";
 
-const SORT_FIELDS = ["createdAt", "nick", "name", "age", "steamId"] as const;
+const SORT_FIELDS = ["regNo", "createdAt", "nick", "name", "age", "steamId"] as const;
 type SortField = (typeof SORT_FIELDS)[number];
 
 export async function GET(req: Request) {
@@ -46,6 +46,7 @@ export async function GET(req: Request) {
       age: true,
       role: true,
       profileComplete: true,
+      regNo: true,
       createdAt: true,
     },
   });
