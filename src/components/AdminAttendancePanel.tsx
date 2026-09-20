@@ -40,6 +40,11 @@ type Stats = {
     cumulative: number;
     nicks?: string[];
   }>;
+  /** Финальные уходы по дню тренировки (для фильтра одного дня) */
+  leaveByDay?: Record<
+    string,
+    Array<{ label: string; count: number; nicks?: string[] }>
+  >;
   joinTimeline?: Array<{ label: string; count: number; cumulative: number }>;
   joinNorm?: {
     onTime: number;
@@ -258,7 +263,7 @@ function TimelineTable({
           <tr>
             <th>Время</th>
             <th>{countLabel}</th>
-            {showNicks ? <th>Ники (до 23:00)</th> : null}
+            {showNicks ? <th>Ники</th> : null}
           </tr>
         </thead>
         <tbody>
@@ -367,6 +372,7 @@ export function AdminAttendancePanel() {
   const [showIn, setShowIn] = useState(true);
   const [showOut, setShowOut] = useState(true);
   const [server, setServer] = useState<ServerFilter>("TR1");
+  const [leaveDay, setLeaveDay] = useState<string>("");
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) {
@@ -380,7 +386,14 @@ export function AdminAttendancePanel() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Ошибка загрузки");
-      setData(json as Payload);
+      const payload = json as Payload;
+      setData(payload);
+      setLeaveDay((prev) => {
+        const days = payload.days || [];
+        if (!days.length) return "";
+        if (prev && days.includes(prev)) return prev;
+        return days[days.length - 1];
+      });
       if (opts?.silent) setErr(null);
     } catch (e) {
       if (!opts?.silent) {
@@ -399,6 +412,24 @@ export function AdminAttendancePanel() {
     intervalMs: 15000,
     kinds: ["attendance"],
   });
+
+  const leaveRows = useMemo(() => {
+    if (!data) return [];
+    if (server === "TR1" && data.stats.leaveByDay) {
+      const day =
+        leaveDay && data.days.includes(leaveDay)
+          ? leaveDay
+          : data.days[data.days.length - 1];
+      if (day && data.stats.leaveByDay[day]) {
+        return data.stats.leaveByDay[day];
+      }
+      return (data.stats.leaveTimeline || []).map((r) => ({
+        label: r.label,
+        count: 0,
+      }));
+    }
+    return data.stats.leaveTimeline || [];
+  }, [data, server, leaveDay]);
 
   const rows = useMemo(() => {
     if (!data) return [];
@@ -754,11 +785,35 @@ export function AdminAttendancePanel() {
             <h3>Выходы — ушёл и больше не заходил</h3>
             <p className="muted" style={{ marginTop: 0, marginBottom: 8 }}>
               Только финальный выход за вечер (21:00–02:00). Промежуточные
-              «вышел → снова зашёл» не считаются. Ники — у тех, кто окончательно
-              ушёл с 21:00 до 23:00.
+              «вышел → снова зашёл» не считаются. Ники — у всех окончательных
+              уходов в выбранный день.
             </p>
+            {server === "TR1" && data.days.length > 0 ? (
+              <label
+                className="muted"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  marginBottom: 10,
+                  fontSize: "0.85rem",
+                }}
+              >
+                День тренировки
+                <select
+                  value={leaveDay || data.days[data.days.length - 1]}
+                  onChange={(e) => setLeaveDay(e.target.value)}
+                >
+                  {[...data.days].reverse().map((d) => (
+                    <option key={d} value={d}>
+                      {ymdLabel(d)} ({d})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <TimelineTable
-              rows={data.stats.leaveTimeline || []}
+              rows={leaveRows}
               countLabel="Ушли"
             />
           </div>

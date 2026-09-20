@@ -274,10 +274,26 @@ export async function GET(req: Request) {
     { label: "01:30", minFrom: 90, minTo: 120 },
   ];
   const leaveSlotUsers: Array<Set<string>> = leaveSlots.map(() => new Set());
-  /** Ники финальных уходов до 23:00 (userId|day → nick) */
+  /** Ники финальных уходов (все слоты вечера) */
   const leaveSlotNicks: Array<Map<string, string>> = leaveSlots.map(
     () => new Map()
   );
+  /** То же по дням тренировки — для фильтра «один день» */
+  const leaveSlotUsersByDay = new Map<string, Array<Set<string>>>();
+  const leaveSlotNicksByDay = new Map<string, Array<Map<string, string>>>();
+
+  function ensureLeaveDay(day: string) {
+    if (!leaveSlotUsersByDay.has(day)) {
+      leaveSlotUsersByDay.set(
+        day,
+        leaveSlots.map(() => new Set())
+      );
+      leaveSlotNicksByDay.set(
+        day,
+        leaveSlots.map(() => new Map())
+      );
+    }
+  }
 
   const joinSlots: Slot[] = [
     { label: "≤20:00", minFrom: 0, minTo: 20 * 60 },
@@ -398,9 +414,10 @@ export async function GET(req: Request) {
           const sl = leaveSlots[i];
           if (lmin >= sl.minFrom && lmin < sl.minTo) {
             leaveSlotUsers[i].add(key);
-            if (sl.minFrom < 23 * 60) {
-              leaveSlotNicks[i].set(key, displayNick);
-            }
+            leaveSlotNicks[i].set(key, displayNick);
+            ensureLeaveDay(trainDay);
+            leaveSlotUsersByDay.get(trainDay)![i].add(key);
+            leaveSlotNicksByDay.get(trainDay)![i].set(key, displayNick);
             break;
           }
         }
@@ -479,14 +496,38 @@ export async function GET(req: Request) {
   const leaveTimeline = leaveSlots.map((sl, i) => {
     const count = leaveSlotUsers[i].size;
     leaveCum += count;
-    const nicks =
-      sl.minFrom < 23 * 60
-        ? [...leaveSlotNicks[i].values()].sort((a, b) =>
+    const nicks = [...leaveSlotNicks[i].values()].sort((a, b) =>
+      a.localeCompare(b, "ru", { sensitivity: "base" })
+    );
+    return {
+      label: sl.label,
+      count,
+      cumulative: leaveCum,
+      nicks: nicks.length ? nicks : undefined,
+    };
+  });
+
+  const leaveByDay: Record<
+    string,
+    Array<{ label: string; count: number; nicks?: string[] }>
+  > = {};
+  for (const d of days) {
+    const usersSets = leaveSlotUsersByDay.get(d);
+    const nickMaps = leaveSlotNicksByDay.get(d);
+    leaveByDay[d] = leaveSlots.map((sl, i) => {
+      const count = usersSets?.[i]?.size || 0;
+      const nicks = nickMaps?.[i]
+        ? [...nickMaps[i].values()].sort((a, b) =>
             a.localeCompare(b, "ru", { sensitivity: "base" })
           )
-        : undefined;
-    return { label: sl.label, count, cumulative: leaveCum, nicks };
-  });
+        : [];
+      return {
+        label: sl.label,
+        count,
+        nicks: nicks.length ? nicks : undefined,
+      };
+    });
+  }
 
   let joinCum = 0;
   const joinTimeline = joinSlots.map((sl, i) => {
@@ -529,6 +570,7 @@ export async function GET(req: Request) {
       avgPlayersPerWeek,
       avgPlayersPerMonth,
       leaveTimeline,
+      leaveByDay,
       joinTimeline,
       joinNorm: { onTime, lateOk, late, total: onTime + lateOk + late },
       windowLabel,
