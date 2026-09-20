@@ -93,13 +93,13 @@ export function ProfileKvStats({ stats, error }: Props) {
         <div>
           <span className="muted">Урон</span>
           <strong>{stats.dmg.toLocaleString("ru-RU")}</strong>
-          <em className="stat-sub">ср. {stats.avgDmg} / раунд</em>
+          <em className="stat-sub">ср. {stats.avgDmg} / игра</em>
         </div>
       </div>
 
       <div className="profile-kv-extra">
         <div>
-          <span className="muted">Ср. киллы</span>
+          <span className="muted">Ср. киллы / игра</span>
           <strong>{stats.avgKills}</strong>
         </div>
         <div>
@@ -107,7 +107,7 @@ export function ProfileKvStats({ stats, error }: Props) {
           <strong>{stats.res}</strong>
         </div>
         <div>
-          <span className="muted">Teamkills / NOK</span>
+          <span className="muted">Ноки</span>
           <strong>{stats.nok}</strong>
         </div>
         <div>
@@ -167,7 +167,7 @@ export function ProfileKvStats({ stats, error }: Props) {
       ) : null}
 
       <div className="profile-kv-block">
-        <h3 className="stats-h3">Раунды</h3>
+        <h3 className="stats-h3">Игры</h3>
         <div className="admin-table-wrap profile-kv-table-wrap">
           <table className="admin-table profile-kv-table">
             <thead>
@@ -175,31 +175,31 @@ export function ProfileKvStats({ stats, error }: Props) {
                 <th>День</th>
                 <th>Соперник</th>
                 <th>Карта</th>
-                <th>Р</th>
                 <th>K</th>
                 <th>D</th>
                 <th>DMG</th>
                 <th>RES</th>
+                <th>Ноки</th>
                 <th>Итог</th>
               </tr>
             </thead>
             <tbody>
-              {stats.recent.map((r) => (
-                <tr key={`${r.matchId}-${r.round}`}>
-                  <td>{String(r.day).padStart(2, "0")}</td>
-                  <td>{r.opp}</td>
-                  <td title={r.map}>{r.map}</td>
-                  <td className="mono">{r.round.toUpperCase()}</td>
-                  <td>{r.kills}</td>
-                  <td>{r.deaths}</td>
-                  <td>{r.dmg}</td>
-                  <td>{r.res}</td>
+              {(stats.recentMatches || []).map((m) => (
+                <tr key={m.matchId}>
+                  <td>{String(m.day).padStart(2, "0")}</td>
+                  <td>{m.opp}</td>
+                  <td title={m.map}>{m.map}</td>
+                  <td>{m.kills}</td>
+                  <td>{m.deaths}</td>
+                  <td>{m.dmg}</td>
+                  <td>{m.res}</td>
+                  <td>{m.nok}</td>
                   <td>
-                    <span className={statusClass(r.status)}>
-                      {statusLabel(r.status)}
+                    <span className={statusClass(m.status)}>
+                      {statusLabel(m.status)}
                     </span>
                     <span className="muted" style={{ marginLeft: 6 }}>
-                      {r.meeting}
+                      {m.meeting}
                     </span>
                   </td>
                 </tr>

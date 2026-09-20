@@ -26,6 +26,23 @@ export type PlayerKvRound = {
   nok: number;
 };
 
+/** Агрегат по всей встрече (r1+r2) */
+export type PlayerKvMatch = {
+  matchId: string;
+  day: number;
+  opp: string;
+  map: string;
+  stack: string;
+  status: string;
+  meeting: string;
+  roundsPlayed: number;
+  kills: number;
+  deaths: number;
+  dmg: number;
+  res: number;
+  nok: number;
+};
+
 export type PlayerKvAward = {
   matchId: string;
   day: number;
@@ -58,6 +75,7 @@ export type PlayerKvStats = {
   antiDeath: number;
   byStack: { name: string; rounds: number; kills: number; deaths: number; dmg: number }[];
   recent: PlayerKvRound[];
+  recentMatches: PlayerKvMatch[];
   source: string;
 };
 
@@ -331,6 +349,32 @@ export async function buildPlayerKvStats(nick: string): Promise<PlayerKvStats> {
     return b.round.localeCompare(a.round);
   });
 
+  const byMatch = new Map<string, PlayerKvRound[]>();
+  for (const r of rounds) {
+    if (!byMatch.has(r.matchId)) byMatch.set(r.matchId, []);
+    byMatch.get(r.matchId)!.push(r);
+  }
+  const recentMatches: PlayerKvMatch[] = Array.from(byMatch.entries())
+    .map(([matchId, arr]) => {
+      const head = arr[0];
+      return {
+        matchId,
+        day: head.day,
+        opp: head.opp,
+        map: head.map,
+        stack: head.stack,
+        status: head.status,
+        meeting: head.meeting,
+        roundsPlayed: arr.length,
+        kills: arr.reduce((s, r) => s + r.kills, 0),
+        deaths: arr.reduce((s, r) => s + r.deaths, 0),
+        dmg: arr.reduce((s, r) => s + r.dmg, 0),
+        res: arr.reduce((s, r) => s + r.res, 0),
+        nok: arr.reduce((s, r) => s + r.nok, 0),
+      };
+    })
+    .sort((a, b) => b.day - a.day);
+
   return {
     nick: want,
     rounds: rounds.length,
@@ -341,8 +385,10 @@ export async function buildPlayerKvStats(nick: string): Promise<PlayerKvStats> {
     res,
     nok,
     kd: deaths > 0 ? Math.round((100 * kills) / deaths) / 100 : kills,
-    avgKills: rounds.length ? Math.round((10 * kills) / rounds.length) / 10 : 0,
-    avgDmg: rounds.length ? Math.round(dmg / rounds.length) : 0,
+    avgKills: matchIds.length
+      ? Math.round((10 * kills) / matchIds.length) / 10
+      : 0,
+    avgDmg: matchIds.length ? Math.round(dmg / matchIds.length) : 0,
     wins,
     draws,
     losses,
@@ -354,6 +400,7 @@ export async function buildPlayerKvStats(nick: string): Promise<PlayerKvStats> {
     antiDeath,
     byStack,
     recent,
+    recentMatches,
     source,
   };
 }
