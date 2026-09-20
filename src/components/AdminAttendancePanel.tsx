@@ -34,7 +34,6 @@ type Payload = {
   stats: Stats;
 };
 
-type TimeMode = "in" | "out";
 /** UI labels; PB1 maps to TPUB1 in DB */
 type ServerFilter = "TR1" | "PB1";
 
@@ -119,7 +118,8 @@ export function AdminAttendancePanel() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [onlyPresent, setOnlyPresent] = useState(true);
-  const [timeMode, setTimeMode] = useState<TimeMode>("in");
+  const [showIn, setShowIn] = useState(true);
+  const [showOut, setShowOut] = useState(true);
   const [server, setServer] = useState<ServerFilter>("TR1");
 
   const load = useCallback(async () => {
@@ -227,18 +227,20 @@ export function AdminAttendancePanel() {
         <button type="button" className="btn" onClick={() => void load()} disabled={loading}>
           {loading ? "…" : "Применить"}
         </button>
-        <div className="attend-mode-toggle" role="group" aria-label="Зашёл или вышел">
+        <div className="attend-mode-toggle" role="group" aria-label="Зашёл и вышел">
           <button
             type="button"
-            className={timeMode === "in" ? "active" : ""}
-            onClick={() => setTimeMode("in")}
+            className={showIn ? "active" : ""}
+            aria-pressed={showIn}
+            onClick={() => setShowIn((v) => !v)}
           >
             Зашёл
           </button>
           <button
             type="button"
-            className={timeMode === "out" ? "active" : ""}
-            onClick={() => setTimeMode("out")}
+            className={showOut ? "active" : ""}
+            aria-pressed={showOut}
+            onClick={() => setShowOut((v) => !v)}
           >
             Вышел
           </button>
@@ -275,9 +277,14 @@ export function AdminAttendancePanel() {
         {data ? ` · Показано дней: ${data.days.length}` : ""}
         {` · Сервер: ${server === "TR1" ? "TR1 (тренировка)" : "PB1 (паблик)"}`}
         {tab === "table"
-          ? timeMode === "in"
-            ? " · Цвет захода: ≤21:00 зел., 21:00–21:30 жёлт., после 21:30 красн."
-            : " · Цвет выхода: до 23:00 красн., 23:00–23:30 жёлт., после 23:30 зел."
+          ? [
+              showIn
+                ? " · Цвет захода: ≤21:00 зел., 21:00–21:30 жёлт., после 21:30 красн."
+                : "",
+              showOut
+                ? " · Цвет выхода: до 23:00 красн., 23:00–23:30 жёлт., после 23:30 зел."
+                : "",
+            ].join("")
           : ""}
       </p>
       {err ? <p style={{ color: "#fca5a5" }}>{err}</p> : null}
@@ -314,7 +321,7 @@ export function AdminAttendancePanel() {
                   <td className="mono">{r.steamId}</td>
                   {data.days.map((d) => {
                     const cells = r.cells[d] || [];
-                    if (!cells.length) {
+                    if (!cells.length || (!showIn && !showOut)) {
                       return (
                         <td key={d}>
                           <span className="attend-cell empty">—</span>
@@ -324,33 +331,27 @@ export function AdminAttendancePanel() {
                     return (
                       <td key={d}>
                         <div className="attend-cell">
-                          {cells.map((c, i) => {
-                            if (timeMode === "in") {
-                              return (
-                                <span
-                                  key={i}
-                                  className={`attend-time ${joinTone(c.in)}`}
-                                >
+                          {cells.map((c, i) => (
+                            <span key={i} className="attend-time-pair">
+                              {showIn ? (
+                                <span className={`attend-time ${joinTone(c.in)}`}>
                                   {c.in}
                                 </span>
-                              );
-                            }
-                            if (!c.out) {
-                              return (
-                                <span key={i} className="attend-cell empty">
-                                  …
-                                </span>
-                              );
-                            }
-                            return (
-                              <span
-                                key={i}
-                                className={`attend-time ${leaveTone(c.out)}`}
-                              >
-                                {c.out}
-                              </span>
-                            );
-                          })}
+                              ) : null}
+                              {showIn && showOut ? (
+                                <span className="attend-time-sep">–</span>
+                              ) : null}
+                              {showOut ? (
+                                c.out ? (
+                                  <span className={`attend-time ${leaveTone(c.out)}`}>
+                                    {c.out}
+                                  </span>
+                                ) : (
+                                  <span className="attend-cell empty">…</span>
+                                )
+                              ) : null}
+                            </span>
+                          ))}
                         </div>
                       </td>
                     );
@@ -383,9 +384,12 @@ export function AdminAttendancePanel() {
               <span>{data.stats.avgSessionMin}</span>
             </div>
             <div className="meta-row">
-              <span>Сред. игроков / день</span>
+              <span>Сред. игроков / вечер</span>
               <span>{data.stats.avgPlayersPerDay}</span>
             </div>
+            <p className="muted" style={{ margin: "6px 0 0", fontSize: "0.78rem" }}>
+              Окно 21:30–00:00 МСК
+            </p>
           </div>
 
           <div className="training-chart-block">
@@ -436,7 +440,7 @@ export function AdminAttendancePanel() {
           </div>
 
           <div className="training-chart-block" style={{ gridColumn: "1 / -1" }}>
-            <h3>Игроков по дням</h3>
+            <h3>Игроков по вечерам (21:30–00:00)</h3>
             <BarChart
               items={data.stats.dayPlayerCounts.map((x) => ({
                 label: ymdLabel(x.day),

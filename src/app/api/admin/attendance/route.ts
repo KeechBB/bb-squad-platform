@@ -185,7 +185,8 @@ export async function GET(req: Request) {
     after2130: 0,
   };
   const weekday = [0, 0, 0, 0, 0, 0, 0];
-  const playersPerDay: Record<string, Set<string>> = {};
+  /** Уникальные игроки в окне тренировки 21:30–00:00 МСК по дню захода */
+  const playersPerEvening: Record<string, Set<string>> = {};
 
   for (const s of sessions) {
     totalSessions += 1;
@@ -218,8 +219,18 @@ export async function GET(req: Request) {
     }
 
     const day = ymdMsk(s.joinedAt);
-    if (!playersPerDay[day]) playersPerDay[day] = new Set();
-    playersPerDay[day].add(s.userId);
+    // Окно 21:30–00:00 МСК дня захода (тренировочный вечер)
+    const winStart = new Date(
+      Date.UTC(jp.y, jp.m - 1, jp.day, 21, 30, 0) - 3 * 3600 * 1000
+    );
+    const winEnd = new Date(
+      Date.UTC(jp.y, jp.m - 1, jp.day + 1, 0, 0, 0) - 3 * 3600 * 1000
+    );
+    const sessEnd = s.leftAt ?? now;
+    if (s.joinedAt.getTime() < winEnd.getTime() && sessEnd.getTime() > winStart.getTime()) {
+      if (!playersPerEvening[day]) playersPerEvening[day] = new Set();
+      playersPerEvening[day].add(s.userId);
+    }
 
     const wi = (() => {
       const utcish = Date.UTC(jp.y, jp.m - 1, jp.day);
@@ -231,7 +242,7 @@ export async function GET(req: Request) {
 
   const dayPlayerCounts = days.map((d) => ({
     day: d,
-    players: playersPerDay[d]?.size || 0,
+    players: playersPerEvening[d]?.size || 0,
   }));
   const avgPlayers =
     dayPlayerCounts.length > 0

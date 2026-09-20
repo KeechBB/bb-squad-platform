@@ -779,6 +779,7 @@ a:hover { color: #c4b5fd; }
   border-right: 1px solid rgba(167, 139, 250, 0.06);
   white-space: nowrap;
   vertical-align: top;
+  text-align: center;
 }
 
 .attend-cell {
@@ -787,11 +788,24 @@ a:hover { color: #c4b5fd; }
   gap: 2px;
   min-width: 78px;
   font-variant-numeric: tabular-nums;
+  align-items: center;
 }
 
 .attend-cell.empty {
   color: var(--muted);
   opacity: 0.45;
+}
+
+.attend-time-pair {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.attend-time-sep {
+  color: var(--muted);
+  opacity: 0.7;
+  font-weight: 500;
 }
 
 .attend-time {
