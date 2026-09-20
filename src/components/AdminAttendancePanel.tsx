@@ -149,7 +149,7 @@ export function AdminAttendancePanel() {
   const [data, setData] = useState<Payload | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [onlyPresent, setOnlyPresent] = useState(true);
+  const [onlyAbsent, setOnlyAbsent] = useState(false);
   const [showIn, setShowIn] = useState(true);
   const [showOut, setShowOut] = useState(true);
   const [server, setServer] = useState<ServerFilter>("TR1");
@@ -188,11 +188,18 @@ export function AdminAttendancePanel() {
 
   const rows = useMemo(() => {
     if (!data) return [];
-    if (!onlyPresent) return data.rows;
-    return data.rows.filter((r) =>
-      data.days.some((d) => (r.cells[d] || []).length > 0)
-    );
-  }, [data, onlyPresent]);
+    if (!onlyAbsent) return data.rows;
+    const isTr = (data.server || server) === "TR1";
+    return data.rows.filter((r) => {
+      const wasPresent = data.days.some((d) => {
+        const cells = r.cells[d] || [];
+        if (!cells.length) return false;
+        if (!isTr) return true;
+        return cells.some((c) => overlapsEveningWindow(c));
+      });
+      return !wasPresent;
+    });
+  }, [data, onlyAbsent, server]);
 
   return (
     <section className="card" style={{ marginTop: 8 }}>
@@ -308,10 +315,10 @@ export function AdminAttendancePanel() {
         <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <input
             type="checkbox"
-            checked={onlyPresent}
-            onChange={(e) => setOnlyPresent(e.target.checked)}
+            checked={onlyAbsent}
+            onChange={(e) => setOnlyAbsent(e.target.checked)}
           />
-          <span>Только кто заходил в периоде</span>
+          <span>Только тех, кого не было</span>
         </label>
       </div>
       <p className="muted" style={{ marginTop: 0 }}>
