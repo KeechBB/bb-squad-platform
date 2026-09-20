@@ -161,69 +161,71 @@ export function ProfileEditForm({ initial, adminLink }: Props) {
 
       {!editing ? (
         <>
-          <div className="meta-row">
-            <span>Ник</span>
-            <span>{saved.nick}</span>
-          </div>
-          <div className="meta-row">
-            <span>№ регистрации</span>
-            <span>{initial.regNo ?? "—"}</span>
-          </div>
-          <div className="meta-row">
-            <span>Роль на сайте</span>
-            <span>{initial.siteRole || "Игрок"}</span>
-          </div>
-          <div className="meta-row">
-            <span>Имя</span>
-            <span>{saved.name}</span>
-          </div>
-          <div className="meta-row">
-            <span>Возраст</span>
-            <span>
-              {saved.age ?? "—"}
-              {saved.birthDate ? ` (др. ${saved.birthDate})` : ""}
-            </span>
-          </div>
-          <div className="meta-row">
-            <span>Discord</span>
-            <span className="contact-cell">
-              {discordLabel ? (
-                <>
-                  {discordUrl ? (
-                    <a className="contact-link" href={discordUrl} target="_blank" rel="noreferrer">
-                      {discordLabel}
-                    </a>
-                  ) : (
-                    <span>{discordLabel}</span>
-                  )}
-                  <button type="button" className="btn-mini" onClick={() => void copyDiscord()}>
-                    копировать
-                  </button>
-                </>
-              ) : (
-                "—"
-              )}
-            </span>
-          </div>
-          <div className="meta-row">
-            <span>Telegram</span>
-            <span className="contact-cell">
-              {tgLabel && tgUrl ? (
-                <a className="contact-link" href={tgUrl} target="_blank" rel="noreferrer">
-                  {tgLabel}
-                </a>
-              ) : (
-                tgLabel || "—"
-              )}
-            </span>
-          </div>
-          <div className="meta-row">
-            <span>Steam ID</span>
-            <span className="mono">{saved.steamId}</span>
-          </div>
-          <div className="meta-row">
-            <span>Steam</span>
-            <span>{saved.steamName || "—"}</span>
+          <div className="profile-account-meta">
+            <div className="meta-row">
+              <span>Ник</span>
+              <span>{saved.nick}</span>
+            </div>
+            <div className="meta-row">
+              <span>№ регистрации</span>
+              <span>{initial.regNo ?? "—"}</span>
+            </div>
+            <div className="meta-row">
+              <span>Роль на сайте</span>
+              <span>{initial.siteRole || "Игрок"}</span>
+            </div>
+            <div className="meta-row">
+              <span>Имя</span>
+              <span>{saved.name}</span>
+            </div>
+            <div className="meta-row">
+              <span>Возраст</span>
+              <span>
+                {saved.age ?? "—"}
+                {saved.birthDate ? ` (др. ${saved.birthDate})` : ""}
+              </span>
+            </div>
+            <div className="meta-row">
+              <span>Discord</span>
+              <span className="contact-cell">
+                {discordLabel ? (
+                  <>
+                    {discordUrl ? (
+                      <a className="contact-link" href={discordUrl} target="_blank" rel="noreferrer">
+                        {discordLabel}
+                      </a>
+                    ) : (
+                      <span>{discordLabel}</span>
+                    )}
+                    <button type="button" className="btn-mini" onClick={() => void copyDiscord()}>
+                      копировать
+                    </button>
+                  </>
+                ) : (
+                  "—"
+                )}
+              </span>
+            </div>
+            <div className="meta-row">
+              <span>Telegram</span>
+              <span className="contact-cell">
+                {tgLabel && tgUrl ? (
+                  <a className="contact-link" href={tgUrl} target="_blank" rel="noreferrer">
+                    {tgLabel}
+                  </a>
+                ) : (
+                  tgLabel || "—"
+                )}
+              </span>
+            </div>
+            <div className="meta-row">
+              <span>Steam ID</span>
+              <span className="mono">{saved.steamId}</span>
+            </div>
+            <div className="meta-row">
+              <span>Steam</span>
+              <span>{saved.steamName || "—"}</span>
+            </div>
           </div>
           {ok ? <p className="ok-msg">{ok}</p> : null}
           {adminLink}

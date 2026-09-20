@@ -64,80 +64,85 @@ export default async function ProfilePage() {
   const training = await loadUserTrainingStats(me.id);
 
   return (
-    <main className="profile-grid">
-      <AvatarEditor
-        nick={me.nick || u.nick || "Игрок"}
-        name={me.name || u.name || ""}
-        initialAvatar={displayAvatar}
-        steamAvatar={u.steamAvatar || null}
-      />
+    <main className="profile-page">
+      <div className="profile-area-head">
+        <AvatarEditor
+          nick={me.nick || u.nick || "Игрок"}
+          name={me.name || u.name || ""}
+          initialAvatar={displayAvatar}
+          steamAvatar={u.steamAvatar || null}
+        />
+      </div>
 
-      <ClanInvites initial={invites} />
+      <div className="profile-area-side">
+        <ClanInvites initial={invites} />
+        <ReservePanel
+          active={reserveActive}
+          untilLabel={reserveUntilLabel}
+          reason={reserveActive ? me.reserveReason || null : null}
+        />
+        {clans.length > 0 ? (
+          <section className="card">
+            <h2>Клан</h2>
+            <div className="clan-list" style={{ marginTop: 8 }}>
+              {clans.map((c) => (
+                <Link key={c.id} className="clan-row" href={`/clans/${c.id}`}>
+                  {c.logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img className="clan-row-logo" src={c.logoUrl} alt="" width={40} height={40} />
+                  ) : (
+                    <div className="clan-row-logo clan-row-logo-empty">{c.tag.slice(0, 2)}</div>
+                  )}
+                  <div className="clan-row-body">
+                    <strong>
+                      [{c.tag}] {c.name}
+                    </strong>
+                    <span className="muted">Открыть страницу клана</span>
+                  </div>
+                  <span className="clan-row-arrow">→</span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </div>
 
-      <ReservePanel
-        active={reserveActive}
-        untilLabel={reserveUntilLabel}
-        reason={reserveActive ? me.reserveReason || null : null}
-      />
+      <div className="profile-area-account">
+        <ProfileEditForm
+          initial={{
+            nick: me.nick || "",
+            name: me.name || "",
+            birthDate: birthRu,
+            age: me.age,
+            discordTag: me.discordTag,
+            discordId: me.discordId,
+            telegram: me.telegram,
+            steamId: me.steamId,
+            steamName: me.steamName,
+            siteRole,
+            regNo: me.regNo,
+          }}
+          adminLink={<AdminPanelLink initialAdmin={admin} />}
+        />
+      </div>
 
-      {clans.length > 0 ? (
-        <section className="card">
-          <h2>Клан</h2>
-          <div className="clan-list" style={{ marginTop: 8 }}>
-            {clans.map((c) => (
-              <Link key={c.id} className="clan-row" href={`/clans/${c.id}`}>
-                {c.logoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img className="clan-row-logo" src={c.logoUrl} alt="" width={40} height={40} />
-                ) : (
-                  <div className="clan-row-logo clan-row-logo-empty">{c.tag.slice(0, 2)}</div>
-                )}
-                <div className="clan-row-body">
-                  <strong>
-                    [{c.tag}] {c.name}
-                  </strong>
-                  <span className="muted">Открыть страницу клана</span>
-                </div>
-                <span className="clan-row-arrow">→</span>
-              </Link>
-            ))}
-          </div>
+      <div className="profile-area-training">
+        <TrainingSessionsCard
+          sessions={training.sessions}
+          minutes30d={training.minutes30d}
+          sessions30d={training.sessions30d}
+          openNow={training.openNow}
+        />
+        <section className="stats-stub profile-kv-stub">
+          <strong style={{ color: "var(--ink)" }}>Статистика КВ</strong>
+          <p style={{ margin: "6px 0 0" }}>
+            Игровая стата КВ — следующим этапом.{" "}
+            <Link className="kv-link" href="/cw" style={{ marginTop: 0 }}>
+              Таблица КВ →
+            </Link>
+          </p>
         </section>
-      ) : null}
-
-      <ProfileEditForm
-        initial={{
-          nick: me.nick || "",
-          name: me.name || "",
-          birthDate: birthRu,
-          age: me.age,
-          discordTag: me.discordTag,
-          discordId: me.discordId,
-          telegram: me.telegram,
-          steamId: me.steamId,
-          steamName: me.steamName,
-          siteRole,
-          regNo: me.regNo,
-        }}
-        adminLink={<AdminPanelLink initialAdmin={admin} />}
-      />
-
-      <TrainingSessionsCard
-        sessions={training.sessions}
-        minutes30d={training.minutes30d}
-        sessions30d={training.sessions30d}
-        openNow={training.openNow}
-      />
-
-      <section className="stats-stub">
-        <strong style={{ color: "var(--ink)" }}>Статистика КВ</strong>
-        <p style={{ margin: "8px 0 0" }}>
-          Игровая стата КВ (K/D, ресы) — следующим этапом. Слоты месяца уже здесь:
-        </p>
-        <Link className="kv-link" href="/cw">
-          Таблица КВ →
-        </Link>
-      </section>
+      </div>
     </main>
   );
 }

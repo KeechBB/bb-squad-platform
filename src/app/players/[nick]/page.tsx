@@ -46,7 +46,7 @@ export default async function PlayerProfilePage({ params }: Props) {
 
   if (!user) {
     return (
-      <main className="profile-grid">
+      <main className="profile-page profile-page-empty">
         <section className="card profile-head-public">
           <div className="profile-head-row">
             <div className="admin-user-avatar admin-user-avatar-empty">
@@ -66,12 +66,12 @@ export default async function PlayerProfilePage({ params }: Props) {
             bb-squad.ru ещё нет. Когда игрок войдёт через Steam и завершит
             регистрацию — здесь появятся аватар, клан и резерв.
           </p>
+          <p style={{ marginTop: 12 }}>
+            <Link className="kv-link" href="/cw">
+              ← К клановым войнам
+            </Link>
+          </p>
         </section>
-        <p>
-          <Link className="kv-link" href="/cw">
-            ← К клановым войнам
-          </Link>
-        </p>
       </main>
     );
   }
@@ -84,158 +84,166 @@ export default async function PlayerProfilePage({ params }: Props) {
   const training = await loadUserTrainingStats(user.id);
 
   return (
-    <main className="profile-grid">
-      <section className="card profile-head-public">
-        <div className="profile-head-row">
-          {avatar ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              className="admin-user-avatar"
-              src={avatar}
-              alt=""
-              width={96}
-              height={96}
-            />
-          ) : (
-            <div className="admin-user-avatar admin-user-avatar-empty">
-              {(user.nick || "?").slice(0, 1)}
+    <main className="profile-page">
+      <div className="profile-area-head">
+        <section className="card profile-head-public">
+          <div className="profile-head-row">
+            {avatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                className="profile-avatar"
+                src={avatar}
+                alt=""
+                width={176}
+                height={176}
+              />
+            ) : (
+              <div className="profile-avatar profile-avatar-fallback">
+                {(user.nick || "?").slice(0, 1)}
+              </div>
+            )}
+            <div className="profile-head-text">
+              <p className="eyebrow">профиль игрока</p>
+              <h1>{user.nick}</h1>
+              <p className="muted">{user.name || "—"}</p>
+              <p style={{ marginTop: 10 }}>
+                <Link className="kv-link" href="/clans" style={{ marginTop: 0 }}>
+                  ← К кланам
+                </Link>
+              </p>
             </div>
-          )}
-          <div className="profile-head-text">
-            <p className="eyebrow">профиль игрока</p>
-            <h1>{user.nick}</h1>
-            <p className="muted">{user.name || "—"}</p>
           </div>
-        </div>
-      </section>
-
-      {inReserve ? (
-        <section className="card reserve-banner">
-          <h2>В резерве</h2>
-          <p className="reserve-status">
-            До <strong>{formatRuDate(user.reserveUntil!)}</strong>
-            {user.reserveReason ? (
-              <>
-                .<br />
-                <span className="muted">Причина: {user.reserveReason}</span>
-              </>
-            ) : null}
-          </p>
         </section>
-      ) : null}
+      </div>
 
-      <section className="card">
-        <h2>Аккаунт</h2>
-        <div className="meta-row">
-          <span>Ник</span>
-          <span>{user.nick}</span>
-        </div>
-        <div className="meta-row">
-          <span>№ регистрации</span>
-          <span>{user.regNo ?? "—"}</span>
-        </div>
-        <div className="meta-row">
-          <span>Роль на сайте</span>
-          <span>
-            {roleLabel(effectiveRole(user.steamId, user.role as AppRole))}
-          </span>
-        </div>
-        <div className="meta-row">
-          <span>Имя</span>
-          <span>{user.name || "—"}</span>
-        </div>
-        <div className="meta-row">
-          <span>Возраст</span>
-          <span>{user.age ?? "—"}</span>
-        </div>
-        <div className="meta-row">
-          <span>Discord</span>
-          <span>
-            {(() => {
-              const label = formatDiscordDisplay(user.discordTag, user.discordId);
-              const url = discordProfileUrl(user.discordId);
-              if (!label) return "—";
-              if (url) {
-                return (
-                  <a className="contact-link" href={url} target="_blank" rel="noreferrer">
-                    {label}
-                  </a>
-                );
-              }
-              return label;
-            })()}
-          </span>
-        </div>
-        <div className="meta-row">
-          <span>Telegram</span>
-          <span>
-            {(() => {
-              const label = formatTelegramDisplay(user.telegram);
-              const url = telegramProfileUrl(user.telegram);
-              if (!label || !url) return label || "—";
-              return (
-                <a className="contact-link" href={url} target="_blank" rel="noreferrer">
-                  {label}
-                </a>
-              );
-            })()}
-          </span>
-        </div>
-        <div className="meta-row">
-          <span>Steam</span>
-          <span>{user.steamId || "—"}</span>
-        </div>
-      </section>
-
-      {user.clanMemberships.length > 0 ? (
-        <section className="card">
-          <h2>Клан</h2>
-          <div className="clan-list" style={{ marginTop: 8 }}>
-            {user.clanMemberships.map((m) => (
-              <Link key={m.id} className="clan-row" href={`/clans/${m.clan.id}`}>
-                {m.clan.logoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    className="clan-row-logo"
-                    src={m.clan.logoUrl}
-                    alt=""
-                    width={40}
-                    height={40}
-                  />
-                ) : (
-                  <div className="clan-row-logo clan-row-logo-empty">
-                    {m.clan.tag.slice(0, 2)}
+      <div className="profile-area-side">
+        {inReserve ? (
+          <section className="card reserve-banner">
+            <h2>В резерве</h2>
+            <p className="reserve-status">
+              До <strong>{formatRuDate(user.reserveUntil!)}</strong>
+              {user.reserveReason ? (
+                <>
+                  .<br />
+                  <span className="muted">Причина: {user.reserveReason}</span>
+                </>
+              ) : null}
+            </p>
+          </section>
+        ) : null}
+        {user.clanMemberships.length > 0 ? (
+          <section className="card">
+            <h2>Клан</h2>
+            <div className="clan-list" style={{ marginTop: 8 }}>
+              {user.clanMemberships.map((m) => (
+                <Link key={m.id} className="clan-row" href={`/clans/${m.clan.id}`}>
+                  {m.clan.logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      className="clan-row-logo"
+                      src={m.clan.logoUrl}
+                      alt=""
+                      width={40}
+                      height={40}
+                    />
+                  ) : (
+                    <div className="clan-row-logo clan-row-logo-empty">
+                      {m.clan.tag.slice(0, 2)}
+                    </div>
+                  )}
+                  <div className="clan-row-body">
+                    <strong>
+                      [{m.clan.tag}] {m.clan.name}
+                    </strong>
+                    <span className="muted">
+                      {CLAN_ROLE_LABEL[m.role as ClanRole]}
+                      {m.title?.name ? ` · ${m.title.name}` : ""}
+                      {inReserve && m.role === "RESERVE" ? " · в резерве" : ""}
+                    </span>
                   </div>
-                )}
-                <div className="clan-row-body">
-                  <strong>
-                    [{m.clan.tag}] {m.clan.name}
-                  </strong>
-                  <span className="muted">
-                    {CLAN_ROLE_LABEL[m.role as ClanRole]}
-                    {m.title?.name ? ` · ${m.title.name}` : ""}
-                    {inReserve && m.role === "RESERVE" ? " · в резерве" : ""}
-                  </span>
-                </div>
-                <span className="clan-row-arrow">→</span>
-              </Link>
-            ))}
+                  <span className="clan-row-arrow">→</span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </div>
+
+      <div className="profile-area-account">
+        <section className="card">
+          <h2>Аккаунт</h2>
+          <div className="profile-account-meta">
+            <div className="meta-row">
+              <span>Ник</span>
+              <span>{user.nick}</span>
+            </div>
+            <div className="meta-row">
+              <span>№ регистрации</span>
+              <span>{user.regNo ?? "—"}</span>
+            </div>
+            <div className="meta-row">
+              <span>Роль на сайте</span>
+              <span>
+                {roleLabel(effectiveRole(user.steamId, user.role as AppRole))}
+              </span>
+            </div>
+            <div className="meta-row">
+              <span>Имя</span>
+              <span>{user.name || "—"}</span>
+            </div>
+            <div className="meta-row">
+              <span>Возраст</span>
+              <span>{user.age ?? "—"}</span>
+            </div>
+            <div className="meta-row">
+              <span>Discord</span>
+              <span>
+                {(() => {
+                  const label = formatDiscordDisplay(user.discordTag, user.discordId);
+                  const url = discordProfileUrl(user.discordId);
+                  if (!label) return "—";
+                  if (url) {
+                    return (
+                      <a className="contact-link" href={url} target="_blank" rel="noreferrer">
+                        {label}
+                      </a>
+                    );
+                  }
+                  return label;
+                })()}
+              </span>
+            </div>
+            <div className="meta-row">
+              <span>Telegram</span>
+              <span>
+                {(() => {
+                  const label = formatTelegramDisplay(user.telegram);
+                  const url = telegramProfileUrl(user.telegram);
+                  if (!label || !url) return label || "—";
+                  return (
+                    <a className="contact-link" href={url} target="_blank" rel="noreferrer">
+                      {label}
+                    </a>
+                  );
+                })()}
+              </span>
+            </div>
+            <div className="meta-row">
+              <span>Steam</span>
+              <span>{user.steamId || "—"}</span>
+            </div>
           </div>
         </section>
-      ) : null}
+      </div>
 
-      <TrainingSessionsCard
-        sessions={training.sessions}
-        minutes30d={training.minutes30d}
-        sessions30d={training.sessions30d}
-        openNow={training.openNow}
-      />
-
-      <p>
-        <Link className="kv-link" href="/clans">
-          ← К кланам
-        </Link>
-      </p>
+      <div className="profile-area-training">
+        <TrainingSessionsCard
+          sessions={training.sessions}
+          minutes30d={training.minutes30d}
+          sessions30d={training.sessions30d}
+          openNow={training.openNow}
+        />
+      </div>
     </main>
   );
 }

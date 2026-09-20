@@ -415,6 +415,170 @@ a:hover { color: #c4b5fd; }
   gap: 18px;
 }
 
+/* Широкий профиль: всё в одном экране, без длинной колонки */
+.shell:has(.profile-page) {
+  max-width: 1760px;
+  padding: 20px 22px 28px;
+}
+
+.profile-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  grid-template-areas:
+    "head side"
+    "account training";
+  gap: 14px;
+  align-items: start;
+}
+
+.profile-page-empty {
+  grid-template-areas: "head head" "account account";
+  max-width: 720px;
+}
+
+.profile-area-head {
+  grid-area: head;
+}
+
+.profile-area-side {
+  grid-area: side;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.profile-area-account {
+  grid-area: account;
+}
+
+.profile-area-training {
+  grid-area: training;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  min-width: 0;
+}
+
+.profile-page .card {
+  padding: 14px 16px;
+}
+
+.profile-page .card h2 {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+}
+
+.profile-page .profile-avatar {
+  width: 132px;
+  height: 132px;
+  border-radius: 18px;
+}
+
+.profile-page .profile-avatar-fallback {
+  font-size: 2.4rem;
+}
+
+.profile-page .eyebrow {
+  margin-bottom: 4px;
+}
+
+.profile-page .profile-head-text h1 {
+  margin: 0;
+  font-size: clamp(1.6rem, 2.4vw, 2.2rem);
+  font-family: var(--font-display);
+  line-height: 1.1;
+}
+
+.profile-page .lead,
+.profile-page .profile-head-text .muted {
+  margin-top: 4px;
+}
+
+.profile-account-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 18px;
+}
+
+.profile-page .meta-row {
+  padding: 5px 0;
+  grid-template-columns: 110px 1fr;
+  font-size: 0.9rem;
+}
+
+.profile-kv-stub {
+  padding: 12px 14px;
+}
+
+.profile-page .training-sessions-card .muted {
+  font-size: 0.82rem;
+}
+
+.profile-page .training-stat-row {
+  margin-top: 10px;
+  gap: 8px;
+}
+
+.profile-page .training-stat-row > div {
+  padding: 8px 10px;
+}
+
+.profile-page .training-stat-row strong {
+  font-size: 1.05rem;
+}
+
+.profile-page .training-charts {
+  margin-top: 10px;
+  gap: 10px;
+}
+
+.profile-page .training-chart-block {
+  padding: 10px 12px;
+}
+
+.profile-page .training-bars {
+  min-height: 72px;
+}
+
+.profile-page .training-bar-track {
+  height: 56px;
+}
+
+.profile-page .training-avg-big strong {
+  font-size: 1.8rem;
+}
+
+.profile-page .training-sessions-card .admin-table-wrap {
+  margin-top: 10px;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid rgba(167, 139, 250, 0.12);
+  border-radius: 12px;
+}
+
+.profile-page .training-sessions-table {
+  font-size: 0.8rem;
+}
+
+@media (max-width: 1100px) {
+  .profile-page {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "head"
+      "side"
+      "account"
+      "training";
+  }
+
+  .profile-account-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-page .profile-area-account .card:not(:has(form)) {
+    grid-template-columns: 1fr;
+  }
+}
+
 .stats-stub {
   border: 1px dashed var(--line);
   border-radius: 14px;
@@ -2111,7 +2275,8 @@ body:has(.home-page) {
   .shell:has(.clan-page),
   .shell:has(.clan-detail),
   .shell:has(.home-page),
-  .shell:has(.cw-embed) {
+  .shell:has(.cw-embed),
+  .shell:has(.profile-page) {
     max-width: 100%;
     padding-left: 12px;
     padding-right: 12px;
