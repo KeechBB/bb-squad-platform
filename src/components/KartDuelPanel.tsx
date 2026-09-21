@@ -4,10 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { RACE_LAPS, RACE_RATING_START } from "@/lib/reaction";
 import {
+  coastOtherCars,
   predictMyCar,
   reconcileRaceState,
   type RaceCar,
   type RaceObstacle,
+  type RacePose,
   type RaceState,
 } from "@/lib/raceEngine";
 import type { VehicleKind } from "@/lib/raceMaps";
@@ -229,6 +231,20 @@ export function KartDuelPanel() {
   const hudLapRef = useRef(0);
   const hudVehicleRef = useRef("");
 
+  function myPosePayload(): RacePose | null {
+    const me = userIdRef.current;
+    const car = localStateRef.current?.cars.find((c) => c.userId === me);
+    if (!car) return null;
+    return {
+      x: car.x,
+      y: car.y,
+      angle: car.angle,
+      speed: car.speed,
+      lap: car.lap,
+      progress: car.progress,
+    };
+  }
+
   userIdRef.current = userId;
   playersRef.current = players;
   statusRef.current = room?.status ?? null;
@@ -351,7 +367,11 @@ export function KartDuelPanel() {
         void fetch("/api/reaction/race/input", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ roomId: id, keys: keysRef.current }),
+          body: JSON.stringify({
+            roomId: id,
+            keys: keysRef.current,
+            pose: myPosePayload(),
+          }),
         }).catch(() => undefined);
       }
     };
@@ -404,7 +424,8 @@ export function KartDuelPanel() {
 
       const prev = lastFrameAtRef.current || ts;
       lastFrameAtRef.current = ts;
-      let acc = simAccRef.current + Math.min(80, ts - prev);
+      const frameDt = Math.min(80, ts - prev);
+      let acc = simAccRef.current + frameDt;
       // фиксированный шаг физики — без рывков от FPS
       let guard = 0;
       while (acc >= TICK_MS && guard < 3) {
@@ -418,6 +439,13 @@ export function KartDuelPanel() {
         );
       }
       simAccRef.current = acc;
+
+      // чужие тачки слегка экстраполируем между снапшотами
+      localStateRef.current = coastOtherCars(
+        localStateRef.current!,
+        me,
+        frameDt / 1000
+      );
 
       const draw = localStateRef.current!;
       paint(draw);
@@ -570,7 +598,11 @@ export function KartDuelPanel() {
         await fetch("/api/reaction/race/input", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ roomId: id, keys: keysRef.current }),
+          body: JSON.stringify({
+            roomId: id,
+            keys: keysRef.current,
+            pose: myPosePayload(),
+          }),
         });
       } catch {
         /* ignore */
@@ -586,7 +618,7 @@ export function KartDuelPanel() {
         statusRef.current === "waiting"
           ? 500
           : statusRef.current === "racing"
-            ? 60
+            ? 40
             : 100;
       stateTimer = window.setTimeout(async () => {
         await pollState();
@@ -597,7 +629,7 @@ export function KartDuelPanel() {
       inputTimer = window.setTimeout(async () => {
         await pushInput();
         if (alive) armInput();
-      }, 35);
+      }, 25);
     };
 
     void pollState();
@@ -825,7 +857,8 @@ export function KartDuelPanel() {
 
       {msg ? <p className="reaction-msg">{msg}</p> : null}
       <p className="muted" style={{ fontSize: "0.82rem", marginTop: 8 }}>
-        Своя техника — жёлтая рамка и подпись «ТЫ». Управление: WASD или стрелки.
+        Тест-синхрон: широкий круг без препятствий. Своя техника — жёлтая рамка.
+        Управление: WASD или стрелки.
       </p>
     </div>
   );

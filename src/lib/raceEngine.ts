@@ -17,6 +17,16 @@ export type RaceKeys = {
   right: boolean;
 };
 
+/** Поза с клиента — чтобы соперники видели актуальную позицию, а не отстающий симулятор */
+export type RacePose = {
+  x: number;
+  y: number;
+  angle: number;
+  speed: number;
+  lap: number;
+  progress: number;
+};
+
 export type RaceCar = {
   userId: string;
   x: number;
@@ -352,6 +362,77 @@ export function predictMyCar(
   return next;
 }
 
+/** Наложить свежие клиентские позы (соперник видит тебя без «пинга») */
+export function applyClientPoses(
+  state: RaceState,
+  inputs: Record<string, RaceKeys & { pose?: RacePose; at?: number }>,
+  now = Date.now(),
+  maxAgeMs = 600
+): RaceState {
+  if (state.winnerUserId) return state;
+  const cars = state.cars.map((car) => {
+    const inp = inputs[car.userId];
+    const pose = inp?.pose;
+    const at = inp?.at;
+    if (!pose || typeof at !== "number" || now - at > maxAgeMs) return car;
+    if (
+      ![pose.x, pose.y, pose.angle, pose.speed, pose.progress].every((n) =>
+        Number.isFinite(n)
+      )
+    ) {
+      return car;
+    }
+    const err = Math.hypot(car.x - pose.x, car.y - pose.y);
+    // на тесте синка разрешаем большой зазор — иначе поза отбрасывается
+    if (err > 480) return car;
+    const lap = Math.max(
+      car.lap,
+      Math.max(0, Math.min(RACE_LAPS, Math.floor(pose.lap) || 0))
+    );
+    const progress = Math.max(car.progress, pose.progress);
+    const finished = car.finished || lap >= RACE_LAPS;
+    return {
+      ...car,
+      x: pose.x,
+      y: pose.y,
+      angle: pose.angle,
+      speed: pose.speed,
+      lap,
+      progress,
+      finished,
+    };
+  });
+  let winnerUserId = state.winnerUserId;
+  if (!winnerUserId) {
+    const fin = cars.find((c) => c.finished);
+    if (fin) winnerUserId = fin.userId;
+  }
+  return { ...state, cars, winnerUserId };
+}
+
+/** Чужие тачки чуть «плывут» между снапшотами */
+export function coastOtherCars(
+  state: RaceState,
+  myUserId: string,
+  dtSec: number
+): RaceState {
+  if (dtSec <= 0 || state.winnerUserId) return state;
+  const t = Math.min(0.05, dtSec);
+  return {
+    ...state,
+    cars: state.cars.map((car) => {
+      if (car.userId === myUserId || car.finished) return car;
+      const speed = car.speed * 0.98;
+      return {
+        ...car,
+        x: car.x + Math.cos(car.angle) * speed * t * 60,
+        y: car.y + Math.sin(car.angle) * speed * t * 60,
+        speed,
+      };
+    }),
+  };
+}
+
 /** Свести локальный кадр с сервером: свою тачку не откатываем назад. */
 export function reconcileRaceState(
   local: RaceState,
@@ -363,10 +444,10 @@ export function reconcileRaceState(
 
   const cars: RaceCar[] = server.cars.map((sc) => {
     if (sc.userId !== myUserId) {
-      // Соперников берём с сервера (лёгкий lerp, чтобы не телепортировались)
+      // Соперник — почти сразу на его клиентскую позу (синхрон)
       const prev = local.cars.find((c) => c.userId === sc.userId);
       if (!prev) return { ...sc };
-      const t = 0.45;
+      const t = 0.75;
       return {
         ...sc,
         x: prev.x + (sc.x - prev.x) * t,

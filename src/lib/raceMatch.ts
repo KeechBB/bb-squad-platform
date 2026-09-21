@@ -1,23 +1,22 @@
 import { prisma } from "@/lib/prisma";
 import {
   RACE_COUNTDOWN_MS,
-  RACE_MAX_CATCHUP_TICKS,
   RACE_QUEUE_TIMEOUT_MS,
   RACE_RATING_FLOOR,
-  RACE_TICK_MS,
   raceEloDelta,
 } from "@/lib/reaction";
 import {
+  applyClientPoses,
   createRaceState,
   EMPTY_KEYS,
-  tickRace,
   type RaceKeys,
+  type RacePose,
   type RaceState,
 } from "@/lib/raceEngine";
 import { RACE_MAPS } from "@/lib/raceMaps";
 import type { Prisma, ReactionRaceRoom } from "@prisma/client";
 
-type InputsMap = Record<string, RaceKeys & { at?: number }>;
+type InputsMap = Record<string, RaceKeys & { pose?: RacePose; at?: number }>;
 
 export type RaceCapacity = 2 | 3;
 
@@ -121,34 +120,64 @@ export async function advanceRaceRoom(roomId: string) {
   if (!state || players.length < 2) return room;
 
   const inputs = asInputs(room.inputs);
-  const elapsed = now - (state.startedAt || room.updatedAt.getTime());
-  const targetTick = Math.floor(elapsed / RACE_TICK_MS);
-  const prevTick = state.tick;
-  const dt = Math.max(0, Math.min(RACE_MAX_CATCHUP_TICKS, targetTick - prevTick));
-  if (dt > 0) {
-    const cleanInputs: Record<string, RaceKeys> = {};
-    for (const id of players) {
-      cleanInputs[id] = inputs[id] || EMPTY_KEYS;
-    }
-    state = tickRace(state, cleanInputs, dt);
-  }
+
+  // Тестовый синхрон: позиции = позы клиентов (без серверного tickRace),
+  // иначе соперник всегда видит отстающую физику.
+  const withPoses = applyClientPoses(state, inputs, now, 900);
+  const posesChanged =
+    withPoses.cars.some((c, i) => {
+      const o = state!.cars[i];
+      return (
+        !o ||
+        Math.abs(c.x - o.x) > 0.5 ||
+        Math.abs(c.y - o.y) > 0.5 ||
+        c.lap !== o.lap ||
+        c.finished !== o.finished
+      );
+    }) || withPoses.winnerUserId !== state.winnerUserId;
+  state = withPoses;
 
   if (state.winnerUserId && !room.ratingApplied) {
     return applyRaceResult(room.id, state);
   }
 
-  if (dt > 0) {
-    // Оптимистичная блокировка: не затираем чужой advance / input mid-write
+  if (posesChanged) {
     const wrote = await prisma.reactionRaceRoom.updateMany({
       where: { id: roomId, updatedAt: room.updatedAt, status: "racing" },
       data: { state: state as unknown as Prisma.InputJsonValue },
     });
     if (wrote.count === 0) {
-      return prisma.reactionRaceRoom.findUnique({ where: { id: roomId } });
+      const fresh = await prisma.reactionRaceRoom.findUnique({
+        where: { id: roomId },
+      });
+      if (!fresh) return null;
+      const freshState = applyClientPoses(
+        asState(fresh.state) || state,
+        asInputs(fresh.inputs),
+        Date.now(),
+        900
+      );
+      return { ...fresh, state: freshState as unknown as typeof fresh.state };
     }
-    return prisma.reactionRaceRoom.findUnique({ where: { id: roomId } });
+    const saved = await prisma.reactionRaceRoom.findUnique({
+      where: { id: roomId },
+    });
+    if (!saved) return null;
+    return {
+      ...saved,
+      state: applyClientPoses(
+        asState(saved.state) || state,
+        asInputs(saved.inputs),
+        Date.now(),
+        900
+      ) as unknown as typeof saved.state,
+    };
   }
-  return room;
+
+  return {
+    ...room,
+    state: state as unknown as typeof room.state,
+  };
 }
 
 async function applyRaceResult(roomId: string, state: RaceState) {
@@ -395,7 +424,8 @@ export async function cancelRaceMatch(userId: string, roomId?: string) {
 export async function setRaceInput(
   roomId: string,
   userId: string,
-  keys: RaceKeys
+  keys: RaceKeys,
+  pose?: RacePose | null
 ) {
   const room = await prisma.reactionRaceRoom.findUnique({ where: { id: roomId } });
   if (!room) return null;
@@ -405,8 +435,25 @@ export async function setRaceInput(
   }
 
   const inputs = asInputs(room.inputs);
-  inputs[userId] = { ...keys, at: Date.now() };
-  // Только входы — физику крутит GET / advance, иначе клиенты затирают state друг другу
+  const entry: InputsMap[string] = { ...keys, at: Date.now() };
+  if (
+    pose &&
+    [pose.x, pose.y, pose.angle, pose.speed, pose.progress].every((n) =>
+      Number.isFinite(n)
+    )
+  ) {
+    entry.pose = {
+      x: pose.x,
+      y: pose.y,
+      angle: pose.angle,
+      speed: pose.speed,
+      lap: Math.max(0, Math.floor(pose.lap) || 0),
+      progress: pose.progress,
+    };
+  }
+  inputs[userId] = entry;
+
+  // Только inputs — позы мержатся в publicRaceView / advance, без гонки записи state
   return prisma.reactionRaceRoom.update({
     where: { id: roomId },
     data: { inputs: inputs as unknown as Prisma.InputJsonValue },
@@ -418,7 +465,10 @@ export function publicRaceView(
   viewerId: string
 ) {
   if (!room) return null;
-  const state = asState(room.state);
+  let state = asState(room.state);
+  if (state && room.status === "racing") {
+    state = applyClientPoses(state, asInputs(room.inputs), Date.now());
+  }
   const capacity = room.capacity === 3 ? 3 : 2;
   return {
     id: room.id,
@@ -429,7 +479,7 @@ export function publicRaceView(
     guestUserId: room.guestUserId,
     guest2UserId: room.guest2UserId,
     playerIds: roomPlayerIds(room),
-    winnerUserId: room.winnerUserId,
+    winnerUserId: room.winnerUserId || state?.winnerUserId || null,
     countdownEndsAt: room.countdownEndsAt?.toISOString() ?? null,
     youAreHost: room.hostUserId === viewerId,
     state,

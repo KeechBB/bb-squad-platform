@@ -9,7 +9,7 @@ import {
   publicRaceView,
   setRaceInput,
 } from "@/lib/raceMatch";
-import { EMPTY_KEYS, type RaceKeys } from "@/lib/raceEngine";
+import { EMPTY_KEYS, type RaceKeys, type RacePose } from "@/lib/raceEngine";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -23,6 +23,26 @@ function parseKeys(raw: unknown): RaceKeys {
     down: Boolean(o.down),
     left: Boolean(o.left),
     right: Boolean(o.right),
+  };
+}
+
+function parsePose(raw: unknown): RacePose | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const x = Number(o.x);
+  const y = Number(o.y);
+  const angle = Number(o.angle);
+  const speed = Number(o.speed);
+  const lap = Number(o.lap);
+  const progress = Number(o.progress);
+  if (![x, y, angle, speed, progress].every(Number.isFinite)) return null;
+  return {
+    x,
+    y,
+    angle,
+    speed,
+    lap: Number.isFinite(lap) ? lap : 0,
+    progress,
   };
 }
 
@@ -42,7 +62,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Нужен roomId" }, { status: 400 });
   }
 
-  const room = await setRaceInput(roomId, user.id, parseKeys(body?.keys));
+  const room = await setRaceInput(
+    roomId,
+    user.id,
+    parseKeys(body?.keys),
+    parsePose(body?.pose)
+  );
   if (!room) {
     return NextResponse.json({ error: "Комната недоступна" }, { status: 404 });
   }
