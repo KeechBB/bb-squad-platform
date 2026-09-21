@@ -74,28 +74,42 @@ type L3Ball = {
   x: number;
   y: number;
   expiresAt: number;
-  color: string;
-  glow: string;
+  background: string;
+  shadow: string;
 };
 
-/** ~100 различных цветов для шариков */
-const DOT_PALETTE: Array<{ fill: string; mid: string; dark: string; glow: string }> = (() => {
-  const out: Array<{ fill: string; mid: string; dark: string; glow: string }> = [];
+/** ~100 матовых цветов для шариков */
+const DOT_PALETTE: Array<{ h: number; s: number; l: number }> = (() => {
+  const out: Array<{ h: number; s: number; l: number }> = [];
   for (let i = 0; i < 100; i++) {
-    const h = Math.round((i * 137.508) % 360); // golden-angle spread
-    const s = 62 + (i % 5) * 7; // 62–90
-    const l = 48 + (i % 4) * 5; // 48–63
-    const fill = `hsl(${h} ${s}% ${Math.min(78, l + 22)}%)`;
-    const mid = `hsl(${h} ${s}% ${l}%)`;
-    const dark = `hsl(${h} ${Math.min(90, s + 8)}% ${Math.max(22, l - 22)}%)`;
-    const glow = `hsla(${h} ${s}% ${l}% / 0.55)`;
-    out.push({ fill, mid, dark, glow });
+    const h = Math.round((i * 137.508) % 360);
+    const s = 28 + (i % 5) * 4; // 28–44 — приглушённо
+    const l = 38 + (i % 4) * 4; // 38–50 — матовый средний тон
+    out.push({ h, s, l });
   }
   return out;
 })();
 
-function pickDotColor() {
-  return DOT_PALETTE[Math.floor(Math.random() * DOT_PALETTE.length)]!;
+function pickDotStyle() {
+  const { h, s, l } = DOT_PALETTE[Math.floor(Math.random() * DOT_PALETTE.length)]!;
+  const hi = `hsl(${h} ${Math.min(48, s + 6)}% ${Math.min(62, l + 16)}%)`;
+  const mid = `hsl(${h} ${s}% ${l}%)`;
+  const midDeep = `hsl(${h} ${Math.min(50, s + 4)}% ${Math.max(28, l - 8)}%)`;
+  const dark = `hsl(${h} ${Math.min(52, s + 8)}% ${Math.max(18, l - 18)}%)`;
+  const rim = `hsla(${h} ${s}% ${Math.max(14, l - 24)}% / 0.45)`;
+  const soft = `hsla(${h} ${s}% ${l}% / 0.28)`;
+  return {
+    background: [
+      `radial-gradient(circle at 32% 28%, ${hi} 0%, ${mid} 38%, ${midDeep} 68%, ${dark} 100%)`,
+    ].join(", "),
+    shadow: [
+      `inset 0 -10px 18px ${rim}`,
+      `inset 0 8px 14px hsla(0 0% 100% / 0.14)`,
+      `0 10px 18px hsla(0 0% 0% / 0.45)`,
+      `0 2px 4px hsla(0 0% 0% / 0.35)`,
+      `0 0 0 1px ${soft}`,
+    ].join(", "),
+  };
 }
 
 function randomDelayMs() {
@@ -143,10 +157,8 @@ export function ReactionTrainingClient() {
   const [circle, setCircle] = useState<{
     x: number;
     y: number;
-    fill: string;
-    mid: string;
-    dark: string;
-    glow: string;
+    background: string;
+    shadow: string;
   } | null>(null);
   const [sessionSeries, setSessionSeries] = useState<SessionSeries[]>([]);
   const [l3Balls, setL3Balls] = useState<L3Ball[]>([]);
@@ -302,15 +314,15 @@ export function ReactionTrainingClient() {
     const el = arenaRef.current;
     const w = el?.clientWidth || 400;
     const h = el?.clientHeight || 400;
-    const color = pickDotColor();
+    const style = pickDotStyle();
     if (levelRef.current === 1) {
-      setCircle({ x: w / 2, y: h / 2, ...color });
+      setCircle({ x: w / 2, y: h / 2, ...style });
       return;
     }
-    const pad = levelRef.current === 2 ? 56 : 48;
+    const pad = levelRef.current === 2 ? 84 : 64;
     const x = pad + Math.random() * Math.max(40, w - pad * 2);
     const y = pad + Math.random() * Math.max(40, h - pad * 2);
-    setCircle({ x, y, ...color });
+    setCircle({ x, y, ...style });
   }
 
   function startAttempt() {
@@ -350,21 +362,21 @@ export function ReactionTrainingClient() {
     const el = arenaRef.current;
     const w = el?.clientWidth || 400;
     const h = el?.clientHeight || 400;
-    const pad = 36;
+    const pad = 52;
     const now = performance.now();
     pruneL3Balls(now);
     const count = spawnCount();
     const added: L3Ball[] = [];
     for (let i = 0; i < count; i++) {
       ballSeqRef.current += 1;
-      const color = pickDotColor();
+      const style = pickDotStyle();
       added.push({
         id: ballSeqRef.current,
         x: pad + Math.random() * Math.max(40, w - pad * 2),
         y: pad + Math.random() * Math.max(40, h - pad * 2),
         expiresAt: now + REACTION_L3_BALL_LIFE_MS,
-        color: `radial-gradient(circle at 35% 30%, ${color.fill}, ${color.mid} 55%, ${color.dark})`,
-        glow: color.glow,
+        background: style.background,
+        shadow: style.shadow,
       });
     }
     const next = [...l3BallsRef.current, ...added];
@@ -1048,8 +1060,8 @@ export function ReactionTrainingClient() {
                 style={{
                   left: circle.x,
                   top: circle.y,
-                  background: `radial-gradient(circle at 35% 30%, ${circle.fill}, ${circle.mid} 55%, ${circle.dark})`,
-                  boxShadow: `0 0 0 3px ${circle.glow.replace("/ 0.55", "/ 0.35")}, 0 0 24px ${circle.glow}`,
+                  background: circle.background,
+                  boxShadow: circle.shadow,
                 }}
                 aria-label="Цель"
               />
@@ -1064,8 +1076,8 @@ export function ReactionTrainingClient() {
                     style={{
                       left: b.x,
                       top: b.y,
-                      background: b.color,
-                      boxShadow: `0 0 0 3px ${b.glow.replace("/ 0.55", "/ 0.35")}, 0 0 24px ${b.glow}`,
+                      background: b.background,
+                      boxShadow: b.shadow,
                     }}
                     aria-label="Цель"
                   />
