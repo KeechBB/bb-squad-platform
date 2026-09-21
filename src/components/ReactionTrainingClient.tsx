@@ -902,15 +902,42 @@ export function ReactionTrainingClient() {
                         </Link>
                       </td>
                       <td>
-                        {r.bestL1 != null ? `${formatSec3(r.bestL1)} с` : "—"}
+                        {r.bestL1 != null ? (
+                          <span className="reaction-rating-record">
+                            {formatSec3(r.bestL1)} с
+                            <span className="reaction-rating-cup" aria-hidden>
+                              🏆
+                            </span>
+                          </span>
+                        ) : (
+                          "—"
+                        )}
                       </td>
                       <td>{r.runsL1 || "—"}</td>
                       <td>
-                        {r.bestL2 != null ? `${formatSec3(r.bestL2)} с` : "—"}
+                        {r.bestL2 != null ? (
+                          <span className="reaction-rating-record">
+                            {formatSec3(r.bestL2)} с
+                            <span className="reaction-rating-cup" aria-hidden>
+                              🏆
+                            </span>
+                          </span>
+                        ) : (
+                          "—"
+                        )}
                       </td>
                       <td>{r.runsL2 || "—"}</td>
                       <td>
-                        {r.bestL3 != null ? `${formatScore(r.bestL3)} оч.` : "—"}
+                        {r.bestL3 != null ? (
+                          <span className="reaction-rating-record">
+                            {formatScore(r.bestL3)} оч.
+                            <span className="reaction-rating-cup" aria-hidden>
+                              🏆
+                            </span>
+                          </span>
+                        ) : (
+                          "—"
+                        )}
                       </td>
                       <td>{r.runsL3 || "—"}</td>
                     </tr>

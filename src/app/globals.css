@@ -3579,15 +3579,17 @@ body {
 /* ??? ?????????? ???????? (???????) ??? */
 .shell:has(.reaction-page) {
   max-width: none;
-  width: min(100%, 1920px);
+  width: 100%;
   margin-inline: auto;
-  padding-inline: 20px;
+  padding-left: clamp(12px, 2vw, 28px);
+  padding-right: clamp(12px, 2vw, 28px);
 }
 
 .reaction-page {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  width: 100%;
   min-height: calc(100dvh - 100px);
 }
 
@@ -3641,10 +3643,15 @@ body {
   justify-content: space-between;
 }
 
+.reaction-page:has(.reaction-rating-panel) {
+  width: 100%;
+}
+
 .reaction-rating-panel {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  width: 100%;
   min-height: 420px;
   text-align: center;
 }
@@ -3664,7 +3671,8 @@ body {
 }
 
 .reaction-rating-wrap {
-  max-height: min(22rem, 52vh);
+  width: 100%;
+  max-height: min(32rem, 68vh);
   overflow: auto;
   border: 1px solid rgba(167, 139, 250, 0.18);
   border-radius: 12px;
@@ -3672,14 +3680,15 @@ body {
 
 .reaction-rating-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   text-align: center;
 }
 
 .reaction-rating-table th,
 .reaction-rating-table td {
-  padding: 10px 8px;
+  padding: 12px 10px;
   text-align: center;
   vertical-align: middle;
   border-bottom: 1px solid rgba(167, 139, 250, 0.12);
@@ -3697,6 +3706,23 @@ body {
 
 .reaction-rating-table tbody tr:hover td {
   background: rgba(167, 139, 250, 0.06);
+}
+
+.reaction-rating-record {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #facc15;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.reaction-rating-cup {
+  font-size: 0.95em;
+  line-height: 1;
+  filter: saturate(1.15);
 }
 
 .reaction-rating-sort {
