@@ -53,7 +53,29 @@ type L3Ball = {
   x: number;
   y: number;
   expiresAt: number;
+  color: string;
+  glow: string;
 };
+
+/** ~100 различных цветов для шариков */
+const DOT_PALETTE: Array<{ fill: string; mid: string; dark: string; glow: string }> = (() => {
+  const out: Array<{ fill: string; mid: string; dark: string; glow: string }> = [];
+  for (let i = 0; i < 100; i++) {
+    const h = Math.round((i * 137.508) % 360); // golden-angle spread
+    const s = 62 + (i % 5) * 7; // 62–90
+    const l = 48 + (i % 4) * 5; // 48–63
+    const fill = `hsl(${h} ${s}% ${Math.min(78, l + 22)}%)`;
+    const mid = `hsl(${h} ${s}% ${l}%)`;
+    const dark = `hsl(${h} ${Math.min(90, s + 8)}% ${Math.max(22, l - 22)}%)`;
+    const glow = `hsla(${h} ${s}% ${l}% / 0.55)`;
+    out.push({ fill, mid, dark, glow });
+  }
+  return out;
+})();
+
+function pickDotColor() {
+  return DOT_PALETTE[Math.floor(Math.random() * DOT_PALETTE.length)]!;
+}
 
 function randomDelayMs() {
   const s =
@@ -96,7 +118,14 @@ export function ReactionTrainingClient() {
   const [recordL3, setRecordL3] = useState<GlobalRecord | null>(null);
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
-  const [circle, setCircle] = useState<{ x: number; y: number } | null>(null);
+  const [circle, setCircle] = useState<{
+    x: number;
+    y: number;
+    fill: string;
+    mid: string;
+    dark: string;
+    glow: string;
+  } | null>(null);
   const [sessionSeries, setSessionSeries] = useState<SessionSeries[]>([]);
   const [l3Balls, setL3Balls] = useState<L3Ball[]>([]);
   const [l3Score, setL3Score] = useState(0);
@@ -247,14 +276,15 @@ export function ReactionTrainingClient() {
     const el = arenaRef.current;
     const w = el?.clientWidth || 400;
     const h = el?.clientHeight || 400;
+    const color = pickDotColor();
     if (levelRef.current === 1) {
-      setCircle({ x: w / 2, y: h / 2 });
+      setCircle({ x: w / 2, y: h / 2, ...color });
       return;
     }
     const pad = levelRef.current === 2 ? 56 : 48;
     const x = pad + Math.random() * Math.max(40, w - pad * 2);
     const y = pad + Math.random() * Math.max(40, h - pad * 2);
-    setCircle({ x, y });
+    setCircle({ x, y, ...color });
   }
 
   function startAttempt() {
@@ -301,11 +331,14 @@ export function ReactionTrainingClient() {
     const added: L3Ball[] = [];
     for (let i = 0; i < count; i++) {
       ballSeqRef.current += 1;
+      const color = pickDotColor();
       added.push({
         id: ballSeqRef.current,
         x: pad + Math.random() * Math.max(40, w - pad * 2),
         y: pad + Math.random() * Math.max(40, h - pad * 2),
         expiresAt: now + REACTION_L3_BALL_LIFE_MS,
+        color: `radial-gradient(circle at 35% 30%, ${color.fill}, ${color.mid} 55%, ${color.dark})`,
+        glow: color.glow,
       });
     }
     const next = [...l3BallsRef.current, ...added];
@@ -807,14 +840,15 @@ export function ReactionTrainingClient() {
             {phase === "ready" && circle ? (
               <button
                 type="button"
-                className={`reaction-dot${level === 2 ? " reaction-dot-lg" : ""}${
-                  level === 1 ? " reaction-dot-akinov" : ""
-                }`}
-                style={{ left: circle.x, top: circle.y }}
-                aria-label={level === 1 ? "Акинов" : "Цель"}
-              >
-                {level === 1 ? <span className="reaction-dot-label">Акинов</span> : null}
-              </button>
+                className={`reaction-dot${level === 2 ? " reaction-dot-lg" : ""}`}
+                style={{
+                  left: circle.x,
+                  top: circle.y,
+                  background: `radial-gradient(circle at 35% 30%, ${circle.fill}, ${circle.mid} 55%, ${circle.dark})`,
+                  boxShadow: `0 0 0 3px ${circle.glow.replace("/ 0.55", "/ 0.35")}, 0 0 24px ${circle.glow}`,
+                }}
+                aria-label="Цель"
+              />
             ) : null}
             {phase === "play"
               ? l3Balls.map((b) => (
@@ -823,7 +857,12 @@ export function ReactionTrainingClient() {
                     type="button"
                     className="reaction-dot reaction-dot-l3"
                     data-ball-id={b.id}
-                    style={{ left: b.x, top: b.y }}
+                    style={{
+                      left: b.x,
+                      top: b.y,
+                      background: b.color,
+                      boxShadow: `0 0 0 3px ${b.glow.replace("/ 0.55", "/ 0.35")}, 0 0 24px ${b.glow}`,
+                    }}
                     aria-label="Цель"
                   />
                 ))
