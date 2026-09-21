@@ -520,6 +520,41 @@ export function ReactionTrainingClient() {
     return rows;
   })();
 
+  // Лучший в категории: L1/L2 — минимум мс, L3 — максимум очков
+  const topBestL1 = ratingRows.reduce<number | null>((best, r) => {
+    if (r.bestL1 == null) return best;
+    return best == null || r.bestL1 < best ? r.bestL1 : best;
+  }, null);
+  const topBestL2 = ratingRows.reduce<number | null>((best, r) => {
+    if (r.bestL2 == null) return best;
+    return best == null || r.bestL2 < best ? r.bestL2 : best;
+  }, null);
+  const topBestL3 = ratingRows.reduce<number | null>((best, r) => {
+    if (r.bestL3 == null) return best;
+    return best == null || r.bestL3 > best ? r.bestL3 : best;
+  }, null);
+
+  function renderRecordCell(
+    value: number | null,
+    top: number | null,
+    kind: "sec" | "score"
+  ) {
+    if (value == null) return "—";
+    const text =
+      kind === "sec" ? `${formatSec3(value)} с` : `${formatScore(value)} оч.`;
+    if (top != null && value === top) {
+      return (
+        <span className="reaction-rating-record">
+          {text}
+          <span className="reaction-rating-cup" aria-hidden>
+            🏆
+          </span>
+        </span>
+      );
+    }
+    return text;
+  }
+
   function recordAttempt(ms: number, missed: boolean) {
     const next = [...attempts, ms];
     const nextMiss = [...missFlags, missed];
@@ -901,44 +936,11 @@ export function ReactionTrainingClient() {
                           {r.nick}
                         </Link>
                       </td>
-                      <td>
-                        {r.bestL1 != null ? (
-                          <span className="reaction-rating-record">
-                            {formatSec3(r.bestL1)} с
-                            <span className="reaction-rating-cup" aria-hidden>
-                              🏆
-                            </span>
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
+                      <td>{renderRecordCell(r.bestL1, topBestL1, "sec")}</td>
                       <td>{r.runsL1 || "—"}</td>
-                      <td>
-                        {r.bestL2 != null ? (
-                          <span className="reaction-rating-record">
-                            {formatSec3(r.bestL2)} с
-                            <span className="reaction-rating-cup" aria-hidden>
-                              🏆
-                            </span>
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
+                      <td>{renderRecordCell(r.bestL2, topBestL2, "sec")}</td>
                       <td>{r.runsL2 || "—"}</td>
-                      <td>
-                        {r.bestL3 != null ? (
-                          <span className="reaction-rating-record">
-                            {formatScore(r.bestL3)} оч.
-                            <span className="reaction-rating-cup" aria-hidden>
-                              🏆
-                            </span>
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
+                      <td>{renderRecordCell(r.bestL3, topBestL3, "score")}</td>
                       <td>{r.runsL3 || "—"}</td>
                     </tr>
                   ))

@@ -3579,17 +3579,15 @@ body {
 /* ??? ?????????? ???????? (???????) ??? */
 .shell:has(.reaction-page) {
   max-width: none;
-  width: 100%;
+  width: min(100%, 1920px);
   margin-inline: auto;
-  padding-left: clamp(12px, 2vw, 28px);
-  padding-right: clamp(12px, 2vw, 28px);
+  padding-inline: 20px;
 }
 
 .reaction-page {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  width: 100%;
   min-height: calc(100dvh - 100px);
 }
 
@@ -3644,15 +3642,15 @@ body {
 }
 
 .reaction-page:has(.reaction-rating-panel) {
-  width: 100%;
+  min-height: calc(100dvh - 100px);
 }
 
 .reaction-rating-panel {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  width: 100%;
-  min-height: 420px;
+  flex: 1 1 auto;
+  min-height: calc(100dvh - 220px);
   text-align: center;
 }
 
@@ -3663,6 +3661,7 @@ body {
   justify-content: space-between;
   gap: 12px;
   text-align: left;
+  flex: 0 0 auto;
 }
 
 .reaction-rating-head h2 {
@@ -3671,8 +3670,10 @@ body {
 }
 
 .reaction-rating-wrap {
-  width: 100%;
-  max-height: min(32rem, 68vh);
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  height: calc(100dvh - 280px);
   overflow: auto;
   border: 1px solid rgba(167, 139, 250, 0.18);
   border-radius: 12px;
@@ -3680,15 +3681,14 @@ body {
 
 .reaction-rating-table {
   width: 100%;
-  table-layout: fixed;
   border-collapse: collapse;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   text-align: center;
 }
 
 .reaction-rating-table th,
 .reaction-rating-table td {
-  padding: 12px 10px;
+  padding: 10px 8px;
   text-align: center;
   vertical-align: middle;
   border-bottom: 1px solid rgba(167, 139, 250, 0.12);
