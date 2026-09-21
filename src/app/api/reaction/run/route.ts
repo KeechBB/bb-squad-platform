@@ -74,7 +74,7 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const rawLevel = Number(body?.level);
   // старые клиенты слали level:3 для шариков — принимаем как ур.2
-  let level: ReactionLevel =
+  const level: ReactionLevel =
     rawLevel === 3 && body && typeof body === "object" && "score" in body
       ? 2
       : normalizeLevel(body?.level);
