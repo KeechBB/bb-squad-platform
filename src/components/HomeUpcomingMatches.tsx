@@ -53,7 +53,7 @@ export function HomeUpcomingMatches({ previews }: Props) {
                 <span className="home-match-opp">{selected.opp}</span>
               </h3>
               <p className="home-match-meta">
-                {selected.mapShort} · {selected.stack} · {selected.size}
+                {selected.map} · {selected.stack} · {selected.size}
               </p>
             </div>
             <div
@@ -129,9 +129,10 @@ export function HomeUpcomingMatches({ previews }: Props) {
                     <span className="home-match-row-vs">
                       BB–{m.opp}
                     </span>
-                    <span className="home-match-row-map muted">
-                      {m.mapShort} · {m.stack}
+                    <span className="home-match-row-map" title={m.map}>
+                      {m.map}
                     </span>
+                    <span className="home-match-row-stack">{m.stack}</span>
                     <span
                       className={`home-match-row-pct${
                         f.winPct >= 55
