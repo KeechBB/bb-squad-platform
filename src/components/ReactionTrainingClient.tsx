@@ -112,6 +112,45 @@ function pickDotStyle() {
   };
 }
 
+type ZoomBaseline = {
+  dpr: number;
+  innerW: number;
+  outerW: number;
+  vvScale: number;
+};
+
+function readZoomBaseline(): ZoomBaseline {
+  return {
+    dpr: window.devicePixelRatio || 1,
+    innerW: window.innerWidth,
+    outerW: window.outerWidth,
+    vvScale: window.visualViewport?.scale ?? 1,
+  };
+}
+
+/** Pinch / Ctrl± зум относительно снимка на старте раунда. OS DPI не трогаем. */
+function zoomChangedSince(baseline: ZoomBaseline | null): boolean {
+  if (!baseline) return false;
+  const vvScale = window.visualViewport?.scale ?? 1;
+  if (Math.abs(vvScale - baseline.vvScale) > 0.03) return true;
+
+  const outerDelta = Math.abs(window.outerWidth - baseline.outerW);
+  // окно не ресайзили, а CSS-ширина / DPR уехали → зум браузера
+  if (outerDelta < 48) {
+    const dprRatio = (window.devicePixelRatio || 1) / baseline.dpr;
+    if (Math.abs(dprRatio - 1) > 0.04) return true;
+    const innerRatio = baseline.innerW / Math.max(1, window.innerWidth);
+    if (Math.abs(innerRatio - 1) > 0.04) return true;
+  }
+  return false;
+}
+
+/** Pinch-зум viewport (не путать с Windows scaling). */
+function isPinchZoomed(): boolean {
+  const scale = window.visualViewport?.scale ?? 1;
+  return Math.abs(scale - 1) > 0.04;
+}
+
 function randomDelayMs() {
   const s =
     REACTION_DELAY_MIN_S +
@@ -192,6 +231,12 @@ export function ReactionTrainingClient() {
   const l3MissesRef = useRef(0);
   const l3StartRef = useRef(0);
   const l3BallsRef = useRef<L3Ball[]>([]);
+  const l3ZoomBaselineRef = useRef<ZoomBaseline | null>(null);
+  const pageZoomBaselineRef = useRef<ZoomBaseline | null>(null);
+
+  useEffect(() => {
+    pageZoomBaselineRef.current = readZoomBaseline();
+  }, []);
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -238,6 +283,23 @@ export function ReactionTrainingClient() {
       tickTimerRef.current = null;
     }
   };
+
+  function abortL3ForZoom(reason: "start" | "mid") {
+    clearTimer();
+    clearCountdown();
+    clearL3Timers();
+    setL3Balls([]);
+    l3BallsRef.current = [];
+    l3ZoomBaselineRef.current = null;
+    setCircle(null);
+    setPhase("idle");
+    setL3LeftMs(REACTION_L3_DURATION_MS);
+    setMsg(
+      reason === "start"
+        ? "На ур. 3 зум браузера нельзя. Сбрось масштаб: Ctrl+0, затем Старт."
+        : "Зум во время ур. 3 запрещён — раунд сброшен, очки не сохранены. Ctrl+0 = 100%."
+    );
+  }
 
   const pingPresence = useCallback(async () => {
     try {
@@ -321,6 +383,59 @@ export function ReactionTrainingClient() {
     void loadMyBest(level);
   }, [level, phase, loadMyBest]);
 
+  // Ур. 3: блок Ctrl+колесо / pinch и сброс раунда при смене масштаба
+  useEffect(() => {
+    const l3Active =
+      level === 3 && (phase === "countdown" || phase === "play");
+    if (!l3Active) return;
+
+    const blockZoomWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+      }
+    };
+    const blockGesture = (e: Event) => {
+      e.preventDefault();
+    };
+    const checkZoom = () => {
+      if (phaseRef.current !== "countdown" && phaseRef.current !== "play") {
+        return;
+      }
+      if (levelRef.current !== 3) return;
+      if (zoomChangedSince(l3ZoomBaselineRef.current)) {
+        abortL3ForZoom("mid");
+      }
+    };
+
+    document.addEventListener("wheel", blockZoomWheel, { passive: false });
+    document.addEventListener("gesturestart", blockGesture, {
+      passive: false,
+    } as AddEventListenerOptions);
+    document.addEventListener("gesturechange", blockGesture, {
+      passive: false,
+    } as AddEventListenerOptions);
+    document.addEventListener("gestureend", blockGesture, {
+      passive: false,
+    } as AddEventListenerOptions);
+    window.addEventListener("resize", checkZoom);
+    window.visualViewport?.addEventListener("resize", checkZoom);
+    window.visualViewport?.addEventListener("scroll", checkZoom);
+    const pollId = window.setInterval(checkZoom, 400);
+
+    return () => {
+      document.removeEventListener("wheel", blockZoomWheel);
+      document.removeEventListener("gesturestart", blockGesture);
+      document.removeEventListener("gesturechange", blockGesture);
+      document.removeEventListener("gestureend", blockGesture);
+      window.removeEventListener("resize", checkZoom);
+      window.visualViewport?.removeEventListener("resize", checkZoom);
+      window.visualViewport?.removeEventListener("scroll", checkZoom);
+      window.clearInterval(pollId);
+    };
+    // abortL3ForZoom стабилен по смыслу через refs/timers
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [level, phase]);
+
   function placeCircle() {
     const el = arenaRef.current;
     const w = el?.clientWidth || 400;
@@ -362,6 +477,17 @@ export function ReactionTrainingClient() {
   }
 
   function beginL3Countdown() {
+    if (isPinchZoomed()) {
+      abortL3ForZoom("start");
+      return;
+    }
+    // зумнули страницу после захода на тренировку
+    if (zoomChangedSince(pageZoomBaselineRef.current)) {
+      abortL3ForZoom("start");
+      return;
+    }
+    l3ZoomBaselineRef.current = readZoomBaseline();
+
     clearTimer();
     clearCountdown();
     clearL3Timers();
@@ -433,6 +559,7 @@ export function ReactionTrainingClient() {
     pruneL3Balls();
     setL3Balls([]);
     l3BallsRef.current = [];
+    l3ZoomBaselineRef.current = null;
     const score = l3ScoreRef.current;
     const hits = l3HitsRef.current;
     const misses = l3MissesRef.current;
@@ -796,7 +923,7 @@ export function ReactionTrainingClient() {
           <h1>Тренировка стрельбы</h1>
           <p className="muted" style={{ margin: "6px 0 0" }}>
             {level === 3
-              ? "30 с · каждые 0.4 с 3–5 шариков · живут 1.1 с · попадание +10 · промах −5"
+              ? "30 с · каждые 0.4 с 3–5 шариков · живут 1.1 с · попадание +10 · промах −5 · без зума браузера"
               : "10 попыток · круг через 1–10 с · результат в секундах · промах = штраф 1.000 с"}
           </p>
         </div>
@@ -1129,7 +1256,7 @@ export function ReactionTrainingClient() {
                   ? "Ур. 1 — шарик всегда в центре. Нажми «Старт» и жди кружок."
                   : level === 2
                     ? "Ур. 2 — большой шарик в случайном месте. Нажми «Старт»."
-                    : "Ур. 3 — 30 секунд волны шариков. Перед стартом отсчёт 3–2–1."}
+                    : "Ур. 3 — 30 секунд волны шариков. Зум браузера (Ctrl+колесо) отключён."}
               </p>
             ) : null}
             {phase === "countdown" && countdownLabel ? (

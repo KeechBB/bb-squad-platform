@@ -3965,6 +3965,10 @@ body {
   user-select: none;
 }
 
+.reaction-arena.level-3 {
+  touch-action: none;
+}
+
 .reaction-hint {
   position: absolute;
   inset: 0;
