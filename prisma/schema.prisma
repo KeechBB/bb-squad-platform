@@ -76,6 +76,7 @@ model User {
   reactionChatMessages ReactionChatMessage[]
   raceRoomsHost   ReactionRaceRoom[] @relation("RaceHost")
   raceRoomsGuest  ReactionRaceRoom[] @relation("RaceGuest")
+  raceRoomsGuest2 ReactionRaceRoom[] @relation("RaceGuest2")
 }
 
 /// Серия тренировки: ур.1 среднее мс; ур.2 очки шариков в avgMs; ур.3 не пишем (Elo на User)
@@ -95,22 +96,26 @@ model ReactionRun {
   @@index([level, avgMs])
 }
 
-/// Комната 1v1 «Карт-дуэль»
+/// Комната «Карт-дуэль» (лобби 2 или 3)
 model ReactionRaceRoom {
   id             String   @id @default(cuid())
   status         String   @default("waiting")
   seed           Int
+  /// Сколько игроков нужно для старта: 2 или 3
+  capacity       Int      @default(2)
   hostUserId     String
   hostUser       User     @relation("RaceHost", fields: [hostUserId], references: [id], onDelete: Cascade)
   guestUserId    String?
   guestUser      User?    @relation("RaceGuest", fields: [guestUserId], references: [id], onDelete: SetNull)
+  guest2UserId   String?
+  guest2User     User?    @relation("RaceGuest2", fields: [guest2UserId], references: [id], onDelete: SetNull)
   winnerUserId   String?
   ratingApplied  Boolean  @default(false)
   /// Snapshot физики: cars, laps, obstacles, track, ticks…
   state          Json?
   /// Последние входы { [userId]: { up,down,left,right, at } }
   inputs         Json?
-  /// { beforeHost, beforeGuest, deltaHost, deltaGuest, afterHost, afterGuest }
+  /// { entries: [{ userId, before, delta, after }] }
   ratingResult   Json?
   countdownEndsAt DateTime?
   createdAt      DateTime @default(now())
@@ -119,6 +124,8 @@ model ReactionRaceRoom {
   @@index([status, updatedAt])
   @@index([hostUserId])
   @@index([guestUserId])
+  @@index([guest2UserId])
+  @@index([status, capacity])
 }
 
 /// Кто сейчас на вкладке «Тренировка стрельбы»

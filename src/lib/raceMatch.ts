@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import {
   RACE_COUNTDOWN_MS,
   RACE_QUEUE_TIMEOUT_MS,
+  RACE_RATING_FLOOR,
   RACE_TICK_MS,
   raceEloDelta,
 } from "@/lib/reaction";
@@ -12,9 +13,19 @@ import {
   type RaceKeys,
   type RaceState,
 } from "@/lib/raceEngine";
-import type { Prisma } from "@prisma/client";
+import { RACE_MAPS } from "@/lib/raceMaps";
+import type { Prisma, ReactionRaceRoom } from "@prisma/client";
 
 type InputsMap = Record<string, RaceKeys & { at?: number }>;
+
+export type RaceCapacity = 2 | 3;
+
+export type RatingEntry = {
+  userId: string;
+  before: number;
+  delta: number;
+  after: number;
+};
 
 function asState(raw: unknown): RaceState | null {
   if (!raw || typeof raw !== "object") return null;
@@ -26,11 +37,44 @@ function asInputs(raw: unknown): InputsMap {
   return raw as InputsMap;
 }
 
+export function normalizeCapacity(raw: unknown): RaceCapacity {
+  return raw === 3 || raw === "3" ? 3 : 2;
+}
+
+export function roomPlayerIds(room: {
+  hostUserId: string;
+  guestUserId: string | null;
+  guest2UserId?: string | null;
+}): string[] {
+  return [room.hostUserId, room.guestUserId, room.guest2UserId ?? null].filter(
+    (id): id is string => Boolean(id)
+  );
+}
+
+export function isInRaceRoom(
+  room: {
+    hostUserId: string;
+    guestUserId: string | null;
+    guest2UserId?: string | null;
+  },
+  userId: string
+) {
+  return roomPlayerIds(room).includes(userId);
+}
+
 export async function getAuthUserId(steamId: string) {
   return prisma.user.findUnique({
     where: { steamId },
     select: { id: true, nick: true, steamName: true, raceRating: true },
   });
+}
+
+function emptyInputsFor(playerIds: string[], now: number): InputsMap {
+  const inputs: InputsMap = {};
+  for (const id of playerIds) {
+    inputs[id] = { ...EMPTY_KEYS, at: now };
+  }
+  return inputs;
 }
 
 /** Продвинуть комнату: countdown→racing, тики физики, Elo один раз */
@@ -41,6 +85,8 @@ export async function advanceRaceRoom(roomId: string) {
   if (!room) return null;
 
   const now = Date.now();
+  const players = roomPlayerIds(room);
+  const capacity = room.capacity === 3 ? 3 : 2;
 
   if (room.status === "waiting") {
     if (now - room.createdAt.getTime() > RACE_QUEUE_TIMEOUT_MS) {
@@ -54,17 +100,14 @@ export async function advanceRaceRoom(roomId: string) {
 
   if (room.status === "countdown") {
     const ends = room.countdownEndsAt?.getTime() ?? 0;
-    if (now >= ends && room.guestUserId) {
-      const state = createRaceState(room.seed, room.hostUserId, room.guestUserId);
+    if (now >= ends && players.length >= capacity) {
+      const state = createRaceState(room.seed, players);
       return prisma.reactionRaceRoom.update({
         where: { id: roomId },
         data: {
           status: "racing",
           state: state as unknown as Prisma.InputJsonValue,
-          inputs: {
-            [room.hostUserId]: { ...EMPTY_KEYS, at: now },
-            [room.guestUserId]: { ...EMPTY_KEYS, at: now },
-          },
+          inputs: emptyInputsFor(players, now) as unknown as Prisma.InputJsonValue,
         },
       });
     }
@@ -74,17 +117,17 @@ export async function advanceRaceRoom(roomId: string) {
   if (room.status !== "racing") return room;
 
   let state = asState(room.state);
-  if (!state || !room.guestUserId) return room;
+  if (!state || players.length < 2) return room;
 
   const inputs = asInputs(room.inputs);
   const elapsed = now - (state.startedAt || room.updatedAt.getTime());
   const targetTick = Math.floor(elapsed / RACE_TICK_MS);
   const dt = Math.max(0, Math.min(40, targetTick - state.tick));
   if (dt > 0) {
-    const cleanInputs: Record<string, RaceKeys> = {
-      [room.hostUserId]: inputs[room.hostUserId] || EMPTY_KEYS,
-      [room.guestUserId]: inputs[room.guestUserId] || EMPTY_KEYS,
-    };
+    const cleanInputs: Record<string, RaceKeys> = {};
+    for (const id of players) {
+      cleanInputs[id] = inputs[id] || EMPTY_KEYS;
+    }
     state = tickRace(state, cleanInputs, dt);
   }
 
@@ -104,33 +147,52 @@ export async function advanceRaceRoom(roomId: string) {
 async function applyRaceResult(roomId: string, state: RaceState) {
   return prisma.$transaction(async (tx) => {
     const room = await tx.reactionRaceRoom.findUnique({ where: { id: roomId } });
-    if (!room || room.ratingApplied || !room.guestUserId || !state.winnerUserId) {
+    if (!room || room.ratingApplied || !state.winnerUserId) {
       return room;
     }
 
-    const [host, guest] = await Promise.all([
-      tx.user.findUnique({
-        where: { id: room.hostUserId },
-        select: { id: true, raceRating: true },
-      }),
-      tx.user.findUnique({
-        where: { id: room.guestUserId },
-        select: { id: true, raceRating: true },
-      }),
-    ]);
-    if (!host || !guest) return room;
+    const players = roomPlayerIds(room);
+    if (!players.includes(state.winnerUserId) || players.length < 2) {
+      return room;
+    }
 
-    const hostWon = state.winnerUserId === host.id;
-    const elo = raceEloDelta(host.raceRating, guest.raceRating, hostWon);
+    const users = await tx.user.findMany({
+      where: { id: { in: players } },
+      select: { id: true, raceRating: true },
+    });
+    if (users.length !== players.length) return room;
 
-    await tx.user.update({
-      where: { id: host.id },
-      data: { raceRating: elo.nextA },
-    });
-    await tx.user.update({
-      where: { id: guest.id },
-      data: { raceRating: elo.nextB },
-    });
+    const byId = new Map(users.map((u) => [u.id, u.raceRating]));
+    const winnerId = state.winnerUserId;
+    const losers = players.filter((id) => id !== winnerId);
+    const deltas = new Map<string, number>();
+    for (const id of players) deltas.set(id, 0);
+
+    // FFA: winner vs each loser (на стартовых рейтингах), средний прирост у победителя
+    let winSum = 0;
+    for (const loserId of losers) {
+      const elo = raceEloDelta(byId.get(winnerId)!, byId.get(loserId)!, true);
+      winSum += elo.deltaA;
+      deltas.set(loserId, (deltas.get(loserId) || 0) + elo.deltaB);
+    }
+    deltas.set(winnerId, Math.round(winSum / losers.length));
+
+    const entries: RatingEntry[] = [];
+    for (const id of players) {
+      const before = byId.get(id)!;
+      const delta = deltas.get(id) || 0;
+      const after = Math.max(RACE_RATING_FLOOR, before + delta);
+      entries.push({ userId: id, before, delta: after - before, after });
+      await tx.user.update({
+        where: { id },
+        data: { raceRating: after },
+      });
+    }
+
+    const hostEntry = entries.find((e) => e.userId === room.hostUserId);
+    const guestEntry = room.guestUserId
+      ? entries.find((e) => e.userId === room.guestUserId)
+      : null;
 
     return tx.reactionRaceRoom.update({
       where: { id: roomId },
@@ -140,34 +202,51 @@ async function applyRaceResult(roomId: string, state: RaceState) {
         ratingApplied: true,
         state: state as unknown as Prisma.InputJsonValue,
         ratingResult: {
-          beforeHost: host.raceRating,
-          beforeGuest: guest.raceRating,
-          deltaHost: elo.deltaA,
-          deltaGuest: elo.deltaB,
-          afterHost: elo.nextA,
-          afterGuest: elo.nextB,
+          entries,
+          // совместимость со старым UI 1v1
+          beforeHost: hostEntry?.before ?? null,
+          beforeGuest: guestEntry?.before ?? null,
+          deltaHost: hostEntry?.delta ?? null,
+          deltaGuest: guestEntry?.delta ?? null,
+          afterHost: hostEntry?.after ?? null,
+          afterGuest: guestEntry?.after ?? null,
         },
       },
     });
   });
 }
 
-export async function joinRaceQueue(userId: string) {
-  // cancel stale waiting by this user
+function freeSlotData(
+  room: ReactionRaceRoom,
+  userId: string
+): { guestUserId?: string; guest2UserId?: string } | null {
+  if (room.hostUserId === userId) return null;
+  if (room.guestUserId === userId || room.guest2UserId === userId) return null;
+  if (!room.guestUserId) return { guestUserId: userId };
+  const capacity = room.capacity === 3 ? 3 : 2;
+  if (capacity >= 3 && !room.guest2UserId) return { guest2UserId: userId };
+  return null;
+}
+
+export async function joinRaceQueue(userId: string, capacity: RaceCapacity = 2) {
   await prisma.reactionRaceRoom.updateMany({
     where: {
       status: "waiting",
       hostUserId: userId,
       guestUserId: null,
+      guest2UserId: null,
     },
     data: { status: "cancelled" },
   });
 
-  // already in active match?
   const existing = await prisma.reactionRaceRoom.findFirst({
     where: {
       status: { in: ["waiting", "countdown", "racing"] },
-      OR: [{ hostUserId: userId }, { guestUserId: userId }],
+      OR: [
+        { hostUserId: userId },
+        { guestUserId: userId },
+        { guest2UserId: userId },
+      ],
     },
     orderBy: { createdAt: "desc" },
   });
@@ -175,24 +254,36 @@ export async function joinRaceQueue(userId: string) {
     return advanceRaceRoom(existing.id);
   }
 
-  // find open waiting room
-  const open = await prisma.reactionRaceRoom.findFirst({
+  const openRooms = await prisma.reactionRaceRoom.findMany({
     where: {
       status: "waiting",
-      guestUserId: null,
+      capacity,
       hostUserId: { not: userId },
       createdAt: { gt: new Date(Date.now() - RACE_QUEUE_TIMEOUT_MS) },
     },
     orderBy: { createdAt: "asc" },
+    take: 20,
   });
 
-  if (open) {
+  for (const open of openRooms) {
+    const slot = freeSlotData(open, userId);
+    if (!slot) continue;
+
+    const nextGuest = slot.guestUserId ?? open.guestUserId;
+    const nextGuest2 = slot.guest2UserId ?? open.guest2UserId;
+    const filled = [open.hostUserId, nextGuest, nextGuest2].filter(Boolean).length;
+    const full = filled >= capacity;
+
     const updated = await prisma.reactionRaceRoom.update({
       where: { id: open.id },
       data: {
-        guestUserId: userId,
-        status: "countdown",
-        countdownEndsAt: new Date(Date.now() + RACE_COUNTDOWN_MS),
+        ...slot,
+        ...(full
+          ? {
+              status: "countdown",
+              countdownEndsAt: new Date(Date.now() + RACE_COUNTDOWN_MS),
+            }
+          : {}),
       },
     });
     return advanceRaceRoom(updated.id);
@@ -201,21 +292,45 @@ export async function joinRaceQueue(userId: string) {
   return prisma.reactionRaceRoom.create({
     data: {
       status: "waiting",
-      seed: Math.floor(Math.random() * 1_000_000_000),
+      seed:
+        Math.floor(Math.random() * RACE_MAPS.length) +
+        Math.floor(Math.random() * 1000) * RACE_MAPS.length,
       hostUserId: userId,
+      capacity,
     },
   });
 }
 
 export async function leaveRaceQueue(userId: string) {
-  await prisma.reactionRaceRoom.updateMany({
+  const waiting = await prisma.reactionRaceRoom.findMany({
     where: {
       status: "waiting",
-      hostUserId: userId,
-      guestUserId: null,
+      OR: [
+        { hostUserId: userId },
+        { guestUserId: userId },
+        { guest2UserId: userId },
+      ],
     },
-    data: { status: "cancelled" },
   });
+
+  for (const room of waiting) {
+    if (room.hostUserId === userId) {
+      await prisma.reactionRaceRoom.update({
+        where: { id: room.id },
+        data: { status: "cancelled" },
+      });
+      continue;
+    }
+    const data: { guestUserId?: null; guest2UserId?: null } = {};
+    if (room.guestUserId === userId) data.guestUserId = null;
+    if (room.guest2UserId === userId) data.guest2UserId = null;
+    if (Object.keys(data).length) {
+      await prisma.reactionRaceRoom.update({
+        where: { id: room.id },
+        data,
+      });
+    }
+  }
 }
 
 export async function setRaceInput(
@@ -225,7 +340,7 @@ export async function setRaceInput(
 ) {
   const room = await prisma.reactionRaceRoom.findUnique({ where: { id: roomId } });
   if (!room) return null;
-  if (room.hostUserId !== userId && room.guestUserId !== userId) return null;
+  if (!isInRaceRoom(room, userId)) return null;
   if (room.status !== "racing" && room.status !== "countdown") {
     return advanceRaceRoom(roomId);
   }
@@ -245,16 +360,42 @@ export function publicRaceView(
 ) {
   if (!room) return null;
   const state = asState(room.state);
+  const capacity = room.capacity === 3 ? 3 : 2;
   return {
     id: room.id,
     status: room.status,
     seed: room.seed,
+    capacity,
     hostUserId: room.hostUserId,
     guestUserId: room.guestUserId,
+    guest2UserId: room.guest2UserId,
+    playerIds: roomPlayerIds(room),
     winnerUserId: room.winnerUserId,
     countdownEndsAt: room.countdownEndsAt?.toISOString() ?? null,
     youAreHost: room.hostUserId === viewerId,
     state,
     ratingResult: room.ratingResult,
   };
+}
+
+export async function loadRacePeers(room: {
+  hostUserId: string;
+  guestUserId: string | null;
+  guest2UserId?: string | null;
+}) {
+  const ids = roomPlayerIds(room);
+  if (!ids.length) return [];
+  const users = await prisma.user.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, nick: true, steamName: true, raceRating: true },
+  });
+  const byId = new Map(users.map((u) => [u.id, u]));
+  return ids.map((id) => {
+    const u = byId.get(id);
+    return {
+      userId: id,
+      nick: u?.nick || u?.steamName || "Игрок",
+      raceRating: u?.raceRating ?? 1000,
+    };
+  });
 }

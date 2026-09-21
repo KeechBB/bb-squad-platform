@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import {
   advanceRaceRoom,
   getAuthUserId,
+  isInRaceRoom,
+  loadRacePeers,
   publicRaceView,
   setRaceInput,
 } from "@/lib/raceMatch";
@@ -71,33 +73,26 @@ export async function GET(req: Request) {
   if (!room) {
     return NextResponse.json({ error: "Нет комнаты" }, { status: 404 });
   }
-  if (room.hostUserId !== user.id && room.guestUserId !== user.id) {
+  if (!isInRaceRoom(room, user.id)) {
     return NextResponse.json({ error: "Чужая комната" }, { status: 403 });
   }
 
   const advanced = await advanceRaceRoom(roomId);
-  const host = await prisma.user.findUnique({
-    where: { id: advanced!.hostUserId },
-    select: { nick: true, steamName: true, raceRating: true },
-  });
+  const players = advanced ? await loadRacePeers(advanced) : [];
+  const host = players.find((p) => p.userId === advanced!.hostUserId) || null;
   const guest = advanced?.guestUserId
-    ? await prisma.user.findUnique({
-        where: { id: advanced.guestUserId },
-        select: { nick: true, steamName: true, raceRating: true },
-      })
+    ? players.find((p) => p.userId === advanced.guestUserId) || null
     : null;
 
   return NextResponse.json({
     ok: true,
     room: publicRaceView(advanced, user.id),
+    players,
     host: host
-      ? { nick: host.nick || host.steamName || "Игрок", raceRating: host.raceRating }
+      ? { nick: host.nick, raceRating: host.raceRating }
       : null,
     guest: guest
-      ? {
-          nick: guest.nick || guest.steamName || "Игрок",
-          raceRating: guest.raceRating,
-        }
+      ? { nick: guest.nick, raceRating: guest.raceRating }
       : null,
     myRating: user.raceRating,
   });

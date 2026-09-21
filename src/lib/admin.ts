@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import {
   assignableRoles,
-  parseRole,
   type AppRole,
 } from "@/lib/roles";
 

@@ -162,11 +162,6 @@ function wasPresentTr1(row: Row, dayYmd: string): boolean {
   return isTrainingPresentMinutes(eveningMinutesForDay(row.cells[dayYmd] || [], dayYmd));
 }
 
-/** Сессия пересекается с окном тренировки 21:00–00:00 МСК */
-function overlapsEveningWindow(c: Cell, dayYmd: string): boolean {
-  return eveningOverlapMinutes(c, dayYmd) > 0;
-}
-
 function todayYmdMsk(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Moscow" });
 }

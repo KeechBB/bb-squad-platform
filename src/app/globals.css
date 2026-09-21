@@ -3993,10 +3993,23 @@ body {
   flex-wrap: wrap;
 }
 
+.kart-duel-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.kart-duel-capacity {
+  display: inline-flex;
+  gap: 6px;
+}
+
 .kart-duel-peers {
   display: flex;
-  gap: 12px;
+  gap: 4px;
   align-items: center;
+  flex-wrap: wrap;
   font-size: 0.95rem;
 }
 
