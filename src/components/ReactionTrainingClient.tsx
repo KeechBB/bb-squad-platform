@@ -39,7 +39,7 @@ type GlobalRecord = {
   nick: string;
 };
 
-type Phase = "idle" | "wait" | "ready" | "play" | "done";
+type Phase = "idle" | "countdown" | "wait" | "ready" | "play" | "done";
 type Level = ReactionLevel;
 type PageView = "train" | "rating";
 
@@ -166,6 +166,7 @@ export function ReactionTrainingClient() {
   const [l3Hits, setL3Hits] = useState(0);
   const [l3Misses, setL3Misses] = useState(0);
   const [l3LeftMs, setL3LeftMs] = useState(REACTION_L3_DURATION_MS);
+  const [countdownLabel, setCountdownLabel] = useState<string | null>(null);
   const [ratingRows, setRatingRows] = useState<RatingRow[]>([]);
   const [ratingLoading, setRatingLoading] = useState(false);
   const [ratingSortKey, setRatingSortKey] = useState<RatingSortKey>("bestL1");
@@ -175,6 +176,7 @@ export function ReactionTrainingClient() {
   const levelRef = useRef<Level>(1);
   const appearAtRef = useRef(0);
   const timerRef = useRef<number | null>(null);
+  const countdownTimerRef = useRef<number | null>(null);
   const spawnTimerRef = useRef<number | null>(null);
   const endTimerRef = useRef<number | null>(null);
   const tickTimerRef = useRef<number | null>(null);
@@ -212,6 +214,14 @@ export function ReactionTrainingClient() {
       window.clearTimeout(timerRef.current);
       timerRef.current = null;
     }
+  };
+
+  const clearCountdown = () => {
+    if (countdownTimerRef.current != null) {
+      window.clearTimeout(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+    setCountdownLabel(null);
   };
 
   const clearL3Timers = () => {
@@ -301,6 +311,7 @@ export function ReactionTrainingClient() {
       window.clearInterval(presenceId);
       window.clearInterval(liveId);
       clearTimer();
+      clearCountdown();
       clearL3Timers();
     };
   }, [pingPresence, loadLive]);
@@ -340,7 +351,7 @@ export function ReactionTrainingClient() {
 
   function startSeries() {
     if (levelRef.current === 3) {
-      startL3();
+      beginL3Countdown();
       return;
     }
     setAttempts([]);
@@ -348,6 +359,39 @@ export function ReactionTrainingClient() {
     setLastAvg(null);
     setMsg("");
     startAttempt();
+  }
+
+  function beginL3Countdown() {
+    clearTimer();
+    clearCountdown();
+    clearL3Timers();
+    setAttempts([]);
+    setCircle(null);
+    setLastAvg(null);
+    setMsg("");
+    setL3Balls([]);
+    l3BallsRef.current = [];
+    setL3Score(0);
+    setL3Hits(0);
+    setL3Misses(0);
+    setL3LeftMs(REACTION_L3_DURATION_MS);
+    setPhase("countdown");
+
+    const steps = ["3", "2", "1", "СТАРТ"];
+    let i = 0;
+    const tick = () => {
+      if (i >= steps.length) {
+        clearCountdown();
+        startL3();
+        return;
+      }
+      setCountdownLabel(steps[i]);
+      i += 1;
+      // цифры по 1 с, «СТАРТ» короче
+      const delay = i === steps.length ? 450 : 1000;
+      countdownTimerRef.current = window.setTimeout(tick, delay);
+    };
+    tick();
   }
 
   function pruneL3Balls(now = performance.now()) {
@@ -398,6 +442,7 @@ export function ReactionTrainingClient() {
 
   function startL3() {
     clearTimer();
+    clearCountdown();
     clearL3Timers();
     setAttempts([]);
     setCircle(null);
@@ -437,6 +482,7 @@ export function ReactionTrainingClient() {
   function selectLevel(lv: Level) {
     if (phase !== "idle" && phase !== "done") return;
     clearTimer();
+    clearCountdown();
     clearL3Timers();
     setView("train");
     setLevel(lv);
@@ -474,6 +520,7 @@ export function ReactionTrainingClient() {
   function openRating() {
     if (phase !== "idle" && phase !== "done") return;
     clearTimer();
+    clearCountdown();
     clearL3Timers();
     setView("rating");
     setPhase("idle");
@@ -725,7 +772,10 @@ export function ReactionTrainingClient() {
   }
 
   const busy =
-    phase === "wait" || phase === "ready" || phase === "play";
+    phase === "countdown" ||
+    phase === "wait" ||
+    phase === "ready" ||
+    phase === "play";
   const attemptNo = Math.min(
     attempts.length + (phase === "done" || phase === "idle" ? 0 : 1),
     REACTION_ATTEMPTS
@@ -1017,6 +1067,7 @@ export function ReactionTrainingClient() {
                   className="btn ghost"
                   onClick={() => {
                     clearTimer();
+                    clearCountdown();
                     clearL3Timers();
                     setPhase("idle");
                     setCircle(null);
@@ -1032,9 +1083,11 @@ export function ReactionTrainingClient() {
               )}
               {level === 3 ? (
                 <span className="muted">
-                  {phase === "play"
-                    ? `${l3SecLeft} с · ${formatScore(l3Score)} оч.`
-                    : "30 секунд · +10 / −5"}
+                  {phase === "countdown"
+                    ? "Отсчёт…"
+                    : phase === "play"
+                      ? `${l3SecLeft} с · ${formatScore(l3Score)} оч.`
+                      : "30 секунд · +10 / −5"}
                 </span>
               ) : (
                 <span className="muted">
@@ -1076,7 +1129,17 @@ export function ReactionTrainingClient() {
                   ? "Ур. 1 — шарик всегда в центре. Нажми «Старт» и жди кружок."
                   : level === 2
                     ? "Ур. 2 — большой шарик в случайном месте. Нажми «Старт»."
-                    : "Ур. 3 — 30 секунд волны шариков. Попадание +10, промах −5."}
+                    : "Ур. 3 — 30 секунд волны шариков. Перед стартом отсчёт 3–2–1."}
+              </p>
+            ) : null}
+            {phase === "countdown" && countdownLabel ? (
+              <p
+                className={`reaction-countdown${
+                  countdownLabel === "СТАРТ" ? " is-go" : ""
+                }`}
+                aria-live="assertive"
+              >
+                {countdownLabel}
               </p>
             ) : null}
             {phase === "wait" ? (

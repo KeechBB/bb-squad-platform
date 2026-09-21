@@ -3955,6 +3955,38 @@ body {
   padding: 20px;
 }
 
+.reaction-countdown {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  pointer-events: none;
+  font-size: clamp(4.5rem, 14vw, 7.5rem);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #e9d5ff;
+  text-shadow: 0 0 28px rgba(167, 139, 250, 0.55);
+  animation: reaction-countdown-pop 0.35s ease-out;
+}
+
+.reaction-countdown.is-go {
+  font-size: clamp(3.2rem, 10vw, 5.5rem);
+  color: #86efac;
+  text-shadow: 0 0 28px rgba(34, 197, 94, 0.45);
+}
+
+@keyframes reaction-countdown-pop {
+  from {
+    opacity: 0.35;
+    transform: scale(0.72);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .reaction-dot {
   position: absolute;
   width: 78px;
