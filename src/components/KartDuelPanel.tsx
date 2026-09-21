@@ -597,10 +597,11 @@ export function KartDuelPanel() {
         roomIdRef.current = data.room.id;
         statusRef.current = data.room.status;
         if (data.room.state) {
-          serverStateRef.current = data.room.state;
+          const st = data.room.state as RaceState;
+          serverStateRef.current = st;
           localStateRef.current = {
-            ...data.room.state,
-            cars: data.room.state.cars.map((c) => ({ ...c })),
+            ...st,
+            cars: st.cars.map((c) => ({ ...c })),
           };
           simAccRef.current = 0;
         }
