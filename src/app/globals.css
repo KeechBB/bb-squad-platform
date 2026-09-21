@@ -3286,13 +3286,13 @@ body:has(.home-page) {
 
 /* ??? Mobile only (?? ?? ???????????) ??? */
 @media (max-width: 720px) {
-  html,
-  body {
+html,
+body {
     overflow-x: clip;
     max-width: 100%;
-  }
+}
 
-  body {
+body {
     background-attachment: scroll;
   }
 
@@ -3521,7 +3521,7 @@ body:has(.home-page) {
   }
 
   .cw-embed {
-    margin: 0;
+  margin: 0;
     height: calc(100dvh - 120px);
     min-height: 420px;
     border-radius: 12px;
@@ -3627,10 +3627,10 @@ body:has(.home-page) {
 
 .reaction-tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
-  flex: 1 1 520px;
-  max-width: 860px;
+  flex: 1 1 640px;
+  max-width: 1100px;
 }
 
 .reaction-tabs-row {
@@ -3639,6 +3639,88 @@ body:has(.home-page) {
   align-items: stretch;
   gap: 12px;
   justify-content: space-between;
+}
+
+.reaction-rating-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 420px;
+  text-align: center;
+}
+
+.reaction-rating-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+}
+
+.reaction-rating-head h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.reaction-rating-wrap {
+  max-height: min(22rem, 52vh);
+  overflow: auto;
+  border: 1px solid rgba(167, 139, 250, 0.18);
+  border-radius: 12px;
+}
+
+.reaction-rating-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.reaction-rating-table th,
+.reaction-rating-table td {
+  padding: 10px 8px;
+  text-align: center;
+  vertical-align: middle;
+  border-bottom: 1px solid rgba(167, 139, 250, 0.12);
+}
+
+.reaction-rating-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #14101f;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.reaction-rating-table tbody tr:hover td {
+  background: rgba(167, 139, 250, 0.06);
+}
+
+.reaction-rating-sort {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: center;
+}
+
+.reaction-rating-sort.is-sorted {
+  color: #c4b5fd;
+}
+
+.reaction-rating-table .player-nick-link {
+  justify-content: center;
 }
 
 .reaction-records {
@@ -4271,6 +4353,10 @@ body:has(.home-page) {
     max-width: none;
     width: 100%;
     flex: 1 1 auto;
+  }
+
+  .reaction-tabs {
+    grid-template-columns: 1fr 1fr;
   }
 
   .reaction-board,

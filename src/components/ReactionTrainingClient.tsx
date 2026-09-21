@@ -41,6 +41,27 @@ type GlobalRecord = {
 
 type Phase = "idle" | "wait" | "ready" | "play" | "done";
 type Level = ReactionLevel;
+type PageView = "train" | "rating";
+
+type RatingRow = {
+  userId: string;
+  nick: string;
+  bestL1: number | null;
+  runsL1: number;
+  bestL2: number | null;
+  runsL2: number;
+  bestL3: number | null;
+  runsL3: number;
+};
+
+type RatingSortKey =
+  | "nick"
+  | "bestL1"
+  | "runsL1"
+  | "bestL2"
+  | "runsL2"
+  | "bestL3"
+  | "runsL3";
 
 type SessionSeries = {
   id: number;
@@ -106,6 +127,7 @@ function formatResult(level: Level, value: number | null) {
 }
 
 export function ReactionTrainingClient() {
+  const [view, setView] = useState<PageView>("train");
   const [level, setLevel] = useState<Level>(1);
   const [phase, setPhase] = useState<Phase>("idle");
   const [attempts, setAttempts] = useState<number[]>([]);
@@ -132,6 +154,10 @@ export function ReactionTrainingClient() {
   const [l3Hits, setL3Hits] = useState(0);
   const [l3Misses, setL3Misses] = useState(0);
   const [l3LeftMs, setL3LeftMs] = useState(REACTION_L3_DURATION_MS);
+  const [ratingRows, setRatingRows] = useState<RatingRow[]>([]);
+  const [ratingLoading, setRatingLoading] = useState(false);
+  const [ratingSortKey, setRatingSortKey] = useState<RatingSortKey>("bestL1");
+  const [ratingSortDir, setRatingSortDir] = useState<"asc" | "desc">("asc");
 
   const phaseRef = useRef<Phase>("idle");
   const levelRef = useRef<Level>(1);
@@ -400,6 +426,7 @@ export function ReactionTrainingClient() {
     if (phase !== "idle" && phase !== "done") return;
     clearTimer();
     clearL3Timers();
+    setView("train");
     setLevel(lv);
     setAttempts([]);
     setMissFlags([]);
@@ -414,6 +441,72 @@ export function ReactionTrainingClient() {
     setL3LeftMs(REACTION_L3_DURATION_MS);
     setPhase("idle");
   }
+
+  async function loadLeaderboard() {
+    setRatingLoading(true);
+    try {
+      const res = await fetch("/api/reaction/leaderboard", { cache: "no-store" });
+      const data = await res.json().catch(() => null);
+      if (res.ok && Array.isArray(data?.rows)) {
+        setRatingRows(data.rows as RatingRow[]);
+      } else {
+        setRatingRows([]);
+      }
+    } catch {
+      setRatingRows([]);
+    } finally {
+      setRatingLoading(false);
+    }
+  }
+
+  function openRating() {
+    if (phase !== "idle" && phase !== "done") return;
+    clearTimer();
+    clearL3Timers();
+    setView("rating");
+    setPhase("idle");
+    setCircle(null);
+    setL3Balls([]);
+    l3BallsRef.current = [];
+    setMsg("");
+    void loadLeaderboard();
+  }
+
+  function toggleRatingSort(key: RatingSortKey) {
+    if (ratingSortKey === key) {
+      setRatingSortDir((d) => (d === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setRatingSortKey(key);
+    // время — сначала лучшие (asc); очки и счётчики — сначала больше (desc); ник — A→Я
+    if (key === "bestL1" || key === "bestL2" || key === "nick") {
+      setRatingSortDir("asc");
+    } else {
+      setRatingSortDir("desc");
+    }
+  }
+
+  const sortedRatingRows = (() => {
+    const dir = ratingSortDir === "asc" ? 1 : -1;
+    const rows = ratingRows.slice();
+    rows.sort((a, b) => {
+      if (ratingSortKey === "nick") {
+        return dir * String(a.nick).localeCompare(String(b.nick), "ru");
+      }
+      const av = a[ratingSortKey];
+      const bv = b[ratingSortKey];
+      const aNull = av == null;
+      const bNull = bv == null;
+      if (aNull && bNull) return 0;
+      if (aNull) return 1;
+      if (bNull) return -1;
+      const an = Number(av);
+      const bn = Number(bv);
+      if (an === bn) return String(a.nick).localeCompare(String(b.nick), "ru");
+      return dir * (an - bn);
+    });
+    return rows;
+  })();
 
   function recordAttempt(ms: number, missed: boolean) {
     const next = [...attempts, ms];
@@ -621,8 +714,8 @@ export function ReactionTrainingClient() {
           <button
             type="button"
             role="tab"
-            aria-selected={level === 1}
-            className={`reaction-tab${level === 1 ? " active" : ""}`}
+            aria-selected={view === "train" && level === 1}
+            className={`reaction-tab${view === "train" && level === 1 ? " active" : ""}`}
             disabled={busy || saving}
             onClick={() => selectLevel(1)}
           >
@@ -632,8 +725,8 @@ export function ReactionTrainingClient() {
           <button
             type="button"
             role="tab"
-            aria-selected={level === 2}
-            className={`reaction-tab${level === 2 ? " active" : ""}`}
+            aria-selected={view === "train" && level === 2}
+            className={`reaction-tab${view === "train" && level === 2 ? " active" : ""}`}
             disabled={busy || saving}
             onClick={() => selectLevel(2)}
           >
@@ -643,16 +736,28 @@ export function ReactionTrainingClient() {
           <button
             type="button"
             role="tab"
-            aria-selected={level === 3}
-            className={`reaction-tab${level === 3 ? " active" : ""}`}
+            aria-selected={view === "train" && level === 3}
+            className={`reaction-tab${view === "train" && level === 3 ? " active" : ""}`}
             disabled={busy || saving}
             onClick={() => selectLevel(3)}
           >
             <strong>3 уровень</strong>
             <span>волна шариков · очки</span>
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === "rating"}
+            className={`reaction-tab${view === "rating" ? " active" : ""}`}
+            disabled={busy || saving}
+            onClick={() => openRating()}
+          >
+            <strong>Рейтинг</strong>
+            <span>общий по игрокам</span>
+          </button>
         </div>
 
+        {view === "train" ? (
         <div className="reaction-records" aria-label="Рекорды клана">
           <div className="reaction-record-card">
             <span className="muted">Рекорд · 1 ур</span>
@@ -703,8 +808,107 @@ export function ReactionTrainingClient() {
             </span>
           </div>
         </div>
+        ) : null}
       </div>
 
+      {view === "rating" ? (
+        <section className="card reaction-rating-panel">
+          <div className="reaction-rating-head">
+            <div>
+              <h2>Общий рейтинг</h2>
+              <p className="muted" style={{ margin: "4px 0 0" }}>
+                Все, кто проходил тренировку · клик по столбцу — сортировка
+              </p>
+            </div>
+            <button
+              type="button"
+              className="btn ghost"
+              disabled={ratingLoading}
+              onClick={() => void loadLeaderboard()}
+            >
+              {ratingLoading ? "Обновляем…" : "Обновить"}
+            </button>
+          </div>
+          <div className="reaction-rating-wrap">
+            <table className="reaction-rating-table">
+              <thead>
+                <tr>
+                  {(
+                    [
+                      ["nick", "Ник"],
+                      ["bestL1", "1 ур · рекорд"],
+                      ["runsL1", "1 ур · попытки"],
+                      ["bestL2", "2 ур · рекорд"],
+                      ["runsL2", "2 ур · попытки"],
+                      ["bestL3", "3 ур · рекорд"],
+                      ["runsL3", "3 ур · попытки"],
+                    ] as const
+                  ).map(([key, label]) => {
+                    const active = ratingSortKey === key;
+                    const arrow = active
+                      ? ratingSortDir === "asc"
+                        ? " ▲"
+                        : " ▼"
+                      : "";
+                    return (
+                      <th key={key}>
+                        <button
+                          type="button"
+                          className={`reaction-rating-sort${active ? " is-sorted" : ""}`}
+                          onClick={() => toggleRatingSort(key)}
+                        >
+                          {label}
+                          {arrow}
+                        </button>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {ratingLoading && ratingRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="muted">
+                      Загружаем…
+                    </td>
+                  </tr>
+                ) : sortedRatingRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="muted">
+                      Пока никто не играл
+                    </td>
+                  </tr>
+                ) : (
+                  sortedRatingRows.map((r) => (
+                    <tr key={r.userId}>
+                      <td>
+                        <Link
+                          className="player-nick-link"
+                          href={`/players/${encodeURIComponent(r.nick)}`}
+                        >
+                          {r.nick}
+                        </Link>
+                      </td>
+                      <td>
+                        {r.bestL1 != null ? `${formatSec3(r.bestL1)} с` : "—"}
+                      </td>
+                      <td>{r.runsL1 || "—"}</td>
+                      <td>
+                        {r.bestL2 != null ? `${formatSec3(r.bestL2)} с` : "—"}
+                      </td>
+                      <td>{r.runsL2 || "—"}</td>
+                      <td>
+                        {r.bestL3 != null ? `${formatScore(r.bestL3)} оч.` : "—"}
+                      </td>
+                      <td>{r.runsL3 || "—"}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : (
       <div className="reaction-layout">
         <aside className="reaction-board card">
           <h2>Сейчас на вкладке</h2>
@@ -947,6 +1151,7 @@ export function ReactionTrainingClient() {
           <ReactionAimChat />
         </div>
       </div>
+      )}
     </div>
   );
 }
