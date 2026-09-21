@@ -764,7 +764,7 @@ a:hover { color: #c4b5fd; }
 
 .profile-kv-table-wrap {
   margin-top: 4px;
-  max-height: 280px;
+  max-height: 15.5rem;
   overflow: auto;
   border: 1px solid rgba(167, 139, 250, 0.12);
   border-radius: 10px;
@@ -862,20 +862,26 @@ a:hover { color: #c4b5fd; }
 }
 
 .profile-page .training-sessions-card .admin-table-wrap {
-  margin-top: auto;
-  flex: 1 1 auto;
-  min-height: 180px;
-  max-height: none;
+  margin-top: 8px;
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 15.5rem; /* ~6?7 ????? + ????? */
   overflow: auto;
   border: 1px solid rgba(167, 139, 250, 0.12);
   border-radius: 10px;
 }
 
 .profile-page .profile-kv-table-wrap {
-  flex: 1 1 auto;
-  min-height: 180px;
-  max-height: none;
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 15.5rem; /* ~6?7 ????? + ????? */
   overflow: auto;
+}
+
+.profile-area-training > .reaction-profile-card {
+  flex: 0 0 auto;
+  max-width: none;
+  width: 100%;
 }
 
 .profile-page .training-sessions-table {

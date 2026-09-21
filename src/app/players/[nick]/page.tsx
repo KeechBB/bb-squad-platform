@@ -130,102 +130,89 @@ export default async function PlayerProfilePage({ params }: Props) {
   return (
     <main className="profile-page">
       <div className="profile-area-head">
-        <section className="card profile-head-public">
-          <div className="profile-head-row">
-            {avatar ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                className="profile-avatar"
-                src={avatar}
-                alt=""
-                width={176}
-                height={176}
-              />
-            ) : (
-              <div className="profile-avatar profile-avatar-fallback">
-                {(user.nick || "?").slice(0, 1)}
+        <div className="profile-head-cluster">
+          <section className="card profile-head-public">
+            <div className="profile-head-row">
+              {avatar ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  className="profile-avatar"
+                  src={avatar}
+                  alt=""
+                  width={176}
+                  height={176}
+                />
+              ) : (
+                <div className="profile-avatar profile-avatar-fallback">
+                  {(user.nick || "?").slice(0, 1)}
+                </div>
+              )}
+              <div className="profile-head-text">
+                <p className="eyebrow">профиль игрока</p>
+                <div className="profile-head-title-row">
+                  <h1>{user.nick}</h1>
+                  <SitePresenceBadge lastSeenAt={user.lastSeenAt} />
+                </div>
+                <p className="muted">{user.name || "—"}</p>
+                <p style={{ marginTop: 10 }}>
+                  <Link className="kv-link" href="/clans" style={{ marginTop: 0 }}>
+                    ← К кланам
+                  </Link>
+                </p>
               </div>
-            )}
-            <div className="profile-head-text">
-              <p className="eyebrow">профиль игрока</p>
-              <div className="profile-head-title-row">
-                <h1>{user.nick}</h1>
-                <SitePresenceBadge lastSeenAt={user.lastSeenAt} />
-              </div>
-              <p className="muted">{user.name || "—"}</p>
-              <p style={{ marginTop: 10 }}>
-                <Link className="kv-link" href="/clans" style={{ marginTop: 0 }}>
-                  ← К кланам
-                </Link>
+            </div>
+          </section>
+          {inReserve ? (
+            <section className="card reserve-banner">
+              <h2>В резерве</h2>
+              <p className="reserve-status">
+                До <strong>{formatRuDate(user.reserveUntil!)}</strong>
+                {user.reserveReason ? (
+                  <>
+                    .<br />
+                    <span className="muted">Причина: {user.reserveReason}</span>
+                  </>
+                ) : null}
               </p>
-            </div>
-          </div>
-        </section>
-      </div>
-
-      <div className="profile-area-side">
-        {inReserve ? (
-          <section className="card reserve-banner">
-            <h2>В резерве</h2>
-            <p className="reserve-status">
-              До <strong>{formatRuDate(user.reserveUntil!)}</strong>
-              {user.reserveReason ? (
-                <>
-                  .<br />
-                  <span className="muted">Причина: {user.reserveReason}</span>
-                </>
-              ) : null}
-            </p>
-          </section>
-        ) : null}
-        <ReactionBestCard
-          bestAvgMs={reactionBest?.avgMs ?? null}
-          bestL1={reactionBestL1?.avgMs ?? null}
-          bestL2={reactionBestL2?.avgMs ?? null}
-          bestL3={reactionBestL3?.avgMs ?? null}
-          history={reactionHistory.map((h) => ({
-            id: h.id,
-            avgMs: h.avgMs,
-            level: h.level,
-            createdAt: h.createdAt.toISOString(),
-          }))}
-        />
-        {user.clanMemberships.length > 0 ? (
-          <section className="card">
-            <h2>Клан</h2>
-            <div className="clan-list" style={{ marginTop: 8 }}>
-              {user.clanMemberships.map((m) => (
-                <Link key={m.id} className="clan-row" href={`/clans/${m.clan.id}`}>
-                  {m.clan.logoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      className="clan-row-logo"
-                      src={m.clan.logoUrl}
-                      alt=""
-                      width={40}
-                      height={40}
-                    />
-                  ) : (
-                    <div className="clan-row-logo clan-row-logo-empty">
-                      {m.clan.tag.slice(0, 2)}
+            </section>
+          ) : null}
+          {user.clanMemberships.length > 0 ? (
+            <section className="card profile-clan-card">
+              <h2>Клан</h2>
+              <div className="clan-list profile-clan-list">
+                {user.clanMemberships.map((m) => (
+                  <Link key={m.id} className="clan-row" href={`/clans/${m.clan.id}`}>
+                    {m.clan.logoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        className="clan-row-logo"
+                        src={m.clan.logoUrl}
+                        alt=""
+                        width={40}
+                        height={40}
+                      />
+                    ) : (
+                      <div className="clan-row-logo clan-row-logo-empty">
+                        {m.clan.tag.slice(0, 2)}
+                      </div>
+                    )}
+                    <div className="clan-row-body">
+                      <strong>
+                        [{m.clan.tag}] {m.clan.name}
+                      </strong>
+                      <span className="muted">
+                        {CLAN_ROLE_LABEL[m.role as ClanRole]}
+                        {m.title?.name ? ` · ${m.title.name}` : ""}
+                        {inReserve && m.role === "RESERVE" ? " · в резерве" : ""}
+                      </span>
                     </div>
-                  )}
-                  <div className="clan-row-body">
-                    <strong>
-                      [{m.clan.tag}] {m.clan.name}
-                    </strong>
-                    <span className="muted">
-                      {CLAN_ROLE_LABEL[m.role as ClanRole]}
-                      {m.title?.name ? ` · ${m.title.name}` : ""}
-                      {inReserve && m.role === "RESERVE" ? " · в резерве" : ""}
-                    </span>
-                  </div>
-                  <span className="clan-row-arrow">→</span>
-                </Link>
-              ))}
-            </div>
-          </section>
-        ) : null}
+                    <span className="clan-row-arrow">→</span>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </div>
       </div>
 
       <div className="profile-area-account">
@@ -297,6 +284,18 @@ export default async function PlayerProfilePage({ params }: Props) {
       </div>
 
       <div className="profile-area-training">
+        <ReactionBestCard
+          bestAvgMs={reactionBest?.avgMs ?? null}
+          bestL1={reactionBestL1?.avgMs ?? null}
+          bestL2={reactionBestL2?.avgMs ?? null}
+          bestL3={reactionBestL3?.avgMs ?? null}
+          history={reactionHistory.map((h) => ({
+            id: h.id,
+            avgMs: h.avgMs,
+            level: h.level,
+            createdAt: h.createdAt.toISOString(),
+          }))}
+        />
         <LivePageRefresh intervalMs={15000} />
         <TrainingSessionsCard
           sessions={training.sessions}
