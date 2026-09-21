@@ -428,6 +428,13 @@ export function KartDuelPanel() {
         setMsg(`В лобби ${have}/${need}…`);
       } else if (data.room.status === "countdown") {
         setMsg("Старт!");
+      } else if (data.room.status === "cancelled") {
+        setRoom(null);
+        setPlayers([]);
+        roomIdRef.current = null;
+        statusRef.current = null;
+        serverStateRef.current = null;
+        setMsg("Соперник отменил матч");
       } else {
         setMsg("");
       }
@@ -437,7 +444,9 @@ export function KartDuelPanel() {
       if (!alive || stateBusy) return;
       const id = roomIdRef.current;
       const status = statusRef.current;
-      if (!id || !status || status === "done" || status === "cancelled") return;
+      if (!id || !status || status === "done") return;
+      // cancelled обрабатываем один раз через applyRoom, потом id сбросится
+      if (status === "cancelled") return;
       stateBusy = true;
       try {
         if (status === "waiting") {
@@ -445,7 +454,17 @@ export function KartDuelPanel() {
             cache: "no-store",
           });
           const data = await res.json().catch(() => null);
-          if (alive && data) applyRoom(data);
+          if (!alive || !data) return;
+          if (!data.room) {
+            setRoom(null);
+            setPlayers([]);
+            roomIdRef.current = null;
+            statusRef.current = null;
+            serverStateRef.current = null;
+            setMsg("Лобби закрыто");
+            return;
+          }
+          applyRoom(data);
         } else {
           const res = await fetch(
             `/api/reaction/race/input?roomId=${encodeURIComponent(id)}`,
@@ -556,18 +575,19 @@ export function KartDuelPanel() {
     }
   }
 
-  async function cancelQueue() {
+  async function cancelMatch() {
+    const id = roomIdRef.current;
     await fetch("/api/reaction/race/queue", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "leave" }),
+      body: JSON.stringify({ action: "cancel", roomId: id }),
     });
     setRoom(null);
     setPlayers([]);
     roomIdRef.current = null;
     statusRef.current = null;
     serverStateRef.current = null;
-    setMsg("Очередь отменена");
+    setMsg("Матч отменён");
   }
 
   const countdownLeft =
@@ -629,13 +649,15 @@ export function KartDuelPanel() {
                 Играть
               </button>
             </>
-          ) : room.status === "waiting" ? (
+          ) : room.status === "waiting" ||
+            room.status === "countdown" ||
+            room.status === "racing" ? (
             <button
               type="button"
               className="btn"
-              onClick={() => void cancelQueue()}
+              onClick={() => void cancelMatch()}
             >
-              Отмена
+              {room.status === "waiting" ? "Отмена" : "Отменить матч"}
             </button>
           ) : null}
         </div>

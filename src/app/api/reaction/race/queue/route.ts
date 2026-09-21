@@ -3,9 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import {
   advanceRaceRoom,
+  cancelRaceMatch,
   getAuthUserId,
   joinRaceQueue,
-  leaveRaceQueue,
   loadRacePeers,
   normalizeCapacity,
   publicRaceView,
@@ -26,11 +26,13 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const action = body?.action === "leave" ? "leave" : "join";
+  const action =
+    body?.action === "leave" || body?.action === "cancel" ? "leave" : "join";
 
   if (action === "leave") {
-    await leaveRaceQueue(user.id);
-    return NextResponse.json({ ok: true, left: true });
+    const roomId = body?.roomId ? String(body.roomId) : undefined;
+    await cancelRaceMatch(user.id, roomId);
+    return NextResponse.json({ ok: true, left: true, cancelled: true });
   }
 
   const capacity = normalizeCapacity(body?.capacity);
@@ -71,17 +73,18 @@ export async function GET() {
 
   const room = await prisma.reactionRaceRoom.findFirst({
     where: {
-      status: { in: ["waiting", "countdown", "racing", "done"] },
+      status: { in: ["waiting", "countdown", "racing", "done", "cancelled"] },
       OR: [
         { hostUserId: user.id },
         { guestUserId: user.id },
         { guest2UserId: user.id },
       ],
+      updatedAt: { gt: new Date(Date.now() - 120_000) },
     },
     orderBy: { updatedAt: "desc" },
   });
 
-  if (!room || room.status === "done") {
+  if (!room || room.status === "done" || room.status === "cancelled") {
     if (room?.status === "done") {
       const advanced = await advanceRaceRoom(room.id);
       const players = advanced ? await loadRacePeers(advanced) : [];
@@ -89,6 +92,14 @@ export async function GET() {
         ok: true,
         room: publicRaceView(advanced, user.id),
         players,
+        myRating: user.raceRating,
+      });
+    }
+    if (room?.status === "cancelled") {
+      return NextResponse.json({
+        ok: true,
+        room: publicRaceView(room, user.id),
+        players: [],
         myRating: user.raceRating,
       });
     }

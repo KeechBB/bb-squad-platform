@@ -340,6 +340,58 @@ export async function leaveRaceQueue(userId: string) {
   }
 }
 
+/** Отмена активного матча (ожидание / countdown / гонка). Elo не трогаем. */
+export async function cancelRaceMatch(userId: string, roomId?: string) {
+  const room = roomId
+    ? await prisma.reactionRaceRoom.findUnique({ where: { id: roomId } })
+    : await prisma.reactionRaceRoom.findFirst({
+        where: {
+          status: { in: ["waiting", "countdown", "racing"] },
+          OR: [
+            { hostUserId: userId },
+            { guestUserId: userId },
+            { guest2UserId: userId },
+          ],
+        },
+        orderBy: { updatedAt: "desc" },
+      });
+
+  if (!room) {
+    await leaveRaceQueue(userId);
+    return null;
+  }
+  if (!isInRaceRoom(room, userId)) return null;
+  if (
+    room.status !== "waiting" &&
+    room.status !== "countdown" &&
+    room.status !== "racing"
+  ) {
+    return room;
+  }
+
+  // В waiting без полного лобби: хост отменяет комнату, гость просто выходит
+  if (room.status === "waiting" && room.hostUserId !== userId) {
+    const data: { guestUserId?: null; guest2UserId?: null } = {};
+    if (room.guestUserId === userId) data.guestUserId = null;
+    if (room.guest2UserId === userId) data.guest2UserId = null;
+    if (Object.keys(data).length) {
+      return prisma.reactionRaceRoom.update({
+        where: { id: room.id },
+        data,
+      });
+    }
+    return room;
+  }
+
+  return prisma.reactionRaceRoom.update({
+    where: { id: room.id },
+    data: {
+      status: "cancelled",
+      winnerUserId: null,
+    },
+  });
+}
+
 export async function setRaceInput(
   roomId: string,
   userId: string,
