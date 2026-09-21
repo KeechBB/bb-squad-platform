@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { RACE_LAPS, RACE_RATING_START } from "@/lib/reaction";
-import type { RaceCar, RaceObstacle, RaceState } from "@/lib/raceEngine";
+import {
+  predictMyCar,
+  type RaceCar,
+  type RaceObstacle,
+  type RaceState,
+} from "@/lib/raceEngine";
 import type { VehicleKind } from "@/lib/raceMaps";
 
 type RatingEntry = {
@@ -43,10 +48,7 @@ type Keys = { up: boolean; down: boolean; left: boolean; right: boolean };
 
 const EMPTY: Keys = { up: false, down: false, left: false, right: false };
 
-function drawObstacle(
-  ctx: CanvasRenderingContext2D,
-  o: RaceObstacle
-) {
+function drawObstacle(ctx: CanvasRenderingContext2D, o: RaceObstacle) {
   if (o.kind === "crate") {
     ctx.fillStyle = "#92400e";
     ctx.fillRect(o.x - o.r * 0.85, o.y - o.r * 0.85, o.r * 1.7, o.r * 1.7);
@@ -86,8 +88,8 @@ function drawVehicle(
 
   if (mine) {
     ctx.strokeStyle = "#fef08a";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(-18, -12, 36, 24);
+    ctx.lineWidth = 3;
+    ctx.strokeRect(-19, -13, 38, 26);
   }
 
   ctx.fillStyle = car.color || "#4b5563";
@@ -95,7 +97,6 @@ function drawVehicle(
   ctx.lineWidth = 1.5;
 
   if (kind === "atv") {
-    // узкий багги
     ctx.fillRect(-12, -7, 24, 14);
     ctx.fillStyle = "#0f172a";
     ctx.beginPath();
@@ -107,7 +108,6 @@ function drawVehicle(
     ctx.fillStyle = car.accent;
     ctx.fillRect(4, -4, 8, 8);
   } else if (kind === "logi") {
-    // длинный кузов
     ctx.fillRect(-18, -9, 36, 18);
     ctx.fillStyle = "#1c1917";
     ctx.fillRect(8, -7, 10, 14);
@@ -115,7 +115,6 @@ function drawVehicle(
     ctx.fillRect(-16, -7, 18, 14);
     ctx.strokeRect(-18, -9, 36, 18);
   } else if (kind === "btr") {
-    // вытянутый бронекорпус + башня
     ctx.beginPath();
     ctx.moveTo(-16, -8);
     ctx.lineTo(14, -9);
@@ -132,7 +131,6 @@ function drawVehicle(
     ctx.fillStyle = "#14532d";
     ctx.fillRect(2, -2, 14, 4);
   } else if (kind === "tigr") {
-    // квадратный внедорожник
     ctx.fillRect(-15, -9, 30, 18);
     ctx.fillStyle = "#14532d";
     ctx.fillRect(2, -7, 12, 14);
@@ -145,18 +143,15 @@ function drawVehicle(
     ctx.fillRect(0, -8, 14, 16);
     ctx.fillStyle = car.accent;
     ctx.fillRect(-13, -7, 10, 14);
-    // пулемётная турель
     ctx.fillStyle = "#a8a29e";
     ctx.fillRect(4, -3, 12, 6);
   } else {
-    // MRAP — высокий широкий корпус
     ctx.fillRect(-17, -11, 34, 22);
     ctx.fillStyle = "#1f2937";
     ctx.fillRect(0, -9, 15, 18);
     ctx.fillStyle = car.accent;
     ctx.fillRect(-14, -8, 11, 16);
     ctx.strokeRect(-17, -11, 34, 22);
-    // решётка
     ctx.strokeStyle = "#111827";
     ctx.beginPath();
     ctx.moveTo(2, -6);
@@ -169,6 +164,24 @@ function drawVehicle(
   }
 
   ctx.restore();
+}
+
+function drawCarLabel(
+  ctx: CanvasRenderingContext2D,
+  car: RaceCar,
+  label: string,
+  mine: boolean
+) {
+  const text = mine ? `ТЫ · ${label}` : label;
+  ctx.font = "600 12px sans-serif";
+  ctx.textAlign = "center";
+  const tw = ctx.measureText(text).width;
+  const bx = car.x - tw / 2 - 6;
+  const by = car.y - 28;
+  ctx.fillStyle = mine ? "rgba(250, 204, 21, 0.92)" : "rgba(15, 23, 42, 0.85)";
+  ctx.fillRect(bx, by, tw + 12, 18);
+  ctx.fillStyle = mine ? "#0f172a" : "#f1f5f9";
+  ctx.fillText(text, car.x, by + 13);
 }
 
 function myDeltaFromResult(
@@ -199,9 +212,22 @@ export function KartDuelPanel() {
   const [myRating, setMyRating] = useState(RACE_RATING_START);
   const [msg, setMsg] = useState("");
   const [queuing, setQueuing] = useState(false);
+  const [hudLap, setHudLap] = useState(0);
+  const [hudVehicle, setHudVehicle] = useState("");
+
   const keysRef = useRef<Keys>({ ...EMPTY });
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const roomIdRef = useRef<string | null>(null);
+  const statusRef = useRef<string | null>(null);
+  const serverStateRef = useRef<RaceState | null>(null);
+  const snapshotAtRef = useRef(0);
+  const playersRef = useRef<Peer[]>([]);
+  const userIdRef = useRef<string | null>(null);
+  const lastPaintAtRef = useRef(0);
+
+  userIdRef.current = userId;
+  playersRef.current = players;
+  statusRef.current = room?.status ?? null;
 
   const paint = useCallback((state: RaceState | null) => {
     const canvas = canvasRef.current;
@@ -210,6 +236,9 @@ export function KartDuelPanel() {
     if (!ctx) return;
     const w = canvas.width;
     const h = canvas.height;
+    const me = userIdRef.current;
+    const nickOf = (id: string) =>
+      playersRef.current.find((p) => p.userId === id)?.nick || "Игрок";
 
     if (!state) {
       ctx.fillStyle = "#0b1220";
@@ -265,29 +294,33 @@ export function KartDuelPanel() {
     );
     ctx.stroke();
 
-    for (const o of obstacles) {
-      drawObstacle(ctx, o);
-    }
+    for (const o of obstacles) drawObstacle(ctx, o);
 
     for (const car of cars) {
-      drawVehicle(ctx, car, car.userId === userId);
+      const mine = car.userId === me;
+      drawVehicle(ctx, car, mine);
+      drawCarLabel(
+        ctx,
+        car,
+        `${nickOf(car.userId)} · ${car.vehicleLabel || "Техника"}`,
+        mine
+      );
     }
 
-    // название карты
     ctx.fillStyle = "rgba(0,0,0,0.45)";
-    ctx.fillRect(12, h - 44, 280, 32);
+    ctx.fillRect(12, h - 44, 300, 32);
     ctx.fillStyle = "#e2e8f0";
     ctx.font = "600 14px sans-serif";
     ctx.textAlign = "left";
     ctx.fillText(track.name || "Трасса", 20, h - 24);
     ctx.fillStyle = "#94a3b8";
     ctx.font = "12px sans-serif";
-    ctx.fillText(track.subtitle || "", 20 + ctx.measureText(track.name || "").width + 10, h - 24);
-  }, [userId]);
-
-  useEffect(() => {
-    paint(room?.state ?? null);
-  }, [room, paint]);
+    ctx.fillText(
+      track.subtitle || "",
+      20 + ctx.measureText(track.name || "").width + 10,
+      h - 24
+    );
+  }, []);
 
   useEffect(() => {
     const held = new Set<string>();
@@ -311,6 +344,7 @@ export function KartDuelPanel() {
     };
     const down = (e: KeyboardEvent) => {
       if (!driveCodes.has(e.code)) return;
+      if (e.repeat) return;
       e.preventDefault();
       held.add(e.code);
       syncKeys();
@@ -334,50 +368,148 @@ export function KartDuelPanel() {
     };
   }, []);
 
+  // Локальный предикт — управление без ожидания сети
   useEffect(() => {
+    let raf = 0;
+    const frame = (ts: number) => {
+      raf = requestAnimationFrame(frame);
+      if (statusRef.current !== "racing") {
+        if (serverStateRef.current) paint(serverStateRef.current);
+        return;
+      }
+      const server = serverStateRef.current;
+      const me = userIdRef.current;
+      if (!server || !me) return;
+      lastPaintAtRef.current = ts;
+      const age = Math.max(0, ts - (snapshotAtRef.current || ts));
+      // экстраполяция от последнего серверного кадра по wall-clock
+      const ticks = Math.max(1, Math.min(10, Math.round(age / 50)));
+      const predicted = predictMyCar(server, me, keysRef.current, ticks);
+      paint(predicted);
+      const my = predicted.cars.find((c) => c.userId === me);
+      if (my) {
+        setHudLap(my.lap);
+        setHudVehicle(my.vehicleLabel || "");
+      }
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, [paint]);
+
+  // Сеть: input POST отдельно, физика только через GET
+  useEffect(() => {
+    if (!room?.id) return;
     let alive = true;
-    const loop = async () => {
-      if (!alive) return;
+    let stateBusy = false;
+    let inputBusy = false;
+
+    const applyRoom = (data: {
+      room?: RoomView | null;
+      players?: Peer[];
+      myRating?: number;
+    }) => {
+      if (!data?.room) return;
+      setRoom(data.room);
+      roomIdRef.current = data.room.id;
+      statusRef.current = data.room.status;
+      if (data.room.state) {
+        serverStateRef.current = data.room.state;
+        snapshotAtRef.current = performance.now();
+      }
+      if (Array.isArray(data.players)) {
+        setPlayers(data.players);
+        playersRef.current = data.players;
+      }
+      if (typeof data.myRating === "number") setMyRating(data.myRating);
+
+      if (data.room.status === "waiting") {
+        const need = data.room.capacity === 3 ? 3 : 2;
+        const have = data.room.playerIds?.length ?? 1;
+        setMsg(`В лобби ${have}/${need}…`);
+      } else if (data.room.status === "countdown") {
+        setMsg("Старт!");
+      } else {
+        setMsg("");
+      }
+    };
+
+    const pollState = async () => {
+      if (!alive || stateBusy) return;
       const id = roomIdRef.current;
-      if (!id) return;
+      const status = statusRef.current;
+      if (!id || !status || status === "done" || status === "cancelled") return;
+      stateBusy = true;
       try {
-        if (room?.status === "waiting") {
-          const res = await fetch("/api/reaction/race/queue", { cache: "no-store" });
-          const data = await res.json().catch(() => null);
-          if (data?.room) {
-            setRoom(data.room);
-            roomIdRef.current = data.room.id;
-          }
-          if (Array.isArray(data?.players)) setPlayers(data.players);
-          if (typeof data?.myRating === "number") setMyRating(data.myRating);
-        } else if (room?.status === "racing") {
-          const res = await fetch("/api/reaction/race/input", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ roomId: id, keys: keysRef.current }),
+        if (status === "waiting") {
+          const res = await fetch("/api/reaction/race/queue", {
+            cache: "no-store",
           });
           const data = await res.json().catch(() => null);
-          if (data?.room) setRoom(data.room);
+          if (alive && data) applyRoom(data);
         } else {
           const res = await fetch(
             `/api/reaction/race/input?roomId=${encodeURIComponent(id)}`,
             { cache: "no-store" }
           );
           const data = await res.json().catch(() => null);
-          if (data?.room) setRoom(data.room);
-          if (Array.isArray(data?.players)) setPlayers(data.players);
-          if (typeof data?.myRating === "number") setMyRating(data.myRating);
+          if (alive && data) applyRoom(data);
         }
       } catch {
         /* ignore */
+      } finally {
+        stateBusy = false;
       }
     };
-    const t = window.setInterval(loop, room?.status === "waiting" ? 700 : 80);
+
+    const pushInput = async () => {
+      if (!alive || inputBusy) return;
+      const id = roomIdRef.current;
+      if (!id || statusRef.current !== "racing") return;
+      inputBusy = true;
+      try {
+        await fetch("/api/reaction/race/input", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ roomId: id, keys: keysRef.current }),
+        });
+      } catch {
+        /* ignore */
+      } finally {
+        inputBusy = false;
+      }
+    };
+
+    let stateTimer = 0;
+    let inputTimer = 0;
+    const armState = () => {
+      const ms =
+        statusRef.current === "waiting"
+          ? 500
+          : statusRef.current === "racing"
+            ? 60
+            : 100;
+      stateTimer = window.setTimeout(async () => {
+        await pollState();
+        if (alive) armState();
+      }, ms);
+    };
+    const armInput = () => {
+      inputTimer = window.setTimeout(async () => {
+        await pushInput();
+        if (alive) armInput();
+      }, 35);
+    };
+
+    void pollState();
+    armState();
+    armInput();
+
     return () => {
       alive = false;
-      window.clearInterval(t);
+      window.clearTimeout(stateTimer);
+      window.clearTimeout(inputTimer);
     };
-  }, [room?.status]);
+  }, [room?.id]);
 
   async function startQueue() {
     setQueuing(true);
@@ -397,21 +529,26 @@ export function KartDuelPanel() {
       if (data.room) {
         setRoom(data.room);
         roomIdRef.current = data.room.id;
-        if (data.room.capacity === 2 || data.room.capacity === 3) {
+        statusRef.current = data.room.status;
+        if (data.room.state) {
+          serverStateRef.current = data.room.state;
+          snapshotAtRef.current = performance.now();
+        }        if (data.room.capacity === 2 || data.room.capacity === 3) {
           setCapacity(data.room.capacity);
         }
       }
-      if (Array.isArray(data.players)) setPlayers(data.players);
+      if (Array.isArray(data.players)) {
+        setPlayers(data.players);
+        playersRef.current = data.players;
+      }
       if (typeof data.myRating === "number") setMyRating(data.myRating);
       const need = data.room?.capacity === 3 ? 3 : 2;
       const have = Array.isArray(data.room?.playerIds)
         ? data.room.playerIds.length
         : 1;
-      setMsg(
-        data.room?.status === "waiting"
-          ? `В лобби ${have}/${need}…`
-          : "Лобби собрано!"
-      );
+      if (data.room?.status === "waiting") setMsg(`В лобби ${have}/${need}…`);
+      else if (data.room?.status === "countdown") setMsg("Старт!");
+      else setMsg("");
     } catch {
       setMsg("Сеть недоступна");
     } finally {
@@ -428,6 +565,8 @@ export function KartDuelPanel() {
     setRoom(null);
     setPlayers([]);
     roomIdRef.current = null;
+    statusRef.current = null;
+    serverStateRef.current = null;
     setMsg("Очередь отменена");
   }
 
@@ -435,11 +574,12 @@ export function KartDuelPanel() {
     room?.status === "countdown" && room.countdownEndsAt
       ? Math.max(
           0,
-          Math.ceil((new Date(room.countdownEndsAt).getTime() - Date.now()) / 1000)
+          Math.ceil(
+            (new Date(room.countdownEndsAt).getTime() - Date.now()) / 1000
+          )
         )
       : null;
 
-  const myCar = room?.state?.cars.find((c) => c.userId === userId);
   const myDelta = myDeltaFromResult(room, userId);
   const lobbySize = room?.capacity ?? capacity;
   const filled = room?.playerIds?.length ?? players.length;
@@ -458,7 +598,11 @@ export function KartDuelPanel() {
         <div className="kart-duel-actions">
           {idle ? (
             <>
-              <div className="kart-duel-capacity" role="group" aria-label="Размер лобби">
+              <div
+                className="kart-duel-capacity"
+                role="group"
+                aria-label="Размер лобби"
+              >
                 <button
                   type="button"
                   className={capacity === 2 ? "btn primary" : "btn"}
@@ -486,7 +630,11 @@ export function KartDuelPanel() {
               </button>
             </>
           ) : room.status === "waiting" ? (
-            <button type="button" className="btn" onClick={() => void cancelQueue()}>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => void cancelQueue()}
+            >
               Отмена
             </button>
           ) : null}
@@ -495,13 +643,33 @@ export function KartDuelPanel() {
 
       <div className="kart-duel-peers">
         {players.length ? (
-          players.map((p, i) => (
-            <span key={p.userId || `${p.nick}-${i}`}>
-              {i > 0 ? <span className="muted"> · </span> : null}
-              {p.nick}{" "}
-              <em className="muted">({p.raceRating})</em>
-            </span>
-          ))
+          players.map((p, i) => {
+            const car = serverStateRef.current?.cars.find(
+              (c) => c.userId === p.userId
+            );
+            const mine = p.userId === userId;
+            return (
+              <span
+                key={p.userId || `${p.nick}-${i}`}
+                className="kart-duel-peer"
+              >
+                {i > 0 ? <span className="muted"> · </span> : null}
+                <i
+                  className="kart-duel-swatch"
+                  style={{
+                    background:
+                      car?.color || (mine ? "#fef08a" : "#94a3b8"),
+                  }}
+                />
+                {mine ? <strong>Ты: </strong> : null}
+                {p.nick}
+                {car?.vehicleLabel ? (
+                  <em className="muted"> · {car.vehicleLabel}</em>
+                ) : null}
+                <em className="muted"> ({p.raceRating})</em>
+              </span>
+            );
+          })
         ) : (
           <span className="muted">Выбери лобби и жми «Играть»</span>
         )}
@@ -514,14 +682,20 @@ export function KartDuelPanel() {
       </div>
 
       <div className="kart-duel-canvas-wrap">
-        <canvas ref={canvasRef} width={800} height={600} className="kart-duel-canvas" />
+        <canvas
+          ref={canvasRef}
+          width={800}
+          height={600}
+          className="kart-duel-canvas"
+        />
         {countdownLeft != null && countdownLeft > 0 ? (
           <div className="kart-duel-countdown">{countdownLeft}</div>
         ) : null}
-        {room?.status === "racing" && myCar ? (
+        {room?.status === "racing" ? (
           <div className="kart-duel-hud">
-            Круг {Math.min(myCar.lap + 1, RACE_LAPS)} / {RACE_LAPS}
-            {myCar.vehicleLabel ? ` · ${myCar.vehicleLabel}` : ""}
+            Круг {Math.min(hudLap + 1, RACE_LAPS)} / {RACE_LAPS}
+            {hudVehicle ? ` · ${hudVehicle}` : ""}
+            <span className="kart-duel-hud-you"> · ты = жёлтая рамка</span>
           </div>
         ) : null}
         {room?.status === "done" ? (
@@ -541,8 +715,7 @@ export function KartDuelPanel() {
 
       {msg ? <p className="reaction-msg">{msg}</p> : null}
       <p className="muted" style={{ fontSize: "0.82rem", marginTop: 8 }}>
-        Управление: WASD или стрелки. 6 трасс Squad (Нарва, Фаллуджа, Goose Bay,
-        Маникуаган, Аль-Басра, Харю). Техника: MRAP, Тигр, ATV, M-ATV, Logi, БТР.
+        Своя техника — жёлтая рамка и подпись «ТЫ». Управление: WASD или стрелки.
       </p>
     </div>
   );

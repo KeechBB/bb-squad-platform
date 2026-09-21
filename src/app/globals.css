@@ -4013,6 +4013,25 @@ body {
   font-size: 0.95rem;
 }
 
+.kart-duel-peer {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kart-duel-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.kart-duel-hud-you {
+  opacity: 0.75;
+  font-weight: 500;
+}
+
 .kart-duel-canvas-wrap {
   position: relative;
   width: 100%;

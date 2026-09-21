@@ -322,6 +322,36 @@ export function tickRace(
   return next;
 }
 
+/** Клиентский предикт своей тачки между снапшотами сервера */
+export function predictMyCar(
+  state: RaceState,
+  myUserId: string,
+  keys: RaceKeys,
+  ticks: number
+): RaceState {
+  if (ticks <= 0 || state.winnerUserId) return state;
+  let next: RaceState = { ...state, cars: state.cars.map((c) => ({ ...c })) };
+  for (let t = 0; t < ticks; t++) {
+    const me = next.cars.find((c) => c.userId === myUserId);
+    if (!me || me.finished) break;
+    const others = next.cars.filter((c) => c.userId !== myUserId);
+    const prevIdx = nearestProgress(next.track, me.x, me.y).idx;
+    const stepped = stepCar(
+      me,
+      keys,
+      next.track,
+      next.obstacles,
+      others,
+      prevIdx
+    );
+    next = {
+      ...next,
+      cars: next.cars.map((c) => (c.userId === myUserId ? stepped.car : c)),
+    };
+  }
+  return next;
+}
+
 export const EMPTY_KEYS: RaceKeys = {
   up: false,
   down: false,

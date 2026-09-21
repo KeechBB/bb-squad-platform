@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import {
   RACE_COUNTDOWN_MS,
+  RACE_MAX_CATCHUP_TICKS,
   RACE_QUEUE_TIMEOUT_MS,
   RACE_RATING_FLOOR,
   RACE_TICK_MS,
@@ -122,7 +123,8 @@ export async function advanceRaceRoom(roomId: string) {
   const inputs = asInputs(room.inputs);
   const elapsed = now - (state.startedAt || room.updatedAt.getTime());
   const targetTick = Math.floor(elapsed / RACE_TICK_MS);
-  const dt = Math.max(0, Math.min(40, targetTick - state.tick));
+  const prevTick = state.tick;
+  const dt = Math.max(0, Math.min(RACE_MAX_CATCHUP_TICKS, targetTick - prevTick));
   if (dt > 0) {
     const cleanInputs: Record<string, RaceKeys> = {};
     for (const id of players) {
@@ -136,10 +138,15 @@ export async function advanceRaceRoom(roomId: string) {
   }
 
   if (dt > 0) {
-    return prisma.reactionRaceRoom.update({
-      where: { id: roomId },
+    // Оптимистичная блокировка: не затираем чужой advance / input mid-write
+    const wrote = await prisma.reactionRaceRoom.updateMany({
+      where: { id: roomId, updatedAt: room.updatedAt, status: "racing" },
       data: { state: state as unknown as Prisma.InputJsonValue },
     });
+    if (wrote.count === 0) {
+      return prisma.reactionRaceRoom.findUnique({ where: { id: roomId } });
+    }
+    return prisma.reactionRaceRoom.findUnique({ where: { id: roomId } });
   }
   return room;
 }
@@ -342,16 +349,16 @@ export async function setRaceInput(
   if (!room) return null;
   if (!isInRaceRoom(room, userId)) return null;
   if (room.status !== "racing" && room.status !== "countdown") {
-    return advanceRaceRoom(roomId);
+    return room;
   }
 
   const inputs = asInputs(room.inputs);
   inputs[userId] = { ...keys, at: Date.now() };
-  await prisma.reactionRaceRoom.update({
+  // Только входы — физику крутит GET / advance, иначе клиенты затирают state друг другу
+  return prisma.reactionRaceRoom.update({
     where: { id: roomId },
     data: { inputs: inputs as unknown as Prisma.InputJsonValue },
   });
-  return advanceRaceRoom(roomId);
 }
 
 export function publicRaceView(

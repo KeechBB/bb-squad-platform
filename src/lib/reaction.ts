@@ -45,6 +45,8 @@ export const RACE_LAPS = 5;
 export const RACE_QUEUE_TIMEOUT_MS = 60_000;
 export const RACE_COUNTDOWN_MS = 3_000;
 export const RACE_TICK_MS = 50;
+/** Макс. тиков за один advance — меньше = меньше рывков при лагах */
+export const RACE_MAX_CATCHUP_TICKS = 6;
 export const RACE_TAB_LABEL = "Карт-дуэль";
 
 /** Присутствие на вкладке */
