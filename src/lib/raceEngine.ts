@@ -352,60 +352,58 @@ export function predictMyCar(
   return next;
 }
 
-/** Свести локальный кадр с сервером без жёсткого отката своей тачки */
+/** Свести локальный кадр с сервером: свою тачку не откатываем назад. */
 export function reconcileRaceState(
   local: RaceState,
   server: RaceState,
   myUserId: string
 ): RaceState {
   const localMe = local.cars.find((c) => c.userId === myUserId);
-  const serverMe = server.cars.find((c) => c.userId === myUserId);
+  const serverIds = new Set(server.cars.map((c) => c.userId));
 
-  const cars = server.cars.map((sc) => {
-    if (sc.userId !== myUserId) return { ...sc };
+  const cars: RaceCar[] = server.cars.map((sc) => {
+    if (sc.userId !== myUserId) {
+      // Соперников берём с сервера (лёгкий lerp, чтобы не телепортировались)
+      const prev = local.cars.find((c) => c.userId === sc.userId);
+      if (!prev) return { ...sc };
+      const t = 0.45;
+      return {
+        ...sc,
+        x: prev.x + (sc.x - prev.x) * t,
+        y: prev.y + (sc.y - prev.y) * t,
+        angle: prev.angle + (sc.angle - prev.angle) * t,
+        speed: prev.speed + (sc.speed - prev.speed) * t,
+      };
+    }
+
+    // Своя тачка: отображение всегда с клиента.
+    // Сервер может отставать на RTT — откат назад = «пинг 1000».
     if (!localMe) return { ...sc };
-    const err = Math.hypot(localMe.x - sc.x, localMe.y - sc.y);
-    const angErr = Math.abs(
-      Math.atan2(Math.sin(localMe.angle - sc.angle), Math.cos(localMe.angle - sc.angle))
-    );
 
-    // Маленькая ошибка — доверяем клиенту (нет «пинга» назад)
-    if (err < 36 && angErr < 0.55) {
-      return {
-        ...localMe,
-        lap: Math.max(localMe.lap, sc.lap),
-        progress: Math.max(localMe.progress, sc.progress),
-        finished: localMe.finished || sc.finished,
-      };
-    }
-    // Средняя — мягко подтягиваем
-    if (err < 85) {
-      const t = 0.15;
-      return {
-        ...localMe,
-        x: localMe.x + (sc.x - localMe.x) * t,
-        y: localMe.y + (sc.y - localMe.y) * t,
-        angle: localMe.angle + (sc.angle - localMe.angle) * t,
-        speed: localMe.speed + (sc.speed - localMe.speed) * t,
-        lap: Math.max(localMe.lap, sc.lap),
-        progress: Math.max(localMe.progress, sc.progress),
-        finished: localMe.finished || sc.finished,
-      };
-    }
-    // Большой рассинхрон — берём сервер
-    return { ...sc };
+    return {
+      ...localMe,
+      // серверные флаги финиша/круга только если он впереди (мы отстали)
+      lap: Math.max(localMe.lap, sc.lap),
+      progress: Math.max(localMe.progress, sc.progress),
+      finished: localMe.finished || sc.finished,
+      // косметика с сервера
+      color: sc.color || localMe.color,
+      accent: sc.accent || localMe.accent,
+      vehicle: sc.vehicle || localMe.vehicle,
+      vehicleLabel: sc.vehicleLabel || localMe.vehicleLabel,
+    };
   });
 
-  // если сервер ещё не знает мою тачку
-  if (localMe && !serverMe) {
+  // на всякий случай, если локальная тачка пропала из server.cars
+  if (localMe && !serverIds.has(myUserId)) {
     cars.push({ ...localMe });
   }
 
   return {
     ...server,
     cars,
-    // winner только с сервера
     winnerUserId: server.winnerUserId,
+    startedAt: server.startedAt || local.startedAt,
     tick: Math.max(local.tick, server.tick),
   };
 }

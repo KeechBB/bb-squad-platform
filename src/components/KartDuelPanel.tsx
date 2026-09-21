@@ -345,6 +345,15 @@ export function KartDuelPanel() {
         left: held.has("ArrowLeft") || held.has("KeyA"),
         right: held.has("ArrowRight") || held.has("KeyD"),
       };
+      // мгновенно шлём ввод, не ждём интервал
+      const id = roomIdRef.current;
+      if (id && statusRef.current === "racing") {
+        void fetch("/api/reaction/race/input", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ roomId: id, keys: keysRef.current }),
+        }).catch(() => undefined);
+      }
     };
     const down = (e: KeyboardEvent) => {
       if (!driveCodes.has(e.code)) return;
@@ -441,22 +450,47 @@ export function KartDuelPanel() {
       myRating?: number;
     }) => {
       if (!data?.room) return;
-      setRoom(data.room);
       roomIdRef.current = data.room.id;
       statusRef.current = data.room.status;
+
+      // Во время гонки не трогаем React state на каждый тик — иначе UI фризит
+      setRoom((prev) => {
+        if (
+          prev &&
+          data.room &&
+          prev.id === data.room.id &&
+          prev.status === "racing" &&
+          data.room.status === "racing" &&
+          prev.winnerUserId === data.room.winnerUserId
+        ) {
+          return prev;
+        }
+        return data.room!;
+      });
+
       if (data.room.state) {
-        serverStateRef.current = data.room.state;
+        const st = data.room.state;
+        serverStateRef.current = st;
         const me = userIdRef.current;
-        if (me && localStateRef.current && data.room.status === "racing") {
-          localStateRef.current = reconcileRaceState(
-            localStateRef.current,
-            data.room.state,
-            me
-          );
+        if (data.room.status === "racing") {
+          if (localStateRef.current && me) {
+            // свою тачку не откатываем — только соперники / флаги
+            localStateRef.current = reconcileRaceState(
+              localStateRef.current,
+              st,
+              me
+            );
+          } else {
+            localStateRef.current = {
+              ...st,
+              cars: st.cars.map((c) => ({ ...c })),
+            };
+            simAccRef.current = 0;
+          }
         } else {
           localStateRef.current = {
-            ...data.room.state,
-            cars: data.room.state.cars.map((c) => ({ ...c })),
+            ...st,
+            cars: st.cars.map((c) => ({ ...c })),
           };
           simAccRef.current = 0;
         }
@@ -481,7 +515,7 @@ export function KartDuelPanel() {
         serverStateRef.current = null;
         localStateRef.current = null;
         setMsg("Соперник отменил матч");
-      } else {
+      } else if (data.room.status !== "racing") {
         setMsg("");
       }
     };
