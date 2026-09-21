@@ -230,6 +230,14 @@ export function KartDuelPanel() {
   const userIdRef = useRef<string | null>(null);
   const hudLapRef = useRef(0);
   const hudVehicleRef = useRef("");
+  const wsRef = useRef<WebSocket | null>(null);
+  const wsOkRef = useRef(false);
+  const applyRoomRef = useRef<(data: {
+    room?: RoomView | null;
+    players?: Peer[];
+    myRating?: number;
+  }) => void>(() => undefined);
+  const [wsLabel, setWsLabel] = useState<"ws" | "http" | "">("");
 
   function myPosePayload(): RacePose | null {
     const me = userIdRef.current;
@@ -364,15 +372,29 @@ export function KartDuelPanel() {
       // мгновенно шлём ввод, не ждём интервал
       const id = roomIdRef.current;
       if (id && statusRef.current === "racing") {
-        void fetch("/api/reaction/race/input", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            roomId: id,
-            keys: keysRef.current,
-            pose: myPosePayload(),
-          }),
-        }).catch(() => undefined);
+        const payload = {
+          type: "input" as const,
+          roomId: id,
+          keys: keysRef.current,
+          pose: myPosePayload(),
+        };
+        if (wsOkRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
+          try {
+            wsRef.current.send(JSON.stringify(payload));
+          } catch {
+            /* ignore */
+          }
+        } else {
+          void fetch("/api/reaction/race/input", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              roomId: id,
+              keys: keysRef.current,
+              pose: myPosePayload(),
+            }),
+          }).catch(() => undefined);
+        }
       }
     };
     const down = (e: KeyboardEvent) => {
@@ -465,7 +487,7 @@ export function KartDuelPanel() {
     return () => cancelAnimationFrame(raf);
   }, [paint]);
 
-  // Сеть: input POST отдельно, физика только через GET
+  // Сеть: WebSocket (пуш) + HTTP fallback
   useEffect(() => {
     if (!room?.id) return;
     let alive = true;
@@ -481,7 +503,6 @@ export function KartDuelPanel() {
       roomIdRef.current = data.room.id;
       statusRef.current = data.room.status;
 
-      // Во время гонки не трогаем React state на каждый тик — иначе UI фризит
       setRoom((prev) => {
         if (
           prev &&
@@ -502,7 +523,6 @@ export function KartDuelPanel() {
         const me = userIdRef.current;
         if (data.room.status === "racing") {
           if (localStateRef.current && me) {
-            // свою тачку не откатываем — только соперники / флаги
             localStateRef.current = reconcileRaceState(
               localStateRef.current,
               st,
@@ -547,13 +567,59 @@ export function KartDuelPanel() {
         setMsg("");
       }
     };
+    applyRoomRef.current = applyRoom;
+
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${proto}//${window.location.host}/api/reaction/race/ws`;
+    let ws: WebSocket | null = null;
+    try {
+      ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+      ws.onopen = () => {
+        if (!alive || !roomIdRef.current) return;
+        wsOkRef.current = true;
+        setWsLabel("ws");
+        ws?.send(JSON.stringify({ type: "join", roomId: roomIdRef.current }));
+      };
+      ws.onmessage = (ev) => {
+        try {
+          const data = JSON.parse(String(ev.data)) as {
+            type?: string;
+            room?: RoomView;
+            players?: Peer[];
+            error?: string;
+          };
+          if (data.type === "room") {
+            applyRoom({ room: data.room, players: data.players });
+          }
+        } catch {
+          /* ignore */
+        }
+      };
+      ws.onclose = () => {
+        wsOkRef.current = false;
+        if (alive) setWsLabel("http");
+      };
+      ws.onerror = () => {
+        wsOkRef.current = false;
+        if (alive) setWsLabel("http");
+      };
+    } catch {
+      wsOkRef.current = false;
+      setWsLabel("http");
+    }
 
     const pollState = async () => {
       if (!alive || stateBusy) return;
+      if (
+        wsOkRef.current &&
+        (statusRef.current === "racing" || statusRef.current === "countdown")
+      ) {
+        return;
+      }
       const id = roomIdRef.current;
       const status = statusRef.current;
       if (!id || !status || status === "done") return;
-      // cancelled обрабатываем один раз через applyRoom, потом id сбросится
       if (status === "cancelled") return;
       stateBusy = true;
       try {
@@ -595,15 +661,25 @@ export function KartDuelPanel() {
       if (!id || statusRef.current !== "racing") return;
       inputBusy = true;
       try {
-        await fetch("/api/reaction/race/input", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            roomId: id,
-            keys: keysRef.current,
-            pose: myPosePayload(),
-          }),
-        });
+        const payload = {
+          type: "input",
+          roomId: id,
+          keys: keysRef.current,
+          pose: myPosePayload(),
+        };
+        if (wsOkRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify(payload));
+        } else {
+          await fetch("/api/reaction/race/input", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              roomId: id,
+              keys: keysRef.current,
+              pose: myPosePayload(),
+            }),
+          });
+        }
       } catch {
         /* ignore */
       } finally {
@@ -617,9 +693,11 @@ export function KartDuelPanel() {
       const ms =
         statusRef.current === "waiting"
           ? 500
-          : statusRef.current === "racing"
-            ? 40
-            : 100;
+          : wsOkRef.current
+            ? 2000
+            : statusRef.current === "racing"
+              ? 40
+              : 100;
       stateTimer = window.setTimeout(async () => {
         await pollState();
         if (alive) armState();
@@ -629,7 +707,7 @@ export function KartDuelPanel() {
       inputTimer = window.setTimeout(async () => {
         await pushInput();
         if (alive) armInput();
-      }, 25);
+      }, 20);
     };
 
     void pollState();
@@ -640,6 +718,13 @@ export function KartDuelPanel() {
       alive = false;
       window.clearTimeout(stateTimer);
       window.clearTimeout(inputTimer);
+      wsOkRef.current = false;
+      try {
+        ws?.close();
+      } catch {
+        /* ignore */
+      }
+      wsRef.current = null;
     };
   }, [room?.id]);
 
@@ -733,6 +818,7 @@ export function KartDuelPanel() {
           <span className="muted">
             {" "}
             · 5 кругов · WASD / стрелки · Elo {myRating}
+            {wsLabel ? ` · ${wsLabel}` : ""}
           </span>
         </div>
         <div className="kart-duel-actions">
