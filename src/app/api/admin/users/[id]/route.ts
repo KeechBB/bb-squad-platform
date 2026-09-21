@@ -14,7 +14,7 @@ import {
   roleLabel,
   type AppRole,
 } from "@/lib/admin";
-import { ageFromBirthDate, isValidAge, isValidName, isValidNick, parseBirthDate } from "@/lib/validation";
+import { ageFromBirthDate, isValidAge, isValidName, isValidNick, normalizeNick, parseBirthDate } from "@/lib/validation";
 import { removeUserAvatarFiles } from "@/lib/avatar";
 import { livePublish, userLiveChannel } from "@/lib/liveBus";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
@@ -157,7 +157,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
 
   const name = String(b.name ?? "").trim();
-  const nick = String(b.nick ?? "").trim();
+  const nick = normalizeNick(String(b.nick ?? ""));
   const steamId = String(b.steamId ?? "").trim();
 
   if (!isValidName(name)) {
@@ -165,7 +165,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
   if (!isValidNick(nick)) {
     return NextResponse.json(
-      { error: "Ник: латиница, цифры и символы, 3–24" },
+      { error: "Ник: латиница, цифры, символы и пробелы, 3–24" },
       { status: 400 }
     );
   }

@@ -1,7 +1,17 @@
-export const NICK_RE = /^[A-Za-z0-9!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]{3,24}$/;
+/** Игровой ник: латиница, цифры, символы и пробелы внутри, 3–24 после нормализации */
+export const NICK_RE =
+  /^[A-Za-z0-9!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]+(?: [A-Za-z0-9!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]+)*$/;
+
+/** trim + схлопывание повторных пробелов */
+export function normalizeNick(nick: string): string {
+  return String(nick || "")
+    .trim()
+    .replace(/\s+/g, " ");
+}
 
 export function isValidNick(nick: string): boolean {
-  return NICK_RE.test(nick);
+  const t = normalizeNick(nick);
+  return t.length >= 3 && t.length <= 24 && NICK_RE.test(t);
 }
 
 export function isValidName(name: string): boolean {

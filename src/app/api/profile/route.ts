@@ -6,6 +6,7 @@ import {
   ageFromBirthDate,
   isValidName,
   isValidNick,
+  normalizeNick,
   parseBirthDate,
 } from "@/lib/validation";
 import { parseDiscordInput, parseTelegramInput } from "@/lib/social";
@@ -41,14 +42,14 @@ export async function PATCH(req: Request) {
   };
 
   const name = String(b.name ?? "").trim();
-  const nick = String(b.nick ?? "").trim();
+  const nick = normalizeNick(String(b.nick ?? ""));
   const birthRaw = String(b.birthDate ?? "").trim();
   const discordRaw = String(b.discord ?? "").trim();
   const telegramRaw = String(b.telegram ?? "").trim();
 
   if (!isValidNick(nick)) {
     return NextResponse.json(
-      { error: "Ник: латиница, цифры и символы, 3–24" },
+      { error: "Ник: латиница, цифры, символы и пробелы, 3–24" },
       { status: 400 }
     );
   }

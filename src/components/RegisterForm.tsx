@@ -69,7 +69,7 @@ export function RegisterForm() {
           required
         />
         <span className="field-hint">
-          Это ваш игровой никнейм. Можно латиницу, цифры и символы (без кириллицы).
+          Это ваш игровой никнейм. Латиница, цифры, символы и пробелы (без кириллицы), 3–24.
         </span>
       </label>
       <label className="field">

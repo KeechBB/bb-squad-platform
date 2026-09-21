@@ -6,6 +6,7 @@ import {
   ageFromBirthDate,
   isValidName,
   isValidNick,
+  normalizeNick,
   parseBirthDate,
 } from "@/lib/validation";
 import { assignRegNoIfNeeded } from "@/lib/regNo";
@@ -23,14 +24,14 @@ export async function POST(req: Request) {
   }
 
   const name = String((body as { name?: string }).name ?? "").trim();
-  const nick = String((body as { nick?: string }).nick ?? "").trim();
+  const nick = normalizeNick(String((body as { nick?: string }).nick ?? ""));
   const birthRaw = String((body as { birthDate?: string }).birthDate ?? "").trim();
 
   if (!isValidNick(nick)) {
     return NextResponse.json(
       {
         error:
-          "Ник: латиница, цифры и символы, длина 3–24 (это игровой никнейм)",
+          "Ник: латиница, цифры, символы и пробелы, длина 3–24 (это игровой никнейм)",
       },
       { status: 400 }
     );
