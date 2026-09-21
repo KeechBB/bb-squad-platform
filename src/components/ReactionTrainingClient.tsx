@@ -807,10 +807,14 @@ export function ReactionTrainingClient() {
             {phase === "ready" && circle ? (
               <button
                 type="button"
-                className={`reaction-dot${level === 2 ? " reaction-dot-lg" : ""}`}
+                className={`reaction-dot${level === 2 ? " reaction-dot-lg" : ""}${
+                  level === 1 ? " reaction-dot-akinov" : ""
+                }`}
                 style={{ left: circle.x, top: circle.y }}
-                aria-label="Цель"
-              />
+                aria-label={level === 1 ? "Акинов" : "Цель"}
+              >
+                {level === 1 ? <span className="reaction-dot-label">Акинов</span> : null}
+              </button>
             ) : null}
             {phase === "play"
               ? l3Balls.map((b) => (
