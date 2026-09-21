@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { RACE_LAPS, RACE_RATING_START } from "@/lib/reaction";
 import {
   predictMyCar,
+  reconcileRaceState,
   type RaceCar,
   type RaceObstacle,
   type RaceState,
@@ -220,10 +221,13 @@ export function KartDuelPanel() {
   const roomIdRef = useRef<string | null>(null);
   const statusRef = useRef<string | null>(null);
   const serverStateRef = useRef<RaceState | null>(null);
-  const snapshotAtRef = useRef(0);
+  const localStateRef = useRef<RaceState | null>(null);
+  const simAccRef = useRef(0);
+  const lastFrameAtRef = useRef(0);
   const playersRef = useRef<Peer[]>([]);
   const userIdRef = useRef<string | null>(null);
-  const lastPaintAtRef = useRef(0);
+  const hudLapRef = useRef(0);
+  const hudVehicleRef = useRef("");
 
   userIdRef.current = userId;
   playersRef.current = players;
@@ -368,28 +372,56 @@ export function KartDuelPanel() {
     };
   }, []);
 
-  // Локальный предикт — управление без ожидания сети
+  // Непрерывный локальный симулятор + мягкий reconcile со снапшотом
   useEffect(() => {
     let raf = 0;
+    const TICK_MS = 50;
     const frame = (ts: number) => {
       raf = requestAnimationFrame(frame);
-      if (statusRef.current !== "racing") {
+      const me = userIdRef.current;
+      if (statusRef.current !== "racing" || !me) {
         if (serverStateRef.current) paint(serverStateRef.current);
         return;
       }
-      const server = serverStateRef.current;
-      const me = userIdRef.current;
-      if (!server || !me) return;
-      lastPaintAtRef.current = ts;
-      const age = Math.max(0, ts - (snapshotAtRef.current || ts));
-      // экстраполяция от последнего серверного кадра по wall-clock
-      const ticks = Math.max(1, Math.min(10, Math.round(age / 50)));
-      const predicted = predictMyCar(server, me, keysRef.current, ticks);
-      paint(predicted);
-      const my = predicted.cars.find((c) => c.userId === me);
+
+      if (!localStateRef.current && serverStateRef.current) {
+        localStateRef.current = {
+          ...serverStateRef.current,
+          cars: serverStateRef.current.cars.map((c) => ({ ...c })),
+        };
+      }
+      const local = localStateRef.current;
+      if (!local) return;
+
+      const prev = lastFrameAtRef.current || ts;
+      lastFrameAtRef.current = ts;
+      let acc = simAccRef.current + Math.min(80, ts - prev);
+      // фиксированный шаг физики — без рывков от FPS
+      let guard = 0;
+      while (acc >= TICK_MS && guard < 3) {
+        acc -= TICK_MS;
+        guard += 1;
+        localStateRef.current = predictMyCar(
+          localStateRef.current!,
+          me,
+          keysRef.current,
+          1
+        );
+      }
+      simAccRef.current = acc;
+
+      const draw = localStateRef.current!;
+      paint(draw);
+      const my = draw.cars.find((c) => c.userId === me);
       if (my) {
-        setHudLap(my.lap);
-        setHudVehicle(my.vehicleLabel || "");
+        if (hudLapRef.current !== my.lap) {
+          hudLapRef.current = my.lap;
+          setHudLap(my.lap);
+        }
+        if (hudVehicleRef.current !== (my.vehicleLabel || "")) {
+          hudVehicleRef.current = my.vehicleLabel || "";
+          setHudVehicle(my.vehicleLabel || "");
+        }
       }
     };
     raf = requestAnimationFrame(frame);
@@ -414,7 +446,20 @@ export function KartDuelPanel() {
       statusRef.current = data.room.status;
       if (data.room.state) {
         serverStateRef.current = data.room.state;
-        snapshotAtRef.current = performance.now();
+        const me = userIdRef.current;
+        if (me && localStateRef.current && data.room.status === "racing") {
+          localStateRef.current = reconcileRaceState(
+            localStateRef.current,
+            data.room.state,
+            me
+          );
+        } else {
+          localStateRef.current = {
+            ...data.room.state,
+            cars: data.room.state.cars.map((c) => ({ ...c })),
+          };
+          simAccRef.current = 0;
+        }
       }
       if (Array.isArray(data.players)) {
         setPlayers(data.players);
@@ -434,6 +479,7 @@ export function KartDuelPanel() {
         roomIdRef.current = null;
         statusRef.current = null;
         serverStateRef.current = null;
+        localStateRef.current = null;
         setMsg("Соперник отменил матч");
       } else {
         setMsg("");
@@ -461,6 +507,7 @@ export function KartDuelPanel() {
             roomIdRef.current = null;
             statusRef.current = null;
             serverStateRef.current = null;
+            localStateRef.current = null;
             setMsg("Лобби закрыто");
             return;
           }
@@ -551,8 +598,13 @@ export function KartDuelPanel() {
         statusRef.current = data.room.status;
         if (data.room.state) {
           serverStateRef.current = data.room.state;
-          snapshotAtRef.current = performance.now();
-        }        if (data.room.capacity === 2 || data.room.capacity === 3) {
+          localStateRef.current = {
+            ...data.room.state,
+            cars: data.room.state.cars.map((c) => ({ ...c })),
+          };
+          simAccRef.current = 0;
+        }
+        if (data.room.capacity === 2 || data.room.capacity === 3) {
           setCapacity(data.room.capacity);
         }
       }
@@ -587,6 +639,7 @@ export function KartDuelPanel() {
     roomIdRef.current = null;
     statusRef.current = null;
     serverStateRef.current = null;
+    localStateRef.current = null;
     setMsg("Матч отменён");
   }
 

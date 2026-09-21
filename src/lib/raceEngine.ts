@@ -352,6 +352,64 @@ export function predictMyCar(
   return next;
 }
 
+/** Свести локальный кадр с сервером без жёсткого отката своей тачки */
+export function reconcileRaceState(
+  local: RaceState,
+  server: RaceState,
+  myUserId: string
+): RaceState {
+  const localMe = local.cars.find((c) => c.userId === myUserId);
+  const serverMe = server.cars.find((c) => c.userId === myUserId);
+
+  const cars = server.cars.map((sc) => {
+    if (sc.userId !== myUserId) return { ...sc };
+    if (!localMe) return { ...sc };
+    const err = Math.hypot(localMe.x - sc.x, localMe.y - sc.y);
+    const angErr = Math.abs(
+      Math.atan2(Math.sin(localMe.angle - sc.angle), Math.cos(localMe.angle - sc.angle))
+    );
+
+    // Маленькая ошибка — доверяем клиенту (нет «пинга» назад)
+    if (err < 36 && angErr < 0.55) {
+      return {
+        ...localMe,
+        lap: Math.max(localMe.lap, sc.lap),
+        progress: Math.max(localMe.progress, sc.progress),
+        finished: localMe.finished || sc.finished,
+      };
+    }
+    // Средняя — мягко подтягиваем
+    if (err < 85) {
+      const t = 0.15;
+      return {
+        ...localMe,
+        x: localMe.x + (sc.x - localMe.x) * t,
+        y: localMe.y + (sc.y - localMe.y) * t,
+        angle: localMe.angle + (sc.angle - localMe.angle) * t,
+        speed: localMe.speed + (sc.speed - localMe.speed) * t,
+        lap: Math.max(localMe.lap, sc.lap),
+        progress: Math.max(localMe.progress, sc.progress),
+        finished: localMe.finished || sc.finished,
+      };
+    }
+    // Большой рассинхрон — берём сервер
+    return { ...sc };
+  });
+
+  // если сервер ещё не знает мою тачку
+  if (localMe && !serverMe) {
+    cars.push({ ...localMe });
+  }
+
+  return {
+    ...server,
+    cars,
+    // winner только с сервера
+    winnerUserId: server.winnerUserId,
+    tick: Math.max(local.tick, server.tick),
+  };
+}
+
 export const EMPTY_KEYS: RaceKeys = {
   up: false,
   down: false,
