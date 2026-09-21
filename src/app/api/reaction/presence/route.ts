@@ -13,6 +13,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 async function globalRecord(level: ReactionLevel) {
+  if (level === 3) return null;
   const best = await prisma.reactionRun.findFirst({
     where: { level },
     orderBy: { avgMs: isScoreLevel(level) ? "desc" : "asc" },

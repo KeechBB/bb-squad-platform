@@ -60,6 +60,8 @@ model User {
   updatedAt       DateTime @updatedAt
   /// Последняя активность на сайте (heartbeat из браузера)
   lastSeenAt      DateTime?
+  /// Elo «Карт-дуэль» (старт 1000)
+  raceRating      Int      @default(1000)
 
   clanMemberships ClanMember[]
   clanInvites     ClanInvite[] @relation("Invitee")
@@ -72,23 +74,51 @@ model User {
   reactionRuns    ReactionRun[]
   reactionPresence ReactionPresence?
   reactionChatMessages ReactionChatMessage[]
+  raceRoomsHost   ReactionRaceRoom[] @relation("RaceHost")
+  raceRoomsGuest  ReactionRaceRoom[] @relation("RaceGuest")
 }
 
-/// Серия тренировки на реакцию (ур.1–2: среднее мс; ур.3: очки в avgMs)
+/// Серия тренировки: ур.1 среднее мс; ур.2 очки шариков в avgMs; ур.3 не пишем (Elo на User)
 model ReactionRun {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   level     Int      @default(1)
-  /// Ур.1–2: среднее мс; ур.3: итоговый счёт
+  /// Ур.1: среднее мс; ур.2: итоговый счёт
   avgMs     Float
-  /// Ур.1–2: 10 попыток в мс; ур.3: { hits, misses, score }
+  /// Ур.1: 10 попыток в мс; ур.2: { hits, misses, score }
   attempts  Json
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
   @@index([avgMs])
   @@index([level, avgMs])
+}
+
+/// Комната 1v1 «Карт-дуэль»
+model ReactionRaceRoom {
+  id             String   @id @default(cuid())
+  status         String   @default("waiting")
+  seed           Int
+  hostUserId     String
+  hostUser       User     @relation("RaceHost", fields: [hostUserId], references: [id], onDelete: Cascade)
+  guestUserId    String?
+  guestUser      User?    @relation("RaceGuest", fields: [guestUserId], references: [id], onDelete: SetNull)
+  winnerUserId   String?
+  ratingApplied  Boolean  @default(false)
+  /// Snapshot физики: cars, laps, obstacles, track, ticks…
+  state          Json?
+  /// Последние входы { [userId]: { up,down,left,right, at } }
+  inputs         Json?
+  /// { beforeHost, beforeGuest, deltaHost, deltaGuest, afterHost, afterGuest }
+  ratingResult   Json?
+  countdownEndsAt DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([status, updatedAt])
+  @@index([hostUserId])
+  @@index([guestUserId])
 }
 
 /// Кто сейчас на вкладке «Тренировка стрельбы»
