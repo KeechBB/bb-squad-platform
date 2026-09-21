@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { RACE_RATING_START } from "@/lib/reaction";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,10 +34,9 @@ type Agg = {
   runsL1: number;
   bestL2: number | null;
   runsL2: number;
-  raceRating: number;
 };
 
-/** Рейтинг: L1 сек · L2 очки · Карт-дуэль Elo */
+/** Рейтинг: L1 сек · L2 очки */
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.steamId || !session.user.profileComplete) {
@@ -62,7 +60,6 @@ export async function GET() {
       runsL1: 0,
       bestL2: null,
       runsL2: 0,
-      raceRating: RACE_RATING_START,
     };
     const count = g._count._all;
     if (g.level === 1) {
@@ -75,51 +72,13 @@ export async function GET() {
     byUser.set(g.userId, cur);
   }
 
-  const raceUsers = await prisma.user.findMany({
-    where: {
-      OR: [
-        { id: { in: [...byUser.keys()] } },
-        { raceRating: { not: RACE_RATING_START } },
-        { raceRoomsHost: { some: {} } },
-        { raceRoomsGuest: { some: {} } },
-      ],
-    },
-    select: {
-      id: true,
-      nick: true,
-      steamName: true,
-      raceRating: true,
-    },
+  const users = await prisma.user.findMany({
+    where: { id: { in: [...byUser.keys()] } },
+    select: { id: true, nick: true, steamName: true },
   });
-
-  for (const u of raceUsers) {
-    const cur = byUser.get(u.id) || {
-      bestL1: null,
-      runsL1: 0,
-      bestL2: null,
-      runsL2: 0,
-      raceRating: RACE_RATING_START,
-    };
-    cur.raceRating = u.raceRating;
-    byUser.set(u.id, cur);
-  }
-
   const nickById = new Map(
-    raceUsers.map((u) => [u.id, u.nick || u.steamName || "Игрок"] as const)
+    users.map((u) => [u.id, u.nick || u.steamName || "Игрок"] as const)
   );
-  // fill nicks for run-only users
-  const missing = [...byUser.keys()].filter((id) => !nickById.has(id));
-  if (missing.length) {
-    const extra = await prisma.user.findMany({
-      where: { id: { in: missing } },
-      select: { id: true, nick: true, steamName: true, raceRating: true },
-    });
-    for (const u of extra) {
-      nickById.set(u.id, u.nick || u.steamName || "Игрок");
-      const cur = byUser.get(u.id);
-      if (cur) cur.raceRating = u.raceRating;
-    }
-  }
 
   const rows = [...byUser.entries()]
     .map(([userId, a]) => ({
@@ -129,18 +88,8 @@ export async function GET() {
       runsL1: a.runsL1,
       bestL2: a.bestL2,
       runsL2: a.runsL2,
-      raceRating: a.raceRating,
-      bestL3: null as number | null,
-      runsL3: 0,
     }))
-    .filter(
-      (r) =>
-        r.bestL1 != null ||
-        r.bestL2 != null ||
-        r.raceRating !== RACE_RATING_START ||
-        r.runsL1 > 0 ||
-        r.runsL2 > 0
-    )
+    .filter((r) => r.bestL1 != null || r.bestL2 != null || r.runsL1 > 0 || r.runsL2 > 0)
     .sort((a, b) => {
       const a1 = a.bestL1 ?? Number.POSITIVE_INFINITY;
       const b1 = b.bestL1 ?? Number.POSITIVE_INFINITY;

@@ -31,7 +31,6 @@ function mapRec(r: RecRow) {
 }
 
 async function bestForLevel(userId: string, level: ReactionLevel) {
-  if (level === 3) return null;
   return prisma.reactionRun.findFirst({
     where: { userId, level },
     orderBy: { avgMs: isScoreLevel(level) ? "desc" : "asc" },
@@ -40,7 +39,6 @@ async function bestForLevel(userId: string, level: ReactionLevel) {
 }
 
 async function globalRecord(level: ReactionLevel) {
-  if (level === 3) return null;
   const best = await prisma.reactionRun.findFirst({
     where: { level },
     orderBy: { avgMs: isScoreLevel(level) ? "desc" : "asc" },
@@ -55,11 +53,10 @@ async function globalRecord(level: ReactionLevel) {
 
 function presencePatch(level: ReactionLevel, value: number) {
   if (level === 1) return { lastAvgL1Ms: value };
-  if (level === 2) return { lastAvgL2Ms: value };
-  return { lastAvgL3Ms: value };
+  return { lastAvgL2Ms: value };
 }
 
-/** Сохранить серию ур.1 или счёт ур.2 (шарики). Ур.3 — только Elo через race API. */
+/** Сохранить серию ур.1 или счёт ур.2 (шарики). */
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.steamId || !session.user.profileComplete) {
@@ -75,17 +72,12 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => null);
-  let level = normalizeLevel(body?.level);
-  // клиенты могли ещё слать level:3 для шариков — принимаем как ур.2
-  if (level === 3 && body && typeof body === "object" && "score" in body) {
-    level = 2;
-  }
-  if (level === 3) {
-    return NextResponse.json(
-      { error: "Карт-дуэль сохраняется через матч, не через /run" },
-      { status: 400 }
-    );
-  }
+  const rawLevel = Number(body?.level);
+  // старые клиенты слали level:3 для шариков — принимаем как ур.2
+  let level: ReactionLevel =
+    rawLevel === 3 && body && typeof body === "object" && "score" in body
+      ? 2
+      : normalizeLevel(body?.level);
 
   let avgMs: number;
   let attemptsPayload: unknown;
@@ -159,7 +151,6 @@ export async function POST(req: Request) {
     records: {
       l1: recordL1,
       l2: recordL2,
-      l3: null,
     },
   });
 }
@@ -173,7 +164,7 @@ export async function GET(req: Request) {
 
   const user = await prisma.user.findUnique({
     where: { steamId: session.user.steamId },
-    select: { id: true, raceRating: true },
+    select: { id: true },
   });
   if (!user) {
     return NextResponse.json({ error: "Не найден" }, { status: 404 });
@@ -186,17 +177,6 @@ export async function GET(req: Request) {
     levelParam == null || levelParam === ""
       ? undefined
       : normalizeLevel(levelParam);
-
-  if (levelFilter === 3) {
-    return NextResponse.json({
-      ok: true,
-      bestAvgMs: user.raceRating,
-      bestLevel: 3,
-      bestAt: null,
-      history: [],
-      raceRating: user.raceRating,
-    });
-  }
 
   const where = {
     userId: user.id,
@@ -225,7 +205,6 @@ export async function GET(req: Request) {
     bestAvgMs: best?.avgMs ?? null,
     bestLevel: best?.level ?? null,
     bestAt: best?.createdAt?.toISOString() ?? null,
-    raceRating: user.raceRating,
     history: runs.map((r) => ({
       id: r.id,
       avgMs: r.avgMs,

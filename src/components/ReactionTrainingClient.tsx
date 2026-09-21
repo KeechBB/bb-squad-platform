@@ -14,7 +14,6 @@ import {
   REACTION_L2_SPAWN_MAX,
   REACTION_L2_SPAWN_MIN,
   REACTION_MISS_PENALTY_MS,
-  RACE_TAB_LABEL,
   averageMs,
   formatScore,
   formatSec3,
@@ -23,7 +22,6 @@ import {
   type ReactionLevel,
 } from "@/lib/reaction";
 import { ReactionAimChat } from "@/components/ReactionAimChat";
-import { KartDuelPanel } from "@/components/KartDuelPanel";
 
 type LivePlayer = {
   userId: string;
@@ -32,7 +30,6 @@ type LivePlayer = {
   lastAvgMs: number | null;
   lastAvgL1Ms: number | null;
   lastAvgL2Ms: number | null;
-  lastAvgL3Ms: number | null;
 };
 
 type GlobalRecord = {
@@ -52,8 +49,6 @@ type RatingRow = {
   runsL1: number;
   bestL2: number | null;
   runsL2: number;
-  raceRating: number | null;
-  bestL3?: number | null;
   runsL3?: number;
 };
 
@@ -63,7 +58,6 @@ type RatingSortKey =
   | "runsL1"
   | "bestL2"
   | "runsL2"
-  | "raceRating";
 
 type SessionSeries = {
   id: number;
@@ -192,7 +186,6 @@ export function ReactionTrainingClient() {
   const [myBest, setMyBest] = useState<number | null>(null);
   const [recordL1, setRecordL1] = useState<GlobalRecord | null>(null);
   const [recordL2, setRecordL2] = useState<GlobalRecord | null>(null);
-  const [recordL3, setRecordL3] = useState<GlobalRecord | null>(null);
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
   const [circle, setCircle] = useState<{
@@ -225,7 +218,6 @@ export function ReactionTrainingClient() {
   const lastAvgRef = useRef<number | null>(null);
   const lastL1Ref = useRef<number | null>(null);
   const lastL2Ref = useRef<number | null>(null);
-  const lastL3Ref = useRef<number | null>(null);
   const seriesSeqRef = useRef(0);
   const ballSeqRef = useRef(0);
   const l3ScoreRef = useRef(0);
@@ -312,7 +304,6 @@ export function ReactionTrainingClient() {
           lastAvgMs: lastAvgRef.current,
           lastAvgL1Ms: lastL1Ref.current,
           lastAvgL2Ms: lastL2Ref.current,
-          lastAvgL3Ms: lastL3Ref.current,
         }),
         cache: "no-store",
       });
@@ -347,7 +338,6 @@ export function ReactionTrainingClient() {
       setLive(players);
       if (data.records?.l1 !== undefined) setRecordL1(data.records.l1);
       if (data.records?.l2 !== undefined) setRecordL2(data.records.l2);
-      if (data.records?.l3 !== undefined) setRecordL3(data.records.l3);
     } catch {
       /* ignore */
     }
@@ -705,11 +695,6 @@ export function ReactionTrainingClient() {
     if (r.bestL2 == null) return best;
     return best == null || r.bestL2 > best ? r.bestL2 : best;
   }, null);
-  const topRace = ratingRows.reduce<number | null>((best, r) => {
-    if (r.raceRating == null) return best;
-    return best == null || r.raceRating > best ? r.raceRating : best;
-  }, null);
-
   function renderRecordCell(
     value: number | null,
     top: number | null,
@@ -752,8 +737,7 @@ export function ReactionTrainingClient() {
 
   function rememberLevelResult(lv: Level, value: number) {
     if (lv === 1) lastL1Ref.current = value;
-    else if (lv === 2) lastL2Ref.current = value;
-    else lastL3Ref.current = value;
+    else lastL2Ref.current = value;
     lastAvgRef.current = value;
   }
 
@@ -797,7 +781,6 @@ export function ReactionTrainingClient() {
       if (data.bestAvgMs != null) setMyBest(data.bestAvgMs);
       if (data.records?.l1 !== undefined) setRecordL1(data.records.l1);
       if (data.records?.l2 !== undefined) setRecordL2(data.records.l2);
-      if (data.records?.l3 !== undefined) setRecordL3(data.records.l3);
       setMsg("Серия сохранена в профиль");
       void pingPresence();
       void loadLive();
@@ -843,7 +826,6 @@ export function ReactionTrainingClient() {
       if (data.bestAvgMs != null) setMyBest(data.bestAvgMs);
       if (data.records?.l1 !== undefined) setRecordL1(data.records.l1);
       if (data.records?.l2 !== undefined) setRecordL2(data.records.l2);
-      if (data.records?.l3 !== undefined) setRecordL3(data.records.l3);
       setMsg(`Раунд сохранён · ${formatScore(saved)} оч.`);
       void pingPresence();
       void loadLive();
@@ -926,17 +908,13 @@ export function ReactionTrainingClient() {
           <p className="muted" style={{ margin: "6px 0 0" }}>
             {level === 1
               ? "10 попыток · круг через 1–10 с · результат в секундах · промах = штраф 1.000 с"
-              : level === 2
-                ? "30 с · каждые 0.4 с 3–5 шариков · живут 1.1 с · попадание +10 · промах −5 · без зума браузера"
-                : "тест-синхрон · широкий круг · WASD / стрелки"}
+              : "30 с · каждые 0.4 с 3–5 шариков · живут 1.1 с · попадание +10 · промах −5 · без зума браузера"}
           </p>
         </div>
-        {level !== 3 ? (
-          <div className="reaction-best-chip reaction-best-chip-l1">
-            <span className="muted">Твой лучший · ур. {level}</span>
-            <strong>{formatResult(level, myBest)}</strong>
-          </div>
-        ) : null}
+        <div className="reaction-best-chip reaction-best-chip-l1">
+          <span className="muted">Твой лучший · ур. {level}</span>
+          <strong>{formatResult(level, myBest)}</strong>
+        </div>
       </header>
 
       <div className="reaction-tabs-row">
@@ -962,17 +940,6 @@ export function ReactionTrainingClient() {
           >
             <strong>2 уровень</strong>
             <span>волна шариков · очки</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={view === "train" && level === 3}
-            className={`reaction-tab${view === "train" && level === 3 ? " active" : ""}`}
-            disabled={busy || saving}
-            onClick={() => selectLevel(3)}
-          >
-            <strong>{RACE_TAB_LABEL}</strong>
-            <span>гонка 1v1 · Elo</span>
           </button>
           <button
             type="button"
@@ -1021,22 +988,6 @@ export function ReactionTrainingClient() {
               )}
             </span>
           </div>
-          <div className="reaction-record-card">
-            <span className="muted">Рекорд · 3 ур</span>
-            <strong>{formatRecord(3, recordL3)}</strong>
-            <span className="reaction-record-nick">
-              {recordL3?.nick ? (
-                <Link
-                  className="player-nick-link"
-                  href={`/players/${encodeURIComponent(recordL3.nick)}`}
-                >
-                  {recordL3.nick}
-                </Link>
-              ) : (
-                "пока нет"
-              )}
-            </span>
-          </div>
         </div>
         ) : null}
       </div>
@@ -1070,7 +1021,6 @@ export function ReactionTrainingClient() {
                       ["runsL1", "1 ур · серии"],
                       ["bestL2", "2 ур · рекорд"],
                       ["runsL2", "2 ур · раунды"],
-                      ["raceRating", "Карт-дуэль · Elo"],
                     ] as const
                   ).map(([key, label]) => {
                     const active = ratingSortKey === key;
@@ -1097,13 +1047,13 @@ export function ReactionTrainingClient() {
               <tbody>
                 {ratingLoading && ratingRows.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="muted">
+                    <td colSpan={5} className="muted">
                       Загружаем…
                     </td>
                   </tr>
                 ) : sortedRatingRows.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="muted">
+                    <td colSpan={5} className="muted">
                       Пока никто не играл
                     </td>
                   </tr>
@@ -1122,19 +1072,12 @@ export function ReactionTrainingClient() {
                       <td>{r.runsL1 || "—"}</td>
                       <td>{renderRecordCell(r.bestL2, topBestL2, "score")}</td>
                       <td>{r.runsL2 || "—"}</td>
-                      <td>
-                        {renderRecordCell(r.raceRating, topRace, "score")}
-                      </td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
           </div>
-        </section>
-      ) : level === 3 ? (
-        <section className="card reaction-main">
-          <KartDuelPanel />
         </section>
       ) : (
       <div className="reaction-layout">
@@ -1143,18 +1086,17 @@ export function ReactionTrainingClient() {
           <p className="muted" style={{ marginTop: 0, fontSize: "0.82rem" }}>
             Онлайн · последняя серия по уровню
           </p>
-          <div className="reaction-live-head reaction-live-head-3">
+          <div className="reaction-live-head reaction-live-head-2">
             <span>Ник</span>
             <span>1</span>
             <span>2</span>
-            <span>3</span>
           </div>
           <ul className="reaction-live-list">
             {live.length === 0 ? (
               <li className="muted reaction-live-empty">Пока никого нет</li>
             ) : (
               live.map((p) => (
-                <li key={p.userId} className="reaction-live-row-3">
+                <li key={p.userId} className="reaction-live-row-2">
                   <span className="reaction-live-nick">
                     {p.nick ? (
                       <Link
@@ -1172,9 +1114,6 @@ export function ReactionTrainingClient() {
                   </span>
                   <span className="reaction-live-avg">
                     {p.lastAvgL2Ms != null ? formatScore(p.lastAvgL2Ms) : "—"}
-                  </span>
-                  <span className="reaction-live-avg">
-                    {p.lastAvgL3Ms != null ? formatScore(p.lastAvgL3Ms) : "—"}
                   </span>
                 </li>
               ))

@@ -1,7 +1,7 @@
-/** Тренировка стрельбы — реакция + карт-дуэль */
+/** Тренировка стрельбы — реакция (2 уровня) */
 
 export const REACTION_LEVEL = 1;
-export const REACTION_LEVEL_MAX = 3;
+export const REACTION_LEVEL_MAX = 2;
 export const REACTION_ATTEMPTS = 10;
 /** Задержка до появления круга, секунды */
 export const REACTION_DELAY_MIN_S = 1;
@@ -37,25 +37,13 @@ export const REACTION_L3_MISS_POINTS = REACTION_L2_MISS_POINTS;
 export const REACTION_L3_SCORE_MIN = REACTION_L2_SCORE_MIN;
 export const REACTION_L3_SCORE_MAX = REACTION_L2_SCORE_MAX;
 
-/** Карт-дуэль (ур.3) — Elo */
-export const RACE_RATING_START = 1000;
-export const RACE_RATING_FLOOR = 100;
-export const RACE_ELO_K = 25;
-export const RACE_LAPS = 5;
-export const RACE_QUEUE_TIMEOUT_MS = 60_000;
-export const RACE_COUNTDOWN_MS = 3_000;
-export const RACE_TICK_MS = 50;
-/** Макс. тиков за один advance — меньше = меньше рывков при лагах */
-export const RACE_MAX_CATCHUP_TICKS = 6;
-export const RACE_TAB_LABEL = "Карт-дуэль";
-
 /** Присутствие на вкладке */
 export const REACTION_PRESENCE_MS = 45_000;
 /** Окно чата на вкладке — очистка каждые 30 мин */
 export const REACTION_CHAT_WINDOW_MS = 30 * 60 * 1000;
 export const REACTION_CHAT_MAX_LEN = 200;
 
-export type ReactionLevel = 1 | 2 | 3;
+export type ReactionLevel = 1 | 2;
 
 export function reactionChatWindowStart(now = Date.now()): Date {
   const start = Math.floor(now / REACTION_CHAT_WINDOW_MS) * REACTION_CHAT_WINDOW_MS;
@@ -91,17 +79,13 @@ export function formatMs3(ms: number | null | undefined): string {
 export function normalizeLevel(raw: unknown): ReactionLevel {
   const n = Number(raw);
   if (n === 2) return 2;
-  if (n === 3) return 3;
+  // старые клиенты могли слать 3 (= шарики); принимаем как 2 только в API
   return 1;
 }
 
-/** Ур.2 — счёт шариков (выше лучше). Ур.1 — время. Ур.3 — Elo отдельно. */
+/** Ур.2 — счёт шариков (выше лучше). Ур.1 — время. */
 export function isScoreLevel(level: ReactionLevel): boolean {
   return level === 2;
-}
-
-export function isRaceLevel(level: ReactionLevel): boolean {
-  return level === 3;
 }
 
 export function validateAttempts(raw: unknown): number[] | null {
@@ -141,32 +125,4 @@ export function validateL2Score(raw: unknown): {
 /** @deprecated use validateL2Score */
 export function validateL3Score(raw: unknown) {
   return validateL2Score(raw);
-}
-
-/** Elo: ожидание победы A над B */
-export function raceEloExpected(ratingA: number, ratingB: number): number {
-  return 1 / (1 + Math.pow(10, (ratingB - ratingA) / 400));
-}
-
-export function raceEloDelta(
-  ratingA: number,
-  ratingB: number,
-  aWon: boolean
-): { deltaA: number; deltaB: number; nextA: number; nextB: number } {
-  const eA = raceEloExpected(ratingA, ratingB);
-  const eB = 1 - eA;
-  const sA = aWon ? 1 : 0;
-  const sB = aWon ? 0 : 1;
-  let deltaA = Math.round(RACE_ELO_K * (sA - eA));
-  let deltaB = Math.round(RACE_ELO_K * (sB - eB));
-  deltaA = Math.max(-RACE_ELO_K, Math.min(RACE_ELO_K, deltaA));
-  deltaB = Math.max(-RACE_ELO_K, Math.min(RACE_ELO_K, deltaB));
-  const nextA = Math.max(RACE_RATING_FLOOR, ratingA + deltaA);
-  const nextB = Math.max(RACE_RATING_FLOOR, ratingB + deltaB);
-  return {
-    deltaA: nextA - ratingA,
-    deltaB: nextB - ratingB,
-    nextA,
-    nextB,
-  };
 }

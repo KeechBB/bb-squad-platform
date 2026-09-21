@@ -62,10 +62,7 @@
   pm2 restart bb-squad
   cd /var/www/bb-squad-platform && git pull && npm install && npm run build && pm2 restart bb-squad
   ```
-- Старт: `npm start` → `tsx server.ts` (Next + WS «Карт-дуэль» на `/api/reaction/race/ws`).
-  Если pm2 когда-то был заведён через `next start`, пересоздай:
-  `pm2 delete bb-squad && cd /var/www/bb-squad-platform && pm2 start npm --name bb-squad -- start && pm2 save`
-- nginx: в `location /` нужны `Upgrade` / `Connection "upgrade"` (см. `deploy/nginx-bb-squad.conf`).
+- Старт: `npm start` → `next start`
 - Временный URL: **http://91.222.237.91:3000**
 
 Файл `.env` на сервере (`/var/www/bb-squad-platform/.env`) — 4 переменные:

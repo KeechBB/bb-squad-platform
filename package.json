@@ -3,10 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "tsx server.ts",
-    "dev:next": "next dev",
+    "dev": "next dev",
     "build": "prisma generate && next build",
-    "start": "tsx server.ts",
+    "start": "next start",
     "lint": "eslint",
     "db:push": "prisma db push",
     "postinstall": "prisma generate"
@@ -17,16 +16,13 @@
     "next-auth": "^4.24.15",
     "next-auth-steam": "^0.4.0",
     "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "tsx": "^4.23.15",
-    "ws": "^8.21.3"
+    "react-dom": "19.1.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@types/ws": "^8.18.1",
     "eslint": "^9",
     "eslint-config-next": "15.5.25",
     "prisma": "^5.22.0",

@@ -9,10 +9,6 @@ type Props = {
   bestLevel?: number | null;
   bestL1?: number | null;
   bestL2?: number | null;
-  /** Elo Карт-дуэль */
-  raceRating?: number | null;
-  /** @deprecated use raceRating */
-  bestL3?: number | null;
   history: Array<{
     id: string;
     avgMs: number;
@@ -40,15 +36,8 @@ function formatHistoryValue(level: number | undefined, avgMs: number) {
   return `${formatSec3(avgMs)} с`;
 }
 
-export function ReactionBestCard({
-  bestL1,
-  bestL2,
-  raceRating,
-  bestL3,
-  history,
-}: Props) {
+export function ReactionBestCard({ bestL1, bestL2, history }: Props) {
   const [open, setOpen] = useState(false);
-  const elo = raceRating ?? bestL3 ?? null;
 
   return (
     <>
@@ -69,10 +58,6 @@ export function ReactionBestCard({
               <strong>
                 {bestL2 != null ? `${formatScore(bestL2)} оч.` : "—"}
               </strong>
-            </div>
-            <div className="reaction-profile-level">
-              <span className="muted">Карт-дуэль</span>
-              <strong>{elo != null ? formatScore(elo) : "—"}</strong>
             </div>
           </div>
           <div className="reaction-profile-actions">
