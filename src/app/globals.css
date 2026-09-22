@@ -2585,7 +2585,8 @@ body:has(.home-page) {
   list-style: none;
   margin: 0;
   padding: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   flex: 0 1 auto;
   min-height: 0;
   display: flex;
@@ -2595,8 +2596,10 @@ body:has(.home-page) {
 
 .home-mission {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   display: grid;
-  grid-template-columns: 16px 52px minmax(140px, 1fr) 44px;
+  grid-template-columns: 16px 52px minmax(0, 1fr) 44px;
   align-items: center;
   column-gap: 10px;
   row-gap: 0;
