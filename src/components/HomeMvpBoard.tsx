@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { HomeMvpBoardData, HomeMvpRow } from "@/lib/homeMvp";
+import {
+  emptyHomeMvpBoard,
+  type HomeMvpBoardData,
+  type HomeMvpLane,
+  type HomeMvpRow,
+} from "@/lib/homeMvp";
 
 type Props = {
   initial: HomeMvpBoardData;
@@ -19,9 +24,9 @@ function medalWord(n: number) {
   return "медалей";
 }
 
-function MedalChips({ row }: { row: HomeMvpRow }) {
+function GloryChips({ row }: { row: HomeMvpRow }) {
   return (
-    <ul className="home-mvp-chips" aria-label="Медали">
+    <ul className="home-mvp-chips" aria-label="MVP медали">
       {row.medic > 0 ? (
         <li
           className="home-mvp-chip home-mvp-chip-medic"
@@ -56,11 +61,11 @@ function MedalChips({ row }: { row: HomeMvpRow }) {
 function PodiumCol({
   title,
   href,
-  rows,
+  lane,
 }: {
   title: string;
   href: string;
-  rows: HomeMvpRow[];
+  lane: HomeMvpLane;
 }) {
   return (
     <div className="home-mvp-col">
@@ -75,15 +80,15 @@ function PodiumCol({
         </Link>
       </div>
 
-      {rows.length === 0 ? (
-        <p className="home-mvp-empty muted">Пока нет медалей</p>
+      {lane.glory.length === 0 ? (
+        <p className="home-mvp-empty muted">Пока нет MVP</p>
       ) : (
         <ol className="home-mvp-podium">
-          {rows.map((row, i) => {
+          {lane.glory.map((row, i) => {
             const place = i + 1;
             return (
               <li
-                key={`${title}-${row.nick}`}
+                key={`${title}-g-${row.nick}`}
                 className={`home-mvp-step home-mvp-step-${place}`}
               >
                 <div className="home-mvp-step-top">
@@ -100,28 +105,44 @@ function PodiumCol({
                     </p>
                   </div>
                 </div>
-                <MedalChips row={row} />
+                <GloryChips row={row} />
               </li>
             );
           })}
         </ol>
       )}
+
+      <div className="home-mvp-anti-block">
+        <p className="home-mvp-anti-head">Anti-MVP</p>
+        {lane.anti.length === 0 ? (
+          <p className="home-mvp-empty muted">Пока чисто</p>
+        ) : (
+          <ol className="home-mvp-anti-list">
+            {lane.anti.map((row) => (
+              <li key={`${title}-a-${row.nick}`} className="home-mvp-anti-row">
+                <span className="home-mvp-anti-nick" title={row.nick}>
+                  {row.nick}
+                </span>
+                <span
+                  className="home-mvp-chip home-mvp-chip-anti"
+                  title="Anti-MVP — больше всех смертей за раунд"
+                >
+                  <span className="home-mvp-chip-label">Anti</span>
+                  <span className="home-mvp-chip-n">×{row.anti}</span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
     </div>
   );
 }
 
-function emptyBoard(): HomeMvpBoardData {
-  return {
-    train: [],
-    main: [],
-    junior: [],
-    source: "",
-    updatedAt: new Date().toISOString(),
-  };
-}
-
 export function HomeMvpBoard({ initial }: Props) {
-  const [data, setData] = useState<HomeMvpBoardData>(initial || emptyBoard());
+  const [data, setData] = useState<HomeMvpBoardData>(
+    initial || emptyHomeMvpBoard()
+  );
   const [pulse, setPulse] = useState(false);
 
   useEffect(() => {
@@ -178,31 +199,40 @@ export function HomeMvpBoard({ initial }: Props) {
           <p className="home-ops-eyebrow">пьедестал · live</p>
           <h2>MVP рекорды</h2>
         </div>
-        <span className="home-mvp-live" title="Обновление примерно раз в 45 секунд">
+        <span
+          className="home-mvp-live"
+          title="Обновление примерно раз в 45 секунд"
+        >
           <i />
           live
         </span>
       </header>
 
-      <p className="home-mvp-legend">
-        <span className="home-mvp-chip home-mvp-chip-medic">
-          <span className="home-mvp-chip-label">Medic</span>
-        </span>
-        <span className="home-mvp-chip home-mvp-chip-killer">
-          <span className="home-mvp-chip-label">Killer</span>
-        </span>
-        <span className="home-mvp-chip home-mvp-chip-war">
-          <span className="home-mvp-chip-label">War</span>
-        </span>
-        <span className="home-mvp-legend-hint">
-          ресы · килы · боевой счёт за раунд
-        </span>
-      </p>
+      <div className="home-mvp-legend-wrap">
+        <p className="home-mvp-legend">
+          <span className="home-mvp-chip home-mvp-chip-medic">
+            <span className="home-mvp-chip-label">Medic</span>
+          </span>
+          <span className="home-mvp-chip home-mvp-chip-killer">
+            <span className="home-mvp-chip-label">Killer</span>
+          </span>
+          <span className="home-mvp-chip home-mvp-chip-war">
+            <span className="home-mvp-chip-label">War</span>
+          </span>
+          <span className="home-mvp-legend-hint">ресы · килы · боевой счёт</span>
+        </p>
+        <p className="home-mvp-legend home-mvp-legend-anti">
+          <span className="home-mvp-chip home-mvp-chip-anti">
+            <span className="home-mvp-chip-label">Anti-MVP</span>
+          </span>
+          <span className="home-mvp-legend-hint">смерти · отдельно от MVP</span>
+        </p>
+      </div>
 
       <div className="home-mvp-grid">
-        <PodiumCol title="Тренировки" href="/tm" rows={data.train} />
-        <PodiumCol title="КВ Main" href="/cw" rows={data.main} />
-        <PodiumCol title="КВ Junior" href="/cw" rows={data.junior} />
+        <PodiumCol title="Тренировки" href="/tm" lane={data.train} />
+        <PodiumCol title="КВ Main" href="/cw" lane={data.main} />
+        <PodiumCol title="КВ Junior" href="/cw" lane={data.junior} />
       </div>
     </section>
   );

@@ -12,13 +12,10 @@ export async function GET() {
       },
     });
   } catch (e) {
+    const { emptyHomeMvpBoard } = await import("@/lib/homeMvp");
     return NextResponse.json(
       {
-        train: [],
-        main: [],
-        junior: [],
-        source: "",
-        updatedAt: new Date().toISOString(),
+        ...emptyHomeMvpBoard(),
         error: String((e as Error)?.message || e),
       },
       { status: 200 }

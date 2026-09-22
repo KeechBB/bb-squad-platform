@@ -2,7 +2,7 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { buildUpcomingMatchPreviews } from "@/lib/kvForecast";
-import { buildHomeMvpBoard } from "@/lib/homeMvp";
+import { buildHomeMvpBoard, emptyHomeMvpBoard } from "@/lib/homeMvp";
 import { HomeUpcomingMatches } from "@/components/HomeUpcomingMatches";
 import { HomeMvpBoard } from "@/components/HomeMvpBoard";
 
@@ -24,13 +24,8 @@ export default async function HomePage() {
     previews = [];
   }
 
-  let mvpBoard: Awaited<ReturnType<typeof buildHomeMvpBoard>> = {
-    train: [],
-    main: [],
-    junior: [],
-    source: "",
-    updatedAt: new Date().toISOString(),
-  };
+  let mvpBoard: Awaited<ReturnType<typeof buildHomeMvpBoard>> =
+    emptyHomeMvpBoard();
   try {
     mvpBoard = await buildHomeMvpBoard();
   } catch {

@@ -1,15 +1,22 @@
 export type HomeMvpRow = {
   nick: string;
+  /** Positive medals only (Medic + Killer + War). Anti never counted here. */
   medals: number;
   medic: number;
   killer: number;
   war: number;
+  anti: number;
+};
+
+export type HomeMvpLane = {
+  glory: HomeMvpRow[];
+  anti: HomeMvpRow[];
 };
 
 export type HomeMvpBoardData = {
-  train: HomeMvpRow[];
-  main: HomeMvpRow[];
-  junior: HomeMvpRow[];
+  train: HomeMvpLane;
+  main: HomeMvpLane;
+  junior: HomeMvpLane;
   source: string;
   updatedAt: string;
 };
@@ -20,7 +27,20 @@ const KV_BASES = [
   "https://keechbb.github.io/blackberry-kv",
 ].filter(Boolean) as string[];
 
-type Acc = { nick: string; medic: number; killer: number; war: number };
+type Acc = {
+  nick: string;
+  medic: number;
+  killer: number;
+  war: number;
+  anti: number;
+};
+
+type MvpBlock = {
+  medic?: string[];
+  killer?: string[];
+  damage?: string[];
+  antiDeath?: string[];
+};
 
 async function fetchJson(url: string) {
   const res = await fetch(url, { next: { revalidate: 60 } });
@@ -48,11 +68,23 @@ type StatRow = {
   dmg?: number;
 };
 
-function pickMvps(rows: StatRow[]) {
-  const empty = {
-    medic: [] as string[],
-    killer: [] as string[],
-    damage: [] as string[],
+function toRow(p: Acc): HomeMvpRow {
+  return {
+    nick: p.nick,
+    medic: p.medic,
+    killer: p.killer,
+    war: p.war,
+    anti: p.anti,
+    medals: p.medic + p.killer + p.war,
+  };
+}
+
+function pickMvps(rows: StatRow[]): MvpBlock {
+  const empty: MvpBlock = {
+    medic: [],
+    killer: [],
+    damage: [],
+    antiDeath: [],
   };
   const pool = rows.filter(
     (p) =>
@@ -94,22 +126,55 @@ function pickMvps(rows: StatRow[]) {
     return tied[0].nick;
   };
 
+  const pickAnti = () => {
+    const top = Math.max(...pool.map((p) => n(p.deaths)));
+    if (top <= 0) return null;
+    const tied = pool.filter((p) => n(p.deaths) === top);
+    tied.sort(
+      (a, b) =>
+        kdOf(a) - kdOf(b) ||
+        n(a.dmg) - n(b.dmg) ||
+        nickKey(a).localeCompare(nickKey(b))
+    );
+    return tied[0].nick;
+  };
+
   return {
     medic: [pickMedic()].filter(Boolean) as string[],
     killer: [pickKiller()].filter(Boolean) as string[],
     damage: [pickDamage()].filter(Boolean) as string[],
+    antiDeath: [pickAnti()].filter(Boolean) as string[],
   };
 }
 
-function topThree(map: Map<string, Acc>): HomeMvpRow[] {
-  return Array.from(map.values())
-    .map((p) => ({
-      nick: p.nick,
-      medic: p.medic,
-      killer: p.killer,
-      war: p.war,
-      medals: p.medic + p.killer + p.war,
-    }))
+function emptyAcc(nick: string): Acc {
+  return { nick, medic: 0, killer: 0, war: 0, anti: 0 };
+}
+
+function bump(
+  map: Map<string, Acc>,
+  nick: string,
+  field: "medic" | "killer" | "war" | "anti"
+) {
+  const key = nick.trim().toLowerCase();
+  if (!key) return;
+  const cur = map.get(key) || emptyAcc(nick.trim());
+  if (nick.trim().length > cur.nick.length) cur.nick = nick.trim();
+  cur[field] += 1;
+  map.set(key, cur);
+}
+
+function applyMvpBlock(map: Map<string, Acc>, block: MvpBlock | null | undefined) {
+  if (!block) return;
+  for (const nick of block.medic || []) bump(map, nick, "medic");
+  for (const nick of block.killer || []) bump(map, nick, "killer");
+  for (const nick of block.damage || []) bump(map, nick, "war");
+  for (const nick of block.antiDeath || []) bump(map, nick, "anti");
+}
+
+function laneFromMap(map: Map<string, Acc>): HomeMvpLane {
+  const rows = Array.from(map.values()).map(toRow);
+  const glory = rows
     .filter((p) => p.medals > 0)
     .sort(
       (a, b) =>
@@ -119,28 +184,21 @@ function topThree(map: Map<string, Acc>): HomeMvpRow[] {
         a.nick.localeCompare(b.nick, "ru", { sensitivity: "base" })
     )
     .slice(0, 3);
+
+  const anti = rows
+    .filter((p) => p.anti > 0)
+    .sort(
+      (a, b) =>
+        b.anti - a.anti ||
+        a.medals - b.medals ||
+        a.nick.localeCompare(b.nick, "ru", { sensitivity: "base" })
+    )
+    .slice(0, 3);
+
+  return { glory, anti };
 }
 
-function bump(map: Map<string, Acc>, nick: string, field: "medic" | "killer" | "war") {
-  const key = nick.trim().toLowerCase();
-  if (!key) return;
-  const cur = map.get(key) || { nick: nick.trim(), medic: 0, killer: 0, war: 0 };
-  if (nick.trim().length > cur.nick.length) cur.nick = nick.trim();
-  cur[field] += 1;
-  map.set(key, cur);
-}
-
-function applyMvpBlock(
-  map: Map<string, Acc>,
-  block: { medic?: string[]; killer?: string[]; damage?: string[] } | null | undefined
-) {
-  if (!block) return;
-  for (const nick of block.medic || []) bump(map, nick, "medic");
-  for (const nick of block.killer || []) bump(map, nick, "killer");
-  for (const nick of block.damage || []) bump(map, nick, "war");
-}
-
-async function loadTrainTop(base: string): Promise<HomeMvpRow[]> {
+async function loadTrainLane(base: string): Promise<HomeMvpLane> {
   const month = await fetchJson(`${base}/data/training/2026-09.json`);
   const map = new Map<string, Acc>();
   const matches = (month.matches || []) as {
@@ -169,13 +227,13 @@ async function loadTrainTop(base: string): Promise<HomeMvpRow[]> {
     })
   );
 
-  return topThree(map);
+  return laneFromMap(map);
 }
 
-async function loadKvStackTop(
+async function loadKvStackLane(
   base: string,
   stackWanted: "Main" | "Junior"
-): Promise<HomeMvpRow[]> {
+): Promise<HomeMvpLane> {
   const index = await fetchJson(`${base}/data/index.json`);
   const months = (index.months || []) as { url?: string }[];
   const map = new Map<string, Acc>();
@@ -216,7 +274,9 @@ async function loadKvStackTop(
           applyMvpBlock(map, mvp.r2);
           if (!mvp.r1 && !mvp.r2 && Array.isArray(players.r1)) {
             applyMvpBlock(map, pickMvps(players.r1));
-            if (Array.isArray(players.r2)) applyMvpBlock(map, pickMvps(players.r2));
+            if (Array.isArray(players.r2)) {
+              applyMvpBlock(map, pickMvps(players.r2));
+            }
           }
         } catch {
           /* skip */
@@ -225,7 +285,21 @@ async function loadKvStackTop(
     );
   }
 
-  return topThree(map);
+  return laneFromMap(map);
+}
+
+function emptyLane(): HomeMvpLane {
+  return { glory: [], anti: [] };
+}
+
+export function emptyHomeMvpBoard(): HomeMvpBoardData {
+  return {
+    train: emptyLane(),
+    main: emptyLane(),
+    junior: emptyLane(),
+    source: "",
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 export async function buildHomeMvpBoard(): Promise<HomeMvpBoardData> {
@@ -234,9 +308,9 @@ export async function buildHomeMvpBoard(): Promise<HomeMvpBoardData> {
     const base = raw.replace(/\/$/, "");
     try {
       const [train, main, junior] = await Promise.all([
-        loadTrainTop(base),
-        loadKvStackTop(base, "Main"),
-        loadKvStackTop(base, "Junior"),
+        loadTrainLane(base),
+        loadKvStackLane(base, "Main"),
+        loadKvStackLane(base, "Junior"),
       ]);
       return {
         train,
