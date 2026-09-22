@@ -12,6 +12,35 @@ type Props = {
   previews: UpcomingMatchPreview[];
 };
 
+function pctTone(winPct: number) {
+  if (winPct >= 55) return "is-good";
+  if (winPct <= 42) return "is-bad";
+  return "";
+}
+
+function WinRing({ pct, tone }: { pct: number; tone: string }) {
+  const r = 18;
+  const c = 2 * Math.PI * r;
+  const clamped = Math.max(0, Math.min(100, pct));
+  const dash = (clamped / 100) * c;
+  return (
+    <div className={`home-winring ${tone}`.trim()} aria-hidden="true">
+      <svg viewBox="0 0 44 44" width="44" height="44">
+        <circle className="home-winring-track" cx="22" cy="22" r={r} />
+        <circle
+          className="home-winring-value"
+          cx="22"
+          cy="22"
+          r={r}
+          strokeDasharray={`${dash} ${c}`}
+          transform="rotate(-90 22 22)"
+        />
+      </svg>
+      <span className="home-winring-num">{pct}%</span>
+    </div>
+  );
+}
+
 export function HomeUpcomingMatches({ previews }: Props) {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const selected = useMemo(
@@ -20,10 +49,22 @@ export function HomeUpcomingMatches({ previews }: Props) {
   );
 
   return (
-    <section className="home-upcoming-window" aria-label="Предстоящие матчи">
-      <header className="home-upcoming-head">
-        <p className="eyebrow">прогноз ИИ · КВ</p>
-        <h2>Предстоящие матчи</h2>
+    <section className="home-ops-board" aria-label="Предстоящие матчи">
+      <div className="home-ops-corners" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+        <i />
+      </div>
+
+      <header className="home-ops-head">
+        <div>
+          <p className="home-ops-eyebrow">прогноз ИИ · КВ</p>
+          <h2>Брифинг миссий</h2>
+        </div>
+        <span className="home-ops-count">
+          {previews.length ? `${previews.length}` : "—"}
+        </span>
       </header>
 
       {previews.length === 0 ? (
@@ -38,7 +79,7 @@ export function HomeUpcomingMatches({ previews }: Props) {
             className="home-match-back"
             onClick={() => setSelectedKey(null)}
           >
-            ← К списку
+            ← К брифингу
           </button>
 
           <div className="home-match-detail-top">
@@ -56,21 +97,10 @@ export function HomeUpcomingMatches({ previews }: Props) {
                 {selected.map} · {selected.stack} · {selected.size}
               </p>
             </div>
-            <div
-              className={`home-match-pct${
-                selected.forecast.winPct >= 55
-                  ? " is-good"
-                  : selected.forecast.winPct <= 42
-                    ? " is-bad"
-                    : ""
-              }`}
-              title={confidenceLabel(selected.forecast.confidence)}
-            >
-              <span className="home-match-pct-num">
-                {selected.forecast.winPct}%
-              </span>
-              <span className="home-match-pct-label">победа</span>
-            </div>
+            <WinRing
+              pct={selected.forecast.winPct}
+              tone={pctTone(selected.forecast.winPct)}
+            />
           </div>
 
           <div
@@ -112,38 +142,48 @@ export function HomeUpcomingMatches({ previews }: Props) {
         </div>
       ) : (
         <>
-          <ul className="home-match-rows">
-            {previews.map((m) => {
+          <ul className="home-mission-list">
+            {previews.map((m, idx) => {
               const f = m.forecast;
+              const tone = pctTone(f.winPct);
               return (
                 <li key={m.key}>
                   <button
                     type="button"
-                    className="home-match-row"
+                    className="home-mission"
                     onClick={() => setSelectedKey(m.key)}
                   >
-                    <span className="home-match-row-date">
-                      {String(m.day).padStart(2, "0")}.{String(m.month).padStart(2, "0")}{" "}
-                      {m.timeMsk}
+                    <span className="home-mission-rail" aria-hidden="true">
+                      <span className="home-mission-dot" />
+                      {idx < previews.length - 1 ? (
+                        <span className="home-mission-line" />
+                      ) : null}
                     </span>
-                    <span className="home-match-row-vs">
-                      BB–{m.opp}
+
+                    <span className="home-mission-when">
+                      <strong>
+                        {String(m.day).padStart(2, "0")}.
+                        {String(m.month).padStart(2, "0")}
+                      </strong>
+                      <em>{m.timeMsk}</em>
                     </span>
-                    <span className="home-match-row-map" title={m.map}>
-                      {m.map}
+
+                    <span className="home-mission-body">
+                      <span className="home-mission-vs">
+                        <span className="home-match-bb">BB</span>
+                        <span className="home-mission-vs-sep">—</span>
+                        <span>{m.opp}</span>
+                      </span>
+                      <span className="home-mission-map" title={m.map}>
+                        {m.map}
+                      </span>
+                      <span className="home-mission-tags">
+                        <span>{m.stack}</span>
+                        <span>{m.size}</span>
+                      </span>
                     </span>
-                    <span className="home-match-row-stack">{m.stack}</span>
-                    <span
-                      className={`home-match-row-pct${
-                        f.winPct >= 55
-                          ? " is-good"
-                          : f.winPct <= 42
-                            ? " is-bad"
-                            : ""
-                      }`}
-                    >
-                      {f.winPct}%
-                    </span>
+
+                    <WinRing pct={f.winPct} tone={tone} />
                   </button>
                 </li>
               );
