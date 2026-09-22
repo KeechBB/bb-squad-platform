@@ -2478,7 +2478,8 @@ body:has(.home-page) {
   position: relative;
   z-index: 2;
   width: max-content;
-  max-width: min(100%, 520px);
+  min-width: min(100%, 420px);
+  max-width: min(100%, 480px);
   height: auto;
   max-height: min(92%, calc(100dvh - 120px));
   display: flex;
@@ -2594,9 +2595,11 @@ body:has(.home-page) {
 
 .home-mission {
   width: 100%;
-  display: flex;
+  display: grid;
+  grid-template-columns: 16px 52px minmax(140px, 1fr) 44px;
   align-items: center;
-  gap: 10px;
+  column-gap: 10px;
+  row-gap: 0;
   padding: 8px 2px 8px 0;
   border: 0;
   border-radius: 0;
@@ -2615,7 +2618,7 @@ body:has(.home-page) {
     rgba(124, 58, 237, 0.04) 70%,
     transparent
   );
-  transform: translateX(3px);
+  transform: translateX(2px);
 }
 
 .home-mission-rail {
@@ -2625,7 +2628,6 @@ body:has(.home-page) {
   flex-direction: column;
   align-items: center;
   width: 16px;
-  flex-shrink: 0;
 }
 
 .home-mission-dot {
@@ -2653,7 +2655,6 @@ body:has(.home-page) {
   display: grid;
   gap: 2px;
   line-height: 1.1;
-  flex-shrink: 0;
   width: 52px;
 }
 
@@ -2662,6 +2663,7 @@ body:has(.home-page) {
   font-size: 1.05rem;
   font-weight: 700;
   color: #f5f3ff;
+  font-variant-numeric: tabular-nums;
 }
 
 .home-mission-when em {
@@ -2669,20 +2671,20 @@ body:has(.home-page) {
   font-size: 0.78rem;
   letter-spacing: 0.04em;
   color: rgba(196, 181, 253, 0.85);
+  font-variant-numeric: tabular-nums;
 }
 
 .home-mission-body {
   min-width: 0;
-  flex: 0 1 auto;
   display: grid;
   gap: 1px;
-  max-width: 220px;
 }
 
 .home-mission-vs {
-  display: flex;
+  display: grid;
+  grid-template-columns: 28px 14px minmax(0, 1fr);
   align-items: baseline;
-  gap: 6px;
+  column-gap: 0;
   font-family: var(--font-display);
   font-size: 1rem;
   font-weight: 700;
@@ -2692,7 +2694,13 @@ body:has(.home-page) {
   text-overflow: ellipsis;
 }
 
+.home-mission-vs .home-match-bb {
+  width: 28px;
+}
+
 .home-mission-vs-sep {
+  width: 14px;
+  text-align: center;
   color: rgba(155, 147, 176, 0.85);
   font-weight: 500;
 }
@@ -2725,8 +2733,8 @@ body:has(.home-page) {
   position: relative;
   width: 44px;
   height: 44px;
-  flex-shrink: 0;
-  margin-left: 10px; /* + gap 10px ≈ 0.5cm после текста матча */
+  justify-self: end;
+  margin-left: 10px; /* ~0.5cm после блока матча */
 }
 
 .home-winring svg {
@@ -3115,7 +3123,8 @@ body:has(.home-page) {
   }
 
   .home-mission {
-    gap: 8px;
+    grid-template-columns: 14px 48px minmax(0, 1fr) 44px;
+    column-gap: 8px;
   }
 
   .home-winring {
@@ -3938,7 +3947,8 @@ body {
   }
 
   .home-mission {
-    gap: 6px;
+    grid-template-columns: 12px 44px minmax(0, 1fr) 40px;
+    column-gap: 6px;
     padding: 10px 4px 10px 0;
   }
 
