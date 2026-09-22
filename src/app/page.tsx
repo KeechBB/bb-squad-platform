@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { buildUpcomingMatchPreviews } from "@/lib/kvForecast";
 import { HomeUpcomingMatches } from "@/components/HomeUpcomingMatches";
+import { HomeMrapEgg } from "@/components/HomeMrapEgg";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +75,8 @@ export default async function HomePage() {
           </g>
         </svg>
       </div>
+
+      <HomeMrapEgg />
 
       <div className="home-layout">
         <HomeUpcomingMatches previews={previews} />
