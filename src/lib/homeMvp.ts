@@ -7,9 +7,11 @@ export type HomeMvpRow = {
 };
 
 export type HomeMvpBoardData = {
-  kv: HomeMvpRow[];
   train: HomeMvpRow[];
+  main: HomeMvpRow[];
+  junior: HomeMvpRow[];
   source: string;
+  updatedAt: string;
 };
 
 const KV_BASES = [
@@ -18,8 +20,10 @@ const KV_BASES = [
   "https://keechbb.github.io/blackberry-kv",
 ].filter(Boolean) as string[];
 
+type Acc = { nick: string; medic: number; killer: number; war: number };
+
 async function fetchJson(url: string) {
-  const res = await fetch(url, { next: { revalidate: 120 } });
+  const res = await fetch(url, { next: { revalidate: 60 } });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
@@ -49,7 +53,6 @@ function pickMvps(rows: StatRow[]) {
     medic: [] as string[],
     killer: [] as string[],
     damage: [] as string[],
-    antiDeath: [] as string[],
   };
   const pool = rows.filter(
     (p) =>
@@ -95,13 +98,10 @@ function pickMvps(rows: StatRow[]) {
     medic: [pickMedic()].filter(Boolean) as string[],
     killer: [pickKiller()].filter(Boolean) as string[],
     damage: [pickDamage()].filter(Boolean) as string[],
-    antiDeath: [] as string[],
   };
 }
 
-function topFour(
-  map: Map<string, { nick: string; medic: number; killer: number; war: number }>
-): HomeMvpRow[] {
+function topThree(map: Map<string, Acc>): HomeMvpRow[] {
   return Array.from(map.values())
     .map((p) => ({
       nick: p.nick,
@@ -118,14 +118,10 @@ function topFour(
         b.killer - a.killer ||
         a.nick.localeCompare(b.nick, "ru", { sensitivity: "base" })
     )
-    .slice(0, 4);
+    .slice(0, 3);
 }
 
-function bump(
-  map: Map<string, { nick: string; medic: number; killer: number; war: number }>,
-  nick: string,
-  field: "medic" | "killer" | "war"
-) {
+function bump(map: Map<string, Acc>, nick: string, field: "medic" | "killer" | "war") {
   const key = nick.trim().toLowerCase();
   if (!key) return;
   const cur = map.get(key) || { nick: nick.trim(), medic: 0, killer: 0, war: 0 };
@@ -134,33 +130,19 @@ function bump(
   map.set(key, cur);
 }
 
-async function loadKvTop(base: string): Promise<HomeMvpRow[]> {
-  const ledger = await fetchJson(`${base}/data/mvp-ledger.json`);
-  const players = (ledger.players || {}) as Record<
-    string,
-    { mvpMedic?: number; mvpKiller?: number; mvpDamage?: number }
-  >;
-  const map = new Map<
-    string,
-    { nick: string; medic: number; killer: number; war: number }
-  >();
-  for (const [nick, entry] of Object.entries(players)) {
-    map.set(nick.trim().toLowerCase(), {
-      nick,
-      medic: n(entry.mvpMedic),
-      killer: n(entry.mvpKiller),
-      war: n(entry.mvpDamage),
-    });
-  }
-  return topFour(map);
+function applyMvpBlock(
+  map: Map<string, Acc>,
+  block: { medic?: string[]; killer?: string[]; damage?: string[] } | null | undefined
+) {
+  if (!block) return;
+  for (const nick of block.medic || []) bump(map, nick, "medic");
+  for (const nick of block.killer || []) bump(map, nick, "killer");
+  for (const nick of block.damage || []) bump(map, nick, "war");
 }
 
 async function loadTrainTop(base: string): Promise<HomeMvpRow[]> {
   const month = await fetchJson(`${base}/data/training/2026-09.json`);
-  const map = new Map<
-    string,
-    { nick: string; medic: number; killer: number; war: number }
-  >();
+  const map = new Map<string, Acc>();
   const matches = (month.matches || []) as {
     status?: string;
     playersUrl?: string;
@@ -174,23 +156,76 @@ async function loadTrainTop(base: string): Promise<HomeMvpRow[]> {
         : `${base}/${m.playersUrl.replace(/^\//, "")}`;
       try {
         const players = await fetchJson(url);
-        const list: StatRow[] =
-          players.players?.length
-            ? players.players
-            : [].concat(players.teamA || [], players.teamB || []);
+        const list: StatRow[] = players.players?.length
+          ? players.players
+          : [].concat(players.teamA || [], players.teamB || []);
         const mvp =
           (players.mvp && players.mvp.train) ||
           pickMvps(list.filter((p) => p && p.nick));
-        for (const nick of mvp.medic || []) bump(map, nick, "medic");
-        for (const nick of mvp.killer || []) bump(map, nick, "killer");
-        for (const nick of mvp.damage || []) bump(map, nick, "war");
+        applyMvpBlock(map, mvp);
       } catch {
-        /* skip broken match file */
+        /* skip */
       }
     })
   );
 
-  return topFour(map);
+  return topThree(map);
+}
+
+async function loadKvStackTop(
+  base: string,
+  stackWanted: "Main" | "Junior"
+): Promise<HomeMvpRow[]> {
+  const index = await fetchJson(`${base}/data/index.json`);
+  const months = (index.months || []) as { url?: string }[];
+  const map = new Map<string, Acc>();
+
+  for (const meta of months) {
+    if (!meta.url) continue;
+    const monthUrl = meta.url.startsWith("http")
+      ? meta.url
+      : `${base}/${meta.url.replace(/^\//, "")}`;
+    let month: { matches?: unknown[] };
+    try {
+      month = await fetchJson(monthUrl);
+    } catch {
+      continue;
+    }
+
+    const matches = (month.matches || []) as {
+      status?: string;
+      stack?: string;
+      playersUrl?: string;
+    }[];
+
+    await Promise.all(
+      matches.map(async (m) => {
+        if (!m.playersUrl || m.status === "upcoming") return;
+        if (
+          String(m.stack || "").toLowerCase() !== stackWanted.toLowerCase()
+        ) {
+          return;
+        }
+        const url = m.playersUrl.startsWith("http")
+          ? m.playersUrl
+          : `${base}/${m.playersUrl.replace(/^\//, "")}`;
+        try {
+          const players = await fetchJson(url);
+          const mvp = players.mvp || {};
+          applyMvpBlock(map, mvp.r1);
+          applyMvpBlock(map, mvp.r2);
+          if (!mvp.r1 && !mvp.r2 && Array.isArray(players.r1)) {
+            applyMvpBlock(map, pickMvps(players.r1));
+            if (Array.isArray(players.r2)) applyMvpBlock(map, pickMvps(players.r2));
+          }
+        } catch {
+          /* skip */
+        }
+      })
+    );
+  }
+
+  return topThree(map);
 }
 
 export async function buildHomeMvpBoard(): Promise<HomeMvpBoardData> {
@@ -198,11 +233,18 @@ export async function buildHomeMvpBoard(): Promise<HomeMvpBoardData> {
   for (const raw of KV_BASES) {
     const base = raw.replace(/\/$/, "");
     try {
-      const [kv, train] = await Promise.all([
-        loadKvTop(base),
+      const [train, main, junior] = await Promise.all([
         loadTrainTop(base),
+        loadKvStackTop(base, "Main"),
+        loadKvStackTop(base, "Junior"),
       ]);
-      return { kv, train, source: base };
+      return {
+        train,
+        main,
+        junior,
+        source: base,
+        updatedAt: new Date().toISOString(),
+      };
     } catch (e) {
       lastErr = e;
     }

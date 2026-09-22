@@ -24,11 +24,17 @@ export default async function HomePage() {
     previews = [];
   }
 
-  let mvpBoard: Awaited<ReturnType<typeof buildHomeMvpBoard>> | null = null;
+  let mvpBoard: Awaited<ReturnType<typeof buildHomeMvpBoard>> = {
+    train: [],
+    main: [],
+    junior: [],
+    source: "",
+    updatedAt: new Date().toISOString(),
+  };
   try {
     mvpBoard = await buildHomeMvpBoard();
   } catch {
-    mvpBoard = { kv: [], train: [], source: "" };
+    /* empty board */
   }
 
   const loggedIn = Boolean(session?.user);
@@ -86,7 +92,7 @@ export default async function HomePage() {
 
       <div className="home-layout">
         <HomeUpcomingMatches previews={previews} />
-        <HomeMvpBoard data={mvpBoard} />
+        <HomeMvpBoard initial={mvpBoard} />
 
         <section className="home-hero">
           {/* eslint-disable-next-line @next/next/no-img-element */}
