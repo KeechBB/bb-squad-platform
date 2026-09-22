@@ -92,8 +92,11 @@ function PodiumCol({
                 className={`home-mvp-step home-mvp-step-${place}`}
               >
                 <div className="home-mvp-step-top">
-                  <span className="home-mvp-step-crown" aria-hidden="true">
-                    {place === 1 ? "★" : place}
+                  <span
+                    className={`home-mvp-step-crown home-mvp-step-crown-${place}`}
+                    aria-hidden="true"
+                  >
+                    ★
                   </span>
                   <div className="home-mvp-step-who">
                     <p className="home-mvp-step-nick" title={row.nick}>

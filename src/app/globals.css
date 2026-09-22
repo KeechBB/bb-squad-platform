@@ -2676,16 +2676,30 @@ body:has(.home-page) {
 }
 
 .home-mvp-step-crown {
-  font-size: 0.78rem;
+  font-size: 0.95rem;
   font-weight: 800;
   line-height: 1.2;
-  color: rgba(196, 181, 253, 0.7);
   text-align: center;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+}
+
+.home-mvp-step-crown-1 {
+  color: #fbbf24;
+  text-shadow: 0 0 10px rgba(251, 191, 36, 0.35);
+}
+
+.home-mvp-step-crown-2 {
+  color: #cbd5e1;
+  text-shadow: 0 0 8px rgba(203, 213, 225, 0.25);
+}
+
+.home-mvp-step-crown-3 {
+  color: #d97706;
+  text-shadow: 0 0 8px rgba(217, 119, 6, 0.28);
 }
 
 .home-mvp-step-1 .home-mvp-step-crown {
-  color: #fde68a;
-  font-size: 0.95rem;
+  font-size: 1.05rem;
 }
 
 .home-mvp-step-who {
