@@ -22,29 +22,25 @@ export function HomeMrapEgg() {
     }, 500);
   }
 
-  const showHover = hover && !knock;
-
   return (
     <div className="home-mrap-egg">
       <button
         type="button"
-        className="home-mrap-hotspot"
+        className="home-mrap-hotspot home-mrap-hotspot--far"
         aria-label="МРАП"
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
-        onFocus={() => setHover(true)}
-        onBlur={() => setHover(false)}
+        onPointerEnter={() => setHover(true)}
+        onPointerLeave={() => setHover(false)}
         onClick={onKnock}
       />
 
-      {showHover ? (
-        <div className="home-mrap-thought is-hover" role="status">
+      {hover && !knock ? (
+        <div className="home-mrap-thought is-far" role="status">
           тссс… где-то тут сидит Гадлер, не буди его
         </div>
       ) : null}
 
       {knock ? (
-        <div className="home-mrap-thought is-knock" role="status">
+        <div className="home-mrap-thought is-far is-knock" role="status">
           стук
         </div>
       ) : null}

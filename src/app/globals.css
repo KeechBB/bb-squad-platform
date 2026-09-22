@@ -2394,24 +2394,28 @@ body:has(.home-page) {
 /* ——— MRAP easter egg (Гадлер) ——— */
 .home-mrap-egg {
   position: absolute;
-  z-index: 3;
-  left: 56%;
-  top: 48%;
-  width: min(28vw, 340px);
-  height: min(36vh, 280px);
+  inset: 0;
+  z-index: 6;
   pointer-events: none;
 }
 
 .home-mrap-hotspot {
   position: absolute;
-  inset: 8% 12% 6% 10%;
   margin: 0;
   padding: 0;
   border: 0;
-  border-radius: 42% 48% 28% 36% / 40% 36% 48% 44%;
   background: transparent;
   cursor: help;
   pointer-events: auto;
+}
+
+.home-mrap-hotspot--far {
+  /* МРАП справа на гряде (основной силуэт за брендом) */
+  left: 48%;
+  top: 40%;
+  width: 42%;
+  height: 52%;
+  border-radius: 40% 45% 30% 35% / 45% 40% 50% 42%;
 }
 
 .home-mrap-hotspot:focus-visible {
@@ -2421,16 +2425,13 @@ body:has(.home-page) {
 
 .home-mrap-thought {
   position: absolute;
-  left: 50%;
-  bottom: calc(100% - 18px);
-  transform: translateX(-50%);
-  z-index: 4;
-  max-width: min(260px, 70vw);
+  z-index: 7;
+  max-width: min(280px, 72vw);
   padding: 12px 16px;
   border: 1px solid rgba(196, 181, 253, 0.35);
   border-radius: 18px 18px 18px 6px;
   background:
-    linear-gradient(165deg, rgba(18, 14, 30, 0.92), rgba(8, 6, 16, 0.88));
+    linear-gradient(165deg, rgba(18, 14, 30, 0.94), rgba(8, 6, 16, 0.9));
   box-shadow:
     0 16px 40px rgba(0, 0, 0, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
@@ -2439,7 +2440,21 @@ body:has(.home-page) {
   line-height: 1.35;
   text-align: center;
   pointer-events: none;
+  /* animation set per .is-far / .is-near */
+}
+
+.home-mrap-thought.is-far {
+  left: 58%;
+  top: 36%;
+  transform: translateX(-40%);
   animation: home-mrap-pop 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.home-mrap-thought.is-near {
+  left: 22%;
+  top: 48%;
+  transform: translateX(-50%);
+  animation: home-mrap-pop-near 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .home-mrap-thought::after {
@@ -2462,10 +2477,20 @@ body:has(.home-page) {
   letter-spacing: 0.12em;
   text-transform: lowercase;
   color: #e9d5ff;
-  animation: home-mrap-knock 0.5s ease both;
 }
 
 @keyframes home-mrap-pop {
+  from {
+    opacity: 0;
+    transform: translateX(-40%) translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-40%) translateY(0) scale(1);
+  }
+}
+
+@keyframes home-mrap-pop-near {
   from {
     opacity: 0;
     transform: translateX(-50%) translateY(8px) scale(0.96);
@@ -2477,6 +2502,33 @@ body:has(.home-page) {
 }
 
 @keyframes home-mrap-knock {
+  0% {
+    opacity: 0;
+    transform: translateX(-40%) translateY(6px) scale(0.9);
+  }
+  18% {
+    opacity: 1;
+    transform: translateX(-40%) translateY(0) scale(1.04);
+  }
+  70% {
+    opacity: 1;
+    transform: translateX(-40%) translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-40%) translateY(-4px) scale(0.98);
+  }
+}
+
+.home-mrap-thought.is-far.is-knock {
+  animation: home-mrap-knock 0.5s ease both;
+}
+
+.home-mrap-thought.is-near.is-knock {
+  animation: home-mrap-knock-near 0.5s ease both;
+}
+
+@keyframes home-mrap-knock-near {
   0% {
     opacity: 0;
     transform: translateX(-50%) translateY(6px) scale(0.9);
@@ -2502,6 +2554,11 @@ body:has(.home-page) {
   height: 100%;
   padding: clamp(16px, 2.4vw, 28px) clamp(16px, 3vw, 36px);
   box-sizing: border-box;
+  pointer-events: none;
+}
+
+.home-ops-board {
+  pointer-events: auto;
 }
 
 .home-hero {
@@ -3181,11 +3238,18 @@ body:has(.home-page) {
     transform: scale(1.06);
   }
 
-  .home-mrap-egg {
+  .home-mrap-hotspot--far {
     left: 48%;
-    top: 42%;
-    width: min(46vw, 220px);
-    height: min(28vh, 160px);
+    top: 40%;
+    width: 42%;
+    height: 36%;
+  }
+
+  .home-mrap-hotspot--near {
+    left: 4%;
+    top: 62%;
+    width: 44%;
+    height: 28%;
   }
 
   .home-layout {
