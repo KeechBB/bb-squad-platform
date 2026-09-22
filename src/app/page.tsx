@@ -29,12 +29,6 @@ export default async function HomePage() {
       <div className="home-stage" aria-hidden="true">
         <div className="home-stage-photo" />
         <div className="home-stage-veil" />
-        <div className="home-stage-searchlight" aria-hidden="true">
-          <div className="home-stage-beacon">
-            <span className="home-stage-beacon-beam" />
-            <span className="home-stage-beacon-glow" />
-          </div>
-        </div>
         <div className="home-stage-topo" />
         <div className="home-stage-rays" />
         <div className="home-stage-scan" />
