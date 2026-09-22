@@ -2504,17 +2504,18 @@ body:has(.home-page) {
   animation: home-fade-up 0.55s ease both;
 }
 
-.home-mvp-board {
+.home-ops-board.home-mvp-board {
   position: absolute;
-  top: clamp(16px, 2.4vw, 28px);
+  top: clamp(12px, 2vw, 24px);
   right: clamp(4px, 1.2vw, 14px);
   width: min(100%, 560px);
   min-width: 320px;
   max-width: 580px;
-  max-height: min(78%, calc(100dvh - 120px));
+  max-height: none;
+  height: auto;
   gap: 10px;
   padding: 14px 14px 12px;
-  overflow: auto;
+  overflow: visible;
   animation-delay: 0.12s;
   transition: box-shadow 0.4s ease, border-color 0.4s ease;
   /* чуть вправо от букв BLACKBERRY (~8mm) */
@@ -3490,6 +3491,7 @@ body:has(.home-page) {
     max-height: none;
   }
 
+  .home-ops-board.home-mvp-board,
   .home-mvp-board {
     position: relative;
     top: auto;
@@ -3499,6 +3501,7 @@ body:has(.home-page) {
     max-width: 100%;
     max-height: none;
     transform: none;
+    overflow: visible;
   }
 
   .home-mvp-grid {
@@ -4356,6 +4359,7 @@ body {
     max-width: 100%;
   }
 
+  .home-ops-board.home-mvp-board,
   .home-mvp-board {
     position: relative;
     top: auto;
@@ -4363,7 +4367,9 @@ body {
     width: 100%;
     min-width: 0;
     max-width: 100%;
+    max-height: none;
     transform: none;
+    overflow: visible;
   }
 
   .home-mvp-grid {
