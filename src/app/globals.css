@@ -2395,8 +2395,8 @@ body:has(.home-page) {
   position: relative;
   z-index: 2;
   display: grid;
-  grid-template-columns: minmax(320px, 42%) minmax(0, 1fr);
-  align-items: stretch;
+  grid-template-columns: minmax(300px, 40%) minmax(0, 1fr);
+  align-items: center;
   gap: clamp(16px, 3vw, 40px);
   height: 100%;
   padding: clamp(16px, 2.4vw, 28px) clamp(16px, 3vw, 36px);
@@ -2408,9 +2408,12 @@ body:has(.home-page) {
   z-index: 1;
   display: grid;
   align-content: center;
-  justify-items: start;
-  text-align: left;
-  padding: clamp(8px, 2vw, 24px) 0;
+  justify-items: center;
+  justify-self: center;
+  text-align: center;
+  width: 100%;
+  max-width: 34rem;
+  padding: clamp(8px, 2vw, 24px) 12px;
   animation: home-hero-in 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -2438,7 +2441,7 @@ body:has(.home-page) {
 }
 
 .home-hero-tag {
-  margin: 0;
+  margin: 0 auto;
   max-width: 22rem;
   font-size: clamp(0.98rem, 1.5vw, 1.12rem);
   line-height: 1.45;
@@ -2447,10 +2450,12 @@ body:has(.home-page) {
 
 .home-hero-cta {
   margin-top: 22px;
+  display: flex;
+  justify-content: center;
 }
 
 .home-hero-hint {
-  margin: 0;
+  margin: 0 auto;
   max-width: 22rem;
   color: var(--muted);
   font-size: 0.92rem;
@@ -2469,12 +2474,13 @@ body:has(.home-page) {
   z-index: 2;
   width: 100%;
   max-width: none;
-  max-height: 100%;
-  align-self: stretch;
+  height: auto;
+  max-height: min(92%, calc(100dvh - 120px));
+  align-self: center;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 20px 18px 14px 20px;
+  gap: 8px;
+  padding: 14px 14px 10px 16px;
   border: 1px solid rgba(196, 181, 253, 0.22);
   border-radius: 2px;
   background:
@@ -2532,6 +2538,7 @@ body:has(.home-page) {
   justify-content: space-between;
   gap: 12px;
   padding-right: 4px;
+  margin-bottom: 2px;
 }
 
 .home-ops-eyebrow {
@@ -2544,9 +2551,9 @@ body:has(.home-page) {
 }
 
 .home-ops-head h2 {
-  margin: 4px 0 0;
+  margin: 2px 0 0;
   font-family: var(--font-display);
-  font-size: 1.35rem;
+  font-size: 1.2rem;
   letter-spacing: 0.04em;
   font-weight: 700;
 }
@@ -2574,7 +2581,7 @@ body:has(.home-page) {
   margin: 0;
   padding: 0;
   overflow: auto;
-  flex: 1;
+  flex: 0 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -2584,10 +2591,10 @@ body:has(.home-page) {
 .home-mission {
   width: 100%;
   display: grid;
-  grid-template-columns: 18px 56px minmax(0, 1fr) 48px;
+  grid-template-columns: 16px 52px minmax(0, 1fr) 44px;
   align-items: center;
-  gap: 10px 12px;
-  padding: 12px 8px 12px 0;
+  gap: 6px 10px;
+  padding: 8px 4px 8px 0;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -2661,7 +2668,7 @@ body:has(.home-page) {
 .home-mission-body {
   min-width: 0;
   display: grid;
-  gap: 3px;
+  gap: 1px;
 }
 
 .home-mission-vs {
@@ -2669,7 +2676,7 @@ body:has(.home-page) {
   align-items: baseline;
   gap: 6px;
   font-family: var(--font-display);
-  font-size: 1.08rem;
+  font-size: 1rem;
   font-weight: 700;
   color: #fff;
   white-space: nowrap;
@@ -2683,7 +2690,7 @@ body:has(.home-page) {
 }
 
 .home-mission-map {
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   color: rgba(214, 208, 230, 0.78);
   white-space: nowrap;
   overflow: hidden;
@@ -2694,6 +2701,7 @@ body:has(.home-page) {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  margin-top: 1px;
 }
 
 .home-mission-tags span {
@@ -2758,8 +2766,9 @@ body:has(.home-page) {
 }
 
 .home-match-detail {
-  flex: 1;
+  flex: 0 1 auto;
   min-height: 0;
+  max-height: min(70vh, 560px);
   overflow: auto;
   display: flex;
   flex-direction: column;
@@ -2935,8 +2944,8 @@ body:has(.home-page) {
 }
 
 .home-upcoming-foot {
-  margin: 4px 0 0;
-  font-size: 0.9rem;
+  margin: 2px 0 0;
+  font-size: 0.85rem;
   flex-shrink: 0;
 }
 
