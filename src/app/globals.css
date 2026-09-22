@@ -2391,162 +2391,6 @@ body:has(.home-page) {
 .home-stage-dust span:nth-child(5) { left: 78%; top: 62%; animation-delay: -8s; }
 .home-stage-dust span:nth-child(6) { left: 88%; top: 40%; width: 2px; height: 2px; animation-delay: -5s; }
 
-/* ——— MRAP easter egg (Гадлер) ——— */
-.home-mrap-egg {
-  position: absolute;
-  inset: 0;
-  z-index: 6;
-  pointer-events: none;
-}
-
-.home-mrap-hotspot {
-  position: absolute;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: help;
-  pointer-events: auto;
-}
-
-.home-mrap-hotspot--far {
-  /* МРАП справа на гряде (основной силуэт за брендом) */
-  left: 48%;
-  top: 40%;
-  width: 42%;
-  height: 52%;
-  border-radius: 40% 45% 30% 35% / 45% 40% 50% 42%;
-}
-
-.home-mrap-hotspot:focus-visible {
-  outline: 1px dashed rgba(196, 181, 253, 0.45);
-  outline-offset: 4px;
-}
-
-.home-mrap-thought {
-  position: absolute;
-  z-index: 7;
-  max-width: min(280px, 72vw);
-  padding: 12px 16px;
-  border: 1px solid rgba(196, 181, 253, 0.35);
-  border-radius: 18px 18px 18px 6px;
-  background:
-    linear-gradient(165deg, rgba(18, 14, 30, 0.94), rgba(8, 6, 16, 0.9));
-  box-shadow:
-    0 16px 40px rgba(0, 0, 0, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  color: #efeafc;
-  font-size: 0.88rem;
-  line-height: 1.35;
-  text-align: center;
-  pointer-events: none;
-  /* animation set per .is-far / .is-near */
-}
-
-.home-mrap-thought.is-far {
-  left: 58%;
-  top: 36%;
-  transform: translateX(-40%);
-  animation: home-mrap-pop 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.home-mrap-thought.is-near {
-  left: 22%;
-  top: 48%;
-  transform: translateX(-50%);
-  animation: home-mrap-pop-near 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.home-mrap-thought::after {
-  content: "";
-  position: absolute;
-  left: 42%;
-  top: 100%;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: rgba(14, 10, 24, 0.95);
-  border: 1px solid rgba(196, 181, 253, 0.28);
-  box-shadow: 18px 10px 0 -2px rgba(14, 10, 24, 0.9);
-}
-
-.home-mrap-thought.is-knock {
-  padding: 10px 18px;
-  font-family: var(--font-display);
-  font-size: 1.05rem;
-  letter-spacing: 0.12em;
-  text-transform: lowercase;
-  color: #e9d5ff;
-}
-
-@keyframes home-mrap-pop {
-  from {
-    opacity: 0;
-    transform: translateX(-40%) translateY(8px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-40%) translateY(0) scale(1);
-  }
-}
-
-@keyframes home-mrap-pop-near {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(8px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0) scale(1);
-  }
-}
-
-@keyframes home-mrap-knock {
-  0% {
-    opacity: 0;
-    transform: translateX(-40%) translateY(6px) scale(0.9);
-  }
-  18% {
-    opacity: 1;
-    transform: translateX(-40%) translateY(0) scale(1.04);
-  }
-  70% {
-    opacity: 1;
-    transform: translateX(-40%) translateY(0) scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: translateX(-40%) translateY(-4px) scale(0.98);
-  }
-}
-
-.home-mrap-thought.is-far.is-knock {
-  animation: home-mrap-knock 0.5s ease both;
-}
-
-.home-mrap-thought.is-near.is-knock {
-  animation: home-mrap-knock-near 0.5s ease both;
-}
-
-@keyframes home-mrap-knock-near {
-  0% {
-    opacity: 0;
-    transform: translateX(-50%) translateY(6px) scale(0.9);
-  }
-  18% {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0) scale(1.04);
-  }
-  70% {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0) scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: translateX(-50%) translateY(-4px) scale(0.98);
-  }
-}
-
 .home-layout {
   position: relative;
   z-index: 2;
@@ -2554,11 +2398,6 @@ body:has(.home-page) {
   height: 100%;
   padding: clamp(16px, 2.4vw, 28px) clamp(16px, 3vw, 36px);
   box-sizing: border-box;
-  pointer-events: none;
-}
-
-.home-ops-board {
-  pointer-events: auto;
 }
 
 .home-hero {
@@ -3236,20 +3075,6 @@ body:has(.home-page) {
   .home-stage-photo {
     animation: none;
     transform: scale(1.06);
-  }
-
-  .home-mrap-hotspot--far {
-    left: 48%;
-    top: 40%;
-    width: 42%;
-    height: 36%;
-  }
-
-  .home-mrap-hotspot--near {
-    left: 4%;
-    top: 62%;
-    width: 44%;
-    height: 28%;
   }
 
   .home-layout {
