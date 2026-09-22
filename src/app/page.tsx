@@ -2,7 +2,9 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { buildUpcomingMatchPreviews } from "@/lib/kvForecast";
+import { buildHomeMvpBoard } from "@/lib/homeMvp";
 import { HomeUpcomingMatches } from "@/components/HomeUpcomingMatches";
+import { HomeMvpBoard } from "@/components/HomeMvpBoard";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +22,13 @@ export default async function HomePage() {
     previews = data.previews;
   } catch {
     previews = [];
+  }
+
+  let mvpBoard: Awaited<ReturnType<typeof buildHomeMvpBoard>> | null = null;
+  try {
+    mvpBoard = await buildHomeMvpBoard();
+  } catch {
+    mvpBoard = { kv: [], train: [], source: "" };
   }
 
   const loggedIn = Boolean(session?.user);
@@ -77,6 +86,7 @@ export default async function HomePage() {
 
       <div className="home-layout">
         <HomeUpcomingMatches previews={previews} />
+        <HomeMvpBoard data={mvpBoard} />
 
         <section className="home-hero">
           {/* eslint-disable-next-line @next/next/no-img-element */}

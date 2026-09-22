@@ -2499,6 +2499,126 @@ body:has(.home-page) {
   animation: home-fade-up 0.55s ease both;
 }
 
+.home-mvp-board {
+  position: absolute;
+  top: clamp(16px, 2.4vw, 28px);
+  right: clamp(16px, 3vw, 36px);
+  width: min(100%, 360px);
+  min-width: 280px;
+  max-width: 380px;
+  max-height: min(70%, calc(100dvh - 140px));
+  animation-delay: 0.12s;
+}
+
+.home-mvp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+  min-height: 0;
+}
+
+.home-mvp-col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.home-mvp-col-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(196, 181, 253, 0.16);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(237, 233, 254, 0.78);
+}
+
+.home-mvp-col-link {
+  color: rgba(196, 181, 253, 0.75);
+  text-decoration: none;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.home-mvp-col-link:hover {
+  color: #f5f3ff;
+}
+
+.home-mvp-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.home-mvp-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 2px;
+  border-radius: 2px;
+}
+
+.home-mvp-row:nth-child(1) .home-mvp-rank {
+  color: #fde68a;
+}
+
+.home-mvp-row:nth-child(2) .home-mvp-rank,
+.home-mvp-row:nth-child(3) .home-mvp-rank {
+  color: rgba(196, 181, 253, 0.9);
+}
+
+.home-mvp-rank {
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: rgba(167, 139, 250, 0.65);
+}
+
+.home-mvp-nick {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--home-ink);
+}
+
+.home-mvp-medals {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+
+.home-mvp-medals b {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #e9d5ff;
+}
+
+.home-mvp-medals em {
+  font-style: normal;
+  font-size: 0.58rem;
+  letter-spacing: 0.04em;
+  color: rgba(196, 181, 253, 0.55);
+}
+
+.home-mvp-empty {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+}
+
 .home-ops-corners {
   position: absolute;
   inset: 8px;
@@ -3113,6 +3233,16 @@ body:has(.home-page) {
 
   .home-ops-board {
     width: 100%;
+    max-width: 100%;
+    max-height: none;
+  }
+
+  .home-mvp-board {
+    position: relative;
+    top: auto;
+    right: auto;
+    width: 100%;
+    min-width: 0;
     max-width: 100%;
     max-height: none;
   }
@@ -3965,6 +4095,15 @@ body {
 
   .home-ops-board {
     width: 100%;
+    max-width: 100%;
+  }
+
+  .home-mvp-board {
+    position: relative;
+    top: auto;
+    right: auto;
+    width: 100%;
+    min-width: 0;
     max-width: 100%;
   }
 
