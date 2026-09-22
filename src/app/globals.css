@@ -2321,7 +2321,7 @@ body:has(.home-page) {
     linear-gradient(180deg, rgba(5, 4, 10, 0.35) 0%, rgba(5, 4, 10, 0.85) 100%);
 }
 
-/* медленный прожектор — ищет по территории */
+/* прожектор со стены базы — конус метёт по земле */
 .home-stage-searchlight {
   position: absolute;
   inset: 0;
@@ -2330,83 +2330,75 @@ body:has(.home-page) {
   pointer-events: none;
 }
 
-.home-stage-beam,
-.home-stage-beam-core {
+.home-stage-beacon {
   position: absolute;
-  left: 0;
-  top: 0;
-  width: 70vmax;
-  height: 70vmax;
-  margin: -35vmax 0 0 -35vmax;
-  border-radius: 50%;
+  right: -4%;
+  top: 22%;
+  width: 115%;
+  height: 78%;
+  transform-origin: 100% 32%;
+  animation: home-beacon-sweep 22s ease-in-out infinite alternate;
   will-change: transform;
-  animation: home-beam-wander 36s ease-in-out infinite;
 }
 
-.home-stage-beam {
-  background: radial-gradient(
-    circle,
-    rgba(236, 228, 255, 0.2) 0%,
-    rgba(196, 181, 253, 0.11) 22%,
-    rgba(124, 58, 237, 0.05) 42%,
-    transparent 64%
+.home-stage-beacon-beam {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    268deg,
+    rgba(255, 248, 235, 0.28) 0%,
+    rgba(230, 220, 255, 0.14) 18%,
+    rgba(196, 181, 253, 0.07) 42%,
+    rgba(167, 139, 250, 0.03) 62%,
+    transparent 82%
   );
-  filter: blur(18px);
+  clip-path: polygon(100% 28%, 0% 8%, 0% 78%, 100% 42%);
+  filter: blur(10px);
   mix-blend-mode: screen;
-  opacity: 0.9;
-}
-
-.home-stage-beam-core {
-  width: 36vmax;
-  height: 36vmax;
-  margin: -18vmax 0 0 -18vmax;
-  background: radial-gradient(
-    circle,
-    rgba(255, 250, 255, 0.22) 0%,
-    rgba(216, 180, 254, 0.1) 30%,
-    transparent 58%
-  );
-  filter: blur(6px);
-  mix-blend-mode: soft-light;
-  animation-duration: 36s;
-  animation-delay: -0.4s;
   opacity: 0.85;
 }
 
-@keyframes home-beam-wander {
-  /* ближний МРАП слева */
-  0%,
-  100% {
-    transform: translate(18vw, 68vh);
+.home-stage-beacon-glow {
+  position: absolute;
+  right: 0;
+  top: 26%;
+  width: 18%;
+  height: 22%;
+  background: radial-gradient(
+    ellipse at 100% 50%,
+    rgba(255, 250, 240, 0.35) 0%,
+    rgba(216, 180, 254, 0.12) 35%,
+    transparent 70%
+  );
+  filter: blur(8px);
+  mix-blend-mode: screen;
+  opacity: 0.75;
+}
+
+@keyframes home-beacon-sweep {
+  from {
+    transform: rotate(-14deg);
   }
-  /* центр / лучи в небе */
-  18% {
-    transform: translate(48vw, 38vh);
-  }
-  /* правый МРАП на гряде */
-  36% {
-    transform: translate(66vw, 58vh);
-  }
-  /* дальняя левая бровка */
-  52% {
-    transform: translate(28vw, 52vh);
-  }
-  /* правый край горизонта */
-  70% {
-    transform: translate(78vw, 46vh);
-  }
-  /* снова к машинам, чуть ниже */
-  86% {
-    transform: translate(58vw, 64vh);
+  to {
+    transform: rotate(18deg);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .home-stage-beam,
-  .home-stage-beam-core {
+  .home-stage-beacon {
     animation: none;
-    transform: translate(52vw, 48vh);
-    opacity: 0.45;
+    transform: rotate(2deg);
+    opacity: 0.55;
+  }
+}
+
+@media (max-width: 860px) {
+  .home-stage-beacon {
+    right: -8%;
+    top: 30%;
+    width: 130%;
+    height: 70%;
+    animation-duration: 26s;
   }
 }
 
