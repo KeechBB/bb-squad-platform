@@ -22,36 +22,88 @@ export default async function HomePage() {
     previews = [];
   }
 
+  const loggedIn = Boolean(session?.user);
+
   return (
     <main className="home-page">
-      <div className="home-bg-pattern" aria-hidden="true" />
+      <div className="home-stage" aria-hidden="true">
+        <div className="home-stage-photo" />
+        <div className="home-stage-veil" />
+        <div className="home-stage-topo" />
+        <div className="home-stage-rays" />
+        <div className="home-stage-scan" />
+        <div className="home-stage-dust">
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+        </div>
+        <svg
+          className="home-stage-grid"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+        >
+          <defs>
+            <linearGradient id="homeGridFade" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#a78bfa" stopOpacity="0" />
+              <stop offset="45%" stopColor="#a78bfa" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="#d946ef" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <g stroke="url(#homeGridFade)" strokeWidth="0.15" fill="none">
+            {Array.from({ length: 12 }, (_, i) => (
+              <line
+                key={`h${i}`}
+                x1="0"
+                y1={(i + 1) * (100 / 13)}
+                x2="100"
+                y2={(i + 1) * (100 / 13)}
+              />
+            ))}
+            {Array.from({ length: 18 }, (_, i) => (
+              <line
+                key={`v${i}`}
+                x1={(i + 1) * (100 / 19)}
+                y1="0"
+                x2={(i + 1) * (100 / 19)}
+                y2="100"
+              />
+            ))}
+          </g>
+        </svg>
+      </div>
 
-      <HomeUpcomingMatches previews={previews} />
+      <div className="home-layout">
+        <HomeUpcomingMatches previews={previews} />
 
-      <div className="home-hero">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          className="home-crest"
-          src="/blackberry.png"
-          alt="BlackBerry"
-          width={200}
-          height={200}
-        />
-        <h1>BLACKBERRY</h1>
-        <p className="home-stub-label">Squad · платформа клана</p>
-        {!session?.user ? (
-          <p className="muted home-stub-hint">
-            Войди через Steam сверху, чтобы открыть профиль и кланы.
+        <section className="home-hero">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            className="home-crest"
+            src="/blackberry.png"
+            alt=""
+            width={220}
+            height={220}
+          />
+          <p className="home-hero-kicker">Squad · BlackBerry</p>
+          <h1>BLACKBERRY</h1>
+          <p className="home-hero-tag">
+            Платформа клана — КВ, тренировки, свои.
           </p>
-        ) : (
-          <p className="muted home-stub-hint">
-            <Link href="/cw">Клановые войны</Link>
-            {" · "}
-            <Link href="/clans">Кланы</Link>
-            {" · "}
-            <Link href="/profile">Профиль</Link>
-          </p>
-        )}
+          <div className="home-hero-cta">
+            {loggedIn ? (
+              <Link className="btn primary" href="/cw">
+                Клановые войны
+              </Link>
+            ) : (
+              <p className="home-hero-hint">
+                Войди через Steam сверху — откроется профиль и кланы.
+              </p>
+            )}
+          </div>
+        </section>
       </div>
     </main>
   );
