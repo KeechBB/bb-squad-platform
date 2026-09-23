@@ -54,8 +54,16 @@ STEAM_EOS_RE = re.compile(
 )
 
 
-def load_dotenv_file(path: Path) -> None:
-    if not path.exists():
+def _safe_print(*args, **kwargs):
+    try:
+        print(*args, **kwargs)
+    except UnicodeEncodeError:
+        text = " ".join(str(a) for a in args)
+        print(text.encode("ascii", "backslashreplace").decode("ascii"), **kwargs)
+
+
+def load_dotenv_file(path: Path, *, override: bool = False) -> None:
+    if not path.is_file():
         return
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
@@ -64,7 +72,9 @@ def load_dotenv_file(path: Path) -> None:
         key, _, val = line.partition("=")
         key = key.strip()
         val = val.strip().strip("'").strip('"')
-        if key and key not in os.environ:
+        if not key:
+            continue
+        if override or key not in os.environ:
             os.environ[key] = val
 
 
@@ -132,7 +142,13 @@ class Collector:
         self.log_state: dict[str, dict[str, Any]] = {
             key: {"offset": 0, "inode": None} for key, _ in self.targets
         }
+        # Какие backup уже дочитали (имя файла)
+        self.processed_backups: set[str] = set()
+        self._pending_backup_catchup: set[str] = set()
         self._load_state()
+        # При старте один раз проверим свежие backup (после простоя / отпуска)
+        for key, _ in self.targets:
+            self._pending_backup_catchup.add(key)
 
     def _load_state(self) -> None:
         if not self.state_path.exists():
@@ -147,6 +163,9 @@ class Collector:
             }
             self.pending_joins = data.get("pending_joins") or {}
             self.pending_leaves = data.get("pending_leaves") or {}
+            raw_backs = data.get("processed_backups") or []
+            if isinstance(raw_backs, list):
+                self.processed_backups = {str(x) for x in raw_backs}
             logs = data.get("logs")
             if isinstance(logs, dict):
                 for key, meta in logs.items():
@@ -163,12 +182,12 @@ class Collector:
                     "inode": data.get("inode"),
                 }
             if len(self.eos_steam) != len(raw_map):
-                print(
+                _safe_print(
                     f"state: dropped {len(raw_map) - len(self.eos_steam)} truncated steam ids",
                     file=sys.stderr,
                 )
         except Exception as e:
-            print("state load fail", e, file=sys.stderr)
+            _safe_print("state load fail", e, file=sys.stderr)
 
     def _valid_steam(self, steam: str) -> str | None:
         steam = (steam or "").strip()
@@ -180,6 +199,7 @@ class Collector:
             "eos_steam": self.eos_steam,
             "pending_joins": self.pending_joins,
             "pending_leaves": self.pending_leaves,
+            "processed_backups": sorted(self.processed_backups)[-80:],
         }
         # keep legacy fields for the first target (compat)
         if self.targets:
@@ -239,9 +259,9 @@ class Collector:
             timeout=30,
         )
         if r.status_code >= 300:
-            print("ingest fail", r.status_code, r.text[:300], file=sys.stderr)
+            _safe_print("ingest fail", r.status_code, r.text[:300], file=sys.stderr)
         else:
-            print("ingest", r.json())
+            _safe_print("ingest", r.json())
 
     def _remember_map(self, eos: str, steam: str) -> list[dict[str, Any]]:
         eos = eos.lower()
@@ -297,7 +317,7 @@ class Collector:
                 }
             ]
         self.pending_leaves[eos] = {"at": at, "serverKey": server_key}
-        print(
+        _safe_print(
             f"leave without steam map → eos-only {eos[:8]}… @ {server_key}",
             flush=True,
         )
@@ -358,11 +378,14 @@ class Collector:
         st = self.log_state[server_key]
         size, inode = self._stat(client, log_path)
         if st.get("inode") and inode != st["inode"]:
-            print(f"log rotated {server_key}, reset offset")
+            _safe_print(f"log rotated {server_key}, queue offset + catchup backup")
+            # Дочитать свежий backup, иначе leave за вечер теряются
+            self._pending_backup_catchup.add(server_key)
             st["offset"] = 0
         st["inode"] = inode
         if size < int(st["offset"]):
             st["offset"] = 0
+            self._pending_backup_catchup.add(server_key)
 
         offset = int(st["offset"])
         if (
@@ -372,7 +395,7 @@ class Collector:
             and not self.eos_steam
             and not self.pending_joins
         ):
-            print(f"bootstrap {server_key}: seek end size={size}")
+            _safe_print(f"bootstrap {server_key}: seek end size={size}")
             st["offset"] = size
             return []
 
@@ -395,15 +418,85 @@ class Collector:
         st["offset"] = offset + consumed
         return batch
 
+    def _catchup_backups(
+        self, client: paramiko.SSHClient, server_key: str, log_path: str
+    ) -> list[dict[str, Any]]:
+        """Дочитать свежие SquadGame-backup-*.log (после ротации / простоя)."""
+        if server_key not in self._pending_backup_catchup:
+            return []
+        self._pending_backup_catchup.discard(server_key)
+        log_dir = log_path.rsplit("/", 1)[0]
+        # последние ~4 backup + не помеченные processed
+        cmd = (
+            f"ls -1t {log_dir}/SquadGame-backup-*.log 2>/dev/null | head -6 || true"
+        )
+        try:
+            _, out, _ = client.exec_command(cmd, timeout=30)
+            files = [
+                f.strip()
+                for f in out.read().decode("utf-8", "replace").splitlines()
+                if f.strip()
+            ]
+        except Exception as e:
+            _safe_print(f"backup list {server_key}", type(e).__name__, e, file=sys.stderr)
+            return []
+
+        batch: list[dict[str, Any]] = []
+        for path in files:
+            name = path.rsplit("/", 1)[-1]
+            if name in self.processed_backups:
+                continue
+            # Только Login / Remove / steam↔EOS — не весь 20MB
+            grep_cmd = (
+                f"grep -E 'Login request:|RemovePlayer\\(UserId:|EOS:.*steam:|steam:.*EOS:' "
+                f"{path} 2>/dev/null || true"
+            )
+            try:
+                _, gout, _ = client.exec_command(grep_cmd, timeout=180)
+                text = gout.read().decode("utf-8", "replace")
+            except Exception as e:
+                _safe_print(
+                    f"backup read {name}", type(e).__name__, e, file=sys.stderr
+                )
+                continue
+            n = 0
+            for line in text.splitlines():
+                ev = self._handle_line(line, server_key)
+                if ev:
+                    batch.extend(ev)
+                    n += 1
+            self.processed_backups.add(name)
+            _safe_print(f"backup catchup {server_key} {name} events≈{n}", flush=True)
+        return batch
+
     def poll_once(self) -> None:
-        client = self._ssh()
+        last_err: Exception | None = None
+        client = None
+        for attempt in range(1, 4):
+            try:
+                client = self._ssh()
+                last_err = None
+                break
+            except Exception as e:
+                last_err = e
+                _safe_print(f"ssh connect retry {attempt}/3", type(e).__name__, e, file=sys.stderr)
+                time.sleep(min(5 * attempt, 15))
+        if client is None:
+            _safe_print("poll error", type(last_err).__name__, last_err, file=sys.stderr)
+            # всё равно трогаем state mtime, чтобы watchdog не бесился
+            try:
+                self._save_state()
+            except Exception:
+                pass
+            return
         try:
             batch: list[dict[str, Any]] = []
             for server_key, log_path in self.targets:
                 try:
+                    batch.extend(self._catchup_backups(client, server_key, log_path))
                     batch.extend(self._poll_one(client, server_key, log_path))
                 except Exception as e:
-                    print(
+                    _safe_print(
                         f"poll {server_key} error",
                         type(e).__name__,
                         e,
@@ -412,10 +505,13 @@ class Collector:
             self._post(batch)
             self._save_state()
         finally:
-            client.close()
+            try:
+                client.close()
+            except Exception:
+                pass
 
     def run(self) -> None:
-        print(
+        _safe_print(
             "collector start",
             self.host,
             ", ".join(f"{k}={p}" for k, p in self.targets),
@@ -424,11 +520,11 @@ class Collector:
             try:
                 self.poll_once()
             except Exception as e:
-                print("poll error", type(e).__name__, e, file=sys.stderr)
+                _safe_print("poll error", type(e).__name__, e, file=sys.stderr)
             time.sleep(self.poll_sec)
 
 
 if __name__ == "__main__":
     here = Path(__file__).resolve().parent
-    load_dotenv_file(here / ".squad-collector.env")
+    load_dotenv_file(here / ".squad-collector.env", override=True)
     Collector().run()

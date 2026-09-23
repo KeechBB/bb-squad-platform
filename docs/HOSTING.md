@@ -20,3 +20,8 @@ Vercel не используем (SMS). Сайт крутится на VPS, ба
 Запасной IP: `http://91.222.237.91:3000`  
 Таблица КВ: **https://kv.bb-squad.ru/**  
 Инструкция: [DOMAIN.md](./DOMAIN.md)
+
+## Squad log collector (24/7)
+
+Заходы/выходы TR1+PB1 → Neon. **Только на этом VPS** (`pm2 bb-squad-collector`), не на ПК.  
+Установка: [SQUAD-COLLECTOR-VPS.md](./SQUAD-COLLECTOR-VPS.md).
