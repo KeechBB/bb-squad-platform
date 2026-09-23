@@ -7,6 +7,9 @@ export const SITE_HEARTBEAT_MS = 45 * 1000;
 /** На сервере не пишем в БД чаще этого (снижает нагрузку) */
 export const SITE_HEARTBEAT_WRITE_MS = 40 * 1000;
 
+/** Один и тот же path не логируем чаще этого (сессия на странице) */
+export const SITE_PAGEVIEW_DEDUP_MS = 3 * 60 * 1000;
+
 export function isSiteOnline(
   lastSeenAt: Date | string | null | undefined,
   now = Date.now()

@@ -72,6 +72,7 @@ model User {
   reactionRuns    ReactionRun[]
   reactionPresence ReactionPresence?
   reactionChatMessages ReactionChatMessage[]
+  pageVisits      SitePageVisit[]
 }
 
 /// Серия тренировки: ур.1 среднее мс; ур.2 очки шариков в avgMs
@@ -254,6 +255,22 @@ model SquadEosSteamMap {
   updatedAt DateTime @updatedAt
 
   @@index([steamId])
+}
+
+/// Заходы залогиненных юзеров на страницы сайта (читать только Keech / builtin SUPER_ADMIN).
+model SitePageVisit {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Путь без query, напр. /profile, /tm, /players/Keech
+  path      String
+  /// Ник на момент захода (на случай смены ника)
+  nickAt    String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@index([path, createdAt])
 }
 
 /// Накопительный журнал действий (админ-права, клан, профиль).

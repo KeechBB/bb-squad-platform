@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
+import { usePathname } from "next/navigation";
 import { SITE_HEARTBEAT_MS } from "@/lib/presence";
 
 /**
  * Пока пользователь залогинен и вкладка видима — периодически
- * обновляет lastSeenAt («онлайн на сайте»).
+ * обновляет lastSeenAt («онлайн на сайте») и пишет pageview (путь).
  */
 export function PresenceHeartbeat() {
   const { data: session, status } = useSession();
+  const pathname = usePathname();
+  const lastLoggedPath = useRef<string | null>(null);
 
   useEffect(() => {
     if (status !== "authenticated") return;
@@ -49,6 +52,26 @@ export function PresenceHeartbeat() {
       document.removeEventListener("visibilitychange", onVis);
     };
   }, [status, session?.user?.profileComplete]);
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    if (!session?.user?.profileComplete) return;
+    if (!pathname) return;
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+      return;
+    }
+    if (lastLoggedPath.current === pathname) return;
+    lastLoggedPath.current = pathname;
+
+    void fetch("/api/presence/pageview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: pathname }),
+      cache: "no-store",
+    }).catch(() => {
+      /* ignore */
+    });
+  }, [pathname, status, session?.user?.profileComplete]);
 
   return null;
 }

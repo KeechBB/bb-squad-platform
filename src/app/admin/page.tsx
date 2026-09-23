@@ -6,6 +6,7 @@ import {
   effectiveRole,
   getUserRole,
   isAdmin,
+  isBuiltinSuperAdmin,
   syncBuiltinAdmins,
   type AppRole,
 } from "@/lib/admin";
@@ -73,6 +74,7 @@ export default async function AdminPage() {
       users={rows}
       roleOptions={roleOptions}
       actorRole={actorRole}
+      showSiteVisits={isBuiltinSuperAdmin(session.user.steamId)}
     />
   );
 }
