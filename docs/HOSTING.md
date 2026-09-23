@@ -19,7 +19,8 @@ Vercel не используем (SMS). Сайт крутится на VPS, ба
 Сайт: **https://bb-squad.ru** / **https://www.bb-squad.ru** (HTTPS Let's Encrypt, 2026-09-19).  
 Запасной IP: `http://91.222.237.91:3000`  
 Таблица КВ: **https://kv.bb-squad.ru/**  
-Инструкция: [DOMAIN.md](./DOMAIN.md)
+Инструкция: [DOMAIN.md](./DOMAIN.md)  
+Помощник по разработке: [COLLAB.md](./COLLAB.md)
 
 ## Squad log collector (24/7)
 
