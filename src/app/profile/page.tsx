@@ -191,6 +191,7 @@ export default async function ProfilePage() {
         <TrainingSessionsCard
           sessions={training.sessions}
           presentDays={training.presentDays}
+          lateDays={training.lateDays}
           visitBounds={training.visitBounds}
           minutes30d={training.minutes30d}
           sessions30d={training.sessions30d}

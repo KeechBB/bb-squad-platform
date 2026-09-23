@@ -7,7 +7,7 @@ import {
   ATTENDANCE_CANON_START_YMD,
   clampAttendanceFromYmd,
   mergeSessionsWithRejoinGap,
-  presentTrainingDaysFromSessions,
+  trainingDayMarksFromSessions,
   trainingDayYmd,
   trainingWindowOverlapMinutes,
 } from "@/lib/squadSessions";
@@ -221,9 +221,12 @@ export async function GET(req: Request) {
     const dayMap = byUserDay.get(u.id) || new Map();
     const cells: Record<string, Cell[]> = {};
     for (const d of days) cells[d] = dayMap.get(d) || [];
-    const presentDays = [...presentTrainingDaysFromSessions(sessionsByUser.get(u.id) || [], now)]
-      .filter((d) => daySet.has(d))
-      .sort();
+    const marks = trainingDayMarksFromSessions(
+      sessionsByUser.get(u.id) || [],
+      now
+    );
+    const presentDays = [...marks.present].filter((d) => daySet.has(d)).sort();
+    const lateDays = [...marks.late].filter((d) => daySet.has(d)).sort();
     return {
       regNo: u.regNo ?? 0,
       userId: u.id,
@@ -231,6 +234,7 @@ export async function GET(req: Request) {
       steamId: u.steamId,
       cells,
       presentDays,
+      lateDays,
     };
   });
 

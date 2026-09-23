@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import {
   attendanceCanonStartUtc,
   eveningWindowOverlapMinutes,
-  presentTrainingDaysFromSessions,
+  trainingDayMarksFromSessions,
   trainingDayVisitBoundsFromSessions,
   trainingDayYmd,
 } from "@/lib/squadSessions";
@@ -32,7 +32,9 @@ export async function loadUserTrainingStats(userId: string) {
     serverKey: s.serverKey,
   }));
 
-  const presentDays = [...presentTrainingDaysFromSessions(forAtt)];
+  const marks = trainingDayMarksFromSessions(forAtt);
+  const presentDays = [...marks.present];
+  const lateDays = [...marks.late];
   const visitBoundsMap = trainingDayVisitBoundsFromSessions(forAtt);
   const visitBounds: Record<string, { joinHm: string; leaveHm: string | null }> =
     {};
@@ -62,6 +64,7 @@ export async function loadUserTrainingStats(userId: string) {
   return {
     sessions,
     presentDays,
+    lateDays,
     visitBounds,
     minutes30d,
     sessions30d,

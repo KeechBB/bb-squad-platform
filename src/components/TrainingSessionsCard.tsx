@@ -8,7 +8,7 @@ import {
   attendanceTag,
   formatDurationMinutes,
   formatMskDateTime,
-  presentTrainingDaysFromSessions,
+  trainingDayMarksFromSessions,
   type AttendanceTag,
 } from "@/lib/squadSessions";
 
@@ -35,6 +35,8 @@ type Props = {
   openNow: boolean;
   /** Готовые дни «был» с сервера (чтобы не тащить все сессии на клиент) */
   presentDays?: string[];
+  /** «Был» с заходом после 21:00 — жёлтый */
+  lateDays?: string[];
   /** Заход / итоговый выход по дням (с 19:00, gap ≤5 мин = не выход) */
   visitBounds?: Record<string, { joinHm: string; leaveHm: string | null }>;
 };
@@ -98,16 +100,40 @@ function todayYmdMsk(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Moscow" });
 }
 
-type DayMark = "present" | "absent" | "pending" | "outside";
+type DayMark = "present" | "late" | "absent" | "pending" | "outside";
 
-function dayMark(ymd: string, presentDays: Set<string>): DayMark {
+function parseJoinHm(hm: string | undefined): number | null {
+  if (!hm) return null;
+  const m = /^(\d{2}):(\d{2})$/.exec(hm);
+  if (!m) return null;
+  return Number(m[1]) * 60 + Number(m[2]);
+}
+
+/** ≥21:00 МСК на календаре = опоздание (жёлтый). */
+function isLateJoinHm(hm: string | undefined): boolean {
+  const mins = parseJoinHm(hm);
+  if (mins == null) return false;
+  // после полуночи (00–11) — продолжение вечера, не опоздание захода
+  if (mins < 12 * 60) return false;
+  return mins >= 21 * 60;
+}
+
+function dayMark(
+  ymd: string,
+  presentDays: Set<string>,
+  lateDays: Set<string>,
+  joinHm?: string
+): DayMark {
   if (ymd < ATTENDANCE_CANON_START_YMD) return "outside";
   const today = todayYmdMsk();
   if (ymd > today) return "pending";
-  if (presentDays.has(ymd)) return "present";
-  // Сегодня окно 21:00–00:00 ещё может добрать час — не ставим «нет» раньше
-  if (ymd === today) return "pending";
-  return "absent";
+  if (!presentDays.has(ymd)) {
+    if (ymd === today) return "pending";
+    return "absent";
+  }
+  // Цвет = время на квадратике; lateDays — запасной источник
+  if (isLateJoinHm(joinHm) || lateDays.has(ymd)) return "late";
+  return "present";
 }
 
 function buildMonthGrid(year: number, month: number) {
@@ -130,6 +156,7 @@ export function TrainingSessionsCard({
   sessions30d,
   openNow,
   presentDays: presentDaysProp,
+  lateDays: lateDaysProp,
   visitBounds: visitBoundsProp,
 }: Props) {
   const normalized = useMemo(() => normalizeSessions(sessions), [sessions]);
@@ -139,10 +166,18 @@ export function TrainingSessionsCard({
   const [viewY, setViewY] = useState(ty);
   const [viewM, setViewM] = useState(tm);
 
-  const presentTrainingDays = useMemo(() => {
-    if (presentDaysProp?.length) return new Set(presentDaysProp);
-    return presentTrainingDaysFromSessions(normalized);
-  }, [normalized, presentDaysProp]);
+  const marks = useMemo(() => {
+    if (presentDaysProp !== undefined) {
+      return {
+        present: new Set(presentDaysProp),
+        late: new Set(lateDaysProp || []),
+      };
+    }
+    return trainingDayMarksFromSessions(normalized);
+  }, [normalized, presentDaysProp, lateDaysProp]);
+
+  const presentTrainingDays = marks.present;
+  const lateTrainingDays = marks.late;
 
   const visitBounds = visitBoundsProp || {};
 
@@ -172,19 +207,27 @@ export function TrainingSessionsCard({
     setViewM(m);
   }
 
-  const presentInView = cells.filter(
-    (c) => c.ymd && dayMark(c.ymd, presentTrainingDays) === "present"
-  ).length;
-  const absentInView = cells.filter(
-    (c) => c.ymd && dayMark(c.ymd, presentTrainingDays) === "absent"
-  ).length;
+  const presentInView = cells.filter((c) => {
+    if (!c.ymd) return false;
+    const joinHm = visitBounds[c.ymd]?.joinHm;
+    const m = dayMark(c.ymd, presentTrainingDays, lateTrainingDays, joinHm);
+    return m === "present" || m === "late";
+  }).length;
+  const absentInView = cells.filter((c) => {
+    if (!c.ymd) return false;
+    const joinHm = visitBounds[c.ymd]?.joinHm;
+    return (
+      dayMark(c.ymd, presentTrainingDays, lateTrainingDays, joinHm) === "absent"
+    );
+  }).length;
 
   return (
     <section className="card training-sessions-card">
       <h2>Посещаемость тренировок</h2>
       <p className="muted" style={{ marginTop: 6, marginBottom: 0 }}>
         TR1 — тренировка (вечер), PB1 — паблик. Учёт с 15.09.2026. «Был» =
-        ≥{TRAINING_PRESENT_MIN_MINUTES} мин на TR1 в окне 21:00–00:00 МСК.
+        ≥{TRAINING_PRESENT_MIN_MINUTES} мин на TR1 в 21:00–00:00 МСК или уход
+        ≥23:30 (после дропов). Заход до 21:00 — зелёный «был», с 21:00 — жёлтый.
       </p>
 
       <div className="training-stat-row">
@@ -244,8 +287,13 @@ export function TrainingSessionsCard({
               if (!c.ymd || c.day == null) {
                 return <div key={`e-${i}`} className="training-cal-cell empty" />;
               }
-              const mark = dayMark(c.ymd, presentTrainingDays);
               const bounds = c.ymd ? visitBounds[c.ymd] : undefined;
+              const mark = dayMark(
+                c.ymd,
+                presentTrainingDays,
+                lateTrainingDays,
+                bounds?.joinHm
+              );
               const timeLabel =
                 bounds != null
                   ? `${bounds.joinHm}–${bounds.leaveHm ?? "…"}`
@@ -258,27 +306,32 @@ export function TrainingSessionsCard({
                   }`}
                   title={
                     mark === "present"
-                      ? `Был ≥${TRAINING_PRESENT_MIN_MINUTES} мин (21:00–00:00)${
+                      ? `Был (≥${TRAINING_PRESENT_MIN_MINUTES} мин или до конца)${
                           timeLabel ? ` · ${timeLabel}` : ""
                         }`
-                      : mark === "absent"
-                        ? `Не был (<${TRAINING_PRESENT_MIN_MINUTES} мин вечером)${
+                      : mark === "late"
+                        ? `Был, опоздал (заход с 21:00)${
                             timeLabel ? ` · ${timeLabel}` : ""
                           }`
+                      : mark === "absent"
+                        ? `Не был${timeLabel ? ` · ${timeLabel}` : ""}`
                         : mark === "pending"
                           ? "Ещё рано / окно не закрыто"
                           : "Вне учёта"
                   }
                 >
                   <span className="training-cal-day">{c.day}</span>
-                  {mark === "present" ? (
+                  {mark === "present" || mark === "late" ? (
                     <span className="training-cal-dot">был</span>
                   ) : mark === "absent" ? (
                     <span className="training-cal-dot">нет</span>
                   ) : (
                     <span className="training-cal-dot muted">·</span>
                   )}
-                  {timeLabel && (mark === "present" || mark === "absent") ? (
+                  {timeLabel &&
+                  (mark === "present" ||
+                    mark === "late" ||
+                    mark === "absent") ? (
                     <span className="training-cal-times">{timeLabel}</span>
                   ) : null}
                 </div>
@@ -286,10 +339,11 @@ export function TrainingSessionsCard({
             })}
           </div>
           <p className="muted training-cal-legend">
-            Зелёный — ≥{TRAINING_PRESENT_MIN_MINUTES} мин на TR1 с 21:00 до
-            00:00 · мелким шрифтом заход (≥19:00) и итоговый выход (вылет ≤5 мин
-            не считается) · красный — меньше часа / не было · серый — ещё не
-            считаем. В этом месяце: <strong>{presentInView}</strong> был /{" "}
+            Зелёный — был, заход до 21:00 · жёлтый — был, заход с 21:00 · красный —
+            не было · серый — ещё не считаем. «Был» = ≥
+            {TRAINING_PRESENT_MIN_MINUTES} мин в 21:00–00:00 или уход ≥23:30.
+            Мелким шрифтом заход (≥19:00) и итоговый выход (вылет ≤5 мин не
+            считается). В этом месяце: <strong>{presentInView}</strong> был /{" "}
             <strong>{absentInView}</strong> нет
           </p>
         </div>

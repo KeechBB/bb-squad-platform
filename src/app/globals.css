@@ -1098,25 +1098,44 @@ a:hover { color: #c4b5fd; }
 }
 
 .training-cal-cell.mark-present .training-cal-times {
-  color: rgba(187, 247, 208, 0.9);
+  color: rgba(187, 247, 208, 0.95);
 }
 
 .training-cal-cell.mark-present {
-  background: rgba(74, 222, 128, 0.14);
-  border-color: rgba(74, 222, 128, 0.4);
+  background: rgba(34, 197, 94, 0.28);
+  border-color: rgba(74, 222, 128, 0.75);
+  box-shadow: inset 0 0 0 1px rgba(74, 222, 128, 0.25);
 }
 
 .training-cal-cell.mark-present .training-cal-dot {
   color: #4ade80;
+  font-weight: 800;
+}
+
+.training-cal-cell.mark-late .training-cal-times {
+  color: rgba(254, 240, 138, 0.98);
+}
+
+.training-cal-cell.mark-late {
+  background: rgba(234, 179, 8, 0.38);
+  border-color: rgba(250, 204, 21, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(253, 224, 71, 0.35);
+}
+
+.training-cal-cell.mark-late .training-cal-dot {
+  color: #fde047;
+  font-weight: 800;
 }
 
 .training-cal-cell.mark-absent {
-  background: rgba(248, 113, 113, 0.1);
-  border-color: rgba(248, 113, 113, 0.28);
+  background: rgba(239, 68, 68, 0.22);
+  border-color: rgba(248, 113, 113, 0.7);
+  box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.2);
 }
 
 .training-cal-cell.mark-absent .training-cal-dot {
   color: #f87171;
+  font-weight: 800;
 }
 
 .training-cal-cell.mark-pending,
@@ -1857,6 +1876,170 @@ a:hover { color: #c4b5fd; }
 
 .journal-card {
   margin-top: 18px;
+}
+
+/* —— Аналитика заходов на сайт (Keech) —— */
+.visits-panel .visits-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.visits-stat {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(8, 6, 16, 0.45);
+}
+
+.visits-online-line {
+  margin: 0 0 16px;
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.visits-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+  margin-bottom: 8px;
+}
+
+.visits-chart-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(8, 6, 16, 0.5);
+  padding: 12px 14px;
+  min-height: 160px;
+}
+
+.visits-chart-card.visits-chart-wide {
+  grid-column: 1 / -1;
+}
+
+.visits-chart-title {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+}
+
+.visits-chart-hint {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+}
+
+.visits-bar-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.visits-bar-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.82rem;
+  margin-bottom: 3px;
+}
+
+.visits-bar-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.visits-bar-value {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.visits-bar-track {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.visits-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #38bdf8, #a78bfa);
+}
+
+.visits-col-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  min-height: 140px;
+  height: 160px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.visits-col {
+  flex: 1 0 18px;
+  min-width: 16px;
+  max-width: 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+
+.visits-col-bars {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+}
+
+.visits-col-a,
+.visits-col-b {
+  width: 45%;
+  min-height: 2px;
+  border-radius: 3px 3px 0 0;
+}
+
+.visits-col-a {
+  background: rgba(56, 189, 248, 0.75);
+}
+
+.visits-col-b {
+  background: rgba(167, 139, 250, 0.9);
+}
+
+.visits-col-label {
+  margin-top: 4px;
+  font-size: 0.62rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  writing-mode: horizontal-tb;
+}
+
+.visits-split {
+  display: grid;
+  grid-template-columns: minmax(200px, 280px) 1fr;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+@media (max-width: 800px) {
+  .visits-split {
+    grid-template-columns: 1fr;
+  }
+  .visits-chart-card.visits-chart-wide {
+    grid-column: auto;
+  }
 }
 
 .journal-toolbar {

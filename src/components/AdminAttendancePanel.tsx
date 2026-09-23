@@ -17,8 +17,10 @@ type Row = {
   nick: string | null;
   steamId: string;
   cells: Record<string, Cell[]>;
-  /** Дни «был» (≥60 мин вечером TR1) — тот же расчёт, что календарь профиля */
+  /** Дни «был» (≥60 мин вечером TR1 или уход ≥23:30) — тот же расчёт, что календарь профиля */
   presentDays?: string[];
+  /** «Был», но заход после 21:00 — жёлтая отметка */
+  lateDays?: string[];
 };
 
 type Stats = {
@@ -160,6 +162,19 @@ function eveningMinutesForDay(cells: Cell[], dayYmd: string): number {
 function wasPresentTr1(row: Row, dayYmd: string): boolean {
   if (row.presentDays?.length) return row.presentDays.includes(dayYmd);
   return isTrainingPresentMinutes(eveningMinutesForDay(row.cells[dayYmd] || [], dayYmd));
+}
+
+function wasLateTr1(row: Row, dayYmd: string): boolean {
+  if (row.lateDays?.length) return row.lateDays.includes(dayYmd);
+  if (!wasPresentTr1(row, dayYmd)) return false;
+  const cells = row.cells[dayYmd] || [];
+  let firstIn: number | null = null;
+  for (const c of cells) {
+    const m = parseHm(c.in);
+    if (m == null || m < 12 * 60) continue;
+    if (firstIn == null || m < firstIn) firstIn = m;
+  }
+  return firstIn != null && firstIn >= 21 * 60;
 }
 
 function todayYmdMsk(): string {
@@ -600,7 +615,7 @@ export function AdminAttendancePanel() {
         {tab === "table"
           ? [
               server === "TR1"
-                ? ` · Заход виден сразу (… = ещё на сервере). «Был» = ≥${TRAINING_PRESENT_MIN_MINUTES} мин в 21:00–00:00`
+                ? ` · Заход виден сразу (… = ещё на сервере). «Был» = ≥${TRAINING_PRESENT_MIN_MINUTES} мин в 21:00–00:00 или уход ≥23:30 (дропы/реконнекты). После 21:00 — жёлтый «был».`
                 : "",
               showIn
                 ? " · Цвет захода: ≤21:00 зел., 21:00–21:30 жёлт., после 21:30 красн."
@@ -660,9 +675,21 @@ export function AdminAttendancePanel() {
                       }
                       if (isTr) {
                         if (wasPresentTr1(r, d)) {
+                          const late = wasLateTr1(r, d);
                           return (
                             <td key={d}>
-                              <span className="attend-cell attend-present">был</span>
+                              <span
+                                className={`attend-cell ${
+                                  late ? "attend-late" : "attend-present"
+                                }`}
+                                title={
+                                  late
+                                    ? "Был, заход после 21:00"
+                                    : "Был на тренировке"
+                                }
+                              >
+                                был
+                              </span>
                             </td>
                           );
                         }

@@ -294,6 +294,7 @@ export default async function PlayerProfilePage({ params }: Props) {
         <TrainingSessionsCard
           sessions={training.sessions}
           presentDays={training.presentDays}
+          lateDays={training.lateDays}
           visitBounds={training.visitBounds}
           minutes30d={training.minutes30d}
           sessions30d={training.sessions30d}

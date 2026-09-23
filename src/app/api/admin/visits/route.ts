@@ -46,93 +46,111 @@ function hostOf(ref: string | null | undefined): string {
   }
 }
 
+function dayKeyMsk(d: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Moscow",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+
 /**
  * GET — только Keech.
  * Roster юзеров / лента / полная аналитика трафика (гости + регистрации).
  */
 export async function GET(req: Request) {
-  const gate = await requireKeechOnly();
-  if (gate.error) return gate.error;
+  try {
+    const gate = await requireKeechOnly();
+    if (gate.error) return gate.error;
 
-  const url = new URL(req.url);
-  const userId = url.searchParams.get("userId")?.trim() || "";
-  const nickQ = url.searchParams.get("nick")?.trim() || "";
-  const date = url.searchParams.get("date")?.trim() || "";
-  const before = url.searchParams.get("before")?.trim() || "";
-  const periodDays = Math.min(
-    90,
-    Math.max(1, Number(url.searchParams.get("periodDays") || 7) || 7)
-  );
-  const limit = Math.min(
-    5000,
-    Math.max(1, Number(url.searchParams.get("limit") || 500) || 500)
-  );
+    const url = new URL(req.url);
+    const userId = url.searchParams.get("userId")?.trim() || "";
+    const nickQ = url.searchParams.get("nick")?.trim() || "";
+    const date = url.searchParams.get("date")?.trim() || "";
+    const before = url.searchParams.get("before")?.trim() || "";
+    const periodDays = Math.min(
+      90,
+      Math.max(1, Number(url.searchParams.get("periodDays") || 7) || 7)
+    );
+    const limit = Math.min(
+      5000,
+      Math.max(1, Number(url.searchParams.get("limit") || 500) || 500)
+    );
 
-  const range = date ? mskDayRange(date) : null;
-  if (date && !range) {
+    const range = date ? mskDayRange(date) : null;
+    if (date && !range) {
+      return NextResponse.json(
+        { error: "date должен быть YYYY-MM-DD" },
+        { status: 400 }
+      );
+    }
+
+    const createdAtFilter = range
+      ? { gte: range.from, lt: range.to }
+      : undefined;
+
+    let targetId = userId;
+    if (!targetId && nickQ) {
+      const u = await prisma.user.findFirst({
+        where: { nick: { equals: nickQ, mode: "insensitive" } },
+        select: { id: true },
+      });
+      if (!u) {
+        return NextResponse.json({ error: "Ник не найден" }, { status: 404 });
+      }
+      targetId = u.id;
+    }
+
+    if (!targetId) {
+      return await rosterPayload(periodDays, date, createdAtFilter);
+    }
+
+    return await userFeedPayload(
+      targetId,
+      date,
+      createdAtFilter,
+      before,
+      limit
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[admin/visits]", msg);
     return NextResponse.json(
-      { error: "date должен быть YYYY-MM-DD" },
-      { status: 400 }
+      { error: "visits_failed", detail: msg.slice(0, 400) },
+      { status: 500 }
     );
   }
+}
 
-  const createdAtFilter = range
-    ? { gte: range.from, lt: range.to }
-    : undefined;
+async function rosterPayload(
+  periodDays: number,
+  date: string,
+  createdAtFilter: { gte: Date; lt: Date } | undefined
+) {
+  const todayRange = mskDayRange(todayMskStr())!;
+  const period = mskDaysAgoRange(periodDays);
 
-  let targetId = userId;
-  if (!targetId && nickQ) {
-    const u = await prisma.user.findFirst({
-      where: { nick: { equals: nickQ, mode: "insensitive" } },
-      select: { id: true },
-    });
-    if (!u) {
-      return NextResponse.json({ error: "Ник не найден" }, { status: 404 });
-    }
-    targetId = u.id;
-  }
-
-  if (!targetId) {
-    const todayRange = mskDayRange(todayMskStr())!;
-    const period = mskDaysAgoRange(periodDays);
-
-    const [
-      users,
-      todayVisits,
-      todayPeopleRegistered,
-      periodVisits,
-      periodPeopleRows,
-      firstVisit,
-      // traffic uniques
-      visitorsAll,
-      visitorsToday,
-      visitorsPeriod,
-      visitorsLinkedAll,
-      visitorsLinkedPeriod,
-      registeredAll,
-      registeredPeriod,
-      topReferrers,
-      topLandings,
-      topPaths,
-      dailyVisitors,
-    ] = await Promise.all([
-      prisma.user.findMany({
-        where: { profileComplete: true },
-        orderBy: [{ nick: "asc" }, { steamName: "asc" }],
+  const users = await prisma.user.findMany({
+    where: { profileComplete: true },
+    orderBy: [{ nick: "asc" }, { steamName: "asc" }],
+    select: {
+      id: true,
+      nick: true,
+      steamName: true,
+      steamId: true,
+      _count: {
         select: {
-          id: true,
-          nick: true,
-          steamName: true,
-          steamId: true,
-          _count: {
-            select: {
-              pageVisits: createdAtFilter
-                ? { where: { createdAt: createdAtFilter } }
-                : true,
-            },
-          },
+          pageVisits: createdAtFilter
+            ? { where: { createdAt: createdAtFilter } }
+            : true,
         },
-      }),
+      },
+    },
+  });
+
+  const [todayVisits, todayPeopleRegistered, periodVisits, firstVisit] =
+    await Promise.all([
       prisma.sitePageVisit.count({
         where: { createdAt: { gte: todayRange.from, lt: todayRange.to } },
       }),
@@ -147,18 +165,100 @@ export async function GET(req: Request) {
       prisma.sitePageVisit.count({
         where: { createdAt: { gte: period.from, lt: period.to } },
       }),
-      prisma.$queryRaw<{ d: Date; u: bigint }[]>`
-        SELECT (timezone('Europe/Moscow', "createdAt"))::date AS d,
-               COUNT(DISTINCT "userId")::bigint AS u
-        FROM "SitePageVisit"
-        WHERE "createdAt" >= ${period.from} AND "createdAt" < ${period.to}
-          AND "userId" IS NOT NULL
-        GROUP BY 1
-      `,
       prisma.sitePageVisit.findFirst({
         orderBy: { createdAt: "asc" },
         select: { createdAt: true },
       }),
+    ]);
+
+  // People-per-day from page visits (registered only) — Prisma, no raw SQL
+  const periodAuthVisits = await prisma.sitePageVisit.findMany({
+    where: {
+      createdAt: { gte: period.from, lt: period.to },
+      userId: { not: null },
+    },
+    select: { userId: true, createdAt: true },
+  });
+  const dayPeople = new Map<string, Set<string>>();
+  for (const v of periodAuthVisits) {
+    if (!v.userId) continue;
+    const k = dayKeyMsk(v.createdAt);
+    let set = dayPeople.get(k);
+    if (!set) {
+      set = new Set();
+      dayPeople.set(k, set);
+    }
+    set.add(v.userId);
+  }
+  const daysWithData = dayPeople.size || 1;
+  const avgPeoplePerDay =
+    Math.round(
+      ([...dayPeople.values()].reduce((s, set) => s + set.size, 0) /
+        daysWithData) *
+        10
+    ) / 10;
+  const avgVisitsPerDay = Math.round((periodVisits / periodDays) * 10) / 10;
+
+  // Traffic block — soft-fail if SiteVisitor missing / groupBy quirks
+  let traffic: {
+    uniqueAll: number;
+    uniqueToday: number;
+    uniquePeriod: number;
+    linkedAll: number;
+    linkedPeriod: number;
+    registeredAll: number;
+    registeredPeriod: number;
+    conversionPct: number;
+    sources: { source: string; count: number }[];
+    landings: { path: string; count: number }[];
+    paths: { path: string; count: number }[];
+    daily: {
+      day: string;
+      newVisitors: number;
+      hits: number;
+      authHits: number;
+    }[];
+    hourly: { hour: number; hits: number }[];
+    onlineNow: {
+      id: string;
+      nick: string | null;
+      steamName: string | null;
+      steamId: string;
+      lastSeenAt: string | null;
+    }[];
+  } = {
+    uniqueAll: 0,
+    uniqueToday: 0,
+    uniquePeriod: 0,
+    linkedAll: 0,
+    linkedPeriod: 0,
+    registeredAll: 0,
+    registeredPeriod: 0,
+    conversionPct: 0,
+    sources: [],
+    landings: [],
+    paths: [],
+    daily: [],
+    hourly: [],
+    onlineNow: [],
+  };
+
+  try {
+    const [
+      visitorsAll,
+      visitorsToday,
+      visitorsPeriod,
+      visitorsLinkedAll,
+      visitorsLinkedPeriod,
+      registeredAll,
+      registeredPeriod,
+      topReferrers,
+      topLandings,
+      topPaths,
+      newVisitorsPeriod,
+      hitsByDayRows,
+      onlineNow,
+    ] = await Promise.all([
       prisma.siteVisitor.count(),
       prisma.siteVisitor.count({
         where: {
@@ -193,107 +293,177 @@ export async function GET(req: Request) {
       prisma.siteVisitor.groupBy({
         by: ["referrer"],
         _count: { _all: true },
-        orderBy: { _count: { referrer: "desc" } },
-        take: 15,
       }),
       prisma.siteVisitor.groupBy({
         by: ["landingPath"],
         _count: { _all: true },
-        orderBy: { _count: { landingPath: "desc" } },
-        take: 15,
       }),
       prisma.sitePageVisit.groupBy({
         by: ["path"],
         where: { createdAt: { gte: period.from, lt: period.to } },
         _count: { _all: true },
-        orderBy: { _count: { path: "desc" } },
-        take: 15,
       }),
-      prisma.$queryRaw<{ d: Date; visitors: bigint; hits: bigint }[]>`
-        SELECT (timezone('Europe/Moscow', v."firstSeenAt"))::date AS d,
-               COUNT(*)::bigint AS visitors,
-               COALESCE((
-                 SELECT COUNT(*)::bigint FROM "SitePageVisit" p
-                 WHERE (timezone('Europe/Moscow', p."createdAt"))::date
-                       = (timezone('Europe/Moscow', v."firstSeenAt"))::date
-               ), 0) AS hits
-        FROM "SiteVisitor" v
-        WHERE v."firstSeenAt" >= ${period.from} AND v."firstSeenAt" < ${period.to}
-        GROUP BY 1
-        ORDER BY 1 ASC
-      `,
+      prisma.siteVisitor.findMany({
+        where: {
+          firstSeenAt: { gte: period.from, lt: period.to },
+        },
+        select: { firstSeenAt: true },
+      }),
+      prisma.sitePageVisit.findMany({
+        where: { createdAt: { gte: period.from, lt: period.to } },
+        select: { createdAt: true, userId: true },
+      }),
+      prisma.user.findMany({
+        where: {
+          profileComplete: true,
+          lastSeenAt: { gte: new Date(Date.now() - 3 * 60 * 1000) },
+        },
+        orderBy: { lastSeenAt: "desc" },
+        take: 40,
+        select: {
+          id: true,
+          nick: true,
+          steamName: true,
+          steamId: true,
+          lastSeenAt: true,
+        },
+      }),
     ]);
 
-    const daysWithData = periodPeopleRows.length || 1;
-    const avgPeoplePerDay =
-      Math.round(
-        (periodPeopleRows.reduce((s, r) => s + Number(r.u), 0) / daysWithData) *
-          10
-      ) / 10;
-    const avgVisitsPerDay =
-      Math.round((periodVisits / periodDays) * 10) / 10;
+    const countAll = (c: { _count?: { _all?: number } | true }) =>
+      typeof c._count === "object" && c._count && typeof c._count._all === "number"
+        ? c._count._all
+        : 0;
 
     const refMap = new Map<string, number>();
     for (const r of topReferrers) {
       const host = hostOf(r.referrer);
-      refMap.set(host, (refMap.get(host) || 0) + r._count._all);
+      refMap.set(host, (refMap.get(host) || 0) + countAll(r));
     }
     const sources = [...refMap.entries()]
       .map(([source, count]) => ({ source, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 12);
 
-    const conversionAll =
+    const landings = topLandings
+      .filter((x) => x.landingPath)
+      .map((x) => ({ path: x.landingPath!, count: countAll(x) }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 15);
+
+    const paths = topPaths
+      .map((x) => ({ path: x.path, count: countAll(x) }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 20);
+
+    const newByDay = new Map<string, number>();
+    for (const v of newVisitorsPeriod) {
+      const k = dayKeyMsk(v.firstSeenAt);
+      newByDay.set(k, (newByDay.get(k) || 0) + 1);
+    }
+    const hitsByDay = new Map<string, number>();
+    const authHitsByDay = new Map<string, number>();
+    const hourHits = new Array(24).fill(0) as number[];
+    for (const v of hitsByDayRows) {
+      const k = dayKeyMsk(v.createdAt);
+      hitsByDay.set(k, (hitsByDay.get(k) || 0) + 1);
+      if (v.userId) {
+        authHitsByDay.set(k, (authHitsByDay.get(k) || 0) + 1);
+      }
+      const hour = Number(
+        new Intl.DateTimeFormat("en-GB", {
+          timeZone: "Europe/Moscow",
+          hour: "2-digit",
+          hourCycle: "h23",
+        }).format(v.createdAt)
+      );
+      if (Number.isFinite(hour) && hour >= 0 && hour < 24) {
+        hourHits[hour] += 1;
+      }
+    }
+    const allDays = new Set([...newByDay.keys(), ...hitsByDay.keys()]);
+    // заполняем пустые дни периода, чтобы шкала была непрерывной
+    {
+      const cursor = new Date(period.from.getTime() + 12 * 3600 * 1000);
+      const end = period.to.getTime();
+      while (cursor.getTime() < end) {
+        allDays.add(dayKeyMsk(cursor));
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+    }
+    const daily = [...allDays]
+      .sort()
+      .map((day) => ({
+        day,
+        newVisitors: newByDay.get(day) || 0,
+        hits: hitsByDay.get(day) || 0,
+        authHits: authHitsByDay.get(day) || 0,
+      }));
+
+    const hourly = hourHits.map((hits, hour) => ({ hour, hits }));
+
+    const conversionPct =
       visitorsAll > 0
         ? Math.round((1000 * visitorsLinkedAll) / visitorsAll) / 10
         : 0;
 
-    return NextResponse.json({
-      mode: "roster",
-      date: date || null,
-      summary: {
-        today: todayMskStr(),
-        todayPeople: todayPeopleRegistered.length,
-        todayVisits,
-        periodDays,
-        periodVisits,
-        avgPeoplePerDay,
-        avgVisitsPerDay,
-        logSince: firstVisit?.createdAt.toISOString() ?? null,
-      },
-      traffic: {
-        uniqueAll: visitorsAll,
-        uniqueToday: visitorsToday,
-        uniquePeriod: visitorsPeriod,
-        linkedAll: visitorsLinkedAll,
-        linkedPeriod: visitorsLinkedPeriod,
-        registeredAll,
-        registeredPeriod,
-        conversionPct: conversionAll,
-        sources,
-        landings: topLandings
-          .filter((x) => x.landingPath)
-          .map((x) => ({ path: x.landingPath!, count: x._count._all })),
-        paths: topPaths.map((x) => ({
-          path: x.path,
-          count: x._count._all,
-        })),
-        daily: dailyVisitors.map((d) => ({
-          day: d.d instanceof Date ? d.d.toISOString().slice(0, 10) : String(d.d),
-          newVisitors: Number(d.visitors),
-          hits: Number(d.hits),
-        })),
-      },
-      users: users.map((u) => ({
+    traffic = {
+      uniqueAll: visitorsAll,
+      uniqueToday: visitorsToday,
+      uniquePeriod: visitorsPeriod,
+      linkedAll: visitorsLinkedAll,
+      linkedPeriod: visitorsLinkedPeriod,
+      registeredAll,
+      registeredPeriod,
+      conversionPct,
+      sources,
+      landings,
+      paths,
+      daily,
+      hourly,
+      onlineNow: onlineNow.map((u) => ({
         id: u.id,
         nick: u.nick,
         steamName: u.steamName,
         steamId: u.steamId,
-        visits: u._count.pageVisits,
+        lastSeenAt: u.lastSeenAt?.toISOString() ?? null,
       })),
-    });
+    };
+  } catch (e) {
+    console.error("[admin/visits] traffic block", e);
   }
 
+  return NextResponse.json({
+    mode: "roster",
+    date: date || null,
+    summary: {
+      today: todayMskStr(),
+      todayPeople: todayPeopleRegistered.length,
+      todayVisits,
+      periodDays,
+      periodVisits,
+      avgPeoplePerDay,
+      avgVisitsPerDay,
+      logSince: firstVisit?.createdAt.toISOString() ?? null,
+    },
+    traffic,
+    users: users.map((u) => ({
+      id: u.id,
+      nick: u.nick,
+      steamName: u.steamName,
+      steamId: u.steamId,
+      visits: u._count.pageVisits,
+    })),
+  });
+}
+
+async function userFeedPayload(
+  targetId: string,
+  date: string,
+  createdAtFilter: { gte: Date; lt: Date } | undefined,
+  before: string,
+  limit: number
+) {
   const user = await prisma.user.findUnique({
     where: { id: targetId },
     select: {

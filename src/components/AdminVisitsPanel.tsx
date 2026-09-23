@@ -43,10 +43,27 @@ type Traffic = {
   sources: { source: string; count: number }[];
   landings: { path: string; count: number }[];
   paths: { path: string; count: number }[];
-  daily: { day: string; newVisitors: number; hits: number }[];
+  daily: {
+    day: string;
+    newVisitors: number;
+    hits: number;
+    authHits: number;
+  }[];
+  hourly: { hour: number; hits: number }[];
+  onlineNow: {
+    id: string;
+    nick: string | null;
+    steamName: string | null;
+    steamId: string;
+    lastSeenAt: string | null;
+  }[];
 };
 
-function labelOf(u: { nick: string | null; steamName: string | null; steamId: string }) {
+function labelOf(u: {
+  nick: string | null;
+  steamName: string | null;
+  steamId: string;
+}) {
   return u.nick || u.steamName || u.steamId;
 }
 
@@ -71,6 +88,12 @@ function formatWhen(iso: string): string {
     minute: "2-digit",
     second: "2-digit",
   }).format(d);
+}
+
+function formatDayShort(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  if (!y || !m || !d) return ymd;
+  return `${String(d).padStart(2, "0")}.${String(m).padStart(2, "0")}`;
 }
 
 const SESSION_GAP_MS = 30 * 60 * 1000;
@@ -98,7 +121,7 @@ function Stat({
   hint?: string;
 }) {
   return (
-    <div className="card" style={{ margin: 0, padding: "10px 12px" }}>
+    <div className="visits-stat">
       <div className="muted" style={{ fontSize: 12 }}>
         {label}
       </div>
@@ -112,9 +135,112 @@ function Stat({
   );
 }
 
+/** Горизонтальная шкала (не радиальная). */
+function BarList({
+  title,
+  hint,
+  rows,
+  empty,
+}: {
+  title: string;
+  hint?: string;
+  rows: { label: string; value: number; sub?: string }[];
+  empty?: string;
+}) {
+  const max = Math.max(1, ...rows.map((r) => r.value));
+  return (
+    <div className="visits-chart-card">
+      <h4 className="visits-chart-title">{title}</h4>
+      {hint ? <p className="muted visits-chart-hint">{hint}</p> : null}
+      {!rows.length ? (
+        <p className="muted" style={{ margin: 0 }}>
+          {empty || "Пока нет данных"}
+        </p>
+      ) : (
+        <ul className="visits-bar-list">
+          {rows.map((r) => (
+            <li key={r.label} className="visits-bar-row">
+              <div className="visits-bar-meta">
+                <span className="visits-bar-label" title={r.label}>
+                  {r.label}
+                </span>
+                <span className="visits-bar-value">
+                  {r.value}
+                  {r.sub ? (
+                    <span className="muted" style={{ marginLeft: 6 }}>
+                      {r.sub}
+                    </span>
+                  ) : null}
+                </span>
+              </div>
+              <div className="visits-bar-track">
+                <div
+                  className="visits-bar-fill"
+                  style={{ width: `${Math.max(2, (100 * r.value) / max)}%` }}
+                />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** Вертикальные столбцы по дням / часам. */
+function ColumnChart({
+  title,
+  hint,
+  columns,
+  empty,
+}: {
+  title: string;
+  hint?: string;
+  columns: { key: string; label: string; a: number; b?: number }[];
+  empty?: string;
+}) {
+  const max = Math.max(
+    1,
+    ...columns.map((c) => Math.max(c.a, c.b ?? 0))
+  );
+  return (
+    <div className="visits-chart-card visits-chart-wide">
+      <h4 className="visits-chart-title">{title}</h4>
+      {hint ? <p className="muted visits-chart-hint">{hint}</p> : null}
+      {!columns.length ? (
+        <p className="muted" style={{ margin: 0 }}>
+          {empty || "Пока нет данных"}
+        </p>
+      ) : (
+        <div className="visits-col-chart">
+          {columns.map((c) => (
+            <div key={c.key} className="visits-col">
+              <div className="visits-col-bars">
+                <div
+                  className="visits-col-a"
+                  style={{ height: `${Math.max(2, (100 * c.a) / max)}%` }}
+                  title={`${c.label}: ${c.a}`}
+                />
+                {c.b != null ? (
+                  <div
+                    className="visits-col-b"
+                    style={{ height: `${Math.max(0, (100 * c.b) / max)}%` }}
+                    title={`${c.label} (свои): ${c.b}`}
+                  />
+                ) : null}
+              </div>
+              <span className="visits-col-label">{c.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AdminVisitsPanel() {
   const [date, setDate] = useState("");
-  const [periodDays, setPeriodDays] = useState(7);
+  const [periodDays, setPeriodDays] = useState(14);
   const [roster, setRoster] = useState<RosterUser[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [traffic, setTraffic] = useState<Traffic | null>(null);
@@ -135,9 +261,27 @@ export function AdminVisitsPanel() {
     try {
       const params = new URLSearchParams({ periodDays: String(periodDays) });
       if (date) params.set("date", date);
-      const res = await fetch(`/api/admin/visits?${params}`, { cache: "no-store" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Нет доступа");
+      const res = await fetch(`/api/admin/visits?${params}`, {
+        cache: "no-store",
+      });
+      const text = await res.text();
+      let json: Record<string, unknown> = {};
+      try {
+        json = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+      } catch {
+        throw new Error(
+          text
+            ? `Ответ не JSON (${res.status}): ${text.slice(0, 120)}`
+            : `Пустой ответ сервера (${res.status})`
+        );
+      }
+      if (!res.ok) {
+        const detail =
+          typeof json.detail === "string" ? ` — ${json.detail}` : "";
+        throw new Error(
+          `${typeof json.error === "string" ? json.error : "Нет доступа"}${detail}`
+        );
+      }
       setRoster((json.users || []) as RosterUser[]);
       setSummary((json.summary as Summary) || null);
       setTraffic((json.traffic as Traffic) || null);
@@ -170,15 +314,33 @@ export function AdminVisitsPanel() {
         const res = await fetch(`/api/admin/visits?${params}`, {
           cache: "no-store",
         });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error || "Нет доступа");
+        const text = await res.text();
+        let json: Record<string, unknown> = {};
+        try {
+          json = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+        } catch {
+          throw new Error(
+            text
+              ? `Ответ не JSON (${res.status}): ${text.slice(0, 120)}`
+              : `Пустой ответ сервера (${res.status})`
+          );
+        }
+        if (!res.ok) {
+          const detail =
+            typeof json.detail === "string" ? ` — ${json.detail}` : "";
+          throw new Error(
+            `${typeof json.error === "string" ? json.error : "Нет доступа"}${detail}`
+          );
+        }
         const next = (json.visits || []) as VisitRow[];
         setVisits((prev) => (opts?.append ? [...prev, ...next] : next));
         setByPath((json.byPath || []) as PathCount[]);
         setTotal(Number(json.total) || 0);
         setHasMore(Boolean(json.hasMore));
-        setNextBefore(json.nextBefore || null);
-        if (json.user) setSelectedLabel(labelOf(json.user));
+        setNextBefore(
+          typeof json.nextBefore === "string" ? json.nextBefore : null
+        );
+        if (json.user) setSelectedLabel(labelOf(json.user as RosterUser));
       } catch (e) {
         setErr(e instanceof Error ? e.message : "Ошибка");
         if (!opts?.append) {
@@ -208,7 +370,8 @@ export function AdminVisitsPanel() {
     let list = roster;
     if (needle) {
       list = list.filter((u) => {
-        const blob = `${u.nick || ""} ${u.steamName || ""} ${u.steamId}`.toLowerCase();
+        const blob =
+          `${u.nick || ""} ${u.steamName || ""} ${u.steamId}`.toLowerCase();
         return blob.includes(needle);
       });
     }
@@ -220,190 +383,25 @@ export function AdminVisitsPanel() {
 
   const sessionRows = useMemo(() => withSessions(visits), [visits]);
 
+  const topPlayers = useMemo(
+    () =>
+      filtered
+        .filter((u) => u.visits > 0)
+        .slice(0, 15)
+        .map((u) => ({
+          label: labelOf(u),
+          value: u.visits,
+        })),
+    [filtered]
+  );
+
   return (
-    <section className="card journal-card">
+    <section className="card journal-card visits-panel">
       <p className="muted" style={{ marginTop: 0 }}>
-        Только для тебя (Keech). Считаем <strong>всех</strong> посетителей
-        (гости + залогиненные): уникальные, регистрации, откуда пришли, страницы.
-        Полная лента по нику — ниже.
+        Это <strong>заходы на сайт bb-squad.ru</strong> (не логи TR1). Считаем
+        гостей и залогиненных: кто открыл страницу, когда, откуда пришёл, куда
+        чаще всего заходит. Только для тебя (Keech).
       </p>
-
-      {traffic ? (
-        <>
-          <h3 style={{ marginBottom: 8 }}>Трафик · уникальные</h3>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-              gap: 10,
-              marginBottom: 14,
-            }}
-          >
-            <Stat
-              label="Уникальных всего"
-              value={traffic.uniqueAll}
-              hint={`из них зарегались ${traffic.linkedAll} (${traffic.conversionPct}%)`}
-            />
-            <Stat
-              label="Уникальных сегодня"
-              value={traffic.uniqueToday}
-              hint="гости + свои"
-            />
-            <Stat
-              label={`Уникальных за ${periodDays} дн.`}
-              value={traffic.uniquePeriod}
-              hint={`новых рег. за период: ${traffic.registeredPeriod}`}
-            />
-            <Stat
-              label="Зарегано на сайте"
-              value={traffic.registeredAll}
-              hint="анкета заполнена"
-            />
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              gap: 12,
-              marginBottom: 16,
-            }}
-          >
-            <div className="admin-table-wrap" style={{ maxHeight: 220, overflow: "auto" }}>
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Откуда (реферер)</th>
-                    <th className="num">чел.</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {traffic.sources.map((s) => (
-                    <tr key={s.source}>
-                      <td>{s.source}</td>
-                      <td className="num">{s.count}</td>
-                    </tr>
-                  ))}
-                  {!traffic.sources.length ? (
-                    <tr>
-                      <td colSpan={2} className="muted">
-                        Пока нет внешних переходов
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
-            <div className="admin-table-wrap" style={{ maxHeight: 220, overflow: "auto" }}>
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Первая страница</th>
-                    <th className="num">чел.</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {traffic.landings.map((s) => (
-                    <tr key={s.path}>
-                      <td>
-                        <code>{s.path}</code>
-                      </td>
-                      <td className="num">{s.count}</td>
-                    </tr>
-                  ))}
-                  {!traffic.landings.length ? (
-                    <tr>
-                      <td colSpan={2} className="muted">
-                        —
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
-            <div className="admin-table-wrap" style={{ maxHeight: 220, overflow: "auto" }}>
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Топ страниц (период)</th>
-                    <th className="num">хиты</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {traffic.paths.map((s) => (
-                    <tr key={s.path}>
-                      <td>
-                        <code>{s.path}</code>
-                      </td>
-                      <td className="num">{s.count}</td>
-                    </tr>
-                  ))}
-                  {!traffic.paths.length ? (
-                    <tr>
-                      <td colSpan={2} className="muted">
-                        —
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {traffic.daily.length ? (
-            <div className="admin-table-wrap" style={{ maxHeight: 180, overflow: "auto", marginBottom: 16 }}>
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>День (МСК)</th>
-                    <th className="num">Новых уник.</th>
-                    <th className="num">Хиты</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {traffic.daily.map((d) => (
-                    <tr key={d.day}>
-                      <td>{d.day}</td>
-                      <td className="num">{d.newVisitors}</td>
-                      <td className="num">{d.hits}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
-        </>
-      ) : null}
-
-      {summary ? (
-        <>
-          <h3 style={{ marginBottom: 8 }}>Залогиненные · заходы</h3>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-              gap: 10,
-              marginBottom: 14,
-            }}
-          >
-            <Stat
-              label="Сегодня своих онлайн-заходов"
-              value={summary.todayPeople}
-              hint={`${summary.todayVisits} хитов · ${summary.today}`}
-            />
-            <Stat
-              label="Среднее своих / день"
-              value={summary.avgPeoplePerDay}
-              hint={`за ${summary.periodDays} дн.`}
-            />
-            <Stat
-              label="Среднее хитов / день"
-              value={summary.avgVisitsPerDay}
-              hint={`всего ${summary.periodVisits}`}
-            />
-          </div>
-        </>
-      ) : null}
 
       <div className="journal-toolbar" style={{ flexWrap: "wrap", gap: 12 }}>
         <label className="field" style={{ margin: 0 }}>
@@ -425,7 +423,7 @@ export function AdminVisitsPanel() {
           Сегодня
         </button>
         <label className="field" style={{ margin: 0 }}>
-          <span>Период, дн.</span>
+          <span>Период графиков, дн.</span>
           <select
             value={periodDays}
             onChange={(e) => setPeriodDays(Number(e.target.value))}
@@ -433,6 +431,7 @@ export function AdminVisitsPanel() {
             <option value={7}>7</option>
             <option value={14}>14</option>
             <option value={30}>30</option>
+            <option value={60}>60</option>
           </select>
         </label>
         <label className="field" style={{ margin: 0, flex: 1, minWidth: 160 }}>
@@ -457,7 +456,126 @@ export function AdminVisitsPanel() {
         </button>
       </div>
 
-      <p className="muted" style={{ marginTop: 8 }}>
+      {err ? <p className="form-error">{err}</p> : null}
+      {loading && !traffic && !summary ? (
+        <p className="muted">Загрузка аналитики…</p>
+      ) : null}
+
+      {traffic ? (
+        <>
+          <h3 style={{ marginBottom: 8 }}>Сводка</h3>
+          <div className="visits-stat-grid">
+            <Stat
+              label="Уникальных всего"
+              value={traffic.uniqueAll}
+              hint={`зарегались ${traffic.linkedAll} (${traffic.conversionPct}%)`}
+            />
+            <Stat
+              label="Уникальных сегодня"
+              value={traffic.uniqueToday}
+              hint="гости + свои"
+            />
+            <Stat
+              label={`Уникальных за ${periodDays} дн.`}
+              value={traffic.uniquePeriod}
+              hint={`новых рег.: ${traffic.registeredPeriod}`}
+            />
+            <Stat
+              label="Сейчас на сайте"
+              value={traffic.onlineNow?.length ?? 0}
+              hint="heartbeat ≤3 мин"
+            />
+            {summary ? (
+              <>
+                <Stat
+                  label="Свои сегодня"
+                  value={summary.todayPeople}
+                  hint={`${summary.todayVisits} хитов`}
+                />
+                <Stat
+                  label="Ср. хитов / день"
+                  value={summary.avgVisitsPerDay}
+                  hint={`за ${summary.periodDays} дн.`}
+                />
+              </>
+            ) : null}
+          </div>
+
+          {traffic.onlineNow?.length ? (
+            <p className="visits-online-line">
+              <strong>Онлайн:</strong>{" "}
+              {traffic.onlineNow.map((u) => labelOf(u)).join(" · ")}
+            </p>
+          ) : (
+            <p className="muted visits-online-line">Сейчас на сайте никого нет</p>
+          )}
+
+          <h3 style={{ marginBottom: 8 }}>Динамика · куда ходят</h3>
+          <p className="muted" style={{ marginTop: 0 }}>
+            Смотри всплески по дням после правок сайта. «Куда тыкают» = какие
+            страницы открывают чаще всего (pageview).
+          </p>
+
+          <div className="visits-charts-grid">
+            <ColumnChart
+              title={`Хиты по дням (МСК) · ${periodDays} дн.`}
+              hint="Светлый столбец — все хиты, тёмный — только залогиненные"
+              columns={(traffic.daily || []).map((d) => ({
+                key: d.day,
+                label: formatDayShort(d.day),
+                a: d.hits,
+                b: d.authHits ?? 0,
+              }))}
+            />
+            <ColumnChart
+              title="Активность по часам (МСК)"
+              hint="Сумма хитов за выбранный период по часу суток"
+              columns={(traffic.hourly || []).map((h) => ({
+                key: String(h.hour),
+                label: `${String(h.hour).padStart(2, "0")}`,
+                a: h.hits,
+              }))}
+            />
+            <BarList
+              title="Куда чаще заходят"
+              hint="Топ страниц сайта за период"
+              rows={(traffic.paths || []).map((p) => ({
+                label: p.path,
+                value: p.count,
+              }))}
+              empty="Ещё нет pageview — зайди на пару страниц и обнови"
+            />
+            <BarList
+              title="Первая страница (лендинг)"
+              hint="С какой страницы впервые попали"
+              rows={(traffic.landings || []).map((p) => ({
+                label: p.path,
+                value: p.count,
+              }))}
+            />
+            <BarList
+              title="Откуда пришли"
+              hint="Реферер / прямой заход"
+              rows={(traffic.sources || []).map((s) => ({
+                label: s.source,
+                value: s.count,
+              }))}
+            />
+            <BarList
+              title="Кто из своих заходит чаще"
+              hint={
+                date
+                  ? `Заходы за ${date} (залогиненные)`
+                  : "Заходы за выбранную дату / все дни"
+              }
+              rows={topPlayers}
+              empty="Пока нет заходов залогиненных"
+            />
+          </div>
+        </>
+      ) : null}
+
+      <p className="muted" style={{ marginTop: 16 }}>
         Лента по игроку:{" "}
         <strong>{date ? `только ${date}` : "все дни"}</strong>
         {summary?.logSince
@@ -466,17 +584,11 @@ export function AdminVisitsPanel() {
         {loading ? " · загрузка…" : ""}
       </p>
 
-      {err ? <p className="form-error">{err}</p> : null}
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(200px, 280px) 1fr",
-          gap: 16,
-          marginTop: 12,
-        }}
-      >
-        <div className="admin-table-wrap" style={{ maxHeight: 520, overflow: "auto" }}>
+      <div className="visits-split">
+        <div
+          className="admin-table-wrap"
+          style={{ maxHeight: 520, overflow: "auto" }}
+        >
           <table className="admin-table">
             <thead>
               <tr>
@@ -493,7 +605,9 @@ export function AdminVisitsPanel() {
                     onClick={() => setUserId(u.id)}
                     style={{
                       cursor: "pointer",
-                      background: active ? "rgba(255,255,255,0.08)" : undefined,
+                      background: active
+                        ? "rgba(255,255,255,0.08)"
+                        : undefined,
                     }}
                   >
                     <td>{labelOf(u)}</td>
@@ -515,8 +629,8 @@ export function AdminVisitsPanel() {
         <div>
           {!userId ? (
             <p className="muted">
-              Выбери игрока слева — полная лента заходов с временем. Гостевой
-              трафик смотри в блоках сверху (уникальные / откуда / страницы).
+              Выбери игрока слева — полная лента: когда зашёл на сайт и какие
+              страницы открывал. Сверху — общая аналитика по всем.
             </p>
           ) : (
             <>
@@ -527,15 +641,20 @@ export function AdminVisitsPanel() {
                 {visits.length < total ? ` · показано ${visits.length}` : ""}
               </h3>
               {byPath.length ? (
-                <p className="muted" style={{ marginTop: 0 }}>
-                  По страницам:{" "}
-                  {byPath
-                    .slice(0, 8)
-                    .map((p) => `${p.path}×${p.count}`)
-                    .join(" · ")}
-                </p>
+                <div style={{ marginBottom: 12 }}>
+                  <BarList
+                    title="Его страницы"
+                    rows={byPath.slice(0, 12).map((p) => ({
+                      label: p.path,
+                      value: p.count,
+                    }))}
+                  />
+                </div>
               ) : null}
-              <div className="admin-table-wrap" style={{ maxHeight: 460, overflow: "auto" }}>
+              <div
+                className="admin-table-wrap"
+                style={{ maxHeight: 460, overflow: "auto" }}
+              >
                 <table className="admin-table">
                   <thead>
                     <tr>
@@ -553,7 +672,10 @@ export function AdminVisitsPanel() {
                           key={row.id}
                           style={
                             showSep
-                              ? { borderTop: "1px solid rgba(255,255,255,0.15)" }
+                              ? {
+                                  borderTop:
+                                    "1px solid rgba(255,255,255,0.15)",
+                                }
                               : undefined
                           }
                         >

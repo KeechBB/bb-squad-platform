@@ -117,10 +117,12 @@ export const ATTENDANCE_LABEL: Record<AttendanceTag, string> = {
   other: "день",
 };
 
-/** Окно тренировки TR1: 21:00–00:00 МСК; «был» = ≥60 мин в окне. */
+/** Окно тренировки TR1: 21:00–00:00 МСК; «был» = ≥60 мин в окне или уход ≥23:30. */
 export const TRAINING_EVENING_START_MIN = 21 * 60;
 export const TRAINING_EVENING_END_MIN = 24 * 60;
 export const TRAINING_PRESENT_MIN_MINUTES = 60;
+/** Ушёл «в конце» тренировки (зелёная зона выхода) — тоже считаем «был». */
+export const TRAINING_STAYED_END_MIN = 23 * 60 + 30;
 
 export function ymdFromMskParts(y: number, m: number, day: number): string {
   return `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -317,23 +319,121 @@ export function trainingDayVisitBoundsFromSessions(
   return out;
 }
 
-/** Дни «был» на TR1 (≥60 мин в 21:00–00:00 МСК) — общий источник для профиля и админки. */
+/** Leave ≥23:30 МСК или 00:00–02:00 следующего календарного дня того же вечера. */
+export function leaveStayedToEnd(leaveAt: Date): boolean {
+  const p = mskParts(leaveAt);
+  const mins = p.h * 60 + p.min;
+  if (p.h < 12) return mins < 2 * 60;
+  return mins >= TRAINING_STAYED_END_MIN;
+}
+
+export type TrainingDayMarks = {
+  /** Дни «был» (профиль + журнал) */
+  present: Set<string>;
+  /** Подмножество present: первый заход в вечернее окно после 21:00 */
+  late: Set<string>;
+};
+
+/**
+ * Явка TR1 — один источник для профиля и админки.
+ * «Был» если ≥60 мин в 21:00–00:00 ИЛИ итоговый уход ≥23:30 (после дропов/реконнектов).
+ * «Опоздал» (жёлтый) если был и заход на календаре ≥21:00 МСК.
+ */
+export function trainingDayMarksFromSessions(
+  sessions: SessionForAttendance[],
+  now = new Date()
+): TrainingDayMarks {
+  const byDay = new Map<
+    string,
+    Array<{ joinedAt: Date; leftAt: Date | null }>
+  >();
+  for (const s of sessions) {
+    const key = (s.serverKey || "").toUpperCase();
+    if (key && key !== "TR1") continue;
+    const day = trainingDayYmd(s.joinedAt);
+    if (!byDay.has(day)) byDay.set(day, []);
+    byDay.get(day)!.push({ joinedAt: s.joinedAt, leftAt: s.leftAt });
+  }
+
+  const present = new Set<string>();
+  const late = new Set<string>();
+
+  for (const [day, list] of byDay) {
+    let mins = 0;
+    let lastLeave: Date | null = null;
+    let anyOpen = false;
+
+    for (const s of list) {
+      const overlap = eveningWindowOverlapMinutes(s.joinedAt, s.leftAt, now);
+      if (overlap > 0) {
+        mins += overlap;
+      }
+      if (!s.leftAt) anyOpen = true;
+      else if (!lastLeave || s.leftAt > lastLeave) lastLeave = s.leftAt;
+    }
+
+    const stayed =
+      (lastLeave != null && leaveStayedToEnd(lastLeave)) ||
+      (anyOpen && nowMinsOnDay(now, day) >= TRAINING_STAYED_END_MIN);
+
+    const hourOk = isTrainingPresentMinutes(mins);
+    if (!hourOk && !stayed) continue;
+    if (!hourOk && stayed) {
+      const { start, end: win02 } = trainingEveningWindowUtc(day, 26);
+      const hadEveningTouch = list.some((s) => {
+        const end = s.leftAt ?? now;
+        return s.joinedAt < win02 && end > start;
+      });
+      if (!hadEveningTouch) continue;
+    }
+
+    present.add(day);
+
+    // Опоздание: тот же «заход», что на календаре (вечер с 19:00).
+    // ≥21:00 МСК → жёлтый «был»; до 21:00 → зелёный.
+    const [y, m, d] = day.split("-").map(Number);
+    const from19 = new Date(Date.UTC(y, m - 1, d, 16, 0, 0));
+    const until02 = new Date(Date.UTC(y, m - 1, d, 23, 0, 0));
+    const spans = mergeSessionsWithRejoinGap(list);
+    const evening = spans.filter((sp) => {
+      const end = sp.leave ?? now;
+      return sp.join.getTime() < until02.getTime() && end.getTime() > from19.getTime();
+    });
+    if (evening.length) {
+      let joinAt = evening[0].join;
+      if (joinAt.getTime() < from19.getTime()) joinAt = from19;
+      const jp = mskParts(joinAt);
+      const jmin = jp.h * 60 + jp.min;
+      if (jp.h >= 12 && jmin >= TRAINING_EVENING_START_MIN) {
+        late.add(day);
+      }
+    }
+  }
+
+  return { present, late };
+}
+
+function nowMinsOnDay(now: Date, dayYmd: string): number {
+  const p = mskParts(now);
+  const today = ymdFromMskParts(p.y, p.m, p.day);
+  const trainToday = trainingDayYmd(now);
+  if (trainToday !== dayYmd && today !== dayYmd) return -1;
+  if (p.h < 12) return p.h * 60 + p.min + 24 * 60;
+  return p.h * 60 + p.min;
+}
+
+/** Дни «был» на TR1 — общий источник для профиля и админки. */
 export function presentTrainingDaysFromSessions(
   sessions: SessionForAttendance[],
   now = new Date()
 ): Set<string> {
-  const minsByDay = new Map<string, number>();
-  for (const s of sessions) {
-    const key = (s.serverKey || "").toUpperCase();
-    if (key && key !== "TR1") continue;
-    const mins = eveningWindowOverlapMinutes(s.joinedAt, s.leftAt, now);
-    if (mins <= 0) continue;
-    const day = trainingDayYmd(s.joinedAt);
-    minsByDay.set(day, (minsByDay.get(day) || 0) + mins);
-  }
-  const set = new Set<string>();
-  for (const [day, mins] of minsByDay) {
-    if (isTrainingPresentMinutes(mins)) set.add(day);
-  }
-  return set;
+  return trainingDayMarksFromSessions(sessions, now).present;
+}
+
+/** Дни «был», но заход после 21:00 (жёлтая отметка). */
+export function latePresentTrainingDaysFromSessions(
+  sessions: SessionForAttendance[],
+  now = new Date()
+): Set<string> {
+  return trainingDayMarksFromSessions(sessions, now).late;
 }
