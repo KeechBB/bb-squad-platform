@@ -24,7 +24,7 @@ function normalizePath(raw: unknown): string | null {
 
 function cleanRef(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
-  let s = raw.trim().slice(0, 500);
+  const s = raw.trim().slice(0, 500);
   if (!s || s === "null" || s === "undefined") return null;
   try {
     const u = new URL(s);
