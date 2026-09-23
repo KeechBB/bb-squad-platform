@@ -74,6 +74,33 @@ model User {
   reactionChatMessages ReactionChatMessage[]
   pageVisits      SitePageVisit[]
   siteVisitors    SiteVisitor[]
+  reserveStints   ReserveStint[]
+  reserveActionsAsActor ReserveStint[] @relation("ReserveActor")
+  reserveExitsAsActor   ReserveStint[] @relation("ReserveExitActor")
+}
+
+/// История уходов в резерв (открытый stint = сейчас в резерве).
+model ReserveStint {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Когда ушёл в резерв
+  enteredAt   DateTime  @default(now())
+  /// Планируемая дата возврата
+  untilAt     DateTime
+  /// Фактический выход (null = ещё в резерве)
+  exitedAt    DateTime?
+  reason      String
+  /// self | admin
+  source      String    @default("self")
+  enteredById String?
+  enteredBy   User?     @relation("ReserveActor", fields: [enteredById], references: [id], onDelete: SetNull)
+  exitedById  String?
+  exitedBy    User?     @relation("ReserveExitActor", fields: [exitedById], references: [id], onDelete: SetNull)
+
+  @@index([userId, enteredAt])
+  @@index([exitedAt])
+  @@index([untilAt])
 }
 
 /// Серия тренировки: ур.1 среднее мс; ур.2 очки шариков в avgMs

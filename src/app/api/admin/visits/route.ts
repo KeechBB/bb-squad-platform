@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireKeechOnly } from "@/lib/requireAdmin";
+import { requireSiteVisitsAccess } from "@/lib/requireAdmin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -61,7 +61,7 @@ function dayKeyMsk(d: Date): string {
  */
 export async function GET(req: Request) {
   try {
-    const gate = await requireKeechOnly();
+    const gate = await requireSiteVisitsAccess();
     if (gate.error) return gate.error;
 
     const url = new URL(req.url);

@@ -6,10 +6,10 @@ import {
   effectiveRole,
   getUserRole,
   isAdmin,
-  isBuiltinSuperAdmin,
   syncBuiltinAdmins,
   type AppRole,
 } from "@/lib/admin";
+import { canViewSiteVisits } from "@/lib/requireAdmin";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { AdminShell } from "@/components/AdminShell";
@@ -25,6 +25,7 @@ export default async function AdminPage() {
 
   const actorRole = (await getUserRole(session.user.steamId)) || "USER";
   const roleOptions = assignableRoles(actorRole);
+  const staffTabs = canViewSiteVisits(actorRole);
 
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "desc" },
@@ -74,7 +75,8 @@ export default async function AdminPage() {
       users={rows}
       roleOptions={roleOptions}
       actorRole={actorRole}
-      showSiteVisits={isBuiltinSuperAdmin(session.user.steamId)}
+      showSiteVisits={staffTabs}
+      showReserve={staffTabs}
     />
   );
 }
