@@ -15,7 +15,13 @@ if ! command -v python3 >/dev/null; then
   apt-get update -y
   apt-get install -y python3 python3-pip python3-venv
 fi
-python3 -m pip install -q -r "$SCRIPTS/requirements-squad-collector.txt"
+# На минимальных образах python3 есть, а pip — нет
+if ! python3 -m pip --version >/dev/null 2>&1; then
+  apt-get update -y
+  apt-get install -y python3-pip
+fi
+python3 -m pip install -q -r "$SCRIPTS/requirements-squad-collector.txt" \
+  || python3 -m pip install -q --break-system-packages -r "$SCRIPTS/requirements-squad-collector.txt"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   cat > "$ENV_FILE" <<'EOF'
