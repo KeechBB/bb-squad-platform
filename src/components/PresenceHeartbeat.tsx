@@ -5,11 +5,45 @@ import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { SITE_HEARTBEAT_MS } from "@/lib/presence";
 
-function postPageview(path: string) {
+const VID_KEY = "bb_vid";
+
+function getClientKey(): string {
+  try {
+    let k = localStorage.getItem(VID_KEY);
+    if (k && /^[a-zA-Z0-9_-]{8,64}$/.test(k)) return k;
+    k =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID().replace(/-/g, "")
+        : `v${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+    localStorage.setItem(VID_KEY, k);
+    return k;
+  } catch {
+    return `tmp${Date.now().toString(36)}`;
+  }
+}
+
+function readUtm(): {
+  utmSource: string | null;
+  utmMedium: string | null;
+  utmCampaign: string | null;
+} {
+  try {
+    const q = new URLSearchParams(window.location.search);
+    return {
+      utmSource: q.get("utm_source"),
+      utmMedium: q.get("utm_medium"),
+      utmCampaign: q.get("utm_campaign"),
+    };
+  } catch {
+    return { utmSource: null, utmMedium: null, utmCampaign: null };
+  }
+}
+
+function postPageview(payload: Record<string, string | null>) {
   void fetch("/api/presence/pageview", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path }),
+    body: JSON.stringify(payload),
     cache: "no-store",
   }).catch(() => {
     /* ignore */
@@ -17,17 +51,17 @@ function postPageview(path: string) {
 }
 
 /**
- * Heartbeat онлайна + лог каждого открытия страницы (и возврата на вкладку).
+ * Онлайн-heartbeat (только залогиненные) + лог трафика для всех посетителей.
  */
 export function PresenceHeartbeat() {
   const { data: session, status } = useSession();
   const pathname = usePathname();
-  const ready =
+  const authed =
     status === "authenticated" && Boolean(session?.user?.profileComplete);
   const lastSent = useRef<{ path: string; at: number } | null>(null);
 
   useEffect(() => {
-    if (!ready) return;
+    if (!authed) return;
 
     let cancelled = false;
 
@@ -45,27 +79,25 @@ export function PresenceHeartbeat() {
           cache: "no-store",
         });
       } catch {
-        /* сеть — следующий тик */
+        /* ignore */
       }
     }
 
     void ping();
     const id = window.setInterval(() => void ping(), SITE_HEARTBEAT_MS);
-
     function onVis() {
       if (document.visibilityState === "visible") void ping();
     }
     document.addEventListener("visibilitychange", onVis);
-
     return () => {
       cancelled = true;
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [ready]);
+  }, [authed]);
 
   useEffect(() => {
-    if (!ready || !pathname) return;
+    if (!pathname) return;
 
     function send(force = false) {
       if (
@@ -76,27 +108,34 @@ export function PresenceHeartbeat() {
       }
       const now = Date.now();
       const prev = lastSent.current;
-      // только антидребезг ~2с на тот же path
-      if (
-        !force &&
-        prev &&
-        prev.path === pathname &&
-        now - prev.at < 2000
-      ) {
+      if (!force && prev && prev.path === pathname && now - prev.at < 2000) {
         return;
       }
       lastSent.current = { path: pathname, at: now };
-      postPageview(pathname);
+
+      let referrer: string | null = null;
+      try {
+        referrer = document.referrer || null;
+      } catch {
+        referrer = null;
+      }
+      const utm = readUtm();
+
+      postPageview({
+        clientKey: getClientKey(),
+        path: pathname,
+        referrer,
+        ...utm,
+      });
     }
 
     send(true);
-
     function onVis() {
       if (document.visibilityState === "visible") send(true);
     }
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
-  }, [pathname, ready]);
+  }, [pathname, status]);
 
   return null;
 }

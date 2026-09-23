@@ -14,7 +14,6 @@ function todayMskStr(): string {
   }).format(new Date());
 }
 
-/** МСК-сутки → UTC-границы для фильтра по дате YYYY-MM-DD */
 function mskDayRange(dateStr: string): { from: Date; to: Date } | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
   const from = new Date(`${dateStr}T00:00:00+03:00`);
@@ -38,11 +37,18 @@ function mskDaysAgoRange(days: number): { from: Date; to: Date } {
   return { from: start.from, to: end.to };
 }
 
+function hostOf(ref: string | null | undefined): string {
+  if (!ref) return "(прямо / неизвестно)";
+  try {
+    return new URL(ref).hostname.replace(/^www\./, "");
+  } catch {
+    return ref.slice(0, 60);
+  }
+}
+
 /**
  * GET — только Keech.
- * ?userId= | ?nick=  + опционально ?date=YYYY-MM-DD (МСК)
- * ?limit= (до 5000) ?before=ISO — пагинация ленты
- * Без userId — roster + сводка (сегодня / среднее за periodDays)
+ * Roster юзеров / лента / полная аналитика трафика (гости + регистрации).
  */
 export async function GET(req: Request) {
   const gate = await requireKeechOnly();
@@ -93,10 +99,22 @@ export async function GET(req: Request) {
     const [
       users,
       todayVisits,
-      todayPeople,
+      todayPeopleRegistered,
       periodVisits,
       periodPeopleRows,
       firstVisit,
+      // traffic uniques
+      visitorsAll,
+      visitorsToday,
+      visitorsPeriod,
+      visitorsLinkedAll,
+      visitorsLinkedPeriod,
+      registeredAll,
+      registeredPeriod,
+      topReferrers,
+      topLandings,
+      topPaths,
+      dailyVisitors,
     ] = await Promise.all([
       prisma.user.findMany({
         where: { profileComplete: true },
@@ -119,7 +137,10 @@ export async function GET(req: Request) {
         where: { createdAt: { gte: todayRange.from, lt: todayRange.to } },
       }),
       prisma.sitePageVisit.findMany({
-        where: { createdAt: { gte: todayRange.from, lt: todayRange.to } },
+        where: {
+          createdAt: { gte: todayRange.from, lt: todayRange.to },
+          userId: { not: null },
+        },
         distinct: ["userId"],
         select: { userId: true },
       }),
@@ -131,12 +152,76 @@ export async function GET(req: Request) {
                COUNT(DISTINCT "userId")::bigint AS u
         FROM "SitePageVisit"
         WHERE "createdAt" >= ${period.from} AND "createdAt" < ${period.to}
+          AND "userId" IS NOT NULL
         GROUP BY 1
       `,
       prisma.sitePageVisit.findFirst({
         orderBy: { createdAt: "asc" },
         select: { createdAt: true },
       }),
+      prisma.siteVisitor.count(),
+      prisma.siteVisitor.count({
+        where: {
+          OR: [
+            { firstSeenAt: { gte: todayRange.from, lt: todayRange.to } },
+            { lastSeenAt: { gte: todayRange.from, lt: todayRange.to } },
+          ],
+        },
+      }),
+      prisma.siteVisitor.count({
+        where: {
+          OR: [
+            { firstSeenAt: { gte: period.from, lt: period.to } },
+            { lastSeenAt: { gte: period.from, lt: period.to } },
+          ],
+        },
+      }),
+      prisma.siteVisitor.count({ where: { userId: { not: null } } }),
+      prisma.siteVisitor.count({
+        where: {
+          userId: { not: null },
+          firstSeenAt: { gte: period.from, lt: period.to },
+        },
+      }),
+      prisma.user.count({ where: { profileComplete: true } }),
+      prisma.user.count({
+        where: {
+          profileComplete: true,
+          createdAt: { gte: period.from, lt: period.to },
+        },
+      }),
+      prisma.siteVisitor.groupBy({
+        by: ["referrer"],
+        _count: { _all: true },
+        orderBy: { _count: { referrer: "desc" } },
+        take: 15,
+      }),
+      prisma.siteVisitor.groupBy({
+        by: ["landingPath"],
+        _count: { _all: true },
+        orderBy: { _count: { landingPath: "desc" } },
+        take: 15,
+      }),
+      prisma.sitePageVisit.groupBy({
+        by: ["path"],
+        where: { createdAt: { gte: period.from, lt: period.to } },
+        _count: { _all: true },
+        orderBy: { _count: { path: "desc" } },
+        take: 15,
+      }),
+      prisma.$queryRaw<{ d: Date; visitors: bigint; hits: bigint }[]>`
+        SELECT (timezone('Europe/Moscow', v."firstSeenAt"))::date AS d,
+               COUNT(*)::bigint AS visitors,
+               COALESCE((
+                 SELECT COUNT(*)::bigint FROM "SitePageVisit" p
+                 WHERE (timezone('Europe/Moscow', p."createdAt"))::date
+                       = (timezone('Europe/Moscow', v."firstSeenAt"))::date
+               ), 0) AS hits
+        FROM "SiteVisitor" v
+        WHERE v."firstSeenAt" >= ${period.from} AND v."firstSeenAt" < ${period.to}
+        GROUP BY 1
+        ORDER BY 1 ASC
+      `,
     ]);
 
     const daysWithData = periodPeopleRows.length || 1;
@@ -148,18 +233,56 @@ export async function GET(req: Request) {
     const avgVisitsPerDay =
       Math.round((periodVisits / periodDays) * 10) / 10;
 
+    const refMap = new Map<string, number>();
+    for (const r of topReferrers) {
+      const host = hostOf(r.referrer);
+      refMap.set(host, (refMap.get(host) || 0) + r._count._all);
+    }
+    const sources = [...refMap.entries()]
+      .map(([source, count]) => ({ source, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 12);
+
+    const conversionAll =
+      visitorsAll > 0
+        ? Math.round((1000 * visitorsLinkedAll) / visitorsAll) / 10
+        : 0;
+
     return NextResponse.json({
       mode: "roster",
       date: date || null,
       summary: {
         today: todayMskStr(),
-        todayPeople: todayPeople.length,
+        todayPeople: todayPeopleRegistered.length,
         todayVisits,
         periodDays,
         periodVisits,
         avgPeoplePerDay,
         avgVisitsPerDay,
         logSince: firstVisit?.createdAt.toISOString() ?? null,
+      },
+      traffic: {
+        uniqueAll: visitorsAll,
+        uniqueToday: visitorsToday,
+        uniquePeriod: visitorsPeriod,
+        linkedAll: visitorsLinkedAll,
+        linkedPeriod: visitorsLinkedPeriod,
+        registeredAll,
+        registeredPeriod,
+        conversionPct: conversionAll,
+        sources,
+        landings: topLandings
+          .filter((x) => x.landingPath)
+          .map((x) => ({ path: x.landingPath!, count: x._count._all })),
+        paths: topPaths.map((x) => ({
+          path: x.path,
+          count: x._count._all,
+        })),
+        daily: dailyVisitors.map((d) => ({
+          day: d.d instanceof Date ? d.d.toISOString().slice(0, 10) : String(d.d),
+          newVisitors: Number(d.visitors),
+          hits: Number(d.hits),
+        })),
       },
       users: users.map((u) => ({
         id: u.id,
@@ -206,7 +329,6 @@ export async function GET(req: Request) {
       ? { createdAt: createdAtWhere }
       : {}),
   };
-
   const countWhere = {
     userId: targetId,
     ...(createdAtFilter ? { createdAt: createdAtFilter } : {}),
@@ -222,6 +344,7 @@ export async function GET(req: Request) {
         id: true,
         path: true,
         nickAt: true,
+        referrer: true,
         createdAt: true,
       },
     }),
@@ -248,6 +371,7 @@ export async function GET(req: Request) {
       id: v.id,
       path: v.path,
       nickAt: v.nickAt,
+      referrer: v.referrer,
       createdAt: v.createdAt.toISOString(),
     })),
   });

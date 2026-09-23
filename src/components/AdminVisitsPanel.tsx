@@ -14,6 +14,7 @@ type VisitRow = {
   id: string;
   path: string;
   nickAt: string | null;
+  referrer?: string | null;
   createdAt: string;
 };
 
@@ -30,18 +31,32 @@ type Summary = {
   logSince: string | null;
 };
 
+type Traffic = {
+  uniqueAll: number;
+  uniqueToday: number;
+  uniquePeriod: number;
+  linkedAll: number;
+  linkedPeriod: number;
+  registeredAll: number;
+  registeredPeriod: number;
+  conversionPct: number;
+  sources: { source: string; count: number }[];
+  landings: { path: string; count: number }[];
+  paths: { path: string; count: number }[];
+  daily: { day: string; newVisitors: number; hits: number }[];
+};
+
 function labelOf(u: { nick: string | null; steamName: string | null; steamId: string }) {
   return u.nick || u.steamName || u.steamId;
 }
 
 function todayMsk(): string {
-  const fmt = new Intl.DateTimeFormat("en-CA", {
+  return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Moscow",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  });
-  return fmt.format(new Date());
+  }).format(new Date());
 }
 
 function formatWhen(iso: string): string {
@@ -58,11 +73,9 @@ function formatWhen(iso: string): string {
   }).format(d);
 }
 
-/** Разрыв > 30 мин = новая сессия */
 const SESSION_GAP_MS = 30 * 60 * 1000;
 
 function withSessions(visits: VisitRow[]) {
-  // visits desc → группируем
   const out: { session: number; row: VisitRow }[] = [];
   let session = 0;
   let prevTs: number | null = null;
@@ -75,11 +88,36 @@ function withSessions(visits: VisitRow[]) {
   return out;
 }
 
+function Stat({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string | number;
+  hint?: string;
+}) {
+  return (
+    <div className="card" style={{ margin: 0, padding: "10px 12px" }}>
+      <div className="muted" style={{ fontSize: 12 }}>
+        {label}
+      </div>
+      <strong style={{ fontSize: 22 }}>{value}</strong>
+      {hint ? (
+        <div className="muted" style={{ fontSize: 12 }}>
+          {hint}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function AdminVisitsPanel() {
   const [date, setDate] = useState("");
   const [periodDays, setPeriodDays] = useState(7);
   const [roster, setRoster] = useState<RosterUser[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [traffic, setTraffic] = useState<Traffic | null>(null);
   const [q, setQ] = useState("");
   const [userId, setUserId] = useState("");
   const [visits, setVisits] = useState<VisitRow[]>([]);
@@ -102,10 +140,12 @@ export function AdminVisitsPanel() {
       if (!res.ok) throw new Error(json.error || "Нет доступа");
       setRoster((json.users || []) as RosterUser[]);
       setSummary((json.summary as Summary) || null);
+      setTraffic((json.traffic as Traffic) || null);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Ошибка");
       setRoster([]);
       setSummary(null);
+      setTraffic(null);
     } finally {
       setLoading(false);
     }
@@ -124,10 +164,7 @@ export function AdminVisitsPanel() {
       setLoading(true);
       setErr(null);
       try {
-        const params = new URLSearchParams({
-          userId,
-          limit: "1000",
-        });
+        const params = new URLSearchParams({ userId, limit: "1000" });
         if (date) params.set("date", date);
         if (opts?.append && opts.before) params.set("before", opts.before);
         const res = await fetch(`/api/admin/visits?${params}`, {
@@ -186,49 +223,186 @@ export function AdminVisitsPanel() {
   return (
     <section className="card journal-card">
       <p className="muted" style={{ marginTop: 0 }}>
-        Только для тебя (Keech). Логируется почти каждый заход/возврат на
-        вкладку (~150 байт на запись — миллионы строк ещё норм для Neon Free).
-        Кликни ника — полная лента с датой и временем. Сессии режутся, если
-        пауза &gt; 30 мин.
+        Только для тебя (Keech). Считаем <strong>всех</strong> посетителей
+        (гости + залогиненные): уникальные, регистрации, откуда пришли, страницы.
+        Полная лента по нику — ниже.
       </p>
 
+      {traffic ? (
+        <>
+          <h3 style={{ marginBottom: 8 }}>Трафик · уникальные</h3>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+              gap: 10,
+              marginBottom: 14,
+            }}
+          >
+            <Stat
+              label="Уникальных всего"
+              value={traffic.uniqueAll}
+              hint={`из них зарегались ${traffic.linkedAll} (${traffic.conversionPct}%)`}
+            />
+            <Stat
+              label="Уникальных сегодня"
+              value={traffic.uniqueToday}
+              hint="гости + свои"
+            />
+            <Stat
+              label={`Уникальных за ${periodDays} дн.`}
+              value={traffic.uniquePeriod}
+              hint={`новых рег. за период: ${traffic.registeredPeriod}`}
+            />
+            <Stat
+              label="Зарегано на сайте"
+              value={traffic.registeredAll}
+              hint="анкета заполнена"
+            />
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: 12,
+              marginBottom: 16,
+            }}
+          >
+            <div className="admin-table-wrap" style={{ maxHeight: 220, overflow: "auto" }}>
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Откуда (реферер)</th>
+                    <th className="num">чел.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {traffic.sources.map((s) => (
+                    <tr key={s.source}>
+                      <td>{s.source}</td>
+                      <td className="num">{s.count}</td>
+                    </tr>
+                  ))}
+                  {!traffic.sources.length ? (
+                    <tr>
+                      <td colSpan={2} className="muted">
+                        Пока нет внешних переходов
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+            <div className="admin-table-wrap" style={{ maxHeight: 220, overflow: "auto" }}>
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Первая страница</th>
+                    <th className="num">чел.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {traffic.landings.map((s) => (
+                    <tr key={s.path}>
+                      <td>
+                        <code>{s.path}</code>
+                      </td>
+                      <td className="num">{s.count}</td>
+                    </tr>
+                  ))}
+                  {!traffic.landings.length ? (
+                    <tr>
+                      <td colSpan={2} className="muted">
+                        —
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+            <div className="admin-table-wrap" style={{ maxHeight: 220, overflow: "auto" }}>
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Топ страниц (период)</th>
+                    <th className="num">хиты</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {traffic.paths.map((s) => (
+                    <tr key={s.path}>
+                      <td>
+                        <code>{s.path}</code>
+                      </td>
+                      <td className="num">{s.count}</td>
+                    </tr>
+                  ))}
+                  {!traffic.paths.length ? (
+                    <tr>
+                      <td colSpan={2} className="muted">
+                        —
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {traffic.daily.length ? (
+            <div className="admin-table-wrap" style={{ maxHeight: 180, overflow: "auto", marginBottom: 16 }}>
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>День (МСК)</th>
+                    <th className="num">Новых уник.</th>
+                    <th className="num">Хиты</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {traffic.daily.map((d) => (
+                    <tr key={d.day}>
+                      <td>{d.day}</td>
+                      <td className="num">{d.newVisitors}</td>
+                      <td className="num">{d.hits}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </>
+      ) : null}
+
       {summary ? (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-            gap: 10,
-            marginBottom: 14,
-          }}
-        >
-          <div className="card" style={{ margin: 0, padding: "10px 12px" }}>
-            <div className="muted" style={{ fontSize: 12 }}>
-              Сегодня людей
-            </div>
-            <strong style={{ fontSize: 22 }}>{summary.todayPeople}</strong>
-            <div className="muted" style={{ fontSize: 12 }}>
-              {summary.todayVisits} заходов · {summary.today}
-            </div>
+        <>
+          <h3 style={{ marginBottom: 8 }}>Залогиненные · заходы</h3>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+              gap: 10,
+              marginBottom: 14,
+            }}
+          >
+            <Stat
+              label="Сегодня своих онлайн-заходов"
+              value={summary.todayPeople}
+              hint={`${summary.todayVisits} хитов · ${summary.today}`}
+            />
+            <Stat
+              label="Среднее своих / день"
+              value={summary.avgPeoplePerDay}
+              hint={`за ${summary.periodDays} дн.`}
+            />
+            <Stat
+              label="Среднее хитов / день"
+              value={summary.avgVisitsPerDay}
+              hint={`всего ${summary.periodVisits}`}
+            />
           </div>
-          <div className="card" style={{ margin: 0, padding: "10px 12px" }}>
-            <div className="muted" style={{ fontSize: 12 }}>
-              Среднее людей / день
-            </div>
-            <strong style={{ fontSize: 22 }}>{summary.avgPeoplePerDay}</strong>
-            <div className="muted" style={{ fontSize: 12 }}>
-              за {summary.periodDays} дн.
-            </div>
-          </div>
-          <div className="card" style={{ margin: 0, padding: "10px 12px" }}>
-            <div className="muted" style={{ fontSize: 12 }}>
-              Среднее заходов / день
-            </div>
-            <strong style={{ fontSize: 22 }}>{summary.avgVisitsPerDay}</strong>
-            <div className="muted" style={{ fontSize: 12 }}>
-              всего {summary.periodVisits} за период
-            </div>
-          </div>
-        </div>
+        </>
       ) : null}
 
       <div className="journal-toolbar" style={{ flexWrap: "wrap", gap: 12 }}>
@@ -251,7 +425,7 @@ export function AdminVisitsPanel() {
           Сегодня
         </button>
         <label className="field" style={{ margin: 0 }}>
-          <span>Среднее за, дн.</span>
+          <span>Период, дн.</span>
           <select
             value={periodDays}
             onChange={(e) => setPeriodDays(Number(e.target.value))}
@@ -284,7 +458,7 @@ export function AdminVisitsPanel() {
       </div>
 
       <p className="muted" style={{ marginTop: 8 }}>
-        Фильтр списка:{" "}
+        Лента по игроку:{" "}
         <strong>{date ? `только ${date}` : "все дни"}</strong>
         {summary?.logSince
           ? ` · лог с ${formatWhen(summary.logSince)}`
@@ -341,8 +515,8 @@ export function AdminVisitsPanel() {
         <div>
           {!userId ? (
             <p className="muted">
-              Выбери человека — полная лента: дата, время (МСК), страница. Хоть
-              500 заходов за день — все покажутся (кнопка «Ещё»).
+              Выбери игрока слева — полная лента заходов с временем. Гостевой
+              трафик смотри в блоках сверху (уникальные / откуда / страницы).
             </p>
           ) : (
             <>
@@ -354,7 +528,7 @@ export function AdminVisitsPanel() {
               </h3>
               {byPath.length ? (
                 <p className="muted" style={{ marginTop: 0 }}>
-                  По страницам (в загруженном куске):{" "}
+                  По страницам:{" "}
                   {byPath
                     .slice(0, 8)
                     .map((p) => `${p.path}×${p.count}`)
@@ -394,9 +568,7 @@ export function AdminVisitsPanel() {
                     {!visits.length && !loading ? (
                       <tr>
                         <td colSpan={3} className="muted">
-                          {date
-                            ? "За эту дату пусто — «Все дни» или «Сегодня»"
-                            : "Пока нет записей после включения лога"}
+                          Пусто за выбранный фильтр
                         </td>
                       </tr>
                     ) : null}
@@ -409,9 +581,11 @@ export function AdminVisitsPanel() {
                     type="button"
                     className="btn-ghost"
                     disabled={loading}
-                    onClick={() => void loadUser({ append: true, before: nextBefore })}
+                    onClick={() =>
+                      void loadUser({ append: true, before: nextBefore })
+                    }
                   >
-                    Загрузить ещё (до 1000)
+                    Загрузить ещё
                   </button>
                 </p>
               ) : null}

@@ -73,6 +73,7 @@ model User {
   reactionPresence ReactionPresence?
   reactionChatMessages ReactionChatMessage[]
   pageVisits      SitePageVisit[]
+  siteVisitors    SiteVisitor[]
 }
 
 /// Серия тренировки: ур.1 среднее мс; ур.2 очки шариков в avgMs
@@ -257,18 +258,47 @@ model SquadEosSteamMap {
   @@index([steamId])
 }
 
-/// Заходы залогиненных юзеров на страницы сайта (читать только Keech / builtin SUPER_ADMIN).
+/// Уникальный посетитель сайта (cookie/localStorage id). Читать только Keech.
+model SiteVisitor {
+  id           String   @id @default(cuid())
+  /// Стабильный id из браузера (localStorage)
+  clientKey    String   @unique
+  firstSeenAt  DateTime @default(now())
+  lastSeenAt   DateTime @updatedAt
+  /// Связка после логина / регистрации
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  /// Первый реферер (откуда пришёл)
+  referrer     String?
+  /// Первый путь (лендинг)
+  landingPath  String?
+  utmSource    String?
+  utmMedium    String?
+  utmCampaign  String?
+  /// Краткий user-agent
+  userAgent    String?
+  visits       SitePageVisit[]
+
+  @@index([userId])
+  @@index([firstSeenAt])
+  @@index([referrer])
+}
+
+/// Заходы на страницы (гости + залогиненные). Читать только Keech.
 model SitePageVisit {
   id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  /// Путь без query, напр. /profile, /tm, /players/Keech
+  visitorId String?
+  visitor   SiteVisitor? @relation(fields: [visitorId], references: [id], onDelete: SetNull)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  /// Путь без query
   path      String
-  /// Ник на момент захода (на случай смены ника)
   nickAt    String?
+  referrer  String?
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
+  @@index([visitorId, createdAt])
   @@index([createdAt])
   @@index([path, createdAt])
 }
