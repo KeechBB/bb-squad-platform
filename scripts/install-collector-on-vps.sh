@@ -6,22 +6,29 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPTS="$ROOT/scripts"
 ENV_FILE="$SCRIPTS/.squad-collector.env"
+VENV="$SCRIPTS/.venv-collector"
 NAME="bb-squad-collector"
 
 cd "$ROOT"
 
-echo "==> Python + deps"
+echo "==> Python + venv"
 if ! command -v python3 >/dev/null; then
   apt-get update -y
-  apt-get install -y python3 python3-pip python3-venv
+  apt-get install -y python3 python3-venv python3-pip
 fi
-# На минимальных образах python3 есть, а pip — нет
-if ! python3 -m pip --version >/dev/null 2>&1; then
+if ! python3 -c "import venv" 2>/dev/null; then
   apt-get update -y
-  apt-get install -y python3-pip
+  apt-get install -y python3-venv
 fi
-python3 -m pip install -q -r "$SCRIPTS/requirements-squad-collector.txt" \
-  || python3 -m pip install -q --break-system-packages -r "$SCRIPTS/requirements-squad-collector.txt"
+
+if [[ ! -d "$VENV" ]]; then
+  python3 -m venv "$VENV"
+fi
+# shellcheck disable=SC1091
+source "$VENV/bin/activate"
+pip install -q -U pip
+pip install -q -r "$SCRIPTS/requirements-squad-collector.txt"
+PY="$VENV/bin/python"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   cat > "$ENV_FILE" <<'EOF'
@@ -42,7 +49,7 @@ EOF
 fi
 
 # Проверка обязательных ключей
-python3 - <<'PY'
+"$PY" - <<'PY'
 import os, sys
 from pathlib import Path
 p = Path("scripts/.squad-collector.env")
@@ -67,7 +74,7 @@ echo "==> pm2 start $NAME"
 pm2 delete "$NAME" 2>/dev/null || true
 pm2 start "$SCRIPTS/squad_log_collector.py" \
   --name "$NAME" \
-  --interpreter python3 \
+  --interpreter "$PY" \
   --cwd "$SCRIPTS" \
   --restart-delay 5000 \
   --max-restarts 100 \
