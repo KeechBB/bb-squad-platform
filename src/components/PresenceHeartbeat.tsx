@@ -5,18 +5,29 @@ import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { SITE_HEARTBEAT_MS } from "@/lib/presence";
 
+function postPageview(path: string) {
+  void fetch("/api/presence/pageview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+    cache: "no-store",
+  }).catch(() => {
+    /* ignore */
+  });
+}
+
 /**
- * Пока пользователь залогинен и вкладка видима — периодически
- * обновляет lastSeenAt («онлайн на сайте») и пишет pageview (путь).
+ * Heartbeat онлайна + лог каждого открытия страницы (и возврата на вкладку).
  */
 export function PresenceHeartbeat() {
   const { data: session, status } = useSession();
   const pathname = usePathname();
-  const lastLoggedPath = useRef<string | null>(null);
+  const ready =
+    status === "authenticated" && Boolean(session?.user?.profileComplete);
+  const lastSent = useRef<{ path: string; at: number } | null>(null);
 
   useEffect(() => {
-    if (status !== "authenticated") return;
-    if (!session?.user?.profileComplete) return;
+    if (!ready) return;
 
     let cancelled = false;
 
@@ -51,27 +62,41 @@ export function PresenceHeartbeat() {
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [status, session?.user?.profileComplete]);
+  }, [ready]);
 
   useEffect(() => {
-    if (status !== "authenticated") return;
-    if (!session?.user?.profileComplete) return;
-    if (!pathname) return;
-    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
-      return;
-    }
-    if (lastLoggedPath.current === pathname) return;
-    lastLoggedPath.current = pathname;
+    if (!ready || !pathname) return;
 
-    void fetch("/api/presence/pageview", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: pathname }),
-      cache: "no-store",
-    }).catch(() => {
-      /* ignore */
-    });
-  }, [pathname, status, session?.user?.profileComplete]);
+    function send(force = false) {
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState === "hidden"
+      ) {
+        return;
+      }
+      const now = Date.now();
+      const prev = lastSent.current;
+      // только антидребезг ~2с на тот же path
+      if (
+        !force &&
+        prev &&
+        prev.path === pathname &&
+        now - prev.at < 2000
+      ) {
+        return;
+      }
+      lastSent.current = { path: pathname, at: now };
+      postPageview(pathname);
+    }
+
+    send(true);
+
+    function onVis() {
+      if (document.visibilityState === "visible") send(true);
+    }
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [pathname, ready]);
 
   return null;
 }
