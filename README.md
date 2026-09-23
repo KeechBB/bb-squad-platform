@@ -9,6 +9,8 @@
 - [docs/JOURNAL.md](./docs/JOURNAL.md) — что уже сделали
 - [docs/RECOVERY.md](./docs/RECOVERY.md) — **восстановление / оплаты / IP** (новый ПК, всё забыл)
 - [docs/HOSTING.md](./docs/HOSTING.md) — Timeweb VPS кратко
+- [docs/COLLAB.md](./docs/COLLAB.md) — **помощник по сайту** (GitHub, Neon branch, папка Кича)
+- [docs/COLLAB-DEPLOY.md](./docs/COLLAB-DEPLOY.md) — деплой без root (второй этап)
 
 ## Прод сейчас
 
