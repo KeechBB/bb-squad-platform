@@ -57,6 +57,14 @@ pm2 logs bb-squad-collector --lines 80
 ```
 
 pm2 сам поднимает процесс. При ротации лога коллектор дочитывает `SquadGame-backup-*.log`.
+Раз в час — повторный catchup свежих backup (если leave проскочил в live).
+
+## Висяки без выхода (`… – _`)
+
+1. Разово дописать leave из логов:  
+   `python scripts/reconcile_open_leaves.py` (с VPS или ПК с `.squad-collector.env` + `DATABASE_URL`).
+2. Авто: ingest закрывает open-сессии старше **18 ч** (`SQUAD_STALE_OPEN_HOURS`).  
+   Коллектор раз в минуту шлёт пустой POST, чтобы это срабатывало даже без новых событий.
 
 ## ПК больше не нужен для логов
 

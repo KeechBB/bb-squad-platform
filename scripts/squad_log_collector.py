@@ -516,9 +516,40 @@ class Collector:
             self.host,
             ", ".join(f"{k}={p}" for k, p in self.targets),
         )
+        ticks = 0
+        # Раз в час снова дочитать свежие backup (пропуск leave в live / рестарт).
+        rebackup_every = max(1, int(3600 / max(self.poll_sec, 1)))
+        stale_tick_every = max(1, int(60 / max(self.poll_sec, 1)))
         while True:
             try:
+                ticks += 1
+                if ticks % rebackup_every == 0:
+                    for key, _ in self.targets:
+                        self._pending_backup_catchup.add(key)
+                    # разрешить перечитать 2 самых свежих backup
+                    for name in sorted(self.processed_backups, reverse=True)[:2]:
+                        self.processed_backups.discard(name)
+                    _safe_print("hourly backup re-catchup armed", flush=True)
                 self.poll_once()
+                # Пустой POST → на сайте stale-close висяков >18ч
+                if ticks % stale_tick_every == 0:
+                    try:
+                        requests.post(
+                            self.ingest_url,
+                            headers={
+                                "Authorization": f"Bearer {self.ingest_secret}",
+                                "Content-Type": "application/json",
+                            },
+                            json={"events": []},
+                            timeout=20,
+                        )
+                    except Exception as e:
+                        _safe_print(
+                            "stale-tick fail",
+                            type(e).__name__,
+                            e,
+                            file=sys.stderr,
+                        )
             except Exception as e:
                 _safe_print("poll error", type(e).__name__, e, file=sys.stderr)
             time.sleep(self.poll_sec)

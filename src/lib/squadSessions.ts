@@ -437,3 +437,9 @@ export function latePresentTrainingDaysFromSessions(
 ): Set<string> {
   return trainingDayMarksFromSessions(sessions, now).late;
 }
+
+/** Часы, после которых открытая сессия без leave считается протухшей (дефолт 18). */
+export function staleOpenHours(): number {
+  const n = Number(process.env.SQUAD_STALE_OPEN_HOURS || "18");
+  return Number.isFinite(n) && n >= 2 ? n : 18;
+}

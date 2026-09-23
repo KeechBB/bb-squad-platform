@@ -4,6 +4,7 @@ import {
   normalizeEosId,
   normalizeSteamId,
   sessionEventKey,
+  staleOpenHours,
   type SquadSessionIngestEvent,
 } from "@/lib/squadSessions";
 import { livePublish, livePublishSite, userLiveChannel } from "@/lib/liveBus";
@@ -61,11 +62,20 @@ export async function POST(req: Request) {
   }
 
   const events = Array.isArray(body.events) ? body.events : [];
-  if (events.length === 0) {
-    return NextResponse.json({ ok: true, accepted: 0, skipped: 0 });
-  }
   if (events.length > 500) {
     return NextResponse.json({ error: "too many events" }, { status: 400 });
+  }
+
+  if (events.length === 0) {
+    const staleClosed = await closeStaleOpenSessions();
+    return NextResponse.json({
+      ok: true,
+      accepted: staleClosed,
+      skipped: 0,
+      joins: 0,
+      leaves: staleClosed,
+      staleClosed,
+    });
   }
 
   const defaultServer = (body.serverKey || "TPUB1").trim() || "TPUB1";
@@ -202,6 +212,13 @@ export async function POST(req: Request) {
     );
   }
 
+  // Висяки без RemovePlayer (краш/пропуск коллектора): закрыть по возрасту.
+  const staleClosed = await closeStaleOpenSessions();
+  if (staleClosed > 0) {
+    leaves += staleClosed;
+    accepted += staleClosed;
+  }
+
   if (accepted > 0) {
     livePublishSite({
       kind: "attendance",
@@ -212,5 +229,35 @@ export async function POST(req: Request) {
     });
   }
 
-  return NextResponse.json({ ok: true, accepted, skipped, joins, leaves });
+  return NextResponse.json({
+    ok: true,
+    accepted,
+    skipped,
+    joins,
+    leaves,
+    staleClosed,
+  });
+}
+
+/** Закрыть open-сессии старше SQUAD_STALE_OPEN_HOURS (дефолт 18ч). */
+async function closeStaleOpenSessions(): Promise<number> {
+  const hours = staleOpenHours();
+  const cutoff = new Date(Date.now() - hours * 3600_000);
+  const stale = await prisma.squadServerSession.findMany({
+    where: { leftAt: null, joinedAt: { lt: cutoff } },
+    select: { id: true, joinedAt: true },
+    take: 200,
+  });
+  if (stale.length === 0) return 0;
+  let n = 0;
+  for (const s of stale) {
+    // leftAt = joinedAt + hours (не «сейчас», чтобы не раздувать минуты)
+    const leaveAt = new Date(s.joinedAt.getTime() + hours * 3600_000);
+    await prisma.squadServerSession.update({
+      where: { id: s.id },
+      data: { leftAt: leaveAt },
+    });
+    n += 1;
+  }
+  return n;
 }
