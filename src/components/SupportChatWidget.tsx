@@ -1,7 +1,13 @@
 "use client";
 
 import { signIn, useSession } from "next-auth/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 
 type Msg = {
   id: string;
@@ -30,11 +36,66 @@ type InboxItem = {
 
 type PanelMode = "closed" | "minimized" | "open";
 
+type PanelGeom = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
 const WELCOME_FALLBACK =
   "Появились вопросы по навигации сайта? Задай — тебе ответят и помогут в короткие сроки.";
 
 const DRAFT_HINT =
   "Напишите вопрос ниже — тикет откроется автоматически после первого сообщения.";
+
+const GEOM_KEY = "bb-support-chat-geom";
+const MIN_W = 300;
+const MIN_H = 360;
+const DEFAULT_W = 380;
+const DEFAULT_H = 520;
+
+function defaultGeom(): PanelGeom {
+  if (typeof window === "undefined") {
+    return { left: 40, top: 80, width: DEFAULT_W, height: DEFAULT_H };
+  }
+  const width = Math.min(DEFAULT_W, window.innerWidth - 28);
+  const height = Math.min(DEFAULT_H, window.innerHeight - 40);
+  return {
+    width,
+    height,
+    left: Math.max(8, window.innerWidth - width - 18),
+    top: Math.max(8, window.innerHeight - height - 18),
+  };
+}
+
+function clampGeom(g: PanelGeom): PanelGeom {
+  if (typeof window === "undefined") return g;
+  const width = Math.min(Math.max(g.width, MIN_W), window.innerWidth - 16);
+  const height = Math.min(Math.max(g.height, MIN_H), window.innerHeight - 16);
+  const left = Math.min(Math.max(g.left, 0), window.innerWidth - width);
+  const top = Math.min(Math.max(g.top, 0), window.innerHeight - height);
+  return { left, top, width, height };
+}
+
+function loadGeom(): PanelGeom {
+  try {
+    const raw = sessionStorage.getItem(GEOM_KEY);
+    if (!raw) return defaultGeom();
+    const parsed = JSON.parse(raw) as PanelGeom;
+    if (
+      typeof parsed.left !== "number" ||
+      typeof parsed.top !== "number" ||
+      typeof parsed.width !== "number" ||
+      typeof parsed.height !== "number"
+    ) {
+      return defaultGeom();
+    }
+    return clampGeom(parsed);
+  } catch {
+    return defaultGeom();
+  }
+}
 
 export function SupportChatWidget() {
   const { data: session, status } = useSession();
@@ -49,8 +110,87 @@ export function SupportChatWidget() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [geom, setGeom] = useState<PanelGeom>(defaultGeom);
+  const [dragging, setDragging] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<{
+    kind: "move" | "resize";
+    startX: number;
+    startY: number;
+    origin: PanelGeom;
+  } | null>(null);
   const loggedIn = Boolean(session?.user);
+
+  useEffect(() => {
+    setGeom(loadGeom());
+  }, []);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(GEOM_KEY, JSON.stringify(geom));
+    } catch {
+      /* ignore */
+    }
+  }, [geom]);
+
+  useEffect(() => {
+    function onMove(e: PointerEvent) {
+      const d = dragRef.current;
+      if (!d) return;
+      const dx = e.clientX - d.startX;
+      const dy = e.clientY - d.startY;
+      if (d.kind === "move") {
+        setGeom(
+          clampGeom({
+            ...d.origin,
+            left: d.origin.left + dx,
+            top: d.origin.top + dy,
+          })
+        );
+      } else {
+        setGeom(
+          clampGeom({
+            ...d.origin,
+            width: d.origin.width + dx,
+            height: d.origin.height + dy,
+          })
+        );
+      }
+    }
+    function onUp() {
+      if (!dragRef.current) return;
+      dragRef.current = null;
+      setDragging(false);
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, []);
+
+  useEffect(() => {
+    function onResize() {
+      setGeom((g) => clampGeom(g));
+    }
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  function startDrag(kind: "move" | "resize", e: ReactPointerEvent) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    dragRef.current = {
+      kind,
+      startX: e.clientX,
+      startY: e.clientY,
+      origin: geom,
+    };
+    setDragging(true);
+  }
 
   const activeTicket =
     staff && view === "inbox" && staffTicket ? staffTicket : ticket;
@@ -313,6 +453,7 @@ export function SupportChatWidget() {
         <button
           type="button"
           className="support-mini"
+          style={{ left: geom.left, top: geom.top }}
           onClick={() => setMode("open")}
           title="Развернуть чат"
         >
@@ -330,8 +471,26 @@ export function SupportChatWidget() {
       ) : null}
 
       {mode === "open" ? (
-        <section className="support-panel" role="dialog" aria-label="Техподдержка">
-          <header className="support-head">
+        <section
+          className={`support-panel${dragging ? " support-panel-dragging" : ""}`}
+          role="dialog"
+          aria-label="Техподдержка"
+          style={{
+            left: geom.left,
+            top: geom.top,
+            width: geom.width,
+            height: geom.height,
+          }}
+        >
+          <header
+            className="support-head support-head-drag"
+            onPointerDown={(e) => {
+              const t = e.target as HTMLElement;
+              if (t.closest("button")) return;
+              startDrag("move", e);
+            }}
+            title="Перетащить окно"
+          >
             <div className="support-head-text">
               <strong>
                 {staff && view === "inbox" && staffTicket
@@ -481,6 +640,13 @@ export function SupportChatWidget() {
               )}
             </>
           )}
+          <button
+            type="button"
+            className="support-resize"
+            aria-label="Изменить размер"
+            title="Потяни, чтобы изменить размер"
+            onPointerDown={(e) => startDrag("resize", e)}
+          />
         </section>
       ) : null}
 
