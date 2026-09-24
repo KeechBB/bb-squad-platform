@@ -5842,8 +5842,49 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 12px 10px;
+  padding: 0 12px 6px;
   font-size: 0.78rem;
+}
+
+.support-close-ticket {
+  display: block;
+  width: calc(100% - 24px);
+  margin: 0 12px 12px;
+  padding: 11px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(251, 113, 133, 0.55);
+  background: rgba(244, 63, 94, 0.18);
+  color: #fecdd3;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.support-close-ticket:hover:not(:disabled) {
+  background: rgba(244, 63, 94, 0.32);
+  border-color: rgba(251, 113, 133, 0.85);
+  color: #fff;
+}
+
+.support-close-ticket:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.support-close-ticket.ghost {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.support-close-ticket.ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(167, 139, 250, 0.35);
+  color: var(--ink);
 }
 
 .support-linkish {

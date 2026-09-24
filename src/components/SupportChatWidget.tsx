@@ -459,15 +459,26 @@ export function SupportChatWidget() {
                 <span className="muted">
                   Вы: {staff && staffTicket ? "Тех. поддержка" : myNick}
                 </span>
+              </footer>
+              {activeTicket ? (
                 <button
                   type="button"
-                  className="support-linkish danger"
+                  className="support-close-ticket"
                   onClick={() => void closeTicket()}
                   disabled={busy}
                 >
-                  {activeTicket ? "Завершить" : "Закрыть"}
+                  Закрыть тикет
                 </button>
-              </footer>
+              ) : (
+                <button
+                  type="button"
+                  className="support-close-ticket ghost"
+                  onClick={() => void closeTicket()}
+                  disabled={busy}
+                >
+                  Закрыть окно
+                </button>
+              )}
             </>
           )}
         </section>
