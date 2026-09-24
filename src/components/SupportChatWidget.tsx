@@ -33,6 +33,9 @@ type PanelMode = "closed" | "minimized" | "open";
 const WELCOME_FALLBACK =
   "Появились вопросы по навигации сайта? Задай — тебе ответят и помогут в короткие сроки.";
 
+const DRAFT_HINT =
+  "Напишите вопрос ниже — тикет откроется автоматически после первого сообщения.";
+
 export function SupportChatWidget() {
   const { data: session, status } = useSession();
   const [mode, setMode] = useState<PanelMode>("closed");
@@ -154,67 +157,76 @@ export function SupportChatWidget() {
           setMode("open");
           return;
         }
-        if (probeData.ticket) {
-          setView("chat");
-          setStaffTicket(null);
-          setMode("open");
-          return;
-        }
+        setView("chat");
+        setStaffTicket(null);
+        setMode("open");
+        return;
       }
+      setView("chat");
+      setMode("open");
+    } catch {
+      setError("Сеть недоступна");
+    } finally {
+      setBusy(false);
+    }
+  }
 
-      const res = await fetch("/api/support/tickets", { method: "POST" });
+  function openMyChatDraft() {
+    setStaffTicket(null);
+    setView("chat");
+    setMode("open");
+    setError(null);
+  }
+
+  async function sendMessage() {
+    if (!text.trim() || busy) return;
+    // Стафф в чужом тикете — только через существующий ticket id
+    if (staff && staffTicket && view === "inbox") {
+      await sendToTicket(staffTicket.id, text.trim());
+      return;
+    }
+    if (ticket) {
+      await sendToTicket(ticket.id, text.trim());
+      return;
+    }
+    // Первое сообщение пользователя → создаёт тикет
+    const body = text.trim();
+    setText("");
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/support/tickets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: body }),
+      });
       const data = (await res.json()) as {
         ok?: boolean;
         ticket?: Ticket;
         error?: string;
       };
       if (!res.ok || !data.ok || !data.ticket) {
-        setError("Не удалось открыть тикет");
+        setError("Не отправилось");
+        setText(body);
         return;
       }
       setTicket(data.ticket);
       setView("chat");
-      setStaffTicket(null);
-      setMode("open");
+      await refresh();
     } catch {
       setError("Сеть недоступна");
+      setText(body);
     } finally {
       setBusy(false);
     }
   }
 
-  async function openMyTicket() {
-    setError(null);
-    setBusy(true);
-    try {
-      const res = await fetch("/api/support/tickets", { method: "POST" });
-      const data = (await res.json()) as {
-        ok?: boolean;
-        ticket?: Ticket;
-      };
-      if (!res.ok || !data.ok || !data.ticket) {
-        setError("Не удалось открыть тикет");
-        return;
-      }
-      setTicket(data.ticket);
-      setStaffTicket(null);
-      setView("chat");
-      setMode("open");
-    } catch {
-      setError("Сеть недоступна");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function sendMessage() {
-    if (!activeTicket || !text.trim() || busy) return;
-    const body = text.trim();
+  async function sendToTicket(ticketId: string, body: string) {
     setText("");
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/support/tickets/${activeTicket.id}`, {
+      const res = await fetch(`/api/support/tickets/${ticketId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: body }),
@@ -230,7 +242,7 @@ export function SupportChatWidget() {
         return;
       }
       const apply = (t: Ticket | null) =>
-        t && t.id === activeTicket.id
+        t && t.id === ticketId
           ? { ...t, messages: [...t.messages, data.message!] }
           : t;
       setTicket((t) => apply(t));
@@ -245,7 +257,11 @@ export function SupportChatWidget() {
   }
 
   async function closeTicket() {
-    if (!activeTicket || busy) return;
+    if (busy) return;
+    if (!activeTicket) {
+      setMode("closed");
+      return;
+    }
     if (!window.confirm("Завершить обращение? История этого тикета удалится.")) {
       return;
     }
@@ -289,6 +305,7 @@ export function SupportChatWidget() {
 
   const waitingCount = inbox.filter((i) => i.waiting).length;
   const titleNumber = activeTicket ? `#${activeTicket.number}` : "";
+  const showingUserDraft = view === "chat" && !ticket && !(staff && staffTicket);
 
   return (
     <div className="support-root" aria-live="polite">
@@ -300,12 +317,14 @@ export function SupportChatWidget() {
           title="Развернуть чат"
         >
           <span>
-            {activeTicket ? `Тикет ${titleNumber}` : staff ? "Очередь поддержки" : "Техподдержка"}
+            {activeTicket
+              ? `Тикет ${titleNumber}`
+              : staff && view === "inbox"
+                ? "Очередь поддержки"
+                : "Техподдержка"}
           </span>
           <span className="support-mini-nick">
-            {staff && staffTicket
-              ? staffTicket.userNick
-              : myNick}
+            {staff && staffTicket ? staffTicket.userNick : myNick}
           </span>
         </button>
       ) : null}
@@ -382,14 +401,20 @@ export function SupportChatWidget() {
               <button
                 type="button"
                 className="support-linkish"
-                onClick={() => void openMyTicket()}
+                onClick={openMyChatDraft}
               >
-                Мой тикет
+                Мой чат
               </button>
             </div>
           ) : (
             <>
               <div className="support-msgs">
+                {showingUserDraft ? (
+                  <div className="support-msg support-msg-bot">
+                    <span className="support-msg-from">Тех. поддержка</span>
+                    <p>{DRAFT_HINT}</p>
+                  </div>
+                ) : null}
                 {(activeTicket?.messages || []).map((m) => (
                   <div
                     key={m.id}
@@ -415,12 +440,18 @@ export function SupportChatWidget() {
                   placeholder={
                     staff && staffTicket
                       ? "Ответ от Тех. поддержки…"
-                      : "Ваш вопрос…"
+                      : showingUserDraft
+                        ? "Напишите вопрос…"
+                        : "Ваш вопрос…"
                   }
                   maxLength={2000}
-                  disabled={busy || !activeTicket}
+                  disabled={busy || (staff && view === "inbox" && !staffTicket)}
                 />
-                <button type="submit" className="btn primary" disabled={busy || !text.trim()}>
+                <button
+                  type="submit"
+                  className="btn primary"
+                  disabled={busy || !text.trim()}
+                >
                   →
                 </button>
               </form>
@@ -432,9 +463,9 @@ export function SupportChatWidget() {
                   type="button"
                   className="support-linkish danger"
                   onClick={() => void closeTicket()}
-                  disabled={busy || !activeTicket}
+                  disabled={busy}
                 >
-                  Завершить
+                  {activeTicket ? "Завершить" : "Закрыть"}
                 </button>
               </footer>
             </>

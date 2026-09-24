@@ -135,36 +135,92 @@ export async function GET() {
   });
 }
 
-/** Создать новый тикет (или вернуть уже открытый) */
-export async function POST() {
+/** Создать тикет с первым сообщением (без текста — нельзя). */
+export async function POST(req: Request) {
   const user = await me();
   if (!user) {
     return NextResponse.json({ ok: false, error: "auth" }, { status: 401 });
   }
 
+  const body = (await req.json().catch(() => ({}))) as { text?: string };
+  const text = String(body.text || "").trim().slice(0, 2000);
+  if (!text) {
+    return NextResponse.json(
+      { ok: false, error: "empty", message: "Напишите сообщение, чтобы открыть тикет" },
+      { status: 400 }
+    );
+  }
+
   const existing = await prisma.supportTicket.findFirst({
     where: { userId: user.id, status: "OPEN" },
-    include: {
-      messages: {
-        orderBy: { createdAt: "asc" },
-        include: {
-          author: { select: { nick: true, steamName: true } },
-        },
-      },
-      user: { select: { nick: true, steamName: true } },
-    },
   });
 
   if (existing) {
+    const msg = await prisma.$transaction(async (tx) => {
+      await tx.supportTicket.update({
+        where: { id: existing.id },
+        data: { updatedAt: new Date() },
+      });
+      return tx.supportMessage.create({
+        data: {
+          ticketId: existing.id,
+          kind: "USER",
+          authorId: user.id,
+          body: text,
+        },
+        include: {
+          author: { select: { nick: true, steamName: true } },
+        },
+      });
+    });
+
+    const ticket = await prisma.supportTicket.findUniqueOrThrow({
+      where: { id: existing.id },
+      include: {
+        messages: {
+          orderBy: { createdAt: "asc" },
+          include: {
+            author: { select: { nick: true, steamName: true } },
+          },
+        },
+        user: { select: { nick: true, steamName: true } },
+      },
+    });
+
+    const nick = personLabel(user);
+    const preview = text.length > 280 ? `${text.slice(0, 280)}…` : text;
+    await writeActionLog({
+      category: "support",
+      action: "ticket_message",
+      message: `${nick} написал в тикете #${ticket.number}: «${preview}»`,
+      actorId: user.id,
+      actorNick: nick,
+      targetId: user.id,
+      targetNick: nick,
+      meta: {
+        ticketId: ticket.id,
+        ticketNumber: ticket.number,
+        kind: "USER",
+        body: text,
+        messageId: msg.id,
+      },
+    });
+
+    livePublishSupportStaff({ type: "message", ticketId: ticket.id });
+    livePublish(
+      userLiveChannel(user.id),
+      JSON.stringify({ type: "support", ticketId: ticket.id })
+    );
+
     return NextResponse.json({
       ok: true,
       created: false,
       ticket: {
-        id: existing.id,
-        number: existing.number,
-        status: existing.status,
-        userNick: existing.user.nick || existing.user.steamName || "Игрок",
-        messages: existing.messages.map((m) => publicMessage(m, "user")),
+        id: ticket.id,
+        number: ticket.number,
+        status: ticket.status,
+        userNick: ticket.user.nick || ticket.user.steamName || "Игрок",
+        messages: ticket.messages.map((m) => publicMessage(m, "user")),
       },
     });
   }
@@ -173,10 +229,10 @@ export async function POST() {
     data: {
       userId: user.id,
       messages: {
-        create: {
-          kind: "BOT",
-          body: SUPPORT_BOT_WAITING,
-        },
+        create: [
+          { kind: "BOT", body: SUPPORT_BOT_WAITING },
+          { kind: "USER", authorId: user.id, body: text },
+        ],
       },
     },
     include: {
@@ -197,6 +253,7 @@ export async function POST() {
   );
 
   const nick = personLabel(user);
+  const preview = text.length > 280 ? `${text.slice(0, 280)}…` : text;
   await writeActionLog({
     category: "support",
     action: "ticket_open",
@@ -206,6 +263,21 @@ export async function POST() {
     targetId: user.id,
     targetNick: nick,
     meta: { ticketId: ticket.id, ticketNumber: ticket.number },
+  });
+  await writeActionLog({
+    category: "support",
+    action: "ticket_message",
+    message: `${nick} написал в тикете #${ticket.number}: «${preview}»`,
+    actorId: user.id,
+    actorNick: nick,
+    targetId: user.id,
+    targetNick: nick,
+    meta: {
+      ticketId: ticket.id,
+      ticketNumber: ticket.number,
+      kind: "USER",
+      body: text,
+    },
   });
 
   return NextResponse.json({
