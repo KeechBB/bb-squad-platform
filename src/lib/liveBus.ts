@@ -40,6 +40,18 @@ export function siteLiveChannel() {
   return "site:all";
 }
 
+export function supportStaffChannel() {
+  return "support:staff";
+}
+
+export function supportTicketChannel(ticketId: string) {
+  return `support:ticket:${ticketId}`;
+}
+
 export function livePublishSite(payload: Record<string, unknown>) {
   livePublish(siteLiveChannel(), JSON.stringify(payload));
+}
+
+export function livePublishSupportStaff(payload: Record<string, unknown>) {
+  livePublish(supportStaffChannel(), JSON.stringify(payload));
 }

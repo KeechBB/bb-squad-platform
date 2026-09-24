@@ -77,6 +77,9 @@ model User {
   reserveStints   ReserveStint[]
   reserveActionsAsActor ReserveStint[] @relation("ReserveActor")
   reserveExitsAsActor   ReserveStint[] @relation("ReserveExitActor")
+  supportTickets        SupportTicket[] @relation("SupportTicketUser")
+  supportTicketsClaimed SupportTicket[] @relation("SupportTicketClaimer")
+  supportMessages       SupportMessage[]
 }
 
 /// История уходов в резерв (открытый stint = сейчас в резерве).
@@ -354,4 +357,47 @@ model ActionLog {
   @@index([category])
   @@index([action])
   @@index([searchText])
+}
+
+enum SupportTicketStatus {
+  OPEN
+  CLOSED
+}
+
+enum SupportMessageKind {
+  USER
+  STAFF
+  BOT
+}
+
+/// Тикет техподдержки (сессионный: после «Завершить» удаляется).
+model SupportTicket {
+  id          String              @id @default(cuid())
+  number      Int                 @unique @default(autoincrement())
+  status      SupportTicketStatus @default(OPEN)
+  userId      String
+  user        User                @relation("SupportTicketUser", fields: [userId], references: [id], onDelete: Cascade)
+  claimedById String?
+  claimedBy   User?               @relation("SupportTicketClaimer", fields: [claimedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  closedAt    DateTime?
+  messages    SupportMessage[]
+
+  @@index([userId, status])
+  @@index([status, updatedAt])
+}
+
+model SupportMessage {
+  id        String             @id @default(cuid())
+  ticketId  String
+  ticket    SupportTicket      @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  kind      SupportMessageKind
+  /// Автор USER/STAFF; у BOT — null
+  authorId  String?
+  author    User?              @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  body      String
+  createdAt DateTime           @default(now())
+
+  @@index([ticketId, createdAt])
 }
