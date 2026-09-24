@@ -2177,6 +2177,11 @@ a:hover { color: #c4b5fd; }
   border-color: rgba(56, 189, 248, 0.18);
 }
 
+.journal-msg-cat-support {
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.28);
+}
+
 .journal-msg-meta {
   display: flex;
   flex-wrap: wrap;

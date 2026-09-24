@@ -12,6 +12,7 @@ import {
   supportTicketChannel,
   userLiveChannel,
 } from "@/lib/liveBus";
+import { personLabel, writeActionLog } from "@/lib/actionLog";
 
 export const dynamic = "force-dynamic";
 
@@ -114,7 +115,12 @@ export async function POST(req: Request, ctx: Ctx) {
   }
 
   const staff = canReplySupport(user.role);
-  const ticket = await prisma.supportTicket.findUnique({ where: { id } });
+  const ticket = await prisma.supportTicket.findUnique({
+    where: { id },
+    include: {
+      user: { select: { id: true, nick: true, steamName: true, name: true } },
+    },
+  });
   if (!ticket || ticket.status !== "OPEN") {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
@@ -162,6 +168,43 @@ export async function POST(req: Request, ctx: Ctx) {
   );
   livePublishSupportStaff({ type: "message", ticketId: id });
 
+  const actorNick = personLabel(user);
+  const ownerNick = personLabel(ticket.user);
+  const preview = text.length > 280 ? `${text.slice(0, 280)}…` : text;
+  if (msgKind === "STAFF") {
+    await writeActionLog({
+      category: "support",
+      action: "ticket_reply",
+      message: `${actorNick} (техподдержка) ответил в тикете #${ticket.number} (${ownerNick}): «${preview}»`,
+      actorId: user.id,
+      actorNick,
+      targetId: ticket.userId,
+      targetNick: ownerNick,
+      meta: {
+        ticketId: ticket.id,
+        ticketNumber: ticket.number,
+        kind: "STAFF",
+        body: text,
+      },
+    });
+  } else {
+    await writeActionLog({
+      category: "support",
+      action: "ticket_message",
+      message: `${actorNick} написал в тикете #${ticket.number}: «${preview}»`,
+      actorId: user.id,
+      actorNick,
+      targetId: ticket.userId,
+      targetNick: ownerNick,
+      meta: {
+        ticketId: ticket.id,
+        ticketNumber: ticket.number,
+        kind: "USER",
+        body: text,
+      },
+    });
+  }
+
   const viewer = staff ? "staff" : "user";
   return NextResponse.json({
     ok: true,
@@ -177,7 +220,14 @@ export async function DELETE(_req: Request, ctx: Ctx) {
   }
   const { id } = await ctx.params;
   const staff = canReplySupport(user.role);
-  const ticket = await prisma.supportTicket.findUnique({ where: { id } });
+  const ticket = await prisma.supportTicket.findUnique({
+    where: { id },
+    include: {
+      user: { select: { id: true, nick: true, steamName: true, name: true } },
+      messages: { select: { id: true, kind: true } },
+      claimedBy: { select: { nick: true, steamName: true, name: true } },
+    },
+  });
   if (!ticket) {
     return NextResponse.json({ ok: true, deleted: false });
   }
@@ -186,6 +236,12 @@ export async function DELETE(_req: Request, ctx: Ctx) {
   }
 
   const ownerId = ticket.userId;
+  const ownerNick = personLabel(ticket.user);
+  const closerNick = personLabel(user);
+  const userMsgs = ticket.messages.filter((m) => m.kind === "USER").length;
+  const staffMsgs = ticket.messages.filter((m) => m.kind === "STAFF").length;
+  const claimedNick = ticket.claimedBy ? personLabel(ticket.claimedBy) : null;
+
   await prisma.supportTicket.delete({ where: { id } });
 
   livePublish(
@@ -193,6 +249,27 @@ export async function DELETE(_req: Request, ctx: Ctx) {
     JSON.stringify({ type: "support", ticketId: id, closed: true })
   );
   livePublishSupportStaff({ type: "closed", ticketId: id });
+
+  await writeActionLog({
+    category: "support",
+    action: "ticket_close",
+    message: `${closerNick} закрыл тикет #${ticket.number} (${ownerNick})${
+      claimedNick ? `, отвечал ${claimedNick}` : ""
+    }: сообщений пользователя ${userMsgs}, ответов поддержки ${staffMsgs}`,
+    actorId: user.id,
+    actorNick: closerNick,
+    targetId: ownerId,
+    targetNick: ownerNick,
+    meta: {
+      ticketId: ticket.id,
+      ticketNumber: ticket.number,
+      userMsgs,
+      staffMsgs,
+      claimedById: ticket.claimedById,
+      claimedNick,
+      closedByOwner: ticket.userId === user.id,
+    },
+  });
 
   return NextResponse.json({ ok: true, deleted: true });
 }

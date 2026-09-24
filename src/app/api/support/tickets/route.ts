@@ -13,6 +13,7 @@ import {
   livePublishSupportStaff,
   userLiveChannel,
 } from "@/lib/liveBus";
+import { personLabel, writeActionLog } from "@/lib/actionLog";
 
 export const dynamic = "force-dynamic";
 
@@ -194,6 +195,18 @@ export async function POST() {
     userLiveChannel(user.id),
     JSON.stringify({ type: "support", ticketId: ticket.id })
   );
+
+  const nick = personLabel(user);
+  await writeActionLog({
+    category: "support",
+    action: "ticket_open",
+    message: `${nick} открыл тикет #${ticket.number}`,
+    actorId: user.id,
+    actorNick: nick,
+    targetId: user.id,
+    targetNick: nick,
+    meta: { ticketId: ticket.id, ticketNumber: ticket.number },
+  });
 
   return NextResponse.json({
     ok: true,

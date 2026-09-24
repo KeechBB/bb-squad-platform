@@ -18,6 +18,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   admin: "Админ",
   clan: "Клан",
   profile: "Профиль",
+  support: "Поддержка",
 };
 
 function formatWhen(iso: string): string {
@@ -35,7 +36,9 @@ export function AdminJournalPanel() {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [q, setQ] = useState("");
   const [qApplied, setQApplied] = useState("");
-  const [category, setCategory] = useState<"" | "admin" | "clan" | "profile">("");
+  const [category, setCategory] = useState<
+    "" | "admin" | "clan" | "profile" | "support"
+  >("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -156,6 +159,13 @@ export function AdminJournalPanel() {
           >
             Профиль
           </button>
+          <button
+            type="button"
+            className={category === "support" ? "active" : ""}
+            onClick={() => setCategory("support")}
+          >
+            Поддержка
+          </button>
         </div>
         <button type="submit" className="btn" disabled={loading}>
           {loading ? "…" : "Найти"}
@@ -192,7 +202,7 @@ export function AdminJournalPanel() {
           {!loading && entries.length === 0 ? (
             <p className="journal-empty muted">
               Пока нет записей. Сюда попадают регистрации, кики, резерв,
-              роли и другие движения по клану.
+              роли, тикеты поддержки и другие движения.
             </p>
           ) : null}
           {entries.map((e) => (

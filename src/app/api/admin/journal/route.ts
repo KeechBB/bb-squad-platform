@@ -22,7 +22,12 @@ export async function GET(req: Request) {
     createdAt?: { lt: Date };
   } = {};
 
-  if (category === "admin" || category === "clan" || category === "profile") {
+  if (
+    category === "admin" ||
+    category === "clan" ||
+    category === "profile" ||
+    category === "support"
+  ) {
     where.category = category;
   }
   if (q) {
