@@ -47,7 +47,7 @@ export default async function AdminUserPage({ params }: Props) {
         <h1>{user.nick || user.steamName || "Игрок"}</h1>
         <p className="lead">
           {canEdit
-            ? "Правка анкеты, роли и аватара."
+            ? "Правка анкеты, ТГ/Discord, роли и аватара."
             : "Нет прав править этот профиль (Зам / Главный админ)."}
         </p>
       </section>
@@ -65,6 +65,9 @@ export default async function AdminUserPage({ params }: Props) {
           role,
           avatarUrl: resolveAvatarSrc(user.avatarUrl),
           createdAt: user.createdAt.toISOString(),
+          discordTag: user.discordTag,
+          discordId: user.discordId,
+          telegram: user.telegram,
         }}
         canEditProfile={canEdit}
         canEditRole={canEditRole}

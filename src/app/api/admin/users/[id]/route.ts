@@ -18,6 +18,7 @@ import { ageFromBirthDate, isValidAge, isValidName, isValidNick, normalizeNick, 
 import { removeUserAvatarFiles } from "@/lib/avatar";
 import { livePublish, userLiveChannel } from "@/lib/liveBus";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
+import { parseDiscordInput, parseTelegramInput } from "@/lib/social";
 
 export const runtime = "nodejs";
 
@@ -90,6 +91,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
     role?: string;
     roleOnly?: boolean;
     clearAvatar?: boolean;
+    discord?: string;
+    telegram?: string;
   };
 
   if (b.clearAvatar) {
@@ -190,6 +193,17 @@ export async function PATCH(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Steam ID: 15–20 цифр" }, { status: 400 });
   }
 
+  const discordRaw = String(b.discord ?? "").trim();
+  const telegramRaw = String(b.telegram ?? "").trim();
+  const discord = parseDiscordInput(discordRaw);
+  if ("error" in discord) {
+    return NextResponse.json({ error: discord.error }, { status: 400 });
+  }
+  const telegram = parseTelegramInput(telegramRaw);
+  if ("error" in telegram) {
+    return NextResponse.json({ error: telegram.error }, { status: 400 });
+  }
+
   let nextRole = existingRole;
   if (b.role != null) {
     const role = parseRole(String(b.role));
@@ -233,6 +247,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
         ...(birthDate ? { birthDate } : {}),
         steamId,
         role: locked,
+        discordTag: discord.tag,
+        discordId: discord.id,
+        telegram: telegram.username,
       },
     });
     if (locked !== existingRole) {

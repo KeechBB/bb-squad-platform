@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { AppRole } from "@/lib/roles";
 import { roleLabel } from "@/lib/roles";
+import {
+  formatDiscordDisplay,
+  formatTelegramDisplay,
+} from "@/lib/social";
 
 type Props = {
   user: {
@@ -18,6 +22,9 @@ type Props = {
     role: AppRole;
     avatarUrl: string | null;
     createdAt: string;
+    discordTag: string | null;
+    discordId: string | null;
+    telegram: string | null;
   };
   canEditProfile: boolean;
   canEditRole: boolean;
@@ -36,6 +43,13 @@ export function AdminUserEditForm({
   const [birthDate, setBirthDate] = useState(user.birthDate || "");
   const [age, setAge] = useState(user.age != null ? String(user.age) : "");
   const [steamId, setSteamId] = useState(user.steamId);
+  const [discord, setDiscord] = useState(
+    formatDiscordDisplay(user.discordTag, user.discordId) ||
+      (user.discordId ? user.discordId : "")
+  );
+  const [telegram, setTelegram] = useState(
+    formatTelegramDisplay(user.telegram).replace(/^@/, "") || ""
+  );
   const [role, setRole] = useState<AppRole>(
     roleOptions.includes(user.role) ? user.role : roleOptions[0] || "USER"
   );
@@ -55,6 +69,8 @@ export function AdminUserEditForm({
         name,
         nick,
         steamId,
+        discord,
+        telegram,
       };
       if (birthDate) {
         payload.birthDate = birthDate;
@@ -75,6 +91,15 @@ export function AdminUserEditForm({
       }
       setOk("Сохранено");
       if (data.user?.age != null) setAge(String(data.user.age));
+      if (data.user) {
+        setDiscord(
+          formatDiscordDisplay(data.user.discordTag, data.user.discordId) ||
+            (data.user.discordId ? data.user.discordId : "")
+        );
+        setTelegram(
+          formatTelegramDisplay(data.user.telegram).replace(/^@/, "") || ""
+        );
+      }
       router.refresh();
     } catch {
       setError("Сеть или сервер недоступны");
@@ -189,6 +214,33 @@ export function AdminUserEditForm({
           required
           disabled={locked}
         />
+      </label>
+      <label className="field">
+        <span>Discord</span>
+        <input
+          value={discord}
+          onChange={(e) => setDiscord(e.target.value)}
+          placeholder="ник, tag#0000 или discord.com/users/ID"
+          maxLength={80}
+          disabled={locked}
+        />
+        <span className="field-hint">
+          Оставь пустым и сохрани — Discord сотрётся. Ссылка на профиль даст
+          кликабельный ID.
+        </span>
+      </label>
+      <label className="field">
+        <span>Telegram</span>
+        <input
+          value={telegram}
+          onChange={(e) => setTelegram(e.target.value)}
+          placeholder="username или t.me/username"
+          maxLength={40}
+          disabled={locked}
+        />
+        <span className="field-hint">
+          Без @ или с @ — без разницы. Пустое поле + сохранить = удалить ТГ.
+        </span>
       </label>
       <label className="field">
         <span>Роль</span>
