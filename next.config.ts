@@ -5,11 +5,11 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/kv-static",
-        destination: "http://kv.bb-squad.ru/",
+        destination: "https://keechbb.github.io/blackberry-kv/",
       },
       {
         source: "/kv-static/:path*",
-        destination: "http://kv.bb-squad.ru/:path*",
+        destination: "https://keechbb.github.io/blackberry-kv/:path*",
       },
     ];
   },

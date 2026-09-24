@@ -23,7 +23,7 @@ export default async function HomePage() {
     ReturnType<typeof buildUpcomingMatchPreviews>
   >["previews"] = [];
   try {
-    const data = await buildUpcomingMatchPreviews(8);
+    const data = await buildUpcomingMatchPreviews(12);
     previews = data.previews;
   } catch {
     previews = [];
