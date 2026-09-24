@@ -8,6 +8,9 @@ import {
   TRAINING_PRESENT_MIN_MINUTES,
   isTrainingPresentMinutes,
 } from "@/lib/squadSessions";
+import type {
+  AttendanceStreakBoard,
+} from "@/lib/attendanceStreaks";
 
 type Cell = { in: string; out: string | null; mins: number };
 
@@ -383,6 +386,34 @@ export function AdminAttendancePanel() {
   const [showOut, setShowOut] = useState(true);
   const [server, setServer] = useState<ServerFilter>("TR1");
   const [leaveDay, setLeaveDay] = useState<string>("");
+  const [streaks, setStreaks] = useState<AttendanceStreakBoard | null>(null);
+  const [streakSort, setStreakSort] = useState<{
+    key:
+      | "regNo"
+      | "nick"
+      | "missedToday"
+      | "missStreak"
+      | "attendStreak"
+      | "maxAttendStreak"
+      | "lastPresent";
+    dir: "asc" | "desc";
+  }>({ key: "missStreak", dir: "desc" });
+
+  const loadStreaks = useCallback(async () => {
+    if (server !== "TR1") {
+      setStreaks(null);
+      return;
+    }
+    try {
+      const res = await fetch("/api/admin/attendance-streaks", {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      setStreaks((await res.json()) as AttendanceStreakBoard);
+    } catch {
+      /* keep previous */
+    }
+  }, [server]);
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) {
@@ -418,10 +449,20 @@ export function AdminAttendancePanel() {
     void load();
   }, [load]);
 
-  useAutoRefresh(() => load({ silent: true }), {
-    intervalMs: 15000,
-    kinds: ["attendance"],
-  });
+  useEffect(() => {
+    if (tab === "stats") void loadStreaks();
+  }, [tab, loadStreaks]);
+
+  useAutoRefresh(
+    () => {
+      void load({ silent: true });
+      if (tab === "stats") void loadStreaks();
+    },
+    {
+      intervalMs: 15000,
+      kinds: ["attendance"],
+    }
+  );
 
   const leaveRows = useMemo(() => {
     if (!data) return [];
@@ -440,6 +481,67 @@ export function AdminAttendancePanel() {
     }
     return data.stats.leaveTimeline || [];
   }, [data, server, leaveDay]);
+
+  const streakRowsSorted = useMemo(() => {
+    if (!streaks?.rows?.length) return [];
+    const { key, dir } = streakSort;
+    const mul = dir === "asc" ? 1 : -1;
+    return [...streaks.rows].sort((a, b) => {
+      let cmp = 0;
+      switch (key) {
+        case "nick":
+          cmp = a.nick.localeCompare(b.nick, "ru", { sensitivity: "base" });
+          break;
+        case "lastPresent":
+          cmp = (a.lastPresent || "").localeCompare(b.lastPresent || "");
+          break;
+        case "missedToday":
+          cmp = Number(a.missedToday) - Number(b.missedToday);
+          break;
+        default:
+          cmp = Number(a[key]) - Number(b[key]);
+      }
+      if (cmp !== 0) return cmp * mul;
+      return a.nick.localeCompare(b.nick, "ru", { sensitivity: "base" });
+    });
+  }, [streaks, streakSort]);
+
+  function toggleStreakSort(
+    key:
+      | "regNo"
+      | "nick"
+      | "missedToday"
+      | "missStreak"
+      | "attendStreak"
+      | "maxAttendStreak"
+      | "lastPresent"
+  ) {
+    setStreakSort((prev) =>
+      prev.key === key
+        ? { key, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : {
+            key,
+            dir:
+              key === "nick" || key === "regNo" || key === "lastPresent"
+                ? "asc"
+                : "desc",
+          }
+    );
+  }
+
+  function streakSortMark(
+    key:
+      | "regNo"
+      | "nick"
+      | "missedToday"
+      | "missStreak"
+      | "attendStreak"
+      | "maxAttendStreak"
+      | "lastPresent"
+  ) {
+    if (streakSort.key !== key) return "";
+    return streakSort.dir === "asc" ? " ▲" : " ▼";
+  }
 
   const rows = useMemo(() => {
     if (!data) return [];
@@ -858,6 +960,156 @@ export function AdminAttendancePanel() {
               }
             />
           </div>
+
+          {server === "TR1" ? (
+            <div
+              className="training-chart-block attend-streak-board"
+              style={{ gridColumn: "1 / -1" }}
+            >
+              <h3>Пропуски и стрики явки (TR1)</h3>
+              <p className="muted" style={{ marginTop: 0, marginBottom: 10 }}>
+                Якорь:{" "}
+                <strong>
+                  {streaks?.anchorYmd
+                    ? `${ymdLabel(streaks.anchorYmd)} (${streaks.anchorYmd})`
+                    : "—"}
+                </strong>
+                . До 21:00 МСК — вчерашняя тренировка; с 21:00 — сегодняшняя.
+                «Был» = ≥60 мин вечером или уход ≥23:30 (как в таблице/профиле).
+              </p>
+              {streaks ? (
+                <>
+                  <div className="attend-streak-summary">
+                    <div className="attend-norm-pill">
+                      <strong>{streaks.registered}</strong>
+                      <span>Зарегано</span>
+                    </div>
+                    <div className="attend-norm-pill bad">
+                      <strong>{streaks.missedToday}</strong>
+                      <span>Не пришли (якорь)</span>
+                    </div>
+                    {[2, 3, 4, 5, 6, 7].map((n) => (
+                      <div key={n} className="attend-norm-pill warn">
+                        <strong>{streaks.missByDays[String(n)] ?? 0}</strong>
+                        <span>
+                          {n === 7 ? "7+ дн подряд" : `${n} дн подряд`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="admin-table-wrap attend-streak-table-wrap">
+                    <table className="admin-table attend-streak-table">
+                      <thead>
+                        <tr>
+                          <th>
+                            <button
+                              type="button"
+                              className="attend-sort-btn"
+                              onClick={() => toggleStreakSort("regNo")}
+                            >
+                              №{streakSortMark("regNo")}
+                            </button>
+                          </th>
+                          <th>
+                            <button
+                              type="button"
+                              className="attend-sort-btn"
+                              onClick={() => toggleStreakSort("nick")}
+                            >
+                              Ник{streakSortMark("nick")}
+                            </button>
+                          </th>
+                          <th>
+                            <button
+                              type="button"
+                              className="attend-sort-btn"
+                              onClick={() => toggleStreakSort("missedToday")}
+                            >
+                              Сегодня{streakSortMark("missedToday")}
+                            </button>
+                          </th>
+                          <th>
+                            <button
+                              type="button"
+                              className="attend-sort-btn"
+                              onClick={() => toggleStreakSort("missStreak")}
+                            >
+                              Пропуск подряд{streakSortMark("missStreak")}
+                            </button>
+                          </th>
+                          <th>
+                            <button
+                              type="button"
+                              className="attend-sort-btn"
+                              onClick={() => toggleStreakSort("attendStreak")}
+                            >
+                              Явка подряд{streakSortMark("attendStreak")}
+                            </button>
+                          </th>
+                          <th>
+                            <button
+                              type="button"
+                              className="attend-sort-btn"
+                              onClick={() => toggleStreakSort("maxAttendStreak")}
+                            >
+                              Макс. явка{streakSortMark("maxAttendStreak")}
+                            </button>
+                          </th>
+                          <th>
+                            <button
+                              type="button"
+                              className="attend-sort-btn"
+                              onClick={() => toggleStreakSort("lastPresent")}
+                            >
+                              Последний «был»{streakSortMark("lastPresent")}
+                            </button>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {streakRowsSorted.map((r) => (
+                          <tr
+                            key={r.userId}
+                            className={
+                              r.missedToday ? "attend-streak-row-miss" : undefined
+                            }
+                          >
+                            <td>{r.regNo || "—"}</td>
+                            <td>
+                              <Link
+                                href={`/players/${encodeURIComponent(r.nick)}`}
+                              >
+                                {r.nick}
+                              </Link>
+                            </td>
+                            <td>{r.missedToday ? "нет" : "был"}</td>
+                            <td>{r.missStreak}</td>
+                            <td>{r.attendStreak}</td>
+                            <td>{r.maxAttendStreak}</td>
+                            <td>
+                              {r.lastPresent ? ymdLabel(r.lastPresent) : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              ) : (
+                <p className="muted">Загрузка стриков…</p>
+              )}
+            </div>
+          ) : (
+            <div
+              className="training-chart-block"
+              style={{ gridColumn: "1 / -1" }}
+            >
+              <p className="muted" style={{ margin: 0 }}>
+                Стрики пропусков/явки считаются только для TR1.
+              </p>
+            </div>
+          )}
         </div>
       ) : null}
     </section>

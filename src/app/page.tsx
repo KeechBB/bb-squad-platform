@@ -3,8 +3,13 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { buildUpcomingMatchPreviews } from "@/lib/kvForecast";
 import { buildHomeMvpBoard, emptyHomeMvpBoard } from "@/lib/homeMvp";
+import {
+  buildAttendanceStreakBoard,
+  emptyAttendanceStreakBoard,
+} from "@/lib/attendanceStreaks";
 import { HomeUpcomingMatches } from "@/components/HomeUpcomingMatches";
 import { HomeMvpBoard } from "@/components/HomeMvpBoard";
+import { HomeAttendStreaks } from "@/components/HomeAttendStreaks";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +35,13 @@ export default async function HomePage() {
     mvpBoard = await buildHomeMvpBoard();
   } catch {
     /* empty board */
+  }
+
+  let streakBoard = emptyAttendanceStreakBoard();
+  try {
+    streakBoard = await buildAttendanceStreakBoard();
+  } catch {
+    /* empty */
   }
 
   const loggedIn = Boolean(session?.user);
@@ -114,6 +126,14 @@ export default async function HomePage() {
               </p>
             )}
           </div>
+          <HomeAttendStreaks
+            initial={{
+              registered: streakBoard.registered,
+              anchorYmd: streakBoard.anchorYmd,
+              top10: streakBoard.top10,
+              updatedAt: streakBoard.updatedAt,
+            }}
+          />
         </section>
       </div>
     </main>

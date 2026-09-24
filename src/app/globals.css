@@ -1458,6 +1458,54 @@ a:hover { color: #c4b5fd; }
   background: rgba(220, 38, 38, 0.12);
 }
 
+.attend-streak-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.attend-streak-table-wrap {
+  max-height: min(62vh, 560px);
+  overflow: auto;
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+}
+
+.attend-streak-table {
+  width: 100%;
+  min-width: 720px;
+}
+
+.attend-streak-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: rgba(18, 14, 28, 0.96);
+}
+
+.attend-sort-btn {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.attend-sort-btn:hover {
+  color: #e9d5ff;
+}
+
+.attend-streak-row-miss td {
+  background: rgba(248, 113, 113, 0.06);
+}
+
 .attend-timeline-wrap {
   margin-top: 12px;
 }
@@ -2606,7 +2654,8 @@ body:has(.home-page) {
 
 .home-hero a,
 .home-hero .home-hero-cta,
-.home-hero .home-hero-hint {
+.home-hero .home-hero-hint,
+.home-hero .home-attend-streaks {
   pointer-events: auto;
 }
 
@@ -2653,6 +2702,109 @@ body:has(.home-page) {
   color: var(--muted);
   font-size: 0.92rem;
   line-height: 1.4;
+}
+
+.home-attend-streaks {
+  margin-top: 28px;
+  width: min(100%, 22rem);
+  text-align: left;
+  padding: 12px 14px 10px;
+  border-radius: 14px;
+  background: rgba(12, 8, 22, 0.55);
+  border: 1px solid rgba(167, 139, 250, 0.22);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+}
+
+.home-attend-streaks-pulse {
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(192, 132, 252, 0.35);
+}
+
+.home-attend-streaks-head {
+  margin-bottom: 8px;
+}
+
+.home-attend-streaks-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(226, 220, 245, 0.95);
+}
+
+.home-attend-streaks-sub {
+  margin: 4px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.3;
+}
+
+.home-attend-streaks-empty {
+  margin: 6px 0 2px;
+  font-size: 0.85rem;
+}
+
+.home-attend-streaks-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  max-height: 15.5rem;
+  overflow-y: auto;
+}
+
+.home-attend-streaks-row {
+  display: grid;
+  grid-template-columns: 1.4rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.home-attend-streaks-row:last-child {
+  border-bottom: none;
+}
+
+.home-attend-streaks-rank {
+  font-size: 0.75rem;
+  color: rgba(196, 181, 253, 0.85);
+  font-variant-numeric: tabular-nums;
+}
+
+.home-attend-streaks-nick {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #f3efff;
+  text-decoration: none;
+  font-size: 0.88rem;
+}
+
+.home-attend-streaks-nick:hover {
+  color: #e9d5ff;
+  text-decoration: underline;
+}
+
+.home-attend-streaks-days {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  font-variant-numeric: tabular-nums;
+}
+
+.home-attend-streaks-days b {
+  font-size: 0.95rem;
+  color: #f0abfc;
+}
+
+.home-attend-streaks-days span {
+  font-size: 0.68rem;
+  color: var(--muted);
+  text-transform: lowercase;
 }
 
 .home-crest {
@@ -3666,6 +3818,12 @@ body:has(.home-page) {
   .home-hero-cta {
     display: flex;
     justify-content: center;
+  }
+
+  .home-attend-streaks {
+    width: min(100%, 26rem);
+    margin-left: auto;
+    margin-right: auto;
   }
 
   .home-ops-board {
