@@ -15,7 +15,7 @@ function targetUrl(pathParts: string[] | undefined, search: string): string {
 
 async function proxy(req: NextRequest, pathParts: string[] | undefined) {
   const search = req.nextUrl.search || "";
-  let url = targetUrl(pathParts, search);
+  const url = targetUrl(pathParts, search);
 
   let res = await fetch(url, {
     redirect: "manual",
