@@ -63,8 +63,14 @@ export function ReservePanel({ active, untilLabel, reason, compact = false }: Pr
     }
   }
 
+  const openForm = !active && open;
+
   return (
-    <section className={`card reserve-panel${compact ? " reserve-panel-compact" : ""}`}>
+    <section
+      className={`card reserve-panel${compact ? " reserve-panel-compact" : ""}${
+        openForm ? " reserve-panel-open" : ""
+      }`}
+    >
       <h2>Резерв</h2>
       {active ? (
         <>
@@ -86,7 +92,7 @@ export function ReservePanel({ active, untilLabel, reason, compact = false }: Pr
             {loading ? "…" : "Выйти из резерва"}
           </button>
         </>
-      ) : open ? (
+      ) : openForm ? (
         <form className="form" onSubmit={enterReserve} style={{ marginTop: 6 }}>
           <label className="field">
             <span>Дата до</span>

@@ -535,6 +535,8 @@ svg {
   min-width: 180px;
   max-height: none;
   overflow: visible;
+  position: relative;
+  z-index: 0;
 }
 
 .profile-head-cluster .reaction-profile-history {
@@ -623,6 +625,19 @@ svg {
   flex: 0 0 auto;
   align-self: flex-start;
   padding: 8px 10px;
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+/* Форма «уйти в резерв» — шире и поверх соседней «Реакции» */
+.reserve-panel-compact.reserve-panel-open {
+  max-width: min(100%, 320px);
+  flex: 1 1 280px;
+  z-index: 5;
+  overflow: visible;
 }
 
 .reserve-panel-compact h2 {
@@ -651,11 +666,38 @@ svg {
 
 .reserve-panel-compact .form {
   gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+.reserve-panel-compact .field {
+  min-width: 0;
+  width: 100%;
+}
+
+.reserve-panel-compact .field input,
+.reserve-panel-compact .field textarea {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .reserve-panel-compact .field span,
 .reserve-panel-compact .field-hint {
   font-size: 0.72rem;
+}
+
+.reserve-panel-compact .avatar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.reserve-panel-compact .avatar-actions .btn {
+  width: auto;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .profile-head-title-row {
