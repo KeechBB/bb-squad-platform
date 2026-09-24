@@ -7,11 +7,14 @@ import {
   trainingDayYmd,
   ymdFromMskParts,
 } from "@/lib/squadSessions";
+import { userInReserve } from "@/lib/reserve";
 
 export type AttendanceStreakRow = {
   userId: string;
   nick: string;
   regNo: number;
+  /** Сейчас в резерве */
+  inReserve: boolean;
   /** Не пришёл в якорный день тренировки */
   missedToday: boolean;
   /** Подряд дней пропуска, заканчиваясь якорным днём (0 = был) */
@@ -136,7 +139,7 @@ export function lastPresentYmd(
 }
 
 export function streakRowFromPresent(
-  meta: { userId: string; nick: string; regNo: number },
+  meta: { userId: string; nick: string; regNo: number; inReserve?: boolean },
   present: Set<string>,
   anchorYmd: string,
   fromYmd = ATTENDANCE_CANON_START_YMD
@@ -147,6 +150,7 @@ export function streakRowFromPresent(
     userId: meta.userId,
     nick: meta.nick,
     regNo: meta.regNo,
+    inReserve: Boolean(meta.inReserve),
     missedToday: miss >= 1,
     missStreak: miss,
     attendStreak: attend,
@@ -215,7 +219,7 @@ export async function buildAttendanceStreakBoard(
   const users = await prisma.user.findMany({
     where: { profileComplete: true, nick: { not: null } },
     orderBy: [{ regNo: "asc" }, { createdAt: "asc" }],
-    select: { id: true, nick: true, regNo: true },
+    select: { id: true, nick: true, regNo: true, reserveUntil: true },
   });
 
   const sessions = await prisma.squadServerSession.findMany({
@@ -252,6 +256,7 @@ export async function buildAttendanceStreakBoard(
         userId: u.id,
         nick: u.nick || "—",
         regNo: u.regNo ?? 0,
+        inReserve: userInReserve(u),
       },
       present,
       anchorYmd,

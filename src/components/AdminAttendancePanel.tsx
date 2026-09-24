@@ -391,6 +391,7 @@ export function AdminAttendancePanel() {
     key:
       | "regNo"
       | "nick"
+      | "inReserve"
       | "missedToday"
       | "missStreak"
       | "attendStreak"
@@ -498,6 +499,9 @@ export function AdminAttendancePanel() {
         case "missedToday":
           cmp = Number(a.missedToday) - Number(b.missedToday);
           break;
+        case "inReserve":
+          cmp = Number(a.inReserve) - Number(b.inReserve);
+          break;
         default:
           cmp = Number(a[key]) - Number(b[key]);
       }
@@ -510,6 +514,7 @@ export function AdminAttendancePanel() {
     key:
       | "regNo"
       | "nick"
+      | "inReserve"
       | "missedToday"
       | "missStreak"
       | "attendStreak"
@@ -533,6 +538,7 @@ export function AdminAttendancePanel() {
     key:
       | "regNo"
       | "nick"
+      | "inReserve"
       | "missedToday"
       | "missStreak"
       | "attendStreak"
@@ -1024,6 +1030,15 @@ export function AdminAttendancePanel() {
                             <button
                               type="button"
                               className="attend-sort-btn"
+                              onClick={() => toggleStreakSort("inReserve")}
+                            >
+                              Резерв{streakSortMark("inReserve")}
+                            </button>
+                          </th>
+                          <th>
+                            <button
+                              type="button"
+                              className="attend-sort-btn"
                               onClick={() => toggleStreakSort("missedToday")}
                             >
                               Сегодня{streakSortMark("missedToday")}
@@ -1083,6 +1098,7 @@ export function AdminAttendancePanel() {
                                 {r.nick}
                               </Link>
                             </td>
+                            <td>{r.inReserve ? "да" : "нет"}</td>
                             <td>{r.missedToday ? "нет" : "был"}</td>
                             <td>{r.missStreak}</td>
                             <td>{r.attendStreak}</td>
