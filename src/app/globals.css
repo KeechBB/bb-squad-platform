@@ -2694,7 +2694,7 @@ body:has(.home-page) {
     minmax(240px, 1fr)
     minmax(300px, 520px);
   grid-template-areas: "ops hero mvp";
-  align-items: start;
+  align-items: stretch;
   gap: clamp(12px, 1.6vw, 22px);
   height: 100%;
   min-height: 0;
@@ -2705,14 +2705,18 @@ body:has(.home-page) {
 
 .home-layout > .home-ops-board:not(.home-mvp-board) {
   grid-area: ops;
+  align-self: start;
 }
 
 .home-layout > .home-mvp-board {
   grid-area: mvp;
+  align-self: start;
 }
 
 .home-layout > .home-hero {
   grid-area: hero;
+  align-self: stretch;
+  min-height: 0;
 }
 
 .home-hero {
@@ -2722,15 +2726,35 @@ body:has(.home-page) {
   transform: none;
   z-index: 1;
   display: grid;
-  align-content: start;
+  grid-template-rows: 1fr auto;
+  align-items: center;
   justify-items: center;
   text-align: center;
   width: 100%;
   max-width: 34rem;
+  height: 100%;
+  min-height: 0;
   margin: 0 auto;
-  padding: clamp(4px, 1vw, 16px) 8px;
+  padding: clamp(4px, 1vw, 12px) 8px clamp(8px, 1.2vw, 16px);
   pointer-events: none;
   animation: home-hero-in-stack 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.home-hero-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 0;
+  align-self: stretch;
+  pointer-events: none;
+}
+
+.home-hero-brand a,
+.home-hero-brand .home-hero-cta,
+.home-hero-brand .home-hero-hint {
+  pointer-events: auto;
 }
 
 .home-hero a,
@@ -2788,7 +2812,10 @@ body:has(.home-page) {
 }
 
 .home-attend-streaks {
-  margin-top: 28px;
+  align-self: end;
+  justify-self: center;
+  margin-top: clamp(12px, 2vh, 24px);
+  margin-bottom: clamp(4px, 1vh, 12px);
   width: min(100%, 22rem);
   text-align: left;
   padding: 12px 14px 10px;
@@ -3919,9 +3946,15 @@ body:has(.home-page) {
     order: -1;
     width: 100%;
     max-width: none;
+    min-height: calc(100dvh - 96px);
+    height: auto;
     pointer-events: auto;
-    padding: 28px 8px 8px;
+    padding: 28px 8px 20px;
     animation: home-hero-in-stack 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .home-hero-brand {
+    min-height: 0;
   }
 
   .home-hero h1 {
@@ -3946,6 +3979,8 @@ body:has(.home-page) {
     width: min(100%, 26rem);
     margin-left: auto;
     margin-right: auto;
+    margin-top: clamp(24px, 5vh, 48px);
+    margin-bottom: 8px;
   }
 
   .home-ops-board {
@@ -4541,6 +4576,86 @@ body:has(.home-page) {
 .leave-clan-btn:hover {
   background: rgba(248, 113, 113, 0.12);
   color: #fecaca;
+}
+
+/* Узкое / среднее окно: короткие пункты меню, без наложений с Админ/Выйти */
+@media (max-width: 1280px) {
+  .site-top-inner {
+    gap: 10px;
+    padding: 8px 12px;
+  }
+
+  .brand strong {
+    display: none;
+  }
+
+  .brand img {
+    width: clamp(32px, 5vw, 40px);
+  }
+
+  .top-left {
+    gap: 8px;
+    min-width: 0;
+    flex: 1 1 0;
+    overflow: hidden;
+  }
+
+  .top-nav {
+    gap: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .top-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .top-nav a {
+    padding: 8px 10px;
+    font-size: 0.72rem;
+    letter-spacing: 0.05em;
+  }
+
+  .top-nav a::after {
+    left: 10px;
+    right: 10px;
+    bottom: 4px;
+  }
+
+  .nav-full {
+    display: none;
+  }
+
+  .nav-short {
+    display: inline;
+  }
+
+  .auth-bar {
+    flex: 0 0 auto;
+    flex-shrink: 0;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .auth-bar .avatar {
+    width: 30px;
+    height: 30px;
+  }
+
+  .auth-bar .nick-link {
+    max-width: 6.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .auth-bar .btn {
+    padding: 7px 10px;
+    font-size: 0.75rem;
+  }
 }
 
 /* ??? Mobile only (?? ?? ???????????) ??? */

@@ -102,29 +102,31 @@ export default async function HomePage() {
         <HomeMvpBoard initial={mvpBoard} />
 
         <section className="home-hero">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            className="home-crest"
-            src="/blackberry.png"
-            alt=""
-            width={220}
-            height={220}
-          />
-          <p className="home-hero-kicker">Squad · BlackBerry</p>
-          <h1>BLACKBERRY</h1>
-          <p className="home-hero-tag">
-            Платформа клана — КВ, тренировки, свои.
-          </p>
-          <div className="home-hero-cta">
-            {loggedIn ? (
-              <Link className="btn primary" href="/cw">
-                Клановые войны
-              </Link>
-            ) : (
-              <p className="home-hero-hint">
-                Войди через Steam сверху — откроется профиль и кланы.
-              </p>
-            )}
+          <div className="home-hero-brand">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              className="home-crest"
+              src="/blackberry.png"
+              alt=""
+              width={220}
+              height={220}
+            />
+            <p className="home-hero-kicker">Squad · BlackBerry</p>
+            <h1>BLACKBERRY</h1>
+            <p className="home-hero-tag">
+              Платформа клана — КВ, тренировки, свои.
+            </p>
+            <div className="home-hero-cta">
+              {loggedIn ? (
+                <Link className="btn primary" href="/cw">
+                  Клановые войны
+                </Link>
+              ) : (
+                <p className="home-hero-hint">
+                  Войди через Steam сверху — откроется профиль и кланы.
+                </p>
+              )}
+            </div>
           </div>
           <HomeAttendStreaks
             initial={{
