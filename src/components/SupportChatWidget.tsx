@@ -50,8 +50,8 @@ const DRAFT_HINT =
   "Напишите вопрос ниже — тикет откроется автоматически после первого сообщения.";
 
 const GEOM_KEY = "bb-support-chat-geom";
-const MIN_W = 300;
-const MIN_H = 360;
+const MIN_W = 280;
+const MIN_H = 320;
 const DEFAULT_W = 380;
 const DEFAULT_H = 520;
 
@@ -59,22 +59,30 @@ function defaultGeom(): PanelGeom {
   if (typeof window === "undefined") {
     return { left: 40, top: 80, width: DEFAULT_W, height: DEFAULT_H };
   }
-  const width = Math.min(DEFAULT_W, window.innerWidth - 28);
-  const height = Math.min(DEFAULT_H, window.innerHeight - 40);
+  const pad = 12;
+  const width = Math.min(DEFAULT_W, Math.max(MIN_W, window.innerWidth - pad * 2));
+  const height = Math.min(DEFAULT_H, Math.max(MIN_H, window.innerHeight - pad * 2));
   return {
     width,
     height,
-    left: Math.max(8, window.innerWidth - width - 18),
-    top: Math.max(8, window.innerHeight - height - 18),
+    left: Math.max(pad, window.innerWidth - width - pad),
+    top: Math.max(pad, window.innerHeight - height - pad),
   };
 }
 
 function clampGeom(g: PanelGeom): PanelGeom {
   if (typeof window === "undefined") return g;
-  const width = Math.min(Math.max(g.width, MIN_W), window.innerWidth - 16);
-  const height = Math.min(Math.max(g.height, MIN_H), window.innerHeight - 16);
-  const left = Math.min(Math.max(g.left, 0), window.innerWidth - width);
-  const top = Math.min(Math.max(g.top, 0), window.innerHeight - height);
+  const pad = 4;
+  const width = Math.min(
+    Math.max(g.width, Math.min(MIN_W, window.innerWidth - pad * 2)),
+    window.innerWidth - pad * 2
+  );
+  const height = Math.min(
+    Math.max(g.height, Math.min(MIN_H, window.innerHeight - pad * 2)),
+    window.innerHeight - pad * 2
+  );
+  const left = Math.min(Math.max(g.left, pad), window.innerWidth - width - pad);
+  const top = Math.min(Math.max(g.top, pad), window.innerHeight - height - pad);
   return { left, top, width, height };
 }
 

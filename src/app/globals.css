@@ -32,6 +32,32 @@ body {
 a { color: var(--violet); text-decoration: none; }
 a:hover { color: #c4b5fd; }
 
+/* Картинки под любое разрешение / телефон */
+img,
+picture,
+video,
+canvas,
+svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.avatar,
+.profile-avatar,
+.admin-user-avatar,
+.clan-row-logo,
+.clan-detail-logo,
+.clan-logo-preview,
+.clan-member-cell img {
+  max-width: none;
+  object-fit: cover;
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+}
+
 .shell {
   max-width: 960px;
   margin: 0 auto;
@@ -176,8 +202,9 @@ a:hover { color: #c4b5fd; }
 }
 
 .brand img {
-  width: 48px;
+  width: clamp(36px, 8vw, 48px);
   height: auto;
+  max-width: 48px;
   filter: drop-shadow(0 0 18px rgba(167, 139, 250, 0.35));
 }
 
@@ -1738,6 +1765,27 @@ a:hover { color: #c4b5fd; }
   margin-right: auto;
 }
 
+.admin-export-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px 16px;
+  margin: 14px 0 8px;
+}
+
+.admin-export-btn {
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  padding: 12px 18px !important;
+  letter-spacing: 0.02em;
+  box-shadow: 0 8px 24px rgba(124, 58, 237, 0.35);
+}
+
+.admin-export-hint {
+  font-size: 0.82rem;
+}
+
 .admin-page .lead,
 .admin-page .eyebrow,
 .admin-page .muted,
@@ -2535,9 +2583,11 @@ body:has(.home-page) {
 
 .home-stage-photo {
   position: absolute;
-  inset: -2%;
+  inset: 0;
   background:
     url("/home-ops-theater.jpg") center / cover no-repeat;
+  background-size: cover;
+  background-position: center;
   transform: scale(1.04);
   animation: home-stage-drift 28s ease-in-out infinite alternate;
   filter: saturate(1.05) contrast(1.05);
@@ -2819,7 +2869,8 @@ body:has(.home-page) {
 }
 
 .home-crest {
-  width: clamp(110px, 14vw, 168px);
+  width: clamp(96px, 22vw, 168px);
+  max-width: min(42vw, 168px);
   height: auto;
   filter: drop-shadow(0 16px 36px rgba(0, 0, 0, 0.55));
   animation: home-crest-float 5.5s ease-in-out infinite;
@@ -3797,7 +3848,10 @@ body:has(.home-page) {
 
   .home-stage-photo {
     animation: none;
-    transform: scale(1.06);
+    transform: none;
+    inset: 0;
+    background-position: 62% center;
+    background-size: cover;
   }
 
   .home-layout {
@@ -5702,8 +5756,8 @@ body {
 .support-panel {
   position: fixed;
   z-index: 82;
-  min-width: 300px;
-  min-height: 360px;
+  min-width: min(280px, calc(100vw - 8px));
+  min-height: min(320px, calc(100vh - 8px));
   display: flex;
   flex-direction: column;
   border-radius: 16px;

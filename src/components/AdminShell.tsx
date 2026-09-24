@@ -86,6 +86,18 @@ export function AdminShell({
         <p className="eyebrow">админ</p>
         <h1>Панель</h1>
         <p className="lead">{TAB_LEAD[tab]}</p>
+        <div className="admin-export-row">
+          <a
+            className="btn primary admin-export-btn"
+            href="/api/admin/users/export"
+            download
+          >
+            Выгрузить пользователей в Excel
+          </a>
+          <span className="muted admin-export-hint">
+            № · Ник · Имя · Steam ID · Резерв / не резерв
+          </span>
+        </div>
         <div className="admin-tabs" role="tablist">
           <button
             type="button"
