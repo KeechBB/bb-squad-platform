@@ -260,16 +260,75 @@ export function SupportChatWidget() {
     }
   }, [activeTicket, refresh, staffTicket, ticket]);
 
+  const refreshRef = useRef(refresh);
+  const refreshActiveRef = useRef(refreshActive);
+  refreshRef.current = refresh;
+  refreshActiveRef.current = refreshActive;
+
   useEffect(() => {
     if (!loggedIn) return;
     void refresh();
   }, [loggedIn, refresh]);
 
+  // Live: модеру — сразу бейдж/инбокс при новом тикете; игроку — обновление своего чата
+  useEffect(() => {
+    if (!loggedIn) return;
+    let esMe: EventSource | null = null;
+    let esStaff: EventSource | null = null;
+    let t: number | null = null;
+    const kick = () => {
+      if (t != null) window.clearTimeout(t);
+      t = window.setTimeout(() => {
+        void refreshRef.current();
+        void refreshActiveRef.current();
+      }, 120);
+    };
+    try {
+      esMe = new EventSource("/api/live/me");
+      esMe.addEventListener("user", (ev) => {
+        try {
+          const data = JSON.parse(String((ev as MessageEvent).data || "{}")) as {
+            type?: string;
+          };
+          if (data.type === "support") kick();
+        } catch {
+          /* ignore */
+        }
+      });
+    } catch {
+      /* ignore */
+    }
+    try {
+      esStaff = new EventSource("/api/live/support");
+      esStaff.addEventListener("support", () => kick());
+      esStaff.onerror = () => {
+        /* 403 для не-стаффа — ок */
+      };
+    } catch {
+      /* ignore */
+    }
+    return () => {
+      if (t != null) window.clearTimeout(t);
+      esMe?.close();
+      esStaff?.close();
+    };
+  }, [loggedIn]);
+
+  useEffect(() => {
+    if (!loggedIn) return;
+    // Поллинг как запасной канал (в т.ч. при закрытом FAB — для бейджа модера)
+    const id = window.setInterval(
+      () => void refreshRef.current(),
+      mode === "closed" ? 8000 : 4000
+    );
+    return () => window.clearInterval(id);
+  }, [mode, loggedIn]);
+
   useEffect(() => {
     if (mode === "closed" || !loggedIn) return;
-    const id = window.setInterval(() => void refreshActive(), 2500);
+    const id = window.setInterval(() => void refreshActiveRef.current(), 2500);
     return () => window.clearInterval(id);
-  }, [mode, loggedIn, refreshActive]);
+  }, [mode, loggedIn]);
 
   useEffect(() => {
     if (mode !== "open") return;
