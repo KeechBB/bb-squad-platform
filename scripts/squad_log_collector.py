@@ -35,12 +35,12 @@ from typing import Any
 import paramiko
 import requests
 
-# Name may be followed by ?PASSWORD=… on passworded training servers.
+# Name may contain spaces; passworded servers append ?PASSWORD=… before userId.
 LOGIN_RE = re.compile(
     r"^\[(?P<ts>\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}):\d+\]"
-    r".*LogNet: Login request: \?Name=(?P<name>[^?\s]+)"
+    r".*LogNet: Login request: \?Name=(?P<name>[^?]+)"
     r"(?:\?[^\s]*)?"
-    r" userId: RedpointEOS:(?P<eos>[0-9a-fA-F]{32})",
+    r"\s+userId: RedpointEOS:(?P<eos>[0-9a-fA-F]{32})",
 )
 REMOVE_RE = re.compile(
     r"^\[(?P<ts>\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}):\d+\]"
