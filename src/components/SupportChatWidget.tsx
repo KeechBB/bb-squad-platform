@@ -279,7 +279,11 @@ export function SupportChatWidget() {
   async function openSupport() {
     setError(null);
     if (!loggedIn) {
-      void signIn("steam", { callbackUrl: "/" });
+      // Гостю показываем окно с призывом войти, а не сразу редирект в Steam
+      setView("chat");
+      setTicket(null);
+      setStaffTicket(null);
+      setMode("open");
       return;
     }
     setBusy(true);
@@ -328,6 +332,10 @@ export function SupportChatWidget() {
 
   async function sendMessage() {
     if (!text.trim() || busy) return;
+    if (!loggedIn) {
+      void signIn("steam", { callbackUrl: "/" });
+      return;
+    }
     // Стафф в чужом тикете — только через существующий ticket id
     if (staff && staffTicket && view === "inbox") {
       await sendToTicket(staffTicket.id, text.trim());
@@ -453,7 +461,9 @@ export function SupportChatWidget() {
 
   const waitingCount = inbox.filter((i) => i.waiting).length;
   const titleNumber = activeTicket ? `#${activeTicket.number}` : "";
-  const showingUserDraft = view === "chat" && !ticket && !(staff && staffTicket);
+  const showingUserDraft =
+    view === "chat" && !ticket && !(staff && staffTicket);
+  const showingGuestGate = !loggedIn && mode === "open" && view === "chat";
 
   return (
     <div className="support-root" aria-live="polite">
@@ -576,7 +586,17 @@ export function SupportChatWidget() {
           ) : (
             <>
               <div className="support-msgs">
-                {showingUserDraft ? (
+                {showingGuestGate ? (
+                  <div className="support-msg support-msg-bot">
+                    <span className="support-msg-from">Тех. поддержка</span>
+                    <p>
+                      {welcome}
+                      {"\n\n"}
+                      Чтобы написать сообщение, войди через Steam.
+                    </p>
+                  </div>
+                ) : null}
+                {showingUserDraft && loggedIn ? (
                   <div className="support-msg support-msg-bot">
                     <span className="support-msg-from">Тех. поддержка</span>
                     <p>{DRAFT_HINT}</p>
@@ -594,6 +614,17 @@ export function SupportChatWidget() {
                 <div ref={bottomRef} />
               </div>
               {error ? <p className="support-error">{error}</p> : null}
+              {showingGuestGate ? (
+                <div className="support-compose support-compose-guest">
+                  <button
+                    type="button"
+                    className="btn primary"
+                    onClick={() => void signIn("steam", { callbackUrl: "/" })}
+                  >
+                    Войти через Steam
+                  </button>
+                </div>
+              ) : (
               <form
                 className="support-compose"
                 onSubmit={(e) => {
@@ -622,6 +653,7 @@ export function SupportChatWidget() {
                   →
                 </button>
               </form>
+              )}
               <footer className="support-foot">
                 <span className="muted">
                   Вы: {staff && staffTicket ? "Тех. поддержка" : myNick}

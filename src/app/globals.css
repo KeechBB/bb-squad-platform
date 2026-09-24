@@ -35,11 +35,14 @@ a:hover { color: #c4b5fd; }
 /* Картинки под любое разрешение / телефон */
 img,
 picture,
-video,
-canvas,
-svg {
+video {
   max-width: 100%;
   height: auto;
+}
+
+/* svg не трогаем height:auto — ломает абсолютные декоративные сетки */
+svg {
+  max-width: 100%;
 }
 
 .avatar,
@@ -3762,6 +3765,18 @@ body:has(.home-page) {
   }
 }
 
+/* Мобильный стек: без translate(-50%,-50%), иначе блок уезжает за экран */
+@keyframes home-hero-in-stack {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @keyframes home-crest-float {
   0%,
   100% {
@@ -3872,6 +3887,14 @@ body:has(.home-page) {
     width: 100%;
     pointer-events: auto;
     padding: 28px 8px 8px;
+    animation: home-hero-in-stack 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .home-hero h1 {
+    /* iOS Safari: filter + background-clip:text часто делает заголовок невидимым */
+    filter: none;
+    text-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+    font-size: clamp(2.2rem, 11vw, 3.2rem);
   }
 
   .home-hero-tag,
@@ -3916,10 +3939,6 @@ body:has(.home-page) {
 
   .home-crest {
     width: 112px;
-  }
-
-  .home-hero h1 {
-    font-size: clamp(2.2rem, 11vw, 3.2rem);
   }
 
   .home-mission {
@@ -5916,6 +5935,15 @@ body {
   gap: 8px;
   padding: 10px 12px;
   border-top: 1px solid var(--line);
+}
+
+.support-compose-guest {
+  justify-content: center;
+}
+
+.support-compose-guest .btn {
+  width: 100%;
+  padding: 12px 14px;
 }
 
 .support-compose input {
