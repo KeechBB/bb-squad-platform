@@ -30,7 +30,11 @@ Vercel не используем (SMS). Сайт крутится на VPS, ба
 cd /var/www/bb-squad-platform && bash scripts/deploy.sh
 ```
 
-Скрипт: `git pull` → удаляет `.next` (старый билд/кеш) → `npm run build` → `pm2 restart bb-squad`.  
+Скрипт: `git pull` → **стоп `bb-squad`** (освободить RAM) → удаляет `.next` → `npm run build` → старт pm2.  
+На тарифе **2 ГБ** нельзя билдить Next, пока крутится `next-server` — ядро убивает процесс (`Out of memory`). Скрипт также поднимает **2G swap**, если его ещё нет.
+
+Если `git pull` пишет `Already up to date`, а коммита нет — проверь `git log -1 --oneline` (нужен свежий `6a575cc` или новее).
+
 Так после выкладки сайт не «залипает» на старых чанках. HTML отдаётся с `no-store` (см. `next.config.ts`).
 
 ## Squad log collector (24/7)
