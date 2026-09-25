@@ -324,16 +324,16 @@ export function TrainingSessionsCard({
       ) : (
         <div className="admin-table-wrap" style={{ marginTop: 14 }}>
           <h3 className="training-match-hist-title">
-            История матчей · динамика PWR
+            История матчей тренировок
           </h3>
           <table className="admin-table training-sessions-table training-match-hist-table">
             <thead>
               <tr>
                 <th>Дата</th>
-                <th>Время</th>
                 <th>Карта</th>
                 <th>Счёт</th>
                 <th className="num">Δ PWR</th>
+                <th>Результат</th>
                 <th className="num">PWR</th>
               </tr>
             </thead>
@@ -349,26 +349,35 @@ export function TrainingSessionsCard({
                 const deltaText =
                   delta > 0 ? `+${delta}` : String(delta);
                 const score = `${m.factionA} ${m.ticketsA ?? "—"} : ${m.ticketsB ?? "—"} ${m.factionB}`;
+                const resultCls =
+                  m.won === true
+                    ? "kv-pill win"
+                    : m.won === false
+                      ? "kv-pill lose"
+                      : "kv-pill";
+                const resultText =
+                  m.won === true
+                    ? "Победа"
+                    : m.won === false
+                      ? "Поражение"
+                      : "—";
                 return (
                   <tr key={m.matchId}>
                     <td>{m.dateLabel}</td>
-                    <td>{m.timeLabel}</td>
                     <td title={m.map}>
                       <span className="training-match-map">{m.map}</span>
                       {m.team && m.team !== "—" ? (
                         <span className="muted training-match-team">
                           {" "}
                           · {m.team}
-                          {m.won === true
-                            ? " W"
-                            : m.won === false
-                              ? " L"
-                              : ""}
                         </span>
                       ) : null}
                     </td>
                     <td className="training-match-score">{score}</td>
                     <td className={`num ${deltaCls}`}>{deltaText}</td>
+                    <td>
+                      <span className={resultCls}>{resultText}</span>
+                    </td>
                     <td className="num">
                       <span
                         className={`home-pwr-badge rank-${m.rankKey}`}

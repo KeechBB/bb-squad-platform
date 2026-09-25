@@ -168,7 +168,7 @@ export function ProfileKvStats({ stats, error }: Props) {
       ) : null}
 
       <div className="profile-kv-block">
-        <h3 className="stats-h3">Игры</h3>
+        <h3 className="stats-h3">История матчей КВ</h3>
         <div className="admin-table-wrap profile-kv-table-wrap">
           <table className="admin-table profile-kv-table">
             <thead>
@@ -181,7 +181,7 @@ export function ProfileKvStats({ stats, error }: Props) {
                 <th>K</th>
                 <th>D</th>
                 <th>DMG</th>
-                <th>Итог</th>
+                <th>Результат</th>
               </tr>
             </thead>
             <tbody>

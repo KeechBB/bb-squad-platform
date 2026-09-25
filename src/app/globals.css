@@ -902,7 +902,9 @@ svg {
 
 .profile-kv-table-wrap {
   margin-top: 4px;
-  max-height: 15.5rem;
+  flex: 1 1 auto;
+  min-height: 14rem;
+  max-height: none;
   overflow: auto;
   border: 1px solid rgba(167, 139, 250, 0.12);
   border-radius: 10px;
@@ -1010,9 +1012,9 @@ svg {
 }
 
 .profile-page .profile-kv-table-wrap {
-  flex: 0 1 auto;
-  min-height: 0;
-  max-height: 15.5rem; /* ~6?7 ????? + ????? */
+  flex: 1 1 auto;
+  min-height: 14rem;
+  max-height: min(48vh, 36rem);
   overflow: auto;
 }
 
