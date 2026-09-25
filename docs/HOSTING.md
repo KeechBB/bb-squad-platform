@@ -31,10 +31,8 @@ Vercel не используем (SMS). Сайт крутится на VPS, ба
 cd /var/www/bb-squad-platform && bash scripts/deploy.sh
 ```
 
-Скрипт: `git pull` → при **available RAM &lt; ~1.8 ГБ** (или `DEPLOY_STOP=1`) стопает `bb-squad`, иначе билдит **на живом** сайте → удаляет `.next` → `npm run build` → `pm2 restart`.  
-На старых **2 ГБ** стоп почти всегда срабатывает (иначе OOM). На **4 ГБ** сайт обычно не гаснет на время билда. Swap 2G поднимается, если его ещё нет.
-
-Принудительно со стопом: `DEPLOY_STOP=1 bash scripts/deploy.sh`
+Скрипт: `git pull` → билд **на живом** `bb-squad` → удаляет `.next` → `npm run build` → `pm2 restart`.  
+Стоп только если явно: `DEPLOY_STOP=1 bash scripts/deploy.sh`. Swap 2G поднимается, если его ещё нет.
 
 ## Squad log collector (24/7)
 
