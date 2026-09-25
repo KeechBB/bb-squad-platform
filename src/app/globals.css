@@ -448,21 +448,34 @@ svg {
   gap: 18px;
 }
 
-/* ??????? ???????: ??? ? ????? ??????, ??? ??????? ??????? */
+body:has(.profile-page) {
+  overflow: hidden;
+}
+
+/* Профиль: влезает в экран, скролл только в нижних историях матчей */
 .shell:has(.profile-page) {
   max-width: 1760px;
-  padding: 10px 16px 14px;
+  padding: 10px 16px 12px;
+  height: calc(100dvh - 76px);
+  max-height: calc(100dvh - 76px);
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .profile-page {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   grid-template-areas:
     "head head"
     "account training"
     "kvhist trainhist";
   gap: 8px;
-  align-items: start;
+  align-items: stretch;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .profile-page-empty {
@@ -581,7 +594,9 @@ svg {
   flex-direction: column;
   gap: 8px;
   min-width: 0;
+  min-height: 0;
   align-self: stretch;
+  overflow: auto;
 }
 
 .profile-area-training {
@@ -590,21 +605,27 @@ svg {
   flex-direction: column;
   gap: 8px;
   min-width: 0;
+  min-height: 0;
   align-self: stretch;
+  overflow: auto;
 }
 
 .profile-area-kv-hist {
   grid-area: kvhist;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .profile-area-train-hist {
   grid-area: trainhist;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .profile-area-account > .profile-kv-card,
@@ -620,18 +641,22 @@ svg {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 .profile-hist-title {
   margin: 0 0 8px;
+  flex: 0 0 auto;
   font-size: 0.98rem;
 }
 
 .profile-hist-table-wrap {
   margin-top: 0;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-height: 0;
   max-height: none;
-  overflow: visible;
+  overflow: auto;
   border: 1px solid rgba(167, 139, 250, 0.12);
   border-radius: 10px;
 }
@@ -1085,14 +1110,33 @@ svg {
 }
 
 @media (max-width: 1100px) {
+  .shell:has(.profile-page) {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
   .profile-page {
+    height: auto;
+    max-height: none;
+    overflow: visible;
     grid-template-columns: 1fr;
+    grid-template-rows: auto;
     grid-template-areas:
       "head"
       "account"
       "training"
       "kvhist"
       "trainhist";
+  }
+
+  .profile-area-kv-hist,
+  .profile-area-train-hist {
+    min-height: 16rem;
+  }
+
+  .profile-hist-table-wrap {
+    max-height: 22rem;
   }
 
   .profile-clan-card,

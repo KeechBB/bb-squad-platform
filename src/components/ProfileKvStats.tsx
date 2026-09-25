@@ -211,26 +211,6 @@ export function ProfileKvStats({
         </div>
       ) : null}
 
-      {stats.awards.length > 0 ? (
-        <div className="profile-kv-block">
-          <h3 className="stats-h3">Награды</h3>
-          <ul className="profile-kv-award-list">
-            {stats.awards.map((a, i) => (
-              <li key={`${a.matchId}-${a.round}-${a.type}-${i}`}>
-                <span className="mono profile-kv-award-date">
-                  {a.dateLabel || String(a.day).padStart(2, "0")}
-                </span>
-                <span>
-                  vs {a.opp}
-                  {a.round ? ` · ${a.round.toUpperCase()}` : ""}
-                </span>
-                <strong>{a.label}</strong>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
       {includeMatchHistory ? (
         <div className="profile-kv-block">
           <h3 className="stats-h3">История матчей КВ</h3>
