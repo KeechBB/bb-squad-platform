@@ -923,10 +923,15 @@ body:has(.profile-page) {
 }
 
 .profile-kv-stacks {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
   margin-top: 6px;
+}
+
+.profile-kv-stacks .stack-stat-pill {
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .profile-kv-block {
@@ -1901,6 +1906,12 @@ body:has(.profile-page) {
 
 .profile-edit-head h2 {
   margin: 0;
+}
+
+.profile-edit-head-spacer {
+  display: inline-block;
+  min-height: 32px;
+  min-width: 1px;
 }
 
 .profile-edit-form {

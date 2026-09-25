@@ -5,11 +5,10 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { ageFromBirthDate, formatBirthDateInput } from "@/lib/validation";
 import {
-  discordProfileUrl,
   formatDiscordDisplay,
   formatTelegramDisplay,
-  telegramProfileUrl,
 } from "@/lib/social";
+import { ProfileAccountCard } from "@/components/ProfileAccountCard";
 
 type Props = {
   initial: {
@@ -61,11 +60,6 @@ export function ProfileEditForm({ initial, adminLink }: Props) {
     () => (birthDate.length === 10 ? ageFromBirthDate(birthDate) : null),
     [birthDate]
   );
-
-  const discordUrl = discordProfileUrl(saved.discordId);
-  const tgUrl = telegramProfileUrl(saved.telegram);
-  const discordLabel = formatDiscordDisplay(saved.discordTag, saved.discordId);
-  const tgLabel = formatTelegramDisplay(saved.telegram);
 
   function cancel() {
     setEditing(false);
@@ -138,100 +132,39 @@ export function ProfileEditForm({ initial, adminLink }: Props) {
     }
   }
 
-  async function copyDiscord() {
-    if (!discordLabel) return;
-    try {
-      await navigator.clipboard.writeText(discordLabel);
-      setOk("Discord скопирован");
-    } catch {
-      setOk("");
-    }
-  }
-
   return (
-    <section className="card">
-      <div className="profile-edit-head">
-        <h2>Аккаунт</h2>
-        {!editing ? (
-          <button type="button" className="btn ghost" onClick={() => setEditing(true)}>
-            Редактировать
-          </button>
-        ) : null}
-      </div>
-
+    <>
       {!editing ? (
         <>
-          <div className="profile-account-meta">
-            <div className="meta-row">
-              <span>Ник</span>
-              <span>{saved.nick}</span>
-            </div>
-            <div className="meta-row">
-              <span>№ регистрации</span>
-              <span>{initial.regNo ?? "—"}</span>
-            </div>
-            <div className="meta-row">
-              <span>Роль на сайте</span>
-              <span>{initial.siteRole || "Игрок"}</span>
-            </div>
-            <div className="meta-row">
-              <span>Имя</span>
-              <span>{saved.name}</span>
-            </div>
-            <div className="meta-row">
-              <span>Возраст</span>
-              <span>
-                {saved.age ?? "—"}
-                {saved.birthDate ? ` (др. ${saved.birthDate})` : ""}
-              </span>
-            </div>
-            <div className="meta-row">
-              <span>Discord</span>
-              <span className="contact-cell">
-                {discordLabel ? (
-                  <>
-                    {discordUrl ? (
-                      <a className="contact-link" href={discordUrl} target="_blank" rel="noreferrer">
-                        {discordLabel}
-                      </a>
-                    ) : (
-                      <span>{discordLabel}</span>
-                    )}
-                    <button type="button" className="btn-mini" onClick={() => void copyDiscord()}>
-                      копировать
-                    </button>
-                  </>
-                ) : (
-                  "—"
-                )}
-              </span>
-            </div>
-            <div className="meta-row">
-              <span>Telegram</span>
-              <span className="contact-cell">
-                {tgLabel && tgUrl ? (
-                  <a className="contact-link" href={tgUrl} target="_blank" rel="noreferrer">
-                    {tgLabel}
-                  </a>
-                ) : (
-                  tgLabel || "—"
-                )}
-              </span>
-            </div>
-            <div className="meta-row">
-              <span>Steam ID</span>
-              <span className="mono">{saved.steamId}</span>
-            </div>
-            <div className="meta-row">
-              <span>Steam</span>
-              <span>{saved.steamName || "—"}</span>
-            </div>
-          </div>
+          <ProfileAccountCard
+            data={{
+              nick: saved.nick,
+              regNo: initial.regNo ?? null,
+              siteRole: initial.siteRole || "Игрок",
+              name: saved.name,
+              age: saved.age,
+              birthDate: saved.birthDate,
+              discordTag: saved.discordTag,
+              discordId: saved.discordId,
+              telegram: saved.telegram,
+              steamId: saved.steamId,
+              steamName: saved.steamName,
+            }}
+            headAction={
+              <button type="button" className="btn ghost" onClick={() => setEditing(true)}>
+                Редактировать
+              </button>
+            }
+          />
           {ok ? <p className="ok-msg">{ok}</p> : null}
           {adminLink}
         </>
       ) : (
-        <form className="form profile-edit-form" onSubmit={onSubmit}>
+        <section className="card">
+          <div className="profile-edit-head">
+            <h2>Аккаунт</h2>
+          </div>
+          <form className="form profile-edit-form" onSubmit={onSubmit}>
           <label className="field">
             <span>Ник</span>
             <input
@@ -301,7 +234,8 @@ export function ProfileEditForm({ initial, adminLink }: Props) {
             </button>
           </div>
         </form>
+        </section>
       )}
-    </section>
+    </>
   );
 }

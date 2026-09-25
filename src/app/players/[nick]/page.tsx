@@ -5,16 +5,11 @@ import Link from "next/link";
 import { formatRuDate, isActiveReserve } from "@/lib/validation";
 import { CLAN_ROLE_LABEL, type ClanRole } from "@/lib/clan";
 import { withAvatarCacheBust } from "@/lib/avatarUrl";
-import {
-  discordProfileUrl,
-  formatDiscordDisplay,
-  formatTelegramDisplay,
-  telegramProfileUrl,
-} from "@/lib/social";
 import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
 import { TrainingSessionsCard, TrainingMatchHistory } from "@/components/TrainingSessionsCard";
 import { LivePageRefresh } from "@/components/LivePageRefresh";
 import { ProfileKvStats, ProfileKvMatchHistory } from "@/components/ProfileKvStats";
+import { ProfileAccountCard } from "@/components/ProfileAccountCard";
 import { SitePresenceBadge } from "@/components/SitePresenceBadge";
 import { loadUserTrainingStats } from "@/lib/trainingStats";
 import { buildPlayerKvStats } from "@/lib/kvStats";
@@ -240,70 +235,23 @@ export default async function PlayerProfilePage({ params }: Props) {
       </div>
 
       <div className="profile-area-account">
-        <section className="card">
-          <h2>Аккаунт</h2>
-          <div className="profile-account-meta">
-            <div className="meta-row">
-              <span>Ник</span>
-              <span>{user.nick}</span>
-            </div>
-            <div className="meta-row">
-              <span>№ регистрации</span>
-              <span>{user.regNo ?? "—"}</span>
-            </div>
-            <div className="meta-row">
-              <span>Роль на сайте</span>
-              <span>
-                {roleLabel(effectiveRole(user.steamId, user.role as AppRole))}
-              </span>
-            </div>
-            <div className="meta-row">
-              <span>Имя</span>
-              <span>{user.name || "—"}</span>
-            </div>
-            <div className="meta-row">
-              <span>Возраст</span>
-              <span>{user.age ?? "—"}</span>
-            </div>
-            <div className="meta-row">
-              <span>Discord</span>
-              <span>
-                {(() => {
-                  const label = formatDiscordDisplay(user.discordTag, user.discordId);
-                  const url = discordProfileUrl(user.discordId);
-                  if (!label) return "—";
-                  if (url) {
-                    return (
-                      <a className="contact-link" href={url} target="_blank" rel="noreferrer">
-                        {label}
-                      </a>
-                    );
-                  }
-                  return label;
-                })()}
-              </span>
-            </div>
-            <div className="meta-row">
-              <span>Telegram</span>
-              <span>
-                {(() => {
-                  const label = formatTelegramDisplay(user.telegram);
-                  const url = telegramProfileUrl(user.telegram);
-                  if (!label || !url) return label || "—";
-                  return (
-                    <a className="contact-link" href={url} target="_blank" rel="noreferrer">
-                      {label}
-                    </a>
-                  );
-                })()}
-              </span>
-            </div>
-            <div className="meta-row">
-              <span>Steam</span>
-              <span>{user.steamId || "—"}</span>
-            </div>
-          </div>
-        </section>
+        <ProfileAccountCard
+          data={{
+            nick: user.nick || "",
+            regNo: user.regNo,
+            siteRole: roleLabel(
+              effectiveRole(user.steamId, user.role as AppRole)
+            ),
+            name: user.name || "",
+            age: user.age,
+            birthDate: user.birthDate ? formatRuDate(user.birthDate) : null,
+            discordTag: user.discordTag,
+            discordId: user.discordId,
+            telegram: user.telegram,
+            steamId: user.steamId,
+            steamName: user.steamName,
+          }}
+        />
         <ProfileKvStats
           stats={kvStats}
           error={kvError}

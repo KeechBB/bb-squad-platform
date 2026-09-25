@@ -180,22 +180,20 @@ export function ProfileKvStats({
         </div>
       </div>
 
-      {awardTotal > 0 ? (
-        <div className="profile-kv-awards">
-          <span className="profile-kv-award">
-            War-Score <b>{stats.mvpDamage}</b>
-          </span>
-          <span className="profile-kv-award">
-            Killer <b>{stats.mvpKiller}</b>
-          </span>
-          <span className="profile-kv-award">
-            Medic <b>{stats.mvpMedic}</b>
-          </span>
-          <span className="profile-kv-award">
-            Anti-Death <b>{stats.antiDeath}</b>
-          </span>
-        </div>
-      ) : null}
+      <div className="profile-kv-awards">
+        <span className="profile-kv-award">
+          War-Score <b>{stats.mvpDamage}</b>
+        </span>
+        <span className="profile-kv-award">
+          Killer <b>{stats.mvpKiller}</b>
+        </span>
+        <span className="profile-kv-award">
+          Medic <b>{stats.mvpMedic}</b>
+        </span>
+        <span className="profile-kv-award">
+          Anti-Death <b>{stats.antiDeath}</b>
+        </span>
+      </div>
 
       {stats.byStack.length > 0 ? (
         <div className="profile-kv-stacks">
