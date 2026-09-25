@@ -18,9 +18,73 @@ function statusClass(s: string) {
 type Props = {
   stats: PlayerKvStats | null;
   error?: string | null;
+  /** false — только сводка; историю выносим в отдельный блок профиля */
+  includeMatchHistory?: boolean;
 };
 
-export function ProfileKvStats({ stats, error }: Props) {
+export function ProfileKvMatchHistory({
+  stats,
+}: {
+  stats: PlayerKvStats | null;
+}) {
+  const rows = stats?.recentMatches || [];
+  return (
+    <section className="card profile-hist-card profile-kv-hist-card">
+      <h2 className="profile-hist-title">История матчей КВ</h2>
+      {rows.length === 0 ? (
+        <p className="muted" style={{ margin: "8px 0 0" }}>
+          Пока нет сыгранных КВ с этим ником.
+        </p>
+      ) : (
+        <div className="admin-table-wrap profile-hist-table-wrap">
+          <table className="admin-table profile-kv-table">
+            <thead>
+              <tr>
+                <th>День</th>
+                <th>Соперник</th>
+                <th>Карта</th>
+                <th>RES</th>
+                <th>Ноки</th>
+                <th>K</th>
+                <th>D</th>
+                <th>DMG</th>
+                <th>Результат</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((m) => (
+                <tr key={m.matchId}>
+                  <td>{String(m.day).padStart(2, "0")}</td>
+                  <td>{m.opp}</td>
+                  <td title={m.map}>{m.map}</td>
+                  <td>{m.res}</td>
+                  <td>{m.nok}</td>
+                  <td>{m.kills}</td>
+                  <td>{m.deaths}</td>
+                  <td>{m.dmg}</td>
+                  <td>
+                    <span className={statusClass(m.status)}>
+                      {statusLabel(m.status)}
+                    </span>
+                    <span className="muted" style={{ marginLeft: 6 }}>
+                      {m.meeting}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+export function ProfileKvStats({
+  stats,
+  error,
+  includeMatchHistory = true,
+}: Props) {
   if (error) {
     return (
       <section className="card profile-kv-card">
@@ -167,48 +231,50 @@ export function ProfileKvStats({ stats, error }: Props) {
         </div>
       ) : null}
 
-      <div className="profile-kv-block">
-        <h3 className="stats-h3">История матчей КВ</h3>
-        <div className="admin-table-wrap profile-kv-table-wrap">
-          <table className="admin-table profile-kv-table">
-            <thead>
-              <tr>
-                <th>День</th>
-                <th>Соперник</th>
-                <th>Карта</th>
-                <th>RES</th>
-                <th>Ноки</th>
-                <th>K</th>
-                <th>D</th>
-                <th>DMG</th>
-                <th>Результат</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(stats.recentMatches || []).map((m) => (
-                <tr key={m.matchId}>
-                  <td>{String(m.day).padStart(2, "0")}</td>
-                  <td>{m.opp}</td>
-                  <td title={m.map}>{m.map}</td>
-                  <td>{m.res}</td>
-                  <td>{m.nok}</td>
-                  <td>{m.kills}</td>
-                  <td>{m.deaths}</td>
-                  <td>{m.dmg}</td>
-                  <td>
-                    <span className={statusClass(m.status)}>
-                      {statusLabel(m.status)}
-                    </span>
-                    <span className="muted" style={{ marginLeft: 6 }}>
-                      {m.meeting}
-                    </span>
-                  </td>
+      {includeMatchHistory ? (
+        <div className="profile-kv-block">
+          <h3 className="stats-h3">История матчей КВ</h3>
+          <div className="admin-table-wrap profile-kv-table-wrap">
+            <table className="admin-table profile-kv-table">
+              <thead>
+                <tr>
+                  <th>День</th>
+                  <th>Соперник</th>
+                  <th>Карта</th>
+                  <th>RES</th>
+                  <th>Ноки</th>
+                  <th>K</th>
+                  <th>D</th>
+                  <th>DMG</th>
+                  <th>Результат</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {(stats.recentMatches || []).map((m) => (
+                  <tr key={m.matchId}>
+                    <td>{String(m.day).padStart(2, "0")}</td>
+                    <td>{m.opp}</td>
+                    <td title={m.map}>{m.map}</td>
+                    <td>{m.res}</td>
+                    <td>{m.nok}</td>
+                    <td>{m.kills}</td>
+                    <td>{m.deaths}</td>
+                    <td>{m.dmg}</td>
+                    <td>
+                      <span className={statusClass(m.status)}>
+                        {statusLabel(m.status)}
+                      </span>
+                      <span className="muted" style={{ marginLeft: 6 }}>
+                        {m.meeting}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      ) : null}
     </section>
   );
 }

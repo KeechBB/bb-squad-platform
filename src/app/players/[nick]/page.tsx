@@ -12,9 +12,9 @@ import {
   telegramProfileUrl,
 } from "@/lib/social";
 import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
-import { TrainingSessionsCard } from "@/components/TrainingSessionsCard";
+import { TrainingSessionsCard, TrainingMatchHistory } from "@/components/TrainingSessionsCard";
 import { LivePageRefresh } from "@/components/LivePageRefresh";
-import { ProfileKvStats } from "@/components/ProfileKvStats";
+import { ProfileKvStats, ProfileKvMatchHistory } from "@/components/ProfileKvStats";
 import { SitePresenceBadge } from "@/components/SitePresenceBadge";
 import { loadUserTrainingStats } from "@/lib/trainingStats";
 import { buildPlayerKvStats } from "@/lib/kvStats";
@@ -224,6 +224,17 @@ export default async function PlayerProfilePage({ params }: Props) {
               </div>
             </section>
           ) : null}
+          <ReactionBestCard
+            bestAvgMs={reactionBest?.avgMs ?? null}
+            bestL1={reactionBestL1?.avgMs ?? null}
+            bestL2={reactionBestL2?.avgMs ?? null}
+            history={reactionHistory.map((h) => ({
+              id: h.id,
+              avgMs: h.avgMs,
+              level: h.level,
+              createdAt: h.createdAt.toISOString(),
+            }))}
+          />
           <ProfileTrainPwrCard stats={trainPwr} />
         </div>
       </div>
@@ -293,21 +304,14 @@ export default async function PlayerProfilePage({ params }: Props) {
             </div>
           </div>
         </section>
-        <ProfileKvStats stats={kvStats} error={kvError} />
+        <ProfileKvStats
+          stats={kvStats}
+          error={kvError}
+          includeMatchHistory={false}
+        />
       </div>
 
       <div className="profile-area-training">
-        <ReactionBestCard
-          bestAvgMs={reactionBest?.avgMs ?? null}
-          bestL1={reactionBestL1?.avgMs ?? null}
-          bestL2={reactionBestL2?.avgMs ?? null}
-          history={reactionHistory.map((h) => ({
-            id: h.id,
-            avgMs: h.avgMs,
-            level: h.level,
-            createdAt: h.createdAt.toISOString(),
-          }))}
-        />
         <LivePageRefresh intervalMs={15000} />
         <TrainingSessionsCard
           sessions={training.sessions}
@@ -317,8 +321,15 @@ export default async function PlayerProfilePage({ params }: Props) {
           minutes30d={training.minutes30d}
           sessions30d={training.sessions30d}
           openNow={training.openNow}
-          matchHistory={matchHistory}
+          includeMatchHistory={false}
         />
+      </div>
+
+      <div className="profile-area-kv-hist">
+        <ProfileKvMatchHistory stats={kvStats} />
+      </div>
+      <div className="profile-area-train-hist">
+        <TrainingMatchHistory matchHistory={matchHistory} />
       </div>
     </main>
   );

@@ -37,6 +37,8 @@ type Props = {
   visitBounds?: Record<string, { joinHm: string; leaveHm: string | null }>;
   /** История тренировочных матчей с ΔPWR */
   matchHistory?: TrainMatchHistoryRow[];
+  /** false — только посещаемость; историю выносим в отдельный блок */
+  includeMatchHistory?: boolean;
 };
 
 const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
@@ -127,6 +129,93 @@ function buildMonthGrid(year: number, month: number) {
   return cells;
 }
 
+export function TrainingMatchHistory({
+  matchHistory = [],
+}: {
+  matchHistory?: TrainMatchHistoryRow[];
+}) {
+  return (
+    <section className="card profile-hist-card profile-train-hist-card">
+      <h2 className="profile-hist-title">История матчей тренировок</h2>
+      {matchHistory.length === 0 ? (
+        <p className="muted" style={{ margin: "8px 0 0" }}>
+          Пока нет тренировочных матчей с ником в рейтинге — история PWR
+          появится после оцифровки табло.
+        </p>
+      ) : (
+        <div className="admin-table-wrap profile-hist-table-wrap">
+          <table className="admin-table training-sessions-table training-match-hist-table">
+            <thead>
+              <tr>
+                <th>Дата</th>
+                <th>Карта</th>
+                <th>Счёт</th>
+                <th className="num">Δ PWR</th>
+                <th>Результат</th>
+                <th className="num">PWR</th>
+              </tr>
+            </thead>
+            <tbody>
+              {matchHistory.map((m) => {
+                const delta = m.pwrDelta;
+                const deltaCls =
+                  delta > 0
+                    ? "pwr-delta plus"
+                    : delta < 0
+                      ? "pwr-delta minus"
+                      : "pwr-delta zero";
+                const deltaText = delta > 0 ? `+${delta}` : String(delta);
+                const score = `${m.factionA} ${m.ticketsA ?? "—"} : ${m.ticketsB ?? "—"} ${m.factionB}`;
+                const resultCls =
+                  m.won === true
+                    ? "kv-pill win"
+                    : m.won === false
+                      ? "kv-pill lose"
+                      : "kv-pill";
+                const resultText =
+                  m.won === true
+                    ? "Победа"
+                    : m.won === false
+                      ? "Поражение"
+                      : "—";
+                return (
+                  <tr key={m.matchId}>
+                    <td>{m.dateLabel}</td>
+                    <td title={m.map}>
+                      <span className="training-match-map">{m.map}</span>
+                      {m.team && m.team !== "—" ? (
+                        <span className="muted training-match-team">
+                          {" "}
+                          · {m.team}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="training-match-score">{score}</td>
+                    <td className={`num ${deltaCls}`}>{deltaText}</td>
+                    <td>
+                      <span className={resultCls}>{resultText}</span>
+                    </td>
+                    <td className="num">
+                      <span
+                        className={`home-pwr-badge rank-${m.rankKey}`}
+                        title={m.rankLabel}
+                        style={{ fontSize: "0.62rem", padding: "1px 5px" }}
+                      >
+                        {m.rankLabel}
+                      </span>{" "}
+                      {m.pwrAfter}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function TrainingSessionsCard({
   sessions,
   minutes30d,
@@ -136,6 +225,7 @@ export function TrainingSessionsCard({
   lateDays: lateDaysProp,
   visitBounds: visitBoundsProp,
   matchHistory = [],
+  includeMatchHistory = true,
 }: Props) {
   const normalized = useMemo(() => normalizeSessions(sessions), [sessions]);
   const today = todayYmdMsk();
@@ -316,85 +406,87 @@ export function TrainingSessionsCard({
         </div>
       </div>
 
-      {matchHistory.length === 0 ? (
-        <p className="muted" style={{ marginTop: 14 }}>
-          Пока нет тренировочных матчей с ником в рейтинге — история PWR
-          появится после оцифровки табло.
-        </p>
-      ) : (
-        <div className="admin-table-wrap" style={{ marginTop: 14 }}>
-          <h3 className="training-match-hist-title">
-            История матчей тренировок
-          </h3>
-          <table className="admin-table training-sessions-table training-match-hist-table">
-            <thead>
-              <tr>
-                <th>Дата</th>
-                <th>Карта</th>
-                <th>Счёт</th>
-                <th className="num">Δ PWR</th>
-                <th>Результат</th>
-                <th className="num">PWR</th>
-              </tr>
-            </thead>
-            <tbody>
-              {matchHistory.map((m) => {
-                const delta = m.pwrDelta;
-                const deltaCls =
-                  delta > 0
-                    ? "pwr-delta plus"
-                    : delta < 0
-                      ? "pwr-delta minus"
-                      : "pwr-delta zero";
-                const deltaText =
-                  delta > 0 ? `+${delta}` : String(delta);
-                const score = `${m.factionA} ${m.ticketsA ?? "—"} : ${m.ticketsB ?? "—"} ${m.factionB}`;
-                const resultCls =
-                  m.won === true
-                    ? "kv-pill win"
-                    : m.won === false
-                      ? "kv-pill lose"
-                      : "kv-pill";
-                const resultText =
-                  m.won === true
-                    ? "Победа"
-                    : m.won === false
-                      ? "Поражение"
-                      : "—";
-                return (
-                  <tr key={m.matchId}>
-                    <td>{m.dateLabel}</td>
-                    <td title={m.map}>
-                      <span className="training-match-map">{m.map}</span>
-                      {m.team && m.team !== "—" ? (
-                        <span className="muted training-match-team">
-                          {" "}
-                          · {m.team}
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="training-match-score">{score}</td>
-                    <td className={`num ${deltaCls}`}>{deltaText}</td>
-                    <td>
-                      <span className={resultCls}>{resultText}</span>
-                    </td>
-                    <td className="num">
-                      <span
-                        className={`home-pwr-badge rank-${m.rankKey}`}
-                        title={m.rankLabel}
-                        style={{ fontSize: "0.62rem", padding: "1px 5px" }}
-                      >
-                        {m.rankLabel}
-                      </span>{" "}
-                      {m.pwrAfter}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {includeMatchHistory ? (
+        matchHistory.length === 0 ? (
+          <p className="muted" style={{ marginTop: 14 }}>
+            Пока нет тренировочных матчей с ником в рейтинге — история PWR
+            появится после оцифровки табло.
+          </p>
+        ) : (
+          <div className="admin-table-wrap" style={{ marginTop: 14 }}>
+            <h3 className="training-match-hist-title">
+              История матчей тренировок
+            </h3>
+            <table className="admin-table training-sessions-table training-match-hist-table">
+              <thead>
+                <tr>
+                  <th>Дата</th>
+                  <th>Карта</th>
+                  <th>Счёт</th>
+                  <th className="num">Δ PWR</th>
+                  <th>Результат</th>
+                  <th className="num">PWR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {matchHistory.map((m) => {
+                  const delta = m.pwrDelta;
+                  const deltaCls =
+                    delta > 0
+                      ? "pwr-delta plus"
+                      : delta < 0
+                        ? "pwr-delta minus"
+                        : "pwr-delta zero";
+                  const deltaText =
+                    delta > 0 ? `+${delta}` : String(delta);
+                  const score = `${m.factionA} ${m.ticketsA ?? "—"} : ${m.ticketsB ?? "—"} ${m.factionB}`;
+                  const resultCls =
+                    m.won === true
+                      ? "kv-pill win"
+                      : m.won === false
+                        ? "kv-pill lose"
+                        : "kv-pill";
+                  const resultText =
+                    m.won === true
+                      ? "Победа"
+                      : m.won === false
+                        ? "Поражение"
+                        : "—";
+                  return (
+                    <tr key={m.matchId}>
+                      <td>{m.dateLabel}</td>
+                      <td title={m.map}>
+                        <span className="training-match-map">{m.map}</span>
+                        {m.team && m.team !== "—" ? (
+                          <span className="muted training-match-team">
+                            {" "}
+                            · {m.team}
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="training-match-score">{score}</td>
+                      <td className={`num ${deltaCls}`}>{deltaText}</td>
+                      <td>
+                        <span className={resultCls}>{resultText}</span>
+                      </td>
+                      <td className="num">
+                        <span
+                          className={`home-pwr-badge rank-${m.rankKey}`}
+                          title={m.rankLabel}
+                          style={{ fontSize: "0.62rem", padding: "1px 5px" }}
+                        >
+                          {m.rankLabel}
+                        </span>{" "}
+                        {m.pwrAfter}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      ) : null}
     </section>
   );
 }

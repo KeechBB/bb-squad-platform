@@ -456,12 +456,13 @@ svg {
 
 .profile-page {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   grid-template-areas:
     "head head"
-    "account training";
+    "account training"
+    "kvhist trainhist";
   gap: 8px;
-  align-items: stretch;
+  align-items: start;
 }
 
 .profile-page-empty {
@@ -580,7 +581,6 @@ svg {
   flex-direction: column;
   gap: 8px;
   min-width: 0;
-  min-height: 0;
   align-self: stretch;
 }
 
@@ -590,16 +590,50 @@ svg {
   flex-direction: column;
   gap: 8px;
   min-width: 0;
-  min-height: 0;
   align-self: stretch;
+}
+
+.profile-area-kv-hist {
+  grid-area: kvhist;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-area-train-hist {
+  grid-area: trainhist;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .profile-area-account > .profile-kv-card,
 .profile-area-training > .training-sessions-card {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.profile-hist-card {
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+.profile-hist-title {
+  margin: 0 0 8px;
+  font-size: 0.98rem;
+}
+
+.profile-hist-table-wrap {
+  margin-top: 0;
+  flex: 0 0 auto;
+  max-height: none;
+  overflow: visible;
+  border: 1px solid rgba(167, 139, 250, 0.12);
+  border-radius: 10px;
 }
 
 .profile-pwr-card .profile-pwr-hero {
@@ -642,11 +676,11 @@ svg {
 }
 
 .profile-area-account > .profile-kv-card > .profile-kv-block:last-child {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  margin-top: auto;
+  margin-top: 8px;
 }
 
 .profile-page .card {
@@ -902,10 +936,9 @@ svg {
 
 .profile-kv-table-wrap {
   margin-top: 4px;
-  flex: 1 1 auto;
-  min-height: 14rem;
+  flex: 0 0 auto;
   max-height: none;
-  overflow: auto;
+  overflow: visible;
   border: 1px solid rgba(167, 139, 250, 0.12);
   border-radius: 10px;
 }
@@ -1003,19 +1036,17 @@ svg {
 
 .profile-page .training-sessions-card .admin-table-wrap {
   margin-top: 8px;
-  flex: 1 1 auto;
-  min-height: 22rem;
-  max-height: min(42vh, 32rem);
-  overflow: auto;
+  flex: 0 0 auto;
+  max-height: none;
+  overflow: visible;
   border: 1px solid rgba(167, 139, 250, 0.12);
   border-radius: 10px;
 }
 
 .profile-page .profile-kv-table-wrap {
-  flex: 1 1 auto;
-  min-height: 14rem;
-  max-height: min(48vh, 36rem);
-  overflow: auto;
+  flex: 0 0 auto;
+  max-height: none;
+  overflow: visible;
 }
 
 .profile-area-training > .reaction-profile-card {
@@ -1059,7 +1090,9 @@ svg {
     grid-template-areas:
       "head"
       "account"
-      "training";
+      "training"
+      "kvhist"
+      "trainhist";
   }
 
   .profile-clan-card,

@@ -8,9 +8,9 @@ import { ClanInvites } from "@/components/ClanInvites";
 import { ReservePanel } from "@/components/ReservePanel";
 import { AdminPanelLink } from "@/components/AdminPanelLink";
 import { ProfileEditForm } from "@/components/ProfileEditForm";
-import { TrainingSessionsCard } from "@/components/TrainingSessionsCard";
+import { ProfileKvStats, ProfileKvMatchHistory } from "@/components/ProfileKvStats";
+import { TrainingSessionsCard, TrainingMatchHistory } from "@/components/TrainingSessionsCard";
 import { LivePageRefresh } from "@/components/LivePageRefresh";
-import { ProfileKvStats } from "@/components/ProfileKvStats";
 import { formatRuDate, isActiveReserve } from "@/lib/validation";
 import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
 import { loadUserTrainingStats } from "@/lib/trainingStats";
@@ -201,7 +201,11 @@ export default async function ProfilePage() {
             regNo: me.regNo,
           }}
         />
-        <ProfileKvStats stats={kvStats} error={kvError} />
+        <ProfileKvStats
+          stats={kvStats}
+          error={kvError}
+          includeMatchHistory={false}
+        />
       </div>
 
       <div className="profile-area-training">
@@ -214,8 +218,15 @@ export default async function ProfilePage() {
           minutes30d={training.minutes30d}
           sessions30d={training.sessions30d}
           openNow={training.openNow}
-          matchHistory={matchHistory}
+          includeMatchHistory={false}
         />
+      </div>
+
+      <div className="profile-area-kv-hist">
+        <ProfileKvMatchHistory stats={kvStats} />
+      </div>
+      <div className="profile-area-train-hist">
+        <TrainingMatchHistory matchHistory={matchHistory} />
       </div>
     </main>
   );
