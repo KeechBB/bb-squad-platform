@@ -20,6 +20,45 @@ type VisitRow = {
 
 type PathCount = { path: string; count: number };
 
+/** Технический path → понятное имя для админки визитов. */
+function visitPathTitle(raw: string): string {
+  const path = String(raw || "/")
+    .split("?")[0]
+    .split("#")[0]
+    .replace(/\/+$/, "") || "/";
+  const exact: Record<string, string> = {
+    "/": "Главная",
+    "/cw": "Клановые войны",
+    "/tm": "Тренировочные матчи",
+    "/profile": "Мой профиль",
+    "/aim": "Тренировка стрельбы",
+    "/clans": "Кланы",
+    "/clans/new": "Создать клан",
+    "/register": "Регистрация",
+    "/admin": "Админка",
+  };
+  if (exact[path]) return exact[path];
+  if (path.startsWith("/players/")) {
+    let nick = path.slice("/players/".length);
+    try {
+      nick = decodeURIComponent(nick);
+    } catch {
+      /* keep raw */
+    }
+    return nick ? `Профиль · ${nick}` : "Профиль игрока";
+  }
+  if (path.startsWith("/clans/")) {
+    const id = path.slice("/clans/".length);
+    const short = id.length > 10 ? `${id.slice(0, 8)}…` : id;
+    return short ? `Клан · ${short}` : "Страница клана";
+  }
+  if (path.startsWith("/admin/users/")) return "Админка · пользователь";
+  if (path.startsWith("/admin/")) return "Админка";
+  if (path.startsWith("/api/")) return "API";
+  if (path.startsWith("/kv-static")) return "Статика КВ";
+  return path;
+}
+
 type Summary = {
   today: string;
   todayPeople: number;
@@ -144,7 +183,7 @@ function BarList({
 }: {
   title: string;
   hint?: string;
-  rows: { label: string; value: number; sub?: string }[];
+  rows: { key?: string; label: string; value: number; sub?: string; title?: string }[];
   empty?: string;
 }) {
   const max = Math.max(1, ...rows.map((r) => r.value));
@@ -158,10 +197,10 @@ function BarList({
         </p>
       ) : (
         <ul className="visits-bar-list">
-          {rows.map((r) => (
-            <li key={r.label} className="visits-bar-row">
+          {rows.map((r, i) => (
+            <li key={r.key || `${r.label}-${i}`} className="visits-bar-row">
               <div className="visits-bar-meta">
-                <span className="visits-bar-label" title={r.label}>
+                <span className="visits-bar-label" title={r.title || r.label}>
                   {r.label}
                 </span>
                 <span className="visits-bar-value">
@@ -540,7 +579,9 @@ export function AdminVisitsPanel() {
               title="Куда чаще заходят"
               hint="Топ страниц сайта за период"
               rows={(traffic.paths || []).map((p) => ({
-                label: p.path,
+                key: p.path,
+                label: visitPathTitle(p.path),
+                title: p.path,
                 value: p.count,
               }))}
               empty="Ещё нет pageview — зайди на пару страниц и обнови"
@@ -549,7 +590,9 @@ export function AdminVisitsPanel() {
               title="Первая страница (лендинг)"
               hint="С какой страницы впервые попали"
               rows={(traffic.landings || []).map((p) => ({
-                label: p.path,
+                key: p.path,
+                label: visitPathTitle(p.path),
+                title: p.path,
                 value: p.count,
               }))}
             />
@@ -645,7 +688,9 @@ export function AdminVisitsPanel() {
                   <BarList
                     title="Его страницы"
                     rows={byPath.slice(0, 12).map((p) => ({
-                      label: p.path,
+                      key: p.path,
+                      label: visitPathTitle(p.path),
+                      title: p.path,
                       value: p.count,
                     }))}
                   />
@@ -682,7 +727,7 @@ export function AdminVisitsPanel() {
                           <td className="muted">#{session + 1}</td>
                           <td>{formatWhen(row.createdAt)}</td>
                           <td>
-                            <code>{row.path}</code>
+                            <span title={row.path}>{visitPathTitle(row.path)}</span>
                           </td>
                         </tr>
                       );
