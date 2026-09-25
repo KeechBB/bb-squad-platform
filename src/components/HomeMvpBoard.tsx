@@ -108,36 +108,48 @@ function PodiumCol({
                     </p>
                   </div>
                 </div>
-                <GloryChips row={row} />
+                <div className="home-mvp-chips-slot">
+                  <GloryChips row={row} />
+                </div>
               </li>
             );
           })}
         </ol>
       )}
+    </div>
+  );
+}
 
-      <div className="home-mvp-anti-block">
-        <p className="home-mvp-anti-head">Anti-MVP</p>
-        {lane.anti.length === 0 ? (
-          <p className="home-mvp-empty muted">Пока чисто</p>
-        ) : (
-          <ol className="home-mvp-anti-list">
-            {lane.anti.map((row) => (
-              <li key={`${title}-a-${row.nick}`} className="home-mvp-anti-row">
-                <span className="home-mvp-anti-nick" title={row.nick}>
-                  {row.nick}
-                </span>
-                <span
-                  className="home-mvp-chip home-mvp-chip-anti"
-                  title="Anti-MVP — больше всех смертей за раунд"
-                >
-                  <span className="home-mvp-chip-label">Anti</span>
-                  <span className="home-mvp-chip-n">×{row.anti}</span>
-                </span>
-              </li>
-            ))}
-          </ol>
-        )}
-      </div>
+function AntiLaneRow({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: HomeMvpRow[];
+}) {
+  return (
+    <div className="home-mvp-anti-lane">
+      <span className="home-mvp-anti-lane-title">{title}</span>
+      {rows.length === 0 ? (
+        <span className="home-mvp-empty muted">чисто</span>
+      ) : (
+        <ol className="home-mvp-anti-list">
+          {rows.map((row) => (
+            <li key={`${title}-a-${row.nick}`} className="home-mvp-anti-row">
+              <span className="home-mvp-anti-nick" title={row.nick}>
+                {row.nick}
+              </span>
+              <span
+                className="home-mvp-chip home-mvp-chip-anti"
+                title="Anti-MVP — больше всех смертей за раунд"
+              >
+                <span className="home-mvp-chip-label">Anti</span>
+                <span className="home-mvp-chip-n">×{row.anti}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
     </div>
   );
 }
@@ -236,6 +248,15 @@ export function HomeMvpBoard({ initial }: Props) {
         <PodiumCol title="Тренировки" href="/tm" lane={data.train} />
         <PodiumCol title="КВ Main" href="/cw" lane={data.main} />
         <PodiumCol title="КВ Junior" href="/cw" lane={data.junior} />
+      </div>
+
+      <div className="home-mvp-anti-strip">
+        <p className="home-mvp-anti-head">Anti-MVP</p>
+        <div className="home-mvp-anti-strip-row">
+          <AntiLaneRow title="Трен." rows={data.train.anti} />
+          <AntiLaneRow title="Main" rows={data.main.anti} />
+          <AntiLaneRow title="Junior" rows={data.junior.anti} />
+        </div>
       </div>
     </section>
   );

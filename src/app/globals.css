@@ -3080,28 +3080,30 @@ body:has(.home-page) {
     minmax(0, 1fr)
     minmax(260px, 400px);
   grid-template-areas: "ops hero mvp";
-  align-items: stretch;
+  align-items: start;
   gap: clamp(10px, 1.2vw, 18px);
   height: 100%;
   min-height: 0;
   padding: clamp(8px, 1.4vw, 18px) clamp(10px, 1.8vw, 22px);
   box-sizing: border-box;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .home-layout > .home-ops-board:not(.home-mvp-board) {
   grid-area: ops;
-  align-self: stretch;
+  align-self: start;
   min-width: 0;
-  max-height: 100%;
+  height: auto;
+  max-height: none;
 }
 
 .home-layout > .home-mvp-board {
   grid-area: mvp;
-  align-self: stretch;
+  align-self: start;
   min-width: 0;
-  max-height: 100%;
-  overflow: auto;
+  height: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 .home-layout > .home-hero {
@@ -3492,7 +3494,7 @@ body:has(.home-page) {
   min-width: 0;
   max-width: none;
   height: auto;
-  max-height: 100%;
+  max-height: none;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -3506,7 +3508,7 @@ body:has(.home-page) {
     0 30px 80px rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(16px) saturate(1.2);
   -webkit-backdrop-filter: blur(16px) saturate(1.2);
-  overflow: hidden;
+  overflow: visible;
   box-sizing: border-box;
   animation: home-fade-up 0.55s ease both;
 }
@@ -3518,11 +3520,11 @@ body:has(.home-page) {
   width: 100%;
   min-width: 0;
   max-width: none;
-  max-height: 100%;
+  max-height: none;
   height: auto;
   gap: 8px;
   padding: 12px 12px 10px;
-  overflow: auto;
+  overflow: visible;
   transform: none;
   animation-delay: 0.12s;
   transition: box-shadow 0.4s ease, border-color 0.4s ease;
@@ -3647,11 +3649,12 @@ body:has(.home-page) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  gap: 4px;
-  min-height: 0;
+  justify-content: center;
+  gap: 6px;
+  min-height: 132px;
+  height: 132px;
   box-sizing: border-box;
-  padding: 6px 6px 7px;
+  padding: 8px 6px;
   border: 1px solid rgba(196, 181, 253, 0.14);
   border-radius: 3px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.18));
@@ -3678,6 +3681,7 @@ body:has(.home-page) {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
   width: 100%;
 }
@@ -3715,6 +3719,7 @@ body:has(.home-page) {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
 }
 
 .home-mvp-step-nick {
@@ -3759,6 +3764,14 @@ body:has(.home-page) {
   color: rgba(196, 181, 253, 0.55);
 }
 
+.home-mvp-chips-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 42px;
+}
+
 .home-mvp-chips {
   list-style: none;
   margin: 0;
@@ -3766,10 +3779,11 @@ body:has(.home-page) {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  align-content: flex-start;
+  align-content: center;
+  align-items: center;
   gap: 4px;
   width: 100%;
-  min-height: 44px;
+  min-height: 0;
 }
 
 .home-mvp-chip {
@@ -3825,7 +3839,7 @@ body:has(.home-page) {
   border-color: rgba(248, 113, 113, 0.5);
 }
 
-.home-mvp-anti-block {
+.home-mvp-anti-strip {
   margin-top: 4px;
   padding-top: 8px;
   border-top: 1px dashed rgba(248, 113, 113, 0.32);
@@ -3838,6 +3852,37 @@ body:has(.home-page) {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--mvp-anti);
+  text-align: center;
+}
+
+.home-mvp-anti-strip-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.home-mvp-anti-lane {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.home-mvp-anti-lane-title {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(196, 181, 253, 0.55);
+}
+
+.home-mvp-anti-block {
+  display: none;
 }
 
 .home-mvp-anti-list {
@@ -3845,27 +3890,33 @@ body:has(.home-page) {
   margin: 0;
   padding: 0;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
   gap: 4px;
+  width: 100%;
 }
 
 .home-mvp-anti-row {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 5px 7px;
+  justify-content: center;
+  gap: 4px;
+  padding: 3px 5px;
   border: 1px solid rgba(248, 113, 113, 0.22);
   border-radius: 2px;
   background: rgba(248, 113, 113, 0.06);
+  max-width: 100%;
 }
 
 .home-mvp-anti-nick {
+  max-width: 4.5rem;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.76rem;
+  font-size: 0.72rem;
   font-weight: 600;
   color: rgba(254, 226, 226, 0.92);
 }
@@ -3875,8 +3926,14 @@ body:has(.home-page) {
 }
 
 .home-mvp-empty {
-  margin: 6px 0 0;
-  font-size: 0.78rem;
+  margin: 0;
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.home-hero-boards-single {
+  grid-template-columns: minmax(0, 22rem);
+  width: min(100%, 22rem);
 }
 
 .home-ops-corners {
@@ -3966,8 +4023,8 @@ body:has(.home-page) {
   margin: 0;
   padding: 0;
   overflow-x: hidden;
-  overflow-y: auto;
-  flex: 0 1 auto;
+  overflow-y: visible;
+  flex: 0 0 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
