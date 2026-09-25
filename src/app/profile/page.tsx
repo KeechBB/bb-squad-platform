@@ -180,6 +180,7 @@ export default async function ProfilePage() {
               </div>
             </section>
           ) : null}
+          <ProfileTrainPwrCard stats={trainPwr} />
           <ClanInvites initial={invites} />
         </div>
       </div>
@@ -201,7 +202,6 @@ export default async function ProfilePage() {
           }}
         />
         <ProfileKvStats stats={kvStats} error={kvError} />
-        <ProfileTrainPwrCard stats={trainPwr} />
       </div>
 
       <div className="profile-area-training">

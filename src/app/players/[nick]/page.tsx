@@ -224,6 +224,7 @@ export default async function PlayerProfilePage({ params }: Props) {
               </div>
             </section>
           ) : null}
+          <ProfileTrainPwrCard stats={trainPwr} />
         </div>
       </div>
 
@@ -293,7 +294,6 @@ export default async function PlayerProfilePage({ params }: Props) {
           </div>
         </section>
         <ProfileKvStats stats={kvStats} error={kvError} />
-        <ProfileTrainPwrCard stats={trainPwr} />
       </div>
 
       <div className="profile-area-training">

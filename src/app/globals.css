@@ -504,6 +504,33 @@ svg {
   align-self: stretch;
 }
 
+.profile-head-cluster > .profile-pwr-card {
+  flex: 0 1 260px;
+  max-width: 280px;
+  min-width: 200px;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-head-cluster > .profile-pwr-card .profile-pwr-hero {
+  margin-top: 8px;
+  padding: 10px 12px;
+}
+
+.profile-head-cluster > .profile-pwr-card .profile-pwr-hero-nums strong {
+  font-size: 1.35rem;
+}
+
+.profile-head-cluster > .profile-pwr-card .profile-pwr-meta {
+  margin-top: auto;
+  grid-template-columns: 1fr 1fr;
+}
+
+.profile-head-cluster > .profile-pwr-card .profile-pwr-meta > div:last-child {
+  grid-column: 1 / -1;
+}
+
 .profile-clan-list {
   margin-top: 6px;
   gap: 6px;
@@ -568,7 +595,6 @@ svg {
 }
 
 .profile-area-account > .profile-kv-card,
-.profile-area-account > .profile-pwr-card,
 .profile-area-training > .training-sessions-card {
   flex: 1 1 auto;
   display: flex;
@@ -1035,7 +1061,8 @@ svg {
   }
 
   .profile-clan-card,
-  .profile-head-cluster .reaction-profile-card {
+  .profile-head-cluster .reaction-profile-card,
+  .profile-head-cluster > .profile-pwr-card {
     max-width: none;
     flex: 1 1 100%;
   }
