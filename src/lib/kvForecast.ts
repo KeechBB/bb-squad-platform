@@ -90,15 +90,21 @@ async function loadTaggedMatches(): Promise<{
       const root = base.replace(/\/$/, "");
       const index = await fetchJson(`${root}/data/index.json`);
       const months = index.months || [];
+      const monthPayloads = await Promise.all(
+        months.map(async (m: { url?: string; year?: number; month?: number }) => {
+          const url = String(m.url || "").startsWith("http")
+            ? m.url
+            : `${root}/${String(m.url || "").replace(/^\//, "")}`;
+          const data = await fetchJson(url!);
+          const year =
+            Number(m.year) || Number(String(data.month || "").slice(0, 4)) || 0;
+          const month =
+            Number(m.month) || Number(String(data.month || "").slice(5, 7)) || 0;
+          return { data, year, month };
+        })
+      );
       const matches: TaggedMatch[] = [];
-      for (const m of months) {
-        const url = String(m.url || "").startsWith("http")
-          ? m.url
-          : `${root}/${String(m.url || "").replace(/^\//, "")}`;
-        const data = await fetchJson(url);
-        const year = Number(m.year) || Number(String(data.month || "").slice(0, 4)) || 0;
-        const month =
-          Number(m.month) || Number(String(data.month || "").slice(5, 7)) || 0;
+      for (const { data, year, month } of monthPayloads) {
         for (const match of data.matches || []) {
           matches.push({ ...match, year, month });
         }

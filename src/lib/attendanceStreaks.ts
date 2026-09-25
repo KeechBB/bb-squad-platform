@@ -216,25 +216,26 @@ export async function buildAttendanceStreakBoard(
     };
   }
 
-  const users = await prisma.user.findMany({
-    where: { profileComplete: true, nick: { not: null } },
-    orderBy: [{ regNo: "asc" }, { createdAt: "asc" }],
-    select: { id: true, nick: true, regNo: true, reserveUntil: true },
-  });
-
-  const sessions = await prisma.squadServerSession.findMany({
-    where: {
-      serverKey: "TR1",
-      joinedAt: { gte: attendanceCanonStartUtc() },
-    },
-    orderBy: { joinedAt: "asc" },
-    select: {
-      userId: true,
-      joinedAt: true,
-      leftAt: true,
-      serverKey: true,
-    },
-  });
+  const [users, sessions] = await Promise.all([
+    prisma.user.findMany({
+      where: { profileComplete: true, nick: { not: null } },
+      orderBy: [{ regNo: "asc" }, { createdAt: "asc" }],
+      select: { id: true, nick: true, regNo: true, reserveUntil: true },
+    }),
+    prisma.squadServerSession.findMany({
+      where: {
+        serverKey: "TR1",
+        joinedAt: { gte: attendanceCanonStartUtc() },
+      },
+      orderBy: { joinedAt: "asc" },
+      select: {
+        userId: true,
+        joinedAt: true,
+        leftAt: true,
+        serverKey: true,
+      },
+    }),
+  ]);
 
   const byUser = new Map<
     string,

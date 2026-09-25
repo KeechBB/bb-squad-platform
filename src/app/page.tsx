@@ -1,16 +1,7 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { buildUpcomingMatchPreviews } from "@/lib/kvForecast";
-import { buildHomeMvpBoard, emptyHomeMvpBoard } from "@/lib/homeMvp";
-import {
-  buildAttendanceStreakBoard,
-  emptyAttendanceStreakBoard,
-} from "@/lib/attendanceStreaks";
-import {
-  buildHomeTrainPwrBoard,
-  emptyHomeTrainPwrBoard,
-} from "@/lib/homeTrainPwr";
+import { getHomeDashboardData } from "@/lib/homePageData";
 import { HomeUpcomingMatches } from "@/components/HomeUpcomingMatches";
 import { HomeMvpBoard } from "@/components/HomeMvpBoard";
 import { HomeAttendStreaks } from "@/components/HomeAttendStreaks";
@@ -24,37 +15,8 @@ export default async function HomePage() {
     redirect("/register");
   }
 
-  let previews: Awaited<
-    ReturnType<typeof buildUpcomingMatchPreviews>
-  >["previews"] = [];
-  try {
-    const data = await buildUpcomingMatchPreviews(12);
-    previews = data.previews;
-  } catch {
-    previews = [];
-  }
-
-  let mvpBoard: Awaited<ReturnType<typeof buildHomeMvpBoard>> =
-    emptyHomeMvpBoard();
-  try {
-    mvpBoard = await buildHomeMvpBoard();
-  } catch {
-    /* empty board */
-  }
-
-  let streakBoard = emptyAttendanceStreakBoard();
-  try {
-    streakBoard = await buildAttendanceStreakBoard();
-  } catch {
-    /* empty */
-  }
-
-  let pwrBoard = emptyHomeTrainPwrBoard();
-  try {
-    pwrBoard = await buildHomeTrainPwrBoard();
-  } catch {
-    /* empty */
-  }
+  const { previews, mvpBoard, streakBoard, pwrBoard } =
+    await getHomeDashboardData();
 
   const loggedIn = Boolean(session?.user);
 

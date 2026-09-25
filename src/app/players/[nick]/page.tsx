@@ -83,56 +83,61 @@ export default async function PlayerProfilePage({ params }: Props) {
 
   const avatar = withAvatarCacheBust(user.avatarUrl, user.updatedAt);
   const inReserve = isActiveReserve(user.reserveUntil);
-  const training = await loadUserTrainingStats(user.id);
-  let kvStats = null as Awaited<ReturnType<typeof buildPlayerKvStats>> | null;
-  let kvError: string | null = null;
-  if (user.nick) {
-    try {
-      kvStats = await buildPlayerKvStats(user.nick);
-    } catch {
-      kvError = "Не удалось загрузить стату КВ";
-    }
-  }
+  const nickForKv = user.nick || "";
 
-  let trainPwr = null as Awaited<ReturnType<typeof lookupPlayerTrainPwr>>;
-  let matchHistory: Awaited<ReturnType<typeof buildPlayerTrainMatchHistory>> = [];
-  if (user.nick) {
-    try {
-      trainPwr = await lookupPlayerTrainPwr(user.nick);
-    } catch {
-      trainPwr = null;
-    }
-    try {
-      matchHistory = await buildPlayerTrainMatchHistory(user.nick);
-    } catch {
-      matchHistory = [];
-    }
-  }
+  const [
+    training,
+    kvBundle,
+    trainPwr,
+    matchHistory,
+    reactionBest,
+    reactionBestL1,
+    reactionBestL2,
+    reactionHistory,
+  ] = await Promise.all([
+    loadUserTrainingStats(user.id),
+    nickForKv
+      ? buildPlayerKvStats(nickForKv)
+          .then((stats) => ({ stats, error: null as string | null }))
+          .catch(() => ({
+            stats: null,
+            error: "Не удалось загрузить стату КВ" as string | null,
+          }))
+      : Promise.resolve({
+          stats: null,
+          error: null as string | null,
+        }),
+    nickForKv
+      ? lookupPlayerTrainPwr(nickForKv).catch(() => null)
+      : Promise.resolve(null),
+    nickForKv
+      ? buildPlayerTrainMatchHistory(nickForKv).catch(() => [])
+      : Promise.resolve([]),
+    prisma.reactionRun.findFirst({
+      where: { userId: user.id, level: 1 },
+      orderBy: { avgMs: "asc" },
+      select: { avgMs: true },
+    }),
+    prisma.reactionRun.findFirst({
+      where: { userId: user.id, level: 1 },
+      orderBy: { avgMs: "asc" },
+      select: { avgMs: true },
+    }),
+    prisma.reactionRun.findFirst({
+      where: { userId: user.id, level: 2 },
+      orderBy: { avgMs: "desc" },
+      select: { avgMs: true },
+    }),
+    prisma.reactionRun.findMany({
+      where: { userId: user.id, level: { in: [1, 2] } },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      select: { id: true, avgMs: true, level: true, createdAt: true },
+    }),
+  ]);
 
-  const [reactionBest, reactionBestL1, reactionBestL2, reactionHistory] =
-    await Promise.all([
-      prisma.reactionRun.findFirst({
-        where: { userId: user.id, level: 1 },
-        orderBy: { avgMs: "asc" },
-        select: { avgMs: true },
-      }),
-      prisma.reactionRun.findFirst({
-        where: { userId: user.id, level: 1 },
-        orderBy: { avgMs: "asc" },
-        select: { avgMs: true },
-      }),
-      prisma.reactionRun.findFirst({
-        where: { userId: user.id, level: 2 },
-        orderBy: { avgMs: "desc" },
-        select: { avgMs: true },
-      }),
-      prisma.reactionRun.findMany({
-        where: { userId: user.id, level: { in: [1, 2] } },
-        orderBy: { createdAt: "desc" },
-        take: 10,
-        select: { id: true, avgMs: true, level: true, createdAt: true },
-      }),
-    ]);
+  const kvStats = kvBundle.stats;
+  const kvError = kvBundle.error;
 
   return (
     <main className="profile-page">
