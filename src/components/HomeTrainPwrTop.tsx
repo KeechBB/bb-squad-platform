@@ -59,7 +59,7 @@ export function HomeTrainPwrTop({ initial }: Props) {
       ) : (
         <ol className="home-attend-streaks-list home-train-pwr-list">
           {rows.map((r, i) => (
-            <li key={r.nick} className="home-attend-streaks-row home-train-pwr-row">
+            <li key={r.nick} className={`home-attend-streaks-row home-train-pwr-row${i === 0 ? " is-top1" : ""}`}>
               <span className="home-attend-streaks-rank">{i + 1}</span>
               <span
                 className={`home-pwr-badge rank-${r.rankKey}`}
@@ -68,7 +68,7 @@ export function HomeTrainPwrTop({ initial }: Props) {
                 {r.rankLabel}
               </span>
               <Link
-                className="home-attend-streaks-nick"
+                className={`home-attend-streaks-nick${i === 0 ? " home-pwr-nick-top1" : ""}`}
                 href={`/players/${encodeURIComponent(r.nick)}`}
                 title={r.nick}
               >
