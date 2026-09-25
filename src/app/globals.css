@@ -2802,7 +2802,8 @@ body:has(.home-page) {
 .home-hero a,
 .home-hero .home-hero-cta,
 .home-hero .home-hero-hint,
-.home-hero .home-attend-streaks {
+.home-hero .home-attend-streaks,
+.home-hero .home-hero-boards {
   pointer-events: auto;
 }
 
@@ -2853,6 +2854,26 @@ body:has(.home-page) {
   line-height: 1.4;
 }
 
+.home-hero-boards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 22rem));
+  gap: 12px 14px;
+  justify-content: center;
+  align-items: stretch;
+  width: min(100%, 46rem);
+  margin-top: clamp(12px, 2vh, 24px);
+  margin-bottom: clamp(4px, 1vh, 12px);
+  justify-self: center;
+}
+
+.home-hero-boards .home-attend-streaks {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 .home-attend-streaks {
   align-self: end;
   justify-self: center;
@@ -2866,6 +2887,112 @@ body:has(.home-page) {
   border: 1px solid rgba(167, 139, 250, 0.22);
   backdrop-filter: blur(8px);
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+}
+
+.home-train-pwr {
+  border-color: rgba(192, 132, 252, 0.32);
+  background: linear-gradient(
+    165deg,
+    rgba(28, 16, 48, 0.72) 0%,
+    rgba(12, 8, 22, 0.62) 55%,
+    rgba(18, 10, 32, 0.7) 100%
+  );
+}
+
+.home-train-pwr-list .home-train-pwr-row {
+  grid-template-columns: 1.1rem minmax(3.6rem, auto) minmax(0, 1fr) auto;
+  gap: 6px 8px;
+  align-items: center;
+}
+
+.home-pwr-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.35;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.home-pwr-badge.rank-iron {
+  color: #c5c6c8;
+  background: rgba(120, 122, 128, 0.28);
+  border-color: rgba(180, 182, 188, 0.35);
+}
+.home-pwr-badge.rank-bronze {
+  color: #e0a06a;
+  background: rgba(166, 104, 48, 0.3);
+  border-color: rgba(205, 127, 50, 0.45);
+}
+.home-pwr-badge.rank-silver {
+  color: #e8eef4;
+  background: rgba(160, 174, 190, 0.28);
+  border-color: rgba(192, 200, 210, 0.5);
+}
+.home-pwr-badge.rank-gold {
+  color: #ffe566;
+  background: rgba(212, 160, 23, 0.28);
+  border-color: rgba(241, 196, 15, 0.55);
+}
+.home-pwr-badge.rank-platinum {
+  color: #9ef0e8;
+  background: rgba(46, 160, 155, 0.28);
+  border-color: rgba(78, 205, 196, 0.5);
+}
+.home-pwr-badge.rank-diamond {
+  color: #b8ecff;
+  background: rgba(64, 150, 210, 0.3);
+  border-color: rgba(93, 173, 226, 0.55);
+}
+.home-pwr-badge.rank-ascendant {
+  color: #9dffc0;
+  background: rgba(30, 150, 100, 0.3);
+  border-color: rgba(46, 204, 113, 0.5);
+}
+.home-pwr-badge.rank-immortal {
+  color: #ff8a9a;
+  background: rgba(200, 50, 70, 0.28);
+  border-color: rgba(255, 70, 85, 0.5);
+}
+.home-pwr-badge.rank-master {
+  color: #d4b3ff;
+  background: rgba(120, 70, 200, 0.3);
+  border-color: rgba(170, 120, 255, 0.55);
+}
+.home-pwr-badge.rank-radiant {
+  color: #fff4a8;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 200, 40, 0.35),
+    rgba(255, 100, 80, 0.25)
+  );
+  border-color: rgba(255, 220, 80, 0.65);
+  text-shadow: 0 0 6px rgba(255, 210, 60, 0.4);
+}
+
+.home-train-pwr-score b {
+  color: #f0abfc;
+}
+
+.home-train-pwr-foot {
+  margin: 8px 0 0;
+  font-size: 0.7rem;
+  text-align: right;
+}
+
+.home-train-pwr-foot a {
+  color: rgba(196, 181, 253, 0.85);
+  text-decoration: none;
+}
+
+.home-train-pwr-foot a:hover {
+  color: #e9e2ff;
+  text-decoration: underline;
 }
 
 .home-attend-streaks-pulse {
@@ -4023,6 +4150,20 @@ body:has(.home-page) {
     margin-right: auto;
     margin-top: clamp(24px, 5vh, 48px);
     margin-bottom: 8px;
+  }
+
+  .home-hero-boards {
+    width: min(100%, 26rem);
+    grid-template-columns: 1fr;
+    margin-left: auto;
+    margin-right: auto;
+    margin-top: clamp(24px, 5vh, 48px);
+    margin-bottom: 8px;
+  }
+
+  .home-hero-boards .home-attend-streaks {
+    margin: 0;
+    width: 100%;
   }
 
   .home-ops-board {

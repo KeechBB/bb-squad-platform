@@ -7,9 +7,14 @@ import {
   buildAttendanceStreakBoard,
   emptyAttendanceStreakBoard,
 } from "@/lib/attendanceStreaks";
+import {
+  buildHomeTrainPwrBoard,
+  emptyHomeTrainPwrBoard,
+} from "@/lib/homeTrainPwr";
 import { HomeUpcomingMatches } from "@/components/HomeUpcomingMatches";
 import { HomeMvpBoard } from "@/components/HomeMvpBoard";
 import { HomeAttendStreaks } from "@/components/HomeAttendStreaks";
+import { HomeTrainPwrTop } from "@/components/HomeTrainPwrTop";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +45,13 @@ export default async function HomePage() {
   let streakBoard = emptyAttendanceStreakBoard();
   try {
     streakBoard = await buildAttendanceStreakBoard();
+  } catch {
+    /* empty */
+  }
+
+  let pwrBoard = emptyHomeTrainPwrBoard();
+  try {
+    pwrBoard = await buildHomeTrainPwrBoard();
   } catch {
     /* empty */
   }
@@ -128,14 +140,17 @@ export default async function HomePage() {
               )}
             </div>
           </div>
-          <HomeAttendStreaks
-            initial={{
-              registered: streakBoard.registered,
-              anchorYmd: streakBoard.anchorYmd,
-              top10: streakBoard.top10,
-              updatedAt: streakBoard.updatedAt,
-            }}
-          />
+          <div className="home-hero-boards">
+            <HomeAttendStreaks
+              initial={{
+                registered: streakBoard.registered,
+                anchorYmd: streakBoard.anchorYmd,
+                top10: streakBoard.top10,
+                updatedAt: streakBoard.updatedAt,
+              }}
+            />
+            <HomeTrainPwrTop initial={pwrBoard} />
+          </div>
         </section>
       </div>
     </main>
