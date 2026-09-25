@@ -18,8 +18,6 @@ import { buildPlayerKvStats } from "@/lib/kvStats";
 import { lookupPlayerTrainPwr, buildPlayerTrainMatchHistory } from "@/lib/homeTrainPwr";
 import { ReactionBestCard } from "@/components/ReactionBestCard";
 import { ProfileTrainPwrCard } from "@/components/ProfileTrainPwrCard";
-import { ProfileHitZoneCard } from "@/components/ProfileHitZoneCard";
-import { loadUserHitZoneStats } from "@/lib/hitZones";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -121,13 +119,6 @@ export default async function ProfilePage() {
       }),
     ]);
 
-  let hitZones = null as Awaited<ReturnType<typeof loadUserHitZoneStats>> | null;
-  try {
-    hitZones = await loadUserHitZoneStats(me.id, 30, "TR1");
-  } catch {
-    hitZones = null;
-  }
-
   return (
     <main className="profile-page">
       <div className="profile-area-head">
@@ -219,7 +210,6 @@ export default async function ProfilePage() {
 
       <div className="profile-area-training">
         <LivePageRefresh intervalMs={15000} />
-        <ProfileHitZoneCard stats={hitZones} />
         <TrainingSessionsCard
           sessions={training.sessions}
           presentDays={training.presentDays}

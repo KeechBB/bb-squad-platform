@@ -1,8 +1,6 @@
 # Коллектор заходов/выходов Squad → bb-squad.ru
 
-Читает `SquadGame.log` по SSH и шлёт события в `POST /api/ingest/squad-sessions`
-(join/leave) и `POST /api/ingest/squad-hitzones` (строки `BBHitZone:` с мода
-[BBHitZoneLogger](../mods/BBHitZoneLogger/README.md)).
+Читает `SquadGame.log` по SSH и шлёт события в `POST /api/ingest/squad-sessions`.
 В БД попадают **только** игроки, у которых есть аккаунт на сайте (Steam ID).
 
 ## Важно: где крутить

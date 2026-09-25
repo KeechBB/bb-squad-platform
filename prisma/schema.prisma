@@ -69,7 +69,6 @@ model User {
   clanJoinRequests ClanJoinRequest[] @relation("JoinApplicant")
   reviewedJoinRequests ClanJoinRequest[] @relation("JoinReviewer")
   squadSessions   SquadServerSession[]
-  trainHitZoneDays TrainHitZoneDay[]
   reactionRuns    ReactionRun[]
   reactionPresence ReactionPresence?
   reactionChatMessages ReactionChatMessage[]
@@ -287,27 +286,6 @@ model SquadEosSteamMap {
   updatedAt DateTime @updatedAt
 
   @@index([steamId])
-}
-
-/// Агрегат попаданий по зонам (день × игрок × сервер). Пишет ingest BBHitZone.
-model TrainHitZoneDay {
-  id         String   @id @default(cuid())
-  userId     String
-  steamId    String
-  /// YYYY-MM-DD (MSK тренировочный день)
-  ymd        String
-  serverKey  String   @default("TR1")
-  hitsHead   Int      @default(0)
-  hitsTorso  Int      @default(0)
-  hitsLimb   Int      @default(0)
-  updatedAt  DateTime @updatedAt
-  createdAt  DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, ymd, serverKey])
-  @@index([steamId, ymd])
-  @@index([userId, ymd])
 }
 
 /// Уникальный посетитель сайта (cookie/localStorage id). Читать только Keech.

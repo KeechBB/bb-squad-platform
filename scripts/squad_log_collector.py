@@ -52,19 +52,6 @@ STEAM_EOS_RE = re.compile(
     r"|steam:\s*(?P<steam2>7656\d{13}).*?EOS:\s*(?P<eos2>[0-9a-fA-F]{32})",
     re.IGNORECASE,
 )
-# From BBHitZoneLogger mod (mods/BBHitZoneLogger) — Head|Torso|Limb
-HITZONE_RE = re.compile(
-    r"^\[(?P<ts>\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}):\d+\].*BBHitZone:\s*"
-    r"AttackerEOS=(?P<aeos>[0-9a-fA-F]{32}|none)\s+"
-    r"AttackerSteam=(?P<asteam>7656\d{13}|none)\s+"
-    r"VictimEOS=(?P<veos>[0-9a-fA-F]{32}|none)\s+"
-    r"Zone=(?P<zone>Head|Torso|Limb)\s+"
-    r"Damage=(?P<dmg>[0-9.]+)\s+"
-    r"Bone=(?P<bone>\S+)\s+"
-    r"Weapon=(?P<weapon>\S+)\s+"
-    r"Server=(?P<server>\S+)",
-    re.IGNORECASE,
-)
 
 
 def _safe_print(*args, **kwargs):
@@ -142,16 +129,6 @@ class Collector:
         self.targets = resolve_log_targets()
         self.ingest_url = env("SQUAD_INGEST_URL")
         self.ingest_secret = env("SQUAD_INGEST_SECRET")
-        # Hit-zone ingest (same secret). Default: …/squad-sessions → …/squad-hitzones
-        hz = os.environ.get("SQUAD_HITZONE_INGEST_URL", "").strip()
-        if hz:
-            self.hitzone_ingest_url = hz
-        elif self.ingest_url.rstrip("/").endswith("squad-sessions"):
-            self.hitzone_ingest_url = (
-                self.ingest_url.rstrip("/").rsplit("/", 1)[0] + "/squad-hitzones"
-            )
-        else:
-            self.hitzone_ingest_url = ""
         self.state_path = Path(
             os.environ.get("SQUAD_STATE_PATH", "squad_collector_state.json")
         )
@@ -272,41 +249,19 @@ class Collector:
     def _post(self, events: list[dict[str, Any]]) -> None:
         if not events:
             return
-        sessions = [e for e in events if e.get("type") in ("join", "leave")]
-        hitzones = [e for e in events if e.get("type") == "hitzone"]
-        if sessions:
-            r = requests.post(
-                self.ingest_url,
-                headers={
-                    "Authorization": f"Bearer {self.ingest_secret}",
-                    "Content-Type": "application/json",
-                },
-                json={"events": sessions},
-                timeout=30,
-            )
-            if r.status_code >= 300:
-                _safe_print("ingest fail", r.status_code, r.text[:300], file=sys.stderr)
-            else:
-                _safe_print("ingest", r.json())
-        if hitzones and self.hitzone_ingest_url:
-            r2 = requests.post(
-                self.hitzone_ingest_url,
-                headers={
-                    "Authorization": f"Bearer {self.ingest_secret}",
-                    "Content-Type": "application/json",
-                },
-                json={"events": hitzones},
-                timeout=45,
-            )
-            if r2.status_code >= 300:
-                _safe_print(
-                    "hitzone ingest fail",
-                    r2.status_code,
-                    r2.text[:300],
-                    file=sys.stderr,
-                )
-            else:
-                _safe_print("hitzone ingest", r2.json())
+        r = requests.post(
+            self.ingest_url,
+            headers={
+                "Authorization": f"Bearer {self.ingest_secret}",
+                "Content-Type": "application/json",
+            },
+            json={"events": events},
+            timeout=30,
+        )
+        if r.status_code >= 300:
+            _safe_print("ingest fail", r.status_code, r.text[:300], file=sys.stderr)
+        else:
+            _safe_print("ingest", r.json())
 
     def _remember_map(self, eos: str, steam: str) -> list[dict[str, Any]]:
         eos = eos.lower()
@@ -415,39 +370,6 @@ class Collector:
             eos = rm.group("eos").lower()
             at = parse_ts(rm.group("ts"))
             events.extend(self._emit_leave(eos, at, server_key))
-            return events
-
-        hz = HITZONE_RE.search(line)
-        if hz:
-            aeos = hz.group("aeos")
-            asteam = hz.group("asteam")
-            veos = hz.group("veos")
-            zone = hz.group("zone")
-            at = parse_ts(hz.group("ts"))
-            srv = hz.group("server") or server_key
-            # Prefer TR1-only (mod should only run there)
-            if srv.upper() not in ("TR1",) and server_key.upper() != "TR1":
-                return events
-            if aeos.lower() != "none":
-                aeos_n = aeos.lower()
-                if asteam.lower() != "none" and self._valid_steam(asteam):
-                    events.extend(self._remember_map(aeos_n, asteam))
-            events.append(
-                {
-                    "type": "hitzone",
-                    "at": at,
-                    "serverKey": "TR1",
-                    "zone": zone,
-                    "attackerEosId": None if aeos.lower() == "none" else aeos.lower(),
-                    "attackerSteamId": None
-                    if asteam.lower() == "none"
-                    else asteam,
-                    "victimEosId": None if veos.lower() == "none" else veos.lower(),
-                    "damage": float(hz.group("dmg")),
-                    "bone": hz.group("bone"),
-                    "weapon": hz.group("weapon"),
-                }
-            )
         return events
 
     def _poll_one(
@@ -526,7 +448,7 @@ class Collector:
                 continue
             # Только Login / Remove / steam↔EOS — не весь 20MB
             grep_cmd = (
-                f"grep -E 'Login request:|RemovePlayer\\(UserId:|EOS:.*steam:|steam:.*EOS:|BBHitZone:' "
+                f"grep -E 'Login request:|RemovePlayer\\(UserId:|EOS:.*steam:|steam:.*EOS:' "
                 f"{path} 2>/dev/null || true"
             )
             try:

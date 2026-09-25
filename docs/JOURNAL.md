@@ -2,12 +2,6 @@
 
 Писать коротко после сессий. Старые строки не затирать.
 
-## 2026-09-25
-
-- Hit-zone % с TR1: ванильный лог без зон (probe). Каркас мода `mods/BBHitZoneLogger`, ingest `/api/ingest/squad-hitzones`, таблица `TrainHitZoneDay`, блок в профиле. Док: `docs/HITZONE.md`.
-- Заведён лог релизов для инфо-канала: `docs/CHANGELOG.md` (с v. 1.1.10). Дальше каждый анонс версии — туда сверху.
-- Осмотр `bb.proxy.sqstat.ru/?server_id=6` (SQSTAT, Enj0y): стек PHP/jQuery/Bootstrap, лента `/game/{id}`, топы, ротация, Steam-auth. Капитан: свою такую панель на bb-squad **можно**, но **отложить**; аналитика → `docs/SQSTAT-PANEL-DEFERRED.md` + ссылки в VISION §2 и ROADMAP Phase 2/3. Не парсить sqstat как основу; данные — свои логи.
-
 ## 2026-09-20
 
 - Автообновление без F5: посещаемость/журнал админки ~5с (SSE `/api/live/site` + поллинг); профили `LivePageRefresh`; ingest шлёт live при join/leave; leave закрывает любую открытую сессию Steam если serverKey не совпал. Сборщик логов default poll 3с.
