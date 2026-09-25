@@ -22,6 +22,17 @@ Vercel не используем (SMS). Сайт крутится на VPS, ба
 Инструкция: [DOMAIN.md](./DOMAIN.md)  
 Помощник по разработке: [COLLAB.md](./COLLAB.md)
 
+## Обновление кода (деплой)
+
+После `git push` на `main`:
+
+```bash
+cd /var/www/bb-squad-platform && bash scripts/deploy.sh
+```
+
+Скрипт: `git pull` → удаляет `.next` (старый билд/кеш) → `npm run build` → `pm2 restart bb-squad`.  
+Так после выкладки сайт не «залипает» на старых чанках. HTML отдаётся с `no-store` (см. `next.config.ts`).
+
 ## Squad log collector (24/7)
 
 Заходы/выходы TR1+PB1 → Neon. **Только на этом VPS** (`pm2 bb-squad-collector`), не на ПК.  
