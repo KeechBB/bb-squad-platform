@@ -353,3 +353,221 @@ export async function lookupPlayerTrainPwr(
   const want = resolveKey(clean);
   return board.rows.find((r) => resolveKey(r.nick) === want) || null;
 }
+
+export type TrainMatchHistoryRow = {
+  matchId: string;
+  dateLabel: string;
+  timeLabel: string;
+  map: string;
+  factionA: string;
+  ticketsA: number | null;
+  factionB: string;
+  ticketsB: number | null;
+  team: string;
+  won: boolean | null;
+  pwrAfter: number;
+  pwrDelta: number;
+  rankLabel: string;
+  rankKey: string;
+};
+
+type MatchMeta = {
+  id: string;
+  day: number;
+  year: number;
+  month: number;
+  timeMsk?: string;
+  map?: string;
+  factionA?: string;
+  ticketsA?: number | null;
+  factionB?: string;
+  ticketsB?: number | null;
+  winner?: string;
+  playersUrl: string;
+  sortKey: string;
+};
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+/** История тренировок игрока с ΔPWR после каждой катки (хронология). */
+export async function buildPlayerTrainMatchHistory(
+  nick: string
+): Promise<TrainMatchHistoryRow[]> {
+  const clean = String(nick || "").trim();
+  if (!clean) return [];
+
+  const index = await loadFromKv<{
+    months?: { year?: number; month?: number; url?: string }[];
+  }>("data/training-index.json");
+  if (!index?.months?.length) return [];
+
+  const tiersRaw = await loadFromKv<{
+    aliases?: Record<string, string>;
+  }>("data/tiers.json");
+  const aliases = tiersRaw?.aliases || {};
+  const aliasCanon = new Map<string, string>();
+  for (const [a, c] of Object.entries(aliases)) {
+    aliasCanon.set(nickKey(a), String(c));
+  }
+  const resolveKey = (n: string) => {
+    const key = nickKey(n);
+    const canon = aliasCanon.get(key);
+    return canon ? nickKey(canon) : key;
+  };
+  const want = resolveKey(clean);
+
+  const tierIndex = await loadTierIndex();
+  const tier =
+    tierIndex.get(want) ||
+    tierIndex.get(nickKey(clean)) ||
+    4;
+
+  const matchMetas: MatchMeta[] = [];
+  for (const m of index.months) {
+    if (!m.url || !m.year || !m.month) continue;
+    const monthData = await loadFromKv<{
+      matches?: {
+        id?: string;
+        day?: number;
+        timeMsk?: string;
+        map?: string;
+        factionA?: string;
+        ticketsA?: number | null;
+        factionB?: string;
+        ticketsB?: number | null;
+        winner?: string;
+        playersUrl?: string;
+      }[];
+    }>(m.url);
+    for (const match of monthData?.matches || []) {
+      if (!match.playersUrl || !match.id || match.day == null) continue;
+      matchMetas.push({
+        id: match.id,
+        day: match.day,
+        year: m.year,
+        month: m.month,
+        timeMsk: match.timeMsk,
+        map: match.map,
+        factionA: match.factionA,
+        ticketsA: match.ticketsA ?? null,
+        factionB: match.factionB,
+        ticketsB: match.ticketsB ?? null,
+        winner: match.winner,
+        playersUrl: match.playersUrl,
+        sortKey: `${m.year}-${pad2(m.month)}-${pad2(match.day)}-${match.id}`,
+      });
+    }
+  }
+  matchMetas.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+
+  const agg: Agg = {
+    nick: clean,
+    games: 0,
+    wins: 0,
+    res: 0,
+    nok: 0,
+    kills: 0,
+    deaths: 0,
+    dmg: 0,
+  };
+  let prevPwr = 0;
+  const history: TrainMatchHistoryRow[] = [];
+
+  for (const match of matchMetas) {
+    const players = await loadFromKv<{
+      players?: Record<string, unknown>[];
+      teamA?: Record<string, unknown>[];
+      teamB?: Record<string, unknown>[];
+      winner?: string;
+    }>(match.playersUrl);
+    if (!players) continue;
+    const list = (
+      players.players?.length
+        ? players.players
+        : [...(players.teamA || []), ...(players.teamB || [])]
+    ) as {
+      nick?: string;
+      res?: number;
+      nok?: number;
+      kills?: number;
+      deaths?: number;
+      dmg?: number;
+      team?: string;
+      won?: boolean;
+    }[];
+
+    const mine = list.filter((p) => p?.nick && resolveKey(p.nick) === want);
+    if (!mine.length) continue;
+
+    // один ник на катку — суммируем статы если дубль OCR
+    let res = 0;
+    let nok = 0;
+    let kills = 0;
+    let deaths = 0;
+    let dmg = 0;
+    let team = "";
+    for (const p of mine) {
+      res += Number(p.res) || 0;
+      nok += Number(p.nok) || 0;
+      kills += Number(p.kills) || 0;
+      deaths += Number(p.deaths) || 0;
+      dmg += Number(p.dmg) || 0;
+      if (!team && p.team) team = String(p.team);
+    }
+
+    const winner = String(match.winner || players.winner || "").toUpperCase();
+    const teamU = team.toUpperCase();
+    const wonExplicit = mine.some((p) => p.won === true);
+    const wonFromWinner =
+      Boolean(winner) && Boolean(teamU) && teamU === winner;
+    const lostFromWinner =
+      Boolean(winner) && Boolean(teamU) && teamU !== winner;
+    const won: boolean | null = wonExplicit || wonFromWinner
+      ? true
+      : lostFromWinner
+        ? false
+        : null;
+
+    agg.games += 1;
+    if (won === true) agg.wins += 1;
+    agg.res += res;
+    agg.nok += nok;
+    agg.kills += kills;
+    agg.deaths += deaths;
+    agg.dmg += dmg;
+
+    const winPct = Math.round((1000 * agg.wins) / agg.games) / 10;
+    const kd = agg.deaths === 0 ? agg.kills : agg.kills / agg.deaths;
+    const { pwr, label, rankKey } = calcTrainPwr({
+      ...agg,
+      tier,
+      winPct,
+      kd,
+    });
+    const pwrDelta = pwr - prevPwr;
+    prevPwr = pwr;
+
+    const timeRaw = String(match.timeMsk || "").trim();
+    history.push({
+      matchId: match.id,
+      dateLabel: `${pad2(match.day)}.${pad2(match.month)}.${match.year}`,
+      timeLabel: timeRaw && timeRaw !== "—" ? timeRaw : "—",
+      map: match.map || "—",
+      factionA: String(match.factionA || "—").toUpperCase(),
+      ticketsA: match.ticketsA ?? null,
+      factionB: String(match.factionB || "—").toUpperCase(),
+      ticketsB: match.ticketsB ?? null,
+      team: teamU || "—",
+      won: won,
+      pwrAfter: pwr,
+      pwrDelta,
+      rankLabel: label,
+      rankKey,
+    });
+  }
+
+  // свежие сверху
+  return history.reverse();
+}

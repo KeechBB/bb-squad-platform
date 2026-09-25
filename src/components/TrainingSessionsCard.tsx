@@ -3,14 +3,10 @@
 import { useMemo, useState } from "react";
 import {
   ATTENDANCE_CANON_START_YMD,
-  ATTENDANCE_LABEL,
   TRAINING_PRESENT_MIN_MINUTES,
-  attendanceTag,
-  formatDurationMinutes,
-  formatMskDateTime,
   trainingDayMarksFromSessions,
-  type AttendanceTag,
 } from "@/lib/squadSessions";
+import type { TrainMatchHistoryRow } from "@/lib/homeTrainPwr";
 
 export type SessionRow = {
   id: string;
@@ -39,6 +35,8 @@ type Props = {
   lateDays?: string[];
   /** Заход / итоговый выход по дням (с 19:00, gap ≤5 мин = не выход) */
   visitBounds?: Record<string, { joinHm: string; leaveHm: string | null }>;
+  /** История тренировочных матчей с ΔPWR */
+  matchHistory?: TrainMatchHistoryRow[];
 };
 
 const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
@@ -69,27 +67,6 @@ function normalizeSessions(rows: SessionRow[]): NormSession[] {
     nickAtJoin: s.nickAtJoin,
     serverKey: s.serverKey || "TPUB1",
   }));
-}
-
-function tagClass(tag: AttendanceTag): string {
-  if (tag === "on_time") return "att-tag on-time";
-  if (tag === "late_ok") return "att-tag late-ok";
-  if (tag === "late") return "att-tag late";
-  return "att-tag other";
-}
-
-function serverLabel(key: string): "TR1" | "PB1" | string {
-  const k = key.toUpperCase();
-  if (k === "TR1") return "TR1";
-  if (k === "TPUB1" || k === "PB1" || k === "PUB") return "PB1";
-  return key;
-}
-
-function serverPillClass(key: string): string {
-  const label = serverLabel(key);
-  if (label === "TR1") return "server-pill tr1";
-  if (label === "PB1") return "server-pill pb1";
-  return "server-pill";
 }
 
 function ymdFromParts(y: number, m: number, d: number): string {
@@ -158,6 +135,7 @@ export function TrainingSessionsCard({
   presentDays: presentDaysProp,
   lateDays: lateDaysProp,
   visitBounds: visitBoundsProp,
+  matchHistory = [],
 }: Props) {
   const normalized = useMemo(() => normalizeSessions(sessions), [sessions]);
   const today = todayYmdMsk();
@@ -186,7 +164,6 @@ export function TrainingSessionsCard({
     return Math.round(minutes30d / sessions30d);
   }, [minutes30d, sessions30d]);
 
-  const monthSessions = normalized.slice(0, 60);
   const cells = buildMonthGrid(viewY, viewM);
 
   const canPrev =
@@ -366,44 +343,69 @@ export function TrainingSessionsCard({
         </div>
       </div>
 
-      {monthSessions.length === 0 ? (
+      {matchHistory.length === 0 ? (
         <p className="muted" style={{ marginTop: 14 }}>
-          Пока нет зафиксированных заходов. Коллектор логов должен работать.
+          Пока нет тренировочных матчей с ником в рейтинге — история PWR
+          появится после оцифровки табло.
         </p>
       ) : (
         <div className="admin-table-wrap" style={{ marginTop: 14 }}>
-          <table className="admin-table training-sessions-table">
+          <h3 className="training-match-hist-title">
+            История матчей · динамика PWR
+          </h3>
+          <table className="admin-table training-sessions-table training-match-hist-table">
             <thead>
               <tr>
-                <th>Сервер</th>
-                <th>Зашёл (МСК)</th>
-                <th>Вышел</th>
-                <th>Мин</th>
-                <th>Метка</th>
-                <th>Ник на сервере</th>
+                <th>Дата</th>
+                <th>Время</th>
+                <th>Карта</th>
+                <th>Счёт</th>
+                <th className="num">Δ PWR</th>
+                <th className="num">PWR</th>
               </tr>
             </thead>
             <tbody>
-              {monthSessions.map((s) => {
-                const tag = attendanceTag(s.joinedAt);
-                const mins = formatDurationMinutes(s.joinedAt, s.leftAt);
-                const srv = serverLabel(s.serverKey);
+              {matchHistory.map((m) => {
+                const delta = m.pwrDelta;
+                const deltaCls =
+                  delta > 0
+                    ? "pwr-delta plus"
+                    : delta < 0
+                      ? "pwr-delta minus"
+                      : "pwr-delta zero";
+                const deltaText =
+                  delta > 0 ? `+${delta}` : String(delta);
+                const score = `${m.factionA} ${m.ticketsA ?? "—"} : ${m.ticketsB ?? "—"} ${m.factionB}`;
                 return (
-                  <tr key={s.id}>
-                    <td>
-                      <span className={serverPillClass(s.serverKey)}>{srv}</span>
+                  <tr key={m.matchId}>
+                    <td>{m.dateLabel}</td>
+                    <td>{m.timeLabel}</td>
+                    <td title={m.map}>
+                      <span className="training-match-map">{m.map}</span>
+                      {m.team && m.team !== "—" ? (
+                        <span className="muted training-match-team">
+                          {" "}
+                          · {m.team}
+                          {m.won === true
+                            ? " W"
+                            : m.won === false
+                              ? " L"
+                              : ""}
+                        </span>
+                      ) : null}
                     </td>
-                    <td>{formatMskDateTime(s.joinedAt)}</td>
-                    <td>
-                      {s.leftAt ? formatMskDateTime(s.leftAt) : "на сервере"}
+                    <td className="training-match-score">{score}</td>
+                    <td className={`num ${deltaCls}`}>{deltaText}</td>
+                    <td className="num">
+                      <span
+                        className={`home-pwr-badge rank-${m.rankKey}`}
+                        title={m.rankLabel}
+                        style={{ fontSize: "0.62rem", padding: "1px 5px" }}
+                      >
+                        {m.rankLabel}
+                      </span>{" "}
+                      {m.pwrAfter}
                     </td>
-                    <td>{mins}</td>
-                    <td>
-                      <span className={tagClass(tag)}>
-                        {ATTENDANCE_LABEL[tag]}
-                      </span>
-                    </td>
-                    <td>{s.nickAtJoin || "—"}</td>
                   </tr>
                 );
               })}

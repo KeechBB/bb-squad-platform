@@ -15,7 +15,7 @@ import { formatRuDate, isActiveReserve } from "@/lib/validation";
 import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
 import { loadUserTrainingStats } from "@/lib/trainingStats";
 import { buildPlayerKvStats } from "@/lib/kvStats";
-import { lookupPlayerTrainPwr } from "@/lib/homeTrainPwr";
+import { lookupPlayerTrainPwr, buildPlayerTrainMatchHistory } from "@/lib/homeTrainPwr";
 import { ReactionBestCard } from "@/components/ReactionBestCard";
 import { ProfileTrainPwrCard } from "@/components/ProfileTrainPwrCard";
 
@@ -80,11 +80,17 @@ export default async function ProfilePage() {
   }
 
   let trainPwr = null as Awaited<ReturnType<typeof lookupPlayerTrainPwr>>;
+  let matchHistory: Awaited<ReturnType<typeof buildPlayerTrainMatchHistory>> = [];
   if (nickForKv) {
     try {
       trainPwr = await lookupPlayerTrainPwr(nickForKv);
     } catch {
       trainPwr = null;
+    }
+    try {
+      matchHistory = await buildPlayerTrainMatchHistory(nickForKv);
+    } catch {
+      matchHistory = [];
     }
   }
 
@@ -208,6 +214,7 @@ export default async function ProfilePage() {
           minutes30d={training.minutes30d}
           sessions30d={training.sessions30d}
           openNow={training.openNow}
+          matchHistory={matchHistory}
         />
       </div>
     </main>

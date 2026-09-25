@@ -18,7 +18,7 @@ import { ProfileKvStats } from "@/components/ProfileKvStats";
 import { SitePresenceBadge } from "@/components/SitePresenceBadge";
 import { loadUserTrainingStats } from "@/lib/trainingStats";
 import { buildPlayerKvStats } from "@/lib/kvStats";
-import { lookupPlayerTrainPwr } from "@/lib/homeTrainPwr";
+import { lookupPlayerTrainPwr, buildPlayerTrainMatchHistory } from "@/lib/homeTrainPwr";
 import { ReactionBestCard } from "@/components/ReactionBestCard";
 import { ProfileTrainPwrCard } from "@/components/ProfileTrainPwrCard";
 
@@ -100,11 +100,17 @@ export default async function PlayerProfilePage({ params }: Props) {
   }
 
   let trainPwr = null as Awaited<ReturnType<typeof lookupPlayerTrainPwr>>;
+  let matchHistory: Awaited<ReturnType<typeof buildPlayerTrainMatchHistory>> = [];
   if (user.nick) {
     try {
       trainPwr = await lookupPlayerTrainPwr(user.nick);
     } catch {
       trainPwr = null;
+    }
+    try {
+      matchHistory = await buildPlayerTrainMatchHistory(user.nick);
+    } catch {
+      matchHistory = [];
     }
   }
 
@@ -311,6 +317,7 @@ export default async function PlayerProfilePage({ params }: Props) {
           minutes30d={training.minutes30d}
           sessions30d={training.sessions30d}
           openNow={training.openNow}
+          matchHistory={matchHistory}
         />
       </div>
     </main>
