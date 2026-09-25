@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { subscribeLive } from "@/lib/liveClient";
 
 type Props = {
   initialAdmin: boolean;
@@ -29,26 +30,11 @@ export function AdminPanelLink({ initialAdmin }: Props) {
   }, [initialAdmin]);
 
   useEffect(() => {
-    let es: EventSource | null = null;
-    try {
-      es = new EventSource("/api/live/me");
-      es.addEventListener("user", () => {
-        void check();
-      });
-    } catch {
-      /* */
-    }
     void check();
-    let ticks = 0;
-    const id = window.setInterval(() => {
+    const unsub = subscribeLive("/api/live/me", "user", () => {
       void check();
-      ticks += 1;
-      if (ticks > 40) window.clearInterval(id);
-    }, 3000);
-    return () => {
-      es?.close();
-      window.clearInterval(id);
-    };
+    });
+    return () => unsub();
   }, [check]);
 
   if (!admin) return null;

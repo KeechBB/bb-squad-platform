@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { subscribeLive } from "@/lib/liveClient";
 
 type Invite = {
   id: string;
@@ -27,19 +28,13 @@ export function ClanInvites({ initial }: { initial: Invite[] }) {
   }, []);
 
   useEffect(() => {
-    let es: EventSource | null = null;
-    try {
-      es = new EventSource("/api/live/me");
-      es.addEventListener("user", () => {
-        void reload();
-        router.refresh();
-      });
-    } catch {
-      /* */
-    }
-    const id = window.setInterval(() => void reload(), 10000);
+    const unsub = subscribeLive("/api/live/me", "user", () => {
+      void reload();
+      router.refresh();
+    });
+    const id = window.setInterval(() => void reload(), 60_000);
     return () => {
-      es?.close();
+      unsub();
       window.clearInterval(id);
     };
   }, [reload, router]);

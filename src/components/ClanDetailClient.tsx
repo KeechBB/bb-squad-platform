@@ -29,6 +29,7 @@ import {
 } from "@/lib/tiers";
 import { ClanRosterChart } from "@/components/ClanRosterChart";
 import { SitePresenceBadge } from "@/components/SitePresenceBadge";
+import { subscribeLive } from "@/lib/liveClient";
 
 type Member = {
   id: string;
@@ -357,22 +358,27 @@ export function ClanDetailClient({
       if (tab === "stats") void refreshStats();
     };
 
-    let es: EventSource | null = null;
+    const unsubs: Array<() => void> = [];
     try {
-      es = new EventSource(`/api/live/clan/${clan.id}`);
-      es.addEventListener("hello", () => setLiveOk(true));
-      es.addEventListener("clan", () => sync());
-      es.onerror = () => setLiveOk(false);
+      unsubs.push(
+        subscribeLive(`/api/live/clan/${clan.id}`, "clan", () => sync())
+      );
+      unsubs.push(
+        subscribeLive(`/api/live/clan/${clan.id}`, "hello", () =>
+          setLiveOk(true)
+        )
+      );
+      setLiveOk(true);
     } catch {
       setLiveOk(false);
     }
 
-    const poll = window.setInterval(sync, 5000);
+    const poll = window.setInterval(sync, 20_000);
     const onFocus = () => sync();
     window.addEventListener("focus", onFocus);
 
     return () => {
-      es?.close();
+      for (const u of unsubs) u();
       window.clearInterval(poll);
       window.removeEventListener("focus", onFocus);
     };

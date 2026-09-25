@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { subscribeLive } from "@/lib/liveClient";
 
 type Options = {
-  /** URL SSE (по умолчанию общий сайт-канал админки) */
+  /** URL SSE (по умолчанию общий сайт-канал) */
   url?: string;
-  /** Fallback-поллинг, мс (по умолчанию 5с — как сборщик логов) */
+  /** Fallback-поллинг, мс */
   intervalMs?: number;
   /** Доп. фильтр по типу события site (attendance | journal | …) */
   kinds?: string[];
@@ -13,7 +14,7 @@ type Options = {
 };
 
 /**
- * Автообновление без F5: SSE + поллинг.
+ * Автообновление без F5: общий SSE + поллинг.
  * Пока вкладка скрыта — не долбим API.
  */
 export function useAutoRefresh(
@@ -61,18 +62,7 @@ export function useAutoRefresh(
       debounce = window.setTimeout(run, 400);
     };
 
-    let es: EventSource | null = null;
-    try {
-      es = new EventSource(url);
-      es.addEventListener("site", (ev) => {
-        schedule((ev as MessageEvent).data);
-      });
-      es.onerror = () => {
-        /* поллинг подстрахует */
-      };
-    } catch {
-      /* */
-    }
+    const unsub = subscribeLive(url, "site", (data) => schedule(data));
 
     timer = window.setInterval(run, intervalMs);
 
@@ -86,7 +76,7 @@ export function useAutoRefresh(
       if (timer != null) window.clearInterval(timer);
       if (debounce != null) window.clearTimeout(debounce);
       document.removeEventListener("visibilitychange", onVis);
-      es?.close();
+      unsub();
     };
   }, [url, intervalMs, enabled]);
 }

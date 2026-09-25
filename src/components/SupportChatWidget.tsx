@@ -8,6 +8,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { subscribeLive } from "@/lib/liveClient";
 
 type Msg = {
   id: string;
@@ -270,11 +271,9 @@ export function SupportChatWidget() {
     void refresh();
   }, [loggedIn, refresh]);
 
-  // Live: модеру — сразу бейдж/инбокс при новом тикете; игроку — обновление своего чата
+  // Live: один общий /api/live/me; staff-канал только у модераторов (иначе 403 → reconnect storm)
   useEffect(() => {
     if (!loggedIn) return;
-    let esMe: EventSource | null = null;
-    let esStaff: EventSource | null = null;
     let t: number | null = null;
     const kick = () => {
       if (t != null) window.clearTimeout(t);
@@ -283,50 +282,38 @@ export function SupportChatWidget() {
         void refreshActiveRef.current();
       }, 120);
     };
-    try {
-      esMe = new EventSource("/api/live/me");
-      esMe.addEventListener("user", (ev) => {
-        try {
-          const data = JSON.parse(String((ev as MessageEvent).data || "{}")) as {
-            type?: string;
-          };
-          if (data.type === "support") kick();
-        } catch {
-          /* ignore */
-        }
-      });
-    } catch {
-      /* ignore */
-    }
-    try {
-      esStaff = new EventSource("/api/live/support");
-      esStaff.addEventListener("support", () => kick());
-      esStaff.onerror = () => {
-        /* 403 для не-стаффа — ок */
-      };
-    } catch {
-      /* ignore */
+    const unsubMe = subscribeLive("/api/live/me", "user", (raw) => {
+      try {
+        const data = JSON.parse(String(raw || "{}")) as { type?: string };
+        if (data.type === "support") kick();
+      } catch {
+        /* ignore */
+      }
+    });
+    let unsubStaff: (() => void) | null = null;
+    if (staff) {
+      unsubStaff = subscribeLive("/api/live/support", "support", () => kick());
     }
     return () => {
       if (t != null) window.clearTimeout(t);
-      esMe?.close();
-      esStaff?.close();
+      unsubMe();
+      unsubStaff?.();
     };
-  }, [loggedIn]);
+  }, [loggedIn, staff]);
 
   useEffect(() => {
     if (!loggedIn) return;
-    // Поллинг как запасной канал (в т.ч. при закрытом FAB — для бейджа модера)
+    // Поллинг как запасной канал (реже — не забиваем соединения)
     const id = window.setInterval(
       () => void refreshRef.current(),
-      mode === "closed" ? 8000 : 4000
+      mode === "closed" ? 30_000 : 12_000
     );
     return () => window.clearInterval(id);
   }, [mode, loggedIn]);
 
   useEffect(() => {
     if (mode === "closed" || !loggedIn) return;
-    const id = window.setInterval(() => void refreshActiveRef.current(), 2500);
+    const id = window.setInterval(() => void refreshActiveRef.current(), 8_000);
     return () => window.clearInterval(id);
   }, [mode, loggedIn]);
 

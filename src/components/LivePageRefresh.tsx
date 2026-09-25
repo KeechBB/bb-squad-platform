@@ -2,10 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { subscribeLive } from "@/lib/liveClient";
 
-/** Тихий router.refresh: SSE + редкий поллинг; в фоне вкладки не дергаем. */
+/** Тихий router.refresh: общий SSE + редкий поллинг; в фоне вкладки не дергаем. */
 export function LivePageRefresh({
-  intervalMs = 15000,
+  intervalMs = 60_000,
   sseUrl = "/api/live/me",
 }: {
   intervalMs?: number;
@@ -33,16 +34,7 @@ export function LivePageRefresh({
       debounce = window.setTimeout(refresh, 400);
     };
 
-    let es: EventSource | null = null;
-    try {
-      es = new EventSource(sseUrl);
-      es.addEventListener("user", schedule);
-      es.onerror = () => {
-        /* poll covers */
-      };
-    } catch {
-      /* */
-    }
+    const unsub = subscribeLive(sseUrl, "user", () => schedule());
 
     const id = window.setInterval(refresh, intervalMs);
     const onVis = () => {
@@ -55,7 +47,7 @@ export function LivePageRefresh({
       window.clearInterval(id);
       if (debounce != null) window.clearTimeout(debounce);
       document.removeEventListener("visibilitychange", onVis);
-      es?.close();
+      unsub();
     };
   }, [router, intervalMs, sseUrl]);
 

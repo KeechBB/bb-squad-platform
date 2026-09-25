@@ -3,6 +3,7 @@
 import { signIn, signOut, useSession } from "next-auth/react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { subscribeLive } from "@/lib/liveClient";
 
 export function AuthBar() {
   const { data: session, status } = useSession();
@@ -29,18 +30,12 @@ export function AuthBar() {
   useEffect(() => {
     void checkAdmin();
     if (!session?.user?.profileComplete) return;
-    let es: EventSource | null = null;
-    try {
-      es = new EventSource("/api/live/me");
-      es.addEventListener("user", () => {
-        void checkAdmin();
-      });
-    } catch {
-      /* */
-    }
+    const unsub = subscribeLive("/api/live/me", "user", () => {
+      void checkAdmin();
+    });
     const id = window.setInterval(() => void checkAdmin(), 60_000);
     return () => {
-      es?.close();
+      unsub();
       window.clearInterval(id);
     };
   }, [checkAdmin, session?.user?.profileComplete]);
