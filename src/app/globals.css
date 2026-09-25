@@ -1001,9 +1001,9 @@ svg {
 
 .profile-page .training-sessions-card .admin-table-wrap {
   margin-top: 8px;
-  flex: 0 1 auto;
-  min-height: 0;
-  max-height: 15.5rem; /* ~6?7 ????? + ????? */
+  flex: 1 1 auto;
+  min-height: 22rem;
+  max-height: min(42vh, 32rem);
   overflow: auto;
   border: 1px solid rgba(167, 139, 250, 0.12);
   border-radius: 10px;
@@ -1309,16 +1309,6 @@ svg {
 
 .training-cal-cell.is-today {
   box-shadow: inset 0 0 0 1px rgba(167, 139, 250, 0.55);
-}
-
-.training-cal-legend {
-  margin: 8px 0 0;
-  font-size: 0.78rem;
-  line-height: 1.35;
-}
-
-.training-cal-legend strong {
-  color: var(--ink);
 }
 
 .training-charts {

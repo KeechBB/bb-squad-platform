@@ -184,28 +184,9 @@ export function TrainingSessionsCard({
     setViewM(m);
   }
 
-  const presentInView = cells.filter((c) => {
-    if (!c.ymd) return false;
-    const joinHm = visitBounds[c.ymd]?.joinHm;
-    const m = dayMark(c.ymd, presentTrainingDays, lateTrainingDays, joinHm);
-    return m === "present" || m === "late";
-  }).length;
-  const absentInView = cells.filter((c) => {
-    if (!c.ymd) return false;
-    const joinHm = visitBounds[c.ymd]?.joinHm;
-    return (
-      dayMark(c.ymd, presentTrainingDays, lateTrainingDays, joinHm) === "absent"
-    );
-  }).length;
-
   return (
     <section className="card training-sessions-card">
       <h2>Посещаемость тренировок</h2>
-      <p className="muted" style={{ marginTop: 6, marginBottom: 0 }}>
-        TR1 — тренировка (вечер), PB1 — паблик. Учёт с 15.09.2026. «Был» =
-        ≥{TRAINING_PRESENT_MIN_MINUTES} мин на TR1 в 21:00–00:00 МСК или уход
-        ≥23:30 (после дропов). Заход до 21:00 — зелёный «был», с 21:00 — жёлтый.
-      </p>
 
       <div className="training-stat-row">
         <div>
@@ -315,14 +296,6 @@ export function TrainingSessionsCard({
               );
             })}
           </div>
-          <p className="muted training-cal-legend">
-            Зелёный — был, заход до 21:00 · жёлтый — был, заход с 21:00 · красный —
-            не было · серый — ещё не считаем. «Был» = ≥
-            {TRAINING_PRESENT_MIN_MINUTES} мин в 21:00–00:00 или уход ≥23:30.
-            Мелким шрифтом заход (≥19:00) и итоговый выход (вылет ≤5 мин не
-            считается). В этом месяце: <strong>{presentInView}</strong> был /{" "}
-            <strong>{absentInView}</strong> нет
-          </p>
         </div>
         <div className="training-chart-block">
           <h3>Среднее время на тренировке</h3>
