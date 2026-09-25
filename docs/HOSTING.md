@@ -10,9 +10,10 @@ Vercel не используем (SMS). Сайт крутится на VPS, ба
 | SSH | `ssh root@91.222.237.91` |
 | ОС | Ubuntu |
 | Регион | Санкт-Петербург |
-| Тариф | ~2 CPU / 2 ГБ / 40 ГБ |
+| Тариф | **апгрейд 25.09.2026:** было 2 CPU / 2 ГБ / 40 ГБ → **2×5 ГГц / 4 ГБ RAM / 50 ГБ / 200 Мбит** (после ресайза в панели проверить SSH/pm2) |
 | БД | Neon Postgres (`bb-squad`) |
 | Репо | https://github.com/KeechBB/bb-squad-platform |
+| Бэкап кода на ПК | `D:\BlackBerry\backups\` — файл `bb-squad-platform_2026-09-25_1853.zip` (+ `.env` рядом) |
 
 Пароль root — только в панели Timeweb (в чат/репо не писать).
 
@@ -30,12 +31,10 @@ Vercel не используем (SMS). Сайт крутится на VPS, ба
 cd /var/www/bb-squad-platform && bash scripts/deploy.sh
 ```
 
-Скрипт: `git pull` → **стоп `bb-squad`** (освободить RAM) → удаляет `.next` → `npm run build` → старт pm2.  
-На тарифе **2 ГБ** нельзя билдить Next, пока крутится `next-server` — ядро убивает процесс (`Out of memory`). Скрипт также поднимает **2G swap**, если его ещё нет.
+Скрипт: `git pull` → при **available RAM &lt; ~1.8 ГБ** (или `DEPLOY_STOP=1`) стопает `bb-squad`, иначе билдит **на живом** сайте → удаляет `.next` → `npm run build` → `pm2 restart`.  
+На старых **2 ГБ** стоп почти всегда срабатывает (иначе OOM). На **4 ГБ** сайт обычно не гаснет на время билда. Swap 2G поднимается, если его ещё нет.
 
-Если `git pull` пишет `Already up to date`, а коммита нет — проверь `git log -1 --oneline` (нужен свежий `6a575cc` или новее).
-
-Так после выкладки сайт не «залипает» на старых чанках. HTML отдаётся с `no-store` (см. `next.config.ts`).
+Принудительно со стопом: `DEPLOY_STOP=1 bash scripts/deploy.sh`
 
 ## Squad log collector (24/7)
 

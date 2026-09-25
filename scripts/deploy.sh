@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
-# Деплой платформы на VPS: pull → стоп pm2 → билд → старт
-# На 2 ГБ RAM нельзя одновременно держать next-server и next build — OOM killer.
+# Деплой: pull → (стоп bb-squad только при нехватке RAM) → билд → restart
+# На 2 ГБ стоп обязателен; на 4 ГБ обычно билдим на живом сайте.
 # Запуск: bash scripts/deploy.sh
+# Принудительный стоп: DEPLOY_STOP=1 bash scripts/deploy.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# Порог: если available < этого (МиБ) — стопаем bb-squad перед билдом
+MIN_AVAIL_MIB="${DEPLOY_MIN_AVAIL_MIB:-1800}"
+STOPPED=0
+
 ensure_swap() {
-  # 2G swap, если ещё нет — иначе next build часто убивают на 2 ГБ тарифе
-  if swapon --show | grep -q .; then
+  if swapon --show 2>/dev/null | grep -q .; then
     echo "==> swap already on"
     return 0
   fi
@@ -28,6 +32,11 @@ ensure_swap() {
   fi
 }
 
+avail_mib() {
+  # колонка available у free -m (Mem)
+  free -m | awk '/^Mem:/{print $7}'
+}
+
 echo "==> $(date -Is) deploy in $ROOT"
 echo "==> git pull"
 git pull --ff-only
@@ -35,30 +44,37 @@ echo "==> HEAD=$(git rev-parse --short HEAD)"
 
 ensure_swap
 
-if command -v pm2 >/dev/null 2>&1; then
-  echo "==> pm2 stop bb-squad (free RAM for build)"
-  pm2 stop bb-squad || true
-  # коллектор лёгкий — можно не трогать; если опять OOM — раскомментируй:
-  # pm2 stop bb-squad-collector || true
-else
+if ! command -v pm2 >/dev/null 2>&1; then
   echo "pm2 not found" >&2
   exit 1
 fi
 
+AVAIL="$(avail_mib || echo 0)"
 echo "==> free -h (before build)"
 free -h || true
+echo "==> Mem available ≈ ${AVAIL} MiB (stop if < ${MIN_AVAIL_MIB} or DEPLOY_STOP=1)"
+
+if [[ "${DEPLOY_STOP:-0}" == "1" ]] || [[ "${AVAIL}" -lt "${MIN_AVAIL_MIB}" ]]; then
+  echo "==> pm2 stop bb-squad (мало RAM / принудительно)"
+  pm2 stop bb-squad || true
+  STOPPED=1
+else
+  echo "==> keep bb-squad online during build (достаточно RAM)"
+fi
 
 echo "==> clear Next.js build cache (.next)"
 rm -rf .next
 
 echo "==> npm run build"
-# чуть меньше heap, чтобы вместе со swap не раздувать anon-rss без меры
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=1536}"
 npm run build
 
-echo "==> pm2 start/restart bb-squad"
-pm2 start bb-squad || pm2 restart bb-squad
-# pm2 start bb-squad-collector || true
+echo "==> pm2 restart bb-squad"
+if [[ "$STOPPED" == "1" ]]; then
+  pm2 start bb-squad || pm2 restart bb-squad
+else
+  pm2 restart bb-squad
+fi
 
 echo "==> free -h (after)"
 free -h || true
