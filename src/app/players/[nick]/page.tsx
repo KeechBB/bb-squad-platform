@@ -18,7 +18,9 @@ import { ProfileKvStats } from "@/components/ProfileKvStats";
 import { SitePresenceBadge } from "@/components/SitePresenceBadge";
 import { loadUserTrainingStats } from "@/lib/trainingStats";
 import { buildPlayerKvStats } from "@/lib/kvStats";
+import { lookupPlayerTrainPwr } from "@/lib/homeTrainPwr";
 import { ReactionBestCard } from "@/components/ReactionBestCard";
+import { ProfileTrainPwrCard } from "@/components/ProfileTrainPwrCard";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -94,6 +96,15 @@ export default async function PlayerProfilePage({ params }: Props) {
       kvStats = await buildPlayerKvStats(user.nick);
     } catch {
       kvError = "Не удалось загрузить стату КВ";
+    }
+  }
+
+  let trainPwr = null as Awaited<ReturnType<typeof lookupPlayerTrainPwr>>;
+  if (user.nick) {
+    try {
+      trainPwr = await lookupPlayerTrainPwr(user.nick);
+    } catch {
+      trainPwr = null;
     }
   }
 
@@ -276,6 +287,7 @@ export default async function PlayerProfilePage({ params }: Props) {
           </div>
         </section>
         <ProfileKvStats stats={kvStats} error={kvError} />
+        <ProfileTrainPwrCard stats={trainPwr} />
       </div>
 
       <div className="profile-area-training">

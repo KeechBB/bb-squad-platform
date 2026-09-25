@@ -568,11 +568,51 @@ svg {
 }
 
 .profile-area-account > .profile-kv-card,
+.profile-area-account > .profile-pwr-card,
 .profile-area-training > .training-sessions-card {
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+.profile-pwr-card .profile-pwr-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(28, 16, 48, 0.45);
+  border: 1px solid rgba(167, 139, 250, 0.22);
+}
+
+.profile-pwr-badge {
+  font-size: 0.78rem !important;
+  padding: 4px 10px !important;
+  letter-spacing: 0.06em;
+}
+
+.profile-pwr-hero-nums {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.profile-pwr-hero-nums strong {
+  font-size: 1.55rem;
+  font-variant-numeric: tabular-nums;
+  color: #f0abfc;
+}
+
+.profile-pwr-hero-nums .muted {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.profile-pwr-meta {
+  margin-top: 10px;
 }
 
 .profile-area-account > .profile-kv-card > .profile-kv-block:last-child {

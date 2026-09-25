@@ -6,10 +6,18 @@ export type HomeTrainPwrRow = {
   rankLabel: string;
   rankKey: string;
   games: number;
+  place: number;
 };
 
 export type HomeTrainPwrBoard = {
   top10: HomeTrainPwrRow[];
+  players: number;
+  matches: number;
+  updatedAt: string;
+};
+
+export type TrainPwrLeaderboard = {
+  rows: HomeTrainPwrRow[];
   players: number;
   matches: number;
   updatedAt: string;
@@ -148,12 +156,21 @@ export function emptyHomeTrainPwrBoard(): HomeTrainPwrBoard {
   };
 }
 
-export async function buildHomeTrainPwrBoard(): Promise<HomeTrainPwrBoard> {
+export function emptyTrainPwrLeaderboard(): TrainPwrLeaderboard {
+  return {
+    rows: [],
+    players: 0,
+    matches: 0,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export async function buildTrainPwrLeaderboard(): Promise<TrainPwrLeaderboard> {
   const index = await loadFromKv<{
     months?: { url?: string }[];
     bust?: string;
   }>("data/training-index.json");
-  if (!index?.months?.length) return emptyHomeTrainPwrBoard();
+  if (!index?.months?.length) return emptyTrainPwrLeaderboard();
 
   const tiersRaw = await loadFromKv<{
     aliases?: Record<string, string>;
@@ -282,17 +299,57 @@ export async function buildHomeTrainPwrBoard(): Promise<HomeTrainPwrBoard> {
       rankLabel: label,
       rankKey,
       games: row.games,
+      place: 0,
     });
   }
 
   ranked.sort(
     (a, b) => b.pwr - a.pwr || b.games - a.games || a.nick.localeCompare(b.nick, "ru")
   );
+  ranked.forEach((r, i) => {
+    r.place = i + 1;
+  });
 
   return {
-    top10: ranked.slice(0, 10),
+    rows: ranked,
     players: ranked.length,
     matches: matchesWithStats,
     updatedAt: new Date().toISOString(),
   };
+}
+
+export async function buildHomeTrainPwrBoard(): Promise<HomeTrainPwrBoard> {
+  const board = await buildTrainPwrLeaderboard();
+  return {
+    top10: board.rows.slice(0, 10),
+    players: board.players,
+    matches: board.matches,
+    updatedAt: board.updatedAt,
+  };
+}
+
+/** Профиль: PWR / Rank / место по нику (алиасы из tiers.json). */
+export async function lookupPlayerTrainPwr(
+  nick: string
+): Promise<HomeTrainPwrRow | null> {
+  const clean = String(nick || "").trim();
+  if (!clean) return null;
+  const board = await buildTrainPwrLeaderboard();
+  if (!board.rows.length) return null;
+
+  const tiersRaw = await loadFromKv<{
+    aliases?: Record<string, string>;
+  }>("data/tiers.json");
+  const aliases = tiersRaw?.aliases || {};
+  const aliasCanon = new Map<string, string>();
+  for (const [a, c] of Object.entries(aliases)) {
+    aliasCanon.set(nickKey(a), String(c));
+  }
+  const resolveKey = (n: string) => {
+    const key = nickKey(n);
+    const canon = aliasCanon.get(key);
+    return canon ? nickKey(canon) : key;
+  };
+  const want = resolveKey(clean);
+  return board.rows.find((r) => resolveKey(r.nick) === want) || null;
 }
