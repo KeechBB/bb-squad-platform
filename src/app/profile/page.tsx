@@ -5,13 +5,12 @@ import { AvatarEditor } from "@/components/AvatarEditor";
 import { isAdmin, syncBuiltinAdmins } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 import { ClanInvites } from "@/components/ClanInvites";
-import { ReservePanel } from "@/components/ReservePanel";
 import { AdminPanelLink } from "@/components/AdminPanelLink";
 import { ProfileEditForm } from "@/components/ProfileEditForm";
 import { ProfileKvStats, ProfileKvMatchHistory } from "@/components/ProfileKvStats";
 import { TrainingSessionsCard, TrainingMatchHistory } from "@/components/TrainingSessionsCard";
 import { LivePageRefresh } from "@/components/LivePageRefresh";
-import { formatRuDate, isActiveReserve } from "@/lib/validation";
+import { formatRuDate } from "@/lib/validation";
 import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
 import { loadUserTrainingStats } from "@/lib/trainingStats";
 import { buildPlayerKvStats } from "@/lib/kvStats";
@@ -64,9 +63,6 @@ export default async function ProfilePage() {
     })) || [];
 
   const clans = me.clanMemberships.map((m) => m.clan) || [];
-  const reserveActive = isActiveReserve(me.reserveUntil);
-  const reserveUntilLabel =
-    me.reserveUntil && reserveActive ? formatRuDate(me.reserveUntil) : null;
 
   const birthRu = me.birthDate ? formatRuDate(me.birthDate) : null;
   const siteRole = roleLabel(
@@ -147,12 +143,6 @@ export default async function ProfilePage() {
             steamAvatar={u.steamAvatar || null}
             adminLink={<AdminPanelLink initialAdmin={admin} />}
             lastSeenAt={me.lastSeenAt}
-          />
-          <ReservePanel
-            compact
-            active={reserveActive}
-            untilLabel={reserveUntilLabel}
-            reason={reserveActive ? me.reserveReason || null : null}
           />
           <ReactionBestCard
             bestAvgMs={reactionBest?.avgMs ?? null}
