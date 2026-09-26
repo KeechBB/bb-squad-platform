@@ -16,6 +16,15 @@ if [[ -z "$URL" ]]; then
   echo "No DATABASE_URL in $ENV_FILE" >&2
   exit 1
 fi
+# Prisma uses ?schema=public — pg_dump rejects it
+URL="$(python3 - <<PY
+from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
+u = """$URL"""
+p = urlparse(u)
+q = [(k, v) for k, v in parse_qsl(p.query, keep_blank_values=True) if k != "schema"]
+print(urlunparse((p.scheme, p.netloc, p.path, "", urlencode(q), "")))
+PY
+)"
 
 STAMP="$(date -u +%Y%m%d_%H%M%S)"
 OUT="$BACKUP_ROOT/bb_squad_${STAMP}.dump"

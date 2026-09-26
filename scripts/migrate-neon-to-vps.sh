@@ -27,10 +27,18 @@ if [[ -z "${NEON_URL}" || "$NEON_URL" != *neon.tech* ]]; then
   exit 1
 fi
 
-# strip channel_binding for pg_dump compatibility
+# strip channel_binding / prisma schema= for pg client tools
 NEON_URL="${NEON_URL//\&channel_binding=require/}"
 NEON_URL="${NEON_URL//\?channel_binding=require\&/?}"
 NEON_URL="${NEON_URL//\?channel_binding=require/}"
+NEON_URL="$(python3 - <<PY
+from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
+u = """$NEON_URL"""
+p = urlparse(u)
+q = [(k, v) for k, v in parse_qsl(p.query, keep_blank_values=True) if k not in ("schema", "channel_binding")]
+print(urlunparse((p.scheme, p.netloc, p.path, "", urlencode(q), "")))
+PY
+)"
 
 echo "==> Install PostgreSQL if needed"
 export DEBIAN_FRONTEND=noninteractive
