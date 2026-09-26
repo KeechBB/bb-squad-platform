@@ -364,6 +364,10 @@ export type TrainMatchHistoryRow = {
   factionB: string;
   ticketsB: number | null;
   team: string;
+  winner?: string;
+  duration?: string;
+  server?: string;
+  playersUrl: string;
   won: boolean | null;
   pwrAfter: number;
   pwrDelta: number;
@@ -383,6 +387,8 @@ type MatchMeta = {
   factionB?: string;
   ticketsB?: number | null;
   winner?: string;
+  duration?: string;
+  server?: string;
   playersUrl: string;
   sortKey: string;
 };
@@ -438,6 +444,8 @@ export async function buildPlayerTrainMatchHistory(
         factionB?: string;
         ticketsB?: number | null;
         winner?: string;
+        duration?: string;
+        server?: string;
         playersUrl?: string;
       }[];
     }>(m.url);
@@ -455,6 +463,8 @@ export async function buildPlayerTrainMatchHistory(
         factionB: match.factionB,
         ticketsB: match.ticketsB ?? null,
         winner: match.winner,
+        duration: match.duration,
+        server: match.server,
         playersUrl: match.playersUrl,
         sortKey: `${m.year}-${pad2(m.month)}-${pad2(match.day)}-${match.id}`,
       });
@@ -560,6 +570,10 @@ export async function buildPlayerTrainMatchHistory(
       factionB: String(match.factionB || "—").toUpperCase(),
       ticketsB: match.ticketsB ?? null,
       team: teamU || "—",
+      winner: match.winner,
+      duration: match.duration,
+      server: match.server,
+      playersUrl: match.playersUrl,
       won: won,
       pwrAfter: pwr,
       pwrDelta,

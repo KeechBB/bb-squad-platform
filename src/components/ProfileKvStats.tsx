@@ -1,6 +1,13 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 import type { PlayerKvStats } from "@/lib/kvStats";
 import type { CwMatchHistoryRow } from "@/lib/homeCwPwr";
+import {
+  ProfileMatchStatsModal,
+  type MatchStatsOpen,
+} from "@/components/ProfileMatchStatsModal";
 
 function statusLabel(s: string) {
   if (s === "win") return "W";
@@ -25,9 +32,13 @@ type Props = {
 
 export function ProfileKvMatchHistory({
   matchHistory = [],
+  highlightNick,
 }: {
   matchHistory?: CwMatchHistoryRow[];
+  highlightNick?: string;
 }) {
+  const [open, setOpen] = useState<MatchStatsOpen | null>(null);
+
   return (
     <section className="card profile-hist-card profile-kv-hist-card">
       <h2 className="profile-hist-title">История матчей КВ</h2>
@@ -72,8 +83,58 @@ export function ProfileKvMatchHistory({
                     : m.won === false
                       ? "Поражение"
                       : "—";
+                const canOpen = Boolean(m.playersUrl);
                 return (
-                  <tr key={m.matchId}>
+                  <tr
+                    key={m.matchId}
+                    className={canOpen ? "profile-hist-row-click" : undefined}
+                    tabIndex={canOpen ? 0 : undefined}
+                    onClick={() => {
+                      if (!canOpen) return;
+                      const statusRu =
+                        m.status === "win"
+                          ? "победа"
+                          : m.status === "lose"
+                            ? "поражение"
+                            : m.status || "";
+                      setOpen({
+                        kind: "cw",
+                        matchId: m.matchId,
+                        title: `${m.dateLabel} vs ${m.opp}`,
+                        sub: [
+                          m.map,
+                          m.size,
+                          m.stack,
+                          m.meeting && m.meeting !== "—"
+                            ? `счёт ${m.meeting}`
+                            : null,
+                          statusRu,
+                        ]
+                          .filter(Boolean)
+                          .join(" · "),
+                        playersUrl: m.playersUrl,
+                        meeting: m.meeting,
+                        r1Label:
+                          m.r1 && m.r1 !== "—"
+                            ? `Раунд 1 · ${m.r1}`
+                            : "Раунд 1",
+                        r2Label:
+                          m.r2 && m.r2 !== "—"
+                            ? `Раунд 2 · ${m.r2}`
+                            : "Раунд 2",
+                        r1Tickets: m.r1,
+                        r2Tickets: m.r2,
+                        highlightNick,
+                      });
+                    }}
+                    onKeyDown={(e) => {
+                      if (!canOpen) return;
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        (e.currentTarget as HTMLTableRowElement).click();
+                      }
+                    }}
+                  >
                     <td>{m.dateLabel}</td>
                     <td>{m.opp}</td>
                     <td title={m.map}>
@@ -107,6 +168,7 @@ export function ProfileKvMatchHistory({
           </table>
         </div>
       )}
+      <ProfileMatchStatsModal open={open} onClose={() => setOpen(null)} />
     </section>
   );
 }

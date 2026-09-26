@@ -31,6 +31,11 @@ export type CwMatchHistoryRow = {
   map: string;
   meeting: string;
   stack: string;
+  size?: string;
+  status?: string;
+  r1?: string;
+  r2?: string;
+  playersUrl: string;
   won: boolean | null;
   pwrAfter: number;
   pwrDelta: number;
@@ -422,7 +427,10 @@ export async function buildPlayerCwMatchHistory(
     map: string;
     meeting: string;
     stack: string;
+    size: string;
     status: string;
+    r1: string;
+    r2: string;
     playersUrl: string;
     sortKey: string;
   };
@@ -438,7 +446,10 @@ export async function buildPlayerCwMatchHistory(
         map?: string;
         meeting?: string;
         stack?: string;
+        size?: string;
         status?: string;
+        r1?: string;
+        r2?: string;
         playersUrl?: string;
       }[];
     }>(m.url);
@@ -453,7 +464,10 @@ export async function buildPlayerCwMatchHistory(
         map: match.map || "—",
         meeting: match.meeting || "—",
         stack: match.stack || "—",
+        size: match.size || "—",
         status: String(match.status || ""),
+        r1: match.r1 || "—",
+        r2: match.r2 || "—",
         playersUrl: match.playersUrl,
         sortKey: `${m.year}-${pad2(m.month)}-${pad2(match.day)}-${match.id}`,
       });
@@ -524,6 +538,11 @@ export async function buildPlayerCwMatchHistory(
       map: match.map,
       meeting: match.meeting,
       stack: match.stack,
+      size: match.size,
+      status: match.status,
+      r1: match.r1,
+      r2: match.r2,
+      playersUrl: match.playersUrl,
       won,
       pwrAfter: pwr,
       pwrDelta,

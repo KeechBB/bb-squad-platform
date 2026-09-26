@@ -7,6 +7,10 @@ import {
   trainingDayMarksFromSessions,
 } from "@/lib/squadSessions";
 import type { TrainMatchHistoryRow } from "@/lib/homeTrainPwr";
+import {
+  ProfileMatchStatsModal,
+  type MatchStatsOpen,
+} from "@/components/ProfileMatchStatsModal";
 
 export type SessionRow = {
   id: string;
@@ -131,9 +135,13 @@ function buildMonthGrid(year: number, month: number) {
 
 export function TrainingMatchHistory({
   matchHistory = [],
+  highlightNick,
 }: {
   matchHistory?: TrainMatchHistoryRow[];
+  highlightNick?: string;
 }) {
+  const [open, setOpen] = useState<MatchStatsOpen | null>(null);
+
   return (
     <section className="card profile-hist-card profile-train-hist-card">
       <h2 className="profile-hist-title">История матчей тренировок</h2>
@@ -178,8 +186,45 @@ export function TrainingMatchHistory({
                     : m.won === false
                       ? "Поражение"
                       : "—";
+                const canOpen = Boolean(m.playersUrl);
                 return (
-                  <tr key={m.matchId}>
+                  <tr
+                    key={m.matchId}
+                    className={canOpen ? "profile-hist-row-click" : undefined}
+                    tabIndex={canOpen ? 0 : undefined}
+                    onClick={() => {
+                      if (!canOpen) return;
+                      setOpen({
+                        kind: "train",
+                        matchId: m.matchId,
+                        title: `${m.dateLabel} · ${m.map || "тренировка"}`,
+                        sub: [
+                          `${m.factionA} ${m.ticketsA ?? "—"}`,
+                          `${m.factionB} ${m.ticketsB ?? "—"}`,
+                          m.winner ? `победа ${m.winner}` : null,
+                          m.duration ? `время ${m.duration}` : null,
+                          m.server,
+                        ]
+                          .filter(Boolean)
+                          .join(" · "),
+                        playersUrl: m.playersUrl,
+                        factionA: m.factionA,
+                        ticketsA: m.ticketsA,
+                        factionB: m.factionB,
+                        ticketsB: m.ticketsB,
+                        winner: m.winner,
+                        duration: m.duration,
+                        highlightNick,
+                      });
+                    }}
+                    onKeyDown={(e) => {
+                      if (!canOpen) return;
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        (e.currentTarget as HTMLTableRowElement).click();
+                      }
+                    }}
+                  >
                     <td>{m.dateLabel}</td>
                     <td title={m.map}>
                       <span className="training-match-map">{m.map}</span>
@@ -212,6 +257,7 @@ export function TrainingMatchHistory({
           </table>
         </div>
       )}
+      <ProfileMatchStatsModal open={open} onClose={() => setOpen(null)} />
     </section>
   );
 }

@@ -231,10 +231,16 @@ export default async function ProfilePage() {
       </div>
 
       <div className="profile-area-kv-hist">
-        <ProfileKvMatchHistory matchHistory={cwMatchHistory} />
+        <ProfileKvMatchHistory
+          matchHistory={cwMatchHistory}
+          highlightNick={nickForKv}
+        />
       </div>
       <div className="profile-area-train-hist">
-        <TrainingMatchHistory matchHistory={matchHistory} />
+        <TrainingMatchHistory
+          matchHistory={matchHistory}
+          highlightNick={nickForKv}
+        />
       </div>
     </main>
   );
