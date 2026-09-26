@@ -55,6 +55,9 @@ const MIN_W = 280;
 const MIN_H = 320;
 const DEFAULT_W = 380;
 const DEFAULT_H = 520;
+const MINI_W = 240;
+const MINI_H = 48;
+const DRAG_CLICK_PX = 10;
 
 function defaultGeom(): PanelGeom {
   if (typeof window === "undefined") {
@@ -85,6 +88,28 @@ function clampGeom(g: PanelGeom): PanelGeom {
   const left = Math.min(Math.max(g.left, pad), window.innerWidth - width - pad);
   const top = Math.min(Math.max(g.top, pad), window.innerHeight - height - pad);
   return { left, top, width, height };
+}
+
+/** Позиция свёрнутого чипа (не размер панели). */
+function clampMiniPos(left: number, top: number): { left: number; top: number } {
+  if (typeof window === "undefined") return { left, top };
+  const pad = 8;
+  const w = Math.min(MINI_W, window.innerWidth - pad * 2);
+  const h = MINI_H;
+  return {
+    left: Math.min(Math.max(left, pad), Math.max(pad, window.innerWidth - w - pad)),
+    top: Math.min(Math.max(top, pad), Math.max(pad, window.innerHeight - h - pad)),
+  };
+}
+
+function defaultMiniPos(): { left: number; top: number } {
+  if (typeof window === "undefined") return { left: 40, top: 80 };
+  const pad = 12;
+  const fabGap = 72;
+  return clampMiniPos(
+    window.innerWidth - MINI_W - pad,
+    window.innerHeight - MINI_H - fabGap
+  );
 }
 
 function loadGeom(): PanelGeom {
@@ -123,11 +148,13 @@ export function SupportChatWidget() {
   const [dragging, setDragging] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{
-    kind: "move" | "resize";
+    kind: "move" | "resize" | "mini";
     startX: number;
     startY: number;
     origin: PanelGeom;
+    moved: boolean;
   } | null>(null);
+  const suppressMiniClickRef = useRef(false);
   const loggedIn = Boolean(session?.user);
 
   useEffect(() => {
@@ -148,6 +175,15 @@ export function SupportChatWidget() {
       if (!d) return;
       const dx = e.clientX - d.startX;
       const dy = e.clientY - d.startY;
+      if (Math.abs(dx) > DRAG_CLICK_PX || Math.abs(dy) > DRAG_CLICK_PX) {
+        d.moved = true;
+        if (d.kind === "mini") suppressMiniClickRef.current = true;
+      }
+      if (d.kind === "mini") {
+        const pos = clampMiniPos(d.origin.left + dx, d.origin.top + dy);
+        setGeom((g) => ({ ...g, left: pos.left, top: pos.top }));
+        return;
+      }
       if (d.kind === "move") {
         setGeom(
           clampGeom({
@@ -183,13 +219,19 @@ export function SupportChatWidget() {
 
   useEffect(() => {
     function onResize() {
-      setGeom((g) => clampGeom(g));
+      setGeom((g) => {
+        if (mode === "minimized") {
+          const pos = clampMiniPos(g.left, g.top);
+          return { ...g, left: pos.left, top: pos.top };
+        }
+        return clampGeom(g);
+      });
     }
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, []);
+  }, [mode]);
 
-  function startDrag(kind: "move" | "resize", e: ReactPointerEvent) {
+  function startDrag(kind: "move" | "resize" | "mini", e: ReactPointerEvent) {
     if (e.button !== 0) return;
     e.preventDefault();
     dragRef.current = {
@@ -197,8 +239,15 @@ export function SupportChatWidget() {
       startX: e.clientX,
       startY: e.clientY,
       origin: geom,
+      moved: false,
     };
     setDragging(true);
+  }
+
+  function minimizePanel() {
+    const pos = defaultMiniPos();
+    setGeom((g) => ({ ...g, left: pos.left, top: pos.top }));
+    setMode("minimized");
   }
 
   const activeTicket =
@@ -514,24 +563,57 @@ export function SupportChatWidget() {
   return (
     <div className="support-root" aria-live="polite">
       {mode === "minimized" ? (
-        <button
-          type="button"
-          className="support-mini"
+        <div
+          className={`support-mini${dragging ? " support-mini-dragging" : ""}`}
           style={{ left: geom.left, top: geom.top }}
-          onClick={() => setMode("open")}
-          title="Развернуть чат"
+          onPointerDown={(e) => {
+            const t = e.target as HTMLElement;
+            if (t.closest("button")) return;
+            startDrag("mini", e);
+          }}
+          onClick={() => {
+            if (suppressMiniClickRef.current) {
+              suppressMiniClickRef.current = false;
+              return;
+            }
+            setMode("open");
+          }}
+          title="Перетащи или нажми, чтобы развернуть"
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setMode("open");
+            }
+          }}
         >
-          <span>
-            {activeTicket
-              ? `Тикет ${titleNumber}`
-              : staff && view === "inbox"
-                ? "Очередь поддержки"
-                : "Техподдержка"}
+          <span className="support-mini-body">
+            <span>
+              {activeTicket
+                ? `Тикет ${titleNumber}`
+                : staff && view === "inbox"
+                  ? "Очередь поддержки"
+                  : "Техподдержка"}
+            </span>
+            <span className="support-mini-nick">
+              {staff && staffTicket ? staffTicket.userNick : myNick}
+            </span>
           </span>
-          <span className="support-mini-nick">
-            {staff && staffTicket ? staffTicket.userNick : myNick}
-          </span>
-        </button>
+          <button
+            type="button"
+            className="support-mini-close"
+            title="Закрыть"
+            aria-label="Закрыть тикет"
+            onClick={(e) => {
+              e.stopPropagation();
+              setMode("closed");
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            ×
+          </button>
+        </div>
       ) : null}
 
       {mode === "open" ? (
@@ -583,7 +665,7 @@ export function SupportChatWidget() {
                 type="button"
                 className="support-icon-btn"
                 title="Свернуть"
-                onClick={() => setMode("minimized")}
+                onClick={() => minimizePanel()}
               >
                 –
               </button>

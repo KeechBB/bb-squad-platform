@@ -6649,22 +6649,68 @@ body {
   position: fixed;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
+  gap: 8px;
+  max-width: min(260px, calc(100vw - 16px));
+  padding: 10px 8px 10px 14px;
   border-radius: 12px;
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--ink);
-  cursor: pointer;
+  cursor: grab;
+  touch-action: none;
   backdrop-filter: blur(10px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   font: inherit;
   z-index: 81;
+  user-select: none;
+}
+
+.support-mini-dragging {
+  cursor: grabbing;
+  opacity: 0.95;
+}
+
+.support-mini-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+  pointer-events: none;
+}
+
+.support-mini-body > span:first-child {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 0.9rem;
 }
 
 .support-mini-nick {
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.support-mini-close {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.support-mini-close:hover {
+  background: rgba(244, 63, 94, 0.25);
 }
 
 .support-panel {
@@ -7003,5 +7049,9 @@ body {
   .support-fab {
     width: 52px;
     height: 52px;
+  }
+
+  .support-mini {
+    max-width: calc(100vw - 20px);
   }
 }
