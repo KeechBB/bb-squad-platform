@@ -55,3 +55,7 @@ scripts/.squad-collector.env
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+backups/
+scripts/_tmp_*.py
+

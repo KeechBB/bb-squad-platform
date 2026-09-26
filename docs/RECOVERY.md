@@ -14,10 +14,10 @@
 | Часть | Где | Зачем |
 |--------|-----|--------|
 | Сайт регистрации (Next.js) | **Timeweb Cloud VPS** | Страницы, Steam-вход, анкета |
-| База данных (Postgres) | **Neon** проект `bb-squad` | Пользователи, анкеты |
+| База данных (Postgres) | **тот же VPS** (`bb_squad` @ localhost) | Пользователи, сессии, кланы |
 | Код платформы | GitHub `KeechBB/bb-squad-platform` | Исходники |
 | Таблица КВ / рейтинг | GitHub Pages `KeechBB/blackberry-kv` | Статика, **не** регистрация |
-| Домен | `bb-squad.ru` | Пока КВ/DNS отдельно; платформа временно по IP |
+| Домен | `bb-squad.ru` | HTTPS на VPS |
 
 **Не путать:** Vercel отменили (SMS не приходит). Хостинг сайта = Timeweb, не Vercel.
 
@@ -27,12 +27,12 @@
 
 | Сервис | Что | Примерная цена | Где смотреть |
 |--------|-----|----------------|--------------|
-| **Timeweb Cloud** | VPS Mysterious Lacerta | ~**900 ₽/мес** | timeweb.cloud → Биллинг |
-| **Neon** | Postgres Free | **0 ₽** (лимит 0.5 ГБ) | console.neon.tech |
+| **Timeweb Cloud** | VPS Mysterious Lacerta | ~**900 ₽/мес** (+ апгрейд тарифа) | timeweb.cloud → Биллинг |
 | **Домен bb-squad.ru** | Регистрация домена | раз в год (у регистратора) | где покупали домен |
 | **GitHub** | репо | 0 ₽ (публичные) | github.com/KeechBB |
 
-Если баланс Timeweb = 0 → **сайт ляжет**. Neon Free при простое ок, но аккаунт не удалять.  
+Neon больше не обязателен (после переноса на VPS). Старый проект Free можно удалить через несколько дней.  
+Если баланс Timeweb = 0 → **сайт и БД лягут**.  
 Домен не оплатишь → не привяжешь красивый адрес.
 
 Напоминание агенту: при сессиях про платформу **спрашивать/напомнить** про оплату Timeweb и домен.
@@ -48,7 +48,7 @@
 - SSH: `ssh root@91.222.237.91`
 - ОС: Ubuntu
 - Регион: Санкт-Петербург
-- Тариф: ~2 CPU / 2 ГБ RAM / 40 ГБ NVMe
+- Тариф: апгрейд 25.09.2026 → **2×5 ГГц / 4 ГБ / 50 ГБ / 200 Мбит** (см. HOSTING)
 - Консоль в браузере: сервер → вкладка **Консоль** (логин `root`, пароль во вкладке **Доступ**)
 - Пароль root: **только в панели Timeweb** (глазик / сброс). В чат и в git не класть.
 
@@ -56,36 +56,39 @@
 
 - Каталог сайта: `/var/www/bb-squad-platform`
 - Node 20 + npm
-- Процесс: **pm2** имя `bb-squad`
+- **Postgres** (localhost): БД `bb_squad`, роль `bb_squad`
+- Процесс: **pm2** имена `bb-squad`, `bb-squad-collector`
+- Бэкапы БД: `/var/backups/bb-squad/` через `scripts/backup-db.sh`
 - Полезные команды на сервере:
   ```bash
   pm2 status
   pm2 logs bb-squad
   pm2 restart bb-squad
-  cd /var/www/bb-squad-platform && git pull && npm install && npm run build && pm2 restart bb-squad
+  cd /var/www/bb-squad-platform && bash scripts/deploy.sh
+  bash /var/www/bb-squad-platform/scripts/backup-db.sh
   ```
 - Старт: `npm start` → `next start`
-- Временный URL: **http://91.222.237.91:3000**
+- URL: **https://bb-squad.ru** (запасной `http://91.222.237.91:3000`)
 
-Файл `.env` на сервере (`/var/www/bb-squad-platform/.env`) — 4 переменные:
-- `DATABASE_URL` — строка из Neon Connect
-- `NEXTAUTH_URL` — сейчас `http://91.222.237.91:3000`
+Файл `.env` на сервере (`/var/www/bb-squad-platform/.env`):
+- `DATABASE_URL` — **локальный** Postgres (`127.0.0.1`), не Neon
+- `NEXTAUTH_URL` — `https://bb-squad.ru`
 - `NEXTAUTH_SECRET`
 - `STEAM_API_KEY`
 
-Локальная копия для разработки: `Новый Проект Кича/platform/.env` (в git **не** коммитится).
+Локальная копия для разработки: `Новый Проект Кича/platform/.env` (в git **не** коммитится). Для доступа к прод-БД с ПК — SSH-туннель, не открывать 5432 наружу.
 
 ---
 
-## Neon (база)
+## Postgres на VPS (база)
 
+- Перенос с Neon: `scripts/migrate-neon-to-vps.sh` (нужен ещё Neon URL в `.env`).
+- После миграции бэкап Neon: `/root/bb-db-migrate/env.before-migrate`.
+- Ежедневный dump: cron на `scripts/backup-db.sh`.
+
+Старый Neon (архив / откат несколько дней):
 - Сайт: [https://console.neon.tech](https://console.neon.tech)
-- Проект: **bb-squad**
-- Регион: AWS Europe West 2 (London)
-- Plan: Free (0.5 GB)
-- Project id встречался: `falling-wind-…` (точный смотри в Neon → Project info)
-- Строка подключения: Neon → **Connect** → Copy → в `DATABASE_URL`
-- Таблицы созданы через `prisma db push` (модель `User`)
+- Проект: **bb-squad**, регион London, Free
 
 Neon Auth / BetterAuth **не используем** — вход через Steam (NextAuth).
 
@@ -115,12 +118,12 @@ Neon Auth / BetterAuth **не используем** — вход через Ste
 ## Восстановление с нуля (краткий чеклист)
 
 1. Оплатить / зайти в **Timeweb**, поднять VPS (или этот же, если жив).
-2. Зайти в **Neon**, взять Connection string.
-3. На сервере: Node 20, clone `bb-squad-platform`, `.env` с 4 ключами, `npm install && npm run build`, pm2.
-4. Steam Domain = IP или домен.
+2. На сервере: Node 20, Postgres, clone `bb-squad-platform`, `.env` с локальным `DATABASE_URL`, `npm install && npm run build`, pm2.
+3. Восстановить БД из `/var/backups/bb-squad/*.dump` (`pg_restore`) или заново `prisma db push` + импорт.
+4. Steam Domain = `bb-squad.ru`.
 5. Открыть URL, проверить «Войти через Steam».
 
-Подробные команды первой установки — в истории чата Phase 0 / `DEPLOY.md` + этот файл.
+Подробные команды — `HOSTING.md`, `scripts/migrate-neon-to-vps.sh`, `scripts/backup-db.sh`.
 
 ---
 
