@@ -4,7 +4,8 @@
 
 ## 2026-09-26
 
-- Перенос БД Neon → Postgres на VPS (`scripts/migrate-neon-to-vps.sh`, `scripts/backup-db.sh`). HOSTING/RECOVERY обновлены: БД localhost `bb_squad`. Дамп Neon на ПК: `platform/backups/neon-to-vps.sql` (запас).
+- Перенос БД Neon → Postgres на VPS **выполнен**: localhost `bb_squad`, counts User 141 / sessions 1688 / maps 4147 / visits 4337. `pm2` online, https://bb-squad.ru 200. Cron бэкап `/etc/cron.d/bb-squad-db` → `/var/backups/bb-squad/`. Откат: `/root/bb-db-migrate/env.before-migrate`. Neon можно выключить через несколько дней.
+- Скрипты: `migrate-neon-to-vps.sh`, `backup-db.sh`. HOSTING/RECOVERY обновлены.
 
 ## 2026-09-20
 
