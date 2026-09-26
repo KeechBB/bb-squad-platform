@@ -193,12 +193,17 @@ type Props = {
 };
 
 export function ProfileMatchStatsModal({ open, onClose }: Props) {
+  const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<LoadedPlayers | null>(null);
   const [tab, setTab] = useState<TabKey>("total");
   const [sortKey, setSortKey] = useState<SortKey>("kills");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!open) {
@@ -376,7 +381,7 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
     return sortDir === "asc" ? "▲" : "▼";
   };
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
   const hasTabs = data
     ? data.training
@@ -409,12 +414,6 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
       : [];
 
   const highlight = (open.highlightNick || "").trim().toLowerCase();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) return null;
 
   const modal = (
     <div className="profile-match-modal" role="presentation">
