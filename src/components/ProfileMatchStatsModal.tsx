@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 
 export type MatchStatsOpen =
   | {
@@ -408,8 +409,14 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
       : [];
 
   const highlight = (open.highlightNick || "").trim().toLowerCase();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  return (
+  if (!mounted) return null;
+
+  const modal = (
     <div className="profile-match-modal" role="presentation">
       <button
         type="button"
@@ -646,4 +653,6 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
       </div>
     </div>
   );
+
+  return createPortal(modal, document.body);
 }
