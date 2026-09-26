@@ -3,7 +3,7 @@ type Props = {
 };
 
 /** Меняй при обновлении KV, чтобы iframe не брал старый кэш */
-const KV_CACHE = "20260926-alpha-r1";
+const KV_CACHE = "20260926-ticket-sum";
 
 export default async function CwPage({ searchParams }: Props) {
   const sp = searchParams ? await searchParams : {};
