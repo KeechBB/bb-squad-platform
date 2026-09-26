@@ -28,7 +28,8 @@ Vercel не используем (SMS). Сайт и **Postgres** крутятс�
 - Слушает только localhost — **не** открывать `5432` в firewall.
 - `DATABASE_URL` в `/var/www/bb-squad-platform/.env` → `postgresql://bb_squad:…@127.0.0.1:5432/bb_squad`
 - Перенос с Neon: `bash scripts/migrate-neon-to-vps.sh` (на сервере, пока в `.env` ещё Neon URL).
-- Ежедневный бэкап: `scripts/backup-db.sh` → `/var/backups/bb-squad/` (cron, 14 дней).
+- Ежедневный бэкап: `scripts/backup-db.sh` → `/var/backups/bb-squad/` (**00:00 МСК**, хранит **5** последних).
+- Cron: `/etc/cron.d/bb-squad-db` (`CRON_TZ=Europe/Moscow`).
 - Откат на Neon: вернуть строку из `/root/bb-db-migrate/env.before-migrate` → `pm2 restart bb-squad bb-squad-collector`.
 - Neon можно держать 3–7 дней как read-only запас, потом выключить проект.
 
