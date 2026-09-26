@@ -65,7 +65,7 @@ type LoadedPlayers = {
   training: boolean;
 };
 
-type SortKey = "nick" | "res" | "nok" | "kills" | "deaths" | "kd" | "dmg";
+type SortKey = "nick" | "res" | "nok" | "kills" | "deaths" | "kd" | "dmg" | "pwrDelta";
 type TabKey = "total" | "r1" | "r2" | "teamA" | "teamB";
 
 const MVP_LABEL: Record<keyof MvpBlock, string> = {
@@ -197,6 +197,7 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<LoadedPlayers | null>(null);
+  const [pwrDeltas, setPwrDeltas] = useState<Record<string, number>>({});
   const [tab, setTab] = useState<TabKey>("total");
   const [sortKey, setSortKey] = useState<SortKey>("kills");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -210,6 +211,7 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
       setData(null);
       setError(null);
       setLoading(false);
+      setPwrDeltas({});
       return;
     }
     setTab("total");
@@ -218,15 +220,31 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
     setLoading(true);
     setError(null);
     setData(null);
+    setPwrDeltas({});
 
     let cancelled = false;
-    fetch(kvUrl(open.playersUrl), { cache: "no-store" })
-      .then(async (res) => {
+    const kind = open.kind === "train" ? "train" : "cw";
+    Promise.all([
+      fetch(kvUrl(open.playersUrl), { cache: "no-store" }).then(async (res) => {
         if (!res.ok) throw new Error("Нет файла статистики");
         return res.json();
-      })
-      .then((json) => {
+      }),
+      fetch(
+        `/api/match-pwr-delta?kind=${kind}&matchId=${encodeURIComponent(open.matchId)}`,
+        { cache: "no-store" }
+      )
+        .then(async (res) => (res.ok ? res.json() : { deltas: {} }))
+        .catch(() => ({ deltas: {} })),
+    ])
+      .then(([json, deltaPayload]) => {
         if (cancelled) return;
+        const rawDeltas = (deltaPayload?.deltas || {}) as Record<string, number>;
+        const normalized: Record<string, number> = {};
+        for (const [k, v] of Object.entries(rawDeltas)) {
+          normalized[k.trim().toLowerCase()] = Number(v) || 0;
+        }
+        setPwrDeltas(normalized);
+
         if (open.kind === "train") {
           const teamA = enrich(json.teamA || []);
           const teamB = enrich(json.teamB || []);
@@ -308,16 +326,28 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
 
   const sorted = useMemo(() => {
     const dir = sortDir === "asc" ? 1 : -1;
+    const deltaOf = (nick: string) =>
+      pwrDeltas[nick.trim().toLowerCase()];
     return rows.slice().sort((a, b) => {
       if (sortKey === "nick") {
         return dir * a.nick.localeCompare(b.nick, "ru");
+      }
+      if (sortKey === "pwrDelta") {
+        const av = deltaOf(a.nick);
+        const bv = deltaOf(b.nick);
+        const an = av == null ? Number.NEGATIVE_INFINITY : av;
+        const bn = bv == null ? Number.NEGATIVE_INFINITY : bv;
+        if (an !== bn) return dir * (an - bn);
+        return a.nick.localeCompare(b.nick, "ru");
       }
       const av = Number(a[sortKey]) || 0;
       const bv = Number(b[sortKey]) || 0;
       if (av !== bv) return dir * (av - bv);
       return a.nick.localeCompare(b.nick, "ru");
     });
-  }, [rows, sortKey, sortDir]);
+  }, [rows, sortKey, sortDir, pwrDeltas]);
+
+  const showPwrDelta = tab === "total";
 
   const records = useMemo(() => {
     return {
@@ -543,6 +573,16 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
                           <span className="sort-ind">{sortMark(key)}</span>
                         </th>
                       ))}
+                      {showPwrDelta ? (
+                        <th
+                          className={`ctr sortable${sortKey === "pwrDelta" ? " is-sorted" : ""}`}
+                          onClick={() => toggleSort("pwrDelta")}
+                          title="Изменение PWR после этой катки"
+                        >
+                          Δ PWR
+                          <span className="sort-ind">{sortMark("pwrDelta")}</span>
+                        </th>
+                      ) : null}
                     </tr>
                   </thead>
                   <tbody>
@@ -551,6 +591,21 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
                       const isMe =
                         highlight &&
                         p.nick.trim().toLowerCase() === highlight;
+                      const delta = pwrDeltas[p.nick.trim().toLowerCase()];
+                      const deltaCls =
+                        delta == null
+                          ? "pwr-delta zero"
+                          : delta > 0
+                            ? "pwr-delta plus"
+                            : delta < 0
+                              ? "pwr-delta minus"
+                              : "pwr-delta zero";
+                      const deltaText =
+                        delta == null
+                          ? "—"
+                          : delta > 0
+                            ? `+${delta}`
+                            : String(delta);
                       return (
                         <tr
                           key={`${p.nick}-${i}`}
@@ -624,6 +679,9 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
                           >
                             {p.dmg}
                           </td>
+                          {showPwrDelta ? (
+                            <td className={`ctr ${deltaCls}`}>{deltaText}</td>
+                          ) : null}
                         </tr>
                       );
                     })}
@@ -642,6 +700,7 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
                           : foot.kills}
                       </td>
                       <td className="ctr">{foot.dmg}</td>
+                      {showPwrDelta ? <td className="ctr">—</td> : null}
                     </tr>
                   </tfoot>
                 </table>
