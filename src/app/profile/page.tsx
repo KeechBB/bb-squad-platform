@@ -16,8 +16,13 @@ import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
 import { loadUserTrainingStats } from "@/lib/trainingStats";
 import { buildPlayerKvStats } from "@/lib/kvStats";
 import { lookupPlayerTrainPwr, buildPlayerTrainMatchHistory } from "@/lib/homeTrainPwr";
+import {
+  lookupPlayerCwPwr,
+  buildPlayerCwMatchHistory,
+} from "@/lib/homeCwPwr";
 import { ReactionBestCard } from "@/components/ReactionBestCard";
 import { ProfileTrainPwrCard } from "@/components/ProfileTrainPwrCard";
+import { ProfileCwPwrCard } from "@/components/ProfileCwPwrCard";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -74,6 +79,8 @@ export default async function ProfilePage() {
     kvBundle,
     trainPwr,
     matchHistory,
+    cwPwr,
+    cwMatchHistory,
     reactionBest,
     reactionBestL1,
     reactionBestL2,
@@ -96,6 +103,12 @@ export default async function ProfilePage() {
       : Promise.resolve(null),
     nickForKv
       ? buildPlayerTrainMatchHistory(nickForKv).catch(() => [])
+      : Promise.resolve([]),
+    nickForKv
+      ? lookupPlayerCwPwr(nickForKv).catch(() => null)
+      : Promise.resolve(null),
+    nickForKv
+      ? buildPlayerCwMatchHistory(nickForKv).catch(() => [])
       : Promise.resolve([]),
     prisma.reactionRun.findFirst({
       where: { userId: me.id, level: 1 },
@@ -185,6 +198,7 @@ export default async function ProfilePage() {
             </section>
           ) : null}
           <ProfileTrainPwrCard stats={trainPwr} />
+          <ProfileCwPwrCard stats={cwPwr} />
           <ClanInvites initial={invites} />
         </div>
       </div>
@@ -227,7 +241,7 @@ export default async function ProfilePage() {
       </div>
 
       <div className="profile-area-kv-hist">
-        <ProfileKvMatchHistory stats={kvStats} />
+        <ProfileKvMatchHistory matchHistory={cwMatchHistory} />
       </div>
       <div className="profile-area-train-hist">
         <TrainingMatchHistory matchHistory={matchHistory} />
