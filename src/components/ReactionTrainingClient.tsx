@@ -31,7 +31,7 @@ type GlobalRecord = {
   nick: string;
 };
 
-type Phase = "idle" | "wait" | "ready" | "done";
+type Phase = "idle" | "countdown" | "wait" | "ready" | "done";
 type Level = ReactionLevel;
 type PageView = "train" | "rating";
 
@@ -112,6 +112,7 @@ export function ReactionTrainingClient() {
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
   const [targets, setTargets] = useState<TargetDot[]>([]);
+  const [countdownLabel, setCountdownLabel] = useState<string | null>(null);
   const [sessionSeries, setSessionSeries] = useState<SessionSeries[]>([]);
   const [ratingRows, setRatingRows] = useState<RatingRow[]>([]);
   const [ratingLoading, setRatingLoading] = useState(false);
@@ -122,6 +123,7 @@ export function ReactionTrainingClient() {
   const levelRef = useRef<Level>(1);
   const appearAtRef = useRef(0);
   const timerRef = useRef<number | null>(null);
+  const countdownTimerRef = useRef<number | null>(null);
   const arenaRef = useRef<HTMLDivElement>(null);
   const lastAvgRef = useRef<number | null>(null);
   const lastL1Ref = useRef<number | null>(null);
@@ -129,6 +131,9 @@ export function ReactionTrainingClient() {
   const seriesSeqRef = useRef(0);
   const targetSeqRef = useRef(0);
   const targetsRef = useRef<TargetDot[]>([]);
+  const attemptsRef = useRef<number[]>([]);
+  const missFlagsRef = useRef<boolean[]>([]);
+  const seriesCommittedRef = useRef(false);
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -146,11 +151,27 @@ export function ReactionTrainingClient() {
     targetsRef.current = targets;
   }, [targets]);
 
+  useEffect(() => {
+    attemptsRef.current = attempts;
+  }, [attempts]);
+
+  useEffect(() => {
+    missFlagsRef.current = missFlags;
+  }, [missFlags]);
+
   const clearTimer = () => {
     if (timerRef.current != null) {
       window.clearTimeout(timerRef.current);
       timerRef.current = null;
     }
+  };
+
+  const clearCountdown = () => {
+    if (countdownTimerRef.current != null) {
+      window.clearTimeout(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+    setCountdownLabel(null);
   };
 
   const pingPresence = useCallback(async () => {
@@ -223,6 +244,7 @@ export function ReactionTrainingClient() {
       window.clearInterval(presenceId);
       window.clearInterval(liveId);
       clearTimer();
+      clearCountdown();
     };
   }, [pingPresence, loadLive]);
 
@@ -276,21 +298,50 @@ export function ReactionTrainingClient() {
     }, delay);
   }
 
-  function startSeries() {
+  function beginCountdown() {
+    clearTimer();
+    clearCountdown();
     setAttempts([]);
     setMissFlags([]);
+    attemptsRef.current = [];
+    missFlagsRef.current = [];
     setLastAvg(null);
     setMsg("");
-    startAttempt();
+    targetsRef.current = [];
+    setTargets([]);
+    seriesCommittedRef.current = true;
+    setPhase("countdown");
+
+    const steps = ["3", "2", "1"];
+    let i = 0;
+    const tick = () => {
+      if (i >= steps.length) {
+        clearCountdown();
+        startAttempt();
+        return;
+      }
+      setCountdownLabel(steps[i]!);
+      i += 1;
+      countdownTimerRef.current = window.setTimeout(tick, 1000);
+    };
+    tick();
+  }
+
+  function startSeries() {
+    beginCountdown();
   }
 
   function selectLevel(lv: Level) {
     if (phase !== "idle" && phase !== "done") return;
     clearTimer();
+    clearCountdown();
+    seriesCommittedRef.current = false;
     setView("train");
     setLevel(lv);
     setAttempts([]);
     setMissFlags([]);
+    attemptsRef.current = [];
+    missFlagsRef.current = [];
     setLastAvg(null);
     setMsg("");
     targetsRef.current = [];
@@ -318,6 +369,8 @@ export function ReactionTrainingClient() {
   function openRating() {
     if (phase !== "idle" && phase !== "done") return;
     clearTimer();
+    clearCountdown();
+    seriesCommittedRef.current = false;
     setView("rating");
     setPhase("idle");
     targetsRef.current = [];
@@ -391,8 +444,10 @@ export function ReactionTrainingClient() {
   }
 
   function recordAttempt(ms: number, missed: boolean) {
-    const next = [...attempts, ms];
-    const nextMiss = [...missFlags, missed];
+    const next = [...attemptsRef.current, ms];
+    const nextMiss = [...missFlagsRef.current, missed];
+    attemptsRef.current = next;
+    missFlagsRef.current = nextMiss;
     setAttempts(next);
     setMissFlags(nextMiss);
     targetsRef.current = [];
@@ -404,13 +459,54 @@ export function ReactionTrainingClient() {
     );
 
     if (next.length >= REACTION_ATTEMPTS) {
-      void finishSeries(next);
+      void finishSeries(next, nextMiss);
     } else {
       startAttempt();
     }
   }
 
-  async function finishSeries(finalAttempts: number[]) {
+  /** Стоп после Старта: добить серию штрафами и сохранить — скипнуть нельзя. */
+  function abandonSeriesAsMisses() {
+    if (!seriesCommittedRef.current) {
+      clearTimer();
+      clearCountdown();
+      setPhase("idle");
+      targetsRef.current = [];
+      setTargets([]);
+      setAttempts([]);
+      setMissFlags([]);
+      attemptsRef.current = [];
+      missFlagsRef.current = [];
+      setMsg("Остановлено");
+      return;
+    }
+    if (saving || phaseRef.current === "done") return;
+
+    clearTimer();
+    clearCountdown();
+    targetsRef.current = [];
+    setTargets([]);
+
+    const done = attemptsRef.current.slice();
+    const flags = missFlagsRef.current.slice();
+    while (done.length < REACTION_ATTEMPTS) {
+      done.push(REACTION_MISS_PENALTY_MS);
+      flags.push(true);
+    }
+    attemptsRef.current = done;
+    missFlagsRef.current = flags;
+    setAttempts(done);
+    setMissFlags(flags);
+    setMsg("Стоп · недоигранные попытки = штраф, серия сохранена");
+    void finishSeries(done, flags);
+  }
+
+  async function finishSeries(finalAttempts: number[], finalMiss?: boolean[]) {
+    seriesCommittedRef.current = false;
+    if (finalMiss) {
+      missFlagsRef.current = finalMiss;
+      setMissFlags(finalMiss);
+    }
     const avg = averageMs(finalAttempts);
     const lv = levelRef.current;
     setLastAvg(avg);
@@ -418,7 +514,11 @@ export function ReactionTrainingClient() {
     targetsRef.current = [];
     setTargets([]);
     setSaving(true);
-    setMsg("Сохраняем…");
+    setMsg((prev) =>
+      prev.includes("штраф") || prev.includes("Стоп")
+        ? prev.replace(/\.?$/, "") + " · сохраняем…"
+        : "Сохраняем…"
+    );
     rememberLevelResult(lv, avg);
 
     seriesSeqRef.current += 1;
@@ -462,6 +562,7 @@ export function ReactionTrainingClient() {
   }
 
   function onArenaClick(e: React.MouseEvent) {
+    if (phaseRef.current === "countdown") return;
     if (phaseRef.current === "wait") {
       clearTimer();
       setMsg("Рано! Жди шарик — эта попытка заново.");
@@ -493,9 +594,11 @@ export function ReactionTrainingClient() {
     }
   }
 
-  const busy = phase === "wait" || phase === "ready";
+  const busy =
+    phase === "countdown" || phase === "wait" || phase === "ready";
   const attemptNo = Math.min(
-    attempts.length + (phase === "done" || phase === "idle" ? 0 : 1),
+    attempts.length +
+      (phase === "done" || phase === "idle" || phase === "countdown" ? 0 : 1),
     REACTION_ATTEMPTS
   );
 
@@ -512,8 +615,8 @@ export function ReactionTrainingClient() {
           <h1>Тренировка стрельбы</h1>
           <p className="muted" style={{ margin: "6px 0 0" }}>
             {level === 1
-              ? "10 попыток · круг в центре через 1–10 с · среднее в секундах · промах = штраф 1.000 с"
-              : "10 попыток · 2 шарика на равном расстоянии от центра · среднее в секундах · промах = штраф 1.000 с"}
+              ? "Отсчёт 3 с · 10 попыток · круг в центре · промах/стоп = штраф 1.000 с · стоп всё равно сохраняет серию"
+              : "Отсчёт 3 с · 10 попыток · 2 шарика от центра · промах/стоп = штраф 1.000 с · стоп всё равно сохраняет серию"}
           </p>
         </div>
         <div className="reaction-best-chip reaction-best-chip-l1">
@@ -748,21 +851,16 @@ export function ReactionTrainingClient() {
                   <button
                     type="button"
                     className="btn ghost"
-                    onClick={() => {
-                      clearTimer();
-                      setPhase("idle");
-                      targetsRef.current = [];
-                      setTargets([]);
-                      setAttempts([]);
-                      setMissFlags([]);
-                      setMsg("Остановлено");
-                    }}
+                    disabled={saving}
+                    onClick={abandonSeriesAsMisses}
                   >
                     Стоп
                   </button>
                 )}
                 <span className="muted">
-                  Попытка {attemptNo} / {REACTION_ATTEMPTS}
+                  {phase === "countdown"
+                    ? "Отсчёт…"
+                    : `Попытка ${attemptNo} / ${REACTION_ATTEMPTS}`}
                 </span>
               </div>
               {lastAvg != null ? (
@@ -781,8 +879,17 @@ export function ReactionTrainingClient() {
               {phase === "idle" ? (
                 <p className="reaction-hint">
                   {level === 1
-                    ? "Ур. 1 — шарик всегда в центре. Нажми «Старт» и жди."
-                    : "Ур. 2 — два шарика на равном расстоянии от центра. Кликни оба — время до второго попадания."}
+                    ? "Ур. 1 — шарик в центре. Старт → отсчёт 3 с. Стоп не отменяет серию."
+                    : "Ур. 2 — два шарика от центра. Старт → отсчёт 3 с. Стоп не отменяет серию."}
+                </p>
+              ) : null}
+              {phase === "countdown" && countdownLabel ? (
+                <p
+                  key={countdownLabel}
+                  className="reaction-countdown"
+                  aria-live="assertive"
+                >
+                  {countdownLabel}
                 </p>
               ) : null}
               {phase === "wait" ? (
