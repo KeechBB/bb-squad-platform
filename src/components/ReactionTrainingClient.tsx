@@ -6,18 +6,11 @@ import {
   REACTION_ATTEMPTS,
   REACTION_DELAY_MAX_S,
   REACTION_DELAY_MIN_S,
-  REACTION_L2_BALL_LIFE_MS,
-  REACTION_L2_DURATION_MS,
-  REACTION_L2_HIT_POINTS,
-  REACTION_L2_MISS_POINTS,
-  REACTION_L2_SPAWN_EVERY_MS,
-  REACTION_L2_SPAWN_MAX,
-  REACTION_L2_SPAWN_MIN,
+  REACTION_L2_PAD_PX,
+  REACTION_L2_RADIUS_FRACTION,
   REACTION_MISS_PENALTY_MS,
   averageMs,
-  formatScore,
   formatSec3,
-  isScoreLevel,
   roundMs3,
   type ReactionLevel,
 } from "@/lib/reaction";
@@ -38,7 +31,7 @@ type GlobalRecord = {
   nick: string;
 };
 
-type Phase = "idle" | "countdown" | "wait" | "ready" | "play" | "done";
+type Phase = "idle" | "wait" | "ready" | "done";
 type Level = ReactionLevel;
 type PageView = "train" | "rating";
 
@@ -49,15 +42,9 @@ type RatingRow = {
   runsL1: number;
   bestL2: number | null;
   runsL2: number;
-  runsL3?: number;
 };
 
-type RatingSortKey =
-  | "nick"
-  | "bestL1"
-  | "runsL1"
-  | "bestL2"
-  | "runsL2"
+type RatingSortKey = "nick" | "bestL1" | "runsL1" | "bestL2" | "runsL2";
 
 type SessionSeries = {
   id: number;
@@ -65,22 +52,20 @@ type SessionSeries = {
   avgMs: number;
 };
 
-type L3Ball = {
+type TargetDot = {
   id: number;
   x: number;
   y: number;
-  expiresAt: number;
   background: string;
   shadow: string;
 };
 
-/** ~100 матовых цветов для шариков */
 const DOT_PALETTE: Array<{ h: number; s: number; l: number }> = (() => {
   const out: Array<{ h: number; s: number; l: number }> = [];
   for (let i = 0; i < 100; i++) {
     const h = Math.round((i * 137.508) % 360);
-    const s = 28 + (i % 5) * 4; // 28–44 — приглушённо
-    const l = 38 + (i % 4) * 4; // 38–50 — матовый средний тон
+    const s = 28 + (i % 5) * 4;
+    const l = 38 + (i % 4) * 4;
     out.push({ h, s, l });
   }
   return out;
@@ -95,9 +80,7 @@ function pickDotStyle() {
   const rim = `hsla(${h} ${s}% ${Math.max(14, l - 24)}% / 0.45)`;
   const soft = `hsla(${h} ${s}% ${l}% / 0.28)`;
   return {
-    background: [
-      `radial-gradient(circle at 32% 28%, ${hi} 0%, ${mid} 38%, ${midDeep} 68%, ${dark} 100%)`,
-    ].join(", "),
+    background: `radial-gradient(circle at 32% 28%, ${hi} 0%, ${mid} 38%, ${midDeep} 68%, ${dark} 100%)`,
     shadow: [
       `inset 0 -10px 18px ${rim}`,
       `inset 0 8px 14px hsla(0 0% 100% / 0.14)`,
@@ -108,71 +91,11 @@ function pickDotStyle() {
   };
 }
 
-type ZoomBaseline = {
-  dpr: number;
-  innerW: number;
-  outerW: number;
-  vvScale: number;
-};
-
-function readZoomBaseline(): ZoomBaseline {
-  return {
-    dpr: window.devicePixelRatio || 1,
-    innerW: window.innerWidth,
-    outerW: window.outerWidth,
-    vvScale: window.visualViewport?.scale ?? 1,
-  };
-}
-
-/** Pinch / Ctrl± зум относительно снимка на старте раунда. OS DPI не трогаем. */
-function zoomChangedSince(baseline: ZoomBaseline | null): boolean {
-  if (!baseline) return false;
-  const vvScale = window.visualViewport?.scale ?? 1;
-  if (Math.abs(vvScale - baseline.vvScale) > 0.03) return true;
-
-  const outerDelta = Math.abs(window.outerWidth - baseline.outerW);
-  // окно не ресайзили, а CSS-ширина / DPR уехали → зум браузера
-  if (outerDelta < 48) {
-    const dprRatio = (window.devicePixelRatio || 1) / baseline.dpr;
-    if (Math.abs(dprRatio - 1) > 0.04) return true;
-    const innerRatio = baseline.innerW / Math.max(1, window.innerWidth);
-    if (Math.abs(innerRatio - 1) > 0.04) return true;
-  }
-  return false;
-}
-
-/** Pinch-зум viewport (не путать с Windows scaling). */
-function isPinchZoomed(): boolean {
-  const scale = window.visualViewport?.scale ?? 1;
-  return Math.abs(scale - 1) > 0.04;
-}
-
 function randomDelayMs() {
   const s =
     REACTION_DELAY_MIN_S +
     Math.random() * (REACTION_DELAY_MAX_S - REACTION_DELAY_MIN_S);
   return Math.round(s * 1000);
-}
-
-function spawnCount() {
-  return (
-    REACTION_L2_SPAWN_MIN +
-    Math.floor(
-      Math.random() * (REACTION_L2_SPAWN_MAX - REACTION_L2_SPAWN_MIN + 1)
-    )
-  );
-}
-
-function formatRecord(level: Level, rec: GlobalRecord | null) {
-  if (!rec) return "—";
-  return isScoreLevel(level)
-    ? `${formatScore(rec.avgMs)} оч.`
-    : `${formatSec3(rec.avgMs)} с`;
-}
-
-function formatResult(level: Level, value: number | null) {
-  if (value == null) return "—";
-  return isScoreLevel(level) ? `${formatScore(value)} оч.` : `${formatSec3(value)} с`;
 }
 
 export function ReactionTrainingClient() {
@@ -188,19 +111,8 @@ export function ReactionTrainingClient() {
   const [recordL2, setRecordL2] = useState<GlobalRecord | null>(null);
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
-  const [circle, setCircle] = useState<{
-    x: number;
-    y: number;
-    background: string;
-    shadow: string;
-  } | null>(null);
+  const [targets, setTargets] = useState<TargetDot[]>([]);
   const [sessionSeries, setSessionSeries] = useState<SessionSeries[]>([]);
-  const [l3Balls, setL3Balls] = useState<L3Ball[]>([]);
-  const [l3Score, setL3Score] = useState(0);
-  const [l3Hits, setL3Hits] = useState(0);
-  const [l3Misses, setL3Misses] = useState(0);
-  const [l3LeftMs, setL3LeftMs] = useState(REACTION_L2_DURATION_MS);
-  const [countdownLabel, setCountdownLabel] = useState<string | null>(null);
   const [ratingRows, setRatingRows] = useState<RatingRow[]>([]);
   const [ratingLoading, setRatingLoading] = useState(false);
   const [ratingSortKey, setRatingSortKey] = useState<RatingSortKey>("bestL1");
@@ -210,27 +122,13 @@ export function ReactionTrainingClient() {
   const levelRef = useRef<Level>(1);
   const appearAtRef = useRef(0);
   const timerRef = useRef<number | null>(null);
-  const countdownTimerRef = useRef<number | null>(null);
-  const spawnTimerRef = useRef<number | null>(null);
-  const endTimerRef = useRef<number | null>(null);
-  const tickTimerRef = useRef<number | null>(null);
   const arenaRef = useRef<HTMLDivElement>(null);
   const lastAvgRef = useRef<number | null>(null);
   const lastL1Ref = useRef<number | null>(null);
   const lastL2Ref = useRef<number | null>(null);
   const seriesSeqRef = useRef(0);
-  const ballSeqRef = useRef(0);
-  const l3ScoreRef = useRef(0);
-  const l3HitsRef = useRef(0);
-  const l3MissesRef = useRef(0);
-  const l3StartRef = useRef(0);
-  const l3BallsRef = useRef<L3Ball[]>([]);
-  const l3ZoomBaselineRef = useRef<ZoomBaseline | null>(null);
-  const pageZoomBaselineRef = useRef<ZoomBaseline | null>(null);
-
-  useEffect(() => {
-    pageZoomBaselineRef.current = readZoomBaseline();
-  }, []);
+  const targetSeqRef = useRef(0);
+  const targetsRef = useRef<TargetDot[]>([]);
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -245,8 +143,8 @@ export function ReactionTrainingClient() {
   }, [lastAvg]);
 
   useEffect(() => {
-    l3BallsRef.current = l3Balls;
-  }, [l3Balls]);
+    targetsRef.current = targets;
+  }, [targets]);
 
   const clearTimer = () => {
     if (timerRef.current != null) {
@@ -254,46 +152,6 @@ export function ReactionTrainingClient() {
       timerRef.current = null;
     }
   };
-
-  const clearCountdown = () => {
-    if (countdownTimerRef.current != null) {
-      window.clearTimeout(countdownTimerRef.current);
-      countdownTimerRef.current = null;
-    }
-    setCountdownLabel(null);
-  };
-
-  const clearL3Timers = () => {
-    if (spawnTimerRef.current != null) {
-      window.clearInterval(spawnTimerRef.current);
-      spawnTimerRef.current = null;
-    }
-    if (endTimerRef.current != null) {
-      window.clearTimeout(endTimerRef.current);
-      endTimerRef.current = null;
-    }
-    if (tickTimerRef.current != null) {
-      window.clearInterval(tickTimerRef.current);
-      tickTimerRef.current = null;
-    }
-  };
-
-  function abortL3ForZoom(reason: "start" | "mid") {
-    clearTimer();
-    clearCountdown();
-    clearL3Timers();
-    setL3Balls([]);
-    l3BallsRef.current = [];
-    l3ZoomBaselineRef.current = null;
-    setCircle(null);
-    setPhase("idle");
-    setL3LeftMs(REACTION_L2_DURATION_MS);
-    setMsg(
-      reason === "start"
-        ? "На ур. 2 зум браузера нельзя. Сбрось масштаб: Ctrl+0, затем Старт."
-        : "Зум во время ур. 2 запрещён — раунд сброшен, очки не сохранены. Ctrl+0 = 100%."
-    );
-  }
 
   const pingPresence = useCallback(async () => {
     try {
@@ -365,8 +223,6 @@ export function ReactionTrainingClient() {
       window.clearInterval(presenceId);
       window.clearInterval(liveId);
       clearTimer();
-      clearCountdown();
-      clearL3Timers();
     };
   }, [pingPresence, loadLive]);
 
@@ -375,92 +231,52 @@ export function ReactionTrainingClient() {
     void loadMyBest(level);
   }, [level, phase, loadMyBest]);
 
-  // Ур. 3: блок Ctrl+колесо / pinch и сброс раунда при смене масштаба
-  useEffect(() => {
-    const l3Active =
-      level === 2 && (phase === "countdown" || phase === "play");
-    if (!l3Active) return;
-
-    const blockZoomWheel = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-      }
-    };
-    const blockGesture = (e: Event) => {
-      e.preventDefault();
-    };
-    const checkZoom = () => {
-      if (phaseRef.current !== "countdown" && phaseRef.current !== "play") {
-        return;
-      }
-      if (levelRef.current !== 2) return;
-      if (zoomChangedSince(l3ZoomBaselineRef.current)) {
-        abortL3ForZoom("mid");
-      }
-    };
-
-    document.addEventListener("wheel", blockZoomWheel, { passive: false });
-    document.addEventListener("gesturestart", blockGesture, {
-      passive: false,
-    } as AddEventListenerOptions);
-    document.addEventListener("gesturechange", blockGesture, {
-      passive: false,
-    } as AddEventListenerOptions);
-    document.addEventListener("gestureend", blockGesture, {
-      passive: false,
-    } as AddEventListenerOptions);
-    window.addEventListener("resize", checkZoom);
-    window.visualViewport?.addEventListener("resize", checkZoom);
-    window.visualViewport?.addEventListener("scroll", checkZoom);
-    const pollId = window.setInterval(checkZoom, 400);
-
-    return () => {
-      document.removeEventListener("wheel", blockZoomWheel);
-      document.removeEventListener("gesturestart", blockGesture);
-      document.removeEventListener("gesturechange", blockGesture);
-      document.removeEventListener("gestureend", blockGesture);
-      window.removeEventListener("resize", checkZoom);
-      window.visualViewport?.removeEventListener("resize", checkZoom);
-      window.visualViewport?.removeEventListener("scroll", checkZoom);
-      window.clearInterval(pollId);
-    };
-    // abortL3ForZoom стабилен по смыслу через refs/timers
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [level, phase]);
-
-  function placeCircle() {
+  function placeTargets() {
     const el = arenaRef.current;
     const w = el?.clientWidth || 400;
     const h = el?.clientHeight || 400;
-    const style = pickDotStyle();
+    const cx = w / 2;
+    const cy = h / 2;
+    const next: TargetDot[] = [];
+
     if (levelRef.current === 1) {
-      setCircle({ x: w / 2, y: h / 2, ...style });
-      return;
+      targetSeqRef.current += 1;
+      next.push({ id: targetSeqRef.current, x: cx, y: cy, ...pickDotStyle() });
+    } else {
+      const pad = REACTION_L2_PAD_PX;
+      const maxR = Math.max(40, Math.min(w, h) / 2 - pad);
+      const r = maxR * REACTION_L2_RADIUS_FRACTION;
+      const angle = Math.random() * Math.PI * 2;
+      for (const a of [angle, angle + Math.PI]) {
+        targetSeqRef.current += 1;
+        next.push({
+          id: targetSeqRef.current,
+          x: cx + Math.cos(a) * r,
+          y: cy + Math.sin(a) * r,
+          ...pickDotStyle(),
+        });
+      }
     }
-    const pad = 64;
-    const x = pad + Math.random() * Math.max(40, w - pad * 2);
-    const y = pad + Math.random() * Math.max(40, h - pad * 2);
-    setCircle({ x, y, ...style });
+
+    targetsRef.current = next;
+    setTargets(next);
   }
 
   function startAttempt() {
     clearTimer();
-    setCircle(null);
+    targetsRef.current = [];
+    setTargets([]);
     setPhase("wait");
     const delay = randomDelayMs();
     timerRef.current = window.setTimeout(() => {
       appearAtRef.current = performance.now();
-      placeCircle();
+      placeTargets();
       setPhase("ready");
       setMsg("");
     }, delay);
   }
 
   function startSeries() {
-    if (levelRef.current === 2) {
-      beginL3Countdown();
-      return;
-    }
     setAttempts([]);
     setMissFlags([]);
     setLastAvg(null);
@@ -468,154 +284,17 @@ export function ReactionTrainingClient() {
     startAttempt();
   }
 
-  function beginL3Countdown() {
-    if (isPinchZoomed()) {
-      abortL3ForZoom("start");
-      return;
-    }
-    // зумнули страницу после захода на тренировку
-    if (zoomChangedSince(pageZoomBaselineRef.current)) {
-      abortL3ForZoom("start");
-      return;
-    }
-    l3ZoomBaselineRef.current = readZoomBaseline();
-
-    clearTimer();
-    clearCountdown();
-    clearL3Timers();
-    setAttempts([]);
-    setCircle(null);
-    setLastAvg(null);
-    setMsg("");
-    setL3Balls([]);
-    l3BallsRef.current = [];
-    setL3Score(0);
-    setL3Hits(0);
-    setL3Misses(0);
-    setL3LeftMs(REACTION_L2_DURATION_MS);
-    setPhase("countdown");
-
-    const steps = ["3", "2", "1", "СТАРТ"];
-    let i = 0;
-    const tick = () => {
-      if (i >= steps.length) {
-        clearCountdown();
-        startL3();
-        return;
-      }
-      setCountdownLabel(steps[i]);
-      i += 1;
-      // цифры по 1 с, «СТАРТ» короче
-      const delay = i === steps.length ? 450 : 1000;
-      countdownTimerRef.current = window.setTimeout(tick, delay);
-    };
-    tick();
-  }
-
-  function pruneL3Balls(now = performance.now()) {
-    const next = l3BallsRef.current.filter((b) => b.expiresAt > now);
-    if (next.length !== l3BallsRef.current.length) {
-      l3BallsRef.current = next;
-      setL3Balls(next);
-    }
-  }
-
-  function spawnL3Wave() {
-    const el = arenaRef.current;
-    const w = el?.clientWidth || 400;
-    const h = el?.clientHeight || 400;
-    const pad = 52;
-    const now = performance.now();
-    pruneL3Balls(now);
-    const count = spawnCount();
-    const added: L3Ball[] = [];
-    for (let i = 0; i < count; i++) {
-      ballSeqRef.current += 1;
-      const style = pickDotStyle();
-      added.push({
-        id: ballSeqRef.current,
-        x: pad + Math.random() * Math.max(40, w - pad * 2),
-        y: pad + Math.random() * Math.max(40, h - pad * 2),
-        expiresAt: now + REACTION_L2_BALL_LIFE_MS,
-        background: style.background,
-        shadow: style.shadow,
-      });
-    }
-    const next = [...l3BallsRef.current, ...added];
-    l3BallsRef.current = next;
-    setL3Balls(next);
-  }
-
-  function finishL3() {
-    clearL3Timers();
-    pruneL3Balls();
-    setL3Balls([]);
-    l3BallsRef.current = [];
-    l3ZoomBaselineRef.current = null;
-    const score = l3ScoreRef.current;
-    const hits = l3HitsRef.current;
-    const misses = l3MissesRef.current;
-    setL3LeftMs(0);
-    void finishScoreRun(score, hits, misses);
-  }
-
-  function startL3() {
-    clearTimer();
-    clearCountdown();
-    clearL3Timers();
-    setAttempts([]);
-    setCircle(null);
-    setLastAvg(null);
-    setMsg("");
-    setL3Balls([]);
-    l3BallsRef.current = [];
-    ballSeqRef.current = 0;
-    l3ScoreRef.current = 0;
-    l3HitsRef.current = 0;
-    l3MissesRef.current = 0;
-    setL3Score(0);
-    setL3Hits(0);
-    setL3Misses(0);
-    setL3LeftMs(REACTION_L2_DURATION_MS);
-    l3StartRef.current = performance.now();
-    setPhase("play");
-    spawnL3Wave();
-    spawnTimerRef.current = window.setInterval(() => {
-      if (phaseRef.current !== "play") return;
-      spawnL3Wave();
-    }, REACTION_L2_SPAWN_EVERY_MS);
-    tickTimerRef.current = window.setInterval(() => {
-      if (phaseRef.current !== "play") return;
-      const left = Math.max(
-        0,
-        REACTION_L2_DURATION_MS - (performance.now() - l3StartRef.current)
-      );
-      setL3LeftMs(left);
-      pruneL3Balls();
-    }, 100);
-    endTimerRef.current = window.setTimeout(() => {
-      finishL3();
-    }, REACTION_L2_DURATION_MS);
-  }
-
   function selectLevel(lv: Level) {
     if (phase !== "idle" && phase !== "done") return;
     clearTimer();
-    clearCountdown();
-    clearL3Timers();
     setView("train");
     setLevel(lv);
     setAttempts([]);
     setMissFlags([]);
     setLastAvg(null);
     setMsg("");
-    setCircle(null);
-    setL3Balls([]);
-    l3BallsRef.current = [];
-    setL3Score(0);
-    setL3Hits(0);
-    setL3Misses(0);
-    setL3LeftMs(REACTION_L2_DURATION_MS);
+    targetsRef.current = [];
+    setTargets([]);
     setPhase("idle");
   }
 
@@ -639,13 +318,10 @@ export function ReactionTrainingClient() {
   function openRating() {
     if (phase !== "idle" && phase !== "done") return;
     clearTimer();
-    clearCountdown();
-    clearL3Timers();
     setView("rating");
     setPhase("idle");
-    setCircle(null);
-    setL3Balls([]);
-    l3BallsRef.current = [];
+    targetsRef.current = [];
+    setTargets([]);
     setMsg("");
     void loadLeaderboard();
   }
@@ -656,7 +332,6 @@ export function ReactionTrainingClient() {
       return;
     }
     setRatingSortKey(key);
-    // время — сначала лучшие (asc); очки и счётчики — сначала больше (desc); ник — A→Я
     if (key === "bestL1" || key === "bestL2" || key === "nick") {
       setRatingSortDir("asc");
     } else {
@@ -673,11 +348,9 @@ export function ReactionTrainingClient() {
       }
       const av = a[ratingSortKey];
       const bv = b[ratingSortKey];
-      const aNull = av == null;
-      const bNull = bv == null;
-      if (aNull && bNull) return 0;
-      if (aNull) return 1;
-      if (bNull) return -1;
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
       const an = Number(av);
       const bn = Number(bv);
       if (an === bn) return String(a.nick).localeCompare(String(b.nick), "ru");
@@ -686,23 +359,18 @@ export function ReactionTrainingClient() {
     return rows;
   })();
 
-  // Лучший в категории: L1/L2 — минимум мс, L3 — максимум очков
   const topBestL1 = ratingRows.reduce<number | null>((best, r) => {
     if (r.bestL1 == null) return best;
     return best == null || r.bestL1 < best ? r.bestL1 : best;
   }, null);
   const topBestL2 = ratingRows.reduce<number | null>((best, r) => {
     if (r.bestL2 == null) return best;
-    return best == null || r.bestL2 > best ? r.bestL2 : best;
+    return best == null || r.bestL2 < best ? r.bestL2 : best;
   }, null);
-  function renderRecordCell(
-    value: number | null,
-    top: number | null,
-    kind: "sec" | "score"
-  ) {
+
+  function renderRecordCell(value: number | null, top: number | null) {
     if (value == null) return "—";
-    const text =
-      kind === "sec" ? `${formatSec3(value)} с` : `${formatScore(value)} оч.`;
+    const text = `${formatSec3(value)} с`;
     if (top != null && value === top) {
       return (
         <span className="reaction-rating-record">
@@ -716,12 +384,19 @@ export function ReactionTrainingClient() {
     return text;
   }
 
+  function rememberLevelResult(lv: Level, value: number) {
+    if (lv === 1) lastL1Ref.current = value;
+    else lastL2Ref.current = value;
+    lastAvgRef.current = value;
+  }
+
   function recordAttempt(ms: number, missed: boolean) {
     const next = [...attempts, ms];
     const nextMiss = [...missFlags, missed];
     setAttempts(next);
     setMissFlags(nextMiss);
-    setCircle(null);
+    targetsRef.current = [];
+    setTargets([]);
     setMsg(
       missed
         ? `Промах · штраф ${formatSec3(REACTION_MISS_PENALTY_MS)} с`
@@ -735,18 +410,13 @@ export function ReactionTrainingClient() {
     }
   }
 
-  function rememberLevelResult(lv: Level, value: number) {
-    if (lv === 1) lastL1Ref.current = value;
-    else lastL2Ref.current = value;
-    lastAvgRef.current = value;
-  }
-
   async function finishSeries(finalAttempts: number[]) {
     const avg = averageMs(finalAttempts);
     const lv = levelRef.current;
     setLastAvg(avg);
     setPhase("done");
-    setCircle(null);
+    targetsRef.current = [];
+    setTargets([]);
     setSaving(true);
     setMsg("Сохраняем…");
     rememberLevelResult(lv, avg);
@@ -781,52 +451,7 @@ export function ReactionTrainingClient() {
       if (data.bestAvgMs != null) setMyBest(data.bestAvgMs);
       if (data.records?.l1 !== undefined) setRecordL1(data.records.l1);
       if (data.records?.l2 !== undefined) setRecordL2(data.records.l2);
-      setMsg("Серия сохранена в профиль");
-      void pingPresence();
-      void loadLive();
-    } catch {
-      setMsg("Сеть недоступна — результат не сохранён");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function finishScoreRun(score: number, hits: number, misses: number) {
-    const lv = 2 as Level;
-    setLastAvg(score);
-    setPhase("done");
-    setSaving(true);
-    setMsg("Сохраняем…");
-    rememberLevelResult(lv, score);
-
-    seriesSeqRef.current += 1;
-    const localId = seriesSeqRef.current;
-    setSessionSeries((prev) => [
-      { id: localId, level: lv, avgMs: score },
-      ...prev,
-    ]);
-
-    try {
-      const res = await fetch("/api/reaction/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ level: 2, score, hits, misses }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setMsg(data.error || "Не удалось сохранить");
-        return;
-      }
-      const saved = data.run?.avgMs ?? score;
-      setLastAvg(saved);
-      rememberLevelResult(lv, saved);
-      setSessionSeries((prev) =>
-        prev.map((s) => (s.id === localId ? { ...s, avgMs: saved } : s))
-      );
-      if (data.bestAvgMs != null) setMyBest(data.bestAvgMs);
-      if (data.records?.l1 !== undefined) setRecordL1(data.records.l1);
-      if (data.records?.l2 !== undefined) setRecordL2(data.records.l2);
-      setMsg(`Раунд сохранён · ${formatScore(saved)} оч.`);
+      setMsg("Серия сохранена");
       void pingPresence();
       void loadLive();
     } catch {
@@ -837,56 +462,38 @@ export function ReactionTrainingClient() {
   }
 
   function onArenaClick(e: React.MouseEvent) {
-    if (levelRef.current === 2) {
-      if (phaseRef.current !== "play") return;
-      const target = e.target as HTMLElement;
-      const hit = target.closest(".reaction-dot") as HTMLElement | null;
-      if (hit?.dataset.ballId) {
-        const id = Number(hit.dataset.ballId);
-        const next = l3BallsRef.current.filter((b) => b.id !== id);
-        if (next.length === l3BallsRef.current.length) return;
-        l3BallsRef.current = next;
-        setL3Balls(next);
-        l3HitsRef.current += 1;
-        l3ScoreRef.current += REACTION_L2_HIT_POINTS;
-        setL3Hits(l3HitsRef.current);
-        setL3Score(l3ScoreRef.current);
-        setMsg(`+${REACTION_L2_HIT_POINTS}`);
-        return;
-      }
-      l3MissesRef.current += 1;
-      l3ScoreRef.current += REACTION_L2_MISS_POINTS;
-      setL3Misses(l3MissesRef.current);
-      setL3Score(l3ScoreRef.current);
-      setMsg(`${REACTION_L2_MISS_POINTS}`);
-      return;
-    }
-
     if (phaseRef.current === "wait") {
       clearTimer();
-      setMsg("Рано! Жди круг — эта попытка заново.");
-      setCircle(null);
+      setMsg("Рано! Жди шарик — эта попытка заново.");
+      targetsRef.current = [];
+      setTargets([]);
       startAttempt();
       return;
     }
-    if (phaseRef.current !== "ready" || !circle) return;
+    if (phaseRef.current !== "ready" || !targetsRef.current.length) return;
 
     const target = e.target as HTMLElement;
-    if (!target.closest(".reaction-dot")) {
+    const hit = target.closest(".reaction-dot") as HTMLElement | null;
+    if (!hit?.dataset.targetId) {
       clearTimer();
       recordAttempt(REACTION_MISS_PENALTY_MS, true);
       return;
     }
 
-    const ms = roundMs3(performance.now() - appearAtRef.current);
-    recordAttempt(ms, false);
+    const id = Number(hit.dataset.targetId);
+    const remaining = targetsRef.current.filter((t) => t.id !== id);
+    if (remaining.length === targetsRef.current.length) return;
+
+    targetsRef.current = remaining;
+    setTargets(remaining);
+
+    if (remaining.length === 0) {
+      const ms = roundMs3(performance.now() - appearAtRef.current);
+      recordAttempt(ms, false);
+    }
   }
 
-  const busy =
-    phase === "countdown" ||
-    phase === "wait" ||
-    phase === "ready" ||
-    phase === "play";
+  const busy = phase === "wait" || phase === "ready";
   const attemptNo = Math.min(
     attempts.length + (phase === "done" || phase === "idle" ? 0 : 1),
     REACTION_ATTEMPTS
@@ -897,8 +504,6 @@ export function ReactionTrainingClient() {
     .slice()
     .reverse();
 
-  const l3SecLeft = Math.ceil(l3LeftMs / 1000);
-
   return (
     <div className="reaction-page">
       <header className="reaction-head">
@@ -907,13 +512,15 @@ export function ReactionTrainingClient() {
           <h1>Тренировка стрельбы</h1>
           <p className="muted" style={{ margin: "6px 0 0" }}>
             {level === 1
-              ? "10 попыток · круг через 1–10 с · результат в секундах · промах = штраф 1.000 с"
-              : "30 с · каждые 0.4 с 3–5 шариков · живут 1.1 с · попадание +10 · промах −5 · без зума браузера"}
+              ? "10 попыток · круг в центре через 1–10 с · среднее в секундах · промах = штраф 1.000 с"
+              : "10 попыток · 2 шарика на равном расстоянии от центра · среднее в секундах · промах = штраф 1.000 с"}
           </p>
         </div>
         <div className="reaction-best-chip reaction-best-chip-l1">
           <span className="muted">Твой лучший · ур. {level}</span>
-          <strong>{formatResult(level, myBest)}</strong>
+          <strong>
+            {myBest != null ? `${formatSec3(myBest)} с` : "—"}
+          </strong>
         </div>
       </header>
 
@@ -939,7 +546,7 @@ export function ReactionTrainingClient() {
             onClick={() => selectLevel(2)}
           >
             <strong>2 уровень</strong>
-            <span>волна шариков · очки</span>
+            <span>2 шарика · от центра</span>
           </button>
           <button
             type="button"
@@ -955,40 +562,44 @@ export function ReactionTrainingClient() {
         </div>
 
         {view === "train" ? (
-        <div className="reaction-records" aria-label="Рекорды клана">
-          <div className="reaction-record-card">
-            <span className="muted">Рекорд · 1 ур</span>
-            <strong>{formatRecord(1, recordL1)}</strong>
-            <span className="reaction-record-nick">
-              {recordL1?.nick ? (
-                <Link
-                  className="player-nick-link"
-                  href={`/players/${encodeURIComponent(recordL1.nick)}`}
-                >
-                  {recordL1.nick}
-                </Link>
-              ) : (
-                "пока нет"
-              )}
-            </span>
+          <div className="reaction-records" aria-label="Рекорды клана">
+            <div className="reaction-record-card">
+              <span className="muted">Рекорд · 1 ур</span>
+              <strong>
+                {recordL1 ? `${formatSec3(recordL1.avgMs)} с` : "—"}
+              </strong>
+              <span className="reaction-record-nick">
+                {recordL1?.nick ? (
+                  <Link
+                    className="player-nick-link"
+                    href={`/players/${encodeURIComponent(recordL1.nick)}`}
+                  >
+                    {recordL1.nick}
+                  </Link>
+                ) : (
+                  "пока нет"
+                )}
+              </span>
+            </div>
+            <div className="reaction-record-card">
+              <span className="muted">Рекорд · 2 ур</span>
+              <strong>
+                {recordL2 ? `${formatSec3(recordL2.avgMs)} с` : "—"}
+              </strong>
+              <span className="reaction-record-nick">
+                {recordL2?.nick ? (
+                  <Link
+                    className="player-nick-link"
+                    href={`/players/${encodeURIComponent(recordL2.nick)}`}
+                  >
+                    {recordL2.nick}
+                  </Link>
+                ) : (
+                  "пока нет"
+                )}
+              </span>
+            </div>
           </div>
-          <div className="reaction-record-card">
-            <span className="muted">Рекорд · 2 ур</span>
-            <strong>{formatRecord(2, recordL2)}</strong>
-            <span className="reaction-record-nick">
-              {recordL2?.nick ? (
-                <Link
-                  className="player-nick-link"
-                  href={`/players/${encodeURIComponent(recordL2.nick)}`}
-                >
-                  {recordL2.nick}
-                </Link>
-              ) : (
-                "пока нет"
-              )}
-            </span>
-          </div>
-        </div>
         ) : null}
       </div>
 
@@ -1020,7 +631,7 @@ export function ReactionTrainingClient() {
                       ["bestL1", "1 ур · рекорд"],
                       ["runsL1", "1 ур · серии"],
                       ["bestL2", "2 ур · рекорд"],
-                      ["runsL2", "2 ур · раунды"],
+                      ["runsL2", "2 ур · серии"],
                     ] as const
                   ).map(([key, label]) => {
                     const active = ratingSortKey === key;
@@ -1068,9 +679,9 @@ export function ReactionTrainingClient() {
                           {r.nick}
                         </Link>
                       </td>
-                      <td>{renderRecordCell(r.bestL1, topBestL1, "sec")}</td>
+                      <td>{renderRecordCell(r.bestL1, topBestL1)}</td>
                       <td>{r.runsL1 || "—"}</td>
-                      <td>{renderRecordCell(r.bestL2, topBestL2, "score")}</td>
+                      <td>{renderRecordCell(r.bestL2, topBestL2)}</td>
                       <td>{r.runsL2 || "—"}</td>
                     </tr>
                   ))
@@ -1080,202 +691,129 @@ export function ReactionTrainingClient() {
           </div>
         </section>
       ) : (
-      <div className="reaction-layout">
-        <aside className="reaction-board card">
-          <h2>Сейчас на вкладке</h2>
-          <p className="muted" style={{ marginTop: 0, fontSize: "0.82rem" }}>
-            Онлайн · последняя серия по уровню
-          </p>
-          <div className="reaction-live-head reaction-live-head-2">
-            <span>Ник</span>
-            <span>1</span>
-            <span>2</span>
-          </div>
-          <ul className="reaction-live-list">
-            {live.length === 0 ? (
-              <li className="muted reaction-live-empty">Пока никого нет</li>
-            ) : (
-              live.map((p) => (
-                <li key={p.userId} className="reaction-live-row-2">
-                  <span className="reaction-live-nick">
-                    {p.nick ? (
-                      <Link
-                        className="player-nick-link"
-                        href={`/players/${encodeURIComponent(p.nick)}`}
-                      >
-                        {p.nick}
-                      </Link>
-                    ) : (
-                      "Игрок"
-                    )}
-                  </span>
-                  <span className="reaction-live-avg">
-                    {p.lastAvgL1Ms != null ? formatSec3(p.lastAvgL1Ms) : "—"}
-                  </span>
-                  <span className="reaction-live-avg">
-                    {p.lastAvgL2Ms != null ? formatScore(p.lastAvgL2Ms) : "—"}
-                  </span>
-                </li>
-              ))
-            )}
-          </ul>
-        </aside>
-
-        <section className="reaction-main card">
-          <div className="reaction-main-top">
-            <div className="reaction-controls">
-              {phase === "idle" || phase === "done" ? (
-                <button
-                  type="button"
-                  className="btn primary"
-                  disabled={saving}
-                  onClick={startSeries}
-                >
-                  {phase === "done"
-                    ? "Ещё раз"
-                    : level === 2
-                      ? "Старт · 30 секунд"
-                      : "Старт · 10 попыток"}
-                </button>
+        <div className="reaction-layout">
+          <aside className="reaction-board card">
+            <h2>Сейчас на вкладке</h2>
+            <p className="muted" style={{ marginTop: 0, fontSize: "0.82rem" }}>
+              Онлайн · последняя серия по уровню
+            </p>
+            <div className="reaction-live-head reaction-live-head-2">
+              <span>Ник</span>
+              <span>1</span>
+              <span>2</span>
+            </div>
+            <ul className="reaction-live-list">
+              {live.length === 0 ? (
+                <li className="muted reaction-live-empty">Пока никого нет</li>
               ) : (
-                <button
-                  type="button"
-                  className="btn ghost"
-                  onClick={() => {
-                    clearTimer();
-                    clearCountdown();
-                    clearL3Timers();
-                    setPhase("idle");
-                    setCircle(null);
-                    setAttempts([]);
-                    setMissFlags([]);
-                    setL3Balls([]);
-                    l3BallsRef.current = [];
-                    setMsg("Остановлено");
-                  }}
-                >
-                  Стоп
-                </button>
+                live.map((p) => (
+                  <li key={p.userId} className="reaction-live-row-2">
+                    <span className="reaction-live-nick">
+                      {p.nick ? (
+                        <Link
+                          className="player-nick-link"
+                          href={`/players/${encodeURIComponent(p.nick)}`}
+                        >
+                          {p.nick}
+                        </Link>
+                      ) : (
+                        "Игрок"
+                      )}
+                    </span>
+                    <span className="reaction-live-avg">
+                      {p.lastAvgL1Ms != null ? formatSec3(p.lastAvgL1Ms) : "—"}
+                    </span>
+                    <span className="reaction-live-avg">
+                      {p.lastAvgL2Ms != null ? formatSec3(p.lastAvgL2Ms) : "—"}
+                    </span>
+                  </li>
+                ))
               )}
-              {level === 2 ? (
-                <span className="muted">
-                  {phase === "countdown"
-                    ? "Отсчёт…"
-                    : phase === "play"
-                      ? `${l3SecLeft} с · ${formatScore(l3Score)} оч.`
-                      : "30 секунд · +10 / −5"}
-                </span>
-              ) : (
+            </ul>
+          </aside>
+
+          <section className="reaction-main card">
+            <div className="reaction-main-top">
+              <div className="reaction-controls">
+                {phase === "idle" || phase === "done" ? (
+                  <button
+                    type="button"
+                    className="btn primary"
+                    disabled={saving}
+                    onClick={startSeries}
+                  >
+                    {phase === "done" ? "Ещё раз" : "Старт · 10 попыток"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    onClick={() => {
+                      clearTimer();
+                      setPhase("idle");
+                      targetsRef.current = [];
+                      setTargets([]);
+                      setAttempts([]);
+                      setMissFlags([]);
+                      setMsg("Остановлено");
+                    }}
+                  >
+                    Стоп
+                  </button>
+                )}
                 <span className="muted">
                   Попытка {attemptNo} / {REACTION_ATTEMPTS}
                 </span>
-              )}
+              </div>
+              {lastAvg != null ? (
+                <div className="reaction-avg-now">
+                  Среднее: <strong>{formatSec3(lastAvg)} с</strong>
+                </div>
+              ) : null}
             </div>
-            {lastAvg != null && phase !== "play" ? (
-              <div className="reaction-avg-now">
-                {level === 2 ? (
-                  <>
-                    Счёт: <strong>{formatScore(lastAvg)} оч.</strong>
-                  </>
-                ) : (
-                  <>
-                    Среднее: <strong>{formatSec3(lastAvg)} с</strong>
-                  </>
-                )}
-              </div>
-            ) : null}
-            {phase === "play" ? (
-              <div className="reaction-avg-now">
-                Попадания {l3Hits} · промахи {l3Misses}
-              </div>
-            ) : null}
-          </div>
 
-          <div
-            ref={arenaRef}
-            className={`reaction-arena phase-${phase}${
-              level === 2 ? " level-2" : ""
-            }`}
-            onClick={onArenaClick}
-            role="presentation"
-          >
-            {phase === "idle" ? (
-              <p className="reaction-hint">
-                {level === 1
-                  ? "Ур. 1 — шарик всегда в центре. Нажми «Старт» и жди кружок."
-                  : "Ур. 2 — 30 секунд волны шариков. Перед стартом отсчёт 3–2–1. Зум браузера отключён."}
-              </p>
-            ) : null}
-            {phase === "countdown" && countdownLabel ? (
-              <p
-                className={`reaction-countdown${
-                  countdownLabel === "СТАРТ" ? " is-go" : ""
-                }`}
-                aria-live="assertive"
-              >
-                {countdownLabel}
-              </p>
-            ) : null}
-            {phase === "wait" ? (
-              <p className="reaction-hint">Жди… не кликай раньше времени</p>
-            ) : null}
-            {phase === "ready" && circle ? (
-              <button
-                type="button"
-                className="reaction-dot"
-                style={{
-                  left: circle.x,
-                  top: circle.y,
-                  background: circle.background,
-                  boxShadow: circle.shadow,
-                }}
-                aria-label="Цель"
-              />
-            ) : null}
-            {phase === "play"
-              ? l3Balls.map((b) => (
-                  <button
-                    key={b.id}
-                    type="button"
-                    className="reaction-dot reaction-dot-l3"
-                    data-ball-id={b.id}
-                    style={{
-                      left: b.x,
-                      top: b.y,
-                      background: b.background,
-                      boxShadow: b.shadow,
-                    }}
-                    aria-label="Цель"
-                  />
-                ))
-              : null}
-            {phase === "done" ? (
-              <p className="reaction-hint">
-                {level === 2
-                  ? `Раунд завершён · ${formatScore(lastAvg)} оч.`
-                  : `Серия завершена · среднее ${formatSec3(lastAvg)} с`}
-              </p>
-            ) : null}
-          </div>
-
-          {msg ? <p className="reaction-msg">{msg}</p> : null}
-
-          {level === 2 ? (
-            <div className="reaction-l3-stats">
-              <div>
-                <span className="muted">Счёт</span>
-                <strong>{formatScore(phase === "play" ? l3Score : lastAvg)}</strong>
-              </div>
-              <div>
-                <span className="muted">Попадания</span>
-                <strong>{phase === "play" || phase === "done" ? l3Hits : "—"}</strong>
-              </div>
-              <div>
-                <span className="muted">Промахи</span>
-                <strong>{phase === "play" || phase === "done" ? l3Misses : "—"}</strong>
-              </div>
+            <div
+              ref={arenaRef}
+              className="reaction-arena"
+              onClick={onArenaClick}
+              role="presentation"
+            >
+              {phase === "idle" ? (
+                <p className="reaction-hint">
+                  {level === 1
+                    ? "Ур. 1 — шарик всегда в центре. Нажми «Старт» и жди."
+                    : "Ур. 2 — два шарика на равном расстоянии от центра. Кликни оба — время до второго попадания."}
+                </p>
+              ) : null}
+              {phase === "wait" ? (
+                <p className="reaction-hint">Жди… не кликай раньше времени</p>
+              ) : null}
+              {phase === "ready"
+                ? targets.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      className="reaction-dot"
+                      data-target-id={t.id}
+                      style={{
+                        left: t.x,
+                        top: t.y,
+                        background: t.background,
+                        boxShadow: t.shadow,
+                      }}
+                      aria-label="Цель"
+                    />
+                  ))
+                : null}
+              {phase === "done" ? (
+                <p className="reaction-hint">
+                  Серия завершена · среднее {formatSec3(lastAvg)} с
+                </p>
+              ) : null}
             </div>
-          ) : (
+
+            {msg ? <p className="reaction-msg">{msg}</p> : null}
+
             <ol className="reaction-attempts">
               {Array.from({ length: REACTION_ATTEMPTS }, (_, i) => (
                 <li
@@ -1294,41 +832,38 @@ export function ReactionTrainingClient() {
                 </li>
               ))}
             </ol>
-          )}
-        </section>
+          </section>
 
-        <div className="reaction-side-col">
-          <aside className="reaction-session card">
-            <h2>Этот сеанс</h2>
-            <p className="muted" style={{ marginTop: 0, fontSize: "0.82rem" }}>
-              {level === 2
-                ? `Раунды ур. ${level} · итоговый счёт`
-                : `Серии ур. ${level} · среднее за 10 попыток`}
-            </p>
-            {sessionForLevel.length === 0 ? (
-              <p className="muted" style={{ margin: "8px 0 0", fontSize: "0.85rem" }}>
-                Пока пусто — заверши{" "}
-                {level === 2 ? "раунд" : "серию"}, и результат появится здесь.
+          <div className="reaction-side-col">
+            <aside className="reaction-session card">
+              <h2>Этот сеанс</h2>
+              <p className="muted" style={{ marginTop: 0, fontSize: "0.82rem" }}>
+                Серии ур. {level} · среднее за 10 попыток
               </p>
-            ) : (
-              <ol className="reaction-session-list">
-                {sessionForLevel.map((s, idx) => (
-                  <li key={s.id}>
-                    <span>
-                      {level === 2 ? "Раунд" : "Серия"} {idx + 1}
-                      <em className="muted">
-                        {level === 2 ? " · счёт" : " · среднее"}
-                      </em>
-                    </span>
-                    <strong>{formatResult(level, s.avgMs)}</strong>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </aside>
-          <ReactionAimChat />
+              {sessionForLevel.length === 0 ? (
+                <p
+                  className="muted"
+                  style={{ margin: "8px 0 0", fontSize: "0.85rem" }}
+                >
+                  Пока пусто — заверши серию, и результат появится здесь.
+                </p>
+              ) : (
+                <ol className="reaction-session-list">
+                  {sessionForLevel.map((s, idx) => (
+                    <li key={s.id}>
+                      <span>
+                        Серия {idx + 1}
+                        <em className="muted"> · среднее</em>
+                      </span>
+                      <strong>{formatSec3(s.avgMs)} с</strong>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </aside>
+            <ReactionAimChat />
+          </div>
         </div>
-      </div>
       )}
     </div>
   );

@@ -19,7 +19,6 @@ import {
   lookupPlayerCwPwr,
   buildPlayerCwMatchHistory,
 } from "@/lib/homeCwPwr";
-import { ReactionBestCard } from "@/components/ReactionBestCard";
 import { ProfileTrainPwrCard } from "@/components/ProfileTrainPwrCard";
 import { ProfileCwPwrCard } from "@/components/ProfileCwPwrCard";
 
@@ -77,10 +76,6 @@ export default async function ProfilePage() {
     matchHistory,
     cwPwr,
     cwMatchHistory,
-    reactionBest,
-    reactionBestL1,
-    reactionBestL2,
-    reactionHistory,
   ] = await Promise.all([
     loadUserTrainingStats(me.id),
     nickForKv
@@ -106,27 +101,6 @@ export default async function ProfilePage() {
     nickForKv
       ? buildPlayerCwMatchHistory(nickForKv).catch(() => [])
       : Promise.resolve([]),
-    prisma.reactionRun.findFirst({
-      where: { userId: me.id, level: 1 },
-      orderBy: { avgMs: "asc" },
-      select: { avgMs: true },
-    }),
-    prisma.reactionRun.findFirst({
-      where: { userId: me.id, level: 1 },
-      orderBy: { avgMs: "asc" },
-      select: { avgMs: true },
-    }),
-    prisma.reactionRun.findFirst({
-      where: { userId: me.id, level: 2 },
-      orderBy: { avgMs: "desc" },
-      select: { avgMs: true },
-    }),
-    prisma.reactionRun.findMany({
-      where: { userId: me.id, level: { in: [1, 2] } },
-      orderBy: { createdAt: "desc" },
-      take: 6,
-      select: { id: true, avgMs: true, level: true, createdAt: true },
-    }),
   ]);
 
   const kvStats = kvBundle.stats;
@@ -143,17 +117,6 @@ export default async function ProfilePage() {
             steamAvatar={u.steamAvatar || null}
             adminLink={<AdminPanelLink initialAdmin={admin} />}
             lastSeenAt={me.lastSeenAt}
-          />
-          <ReactionBestCard
-            bestAvgMs={reactionBest?.avgMs ?? null}
-            bestL1={reactionBestL1?.avgMs ?? null}
-            bestL2={reactionBestL2?.avgMs ?? null}
-            history={reactionHistory.map((h) => ({
-              id: h.id,
-              avgMs: h.avgMs,
-              level: h.level,
-              createdAt: h.createdAt.toISOString(),
-            }))}
           />
           {clans.length > 0 ? (
             <section className="card profile-clan-card">

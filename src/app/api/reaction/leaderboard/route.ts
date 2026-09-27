@@ -8,25 +8,23 @@ export const dynamic = "force-dynamic";
 
 let legacyRemapped = false;
 
-/** Архив старого time-L2 → 12; бывшие очки L3 → L2 (идемпотентно) */
+/**
+ * Архив очковой эры ур.2/3 (object attempts) → level 13.
+ * Новый и старый time-L2 (array) остаются на level 2 — обе на среднее время.
+ */
 async function remapLegacyRunsOnce() {
   if (legacyRemapped) return;
   try {
     await prisma.$executeRawUnsafe(`
       UPDATE "ReactionRun"
-      SET level = 12
-      WHERE level = 2
-        AND jsonb_typeof(attempts::jsonb) = 'array'
+      SET level = 13
+      WHERE level IN (2, 3)
+        AND jsonb_typeof(attempts::jsonb) = 'object'
     `);
-    await prisma.$executeRawUnsafe(`
-      UPDATE "ReactionRun"
-      SET level = 2
-      WHERE level = 3
-    `);
-    legacyRemapped = true;
   } catch {
-    /* ignore if json cast fails on empty */
+    /* ignore */
   }
+  legacyRemapped = true;
 }
 
 type Agg = {
@@ -36,7 +34,7 @@ type Agg = {
   runsL2: number;
 };
 
-/** Рейтинг: L1 сек · L2 очки */
+/** Рейтинг: L1 и L2 — секунды (меньше лучше) */
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.steamId || !session.user.profileComplete) {
@@ -49,7 +47,6 @@ export async function GET() {
     by: ["userId", "level"],
     _count: { _all: true },
     _min: { avgMs: true },
-    _max: { avgMs: true },
     where: { level: { in: [1, 2] } },
   });
 
@@ -67,7 +64,7 @@ export async function GET() {
       cur.bestL1 = g._min.avgMs;
     } else if (g.level === 2) {
       cur.runsL2 = count;
-      cur.bestL2 = g._max.avgMs;
+      cur.bestL2 = g._min.avgMs;
     }
     byUser.set(g.userId, cur);
   }

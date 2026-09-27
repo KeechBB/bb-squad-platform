@@ -18,7 +18,6 @@ import {
   lookupPlayerCwPwr,
   buildPlayerCwMatchHistory,
 } from "@/lib/homeCwPwr";
-import { ReactionBestCard } from "@/components/ReactionBestCard";
 import { ProfileTrainPwrCard } from "@/components/ProfileTrainPwrCard";
 import { ProfileCwPwrCard } from "@/components/ProfileCwPwrCard";
 
@@ -97,10 +96,6 @@ export default async function PlayerProfilePage({ params }: Props) {
     matchHistory,
     cwPwr,
     cwMatchHistory,
-    reactionBest,
-    reactionBestL1,
-    reactionBestL2,
-    reactionHistory,
   ] = await Promise.all([
     loadUserTrainingStats(user.id),
     nickForKv
@@ -126,27 +121,6 @@ export default async function PlayerProfilePage({ params }: Props) {
     nickForKv
       ? buildPlayerCwMatchHistory(nickForKv).catch(() => [])
       : Promise.resolve([]),
-    prisma.reactionRun.findFirst({
-      where: { userId: user.id, level: 1 },
-      orderBy: { avgMs: "asc" },
-      select: { avgMs: true },
-    }),
-    prisma.reactionRun.findFirst({
-      where: { userId: user.id, level: 1 },
-      orderBy: { avgMs: "asc" },
-      select: { avgMs: true },
-    }),
-    prisma.reactionRun.findFirst({
-      where: { userId: user.id, level: 2 },
-      orderBy: { avgMs: "desc" },
-      select: { avgMs: true },
-    }),
-    prisma.reactionRun.findMany({
-      where: { userId: user.id, level: { in: [1, 2] } },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-      select: { id: true, avgMs: true, level: true, createdAt: true },
-    }),
   ]);
 
   const kvStats = kvBundle.stats;
@@ -237,17 +211,6 @@ export default async function PlayerProfilePage({ params }: Props) {
               </div>
             </section>
           ) : null}
-          <ReactionBestCard
-            bestAvgMs={reactionBest?.avgMs ?? null}
-            bestL1={reactionBestL1?.avgMs ?? null}
-            bestL2={reactionBestL2?.avgMs ?? null}
-            history={reactionHistory.map((h) => ({
-              id: h.id,
-              avgMs: h.avgMs,
-              level: h.level,
-              createdAt: h.createdAt.toISOString(),
-            }))}
-          />
           <ProfileTrainPwrCard stats={trainPwr} />
           <ProfileCwPwrCard stats={cwPwr} />
         </div>

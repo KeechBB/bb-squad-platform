@@ -4,7 +4,6 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
   REACTION_PRESENCE_MS,
-  isScoreLevel,
   normalizeLevel,
   type ReactionLevel,
 } from "@/lib/reaction";
@@ -15,7 +14,7 @@ export const dynamic = "force-dynamic";
 async function globalRecord(level: ReactionLevel) {
   const best = await prisma.reactionRun.findFirst({
     where: { level },
-    orderBy: { avgMs: isScoreLevel(level) ? "desc" : "asc" },
+    orderBy: { avgMs: "asc" },
     select: {
       avgMs: true,
       userId: true,
