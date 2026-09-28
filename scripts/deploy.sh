@@ -56,9 +56,9 @@ fi
 echo "==> clear Next.js build cache (.next)"
 rm -rf .next
 
-echo "==> npm ci (or npm install)"
+echo "==> npm ci (install deps for build)"
 if [[ -f package-lock.json ]]; then
-  npm ci --omit=dev=false || npm install
+  npm ci || npm install
 else
   npm install
 fi
