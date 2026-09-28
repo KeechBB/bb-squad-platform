@@ -80,6 +80,24 @@ model User {
   supportTickets        SupportTicket[] @relation("SupportTicketUser")
   supportTicketsClaimed SupportTicket[] @relation("SupportTicketClaimer")
   supportMessages       SupportMessage[]
+  mapPin                MapPin?
+}
+
+/// Метка игрока на клановой карте (одна на пользователя).
+model MapPin {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  country   String
+  region    String?
+  city      String
+  lat       Float
+  lon       Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([country, city])
+  @@index([lat, lon])
 }
 
 /// История уходов в резерв (открытый stint = сейчас в резерве).

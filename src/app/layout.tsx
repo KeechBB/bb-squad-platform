@@ -66,6 +66,10 @@ export default function RootLayout({
                     <span className="nav-full">Тренировка стрельбы</span>
                     <span className="nav-short">Стрельба</span>
                   </Link>
+                  <Link href="/map" title="Клановая карта">
+                    <span className="nav-full">Карта</span>
+                    <span className="nav-short">Карта</span>
+                  </Link>
                 </nav>
               </div>
               <AuthBar />

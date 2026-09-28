@@ -12,17 +12,22 @@
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
+    "globe.gl": "^2.46.2",
     "next": "15.5.25",
     "next-auth": "^4.24.15",
     "next-auth-steam": "^0.4.0",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "three": "^0.186.1",
+    "topojson-client": "^3.1.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/three": "^0.186.0",
+    "@types/topojson-client": "^3.1.5",
     "eslint": "^9",
     "eslint-config-next": "15.5.25",
     "prisma": "^5.22.0",

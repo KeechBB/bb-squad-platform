@@ -68,13 +68,19 @@ svg {
 }
 
 .shell:has(.clan-page),
-.shell:has(.clan-detail) {
+.shell:has(.clan-detail),
+.shell:has(.clan-map-page) {
   max-width: 1800px;
   margin-left: auto;
   margin-right: auto;
   width: 100%;
   padding-left: clamp(12px, 2vw, 28px);
   padding-right: clamp(12px, 2vw, 28px);
+}
+
+.shell:has(.clan-map-page) {
+  max-width: none;
+  padding: 0;
 }
 
 .clan-page,
@@ -7345,6 +7351,278 @@ body.profile-match-modal-open {
 .profile-match-nick-cell .mvp-badge.anti {
   background: rgba(248, 113, 113, 0.16);
   color: #fca5a5;
+}
+
+/* —— Клановая карта (/map) —— */
+.clan-map-page {
+  position: relative;
+  width: 100%;
+  min-height: calc(100dvh - 72px);
+  height: calc(100dvh - 72px);
+  background: #030208;
+  overflow: hidden;
+}
+
+.clan-map-bar {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(3, 2, 8, 0.92), transparent);
+}
+
+.clan-map-bar-left h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+
+.clan-map-hint {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.clan-map-bar-actions {
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.clan-map-bar-left {
+  pointer-events: none;
+}
+
+.clan-map-stage {
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+
+.clan-map-stage:active {
+  cursor: grabbing;
+}
+
+.clan-map-status {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.clan-map-status.err {
+  color: #f87171;
+}
+
+.clan-map-tip {
+  position: fixed;
+  z-index: 20;
+  min-width: 180px;
+  max-width: 280px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(167, 139, 250, 0.55);
+  background: rgba(7, 6, 12, 0.94);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+.clan-map-tip strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #c4b5fd;
+  font-size: 0.9rem;
+}
+
+.clan-map-tip .muted {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.clan-map-tip ul {
+  margin: 0;
+  padding: 0 0 0 1.1em;
+  color: var(--ink);
+  font-size: 0.88rem;
+}
+
+.clan-map-tip-panel {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  top: auto;
+  right: auto;
+  pointer-events: auto;
+  max-width: min(320px, calc(100vw - 36px));
+}
+
+.clan-map-tip-close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.25rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.clan-map-tip-list {
+  list-style: none;
+  padding: 0 !important;
+  margin: 0 0 8px !important;
+}
+
+.clan-map-tip-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(167, 139, 250, 0.12);
+}
+
+.clan-map-tip-rm {
+  border: 0;
+  background: transparent;
+  color: #f87171;
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.clan-map-tip-rm:hover {
+  text-decoration: underline;
+}
+
+.clan-map-tip-note {
+  margin: 8px 0 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.clan-map-modal-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(0, 0, 0, 0.72);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.clan-map-modal {
+  width: min(440px, 100%);
+  border-radius: 14px;
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  background: #0b0914;
+  padding: 16px 18px 18px;
+}
+
+.clan-map-modal header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.clan-map-modal h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+}
+
+.clan-map-wizard p {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.clan-map-wizard input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(167, 139, 250, 0.28);
+  background: #07060c;
+  color: var(--ink);
+  font: inherit;
+}
+
+.clan-map-wizard-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.clan-map-wizard-err {
+  margin: 12px 0 0;
+  color: #f87171;
+  font-size: 0.85rem;
+}
+
+.clan-map-hits {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  max-height: 280px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.clan-map-hits button {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(167, 139, 250, 0.22);
+  background: rgba(167, 139, 250, 0.06);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.clan-map-hits button:hover {
+  border-color: rgba(167, 139, 250, 0.55);
+  background: rgba(167, 139, 250, 0.14);
+}
+
+@media (max-width: 720px) {
+  .clan-map-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .clan-map-bar-actions {
+    justify-content: stretch;
+  }
+
+  .clan-map-bar-actions .btn {
+    flex: 1;
+  }
 }
 
 @media (max-width: 720px) {
