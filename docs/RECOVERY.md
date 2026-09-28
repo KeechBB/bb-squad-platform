@@ -59,6 +59,7 @@ Neon больше не обязателен (после переноса на VP
 - **Postgres** (localhost): БД `bb_squad`, роль `bb_squad`
 - Процесс: **pm2** имена `bb-squad`, `bb-squad-collector`
 - Бэкапы БД: `/var/backups/bb-squad/` через `scripts/backup-db.sh`
+- Полные бэкапы: `/var/backups/bb-squad-full/*.tar.gz` через `scripts/backup-full.sh`
 - Полезные команды на сервере:
   ```bash
   pm2 status
@@ -66,6 +67,8 @@ Neon больше не обязателен (после переноса на VP
   pm2 restart bb-squad
   cd /var/www/bb-squad-platform && bash scripts/deploy.sh
   bash /var/www/bb-squad-platform/scripts/backup-db.sh
+  bash /var/www/bb-squad-platform/scripts/backup-full.sh
+  bash /var/www/bb-squad-platform/scripts/restore-full.sh /var/backups/bb-squad-full/bb-squad-full_YYYYMMDD_HHMMSS.tar.gz
   ```
 - Старт: `npm start` → `next start`
 - URL: **https://bb-squad.ru** (запасной `http://91.222.237.91:3000`)
@@ -85,6 +88,35 @@ Neon больше не обязателен (после переноса на VP
 - Перенос с Neon: `scripts/migrate-neon-to-vps.sh` (нужен ещё Neon URL в `.env`).
 - После миграции бэкап Neon: `/root/bb-db-migrate/env.before-migrate`.
 - Ежедневный dump: cron на `scripts/backup-db.sh`.
+- Полный архив (БД+код+.env+nginx/pm2): cron на `scripts/backup-full.sh`.
+
+### Полный бэкап — что внутри и как откатить
+
+Архив `bb-squad-full_*.tar.gz`:
+1. `db/bb_squad.dump` — вся БД
+2. `app/` — код, `.env`, аплоады (без `node_modules` / `.next`)
+3. `meta/nginx`, `meta/pm2`, `meta/cron` — конфиги для ручного возврата
+4. `MANIFEST.txt` — дата, git HEAD
+
+Откат «как было» (осторожно, перезапишет сайт и БД):
+
+```bash
+bash /var/www/bb-squad-platform/scripts/restore-full.sh /var/backups/bb-squad-full/bb-squad-full_YYYYMMDD_HHMMSS.tar.gz
+```
+
+Поставить ежедневный полный бэкап (один раз):
+
+```bash
+chmod +x /var/www/bb-squad-platform/scripts/backup-full.sh /var/www/bb-squad-platform/scripts/restore-full.sh
+cat >/etc/cron.d/bb-squad-full <<'EOF'
+CRON_TZ=Europe/Moscow
+15 0 * * * root /var/www/bb-squad-platform/scripts/backup-full.sh >> /var/log/bb-squad-full-backup.log 2>&1
+EOF
+chmod 644 /etc/cron.d/bb-squad-full
+# пробный прогон сейчас:
+bash /var/www/bb-squad-platform/scripts/backup-full.sh
+ls -lh /var/backups/bb-squad-full/
+```
 
 Старый Neon (архив / откат несколько дней):
 - Сайт: [https://console.neon.tech](https://console.neon.tech)
