@@ -1,20 +1,8 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import nextDynamic from "next/dynamic";
+import { ClanMapClient } from "@/components/ClanMapClient";
 
 export const dynamic = "force-dynamic";
-
-const ClanMapClient = nextDynamic(
-  () => import("@/components/ClanMapClient").then((m) => m.ClanMapClient),
-  {
-    ssr: false,
-    loading: () => (
-      <main className="clan-map-page">
-        <div className="clan-map-status">Загрузка карты…</div>
-      </main>
-    ),
-  }
-);
 
 export default async function ClanMapPage() {
   const session = await getSession();
