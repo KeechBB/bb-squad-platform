@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Providers } from "@/components/Providers";
 import { AuthBar } from "@/components/AuthBar";
 import Link from "next/link";
+import { getSession } from "@/lib/auth";
+import { isBlackberryClanMember } from "@/lib/blackberryClan";
 import "@fontsource/oxanium/400.css";
 import "@fontsource/oxanium/600.css";
 import "@fontsource/oxanium/700.css";
@@ -22,11 +24,17 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await getSession();
+  const showClanMap =
+    Boolean(session?.user?.steamId) &&
+    Boolean(session?.user?.profileComplete) &&
+    (await isBlackberryClanMember(session?.user?.steamId));
+
   return (
     <html lang="ru">
       <body>
@@ -60,10 +68,12 @@ export default function RootLayout({
                     <span className="nav-full">Тренировка стрельбы</span>
                     <span className="nav-short">Стрельба</span>
                   </Link>
-                  <Link href="/map" title="Клановая карта">
-                    <span className="nav-full">Карта</span>
-                    <span className="nav-short">Карта</span>
-                  </Link>
+                  {showClanMap ? (
+                    <Link href="/map" title="Карта клана">
+                      <span className="nav-full">Карта клана</span>
+                      <span className="nav-short">Карта</span>
+                    </Link>
+                  ) : null}
                 </nav>
               </div>
               <AuthBar />

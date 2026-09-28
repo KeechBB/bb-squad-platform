@@ -384,7 +384,7 @@ export function ClanMapClient() {
     <div className="clan-map-page">
       <div className="clan-map-bar">
         <div className="clan-map-bar-left">
-          <h1>Клановая карта</h1>
+          <h1>Карта клана</h1>
           <p className="clan-map-hint">
             Зажми ЛКМ и крути · клик по огоньку — кто в городе
             {canModerate ? " · ты можешь снимать чужие метки" : ""}

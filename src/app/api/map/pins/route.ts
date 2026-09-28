@@ -3,9 +3,27 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isAdmin } from "@/lib/admin";
+import { isBlackberryClanMember } from "@/lib/blackberryClan";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+async function requireBbMember() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.steamId || !session.user.profileComplete) {
+    return { ok: false as const, response: NextResponse.json({ error: "Нужен полный профиль" }, { status: 401 }) };
+  }
+  if (!(await isBlackberryClanMember(session.user.steamId))) {
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "Карта клана только для участников BlackBerry" },
+        { status: 403 }
+      ),
+    };
+  }
+  return { ok: true as const, session };
+}
 
 export type MapPinPublic = {
   id: string;
@@ -56,10 +74,9 @@ function groupPins(pins: MapPinPublic[]): MapPinGroup[] {
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.steamId || !session.user.profileComplete) {
-      return NextResponse.json({ error: "Нужен полный профиль" }, { status: 401 });
-    }
+    const gate = await requireBbMember();
+    if (!gate.ok) return gate.response;
+    const session = gate.session;
 
     const rows = await prisma.mapPin.findMany({
       include: { user: { select: { id: true, nick: true, steamName: true } } },
@@ -106,10 +123,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.steamId || !session.user.profileComplete) {
-    return NextResponse.json({ error: "Нужен полный профиль" }, { status: 401 });
-  }
+  const gate = await requireBbMember();
+  if (!gate.ok) return gate.response;
+  const session = gate.session;
 
   const me = await prisma.user.findUnique({
     where: { steamId: session.user.steamId },
@@ -142,7 +158,6 @@ export async function POST(req: Request) {
 
   const region = regionRaw.length > 0 ? regionRaw.slice(0, 80) : null;
 
-  // upsert = можно убрать и поставить заново / сменить город
   const pin = await prisma.mapPin.upsert({
     where: { userId: me.id },
     create: { userId: me.id, country, region, city, lat, lon },
@@ -154,10 +169,9 @@ export async function POST(req: Request) {
 
 /** Своя метка: DELETE без body. Чужую: ?userId=… (только admin/HR/deputy/super). */
 export async function DELETE(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.steamId || !session.user.profileComplete) {
-    return NextResponse.json({ error: "Нужен полный профиль" }, { status: 401 });
-  }
+  const gate = await requireBbMember();
+  if (!gate.ok) return gate.response;
+  const session = gate.session;
 
   const me = await prisma.user.findUnique({
     where: { steamId: session.user.steamId },

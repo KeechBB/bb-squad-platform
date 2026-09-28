@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { isBlackberryClanMember } from "@/lib/blackberryClan";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,6 +36,12 @@ export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.steamId || !session.user.profileComplete) {
     return NextResponse.json({ error: "Нужен полный профиль" }, { status: 401 });
+  }
+  if (!(await isBlackberryClanMember(session.user.steamId))) {
+    return NextResponse.json(
+      { error: "Карта клана только для участников BlackBerry" },
+      { status: 403 }
+    );
   }
 
   const url = new URL(req.url);
@@ -79,8 +86,7 @@ export async function GET(req: Request) {
   const hits: GeocodeHit[] = data
     .map((item) => {
       const a = item.address || {};
-      const hitCity =
-        a.city || a.town || a.village || a.municipality || city;
+      const hitCity = a.city || a.town || a.village || a.municipality || city;
       const hitRegion = a.state || a.region || a.county || region || null;
       const hitCountry = a.country || country;
       return {
