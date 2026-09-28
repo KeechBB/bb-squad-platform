@@ -67,8 +67,28 @@ export function ClanMapClient() {
     setError(null);
     try {
       const res = await fetch("/api/map/pins", { cache: "no-store" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Ошибка загрузки");
+      const text = await res.text();
+      let data: {
+        error?: string;
+        groups?: MapPinGroup[];
+        myPin?: MyPin;
+        myUserId?: string | null;
+        canModerate?: boolean;
+      } = {};
+      if (text.trim()) {
+        try {
+          data = JSON.parse(text) as typeof data;
+        } catch {
+          throw new Error(
+            res.ok
+              ? "Сервер вернул пустой ответ карты"
+              : `Ошибка карты (${res.status})`
+          );
+        }
+      } else if (!res.ok) {
+        throw new Error(`Ошибка карты (${res.status})`);
+      }
+      if (!res.ok) throw new Error(data.error || `Ошибка загрузки (${res.status})`);
       setGroups(data.groups || []);
       setMyPin(data.myPin || null);
       setMyUserId(data.myUserId || null);

@@ -63,6 +63,9 @@ else
   npm install
 fi
 
+echo "==> prisma db push (schema)"
+npx prisma db push
+
 echo "==> npm run build"
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2048}"
 npm run build

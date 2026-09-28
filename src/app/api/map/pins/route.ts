@@ -55,41 +55,54 @@ function groupPins(pins: MapPinPublic[]): MapPinGroup[] {
 }
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.steamId || !session.user.profileComplete) {
-    return NextResponse.json({ error: "Нужен полный профиль" }, { status: 401 });
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.steamId || !session.user.profileComplete) {
+      return NextResponse.json({ error: "Нужен полный профиль" }, { status: 401 });
+    }
+
+    const rows = await prisma.mapPin.findMany({
+      include: { user: { select: { id: true, nick: true, steamName: true } } },
+      orderBy: { updatedAt: "desc" },
+    });
+
+    const pins: MapPinPublic[] = rows.map((r) => ({
+      id: r.id,
+      userId: r.userId,
+      nick: r.user.nick || r.user.steamName || "Игрок",
+      country: r.country,
+      region: r.region,
+      city: r.city,
+      lat: r.lat,
+      lon: r.lon,
+    }));
+
+    const me = await prisma.user.findUnique({
+      where: { steamId: session.user.steamId },
+      select: { id: true },
+    });
+
+    const canModerate = await isAdmin(session.user.steamId);
+
+    return NextResponse.json({
+      pins,
+      groups: groupPins(pins),
+      myPin: me ? pins.find((p) => p.userId === me.id) ?? null : null,
+      myUserId: me?.id ?? null,
+      canModerate,
+    });
+  } catch (e) {
+    console.error("[map/pins GET]", e);
+    const msg = e instanceof Error ? e.message : "Ошибка БД карты";
+    return NextResponse.json(
+      {
+        error: msg.includes("mapPin") || msg.includes("MapPin") || msg.includes("does not exist")
+          ? "Таблица меток ещё не создана — нужен prisma db push на сервере"
+          : "Не удалось загрузить метки",
+      },
+      { status: 500 }
+    );
   }
-
-  const rows = await prisma.mapPin.findMany({
-    include: { user: { select: { id: true, nick: true, steamName: true } } },
-    orderBy: { updatedAt: "desc" },
-  });
-
-  const pins: MapPinPublic[] = rows.map((r) => ({
-    id: r.id,
-    userId: r.userId,
-    nick: r.user.nick || r.user.steamName || "Игрок",
-    country: r.country,
-    region: r.region,
-    city: r.city,
-    lat: r.lat,
-    lon: r.lon,
-  }));
-
-  const me = await prisma.user.findUnique({
-    where: { steamId: session.user.steamId },
-    select: { id: true },
-  });
-
-  const canModerate = await isAdmin(session.user.steamId);
-
-  return NextResponse.json({
-    pins,
-    groups: groupPins(pins),
-    myPin: me ? pins.find((p) => p.userId === me.id) ?? null : null,
-    myUserId: me?.id ?? null,
-    canModerate,
-  });
 }
 
 export async function POST(req: Request) {
