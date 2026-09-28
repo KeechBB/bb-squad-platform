@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isAdmin } from "@/lib/admin";
-import { isBlackberryClanMember } from "@/lib/blackberryClan";
+import { countBlackberryClanMembers, isBlackberryClanMember } from "@/lib/blackberryClan";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -100,6 +100,7 @@ export async function GET() {
     });
 
     const canModerate = await isAdmin(session.user.steamId);
+    const clanMemberCount = await countBlackberryClanMembers();
 
     return NextResponse.json({
       pins,
@@ -107,6 +108,8 @@ export async function GET() {
       myPin: me ? pins.find((p) => p.userId === me.id) ?? null : null,
       myUserId: me?.id ?? null,
       canModerate,
+      clanMemberCount,
+      pinCount: pins.length,
     });
   } catch (e) {
     console.error("[map/pins GET]", e);

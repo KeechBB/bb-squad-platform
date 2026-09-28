@@ -24,3 +24,12 @@ export async function isBlackberryClanMember(
   });
   return Boolean(membership);
 }
+
+/** Сколько участников BlackBerry на площадке (вступили / приняты). */
+export async function countBlackberryClanMembers(): Promise<number> {
+  const clanIds = await findBlackberryClanIds();
+  if (clanIds.length === 0) return 0;
+  return prisma.clanMember.count({
+    where: { clanId: { in: clanIds } },
+  });
+}

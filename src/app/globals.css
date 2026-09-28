@@ -7372,7 +7372,7 @@ body.profile-match-modal-open {
   left: 0;
   right: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   padding: 14px 18px;
@@ -7388,10 +7388,42 @@ body.profile-match-modal-open {
   color: var(--ink);
 }
 
-.clan-map-hint {
-  margin: 4px 0 0;
-  font-size: 0.78rem;
-  color: var(--muted);
+.clan-map-stats {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 240px;
+  max-width: min(340px, calc(100vw - 36px));
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(167, 139, 250, 0.45);
+  background: rgba(7, 6, 12, 0.88);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(6px);
+}
+
+.clan-map-stat {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.clan-map-stat-label {
+  font-size: 0.95rem;
+  line-height: 1.25;
+  color: #c4b5fd;
+}
+
+.clan-map-stat-value {
+  flex-shrink: 0;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  text-shadow: 0 0 12px rgba(167, 139, 250, 0.35);
 }
 
 .clan-map-bar-actions {

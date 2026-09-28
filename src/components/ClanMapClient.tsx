@@ -53,6 +53,8 @@ export function ClanMapClient() {
   const [myPin, setMyPin] = useState<MyPin>(null);
   const [myUserId, setMyUserId] = useState<string | null>(null);
   const [canModerate, setCanModerate] = useState(false);
+  const [clanMemberCount, setClanMemberCount] = useState(0);
+  const [pinCount, setPinCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hover, setHover] = useState<MapPinGroup | null>(null);
@@ -78,6 +80,8 @@ export function ClanMapClient() {
         myPin?: MyPin;
         myUserId?: string | null;
         canModerate?: boolean;
+        clanMemberCount?: number;
+        pinCount?: number;
       } = {};
       if (text.trim()) {
         try {
@@ -97,6 +101,8 @@ export function ClanMapClient() {
       setMyPin(data.myPin || null);
       setMyUserId(data.myUserId || null);
       setCanModerate(Boolean(data.canModerate));
+      setClanMemberCount(Number(data.clanMemberCount) || 0);
+      setPinCount(Number(data.pinCount) || (data.groups || []).reduce((n, g) => n + g.members.length, 0));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка загрузки");
     } finally {
@@ -385,10 +391,16 @@ export function ClanMapClient() {
       <div className="clan-map-bar">
         <div className="clan-map-bar-left">
           <h1>Карта клана</h1>
-          <p className="clan-map-hint">
-            Зажми ЛКМ и крути · клик по огоньку — кто в городе
-            {canModerate ? " · ты можешь снимать чужие метки" : ""}
-          </p>
+          <div className="clan-map-stats" aria-label="Статистика карты">
+            <div className="clan-map-stat">
+              <span className="clan-map-stat-label">Всего в клане на площадке</span>
+              <span className="clan-map-stat-value">{clanMemberCount}</span>
+            </div>
+            <div className="clan-map-stat">
+              <span className="clan-map-stat-label">Отметок на карту поставили</span>
+              <span className="clan-map-stat-value">{pinCount}</span>
+            </div>
+          </div>
         </div>
         <div className="clan-map-bar-actions">
           {myPin ? (
