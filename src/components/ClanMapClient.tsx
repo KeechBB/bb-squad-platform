@@ -157,9 +157,9 @@ export function ClanMapClient() {
         .pointsData([])
         .pointLat("lat")
         .pointLng("lon")
-        .pointAltitude(0.012)
-        .pointRadius(0.12)
-        .pointColor(() => "rgba(196,181,253,0.15)")
+        .pointAltitude(0.001)
+        .pointRadius(0.08)
+        .pointColor(() => "rgba(196,181,253,0.12)")
         .pointLabel(() => "")
         .onPointHover((d: object | null) => {
           if (!d) {
@@ -177,16 +177,16 @@ export function ClanMapClient() {
         .ringsData([])
         .ringLat("lat")
         .ringLng("lon")
-        .ringAltitude(0.014)
-        .ringColor(() => (t: number) => `rgba(167,139,250,${0.55 * Math.sqrt(Math.max(0, 1 - t))})`)
-        .ringMaxRadius(2.4)
+        .ringAltitude(0.0015)
+        .ringColor(() => (t: number) => `rgba(167,139,250,${0.45 * Math.sqrt(Math.max(0, 1 - t))})`)
+        .ringMaxRadius(1.6)
         .ringPropagationSpeed(1.4)
         .ringRepeatPeriod(1600)
-        // HTML pin with CSS bloom (like planet atmosphere)
+        // HTML pin flush to surface at exact geolocation
         .htmlElementsData([])
         .htmlLat("lat")
         .htmlLng("lon")
-        .htmlAltitude(0.022)
+        .htmlAltitude(0.001)
         .htmlElement((d: object) => {
           const grp = d as MapPinGroup;
           const wrap = document.createElement("div");
