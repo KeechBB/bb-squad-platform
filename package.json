@@ -11,6 +11,8 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@fontsource/manrope": "^5.3.0",
+    "@fontsource/oxanium": "^5.3.0",
     "@prisma/client": "^5.22.0",
     "globe.gl": "^2.46.2",
     "next": "15.5.25",

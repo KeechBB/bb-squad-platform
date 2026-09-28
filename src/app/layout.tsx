@@ -1,21 +1,15 @@
 import type { Metadata, Viewport } from "next";
-import { Oxanium, Manrope } from "next/font/google";
 import { Providers } from "@/components/Providers";
 import { AuthBar } from "@/components/AuthBar";
 import Link from "next/link";
+import "@fontsource/oxanium/400.css";
+import "@fontsource/oxanium/600.css";
+import "@fontsource/oxanium/700.css";
+import "@fontsource/manrope/400.css";
+import "@fontsource/manrope/500.css";
+import "@fontsource/manrope/600.css";
+import "@fontsource/manrope/700.css";
 import "./globals.css";
-
-const oxanium = Oxanium({
-  subsets: ["latin", "latin-ext"],
-  variable: "--font-oxanium",
-  weight: ["400", "600", "700"],
-});
-
-const manrope = Manrope({
-  subsets: ["latin", "latin-ext", "cyrillic"],
-  variable: "--font-manrope",
-  weight: ["400", "500", "600", "700"],
-});
 
 export const metadata: Metadata = {
   title: "BlackBerry Squad",
@@ -34,7 +28,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" className={`${oxanium.variable} ${manrope.variable}`}>
+    <html lang="ru">
       <body>
         <Providers>
           <header className="site-top">

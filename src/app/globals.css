@@ -6,8 +6,10 @@
   --violet: #a78bfa;
   --magenta: #d946ef;
   --panel: rgba(16, 12, 28, 0.78);
-  --font-display: var(--font-oxanium), "Oxanium", sans-serif;
-  --font-body: var(--font-manrope), "Manrope", sans-serif;
+  --font-oxanium: "Oxanium", sans-serif;
+  --font-manrope: "Manrope", sans-serif;
+  --font-display: var(--font-oxanium);
+  --font-body: var(--font-manrope);
   --win: #34d399;
 }
 
