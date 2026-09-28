@@ -7414,6 +7414,75 @@ body.profile-match-modal-open {
   cursor: grabbing;
 }
 
+/* Player pin — soft bloom like planet atmosphere */
+.clan-map-pin-wrap {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  margin-left: -14px;
+  margin-top: -14px;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.clan-map-pin-glow {
+  position: absolute;
+  inset: -10px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(196, 181, 253, 0.85) 0%,
+    rgba(167, 139, 250, 0.45) 35%,
+    rgba(124, 58, 237, 0.15) 60%,
+    transparent 72%
+  );
+  filter: blur(1.5px);
+  animation: clan-map-pin-pulse 2.4s ease-in-out infinite;
+}
+
+.clan-map-pin-core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  margin: -4.5px 0 0 -4.5px;
+  border-radius: 50%;
+  background: #ede9fe;
+  box-shadow:
+    0 0 6px 2px rgba(196, 181, 253, 0.95),
+    0 0 16px 6px rgba(167, 139, 250, 0.55),
+    0 0 28px 10px rgba(124, 58, 237, 0.28);
+}
+
+.clan-map-pin-n {
+  position: absolute;
+  right: -2px;
+  top: -2px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: #7c3aed;
+  color: #fff;
+  font-size: 9px;
+  line-height: 14px;
+  text-align: center;
+  font-weight: 700;
+}
+
+@keyframes clan-map-pin-pulse {
+  0%,
+  100% {
+    opacity: 0.75;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+}
+
 .clan-map-status {
   position: absolute;
   left: 50%;

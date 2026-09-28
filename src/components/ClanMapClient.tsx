@@ -40,6 +40,10 @@ export function ClanMapClient() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     pointsData: (d: any) => unknown;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    htmlElementsData: (d: any) => unknown;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ringsData: (d: any) => unknown;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     pointOfView: (pov?: any, ms?: number) => unknown;
   } | null>(null);
 
@@ -127,28 +131,35 @@ export function ClanMapClient() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const countries = (topojson as any).feature(world, world.objects.countries);
 
-      const g = new Globe(el)
+      // antialias + soft borders (bright 1px strokes shimmer/moire when rotating)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const g = new (Globe as any)(el, {
+        animateIn: false,
+        rendererConfig: {
+          antialias: true,
+          alpha: true,
+          powerPreference: "high-performance",
+        },
+      })
         .backgroundColor("rgba(0,0,0,0)")
         .showGlobe(true)
         .showAtmosphere(true)
-        .atmosphereColor("#a78bfa")
-        .atmosphereAltitude(0.18)
+        .atmosphereColor("#7c3aed")
+        .atmosphereAltitude(0.2)
         .globeImageUrl("//cdn.jsdelivr.net/npm/three-globe/example/img/earth-dark.jpg")
         .polygonsData(countries.features)
-        .polygonCapColor(() => "rgba(4,3,8,0.92)")
-        .polygonSideColor(() => "rgba(167,139,250,0.12)")
-        .polygonStrokeColor(() => "#a78bfa")
-        .polygonAltitude(0.004)
+        .polygonCapColor(() => "rgba(6,5,12,0.94)")
+        .polygonSideColor(() => "rgba(100, 70, 180, 0.35)")
+        // soft stroke — not neon hairline (hairlines = рябь)
+        .polygonStrokeColor(() => "rgba(140, 110, 210, 0.28)")
+        .polygonAltitude(0.005)
         .polygonsTransitionDuration(0)
         .pointsData([])
         .pointLat("lat")
         .pointLng("lon")
-        .pointAltitude(0.018)
-        .pointRadius((d: object) => {
-          const grp = d as MapPinGroup;
-          return 0.35 + Math.min(grp.members?.length || 1, 5) * 0.06;
-        })
-        .pointColor(() => "#c4b5fd")
+        .pointAltitude(0.012)
+        .pointRadius(0.12)
+        .pointColor(() => "rgba(196,181,253,0.15)")
         .pointLabel(() => "")
         .onPointHover((d: object | null) => {
           if (!d) {
@@ -161,16 +172,66 @@ export function ClanMapClient() {
           const grp = d as MapPinGroup;
           setHover(grp);
           setPanel(grp);
+        })
+        // atmospheric glow rings around player markers
+        .ringsData([])
+        .ringLat("lat")
+        .ringLng("lon")
+        .ringAltitude(0.014)
+        .ringColor(() => (t: number) => `rgba(167,139,250,${0.55 * Math.sqrt(Math.max(0, 1 - t))})`)
+        .ringMaxRadius(2.4)
+        .ringPropagationSpeed(1.4)
+        .ringRepeatPeriod(1600)
+        // HTML pin with CSS bloom (like planet atmosphere)
+        .htmlElementsData([])
+        .htmlLat("lat")
+        .htmlLng("lon")
+        .htmlAltitude(0.022)
+        .htmlElement((d: object) => {
+          const grp = d as MapPinGroup;
+          const wrap = document.createElement("div");
+          wrap.className = "clan-map-pin-wrap";
+          wrap.title = `${grp.city} · ${grp.country}`;
+          const glow = document.createElement("div");
+          glow.className = "clan-map-pin-glow";
+          const core = document.createElement("div");
+          core.className = "clan-map-pin-core";
+          if (grp.members.length > 1) {
+            const badge = document.createElement("span");
+            badge.className = "clan-map-pin-n";
+            badge.textContent = String(grp.members.length);
+            wrap.append(glow, core, badge);
+          } else {
+            wrap.append(glow, core);
+          }
+          wrap.addEventListener("mouseenter", () => setHover(grp));
+          wrap.addEventListener("mouseleave", () => setHover(null));
+          wrap.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            setHover(grp);
+            setPanel(grp);
+          });
+          return wrap;
         });
 
       el.addEventListener("mousemove", onMove);
 
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const renderer = (g as any).renderer?.();
+        if (renderer?.setPixelRatio) {
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+        }
+      } catch {
+        /* ignore */
+      }
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const mat = (g as any).globeMaterial?.();
       if (mat) {
-        mat.color?.setHex?.(0x0a0814);
-        mat.emissive?.setHex?.(0x1a1030);
-        mat.emissiveIntensity = 0.15;
+        mat.color?.setHex?.(0x080612);
+        mat.emissive?.setHex?.(0x120a22);
+        mat.emissiveIntensity = 0.12;
       }
 
       const fit = () => {
@@ -183,7 +244,10 @@ export function ClanMapClient() {
       resizeObs.observe(el);
 
       g.pointOfView({ lat: 40, lng: 40, altitude: 2.1 }, 0);
-      g.pointsData(groupsRef.current);
+      const pins = groupsRef.current;
+      g.pointsData(pins);
+      g.ringsData(pins);
+      g.htmlElementsData(pins);
       globeRef.current = g as unknown as typeof globeRef.current;
     })().catch((e) => {
       console.error(e);
@@ -204,11 +268,13 @@ export function ClanMapClient() {
     };
   }, []);
 
-  // Sync points
+  // Sync points + glow rings + HTML pins
   useEffect(() => {
     const g = globeRef.current;
     if (!g) return;
     g.pointsData(groups);
+    g.ringsData(groups);
+    g.htmlElementsData(groups);
   }, [groups]);
 
   async function runGeocode() {
