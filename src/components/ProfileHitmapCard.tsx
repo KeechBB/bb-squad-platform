@@ -394,6 +394,7 @@ export function ProfileHitmapCard({
         pct: pct(n, sum),
       });
     }
+    stripRows.sort((a, b) => b.n - a.n || a.label.localeCompare(b.label, "ru"));
     const plotBones = Object.entries(map)
       .filter(([k, n]) => n > 0 && k !== "None" && ANCHORS[k])
       .map(([k, n]) => [k, n] as [string, number]);
@@ -561,17 +562,17 @@ export function ProfileHitmapCard({
                 const isLast = Boolean(lastBone && bone === lastBone);
                 return offsets(show).map(([dx, dy], i) => {
                   const lastDot = isLast && i === 0;
-                  const yellow = limb || lastDot;
+                  const orange = limb || lastDot;
                   return (
                     <circle
                       key={`${bone}-${i}`}
                       cx={cx + dx}
                       cy={cy + dy}
                       r={lastDot ? 4.4 : 3.2}
-                      fill={yellow ? "#facc15" : "#e11d48"}
+                      fill={orange ? "#f97316" : "#e11d48"}
                       stroke={
-                        yellow
-                          ? "rgba(254, 249, 195, 0.95)"
+                        orange
+                          ? "rgba(255, 237, 213, 0.95)"
                           : "rgba(255,241,242,0.7)"
                       }
                       strokeWidth={lastDot ? 1.2 : 0.7}

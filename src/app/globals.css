@@ -1378,12 +1378,12 @@ body:has(.profile-page) {
 }
 
 .profile-hitmap-strip-row.is-last .profile-hitmap-strip-dot {
-  background: #facc15;
-  box-shadow: 0 0 0 1px rgba(254, 249, 195, 0.7);
+  background: #f97316;
+  box-shadow: 0 0 0 1px rgba(255, 237, 213, 0.7);
 }
 
 .profile-hitmap-strip-row.is-last .profile-hitmap-strip-name {
-  color: #fde68a;
+  color: #fdba74;
 }
 
 .profile-hitmap-strip-name {
