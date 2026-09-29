@@ -143,8 +143,12 @@ async function loadAllMatches(): Promise<{ matches: KvMatch[]; source: string }>
   throw lastErr || new Error("KV unavailable");
 }
 
+function isPlayedStatus(status?: string) {
+  return status === "win" || status === "lose" || status === "draw";
+}
+
 function tally(list: KvMatch[]) {
-  const played = list.filter((m) => m.status && m.status !== "upcoming");
+  const played = list.filter((m) => isPlayedStatus(m.status));
   const wins = played.filter((m) => m.status === "win").length;
   const draws = played.filter((m) => m.status === "draw").length;
   const losses = played.filter((m) => m.status === "lose").length;
@@ -185,7 +189,7 @@ export async function buildClanKvStats(clanTag: string): Promise<ClanStats> {
     { map: string; full: string; games: number; wins: number; losses: number; draws: number }
   >();
   for (const m of list) {
-    if (!m.status || m.status === "upcoming" || !m.map) continue;
+    if (!m.status || !isPlayedStatus(m.status) || !m.map) continue;
     const key = shortMap(m.map);
     const cur = mapMap.get(key) || {
       map: key,

@@ -3,7 +3,7 @@ type Props = {
 };
 
 /** Меняй при обновлении KV, чтобы iframe не брал старый кэш */
-const KV_CACHE = "20260928-alpha-oct3";
+const KV_CACHE = "20260929-h1gh-cancel";
 
 export default async function CwPage({ searchParams }: Props) {
   const sp = searchParams ? await searchParams : {};

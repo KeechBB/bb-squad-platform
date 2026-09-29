@@ -128,8 +128,12 @@ function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
+function isPlayedStatus(status?: string) {
+  return status === "win" || status === "lose" || status === "draw";
+}
+
 function winRate(list: KvMatch[]): { rate: number | null; played: number; wins: number; draws: number } {
-  const played = list.filter((m) => m.status && m.status !== "upcoming");
+  const played = list.filter((m) => isPlayedStatus(m.status));
   if (!played.length) return { rate: null, played: 0, wins: 0, draws: 0 };
   const wins = played.filter((m) => m.status === "win").length;
   const draws = played.filter((m) => m.status === "draw").length;
@@ -142,7 +146,7 @@ function winRate(list: KvMatch[]): { rate: number | null; played: number; wins: 
 }
 
 function buildForecast(match: TaggedMatch, history: TaggedMatch[]): MatchForecast {
-  const playedAll = history.filter((m) => m.status && m.status !== "upcoming");
+  const playedAll = history.filter((m) => isPlayedStatus(m.status));
   const overall = winRate(playedAll);
   const stackName = match.stack || "";
   const stackHist = playedAll.filter(
