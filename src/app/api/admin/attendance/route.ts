@@ -461,6 +461,30 @@ export async function GET(req: Request) {
         ) / 10
       : 0;
 
+  /** Конец календарного дня YMD по МСК → UTC (00:00 следующего дня МСК). */
+  function endOfDayMskUtc(ymd: string): Date {
+    const [y, m, d] = ymd.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, d, 21, 0, 0));
+  }
+
+  /** Зареганы к концу дня · «был» на тренировке (тот же presentDays, что в таблице). */
+  const turnoutByDay = days.map((d) => {
+    const end = endOfDayMskUtc(d);
+    const registered = users.filter(
+      (u) => u.createdAt.getTime() < end.getTime()
+    ).length;
+    const present = isPublic
+      ? uniqueUntil02ByDay[d]?.size ||
+        uniqueMidnightByDay[d]?.size ||
+        0
+      : rows.filter((r) => (r.presentDays || []).includes(d)).length;
+    const pct =
+      registered > 0 ? Math.round((1000 * present) / registered) / 10 : 0;
+    return { day: d, registered, present, pct };
+  });
+
+  const registeredNow = users.length;
+
   // week / month averages from 21:00–00:00 daily uniques
   const byWeek = new Map<string, number[]>();
   const byMonth = new Map<string, number[]>();
@@ -570,6 +594,8 @@ export async function GET(req: Request) {
       weekday,
       dayPlayerCounts,
       calendarUnique,
+      turnoutByDay,
+      registeredNow,
       avgPlayersPerDay: avgPlayers,
       avgPlayersPerWeek,
       avgPlayersPerMonth,

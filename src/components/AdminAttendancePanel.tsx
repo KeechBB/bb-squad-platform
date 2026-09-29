@@ -36,6 +36,14 @@ type Stats = {
   weekday: number[];
   dayPlayerCounts: Array<{ day: string; players: number }>;
   calendarUnique?: Array<{ day: string; players: number }>;
+  /** Зареганы на сайте к концу дня · сколько «был» на тренировке */
+  turnoutByDay?: Array<{
+    day: string;
+    registered: number;
+    present: number;
+    pct: number;
+  }>;
+  registeredNow?: number;
   avgPlayersPerDay: number;
   avgPlayersPerWeek?: number;
   avgPlayersPerMonth?: number;
@@ -881,6 +889,69 @@ export function AdminAttendancePanel() {
               сумма вечерних уникальных по дням, усреднённая по неделям/месяцам
               в выбранном периоде.
             </p>
+          </div>
+
+          <div
+            className="training-chart-block"
+            style={{ gridColumn: "1 / -1" }}
+          >
+            <h3>Явка: зареганы на сайте → были на тренировке</h3>
+            <p className="muted" style={{ marginTop: 0, marginBottom: 8 }}>
+              По каждому дню: сколько человек уже было в базе к концу дня (МСК) и
+              сколько из них отмечены «был» (
+              {server === "TR1"
+                ? "≥60 мин вечером или уход ≥23:30"
+                : "уникальные на PB1"}
+              ). Сейчас зарегано:{" "}
+              <strong>{data.stats.registeredNow ?? "—"}</strong>.
+            </p>
+            {(data.stats.turnoutByDay || []).length ? (
+              <>
+                <div className="attend-turnout-legend">
+                  <span className="attend-turnout-leg a">Зареганы</span>
+                  <span className="attend-turnout-leg b">
+                    {server === "TR1" ? "Были на TR1" : "Были на PB1"}
+                  </span>
+                </div>
+                {(() => {
+                  const turnout = data.stats.turnoutByDay!;
+                  const max = Math.max(
+                    1,
+                    ...turnout.map((x) => Math.max(x.registered, x.present))
+                  );
+                  return (
+                    <div className="visits-col-chart attend-turnout-chart">
+                      {turnout.map((c) => (
+                        <div key={c.day} className="visits-col">
+                          <div className="visits-col-bars">
+                            <div
+                              className="visits-col-a"
+                              style={{
+                                height: `${Math.max(2, (100 * c.registered) / max)}%`,
+                              }}
+                              title={`${ymdLabel(c.day)}: зареганы ${c.registered}`}
+                            />
+                            <div
+                              className="visits-col-b"
+                              style={{
+                                height: `${Math.max(0, (100 * c.present) / max)}%`,
+                              }}
+                              title={`${ymdLabel(c.day)}: были ${c.present} (${c.pct}%)`}
+                            />
+                          </div>
+                          <span className="visits-col-label">{ymdLabel(c.day)}</span>
+                          <span className="attend-turnout-pct">{c.pct}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </>
+            ) : (
+              <p className="muted" style={{ margin: 0 }}>
+                Нет дней в выбранном периоде
+              </p>
+            )}
           </div>
 
           <div className="training-chart-block">
