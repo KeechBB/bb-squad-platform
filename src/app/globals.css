@@ -1152,13 +1152,40 @@ body:has(.profile-page) {
   font-size: 0.78rem;
 }
 
+.profile-hitmap-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 6px 0 2px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(225, 29, 72, 0.08);
+  border: 1px solid rgba(225, 29, 72, 0.22);
+}
+
+.profile-hitmap-total-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.profile-hitmap-total-n {
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  color: #fecdd3;
+  line-height: 1;
+}
+
 .profile-hitmap-split {
   flex: 1 1 auto;
   display: flex;
   align-items: stretch;
   gap: 10px;
   min-height: 0;
-  margin-top: 4px;
+  margin-top: 6px;
 }
 
 .profile-hitmap-body-wrap {
@@ -1172,7 +1199,7 @@ body:has(.profile-page) {
 
 .profile-hitmap-svg {
   width: 100%;
-  max-width: 200px;
+  max-width: 220px;
   height: auto;
   max-height: 100%;
   display: block;
@@ -1180,8 +1207,8 @@ body:has(.profile-page) {
 
 .profile-hitmap-strip {
   flex: 0 0 auto;
-  width: min(148px, 42%);
-  min-width: 112px;
+  width: min(168px, 44%);
+  min-width: 128px;
   max-height: 100%;
   overflow: auto;
   border-left: 1px solid rgba(255, 255, 255, 0.08);
@@ -1194,16 +1221,18 @@ body:has(.profile-page) {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 
 .profile-hitmap-strip-row {
   display: grid;
-  grid-template-columns: 8px minmax(0, 1fr) auto auto;
+  grid-template-columns: 8px minmax(0, 1fr) 2.2em 3.2em;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
+  height: 1.35rem;
   font-size: 0.68rem;
-  line-height: 1.2;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .profile-hitmap-strip-dot {
@@ -1222,23 +1251,24 @@ body:has(.profile-page) {
   color: var(--muted);
 }
 
-.profile-hitmap-strip-pct {
-  font-weight: 700;
+.profile-hitmap-strip-n {
   font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  text-align: right;
   color: #fde2e8;
 }
 
-.profile-hitmap-strip-n {
+.profile-hitmap-strip-pct {
   font-variant-numeric: tabular-nums;
-  font-size: 0.62rem;
-  min-width: 1.4em;
   text-align: right;
+  color: rgba(203, 183, 164, 0.95);
 }
 
 .profile-hitmap-empty {
   margin: 8px 0 0;
   font-size: 0.78rem;
   line-height: 1.4;
+  align-self: center;
 }
 
 .profile-hitmap-legend {
@@ -1604,32 +1634,92 @@ body:has(.profile-page) {
 .profile-area-train-hist .training-sessions-table {
   width: 100%;
   table-layout: fixed;
+  border-collapse: collapse;
 }
 
 .profile-area-kv-hist .training-sessions-table th,
 .profile-area-kv-hist .training-sessions-table td,
 .profile-area-train-hist .training-sessions-table th,
 .profile-area-train-hist .training-sessions-table td {
-  white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  vertical-align: top;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  height: 2.05rem;
+  max-height: 2.05rem;
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 2.05rem;
+  box-sizing: border-box;
+}
+
+.profile-area-kv-hist .training-sessions-table thead th,
+.profile-area-train-hist .training-sessions-table thead th {
+  height: 1.85rem;
+  max-height: 1.85rem;
+  line-height: 1.85rem;
+  font-size: 0.72rem;
+}
+
+.profile-hist-pwr {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.profile-hist-pwr .home-pwr-badge {
+  flex: 0 0 auto;
+  font-size: 0.58rem !important;
+  padding: 1px 5px !important;
+  line-height: 1.2;
+}
+
+.profile-hist-pwr-n {
+  font-variant-numeric: tabular-nums;
+}
+
+.profile-area-kv-hist .training-match-map,
+.profile-area-train-hist .training-match-map,
+.profile-area-kv-hist .training-match-score,
+.profile-area-train-hist .training-match-score,
+.profile-area-kv-hist .kv-pill,
+.profile-area-train-hist .kv-pill {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+  line-height: 1.2;
 }
 
 .profile-area-kv-hist .training-sessions-table th:nth-child(1),
 .profile-area-kv-hist .training-sessions-table td:nth-child(1),
 .profile-area-train-hist .training-sessions-table th:nth-child(1),
 .profile-area-train-hist .training-sessions-table td:nth-child(1) {
-  width: 4.6rem;
-  white-space: nowrap;
+  width: 5rem;
+}
+
+.profile-area-kv-hist .training-sessions-table th:nth-child(2),
+.profile-area-kv-hist .training-sessions-table td:nth-child(2) {
+  width: 18%;
+}
+
+.profile-area-kv-hist .training-sessions-table th:nth-child(3),
+.profile-area-kv-hist .training-sessions-table td:nth-child(3),
+.profile-area-train-hist .training-sessions-table th:nth-child(2),
+.profile-area-train-hist .training-sessions-table td:nth-child(2) {
+  width: 16%;
 }
 
 .profile-area-kv-hist .training-sessions-table th:nth-child(4),
 .profile-area-kv-hist .training-sessions-table td:nth-child(4),
 .profile-area-train-hist .training-sessions-table th:nth-child(3),
 .profile-area-train-hist .training-sessions-table td:nth-child(3) {
-  width: 4.2rem;
-  white-space: nowrap;
+  width: 5.5rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1638,26 +1728,25 @@ body:has(.profile-page) {
 .profile-area-train-hist .training-sessions-table th:nth-child(4),
 .profile-area-train-hist .training-sessions-table td:nth-child(4) {
   width: 3.6rem;
-  white-space: nowrap;
 }
 
 .profile-area-kv-hist .training-sessions-table th:nth-child(6),
 .profile-area-kv-hist .training-sessions-table td:nth-child(6),
 .profile-area-train-hist .training-sessions-table th:nth-child(5),
 .profile-area-train-hist .training-sessions-table td:nth-child(5) {
-  width: 5.2rem;
+  width: 5.6rem;
 }
 
 .profile-area-kv-hist .training-sessions-table th:nth-child(7),
 .profile-area-kv-hist .training-sessions-table td:nth-child(7),
 .profile-area-train-hist .training-sessions-table th:nth-child(6),
 .profile-area-train-hist .training-sessions-table td:nth-child(6) {
-  width: 5.8rem;
+  width: 6.2rem;
 }
 
 .profile-area-train-hist .training-match-map,
 .profile-area-kv-hist .training-match-map {
-  white-space: normal;
+  white-space: nowrap;
 }
 
 .att-tag {

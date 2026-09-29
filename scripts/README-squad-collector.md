@@ -1,7 +1,30 @@
 # Коллектор заходов/выходов Squad → bb-squad.ru
 
-Читает `SquadGame.log` по SSH и шлёт события в `POST /api/ingest/squad-sessions`.
+Читает `SquadGame.log` по SSH и шлёт:
+- join/leave → `POST /api/ingest/squad-sessions`
+- `BBHitZone:` (только TR1) → `POST /api/ingest/squad-hits`
+
 В БД попадают **только** игроки, у которых есть аккаунт на сайте (Steam ID).
+Хитмап в профиле = кости, куда стрелял этот игрок (атакующий).
+
+## Новичок играл до регистрации
+
+Если зарегался после нескольких TR1 — live-ingest прошлые заходы пропустил. Долить:
+
+```bash
+cd platform/scripts
+python backfill_player_sessions.py --steam 7656… --nick NickName
+```
+
+Прошлые попадания BBHitZone (после включения ingest / простоя коллектора):
+
+```bash
+cd platform/scripts
+python backfill_squad_hits.py
+# python backfill_squad_hits.py --from 2026-09-25 --dry-run
+```
+
+Правило агента: `.cursor/rules/attendance-backfill-novice.mdc`.
 
 ## Важно: где крутить
 
@@ -20,7 +43,7 @@ git pull
 # в .env добавить:
 # SQUAD_INGEST_SECRET="<длинный случайный секрет>"
 npx prisma db push
-npm run build && pm2 restart bb-squad
+npm run build && pm2 restart bb-squad bb-squad-collector
 ```
 
 Секрет: `openssl rand -hex 32`
@@ -41,6 +64,8 @@ export SQUAD_LOG_ROOT=/home/squad/servers
 # export SQUAD_LOG_PATH=/home/squad/servers/TR1/SquadGame/Saved/Logs/SquadGame.log
 # export SQUAD_SERVER_KEY=TR1
 export SQUAD_INGEST_URL=https://bb-squad.ru/api/ingest/squad-sessions
+# optional — default derived from SQUAD_INGEST_URL:
+# export SQUAD_HITS_INGEST_URL=https://bb-squad.ru/api/ingest/squad-hits
 export SQUAD_INGEST_SECRET='тот же секрет'
 export SQUAD_STATE_PATH=./squad_collector_state.json
 

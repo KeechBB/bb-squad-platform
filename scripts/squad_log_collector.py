@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Хвост SquadGame.log → POST join/leave на bb-squad.ru.
+Хвост SquadGame.log → POST join/leave + BBHitZone hits на bb-squad.ru.
 
 Env (не коммитить секреты):
   SQUAD_SSH_HOST=194.93.2.107
@@ -15,6 +15,7 @@ Env (не коммитить секреты):
   SQUAD_SERVERS=TR1,TPUB1
   SQUAD_LOG_ROOT=/home/squad/servers
   SQUAD_INGEST_URL=https://bb-squad.ru/api/ingest/squad-sessions
+  SQUAD_HITS_INGEST_URL=https://bb-squad.ru/api/ingest/squad-hits
   SQUAD_INGEST_SECRET=...
   SQUAD_STATE_PATH=./squad_collector_state.json
   SQUAD_POLL_SEC=5
@@ -50,6 +51,23 @@ REMOVE_RE = re.compile(
 STEAM_EOS_RE = re.compile(
     r"EOS:\s*(?P<eos>[0-9a-fA-F]{32}).*?steam:\s*(?P<steam>7656\d{13})"
     r"|steam:\s*(?P<steam2>7656\d{13}).*?EOS:\s*(?P<eos2>[0-9a-fA-F]{32})",
+    re.IGNORECASE,
+)
+# Line timestamp for BBHitZone (and anything else).
+LINE_TS_RE = re.compile(
+    r"^\[(?P<ts>\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}):\d+\]"
+)
+# Live mod uses Key=<val>; spec also allows Key=val without brackets.
+HIT_RE = re.compile(
+    r"BBHitZone:\s*"
+    r"AttackerEOS=<?(?P<aeos>[0-9a-fA-F]{32}|none)>?\s+"
+    r"(?:AttackerSteam=<?(?P<asteam>7656\d{13}|none)>?\s+)?"
+    r"VictimEOS=<?(?P<veos>[0-9a-fA-F]{32}|none)>?\s+"
+    r"Zone=<?(?P<zone>[^>\s]+)>?\s+"
+    r"Damage=<?(?P<damage>[^>\s]+)>?\s+"
+    r"Bone=<?(?P<bone>[^>\s]+)>?"
+    r"(?:\s+Weapon=<?(?P<weapon>[^>\s]+)>?)?"
+    r"(?:\s+Server=<?(?P<server>[^>\s]+)>?)?",
     re.IGNORECASE,
 )
 
@@ -128,6 +146,14 @@ class Collector:
         self.password = env("SQUAD_SSH_PASSWORD")
         self.targets = resolve_log_targets()
         self.ingest_url = env("SQUAD_INGEST_URL")
+        hits_default = self.ingest_url.replace(
+            "/api/ingest/squad-sessions", "/api/ingest/squad-hits"
+        )
+        if hits_default == self.ingest_url:
+            hits_default = "https://bb-squad.ru/api/ingest/squad-hits"
+        self.hits_ingest_url = os.environ.get(
+            "SQUAD_HITS_INGEST_URL", hits_default
+        ).strip() or hits_default
         self.ingest_secret = env("SQUAD_INGEST_SECRET")
         self.state_path = Path(
             os.environ.get("SQUAD_STATE_PATH", "squad_collector_state.json")
@@ -249,19 +275,103 @@ class Collector:
     def _post(self, events: list[dict[str, Any]]) -> None:
         if not events:
             return
-        r = requests.post(
-            self.ingest_url,
-            headers={
-                "Authorization": f"Bearer {self.ingest_secret}",
-                "Content-Type": "application/json",
-            },
-            json={"events": events},
-            timeout=30,
-        )
-        if r.status_code >= 300:
-            _safe_print("ingest fail", r.status_code, r.text[:300], file=sys.stderr)
-        else:
-            _safe_print("ingest", r.json())
+        sessions = [e for e in events if e.get("type") in ("join", "leave")]
+        hits = [e for e in events if e.get("type") == "hit"]
+        headers = {
+            "Authorization": f"Bearer {self.ingest_secret}",
+            "Content-Type": "application/json",
+        }
+        if sessions:
+            r = requests.post(
+                self.ingest_url,
+                headers=headers,
+                json={"events": sessions},
+                timeout=30,
+            )
+            if r.status_code >= 300:
+                _safe_print(
+                    "ingest sessions fail",
+                    r.status_code,
+                    r.text[:300],
+                    file=sys.stderr,
+                )
+            else:
+                _safe_print("ingest sessions", r.json())
+        if hits:
+            # Chunk large hit bursts (training can spam)
+            chunk = 500
+            for i in range(0, len(hits), chunk):
+                part = hits[i : i + chunk]
+                r = requests.post(
+                    self.hits_ingest_url,
+                    headers=headers,
+                    json={"events": part},
+                    timeout=60,
+                )
+                if r.status_code >= 300:
+                    _safe_print(
+                        "ingest hits fail",
+                        r.status_code,
+                        r.text[:300],
+                        file=sys.stderr,
+                    )
+                else:
+                    _safe_print("ingest hits", r.json())
+
+    def _parse_hit(
+        self, line: str, server_key: str
+    ) -> dict[str, Any] | None:
+        if "BBHitZone:" not in line:
+            return None
+        # Hits only from TR1 (mod runs there; ignore other servers)
+        if server_key != "TR1":
+            return None
+        hm = HIT_RE.search(line)
+        if not hm:
+            return None
+        tm = LINE_TS_RE.match(line)
+        if not tm:
+            return None
+        aeos_raw = (hm.group("aeos") or "").strip()
+        asteam_raw = (hm.group("asteam") or "").strip()
+        veos_raw = (hm.group("veos") or "").strip()
+        zone = (hm.group("zone") or "").strip()
+        damage = (hm.group("damage") or "").strip()
+        bone = (hm.group("bone") or "").strip()
+        weapon = (hm.group("weapon") or "").strip() or None
+
+        if not bone or bone.lower() == "none":
+            return None
+
+        aeos = ""
+        if aeos_raw and aeos_raw.lower() != "none":
+            aeos = aeos_raw.lower()
+        asteam = self._valid_steam(asteam_raw) or ""
+        if not asteam and aeos:
+            asteam = self.eos_steam.get(aeos, "")
+        # Learn map from hit line when both present
+        if aeos and asteam:
+            self.eos_steam[aeos] = asteam
+
+        veos = ""
+        if veos_raw and veos_raw.lower() != "none":
+            veos = veos_raw.lower()
+
+        if not aeos and not asteam:
+            return None
+
+        return {
+            "type": "hit",
+            "steamId": asteam or "",
+            "eosId": aeos or None,
+            "victimEos": veos or None,
+            "zone": zone or "Limb",
+            "bone": bone,
+            "damage": damage or None,
+            "weapon": weapon,
+            "at": parse_ts(tm.group("ts")),
+            "serverKey": "TR1",
+        }
 
     def _remember_map(self, eos: str, steam: str) -> list[dict[str, Any]]:
         eos = eos.lower()
@@ -333,6 +443,10 @@ class Collector:
 
     def _handle_line(self, line: str, server_key: str) -> list[dict[str, Any]]:
         events: list[dict[str, Any]] = []
+        hit = self._parse_hit(line, server_key)
+        if hit:
+            events.append(hit)
+
         m = STEAM_EOS_RE.search(line)
         if m:
             eos = (m.group("eos") or m.group("eos2") or "").lower()
@@ -446,9 +560,10 @@ class Collector:
             name = path.rsplit("/", 1)[-1]
             if name in self.processed_backups:
                 continue
-            # Только Login / Remove / steam↔EOS — не весь 20MB
+            # Login / Remove / steam↔EOS / BBHitZone — не весь 20MB
             grep_cmd = (
-                f"grep -E 'Login request:|RemovePlayer\\(UserId:|EOS:.*steam:|steam:.*EOS:' "
+                f"grep -E 'Login request:|RemovePlayer\\(UserId:|"
+                f"EOS:.*steam:|steam:.*EOS:|BBHitZone:' "
                 f"{path} 2>/dev/null || true"
             )
             try:

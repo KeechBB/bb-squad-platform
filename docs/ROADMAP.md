@@ -50,8 +50,8 @@
 
 ## Phase 2 — посещаемость тренировок
 
-- [ ] Разобрать API/HTML sqstat `server_id=5` (после cookie)
-- [ ] Cron 21:00 и 21:30 МСК → снимки онлайна
+- [ ] Разобрать API/HTML sqstat `server_id=5` (после cookie) — **пауза 25.09:** чужой sqstat не основа; см. [SQSTAT-PANEL-DEFERRED.md](SQSTAT-PANEL-DEFERRED.md)
+- [ ] Cron 21:00 и 21:30 МСК → снимки онлайна *(предпочтительно из своих логов / Phase 2c, не парсер sqstat)*
 - [ ] Правила on_time / late_ok / late / absent
 - [ ] Журнал на сайте + блок в профиле
 - [ ] Маппинг ник sqstat ↔ User.nick / Steam
@@ -88,6 +88,7 @@
 - [ ] Таблица игроков: фильтры, сортировка
 - [ ] BB Score (формула из VISION) + лидерборд
 - [ ] Связка с Excel пока как запасной экспорт
+- [ ] **Отложено 25.09:** своя витрина «панель как SQSTAT» (лента `/game`, онлайн, топы) — [SQSTAT-PANEL-DEFERRED.md](SQSTAT-PANEL-DEFERRED.md); не стартовать без снятия паузы капитаном
 
 ## Phase 4 — КВ и ивенты на платформе
 

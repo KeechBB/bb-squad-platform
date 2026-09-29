@@ -27,12 +27,24 @@ SQUAD_SSH_PASSWORD=…пароль game-сервера…
 SQUAD_SERVERS=TR1,TPUB1
 SQUAD_LOG_ROOT=/home/squad/servers
 SQUAD_INGEST_URL=https://bb-squad.ru/api/ingest/squad-sessions
+# опционально (по умолчанию …/api/ingest/squad-hits):
+# SQUAD_HITS_INGEST_URL=https://bb-squad.ru/api/ingest/squad-hits
 SQUAD_INGEST_SECRET=…тот же, что в /var/www/bb-squad-platform/.env…
 SQUAD_STATE_PATH=/var/www/bb-squad-platform/scripts/squad_collector_state.json
 SQUAD_POLL_SEC=5
 ```
 
 `SQUAD_INGEST_SECRET` возьми с VPS: `grep SQUAD_INGEST_SECRET /var/www/bb-squad-platform/.env`
+
+Коллектор шлёт **два** потока: join/leave (посещаемость) и `BBHitZone` с TR1 (хитмап в профиле).
+
+После первого деплоя hit-ingest — один раз долить историю из логов:
+
+```bash
+cd /var/www/bb-squad-platform/scripts
+source ../.venv-collector/bin/activate 2>/dev/null || true
+python backfill_squad_hits.py
+```
 
 ```bash
 chmod +x scripts/install-collector-on-vps.sh
@@ -56,8 +68,8 @@ pm2 restart bb-squad-collector
 pm2 logs bb-squad-collector --lines 80
 ```
 
-pm2 сам поднимает процесс. При ротации лога коллектор дочитывает `SquadGame-backup-*.log`.
-Раз в час — повторный catchup свежих backup (если leave проскочил в live).
+pm2 сам поднимает процесс. При ротации лога коллектор дочитывает `SquadGame-backup-*.log`
+(включая `BBHitZone:`). Раз в час — повторный catchup свежих backup.
 
 ## Висяки без выхода (`… – _`)
 
@@ -68,4 +80,5 @@ pm2 сам поднимает процесс. При ротации лога к�
 
 ## ПК больше не нужен для логов
 
-Даже в отпуске на неделю данные продолжают писаться в Neon через ingest API.
+Даже в отпуске на неделю данные продолжают писаться в Postgres через ingest API
+(заходы + попадания TR1).

@@ -80,6 +80,21 @@ const BONE_RU: Record<string, string> = {
   Bip01_R_Foot: "R стопа",
 };
 
+/** С какой стороны рисовать выноску (стрелочку + цифры). */
+function calloutSide(bone: string): "L" | "R" {
+  if (
+    bone.includes("_R_") ||
+    bone === "Bip01_Head" ||
+    bone === "Bip01_Neck" ||
+    bone === "Bip01_Spine2" ||
+    bone === "Bip01_Spine" ||
+    bone === "Bip01_Pelvis"
+  ) {
+    return bone.includes("_L_") ? "L" : "R";
+  }
+  return "L";
+}
+
 function offsets(n: number): [number, number][] {
   if (n <= 0) return [];
   const out: [number, number][] = [[0, 0]];
@@ -116,7 +131,6 @@ export function ProfileHitmapCard({ bones, subtitle }: Props) {
       n: map[b] || 0,
       pct: pct(map[b] || 0, sum),
     }));
-    // кости вне канона (если вдруг появятся) — в конец
     const known = new Set<string>(BONE_ORDER);
     for (const [k, n] of Object.entries(map)) {
       if (n <= 0 || k === "None" || known.has(k)) continue;
@@ -137,14 +151,16 @@ export function ProfileHitmapCard({ bones, subtitle }: Props) {
     <section className="card profile-hitmap-card">
       <div className="profile-kv-head">
         <h2>Попадания</h2>
-        {total > 0 ? (
-          <span className="muted profile-hitmap-sub">
-            {subtitle || `${total} хитов · TR1`}
-          </span>
-        ) : (
-          <span className="profile-edit-head-spacer" aria-hidden="true" />
-        )}
+        <span className="muted profile-hitmap-sub">
+          {subtitle || (total > 0 ? "TR1" : "Нет данных с TR1")}
+        </span>
       </div>
+
+      <div className="profile-hitmap-total" aria-label="Всего попаданий">
+        <span className="profile-hitmap-total-label">Всего попаданий</span>
+        <strong className="profile-hitmap-total-n">{total}</strong>
+      </div>
+
       <div className="profile-hitmap-split">
         <div className="profile-hitmap-body-wrap">
           <svg
@@ -200,22 +216,67 @@ export function ProfileHitmapCard({ bones, subtitle }: Props) {
                 ));
               })}
             </g>
+            <g aria-label="цифры по частям" className="profile-hitmap-callouts">
+              {plot.map(([bone, n]) => {
+                const [cx, cy] = ANCHORS[bone];
+                const side = calloutSide(bone);
+                const tipX = side === "L" ? cx - 14 : cx + 14;
+                const labelX = side === "L" ? 4 : 236;
+                const anchor = side === "L" ? "start" : "end";
+                const p = pct(n, total);
+                return (
+                  <g key={`call-${bone}`}>
+                    <path
+                      d={`M${tipX} ${cy} L${side === "L" ? labelX + 36 : labelX - 36} ${cy}`}
+                      stroke="rgba(225,29,72,0.55)"
+                      strokeWidth="0.9"
+                      fill="none"
+                    />
+                    <circle cx={tipX} cy={cy} r={1.6} fill="#e11d48" />
+                    <text
+                      x={labelX}
+                      y={cy + 3}
+                      textAnchor={anchor}
+                      fill="#fde2e8"
+                      fontSize="8.5"
+                      fontWeight="700"
+                      fontFamily="ui-monospace, monospace"
+                    >
+                      {n}
+                      <tspan fill="rgba(203,183,164,0.95)" fontWeight="500">
+                        {" "}
+                        {p}
+                      </tspan>
+                    </text>
+                  </g>
+                );
+              })}
+            </g>
           </svg>
         </div>
         {strip.length > 0 ? (
-          <aside className="profile-hitmap-strip" aria-label="Доля попаданий по частям тела">
+          <aside
+            className="profile-hitmap-strip"
+            aria-label="Доля попаданий по частям тела"
+          >
             <ul className="profile-hitmap-strip-list">
               {strip.map((row) => (
                 <li key={row.bone} className="profile-hitmap-strip-row">
                   <span className="profile-hitmap-strip-dot" aria-hidden="true" />
-                  <span className="profile-hitmap-strip-name">{row.label}</span>
+                  <span className="profile-hitmap-strip-name" title={row.label}>
+                    {row.label}
+                  </span>
+                  <span className="profile-hitmap-strip-n">{row.n}</span>
                   <span className="profile-hitmap-strip-pct">{row.pct}</span>
-                  <span className="profile-hitmap-strip-n muted">{row.n}</span>
                 </li>
               ))}
             </ul>
           </aside>
-        ) : null}
+        ) : (
+          <p className="muted profile-hitmap-empty">
+            Попадания появятся после стрельбы на TR1 (мод BBHitZone).
+          </p>
+        )}
       </div>
     </section>
   );

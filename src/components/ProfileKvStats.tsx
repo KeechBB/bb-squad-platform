@@ -138,30 +138,30 @@ export function ProfileKvMatchHistory({
                     }}
                   >
                     <td>{m.dateLabel}</td>
-                    <td>{m.opp}</td>
+                    <td title={[m.opp, m.map, m.stack !== "—" ? m.stack : ""]
+                      .filter(Boolean)
+                      .join(" · ")}>
+                      <span className="training-match-map">{m.opp}</span>
+                    </td>
                     <td title={m.map}>
                       <span className="training-match-map">{m.map}</span>
-                      {m.stack && m.stack !== "—" ? (
-                        <span className="muted training-match-team">
-                          {" "}
-                          · {m.stack}
-                        </span>
-                      ) : null}
                     </td>
-                    <td className="training-match-score">{m.meeting}</td>
+                    <td className="training-match-score" title={m.meeting}>
+                      {m.meeting}
+                    </td>
                     <td className={`num ${deltaCls}`}>{deltaText}</td>
                     <td>
                       <span className={resultCls}>{resultText}</span>
                     </td>
-                    <td className="num">
-                      <span
-                        className={`home-pwr-badge rank-${m.rankKey}`}
-                        title={m.rankLabel}
-                        style={{ fontSize: "0.62rem", padding: "1px 5px" }}
-                      >
-                        {m.rankLabel}
-                      </span>{" "}
-                      {m.pwrAfter}
+                    <td className="num" title={`${m.rankLabel} · ${m.pwrAfter}`}>
+                      <span className="profile-hist-pwr">
+                        <span
+                          className={`home-pwr-badge rank-${m.rankKey}`}
+                        >
+                          {m.rankLabel}
+                        </span>
+                        <span className="profile-hist-pwr-n">{m.pwrAfter}</span>
+                      </span>
                     </td>
                   </tr>
                 );

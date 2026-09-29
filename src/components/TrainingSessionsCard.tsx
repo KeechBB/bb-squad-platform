@@ -226,29 +226,29 @@ export function TrainingMatchHistory({
                     }}
                   >
                     <td>{m.dateLabel}</td>
-                    <td title={m.map}>
+                    <td
+                      title={[m.map, m.team && m.team !== "—" ? m.team : ""]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    >
                       <span className="training-match-map">{m.map}</span>
-                      {m.team && m.team !== "—" ? (
-                        <span className="muted training-match-team">
-                          {" "}
-                          · {m.team}
-                        </span>
-                      ) : null}
                     </td>
-                    <td className="training-match-score">{score}</td>
+                    <td className="training-match-score" title={score}>
+                      {score}
+                    </td>
                     <td className={`num ${deltaCls}`}>{deltaText}</td>
                     <td>
                       <span className={resultCls}>{resultText}</span>
                     </td>
-                    <td className="num">
-                      <span
-                        className={`home-pwr-badge rank-${m.rankKey}`}
-                        title={m.rankLabel}
-                        style={{ fontSize: "0.62rem", padding: "1px 5px" }}
-                      >
-                        {m.rankLabel}
-                      </span>{" "}
-                      {m.pwrAfter}
+                    <td className="num" title={`${m.rankLabel} · ${m.pwrAfter}`}>
+                      <span className="profile-hist-pwr">
+                        <span
+                          className={`home-pwr-badge rank-${m.rankKey}`}
+                        >
+                          {m.rankLabel}
+                        </span>
+                        <span className="profile-hist-pwr-n">{m.pwrAfter}</span>
+                      </span>
                     </td>
                   </tr>
                 );

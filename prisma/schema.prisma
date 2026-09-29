@@ -69,6 +69,7 @@ model User {
   clanJoinRequests ClanJoinRequest[] @relation("JoinApplicant")
   reviewedJoinRequests ClanJoinRequest[] @relation("JoinReviewer")
   squadSessions   SquadServerSession[]
+  squadHits       SquadHitEvent[]
   reactionRuns    ReactionRun[]
   reactionPresence ReactionPresence?
   reactionChatMessages ReactionChatMessage[]
@@ -304,6 +305,30 @@ model SquadEosSteamMap {
   updatedAt DateTime @updatedAt
 
   @@index([steamId])
+}
+
+/// Попадание BBHitZone (атакующий = зарегистрированный игрок сайта). TR1.
+model SquadHitEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  steamId   String
+  eosId     String?
+  victimEos String?
+  zone      String
+  bone      String
+  damage    Float?
+  weapon    String?
+  serverKey String   @default("TR1")
+  hitAt     DateTime
+  /// Идемпотентность: server|atMs|attacker|victim|bone|damage|weapon
+  eventKey  String   @unique
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, hitAt])
+  @@index([userId, bone])
+  @@index([steamId, hitAt])
 }
 
 /// Уникальный посетитель сайта (cookie/localStorage id). Читать только Keech.

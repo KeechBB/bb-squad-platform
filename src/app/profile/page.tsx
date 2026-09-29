@@ -27,6 +27,7 @@ import {
 } from "@/lib/homeCwPwr";
 import { ProfileTrainPwrCard } from "@/components/ProfileTrainPwrCard";
 import { ProfileCwPwrCard } from "@/components/ProfileCwPwrCard";
+import { bonesForUser } from "@/lib/squadHits";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -97,6 +98,7 @@ export default async function ProfilePage() {
     cwPwr,
     cwMatchHistory,
     trainCombat,
+    hitmap,
   ] = await Promise.all([
     loadUserTrainingStats(me.id),
     nickForKv
@@ -125,6 +127,7 @@ export default async function ProfilePage() {
     nickForKv
       ? buildPlayerTrainCombatStats(nickForKv).catch(() => null)
       : Promise.resolve(null),
+    bonesForUser(me.id).catch(() => ({ bones: {}, total: 0 })),
   ]);
 
   const kvStats = kvBundle.stats;
@@ -173,7 +176,10 @@ export default async function ProfilePage() {
       </div>
 
       <div className="profile-area-hitmap">
-        <ProfileHitmapCard />
+        <ProfileHitmapCard
+          bones={hitmap.bones}
+          subtitle={hitmap.total > 0 ? "TR1" : undefined}
+        />
       </div>
 
       <div className="profile-area-training">
