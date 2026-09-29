@@ -462,8 +462,9 @@ body:has(.profile-page) {
 
 /* Профиль: влезает в экран, скролл в колонках и нижних историях */
 .shell:has(.profile-page) {
-  max-width: 1760px;
-  padding: 10px 16px 12px;
+  max-width: none;
+  width: 100%;
+  padding: 10px 20px 12px;
   height: calc(100dvh - 76px);
   max-height: calc(100dvh - 76px);
   overflow: hidden;
@@ -472,13 +473,13 @@ body:has(.profile-page) {
 
 .profile-page {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(200px, 0.72fr) minmax(0, 1.15fr);
+  grid-template-columns: minmax(0, 1.1fr) minmax(210px, 0.68fr) minmax(0, 1.22fr);
   /* head — по контенту; середина и истории делят остаток */
   grid-template-rows: auto minmax(0, 1.15fr) minmax(160px, 0.9fr);
   grid-template-areas:
     "head head head"
     "account hitmap training"
-    "kvhist kvhist trainhist";
+    "kvhist trainhist trainhist";
   gap: 8px;
   align-items: stretch;
   height: 100%;
@@ -1544,6 +1545,20 @@ body:has(.profile-page) {
 .training-sessions-table td,
 .training-sessions-table th {
   white-space: nowrap;
+}
+
+.profile-area-train-hist .training-sessions-table td:nth-child(2),
+.profile-area-train-hist .training-sessions-table th:nth-child(2) {
+  white-space: normal;
+  min-width: 10rem;
+}
+
+.profile-area-train-hist .profile-hist-table-wrap {
+  overflow-x: hidden;
+}
+
+.profile-area-kv-hist .profile-hist-table-wrap {
+  overflow-x: auto;
 }
 
 .att-tag {

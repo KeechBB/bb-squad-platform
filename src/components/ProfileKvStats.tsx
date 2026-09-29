@@ -292,20 +292,6 @@ export function ProfileKvStats({
         </span>
       </div>
 
-      {stats.byStack.length > 0 ? (
-        <div className="profile-kv-stacks">
-          {stats.byStack.map((s) => (
-            <div key={s.name} className="stack-stat-pill">
-              <strong>{s.name}</strong>
-              <span>
-                {s.rounds} р. · {s.kills}K / {s.deaths}D ·{" "}
-                {s.dmg.toLocaleString("ru-RU")} dmg
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
       {includeMatchHistory ? (
         <div className="profile-kv-block">
           <h3 className="stats-h3">История матчей КВ</h3>
