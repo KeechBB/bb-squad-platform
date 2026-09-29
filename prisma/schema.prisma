@@ -70,6 +70,7 @@ model User {
   reviewedJoinRequests ClanJoinRequest[] @relation("JoinReviewer")
   squadSessions   SquadServerSession[]
   squadHits       SquadHitEvent[]
+  squadRoles      SquadRoleEvent[]
   reactionRuns    ReactionRun[]
   reactionPresence ReactionPresence?
   reactionChatMessages ReactionChatMessage[]
@@ -329,6 +330,30 @@ model SquadHitEvent {
   @@index([userId, hitAt])
   @@index([userId, bone])
   @@index([steamId, hitAt])
+}
+
+/// Спавн стандартного кита (DeployRole). TR1. CQB и прочий кастом не пишем.
+model SquadRoleEvent {
+  id          String   @id @default(cuid())
+  userId      String
+  steamId     String
+  eosId       String?
+  nickAtSpawn String?
+  /// Сырой DeployRole, напр. USA_SL_02
+  roleRaw     String
+  /// Канон-кит (Командир отряда, Стрелок, …)
+  kit         String
+  serverKey   String   @default("TR1")
+  spawnedAt   DateTime
+  /// Идемпотентность: server|atMs|userKey|roleRaw
+  eventKey    String   @unique
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, spawnedAt])
+  @@index([userId, kit])
+  @@index([steamId, spawnedAt])
 }
 
 /// Уникальный посетитель сайта (cookie/localStorage id). Читать только Keech.

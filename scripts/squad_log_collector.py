@@ -70,6 +70,56 @@ HIT_RE = re.compile(
     r"(?:\s+Server=<?(?P<server>[^>\s]+)>?)?",
     re.IGNORECASE,
 )
+# DeployRole spawn (standard kits only — CQB filtered in kit_from_role)
+DEPLOY_RE = re.compile(
+    r"PC=(?P<nick>.+?)(?:\s+\(Online IDs:[^)]*\))?\s+"
+    r"(?:Spawn=\S+\s+)?"
+    r".*?DeployRole=(?P<role>\S+)",
+    re.IGNORECASE,
+)
+
+# Mirror of platform/src/lib/squadKits.ts — keep in sync.
+_KIT_RULES: list[tuple[re.Pattern[str], str | None]] = [
+    (re.compile(r"^CQB(_|$)", re.I), None),
+    (re.compile(r"Pilot", re.I), "Пилот"),
+    (
+        re.compile(
+            r"Crewman.*(^|_)SL(_|$)|Crewman.*Lead|Vehicle.*(Lead|Commander)|LeadCrewman|CrewLead",
+            re.I,
+        ),
+        "Командир Мехводов",
+    ),
+    (re.compile(r"Crewman|CrewMan", re.I), "Мехвод"),
+    (re.compile(r"Medic|Corpsman", re.I), "Медик"),
+    (re.compile(r"HeavyMachine|HMG", re.I), "Тяжелый Пулемет"),
+    (
+        re.compile(r"Autorifleman|LightMachine|LMG|MachineGun|Machinegunner", re.I),
+        "Легкий Пулемет",
+    ),
+    (re.compile(r"Sapper|CombatEngineer|Engineer|Pioneer", re.I), "Сапер/Инженер"),
+    (re.compile(r"Grenadier", re.I), "Гранатомет подствельный"),
+    (re.compile(r"HAT|HeavyAntiTank|Tandem", re.I), "Тандем"),
+    (re.compile(r"LAT|LightAntiTank", re.I), "Легкая Труба"),
+    (re.compile(r"Sniper", re.I), "Снайпер"),
+    (re.compile(r"Marksman|Sharpshooter", re.I), "Марксман"),
+    (re.compile(r"Scout|Recon", re.I), "Разведчик"),
+    (re.compile(r"Raider", re.I), "Рейдер"),
+    (
+        re.compile(r"(^|_)SL(_|$)|SquadLead|SquadLeader|Officer|Commander", re.I),
+        "Командир отряда",
+    ),
+    (re.compile(r"Rifleman|Recruit", re.I), "Стрелок"),
+]
+
+
+def kit_from_role(role: str) -> str | None:
+    role = (role or "").strip()
+    if not role:
+        return None
+    for rx, name in _KIT_RULES:
+        if rx.search(role):
+            return name
+    return None
 
 
 def _safe_print(*args, **kwargs):
@@ -154,6 +204,14 @@ class Collector:
         self.hits_ingest_url = os.environ.get(
             "SQUAD_HITS_INGEST_URL", hits_default
         ).strip() or hits_default
+        roles_default = self.ingest_url.replace(
+            "/api/ingest/squad-sessions", "/api/ingest/squad-roles"
+        )
+        if roles_default == self.ingest_url:
+            roles_default = "https://bb-squad.ru/api/ingest/squad-roles"
+        self.roles_ingest_url = os.environ.get(
+            "SQUAD_ROLES_INGEST_URL", roles_default
+        ).strip() or roles_default
         self.ingest_secret = env("SQUAD_INGEST_SECRET")
         self.state_path = Path(
             os.environ.get("SQUAD_STATE_PATH", "squad_collector_state.json")
@@ -277,6 +335,7 @@ class Collector:
             return
         sessions = [e for e in events if e.get("type") in ("join", "leave")]
         hits = [e for e in events if e.get("type") == "hit"]
+        roles = [e for e in events if e.get("type") == "role"]
         headers = {
             "Authorization": f"Bearer {self.ingest_secret}",
             "Content-Type": "application/json",
@@ -317,6 +376,25 @@ class Collector:
                     )
                 else:
                     _safe_print("ingest hits", r.json())
+        if roles:
+            chunk = 500
+            for i in range(0, len(roles), chunk):
+                part = roles[i : i + chunk]
+                r = requests.post(
+                    self.roles_ingest_url,
+                    headers=headers,
+                    json={"events": part},
+                    timeout=60,
+                )
+                if r.status_code >= 300:
+                    _safe_print(
+                        "ingest roles fail",
+                        r.status_code,
+                        r.text[:300],
+                        file=sys.stderr,
+                    )
+                else:
+                    _safe_print("ingest roles", r.json())
 
     def _parse_hit(
         self, line: str, server_key: str
@@ -369,6 +447,45 @@ class Collector:
             "bone": bone,
             "damage": damage or None,
             "weapon": weapon,
+            "at": parse_ts(tm.group("ts")),
+            "serverKey": "TR1",
+        }
+
+    def _parse_role(
+        self, line: str, server_key: str
+    ) -> dict[str, Any] | None:
+        if "DeployRole=" not in line:
+            return None
+        if server_key != "TR1":
+            return None
+        dm = DEPLOY_RE.search(line)
+        if not dm:
+            return None
+        tm = LINE_TS_RE.match(line)
+        if not tm:
+            return None
+        role = (dm.group("role") or "").strip().rstrip(",;")
+        if not kit_from_role(role):
+            return None
+        nick = clean_nick(dm.group("nick") or "")
+        sm = STEAM_EOS_RE.search(line)
+        eos = ""
+        steam = ""
+        if sm:
+            eos = (sm.group("eos") or sm.group("eos2") or "").lower()
+            steam = self._valid_steam(sm.group("steam") or sm.group("steam2") or "") or ""
+            if eos and steam:
+                self.eos_steam[eos] = steam
+        if not steam and eos:
+            steam = self.eos_steam.get(eos, "")
+        if not steam and not eos and not nick:
+            return None
+        return {
+            "type": "role",
+            "steamId": steam or "",
+            "eosId": eos or None,
+            "nick": nick or None,
+            "role": role,
             "at": parse_ts(tm.group("ts")),
             "serverKey": "TR1",
         }
@@ -446,6 +563,9 @@ class Collector:
         hit = self._parse_hit(line, server_key)
         if hit:
             events.append(hit)
+        role = self._parse_role(line, server_key)
+        if role:
+            events.append(role)
 
         m = STEAM_EOS_RE.search(line)
         if m:
@@ -563,7 +683,7 @@ class Collector:
             # Login / Remove / steam↔EOS / BBHitZone — не весь 20MB
             grep_cmd = (
                 f"grep -E 'Login request:|RemovePlayer\\(UserId:|"
-                f"EOS:.*steam:|steam:.*EOS:|BBHitZone:' "
+                f"EOS:.*steam:|steam:.*EOS:|BBHitZone:|DeployRole=' "
                 f"{path} 2>/dev/null || true"
             )
             try:

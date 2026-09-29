@@ -26,7 +26,9 @@ import {
 } from "@/lib/homeCwPwr";
 import { ProfileTrainPwrCard } from "@/components/ProfileTrainPwrCard";
 import { ProfileCwPwrCard } from "@/components/ProfileCwPwrCard";
+import { ProfileKitsCard } from "@/components/ProfileKitsCard";
 import { bonesForUser } from "@/lib/squadHits";
+import { kitsForUser } from "@/lib/squadRoles";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -119,6 +121,7 @@ export default async function PlayerProfilePage({ params }: Props) {
     cwMatchHistory,
     trainCombat,
     hitmap,
+    kits,
   ] = await Promise.all([
     loadUserTrainingStats(user.id),
     nickForKv
@@ -152,6 +155,7 @@ export default async function PlayerProfilePage({ params }: Props) {
       total: 0,
       lastBone: null as string | null,
     })),
+    kitsForUser(user.id).catch(() => ({ kits: [], total: 0 })),
   ]);
 
   const kvStats = kvBundle.stats;
@@ -208,6 +212,7 @@ export default async function PlayerProfilePage({ params }: Props) {
           ) : null}
           <ProfileTrainPwrCard stats={trainPwr} />
           <ProfileCwPwrCard stats={cwPwr} />
+          <ProfileKitsCard userId={user.id} kits={kits.kits} />
         </div>
       </div>
 

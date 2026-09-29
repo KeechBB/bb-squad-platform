@@ -527,13 +527,20 @@ body:has(.profile-page) {
   align-self: stretch;
 }
 
-.profile-head-cluster > .profile-pwr-card {
+.profile-head-cluster > .profile-pwr-card,
+.profile-head-cluster > .profile-kits-card {
   flex: 0 1 260px;
   max-width: 280px;
   min-width: 200px;
   align-self: stretch;
   display: flex;
   flex-direction: column;
+}
+
+.profile-head-cluster > .profile-kits-card {
+  flex: 0 1 300px;
+  max-width: 340px;
+  min-width: 240px;
 }
 
 .profile-head-cluster > .profile-pwr-card .profile-pwr-hero {
@@ -1286,6 +1293,114 @@ body:has(.profile-page) {
   font-weight: 700;
 }
 
+/* ——— kit / roles donut (profile head) ——— */
+.profile-kits-card .profile-kv-head {
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.profile-kits-filter {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.profile-kits-cal {
+  right: 0;
+  left: auto;
+  min-width: 240px;
+}
+
+.profile-kits-cal-hint {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  text-align: center;
+}
+
+.profile-kits-period {
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+}
+
+.profile-kits-empty {
+  margin: 10px 0 0;
+  line-height: 1.45;
+  font-size: 0.85rem;
+}
+
+.profile-kits-body {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 8px;
+  flex: 1;
+}
+
+.profile-kits-donut {
+  width: 112px;
+  height: 112px;
+  flex: 0 0 auto;
+}
+
+.profile-kits-donut-hole {
+  fill: rgba(12, 10, 22, 0.92);
+}
+
+.profile-kits-donut-pct {
+  fill: #f5f3ff;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.profile-kits-donut-label {
+  fill: rgba(196, 181, 253, 0.9);
+  font-size: 6.5px;
+}
+
+.profile-kits-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.profile-kits-legend li {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  font-size: 0.72rem;
+  line-height: 1.25;
+}
+
+.profile-kits-swatch {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+.profile-kits-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+.profile-kits-pct {
+  font-variant-numeric: tabular-nums;
+  color: #e9e4ff;
+  font-weight: 700;
+}
+
 .profile-hitmap-total {
   display: flex;
   align-items: baseline;
@@ -1562,7 +1677,8 @@ body:has(.profile-page) {
   }
 
   .profile-clan-card,
-  .profile-head-cluster > .profile-pwr-card {
+  .profile-head-cluster > .profile-pwr-card,
+  .profile-head-cluster > .profile-kits-card {
     flex: 0 1 200px;
     max-width: 220px;
     min-width: 160px;
@@ -1681,6 +1797,7 @@ body:has(.profile-page) {
 
   .profile-clan-card,
   .profile-head-cluster > .profile-pwr-card,
+  .profile-head-cluster > .profile-kits-card,
   .profile-head-cluster .reaction-profile-card {
     flex: 1 1 160px;
     max-width: none;

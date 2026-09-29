@@ -2,6 +2,10 @@
 
 Писать коротко после сессий. Старые строки не затирать.
 
+## 2026-09-29
+
+- Статистика ролей (DeployRole TR1): `SquadRoleEvent`, ingest `/api/ingest/squad-roles`, коллектор + backfill. Карточка «Роли» в профиле (всё время / день / интервал). ТМ вкладка «Прочая статистика» = попадания + средние киты по тирам. Канон китов: `.cursor/rules/squad-kits-canon.mdc`. v. 1.1.23.
+
 ## 2026-09-26
 
 - Перенос БД Neon → Postgres на VPS **выполнен**: localhost `bb_squad`, counts User 141 / sessions 1688 / maps 4147 / visits 4337. `pm2` online, https://bb-squad.ru 200. Cron бэкап `/etc/cron.d/bb-squad-db` → `/var/backups/bb-squad/`. Откат: `/root/bb-db-migrate/env.before-migrate`. Neon можно выключить через несколько дней.
