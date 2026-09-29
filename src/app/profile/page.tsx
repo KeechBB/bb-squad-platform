@@ -181,6 +181,7 @@ export default async function ProfilePage() {
 
       <div className="profile-area-hitmap">
         <ProfileHitmapCard
+          userId={me.id}
           bones={hitmap.bones}
           lastBone={hitmap.lastBone}
           subtitle={hitmap.total > 0 ? "TR1" : undefined}

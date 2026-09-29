@@ -1,16 +1,70 @@
 "use client";
 
-import { useId, useMemo } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 export type HitBoneCounts = Record<string, number>;
 
 type Props = {
+  userId: string;
   bones?: HitBoneCounts | null;
   /** кость последнего зафиксированного попадания */
   lastBone?: string | null;
   /** подпись под заголовком */
   subtitle?: string | null;
 };
+
+const MONTH_RU = [
+  "Январь",
+  "Февраль",
+  "Март",
+  "Апрель",
+  "Май",
+  "Июнь",
+  "Июль",
+  "Август",
+  "Сентябрь",
+  "Октябрь",
+  "Ноябрь",
+  "Декабрь",
+];
+
+const DOW_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function ymd(y: number, m: number, d: number) {
+  return `${y}-${pad2(m)}-${pad2(d)}`;
+}
+
+function parseYmd(s: string): { y: number; m: number; d: number } | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return null;
+  return { y: Number(m[1]), m: Number(m[2]), d: Number(m[3]) };
+}
+
+function formatRuDay(s: string) {
+  const p = parseYmd(s);
+  if (!p) return s;
+  return `${pad2(p.d)}.${pad2(p.m)}.${p.y}`;
+}
+
+function todayMskYmd(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Moscow",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
 
 /** Макс. точек на кости на силуэте (остальное только в полоске %). */
 const MAX_DOTS_PER_BONE = 12;
@@ -117,6 +171,12 @@ type CalloutLayout = {
   labelY: number;
 };
 
+function pct(n: number, total: number): string {
+  if (total <= 0 || n <= 0) return "0%";
+  const v = Math.round((1000 * n) / total) / 10;
+  return Number.isInteger(v) ? `${v}%` : `${v.toFixed(1)}%`;
+}
+
 function layoutCallouts(
   plot: [string, number][],
   total: number
@@ -162,14 +222,128 @@ function offsets(n: number): [number, number][] {
   return out;
 }
 
-function pct(n: number, total: number): string {
-  if (total <= 0 || n <= 0) return "0%";
-  const v = Math.round((1000 * n) / total) / 10;
-  return Number.isInteger(v) ? `${v}%` : `${v.toFixed(1)}%`;
-}
-
-export function ProfileHitmapCard({ bones, lastBone, subtitle }: Props) {
+export function ProfileHitmapCard({
+  userId,
+  bones: initialBones,
+  lastBone: initialLastBone,
+  subtitle,
+}: Props) {
   const uid = useId().replace(/:/g, "");
+  const [bones, setBones] = useState<HitBoneCounts>(initialBones || {});
+  const [lastBone, setLastBone] = useState<string | null>(
+    initialLastBone || null
+  );
+  const [day, setDay] = useState<string | null>(null);
+  const [hitDays, setHitDays] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(false);
+  const [calOpen, setCalOpen] = useState(false);
+  const today = todayMskYmd();
+  const todayParts = parseYmd(today)!;
+  const [viewY, setViewY] = useState(todayParts.y);
+  const [viewM, setViewM] = useState(todayParts.m);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setBones(initialBones || {});
+    setLastBone(initialLastBone || null);
+    setDay(null);
+  }, [initialBones, initialLastBone, userId]);
+
+  const load = useCallback(
+    async (dayYmd: string | null, withDays: boolean) => {
+      setLoading(true);
+      try {
+        const q = new URLSearchParams({ userId });
+        if (dayYmd) q.set("day", dayYmd);
+        if (withDays) q.set("days", "1");
+        const res = await fetch(`/api/hitmap?${q}`, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = (await res.json()) as {
+          bones?: HitBoneCounts;
+          lastBone?: string | null;
+          days?: string[];
+        };
+        setBones(data.bones || {});
+        setLastBone(data.lastBone || null);
+        if (Array.isArray(data.days)) {
+          setHitDays(new Set(data.days));
+        }
+      } catch {
+        /* leave previous */
+      } finally {
+        setLoading(false);
+      }
+    },
+    [userId]
+  );
+
+  useEffect(() => {
+    void load(null, true);
+  }, [load]);
+
+  useEffect(() => {
+    if (!calOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setCalOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [calOpen]);
+
+  const selectAllTime = () => {
+    setDay(null);
+    setCalOpen(false);
+    void load(null, false);
+  };
+
+  const selectDay = (ymdStr: string) => {
+    setDay(ymdStr);
+    setCalOpen(false);
+    void load(ymdStr, false);
+  };
+
+  const openCal = () => {
+    if (day) {
+      const p = parseYmd(day);
+      if (p) {
+        setViewY(p.y);
+        setViewM(p.m);
+      }
+    } else {
+      setViewY(todayParts.y);
+      setViewM(todayParts.m);
+    }
+    setCalOpen((v) => !v);
+  };
+
+  const shiftMonth = (delta: number) => {
+    let m = viewM + delta;
+    let y = viewY;
+    while (m < 1) {
+      m += 12;
+      y -= 1;
+    }
+    while (m > 12) {
+      m -= 12;
+      y += 1;
+    }
+    setViewY(y);
+    setViewM(m);
+  };
+
+  const calCells = useMemo(() => {
+    const first = new Date(Date.UTC(viewY, viewM - 1, 1));
+    const start = (first.getUTCDay() + 6) % 7;
+    const daysInMonth = new Date(Date.UTC(viewY, viewM, 0)).getUTCDate();
+    const cells: Array<{ day: number | null; ymd: string | null }> = [];
+    for (let i = 0; i < start; i++) cells.push({ day: null, ymd: null });
+    for (let d = 1; d <= daysInMonth; d++) {
+      cells.push({ day: d, ymd: ymd(viewY, viewM, d) });
+    }
+    while (cells.length % 7 !== 0) cells.push({ day: null, ymd: null });
+    return cells;
+  }, [viewY, viewM]);
+
   const { total, strip, plot, callouts } = useMemo(() => {
     const map = bones || {};
     let sum = 0;
@@ -208,13 +382,100 @@ export function ProfileHitmapCard({ bones, lastBone, subtitle }: Props) {
     };
   }, [bones]);
 
+  const periodLabel = day ? formatRuDay(day) : "всё время";
+
   return (
     <section className="card profile-hitmap-card">
-      <div className="profile-kv-head">
-        <h2>Попадания</h2>
-        <span className="muted profile-hitmap-sub">
-          {subtitle || (total > 0 ? "TR1" : "Нет данных с TR1")}
-        </span>
+      <div className="profile-hitmap-head">
+        <div className="profile-hitmap-head-text">
+          <h2>Попадания</h2>
+          <span className="muted profile-hitmap-sub">
+            {subtitle || "TR1"} · {periodLabel}
+            {loading ? "…" : ""}
+          </span>
+        </div>
+        <div className="profile-hitmap-filter" ref={wrapRef}>
+          <button
+            type="button"
+            className={
+              day == null
+                ? "profile-hitmap-filter-btn is-active"
+                : "profile-hitmap-filter-btn"
+            }
+            onClick={selectAllTime}
+          >
+            Всё время
+          </button>
+          <button
+            type="button"
+            className={
+              day
+                ? "profile-hitmap-filter-btn is-active"
+                : "profile-hitmap-filter-btn"
+            }
+            onClick={openCal}
+            aria-expanded={calOpen}
+            aria-haspopup="dialog"
+            title="Выбрать день"
+          >
+            {day ? formatRuDay(day) : "День"}
+          </button>
+          {calOpen ? (
+            <div
+              className="profile-hitmap-cal"
+              role="dialog"
+              aria-label="Календарь"
+            >
+              <div className="profile-hitmap-cal-nav">
+                <button
+                  type="button"
+                  onClick={() => shiftMonth(-1)}
+                  aria-label="Пред. месяц"
+                >
+                  ‹
+                </button>
+                <strong>
+                  {MONTH_RU[viewM - 1]} {viewY}
+                </strong>
+                <button
+                  type="button"
+                  onClick={() => shiftMonth(1)}
+                  aria-label="След. месяц"
+                >
+                  ›
+                </button>
+              </div>
+              <div className="profile-hitmap-cal-dow">
+                {DOW_RU.map((d) => (
+                  <span key={d}>{d}</span>
+                ))}
+              </div>
+              <div className="profile-hitmap-cal-grid">
+                {calCells.map((c, i) =>
+                  c.day == null || !c.ymd ? (
+                    <span key={`e-${i}`} className="profile-hitmap-cal-empty" />
+                  ) : (
+                    <button
+                      key={c.ymd}
+                      type="button"
+                      className={[
+                        "profile-hitmap-cal-day",
+                        day === c.ymd ? "is-selected" : "",
+                        c.ymd === today ? "is-today" : "",
+                        hitDays.has(c.ymd) ? "has-hits" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                      onClick={() => selectDay(c.ymd!)}
+                    >
+                      {c.day}
+                    </button>
+                  )
+                )}
+              </div>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <div className="profile-hitmap-total" aria-label="Всего попаданий">
@@ -281,9 +542,7 @@ export function ProfileHitmapCard({ bones, lastBone, subtitle }: Props) {
                       }
                       strokeWidth={lastDot ? 1.2 : 0.7}
                     >
-                      {lastDot ? (
-                        <title>Последнее попадание</title>
-                      ) : null}
+                      {lastDot ? <title>Последнее попадание</title> : null}
                     </circle>
                   );
                 });
@@ -346,7 +605,10 @@ export function ProfileHitmapCard({ bones, lastBone, subtitle }: Props) {
                       : "profile-hitmap-strip-row"
                   }
                 >
-                  <span className="profile-hitmap-strip-dot" aria-hidden="true" />
+                  <span
+                    className="profile-hitmap-strip-dot"
+                    aria-hidden="true"
+                  />
                   <span className="profile-hitmap-strip-name" title={row.label}>
                     {row.label}
                   </span>
@@ -358,7 +620,9 @@ export function ProfileHitmapCard({ bones, lastBone, subtitle }: Props) {
           </aside>
         ) : (
           <p className="muted profile-hitmap-empty">
-            Попадания появятся после стрельбы на TR1 (мод BBHitZone).
+            {day
+              ? "В этот день попаданий нет."
+              : "Попадания появятся после стрельбы на TR1 (мод BBHitZone)."}
           </p>
         )}
       </div>

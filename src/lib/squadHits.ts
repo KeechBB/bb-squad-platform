@@ -67,17 +67,52 @@ export function parseDamage(raw: unknown): number | null {
 }
 
 /** Lifetime bone counts for profile hitmap (attacker perspective). */
+export type BonesForUserOpts = {
+  /** Календарный день Europe/Moscow YYYY-MM-DD; без — всё время */
+  dayYmd?: string | null;
+};
+
+/** Границы суток МСК → UTC [gte, lt). */
+export function mskDayBoundsUtc(ymd: string): { gte: Date; lt: Date } | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
+  const [y, m, d] = ymd.split("-").map(Number);
+  // 00:00 MSK = 21:00 UTC предыдущего календарного UTC-дня относительно UTC midnight
+  const gte = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0) - 3 * 3600_000);
+  const lt = new Date(Date.UTC(y, m - 1, d + 1, 0, 0, 0, 0) - 3 * 3600_000);
+  if (Number.isNaN(gte.getTime()) || Number.isNaN(lt.getTime())) return null;
+  return { gte, lt };
+}
+
+export function formatMskYmd(d: Date): string {
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Moscow",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  // en-CA → YYYY-MM-DD
+  return fmt.format(d);
+}
+
 export async function bonesForUser(
-  userId: string
+  userId: string,
+  opts: BonesForUserOpts = {}
 ): Promise<{ bones: HitBoneCounts; total: number; lastBone: string | null }> {
+  const day = opts.dayYmd?.trim() || null;
+  const bounds = day ? mskDayBoundsUtc(day) : null;
+  const where = {
+    userId,
+    ...(bounds ? { hitAt: { gte: bounds.gte, lt: bounds.lt } } : {}),
+  };
+
   const [rows, last] = await Promise.all([
     prisma.squadHitEvent.groupBy({
       by: ["bone"],
-      where: { userId },
+      where,
       _count: { _all: true },
     }),
     prisma.squadHitEvent.findFirst({
-      where: { userId },
+      where,
       orderBy: [{ hitAt: "desc" }, { createdAt: "desc" }],
       select: { bone: true },
     }),
@@ -91,6 +126,25 @@ export async function bonesForUser(
   }
   const lastBone = last?.bone && last.bone !== "None" ? last.bone : null;
   return { bones, total, lastBone };
+}
+
+/** Дни МСК, в которые были попадания (для подсветки в календаре). */
+export async function hitDaysForUser(userId: string): Promise<string[]> {
+  const rows = await prisma.$queryRaw<{ d: Date }[]>`
+    SELECT DISTINCT (
+      (("hitAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::date
+    ) AS d
+    FROM "SquadHitEvent"
+    WHERE "userId" = ${userId}
+    ORDER BY d DESC
+  `;
+  return rows.map((r) => {
+    const dt = r.d instanceof Date ? r.d : new Date(r.d);
+    const y = dt.getUTCFullYear();
+    const m = String(dt.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(dt.getUTCDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  });
 }
 
 const HITMAP_BONE_ORDER = [
