@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
 import { clanLiveChannel, livePublish, userLiveChannel } from "@/lib/liveBus";
 import { formatRuDate, isActiveReserve } from "@/lib/validation";
+import { formatMskYmd } from "@/lib/squadHits";
+import { ATTENDANCE_CANON_START_YMD } from "@/lib/squadSessions";
 
 export type ReserveActor = {
   id: string;
@@ -11,6 +13,55 @@ export type ReserveActor = {
   steamName?: string | null;
   steamId?: string | null;
 };
+
+function addDaysYmd(ymd: string, delta: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + delta));
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Дни МСК, когда игрок был в резерве (уваж. причина).
+ * [enteredAt .. exitedAt|today] включительно, с канона посещаемости.
+ */
+export function reserveTrainingDaysFromStints(
+  stints: Array<{
+    enteredAt: Date;
+    untilAt: Date;
+    exitedAt: Date | null;
+  }>,
+  todayYmd?: string
+): string[] {
+  const today =
+    todayYmd ||
+    new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Moscow" });
+  const days = new Set<string>();
+  for (const s of stints) {
+    let start = formatMskYmd(s.enteredAt);
+    let end = s.exitedAt ? formatMskYmd(s.exitedAt) : today;
+    if (end > today) end = today;
+    if (start < ATTENDANCE_CANON_START_YMD) {
+      start = ATTENDANCE_CANON_START_YMD;
+    }
+    if (start > end) continue;
+    let d = start;
+    while (d <= end) {
+      days.add(d);
+      d = addDaysYmd(d, 1);
+      if (days.size > 800) break;
+    }
+  }
+  return [...days].sort();
+}
+
+export async function reserveDaysForUser(userId: string): Promise<string[]> {
+  const stints = await prisma.reserveStint.findMany({
+    where: { userId },
+    select: { enteredAt: true, untilAt: true, exitedAt: true },
+    orderBy: { enteredAt: "asc" },
+  });
+  return reserveTrainingDaysFromStints(stints);
+}
 
 export async function enterReserve(opts: {
   userId: string;

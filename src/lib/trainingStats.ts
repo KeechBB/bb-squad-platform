@@ -6,6 +6,7 @@ import {
   trainingDayVisitBoundsFromSessions,
   trainingDayYmd,
 } from "@/lib/squadSessions";
+import { reserveDaysForUser } from "@/lib/reserve";
 
 const LIST_LIMIT = 80;
 
@@ -14,17 +15,20 @@ export async function loadUserTrainingStats(userId: string) {
   const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const since = since30 > canonStart ? since30 : canonStart;
 
-  const lean = await prisma.squadServerSession.findMany({
-    where: { userId, joinedAt: { gte: canonStart } },
-    orderBy: { joinedAt: "desc" },
-    select: {
-      id: true,
-      joinedAt: true,
-      leftAt: true,
-      nickAtJoin: true,
-      serverKey: true,
-    },
-  });
+  const [lean, reserveDays] = await Promise.all([
+    prisma.squadServerSession.findMany({
+      where: { userId, joinedAt: { gte: canonStart } },
+      orderBy: { joinedAt: "desc" },
+      select: {
+        id: true,
+        joinedAt: true,
+        leftAt: true,
+        nickAtJoin: true,
+        serverKey: true,
+      },
+    }),
+    reserveDaysForUser(userId),
+  ]);
 
   const forAtt = lean.map((s) => ({
     joinedAt: s.joinedAt,
@@ -65,6 +69,7 @@ export async function loadUserTrainingStats(userId: string) {
     sessions,
     presentDays,
     lateDays,
+    reserveDays,
     visitBounds,
     minutes30d,
     sessions30d,

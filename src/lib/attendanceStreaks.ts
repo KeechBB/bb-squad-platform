@@ -80,12 +80,18 @@ export function enumerateYmd(fromYmd: string, toYmd: string): string[] {
 export function missStreakEndingAt(
   present: Set<string>,
   anchorYmd: string,
-  fromYmd = ATTENDANCE_CANON_START_YMD
+  fromYmd = ATTENDANCE_CANON_START_YMD,
+  reserve?: Set<string>
 ): number {
   let streak = 0;
   let d = anchorYmd;
   while (d >= fromYmd) {
     if (present.has(d)) break;
+    if (reserve?.has(d)) {
+      // Уваж. причина — не рвёт и не копит пропуск
+      d = addDaysYmd(d, -1);
+      continue;
+    }
     streak += 1;
     d = addDaysYmd(d, -1);
   }
@@ -95,11 +101,16 @@ export function missStreakEndingAt(
 export function attendStreakEndingAt(
   present: Set<string>,
   anchorYmd: string,
-  fromYmd = ATTENDANCE_CANON_START_YMD
+  fromYmd = ATTENDANCE_CANON_START_YMD,
+  reserve?: Set<string>
 ): number {
   let streak = 0;
   let d = anchorYmd;
   while (d >= fromYmd) {
+    if (reserve?.has(d)) {
+      d = addDaysYmd(d, -1);
+      continue;
+    }
     if (!present.has(d)) break;
     streak += 1;
     d = addDaysYmd(d, -1);
@@ -142,16 +153,17 @@ export function streakRowFromPresent(
   meta: { userId: string; nick: string; regNo: number; inReserve?: boolean },
   present: Set<string>,
   anchorYmd: string,
-  fromYmd = ATTENDANCE_CANON_START_YMD
+  fromYmd = ATTENDANCE_CANON_START_YMD,
+  reserve?: Set<string>
 ): AttendanceStreakRow {
-  const miss = missStreakEndingAt(present, anchorYmd, fromYmd);
-  const attend = attendStreakEndingAt(present, anchorYmd, fromYmd);
+  const miss = missStreakEndingAt(present, anchorYmd, fromYmd, reserve);
+  const attend = attendStreakEndingAt(present, anchorYmd, fromYmd, reserve);
   return {
     userId: meta.userId,
     nick: meta.nick,
     regNo: meta.regNo,
     inReserve: Boolean(meta.inReserve),
-    missedToday: miss >= 1,
+    missedToday: !reserve?.has(anchorYmd) && miss >= 1,
     missStreak: miss,
     attendStreak: attend,
     maxAttendStreak: maxAttendStreakInRange(present, fromYmd, anchorYmd),
@@ -216,7 +228,7 @@ export async function buildAttendanceStreakBoard(
     };
   }
 
-  const [users, sessions] = await Promise.all([
+  const [users, sessions, stints] = await Promise.all([
     prisma.user.findMany({
       where: { profileComplete: true, nick: { not: null } },
       orderBy: [{ regNo: "asc" }, { createdAt: "asc" }],
@@ -235,6 +247,14 @@ export async function buildAttendanceStreakBoard(
         serverKey: true,
       },
     }),
+    prisma.reserveStint.findMany({
+      select: {
+        userId: true,
+        enteredAt: true,
+        untilAt: true,
+        exitedAt: true,
+      },
+    }),
   ]);
 
   const byUser = new Map<
@@ -250,8 +270,19 @@ export async function buildAttendanceStreakBoard(
     });
   }
 
+  const reserveByUser = new Map<string, typeof stints>();
+  for (const s of stints) {
+    if (!reserveByUser.has(s.userId)) reserveByUser.set(s.userId, []);
+    reserveByUser.get(s.userId)!.push(s);
+  }
+
+  const { reserveTrainingDaysFromStints } = await import("@/lib/reserve");
+
   const rows: AttendanceStreakRow[] = users.map((u) => {
     const present = presentTrainingDaysFromSessions(byUser.get(u.id) || [], now);
+    const reserve = new Set(
+      reserveTrainingDaysFromStints(reserveByUser.get(u.id) || [], anchorYmd)
+    );
     return streakRowFromPresent(
       {
         userId: u.id,
@@ -261,7 +292,8 @@ export async function buildAttendanceStreakBoard(
       },
       present,
       anchorYmd,
-      fromYmd
+      fromYmd,
+      reserve
     );
   });
 
