@@ -38,12 +38,11 @@ SQUAD_POLL_SEC=5
 
 Коллектор шлёт **два** потока: join/leave (посещаемость) и `BBHitZone` с TR1 (хитмап в профиле).
 
-После первого деплоя hit-ingest — один раз долить историю из логов:
+После первого деплоя hit-ingest — один раз долить историю из логов (через venv коллектора, не системный `python`):
 
 ```bash
 cd /var/www/bb-squad-platform/scripts
-source ../.venv-collector/bin/activate 2>/dev/null || true
-python backfill_squad_hits.py
+.venv-collector/bin/python backfill_squad_hits.py
 ```
 
 ```bash

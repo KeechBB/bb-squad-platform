@@ -6,6 +6,8 @@ export type HitBoneCounts = Record<string, number>;
 
 type Props = {
   bones?: HitBoneCounts | null;
+  /** кость последнего зафиксированного попадания */
+  lastBone?: string | null;
   /** подпись под заголовком */
   subtitle?: string | null;
 };
@@ -166,7 +168,7 @@ function pct(n: number, total: number): string {
   return Number.isInteger(v) ? `${v}%` : `${v.toFixed(1)}%`;
 }
 
-export function ProfileHitmapCard({ bones, subtitle }: Props) {
+export function ProfileHitmapCard({ bones, lastBone, subtitle }: Props) {
   const uid = useId().replace(/:/g, "");
   const { total, strip, plot, callouts } = useMemo(() => {
     const map = bones || {};
@@ -262,17 +264,29 @@ export function ProfileHitmapCard({ bones, subtitle }: Props) {
               {plot.flatMap(([bone, n]) => {
                 const [cx, cy] = ANCHORS[bone];
                 const show = Math.min(n, MAX_DOTS_PER_BONE);
-                return offsets(show).map(([dx, dy], i) => (
-                  <circle
-                    key={`${bone}-${i}`}
-                    cx={cx + dx}
-                    cy={cy + dy}
-                    r={3.2}
-                    fill="#e11d48"
-                    stroke="rgba(255,241,242,0.7)"
-                    strokeWidth={0.7}
-                  />
-                ));
+                const isLast = Boolean(lastBone && bone === lastBone);
+                return offsets(show).map(([dx, dy], i) => {
+                  const lastDot = isLast && i === 0;
+                  return (
+                    <circle
+                      key={`${bone}-${i}`}
+                      cx={cx + dx}
+                      cy={cy + dy}
+                      r={lastDot ? 4.4 : 3.2}
+                      fill={lastDot ? "#facc15" : "#e11d48"}
+                      stroke={
+                        lastDot
+                          ? "rgba(254, 249, 195, 0.95)"
+                          : "rgba(255,241,242,0.7)"
+                      }
+                      strokeWidth={lastDot ? 1.2 : 0.7}
+                    >
+                      {lastDot ? (
+                        <title>Последнее попадание</title>
+                      ) : null}
+                    </circle>
+                  );
+                });
               })}
             </g>
             <g aria-label="цифры по частям" className="profile-hitmap-callouts">
@@ -324,7 +338,14 @@ export function ProfileHitmapCard({ bones, subtitle }: Props) {
           >
             <ul className="profile-hitmap-strip-list">
               {strip.map((row) => (
-                <li key={row.bone} className="profile-hitmap-strip-row">
+                <li
+                  key={row.bone}
+                  className={
+                    lastBone && row.bone === lastBone
+                      ? "profile-hitmap-strip-row is-last"
+                      : "profile-hitmap-strip-row"
+                  }
+                >
                   <span className="profile-hitmap-strip-dot" aria-hidden="true" />
                   <span className="profile-hitmap-strip-name" title={row.label}>
                     {row.label}

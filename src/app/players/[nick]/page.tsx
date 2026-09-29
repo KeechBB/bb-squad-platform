@@ -147,7 +147,11 @@ export default async function PlayerProfilePage({ params }: Props) {
     nickForKv
       ? buildPlayerTrainCombatStats(nickForKv).catch(() => null)
       : Promise.resolve(null),
-    bonesForUser(user.id).catch(() => ({ bones: {}, total: 0 })),
+    bonesForUser(user.id).catch(() => ({
+      bones: {},
+      total: 0,
+      lastBone: null as string | null,
+    })),
   ]);
 
   const kvStats = kvBundle.stats;
@@ -236,6 +240,7 @@ export default async function PlayerProfilePage({ params }: Props) {
       <div className="profile-area-hitmap">
         <ProfileHitmapCard
           bones={hitmap.bones}
+          lastBone={hitmap.lastBone}
           subtitle={hitmap.total > 0 ? "TR1" : undefined}
         />
       </div>

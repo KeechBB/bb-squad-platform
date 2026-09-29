@@ -1243,6 +1243,15 @@ body:has(.profile-page) {
   box-shadow: 0 0 0 1px rgba(255, 241, 242, 0.35);
 }
 
+.profile-hitmap-strip-row.is-last .profile-hitmap-strip-dot {
+  background: #facc15;
+  box-shadow: 0 0 0 1px rgba(254, 249, 195, 0.7);
+}
+
+.profile-hitmap-strip-row.is-last .profile-hitmap-strip-name {
+  color: #fde68a;
+}
+
 .profile-hitmap-strip-name {
   min-width: 0;
   overflow: hidden;
