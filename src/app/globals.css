@@ -1600,7 +1600,9 @@ body:has(.profile-page) {
 }
 
 .profile-area-kv-hist .training-sessions-table th:nth-child(7),
-.profile-area-kv-hist .training-sessions-table td:nth-child(7) {
+.profile-area-kv-hist .training-sessions-table td:nth-child(7),
+.profile-area-train-hist .training-sessions-table th:nth-child(6),
+.profile-area-train-hist .training-sessions-table td:nth-child(6) {
   width: 5.8rem;
 }
 
