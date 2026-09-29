@@ -1,5 +1,5 @@
 /** Меняй при обновлении KV, чтобы iframe не брал старый кэш */
-const KV_CACHE = "20260929-train-albasrah-2";
+const KV_CACHE = "20261011-solid-mutaha";
 
 export default async function TrainingMatchesPage() {
   const params = new URLSearchParams({ embed: "1", v: KV_CACHE });
