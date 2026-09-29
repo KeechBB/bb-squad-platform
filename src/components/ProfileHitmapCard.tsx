@@ -529,6 +529,11 @@ export function ProfileHitmapCard({
                 <stop offset="0%" stopColor="rgba(243,230,216,0.55)" />
                 <stop offset="100%" stopColor="rgba(90,72,58,0.45)" />
               </radialGradient>
+              <linearGradient id={`helm-${uid}`} x1="0%" y1="0%" x2="18%" y2="100%">
+                <stop offset="0%" stopColor="rgba(142,150,122,0.82)" />
+                <stop offset="45%" stopColor="rgba(78,88,62,0.9)" />
+                <stop offset="100%" stopColor="rgba(42,48,34,0.92)" />
+              </linearGradient>
             </defs>
             <g
               fill={`url(#skin-${uid})`}
@@ -549,6 +554,30 @@ export function ProfileHitmapCard({
               <path d="M126 255 C126 280 126 305 128 325 L142 325 C144 305 142 280 140 255 Z" />
               <ellipse cx="104" cy="332" rx="14" ry="6" />
               <ellipse cx="136" cy="332" rx="14" ry="6" />
+            </g>
+            {/* Military helmet — ACH/PASGT front silhouette, face left open for hit dots */}
+            <g
+              fill={`url(#helm-${uid})`}
+              stroke="rgba(176,186,154,0.78)"
+              strokeWidth="1.3"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M88 39 C90 15 150 15 152 39 C154.5 44.5 151 51 140 56 C131 59.5 120 60.5 120 60.5 C120 60.5 109 59.5 100 56 C89 51 85.5 44.5 88 39 Z" />
+              <path
+                d="M86.5 38.5 C93 47 105 52.5 120 52.5 C135 52.5 147 47 153.5 38.5"
+                fill="none"
+                stroke="rgba(210,218,180,0.3)"
+                strokeWidth="1.15"
+                strokeLinecap="round"
+              />
+              <path
+                d="M120 17.5 L120 50"
+                fill="none"
+                stroke="rgba(220,228,190,0.15)"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+              />
             </g>
             <g fill="none" stroke="rgba(168,144,120,0.35)" strokeWidth="0.7">
               <path d="M120 88 L120 168" />
