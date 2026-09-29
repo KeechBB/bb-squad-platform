@@ -289,10 +289,4 @@ export async function kitAveragesByTier(): Promise<TierKitAvg[]> {
   return out;
 }
 
-export {
-  kitFromDeployRole,
-  formatMskYmd,
-  normalizeEosId,
-  normalizeSteamId,
-  isRoleCombatWindowMsk,
-};
+export { kitFromDeployRole, formatMskYmd, normalizeEosId, normalizeSteamId };
