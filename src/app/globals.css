@@ -234,6 +234,131 @@ svg {
   flex: 0 0 auto;
 }
 
+.player-search {
+  position: relative;
+  flex: 0 1 220px;
+  min-width: 140px;
+  max-width: 260px;
+}
+
+.player-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  background: rgba(12, 10, 22, 0.55);
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.player-search-input::placeholder {
+  color: var(--muted);
+  opacity: 0.85;
+}
+
+.player-search-input:focus {
+  border-color: rgba(167, 139, 250, 0.55);
+  background: rgba(18, 14, 32, 0.85);
+}
+
+.player-search-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  z-index: 80;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  min-width: 260px;
+  max-height: 320px;
+  overflow: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(167, 139, 250, 0.28);
+  background: rgba(16, 12, 28, 0.98);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.player-search-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.player-search-item:hover,
+.player-search-item.is-active {
+  background: rgba(167, 139, 250, 0.16);
+}
+
+.player-search-item img,
+.player-search-fallback {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  object-fit: cover;
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+}
+
+.player-search-fallback {
+  display: grid;
+  place-items: center;
+  background: rgba(167, 139, 250, 0.2);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.player-search-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.player-search-meta strong {
+  font-size: 0.88rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-search-meta .muted {
+  font-size: 0.7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-search-empty {
+  padding: 10px 12px;
+  font-size: 0.82rem;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ???????? ??????? ? ?????? ?? ???????? (??. mobile block ? ?????) */
 .nav-short {
   display: none;
@@ -6081,6 +6206,18 @@ body:has(.home-page) {
     flex-shrink: 0;
     gap: 6px;
     min-width: 0;
+  }
+
+  .player-search {
+    flex: 0 1 150px;
+    min-width: 110px;
+    max-width: 170px;
+  }
+
+  .player-search-list {
+    min-width: 240px;
+    right: 0;
+    left: auto;
   }
 
   .auth-bar .avatar {

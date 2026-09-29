@@ -4,6 +4,7 @@ import { signIn, signOut, useSession } from "next-auth/react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { subscribeLive } from "@/lib/liveClient";
+import { PlayerSearch } from "@/components/PlayerSearch";
 
 export function AuthBar() {
   const { data: session, status } = useSession();
@@ -71,6 +72,7 @@ export function AuthBar() {
 
   return (
     <div className="auth-bar">
+      {session.user.profileComplete ? <PlayerSearch /> : null}
       {avatar ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
