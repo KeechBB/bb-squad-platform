@@ -1,5 +1,5 @@
 /** Меняй при обновлении KV, чтобы iframe не брал старый кэш */
-const KV_CACHE = "20260929-nick-merge";
+const KV_CACHE = "20260929-hitmap-hover";
 
 export default async function TrainingMatchesPage() {
   const params = new URLSearchParams({ embed: "1", v: KV_CACHE });

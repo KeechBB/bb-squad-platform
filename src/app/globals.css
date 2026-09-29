@@ -1573,10 +1573,19 @@ body:has(.profile-page) {
 
 .profile-hitmap-svg {
   width: 100%;
-  max-width: 260px;
+  max-width: 240px;
   height: auto;
   max-height: 100%;
   display: block;
+}
+
+.profile-hitmap-strip-row.is-hover {
+  background: rgba(167, 139, 250, 0.14);
+  border-radius: 6px;
+}
+
+.profile-hitmap-strip-row {
+  cursor: default;
 }
 
 .profile-hitmap-strip {

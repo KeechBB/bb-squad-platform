@@ -159,79 +159,33 @@ const BONE_RU: Record<string, string> = {
   Bip01_R_Foot: "R стопа",
 };
 
-/** С какой стороны рисовать выноску. Центр туловища — влево, чтобы не биться с правым плечом. */
-function calloutSide(bone: string): "L" | "R" {
-  if (bone.includes("_L_")) return "L";
-  if (bone.includes("_R_")) return "R";
-  if (bone === "Bip01_Head" || bone === "Bip01_Neck") return "R";
-  return "L";
-}
-
-/** Доп. сдвиг по Y у якоря, чтобы соседние кости не слипались. */
-const CALLOUT_DY: Record<string, number> = {
-  Bip01_Head: -6,
-  Bip01_Neck: 8,
-  Bip01_R_Clavicle: -10,
-  Bip01_R_UpperArm: 4,
-  Bip01_R_Forearm: 2,
-  Bip01_R_Hand: 4,
-  Bip01_Spine2: -4,
-  Bip01_Spine: 10,
-  Bip01_Pelvis: 8,
-  Bip01_L_Clavicle: -8,
-  Bip01_L_UpperArm: 4,
-};
-
-const CALLOUT_MIN_GAP = 18;
-
-type CalloutLayout = {
-  bone: string;
-  n: number;
-  pct: string;
-  cx: number;
-  cy: number;
-  side: "L" | "R";
-  labelY: number;
+/** Радиус невидимой зоны наведения вокруг якоря кости. */
+const ZONE_R: Record<string, number> = {
+  Bip01_Head: 22,
+  Bip01_Neck: 12,
+  Bip01_Spine2: 20,
+  Bip01_Spine: 18,
+  Bip01_Pelvis: 18,
+  Bip01_L_Clavicle: 12,
+  Bip01_R_Clavicle: 12,
+  Bip01_L_UpperArm: 16,
+  Bip01_R_UpperArm: 16,
+  Bip01_L_Forearm: 14,
+  Bip01_R_Forearm: 14,
+  Bip01_L_Hand: 12,
+  Bip01_R_Hand: 12,
+  Bip01_L_Thigh: 16,
+  Bip01_R_Thigh: 16,
+  Bip01_L_Calf: 14,
+  Bip01_R_Calf: 14,
+  Bip01_L_Foot: 12,
+  Bip01_R_Foot: 12,
 };
 
 function pct(n: number, total: number): string {
   if (total <= 0 || n <= 0) return "0%";
   const v = Math.round((1000 * n) / total) / 10;
   return Number.isInteger(v) ? `${v}%` : `${v.toFixed(1)}%`;
-}
-
-function layoutCallouts(
-  plot: [string, number][],
-  total: number
-): CalloutLayout[] {
-  const raw: CalloutLayout[] = plot.map(([bone, n]) => {
-    const [cx, cy] = ANCHORS[bone];
-    const side = calloutSide(bone);
-    const dy = CALLOUT_DY[bone] || 0;
-    return {
-      bone,
-      n,
-      pct: pct(n, total),
-      cx,
-      cy,
-      side,
-      labelY: cy + dy,
-    };
-  });
-
-  for (const side of ["L", "R"] as const) {
-    const group = raw
-      .filter((c) => c.side === side)
-      .sort((a, b) => a.labelY - b.labelY);
-    let last = -Infinity;
-    for (const c of group) {
-      if (c.labelY - last < CALLOUT_MIN_GAP) {
-        c.labelY = last + CALLOUT_MIN_GAP;
-      }
-      last = c.labelY;
-    }
-  }
-  return raw;
 }
 
 function offsets(n: number): [number, number][] {
@@ -367,7 +321,9 @@ export function ProfileHitmapCard({
     return cells;
   }, [viewY, viewM]);
 
-  const { total, strip, plot, callouts, minHits, maxHits } = useMemo(() => {
+  const [hoverBone, setHoverBone] = useState<string | null>(null);
+
+  const { total, strip, plot, minHits, maxHits } = useMemo(() => {
     const map = bones || {};
     let sum = 0;
     for (const [k, n] of Object.entries(map)) {
@@ -409,7 +365,6 @@ export function ProfileHitmapCard({
       total: sum,
       strip: stripRows,
       plot: plotBones,
-      callouts: layoutCallouts(plotBones, sum),
       minHits: minH,
       maxHits: maxH,
     };
@@ -521,7 +476,7 @@ export function ProfileHitmapCard({
           <svg
             className="profile-hitmap-svg"
             role="img"
-            viewBox="-28 0 296 380"
+            viewBox="0 0 240 380"
             aria-label="Карта попаданий по костям"
           >
             <defs>
@@ -529,11 +484,6 @@ export function ProfileHitmapCard({
                 <stop offset="0%" stopColor="rgba(243,230,216,0.55)" />
                 <stop offset="100%" stopColor="rgba(90,72,58,0.45)" />
               </radialGradient>
-              <linearGradient id={`helm-${uid}`} x1="0%" y1="0%" x2="18%" y2="100%">
-                <stop offset="0%" stopColor="rgba(142,150,122,0.82)" />
-                <stop offset="45%" stopColor="rgba(78,88,62,0.9)" />
-                <stop offset="100%" stopColor="rgba(42,48,34,0.92)" />
-              </linearGradient>
             </defs>
             <g
               fill={`url(#skin-${uid})`}
@@ -554,30 +504,6 @@ export function ProfileHitmapCard({
               <path d="M126 255 C126 280 126 305 128 325 L142 325 C144 305 142 280 140 255 Z" />
               <ellipse cx="104" cy="332" rx="14" ry="6" />
               <ellipse cx="136" cy="332" rx="14" ry="6" />
-            </g>
-            {/* Military helmet — ACH/PASGT front silhouette, face left open for hit dots */}
-            <g
-              fill={`url(#helm-${uid})`}
-              stroke="rgba(176,186,154,0.78)"
-              strokeWidth="1.3"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M88 39 C90 15 150 15 152 39 C154.5 44.5 151 51 140 56 C131 59.5 120 60.5 120 60.5 C120 60.5 109 59.5 100 56 C89 51 85.5 44.5 88 39 Z" />
-              <path
-                d="M86.5 38.5 C93 47 105 52.5 120 52.5 C135 52.5 147 47 153.5 38.5"
-                fill="none"
-                stroke="rgba(210,218,180,0.3)"
-                strokeWidth="1.15"
-                strokeLinecap="round"
-              />
-              <path
-                d="M120 17.5 L120 50"
-                fill="none"
-                stroke="rgba(220,228,190,0.15)"
-                strokeWidth="1.2"
-                strokeLinecap="round"
-              />
             </g>
             <g fill="none" stroke="rgba(168,144,120,0.35)" strokeWidth="0.7">
               <path d="M120 88 L120 168" />
@@ -605,6 +531,7 @@ export function ProfileHitmapCard({
                           : "rgba(255,241,242,0.7)"
                       }
                       strokeWidth={lastDot ? 1.2 : 0.7}
+                      style={{ pointerEvents: "none" }}
                     >
                       {lastDot ? <title>Последнее попадание</title> : null}
                     </circle>
@@ -612,46 +539,103 @@ export function ProfileHitmapCard({
                 });
               })}
             </g>
-            <g aria-label="цифры по частям" className="profile-hitmap-callouts">
-              {callouts.map((c) => {
-                const tipX = c.side === "L" ? c.cx - 12 : c.cx + 12;
-                const labelX = c.side === "L" ? -22 : 262;
-                const elbowX = c.side === "L" ? labelX + 52 : labelX - 52;
-                const anchor = c.side === "L" ? "start" : "end";
+            <g aria-label="зоны наведения">
+              {BONE_ORDER.map((bone) => {
+                const [cx, cy] = ANCHORS[bone];
+                const r = ZONE_R[bone] || 14;
+                const active = hoverBone === bone;
+                const n = bones?.[bone] || 0;
                 return (
-                  <g key={`call-${c.bone}`}>
-                    <path
-                      d={`M${tipX} ${c.cy} L${elbowX} ${c.labelY} L${
-                        c.side === "L" ? labelX + 2 : labelX - 2
-                      } ${c.labelY}`}
-                      stroke="rgba(225,29,72,0.6)"
-                      strokeWidth="1.1"
-                      fill="none"
-                    />
-                    <circle cx={tipX} cy={c.cy} r={2} fill="#e11d48" />
-                    <text
-                      x={labelX}
-                      y={c.labelY + 4}
-                      textAnchor={anchor}
-                      fill="#ffe4e6"
-                      fontSize="13"
-                      fontWeight="700"
-                      fontFamily="ui-sans-serif, system-ui, sans-serif"
+                  <g key={`zone-${bone}`}>
+                    {active ? (
+                      <circle
+                        cx={cx}
+                        cy={cy}
+                        r={r + 4}
+                        className="hitmap-zone-glow"
+                        fill="rgba(167, 139, 250, 0.28)"
+                        stroke="rgba(196, 181, 253, 0.85)"
+                        strokeWidth="1.5"
+                        style={{ pointerEvents: "none" }}
+                      />
+                    ) : null}
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r={r}
+                      fill="transparent"
+                      className="hitmap-zone-hit"
+                      style={{ cursor: "pointer" }}
+                      onMouseEnter={() => setHoverBone(bone)}
+                      onMouseLeave={() => setHoverBone(null)}
+                      onFocus={() => setHoverBone(bone)}
+                      onBlur={() => setHoverBone(null)}
+                      tabIndex={0}
+                      role="img"
+                      aria-label={BONE_RU[bone] || bone}
                     >
-                      {c.n}
-                      <tspan
-                        fill="rgba(253, 224, 220, 0.88)"
-                        fontWeight="600"
-                        fontSize="11.5"
-                      >
-                        {" "}
-                        {c.pct}
-                      </tspan>
-                    </text>
+                      <title>
+                        {BONE_RU[bone] || bone}
+                        {n > 0 ? ` · ${n} (${pct(n, total)})` : ""}
+                      </title>
+                    </circle>
                   </g>
                 );
               })}
             </g>
+            {hoverBone ? (
+              <g className="hitmap-zone-label" style={{ pointerEvents: "none" }}>
+                {(() => {
+                  const [cx, cy] = ANCHORS[hoverBone];
+                  const label = BONE_RU[hoverBone] || hoverBone;
+                  const n = bones?.[hoverBone] || 0;
+                  const sub =
+                    n > 0 ? `${n} · ${pct(n, total)}` : "нет попаданий";
+                  const boxW = Math.max(72, label.length * 7.2 + 16);
+                  const boxX = Math.min(
+                    240 - boxW - 4,
+                    Math.max(4, cx - boxW / 2)
+                  );
+                  const boxY = Math.max(8, cy - (ZONE_R[hoverBone] || 14) - 36);
+                  return (
+                    <>
+                      <rect
+                        x={boxX}
+                        y={boxY}
+                        width={boxW}
+                        height={30}
+                        rx={6}
+                        fill="rgba(20, 16, 32, 0.92)"
+                        stroke="rgba(167, 139, 250, 0.45)"
+                        strokeWidth="1"
+                      />
+                      <text
+                        x={boxX + boxW / 2}
+                        y={boxY + 13}
+                        textAnchor="middle"
+                        fill="#f5f3ff"
+                        fontSize="11"
+                        fontWeight="700"
+                        fontFamily="ui-sans-serif, system-ui, sans-serif"
+                      >
+                        {label}
+                      </text>
+                      <text
+                        x={boxX + boxW / 2}
+                        y={boxY + 24}
+                        textAnchor="middle"
+                        fill="rgba(196, 181, 253, 0.9)"
+                        fontSize="9.5"
+                        fontWeight="600"
+                        fontFamily="ui-sans-serif, system-ui, sans-serif"
+                      >
+                        {sub}
+                      </text>
+                    </>
+                  );
+                })()}
+              </g>
+            ) : null}
           </svg>
         </div>
         {strip.length > 0 ? (
@@ -663,11 +647,16 @@ export function ProfileHitmapCard({
               {strip.map((row) => (
                 <li
                   key={row.bone}
-                  className={
+                  className={[
                     lastBone && row.bone === lastBone
                       ? "profile-hitmap-strip-row is-last"
-                      : "profile-hitmap-strip-row"
-                  }
+                      : "profile-hitmap-strip-row",
+                    hoverBone === row.bone ? "is-hover" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  onMouseEnter={() => setHoverBone(row.bone)}
+                  onMouseLeave={() => setHoverBone(null)}
                 >
                   <span
                     className="profile-hitmap-strip-dot"
