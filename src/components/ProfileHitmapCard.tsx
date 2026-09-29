@@ -66,8 +66,31 @@ function todayMskYmd(): string {
   }).format(new Date());
 }
 
-/** Макс. точек на кости на силуэте (остальное только в полоске %). */
-const MAX_DOTS_PER_BONE = 12;
+/** Точки: кость с макс.% → 15, с мин.% → 1 (относительно этого игрока). */
+const DOTS_MIN = 1;
+const DOTS_MAX = 15;
+
+/** Руки и ноги — жёлтые точки (не торс/голова). */
+function isLimbBone(bone: string): boolean {
+  return (
+    bone.includes("UpperArm") ||
+    bone.includes("Forearm") ||
+    bone.includes("Hand") ||
+    bone.includes("Thigh") ||
+    bone.includes("Calf") ||
+    bone.includes("Foot")
+  );
+}
+
+function dotsForShare(n: number, minN: number, maxN: number): number {
+  if (n <= 0) return 0;
+  if (maxN <= minN) return DOTS_MAX;
+  const t = (n - minN) / (maxN - minN);
+  return Math.max(
+    DOTS_MIN,
+    Math.min(DOTS_MAX, Math.round(DOTS_MIN + t * (DOTS_MAX - DOTS_MIN)))
+  );
+}
 
 const ANCHORS: Record<string, [number, number]> = {
   Bip01_Head: [120, 48],
@@ -344,7 +367,7 @@ export function ProfileHitmapCard({
     return cells;
   }, [viewY, viewM]);
 
-  const { total, strip, plot, callouts } = useMemo(() => {
+  const { total, strip, plot, callouts, minHits, maxHits } = useMemo(() => {
     const map = bones || {};
     let sum = 0;
     for (const [k, n] of Object.entries(map)) {
@@ -374,11 +397,20 @@ export function ProfileHitmapCard({
     const plotBones = Object.entries(map)
       .filter(([k, n]) => n > 0 && k !== "None" && ANCHORS[k])
       .map(([k, n]) => [k, n] as [string, number]);
+    let minH = Infinity;
+    let maxH = 0;
+    for (const [, n] of plotBones) {
+      if (n < minH) minH = n;
+      if (n > maxH) maxH = n;
+    }
+    if (!Number.isFinite(minH)) minH = 0;
     return {
       total: sum,
       strip: stripRows,
       plot: plotBones,
       callouts: layoutCallouts(plotBones, sum),
+      minHits: minH,
+      maxHits: maxH,
     };
   }, [bones]);
 
@@ -524,19 +556,21 @@ export function ProfileHitmapCard({
             <g aria-label="хиты">
               {plot.flatMap(([bone, n]) => {
                 const [cx, cy] = ANCHORS[bone];
-                const show = Math.min(n, MAX_DOTS_PER_BONE);
+                const show = dotsForShare(n, minHits, maxHits);
+                const limb = isLimbBone(bone);
                 const isLast = Boolean(lastBone && bone === lastBone);
                 return offsets(show).map(([dx, dy], i) => {
                   const lastDot = isLast && i === 0;
+                  const yellow = limb || lastDot;
                   return (
                     <circle
                       key={`${bone}-${i}`}
                       cx={cx + dx}
                       cy={cy + dy}
                       r={lastDot ? 4.4 : 3.2}
-                      fill={lastDot ? "#facc15" : "#e11d48"}
+                      fill={yellow ? "#facc15" : "#e11d48"}
                       stroke={
-                        lastDot
+                        yellow
                           ? "rgba(254, 249, 195, 0.95)"
                           : "rgba(255,241,242,0.7)"
                       }
