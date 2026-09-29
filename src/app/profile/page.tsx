@@ -1,20 +1,26 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { AvatarEditor } from "@/components/AvatarEditor";
 import { isAdmin, syncBuiltinAdmins } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 import { ClanInvites } from "@/components/ClanInvites";
 import { AdminPanelLink } from "@/components/AdminPanelLink";
 import { ProfileEditForm } from "@/components/ProfileEditForm";
-import { ProfileKvStats, ProfileKvMatchHistory } from "@/components/ProfileKvStats";
+import { ProfileKvMatchHistory } from "@/components/ProfileKvStats";
+import { ProfileStatsTabs } from "@/components/ProfileStatsTabs";
+import { ProfileHitmapCard } from "@/components/ProfileHitmapCard";
 import { TrainingSessionsCard, TrainingMatchHistory } from "@/components/TrainingSessionsCard";
 import { LivePageRefresh } from "@/components/LivePageRefresh";
 import { formatRuDate } from "@/lib/validation";
 import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
+import { CLAN_ROLE_LABEL, type ClanRole } from "@/lib/clan";
 import { loadUserTrainingStats } from "@/lib/trainingStats";
 import { buildPlayerKvStats } from "@/lib/kvStats";
-import { lookupPlayerTrainPwr, buildPlayerTrainMatchHistory } from "@/lib/homeTrainPwr";
+import {
+  lookupPlayerTrainPwr,
+  buildPlayerTrainMatchHistory,
+  buildPlayerTrainCombatStats,
+} from "@/lib/homeTrainPwr";
 import {
   lookupPlayerCwPwr,
   buildPlayerCwMatchHistory,
@@ -39,7 +45,10 @@ export default async function ProfilePage() {
     where: { steamId: u.steamId },
     include: {
       clanMemberships: {
-        include: { clan: { select: { id: true, name: true, tag: true, logoUrl: true } } },
+        include: {
+          clan: { select: { id: true, name: true, tag: true, logoUrl: true } },
+          title: { select: { name: true } },
+        },
       },
       clanInvites: {
         where: { status: "PENDING" },
@@ -61,7 +70,18 @@ export default async function ProfilePage() {
       inviter: inv.inviter,
     })) || [];
 
-  const clans = me.clanMemberships.map((m) => m.clan) || [];
+  const clans = me.clanMemberships.map((m) => ({
+    id: m.clan.id,
+    tag: m.clan.tag,
+    name: m.clan.name,
+    logoUrl: m.clan.logoUrl,
+    membershipLabel: [
+      CLAN_ROLE_LABEL[m.role as ClanRole],
+      m.title?.name || null,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+  }));
 
   const birthRu = me.birthDate ? formatRuDate(me.birthDate) : null;
   const siteRole = roleLabel(
@@ -76,6 +96,7 @@ export default async function ProfilePage() {
     matchHistory,
     cwPwr,
     cwMatchHistory,
+    trainCombat,
   ] = await Promise.all([
     loadUserTrainingStats(me.id),
     nickForKv
@@ -101,6 +122,9 @@ export default async function ProfilePage() {
     nickForKv
       ? buildPlayerCwMatchHistory(nickForKv).catch(() => [])
       : Promise.resolve([]),
+    nickForKv
+      ? buildPlayerTrainCombatStats(nickForKv).catch(() => null)
+      : Promise.resolve(null),
   ]);
 
   const kvStats = kvBundle.stats;
@@ -118,38 +142,6 @@ export default async function ProfilePage() {
             adminLink={<AdminPanelLink initialAdmin={admin} />}
             lastSeenAt={me.lastSeenAt}
           />
-          {clans.length > 0 ? (
-            <section className="card profile-clan-card">
-              <h2>Клан</h2>
-              <div className="clan-list profile-clan-list">
-                {clans.map((c) => (
-                  <Link key={c.id} className="clan-row" href={`/clans/${c.id}`}>
-                    {c.logoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        className="clan-row-logo"
-                        src={c.logoUrl}
-                        alt=""
-                        width={36}
-                        height={36}
-                      />
-                    ) : (
-                      <div className="clan-row-logo clan-row-logo-empty">
-                        {c.tag.slice(0, 2)}
-                      </div>
-                    )}
-                    <div className="clan-row-body">
-                      <strong>
-                        [{c.tag}] {c.name}
-                      </strong>
-                      <span className="muted">Открыть</span>
-                    </div>
-                    <span className="clan-row-arrow">→</span>
-                  </Link>
-                ))}
-              </div>
-            </section>
-          ) : null}
           <ProfileTrainPwrCard stats={trainPwr} />
           <ProfileCwPwrCard stats={cwPwr} />
           <ClanInvites initial={invites} />
@@ -170,13 +162,18 @@ export default async function ProfilePage() {
             steamName: me.steamName,
             siteRole,
             regNo: me.regNo,
+            clans,
           }}
         />
-        <ProfileKvStats
-          stats={kvStats}
-          error={kvError}
-          includeMatchHistory={false}
+        <ProfileStatsTabs
+          kvStats={kvStats}
+          kvError={kvError}
+          trainStats={trainCombat}
         />
+      </div>
+
+      <div className="profile-area-hitmap">
+        <ProfileHitmapCard />
       </div>
 
       <div className="profile-area-training">

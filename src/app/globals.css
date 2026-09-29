@@ -472,13 +472,13 @@ body:has(.profile-page) {
 
 .profile-page {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  /* head — по контенту; середина и истории делят остаток (на 1080p середина больше не съедает всё) */
+  grid-template-columns: minmax(0, 1.15fr) minmax(200px, 0.72fr) minmax(0, 1.15fr);
+  /* head — по контенту; середина и истории делят остаток */
   grid-template-rows: auto minmax(0, 1.15fr) minmax(160px, 0.9fr);
   grid-template-areas:
-    "head head"
-    "account training"
-    "kvhist trainhist";
+    "head head head"
+    "account hitmap training"
+    "kvhist kvhist trainhist";
   gap: 8px;
   align-items: stretch;
   height: 100%;
@@ -488,7 +488,7 @@ body:has(.profile-page) {
 }
 
 .profile-page-empty {
-  grid-template-areas: "head head" "account account";
+  grid-template-areas: "head head head" "account account account";
   max-width: 720px;
 }
 
@@ -608,6 +608,24 @@ body:has(.profile-page) {
   overflow: auto;
 }
 
+.profile-area-hitmap {
+  grid-area: hitmap;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  align-self: stretch;
+  overflow: auto;
+}
+
+.profile-area-hitmap > .profile-hitmap-card {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+}
+
 .profile-area-training {
   grid-area: training;
   display: flex;
@@ -638,6 +656,7 @@ body:has(.profile-page) {
 }
 
 .profile-area-account > .profile-kv-card,
+.profile-area-account > .profile-stats-tabs-card,
 .profile-area-training > .training-sessions-card {
   flex: 1 1 auto;
   display: flex;
@@ -1025,6 +1044,158 @@ body:has(.profile-page) {
   column-gap: 14px;
 }
 
+.profile-account-clan-row {
+  grid-column: 1 / -1;
+  align-items: start;
+}
+
+.profile-account-clans {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.profile-account-clan-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 8px;
+  padding: 2px 4px 2px 0;
+}
+
+.profile-account-clan-link:hover {
+  color: #c4b5fd;
+}
+
+.profile-account-clan-logo {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex: 0 0 auto;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.profile-account-clan-logo.empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.58rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.profile-account-clan-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.profile-account-clan-text strong {
+  font-size: 0.88rem;
+}
+
+.profile-account-clan-text em {
+  font-style: normal;
+  font-size: 0.72rem;
+}
+
+.profile-stats-tabs-head {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.profile-stats-tablist {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.profile-stats-tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.profile-stats-tab.active {
+  background: rgba(167, 139, 250, 0.22);
+  color: #ede9fe;
+}
+
+.profile-stats-tabpanel {
+  min-width: 0;
+}
+
+.profile-hitmap-card {
+  min-height: 0;
+}
+
+.profile-hitmap-sub {
+  font-size: 0.78rem;
+}
+
+.profile-hitmap-body-wrap {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  margin-top: 4px;
+}
+
+.profile-hitmap-svg {
+  width: 100%;
+  max-width: 220px;
+  height: auto;
+  display: block;
+}
+
+.profile-hitmap-empty {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.profile-hitmap-legend {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.profile-hitmap-legend li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+.profile-hitmap-legend strong {
+  color: inherit;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .profile-page .meta-row {
   padding: 3px 0;
   grid-template-columns: 100px 1fr;
@@ -1310,6 +1481,7 @@ body:has(.profile-page) {
     grid-template-areas:
       "head"
       "account"
+      "hitmap"
       "training"
       "kvhist"
       "trainhist";
@@ -1580,6 +1752,14 @@ body:has(.profile-page) {
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
   gap: 14px;
   margin-top: 16px;
+}
+
+.training-charts.training-charts-cal-only {
+  grid-template-columns: 1fr;
+}
+
+.training-charts.training-charts-cal-only .training-cal-block {
+  min-height: 0;
 }
 
 .training-chart-block {

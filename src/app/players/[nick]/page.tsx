@@ -8,12 +8,18 @@ import { withAvatarCacheBust } from "@/lib/avatarUrl";
 import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
 import { TrainingSessionsCard, TrainingMatchHistory } from "@/components/TrainingSessionsCard";
 import { LivePageRefresh } from "@/components/LivePageRefresh";
-import { ProfileKvStats, ProfileKvMatchHistory } from "@/components/ProfileKvStats";
+import { ProfileKvMatchHistory } from "@/components/ProfileKvStats";
+import { ProfileStatsTabs } from "@/components/ProfileStatsTabs";
+import { ProfileHitmapCard } from "@/components/ProfileHitmapCard";
 import { ProfileAccountCard } from "@/components/ProfileAccountCard";
 import { SitePresenceBadge } from "@/components/SitePresenceBadge";
 import { loadUserTrainingStats } from "@/lib/trainingStats";
 import { buildPlayerKvStats } from "@/lib/kvStats";
-import { lookupPlayerTrainPwr, buildPlayerTrainMatchHistory } from "@/lib/homeTrainPwr";
+import {
+  lookupPlayerTrainPwr,
+  buildPlayerTrainMatchHistory,
+  buildPlayerTrainCombatStats,
+} from "@/lib/homeTrainPwr";
 import {
   lookupPlayerCwPwr,
   buildPlayerCwMatchHistory,
@@ -89,6 +95,20 @@ export default async function PlayerProfilePage({ params }: Props) {
   const inReserve = isActiveReserve(user.reserveUntil);
   const nickForKv = user.nick || "";
 
+  const clans = user.clanMemberships.map((m) => ({
+    id: m.clan.id,
+    tag: m.clan.tag,
+    name: m.clan.name,
+    logoUrl: m.clan.logoUrl,
+    membershipLabel: [
+      CLAN_ROLE_LABEL[m.role as ClanRole],
+      m.title?.name || null,
+      inReserve && m.role === "RESERVE" ? "в резерве" : null,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+  }));
+
   const [
     training,
     kvBundle,
@@ -96,6 +116,7 @@ export default async function PlayerProfilePage({ params }: Props) {
     matchHistory,
     cwPwr,
     cwMatchHistory,
+    trainCombat,
   ] = await Promise.all([
     loadUserTrainingStats(user.id),
     nickForKv
@@ -121,6 +142,9 @@ export default async function PlayerProfilePage({ params }: Props) {
     nickForKv
       ? buildPlayerCwMatchHistory(nickForKv).catch(() => [])
       : Promise.resolve([]),
+    nickForKv
+      ? buildPlayerTrainCombatStats(nickForKv).catch(() => null)
+      : Promise.resolve(null),
   ]);
 
   const kvStats = kvBundle.stats;
@@ -175,42 +199,6 @@ export default async function PlayerProfilePage({ params }: Props) {
               </p>
             </section>
           ) : null}
-          {user.clanMemberships.length > 0 ? (
-            <section className="card profile-clan-card">
-              <h2>Клан</h2>
-              <div className="clan-list profile-clan-list">
-                {user.clanMemberships.map((m) => (
-                  <Link key={m.id} className="clan-row" href={`/clans/${m.clan.id}`}>
-                    {m.clan.logoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        className="clan-row-logo"
-                        src={m.clan.logoUrl}
-                        alt=""
-                        width={40}
-                        height={40}
-                      />
-                    ) : (
-                      <div className="clan-row-logo clan-row-logo-empty">
-                        {m.clan.tag.slice(0, 2)}
-                      </div>
-                    )}
-                    <div className="clan-row-body">
-                      <strong>
-                        [{m.clan.tag}] {m.clan.name}
-                      </strong>
-                      <span className="muted">
-                        {CLAN_ROLE_LABEL[m.role as ClanRole]}
-                        {m.title?.name ? ` · ${m.title.name}` : ""}
-                        {inReserve && m.role === "RESERVE" ? " · в резерве" : ""}
-                      </span>
-                    </div>
-                    <span className="clan-row-arrow">→</span>
-                  </Link>
-                ))}
-              </div>
-            </section>
-          ) : null}
           <ProfileTrainPwrCard stats={trainPwr} />
           <ProfileCwPwrCard stats={cwPwr} />
         </div>
@@ -232,13 +220,18 @@ export default async function PlayerProfilePage({ params }: Props) {
             telegram: user.telegram,
             steamId: user.steamId,
             steamName: user.steamName,
+            clans,
           }}
         />
-        <ProfileKvStats
-          stats={kvStats}
-          error={kvError}
-          includeMatchHistory={false}
+        <ProfileStatsTabs
+          kvStats={kvStats}
+          kvError={kvError}
+          trainStats={trainCombat}
         />
+      </div>
+
+      <div className="profile-area-hitmap">
+        <ProfileHitmapCard />
       </div>
 
       <div className="profile-area-training">

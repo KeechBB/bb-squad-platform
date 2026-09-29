@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { PlayerKvStats } from "@/lib/kvStats";
 import type { CwMatchHistoryRow } from "@/lib/homeCwPwr";
 import {
@@ -28,6 +28,8 @@ type Props = {
   error?: string | null;
   /** false — только сводка; историю выносим в отдельный блок профиля */
   includeMatchHistory?: boolean;
+  /** true — без внешней карточки и заголовка (внутри ProfileStatsTabs) */
+  hideOuterCard?: boolean;
 };
 
 export function ProfileKvMatchHistory({
@@ -177,52 +179,54 @@ export function ProfileKvStats({
   stats,
   error,
   includeMatchHistory = true,
+  hideOuterCard = false,
 }: Props) {
+  const head = hideOuterCard ? null : (
+    <div className="profile-kv-head">
+      <h2>Статистика КВ</h2>
+      <Link className="kv-link" href="/cw">
+        Таблица КВ →
+      </Link>
+    </div>
+  );
+
+  const wrap = (body: ReactNode) =>
+    hideOuterCard ? (
+      <>{body}</>
+    ) : (
+      <section className="card profile-kv-card">{body}</section>
+    );
+
   if (error) {
-    return (
-      <section className="card profile-kv-card">
-        <div className="profile-kv-head">
-          <h2>Статистика КВ</h2>
-          <Link className="kv-link" href="/cw">
-            Таблица КВ →
-          </Link>
-        </div>
+    return wrap(
+      <>
+        {head}
         <p className="error" style={{ marginTop: 8 }}>
           {error}
         </p>
-      </section>
+      </>
     );
   }
 
   if (!stats || (stats.rounds === 0 && stats.awards.length === 0)) {
-    return (
-      <section className="card profile-kv-card">
-        <div className="profile-kv-head">
-          <h2>Статистика КВ</h2>
-          <Link className="kv-link" href="/cw">
-            Таблица КВ →
-          </Link>
-        </div>
+    return wrap(
+      <>
+        {head}
         <p className="muted" style={{ margin: "8px 0 0", lineHeight: 1.45 }}>
           Пока нет раундов с ником <strong>{stats?.nick || "—"}</strong> в
           таблице игроков КВ. Когда появятся скрины итогов — сюда подтянутся
           K/D, урон и награды.
         </p>
-      </section>
+      </>
     );
   }
 
   const awardTotal =
     stats.mvpDamage + stats.mvpKiller + stats.mvpMedic + stats.antiDeath;
 
-  return (
-    <section className="card profile-kv-card">
-      <div className="profile-kv-head">
-        <h2>Статистика КВ</h2>
-        <Link className="kv-link" href="/cw">
-          Таблица КВ →
-        </Link>
-      </div>
+  return wrap(
+    <>
+      {head}
 
       <div className="profile-kv-summary">
         <div>
@@ -346,6 +350,6 @@ export function ProfileKvStats({
           </div>
         </div>
       ) : null}
-    </section>
+    </>
   );
 }

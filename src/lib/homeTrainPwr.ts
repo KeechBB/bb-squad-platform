@@ -585,3 +585,155 @@ export async function buildPlayerTrainMatchHistory(
   // свежие сверху
   return history.reverse();
 }
+
+export type PlayerTrainCombatStats = {
+  nick: string;
+  matches: number;
+  wins: number;
+  losses: number;
+  kills: number;
+  deaths: number;
+  dmg: number;
+  res: number;
+  nok: number;
+  kd: number;
+  avgKills: number;
+  avgDmg: number;
+  winrate: number;
+};
+
+/** Сводка боевой статы по тренировочным каткам (для вкладки профиля). */
+export async function buildPlayerTrainCombatStats(
+  nick: string
+): Promise<PlayerTrainCombatStats | null> {
+  const clean = String(nick || "").trim();
+  if (!clean) return null;
+
+  const index = await loadFromKv<{
+    months?: { year?: number; month?: number; url?: string }[];
+  }>("data/training-index.json");
+  if (!index?.months?.length) {
+    return {
+      nick: clean,
+      matches: 0,
+      wins: 0,
+      losses: 0,
+      kills: 0,
+      deaths: 0,
+      dmg: 0,
+      res: 0,
+      nok: 0,
+      kd: 0,
+      avgKills: 0,
+      avgDmg: 0,
+      winrate: 0,
+    };
+  }
+
+  const tiersRaw = await loadFromKv<{
+    aliases?: Record<string, string>;
+  }>("data/tiers.json");
+  const aliases = tiersRaw?.aliases || {};
+  const aliasCanon = new Map<string, string>();
+  for (const [a, c] of Object.entries(aliases)) {
+    aliasCanon.set(nickKey(a), String(c));
+  }
+  const resolveKey = (n: string) => {
+    const key = nickKey(n);
+    const canon = aliasCanon.get(key);
+    return canon ? nickKey(canon) : key;
+  };
+  const want = resolveKey(clean);
+
+  let matches = 0;
+  let wins = 0;
+  let losses = 0;
+  let kills = 0;
+  let deaths = 0;
+  let dmg = 0;
+  let res = 0;
+  let nok = 0;
+  let displayNick = clean;
+
+  for (const m of index.months) {
+    if (!m.url) continue;
+    const monthData = await loadFromKv<{
+      matches?: {
+        playersUrl?: string;
+        winner?: string;
+      }[];
+    }>(m.url);
+    for (const match of monthData?.matches || []) {
+      if (!match.playersUrl) continue;
+      const players = await loadFromKv<{
+        players?: Record<string, unknown>[];
+        teamA?: Record<string, unknown>[];
+        teamB?: Record<string, unknown>[];
+        winner?: string;
+      }>(match.playersUrl);
+      if (!players) continue;
+      const list = (
+        players.players?.length
+          ? players.players
+          : [...(players.teamA || []), ...(players.teamB || [])]
+      ) as {
+        nick?: string;
+        res?: number;
+        nok?: number;
+        kills?: number;
+        deaths?: number;
+        dmg?: number;
+        team?: string;
+        won?: boolean;
+      }[];
+      const mine = list.filter((p) => p?.nick && resolveKey(p.nick) === want);
+      if (!mine.length) continue;
+      if (mine[0]?.nick) displayNick = String(mine[0].nick);
+      matches += 1;
+      let team = "";
+      for (const p of mine) {
+        kills += Number(p.kills) || 0;
+        deaths += Number(p.deaths) || 0;
+        dmg += Number(p.dmg) || 0;
+        res += Number(p.res) || 0;
+        nok += Number(p.nok) || 0;
+        if (!team && p.team) team = String(p.team);
+      }
+      const winner = String(match.winner || players.winner || "").toUpperCase();
+      const teamU = team.toUpperCase();
+      const wonExplicit = mine.some((p) => p.won === true);
+      const won =
+        wonExplicit || (Boolean(winner) && Boolean(teamU) && teamU === winner);
+      const lost =
+        !won && Boolean(winner) && Boolean(teamU) && teamU !== winner;
+      if (won) wins += 1;
+      else if (lost) losses += 1;
+    }
+  }
+
+  const kd =
+    Math.round((deaths === 0 ? kills : kills / Math.max(deaths, 1)) * 100) /
+    100;
+  const avgKills =
+    matches > 0 ? Math.round((10 * kills) / matches) / 10 : 0;
+  const avgDmg = matches > 0 ? Math.round(dmg / matches) : 0;
+  const decided = wins + losses;
+  const winrate =
+    decided > 0 ? Math.round((1000 * wins) / decided) / 10 : 0;
+
+  return {
+    nick: displayNick,
+    matches,
+    wins,
+    losses,
+    kills,
+    deaths,
+    dmg,
+    res,
+    nok,
+    kd: deaths === 0 ? kills : kd,
+    avgKills,
+    avgDmg,
+    winrate,
+  };
+}

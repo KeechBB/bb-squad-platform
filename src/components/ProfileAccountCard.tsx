@@ -1,3 +1,6 @@
+"use client";
+
+import Link from "next/link";
 import type { ReactNode } from "react";
 import {
   discordProfileUrl,
@@ -5,6 +8,15 @@ import {
   formatTelegramDisplay,
   telegramProfileUrl,
 } from "@/lib/social";
+
+export type ProfileClanLink = {
+  id: string;
+  tag: string;
+  name: string;
+  logoUrl: string | null;
+  /** роль / звание в клане */
+  membershipLabel?: string | null;
+};
 
 export type ProfileAccountFields = {
   nick: string;
@@ -18,6 +30,7 @@ export type ProfileAccountFields = {
   telegram: string | null;
   steamId: string;
   steamName: string | null;
+  clans?: ProfileClanLink[];
 };
 
 type Props = {
@@ -31,12 +44,15 @@ export function ProfileAccountCard({ data, headAction }: Props) {
   const discordUrl = discordProfileUrl(data.discordId);
   const tgLabel = formatTelegramDisplay(data.telegram);
   const tgUrl = telegramProfileUrl(data.telegram);
+  const clans = data.clans || [];
 
   return (
     <section className="card profile-account-card">
       <div className="profile-edit-head">
         <h2>Аккаунт</h2>
-        {headAction || <span className="profile-edit-head-spacer" aria-hidden="true" />}
+        {headAction || (
+          <span className="profile-edit-head-spacer" aria-hidden="true" />
+        )}
       </div>
       <div className="profile-account-meta">
         <div className="meta-row">
@@ -50,6 +66,45 @@ export function ProfileAccountCard({ data, headAction }: Props) {
         <div className="meta-row">
           <span>Роль на сайте</span>
           <span>{data.siteRole || "Игрок"}</span>
+        </div>
+        <div className="meta-row profile-account-clan-row">
+          <span>Клан</span>
+          <span className="profile-account-clans">
+            {clans.length === 0 ? (
+              "—"
+            ) : (
+              clans.map((c) => (
+                <Link
+                  key={c.id}
+                  className="profile-account-clan-link"
+                  href={`/clans/${c.id}`}
+                >
+                  {c.logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      className="profile-account-clan-logo"
+                      src={c.logoUrl}
+                      alt=""
+                      width={22}
+                      height={22}
+                    />
+                  ) : (
+                    <span className="profile-account-clan-logo empty">
+                      {c.tag.slice(0, 2)}
+                    </span>
+                  )}
+                  <span className="profile-account-clan-text">
+                    <strong>
+                      [{c.tag}] {c.name}
+                    </strong>
+                    {c.membershipLabel ? (
+                      <em className="muted">{c.membershipLabel}</em>
+                    ) : null}
+                  </span>
+                </Link>
+              ))
+            )}
+          </span>
         </div>
         <div className="meta-row">
           <span>Имя</span>
@@ -67,7 +122,12 @@ export function ProfileAccountCard({ data, headAction }: Props) {
           <span className="contact-cell">
             {discordLabel ? (
               discordUrl ? (
-                <a className="contact-link" href={discordUrl} target="_blank" rel="noreferrer">
+                <a
+                  className="contact-link"
+                  href={discordUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   {discordLabel}
                 </a>
               ) : (
@@ -82,7 +142,12 @@ export function ProfileAccountCard({ data, headAction }: Props) {
           <span>Telegram</span>
           <span className="contact-cell">
             {tgLabel && tgUrl ? (
-              <a className="contact-link" href={tgUrl} target="_blank" rel="noreferrer">
+              <a
+                className="contact-link"
+                href={tgUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
                 {tgLabel}
               </a>
             ) : (

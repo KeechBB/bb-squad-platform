@@ -343,7 +343,7 @@ export function TrainingSessionsCard({
         </div>
       </div>
 
-      <div className="training-charts">
+      <div className="training-charts training-charts-cal-only">
         <div className="training-chart-block training-cal-block">
           <div className="training-cal-head">
             <h3>Календарь тренировок (TR1)</h3>
@@ -407,11 +407,11 @@ export function TrainingSessionsCard({
                         ? `Был, опоздал (заход с 21:00)${
                             timeLabel ? ` · ${timeLabel}` : ""
                           }`
-                      : mark === "absent"
-                        ? `Не был${timeLabel ? ` · ${timeLabel}` : ""}`
-                        : mark === "pending"
-                          ? "Ещё рано / окно не закрыто"
-                          : "Вне учёта"
+                        : mark === "absent"
+                          ? `Не был${timeLabel ? ` · ${timeLabel}` : ""}`
+                          : mark === "pending"
+                            ? "Ещё рано / окно не закрыто"
+                            : "Вне учёта"
                   }
                 >
                   <span className="training-cal-day">{c.day}</span>
@@ -432,23 +432,6 @@ export function TrainingSessionsCard({
               );
             })}
           </div>
-        </div>
-        <div className="training-chart-block">
-          <h3>Среднее время на тренировке</h3>
-          <p className="training-avg-big">
-            {avgMin > 0 ? (
-              <>
-                <strong>{avgMin}</strong>
-                <span>мин за вечер (21:00–00:00)</span>
-              </>
-            ) : (
-              <span className="muted">Пока мало данных</span>
-            )}
-          </p>
-          <p className="muted" style={{ margin: "8px 0 0", fontSize: "0.85rem" }}>
-            Сумма за 30 дней в окне 21:00–00:00: {minutes30d} мин ·{" "}
-            {sessions30d} вечеров (только TR1)
-          </p>
         </div>
       </div>
 

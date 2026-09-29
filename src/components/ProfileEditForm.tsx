@@ -8,7 +8,7 @@ import {
   formatDiscordDisplay,
   formatTelegramDisplay,
 } from "@/lib/social";
-import { ProfileAccountCard } from "@/components/ProfileAccountCard";
+import { ProfileAccountCard, type ProfileClanLink } from "@/components/ProfileAccountCard";
 
 type Props = {
   initial: {
@@ -23,6 +23,7 @@ type Props = {
     steamName: string | null;
     siteRole?: string;
     regNo?: number | null;
+    clans?: ProfileClanLink[];
   };
   adminLink?: ReactNode;
 };
@@ -149,6 +150,7 @@ export function ProfileEditForm({ initial, adminLink }: Props) {
               telegram: saved.telegram,
               steamId: saved.steamId,
               steamName: saved.steamName,
+              clans: initial.clans,
             }}
             headAction={
               <button type="button" className="btn ghost" onClick={() => setEditing(true)}>
