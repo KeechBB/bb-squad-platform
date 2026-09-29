@@ -239,7 +239,7 @@ export async function kitAveragesByTier(): Promise<TierKitAvg[]> {
   };
 
   function nickKey(nick: string): string {
-    return nick.trim().toLowerCase().replace(/\s+/g, " ");
+    return nick.trim().toLowerCase().replace(/\s+/g, "");
   }
 
   for (const u of users) {

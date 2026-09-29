@@ -356,6 +356,24 @@ model SquadRoleEvent {
   @@index([steamId, spawnedAt])
 }
 
+/// Очередь дозаливки сессий из логов после регистрации (разминка до рега).
+model SquadLogBackfillJob {
+  id        String    @id @default(cuid())
+  userId    String
+  steamId   String
+  nick      String?
+  /// pending | running | done | error
+  status    String    @default("pending")
+  error     String?
+  createdAt DateTime  @default(now())
+  startedAt DateTime?
+  doneAt    DateTime?
+
+  @@index([status, createdAt])
+  @@index([steamId])
+  @@index([userId])
+}
+
 /// Уникальный посетитель сайта (cookie/localStorage id). Читать только Keech.
 model SiteVisitor {
   id           String   @id @default(cuid())

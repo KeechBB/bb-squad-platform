@@ -71,7 +71,7 @@ type Agg = {
 };
 
 function nickKey(nick: string) {
-  return nick.trim().toLowerCase().replace(/\s+/g, " ");
+  return nick.trim().toLowerCase().replace(/\s+/g, "");
 }
 
 function softSat(x: number, mid: number) {

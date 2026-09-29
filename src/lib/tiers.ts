@@ -34,7 +34,7 @@ const KV_BASES = [
 ].filter(Boolean) as string[];
 
 function nickKey(nick: string): string {
-  return nick.trim().toLowerCase().replace(/\s+/g, " ");
+  return nick.trim().toLowerCase().replace(/\s+/g, "");
 }
 
 export function buildTierIndex(data: {

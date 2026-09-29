@@ -241,7 +241,10 @@ function n(v: unknown): number {
 }
 
 function nickEq(a: string, b: string) {
-  return a.trim().toLowerCase() === b.trim().toLowerCase();
+  const na = a.trim().toLowerCase();
+  const nb = b.trim().toLowerCase();
+  if (na === nb) return true;
+  return na.replace(/\s+/g, "") === nb.replace(/\s+/g, "");
 }
 
 /** Личная стата игрока по раундам из data/players + mvp-ledger */

@@ -97,6 +97,29 @@ export async function POST(req: Request) {
       actorNick: label,
       meta: { regNo, steamId: user.steamId },
     });
+
+    // Дозалить посещаемость/сессии из логов за дни до регистрации (коллектор).
+    try {
+      const existingJob = await prisma.squadLogBackfillJob.findFirst({
+        where: {
+          steamId: user.steamId,
+          status: { in: ["pending", "running"] },
+        },
+        select: { id: true },
+      });
+      if (!existingJob) {
+        await prisma.squadLogBackfillJob.create({
+          data: {
+            userId: user.id,
+            steamId: user.steamId,
+            nick: user.nick,
+            status: "pending",
+          },
+        });
+      }
+    } catch (err) {
+      console.error("backfill enqueue failed", err);
+    }
   }
 
   return NextResponse.json({

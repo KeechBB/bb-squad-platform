@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone
@@ -212,6 +213,14 @@ class Collector:
         self.roles_ingest_url = os.environ.get(
             "SQUAD_ROLES_INGEST_URL", roles_default
         ).strip() or roles_default
+        backfill_default = self.ingest_url.replace(
+            "/api/ingest/squad-sessions", "/api/ingest/backfill-sessions"
+        )
+        if backfill_default == self.ingest_url:
+            backfill_default = "https://bb-squad.ru/api/ingest/backfill-sessions"
+        self.backfill_jobs_url = os.environ.get(
+            "SQUAD_BACKFILL_JOBS_URL", backfill_default
+        ).strip() or backfill_default
         self.ingest_secret = env("SQUAD_INGEST_SECRET")
         self.state_path = Path(
             os.environ.get("SQUAD_STATE_PATH", "squad_collector_state.json")
@@ -745,6 +754,70 @@ class Collector:
             except Exception:
                 pass
 
+    def process_backfill_jobs(self) -> None:
+        """После регистрации: дозалить join/leave из логов за прошлые дни."""
+        headers = {
+            "Authorization": f"Bearer {self.ingest_secret}",
+            "Content-Type": "application/json",
+        }
+        try:
+            r = requests.get(
+                self.backfill_jobs_url,
+                headers=headers,
+                params={"limit": "2"},
+                timeout=30,
+            )
+        except Exception as e:
+            _safe_print("backfill jobs fetch fail", type(e).__name__, e, file=sys.stderr)
+            return
+        if r.status_code >= 300:
+            # endpoint ещё не задеплоен — тихо
+            if r.status_code != 404:
+                _safe_print("backfill jobs HTTP", r.status_code, r.text[:200], file=sys.stderr)
+            return
+        jobs = (r.json() or {}).get("jobs") or []
+        if not jobs:
+            return
+        script = Path(__file__).resolve().parent / "backfill_player_sessions.py"
+        for job in jobs:
+            jid = job.get("id")
+            steam = str(job.get("steamId") or "").strip()
+            nick = str(job.get("nick") or "").strip()
+            _safe_print("backfill job start", jid, steam, nick)
+            ok = False
+            err = None
+            try:
+                cmd = [sys.executable, str(script), "--steam", steam]
+                if nick:
+                    cmd += ["--nick", nick]
+                proc = subprocess.run(
+                    cmd,
+                    cwd=str(script.parent),
+                    timeout=900,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                )
+                if proc.stdout:
+                    _safe_print(proc.stdout[-1500:])
+                if proc.returncode != 0:
+                    err = (proc.stderr or proc.stdout or f"exit {proc.returncode}")[-500:]
+                    raise RuntimeError(err)
+                ok = True
+            except Exception as e:
+                err = str(e)[:500]
+                _safe_print("backfill job fail", jid, err, file=sys.stderr)
+            try:
+                requests.post(
+                    self.backfill_jobs_url,
+                    headers=headers,
+                    json={"complete": {"id": jid, "ok": ok, "error": err}},
+                    timeout=30,
+                )
+            except Exception as e:
+                _safe_print("backfill complete fail", type(e).__name__, e, file=sys.stderr)
+
     def run(self) -> None:
         _safe_print(
             "collector start",
@@ -755,6 +828,8 @@ class Collector:
         # Раз в час снова дочитать свежие backup (пропуск leave в live / рестарт).
         rebackup_every = max(1, int(3600 / max(self.poll_sec, 1)))
         stale_tick_every = max(1, int(60 / max(self.poll_sec, 1)))
+        # Очередь дозаливки после регистрации — раз в ~2 мин
+        backfill_every = max(1, int(120 / max(self.poll_sec, 1)))
         while True:
             try:
                 ticks += 1
@@ -766,6 +841,16 @@ class Collector:
                         self.processed_backups.discard(name)
                     _safe_print("hourly backup re-catchup armed", flush=True)
                 self.poll_once()
+                if ticks % backfill_every == 0:
+                    try:
+                        self.process_backfill_jobs()
+                    except Exception as e:
+                        _safe_print(
+                            "backfill tick fail",
+                            type(e).__name__,
+                            e,
+                            file=sys.stderr,
+                        )
                 # Пустой POST → на сайте stale-close висяков >18ч
                 if ticks % stale_tick_every == 0:
                     try:
