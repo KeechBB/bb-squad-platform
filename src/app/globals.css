@@ -4047,7 +4047,8 @@ body:has(.home-page) {
   margin: 0;
   width: 100%;
   height: 100%;
-  max-height: min(42vh, 360px);
+  /* TOP-10 без внутреннего скролла (~10 строк + шапка + футер) */
+  max-height: min(52vh, 430px);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -4056,7 +4057,7 @@ body:has(.home-page) {
 
 .home-hero-boards .home-attend-streaks-list {
   min-height: 0;
-  overflow-y: auto;
+  overflow-y: visible;
   flex: 1 1 auto;
 }
 
