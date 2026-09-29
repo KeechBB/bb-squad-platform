@@ -1199,7 +1199,7 @@ body:has(.profile-page) {
 
 .profile-hitmap-svg {
   width: 100%;
-  max-width: 220px;
+  max-width: 260px;
   height: auto;
   max-height: 100%;
   display: block;
@@ -1226,11 +1226,11 @@ body:has(.profile-page) {
 
 .profile-hitmap-strip-row {
   display: grid;
-  grid-template-columns: 8px minmax(0, 1fr) 2.2em 3.2em;
+  grid-template-columns: 8px minmax(0, 1fr) 2.4em 3.4em;
   align-items: center;
   gap: 4px;
-  height: 1.35rem;
-  font-size: 0.68rem;
+  height: 1.45rem;
+  font-size: 0.78rem;
   line-height: 1;
   white-space: nowrap;
 }

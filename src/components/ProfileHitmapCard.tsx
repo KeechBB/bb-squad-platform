@@ -80,19 +80,73 @@ const BONE_RU: Record<string, string> = {
   Bip01_R_Foot: "R стопа",
 };
 
-/** С какой стороны рисовать выноску (стрелочку + цифры). */
+/** С какой стороны рисовать выноску. Центр туловища — влево, чтобы не биться с правым плечом. */
 function calloutSide(bone: string): "L" | "R" {
-  if (
-    bone.includes("_R_") ||
-    bone === "Bip01_Head" ||
-    bone === "Bip01_Neck" ||
-    bone === "Bip01_Spine2" ||
-    bone === "Bip01_Spine" ||
-    bone === "Bip01_Pelvis"
-  ) {
-    return bone.includes("_L_") ? "L" : "R";
-  }
+  if (bone.includes("_L_")) return "L";
+  if (bone.includes("_R_")) return "R";
+  if (bone === "Bip01_Head" || bone === "Bip01_Neck") return "R";
   return "L";
+}
+
+/** Доп. сдвиг по Y у якоря, чтобы соседние кости не слипались. */
+const CALLOUT_DY: Record<string, number> = {
+  Bip01_Head: -6,
+  Bip01_Neck: 8,
+  Bip01_R_Clavicle: -10,
+  Bip01_R_UpperArm: 4,
+  Bip01_R_Forearm: 2,
+  Bip01_R_Hand: 4,
+  Bip01_Spine2: -4,
+  Bip01_Spine: 10,
+  Bip01_Pelvis: 8,
+  Bip01_L_Clavicle: -8,
+  Bip01_L_UpperArm: 4,
+};
+
+const CALLOUT_MIN_GAP = 18;
+
+type CalloutLayout = {
+  bone: string;
+  n: number;
+  pct: string;
+  cx: number;
+  cy: number;
+  side: "L" | "R";
+  labelY: number;
+};
+
+function layoutCallouts(
+  plot: [string, number][],
+  total: number
+): CalloutLayout[] {
+  const raw: CalloutLayout[] = plot.map(([bone, n]) => {
+    const [cx, cy] = ANCHORS[bone];
+    const side = calloutSide(bone);
+    const dy = CALLOUT_DY[bone] || 0;
+    return {
+      bone,
+      n,
+      pct: pct(n, total),
+      cx,
+      cy,
+      side,
+      labelY: cy + dy,
+    };
+  });
+
+  for (const side of ["L", "R"] as const) {
+    const group = raw
+      .filter((c) => c.side === side)
+      .sort((a, b) => a.labelY - b.labelY);
+    let last = -Infinity;
+    for (const c of group) {
+      if (c.labelY - last < CALLOUT_MIN_GAP) {
+        c.labelY = last + CALLOUT_MIN_GAP;
+      }
+      last = c.labelY;
+    }
+  }
+  return raw;
 }
 
 function offsets(n: number): [number, number][] {
@@ -114,7 +168,7 @@ function pct(n: number, total: number): string {
 
 export function ProfileHitmapCard({ bones, subtitle }: Props) {
   const uid = useId().replace(/:/g, "");
-  const { total, strip, plot } = useMemo(() => {
+  const { total, strip, plot, callouts } = useMemo(() => {
     const map = bones || {};
     let sum = 0;
     for (const [k, n] of Object.entries(map)) {
@@ -144,7 +198,12 @@ export function ProfileHitmapCard({ bones, subtitle }: Props) {
     const plotBones = Object.entries(map)
       .filter(([k, n]) => n > 0 && k !== "None" && ANCHORS[k])
       .map(([k, n]) => [k, n] as [string, number]);
-    return { total: sum, strip: stripRows, plot: plotBones };
+    return {
+      total: sum,
+      strip: stripRows,
+      plot: plotBones,
+      callouts: layoutCallouts(plotBones, sum),
+    };
   }, [bones]);
 
   return (
@@ -166,7 +225,7 @@ export function ProfileHitmapCard({ bones, subtitle }: Props) {
           <svg
             className="profile-hitmap-svg"
             role="img"
-            viewBox="0 0 240 380"
+            viewBox="-28 0 296 380"
             aria-label="Карта попаданий по костям"
           >
             <defs>
@@ -217,35 +276,39 @@ export function ProfileHitmapCard({ bones, subtitle }: Props) {
               })}
             </g>
             <g aria-label="цифры по частям" className="profile-hitmap-callouts">
-              {plot.map(([bone, n]) => {
-                const [cx, cy] = ANCHORS[bone];
-                const side = calloutSide(bone);
-                const tipX = side === "L" ? cx - 14 : cx + 14;
-                const labelX = side === "L" ? 4 : 236;
-                const anchor = side === "L" ? "start" : "end";
-                const p = pct(n, total);
+              {callouts.map((c) => {
+                const tipX = c.side === "L" ? c.cx - 12 : c.cx + 12;
+                const labelX = c.side === "L" ? -22 : 262;
+                const elbowX = c.side === "L" ? labelX + 52 : labelX - 52;
+                const anchor = c.side === "L" ? "start" : "end";
                 return (
-                  <g key={`call-${bone}`}>
+                  <g key={`call-${c.bone}`}>
                     <path
-                      d={`M${tipX} ${cy} L${side === "L" ? labelX + 36 : labelX - 36} ${cy}`}
-                      stroke="rgba(225,29,72,0.55)"
-                      strokeWidth="0.9"
+                      d={`M${tipX} ${c.cy} L${elbowX} ${c.labelY} L${
+                        c.side === "L" ? labelX + 2 : labelX - 2
+                      } ${c.labelY}`}
+                      stroke="rgba(225,29,72,0.6)"
+                      strokeWidth="1.1"
                       fill="none"
                     />
-                    <circle cx={tipX} cy={cy} r={1.6} fill="#e11d48" />
+                    <circle cx={tipX} cy={c.cy} r={2} fill="#e11d48" />
                     <text
                       x={labelX}
-                      y={cy + 3}
+                      y={c.labelY + 4}
                       textAnchor={anchor}
-                      fill="#fde2e8"
-                      fontSize="8.5"
+                      fill="#ffe4e6"
+                      fontSize="13"
                       fontWeight="700"
-                      fontFamily="ui-monospace, monospace"
+                      fontFamily="ui-sans-serif, system-ui, sans-serif"
                     >
-                      {n}
-                      <tspan fill="rgba(203,183,164,0.95)" fontWeight="500">
+                      {c.n}
+                      <tspan
+                        fill="rgba(253, 224, 220, 0.88)"
+                        fontWeight="600"
+                        fontSize="11.5"
+                      >
                         {" "}
-                        {p}
+                        {c.pct}
                       </tspan>
                     </text>
                   </g>
