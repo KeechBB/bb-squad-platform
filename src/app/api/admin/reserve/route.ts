@@ -2,12 +2,17 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/requireAdmin";
 import {
+  correctReserveEnteredAt,
   enterReserve,
   exitReserve,
   findBlackberryClanIds,
   userInReserve,
 } from "@/lib/reserve";
-import { parseFutureOrTodayDate, formatRuDate } from "@/lib/validation";
+import {
+  parseFutureOrTodayDate,
+  parseRuCalendarDate,
+  formatRuDate,
+} from "@/lib/validation";
 import { getUserRole } from "@/lib/admin";
 import type { AppRole } from "@/lib/roles";
 
@@ -115,6 +120,7 @@ export async function GET(req: Request) {
       clanTag: m.clan.tag,
       clanRole: m.role,
       inReserve,
+      stintId: inReserve && open ? open.id : null,
       reason: inReserve ? u.reserveReason || open?.reason || null : null,
       enteredAt: inReserve && open ? open.enteredAt.toISOString() : null,
       untilAt: inReserve && u.reserveUntil ? u.reserveUntil.toISOString() : null,
@@ -239,6 +245,90 @@ export async function POST(req: Request) {
   } catch (e) {
     if (e instanceof Error && e.message === "user_not_found") {
       return NextResponse.json({ error: "Игрок не найден" }, { status: 404 });
+    }
+    throw e;
+  }
+}
+
+/** PATCH — поправить дату ухода (enteredAt) у stint */
+export async function PATCH(req: Request) {
+  const gate = await requireAdmin();
+  if (gate.error) return gate.error;
+  const role = await getUserRole(gate.session!.user.steamId);
+  if (!canManageReserve(role)) {
+    return NextResponse.json({ error: "Нет доступа" }, { status: 403 });
+  }
+
+  const body = await req.json().catch(() => null);
+  const stintId = String((body as { stintId?: string })?.stintId || "").trim();
+  const enteredRaw = String(
+    (body as { enteredAt?: string })?.enteredAt || ""
+  ).trim();
+
+  if (!stintId) {
+    return NextResponse.json({ error: "stintId обязателен" }, { status: 400 });
+  }
+  const enteredAt = parseRuCalendarDate(enteredRaw);
+  if (!enteredAt) {
+    return NextResponse.json(
+      { error: "Дата ухода: ДД.ММ.ГГГГ" },
+      { status: 400 }
+    );
+  }
+  const now = new Date();
+  const todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  if (enteredAt.getTime() > todayUtc) {
+    return NextResponse.json(
+      { error: "Дата ухода не может быть в будущем" },
+      { status: 400 }
+    );
+  }
+
+  const actor = await prisma.user.findUnique({
+    where: { steamId: gate.session!.user.steamId },
+    select: {
+      id: true,
+      nick: true,
+      name: true,
+      steamName: true,
+      steamId: true,
+    },
+  });
+  if (!actor) {
+    return NextResponse.json({ error: "Актор не найден" }, { status: 404 });
+  }
+
+  try {
+    const { stint } = await correctReserveEnteredAt({
+      stintId,
+      enteredAt,
+      actor,
+    });
+    return NextResponse.json({
+      ok: true,
+      stint: {
+        id: stint.id,
+        enteredAt: stint.enteredAt.toISOString(),
+        enteredLabel: formatRuDate(stint.enteredAt),
+      },
+    });
+  } catch (e) {
+    if (e instanceof Error) {
+      if (e.message === "stint_not_found") {
+        return NextResponse.json({ error: "Запись не найдена" }, { status: 404 });
+      }
+      if (e.message === "entered_after_exit") {
+        return NextResponse.json(
+          { error: "Дата ухода позже даты выхода из резерва" },
+          { status: 400 }
+        );
+      }
+      if (e.message === "entered_after_until") {
+        return NextResponse.json(
+          { error: "Дата ухода позже срока «до»" },
+          { status: 400 }
+        );
+      }
     }
     throw e;
   }

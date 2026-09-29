@@ -154,6 +154,66 @@ export async function enterReserve(opts: {
   return { user, stint };
 }
 
+/**
+ * Поправить дату ухода в резерв (календарь «резерв» строится от enteredAt).
+ * enteredAt = UTC midnight календарного дня.
+ */
+export async function correctReserveEnteredAt(opts: {
+  stintId: string;
+  enteredAt: Date;
+  actor: ReserveActor;
+}) {
+  const stint = await prisma.reserveStint.findUnique({
+    where: { id: opts.stintId },
+    include: {
+      user: {
+        select: {
+          id: true,
+          nick: true,
+          name: true,
+          steamName: true,
+          steamId: true,
+        },
+      },
+    },
+  });
+  if (!stint) throw new Error("stint_not_found");
+
+  const endCap = stint.exitedAt ?? new Date();
+  if (opts.enteredAt.getTime() > endCap.getTime()) {
+    throw new Error("entered_after_exit");
+  }
+  // Не позже «до» (untilAt) — иначе бессмысленно
+  if (opts.enteredAt.getTime() > stint.untilAt.getTime()) {
+    throw new Error("entered_after_until");
+  }
+
+  const prev = stint.enteredAt;
+  const updated = await prisma.reserveStint.update({
+    where: { id: stint.id },
+    data: { enteredAt: opts.enteredAt },
+  });
+
+  const target = personLabel(stint.user);
+  const actor = personLabel(opts.actor);
+  await writeActionLog({
+    category: "admin",
+    action: "reserve_entered_at_fix",
+    message: `${actor} поправил дату ухода в резерв у ${target}: ${formatRuDate(prev)} → ${formatRuDate(opts.enteredAt)}`,
+    actorId: opts.actor.id,
+    actorNick: actor,
+    targetId: stint.user.id,
+    targetNick: target,
+    meta: {
+      stintId: stint.id,
+      from: prev.toISOString(),
+      to: opts.enteredAt.toISOString(),
+    },
+  });
+
+  return { stint: updated };
+}
+
 export async function exitReserve(opts: {
   userId: string;
   source: "self" | "admin";

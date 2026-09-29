@@ -84,12 +84,18 @@ export function formatBirthDateInput(value: string): string {
   return `${digits.slice(0, 2)}.${digits.slice(2, 4)}.${digits.slice(4)}`;
 }
 
-/** ДД.ММ.ГГГГ → Date UTC midnight, если дата валидна и не в прошлом */
-export function parseFutureOrTodayDate(raw: string): Date | null {
+/** ДД.ММ.ГГГГ / YYYY-MM-DD → Date UTC midnight (любая валидная дата) */
+export function parseRuCalendarDate(raw: string): Date | null {
   const iso = toIsoBirthDate(raw);
   if (!iso) return null;
   const [y, mo, d] = iso.split("-").map(Number);
-  const date = new Date(Date.UTC(y, mo - 1, d));
+  return new Date(Date.UTC(y, mo - 1, d));
+}
+
+/** ДД.ММ.ГГГГ → Date UTC midnight, если дата валидна и не в прошлом */
+export function parseFutureOrTodayDate(raw: string): Date | null {
+  const date = parseRuCalendarDate(raw);
+  if (!date) return null;
   const now = new Date();
   const todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
   if (date.getTime() < todayUtc) return null;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { formatBirthDateInput, formatRuDate } from "@/lib/validation";
 
 type Player = {
   userId: string;
@@ -12,6 +13,7 @@ type Player = {
   clanTag: string;
   clanRole: string;
   inReserve: boolean;
+  stintId: string | null;
   reason: string | null;
   enteredAt: string | null;
   untilAt: string | null;
@@ -66,6 +68,7 @@ export function AdminReservePanel() {
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [until, setUntil] = useState("");
   const [reason, setReason] = useState("");
+  const [enteredEdit, setEnteredEdit] = useState("");
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async (historyUserId?: string) => {
@@ -79,11 +82,19 @@ export function AdminReservePanel() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Ошибка");
-      setPlayers((json.players || []) as Player[]);
+      const list = (json.players || []) as Player[];
+      setPlayers(list);
       setInReserveCount(Number(json.inReserveCount) || 0);
       setTotal(Number(json.total) || 0);
       if (historyUserId) {
         setHistory((json.history || []) as HistoryRow[]);
+        const fresh = list.find((p) => p.userId === historyUserId);
+        if (fresh) {
+          setSelected(fresh);
+          if (fresh.inReserve && fresh.enteredLabel) {
+            setEnteredEdit(fresh.enteredLabel);
+          }
+        }
       }
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Ошибка");
@@ -113,6 +124,7 @@ export function AdminReservePanel() {
     setSelected(p);
     setUntil("");
     setReason(p.inReserve ? p.reason || "" : "");
+    setEnteredEdit(p.inReserve ? p.enteredLabel || "" : "");
     await load(p.userId);
   }
 
@@ -162,12 +174,32 @@ export function AdminReservePanel() {
     }
   }
 
+  async function saveEnteredAt(stintId: string, raw: string) {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch("/api/admin/reserve", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stintId, enteredAt: raw }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Ошибка");
+      if (selected) await load(selected.userId);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Ошибка");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section className="card journal-card">
       <p className="muted" style={{ marginTop: 0 }}>
         Весь состав BlackBerry: кто в резерве и кто в строю. Можно вручную
-        отправить в резерв или вернуть. Действия пишутся в{" "}
-        <strong>Журнал действий</strong>. История резервов — справа по игроку.
+        отправить в резерв, вернуть или поправить дату ухода (влияет на календарь
+        посещаемости). Действия пишутся в <strong>Журнал действий</strong>.
+        История резервов — справа по игроку.
       </p>
 
       <div className="journal-toolbar" style={{ flexWrap: "wrap", gap: 12 }}>
@@ -320,6 +352,41 @@ export function AdminReservePanel() {
                 </p>
               ) : null}
 
+              {selected.inReserve && selected.stintId ? (
+                <div className="card" style={{ margin: "0 0 14px", padding: 12 }}>
+                  <h4 style={{ margin: "0 0 8px" }}>Дата ухода в резерв</h4>
+                  <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+                    С этой даты в календаре тренировок — синие дни «резерв».
+                  </p>
+                  <label className="field">
+                    <span>Ушёл с (ДД.ММ.ГГГГ)</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="ДД.ММ.ГГГГ"
+                      value={enteredEdit}
+                      onChange={(e) =>
+                        setEnteredEdit(formatBirthDateInput(e.target.value))
+                      }
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={
+                      busy ||
+                      enteredEdit.replace(/\D/g, "").length !== 8 ||
+                      enteredEdit === selected.enteredLabel
+                    }
+                    onClick={() =>
+                      void saveEnteredAt(selected.stintId!, enteredEdit)
+                    }
+                  >
+                    Сохранить дату ухода
+                  </button>
+                </div>
+              ) : null}
+
               <div className="card" style={{ margin: "0 0 14px", padding: 12 }}>
                 <h4 style={{ margin: "0 0 8px" }}>
                   {selected.inReserve
@@ -367,6 +434,7 @@ export function AdminReservePanel() {
                       <th>Выход</th>
                       <th>Кто</th>
                       <th>Причина</th>
+                      <th></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -391,11 +459,29 @@ export function AdminReservePanel() {
                             ? `${h.reason.slice(0, 36)}…`
                             : h.reason}
                         </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn-ghost"
+                            style={{ fontSize: 12, padding: "2px 8px" }}
+                            disabled={busy}
+                            onClick={() => {
+                              const next = window.prompt(
+                                "Дата ухода (ДД.ММ.ГГГГ)",
+                                formatRuDate(new Date(h.enteredAt))
+                              );
+                              if (!next?.trim()) return;
+                              void saveEnteredAt(h.id, next.trim());
+                            }}
+                          >
+                            дата
+                          </button>
+                        </td>
                       </tr>
                     ))}
                     {!history.length ? (
                       <tr>
-                        <td colSpan={5} className="muted">
+                        <td colSpan={6} className="muted">
                           История пуста
                         </td>
                       </tr>
