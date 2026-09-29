@@ -52,7 +52,7 @@ const TRAIN_PWR = {
     [300, "Gold", "gold"],
     [400, "Platinum", "platinum"],
     [500, "Diamond", "diamond"],
-    [600, "Ascendant", "ascendant"],
+    [600, "Legend", "legend"],
     [700, "Immortal", "immortal"],
     [800, "Master", "master"],
     [900, "Radiant", "radiant"],
