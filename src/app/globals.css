@@ -462,9 +462,8 @@ body:has(.profile-page) {
 
 /* Профиль: влезает в экран, скролл в колонках и нижних историях */
 .shell:has(.profile-page) {
-  max-width: none;
-  width: 100%;
-  padding: 10px 20px 12px;
+  max-width: 1760px;
+  padding: 10px 16px 12px;
   height: calc(100dvh - 76px);
   max-height: calc(100dvh - 76px);
   overflow: hidden;
@@ -473,13 +472,13 @@ body:has(.profile-page) {
 
 .profile-page {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(210px, 0.68fr) minmax(0, 1.22fr);
-  /* head — по контенту; середина и истории делят остаток */
+  /* 4 колонки: истории КВ и тренировок одинаковой ширины */
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.4fr) minmax(0, 0.4fr) minmax(0, 1.15fr);
   grid-template-rows: auto minmax(0, 1.15fr) minmax(160px, 0.9fr);
   grid-template-areas:
-    "head head head"
-    "account hitmap training"
-    "kvhist trainhist trainhist";
+    "head head head head"
+    "account hitmap hitmap training"
+    "kvhist kvhist trainhist trainhist";
   gap: 8px;
   align-items: stretch;
   height: 100%;
@@ -489,7 +488,7 @@ body:has(.profile-page) {
 }
 
 .profile-page-empty {
-  grid-template-areas: "head head head" "account account account";
+  grid-template-areas: "head head head head" "account account account account";
   max-width: 720px;
 }
 
@@ -1547,18 +1546,67 @@ body:has(.profile-page) {
   white-space: nowrap;
 }
 
-.profile-area-train-hist .training-sessions-table td:nth-child(2),
-.profile-area-train-hist .training-sessions-table th:nth-child(2) {
-  white-space: normal;
-  min-width: 10rem;
-}
-
+.profile-area-kv-hist .profile-hist-table-wrap,
 .profile-area-train-hist .profile-hist-table-wrap {
   overflow-x: hidden;
 }
 
-.profile-area-kv-hist .profile-hist-table-wrap {
-  overflow-x: auto;
+.profile-area-kv-hist .training-sessions-table,
+.profile-area-train-hist .training-sessions-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.profile-area-kv-hist .training-sessions-table th,
+.profile-area-kv-hist .training-sessions-table td,
+.profile-area-train-hist .training-sessions-table th,
+.profile-area-train-hist .training-sessions-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  vertical-align: top;
+}
+
+.profile-area-kv-hist .training-sessions-table th:nth-child(1),
+.profile-area-kv-hist .training-sessions-table td:nth-child(1),
+.profile-area-train-hist .training-sessions-table th:nth-child(1),
+.profile-area-train-hist .training-sessions-table td:nth-child(1) {
+  width: 4.6rem;
+  white-space: nowrap;
+}
+
+.profile-area-kv-hist .training-sessions-table th:nth-child(4),
+.profile-area-kv-hist .training-sessions-table td:nth-child(4),
+.profile-area-train-hist .training-sessions-table th:nth-child(3),
+.profile-area-train-hist .training-sessions-table td:nth-child(3) {
+  width: 4.2rem;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.profile-area-kv-hist .training-sessions-table th:nth-child(5),
+.profile-area-kv-hist .training-sessions-table td:nth-child(5),
+.profile-area-train-hist .training-sessions-table th:nth-child(4),
+.profile-area-train-hist .training-sessions-table td:nth-child(4) {
+  width: 3.6rem;
+  white-space: nowrap;
+}
+
+.profile-area-kv-hist .training-sessions-table th:nth-child(6),
+.profile-area-kv-hist .training-sessions-table td:nth-child(6),
+.profile-area-train-hist .training-sessions-table th:nth-child(5),
+.profile-area-train-hist .training-sessions-table td:nth-child(5) {
+  width: 5.2rem;
+}
+
+.profile-area-kv-hist .training-sessions-table th:nth-child(7),
+.profile-area-kv-hist .training-sessions-table td:nth-child(7) {
+  width: 5.8rem;
+}
+
+.profile-area-train-hist .training-match-map,
+.profile-area-kv-hist .training-match-map {
+  white-space: normal;
 }
 
 .att-tag {
