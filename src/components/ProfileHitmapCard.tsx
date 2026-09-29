@@ -79,9 +79,13 @@ export function ProfileHitmapCard({ bones, subtitle }: Props) {
     <section className="card profile-hitmap-card">
       <div className="profile-kv-head">
         <h2>Попадания</h2>
-        <span className="muted profile-hitmap-sub">
-          {subtitle || (total > 0 ? `${total} хитов · TR1` : "BBHitZone")}
-        </span>
+        {total > 0 ? (
+          <span className="muted profile-hitmap-sub">
+            {subtitle || `${total} хитов · TR1`}
+          </span>
+        ) : (
+          <span className="profile-edit-head-spacer" aria-hidden="true" />
+        )}
       </div>
       <div className="profile-hitmap-body-wrap">
         <svg
@@ -138,11 +142,7 @@ export function ProfileHitmapCard({ bones, subtitle }: Props) {
           </g>
         </svg>
       </div>
-      {total === 0 ? (
-        <p className="muted profile-hitmap-empty">
-          Пока нет попаданий BBHitZone с этого аккаунта на TR1.
-        </p>
-      ) : (
+      {total > 0 ? (
         <ul className="profile-hitmap-legend">
           {entries.slice(0, 8).map(([bone, n]) => (
             <li key={bone}>
@@ -153,7 +153,7 @@ export function ProfileHitmapCard({ bones, subtitle }: Props) {
             </li>
           ))}
         </ul>
-      )}
+      ) : null}
     </section>
   );
 }
