@@ -105,17 +105,21 @@ export function ProfileHitmapCard({ bones, subtitle }: Props) {
     for (const [k, n] of Object.entries(map)) {
       if (n > 0 && k !== "None") sum += n;
     }
-    const stripRows = BONE_ORDER.filter((b) => (map[b] || 0) > 0).map((b) => ({
+    const stripRows: {
+      bone: string;
+      label: string;
+      n: number;
+      pct: string;
+    }[] = BONE_ORDER.filter((b) => (map[b] || 0) > 0).map((b) => ({
       bone: b,
       label: BONE_RU[b] || b,
       n: map[b] || 0,
       pct: pct(map[b] || 0, sum),
     }));
     // кости вне канона (если вдруг появятся) — в конец
+    const known = new Set<string>(BONE_ORDER);
     for (const [k, n] of Object.entries(map)) {
-      if (n <= 0 || k === "None" || BONE_ORDER.includes(k as (typeof BONE_ORDER)[number])) {
-        continue;
-      }
+      if (n <= 0 || k === "None" || known.has(k)) continue;
       stripRows.push({
         bone: k,
         label: BONE_RU[k] || k.replace(/^Bip01_/, ""),
