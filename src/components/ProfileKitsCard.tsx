@@ -380,11 +380,12 @@ export function ProfileKitsCard({ userId, kits: initialKits }: Props) {
 
       <p className="muted profile-kits-period">
         {loading ? "Обновляем…" : periodLabel}
+        {!loading ? " · 21:30–01:00 МСК" : ""}
       </p>
 
       {kits.length === 0 ? (
         <p className="muted profile-kits-empty">
-          Пока нет стандартных китов на TR1 за этот период.
+          Пока нет стандартных китов на TR1 в боевое окно (21:30–01:00 МСК) за этот период.
         </p>
       ) : (
         <div className="profile-kits-body">

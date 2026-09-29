@@ -6,6 +6,7 @@ import {
   normalizeEosId,
   normalizeSteamId,
   roleEventKey,
+  isRoleCombatWindowMsk,
   type SquadRoleIngestEvent,
 } from "@/lib/squadRoles";
 
@@ -99,6 +100,11 @@ export async function POST(req: Request) {
     }
     const at = new Date(raw.at);
     if (Number.isNaN(at.getTime())) {
+      skipped += 1;
+      continue;
+    }
+    // Только боевое окно 21:30–01:00 МСК (без разминки/брифинга).
+    if (!isRoleCombatWindowMsk(at)) {
       skipped += 1;
       continue;
     }
