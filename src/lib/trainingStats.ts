@@ -6,6 +6,7 @@ import {
   trainingDayVisitBoundsFromSessions,
   trainingDayYmd,
 } from "@/lib/squadSessions";
+import { isTrainingServerKey } from "@/lib/squadServers";
 import { reserveDaysForUser } from "@/lib/reserve";
 
 const LIST_LIMIT = 80;
@@ -48,11 +49,11 @@ export async function loadUserTrainingStats(userId: string) {
 
   const sessions = lean.slice(0, LIST_LIMIT);
 
-  /** Минуты в окне 21:00–00:00 МСК на TR1 по дням тренировки (за 30 дн) */
+  /** Минуты в окне 21:00–00:00 МСК на TR1/TR2 по дням тренировки (за 30 дн) */
   const eveningMinsByDay = new Map<string, number>();
   for (const s of lean) {
     if (s.joinedAt < since) continue;
-    if ((s.serverKey || "").toUpperCase() !== "TR1") continue;
+    if (!isTrainingServerKey(s.serverKey)) continue;
     const mins = eveningWindowOverlapMinutes(s.joinedAt, s.leftAt);
     if (mins <= 0) continue;
     const day = trainingDayYmd(s.joinedAt);
@@ -62,7 +63,7 @@ export async function loadUserTrainingStats(userId: string) {
   /** Вечера с ненулевым временем в окне 21:00–00:00 */
   const sessions30d = eveningMinsByDay.size;
   const openNow = lean.some(
-    (s) => s.leftAt == null && (s.serverKey || "").toUpperCase() === "TR1"
+    (s) => s.leftAt == null && isTrainingServerKey(s.serverKey)
   );
 
   return {

@@ -51,7 +51,7 @@ cd /var/www/bb-squad-platform && bash scripts/deploy.sh
 
 ## Squad log collector (24/7)
 
-Заходы/выходы TR1+PB1 **и** попадания BBHitZone (TR1) → **локальный Postgres**. **Только на этом VPS** (`pm2 bb-squad-collector`), не на ПК.  
+Заходы/выходы TR1+TR2+PB1 **и** попадания BBHitZone (TR1+TR2) → **локальный Postgres**. **Только на этом VPS** (`pm2 bb-squad-collector`), не на ПК.  
 
 Подробности: `docs/SQUAD-COLLECTOR-VPS.md`. После деплоя hit-ingest: `python scripts/backfill_squad_hits.py`.  
 Установка: [SQUAD-COLLECTOR-VPS.md](./SQUAD-COLLECTOR-VPS.md).

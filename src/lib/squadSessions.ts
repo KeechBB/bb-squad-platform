@@ -1,5 +1,7 @@
 /** Squad server join/leave sessions for registered platform users. */
 
+import { isTrainingServerKey } from "@/lib/squadServers";
+
 export type SquadSessionEventType = "join" | "leave";
 
 export type SquadSessionIngestEvent = {
@@ -279,7 +281,7 @@ export function trainingDayVisitBoundsFromSessions(
   const byDay = new Map<string, Array<{ joinedAt: Date; leftAt: Date | null }>>();
   for (const s of sessions) {
     const key = (s.serverKey || "").toUpperCase();
-    if (key && key !== "TR1") continue;
+    if (key && !isTrainingServerKey(key)) continue;
     const day = trainingDayYmd(s.joinedAt);
     if (!byDay.has(day)) byDay.set(day, []);
     byDay.get(day)!.push({ joinedAt: s.joinedAt, leftAt: s.leftAt });
@@ -349,7 +351,7 @@ export function trainingDayMarksFromSessions(
   >();
   for (const s of sessions) {
     const key = (s.serverKey || "").toUpperCase();
-    if (key && key !== "TR1") continue;
+    if (key && !isTrainingServerKey(key)) continue;
     const day = trainingDayYmd(s.joinedAt);
     if (!byDay.has(day)) byDay.set(day, []);
     byDay.get(day)!.push({ joinedAt: s.joinedAt, leftAt: s.leftAt });

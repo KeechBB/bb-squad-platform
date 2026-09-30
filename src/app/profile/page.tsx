@@ -189,7 +189,7 @@ export default async function ProfilePage() {
           userId={me.id}
           bones={hitmap.bones}
           lastBone={hitmap.lastBone}
-          subtitle={hitmap.total > 0 ? "TR1" : undefined}
+          subtitle={hitmap.total > 0 ? "TR1+TR2" : undefined}
         />
       </div>
 

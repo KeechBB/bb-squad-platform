@@ -698,9 +698,9 @@ export function AdminAttendancePanel() {
             type="button"
             className={server === "TR1" ? "active" : ""}
             onClick={() => setServer("TR1")}
-            title="Тренировочный сервер"
+            title="Тренировочные серверы TR1+TR2"
           >
-            TR1
+            TR
           </button>
           <button
             type="button"
@@ -726,7 +726,7 @@ export function AdminAttendancePanel() {
         {data && nickQuery.trim()
           ? ` · Найдено: ${rows.length} из ${data.rows.length}`
           : ""}
-        {` · Сервер: ${server === "TR1" ? "TR1 (тренировка)" : "PB1 (паблик)"}`}
+        {` · Сервер: ${server === "TR1" ? "тренировка (TR1+TR2)" : "PB1 (паблик)"}`}
         {" · Автообновление ~15 сек"}
         {tab === "table"
           ? [
@@ -910,7 +910,7 @@ export function AdminAttendancePanel() {
                 <div className="attend-turnout-legend">
                   <span className="attend-turnout-leg a">Зареганы</span>
                   <span className="attend-turnout-leg b">
-                    {server === "TR1" ? "Были на TR1" : "Были на PB1"}
+                    {server === "TR1" ? "Были на тренировке" : "Были на PB1"}
                   </span>
                 </div>
                 {(() => {

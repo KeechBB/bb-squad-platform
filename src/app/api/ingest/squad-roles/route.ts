@@ -9,6 +9,7 @@ import {
   isRoleCombatWindowMsk,
   type SquadRoleIngestEvent,
 } from "@/lib/squadRoles";
+import { isTrainingServerKey } from "@/lib/squadServers";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -115,7 +116,7 @@ export async function POST(req: Request) {
       continue;
     }
     const serverKey = (raw.serverKey || defaultServer).trim() || defaultServer;
-    if (serverKey !== "TR1") {
+    if (!isTrainingServerKey(serverKey)) {
       skipped += 1;
       continue;
     }

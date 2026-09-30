@@ -24,7 +24,7 @@ SQUAD_SSH_HOST=194.93.2.107
 SQUAD_SSH_PORT=2022
 SQUAD_SSH_USER=squad
 SQUAD_SSH_PASSWORD=…пароль game-сервера…
-SQUAD_SERVERS=TR1,TPUB1
+SQUAD_SERVERS=TR1,TR2,TPUB1
 SQUAD_LOG_ROOT=/home/squad/servers
 SQUAD_INGEST_URL=https://bb-squad.ru/api/ingest/squad-sessions
 # опционально (по умолчанию …/api/ingest/squad-hits):
@@ -36,7 +36,7 @@ SQUAD_POLL_SEC=5
 
 `SQUAD_INGEST_SECRET` возьми с VPS: `grep SQUAD_INGEST_SECRET /var/www/bb-squad-platform/.env`
 
-Коллектор шлёт **два** потока: join/leave (посещаемость) и `BBHitZone` с TR1 (хитмап в профиле).
+Коллектор шлёт **два** потока: join/leave (посещаемость TR1+TR2+TPUB1) и `BBHitZone` / DeployRole с **TR1 и TR2** (хитмап и киты в профиле).
 
 После первого деплоя hit-ingest — один раз долить историю из логов (через venv коллектора, не системный `python`):
 
@@ -80,4 +80,4 @@ pm2 сам поднимает процесс. При ротации лога к�
 ## ПК больше не нужен для логов
 
 Даже в отпуске на неделю данные продолжают писаться в Postgres через ingest API
-(заходы + попадания TR1).
+(заходы + попадания TR1/TR2).

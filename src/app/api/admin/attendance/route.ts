@@ -11,6 +11,7 @@ import {
   trainingDayYmd,
   trainingWindowOverlapMinutes,
 } from "@/lib/squadSessions";
+import { TRAINING_SERVER_KEYS } from "@/lib/squadServers";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -69,13 +70,13 @@ export async function GET(req: Request) {
   );
   let toYmd = url.searchParams.get("to") || defaultTo;
 
-  // TR1 = тренировка, PB1/TPUB1 = паблик
+  // TR1/TR2 = тренировка, PB1/TPUB1 = паблик
   const serverRaw = (url.searchParams.get("server") || "TR1").trim().toUpperCase();
-  const serverKey =
-    serverRaw === "PB1" || serverRaw === "TPUB1" || serverRaw === "PUB"
-      ? "TPUB1"
-      : "TR1";
-
+  const isPublic =
+    serverRaw === "PB1" || serverRaw === "TPUB1" || serverRaw === "PUB";
+  const sessionServerFilter = isPublic
+    ? { serverKey: "TPUB1" }
+    : { serverKey: { in: [...TRAINING_SERVER_KEYS] } };
   // clamp inclusive window to ≤ 30 days
   {
     const start = new Date(Date.UTC(
@@ -149,7 +150,7 @@ export async function GET(req: Request) {
   const sessions = await prisma.squadServerSession.findMany({
     where: {
       joinedAt: { gte: from, lt: to },
-      serverKey,
+      ...sessionServerFilter,
     },
     orderBy: { joinedAt: "asc" },
     select: {
@@ -201,8 +202,8 @@ export async function GET(req: Request) {
       serverKey: s.serverKey,
     });
 
-    // TR1: колонка = день тренировки; PB1: календарный день захода
-    const day = serverKey === "TR1" ? trainingDayYmd(s.joinedAt) : ymdMsk(s.joinedAt);
+    // тренировка: колонка = день тренировки; PB1: календарный день захода
+    const day = !isPublic ? trainingDayYmd(s.joinedAt) : ymdMsk(s.joinedAt);
     if (!days.includes(day)) continue;
     const end = s.leftAt ?? now;
     const mins = Math.max(
@@ -255,7 +256,6 @@ export async function GET(req: Request) {
     after2130: 0,
   };
   const weekday = [0, 0, 0, 0, 0, 0, 0];
-  const isPublic = serverKey === "TPUB1";
 
   /** Уникальные в окне 21:00–00:00 (для средних) */
   const uniqueMidnightByDay: Record<string, Set<string>> = {};

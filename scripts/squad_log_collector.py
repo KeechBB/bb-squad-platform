@@ -11,8 +11,8 @@ Env (не коммитить секреты):
   # Один лог (legacy):
   SQUAD_LOG_PATH=/home/squad/servers/TPUB1/SquadGame/Saved/Logs/SquadGame.log
   SQUAD_SERVER_KEY=TPUB1
-  # Или несколько серверов (тренировка TR1 + паб):
-  SQUAD_SERVERS=TR1,TPUB1
+  # Или несколько серверов (тренировка TR1+TR2 + паб):
+  SQUAD_SERVERS=TR1,TR2,TPUB1
   SQUAD_LOG_ROOT=/home/squad/servers
   SQUAD_INGEST_URL=https://bb-squad.ru/api/ingest/squad-sessions
   SQUAD_HITS_INGEST_URL=https://bb-squad.ru/api/ingest/squad-hits
@@ -36,6 +36,10 @@ from typing import Any
 
 import paramiko
 import requests
+
+# Join/leave со всех SQUAD_SERVERS; hits + DeployRole — только тренировочные
+# (мод BBHitZone / учёт китов как на TR1).
+TRAINING_HIT_ROLE_SERVERS = frozenset({"TR1", "TR2"})
 
 # Name may contain spaces; passworded servers append ?PASSWORD=… before userId.
 LOGIN_RE = re.compile(
@@ -410,8 +414,8 @@ class Collector:
     ) -> dict[str, Any] | None:
         if "BBHitZone:" not in line:
             return None
-        # Hits only from TR1 (mod runs there; ignore other servers)
-        if server_key != "TR1":
+        # Hits only from training servers with BBHitZone mod
+        if server_key not in TRAINING_HIT_ROLE_SERVERS:
             return None
         hm = HIT_RE.search(line)
         if not hm:
@@ -457,7 +461,7 @@ class Collector:
             "damage": damage or None,
             "weapon": weapon,
             "at": parse_ts(tm.group("ts")),
-            "serverKey": "TR1",
+            "serverKey": server_key,
         }
 
     def _parse_role(
@@ -465,7 +469,7 @@ class Collector:
     ) -> dict[str, Any] | None:
         if "DeployRole=" not in line:
             return None
-        if server_key != "TR1":
+        if server_key not in TRAINING_HIT_ROLE_SERVERS:
             return None
         dm = DEPLOY_RE.search(line)
         if not dm:
@@ -496,7 +500,7 @@ class Collector:
             "nick": nick or None,
             "role": role,
             "at": parse_ts(tm.group("ts")),
-            "serverKey": "TR1",
+            "serverKey": server_key,
         }
 
     def _remember_map(self, eos: str, steam: str) -> list[dict[str, Any]]:

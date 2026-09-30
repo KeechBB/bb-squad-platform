@@ -378,7 +378,7 @@ export function ProfileHitmapCard({
         <div className="profile-hitmap-head-text">
           <h2>Попадания</h2>
           <span className="muted profile-hitmap-sub">
-            {subtitle || "TR1"} · {periodLabel}
+            {subtitle || "TR1+TR2"} · {periodLabel}
             {loading ? "…" : ""}
           </span>
         </div>

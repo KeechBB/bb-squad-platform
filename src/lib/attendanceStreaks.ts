@@ -7,6 +7,7 @@ import {
   trainingDayYmd,
   ymdFromMskParts,
 } from "@/lib/squadSessions";
+import { TRAINING_SERVER_KEYS } from "@/lib/squadServers";
 import { userInReserve } from "@/lib/reserve";
 
 export type AttendanceStreakRow = {
@@ -236,7 +237,7 @@ export async function buildAttendanceStreakBoard(
     }),
     prisma.squadServerSession.findMany({
       where: {
-        serverKey: "TR1",
+        serverKey: { in: [...TRAINING_SERVER_KEYS] },
         joinedAt: { gte: attendanceCanonStartUtc() },
       },
       orderBy: { joinedAt: "asc" },

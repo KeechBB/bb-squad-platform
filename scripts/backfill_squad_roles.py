@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Backfill DeployRole (standard kits) from TR1 logs → POST /api/ingest/squad-roles.
+Backfill DeployRole (standard kits) from TR1+TR2 logs → POST /api/ingest/squad-roles.
 
   python backfill_squad_roles.py
   python backfill_squad_roles.py --dry-run
@@ -35,8 +35,7 @@ load_dotenv_file(HERE.parent / ".env")
 import paramiko  # noqa: E402
 
 ROOT = os.environ.get("SQUAD_LOG_ROOT", "/home/squad/servers").rstrip("/")
-SERVER = "TR1"
-LOG_DIR = f"{ROOT}/{SERVER}/SquadGame/Saved/Logs"
+SERVERS = ["TR1", "TR2"]
 
 
 def parse_args() -> argparse.Namespace:
@@ -83,12 +82,16 @@ def main() -> None:
         look_for_keys=False,
     )
 
-    files_cmd = (
-        f"ls -1t {LOG_DIR}/SquadGame-backup-*.log 2>/dev/null "
-        f"| head -{max(0, args.backups)} ; "
-        f"echo {LOG_DIR}/SquadGame.log"
-    )
-    _, out, _ = c.exec_command(files_cmd, timeout=30)
+    files_cmd_parts = []
+    for srv in SERVERS:
+        log_dir = f"{ROOT}/{srv}/SquadGame/Saved/Logs"
+        files_cmd_parts.append(
+            f"ls -1t {log_dir}/SquadGame-backup-*.log 2>/dev/null "
+            f"| head -{max(0, args.backups)} ; "
+            f"echo {log_dir}/SquadGame.log"
+        )
+    files_cmd = " ; ".join(files_cmd_parts)
+    _, out, _ = c.exec_command(files_cmd, timeout=60)
     paths = [
         p.strip()
         for p in out.read().decode("utf-8", "replace").splitlines()
@@ -104,7 +107,14 @@ def main() -> None:
     eos_steam: dict[str, str] = {}
     events: list[dict] = []
 
+    def server_from_path(path: str) -> str:
+        for srv in SERVERS:
+            if f"/{srv}/" in path.replace("\\", "/"):
+                return srv
+        return "TR1"
+
     for path in ordered:
+        server_key = server_from_path(path)
         grep_cmd = (
             f"grep -E 'DeployRole=|EOS:.*steam:|steam:.*EOS:' "
             f"{path} 2>/dev/null || true"
@@ -160,11 +170,11 @@ def main() -> None:
                     "nick": nick or None,
                     "role": role,
                     "at": at_iso,
-                    "serverKey": "TR1",
+                    "serverKey": server_key,
                 }
             )
             n_roles += 1
-        print(f"{path.rsplit('/', 1)[-1]}: roles≈{n_roles}", flush=True)
+        print(f"{server_key} {path.rsplit('/', 1)[-1]}: roles≈{n_roles}", flush=True)
 
     c.close()
     print(f"total events: {len(events)} (eos_map={len(eos_steam)})", flush=True)
