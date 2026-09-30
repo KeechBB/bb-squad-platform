@@ -279,7 +279,13 @@ export function ProfileKitsCard({ userId, kits: initialKits }: Props) {
   }).format(new Date(Date.UTC(viewY, viewM - 1, 1)));
 
   return (
-    <section className="card profile-pwr-card profile-kits-card">
+    <section
+      className={
+        calOpen
+          ? "card profile-pwr-card profile-kits-card is-cal-open"
+          : "card profile-pwr-card profile-kits-card"
+      }
+    >
       <div className="profile-kv-head">
         <h2>Роли</h2>
         <div className="profile-kits-filter" ref={wrapRef}>

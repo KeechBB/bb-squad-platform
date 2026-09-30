@@ -620,6 +620,9 @@ body:has(.profile-page) {
 .profile-area-head {
   grid-area: head;
   align-self: start;
+  position: relative;
+  z-index: 5;
+  overflow: visible;
 }
 
 .profile-head-cluster {
@@ -666,6 +669,12 @@ body:has(.profile-page) {
   flex: 0 1 300px;
   max-width: 340px;
   min-width: 240px;
+  overflow: visible;
+  position: relative;
+}
+
+.profile-head-cluster > .profile-kits-card.is-cal-open {
+  z-index: 20;
 }
 
 .profile-head-cluster > .profile-pwr-card .profile-pwr-hero {
@@ -1436,9 +1445,8 @@ body:has(.profile-page) {
 .profile-kits-cal {
   right: 0;
   left: auto;
-  top: auto;
-  bottom: calc(100% + 6px);
   min-width: 240px;
+  z-index: 60;
 }
 
 .profile-kits-cal-hint {
