@@ -1,5 +1,5 @@
 /** Меняй при обновлении KV, чтобы iframe не брал старый кэш */
-const KV_CACHE = "20261011-solid-mutaha";
+const KV_CACHE = "20260930-pwr-range-white";
 
 export default async function TrainingMatchesPage() {
   const params = new URLSearchParams({ embed: "1", v: KV_CACHE });
