@@ -2161,40 +2161,49 @@ body:has(.profile-page) {
 
 .profile-area-train-hist .training-sessions-table th:nth-child(1),
 .profile-area-train-hist .training-sessions-table td:nth-child(1) {
-  width: 4.6rem;
-  padding-right: 4px;
+  width: 6.4rem;
+  padding-right: 6px;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .profile-area-train-hist .training-sessions-table th:nth-child(2),
 .profile-area-train-hist .training-sessions-table td:nth-child(2) {
-  width: auto;
-  min-width: 7.5rem;
-  max-width: 11rem;
+  width: 26%;
+  min-width: 0;
+  max-width: none;
   padding-left: 2px;
 }
 
 .profile-area-train-hist .training-sessions-table th:nth-child(3),
 .profile-area-train-hist .training-sessions-table td:nth-child(3) {
-  width: auto;
-  min-width: 9.5rem;
+  /* ширина по контенту — без пустого «фантома» справа от счёта */
+  width: 1%;
+  min-width: 0;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+  padding-left: 6px;
+  padding-right: 8px;
 }
 
 .profile-area-train-hist .training-sessions-table th:nth-child(4),
 .profile-area-train-hist .training-sessions-table td:nth-child(4) {
-  width: 3.4rem;
+  width: 3.8rem;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .profile-area-train-hist .training-sessions-table th:nth-child(5),
 .profile-area-train-hist .training-sessions-table td:nth-child(5) {
-  width: 5.2rem;
+  width: 5.9rem;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .profile-area-train-hist .training-sessions-table th:nth-child(6),
 .profile-area-train-hist .training-sessions-table td:nth-child(6) {
   width: auto;
-  min-width: 7rem;
+  min-width: 6.8rem;
 }
 
 .profile-area-kv-hist .training-sessions-table th:nth-child(4),
