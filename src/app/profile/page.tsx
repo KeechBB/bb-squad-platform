@@ -24,6 +24,7 @@ import {
 import { buildPlayerCwMatchHistory } from "@/lib/homeCwPwr";
 import { ProfileTrainPwrCard } from "@/components/ProfileTrainPwrCard";
 import { ProfileKitsCard } from "@/components/ProfileKitsCard";
+import { ProfileCompareCard } from "@/components/ProfileCompareCard";
 import { bonesForUser } from "@/lib/squadHits";
 import { kitsForUser } from "@/lib/squadRoles";
 
@@ -147,6 +148,7 @@ export default async function ProfilePage() {
           />
           <ProfileTrainPwrCard stats={trainPwr} />
           <ProfileKitsCard userId={me.id} kits={kits.kits} />
+          {nickForKv ? <ProfileCompareCard myNick={nickForKv} /> : null}
           <ClanInvites initial={invites} />
         </div>
       </div>
