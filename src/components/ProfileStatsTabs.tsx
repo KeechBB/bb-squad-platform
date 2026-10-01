@@ -39,6 +39,9 @@ function TrainCombatBody({
     );
   }
 
+  const awardTotal =
+    stats.mvpDamage + stats.mvpKiller + stats.mvpMedic + stats.antiDeath;
+
   return (
     <>
       <div className="profile-kv-summary">
@@ -80,6 +83,24 @@ function TrainCombatBody({
           <span className="muted">Ноки</span>
           <strong>{stats.nok}</strong>
         </div>
+        <div>
+          <span className="muted">Награды MVP</span>
+          <strong>{awardTotal}</strong>
+        </div>
+      </div>
+      <div className="profile-kv-awards">
+        <span className="profile-kv-award">
+          War-Score <b>{stats.mvpDamage}</b>
+        </span>
+        <span className="profile-kv-award">
+          Killer <b>{stats.mvpKiller}</b>
+        </span>
+        <span className="profile-kv-award">
+          Medic <b>{stats.mvpMedic}</b>
+        </span>
+        <span className="profile-kv-award">
+          Anti-Death <b>{stats.antiDeath}</b>
+        </span>
       </div>
     </>
   );

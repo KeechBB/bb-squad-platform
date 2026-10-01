@@ -35,7 +35,7 @@ type Acc = {
   anti: number;
 };
 
-type MvpBlock = {
+export type MvpBlock = {
   medic?: string[];
   killer?: string[];
   damage?: string[];
@@ -79,7 +79,8 @@ function toRow(p: Acc): HomeMvpRow {
   };
 }
 
-function pickMvps(rows: StatRow[]): MvpBlock {
+/** MVP матча: medic=res, killer=kills, war=dmg, anti=deaths. */
+export function pickMvps(rows: StatRow[]): MvpBlock {
   const empty: MvpBlock = {
     medic: [],
     killer: [],

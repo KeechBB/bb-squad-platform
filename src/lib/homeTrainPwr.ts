@@ -1,4 +1,5 @@
 import { loadTierIndex } from "@/lib/tiers";
+import { pickMvps } from "@/lib/homeMvp";
 
 export type HomeTrainPwrRow = {
   nick: string;
@@ -600,6 +601,11 @@ export type PlayerTrainCombatStats = {
   avgKills: number;
   avgDmg: number;
   winrate: number;
+  /** MVP War-Score (max dmg за катку) */
+  mvpDamage: number;
+  mvpKiller: number;
+  mvpMedic: number;
+  antiDeath: number;
 };
 
 /** Сводка боевой статы по тренировочным каткам (для вкладки профиля). */
@@ -627,6 +633,10 @@ export async function buildPlayerTrainCombatStats(
       avgKills: 0,
       avgDmg: 0,
       winrate: 0,
+      mvpDamage: 0,
+      mvpKiller: 0,
+      mvpMedic: 0,
+      antiDeath: 0,
     };
   }
 
@@ -653,7 +663,14 @@ export async function buildPlayerTrainCombatStats(
   let dmg = 0;
   let res = 0;
   let nok = 0;
+  let mvpDamage = 0;
+  let mvpKiller = 0;
+  let mvpMedic = 0;
+  let antiDeath = 0;
   let displayNick = clean;
+
+  const nickIn = (list: string[] | undefined) =>
+    (list || []).some((n) => resolveKey(n) === want);
 
   for (const m of index.months) {
     if (!m.url) continue;
@@ -661,15 +678,22 @@ export async function buildPlayerTrainCombatStats(
       matches?: {
         playersUrl?: string;
         winner?: string;
+        status?: string;
       }[];
     }>(m.url);
     for (const match of monthData?.matches || []) {
-      if (!match.playersUrl) continue;
+      if (!match.playersUrl || match.status === "upcoming") continue;
       const players = await loadFromKv<{
         players?: Record<string, unknown>[];
         teamA?: Record<string, unknown>[];
         teamB?: Record<string, unknown>[];
         winner?: string;
+        mvp?: { train?: {
+          medic?: string[];
+          killer?: string[];
+          damage?: string[];
+          antiDeath?: string[];
+        } };
       }>(match.playersUrl);
       if (!players) continue;
       const list = (
@@ -708,6 +732,25 @@ export async function buildPlayerTrainCombatStats(
         !won && Boolean(winner) && Boolean(teamU) && teamU !== winner;
       if (won) wins += 1;
       else if (lost) losses += 1;
+
+      const mvp =
+        (players.mvp && players.mvp.train) ||
+        pickMvps(
+          list
+            .filter((p) => p?.nick)
+            .map((p) => ({
+              nick: String(p.nick),
+              res: Number(p.res) || 0,
+              nok: Number(p.nok) || 0,
+              kills: Number(p.kills) || 0,
+              deaths: Number(p.deaths) || 0,
+              dmg: Number(p.dmg) || 0,
+            }))
+        );
+      if (nickIn(mvp.damage)) mvpDamage += 1;
+      if (nickIn(mvp.killer)) mvpKiller += 1;
+      if (nickIn(mvp.medic)) mvpMedic += 1;
+      if (nickIn(mvp.antiDeath)) antiDeath += 1;
     }
   }
 
@@ -735,5 +778,9 @@ export async function buildPlayerTrainCombatStats(
     avgKills,
     avgDmg,
     winrate,
+    mvpDamage,
+    mvpKiller,
+    mvpMedic,
+    antiDeath,
   };
 }
