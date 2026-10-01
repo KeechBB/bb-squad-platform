@@ -129,19 +129,6 @@ svg {
   -webkit-backdrop-filter: blur(14px);
 }
 
-.site-beta {
-  margin: 0;
-  padding: 0;
-  text-align: right;
-  font-family: var(--font-display);
-  font-size: 0.95rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: #facc15;
-  line-height: 1.15;
-  white-space: nowrap;
-}
-
 .site-top-inner {
   width: 100%;
   max-width: none;
@@ -152,6 +139,7 @@ svg {
   justify-content: space-between;
   gap: 16px;
   flex-wrap: nowrap;
+  overflow: visible;
 }
 
 .top-left {
@@ -160,8 +148,9 @@ svg {
   gap: 18px;
   flex-wrap: nowrap;
   min-width: 0;
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   margin-right: auto;
+  overflow: hidden;
 }
 
 .top-nav {
@@ -245,6 +234,10 @@ svg {
   align-items: center;
   gap: 12px;
   flex: 0 0 auto;
+  flex-shrink: 0;
+  min-width: 0;
+  position: relative;
+  z-index: 5;
 }
 
 .auth-bar-stack {
@@ -252,7 +245,10 @@ svg {
   flex-direction: column;
   align-items: flex-end;
   gap: 3px;
-  min-width: 0;
+  flex: 0 0 auto;
+  min-width: max-content;
+  position: relative;
+  z-index: 2;
 }
 
 .auth-bar-row {
@@ -260,13 +256,30 @@ svg {
   align-items: center;
   gap: 10px;
   flex-wrap: nowrap;
+  flex: 0 0 auto;
 }
 
 .player-search {
   position: relative;
-  flex: 0 1 280px;
-  min-width: 180px;
-  max-width: 340px;
+  flex: 0 1 240px;
+  width: 240px;
+  min-width: 160px;
+  max-width: 260px;
+  z-index: 1;
+}
+
+.site-beta {
+  margin: 0;
+  padding: 0;
+  text-align: right;
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #facc15;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: visible;
 }
 
 .player-search-input {
@@ -6345,18 +6358,23 @@ body:has(.home-page) {
     align-items: center;
   }
 
+  .auth-bar-stack {
+    min-width: max-content;
+  }
+
   .auth-bar-row {
     gap: 6px;
   }
 
   .site-beta {
-    font-size: 0.82rem;
+    font-size: 0.8rem;
   }
 
   .player-search {
-    flex: 0 1 180px;
-    min-width: 130px;
-    max-width: 220px;
+    flex: 0 0 160px;
+    width: 160px;
+    min-width: 140px;
+    max-width: 180px;
   }
 
   .player-search-list {
@@ -6475,18 +6493,27 @@ body {
     flex: 1 1 100%;
     justify-content: flex-end;
     align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
     min-width: 0;
   }
 
   .auth-bar-stack {
     align-items: flex-end;
+    min-width: max-content;
   }
 
   .auth-bar-row {
     justify-content: flex-end;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 6px;
+  }
+
+  .player-search {
+    flex: 1 1 160px;
+    width: auto;
+    min-width: 140px;
+    max-width: 220px;
   }
 
   .auth-bar .nick-link {
