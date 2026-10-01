@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { CompareSide } from "@/lib/playerCompare";
+import type {
+  CompareMatchBundle,
+  CompareSide,
+  RpMatchListItem,
+} from "@/lib/playerCompare";
+import type { RpMatchEvent, RpPlayerMatch } from "@/lib/trainRp";
 import { HitmapSilhouette } from "@/components/HitmapSilhouette";
 
 type Props = {
@@ -11,6 +16,8 @@ type Props = {
 type ComparePayload = {
   from: string | null;
   to: string | null;
+  matchId?: string | null;
+  match?: CompareMatchBundle | null;
   me: CompareSide;
   other: CompareSide;
 };
@@ -88,6 +95,250 @@ function StatCell({
     <div className={better ? "is-better" : undefined}>
       <span className="muted">{label}</span>
       <strong>{value}</strong>
+    </div>
+  );
+}
+
+function fmtDelta(n: number) {
+  const v = Math.round(Number(n) || 0);
+  return v > 0 ? `+${v}` : String(v);
+}
+
+function romanFromPwr(pwr: number) {
+  const band = Math.min(9, Math.max(0, Math.floor(Math.max(0, pwr) / 100)));
+  const roman = ["I", "II", "III"] as const;
+  return roman[band % 3];
+}
+
+function pwrBarPct(pwr: number) {
+  return Math.max(8, Math.min(100, (Math.max(0, pwr) / 1000) * 100));
+}
+
+function RpEventList({
+  title,
+  kind,
+  events,
+}: {
+  title: string;
+  kind: "gain" | "loss";
+  events: RpMatchEvent[];
+}) {
+  const sum =
+    kind === "gain"
+      ? events.reduce((s, e) => s + e.delta, 0)
+      : -events.reduce((s, e) => s + Math.abs(e.delta), 0);
+  return (
+    <section className="compare-rp-ev-col">
+      <h5 className={`rp-breakdown-col-title ${kind === "gain" ? "gain" : "loss"}`}>
+        {title} ({events.length})
+      </h5>
+      <ul className="rp-breakdown-list compare-rp-ev-list">
+        {events.length === 0 ? (
+          <li className="muted">Нет</li>
+        ) : (
+          events.map((e, i) => (
+            <li key={`${kind}-${i}`}>
+              <span className="rp-ev-time">{e.time}</span>
+              <span
+                className="rp-ev-nick"
+                title={kind === "gain" ? e.victim : e.killer}
+              >
+                {kind === "gain" ? e.victim : e.killer}
+              </span>
+              <span
+                className="rp-ev-bar-wrap"
+                title={`weight ${kind === "gain" ? e.victimPwr : e.killerPwr}`}
+              >
+                <span
+                  className={`rp-ev-bar ${kind === "gain" ? "gain" : "loss"}`}
+                  style={{
+                    width: `${pwrBarPct(
+                      kind === "gain" ? e.victimPwr : e.killerPwr
+                    )}%`,
+                  }}
+                />
+                <span className="rp-ev-roman">
+                  {romanFromPwr(kind === "gain" ? e.victimPwr : e.killerPwr)}
+                </span>
+              </span>
+              <span
+                className={`rp-ev-delta ${kind === "gain" ? "plus" : "minus"}`}
+              >
+                {kind === "gain"
+                  ? fmtDelta(e.delta)
+                  : fmtDelta(-Math.abs(e.delta))}
+              </span>
+            </li>
+          ))
+        )}
+      </ul>
+      <p className={`rp-breakdown-sum ${kind === "gain" ? "plus" : "minus"}`}>
+        Sum {fmtDelta(sum)}
+      </p>
+    </section>
+  );
+}
+
+function MatchRpSide({
+  nick,
+  match,
+  combat,
+  otherNet,
+  otherCombat,
+}: {
+  nick: string;
+  match: RpPlayerMatch | null;
+  combat: CompareMatchBundle["meCombat"];
+  otherNet: number | null;
+  otherCombat: CompareMatchBundle["meCombat"];
+}) {
+  const net = match ? Math.round(match.net) : null;
+  return (
+    <section className="compare-match-side">
+      <header className="compare-match-side-head">
+        <h4>{nick}</h4>
+        <div
+          className={`compare-match-net${
+            isBetter(net, otherNet) ? " is-better" : ""
+          }`}
+        >
+          <span className="muted">RP за катку</span>
+          <strong>{net == null ? "—" : fmtDelta(net)}</strong>
+        </div>
+      </header>
+
+      {combat ? (
+        <div className="compare-stats-grid compare-match-combat">
+          <StatCell
+            label="Килы"
+            value={fmtNum(combat.kills)}
+            better={isBetter(combat.kills, otherCombat?.kills)}
+          />
+          <StatCell
+            label="Смерти"
+            value={fmtNum(combat.deaths)}
+            better={isBetter(combat.deaths, otherCombat?.deaths, false)}
+          />
+          <StatCell
+            label="KD"
+            value={fmtNum(combat.kd, 2)}
+            better={isBetter(combat.kd, otherCombat?.kd)}
+          />
+          <StatCell
+            label="Поднятия"
+            value={fmtNum(combat.res)}
+            better={isBetter(combat.res, otherCombat?.res)}
+          />
+          <StatCell
+            label="Ноки"
+            value={fmtNum(combat.nok)}
+            better={isBetter(combat.nok, otherCombat?.nok)}
+          />
+          <StatCell
+            label="Боевой"
+            value={combat.dmg.toLocaleString("ru-RU")}
+            better={isBetter(combat.dmg, otherCombat?.dmg)}
+          />
+        </div>
+      ) : (
+        <p className="muted compare-hitmap-empty">Нет статы по этой катке</p>
+      )}
+
+      {match ? (
+        <div className="compare-rp-ev-grid">
+          <RpEventList
+            title="+ получил"
+            kind="gain"
+            events={match.kills}
+          />
+          <RpEventList
+            title="− отдал"
+            kind="loss"
+            events={match.deaths}
+          />
+        </div>
+      ) : (
+        <p className="muted compare-hitmap-empty">
+          Нет RP-событий (не было give-up киллов)
+        </p>
+      )}
+    </section>
+  );
+}
+
+function MatchCompareBlock({
+  match,
+  leftNick,
+  rightNick,
+}: {
+  match: CompareMatchBundle;
+  leftNick: string;
+  rightNick: string;
+}) {
+  const dateShort =
+    match.date.length >= 10
+      ? match.date.slice(5).replace("-", ".")
+      : match.date;
+  return (
+    <div className="compare-match-block">
+      <div className="compare-match-title">
+        <h3>
+          Катка · {dateShort} · {match.map}
+        </h3>
+        <p className="muted">
+          Стата матча + детальный RP: за кого получил / кому отдал
+        </p>
+      </div>
+      <div className="compare-match-pair">
+        <MatchRpSide
+          nick={leftNick}
+          match={match.me}
+          combat={match.meCombat}
+          otherNet={match.other ? Math.round(match.other.net) : null}
+          otherCombat={match.otherCombat}
+        />
+        <div className="compare-vs-mid compare-match-mid">
+          <span>VS</span>
+          <div className="compare-diff">
+            <div
+              className={deltaCls(
+                match.me ? Math.round(match.me.net) : null,
+                match.other ? Math.round(match.other.net) : null
+              )}
+            >
+              RP{" "}
+              {match.me && match.other
+                ? fmtDelta(
+                    Math.round(match.me.net) - Math.round(match.other.net)
+                  )
+                : "—"}
+            </div>
+            <div
+              className={deltaCls(
+                match.meCombat?.kd ?? null,
+                match.otherCombat?.kd ?? null
+              )}
+            >
+              KD
+            </div>
+            <div
+              className={deltaCls(
+                match.meCombat?.dmg ?? null,
+                match.otherCombat?.dmg ?? null
+              )}
+            >
+              Боевой
+            </div>
+          </div>
+        </div>
+        <MatchRpSide
+          nick={rightNick}
+          match={match.other}
+          combat={match.otherCombat}
+          otherNet={match.me ? Math.round(match.me.net) : null}
+          otherCombat={match.meCombat}
+        />
+      </div>
     </div>
   );
 }
@@ -410,6 +661,8 @@ function HitmapSide({
 export function ProfileCompareCard({ myNick }: Props) {
   const [open, setOpen] = useState(false);
   const [nicks, setNicks] = useState<string[]>([]);
+  const [trainMatches, setTrainMatches] = useState<RpMatchListItem[]>([]);
+  const [matchId, setMatchId] = useState("");
   const [left, setLeft] = useState(myNick);
   const [right, setRight] = useState("");
   const [leftDraft, setLeftDraft] = useState(myNick);
@@ -432,13 +685,26 @@ export function ProfileCompareCard({ myNick }: Props) {
     setLeftDraft(myNick);
     setRight("");
     setRightDraft("");
+    setMatchId("");
     setData(null);
     setError(null);
     setCalOpen(false);
-    fetch("/api/player-compare?list=1", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : { nicks: [] }))
-      .then((j) => setNicks(Array.isArray(j.nicks) ? j.nicks : []))
-      .catch(() => setNicks([]));
+    Promise.all([
+      fetch("/api/player-compare?list=1", { cache: "no-store" }).then((r) =>
+        r.ok ? r.json() : { nicks: [] }
+      ),
+      fetch("/api/player-compare?list=matches", { cache: "no-store" }).then(
+        (r) => (r.ok ? r.json() : { matches: [] })
+      ),
+    ])
+      .then(([n, m]) => {
+        setNicks(Array.isArray(n.nicks) ? n.nicks : []);
+        setTrainMatches(Array.isArray(m.matches) ? m.matches : []);
+      })
+      .catch(() => {
+        setNicks([]);
+        setTrainMatches([]);
+      });
   }, [open, myNick]);
 
   useEffect(() => {
@@ -499,6 +765,7 @@ export function ProfileCompareCard({ myNick }: Props) {
       });
       if (from) qs.set("from", from);
       if (to) qs.set("to", to);
+      if (matchId) qs.set("matchId", matchId);
       const res = await fetch(`/api/player-compare?${qs}`, {
         cache: "no-store",
       });
@@ -514,12 +781,12 @@ export function ProfileCompareCard({ myNick }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [left, right, from, to]);
+  }, [left, right, from, to, matchId]);
 
   useEffect(() => {
     if (!open || !left || !right) return;
     void loadCompare();
-  }, [open, left, right, from, to, loadCompare]);
+  }, [open, left, right, from, to, matchId, loadCompare]);
 
   const daysInMonth = useMemo(() => {
     const last = new Date(viewY, viewM, 0).getDate();
@@ -549,7 +816,8 @@ export function ProfileCompareCard({ myNick }: Props) {
           <h2>Сравнение</h2>
         </div>
         <p className="muted profile-compare-lead">
-          Любой игрок с любым: RP, ТМ/КВ и матчи по датам.
+          Любой с любым: RP, ТМ/КВ, попадания; можно разобрать конкретную
+          тренировку.
         </p>
         <button
           type="button"
@@ -573,7 +841,12 @@ export function ProfileCompareCard({ myNick }: Props) {
             <header className="compare-panel-head">
               <div className="compare-panel-title">
                 <h2>Сравнение игроков</h2>
-                <p className="muted">{periodLabel}</p>
+                <p className="muted">
+                  {matchId
+                    ? trainMatches.find((m) => m.id === matchId)?.label ||
+                      "Катка"
+                    : periodLabel}
+                </p>
               </div>
               <button
                 type="button"
@@ -720,91 +993,118 @@ export function ProfileCompareCard({ myNick }: Props) {
                 />
               </div>
 
+              <label className="compare-match-pick">
+                <span className="muted">Тренировочная катка</span>
+                <select
+                  value={matchId}
+                  onChange={(e) => setMatchId(e.target.value)}
+                >
+                  <option value="">Все время · общий разбор</option>
+                  {trainMatches.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
               {error ? <p className="error">{error}</p> : null}
               {loading ? <p className="muted">Считаем сравнение…</p> : null}
 
               {data ? (
                 <>
-                  <div className="compare-vs">
-                    <SideBlock side={data.me} other={data.other} />
-                    <div className="compare-vs-mid">
-                      <span>VS</span>
-                      <div className="compare-diff">
-                        <div className={deltaCls(data.me.rp, data.other.rp)}>
-                          RP{" "}
-                          {data.me.rp != null && data.other.rp != null
-                            ? Math.round(data.me.rp - data.other.rp) > 0
-                              ? `+${Math.round(data.me.rp - data.other.rp)}`
-                              : String(Math.round(data.me.rp - data.other.rp))
-                            : "—"}
+                  {data.match ? (
+                    <MatchCompareBlock
+                      match={data.match}
+                      leftNick={data.me.nick}
+                      rightNick={data.other.nick}
+                    />
+                  ) : (
+                    <>
+                      <div className="compare-vs">
+                        <SideBlock side={data.me} other={data.other} />
+                        <div className="compare-vs-mid">
+                          <span>VS</span>
+                          <div className="compare-diff">
+                            <div className={deltaCls(data.me.rp, data.other.rp)}>
+                              RP{" "}
+                              {data.me.rp != null && data.other.rp != null
+                                ? Math.round(data.me.rp - data.other.rp) > 0
+                                  ? `+${Math.round(data.me.rp - data.other.rp)}`
+                                  : String(
+                                      Math.round(data.me.rp - data.other.rp)
+                                    )
+                                : "—"}
+                            </div>
+                            <div
+                              className={deltaCls(
+                                data.me.train?.kd ?? null,
+                                data.other.train?.kd ?? null
+                              )}
+                            >
+                              ТМ KD
+                            </div>
+                            <div
+                              className={deltaCls(
+                                data.me.cw?.kd ?? null,
+                                data.other.cw?.kd ?? null
+                              )}
+                            >
+                              КВ KD
+                            </div>
+                          </div>
                         </div>
-                        <div
-                          className={deltaCls(
-                            data.me.train?.kd ?? null,
-                            data.other.train?.kd ?? null
-                          )}
-                        >
-                          ТМ KD
-                        </div>
-                        <div
-                          className={deltaCls(
-                            data.me.cw?.kd ?? null,
-                            data.other.cw?.kd ?? null
-                          )}
-                        >
-                          КВ KD
-                        </div>
+                        <SideBlock side={data.other} other={data.me} />
                       </div>
-                    </div>
-                    <SideBlock side={data.other} other={data.me} />
-                  </div>
 
-                  <div className="compare-hist-pair compare-hitmap-pair">
-                    <HitmapSide side={data.me} other={data.other} />
-                    <div className="compare-hist-gutter compare-hitmap-mid">
-                      <span className="muted">куда бьют</span>
-                      <div className="compare-diff">
-                        <div
-                          className={deltaCls(
-                            data.me.hitmap?.zones.head ?? null,
-                            data.other.hitmap?.zones.head ?? null
-                          )}
-                        >
-                          Голова
-                          {data.me.hitmap && data.other.hitmap
-                            ? (() => {
-                                const d =
-                                  Math.round(
-                                    (data.me.hitmap.zones.head -
-                                      data.other.hitmap.zones.head) *
-                                      10
-                                  ) / 10;
-                                return ` ${d > 0 ? `+${d}` : String(d)}`;
-                              })()
-                            : ""}
+                      <div className="compare-hist-pair compare-hitmap-pair">
+                        <HitmapSide side={data.me} other={data.other} />
+                        <div className="compare-hist-gutter compare-hitmap-mid">
+                          <span className="muted">куда бьют</span>
+                          <div className="compare-diff">
+                            <div
+                              className={deltaCls(
+                                data.me.hitmap?.zones.head ?? null,
+                                data.other.hitmap?.zones.head ?? null
+                              )}
+                            >
+                              Голова
+                              {data.me.hitmap && data.other.hitmap
+                                ? (() => {
+                                    const d =
+                                      Math.round(
+                                        (data.me.hitmap.zones.head -
+                                          data.other.hitmap.zones.head) *
+                                          10
+                                      ) / 10;
+                                    return ` ${d > 0 ? `+${d}` : String(d)}`;
+                                  })()
+                                : ""}
+                            </div>
+                            <div
+                              className={deltaCls(
+                                data.me.hitmap?.zones.torso ?? null,
+                                data.other.hitmap?.zones.torso ?? null
+                              )}
+                            >
+                              Торс
+                            </div>
+                            <div
+                              className={deltaCls(
+                                data.me.hitmap?.zones.limb ?? null,
+                                data.other.hitmap?.zones.limb ?? null,
+                                false
+                              )}
+                              title="Меньше конечностей обычно лучше"
+                            >
+                              Конечн.
+                            </div>
+                          </div>
                         </div>
-                        <div
-                          className={deltaCls(
-                            data.me.hitmap?.zones.torso ?? null,
-                            data.other.hitmap?.zones.torso ?? null
-                          )}
-                        >
-                          Торс
-                        </div>
-                        <div
-                          className={deltaCls(
-                            data.me.hitmap?.zones.limb ?? null,
-                            data.other.hitmap?.zones.limb ?? null,
-                            false
-                          )}
-                          title="Меньше конечностей обычно лучше"
-                        >
-                          Конечн.
-                        </div>
+                        <HitmapSide side={data.other} other={data.me} />
                       </div>
-                    </div>
-                    <HitmapSide side={data.other} other={data.me} />
-                  </div>
+                    </>
+                  )}
                 </>
               ) : (
                 !loading && (

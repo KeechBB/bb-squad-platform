@@ -18,7 +18,34 @@ import {
   type HitBoneCounts,
   type HitZonePct,
 } from "@/lib/squadHits";
+import {
+  listRpTrainingMatches,
+  playerRpMatchBreakdown,
+  type RpMatchListItem,
+  type RpPlayerMatch,
+} from "@/lib/trainRp";
 import { prisma } from "@/lib/prisma";
+
+export type { RpMatchListItem };
+
+export type CompareMatchCombat = {
+  kills: number;
+  deaths: number;
+  res: number;
+  nok: number;
+  dmg: number;
+  kd: number;
+};
+
+export type CompareMatchBundle = {
+  id: string;
+  map: string;
+  date: string;
+  me: RpPlayerMatch | null;
+  other: RpPlayerMatch | null;
+  meCombat: CompareMatchCombat | null;
+  otherCombat: CompareMatchCombat | null;
+};
 
 export type CompareHitmap = {
   bones: HitBoneCounts;
@@ -186,4 +213,120 @@ export async function listComparableNicks(): Promise<string[]> {
     .map((u) => String(u.nick || "").trim())
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b, "ru"));
+}
+
+export async function listCompareTrainingMatches(): Promise<RpMatchListItem[]> {
+  return listRpTrainingMatches();
+}
+
+function nickKey(n: string) {
+  return String(n || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "");
+}
+
+async function loadMatchCombat(
+  matchId: string,
+  nick: string
+): Promise<CompareMatchCombat | null> {
+  const bases = [
+    process.env.KV_DATA_BASE,
+    "https://keechbb.github.io/blackberry-kv",
+    "https://kv.bb-squad.ru",
+  ].filter(Boolean) as string[];
+
+  async function fetchJson(url: string) {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  let playersUrl: string | null = null;
+  for (const base of bases) {
+    try {
+      const root = base.replace(/\/$/, "");
+      const index = await fetchJson(`${root}/data/training-index.json`);
+      for (const m of index.months || []) {
+        const monthUrl = String(m.url || "").startsWith("http")
+          ? m.url
+          : `${root}/${String(m.url || "").replace(/^\//, "")}`;
+        const monthData = await fetchJson(monthUrl);
+        for (const match of monthData.matches || []) {
+          if (String(match.id) === matchId && match.playersUrl) {
+            playersUrl = String(match.playersUrl).startsWith("http")
+              ? match.playersUrl
+              : `${root}/${String(match.playersUrl).replace(/^\//, "")}`;
+            break;
+          }
+        }
+        if (playersUrl) break;
+      }
+      if (playersUrl) break;
+    } catch {
+      /* next base */
+    }
+  }
+  if (!playersUrl) return null;
+
+  try {
+    const data = await fetchJson(playersUrl);
+    const want = nickKey(nick);
+    const list = Array.isArray(data.players) ? data.players : [];
+    const mine = list.filter(
+      (p: { nick?: string }) => nickKey(String(p.nick || "")) === want
+    );
+    if (!mine.length) return null;
+    let kills = 0;
+    let deaths = 0;
+    let res = 0;
+    let nok = 0;
+    let dmg = 0;
+    for (const p of mine) {
+      kills += Number(p.kills) || 0;
+      deaths += Number(p.deaths) || 0;
+      res += Number(p.res) || 0;
+      nok += Number(p.nok) || 0;
+      dmg += Number(p.dmg) || 0;
+    }
+    return {
+      kills,
+      deaths,
+      res,
+      nok,
+      dmg,
+      kd: deaths > 0 ? Math.round((100 * kills) / deaths) / 100 : kills,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function buildCompareMatch(
+  meNick: string,
+  otherNick: string,
+  matchId: string
+): Promise<CompareMatchBundle | null> {
+  const id = String(matchId || "").trim();
+  if (!id) return null;
+  const matches = await listRpTrainingMatches();
+  const meta = matches.find((m) => m.id === id);
+  if (!meta) return null;
+
+  const [me, other, meCombat, otherCombat] = await Promise.all([
+    playerRpMatchBreakdown(meNick, id),
+    playerRpMatchBreakdown(otherNick, id),
+    loadMatchCombat(id, meNick),
+    loadMatchCombat(id, otherNick),
+  ]);
+
+  return {
+    id: meta.id,
+    map: meta.map,
+    date: meta.date,
+    me,
+    other,
+    meCombat,
+    otherCombat,
+  };
 }

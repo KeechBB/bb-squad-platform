@@ -184,3 +184,73 @@ export async function trainMatchRpDeltas(
   }
   return out;
 }
+
+export type RpMatchListItem = {
+  id: string;
+  map: string;
+  date: string;
+  label: string;
+};
+
+/** Список тренировочных матчей из RP ledger (новые сверху). */
+export async function listRpTrainingMatches(): Promise<RpMatchListItem[]> {
+  const ledger = await loadRpLedger();
+  if (!ledger?.matches?.length) return [];
+  return [...ledger.matches]
+    .map((m) => {
+      const date = String(m.date || "");
+      const map = String(m.map || m.id);
+      const short = date.length >= 10 ? date.slice(5).replace("-", ".") : date;
+      return {
+        id: String(m.id),
+        map,
+        date,
+        label: `${short} · ${map}`,
+      };
+    })
+    .reverse();
+}
+
+/** Разбор RP одного игрока в конкретном матче (киллы / смерти / net). */
+export async function playerRpMatchBreakdown(
+  nick: string,
+  matchId: string
+): Promise<RpPlayerMatch | null> {
+  const ledger = await loadRpLedger();
+  if (!ledger) return null;
+  const want = nickKey(nick);
+  const match = ledger.matches.find((m) => m.id === matchId);
+  if (!match) return null;
+
+  const player = ledger.players[want];
+  if (player?.matches?.length) {
+    const hit = player.matches.find((m) => m.id === matchId);
+    if (hit) return hit;
+  }
+
+  const kills: RpMatchEvent[] = [];
+  const deaths: RpMatchEvent[] = [];
+  for (const e of match.events || []) {
+    if (nickKey(e.killer) === want) kills.push(e);
+    if (nickKey(e.victim) === want) deaths.push(e);
+  }
+  const netFromMap = match.netByNick
+    ? Object.entries(match.netByNick).find(([n]) => nickKey(n) === want)?.[1]
+    : null;
+  const net =
+    netFromMap != null
+      ? Number(netFromMap) || 0
+      : kills.reduce((s, e) => s + e.delta, 0) -
+        deaths.reduce((s, e) => s + Math.abs(e.delta), 0);
+
+  if (!kills.length && !deaths.length && net === 0) return null;
+
+  return {
+    id: match.id,
+    map: String(match.map || match.id),
+    date: String(match.date || ""),
+    net,
+    kills,
+    deaths,
+  };
+}
