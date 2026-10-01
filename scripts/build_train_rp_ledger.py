@@ -24,6 +24,8 @@ TIERS = HERE.parents[1] / "KV" / "public" / "data" / "tiers.json"
 OUT = TRAIN / "rp-ledger.json"
 
 START_RP = 1000.0
+# Revive gives the same weight formula as Die, then scaled — medics shouldn't leapfrog tops
+REVIVE_COEF = 0.6
 LINE_TS = re.compile(r"^\[(?P<ts>\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}:\d{3})\]")
 PC_STEAM = re.compile(
     r"PC=(?P<nick>[^\s(]+)\s*\(Online IDs:\s*EOS:\s*(?P<eos>[0-9a-fA-F]+)\s+steam:\s*(?P<steam>7656\d+)",
@@ -341,7 +343,7 @@ def main() -> None:
             pv = pwr.get(vk, 250.0)
             ensure(kk, d["killer"])
             ensure(vk, d["victim"])
-            delta = round(hunt_delta(pk, pv, pmax_global), 2)
+            delta = round(hunt_delta(pk, pv, pmax_global) * REVIVE_COEF, 2)
             # medic gains only — patient not charged
             rp[kk] = rp.get(kk, START_RP) + delta
             net[kk] = round(net.get(kk, 0.0) + delta, 2)
@@ -449,8 +451,9 @@ def main() -> None:
         "radiant3Max": RADIANT3_MAX,
         "formula": (
             "delta=1+49*(Pv-Pk+Pmax-1)/(2*(Pmax-1)); "
-            "Die() zero-sum; Revive medic +delta only; PWR hidden weight"
+            "Die() zero-sum; Revive medic +delta*0.6 only; PWR hidden weight"
         ),
+        "reviveCoef": REVIVE_COEF,
         "pMax": round(pmax_global, 1),
         "matches": public_matches,
         "players": players_out,
