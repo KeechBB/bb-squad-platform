@@ -6,7 +6,11 @@ import { useCallback, useEffect, useState } from "react";
 import { subscribeLive } from "@/lib/liveClient";
 import { PlayerSearch } from "@/components/PlayerSearch";
 
-export function AuthBar() {
+type Props = {
+  betaLabel?: string;
+};
+
+export function AuthBar({ betaLabel }: Props) {
   const { data: session, status } = useSession();
   const [admin, setAdmin] = useState(false);
 
@@ -41,28 +45,44 @@ export function AuthBar() {
     };
   }, [checkAdmin, session?.user?.profileComplete]);
 
+  const beta = betaLabel ? (
+    <p className="site-beta" aria-label="Версия сайта">
+      {betaLabel}
+    </p>
+  ) : null;
+
   if (status === "loading") {
-    return <div className="auth-bar muted">…</div>;
+    return (
+      <div className="auth-bar">
+        <div className="auth-bar-main muted">…</div>
+        {beta}
+      </div>
+    );
   }
 
   if (!session?.user) {
     return (
       <div className="auth-bar">
-        <button
-          type="button"
-          className="btn ghost auth-register-btn"
-          onClick={() => signIn("steam", { callbackUrl: "/register" })}
-        >
-          <span className="nav-full">Регистрация</span>
-          <span className="nav-short">Рег.</span>
-        </button>
-        <button
-          type="button"
-          className="btn steam"
-          onClick={() => signIn("steam", { callbackUrl: "/" })}
-        >
-          Войти
-        </button>
+        <div className="auth-bar-main">
+          <button
+            type="button"
+            className="btn ghost auth-register-btn"
+            onClick={() => signIn("steam", { callbackUrl: "/register" })}
+          >
+            <span className="nav-full">Регистрация</span>
+            <span className="nav-short">Рег.</span>
+          </button>
+          <div className="auth-logout-wrap">
+            <button
+              type="button"
+              className="btn steam"
+              onClick={() => signIn("steam", { callbackUrl: "/" })}
+            >
+              Войти
+            </button>
+            {beta}
+          </div>
+        </div>
       </div>
     );
   }
@@ -72,39 +92,44 @@ export function AuthBar() {
 
   return (
     <div className="auth-bar">
-      {session.user.profileComplete ? <PlayerSearch /> : null}
-      {avatar ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          className="avatar"
-          src={avatar}
-          alt=""
-          width={36}
-          height={36}
-        />
-      ) : null}
-      <Link className="nick-link" href="/profile" title={label}>
-        {label}
-      </Link>
-      {admin ? (
-        <Link className="btn primary" href="/admin">
-          Админ
+      <div className="auth-bar-main">
+        {session.user.profileComplete ? <PlayerSearch /> : null}
+        {avatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            className="avatar"
+            src={avatar}
+            alt=""
+            width={36}
+            height={36}
+          />
+        ) : null}
+        <Link className="nick-link" href="/profile" title={label}>
+          {label}
         </Link>
-      ) : null}
-      {!session.user.profileComplete ? (
-        <Link className="btn ghost auth-finish-btn" href="/register">
-          <span className="nav-full">Завершить регистрацию</span>
-          <span className="nav-short">Анкету</span>
-        </Link>
-      ) : null}
-      <button
-        type="button"
-        className="btn ghost auth-logout-btn"
-        onClick={() => signOut({ callbackUrl: "/" })}
-      >
-        <span className="nav-full">Выйти</span>
-        <span className="nav-short">✕</span>
-      </button>
+        {admin ? (
+          <Link className="btn primary" href="/admin">
+            Админ
+          </Link>
+        ) : null}
+        {!session.user.profileComplete ? (
+          <Link className="btn ghost auth-finish-btn" href="/register">
+            <span className="nav-full">Завершить регистрацию</span>
+            <span className="nav-short">Анкету</span>
+          </Link>
+        ) : null}
+        <div className="auth-logout-wrap">
+          <button
+            type="button"
+            className="btn ghost auth-logout-btn"
+            onClick={() => signOut({ callbackUrl: "/" })}
+          >
+            <span className="nav-full">Выйти</span>
+            <span className="nav-short">✕</span>
+          </button>
+          {beta}
+        </div>
+      </div>
     </div>
   );
 }

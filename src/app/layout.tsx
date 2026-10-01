@@ -78,11 +78,8 @@ export default async function RootLayout({
                   ) : null}
                 </nav>
               </div>
-              <AuthBar />
+              <AuthBar betaLabel={betaLabel} />
             </div>
-            <p className="site-beta" aria-label="Версия сайта">
-              {betaLabel}
-            </p>
           </header>
           <div className="shell">{children}</div>
         </Providers>
