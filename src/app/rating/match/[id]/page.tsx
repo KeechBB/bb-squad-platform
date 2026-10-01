@@ -66,9 +66,9 @@ export default async function RatingMatchPage({ params }: Props) {
   if (!detail) notFound();
 
   return (
-    <main className="profile-page">
-      <section className="card profile-head-public">
-        <div className="profile-kv-head">
+    <main className="cross-rating-page">
+      <div className="cross-rating-shell">
+        <header className="cross-rating-top">
           <div>
             <p className="eyebrow">встреча КВ</p>
             <h1>
@@ -80,59 +80,56 @@ export default async function RatingMatchPage({ params }: Props) {
               {detail.meeting || "—"}
             </p>
           </div>
-          <Link className="kv-link" href="/rating">
-            ← к рейтингу
+          <Link
+            className="kv-link"
+            href={`/rating/clan/${encodeURIComponent(detail.oppKey)}`}
+          >
+            ← к истории [{detail.oppTag}]
           </Link>
-        </div>
-      </section>
+        </header>
 
-      <section className="card">
-        <div className="profile-kv-summary">
-          <div>
-            <span className="muted">R1</span>
-            <strong>{detail.r1 || "—"}</strong>
+        <section className="card cross-rating-panel">
+          <div className="profile-kv-summary">
+            <div>
+              <span className="muted">R1</span>
+              <strong>{detail.r1 || "—"}</strong>
+            </div>
+            <div>
+              <span className="muted">R2</span>
+              <strong>{detail.r2 || "—"}</strong>
+            </div>
+            <div>
+              <span className="muted">Встреча</span>
+              <strong>{detail.meeting || "—"}</strong>
+            </div>
+            <div>
+              <span className="muted">Стек</span>
+              <strong>{detail.stack}</strong>
+            </div>
           </div>
-          <div>
-            <span className="muted">R2</span>
-            <strong>{detail.r2 || "—"}</strong>
-          </div>
-          <div>
-            <span className="muted">Встреча</span>
-            <strong>{detail.meeting || "—"}</strong>
-          </div>
-          <div>
-            <span className="muted">Стек</span>
-            <strong>{detail.stack}</strong>
-          </div>
-        </div>
-        {detail.note ? (
-          <p className="muted" style={{ marginTop: 12 }}>
-            {detail.note}
-          </p>
-        ) : null}
-      </section>
+          {detail.note ? (
+            <p className="muted" style={{ marginTop: 12 }}>
+              {detail.note}
+            </p>
+          ) : null}
+        </section>
 
-      <section className="card">
-        <h2 className="stats-h3">Раунд 1</h2>
-        <div className="cross-rating-sides">
-          <StatTable title="BlackBerry" rows={detail.usR1} />
-          <StatTable
-            title={`[${detail.oppTag}]`}
-            rows={detail.oppR1}
-          />
-        </div>
-      </section>
+        <section className="card cross-rating-panel" style={{ marginTop: 12 }}>
+          <h2 className="stats-h3">Раунд 1</h2>
+          <div className="cross-rating-sides">
+            <StatTable title="BlackBerry" rows={detail.usR1} />
+            <StatTable title={`[${detail.oppTag}]`} rows={detail.oppR1} />
+          </div>
+        </section>
 
-      <section className="card">
-        <h2 className="stats-h3">Раунд 2</h2>
-        <div className="cross-rating-sides">
-          <StatTable title="BlackBerry" rows={detail.usR2} />
-          <StatTable
-            title={`[${detail.oppTag}]`}
-            rows={detail.oppR2}
-          />
-        </div>
-      </section>
+        <section className="card cross-rating-panel" style={{ marginTop: 12 }}>
+          <h2 className="stats-h3">Раунд 2</h2>
+          <div className="cross-rating-sides">
+            <StatTable title="BlackBerry" rows={detail.usR2} />
+            <StatTable title={`[${detail.oppTag}]`} rows={detail.oppR2} />
+          </div>
+        </section>
+      </div>
     </main>
   );
 }

@@ -62,6 +62,7 @@ export type ClanEloRow = {
   wins: number;
   losses: number;
   place: number;
+  logoUrl: string | null;
 };
 
 export type ClanEloBoard = {
@@ -77,6 +78,7 @@ export type EnemyPwrRow = {
   clanTag: string;
   games: number;
   wins: number;
+  winPct: number | null;
   res: number;
   nok: number;
   kills: number;
@@ -87,6 +89,10 @@ export type EnemyPwrRow = {
   rankLabel: string;
   rankKey: string;
   place: number;
+  mvpMedic: number;
+  mvpKiller: number;
+  mvpDamage: number;
+  antiDeath: number;
 };
 
 export type EnemyPwrBoard = {
@@ -301,6 +307,32 @@ export function canonOpp(oppRaw: string) {
   return { key: tag.toUpperCase(), tag, name: tag };
 }
 
+const LOGO_EXT: Record<string, string> = {
+  BB: ".png",
+  "20R": ".png",
+  AVG: ".png",
+  DCAI: ".jpg",
+  HELL: ".jpg",
+  TWO: ".jpg",
+  "44th": ".jpg",
+  IH: ".jpg",
+  GM: ".jpg",
+  HQ: ".png",
+  H1GH: ".jpg",
+  ALPHA: ".png",
+  SPH: ".png",
+  FURY: ".png",
+  IMP: ".png",
+  CUT: ".png",
+  OMEN: ".png",
+};
+
+export function clanLogoUrl(key: string): string | null {
+  const ext = LOGO_EXT[key];
+  if (!ext) return null;
+  return `/rating-logos/${key}${ext}`;
+}
+
 function parseTickets(side: string | undefined): { us: number; them: number } {
   const s = String(side || "").trim();
   const m = s.match(/^(\d+)\s*[:：]\s*(\d+)$/);
@@ -493,6 +525,7 @@ export async function buildClanEloBoard(): Promise<ClanEloBoard> {
       wins: acc.winsVsBb,
       losses: acc.lossesVsBb,
       place: 0,
+      logoUrl: clanLogoUrl(acc.key),
     };
     if (calibratedFlag) calibrated.push(row);
     else uncalibrated.push(row);
@@ -525,6 +558,7 @@ export async function buildClanEloBoard(): Promise<ClanEloBoard> {
     wins: meetings.filter((m) => m.bbWon).length,
     losses: meetings.filter((m) => !m.bbWon).length,
     place: 0,
+    logoUrl: clanLogoUrl(BB_CLAN_KEY),
   };
 
   // Merge calibrated around BB by elo
@@ -555,6 +589,26 @@ export async function listMeetings(): Promise<MeetingListItem[]> {
   return [...all].reverse().map(
     ({ monthId: _m, year: _y, monthNum: _n, ...rest }) => rest
   );
+}
+
+/** История встреч с кланом (для BB — все встречи). */
+export async function listMeetingsForClan(
+  clanKeyRaw: string
+): Promise<{ clan: { key: string; tag: string; name: string }; meetings: MeetingListItem[] }> {
+  const key = String(clanKeyRaw || "").trim().toUpperCase();
+  const all = await listMeetings();
+  if (key === BB_CLAN_KEY) {
+    return {
+      clan: { key: BB_CLAN_KEY, tag: BB_CLAN_TAG, name: BB_CLAN_NAME },
+      meetings: all,
+    };
+  }
+  const filtered = all.filter((m) => m.oppKey.toUpperCase() === key);
+  const sample = filtered[0];
+  const c = sample
+    ? { key: sample.oppKey, tag: sample.oppTag, name: canonOpp(sample.opp).name }
+    : canonOpp(key);
+  return { clan: c, meetings: filtered };
 }
 
 export async function getMeetingDetail(
@@ -698,12 +752,17 @@ export async function buildEnemyPwrBoard(): Promise<EnemyPwrBoard> {
   const rows: EnemyPwrRow[] = [];
   for (const acc of map.values()) {
     const { pwr, label, rankKey, kd } = calcEnemyPwr(acc);
+    const winPct =
+      acc.games > 0
+        ? Math.round((1000 * acc.wins) / acc.games) / 10
+        : null;
     rows.push({
       nick: acc.nick,
       clanKey: acc.clanKey,
       clanTag: acc.clanTag,
       games: acc.games,
       wins: acc.wins,
+      winPct,
       res: acc.res,
       nok: acc.nok,
       kills: acc.kills,
@@ -714,6 +773,10 @@ export async function buildEnemyPwrBoard(): Promise<EnemyPwrBoard> {
       rankLabel: label,
       rankKey,
       place: 0,
+      mvpMedic: 0,
+      mvpKiller: 0,
+      mvpDamage: 0,
+      antiDeath: 0,
     });
   }
   rows.sort(

@@ -95,7 +95,8 @@ svg {
   justify-content: flex-start;
 }
 
-.shell:has(.cw-embed) {
+.shell:has(.cw-embed),
+.shell:has(.cross-rating-page) {
   max-width: none;
   padding: 12px 12px 0;
 }
@@ -8750,14 +8751,63 @@ body.profile-match-modal-open {
 }
 
 /* —— Межклановый рейтинг /rating —— */
-.cross-rating-card {
-  margin-top: 12px;
+.cross-rating-page {
+  margin: 0 -12px 24px;
+  min-height: calc(100vh - 100px);
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #07060c;
+}
+
+.cross-rating-shell {
+  padding: 20px clamp(14px, 2vw, 28px) 32px;
+  width: 100%;
+  max-width: none;
+}
+
+.cross-rating-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 24px;
+  margin-bottom: 16px;
+}
+
+.cross-rating-top h1 {
+  margin: 4px 0 0;
+  font-size: clamp(1.6rem, 2.4vw, 2.1rem);
+}
+
+.cross-rating-lead {
+  margin: 6px 0 0;
+  line-height: 1.45;
+}
+
+.cross-rating-tabs {
+  flex-shrink: 0;
+}
+
+.cross-rating-panel {
+  margin: 0;
+  background: rgba(18, 14, 32, 0.92);
 }
 
 .cross-rating-note {
-  margin: 8px 0 14px;
+  margin: 0 0 14px;
   line-height: 1.45;
   font-size: 0.92rem;
+}
+
+.cross-rating-table-wrap {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.cross-rating-table {
+  width: 100%;
+  min-width: 720px;
 }
 
 .cross-rating-table td,
@@ -8765,8 +8815,63 @@ body.profile-match-modal-open {
   white-space: nowrap;
 }
 
+.cross-rating-table .empty-row {
+  text-align: center;
+  padding: 28px 12px;
+  white-space: normal;
+}
+
+.cross-clans-table tbody tr:hover {
+  background: rgba(167, 139, 250, 0.08);
+}
+
+.cross-clan-link {
+  color: inherit;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cross-clan-link:hover {
+  color: #e9d5ff;
+}
+
+.cross-clan-logo {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(167, 139, 250, 0.25);
+}
+
+.cross-clan-logo-lg {
+  width: 64px;
+  height: 64px;
+}
+
+.cross-clan-logo-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: rgba(88, 28, 135, 0.45);
+  border: 1px solid rgba(167, 139, 250, 0.35);
+}
+
+.cross-clan-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
 .cross-rating-bb {
-  background: rgba(167, 139, 250, 0.12);
+  background: rgba(167, 139, 250, 0.14);
 }
 
 .cross-rating-calib {
@@ -8790,6 +8895,75 @@ body.profile-match-modal-open {
   grid-template-columns: 1fr 1fr;
   gap: 16px;
   margin-top: 8px;
+}
+
+.cross-rating-player-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px 24px;
+  margin: 12px 0 14px;
+}
+
+.cross-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: var(--muted, #a8a0b8);
+}
+
+.cross-filter input {
+  min-width: 200px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(167, 139, 250, 0.28);
+  background: rgba(0, 0, 0, 0.35);
+  color: inherit;
+  font: inherit;
+}
+
+.cross-pwr-scale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(167, 139, 250, 0.2);
+  background: rgba(12, 10, 22, 0.65);
+}
+
+.cross-pwr-scale-label {
+  font-size: 0.72rem;
+  line-height: 1.2;
+  color: #c4b5fd;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cross-pwr-scale-track {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 4px;
+}
+
+.cross-pwr-scale-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cross-pwr-scale-range {
+  font-size: 0.68rem;
+  color: #9ca3af;
+}
+
+.cross-pwr-scale-arrow {
+  color: #6b7280;
+  margin: 0 2px;
 }
 
 @media (max-width: 900px) {
