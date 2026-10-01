@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import type { ClanEloBoard, EnemyPwrBoard } from "@/lib/crossRating";
 
@@ -110,23 +111,30 @@ export function CrossRatingClient({ clans, enemies }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {clans.rows.map((r) => (
-                  <tr
-                    key={r.key}
-                    className={
-                      r.isBb
-                        ? "cross-rating-bb"
-                        : !r.calibrated
-                          ? "cross-rating-calib"
-                          : undefined
-                    }
-                  >
-                    <td className="ctr">{r.place}</td>
-                    <td>
-                      <Link
-                        className="cross-clan-link"
-                        href={`/rating/clan/${encodeURIComponent(r.key)}`}
-                      >
+                {clans.rows.map((r) => {
+                  const rowClass = [
+                    "cross-clan-row",
+                    r.isBb ? "cross-rating-bb" : "",
+                    !r.calibrated && !r.isBb ? "cross-rating-calib" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ");
+                  return (
+                    <tr
+                      key={r.key}
+                      className={rowClass}
+                      role="link"
+                      tabIndex={0}
+                      onClick={() => openClan(r.key)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          openClan(r.key);
+                        }
+                      }}
+                    >
+                      <td className="ctr">{r.place}</td>
+                      <td>
                         {r.logoUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
@@ -141,40 +149,28 @@ export function CrossRatingClient({ clans, enemies }: Props) {
                             {r.tag.slice(0, 2)}
                           </span>
                         )}
-                      </Link>
-                    </td>
-                    <td>
-                      <Link
-                        className="cross-clan-link"
-                        href={`/rating/clan/${encodeURIComponent(r.key)}`}
-                      >
+                      </td>
+                      <td>
                         <strong>[{r.tag}]</strong>
                         {!r.calibrated && !r.isBb ? (
                           <em className="cross-rating-badge">калибровка</em>
                         ) : null}
-                      </Link>
-                    </td>
-                    <td>
-                      <Link
-                        className="cross-clan-link"
-                        href={`/rating/clan/${encodeURIComponent(r.key)}`}
-                      >
-                        {r.name}
-                      </Link>
-                    </td>
-                    <td className="ctr">
-                      {r.elo == null ? (
-                        <span className="muted">—</span>
-                      ) : (
-                        <strong>{r.elo}</strong>
-                      )}
-                    </td>
-                    <td className="ctr">{r.meetings}</td>
-                    <td className="ctr">
-                      {r.wins}–{r.losses}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td>{r.name}</td>
+                      <td className="ctr">
+                        {r.elo == null ? (
+                          <span className="muted">—</span>
+                        ) : (
+                          <strong>{r.elo}</strong>
+                        )}
+                      </td>
+                      <td className="ctr">{r.meetings}</td>
+                      <td className="ctr">
+                        {r.wins}–{r.losses}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

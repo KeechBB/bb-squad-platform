@@ -8930,6 +8930,19 @@ body.profile-match-modal-open {
   white-space: normal;
 }
 
+.cross-clans-table tbody tr.cross-clan-row {
+  cursor: pointer;
+}
+
+.cross-clans-table tbody tr.cross-clan-row:hover {
+  background: rgba(167, 139, 250, 0.12);
+}
+
+.cross-clans-table tbody tr.cross-clan-row:focus-visible {
+  outline: 2px solid rgba(167, 139, 250, 0.65);
+  outline-offset: -2px;
+}
+
 .cross-clans-table tbody tr:hover {
   background: rgba(167, 139, 250, 0.08);
 }
