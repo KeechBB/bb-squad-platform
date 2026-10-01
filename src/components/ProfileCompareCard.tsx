@@ -267,6 +267,13 @@ function MatchRpSide({
         <div className="compare-rp-ev-grid">
           <RpEventList title="+ получил" kind="gain" events={match.kills} />
           <RpEventList title="− отдал" kind="loss" events={match.deaths} />
+          {(match.revives?.length || 0) > 0 ? (
+            <RpEventList
+              title="+ поднял"
+              kind="gain"
+              events={match.revives || []}
+            />
+          ) : null}
         </div>
       ) : (
         <p className="muted compare-hitmap-empty">

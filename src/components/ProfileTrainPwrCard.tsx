@@ -44,13 +44,20 @@ function MatchBreakdown({
             <p className="muted">
               NET {fmtDelta(match.net)} · give-up K {match.kills.length} / D{" "}
               {match.deaths.length}
+              {(match.revives?.length || 0) > 0
+                ? ` · R ${match.revives!.length}`
+                : ""}
             </p>
           </div>
           <button type="button" className="rp-breakdown-close" onClick={onClose}>
             ✕
           </button>
         </header>
-        <div className="rp-breakdown-cols">
+        <div
+          className={`rp-breakdown-cols${
+            (match.revives?.length || 0) > 0 ? " has-revives" : ""
+          }`}
+        >
           <section>
             <h4 className="rp-breakdown-col-title gain">
               + gained ({match.kills.length})
@@ -108,6 +115,42 @@ function MatchBreakdown({
               )}
             </p>
           </section>
+          {(match.revives?.length || 0) > 0 ? (
+            <section>
+              <h4 className="rp-breakdown-col-title gain">
+                + поднял ({match.revives!.length})
+              </h4>
+              <ul className="rp-breakdown-list">
+                {match.revives!.map((e, i) => (
+                  <li key={`r-${i}`}>
+                    <span className="rp-ev-time">{e.time}</span>
+                    <span className="rp-ev-nick" title={e.victim}>
+                      {e.victim}
+                    </span>
+                    <span
+                      className="rp-ev-bar-wrap"
+                      title={`weight ${e.victimPwr}`}
+                    >
+                      <span
+                        className="rp-ev-bar gain"
+                        style={{ width: `${pwrBarPct(e.victimPwr)}%` }}
+                      />
+                      <span className="rp-ev-roman">
+                        {romanFromPwr(e.victimPwr)}
+                      </span>
+                    </span>
+                    <span className="rp-ev-delta plus">{fmtDelta(e.delta)}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="rp-breakdown-sum plus">
+                Sum{" "}
+                {fmtDelta(
+                  match.revives!.reduce((s, e) => s + e.delta, 0)
+                )}
+              </p>
+            </section>
+          ) : null}
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 /**
  * Training Respect Points (RP) — visible ladder.
- * Hidden PWR is only a weight inside the Die()/give-up formula (see rp-ledger.json).
+ * Hidden PWR is only a weight inside Die()/revive formulas (see rp-ledger.json).
  */
 import { unstable_noStore as noStore } from "next/cache";
 
@@ -11,11 +11,14 @@ const KV_BASES = [
 
 export type RpMatchEvent = {
   time: string;
+  /** Killer (Die) or medic (Revive) */
   killer: string;
+  /** Victim (Die) or patient (Revive) */
   victim: string;
   killerPwr: number;
   victimPwr: number;
   delta: number;
+  kind?: "die" | "revive";
 };
 
 export type RpPlayerMatch = {
@@ -25,6 +28,8 @@ export type RpPlayerMatch = {
   net: number;
   kills: RpMatchEvent[];
   deaths: RpMatchEvent[];
+  /** Medic revives this player performed (patient in victim field) */
+  revives?: RpMatchEvent[];
 };
 
 export type RpPlayer = {
@@ -60,6 +65,8 @@ export type RpLedger = {
     date: string;
     netByNick: Record<string, number>;
     events: RpMatchEvent[];
+    giveUpKills?: number;
+    revives?: number;
   }[];
   players: Record<string, RpPlayer>;
   leaderboard: Omit<RpLeaderRow, "place" | "games">[];
@@ -211,7 +218,7 @@ export async function listRpTrainingMatches(): Promise<RpMatchListItem[]> {
     .reverse();
 }
 
-/** Разбор RP одного игрока в конкретном матче (киллы / смерти / net). */
+/** Разбор RP одного игрока в конкретном матче (киллы / смерти / ресы / net). */
 export async function playerRpMatchBreakdown(
   nick: string,
   matchId: string
@@ -225,12 +232,23 @@ export async function playerRpMatchBreakdown(
   const player = ledger.players[want];
   if (player?.matches?.length) {
     const hit = player.matches.find((m) => m.id === matchId);
-    if (hit) return hit;
+    if (hit) {
+      return {
+        ...hit,
+        revives: hit.revives || [],
+      };
+    }
   }
 
   const kills: RpMatchEvent[] = [];
   const deaths: RpMatchEvent[] = [];
+  const revives: RpMatchEvent[] = [];
   for (const e of match.events || []) {
+    const kind = e.kind || "die";
+    if (kind === "revive") {
+      if (nickKey(e.killer) === want) revives.push(e);
+      continue;
+    }
     if (nickKey(e.killer) === want) kills.push(e);
     if (nickKey(e.victim) === want) deaths.push(e);
   }
@@ -240,10 +258,11 @@ export async function playerRpMatchBreakdown(
   const net =
     netFromMap != null
       ? Number(netFromMap) || 0
-      : kills.reduce((s, e) => s + e.delta, 0) -
+      : kills.reduce((s, e) => s + e.delta, 0) +
+        revives.reduce((s, e) => s + e.delta, 0) -
         deaths.reduce((s, e) => s + Math.abs(e.delta), 0);
 
-  if (!kills.length && !deaths.length && net === 0) return null;
+  if (!kills.length && !deaths.length && !revives.length && net === 0) return null;
 
   return {
     id: match.id,
@@ -252,5 +271,6 @@ export async function playerRpMatchBreakdown(
     net,
     kills,
     deaths,
+    revives,
   };
 }
