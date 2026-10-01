@@ -8752,16 +8752,23 @@ body.profile-match-modal-open {
 
 /* —— Межклановый рейтинг /rating —— */
 .cross-rating-page {
+  position: relative;
   margin: 0 -12px 24px;
   min-height: calc(100vh - 100px);
   border-radius: 16px;
   overflow: auto;
   border: 1px solid var(--line);
-  background: #07060c;
+  background:
+    radial-gradient(900px 520px at 12% -8%, rgba(124, 58, 237, 0.38), transparent 60%),
+    radial-gradient(700px 480px at 92% 8%, rgba(217, 70, 239, 0.18), transparent 55%),
+    radial-gradient(800px 600px at 70% 100%, rgba(30, 27, 75, 0.55), transparent 50%),
+    linear-gradient(180deg, #0b0914 0%, #07060c 100%);
 }
 
 /* Как .wrap в KV при layout-cw */
 .cross-rating-shell {
+  position: relative;
+  z-index: 1;
   width: 100%;
   max-width: min(1760px, 100%);
   margin: 0 auto;
@@ -8769,38 +8776,137 @@ body.profile-match-modal-open {
   box-sizing: border-box;
 }
 
+.cross-rating-bg {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.cross-rating-page > .cross-rating-shell > .cross-rating-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  display: none;
+}
+
+.cross-rating-page::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(167, 139, 250, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(167, 139, 250, 0.1) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse at 50% 18%, #000 18%, transparent 72%);
+  opacity: 0.45;
+}
+
+.cross-rating-glow {
+  position: absolute;
+  border-radius: 50%;
+}
+
+.cross-rating-glow-a {
+  width: 420px;
+  height: 420px;
+  left: -80px;
+  top: -120px;
+  background: radial-gradient(circle, rgba(167, 139, 250, 0.45), transparent 70%);
+}
+
+.cross-rating-glow-b {
+  width: 360px;
+  height: 360px;
+  right: -40px;
+  top: 40px;
+  background: radial-gradient(circle, rgba(217, 70, 239, 0.28), transparent 70%);
+}
+
+.cross-rating-grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.35;
+  background-image:
+    linear-gradient(rgba(167, 139, 250, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(167, 139, 250, 0.12) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse at 50% 20%, #000 20%, transparent 75%);
+}
+
 .cross-rating-top {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px 24px;
-  margin-bottom: 16px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 18px;
 }
 
 .cross-rating-top h1 {
-  margin: 4px 0 0;
-  font-size: clamp(1.6rem, 2.4vw, 2.1rem);
-}
-
-.cross-rating-lead {
-  margin: 6px 0 0;
-  line-height: 1.45;
+  margin: 0;
+  font-size: clamp(1.85rem, 2.8vw, 2.35rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: linear-gradient(120deg, #fff 10%, #c4b5fd 45%, #e879f9 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .cross-rating-tabs {
-  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 10px;
+}
+
+.cross-rating-tab {
+  appearance: none;
+  border: 1px solid rgba(167, 139, 250, 0.28);
+  background: rgba(20, 16, 36, 0.55);
+  color: #c4b5fd;
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 650;
+  padding: 12px 22px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.cross-rating-tab:hover {
+  color: #f5f3ff;
+  border-color: rgba(167, 139, 250, 0.55);
+  background: rgba(167, 139, 250, 0.12);
+}
+
+.cross-rating-tab.active {
+  color: #fff;
+  border-color: rgba(232, 121, 249, 0.75);
+  background: linear-gradient(
+    135deg,
+    rgba(167, 139, 250, 0.42),
+    rgba(217, 70, 239, 0.28)
+  );
+  box-shadow: 0 0 28px rgba(167, 139, 250, 0.32);
 }
 
 .cross-rating-panel {
   margin: 0;
-  background: rgba(18, 14, 32, 0.92);
+  background: rgba(18, 14, 32, 0.78);
+  border: 1px solid rgba(167, 139, 250, 0.18);
+  backdrop-filter: blur(8px);
 }
 
+.cross-rating-lead,
 .cross-rating-note {
-  margin: 0 0 14px;
-  line-height: 1.45;
-  font-size: 0.92rem;
+  display: none;
 }
 
 .cross-rating-table-wrap {

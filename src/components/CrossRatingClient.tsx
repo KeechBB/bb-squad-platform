@@ -67,16 +67,9 @@ export function CrossRatingClient({ clans, enemies }: Props) {
   return (
     <div className="cross-rating-shell">
       <header className="cross-rating-top">
-        <div>
-          <p className="eyebrow">межклановый рейтинг</p>
-          <h1>Рейтинг кланов</h1>
-          <p className="muted cross-rating-lead">
-            Elo команд по КВ · {clans.meetings} встреч · Main {clans.bbEloMain} ·
-            Junior {clans.bbEloJunior}
-          </p>
-        </div>
+        <h1>Рейтинг кланов</h1>
         <div
-          className="profile-stats-tablist cross-rating-tabs"
+          className="cross-rating-tabs"
           role="tablist"
           aria-label="Рейтинг кланов"
         >
@@ -84,7 +77,7 @@ export function CrossRatingClient({ clans, enemies }: Props) {
             type="button"
             role="tab"
             aria-selected={tab === "clans"}
-            className={`profile-stats-tab${tab === "clans" ? " active" : ""}`}
+            className={`cross-rating-tab${tab === "clans" ? " active" : ""}`}
             onClick={() => setTab("clans")}
           >
             Рейтинг кланов
@@ -93,7 +86,7 @@ export function CrossRatingClient({ clans, enemies }: Props) {
             type="button"
             role="tab"
             aria-selected={tab === "players"}
-            className={`profile-stats-tab${tab === "players" ? " active" : ""}`}
+            className={`cross-rating-tab${tab === "players" ? " active" : ""}`}
             onClick={() => setTab("players")}
           >
             Рейтинг игроков
@@ -103,11 +96,6 @@ export function CrossRatingClient({ clans, enemies }: Props) {
 
       {tab === "clans" ? (
         <section className="card cross-rating-panel" role="tabpanel">
-          <p className="muted cross-rating-note">
-            Elo старт 1000, K=25. Без победы BB — выше нас, без цифры
-            (калибровка). Кликни клан — история встреч.{" "}
-            <strong>Main</strong> и <strong>Junior</strong> — отдельные Elo.
-          </p>
           <div className="admin-table-wrap cross-rating-table-wrap">
             <table className="admin-table cross-rating-table cross-clans-table">
               <thead>
