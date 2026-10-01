@@ -6471,10 +6471,15 @@ body {
 
   .auth-bar {
     flex: 1 1 100%;
+    align-items: flex-end;
+    gap: 0;
+    min-width: 0;
+  }
+
+  .auth-bar-main {
     justify-content: flex-end;
     flex-wrap: wrap;
     gap: 6px;
-    min-width: 0;
   }
 
   .auth-bar .nick-link {
