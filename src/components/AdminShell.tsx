@@ -7,6 +7,7 @@ import { AdminAttendancePanel } from "@/components/AdminAttendancePanel";
 import { AdminJournalPanel } from "@/components/AdminJournalPanel";
 import { AdminVisitsPanel } from "@/components/AdminVisitsPanel";
 import { AdminReservePanel } from "@/components/AdminReservePanel";
+import { AdminUpdatesPanel } from "@/components/AdminUpdatesPanel";
 import type { AppRole } from "@/lib/roles";
 
 type Props = {
@@ -19,7 +20,7 @@ type Props = {
   showReserve: boolean;
 };
 
-type Tab = "users" | "attendance" | "journal" | "visits" | "reserve";
+type Tab = "users" | "attendance" | "journal" | "visits" | "reserve" | "updates";
 
 const TAB_LEAD: Record<Tab, string> = {
   users: "Пользователи платформы. Кликни по нику — правка анкеты и аватара.",
@@ -31,12 +32,20 @@ const TAB_LEAD: Record<Tab, string> = {
     "Кто заходит на сайт, где сидит, куда тыкает. Keech / Зам / HR. Не путать с посещаемостью TR1.",
   reserve:
     "Резерв BlackBerry: весь состав, причины, даты ухода/возврата, ручное управление, история.",
+  updates:
+    "Логи обновлений сайта: дата, Beta-версия и что добавили для игроков.",
 };
 
 function readTab(allowVisits: boolean, allowReserve: boolean): Tab {
   if (typeof window === "undefined") return "users";
   const t = new URLSearchParams(window.location.search).get("tab");
-  if (t === "attendance" || t === "journal" || t === "users") return t;
+  if (
+    t === "attendance" ||
+    t === "journal" ||
+    t === "users" ||
+    t === "updates"
+  )
+    return t;
   if (t === "visits" && allowVisits) return "visits";
   if (t === "reserve" && allowReserve) return "reserve";
   return "users";
@@ -129,6 +138,13 @@ export function AdminShell({
           >
             Журнал действий
           </button>
+          <button
+            type="button"
+            className={`admin-tab ${tab === "updates" ? "active" : ""}`}
+            onClick={() => setTab("updates")}
+          >
+            Логи обновлений
+          </button>
           {showSiteVisits ? (
             <button
               type="button"
@@ -156,6 +172,7 @@ export function AdminShell({
       {tab === "attendance" ? <AdminAttendancePanel /> : null}
       {tab === "reserve" && showReserve ? <AdminReservePanel /> : null}
       {tab === "journal" ? <AdminJournalPanel /> : null}
+      {tab === "updates" ? <AdminUpdatesPanel /> : null}
       {tab === "visits" && showSiteVisits ? <AdminVisitsPanel /> : null}
     </main>
   );

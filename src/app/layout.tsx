@@ -4,6 +4,7 @@ import { AuthBar } from "@/components/AuthBar";
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { isBlackberryClanMember } from "@/lib/blackberryClan";
+import { getCurrentBetaLabel } from "@/lib/siteReleases";
 import "@fontsource/oxanium/400.css";
 import "@fontsource/oxanium/600.css";
 import "@fontsource/oxanium/700.css";
@@ -34,6 +35,7 @@ export default async function RootLayout({
     Boolean(session?.user?.steamId) &&
     Boolean(session?.user?.profileComplete) &&
     (await isBlackberryClanMember(session?.user?.steamId));
+  const betaLabel = getCurrentBetaLabel();
 
   return (
     <html lang="ru">
@@ -78,6 +80,9 @@ export default async function RootLayout({
               </div>
               <AuthBar />
             </div>
+            <p className="site-beta" aria-label="Версия сайта">
+              {betaLabel}
+            </p>
           </header>
           <div className="shell">{children}</div>
         </Providers>
