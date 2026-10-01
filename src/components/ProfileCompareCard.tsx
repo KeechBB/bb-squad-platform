@@ -52,17 +52,78 @@ function deltaCls(a: number | null, b: number | null, higherBetter = true) {
   return win ? "is-win" : "is-lose";
 }
 
-function SideBlock({
-  side,
-  accent,
+function NickPicker({
+  label,
+  value,
+  draft,
+  onDraft,
+  onPick,
+  suggestions,
 }: {
-  side: CompareSide;
-  accent: "me" | "other";
+  label: string;
+  value: string;
+  draft: string;
+  onDraft: (v: string) => void;
+  onPick: (nick: string) => void;
+  suggestions: string[];
 }) {
+  const show =
+    draft.trim().length > 0 &&
+    draft.trim().toLowerCase() !== value.trim().toLowerCase();
+
+  const commitExact = () => {
+    const q = draft.trim().toLowerCase();
+    if (!q) return;
+    const hit =
+      suggestions.find((n) => n.toLowerCase() === q) ||
+      suggestions.find((n) => n.toLowerCase().startsWith(q));
+    if (hit) {
+      onPick(hit);
+      onDraft(hit);
+    }
+  };
+
+  return (
+    <label className="compare-search">
+      <span className="muted">{label}</span>
+      <input
+        value={draft}
+        onChange={(e) => onDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commitExact();
+          }
+        }}
+        placeholder="Ник…"
+        autoComplete="off"
+      />
+      {show && suggestions.length > 0 ? (
+        <ul className="compare-suggest">
+          {suggestions.map((n) => (
+            <li key={n}>
+              <button
+                type="button"
+                onClick={() => {
+                  onPick(n);
+                  onDraft(n);
+                }}
+              >
+                {n}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </label>
+  );
+}
+
+function SideBlock({ side }: { side: CompareSide }) {
   const train = side.train;
   const cw = side.cw;
   return (
-    <div className={`compare-side compare-side-${accent}`}>
+    <div className="compare-side">
       <header className="compare-side-head">
         <h3>{side.nick}</h3>
         <div className="compare-rp-row">
@@ -133,11 +194,71 @@ function SideBlock({
   );
 }
 
+function TrainHist({ side }: { side: CompareSide }) {
+  return (
+    <section className="compare-hist-block">
+      <h4>Тренировки · {side.nick}</h4>
+      <ul className="compare-hist-list">
+        {side.trainHistory.length === 0 ? (
+          <li className="muted">Нет матчей</li>
+        ) : (
+          side.trainHistory.slice(0, 16).map((m) => (
+            <li key={`t-${side.nick}-${m.matchId}`}>
+              <span>{m.dateLabel}</span>
+              <span title={m.map}>{m.map}</span>
+              <span
+                className={
+                  m.rpDelta == null
+                    ? ""
+                    : m.rpDelta > 0
+                      ? "plus"
+                      : m.rpDelta < 0
+                        ? "minus"
+                        : ""
+                }
+              >
+                {m.rpDelta == null
+                  ? "—"
+                  : m.rpDelta > 0
+                    ? `+${m.rpDelta}`
+                    : String(m.rpDelta)}
+              </span>
+            </li>
+          ))
+        )}
+      </ul>
+    </section>
+  );
+}
+
+function CwHist({ side }: { side: CompareSide }) {
+  return (
+    <section className="compare-hist-block">
+      <h4>КВ · {side.nick}</h4>
+      <ul className="compare-hist-list">
+        {side.cwHistory.length === 0 ? (
+          <li className="muted">Нет матчей</li>
+        ) : (
+          side.cwHistory.slice(0, 12).map((m) => (
+            <li key={`c-${side.nick}-${m.matchId}`}>
+              <span>{m.dateLabel}</span>
+              <span title={m.opp}>vs {m.opp}</span>
+              <span>{m.meeting || "—"}</span>
+            </li>
+          ))
+        )}
+      </ul>
+    </section>
+  );
+}
+
 export function ProfileCompareCard({ myNick }: Props) {
   const [open, setOpen] = useState(false);
   const [nicks, setNicks] = useState<string[]>([]);
-  const [query, setQuery] = useState("");
-  const [other, setOther] = useState("");
+  const [left, setLeft] = useState(myNick);
+  const [right, setRight] = useState("");
+  const [leftDraft, setLeftDraft] = useState(myNick);
+  const [rightDraft, setRightDraft] = useState("");
   const [from, setFrom] = useState<string | null>(null);
   const [to, setTo] = useState<string | null>(null);
   const [pick, setPick] = useState<"from" | "to">("from");
@@ -152,32 +273,74 @@ export function ProfileCompareCard({ myNick }: Props) {
 
   useEffect(() => {
     if (!open) return;
+    setLeft(myNick);
+    setLeftDraft(myNick);
+    setRight("");
+    setRightDraft("");
+    setData(null);
+    setError(null);
+    setCalOpen(false);
     fetch("/api/player-compare?list=1", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : { nicks: [] }))
       .then((j) => setNicks(Array.isArray(j.nicks) ? j.nicks : []))
       .catch(() => setNicks([]));
+  }, [open, myNick]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
   }, [open]);
 
-  const suggestions = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const base = nicks.filter(
-      (n) => n.toLowerCase() !== myNick.trim().toLowerCase()
-    );
-    if (!q) return base.slice(0, 12);
-    return base.filter((n) => n.toLowerCase().includes(q)).slice(0, 12);
-  }, [nicks, query, myNick]);
+  const filterSuggest = useCallback(
+    (draft: string, lockedOther: string) => {
+      const q = draft.trim().toLowerCase();
+      const otherLow = lockedOther.trim().toLowerCase();
+      return nicks
+        .filter((n) => {
+          const low = n.toLowerCase();
+          if (otherLow && low === otherLow) return false;
+          if (!q) return true;
+          return low.includes(q);
+        })
+        .slice(0, 10);
+    },
+    [nicks]
+  );
+
+  const leftSuggestions = useMemo(
+    () => filterSuggest(leftDraft, right),
+    [filterSuggest, leftDraft, right]
+  );
+  const rightSuggestions = useMemo(
+    () => filterSuggest(rightDraft, left),
+    [filterSuggest, rightDraft, left]
+  );
 
   const loadCompare = useCallback(async () => {
-    if (!other.trim()) {
-      setError("Выбери игрока");
+    if (!left.trim() || !right.trim()) {
+      setError("Выбери обоих игроков");
+      return;
+    }
+    if (left.trim().toLowerCase() === right.trim().toLowerCase()) {
+      setError("Выбери двух разных игроков");
+      setData(null);
       return;
     }
     setLoading(true);
     setError(null);
     try {
       const qs = new URLSearchParams({
-        me: myNick,
-        other: other.trim(),
+        me: left.trim(),
+        other: right.trim(),
       });
       if (from) qs.set("from", from);
       if (to) qs.set("to", to);
@@ -196,12 +359,12 @@ export function ProfileCompareCard({ myNick }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [myNick, other, from, to]);
+  }, [left, right, from, to]);
 
   useEffect(() => {
-    if (!open || !other) return;
+    if (!open || !left || !right) return;
     void loadCompare();
-  }, [open, other, from, to, loadCompare]);
+  }, [open, left, right, from, to, loadCompare]);
 
   const daysInMonth = useMemo(() => {
     const last = new Date(viewY, viewM, 0).getDate();
@@ -231,318 +394,235 @@ export function ProfileCompareCard({ myNick }: Props) {
           <h2>Сравнение</h2>
         </div>
         <p className="muted profile-compare-lead">
-          Себя с любым игроком: RP, ТМ/КВ стата и матчи по датам.
+          Любой игрок с любым: RP, ТМ/КВ и матчи по датам.
         </p>
         <button
           type="button"
           className="profile-compare-open-btn"
           onClick={() => setOpen(true)}
         >
-          Сравнить с игроком
+          Сравнить игроков
         </button>
       </section>
 
       {open ? (
-        <div className="compare-overlay" role="dialog" aria-modal="true">
+        <div
+          className="compare-overlay"
+          role="dialog"
+          aria-modal="true"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setOpen(false);
+          }}
+        >
           <div className="compare-panel">
             <header className="compare-panel-head">
-              <div>
+              <div className="compare-panel-title">
                 <h2>Сравнение игроков</h2>
                 <p className="muted">{periodLabel}</p>
               </div>
               <button
                 type="button"
-                className="rp-breakdown-close"
+                className="compare-close"
+                aria-label="Закрыть"
                 onClick={() => setOpen(false)}
               >
                 ✕
               </button>
             </header>
 
-            <div className="compare-controls">
-              <label className="compare-search">
-                <span className="muted">Игрок</span>
-                <input
-                  value={query || other}
-                  onChange={(e) => {
-                    setQuery(e.target.value);
-                    setOther("");
+            <div className="compare-body">
+              <div className="compare-controls">
+                <NickPicker
+                  label="Игрок A"
+                  value={left}
+                  draft={leftDraft}
+                  onDraft={(v) => {
+                    setLeftDraft(v);
+                    setLeft("");
                     setData(null);
                   }}
-                  placeholder="Ник…"
-                  autoComplete="off"
+                  onPick={(n) => setLeft(n)}
+                  suggestions={leftSuggestions}
                 />
-                {query && !other && suggestions.length > 0 ? (
-                  <ul className="compare-suggest">
-                    {suggestions.map((n) => (
-                      <li key={n}>
+
+                <div className="compare-cal-wrap">
+                  <span className="muted">Период</span>
+                  <button
+                    type="button"
+                    className={`compare-cal-toggle${calOpen ? " is-open" : ""}`}
+                    onClick={() => setCalOpen((v) => !v)}
+                  >
+                    {periodLabel}
+                  </button>
+                  {(from || to) && (
+                    <button
+                      type="button"
+                      className="compare-cal-clear"
+                      onClick={() => {
+                        setFrom(null);
+                        setTo(null);
+                        setPick("from");
+                      }}
+                    >
+                      Сбросить даты
+                    </button>
+                  )}
+                  {calOpen ? (
+                    <div className="compare-cal">
+                      <div className="compare-cal-nav">
                         <button
                           type="button"
                           onClick={() => {
-                            setOther(n);
-                            setQuery(n);
+                            if (viewM === 1) {
+                              setViewY((y) => y - 1);
+                              setViewM(12);
+                            } else setViewM((m) => m - 1);
                           }}
                         >
-                          {n}
+                          ‹
                         </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </label>
-
-              <div className="compare-cal-wrap">
-                <button
-                  type="button"
-                  className={`compare-cal-toggle${calOpen ? " is-open" : ""}`}
-                  onClick={() => setCalOpen((v) => !v)}
-                >
-                  Календарь · {periodLabel}
-                </button>
-                {(from || to) && (
-                  <button
-                    type="button"
-                    className="compare-cal-clear"
-                    onClick={() => {
-                      setFrom(null);
-                      setTo(null);
-                      setPick("from");
-                    }}
-                  >
-                    Сбросить даты
-                  </button>
-                )}
-                {calOpen ? (
-                  <div className="compare-cal">
-                    <div className="compare-cal-nav">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (viewM === 1) {
-                            setViewY((y) => y - 1);
-                            setViewM(12);
-                          } else setViewM((m) => m - 1);
-                        }}
-                      >
-                        ‹
-                      </button>
-                      <strong>{monthLabel}</strong>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (viewM === 12) {
-                            setViewY((y) => y + 1);
-                            setViewM(1);
-                          } else setViewM((m) => m + 1);
-                        }}
-                      >
-                        ›
-                      </button>
-                    </div>
-                    <div className="compare-cal-pick">
-                      <button
-                        type="button"
-                        className={pick === "from" ? "is-active" : ""}
-                        onClick={() => setPick("from")}
-                      >
-                        С {from ? formatRuDay(from) : "…"}
-                      </button>
-                      <button
-                        type="button"
-                        className={pick === "to" ? "is-active" : ""}
-                        onClick={() => setPick("to")}
-                      >
-                        По {to ? formatRuDay(to) : "…"}
-                      </button>
-                    </div>
-                    <div className="compare-cal-grid">
-                      {["пн", "вт", "ср", "чт", "пт", "сб", "вс"].map((d) => (
-                        <span key={d} className="muted">
-                          {d}
-                        </span>
-                      ))}
-                      {daysInMonth.map((d, i) => {
-                        if (d == null) return <span key={`e-${i}`} />;
-                        const day = ymd(viewY, viewM, d);
-                        const selected =
-                          day === from || day === to || (from && to && day >= from && day <= to);
-                        return (
-                          <button
-                            key={day}
-                            type="button"
-                            className={selected ? "is-selected" : ""}
-                            onClick={() => {
-                              if (pick === "from") {
-                                setFrom(day);
-                                if (to && day > to) setTo(null);
-                                setPick("to");
-                              } else {
-                                if (from && day < from) {
-                                  setFrom(day);
-                                  setTo(from);
-                                } else setTo(day);
-                                setPick("from");
-                              }
-                            }}
-                          >
+                        <strong>{monthLabel}</strong>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (viewM === 12) {
+                              setViewY((y) => y + 1);
+                              setViewM(1);
+                            } else setViewM((m) => m + 1);
+                          }}
+                        >
+                          ›
+                        </button>
+                      </div>
+                      <div className="compare-cal-pick">
+                        <button
+                          type="button"
+                          className={pick === "from" ? "is-active" : ""}
+                          onClick={() => setPick("from")}
+                        >
+                          С {from ? formatRuDay(from) : "…"}
+                        </button>
+                        <button
+                          type="button"
+                          className={pick === "to" ? "is-active" : ""}
+                          onClick={() => setPick("to")}
+                        >
+                          По {to ? formatRuDay(to) : "…"}
+                        </button>
+                      </div>
+                      <div className="compare-cal-grid">
+                        {["пн", "вт", "ср", "чт", "пт", "сб", "вс"].map((d) => (
+                          <span key={d} className="muted">
                             {d}
-                          </button>
-                        );
-                      })}
+                          </span>
+                        ))}
+                        {daysInMonth.map((d, i) => {
+                          if (d == null) return <span key={`e-${i}`} />;
+                          const day = ymd(viewY, viewM, d);
+                          const selected =
+                            day === from ||
+                            day === to ||
+                            (from && to && day >= from && day <= to);
+                          return (
+                            <button
+                              key={day}
+                              type="button"
+                              className={selected ? "is-selected" : ""}
+                              onClick={() => {
+                                if (pick === "from") {
+                                  setFrom(day);
+                                  if (to && day > to) setTo(null);
+                                  setPick("to");
+                                } else {
+                                  if (from && day < from) {
+                                    setFrom(day);
+                                    setTo(from);
+                                  } else setTo(day);
+                                  setPick("from");
+                                }
+                              }}
+                            >
+                              {d}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ) : null}
+                  ) : null}
+                </div>
+
+                <NickPicker
+                  label="Игрок B"
+                  value={right}
+                  draft={rightDraft}
+                  onDraft={(v) => {
+                    setRightDraft(v);
+                    setRight("");
+                    setData(null);
+                  }}
+                  onPick={(n) => setRight(n)}
+                  suggestions={rightSuggestions}
+                />
               </div>
-            </div>
 
-            {error ? <p className="error">{error}</p> : null}
-            {loading ? <p className="muted">Считаем сравнение…</p> : null}
+              {error ? <p className="error">{error}</p> : null}
+              {loading ? <p className="muted">Считаем сравнение…</p> : null}
 
-            {data ? (
-              <>
-                <div className="compare-vs">
-                  <SideBlock side={data.me} accent="me" />
-                  <div className="compare-vs-mid">
-                    <span>VS</span>
-                    <div className="compare-diff">
-                      <div
-                        className={deltaCls(data.me.rp, data.other.rp)}
-                        title="RP"
-                      >
-                        RP{" "}
-                        {data.me.rp != null && data.other.rp != null
-                          ? Math.round(data.me.rp - data.other.rp) > 0
-                            ? `+${Math.round(data.me.rp - data.other.rp)}`
-                            : String(Math.round(data.me.rp - data.other.rp))
-                          : "—"}
-                      </div>
-                      <div
-                        className={deltaCls(
-                          data.me.train?.kd ?? null,
-                          data.other.train?.kd ?? null
-                        )}
-                      >
-                        ТМ KD
-                      </div>
-                      <div
-                        className={deltaCls(
-                          data.me.cw?.kd ?? null,
-                          data.other.cw?.kd ?? null
-                        )}
-                      >
-                        КВ KD
+              {data ? (
+                <>
+                  <div className="compare-vs">
+                    <SideBlock side={data.me} />
+                    <div className="compare-vs-mid">
+                      <span>VS</span>
+                      <div className="compare-diff">
+                        <div className={deltaCls(data.me.rp, data.other.rp)}>
+                          RP{" "}
+                          {data.me.rp != null && data.other.rp != null
+                            ? Math.round(data.me.rp - data.other.rp) > 0
+                              ? `+${Math.round(data.me.rp - data.other.rp)}`
+                              : String(Math.round(data.me.rp - data.other.rp))
+                            : "—"}
+                        </div>
+                        <div
+                          className={deltaCls(
+                            data.me.train?.kd ?? null,
+                            data.other.train?.kd ?? null
+                          )}
+                        >
+                          ТМ KD
+                        </div>
+                        <div
+                          className={deltaCls(
+                            data.me.cw?.kd ?? null,
+                            data.other.cw?.kd ?? null
+                          )}
+                        >
+                          КВ KD
+                        </div>
                       </div>
                     </div>
+                    <SideBlock side={data.other} />
                   </div>
-                  <SideBlock side={data.other} accent="other" />
-                </div>
 
-                <div className="compare-hist-grid">
-                  <section>
-                    <h4>Тренировки · {data.me.nick}</h4>
-                    <ul className="compare-hist-list">
-                      {data.me.trainHistory.length === 0 ? (
-                        <li className="muted">Нет матчей</li>
-                      ) : (
-                        data.me.trainHistory.slice(0, 20).map((m) => (
-                          <li key={`mt-${m.matchId}`}>
-                            <span>{m.dateLabel}</span>
-                            <span title={m.map}>{m.map}</span>
-                            <span
-                              className={
-                                m.rpDelta == null
-                                  ? ""
-                                  : m.rpDelta > 0
-                                    ? "plus"
-                                    : m.rpDelta < 0
-                                      ? "minus"
-                                      : ""
-                              }
-                            >
-                              {m.rpDelta == null
-                                ? "—"
-                                : m.rpDelta > 0
-                                  ? `+${m.rpDelta}`
-                                  : String(m.rpDelta)}
-                            </span>
-                          </li>
-                        ))
-                      )}
-                    </ul>
-                  </section>
-                  <section>
-                    <h4>Тренировки · {data.other.nick}</h4>
-                    <ul className="compare-hist-list">
-                      {data.other.trainHistory.length === 0 ? (
-                        <li className="muted">Нет матчей</li>
-                      ) : (
-                        data.other.trainHistory.slice(0, 20).map((m) => (
-                          <li key={`ot-${m.matchId}`}>
-                            <span>{m.dateLabel}</span>
-                            <span title={m.map}>{m.map}</span>
-                            <span
-                              className={
-                                m.rpDelta == null
-                                  ? ""
-                                  : m.rpDelta > 0
-                                    ? "plus"
-                                    : m.rpDelta < 0
-                                      ? "minus"
-                                      : ""
-                              }
-                            >
-                              {m.rpDelta == null
-                                ? "—"
-                                : m.rpDelta > 0
-                                  ? `+${m.rpDelta}`
-                                  : String(m.rpDelta)}
-                            </span>
-                          </li>
-                        ))
-                      )}
-                    </ul>
-                  </section>
-                  <section>
-                    <h4>КВ · {data.me.nick}</h4>
-                    <ul className="compare-hist-list">
-                      {data.me.cwHistory.length === 0 ? (
-                        <li className="muted">Нет матчей</li>
-                      ) : (
-                        data.me.cwHistory.slice(0, 16).map((m) => (
-                          <li key={`mc-${m.matchId}`}>
-                            <span>{m.dateLabel}</span>
-                            <span title={m.opp}>vs {m.opp}</span>
-                            <span>{m.meeting || "—"}</span>
-                          </li>
-                        ))
-                      )}
-                    </ul>
-                  </section>
-                  <section>
-                    <h4>КВ · {data.other.nick}</h4>
-                    <ul className="compare-hist-list">
-                      {data.other.cwHistory.length === 0 ? (
-                        <li className="muted">Нет матчей</li>
-                      ) : (
-                        data.other.cwHistory.slice(0, 16).map((m) => (
-                          <li key={`oc-${m.matchId}`}>
-                            <span>{m.dateLabel}</span>
-                            <span title={m.opp}>vs {m.opp}</span>
-                            <span>{m.meeting || "—"}</span>
-                          </li>
-                        ))
-                      )}
-                    </ul>
-                  </section>
-                </div>
-              </>
-            ) : !loading && other ? null : (
-              !loading && (
-                <p className="muted" style={{ marginTop: 12 }}>
-                  Выбери ника справа — откроется разбор.
-                </p>
-              )
-            )}
+                  <div className="compare-hist-pair">
+                    <TrainHist side={data.me} />
+                    <div className="compare-hist-gutter" aria-hidden />
+                    <TrainHist side={data.other} />
+                  </div>
+                  <div className="compare-hist-pair">
+                    <CwHist side={data.me} />
+                    <div className="compare-hist-gutter" aria-hidden />
+                    <CwHist side={data.other} />
+                  </div>
+                </>
+              ) : (
+                !loading && (
+                  <p className="muted compare-hint">
+                    Выбери игрока слева и справа — откроется разбор.
+                  </p>
+                )
+              )}
+            </div>
           </div>
         </div>
       ) : null}
