@@ -263,6 +263,17 @@ function MatchRpSide({
         <p className="muted compare-hitmap-empty">Нет статы по этой катке</p>
       )}
 
+      {match ? (
+        <div className="compare-rp-ev-grid">
+          <RpEventList title="+ получил" kind="gain" events={match.kills} />
+          <RpEventList title="− отдал" kind="loss" events={match.deaths} />
+        </div>
+      ) : (
+        <p className="muted compare-hitmap-empty">
+          Нет RP-событий (не было give-up киллов)
+        </p>
+      )}
+
       <div className="compare-match-hitmap">
         <p
           className={`muted compare-hitmap-total${
@@ -309,17 +320,6 @@ function MatchRpSide({
           </p>
         )}
       </div>
-
-      {match ? (
-        <div className="compare-rp-ev-grid">
-          <RpEventList title="+ получил" kind="gain" events={match.kills} />
-          <RpEventList title="− отдал" kind="loss" events={match.deaths} />
-        </div>
-      ) : (
-        <p className="muted compare-hitmap-empty">
-          Нет RP-событий (не было give-up киллов)
-        </p>
-      )}
     </section>
   );
 }
