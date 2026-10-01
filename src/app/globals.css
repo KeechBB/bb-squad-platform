@@ -8748,3 +8748,104 @@ body.profile-match-modal-open {
     border-radius: 14px;
   }
 }
+
+/* —— Межклановый рейтинг /rating —— */
+.cross-rating-card {
+  margin-top: 12px;
+}
+
+.cross-rating-note {
+  margin: 8px 0 14px;
+  line-height: 1.45;
+  font-size: 0.92rem;
+}
+
+.cross-rating-table td,
+.cross-rating-table th {
+  white-space: nowrap;
+}
+
+.cross-rating-bb {
+  background: rgba(167, 139, 250, 0.12);
+}
+
+.cross-rating-calib {
+  background: rgba(250, 204, 21, 0.06);
+}
+
+.cross-rating-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-style: normal;
+  color: #fde68a;
+  background: rgba(120, 80, 20, 0.45);
+  border: 1px solid rgba(250, 204, 21, 0.35);
+}
+
+.cross-rating-sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+@media (max-width: 900px) {
+  .cross-rating-sides {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pwr-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.pwr-iron {
+  color: #cbd5e1;
+  background: rgba(100, 116, 139, 0.35);
+}
+.pwr-bronze {
+  color: #fdba74;
+  background: rgba(154, 52, 18, 0.35);
+}
+.pwr-silver {
+  color: #e2e8f0;
+  background: rgba(148, 163, 184, 0.3);
+}
+.pwr-gold {
+  color: #fde68a;
+  background: rgba(161, 98, 7, 0.35);
+}
+.pwr-platinum {
+  color: #a5f3fc;
+  background: rgba(14, 116, 144, 0.35);
+}
+.pwr-diamond {
+  color: #c4b5fd;
+  background: rgba(91, 33, 182, 0.35);
+}
+.pwr-legend {
+  color: #86efac;
+  background: rgba(22, 101, 52, 0.4);
+}
+.pwr-immortal {
+  color: #f9a8d4;
+  background: rgba(157, 23, 77, 0.35);
+}
+.pwr-master {
+  color: #fca5a5;
+  background: rgba(153, 27, 27, 0.4);
+}
+.pwr-radiant {
+  color: #fef9c3;
+  background: rgba(202, 138, 4, 0.45);
+}
+
