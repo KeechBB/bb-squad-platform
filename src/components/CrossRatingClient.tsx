@@ -56,6 +56,7 @@ function PwrScale() {
 }
 
 export function CrossRatingClient({ clans, enemies }: Props) {
+  const router = useRouter();
   const [tab, setTab] = useState<Tab>("clans");
   const [nickQ, setNickQ] = useState("");
 
@@ -64,6 +65,10 @@ export function CrossRatingClient({ clans, enemies }: Props) {
     if (!q) return enemies.rows;
     return enemies.rows.filter((r) => r.nick.toLowerCase().includes(q));
   }, [enemies.rows, nickQ]);
+
+  const openClan = (key: string) => {
+    router.push(`/rating/clan/${encodeURIComponent(key)}`);
+  };
 
   return (
     <div className="cross-rating-shell">
