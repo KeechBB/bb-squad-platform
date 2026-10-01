@@ -4510,6 +4510,42 @@ body:has(.home-page) {
   font: inherit;
   padding: 8px 10px;
 }
+.compare-confirm-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+.compare-confirm-btn {
+  flex: 0 0 auto;
+  min-width: 140px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(96, 165, 250, 0.55);
+  background: linear-gradient(
+    135deg,
+    rgba(37, 99, 235, 0.4),
+    rgba(124, 58, 237, 0.32)
+  );
+  color: #dbeafe;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.compare-confirm-btn:hover:not(:disabled) {
+  border-color: rgba(147, 197, 253, 0.85);
+  color: #fff;
+}
+.compare-confirm-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+.compare-confirm-row .compare-hint {
+  margin: 0;
+  text-align: left;
+}
 .compare-match-block {
   margin-top: 4px;
 }

@@ -746,47 +746,82 @@ export function ProfileCompareCard({ myNick }: Props) {
     [filterSuggest, rightDraft, left]
   );
 
-  const loadCompare = useCallback(async () => {
-    if (!left.trim() || !right.trim()) {
-      setError("Выбери обоих игроков");
-      return;
-    }
-    if (left.trim().toLowerCase() === right.trim().toLowerCase()) {
-      setError("Выбери двух разных игроков");
-      setData(null);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const qs = new URLSearchParams({
-        me: left.trim(),
-        other: right.trim(),
-      });
-      if (from) qs.set("from", from);
-      if (to) qs.set("to", to);
-      if (matchId) qs.set("matchId", matchId);
-      const res = await fetch(`/api/player-compare?${qs}`, {
-        cache: "no-store",
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j.error || "Не удалось сравнить");
+  const resolveNick = useCallback(
+    (draft: string, locked: string) => {
+      const q = draft.trim().toLowerCase();
+      if (!q) return null;
+      const otherLow = locked.trim().toLowerCase();
+      const pool = nicks.filter((n) => n.toLowerCase() !== otherLow);
+      const exact = pool.find((n) => n.toLowerCase() === q);
+      if (exact) return exact;
+      const starts = pool.filter((n) => n.toLowerCase().startsWith(q));
+      if (starts.length === 1) return starts[0];
+      const includes = pool.filter((n) => n.toLowerCase().includes(q));
+      if (includes.length === 1) return includes[0];
+      return null;
+    },
+    [nicks]
+  );
+
+  const runCompare = useCallback(
+    async (meNick: string, otherNick: string) => {
+      if (!meNick.trim() || !otherNick.trim()) {
+        setError("Выбери обоих игроков");
+        return;
       }
-      const payload = (await res.json()) as ComparePayload;
-      setData(payload);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Ошибка");
-      setData(null);
-    } finally {
-      setLoading(false);
+      if (meNick.trim().toLowerCase() === otherNick.trim().toLowerCase()) {
+        setError("Выбери двух разных игроков");
+        setData(null);
+        return;
+      }
+      setLoading(true);
+      setError(null);
+      try {
+        const qs = new URLSearchParams({
+          me: meNick.trim(),
+          other: otherNick.trim(),
+        });
+        if (from) qs.set("from", from);
+        if (to) qs.set("to", to);
+        if (matchId) qs.set("matchId", matchId);
+        const res = await fetch(`/api/player-compare?${qs}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error(j.error || "Не удалось сравнить");
+        }
+        const payload = (await res.json()) as ComparePayload;
+        setData(payload);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Ошибка");
+        setData(null);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [from, to, matchId]
+  );
+
+  const confirmCompare = useCallback(() => {
+    const a = left.trim() || resolveNick(leftDraft, rightDraft) || "";
+    const b = right.trim() || resolveNick(rightDraft, leftDraft) || "";
+    if (!a || !b) {
+      setError("Введи ники и нажми «Сравнить» (ник должен быть из списка)");
+      return;
     }
-  }, [left, right, from, to, matchId]);
+    setLeft(a);
+    setLeftDraft(a);
+    setRight(b);
+    setRightDraft(b);
+    void runCompare(a, b);
+  }, [left, right, leftDraft, rightDraft, resolveNick, runCompare]);
 
   useEffect(() => {
-    if (!open || !left || !right) return;
-    void loadCompare();
-  }, [open, left, right, from, to, matchId, loadCompare]);
+    if (!open || !left || !right || !data) return;
+    void runCompare(left, right);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- только период/катка
+  }, [from, to, matchId]);
 
   const daysInMonth = useMemo(() => {
     const last = new Date(viewY, viewM, 0).getDate();
@@ -1008,8 +1043,21 @@ export function ProfileCompareCard({ myNick }: Props) {
                 </select>
               </label>
 
+              <div className="compare-confirm-row">
+                <button
+                  type="button"
+                  className="compare-confirm-btn"
+                  disabled={loading}
+                  onClick={confirmCompare}
+                >
+                  {loading ? "Считаем…" : "Сравнить"}
+                </button>
+                <p className="muted compare-hint">
+                  Выбери ники слева и справа, затем нажми «Сравнить».
+                </p>
+              </div>
+
               {error ? <p className="error">{error}</p> : null}
-              {loading ? <p className="muted">Считаем сравнение…</p> : null}
 
               {data ? (
                 <>
@@ -1107,9 +1155,10 @@ export function ProfileCompareCard({ myNick }: Props) {
                   )}
                 </>
               ) : (
-                !loading && (
+                !loading &&
+                !error && (
                   <p className="muted compare-hint">
-                    Выбери игрока слева и справа — откроется разбор.
+                    После выбора ников нажми «Сравнить».
                   </p>
                 )
               )}
