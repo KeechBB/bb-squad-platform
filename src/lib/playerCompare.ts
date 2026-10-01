@@ -12,7 +12,20 @@ import {
 import { buildPlayerKvStats, type PlayerKvStats } from "@/lib/kvStats";
 import { kitsForUser } from "@/lib/squadRoles";
 import type { KitPctRow } from "@/lib/squadKits";
+import {
+  bonesForUser,
+  zonePctFromBones,
+  type HitBoneCounts,
+  type HitZonePct,
+} from "@/lib/squadHits";
 import { prisma } from "@/lib/prisma";
+
+export type CompareHitmap = {
+  bones: HitBoneCounts;
+  total: number;
+  lastBone: string | null;
+  zones: HitZonePct;
+};
 
 export type CompareSide = {
   nick: string;
@@ -26,6 +39,7 @@ export type CompareSide = {
   kits: KitPctRow[];
   trainHistory: TrainMatchHistoryRow[];
   cwHistory: CwMatchHistoryRow[];
+  hitmap: CompareHitmap;
 };
 
 function parseRuDate(label: string): string | null {
@@ -112,7 +126,7 @@ export async function buildCompareSide(
   });
   const displayNick = (user?.nick || clean).trim();
 
-  const [rp, train, cw, trainHistory, cwHistory, kits] = await Promise.all([
+  const [rp, train, cw, trainHistory, cwHistory, kits, hits] = await Promise.all([
     lookupPlayerTrainPwr(displayNick).catch(() => null),
     buildPlayerTrainCombatStats(displayNick).catch(() => null),
     buildPlayerKvStats(displayNick).catch(() => null),
@@ -121,6 +135,20 @@ export async function buildCompareSide(
     user?.id
       ? kitsForUser(user.id).catch(() => ({ kits: [] as KitPctRow[] }))
       : Promise.resolve({ kits: [] as KitPctRow[] }),
+    user?.id
+      ? bonesForUser(user.id, {
+          fromYmd: from,
+          toYmd: to,
+        }).catch(() => ({
+          bones: {} as HitBoneCounts,
+          total: 0,
+          lastBone: null as string | null,
+        }))
+      : Promise.resolve({
+          bones: {} as HitBoneCounts,
+          total: 0,
+          lastBone: null as string | null,
+        }),
   ]);
 
   const trainHist = filterTrainHistory(trainHistory, from, to);
@@ -141,6 +169,12 @@ export async function buildCompareSide(
     kits: (kits.kits || []).slice(0, 6),
     trainHistory: trainHist,
     cwHistory: cwHist,
+    hitmap: {
+      bones: hits.bones || {},
+      total: hits.total || 0,
+      lastBone: hits.lastBone || null,
+      zones: zonePctFromBones(hits.bones || {}),
+    },
   };
 }
 

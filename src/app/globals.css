@@ -4745,6 +4745,87 @@ body:has(.home-page) {
 .compare-hist-gutter {
   width: 64px;
 }
+.compare-hitmap-pair {
+  margin-top: 14px;
+  align-items: stretch;
+}
+.compare-hitmap-mid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  font-size: 0.68rem;
+  line-height: 1.2;
+  width: 64px;
+}
+.compare-hitmap-side {
+  min-width: 0;
+  border: 1px solid rgba(167, 139, 250, 0.18);
+  border-radius: 12px;
+  padding: 8px 10px 10px;
+  background: rgba(255, 255, 255, 0.025);
+}
+.compare-hitmap-side h4 {
+  margin: 0 0 4px;
+  font-size: 0.84rem;
+}
+.compare-hitmap-total {
+  margin: 0 0 6px;
+  font-size: 0.78rem;
+}
+.compare-hitmap-total strong {
+  color: #f5f3ff;
+}
+.compare-hitmap-body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 0;
+}
+.compare-hitmap-svg {
+  width: 100%;
+  max-width: 168px;
+  height: auto;
+  display: block;
+}
+.compare-hitmap-zones {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 4px;
+}
+.compare-hitmap-zones li {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 0.7rem;
+  padding: 4px 5px;
+  border-radius: 6px;
+  background: rgba(167, 139, 250, 0.06);
+  border: 1px solid rgba(167, 139, 250, 0.12);
+}
+.compare-hitmap-zones span {
+  opacity: 0.7;
+}
+.compare-hitmap-zones b {
+  font-size: 0.84rem;
+}
+.compare-hitmap-empty {
+  margin: 12px 0;
+  text-align: center;
+  font-size: 0.8rem;
+}
+@media (max-width: 900px) {
+  .compare-hitmap-mid {
+    flex-direction: row;
+    width: auto;
+    flex-wrap: wrap;
+  }
+}
 @media (max-width: 900px) {
   .compare-hist-pair {
     grid-template-columns: 1fr;

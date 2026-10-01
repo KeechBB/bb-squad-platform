@@ -70,6 +70,9 @@ export function parseDamage(raw: unknown): number | null {
 export type BonesForUserOpts = {
   /** Календарный день Europe/Moscow YYYY-MM-DD; без — всё время */
   dayYmd?: string | null;
+  /** Диапазон МСК YYYY-MM-DD (включительно); перекрывает dayYmd */
+  fromYmd?: string | null;
+  toYmd?: string | null;
 };
 
 /** Границы суток МСК → UTC [gte, lt). */
@@ -80,6 +83,21 @@ export function mskDayBoundsUtc(ymd: string): { gte: Date; lt: Date } | null {
   const gte = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0) - 3 * 3600_000);
   const lt = new Date(Date.UTC(y, m - 1, d + 1, 0, 0, 0, 0) - 3 * 3600_000);
   if (Number.isNaN(gte.getTime()) || Number.isNaN(lt.getTime())) return null;
+  return { gte, lt };
+}
+
+/** Диапазон МСК [from..to] включительно → UTC [gte, lt). */
+export function mskRangeBoundsUtc(
+  fromYmd?: string | null,
+  toYmd?: string | null
+): { gte?: Date; lt?: Date } | null {
+  const from = fromYmd?.trim() || null;
+  const to = toYmd?.trim() || null;
+  if (!from && !to) return null;
+  const gte = from ? mskDayBoundsUtc(from)?.gte : undefined;
+  const lt = to ? mskDayBoundsUtc(to)?.lt : undefined;
+  if (from && !gte) return null;
+  if (to && !lt) return null;
   return { gte, lt };
 }
 
@@ -99,10 +117,20 @@ export async function bonesForUser(
   opts: BonesForUserOpts = {}
 ): Promise<{ bones: HitBoneCounts; total: number; lastBone: string | null }> {
   const day = opts.dayYmd?.trim() || null;
-  const bounds = day ? mskDayBoundsUtc(day) : null;
+  const range = mskRangeBoundsUtc(opts.fromYmd, opts.toYmd);
+  const dayBounds = !range && day ? mskDayBoundsUtc(day) : null;
+  const hitAt =
+    range && (range.gte || range.lt)
+      ? {
+          ...(range.gte ? { gte: range.gte } : {}),
+          ...(range.lt ? { lt: range.lt } : {}),
+        }
+      : dayBounds
+        ? { gte: dayBounds.gte, lt: dayBounds.lt }
+        : undefined;
   const where = {
     userId,
-    ...(bounds ? { hitAt: { gte: bounds.gte, lt: bounds.lt } } : {}),
+    ...(hitAt ? { hitAt } : {}),
   };
 
   const [rows, last] = await Promise.all([
@@ -126,6 +154,38 @@ export async function bonesForUser(
   }
   const lastBone = last?.bone && last.bone !== "None" ? last.bone : null;
   return { bones, total, lastBone };
+}
+
+export type HitZonePct = {
+  head: number;
+  torso: number;
+  limb: number;
+};
+
+/** Доли Head / Torso / Limb из счётчиков костей (0–100). */
+export function zonePctFromBones(bones: HitBoneCounts): HitZonePct {
+  let head = 0;
+  let torso = 0;
+  let limb = 0;
+  for (const [bone, n] of Object.entries(bones || {})) {
+    if (!n || bone === "None") continue;
+    if (bone.includes("Head") || bone.includes("Neck")) head += n;
+    else if (
+      bone.includes("Spine") ||
+      bone.includes("Pelvis") ||
+      bone.includes("Clavicle")
+    )
+      torso += n;
+    else limb += n;
+  }
+  const sum = head + torso + limb;
+  if (sum <= 0) return { head: 0, torso: 0, limb: 0 };
+  const round1 = (v: number) => Math.round((1000 * v) / sum) / 10;
+  return {
+    head: round1(head),
+    torso: round1(torso),
+    limb: round1(limb),
+  };
 }
 
 /** Дни МСК, в которые были попадания (для подсветки в календаре). */

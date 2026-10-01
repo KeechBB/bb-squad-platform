@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CompareSide } from "@/lib/playerCompare";
+import { HitmapSilhouette } from "@/components/HitmapSilhouette";
 
 type Props = {
   myNick: string;
@@ -248,6 +249,54 @@ function CwHist({ side }: { side: CompareSide }) {
           ))
         )}
       </ul>
+    </section>
+  );
+}
+
+function HitmapSide({ side }: { side: CompareSide }) {
+  const hm = side.hitmap || {
+    bones: {},
+    total: 0,
+    lastBone: null,
+    zones: { head: 0, torso: 0, limb: 0 },
+  };
+  const total = hm.total || 0;
+  const z = hm.zones || { head: 0, torso: 0, limb: 0 };
+  return (
+    <section className="compare-hitmap-side">
+      <h4>Попадания · {side.nick}</h4>
+      <p className="muted compare-hitmap-total">
+        Всего: <strong>{total}</strong>
+      </p>
+      {total > 0 ? (
+        <>
+          <div className="compare-hitmap-body">
+            <HitmapSilhouette
+              bones={hm.bones}
+              total={total}
+              lastBone={hm.lastBone}
+              compact
+              className="compare-hitmap-svg"
+            />
+          </div>
+          <ul className="compare-hitmap-zones">
+            <li>
+              <span>Голова</span>
+              <b>{z.head}%</b>
+            </li>
+            <li>
+              <span>Торс</span>
+              <b>{z.torso}%</b>
+            </li>
+            <li>
+              <span>Конечности</span>
+              <b>{z.limb}%</b>
+            </li>
+          </ul>
+        </>
+      ) : (
+        <p className="muted compare-hitmap-empty">Нет данных попаданий</p>
+      )}
     </section>
   );
 }
@@ -602,6 +651,53 @@ export function ProfileCompareCard({ myNick }: Props) {
                       </div>
                     </div>
                     <SideBlock side={data.other} />
+                  </div>
+
+                  <div className="compare-hist-pair compare-hitmap-pair">
+                    <HitmapSide side={data.me} />
+                    <div className="compare-hist-gutter compare-hitmap-mid">
+                      <span className="muted">куда бьют</span>
+                      <div className="compare-diff">
+                        <div
+                          className={deltaCls(
+                            data.me.hitmap?.zones.head ?? null,
+                            data.other.hitmap?.zones.head ?? null
+                          )}
+                        >
+                          Голова
+                          {data.me.hitmap && data.other.hitmap
+                            ? (() => {
+                                const d =
+                                  Math.round(
+                                    (data.me.hitmap.zones.head -
+                                      data.other.hitmap.zones.head) *
+                                      10
+                                  ) / 10;
+                                return ` ${d > 0 ? `+${d}` : String(d)}`;
+                              })()
+                            : ""}
+                        </div>
+                        <div
+                          className={deltaCls(
+                            data.me.hitmap?.zones.torso ?? null,
+                            data.other.hitmap?.zones.torso ?? null
+                          )}
+                        >
+                          Торс
+                        </div>
+                        <div
+                          className={deltaCls(
+                            data.me.hitmap?.zones.limb ?? null,
+                            data.other.hitmap?.zones.limb ?? null,
+                            false
+                          )}
+                          title="Меньше конечностей обычно лучше"
+                        >
+                          Конечн.
+                        </div>
+                      </div>
+                    </div>
+                    <HitmapSide side={data.other} />
                   </div>
 
                   <div className="compare-hist-pair">
