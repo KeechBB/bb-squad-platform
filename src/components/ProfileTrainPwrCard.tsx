@@ -10,7 +10,7 @@ type Props = {
 };
 
 function fmtDelta(n: number) {
-  const v = Math.round(n * 10) / 10;
+  const v = Math.round(Number(n) || 0);
   return v > 0 ? `+${v}` : String(v);
 }
 
@@ -139,8 +139,7 @@ export function ProfileTrainPwrCard({ stats }: Props) {
     );
   }
 
-  const rpShow =
-    Math.round(Number(stats.rp ?? stats.pwr) * 10) / 10;
+  const rpShow = Math.round(Number(stats.rp ?? stats.pwr) || 0);
 
   return (
     <>
@@ -152,12 +151,7 @@ export function ProfileTrainPwrCard({ stats }: Props) {
           </Link>
         </div>
 
-        <button
-          type="button"
-          className="profile-pwr-hero profile-rp-click"
-          onClick={() => setOpen(true)}
-          title="Разбор RP по картам"
-        >
+        <div className="profile-pwr-hero">
           <span
             className={`home-pwr-badge rank-${stats.rankKey} profile-pwr-badge`}
             title={stats.rankLabel}
@@ -171,9 +165,9 @@ export function ProfileTrainPwrCard({ stats }: Props) {
             <strong>{rpShow}</strong>
             <span className="muted">RP</span>
           </div>
-        </button>
+        </div>
 
-        <div className="profile-kv-extra profile-pwr-meta">
+        <div className="profile-kv-extra profile-pwr-meta profile-pwr-meta-2">
           <div>
             <span className="muted">Место</span>
             <strong>#{stats.place}</strong>
@@ -182,11 +176,15 @@ export function ProfileTrainPwrCard({ stats }: Props) {
             <span className="muted">Каток</span>
             <strong>{stats.games}</strong>
           </div>
-          <div>
-            <span className="muted">Ник в рейтинге</span>
-            <strong>{stats.nick}</strong>
-          </div>
         </div>
+
+        <button
+          type="button"
+          className="profile-rp-detail-btn"
+          onClick={() => setOpen(true)}
+        >
+          детальный разбор
+        </button>
       </section>
 
       {open ? (

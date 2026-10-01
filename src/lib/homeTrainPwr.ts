@@ -329,11 +329,11 @@ export async function buildHomeTrainPwrBoard(): Promise<HomeTrainPwrBoard> {
   const { buildTrainRpLeaderboard } = await import("@/lib/trainRp");
   const board = await buildTrainRpLeaderboard();
   const rows: HomeTrainPwrRow[] = board.rows.map((r) => {
-    const rp = Math.round(r.rp * 10) / 10;
+    const rp = Math.round(Number(r.rp) || 0);
     return {
       nick: r.nick,
       rp,
-      pwr: Math.round(rp),
+      pwr: rp,
       rankLabel: r.rankLabel,
       rankKey: r.rankKey,
       games: r.games,
@@ -365,14 +365,14 @@ export async function lookupPlayerTrainPwr(
     board.rows.findIndex(
       (r) => nickKey(r.nick) === nickKey(player.nick)
     ) + 1 || null;
-  const rp = Math.round(player.rp * 10) / 10;
+  const rp = Math.round(Number(player.rp) || 0);
   const rankLabel = player.predatorPlace
     ? `PREDATOR #${player.predatorPlace}`
     : player.rankLabel;
   return {
     nick: player.nick,
     rp,
-    pwr: Math.round(rp),
+    pwr: rp,
     rankLabel,
     rankKey: player.rankKey,
     games: player.matches?.length || 0,
@@ -578,8 +578,8 @@ export async function buildPlayerTrainMatchHistory(
     if (rpNetByMatch.has(match.id)) {
       if (runningRp == null) runningRp = startRp;
       const net = rpNetByMatch.get(match.id)!;
-      rpDelta = Math.round(net * 10) / 10;
-      runningRp = Math.round((runningRp + net) * 10) / 10;
+      rpDelta = Math.round(net);
+      runningRp = Math.round(runningRp + net);
       rpAfter = runningRp;
       const rk = rpRankFromScore(runningRp, step, radiant3Max);
       rankLabel = rk.label;
@@ -604,8 +604,8 @@ export async function buildPlayerTrainMatchHistory(
       won: won,
       rpAfter,
       rpDelta,
-      pwrAfter: rpAfter != null ? Math.round(rpAfter) : 0,
-      pwrDelta: rpDelta != null ? Math.round(rpDelta) : 0,
+      pwrAfter: rpAfter != null ? rpAfter : 0,
+      pwrDelta: rpDelta != null ? rpDelta : 0,
       rankLabel,
       rankKey,
     });

@@ -174,7 +174,7 @@ export async function trainMatchRpDeltas(
   if (!m?.netByNick) return {};
   const out: Record<string, number> = {};
   for (const [nick, net] of Object.entries(m.netByNick)) {
-    const v = Math.round((Number(net) || 0) * 10) / 10;
+    const v = Math.round(Number(net) || 0);
     const low = String(nick || "")
       .trim()
       .toLowerCase();

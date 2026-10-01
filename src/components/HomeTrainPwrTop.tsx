@@ -59,7 +59,7 @@ export function HomeTrainPwrTop({ initial }: Props) {
       ) : (
         <ol className="home-attend-streaks-list home-train-pwr-list">
           {rows.map((r, i) => {
-            const rp = Math.round(Number(r.rp ?? r.pwr) * 10) / 10;
+            const rp = Math.round(Number(r.rp ?? r.pwr) || 0);
             return (
               <li
                 key={r.nick}

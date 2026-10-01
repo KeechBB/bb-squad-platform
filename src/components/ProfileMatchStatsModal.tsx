@@ -601,7 +601,7 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
                               ? "pwr-delta minus"
                               : "pwr-delta zero";
                       const deltaRounded =
-                        delta == null ? null : Math.round(Number(delta) * 10) / 10;
+                        delta == null ? null : Math.round(Number(delta) || 0);
                       const deltaText =
                         deltaRounded == null
                           ? "—"
