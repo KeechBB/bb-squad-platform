@@ -289,4 +289,233 @@ export async function kitAveragesByTier(): Promise<TierKitAvg[]> {
   return out;
 }
 
+export type KitLevelSlot = {
+  level: 1 | 2 | 3;
+  kit: StandardKit;
+  pct: number;
+  n: number;
+};
+
+export type KitRankPlayer = {
+  nick: string;
+  tier: 1 | 2 | 3 | 4;
+  total: number;
+  levels: KitLevelSlot[];
+};
+
+export type KitRankKitCount = {
+  kit: StandardKit;
+  count: number;
+  /** доля среди игроков с этим уровнем */
+  pct: number;
+};
+
+export type KitRankTierKitCount = {
+  tier: 1 | 2 | 3 | 4;
+  kit: StandardKit;
+  count: number;
+};
+
+export type KitRankAnalytics = {
+  players: KitRankPlayer[];
+  /** сводка: сколько раз кит встречается как ур.1 / ур.2 / ур.3 */
+  byLevel: Record<1 | 2 | 3, KitRankKitCount[]>;
+  /** кит × тир × уровень (для фильтров сводки) */
+  byLevelTier: Record<1 | 2 | 3, KitRankTierKitCount[]>;
+  insights: {
+    players: number;
+    avgKitsUsed: number;
+    specialistsPct: number;
+    riflemanL1Pct: number;
+    avgL1Pct: number;
+    topL1Kit: string | null;
+    rarestL1Kit: string | null;
+  };
+};
+
+/**
+ * Рейтинг китов по игрокам: ур.1 = самый частый, ур.2 = второй, ур.3 = третий.
+ * Только зареганные с ролями; тир из tiers.json (иначе 4).
+ */
+export async function kitRankAnalytics(): Promise<KitRankAnalytics> {
+  const { loadTierIndex } = await import("@/lib/tiers");
+  const tierIndex = await loadTierIndex();
+
+  const users = await prisma.user.findMany({
+    where: {
+      profileComplete: true,
+      nick: { not: null },
+      squadRoles: { some: {} },
+    },
+    select: { id: true, nick: true },
+  });
+
+  const empty: KitRankAnalytics = {
+    players: [],
+    byLevel: { 1: [], 2: [], 3: [] },
+    byLevelTier: { 1: [], 2: [], 3: [] },
+    insights: {
+      players: 0,
+      avgKitsUsed: 0,
+      specialistsPct: 0,
+      riflemanL1Pct: 0,
+      avgL1Pct: 0,
+      topL1Kit: null,
+      rarestL1Kit: null,
+    },
+  };
+  if (!users.length) return empty;
+
+  const grouped = await prisma.$queryRaw<
+    { userId: string; kit: string; n: bigint }[]
+  >`
+    SELECT "userId", kit, COUNT(*)::bigint AS n
+    FROM "SquadRoleEvent"
+    WHERE "userId" IN (${Prisma.join(users.map((u) => u.id))})
+      AND (
+        (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::time >= TIME '21:30:00'
+        OR (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::time < TIME '01:00:00'
+      )
+    GROUP BY "userId", kit
+  `;
+
+  const byUser = new Map<string, Partial<Record<string, number>>>();
+  for (const g of grouped) {
+    const cur = byUser.get(g.userId) || {};
+    cur[g.kit] = Number(g.n) || 0;
+    byUser.set(g.userId, cur);
+  }
+
+  function nickKey(nick: string): string {
+    return nick.trim().toLowerCase().replace(/\s+/g, "");
+  }
+
+  const players: KitRankPlayer[] = [];
+  let kitsUsedSum = 0;
+  let specialists = 0;
+  let riflemanL1 = 0;
+  let l1PctSum = 0;
+
+  for (const u of users) {
+    const counts = byUser.get(u.id);
+    if (!counts) continue;
+    const nick = (u.nick || "").trim();
+    if (!nick) continue;
+    const tierRaw = tierIndex.get(nickKey(nick));
+    const tier = (tierRaw === 1 || tierRaw === 2 || tierRaw === 3 || tierRaw === 4
+      ? tierRaw
+      : 4) as 1 | 2 | 3 | 4;
+
+    const rows: { kit: StandardKit; n: number }[] = [];
+    let total = 0;
+    for (const kit of Object.keys(counts)) {
+      const n = Number(counts[kit]) || 0;
+      if (n <= 0) continue;
+      rows.push({ kit: kit as StandardKit, n });
+      total += n;
+    }
+    if (!total) continue;
+    rows.sort(
+      (a, b) => b.n - a.n || a.kit.localeCompare(b.kit, "ru")
+    );
+    const levels: KitLevelSlot[] = rows.slice(0, 3).map((row, i) => ({
+      level: (i + 1) as 1 | 2 | 3,
+      kit: row.kit,
+      pct: Math.round((1000 * row.n) / total) / 10,
+      n: row.n,
+    }));
+    if (!levels.length) continue;
+
+    players.push({ nick, tier, total, levels });
+    kitsUsedSum += rows.length;
+    l1PctSum += levels[0].pct;
+    if (levels[0].kit === "Стрелок") riflemanL1 += 1;
+    else specialists += 1;
+  }
+
+  players.sort(
+    (a, b) =>
+      b.levels[0].pct - a.levels[0].pct ||
+      a.nick.localeCompare(b.nick, "ru")
+  );
+
+  function countsForLevel(level: 1 | 2 | 3): {
+    byKit: KitRankKitCount[];
+    byTier: KitRankTierKitCount[];
+  } {
+    const kitMap = new Map<string, number>();
+    const tierKitMap = new Map<string, number>();
+    let withLevel = 0;
+    for (const p of players) {
+      const slot = p.levels.find((l) => l.level === level);
+      if (!slot) continue;
+      withLevel += 1;
+      kitMap.set(slot.kit, (kitMap.get(slot.kit) || 0) + 1);
+      const tk = `${p.tier}|${slot.kit}`;
+      tierKitMap.set(tk, (tierKitMap.get(tk) || 0) + 1);
+    }
+    const byKit: KitRankKitCount[] = [...kitMap.entries()]
+      .map(([kit, count]) => ({
+        kit: kit as StandardKit,
+        count,
+        pct:
+          withLevel > 0
+            ? Math.round((1000 * count) / withLevel) / 10
+            : 0,
+      }))
+      .sort(
+        (a, b) => b.count - a.count || a.kit.localeCompare(b.kit, "ru")
+      );
+    const byTier: KitRankTierKitCount[] = [...tierKitMap.entries()]
+      .map(([key, count]) => {
+        const [t, kit] = key.split("|");
+        return {
+          tier: Number(t) as 1 | 2 | 3 | 4,
+          kit: kit as StandardKit,
+          count,
+        };
+      })
+      .sort(
+        (a, b) =>
+          a.tier - b.tier ||
+          b.count - a.count ||
+          a.kit.localeCompare(b.kit, "ru")
+      );
+    return { byKit, byTier };
+  }
+
+  const byLevel: KitRankAnalytics["byLevel"] = { 1: [], 2: [], 3: [] };
+  const byLevelTier: KitRankAnalytics["byLevelTier"] = {
+    1: [],
+    2: [],
+    3: [],
+  };
+  for (const lv of [1, 2, 3] as const) {
+    const { byKit, byTier } = countsForLevel(lv);
+    byLevel[lv] = byKit;
+    byLevelTier[lv] = byTier;
+  }
+
+  const l1 = byLevel[1];
+  const n = players.length;
+  return {
+    players,
+    byLevel,
+    byLevelTier,
+    insights: {
+      players: n,
+      avgKitsUsed: n ? Math.round((10 * kitsUsedSum) / n) / 10 : 0,
+      specialistsPct: n
+        ? Math.round((1000 * specialists) / n) / 10
+        : 0,
+      riflemanL1Pct: n
+        ? Math.round((1000 * riflemanL1) / n) / 10
+        : 0,
+      avgL1Pct: n ? Math.round((10 * l1PctSum) / n) / 10 : 0,
+      topL1Kit: l1[0]?.kit || null,
+      rarestL1Kit: l1.length ? l1[l1.length - 1].kit : null,
+    },
+  };
+}
+
 export { kitFromDeployRole, formatMskYmd, normalizeEosId, normalizeSteamId };
