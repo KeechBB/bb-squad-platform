@@ -8755,15 +8755,18 @@ body.profile-match-modal-open {
   margin: 0 -12px 24px;
   min-height: calc(100vh - 100px);
   border-radius: 16px;
-  overflow: hidden;
+  overflow: auto;
   border: 1px solid var(--line);
   background: #07060c;
 }
 
+/* Как .wrap в KV при layout-cw */
 .cross-rating-shell {
-  padding: 20px clamp(14px, 2vw, 28px) 32px;
   width: 100%;
-  max-width: none;
+  max-width: min(1760px, 100%);
+  margin: 0 auto;
+  padding: 20px clamp(16px, 2.2vw, 24px) 64px;
+  box-sizing: border-box;
 }
 
 .cross-rating-top {
