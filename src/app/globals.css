@@ -4685,6 +4685,29 @@ body:has(.home-page) {
 .compare-stats-grid strong {
   font-size: 0.92rem;
 }
+.compare-stats-grid > div.is-better,
+.compare-rp-row.is-better strong,
+.compare-place.is-better,
+.compare-hitmap-total.is-better strong,
+.compare-hitmap-zones li.is-better b {
+  color: #facc15;
+  font-weight: 800;
+}
+.compare-stats-grid > div.is-better {
+  border-color: rgba(250, 204, 21, 0.45);
+  background: rgba(250, 204, 21, 0.08);
+}
+.compare-hitmap-zones li.is-better {
+  border-color: rgba(250, 204, 21, 0.45);
+  background: rgba(250, 204, 21, 0.08);
+}
+.compare-diff .is-win {
+  color: #facc15;
+  font-weight: 800;
+}
+.compare-diff .is-lose {
+  color: rgba(255, 255, 255, 0.45);
+}
 .compare-kits {
   margin-top: 10px;
 }
@@ -4728,12 +4751,6 @@ body:has(.home-page) {
   padding: 4px 4px;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.04);
-}
-.compare-diff .is-win {
-  color: #9dffc0;
-}
-.compare-diff .is-lose {
-  color: #ff8a9a;
 }
 .compare-hist-pair {
   display: grid;

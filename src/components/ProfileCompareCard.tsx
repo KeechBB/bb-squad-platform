@@ -53,6 +53,34 @@ function deltaCls(a: number | null, b: number | null, higherBetter = true) {
   return win ? "is-win" : "is-lose";
 }
 
+/** Лучше ли значение `mine` чем `theirs` (для подсветки). */
+function isBetter(
+  mine: number | null | undefined,
+  theirs: number | null | undefined,
+  higherBetter = true
+): boolean {
+  if (mine == null || theirs == null) return false;
+  if (mine === theirs) return false;
+  return higherBetter ? mine > theirs : mine < theirs;
+}
+
+function StatCell({
+  label,
+  value,
+  better,
+}: {
+  label: string;
+  value: string;
+  better?: boolean;
+}) {
+  return (
+    <div className={better ? "is-better" : undefined}>
+      <span className="muted">{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
 function NickPicker({
   label,
   value,
@@ -120,62 +148,83 @@ function NickPicker({
   );
 }
 
-function SideBlock({ side }: { side: CompareSide }) {
+function SideBlock({
+  side,
+  other,
+}: {
+  side: CompareSide;
+  other: CompareSide;
+}) {
   const train = side.train;
   const cw = side.cw;
+  const oTrain = other.train;
+  const oCw = other.cw;
+  const rpBetter = isBetter(side.rp, other.rp);
+  const placeBetter = isBetter(side.place, other.place, false);
+
   return (
     <div className="compare-side">
       <header className="compare-side-head">
         <h3>{side.nick}</h3>
-        <div className="compare-rp-row">
+        <div className={`compare-rp-row${rpBetter ? " is-better" : ""}`}>
           <span className={`home-pwr-badge rank-${side.rankKey}`}>
             {side.rankLabel}
           </span>
           <strong>{side.rp != null ? Math.round(side.rp) : "—"}</strong>
           <span className="muted">RP</span>
           {side.place != null ? (
-            <span className="muted compare-place">#{side.place}</span>
+            <span
+              className={`muted compare-place${placeBetter ? " is-better" : ""}`}
+            >
+              #{side.place}
+            </span>
           ) : null}
         </div>
       </header>
 
       <div className="compare-stats-grid">
-        <div>
-          <span className="muted">ТМ каток</span>
-          <strong>{fmtNum(train?.matches)}</strong>
-        </div>
-        <div>
-          <span className="muted">ТМ W%</span>
-          <strong>
-            {train?.winrate != null ? `${fmtNum(train.winrate, 1)}%` : "—"}
-          </strong>
-        </div>
-        <div>
-          <span className="muted">ТМ KD</span>
-          <strong>{train ? fmtNum(train.kd, 2) : "—"}</strong>
-        </div>
-        <div>
-          <span className="muted">ТМ килы</span>
-          <strong>{fmtNum(train?.kills)}</strong>
-        </div>
-        <div>
-          <span className="muted">КВ встреч</span>
-          <strong>{fmtNum(cw?.matches)}</strong>
-        </div>
-        <div>
-          <span className="muted">КВ W%</span>
-          <strong>
-            {cw?.winrate != null ? `${fmtNum(cw.winrate, 1)}%` : "—"}
-          </strong>
-        </div>
-        <div>
-          <span className="muted">КВ KD</span>
-          <strong>{cw ? fmtNum(cw.kd, 2) : "—"}</strong>
-        </div>
-        <div>
-          <span className="muted">КВ килы</span>
-          <strong>{fmtNum(cw?.kills)}</strong>
-        </div>
+        <StatCell
+          label="ТМ каток"
+          value={fmtNum(train?.matches)}
+          better={isBetter(train?.matches, oTrain?.matches)}
+        />
+        <StatCell
+          label="ТМ W%"
+          value={
+            train?.winrate != null ? `${fmtNum(train.winrate, 1)}%` : "—"
+          }
+          better={isBetter(train?.winrate, oTrain?.winrate)}
+        />
+        <StatCell
+          label="ТМ KD"
+          value={train ? fmtNum(train.kd, 2) : "—"}
+          better={isBetter(train?.kd, oTrain?.kd)}
+        />
+        <StatCell
+          label="ТМ килы"
+          value={fmtNum(train?.kills)}
+          better={isBetter(train?.kills, oTrain?.kills)}
+        />
+        <StatCell
+          label="КВ встреч"
+          value={fmtNum(cw?.matches)}
+          better={isBetter(cw?.matches, oCw?.matches)}
+        />
+        <StatCell
+          label="КВ W%"
+          value={cw?.winrate != null ? `${fmtNum(cw.winrate, 1)}%` : "—"}
+          better={isBetter(cw?.winrate, oCw?.winrate)}
+        />
+        <StatCell
+          label="КВ KD"
+          value={cw ? fmtNum(cw.kd, 2) : "—"}
+          better={isBetter(cw?.kd, oCw?.kd)}
+        />
+        <StatCell
+          label="КВ килы"
+          value={fmtNum(cw?.kills)}
+          better={isBetter(cw?.kills, oCw?.kills)}
+        />
       </div>
 
       {side.kits.length > 0 ? (
@@ -195,66 +244,20 @@ function SideBlock({ side }: { side: CompareSide }) {
   );
 }
 
-function TrainHist({ side }: { side: CompareSide }) {
-  return (
-    <section className="compare-hist-block">
-      <h4>Тренировки · {side.nick}</h4>
-      <ul className="compare-hist-list">
-        {side.trainHistory.length === 0 ? (
-          <li className="muted">Нет матчей</li>
-        ) : (
-          side.trainHistory.slice(0, 16).map((m) => (
-            <li key={`t-${side.nick}-${m.matchId}`}>
-              <span>{m.dateLabel}</span>
-              <span title={m.map}>{m.map}</span>
-              <span
-                className={
-                  m.rpDelta == null
-                    ? ""
-                    : m.rpDelta > 0
-                      ? "plus"
-                      : m.rpDelta < 0
-                        ? "minus"
-                        : ""
-                }
-              >
-                {m.rpDelta == null
-                  ? "—"
-                  : m.rpDelta > 0
-                    ? `+${m.rpDelta}`
-                    : String(m.rpDelta)}
-              </span>
-            </li>
-          ))
-        )}
-      </ul>
-    </section>
-  );
-}
-
-function CwHist({ side }: { side: CompareSide }) {
-  return (
-    <section className="compare-hist-block">
-      <h4>КВ · {side.nick}</h4>
-      <ul className="compare-hist-list">
-        {side.cwHistory.length === 0 ? (
-          <li className="muted">Нет матчей</li>
-        ) : (
-          side.cwHistory.slice(0, 12).map((m) => (
-            <li key={`c-${side.nick}-${m.matchId}`}>
-              <span>{m.dateLabel}</span>
-              <span title={m.opp}>vs {m.opp}</span>
-              <span>{m.meeting || "—"}</span>
-            </li>
-          ))
-        )}
-      </ul>
-    </section>
-  );
-}
-
-function HitmapSide({ side }: { side: CompareSide }) {
+function HitmapSide({
+  side,
+  other,
+}: {
+  side: CompareSide;
+  other: CompareSide;
+}) {
   const hm = side.hitmap || {
+    bones: {},
+    total: 0,
+    lastBone: null,
+    zones: { head: 0, torso: 0, limb: 0 },
+  };
+  const oHm = other.hitmap || {
     bones: {},
     total: 0,
     lastBone: null,
@@ -262,10 +265,15 @@ function HitmapSide({ side }: { side: CompareSide }) {
   };
   const total = hm.total || 0;
   const z = hm.zones || { head: 0, torso: 0, limb: 0 };
+  const oz = oHm.zones || { head: 0, torso: 0, limb: 0 };
   return (
     <section className="compare-hitmap-side">
       <h4>Попадания · {side.nick}</h4>
-      <p className="muted compare-hitmap-total">
+      <p
+        className={`muted compare-hitmap-total${
+          isBetter(total, oHm.total || 0) ? " is-better" : ""
+        }`}
+      >
         Всего: <strong>{total}</strong>
       </p>
       {total > 0 ? (
@@ -280,15 +288,22 @@ function HitmapSide({ side }: { side: CompareSide }) {
             />
           </div>
           <ul className="compare-hitmap-zones">
-            <li>
+            <li className={isBetter(z.head, oz.head) ? "is-better" : undefined}>
               <span>Голова</span>
               <b>{z.head}%</b>
             </li>
-            <li>
+            <li
+              className={isBetter(z.torso, oz.torso) ? "is-better" : undefined}
+            >
               <span>Торс</span>
               <b>{z.torso}%</b>
             </li>
-            <li>
+            <li
+              className={
+                isBetter(z.limb, oz.limb, false) ? "is-better" : undefined
+              }
+              title="Меньше конечностей обычно лучше"
+            >
               <span>Конечности</span>
               <b>{z.limb}%</b>
             </li>
@@ -620,7 +635,7 @@ export function ProfileCompareCard({ myNick }: Props) {
               {data ? (
                 <>
                   <div className="compare-vs">
-                    <SideBlock side={data.me} />
+                    <SideBlock side={data.me} other={data.other} />
                     <div className="compare-vs-mid">
                       <span>VS</span>
                       <div className="compare-diff">
@@ -650,11 +665,11 @@ export function ProfileCompareCard({ myNick }: Props) {
                         </div>
                       </div>
                     </div>
-                    <SideBlock side={data.other} />
+                    <SideBlock side={data.other} other={data.me} />
                   </div>
 
                   <div className="compare-hist-pair compare-hitmap-pair">
-                    <HitmapSide side={data.me} />
+                    <HitmapSide side={data.me} other={data.other} />
                     <div className="compare-hist-gutter compare-hitmap-mid">
                       <span className="muted">куда бьют</span>
                       <div className="compare-diff">
@@ -697,18 +712,7 @@ export function ProfileCompareCard({ myNick }: Props) {
                         </div>
                       </div>
                     </div>
-                    <HitmapSide side={data.other} />
-                  </div>
-
-                  <div className="compare-hist-pair">
-                    <TrainHist side={data.me} />
-                    <div className="compare-hist-gutter" aria-hidden />
-                    <TrainHist side={data.other} />
-                  </div>
-                  <div className="compare-hist-pair">
-                    <CwHist side={data.me} />
-                    <div className="compare-hist-gutter" aria-hidden />
-                    <CwHist side={data.other} />
+                    <HitmapSide side={data.other} other={data.me} />
                   </div>
                 </>
               ) : (
