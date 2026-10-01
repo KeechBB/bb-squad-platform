@@ -153,7 +153,6 @@ export async function buildCompareSide(
 
   const trainHist = filterTrainHistory(trainHistory, from, to);
   const cwHist = filterCwHistory(cwHistory, from, to);
-  const filteredPeriod = from || to;
 
   return {
     nick: displayNick,
@@ -162,9 +161,7 @@ export async function buildCompareSide(
     rankKey: rp?.rankKey || "iron",
     place: rp?.place ?? null,
     predatorPlace: rp?.predatorPlace ?? null,
-    train: filteredPeriod
-      ? periodTrainFromHistory(displayNick, trainHist) || train
-      : train,
+    train,
     cw,
     kits: (kits.kits || []).slice(0, 6),
     trainHistory: trainHist,

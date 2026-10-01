@@ -46,6 +46,17 @@ function fmtNum(n: number | null | undefined, digits = 0) {
   return digits > 0 ? v.toFixed(digits) : String(Math.round(v));
 }
 
+/** Среднее за игру с округлением до десятых (0.6, 1.2 …). */
+function avgPerGame(
+  total: number | null | undefined,
+  games: number | null | undefined
+): number | null {
+  const g = Number(games) || 0;
+  if (g <= 0) return null;
+  const t = Number(total) || 0;
+  return Math.round((10 * t) / g) / 10;
+}
+
 function deltaCls(a: number | null, b: number | null, higherBetter = true) {
   if (a == null || b == null) return "";
   if (a === b) return "is-tie";
@@ -162,6 +173,44 @@ function SideBlock({
   const rpBetter = isBetter(side.rp, other.rp);
   const placeBetter = isBetter(side.place, other.place, false);
 
+  const trainAvgKills =
+    train?.avgKills != null && train.matches > 0
+      ? train.avgKills
+      : avgPerGame(train?.kills, train?.matches);
+  const otherTrainAvgKills =
+    oTrain?.avgKills != null && oTrain.matches > 0
+      ? oTrain.avgKills
+      : avgPerGame(oTrain?.kills, oTrain?.matches);
+  const trainAvgRes = avgPerGame(train?.res, train?.matches);
+  const otherTrainAvgRes = avgPerGame(oTrain?.res, oTrain?.matches);
+  const trainAvgScore =
+    train?.avgDmg != null && train.matches > 0
+      ? train.avgDmg
+      : avgPerGame(train?.dmg, train?.matches);
+  const otherTrainAvgScore =
+    oTrain?.avgDmg != null && oTrain.matches > 0
+      ? oTrain.avgDmg
+      : avgPerGame(oTrain?.dmg, oTrain?.matches);
+
+  const cwAvgKills =
+    cw?.avgKills != null && cw.matches > 0
+      ? cw.avgKills
+      : avgPerGame(cw?.kills, cw?.matches);
+  const otherCwAvgKills =
+    oCw?.avgKills != null && oCw.matches > 0
+      ? oCw.avgKills
+      : avgPerGame(oCw?.kills, oCw?.matches);
+  const cwAvgRes = avgPerGame(cw?.res, cw?.matches);
+  const otherCwAvgRes = avgPerGame(oCw?.res, oCw?.matches);
+  const cwAvgScore =
+    cw?.avgDmg != null && cw.matches > 0
+      ? cw.avgDmg
+      : avgPerGame(cw?.dmg, cw?.matches);
+  const otherCwAvgScore =
+    oCw?.avgDmg != null && oCw.matches > 0
+      ? oCw.avgDmg
+      : avgPerGame(oCw?.dmg, oCw?.matches);
+
   return (
     <div className="compare-side">
       <header className="compare-side-head">
@@ -206,6 +255,27 @@ function SideBlock({
           better={isBetter(train?.kills, oTrain?.kills)}
         />
         <StatCell
+          label="ТМ ср. килы"
+          value={trainAvgKills != null ? fmtNum(trainAvgKills, 1) : "—"}
+          better={isBetter(trainAvgKills, otherTrainAvgKills)}
+        />
+        <StatCell
+          label="ТМ ср. поднятия"
+          value={trainAvgRes != null ? fmtNum(trainAvgRes, 1) : "—"}
+          better={isBetter(trainAvgRes, otherTrainAvgRes)}
+        />
+        <StatCell
+          label="ТМ ср. боевой"
+          value={
+            trainAvgScore != null
+              ? Number.isInteger(trainAvgScore)
+                ? String(trainAvgScore)
+                : fmtNum(trainAvgScore, 1)
+              : "—"
+          }
+          better={isBetter(trainAvgScore, otherTrainAvgScore)}
+        />
+        <StatCell
           label="КВ встреч"
           value={fmtNum(cw?.matches)}
           better={isBetter(cw?.matches, oCw?.matches)}
@@ -224,6 +294,27 @@ function SideBlock({
           label="КВ килы"
           value={fmtNum(cw?.kills)}
           better={isBetter(cw?.kills, oCw?.kills)}
+        />
+        <StatCell
+          label="КВ ср. килы"
+          value={cwAvgKills != null ? fmtNum(cwAvgKills, 1) : "—"}
+          better={isBetter(cwAvgKills, otherCwAvgKills)}
+        />
+        <StatCell
+          label="КВ ср. поднятия"
+          value={cwAvgRes != null ? fmtNum(cwAvgRes, 1) : "—"}
+          better={isBetter(cwAvgRes, otherCwAvgRes)}
+        />
+        <StatCell
+          label="КВ ср. боевой"
+          value={
+            cwAvgScore != null
+              ? Number.isInteger(cwAvgScore)
+                ? String(cwAvgScore)
+                : fmtNum(cwAvgScore, 1)
+              : "—"
+          }
+          better={isBetter(cwAvgScore, otherCwAvgScore)}
         />
       </div>
 
