@@ -71,7 +71,8 @@ export function CrossRatingClient({ clans, enemies }: Props) {
           <p className="eyebrow">межклановый рейтинг</p>
           <h1>Рейтинг кланов</h1>
           <p className="muted cross-rating-lead">
-            Elo команд по КВ · {clans.meetings} встреч · BB Elo {clans.bbElo}
+            Elo команд по КВ · {clans.meetings} встреч · Main {clans.bbEloMain} ·
+            Junior {clans.bbEloJunior}
           </p>
         </div>
         <div
@@ -104,7 +105,8 @@ export function CrossRatingClient({ clans, enemies }: Props) {
         <section className="card cross-rating-panel" role="tabpanel">
           <p className="muted cross-rating-note">
             Elo старт 1000, K=25. Без победы BB — выше нас, без цифры
-            (калибровка). Кликни клан — история встреч. Main+Junior = один BB.
+            (калибровка). Кликни клан — история встреч.{" "}
+            <strong>Main</strong> и <strong>Junior</strong> — отдельные Elo.
           </p>
           <div className="admin-table-wrap cross-rating-table-wrap">
             <table className="admin-table cross-rating-table cross-clans-table">

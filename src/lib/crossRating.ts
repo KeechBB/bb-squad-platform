@@ -9,9 +9,36 @@ const KV_BASES = [
   "https://kv.bb-squad.ru",
 ].filter(Boolean) as string[];
 
-export const BB_CLAN_KEY = "BB";
-export const BB_CLAN_TAG = "BB";
-export const BB_CLAN_NAME = "BlackBerry";
+export const BB_MAIN_KEY = "BB-MAIN";
+export const BB_JUNIOR_KEY = "BB-JUNIOR";
+/** @deprecated use BB_MAIN_KEY / BB_JUNIOR_KEY */
+export const BB_CLAN_KEY = BB_MAIN_KEY;
+
+export const BB_STACKS = {
+  [BB_MAIN_KEY]: {
+    key: BB_MAIN_KEY,
+    tag: "BB",
+    name: "BlackBerry Main",
+    stackMatch: (s: string) => {
+      const t = s.trim().toLowerCase();
+      return t === "main" || t === "мейн" || t === "";
+    },
+  },
+  [BB_JUNIOR_KEY]: {
+    key: BB_JUNIOR_KEY,
+    tag: "BB JUNIOR",
+    name: "BlackBerry Junior",
+    stackMatch: (s: string) => {
+      const t = s.trim().toLowerCase();
+      return t === "junior" || t === "jr" || t.includes("junior");
+    },
+  },
+} as const;
+
+export function bbStackKeyFromMeeting(stack: string): string {
+  if (BB_STACKS[BB_JUNIOR_KEY].stackMatch(stack)) return BB_JUNIOR_KEY;
+  return BB_MAIN_KEY;
+}
 
 const ELO_START = 1000;
 const ELO_K = 25;
@@ -67,7 +94,8 @@ export type ClanEloRow = {
 
 export type ClanEloBoard = {
   rows: ClanEloRow[];
-  bbElo: number;
+  bbEloMain: number;
+  bbEloJunior: number;
   meetings: number;
   updatedAt: string;
 };
@@ -308,7 +336,8 @@ export function canonOpp(oppRaw: string) {
 }
 
 const LOGO_EXT: Record<string, string> = {
-  BB: ".png",
+  "BB-MAIN": ".png",
+  "BB-JUNIOR": ".png",
   "20R": ".png",
   AVG: ".png",
   DCAI: ".jpg",
@@ -455,21 +484,29 @@ async function loadPlayedMeetings(): Promise<
 export async function buildClanEloBoard(): Promise<ClanEloBoard> {
   const meetings = await loadPlayedMeetings();
   const elo = new Map<string, number>();
-  elo.set(BB_CLAN_KEY, ELO_START);
+  elo.set(BB_MAIN_KEY, ELO_START);
+  elo.set(BB_JUNIOR_KEY, ELO_START);
 
   type Acc = {
     key: string;
     tag: string;
     name: string;
     meetings: number;
-    winsVsBb: number; // opp wins
-    lossesVsBb: number; // bb wins against them
+    winsVsBb: number;
+    lossesVsBb: number;
     bbBeatenOnce: boolean;
   };
   const opps = new Map<string, Acc>();
 
+  type BbAcc = { meetings: number; wins: number; losses: number };
+  const bbAcc: Record<string, BbAcc> = {
+    [BB_MAIN_KEY]: { meetings: 0, wins: 0, losses: 0 },
+    [BB_JUNIOR_KEY]: { meetings: 0, wins: 0, losses: 0 },
+  };
+
   for (const m of meetings) {
     const c = canonOpp(m.opp);
+    const bbKey = bbStackKeyFromMeeting(m.stack);
     if (!elo.has(c.key)) elo.set(c.key, ELO_START);
     if (!opps.has(c.key)) {
       opps.set(c.key, {
@@ -484,31 +521,35 @@ export async function buildClanEloBoard(): Promise<ClanEloBoard> {
     }
     const acc = opps.get(c.key)!;
     acc.meetings += 1;
+    bbAcc[bbKey].meetings += 1;
 
-    const bbElo = elo.get(BB_CLAN_KEY)!;
+    const bbElo = elo.get(bbKey)!;
     const oppElo = elo.get(c.key)!;
     const expBb = expectedScore(bbElo, oppElo);
-    const expOpp = 1 - expBb;
     const scoreBb = m.bbWon ? 1 : 0;
     const scoreOpp = m.bbWon ? 0 : 1;
 
-    elo.set(BB_CLAN_KEY, Math.round(bbElo + ELO_K * (scoreBb - expBb)));
-    elo.set(c.key, Math.round(oppElo + ELO_K * (scoreOpp - expOpp)));
+    elo.set(bbKey, Math.round(bbElo + ELO_K * (scoreBb - expBb)));
+    elo.set(
+      c.key,
+      Math.round(oppElo + ELO_K * (scoreOpp - (1 - expBb)))
+    );
 
     if (m.bbWon) {
       acc.lossesVsBb += 1;
       acc.bbBeatenOnce = true;
+      bbAcc[bbKey].wins += 1;
     } else {
       acc.winsVsBb += 1;
+      bbAcc[bbKey].losses += 1;
     }
   }
 
-  // Mark calibrated: any opp that BB has beaten at least once in history
-  // (bbBeatenOnce already set during chronological pass)
-  const bbEloFinal = elo.get(BB_CLAN_KEY) ?? ELO_START;
+  const bbEloMain = elo.get(BB_MAIN_KEY) ?? ELO_START;
+  const bbEloJunior = elo.get(BB_JUNIOR_KEY) ?? ELO_START;
 
   const uncalibrated: ClanEloRow[] = [];
-  const calibrated: ClanEloRow[] = [];
+  const ranked: ClanEloRow[] = [];
 
   for (const acc of opps.values()) {
     const hidden = elo.get(acc.key) ?? ELO_START;
@@ -527,11 +568,30 @@ export async function buildClanEloBoard(): Promise<ClanEloBoard> {
       place: 0,
       logoUrl: clanLogoUrl(acc.key),
     };
-    if (calibratedFlag) calibrated.push(row);
+    if (calibratedFlag) ranked.push(row);
     else uncalibrated.push(row);
   }
 
-  // Uncalibrated above BB: sort by hidden elo desc, then meetings
+  for (const key of [BB_MAIN_KEY, BB_JUNIOR_KEY] as const) {
+    const meta = BB_STACKS[key];
+    const e = elo.get(key) ?? ELO_START;
+    const a = bbAcc[key];
+    ranked.push({
+      key: meta.key,
+      tag: meta.tag,
+      name: meta.name,
+      isBb: true,
+      elo: e,
+      eloHidden: e,
+      calibrated: true,
+      meetings: a.meetings,
+      wins: a.wins,
+      losses: a.losses,
+      place: 0,
+      logoUrl: clanLogoUrl(key),
+    });
+  }
+
   uncalibrated.sort(
     (a, b) =>
       b.eloHidden - a.eloHidden ||
@@ -539,45 +599,23 @@ export async function buildClanEloBoard(): Promise<ClanEloBoard> {
       a.tag.localeCompare(b.tag, "ru")
   );
 
-  calibrated.sort(
+  ranked.sort(
     (a, b) =>
       (b.elo ?? 0) - (a.elo ?? 0) ||
       b.meetings - a.meetings ||
-      a.tag.localeCompare(b.tag, "ru")
+      a.name.localeCompare(b.name, "ru")
   );
 
-  const bbRow: ClanEloRow = {
-    key: BB_CLAN_KEY,
-    tag: BB_CLAN_TAG,
-    name: BB_CLAN_NAME,
-    isBb: true,
-    elo: bbEloFinal,
-    eloHidden: bbEloFinal,
-    calibrated: true,
-    meetings: meetings.length,
-    wins: meetings.filter((m) => m.bbWon).length,
-    losses: meetings.filter((m) => !m.bbWon).length,
-    place: 0,
-    logoUrl: clanLogoUrl(BB_CLAN_KEY),
-  };
-
-  // Merge calibrated around BB by elo
-  const mid: ClanEloRow[] = [];
-  const aboveBb: ClanEloRow[] = [];
-  const belowBb: ClanEloRow[] = [];
-  for (const r of calibrated) {
-    if ((r.elo ?? 0) > bbEloFinal) aboveBb.push(r);
-    else belowBb.push(r);
-  }
-
-  const rows = [...uncalibrated, ...aboveBb, bbRow, ...belowBb];
+  // Uncalibrated above everyone (incl. both BB stacks); then Elo order
+  const rows = [...uncalibrated, ...ranked];
   rows.forEach((r, i) => {
     r.place = i + 1;
   });
 
   return {
     rows,
-    bbElo: bbEloFinal,
+    bbEloMain,
+    bbEloJunior,
     meetings: meetings.length,
     updatedAt: new Date().toISOString(),
   };
@@ -591,16 +629,26 @@ export async function listMeetings(): Promise<MeetingListItem[]> {
   );
 }
 
-/** История встреч с кланом (для BB — все встречи). */
+/** История встреч с кланом (BB-MAIN / BB-JUNIOR — только свой стек). */
 export async function listMeetingsForClan(
   clanKeyRaw: string
 ): Promise<{ clan: { key: string; tag: string; name: string }; meetings: MeetingListItem[] }> {
   const key = String(clanKeyRaw || "").trim().toUpperCase();
   const all = await listMeetings();
-  if (key === BB_CLAN_KEY) {
+  if (key === BB_MAIN_KEY || key === "BB" || key === "MAIN") {
+    const meta = BB_STACKS[BB_MAIN_KEY];
     return {
-      clan: { key: BB_CLAN_KEY, tag: BB_CLAN_TAG, name: BB_CLAN_NAME },
-      meetings: all,
+      clan: { key: meta.key, tag: meta.tag, name: meta.name },
+      meetings: all.filter((m) => bbStackKeyFromMeeting(m.stack) === BB_MAIN_KEY),
+    };
+  }
+  if (key === BB_JUNIOR_KEY || key === "JUNIOR" || key === "BB-JR") {
+    const meta = BB_STACKS[BB_JUNIOR_KEY];
+    return {
+      clan: { key: meta.key, tag: meta.tag, name: meta.name },
+      meetings: all.filter(
+        (m) => bbStackKeyFromMeeting(m.stack) === BB_JUNIOR_KEY
+      ),
     };
   }
   const filtered = all.filter((m) => m.oppKey.toUpperCase() === key);
