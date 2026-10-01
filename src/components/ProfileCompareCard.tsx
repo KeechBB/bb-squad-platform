@@ -183,16 +183,35 @@ function MatchRpSide({
   nick,
   match,
   combat,
+  hitmap,
   otherNet,
   otherCombat,
+  otherHitmap,
 }: {
   nick: string;
   match: RpPlayerMatch | null;
   combat: CompareMatchBundle["meCombat"];
+  hitmap: CompareMatchBundle["meHitmap"];
   otherNet: number | null;
   otherCombat: CompareMatchBundle["meCombat"];
+  otherHitmap: CompareMatchBundle["meHitmap"];
 }) {
   const net = match ? Math.round(match.net) : null;
+  const hm = hitmap || {
+    bones: {},
+    total: 0,
+    lastBone: null,
+    zones: { head: 0, torso: 0, limb: 0 },
+  };
+  const oHm = otherHitmap || {
+    bones: {},
+    total: 0,
+    lastBone: null,
+    zones: { head: 0, torso: 0, limb: 0 },
+  };
+  const z = hm.zones || { head: 0, torso: 0, limb: 0 };
+  const oz = oHm.zones || { head: 0, torso: 0, limb: 0 };
+
   return (
     <section className="compare-match-side">
       <header className="compare-match-side-head">
@@ -244,18 +263,57 @@ function MatchRpSide({
         <p className="muted compare-hitmap-empty">Нет статы по этой катке</p>
       )}
 
+      <div className="compare-match-hitmap">
+        <p
+          className={`muted compare-hitmap-total${
+            isBetter(hm.total, oHm.total) ? " is-better" : ""
+          }`}
+        >
+          Попадания за катку: <strong>{hm.total}</strong>
+        </p>
+        {hm.total > 0 ? (
+          <>
+            <div className="compare-hitmap-body">
+              <HitmapSilhouette
+                bones={hm.bones}
+                total={hm.total}
+                lastBone={hm.lastBone}
+                compact
+                className="compare-hitmap-svg"
+              />
+            </div>
+            <ul className="compare-hitmap-zones">
+              <li className={isBetter(z.head, oz.head) ? "is-better" : undefined}>
+                <span>Голова</span>
+                <b>{z.head}%</b>
+              </li>
+              <li
+                className={isBetter(z.torso, oz.torso) ? "is-better" : undefined}
+              >
+                <span>Торс</span>
+                <b>{z.torso}%</b>
+              </li>
+              <li
+                className={
+                  isBetter(z.limb, oz.limb, false) ? "is-better" : undefined
+                }
+              >
+                <span>Конечности</span>
+                <b>{z.limb}%</b>
+              </li>
+            </ul>
+          </>
+        ) : (
+          <p className="muted compare-hitmap-empty">
+            Нет попаданий за окно этой катки
+          </p>
+        )}
+      </div>
+
       {match ? (
         <div className="compare-rp-ev-grid">
-          <RpEventList
-            title="+ получил"
-            kind="gain"
-            events={match.kills}
-          />
-          <RpEventList
-            title="− отдал"
-            kind="loss"
-            events={match.deaths}
-          />
+          <RpEventList title="+ получил" kind="gain" events={match.kills} />
+          <RpEventList title="− отдал" kind="loss" events={match.deaths} />
         </div>
       ) : (
         <p className="muted compare-hitmap-empty">
@@ -286,7 +344,7 @@ function MatchCompareBlock({
           Катка · {dateShort} · {match.map}
         </h3>
         <p className="muted">
-          Стата матча + детальный RP: за кого получил / кому отдал
+          Стата матча · попадания · RP: за кого получил / кому отдал
         </p>
       </div>
       <div className="compare-match-pair">
@@ -294,8 +352,10 @@ function MatchCompareBlock({
           nick={leftNick}
           match={match.me}
           combat={match.meCombat}
+          hitmap={match.meHitmap}
           otherNet={match.other ? Math.round(match.other.net) : null}
           otherCombat={match.otherCombat}
+          otherHitmap={match.otherHitmap}
         />
         <div className="compare-vs-mid compare-match-mid">
           <span>VS</span>
@@ -329,14 +389,24 @@ function MatchCompareBlock({
             >
               Боевой
             </div>
+            <div
+              className={deltaCls(
+                match.meHitmap?.zones.head ?? null,
+                match.otherHitmap?.zones.head ?? null
+              )}
+            >
+              Голова
+            </div>
           </div>
         </div>
         <MatchRpSide
           nick={rightNick}
           match={match.other}
           combat={match.otherCombat}
+          hitmap={match.otherHitmap}
           otherNet={match.me ? Math.round(match.me.net) : null}
           otherCombat={match.meCombat}
+          otherHitmap={match.meHitmap}
         />
       </div>
     </div>

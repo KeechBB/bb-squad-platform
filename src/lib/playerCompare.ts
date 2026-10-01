@@ -45,6 +45,8 @@ export type CompareMatchBundle = {
   other: RpPlayerMatch | null;
   meCombat: CompareMatchCombat | null;
   otherCombat: CompareMatchCombat | null;
+  meHitmap: CompareHitmap | null;
+  otherHitmap: CompareHitmap | null;
 };
 
 export type CompareHitmap = {
@@ -272,9 +274,20 @@ async function loadMatchCombat(
   try {
     const data = await fetchJson(playersUrl);
     const want = nickKey(nick);
-    const list = Array.isArray(data.players) ? data.players : [];
+    const list = (
+      Array.isArray(data.players) && data.players.length
+        ? data.players
+        : [...(data.teamA || []), ...(data.teamB || [])]
+    ) as {
+      nick?: string;
+      kills?: number;
+      deaths?: number;
+      res?: number;
+      nok?: number;
+      dmg?: number;
+    }[];
     const mine = list.filter(
-      (p: { nick?: string }) => nickKey(String(p.nick || "")) === want
+      (p) => p?.nick && nickKey(String(p.nick)) === want
     );
     if (!mine.length) return null;
     let kills = 0;
@@ -302,6 +315,102 @@ async function loadMatchCombat(
   }
 }
 
+/** Окно матча по give-up событиям ledger (МСК date + time), иначе сутки матча. */
+async function matchHitWindow(
+  matchId: string
+): Promise<{ fromYmd: string; toYmd: string; gte?: Date; lt?: Date } | null> {
+  const { loadRpLedger } = await import("@/lib/trainRp");
+  const ledger = await loadRpLedger();
+  const match = ledger?.matches?.find((m) => m.id === matchId);
+  if (!match?.date || !/^\d{4}-\d{2}-\d{2}$/.test(match.date)) return null;
+  const ymd = match.date;
+  const times = (match.events || [])
+    .map((e) => String(e.time || "").trim())
+    .filter((t) => /^\d{1,2}:\d{2}(:\d{2})?$/.test(t))
+    .map((t) => {
+      const [hh, mm, ss] = t.split(":").map(Number);
+      return (hh || 0) * 3600 + (mm || 0) * 60 + (ss || 0);
+    })
+    .sort((a, b) => a - b);
+
+  if (times.length >= 2) {
+    const pad = 90; // сек запас
+    const startSec = Math.max(0, times[0] - pad);
+    const endSec = Math.min(24 * 3600 - 1, times[times.length - 1] + pad);
+    const [y, m, d] = ymd.split("-").map(Number);
+    // MSK = UTC+3
+    const gte = new Date(
+      Date.UTC(y, m - 1, d, 0, 0, 0, 0) - 3 * 3600_000 + startSec * 1000
+    );
+    const lt = new Date(
+      Date.UTC(y, m - 1, d, 0, 0, 0, 0) - 3 * 3600_000 + (endSec + 1) * 1000
+    );
+    return { fromYmd: ymd, toYmd: ymd, gte, lt };
+  }
+  return { fromYmd: ymd, toYmd: ymd };
+}
+
+async function loadMatchHitmap(
+  nick: string,
+  matchId: string
+): Promise<CompareHitmap | null> {
+  const user = await prisma.user.findFirst({
+    where: {
+      profileComplete: true,
+      nick: { equals: nick.trim(), mode: "insensitive" },
+    },
+    select: { id: true },
+  });
+  if (!user) return null;
+  const win = await matchHitWindow(matchId);
+  if (!win) return null;
+
+  let bones: HitBoneCounts = {};
+  let total = 0;
+  let lastBone: string | null = null;
+
+  if (win.gte && win.lt) {
+    const [rows, last] = await Promise.all([
+      prisma.squadHitEvent.groupBy({
+        by: ["bone"],
+        where: {
+          userId: user.id,
+          hitAt: { gte: win.gte, lt: win.lt },
+        },
+        _count: { _all: true },
+      }),
+      prisma.squadHitEvent.findFirst({
+        where: {
+          userId: user.id,
+          hitAt: { gte: win.gte, lt: win.lt },
+        },
+        orderBy: [{ hitAt: "desc" }, { createdAt: "desc" }],
+        select: { bone: true },
+      }),
+    ]);
+    for (const r of rows) {
+      bones[r.bone] = r._count._all;
+      total += r._count._all;
+    }
+    lastBone = last?.bone && last.bone !== "None" ? last.bone : null;
+  } else {
+    const hits = await bonesForUser(user.id, {
+      fromYmd: win.fromYmd,
+      toYmd: win.toYmd,
+    });
+    bones = hits.bones || {};
+    total = hits.total || 0;
+    lastBone = hits.lastBone || null;
+  }
+
+  return {
+    bones,
+    total,
+    lastBone,
+    zones: zonePctFromBones(bones),
+  };
+}
+
 export async function buildCompareMatch(
   meNick: string,
   otherNick: string,
@@ -313,12 +422,15 @@ export async function buildCompareMatch(
   const meta = matches.find((m) => m.id === id);
   if (!meta) return null;
 
-  const [me, other, meCombat, otherCombat] = await Promise.all([
-    playerRpMatchBreakdown(meNick, id),
-    playerRpMatchBreakdown(otherNick, id),
-    loadMatchCombat(id, meNick),
-    loadMatchCombat(id, otherNick),
-  ]);
+  const [me, other, meCombat, otherCombat, meHitmap, otherHitmap] =
+    await Promise.all([
+      playerRpMatchBreakdown(meNick, id),
+      playerRpMatchBreakdown(otherNick, id),
+      loadMatchCombat(id, meNick),
+      loadMatchCombat(id, otherNick),
+      loadMatchHitmap(meNick, id).catch(() => null),
+      loadMatchHitmap(otherNick, id).catch(() => null),
+    ]);
 
   return {
     id: meta.id,
@@ -328,5 +440,7 @@ export async function buildCompareMatch(
     other,
     meCombat,
     otherCombat,
+    meHitmap,
+    otherHitmap,
   };
 }
