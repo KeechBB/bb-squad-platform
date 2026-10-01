@@ -21,12 +21,8 @@ import {
   buildPlayerTrainMatchHistory,
   buildPlayerTrainCombatStats,
 } from "@/lib/homeTrainPwr";
-import {
-  lookupPlayerCwPwr,
-  buildPlayerCwMatchHistory,
-} from "@/lib/homeCwPwr";
+import { buildPlayerCwMatchHistory } from "@/lib/homeCwPwr";
 import { ProfileTrainPwrCard } from "@/components/ProfileTrainPwrCard";
-import { ProfileCwPwrCard } from "@/components/ProfileCwPwrCard";
 import { ProfileKitsCard } from "@/components/ProfileKitsCard";
 import { bonesForUser } from "@/lib/squadHits";
 import { kitsForUser } from "@/lib/squadRoles";
@@ -97,7 +93,6 @@ export default async function ProfilePage() {
     kvBundle,
     trainPwr,
     matchHistory,
-    cwPwr,
     cwMatchHistory,
     trainCombat,
     hitmap,
@@ -121,9 +116,6 @@ export default async function ProfilePage() {
     nickForKv
       ? buildPlayerTrainMatchHistory(nickForKv).catch(() => [])
       : Promise.resolve([]),
-    nickForKv
-      ? lookupPlayerCwPwr(nickForKv).catch(() => null)
-      : Promise.resolve(null),
     nickForKv
       ? buildPlayerCwMatchHistory(nickForKv).catch(() => [])
       : Promise.resolve([]),
@@ -154,7 +146,6 @@ export default async function ProfilePage() {
             lastSeenAt={me.lastSeenAt}
           />
           <ProfileTrainPwrCard stats={trainPwr} />
-          <ProfileCwPwrCard stats={cwPwr} />
           <ProfileKitsCard userId={me.id} kits={kits.kits} />
           <ClanInvites initial={invites} />
         </div>

@@ -46,7 +46,7 @@ export function ProfileKvMatchHistory({
       <h2 className="profile-hist-title">История матчей КВ</h2>
       {matchHistory.length === 0 ? (
         <p className="muted" style={{ margin: "8px 0 0" }}>
-          Пока нет КВ с ником в рейтинге — история PWR появится после оцифровки
+          Пока нет КВ с ником в рейтинге — история появится после оцифровки
           табло.
         </p>
       ) : (
@@ -58,21 +58,11 @@ export function ProfileKvMatchHistory({
                 <th>Соперник</th>
                 <th>Карта</th>
                 <th>Счёт</th>
-                <th className="num">Δ PWR</th>
                 <th>Результат</th>
-                <th className="num">PWR</th>
               </tr>
             </thead>
             <tbody>
               {matchHistory.map((m) => {
-                const delta = m.pwrDelta;
-                const deltaCls =
-                  delta > 0
-                    ? "pwr-delta plus"
-                    : delta < 0
-                      ? "pwr-delta minus"
-                      : "pwr-delta zero";
-                const deltaText = delta > 0 ? `+${delta}` : String(delta);
                 const resultCls =
                   m.won === true
                     ? "kv-pill win"
@@ -149,19 +139,8 @@ export function ProfileKvMatchHistory({
                     <td className="training-match-score" title={m.meeting}>
                       {m.meeting}
                     </td>
-                    <td className={`num ${deltaCls}`}>{deltaText}</td>
                     <td>
                       <span className={resultCls}>{resultText}</span>
-                    </td>
-                    <td className="num" title={`${m.rankLabel} · ${m.pwrAfter}`}>
-                      <span className="profile-hist-pwr">
-                        <span
-                          className={`home-pwr-badge rank-${m.rankKey}`}
-                        >
-                          {m.rankLabel}
-                        </span>
-                        <span className="profile-hist-pwr-n">{m.pwrAfter}</span>
-                      </span>
                     </td>
                   </tr>
                 );

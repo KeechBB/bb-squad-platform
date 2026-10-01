@@ -347,7 +347,7 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
     });
   }, [rows, sortKey, sortDir, pwrDeltas]);
 
-  const showPwrDelta = tab === "total";
+  const showPwrDelta = tab === "total" && open?.kind === "train";
 
   const records = useMemo(() => {
     return {
@@ -577,9 +577,9 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
                         <th
                           className={`ctr sortable${sortKey === "pwrDelta" ? " is-sorted" : ""}`}
                           onClick={() => toggleSort("pwrDelta")}
-                          title="Изменение PWR после этой катки"
+                          title="Изменение RP после этой катки"
                         >
-                          Δ PWR
+                          Δ RP
                           <span className="sort-ind">{sortMark("pwrDelta")}</span>
                         </th>
                       ) : null}
@@ -600,12 +600,14 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
                             : delta < 0
                               ? "pwr-delta minus"
                               : "pwr-delta zero";
+                      const deltaRounded =
+                        delta == null ? null : Math.round(Number(delta) * 10) / 10;
                       const deltaText =
-                        delta == null
+                        deltaRounded == null
                           ? "—"
-                          : delta > 0
-                            ? `+${delta}`
-                            : String(delta);
+                          : deltaRounded > 0
+                            ? `+${deltaRounded}`
+                            : String(deltaRounded);
                       return (
                         <tr
                           key={`${p.nick}-${i}`}

@@ -20,12 +20,8 @@ import {
   buildPlayerTrainMatchHistory,
   buildPlayerTrainCombatStats,
 } from "@/lib/homeTrainPwr";
-import {
-  lookupPlayerCwPwr,
-  buildPlayerCwMatchHistory,
-} from "@/lib/homeCwPwr";
+import { buildPlayerCwMatchHistory } from "@/lib/homeCwPwr";
 import { ProfileTrainPwrCard } from "@/components/ProfileTrainPwrCard";
-import { ProfileCwPwrCard } from "@/components/ProfileCwPwrCard";
 import { ProfileKitsCard } from "@/components/ProfileKitsCard";
 import { bonesForUser } from "@/lib/squadHits";
 import { kitsForUser } from "@/lib/squadRoles";
@@ -117,7 +113,6 @@ export default async function PlayerProfilePage({ params }: Props) {
     kvBundle,
     trainPwr,
     matchHistory,
-    cwPwr,
     cwMatchHistory,
     trainCombat,
     hitmap,
@@ -141,9 +136,6 @@ export default async function PlayerProfilePage({ params }: Props) {
     nickForKv
       ? buildPlayerTrainMatchHistory(nickForKv).catch(() => [])
       : Promise.resolve([]),
-    nickForKv
-      ? lookupPlayerCwPwr(nickForKv).catch(() => null)
-      : Promise.resolve(null),
     nickForKv
       ? buildPlayerCwMatchHistory(nickForKv).catch(() => [])
       : Promise.resolve([]),
@@ -211,7 +203,6 @@ export default async function PlayerProfilePage({ params }: Props) {
             </section>
           ) : null}
           <ProfileTrainPwrCard stats={trainPwr} />
-          <ProfileCwPwrCard stats={cwPwr} />
           <ProfileKitsCard userId={user.id} kits={kits.kits} />
         </div>
       </div>

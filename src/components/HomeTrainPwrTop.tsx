@@ -46,40 +46,46 @@ export function HomeTrainPwrTop({ initial }: Props) {
   return (
     <div
       className={`home-attend-streaks home-train-pwr${pulse ? " home-attend-streaks-pulse" : ""}`}
-      aria-label="Топ игроков по PWR на тренировках"
+      aria-label="Топ игроков по RP на тренировках"
     >
       <div className="home-attend-streaks-head">
         <p className="home-attend-streaks-title">Ранг · ТОП 10</p>
         <p className="home-attend-streaks-sub muted">
-          PWR тренировок · обновляется само
+          RP тренировок · обновляется само
         </p>
       </div>
       {rows.length === 0 ? (
         <p className="home-attend-streaks-empty muted">Пока нет статы</p>
       ) : (
         <ol className="home-attend-streaks-list home-train-pwr-list">
-          {rows.map((r, i) => (
-            <li key={r.nick} className={`home-attend-streaks-row home-train-pwr-row${i === 0 ? " is-top1" : ""}`}>
-              <span className="home-attend-streaks-rank">{i + 1}</span>
-              <span
-                className={`home-pwr-badge rank-${r.rankKey}`}
-                title={r.rankLabel}
+          {rows.map((r, i) => {
+            const rp = Math.round(Number(r.rp ?? r.pwr) * 10) / 10;
+            return (
+              <li
+                key={r.nick}
+                className={`home-attend-streaks-row home-train-pwr-row${i === 0 ? " is-top1" : ""}`}
               >
-                {r.rankLabel}
-              </span>
-              <Link
-                className={`home-attend-streaks-nick${i === 0 ? " home-pwr-nick-top1" : ""}`}
-                href={`/players/${encodeURIComponent(r.nick)}`}
-                title={r.nick}
-              >
-                {r.nick}
-              </Link>
-              <span className="home-attend-streaks-days home-train-pwr-score">
-                <b>{r.pwr}</b>
-                <span>PWR</span>
-              </span>
-            </li>
-          ))}
+                <span className="home-attend-streaks-rank">{i + 1}</span>
+                <span
+                  className={`home-pwr-badge rank-${r.rankKey}`}
+                  title={r.rankLabel}
+                >
+                  {r.rankLabel}
+                </span>
+                <Link
+                  className={`home-attend-streaks-nick${i === 0 ? " home-pwr-nick-top1" : ""}`}
+                  href={`/players/${encodeURIComponent(r.nick)}`}
+                  title={r.nick}
+                >
+                  {r.nick}
+                </Link>
+                <span className="home-attend-streaks-days home-train-pwr-score">
+                  <b>{rp}</b>
+                  <span>RP</span>
+                </span>
+              </li>
+            );
+          })}
         </ol>
       )}
       <p className="home-train-pwr-foot muted">

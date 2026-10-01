@@ -41,7 +41,7 @@ type Props = {
   reserveDays?: string[];
   /** Заход / итоговый выход по дням (с 19:00, gap ≤5 мин = не выход) */
   visitBounds?: Record<string, { joinHm: string; leaveHm: string | null }>;
-  /** История тренировочных матчей с ΔPWR */
+  /** История тренировочных матчей с ΔRP */
   matchHistory?: TrainMatchHistoryRow[];
   /** false — только посещаемость; историю выносим в отдельный блок */
   includeMatchHistory?: boolean;
@@ -151,8 +151,8 @@ export function TrainingMatchHistory({
       <h2 className="profile-hist-title">История матчей тренировок</h2>
       {matchHistory.length === 0 ? (
         <p className="muted" style={{ margin: "8px 0 0" }}>
-          Пока нет тренировочных матчей с ником в рейтинге — история PWR
-          появится после оцифровки табло.
+          Пока нет тренировочных матчей с ником в рейтинге — история RP
+          появится после каток с give-up киллами.
         </p>
       ) : (
         <div className="admin-table-wrap profile-hist-table-wrap">
@@ -162,21 +162,28 @@ export function TrainingMatchHistory({
                 <th>Дата</th>
                 <th>Карта</th>
                 <th>Счёт</th>
-                <th className="num">Δ PWR</th>
+                <th className="num">Δ RP</th>
                 <th>Результат</th>
-                <th className="num">PWR</th>
+                <th className="num">RP</th>
               </tr>
             </thead>
             <tbody>
               {matchHistory.map((m) => {
-                const delta = m.pwrDelta;
+                const delta = m.rpDelta;
                 const deltaCls =
-                  delta > 0
-                    ? "pwr-delta plus"
-                    : delta < 0
-                      ? "pwr-delta minus"
-                      : "pwr-delta zero";
-                const deltaText = delta > 0 ? `+${delta}` : String(delta);
+                  delta == null
+                    ? "pwr-delta zero"
+                    : delta > 0
+                      ? "pwr-delta plus"
+                      : delta < 0
+                        ? "pwr-delta minus"
+                        : "pwr-delta zero";
+                const deltaText =
+                  delta == null
+                    ? "—"
+                    : delta > 0
+                      ? `+${delta}`
+                      : String(delta);
                 const score = `${m.factionA} ${m.ticketsA ?? "—"} : ${m.ticketsB ?? "—"} ${m.factionB}`;
                 const resultCls =
                   m.won === true
@@ -191,6 +198,7 @@ export function TrainingMatchHistory({
                       ? "Поражение"
                       : "—";
                 const canOpen = Boolean(m.playersUrl);
+                const rpAfter = m.rpAfter;
                 return (
                   <tr
                     key={m.matchId}
@@ -244,15 +252,26 @@ export function TrainingMatchHistory({
                     <td>
                       <span className={resultCls}>{resultText}</span>
                     </td>
-                    <td className="num" title={`${m.rankLabel} · ${m.pwrAfter}`}>
-                      <span className="profile-hist-pwr">
-                        <span
-                          className={`home-pwr-badge rank-${m.rankKey}`}
-                        >
-                          {m.rankLabel}
+                    <td
+                      className="num"
+                      title={
+                        rpAfter != null
+                          ? `${m.rankLabel} · ${rpAfter}`
+                          : "RP ещё не считался"
+                      }
+                    >
+                      {rpAfter != null ? (
+                        <span className="profile-hist-pwr">
+                          <span
+                            className={`home-pwr-badge rank-${m.rankKey}`}
+                          >
+                            {m.rankLabel}
+                          </span>
+                          <span className="profile-hist-pwr-n">{rpAfter}</span>
                         </span>
-                        <span className="profile-hist-pwr-n">{m.pwrAfter}</span>
-                      </span>
+                      ) : (
+                        "—"
+                      )}
                     </td>
                   </tr>
                 );
@@ -452,8 +471,8 @@ export function TrainingSessionsCard({
       {includeMatchHistory ? (
         matchHistory.length === 0 ? (
           <p className="muted" style={{ marginTop: 14 }}>
-            Пока нет тренировочных матчей с ником в рейтинге — история PWR
-            появится после оцифровки табло.
+            Пока нет тренировочных матчей с ником в рейтинге — история RP
+            появится после каток с give-up киллами.
           </p>
         ) : (
           <div className="admin-table-wrap" style={{ marginTop: 14 }}>
@@ -466,22 +485,28 @@ export function TrainingSessionsCard({
                   <th>Дата</th>
                   <th>Карта</th>
                   <th>Счёт</th>
-                  <th className="num">Δ PWR</th>
+                  <th className="num">Δ RP</th>
                   <th>Результат</th>
-                  <th className="num">PWR</th>
+                  <th className="num">RP</th>
                 </tr>
               </thead>
               <tbody>
                 {matchHistory.map((m) => {
-                  const delta = m.pwrDelta;
+                  const delta = m.rpDelta;
                   const deltaCls =
-                    delta > 0
-                      ? "pwr-delta plus"
-                      : delta < 0
-                        ? "pwr-delta minus"
-                        : "pwr-delta zero";
+                    delta == null
+                      ? "pwr-delta zero"
+                      : delta > 0
+                        ? "pwr-delta plus"
+                        : delta < 0
+                          ? "pwr-delta minus"
+                          : "pwr-delta zero";
                   const deltaText =
-                    delta > 0 ? `+${delta}` : String(delta);
+                    delta == null
+                      ? "—"
+                      : delta > 0
+                        ? `+${delta}`
+                        : String(delta);
                   const score = `${m.factionA} ${m.ticketsA ?? "—"} : ${m.ticketsB ?? "—"} ${m.factionB}`;
                   const resultCls =
                     m.won === true
@@ -495,6 +520,7 @@ export function TrainingSessionsCard({
                       : m.won === false
                         ? "Поражение"
                         : "—";
+                  const rpAfter = m.rpAfter;
                   return (
                     <tr key={m.matchId}>
                       <td>{m.dateLabel}</td>
@@ -513,14 +539,20 @@ export function TrainingSessionsCard({
                         <span className={resultCls}>{resultText}</span>
                       </td>
                       <td className="num">
-                        <span
-                          className={`home-pwr-badge rank-${m.rankKey}`}
-                          title={m.rankLabel}
-                          style={{ fontSize: "0.62rem", padding: "1px 5px" }}
-                        >
-                          {m.rankLabel}
-                        </span>{" "}
-                        {m.pwrAfter}
+                        {rpAfter != null ? (
+                          <>
+                            <span
+                              className={`home-pwr-badge rank-${m.rankKey}`}
+                              title={m.rankLabel}
+                              style={{ fontSize: "0.62rem", padding: "1px 5px" }}
+                            >
+                              {m.rankLabel}
+                            </span>{" "}
+                            {rpAfter}
+                          </>
+                        ) : (
+                          "—"
+                        )}
                       </td>
                     </tr>
                   );

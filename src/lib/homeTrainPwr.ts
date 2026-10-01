@@ -3,11 +3,16 @@ import { pickMvps } from "@/lib/homeMvp";
 
 export type HomeTrainPwrRow = {
   nick: string;
+  /** Respect Points (видимый рейтинг тренировок). */
+  rp: number;
+  /** @deprecated alias of rp — старые импорты */
   pwr: number;
   rankLabel: string;
   rankKey: string;
   games: number;
   place: number;
+  predatorPlace?: number | null;
+  matches?: import("@/lib/trainRp").RpPlayerMatch[];
 };
 
 export type HomeTrainPwrBoard = {
@@ -296,6 +301,7 @@ export async function buildTrainPwrLeaderboard(): Promise<TrainPwrLeaderboard> {
     });
     ranked.push({
       nick: row.nick,
+      rp: pwr,
       pwr,
       rankLabel: label,
       rankKey,
@@ -320,39 +326,60 @@ export async function buildTrainPwrLeaderboard(): Promise<TrainPwrLeaderboard> {
 }
 
 export async function buildHomeTrainPwrBoard(): Promise<HomeTrainPwrBoard> {
-  const board = await buildTrainPwrLeaderboard();
+  const { buildTrainRpLeaderboard } = await import("@/lib/trainRp");
+  const board = await buildTrainRpLeaderboard();
+  const rows: HomeTrainPwrRow[] = board.rows.map((r) => {
+    const rp = Math.round(r.rp * 10) / 10;
+    return {
+      nick: r.nick,
+      rp,
+      pwr: Math.round(rp),
+      rankLabel: r.rankLabel,
+      rankKey: r.rankKey,
+      games: r.games,
+      place: r.place,
+      predatorPlace: r.predatorPlace ?? null,
+    };
+  });
   return {
-    top10: board.rows.slice(0, 10),
+    top10: rows.slice(0, 10),
     players: board.players,
     matches: board.matches,
     updatedAt: board.updatedAt,
   };
 }
 
-/** Профиль: PWR / Rank / место по нику (алиасы из tiers.json). */
+/** Профиль: RP / Rank / место + разбор по картам. */
 export async function lookupPlayerTrainPwr(
   nick: string
 ): Promise<HomeTrainPwrRow | null> {
   const clean = String(nick || "").trim();
   if (!clean) return null;
-  const board = await buildTrainPwrLeaderboard();
-  if (!board.rows.length) return null;
-
-  const tiersRaw = await loadFromKv<{
-    aliases?: Record<string, string>;
-  }>("data/tiers.json");
-  const aliases = tiersRaw?.aliases || {};
-  const aliasCanon = new Map<string, string>();
-  for (const [a, c] of Object.entries(aliases)) {
-    aliasCanon.set(nickKey(a), String(c));
-  }
-  const resolveKey = (n: string) => {
-    const key = nickKey(n);
-    const canon = aliasCanon.get(key);
-    return canon ? nickKey(canon) : key;
+  const { lookupPlayerTrainRp, buildTrainRpLeaderboard } = await import(
+    "@/lib/trainRp"
+  );
+  const player = await lookupPlayerTrainRp(clean);
+  if (!player) return null;
+  const board = await buildTrainRpLeaderboard();
+  const place =
+    board.rows.findIndex(
+      (r) => nickKey(r.nick) === nickKey(player.nick)
+    ) + 1 || null;
+  const rp = Math.round(player.rp * 10) / 10;
+  const rankLabel = player.predatorPlace
+    ? `PREDATOR #${player.predatorPlace}`
+    : player.rankLabel;
+  return {
+    nick: player.nick,
+    rp,
+    pwr: Math.round(rp),
+    rankLabel,
+    rankKey: player.rankKey,
+    games: player.matches?.length || 0,
+    place: place || board.rows.length + 1,
+    predatorPlace: player.predatorPlace ?? null,
+    matches: player.matches || [],
   };
-  const want = resolveKey(clean);
-  return board.rows.find((r) => resolveKey(r.nick) === want) || null;
 }
 
 export type TrainMatchHistoryRow = {
@@ -370,6 +397,11 @@ export type TrainMatchHistoryRow = {
   server?: string;
   playersUrl: string;
   won: boolean | null;
+  /** Итоговое RP после матча; null если матч ещё без RP-ledger */
+  rpAfter: number | null;
+  /** Δ RP за матч; null если нет ledger */
+  rpDelta: number | null;
+  /** @deprecated aliases */
   pwrAfter: number;
   pwrDelta: number;
   rankLabel: string;
@@ -398,7 +430,7 @@ function pad2(n: number) {
   return String(n).padStart(2, "0");
 }
 
-/** История тренировок игрока с ΔPWR после каждой катки (хронология). */
+/** История тренировок игрока с ΔRP после каждой катки (хронология). */
 export async function buildPlayerTrainMatchHistory(
   nick: string
 ): Promise<TrainMatchHistoryRow[]> {
@@ -424,12 +456,6 @@ export async function buildPlayerTrainMatchHistory(
     return canon ? nickKey(canon) : key;
   };
   const want = resolveKey(clean);
-
-  const tierIndex = await loadTierIndex();
-  const tier =
-    tierIndex.get(want) ||
-    tierIndex.get(nickKey(clean)) ||
-    4;
 
   const matchMetas: MatchMeta[] = [];
   for (const m of index.months) {
@@ -473,17 +499,32 @@ export async function buildPlayerTrainMatchHistory(
   }
   matchMetas.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
 
-  const agg: Agg = {
-    nick: clean,
-    games: 0,
-    wins: 0,
-    res: 0,
-    nok: 0,
-    kills: 0,
-    deaths: 0,
-    dmg: 0,
-  };
-  let prevPwr = 0;
+  const { loadRpLedger, rpRankFromScore, lookupPlayerTrainRp } = await import(
+    "@/lib/trainRp"
+  );
+  const ledger = await loadRpLedger();
+  const rpPlayer = await lookupPlayerTrainRp(clean);
+  const rpNetByMatch = new Map<string, number>();
+  for (const m of rpPlayer?.matches || []) {
+    rpNetByMatch.set(m.id, Number(m.net) || 0);
+  }
+  // fallback: ledger match netByNick
+  if (ledger?.matches) {
+    for (const m of ledger.matches) {
+      if (rpNetByMatch.has(m.id)) continue;
+      for (const [n, net] of Object.entries(m.netByNick || {})) {
+        if (resolveKey(n) === want) {
+          rpNetByMatch.set(m.id, Number(net) || 0);
+          break;
+        }
+      }
+    }
+  }
+  const startRp = Number(ledger?.startRp) || 1000;
+  const step = Number(ledger?.step) || 150;
+  const radiant3Max = Number(ledger?.radiant3Max) || 4500;
+  let runningRp: number | null = null;
+
   const history: TrainMatchHistoryRow[] = [];
 
   for (const match of matchMetas) {
@@ -512,19 +553,8 @@ export async function buildPlayerTrainMatchHistory(
     const mine = list.filter((p) => p?.nick && resolveKey(p.nick) === want);
     if (!mine.length) continue;
 
-    // один ник на катку — суммируем статы если дубль OCR
-    let res = 0;
-    let nok = 0;
-    let kills = 0;
-    let deaths = 0;
-    let dmg = 0;
     let team = "";
     for (const p of mine) {
-      res += Number(p.res) || 0;
-      nok += Number(p.nok) || 0;
-      kills += Number(p.kills) || 0;
-      deaths += Number(p.deaths) || 0;
-      dmg += Number(p.dmg) || 0;
       if (!team && p.team) team = String(p.team);
     }
 
@@ -541,24 +571,20 @@ export async function buildPlayerTrainMatchHistory(
         ? false
         : null;
 
-    agg.games += 1;
-    if (won === true) agg.wins += 1;
-    agg.res += res;
-    agg.nok += nok;
-    agg.kills += kills;
-    agg.deaths += deaths;
-    agg.dmg += dmg;
-
-    const winPct = Math.round((1000 * agg.wins) / agg.games) / 10;
-    const kd = agg.deaths === 0 ? agg.kills : agg.kills / agg.deaths;
-    const { pwr, label, rankKey } = calcTrainPwr({
-      ...agg,
-      tier,
-      winPct,
-      kd,
-    });
-    const pwrDelta = pwr - prevPwr;
-    prevPwr = pwr;
+    let rpDelta: number | null = null;
+    let rpAfter: number | null = null;
+    let rankLabel = "—";
+    let rankKey = "iron";
+    if (rpNetByMatch.has(match.id)) {
+      if (runningRp == null) runningRp = startRp;
+      const net = rpNetByMatch.get(match.id)!;
+      rpDelta = Math.round(net * 10) / 10;
+      runningRp = Math.round((runningRp + net) * 10) / 10;
+      rpAfter = runningRp;
+      const rk = rpRankFromScore(runningRp, step, radiant3Max);
+      rankLabel = rk.label;
+      rankKey = rk.rankKey;
+    }
 
     const timeRaw = String(match.timeMsk || "").trim();
     history.push({
@@ -576,9 +602,11 @@ export async function buildPlayerTrainMatchHistory(
       server: match.server,
       playersUrl: match.playersUrl,
       won: won,
-      pwrAfter: pwr,
-      pwrDelta,
-      rankLabel: label,
+      rpAfter,
+      rpDelta,
+      pwrAfter: rpAfter != null ? Math.round(rpAfter) : 0,
+      pwrDelta: rpDelta != null ? Math.round(rpDelta) : 0,
+      rankLabel,
       rankKey,
     });
   }
