@@ -4438,8 +4438,9 @@ body:has(.home-page) {
   padding: 16px;
 }
 .compare-panel {
-  width: min(1280px, 96vw);
-  max-height: min(92vh, 900px);
+  /* как .shell профиля / .cross-rating-shell — чтобы ники в ±RP читались */
+  width: min(1760px, 98vw);
+  max-height: min(94vh, 980px);
   display: flex;
   flex-direction: column;
   background: #120a1c;
@@ -4656,9 +4657,16 @@ body:has(.home-page) {
   color: #eee;
 }
 .compare-rp-ev-list li {
-  grid-template-columns: 3.8rem minmax(0, 1fr) minmax(4.5rem, 1fr) 3rem;
+  /* ник шире бара — иначе P.. / N.. при двух колонках на сторону */
+  grid-template-columns: 3.6rem minmax(6.5rem, 2fr) minmax(2.8rem, 0.65fr) 2.8rem;
   gap: 6px;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
+}
+.compare-rp-ev-list .rp-ev-nick {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 .compare-search {
   display: flex;
