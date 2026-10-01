@@ -58,10 +58,6 @@ export default async function RootLayout({
                     <span className="nav-full">Клановые войны</span>
                     <span className="nav-short">КВ</span>
                   </Link>
-                  <Link href="/rating" title="Рейтинг кланов">
-                    <span className="nav-full">Рейтинг кланов</span>
-                    <span className="nav-short">Рейтинг</span>
-                  </Link>
                   <Link href="/tm" title="Тренировочные матчи">
                     <span className="nav-full">Тренировочные матчи</span>
                     <span className="nav-short">Трен.</span>
