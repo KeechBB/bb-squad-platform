@@ -1,5 +1,5 @@
 /** ћен€й при обновлении KV, чтобы iframe не брал старый кэш */
-const KV_CACHE = "20261003-hat-lat-fit";
+const KV_CACHE = "20261003-lat-role";
 
 export default async function TrainingMatchesPage() {
   const params = new URLSearchParams({ embed: "1", v: KV_CACHE });
