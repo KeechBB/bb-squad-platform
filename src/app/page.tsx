@@ -71,10 +71,8 @@ export default async function HomePage() {
       </div>
 
       <div className="home-layout">
-        <div className="home-ops-col">
-          <HomeUpcomingMatches previews={previews} />
-          <HomeMvpBoard initial={mvpBoard} />
-        </div>
+        <HomeUpcomingMatches previews={previews} />
+        <HomeMvpBoard initial={mvpBoard} />
 
         <section className="home-hero">
           <div className="home-hero-brand">

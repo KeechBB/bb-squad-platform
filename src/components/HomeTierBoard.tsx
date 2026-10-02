@@ -18,9 +18,10 @@ function TransferRow({ row }: { row: HomeTierTransfer }) {
         <Link className="home-tier-nick" href={`/players/${encodeURIComponent(row.nick)}`}>
           {row.nick}
         </Link>
-        <span className="home-tier-move">{formatTierArrow(row.fromTier, row.toTier)}</span>
+        <div className="home-tier-row-meta">
+          <span className="home-tier-move">{formatTierArrow(row.fromTier, row.toTier)}</span>
+        </div>
       </div>
-      {row.note ? <p className="home-tier-note">{row.note}</p> : null}
     </li>
   );
 }
@@ -38,10 +39,11 @@ function CandidateRow({ row }: { row: HomeTierCandidate }) {
         <Link className="home-tier-nick" href={`/players/${encodeURIComponent(row.nick)}`}>
           {row.nick}
         </Link>
-        <span className="home-tier-move">{formatTierArrow(row.fromTier, row.toTier)}</span>
-        <span className="home-tier-fit">{row.fit.toFixed(1)}%</span>
+        <div className="home-tier-row-meta">
+          <span className="home-tier-move">{formatTierArrow(row.fromTier, row.toTier)}</span>
+          <span className="home-tier-fit">{row.fit.toFixed(1)}%</span>
+        </div>
       </div>
-      {row.note ? <p className="home-tier-note">{row.note}</p> : null}
     </li>
   );
 }
