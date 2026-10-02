@@ -419,6 +419,27 @@ model SitePageVisit {
   @@index([path, createdAt])
 }
 
+/// Лог смен тиров состава (кто / когда / из какого в какой).
+model TierChangeLog {
+  id         String   @id @default(cuid())
+  /// Дата перевода (МСК-календарь; время может быть полдень UTC для «только дата»)
+  changedAt  DateTime
+  nick       String
+  fromTier   Int
+  toTier     Int
+  note       String?
+  /// Группа сида/пакета, напр. "2026-10-02" — для идемпотентного бэкофилла
+  batchKey   String?
+  actorId    String?
+  actorNick  String?
+  createdAt  DateTime @default(now())
+
+  @@index([changedAt])
+  @@index([nick])
+  @@index([batchKey])
+  @@unique([batchKey, nick])
+}
+
 /// Накопительный журнал действий (админ-права, клан, профиль).
 model ActionLog {
   id         String   @id @default(cuid())

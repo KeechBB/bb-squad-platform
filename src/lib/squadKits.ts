@@ -12,7 +12,7 @@ export const STANDARD_KITS = [
   "Сапер/Инженер",
   "Командир Мехводов",
   "Мехвод",
-  "Гранатомет подствельный",
+  "Гранатомет подствольный",
   "Легкая Труба",
   "Тандем",
   "Снайпер",
@@ -23,6 +23,16 @@ export const STANDARD_KITS = [
 ] as const;
 
 export type StandardKit = (typeof STANDARD_KITS)[number];
+
+/** Старые опечатки / переименования → канон (строки уже лежащие в БД). */
+const KIT_ALIASES: Record<string, StandardKit> = {
+  "Гранатомет подствельный": "Гранатомет подствольный",
+};
+
+export function canonKitName(raw: string): StandardKit | string {
+  const t = String(raw || "").trim();
+  return KIT_ALIASES[t] || t;
+}
 
 type Rule = { re: RegExp; kit: StandardKit | null };
 
@@ -42,7 +52,7 @@ const KIT_RULES: Rule[] = [
     kit: "Легкий Пулемет",
   },
   { re: /Sapper|CombatEngineer|Engineer|Pioneer/i, kit: "Сапер/Инженер" },
-  { re: /Grenadier/i, kit: "Гранатомет подствельный" },
+  { re: /Grenadier/i, kit: "Гранатомет подствольный" },
   { re: /HAT|HeavyAntiTank|Tandem/i, kit: "Тандем" },
   { re: /LAT|LightAntiTank/i, kit: "Легкая Труба" },
   { re: /Sniper/i, kit: "Снайпер" },
@@ -72,10 +82,17 @@ export type KitPctRow = { kit: StandardKit; pct: number };
 export function kitCountsToPct(
   counts: Partial<Record<string, number>>
 ): KitPctRow[] {
+  const merged: Partial<Record<string, number>> = {};
+  for (const [raw, n] of Object.entries(counts)) {
+    const kit = canonKitName(raw);
+    const v = Number(n) || 0;
+    if (v <= 0) continue;
+    merged[kit] = (merged[kit] || 0) + v;
+  }
   const rows: { kit: StandardKit; n: number }[] = [];
   let total = 0;
   for (const kit of STANDARD_KITS) {
-    const n = Number(counts[kit]) || 0;
+    const n = Number(merged[kit]) || 0;
     if (n <= 0) continue;
     rows.push({ kit, n });
     total += n;

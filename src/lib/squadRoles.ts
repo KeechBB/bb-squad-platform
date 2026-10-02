@@ -4,6 +4,7 @@ import { mskDayBoundsUtc, formatMskYmd } from "@/lib/squadHits";
 import {
   kitCountsToPct,
   kitFromDeployRole,
+  canonKitName,
   type KitPctRow,
   type StandardKit,
 } from "@/lib/squadKits";
@@ -145,7 +146,8 @@ export async function kitsForUser(
   for (const r of rows) {
     const n = Number(r.n) || 0;
     if (n <= 0) continue;
-    counts[r.kit] = n;
+    const kit = canonKitName(r.kit);
+    counts[kit] = (counts[kit] || 0) + n;
     total += n;
   }
   return { kits: kitCountsToPct(counts), total };
@@ -222,7 +224,8 @@ export async function kitAveragesByTier(): Promise<TierKitAvg[]> {
   const byUser = new Map<string, Partial<Record<string, number>>>();
   for (const g of grouped) {
     const cur = byUser.get(g.userId) || {};
-    cur[g.kit] = Number(g.n) || 0;
+    const kit = canonKitName(g.kit);
+    cur[kit] = (cur[kit] || 0) + (Number(g.n) || 0);
     byUser.set(g.userId, cur);
   }
 
@@ -382,7 +385,8 @@ export async function kitRankAnalytics(): Promise<KitRankAnalytics> {
   const byUser = new Map<string, Partial<Record<string, number>>>();
   for (const g of grouped) {
     const cur = byUser.get(g.userId) || {};
-    cur[g.kit] = Number(g.n) || 0;
+    const kit = canonKitName(g.kit);
+    cur[kit] = (cur[kit] || 0) + (Number(g.n) || 0);
     byUser.set(g.userId, cur);
   }
 

@@ -102,7 +102,7 @@ _KIT_RULES: list[tuple[re.Pattern[str], str | None]] = [
         "Легкий Пулемет",
     ),
     (re.compile(r"Sapper|CombatEngineer|Engineer|Pioneer", re.I), "Сапер/Инженер"),
-    (re.compile(r"Grenadier", re.I), "Гранатомет подствельный"),
+    (re.compile(r"Grenadier", re.I), "Гранатомет подствольный"),
     (re.compile(r"HAT|HeavyAntiTank|Tandem", re.I), "Тандем"),
     (re.compile(r"LAT|LightAntiTank", re.I), "Легкая Труба"),
     (re.compile(r"Sniper", re.I), "Снайпер"),

@@ -8,6 +8,7 @@ import { AdminJournalPanel } from "@/components/AdminJournalPanel";
 import { AdminVisitsPanel } from "@/components/AdminVisitsPanel";
 import { AdminReservePanel } from "@/components/AdminReservePanel";
 import { AdminUpdatesPanel } from "@/components/AdminUpdatesPanel";
+import { AdminTierLogPanel } from "@/components/AdminTierLogPanel";
 import type { AppRole } from "@/lib/roles";
 
 type Props = {
@@ -20,7 +21,14 @@ type Props = {
   showReserve: boolean;
 };
 
-type Tab = "users" | "attendance" | "journal" | "visits" | "reserve" | "updates";
+type Tab =
+  | "users"
+  | "attendance"
+  | "journal"
+  | "visits"
+  | "reserve"
+  | "updates"
+  | "tiers";
 
 const TAB_LEAD: Record<Tab, string> = {
   users: "Пользователи платформы. Кликни по нику — правка анкеты и аватара.",
@@ -34,6 +42,8 @@ const TAB_LEAD: Record<Tab, string> = {
     "Резерв BlackBerry: весь состав, причины, даты ухода/возврата, ручное управление, история.",
   updates:
     "Логи обновлений сайта: дата, Beta-версия и что добавили для игроков.",
+  tiers:
+    "История переводов по тирам: кто, когда, из какого в какой. Можно дописать вручную.",
 };
 
 function readTab(allowVisits: boolean, allowReserve: boolean): Tab {
@@ -43,7 +53,8 @@ function readTab(allowVisits: boolean, allowReserve: boolean): Tab {
     t === "attendance" ||
     t === "journal" ||
     t === "users" ||
-    t === "updates"
+    t === "updates" ||
+    t === "tiers"
   )
     return t;
   if (t === "visits" && allowVisits) return "visits";
@@ -140,6 +151,13 @@ export function AdminShell({
           </button>
           <button
             type="button"
+            className={`admin-tab ${tab === "tiers" ? "active" : ""}`}
+            onClick={() => setTab("tiers")}
+          >
+            Лог тиров
+          </button>
+          <button
+            type="button"
             className={`admin-tab ${tab === "updates" ? "active" : ""}`}
             onClick={() => setTab("updates")}
           >
@@ -172,6 +190,7 @@ export function AdminShell({
       {tab === "attendance" ? <AdminAttendancePanel /> : null}
       {tab === "reserve" && showReserve ? <AdminReservePanel /> : null}
       {tab === "journal" ? <AdminJournalPanel /> : null}
+      {tab === "tiers" ? <AdminTierLogPanel /> : null}
       {tab === "updates" ? <AdminUpdatesPanel /> : null}
       {tab === "visits" && showSiteVisits ? <AdminVisitsPanel /> : null}
     </main>
