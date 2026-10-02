@@ -42,8 +42,11 @@ function MatchBreakdown({
               {match.map} · {dateShort}
             </h3>
             <p className="muted">
-              NET {fmtDelta(match.net)} · give-up K {match.kills.length} / D{" "}
+              NET {fmtDelta(match.net)} · K {match.kills.length} / D{" "}
               {match.deaths.length}
+              {(match.teamkills?.length || 0) > 0
+                ? ` · TK ${match.teamkills!.length}`
+                : ""}
               {(match.revives?.length || 0) > 0
                 ? ` · R ${match.revives!.length}`
                 : ""}
@@ -86,14 +89,15 @@ function MatchBreakdown({
           </section>
           <section>
             <h4 className="rp-breakdown-col-title loss">
-              − lost ({match.deaths.length})
+              − lost (
+              {match.deaths.length + (match.teamkills?.length || 0)})
             </h4>
             <ul className="rp-breakdown-list">
               {match.deaths.map((e, i) => (
                 <li key={`d-${i}`}>
                   <span className="rp-ev-time">{e.time}</span>
                   <span className="rp-ev-nick" title={e.killer}>
-                    {e.killer}
+                    {e.kind === "tk" ? `TK ← ${e.killer}` : e.killer}
                   </span>
                   <span className="rp-ev-bar-wrap" title={`weight ${e.killerPwr}`}>
                     <span
@@ -107,11 +111,35 @@ function MatchBreakdown({
                   </span>
                 </li>
               ))}
+              {(match.teamkills || []).map((e, i) => (
+                <li key={`tk-${i}`}>
+                  <span className="rp-ev-time">{e.time}</span>
+                  <span className="rp-ev-nick" title={e.victim}>
+                    TK → {e.victim}
+                  </span>
+                  <span className="rp-ev-bar-wrap" title={`weight ${e.victimPwr}`}>
+                    <span
+                      className="rp-ev-bar loss"
+                      style={{ width: `${pwrBarPct(e.victimPwr)}%` }}
+                    />
+                    <span className="rp-ev-roman">{romanFromPwr(e.victimPwr)}</span>
+                  </span>
+                  <span className="rp-ev-delta minus">
+                    {fmtDelta(-Math.abs(e.delta))}
+                  </span>
+                </li>
+              ))}
             </ul>
             <p className="rp-breakdown-sum minus">
               Sum{" "}
               {fmtDelta(
-                -match.deaths.reduce((s, e) => s + Math.abs(e.delta), 0)
+                -(
+                  match.deaths.reduce((s, e) => s + Math.abs(e.delta), 0) +
+                  (match.teamkills || []).reduce(
+                    (s, e) => s + Math.abs(e.delta),
+                    0
+                  )
+                )
               )}
             </p>
           </section>

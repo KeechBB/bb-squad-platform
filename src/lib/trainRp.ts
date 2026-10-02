@@ -11,14 +11,15 @@ const KV_BASES = [
 
 export type RpMatchEvent = {
   time: string;
-  /** Killer (Die) or medic (Revive) */
+  /** Killer (Die/TK) or medic (Revive) */
   killer: string;
-  /** Victim (Die) or patient (Revive) */
+  /** Victim (Die/TK) or patient (Revive) */
   victim: string;
   killerPwr: number;
   victimPwr: number;
   delta: number;
-  kind?: "die" | "revive";
+  kind?: "die" | "tk" | "revive";
+  teamkill?: boolean;
 };
 
 export type RpPlayerMatch = {
@@ -26,8 +27,12 @@ export type RpPlayerMatch = {
   map: string;
   date: string;
   net: number;
+  /** Enemy final kills (gained) */
   kills: RpMatchEvent[];
+  /** Final deaths — enemy or TK victim (lost) */
   deaths: RpMatchEvent[];
+  /** Own teamkills as killer (lost) */
+  teamkills?: RpMatchEvent[];
   /** Medic revives this player performed (patient in victim field) */
   revives?: RpMatchEvent[];
 };
@@ -235,6 +240,7 @@ export async function playerRpMatchBreakdown(
     if (hit) {
       return {
         ...hit,
+        teamkills: hit.teamkills || [],
         revives: hit.revives || [],
       };
     }
@@ -242,11 +248,17 @@ export async function playerRpMatchBreakdown(
 
   const kills: RpMatchEvent[] = [];
   const deaths: RpMatchEvent[] = [];
+  const teamkills: RpMatchEvent[] = [];
   const revives: RpMatchEvent[] = [];
   for (const e of match.events || []) {
     const kind = e.kind || "die";
     if (kind === "revive") {
       if (nickKey(e.killer) === want) revives.push(e);
+      continue;
+    }
+    if (kind === "tk") {
+      if (nickKey(e.killer) === want) teamkills.push(e);
+      if (nickKey(e.victim) === want) deaths.push(e);
       continue;
     }
     if (nickKey(e.killer) === want) kills.push(e);
@@ -260,9 +272,17 @@ export async function playerRpMatchBreakdown(
       ? Number(netFromMap) || 0
       : kills.reduce((s, e) => s + e.delta, 0) +
         revives.reduce((s, e) => s + e.delta, 0) -
-        deaths.reduce((s, e) => s + Math.abs(e.delta), 0);
+        deaths.reduce((s, e) => s + Math.abs(e.delta), 0) -
+        teamkills.reduce((s, e) => s + Math.abs(e.delta), 0);
 
-  if (!kills.length && !deaths.length && !revives.length && net === 0) return null;
+  if (
+    !kills.length &&
+    !deaths.length &&
+    !revives.length &&
+    !teamkills.length &&
+    net === 0
+  )
+    return null;
 
   return {
     id: match.id,
@@ -271,6 +291,7 @@ export async function playerRpMatchBreakdown(
     net,
     kills,
     deaths,
+    teamkills,
     revives,
   };
 }

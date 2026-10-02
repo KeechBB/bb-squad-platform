@@ -3,9 +3,11 @@
 """
 Build training RP (Respect Points) ledger from TR1 logs.
 
-- Die() give-up: zero-sum (±delta) — killer / victim
-- Revive (has revived): medic gains +delta only (patient not charged)
-- Same weight: delta=1+49*(Pv-Pk+Pmax-1)/(2*(Pmax-1))
+- Only final deaths: Die() that puts victim Inactive (not Wound/nok).
+- Enemy Die(): zero-sum — killer +delta, victim -delta.
+- Teamkill Die(): BOTH lose — killer -delta, victim -delta (no + for TK).
+- Revive (has revived): medic gains +delta*0.6 only (patient not charged).
+- Weight: delta=1+49*(Pv-Pk+Pmax-1)/(2*(Pmax-1))
   Pk = actor PWR (killer or medic), Pv = other PWR (victim or patient)
 - Wound()/nok = 0. PWR stays hidden weight.
 """
@@ -42,6 +44,11 @@ REVIVE_RE = re.compile(
     re.I,
 )
 TAG_RE = re.compile(r"^\[(?:BB|BBCOP|BBC|BBr)\]\s*", re.I)
+INACTIVE_RE = re.compile(
+    r"ChangeState\(\):\s*PC=(?P<nick>.+?)\s+\(Online IDs:.*?steam:\s*(?P<steam>7656\d+)\).*?"
+    r"OldState=Playing\s+NewState=Inactive",
+    re.I,
+)
 
 # chronological
 MATCHES = [
@@ -134,6 +141,25 @@ def strip_tag(n: str) -> str:
 
 def nick_key(n: str) -> str:
     return re.sub(r"\s+", "", strip_tag(n).lower())
+
+
+def load_alias_keys() -> dict[str, str]:
+    """alias nick_key → canon nick_key (from tiers.json)."""
+    out: dict[str, str] = {}
+    if not TIERS.is_file():
+        return out
+    t = json.loads(TIERS.read_text(encoding="utf-8"))
+    for raw, canon in (t.get("aliases") or {}).items():
+        ak, ck = nick_key(str(raw)), nick_key(str(canon))
+        if ak and ck:
+            out[ak] = ck
+            out.setdefault(ck, ck)
+    return out
+
+
+def canon_key(n: str, aliases: dict[str, str]) -> str:
+    k = nick_key(n)
+    return aliases.get(k, k)
 
 
 def parse_ts(raw: str) -> datetime:
@@ -245,8 +271,91 @@ def build_steam_map(log_paths: list[Path]) -> dict[str, str]:
     return steam_to_nick
 
 
-def parse_dies(log_path: Path, t0: datetime, t1: datetime, steam_to_nick: dict[str, str]) -> list[dict]:
+def parse_inactive_times(
+    log_path: Path, t0: datetime, t1: datetime
+) -> dict[str, list[datetime]]:
+    """nick_key / steam → times of Playing→Inactive (final death / leave-to-respawn)."""
+    by_nick: dict[str, list[datetime]] = {}
+    by_steam: dict[str, list[datetime]] = {}
+    with log_path.open("r", encoding="utf-8", errors="replace") as f:
+        for line in f:
+            if "NewState=Inactive" not in line or "ChangeState():" not in line:
+                continue
+            tm = LINE_TS.match(line)
+            im = INACTIVE_RE.search(line)
+            if not tm or not im:
+                continue
+            at = parse_ts(tm.group("ts"))
+            if not (t0 <= at < t1):
+                continue
+            nick = strip_tag(im.group("nick"))
+            steam = im.group("steam")
+            by_nick.setdefault(nick_key(nick), []).append(at)
+            by_steam.setdefault(steam, []).append(at)
+    for d in (by_nick, by_steam):
+        for k in d:
+            d[k].sort()
+    return by_nick
+
+
+def _has_inactive_soon(
+    times: list[datetime], at: datetime, pad_sec: float = 8.0
+) -> bool:
+    """True if Playing→Inactive within pad_sec after Die()."""
+    lo = at
+    hi = at + timedelta(seconds=pad_sec)
+    for t in times:
+        if t < lo:
+            continue
+        if t <= hi:
+            return True
+        return False
+    return False
+
+
+def parse_dies(
+    log_path: Path,
+    t0: datetime,
+    t1: datetime,
+    steam_to_nick: dict[str, str],
+    aliases: dict[str, str],
+) -> list[dict]:
+    """Final deaths only: Die() confirmed by victim Playing→Inactive shortly after."""
+    inactive_by_nick = parse_inactive_times(log_path, t0, t1)
+    # also index inactive by scanning steam from same ChangeState lines
+    inactive_by_steam: dict[str, list[datetime]] = {}
+    with log_path.open("r", encoding="utf-8", errors="replace") as f:
+        for line in f:
+            if "NewState=Inactive" not in line or "ChangeState():" not in line:
+                continue
+            tm = LINE_TS.match(line)
+            im = INACTIVE_RE.search(line)
+            if not tm or not im:
+                continue
+            at = parse_ts(tm.group("ts"))
+            if not (t0 <= at < t1):
+                continue
+            inactive_by_steam.setdefault(im.group("steam"), []).append(at)
+    for k in inactive_by_steam:
+        inactive_by_steam[k].sort()
+
+    # victim nick → steam from possess/PC lines inside window
+    victim_steam: dict[str, str] = {}
+    with log_path.open("r", encoding="utf-8", errors="replace") as f:
+        for line in f:
+            if "PC=" not in line or "steam:" not in line:
+                continue
+            tm = LINE_TS.match(line)
+            if not tm:
+                continue
+            at = parse_ts(tm.group("ts"))
+            if at < t0 - timedelta(minutes=30) or at >= t1:
+                continue
+            for m in PC_STEAM.finditer(line):
+                victim_steam[canon_key(m.group("nick"), aliases)] = m.group("steam")
+
     out = []
+    skipped_nok = 0
     with log_path.open("r", encoding="utf-8", errors="replace") as f:
         for line in f:
             if "Die():" not in line:
@@ -259,20 +368,50 @@ def parse_dies(log_path: Path, t0: datetime, t1: datetime, steam_to_nick: dict[s
             if not (t0 <= at < t1):
                 continue
             victim = strip_tag(dm.group("victim"))
+            vk = canon_key(victim, aliases)
+            vsteam = victim_steam.get(vk, "")
+            times = inactive_by_nick.get(vk) or []
+            if vsteam and inactive_by_steam.get(vsteam):
+                times = inactive_by_steam[vsteam]
+            if not _has_inactive_soon(times, at):
+                # Die without going Inactive ≈ not a ticket/final death (ignore)
+                skipped_nok += 1
+                continue
             steam = dm.group("steam")
             killer = steam_to_nick.get(steam, f"?{steam[-6:]}")
+            kk = canon_key(killer, aliases)
             out.append(
                 {
                     "kind": "die",
                     "at": at.isoformat(),
                     "at_msk": (at + timedelta(hours=3)).strftime("%H:%M:%S"),
                     "killer": strip_tag(killer),
-                    "killerKey": nick_key(killer),
+                    "killerKey": kk,
                     "victim": victim,
-                    "victimKey": nick_key(victim),
+                    "victimKey": vk,
                     "steam": steam,
                 }
             )
+    if skipped_nok:
+        print(f"  skipped {skipped_nok} Die() without Inactive (not final)")
+    return out
+
+
+def load_match_teams(match_id: str, aliases: dict[str, str]) -> dict[str, str]:
+    """nick_key → 'A' | 'B' from players JSON."""
+    fp = PLAYERS / f"{match_id}.json"
+    if not fp.is_file():
+        return {}
+    pj = json.loads(fp.read_text(encoding="utf-8"))
+    out: dict[str, str] = {}
+    for side, rows in (("A", pj.get("teamA") or []), ("B", pj.get("teamB") or [])):
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            nick = str(row.get("nick") or "").strip()
+            if not nick:
+                continue
+            out[canon_key(nick, aliases)] = side
     return out
 
 
@@ -309,12 +448,24 @@ def parse_revives(log_path: Path, t0: datetime, t1: datetime) -> list[dict]:
 
 def main() -> None:
     pwr, disp = load_pwr_map()
+    aliases = load_alias_keys()
+    # re-key pwr/disp through aliases
+    pwr2: dict[str, float] = {}
+    disp2: dict[str, str] = {}
+    for k, v in pwr.items():
+        ck = aliases.get(k, k)
+        pwr2[ck] = max(pwr2.get(ck, 0.0), v)
+    for k, n in disp.items():
+        ck = aliases.get(k, k)
+        disp2.setdefault(ck, n)
+    pwr, disp = pwr2, disp2
+
     log_paths = sorted({CACHE / m["log"] for m in MATCHES})
     for p in log_paths:
         if not p.is_file():
             raise SystemExit(f"missing log {p}")
     steam_to_nick = build_steam_map(log_paths)
-    print(f"steam map {len(steam_to_nick)}, pwr nicks {len(pwr)}")
+    print(f"steam map {len(steam_to_nick)}, pwr nicks {len(pwr)}, aliases {len(aliases)}")
 
     pmax_global = max(pwr.values()) if pwr else 737.0
     print(f"P_max (hidden PWR leader) = {pmax_global:.1f}")
@@ -324,17 +475,20 @@ def main() -> None:
 
     for m in MATCHES:
         log_path = CACHE / m["log"]
-        dies = parse_dies(log_path, m["start"], m["end"], steam_to_nick)
+        teams = load_match_teams(m["id"], aliases)
+        dies = parse_dies(log_path, m["start"], m["end"], steam_to_nick, aliases)
         revives = parse_revives(log_path, m["start"], m["end"])
         events = []
         net: dict[str, float] = {}
         die_n = 0
+        tk_n = 0
         rev_n = 0
 
         def ensure(key: str, nick: str) -> None:
-            if key not in disp:
-                disp[key] = nick
-            rp.setdefault(key, START_RP)
+            ck = aliases.get(key, key)
+            if ck not in disp:
+                disp[ck] = nick
+            rp.setdefault(ck, START_RP)
 
         for d in dies:
             kk, vk = d["killerKey"], d["victimKey"]
@@ -345,25 +499,50 @@ def main() -> None:
             ensure(kk, d["killer"])
             ensure(vk, d["victim"])
             delta = round(hunt_delta(pk, pv, pmax_global), 2)
-            rp[kk] = rp.get(kk, START_RP) + delta
-            rp[vk] = rp.get(vk, START_RP) - delta
-            net[kk] = round(net.get(kk, 0.0) + delta, 2)
-            net[vk] = round(net.get(vk, 0.0) - delta, 2)
-            events.append(
-                {
-                    "kind": "die",
-                    "time": d["at_msk"],
-                    "killer": disp[kk],
-                    "victim": disp[vk],
-                    "killerPwr": round(pk, 1),
-                    "victimPwr": round(pv, 1),
-                    "delta": delta,
-                }
+            same_team = (
+                kk in teams and vk in teams and teams[kk] == teams[vk]
             )
-            die_n += 1
+            if same_team:
+                # TK: killer loses, victim loses (final death)
+                rp[kk] = rp.get(kk, START_RP) - delta
+                rp[vk] = rp.get(vk, START_RP) - delta
+                net[kk] = round(net.get(kk, 0.0) - delta, 2)
+                net[vk] = round(net.get(vk, 0.0) - delta, 2)
+                events.append(
+                    {
+                        "kind": "tk",
+                        "time": d["at_msk"],
+                        "killer": disp[kk],
+                        "victim": disp[vk],
+                        "killerPwr": round(pk, 1),
+                        "victimPwr": round(pv, 1),
+                        "delta": delta,
+                        "teamkill": True,
+                    }
+                )
+                tk_n += 1
+            else:
+                rp[kk] = rp.get(kk, START_RP) + delta
+                rp[vk] = rp.get(vk, START_RP) - delta
+                net[kk] = round(net.get(kk, 0.0) + delta, 2)
+                net[vk] = round(net.get(vk, 0.0) - delta, 2)
+                events.append(
+                    {
+                        "kind": "die",
+                        "time": d["at_msk"],
+                        "killer": disp[kk],
+                        "victim": disp[vk],
+                        "killerPwr": round(pk, 1),
+                        "victimPwr": round(pv, 1),
+                        "delta": delta,
+                        "teamkill": False,
+                    }
+                )
+                die_n += 1
 
         for d in revives:
-            kk, vk = d["killerKey"], d["victimKey"]  # medic, patient
+            kk = canon_key(d["killer"], aliases)
+            vk = canon_key(d["victim"], aliases)
             if not kk or not vk or kk == vk or kk.startswith("?"):
                 continue
             pk = pwr.get(kk, 250.0)
@@ -398,7 +577,7 @@ def main() -> None:
                 nick = str(row.get("nick") or "").strip()
                 if not nick:
                     continue
-                k = nick_key(nick)
+                k = canon_key(nick, aliases)
                 disp.setdefault(k, nick)
                 rp.setdefault(k, START_RP)
                 net.setdefault(k, 0.0)
@@ -409,13 +588,19 @@ def main() -> None:
                 "map": m["map"],
                 "date": m["date"],
                 "giveUpKills": die_n,
+                "teamkills": tk_n,
                 "revives": rev_n,
                 "events": events,
-                "netByNick": {disp.get(k, k): v for k, v in sorted(net.items(), key=lambda x: -abs(x[1]))},
+                "netByNick": {
+                    disp.get(k, k): v
+                    for k, v in sorted(net.items(), key=lambda x: -abs(x[1]))
+                },
                 "netByKey": net,
             }
         )
-        print(f"{m['id']}: {die_n} give-up, {rev_n} revives, {len(net)} players touched")
+        print(
+            f"{m['id']}: {die_n} enemy Die, {tk_n} TK, {rev_n} revives, {len(net)} players"
+        )
 
     ranked = sorted(rp.items(), key=lambda x: -x[1])
     predator_place: dict[str, int] = {}
@@ -441,17 +626,26 @@ def main() -> None:
                         "kills": [
                             e
                             for e in mb["events"]
-                            if e.get("kind", "die") == "die" and nick_key(e["killer"]) == k
+                            if e.get("kind") == "die"
+                            and canon_key(e["killer"], aliases) == k
                         ],
                         "deaths": [
                             e
                             for e in mb["events"]
-                            if e.get("kind", "die") == "die" and nick_key(e["victim"]) == k
+                            if e.get("kind") in ("die", "tk")
+                            and canon_key(e["victim"], aliases) == k
+                        ],
+                        "teamkills": [
+                            e
+                            for e in mb["events"]
+                            if e.get("kind") == "tk"
+                            and canon_key(e["killer"], aliases) == k
                         ],
                         "revives": [
                             e
                             for e in mb["events"]
-                            if e.get("kind") == "revive" and nick_key(e["killer"]) == k
+                            if e.get("kind") == "revive"
+                            and canon_key(e["killer"], aliases) == k
                         ],
                     }
                 )
@@ -471,14 +665,15 @@ def main() -> None:
         public_matches.append({k: v for k, v in mb.items() if k != "netByKey"})
 
     ledger = {
-        "version": 2,
+        "version": 3,
         "updatedAt": datetime.now(timezone.utc).isoformat(),
         "startRp": START_RP,
         "step": STEP,
         "radiant3Max": RADIANT3_MAX,
         "formula": (
             "delta=1+49*(Pv-Pk+Pmax-1)/(2*(Pmax-1)); "
-            "Die() zero-sum; Revive medic +delta*0.6 only; PWR hidden weight"
+            "final Die(+Inactive): enemy zero-sum; TK both -delta; "
+            "Revive medic +delta*0.6; Wound/nok=0; PWR hidden weight"
         ),
         "reviveCoef": REVIVE_COEF,
         "pMax": round(pmax_global, 1),
