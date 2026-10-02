@@ -23,8 +23,13 @@ import {
 import { buildPlayerCwMatchHistory } from "@/lib/homeCwPwr";
 import { ProfileTrainPwrCard } from "@/components/ProfileTrainPwrCard";
 import { ProfileKitsCard } from "@/components/ProfileKitsCard";
+import { ProfileCareerCard } from "@/components/ProfileCareerCard";
 import { bonesForUser } from "@/lib/squadHits";
 import { kitsForUser } from "@/lib/squadRoles";
+import {
+  buildPlayerCareerFeed,
+  emptyPlayerCareerFeed,
+} from "@/lib/playerCareerFeed";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -117,6 +122,7 @@ export default async function PlayerProfilePage({ params }: Props) {
     trainCombat,
     hitmap,
     kits,
+    careerFeed,
   ] = await Promise.all([
     loadUserTrainingStats(user.id),
     nickForKv
@@ -148,6 +154,9 @@ export default async function PlayerProfilePage({ params }: Props) {
       lastBone: null as string | null,
     })),
     kitsForUser(user.id).catch(() => ({ kits: [], total: 0 })),
+    nickForKv
+      ? buildPlayerCareerFeed(nickForKv).catch(() => emptyPlayerCareerFeed(nickForKv))
+      : Promise.resolve(emptyPlayerCareerFeed()),
   ]);
 
   const kvStats = kvBundle.stats;
@@ -204,6 +213,7 @@ export default async function PlayerProfilePage({ params }: Props) {
           ) : null}
           <ProfileTrainPwrCard stats={trainPwr} />
           <ProfileKitsCard userId={user.id} kits={kits.kits} />
+          {nickForKv ? <ProfileCareerCard feed={careerFeed} /> : null}
         </div>
       </div>
 

@@ -699,13 +699,117 @@ body:has(.profile-page) {
 
 .profile-head-cluster > .profile-pwr-card,
 .profile-head-cluster > .profile-kits-card,
-.profile-head-cluster > .profile-compare-card {
+.profile-head-cluster > .profile-compare-card,
+.profile-head-cluster > .profile-career-card {
   flex: 0 1 260px;
   max-width: 280px;
   min-width: 200px;
   align-self: stretch;
   display: flex;
   flex-direction: column;
+}
+
+.profile-head-cluster > .profile-career-card {
+  flex: 0 1 300px;
+  max-width: 340px;
+  min-width: 220px;
+  max-height: 320px;
+  overflow: hidden;
+}
+
+.profile-career-count {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: rgba(196, 181, 253, 0.85);
+}
+
+.profile-career-empty {
+  margin: 10px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.profile-career-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-right: 2px;
+}
+
+.profile-career-item {
+  border: 1px solid rgba(167, 139, 250, 0.14);
+  border-radius: 10px;
+  padding: 7px 9px;
+  background: rgba(10, 8, 18, 0.4);
+}
+
+.profile-career-item-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.profile-career-item-top strong {
+  font-size: 0.78rem;
+  line-height: 1.25;
+  color: #f5f1ff;
+}
+
+.profile-career-item-top time {
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+  color: rgba(180, 170, 210, 0.55);
+  font-variant-numeric: tabular-nums;
+}
+
+.profile-career-item p {
+  margin: 3px 0 0;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  color: rgba(190, 180, 220, 0.68);
+}
+
+.profile-career-item.is-up {
+  border-color: rgba(52, 211, 153, 0.35);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.14), rgba(10, 8, 18, 0.4));
+}
+.profile-career-item.is-down {
+  border-color: rgba(248, 113, 113, 0.4);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.16), rgba(10, 8, 18, 0.4));
+}
+.profile-career-item.is-almost {
+  border-color: rgba(251, 191, 36, 0.38);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.14), rgba(10, 8, 18, 0.4));
+}
+.profile-career-item.is-warn {
+  border-color: rgba(251, 146, 60, 0.42);
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.16), rgba(10, 8, 18, 0.4));
+}
+.profile-career-item.is-mvp {
+  border-color: rgba(232, 121, 249, 0.4);
+  background: linear-gradient(135deg, rgba(192, 132, 252, 0.16), rgba(10, 8, 18, 0.4));
+}
+.profile-career-item.is-best {
+  border-color: rgba(250, 204, 21, 0.45);
+  background: linear-gradient(135deg, rgba(234, 179, 8, 0.16), rgba(10, 8, 18, 0.4));
+}
+.profile-career-item.is-good {
+  border-color: rgba(110, 231, 183, 0.35);
+  background: linear-gradient(135deg, rgba(52, 211, 153, 0.12), rgba(10, 8, 18, 0.4));
+}
+.profile-career-item.is-rp {
+  border-color: rgba(96, 165, 250, 0.4);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.16), rgba(10, 8, 18, 0.4));
+}
+.profile-career-item.is-note {
+  border-color: rgba(167, 139, 250, 0.18);
 }
 
 .profile-head-cluster > .profile-kits-card {
@@ -1958,7 +2062,8 @@ body:has(.profile-page) {
   .profile-clan-card,
   .profile-head-cluster > .profile-pwr-card,
   .profile-head-cluster > .profile-kits-card,
-  .profile-head-cluster > .profile-compare-card {
+  .profile-head-cluster > .profile-compare-card,
+  .profile-head-cluster > .profile-career-card {
     flex: 0 1 200px;
     max-width: 220px;
     min-width: 160px;
