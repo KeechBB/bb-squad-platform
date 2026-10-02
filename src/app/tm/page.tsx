@@ -1,5 +1,5 @@
-п»ї/** РњРµРЅСЏР№ РїСЂРё РѕР±РЅРѕРІР»РµРЅРёРё KV, С‡С‚РѕР±С‹ iframe РЅРµ Р±СЂР°Р» СЃС‚Р°СЂС‹Р№ РєСЌС€ */
-const KV_CACHE = "20261003-rp-tk-v3";
+/** Меняй при обновлении KV, чтобы iframe не брал старый кэш */
+const KV_CACHE = "20261003-hat-lat-fit";
 
 export default async function TrainingMatchesPage() {
   const params = new URLSearchParams({ embed: "1", v: KV_CACHE });
@@ -10,7 +10,7 @@ export default async function TrainingMatchesPage() {
       <iframe
         className="cw-frame"
         src={`/kv-static/index.html${q}`}
-        title="РўСЂРµРЅРёСЂРѕРІРѕС‡РЅС‹Рµ РјР°С‚С‡Рё BlackBerry"
+        title="Тренировочные матчи BlackBerry"
         allow="fullscreen"
       />
     </div>
