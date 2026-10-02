@@ -1,4 +1,4 @@
-/** Меняй при обновлении KV, чтобы iframe не брал старый кэш */
+/** РњРµРЅСЏР№ РїСЂРё РѕР±РЅРѕРІР»РµРЅРёРё KV, С‡С‚РѕР±С‹ iframe РЅРµ Р±СЂР°Р» СЃС‚Р°СЂС‹Р№ РєСЌС€ */
 const KV_CACHE = "20261003-lat-role";
 
 export default async function TrainingMatchesPage() {
@@ -10,7 +10,7 @@ export default async function TrainingMatchesPage() {
       <iframe
         className="cw-frame"
         src={`/kv-static/index.html${q}`}
-        title="Тренировочные матчи BlackBerry"
+        title="РўСЂРµРЅРёСЂРѕРІРѕС‡РЅС‹Рµ РјР°С‚С‡Рё BlackBerry"
         allow="fullscreen"
       />
     </div>
