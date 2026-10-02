@@ -51,8 +51,9 @@ FAM_MAP = {
     "FTL": "SL",
     "MEDIC": "Medic",
     "RIFLE": "Rifle",
+    # HAT = тандем (тяжёлая труба). LAT = лёгкая труба → в Fit как Rifle (отдельной доски LAT нет).
     "HAT": "Tandem",
-    "LAT": "Tandem",
+    "LAT": "Rifle",
     "CREW": "Crew",
 }
 ROLE_LABEL = {
