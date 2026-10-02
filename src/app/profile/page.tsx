@@ -26,7 +26,7 @@ import { ProfileTrainPwrCard } from "@/components/ProfileTrainPwrCard";
 import { ProfileKitsCard } from "@/components/ProfileKitsCard";
 import { ProfileCompareCard } from "@/components/ProfileCompareCard";
 import { ProfileCareerCard } from "@/components/ProfileCareerCard";
-import { bonesForUser } from "@/lib/squadHits";
+import { bonesForUser, filterTrainHistoryWithHitLogs } from "@/lib/squadHits";
 import { kitsForUser } from "@/lib/squadRoles";
 import {
   buildPlayerCareerFeed,
@@ -142,6 +142,10 @@ export default async function ProfilePage() {
 
   const kvStats = kvBundle.stats;
   const kvError = kvBundle.error;
+  const hitmapMatchHistory = await filterTrainHistoryWithHitLogs(
+    me.id,
+    matchHistory
+  );
 
   return (
     <main className="profile-page">
@@ -193,7 +197,7 @@ export default async function ProfilePage() {
           bones={hitmap.bones}
           lastBone={hitmap.lastBone}
           subtitle={hitmap.total > 0 ? "TR1+TR2" : undefined}
-          matchHistory={matchHistory}
+          matchHistory={hitmapMatchHistory}
         />
       </div>
 

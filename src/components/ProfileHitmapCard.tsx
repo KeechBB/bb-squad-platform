@@ -338,7 +338,7 @@ export function ProfileHitmapCard({
               </div>
               {matchHistory.length === 0 ? (
                 <p className="muted profile-hitmap-matches-empty">
-                  Пока нет матчей в истории тренировок.
+                  Нет матчей с логами попаданий (BBHitZone).
                 </p>
               ) : (
                 <ul className="profile-hitmap-matches-list">

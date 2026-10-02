@@ -130,6 +130,7 @@ export async function bonesForUser(
         : undefined;
   const where = {
     userId,
+    NOT: { bone: "None" },
     ...(hitAt ? { hitAt } : {}),
   };
 
@@ -173,7 +174,11 @@ export async function bonesForUserMatch(
   if (!win) return null;
 
   if (win.gte && win.lt) {
-    const where = { userId, hitAt: { gte: win.gte, lt: win.lt } };
+    const where = {
+      userId,
+      hitAt: { gte: win.gte, lt: win.lt },
+      NOT: { bone: "None" },
+    };
     const [rows, last] = await Promise.all([
       prisma.squadHitEvent.groupBy({
         by: ["bone"],
@@ -189,6 +194,7 @@ export async function bonesForUserMatch(
     const bones: HitBoneCounts = {};
     let total = 0;
     for (const r of rows) {
+      if (!r.bone || r.bone === "None") continue;
       bones[r.bone] = r._count._all;
       total += r._count._all;
     }
@@ -205,6 +211,84 @@ export async function bonesForUserMatch(
     toYmd: win.toYmd,
   });
   return { ...hits, matchId: id };
+}
+
+/**
+ * Оставляет только матчи, где у игрока есть логи попаданий с костью
+ * (BBHitZone). Матчи без точных хитов в список «Матчи» не попадают.
+ */
+export async function filterTrainHistoryWithHitLogs<
+  T extends { matchId: string },
+>(userId: string, history: T[]): Promise<T[]> {
+  if (!history.length) return [];
+
+  const hits = await prisma.squadHitEvent.findMany({
+    where: {
+      userId,
+      NOT: { bone: "None" },
+    },
+    select: { hitAt: true },
+    orderBy: { hitAt: "asc" },
+  });
+  if (!hits.length) return [];
+
+  const hitTimes = hits.map((h) => h.hitAt.getTime());
+  const hasHitInRange = (gteMs: number, ltMs: number): boolean => {
+    let lo = 0;
+    let hi = hitTimes.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (hitTimes[mid] < gteMs) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo < hitTimes.length && hitTimes[lo] < ltMs;
+  };
+
+  const { loadRpLedger } = await import("@/lib/trainRp");
+  const ledger = await loadRpLedger();
+  if (!ledger?.matches?.length) return [];
+
+  const byId = new Map(ledger.matches.map((m) => [m.id, m]));
+  const out: T[] = [];
+
+  for (const row of history) {
+    const match = byId.get(row.matchId);
+    if (!match?.date || !/^\d{4}-\d{2}-\d{2}$/.test(match.date)) continue;
+    const ymd = match.date;
+    const times = (match.events || [])
+      .map((e) => String(e.time || "").trim())
+      .filter((t) => /^\d{1,2}:\d{2}(:\d{2})?$/.test(t))
+      .map((t) => {
+        const [hh, mm, ss] = t.split(":").map(Number);
+        return (hh || 0) * 3600 + (mm || 0) * 60 + (ss || 0);
+      })
+      .sort((a, b) => a - b);
+
+    if (times.length >= 2) {
+      const pad = 90;
+      const startSec = Math.max(0, times[0] - pad);
+      const endSec = Math.min(24 * 3600 - 1, times[times.length - 1] + pad);
+      const [y, m, d] = ymd.split("-").map(Number);
+      const gte = new Date(
+        Date.UTC(y, m - 1, d, 0, 0, 0, 0) - 3 * 3600_000 + startSec * 1000
+      );
+      const lt = new Date(
+        Date.UTC(y, m - 1, d, 0, 0, 0, 0) - 3 * 3600_000 + (endSec + 1) * 1000
+      );
+      if (hasHitInRange(gte.getTime(), lt.getTime())) out.push(row);
+      continue;
+    }
+
+    const dayBounds = mskDayBoundsUtc(ymd);
+    if (
+      dayBounds &&
+      hasHitInRange(dayBounds.gte.getTime(), dayBounds.lt.getTime())
+    ) {
+      out.push(row);
+    }
+  }
+
+  return out;
 }
 
 export type HitZonePct = {
