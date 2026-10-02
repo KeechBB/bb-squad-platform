@@ -459,7 +459,9 @@ export async function buildPlayerTrainMatchHistory(
 
   const matchMetas: MatchMeta[] = [];
   for (const m of index.months) {
-    if (!m.url || !m.year || !m.month) continue;
+    if (!m.url || m.year == null || m.month == null) continue;
+    const year = m.year;
+    const month = m.month;
     const monthData = await loadFromKv<{
       matches?: {
         id?: string;
@@ -486,8 +488,8 @@ export async function buildPlayerTrainMatchHistory(
       matchMetas.push({
         id: match.id,
         day: match.day,
-        year: m.year,
-        month: m.month,
+        year,
+        month,
         timeMsk: match.timeMsk,
         map: match.map,
         factionA: match.factionA,
@@ -499,7 +501,7 @@ export async function buildPlayerTrainMatchHistory(
         server: match.server,
         playersUrl: match.playersUrl,
         // НЕ сортировать по id (02-fallujah < 02-gorodok ломает вечер 02.10)
-        sortKey: `${m.year}-${pad2(m.month)}-${pad2(match.day)}T${timeKey}-${pad2(ord)}`,
+        sortKey: `${year}-${pad2(month)}-${pad2(match.day)}T${timeKey}-${pad2(ord)}`,
       });
     });
   }
