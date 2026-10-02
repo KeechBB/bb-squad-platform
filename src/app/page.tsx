@@ -73,9 +73,8 @@ export default async function HomePage() {
       <div className="home-layout">
         <div className="home-ops-col">
           <HomeUpcomingMatches previews={previews} />
-          <HomeTierBoard initial={tierBoard} />
+          <HomeMvpBoard initial={mvpBoard} />
         </div>
-        <HomeMvpBoard initial={mvpBoard} />
 
         <section className="home-hero">
           <div className="home-hero-brand">
@@ -108,6 +107,8 @@ export default async function HomePage() {
             <HomeTrainPwrTop initial={pwrBoard} />
           </div>
         </section>
+
+        <HomeTierBoard initial={tierBoard} />
       </div>
     </main>
   );
