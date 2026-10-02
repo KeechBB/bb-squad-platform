@@ -1,5 +1,5 @@
 ﻿/** Меняй при обновлении KV, чтобы iframe не брал старый кэш */
-const KV_CACHE = "20261002-gorodok-rp";
+const KV_CACHE = "20261002-gorodok-m1";
 
 export default async function TrainingMatchesPage() {
   const params = new URLSearchParams({ embed: "1", v: KV_CACHE });
