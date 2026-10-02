@@ -51,9 +51,9 @@ FAM_MAP = {
     "FTL": "SL",
     "MEDIC": "Medic",
     "RIFLE": "Rifle",
-    # HAT = тандем (тяжёлая труба). LAT = лёгкая труба → в Fit как Rifle (отдельной доски LAT нет).
+    # HAT = тандем. LAT = лёгкая труба (отдельная роль; не Rifle, не Tandem).
     "HAT": "Tandem",
-    "LAT": "Rifle",
+    "LAT": "LAT",
     "CREW": "Crew",
 }
 ROLE_LABEL = {
@@ -62,17 +62,19 @@ ROLE_LABEL = {
     "Medic": "Медик",
     "Rifle": "Стрелок",
     "GP": "ГП",
+    "LAT": "Лёгкая труба",
     "Tandem": "Тандем",
     "Crew": "Тех / водитель",
     "Sap": "Сапёр",
 }
-ROLE_ORDER = ["CMD", "SL", "Medic", "Rifle", "GP", "Tandem", "Crew", "Sap"]
+ROLE_ORDER = ["CMD", "SL", "Medic", "Rifle", "GP", "LAT", "Tandem", "Crew", "Sap"]
 W = {
     "Medic": dict(res=0.45, kd=0.05, dmg=0.05, orr=0.35, pres=0.10),
     "Rifle": dict(res=0.05, kd=0.30, dmg=0.25, orr=0.30, pres=0.10),
     "Crew": dict(res=0.05, kd=0.15, dmg=0.40, orr=0.30, pres=0.10),
     "SL": dict(res=0.10, kd=0.15, dmg=0.20, orr=0.40, pres=0.15),
     "GP": dict(res=0.05, kd=0.30, dmg=0.25, orr=0.30, pres=0.10),
+    "LAT": dict(res=0.05, kd=0.20, dmg=0.35, orr=0.30, pres=0.10),
     "Tandem": dict(res=0.05, kd=0.15, dmg=0.40, orr=0.30, pres=0.10),
     "Sap": dict(res=0.10, kd=0.15, dmg=0.30, orr=0.35, pres=0.10),
     "CMD": dict(res=0.05, kd=0.05, dmg=0.10, orr=0.50, pres=0.30),
@@ -82,6 +84,7 @@ BEST_KEYS = {
     "Medic": ["fit", "res_g", "orr", "g"],
     "Rifle": ["fit", "kd", "dmg_g", "orr"],
     "GP": ["fit", "kd", "dmg_g", "orr"],
+    "LAT": ["fit", "dmg_g", "kd", "orr"],
     "Tandem": ["fit", "dmg_g", "kd", "orr"],
     "Crew": ["fit", "dmg_g", "kd", "orr"],
     "Sap": ["fit", "dmg_g", "orr", "res_g"],
