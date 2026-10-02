@@ -157,7 +157,7 @@ function offsets(n: number): [number, number][] {
 }
 
 function matchShortLabel(m: TrainMatchHistoryRow): string {
-  const map = (m.map || "матч").trim();
+  const map = (m.map || "матч").trim().replace(/\s+/g, " ");
   return `${m.dateLabel} · ${map}`;
 }
 
@@ -317,13 +317,17 @@ export function ProfileHitmapCard({
             type="button"
             className={
               matchId
-                ? "profile-hitmap-filter-btn is-active"
-                : "profile-hitmap-filter-btn"
+                ? "profile-hitmap-filter-btn is-active is-match-pick"
+                : "profile-hitmap-filter-btn is-match-pick"
             }
             onClick={() => setPickerOpen((v) => !v)}
             aria-expanded={pickerOpen}
             aria-haspopup="dialog"
-            title="Выбрать тренировочный матч"
+            title={
+              selectedMatch
+                ? matchShortLabel(selectedMatch)
+                : "Выбрать тренировочный матч"
+            }
           >
             {selectedMatch ? matchShortLabel(selectedMatch) : "Матчи"}
           </button>

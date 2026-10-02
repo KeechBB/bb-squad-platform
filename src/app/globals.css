@@ -1449,10 +1449,16 @@ body:has(.profile-page) {
 
 .profile-hitmap-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 2px;
+  min-width: 0;
+}
+
+.profile-hitmap-head-text {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .profile-hitmap-head-text h2 {
@@ -1460,16 +1466,24 @@ body:has(.profile-page) {
 }
 
 .profile-hitmap-sub {
+  display: block;
   font-size: 0.78rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .profile-hitmap-filter {
   position: relative;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
   justify-content: flex-end;
-  flex: 0 0 auto;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: min(62%, 280px);
 }
 
 .profile-hitmap-filter-btn {
@@ -1478,11 +1492,20 @@ body:has(.profile-page) {
   background: rgba(20, 14, 36, 0.65);
   color: #e9e4f5;
   font-size: 0.72rem;
-  line-height: 1;
+  line-height: 1.2;
   padding: 7px 10px;
   border-radius: 999px;
   cursor: pointer;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.profile-hitmap-filter-btn.is-match-pick {
+  max-width: 13.5rem;
 }
 
 .profile-hitmap-filter-btn:hover {
