@@ -1,5 +1,18 @@
 # Changelog · обновления сайта BlackBerry
 
+## v. 1.1.67 — 03.10.2026 · Fallujah AAS (тренировка Match 3)
+
+**Анонс (в чат):**
+
+```
+Beta v1.1.67
+1. Тренировка 02.10 Match 3 Fallujah AAS v1 — IMF 194:0 AFU (major), стата на сайте
+2. RP по Fallujah с логов TR1 — лестница / профили / ±RP обновлены
+3. ORR пересчитан со всех матчей
+```
+
+---
+
 ## v. 1.1.66 — 02.10.2026 · Mutaha RAAS + RP + hitmap Gorodok
 
 **Анонс (в чат):**

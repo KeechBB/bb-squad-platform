@@ -95,6 +95,15 @@ MATCHES = [
         "start": datetime(2026, 10, 2, 19, 48, 25, tzinfo=timezone.utc),
         "end": datetime(2026, 10, 2, 20, 27, 0, tzinfo=timezone.utc),
     },
+    {
+        "id": "02-fallujah",
+        "map": "Fallujah AAS v1",
+        "date": "2026-10-02",
+        "log": "SquadGame-2026.10.02-fallujah.log",
+        # InProgress 23:29:49 → WaitingPostMatch 00:32:42 МСК (+1)
+        "start": datetime(2026, 10, 2, 20, 29, 49, tzinfo=timezone.utc),
+        "end": datetime(2026, 10, 2, 21, 32, 42, tzinfo=timezone.utc),
+    },
 ]
 
 RANK_NAMES = [
