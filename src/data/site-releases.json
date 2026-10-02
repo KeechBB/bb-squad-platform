@@ -1,6 +1,16 @@
 {
-  "current": "1.1.64",
+  "current": "1.1.65",
   "releases": [
+    {
+      "version": "1.1.65",
+      "date": "2026-10-02",
+      "title": "RP: Gorodok AAS (тренировка)",
+      "bullets": [
+        "RP за Gorodok AAS v1 (02.10, после 21:30) — Die/revive из логов TR1",
+        "Лестница / профили / топ тренировок обновлены",
+        "Топ катки по ±RP: Gadler, Keech, Rindaye…"
+      ]
+    },
     {
       "version": "1.1.64",
       "date": "2026-10-02",

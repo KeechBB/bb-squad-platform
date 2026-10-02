@@ -77,6 +77,15 @@ MATCHES = [
         "start": datetime(2026, 9, 30, 20, 10, 31, tzinfo=timezone.utc),
         "end": datetime(2026, 9, 30, 20, 53, 3, tzinfo=timezone.utc),
     },
+    {
+        "id": "02-gorodok",
+        "map": "Gorodok AAS v1",
+        "date": "2026-10-02",
+        "log": "SquadGame-2026.10.02-gorodok.log",
+        # InProgress → WaitingPostMatch (после 21:30 МСК, >10 мин, не Jensen)
+        "start": datetime(2026, 10, 2, 18, 45, 39, tzinfo=timezone.utc),
+        "end": datetime(2026, 10, 2, 19, 34, 25, tzinfo=timezone.utc),
+    },
 ]
 
 RANK_NAMES = [
