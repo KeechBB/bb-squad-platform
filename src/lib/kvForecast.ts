@@ -64,7 +64,10 @@ function shortMap(map: string): string {
 }
 
 async function fetchJson(url: string) {
-  const res = await fetch(url, { next: { revalidate: 120 } });
+  const bust = url.includes("?") ? "&" : "?";
+  const res = await fetch(`${url}${bust}cb=sec106`, {
+    cache: "no-store",
+  });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }

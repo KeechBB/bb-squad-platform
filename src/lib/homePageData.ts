@@ -22,6 +22,6 @@ export const getHomeDashboardData = unstable_cache(
     ]);
     return { previews, mvpBoard, pwrBoard, tierBoard };
   },
-  ["home-dashboard-v5-tiers"],
+  ["home-dashboard-v6-cancel-sec106"],
   { revalidate: 45 }
 );
