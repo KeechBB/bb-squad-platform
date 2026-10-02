@@ -1,5 +1,18 @@
 # Changelog · обновления сайта BlackBerry
 
+## v. 1.1.66 — 02.10.2026 · Mutaha RAAS + RP + hitmap Gorodok
+
+**Анонс (в чат):**
+
+```
+Beta v1.1.66
+1. Тренировка 02.10 Match 2 Mutaha RAAS v1 — PLA 240:0 USA (major), стата на сайте
+2. RP по Mutaha с логов TR1 — лестница / профили / ±RP обновлены
+3. Попадания BBHitZone с Gorodok зафиксированы в профилях
+```
+
+---
+
 ## v. 1.1.65 — 02.10.2026 · RP + Gorodok AAS (тренировка)
 
 **Анонс (в чат):**

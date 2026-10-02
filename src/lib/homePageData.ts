@@ -22,6 +22,6 @@ export const getHomeDashboardData = unstable_cache(
     ]);
     return { previews, mvpBoard, pwrBoard, tierBoard };
   },
-  ["home-dashboard-v8-gorodok-m1"],
+  ["home-dashboard-v8-mutaha-m2"],
   { revalidate: 45 }
 );

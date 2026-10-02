@@ -97,9 +97,11 @@ def main() -> None:
     files_cmd_parts = []
     for srv in SERVERS:
         log_dir = f"{ROOT}/{srv}/SquadGame/Saved/Logs"
+        # backups + rotated SquadGame_N.log + live (Gorodok etc. often sit in _N)
         files_cmd_parts.append(
             f"ls -1t {log_dir}/SquadGame-backup-*.log 2>/dev/null "
             f"| head -{max(0, args.backups)} ; "
+            f"ls -1t {log_dir}/SquadGame_[0-9]*.log 2>/dev/null ; "
             f"echo {log_dir}/SquadGame.log"
         )
     files_cmd = " ; ".join(files_cmd_parts)

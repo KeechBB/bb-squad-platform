@@ -86,6 +86,15 @@ MATCHES = [
         "start": datetime(2026, 10, 2, 18, 45, 39, tzinfo=timezone.utc),
         "end": datetime(2026, 10, 2, 19, 34, 25, tzinfo=timezone.utc),
     },
+    {
+        "id": "02-mutaha",
+        "map": "Mutaha RAAS v1",
+        "date": "2026-10-02",
+        "log": "SquadGame-2026.10.02-mutaha.log",
+        # InProgress 22:48:25 → WaitingPostMatch 23:27:00 МСК
+        "start": datetime(2026, 10, 2, 19, 48, 25, tzinfo=timezone.utc),
+        "end": datetime(2026, 10, 2, 20, 27, 0, tzinfo=timezone.utc),
+    },
 ]
 
 RANK_NAMES = [
