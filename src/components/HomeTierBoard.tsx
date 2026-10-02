@@ -59,7 +59,7 @@ export function HomeTierBoard({ initial }: Props) {
         <i />
       </div>
 
-      <header className="home-ops-head">
+      <header className="home-ops-head" title="FIT — насколько подходишь тиру по КВ (середина тира по роли)">
         <div>
           <p className="home-ops-eyebrow">авто · Fit КВ</p>
           <h2>Тиры</h2>
