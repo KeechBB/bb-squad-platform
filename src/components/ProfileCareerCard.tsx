@@ -34,10 +34,7 @@ export function ProfileCareerCard({ feed, self = false }: Props) {
   return (
     <section className="card profile-career-card" aria-label="Карьера">
       <header className="profile-kv-head">
-        <div>
-          <p className="eyebrow">{self ? "моя карьера" : "карьера"}</p>
-          <h2>{self ? "Моя карьера" : "Карьера"}</h2>
-        </div>
+        <h2>{self ? "Моя карьера" : "Карьера"}</h2>
         <span className="profile-career-count">{events.length || "—"}</span>
       </header>
 

@@ -699,8 +699,7 @@ body:has(.profile-page) {
 
 .profile-head-cluster > .profile-pwr-card,
 .profile-head-cluster > .profile-kits-card,
-.profile-head-cluster > .profile-compare-card,
-.profile-head-cluster > .profile-career-card {
+.profile-head-cluster > .profile-compare-card {
   flex: 0 1 260px;
   max-width: 280px;
   min-width: 200px;
@@ -710,11 +709,27 @@ body:has(.profile-page) {
 }
 
 .profile-head-cluster > .profile-career-card {
-  flex: 0 1 300px;
-  max-width: 340px;
-  min-width: 220px;
+  flex: 1 1 320px;
+  max-width: none;
+  min-width: 260px;
   max-height: 320px;
+  margin-left: auto;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
+}
+
+.profile-career-card .profile-kv-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 2px;
+}
+
+.profile-career-card .profile-kv-head h2 {
+  margin: 0;
 }
 
 .profile-career-count {
@@ -2062,11 +2077,17 @@ body:has(.profile-page) {
   .profile-clan-card,
   .profile-head-cluster > .profile-pwr-card,
   .profile-head-cluster > .profile-kits-card,
-  .profile-head-cluster > .profile-compare-card,
-  .profile-head-cluster > .profile-career-card {
+  .profile-head-cluster > .profile-compare-card {
     flex: 0 1 200px;
     max-width: 220px;
     min-width: 160px;
+  }
+
+  .profile-head-cluster > .profile-career-card {
+    flex: 1 1 240px;
+    max-width: none;
+    min-width: 200px;
+    margin-left: auto;
   }
 
   .profile-head-cluster .reaction-profile-card {
