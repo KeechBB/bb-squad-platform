@@ -4598,6 +4598,27 @@ body:has(.home-page) {
   box-shadow: inset 3px 0 0 rgba(234, 179, 8, 0.75);
 }
 
+/* Кандидаты: жёлтое окно, текст ↑ зелёный / ↓ красный */
+.home-tier-row.is-cand {
+  border-color: rgba(251, 191, 36, 0.4);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.14), rgba(10, 8, 18, 0.4));
+}
+
+.home-tier-row.is-cand.is-hold {
+  border-color: rgba(250, 204, 21, 0.5);
+  box-shadow: inset 3px 0 0 rgba(234, 179, 8, 0.75);
+}
+
+.home-tier-row.is-cand-up .home-tier-move,
+.home-tier-row.is-cand-up .home-tier-fit {
+  color: #6ee7b7;
+}
+
+.home-tier-row.is-cand-down .home-tier-move,
+.home-tier-row.is-cand-down .home-tier-fit {
+  color: #fca5a5;
+}
+
 .home-tier-row-main {
   display: flex;
   flex-direction: column;

@@ -27,14 +27,11 @@ function TransferRow({ row }: { row: HomeTierTransfer }) {
 }
 
 function CandidateRow({ row }: { row: HomeTierCandidate }) {
-  const tone =
-    row.band === "strong" || row.band === "hard"
-      ? "is-hold"
-      : row.dir === "down"
-        ? "is-warn"
-        : "is-almost";
+  const dirCls = row.dir === "down" ? "is-cand-down" : "is-cand-up";
+  const holdCls =
+    row.band === "strong" || row.band === "hard" ? "is-hold" : "";
   return (
-    <li className={`home-tier-row ${tone}`}>
+    <li className={`home-tier-row is-cand ${dirCls} ${holdCls}`.trim()}>
       <div className="home-tier-row-main">
         <Link className="home-tier-nick" href={`/players/${encodeURIComponent(row.nick)}`}>
           {row.nick}
