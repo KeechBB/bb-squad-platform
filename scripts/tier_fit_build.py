@@ -42,7 +42,7 @@ T1_KIT = {
     "Treppen": "SL",
     "Runetik": "Rifle",
     "JESTER": "Rifle",
-    "AkiN": "Medic",
+    "AkiN": "GP",
     "KillReal": "Medic",
 }
 FAM_MAP = {
