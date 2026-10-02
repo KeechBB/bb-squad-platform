@@ -12,36 +12,6 @@
       ]
     },
     {
-      "version": "1.1.67",
-      "date": "2026-10-03",
-      "title": "Fallujah AAS (тренировка Match 3)",
-      "bullets": [
-        "Тренировка 02.10 Match 3 Fallujah AAS v1 — IMF 194:0 AFU (major), стата на сайте",
-        "RP по Fallujah с логов TR1 — лестница / профили / ±RP обновлены",
-        "ORR пересчитан со всех матчей"
-      ]
-    },
-    {
-      "version": "1.1.66",
-      "date": "2026-10-02",
-      "title": "Mutaha RAAS + RP + hitmap Gorodok",
-      "bullets": [
-        "Тренировка 02.10 Match 2 Mutaha RAAS v1 — PLA 240:0 USA (major), стата на сайте",
-        "RP по Mutaha с логов TR1 — лестница / профили / ±RP обновлены",
-        "Попадания BBHitZone с Gorodok зафиксированы в профилях"
-      ]
-    },
-    {
-      "version": "1.1.65",
-      "date": "2026-10-02",
-      "title": "RP + Gorodok AAS (тренировка)",
-      "bullets": [
-        "Тренировка 02.10 Gorodok AAS v1 — USA 206:0 RGF (major), стата игроков на сайте",
-        "RP с логов TR1 после 21:30 — лестница / профили / топ обновлены",
-        "ORR пересчитан со всех матчей; топ катки ±RP: Gadler, Keech, Rindaye…"
-      ]
-    },
-    {
       "version": "1.1.64",
       "date": "2026-10-02",
       "title": "FIT в терминах сайта",
