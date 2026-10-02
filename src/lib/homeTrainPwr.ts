@@ -476,8 +476,13 @@ export async function buildPlayerTrainMatchHistory(
         playersUrl?: string;
       }[];
     }>(m.url);
-    for (const match of monthData?.matches || []) {
-      if (!match.playersUrl || !match.id || match.day == null) continue;
+    // порядок в JSON месяца = хронология заливок; timeMsk — точное время старта
+    (monthData?.matches || []).forEach((match, ord) => {
+      if (!match.playersUrl || !match.id || match.day == null) return;
+      const time = String(match.timeMsk || "").trim();
+      const timeKey = /^\d{1,2}:\d{2}/.test(time)
+        ? time.padStart(5, "0")
+        : `99:${pad2(ord)}`;
       matchMetas.push({
         id: match.id,
         day: match.day,
@@ -493,9 +498,10 @@ export async function buildPlayerTrainMatchHistory(
         duration: match.duration,
         server: match.server,
         playersUrl: match.playersUrl,
-        sortKey: `${m.year}-${pad2(m.month)}-${pad2(match.day)}-${match.id}`,
+        // НЕ сортировать по id (02-fallujah < 02-gorodok ломает вечер 02.10)
+        sortKey: `${m.year}-${pad2(m.month)}-${pad2(match.day)}T${timeKey}-${pad2(ord)}`,
       });
-    }
+    });
   }
   matchMetas.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
 

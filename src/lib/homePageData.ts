@@ -22,6 +22,6 @@ export const getHomeDashboardData = unstable_cache(
     ]);
     return { previews, mvpBoard, pwrBoard, tierBoard };
   },
-  ["home-dashboard-v8-rp-tk-v3"],
+  ["home-dashboard-v8-train-chrono"],
   { revalidate: 45 }
 );

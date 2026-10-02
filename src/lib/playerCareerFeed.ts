@@ -103,7 +103,13 @@ function buildRpRankEvents(
   step: number,
   radiant3Max: number
 ): CareerEvent[] {
-  const ordered = [...matches].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  // при одной дате сохраняем порядок ledger (как заливали: Gorodok→Mutaha→Fallujah)
+  const ordered = [...matches].sort((a, b) => {
+    const da = String(a.date || "");
+    const db = String(b.date || "");
+    if (da !== db) return da.localeCompare(db);
+    return 0;
+  });
   let rp = startRp;
   let prev = rpRankFromScore(rp, step, radiant3Max);
   const out: CareerEvent[] = [];
