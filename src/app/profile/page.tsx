@@ -183,6 +183,7 @@ export default async function ProfilePage() {
           bones={hitmap.bones}
           lastBone={hitmap.lastBone}
           subtitle={hitmap.total > 0 ? "TR1+TR2" : undefined}
+          matchHistory={matchHistory}
         />
       </div>
 

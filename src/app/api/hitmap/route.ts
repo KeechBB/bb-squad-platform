@@ -2,15 +2,16 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { bonesForUser, hitDaysForUser } from "@/lib/squadHits";
+import { bonesForUser, bonesForUserMatch } from "@/lib/squadHits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/hitmap?userId=…&day=YYYY-MM-DD
- * day — сутки по МСК; без day — всё время.
- * days=1 — дополнительно список дней с попаданиями.
+ * GET /api/hitmap?userId=…
+ *   &matchId=… — попадания за тренировочный матч
+ *   &day=YYYY-MM-DD — сутки по МСК (legacy)
+ * без фильтра — всё время
  */
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
@@ -23,11 +24,11 @@ export async function GET(req: Request) {
   if (!userId) {
     return NextResponse.json({ error: "userId required" }, { status: 400 });
   }
+  const matchId = (url.searchParams.get("matchId") || "").trim() || null;
   const day = (url.searchParams.get("day") || "").trim() || null;
   if (day && !/^\d{4}-\d{2}-\d{2}$/.test(day)) {
     return NextResponse.json({ error: "bad day" }, { status: 400 });
   }
-  const wantDays = url.searchParams.get("days") === "1";
 
   const target = await prisma.user.findFirst({
     where: { id: userId, profileComplete: true },
@@ -37,17 +38,29 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
-  const [stats, days] = await Promise.all([
-    bonesForUser(userId, { dayYmd: day }),
-    wantDays ? hitDaysForUser(userId) : Promise.resolve(null),
-  ]);
+  if (matchId) {
+    const stats = await bonesForUserMatch(userId, matchId);
+    if (!stats) {
+      return NextResponse.json({ error: "match not found" }, { status: 404 });
+    }
+    return NextResponse.json({
+      ok: true,
+      matchId,
+      day: null,
+      bones: stats.bones,
+      total: stats.total,
+      lastBone: stats.lastBone,
+    });
+  }
+
+  const stats = await bonesForUser(userId, { dayYmd: day });
 
   return NextResponse.json({
     ok: true,
+    matchId: null,
     day,
     bones: stats.bones,
     total: stats.total,
     lastBone: stats.lastBone,
-    days: days || undefined,
   });
 }

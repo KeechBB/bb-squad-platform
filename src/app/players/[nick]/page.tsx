@@ -239,6 +239,7 @@ export default async function PlayerProfilePage({ params }: Props) {
           bones={hitmap.bones}
           lastBone={hitmap.lastBone}
           subtitle={hitmap.total > 0 ? "TR1+TR2" : undefined}
+          matchHistory={matchHistory}
         />
       </div>
 

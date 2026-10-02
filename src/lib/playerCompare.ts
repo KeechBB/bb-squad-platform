@@ -316,7 +316,7 @@ async function loadMatchCombat(
 }
 
 /** Окно матча по give-up событиям ledger (МСК date + time), иначе сутки матча. */
-async function matchHitWindow(
+export async function matchHitWindow(
   matchId: string
 ): Promise<{ fromYmd: string; toYmd: string; gte?: Date; lt?: Date } | null> {
   const { loadRpLedger } = await import("@/lib/trainRp");

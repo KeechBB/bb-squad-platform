@@ -156,6 +156,57 @@ export async function bonesForUser(
   return { bones, total, lastBone };
 }
 
+/** Попадания за окно тренировочного матча (ledger give-up / сутки матча). */
+export async function bonesForUserMatch(
+  userId: string,
+  matchId: string
+): Promise<{
+  bones: HitBoneCounts;
+  total: number;
+  lastBone: string | null;
+  matchId: string;
+} | null> {
+  const id = String(matchId || "").trim();
+  if (!id) return null;
+  const { matchHitWindow } = await import("@/lib/playerCompare");
+  const win = await matchHitWindow(id);
+  if (!win) return null;
+
+  if (win.gte && win.lt) {
+    const where = { userId, hitAt: { gte: win.gte, lt: win.lt } };
+    const [rows, last] = await Promise.all([
+      prisma.squadHitEvent.groupBy({
+        by: ["bone"],
+        where,
+        _count: { _all: true },
+      }),
+      prisma.squadHitEvent.findFirst({
+        where,
+        orderBy: [{ hitAt: "desc" }, { createdAt: "desc" }],
+        select: { bone: true },
+      }),
+    ]);
+    const bones: HitBoneCounts = {};
+    let total = 0;
+    for (const r of rows) {
+      bones[r.bone] = r._count._all;
+      total += r._count._all;
+    }
+    return {
+      bones,
+      total,
+      lastBone: last?.bone && last.bone !== "None" ? last.bone : null,
+      matchId: id,
+    };
+  }
+
+  const hits = await bonesForUser(userId, {
+    fromYmd: win.fromYmd,
+    toYmd: win.toYmd,
+  });
+  return { ...hits, matchId: id };
+}
+
 export type HitZonePct = {
   head: number;
   torso: number;

@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import type { TrainMatchHistoryRow } from "@/lib/homeTrainPwr";
 
 export type HitBoneCounts = Record<string, number>;
 
@@ -18,53 +19,9 @@ type Props = {
   lastBone?: string | null;
   /** подпись под заголовком */
   subtitle?: string | null;
+  /** История тренировочных матчей (как во вкладке «Тренировочные матчи») */
+  matchHistory?: TrainMatchHistoryRow[];
 };
-
-const MONTH_RU = [
-  "Январь",
-  "Февраль",
-  "Март",
-  "Апрель",
-  "Май",
-  "Июнь",
-  "Июль",
-  "Август",
-  "Сентябрь",
-  "Октябрь",
-  "Ноябрь",
-  "Декабрь",
-];
-
-const DOW_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
-
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function ymd(y: number, m: number, d: number) {
-  return `${y}-${pad2(m)}-${pad2(d)}`;
-}
-
-function parseYmd(s: string): { y: number; m: number; d: number } | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
-  if (!m) return null;
-  return { y: Number(m[1]), m: Number(m[2]), d: Number(m[3]) };
-}
-
-function formatRuDay(s: string) {
-  const p = parseYmd(s);
-  if (!p) return s;
-  return `${pad2(p.d)}.${pad2(p.m)}.${p.y}`;
-}
-
-function todayMskYmd(): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/Moscow",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-}
 
 /** Точки: кость с макс.% → 15, с мин.% → 1 (относительно этого игрока). */
 const DOTS_MIN = 1;
@@ -199,52 +156,58 @@ function offsets(n: number): [number, number][] {
   return out;
 }
 
+function matchShortLabel(m: TrainMatchHistoryRow): string {
+  const map = (m.map || "матч").trim();
+  return `${m.dateLabel} · ${map}`;
+}
+
+function matchScore(m: TrainMatchHistoryRow): string {
+  return `${m.ticketsA ?? "—"}:${m.ticketsB ?? "—"}`;
+}
+
 export function ProfileHitmapCard({
   userId,
   bones: initialBones,
   lastBone: initialLastBone,
   subtitle,
+  matchHistory = [],
 }: Props) {
   const uid = useId().replace(/:/g, "");
   const [bones, setBones] = useState<HitBoneCounts>(initialBones || {});
   const [lastBone, setLastBone] = useState<string | null>(
     initialLastBone || null
   );
-  const [day, setDay] = useState<string | null>(null);
-  const [hitDays, setHitDays] = useState<Set<string>>(new Set());
+  const [matchId, setMatchId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [calOpen, setCalOpen] = useState(false);
-  const today = todayMskYmd();
-  const todayParts = parseYmd(today)!;
-  const [viewY, setViewY] = useState(todayParts.y);
-  const [viewM, setViewM] = useState(todayParts.m);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  const selectedMatch = useMemo(
+    () => matchHistory.find((m) => m.matchId === matchId) || null,
+    [matchHistory, matchId]
+  );
 
   useEffect(() => {
     setBones(initialBones || {});
     setLastBone(initialLastBone || null);
-    setDay(null);
+    setMatchId(null);
+    setPickerOpen(false);
   }, [initialBones, initialLastBone, userId]);
 
   const load = useCallback(
-    async (dayYmd: string | null, withDays: boolean) => {
+    async (nextMatchId: string | null) => {
       setLoading(true);
       try {
         const q = new URLSearchParams({ userId });
-        if (dayYmd) q.set("day", dayYmd);
-        if (withDays) q.set("days", "1");
+        if (nextMatchId) q.set("matchId", nextMatchId);
         const res = await fetch(`/api/hitmap?${q}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as {
           bones?: HitBoneCounts;
           lastBone?: string | null;
-          days?: string[];
         };
         setBones(data.bones || {});
         setLastBone(data.lastBone || null);
-        if (Array.isArray(data.days)) {
-          setHitDays(new Set(data.days));
-        }
       } catch {
         /* leave previous */
       } finally {
@@ -255,71 +218,25 @@ export function ProfileHitmapCard({
   );
 
   useEffect(() => {
-    void load(null, true);
-  }, [load]);
-
-  useEffect(() => {
-    if (!calOpen) return;
+    if (!pickerOpen) return;
     const onDoc = (e: MouseEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setCalOpen(false);
+      if (!wrapRef.current?.contains(e.target as Node)) setPickerOpen(false);
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
-  }, [calOpen]);
+  }, [pickerOpen]);
 
   const selectAllTime = () => {
-    setDay(null);
-    setCalOpen(false);
-    void load(null, false);
+    setMatchId(null);
+    setPickerOpen(false);
+    void load(null);
   };
 
-  const selectDay = (ymdStr: string) => {
-    setDay(ymdStr);
-    setCalOpen(false);
-    void load(ymdStr, false);
+  const selectMatch = (id: string) => {
+    setMatchId(id);
+    setPickerOpen(false);
+    void load(id);
   };
-
-  const openCal = () => {
-    if (day) {
-      const p = parseYmd(day);
-      if (p) {
-        setViewY(p.y);
-        setViewM(p.m);
-      }
-    } else {
-      setViewY(todayParts.y);
-      setViewM(todayParts.m);
-    }
-    setCalOpen((v) => !v);
-  };
-
-  const shiftMonth = (delta: number) => {
-    let m = viewM + delta;
-    let y = viewY;
-    while (m < 1) {
-      m += 12;
-      y -= 1;
-    }
-    while (m > 12) {
-      m -= 12;
-      y += 1;
-    }
-    setViewY(y);
-    setViewM(m);
-  };
-
-  const calCells = useMemo(() => {
-    const first = new Date(Date.UTC(viewY, viewM - 1, 1));
-    const start = (first.getUTCDay() + 6) % 7;
-    const daysInMonth = new Date(Date.UTC(viewY, viewM, 0)).getUTCDate();
-    const cells: Array<{ day: number | null; ymd: string | null }> = [];
-    for (let i = 0; i < start; i++) cells.push({ day: null, ymd: null });
-    for (let d = 1; d <= daysInMonth; d++) {
-      cells.push({ day: d, ymd: ymd(viewY, viewM, d) });
-    }
-    while (cells.length % 7 !== 0) cells.push({ day: null, ymd: null });
-    return cells;
-  }, [viewY, viewM]);
 
   const [hoverBone, setHoverBone] = useState<string | null>(null);
 
@@ -370,7 +287,9 @@ export function ProfileHitmapCard({
     };
   }, [bones]);
 
-  const periodLabel = day ? formatRuDay(day) : "всё время";
+  const periodLabel = selectedMatch
+    ? matchShortLabel(selectedMatch)
+    : "всё время";
 
   return (
     <section className="card profile-hitmap-card">
@@ -386,7 +305,7 @@ export function ProfileHitmapCard({
           <button
             type="button"
             className={
-              day == null
+              matchId == null
                 ? "profile-hitmap-filter-btn is-active"
                 : "profile-hitmap-filter-btn"
             }
@@ -397,70 +316,76 @@ export function ProfileHitmapCard({
           <button
             type="button"
             className={
-              day
+              matchId
                 ? "profile-hitmap-filter-btn is-active"
                 : "profile-hitmap-filter-btn"
             }
-            onClick={openCal}
-            aria-expanded={calOpen}
+            onClick={() => setPickerOpen((v) => !v)}
+            aria-expanded={pickerOpen}
             aria-haspopup="dialog"
-            title="Выбрать день"
+            title="Выбрать тренировочный матч"
           >
-            {day ? formatRuDay(day) : "День"}
+            {selectedMatch ? matchShortLabel(selectedMatch) : "Матчи"}
           </button>
-          {calOpen ? (
+          {pickerOpen ? (
             <div
-              className="profile-hitmap-cal"
+              className="profile-hitmap-matches"
               role="dialog"
-              aria-label="Календарь"
+              aria-label="Тренировочные матчи"
             >
-              <div className="profile-hitmap-cal-nav">
-                <button
-                  type="button"
-                  onClick={() => shiftMonth(-1)}
-                  aria-label="Пред. месяц"
-                >
-                  ‹
-                </button>
-                <strong>
-                  {MONTH_RU[viewM - 1]} {viewY}
-                </strong>
-                <button
-                  type="button"
-                  onClick={() => shiftMonth(1)}
-                  aria-label="След. месяц"
-                >
-                  ›
-                </button>
+              <div className="profile-hitmap-matches-head">
+                Тренировочные матчи
               </div>
-              <div className="profile-hitmap-cal-dow">
-                {DOW_RU.map((d) => (
-                  <span key={d}>{d}</span>
-                ))}
-              </div>
-              <div className="profile-hitmap-cal-grid">
-                {calCells.map((c, i) =>
-                  c.day == null || !c.ymd ? (
-                    <span key={`e-${i}`} className="profile-hitmap-cal-empty" />
-                  ) : (
-                    <button
-                      key={c.ymd}
-                      type="button"
-                      className={[
-                        "profile-hitmap-cal-day",
-                        day === c.ymd ? "is-selected" : "",
-                        c.ymd === today ? "is-today" : "",
-                        hitDays.has(c.ymd) ? "has-hits" : "",
-                      ]
-                        .filter(Boolean)
-                        .join(" ")}
-                      onClick={() => selectDay(c.ymd!)}
-                    >
-                      {c.day}
-                    </button>
-                  )
-                )}
-              </div>
+              {matchHistory.length === 0 ? (
+                <p className="muted profile-hitmap-matches-empty">
+                  Пока нет матчей в истории тренировок.
+                </p>
+              ) : (
+                <ul className="profile-hitmap-matches-list">
+                  {matchHistory.map((m) => {
+                    const active = m.matchId === matchId;
+                    const resultCls =
+                      m.won === true
+                        ? "kv-pill win"
+                        : m.won === false
+                          ? "kv-pill lose"
+                          : "kv-pill";
+                    const resultText =
+                      m.won === true
+                        ? "Победа"
+                        : m.won === false
+                          ? "Поражение"
+                          : "—";
+                    return (
+                      <li key={m.matchId}>
+                        <button
+                          type="button"
+                          className={
+                            active
+                              ? "profile-hitmap-match-row is-selected"
+                              : "profile-hitmap-match-row"
+                          }
+                          onClick={() => selectMatch(m.matchId)}
+                        >
+                          <span className="profile-hitmap-match-date">
+                            {m.dateLabel}
+                          </span>
+                          <span
+                            className="profile-hitmap-match-map"
+                            title={m.map}
+                          >
+                            {m.map || "—"}
+                          </span>
+                          <span className="profile-hitmap-match-score">
+                            {matchScore(m)}
+                          </span>
+                          <span className={resultCls}>{resultText}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
           ) : null}
         </div>
@@ -673,8 +598,8 @@ export function ProfileHitmapCard({
           </aside>
         ) : (
           <p className="muted profile-hitmap-empty">
-            {day
-              ? "В этот день попаданий нет."
+            {matchId
+              ? "В этом матче попаданий нет."
               : "Попадания появятся после стрельбы на TR1 (мод BBHitZone)."}
           </p>
         )}
