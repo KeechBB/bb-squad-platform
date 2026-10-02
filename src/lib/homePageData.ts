@@ -5,11 +5,12 @@ import {
   buildHomeTrainPwrBoard,
   emptyHomeTrainPwrBoard,
 } from "@/lib/homeTrainPwr";
+import { buildHomeTierBoard, emptyHomeTierBoard } from "@/lib/homeTierBoard";
 
 /** Общие блоки главной — один параллельный проход, кэш ~45с. */
 export const getHomeDashboardData = unstable_cache(
   async () => {
-    const [previews, mvpBoard, pwrBoard] = await Promise.all([
+    const [previews, mvpBoard, pwrBoard, tierBoard] = await Promise.all([
       buildUpcomingMatchPreviews(12)
         .then((d) => d.previews)
         .catch(() => [] as Awaited<
@@ -17,9 +18,10 @@ export const getHomeDashboardData = unstable_cache(
         >["previews"]),
       buildHomeMvpBoard().catch(() => emptyHomeMvpBoard()),
       buildHomeTrainPwrBoard().catch(() => emptyHomeTrainPwrBoard()),
+      buildHomeTierBoard().catch(() => emptyHomeTierBoard()),
     ]);
-    return { previews, mvpBoard, pwrBoard };
+    return { previews, mvpBoard, pwrBoard, tierBoard };
   },
-  ["home-dashboard-v4"],
+  ["home-dashboard-v5-tiers"],
   { revalidate: 45 }
 );

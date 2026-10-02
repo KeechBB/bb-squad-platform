@@ -5,6 +5,7 @@ import { getHomeDashboardData } from "@/lib/homePageData";
 import { HomeUpcomingMatches } from "@/components/HomeUpcomingMatches";
 import { HomeMvpBoard } from "@/components/HomeMvpBoard";
 import { HomeTrainPwrTop } from "@/components/HomeTrainPwrTop";
+import { HomeTierBoard } from "@/components/HomeTierBoard";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ export default async function HomePage() {
     redirect("/register");
   }
 
-  const { previews, mvpBoard, pwrBoard } = await getHomeDashboardData();
+  const { previews, mvpBoard, pwrBoard, tierBoard } = await getHomeDashboardData();
 
   const loggedIn = Boolean(session?.user);
 
@@ -70,7 +71,10 @@ export default async function HomePage() {
       </div>
 
       <div className="home-layout">
-        <HomeUpcomingMatches previews={previews} />
+        <div className="home-ops-col">
+          <HomeUpcomingMatches previews={previews} />
+          <HomeTierBoard initial={tierBoard} />
+        </div>
         <HomeMvpBoard initial={mvpBoard} />
 
         <section className="home-hero">
