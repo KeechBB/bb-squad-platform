@@ -21,7 +21,8 @@ Env (не коммитить секреты):
   SQUAD_STATE_PATH=./squad_collector_state.json
   SQUAD_POLL_SEC=5
 
-Зависимости: pip install paramiko requests
+Зависимости: pip install -r requirements-squad-collector.txt
+  (paramiko, requests, psycopg2-binary — нужен для авто-RP с PublicMatch)
 """
 from __future__ import annotations
 
@@ -460,6 +461,81 @@ class Collector:
                     _safe_print("ingest matches", r.json())
             if ok_any:
                 self._public_rp_pending = True
+                # Keep local history cache in sync even if ledger rebuild
+                # cannot read Postgres (missing psycopg2 in collector venv).
+                try:
+                    self._merge_match_history_cache(matches)
+                except Exception as e:
+                    _safe_print(
+                        "match-history cache merge fail",
+                        type(e).__name__,
+                        e,
+                        file=sys.stderr,
+                    )
+
+    def _merge_match_history_cache(self, matches: list[dict[str, Any]]) -> None:
+        """Append accepted PB1 match events into data/public/match-history.json."""
+        cache_path = Path(__file__).resolve().parent.parent / "data" / "public" / "match-history.json"
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        existing: list[dict[str, Any]] = []
+        if cache_path.is_file():
+            try:
+                raw = json.loads(cache_path.read_text(encoding="utf-8"))
+                existing = list(
+                    (raw.get("matches") if isinstance(raw, dict) else raw) or []
+                )
+            except Exception:
+                existing = []
+
+        def key_of(m: dict[str, Any]) -> str:
+            return "|".join(
+                [
+                    str(m.get("endedAt") or m.get("at") or ""),
+                    str(m.get("mapName") or ""),
+                    str(m.get("score1") or 0),
+                    str(m.get("score2") or 0),
+                    str(m.get("serverKey") or "TPUB1"),
+                ]
+            )
+
+        by_key = {key_of(m): m for m in existing if isinstance(m, dict)}
+        added = 0
+        for ev in matches:
+            if ev.get("type") and ev.get("type") != "match":
+                continue
+            row = {
+                "endedAt": ev.get("at"),
+                "mapName": ev.get("mapName") or "",
+                "layerName": ev.get("layerName") or "",
+                "score1": int(ev.get("score1") or 0),
+                "score2": int(ev.get("score2") or 0),
+                "winnerTeam": ev.get("winnerTeam"),
+                "winnerName": ev.get("winnerName") or "",
+                "serverKey": ev.get("serverKey") or "TPUB1",
+                "faction1": ev.get("faction1"),
+                "faction2": ev.get("faction2"),
+            }
+            if not row["endedAt"] or not row["mapName"]:
+                continue
+            k = key_of(row)
+            if k not in by_key:
+                added += 1
+            by_key[k] = row
+        merged = sorted(by_key.values(), key=lambda m: str(m.get("endedAt") or ""))
+        cache_path.write_text(
+            json.dumps(
+                {
+                    "updatedAt": datetime.now(timezone.utc).isoformat(),
+                    "matches": merged,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        if added:
+            _safe_print(f"match-history cache +{added} → {len(merged)}", flush=True)
 
     def _parse_hit(
         self, line: str, server_key: str
@@ -690,8 +766,25 @@ class Collector:
                 self._match_buf.pop(old_key, None)
         return None
 
+    def _keech_tracker(self):
+        if getattr(self, "_keech_hunt", None) is None:
+            try:
+                from keech_hunt_tracker import KeechHuntTracker
+
+                self._keech_hunt = KeechHuntTracker()
+            except Exception as e:
+                _safe_print("keech hunt init fail", type(e).__name__, e, file=sys.stderr)
+                self._keech_hunt = False  # type: ignore
+        return self._keech_hunt if self._keech_hunt is not False else None
+
     def _handle_line(self, line: str, server_key: str) -> list[dict[str, Any]]:
         events: list[dict[str, Any]] = []
+        kt = self._keech_tracker()
+        if kt is not None:
+            try:
+                kt.feed(line, server_key)
+            except Exception as e:
+                _safe_print("keech hunt feed", type(e).__name__, e, file=sys.stderr)
         hit = self._parse_hit(line, server_key)
         if hit:
             events.append(hit)
@@ -875,6 +968,12 @@ class Collector:
                     )
             self._post(batch)
             self.maybe_rebuild_public_rp()
+            kt = self._keech_tracker()
+            if kt is not None:
+                try:
+                    kt.flush()
+                except Exception as e:
+                    _safe_print("keech hunt flush", type(e).__name__, e, file=sys.stderr)
             self._save_state()
         finally:
             try:
@@ -978,12 +1077,56 @@ class Collector:
             except Exception as e:
                 _safe_print("backfill complete fail", type(e).__name__, e, file=sys.stderr)
 
+    def _bootstrap_keech_hunt(self) -> None:
+        """One-shot: rebuild current Keech match from recent TPUB1 log tail."""
+        kt = self._keech_tracker()
+        if kt is None:
+            return
+        target = None
+        for key, path in self.targets:
+            if key in ("TPUB1", "PB1", "PUB"):
+                target = (key, path)
+                break
+        if not target:
+            return
+        server_key, log_path = target
+        try:
+            client = self._ssh()
+        except Exception as e:
+            _safe_print("keech bootstrap ssh", type(e).__name__, e, file=sys.stderr)
+            return
+        try:
+            cmd = (
+                f"python3 - <<'PY'\n"
+                f"from pathlib import Path\n"
+                f"p=Path({log_path!r})\n"
+                f"raw=p.read_bytes()\n"
+                f"if len(raw)>12*1024*1024: raw=raw[-12*1024*1024:]\n"
+                f"print(raw.decode('utf-8','replace'), end='')\n"
+                f"PY"
+            )
+            _i, out, _e = client.exec_command(cmd, timeout=180)
+            text = out.read().decode("utf-8", "replace")
+            kt.bootstrap_text(text, server_key)
+            _safe_print("keech hunt bootstrap ok", server_key, flush=True)
+        except Exception as e:
+            _safe_print("keech bootstrap fail", type(e).__name__, e, file=sys.stderr)
+        finally:
+            try:
+                client.close()
+            except Exception:
+                pass
+
     def run(self) -> None:
         _safe_print(
             "collector start",
             self.host,
             ", ".join(f"{k}={p}" for k, p in self.targets),
         )
+        try:
+            self._bootstrap_keech_hunt()
+        except Exception as e:
+            _safe_print("keech bootstrap", type(e).__name__, e, file=sys.stderr)
         ticks = 0
         # Раз в час снова дочитать свежие backup (пропуск leave в live / рестарт).
         rebackup_every = max(1, int(3600 / max(self.poll_sec, 1)))

@@ -9,6 +9,7 @@ import { AdminVisitsPanel } from "@/components/AdminVisitsPanel";
 import { AdminReservePanel } from "@/components/AdminReservePanel";
 import { AdminUpdatesPanel } from "@/components/AdminUpdatesPanel";
 import { AdminTierLogPanel } from "@/components/AdminTierLogPanel";
+import { AdminKeechHuntPanel } from "@/components/AdminKeechHuntPanel";
 import type { AppRole } from "@/lib/roles";
 
 type Props = {
@@ -19,6 +20,8 @@ type Props = {
   showSiteVisits: boolean;
   /** Вкладка резерва — Keech / Зам / HR */
   showReserve: boolean;
+  /** Личный hunt-лог — только Keech (builtin super) */
+  showKeechHunt: boolean;
 };
 
 type Tab =
@@ -28,7 +31,8 @@ type Tab =
   | "visits"
   | "reserve"
   | "updates"
-  | "tiers";
+  | "tiers"
+  | "hunt";
 
 const TAB_LEAD: Record<Tab, string> = {
   users: "Пользователи платформы. Кликни по нику — правка анкеты и аватара.",
@@ -44,9 +48,15 @@ const TAB_LEAD: Record<Tab, string> = {
     "Логи обновлений сайта: дата, Beta-версия и что добавили для игроков.",
   tiers:
     "История переводов по тирам: кто, когда, из какого в какой. Можно дописать вручную.",
+  hunt:
+    "Личный live-лог PB1: киллы / смерти / ресы и пробный ±RP. Только для тебя.",
 };
 
-function readTab(allowVisits: boolean, allowReserve: boolean): Tab {
+function readTab(
+  allowVisits: boolean,
+  allowReserve: boolean,
+  allowHunt: boolean
+): Tab {
   if (typeof window === "undefined") return "users";
   const t = new URLSearchParams(window.location.search).get("tab");
   if (
@@ -59,6 +69,7 @@ function readTab(allowVisits: boolean, allowReserve: boolean): Tab {
     return t;
   if (t === "visits" && allowVisits) return "visits";
   if (t === "reserve" && allowReserve) return "reserve";
+  if (t === "hunt" && allowHunt) return "hunt";
   return "users";
 }
 
@@ -68,14 +79,15 @@ export function AdminShell({
   actorRole,
   showSiteVisits,
   showReserve,
+  showKeechHunt,
 }: Props) {
   const [tab, setTab] = useState<Tab>("users");
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    setTab(readTab(showSiteVisits, showReserve));
+    setTab(readTab(showSiteVisits, showReserve, showKeechHunt));
     setHydrated(true);
-  }, [showSiteVisits, showReserve]);
+  }, [showSiteVisits, showReserve, showKeechHunt]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -87,6 +99,10 @@ export function AdminShell({
       setTab("users");
       return;
     }
+    if (tab === "hunt" && !showKeechHunt) {
+      setTab("users");
+      return;
+    }
     const url = new URL(window.location.href);
     url.searchParams.set("tab", tab);
     window.history.replaceState(
@@ -94,12 +110,16 @@ export function AdminShell({
       "",
       `${url.pathname}?${url.searchParams.toString()}`
     );
-  }, [tab, hydrated, showSiteVisits, showReserve]);
+  }, [tab, hydrated, showSiteVisits, showReserve, showKeechHunt]);
 
   return (
     <main
       className={
-        tab === "attendance" ? "admin-page admin-attendance-page" : "admin-page"
+        tab === "attendance"
+          ? "admin-page admin-attendance-page"
+          : tab === "hunt"
+            ? "admin-page admin-keech-hunt-page"
+            : "admin-page"
       }
     >
       <section className="hero">
@@ -172,6 +192,15 @@ export function AdminShell({
               Заходы на сайт
             </button>
           ) : null}
+          {showKeechHunt ? (
+            <button
+              type="button"
+              className={`admin-tab ${tab === "hunt" ? "active" : ""}`}
+              onClick={() => setTab("hunt")}
+            >
+              Hunt
+            </button>
+          ) : null}
         </div>
         <p style={{ marginTop: 12 }}>
           <Link className="kv-link" href="/profile">
@@ -193,6 +222,7 @@ export function AdminShell({
       {tab === "tiers" ? <AdminTierLogPanel /> : null}
       {tab === "updates" ? <AdminUpdatesPanel /> : null}
       {tab === "visits" && showSiteVisits ? <AdminVisitsPanel /> : null}
+      {tab === "hunt" && showKeechHunt ? <AdminKeechHuntPanel /> : null}
     </main>
   );
 }
