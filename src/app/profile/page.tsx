@@ -180,34 +180,36 @@ export default async function ProfilePage() {
     <main className="profile-page">
       <div className="profile-area-head">
         <div className="profile-head-cluster">
-          <AvatarEditor
-            nick={me.nick || u.nick || "Игрок"}
-            name={me.name || u.name || ""}
-            initialAvatar={displayAvatar}
-            steamAvatar={u.steamAvatar || null}
-            adminLink={<AdminPanelLink initialAdmin={admin} />}
-            lastSeenAt={me.lastSeenAt}
-          />
-          <ProfileTrainPwrCard stats={trainPwr} />
-          <ProfilePublicRatingCard
-            nick={nickForKv}
-            rp={publicRp?.rp ?? null}
-            rankLabel={publicRp?.rankLabel ?? null}
-            rankKey={publicRp?.rankKey ?? null}
-            combat={publicCombat}
-            matches={publicRp?.matches ?? []}
-          />
-          <ProfileKitsCard
-            userId={me.id}
-            kits={kits.kits}
-            allowTr1={isBb}
-            initialLane={kitsLane}
-          />
-          {nickForKv ? (
-            <ProfileCompareCard myNick={nickForKv} variant="inline" />
-          ) : null}
+          <div className="profile-head-main">
+            <AvatarEditor
+              nick={me.nick || u.nick || "Игрок"}
+              name={me.name || u.name || ""}
+              initialAvatar={displayAvatar}
+              steamAvatar={u.steamAvatar || null}
+              adminLink={<AdminPanelLink initialAdmin={admin} />}
+              lastSeenAt={me.lastSeenAt}
+            />
+            <ProfileTrainPwrCard stats={trainPwr} />
+            <ProfilePublicRatingCard
+              nick={nickForKv}
+              rp={publicRp?.rp ?? null}
+              rankLabel={publicRp?.rankLabel ?? null}
+              rankKey={publicRp?.rankKey ?? null}
+              combat={publicCombat}
+              matches={publicRp?.matches ?? []}
+            />
+            <ProfileKitsCard
+              userId={me.id}
+              kits={kits.kits}
+              allowTr1={isBb}
+              initialLane={kitsLane}
+            />
+            {nickForKv ? (
+              <ProfileCompareCard myNick={nickForKv} variant="inline" />
+            ) : null}
+            <ClanInvites initial={invites} />
+          </div>
           {nickForKv ? <ProfileCareerCard feed={careerFeed} self /> : null}
-          <ClanInvites initial={invites} />
         </div>
       </div>
 

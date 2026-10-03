@@ -1254,10 +1254,20 @@ body:has(.profile-page) {
 
 .profile-head-cluster {
   display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 10px 14px;
+}
+
+.profile-head-main {
+  display: flex;
   flex-wrap: wrap;
   align-items: stretch;
   justify-content: flex-start;
   gap: 10px 12px;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .profile-page .hero {
@@ -1312,6 +1322,8 @@ body:has(.profile-page) {
   letter-spacing: 0.06em;
 }
 
+.profile-head-main > .profile-pwr-card,
+.profile-head-main > .profile-kits-card,
 .profile-head-cluster > .profile-pwr-card,
 .profile-head-cluster > .profile-kits-card {
   flex: 0 1 260px;
@@ -1323,15 +1335,17 @@ body:has(.profile-page) {
 }
 
 .profile-head-cluster > .profile-career-card {
-  flex: 1 1 420px;
-  max-width: none;
-  min-width: 300px;
+  flex: 0 0 min(380px, 34vw);
+  width: min(380px, 34vw);
+  max-width: 400px;
+  min-width: 260px;
   max-height: 320px;
-  margin-left: auto;
-  align-self: stretch;
+  margin-left: 0;
+  align-self: flex-start;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  order: 2;
 }
 
 .profile-career-card .profile-kv-head {
@@ -2681,6 +2695,11 @@ body:has(.profile-page) {
   }
 
   .profile-head-cluster {
+    flex-wrap: wrap;
+    gap: 6px 8px;
+  }
+
+  .profile-head-main {
     gap: 6px 8px;
   }
 
@@ -2712,6 +2731,8 @@ body:has(.profile-page) {
   }
 
   .profile-clan-card,
+  .profile-head-main > .profile-pwr-card,
+  .profile-head-main > .profile-kits-card,
   .profile-head-cluster > .profile-pwr-card,
   .profile-head-cluster > .profile-kits-card {
     flex: 0 1 200px;
@@ -2724,10 +2745,12 @@ body:has(.profile-page) {
   }
 
   .profile-head-cluster > .profile-career-card {
-    flex: 1 1 280px;
+    flex: 1 1 100%;
+    width: 100%;
     max-width: none;
-    min-width: 220px;
-    margin-left: auto;
+    min-width: 0;
+    order: 0;
+    align-self: stretch;
   }
 
   .profile-head-cluster .reaction-profile-card {
