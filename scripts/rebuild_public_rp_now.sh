@@ -10,11 +10,17 @@ if [[ -f .env ]]; then
   source .env
   set +a
 fi
-echo "==> history source: DATABASE_URL host local Postgres (PublicMatch)"
+
+PY="$ROOT/.venv-collector/bin/python"
+if [[ ! -x "$PY" ]]; then
+  PY="$(command -v python3)"
+fi
+echo "==> python: $PY"
+echo "==> history source: DATABASE_URL → local Postgres (PublicMatch)"
 echo "==> rebuilding rp-ledger…"
-python3 scripts/build_public_rp_ledger.py
+"$PY" scripts/build_public_rp_ledger.py
 echo "==> ledger matches:"
-python3 - <<'PY'
+"$PY" - <<'PY'
 import json
 from pathlib import Path
 p = Path("data/public/rp-ledger.json")

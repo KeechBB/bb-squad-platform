@@ -69,7 +69,17 @@ def sync_logs_via_ssh(cache: Path) -> list[Path]:
     try:
         import paramiko
     except ImportError as e:
-        raise SystemExit(f"paramiko required for SSH sync: {e}") from e
+        local = sorted(cache.glob("*.log"))
+        if local:
+            print(
+                f"paramiko missing ({e}) — using local cache ({len(local)} logs)",
+                flush=True,
+            )
+            return local
+        raise SystemExit(
+            "paramiko required for SSH sync (or put TPUB1 logs in "
+            f"{cache}). Prefer: .venv-collector/bin/python scripts/build_public_rp_ledger.py"
+        ) from e
 
     host = os.environ.get("SQUAD_SSH_HOST")
     user = os.environ.get("SQUAD_SSH_USER")
@@ -207,74 +217,116 @@ def get_log_index(
     return cache[key]
 
 
+def _psycopg_dsn(db: str) -> str:
+    """Strip Prisma-only query params (e.g. ?schema=public) for psycopg2/psycopg."""
+    if not db:
+        return db
+    if "://" not in db:
+        return db
+    # Keep libpq-safe params; drop schema= which Prisma injects.
+    if "?" not in db:
+        return db
+    base, _, qs = db.partition("?")
+    kept: list[str] = []
+    for part in qs.split("&"):
+        if not part or part.lower().startswith("schema="):
+            continue
+        kept.append(part)
+    return f"{base}?{'&'.join(kept)}" if kept else base
+
+
 def load_history_matches() -> list[dict]:
     """PublicMatch history — Neon/VPS DATABASE_URL or data/public/match-history.json."""
     rows: list[dict] = []
     db = (os.environ.get("DATABASE_URL") or "").strip().strip("'").strip('"')
     if db:
+        connect = None
         try:
             import psycopg2
 
-            conn = psycopg2.connect(db)
-            cur = conn.cursor()
-            cur.execute(
-                """
-                select "endedAt", "mapName", "layerName", score1, score2,
-                       "winnerTeam", "winnerName", "serverKey"
-                from "PublicMatch"
-                where "serverKey" in ('TPUB1','PB1','PUB')
-                order by "endedAt" asc
-                """
-            )
-            for ended, map_name, layer, s1, s2, wt, wn, sk in cur.fetchall():
-                rows.append(
-                    {
-                        "endedAt": ended if isinstance(ended, datetime) else datetime.fromisoformat(str(ended)),
-                        "mapName": map_name or "",
-                        "layerName": layer or "",
-                        "score1": int(s1 or 0),
-                        "score2": int(s2 or 0),
-                        "winnerTeam": str(wt) if wt is not None else None,
-                        "winnerName": wn or "",
-                        "serverKey": sk or "TPUB1",
-                    }
+            connect = psycopg2.connect
+        except ImportError:
+            try:
+                import psycopg
+
+                connect = psycopg.connect
+            except ImportError:
+                print(
+                    "history DB skip: ModuleNotFoundError: no psycopg2/psycopg "
+                    "(pip install psycopg2-binary into collector venv)",
+                    flush=True,
                 )
-            conn.close()
-            if rows:
-                print(f"history from DB: {len(rows)}", flush=True)
-                try:
-                    HISTORY_CACHE.parent.mkdir(parents=True, exist_ok=True)
-                    HISTORY_CACHE.write_text(
-                        json.dumps(
-                            {
-                                "updatedAt": datetime.now(timezone.utc).isoformat(),
-                                "matches": [
-                                    {
-                                        "endedAt": r["endedAt"].isoformat() + "Z",
-                                        "mapName": r["mapName"],
-                                        "layerName": r["layerName"],
-                                        "score1": r["score1"],
-                                        "score2": r["score2"],
-                                        "winnerTeam": int(r["winnerTeam"])
-                                        if r["winnerTeam"]
-                                        else None,
-                                        "winnerName": r["winnerName"],
-                                        "serverKey": r["serverKey"],
-                                    }
-                                    for r in rows
-                                ],
-                            },
-                            ensure_ascii=False,
-                            indent=2,
-                        )
-                        + "\n",
-                        encoding="utf-8",
+        if connect is not None:
+            try:
+                conn = connect(_psycopg_dsn(db))
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    select "endedAt", "mapName", "layerName", score1, score2,
+                           "winnerTeam", "winnerName", "serverKey"
+                    from "PublicMatch"
+                    where "serverKey" in ('TPUB1','PB1','PUB')
+                    order by "endedAt" asc
+                    """
+                )
+                for ended, map_name, layer, s1, s2, wt, wn, sk in cur.fetchall():
+                    rows.append(
+                        {
+                            "endedAt": ended
+                            if isinstance(ended, datetime)
+                            else datetime.fromisoformat(str(ended)),
+                            "mapName": map_name or "",
+                            "layerName": layer or "",
+                            "score1": int(s1 or 0),
+                            "score2": int(s2 or 0),
+                            "winnerTeam": str(wt) if wt is not None else None,
+                            "winnerName": wn or "",
+                            "serverKey": sk or "TPUB1",
+                        }
                     )
-                except Exception as e:
-                    print(f"history cache write skip: {e}", flush=True)
-                return rows
-        except Exception as e:
-            print(f"history DB skip: {type(e).__name__}: {e}", flush=True)
+                conn.close()
+                if rows:
+                    print(f"history from DB: {len(rows)}", flush=True)
+                    try:
+                        HISTORY_CACHE.parent.mkdir(parents=True, exist_ok=True)
+                        HISTORY_CACHE.write_text(
+                            json.dumps(
+                                {
+                                    "updatedAt": datetime.now(
+                                        timezone.utc
+                                    ).isoformat(),
+                                    "matches": [
+                                        {
+                                            "endedAt": (
+                                                r["endedAt"].isoformat()
+                                                if getattr(r["endedAt"], "tzinfo", None)
+                                                else r["endedAt"].isoformat() + "Z"
+                                            ),
+                                            "mapName": r["mapName"],
+                                            "layerName": r["layerName"],
+                                            "score1": r["score1"],
+                                            "score2": r["score2"],
+                                            "winnerTeam": int(r["winnerTeam"])
+                                            if r["winnerTeam"]
+                                            else None,
+                                            "winnerName": r["winnerName"],
+                                            "serverKey": r["serverKey"],
+                                        }
+                                        for r in rows
+                                    ],
+                                },
+                                ensure_ascii=False,
+                                indent=2,
+                                default=str,
+                            )
+                            + "\n",
+                            encoding="utf-8",
+                        )
+                    except Exception as e:
+                        print(f"history cache write skip: {e}", flush=True)
+                    return rows
+            except Exception as e:
+                print(f"history DB skip: {type(e).__name__}: {e}", flush=True)
 
     if HISTORY_CACHE.is_file():
         try:
@@ -431,7 +483,6 @@ def process_match(
         ensure(kk, d["killer"])
         ensure(vk, d["victim"])
         dmg = float(d.get("dmg") or 0)
-        dmg_by[kk] = round(dmg_by.get(kk, 0.0) + dmg, 1)
         pmax = max(rp.values()) if rp else R.START_RP
         pmax = max(pmax, R.START_RP)
         pk = rp.get(kk, R.START_RP)
@@ -439,6 +490,7 @@ def process_match(
         delta = round(R.hunt_delta(pk, pv, pmax), 2)
         same_team = kk in teams and vk in teams and teams[kk] == teams[vk]
         if same_team:
+            # TK: RP penalty only. Never add TK KillingDamage to combat score.
             rp[kk] = rp.get(kk, R.START_RP) - delta
             rp[vk] = rp.get(vk, R.START_RP) - delta
             net[kk] = round(net.get(kk, 0.0) - delta, 2)
@@ -458,6 +510,7 @@ def process_match(
             )
             tk_n += 1
         else:
+            dmg_by[kk] = round(dmg_by.get(kk, 0.0) + dmg)
             rp[kk] = rp.get(kk, R.START_RP) + delta
             rp[vk] = rp.get(vk, R.START_RP) - delta
             net[kk] = round(net.get(kk, 0.0) + delta, 2)
@@ -486,7 +539,10 @@ def process_match(
         net.setdefault(kk, 0.0)
         net.setdefault(vk, 0.0)
         dmg = float(d.get("dmg") or 0)
-        dmg_by[kk] = round(dmg_by.get(kk, 0.0) + dmg, 1)
+        same_team = kk in teams and vk in teams and teams[kk] == teams[vk]
+        # Combat score: enemy downs only (incl. give-up). TK nok dmg never counts.
+        if not same_team:
+            dmg_by[kk] = round(dmg_by.get(kk, 0.0) + dmg)
         events.append(
             {
                 "kind": "nok",
@@ -495,6 +551,7 @@ def process_match(
                 "victim": disp.get(vk, d["victim"]),
                 "delta": 0,
                 "dmg": dmg,
+                "teamkill": same_team,
             }
         )
 
@@ -691,7 +748,7 @@ def main() -> None:
                     "date": mb["date"],
                     "net": mb["netByKey"].get(k, 0.0),
                     "won": won,
-                    "dmg": round((mb.get("dmgByKey") or {}).get(k, 0.0), 1),
+                    "dmg": round((mb.get("dmgByKey") or {}).get(k, 0.0)),
                     "kills": kills,
                     "deaths": deaths,
                     "noks": noks,
@@ -741,6 +798,7 @@ def main() -> None:
             "delta=1+49*(Pv-Pk+Pmax-1)/(2*(Pmax-1)); "
             "Pk/Pv=current public RP; final Die(+Inactive): enemy zero-sum; "
             "TK both -delta; Revive medic +delta*0.6; Wound/nok=0 RP; "
+            "combat dmg=KillingDamage enemy Die/nok only (TK dmg excluded); "
             "only PublicMatch history since epoch"
         ),
         "reviveCoef": R.REVIVE_COEF,
