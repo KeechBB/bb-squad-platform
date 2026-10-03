@@ -21,13 +21,22 @@ export type SquadRoleIngestEvent = {
   serverKey?: string;
 };
 
+export type KitsLane = "TR1" | "PB1";
+
 export type KitsForUserOpts = {
   /** Один день МСК YYYY-MM-DD */
   dayYmd?: string | null;
   /** Интервал МСК включительно: from..to */
   fromYmd?: string | null;
   toYmd?: string | null;
+  /** TR1 (+TR2) с боевым окном; PB1 — весь день без окна */
+  lane?: KitsLane;
 };
+
+export function serverKeysForKitsLane(lane: KitsLane): string[] {
+  if (lane === "PB1") return ["TPUB1", "PB1", "PUB"];
+  return ["TR1", "TR2"];
+}
 
 /**
  * Боевое окно учёта ролей (МСК): 21:30 ≤ t < 01:00.
@@ -118,29 +127,28 @@ export async function kitsForUser(
   opts: KitsForUserOpts = {}
 ): Promise<{ kits: KitPctRow[]; total: number }> {
   const range = spawnedAtFilter(opts);
-  const rows = range
-    ? await prisma.$queryRaw<{ kit: string; n: bigint }[]>`
-        SELECT kit, COUNT(*)::bigint AS n
-        FROM "SquadRoleEvent"
-        WHERE "userId" = ${userId}
-          AND "spawnedAt" >= ${range.gte}
-          AND "spawnedAt" < ${range.lt}
-          AND (
-            (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::time >= TIME '21:30:00'
-            OR (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::time < TIME '01:00:00'
-          )
-        GROUP BY kit
-      `
-    : await prisma.$queryRaw<{ kit: string; n: bigint }[]>`
-        SELECT kit, COUNT(*)::bigint AS n
-        FROM "SquadRoleEvent"
-        WHERE "userId" = ${userId}
-          AND (
-            (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::time >= TIME '21:30:00'
-            OR (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::time < TIME '01:00:00'
-          )
-        GROUP BY kit
-      `;
+  const lane: KitsLane = opts.lane === "PB1" ? "PB1" : "TR1";
+  const keys = serverKeysForKitsLane(lane);
+  const combatSql =
+    lane === "TR1"
+      ? Prisma.sql`AND (
+          (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::time >= TIME '21:30:00'
+          OR (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::time < TIME '01:00:00'
+        )`
+      : Prisma.empty;
+  const rangeSql = range
+    ? Prisma.sql`AND "spawnedAt" >= ${range.gte} AND "spawnedAt" < ${range.lt}`
+    : Prisma.empty;
+
+  const rows = await prisma.$queryRaw<{ kit: string; n: bigint }[]>`
+    SELECT kit, COUNT(*)::bigint AS n
+    FROM "SquadRoleEvent"
+    WHERE "userId" = ${userId}
+      AND "serverKey" IN (${Prisma.join(keys)})
+      ${rangeSql}
+      ${combatSql}
+    GROUP BY kit
+  `;
   const counts: Partial<Record<string, number>> = {};
   let total = 0;
   for (const r of rows) {
@@ -153,18 +161,27 @@ export async function kitsForUser(
   return { kits: kitCountsToPct(counts), total };
 }
 
-/** Дни МСК со спавнами ролей в боевом окне (календарь). */
-export async function kitDaysForUser(userId: string): Promise<string[]> {
+/** Дни МСК со спавнами ролей (календарь). TR1 — боевое окно; PB1 — весь день. */
+export async function kitDaysForUser(
+  userId: string,
+  lane: KitsLane = "TR1"
+): Promise<string[]> {
+  const keys = serverKeysForKitsLane(lane);
+  const combatSql =
+    lane === "TR1"
+      ? Prisma.sql`AND (
+          (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::time >= TIME '21:30:00'
+          OR (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::time < TIME '01:00:00'
+        )`
+      : Prisma.empty;
   const rows = await prisma.$queryRaw<{ d: Date }[]>`
     SELECT DISTINCT (
       (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::date
     ) AS d
     FROM "SquadRoleEvent"
     WHERE "userId" = ${userId}
-      AND (
-        (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::time >= TIME '21:30:00'
-        OR (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::time < TIME '01:00:00'
-      )
+      AND "serverKey" IN (${Prisma.join(keys)})
+      ${combatSql}
     ORDER BY d DESC
   `;
   return rows.map((r) => {

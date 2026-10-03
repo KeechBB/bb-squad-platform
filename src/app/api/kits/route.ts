@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { kitDaysForUser, kitsForUser } from "@/lib/squadRoles";
+import {
+  kitDaysForUser,
+  kitsForUser,
+  type KitsLane,
+} from "@/lib/squadRoles";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,6 +16,7 @@ export const dynamic = "force-dynamic";
  *   day=YYYY-MM-DD — сутки МСК
  *   from=&to= — интервал МСК включительно
  *   days=1 — список дней со спавнами
+ *   lane=TR1|PB1 — сервер (по умолчанию TR1)
  */
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
@@ -33,6 +38,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "bad date" }, { status: 400 });
   }
   const wantDays = url.searchParams.get("days") === "1";
+  const laneRaw = (url.searchParams.get("lane") || "TR1").trim().toUpperCase();
+  const lane: KitsLane = laneRaw === "PB1" ? "PB1" : "TR1";
 
   const target = await prisma.user.findFirst({
     where: { id: userId, profileComplete: true },
@@ -47,8 +54,9 @@ export async function GET(req: Request) {
       dayYmd: day,
       fromYmd: from,
       toYmd: to,
+      lane,
     }),
-    wantDays ? kitDaysForUser(userId) : Promise.resolve(null),
+    wantDays ? kitDaysForUser(userId, lane) : Promise.resolve(null),
   ]);
 
   return NextResponse.json({
@@ -56,6 +64,7 @@ export async function GET(req: Request) {
     day,
     from,
     to,
+    lane,
     kits: stats.kits,
     total: stats.total,
     days: days || undefined,

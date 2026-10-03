@@ -7,9 +7,15 @@ import {
   type KitPctRow,
 } from "@/lib/squadKits";
 
+type KitsLane = "TR1" | "PB1";
+
 type Props = {
   userId: string;
   kits?: KitPctRow[];
+  /** Член BlackBerry — видит переключатель TR1|PB1 */
+  allowTr1?: boolean;
+  /** Стартовая лента (BB → TR1, остальные → PB1) */
+  initialLane?: KitsLane;
 };
 
 type Mode = "all" | "day" | "range";
@@ -82,8 +88,19 @@ function donutPaths(
   return out;
 }
 
-export function ProfileKitsCard({ userId, kits: initialKits }: Props) {
+export function ProfileKitsCard({
+  userId,
+  kits: initialKits,
+  allowTr1 = false,
+  initialLane,
+}: Props) {
   const uid = useId().replace(/:/g, "");
+  const defaultLane: KitsLane = allowTr1
+    ? initialLane === "PB1"
+      ? "PB1"
+      : "TR1"
+    : "PB1";
+  const [lane, setLane] = useState<KitsLane>(defaultLane);
   const [kits, setKits] = useState<KitPctRow[]>(initialKits || []);
   const [mode, setMode] = useState<Mode>("all");
   const [day, setDay] = useState<string | null>(null);
@@ -103,18 +120,24 @@ export function ProfileKitsCard({ userId, kits: initialKits }: Props) {
     setKits(initialKits || []);
   }, [initialKits, userId]);
 
+  useEffect(() => {
+    if (!allowTr1 && lane !== "PB1") setLane("PB1");
+  }, [allowTr1, lane]);
+
   const load = useCallback(
     async (
       opts: {
         day?: string | null;
         from?: string | null;
         to?: string | null;
+        lane?: KitsLane;
       },
       withDays: boolean
     ) => {
       setLoading(true);
       try {
         const q = new URLSearchParams({ userId });
+        q.set("lane", opts.lane || lane);
         if (opts.day) q.set("day", opts.day);
         if (opts.from) q.set("from", opts.from);
         if (opts.to) q.set("to", opts.to);
@@ -133,12 +156,12 @@ export function ProfileKitsCard({ userId, kits: initialKits }: Props) {
         setLoading(false);
       }
     },
-    [userId]
+    [userId, lane]
   );
 
   useEffect(() => {
-    void load({}, true);
-  }, [load]);
+    void load({ lane }, true);
+  }, [load, lane]);
 
   useEffect(() => {
     return subscribeLive("/api/live/me", "user", (raw) => {
@@ -287,7 +310,37 @@ export function ProfileKitsCard({ userId, kits: initialKits }: Props) {
       }
     >
       <div className="profile-kv-head">
-        <h2>Роли</h2>
+        <div className="profile-kits-title-row">
+          <h2>Роли</h2>
+          {allowTr1 ? (
+            <div
+              className="training-server-toggle profile-kits-lane-toggle"
+              role="group"
+              aria-label="Сервер ролей"
+            >
+              <button
+                type="button"
+                className={`btn ghost${lane === "TR1" ? " active" : ""}`}
+                aria-pressed={lane === "TR1"}
+                onClick={() => setLane("TR1")}
+                title="Тренировка TR1"
+              >
+                TR1
+              </button>
+              <button
+                type="button"
+                className={`btn ghost${lane === "PB1" ? " active" : ""}`}
+                aria-pressed={lane === "PB1"}
+                onClick={() => setLane("PB1")}
+                title="Паблик PB1"
+              >
+                PB1
+              </button>
+            </div>
+          ) : (
+            <span className="muted profile-kits-lane-label">PB1</span>
+          )}
+        </div>
         <div className="profile-kits-filter" ref={wrapRef}>
           <button
             type="button"
@@ -386,12 +439,15 @@ export function ProfileKitsCard({ userId, kits: initialKits }: Props) {
 
       <p className="muted profile-kits-period">
         {loading ? "Обновляем…" : periodLabel}
-        {!loading ? " · 21:30–01:00 МСК" : ""}
+        {!loading && lane === "TR1" ? " · 21:30–01:00 МСК" : ""}
+        {!loading && lane === "PB1" ? " · PB1 · весь день" : ""}
       </p>
 
       {kits.length === 0 ? (
         <p className="muted profile-kits-empty">
-          Пока нет стандартных китов на TR1 в боевое окно (21:30–01:00 МСК) за этот период.
+          {lane === "PB1"
+            ? "Пока нет стандартных китов на PB1 за этот период."
+            : "Пока нет стандартных китов на TR1 в боевое окно (21:30–01:00 МСК) за этот период."}
         </p>
       ) : (
         <div className="profile-kits-body">

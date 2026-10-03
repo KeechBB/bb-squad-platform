@@ -9,7 +9,10 @@ import {
   isRoleCombatWindowMsk,
   type SquadRoleIngestEvent,
 } from "@/lib/squadRoles";
-import { isTrainingServerKey } from "@/lib/squadServers";
+import {
+  isPublicServerKey,
+  isTrainingServerKey,
+} from "@/lib/squadServers";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -104,19 +107,24 @@ export async function POST(req: Request) {
       skipped += 1;
       continue;
     }
-    // Только боевое окно 21:30–01:00 МСК (без разминки/брифинга).
-    if (!isRoleCombatWindowMsk(at)) {
-      skipped += 1;
-      continue;
-    }
     const roleRaw = String(raw.role || "").trim();
     const kit = kitFromDeployRole(roleRaw);
     if (!kit) {
       skipped += 1;
       continue;
     }
-    const serverKey = (raw.serverKey || defaultServer).trim() || defaultServer;
-    if (!isTrainingServerKey(serverKey)) {
+    let serverKey = (raw.serverKey || defaultServer).trim() || defaultServer;
+    const isTraining = isTrainingServerKey(serverKey);
+    const isPublic = isPublicServerKey(serverKey);
+    if (!isTraining && !isPublic) {
+      skipped += 1;
+      continue;
+    }
+    if (isPublic) {
+      serverKey = "TPUB1";
+    }
+    // TR1/TR2 — только боевое окно 21:30–01:00 МСК; PB1 — весь день.
+    if (isTraining && !isRoleCombatWindowMsk(at)) {
       skipped += 1;
       continue;
     }

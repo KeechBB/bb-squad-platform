@@ -29,8 +29,18 @@ export function ProfilePublicRatingCard({
     (combat &&
       (combat.matches > 0 ||
         combat.days > 0 ||
+        combat.kills > 0 ||
+        combat.deaths > 0 ||
         medals > 0 ||
         combat.antiDeath > 0));
+  const winPct =
+    combat?.winrate != null ? Math.round(combat.winrate) : null;
+  const kd =
+    combat?.kd != null
+      ? Number(combat.kd).toLocaleString("ru-RU", {
+          maximumFractionDigits: 2,
+        })
+      : "—";
 
   return (
     <section className="card profile-pwr-card profile-public-rating-card">
@@ -57,16 +67,20 @@ export function ProfilePublicRatingCard({
           </div>
           <div className="profile-kv-extra profile-pwr-meta profile-pwr-meta-2">
             <div>
-              <span className="muted">Каток</span>
-              <strong>{combat?.matches ?? 0}</strong>
+              <span className="muted">Убийства</span>
+              <strong>{combat?.kills ?? 0}</strong>
             </div>
             <div>
-              <span className="muted">MVP</span>
-              <strong>{medals}</strong>
+              <span className="muted">Смерти</span>
+              <strong>{combat?.deaths ?? 0}</strong>
             </div>
             <div>
-              <span className="muted">Дней PB1</span>
-              <strong>{combat?.days ?? 0}</strong>
+              <span className="muted">KD</span>
+              <strong>{kd}</strong>
+            </div>
+            <div>
+              <span className="muted">% побед</span>
+              <strong>{winPct == null ? "—" : `${winPct}%`}</strong>
             </div>
           </div>
           <div className="profile-kv-awards">
@@ -86,7 +100,7 @@ export function ProfilePublicRatingCard({
         </>
       ) : (
         <p className="muted" style={{ margin: "8px 0 0", lineHeight: 1.45 }}>
-          PB1 · RP и MVP появятся после каток паблика (без SEED).
+          PB1 · RP и стата появятся после каток паблика (без SEED).
         </p>
       )}
 

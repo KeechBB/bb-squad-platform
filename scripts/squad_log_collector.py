@@ -38,11 +38,12 @@ from typing import Any
 import paramiko
 import requests
 
-# Join/leave со всех SQUAD_SERVERS; hits + DeployRole — только тренировочные
-# (мод BBHitZone / учёт китов как на TR1).
+# Join/leave со всех SQUAD_SERVERS; hits — только тренировочные (BBHitZone).
+# DeployRole / киты — TR1/TR2 + паблик PB1.
 TRAINING_HIT_ROLE_SERVERS = frozenset({"TR1", "TR2"})
 # История матчей паблика — только PB1/TPUB1 (SEED отфильтровываем).
 PUBLIC_MATCH_SERVERS = frozenset({"TPUB1", "PB1", "PUB"})
+ROLE_SERVERS = TRAINING_HIT_ROLE_SERVERS | PUBLIC_MATCH_SERVERS
 
 # Name may contain spaces; passworded servers append ?PASSWORD=… before userId.
 LOGIN_RE = re.compile(
@@ -511,7 +512,7 @@ class Collector:
     ) -> dict[str, Any] | None:
         if "DeployRole=" not in line:
             return None
-        if server_key not in TRAINING_HIT_ROLE_SERVERS:
+        if server_key not in ROLE_SERVERS:
             return None
         dm = DEPLOY_RE.search(line)
         if not dm:

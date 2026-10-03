@@ -32,6 +32,7 @@ import { ProfileCompareCard } from "@/components/ProfileCompareCard";
 import { ProfileCareerCard } from "@/components/ProfileCareerCard";
 import { bonesForUser, filterTrainHistoryWithHitLogs } from "@/lib/squadHits";
 import { kitsForUser } from "@/lib/squadRoles";
+import { isBlackberryClanMember } from "@/lib/blackberryClan";
 import {
   buildPlayerCareerFeed,
   emptyPlayerCareerFeed,
@@ -71,6 +72,9 @@ export default async function ProfilePage() {
   });
 
   if (!me) redirect("/");
+
+  const isBb = await isBlackberryClanMember(me.steamId);
+  const kitsLane = isBb ? "TR1" : "PB1";
 
   const invites =
     me.clanInvites.map((inv) => ({
@@ -156,7 +160,10 @@ export default async function ProfilePage() {
       total: 0,
       lastBone: null as string | null,
     })),
-    kitsForUser(me.id).catch(() => ({ kits: [], total: 0 })),
+    kitsForUser(me.id, { lane: kitsLane }).catch(() => ({
+      kits: [],
+      total: 0,
+    })),
     nickForKv
       ? buildPlayerCareerFeed(nickForKv).catch(() => emptyPlayerCareerFeed(nickForKv))
       : Promise.resolve(emptyPlayerCareerFeed()),
@@ -173,19 +180,14 @@ export default async function ProfilePage() {
     <main className="profile-page">
       <div className="profile-area-head">
         <div className="profile-head-cluster">
-          <div className="profile-avatar-stack">
-            <AvatarEditor
-              nick={me.nick || u.nick || "Игрок"}
-              name={me.name || u.name || ""}
-              initialAvatar={displayAvatar}
-              steamAvatar={u.steamAvatar || null}
-              adminLink={<AdminPanelLink initialAdmin={admin} />}
-              lastSeenAt={me.lastSeenAt}
-            />
-            {nickForKv ? (
-              <ProfileCompareCard myNick={nickForKv} variant="inline" />
-            ) : null}
-          </div>
+          <AvatarEditor
+            nick={me.nick || u.nick || "Игрок"}
+            name={me.name || u.name || ""}
+            initialAvatar={displayAvatar}
+            steamAvatar={u.steamAvatar || null}
+            adminLink={<AdminPanelLink initialAdmin={admin} />}
+            lastSeenAt={me.lastSeenAt}
+          />
           <ProfileTrainPwrCard stats={trainPwr} />
           <ProfilePublicRatingCard
             nick={nickForKv}
@@ -194,7 +196,15 @@ export default async function ProfilePage() {
             rankKey={publicRp?.rankKey ?? null}
             combat={publicCombat}
           />
-          <ProfileKitsCard userId={me.id} kits={kits.kits} />
+          <ProfileKitsCard
+            userId={me.id}
+            kits={kits.kits}
+            allowTr1={isBb}
+            initialLane={kitsLane}
+          />
+          {nickForKv ? (
+            <ProfileCompareCard myNick={nickForKv} variant="inline" />
+          ) : null}
           {nickForKv ? <ProfileCareerCard feed={careerFeed} self /> : null}
           <ClanInvites initial={invites} />
         </div>

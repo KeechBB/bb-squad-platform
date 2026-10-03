@@ -2,7 +2,8 @@
 
 Читает `SquadGame.log` по SSH и шлёт:
 - join/leave → `POST /api/ingest/squad-sessions` (PB1 — все Steam; TR1/TR2 — только зареганные)
-- `BBHitZone:` / DeployRole (только TR1/TR2) → hits / roles ingest
+- `BBHitZone:` (только TR1/TR2) → hits ingest
+- DeployRole → roles ingest (TR1/TR2 + PB1/TPUB1)
 - конец матча паблика (`LogSquadGameEvents` won/lost, без SEED) → `POST /api/ingest/public-matches`
 
 Хитмап в профиле = кости, куда стрелял этот игрок (атакующий).

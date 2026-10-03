@@ -86,31 +86,33 @@ function RpRankScale() {
           const bandMin = min + romanIdx * RP_STEP;
           const bandMax = bandMin + RP_STEP - 1;
           return (
-            <span key={key} className="public-rp-scale-step">
-              <span className="public-rp-scale-range">
-                {bandMin}–{bandMax}
-              </span>
-              <span className={`home-pwr-badge rank-${key} public-rp-scale-badge`}>
-                {name.toUpperCase()} {roman[romanIdx]}
-              </span>
-              <span className="public-rp-scale-tier-btns" role="group">
-                {roman.map((r, ri) => (
-                  <button
-                    key={r}
-                    type="button"
-                    className={`public-rp-scale-tier-btn${ri === romanIdx ? " is-active" : ""}`}
-                    aria-pressed={ri === romanIdx}
-                    onClick={() => setRomanIdx(ri)}
-                  >
-                    {ri + 1}
-                  </button>
-                ))}
-              </span>
-              {bi < RP_BANDS.length - 1 ? (
-                <span className="public-rp-scale-arrow" aria-hidden>
-                  →
+            <span key={key} className="public-rp-scale-step-wrap">
+              <span className="public-rp-scale-step">
+                <span className="public-rp-scale-range">
+                  {bandMin}–{bandMax}
                 </span>
-              ) : null}
+                <span
+                  className={`home-pwr-badge rank-${key} public-rp-scale-badge`}
+                >
+                  {name.toUpperCase()} {roman[romanIdx]}
+                </span>
+                <span className="public-rp-scale-tier-btns" role="group">
+                  {roman.map((r, ri) => (
+                    <button
+                      key={r}
+                      type="button"
+                      className={`public-rp-scale-tier-btn${ri === romanIdx ? " is-active" : ""}`}
+                      aria-pressed={ri === romanIdx}
+                      onClick={() => setRomanIdx(ri)}
+                    >
+                      {ri + 1}
+                    </button>
+                  ))}
+                </span>
+              </span>
+              <span className="public-rp-scale-arrow" aria-hidden>
+                →
+              </span>
             </span>
           );
         })}
@@ -118,6 +120,8 @@ function RpRankScale() {
           <span className="public-rp-scale-range">4501+</span>
           <span className="home-pwr-badge rank-predator public-rp-scale-badge">
             PREDATOR
+            <br />
+            <small>#</small>
           </span>
         </span>
       </div>
@@ -211,6 +215,54 @@ export function PublicRatingClient({
       return a.nick.localeCompare(b.nick, "ru");
     });
   }, [rows, q, sortKey, sortDir]);
+
+  const records = useMemo(() => {
+    const maxOf = (pick: (r: PublicCombatRow) => number | null | undefined) => {
+      let max = 0;
+      for (const r of view) {
+        const v = Number(pick(r));
+        if (Number.isFinite(v) && v > max) max = v;
+      }
+      return max;
+    };
+    return {
+      rp: maxOf((r) => (r.rp == null ? 0 : Math.round(r.rp))),
+      games: maxOf((r) => r.games),
+      winPct: maxOf((r) => r.winPct),
+      res: maxOf((r) => r.res),
+      nok: maxOf((r) => r.nok),
+      kills: maxOf((r) => r.kills),
+      deaths: maxOf((r) => r.deaths),
+      kd: maxOf((r) => r.kd),
+      dmg: maxOf((r) => r.dmg),
+      mvpMedic: maxOf((r) => r.mvpMedic),
+      mvpKiller: maxOf((r) => r.mvpKiller),
+      mvpDamage: maxOf((r) => r.mvpDamage),
+      antiDeath: maxOf((r) => r.antiDeath),
+    };
+  }, [view]);
+
+  function recordCls(
+    value: number | null | undefined,
+    max: number,
+    extra = ""
+  ): string {
+    const v = Number(value) || 0;
+    const isRec = max > 0 && v === max;
+    return [extra, isRec ? "record" : ""].filter(Boolean).join(" ");
+  }
+
+  function mvpCls(
+    value: number,
+    kind: "medic" | "killer" | "war" | "anti",
+    max: number
+  ): string {
+    const base = `ctr col-mvp-${kind}`;
+    const v = Number(value) || 0;
+    if (max > 0 && v === max) return `${base} record`;
+    if (v > 0) return `${base} has-mvp`;
+    return base;
+  }
 
   const matchView = useMemo(() => {
     const needle = mq.trim().toLowerCase();
@@ -405,9 +457,8 @@ export function PublicRatingClient({
             </p>
             <p>
               <strong>MVP Medic / Killer / War-Score</strong> — награды за матч ·{" "}
-              <strong>Anti-MVP</strong> — антинаграда за смерти ·{" "}
-              <strong>Дней PB1</strong> — уникальные календарные дни на паблике (все
-              Steam, даже без регистрации).
+              <strong>Anti-MVP</strong> — антинаграда за смерти. Рекорды в таблице
+              — жёлтым.
             </p>
           </aside>
 
@@ -419,7 +470,7 @@ export function PublicRatingClient({
                     <Th k="place" label="Место" />
                     <Th k="rankLabel" label="Rank" />
                     <Th k="rp" label="RP" />
-                    <Th k="nick" label="Ник" className="" />
+                    <Th k="nick" label="Ник" />
                     <Th k="clan" label="Клан" />
                     <Th k="games" label="Каток" />
                     <Th k="winPct" label="% побед" />
@@ -433,18 +484,19 @@ export function PublicRatingClient({
                     <Th k="mvpKiller" label="MVP Killer" className="ctr col-mvp-killer" />
                     <Th k="mvpDamage" label="MVP War-Score" className="ctr col-mvp-war" />
                     <Th k="antiDeath" label="Anti-MVP" className="ctr col-mvp-anti" />
-                    <Th k="days" label="Дней PB1" />
                   </tr>
                 </thead>
                 <tbody>
                   {view.length === 0 ? (
                     <tr>
-                      <td colSpan={18} className="muted">
+                      <td colSpan={17} className="muted">
                         Пока нет данных с паблика.
                       </td>
                     </tr>
                   ) : (
-                    view.map((r) => (
+                    view.map((r) => {
+                      const rpVal = r.rp == null ? null : Math.round(r.rp);
+                      return (
                       <tr key={r.steamId || r.nick} id={`player-${r.nick}`}>
                         <td className="ctr">{r.place}</td>
                         <td className="ctr">
@@ -452,10 +504,10 @@ export function PublicRatingClient({
                             {r.rankLabel}
                           </span>
                         </td>
-                        <td className="ctr">
-                          {r.rp == null ? "—" : Math.round(r.rp)}
+                        <td className={recordCls(rpVal, records.rp, "ctr")}>
+                          {rpVal == null ? "—" : rpVal}
                         </td>
-                        <td>
+                        <td className="ctr">
                           {r.hasProfile ? (
                             <Link
                               className="kv-link"
@@ -468,23 +520,49 @@ export function PublicRatingClient({
                           )}
                         </td>
                         <td className="ctr">{r.clan}</td>
-                        <td className="ctr">{r.games}</td>
-                        <td className="ctr">
+                        <td className={recordCls(r.games, records.games, "ctr")}>
+                          {r.games}
+                        </td>
+                        <td
+                          className={recordCls(r.winPct, records.winPct, "ctr")}
+                        >
                           {r.winPct == null ? "—" : `${r.winPct}%`}
                         </td>
-                        <td className="ctr">{r.res}</td>
-                        <td className="ctr">{r.nok}</td>
-                        <td className="ctr">{r.kills}</td>
-                        <td className="ctr">{r.deaths}</td>
-                        <td className="ctr">{r.kd}</td>
-                        <td className="ctr">{r.dmg.toLocaleString("ru-RU")}</td>
-                        <td className="ctr col-mvp-medic">{r.mvpMedic}</td>
-                        <td className="ctr col-mvp-killer">{r.mvpKiller}</td>
-                        <td className="ctr col-mvp-war">{r.mvpDamage}</td>
-                        <td className="ctr col-mvp-anti">{r.antiDeath}</td>
-                        <td className="ctr">{r.days}</td>
+                        <td className={recordCls(r.res, records.res, "ctr")}>
+                          {r.res}
+                        </td>
+                        <td className={recordCls(r.nok, records.nok, "ctr")}>
+                          {r.nok}
+                        </td>
+                        <td className={recordCls(r.kills, records.kills, "ctr")}>
+                          {r.kills}
+                        </td>
+                        <td
+                          className={recordCls(r.deaths, records.deaths, "ctr")}
+                        >
+                          {r.deaths}
+                        </td>
+                        <td className={recordCls(r.kd, records.kd, "ctr")}>
+                          {r.kd}
+                        </td>
+                        <td className={recordCls(r.dmg, records.dmg, "ctr")}>
+                          {r.dmg.toLocaleString("ru-RU")}
+                        </td>
+                        <td className={mvpCls(r.mvpMedic, "medic", records.mvpMedic)}>
+                          {r.mvpMedic}
+                        </td>
+                        <td className={mvpCls(r.mvpKiller, "killer", records.mvpKiller)}>
+                          {r.mvpKiller}
+                        </td>
+                        <td className={mvpCls(r.mvpDamage, "war", records.mvpDamage)}>
+                          {r.mvpDamage}
+                        </td>
+                        <td className={mvpCls(r.antiDeath, "anti", records.antiDeath)}>
+                          {r.antiDeath}
+                        </td>
                       </tr>
-                    ))
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -548,13 +626,13 @@ export function PublicRatingClient({
                   <tr>
                     <MTh k="date" label="Дата" />
                     <MTh k="time" label="Время" />
-                    <MTh k="mapName" label="Карта" className="" />
+                    <MTh k="mapName" label="Карта" />
                     <MTh k="serverLabel" label="Сервер" />
-                    <MTh k="faction1" label="Фракция 1" className="" />
+                    <MTh k="faction1" label="Фракция 1" />
                     <MTh k="score1" label="Счёт 1" />
-                    <MTh k="faction2" label="Фракция 2" className="" />
+                    <MTh k="faction2" label="Фракция 2" />
                     <MTh k="score2" label="Счёт 2" />
-                    <MTh k="winnerName" label="Победитель" className="" />
+                    <MTh k="winnerName" label="Победитель" />
                   </tr>
                 </thead>
                 <tbody>
@@ -580,13 +658,19 @@ export function PublicRatingClient({
                         <tr key={m.id}>
                           <td className="ctr">{p.date}</td>
                           <td className="ctr">{p.time}</td>
-                          <td title={m.layerName || undefined}>{m.mapName}</td>
+                          <td className="ctr" title={m.layerName || undefined}>
+                            {m.mapName}
+                          </td>
                           <td className="ctr">{m.serverLabel}</td>
-                          <td title={m.faction1}>{f1}</td>
+                          <td className="ctr" title={m.faction1}>
+                            {f1}
+                          </td>
                           <td className="ctr">{m.score1}</td>
-                          <td title={m.faction2}>{f2}</td>
+                          <td className="ctr" title={m.faction2}>
+                            {f2}
+                          </td>
                           <td className="ctr">{m.score2}</td>
-                          <td>
+                          <td className="ctr">
                             <span className="public-match-winner">{winLabel}</span>
                           </td>
                         </tr>

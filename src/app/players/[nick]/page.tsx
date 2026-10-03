@@ -30,6 +30,7 @@ import { ProfileKitsCard } from "@/components/ProfileKitsCard";
 import { ProfileCareerCard } from "@/components/ProfileCareerCard";
 import { bonesForUser, filterTrainHistoryWithHitLogs } from "@/lib/squadHits";
 import { kitsForUser } from "@/lib/squadRoles";
+import { isBlackberryClanMember } from "@/lib/blackberryClan";
 import {
   buildPlayerCareerFeed,
   emptyPlayerCareerFeed,
@@ -102,6 +103,8 @@ export default async function PlayerProfilePage({ params }: Props) {
   const avatar = withAvatarCacheBust(user.avatarUrl, user.updatedAt);
   const inReserve = isActiveReserve(user.reserveUntil);
   const nickForKv = user.nick || "";
+  const isBb = await isBlackberryClanMember(user.steamId);
+  const kitsLane = isBb ? "TR1" : "PB1";
 
   const clans = user.clanMemberships.map((m) => ({
     id: m.clan.id,
@@ -175,7 +178,10 @@ export default async function PlayerProfilePage({ params }: Props) {
       total: 0,
       lastBone: null as string | null,
     })),
-    kitsForUser(user.id).catch(() => ({ kits: [], total: 0 })),
+    kitsForUser(user.id, { lane: kitsLane }).catch(() => ({
+      kits: [],
+      total: 0,
+    })),
     nickForKv
       ? buildPlayerCareerFeed(nickForKv).catch(() => emptyPlayerCareerFeed(nickForKv))
       : Promise.resolve(emptyPlayerCareerFeed()),
@@ -245,7 +251,12 @@ export default async function PlayerProfilePage({ params }: Props) {
             rankKey={publicRp?.rankKey ?? null}
             combat={publicCombat}
           />
-          <ProfileKitsCard userId={user.id} kits={kits.kits} />
+          <ProfileKitsCard
+            userId={user.id}
+            kits={kits.kits}
+            allowTr1={isBb}
+            initialLane={kitsLane}
+          />
           {nickForKv ? <ProfileCareerCard feed={careerFeed} /> : null}
         </div>
       </div>
