@@ -409,6 +409,7 @@ export function PublicRatingClient({
 
       {tab === "rating" ? (
         <>
+          <p className="public-rating-top-label">Top 500</p>
           <RpRankScale />
 
           <div className="public-rating-filters">
@@ -504,12 +505,12 @@ export function PublicRatingClient({
                           </button>
                           {r.hasProfile ? (
                             <Link
-                              className="public-rating-profile-link"
+                              className="public-rating-profile-pill"
                               href={`/players/${encodeURIComponent(r.nick)}`}
-                              title="Профиль на сайте"
+                              title="Открыть профиль на сайте"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              →
+                              profile
                             </Link>
                           ) : null}
                         </td>
@@ -540,7 +541,7 @@ export function PublicRatingClient({
                           {r.kd}
                         </td>
                         <td className={recordCls(r.dmg, records.dmg, "ctr")}>
-                          {r.dmg.toLocaleString("ru-RU")}
+                          {Math.round(r.dmg).toLocaleString("ru-RU")}
                         </td>
                         <td className={mvpCls(r.mvpMedic, "medic", records.mvpMedic)}>
                           {r.mvpMedic}

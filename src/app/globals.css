@@ -411,14 +411,31 @@ svg {
   color: #fff;
   text-decoration-color: rgba(240, 171, 252, 0.85);
 }
-.public-rating-profile-link {
-  margin-left: 6px;
-  font-size: 0.78rem;
-  color: rgba(167, 139, 250, 0.75);
+.public-rating-profile-link,
+.public-rating-profile-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 7px;
+  padding: 1px 8px 2px;
+  border-radius: 999px;
+  border: 1px solid rgba(192, 132, 252, 0.55);
+  background: rgba(124, 58, 237, 0.28);
+  color: #f3e8ff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  line-height: 1.25;
   text-decoration: none;
+  vertical-align: middle;
+  white-space: nowrap;
+  box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.12);
 }
-.public-rating-profile-link:hover {
-  color: #f0abfc;
+.public-rating-profile-link:hover,
+.public-rating-profile-pill:hover {
+  color: #fff;
+  border-color: rgba(240, 171, 252, 0.85);
+  background: rgba(167, 139, 250, 0.42);
 }
 
 .public-rating-search {
