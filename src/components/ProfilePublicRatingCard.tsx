@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { PlayerPublicCombatStats } from "@/lib/publicCombat";
 import type { RpPlayerMatch } from "@/lib/trainRp";
@@ -198,9 +197,6 @@ export function ProfilePublicRatingCard({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [matchOpen, setMatchOpen] = useState<RpPlayerMatch | null>(null);
-  const href = nick
-    ? `/public#player-${encodeURIComponent(nick)}`
-    : "/public";
   const medals =
     (combat?.mvpDamage || 0) +
     (combat?.mvpKiller || 0) +
@@ -234,9 +230,6 @@ export function ProfilePublicRatingCard({
       <section className="card profile-pwr-card profile-public-rating-card">
         <div className="profile-kv-head">
           <h2>Рейтинг паблика</h2>
-          <Link className="kv-link" href={href}>
-            Открыть →
-          </Link>
         </div>
 
         {hasAny ? (

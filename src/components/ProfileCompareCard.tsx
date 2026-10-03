@@ -737,7 +737,7 @@ function HitmapSide({
 
 type CompareProps = Props & {
   /** inline — только кнопка у аватара; card — отдельная колонка (legacy) */
-  variant?: "inline" | "card";
+  variant?: "inline" | "card" | "stack";
 };
 
 export function ProfileCompareCard({
@@ -963,13 +963,15 @@ export function ProfileCompareCard({
     <button
       type="button"
       className={
-        variant === "inline"
-          ? "profile-compare-open-btn profile-compare-open-btn-inline"
-          : "profile-compare-open-btn"
+        variant === "stack"
+          ? "profile-rp-detail-btn profile-compare-stack-btn"
+          : variant === "inline"
+            ? "profile-compare-open-btn profile-compare-open-btn-inline"
+            : "profile-compare-open-btn"
       }
       onClick={() => setOpen(true)}
     >
-      Сравнить игроков
+      сравнить игроков
     </button>
   );
 
@@ -986,6 +988,8 @@ export function ProfileCompareCard({
           </p>
           {openBtn}
         </section>
+      ) : variant === "stack" ? (
+        openBtn
       ) : (
         <div className="profile-compare-inline">{openBtn}</div>
       )}

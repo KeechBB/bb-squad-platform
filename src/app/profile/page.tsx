@@ -28,7 +28,6 @@ import {
 import { buildPlayerCwMatchHistory } from "@/lib/homeCwPwr";
 import { ProfileTrainPwrCard } from "@/components/ProfileTrainPwrCard";
 import { ProfileKitsCard } from "@/components/ProfileKitsCard";
-import { ProfileCompareCard } from "@/components/ProfileCompareCard";
 import { ProfileCareerCard } from "@/components/ProfileCareerCard";
 import { bonesForUser, filterTrainHistoryWithHitLogs } from "@/lib/squadHits";
 import { kitsForUser } from "@/lib/squadRoles";
@@ -189,7 +188,10 @@ export default async function ProfilePage() {
               adminLink={<AdminPanelLink initialAdmin={admin} />}
               lastSeenAt={me.lastSeenAt}
             />
-            <ProfileTrainPwrCard stats={trainPwr} />
+            <ProfileTrainPwrCard
+              stats={trainPwr}
+              compareNick={nickForKv}
+            />
             <ProfilePublicRatingCard
               nick={nickForKv}
               rp={publicRp?.rp ?? null}
@@ -204,9 +206,6 @@ export default async function ProfilePage() {
               allowTr1={isBb}
               initialLane={kitsLane}
             />
-            {nickForKv ? (
-              <ProfileCompareCard myNick={nickForKv} variant="inline" />
-            ) : null}
             <ClanInvites initial={invites} />
           </div>
           {nickForKv ? <ProfileCareerCard feed={careerFeed} self /> : null}

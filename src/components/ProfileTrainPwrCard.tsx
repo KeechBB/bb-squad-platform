@@ -1,12 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { HomeTrainPwrRow } from "@/lib/homeTrainPwr";
 import type { RpPlayerMatch } from "@/lib/trainRp";
+import { ProfileCompareCard } from "@/components/ProfileCompareCard";
 
 type Props = {
   stats: HomeTrainPwrRow | null;
+  compareNick?: string | null;
 };
 
 function fmtDelta(n: number) {
@@ -185,27 +186,29 @@ function MatchBreakdown({
   );
 }
 
-export function ProfileTrainPwrCard({ stats }: Props) {
+export function ProfileTrainPwrCard({ stats, compareNick }: Props) {
   const [open, setOpen] = useState(false);
   const [matchOpen, setMatchOpen] = useState<RpPlayerMatch | null>(null);
   const matches = useMemo(
     () => (stats?.matches ? [...stats.matches].reverse() : []),
     [stats]
   );
+  const compare =
+    compareNick ? (
+      <ProfileCompareCard myNick={compareNick} variant="stack" />
+    ) : null;
 
   if (!stats) {
     return (
       <section className="card profile-pwr-card">
         <div className="profile-kv-head">
           <h2>Ранг тренировок</h2>
-          <Link className="kv-link" href="/tm#/tm/rating">
-            Рейтинг →
-          </Link>
         </div>
         <p className="muted" style={{ margin: "8px 0 0", lineHeight: 1.45 }}>
           Пока нет статы в тренировочных матчах — RP появится после каток с
           give-up киллами.
         </p>
+        {compare}
       </section>
     );
   }
@@ -217,9 +220,6 @@ export function ProfileTrainPwrCard({ stats }: Props) {
       <section className="card profile-pwr-card">
         <div className="profile-kv-head">
           <h2>Ранг тренировок</h2>
-          <Link className="kv-link" href="/tm#/tm/rating">
-            Рейтинг →
-          </Link>
         </div>
 
         <div className="profile-pwr-hero">
@@ -256,6 +256,7 @@ export function ProfileTrainPwrCard({ stats }: Props) {
         >
           детальный разбор
         </button>
+        {compare}
       </section>
 
       {open ? (
