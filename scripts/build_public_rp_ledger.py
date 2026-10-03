@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -29,7 +30,10 @@ PLATFORM = HERE.parent
 CACHE = HERE / "_tmp_tpub1_logs_cache"
 OUT_PRIMARY = PLATFORM / "data" / "public" / "rp-ledger.json"
 OUT_KV = PLATFORM.parent / "KV" / "public" / "data" / "public" / "rp-ledger.json"
+HISTORY_CACHE = PLATFORM / "data" / "public" / "match-history.json"
 TIERS = PLATFORM.parent / "KV" / "public" / "data" / "tiers.json"
+# Rating starts from this date (MSK calendar day). Older log matches are ignored.
+PUBLIC_RP_EPOCH = (os.environ.get("PUBLIC_RP_EPOCH") or "2026-10-03").strip()
 # Keep rebuilds tractable on large daily logs (rolling window).
 MATCH_LOOKBACK_DAYS = int(os.environ.get("PUBLIC_RP_LOOKBACK_DAYS") or "14")
 
@@ -203,6 +207,189 @@ def get_log_index(
     return cache[key]
 
 
+def load_history_matches() -> list[dict]:
+    """PublicMatch history — Neon/VPS DATABASE_URL or data/public/match-history.json."""
+    rows: list[dict] = []
+    db = (os.environ.get("DATABASE_URL") or "").strip().strip("'").strip('"')
+    if db:
+        try:
+            import psycopg2
+
+            conn = psycopg2.connect(db)
+            cur = conn.cursor()
+            cur.execute(
+                """
+                select "endedAt", "mapName", "layerName", score1, score2,
+                       "winnerTeam", "winnerName", "serverKey"
+                from "PublicMatch"
+                where "serverKey" in ('TPUB1','PB1','PUB')
+                order by "endedAt" asc
+                """
+            )
+            for ended, map_name, layer, s1, s2, wt, wn, sk in cur.fetchall():
+                rows.append(
+                    {
+                        "endedAt": ended if isinstance(ended, datetime) else datetime.fromisoformat(str(ended)),
+                        "mapName": map_name or "",
+                        "layerName": layer or "",
+                        "score1": int(s1 or 0),
+                        "score2": int(s2 or 0),
+                        "winnerTeam": str(wt) if wt is not None else None,
+                        "winnerName": wn or "",
+                        "serverKey": sk or "TPUB1",
+                    }
+                )
+            conn.close()
+            if rows:
+                print(f"history from DB: {len(rows)}", flush=True)
+                try:
+                    HISTORY_CACHE.parent.mkdir(parents=True, exist_ok=True)
+                    HISTORY_CACHE.write_text(
+                        json.dumps(
+                            {
+                                "updatedAt": datetime.now(timezone.utc).isoformat(),
+                                "matches": [
+                                    {
+                                        "endedAt": r["endedAt"].isoformat() + "Z",
+                                        "mapName": r["mapName"],
+                                        "layerName": r["layerName"],
+                                        "score1": r["score1"],
+                                        "score2": r["score2"],
+                                        "winnerTeam": int(r["winnerTeam"])
+                                        if r["winnerTeam"]
+                                        else None,
+                                        "winnerName": r["winnerName"],
+                                        "serverKey": r["serverKey"],
+                                    }
+                                    for r in rows
+                                ],
+                            },
+                            ensure_ascii=False,
+                            indent=2,
+                        )
+                        + "\n",
+                        encoding="utf-8",
+                    )
+                except Exception as e:
+                    print(f"history cache write skip: {e}", flush=True)
+                return rows
+        except Exception as e:
+            print(f"history DB skip: {type(e).__name__}: {e}", flush=True)
+
+    if HISTORY_CACHE.is_file():
+        try:
+            raw = json.loads(HISTORY_CACHE.read_text(encoding="utf-8"))
+            items = (
+                raw.get("matches")
+                if isinstance(raw, dict)
+                else raw
+                if isinstance(raw, list)
+                else []
+            ) or []
+            for h in items:
+                ended = h.get("endedAt") or h.get("ended_at")
+                if not ended:
+                    continue
+                if isinstance(ended, str):
+                    ended_dt = datetime.fromisoformat(ended.replace("Z", "+00:00"))
+                else:
+                    continue
+                if ended_dt.tzinfo is None:
+                    ended_dt = ended_dt.replace(tzinfo=timezone.utc)
+                rows.append(
+                    {
+                        "endedAt": ended_dt.astimezone(timezone.utc).replace(tzinfo=None),
+                        "mapName": h.get("mapName") or h.get("map") or "",
+                        "layerName": h.get("layerName") or h.get("layer") or "",
+                        "score1": int(h.get("score1") or 0),
+                        "score2": int(h.get("score2") or 0),
+                        "winnerTeam": str(h["winnerTeam"])
+                        if h.get("winnerTeam") is not None
+                        else None,
+                        "winnerName": h.get("winnerName") or "",
+                        "serverKey": h.get("serverKey") or "TPUB1",
+                    }
+                )
+            if rows:
+                print(f"history from {HISTORY_CACHE.name}: {len(rows)}", flush=True)
+        except Exception as e:
+            print(f"history JSON skip: {e}", flush=True)
+    return rows
+
+
+def _map_blob(m: dict) -> str:
+    return " ".join(
+        str(x or "").lower()
+        for x in (m.get("map"), m.get("level"), m.get("layerName"), m.get("mapName"))
+    )
+
+
+def match_in_history(m: dict, history: list[dict]) -> dict | None:
+    """Link a log-discovered match to a PublicMatch history row."""
+    if not history:
+        return None
+    end = m["end"]
+    if end.tzinfo is not None:
+        end = end.astimezone(timezone.utc).replace(tzinfo=None)
+    blob = _map_blob(m)
+    best = None
+    best_dt = 10**9
+    for h in history:
+        hend = h["endedAt"]
+        if hend.tzinfo is not None:
+            hend = hend.astimezone(timezone.utc).replace(tzinfo=None)
+        dt = abs((end - hend).total_seconds())
+        if dt > 20 * 60:
+            continue
+        hmap = (h.get("mapName") or "").lower()
+        hlayer = (h.get("layerName") or "").lower()
+        if hmap and hmap not in blob and not any(
+            tok and tok in blob for tok in hmap.replace("-", " ").split()
+        ):
+            # layer still ok
+            if hlayer and hlayer.lower() not in blob and not any(
+                t and t in blob for t in re.split(r"[\s_]+", hlayer) if len(t) > 3
+            ):
+                continue
+        if h.get("score1") is not None and m.get("score1") is not None:
+            if int(h["score1"]) != int(m["score1"]) or int(h["score2"]) != int(
+                m.get("score2") or 0
+            ):
+                continue
+        if dt < best_dt:
+            best_dt = dt
+            best = h
+    return best
+
+
+def filter_matches_to_history(matches: list[dict], history: list[dict]) -> list[dict]:
+    """Only matches that exist in site history AND on/after PUBLIC_RP_EPOCH."""
+    epoch = PUBLIC_RP_EPOCH
+    if not history:
+        print(
+            "WARNING: no PublicMatch history — refusing to score log-only matches",
+            flush=True,
+        )
+        return []
+    out: list[dict] = []
+    for m in matches:
+        if m.get("date") and m["date"] < epoch:
+            continue
+        hit = match_in_history(m, history)
+        if not hit:
+            print(
+                f"skip (not in history): {m['id']} {m.get('map')} "
+                f"scores={m.get('score1')}:{m.get('score2')}",
+                flush=True,
+            )
+            continue
+        m = dict(m)
+        m["historyEndedAt"] = hit["endedAt"].isoformat()
+        m["historyWinner"] = hit.get("winnerName")
+        out.append(m)
+    return out
+
+
 def process_match(
     m: dict,
     steam_to_nick: dict[str, str],
@@ -221,11 +408,13 @@ def process_match(
     t0, t1 = m["start"], m["end"]
     faction_to_team = m.get("factionToTeam") or {}
     teams = R.teams_in_window(idx, t0, t1, faction_to_team)
-    dies, nok_n = R.dies_in_window(idx, t0, t1, steam_to_nick, aliases)
+    dies, noks = R.dies_in_window(idx, t0, t1, steam_to_nick, aliases)
     revives = R.revives_in_window(idx, t0, t1)
 
     events: list[dict] = []
     net: dict[str, float] = {}
+    dmg_by: dict[str, float] = {}
+    combatants: set[str] = set()
     die_n = tk_n = rev_n = 0
 
     def ensure(key: str, nick: str) -> None:
@@ -233,6 +422,7 @@ def process_match(
         if ck not in disp:
             disp[ck] = nick
         rp.setdefault(ck, R.START_RP)
+        combatants.add(ck)
 
     for d in dies:
         kk, vk = d["killerKey"], d["victimKey"]
@@ -240,6 +430,8 @@ def process_match(
             continue
         ensure(kk, d["killer"])
         ensure(vk, d["victim"])
+        dmg = float(d.get("dmg") or 0)
+        dmg_by[kk] = round(dmg_by.get(kk, 0.0) + dmg, 1)
         pmax = max(rp.values()) if rp else R.START_RP
         pmax = max(pmax, R.START_RP)
         pk = rp.get(kk, R.START_RP)
@@ -260,6 +452,7 @@ def process_match(
                     "killerPwr": round(pk, 1),
                     "victimPwr": round(pv, 1),
                     "delta": delta,
+                    "dmg": dmg,
                     "teamkill": True,
                 }
             )
@@ -278,10 +471,32 @@ def process_match(
                     "killerPwr": round(pk, 1),
                     "victimPwr": round(pv, 1),
                     "delta": delta,
+                    "dmg": dmg,
                     "teamkill": False,
                 }
             )
             die_n += 1
+
+    for d in noks:
+        kk, vk = d["killerKey"], d["victimKey"]
+        if not kk or not vk or kk == vk or kk.startswith("?"):
+            continue
+        ensure(kk, d["killer"])
+        ensure(vk, d["victim"])
+        net.setdefault(kk, 0.0)
+        net.setdefault(vk, 0.0)
+        dmg = float(d.get("dmg") or 0)
+        dmg_by[kk] = round(dmg_by.get(kk, 0.0) + dmg, 1)
+        events.append(
+            {
+                "kind": "nok",
+                "time": d["at_msk"],
+                "killer": disp.get(kk, d["killer"]),
+                "victim": disp.get(vk, d["victim"]),
+                "delta": 0,
+                "dmg": dmg,
+            }
+        )
 
     for d in revives:
         kk = R.canon_key(d["killer"], aliases)
@@ -314,13 +529,14 @@ def process_match(
     events.sort(key=lambda e: e["time"])
     winner = m.get("winnerTeam")
 
-    # ensure all combatants in net
-    for k in list(net):
+    for k in combatants:
         rp.setdefault(k, R.START_RP)
+        net.setdefault(k, 0.0)
 
+    nok_n = sum(1 for e in events if e.get("kind") == "nok")
     print(
-        f"{m['id']}: {die_n} Die, {tk_n} TK, {rev_n} rev, nok≈{nok_n}, "
-        f"teams={len(teams)}, players={len(net)}",
+        f"{m['id']}: {die_n} Die, {tk_n} TK, {rev_n} rev, nok={nok_n}, "
+        f"teams={len(teams)}, players={len(combatants)}",
         flush=True,
     )
 
@@ -333,12 +549,16 @@ def process_match(
         "revives": rev_n,
         "nok": nok_n,
         "winnerTeam": winner,
+        "score1": m.get("score1"),
+        "score2": m.get("score2"),
         "events": events,
         "netByNick": {
             disp.get(k, k): v for k, v in sorted(net.items(), key=lambda x: -abs(x[1]))
         },
         "netByKey": net,
+        "dmgByKey": dmg_by,
         "teamsByKey": teams,
+        "combatants": combatants,
     }
 
 
@@ -363,14 +583,27 @@ def main() -> None:
 
     print(f"logs: {len(log_paths)} {[p.name for p in log_paths]}", flush=True)
     matches = R.discover_matches(log_paths)
-    cutoff = datetime.now(timezone.utc) - timedelta(days=MATCH_LOOKBACK_DAYS)
-    matches = [m for m in matches if m["start"] >= cutoff]
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+        days=MATCH_LOOKBACK_DAYS
+    )
+    matches = [m for m in matches if m["start"].replace(tzinfo=None) >= cutoff]
     print(
         f"discovered matches (last {MATCH_LOOKBACK_DAYS}d): {len(matches)}",
         flush=True,
     )
+
+    history = load_history_matches()
+    matches = filter_matches_to_history(matches, history)
+    print(
+        f"after history+epoch({PUBLIC_RP_EPOCH}): {len(matches)} "
+        f"{[m['id'] for m in matches]}",
+        flush=True,
+    )
     if not matches:
-        write_empty("No completed non-SEED matches in available logs")
+        write_empty(
+            "No history-linked public matches since "
+            f"{PUBLIC_RP_EPOCH} in available logs"
+        )
         return
 
     steam_to_nick: dict[str, str] = {}
@@ -406,43 +639,55 @@ def main() -> None:
         info = R.rp_rank(val)
         match_hist = []
         for mb in match_blocks:
-            if k not in mb["netByKey"]:
+            combat_keys = mb.get("combatants") or set(mb["netByKey"])
+            if k not in combat_keys:
                 continue
             team = (mb.get("teamsByKey") or {}).get(k)
             won = None
             if team and mb.get("winnerTeam"):
                 won = team == str(mb["winnerTeam"])
+            kills = [
+                e
+                for e in mb["events"]
+                if e.get("kind") == "die"
+                and R.canon_key(e["killer"], aliases) == k
+            ]
+            deaths = [
+                e
+                for e in mb["events"]
+                if e.get("kind") in ("die", "tk")
+                and R.canon_key(e["victim"], aliases) == k
+            ]
+            noks = [
+                e
+                for e in mb["events"]
+                if e.get("kind") == "nok"
+                and R.canon_key(e["killer"], aliases) == k
+            ]
+            revives = [
+                e
+                for e in mb["events"]
+                if e.get("kind") == "revive"
+                and R.canon_key(e["killer"], aliases) == k
+            ]
             match_hist.append(
                 {
                     "id": mb["id"],
                     "map": mb["map"],
                     "date": mb["date"],
-                    "net": mb["netByKey"][k],
+                    "net": mb["netByKey"].get(k, 0.0),
                     "won": won,
-                    "kills": [
-                        e
-                        for e in mb["events"]
-                        if e.get("kind") == "die"
-                        and R.canon_key(e["killer"], aliases) == k
-                    ],
-                    "deaths": [
-                        e
-                        for e in mb["events"]
-                        if e.get("kind") in ("die", "tk")
-                        and R.canon_key(e["victim"], aliases) == k
-                    ],
+                    "dmg": round((mb.get("dmgByKey") or {}).get(k, 0.0), 1),
+                    "kills": kills,
+                    "deaths": deaths,
+                    "noks": noks,
                     "teamkills": [
                         e
                         for e in mb["events"]
                         if e.get("kind") == "tk"
                         and R.canon_key(e["killer"], aliases) == k
                     ],
-                    "revives": [
-                        e
-                        for e in mb["events"]
-                        if e.get("kind") == "revive"
-                        and R.canon_key(e["killer"], aliases) == k
-                    ],
+                    "revives": revives,
                 }
             )
         players_out[k] = {
@@ -459,7 +704,12 @@ def main() -> None:
     public_matches = []
     for mb in match_blocks:
         public_matches.append(
-            {kk: vv for kk, vv in mb.items() if kk not in ("netByKey", "teamsByKey")}
+            {
+                kk: vv
+                for kk, vv in mb.items()
+                if kk
+                not in ("netByKey", "teamsByKey", "dmgByKey", "combatants")
+            }
         )
 
     pmax = max(rp.values()) if rp else R.START_RP
@@ -471,10 +721,13 @@ def main() -> None:
         "radiant3Max": R.RADIANT3_MAX,
         "weight": "current_public_rp",
         "excludeSeed": True,
+        "historyOnly": True,
+        "epoch": PUBLIC_RP_EPOCH,
         "formula": (
             "delta=1+49*(Pv-Pk+Pmax-1)/(2*(Pmax-1)); "
             "Pk/Pv=current public RP; final Die(+Inactive): enemy zero-sum; "
-            "TK both -delta; Revive medic +delta*0.6; Wound/nok=0 RP"
+            "TK both -delta; Revive medic +delta*0.6; Wound/nok=0 RP; "
+            "only PublicMatch history since epoch"
         ),
         "reviveCoef": R.REVIVE_COEF,
         "pMax": round(pmax, 1),

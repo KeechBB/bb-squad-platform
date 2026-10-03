@@ -451,9 +451,14 @@ export function PublicRatingClient({
               <strong>% побед</strong> — доля побед в этих матчах.
             </p>
             <p>
-              <strong>Ресы</strong> — воскрешения · <strong>Ноки</strong> — нокдауны ·{" "}
+              <strong>Ресы</strong> — кого поднял · <strong>Ноки</strong> — нокдауны ·{" "}
+              <strong>Килы / смерти</strong> — только гивап ·{" "}
               <strong>KD</strong> — киллы / смерти ·{" "}
-              <strong>Боевой счёт</strong> — суммарный боевой урон/очки.
+              <strong>Боевой счёт</strong> — урон с логов PB1.
+            </p>
+            <p>
+              Считаем только матчи из вкладки «История» (с {`03.10.2026`}), после
+              каждой катки PB1 — автоматически.
             </p>
             <p>
               <strong>MVP Medic / Killer / War-Score</strong> — награды за матч ·{" "}

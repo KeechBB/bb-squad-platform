@@ -18,8 +18,9 @@ export type RpMatchEvent = {
   killerPwr: number;
   victimPwr: number;
   delta: number;
-  kind?: "die" | "tk" | "revive";
+  kind?: "die" | "tk" | "revive" | "nok";
   teamkill?: boolean;
+  dmg?: number;
 };
 
 export type RpPlayerMatch = {
@@ -35,6 +36,10 @@ export type RpPlayerMatch = {
   teamkills?: RpMatchEvent[];
   /** Medic revives this player performed (patient in victim field) */
   revives?: RpMatchEvent[];
+  /** Public: knockdowns (Die without give-up). No RP. */
+  noks?: RpMatchEvent[];
+  /** Public: combat damage from KillingDamage on Die/nok. */
+  dmg?: number;
   /** Public PB1: won the layer (from team assignment) */
   won?: boolean | null;
 };

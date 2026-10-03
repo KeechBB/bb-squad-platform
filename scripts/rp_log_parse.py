@@ -245,11 +245,16 @@ def index_log_combat(log_path: Path, aliases: dict[str, str]) -> dict:
             if "Die():" in line:
                 dm = DIE_RE.search(line)
                 if dm:
+                    try:
+                        dmg = abs(float(dm.group("dmg") or 0))
+                    except ValueError:
+                        dmg = 0.0
                     raw_dies.append(
                         {
                             "at": at,
                             "victim": strip_tag(dm.group("victim")),
                             "steam": dm.group("steam"),
+                            "dmg": dmg,
                         }
                     )
 
@@ -307,9 +312,10 @@ def dies_in_window(
     t1: datetime,
     steam_to_nick: dict[str, str],
     aliases: dict[str, str],
-) -> tuple[list[dict], int]:
+) -> tuple[list[dict], list[dict]]:
+    """Return (give-up kills for RP, nok/wound downs without give-up)."""
     out: list[dict] = []
-    skipped_nok = 0
+    noks: list[dict] = []
     inactive_by_nick = idx["inactive_by_nick"]
     inactive_by_steam = idx["inactive_by_steam"]
     victim_steam = idx["victim_steam"]
@@ -323,27 +329,28 @@ def dies_in_window(
         times = inactive_by_nick.get(vk) or []
         if vsteam and inactive_by_steam.get(vsteam):
             times = inactive_by_steam[vsteam]
-        if not _has_inactive_soon(times, at):
-            skipped_nok += 1
-            continue
         steam = rd["steam"]
         killer = steam_to_nick.get(steam) or idx["steam_to_nick"].get(
             steam, f"?{steam[-6:]}"
         )
         kk = canon_key(killer, aliases)
-        out.append(
-            {
-                "kind": "die",
-                "at": at.isoformat(),
-                "at_msk": (at + timedelta(hours=3)).strftime("%H:%M:%S"),
-                "killer": strip_tag(killer),
-                "killerKey": kk,
-                "victim": victim,
-                "victimKey": vk,
-                "steam": steam,
-            }
-        )
-    return out, skipped_nok
+        row = {
+            "kind": "die",
+            "at": at.isoformat(),
+            "at_msk": (at + timedelta(hours=3)).strftime("%H:%M:%S"),
+            "killer": strip_tag(killer),
+            "killerKey": kk,
+            "victim": victim,
+            "victimKey": vk,
+            "steam": steam,
+            "dmg": float(rd.get("dmg") or 0),
+        }
+        if not _has_inactive_soon(times, at):
+            row["kind"] = "nok"
+            noks.append(row)
+            continue
+        out.append(row)
+    return out, noks
 
 
 def revives_in_window(idx: dict, t0: datetime, t1: datetime) -> list[dict]:

@@ -200,7 +200,7 @@ async function loadPublicMatchBundlesFromKv(): Promise<PublicBundle[]> {
   );
 }
 
-/** Combat rows from auto RP ledger (Die/revive counts + won). */
+/** Combat rows from auto RP ledger (give-up kills/deaths, nok, revive, dmg, won). */
 async function loadPublicMatchBundlesFromLedger(): Promise<PublicBundle[]> {
   const { loadPublicRpLedger } = await import("@/lib/publicRp");
   const ledger = await loadPublicRpLedger();
@@ -212,6 +212,8 @@ async function loadPublicMatchBundlesFromLedger(): Promise<PublicBundle[]> {
     kills?: Ev[];
     deaths?: Ev[];
     revives?: Ev[];
+    noks?: Ev[];
+    dmg?: number;
     won?: boolean | null;
   };
 
@@ -235,6 +237,8 @@ async function loadPublicMatchBundlesFromLedger(): Promise<PublicBundle[]> {
       prev.kills = (prev.kills || 0) + (m.kills?.length || 0);
       prev.deaths = (prev.deaths || 0) + (m.deaths?.length || 0);
       prev.res = (prev.res || 0) + (m.revives?.length || 0);
+      prev.nok = (prev.nok || 0) + (m.noks?.length || 0);
+      prev.dmg = (prev.dmg || 0) + (Number(m.dmg) || 0);
       if (m.won === true) prev.won = true;
       if (m.won === false && prev.won !== true) prev.won = false;
       row.set(nickKey(nick), prev);
@@ -257,12 +261,10 @@ async function loadPublicMatchBundlesFromLedger(): Promise<PublicBundle[]> {
 }
 
 async function loadPublicMatchBundles(): Promise<PublicBundle[]> {
-  const fromKv = await loadPublicMatchBundlesFromKv();
-  if (fromKv.some((b) => b.players && (b.players.total || b.players.players || b.players.teamA))) {
-    return fromKv;
-  }
-  // History tab = Neon PublicMatch (map/score only). Combat/RP = ledger from logs.
-  return loadPublicMatchBundlesFromLedger();
+  // Combat/RP always from PB1 log ledger (history-linked). Manual KV digitization is legacy.
+  const fromLedger = await loadPublicMatchBundlesFromLedger();
+  if (fromLedger.length) return fromLedger;
+  return loadPublicMatchBundlesFromKv();
 }
 
 function aggregateCombat(
@@ -382,18 +384,8 @@ export async function buildPublicRatingTable(limit = 200): Promise<{
     });
   };
 
-  // Attendance is the base universe (all Steam on PB1).
-  for (const a of att) {
-    const k = a.steamId || nickKey(a.nick);
-    put(k, {
-      nick: a.nick,
-      steamId: a.steamId,
-      hasProfile: a.hasProfile,
-      days: a.days,
-    });
-  }
-
-  // Combat / RP by nick — attach to attendance row when possible.
+  // Rating universe = players with combat/RP from history-linked ledger.
+  // Attendance only enriches days/steam for those players (no empty filler rows).
   for (const [ck, c] of combat) {
     const steam = steamByNick.get(ck);
     const attHit = steam
