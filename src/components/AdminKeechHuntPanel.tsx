@@ -157,8 +157,8 @@ export function AdminKeechHuntPanel() {
     columns: NonNullable<Feed["columns"]>;
   } | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
-  const bottomRef = useRef<HTMLDivElement | null>(null);
-  const stickBottom = useRef(true);
+  const stickTop = useRef(true);
+  const prevTopId = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -181,21 +181,26 @@ export function AdminKeechHuntPanel() {
     return () => clearInterval(t);
   }, [load]);
 
+  /** Newest first — актуальные сверху, старые уходят вниз. */
   const liveLog = useMemo(() => {
     const ev = data?.match?.events || [];
-    return [...ev].sort((a, b) => String(a.at).localeCompare(String(b.at)));
+    return [...ev].sort((a, b) => String(b.at).localeCompare(String(a.at)));
   }, [data]);
 
   useEffect(() => {
-    if (!stickBottom.current) return;
-    bottomRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+    const topId = liveLog[0]?.id || null;
+    const newerArrived = topId && topId !== prevTopId.current;
+    prevTopId.current = topId;
+    if (!stickTop.current && !newerArrived) return;
+    if (newerArrived) stickTop.current = true;
+    const el = listRef.current;
+    if (el) el.scrollTop = 0;
   }, [liveLog]);
 
   function onChatScroll() {
     const el = listRef.current;
     if (!el) return;
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
-    stickBottom.current = nearBottom;
+    stickTop.current = el.scrollTop < 48;
   }
 
   const openMatch = async (id: string) => {
@@ -255,7 +260,7 @@ export function AdminKeechHuntPanel() {
               <span>Live-лог</span>
               <span className="muted">
                 {liveLog.length
-                  ? `${liveLog.length} событий · PB1 + TR1`
+                  ? `${liveLog.length} событий · сверху новые`
                   : "пусто"}
               </span>
             </div>
@@ -269,7 +274,7 @@ export function AdminKeechHuntPanel() {
               {liveLog.length === 0 ? (
                 <p className="journal-empty muted">
                   Жду киллы / смерти / ресы Keech на паблике (PB1) и TR1.
-                  Коллектор пишет оба сервера в один чат.
+                  Новые события появляются сверху.
                 </p>
               ) : null}
               {liveLog.map((e) => {
@@ -310,7 +315,6 @@ export function AdminKeechHuntPanel() {
                   </article>
                 );
               })}
-              <div ref={bottomRef} />
             </div>
           </div>
         </aside>
