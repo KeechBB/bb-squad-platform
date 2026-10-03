@@ -658,11 +658,25 @@ def main() -> None:
                 if e.get("kind") in ("die", "tk")
                 and R.canon_key(e["victim"], aliases) == k
             ]
-            noks = [
+            # Ноки = все нокдауны по врагу: и «положил и подняли», и те, что
+            # закончились гивапом (киллом). Иначе топ с 32 килами имел бы 0 ноков.
+            noks_only = [
                 e
                 for e in mb["events"]
                 if e.get("kind") == "nok"
                 and R.canon_key(e["killer"], aliases) == k
+            ]
+            noks = noks_only + [
+                {
+                    "kind": "nok",
+                    "time": e.get("time"),
+                    "killer": e.get("killer"),
+                    "victim": e.get("victim"),
+                    "delta": 0,
+                    "dmg": e.get("dmg") or 0,
+                    "gaveUp": True,
+                }
+                for e in kills
             ]
             revives = [
                 e

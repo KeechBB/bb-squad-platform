@@ -453,7 +453,8 @@ export function PublicRatingClient({
               <strong>% побед</strong> — доля побед в этих матчах.
             </p>
             <p>
-              <strong>Ресы</strong> — кого поднял · <strong>Ноки</strong> — нокдауны ·{" "}
+              <strong>Ресы</strong> — кого поднял ·{" "}
+              <strong>Ноки</strong> — все нокдауны (в т.ч. закончившиеся гивапом) ·{" "}
               <strong>Килы / смерти</strong> — только гивап ·{" "}
               <strong>KD</strong> — киллы / смерти ·{" "}
               <strong>Боевой счёт</strong> — урон с логов PB1.
