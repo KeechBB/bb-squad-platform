@@ -1078,39 +1078,44 @@ class Collector:
                 _safe_print("backfill complete fail", type(e).__name__, e, file=sys.stderr)
 
     def _bootstrap_keech_hunt(self) -> None:
-        """One-shot: rebuild current Keech match from recent TPUB1 log tail."""
+        """One-shot: rebuild open Keech matches from TPUB1 + TR1(+TR2) log tails."""
         kt = self._keech_tracker()
         if kt is None:
             return
-        target = None
-        for key, path in self.targets:
-            if key in ("TPUB1", "PB1", "PUB"):
-                target = (key, path)
-                break
-        if not target:
+        want = ("TPUB1", "PB1", "PUB", "TR1", "TR2")
+        targets = [(k, p) for k, p in self.targets if k in want]
+        # Prefer one public + training; skip dupes after normalize inside tracker
+        if not targets:
             return
-        server_key, log_path = target
         try:
             client = self._ssh()
         except Exception as e:
             _safe_print("keech bootstrap ssh", type(e).__name__, e, file=sys.stderr)
             return
         try:
-            cmd = (
-                f"python3 - <<'PY'\n"
-                f"from pathlib import Path\n"
-                f"p=Path({log_path!r})\n"
-                f"raw=p.read_bytes()\n"
-                f"if len(raw)>12*1024*1024: raw=raw[-12*1024*1024:]\n"
-                f"print(raw.decode('utf-8','replace'), end='')\n"
-                f"PY"
-            )
-            _i, out, _e = client.exec_command(cmd, timeout=180)
-            text = out.read().decode("utf-8", "replace")
-            kt.bootstrap_text(text, server_key)
-            _safe_print("keech hunt bootstrap ok", server_key, flush=True)
-        except Exception as e:
-            _safe_print("keech bootstrap fail", type(e).__name__, e, file=sys.stderr)
+            for server_key, log_path in targets:
+                try:
+                    cmd = (
+                        f"python3 - <<'PY'\n"
+                        f"from pathlib import Path\n"
+                        f"p=Path({log_path!r})\n"
+                        f"raw=p.read_bytes()\n"
+                        f"if len(raw)>12*1024*1024: raw=raw[-12*1024*1024:]\n"
+                        f"print(raw.decode('utf-8','replace'), end='')\n"
+                        f"PY"
+                    )
+                    _i, out, _e = client.exec_command(cmd, timeout=180)
+                    text = out.read().decode("utf-8", "replace")
+                    kt.bootstrap_text(text, server_key)
+                    _safe_print("keech hunt bootstrap ok", server_key, flush=True)
+                except Exception as e:
+                    _safe_print(
+                        "keech bootstrap fail",
+                        server_key,
+                        type(e).__name__,
+                        e,
+                        file=sys.stderr,
+                    )
         finally:
             try:
                 client.close()

@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Keech-only live hunt tracker (PB1/TPUB1 + optional TR).
+Keech-only live hunt tracker (TPUB1/PB1 + TR1/TR2).
 
 Writes:
   platform/data/keech-hunt/live.json
   platform/data/keech-hunt/memory.json
 
 Fed line-by-line from squad_log_collector.
+Keeps one open match bucket per server so Public and TR1 don't overwrite each other.
 """
 from __future__ import annotations
 
@@ -67,6 +68,13 @@ def _layer_short(path: str) -> str:
     return p or "?"
 
 
+def _norm_server(key: str) -> str:
+    k = (key or "").strip().upper()
+    if k in ("PB1", "PUB", "TPUB1"):
+        return "TPUB1"
+    return k
+
+
 class KeechHuntTracker:
     def __init__(self) -> None:
         self.steam_nick: dict[str, str] = {}
@@ -74,12 +82,51 @@ class KeechHuntTracker:
         self.eos_nick: dict[str, str] = {}
         # recent hits: list of {at, asteam, veos, bone, zone, dmg}
         self._hits: list[dict[str, Any]] = []
-        self.match: dict[str, Any] | None = None
+        # server -> open match
+        self.matches: dict[str, dict[str, Any]] = {}
         self._dirty = False
         self._last_write = 0.0
         OUT_DIR.mkdir(parents=True, exist_ok=True)
+        self._hydrate_from_live()
         if not LIVE_PATH.is_file():
             self._write_live_empty()
+
+    def _hydrate_from_live(self) -> None:
+        if not LIVE_PATH.is_file():
+            return
+        try:
+            data = json.loads(LIVE_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            return
+        rows = list(data.get("matches") or [])
+        if not rows and data.get("match"):
+            rows = [data["match"]]
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            srv = _norm_server(str(row.get("server") or ""))
+            if not srv or row.get("endAt"):
+                continue
+            row = dict(row)
+            row["server"] = srv
+            self.matches[srv] = row
+
+    @property
+    def match(self) -> dict[str, Any] | None:
+        """Primary (most recently active) open match — backward compatible."""
+        return self._primary_match()
+
+    def _primary_match(self) -> dict[str, Any] | None:
+        if not self.matches:
+            return None
+
+        def sort_key(m: dict[str, Any]) -> str:
+            ev = m.get("events") or []
+            if ev:
+                return str(ev[-1].get("at") or m.get("startAt") or "")
+            return str(m.get("startAt") or "")
+
+        return max(self.matches.values(), key=sort_key)
 
     def _rp_map(self) -> tuple[dict[str, float], float]:
         start = float(R.START_RP)
@@ -120,13 +167,36 @@ class KeechHuntTracker:
         d = round(R.hunt_delta(me, pv, pmax) * R.REVIVE_COEF, 2)
         return d, me, pv
 
-    def _ensure_match(self, server: str, layer: str, start: datetime) -> None:
-        if self.match and self.match.get("server") == server and self.match.get("startAt") == start.isoformat():
-            return
-        # closing previous open match into memory if had events
-        if self.match and (self.match.get("events") or []):
-            self._archive_match(ended=start)
-        self.match = {
+    def _ensure_match(self, server: str, layer: str, start: datetime) -> dict[str, Any]:
+        server = _norm_server(server)
+        cur = self.matches.get(server)
+        if (
+            cur
+            and cur.get("server") == server
+            and cur.get("startAt") == start.isoformat()
+        ):
+            if layer and layer != "?" and (not cur.get("layer") or cur.get("layer") == "?"):
+                cur["layer"] = layer
+                cur["layerShort"] = _layer_short(layer)
+                self._dirty = True
+            return cur
+        # same map already open (InProgress after travel) — keep bucket
+        if cur and not cur.get("endAt"):
+            short = _layer_short(layer) if layer else "?"
+            cur_short = cur.get("layerShort") or "?"
+            if not layer or layer == "?" or short == "?":
+                return cur
+            if cur.get("layer") in (None, "", "?"):
+                cur["layer"] = layer
+                cur["layerShort"] = short
+                self._dirty = True
+                return cur
+            if short == cur_short:
+                return cur
+            # new layer on same server → archive previous
+            if cur.get("events"):
+                self._archive_match(cur, ended=start)
+        self.matches[server] = {
             "id": f"{server}-{start.strftime('%Y%m%d-%H%M%S')}",
             "server": server,
             "layer": layer,
@@ -140,6 +210,14 @@ class KeechHuntTracker:
             "revives": 0,
         }
         self._dirty = True
+        return self.matches[server]
+
+    def _open_bucket(self, server: str, at: datetime) -> dict[str, Any]:
+        server = _norm_server(server)
+        cur = self.matches.get(server)
+        if cur and not cur.get("endAt"):
+            return cur
+        return self._ensure_match(server, "?", at)
 
     def _bones_for(
         self, *, attacker_steam: str, victim_eos: str | None, at: datetime, window: float = HIT_WINDOW_SEC
@@ -171,6 +249,7 @@ class KeechHuntTracker:
     def feed(self, line: str, server_key: str) -> None:
         if server_key not in SERVERS:
             return
+        server = _norm_server(server_key)
         tm = LINE_TS.match(line)
         if not tm:
             return
@@ -188,18 +267,19 @@ class KeechHuntTracker:
             m = R.TRAVEL_RE.search(line)
             if m:
                 layer = m.group("path").strip()
-                self._ensure_match(server_key, layer, at)
+                self._ensure_match(server, layer, at)
 
         if "Match State Changed" in line and "LogGameMode" in line:
             sm = R.STATE_RE.search(line)
             if sm and sm.group("state") == "InProgress":
-                layer = (self.match or {}).get("layer") or "?"
-                self._ensure_match(server_key, layer, at)
+                layer = (self.matches.get(server) or {}).get("layer") or "?"
+                self._ensure_match(server, layer, at)
             if sm and sm.group("state") in ("WaitingPostMatch", "LeavingMap"):
-                if self.match and not self.match.get("endAt"):
-                    self.match["endAt"] = at.isoformat()
-                    self._archive_match(ended=at)
-                    self.match = None
+                cur = self.matches.get(server)
+                if cur and not cur.get("endAt"):
+                    cur["endAt"] = at.isoformat()
+                    self._archive_match(cur, ended=at)
+                    self.matches.pop(server, None)
                     self._dirty = True
 
         hm = HIT_RE.search(line)
@@ -247,7 +327,7 @@ class KeechHuntTracker:
 
         if "Die():" in line:
             dm = R.DIE_RE.search(line)
-            if dm and self.match:
+            if dm:
                 victim_raw = dm.group("victim")
                 ksteam = dm.group("steam")
                 victim = R.strip_tag(victim_raw)
@@ -260,12 +340,12 @@ class KeechHuntTracker:
                             veos = e
                             break
                     bones = self._bones_for(attacker_steam=KEECH_STEAM, victim_eos=veos or None, at=at)
-                    # if no eos filter match, take all keech hits in window
                     if not bones:
                         bones = self._bones_for(attacker_steam=KEECH_STEAM, victim_eos=None, at=at)
                     self._add_event(
+                        server,
                         {
-                            "id": f"k-{at.timestamp()}-{vkey}",
+                            "id": f"k-{server}-{at.timestamp()}-{vkey}",
                             "kind": "kill",
                             "at": at.isoformat(),
                             "time": _msk_time(at),
@@ -273,14 +353,16 @@ class KeechHuntTracker:
                             "delta": dlt,
                             "oppWeight": round(pv, 1),
                             "bones": bones,
-                            "server": server_key,
-                        }
+                            "server": server,
+                        },
+                        at,
                     )
                 elif vkey == "keech":
                     if ksteam == KEECH_STEAM:
                         self._add_event(
+                            server,
                             {
-                                "id": f"s-{at.timestamp()}",
+                                "id": f"s-{server}-{at.timestamp()}",
                                 "kind": "self",
                                 "at": at.isoformat(),
                                 "time": _msk_time(at),
@@ -288,8 +370,9 @@ class KeechHuntTracker:
                                 "delta": 0.0,
                                 "oppWeight": 0,
                                 "bones": {},
-                                "server": server_key,
-                            }
+                                "server": server,
+                            },
+                            at,
                         )
                     else:
                         killer = self._nick_of_steam(ksteam)
@@ -308,8 +391,9 @@ class KeechHuntTracker:
                                 continue
                             bones_on_me[b] = bones_on_me.get(b, 0) + 1
                         self._add_event(
+                            server,
                             {
-                                "id": f"d-{at.timestamp()}-{R.nick_key(killer)}",
+                                "id": f"d-{server}-{at.timestamp()}-{R.nick_key(killer)}",
                                 "kind": "death",
                                 "at": at.isoformat(),
                                 "time": _msk_time(at),
@@ -317,18 +401,20 @@ class KeechHuntTracker:
                                 "delta": -dlt,
                                 "oppWeight": round(pk, 1),
                                 "bones": bones_on_me,
-                                "server": server_key,
-                            }
+                                "server": server,
+                            },
+                            at,
                         )
 
         if " has revived " in line:
             rm = R.REVIVE_RE.search(line)
-            if rm and self.match and rm.group("msteam") == KEECH_STEAM:
+            if rm and rm.group("msteam") == KEECH_STEAM:
                 patient = R.strip_tag(rm.group("patient"))
                 dlt, _me, pv = self._delta_revive(patient)
                 self._add_event(
+                    server,
                     {
-                        "id": f"r-{at.timestamp()}-{R.nick_key(patient)}",
+                        "id": f"r-{server}-{at.timestamp()}-{R.nick_key(patient)}",
                         "kind": "revive",
                         "at": at.isoformat(),
                         "time": _msk_time(at),
@@ -336,43 +422,44 @@ class KeechHuntTracker:
                         "delta": dlt,
                         "oppWeight": round(pv, 1),
                         "bones": {},
-                        "server": server_key,
-                    }
+                        "server": server,
+                    },
+                    at,
                 )
 
         self._flush_if_needed()
 
-    def _add_event(self, ev: dict[str, Any]) -> None:
-        if not self.match:
-            # open anonymous match bucket
-            self._ensure_match(ev.get("server") or "TPUB1", "?", datetime.now(timezone.utc))
-        assert self.match is not None
-        # de-dupe by id
-        ids = {e.get("id") for e in self.match["events"]}
+    def _add_event(self, server: str, ev: dict[str, Any], at: datetime) -> None:
+        bucket = self._open_bucket(server, at)
+        ids = {e.get("id") for e in bucket["events"]}
         if ev["id"] in ids:
             return
-        self.match["events"].append(ev)
-        self.match["net"] = round(sum(float(e.get("delta") or 0) for e in self.match["events"]), 2)
-        self.match["kills"] = sum(1 for e in self.match["events"] if e.get("kind") == "kill")
-        self.match["deaths"] = sum(
-            1 for e in self.match["events"] if e.get("kind") in ("death", "self")
+        bucket["events"].append(ev)
+        bucket["net"] = round(sum(float(e.get("delta") or 0) for e in bucket["events"]), 2)
+        bucket["kills"] = sum(1 for e in bucket["events"] if e.get("kind") == "kill")
+        bucket["deaths"] = sum(
+            1 for e in bucket["events"] if e.get("kind") in ("death", "self")
         )
-        self.match["revives"] = sum(1 for e in self.match["events"] if e.get("kind") == "revive")
+        bucket["revives"] = sum(1 for e in bucket["events"] if e.get("kind") == "revive")
         self._dirty = True
 
-    def _archive_match(self, ended: datetime) -> None:
-        if not self.match:
+    def _archive_match(self, row: dict[str, Any], ended: datetime) -> None:
+        if not row:
             return
-        row = dict(self.match)
-        row["endAt"] = row.get("endAt") or ended.isoformat()
-        if not row.get("events"):
+        archived = dict(row)
+        archived["endAt"] = archived.get("endAt") or ended.isoformat()
+        if not archived.get("events"):
             return
         mem = self._load_memory()
-        mem = [m for m in mem if m.get("id") != row["id"]]
-        mem.insert(0, row)
+        mem = [m for m in mem if m.get("id") != archived["id"]]
+        mem.insert(0, archived)
         mem = mem[:MEMORY_MAX]
         MEMORY_PATH.write_text(
-            json.dumps({"updatedAt": datetime.now(timezone.utc).isoformat(), "matches": mem}, ensure_ascii=False, indent=2)
+            json.dumps(
+                {"updatedAt": datetime.now(timezone.utc).isoformat(), "matches": mem},
+                ensure_ascii=False,
+                indent=2,
+            )
             + "\n",
             encoding="utf-8",
         )
@@ -386,12 +473,25 @@ class KeechHuntTracker:
         except Exception:
             return []
 
+    def _merged_totals(self) -> dict[str, Any]:
+        events: list[dict[str, Any]] = []
+        for m in self.matches.values():
+            events.extend(m.get("events") or [])
+        return {
+            "net": round(sum(float(e.get("delta") or 0) for e in events), 2),
+            "kills": sum(1 for e in events if e.get("kind") == "kill"),
+            "deaths": sum(1 for e in events if e.get("kind") in ("death", "self")),
+            "revives": sum(1 for e in events if e.get("kind") == "revive"),
+            "events": sorted(events, key=lambda e: str(e.get("at") or "")),
+        }
+
     def _write_live_empty(self) -> None:
         LIVE_PATH.write_text(
             json.dumps(
                 {
                     "updatedAt": datetime.now(timezone.utc).isoformat(),
                     "match": None,
+                    "matches": [],
                     "keechSteam": KEECH_STEAM,
                 },
                 ensure_ascii=False,
@@ -409,9 +509,26 @@ class KeechHuntTracker:
             return
         self._dirty = False
         self._last_write = now
+        open_list = sorted(
+            self.matches.values(),
+            key=lambda m: str(m.get("startAt") or ""),
+        )
+        primary = self._primary_match()
+        merged = self._merged_totals()
+        # Surface merged counters on primary for UI toolbar when several servers are live
+        match_out = None
+        if primary:
+            match_out = dict(primary)
+            if len(open_list) > 1:
+                match_out["net"] = merged["net"]
+                match_out["kills"] = merged["kills"]
+                match_out["deaths"] = merged["deaths"]
+                match_out["revives"] = merged["revives"]
+                # Keep primary events; live log uses matches[] / all events via API merge
         payload = {
             "updatedAt": datetime.now(timezone.utc).isoformat(),
-            "match": self.match,
+            "match": match_out,
+            "matches": open_list,
             "keechSteam": KEECH_STEAM,
         }
         LIVE_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

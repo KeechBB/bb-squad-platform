@@ -33,6 +33,7 @@ export type KeechHuntMatch = {
 export type KeechHuntLive = {
   updatedAt: string;
   match: KeechHuntMatch | null;
+  matches?: KeechHuntMatch[];
   keechSteam: string;
 };
 
@@ -52,9 +53,31 @@ export async function readKeechHuntLive(): Promise<KeechHuntLive> {
     return {
       updatedAt: new Date().toISOString(),
       match: null,
+      matches: [],
       keechSteam: KEECH_STEAM,
     };
   }
+}
+
+export function openKeechHuntMatches(live: KeechHuntLive): KeechHuntMatch[] {
+  const fromList = Array.isArray(live.matches) ? live.matches : [];
+  if (fromList.length) {
+    return fromList.filter((m) => m && !m.endAt);
+  }
+  return live.match && !live.match.endAt ? [live.match] : [];
+}
+
+export function mergeKeechHuntEvents(matches: KeechHuntMatch[]): KeechHuntEvent[] {
+  const out: KeechHuntEvent[] = [];
+  for (const m of matches) {
+    for (const e of m.events || []) {
+      out.push({
+        ...e,
+        server: e.server || m.server,
+      });
+    }
+  }
+  return out.sort((a, b) => String(a.at).localeCompare(String(b.at)));
 }
 
 export async function readKeechHuntMemory(): Promise<KeechHuntMatch[]> {
@@ -73,6 +96,9 @@ export async function readKeechHuntMatch(
   const want = String(id || "").trim();
   if (!want) return null;
   const live = await readKeechHuntLive();
+  for (const m of openKeechHuntMatches(live)) {
+    if (m.id === want) return m;
+  }
   if (live.match?.id === want) return live.match;
   const mem = await readKeechHuntMemory();
   return mem.find((m) => m.id === want) || null;
@@ -83,4 +109,10 @@ export function splitEvents(events: KeechHuntEvent[]) {
   const deaths = events.filter((e) => e.kind === "death" || e.kind === "self");
   const revives = events.filter((e) => e.kind === "revive");
   return { kills, deaths, revives };
+}
+
+export function serverLabel(server: string | null | undefined): string {
+  const s = String(server || "").toUpperCase();
+  if (s === "TPUB1" || s === "PB1" || s === "PUB") return "PB1";
+  return s || "?";
 }

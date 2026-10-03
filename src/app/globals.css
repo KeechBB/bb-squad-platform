@@ -11765,7 +11765,47 @@ body.profile-match-modal-open {
     grid-template-columns: 1fr;
   }
 }
-.keech-hunt-left h3,
+.keech-hunt-left {
+  padding: 0;
+  overflow: hidden;
+}
+.keech-hunt-left .keech-hunt-chat-window {
+  border: 0;
+  border-radius: 0;
+  min-height: min(70vh, 720px);
+  max-height: min(78vh, 820px);
+  background: transparent;
+}
+.keech-hunt-chat {
+  gap: 8px;
+}
+.keech-hunt-msg {
+  max-width: 100%;
+}
+.keech-hunt-msg.kind-kill {
+  background: rgba(52, 211, 153, 0.08);
+  border-color: rgba(52, 211, 153, 0.22);
+}
+.keech-hunt-msg.kind-death,
+.keech-hunt-msg.kind-self {
+  background: rgba(248, 113, 113, 0.08);
+  border-color: rgba(248, 113, 113, 0.22);
+}
+.keech-hunt-msg.kind-revive {
+  background: rgba(56, 189, 248, 0.08);
+  border-color: rgba(56, 189, 248, 0.22);
+}
+.keech-hunt-msg-delta {
+  margin-left: auto;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.keech-hunt-msg-delta.plus {
+  color: #34d399;
+}
+.keech-hunt-msg-delta.minus {
+  color: #f87171;
+}
 .keech-hunt-history h3,
 .keech-hunt-col h4 {
   margin: 0 0 8px;

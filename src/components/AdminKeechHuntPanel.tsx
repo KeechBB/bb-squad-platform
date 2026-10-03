@@ -1,8 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HitSilhouetteMini } from "@/components/HitSilhouetteMini";
-import type { KeechHuntEvent, KeechHuntMatch } from "@/lib/keechHunt";
+import {
+  serverLabel,
+  type KeechHuntEvent,
+  type KeechHuntMatch,
+} from "@/lib/keechHunt";
 
 type HistRow = {
   id: string;
@@ -16,9 +20,21 @@ type HistRow = {
   revives: number;
 };
 
+type LiveMatchChip = {
+  id: string;
+  server: string;
+  layerShort: string;
+  startAt: string;
+  kills: number;
+  deaths: number;
+  revives: number;
+  net: number;
+};
+
 type Feed = {
   updatedAt: string;
   match: KeechHuntMatch | null;
+  matches: LiveMatchChip[];
   columns: {
     kills: KeechHuntEvent[];
     deaths: KeechHuntEvent[];
@@ -26,6 +42,13 @@ type Feed = {
     net: number;
   } | null;
   history: HistRow[];
+};
+
+const KIND_LABEL: Record<KeechHuntEvent["kind"], string> = {
+  kill: "Килл",
+  death: "Смерть",
+  revive: "Рес",
+  self: "Сам",
 };
 
 function fmtDelta(n: number) {
@@ -46,6 +69,14 @@ function fmtWhen(iso: string | null | undefined) {
   } catch {
     return iso;
   }
+}
+
+function eventBody(e: KeechHuntEvent): string {
+  const d = fmtDelta(e.delta);
+  if (e.kind === "kill") return `Убил ${e.nick} · ${d} RP`;
+  if (e.kind === "death") return `Убит ${e.nick} · ${d} RP`;
+  if (e.kind === "revive") return `Поднял ${e.nick} · ${d} RP`;
+  return `Сам · ${d} RP`;
 }
 
 function EventRow({
@@ -125,6 +156,9 @@ export function AdminKeechHuntPanel() {
     match: KeechHuntMatch;
     columns: NonNullable<Feed["columns"]>;
   } | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const stickBottom = useRef(true);
 
   const load = useCallback(async () => {
     try {
@@ -147,6 +181,23 @@ export function AdminKeechHuntPanel() {
     return () => clearInterval(t);
   }, [load]);
 
+  const liveLog = useMemo(() => {
+    const ev = data?.match?.events || [];
+    return [...ev].sort((a, b) => String(a.at).localeCompare(String(b.at)));
+  }, [data]);
+
+  useEffect(() => {
+    if (!stickBottom.current) return;
+    bottomRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+  }, [liveLog]);
+
+  function onChatScroll() {
+    const el = listRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+    stickBottom.current = nearBottom;
+  }
+
   const openMatch = async (id: string) => {
     const r = await fetch(`/api/admin/keech-hunt/${encodeURIComponent(id)}`, {
       cache: "no-store",
@@ -158,30 +209,31 @@ export function AdminKeechHuntPanel() {
     });
   };
 
-  const liveLog = useMemo(() => {
-    const ev = data?.match?.events || [];
-    return [...ev].sort((a, b) => String(a.at).localeCompare(String(b.at)));
-  }, [data]);
-
   if (err === "forbidden") {
     return <p className="muted">Нет доступа</p>;
   }
 
   const cols = data?.columns;
   const m = data?.match;
+  const chips = data?.matches || [];
+
+  const statusLine =
+    chips.length > 0
+      ? chips
+          .map((c) => `${serverLabel(c.server)} · ${c.layerShort || "?"}`)
+          .join("  ·  ")
+      : m
+        ? `${serverLabel(m.server)} · ${m.layerShort}`
+        : "Нет активной катки (PB1 / TR1)";
 
   return (
     <div className="keech-hunt-panel">
       <div className="keech-hunt-toolbar">
         <div>
-          <strong>
-            {m
-              ? `${m.server} · ${m.layerShort}`
-              : "Нет активной катки в live.json"}
-          </strong>
+          <strong>{statusLine}</strong>
           <span className="muted">
             {" "}
-            · обновл. {fmtWhen(data?.updatedAt)} · опрос 5с
+            · обновл. {fmtWhen(data?.updatedAt)} · опрос 5с · PB1+TR1
           </span>
         </div>
         <div className="keech-hunt-net">
@@ -198,24 +250,69 @@ export function AdminKeechHuntPanel() {
 
       <div className="keech-hunt-split">
         <aside className="keech-hunt-left card">
-          <h3>Live-лог</h3>
-          <p className="muted keech-hunt-hint">
-            По времени: кил / смерть / рес и ±RP
-          </p>
-          {liveLog.length === 0 ? (
-            <p className="muted">Пока пусто — жди события на PB1 или рестарт коллектора</p>
-          ) : (
-            <ul className="keech-hunt-list live">
-              {liveLog.map((e) => (
-                <EventRow
-                  key={e.id}
-                  e={e}
-                  clickable={e.kind === "kill" || e.kind === "death"}
-                  onHit={() => setHitEv(e)}
-                />
-              ))}
-            </ul>
-          )}
+          <div className="journal-window keech-hunt-chat-window">
+            <div className="journal-window-head">
+              <span>Live-лог</span>
+              <span className="muted">
+                {liveLog.length
+                  ? `${liveLog.length} событий · PB1 + TR1`
+                  : "пусто"}
+              </span>
+            </div>
+            <div
+              className="journal-chat keech-hunt-chat"
+              ref={listRef}
+              onScroll={onChatScroll}
+              role="log"
+              aria-live="polite"
+            >
+              {liveLog.length === 0 ? (
+                <p className="journal-empty muted">
+                  Жду киллы / смерти / ресы Keech на паблике (PB1) и TR1.
+                  Коллектор пишет оба сервера в один чат.
+                </p>
+              ) : null}
+              {liveLog.map((e) => {
+                const plus = e.delta >= 0;
+                const canHit = e.kind === "kill" || e.kind === "death";
+                return (
+                  <article
+                    key={e.id}
+                    className={`journal-msg keech-hunt-msg kind-${e.kind}`}
+                  >
+                    <header className="journal-msg-meta">
+                      <time dateTime={e.at}>{e.time}</time>
+                      <span className="journal-msg-badge">
+                        {KIND_LABEL[e.kind]}
+                      </span>
+                      <span className="journal-msg-tag">
+                        [{serverLabel(e.server)}]
+                      </span>
+                      <span
+                        className={`keech-hunt-msg-delta ${
+                          plus ? "plus" : "minus"
+                        }`}
+                      >
+                        {fmtDelta(e.delta)}
+                      </span>
+                      {canHit ? (
+                        <button
+                          type="button"
+                          className="keech-hunt-hit-btn"
+                          onClick={() => setHitEv(e)}
+                          title="Попадания"
+                        >
+                          ◉
+                        </button>
+                      ) : null}
+                    </header>
+                    <p className="journal-msg-body">{eventBody(e)}</p>
+                  </article>
+                );
+              })}
+              <div ref={bottomRef} />
+            </div>
+          </div>
         </aside>
 
         <div className="keech-hunt-right">
@@ -253,7 +350,8 @@ export function AdminKeechHuntPanel() {
                       onClick={() => void openMatch(h.id)}
                     >
                       <span>
-                        {fmtWhen(h.startAt)} · {h.server} · {h.layerShort}
+                        {fmtWhen(h.startAt)} · {serverLabel(h.server)} ·{" "}
+                        {h.layerShort}
                       </span>
                       <span>
                         K{h.kills}/D{h.deaths}/R{h.revives}{" "}
@@ -279,7 +377,8 @@ export function AdminKeechHuntPanel() {
                   {hitEv.kind === "kill" ? "Попадания в" : "Убит"} {hitEv.nick}
                 </h3>
                 <p className="muted">
-                  {hitEv.time} · {fmtDelta(hitEv.delta)} RP
+                  {hitEv.time} · [{serverLabel(hitEv.server)}] ·{" "}
+                  {fmtDelta(hitEv.delta)} RP
                 </p>
               </div>
               <button
@@ -294,7 +393,7 @@ export function AdminKeechHuntPanel() {
               bones={hitEv.bones || {}}
               title={
                 hitEv.kind === "death"
-                  ? "Хиты по тебе на PB1 пока не пишутся в этот трекер (только твои выстрелы)"
+                  ? "Хиты по тебе на PB1 могут быть редкими — на TR1 BBHitZone обычно полнее"
                   : undefined
               }
             />
@@ -308,7 +407,8 @@ export function AdminKeechHuntPanel() {
             <header className="rp-breakdown-head">
               <div>
                 <h3>
-                  {detail.match.layerShort} · {fmtWhen(detail.match.startAt)}
+                  {serverLabel(detail.match.server)} · {detail.match.layerShort}{" "}
+                  · {fmtWhen(detail.match.startAt)}
                 </h3>
                 <p className="muted">
                   NET {fmtDelta(detail.match.net)} · K {detail.match.kills} / D{" "}
