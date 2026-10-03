@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HitSilhouetteMini } from "@/components/HitSilhouetteMini";
 import {
   serverLabel,
+  splitEvents,
   type KeechHuntEvent,
   type KeechHuntMatch,
 } from "@/lib/keechHuntTypes";
@@ -188,11 +189,25 @@ export function AdminKeechHuntPanel() {
     return () => clearInterval(t);
   }, [load]);
 
-  /** Newest first — актуальные сверху, старые уходят вниз. */
-  const liveLog = useMemo(() => {
-    const ev = data?.match?.events || [];
-    return [...ev].sort((a, b) => String(b.at).localeCompare(String(a.at)));
-  }, [data]);
+  /**
+   * Один источник: события только текущей карты (data.match).
+   * Live-лог и правые колонки режутся из одного списка — без склейки PB1+TR1.
+   */
+  const mapEvents = useMemo(() => data?.match?.events || [], [data]);
+  const liveLog = useMemo(
+    () =>
+      [...mapEvents].sort((a, b) => String(b.at).localeCompare(String(a.at))),
+    [mapEvents]
+  );
+  const mapCols = useMemo(() => {
+    if (!mapEvents.length) return null;
+    const split = splitEvents(mapEvents);
+    const net =
+      Math.round(
+        mapEvents.reduce((s, e) => s + (Number(e.delta) || 0), 0) * 10
+      ) / 10;
+    return { ...split, net };
+  }, [mapEvents]);
 
   useEffect(() => {
     const topId = liveLog[0]?.id || null;
@@ -225,7 +240,7 @@ export function AdminKeechHuntPanel() {
     return <p className="muted">Нет доступа</p>;
   }
 
-  const cols = data?.columns;
+  const cols = mapCols;
   const m = data?.match;
   const chips = data?.matches || [];
 
@@ -263,18 +278,20 @@ export function AdminKeechHuntPanel() {
           <strong>{statusLine}</strong>
           <span className="muted">
             {" "}
-            · обновл. {fmtWhen(data?.updatedAt)} · опрос 5с · PB1+TR1
+            · обновл. {fmtWhen(data?.updatedAt)} · опрос 5с · текущая карта
           </span>
         </div>
         <div className="keech-hunt-net">
           NET{" "}
-          <b className={(m?.net || 0) >= 0 ? "plus" : "minus"}>
-            {fmtDelta(m?.net || 0)}
+          <b className={(cols?.net ?? m?.net ?? 0) >= 0 ? "plus" : "minus"}>
+            {fmtDelta(cols?.net ?? m?.net ?? 0)}
           </b>
           <span className="muted">
             {" "}
-            · N {m?.noks ?? 0} / K {m?.kills ?? 0} / D {m?.deaths ?? 0} / R{" "}
-            {m?.revives ?? 0}
+            · N {cols?.noks.length ?? m?.noks ?? 0} / K{" "}
+            {cols?.kills.length ?? m?.kills ?? 0} / D{" "}
+            {cols?.deaths.length ?? m?.deaths ?? 0} / R{" "}
+            {cols?.revives.length ?? m?.revives ?? 0}
           </span>
         </div>
       </div>
@@ -286,7 +303,9 @@ export function AdminKeechHuntPanel() {
               <span>Live-лог</span>
               <span className="muted">
                 {liveLog.length
-                  ? `${liveLog.length} событий · сверху новые`
+                  ? `${liveLog.length} · ${serverLabel(m?.server)} · ${
+                      m?.layerShort || "?"
+                    } · сверху новые`
                   : "пусто"}
               </span>
             </div>
@@ -299,8 +318,8 @@ export function AdminKeechHuntPanel() {
             >
               {liveLog.length === 0 ? (
                 <p className="journal-empty muted">
-                  Жду ноки / киллы / смерти / ресы Keech на паблике (PB1) и TR1.
-                  Новые события появляются сверху.
+                  Жду ноки / киллы / смерти / ресы на текущей карте. Лог и
+                  колонки справа — одни и те же события. Новые сверху.
                 </p>
               ) : null}
               {liveLog.map((e) => {
