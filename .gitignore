@@ -59,6 +59,6 @@ next-env.d.ts
 backups/
 scripts/_tmp_*.py
 scripts/_tmp_tpub1_logs_cache/
-/data/public/
+/data/public/*
 !/data/public/.gitkeep
 
