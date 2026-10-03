@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { PublicCombatRow } from "@/lib/publicCombat";
 import type { PublicMatchRow } from "@/lib/publicMatches";
+import { RpPlayerDrilldown } from "@/components/RpPlayerDrilldown";
 
 type Props = {
   rows: PublicCombatRow[];
@@ -146,6 +147,7 @@ export function PublicRatingClient({
   const [day, setDay] = useState<string>("");
   const [mSortKey, setMSortKey] = useState<MatchSortKey>("date");
   const [mSortDir, setMSortDir] = useState<"asc" | "desc">("desc");
+  const [drillNick, setDrillNick] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -513,16 +515,24 @@ export function PublicRatingClient({
                           {rpVal == null ? "—" : rpVal}
                         </td>
                         <td className="ctr">
+                          <button
+                            type="button"
+                            className="public-rating-nick-btn"
+                            title="Карты и детальный разбор RP"
+                            onClick={() => setDrillNick(r.nick)}
+                          >
+                            {r.nick}
+                          </button>
                           {r.hasProfile ? (
                             <Link
-                              className="kv-link"
+                              className="public-rating-profile-link"
                               href={`/players/${encodeURIComponent(r.nick)}`}
+                              title="Профиль на сайте"
+                              onClick={(e) => e.stopPropagation()}
                             >
-                              {r.nick}
+                              →
                             </Link>
-                          ) : (
-                            <span title="Ещё нет аккаунта на сайте">{r.nick}</span>
-                          )}
+                          ) : null}
                         </td>
                         <td className="ctr">{r.clan}</td>
                         <td className={recordCls(r.games, records.games, "ctr")}>
@@ -688,6 +698,14 @@ export function PublicRatingClient({
           </section>
         </>
       )}
+
+      {drillNick ? (
+        <RpPlayerDrilldown
+          nick={drillNick}
+          open
+          onClose={() => setDrillNick(null)}
+        />
+      ) : null}
     </div>
   );
 }

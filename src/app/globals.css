@@ -400,6 +400,34 @@ svg {
   color: #fff;
 }
 
+.public-rating-nick-btn {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #e9d5ff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgba(192, 132, 252, 0.45);
+  text-underline-offset: 2px;
+}
+.public-rating-nick-btn:hover {
+  color: #fff;
+  text-decoration-color: rgba(240, 171, 252, 0.85);
+}
+.public-rating-profile-link {
+  margin-left: 6px;
+  font-size: 0.78rem;
+  color: rgba(167, 139, 250, 0.75);
+  text-decoration: none;
+}
+.public-rating-profile-link:hover {
+  color: #f0abfc;
+}
+
 .public-rating-search {
   display: flex;
   align-items: center;
@@ -1256,8 +1284,8 @@ body:has(.profile-page) {
   display: flex;
   flex-wrap: nowrap;
   align-items: stretch;
-  justify-content: flex-start;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 10px 14px;
 }
 
 .profile-head-main {
@@ -1265,7 +1293,7 @@ body:has(.profile-page) {
   flex-wrap: wrap;
   align-items: stretch;
   justify-content: flex-start;
-  gap: 6px;
+  gap: 10px 12px;
   flex: 1 1 auto;
   min-width: 0;
 }
@@ -1330,19 +1358,20 @@ body:has(.profile-page) {
 .profile-head-main > .profile-kits-card,
 .profile-head-cluster > .profile-pwr-card,
 .profile-head-cluster > .profile-kits-card {
-  flex: 0 1 240px;
-  max-width: 260px;
-  min-width: 190px;
+  flex: 0 1 260px;
+  max-width: 280px;
+  min-width: 200px;
   align-self: stretch;
   display: flex;
   flex-direction: column;
 }
 
 .profile-head-cluster > .profile-career-card {
-  flex: 1 1 min(420px, 36vw);
-  width: min(420px, 36vw);
-  max-width: 460px;
-  min-width: 280px;
+  flex: 0 0 min(380px, 34vw);
+  width: min(380px, 34vw);
+  max-width: 400px;
+  min-width: 260px;
+  max-height: 320px;
   margin-left: 0;
   align-self: stretch;
   display: flex;
@@ -1471,8 +1500,8 @@ body:has(.profile-page) {
 }
 
 .profile-head-cluster > .profile-pwr-card .profile-pwr-hero {
-  margin-top: 4px;
-  padding: 8px 10px;
+  margin-top: 8px;
+  padding: 10px 12px;
 }
 
 .profile-pwr-card .profile-kv-head {
