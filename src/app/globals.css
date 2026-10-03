@@ -319,30 +319,12 @@ svg {
   position: relative;
   z-index: 1;
   display: grid;
-  gap: 16px;
+  gap: 12px;
   width: 100%;
   max-width: min(1760px, 100%);
   margin: 0 auto;
-  padding: 20px clamp(16px, 2.2vw, 24px) 64px;
+  padding: 12px clamp(16px, 2.2vw, 24px) 48px;
   box-sizing: border-box;
-}
-
-.public-rating-top {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.public-rating-top h1 {
-  margin: 0;
-  font-family: var(--font-display);
-  letter-spacing: 0.04em;
-}
-
-.public-rating-meta {
-  font-size: 0.85rem;
 }
 
 .public-rating-row-flash {

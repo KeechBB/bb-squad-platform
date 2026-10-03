@@ -8,9 +8,9 @@ import { RpPlayerDrilldown } from "@/components/RpPlayerDrilldown";
 
 type Props = {
   rows: PublicCombatRow[];
-  matches: number;
+  matches?: number;
   matchHistory: PublicMatchRow[];
-  updatedAt: string;
+  updatedAt?: string;
 };
 
 type Tab = "rating" | "history";
@@ -132,9 +132,7 @@ function RpRankScale() {
 
 export function PublicRatingClient({
   rows,
-  matches,
   matchHistory,
-  updatedAt,
 }: Props) {
   const [tab, setTab] = useState<Tab>("rating");
   const [q, setQ] = useState("");
@@ -388,26 +386,6 @@ export function PublicRatingClient({
 
   return (
     <div className="public-rating-shell">
-      <header className="public-rating-top">
-        <div>
-          <p className="eyebrow">PB1 · TPUB1</p>
-          <h1>Паблик</h1>
-          <p className="muted" style={{ marginTop: 6, lineHeight: 1.45 }}>
-            Рейтинг игроков и история матчей паблика. SEED не считаем.
-          </p>
-        </div>
-        <div className="public-rating-meta muted">
-          <span>{matches} матчей в рейтинге · </span>
-          <span>{matchHistory.length} в истории · </span>
-          <span>
-            обновлено{" "}
-            {new Date(updatedAt).toLocaleString("ru-RU", {
-              timeZone: MSK,
-            })}
-          </span>
-        </div>
-      </header>
-
       <div className="public-rating-tabs" role="tablist" aria-label="Разделы паблика">
         <button
           type="button"
