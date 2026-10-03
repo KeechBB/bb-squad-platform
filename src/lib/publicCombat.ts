@@ -258,7 +258,10 @@ async function loadPublicMatchBundlesFromLedger(): Promise<PublicBundle[]> {
 
 async function loadPublicMatchBundles(): Promise<PublicBundle[]> {
   const fromKv = await loadPublicMatchBundlesFromKv();
-  if (fromKv.some((b) => b.players)) return fromKv;
+  if (fromKv.some((b) => b.players && (b.players.total || b.players.players || b.players.teamA))) {
+    return fromKv;
+  }
+  // History tab = Neon PublicMatch (map/score only). Combat/RP = ledger from logs.
   return loadPublicMatchBundlesFromLedger();
 }
 

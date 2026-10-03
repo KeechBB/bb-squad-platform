@@ -128,18 +128,18 @@ def sync_logs_via_ssh(cache: Path) -> list[Path]:
 
 
 def _pick_tpub1_logs(paths: list[Path], limit: int = 10) -> list[Path]:
-    """Prefer SquadGame.log + newest backups; skip unrelated caches."""
+    """Prefer SquadGame.log / backups / rotated SquadGame_N.log / local tails."""
     named = [
         p
         for p in paths
         if p.name == "SquadGame.log"
         or p.name.startswith("SquadGame-backup-")
+        or (p.name.startswith("SquadGame_") and p.name.endswith(".log") and "CRC" not in p.name)
         or p.name.startswith("_tmp_tpub1")
         or "tpub1" in p.name.lower()
     ]
     if not named:
-        named = list(paths)
-    # newest first by mtime, keep limited set
+        named = [p for p in paths if "CRC" not in p.name]
     named.sort(key=lambda p: p.stat().st_mtime if p.is_file() else 0, reverse=True)
     return named[:limit]
 
@@ -148,7 +148,7 @@ def resolve_log_paths(local_only: bool) -> list[Path]:
     env_dir = os.environ.get("PUBLIC_RP_LOG_DIR", "").strip()
     if env_dir:
         d = Path(env_dir)
-        paths = _pick_tpub1_logs(sorted(d.glob("*.log")))
+        paths = _pick_tpub1_logs(sorted(d.glob("*.log")), limit=20)
         if paths:
             return paths
     if local_only:
@@ -156,11 +156,11 @@ def resolve_log_paths(local_only: bool) -> list[Path]:
         # Prefer live snapshot for fast local/dev; fall back to cache backups.
         if live.is_file() and not os.environ.get("PUBLIC_RP_USE_CACHE"):
             return [live]
-        paths = _pick_tpub1_logs(sorted(CACHE.glob("*.log")), limit=5)
+        paths = _pick_tpub1_logs(sorted(CACHE.glob("*.log")), limit=16)
         if live.is_file():
             paths = [live] + [p for p in paths if p.resolve() != live.resolve()]
-        return paths[:5]
-    return _pick_tpub1_logs(sync_logs_via_ssh(CACHE), limit=6)
+        return paths[:16]
+    return _pick_tpub1_logs(sync_logs_via_ssh(CACHE), limit=10)
 
 
 def write_empty(note: str) -> None:

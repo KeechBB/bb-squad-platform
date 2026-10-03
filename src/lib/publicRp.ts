@@ -52,7 +52,8 @@ export async function loadPublicRpLedger(): Promise<RpLedger | null> {
       const data = (await fetchJson(
         `${base.replace(/\/$/, "")}/data/public/rp-ledger.json`
       )) as RpLedger;
-      if (data?.players) return data;
+      const n = data?.players ? Object.keys(data.players).length : 0;
+      if (n > 0 || (data?.leaderboard?.length ?? 0) > 0) return data;
     } catch {
       /* next */
     }
