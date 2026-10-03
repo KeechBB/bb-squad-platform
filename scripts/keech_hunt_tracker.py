@@ -366,6 +366,7 @@ class KeechHuntTracker:
                 ksteam = wm.group("steam")
                 victim = R.strip_tag(victim_raw)
                 vkey = R.nick_key(victim)
+                # Nok = Wound() down, enemy not give-up yet. Info only, delta always 0.
                 if ksteam == KEECH_STEAM and vkey != "keech":
                     veos = ""
                     for e, s in self.eos_steam.items():
@@ -385,16 +386,17 @@ class KeechHuntTracker:
                             victim_eos=None,
                             at=at,
                         )
+                    # Unique per second+victim; several downs same second still count once
                     self._add_event(
                         server,
                         {
-                            "id": f"n-{server}-{at.timestamp()}-{vkey}",
+                            "id": f"n-{server}-{at.timestamp():.3f}-{vkey}",
                             "kind": "nok",
                             "at": at.isoformat(),
                             "time": _msk_time(at),
                             "nick": victim,
                             "delta": 0.0,
-                            "oppWeight": round(self._weight(victim, self._rp_map()[0]), 1),
+                            "oppWeight": 0,
                             "bones": bones,
                             "server": server,
                         },

@@ -122,6 +122,10 @@ else
   pm2 restart bb-squad
 fi
 
+# Hunt / log tail live in the collector process — must reload Python after pull.
+echo "==> pm2 restart bb-squad-collector (Hunt Wound/noks + log parsers)"
+pm2 restart bb-squad-collector || true
+
 echo "==> free -h (after)"
 free -h || true
 
