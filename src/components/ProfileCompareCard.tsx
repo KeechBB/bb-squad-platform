@@ -735,7 +735,15 @@ function HitmapSide({
   );
 }
 
-export function ProfileCompareCard({ myNick }: Props) {
+type CompareProps = Props & {
+  /** inline — только кнопка у аватара; card — отдельная колонка (legacy) */
+  variant?: "inline" | "card";
+};
+
+export function ProfileCompareCard({
+  myNick,
+  variant = "inline",
+}: CompareProps) {
   const [open, setOpen] = useState(false);
   const [nicks, setNicks] = useState<string[]>([]);
   const [trainMatches, setTrainMatches] = useState<RpMatchListItem[]>([]);
@@ -921,24 +929,36 @@ export function ProfileCompareCard({ myNick }: Props) {
       ? `${from ? formatRuDay(from) : "…"} — ${to ? formatRuDay(to) : "…"}`
       : "Все даты";
 
+  const openBtn = (
+    <button
+      type="button"
+      className={
+        variant === "inline"
+          ? "profile-compare-open-btn profile-compare-open-btn-inline"
+          : "profile-compare-open-btn"
+      }
+      onClick={() => setOpen(true)}
+    >
+      Сравнить игроков
+    </button>
+  );
+
   return (
     <>
-      <section className="card profile-compare-card">
-        <div className="profile-kv-head">
-          <h2>Сравнение</h2>
-        </div>
-        <p className="muted profile-compare-lead">
-          Любой с любым: RP, ТМ/КВ, попадания; можно разобрать конкретную
-          тренировку.
-        </p>
-        <button
-          type="button"
-          className="profile-compare-open-btn"
-          onClick={() => setOpen(true)}
-        >
-          Сравнить игроков
-        </button>
-      </section>
+      {variant === "card" ? (
+        <section className="card profile-compare-card">
+          <div className="profile-kv-head">
+            <h2>Сравнение</h2>
+          </div>
+          <p className="muted profile-compare-lead">
+            Любой с любым: RP, ТМ/КВ, попадания; можно разобрать конкретную
+            тренировку.
+          </p>
+          {openBtn}
+        </section>
+      ) : (
+        <div className="profile-compare-inline">{openBtn}</div>
+      )}
 
       {open ? (
         <div

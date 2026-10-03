@@ -96,7 +96,8 @@ svg {
 }
 
 .shell:has(.cw-embed),
-.shell:has(.cross-rating-page) {
+.shell:has(.cross-rating-page),
+.shell:has(.public-rating-page) {
   max-width: none;
   padding: 12px 12px 0;
 }
@@ -299,8 +300,19 @@ svg {
 }
 
 .public-rating-page {
+  position: relative;
   width: 100%;
+  margin: 0 -12px 24px;
+  min-height: calc(100vh - 100px);
   padding: 0;
+  border-radius: 16px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  background:
+    radial-gradient(900px 520px at 12% -8%, rgba(124, 58, 237, 0.38), transparent 60%),
+    radial-gradient(700px 480px at 92% 8%, rgba(217, 70, 239, 0.18), transparent 55%),
+    radial-gradient(800px 600px at 70% 100%, rgba(30, 27, 75, 0.55), transparent 50%),
+    linear-gradient(180deg, #0b0914 0%, #07060c 100%);
 }
 
 .public-rating-shell {
@@ -340,18 +352,24 @@ svg {
 
 .public-rating-glossary {
   display: grid;
-  gap: 4px;
-  padding: 10px 14px;
-  border-radius: 10px;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
   border: 1px solid rgba(167, 139, 250, 0.22);
-  background: rgba(12, 10, 22, 0.4);
-  font-size: 0.86rem;
-  line-height: 1.45;
-  color: rgba(239, 232, 255, 0.82);
+  background: rgba(12, 10, 22, 0.55);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: rgba(210, 200, 235, 0.78);
 }
 
 .public-rating-glossary p {
   margin: 0;
+}
+
+.public-rating-glossary strong {
+  color: #f5f1ff;
+  font-weight: 700;
 }
 
 .public-rating-tabs {
@@ -444,16 +462,31 @@ svg {
 .public-rating-card {
   width: 100%;
   min-width: 0;
+  padding: 14px;
 }
 
 .public-rating-table-wrap {
   overflow-x: auto;
   width: 100%;
+  max-height: min(70vh, 820px);
+  border: 1px solid var(--line);
+  border-radius: 14px;
 }
 
 .public-rating-table-wrap table {
   width: 100%;
-  min-width: 1100px;
+  min-width: 1480px;
+}
+
+.public-rating-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 16px;
+}
+
+.public-rating-filters .public-rating-search {
+  flex: 1 1 280px;
 }
 
 .public-rating-table-wrap th.sortable {
@@ -1092,9 +1125,22 @@ body:has(.profile-page) {
   align-self: stretch;
 }
 
+.profile-avatar-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.profile-compare-inline {
+  width: 100%;
+  max-width: 240px;
+}
+
 .profile-head-cluster > .profile-pwr-card,
-.profile-head-cluster > .profile-kits-card,
-.profile-head-cluster > .profile-compare-card {
+.profile-head-cluster > .profile-kits-card {
   flex: 0 1 260px;
   max-width: 280px;
   min-width: 200px;
@@ -1104,9 +1150,9 @@ body:has(.profile-page) {
 }
 
 .profile-head-cluster > .profile-career-card {
-  flex: 1 1 320px;
+  flex: 1 1 420px;
   max-width: none;
-  min-width: 260px;
+  min-width: 300px;
   max-height: 320px;
   margin-left: auto;
   align-self: stretch;
@@ -2494,17 +2540,20 @@ body:has(.profile-page) {
 
   .profile-clan-card,
   .profile-head-cluster > .profile-pwr-card,
-  .profile-head-cluster > .profile-kits-card,
-  .profile-head-cluster > .profile-compare-card {
+  .profile-head-cluster > .profile-kits-card {
     flex: 0 1 200px;
     max-width: 220px;
     min-width: 160px;
   }
 
+  .profile-compare-inline {
+    max-width: 200px;
+  }
+
   .profile-head-cluster > .profile-career-card {
-    flex: 1 1 240px;
+    flex: 1 1 280px;
     max-width: none;
-    min-width: 200px;
+    min-width: 220px;
     margin-left: auto;
   }
 
@@ -5409,6 +5458,14 @@ body:has(.home-page) {
 .profile-compare-open-btn:hover {
   border-color: rgba(147, 197, 253, 0.85);
   color: #fff;
+}
+.profile-compare-open-btn-inline {
+  margin-top: 0;
+  padding: 9px 14px;
+  border-radius: 999px;
+  font-size: 0.84rem;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .compare-overlay {

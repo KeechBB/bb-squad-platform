@@ -379,25 +379,37 @@ export function PublicRatingClient({
         <>
           <RpRankScale />
 
-          <aside className="public-rating-glossary" aria-label="Термины">
+          <div className="public-rating-filters">
+            <label className="public-rating-search">
+              <span className="muted">Поиск ника / Steam ID</span>
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Ник игрока или Steam ID…"
+              />
+            </label>
+          </div>
+
+          <aside className="public-rating-glossary" aria-label="Термины рейтинга">
             <p>
-              <strong>RP</strong> — очки паблика (вес = текущий RP, не PWR). SEED не
-              считаем.
+              <strong>RP</strong> — рейтинговые очки паблика (SEED не считаем).
             </p>
             <p>
+              <strong>Каток</strong> — сыгранные матчи паблика ·{" "}
+              <strong>% побед</strong> — доля побед в этих матчах.
+            </p>
+            <p>
+              <strong>Ресы</strong> — воскрешения · <strong>Ноки</strong> — нокдауны ·{" "}
+              <strong>KD</strong> — киллы / смерти ·{" "}
+              <strong>Боевой счёт</strong> — суммарный боевой урон/очки.
+            </p>
+            <p>
+              <strong>MVP Medic / Killer / War-Score</strong> — награды за матч ·{" "}
+              <strong>Anti-MVP</strong> — антинаграда за смерти ·{" "}
               <strong>Дней PB1</strong> — уникальные календарные дни на паблике (все
-              Steam, даже без регистрации на сайте).
+              Steam, даже без регистрации).
             </p>
           </aside>
-
-          <label className="public-rating-search">
-            <span className="muted">Ник / Steam ID</span>
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="поиск по нику или Steam…"
-            />
-          </label>
 
           <section className="card public-rating-card">
             <div className="admin-table-wrap public-rating-table-wrap">

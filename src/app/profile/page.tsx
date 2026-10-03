@@ -173,14 +173,19 @@ export default async function ProfilePage() {
     <main className="profile-page">
       <div className="profile-area-head">
         <div className="profile-head-cluster">
-          <AvatarEditor
-            nick={me.nick || u.nick || "Игрок"}
-            name={me.name || u.name || ""}
-            initialAvatar={displayAvatar}
-            steamAvatar={u.steamAvatar || null}
-            adminLink={<AdminPanelLink initialAdmin={admin} />}
-            lastSeenAt={me.lastSeenAt}
-          />
+          <div className="profile-avatar-stack">
+            <AvatarEditor
+              nick={me.nick || u.nick || "Игрок"}
+              name={me.name || u.name || ""}
+              initialAvatar={displayAvatar}
+              steamAvatar={u.steamAvatar || null}
+              adminLink={<AdminPanelLink initialAdmin={admin} />}
+              lastSeenAt={me.lastSeenAt}
+            />
+            {nickForKv ? (
+              <ProfileCompareCard myNick={nickForKv} variant="inline" />
+            ) : null}
+          </div>
           <ProfileTrainPwrCard stats={trainPwr} />
           <ProfilePublicRatingCard
             nick={nickForKv}
@@ -190,7 +195,6 @@ export default async function ProfilePage() {
             combat={publicCombat}
           />
           <ProfileKitsCard userId={me.id} kits={kits.kits} />
-          {nickForKv ? <ProfileCompareCard myNick={nickForKv} /> : null}
           {nickForKv ? <ProfileCareerCard feed={careerFeed} self /> : null}
           <ClanInvites initial={invites} />
         </div>
