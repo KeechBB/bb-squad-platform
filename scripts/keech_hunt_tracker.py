@@ -558,18 +558,10 @@ class KeechHuntTracker:
             self.matches.values(),
             key=lambda m: str(m.get("startAt") or ""),
         )
+        # Primary = current map (most recently active). Counters stay per-match —
+        # UI must not merge PB1+TR1 into one N/K/D/R block.
         primary = self._primary_match()
-        merged = self._merged_totals()
-        # Surface merged counters on primary for UI toolbar when several servers are live
-        match_out = None
-        if primary:
-            match_out = dict(primary)
-            if len(open_list) > 1:
-                match_out["net"] = merged["net"]
-                match_out["kills"] = merged["kills"]
-                match_out["deaths"] = merged["deaths"]
-                match_out["revives"] = merged["revives"]
-                # Keep primary events; live log uses matches[] / all events via API merge
+        match_out = dict(primary) if primary else None
         payload = {
             "updatedAt": datetime.now(timezone.utc).isoformat(),
             "match": match_out,

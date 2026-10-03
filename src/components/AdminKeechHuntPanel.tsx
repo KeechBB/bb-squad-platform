@@ -31,6 +31,7 @@ type LiveMatchChip = {
   deaths: number;
   revives: number;
   net: number;
+  active?: boolean;
 };
 
 type Feed = {
@@ -228,14 +229,32 @@ export function AdminKeechHuntPanel() {
   const m = data?.match;
   const chips = data?.matches || [];
 
-  const statusLine =
-    chips.length > 0
-      ? chips
-          .map((c) => `${serverLabel(c.server)} · ${c.layerShort || "?"}`)
-          .join("  ·  ")
-      : m
-        ? `${serverLabel(m.server)} · ${m.layerShort}`
-        : "Нет активной катки (PB1 / TR1)";
+  const activeChip =
+    chips.find((c) => c.active) ||
+    (m
+      ? {
+          id: m.id,
+          server: m.server,
+          layerShort: m.layerShort,
+          startAt: m.startAt,
+          noks: m.noks ?? 0,
+          kills: m.kills,
+          deaths: m.deaths,
+          revives: m.revives,
+          net: m.net,
+          active: true,
+        }
+      : null);
+  const otherChips = chips.filter((c) => !c.active && c.id !== activeChip?.id);
+  const statusLine = activeChip
+    ? `${serverLabel(activeChip.server)} · ${activeChip.layerShort || "?"}${
+        otherChips.length
+          ? `  · ещё: ${otherChips
+              .map((c) => `${serverLabel(c.server)} ${c.layerShort || "?"}`)
+              .join(", ")}`
+          : ""
+      }`
+    : "Нет активной катки (PB1 / TR1)";
 
   return (
     <div className="keech-hunt-panel">

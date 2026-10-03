@@ -2,15 +2,34 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import {
   canAccessKeechHunt,
-  mergeKeechHuntEvents,
   openKeechHuntMatches,
   readKeechHuntLive,
   readKeechHuntMemory,
   splitEvents,
+  type KeechHuntMatch,
 } from "@/lib/keechHunt";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+/** Most recently active open match = current map on the server Keech is on. */
+function pickPrimary(
+  liveMatch: KeechHuntMatch | null,
+  open: KeechHuntMatch[]
+): KeechHuntMatch | null {
+  if (!open.length) return null;
+  if (liveMatch && open.some((m) => m.id === liveMatch.id)) {
+    return open.find((m) => m.id === liveMatch.id) || liveMatch;
+  }
+  return open.reduce((best, m) => {
+    const last = (ev: KeechHuntMatch) => {
+      const events = ev.events || [];
+      if (events.length) return String(events[events.length - 1]?.at || "");
+      return String(ev.startAt || "");
+    };
+    return last(m) > last(best) ? m : best;
+  });
+}
 
 export async function GET() {
   const session = await getSession();
@@ -24,21 +43,28 @@ export async function GET() {
     readKeechHuntMemory(),
   ]);
   const matches = openKeechHuntMatches(live);
-  const events = mergeKeechHuntEvents(matches);
+  // Right columns + live-log + NET: only current map (not PB1+TR1 merged).
+  const primary = pickPrimary(live.match, matches);
+  const events = (primary?.events || []).map((e) => ({
+    ...e,
+    server: e.server || primary?.server,
+  }));
   const split = events.length ? splitEvents(events) : null;
-  const net = events.reduce((s, e) => s + (Number(e.delta) || 0), 0);
-  const primary = live.match || matches[0] || null;
+  const net = Math.round(
+    (primary?.net ??
+      events.reduce((s, e) => s + (Number(e.delta) || 0), 0)) * 10
+  ) / 10;
 
   return NextResponse.json({
     updatedAt: live.updatedAt,
     match: primary
       ? {
           ...primary,
-          net: Math.round(net * 10) / 10,
-          noks: split?.noks.length ?? 0,
-          kills: split?.kills.length ?? 0,
-          deaths: split?.deaths.length ?? 0,
-          revives: split?.revives.length ?? 0,
+          net,
+          noks: split?.noks.length ?? primary.noks ?? 0,
+          kills: split?.kills.length ?? primary.kills ?? 0,
+          deaths: split?.deaths.length ?? primary.deaths ?? 0,
+          revives: split?.revives.length ?? primary.revives ?? 0,
           events,
         }
       : null,
@@ -52,6 +78,7 @@ export async function GET() {
       deaths: m.deaths,
       revives: m.revives,
       net: m.net,
+      active: primary ? m.id === primary.id : false,
     })),
     columns: split
       ? {
@@ -59,7 +86,7 @@ export async function GET() {
           kills: split.kills,
           deaths: split.deaths,
           revives: split.revives,
-          net: Math.round(net * 10) / 10,
+          net,
         }
       : null,
     history: memory.map((m) => ({
