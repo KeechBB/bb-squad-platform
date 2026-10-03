@@ -61,7 +61,25 @@ echo "==> $(date -Is) deploy in $ROOT"
 enable_maintenance
 
 echo "==> git pull"
-git pull --ff-only
+# Runtime public data lives on disk / DB — never let hard-reset wipe a fuller ledger.
+PRESERVE_PUBLIC=(
+  "data/public/rp-ledger.json"
+  "data/public/match-history.json"
+)
+for f in "${PRESERVE_PUBLIC[@]}"; do
+  if [[ -f "$f" ]]; then
+    cp -a "$f" "$f.deploybak"
+    echo "==> preserve $f"
+  fi
+done
+git pull --ff-only || true
+# Some ops use reset --hard after fetch; restore preserved files either way.
+for f in "${PRESERVE_PUBLIC[@]}"; do
+  if [[ -f "$f.deploybak" ]]; then
+    mv -f "$f.deploybak" "$f"
+    echo "==> restored $f"
+  fi
+done
 echo "==> HEAD=$(git rev-parse --short HEAD)"
 
 ensure_swap
@@ -108,4 +126,16 @@ echo "==> free -h (after)"
 free -h || true
 
 DEPLOY_OK=1
+# Kick async public RP rebuild (DB history + logs) so Каток never stays on a thin git seed.
+if [[ -f scripts/build_public_rp_ledger.py ]]; then
+  echo "==> kick public RP rebuild (background)"
+  (
+    set -a
+    [[ -f .env ]] && . ./.env
+    set +a
+    python3 scripts/build_public_rp_ledger.py >>scripts/_tmp_public_rp_rebuild.log 2>&1
+    pm2 restart bb-squad >/dev/null 2>&1 || true
+  ) &
+fi
+
 echo "==> OK commit=$(git rev-parse --short HEAD) $(date -Is)"
