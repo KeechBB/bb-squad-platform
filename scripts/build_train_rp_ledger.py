@@ -120,6 +120,15 @@ MATCHES = [
         "start": datetime(2026, 10, 3, 18, 40, 55, tzinfo=timezone.utc),
         "end": datetime(2026, 10, 3, 19, 38, 6, tzinfo=timezone.utc),
     },
+    {
+        "id": "03-chora",
+        "map": "Chora AAS v3",
+        "date": "2026-10-03",
+        "log": "SquadGame-2026.10.03-chora.log",
+        # InProgress 22:39:16 → WaitingPostMatch ~23:30:53 МСК · RGF 100–0 · 51:37
+        "start": datetime(2026, 10, 3, 19, 39, 16, tzinfo=timezone.utc),
+        "end": datetime(2026, 10, 3, 20, 30, 53, tzinfo=timezone.utc),
+    },
 ]
 
 RANK_NAMES = [
