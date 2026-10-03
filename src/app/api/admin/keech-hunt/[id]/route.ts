@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import {
   canAccessKeechHunt,
+  eventsForMatch,
   readKeechHuntMatch,
   splitEvents,
 } from "@/lib/keechHunt";
@@ -21,18 +22,26 @@ export async function GET(_req: Request, ctx: Ctx) {
   if (!match) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
-  const split = splitEvents(match.events || []);
+  const events = eventsForMatch(match);
+  const split = splitEvents(events);
+  const net =
+    Math.round(events.reduce((s, e) => s + (Number(e.delta) || 0), 0) * 10) / 10;
   return NextResponse.json({
     match: {
       ...match,
-      noks: match.noks ?? split.noks.length,
+      events,
+      net,
+      noks: split.noks.length,
+      kills: split.kills.length,
+      deaths: split.deaths.length,
+      revives: split.revives.length,
     },
     columns: {
       noks: split.noks,
       kills: split.kills,
       deaths: split.deaths,
       revives: split.revives,
-      net: match.net,
+      net,
     },
   });
 }

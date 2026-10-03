@@ -167,40 +167,13 @@ class KeechHuntTracker:
         d = round(R.hunt_delta(me, pv, pmax) * R.REVIVE_COEF, 2)
         return d, me, pv
 
-    def _ensure_match(self, server: str, layer: str, start: datetime) -> dict[str, Any]:
-        server = _norm_server(server)
-        cur = self.matches.get(server)
-        if (
-            cur
-            and cur.get("server") == server
-            and cur.get("startAt") == start.isoformat()
-        ):
-            if layer and layer != "?" and (not cur.get("layer") or cur.get("layer") == "?"):
-                cur["layer"] = layer
-                cur["layerShort"] = _layer_short(layer)
-                self._dirty = True
-            return cur
-        # same map already open (InProgress after travel) — keep bucket
-        if cur and not cur.get("endAt"):
-            short = _layer_short(layer) if layer else "?"
-            cur_short = cur.get("layerShort") or "?"
-            if not layer or layer == "?" or short == "?":
-                return cur
-            if cur.get("layer") in (None, "", "?"):
-                cur["layer"] = layer
-                cur["layerShort"] = short
-                self._dirty = True
-                return cur
-            if short == cur_short:
-                return cur
-            # new layer on same server → archive previous
-            if cur.get("events"):
-                self._archive_match(cur, ended=start)
-        self.matches[server] = {
+    def _new_bucket(self, server: str, layer: str, start: datetime) -> dict[str, Any]:
+        short = _layer_short(layer) if layer else "?"
+        row = {
             "id": f"{server}-{start.strftime('%Y%m%d-%H%M%S')}",
             "server": server,
-            "layer": layer,
-            "layerShort": _layer_short(layer),
+            "layer": layer if layer else "?",
+            "layerShort": short,
             "startAt": start.isoformat(),
             "endAt": None,
             "events": [],
@@ -210,8 +183,48 @@ class KeechHuntTracker:
             "deaths": 0,
             "revives": 0,
         }
+        self.matches[server] = row
         self._dirty = True
-        return self.matches[server]
+        return row
+
+    def _ensure_match(self, server: str, layer: str, start: datetime) -> dict[str, Any]:
+        """Open/rotate per-server match bucket. One layer = one bucket; never rename in place."""
+        server = _norm_server(server)
+        short = _layer_short(layer) if layer else "?"
+        cur = self.matches.get(server)
+
+        if cur and not cur.get("endAt"):
+            cur_short = cur.get("layerShort") or "?"
+            # Same timestamp identity (rare) — allow discovering layer only on empty bucket
+            if cur.get("startAt") == start.isoformat():
+                if short not in ("", "?") and cur_short in ("", "?") and not cur.get("events"):
+                    cur["layer"] = layer
+                    cur["layerShort"] = short
+                    self._dirty = True
+                return cur
+
+            # Still no layer name: keep absorbing only while empty of known layer
+            if short in ("", "?"):
+                return cur
+
+            if cur_short in ("", "?"):
+                # BUGFIX: never rename "?" → real map in place — that glued old kills
+                # onto the new layer. Archive mystery bucket, start clean.
+                if cur.get("events"):
+                    self._archive_match(cur, ended=start)
+                self.matches.pop(server, None)
+                return self._new_bucket(server, layer, start)
+
+            if short == cur_short:
+                # Same map (InProgress after SeamlessTravel) — keep
+                return cur
+
+            # Different map on same server → archive previous
+            if cur.get("events"):
+                self._archive_match(cur, ended=start)
+            self.matches.pop(server, None)
+
+        return self._new_bucket(server, layer, start)
 
     def _open_bucket(self, server: str, at: datetime) -> dict[str, Any]:
         server = _norm_server(server)
@@ -273,7 +286,27 @@ class KeechHuntTracker:
         if "Match State Changed" in line and "LogGameMode" in line:
             sm = R.STATE_RE.search(line)
             if sm and sm.group("state") == "InProgress":
-                layer = (self.matches.get(server) or {}).get("layer") or "?"
+                cur = self.matches.get(server)
+                layer = (cur or {}).get("layer") or "?"
+                # New round after a finished map sometimes skips LeavingMap.
+                # If open bucket already has events and Travel didn't rotate,
+                # InProgress with a much newer clock → force fresh bucket.
+                if cur and not cur.get("endAt") and cur.get("events"):
+                    try:
+                        st = datetime.fromisoformat(
+                            str(cur["startAt"]).replace("Z", "+00:00")
+                        )
+                        if st.tzinfo is None:
+                            st = st.replace(tzinfo=timezone.utc)
+                        gap = (at - st).total_seconds()
+                    except Exception:
+                        gap = 0.0
+                    # >15 min since bucket start and InProgress again → new match
+                    # (same long map won't re-fire InProgress mid-round)
+                    if gap > 15 * 60:
+                        self._archive_match(cur, ended=at)
+                        self.matches.pop(server, None)
+                        layer = "?"
                 self._ensure_match(server, layer, at)
             if sm and sm.group("state") in ("WaitingPostMatch", "LeavingMap"):
                 cur = self.matches.get(server)
@@ -477,7 +510,11 @@ class KeechHuntTracker:
         ids = {e.get("id") for e in bucket["events"]}
         if ev["id"] in ids:
             return
-        bucket["events"].append(ev)
+        row = dict(ev)
+        row["server"] = row.get("server") or server
+        row["layerShort"] = bucket.get("layerShort") or "?"
+        row["matchId"] = bucket.get("id")
+        bucket["events"].append(row)
         bucket["net"] = round(sum(float(e.get("delta") or 0) for e in bucket["events"]), 2)
         bucket["noks"] = sum(1 for e in bucket["events"] if e.get("kind") == "nok")
         bucket["kills"] = sum(1 for e in bucket["events"] if e.get("kind") == "kill")

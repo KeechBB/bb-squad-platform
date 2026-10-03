@@ -12,6 +12,8 @@ export type KeechHuntEvent = {
   oppWeight: number;
   bones?: Record<string, number>;
   server?: string;
+  layerShort?: string;
+  matchId?: string;
 };
 
 export type KeechHuntMatch = {
@@ -35,6 +37,28 @@ export type KeechHuntLive = {
   matches?: KeechHuntMatch[];
   keechSteam: string;
 };
+
+/** Keep only events that belong to this match/map (drop glued leftovers). */
+export function eventsForMatch(match: KeechHuntMatch | null | undefined): KeechHuntEvent[] {
+  if (!match) return [];
+  const layer = String(match.layerShort || "").trim();
+  const startAt = String(match.startAt || "");
+  const matchId = String(match.id || "");
+  return (match.events || []).filter((e) => {
+    if (matchId && e.matchId && e.matchId !== matchId) return false;
+    if (
+      layer &&
+      layer !== "?" &&
+      e.layerShort &&
+      e.layerShort !== "?" &&
+      e.layerShort !== layer
+    ) {
+      return false;
+    }
+    if (startAt && e.at && String(e.at) < startAt) return false;
+    return true;
+  });
+}
 
 export function serverLabel(server: string | null | undefined): string {
   const s = String(server || "").toUpperCase();

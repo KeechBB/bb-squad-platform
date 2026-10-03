@@ -10,6 +10,7 @@ import {
 
 export {
   KEECH_STEAM,
+  eventsForMatch,
   mergeKeechHuntEvents,
   openKeechHuntMatches,
   serverLabel,

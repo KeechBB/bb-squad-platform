@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HitSilhouetteMini } from "@/components/HitSilhouetteMini";
 import {
+  eventsForMatch,
   serverLabel,
   splitEvents,
   type KeechHuntEvent,
@@ -191,9 +192,12 @@ export function AdminKeechHuntPanel() {
 
   /**
    * Один источник: события только текущей карты (data.match).
-   * Live-лог и правые колонки режутся из одного списка — без склейки PB1+TR1.
+   * Live-лог и правые колонки режутся из одного списка — без склейки карт/серверов.
    */
-  const mapEvents = useMemo(() => data?.match?.events || [], [data]);
+  const mapEvents = useMemo(
+    () => eventsForMatch(data?.match ?? null),
+    [data]
+  );
   const liveLog = useMemo(
     () =>
       [...mapEvents].sort((a, b) => String(b.at).localeCompare(String(a.at))),

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import {
   canAccessKeechHunt,
+  eventsForMatch,
   openKeechHuntMatches,
   readKeechHuntLive,
   readKeechHuntMemory,
@@ -45,15 +46,16 @@ export async function GET() {
   const matches = openKeechHuntMatches(live);
   // Right columns + live-log + NET: only current map (not PB1+TR1 merged).
   const primary = pickPrimary(live.match, matches);
-  const events = (primary?.events || []).map((e) => ({
+  const events = eventsForMatch(primary).map((e) => ({
     ...e,
     server: e.server || primary?.server,
+    layerShort: e.layerShort || primary?.layerShort,
   }));
   const split = events.length ? splitEvents(events) : null;
-  const net = Math.round(
-    (primary?.net ??
-      events.reduce((s, e) => s + (Number(e.delta) || 0), 0)) * 10
-  ) / 10;
+  const net =
+    Math.round(
+      events.reduce((s, e) => s + (Number(e.delta) || 0), 0) * 10
+    ) / 10;
 
   return NextResponse.json({
     updatedAt: live.updatedAt,
