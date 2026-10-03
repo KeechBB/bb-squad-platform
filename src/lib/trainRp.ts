@@ -1,9 +1,10 @@
 /**
  * Training Respect Points (RP) — visible ladder.
  * Hidden PWR is only a weight inside Die()/revive formulas (see rp-ledger.json).
+ *
+ * Ledger ~3.5MB — never call noStore() here: it disables Next fetch/unstable_cache
+ * and makes every page pull the full JSON from GitHub Pages (5–15s).
  */
-import { unstable_noStore as noStore } from "next/cache";
-
 const KV_BASES = [
   process.env.KV_DATA_BASE,
   "https://keechbb.github.io/blackberry-kv",
@@ -36,9 +37,9 @@ export type RpPlayerMatch = {
   teamkills?: RpMatchEvent[];
   /** Medic revives this player performed (patient in victim field) */
   revives?: RpMatchEvent[];
-  /** Public: knockdowns (Die without give-up). No RP. */
+  /** Public: knockdowns / downs (incl. give-up). No RP. */
   noks?: RpMatchEvent[];
-  /** Public: combat damage from KillingDamage on Die/nok. */
+  /** Public: combat damage from KillingDamage on enemy Die/nok (TK excluded). */
   dmg?: number;
   /** Public PB1: won the layer (from team assignment) */
   won?: boolean | null;
@@ -89,6 +90,9 @@ export type RpLedger = {
   leaderboard: Omit<RpLeaderRow, "place" | "games">[];
 };
 
+const LEDGER_TTL_MS = 90_000;
+let ledgerMem: { at: number; data: RpLedger | null } | null = null;
+
 function nickKey(n: string) {
   return String(n || "")
     .trim()
@@ -97,24 +101,32 @@ function nickKey(n: string) {
 }
 
 async function fetchJson(url: string) {
-  const res = await fetch(url, { next: { revalidate: 60 } });
+  const res = await fetch(url, { next: { revalidate: 90 } });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
 export async function loadRpLedger(): Promise<RpLedger | null> {
-  noStore();
+  const now = Date.now();
+  if (ledgerMem && now - ledgerMem.at < LEDGER_TTL_MS) {
+    return ledgerMem.data;
+  }
+  let data: RpLedger | null = null;
   for (const base of KV_BASES) {
     try {
-      const data = (await fetchJson(
+      const j = (await fetchJson(
         `${base.replace(/\/$/, "")}/data/training/rp-ledger.json`
       )) as RpLedger;
-      if (data?.players) return data;
+      if (j?.players) {
+        data = j;
+        break;
+      }
     } catch {
       /* next */
     }
   }
-  return null;
+  ledgerMem = { at: now, data };
+  return data;
 }
 
 export function rpRankFromScore(rp: number, step = 150, radiant3Max = 4500) {

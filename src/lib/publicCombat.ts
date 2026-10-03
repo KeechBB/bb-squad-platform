@@ -3,7 +3,6 @@
  * Index: data/public/index.json → months[].url → matches[].playersUrl
  * MVP: from players.mvp.public or pickMvps(total rows).
  */
-import { unstable_noStore as noStore } from "next/cache";
 import { pickMvps, type MvpBlock } from "@/lib/homeMvp";
 import { buildPublicAttendanceLeaderboard } from "@/lib/publicAttendance";
 import { buildPublicRpLeaderboard, lookupPlayerPublicRp } from "@/lib/publicRp";
@@ -23,13 +22,12 @@ function nickKey(n: string) {
 }
 
 async function fetchJson(url: string) {
-  const res = await fetch(url, { next: { revalidate: 60 } });
+  const res = await fetch(url, { next: { revalidate: 90 } });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
 async function loadFromKv<T>(rel: string): Promise<T | null> {
-  noStore();
   for (const base of KV_BASES) {
     try {
       return (await fetchJson(`${base.replace(/\/$/, "")}/${rel}`)) as T;
@@ -238,7 +236,7 @@ async function loadPublicMatchBundlesFromLedger(): Promise<PublicBundle[]> {
       prev.deaths = (prev.deaths || 0) + (m.deaths?.length || 0);
       prev.res = (prev.res || 0) + (m.revives?.length || 0);
       prev.nok = (prev.nok || 0) + (m.noks?.length || 0);
-      prev.dmg = (prev.dmg || 0) + (Number(m.dmg) || 0);
+      prev.dmg = Math.round((prev.dmg || 0) + (Number(m.dmg) || 0));
       if (m.won === true) prev.won = true;
       if (m.won === false && prev.won !== true) prev.won = false;
       row.set(nickKey(nick), prev);
@@ -318,7 +316,7 @@ function aggregateCombat(
   return map;
 }
 
-export async function buildPublicRatingTable(limit = 200): Promise<{
+export async function buildPublicRatingTable(limit = 500): Promise<{
   rows: PublicCombatRow[];
   matches: number;
   updatedAt: string;
@@ -452,7 +450,7 @@ export async function buildPublicRatingTable(limit = 200): Promise<{
       kills,
       deaths,
       kd: deaths > 0 ? Math.round((kills / deaths) * 100) / 100 : kills,
-      dmg: c?.dmg || 0,
+      dmg: Math.round(c?.dmg || 0),
       mvpMedic: c?.mvpMedic || 0,
       mvpKiller: c?.mvpKiller || 0,
       mvpDamage: c?.mvpDamage || 0,
@@ -534,7 +532,7 @@ export async function buildPlayerPublicCombatStats(
     losses,
     kills: row.kills,
     deaths: row.deaths,
-    dmg: row.dmg,
+    dmg: Math.round(row.dmg),
     res: row.res,
     nok: row.nok,
     kd: row.kd,

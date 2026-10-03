@@ -355,14 +355,18 @@ export async function lookupPlayerTrainPwr(
 ): Promise<HomeTrainPwrRow | null> {
   const clean = String(nick || "").trim();
   if (!clean) return null;
-  const { lookupPlayerTrainRp, buildTrainRpLeaderboard } = await import(
-    "@/lib/trainRp"
-  );
-  const player = await lookupPlayerTrainRp(clean);
+  const { loadRpLedger } = await import("@/lib/trainRp");
+  // one ledger load — avoid double-fetch of ~3.5MB JSON
+  const ledger = await loadRpLedger();
+  if (!ledger?.players) return null;
+  const key = nickKey(clean);
+  const player =
+    ledger.players[key] ||
+    Object.values(ledger.players).find((p) => nickKey(p.nick) === key) ||
+    null;
   if (!player) return null;
-  const board = await buildTrainRpLeaderboard();
   const place =
-    board.rows.findIndex(
+    (ledger.leaderboard || []).findIndex(
       (r) => nickKey(r.nick) === nickKey(player.nick)
     ) + 1 || null;
   const rp = Math.round(Number(player.rp) || 0);
@@ -376,7 +380,7 @@ export async function lookupPlayerTrainPwr(
     rankLabel,
     rankKey: player.rankKey,
     games: player.matches?.length || 0,
-    place: place || board.rows.length + 1,
+    place: place || (ledger.leaderboard?.length || 0) + 1,
     predatorPlace: player.predatorPlace ?? null,
     matches: player.matches || [],
   };

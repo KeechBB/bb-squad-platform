@@ -3,7 +3,6 @@
  * Weight uses current public RP (not PWR). Ledger built offline from TPUB1 logs
  * excluding SEED layers → data/public/rp-ledger.json
  */
-import { unstable_noStore as noStore } from "next/cache";
 import { rpRankFromScore, type RpLeaderRow, type RpLedger, type RpPlayer } from "@/lib/trainRp";
 
 const KV_BASES = [
@@ -19,7 +18,7 @@ function nickKey(n: string) {
 }
 
 async function fetchJson(url: string) {
-  const res = await fetch(url, { next: { revalidate: 60 } });
+  const res = await fetch(url, { next: { revalidate: 90 } });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
@@ -42,7 +41,6 @@ function isCurrentPublicLedger(data: RpLedger | null | undefined): boolean {
 }
 
 export async function loadPublicRpLedger(): Promise<RpLedger | null> {
-  noStore();
   const candidates: RpLedger[] = [];
 
   // Disk first, then KV — but only accept history/epoch ledgers.
