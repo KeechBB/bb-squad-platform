@@ -16,6 +16,7 @@ Env (не коммитить секреты):
   SQUAD_LOG_ROOT=/home/squad/servers
   SQUAD_INGEST_URL=https://bb-squad.ru/api/ingest/squad-sessions
   SQUAD_HITS_INGEST_URL=https://bb-squad.ru/api/ingest/squad-hits
+  SQUAD_MATCHES_INGEST_URL=https://bb-squad.ru/api/ingest/public-matches
   SQUAD_INGEST_SECRET=...
   SQUAD_STATE_PATH=./squad_collector_state.json
   SQUAD_POLL_SEC=5
@@ -40,6 +41,8 @@ import requests
 # Join/leave со всех SQUAD_SERVERS; hits + DeployRole — только тренировочные
 # (мод BBHitZone / учёт китов как на TR1).
 TRAINING_HIT_ROLE_SERVERS = frozenset({"TR1", "TR2"})
+# История матчей паблика — только PB1/TPUB1 (SEED отфильтровываем).
+PUBLIC_MATCH_SERVERS = frozenset({"TPUB1", "PB1", "PUB"})
 
 # Name may contain spaces; passworded servers append ?PASSWORD=… before userId.
 LOGIN_RE = re.compile(
@@ -80,6 +83,15 @@ DEPLOY_RE = re.compile(
     r"PC=(?P<nick>.+?)(?:\s+\(Online IDs:[^)]*\))?\s+"
     r"(?:Spawn=\S+\s+)?"
     r".*?DeployRole=(?P<role>\S+)",
+    re.IGNORECASE,
+)
+# End of match (won/lost pair) — LogSquadGameEvents
+MATCH_RESULT_RE = re.compile(
+    r"^\[(?P<ts>\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}):\d+\].*"
+    r"LogSquadGameEvents:\s*Display:\s*Team\s+(?P<team>[12]),\s+"
+    r"(?P<faction>.+?)\s+\(\s*(?P<side>.+?)\s*\)\s+has\s+"
+    r"(?P<outcome>won|lost)\s+the\s+match\s+with\s+(?P<tickets>\d+)\s+Tickets\s+"
+    r"on\s+layer\s+(?P<layer>.+?)\s+\(level\s+(?P<level>.+?)\)!",
     re.IGNORECASE,
 )
 
@@ -217,6 +229,14 @@ class Collector:
         self.roles_ingest_url = os.environ.get(
             "SQUAD_ROLES_INGEST_URL", roles_default
         ).strip() or roles_default
+        matches_default = self.ingest_url.replace(
+            "/api/ingest/squad-sessions", "/api/ingest/public-matches"
+        )
+        if matches_default == self.ingest_url:
+            matches_default = "https://bb-squad.ru/api/ingest/public-matches"
+        self.matches_ingest_url = os.environ.get(
+            "SQUAD_MATCHES_INGEST_URL", matches_default
+        ).strip() or matches_default
         backfill_default = self.ingest_url.replace(
             "/api/ingest/squad-sessions", "/api/ingest/backfill-sessions"
         )
@@ -235,6 +255,8 @@ class Collector:
         self.pending_joins: dict[str, dict[str, Any]] = {}
         # leave до появления steam-карты
         self.pending_leaves: dict[str, dict[str, Any]] = {}
+        # serverKey|ts|layer -> partial match (won/lost pair)
+        self._match_buf: dict[str, dict[str, Any]] = {}
         # serverKey -> {offset, inode}
         self.log_state: dict[str, dict[str, Any]] = {
             key: {"offset": 0, "inode": None} for key, _ in self.targets
@@ -349,6 +371,7 @@ class Collector:
         sessions = [e for e in events if e.get("type") in ("join", "leave")]
         hits = [e for e in events if e.get("type") == "hit"]
         roles = [e for e in events if e.get("type") == "role"]
+        matches = [e for e in events if e.get("type") == "match"]
         headers = {
             "Authorization": f"Bearer {self.ingest_secret}",
             "Content-Type": "application/json",
@@ -408,6 +431,25 @@ class Collector:
                     )
                 else:
                     _safe_print("ingest roles", r.json())
+        if matches:
+            chunk = 100
+            for i in range(0, len(matches), chunk):
+                part = matches[i : i + chunk]
+                r = requests.post(
+                    self.matches_ingest_url,
+                    headers=headers,
+                    json={"events": part},
+                    timeout=60,
+                )
+                if r.status_code >= 300:
+                    _safe_print(
+                        "ingest matches fail",
+                        r.status_code,
+                        r.text[:300],
+                        file=sys.stderr,
+                    )
+                else:
+                    _safe_print("ingest matches", r.json())
 
     def _parse_hit(
         self, line: str, server_key: str
@@ -571,6 +613,73 @@ class Collector:
             }
         ]
 
+    def _parse_match(
+        self, line: str, server_key: str
+    ) -> dict[str, Any] | None:
+        if "has won the match" not in line and "has lost the match" not in line:
+            return None
+        if server_key not in PUBLIC_MATCH_SERVERS:
+            return None
+        mm = MATCH_RESULT_RE.search(line)
+        if not mm:
+            return None
+        layer = (mm.group("layer") or "").strip()
+        level = (mm.group("level") or "").strip()
+        if re.search(r"\bseed\b", layer, re.I) or re.search(r"\bseed\b", level, re.I):
+            return None
+        team = int(mm.group("team"))
+        faction = (mm.group("faction") or "").strip()
+        side = (mm.group("side") or "").strip()
+        outcome = (mm.group("outcome") or "").lower()
+        tickets = int(mm.group("tickets"))
+        ts = mm.group("ts")
+        at = parse_ts(ts)
+        buf_key = f"{server_key}|{ts}|{layer}"
+        buf = self._match_buf.get(buf_key)
+        if not buf:
+            buf = {
+                "at": at,
+                "serverKey": server_key,
+                "mapName": level,
+                "layerName": layer,
+                "teams": {},
+                "winnerTeam": None,
+                "winnerName": None,
+            }
+            self._match_buf[buf_key] = buf
+        buf["teams"][team] = {
+            "faction": faction,
+            "side": side,
+            "score": tickets,
+        }
+        if outcome == "won":
+            buf["winnerTeam"] = team
+            buf["winnerName"] = faction
+        if 1 in buf["teams"] and 2 in buf["teams"] and buf.get("winnerTeam"):
+            self._match_buf.pop(buf_key, None)
+            t1 = buf["teams"][1]
+            t2 = buf["teams"][2]
+            return {
+                "type": "match",
+                "at": buf["at"],
+                "serverKey": server_key,
+                "mapName": buf["mapName"],
+                "layerName": buf["layerName"],
+                "faction1": t1["faction"],
+                "faction1Side": t1["side"],
+                "score1": t1["score"],
+                "faction2": t2["faction"],
+                "faction2Side": t2["side"],
+                "score2": t2["score"],
+                "winnerTeam": buf["winnerTeam"],
+                "winnerName": buf["winnerName"],
+            }
+        # Drop stale incomplete buffers (keep last ~40)
+        if len(self._match_buf) > 40:
+            for old_key in list(self._match_buf.keys())[:10]:
+                self._match_buf.pop(old_key, None)
+        return None
+
     def _handle_line(self, line: str, server_key: str) -> list[dict[str, Any]]:
         events: list[dict[str, Any]] = []
         hit = self._parse_hit(line, server_key)
@@ -579,6 +688,9 @@ class Collector:
         role = self._parse_role(line, server_key)
         if role:
             events.append(role)
+        match_ev = self._parse_match(line, server_key)
+        if match_ev:
+            events.append(match_ev)
 
         m = STEAM_EOS_RE.search(line)
         if m:

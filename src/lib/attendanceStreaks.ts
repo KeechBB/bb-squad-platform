@@ -263,6 +263,7 @@ export async function buildAttendanceStreakBoard(
     Array<{ joinedAt: Date; leftAt: Date | null; serverKey: string }>
   >();
   for (const s of sessions) {
+    if (!s.userId) continue;
     if (!byUser.has(s.userId)) byUser.set(s.userId, []);
     byUser.get(s.userId)!.push({
       joinedAt: s.joinedAt,

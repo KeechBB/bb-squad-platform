@@ -61,6 +61,7 @@ type StatRow = {
 export type PublicCombatRow = {
   place: number;
   nick: string;
+  steamId: string | null;
   clan: string;
   rp: number | null;
   rankLabel: string;
@@ -80,6 +81,8 @@ export type PublicCombatRow = {
   antiDeath: number;
   /** days on PB1 (attendance) */
   days: number;
+  /** registered on site — nick is linkable */
+  hasProfile: boolean;
 };
 
 export type PlayerPublicCombatStats = {
@@ -254,12 +257,13 @@ export async function buildPublicRatingTable(limit = 200): Promise<{
 }> {
   const [bundles, att, rpBoard, users] = await Promise.all([
     loadPublicMatchBundles(),
-    buildPublicAttendanceLeaderboard(500),
+    buildPublicAttendanceLeaderboard(2000),
     buildPublicRpLeaderboard(),
     prisma.user.findMany({
       where: { profileComplete: true, nick: { not: null } },
       select: {
         nick: true,
+        steamId: true,
         clanMemberships: {
           take: 1,
           include: { clan: { select: { tag: true } } },
@@ -270,30 +274,96 @@ export async function buildPublicRatingTable(limit = 200): Promise<{
 
   const combat = aggregateCombat(bundles);
   const clanByNick = new Map<string, string>();
+  const steamByNick = new Map<string, string>();
   for (const u of users) {
     if (!u.nick) continue;
+    const k = nickKey(u.nick);
     const tag = u.clanMemberships[0]?.clan?.tag;
-    if (tag) clanByNick.set(nickKey(u.nick), tag);
+    if (tag) clanByNick.set(k, tag);
+    if (u.steamId) steamByNick.set(k, u.steamId);
   }
 
   const attByNick = new Map(att.map((a) => [nickKey(a.nick), a]));
-  const rpByNick = new Map(
-    rpBoard.rows.map((r) => [nickKey(r.nick), r])
-  );
+  const attBySteam = new Map(att.map((a) => [a.steamId, a]));
+  const rpByNick = new Map(rpBoard.rows.map((r) => [nickKey(r.nick), r]));
 
-  const keys = new Set<string>([
-    ...combat.keys(),
-    ...attByNick.keys(),
-    ...rpByNick.keys(),
-  ]);
+  type Merge = {
+    nick: string;
+    steamId: string | null;
+    hasProfile: boolean;
+    days: number;
+    combatKey: string | null;
+    rpKey: string | null;
+  };
+  const merged = new Map<string, Merge>();
+
+  const put = (key: string, patch: Partial<Merge> & { nick: string }) => {
+    const cur = merged.get(key) || {
+      nick: patch.nick,
+      steamId: null,
+      hasProfile: false,
+      days: 0,
+      combatKey: null,
+      rpKey: null,
+    };
+    merged.set(key, {
+      nick: patch.nick || cur.nick,
+      steamId: patch.steamId ?? cur.steamId,
+      hasProfile: Boolean(patch.hasProfile || cur.hasProfile),
+      days: Math.max(cur.days, patch.days || 0),
+      combatKey: patch.combatKey ?? cur.combatKey,
+      rpKey: patch.rpKey ?? cur.rpKey,
+    });
+  };
+
+  // Attendance is the base universe (all Steam on PB1).
+  for (const a of att) {
+    const k = a.steamId || nickKey(a.nick);
+    put(k, {
+      nick: a.nick,
+      steamId: a.steamId,
+      hasProfile: a.hasProfile,
+      days: a.days,
+    });
+  }
+
+  // Combat / RP by nick — attach to attendance row when possible.
+  for (const [ck, c] of combat) {
+    const steam = steamByNick.get(ck);
+    const attHit = steam
+      ? attBySteam.get(steam)
+      : attByNick.get(ck);
+    const key = attHit?.steamId || steam || `nick:${ck}`;
+    put(key, {
+      nick: attHit?.nick || c.nick,
+      steamId: attHit?.steamId || steam || null,
+      hasProfile: attHit?.hasProfile || Boolean(steam),
+      days: attHit?.days || 0,
+      combatKey: ck,
+    });
+  }
+
+  for (const [rk, r] of rpByNick) {
+    const steam = steamByNick.get(rk);
+    const attHit = steam
+      ? attBySteam.get(steam)
+      : attByNick.get(rk);
+    const key = attHit?.steamId || steam || `nick:${rk}`;
+    put(key, {
+      nick: attHit?.nick || r.nick,
+      steamId: attHit?.steamId || steam || null,
+      hasProfile: attHit?.hasProfile || Boolean(steam),
+      days: attHit?.days || 0,
+      rpKey: rk,
+    });
+  }
 
   const rows: PublicCombatRow[] = [];
-  for (const k of keys) {
-    const c = combat.get(k);
-    const a = attByNick.get(k);
-    const rp = rpByNick.get(k);
-    const nick = c?.nick || a?.nick || rp?.nick;
-    if (!nick) continue;
+  for (const m of merged.values()) {
+    const c = m.combatKey ? combat.get(m.combatKey) : undefined;
+    const rp = m.rpKey
+      ? rpByNick.get(m.rpKey)
+      : rpByNick.get(nickKey(m.nick));
     const games = c?.games || 0;
     const wins = c?.wins || 0;
     const kills = c?.kills || 0;
@@ -310,8 +380,9 @@ export async function buildPublicRatingTable(limit = 200): Promise<{
           : { label: "—", key: "iron" };
     rows.push({
       place: 0,
-      nick,
-      clan: clanByNick.get(k) || "—",
+      nick: m.nick,
+      steamId: m.steamId,
+      clan: clanByNick.get(nickKey(m.nick)) || "—",
       rp: rpVal,
       rankLabel: rank.label,
       rankKey: rank.key,
@@ -322,16 +393,14 @@ export async function buildPublicRatingTable(limit = 200): Promise<{
       nok: c?.nok || 0,
       kills,
       deaths,
-      kd:
-        deaths > 0
-          ? Math.round((kills / deaths) * 100) / 100
-          : kills,
+      kd: deaths > 0 ? Math.round((kills / deaths) * 100) / 100 : kills,
       dmg: c?.dmg || 0,
       mvpMedic: c?.mvpMedic || 0,
       mvpKiller: c?.mvpKiller || 0,
       mvpDamage: c?.mvpDamage || 0,
       antiDeath: c?.antiDeath || 0,
-      days: a?.days || 0,
+      days: m.days,
+      hasProfile: m.hasProfile,
     });
   }
 
@@ -339,7 +408,10 @@ export async function buildPublicRatingTable(limit = 200): Promise<{
     const ar = a.rp == null ? -1e9 : a.rp;
     const br = b.rp == null ? -1e9 : b.rp;
     if (ar !== br) return br - ar;
-    if (b.mvpMedic + b.mvpKiller + b.mvpDamage !== a.mvpMedic + a.mvpKiller + a.mvpDamage) {
+    if (
+      b.mvpMedic + b.mvpKiller + b.mvpDamage !==
+      a.mvpMedic + a.mvpKiller + a.mvpDamage
+    ) {
       return (
         b.mvpMedic +
         b.mvpKiller +

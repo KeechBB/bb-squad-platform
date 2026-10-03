@@ -195,6 +195,8 @@ export async function GET(req: Request) {
   }
 
   for (const s of sessions) {
+    // Админка — только привязанные к аккаунту; orphan PB1 (userId null) в /public.
+    if (!s.userId) continue;
     if (!sessionsByUser.has(s.userId)) sessionsByUser.set(s.userId, []);
     sessionsByUser.get(s.userId)!.push({
       joinedAt: s.joinedAt,
@@ -349,23 +351,26 @@ export async function GET(req: Request) {
       leaveBucket[key] = (leaveBucket[key] || 0) + 1;
     }
 
-    if (!sessionsByUserChrono.has(s.userId)) {
-      sessionsByUserChrono.set(s.userId, []);
+    const playerKey = s.userId || s.steamId;
+    if (s.userId) {
+      if (!sessionsByUserChrono.has(s.userId)) {
+        sessionsByUserChrono.set(s.userId, []);
+      }
+      sessionsByUserChrono.get(s.userId)!.push({
+        joinedAt: s.joinedAt,
+        leftAt: s.leftAt,
+        nick: s.nickAtJoin,
+      });
     }
-    sessionsByUserChrono.get(s.userId)!.push({
-      joinedAt: s.joinedAt,
-      leftAt: s.leftAt,
-      nick: s.nickAtJoin,
-    });
 
     const day = isPublic ? ymdMsk(s.joinedAt) : trainingDayYmd(s.joinedAt);
 
     if (isPublic) {
       if (!uniqueMidnightByDay[day]) uniqueMidnightByDay[day] = new Set();
-      uniqueMidnightByDay[day].add(s.userId);
+      uniqueMidnightByDay[day].add(playerKey);
       if (!uniqueUntil02ByDay[day]) uniqueUntil02ByDay[day] = new Set();
-      uniqueUntil02ByDay[day].add(s.userId);
-    } else {
+      uniqueUntil02ByDay[day].add(playerKey);
+    } else if (s.userId) {
       if (trainingWindowOverlapMinutes(s.joinedAt, s.leftAt, 24, now) > 0) {
         if (!uniqueMidnightByDay[day]) uniqueMidnightByDay[day] = new Set();
         uniqueMidnightByDay[day].add(s.userId);
@@ -588,7 +593,9 @@ export async function GET(req: Request) {
       totalMinutes,
       avgSessionMin:
         totalSessions > 0 ? Math.round(totalMinutes / totalSessions) : 0,
-      uniquePlayers: new Set(sessions.map((s) => s.userId)).size,
+      uniquePlayers: new Set(
+        sessions.map((s) => s.userId || s.steamId).filter(Boolean)
+      ).size,
       leaveBucket,
       joinBucket,
       weekday,

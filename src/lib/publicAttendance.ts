@@ -161,8 +161,26 @@ export async function loadUserPublicAttendanceStats(userId: string) {
   };
 }
 
-/** Leaderboard by PB1 days present (for /public until combat RP ledger is ready). */
-export async function buildPublicAttendanceLeaderboard(limit = 100) {
+export type PublicAttendanceRow = {
+  place: number;
+  steamId: string;
+  nick: string;
+  avatarUrl: string | null;
+  days: number;
+  lateDays: number;
+  /** true — есть аккаунт на сайте с этим Steam */
+  hasProfile: boolean;
+};
+
+function shortSteam(steamId: string): string {
+  if (steamId.length <= 8) return steamId;
+  return `…${steamId.slice(-6)}`;
+}
+
+/** Leaderboard by PB1 days — all Steam IDs (registered or not). */
+export async function buildPublicAttendanceLeaderboard(
+  limit = 100
+): Promise<PublicAttendanceRow[]> {
   const canonStart = attendanceCanonStartUtc();
   const sessions = await prisma.squadServerSession.findMany({
     where: {
@@ -170,50 +188,81 @@ export async function buildPublicAttendanceLeaderboard(limit = 100) {
       serverKey: "TPUB1",
     },
     select: {
+      steamId: true,
       userId: true,
+      nickAtJoin: true,
       joinedAt: true,
       leftAt: true,
       serverKey: true,
     },
+    orderBy: { joinedAt: "asc" },
   });
 
-  const byUser = new Map<string, SessionForAttendance[]>();
+  const bySteam = new Map<
+    string,
+    {
+      sessions: SessionForAttendance[];
+      lastNick: string | null;
+      userId: string | null;
+    }
+  >();
+
   for (const s of sessions) {
-    if (!byUser.has(s.userId)) byUser.set(s.userId, []);
-    byUser.get(s.userId)!.push({
+    const sid = (s.steamId || "").trim();
+    if (!sid) continue;
+    let bucket = bySteam.get(sid);
+    if (!bucket) {
+      bucket = { sessions: [], lastNick: null, userId: null };
+      bySteam.set(sid, bucket);
+    }
+    bucket.sessions.push({
       joinedAt: s.joinedAt,
       leftAt: s.leftAt,
       serverKey: s.serverKey,
     });
+    if (s.nickAtJoin?.trim()) bucket.lastNick = s.nickAtJoin.trim();
+    if (s.userId) bucket.userId = s.userId;
   }
 
-  const userIds = [...byUser.keys()];
-  const users = await prisma.user.findMany({
-    where: { id: { in: userIds }, profileComplete: true },
-    select: { id: true, nick: true, avatarUrl: true },
-  });
-  const nickById = new Map(users.map((u) => [u.id, u]));
+  const steamIds = [...bySteam.keys()];
+  const [users, eosMaps] = await Promise.all([
+    prisma.user.findMany({
+      where: { steamId: { in: steamIds }, profileComplete: true },
+      select: { id: true, steamId: true, nick: true, avatarUrl: true },
+    }),
+    prisma.squadEosSteamMap.findMany({
+      where: { steamId: { in: steamIds } },
+      select: { steamId: true, nick: true },
+    }),
+  ]);
 
-  const rows = userIds
-    .map((id) => {
-      const u = nickById.get(id);
-      if (!u?.nick) return null;
-      const marks = publicDayMarksFromSessions(byUser.get(id) || []);
-      const days = marks.present.size;
-      if (days <= 0) return null;
-      return {
-        nick: u.nick,
-        avatarUrl: u.avatarUrl,
-        days,
-        lateDays: marks.late.size,
-      };
-    })
-    .filter(Boolean) as Array<{
-    nick: string;
-    avatarUrl: string | null;
-    days: number;
-    lateDays: number;
-  }>;
+  const userBySteam = new Map(users.map((u) => [u.steamId, u]));
+  const eosNickBySteam = new Map<string, string>();
+  for (const m of eosMaps) {
+    if (m.nick?.trim()) eosNickBySteam.set(m.steamId, m.nick.trim());
+  }
+
+  const rows: Omit<PublicAttendanceRow, "place">[] = [];
+  for (const sid of steamIds) {
+    const bucket = bySteam.get(sid)!;
+    const marks = publicDayMarksFromSessions(bucket.sessions);
+    const days = marks.present.size;
+    if (days <= 0) continue;
+    const u = userBySteam.get(sid);
+    const nick =
+      (u?.nick || "").trim() ||
+      bucket.lastNick ||
+      eosNickBySteam.get(sid) ||
+      shortSteam(sid);
+    rows.push({
+      steamId: sid,
+      nick,
+      avatarUrl: u?.avatarUrl ?? null,
+      days,
+      lateDays: marks.late.size,
+      hasProfile: Boolean(u?.nick),
+    });
+  }
 
   rows.sort((a, b) => b.days - a.days || a.nick.localeCompare(b.nick, "ru"));
   return rows.slice(0, limit).map((r, i) => ({ ...r, place: i + 1 }));

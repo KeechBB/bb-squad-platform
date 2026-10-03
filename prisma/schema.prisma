@@ -276,10 +276,11 @@ model ClanJoinRequest {
   @@index([userId, status])
 }
 
-/// Сессия на игровом сервере Squad (join → leave) для юзеров сайта.
+/// Сессия на игровом сервере Squad (join → leave).
+/// TR1/TR2 — только зарегистрированные; TPUB1/PB1 — все Steam (userId может быть null).
 model SquadServerSession {
   id         String    @id @default(cuid())
-  userId     String
+  userId     String?
   steamId    String
   eosId      String?
   nickAtJoin String?
@@ -291,7 +292,7 @@ model SquadServerSession {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, joinedAt])
   @@index([steamId, joinedAt])
@@ -306,6 +307,35 @@ model SquadEosSteamMap {
   updatedAt DateTime @updatedAt
 
   @@index([steamId])
+}
+
+/// Законченный матч паблика (PB1 / TPUB1). SEED не пишем.
+model PublicMatch {
+  id           String   @id @default(cuid())
+  serverKey    String   @default("TPUB1")
+  endedAt      DateTime
+  /// Level, напр. Al Basrah
+  mapName      String
+  /// Layer, напр. Al Basrah Skirmish v1
+  layerName    String?
+  /// Юнит команды 1 (Team 1)
+  faction1     String
+  /// Сторона команды 1, напр. Turkish Land Forces
+  faction1Side String?
+  score1       Int
+  faction2     String
+  faction2Side String?
+  score2       Int
+  /// 1 или 2
+  winnerTeam   Int
+  winnerName   String
+  /// Идемпотентность: server|endedAtMs|layer|score1|score2
+  eventKey     String   @unique
+  createdAt    DateTime @default(now())
+
+  @@index([serverKey, endedAt])
+  @@index([endedAt])
+  @@index([mapName])
 }
 
 /// Попадание BBHitZone (атакующий = зарегистрированный игрок сайта). TR1.

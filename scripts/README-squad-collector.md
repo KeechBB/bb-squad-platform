@@ -1,10 +1,10 @@
 # Коллектор заходов/выходов Squad → bb-squad.ru
 
 Читает `SquadGame.log` по SSH и шлёт:
-- join/leave → `POST /api/ingest/squad-sessions`
-- `BBHitZone:` (только TR1) → `POST /api/ingest/squad-hits`
+- join/leave → `POST /api/ingest/squad-sessions` (PB1 — все Steam; TR1/TR2 — только зареганные)
+- `BBHitZone:` / DeployRole (только TR1/TR2) → hits / roles ingest
+- конец матча паблика (`LogSquadGameEvents` won/lost, без SEED) → `POST /api/ingest/public-matches`
 
-В БД попадают **только** игроки, у которых есть аккаунт на сайте (Steam ID).
 Хитмап в профиле = кости, куда стрелял этот игрок (атакующий).
 
 ## Новичок играл до регистрации

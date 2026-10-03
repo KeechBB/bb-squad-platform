@@ -14,18 +14,21 @@ function NavItem({
   full,
   short,
   mode,
+  className,
 }: {
   href: string;
   title?: string;
   full: string;
   short: string;
   mode: "link" | "login" | "register";
+  className?: string;
 }) {
+  const cls = className?.trim() || undefined;
   if (mode === "login") {
     return (
       <button
         type="button"
-        className="nav-login-trigger"
+        className={["nav-login-trigger", cls].filter(Boolean).join(" ")}
         title={title || "Войти через Steam"}
         onClick={() => signIn("steam", { callbackUrl: href })}
       >
@@ -36,14 +39,18 @@ function NavItem({
   }
   if (mode === "register") {
     return (
-      <Link href="/register" title="Завершите регистрацию">
+      <Link
+        href="/register"
+        title="Завершите регистрацию"
+        className={cls}
+      >
         <span className="nav-full">{full}</span>
         <span className="nav-short">{short}</span>
       </Link>
     );
   }
   return (
-    <Link href={href} title={title}>
+    <Link href={href} title={title} className={cls}>
       <span className="nav-full">{full}</span>
       <span className="nav-short">{short}</span>
     </Link>
@@ -99,6 +106,7 @@ export function SiteNav({ showClanSections }: Props) {
         full="Рейтинг паблика"
         short="Паблик"
         mode={mode}
+        className="nav-public-pill"
       />
       {showClanSections ? (
         <NavItem

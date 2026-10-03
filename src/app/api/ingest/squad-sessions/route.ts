@@ -7,6 +7,7 @@ import {
   staleOpenHours,
   type SquadSessionIngestEvent,
 } from "@/lib/squadSessions";
+import { isPublicServerKey, isTrainingServerKey } from "@/lib/squadServers";
 import { livePublish, livePublishSite, userLiveChannel } from "@/lib/liveBus";
 
 export const dynamic = "force-dynamic";
@@ -30,10 +31,11 @@ function checkSecret(req: Request): boolean {
   return bearer === secret || header === secret;
 }
 
-async function resolveSteam(
+/** Steam always; userId only if registered on the site. */
+async function resolveSteamIdentity(
   rawSteam: string,
   eosId: string | null
-): Promise<{ steamId: string; userId: string } | null> {
+): Promise<{ steamId: string; userId: string | null } | null> {
   let steamId = normalizeSteamId(rawSteam);
   if (!steamId && eosId) {
     const mapped = await prisma.squadEosSteamMap.findUnique({
@@ -47,8 +49,7 @@ async function resolveSteam(
     where: { steamId },
     select: { id: true },
   });
-  if (!user) return null;
-  return { steamId, userId: user.id };
+  return { steamId, userId: user?.id ?? null };
 }
 
 export async function POST(req: Request) {
@@ -94,6 +95,8 @@ export async function POST(req: Request) {
     const eosId = raw.eosId ? normalizeEosId(String(raw.eosId)) : null;
     const nick = raw.nick?.trim() || null;
     const type = raw.type === "leave" ? "leave" : "join";
+    const isPublic = isPublicServerKey(serverKey);
+    const isTraining = isTrainingServerKey(serverKey);
 
     if (eosId && normalizeSteamId(String(raw.steamId || ""))) {
       const steamForMap = normalizeSteamId(String(raw.steamId || ""))!;
@@ -104,12 +107,22 @@ export async function POST(req: Request) {
       });
     }
 
-    const resolved = await resolveSteam(String(raw.steamId || ""), eosId);
-    if (!resolved) {
+    const identity = await resolveSteamIdentity(String(raw.steamId || ""), eosId);
+    if (!identity) {
       skipped += 1;
       continue;
     }
-    const { steamId, userId } = resolved;
+    const { steamId, userId } = identity;
+
+    // TR1/TR2 — только зарегистрированные; PB1/TPUB1 — все Steam.
+    if (isTraining && !userId) {
+      skipped += 1;
+      continue;
+    }
+    if (!isPublic && !isTraining && !userId) {
+      skipped += 1;
+      continue;
+    }
 
     if (type === "join") {
       const open = await prisma.squadServerSession.findFirst({
@@ -118,13 +131,10 @@ export async function POST(req: Request) {
       });
       if (open) {
         const deltaMs = at.getTime() - open.joinedAt.getTime();
-        // Дубль Login/PostLogin в ту же секунду: не закрывать живую сессию
-        // (иначе leftAt = joinedAt+1с и в таблице «нет времени»).
         if (deltaMs <= 15_000) {
           skipped += 1;
           continue;
         }
-        // Выход потерялся — закрываем старую сессию моментом нового захода
         await prisma.squadServerSession.update({
           where: { id: open.id },
           data: { leftAt: at },
@@ -133,7 +143,6 @@ export async function POST(req: Request) {
         accepted += 1;
       }
 
-      // Уже есть заход в пределах 15с (закрытый twin Login/PostLogin) — не плодим вторую строку
       const recent = await prisma.squadServerSession.findFirst({
         where: {
           steamId,
@@ -154,7 +163,7 @@ export async function POST(req: Request) {
       try {
         await prisma.squadServerSession.create({
           data: {
-            userId,
+            userId: userId || null,
             steamId,
             eosId,
             nickAtJoin: nick,
@@ -165,17 +174,18 @@ export async function POST(req: Request) {
         });
         accepted += 1;
         joins += 1;
-        livePublish(
-          userLiveChannel(userId),
-          JSON.stringify({ type: "session", action: "join", serverKey })
-        );
+        if (userId) {
+          livePublish(
+            userLiveChannel(userId),
+            JSON.stringify({ type: "session", action: "join", serverKey })
+          );
+        }
       } catch {
         skipped += 1;
       }
       continue;
     }
 
-    // leave — сначала тот же сервер, иначе любая открытая; запасной путь по eos
     let open = await prisma.squadServerSession.findFirst({
       where: { steamId, serverKey, leftAt: null },
       orderBy: { joinedAt: "desc" },
@@ -202,17 +212,21 @@ export async function POST(req: Request) {
         leftAt: at,
         eosId: open.eosId || eosId,
         nickAtJoin: open.nickAtJoin || nick,
+        // если игрок успел зарегаться — допишем userId
+        ...(userId && !open.userId ? { userId } : {}),
       },
     });
     accepted += 1;
     leaves += 1;
-    livePublish(
-      userLiveChannel(userId),
-      JSON.stringify({ type: "session", action: "leave", serverKey })
-    );
+    const liveUserId = userId || open.userId;
+    if (liveUserId) {
+      livePublish(
+        userLiveChannel(liveUserId),
+        JSON.stringify({ type: "session", action: "leave", serverKey })
+      );
+    }
   }
 
-  // Висяки без RemovePlayer (краш/пропуск коллектора): закрыть по возрасту.
   const staleClosed = await closeStaleOpenSessions();
   if (staleClosed > 0) {
     leaves += staleClosed;
@@ -239,7 +253,6 @@ export async function POST(req: Request) {
   });
 }
 
-/** Закрыть open-сессии старше SQUAD_STALE_OPEN_HOURS (дефолт 18ч). */
 async function closeStaleOpenSessions(): Promise<number> {
   const hours = staleOpenHours();
   const cutoff = new Date(Date.now() - hours * 3600_000);
@@ -251,7 +264,6 @@ async function closeStaleOpenSessions(): Promise<number> {
   if (stale.length === 0) return 0;
   let n = 0;
   for (const s of stale) {
-    // leftAt = joinedAt + hours (не «сейчас», чтобы не раздувать минуты)
     const leaveAt = new Date(s.joinedAt.getTime() + hours * 3600_000);
     await prisma.squadServerSession.update({
       where: { id: s.id },

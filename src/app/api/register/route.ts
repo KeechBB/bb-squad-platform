@@ -98,6 +98,16 @@ export async function POST(req: Request) {
       meta: { regNo, steamId: user.steamId },
     });
 
+    // PB1-сессии, уже записанные до регистрации (userId null) → привязать к аккаунту.
+    try {
+      await prisma.squadServerSession.updateMany({
+        where: { steamId: user.steamId, userId: null },
+        data: { userId: user.id },
+      });
+    } catch (err) {
+      console.error("attach orphan sessions failed", err);
+    }
+
     // Дозалить посещаемость/сессии из логов за дни до регистрации (коллектор).
     try {
       const existingJob = await prisma.squadLogBackfillJob.findFirst({
