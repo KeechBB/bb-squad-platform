@@ -64,4 +64,6 @@ scripts/_tmp_*.py
 scripts/_tmp_tpub1_logs_cache/
 /data/public/*
 !/data/public/.gitkeep
+/data/kv-cache/*
+!/data/kv-cache/.gitkeep
 

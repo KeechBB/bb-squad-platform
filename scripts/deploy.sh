@@ -82,6 +82,9 @@ for f in "${PRESERVE_PUBLIC[@]}"; do
 done
 echo "==> HEAD=$(git rev-parse --short HEAD)"
 
+echo "==> sync local KV cache (rp-ladder / ledger / indexes)"
+bash scripts/sync_kv_cache.sh || true
+
 ensure_swap
 
 if ! command -v pm2 >/dev/null 2>&1; then

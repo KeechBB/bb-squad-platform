@@ -29,13 +29,7 @@ import { buildPlayerCwMatchHistory } from "@/lib/homeCwPwr";
 import { ProfileTrainPwrCard } from "@/components/ProfileTrainPwrCard";
 import { ProfileKitsCard } from "@/components/ProfileKitsCard";
 import { ProfileCareerCard } from "@/components/ProfileCareerCard";
-import { bonesForUser, filterTrainHistoryWithHitLogs } from "@/lib/squadHits";
-import { kitsForUser } from "@/lib/squadRoles";
 import { isBlackberryClanMember } from "@/lib/blackberryClan";
-import {
-  buildPlayerCareerFeed,
-  emptyPlayerCareerFeed,
-} from "@/lib/playerCareerFeed";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -101,6 +95,7 @@ export default async function ProfilePage() {
   );
   const nickForKv = me.nick || u.nick || "";
 
+  // Hot SSR: header + histories. Hitmap / kits / career load client-side after paint.
   const [
     training,
     publicAtt,
@@ -111,9 +106,6 @@ export default async function ProfilePage() {
     matchHistory,
     cwMatchHistory,
     trainCombat,
-    hitmap,
-    kits,
-    careerFeed,
   ] = await Promise.all([
     loadUserTrainingStats(me.id),
     loadUserPublicAttendanceStats(me.id).catch(() => ({
@@ -154,26 +146,10 @@ export default async function ProfilePage() {
     nickForKv
       ? buildPlayerTrainCombatStats(nickForKv).catch(() => null)
       : Promise.resolve(null),
-    bonesForUser(me.id).catch(() => ({
-      bones: {},
-      total: 0,
-      lastBone: null as string | null,
-    })),
-    kitsForUser(me.id, { lane: kitsLane }).catch(() => ({
-      kits: [],
-      total: 0,
-    })),
-    nickForKv
-      ? buildPlayerCareerFeed(nickForKv).catch(() => emptyPlayerCareerFeed(nickForKv))
-      : Promise.resolve(emptyPlayerCareerFeed()),
   ]);
 
   const kvStats = kvBundle.stats;
   const kvError = kvBundle.error;
-  const hitmapMatchHistory = await filterTrainHistoryWithHitLogs(
-    me.id,
-    matchHistory
-  );
 
   return (
     <main className="profile-page">
@@ -202,13 +178,14 @@ export default async function ProfilePage() {
             />
             <ProfileKitsCard
               userId={me.id}
-              kits={kits.kits}
               allowTr1={isBb}
               initialLane={kitsLane}
             />
             <ClanInvites initial={invites} />
           </div>
-          {nickForKv ? <ProfileCareerCard feed={careerFeed} self /> : null}
+          {nickForKv ? (
+            <ProfileCareerCard nick={nickForKv} self />
+          ) : null}
         </div>
       </div>
 
@@ -240,10 +217,8 @@ export default async function ProfilePage() {
       <div className="profile-area-hitmap">
         <ProfileHitmapCard
           userId={me.id}
-          bones={hitmap.bones}
-          lastBone={hitmap.lastBone}
-          subtitle={hitmap.total > 0 ? "TR1+TR2" : undefined}
-          matchHistory={hitmapMatchHistory}
+          subtitle="TR1+TR2"
+          matchHistory={matchHistory}
         />
       </div>
 

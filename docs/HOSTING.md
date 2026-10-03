@@ -49,8 +49,14 @@ cd /var/www/bb-squad-platform && git pull && bash scripts/deploy.sh
 Во время деплоя сайт показывает заглушку `public/maintenance.html` («технические работы… 5 минут») — флаг `maintenance.on`.  
 Один раз обновить nginx с репо: скопировать блоки maintenance из `deploy/nginx-bb-squad.conf` в `/etc/nginx/sites-available/bb-squad`, затем `nginx -t && systemctl reload nginx`.
 
-Скрипт: maintenance ON → `pm2 stop bb-squad` → билд → `pm2 start` → maintenance OFF.  
+Скрипт: maintenance ON → sync KV cache → `pm2 stop bb-squad` → билд → `pm2 start` → maintenance OFF.  
 Swap 2G поднимается, если его ещё нет.
+
+### Локальный кэш KV (ускорение)
+
+При деплое `scripts/sync_kv_cache.sh` копирует hot JSON (`rp-ladder`, `rp-ledger`, indexes) в  
+`/var/www/bb-squad-platform/data/kv-cache/`. Next читает с диска (`KV_LOCAL_DIR` или этот путь),  
+fallback — `keechbb.github.io/blackberry-kv`. Hot-path рейтинга ТМ использует slim `rp-ladder.json` (~0.2 MB), полный ledger — только разбор RP.
 
 ## Squad log collector (24/7)
 

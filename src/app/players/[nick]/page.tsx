@@ -28,13 +28,7 @@ import { buildPlayerCwMatchHistory } from "@/lib/homeCwPwr";
 import { ProfileTrainPwrCard } from "@/components/ProfileTrainPwrCard";
 import { ProfileKitsCard } from "@/components/ProfileKitsCard";
 import { ProfileCareerCard } from "@/components/ProfileCareerCard";
-import { bonesForUser, filterTrainHistoryWithHitLogs } from "@/lib/squadHits";
-import { kitsForUser } from "@/lib/squadRoles";
 import { isBlackberryClanMember } from "@/lib/blackberryClan";
-import {
-  buildPlayerCareerFeed,
-  emptyPlayerCareerFeed,
-} from "@/lib/playerCareerFeed";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -120,6 +114,7 @@ export default async function PlayerProfilePage({ params }: Props) {
       .join(" · "),
   }));
 
+  // Hot SSR only — hitmap / kits / career fetch after paint
   const [
     training,
     publicAtt,
@@ -130,9 +125,6 @@ export default async function PlayerProfilePage({ params }: Props) {
     matchHistory,
     cwMatchHistory,
     trainCombat,
-    hitmap,
-    kits,
-    careerFeed,
   ] = await Promise.all([
     loadUserTrainingStats(user.id),
     loadUserPublicAttendanceStats(user.id).catch(() => ({
@@ -173,25 +165,9 @@ export default async function PlayerProfilePage({ params }: Props) {
     nickForKv
       ? buildPlayerTrainCombatStats(nickForKv).catch(() => null)
       : Promise.resolve(null),
-    bonesForUser(user.id).catch(() => ({
-      bones: {},
-      total: 0,
-      lastBone: null as string | null,
-    })),
-    kitsForUser(user.id, { lane: kitsLane }).catch(() => ({
-      kits: [],
-      total: 0,
-    })),
-    nickForKv
-      ? buildPlayerCareerFeed(nickForKv).catch(() => emptyPlayerCareerFeed(nickForKv))
-      : Promise.resolve(emptyPlayerCareerFeed()),
   ]);
 
   const kvStats = kvBundle.stats;
-  const hitmapMatchHistory = await filterTrainHistoryWithHitLogs(
-    user.id,
-    matchHistory
-  );
   const kvError = kvBundle.error;
 
   return (
@@ -254,11 +230,10 @@ export default async function PlayerProfilePage({ params }: Props) {
           />
           <ProfileKitsCard
             userId={user.id}
-            kits={kits.kits}
             allowTr1={isBb}
             initialLane={kitsLane}
           />
-          {nickForKv ? <ProfileCareerCard feed={careerFeed} /> : null}
+          {nickForKv ? <ProfileCareerCard nick={nickForKv} /> : null}
         </div>
       </div>
 
@@ -292,10 +267,8 @@ export default async function PlayerProfilePage({ params }: Props) {
       <div className="profile-area-hitmap">
         <ProfileHitmapCard
           userId={user.id}
-          bones={hitmap.bones}
-          lastBone={hitmap.lastBone}
-          subtitle={hitmap.total > 0 ? "TR1+TR2" : undefined}
-          matchHistory={hitmapMatchHistory}
+          subtitle="TR1+TR2"
+          matchHistory={matchHistory}
         />
       </div>
 

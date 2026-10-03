@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { buildPlayerKvStats, type PlayerKvRound } from "@/lib/kvStats";
 import {
-  loadRpLedger,
+  loadRpLadder,
   rpRankFromScore,
   type RpPlayerMatch,
 } from "@/lib/trainRp";
@@ -36,12 +36,6 @@ export type PlayerCareerFeed = {
   updatedAt: string;
 };
 
-const KV_BASES = [
-  process.env.KV_DATA_BASE,
-  "https://keechbb.github.io/blackberry-kv",
-  "https://kv.bb-squad.ru",
-].filter(Boolean) as string[];
-
 function nickKey(n: string) {
   return String(n || "")
     .trim()
@@ -53,21 +47,9 @@ function nickEq(a: string, b: string) {
   return nickKey(a) === nickKey(b);
 }
 
-async function fetchJson(url: string) {
-  const res = await fetch(url, { next: { revalidate: 60 } });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
 async function loadKvJson(path: string) {
-  for (const base of KV_BASES) {
-    try {
-      return await fetchJson(`${base.replace(/\/$/, "")}/${path.replace(/^\//, "")}`);
-    } catch {
-      /* next */
-    }
-  }
-  return null;
+  const { loadKvJsonCached } = await import("@/lib/kvLocal");
+  return loadKvJsonCached(path.replace(/^\//, ""));
 }
 
 function ymdLabel(ymd: string): string {
@@ -159,7 +141,7 @@ export async function buildPlayerCareerFeed(nick: string): Promise<PlayerCareerF
   const [kv, board, rpLedger, pubLedger, tierLogs] = await Promise.all([
     buildPlayerKvStats(want).catch(() => null),
     loadKvJson("data/tier-board.json"),
-    loadRpLedger().catch(() => null),
+    loadRpLadder().catch(() => null),
     loadPublicRpLedger().catch(() => null),
     prisma.tierChangeLog
       .findMany({
@@ -332,15 +314,23 @@ export async function buildPlayerCareerFeed(nick: string): Promise<PlayerCareerF
     }
   }
 
-  // 7) RP rank ups — тренировки
+  // 7) RP rank ups — тренировки (slim ladder: net per match is enough)
   if (rpLedger) {
     const player =
       rpLedger.players[key] ||
       Object.values(rpLedger.players).find((p) => nickKey(p.nick) === key);
     if (player?.matches?.length) {
+      const asRpMatches = player.matches.map((m) => ({
+        id: m.id,
+        map: m.map,
+        date: m.date,
+        net: m.net,
+        kills: [] as RpPlayerMatch["kills"],
+        deaths: [] as RpPlayerMatch["deaths"],
+      }));
       events.push(
         ...buildRpRankEvents(
-          player.matches,
+          asRpMatches,
           Number(rpLedger.startRp) || 0,
           Number(rpLedger.step) || 150,
           Number(rpLedger.radiant3Max) || 4500,

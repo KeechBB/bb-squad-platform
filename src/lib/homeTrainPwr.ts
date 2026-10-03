@@ -29,12 +29,6 @@ export type TrainPwrLeaderboard = {
   updatedAt: string;
 };
 
-const KV_BASES = [
-  process.env.KV_DATA_BASE,
-  "https://keechbb.github.io/blackberry-kv",
-  "https://kv.bb-squad.ru",
-].filter(Boolean) as string[];
-
 const RATING_EXCLUDE = new Set(["shrein"]);
 
 const TRAIN_PWR = {
@@ -134,23 +128,9 @@ function calcTrainPwr(row: Agg & { tier: number; winPct: number | null; kd: numb
   return { pwr, label, rankKey };
 }
 
-async function fetchJson(url: string) {
-  const res = await fetch(url, { next: { revalidate: 120 } });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
 async function loadFromKv<T>(path: string): Promise<T | null> {
-  for (const base of KV_BASES) {
-    try {
-      return (await fetchJson(
-        `${base.replace(/\/$/, "")}/${path.replace(/^\//, "")}`
-      )) as T;
-    } catch {
-      /* next */
-    }
-  }
-  return null;
+  const { loadKvJsonCached } = await import("@/lib/kvLocal");
+  return loadKvJsonCached<T>(path.replace(/^\//, ""));
 }
 
 export function emptyHomeTrainPwrBoard(): HomeTrainPwrBoard {
@@ -355,18 +335,18 @@ export async function lookupPlayerTrainPwr(
 ): Promise<HomeTrainPwrRow | null> {
   const clean = String(nick || "").trim();
   if (!clean) return null;
-  const { loadRpLedger } = await import("@/lib/trainRp");
-  // one ledger load — avoid double-fetch of ~3.5MB JSON
-  const ledger = await loadRpLedger();
-  if (!ledger?.players) return null;
+  const { loadRpLadder } = await import("@/lib/trainRp");
+  // slim ladder only (~0.2MB) — drilldown loads full ledger via /api/train/rp-player
+  const ladder = await loadRpLadder();
+  if (!ladder?.players) return null;
   const key = nickKey(clean);
   const player =
-    ledger.players[key] ||
-    Object.values(ledger.players).find((p) => nickKey(p.nick) === key) ||
+    ladder.players[key] ||
+    Object.values(ladder.players).find((p) => nickKey(p.nick) === key) ||
     null;
   if (!player) return null;
   const place =
-    (ledger.leaderboard || []).findIndex(
+    (ladder.leaderboard || []).findIndex(
       (r) => nickKey(r.nick) === nickKey(player.nick)
     ) + 1 || null;
   const rp = Math.round(Number(player.rp) || 0);
@@ -380,9 +360,18 @@ export async function lookupPlayerTrainPwr(
     rankLabel,
     rankKey: player.rankKey,
     games: player.matches?.length || 0,
-    place: place || (ledger.leaderboard?.length || 0) + 1,
+    place: place || (ladder.leaderboard?.length || 0) + 1,
     predatorPlace: player.predatorPlace ?? null,
-    matches: player.matches || [],
+    matches: (player.matches || []).map((m) => ({
+      id: m.id,
+      map: m.map,
+      date: m.date,
+      net: m.net,
+      kills: [],
+      deaths: [],
+      teamkills: [],
+      revives: [],
+    })),
   };
 }
 
@@ -511,18 +500,18 @@ export async function buildPlayerTrainMatchHistory(
   }
   matchMetas.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
 
-  const { loadRpLedger, rpRankFromScore, lookupPlayerTrainRp } = await import(
+  const { loadRpLadder, rpRankFromScore, lookupPlayerTrainRp } = await import(
     "@/lib/trainRp"
   );
-  const ledger = await loadRpLedger();
+  const ladder = await loadRpLadder();
   const rpPlayer = await lookupPlayerTrainRp(clean);
   const rpNetByMatch = new Map<string, number>();
   for (const m of rpPlayer?.matches || []) {
     rpNetByMatch.set(m.id, Number(m.net) || 0);
   }
-  // fallback: ledger match netByNick
-  if (ledger?.matches) {
-    for (const m of ledger.matches) {
+  // fallback: ladder match netByNick
+  if (ladder?.matches) {
+    for (const m of ladder.matches) {
       if (rpNetByMatch.has(m.id)) continue;
       for (const [n, net] of Object.entries(m.netByNick || {})) {
         if (resolveKey(n) === want) {
@@ -532,9 +521,9 @@ export async function buildPlayerTrainMatchHistory(
       }
     }
   }
-  const startRp = Number(ledger?.startRp) || 1000;
-  const step = Number(ledger?.step) || 150;
-  const radiant3Max = Number(ledger?.radiant3Max) || 4500;
+  const startRp = Number(ladder?.startRp) || 1000;
+  const step = Number(ladder?.step) || 150;
+  const radiant3Max = Number(ladder?.radiant3Max) || 4500;
   let runningRp: number | null = null;
 
   const history: TrainMatchHistoryRow[] = [];

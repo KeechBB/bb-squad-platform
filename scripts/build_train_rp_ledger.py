@@ -24,6 +24,7 @@ TRAIN = HERE.parents[1] / "KV" / "public" / "data" / "training"
 PLAYERS = TRAIN / "players"
 TIERS = HERE.parents[1] / "KV" / "public" / "data" / "tiers.json"
 OUT = TRAIN / "rp-ledger.json"
+OUT_LADDER = TRAIN / "rp-ladder.json"
 
 START_RP = 1000.0
 # Revive gives the same weight formula as Die, then scaled — medics shouldn't leapfrog tops
@@ -719,6 +720,57 @@ def main() -> None:
     }
     OUT.write_text(json.dumps(ledger, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"Wrote {OUT}")
+
+    # Slim ladder for hot paths (home / TM rating / profile header) — no Die events.
+    slim_matches = []
+    for m in public_matches:
+        slim_matches.append(
+            {
+                "id": m["id"],
+                "map": m["map"],
+                "date": m["date"],
+                "netByNick": m.get("netByNick") or {},
+                "giveUpKills": m.get("giveUpKills"),
+                "teamkills": m.get("teamkills"),
+                "revives": m.get("revives"),
+            }
+        )
+    slim_players = {}
+    for k, p in players_out.items():
+        slim_players[k] = {
+            "nick": p["nick"],
+            "rp": p["rp"],
+            "rankLabel": p["rankLabel"],
+            "rankKey": p["rankKey"],
+            "roman": p.get("roman"),
+            "predator": p.get("predator"),
+            "predatorPlace": p.get("predatorPlace"),
+            "matches": [
+                {
+                    "id": hm["id"],
+                    "map": hm["map"],
+                    "date": hm["date"],
+                    "net": hm["net"],
+                }
+                for hm in (p.get("matches") or [])
+            ],
+        }
+    ladder = {
+        "version": ledger["version"],
+        "updatedAt": ledger["updatedAt"],
+        "startRp": ledger["startRp"],
+        "step": ledger["step"],
+        "radiant3Max": ledger["radiant3Max"],
+        "pMax": ledger["pMax"],
+        "matches": slim_matches,
+        "players": slim_players,
+        "leaderboard": ledger["leaderboard"],
+    }
+    OUT_LADDER.write_text(
+        json.dumps(ladder, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    print(f"Wrote {OUT_LADDER} ({OUT_LADDER.stat().st_size} bytes)")
+
     print("TOP 10:")
     for i, row in enumerate(ledger["leaderboard"][:10], 1):
         print(f"  {i}. {row['nick']:20} RP {row['rp']:7.1f}  {row['rankLabel']}")

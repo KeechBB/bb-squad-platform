@@ -2,13 +2,10 @@
  * Training Respect Points (RP) — visible ladder.
  * Hidden PWR is only a weight inside Die()/revive formulas (see rp-ledger.json).
  *
- * Ledger ~3.5MB — never call noStore() here: it disables Next fetch/unstable_cache
- * and makes every page pull the full JSON from GitHub Pages (5–15s).
+ * Hot paths use slim `rp-ladder.json` (~0.2MB). Full `rp-ledger.json` (~4MB)
+ * is only for drilldown / event times. Prefer local VPS cache over github.io.
  */
-const KV_BASES = [
-  process.env.KV_DATA_BASE,
-  "https://keechbb.github.io/blackberry-kv",
-].filter(Boolean) as string[];
+import { loadKvJsonCached } from "@/lib/kvLocal";
 
 export type RpMatchEvent = {
   time: string;
@@ -84,14 +81,50 @@ export type RpLedger = {
     netByNick: Record<string, number>;
     events: RpMatchEvent[];
     giveUpKills?: number;
+    teamkills?: number;
     revives?: number;
   }[];
   players: Record<string, RpPlayer>;
   leaderboard: Omit<RpLeaderRow, "place" | "games">[];
 };
 
+/** Slim ladder — no Die/Revive event arrays. */
+export type RpLadder = {
+  version: number;
+  startRp: number;
+  step: number;
+  radiant3Max: number;
+  pMax: number;
+  updatedAt?: string;
+  matches: {
+    id: string;
+    map: string;
+    date: string;
+    netByNick: Record<string, number>;
+    giveUpKills?: number;
+    teamkills?: number;
+    revives?: number;
+  }[];
+  players: Record<
+    string,
+    {
+      nick: string;
+      rp: number;
+      rankLabel: string;
+      rankKey: string;
+      roman?: string;
+      predator?: boolean;
+      predatorPlace?: number | null;
+      matches: { id: string; map: string; date: string; net: number }[];
+    }
+  >;
+  leaderboard: Omit<RpLeaderRow, "place" | "games">[];
+};
+
 const LEDGER_TTL_MS = 90_000;
+const LADDER_TTL_MS = 90_000;
 let ledgerMem: { at: number; data: RpLedger | null } | null = null;
+let ladderMem: { at: number; data: RpLadder | null } | null = null;
 
 function nickKey(n: string) {
   return String(n || "")
@@ -100,33 +133,98 @@ function nickKey(n: string) {
     .replace(/\s+/g, "");
 }
 
-async function fetchJson(url: string) {
-  const res = await fetch(url, { next: { revalidate: 90 } });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+function slimPlayerToRp(p: RpLadder["players"][string]): RpPlayer {
+  return {
+    nick: p.nick,
+    rp: p.rp,
+    rankLabel: p.rankLabel,
+    rankKey: p.rankKey,
+    roman: p.roman,
+    predator: p.predator,
+    predatorPlace: p.predatorPlace,
+    matches: (p.matches || []).map((m) => ({
+      id: m.id,
+      map: m.map,
+      date: m.date,
+      net: m.net,
+      kills: [],
+      deaths: [],
+      teamkills: [],
+      revives: [],
+    })),
+  };
 }
 
+/** Full ledger (~4MB) — drilldown / event timestamps only. */
 export async function loadRpLedger(): Promise<RpLedger | null> {
   const now = Date.now();
   if (ledgerMem && now - ledgerMem.at < LEDGER_TTL_MS) {
     return ledgerMem.data;
   }
-  let data: RpLedger | null = null;
-  for (const base of KV_BASES) {
-    try {
-      const j = (await fetchJson(
-        `${base.replace(/\/$/, "")}/data/training/rp-ledger.json`
-      )) as RpLedger;
-      if (j?.players) {
-        data = j;
-        break;
-      }
-    } catch {
-      /* next */
+  const data = await loadKvJsonCached<RpLedger>(
+    "data/training/rp-ledger.json"
+  );
+  const ok = data?.players ? data : null;
+  ledgerMem = { at: now, data: ok };
+  return ok;
+}
+
+/** Slim ladder (~0.2MB) — home / TM / profile header / match ΔRP. */
+export async function loadRpLadder(): Promise<RpLadder | null> {
+  const now = Date.now();
+  if (ladderMem && now - ladderMem.at < LADDER_TTL_MS) {
+    return ladderMem.data;
+  }
+  let data = await loadKvJsonCached<RpLadder>(
+    "data/training/rp-ladder.json"
+  );
+  // Fallback: derive slim view from full ledger if ladder not published yet.
+  if (!data?.players) {
+    const full = await loadRpLedger();
+    if (full?.players) {
+      data = {
+        version: full.version,
+        startRp: full.startRp,
+        step: full.step,
+        radiant3Max: full.radiant3Max,
+        pMax: full.pMax,
+        updatedAt: full.updatedAt,
+        matches: (full.matches || []).map((m) => ({
+          id: m.id,
+          map: m.map,
+          date: m.date,
+          netByNick: m.netByNick || {},
+          giveUpKills: m.giveUpKills,
+          teamkills: m.teamkills,
+          revives: m.revives,
+        })),
+        players: Object.fromEntries(
+          Object.entries(full.players).map(([k, p]) => [
+            k,
+            {
+              nick: p.nick,
+              rp: p.rp,
+              rankLabel: p.rankLabel,
+              rankKey: p.rankKey,
+              roman: p.roman,
+              predator: p.predator,
+              predatorPlace: p.predatorPlace,
+              matches: (p.matches || []).map((m) => ({
+                id: m.id,
+                map: m.map,
+                date: m.date,
+                net: m.net,
+              })),
+            },
+          ])
+        ),
+        leaderboard: full.leaderboard || [],
+      };
     }
   }
-  ledgerMem = { at: now, data };
-  return data;
+  const ok = data?.players ? data : null;
+  ladderMem = { at: now, data: ok };
+  return ok;
 }
 
 export function rpRankFromScore(rp: number, step = 150, radiant3Max = 4500) {
@@ -162,7 +260,7 @@ export async function buildTrainRpLeaderboard(): Promise<{
   matches: number;
   updatedAt: string;
 }> {
-  const ledger = await loadRpLedger();
+  const ledger = await loadRpLadder();
   if (!ledger?.leaderboard?.length) {
     return { rows: [], players: 0, matches: 0, updatedAt: new Date().toISOString() };
   }
@@ -188,15 +286,32 @@ export async function buildTrainRpLeaderboard(): Promise<{
   };
 }
 
-export async function lookupPlayerTrainRp(nick: string): Promise<RpPlayer | null> {
-  const ledger = await loadRpLedger();
-  if (!ledger) return null;
+/**
+ * Player RP card. Default = slim ladder (no events).
+ * Pass `{ full: true }` for drilldown API (kills/deaths/revives).
+ */
+export async function lookupPlayerTrainRp(
+  nick: string,
+  opts?: { full?: boolean }
+): Promise<RpPlayer | null> {
   const key = nickKey(nick);
-  const direct = ledger.players[key];
-  if (direct) return direct;
-  // alias-ish: scan
-  for (const p of Object.values(ledger.players)) {
-    if (nickKey(p.nick) === key) return p;
+  if (opts?.full) {
+    const ledger = await loadRpLedger();
+    if (!ledger) return null;
+    const direct = ledger.players[key];
+    if (direct) return direct;
+    for (const p of Object.values(ledger.players)) {
+      if (nickKey(p.nick) === key) return p;
+    }
+    return null;
+  }
+
+  const ladder = await loadRpLadder();
+  if (!ladder) return null;
+  const direct = ladder.players[key];
+  if (direct) return slimPlayerToRp(direct);
+  for (const p of Object.values(ladder.players)) {
+    if (nickKey(p.nick) === key) return slimPlayerToRp(p);
   }
   return null;
 }
@@ -204,7 +319,7 @@ export async function lookupPlayerTrainRp(nick: string): Promise<RpPlayer | null
 export async function trainMatchRpDeltas(
   matchId: string
 ): Promise<Record<string, number>> {
-  const ledger = await loadRpLedger();
+  const ledger = await loadRpLadder();
   if (!ledger) return {};
   const m = ledger.matches.find((x) => x.id === matchId);
   if (!m?.netByNick) return {};
@@ -228,9 +343,9 @@ export type RpMatchListItem = {
   label: string;
 };
 
-/** Список тренировочных матчей из RP ledger (новые сверху). */
+/** Список тренировочных матчей из RP ladder (новые сверху). */
 export async function listRpTrainingMatches(): Promise<RpMatchListItem[]> {
-  const ledger = await loadRpLedger();
+  const ledger = await loadRpLadder();
   if (!ledger?.matches?.length) return [];
   return [...ledger.matches]
     .map((m) => {

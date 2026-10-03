@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { lookupPlayerTrainRp } from "@/lib/trainRp";
+import {
+  buildPlayerCareerFeed,
+  emptyPlayerCareerFeed,
+} from "@/lib/playerCareerFeed";
 
 export const dynamic = "force-dynamic";
 
+/** GET /api/career?nick=… — career timeline (lazy profile load). */
 export async function GET(req: Request) {
   const session = await getSession();
   if (!session?.user?.steamId) {
@@ -13,6 +17,12 @@ export async function GET(req: Request) {
   if (!nick) {
     return NextResponse.json({ error: "nick required" }, { status: 400 });
   }
-  const player = await lookupPlayerTrainRp(nick, { full: true });
-  return NextResponse.json({ player });
+  try {
+    const feed = await buildPlayerCareerFeed(nick);
+    return NextResponse.json(feed, {
+      headers: { "Cache-Control": "private, max-age=30" },
+    });
+  } catch {
+    return NextResponse.json(emptyPlayerCareerFeed(nick));
+  }
 }

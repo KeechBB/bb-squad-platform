@@ -217,6 +217,14 @@ export function ProfileHitmapCard({
     [userId]
   );
 
+  // Lazy: after first paint when SSR skipped bones
+  useEffect(() => {
+    const empty =
+      !initialBones || Object.keys(initialBones).length === 0;
+    if (!empty) return;
+    void load(null);
+  }, [userId, initialBones, load]);
+
   useEffect(() => {
     if (!pickerOpen) return;
     const onDoc = (e: MouseEvent) => {
