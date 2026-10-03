@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { isBlackberryClanMember } from "@/lib/blackberryClan";
 
 /** Меняй при обновлении KV, чтобы iframe не брал старый кэш */
-const KV_CACHE = "20261003-kokan-tr1";
+const KV_CACHE = "20261003-no-compare";
 
 export default async function TrainingMatchesPage() {
   const session = await getSession();
