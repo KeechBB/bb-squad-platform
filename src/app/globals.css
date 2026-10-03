@@ -506,19 +506,60 @@ svg {
   font-weight: 700;
 }
 
-.public-rating-table-wrap th,
-.public-rating-table-wrap td {
-  text-align: center;
+.public-rating-shell .public-rating-table-wrap table.admin-table th,
+.public-rating-shell .public-rating-table-wrap table.admin-table td,
+.public-rating-shell .public-rating-table-wrap table.admin-table th.ctr,
+.public-rating-shell .public-rating-table-wrap table.admin-table td.ctr,
+.public-rating-shell .public-match-table-wrap table.admin-table th,
+.public-rating-shell .public-match-table-wrap table.admin-table td,
+.public-rating-shell .public-match-table-wrap table.admin-table th.ctr,
+.public-rating-shell .public-match-table-wrap table.admin-table td.ctr,
+.public-rating-table-wrap table.admin-table th,
+.public-rating-table-wrap table.admin-table td,
+.public-rating-table-wrap table.admin-table th.ctr,
+.public-rating-table-wrap table.admin-table td.ctr,
+.public-match-table-wrap table.admin-table th,
+.public-match-table-wrap table.admin-table td,
+.public-match-table-wrap table.admin-table th.ctr,
+.public-match-table-wrap table.admin-table td.ctr {
+  text-align: center !important;
+  vertical-align: middle;
+  font-variant-numeric: tabular-nums;
 }
 
-.public-match-table-wrap th,
-.public-match-table-wrap td {
-  text-align: center;
+.public-rating-shell .public-rating-table-wrap table.admin-table td.ctr {
+  display: table-cell;
+}
+
+.public-rating-shell .public-rating-table-wrap td.ctr .home-pwr-badge {
+  display: inline-block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.public-rating-shell .public-rating-table-wrap th.sortable {
+  position: relative;
+  padding-right: 1.1rem;
+}
+
+.public-rating-shell .public-rating-table-wrap th.sortable .sort-ind {
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 0;
+  font-size: 0.65em;
 }
 
 .public-rating-table-wrap table {
   width: 100%;
   min-width: 1480px;
+  table-layout: auto;
+}
+
+.public-rating-table-wrap table.admin-table a.kv-link {
+  display: inline-block;
+  text-align: center;
 }
 
 .public-rating-filters {
@@ -11314,5 +11355,13 @@ body.profile-match-modal-open {
 .pwr-radiant {
   color: #fef9c3;
   background: rgba(202, 138, 4, 0.45);
+}
+
+/* /public rating: center numeric columns (beat .admin-table left align) */
+.public-rating-shell .public-rating-table-wrap table.admin-table th,
+.public-rating-shell .public-rating-table-wrap table.admin-table td,
+.public-rating-shell .public-match-table-wrap table.admin-table th,
+.public-rating-shell .public-match-table-wrap table.admin-table td {
+  text-align: center !important;
 }
 

@@ -195,6 +195,7 @@ export default async function ProfilePage() {
             rankLabel={publicRp?.rankLabel ?? null}
             rankKey={publicRp?.rankKey ?? null}
             combat={publicCombat}
+            matches={publicRp?.matches ?? []}
           />
           <ProfileKitsCard
             userId={me.id}

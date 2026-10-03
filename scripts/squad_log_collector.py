@@ -247,6 +247,11 @@ class Collector:
             "SQUAD_BACKFILL_JOBS_URL", backfill_default
         ).strip() or backfill_default
         self.ingest_secret = env("SQUAD_INGEST_SECRET")
+        self._public_rp_pending = False
+        self._public_rp_last = 0.0
+        self._public_rp_debounce = int(
+            os.environ.get("PUBLIC_RP_DEBOUNCE_SEC") or "180"
+        )
         self.state_path = Path(
             os.environ.get("SQUAD_STATE_PATH", "squad_collector_state.json")
         )
@@ -434,6 +439,7 @@ class Collector:
                     _safe_print("ingest roles", r.json())
         if matches:
             chunk = 100
+            ok_any = False
             for i in range(0, len(matches), chunk):
                 part = matches[i : i + chunk]
                 r = requests.post(
@@ -450,7 +456,10 @@ class Collector:
                         file=sys.stderr,
                     )
                 else:
+                    ok_any = True
                     _safe_print("ingest matches", r.json())
+            if ok_any:
+                self._public_rp_pending = True
 
     def _parse_hit(
         self, line: str, server_key: str
@@ -809,7 +818,8 @@ class Collector:
             # Login / Remove / steam↔EOS / BBHitZone — не весь 20MB
             grep_cmd = (
                 f"grep -E 'Login request:|RemovePlayer\\(UserId:|"
-                f"EOS:.*steam:|steam:.*EOS:|BBHitZone:|DeployRole=' "
+                f"EOS:.*steam:|steam:.*EOS:|BBHitZone:|DeployRole=|"
+                f"has won the match|has lost the match' "
                 f"{path} 2>/dev/null || true"
             )
             try:
@@ -864,12 +874,45 @@ class Collector:
                         file=sys.stderr,
                     )
             self._post(batch)
+            self.maybe_rebuild_public_rp()
             self._save_state()
         finally:
             try:
                 client.close()
             except Exception:
                 pass
+
+    def maybe_rebuild_public_rp(self, *, force: bool = False) -> None:
+        """Rebuild PB1 combat/RP ledger from TPUB1 logs (debounced)."""
+        if not force and not self._public_rp_pending:
+            return
+        now = time.time()
+        if not force and (now - self._public_rp_last) < self._public_rp_debounce:
+            return
+        script = Path(__file__).resolve().parent / "build_public_rp_ledger.py"
+        if not script.is_file():
+            return
+        self._public_rp_pending = False
+        self._public_rp_last = now
+        _safe_print("public RP rebuild start (background)", flush=True)
+        try:
+            log_path = Path(__file__).resolve().parent / "_tmp_public_rp_rebuild.log"
+            log_f = open(log_path, "a", encoding="utf-8")
+            subprocess.Popen(
+                [sys.executable, str(script)],
+                cwd=str(script.parent),
+                stdout=log_f,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+            # log_f stays open for child; OK for long-running collector
+        except Exception as e:
+            _safe_print(
+                "public RP rebuild error",
+                type(e).__name__,
+                e,
+                file=sys.stderr,
+            )
 
     def process_backfill_jobs(self) -> None:
         """После регистрации: дозалить join/leave из логов за прошлые дни."""
@@ -947,6 +990,8 @@ class Collector:
         stale_tick_every = max(1, int(60 / max(self.poll_sec, 1)))
         # Очередь дозаливки после регистрации — раз в ~2 мин
         backfill_every = max(1, int(120 / max(self.poll_sec, 1)))
+        # Полный rebuild public RP раз в ~15 мин (страховка)
+        public_rp_every = max(1, int(900 / max(self.poll_sec, 1)))
         while True:
             try:
                 ticks += 1
@@ -958,6 +1003,17 @@ class Collector:
                         self.processed_backups.discard(name)
                     _safe_print("hourly backup re-catchup armed", flush=True)
                 self.poll_once()
+                if ticks % public_rp_every == 0:
+                    self._public_rp_pending = True
+                    try:
+                        self.maybe_rebuild_public_rp(force=True)
+                    except Exception as e:
+                        _safe_print(
+                            "public RP tick fail",
+                            type(e).__name__,
+                            e,
+                            file=sys.stderr,
+                        )
                 if ticks % backfill_every == 0:
                     try:
                         self.process_backfill_jobs()

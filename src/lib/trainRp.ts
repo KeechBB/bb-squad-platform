@@ -35,6 +35,8 @@ export type RpPlayerMatch = {
   teamkills?: RpMatchEvent[];
   /** Medic revives this player performed (patient in victim field) */
   revives?: RpMatchEvent[];
+  /** Public PB1: won the layer (from team assignment) */
+  won?: boolean | null;
 };
 
 export type RpPlayer = {

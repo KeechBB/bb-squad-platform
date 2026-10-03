@@ -250,6 +250,7 @@ export default async function PlayerProfilePage({ params }: Props) {
             rankLabel={publicRp?.rankLabel ?? null}
             rankKey={publicRp?.rankKey ?? null}
             combat={publicCombat}
+            matches={publicRp?.matches ?? []}
           />
           <ProfileKitsCard
             userId={user.id}

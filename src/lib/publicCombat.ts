@@ -159,19 +159,21 @@ function mvpFromPlayers(players: {
   return pickMvps(rows || []);
 }
 
-async function loadPublicMatchBundles() {
+type PublicBundle = {
+  players: {
+    mvp?: { public?: MvpBlock; train?: MvpBlock };
+    total?: StatRow[];
+    teamA?: StatRow[];
+    teamB?: StatRow[];
+    players?: StatRow[];
+  } | null;
+};
+
+async function loadPublicMatchBundlesFromKv(): Promise<PublicBundle[]> {
   const index = await loadFromKv<{
     months?: { url?: string }[];
   }>("data/public/index.json");
-  if (!index?.months?.length) return [] as Array<{
-    players: {
-      mvp?: { public?: MvpBlock; train?: MvpBlock };
-      total?: StatRow[];
-      teamA?: StatRow[];
-      teamB?: StatRow[];
-      players?: StatRow[];
-    } | null;
-  }>;
+  if (!index?.months?.length) return [];
 
   const matchUrls: string[] = [];
   for (const m of index.months) {
@@ -184,7 +186,7 @@ async function loadPublicMatchBundles() {
     }
   }
 
-  const bundles = await Promise.all(
+  return Promise.all(
     matchUrls.map(async (url) => {
       const players = await loadFromKv<{
         mvp?: { public?: MvpBlock; train?: MvpBlock };
@@ -196,7 +198,68 @@ async function loadPublicMatchBundles() {
       return { players };
     })
   );
+}
+
+/** Combat rows from auto RP ledger (Die/revive counts + won). */
+async function loadPublicMatchBundlesFromLedger(): Promise<PublicBundle[]> {
+  const { loadPublicRpLedger } = await import("@/lib/publicRp");
+  const ledger = await loadPublicRpLedger();
+  if (!ledger?.players || !ledger.matches?.length) return [];
+
+  type Ev = { killer?: string; victim?: string };
+  type Pm = {
+    id: string;
+    kills?: Ev[];
+    deaths?: Ev[];
+    revives?: Ev[];
+    won?: boolean | null;
+  };
+
+  // matchId → nick → stats
+  const byMatch = new Map<string, Map<string, StatRow & { won?: boolean }>>();
+  for (const p of Object.values(ledger.players)) {
+    const nick = String(p.nick || "").trim();
+    if (!nick) continue;
+    for (const m of (p.matches || []) as Pm[]) {
+      if (!m?.id) continue;
+      if (!byMatch.has(m.id)) byMatch.set(m.id, new Map());
+      const row = byMatch.get(m.id)!;
+      const prev = row.get(nickKey(nick)) || {
+        nick,
+        kills: 0,
+        deaths: 0,
+        res: 0,
+        nok: 0,
+        dmg: 0,
+      };
+      prev.kills = (prev.kills || 0) + (m.kills?.length || 0);
+      prev.deaths = (prev.deaths || 0) + (m.deaths?.length || 0);
+      prev.res = (prev.res || 0) + (m.revives?.length || 0);
+      if (m.won === true) prev.won = true;
+      if (m.won === false && prev.won !== true) prev.won = false;
+      row.set(nickKey(nick), prev);
+    }
+  }
+
+  const bundles: PublicBundle[] = [];
+  for (const m of ledger.matches) {
+    const rows = byMatch.get(m.id);
+    if (!rows?.size) continue;
+    const total = [...rows.values()];
+    bundles.push({
+      players: {
+        total,
+        mvp: { public: pickMvps(total) },
+      },
+    });
+  }
   return bundles;
+}
+
+async function loadPublicMatchBundles(): Promise<PublicBundle[]> {
+  const fromKv = await loadPublicMatchBundlesFromKv();
+  if (fromKv.some((b) => b.players)) return fromKv;
+  return loadPublicMatchBundlesFromLedger();
 }
 
 function aggregateCombat(

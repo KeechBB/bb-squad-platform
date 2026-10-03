@@ -26,6 +26,27 @@ async function fetchJson(url: string) {
 
 export async function loadPublicRpLedger(): Promise<RpLedger | null> {
   noStore();
+  // VPS / local primary: written by build_public_rp_ledger.py
+  try {
+    const { readFile } = await import("fs/promises");
+    const { join } = await import("path");
+    const candidates = [
+      join(process.cwd(), "data", "public", "rp-ledger.json"),
+      join(process.cwd(), "..", "KV", "public", "data", "public", "rp-ledger.json"),
+    ];
+    for (const p of candidates) {
+      try {
+        const raw = await readFile(p, "utf8");
+        const data = JSON.parse(raw) as RpLedger;
+        if (data?.players && Object.keys(data.players).length > 0) return data;
+        if (data?.leaderboard?.length) return data;
+      } catch {
+        /* next path */
+      }
+    }
+  } catch {
+    /* fs unavailable */
+  }
   for (const base of KV_BASES) {
     try {
       const data = (await fetchJson(
@@ -35,17 +56,6 @@ export async function loadPublicRpLedger(): Promise<RpLedger | null> {
     } catch {
       /* next */
     }
-  }
-  // local public folder (dev / after deploy copy)
-  try {
-    const { readFile } = await import("fs/promises");
-    const { join } = await import("path");
-    const p = join(process.cwd(), "..", "KV", "public", "data", "public", "rp-ledger.json");
-    const raw = await readFile(p, "utf8");
-    const data = JSON.parse(raw) as RpLedger;
-    if (data?.players) return data;
-  } catch {
-    /* none */
   }
   return null;
 }
