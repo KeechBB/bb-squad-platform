@@ -24,22 +24,39 @@ async function fetchJson(url: string) {
   return res.json();
 }
 
+/** Public rating starts 2026-10-03; reject pre-epoch / non-history ledgers. */
+const PUBLIC_RP_EPOCH = (process.env.PUBLIC_RP_EPOCH || "2026-10-03").trim();
+
+function isCurrentPublicLedger(data: RpLedger | null | undefined): boolean {
+  if (!data) return false;
+  const nPlayers = data.players ? Object.keys(data.players).length : 0;
+  if (!nPlayers && !(data.leaderboard?.length ?? 0)) return false;
+  if (data.historyOnly && data.epoch && data.epoch >= PUBLIC_RP_EPOCH) {
+    return true;
+  }
+  const matches = data.matches || [];
+  if (!matches.length) return false;
+  // Stale full-log ledger (Sept…) — do not use.
+  if (matches.some((m) => m.date && m.date < PUBLIC_RP_EPOCH)) return false;
+  return matches.every((m) => !m.date || m.date >= PUBLIC_RP_EPOCH);
+}
+
 export async function loadPublicRpLedger(): Promise<RpLedger | null> {
   noStore();
-  // VPS / local primary: written by build_public_rp_ledger.py
+  const candidates: RpLedger[] = [];
+
+  // Disk first, then KV — but only accept history/epoch ledgers.
   try {
     const { readFile } = await import("fs/promises");
     const { join } = await import("path");
-    const candidates = [
+    for (const p of [
       join(process.cwd(), "data", "public", "rp-ledger.json"),
       join(process.cwd(), "..", "KV", "public", "data", "public", "rp-ledger.json"),
-    ];
-    for (const p of candidates) {
+    ]) {
       try {
-        const raw = await readFile(p, "utf8");
-        const data = JSON.parse(raw) as RpLedger;
-        if (data?.players && Object.keys(data.players).length > 0) return data;
-        if (data?.leaderboard?.length) return data;
+        const data = JSON.parse(await readFile(p, "utf8")) as RpLedger;
+        if (isCurrentPublicLedger(data)) return data;
+        if (data?.leaderboard?.length) candidates.push(data);
       } catch {
         /* next path */
       }
@@ -47,18 +64,21 @@ export async function loadPublicRpLedger(): Promise<RpLedger | null> {
   } catch {
     /* fs unavailable */
   }
+
   for (const base of KV_BASES) {
     try {
       const data = (await fetchJson(
         `${base.replace(/\/$/, "")}/data/public/rp-ledger.json`
       )) as RpLedger;
-      const n = data?.players ? Object.keys(data.players).length : 0;
-      if (n > 0 || (data?.leaderboard?.length ?? 0) > 0) return data;
+      if (isCurrentPublicLedger(data)) return data;
+      if (data?.leaderboard?.length) candidates.push(data);
     } catch {
       /* next */
     }
   }
-  return null;
+
+  // Last resort: newest-looking candidate (should not happen after cutover).
+  return candidates[0] || null;
 }
 
 export async function buildPublicRpLeaderboard(): Promise<{

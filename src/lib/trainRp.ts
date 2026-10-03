@@ -71,6 +71,11 @@ export type RpLedger = {
   step: number;
   radiant3Max: number;
   pMax: number;
+  /** Public: rating epoch YYYY-MM-DD (ignore older log matches). */
+  epoch?: string;
+  /** Public: only matches linked to site match history. */
+  historyOnly?: boolean;
+  updatedAt?: string;
   matches: {
     id: string;
     map: string;
