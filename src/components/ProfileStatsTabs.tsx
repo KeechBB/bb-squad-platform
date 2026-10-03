@@ -4,23 +4,28 @@ import Link from "next/link";
 import { useState } from "react";
 import type { PlayerKvStats } from "@/lib/kvStats";
 import type { PlayerTrainCombatStats } from "@/lib/homeTrainPwr";
+import type { PlayerPublicCombatStats } from "@/lib/publicCombat";
 import { ProfileKvStats } from "@/components/ProfileKvStats";
 
-type Tab = "train" | "cw";
+type Tab = "train" | "cw" | "public";
 
 type Props = {
   kvStats: PlayerKvStats | null;
   kvError?: string | null;
   trainStats: PlayerTrainCombatStats | null;
   trainError?: string | null;
+  publicStats?: PlayerPublicCombatStats | null;
+  publicError?: string | null;
 };
 
-function TrainCombatBody({
+function CombatBody({
   stats,
   error,
+  emptyHint,
 }: {
-  stats: PlayerTrainCombatStats | null;
+  stats: PlayerTrainCombatStats | PlayerPublicCombatStats | null;
   error?: string | null;
+  emptyHint: string;
 }) {
   if (error) {
     return (
@@ -32,15 +37,15 @@ function TrainCombatBody({
   if (!stats || stats.matches === 0) {
     return (
       <p className="muted" style={{ margin: "8px 0 0", lineHeight: 1.45 }}>
-        Пока нет раундов с ником <strong>{stats?.nick || "—"}</strong> в
-        тренировочных матчах. Когда появятся скрины итогов — сюда подтянутся
-        K/D и урон.
+        {emptyHint}
       </p>
     );
   }
 
   const awardTotal =
     stats.mvpDamage + stats.mvpKiller + stats.mvpMedic + stats.antiDeath;
+  const days =
+    "days" in stats && typeof stats.days === "number" ? stats.days : null;
 
   return (
     <>
@@ -87,6 +92,12 @@ function TrainCombatBody({
           <span className="muted">Награды MVP</span>
           <strong>{awardTotal}</strong>
         </div>
+        {days != null ? (
+          <div>
+            <span className="muted">Дней на PB1</span>
+            <strong>{days}</strong>
+          </div>
+        ) : null}
       </div>
       <div className="profile-kv-awards">
         <span className="profile-kv-award">
@@ -111,6 +122,8 @@ export function ProfileStatsTabs({
   kvError,
   trainStats,
   trainError,
+  publicStats = null,
+  publicError = null,
 }: Props) {
   const [tab, setTab] = useState<Tab>("cw");
 
@@ -136,14 +149,27 @@ export function ProfileStatsTabs({
           >
             Статистика КВ
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "public"}
+            className={`profile-stats-tab${tab === "public" ? " active" : ""}`}
+            onClick={() => setTab("public")}
+          >
+            Статистика паблика
+          </button>
         </div>
         {tab === "cw" ? (
           <Link className="kv-link" href="/cw">
             Таблица КВ →
           </Link>
-        ) : (
+        ) : tab === "train" ? (
           <Link className="kv-link" href="/tm">
             Тренировки →
+          </Link>
+        ) : (
+          <Link className="kv-link" href="/public">
+            Рейтинг паблика →
           </Link>
         )}
       </div>
@@ -157,9 +183,21 @@ export function ProfileStatsTabs({
             hideOuterCard
           />
         </div>
+      ) : tab === "train" ? (
+        <div className="profile-stats-tabpanel" role="tabpanel">
+          <CombatBody
+            stats={trainStats}
+            error={trainError}
+            emptyHint={`Пока нет раундов с ником ${trainStats?.nick || "—"} в тренировочных матчах.`}
+          />
+        </div>
       ) : (
         <div className="profile-stats-tabpanel" role="tabpanel">
-          <TrainCombatBody stats={trainStats} error={trainError} />
+          <CombatBody
+            stats={publicStats}
+            error={publicError}
+            emptyHint={`Пока нет каток паблика с ником ${publicStats?.nick || "—"}. MVP и стата появятся после заливки (без SEED). Дней на PB1: ${publicStats?.days ?? 0}.`}
+          />
         </div>
       )}
     </section>

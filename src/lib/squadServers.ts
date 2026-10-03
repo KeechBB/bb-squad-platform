@@ -4,9 +4,17 @@ export const TRAINING_SERVER_KEYS = ["TR1", "TR2"] as const;
 
 export type TrainingServerKey = (typeof TRAINING_SERVER_KEYS)[number];
 
+/** Public server (UI: PB1, DB/collector: TPUB1). */
+export const PUBLIC_SERVER_KEYS = ["TPUB1", "PB1"] as const;
+
 export function isTrainingServerKey(key: string | null | undefined): boolean {
   const k = (key || "").trim().toUpperCase();
   return (TRAINING_SERVER_KEYS as readonly string[]).includes(k);
+}
+
+export function isPublicServerKey(key: string | null | undefined): boolean {
+  const k = (key || "").trim().toUpperCase();
+  return k === "TPUB1" || k === "PB1" || k === "PUB";
 }
 
 export function normalizeTrainingServerKey(

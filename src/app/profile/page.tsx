@@ -10,11 +10,15 @@ import { ProfileKvMatchHistory } from "@/components/ProfileKvStats";
 import { ProfileStatsTabs } from "@/components/ProfileStatsTabs";
 import { ProfileHitmapCard } from "@/components/ProfileHitmapCard";
 import { TrainingSessionsCard, TrainingMatchHistory } from "@/components/TrainingSessionsCard";
+import { ProfilePublicRatingCard } from "@/components/ProfilePublicRatingCard";
 import { LivePageRefresh } from "@/components/LivePageRefresh";
 import { formatRuDate } from "@/lib/validation";
 import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
 import { CLAN_ROLE_LABEL, type ClanRole } from "@/lib/clan";
 import { loadUserTrainingStats } from "@/lib/trainingStats";
+import { loadUserPublicAttendanceStats } from "@/lib/publicAttendance";
+import { lookupPlayerPublicRp } from "@/lib/publicRp";
+import { buildPlayerPublicCombatStats } from "@/lib/publicCombat";
 import { buildPlayerKvStats } from "@/lib/kvStats";
 import {
   lookupPlayerTrainPwr,
@@ -96,6 +100,9 @@ export default async function ProfilePage() {
 
   const [
     training,
+    publicAtt,
+    publicRp,
+    publicCombat,
     kvBundle,
     trainPwr,
     matchHistory,
@@ -106,6 +113,21 @@ export default async function ProfilePage() {
     careerFeed,
   ] = await Promise.all([
     loadUserTrainingStats(me.id),
+    loadUserPublicAttendanceStats(me.id).catch(() => ({
+      sessions: [],
+      presentDays: [] as string[],
+      lateDays: [] as string[],
+      visitBounds: {} as Record<string, { joinHm: string; leaveHm: string | null }>,
+      minutes30d: 0,
+      sessions30d: 0,
+      openNow: false,
+    })),
+    nickForKv
+      ? lookupPlayerPublicRp(nickForKv).catch(() => null)
+      : Promise.resolve(null),
+    nickForKv
+      ? buildPlayerPublicCombatStats(nickForKv).catch(() => null)
+      : Promise.resolve(null),
     nickForKv
       ? buildPlayerKvStats(nickForKv)
           .then((stats) => ({ stats, error: null as string | null }))
@@ -160,6 +182,13 @@ export default async function ProfilePage() {
             lastSeenAt={me.lastSeenAt}
           />
           <ProfileTrainPwrCard stats={trainPwr} />
+          <ProfilePublicRatingCard
+            nick={nickForKv}
+            rp={publicRp?.rp ?? null}
+            rankLabel={publicRp?.rankLabel ?? null}
+            rankKey={publicRp?.rankKey ?? null}
+            combat={publicCombat}
+          />
           <ProfileKitsCard userId={me.id} kits={kits.kits} />
           {nickForKv ? <ProfileCompareCard myNick={nickForKv} /> : null}
           {nickForKv ? <ProfileCareerCard feed={careerFeed} self /> : null}
@@ -188,6 +217,7 @@ export default async function ProfilePage() {
           kvStats={kvStats}
           kvError={kvError}
           trainStats={trainCombat}
+          publicStats={publicCombat}
         />
       </div>
 
@@ -213,6 +243,15 @@ export default async function ProfilePage() {
           sessions30d={training.sessions30d}
           openNow={training.openNow}
           includeMatchHistory={false}
+          publicLane={{
+            sessions: publicAtt.sessions,
+            presentDays: publicAtt.presentDays,
+            lateDays: publicAtt.lateDays,
+            visitBounds: publicAtt.visitBounds,
+            minutes30d: publicAtt.minutes30d,
+            sessions30d: publicAtt.sessions30d,
+            openNow: publicAtt.openNow,
+          }}
         />
       </div>
 

@@ -28,23 +28,27 @@ type NormSession = {
   serverKey: string;
 };
 
-type Props = {
+export type AttendanceLaneProps = {
   sessions: SessionRow[];
   minutes30d: number;
   sessions30d: number;
   openNow: boolean;
-  /** Готовые дни «был» с сервера (чтобы не тащить все сессии на клиент) */
   presentDays?: string[];
-  /** «Был» с заходом после 21:00 — жёлтый */
   lateDays?: string[];
-  /** Дни в резерве (уваж. причина) — синий «резерв», не «нет» */
   reserveDays?: string[];
-  /** Заход / итоговый выход по дням (с 19:00, gap ≤5 мин = не выход) */
   visitBounds?: Record<string, { joinHm: string; leaveHm: string | null }>;
+};
+
+type Props = AttendanceLaneProps & {
   /** История тренировочных матчей с ΔRP */
   matchHistory?: TrainMatchHistoryRow[];
   /** false — только посещаемость; историю выносим в отдельный блок */
   includeMatchHistory?: boolean;
+  /**
+   * Вторая лента (PB1). Если передана — на календаре кнопка TR1 | PB1
+   * (по умолчанию TR1, как раньше).
+   */
+  publicLane?: AttendanceLaneProps;
 };
 
 const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
@@ -296,8 +300,28 @@ export function TrainingSessionsCard({
   visitBounds: visitBoundsProp,
   matchHistory = [],
   includeMatchHistory = true,
+  publicLane,
 }: Props) {
-  const normalized = useMemo(() => normalizeSessions(sessions), [sessions]);
+  const [server, setServer] = useState<"TR1" | "PB1">("TR1");
+  const hasPublic = Boolean(publicLane);
+  const lane =
+    server === "PB1" && publicLane
+      ? publicLane
+      : {
+          sessions,
+          minutes30d,
+          sessions30d,
+          openNow,
+          presentDays: presentDaysProp,
+          lateDays: lateDaysProp,
+          reserveDays: reserveDaysProp,
+          visitBounds: visitBoundsProp,
+        };
+
+  const normalized = useMemo(
+    () => normalizeSessions(lane.sessions),
+    [lane.sessions]
+  );
   const today = todayYmdMsk();
   const [ty, tm] = today.split("-").map(Number);
   const [canonY, canonM] = ATTENDANCE_CANON_START_YMD.split("-").map(Number);
@@ -305,28 +329,41 @@ export function TrainingSessionsCard({
   const [viewM, setViewM] = useState(tm);
 
   const marks = useMemo(() => {
-    if (presentDaysProp !== undefined) {
+    if (lane.presentDays !== undefined) {
       return {
-        present: new Set(presentDaysProp),
-        late: new Set(lateDaysProp || []),
+        present: new Set(lane.presentDays),
+        late: new Set(lane.lateDays || []),
       };
     }
     return trainingDayMarksFromSessions(normalized);
-  }, [normalized, presentDaysProp, lateDaysProp]);
+  }, [normalized, lane.presentDays, lane.lateDays]);
 
   const presentTrainingDays = marks.present;
   const lateTrainingDays = marks.late;
   const reserveTrainingDays = useMemo(
-    () => new Set(reserveDaysProp || []),
-    [reserveDaysProp]
+    () => new Set(server === "TR1" ? lane.reserveDays || [] : []),
+    [lane.reserveDays, server]
   );
 
-  const visitBounds = visitBoundsProp || {};
+  const visitBounds = lane.visitBounds || {};
+  const activeMinutes = lane.minutes30d;
+  const activeSessions30d = lane.sessions30d;
+  const activeOpenNow = lane.openNow;
 
   const avgMin = useMemo(() => {
-    if (!sessions30d) return 0;
-    return Math.round(minutes30d / sessions30d);
-  }, [minutes30d, sessions30d]);
+    if (!activeSessions30d) return 0;
+    return Math.round(activeMinutes / activeSessions30d);
+  }, [activeMinutes, activeSessions30d]);
+
+  const isPb1 = server === "PB1";
+  const title = isPb1 ? "Посещаемость паблика" : "Посещаемость тренировок";
+  const daysLabel = isPb1 ? "дней / 30 дн" : "вечеров / 30 дн";
+  const minutesLabel = isPb1 ? "мин на PB1 / 30 дн" : "мин 21–00 / 30 дн";
+  const avgLabel = isPb1 ? "сред. мин / день" : "сред. мин / вечер";
+  const onlineLabel = isPb1 ? "сейчас на PB1" : "сейчас на TR1";
+  const calendarTitle = isPb1
+    ? "Календарь паблика (PB1)"
+    : "Календарь тренировок (TR1)";
 
   const cells = buildMonthGrid(viewY, viewM);
 
@@ -348,33 +385,66 @@ export function TrainingSessionsCard({
     setViewM(m);
   }
 
+  const serverToggle = hasPublic ? (
+    <div
+      className="training-server-toggle"
+      role="group"
+      aria-label="Сервер календаря"
+    >
+      <button
+        type="button"
+        className={`btn ghost${!isPb1 ? " active" : ""}`}
+        aria-pressed={!isPb1}
+        onClick={() => setServer("TR1")}
+        title="Тренировка TR1"
+      >
+        TR1
+      </button>
+      <button
+        type="button"
+        className={`btn ghost${isPb1 ? " active" : ""}`}
+        aria-pressed={isPb1}
+        onClick={() => setServer("PB1")}
+        title="Паблик PB1"
+      >
+        PB1
+      </button>
+    </div>
+  ) : null;
+
   return (
     <section className="card training-sessions-card">
-      <h2>Посещаемость тренировок</h2>
+      <div className="training-sessions-head">
+        <h2>{title}</h2>
+        {serverToggle}
+      </div>
 
       <div className="training-stat-row">
         <div>
-          <strong>{sessions30d}</strong>
-          <span className="muted">вечеров / 30 дн</span>
+          <strong>{activeSessions30d}</strong>
+          <span className="muted">{daysLabel}</span>
         </div>
         <div>
-          <strong>{minutes30d}</strong>
-          <span className="muted">мин 21–00 / 30 дн</span>
+          <strong>{activeMinutes}</strong>
+          <span className="muted">{minutesLabel}</span>
         </div>
         <div>
           <strong>{avgMin || "—"}</strong>
-          <span className="muted">сред. мин / вечер</span>
+          <span className="muted">{avgLabel}</span>
         </div>
         <div>
-          <strong>{openNow ? "онлайн" : "—"}</strong>
-          <span className="muted">сейчас на TR1</span>
+          <strong>{activeOpenNow ? "онлайн" : "—"}</strong>
+          <span className="muted">{onlineLabel}</span>
         </div>
       </div>
 
       <div className="training-charts training-charts-cal-only">
         <div className="training-chart-block training-cal-block">
           <div className="training-cal-head">
-            <h3>Календарь тренировок (TR1)</h3>
+            <div className="training-cal-head-left">
+              <h3>{calendarTitle}</h3>
+              {serverToggle}
+            </div>
             <div className="training-cal-nav">
               <button
                 type="button"

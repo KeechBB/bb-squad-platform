@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Providers } from "@/components/Providers";
 import { AuthBar } from "@/components/AuthBar";
+import { SiteNav } from "@/components/SiteNav";
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { isBlackberryClanMember } from "@/lib/blackberryClan";
@@ -31,7 +32,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const session = await getSession();
-  const showClanMap =
+  const showClanSections =
     Boolean(session?.user?.steamId) &&
     Boolean(session?.user?.profileComplete) &&
     (await isBlackberryClanMember(session?.user?.steamId));
@@ -49,34 +50,7 @@ export default async function RootLayout({
                   <img src="/blackberry.png" alt="BlackBerry" width={56} height={56} />
                   <strong>BLACKBERRY</strong>
                 </Link>
-                <nav className="top-nav" aria-label="Разделы">
-                  <Link href="/">
-                    <span className="nav-full">Главная</span>
-                    <span className="nav-short">Глав</span>
-                  </Link>
-                  <Link href="/cw" title="Клановые войны">
-                    <span className="nav-full">Клановые войны</span>
-                    <span className="nav-short">КВ</span>
-                  </Link>
-                  <Link href="/tm" title="Тренировочные матчи">
-                    <span className="nav-full">Тренировочные матчи</span>
-                    <span className="nav-short">Трен.</span>
-                  </Link>
-                  <Link href="/clans">
-                    <span className="nav-full">Кланы</span>
-                    <span className="nav-short">Кланы</span>
-                  </Link>
-                  <Link href="/aim" title="Тренировка стрельбы">
-                    <span className="nav-full">Тренировка стрельбы</span>
-                    <span className="nav-short">Стрельба</span>
-                  </Link>
-                  {showClanMap ? (
-                    <Link href="/map" title="Карта клана">
-                      <span className="nav-full">Карта клана</span>
-                      <span className="nav-short">Карта</span>
-                    </Link>
-                  ) : null}
-                </nav>
+                <SiteNav showClanSections={showClanSections} />
               </div>
               <AuthBar betaLabel={betaLabel} />
             </div>

@@ -7,6 +7,7 @@ import { CLAN_ROLE_LABEL, type ClanRole } from "@/lib/clan";
 import { withAvatarCacheBust } from "@/lib/avatarUrl";
 import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
 import { TrainingSessionsCard, TrainingMatchHistory } from "@/components/TrainingSessionsCard";
+import { ProfilePublicRatingCard } from "@/components/ProfilePublicRatingCard";
 import { LivePageRefresh } from "@/components/LivePageRefresh";
 import { ProfileKvMatchHistory } from "@/components/ProfileKvStats";
 import { ProfileStatsTabs } from "@/components/ProfileStatsTabs";
@@ -14,6 +15,9 @@ import { ProfileHitmapCard } from "@/components/ProfileHitmapCard";
 import { ProfileAccountCard } from "@/components/ProfileAccountCard";
 import { SitePresenceBadge } from "@/components/SitePresenceBadge";
 import { loadUserTrainingStats } from "@/lib/trainingStats";
+import { loadUserPublicAttendanceStats } from "@/lib/publicAttendance";
+import { lookupPlayerPublicRp } from "@/lib/publicRp";
+import { buildPlayerPublicCombatStats } from "@/lib/publicCombat";
 import { buildPlayerKvStats } from "@/lib/kvStats";
 import {
   lookupPlayerTrainPwr,
@@ -115,6 +119,9 @@ export default async function PlayerProfilePage({ params }: Props) {
 
   const [
     training,
+    publicAtt,
+    publicRp,
+    publicCombat,
     kvBundle,
     trainPwr,
     matchHistory,
@@ -125,6 +132,21 @@ export default async function PlayerProfilePage({ params }: Props) {
     careerFeed,
   ] = await Promise.all([
     loadUserTrainingStats(user.id),
+    loadUserPublicAttendanceStats(user.id).catch(() => ({
+      sessions: [],
+      presentDays: [] as string[],
+      lateDays: [] as string[],
+      visitBounds: {} as Record<string, { joinHm: string; leaveHm: string | null }>,
+      minutes30d: 0,
+      sessions30d: 0,
+      openNow: false,
+    })),
+    nickForKv
+      ? lookupPlayerPublicRp(nickForKv).catch(() => null)
+      : Promise.resolve(null),
+    nickForKv
+      ? buildPlayerPublicCombatStats(nickForKv).catch(() => null)
+      : Promise.resolve(null),
     nickForKv
       ? buildPlayerKvStats(nickForKv)
           .then((stats) => ({ stats, error: null as string | null }))
@@ -216,6 +238,13 @@ export default async function PlayerProfilePage({ params }: Props) {
             </section>
           ) : null}
           <ProfileTrainPwrCard stats={trainPwr} />
+          <ProfilePublicRatingCard
+            nick={nickForKv}
+            rp={publicRp?.rp ?? null}
+            rankLabel={publicRp?.rankLabel ?? null}
+            rankKey={publicRp?.rankKey ?? null}
+            combat={publicCombat}
+          />
           <ProfileKitsCard userId={user.id} kits={kits.kits} />
           {nickForKv ? <ProfileCareerCard feed={careerFeed} /> : null}
         </div>
@@ -244,6 +273,7 @@ export default async function PlayerProfilePage({ params }: Props) {
           kvStats={kvStats}
           kvError={kvError}
           trainStats={trainCombat}
+          publicStats={publicCombat}
         />
       </div>
 
@@ -269,6 +299,15 @@ export default async function PlayerProfilePage({ params }: Props) {
           sessions30d={training.sessions30d}
           openNow={training.openNow}
           includeMatchHistory={false}
+          publicLane={{
+            sessions: publicAtt.sessions,
+            presentDays: publicAtt.presentDays,
+            lateDays: publicAtt.lateDays,
+            visitBounds: publicAtt.visitBounds,
+            minutes30d: publicAtt.minutes30d,
+            sessions30d: publicAtt.sessions30d,
+            openNow: publicAtt.openNow,
+          }}
         />
       </div>
 

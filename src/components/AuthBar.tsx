@@ -2,7 +2,7 @@
 
 import { signIn, signOut, useSession } from "next-auth/react";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { subscribeLive } from "@/lib/liveClient";
 import { PlayerSearch } from "@/components/PlayerSearch";
 
@@ -13,6 +13,17 @@ type Props = {
 export function AuthBar({ betaLabel }: Props) {
   const { data: session, status } = useSession();
   const [admin, setAdmin] = useState(false);
+  const loginPrompted = useRef(false);
+
+  useEffect(() => {
+    if (status !== "unauthenticated" || loginPrompted.current) return;
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get("login") !== "1") return;
+    loginPrompted.current = true;
+    void signIn("steam", { callbackUrl: "/" });
+  }, [status]);
+
 
   const checkAdmin = useCallback(async () => {
     if (!session?.user?.profileComplete) {
@@ -66,16 +77,9 @@ export function AuthBar({ betaLabel }: Props) {
           <div className="auth-bar-row">
             <button
               type="button"
-              className="btn ghost auth-register-btn"
-              onClick={() => signIn("steam", { callbackUrl: "/register" })}
-            >
-              <span className="nav-full">Регистрация</span>
-              <span className="nav-short">Рег.</span>
-            </button>
-            <button
-              type="button"
+              id="auth-login-btn"
               className="btn steam"
-              onClick={() => signIn("steam", { callbackUrl: "/" })}
+              onClick={() => signIn("steam", { callbackUrl: "/register" })}
             >
               Войти
             </button>

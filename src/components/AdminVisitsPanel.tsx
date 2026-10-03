@@ -30,6 +30,7 @@ function visitPathTitle(raw: string): string {
     "/": "Главная",
     "/cw": "Клановые войны",
     "/tm": "Тренировочные матчи",
+    "/public": "Рейтинг паблика",
     "/rating": "Рейтинг кланов",
     "/profile": "Мой профиль",
     "/aim": "Тренировка стрельбы",
@@ -54,7 +55,7 @@ function visitPathTitle(raw: string): string {
     return short ? `Клан · ${short}` : "Страница клана";
   }
   if (path.startsWith("/admin/users/")) return "Админка · пользователь";
-  if (path.startsWith("/admin/")) return "Админка";
+  if (path.startsWith("/admin")) return "Админка";
   if (path.startsWith("/api/")) return "API";
   if (path.startsWith("/kv-static")) return "Статика КВ";
   return path;

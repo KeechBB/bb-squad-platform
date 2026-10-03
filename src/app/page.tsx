@@ -91,12 +91,12 @@ export default async function HomePage() {
             </p>
             <div className="home-hero-cta">
               {loggedIn ? (
-                <Link className="btn primary" href="/cw">
-                  Клановые войны
+                <Link className="btn primary" href="/clans">
+                  К кланам
                 </Link>
               ) : (
                 <p className="home-hero-hint">
-                  Войди через Steam сверху — откроется профиль и кланы.
+                  Войди через Steam сверху — без входа разделы сайта закрыты.
                 </p>
               )}
             </div>

@@ -1,0 +1,23 @@
+import { getSession } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { PublicRatingClient } from "@/components/PublicRatingClient";
+import { buildPublicRatingTable } from "@/lib/publicCombat";
+
+export const dynamic = "force-dynamic";
+
+export default async function PublicRatingPage() {
+  const session = await getSession();
+  if (!session?.user?.steamId) redirect("/?login=1");
+  if (!session.user.profileComplete) redirect("/register");
+
+  const board = await buildPublicRatingTable(200);
+  return (
+    <main className="public-rating-page">
+      <PublicRatingClient
+        rows={board.rows}
+        matches={board.matches}
+        updatedAt={board.updatedAt}
+      />
+    </main>
+  );
+}
