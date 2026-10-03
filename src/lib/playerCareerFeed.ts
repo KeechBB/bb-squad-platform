@@ -5,6 +5,8 @@ import {
   rpRankFromScore,
   type RpPlayerMatch,
 } from "@/lib/trainRp";
+import { loadPublicRpLedger } from "@/lib/publicRp";
+import { pickMvps } from "@/lib/homeMvp";
 import { formatTierArrow } from "@/lib/homeTierBoard";
 
 export type CareerEventKind =
@@ -101,8 +103,11 @@ function buildRpRankEvents(
   matches: RpPlayerMatch[],
   startRp: number,
   step: number,
-  radiant3Max: number
+  radiant3Max: number,
+  opts?: { idPrefix?: string; venue?: string }
 ): CareerEvent[] {
+  const idPrefix = opts?.idPrefix || "rp";
+  const venue = opts?.venue || "тренировка";
   // при одной дате сохраняем порядок ledger (как заливали: Gorodok→Mutaha→Fallujah)
   const ordered = [...matches].sort((a, b) => {
     const da = String(a.date || "");
@@ -118,11 +123,11 @@ function buildRpRankEvents(
     const next = rpRankFromScore(rp, step, radiant3Max);
     if (next.label !== prev.label) {
       out.push({
-        id: `rp-${m.id}-${next.rankKey}`,
+        id: `${idPrefix}-${m.id}-${next.rankKey}`,
         kind: "rp_rank",
         tone: "rp",
         title: `Новый ранг RP · ${next.label}`,
-        body: `Было ${prev.label} · сейчас ${Math.round(rp)} RP · ${m.map || "тренировка"}`,
+        body: `Было ${prev.label} · сейчас ${Math.round(rp)} RP · ${m.map || venue} · ${venue}`,
         at: String(m.date || "").slice(0, 10) || "1970-01-01",
         atLabel: ymdLabel(String(m.date || "").slice(0, 10)),
       });
@@ -130,6 +135,16 @@ function buildRpRankEvents(
     }
   }
   return out;
+}
+
+function pubRoundScore(m: {
+  kills: number;
+  deaths: number;
+  dmg: number;
+  res: number;
+}): number {
+  const kd = m.deaths > 0 ? m.kills / m.deaths : m.kills;
+  return m.dmg * 0.05 + m.kills * 40 + m.res * 25 + kd * 30;
 }
 
 export async function buildPlayerCareerFeed(nick: string): Promise<PlayerCareerFeed> {
@@ -141,10 +156,11 @@ export async function buildPlayerCareerFeed(nick: string): Promise<PlayerCareerF
   const events: CareerEvent[] = [];
   const key = nickKey(want);
 
-  const [kv, board, rpLedger, tierLogs] = await Promise.all([
+  const [kv, board, rpLedger, pubLedger, tierLogs] = await Promise.all([
     buildPlayerKvStats(want).catch(() => null),
     loadKvJson("data/tier-board.json"),
     loadRpLedger().catch(() => null),
+    loadPublicRpLedger().catch(() => null),
     prisma.tierChangeLog
       .findMany({
         where: { nick: { equals: want, mode: "insensitive" } },
@@ -316,7 +332,7 @@ export async function buildPlayerCareerFeed(nick: string): Promise<PlayerCareerF
     }
   }
 
-  // 7) RP rank ups
+  // 7) RP rank ups — тренировки
   if (rpLedger) {
     const player =
       rpLedger.players[key] ||
@@ -327,9 +343,218 @@ export async function buildPlayerCareerFeed(nick: string): Promise<PlayerCareerF
           player.matches,
           Number(rpLedger.startRp) || 0,
           Number(rpLedger.step) || 150,
-          Number(rpLedger.radiant3Max) || 4500
+          Number(rpLedger.radiant3Max) || 4500,
+          { idPrefix: "rp-train", venue: "тренировка" }
         )
       );
+    }
+  }
+
+  // 8) Паблик PB1 — ранги RP, MVP, лучшие/хорошие катки, заметки
+  if (pubLedger?.players) {
+    const pubPlayer =
+      pubLedger.players[key] ||
+      Object.values(pubLedger.players).find((p) => nickKey(p.nick) === key);
+
+    if (pubPlayer?.matches?.length) {
+      events.push(
+        ...buildRpRankEvents(
+          pubPlayer.matches,
+          Number(pubLedger.startRp) || 1000,
+          Number(pubLedger.step) || 150,
+          Number(pubLedger.radiant3Max) || 4500,
+          { idPrefix: "rp-pub", venue: "паблик PB1" }
+        )
+      );
+
+      type PubSnap = {
+        id: string;
+        map: string;
+        date: string;
+        kills: number;
+        deaths: number;
+        res: number;
+        nok: number;
+        dmg: number;
+        won: boolean | null;
+        net: number;
+      };
+      const snaps: PubSnap[] = pubPlayer.matches.map((m) => ({
+        id: m.id,
+        map: m.map || "PB1",
+        date: String(m.date || "").slice(0, 10),
+        kills: m.kills?.length || 0,
+        deaths: m.deaths?.length || 0,
+        res: m.revives?.length || 0,
+        nok: m.noks?.length || 0,
+        dmg: Math.round(Number(m.dmg) || 0),
+        won: m.won ?? null,
+        net: Number(m.net) || 0,
+      }));
+
+      const byDmg = [...snaps].sort((a, b) => b.dmg - a.dmg);
+      const byKd = [...snaps].sort((a, b) => {
+        const ka = a.deaths > 0 ? a.kills / a.deaths : a.kills;
+        const kb = b.deaths > 0 ? b.kills / b.deaths : b.kills;
+        return kb - ka;
+      });
+      const byRes = [...snaps].sort((a, b) => b.res - a.res);
+      const byNet = [...snaps].sort((a, b) => b.net - a.net);
+
+      if (byDmg[0] && byDmg[0].dmg >= 800) {
+        const r = byDmg[0];
+        events.push({
+          id: `pub-best-dmg-${r.id}`,
+          kind: "best",
+          tone: "best",
+          title: "Лучший показатель · урон (PB1)",
+          body: `${r.dmg} dmg · ${r.map} · ${r.kills} килов`,
+          at: r.date || "1970-01-01",
+          atLabel: ymdLabel(r.date || "1970-01-01"),
+        });
+      }
+      if (byKd[0]) {
+        const r = byKd[0];
+        const kd = r.deaths > 0 ? r.kills / r.deaths : r.kills;
+        if (kd >= 2 && r.kills >= 5) {
+          events.push({
+            id: `pub-best-kd-${r.id}`,
+            kind: "best",
+            tone: "best",
+            title: "Лучший показатель · KD (PB1)",
+            body: `KD ${kd.toFixed(2)} (${r.kills}/${r.deaths}) · ${r.map}`,
+            at: r.date || "1970-01-01",
+            atLabel: ymdLabel(r.date || "1970-01-01"),
+          });
+        }
+      }
+      if (byRes[0] && byRes[0].res >= 5) {
+        const r = byRes[0];
+        events.push({
+          id: `pub-best-res-${r.id}`,
+          kind: "best",
+          tone: "best",
+          title: "Лучший показатель · ресы (PB1)",
+          body: `${r.res} ресов · ${r.map}`,
+          at: r.date || "1970-01-01",
+          atLabel: ymdLabel(r.date || "1970-01-01"),
+        });
+      }
+      if (byNet[0] && byNet[0].net >= 80) {
+        const r = byNet[0];
+        events.push({
+          id: `pub-best-net-${r.id}`,
+          kind: "best",
+          tone: "best",
+          title: "Лучший показатель · RP за катку",
+          body: `${r.net > 0 ? "+" : ""}${Math.round(r.net)} RP · ${r.map}`,
+          at: r.date || "1970-01-01",
+          atLabel: ymdLabel(r.date || "1970-01-01"),
+        });
+      }
+
+      const good = [...snaps]
+        .filter(
+          (r) =>
+            pubRoundScore(r) >= 220 &&
+            (r.kills >= 5 || r.dmg >= 1000 || r.res >= 4 || r.net >= 60)
+        )
+        .sort((a, b) => pubRoundScore(b) - pubRoundScore(a))
+        .slice(0, 6);
+      for (const r of good) {
+        const kd =
+          r.deaths > 0 ? (r.kills / r.deaths).toFixed(2) : String(r.kills);
+        const st =
+          r.won === true ? "победа" : r.won === false ? "поражение" : "катка";
+        events.push({
+          id: `pub-good-${r.id}`,
+          kind: "good",
+          tone: "good",
+          title: "Хорошая игра · PB1",
+          body: `${r.map} · ${st} · ${r.kills}/${r.deaths} KD ${kd} · ${r.dmg} dmg${r.res ? ` · ${r.res} res` : ""} · ${r.net >= 0 ? "+" : ""}${Math.round(r.net)} RP`,
+          at: r.date || "1970-01-01",
+          atLabel: ymdLabel(r.date || "1970-01-01"),
+        });
+      }
+
+      // заметки по последним каткам
+      const recentNotes = [...snaps]
+        .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
+        .slice(0, 6);
+      for (const r of recentNotes) {
+        const st =
+          r.won === true ? "победа" : r.won === false ? "поражение" : "катка";
+        events.push({
+          id: `pub-note-${r.id}`,
+          kind: "note",
+          tone: "note",
+          title: `${r.map} · PB1`,
+          body: `${st} · ${r.kills} килов · ${r.deaths} смертей · ${r.dmg} dmg${r.res ? ` · ${r.res} res` : ""} · ${r.net >= 0 ? "+" : ""}${Math.round(r.net)} RP`,
+          at: r.date || "1970-01-01",
+          atLabel: ymdLabel(r.date || "1970-01-01"),
+        });
+      }
+    }
+
+    // MVP по каждой катке паблика (из статы всех игроков матча)
+    const byMatch = new Map<
+      string,
+      {
+        date: string;
+        map: string;
+        rows: {
+          nick: string;
+          res: number;
+          nok: number;
+          kills: number;
+          deaths: number;
+          dmg: number;
+        }[];
+      }
+    >();
+    for (const p of Object.values(pubLedger.players)) {
+      const nick = String(p.nick || "").trim();
+      if (!nick) continue;
+      for (const m of p.matches || []) {
+        if (!m?.id) continue;
+        if (!byMatch.has(m.id)) {
+          byMatch.set(m.id, {
+            date: String(m.date || "").slice(0, 10),
+            map: m.map || "PB1",
+            rows: [],
+          });
+        }
+        byMatch.get(m.id)!.rows.push({
+          nick,
+          res: m.revives?.length || 0,
+          nok: m.noks?.length || 0,
+          kills: m.kills?.length || 0,
+          deaths: m.deaths?.length || 0,
+          dmg: Math.round(Number(m.dmg) || 0),
+        });
+      }
+    }
+    for (const [mid, pack] of byMatch) {
+      const mvp = pickMvps(pack.rows);
+      const at = pack.date || "1970-01-01";
+      const bump = (list: string[] | undefined, type: string, label: string) => {
+        for (const n of list || []) {
+          if (!nickEq(n, want)) continue;
+          if (type === "anti") continue;
+          events.push({
+            id: `pub-mvp-${mid}-${type}`,
+            kind: "mvp",
+            tone: "mvp",
+            title: mvpTitle(type, label),
+            body: `PB1 · ${pack.map} · ${ymdLabel(at)}`,
+            at,
+            atLabel: ymdLabel(at),
+          });
+        }
+      };
+      bump(mvp.medic, "medic", "MVP Medic");
+      bump(mvp.killer, "killer", "MVP Killer");
+      bump(mvp.damage, "damage", "MVP War-Score");
     }
   }
 
@@ -345,7 +570,7 @@ export async function buildPlayerCareerFeed(nick: string): Promise<PlayerCareerF
 
   return {
     nick: want,
-    events: sorted.slice(0, 24),
+    events: sorted.slice(0, 36),
     updatedAt: new Date().toISOString(),
   };
 }

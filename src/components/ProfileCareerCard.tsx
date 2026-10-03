@@ -40,7 +40,8 @@ export function ProfileCareerCard({ feed, self = false }: Props) {
 
       {events.length === 0 ? (
         <p className="muted profile-career-empty">
-          Пока пусто — появятся переводы, MVP, лучшие катки и ранги RP.
+          Пока пусто — появятся переводы, MVP, лучшие катки КВ/паблика и ранги
+          RP.
         </p>
       ) : (
         <ul className="profile-career-list">
