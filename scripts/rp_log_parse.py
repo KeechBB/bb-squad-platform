@@ -84,7 +84,18 @@ def strip_tag(n: str) -> str:
         n = n.split("?", 1)[0]
     n = TAG_RE.sub("", n).strip()
     n = re.sub(r"^\[[^\]]+\]\s*", "", n).strip()
-    return n
+    # Clan prefix without brackets: "H1GH SHApichkaa", "BB Nick"
+    # Keep this light — only drop a short first token when a real nick remains.
+    parts = n.split()
+    if len(parts) >= 2 and re.fullmatch(r"[A-Za-z0-9_\-]{2,10}", parts[0] or ""):
+        # Avoid stripping real compound nicks like "DarK Knight" — first token
+        # looks like a TAG if mostly caps / digits and shorter than the rest.
+        first = parts[0]
+        rest = " ".join(parts[1:])
+        if first.upper() == first or re.search(r"\d", first):
+            if len(rest) >= 3:
+                n = rest
+    return n.strip()
 
 
 def nick_key(n: str) -> str:
@@ -94,6 +105,30 @@ def nick_key(n: str) -> str:
 def canon_key(n: str, aliases: dict[str, str]) -> str:
     k = nick_key(n)
     return aliases.get(k, k)
+
+
+def resolve_player_key(
+    raw: str,
+    aliases: dict[str, str],
+    known: set[str] | None = None,
+) -> str:
+    """Map Die() victim 'CLAN Nick' → nick key present in steam/inactive maps."""
+    base = canon_key(raw, aliases)
+    if not known:
+        return base
+    if base in known:
+        return base
+    parts = (raw or "").strip().split()
+    cands: list[str] = [base]
+    if len(parts) >= 2:
+        cands.append(canon_key(parts[-1], aliases))
+        cands.append(canon_key(" ".join(parts[1:]), aliases))
+        cands.append(canon_key(strip_tag(raw), aliases))
+    for c in cands:
+        ck = aliases.get(c, c)
+        if ck in known:
+            return ck
+    return base
 
 
 def parse_ts(raw: str) -> datetime:
@@ -319,12 +354,24 @@ def dies_in_window(
     inactive_by_nick = idx["inactive_by_nick"]
     inactive_by_steam = idx["inactive_by_steam"]
     victim_steam = idx["victim_steam"]
+    known_keys = set(inactive_by_nick) | set(victim_steam)
+    for nick in steam_to_nick.values():
+        known_keys.add(canon_key(nick, aliases))
+    for nkey in list(idx.get("steam_to_nick", {}).values()):
+        known_keys.add(canon_key(nkey, aliases))
+
     for rd in idx["raw_dies"]:
         at = rd["at"]
         if not (t0 <= at < t1):
             continue
-        victim = rd["victim"]
-        vk = canon_key(victim, aliases)
+        victim_raw = rd["victim"]
+        vk = resolve_player_key(victim_raw, aliases, known_keys)
+        victim = strip_tag(victim_raw)
+        # Prefer display nick from steam map when resolved
+        for snick in steam_to_nick.values():
+            if canon_key(snick, aliases) == vk:
+                victim = strip_tag(snick)
+                break
         vsteam = victim_steam.get(vk, "")
         times = inactive_by_nick.get(vk) or []
         if vsteam and inactive_by_steam.get(vsteam):
