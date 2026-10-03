@@ -83,18 +83,16 @@ def strip_tag(n: str) -> str:
     if "?" in n:
         n = n.split("?", 1)[0]
     n = TAG_RE.sub("", n).strip()
+    # [BB], 〔 A 〕, 【x】, etc.
+    n = re.sub(r"^[\[\(\{〔【「『][^\]\)\}〕】」』]{0,16}[\]\)\}〕】」』]\s*", "", n).strip()
     n = re.sub(r"^\[[^\]]+\]\s*", "", n).strip()
-    # Clan prefix without brackets: "H1GH SHApichkaa", "BB Nick"
-    # Keep this light — only drop a short first token when a real nick remains.
+    # Clan prefix without brackets: "H1GH Nick" (ALLCAPS / digits). Keep "Gastone Gambara", "DarK Knight".
     parts = n.split()
     if len(parts) >= 2 and re.fullmatch(r"[A-Za-z0-9_\-]{2,10}", parts[0] or ""):
-        # Avoid stripping real compound nicks like "DarK Knight" — first token
-        # looks like a TAG if mostly caps / digits and shorter than the rest.
         first = parts[0]
         rest = " ".join(parts[1:])
-        if first.upper() == first or re.search(r"\d", first):
-            if len(rest) >= 3:
-                n = rest
+        if len(rest) >= 3 and (first.isupper() or re.search(r"\d", first)):
+            n = rest
     return n.strip()
 
 
@@ -111,24 +109,44 @@ def resolve_player_key(
     raw: str,
     aliases: dict[str, str],
     known: set[str] | None = None,
+    prefer: set[str] | None = None,
 ) -> str:
-    """Map Die() victim 'CLAN Nick' → nick key present in steam/inactive maps."""
-    base = canon_key(raw, aliases)
-    if not known:
-        return base
-    if base in known:
-        return base
-    parts = (raw or "").strip().split()
-    cands: list[str] = [base]
-    if len(parts) >= 2:
-        cands.append(canon_key(parts[-1], aliases))
-        cands.append(canon_key(" ".join(parts[1:]), aliases))
-        cands.append(canon_key(strip_tag(raw), aliases))
+    """Map Die() victim 'CLAN Nick' / '〔 A 〕 Nick' → best key in known set."""
+    parts = re.split(r"\s+", (raw or "").strip())
+    cands: list[str] = []
+    for piece in (
+        raw,
+        strip_tag(raw),
+        parts[-1] if parts else "",
+        " ".join(parts[1:]) if len(parts) >= 2 else "",
+        " ".join(parts[-2:]) if len(parts) >= 2 else "",
+    ):
+        if not piece:
+            continue
+        cands.append(canon_key(piece, aliases))
+    ordered: list[str] = []
+    seen: set[str] = set()
     for c in cands:
         ck = aliases.get(c, c)
-        if ck in known:
-            return ck
-    return base
+        if ck and ck not in seen:
+            seen.add(ck)
+            ordered.append(ck)
+    if not ordered:
+        return ""
+    if not known:
+        return ordered[0]
+    hits = [c for c in ordered if c in known]
+    if not hits:
+        return ordered[0]
+    if prefer:
+        pref_hits = [c for c in hits if c in prefer]
+        if pref_hits:
+            # Real steam nicks: prefer longest full nick.
+            pref_hits.sort(key=lambda x: (-len(x), x))
+            return pref_hits[0]
+    # Otherwise shortest (drop clan-prefixed composites like mdmav1nt).
+    hits.sort(key=lambda x: (len(x), x))
+    return hits[0]
 
 
 def parse_ts(raw: str) -> datetime:
@@ -355,17 +373,18 @@ def dies_in_window(
     inactive_by_steam = idx["inactive_by_steam"]
     victim_steam = idx["victim_steam"]
     known_keys = set(inactive_by_nick) | set(victim_steam)
-    for nick in steam_to_nick.values():
-        known_keys.add(canon_key(nick, aliases))
-    for nkey in list(idx.get("steam_to_nick", {}).values()):
-        known_keys.add(canon_key(nkey, aliases))
+    prefer_keys: set[str] = set()
+    for nick in list(steam_to_nick.values()) + list(idx.get("steam_to_nick", {}).values()):
+        ck = canon_key(nick, aliases)
+        known_keys.add(ck)
+        prefer_keys.add(ck)
 
     for rd in idx["raw_dies"]:
         at = rd["at"]
         if not (t0 <= at < t1):
             continue
         victim_raw = rd["victim"]
-        vk = resolve_player_key(victim_raw, aliases, known_keys)
+        vk = resolve_player_key(victim_raw, aliases, known_keys, prefer_keys)
         victim = strip_tag(victim_raw)
         # Prefer display nick from steam map when resolved
         for snick in steam_to_nick.values():
