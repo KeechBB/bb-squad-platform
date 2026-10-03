@@ -763,17 +763,36 @@ export function ProfileCompareCard({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ComparePayload | null>(null);
+  /** Prefill from /profile?compare=Nick (e.g. Rank column on /tm rating). */
+  const [urlOther, setUrlOther] = useState<string | null>(null);
+  const [autoRan, setAutoRan] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const c = new URLSearchParams(window.location.search).get("compare")?.trim();
+    if (!c) return;
+    setUrlOther(c);
+    setRight(c);
+    setRightDraft(c);
+    setOpen(true);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
     setLeft(myNick);
     setLeftDraft(myNick);
-    setRight("");
-    setRightDraft("");
+    if (urlOther) {
+      setRight(urlOther);
+      setRightDraft(urlOther);
+    } else {
+      setRight("");
+      setRightDraft("");
+    }
     setMatchId("");
     setData(null);
     setError(null);
     setCalOpen(false);
+    setAutoRan(false);
     Promise.all([
       fetch("/api/player-compare?list=1", { cache: "no-store" }).then((r) =>
         r.ok ? r.json() : { nicks: [] }
@@ -790,7 +809,7 @@ export function ProfileCompareCard({
         setNicks([]);
         setTrainMatches([]);
       });
-  }, [open, myNick]);
+  }, [open, myNick, urlOther]);
 
   useEffect(() => {
     if (!open) return;
@@ -907,6 +926,17 @@ export function ProfileCompareCard({
     void runCompare(left, right);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- только период/катка
   }, [from, to, matchId]);
+
+  useEffect(() => {
+    if (!open || autoRan || !urlOther || !nicks.length) return;
+    const other =
+      nicks.find((n) => n.toLowerCase() === urlOther.toLowerCase()) || urlOther;
+    if (other.toLowerCase() === myNick.trim().toLowerCase()) return;
+    setRight(other);
+    setRightDraft(other);
+    setAutoRan(true);
+    void runCompare(myNick, other);
+  }, [open, autoRan, urlOther, nicks, myNick, runCompare]);
 
   const daysInMonth = useMemo(() => {
     const last = new Date(viewY, viewM, 0).getDate();
