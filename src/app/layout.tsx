@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Providers } from "@/components/Providers";
 import { AuthBar } from "@/components/AuthBar";
 import { SiteNav } from "@/components/SiteNav";
-import Link from "next/link";
+import { SiteOnlineBadge } from "@/components/SiteOnlineBadge";
 import { getSession } from "@/lib/auth";
 import { isBlackberryClanMember } from "@/lib/blackberryClan";
 import { getCurrentBetaLabel } from "@/lib/siteReleases";
@@ -45,11 +45,7 @@ export default async function RootLayout({
           <header className="site-top">
             <div className="site-top-inner">
               <div className="top-left">
-                <Link className="brand" href="/" title="Главная">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/blackberry.png" alt="BlackBerry" width={56} height={56} />
-                  <strong>BLACKBERRY</strong>
-                </Link>
+                <SiteOnlineBadge />
                 <SiteNav showClanSections={showClanSections} />
               </div>
               <AuthBar betaLabel={betaLabel} />

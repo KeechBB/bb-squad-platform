@@ -47,9 +47,32 @@ function nickEq(a: string, b: string) {
   return nickKey(a) === nickKey(b);
 }
 
-async function loadKvJson(path: string) {
+type TierBoardJson = {
+  updatedAt?: string;
+  transfers?: {
+    nick?: string;
+    dir?: string;
+    fromTier?: number;
+    toTier?: number;
+    at?: string;
+    note?: string;
+  }[];
+  candidates?: {
+    nick?: string;
+    dir?: string;
+    fromTier?: number;
+    toTier?: number;
+    band?: string;
+    fit?: number;
+    role?: string;
+    since?: string;
+    note?: string;
+  }[];
+};
+
+async function loadKvJson<T>(path: string): Promise<T | null> {
   const { loadKvJsonCached } = await import("@/lib/kvLocal");
-  return loadKvJsonCached(path.replace(/^\//, ""));
+  return loadKvJsonCached<T>(path.replace(/^\//, ""));
 }
 
 function ymdLabel(ymd: string): string {
@@ -140,7 +163,7 @@ export async function buildPlayerCareerFeed(nick: string): Promise<PlayerCareerF
 
   const [kv, board, rpLedger, pubLedger, tierLogs] = await Promise.all([
     buildPlayerKvStats(want).catch(() => null),
-    loadKvJson("data/tier-board.json"),
+    loadKvJson<TierBoardJson>("data/tier-board.json"),
     loadRpLadder().catch(() => null),
     loadPublicRpLedger().catch(() => null),
     prisma.tierChangeLog

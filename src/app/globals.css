@@ -852,6 +852,58 @@ svg {
   white-space: nowrap;
 }
 
+/* Top-left LIVE-style site online counter (replaces brand mark) */
+.site-online-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  padding: 5px 10px 5px 9px;
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  border-radius: 999px;
+  background: rgba(6, 40, 28, 0.45);
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6ee7b7;
+  text-shadow: 0 0 12px rgba(52, 211, 153, 0.55);
+  white-space: nowrap;
+  animation: site-online-glow 1.8s ease-in-out infinite;
+}
+
+.site-online-badge i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.75);
+  animation: home-mvp-blink 1.6s ease-out infinite;
+}
+
+.site-online-label {
+  color: #86efac;
+}
+
+.site-online-count {
+  color: #4ade80;
+  font-variant-numeric: tabular-nums;
+  min-width: 0.75em;
+}
+
+@keyframes site-online-glow {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.15);
+  }
+  50% {
+    opacity: 0.82;
+    box-shadow: 0 0 14px 0 rgba(52, 211, 153, 0.28);
+  }
+}
+
 .auth-bar {
   display: flex;
   flex-direction: row;
@@ -8885,6 +8937,12 @@ body:has(.home-page) {
     width: clamp(32px, 5vw, 40px);
   }
 
+  .site-online-badge {
+    padding: 4px 8px 4px 7px;
+    font-size: 0.68rem;
+    gap: 5px;
+  }
+
   .top-left {
     gap: 8px;
     min-width: 0;
@@ -9035,6 +9093,11 @@ body {
 
   .brand img {
     width: 36px;
+  }
+
+  .site-online-badge {
+    padding: 3px 7px 3px 6px;
+    font-size: 0.64rem;
   }
 
   .top-nav {
