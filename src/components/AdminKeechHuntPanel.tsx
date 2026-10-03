@@ -6,7 +6,7 @@ import {
   serverLabel,
   type KeechHuntEvent,
   type KeechHuntMatch,
-} from "@/lib/keechHunt";
+} from "@/lib/keechHuntTypes";
 
 type HistRow = {
   id: string;
