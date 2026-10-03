@@ -111,6 +111,15 @@ MATCHES = [
         "start": datetime(2026, 10, 2, 20, 29, 49, tzinfo=timezone.utc),
         "end": datetime(2026, 10, 2, 21, 32, 42, tzinfo=timezone.utc),
     },
+    {
+        "id": "03-kokan",
+        "map": "Kokan AAS v2",
+        "date": "2026-10-03",
+        "log": "SquadGame-2026.10.03-kokan.log",
+        # InProgress 21:40:55 → WaitingPostMatch 22:38:06 МСК · RGF 44–0
+        "start": datetime(2026, 10, 3, 18, 40, 55, tzinfo=timezone.utc),
+        "end": datetime(2026, 10, 3, 19, 38, 6, tzinfo=timezone.utc),
+    },
 ]
 
 RANK_NAMES = [
