@@ -129,6 +129,15 @@ MATCHES = [
         "start": datetime(2026, 10, 3, 19, 39, 16, tzinfo=timezone.utc),
         "end": datetime(2026, 10, 3, 20, 30, 53, tzinfo=timezone.utc),
     },
+    {
+        "id": "03-foolsroad",
+        "map": "Fool's Road RAAS v1",
+        "date": "2026-10-03",
+        "log": "SquadGame-2026.10.03-foolsroad.log",
+        # InProgress 23:33:21 → WaitingPostMatch 00:40:11 МСК · PLA 3–0 · 66:50
+        "start": datetime(2026, 10, 3, 20, 33, 21, tzinfo=timezone.utc),
+        "end": datetime(2026, 10, 3, 21, 40, 11, tzinfo=timezone.utc),
+    },
 ]
 
 RANK_NAMES = [
