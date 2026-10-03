@@ -4263,6 +4263,14 @@ body:has(.profile-page) {
   max-width: 1100px;
 }
 
+/* Hunt: ширина как у рейтинга паблика (иначе .shell:has(.admin-page) жмёт до 1100) */
+.shell:has(.admin-keech-hunt-page) {
+  max-width: none;
+  width: 100%;
+  padding-left: clamp(12px, 2vw, 28px);
+  padding-right: clamp(12px, 2vw, 28px);
+}
+
 /* ???????????? ? ???? ??????? ??????? (?????????? max-width ????) */
 .shell:has(.admin-attendance-page) {
   max-width: none;
@@ -11729,9 +11737,14 @@ body.profile-match-modal-open {
 
 /* —— Admin · Keech Hunt (личный) —— */
 .admin-page.admin-keech-hunt-page {
-  max-width: none;
+  max-width: min(1760px, 100%);
+  margin-left: auto;
+  margin-right: auto;
   text-align: left;
   width: 100%;
+  box-sizing: border-box;
+  padding-left: clamp(4px, 1vw, 12px);
+  padding-right: clamp(4px, 1vw, 12px);
 }
 .admin-page.admin-keech-hunt-page .hero {
   text-align: left;
@@ -11751,6 +11764,7 @@ body.profile-match-modal-open {
 }
 .keech-hunt-panel {
   width: 100%;
+  max-width: none;
   margin: 0 0 32px;
 }
 .keech-hunt-toolbar {
@@ -11773,13 +11787,18 @@ body.profile-match-modal-open {
 }
 .keech-hunt-split {
   display: grid;
-  grid-template-columns: minmax(260px, 0.85fr) minmax(560px, 1.75fr);
-  gap: 14px;
+  grid-template-columns: minmax(280px, 0.7fr) minmax(720px, 2.1fr);
+  gap: 16px;
   align-items: start;
+  width: 100%;
 }
-@media (max-width: 1100px) {
+.keech-hunt-right {
+  min-width: 0;
+  overflow: hidden;
+}
+@media (max-width: 1200px) {
   .keech-hunt-split {
-    grid-template-columns: minmax(240px, 0.9fr) minmax(480px, 1.5fr);
+    grid-template-columns: minmax(260px, 0.75fr) minmax(560px, 1.8fr);
   }
 }
 @media (max-width: 960px) {
@@ -11841,9 +11860,14 @@ body.profile-match-modal-open {
 }
 .keech-hunt-cols {
   display: grid;
-  grid-template-columns: repeat(3, minmax(160px, 1fr));
-  gap: 14px;
-  padding: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  padding: 16px 18px;
+  overflow-x: hidden;
+}
+.keech-hunt-col {
+  min-width: 0;
+  overflow: hidden;
 }
 .keech-hunt-cols.detail {
   margin-top: 4px;
@@ -11858,38 +11882,41 @@ body.profile-match-modal-open {
   margin: 0;
   padding: 0;
   max-height: min(62vh, 640px);
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 .keech-hunt-list.live {
   max-height: min(70vh, 720px);
 }
 .keech-hunt-row {
   display: grid;
-  grid-template-columns: 58px minmax(72px, 1fr) 52px 28px;
-  gap: 6px;
+  grid-template-columns: 56px minmax(0, 1fr) 48px 26px;
+  gap: 8px;
   align-items: start;
-  padding: 6px 4px;
+  padding: 7px 2px;
   border-bottom: 1px solid rgba(167, 139, 250, 0.1);
-  font-size: 0.88rem;
+  font-size: 0.9rem;
+  min-width: 0;
 }
 .keech-hunt-time {
   font-variant-numeric: tabular-nums;
   color: var(--muted);
-  font-size: 0.8rem;
-  padding-top: 1px;
+  font-size: 0.78rem;
+  padding-top: 2px;
 }
 .keech-hunt-nick {
   overflow-wrap: anywhere;
   word-break: break-word;
   white-space: normal;
-  line-height: 1.25;
+  line-height: 1.3;
   min-width: 0;
 }
 .keech-hunt-delta {
   text-align: right;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  padding-top: 1px;
+  padding-top: 2px;
+  white-space: nowrap;
 }
 .keech-hunt-hit-btn {
   border: 0;
