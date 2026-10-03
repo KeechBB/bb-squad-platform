@@ -205,6 +205,7 @@ class KeechHuntTracker:
             "endAt": None,
             "events": [],
             "net": 0.0,
+            "noks": 0,
             "kills": 0,
             "deaths": 0,
             "revives": 0,
@@ -325,6 +326,48 @@ class KeechHuntTracker:
                     if len(self._hits) > 400:
                         self._hits = self._hits[-300:]
 
+        if "Wound():" in line:
+            wm = R.WOUND_RE.search(line)
+            if wm:
+                victim_raw = wm.group("victim")
+                ksteam = wm.group("steam")
+                victim = R.strip_tag(victim_raw)
+                vkey = R.nick_key(victim)
+                if ksteam == KEECH_STEAM and vkey != "keech":
+                    veos = ""
+                    for e, s in self.eos_steam.items():
+                        if s != KEECH_STEAM and R.nick_key(
+                            self.eos_nick.get(e, "")
+                        ) == vkey:
+                            veos = e
+                            break
+                    bones = self._bones_for(
+                        attacker_steam=KEECH_STEAM,
+                        victim_eos=veos or None,
+                        at=at,
+                    )
+                    if not bones:
+                        bones = self._bones_for(
+                            attacker_steam=KEECH_STEAM,
+                            victim_eos=None,
+                            at=at,
+                        )
+                    self._add_event(
+                        server,
+                        {
+                            "id": f"n-{server}-{at.timestamp()}-{vkey}",
+                            "kind": "nok",
+                            "at": at.isoformat(),
+                            "time": _msk_time(at),
+                            "nick": victim,
+                            "delta": 0.0,
+                            "oppWeight": round(self._weight(victim, self._rp_map()[0]), 1),
+                            "bones": bones,
+                            "server": server,
+                        },
+                        at,
+                    )
+
         if "Die():" in line:
             dm = R.DIE_RE.search(line)
             if dm:
@@ -436,6 +479,7 @@ class KeechHuntTracker:
             return
         bucket["events"].append(ev)
         bucket["net"] = round(sum(float(e.get("delta") or 0) for e in bucket["events"]), 2)
+        bucket["noks"] = sum(1 for e in bucket["events"] if e.get("kind") == "nok")
         bucket["kills"] = sum(1 for e in bucket["events"] if e.get("kind") == "kill")
         bucket["deaths"] = sum(
             1 for e in bucket["events"] if e.get("kind") in ("death", "self")
@@ -479,6 +523,7 @@ class KeechHuntTracker:
             events.extend(m.get("events") or [])
         return {
             "net": round(sum(float(e.get("delta") or 0) for e in events), 2),
+            "noks": sum(1 for e in events if e.get("kind") == "nok"),
             "kills": sum(1 for e in events if e.get("kind") == "kill"),
             "deaths": sum(1 for e in events if e.get("kind") in ("death", "self")),
             "revives": sum(1 for e in events if e.get("kind") == "revive"),

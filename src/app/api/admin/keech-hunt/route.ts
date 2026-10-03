@@ -35,6 +35,7 @@ export async function GET() {
       ? {
           ...primary,
           net: Math.round(net * 10) / 10,
+          noks: split?.noks.length ?? 0,
           kills: split?.kills.length ?? 0,
           deaths: split?.deaths.length ?? 0,
           revives: split?.revives.length ?? 0,
@@ -46,6 +47,7 @@ export async function GET() {
       server: m.server,
       layerShort: m.layerShort,
       startAt: m.startAt,
+      noks: m.noks ?? 0,
       kills: m.kills,
       deaths: m.deaths,
       revives: m.revives,
@@ -53,6 +55,7 @@ export async function GET() {
     })),
     columns: split
       ? {
+          noks: split.noks,
           kills: split.kills,
           deaths: split.deaths,
           revives: split.revives,
@@ -66,6 +69,7 @@ export async function GET() {
       startAt: m.startAt,
       endAt: m.endAt,
       net: m.net,
+      noks: m.noks ?? (m.events || []).filter((e) => e.kind === "nok").length,
       kills: m.kills,
       deaths: m.deaths,
       revives: m.revives,

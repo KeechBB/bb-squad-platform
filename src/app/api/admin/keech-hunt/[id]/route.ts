@@ -23,8 +23,12 @@ export async function GET(_req: Request, ctx: Ctx) {
   }
   const split = splitEvents(match.events || []);
   return NextResponse.json({
-    match,
+    match: {
+      ...match,
+      noks: match.noks ?? split.noks.length,
+    },
     columns: {
+      noks: split.noks,
       kills: split.kills,
       deaths: split.deaths,
       revives: split.revives,

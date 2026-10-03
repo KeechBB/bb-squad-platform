@@ -11823,6 +11823,10 @@ body.profile-match-modal-open {
 .keech-hunt-msg {
   max-width: 100%;
 }
+.keech-hunt-msg.kind-nok {
+  background: rgba(251, 191, 36, 0.08);
+  border-color: rgba(251, 191, 36, 0.28);
+}
 .keech-hunt-msg.kind-kill {
   background: rgba(52, 211, 153, 0.08);
   border-color: rgba(52, 211, 153, 0.22);
@@ -11860,8 +11864,8 @@ body.profile-match-modal-open {
 }
 .keech-hunt-cols {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
   padding: 16px 18px;
   overflow-x: hidden;
 }
