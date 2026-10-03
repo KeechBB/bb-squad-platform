@@ -37,6 +37,9 @@ yarn-error.log*
 scripts/squad_collector_state.json
 scripts/.squad-collector.env
 
+# deploy maintenance flag (created on VPS during deploy.sh)
+/maintenance.on
+
 # uploaded avatars (kept on server disk)
 /public/uploads/avatars/*
 !/public/uploads/avatars/.gitkeep

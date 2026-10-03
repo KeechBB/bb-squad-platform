@@ -1,13 +1,40 @@
 #!/usr/bin/env bash
-# Деплой: pull → билд на живом сайте → pm2 restart
-# bb-squad не стопаем (на 4 ГБ RAM хватает). Принудительный стоп: DEPLOY_STOP=1
+# Деплой: maintenance ON → pull → билд → pm2 restart → maintenance OFF
+# Заглушка: public/maintenance.html (nginx смотрит на maintenance.on)
 # Запуск: bash scripts/deploy.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+MAINT_FLAG="$ROOT/maintenance.on"
+DEPLOY_OK=0
 STOPPED=0
+
+enable_maintenance() {
+  touch "$MAINT_FLAG"
+  echo "==> maintenance ON ($MAINT_FLAG)"
+  if command -v nginx >/dev/null 2>&1; then
+    nginx -t >/dev/null 2>&1 && nginx -s reload 2>/dev/null || true
+  fi
+}
+
+disable_maintenance() {
+  rm -f "$MAINT_FLAG"
+  echo "==> maintenance OFF"
+  if command -v nginx >/dev/null 2>&1; then
+    nginx -t >/dev/null 2>&1 && nginx -s reload 2>/dev/null || true
+  fi
+}
+
+cleanup() {
+  if [[ "$DEPLOY_OK" == "1" ]]; then
+    disable_maintenance
+  else
+    echo "==> deploy FAILED — leave maintenance.on (fix when ready, then: rm -f $MAINT_FLAG && nginx -s reload)" >&2
+  fi
+}
+trap cleanup EXIT
 
 ensure_swap() {
   if swapon --show 2>/dev/null | grep -q .; then
@@ -30,6 +57,9 @@ ensure_swap() {
 }
 
 echo "==> $(date -Is) deploy in $ROOT"
+
+enable_maintenance
+
 echo "==> git pull"
 git pull --ff-only
 echo "==> HEAD=$(git rev-parse --short HEAD)"
@@ -44,14 +74,11 @@ fi
 echo "==> free -h (before build)"
 free -h || true
 
-# По умолчанию сайт не гасим. Только явный DEPLOY_STOP=1.
-if [[ "${DEPLOY_STOP:-0}" == "1" ]]; then
-  echo "==> pm2 stop bb-squad (DEPLOY_STOP=1)"
-  pm2 stop bb-squad || true
-  STOPPED=1
-else
-  echo "==> keep bb-squad online during build"
-fi
+# На время билда гасим Next — иначе без .next отдаёт «голый» HTML.
+# Заглушку показывает nginx по maintenance.on
+echo "==> pm2 stop bb-squad (maintenance page)"
+pm2 stop bb-squad || true
+STOPPED=1
 
 echo "==> clear Next.js build cache (.next)"
 rm -rf .next
@@ -70,7 +97,7 @@ echo "==> npm run build"
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2048}"
 npm run build
 
-echo "==> pm2 restart bb-squad"
+echo "==> pm2 start/restart bb-squad"
 if [[ "$STOPPED" == "1" ]]; then
   pm2 start bb-squad || pm2 restart bb-squad
 else
@@ -80,4 +107,5 @@ fi
 echo "==> free -h (after)"
 free -h || true
 
+DEPLOY_OK=1
 echo "==> OK commit=$(git rev-parse --short HEAD) $(date -Is)"

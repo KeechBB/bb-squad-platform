@@ -43,11 +43,14 @@ Vercel не используем (SMS). Сайт и **Postgres** крутятс�
 После `git push` на `main`:
 
 ```bash
-cd /var/www/bb-squad-platform && bash scripts/deploy.sh
+cd /var/www/bb-squad-platform && git pull && bash scripts/deploy.sh
 ```
 
-Скрипт: `git pull` → билд **на живом** `bb-squad` → удаляет `.next` → `npm run build` → `pm2 restart`.  
-Стоп только если явно: `DEPLOY_STOP=1 bash scripts/deploy.sh`. Swap 2G поднимается, если его ещё нет.
+Во время деплоя сайт показывает заглушку `public/maintenance.html` («технические работы… 5 минут») — флаг `maintenance.on`.  
+Один раз обновить nginx с репо: скопировать блоки maintenance из `deploy/nginx-bb-squad.conf` в `/etc/nginx/sites-available/bb-squad`, затем `nginx -t && systemctl reload nginx`.
+
+Скрипт: maintenance ON → `pm2 stop bb-squad` → билд → `pm2 start` → maintenance OFF.  
+Swap 2G поднимается, если его ещё нет.
 
 ## Squad log collector (24/7)
 
