@@ -11,11 +11,22 @@ if [[ -f .env ]]; then
   set +a
 fi
 
-PY="$ROOT/.venv-collector/bin/python"
-if [[ ! -x "$PY" ]]; then
+PY=""
+for cand in \
+  "$ROOT/scripts/.venv-collector/bin/python" \
+  "$ROOT/.venv-collector/bin/python"
+do
+  if [[ -x "$cand" ]]; then
+    PY="$cand"
+    break
+  fi
+done
+if [[ -z "$PY" ]]; then
   PY="$(command -v python3)"
 fi
 echo "==> python: $PY"
+"$PY" -c "import paramiko; print('==> paramiko ok')" 2>/dev/null \
+  || echo "==> paramiko missing in this python (will use log cache / install in venv)"
 echo "==> history source: DATABASE_URL → local Postgres (PublicMatch)"
 echo "==> rebuilding rp-ledger…"
 "$PY" scripts/build_public_rp_ledger.py
