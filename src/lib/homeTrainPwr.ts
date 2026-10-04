@@ -692,7 +692,7 @@ export async function buildPlayerTrainCombatStats(
   let dmg = 0;
   let res = 0;
   let nok = 0;
-  let mvpDamage = 0;
+  const mvpDamage = 0;
   let mvpKiller = 0;
   let mvpMedic = 0;
   let antiDeath = 0;
