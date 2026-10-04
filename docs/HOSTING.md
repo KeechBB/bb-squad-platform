@@ -54,9 +54,11 @@ Swap 2G поднимается, если его ещё нет.
 
 ### Локальный кэш KV (ускорение)
 
-При деплое `scripts/sync_kv_cache.sh` копирует hot JSON (`rp-ladder`, `rp-ledger`, indexes) в  
-`/var/www/bb-squad-platform/data/kv-cache/`. Next читает с диска (`KV_LOCAL_DIR` или этот путь),  
-fallback — `keechbb.github.io/blackberry-kv`. Hot-path рейтинга ТМ использует slim `rp-ladder.json` (~0.2 MB), полный ledger — только разбор RP.
+При деплое `scripts/sync_kv_cache.sh` зеркалит **весь** `blackberry-kv/public` в  
+`/var/www/bb-squad-platform/data/kv-cache/` (на VPS: `git pull` в `/var/www/blackberry-kv`).  
+Живой сайт (`/kv-static`, home API) читает **только диск** — GitHub Pages в горячем пути не используется.  
+Nginx отдаёт `/kv-static/` напрямую с диска (см. `deploy/nginx-bb-squad.conf`).  
+Hot-path рейтинга ТМ: slim `rp-ladder.json`; полный ledger — только drilldown.
 
 ## Squad log collector (24/7)
 

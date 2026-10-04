@@ -11,7 +11,6 @@ import { prisma } from "@/lib/prisma";
 
 const KV_BASES = [
   process.env.KV_DATA_BASE,
-  "https://keechbb.github.io/blackberry-kv",
 ].filter(Boolean) as string[];
 
 function nickKey(n: string) {

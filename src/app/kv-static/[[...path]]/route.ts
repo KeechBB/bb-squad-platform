@@ -1,95 +1,84 @@
 import type { NextRequest } from "next/server";
+import { promises as fs } from "fs";
+import path from "path";
+import { kvLocalRoots } from "@/lib/kvLocal";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const UPSTREAM = "https://keechbb.github.io/blackberry-kv";
-/** Fallback if github.io still 301s to the custom domain without SSL */
-const UPSTREAM_HTTP = "http://kv.bb-squad.ru";
+/** Serve KV UI + JSON from VPS disk only (data/kv-cache). No GitHub Pages. */
 
-function targetUrl(pathParts: string[] | undefined, search: string): string {
-  const clean = (pathParts ?? []).filter((p) => p && p !== ".." && !p.includes(".."));
-  const path = clean.length ? clean.join("/") : "index.html";
-  return `${UPSTREAM}/${path}${search}`;
+function safeRel(pathParts: string[] | undefined): string {
+  const clean = (pathParts ?? []).filter(
+    (p) => p && p !== ".." && !p.includes("..") && !p.includes("\\") && !p.includes("\0")
+  );
+  return clean.length ? clean.join("/") : "index.html";
 }
 
-async function proxy(req: NextRequest, pathParts: string[] | undefined) {
-  const search = req.nextUrl.search || "";
-  const url = targetUrl(pathParts, search);
+function contentTypeFor(rel: string): string {
+  const lower = rel.toLowerCase();
+  if (lower.endsWith(".js")) return "application/javascript; charset=utf-8";
+  if (lower.endsWith(".css")) return "text/css; charset=utf-8";
+  if (lower.endsWith(".json")) return "application/json; charset=utf-8";
+  if (lower.endsWith(".svg")) return "image/svg+xml";
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  if (lower.endsWith(".webp")) return "image/webp";
+  if (lower.endsWith(".woff2")) return "font/woff2";
+  if (lower.endsWith(".html") || lower.endsWith(".htm"))
+    return "text/html; charset=utf-8";
+  return "application/octet-stream";
+}
 
-  let res = await fetch(url, {
-    redirect: "manual",
-    headers: {
-      Accept: req.headers.get("accept") || "*/*",
-      "User-Agent": "bb-squad-kv-proxy/1",
-    },
-    cache: "no-store",
-  });
-
-  // Follow one hop server-side (never leak Location to the browser — that caused
-  // https://bb-squad.ru iframe → http://kv.bb-squad.ru mixed-content blank pages).
-  if (res.status >= 300 && res.status < 400) {
-    const loc = res.headers.get("location");
-    if (loc) {
-      const next = loc.startsWith("http")
-        ? loc
-        : new URL(loc, url).toString();
-      // Prefer http kv host if github sent us there; fetch from VPS/server OK.
-      const follow = next.replace(
-        /^https:\/\/kv\.bb-squad\.ru/i,
-        UPSTREAM_HTTP
-      );
-      res = await fetch(follow, {
-        redirect: "follow",
-        headers: {
-          Accept: req.headers.get("accept") || "*/*",
-          "User-Agent": "bb-squad-kv-proxy/1",
-        },
-        cache: "no-store",
-      });
+async function readFromDisk(rel: string): Promise<Buffer | null> {
+  for (const root of kvLocalRoots()) {
+    const full = path.resolve(root, rel);
+    const rootResolved = path.resolve(root);
+    if (!full.startsWith(rootResolved + path.sep) && full !== rootResolved) {
+      continue;
+    }
+    try {
+      return await fs.readFile(full);
+    } catch {
+      /* try next root */
     }
   }
+  return null;
+}
 
-  if (!res.ok && res.status === 404) {
-    // last resort: try http kv directly
-    const clean = (pathParts ?? []).filter((p) => p && p !== "..");
-    const path = clean.length ? clean.join("/") : "index.html";
-    res = await fetch(`${UPSTREAM_HTTP}/${path}${search}`, {
-      redirect: "follow",
-      cache: "no-store",
-    });
-  }
-
-  const buf = await res.arrayBuffer();
-  const contentType =
-    res.headers.get("content-type") ||
-    (url.endsWith(".js")
-      ? "application/javascript; charset=utf-8"
-      : url.endsWith(".css")
-        ? "text/css; charset=utf-8"
-        : url.endsWith(".json")
-          ? "application/json; charset=utf-8"
-          : "text/html; charset=utf-8");
-
+function diskHeaders(rel: string): Headers {
   const headers = new Headers();
-  headers.set("Content-Type", contentType);
-  headers.set("Cache-Control", "public, max-age=30, must-revalidate");
-  // Explicitly allow framing on same site
-  headers.delete("X-Frame-Options");
-  headers.delete("Content-Security-Policy");
-
-  return new Response(buf, { status: res.status, headers });
+  headers.set("Content-Type", contentTypeFor(rel));
+  // Short browser cache; deploy/sync refreshes disk immediately
+  headers.set("Cache-Control", "public, max-age=60, must-revalidate");
+  headers.set("X-KV-Source", "vps-disk");
+  return headers;
 }
 
 type Ctx = { params: Promise<{ path?: string[] }> };
 
-export async function GET(req: NextRequest, ctx: Ctx) {
-  const { path } = await ctx.params;
-  return proxy(req, path);
+export async function GET(_req: NextRequest, ctx: Ctx) {
+  const { path: parts } = await ctx.params;
+  const rel = safeRel(parts);
+  const buf = await readFromDisk(rel);
+  if (!buf) {
+    return new Response(
+      `KV file not on VPS cache: ${rel}\nRun scripts/sync_kv_cache.sh on the server.`,
+      { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" } }
+    );
+  }
+  return new Response(new Uint8Array(buf), {
+    status: 200,
+    headers: diskHeaders(rel),
+  });
 }
 
-export async function HEAD(req: NextRequest, ctx: Ctx) {
-  const { path } = await ctx.params;
-  const res = await proxy(req, path);
-  return new Response(null, { status: res.status, headers: res.headers });
+export async function HEAD(_req: NextRequest, ctx: Ctx) {
+  const { path: parts } = await ctx.params;
+  const rel = safeRel(parts);
+  const buf = await readFromDisk(rel);
+  if (!buf) {
+    return new Response(null, { status: 404 });
+  }
+  return new Response(null, { status: 200, headers: diskHeaders(rel) });
 }

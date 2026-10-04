@@ -4,7 +4,6 @@ export type MatchPwrDeltaMap = Record<string, number>;
 
 const KV_BASES = [
   process.env.KV_DATA_BASE,
-  "https://keechbb.github.io/blackberry-kv",
   "https://kv.bb-squad.ru",
 ].filter(Boolean) as string[];
 

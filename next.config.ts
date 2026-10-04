@@ -1,8 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // /kv-static is served by src/app/kv-static/[[...path]]/route.ts
-  // (rewrites to github.io forwarded 301→http://kv and blanked HTTPS iframes)
+  // /kv-static: disk via nginx alias or Next route (data/kv-cache). No GitHub Pages.
 
   // После деплоя браузер не должен держать старый HTML/RSC.
   // Хэшированные /_next/static/* по-прежнему можно кешировать надолго.

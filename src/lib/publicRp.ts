@@ -7,7 +7,6 @@ import { rpRankFromScore, type RpLeaderRow, type RpLedger, type RpPlayer } from 
 
 const KV_BASES = [
   process.env.KV_DATA_BASE,
-  "https://keechbb.github.io/blackberry-kv",
 ].filter(Boolean) as string[];
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
