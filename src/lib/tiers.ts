@@ -27,11 +27,6 @@ export const ROSTER_BUCKET_COLOR: Record<RosterBucket, string> = {
   tbd: "#6b7280",
 };
 
-const KV_BASES = [
-  process.env.KV_DATA_BASE,
-  "https://kv.bb-squad.ru",
-].filter(Boolean) as string[];
-
 function nickKey(nick: string): string {
   return nick.trim().toLowerCase().replace(/\s+/g, "");
 }
@@ -62,19 +57,18 @@ export function buildTierIndex(data: {
 }
 
 export async function loadTierIndex(): Promise<Map<string, 1 | 2 | 3>> {
-  for (const base of KV_BASES) {
-    try {
-      const res = await fetch(`${base.replace(/\/$/, "")}/data/tiers.json`, {
-        next: { revalidate: 120 },
-      });
-      if (!res.ok) continue;
-      const data = await res.json();
-      return buildTierIndex(data);
-    } catch {
-      /* try next */
-    }
+  try {
+    const { loadKvJsonCached } = await import("@/lib/kvLocal");
+    const data = await loadKvJsonCached<{
+      tier1?: string[];
+      tier2?: string[];
+      tier3?: string[];
+      aliases?: Record<string, string>;
+    }>("data/tiers.json");
+    return buildTierIndex(data);
+  } catch {
+    return new Map();
   }
-  return new Map();
 }
 
 /** Участвует в КВ: мейн/junior или боевая роль состава */

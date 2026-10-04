@@ -3,11 +3,6 @@
  * Канон: .cursor/rules/clan-cross-rating.mdc
  */
 
-const KV_BASES = [
-  process.env.KV_DATA_BASE,
-  "https://kv.bb-squad.ru",
-].filter(Boolean) as string[];
-
 export const BB_MAIN_KEY = "BB-MAIN";
 export const BB_JUNIOR_KEY = "BB-JUNIOR";
 /** @deprecated use BB_MAIN_KEY / BB_JUNIOR_KEY */
@@ -246,23 +241,9 @@ const PWR = {
   ] as [number, string, string][],
 };
 
-async function fetchJson(url: string) {
-  const res = await fetch(url, { next: { revalidate: 60 } });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
 async function loadFromKv<T>(path: string): Promise<T | null> {
-  for (const base of KV_BASES) {
-    try {
-      return (await fetchJson(
-        `${base.replace(/\/$/, "")}/${path.replace(/^\//, "")}`
-      )) as T;
-    } catch {
-      /* next */
-    }
-  }
-  return null;
+  const { loadKvJsonCached } = await import("@/lib/kvLocal");
+  return loadKvJsonCached<T>(path.replace(/^\//, ""));
 }
 
 function softSat(x: number, mid: number) {

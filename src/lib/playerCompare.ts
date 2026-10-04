@@ -232,46 +232,63 @@ async function loadMatchCombat(
   matchId: string,
   nick: string
 ): Promise<CompareMatchCombat | null> {
-  const bases = [
-    process.env.KV_DATA_BASE,
-    "https://kv.bb-squad.ru",
-  ].filter(Boolean) as string[];
+  const { loadKvJsonCached } = await import("@/lib/kvLocal");
+  const toRel = (p: string) =>
+    String(p || "")
+      .replace(/^\//, "")
+      .replace(/^https?:\/\/[^/]+\//, "");
 
-  async function fetchJson(url: string) {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
-  }
-
-  let playersUrl: string | null = null;
-  for (const base of bases) {
-    try {
-      const root = base.replace(/\/$/, "");
-      const index = await fetchJson(`${root}/data/training-index.json`);
-      for (const m of index.months || []) {
-        const monthUrl = String(m.url || "").startsWith("http")
-          ? m.url
-          : `${root}/${String(m.url || "").replace(/^\//, "")}`;
-        const monthData = await fetchJson(monthUrl);
-        for (const match of monthData.matches || []) {
-          if (String(match.id) === matchId && match.playersUrl) {
-            playersUrl = String(match.playersUrl).startsWith("http")
-              ? match.playersUrl
-              : `${root}/${String(match.playersUrl).replace(/^\//, "")}`;
-            break;
-          }
+  let playersRel: string | null = null;
+  try {
+    const index = await loadKvJsonCached<{ months?: { url?: string }[] }>(
+      "data/training-index.json"
+    );
+    for (const m of index?.months || []) {
+      if (!m.url) continue;
+      const monthData = await loadKvJsonCached<{
+        matches?: { id?: string; playersUrl?: string }[];
+      }>(toRel(m.url));
+      for (const match of monthData?.matches || []) {
+        if (String(match.id) === matchId && match.playersUrl) {
+          playersRel = toRel(match.playersUrl);
+          break;
         }
-        if (playersUrl) break;
       }
-      if (playersUrl) break;
-    } catch {
-      /* next base */
+      if (playersRel) break;
     }
+  } catch {
+    return null;
   }
-  if (!playersUrl) return null;
+  if (!playersRel) return null;
 
   try {
-    const data = await fetchJson(playersUrl);
+    const data = await loadKvJsonCached<{
+      players?: {
+        nick?: string;
+        kills?: number;
+        deaths?: number;
+        res?: number;
+        nok?: number;
+        dmg?: number;
+      }[];
+      teamA?: {
+        nick?: string;
+        kills?: number;
+        deaths?: number;
+        res?: number;
+        nok?: number;
+        dmg?: number;
+      }[];
+      teamB?: {
+        nick?: string;
+        kills?: number;
+        deaths?: number;
+        res?: number;
+        nok?: number;
+        dmg?: number;
+      }[];
+    }>(playersRel);
+    if (!data) return null;
     const want = nickKey(nick);
     const list = (
       Array.isArray(data.players) && data.players.length

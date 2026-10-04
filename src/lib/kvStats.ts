@@ -96,11 +96,6 @@ export type ClanStats = {
   source: string;
 };
 
-const KV_BASES = [
-  process.env.KV_DATA_BASE,
-  "https://kv.bb-squad.ru",
-].filter(Boolean) as string[];
-
 function shortMap(map: string): string {
   let s = map.trim();
   s = s.replace(/^(SEC|BALT|OOTB)\s+/i, "");
@@ -110,36 +105,44 @@ function shortMap(map: string): string {
   return s.trim() || map;
 }
 
-async function fetchJson(url: string) {
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+function toKvRel(pathOrUrl: string): string {
+  return String(pathOrUrl || "")
+    .replace(/^\//, "")
+    .replace(/^https?:\/\/[^/]+\//, "");
+}
+
+async function loadKvJson<T = unknown>(relPath: string): Promise<T> {
+  const { loadKvJsonCached } = await import("@/lib/kvLocal");
+  const rel = toKvRel(relPath);
+  const data = await loadKvJsonCached<T>(rel);
+  if (data == null) throw new Error(`KV missing on disk: ${rel}`);
+  return data;
 }
 
 async function loadAllMatches(): Promise<{ matches: KvMatch[]; source: string }> {
-  let lastErr: unknown;
-  for (const base of KV_BASES) {
-    try {
-      const index = await fetchJson(`${base.replace(/\/$/, "")}/data/index.json`);
-      const months = index.months || [];
-      const matches: KvMatch[] = [];
-      for (const m of months) {
-        const url = String(m.url || "").startsWith("http")
-          ? m.url
-          : `${base.replace(/\/$/, "")}/${String(m.url || "").replace(/^\//, "")}`;
-        const data = await fetchJson(url);
-        const year = Number(m.year) || Number(data.year) || 2026;
-        const month = Number(m.month) || Number(data.month) || 9;
-        for (const match of data.matches || []) {
-          matches.push({ ...match, year, month });
-        }
-      }
-      return { matches, source: base };
-    } catch (e) {
-      lastErr = e;
+  const index = await loadKvJson<{
+    months?: { url?: string; year?: number; month?: number }[];
+  }>("data/index.json");
+  const months = index.months || [];
+  const matches: KvMatch[] = [];
+  for (const m of months) {
+    if (!m.url) continue;
+    const data = await loadKvJson<{
+      year?: number;
+      month?: string | number;
+      matches?: KvMatch[];
+    }>(m.url);
+    const year = Number(m.year) || Number(data.year) || 2026;
+    const month =
+      Number(m.month) ||
+      Number(String(data.month || "").slice(5, 7)) ||
+      Number(data.month) ||
+      9;
+    for (const match of data.matches || []) {
+      matches.push({ ...match, year, month });
     }
   }
-  throw lastErr || new Error("KV unavailable");
+  return { matches, source: "vps-disk" };
 }
 
 function isPlayedStatus(status?: string) {
@@ -249,7 +252,6 @@ function nickEq(a: string, b: string) {
 /** Личная стата игрока по раундам из data/players + mvp-ledger */
 export async function buildPlayerKvStats(nick: string): Promise<PlayerKvStats> {
   const { matches, source } = await loadAllMatches();
-  const base = source.replace(/\/$/, "");
   const want = nick.trim();
   const rounds: PlayerKvRound[] = [];
   const matchMeta = new Map<string, KvMatch>();
@@ -259,11 +261,13 @@ export async function buildPlayerKvStats(nick: string): Promise<PlayerKvStats> {
     if (mid) matchMeta.set(mid, m);
     const playersUrl = String(m.playersUrl || "").trim();
     if (!playersUrl || !mid) continue;
-    const url = playersUrl.startsWith("http")
-      ? playersUrl
-      : `${base}/${playersUrl.replace(/^\//, "")}`;
     try {
-      const data = await fetchJson(url);
+      const data = await loadKvJson<{
+        day?: number;
+        opp?: string;
+        r1?: Record<string, unknown>[];
+        r2?: Record<string, unknown>[];
+      }>(playersUrl);
       for (const rnd of ["r1", "r2"] as const) {
         for (const row of data[rnd] || []) {
           if (!nickEq(String(row?.nick || ""), want)) continue;
@@ -326,7 +330,23 @@ export async function buildPlayerKvStats(nick: string): Promise<PlayerKvStats> {
   let mvpMedic = 0;
   let antiDeath = 0;
   try {
-    const ledger = await fetchJson(`${base}/data/mvp-ledger.json`);
+    type LedgerPlayer = {
+      mvpDamage?: unknown;
+      mvpKiller?: unknown;
+      mvpMedic?: unknown;
+      antiDeath?: unknown;
+      awards?: {
+        matchId?: string;
+        day?: number;
+        opp?: string;
+        round?: string;
+        type?: string;
+        label?: string;
+      }[];
+    };
+    const ledger = await loadKvJson<{
+      players?: Record<string, LedgerPlayer>;
+    }>("data/mvp-ledger.json");
     const entry =
       ledger?.players?.[want] ||
       Object.entries(ledger?.players || {}).find(([k]) => nickEq(k, want))?.[1];
@@ -336,14 +356,7 @@ export async function buildPlayerKvStats(nick: string): Promise<PlayerKvStats> {
       mvpMedic = n(entry.mvpMedic);
       antiDeath = n(entry.antiDeath);
       awards = (entry.awards || []).map(
-        (a: {
-          matchId?: string;
-          day?: number;
-          opp?: string;
-          round?: string;
-          type?: string;
-          label?: string;
-        }) => {
+        (a) => {
           const matchId = String(a.matchId || "");
           const meta = matchMeta.get(matchId);
           const day = Number(a.day) || Number(meta?.day) || 0;

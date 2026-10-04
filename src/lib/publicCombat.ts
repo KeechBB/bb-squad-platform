@@ -9,10 +9,6 @@ import { buildPublicRpLeaderboard, lookupPlayerPublicRp } from "@/lib/publicRp";
 import { rpRankFromScore } from "@/lib/trainRp";
 import { prisma } from "@/lib/prisma";
 
-const KV_BASES = [
-  process.env.KV_DATA_BASE,
-].filter(Boolean) as string[];
-
 function nickKey(n: string) {
   return String(n || "")
     .trim()
@@ -20,29 +16,9 @@ function nickKey(n: string) {
     .replace(/\s+/g, "");
 }
 
-async function fetchJson(url: string) {
-  const res = await fetch(url, { next: { revalidate: 90 } });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
 async function loadFromKv<T>(rel: string): Promise<T | null> {
-  for (const base of KV_BASES) {
-    try {
-      return (await fetchJson(`${base.replace(/\/$/, "")}/${rel}`)) as T;
-    } catch {
-      /* next */
-    }
-  }
-  try {
-    const { readFile } = await import("fs/promises");
-    const { join } = await import("path");
-    const p = join(process.cwd(), "..", "KV", "public", rel);
-    const raw = await readFile(p, "utf8");
-    return JSON.parse(raw) as T;
-  } catch {
-    return null;
-  }
+  const { loadKvJsonCached } = await import("@/lib/kvLocal");
+  return loadKvJsonCached<T>(rel.replace(/^\//, ""));
 }
 
 type StatRow = {

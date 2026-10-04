@@ -2,11 +2,6 @@ import { loadTierIndex } from "@/lib/tiers";
 
 export type MatchPwrDeltaMap = Record<string, number>;
 
-const KV_BASES = [
-  process.env.KV_DATA_BASE,
-  "https://kv.bb-squad.ru",
-].filter(Boolean) as string[];
-
 const RATING_EXCLUDE = new Set(["shrein"]);
 
 const PWR = {
@@ -95,23 +90,9 @@ function calcPwr(row: Agg & { tier: number; winPct: number | null; kd: number })
   return pwr;
 }
 
-async function fetchJson(url: string) {
-  const res = await fetch(url, { next: { revalidate: 120 } });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
 async function loadFromKv<T>(path: string): Promise<T | null> {
-  for (const base of KV_BASES) {
-    try {
-      return (await fetchJson(
-        `${base.replace(/\/$/, "")}/${path.replace(/^\//, "")}`
-      )) as T;
-    } catch {
-      /* next */
-    }
-  }
-  return null;
+  const { loadKvJsonCached } = await import("@/lib/kvLocal");
+  return loadKvJsonCached<T>(path.replace(/^\//, ""));
 }
 
 function pad2(n: number) {
