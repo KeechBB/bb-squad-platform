@@ -85,6 +85,18 @@ echo "==> HEAD=$(git rev-parse --short HEAD)"
 echo "==> sync local KV cache (rp-ladder / ledger / indexes)"
 bash scripts/sync_kv_cache.sh || true
 
+# Public rating reads data/public/rp-ledger.json first; deploy used to restore a
+# preserved stale copy and ignore the fresher github.io mirror in kv-cache.
+KV_PUB_LEDGER="$ROOT/data/kv-cache/data/public/rp-ledger.json"
+DISK_PUB_LEDGER="$ROOT/data/public/rp-ledger.json"
+if [[ -f "$KV_PUB_LEDGER" ]]; then
+  mkdir -p "$(dirname "$DISK_PUB_LEDGER")"
+  if [[ ! -f "$DISK_PUB_LEDGER" ]] || [[ "$KV_PUB_LEDGER" -nt "$DISK_PUB_LEDGER" ]]; then
+    cp -a "$KV_PUB_LEDGER" "$DISK_PUB_LEDGER"
+    echo "==> refreshed $DISK_PUB_LEDGER from kv-cache"
+  fi
+fi
+
 ensure_swap
 
 if ! command -v pm2 >/dev/null 2>&1; then

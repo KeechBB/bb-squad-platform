@@ -40,21 +40,47 @@ function isCurrentPublicLedger(data: RpLedger | null | undefined): boolean {
   return matches.every((m) => !m.date || m.date >= PUBLIC_RP_EPOCH);
 }
 
-export async function loadPublicRpLedger(): Promise<RpLedger | null> {
-  const candidates: RpLedger[] = [];
+/** Prefer Wound-era ledgers; never let a stale on-disk copy beat fresher KV. */
+function ledgerFreshness(data: RpLedger): number {
+  const t = Date.parse(String(data.updatedAt || "")) || 0;
+  const formula = String((data as { formula?: string }).formula || "");
+  const woundBonus = formula.includes("nok=Wound") ? 1e15 : 0;
+  return woundBonus + t;
+}
 
-  // Disk first, then KV — but only accept history/epoch ledgers.
+function pickBestLedger(current: RpLedger[], fallback: RpLedger[]): RpLedger | null {
+  const pool = current.length ? current : fallback;
+  if (!pool.length) return null;
+  let best = pool[0];
+  let bestScore = ledgerFreshness(best);
+  for (let i = 1; i < pool.length; i++) {
+    const score = ledgerFreshness(pool[i]);
+    if (score > bestScore) {
+      best = pool[i];
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
+export async function loadPublicRpLedger(): Promise<RpLedger | null> {
+  const current: RpLedger[] = [];
+  const fallback: RpLedger[] = [];
+
+  // Collect disk + KV candidates, then pick newest Wound-aware ledger.
   try {
     const { readFile } = await import("fs/promises");
     const { join } = await import("path");
     for (const p of [
+      join(process.cwd(), "data", "kv-cache", "data", "public", "rp-ledger.json"),
       join(process.cwd(), "data", "public", "rp-ledger.json"),
       join(process.cwd(), "..", "KV", "public", "data", "public", "rp-ledger.json"),
+      join(process.cwd(), "..", "KV", "data", "public", "rp-ledger.json"),
     ]) {
       try {
         const data = JSON.parse(await readFile(p, "utf8")) as RpLedger;
-        if (isCurrentPublicLedger(data)) return data;
-        if (data?.leaderboard?.length) candidates.push(data);
+        if (isCurrentPublicLedger(data)) current.push(data);
+        else if (data?.leaderboard?.length) fallback.push(data);
       } catch {
         /* next path */
       }
@@ -68,15 +94,14 @@ export async function loadPublicRpLedger(): Promise<RpLedger | null> {
       const data = (await fetchJson(
         `${base.replace(/\/$/, "")}/data/public/rp-ledger.json`
       )) as RpLedger;
-      if (isCurrentPublicLedger(data)) return data;
-      if (data?.leaderboard?.length) candidates.push(data);
+      if (isCurrentPublicLedger(data)) current.push(data);
+      else if (data?.leaderboard?.length) fallback.push(data);
     } catch {
       /* next */
     }
   }
 
-  // Last resort: newest-looking candidate (should not happen after cutover).
-  return candidates[0] || null;
+  return pickBestLedger(current, fallback);
 }
 
 export async function buildPublicRpLeaderboard(): Promise<{
