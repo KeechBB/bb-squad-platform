@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { buildHomeMvpBoard } from "@/lib/homeMvp";
+import { buildHomeMvpBoard } from "@/lib/homeMvpBuild";
 
 export const dynamic = "force-dynamic";
 

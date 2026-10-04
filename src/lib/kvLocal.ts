@@ -1,9 +1,10 @@
 /**
  * Local KV mirror on VPS (synced at deploy into data/kv-cache).
  * Hot paths read disk only — GitHub Pages is not used for live traffic.
+ * SERVER ONLY — never import from "use client" components.
  */
-import { promises as fs } from "fs";
-import path from "path";
+import { promises as fs } from "node:fs";
+import path from "node:path";
 
 /** Optional emergency remotes (off by default). Set KV_ALLOW_REMOTE=1 to enable. */
 export const KV_REMOTE_BASES: string[] = (() => {

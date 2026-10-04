@@ -1,59 +1,21 @@
 import { unstable_cache } from "next/cache";
+import {
+  emptyHomeTierBoard,
+  type HomeTierBoardData,
+  type HomeTierCandidate,
+  type HomeTierTransfer,
+} from "@/lib/homeTierBoardUi";
 
-export type HomeTierTransfer = {
-  nick: string;
-  fromTier: number;
-  toTier: number;
-  dir: "up" | "down";
-  at: string;
-  fit?: number | null;
-  note?: string | null;
-};
-
-export type HomeTierCandidate = {
-  nick: string;
-  fromTier: number;
-  toTier: number;
-  dir: "up" | "down";
-  band: string;
-  fit: number;
-  role?: string | null;
-  since?: string;
-  daysHeld?: number;
-  ready?: boolean;
-  note?: string | null;
-};
-
-export type HomeTierBoardData = {
-  updatedAt: string;
-  holdDays: number;
-  displayDays: number;
-  transfers: HomeTierTransfer[];
-  candidates: HomeTierCandidate[];
-  source?: string;
-};
-
-function emptyBoard(): HomeTierBoardData {
-  return {
-    updatedAt: "",
-    holdDays: 2,
-    displayDays: 2,
-    transfers: [],
-    candidates: [],
-    source: "empty",
-  };
-}
-
-export function tierShort(t: number): string {
-  if (t === 1) return "T1";
-  if (t === 2) return "T2";
-  if (t === 3) return "T3";
-  return "T4";
-}
-
-export function formatTierArrow(fromTier: number, toTier: number): string {
-  return `${tierShort(fromTier)} → ${tierShort(toTier)}`;
-}
+export type {
+  HomeTierTransfer,
+  HomeTierCandidate,
+  HomeTierBoardData,
+} from "@/lib/homeTierBoardUi";
+export {
+  emptyHomeTierBoard,
+  tierShort,
+  formatTierArrow,
+} from "@/lib/homeTierBoardUi";
 
 async function buildHomeTierBoard(): Promise<HomeTierBoardData> {
   const { loadKvJsonCached } = await import("@/lib/kvLocal");
@@ -62,7 +24,7 @@ async function buildHomeTierBoard(): Promise<HomeTierBoardData> {
   );
   if (!raw) {
     console.warn("[homeTierBoard] tier-board.json missing on VPS disk");
-    return emptyBoard();
+    return emptyHomeTierBoard();
   }
   const transfers = Array.isArray(raw?.transfers) ? raw.transfers : [];
   const candidates = Array.isArray(raw?.candidates) ? raw.candidates : [];
@@ -79,7 +41,7 @@ async function buildHomeTierBoard(): Promise<HomeTierBoardData> {
       at: String(t.at || ""),
       fit: t.fit == null ? null : Number(t.fit),
       note: t.note == null ? null : String(t.note),
-    })),
+    })) as HomeTierTransfer[],
     candidates: candidates.map((c: Record<string, unknown>) => ({
       nick: String(c.nick || ""),
       fromTier: Number(c.fromTier) || 4,
@@ -92,7 +54,7 @@ async function buildHomeTierBoard(): Promise<HomeTierBoardData> {
       daysHeld: c.daysHeld == null ? undefined : Number(c.daysHeld),
       ready: Boolean(c.ready),
       note: c.note == null ? null : String(c.note),
-    })),
+    })) as HomeTierCandidate[],
   };
 }
 
@@ -102,4 +64,4 @@ export const getHomeTierBoard = unstable_cache(
   { revalidate: 45 }
 );
 
-export { emptyBoard as emptyHomeTierBoard, buildHomeTierBoard };
+export { buildHomeTierBoard };

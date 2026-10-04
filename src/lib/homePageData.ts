@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { buildUpcomingMatchPreviews } from "@/lib/kvForecast";
-import { buildHomeMvpBoard, emptyHomeMvpBoard } from "@/lib/homeMvp";
+import { emptyHomeMvpBoard } from "@/lib/homeMvp";
+import { buildHomeMvpBoard } from "@/lib/homeMvpBuild";
 import {
   buildHomeTrainPwrBoard,
   emptyHomeTrainPwrBoard,

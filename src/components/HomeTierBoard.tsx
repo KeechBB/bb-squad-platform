@@ -4,7 +4,7 @@ import {
   type HomeTierBoardData,
   type HomeTierCandidate,
   type HomeTierTransfer,
-} from "@/lib/homeTierBoard";
+} from "@/lib/homeTierBoardUi";
 
 type Props = {
   initial: HomeTierBoardData;

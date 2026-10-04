@@ -7,7 +7,7 @@ import {
 } from "@/lib/trainRp";
 import { loadPublicRpLadder, loadPublicRpLedger } from "@/lib/publicRp";
 import { pickMvps } from "@/lib/homeMvp";
-import { formatTierArrow } from "@/lib/homeTierBoard";
+import { formatTierArrow } from "@/lib/homeTierBoardUi";
 
 function countStat(v: unknown): number {
   if (typeof v === "number" && Number.isFinite(v)) return Math.max(0, v);

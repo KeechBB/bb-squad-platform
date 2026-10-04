@@ -6,7 +6,7 @@ import {
   confidenceLabel,
   formatMatchDate,
   type UpcomingMatchPreview,
-} from "@/lib/kvForecast";
+} from "@/lib/kvForecastUi";
 
 type Props = {
   previews: UpcomingMatchPreview[];
