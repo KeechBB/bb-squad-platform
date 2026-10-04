@@ -228,7 +228,7 @@ async function loadTrainLane(): Promise<HomeMvpLane> {
           }>(m.playersUrl.replace(/^\//, ""));
           const list: StatRow[] = players.players?.length
             ? players.players
-            : [].concat(players.teamA || [], players.teamB || []);
+            : [...(players.teamA || []), ...(players.teamB || [])];
           const mvp =
             (players.mvp && players.mvp.train) ||
             pickMvps(list.filter((p) => p && p.nick));
