@@ -460,7 +460,28 @@ def process_match(
     t0, t1 = m["start"], m["end"]
     faction_to_team = m.get("factionToTeam") or {}
     teams = R.teams_in_window(idx, t0, t1, faction_to_team)
-    dies, noks = R.dies_in_window(idx, t0, t1, steam_to_nick, aliases)
+    dies, die_noks = R.dies_in_window(idx, t0, t1, steam_to_nick, aliases)
+    wound_noks = R.wounds_in_window(idx, t0, t1, steam_to_nick, aliases)
+    # Prefer real Wound() downs; keep Die-without-Inactive only if no Wound nearby.
+    noks: list[dict] = list(wound_noks)
+    for d in die_noks:
+        # Skip fallback Die-nok if a Wound for same pair exists within ±2 min
+        dt = d.get("at_dt")
+        skip = False
+        if dt is not None:
+            for w in wound_noks:
+                wdt = w.get("at_dt")
+                if wdt is None:
+                    continue
+                if (
+                    w["killerKey"] == d["killerKey"]
+                    and w["victimKey"] == d["victimKey"]
+                    and abs((wdt - dt).total_seconds()) <= 120
+                ):
+                    skip = True
+                    break
+        if not skip:
+            noks.append(d)
     revives = R.revives_in_window(idx, t0, t1)
 
     events: list[dict] = []
@@ -475,6 +496,21 @@ def process_match(
             disp[ck] = nick
         rp.setdefault(ck, R.START_RP)
         combatants.add(ck)
+
+    def wound_covers_kill(kk: str, vk: str, kill_at) -> bool:
+        """True if a Wound from same killer→victim precedes give-up (dmg already on nok)."""
+        if kill_at is None:
+            return False
+        for w in wound_noks:
+            if w["killerKey"] != kk or w["victimKey"] != vk:
+                continue
+            wdt = w.get("at_dt")
+            if wdt is None:
+                continue
+            dt = (kill_at - wdt).total_seconds()
+            if 0 <= dt <= 90:
+                return True
+        return False
 
     for d in dies:
         kk, vk = d["killerKey"], d["victimKey"]
@@ -510,7 +546,9 @@ def process_match(
             )
             tk_n += 1
         else:
-            dmg_by[kk] = round(dmg_by.get(kk, 0.0) + dmg)
+            # Combat dmg: Die only if no prior Wound (else Wound already counted).
+            if not wound_covers_kill(kk, vk, d.get("at_dt")):
+                dmg_by[kk] = round(dmg_by.get(kk, 0.0) + dmg)
             rp[kk] = rp.get(kk, R.START_RP) + delta
             rp[vk] = rp.get(vk, R.START_RP) - delta
             net[kk] = round(net.get(kk, 0.0) + delta, 2)
@@ -540,7 +578,7 @@ def process_match(
         net.setdefault(vk, 0.0)
         dmg = float(d.get("dmg") or 0)
         same_team = kk in teams and vk in teams and teams[kk] == teams[vk]
-        # Combat score: enemy downs only (incl. give-up). TK nok dmg never counts.
+        # Combat score: enemy downs (Wound / soft Die). TK never counts.
         if not same_team:
             dmg_by[kk] = round(dmg_by.get(kk, 0.0) + dmg)
         events.append(
@@ -715,25 +753,12 @@ def main() -> None:
                 if e.get("kind") in ("die", "tk")
                 and R.canon_key(e["victim"], aliases) == k
             ]
-            # Ноки = все нокдауны по врагу: и «положил и подняли», и те, что
-            # закончились гивапом (киллом). Иначе топ с 32 килами имел бы 0 ноков.
-            noks_only = [
+            # Ноки = Wound() downs (incl. those that later give up). Not a copy of kills.
+            noks = [
                 e
                 for e in mb["events"]
                 if e.get("kind") == "nok"
                 and R.canon_key(e["killer"], aliases) == k
-            ]
-            noks = noks_only + [
-                {
-                    "kind": "nok",
-                    "time": e.get("time"),
-                    "killer": e.get("killer"),
-                    "victim": e.get("victim"),
-                    "delta": 0,
-                    "dmg": e.get("dmg") or 0,
-                    "gaveUp": True,
-                }
-                for e in kills
             ]
             revives = [
                 e
@@ -798,7 +823,8 @@ def main() -> None:
             "delta=1+49*(Pv-Pk+Pmax-1)/(2*(Pmax-1)); "
             "Pk/Pv=current public RP; final Die(+Inactive): enemy zero-sum; "
             "TK both -delta; Revive medic +delta*0.6; Wound/nok=0 RP; "
-            "combat dmg=KillingDamage enemy Die/nok only (TK dmg excluded); "
+            "combat dmg=KillingDamage enemy Wound(+Die if no prior Wound); "
+            "nok=Wound downs; kill=Die+Inactive give-up; TK dmg excluded; "
             "only PublicMatch history since epoch"
         ),
         "reviveCoef": R.REVIVE_COEF,

@@ -269,6 +269,7 @@ def index_log_combat(log_path: Path, aliases: dict[str, str]) -> dict:
     inactive_by_steam: dict[str, list[datetime]] = {}
     victim_steam: dict[str, str] = {}
     raw_dies: list[dict] = []
+    raw_wounds: list[dict] = []
     revives: list[dict] = []
     squads: list[tuple[datetime, str, str]] = []  # at, nick_key, faction
     deploys: list[tuple[datetime, str, str]] = []  # at, nick_key, prefix
@@ -299,6 +300,22 @@ def index_log_combat(log_path: Path, aliases: dict[str, str]) -> dict:
                     steam = im.group("steam")
                     inactive_by_nick.setdefault(nick_key(nick), []).append(at)
                     inactive_by_steam.setdefault(steam, []).append(at)
+
+            if "Wound():" in line:
+                wm = WOUND_RE.search(line)
+                if wm:
+                    try:
+                        dmg = abs(float(wm.group("dmg") or 0))
+                    except ValueError:
+                        dmg = 0.0
+                    raw_wounds.append(
+                        {
+                            "at": at,
+                            "victim": strip_tag(wm.group("victim")),
+                            "steam": wm.group("steam"),
+                            "dmg": dmg,
+                        }
+                    )
 
             if "Die():" in line:
                 dm = DIE_RE.search(line)
@@ -358,9 +375,46 @@ def index_log_combat(log_path: Path, aliases: dict[str, str]) -> dict:
         "inactive_by_steam": inactive_by_steam,
         "victim_steam": victim_steam,
         "raw_dies": raw_dies,
+        "raw_wounds": raw_wounds,
         "revives": revives,
         "squads": squads,
         "deploys": deploys,
+    }
+
+
+def _resolve_combat_row(
+    rd: dict,
+    *,
+    steam_to_nick: dict[str, str],
+    aliases: dict[str, str],
+    known_keys: set[str],
+    prefer_keys: set[str],
+    victim_steam: dict[str, str],
+    idx: dict,
+) -> dict:
+    victim_raw = rd["victim"]
+    vk = resolve_player_key(victim_raw, aliases, known_keys, prefer_keys)
+    victim = strip_tag(victim_raw)
+    for snick in steam_to_nick.values():
+        if canon_key(snick, aliases) == vk:
+            victim = strip_tag(snick)
+            break
+    steam = rd["steam"]
+    killer = steam_to_nick.get(steam) or idx["steam_to_nick"].get(
+        steam, f"?{steam[-6:]}"
+    )
+    kk = canon_key(killer, aliases)
+    at = rd["at"]
+    return {
+        "at": at,
+        "at_iso": at.isoformat(),
+        "at_msk": (at + timedelta(hours=3)).strftime("%H:%M:%S"),
+        "killer": strip_tag(killer),
+        "killerKey": kk,
+        "victim": victim,
+        "victimKey": vk,
+        "steam": steam,
+        "dmg": float(rd.get("dmg") or 0),
     }
 
 
@@ -371,7 +425,11 @@ def dies_in_window(
     steam_to_nick: dict[str, str],
     aliases: dict[str, str],
 ) -> tuple[list[dict], list[dict]]:
-    """Return (give-up kills for RP, nok/wound downs without give-up)."""
+    """Return (give-up kills for RP, fallback noks = Die without Inactive).
+
+    Real knockdowns come from wounds_in_window() (Wound). Die-without-Inactive
+    is only a rare fallback when Wound was missing from the log.
+    """
     out: list[dict] = []
     noks: list[dict] = []
     inactive_by_nick = idx["inactive_by_nick"]
@@ -388,40 +446,86 @@ def dies_in_window(
         at = rd["at"]
         if not (t0 <= at < t1):
             continue
-        victim_raw = rd["victim"]
-        vk = resolve_player_key(victim_raw, aliases, known_keys, prefer_keys)
-        victim = strip_tag(victim_raw)
-        # Prefer display nick from steam map when resolved
-        for snick in steam_to_nick.values():
-            if canon_key(snick, aliases) == vk:
-                victim = strip_tag(snick)
-                break
+        row = _resolve_combat_row(
+            rd,
+            steam_to_nick=steam_to_nick,
+            aliases=aliases,
+            known_keys=known_keys,
+            prefer_keys=prefer_keys,
+            victim_steam=victim_steam,
+            idx=idx,
+        )
+        vk = row["victimKey"]
         vsteam = victim_steam.get(vk, "")
         times = inactive_by_nick.get(vk) or []
         if vsteam and inactive_by_steam.get(vsteam):
             times = inactive_by_steam[vsteam]
-        steam = rd["steam"]
-        killer = steam_to_nick.get(steam) or idx["steam_to_nick"].get(
-            steam, f"?{steam[-6:]}"
-        )
-        kk = canon_key(killer, aliases)
-        row = {
+        pub = {
             "kind": "die",
-            "at": at.isoformat(),
-            "at_msk": (at + timedelta(hours=3)).strftime("%H:%M:%S"),
-            "killer": strip_tag(killer),
-            "killerKey": kk,
-            "victim": victim,
-            "victimKey": vk,
-            "steam": steam,
-            "dmg": float(rd.get("dmg") or 0),
+            "at": row["at_iso"],
+            "at_dt": row["at"],
+            "at_msk": row["at_msk"],
+            "killer": row["killer"],
+            "killerKey": row["killerKey"],
+            "victim": row["victim"],
+            "victimKey": row["victimKey"],
+            "steam": row["steam"],
+            "dmg": row["dmg"],
         }
         if not _has_inactive_soon(times, at):
-            row["kind"] = "nok"
-            noks.append(row)
+            pub["kind"] = "nok"
+            noks.append(pub)
             continue
-        out.append(row)
+        out.append(pub)
     return out, noks
+
+
+def wounds_in_window(
+    idx: dict,
+    t0: datetime,
+    t1: datetime,
+    steam_to_nick: dict[str, str],
+    aliases: dict[str, str],
+) -> list[dict]:
+    """Real knockdowns from Wound() — includes downs that later give up."""
+    out: list[dict] = []
+    victim_steam = idx["victim_steam"]
+    known_keys = set(idx["inactive_by_nick"]) | set(victim_steam)
+    prefer_keys: set[str] = set()
+    for nick in list(steam_to_nick.values()) + list(idx.get("steam_to_nick", {}).values()):
+        ck = canon_key(nick, aliases)
+        known_keys.add(ck)
+        prefer_keys.add(ck)
+
+    for rd in idx.get("raw_wounds") or []:
+        at = rd["at"]
+        if not (t0 <= at < t1):
+            continue
+        row = _resolve_combat_row(
+            rd,
+            steam_to_nick=steam_to_nick,
+            aliases=aliases,
+            known_keys=known_keys,
+            prefer_keys=prefer_keys,
+            victim_steam=victim_steam,
+            idx=idx,
+        )
+        out.append(
+            {
+                "kind": "nok",
+                "at": row["at_iso"],
+                "at_dt": row["at"],
+                "at_msk": row["at_msk"],
+                "killer": row["killer"],
+                "killerKey": row["killerKey"],
+                "victim": row["victim"],
+                "victimKey": row["victimKey"],
+                "steam": row["steam"],
+                "dmg": row["dmg"],
+                "source": "wound",
+            }
+        )
+    return out
 
 
 def revives_in_window(idx: dict, t0: datetime, t1: datetime) -> list[dict]:
