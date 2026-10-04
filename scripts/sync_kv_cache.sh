@@ -39,13 +39,23 @@ if [[ -d "$KV_REPO/.git" ]]; then
   git -C "$KV_REPO" pull --ff-only || echo "==> WARN git pull failed — will use whatever is already on disk" >&2
 fi
 
+# GitHub Pages repo = content at ROOT (index.html next to data/).
+# Local monorepo = KV/public/. Prefer whichever has a complete tree.
 SRC=""
-if [[ -d "$KV_REPO/public" ]]; then
-  SRC="$KV_REPO/public"
-elif [[ -n "${KV_SRC_DIR:-}" && -d "${KV_SRC_DIR}/data" ]]; then
-  SRC="$KV_SRC_DIR"
-elif [[ -d "$ROOT/../KV/public/data" ]]; then
-  SRC="$ROOT/../KV/public"
+pick_src() {
+  local cand="$1"
+  [[ -f "$cand/index.html" && -f "$cand/app.js" && -f "$cand/data/tiers.json" ]] || return 1
+  SRC="$cand"
+  return 0
+}
+if pick_src "$KV_REPO"; then
+  :
+elif pick_src "$KV_REPO/public"; then
+  :
+elif [[ -n "${KV_SRC_DIR:-}" ]] && pick_src "$KV_SRC_DIR"; then
+  :
+elif pick_src "$ROOT/../KV/public"; then
+  :
 fi
 
 if [[ -z "$SRC" ]]; then

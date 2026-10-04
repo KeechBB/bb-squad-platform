@@ -32,11 +32,6 @@ export type UpcomingMatchPreview = {
   forecast: MatchForecast;
 };
 
-const KV_BASES = [
-  process.env.KV_DATA_BASE,
-  "https://kv.bb-squad.ru",
-].filter(Boolean) as string[];
-
 const MONTH_RU = [
   "",
   "января",
@@ -62,13 +57,12 @@ function shortMap(map: string): string {
   return s.trim() || map;
 }
 
-async function fetchJson(url: string) {
-  const bust = url.includes("?") ? "&" : "?";
-  const res = await fetch(`${url}${bust}cb=sec106`, {
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+async function loadJson<T = unknown>(relPath: string): Promise<T> {
+  const { loadKvJsonCached } = await import("@/lib/kvLocal");
+  const rel = relPath.replace(/^\//, "");
+  const data = await loadKvJsonCached<T>(rel);
+  if (data == null) throw new Error(`KV missing on disk: ${rel}`);
+  return data;
 }
 
 type TaggedMatch = KvMatch & {
@@ -86,37 +80,29 @@ async function loadTaggedMatches(): Promise<{
   matches: TaggedMatch[];
   source: string;
 }> {
-  let lastErr: unknown;
-  for (const base of KV_BASES) {
-    try {
-      const root = base.replace(/\/$/, "");
-      const index = await fetchJson(`${root}/data/index.json`);
-      const months = index.months || [];
-      const monthPayloads = await Promise.all(
-        months.map(async (m: { url?: string; year?: number; month?: number }) => {
-          const url = String(m.url || "").startsWith("http")
-            ? m.url
-            : `${root}/${String(m.url || "").replace(/^\//, "")}`;
-          const data = await fetchJson(url!);
-          const year =
-            Number(m.year) || Number(String(data.month || "").slice(0, 4)) || 0;
-          const month =
-            Number(m.month) || Number(String(data.month || "").slice(5, 7)) || 0;
-          return { data, year, month };
-        })
+  const index = await loadJson<{
+    months?: { url?: string; year?: number; month?: number }[];
+  }>("data/index.json");
+  const months = index.months || [];
+  const monthPayloads = await Promise.all(
+    months.map(async (m) => {
+      const data = await loadJson<{ month?: string; matches?: KvMatch[] }>(
+        String(m.url || "").replace(/^\//, "")
       );
-      const matches: TaggedMatch[] = [];
-      for (const { data, year, month } of monthPayloads) {
-        for (const match of data.matches || []) {
-          matches.push({ ...match, year, month });
-        }
-      }
-      return { matches, source: base };
-    } catch (e) {
-      lastErr = e;
+      const year =
+        Number(m.year) || Number(String(data.month || "").slice(0, 4)) || 0;
+      const month =
+        Number(m.month) || Number(String(data.month || "").slice(5, 7)) || 0;
+      return { data, year, month };
+    })
+  );
+  const matches: TaggedMatch[] = [];
+  for (const { data, year, month } of monthPayloads) {
+    for (const match of data.matches || []) {
+      matches.push({ ...match, year, month });
     }
   }
-  throw lastErr || new Error("KV unavailable");
+  return { matches, source: "vps-disk" };
 }
 
 function toneForRate(rate: number | null): ForecastFactor["tone"] {

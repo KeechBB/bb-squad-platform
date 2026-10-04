@@ -33,11 +33,6 @@ export type HomeTierBoardData = {
   source?: string;
 };
 
-const KV_BASES = [
-  process.env.KV_DATA_BASE,
-  "https://kv.bb-squad.ru",
-].filter(Boolean) as string[];
-
 function emptyBoard(): HomeTierBoardData {
   return {
     updatedAt: "",
@@ -47,12 +42,6 @@ function emptyBoard(): HomeTierBoardData {
     candidates: [],
     source: "empty",
   };
-}
-
-async function fetchJson(url: string) {
-  const res = await fetch(url, { next: { revalidate: 45 } });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
 }
 
 export function tierShort(t: number): string {
@@ -67,51 +56,49 @@ export function formatTierArrow(fromTier: number, toTier: number): string {
 }
 
 async function buildHomeTierBoard(): Promise<HomeTierBoardData> {
-  let lastErr: unknown;
-  for (const base of KV_BASES) {
-    try {
-      const raw = await fetchJson(`${base.replace(/\/$/, "")}/data/tier-board.json`);
-      const transfers = Array.isArray(raw?.transfers) ? raw.transfers : [];
-      const candidates = Array.isArray(raw?.candidates) ? raw.candidates : [];
-      return {
-        updatedAt: String(raw?.updatedAt || ""),
-        holdDays: Number(raw?.holdDays) || 2,
-        displayDays: Number(raw?.displayDays) || 2,
-        source: String(raw?.source || "tier-board.json"),
-        transfers: transfers.map((t: Record<string, unknown>) => ({
-          nick: String(t.nick || ""),
-          fromTier: Number(t.fromTier) || 4,
-          toTier: Number(t.toTier) || 4,
-          dir: t.dir === "down" || Number(t.toTier) > Number(t.fromTier) ? "down" : "up",
-          at: String(t.at || ""),
-          fit: t.fit == null ? null : Number(t.fit),
-          note: t.note == null ? null : String(t.note),
-        })),
-        candidates: candidates.map((c: Record<string, unknown>) => ({
-          nick: String(c.nick || ""),
-          fromTier: Number(c.fromTier) || 4,
-          toTier: Number(c.toTier) || 4,
-          dir: c.dir === "down" ? "down" : "up",
-          band: String(c.band || "almost"),
-          fit: Number(c.fit) || 0,
-          role: c.role == null ? null : String(c.role),
-          since: c.since == null ? undefined : String(c.since),
-          daysHeld: c.daysHeld == null ? undefined : Number(c.daysHeld),
-          ready: Boolean(c.ready),
-          note: c.note == null ? null : String(c.note),
-        })),
-      };
-    } catch (e) {
-      lastErr = e;
-    }
+  const { loadKvJsonCached } = await import("@/lib/kvLocal");
+  const raw = await loadKvJsonCached<Record<string, unknown>>(
+    "data/tier-board.json"
+  );
+  if (!raw) {
+    console.warn("[homeTierBoard] tier-board.json missing on VPS disk");
+    return emptyBoard();
   }
-  console.warn("[homeTierBoard]", lastErr);
-  return emptyBoard();
+  const transfers = Array.isArray(raw?.transfers) ? raw.transfers : [];
+  const candidates = Array.isArray(raw?.candidates) ? raw.candidates : [];
+  return {
+    updatedAt: String(raw?.updatedAt || ""),
+    holdDays: Number(raw?.holdDays) || 2,
+    displayDays: Number(raw?.displayDays) || 2,
+    source: String(raw?.source || "vps-disk:tier-board.json"),
+    transfers: transfers.map((t: Record<string, unknown>) => ({
+      nick: String(t.nick || ""),
+      fromTier: Number(t.fromTier) || 4,
+      toTier: Number(t.toTier) || 4,
+      dir: t.dir === "down" || Number(t.toTier) > Number(t.fromTier) ? "down" : "up",
+      at: String(t.at || ""),
+      fit: t.fit == null ? null : Number(t.fit),
+      note: t.note == null ? null : String(t.note),
+    })),
+    candidates: candidates.map((c: Record<string, unknown>) => ({
+      nick: String(c.nick || ""),
+      fromTier: Number(c.fromTier) || 4,
+      toTier: Number(c.toTier) || 4,
+      dir: c.dir === "down" ? "down" : "up",
+      band: String(c.band || "almost"),
+      fit: Number(c.fit) || 0,
+      role: c.role == null ? null : String(c.role),
+      since: c.since == null ? undefined : String(c.since),
+      daysHeld: c.daysHeld == null ? undefined : Number(c.daysHeld),
+      ready: Boolean(c.ready),
+      note: c.note == null ? null : String(c.note),
+    })),
+  };
 }
 
 export const getHomeTierBoard = unstable_cache(
   buildHomeTierBoard,
-  ["home-tier-board-v1"],
+  ["home-tier-board-v2-disk"],
   { revalidate: 45 }
 );
 

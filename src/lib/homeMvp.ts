@@ -21,11 +21,6 @@ export type HomeMvpBoardData = {
   updatedAt: string;
 };
 
-const KV_BASES = [
-  process.env.KV_DATA_BASE,
-  "https://kv.bb-squad.ru",
-].filter(Boolean) as string[];
-
 type Acc = {
   nick: string;
   medic: number;
@@ -41,10 +36,13 @@ export type MvpBlock = {
   antiDeath?: string[];
 };
 
-async function fetchJson(url: string) {
-  const res = await fetch(url, { next: { revalidate: 60 } });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+/** Relative KV path → VPS disk (data/kv-cache). */
+async function loadJson<T = unknown>(relPath: string): Promise<T> {
+  const { loadKvJsonCached } = await import("@/lib/kvLocal");
+  const rel = relPath.replace(/^\//, "").replace(/^https?:\/\/[^/]+\//, "");
+  const data = await loadKvJsonCached<T>(rel);
+  if (data == null) throw new Error(`KV missing on disk: ${rel}`);
+  return data;
 }
 
 function n(v: unknown) {
@@ -198,54 +196,67 @@ function laneFromMap(map: Map<string, Acc>): HomeMvpLane {
   return { glory, anti };
 }
 
-async function loadTrainLane(base: string): Promise<HomeMvpLane> {
-  const month = await fetchJson(`${base}/data/training/2026-09.json`);
-  const map = new Map<string, Acc>();
-  const matches = (month.matches || []) as {
-    status?: string;
-    playersUrl?: string;
-  }[];
-
-  await Promise.all(
-    matches.map(async (m) => {
-      if (!m.playersUrl || m.status === "upcoming") return;
-      const url = m.playersUrl.startsWith("http")
-        ? m.playersUrl
-        : `${base}/${m.playersUrl.replace(/^\//, "")}`;
-      try {
-        const players = await fetchJson(url);
-        const list: StatRow[] = players.players?.length
-          ? players.players
-          : [].concat(players.teamA || [], players.teamB || []);
-        const mvp =
-          (players.mvp && players.mvp.train) ||
-          pickMvps(list.filter((p) => p && p.nick));
-        applyMvpBlock(map, mvp);
-      } catch {
-        /* skip */
-      }
-    })
+async function loadTrainLane(): Promise<HomeMvpLane> {
+  const index = await loadJson<{ months?: { url?: string }[] }>(
+    "data/training-index.json"
   );
+  const map = new Map<string, Acc>();
+  const months = (index.months || []) as { url?: string }[];
+
+  for (const meta of months) {
+    if (!meta.url) continue;
+    let month: { matches?: unknown[] };
+    try {
+      month = await loadJson(meta.url.replace(/^\//, ""));
+    } catch {
+      continue;
+    }
+    const matches = (month.matches || []) as {
+      status?: string;
+      playersUrl?: string;
+    }[];
+
+    await Promise.all(
+      matches.map(async (m) => {
+        if (!m.playersUrl || m.status === "upcoming") return;
+        try {
+          const players = await loadJson<{
+            players?: StatRow[];
+            teamA?: StatRow[];
+            teamB?: StatRow[];
+            mvp?: { train?: MvpBlock };
+          }>(m.playersUrl.replace(/^\//, ""));
+          const list: StatRow[] = players.players?.length
+            ? players.players
+            : [].concat(players.teamA || [], players.teamB || []);
+          const mvp =
+            (players.mvp && players.mvp.train) ||
+            pickMvps(list.filter((p) => p && p.nick));
+          applyMvpBlock(map, mvp);
+        } catch {
+          /* skip */
+        }
+      })
+    );
+  }
 
   return laneFromMap(map);
 }
 
 async function loadKvStackLane(
-  base: string,
   stackWanted: "Main" | "Junior"
 ): Promise<HomeMvpLane> {
-  const index = await fetchJson(`${base}/data/index.json`);
+  const index = await loadJson<{ months?: { url?: string }[] }>(
+    "data/index.json"
+  );
   const months = (index.months || []) as { url?: string }[];
   const map = new Map<string, Acc>();
 
   for (const meta of months) {
     if (!meta.url) continue;
-    const monthUrl = meta.url.startsWith("http")
-      ? meta.url
-      : `${base}/${meta.url.replace(/^\//, "")}`;
     let month: { matches?: unknown[] };
     try {
-      month = await fetchJson(monthUrl);
+      month = await loadJson(meta.url.replace(/^\//, ""));
     } catch {
       continue;
     }
@@ -264,11 +275,12 @@ async function loadKvStackLane(
         ) {
           return;
         }
-        const url = m.playersUrl.startsWith("http")
-          ? m.playersUrl
-          : `${base}/${m.playersUrl.replace(/^\//, "")}`;
         try {
-          const players = await fetchJson(url);
+          const players = await loadJson<{
+            mvp?: { r1?: MvpBlock; r2?: MvpBlock };
+            r1?: StatRow[];
+            r2?: StatRow[];
+          }>(m.playersUrl.replace(/^\//, ""));
           const mvp = players.mvp || {};
           applyMvpBlock(map, mvp.r1);
           applyMvpBlock(map, mvp.r2);
@@ -303,25 +315,16 @@ export function emptyHomeMvpBoard(): HomeMvpBoardData {
 }
 
 export async function buildHomeMvpBoard(): Promise<HomeMvpBoardData> {
-  let lastErr: unknown;
-  for (const raw of KV_BASES) {
-    const base = raw.replace(/\/$/, "");
-    try {
-      const [train, main, junior] = await Promise.all([
-        loadTrainLane(base),
-        loadKvStackLane(base, "Main"),
-        loadKvStackLane(base, "Junior"),
-      ]);
-      return {
-        train,
-        main,
-        junior,
-        source: base,
-        updatedAt: new Date().toISOString(),
-      };
-    } catch (e) {
-      lastErr = e;
-    }
-  }
-  throw lastErr || new Error("MVP board unavailable");
+  const [train, main, junior] = await Promise.all([
+    loadTrainLane(),
+    loadKvStackLane("Main"),
+    loadKvStackLane("Junior"),
+  ]);
+  return {
+    train,
+    main,
+    junior,
+    source: "vps-disk",
+    updatedAt: new Date().toISOString(),
+  };
 }
