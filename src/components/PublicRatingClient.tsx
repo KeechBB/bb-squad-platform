@@ -189,8 +189,8 @@ export function PublicRatingClient({
         );
       }
       if (sortKey === "medals") {
-        const av = a.mvpMedic + a.mvpKiller + a.mvpDamage;
-        const bv = b.mvpMedic + b.mvpKiller + b.mvpDamage;
+        const av = a.mvpMedic + a.mvpKiller;
+        const bv = b.mvpMedic + b.mvpKiller;
         if (av !== bv) return dir * (av - bv);
         return a.nick.localeCompare(b.nick, "ru");
       }
@@ -234,10 +234,8 @@ export function PublicRatingClient({
       kills: maxOf((r) => r.kills),
       deaths: maxOf((r) => r.deaths),
       kd: maxOf((r) => r.kd),
-      dmg: maxOf((r) => r.dmg),
       mvpMedic: maxOf((r) => r.mvpMedic),
       mvpKiller: maxOf((r) => r.mvpKiller),
-      mvpDamage: maxOf((r) => r.mvpDamage),
       antiDeath: maxOf((r) => r.antiDeath),
     };
   }, [view]);
@@ -435,15 +433,15 @@ export function PublicRatingClient({
               <strong>Ресы</strong> — кого поднял ·{" "}
               <strong>Ноки</strong> — все нокдауны (в т.ч. закончившиеся гивапом) ·{" "}
               <strong>Килы / смерти</strong> — только гивап ·{" "}
-              <strong>KD</strong> — киллы / смерти ·{" "}
-              <strong>Боевой счёт</strong> — урон с логов PB1.
+              <strong>KD</strong> — киллы / смерти.
             </p>
             <p>
               Считаем только матчи из вкладки «История» (с {`03.10.2026`}), после
-              каждой катки PB1 — автоматически.
+              каждой катки PB1 — автоматически. Боевой счёт временно не показываем
+              (нет достоверного источника без табло).
             </p>
             <p>
-              <strong>MVP Medic / Killer / War-Score</strong> — награды за матч ·{" "}
+              <strong>MVP Medic / Killer</strong> — награды за матч ·{" "}
               <strong>Anti-MVP</strong> — антинаграда за смерти. Рекорды в таблице
               — жёлтым.
             </p>
@@ -466,17 +464,15 @@ export function PublicRatingClient({
                     <Th k="kills" label="Килы" />
                     <Th k="deaths" label="Смерти" />
                     <Th k="kd" label="KD" />
-                    <Th k="dmg" label="Боевой счёт" />
                     <Th k="mvpMedic" label="MVP Medic" className="ctr col-mvp-medic" />
                     <Th k="mvpKiller" label="MVP Killer" className="ctr col-mvp-killer" />
-                    <Th k="mvpDamage" label="MVP War-Score" className="ctr col-mvp-war" />
                     <Th k="antiDeath" label="Anti-MVP" className="ctr col-mvp-anti" />
                   </tr>
                 </thead>
                 <tbody>
                   {view.length === 0 ? (
                     <tr>
-                      <td colSpan={17} className="muted">
+                      <td colSpan={15} className="muted">
                         Пока нет данных с паблика.
                       </td>
                     </tr>
@@ -540,17 +536,11 @@ export function PublicRatingClient({
                         <td className={recordCls(r.kd, records.kd, "ctr")}>
                           {r.kd}
                         </td>
-                        <td className={recordCls(r.dmg, records.dmg, "ctr")}>
-                          {Math.round(r.dmg).toLocaleString("ru-RU")}
-                        </td>
                         <td className={mvpCls(r.mvpMedic, "medic", records.mvpMedic)}>
                           {r.mvpMedic}
                         </td>
                         <td className={mvpCls(r.mvpKiller, "killer", records.mvpKiller)}>
                           {r.mvpKiller}
-                        </td>
-                        <td className={mvpCls(r.mvpDamage, "war", records.mvpDamage)}>
-                          {r.mvpDamage}
                         </td>
                         <td className={mvpCls(r.antiDeath, "anti", records.antiDeath)}>
                           {r.antiDeath}

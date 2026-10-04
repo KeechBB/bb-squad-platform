@@ -151,11 +151,12 @@ function buildRpRankEvents(
 function pubRoundScore(m: {
   kills: number;
   deaths: number;
-  dmg: number;
   res: number;
+  net?: number;
 }): number {
   const kd = m.deaths > 0 ? m.kills / m.deaths : m.kills;
-  return m.dmg * 0.05 + m.kills * 40 + m.res * 25 + kd * 30;
+  // без dmg — боевой счёт на паблике недостоверен
+  return m.kills * 40 + m.res * 25 + kd * 30 + Math.max(0, Number(m.net) || 0) * 0.3;
 }
 
 export async function buildPlayerCareerFeed(nick: string): Promise<PlayerCareerFeed> {
@@ -413,7 +414,6 @@ export async function buildPlayerCareerFeed(nick: string): Promise<PlayerCareerF
         net: Number(m.net) || 0,
       }));
 
-      const byDmg = [...snaps].sort((a, b) => b.dmg - a.dmg);
       const byKd = [...snaps].sort((a, b) => {
         const ka = a.deaths > 0 ? a.kills / a.deaths : a.kills;
         const kb = b.deaths > 0 ? b.kills / b.deaths : b.kills;
@@ -422,18 +422,6 @@ export async function buildPlayerCareerFeed(nick: string): Promise<PlayerCareerF
       const byRes = [...snaps].sort((a, b) => b.res - a.res);
       const byNet = [...snaps].sort((a, b) => b.net - a.net);
 
-      if (byDmg[0] && byDmg[0].dmg >= 800) {
-        const r = byDmg[0];
-        events.push({
-          id: `pub-best-dmg-${r.id}`,
-          kind: "best",
-          tone: "best",
-          title: "Лучший показатель · урон (PB1)",
-          body: `${r.dmg} dmg · ${r.map} · ${r.kills} килов`,
-          at: r.date || "1970-01-01",
-          atLabel: ymdLabel(r.date || "1970-01-01"),
-        });
-      }
       if (byKd[0]) {
         const r = byKd[0];
         const kd = r.deaths > 0 ? r.kills / r.deaths : r.kills;
@@ -478,7 +466,7 @@ export async function buildPlayerCareerFeed(nick: string): Promise<PlayerCareerF
         .filter(
           (r) =>
             pubRoundScore(r) >= 220 &&
-            (r.kills >= 5 || r.dmg >= 1000 || r.res >= 4 || r.net >= 60)
+            (r.kills >= 5 || r.res >= 4 || r.net >= 60)
         )
         .sort((a, b) => pubRoundScore(b) - pubRoundScore(a))
         .slice(0, 6);
@@ -492,7 +480,7 @@ export async function buildPlayerCareerFeed(nick: string): Promise<PlayerCareerF
           kind: "good",
           tone: "good",
           title: "Хорошая игра · PB1",
-          body: `${r.map} · ${st} · ${r.kills}/${r.deaths} KD ${kd} · ${r.dmg} dmg${r.res ? ` · ${r.res} res` : ""} · ${r.net >= 0 ? "+" : ""}${Math.round(r.net)} RP`,
+          body: `${r.map} · ${st} · ${r.kills}/${r.deaths} KD ${kd}${r.res ? ` · ${r.res} res` : ""} · ${r.net >= 0 ? "+" : ""}${Math.round(r.net)} RP`,
           at: r.date || "1970-01-01",
           atLabel: ymdLabel(r.date || "1970-01-01"),
         });
@@ -510,7 +498,7 @@ export async function buildPlayerCareerFeed(nick: string): Promise<PlayerCareerF
           kind: "note",
           tone: "note",
           title: `${r.map} · PB1`,
-          body: `${st} · ${r.kills} килов · ${r.deaths} смертей · ${r.dmg} dmg${r.res ? ` · ${r.res} res` : ""} · ${r.net >= 0 ? "+" : ""}${Math.round(r.net)} RP`,
+          body: `${st} · ${r.kills} килов · ${r.deaths} смертей${r.res ? ` · ${r.res} res` : ""} · ${r.net >= 0 ? "+" : ""}${Math.round(r.net)} RP`,
           at: r.date || "1970-01-01",
           atLabel: ymdLabel(r.date || "1970-01-01"),
         });
@@ -575,7 +563,7 @@ export async function buildPlayerCareerFeed(nick: string): Promise<PlayerCareerF
       };
       bump(mvp.medic, "medic", "MVP Medic");
       bump(mvp.killer, "killer", "MVP Killer");
-      bump(mvp.damage, "damage", "MVP War-Score");
+      // без War-Score на паблике (боевой счёт недостоверен)
     }
   }
 

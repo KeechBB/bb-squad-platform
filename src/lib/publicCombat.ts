@@ -291,7 +291,7 @@ function aggregateCombat(
     };
     bump(mvp.medic, "mvpMedic");
     bump(mvp.killer, "mvpKiller");
-    bump(mvp.damage, "mvpDamage");
+    // War-Score / боевой счёт — не считаем на паблике (нет достоверного табло)
     bump(mvp.antiDeath, "antiDeath");
   }
   return map;

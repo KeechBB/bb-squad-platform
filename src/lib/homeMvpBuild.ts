@@ -134,7 +134,8 @@ async function loadTrainLane(): Promise<HomeMvpLane> {
           const mvp =
             (players.mvp && players.mvp.train) ||
             pickMvps(list.filter((p) => p && p.nick));
-          applyMvpBlock(map, mvp);
+          // Train/public: no War-Score MVP (боевой счёт недостоверен без табло)
+          applyMvpBlock(map, { ...mvp, damage: [] });
         } catch {
           /* skip */
         }

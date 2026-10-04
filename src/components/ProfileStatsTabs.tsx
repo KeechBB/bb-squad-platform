@@ -42,8 +42,7 @@ function CombatBody({
     );
   }
 
-  const awardTotal =
-    stats.mvpDamage + stats.mvpKiller + stats.mvpMedic + stats.antiDeath;
+  const awardTotal = stats.mvpKiller + stats.mvpMedic + stats.antiDeath;
   const days =
     "days" in stats && typeof stats.days === "number" ? stats.days : null;
 
@@ -70,16 +69,11 @@ function CombatBody({
           <em className="stat-sub">KD {stats.kd}</em>
         </div>
         <div>
-          <span className="muted">Урон</span>
-          <strong>{stats.dmg.toLocaleString("ru-RU")}</strong>
-          <em className="stat-sub">ср. {stats.avgDmg} / катка</em>
-        </div>
-      </div>
-      <div className="profile-kv-extra">
-        <div>
           <span className="muted">Ср. киллы / катка</span>
           <strong>{stats.avgKills}</strong>
         </div>
+      </div>
+      <div className="profile-kv-extra">
         <div>
           <span className="muted">Revives</span>
           <strong>{stats.res}</strong>
@@ -100,9 +94,6 @@ function CombatBody({
         ) : null}
       </div>
       <div className="profile-kv-awards">
-        <span className="profile-kv-award">
-          War-Score <b>{stats.mvpDamage}</b>
-        </span>
         <span className="profile-kv-award">
           Killer <b>{stats.mvpKiller}</b>
         </span>

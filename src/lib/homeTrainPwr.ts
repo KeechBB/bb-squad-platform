@@ -776,7 +776,7 @@ export async function buildPlayerTrainCombatStats(
               dmg: Number(p.dmg) || 0,
             }))
         );
-      if (nickIn(mvp.damage)) mvpDamage += 1;
+      // War-Score на тренировках не считаем (боевой счёт недостоверен)
       if (nickIn(mvp.killer)) mvpKiller += 1;
       if (nickIn(mvp.medic)) mvpMedic += 1;
       if (nickIn(mvp.antiDeath)) antiDeath += 1;

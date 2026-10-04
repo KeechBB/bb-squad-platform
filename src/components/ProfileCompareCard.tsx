@@ -253,11 +253,6 @@ function MatchRpSide({
             value={fmtNum(combat.nok)}
             better={isBetter(combat.nok, otherCombat?.nok)}
           />
-          <StatCell
-            label="Боевой"
-            value={combat.dmg.toLocaleString("ru-RU")}
-            better={isBetter(combat.dmg, otherCombat?.dmg)}
-          />
         </div>
       ) : (
         <p className="muted compare-hitmap-empty">Нет статы по этой катке</p>
@@ -390,14 +385,6 @@ function MatchCompareBlock({
             </div>
             <div
               className={deltaCls(
-                match.meCombat?.dmg ?? null,
-                match.otherCombat?.dmg ?? null
-              )}
-            >
-              Боевой
-            </div>
-            <div
-              className={deltaCls(
                 match.meHitmap?.zones.head ?? null,
                 match.otherHitmap?.zones.head ?? null
               )}
@@ -511,14 +498,6 @@ function SideBlock({
       : avgPerGame(oTrain?.kills, oTrain?.matches);
   const trainAvgRes = avgPerGame(train?.res, train?.matches);
   const otherTrainAvgRes = avgPerGame(oTrain?.res, oTrain?.matches);
-  const trainAvgScore =
-    train?.avgDmg != null && train.matches > 0
-      ? train.avgDmg
-      : avgPerGame(train?.dmg, train?.matches);
-  const otherTrainAvgScore =
-    oTrain?.avgDmg != null && oTrain.matches > 0
-      ? oTrain.avgDmg
-      : avgPerGame(oTrain?.dmg, oTrain?.matches);
 
   const cwAvgKills =
     cw?.avgKills != null && cw.matches > 0
@@ -591,17 +570,6 @@ function SideBlock({
           label="ТМ ср. поднятия"
           value={trainAvgRes != null ? fmtNum(trainAvgRes, 1) : "—"}
           better={isBetter(trainAvgRes, otherTrainAvgRes)}
-        />
-        <StatCell
-          label="ТМ ср. боевой"
-          value={
-            trainAvgScore != null
-              ? Number.isInteger(trainAvgScore)
-                ? String(trainAvgScore)
-                : fmtNum(trainAvgScore, 1)
-              : "—"
-          }
-          better={isBetter(trainAvgScore, otherTrainAvgScore)}
         />
         <StatCell
           label="КВ встреч"

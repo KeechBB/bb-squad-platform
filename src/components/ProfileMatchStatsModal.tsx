@@ -348,6 +348,7 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
   }, [rows, sortKey, sortDir, pwrDeltas]);
 
   const showPwrDelta = tab === "total" && open?.kind === "train";
+  const hideWarScore = open?.kind === "train" || !!data?.training;
 
   const records = useMemo(() => {
     return {
@@ -555,14 +556,16 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
                         <span className="sort-ind">{sortMark("nick")}</span>
                       </th>
                       {(
-                        [
-                          ["res", "Ресы"],
-                          ["nok", "Ноки"],
-                          ["kills", "Килы"],
-                          ["deaths", "Смерти"],
-                          ["kd", "KD"],
-                          ["dmg", "Боевой счёт"],
-                        ] as [SortKey, string][]
+                        (
+                          [
+                            ["res", "Ресы"],
+                            ["nok", "Ноки"],
+                            ["kills", "Килы"],
+                            ["deaths", "Смерти"],
+                            ["kd", "KD"],
+                            ["dmg", "Боевой счёт"],
+                          ] as [SortKey, string][]
+                        ).filter(([key]) => !(hideWarScore && key === "dmg"))
                       ).map(([key, label]) => (
                         <th
                           key={key}
@@ -625,6 +628,7 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
                                 {(
                                   Object.keys(medals) as (keyof MvpBlock)[]
                                 ).map((kind) => {
+                                  if (hideWarScore && kind === "damage") return null;
                                   const n = medals[kind];
                                   if (!n) return null;
                                   const label =
@@ -676,11 +680,13 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
                           >
                             {p.kd}
                           </td>
-                          <td
-                            className={`ctr${records.dmg > 0 && p.dmg === records.dmg ? " record" : ""}`}
-                          >
-                            {p.dmg}
-                          </td>
+                          {!hideWarScore ? (
+                            <td
+                              className={`ctr${records.dmg > 0 && p.dmg === records.dmg ? " record" : ""}`}
+                            >
+                              {p.dmg}
+                            </td>
+                          ) : null}
                           {showPwrDelta ? (
                             <td className={`ctr ${deltaCls}`}>{deltaText}</td>
                           ) : null}
@@ -701,7 +707,9 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
                           ? Math.round((foot.kills / foot.deaths) * 100) / 100
                           : foot.kills}
                       </td>
-                      <td className="ctr">{foot.dmg}</td>
+                      {!hideWarScore ? (
+                        <td className="ctr">{foot.dmg}</td>
+                      ) : null}
                       {showPwrDelta ? <td className="ctr">—</td> : null}
                     </tr>
                   </tfoot>

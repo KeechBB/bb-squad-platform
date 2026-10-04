@@ -23,10 +23,7 @@ export function ProfilePublicRatingCard({
   combat,
 }: Props) {
   const [open, setOpen] = useState(false);
-  const medals =
-    (combat?.mvpDamage || 0) +
-    (combat?.mvpKiller || 0) +
-    (combat?.mvpMedic || 0);
+  const medals = (combat?.mvpKiller || 0) + (combat?.mvpMedic || 0);
   const hasAny =
     rp != null ||
     (combat &&
@@ -87,9 +84,6 @@ export function ProfilePublicRatingCard({
               </div>
             </div>
             <div className="profile-kv-awards">
-              <span className="profile-kv-award">
-                War <b>{combat?.mvpDamage ?? 0}</b>
-              </span>
               <span className="profile-kv-award">
                 Killer <b>{combat?.mvpKiller ?? 0}</b>
               </span>

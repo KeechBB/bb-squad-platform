@@ -227,7 +227,9 @@ export function HomeMvpBoard({ initial }: Props) {
           <span className="home-mvp-chip home-mvp-chip-war">
             <span className="home-mvp-chip-label">War</span>
           </span>
-          <span className="home-mvp-legend-hint">ресы · килы · боевой счёт</span>
+          <span className="home-mvp-legend-hint">
+            ресы · килы · War только КВ
+          </span>
         </p>
         <p className="home-mvp-legend home-mvp-legend-anti">
           <span className="home-mvp-chip home-mvp-chip-anti">
