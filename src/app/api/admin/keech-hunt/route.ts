@@ -64,6 +64,7 @@ export async function GET() {
           ...primary,
           net,
           noks: split?.noks.length ?? primary.noks ?? 0,
+          gotNoks: split?.gotNoks.length ?? primary.gotNoks ?? 0,
           kills: split?.kills.length ?? primary.kills ?? 0,
           deaths: split?.deaths.length ?? primary.deaths ?? 0,
           revives: split?.revives.length ?? primary.revives ?? 0,
@@ -76,6 +77,7 @@ export async function GET() {
       layerShort: m.layerShort,
       startAt: m.startAt,
       noks: m.noks ?? 0,
+      gotNoks: m.gotNoks ?? 0,
       kills: m.kills,
       deaths: m.deaths,
       revives: m.revives,
@@ -85,6 +87,7 @@ export async function GET() {
     columns: split
       ? {
           noks: split.noks,
+          gotNoks: split.gotNoks,
           kills: split.kills,
           deaths: split.deaths,
           revives: split.revives,
@@ -99,6 +102,9 @@ export async function GET() {
       endAt: m.endAt,
       net: m.net,
       noks: m.noks ?? (m.events || []).filter((e) => e.kind === "nok").length,
+      gotNoks:
+        m.gotNoks ??
+        (m.events || []).filter((e) => e.kind === "gotnok").length,
       kills: m.kills,
       deaths: m.deaths,
       revives: m.revives,

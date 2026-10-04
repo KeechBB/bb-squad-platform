@@ -179,6 +179,7 @@ class KeechHuntTracker:
             "events": [],
             "net": 0.0,
             "noks": 0,
+            "gotNoks": 0,
             "kills": 0,
             "deaths": 0,
             "revives": 0,
@@ -402,6 +403,37 @@ class KeechHuntTracker:
                         },
                         at,
                     )
+                elif vkey == "keech" and ksteam != KEECH_STEAM:
+                    # Who knocked Keech down (Wound), not a final Die
+                    attacker = self._nick_of_steam(ksteam)
+                    bones_on_me: dict[str, int] = {}
+                    t0 = at.timestamp() - HIT_WINDOW_SEC
+                    for h in self._hits:
+                        if not h.get("onKeech"):
+                            continue
+                        if h["at"].timestamp() < t0 or h["at"] > at:
+                            continue
+                        if h.get("asteam") and h["asteam"] != ksteam:
+                            continue
+                        b = h.get("bone") or ""
+                        if not b or b.lower() == "none":
+                            continue
+                        bones_on_me[b] = bones_on_me.get(b, 0) + 1
+                    self._add_event(
+                        server,
+                        {
+                            "id": f"gn-{server}-{at.timestamp():.3f}-{R.nick_key(attacker)}",
+                            "kind": "gotnok",
+                            "at": at.isoformat(),
+                            "time": _msk_time(at),
+                            "nick": attacker,
+                            "delta": 0.0,
+                            "oppWeight": 0,
+                            "bones": bones_on_me,
+                            "server": server,
+                        },
+                        at,
+                    )
 
         if "Die():" in line:
             dm = R.DIE_RE.search(line)
@@ -519,6 +551,9 @@ class KeechHuntTracker:
         bucket["events"].append(row)
         bucket["net"] = round(sum(float(e.get("delta") or 0) for e in bucket["events"]), 2)
         bucket["noks"] = sum(1 for e in bucket["events"] if e.get("kind") == "nok")
+        bucket["gotNoks"] = sum(
+            1 for e in bucket["events"] if e.get("kind") == "gotnok"
+        )
         bucket["kills"] = sum(1 for e in bucket["events"] if e.get("kind") == "kill")
         bucket["deaths"] = sum(
             1 for e in bucket["events"] if e.get("kind") in ("death", "self")
@@ -563,6 +598,7 @@ class KeechHuntTracker:
         return {
             "net": round(sum(float(e.get("delta") or 0) for e in events), 2),
             "noks": sum(1 for e in events if e.get("kind") == "nok"),
+            "gotNoks": sum(1 for e in events if e.get("kind") == "gotnok"),
             "kills": sum(1 for e in events if e.get("kind") == "kill"),
             "deaths": sum(1 for e in events if e.get("kind") in ("death", "self")),
             "revives": sum(1 for e in events if e.get("kind") == "revive"),

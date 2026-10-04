@@ -105,7 +105,7 @@ export function SiteNav({ showClanSections }: Props) {
         title="Рейтинг паблика"
         full="Рейтинг паблика"
         short="Паблик"
-        mode={mode}
+        mode="link"
         className="nav-public-pill"
       />
       {showClanSections ? (

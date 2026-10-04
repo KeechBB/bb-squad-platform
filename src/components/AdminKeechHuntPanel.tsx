@@ -18,6 +18,7 @@ type HistRow = {
   endAt: string | null;
   net: number;
   noks: number;
+  gotNoks: number;
   kills: number;
   deaths: number;
   revives: number;
@@ -29,6 +30,7 @@ type LiveMatchChip = {
   layerShort: string;
   startAt: string;
   noks: number;
+  gotNoks: number;
   kills: number;
   deaths: number;
   revives: number;
@@ -42,6 +44,7 @@ type Feed = {
   matches: LiveMatchChip[];
   columns: {
     noks: KeechHuntEvent[];
+    gotNoks: KeechHuntEvent[];
     kills: KeechHuntEvent[];
     deaths: KeechHuntEvent[];
     revives: KeechHuntEvent[];
@@ -52,6 +55,7 @@ type Feed = {
 
 const KIND_LABEL: Record<KeechHuntEvent["kind"], string> = {
   nok: "Нок",
+  gotnok: "Нокнули",
   kill: "Килл",
   death: "Смерть",
   revive: "Рес",
@@ -81,6 +85,7 @@ function fmtWhen(iso: string | null | undefined) {
 function eventBody(e: KeechHuntEvent): string {
   const d = fmtDelta(e.delta);
   if (e.kind === "nok") return `Нокнул ${e.nick}`;
+  if (e.kind === "gotnok") return `Нокнул тебя ${e.nick}`;
   if (e.kind === "kill") return `Убил ${e.nick} · ${d} RP`;
   if (e.kind === "death") return `Убит ${e.nick} · ${d} RP`;
   if (e.kind === "revive") return `Поднял ${e.nick} · ${d} RP`;
@@ -101,7 +106,11 @@ function EventRow({
     <li className={`keech-hunt-row kind-${e.kind}`}>
       <span className="keech-hunt-time">{e.time}</span>
       <span className="keech-hunt-nick" title={e.nick}>
-        {e.kind === "death" ? `← ${e.nick}` : e.kind === "self" ? "сам" : e.nick}
+        {e.kind === "death" || e.kind === "gotnok"
+          ? `← ${e.nick}`
+          : e.kind === "self"
+            ? "сам"
+            : e.nick}
       </span>
       <span className={`keech-hunt-delta ${plus ? "plus" : "minus"}`}>
         {fmtDelta(e.delta)}
@@ -146,7 +155,10 @@ function Col({
               e={e}
               clickable={
                 !!onHit &&
-                (e.kind === "nok" || e.kind === "kill" || e.kind === "death")
+                (e.kind === "nok" ||
+                  e.kind === "gotnok" ||
+                  e.kind === "kill" ||
+                  e.kind === "death")
               }
               onHit={onHit ? () => onHit(e) : undefined}
             />
@@ -257,6 +269,7 @@ export function AdminKeechHuntPanel() {
           layerShort: m.layerShort,
           startAt: m.startAt,
           noks: m.noks ?? 0,
+          gotNoks: m.gotNoks ?? 0,
           kills: m.kills,
           deaths: m.deaths,
           revives: m.revives,
@@ -292,7 +305,8 @@ export function AdminKeechHuntPanel() {
           </b>
           <span className="muted">
             {" "}
-            · N {cols?.noks.length ?? m?.noks ?? 0} / K{" "}
+            · N {cols?.noks.length ?? m?.noks ?? 0} / GN{" "}
+            {cols?.gotNoks.length ?? m?.gotNoks ?? 0} / K{" "}
             {cols?.kills.length ?? m?.kills ?? 0} / D{" "}
             {cols?.deaths.length ?? m?.deaths ?? 0} / R{" "}
             {cols?.revives.length ?? m?.revives ?? 0}
@@ -329,7 +343,10 @@ export function AdminKeechHuntPanel() {
               {liveLog.map((e) => {
                 const plus = e.delta >= 0;
                 const canHit =
-                  e.kind === "nok" || e.kind === "kill" || e.kind === "death";
+                  e.kind === "nok" ||
+                  e.kind === "gotnok" ||
+                  e.kind === "kill" ||
+                  e.kind === "death";
                 return (
                   <article
                     key={e.id}
@@ -394,6 +411,12 @@ export function AdminKeechHuntPanel() {
               items={cols?.revives || []}
               empty="—"
             />
+            <Col
+              title={`Нокнули (${cols?.gotNoks.length ?? 0})`}
+              items={cols?.gotNoks || []}
+              empty="—"
+              onHit={setHitEv}
+            />
           </div>
 
           <section className="card keech-hunt-history">
@@ -414,7 +437,8 @@ export function AdminKeechHuntPanel() {
                         {h.layerShort}
                       </span>
                       <span>
-                        N{h.noks}/K{h.kills}/D{h.deaths}/R{h.revives}{" "}
+                        N{h.noks}/GN{h.gotNoks ?? 0}/K{h.kills}/D{h.deaths}/R
+                        {h.revives}{" "}
                         <b className={h.net >= 0 ? "plus" : "minus"}>
                           {fmtDelta(h.net)}
                         </b>
@@ -436,9 +460,11 @@ export function AdminKeechHuntPanel() {
                 <h3>
                   {hitEv.kind === "death"
                     ? "Убит"
-                    : hitEv.kind === "nok"
-                      ? "Нок"
-                      : "Попадания в"}{" "}
+                    : hitEv.kind === "gotnok"
+                      ? "Нокнули"
+                      : hitEv.kind === "nok"
+                        ? "Нок"
+                        : "Попадания в"}{" "}
                   {hitEv.nick}
                 </h3>
                 <p className="muted">
@@ -454,10 +480,10 @@ export function AdminKeechHuntPanel() {
                 ✕
               </button>
             </header>
-            <HitSilhouetteMini
+              <HitSilhouetteMini
               bones={hitEv.bones || {}}
               title={
-                hitEv.kind === "death"
+                hitEv.kind === "death" || hitEv.kind === "gotnok"
                   ? "Хиты по тебе на PB1 могут быть редкими — на TR1 BBHitZone обычно полнее"
                   : undefined
               }
@@ -477,7 +503,8 @@ export function AdminKeechHuntPanel() {
                 </h3>
                 <p className="muted">
                   NET {fmtDelta(detail.match.net)} · N {detail.match.noks ?? 0} /
-                  K {detail.match.kills} / D {detail.match.deaths} / R{" "}
+                  GN {detail.match.gotNoks ?? detail.columns.gotNoks?.length ?? 0}{" "}
+                  / K {detail.match.kills} / D {detail.match.deaths} / R{" "}
                   {detail.match.revives}
                 </p>
               </div>
@@ -512,6 +539,12 @@ export function AdminKeechHuntPanel() {
                 title={`+ ресы (${detail.columns.revives.length})`}
                 items={detail.columns.revives}
                 empty="—"
+              />
+              <Col
+                title={`нокнули (${detail.columns.gotNoks?.length ?? 0})`}
+                items={detail.columns.gotNoks || []}
+                empty="—"
+                onHit={setHitEv}
               />
             </div>
           </div>

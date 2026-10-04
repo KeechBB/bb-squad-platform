@@ -4,7 +4,7 @@ export const KEECH_STEAM = "76561198028435874";
 
 export type KeechHuntEvent = {
   id: string;
-  kind: "nok" | "kill" | "death" | "revive" | "self";
+  kind: "nok" | "gotnok" | "kill" | "death" | "revive" | "self";
   at: string;
   time: string;
   nick: string;
@@ -26,6 +26,7 @@ export type KeechHuntMatch = {
   events: KeechHuntEvent[];
   net: number;
   noks?: number;
+  gotNoks?: number;
   kills: number;
   deaths: number;
   revives: number;
@@ -68,10 +69,11 @@ export function serverLabel(server: string | null | undefined): string {
 
 export function splitEvents(events: KeechHuntEvent[]) {
   const noks = events.filter((e) => e.kind === "nok");
+  const gotNoks = events.filter((e) => e.kind === "gotnok");
   const kills = events.filter((e) => e.kind === "kill");
   const deaths = events.filter((e) => e.kind === "death" || e.kind === "self");
   const revives = events.filter((e) => e.kind === "revive");
-  return { noks, kills, deaths, revives };
+  return { noks, gotNoks, kills, deaths, revives };
 }
 
 export function openKeechHuntMatches(live: KeechHuntLive): KeechHuntMatch[] {
