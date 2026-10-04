@@ -12,7 +12,7 @@ export default async function PublicRatingPage() {
   if (!session.user.profileComplete) redirect("/register");
 
   const [board, matchHistory] = await Promise.all([
-    buildPublicRatingTable(200),
+    buildPublicRatingTable(500),
     listPublicMatches(800),
   ]);
   return (
