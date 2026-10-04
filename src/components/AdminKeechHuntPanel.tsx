@@ -82,35 +82,101 @@ function fmtWhen(iso: string | null | undefined) {
   }
 }
 
-function eventBody(e: KeechHuntEvent): string {
+function nickKey(n: string) {
+  return String(n || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "");
+}
+
+/**
+ * Chronological occurrence # within the list (1 = first).
+ * `byKind` — count per kind+nick (live-log); else per nick only (column already one kind).
+ */
+function repeatById(
+  events: KeechHuntEvent[],
+  byKind = false
+): Map<string, number> {
+  const chrono = [...events].sort((a, b) =>
+    String(a.at).localeCompare(String(b.at))
+  );
+  const counts = new Map<string, number>();
+  const out = new Map<string, number>();
+  for (const e of chrono) {
+    if (e.kind === "self") {
+      out.set(e.id, 1);
+      continue;
+    }
+    const k = byKind
+      ? `${e.kind}:${nickKey(e.nick)}`
+      : nickKey(e.nick);
+    const n = (counts.get(k) || 0) + 1;
+    counts.set(k, n);
+    out.set(e.id, n);
+  }
+  return out;
+}
+
+/** Newest first + repeat index for UI. */
+function newestFirstWithRepeats(
+  events: KeechHuntEvent[]
+): { e: KeechHuntEvent; repeat: number }[] {
+  const reps = repeatById(events);
+  return [...events]
+    .sort((a, b) => String(b.at).localeCompare(String(a.at)))
+    .map((e) => ({ e, repeat: reps.get(e.id) || 1 }));
+}
+
+function RepeatBadge({ n }: { n: number }) {
+  if (n < 2) return null;
+  return (
+    <span className="keech-hunt-repeat" title={`${n}-й раз`}>
+      {n}
+    </span>
+  );
+}
+
+function eventBodyParts(
+  e: KeechHuntEvent
+): { prefix: string; nick: string | null; suffix: string } {
   const d = fmtDelta(e.delta);
-  if (e.kind === "nok") return `Нокнул ${e.nick}`;
-  if (e.kind === "gotnok") return `Нокнул тебя ${e.nick}`;
-  if (e.kind === "kill") return `Убил ${e.nick} · ${d} RP`;
-  if (e.kind === "death") return `Убит ${e.nick} · ${d} RP`;
-  if (e.kind === "revive") return `Поднял ${e.nick} · ${d} RP`;
-  return `Сам · ${d} RP`;
+  if (e.kind === "nok")
+    return { prefix: "Нокнул ", nick: e.nick, suffix: "" };
+  if (e.kind === "gotnok")
+    return { prefix: "Нокнул тебя ", nick: e.nick, suffix: "" };
+  if (e.kind === "kill")
+    return { prefix: "Убил ", nick: e.nick, suffix: ` · ${d} RP` };
+  if (e.kind === "death")
+    return { prefix: "Убит ", nick: e.nick, suffix: ` · ${d} RP` };
+  if (e.kind === "revive")
+    return { prefix: "Поднял ", nick: e.nick, suffix: ` · ${d} RP` };
+  return { prefix: `Сам · ${d} RP`, nick: null, suffix: "" };
 }
 
 function EventRow({
   e,
+  repeat,
   clickable,
   onHit,
 }: {
   e: KeechHuntEvent;
+  repeat: number;
   clickable?: boolean;
   onHit?: () => void;
 }) {
   const plus = e.delta >= 0;
+  const nickLabel =
+    e.kind === "death" || e.kind === "gotnok"
+      ? `← ${e.nick}`
+      : e.kind === "self"
+        ? "сам"
+        : e.nick;
   return (
     <li className={`keech-hunt-row kind-${e.kind}`}>
       <span className="keech-hunt-time">{e.time}</span>
       <span className="keech-hunt-nick" title={e.nick}>
-        {e.kind === "death" || e.kind === "gotnok"
-          ? `← ${e.nick}`
-          : e.kind === "self"
-            ? "сам"
-            : e.nick}
+        {nickLabel}
+        <RepeatBadge n={repeat} />
       </span>
       <span className={`keech-hunt-delta ${plus ? "plus" : "minus"}`}>
         {fmtDelta(e.delta)}
@@ -142,17 +208,19 @@ function Col({
   empty: string;
   onHit?: (e: KeechHuntEvent) => void;
 }) {
+  const rows = newestFirstWithRepeats(items);
   return (
     <section className="keech-hunt-col">
       <h4>{title}</h4>
-      {items.length === 0 ? (
+      {rows.length === 0 ? (
         <p className="muted keech-hunt-empty">{empty}</p>
       ) : (
         <ul className="keech-hunt-list">
-          {items.map((e) => (
+          {rows.map(({ e, repeat }) => (
             <EventRow
               key={e.id}
               e={e}
+              repeat={repeat}
               clickable={
                 !!onHit &&
                 (e.kind === "nok" ||
@@ -210,11 +278,12 @@ export function AdminKeechHuntPanel() {
     () => eventsForMatch(data?.match ?? null),
     [data]
   );
-  const liveLog = useMemo(
-    () =>
-      [...mapEvents].sort((a, b) => String(b.at).localeCompare(String(a.at))),
-    [mapEvents]
-  );
+  const liveLog = useMemo(() => {
+    const reps = repeatById(mapEvents, true);
+    return [...mapEvents]
+      .sort((a, b) => String(b.at).localeCompare(String(a.at)))
+      .map((e) => ({ e, repeat: reps.get(e.id) || 1 }));
+  }, [mapEvents]);
   const mapCols = useMemo(() => {
     if (!mapEvents.length) return null;
     const split = splitEvents(mapEvents);
@@ -226,7 +295,7 @@ export function AdminKeechHuntPanel() {
   }, [mapEvents]);
 
   useEffect(() => {
-    const topId = liveLog[0]?.id || null;
+    const topId = liveLog[0]?.e.id || null;
     const newerArrived = topId && topId !== prevTopId.current;
     prevTopId.current = topId;
     if (!stickTop.current && !newerArrived) return;
@@ -340,13 +409,14 @@ export function AdminKeechHuntPanel() {
                   колонки справа — одни и те же события. Новые сверху.
                 </p>
               ) : null}
-              {liveLog.map((e) => {
+              {liveLog.map(({ e, repeat }) => {
                 const plus = e.delta >= 0;
                 const canHit =
                   e.kind === "nok" ||
                   e.kind === "gotnok" ||
                   e.kind === "kill" ||
                   e.kind === "death";
+                const body = eventBodyParts(e);
                 return (
                   <article
                     key={e.id}
@@ -378,7 +448,16 @@ export function AdminKeechHuntPanel() {
                         </button>
                       ) : null}
                     </header>
-                    <p className="journal-msg-body">{eventBody(e)}</p>
+                    <p className="journal-msg-body">
+                      {body.prefix}
+                      {body.nick ? (
+                        <>
+                          <strong>{body.nick}</strong>
+                          <RepeatBadge n={repeat} />
+                        </>
+                      ) : null}
+                      {body.suffix}
+                    </p>
                   </article>
                 );
               })}

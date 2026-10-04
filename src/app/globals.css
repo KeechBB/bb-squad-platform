@@ -11986,6 +11986,20 @@ body.profile-match-modal-open {
   line-height: 1.3;
   min-width: 0;
 }
+.keech-hunt-repeat {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 0.72em;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+  vertical-align: 0.05em;
+  color: #1a1200;
+  background: #facc15;
+  box-shadow: 0 0 10px rgba(250, 204, 21, 0.45);
+}
 .keech-hunt-delta {
   text-align: right;
   font-weight: 700;
