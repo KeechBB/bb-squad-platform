@@ -30,6 +30,10 @@ PLATFORM = HERE.parent
 CACHE = HERE / "_tmp_tpub1_logs_cache"
 OUT_PRIMARY = PLATFORM / "data" / "public" / "rp-ledger.json"
 OUT_KV = PLATFORM.parent / "KV" / "public" / "data" / "public" / "rp-ledger.json"
+OUT_LADDER_PRIMARY = PLATFORM / "data" / "public" / "rp-ladder.json"
+OUT_LADDER_KV = (
+    PLATFORM.parent / "KV" / "public" / "data" / "public" / "rp-ladder.json"
+)
 HISTORY_CACHE = PLATFORM / "data" / "public" / "match-history.json"
 TIERS = PLATFORM.parent / "KV" / "public" / "data" / "tiers.json"
 # Rating starts from this date (MSK calendar day). Older log matches are ignored.
@@ -849,6 +853,59 @@ def main() -> None:
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_text(text, encoding="utf-8")
             print(f"Wrote {out} ({len(ledger['leaderboard'])} players, {len(public_matches)} matches)")
+        except Exception as e:
+            print(f"skip write {out}: {e}", flush=True)
+
+    # Slim ladder for Next hot path (~1MB vs ~30MB full ledger).
+    slim_players: dict[str, dict] = {}
+    for k, p in players_out.items():
+        slim_ms = []
+        for m in p.get("matches") or []:
+            slim_ms.append(
+                {
+                    "id": m.get("id"),
+                    "kills": len(m.get("kills") or []),
+                    "deaths": len(m.get("deaths") or []),
+                    "noks": len(m.get("noks") or []),
+                    "revives": len(m.get("revives") or []),
+                    "dmg": int(round(float(m.get("dmg") or 0))),
+                    "won": m.get("won"),
+                }
+            )
+        slim_players[k] = {
+            "nick": p.get("nick"),
+            "rp": p.get("rp"),
+            "rankLabel": p.get("rankLabel"),
+            "rankKey": p.get("rankKey"),
+            "predatorPlace": p.get("predatorPlace"),
+            "matches": slim_ms,
+        }
+    slim = {
+        "version": ledger["version"],
+        "updatedAt": ledger["updatedAt"],
+        "startRp": ledger["startRp"],
+        "step": ledger["step"],
+        "radiant3Max": ledger["radiant3Max"],
+        "weight": ledger["weight"],
+        "excludeSeed": True,
+        "historyOnly": True,
+        "epoch": ledger["epoch"],
+        "formula": ledger["formula"],
+        "pMax": ledger["pMax"],
+        "slim": True,
+        "matches": [
+            {"id": m.get("id"), "date": m.get("date"), "map": m.get("map")}
+            for m in public_matches
+        ],
+        "players": slim_players,
+        "leaderboard": ledger["leaderboard"],
+    }
+    slim_text = json.dumps(slim, ensure_ascii=False, separators=(",", ":")) + "\n"
+    for out in (OUT_LADDER_PRIMARY, OUT_LADDER_KV):
+        try:
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(slim_text, encoding="utf-8")
+            print(f"Wrote slim {out} ({out.stat().st_size} bytes)")
         except Exception as e:
             print(f"skip write {out}: {e}", flush=True)
 

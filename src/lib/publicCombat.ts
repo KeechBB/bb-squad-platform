@@ -1,8 +1,8 @@
 /**
  * Public (PB1) combat + MVP aggregates from digitized public matches.
- * Index: data/public/index.json → months[].url → matches[].playersUrl
- * MVP: from players.mvp.public or pickMvps(total rows).
+ * Hot path: slim data/public/rp-ladder.json (~1MB), not full rp-ledger (~30MB).
  */
+import { unstable_cache } from "next/cache";
 import { pickMvps, type MvpBlock } from "@/lib/homeMvp";
 import { buildPublicAttendanceLeaderboard } from "@/lib/publicAttendance";
 import { buildPublicRpLeaderboard, lookupPlayerPublicRp } from "@/lib/publicRp";
@@ -198,19 +198,25 @@ async function loadPublicMatchBundlesFromKv(): Promise<PublicBundle[]> {
   );
 }
 
-/** Combat rows from auto RP ledger (give-up kills/deaths, nok, revive, dmg, won). */
+function countStat(v: unknown): number {
+  if (typeof v === "number" && Number.isFinite(v)) return Math.max(0, v);
+  if (Array.isArray(v)) return v.length;
+  return 0;
+}
+
+/** Combat rows from slim public ladder (or full ledger fallback). */
 async function loadPublicMatchBundlesFromLedger(): Promise<PublicBundle[]> {
-  const { loadPublicRpLedger } = await import("@/lib/publicRp");
-  const ledger = await loadPublicRpLedger();
+  const { loadPublicRpLadder, loadPublicRpLedger } = await import("@/lib/publicRp");
+  const ledger =
+    (await loadPublicRpLadder()) || (await loadPublicRpLedger());
   if (!ledger?.players || !ledger.matches?.length) return [];
 
-  type Ev = { killer?: string; victim?: string };
   type Pm = {
     id: string;
-    kills?: Ev[];
-    deaths?: Ev[];
-    revives?: Ev[];
-    noks?: Ev[];
+    kills?: unknown;
+    deaths?: unknown;
+    revives?: unknown;
+    noks?: unknown;
     dmg?: number;
     won?: boolean | null;
   };
@@ -232,10 +238,10 @@ async function loadPublicMatchBundlesFromLedger(): Promise<PublicBundle[]> {
         nok: 0,
         dmg: 0,
       };
-      prev.kills = (prev.kills || 0) + (m.kills?.length || 0);
-      prev.deaths = (prev.deaths || 0) + (m.deaths?.length || 0);
-      prev.res = (prev.res || 0) + (m.revives?.length || 0);
-      prev.nok = (prev.nok || 0) + (m.noks?.length || 0);
+      prev.kills = (prev.kills || 0) + countStat(m.kills);
+      prev.deaths = (prev.deaths || 0) + countStat(m.deaths);
+      prev.res = (prev.res || 0) + countStat(m.revives);
+      prev.nok = (prev.nok || 0) + countStat(m.noks);
       prev.dmg = Math.round((prev.dmg || 0) + (Number(m.dmg) || 0));
       if (m.won === true) prev.won = true;
       if (m.won === false && prev.won !== true) prev.won = false;
@@ -316,7 +322,7 @@ function aggregateCombat(
   return map;
 }
 
-export async function buildPublicRatingTable(limit = 500): Promise<{
+async function buildPublicRatingTableUncached(limit = 500): Promise<{
   rows: PublicCombatRow[];
   matches: number;
   updatedAt: string;
@@ -488,6 +494,20 @@ export async function buildPublicRatingTable(limit = 500): Promise<{
     matches: bundles.filter((b) => b.players).length,
     updatedAt: new Date().toISOString(),
   };
+}
+
+/** Cached hot path — avoid re-parsing public ladder on every /public hit. */
+export async function buildPublicRatingTable(limit = 500): Promise<{
+  rows: PublicCombatRow[];
+  matches: number;
+  updatedAt: string;
+}> {
+  const cached = unstable_cache(
+    () => buildPublicRatingTableUncached(limit),
+    ["public-rating-table-v2-slim", String(limit)],
+    { revalidate: 120 }
+  );
+  return cached();
 }
 
 export async function buildPlayerPublicCombatStats(

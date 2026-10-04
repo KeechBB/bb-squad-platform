@@ -1,7 +1,7 @@
 /**
  * Public (PB1) Respect Points — same ladder UI as train RP.
- * Weight uses current public RP (not PWR). Ledger built offline from TPUB1 logs
- * excluding SEED layers → data/public/rp-ledger.json
+ * Hot path uses slim `data/public/rp-ladder.json` (~1MB).
+ * Full `rp-ledger.json` (~30MB) only as fallback / rare drilldowns.
  */
 import { rpRankFromScore, type RpLeaderRow, type RpLedger, type RpPlayer } from "@/lib/trainRp";
 
@@ -9,6 +9,10 @@ const KV_BASES = [
   process.env.KV_DATA_BASE,
   "https://keechbb.github.io/blackberry-kv",
 ].filter(Boolean) as string[];
+
+const CACHE_TTL_MS = 5 * 60 * 1000;
+let ledgerMem: { at: number; data: RpLedger | null } | null = null;
+let ladderMem: { at: number; data: RpLedger | null } | null = null;
 
 function nickKey(n: string) {
   return String(n || "")
@@ -18,7 +22,7 @@ function nickKey(n: string) {
 }
 
 async function fetchJson(url: string) {
-  const res = await fetch(url, { next: { revalidate: 90 } });
+  const res = await fetch(url, { next: { revalidate: 120 } });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
@@ -35,12 +39,10 @@ function isCurrentPublicLedger(data: RpLedger | null | undefined): boolean {
   }
   const matches = data.matches || [];
   if (!matches.length) return false;
-  // Stale full-log ledger (Sept…) — do not use.
   if (matches.some((m) => m.date && m.date < PUBLIC_RP_EPOCH)) return false;
   return matches.every((m) => !m.date || m.date >= PUBLIC_RP_EPOCH);
 }
 
-/** Prefer Wound-era ledgers; never let a stale on-disk copy beat fresher KV. */
 function ledgerFreshness(data: RpLedger): number {
   const t = Date.parse(String(data.updatedAt || "")) || 0;
   const formula = String((data as { formula?: string }).formula || "");
@@ -48,60 +50,82 @@ function ledgerFreshness(data: RpLedger): number {
   return woundBonus + t;
 }
 
-function pickBestLedger(current: RpLedger[], fallback: RpLedger[]): RpLedger | null {
-  const pool = current.length ? current : fallback;
-  if (!pool.length) return null;
-  let best = pool[0];
-  let bestScore = ledgerFreshness(best);
-  for (let i = 1; i < pool.length; i++) {
-    const score = ledgerFreshness(pool[i]);
+async function readJsonFile(path: string): Promise<RpLedger | null> {
+  try {
+    const { readFile } = await import("fs/promises");
+    return JSON.parse(await readFile(path, "utf8")) as RpLedger;
+  } catch {
+    return null;
+  }
+}
+
+/** Keep only the freshest valid copy — never retain every parsed candidate. */
+async function loadBestPublicJson(relUnderData: string): Promise<RpLedger | null> {
+  const { join } = await import("path");
+  const cwd = process.cwd();
+  const diskPaths = [
+    join(cwd, "data", "kv-cache", "data", relUnderData),
+    join(cwd, "data", relUnderData),
+    join(cwd, "..", "KV", "public", "data", relUnderData),
+    join(cwd, "..", "KV", "data", relUnderData),
+  ];
+
+  let best: RpLedger | null = null;
+  let bestScore = -1;
+
+  for (const p of diskPaths) {
+    const data = await readJsonFile(p);
+    if (!data || !isCurrentPublicLedger(data)) continue;
+    const score = ledgerFreshness(data);
     if (score > bestScore) {
-      best = pool[i];
+      best = data;
       bestScore = score;
     }
   }
+
+  if (!best) {
+    for (const base of KV_BASES) {
+      try {
+        const data = (await fetchJson(
+          `${base.replace(/\/$/, "")}/data/${relUnderData}`
+        )) as RpLedger;
+        if (!isCurrentPublicLedger(data)) continue;
+        const score = ledgerFreshness(data);
+        if (score > bestScore) {
+          best = data;
+          bestScore = score;
+        }
+      } catch {
+        /* next */
+      }
+    }
+  }
+
   return best;
 }
 
+/** Slim public ladder (~1MB) — rating table / aggregates. */
+export async function loadPublicRpLadder(): Promise<RpLedger | null> {
+  const now = Date.now();
+  if (ladderMem && now - ladderMem.at < CACHE_TTL_MS) return ladderMem.data;
+
+  const data = await loadBestPublicJson("public/rp-ladder.json");
+  ladderMem = { at: now, data };
+  return data;
+}
+
+/** Full ledger (~30MB) — fallback if slim missing. Cached in process memory. */
 export async function loadPublicRpLedger(): Promise<RpLedger | null> {
-  const current: RpLedger[] = [];
-  const fallback: RpLedger[] = [];
+  const now = Date.now();
+  if (ledgerMem && now - ledgerMem.at < CACHE_TTL_MS) return ledgerMem.data;
 
-  // Collect disk + KV candidates, then pick newest Wound-aware ledger.
-  try {
-    const { readFile } = await import("fs/promises");
-    const { join } = await import("path");
-    for (const p of [
-      join(process.cwd(), "data", "kv-cache", "data", "public", "rp-ledger.json"),
-      join(process.cwd(), "data", "public", "rp-ledger.json"),
-      join(process.cwd(), "..", "KV", "public", "data", "public", "rp-ledger.json"),
-      join(process.cwd(), "..", "KV", "data", "public", "rp-ledger.json"),
-    ]) {
-      try {
-        const data = JSON.parse(await readFile(p, "utf8")) as RpLedger;
-        if (isCurrentPublicLedger(data)) current.push(data);
-        else if (data?.leaderboard?.length) fallback.push(data);
-      } catch {
-        /* next path */
-      }
-    }
-  } catch {
-    /* fs unavailable */
-  }
+  const data = await loadBestPublicJson("public/rp-ledger.json");
+  ledgerMem = { at: now, data };
+  return data;
+}
 
-  for (const base of KV_BASES) {
-    try {
-      const data = (await fetchJson(
-        `${base.replace(/\/$/, "")}/data/public/rp-ledger.json`
-      )) as RpLedger;
-      if (isCurrentPublicLedger(data)) current.push(data);
-      else if (data?.leaderboard?.length) fallback.push(data);
-    } catch {
-      /* next */
-    }
-  }
-
-  return pickBestLedger(current, fallback);
+async function loadPublicRpData(): Promise<RpLedger | null> {
+  return (await loadPublicRpLadder()) || (await loadPublicRpLedger());
 }
 
 export async function buildPublicRpLeaderboard(): Promise<{
@@ -111,7 +135,7 @@ export async function buildPublicRpLeaderboard(): Promise<{
   updatedAt: string;
   available: boolean;
 }> {
-  const ledger = await loadPublicRpLedger();
+  const ledger = await loadPublicRpData();
   if (!ledger?.leaderboard?.length) {
     return {
       rows: [],
@@ -126,7 +150,9 @@ export async function buildPublicRpLeaderboard(): Promise<{
     const rank = r.predatorPlace
       ? { label: `PREDATOR #${r.predatorPlace}`, key: "predator" }
       : {
-          label: r.rankLabel || rpRankFromScore(r.rp, ledger.step, ledger.radiant3Max).label,
+          label:
+            r.rankLabel ||
+            rpRankFromScore(r.rp, ledger.step, ledger.radiant3Max).label,
           key: r.rankKey,
         };
     return {
@@ -149,7 +175,7 @@ export async function buildPublicRpLeaderboard(): Promise<{
 }
 
 export async function lookupPlayerPublicRp(nick: string): Promise<RpPlayer | null> {
-  const ledger = await loadPublicRpLedger();
+  const ledger = await loadPublicRpData();
   if (!ledger) return null;
   const key = nickKey(nick);
   const direct = ledger.players[key];

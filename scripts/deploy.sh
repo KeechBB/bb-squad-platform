@@ -145,16 +145,8 @@ echo "==> free -h (after)"
 free -h || true
 
 DEPLOY_OK=1
-# Kick async public RP rebuild (DB history + logs) so Каток never stays on a thin git seed.
-if [[ -f scripts/build_public_rp_ledger.py ]]; then
-  echo "==> kick public RP rebuild (background)"
-  (
-    set -a
-    [[ -f .env ]] && . ./.env
-    set +a
-    python3 scripts/build_public_rp_ledger.py >>scripts/_tmp_public_rp_rebuild.log 2>&1
-    pm2 restart bb-squad >/dev/null 2>&1 || true
-  ) &
-fi
+# Do NOT rebuild public rp-ledger in the background during deploy:
+# the 30MB parse + python + pm2 restart was OOMing the 4GB box → 502 storms.
+# Rebuild manually when needed: python3 scripts/build_public_rp_ledger.py
 
 echo "==> OK commit=$(git rev-parse --short HEAD) $(date -Is)"

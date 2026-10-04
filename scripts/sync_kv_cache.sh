@@ -16,7 +16,9 @@ FILES=(
   "data/training-index.json"
   "data/tiers.json"
   "data/tier-board.json"
+  "data/public/rp-ladder.json"
   "data/public/rp-ledger.json"
+  "data/2026-10.json"
 )
 
 echo "==> sync KV cache → $DEST (from $BASE)"

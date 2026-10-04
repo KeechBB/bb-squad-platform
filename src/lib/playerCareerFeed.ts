@@ -5,9 +5,15 @@ import {
   rpRankFromScore,
   type RpPlayerMatch,
 } from "@/lib/trainRp";
-import { loadPublicRpLedger } from "@/lib/publicRp";
+import { loadPublicRpLadder, loadPublicRpLedger } from "@/lib/publicRp";
 import { pickMvps } from "@/lib/homeMvp";
 import { formatTierArrow } from "@/lib/homeTierBoard";
+
+function countStat(v: unknown): number {
+  if (typeof v === "number" && Number.isFinite(v)) return Math.max(0, v);
+  if (Array.isArray(v)) return v.length;
+  return 0;
+}
 
 export type CareerEventKind =
   | "tier_up"
@@ -165,7 +171,9 @@ export async function buildPlayerCareerFeed(nick: string): Promise<PlayerCareerF
     buildPlayerKvStats(want).catch(() => null),
     loadKvJson<TierBoardJson>("data/tier-board.json"),
     loadRpLadder().catch(() => null),
-    loadPublicRpLedger().catch(() => null),
+    loadPublicRpLadder()
+      .then((d) => d || loadPublicRpLedger())
+      .catch(() => null),
     prisma.tierChangeLog
       .findMany({
         where: { nick: { equals: want, mode: "insensitive" } },
@@ -396,10 +404,10 @@ export async function buildPlayerCareerFeed(nick: string): Promise<PlayerCareerF
         id: m.id,
         map: m.map || "PB1",
         date: String(m.date || "").slice(0, 10),
-        kills: m.kills?.length || 0,
-        deaths: m.deaths?.length || 0,
-        res: m.revives?.length || 0,
-        nok: m.noks?.length || 0,
+        kills: countStat(m.kills),
+        deaths: countStat(m.deaths),
+        res: countStat(m.revives),
+        nok: countStat(m.noks),
         dmg: Math.round(Number(m.dmg) || 0),
         won: m.won ?? null,
         net: Number(m.net) || 0,
@@ -539,10 +547,10 @@ export async function buildPlayerCareerFeed(nick: string): Promise<PlayerCareerF
         }
         byMatch.get(m.id)!.rows.push({
           nick,
-          res: m.revives?.length || 0,
-          nok: m.noks?.length || 0,
-          kills: m.kills?.length || 0,
-          deaths: m.deaths?.length || 0,
+          res: countStat(m.revives),
+          nok: countStat(m.noks),
+          kills: countStat(m.kills),
+          deaths: countStat(m.deaths),
           dmg: Math.round(Number(m.dmg) || 0),
         });
       }

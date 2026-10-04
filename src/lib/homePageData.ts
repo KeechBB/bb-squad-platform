@@ -22,6 +22,6 @@ export const getHomeDashboardData = unstable_cache(
     ]);
     return { previews, mvpBoard, pwrBoard, tierBoard };
   },
-  ["home-dashboard-v9-rp-cache"],
-  { revalidate: 45 }
+  ["home-dashboard-v10-rp-cache"],
+  { revalidate: 120 }
 );
