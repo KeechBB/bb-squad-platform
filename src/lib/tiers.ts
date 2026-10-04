@@ -56,21 +56,6 @@ export function buildTierIndex(data: {
   return map;
 }
 
-export async function loadTierIndex(): Promise<Map<string, 1 | 2 | 3>> {
-  try {
-    const { loadKvJsonCached } = await import("@/lib/kvLocal");
-    const data = await loadKvJsonCached<{
-      tier1?: string[];
-      tier2?: string[];
-      tier3?: string[];
-      aliases?: Record<string, string>;
-    }>("data/tiers.json");
-    return buildTierIndex(data);
-  } catch {
-    return new Map();
-  }
-}
-
 /** Участвует в КВ: мейн/junior или боевая роль состава */
 function isKvParticipant(
   role: ClanRole,

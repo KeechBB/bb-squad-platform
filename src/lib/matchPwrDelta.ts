@@ -1,4 +1,4 @@
-import { loadTierIndex } from "@/lib/tiers";
+import { loadTierIndex } from "@/lib/loadTierIndex";
 
 export type MatchPwrDeltaMap = Record<string, number>;
 

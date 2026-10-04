@@ -382,7 +382,7 @@ export type TierHitmapAvg = {
 
 /** Средние профили попаданий по тирам 1–4 (зарегистрированные с хитами). */
 export async function hitmapAveragesByTier(): Promise<TierHitmapAvg[]> {
-  const { loadTierIndex } = await import("@/lib/tiers");
+  const { loadTierIndex } = await import("@/lib/loadTierIndex");
   const tierIndex = await loadTierIndex();
 
   const users = await prisma.user.findMany({

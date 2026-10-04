@@ -14,7 +14,7 @@ import {
   canReviewClanJoinRequests,
   ensureDefaultTitles,
 } from "@/lib/titles";
-import { loadTierIndex } from "@/lib/tiers";
+import { loadTierIndex } from "@/lib/loadTierIndex";
 
 type Props = { params: Promise<{ id: string }> };
 

@@ -1,4 +1,4 @@
-import { loadTierIndex } from "@/lib/tiers";
+import { loadTierIndex } from "@/lib/loadTierIndex";
 
 /** Тот же композитный PWR 0–1000, что у тренировок — для клановых войн. */
 export type HomeCwPwrRow = {

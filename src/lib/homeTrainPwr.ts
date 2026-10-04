@@ -1,4 +1,4 @@
-import { loadTierIndex } from "@/lib/tiers";
+import { loadTierIndex } from "@/lib/loadTierIndex";
 import { pickMvps } from "@/lib/homeMvp";
 
 export type HomeTrainPwrRow = {

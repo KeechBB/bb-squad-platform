@@ -203,7 +203,7 @@ export type TierKitAvg = {
 
 /** Средний % китов по тирам 1–4 (равный вес игрока внутри тира). */
 export async function kitAveragesByTier(): Promise<TierKitAvg[]> {
-  const { loadTierIndex } = await import("@/lib/tiers");
+  const { loadTierIndex } = await import("@/lib/loadTierIndex");
   const tierIndex = await loadTierIndex();
 
   const users = await prisma.user.findMany({
@@ -358,7 +358,7 @@ export type KitRankAnalytics = {
  * Только зареганные с ролями; тир из tiers.json (иначе 4).
  */
 export async function kitRankAnalytics(): Promise<KitRankAnalytics> {
-  const { loadTierIndex } = await import("@/lib/tiers");
+  const { loadTierIndex } = await import("@/lib/loadTierIndex");
   const tierIndex = await loadTierIndex();
 
   const users = await prisma.user.findMany({
