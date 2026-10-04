@@ -170,7 +170,7 @@ export function AdminUserEditForm({
           required
           disabled={locked}
         />
-        <span className="field-hint">Латиница, цифры и символы, 3–24.</span>
+        <span className="field-hint">Латиница, цифры и символы, 2–24.</span>
       </label>
       <label className="field">
         <span>Имя</span>

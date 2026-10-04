@@ -175,7 +175,7 @@ export function ProfileEditForm({ initial, adminLink }: Props) {
               maxLength={24}
               required
             />
-            <span className="field-hint">Игровой ник: латиница/цифры/символы/пробелы, 3–24</span>
+            <span className="field-hint">Игровой ник: латиница/цифры/символы/пробелы, 2–24</span>
           </label>
           <label className="field">
             <span>Имя</span>

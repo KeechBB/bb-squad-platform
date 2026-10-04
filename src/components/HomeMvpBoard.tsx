@@ -202,13 +202,6 @@ export function HomeMvpBoard({ initial }: Props) {
       className={`home-ops-board home-mvp-board${pulse ? " home-mvp-pulse" : ""}`}
       aria-label="MVP пьедестал"
     >
-      <div className="home-ops-corners" aria-hidden="true">
-        <i />
-        <i />
-        <i />
-        <i />
-      </div>
-
       <header className="home-ops-head">
         <div>
           <p className="home-ops-eyebrow">пьедестал · live</p>

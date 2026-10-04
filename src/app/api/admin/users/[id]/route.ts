@@ -168,7 +168,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
   if (!isValidNick(nick)) {
     return NextResponse.json(
-      { error: "Ник: латиница, цифры, символы и пробелы, 3–24" },
+      { error: "Ник: латиница, цифры, символы и пробелы, 2–24" },
       { status: 400 }
     );
   }

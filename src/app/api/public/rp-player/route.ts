@@ -13,6 +13,6 @@ export async function GET(req: Request) {
   if (!nick) {
     return NextResponse.json({ error: "nick required" }, { status: 400 });
   }
-  const player = await lookupPlayerPublicRp(nick);
+  const player = await lookupPlayerPublicRp(nick, { full: true });
   return NextResponse.json({ player });
 }

@@ -173,14 +173,28 @@ export async function buildPublicRpLeaderboard(): Promise<{
   };
 }
 
-export async function lookupPlayerPublicRp(nick: string): Promise<RpPlayer | null> {
-  const ledger = await loadPublicRpData();
-  if (!ledger) return null;
+/**
+ * Player public RP. Default = slim ladder (rp/rank + match counts).
+ * Pass `{ full: true }` for drilldown (map/date/net + kill/death/revive events).
+ * Slim matches are counts only — never use them for «детальный разбор».
+ */
+export async function lookupPlayerPublicRp(
+  nick: string,
+  opts?: { full?: boolean }
+): Promise<RpPlayer | null> {
   const key = nickKey(nick);
-  const direct = ledger.players[key];
-  if (direct) return direct;
-  for (const p of Object.values(ledger.players)) {
-    if (nickKey(p.nick) === key) return p;
+  const pick = (ledger: RpLedger | null): RpPlayer | null => {
+    if (!ledger?.players) return null;
+    const direct = ledger.players[key];
+    if (direct) return direct;
+    for (const p of Object.values(ledger.players)) {
+      if (nickKey(p.nick) === key) return p;
+    }
+    return null;
+  };
+
+  if (opts?.full) {
+    return pick(await loadPublicRpLedger());
   }
-  return null;
+  return pick(await loadPublicRpData());
 }

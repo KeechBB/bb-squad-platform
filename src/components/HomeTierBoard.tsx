@@ -52,13 +52,6 @@ export function HomeTierBoard({ initial }: Props) {
 
   return (
     <section className="home-ops-board home-tier-board" aria-label="Автосистема тиров">
-      <div className="home-ops-corners" aria-hidden="true">
-        <i />
-        <i />
-        <i />
-        <i />
-      </div>
-
       <header className="home-ops-head" title="FIT — насколько подходишь тиру по КВ (середина тира по роли)">
         <div>
           <p className="home-ops-eyebrow">авто · Fit КВ</p>

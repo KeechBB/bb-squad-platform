@@ -50,13 +50,6 @@ export function HomeUpcomingMatches({ previews }: Props) {
 
   return (
     <section className="home-ops-board" aria-label="Предстоящие матчи">
-      <div className="home-ops-corners" aria-hidden="true">
-        <i />
-        <i />
-        <i />
-        <i />
-      </div>
-
       <header className="home-ops-head">
         <div>
           <p className="home-ops-eyebrow">прогноз ИИ · КВ</p>

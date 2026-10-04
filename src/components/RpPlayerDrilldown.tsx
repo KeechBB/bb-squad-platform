@@ -244,8 +244,24 @@ export function RpPlayerDrilldown({ nick, open, onClose, player: prefetched }: P
 
   if (!open) return null;
 
-  const matches = player?.matches ? [...player.matches].reverse() : [];
+  // Slim ladder stubs have numeric kills/deaths and no map/date/net — hide them.
+  const matches = player?.matches
+    ? [...player.matches]
+        .filter(
+          (m) =>
+            typeof m.map === "string" &&
+            m.map.length > 0 &&
+            Array.isArray(m.kills) &&
+            Array.isArray(m.deaths)
+        )
+        .reverse()
+    : [];
   const rpShow = player?.rp != null ? Math.round(player.rp) : null;
+  const slimOnly =
+    !loading &&
+    !error &&
+    !!player?.matches?.length &&
+    matches.length === 0;
 
   return (
     <>
@@ -266,9 +282,13 @@ export function RpPlayerDrilldown({ nick, open, onClose, player: prefetched }: P
                   ? "Загрузка…"
                   : error
                     ? error
-                    : `${rpShow == null ? "—" : rpShow} · ${
-                        player?.rankLabel || "—"
-                      } · клик по карте — разбор`}
+                    : slimOnly
+                      ? `${rpShow == null ? "—" : rpShow} · ${
+                          player?.rankLabel || "—"
+                        } · нет полного разбора (ledger)`
+                      : `${rpShow == null ? "—" : rpShow} · ${
+                          player?.rankLabel || "—"
+                        } · клик по карте — разбор`}
               </p>
             </div>
             <button type="button" className="rp-breakdown-close" onClick={onClose}>
@@ -276,7 +296,11 @@ export function RpPlayerDrilldown({ nick, open, onClose, player: prefetched }: P
             </button>
           </header>
           {!loading && !error && matches.length === 0 ? (
-            <p className="muted">Пока нет карт с RP паблика.</p>
+            <p className="muted">
+              {slimOnly
+                ? "Полный RP-ledger на сервере не найден — разбор по картам недоступен."
+                : "Пока нет карт с RP паблика."}
+            </p>
           ) : null}
           {!loading && !error && matches.length > 0 ? (
             <ul className="rp-maps-list">
