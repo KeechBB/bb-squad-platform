@@ -3,22 +3,21 @@
 """
 Build training RP (Respect Points) ledger from TR1 logs.
 
-- Only final deaths: Die() that puts victim Inactive (not Wound/nok).
-- Enemy Die(): zero-sum — killer +delta, victim -delta.
-- Teamkill Die(): BOTH lose — killer -delta, victim -delta (no + for TK).
-- Revive (has revived): medic gains +delta*0.6 only (patient not charged).
-- Weight: delta=1+49*(Pv-Pk+Pmax-1)/(2*(Pmax-1))
-  Pk = actor PWR (killer or medic), Pv = other PWR (victim or patient)
-- Wound()/nok = 0. PWR stays hidden weight.
+Legacy (date < 2026-10-05): Die ±N, TK both −N, revive N*0.6, Wound=0; weight=PWR.
+New (date >= cutover): unified N×coefs; weight=current train RP. See rp_log_parse.
 """
 from __future__ import annotations
 
 import json
 import re
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import rp_log_parse as R  # noqa: E402
+
 CACHE = HERE / "_tmp_tr1_logs_cache"
 TRAIN = HERE.parents[1] / "KV" / "public" / "data" / "training"
 PLAYERS = TRAIN / "players"
@@ -51,7 +50,34 @@ INACTIVE_RE = re.compile(
     re.I,
 )
 
-# chronological
+def _load_auto_matches() -> list[dict]:
+    """Matches discovered by sync_train_from_tr1_logs.py (start/end ISO)."""
+    path = TRAIN / "_auto_matches.json"
+    if not path.is_file():
+        return []
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    out = []
+    for m in raw or []:
+        try:
+            out.append(
+                {
+                    "id": m["id"],
+                    "map": m.get("map") or "—",
+                    "date": m["date"],
+                    "log": m["log"],
+                    "start": datetime.fromisoformat(m["start"]),
+                    "end": datetime.fromisoformat(m["end"]),
+                }
+            )
+        except Exception:
+            continue
+    return out
+
+
+# chronological (manual + auto)
 MATCHES = [
     {
         "id": "29-albasrah",
@@ -140,6 +166,11 @@ MATCHES = [
         "end": datetime(2026, 10, 3, 21, 40, 11, tzinfo=timezone.utc),
     },
 ]
+_seen_match_ids = {m["id"] for m in MATCHES}
+for _am in _load_auto_matches():
+    if _am["id"] not in _seen_match_ids:
+        MATCHES.append(_am)
+        _seen_match_ids.add(_am["id"])
 
 RANK_NAMES = [
     ("Iron", "iron"),
@@ -504,99 +535,37 @@ def main() -> None:
     for m in MATCHES:
         log_path = CACHE / m["log"]
         teams = load_match_teams(m["id"], aliases)
-        dies = parse_dies(log_path, m["start"], m["end"], steam_to_nick, aliases)
-        revives = parse_revives(log_path, m["start"], m["end"])
-        events = []
-        net: dict[str, float] = {}
-        die_n = 0
-        tk_n = 0
-        rev_n = 0
-
-        def ensure(key: str, nick: str) -> None:
-            ck = aliases.get(key, key)
-            if ck not in disp:
-                disp[ck] = nick
-            rp.setdefault(ck, START_RP)
-
-        for d in dies:
-            kk, vk = d["killerKey"], d["victimKey"]
-            if not kk or not vk or kk == vk or kk.startswith("?"):
-                continue
-            pk = pwr.get(kk, 250.0)
-            pv = pwr.get(vk, 250.0)
-            ensure(kk, d["killer"])
-            ensure(vk, d["victim"])
-            delta = round(hunt_delta(pk, pv, pmax_global), 2)
-            same_team = (
-                kk in teams and vk in teams and teams[kk] == teams[vk]
+        idx = R.index_log_combat(log_path, aliases) if log_path.is_file() else None
+        if idx is None:
+            dies = parse_dies(log_path, m["start"], m["end"], steam_to_nick, aliases)
+            wounds = []
+            revives = parse_revives(log_path, m["start"], m["end"])
+        else:
+            steam_to_nick.update(idx.get("steam_to_nick") or {})
+            dies, _die_noks = R.dies_in_window(
+                idx, m["start"], m["end"], steam_to_nick, aliases
             )
-            if same_team:
-                # TK: killer loses, victim loses (final death)
-                rp[kk] = rp.get(kk, START_RP) - delta
-                rp[vk] = rp.get(vk, START_RP) - delta
-                net[kk] = round(net.get(kk, 0.0) - delta, 2)
-                net[vk] = round(net.get(vk, 0.0) - delta, 2)
-                events.append(
-                    {
-                        "kind": "tk",
-                        "time": d["at_msk"],
-                        "killer": disp[kk],
-                        "victim": disp[vk],
-                        "killerPwr": round(pk, 1),
-                        "victimPwr": round(pv, 1),
-                        "delta": delta,
-                        "teamkill": True,
-                    }
-                )
-                tk_n += 1
-            else:
-                rp[kk] = rp.get(kk, START_RP) + delta
-                rp[vk] = rp.get(vk, START_RP) - delta
-                net[kk] = round(net.get(kk, 0.0) + delta, 2)
-                net[vk] = round(net.get(vk, 0.0) - delta, 2)
-                events.append(
-                    {
-                        "kind": "die",
-                        "time": d["at_msk"],
-                        "killer": disp[kk],
-                        "victim": disp[vk],
-                        "killerPwr": round(pk, 1),
-                        "victimPwr": round(pv, 1),
-                        "delta": delta,
-                        "teamkill": False,
-                    }
-                )
-                die_n += 1
-
-        for d in revives:
-            kk = canon_key(d["killer"], aliases)
-            vk = canon_key(d["victim"], aliases)
-            if not kk or not vk or kk == vk or kk.startswith("?"):
-                continue
-            pk = pwr.get(kk, 250.0)
-            pv = pwr.get(vk, 250.0)
-            ensure(kk, d["killer"])
-            ensure(vk, d["victim"])
-            delta = round(hunt_delta(pk, pv, pmax_global) * REVIVE_COEF, 2)
-            # medic gains only — patient not charged
-            rp[kk] = rp.get(kk, START_RP) + delta
-            net[kk] = round(net.get(kk, 0.0) + delta, 2)
-            net.setdefault(vk, 0.0)
-            events.append(
-                {
-                    "kind": "revive",
-                    "time": d["at_msk"],
-                    "killer": disp[kk],  # medic
-                    "victim": disp[vk],  # patient
-                    "killerPwr": round(pk, 1),
-                    "victimPwr": round(pv, 1),
-                    "delta": delta,
-                }
+            wounds = R.wounds_in_window(
+                idx, m["start"], m["end"], steam_to_nick, aliases
             )
-            rev_n += 1
+            revives = R.revives_in_window(idx, m["start"], m["end"])
 
-        # chronological within match
-        events.sort(key=lambda e: e["time"])
+        new_f = R.use_new_rp_formula(m["date"])
+        events, net, die_n, tk_n, rev_n, _ = R.score_match_rp(
+            dies=dies,
+            wounds=wounds,
+            revives=revives,
+            teams=teams,
+            rp=rp,
+            disp=disp,
+            aliases=aliases,
+            new_formula=new_f,
+            pwr_weights=None if new_f else pwr,
+        )
+        print(
+            f"{m['id']}: Die={die_n} TK={tk_n} rev={rev_n} formula={'v2' if new_f else 'legacy'}",
+            flush=True,
+        )
 
         players_file = PLAYERS / f"{m['id']}.json"
         if players_file.is_file():
@@ -699,11 +668,15 @@ def main() -> None:
         "step": STEP,
         "radiant3Max": RADIANT3_MAX,
         "formula": (
-            "delta=1+49*(Pv-Pk+Pmax-1)/(2*(Pmax-1)); "
-            "final Die(+Inactive): enemy zero-sum; TK both -delta; "
-            "Revive medic +delta*0.6; Wound/nok=0; PWR hidden weight"
+            f"N=hunt_delta; cutover>={R.RP_FORMULA_CUTOVER}: N×coefs "
+            f"(nok {R.COEF_ENEMY_NOK}/kill {R.COEF_ENEMY_KILL}/revive {R.COEF_REVIVE}/"
+            f"ownNokRev {R.COEF_REVIVE_OWN_NOK}/TKnok {R.COEF_TK_NOK}/TKkill {R.COEF_TK_KILL_EXTRA}/"
+            f"death {R.COEF_OWN_DEATH}); weight=current train RP; "
+            f"legacy: Die±N TK both -N revive N*{R.REVIVE_COEF} Wound=0 weight=PWR"
         ),
-        "reviveCoef": REVIVE_COEF,
+        "formulaCutover": R.RP_FORMULA_CUTOVER,
+        "weight": "current_train_rp_after_cutover",
+        "reviveCoef": R.COEF_REVIVE,
         "pMax": round(pmax_global, 1),
         "matches": public_matches,
         "players": players_out,

@@ -27,9 +27,9 @@ const PWR_BANDS: [number, string, string][] = [
 
 function PwrScale() {
   return (
-    <div className="cross-pwr-scale" aria-label="PWR ranks">
+    <div className="cross-pwr-scale" aria-label="Ранги силы">
       <span className="cross-pwr-scale-label">
-        PWR
+        Сила
         <br />
         ranks
       </span>
@@ -204,7 +204,7 @@ export function CrossRatingClient({ clans, enemies }: Props) {
                 <tr>
                   <th className="ctr">Место</th>
                   <th className="ctr">Rank</th>
-                  <th className="ctr">PWR</th>
+                  <th className="ctr">Сила</th>
                   <th>Ник</th>
                   <th className="ctr">Клан</th>
                   <th className="ctr">Каток</th>

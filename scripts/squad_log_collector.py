@@ -968,6 +968,7 @@ class Collector:
                     )
             self._post(batch)
             self.maybe_rebuild_public_rp()
+            self.maybe_sync_train_tr1()
             kt = self._keech_tracker()
             if kt is not None:
                 try:
@@ -1008,6 +1009,42 @@ class Collector:
         except Exception as e:
             _safe_print(
                 "public RP rebuild error",
+                type(e).__name__,
+                e,
+                file=sys.stderr,
+            )
+
+    def maybe_sync_train_tr1(self) -> None:
+        """TR1 auto: digitize closed maps (21:30–00:00 MSK) + rebuild train RP."""
+        now = time.time()
+        last = getattr(self, "_train_sync_last", 0.0)
+        # ~every 3 minutes while collector runs
+        if (now - last) < 180:
+            return
+        self._train_sync_last = now
+        script = Path(__file__).resolve().parent / "sync_train_from_tr1_logs.py"
+        if not script.is_file():
+            return
+        _safe_print("TR1 train sync start (background)", flush=True)
+        try:
+            log_path = Path(__file__).resolve().parent / "_tmp_train_tr1_sync.log"
+            log_f = open(log_path, "a", encoding="utf-8")
+            subprocess.Popen(
+                [sys.executable, str(script)],
+                cwd=str(script.parent),
+                stdout=log_f,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+                env={
+                    **os.environ,
+                    "TR1_LOG_CACHE": str(
+                        Path(__file__).resolve().parent / "_tmp_tr1_logs_cache"
+                    ),
+                },
+            )
+        except Exception as e:
+            _safe_print(
+                "TR1 train sync error",
                 type(e).__name__,
                 e,
                 file=sys.stderr,

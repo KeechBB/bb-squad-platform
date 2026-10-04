@@ -1,0 +1,305 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Auto-digitize TR1 training matches from logs → KV training JSON + auto MATCHES for RP.
+
+Canon: .cursor/rules/tr1-pb1-auto-canon.mdc
+- start 21:30–00:00 MSK, not Jensen*, layer >10 min, only after map end
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import sys
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import rp_log_parse as R  # noqa: E402
+
+ROOT = HERE.parents[1]
+TRAIN = ROOT / "KV" / "public" / "data" / "training"
+PLAYERS = TRAIN / "players"
+INDEX = ROOT / "KV" / "public" / "data" / "training-index.json"
+AUTO_MATCHES = TRAIN / "_auto_matches.json"
+CACHE = Path(os.environ.get("TR1_LOG_CACHE", str(HERE / "_tmp_tr1_logs_cache")))
+LOOKBACK_DAYS = int(os.environ.get("TR1_LOOKBACK_DAYS", "3"))
+
+
+def msk_hour_ok(start_utc: datetime) -> bool:
+    msk = start_utc + timedelta(hours=3)
+    minutes = msk.hour * 60 + msk.minute
+    # 21:30 inclusive .. 24:00 exclusive
+    return 21 * 60 + 30 <= minutes < 24 * 60
+
+
+def match_id_for(m: dict) -> str:
+    msk = m["start"] + timedelta(hours=3)
+    day = msk.day
+    layer = R.layer_basename(m.get("layer") or m.get("map") or "map")
+    slug = re.sub(r"[^a-z0-9]+", "", layer.lower())[:18] or "map"
+    return f"{day:02d}-{slug}"
+
+
+def load_aliases() -> dict[str, str]:
+    tiers = ROOT / "KV" / "public" / "data" / "tiers.json"
+    out: dict[str, str] = {}
+    if tiers.is_file():
+        t = json.loads(tiers.read_text(encoding="utf-8"))
+        for a, c in (t.get("aliases") or {}).items():
+            out[R.nick_key(str(a))] = R.nick_key(str(c))
+    return out
+
+
+def agg_players(
+    dies: list[dict],
+    wounds: list[dict],
+    revives: list[dict],
+    teams: dict[str, str],
+    disp: dict[str, str],
+) -> tuple[list[dict], list[dict]]:
+    """Build teamA/teamB rows from combat logs."""
+    stats: dict[str, dict] = {}
+
+    def row(k: str, nick: str) -> dict:
+        if k not in stats:
+            stats[k] = {
+                "nick": nick,
+                "res": 0,
+                "nok": 0,
+                "kills": 0,
+                "deaths": 0,
+                "dmg": 0,
+                "team": teams.get(k),
+            }
+        return stats[k]
+
+    for w in wounds:
+        kk, vk = w.get("killerKey"), w.get("victimKey")
+        if not kk or not vk or kk == vk:
+            continue
+        row(kk, w.get("killer") or disp.get(kk, kk))["nok"] += 1
+        row(kk, w.get("killer") or kk)["dmg"] += float(w.get("dmg") or 0)
+        row(vk, w.get("victim") or disp.get(vk, vk))
+        if kk in teams and vk in teams and teams[kk] == teams[vk]:
+            pass  # TK nok still counts as nok for killer
+
+    for d in dies:
+        kk, vk = d.get("killerKey"), d.get("victimKey")
+        if not kk or not vk or kk == vk:
+            continue
+        r_k = row(kk, d.get("killer") or disp.get(kk, kk))
+        r_v = row(vk, d.get("victim") or disp.get(vk, vk))
+        same = kk in teams and vk in teams and teams[kk] == teams[vk]
+        if not same:
+            r_k["kills"] += 1
+            r_k["dmg"] += float(d.get("dmg") or 0)
+        r_v["deaths"] += 1
+
+    for r in revives:
+        kk = R.canon_key(r.get("killer") or "", {})
+        if not kk:
+            continue
+        row(kk, r.get("killer") or kk)["res"] += 1
+
+    a, b = [], []
+    for k, s in stats.items():
+        s["dmg"] = int(round(s["dmg"]))
+        team = s.pop("team", None)
+        if team == "2":
+            b.append(s)
+        else:
+            a.append(s)
+    a.sort(key=lambda x: (-x["kills"], -x["nok"], x["nick"].lower()))
+    b.sort(key=lambda x: (-x["kills"], -x["nok"], x["nick"].lower()))
+    return a, b
+
+
+def upsert_month(match_meta: dict) -> None:
+    month = match_meta["month"]  # YYYY-MM
+    path = TRAIN / f"{month}.json"
+    if path.is_file():
+        data = json.loads(path.read_text(encoding="utf-8"))
+    else:
+        data = {
+            "month": month,
+            "title": f"BlackBerry — тренировочные матчи · {month}",
+            "note": "Авто из логов TR1 (21:30–00:00 МСК, не Jensen*).",
+            "matches": [],
+        }
+    matches = data.setdefault("matches", [])
+    mid = match_meta["id"]
+    matches = [m for m in matches if m.get("id") != mid]
+    matches.append(match_meta["row"])
+    matches.sort(key=lambda m: (m.get("day") or 0, m.get("timeMsk") or ""))
+    data["matches"] = matches
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    if INDEX.is_file():
+        idx = json.loads(INDEX.read_text(encoding="utf-8"))
+    else:
+        idx = {"months": []}
+    months = idx.setdefault("months", [])
+    url = f"data/training/{month}.json"
+    if not any(m.get("url") == url or m.get("id") == month for m in months):
+        y, mo = month.split("-")
+        months.insert(
+            0,
+            {
+                "id": month,
+                "year": int(y),
+                "month": int(mo),
+                "label": month,
+                "url": url,
+            },
+        )
+        INDEX.write_text(json.dumps(idx, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def main() -> int:
+    aliases = load_aliases()
+    if not CACHE.is_dir():
+        print(f"no cache {CACHE}", flush=True)
+        return 0
+    logs = sorted(CACHE.glob("*.log"))
+    if not logs:
+        print("no TR1 logs in cache", flush=True)
+        return 0
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=LOOKBACK_DAYS)
+    discovered = R.discover_matches(logs)
+    auto: list[dict] = []
+    if AUTO_MATCHES.is_file():
+        try:
+            auto = json.loads(AUTO_MATCHES.read_text(encoding="utf-8"))
+            if not isinstance(auto, list):
+                auto = []
+        except Exception:
+            auto = []
+    known_ids = {m.get("id") for m in auto}
+
+    added = 0
+    for m in discovered:
+        start: datetime = m["start"]
+        end: datetime = m["end"]
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+            end = end.replace(tzinfo=timezone.utc)
+        if start < cutoff:
+            continue
+        if not msk_hour_ok(start):
+            continue
+        layer = str(m.get("layer") or m.get("map") or "")
+        if R.is_seed_layer(layer, str(m.get("level") or "")):
+            continue
+        if (end - start).total_seconds() <= 10 * 60:
+            continue
+
+        mid = match_id_for(m)
+        if mid in known_ids:
+            continue
+
+        log_path = Path(m["logPath"]) if m.get("logPath") else CACHE / m.get("log", "")
+        if not log_path.is_file():
+            continue
+        idx = R.index_log_combat(log_path, aliases)
+        steam = dict(idx.get("steam_to_nick") or {})
+        faction_to_team = m.get("factionToTeam") or {}
+        teams = R.teams_in_window(idx, start, end, faction_to_team)
+        dies, _ = R.dies_in_window(idx, start, end, steam, aliases)
+        wounds = R.wounds_in_window(idx, start, end, steam, aliases)
+        revives = R.revives_in_window(idx, start, end)
+        disp = {R.canon_key(n, aliases): n for n in steam.values()}
+        team_a, team_b = agg_players(dies, wounds, revives, teams, disp)
+
+        msk = start + timedelta(hours=3)
+        month = f"{msk.year:04d}-{msk.month:02d}"
+        dur_sec = int((end - start).total_seconds())
+        h, rem = divmod(dur_sec, 3600)
+        mi, s = divmod(rem, 60)
+        duration = f"{h:02d}:{mi:02d}:{s:02d}" if h else f"{mi:02d}:{s:02d}"
+
+        t1 = m.get("score1")
+        t2 = m.get("score2")
+        ftt = m.get("factionToTeam") or {}
+        f1 = next((f for f, t in ftt.items() if str(t) == "1"), "A")
+        f2 = next((f for f, t in ftt.items() if str(t) == "2"), "B")
+        winner_team = str(m.get("winnerTeam") or "")
+        winner = f1 if winner_team == "1" else f2 if winner_team == "2" else "—"
+
+        players_doc = {
+            "matchId": mid,
+            "map": layer,
+            "mode": "AAS" if "AAS" in layer.upper() else ("RAAS" if "RAAS" in layer.upper() else "—"),
+            "server": "Blackberry | Training - Blackberries #1",
+            "duration": duration,
+            "winner": winner,
+            "sideA": {"name": f1, "tickets": int(t1 or 0)},
+            "sideB": {"name": f2, "tickets": int(t2 or 0)},
+            "note": "Авто из логов TR1",
+            "source": "tr1-logs-auto",
+            "teamA": team_a,
+            "teamB": team_b,
+        }
+        PLAYERS.mkdir(parents=True, exist_ok=True)
+        (PLAYERS / f"{mid}.json").write_text(
+            json.dumps(players_doc, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+        row = {
+            "id": mid,
+            "day": msk.day,
+            "timeMsk": msk.strftime("%H:%M"),
+            "map": layer,
+            "mode": players_doc["mode"],
+            "size": "—",
+            "server": players_doc["server"],
+            "duration": duration,
+            "factionA": f1,
+            "ticketsA": int(t1 or 0),
+            "factionB": f2,
+            "ticketsB": int(t2 or 0),
+            "winner": winner,
+            "status": "done",
+            "playersUrl": f"data/training/players/{mid}.json",
+            "source": "tr1-logs-auto",
+        }
+        upsert_month({"id": mid, "month": month, "row": row})
+
+        auto.append(
+            {
+                "id": mid,
+                "map": layer,
+                "date": msk.strftime("%Y-%m-%d"),
+                "log": log_path.name,
+                "start": start.isoformat(),
+                "end": end.isoformat(),
+            }
+        )
+        known_ids.add(mid)
+        added += 1
+        print(f"+ train {mid} {layer} {duration}", flush=True)
+
+    AUTO_MATCHES.write_text(
+        json.dumps(auto, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    print(f"done added={added} auto_matches={len(auto)}", flush=True)
+
+    if added:
+        # Rebuild train RP ledger (includes legacy MATCHES + auto)
+        import subprocess
+
+        subprocess.run(
+            [sys.executable, str(HERE / "build_train_rp_ledger.py")],
+            cwd=str(HERE),
+            check=False,
+        )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

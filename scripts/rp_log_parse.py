@@ -63,10 +63,21 @@ DEPLOY_RE = re.compile(
 SEED_RE = re.compile(r"Seed|SEED|BP_GameStateSquad_Seed|Jensen", re.I)
 
 START_RP = 1000.0
-REVIVE_COEF = 0.6
+REVIVE_COEF = 0.6  # legacy (pre cutover)
 STEP = 150
 RADIANT3_MAX = 4500
 MIN_MATCH_SEC = 8 * 60
+
+# New unified RP formula (TR1 = PB1) — only matches on/after this date (YYYY-MM-DD).
+RP_FORMULA_CUTOVER = "2026-10-05"
+COEF_ENEMY_NOK = 0.1
+COEF_ENEMY_KILL = 1.0
+COEF_REVIVE = 0.7
+COEF_REVIVE_OWN_NOK = 0.2
+COEF_TK_NOK = 0.5
+COEF_TK_KILL_EXTRA = 0.6
+COEF_OWN_DEATH = 1.1
+COEF_BEING_NOKKED = 0.1
 
 RANK_NAMES = [
     ("Iron", "iron"),
@@ -162,11 +173,306 @@ def parse_ts(raw: str) -> datetime:
 
 
 def hunt_delta(pk: float, pv: float, pmax: float) -> float:
+    """N — base points for a full kill from rating gap (≈1–50)."""
     pk = min(max(float(pk), 1.0), pmax)
     pv = min(max(float(pv), 1.0), pmax)
     if pmax <= 1:
         return 25.5
     return 1 + 49 * (pv - pk + pmax - 1) / (2 * (pmax - 1))
+
+
+def use_new_rp_formula(match_date: str) -> bool:
+    return str(match_date or "")[:10] >= RP_FORMULA_CUTOVER
+
+
+def _event_sort_key(e: dict) -> tuple:
+    dt = e.get("at_dt")
+    if dt is not None:
+        return (0, dt.isoformat(), e.get("kind", ""), e.get("at_msk", ""))
+    return (1, e.get("at_msk", ""), e.get("kind", ""))
+
+
+def score_match_rp(
+    *,
+    dies: list[dict],
+    wounds: list[dict],
+    revives: list[dict],
+    teams: dict[str, str],
+    rp: dict[str, float],
+    disp: dict[str, str],
+    aliases: dict[str, str] | None = None,
+    new_formula: bool,
+    pwr_weights: dict[str, float] | None = None,
+) -> tuple[list[dict], dict[str, float], int, int, int, int]:
+    """
+    Apply Die/Wound/Revive to running RP.
+
+    new_formula=False: legacy (Wound=0 RP; Die ±N; TK both −N; revive +N*0.6).
+      Weight = pwr_weights[k] if given else current RP.
+    new_formula=True: canon 05.10.2026 (N×coefs). Weight = current RP always.
+
+    Returns: events, net, die_n, tk_n, rev_n, nok_rp_n
+    """
+    aliases = aliases or {}
+    events: list[dict] = []
+    net: dict[str, float] = {}
+    die_n = tk_n = rev_n = nok_rp_n = 0
+    # victimKey -> killerKey of last enemy/TK wound (for revive own-nok)
+    last_wound_by: dict[str, str] = {}
+
+    def ensure(key: str, nick: str) -> str:
+        ck = aliases.get(key, key)
+        if ck not in disp:
+            disp[ck] = nick
+        rp.setdefault(ck, START_RP)
+        return ck
+
+    def n_base(actor: str, other: str) -> tuple[float, float, float]:
+        pmax = max(rp.values()) if rp else START_RP
+        pmax = max(pmax, START_RP)
+        if pwr_weights is not None and not new_formula:
+            pk = float(pwr_weights.get(actor, 250.0))
+            pv = float(pwr_weights.get(other, 250.0))
+            pmax_w = max(list(pwr_weights.values()) + [START_RP]) if pwr_weights else START_RP
+            return hunt_delta(pk, pv, pmax_w), pk, pv
+        pk = rp.get(actor, START_RP)
+        pv = rp.get(other, START_RP)
+        return hunt_delta(pk, pv, pmax), pk, pv
+
+    def apply_delta(key: str, signed: float) -> None:
+        rp[key] = rp.get(key, START_RP) + signed
+        net[key] = round(net.get(key, 0.0) + signed, 2)
+
+    def same_team(a: str, b: str) -> bool:
+        return a in teams and b in teams and teams[a] == teams[b]
+
+    if not new_formula:
+        # --- legacy path (matches before cutover) ---
+        for d in dies:
+            kk, vk = d.get("killerKey"), d.get("victimKey")
+            if not kk or not vk or kk == vk or str(kk).startswith("?"):
+                continue
+            kk = ensure(kk, d.get("killer") or kk)
+            vk = ensure(vk, d.get("victim") or vk)
+            n, pk, pv = n_base(kk, vk)
+            delta = round(n, 2)
+            if same_team(kk, vk):
+                apply_delta(kk, -delta)
+                apply_delta(vk, -delta)
+                events.append(
+                    {
+                        "kind": "tk",
+                        "time": d.get("at_msk"),
+                        "killer": disp[kk],
+                        "victim": disp[vk],
+                        "killerPwr": round(pk, 1),
+                        "victimPwr": round(pv, 1),
+                        "delta": delta,
+                        "teamkill": True,
+                        "formula": "legacy",
+                    }
+                )
+                tk_n += 1
+            else:
+                apply_delta(kk, +delta)
+                apply_delta(vk, -delta)
+                events.append(
+                    {
+                        "kind": "die",
+                        "time": d.get("at_msk"),
+                        "killer": disp[kk],
+                        "victim": disp[vk],
+                        "killerPwr": round(pk, 1),
+                        "victimPwr": round(pv, 1),
+                        "delta": delta,
+                        "teamkill": False,
+                        "formula": "legacy",
+                    }
+                )
+                die_n += 1
+        for d in revives:
+            kk = canon_key(d.get("killer") or "", aliases)
+            vk = canon_key(d.get("victim") or "", aliases)
+            if not kk or not vk or kk == vk or kk.startswith("?"):
+                continue
+            kk = ensure(kk, d.get("killer") or kk)
+            vk = ensure(vk, d.get("victim") or vk)
+            n, pk, pv = n_base(kk, vk)
+            delta = round(n * REVIVE_COEF, 2)
+            apply_delta(kk, +delta)
+            net.setdefault(vk, 0.0)
+            events.append(
+                {
+                    "kind": "revive",
+                    "time": d.get("at_msk"),
+                    "killer": disp[kk],
+                    "victim": disp[vk],
+                    "killerPwr": round(pk, 1),
+                    "victimPwr": round(pv, 1),
+                    "delta": delta,
+                    "formula": "legacy",
+                }
+            )
+            rev_n += 1
+        for d in wounds:
+            events.append(
+                {
+                    "kind": "nok",
+                    "time": d.get("at_msk"),
+                    "killer": d.get("killer"),
+                    "victim": d.get("victim"),
+                    "delta": 0,
+                    "teamkill": same_team(
+                        aliases.get(d.get("killerKey") or "", d.get("killerKey") or ""),
+                        aliases.get(d.get("victimKey") or "", d.get("victimKey") or ""),
+                    ),
+                    "formula": "legacy",
+                }
+            )
+        events.sort(key=lambda e: e.get("time") or "")
+        return events, net, die_n, tk_n, rev_n, 0
+
+    # --- new formula (cutover+) — chronological ---
+    timeline: list[dict] = []
+    for d in wounds:
+        timeline.append({**d, "kind": "wound"})
+    for d in dies:
+        timeline.append({**d, "kind": "die"})
+    for d in revives:
+        at_dt = d.get("at_dt") or d.get("at")
+        at_msk = d.get("at_msk")
+        if not at_msk and at_dt is not None:
+            try:
+                at_msk = (at_dt + timedelta(hours=3)).strftime("%H:%M:%S")
+            except Exception:
+                at_msk = ""
+        timeline.append(
+            {
+                "kind": "revive",
+                "killer": d.get("killer"),
+                "victim": d.get("victim"),
+                "killerKey": canon_key(d.get("killer") or "", aliases),
+                "victimKey": canon_key(d.get("victim") or "", aliases),
+                "at_msk": at_msk,
+                "at_dt": at_dt,
+            }
+        )
+    timeline.sort(key=_event_sort_key)
+
+    for d in timeline:
+        kind = d["kind"]
+        kk, vk = d.get("killerKey"), d.get("victimKey")
+        if not kk or not vk or kk == vk or str(kk).startswith("?"):
+            continue
+        kk = ensure(kk, d.get("killer") or kk)
+        vk = ensure(vk, d.get("victim") or vk)
+        n, pk, pv = n_base(kk, vk)
+        tk = same_team(kk, vk)
+
+        if kind == "wound":
+            last_wound_by[vk] = kk
+            if tk:
+                delta_k = round(n * COEF_TK_NOK, 2)
+                apply_delta(kk, -delta_k)
+                events.append(
+                    {
+                        "kind": "nok",
+                        "time": d.get("at_msk"),
+                        "killer": disp[kk],
+                        "victim": disp[vk],
+                        "killerRp": round(pk, 1),
+                        "victimRp": round(pv, 1),
+                        "delta": delta_k,
+                        "teamkill": True,
+                        "formula": "v2",
+                    }
+                )
+            else:
+                delta_k = round(n * COEF_ENEMY_NOK, 2)
+                delta_v = round(n * COEF_BEING_NOKKED, 2)
+                apply_delta(kk, +delta_k)
+                apply_delta(vk, -delta_v)
+                events.append(
+                    {
+                        "kind": "nok",
+                        "time": d.get("at_msk"),
+                        "killer": disp[kk],
+                        "victim": disp[vk],
+                        "killerRp": round(pk, 1),
+                        "victimRp": round(pv, 1),
+                        "delta": delta_k,
+                        "victimDelta": delta_v,
+                        "teamkill": False,
+                        "formula": "v2",
+                    }
+                )
+            nok_rp_n += 1
+
+        elif kind == "die":
+            if tk:
+                delta_k = round(n * COEF_TK_KILL_EXTRA, 2)
+                delta_v = round(n * COEF_OWN_DEATH, 2)
+                apply_delta(kk, -delta_k)
+                apply_delta(vk, -delta_v)
+                events.append(
+                    {
+                        "kind": "tk",
+                        "time": d.get("at_msk"),
+                        "killer": disp[kk],
+                        "victim": disp[vk],
+                        "killerRp": round(pk, 1),
+                        "victimRp": round(pv, 1),
+                        "delta": delta_k,
+                        "victimDelta": delta_v,
+                        "teamkill": True,
+                        "formula": "v2",
+                    }
+                )
+                tk_n += 1
+            else:
+                delta_k = round(n * COEF_ENEMY_KILL, 2)
+                delta_v = round(n * COEF_OWN_DEATH, 2)
+                apply_delta(kk, +delta_k)
+                apply_delta(vk, -delta_v)
+                events.append(
+                    {
+                        "kind": "die",
+                        "time": d.get("at_msk"),
+                        "killer": disp[kk],
+                        "victim": disp[vk],
+                        "killerRp": round(pk, 1),
+                        "victimRp": round(pv, 1),
+                        "delta": delta_k,
+                        "victimDelta": delta_v,
+                        "teamkill": False,
+                        "formula": "v2",
+                    }
+                )
+                die_n += 1
+
+        elif kind == "revive":
+            own_nok = last_wound_by.get(vk) == kk
+            coef = COEF_REVIVE_OWN_NOK if own_nok else COEF_REVIVE
+            delta = round(n * coef, 2)
+            apply_delta(kk, +delta)
+            net.setdefault(vk, 0.0)
+            events.append(
+                {
+                    "kind": "revive",
+                    "time": d.get("at_msk"),
+                    "killer": disp[kk],
+                    "victim": disp[vk],
+                    "killerRp": round(pk, 1),
+                    "victimRp": round(pv, 1),
+                    "delta": delta,
+                    "ownNokRevive": own_nok,
+                    "formula": "v2",
+                }
+            )
+            rev_n += 1
+
+    events.sort(key=lambda e: e.get("time") or "")
+    return events, net, die_n, tk_n, rev_n, nok_rp_n
 
 
 def rp_rank(rp: float) -> dict:

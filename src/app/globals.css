@@ -493,8 +493,18 @@ svg {
 }
 
 .public-match-winner {
+  color: var(--muted, #9b93b0);
+  font-weight: 600;
+}
+
+.public-match-score.is-win {
   color: #4ade80;
-  font-weight: 700;
+  font-weight: 800;
+}
+
+.public-match-score.is-lose {
+  color: #f87171;
+  font-weight: 800;
 }
 
 .public-rating-card {

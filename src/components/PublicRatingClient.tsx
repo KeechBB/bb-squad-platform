@@ -649,6 +649,8 @@ export function PublicRatingClient({
                         m.winnerTeam === 1
                           ? m.faction1Side || m.winnerName
                           : m.faction2Side || m.winnerName;
+                      const s1Win = m.winnerTeam === 1;
+                      const s2Win = m.winnerTeam === 2;
                       return (
                         <tr key={m.id}>
                           <td className="ctr">{p.date}</td>
@@ -660,11 +662,31 @@ export function PublicRatingClient({
                           <td className="ctr" title={m.faction1}>
                             {f1}
                           </td>
-                          <td className="ctr">{m.score1}</td>
+                          <td
+                            className={`ctr public-match-score ${
+                              s1Win
+                                ? "is-win"
+                                : s2Win
+                                  ? "is-lose"
+                                  : ""
+                            }`}
+                          >
+                            {m.score1}
+                          </td>
                           <td className="ctr" title={m.faction2}>
                             {f2}
                           </td>
-                          <td className="ctr">{m.score2}</td>
+                          <td
+                            className={`ctr public-match-score ${
+                              s2Win
+                                ? "is-win"
+                                : s1Win
+                                  ? "is-lose"
+                                  : ""
+                            }`}
+                          >
+                            {m.score2}
+                          </td>
                           <td className="ctr">
                             <span className="public-match-winner">{winLabel}</span>
                           </td>

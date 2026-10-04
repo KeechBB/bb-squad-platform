@@ -488,21 +488,10 @@ def process_match(
             noks.append(d)
     revives = R.revives_in_window(idx, t0, t1)
 
-    events: list[dict] = []
-    net: dict[str, float] = {}
     dmg_by: dict[str, float] = {}
     combatants: set[str] = set()
-    die_n = tk_n = rev_n = 0
-
-    def ensure(key: str, nick: str) -> None:
-        ck = aliases.get(key, key)
-        if ck not in disp:
-            disp[ck] = nick
-        rp.setdefault(ck, R.START_RP)
-        combatants.add(ck)
 
     def wound_covers_kill(kk: str, vk: str, kill_at) -> bool:
-        """True if a Wound from same killer→victim precedes give-up (dmg already on nok)."""
         if kill_at is None:
             return False
         for w in wound_noks:
@@ -516,125 +505,50 @@ def process_match(
                 return True
         return False
 
-    for d in dies:
-        kk, vk = d["killerKey"], d["victimKey"]
-        if not kk or not vk or kk == vk or kk.startswith("?"):
-            continue
-        ensure(kk, d["killer"])
-        ensure(vk, d["victim"])
-        dmg = float(d.get("dmg") or 0)
-        pmax = max(rp.values()) if rp else R.START_RP
-        pmax = max(pmax, R.START_RP)
-        pk = rp.get(kk, R.START_RP)
-        pv = rp.get(vk, R.START_RP)
-        delta = round(R.hunt_delta(pk, pv, pmax), 2)
-        same_team = kk in teams and vk in teams and teams[kk] == teams[vk]
-        if same_team:
-            # TK: RP penalty only. Never add TK KillingDamage to combat score.
-            rp[kk] = rp.get(kk, R.START_RP) - delta
-            rp[vk] = rp.get(vk, R.START_RP) - delta
-            net[kk] = round(net.get(kk, 0.0) - delta, 2)
-            net[vk] = round(net.get(vk, 0.0) - delta, 2)
-            events.append(
-                {
-                    "kind": "tk",
-                    "time": d["at_msk"],
-                    "killer": disp[kk],
-                    "victim": disp[vk],
-                    "killerPwr": round(pk, 1),
-                    "victimPwr": round(pv, 1),
-                    "delta": delta,
-                    "dmg": dmg,
-                    "teamkill": True,
-                }
-            )
-            tk_n += 1
-        else:
-            # Combat dmg: Die only if no prior Wound (else Wound already counted).
-            if not wound_covers_kill(kk, vk, d.get("at_dt")):
-                dmg_by[kk] = round(dmg_by.get(kk, 0.0) + dmg)
-            rp[kk] = rp.get(kk, R.START_RP) + delta
-            rp[vk] = rp.get(vk, R.START_RP) - delta
-            net[kk] = round(net.get(kk, 0.0) + delta, 2)
-            net[vk] = round(net.get(vk, 0.0) - delta, 2)
-            events.append(
-                {
-                    "kind": "die",
-                    "time": d["at_msk"],
-                    "killer": disp[kk],
-                    "victim": disp[vk],
-                    "killerPwr": round(pk, 1),
-                    "victimPwr": round(pv, 1),
-                    "delta": delta,
-                    "dmg": dmg,
-                    "teamkill": False,
-                }
-            )
-            die_n += 1
-
+    # Combat score (dmg): enemy Wound / soft Die — TK never. Unchanged by RP formula.
     for d in noks:
         kk, vk = d["killerKey"], d["victimKey"]
         if not kk or not vk or kk == vk or kk.startswith("?"):
             continue
-        ensure(kk, d["killer"])
-        ensure(vk, d["victim"])
-        net.setdefault(kk, 0.0)
-        net.setdefault(vk, 0.0)
-        dmg = float(d.get("dmg") or 0)
+        combatants.add(aliases.get(kk, kk))
+        combatants.add(aliases.get(vk, vk))
         same_team = kk in teams and vk in teams and teams[kk] == teams[vk]
-        # Combat score: enemy downs (Wound / soft Die). TK never counts.
         if not same_team:
-            dmg_by[kk] = round(dmg_by.get(kk, 0.0) + dmg)
-        events.append(
-            {
-                "kind": "nok",
-                "time": d["at_msk"],
-                "killer": disp.get(kk, d["killer"]),
-                "victim": disp.get(vk, d["victim"]),
-                "delta": 0,
-                "dmg": dmg,
-                "teamkill": same_team,
-            }
-        )
-
-    for d in revives:
-        kk = R.canon_key(d["killer"], aliases)
-        vk = R.canon_key(d["victim"], aliases)
+            dmg_by[kk] = round(dmg_by.get(kk, 0.0) + float(d.get("dmg") or 0))
+    for d in dies:
+        kk, vk = d["killerKey"], d["victimKey"]
         if not kk or not vk or kk == vk or kk.startswith("?"):
             continue
-        ensure(kk, d["killer"])
-        ensure(vk, d["victim"])
-        pmax = max(rp.values()) if rp else R.START_RP
-        pmax = max(pmax, R.START_RP)
-        pk = rp.get(kk, R.START_RP)
-        pv = rp.get(vk, R.START_RP)
-        delta = round(R.hunt_delta(pk, pv, pmax) * R.REVIVE_COEF, 2)
-        rp[kk] = rp.get(kk, R.START_RP) + delta
-        net[kk] = round(net.get(kk, 0.0) + delta, 2)
-        net.setdefault(vk, 0.0)
-        events.append(
-            {
-                "kind": "revive",
-                "time": d["at_msk"],
-                "killer": disp[kk],
-                "victim": disp[vk],
-                "killerPwr": round(pk, 1),
-                "victimPwr": round(pv, 1),
-                "delta": delta,
-            }
-        )
-        rev_n += 1
+        combatants.add(aliases.get(kk, kk))
+        combatants.add(aliases.get(vk, vk))
+        same_team = kk in teams and vk in teams and teams[kk] == teams[vk]
+        if not same_team and not wound_covers_kill(kk, vk, d.get("at_dt")):
+            dmg_by[kk] = round(dmg_by.get(kk, 0.0) + float(d.get("dmg") or 0))
 
-    events.sort(key=lambda e: e["time"])
+    new_f = R.use_new_rp_formula(str(m.get("date") or ""))
+    events, net, die_n, tk_n, rev_n, _nok_rp = R.score_match_rp(
+        dies=dies,
+        wounds=noks,
+        revives=revives,
+        teams=teams,
+        rp=rp,
+        disp=disp,
+        aliases=aliases,
+        new_formula=new_f,
+    )
     winner = m.get("winnerTeam")
 
     for k in combatants:
-        rp.setdefault(k, R.START_RP)
-        net.setdefault(k, 0.0)
+        ck = aliases.get(k, k)
+        rp.setdefault(ck, R.START_RP)
+        net.setdefault(ck, 0.0)
+        if ck not in disp:
+            disp[ck] = k
 
     nok_n = sum(1 for e in events if e.get("kind") == "nok")
     print(
         f"{m['id']}: {die_n} Die, {tk_n} TK, {rev_n} rev, nok={nok_n}, "
+        f"formula={'v2' if new_f else 'legacy'}, "
         f"teams={len(teams)}, players={len(combatants)}",
         flush=True,
     )
@@ -824,14 +738,16 @@ def main() -> None:
         "historyOnly": True,
         "epoch": PUBLIC_RP_EPOCH,
         "formula": (
-            "delta=1+49*(Pv-Pk+Pmax-1)/(2*(Pmax-1)); "
-            "Pk/Pv=current public RP; final Die(+Inactive): enemy zero-sum; "
-            "TK both -delta; Revive medic +delta*0.6; Wound/nok=0 RP; "
-            "combat dmg=KillingDamage enemy Wound(+Die if no prior Wound); "
-            "nok=Wound downs; kill=Die+Inactive give-up; TK dmg excluded; "
-            "only PublicMatch history since epoch"
+            f"N=1+49*(Pv-Pk+Pmax-1)/(2*(Pmax-1)); Pk/Pv=current public RP; "
+            f"cutover>={R.RP_FORMULA_CUTOVER}: enemy nok +N*{R.COEF_ENEMY_NOK}/victim -N*{R.COEF_BEING_NOKKED}; "
+            f"enemy kill +N*{R.COEF_ENEMY_KILL}/victim -N*{R.COEF_OWN_DEATH}; "
+            f"revive +N*{R.COEF_REVIVE} (own-nok +N*{R.COEF_REVIVE_OWN_NOK}); "
+            f"TK nok -N*{R.COEF_TK_NOK} + kill extra -N*{R.COEF_TK_KILL_EXTRA}; "
+            f"legacy before cutover: Die±N, TK both -N, revive N*{R.REVIVE_COEF}, Wound=0 RP; "
+            "combat dmg=KillingDamage enemy Wound(+Die if no prior Wound); TK dmg excluded"
         ),
-        "reviveCoef": R.REVIVE_COEF,
+        "formulaCutover": R.RP_FORMULA_CUTOVER,
+        "reviveCoef": R.COEF_REVIVE,
         "pMax": round(pmax, 1),
         "matches": public_matches,
         "players": players_out,
