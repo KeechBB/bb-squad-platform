@@ -171,6 +171,8 @@ for _am in _load_auto_matches():
     if _am["id"] not in _seen_match_ids:
         MATCHES.append(_am)
         _seen_match_ids.add(_am["id"])
+# RP weights depend on prior RP — always process in real time order
+MATCHES.sort(key=lambda m: m["start"])
 
 RANK_NAMES = [
     ("Iron", "iron"),

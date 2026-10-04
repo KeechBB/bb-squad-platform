@@ -843,6 +843,25 @@ def _faction_initials(faction: str) -> str:
     return "".join(w[0] for w in parts if w[0].isalpha()).upper()
 
 
+# DeployRole pawn prefixes that initials() miss (PNMC≠PLANMC, RAF≠VDV, …)
+_FACTION_ROLE_PREFIXES: dict[str, tuple[str, ...]] = {
+    "pla navy marine corps": ("PLANMC", "PLA"),
+    "people's liberation army": ("PLA",),
+    "russian airborne forces": ("VDV",),
+    "russian ground forces": ("RGF",),
+    "united states marine corps": ("USMC",),
+    "united states army": ("USA", "US"),
+    "canadian armed forces": ("CAF",),
+    "western private military contractors": ("WPMC",),
+    "british army": ("BA", "GB"),
+    "australian defence force": ("ADF",),
+    "middle eastern alliance": ("MEA",),
+    "insurgent forces": ("INS",),
+    "irregular militia forces": ("IMF",),
+    "ukraine": ("AFU",),
+}
+
+
 def teams_in_window(
     idx: dict,
     t0: datetime,
@@ -865,6 +884,13 @@ def teams_in_window(
         for w in re.split(r"[\s\-]+", faction):
             if len(w) >= 2 and w.isupper():
                 prefix_team[w.upper()] = team
+        fk = re.sub(r"\s+", " ", faction.strip().lower())
+        for pref in _FACTION_ROLE_PREFIXES.get(fk, ()):
+            prefix_team[pref] = team
+        for known, prefs in _FACTION_ROLE_PREFIXES.items():
+            if known in fk or fk in known:
+                for pref in prefs:
+                    prefix_team[pref] = team
 
     def faction_team(faction: str) -> str | None:
         f = re.sub(r"\s+", " ", (faction or "").strip().lower())
