@@ -28,6 +28,101 @@ CACHE = Path(os.environ.get("TR1_LOG_CACHE", str(HERE / "_tmp_tr1_logs_cache")))
 LOOKBACK_DAYS = int(os.environ.get("TR1_LOOKBACK_DAYS", "3"))
 
 
+def _load_collector_env() -> dict[str, str]:
+    out: dict[str, str] = {}
+    for p in (
+        HERE / ".squad-collector.env.run",
+        HERE / ".squad-collector.env",
+        HERE.parent / ".env",
+    ):
+        if not p.is_file():
+            continue
+        for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, _, v = line.partition("=")
+            k, v = k.strip(), v.strip().strip('"').strip("'")
+            if k and k not in out:
+                out[k] = v
+                os.environ.setdefault(k, v)
+    return out
+
+
+def sync_tr1_logs_via_ssh() -> list[Path]:
+    """Download current TR1 SquadGame.log + recent backups into CACHE."""
+    env = _load_collector_env()
+    try:
+        import paramiko
+    except ImportError as e:
+        local = sorted(CACHE.glob("*.log"))
+        if local:
+            print(f"paramiko missing ({e}) — using local TR1 cache", flush=True)
+            return local
+        print(f"paramiko missing and no TR1 cache: {e}", flush=True)
+        return []
+
+    host = env.get("SQUAD_SSH_HOST")
+    user = env.get("SQUAD_SSH_USER")
+    password = env.get("SQUAD_SSH_PASSWORD")
+    if not host or not user or not password:
+        print("SSH env missing — using local TR1 cache only", flush=True)
+        return sorted(CACHE.glob("*.log"))
+
+    import time
+
+    port = int(env.get("SQUAD_SSH_PORT") or "2022")
+    root = (env.get("SQUAD_LOG_ROOT") or "/home/squad/servers").rstrip("/")
+    remote_dir = f"{root}/TR1/SquadGame/Saved/Logs"
+    CACHE.mkdir(parents=True, exist_ok=True)
+
+    last_err: Exception | None = None
+    for attempt in range(4):
+        transport = None
+        try:
+            transport = paramiko.Transport((host, port))
+            transport.banner_timeout = 120
+            transport.connect(username=user, password=password)
+            sftp = paramiko.SFTPClient.from_transport(transport)
+            assert sftp is not None
+            names = sftp.listdir(remote_dir)
+            backups = sorted(
+                [
+                    n
+                    for n in names
+                    if n.startswith("SquadGame-backup-") and n.endswith(".log")
+                ],
+                reverse=True,
+            )[:3]
+            for name in ["SquadGame.log"] + backups:
+                rpath = f"{remote_dir}/{name}"
+                lpath = CACHE / name
+                try:
+                    st = sftp.stat(rpath)
+                    if lpath.is_file() and lpath.stat().st_size == st.st_size:
+                        continue
+                    print(f"TR1 sftp ← {name} ({st.st_size})", flush=True)
+                    sftp.get(rpath, str(lpath))
+                except Exception as e:
+                    print(f"TR1 skip {name}: {e}", flush=True)
+            sftp.close()
+            transport.close()
+            break
+        except Exception as e:
+            last_err = e
+            print(f"TR1 ssh fail {attempt+1}: {type(e).__name__}: {e}", flush=True)
+            try:
+                if transport:
+                    transport.close()
+            except Exception:
+                pass
+            time.sleep(2 + attempt)
+    else:
+        print(f"TR1 ssh gave up: {last_err}", flush=True)
+
+    return sorted(CACHE.glob("*.log"))
+
+
 def msk_hour_ok(start_utc: datetime) -> bool:
     msk = start_utc + timedelta(hours=3)
     minutes = msk.hour * 60 + msk.minute
@@ -161,13 +256,17 @@ def upsert_month(match_meta: dict) -> None:
 
 def main() -> int:
     aliases = load_aliases()
-    if not CACHE.is_dir():
-        print(f"no cache {CACHE}", flush=True)
-        return 0
-    logs = sorted(CACHE.glob("*.log"))
+    print("=== sync TR1 logs ===", flush=True)
+    logs = sync_tr1_logs_via_ssh()
+    if not logs:
+        if not CACHE.is_dir():
+            print(f"no cache {CACHE}", flush=True)
+            return 0
+        logs = sorted(CACHE.glob("*.log"))
     if not logs:
         print("no TR1 logs in cache", flush=True)
         return 0
+    print(f"TR1 logs: {len(logs)} {[p.name for p in logs[:8]]}", flush=True)
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=LOOKBACK_DAYS)
     discovered = R.discover_matches(logs)
