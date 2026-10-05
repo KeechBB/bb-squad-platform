@@ -693,6 +693,33 @@ export function ClanDetailClient({
     }
   }
 
+  async function syncAutoStacks() {
+    setError("");
+    setOk("");
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/clans/${clan.id}/squads`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "sync" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || data.message || "Не удалось пересчитать составы");
+        return;
+      }
+      setOk(
+        `Составы обновлены: Main ${data.main?.length ?? "—"} · Junior ${data.junior?.length ?? "—"}`
+      );
+      await refreshSquads();
+      await refreshMembers();
+    } catch {
+      setError("Сеть недоступна");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function setSquadMember(
     squadId: string,
     userId: string,
@@ -1236,14 +1263,26 @@ export function ClanDetailClient({
             <>
               <p className="muted" style={{ marginTop: 0 }}>
                 Main и Junior собираются <strong>автоматически</strong> по сыгранным
-                КВ: кто чаще играет за состав — туда и попадает. После каждой КВ
-                агент пересчитывает списки. Ручное добавление отключено.
+                КВ: кто чаще играет за состав — туда и попадает. Ручное добавление
+                отключено.
               </p>
               {stackCommand ? (
                 <p style={{ marginTop: 8 }}>
                   Оба состава — клан <strong>BlackBerry</strong>. Руководитель
                   обоих: <strong>{stackCommand.overallLead}</strong>.
                 </p>
+              ) : null}
+              {canManage ? (
+                <div className="clan-invite-row" style={{ marginTop: 12 }}>
+                  <button
+                    type="button"
+                    className="btn primary"
+                    disabled={loading}
+                    onClick={() => void syncAutoStacks()}
+                  >
+                    Пересчитать составы по КВ
+                  </button>
+                </div>
               ) : null}
             </>
           ) : (
