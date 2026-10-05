@@ -5696,15 +5696,10 @@ body:has(.home-page) {
 .home-cal-cell.is-lose::before { background: #f87171; }
 .home-cal-cell.is-draw::before { background: #fbbf24; }
 .home-cal-cell.is-upcoming::before { background: #c4b5fd; }
+.home-cal-cell.is-cancel::before { background: #eab308; }
 .home-cal-cell.is-cancel.has-match {
-  background: linear-gradient(160deg, #fde047 0%, #eab308 100%);
-  border-color: #facc15;
-}
-
-.home-cal-cell.is-cancel .home-cal-num,
-.home-cal-cell.is-cancel .home-cal-time {
-  color: #1c1404;
-  text-shadow: none;
+  border-color: rgba(234, 179, 8, 0.34);
+  background: linear-gradient(165deg, rgba(72, 54, 16, 0.5), rgba(10, 8, 18, 0.62));
 }
 
 .home-cal-stamp {
