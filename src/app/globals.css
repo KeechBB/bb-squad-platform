@@ -5319,11 +5319,11 @@ body:has(.home-page) {
 
 .home-layout > .home-ops-board:not(.home-mvp-board):not(.home-tier-board) {
   grid-area: cal;
-  align-self: stretch;
+  align-self: start;
   min-width: 0;
-  height: 100%;
-  max-height: 100%;
-  overflow: auto;
+  height: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 .home-layout > .home-mvp-board {
@@ -5458,9 +5458,8 @@ body:has(.home-page) {
 }
 
 .home-cal-grid {
-  flex: 1 1 auto;
-  min-height: 0;
-  grid-auto-rows: minmax(72px, 1fr);
+  flex: 0 0 auto;
+  grid-auto-rows: 68px;
 }
 
 .home-cal-cell {
