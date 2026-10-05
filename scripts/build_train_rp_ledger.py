@@ -674,7 +674,10 @@ def main() -> None:
 
     public_matches = []
     for mb in match_blocks:
-        public_matches.append({k: v for k, v in mb.items() if k != "netByKey"})
+        # Pages-safe: omit shared match.events (huge); per-player matches keep events.
+        public_matches.append(
+            {k: v for k, v in mb.items() if k not in ("netByKey", "events")}
+        )
 
     ledger = {
         "version": 3,
