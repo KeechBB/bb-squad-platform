@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import { Providers } from "@/components/Providers";
 import { AuthBar } from "@/components/AuthBar";
 import { SiteNav } from "@/components/SiteNav";
@@ -31,6 +32,17 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const h = await headers();
+  const gateOnly = h.get("x-bb-staging-gate") === "1";
+
+  if (gateOnly) {
+    return (
+      <html lang="ru">
+        <body className="stg-gate-body">{children}</body>
+      </html>
+    );
+  }
+
   const session = await getSession();
   const showClanSections =
     Boolean(session?.user?.steamId) &&

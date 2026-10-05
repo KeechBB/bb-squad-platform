@@ -12266,3 +12266,116 @@ body.profile-match-modal-open {
   border-bottom: 1px solid rgba(167, 139, 250, 0.1);
 }
 
+/* —— Staging password gate —— */
+.stg-gate-body {
+  margin: 0;
+  min-height: 100vh;
+  background: #0a0c10;
+  color: #e8eaef;
+  font-family: Manrope, system-ui, sans-serif;
+}
+.stg-gate {
+  position: relative;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  overflow: hidden;
+}
+.stg-gate-blur {
+  position: absolute;
+  inset: -40px;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 30%, rgba(180, 40, 40, 0.35), transparent 55%),
+    radial-gradient(ellipse 70% 45% at 80% 70%, rgba(40, 80, 140, 0.3), transparent 50%),
+    linear-gradient(160deg, #12151c 0%, #0a0c10 50%, #151018 100%);
+  filter: blur(28px) saturate(1.2);
+  transform: scale(1.08);
+  pointer-events: none;
+}
+.stg-gate-veil {
+  position: absolute;
+  inset: 0;
+  background: rgba(6, 8, 12, 0.55);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  pointer-events: none;
+}
+.stg-gate-card {
+  position: relative;
+  z-index: 2;
+  width: min(400px, 100%);
+  padding: 28px 26px 24px;
+  border-radius: 14px;
+  background: rgba(18, 22, 30, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+.stg-gate-eyebrow {
+  margin: 0 0 8px;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #c45c5c;
+  font-family: Oxanium, Manrope, sans-serif;
+  font-weight: 600;
+}
+.stg-gate-title {
+  margin: 0 0 10px;
+  font-size: 1.55rem;
+  font-family: Oxanium, Manrope, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.stg-gate-sub {
+  margin: 0 0 20px;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: rgba(232, 234, 239, 0.72);
+}
+.stg-gate-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.8rem;
+  color: rgba(232, 234, 239, 0.65);
+}
+.stg-gate-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font-size: 1rem;
+  outline: none;
+}
+.stg-gate-input:focus {
+  border-color: rgba(196, 92, 92, 0.7);
+}
+.stg-gate-error {
+  margin: 10px 0 0;
+  color: #f07178;
+  font-size: 0.88rem;
+}
+.stg-gate-btn {
+  margin-top: 16px;
+  width: 100%;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: #9e2b2b;
+  color: #fff;
+  font-family: Oxanium, Manrope, sans-serif;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.stg-gate-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.stg-gate-btn:not(:disabled):hover {
+  background: #b53535;
+}
+

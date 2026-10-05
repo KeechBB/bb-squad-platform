@@ -88,6 +88,8 @@ bash /var/www/bb-squad-platform-staging/scripts/refresh-staging-db.sh
 
 Сэкономить RAM, когда черновик не нужен: `pm2 stop bb-squad-staging` (потом `pm2 start bb-squad-staging`).
 
+**Пароль на вход в черновик:** на staging включён gate (`STAGING_GATE_ENABLED=1` + `STAGING_GATE_PASSWORD` в `.env` staging). Без пароля — только окно входа, API/страницы закрыты. На проде эти переменные не ставить.
+
 Steam: если логин на staging ломается — в Steam API Key Domain оставь `bb-squad.ru` (часто хватает) или добавь `staging.bb-squad.ru`.
 
 ### Локальный кэш KV (ускорение)
