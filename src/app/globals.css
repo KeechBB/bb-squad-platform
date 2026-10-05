@@ -5485,7 +5485,7 @@ body:has(.home-page) {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  cursor: pointer;
+  cursor: default;
   overflow: hidden;
   transition:
     border-color 0.16s ease,
@@ -5536,7 +5536,35 @@ body:has(.home-page) {
 .home-cal-cell.is-lose::before { background: #f87171; }
 .home-cal-cell.is-draw::before { background: #fbbf24; }
 .home-cal-cell.is-upcoming::before { background: #c4b5fd; }
-.home-cal-cell.is-cancel::before { background: #94a3b8; }
+.home-cal-cell.is-cancel.has-match {
+  background: linear-gradient(160deg, #fde047 0%, #eab308 100%);
+  border-color: #facc15;
+}
+
+.home-cal-cell.is-cancel .home-cal-num,
+.home-cal-cell.is-cancel .home-cal-time {
+  color: #1c1404;
+  text-shadow: none;
+}
+
+.home-cal-stamp {
+  position: absolute;
+  left: 50%;
+  top: 54%;
+  z-index: 2;
+  width: 145%;
+  transform: translate(-50%, -50%) rotate(-34deg);
+  text-align: center;
+  font-size: 0.92rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  color: #dc2626;
+  white-space: nowrap;
+  pointer-events: none;
+  -webkit-text-stroke: 3px #fff;
+  paint-order: stroke fill;
+}
 
 .home-cal-cell.is-win.has-match {
   background: linear-gradient(165deg, rgba(16, 58, 42, 0.55), rgba(10, 8, 18, 0.62));
@@ -5590,63 +5618,97 @@ body:has(.home-page) {
 }
 
 .home-cal-time {
-  font-size: 0.62rem;
+  font-size: 0.68rem;
+  font-weight: 800;
   letter-spacing: 0.02em;
-  color: rgba(210, 200, 235, 0.72);
+  color: #fde047;
   font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 8px rgba(253, 224, 71, 0.35);
 }
 
-.home-cal-games {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
+.home-cal-cell.is-featured {
+  border-color: #fde047;
+  animation: home-cal-hq 2.2s ease-in-out infinite;
 }
 
-.home-cal-game {
+@keyframes home-cal-hq {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(253, 224, 71, 0.75),
+      0 0 14px rgba(250, 204, 21, 0.35);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px rgba(253, 224, 71, 1),
+      0 0 22px rgba(250, 204, 21, 0.75);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-cal-cell.is-featured {
+    animation: none;
+    box-shadow:
+      0 0 0 2px rgba(253, 224, 71, 0.9),
+      0 0 16px rgba(250, 204, 21, 0.45);
+  }
+}
+
+.home-cal-logos {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
-  min-width: 0;
-  font-size: 0.68rem;
-  line-height: 1.2;
+  min-height: 0;
 }
 
-.home-cal-game i {
-  flex: 0 0 auto;
-  font-style: normal;
-  font-size: 0.58rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: rgba(221, 214, 254, 0.8);
-}
-
-.home-cal-game b {
-  min-width: 0;
+.home-cal-logo {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  padding: 2px;
+  margin: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  background: rgba(6, 4, 12, 0.55);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 700;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.home-cal-logos:has(.home-cal-logo:nth-child(2)) .home-cal-logo {
+  width: 34px;
+  height: 34px;
+}
+
+.home-cal-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.home-cal-logo span {
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
   color: #f5f1ff;
 }
 
-.home-cal-game.is-win b { color: #6ee7b7; }
-.home-cal-game.is-lose b { color: #fca5a5; }
-.home-cal-game.is-draw b { color: #fde68a; }
-.home-cal-game.is-cancel b {
-  color: #cbd5e1;
-  text-decoration: line-through;
+.home-cal-logo:hover {
+  transform: translateY(-1px) scale(1.06);
+  border-color: #fde047;
+  box-shadow: 0 0 0 2px rgba(253, 224, 71, 0.55), 0 8px 16px rgba(0, 0, 0, 0.35);
 }
 
-.home-cal-meta {
-  display: block;
-  margin-top: 1px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.6rem;
-  letter-spacing: 0.01em;
-  color: rgba(210, 200, 235, 0.7);
+.home-cal-cell.is-featured .home-cal-logo {
+  border-color: #fde047;
+  box-shadow: 0 0 0 1px rgba(253, 224, 71, 0.8);
 }
 
 .home-cal-day {

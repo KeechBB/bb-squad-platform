@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { canonOpp, clanLogoUrl } from "@/lib/clanLogo";
 import {
   confidenceLabel,
   formatMatchDate,
@@ -63,28 +64,26 @@ function statusLabel(status: string) {
   return "Матч";
 }
 
-function stackMark(stack: string) {
-  return stack === "Junior" ? "J" : "M";
-}
-
-function gamesWord(n: number) {
-  const n10 = n % 10;
-  const n100 = n % 100;
-  if (n10 === 1 && n100 !== 11) return "игра";
-  if (n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14)) return "игры";
-  return "игр";
-}
-
 function cellTone(list: UpcomingMatchPreview[]) {
+  if (list.length && list.every((m) => m.status === "cancel")) return "cancel";
   const live = list.find((m) => m.status !== "cancel") || list[0];
   return live?.status || "";
 }
 
-function cellMeta(m: UpcomingMatchPreview) {
-  if (m.status === "upcoming") return `${m.mapShort} · ${m.forecast.winPct}%`;
-  if (m.status === "cancel") return "отмена";
-  if (m.meeting) return `${m.meeting} · ${m.mapShort}`;
-  return `${statusLabel(m.status)} · ${m.mapShort}`;
+function isHqOpp(opp: string) {
+  return canonOpp(opp).key === "HQ";
+}
+
+function dayTimes(list: UpcomingMatchPreview[]) {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const m of list) {
+    const t = (m.timeMsk || "").trim();
+    if (!t || t === "—" || seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+  }
+  return out;
 }
 
 function WinRing({ pct, tone }: { pct: number; tone: string }) {
@@ -116,7 +115,6 @@ export function HomeMonthCalendar({ previews }: Props) {
     year: today.year,
     month: today.month,
   }));
-  const [day, setDay] = useState<number | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   const byDay = useMemo(() => {
@@ -150,15 +148,12 @@ export function HomeMonthCalendar({ previews }: Props) {
   }, [cursor.year, cursor.month]);
 
   function shiftMonth(delta: number) {
-    setDay(null);
     setSelectedKey(null);
     setCursor((cur) => {
       const d = new Date(cur.year, cur.month - 1 + delta, 1);
       return { year: d.getFullYear(), month: d.getMonth() + 1 };
     });
   }
-
-  const dayMatches = day != null ? byDay.get(day) || [] : [];
 
   return (
     <section className="home-ops-board home-cal-board" aria-label="Календарь КВ">
@@ -193,7 +188,8 @@ export function HomeMonthCalendar({ previews }: Props) {
             <div>
               <p className="home-match-detail-when muted">
                 {formatMatchDate(selected.day, selected.month, selected.year)} ·{" "}
-                {selected.timeMsk} МСК · {statusLabel(selected.status)}
+                <span className="home-cal-time">{selected.timeMsk} МСК</span> ·{" "}
+                {statusLabel(selected.status)}
                 {selected.meeting ? ` · ${selected.meeting}` : ""}
               </p>
               <h3 className="home-match-detail-vs">
@@ -254,94 +250,62 @@ export function HomeMonthCalendar({ previews }: Props) {
                 n === today.day &&
                 cursor.month === today.month &&
                 cursor.year === today.year;
-              const open = day === n;
               const tone = cellTone(list);
               const weekend = i % 7 >= 5;
+              const featured = list.some((m) => isHqOpp(m.opp));
+              const times = dayTimes(list);
+              const allCancel = tone === "cancel";
               return (
-                <button
+                <div
                   key={n}
-                  type="button"
                   className={`home-cal-cell${list.length ? " has-match" : ""}${
                     tone ? ` is-${tone}` : ""
-                  }${isToday ? " is-today" : ""}${open ? " is-open" : ""}${
+                  }${isToday ? " is-today" : ""}${
                     weekend ? " is-weekend" : ""
-                  }`}
-                  onClick={() => setDay(open ? null : n)}
+                  }${featured ? " is-featured" : ""}`}
                 >
+                  {allCancel ? (
+                    <span className="home-cal-stamp" aria-hidden="true">
+                      ОТМЕНА
+                    </span>
+                  ) : null}
                   <span className="home-cal-top">
                     <span className="home-cal-num">{n}</span>
-                    {list.length > 1 ? (
-                      <span className="home-cal-time">
-                        {list.length} {gamesWord(list.length)}
-                      </span>
-                    ) : list[0] ? (
-                      <span className="home-cal-time">{list[0].timeMsk}</span>
+                    {times.length ? (
+                      <span className="home-cal-time">{times.join(" · ")}</span>
                     ) : null}
                   </span>
                   {list.length > 0 ? (
-                    <span className="home-cal-games">
-                      {list.slice(0, 2).map((m) => (
-                        <span
-                          key={m.key}
-                          className={`home-cal-game is-${m.status || "play"}`}
-                          title={`${m.timeMsk} ${m.stack} vs ${m.opp} · ${m.map}`}
-                        >
-                          <i>{stackMark(m.stack)}</i>
-                          <b>{m.opp}</b>
-                        </span>
-                      ))}
-                      {list.length === 1 ? (
-                        <span className="home-cal-meta">{cellMeta(list[0])}</span>
-                      ) : list.length > 2 ? (
-                        <span className="home-cal-meta">ещё {list.length - 2}</span>
-                      ) : null}
+                    <span className="home-cal-logos">
+                      {list.map((m) => {
+                        const clan = canonOpp(m.opp);
+                        const src = clanLogoUrl(clan.key);
+                        return (
+                          <button
+                            key={m.key}
+                            type="button"
+                            className={`home-cal-logo is-${m.status || "play"}`}
+                            title={`${m.timeMsk} ${m.stack} vs ${clan.name}`}
+                            onClick={() => setSelectedKey(m.key)}
+                          >
+                            {src ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={src} alt={clan.tag} />
+                            ) : (
+                              <span>{clan.tag.slice(0, 4)}</span>
+                            )}
+                          </button>
+                        );
+                      })}
                     </span>
                   ) : null}
-                </button>
+                </div>
               );
             })}
           </div>
-
-          {day != null ? (
-            <div className="home-cal-day">
-              <p className="home-cal-day-title">
-                {day} {MONTHS[cursor.month - 1]}
-                <button type="button" onClick={() => setDay(null)}>
-                  закрыть
-                </button>
-              </p>
-              {dayMatches.length === 0 ? (
-                <p className="muted home-cal-empty">В этот день игр нет.</p>
-              ) : (
-                <ul className="home-cal-events">
-                  {dayMatches.map((m) => (
-                    <li key={m.key}>
-                      <button type="button" onClick={() => setSelectedKey(m.key)}>
-                        <span className={`home-cal-pip is-${m.status || "play"}`} />
-                        <span className="home-cal-event-main">
-                          <strong>
-                            {m.timeMsk} · {m.stack} vs {m.opp}
-                          </strong>
-                          <em>
-                            {m.status === "upcoming"
-                              ? `прогноз ${m.forecast.winPct}% · ${m.mapShort} · ${m.size}`
-                              : `${statusLabel(m.status)}${
-                                  m.meeting ? ` ${m.meeting}` : ""
-                                } · ${m.mapShort} · ${m.size}`}
-                          </em>
-                        </span>
-                        <span className="home-cal-event-go">разбор</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          ) : (
-            <p className="home-cal-hint muted">
-              Нажми день — игры этого дня. На игру — состав, личные и разбор.
-            </p>
-          )}
+          <p className="home-cal-hint muted">
+            Нажми логотип клана — карточка матча.
+          </p>
         </>
       )}
     </section>
