@@ -40,6 +40,8 @@ Vercel не используем (SMS). Сайт и **Postgres** крутятс�
 
 ## Обновление кода (деплой)
 
+### Прод (народ)
+
 После `git push` на `main`:
 
 ```bash
@@ -51,6 +53,42 @@ cd /var/www/bb-squad-platform && git pull && bash scripts/deploy.sh
 
 Скрипт: maintenance ON → sync KV cache → `pm2 stop bb-squad` → билд → `pm2 start` → maintenance OFF.  
 Swap 2G поднимается, если его ещё нет.
+
+### Staging (черновик) — смотришь сам, потом льёшь в прод
+
+| | |
+|--|--|
+| URL | **https://staging.bb-squad.ru** |
+| Код | `/var/www/bb-squad-platform-staging` |
+| Ветка | `staging` |
+| PM2 | `bb-squad-staging` → порт **3001** |
+| БД | Postgres `bb_squad_staging` (копия прода, отдельно) |
+| DNS | A `staging` → `91.222.237.91` |
+
+**Первый раз (один раз на сервере):**
+
+```bash
+cd /var/www/bb-squad-platform && git pull && bash scripts/bootstrap-staging.sh
+```
+
+**Обычный цикл:**
+
+```text
+1. Правки → push в ветку staging
+2. На VPS: cd /var/www/bb-squad-platform-staging && bash scripts/deploy-staging.sh
+3. Смотришь https://staging.bb-squad.ru
+4. Ок → merge staging → main → bash scripts/deploy.sh (прод)
+```
+
+Обновить данные staging из прода (без деплоя кода):
+
+```bash
+bash /var/www/bb-squad-platform-staging/scripts/refresh-staging-db.sh
+```
+
+Сэкономить RAM, когда черновик не нужен: `pm2 stop bb-squad-staging` (потом `pm2 start bb-squad-staging`).
+
+Steam: если логин на staging ломается — в Steam API Key Domain оставь `bb-squad.ru` (часто хватает) или добавь `staging.bb-squad.ru`.
 
 ### Локальный кэш KV (ускорение)
 

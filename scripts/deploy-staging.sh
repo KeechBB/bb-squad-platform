@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# Деплой ЧЕРНОВИКА (staging). Не трогает прод, без maintenance.on.
+# Код: /var/www/bb-squad-platform-staging
+# PM2: bb-squad-staging → :3001
+# Запуск: bash scripts/deploy-staging.sh
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+BRANCH="${STAGING_BRANCH:-staging}"
+PM2_NAME="${STAGING_PM2_NAME:-bb-squad-staging}"
+PORT="${PORT:-3001}"
+
+echo "==> $(date -Is) staging deploy in $ROOT (branch=$BRANCH port=$PORT)"
+
+if [[ ! -f .env ]]; then
+  echo "missing .env (need DATABASE_URL → bb_squad_staging, NEXTAUTH_URL=https://staging.bb-squad.ru)" >&2
+  exit 1
+fi
+
+echo "==> git fetch + checkout $BRANCH"
+git fetch origin
+git checkout "$BRANCH"
+git pull --ff-only origin "$BRANCH" || git pull --ff-only || true
+echo "==> HEAD=$(git rev-parse --short HEAD)"
+
+# KV: симлинк на прод-кэш (не дублируем гигабайты)
+if [[ ! -e data/kv-cache ]]; then
+  mkdir -p data
+  if [[ -d /var/www/bb-squad-platform/data/kv-cache ]]; then
+    ln -sfn /var/www/bb-squad-platform/data/kv-cache data/kv-cache
+    echo "==> linked data/kv-cache → prod"
+  else
+    echo "==> WARN: no prod kv-cache; run sync if needed"
+    bash scripts/sync_kv_cache.sh || true
+  fi
+elif [[ -d data/kv-cache && ! -L data/kv-cache ]]; then
+  echo "==> data/kv-cache exists as directory (ok)"
+fi
+
+if ! command -v pm2 >/dev/null 2>&1; then
+  echo "pm2 not found" >&2
+  exit 1
+fi
+
+echo "==> free -h (before build)"
+free -h || true
+
+# На 4 ГБ билдить рядом с живым Next (≈2–3 ГБ RSS) рискованно — на время
+# билда staging гасим только сам staging; если RAM < 900 МБ available — кратко
+# останавливаем прод (maintenance через prod deploy не трогаем).
+PROD_STOPPED=0
+AVAIL_MB="$(awk '/MemAvailable:/ {print int($2/1024)}' /proc/meminfo 2>/dev/null || echo 0)"
+if [[ "${AVAIL_MB}" -lt 900 ]]; then
+  echo "==> low RAM (${AVAIL_MB} MiB available) — briefly stop prod bb-squad for staging build"
+  pm2 stop bb-squad 2>/dev/null || true
+  PROD_STOPPED=1
+fi
+
+echo "==> pm2 stop $PM2_NAME (if running)"
+pm2 stop "$PM2_NAME" 2>/dev/null || true
+
+echo "==> clear .next"
+rm -rf .next
+
+echo "==> npm ci"
+if [[ -f package-lock.json ]]; then
+  npm ci || npm install
+else
+  npm install
+fi
+
+echo "==> prisma db push (staging DB only)"
+npx prisma db push
+
+echo "==> npm run build"
+export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=1536}"
+npm run build
+
+# Restore prod ASAP after build
+if [[ "$PROD_STOPPED" == "1" ]]; then
+  echo "==> restart prod bb-squad after staging build"
+  pm2 start bb-squad || pm2 restart bb-squad || true
+fi
+
+echo "==> pm2 start/restart $PM2_NAME on :$PORT"
+export PORT
+NEXT_BIN="$ROOT/node_modules/next/dist/bin/next"
+if pm2 describe "$PM2_NAME" >/dev/null 2>&1; then
+  PORT="$PORT" pm2 restart "$PM2_NAME" --update-env
+else
+  # Same style as prod: next start + ipv4first
+  PORT="$PORT" pm2 start "$NEXT_BIN" \
+    --name "$PM2_NAME" \
+    --interpreter /usr/bin/node \
+    --node-args="--dns-result-order=ipv4first" \
+    -- start
+fi
+pm2 save || true
+
+echo "==> free -h (after)"
+free -h || true
+
+echo "==> OK staging commit=$(git rev-parse --short HEAD) https://staging.bb-squad.ru $(date -Is)"
