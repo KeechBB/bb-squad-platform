@@ -7,6 +7,7 @@ import {
   trainingDayMarksFromSessions,
 } from "@/lib/squadSessions";
 import type { TrainMatchHistoryRow } from "@/lib/homeTrainPwr";
+import { abbreviateFaction } from "@/lib/factionAbbrev";
 import {
   ProfileMatchStatsModal,
   type MatchStatsOpen,
@@ -188,7 +189,7 @@ export function TrainingMatchHistory({
                     : delta > 0
                       ? `+${delta}`
                       : String(delta);
-                const score = `${m.factionA} ${m.ticketsA ?? "—"} : ${m.ticketsB ?? "—"} ${m.factionB}`;
+                const score = `${abbreviateFaction(m.factionA)} ${m.ticketsA ?? "—"} : ${m.ticketsB ?? "—"} ${abbreviateFaction(m.factionB)}`;
                 const resultCls =
                   m.won === true
                     ? "kv-pill win"
@@ -215,8 +216,8 @@ export function TrainingMatchHistory({
                         matchId: m.matchId,
                         title: `${m.dateLabel} · ${m.map || "тренировка"}`,
                         sub: [
-                          `${m.factionA} ${m.ticketsA ?? "—"}`,
-                          `${m.factionB} ${m.ticketsB ?? "—"}`,
+                          `${abbreviateFaction(m.factionA)} ${m.ticketsA ?? "—"}`,
+                          `${abbreviateFaction(m.factionB)} ${m.ticketsB ?? "—"}`,
                           m.winner ? `победа ${m.winner}` : null,
                           m.duration ? `время ${m.duration}` : null,
                           m.server,
@@ -577,7 +578,7 @@ export function TrainingSessionsCard({
                       : delta > 0
                         ? `+${delta}`
                         : String(delta);
-                  const score = `${m.factionA} ${m.ticketsA ?? "—"} : ${m.ticketsB ?? "—"} ${m.factionB}`;
+                  const score = `${abbreviateFaction(m.factionA)} ${m.ticketsA ?? "—"} : ${m.ticketsB ?? "—"} ${abbreviateFaction(m.factionB)}`;
                   const resultCls =
                     m.won === true
                       ? "kv-pill win"

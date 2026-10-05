@@ -675,12 +675,17 @@ def main() -> None:
                 if e.get("kind") in ("die", "tk")
                 and R.canon_key(e["victim"], aliases) == k
             ]
-            # Ноки = Wound() downs (incl. those that later give up). Not a copy of kills.
             noks = [
                 e
                 for e in mb["events"]
                 if e.get("kind") == "nok"
                 and R.canon_key(e["killer"], aliases) == k
+            ]
+            got_noks = [
+                e
+                for e in mb["events"]
+                if e.get("kind") == "nok"
+                and R.canon_key(e["victim"], aliases) == k
             ]
             revives = [
                 e
@@ -699,6 +704,7 @@ def main() -> None:
                     "kills": kills,
                     "deaths": deaths,
                     "noks": noks,
+                    "gotNoks": got_noks,
                     "teamkills": [
                         e
                         for e in mb["events"]

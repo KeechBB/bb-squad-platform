@@ -4365,8 +4365,8 @@ body:has(.profile-page) {
 .shell:has(.admin-keech-hunt-page) {
   max-width: none;
   width: 100%;
-  padding-left: clamp(12px, 2vw, 28px);
-  padding-right: clamp(12px, 2vw, 28px);
+  padding-left: clamp(8px, 1.2vw, 20px);
+  padding-right: clamp(8px, 1.2vw, 20px);
 }
 
 /* ???????????? ? ???? ??????? ??????? (?????????? max-width ????) */
@@ -7659,6 +7659,10 @@ body:has(.home-page) {
   border-radius: 12px;
   padding: 16px 18px 20px;
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+}
+.rp-breakdown-panel.hunt-wide {
+  width: min(1680px, 98vw);
+  max-height: min(92vh, 980px);
 }
 .rp-breakdown-head {
   display: flex;
@@ -12573,14 +12577,14 @@ body.profile-match-modal-open {
 
 /* —— Admin · Keech Hunt (личный) —— */
 .admin-page.admin-keech-hunt-page {
-  max-width: min(1760px, 100%);
+  max-width: min(1920px, 100%);
   margin-left: auto;
   margin-right: auto;
   text-align: left;
   width: 100%;
   box-sizing: border-box;
-  padding-left: clamp(4px, 1vw, 12px);
-  padding-right: clamp(4px, 1vw, 12px);
+  padding-left: clamp(4px, 1vw, 16px);
+  padding-right: clamp(4px, 1vw, 16px);
 }
 .admin-page.admin-keech-hunt-page .hero {
   text-align: left;
@@ -12704,17 +12708,22 @@ body.profile-match-modal-open {
 }
 .keech-hunt-cols {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(5, minmax(180px, 1fr));
+  gap: 14px;
   padding: 16px 18px;
-  overflow-x: hidden;
+  overflow-x: auto;
 }
 .keech-hunt-col {
-  min-width: 0;
+  min-width: 160px;
   overflow: hidden;
 }
 .keech-hunt-cols.detail {
   margin-top: 4px;
+}
+@media (max-width: 1100px) {
+  .keech-hunt-cols {
+    grid-template-columns: repeat(5, minmax(150px, 1fr));
+  }
 }
 @media (max-width: 900px) {
   .keech-hunt-cols {
@@ -12734,9 +12743,9 @@ body.profile-match-modal-open {
 }
 .keech-hunt-row {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) 48px 26px;
+  grid-template-columns: 64px minmax(0, 1fr) 52px 26px;
   gap: 8px;
-  align-items: start;
+  align-items: center;
   padding: 7px 2px;
   border-bottom: 1px solid rgba(167, 139, 250, 0.1);
   font-size: 0.9rem;
@@ -12746,12 +12755,12 @@ body.profile-match-modal-open {
   font-variant-numeric: tabular-nums;
   color: var(--muted);
   font-size: 0.78rem;
-  padding-top: 2px;
+  padding-top: 0;
 }
 .keech-hunt-nick {
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  white-space: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   line-height: 1.3;
   min-width: 0;
 }

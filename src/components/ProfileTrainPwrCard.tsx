@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import type { HomeTrainPwrRow } from "@/lib/homeTrainPwr";
 import type { RpPlayer, RpPlayerMatch } from "@/lib/trainRp";
 import { ProfileCompareCard } from "@/components/ProfileCompareCard";
+import { RpHuntMatchBreakdown } from "@/components/RpHuntMatchBreakdown";
 
 type Props = {
   stats: HomeTrainPwrRow | null;
@@ -14,190 +15,6 @@ type Props = {
 function fmtDelta(n: number) {
   const v = Math.round(Number(n) || 0);
   return v > 0 ? `+${v}` : String(v);
-}
-
-function romanFromPwr(pwr: number) {
-  const band = Math.min(9, Math.max(0, Math.floor(Math.max(0, pwr) / 100)));
-  const roman = ["I", "II", "III"] as const;
-  return roman[band % 3];
-}
-
-function pwrBarPct(pwr: number) {
-  return Math.max(8, Math.min(100, (Math.max(0, pwr) / 1000) * 100));
-}
-
-function normalizeMatch(m: RpPlayerMatch): RpPlayerMatch {
-  return {
-    ...m,
-    kills: Array.isArray(m.kills) ? m.kills : [],
-    deaths: Array.isArray(m.deaths) ? m.deaths : [],
-    teamkills: Array.isArray(m.teamkills) ? m.teamkills : [],
-    revives: Array.isArray(m.revives) ? m.revives : [],
-  };
-}
-
-function MatchBreakdown({
-  match,
-  onClose,
-}: {
-  match: RpPlayerMatch;
-  onClose: () => void;
-}) {
-  const m = normalizeMatch(match);
-  const dateShort = m.date?.slice(5)?.replace("-", ".") || m.date;
-  const body = (
-    <div
-      className="rp-breakdown-overlay rp-breakdown-overlay-detail"
-      role="dialog"
-      aria-modal="true"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="rp-breakdown-panel">
-        <header className="rp-breakdown-head">
-          <div>
-            <h3>
-              {m.map} · {dateShort}
-            </h3>
-            <p className="muted">
-              NET {fmtDelta(m.net)} · K {m.kills.length} / D {m.deaths.length}
-              {(m.teamkills?.length || 0) > 0 ? ` · TK ${m.teamkills!.length}` : ""}
-              {(m.revives?.length || 0) > 0 ? ` · R ${m.revives!.length}` : ""}
-            </p>
-          </div>
-          <button type="button" className="rp-breakdown-close" onClick={onClose}>
-            ✕
-          </button>
-        </header>
-        {m.kills.length + m.deaths.length + (m.teamkills?.length || 0) === 0 ? (
-          <p className="muted" style={{ margin: 0 }}>
-            Нет событий Die/revive в ledger по этой карте — ±RP есть, разбор
-            киллов пустой.
-          </p>
-        ) : null}
-        <div
-          className={`rp-breakdown-cols${
-            (m.revives?.length || 0) > 0 ? " has-revives" : ""
-          }`}
-        >
-          <section>
-            <h4 className="rp-breakdown-col-title gain">
-              + gained ({m.kills.length})
-            </h4>
-            <ul className="rp-breakdown-list">
-              {m.kills.map((e, i) => (
-                <li key={`k-${i}`}>
-                  <span className="rp-ev-time">{e.time}</span>
-                  <span className="rp-ev-nick" title={e.victim}>
-                    {e.victim}
-                  </span>
-                  <span className="rp-ev-bar-wrap" title={`weight ${e.victimPwr}`}>
-                    <span
-                      className="rp-ev-bar gain"
-                      style={{ width: `${pwrBarPct(e.victimPwr)}%` }}
-                    />
-                    <span className="rp-ev-roman">{romanFromPwr(e.victimPwr)}</span>
-                  </span>
-                  <span className="rp-ev-delta plus">{fmtDelta(e.delta)}</span>
-                </li>
-              ))}
-            </ul>
-            <p className="rp-breakdown-sum plus">
-              Sum {fmtDelta(m.kills.reduce((s, e) => s + e.delta, 0))}
-            </p>
-          </section>
-          <section>
-            <h4 className="rp-breakdown-col-title loss">
-              − lost ({m.deaths.length + (m.teamkills?.length || 0)})
-            </h4>
-            <ul className="rp-breakdown-list">
-              {m.deaths.map((e, i) => (
-                <li key={`d-${i}`}>
-                  <span className="rp-ev-time">{e.time}</span>
-                  <span className="rp-ev-nick" title={e.killer}>
-                    {e.kind === "tk" ? `TK ← ${e.killer}` : e.killer}
-                  </span>
-                  <span className="rp-ev-bar-wrap" title={`weight ${e.killerPwr}`}>
-                    <span
-                      className="rp-ev-bar loss"
-                      style={{ width: `${pwrBarPct(e.killerPwr)}%` }}
-                    />
-                    <span className="rp-ev-roman">{romanFromPwr(e.killerPwr)}</span>
-                  </span>
-                  <span className="rp-ev-delta minus">
-                    {fmtDelta(-Math.abs(e.delta))}
-                  </span>
-                </li>
-              ))}
-              {(m.teamkills || []).map((e, i) => (
-                <li key={`tk-${i}`}>
-                  <span className="rp-ev-time">{e.time}</span>
-                  <span className="rp-ev-nick" title={e.victim}>
-                    TK → {e.victim}
-                  </span>
-                  <span className="rp-ev-bar-wrap" title={`weight ${e.victimPwr}`}>
-                    <span
-                      className="rp-ev-bar loss"
-                      style={{ width: `${pwrBarPct(e.victimPwr)}%` }}
-                    />
-                    <span className="rp-ev-roman">{romanFromPwr(e.victimPwr)}</span>
-                  </span>
-                  <span className="rp-ev-delta minus">
-                    {fmtDelta(-Math.abs(e.delta))}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <p className="rp-breakdown-sum minus">
-              Sum{" "}
-              {fmtDelta(
-                -(
-                  m.deaths.reduce((s, e) => s + Math.abs(e.delta), 0) +
-                  (m.teamkills || []).reduce((s, e) => s + Math.abs(e.delta), 0)
-                )
-              )}
-            </p>
-          </section>
-          {(m.revives?.length || 0) > 0 ? (
-            <section>
-              <h4 className="rp-breakdown-col-title gain">
-                + поднял ({m.revives!.length})
-              </h4>
-              <ul className="rp-breakdown-list">
-                {m.revives!.map((e, i) => (
-                  <li key={`r-${i}`}>
-                    <span className="rp-ev-time">{e.time}</span>
-                    <span className="rp-ev-nick" title={e.victim}>
-                      {e.victim}
-                    </span>
-                    <span
-                      className="rp-ev-bar-wrap"
-                      title={`weight ${e.victimPwr}`}
-                    >
-                      <span
-                        className="rp-ev-bar gain"
-                        style={{ width: `${pwrBarPct(e.victimPwr)}%` }}
-                      />
-                      <span className="rp-ev-roman">
-                        {romanFromPwr(e.victimPwr)}
-                      </span>
-                    </span>
-                    <span className="rp-ev-delta plus">{fmtDelta(e.delta)}</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="rp-breakdown-sum plus">
-                Sum {fmtDelta(m.revives!.reduce((s, e) => s + e.delta, 0))}
-              </p>
-            </section>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  );
-  if (typeof document === "undefined") return body;
-  return createPortal(body, document.body);
 }
 
 export function ProfileTrainPwrCard({ stats, compareNick }: Props) {
@@ -403,7 +220,20 @@ export function ProfileTrainPwrCard({ stats, compareNick }: Props) {
       {mapsModal && createPortal(mapsModal, document.body)}
 
       {matchOpen ? (
-        <MatchBreakdown match={matchOpen} onClose={() => setMatchOpen(null)} />
+        typeof document !== "undefined" ? (
+          createPortal(
+            <RpHuntMatchBreakdown
+              match={matchOpen}
+              onClose={() => setMatchOpen(null)}
+            />,
+            document.body
+          )
+        ) : (
+          <RpHuntMatchBreakdown
+            match={matchOpen}
+            onClose={() => setMatchOpen(null)}
+          />
+        )
       ) : null}
     </>
   );

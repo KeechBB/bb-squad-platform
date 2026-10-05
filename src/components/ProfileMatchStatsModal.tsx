@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { abbreviateFaction } from "@/lib/factionAbbrev";
 
 export type MatchStatsOpen =
   | {
@@ -425,15 +426,15 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
         { key: "total", label: "Все" },
         {
           key: "teamA",
-          label: `${open.kind === "train" ? open.factionA : "A"} · ${
-            open.kind === "train" ? open.ticketsA ?? "—" : "—"
-          }`,
+          label: `${
+            open.kind === "train" ? abbreviateFaction(open.factionA) : "A"
+          } · ${open.kind === "train" ? open.ticketsA ?? "—" : "—"}`,
         },
         {
           key: "teamB",
-          label: `${open.kind === "train" ? open.factionB : "B"} · ${
-            open.kind === "train" ? open.ticketsB ?? "—" : "—"
-          }`,
+          label: `${
+            open.kind === "train" ? abbreviateFaction(open.factionB) : "B"
+          } · ${open.kind === "train" ? open.ticketsB ?? "—" : "—"}`,
         },
       ]
     : open.kind === "cw"
@@ -507,16 +508,18 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
                       <strong>{open.title.split(" · ")[0]}</strong>
                     </div>
                     <div>
-                      <span className="muted">{open.factionA}</span>
+                      <span className="muted">{abbreviateFaction(open.factionA)}</span>
                       <strong>{open.ticketsA ?? "—"}</strong>
                     </div>
                     <div>
-                      <span className="muted">{open.factionB}</span>
+                      <span className="muted">{abbreviateFaction(open.factionB)}</span>
                       <strong>{open.ticketsB ?? "—"}</strong>
                     </div>
                     <div>
                       <span className="muted">Победитель</span>
-                      <strong>{open.winner || "—"}</strong>
+                      <strong>
+                        {open.winner ? abbreviateFaction(open.winner) : "—"}
+                      </strong>
                     </div>
                     <div>
                       <span className="muted">Время</span>

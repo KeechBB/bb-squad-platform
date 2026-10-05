@@ -573,7 +573,7 @@ export function AdminKeechHuntPanel() {
 
       {detail ? (
         <div className="rp-breakdown-overlay" role="dialog" aria-modal="true">
-          <div className="rp-breakdown-panel">
+          <div className="rp-breakdown-panel hunt-wide">
             <header className="rp-breakdown-head">
               <div>
                 <h3>

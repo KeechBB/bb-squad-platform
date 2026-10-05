@@ -647,6 +647,18 @@ def main() -> None:
                             if e.get("kind") == "revive"
                             and canon_key(e["killer"], aliases) == k
                         ],
+                        "noks": [
+                            e
+                            for e in mb["events"]
+                            if e.get("kind") == "nok"
+                            and canon_key(e["killer"], aliases) == k
+                        ],
+                        "gotNoks": [
+                            e
+                            for e in mb["events"]
+                            if e.get("kind") == "nok"
+                            and canon_key(e["victim"], aliases) == k
+                        ],
                     }
                 )
         players_out[k] = {
