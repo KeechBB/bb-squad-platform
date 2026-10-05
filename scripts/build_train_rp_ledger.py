@@ -26,6 +26,7 @@ OUT = TRAIN / "rp-ledger.json"
 OUT_LADDER = TRAIN / "rp-ladder.json"
 
 START_RP = 1000.0
+MIN_RP = 1.0  # ниже 1 нельзя (канон 05.10.2026)
 # Revive gives the same weight formula as Die, then scaled — medics shouldn't leapfrog tops
 REVIVE_COEF = 0.6
 LINE_TS = re.compile(r"^\[(?P<ts>\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}:\d{3})\]")
@@ -650,7 +651,7 @@ def main() -> None:
                 )
         players_out[k] = {
             "nick": disp.get(k, k),
-            "rp": round(val, 1),
+            "rp": round(max(MIN_RP, float(val)), 1),
             "rankLabel": info["label"],
             "rankKey": info["rankKey"],
             "roman": info["roman"],

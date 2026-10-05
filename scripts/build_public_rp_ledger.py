@@ -710,7 +710,7 @@ def main() -> None:
             )
         players_out[k] = {
             "nick": disp.get(k, k),
-            "rp": round(val, 1),
+            "rp": round(max(R.MIN_RP, float(val)), 1),
             "rankLabel": info["label"],
             "rankKey": info["rankKey"],
             "roman": info["roman"],
