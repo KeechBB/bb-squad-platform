@@ -827,6 +827,9 @@ export function SupportChatWidget() {
           title="Техподдержка"
           aria-label="Открыть техподдержку"
         >
+          <span className="support-fab-ripple" aria-hidden="true" />
+          <span className="support-fab-ripple support-fab-ripple-2" aria-hidden="true" />
+          <span className="support-fab-ripple support-fab-ripple-3" aria-hidden="true" />
           <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden>
             <path
               fill="currentColor"

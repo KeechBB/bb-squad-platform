@@ -60,6 +60,12 @@ type Squad = {
   members: SquadMember[];
 };
 
+type StackCommand = {
+  overallLead: string;
+  Main: { lead: string; assistant: string };
+  Junior: { lead: string; assistant: string };
+};
+
 type ClanTitle = {
   id: string;
   name: string;
@@ -183,6 +189,10 @@ export function ClanDetailClient({
   const [myTitleName, setMyTitleName] = useState(initialMyTitleName);
   const [newTitle, setNewTitle] = useState("");
   const [squads, setSquads] = useState<Squad[]>([]);
+  const [autoStacks, setAutoStacks] = useState(
+    clan.tag.trim().toLowerCase() === "bb"
+  );
+  const [stackCommand, setStackCommand] = useState<StackCommand | null>(null);
   const [newSquad, setNewSquad] = useState("");
   const [inviteNick, setInviteNick] = useState("");
   const [joinRequests, setJoinRequests] = useState(initialJoinRequests);
@@ -307,6 +317,8 @@ export function ClanDetailClient({
       if (!res.ok) return;
       const data = await res.json();
       setSquads(data.squads || []);
+      if (typeof data.autoStacks === "boolean") setAutoStacks(data.autoStacks);
+      setStackCommand((data.command as StackCommand | null) || null);
     } catch {
       /* ignore */
     }
@@ -1218,11 +1230,27 @@ export function ClanDetailClient({
 
       {tab === "squads" ? (
         <section className="card">
-          <p className="muted" style={{ marginTop: 0 }}>
-            Main и Junior — базовые составы. Можно создать ещё и раскидать игроков
-            клана. В рейтинге КВ появятся колонки «Клан» и «Состав».
-          </p>
-          {canManage ? (
+          {autoStacks ? (
+            <>
+              <p className="muted" style={{ marginTop: 0 }}>
+                Main и Junior собираются <strong>автоматически</strong> по сыгранным
+                КВ: кто чаще играет за состав — туда и попадает. После каждой КВ
+                агент пересчитывает списки. Ручное добавление отключено.
+              </p>
+              {stackCommand ? (
+                <p style={{ marginTop: 8 }}>
+                  Оба состава — клан <strong>BlackBerry</strong>. Руководитель
+                  обоих: <strong>{stackCommand.overallLead}</strong>.
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <p className="muted" style={{ marginTop: 0 }}>
+              Main и Junior — базовые составы. Можно создать ещё и раскидать
+              игроков клана. В рейтинге КВ появятся колонки «Клан» и «Состав».
+            </p>
+          )}
+          {!autoStacks && canManage ? (
             <div className="clan-invite-row" style={{ marginTop: 12 }}>
               <label className="field" style={{ flex: 1, margin: 0 }}>
                 <span>Новый состав</span>
@@ -1250,12 +1278,35 @@ export function ClanDetailClient({
               const inSquad = new Set(s.members.map((m) => m.user.id));
               const available = members.filter((m) => !inSquad.has(m.user.id));
               const locked = ["main", "junior"].includes(s.name.toLowerCase());
+              const cmdKey =
+                s.name.toLowerCase() === "main"
+                  ? "Main"
+                  : s.name.toLowerCase() === "junior"
+                    ? "Junior"
+                    : null;
+              const cmd =
+                autoStacks && stackCommand && cmdKey
+                  ? stackCommand[cmdKey]
+                  : null;
+              const leadKey = cmd?.lead.trim().toLowerCase() || "";
+              const asstKey = cmd?.assistant.trim().toLowerCase() || "";
+              const ordered = [...s.members].sort((a, b) => {
+                const na = (a.user.nick || a.user.steamName || "").toLowerCase();
+                const nb = (b.user.nick || b.user.steamName || "").toLowerCase();
+                const rank = (n: string) =>
+                  n === leadKey ? 0 : n === asstKey ? 1 : 2;
+                return rank(na) - rank(nb) || na.localeCompare(nb, "ru");
+              });
               return (
                 <div key={s.id} className="squad-card">
                   <div className="squad-card-head">
                     <strong>{s.name}</strong>
                     <span className="muted">{s.members.length} чел.</span>
-                    {canManage && myRole && canDeleteClanSquad(myRole) && !locked ? (
+                    {!autoStacks &&
+                    canManage &&
+                    myRole &&
+                    canDeleteClanSquad(myRole) &&
+                    !locked ? (
                       <button
                         type="button"
                         className="btn ghost"
@@ -1265,29 +1316,55 @@ export function ClanDetailClient({
                       </button>
                     ) : null}
                   </div>
+                  {cmd ? (
+                    <p className="muted" style={{ margin: "0 0 8px", fontSize: "0.92em" }}>
+                      Главный: <strong>{cmd.lead}</strong>
+                      {" · "}
+                      помощник: <strong>{cmd.assistant}</strong>
+                    </p>
+                  ) : null}
                   <ul className="squad-list">
-                    {s.members.length === 0 ? (
-                      <li className="muted">Пока пусто — добавь игроков ниже</li>
+                    {ordered.length === 0 ? (
+                      <li className="muted">
+                        {autoStacks
+                          ? "Пока нет игроков с КВ-статой в этом составе"
+                          : "Пока пусто — добавь игроков ниже"}
+                      </li>
                     ) : (
-                      s.members.map((m) => (
-                        <li key={m.id} className="squad-list-row">
-                          <span>{m.user.nick || m.user.steamName || "—"}</span>
-                          {canAssignSquads ? (
-                            <button
-                              type="button"
-                              className="btn ghost"
-                              onClick={() =>
-                                void setSquadMember(s.id, m.user.id, "remove")
-                              }
-                            >
-                              Убрать
-                            </button>
-                          ) : null}
-                        </li>
-                      ))
+                      ordered.map((m) => {
+                        const nick = m.user.nick || m.user.steamName || "—";
+                        const nk = nick.toLowerCase();
+                        const badge =
+                          nk === leadKey
+                            ? "главный"
+                            : nk === asstKey
+                              ? "помощник"
+                              : null;
+                        return (
+                          <li key={m.id} className="squad-list-row">
+                            <span>
+                              {nick}
+                              {badge ? (
+                                <span className="muted"> · {badge}</span>
+                              ) : null}
+                            </span>
+                            {!autoStacks && canAssignSquads ? (
+                              <button
+                                type="button"
+                                className="btn ghost"
+                                onClick={() =>
+                                  void setSquadMember(s.id, m.user.id, "remove")
+                                }
+                              >
+                                Убрать
+                              </button>
+                            ) : null}
+                          </li>
+                        );
+                      })
                     )}
                   </ul>
-                  {canAssignSquads ? (
+                  {!autoStacks && canAssignSquads ? (
                     <label className="field" style={{ marginTop: 8 }}>
                       <span>Добавить в {s.name}</span>
                       <select

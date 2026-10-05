@@ -1,6 +1,16 @@
 {
-  "current": "1.1.94",
+  "current": "1.1.95",
   "releases": [
+    {
+      "version": "1.1.95",
+      "date": "2026-10-05",
+      "title": "Авто-составы Main / Junior",
+      "bullets": [
+        "Main и Junior собираются сами по частоте КВ",
+        "Командование: Main Keech/Chidori · Junior Jimmy/VET · оба под Keech",
+        "У BlackBerry убрано ручное создание/добавление в составы"
+      ]
+    },
     {
       "version": "1.1.94",
       "date": "2026-10-05",

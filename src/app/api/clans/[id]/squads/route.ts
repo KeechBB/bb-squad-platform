@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canManageClanMembers, canDeleteClanSquad, type ClanRole } from "@/lib/clan";
 import { ensureDefaultSquads } from "@/lib/squads";
+import { BB_STACK_COMMAND, syncBbSquadsFromKv } from "@/lib/bbStackAuto";
 import { canAssignClanSquadMembers } from "@/lib/titles";
 import { clanLiveChannel, livePublish } from "@/lib/liveBus";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
@@ -11,6 +12,19 @@ import { personLabel, writeActionLog } from "@/lib/actionLog";
 export const runtime = "nodejs";
 
 type Ctx = { params: Promise<{ id: string }> };
+
+async function loadClan(clanId: string) {
+  return prisma.clan.findUnique({
+    where: { id: clanId },
+    select: { id: true, tag: true, name: true },
+  });
+}
+
+function isBbClan(tag: string, name: string): boolean {
+  const t = tag.trim().toLowerCase();
+  const n = name.trim().toLowerCase();
+  return t === "bb" || n === "blackberry";
+}
 
 async function actorMembership(clanId: string, steamId: string) {
   const user = await prisma.user.findUnique({ where: { steamId } });
@@ -26,6 +40,8 @@ async function actorMembership(clanId: string, steamId: string) {
 export async function GET(_req: Request, ctx: Ctx) {
   const { id: clanId } = await ctx.params;
   await ensureDefaultSquads(clanId);
+  const clan = await loadClan(clanId);
+  const bbAuto = clan ? isBbClan(clan.tag, clan.name) : false;
   const squads = await prisma.clanSquad.findMany({
     where: { clanId },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
@@ -46,7 +62,11 @@ export async function GET(_req: Request, ctx: Ctx) {
       },
     },
   });
-  return NextResponse.json({ squads });
+  return NextResponse.json({
+    squads,
+    autoStacks: bbAuto,
+    command: bbAuto ? BB_STACK_COMMAND : null,
+  });
 }
 
 export async function POST(req: Request, ctx: Ctx) {
@@ -60,7 +80,26 @@ export async function POST(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Нет прав" }, { status: 403 });
   }
 
+  const clan = await loadClan(clanId);
   const body = await req.json().catch(() => null);
+
+  // BB: ручные составы закрыты — только авто-синк по КВ (глава/зам)
+  if (clan && isBbClan(clan.tag, clan.name)) {
+    const action = String((body as { action?: string })?.action || "");
+    if (action === "sync") {
+      const res = await syncBbSquadsFromKv();
+      livePublish(clanLiveChannel(clanId), JSON.stringify({ type: "squad" }));
+      return NextResponse.json(res, { status: res.ok ? 200 : 500 });
+    }
+    return NextResponse.json(
+      {
+        error:
+          "Составы BlackBerry собираются автоматически по КВ. Ручное создание отключено.",
+      },
+      { status: 403 }
+    );
+  }
+
   const name = String((body as { name?: string })?.name || "").trim();
   if (name.length < 2 || name.length > 24) {
     return NextResponse.json({ error: "Название состава: 2–24 символа" }, { status: 400 });
@@ -94,6 +133,17 @@ export async function PATCH(req: Request, ctx: Ctx) {
     )
   ) {
     return NextResponse.json({ error: "Нет прав" }, { status: 403 });
+  }
+
+  const clan = await loadClan(clanId);
+  if (clan && isBbClan(clan.tag, clan.name)) {
+    return NextResponse.json(
+      {
+        error:
+          "Составы BlackBerry регулируются автоматически после каждой КВ. Ручное добавление отключено.",
+      },
+      { status: 403 }
+    );
   }
 
   const body = await req.json().catch(() => null);
