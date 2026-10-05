@@ -1029,18 +1029,35 @@ class Collector:
         try:
             log_path = Path(__file__).resolve().parent / "_tmp_train_tr1_sync.log"
             log_f = open(log_path, "a", encoding="utf-8")
+            env = {
+                **os.environ,
+                "TR1_LOG_CACHE": str(
+                    Path(__file__).resolve().parent / "_tmp_tr1_logs_cache"
+                ),
+            }
+            # VPS: write into live KV tree (warehouse or kv-cache), never invent /var/www/KV.
+            if not (env.get("BB_KV_PUBLIC") or env.get("KV_LOCAL_DIR")):
+                for cand in (
+                    Path("/var/www/blackberry-kv"),
+                    Path("/var/www/bb-squad-platform/data/kv-cache"),
+                    Path(__file__).resolve().parents[1] / "data" / "kv-cache",
+                ):
+                    if (cand / "data" / "training").is_dir() or (
+                        cand / "public" / "data" / "training"
+                    ).is_dir():
+                        # Prefer .../public when that is where Pages-style tree lives
+                        if (cand / "public" / "data" / "training").is_dir():
+                            env["BB_KV_PUBLIC"] = str(cand / "public")
+                        else:
+                            env["BB_KV_PUBLIC"] = str(cand)
+                        break
             subprocess.Popen(
                 [sys.executable, str(script)],
                 cwd=str(script.parent),
                 stdout=log_f,
                 stderr=subprocess.STDOUT,
                 start_new_session=True,
-                env={
-                    **os.environ,
-                    "TR1_LOG_CACHE": str(
-                        Path(__file__).resolve().parent / "_tmp_tr1_logs_cache"
-                    ),
-                },
+                env=env,
             )
         except Exception as e:
             _safe_print(

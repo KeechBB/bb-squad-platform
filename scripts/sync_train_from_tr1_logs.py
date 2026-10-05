@@ -19,13 +19,44 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import rp_log_parse as R  # noqa: E402
 
-ROOT = HERE.parents[1]
-TRAIN = ROOT / "KV" / "public" / "data" / "training"
+
+def _resolve_kv_public() -> Path:
+    """
+    Where training JSON lives.
+    Local monorepo: <project>/KV/public
+    VPS: /var/www/blackberry-kv or platform data/kv-cache
+    """
+    env = (os.environ.get("BB_KV_PUBLIC") or os.environ.get("KV_LOCAL_DIR") or "").strip()
+    cands: list[Path] = []
+    if env:
+        p = Path(env)
+        cands += [p, p / "public"]
+    cands += [
+        Path("/var/www/blackberry-kv"),
+        Path("/var/www/bb-squad-platform/data/kv-cache"),
+        HERE.parents[1] / "KV" / "public",  # monorepo: .../Новый Проект Кича/KV/public
+        HERE.parents[0] / "data" / "kv-cache",  # platform/data/kv-cache
+    ]
+    for c in cands:
+        try:
+            if (c / "data" / "training").is_dir() or (c / "data" / "tiers.json").is_file():
+                return c
+        except OSError:
+            continue
+    # last resort: create monorepo-style path
+    fallback = HERE.parents[1] / "KV" / "public"
+    (fallback / "data" / "training" / "players").mkdir(parents=True, exist_ok=True)
+    return fallback
+
+
+KV_PUBLIC = _resolve_kv_public()
+TRAIN = KV_PUBLIC / "data" / "training"
 PLAYERS = TRAIN / "players"
-INDEX = ROOT / "KV" / "public" / "data" / "training-index.json"
+INDEX = KV_PUBLIC / "data" / "training-index.json"
 AUTO_MATCHES = TRAIN / "_auto_matches.json"
 CACHE = Path(os.environ.get("TR1_LOG_CACHE", str(HERE / "_tmp_tr1_logs_cache")))
 LOOKBACK_DAYS = int(os.environ.get("TR1_LOOKBACK_DAYS", "3"))
+print(f"KV_PUBLIC={KV_PUBLIC}", flush=True)
 
 
 def _load_collector_env() -> dict[str, str]:
@@ -237,6 +268,85 @@ def agg_players(
     return a, b
 
 
+def publish_live_mirrors() -> None:
+    """Copy training outputs into VPS kv-cache so /tm sees them without waiting for Pages."""
+    mirrors: list[Path] = []
+    for raw in (
+        os.environ.get("KV_LOCAL_DIR", "").strip(),
+        "/var/www/bb-squad-platform/data/kv-cache",
+        str(HERE.parents[0] / "data" / "kv-cache"),
+    ):
+        if not raw:
+            continue
+        p = Path(raw)
+        if p.resolve() == KV_PUBLIC.resolve():
+            continue
+        if (p / "data").is_dir() or p.is_dir():
+            mirrors.append(p)
+    if not mirrors:
+        return
+    import shutil
+
+    rels = [
+        "data/training/2026-10.json",
+        "data/training/_auto_matches.json",
+        "data/training/rp-ledger.json",
+        "data/training/rp-ladder.json",
+        "data/training-index.json",
+    ]
+    # also newest player files referenced by month
+    try:
+        month = json.loads((TRAIN / "2026-10.json").read_text(encoding="utf-8"))
+        for m in month.get("matches") or []:
+            pu = str(m.get("playersUrl") or "")
+            if pu.startswith("data/"):
+                rels.append(pu)
+    except Exception:
+        pass
+    for dest_root in mirrors:
+        for rel in rels:
+            src = KV_PUBLIC / rel
+            if not src.is_file():
+                continue
+            dst = dest_root / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+        print(f"mirrored train data → {dest_root}", flush=True)
+
+
+def bump_cache_bust() -> None:
+    """Bump training-index bust + app.js DATA_VER so embed/UI refetch."""
+    from datetime import datetime as _dt
+
+    tag = _dt.now().strftime("%Y%m%d-%H%M")
+    if INDEX.is_file():
+        try:
+            idx = json.loads(INDEX.read_text(encoding="utf-8"))
+            idx["bust"] = tag
+            INDEX.write_text(
+                json.dumps(idx, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+            )
+        except Exception as e:
+            print(f"index bust fail: {e}", flush=True)
+    app = KV_PUBLIC / "app.js"
+    if app.is_file():
+        try:
+            text = app.read_text(encoding="utf-8")
+            import re as _re
+
+            text2, n = _re.subn(
+                r'(DATA_VER\s*=\s*new URLSearchParams\(location\.search\)\.get\("v"\)\s*\|\|\s*")([^"]+)(")',
+                rf"\g<1>{tag}\3",
+                text,
+                count=1,
+            )
+            if n:
+                app.write_text(text2, encoding="utf-8")
+                print(f"app.js DATA_VER → {tag}", flush=True)
+        except Exception as e:
+            print(f"app.js bust fail: {e}", flush=True)
+
+
 def upsert_month(match_meta: dict) -> None:
     month = match_meta["month"]  # YYYY-MM
     path = TRAIN / f"{month}.json"
@@ -434,6 +544,8 @@ def main() -> int:
             cwd=str(HERE),
             check=False,
         )
+        bump_cache_bust()
+        publish_live_mirrors()
     return 0
 
 
