@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { isBlackberryClanMember } from "@/lib/blackberryClan";
 
 /** Меняй при обновлении KV, чтобы iframe не брал старый кэш */
-const KV_CACHE = "20261005-blackcoast";
+const KV_CACHE = "20261005-blackcoast2";
 
 export default async function TrainingMatchesPage() {
   const session = await getSession();
