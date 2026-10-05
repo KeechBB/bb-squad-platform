@@ -133,9 +133,34 @@ def msk_hour_ok(start_utc: datetime) -> bool:
 def match_id_for(m: dict) -> str:
     msk = m["start"] + timedelta(hours=3)
     day = msk.day
-    layer = R.layer_basename(m.get("layer") or m.get("map") or "map")
-    slug = re.sub(r"[^a-z0-9]+", "", layer.lower())[:18] or "map"
+    layer = str(m.get("layer") or m.get("map") or "map")
+    # Stable short id: "Al Basrah RAAS v3" → albasrah, "Sumari Bala AAS v1" → sumari
+    base = re.sub(r"\b(raas|aas|invasion|tc|skirmish)\b.*$", "", layer, flags=re.I)
+    base = re.sub(r"\s*v\d+\s*$", "", base, flags=re.I)
+    slug = re.sub(r"[^a-z0-9]+", "", base.lower())[:14] or "map"
     return f"{day:02d}-{slug}"
+
+
+def _map_stem(layer: str) -> str:
+    base = re.sub(r"\b(raas|aas|invasion|tc|skirmish)\b.*$", "", layer or "", flags=re.I)
+    base = re.sub(r"\s*v\d+\s*$", "", base, flags=re.I)
+    return re.sub(r"[^a-z0-9]+", "", base.lower())
+
+
+def existing_month_keys() -> set[tuple[int, str]]:
+    """(day, mapStem) already in training month JSONs — avoid auto duplicates."""
+    keys: set[tuple[int, str]] = set()
+    for path in TRAIN.glob("????-??.json"):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        for row in data.get("matches") or []:
+            day = int(row.get("day") or 0)
+            stem = _map_stem(str(row.get("map") or ""))
+            if day and stem:
+                keys.add((day, stem))
+    return keys
 
 
 def load_aliases() -> dict[str, str]:
@@ -279,6 +304,7 @@ def main() -> int:
         except Exception:
             auto = []
     known_ids = {m.get("id") for m in auto}
+    known_map_days = existing_month_keys()
 
     added = 0
     for m in discovered:
@@ -298,7 +324,9 @@ def main() -> int:
             continue
 
         mid = match_id_for(m)
-        if mid in known_ids:
+        msk = start + timedelta(hours=3)
+        stem = _map_stem(layer)
+        if mid in known_ids or (msk.day, stem) in known_map_days:
             continue
 
         log_path = Path(m["logPath"]) if m.get("logPath") else CACHE / m.get("log", "")
@@ -380,6 +408,7 @@ def main() -> int:
             }
         )
         known_ids.add(mid)
+        known_map_days.add((msk.day, stem))
         added += 1
         print(f"+ train {mid} {layer} {duration}", flush=True)
 
