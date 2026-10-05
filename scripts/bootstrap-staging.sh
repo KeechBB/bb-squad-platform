@@ -30,22 +30,34 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
   exit 1
 fi
 
-STAGING_DATABASE_URL="$(STAGING_DB_NAME="$DB_NAME" DATABASE_URL="$DATABASE_URL" python3 - <<'PY'
-import os, re
+# Prisma URL may contain ?schema=public — pg_dump/psql reject that.
+eval "$(DATABASE_URL="$DATABASE_URL" STAGING_DB_NAME="$DB_NAME" python3 - <<'PY'
+import os, re, shlex
 u = os.environ["DATABASE_URL"]
 name = os.environ["STAGING_DB_NAME"]
-m = re.match(r"^(postgresql(?:\+\w+)?://[^/]+/)([^?\s]+)(.*)$", u)
+# strip prisma query for libpq tools
+base = u.split("?", 1)[0]
+m = re.match(r"^(postgresql(?:\+\w+)?://[^/]+/)([^/\s]+)$", base)
 if not m:
     raise SystemExit("cannot parse DATABASE_URL")
-print(m.group(1) + name + m.group(3))
+prod_libpq = base
+staging_libpq = m.group(1) + name
+# keep prisma-style query on staging app URL
+q = ""
+if "?" in u:
+    q = "?" + u.split("?", 1)[1]
+staging_app = staging_libpq + q
+print("PROD_LIBPQ_URL=" + shlex.quote(prod_libpq))
+print("STAGING_LIBPQ_URL=" + shlex.quote(staging_libpq))
+print("STAGING_DATABASE_URL=" + shlex.quote(staging_app))
 PY
 )"
 
 echo "==> pg_dump prod → restore staging"
 TMP_DUMP="$(mktemp /tmp/bb-staging-XXXXXX.sql)"
-pg_dump "$DATABASE_URL" --no-owner --no-acl > "$TMP_DUMP"
-psql "$STAGING_DATABASE_URL" -v ON_ERROR_STOP=1 -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO bb_squad; GRANT ALL ON SCHEMA public TO public;"
-psql "$STAGING_DATABASE_URL" -v ON_ERROR_STOP=1 -f "$TMP_DUMP"
+pg_dump "$PROD_LIBPQ_URL" --no-owner --no-acl > "$TMP_DUMP"
+psql "$STAGING_LIBPQ_URL" -v ON_ERROR_STOP=1 -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO bb_squad; GRANT ALL ON SCHEMA public TO public;"
+psql "$STAGING_LIBPQ_URL" -v ON_ERROR_STOP=1 -f "$TMP_DUMP"
 rm -f "$TMP_DUMP"
 
 echo "==> clone/checkout staging code → $STAGING_ROOT"

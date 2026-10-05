@@ -12,22 +12,24 @@ set -a
 source <(grep -E '^(DATABASE_URL)=' "$PROD_ROOT/.env" | sed 's/\r$//')
 set +a
 
-STAGING_DATABASE_URL="$(STAGING_DB_NAME="$DB_NAME" DATABASE_URL="$DATABASE_URL" python3 - <<'PY'
-import os, re
+eval "$(DATABASE_URL="$DATABASE_URL" STAGING_DB_NAME="$DB_NAME" python3 - <<'PY'
+import os, re, shlex
 u = os.environ["DATABASE_URL"]
 name = os.environ["STAGING_DB_NAME"]
-m = re.match(r"^(postgresql(?:\+\w+)?://[^/]+/)([^?\s]+)(.*)$", u)
+base = u.split("?", 1)[0]
+m = re.match(r"^(postgresql(?:\+\w+)?://[^/]+/)([^/\s]+)$", base)
 if not m:
     raise SystemExit("cannot parse DATABASE_URL")
-print(m.group(1) + name + m.group(3))
+print("PROD_LIBPQ_URL=" + shlex.quote(base))
+print("STAGING_LIBPQ_URL=" + shlex.quote(m.group(1) + name))
 PY
 )"
 
 echo "==> dump prod → $DB_NAME"
 TMP_DUMP="$(mktemp /tmp/bb-staging-XXXXXX.sql)"
-pg_dump "$DATABASE_URL" --no-owner --no-acl > "$TMP_DUMP"
-psql "$STAGING_DATABASE_URL" -v ON_ERROR_STOP=1 -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO bb_squad; GRANT ALL ON SCHEMA public TO public;"
-psql "$STAGING_DATABASE_URL" -v ON_ERROR_STOP=1 -f "$TMP_DUMP"
+pg_dump "$PROD_LIBPQ_URL" --no-owner --no-acl > "$TMP_DUMP"
+psql "$STAGING_LIBPQ_URL" -v ON_ERROR_STOP=1 -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO bb_squad; GRANT ALL ON SCHEMA public TO public;"
+psql "$STAGING_LIBPQ_URL" -v ON_ERROR_STOP=1 -f "$TMP_DUMP"
 rm -f "$TMP_DUMP"
 
 if [[ -f "$STAGING_ROOT/.env" ]]; then
