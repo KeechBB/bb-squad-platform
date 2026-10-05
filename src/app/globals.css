@@ -5128,12 +5128,16 @@ body:has(.profile-page) {
 .shell:has(.home-page) {
   max-width: none;
   width: 100%;
-  height: calc(100dvh - 76px);
-  max-height: calc(100dvh - 76px);
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  max-height: none;
   padding: 0;
   overflow: hidden;
   box-sizing: border-box;
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 html:has(.home-page),
@@ -5143,6 +5147,8 @@ body:has(.home-page) {
 }
 
 body:has(.home-page) {
+  display: flex;
+  flex-direction: column;
   background: #05040a;
 }
 
@@ -5157,9 +5163,12 @@ body:has(.home-page) {
   --mvp-anti: #f87171;
   position: relative;
   z-index: 0;
-  display: block;
-  height: 100%;
-  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  max-height: none;
   overflow: hidden;
   isolation: isolate;
 }
@@ -5274,21 +5283,35 @@ body:has(.home-page) {
 .home-stage-dust span:nth-child(5) { left: 78%; top: 62%; animation-delay: -8s; }
 .home-stage-dust span:nth-child(6) { left: 88%; top: 40%; width: 2px; height: 2px; animation-delay: -5s; }
 
+/* One desktop canvas. HomeFit scales it to the viewport — columns never reflow. */
+.home-fit {
+  position: relative;
+  z-index: 2;
+  flex: 1 1 auto;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .home-layout {
+  --home-scale: min(calc(100vw / 1920px), calc((100dvh - 76px) / 1004px));
   position: relative;
   z-index: 2;
   display: grid;
-  grid-template-columns:
-    minmax(190px, 260px)
-    minmax(320px, 440px)
-    minmax(0, 1fr)
-    minmax(380px, 520px);
+  flex: none;
+  width: 1920px;
+  height: 1004px;
+  zoom: var(--home-scale);
+  grid-template-columns: 260px 440px minmax(0, 1fr) 520px;
+  grid-template-rows: minmax(0, 1fr);
   grid-template-areas: "ops mvp hero tiers";
   align-items: start;
-  gap: clamp(10px, 1.2vw, 18px);
-  height: 100%;
-  min-height: 0;
-  padding: clamp(8px, 1.4vw, 18px) clamp(10px, 1.8vw, 22px);
+  gap: 16px;
+  padding: 16px 20px;
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -5298,7 +5321,7 @@ body:has(.home-page) {
   align-self: start;
   min-width: 0;
   height: auto;
-  max-height: min(100%, calc(100dvh - 100px));
+  max-height: 100%;
   overflow: auto;
 }
 
@@ -5308,7 +5331,7 @@ body:has(.home-page) {
   min-width: 0;
   width: 100%;
   height: auto;
-  max-height: min(100%, calc(100dvh - 100px));
+  max-height: 100%;
   overflow: auto;
   overflow-x: hidden;
   padding: 10px 10px 8px;
@@ -5343,7 +5366,7 @@ body:has(.home-page) {
   min-width: 0;
   width: 100%;
   height: auto;
-  max-height: min(100%, calc(100dvh - 100px));
+  max-height: 100%;
   overflow: auto;
   overflow-x: hidden;
   display: flex;
@@ -5403,16 +5426,6 @@ body:has(.home-page) {
 
 .home-tier-body:has(> .home-tier-block:only-child) .home-tier-list {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-@media (max-width: 1400px) {
-  .home-tier-list {
-    grid-template-columns: 1fr;
-  }
-
-  .home-tier-body:has(> .home-tier-block:only-child) .home-tier-list {
-    grid-template-columns: 1fr 1fr;
-  }
 }
 
 /* One card template for transfers + candidates — readable like MVP */
@@ -5572,7 +5585,7 @@ body:has(.home-page) {
   height: 100%;
   min-height: 0;
   margin: 0 auto;
-  padding: clamp(2px, 0.8vw, 10px) 6px clamp(4px, 1vw, 12px);
+  padding: 8px 6px 10px;
   overflow: hidden;
   pointer-events: none;
   animation: home-hero-in-stack 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -5606,7 +5619,7 @@ body:has(.home-page) {
 .home-hero h1 {
   margin: 6px 0 8px;
   font-family: var(--font-display);
-  font-size: clamp(2rem, 4.2vw, 3.6rem);
+  font-size: 3.6rem;
   letter-spacing: 0.08em;
   line-height: 0.92;
   background: linear-gradient(120deg, #ffffff 8%, #e9e2ff 42%, #c4b5fd 72%, #f0abfc 100%);
@@ -5631,7 +5644,7 @@ body:has(.home-page) {
 .home-hero-tag {
   margin: 0 auto;
   max-width: 22rem;
-  font-size: clamp(0.88rem, 1.2vw, 1.02rem);
+  font-size: 1.02rem;
   line-height: 1.4;
   color: rgba(226, 220, 245, 0.88);
 }
@@ -5659,8 +5672,8 @@ body:has(.home-page) {
   align-items: stretch;
   width: 100%;
   max-width: 100%;
-  margin-top: clamp(8px, 1.4vh, 16px);
-  margin-bottom: clamp(2px, 0.6vh, 8px);
+  margin-top: 14px;
+  margin-bottom: 6px;
   justify-self: center;
   min-height: 0;
 }
@@ -5670,7 +5683,7 @@ body:has(.home-page) {
   width: 100%;
   height: 100%;
   /* TOP-10 без внутреннего скролла (~10 строк + шапка + футер) */
-  max-height: min(52vh, 430px);
+  max-height: 430px;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -5686,8 +5699,8 @@ body:has(.home-page) {
 .home-attend-streaks {
   align-self: end;
   justify-self: center;
-  margin-top: clamp(8px, 1.4vh, 16px);
-  margin-bottom: clamp(2px, 0.6vh, 8px);
+  margin-top: 14px;
+  margin-bottom: 6px;
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -6844,8 +6857,8 @@ body:has(.home-page) {
 }
 
 .home-crest {
-  width: clamp(72px, 14vh, 140px);
-  max-width: min(36vw, 140px);
+  width: 140px;
+  max-width: 140px;
   height: auto;
   filter: drop-shadow(0 16px 36px rgba(0, 0, 0, 0.55));
   animation: home-crest-float 5.5s ease-in-out infinite;
@@ -6884,11 +6897,11 @@ body:has(.home-page) {
   width: 100%;
   min-width: 0;
   max-width: none;
-  max-height: none;
+  max-height: 100%;
   height: auto;
   gap: 8px;
   padding: 12px 12px 10px;
-  overflow: hidden;
+  overflow: auto;
   transform: none;
   animation-delay: 0.12s;
   transition: box-shadow 0.4s ease, border-color 0.4s ease;
@@ -7830,521 +7843,6 @@ body:has(.home-page) {
   }
 }
 
-/* ≥1280 + short height: keep 4 columns, tighten */
-@media (min-width: 1280px) and (max-height: 1100px) {
-  .home-layout {
-    grid-template-columns:
-      minmax(170px, 230px)
-      minmax(280px, 380px)
-      minmax(0, 1fr)
-      minmax(320px, 440px);
-    gap: 10px;
-    padding: 8px 12px 10px;
-  }
-
-  .home-layout > .home-mvp-board {
-    padding: 8px 8px 6px;
-    gap: 4px;
-  }
-
-  .home-layout > .home-tier-board {
-    padding: 10px 10px 8px;
-  }
-
-  .home-tier-row {
-    height: 50px;
-    min-height: 50px;
-    max-height: 50px;
-  }
-
-  .home-tier-nick {
-    font-size: 0.88rem;
-  }
-
-  .home-mvp-grid {
-    gap: 6px 8px;
-  }
-
-  .home-mvp-legend-wrap {
-    display: none;
-  }
-
-  .home-crest {
-    width: clamp(64px, 11vh, 108px);
-    max-width: 108px;
-  }
-
-  .home-hero h1 {
-    margin: 4px 0 4px;
-    font-size: clamp(1.7rem, 3.2vw, 2.6rem);
-  }
-
-  .home-hero-kicker {
-    margin-top: 4px;
-    font-size: 0.62rem;
-    letter-spacing: 0.28em;
-  }
-
-  .home-hero-tag {
-    font-size: 0.84rem;
-    line-height: 1.3;
-  }
-
-  .home-hero-cta {
-    margin-top: 8px;
-  }
-
-  .home-hero-cta .btn {
-    padding: 8px 14px;
-    font-size: 0.85rem;
-  }
-
-  .home-hero-boards {
-    margin-top: 6px;
-    margin-bottom: 2px;
-    gap: 8px;
-  }
-
-  .home-attend-streaks {
-    padding: 8px 10px 6px;
-    margin-top: 0;
-    margin-bottom: 0;
-  }
-
-  .home-attend-streaks-title {
-    font-size: 0.64rem;
-    letter-spacing: 0.14em;
-  }
-
-  .home-attend-streaks-nick,
-  .home-train-pwr-list .home-attend-streaks-nick {
-    font-size: 0.82rem;
-  }
-
-  .home-attend-streaks-row,
-  .home-train-pwr-list .home-attend-streaks-row {
-    padding: 2px 2px;
-  }
-
-  .home-ops-board {
-    padding: 10px 10px 8px 12px;
-  }
-
-  .home-ops-head h2 {
-    font-size: 1.05rem;
-  }
-
-  .home-ops-count {
-    min-width: 1.8rem;
-    height: 1.8rem;
-    font-size: 0.85rem;
-  }
-
-  .home-mvp-step-nick {
-    font-size: 0.78rem;
-  }
-
-  .home-mvp-step-total {
-    font-size: 0.7rem;
-  }
-
-  .home-mvp-chip {
-    font-size: 0.58rem;
-    padding: 2px 5px;
-  }
-
-  .home-mvp-anti-row {
-    padding: 3px 5px;
-  }
-
-  .home-mvp-anti-nick {
-    font-size: 0.75rem;
-  }
-}
-
-/* 1280–1499 (15–17″): tighter 4-col, readable tiers */
-@media (min-width: 1280px) and (max-width: 1499px) {
-  .home-layout {
-    grid-template-columns:
-      minmax(160px, 210px)
-      minmax(260px, 360px)
-      minmax(0, 1fr)
-      minmax(300px, 420px);
-    gap: 8px;
-    padding: 8px 10px;
-  }
-
-  .home-hero {
-    max-width: 100%;
-  }
-
-  .home-tier-list {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* 900–1279: page scroll, 2×2 grid (hero top, ops|mvp, tiers full) */
-@media (min-width: 900px) and (max-width: 1279px) {
-  html:has(.home-page),
-  body:has(.home-page) {
-    height: auto;
-    overflow: auto;
-  }
-
-  .shell:has(.home-page) {
-    height: auto;
-    max-height: none;
-    overflow: visible;
-  }
-
-  .home-page {
-    display: block;
-    height: auto;
-    max-height: none;
-    overflow: visible;
-    min-height: calc(100dvh - 76px);
-  }
-
-  .home-stage-photo {
-    animation: none;
-    transform: none;
-    inset: 0;
-    background-position: 55% center;
-    background-size: cover;
-  }
-
-  .home-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-areas:
-      "hero hero"
-      "ops mvp"
-      "tiers tiers";
-    height: auto;
-    min-height: 0;
-    gap: 16px;
-    padding: 16px 14px 28px;
-    overflow: visible;
-  }
-
-  .home-layout > .home-ops-board:not(.home-mvp-board):not(.home-tier-board) {
-    grid-area: ops;
-    max-height: none;
-    height: auto;
-  }
-
-  .home-layout > .home-mvp-board {
-    grid-area: mvp;
-    max-height: none;
-    height: auto;
-    overflow: visible;
-  }
-
-  .home-layout > .home-tier-board {
-    grid-area: tiers;
-    max-height: none;
-    height: auto;
-    overflow: visible;
-  }
-
-  .home-layout > .home-hero {
-    grid-area: hero;
-    max-height: none;
-  }
-
-  .home-tier-body {
-    grid-template-columns: 1fr 1fr;
-    overflow: visible;
-  }
-
-  .home-tier-block .home-tier-list {
-    grid-template-columns: 1fr 1fr;
-    overflow: visible;
-  }
-
-  .home-tier-note {
-    display: block;
-    margin: 4px 0 0;
-    font-size: 0.72rem;
-    line-height: 1.35;
-    color: rgba(190, 180, 220, 0.62);
-  }
-
-  .home-hero {
-    position: relative;
-    left: auto;
-    top: auto;
-    transform: none;
-    width: 100%;
-    max-width: none;
-    min-height: 0;
-    height: auto;
-    pointer-events: auto;
-    padding: 20px 8px 12px;
-    overflow: visible;
-    animation: home-hero-in-stack 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-
-  .home-hero-brand {
-    min-height: 0;
-  }
-
-  .home-hero h1 {
-    filter: none;
-    -webkit-text-fill-color: transparent;
-    text-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
-    font-size: clamp(2rem, 6vw, 2.8rem);
-  }
-
-  .home-hero-tag,
-  .home-hero-hint {
-    margin-left: auto;
-    margin-right: auto;
-  }
-
-  .home-hero-cta {
-    display: flex;
-    justify-content: center;
-  }
-
-  .home-attend-streaks {
-    width: min(100%, 26rem);
-    margin-left: auto;
-    margin-right: auto;
-    margin-top: 16px;
-    margin-bottom: 4px;
-  }
-
-  .home-hero-boards {
-    width: min(100%, 32rem);
-    grid-template-columns: 1fr 1fr;
-    margin-left: auto;
-    margin-right: auto;
-    margin-top: 16px;
-    margin-bottom: 4px;
-  }
-
-  .home-hero-boards .home-attend-streaks {
-    margin: 0;
-    width: 100%;
-  }
-
-  .home-ops-board {
-    width: 100%;
-    max-width: 100%;
-    max-height: none;
-  }
-
-  .home-ops-board.home-mvp-board,
-  .home-mvp-board {
-    position: relative;
-    top: auto;
-    right: auto;
-    width: 100%;
-    min-width: 0;
-    max-width: 100%;
-    max-height: none;
-    transform: none;
-    overflow: visible;
-  }
-
-  .home-mvp-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .home-crest {
-    width: 96px;
-  }
-
-  .home-mission {
-    grid-template-columns: 14px 48px minmax(0, 1fr) 44px;
-    column-gap: 8px;
-  }
-
-  .home-winring {
-    margin-left: 0;
-  }
-
-  .home-mission-tags {
-    display: none;
-  }
-}
-
-/* ≤899 phone: single column */
-@media (max-width: 899px) {
-  html:has(.home-page),
-  body:has(.home-page) {
-    height: auto;
-    overflow: auto;
-  }
-
-  .shell:has(.home-page) {
-    height: auto;
-    max-height: none;
-    overflow: visible;
-  }
-
-  .home-page {
-    display: block;
-    height: auto;
-    max-height: none;
-    overflow: visible;
-    min-height: calc(100dvh - 76px);
-  }
-
-  .home-stage-photo {
-    animation: none;
-    transform: none;
-    inset: 0;
-    background-position: 62% center;
-    background-size: cover;
-  }
-
-  .home-layout {
-    display: flex;
-    flex-direction: column;
-    grid-template-columns: none;
-    grid-template-areas: none;
-    height: auto;
-    min-height: calc(100dvh - 76px);
-    gap: 18px;
-    padding: 14px 12px 28px;
-    overflow: visible;
-  }
-
-  .home-layout > .home-ops-board:not(.home-mvp-board),
-  .home-layout > .home-mvp-board,
-  .home-layout > .home-tier-board,
-  .home-layout > .home-hero {
-    grid-area: auto;
-    max-height: none;
-  }
-
-  .home-tier-body {
-    grid-template-columns: 1fr;
-    overflow: visible;
-  }
-
-  .home-tier-block .home-tier-list {
-    grid-template-columns: 1fr;
-    overflow: visible;
-  }
-
-  .home-tier-note {
-    display: block;
-    margin: 4px 0 0;
-    font-size: 0.72rem;
-    line-height: 1.35;
-    color: rgba(190, 180, 220, 0.62);
-  }
-
-  .home-hero {
-    position: relative;
-    left: auto;
-    top: auto;
-    transform: none;
-    order: -1;
-    width: 100%;
-    max-width: none;
-    min-height: 0;
-    height: auto;
-    pointer-events: auto;
-    padding: 20px 4px 12px;
-    overflow: visible;
-    animation: home-hero-in-stack 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-
-  .home-hero-brand {
-    min-height: 0;
-  }
-
-  .home-hero h1 {
-    filter: none;
-    -webkit-text-fill-color: transparent;
-    text-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
-    font-size: clamp(2rem, 11vw, 2.8rem);
-  }
-
-  .home-hero-tag,
-  .home-hero-hint {
-    margin-left: auto;
-    margin-right: auto;
-  }
-
-  .home-hero-cta {
-    display: flex;
-    justify-content: center;
-    width: 100%;
-  }
-
-  .home-hero-cta .btn {
-    width: 100%;
-    max-width: 20rem;
-    justify-content: center;
-  }
-
-  .home-attend-streaks {
-    width: min(100%, 26rem);
-    margin-left: auto;
-    margin-right: auto;
-    margin-top: clamp(16px, 4vh, 32px);
-    margin-bottom: 8px;
-  }
-
-  .home-hero-boards {
-    width: min(100%, 26rem);
-    grid-template-columns: 1fr;
-    margin-left: auto;
-    margin-right: auto;
-    margin-top: clamp(16px, 4vh, 32px);
-    margin-bottom: 8px;
-  }
-
-  .home-hero-boards .home-attend-streaks {
-    margin: 0;
-    width: 100%;
-  }
-
-  .home-ops-board {
-    width: 100%;
-    max-width: 100%;
-    max-height: none;
-  }
-
-  .home-ops-board.home-mvp-board,
-  .home-mvp-board {
-    position: relative;
-    top: auto;
-    right: auto;
-    width: 100%;
-    min-width: 0;
-    max-width: 100%;
-    max-height: none;
-    transform: none;
-    overflow: visible;
-  }
-
-  .home-mvp-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .home-crest {
-    width: 96px;
-  }
-
-  .home-mission {
-    grid-template-columns: 14px 44px minmax(0, 1fr) 40px;
-    column-gap: 6px;
-  }
-
-  .home-winring {
-    margin-left: 0;
-  }
-
-  .home-mission-tags {
-    display: none;
-  }
-}
 
 .clans-hero {
   display: flex;
@@ -9152,7 +8650,6 @@ body {
 
   .shell:has(.clan-page),
   .shell:has(.clan-detail),
-  .shell:has(.home-page),
   .shell:has(.cw-embed),
   .shell:has(.profile-page) {
     max-width: 100%;
@@ -9410,42 +8907,6 @@ body {
   }
 
   .squad-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .home-mission {
-    grid-template-columns: 12px 44px minmax(0, 1fr) 40px;
-    column-gap: 6px;
-    padding: 10px 4px 10px 0;
-  }
-
-  .home-mission-map {
-    font-size: 0.72rem;
-  }
-
-  .home-winring {
-    margin-left: 6px;
-  }
-
-  .home-ops-board {
-    width: 100%;
-    max-width: 100%;
-  }
-
-  .home-ops-board.home-mvp-board,
-  .home-mvp-board {
-    position: relative;
-    top: auto;
-    right: auto;
-    width: 100%;
-    min-width: 0;
-    max-width: 100%;
-    max-height: none;
-    transform: none;
-    overflow: visible;
-  }
-
-  .home-mvp-grid {
     grid-template-columns: 1fr;
   }
 

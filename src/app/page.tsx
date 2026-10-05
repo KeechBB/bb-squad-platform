@@ -6,6 +6,7 @@ import { HomeUpcomingMatches } from "@/components/HomeUpcomingMatches";
 import { HomeMvpBoard } from "@/components/HomeMvpBoard";
 import { HomeTrainPwrTop } from "@/components/HomeTrainPwrTop";
 import { HomeTierBoard } from "@/components/HomeTierBoard";
+import { HomeFit } from "@/components/HomeFit";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,7 @@ export default async function HomePage() {
         </svg>
       </div>
 
-      <div className="home-layout">
+      <HomeFit>
         <HomeUpcomingMatches previews={previews} />
         <HomeMvpBoard initial={mvpBoard} />
 
@@ -107,7 +108,7 @@ export default async function HomePage() {
         </section>
 
         <HomeTierBoard initial={tierBoard} />
-      </div>
+      </HomeFit>
     </main>
   );
 }
