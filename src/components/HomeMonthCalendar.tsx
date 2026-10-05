@@ -74,6 +74,14 @@ function isHqOpp(opp: string) {
   return canonOpp(opp).key === "HQ";
 }
 
+function stackMark(stack: string, compact: boolean) {
+  const s = String(stack || "").toLowerCase();
+  if (s.includes("jun")) return { cls: "is-junior", label: compact ? "Jun" : "Junior" };
+  if (s.includes("main")) return { cls: "is-main", label: "Main" };
+  const label = String(stack || "").trim();
+  return { cls: "is-other", label: compact ? label.slice(0, 3) : label.slice(0, 8) };
+}
+
 function dayTimes(list: UpcomingMatchPreview[]) {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -293,7 +301,9 @@ export function HomeMonthCalendar({ previews }: Props) {
                       className="home-cal-split"
                       style={{ gridTemplateColumns: `repeat(${list.length}, 1fr)` }}
                     >
-                      {list.map((m) => (
+                      {list.map((m) => {
+                        const mark = stackMark(m.stack, true);
+                        return (
                         <span
                           key={m.key}
                           className={`home-cal-half is-${m.status || "play"}`}
@@ -301,6 +311,7 @@ export function HomeMonthCalendar({ previews }: Props) {
                           {m.timeMsk && m.timeMsk !== "—" ? (
                             <span className="home-cal-half-time">{m.timeMsk}</span>
                           ) : null}
+                          <span className={`home-cal-stack ${mark.cls}`}>{mark.label}</span>
                           {m.status === "cancel" ? (
                             <span className="home-cal-stamp" aria-hidden="true">
                               ОТМЕНА
@@ -308,7 +319,8 @@ export function HomeMonthCalendar({ previews }: Props) {
                           ) : null}
                           {logoButton(m)}
                         </span>
-                      ))}
+                        );
+                      })}
                     </span>
                   ) : null}
                   {!split && allCancel ? (
@@ -323,9 +335,14 @@ export function HomeMonthCalendar({ previews }: Props) {
                     ) : null}
                   </span>
                   {!split && list.length > 0 ? (
-                    <span className="home-cal-logos">
-                      {list.map((m) => logoButton(m))}
-                    </span>
+                    <>
+                      <span className="home-cal-logos">
+                        {list.map((m) => logoButton(m))}
+                      </span>
+                      <span className={`home-cal-stack ${stackMark(list[0].stack, false).cls}`}>
+                        {stackMark(list[0].stack, false).label}
+                      </span>
+                    </>
                   ) : null}
                 </div>
               );

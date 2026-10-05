@@ -5402,8 +5402,8 @@ body:has(.home-page) {
 }
 
 .home-dock {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 1 1 340px;
+  min-height: 280px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-rows: minmax(0, 1fr);
@@ -5761,7 +5761,7 @@ body:has(.home-page) {
 }
 
 .home-ops-board.home-cal-board {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   min-height: 0;
   position: relative;
   isolation: isolate;
@@ -5893,8 +5893,9 @@ body:has(.home-page) {
 }
 
 .home-cal-grid {
-  flex: 0 0 auto;
-  grid-auto-rows: 86px;
+  flex: 0 1 auto;
+  min-height: 0;
+  grid-auto-rows: 74px;
 }
 
 .home-cal-cell {
@@ -6045,9 +6046,10 @@ body:has(.home-page) {
 .home-cal-half .home-cal-logo {
   position: relative;
   z-index: 1;
-  width: 40px;
-  height: 32px;
+  width: 36px;
+  height: 26px;
   max-width: calc(100% - 4px);
+  margin-bottom: 10px;
 }
 
 .home-cal-cell.is-split .home-cal-top {
@@ -6172,13 +6174,55 @@ body:has(.home-page) {
   }
 }
 
+.home-cal-stack {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  bottom: 3px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 8px);
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.home-cal-stack.is-main {
+  color: #f5f3ff;
+  background: rgba(91, 33, 182, 0.92);
+  box-shadow: 0 0 0 1px rgba(196, 181, 253, 0.75);
+}
+
+.home-cal-stack.is-junior {
+  color: #ecfeff;
+  background: rgba(14, 116, 144, 0.94);
+  box-shadow: 0 0 0 1px rgba(103, 232, 249, 0.75);
+}
+
+.home-cal-stack.is-other {
+  color: #f5f1ff;
+  background: rgba(30, 24, 48, 0.9);
+  box-shadow: 0 0 0 1px rgba(196, 181, 253, 0.4);
+}
+
+.home-cal-half .home-cal-stack {
+  bottom: 2px;
+  padding: 0 4px;
+  font-size: 0.48rem;
+}
+
 .home-cal-logos {
   position: absolute;
   z-index: 1;
   left: 8px;
   right: 8px;
-  top: 20px;
-  bottom: 6px;
+  top: 18px;
+  bottom: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -6190,8 +6234,8 @@ body:has(.home-page) {
   border: 0;
   padding: 0;
   margin: 0;
-  width: 80px;
-  height: 38px;
+  width: 72px;
+  height: 32px;
   max-width: 100%;
   border-radius: 0;
   background: transparent;
