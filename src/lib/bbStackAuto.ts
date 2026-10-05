@@ -25,6 +25,34 @@ const FORCE_STACK: Record<string, BbStackName> = {
 
 const ENSURE_NICKS = ["Keech", "Chidori", "Jimmy Neutron", "VET"] as const;
 
+/** Ушли из клана — не показывать в составах и не возвращать автосбором. */
+const DEPARTED_NICKS = new Set(["lazy"]);
+
+export function isBbDeparted(nick: string): boolean {
+  const key = nickKey(nick);
+  const compact = nickCompact(nick);
+  return DEPARTED_NICKS.has(key) || DEPARTED_NICKS.has(compact);
+}
+
+export async function removeDepartedBlackberryMembers(clanId: string): Promise<number> {
+  const members = await prisma.clanMember.findMany({
+    where: { clanId },
+    select: {
+      userId: true,
+      user: { select: { nick: true, steamName: true } },
+    },
+  });
+  const ids = members
+    .filter((m) => isBbDeparted(m.user.nick || m.user.steamName || ""))
+    .map((m) => m.userId);
+  if (!ids.length) return 0;
+  await prisma.clanSquadMember.deleteMany({ where: { userId: { in: ids } } });
+  await prisma.clanMember.deleteMany({
+    where: { clanId, userId: { in: ids } },
+  });
+  return ids.length;
+}
+
 type MonthIndex = { months?: Array<{ url?: string }> };
 type MonthFile = {
   matches?: Array<{
@@ -101,12 +129,13 @@ export async function computeBbStackFrequency(): Promise<StackFreqRow[]> {
       const st = String(m.status || "").toLowerCase();
       const stack = String(m.stack || "").trim() as BbStackName;
       if (stack !== "Main" && stack !== "Junior") continue;
-      if (st !== "win" && st !== "lose") continue;
+      if (st !== "win" && st !== "lose" && st !== "draw") continue;
       const purl = String(m.playersUrl || "").replace(/^\/+/, "");
       if (!purl) continue;
       const pj = await loadKvJsonCached<PlayersFile>(purl);
       if (!pj) continue;
       for (const nick of collectNicks(pj)) {
+        if (isBbDeparted(nick)) continue;
         const key = nickKey(nick);
         const row = counts.get(key) || { nick, main: 0, junior: 0 };
         if (!row.nick) row.nick = nick;
@@ -197,6 +226,7 @@ export async function syncBbSquadsFromKv(): Promise<{
     };
   }
 
+  await removeDepartedBlackberryMembers(clan.id);
   await ensureDefaultSquads(clan.id);
 
   const squads = await prisma.clanSquad.findMany({
@@ -275,7 +305,7 @@ export async function syncBbSquadsFromKv(): Promise<{
   const candidateIds: string[] = [];
   for (const u of users) {
     const label = (u.nick || u.steamName || "").trim();
-    if (!label) continue;
+    if (!label || isBbDeparted(label)) continue;
     const k = nickKey(label);
     const kc = nickCompact(label);
     const hit = byKey.get(k) || byCompact.get(kc);
@@ -319,12 +349,17 @@ export async function syncBbSquadsFromKv(): Promise<{
   const juniorIds: string[] = [];
   const mainNicks: string[] = [];
   const juniorNicks: string[] = [];
+  const departedIds: string[] = [];
   let skipped = 0;
 
   for (const m of members) {
     const nick = (m.user.nick || m.user.steamName || "").trim();
     if (!nick) {
       skipped += 1;
+      continue;
+    }
+    if (isBbDeparted(nick)) {
+      departedIds.push(m.userId);
       continue;
     }
     const hit = byKey.get(nickKey(nick)) || byCompact.get(nickCompact(nick));
@@ -345,6 +380,15 @@ export async function syncBbSquadsFromKv(): Promise<{
       juniorIds.push(m.userId);
       juniorNicks.push(nick);
     }
+  }
+
+  if (departedIds.length) {
+    await prisma.clanSquadMember.deleteMany({
+      where: { userId: { in: departedIds } },
+    });
+    await prisma.clanMember.deleteMany({
+      where: { clanId: clan.id, userId: { in: departedIds } },
+    });
   }
 
   await prisma.$transaction(async (tx) => {

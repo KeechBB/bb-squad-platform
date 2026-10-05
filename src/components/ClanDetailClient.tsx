@@ -62,6 +62,17 @@ type Squad = {
   members: SquadMember[];
 };
 
+type PlayedRow = {
+  nick: string;
+  main: number;
+  junior: number;
+  total: number;
+  tier: number;
+  stack: "Main" | "Junior";
+  tu: number | null;
+  userId: string | null;
+};
+
 type StackCommand = {
   overallLead: string;
   Main: { lead: string; assistant: string };
@@ -196,6 +207,10 @@ export function ClanDetailClient({
     clan.tag.trim().toLowerCase() === "bb"
   );
   const [stackCommand, setStackCommand] = useState<StackCommand | null>(null);
+  const [playedRows, setPlayedRows] = useState<PlayedRow[]>([]);
+  const [rosterSort, setRosterSort] = useState<
+    Record<string, { key: "tier" | "nick" | "tu"; dir: "asc" | "desc" }>
+  >({});
   const [newSquad, setNewSquad] = useState("");
   const [inviteNick, setInviteNick] = useState("");
   const [joinRequests, setJoinRequests] = useState(initialJoinRequests);
@@ -320,6 +335,7 @@ export function ClanDetailClient({
       if (!res.ok) return;
       const data = await res.json();
       setSquads(data.squads || []);
+      setPlayedRows(Array.isArray(data.played) ? data.played : []);
       if (typeof data.autoStacks === "boolean") setAutoStacks(data.autoStacks);
       setStackCommand((data.command as StackCommand | null) || null);
     } catch {
@@ -1263,8 +1279,9 @@ export function ClanDetailClient({
             <>
               <p className="muted" style={{ marginTop: 0 }}>
                 Main и Junior собираются <strong>автоматически</strong> по сыгранным
-                КВ: кто чаще играет за состав — туда и попадает. Ручное добавление
-                отключено.
+                КВ: в состав попадает каждый, кто выходил за этот стак. Если играл
+                и в Main, и в Junior — остаётся там, где матчей больше. Тир на
+                место не влияет. Ручное добавление отключено.
               </p>
               {stackCommand ? (
                 <p style={{ marginTop: 8 }}>
@@ -1344,11 +1361,95 @@ export function ClanDetailClient({
                   na.localeCompare(nb, "ru")
                 );
               });
+              const compactNick = (n: string) =>
+                n.trim().toLowerCase().replace(/\s+/g, "");
+              const playedHere =
+                autoStacks && cmdKey
+                  ? playedRows
+                      .filter((r) => r.stack === cmdKey)
+                      .sort((a, b) => {
+                        const rank = (n: string) =>
+                          compactNick(n) === compactNick(leadKey)
+                            ? 0
+                            : compactNick(n) === compactNick(asstKey)
+                              ? 1
+                              : 2;
+                        const games = (r: PlayedRow) =>
+                          cmdKey === "Main" ? r.main : r.junior;
+                        return (
+                          rank(a.nick) - rank(b.nick) ||
+                          games(b) - games(a) ||
+                          a.nick.localeCompare(b.nick, "ru")
+                        );
+                      })
+                  : null;
+              const spec = rosterSort[s.id];
+              const dir = spec?.dir === "asc" ? 1 : -1;
+              if (playedHere && spec) {
+                playedHere.sort((a, b) => {
+                  if (spec.key === "nick") {
+                    return dir * a.nick.localeCompare(b.nick, "ru");
+                  }
+                  if (spec.key === "tier") {
+                    return (
+                      dir * ((Number(a.tier) || 4) - (Number(b.tier) || 4)) ||
+                      a.nick.localeCompare(b.nick, "ru")
+                    );
+                  }
+                  const ta = a.tu == null ? -1e9 : Number(a.tu);
+                  const tb = b.tu == null ? -1e9 : Number(b.tu);
+                  return dir * (ta - tb) || a.nick.localeCompare(b.nick, "ru");
+                });
+              }
+              if (!playedHere && spec) {
+                ordered.sort((a, b) => {
+                  const na = a.user.nick || a.user.steamName || "";
+                  const nb = b.user.nick || b.user.steamName || "";
+                  if (spec.key === "nick") return dir * na.localeCompare(nb, "ru");
+                  if (spec.key === "tier") {
+                    const ta = a.tier != null ? Number(a.tier) : 4;
+                    const tb = b.tier != null ? Number(b.tier) : 4;
+                    return dir * (ta - tb) || na.localeCompare(nb, "ru");
+                  }
+                  const tua = a.tu == null ? -1e9 : Number(a.tu);
+                  const tub = b.tu == null ? -1e9 : Number(b.tu);
+                  return dir * (tua - tub) || na.localeCompare(nb, "ru");
+                });
+              }
+              const headCount = playedHere ? playedHere.length : s.members.length;
+              const sortBtn = (key: "tier" | "nick" | "tu", label: string, title?: string) => {
+                const on = spec?.key === key;
+                return (
+                  <button
+                    type="button"
+                    className={`squad-sort${on ? " is-on" : ""}`}
+                    title={title}
+                    onClick={() =>
+                      setRosterSort((prev) => {
+                        const cur = prev[s.id];
+                        if (!cur || cur.key !== key) {
+                          return {
+                            ...prev,
+                            [s.id]: { key, dir: key === "nick" ? "asc" : "desc" },
+                          };
+                        }
+                        return {
+                          ...prev,
+                          [s.id]: { key, dir: cur.dir === "asc" ? "desc" : "asc" },
+                        };
+                      })
+                    }
+                  >
+                    {label}
+                    {on ? (spec.dir === "asc" ? " ↑" : " ↓") : ""}
+                  </button>
+                );
+              };
               return (
                 <div key={s.id} className="squad-card">
                   <div className="squad-card-head">
                     <strong>{s.name}</strong>
-                    <span className="muted">{s.members.length} чел.</span>
+                    <span className="muted">{headCount} чел.</span>
                     {!autoStacks &&
                     canManage &&
                     myRole &&
@@ -1370,24 +1471,84 @@ export function ClanDetailClient({
                       помощник: <strong>{cmd.assistant}</strong>
                     </p>
                   ) : null}
-                  <div className="squad-list-heads" aria-hidden="true">
+                  <div className="squad-list-heads">
                     <div className="squad-list-head">
-                      <span>Тир</span>
-                      <span>Ник</span>
-                      <span title="TU — Ticket Utility">TU</span>
+                      {sortBtn("tier", "Тир")}
+                      {sortBtn("nick", "Ник")}
+                      {sortBtn("tu", "TU", "TU — Ticket Utility")}
                     </div>
                     <div className="squad-list-head">
-                      <span>Тир</span>
-                      <span>Ник</span>
-                      <span title="TU — Ticket Utility">TU</span>
+                      {sortBtn("tier", "Тир")}
+                      {sortBtn("nick", "Ник")}
+                      {sortBtn("tu", "TU", "TU — Ticket Utility")}
                     </div>
                   </div>
                   <ul
                     className={`squad-list${
-                      ordered.length > 12 ? " squad-list-dense" : ""
+                      (playedHere ? playedHere.length : ordered.length) > 12
+                        ? " squad-list-dense"
+                        : ""
                     }`}
                   >
-                    {ordered.length === 0 ? (
+                    {playedHere ? (
+                      playedHere.length === 0 ? (
+                        <li className="muted squad-list-empty">
+                          Пока нет игроков с КВ-статой в этом составе
+                        </li>
+                      ) : (
+                        playedHere.map((r) => {
+                          const games = cmdKey === "Main" ? r.main : r.junior;
+                          const nk = r.nick.trim().toLowerCase();
+                          const badge =
+                            nk === leadKey
+                              ? "гл."
+                              : nk === asstKey
+                                ? "пом."
+                                : null;
+                          const tierNum = Number(r.tier) || 4;
+                          const tu = r.tu;
+                          const tuText =
+                            tu == null ? "—" : `${tu > 0 ? "+" : ""}${tu}`;
+                          const tuCls =
+                            tu == null
+                              ? ""
+                              : tu > 0
+                                ? "squad-tu-plus"
+                                : tu < 0
+                                  ? "squad-tu-minus"
+                                  : "";
+                          return (
+                            <li
+                              key={`${r.stack}-${r.nick}`}
+                              className="squad-list-row squad-list-row-metrics"
+                            >
+                              <span className={`squad-tier tier-${tierNum}`}>
+                                T{tierNum}
+                              </span>
+                              <span className="squad-nick">
+                                {r.userId ? (
+                                  <Link
+                                    className="player-nick-link"
+                                    href={`/players/${encodeURIComponent(r.nick)}`}
+                                  >
+                                    {r.nick}
+                                  </Link>
+                                ) : (
+                                  r.nick
+                                )}
+                                {badge ? (
+                                  <span className="muted"> · {badge}</span>
+                                ) : null}
+                                <span className="muted"> · {games} игр</span>
+                              </span>
+                              <span className={`squad-tu ${tuCls}`} title="TU">
+                                {tuText}
+                              </span>
+                            </li>
+                          );
+                        })
+                      )
+                    ) : ordered.length === 0 ? (
                       <li className="muted squad-list-empty">
                         {autoStacks
                           ? "Пока нет игроков с КВ-статой в этом составе"

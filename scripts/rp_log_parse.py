@@ -1027,6 +1027,8 @@ def discover_matches(log_paths: list[Path]) -> list[dict]:
         layer_name = layer
         level_name = ""
         winner_team = None
+        winner_name = ""
+        faction_by_team: dict[str, str] = {}
         faction_to_team: dict[str, str] = {}
         score: dict[str, int] = {}
         for r in pending_results:
@@ -1035,11 +1037,16 @@ def discover_matches(log_paths: list[Path]) -> list[dict]:
             if r.get("level"):
                 level_name = r["level"]
             side = (r.get("side") or "").strip()
+            faction_full = (r.get("factionFull") or r.get("faction") or "").strip()
+            team = str(r.get("team") or "")
             if side:
-                faction_to_team[side] = r["team"]
-            score[r["team"]] = r.get("tickets", 0)
+                faction_to_team[side] = team
+            if faction_full and team:
+                faction_by_team[team] = faction_full
+            score[team] = r.get("tickets", 0)
             if r.get("outcome") == "won":
-                winner_team = r["team"]
+                winner_team = team
+                winner_name = faction_full or side
         pending_results = []
         pending_end = None
         start_dt = t_start
@@ -1068,6 +1075,9 @@ def discover_matches(log_paths: list[Path]) -> list[dict]:
                 "log": log_path.name,
                 "logPath": log_path,
                 "winnerTeam": winner_team,
+                "winnerName": winner_name,
+                "faction1": faction_by_team.get("1") or "",
+                "faction2": faction_by_team.get("2") or "",
                 "factionToTeam": faction_to_team,
                 "score1": score.get("1"),
                 "score2": score.get("2"),

@@ -1,11 +1,9 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { getHomeDashboardData } from "@/lib/homePageData";
-import { HomeUpcomingMatches } from "@/components/HomeUpcomingMatches";
-import { HomeMvpBoard } from "@/components/HomeMvpBoard";
-import { HomeTrainPwrTop } from "@/components/HomeTrainPwrTop";
-import { HomeTierBoard } from "@/components/HomeTierBoard";
+import { HomeMonthCalendar } from "@/components/HomeMonthCalendar";
+import { HomePanels } from "@/components/HomePanels";
+import { HomeFit } from "@/components/HomeFit";
 
 export const dynamic = "force-dynamic";
 
@@ -15,9 +13,7 @@ export default async function HomePage() {
     redirect("/register");
   }
 
-  const { previews, mvpBoard, pwrBoard, tierBoard } = await getHomeDashboardData();
-
-  const loggedIn = Boolean(session?.user);
+  const { previews, pwrBoard, tierBoard, publicTop } = await getHomeDashboardData();
 
   return (
     <main className="home-page">
@@ -70,44 +66,34 @@ export default async function HomePage() {
         </svg>
       </div>
 
-      <div className="home-layout">
-        <HomeUpcomingMatches previews={previews} />
-        <HomeMvpBoard initial={mvpBoard} />
+      <HomeFit>
+        <div className="home-side">
+          <HomeMonthCalendar previews={previews} />
+          <HomePanels
+            pwrBoard={pwrBoard}
+            publicTop={publicTop}
+            tierBoard={tierBoard}
+          />
+        </div>
 
-        <section className="home-hero">
+        <section className="home-hero" aria-label="BlackBerry">
           <div className="home-hero-brand">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               className="home-crest"
               src="/blackberry.png"
               alt=""
-              width={220}
-              height={220}
+              width={280}
+              height={280}
             />
-            <p className="home-hero-kicker">Squad · BlackBerry</p>
+            <p className="home-hero-kicker">Squad - Фруктовый сад</p>
             <h1>BLACKBERRY</h1>
             <p className="home-hero-tag">
-              Платформа клана — КВ, тренировки, свои.
+              Платформа клана BlackBerry — Рейтинг, Аналитика, статистика.
             </p>
-            <div className="home-hero-cta">
-              {loggedIn ? (
-                <Link className="btn primary" href="/clans">
-                  К кланам
-                </Link>
-              ) : (
-                <p className="home-hero-hint">
-                  Войди через Steam сверху — без входа разделы сайта закрыты.
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="home-hero-boards">
-            <HomeTrainPwrTop initial={pwrBoard} />
           </div>
         </section>
-
-        <HomeTierBoard initial={tierBoard} />
-      </div>
+      </HomeFit>
     </main>
   );
 }

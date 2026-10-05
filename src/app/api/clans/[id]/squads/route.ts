@@ -4,7 +4,12 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canManageClanMembers, canDeleteClanSquad, type ClanRole } from "@/lib/clan";
 import { ensureDefaultSquads } from "@/lib/squads";
-import { BB_STACK_COMMAND, syncBbSquadsFromKv } from "@/lib/bbStackAuto";
+import {
+  BB_STACK_COMMAND,
+  computeBbStackFrequency,
+  removeDepartedBlackberryMembers,
+  syncBbSquadsFromKv,
+} from "@/lib/bbStackAuto";
 import { computeCwTuByNick } from "@/lib/kvStats";
 import { loadTierIndex } from "@/lib/loadTierIndex";
 import { canAssignClanSquadMembers } from "@/lib/titles";
@@ -44,7 +49,9 @@ export async function GET(_req: Request, ctx: Ctx) {
   await ensureDefaultSquads(clanId);
   const clan = await loadClan(clanId);
   const bbAuto = clan ? isBbClan(clan.tag, clan.name) : false;
-  const [squads, tuByNick, tierMap] = await Promise.all([
+  if (bbAuto) await removeDepartedBlackberryMembers(clanId);
+  const nickKey = (n: string) => n.trim().toLowerCase().replace(/\s+/g, "");
+  const [squads, tuByNick, tierMap, freq, clanMembers] = await Promise.all([
     prisma.clanSquad.findMany({
       where: { clanId },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
@@ -67,9 +74,41 @@ export async function GET(_req: Request, ctx: Ctx) {
     }),
     computeCwTuByNick().catch(() => new Map<string, number>()),
     loadTierIndex(),
+    bbAuto
+      ? computeBbStackFrequency().catch(() => [])
+      : Promise.resolve([]),
+    bbAuto
+      ? prisma.clanMember.findMany({
+          where: { clanId },
+          select: {
+            user: { select: { id: true, nick: true, steamName: true } },
+          },
+        })
+      : Promise.resolve([]),
   ]);
 
-  const nickKey = (n: string) => n.trim().toLowerCase().replace(/\s+/g, "");
+  const userByNick = new Map<string, string>();
+  for (const m of clanMembers) {
+    for (const n of [m.user.nick, m.user.steamName]) {
+      const key = n ? nickKey(n) : "";
+      if (key) userByNick.set(key, m.user.id);
+    }
+  }
+
+  const played = freq.map((r) => {
+    const key = nickKey(r.nick);
+    return {
+      nick: r.nick,
+      main: r.main,
+      junior: r.junior,
+      total: r.total,
+      tier: r.tier,
+      stack: r.stack,
+      tu: tuByNick.get(key) ?? null,
+      userId: userByNick.get(key) ?? null,
+    };
+  });
+
   const enriched = squads.map((s) => ({
     ...s,
     members: s.members.map((m) => {
@@ -85,6 +124,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     squads: enriched,
     autoStacks: bbAuto,
     command: bbAuto ? BB_STACK_COMMAND : null,
+    played,
   });
 }
 

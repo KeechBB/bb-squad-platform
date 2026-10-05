@@ -1,0 +1,358 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { canonOpp, clanLogoUrl } from "@/lib/clanLogo";
+import {
+  confidenceLabel,
+  formatMatchDate,
+  type UpcomingMatchPreview,
+} from "@/lib/kvForecastUi";
+
+type Props = {
+  previews: UpcomingMatchPreview[];
+};
+
+const MONTHS = [
+  "январь",
+  "февраль",
+  "март",
+  "апрель",
+  "май",
+  "июнь",
+  "июль",
+  "август",
+  "сентябрь",
+  "октябрь",
+  "ноябрь",
+  "декабрь",
+];
+
+const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+
+function mskToday() {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Moscow",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+  }).formatToParts(new Date());
+  const n = (t: string) => Number(parts.find((p) => p.type === t)?.value || 0);
+  return { year: n("year"), month: n("month"), day: n("day") };
+}
+
+function daysInMonth(year: number, month: number) {
+  return new Date(year, month, 0).getDate();
+}
+
+function mondayIndex(year: number, month: number) {
+  const js = new Date(year, month - 1, 1).getDay();
+  return js === 0 ? 6 : js - 1;
+}
+
+function pctTone(winPct: number) {
+  if (winPct >= 55) return "is-good";
+  if (winPct <= 42) return "is-bad";
+  return "";
+}
+
+function statusLabel(status: string) {
+  if (status === "win") return "Победа";
+  if (status === "lose") return "Поражение";
+  if (status === "draw") return "Ничья";
+  if (status === "upcoming") return "Скоро";
+  if (status === "cancel") return "Отмена";
+  return "Матч";
+}
+
+function cellTone(list: UpcomingMatchPreview[]) {
+  if (list.length && list.every((m) => m.status === "cancel")) return "cancel";
+  const live = list.find((m) => m.status !== "cancel") || list[0];
+  return live?.status || "";
+}
+
+function isHqOpp(opp: string) {
+  return canonOpp(opp).key === "HQ";
+}
+
+function stackMark(stack: string, compact: boolean) {
+  const s = String(stack || "").toLowerCase();
+  if (s.includes("jun")) return { cls: "is-junior", label: compact ? "Jun" : "Junior" };
+  if (s.includes("main")) return { cls: "is-main", label: "Main" };
+  const label = String(stack || "").trim();
+  return { cls: "is-other", label: compact ? label.slice(0, 3) : label.slice(0, 8) };
+}
+
+function dayTimes(list: UpcomingMatchPreview[]) {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const m of list) {
+    const t = (m.timeMsk || "").trim();
+    if (!t || t === "—" || seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+  }
+  return out;
+}
+
+function WinRing({ pct, tone }: { pct: number; tone: string }) {
+  const r = 18;
+  const c = 2 * Math.PI * r;
+  const clamped = Math.max(0, Math.min(100, pct));
+  const dash = (clamped / 100) * c;
+  return (
+    <div className={`home-winring ${tone}`.trim()} aria-hidden="true">
+      <svg viewBox="0 0 44 44" width="44" height="44">
+        <circle className="home-winring-track" cx="22" cy="22" r={r} />
+        <circle
+          className="home-winring-value"
+          cx="22"
+          cy="22"
+          r={r}
+          strokeDasharray={`${dash} ${c}`}
+          transform="rotate(-90 22 22)"
+        />
+      </svg>
+      <span className="home-winring-num">{pct}%</span>
+    </div>
+  );
+}
+
+export function HomeMonthCalendar({ previews }: Props) {
+  const today = useMemo(() => mskToday(), []);
+  const [cursor, setCursor] = useState(() => ({
+    year: today.year,
+    month: today.month,
+  }));
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+
+  const byDay = useMemo(() => {
+    const map = new Map<number, UpcomingMatchPreview[]>();
+    for (const m of previews) {
+      if (m.year !== cursor.year || m.month !== cursor.month) continue;
+      const list = map.get(m.day) || [];
+      list.push(m);
+      map.set(m.day, list);
+    }
+    for (const list of map.values()) {
+      list.sort((a, b) => a.timeMsk.localeCompare(b.timeMsk));
+    }
+    return map;
+  }, [previews, cursor.year, cursor.month]);
+
+  const selected = useMemo(
+    () => previews.find((m) => m.key === selectedKey) || null,
+    [previews, selectedKey]
+  );
+
+  const cells = useMemo(() => {
+    const lead = mondayIndex(cursor.year, cursor.month);
+    const count = daysInMonth(cursor.year, cursor.month);
+    const out: Array<number | null> = [
+      ...Array.from({ length: lead }, () => null),
+      ...Array.from({ length: count }, (_, i) => i + 1),
+    ];
+    while (out.length % 7 !== 0) out.push(null);
+    return out;
+  }, [cursor.year, cursor.month]);
+
+  function shiftMonth(delta: number) {
+    setSelectedKey(null);
+    setCursor((cur) => {
+      const d = new Date(cur.year, cur.month - 1 + delta, 1);
+      return { year: d.getFullYear(), month: d.getMonth() + 1 };
+    });
+  }
+
+  function logoButton(m: UpcomingMatchPreview) {
+    const clan = canonOpp(m.opp);
+    const src = clanLogoUrl(clan.key);
+    return (
+      <button
+        key={m.key}
+        type="button"
+        className={`home-cal-logo is-${m.status || "play"}`}
+        title={`${m.timeMsk} ${m.stack} vs ${clan.name}`}
+        onClick={() => setSelectedKey(m.key)}
+      >
+        {src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={src} alt={clan.tag} />
+        ) : (
+          <span>{clan.tag.slice(0, 4)}</span>
+        )}
+      </button>
+    );
+  }
+
+  return (
+    <section className="home-ops-board home-cal-board" aria-label="Календарь КВ">
+      <header className="home-ops-head home-cal-head">
+        <div>
+          <p className="home-ops-eyebrow">клановые войны</p>
+          <h2>Календарь</h2>
+        </div>
+        <div className="home-cal-nav">
+          {selected ? (
+            <button
+              type="button"
+              className="home-cal-back"
+              onClick={() => setSelectedKey(null)}
+            >
+              ← Назад
+            </button>
+          ) : null}
+          <button type="button" onClick={() => shiftMonth(-1)} aria-label="Предыдущий месяц">
+            ‹
+          </button>
+          <strong>
+            {MONTHS[cursor.month - 1]} {cursor.year}
+          </strong>
+          <button type="button" onClick={() => shiftMonth(1)} aria-label="Следующий месяц">
+            ›
+          </button>
+        </div>
+      </header>
+
+      {selected ? (
+        <div className="home-match-detail">
+          <div className="home-match-detail-top">
+            <div>
+              <p className="home-match-detail-when muted">
+                {formatMatchDate(selected.day, selected.month, selected.year)} ·{" "}
+                <span className="home-cal-time">{selected.timeMsk} МСК</span> ·{" "}
+                {statusLabel(selected.status)}
+                {selected.meeting ? ` · ${selected.meeting}` : ""}
+              </p>
+              <h3 className="home-match-detail-vs">
+                <span className="home-match-bb">BB</span>
+                <span className="home-match-vs-sep">vs</span>
+                <span className="home-match-opp">{selected.opp}</span>
+              </h3>
+              <p className="home-match-meta">
+                {selected.map} · {selected.stack} · {selected.size}
+              </p>
+            </div>
+            <WinRing
+              pct={selected.forecast.winPct}
+              tone={pctTone(selected.forecast.winPct)}
+            />
+          </div>
+          <div
+            className="home-match-bar"
+            aria-hidden="true"
+            title={`W ${selected.forecast.winPct}% · D ${selected.forecast.drawPct}% · L ${selected.forecast.losePct}%`}
+          >
+            <i style={{ width: `${selected.forecast.winPct}%` }} className="w" />
+            <i style={{ width: `${selected.forecast.drawPct}%` }} className="d" />
+            <i style={{ width: `${selected.forecast.losePct}%` }} className="l" />
+          </div>
+          <p className="home-match-confidence muted">
+            {selected.status === "upcoming"
+              ? confidenceLabel(selected.forecast.confidence)
+              : "Разбор по составу, последнему выходу и личным встречам"}
+          </p>
+          <p className="home-match-summary">{selected.forecast.summary}</p>
+          <ul className="home-match-factors">
+            {selected.forecast.factors.map((fac) => (
+              <li key={fac.label} className={`tone-${fac.tone}`}>
+                <span>{fac.label}</span>
+                <strong>{fac.value}</strong>
+              </li>
+            ))}
+          </ul>
+          {selected.note ? (
+            <p className="home-match-note muted">Заметка: {selected.note}</p>
+          ) : null}
+        </div>
+      ) : (
+        <>
+          <div className="home-cal-weekdays" aria-hidden="true">
+            {WEEKDAYS.map((w) => (
+              <span key={w}>{w}</span>
+            ))}
+          </div>
+          <div className="home-cal-grid">
+            {cells.map((n, i) => {
+              if (n == null) {
+                return <div key={`e${i}`} className="home-cal-cell is-empty" />;
+              }
+              const list = byDay.get(n) || [];
+              const isToday =
+                n === today.day &&
+                cursor.month === today.month &&
+                cursor.year === today.year;
+              const tone = cellTone(list);
+              const weekend = i % 7 >= 5;
+              const featured = list.some((m) => isHqOpp(m.opp));
+              const times = dayTimes(list);
+              const allCancel = tone === "cancel";
+              const split = list.length >= 2;
+              return (
+                <div
+                  key={n}
+                  className={`home-cal-cell${list.length ? " has-match" : ""}${
+                    split ? " is-split" : tone ? ` is-${tone}` : ""
+                  }${isToday ? " is-today" : ""}${
+                    weekend ? " is-weekend" : ""
+                  }${featured ? " is-featured" : ""}`}
+                >
+                  {split ? (
+                    <span
+                      className="home-cal-split"
+                      style={{ gridTemplateColumns: `repeat(${list.length}, 1fr)` }}
+                    >
+                      {list.map((m) => {
+                        const mark = stackMark(m.stack, true);
+                        return (
+                        <span
+                          key={m.key}
+                          className={`home-cal-half is-${m.status || "play"}`}
+                        >
+                          {m.timeMsk && m.timeMsk !== "—" ? (
+                            <span className="home-cal-half-time">{m.timeMsk}</span>
+                          ) : null}
+                          <span className={`home-cal-stack ${mark.cls}`}>{mark.label}</span>
+                          {m.status === "cancel" ? (
+                            <span className="home-cal-stamp" aria-hidden="true">
+                              ОТМЕНА
+                            </span>
+                          ) : null}
+                          {logoButton(m)}
+                        </span>
+                        );
+                      })}
+                    </span>
+                  ) : null}
+                  {!split && allCancel ? (
+                    <span className="home-cal-stamp" aria-hidden="true">
+                      ОТМЕНА
+                    </span>
+                  ) : null}
+                  <span className="home-cal-top">
+                    <span className="home-cal-num">{n}</span>
+                    {!split && times.length ? (
+                      <span className="home-cal-time">{times[0]}</span>
+                    ) : null}
+                  </span>
+                  {!split && list.length > 0 ? (
+                    <>
+                      <span className="home-cal-logos">
+                        {list.map((m) => logoButton(m))}
+                      </span>
+                      <span className={`home-cal-stack ${stackMark(list[0].stack, false).cls}`}>
+                        {stackMark(list[0].stack, false).label}
+                      </span>
+                    </>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+          <p className="home-cal-hint muted">
+            Нажми логотип клана — карточка матча.
+          </p>
+        </>
+      )}
+    </section>
+  );
+}

@@ -1,50 +1,64 @@
-import { mkdir, writeFile, unlink, readdir } from "fs/promises";
-import path from "path";
+/** Логотипы кланов для клиента. Без KV и fs. */
 
-export const CLAN_LOGO_DIR = path.join(process.cwd(), "storage", "clans");
-export const CLAN_LOGO_MAX = 5 * 1024 * 1024;
+const OPP_CANON: Record<string, { key: string; tag: string; name: string }> = {
+  "20royals": { key: "20R", tag: "20R", name: "20Royals" },
+  "20r": { key: "20R", tag: "20R", name: "20Royals" },
+  avg: { key: "AVG", tag: "AVG", name: "AVANGUARD" },
+  avanguard: { key: "AVG", tag: "AVG", name: "AVANGUARD" },
+  dcai: { key: "DCAI", tag: "DCAI", name: "De Caelo Ad Inferos" },
+  hell: { key: "HELL", tag: "HELL", name: "HELL" },
+  two: { key: "TWO", tag: "TWO", name: "Tactical Worm Co." },
+  "44th": { key: "44th", tag: "44th", name: "44th Comp Team" },
+  ih: { key: "IH", tag: "IH", name: "Iron Horde" },
+  gm: { key: "GM", tag: "GM", name: "Grand Masters" },
+  hq: { key: "HQ", tag: "HQ", name: "HQ" },
+  h1gh: { key: "H1GH", tag: "H1GH", name: "H1gh" },
+  h1g: { key: "H1GH", tag: "H1GH", name: "H1gh" },
+  alpha: { key: "ALPHA", tag: "ALPHA", name: "ALPHA" },
+  sph: { key: "SPH", tag: "SPH", name: "SPH" },
+  fury: { key: "FURY", tag: "FURY", name: "Fury" },
+  imp: { key: "IMP", tag: "IMP", name: "IMP" },
+  cut: { key: "CUT", tag: "CUT", name: "CUT" },
+  omen: { key: "OMEN", tag: "OMEN", name: "Team Omen" },
+  fal: { key: "FAL", tag: "FAL", name: "FALCONS" },
+  falcons: { key: "FAL", tag: "FAL", name: "FALCONS" },
+  fox: { key: "FOX", tag: "FOX", name: "RED FOXES" },
+  redfoxes: { key: "FOX", tag: "FOX", name: "RED FOXES" },
+};
 
-const TYPES = {
-  "image/png": "png",
-  "image/webp": "webp",
-} as const;
+const LOGO_EXT: Record<string, string> = {
+  "BB-MAIN": ".png",
+  "BB-JUNIOR": ".png",
+  "20R": ".png",
+  AVG: ".png",
+  DCAI: ".png",
+  HELL: ".png",
+  TWO: ".png",
+  "44th": ".png",
+  IH: ".png",
+  GM: ".png",
+  HQ: ".png",
+  H1GH: ".png",
+  ALPHA: ".png",
+  SPH: ".png",
+  FURY: ".png",
+  IMP: ".png",
+  CUT: ".png",
+  OMEN: ".png",
+  FAL: ".png",
+  FOX: ".png",
+};
 
-export type ClanLogoMime = keyof typeof TYPES;
-
-export function detectClanLogoMime(buf: Buffer): ClanLogoMime | null {
-  if (
-    buf.length >= 8 &&
-    buf[0] === 0x89 &&
-    buf[1] === 0x50 &&
-    buf[2] === 0x4e &&
-    buf[3] === 0x47
-  ) {
-    return "image/png";
-  }
-  if (
-    buf.length >= 12 &&
-    buf.toString("ascii", 0, 4) === "RIFF" &&
-    buf.toString("ascii", 8, 12) === "WEBP"
-  ) {
-    return "image/webp";
-  }
-  return null;
+export function canonOpp(oppRaw: string) {
+  const raw = String(oppRaw || "").trim();
+  const k = raw.toLowerCase().replace(/\s+/g, "");
+  if (OPP_CANON[k]) return OPP_CANON[k];
+  const tag = raw || "?";
+  return { key: tag.toUpperCase(), tag, name: tag };
 }
 
-export async function saveClanLogo(clanId: string, buf: Buffer, mime: ClanLogoMime) {
-  await mkdir(CLAN_LOGO_DIR, { recursive: true });
-  try {
-    const files = await readdir(CLAN_LOGO_DIR);
-    await Promise.all(
-      files
-        .filter((f) => f.startsWith(`${clanId}.`))
-        .map((f) => unlink(path.join(CLAN_LOGO_DIR, f)).catch(() => undefined))
-    );
-  } catch {
-    /* empty */
-  }
-  const ext = TYPES[mime];
-  const filePath = path.join(CLAN_LOGO_DIR, `${clanId}.${ext}`);
-  await writeFile(filePath, buf);
-  return `/api/clans/logo/${clanId}.${ext}?v=${Date.now()}`;
+export function clanLogoUrl(key: string): string | null {
+  const ext = LOGO_EXT[key];
+  if (!ext) return null;
+  return `/rating-logos/${key}${ext}`;
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { readFile } from "fs/promises";
 import path from "path";
-import { CLAN_LOGO_DIR } from "@/lib/clanLogo";
+import { CLAN_LOGO_DIR } from "@/lib/clanLogoFile";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

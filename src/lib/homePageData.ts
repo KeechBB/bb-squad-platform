@@ -1,28 +1,41 @@
 import { unstable_cache } from "next/cache";
-import { buildUpcomingMatchPreviews } from "@/lib/kvForecast";
-import { emptyHomeMvpBoard } from "@/lib/homeMvp";
-import { buildHomeMvpBoard } from "@/lib/homeMvpBuild";
+import { buildCalendarMatches } from "@/lib/kvForecast";
 import {
   buildHomeTrainPwrBoard,
   emptyHomeTrainPwrBoard,
 } from "@/lib/homeTrainPwr";
 import { buildHomeTierBoard, emptyHomeTierBoard } from "@/lib/homeTierBoard";
+import { buildPublicRpLeaderboard } from "@/lib/publicRp";
 
-/** Общие блоки главной — один параллельный проход, кэш ~45с. */
+export type HomePublicTopRow = {
+  nick: string;
+  rp: number;
+  rankLabel: string;
+  rankKey: string;
+};
+
+/** Общие блоки главной — один параллельный проход, кэш ~2 мин. */
 export const getHomeDashboardData = unstable_cache(
   async () => {
-    const [previews, mvpBoard, pwrBoard, tierBoard] = await Promise.all([
-      buildUpcomingMatchPreviews(12)
+    const [previews, pwrBoard, tierBoard, publicTop] = await Promise.all([
+      buildCalendarMatches()
         .then((d) => d.previews)
-        .catch(() => [] as Awaited<
-          ReturnType<typeof buildUpcomingMatchPreviews>
-        >["previews"]),
-      buildHomeMvpBoard().catch(() => emptyHomeMvpBoard()),
+        .catch(() => [] as Awaited<ReturnType<typeof buildCalendarMatches>>["previews"]),
       buildHomeTrainPwrBoard().catch(() => emptyHomeTrainPwrBoard()),
       buildHomeTierBoard().catch(() => emptyHomeTierBoard()),
+      buildPublicRpLeaderboard()
+        .then((d) =>
+          d.rows.slice(0, 10).map((r) => ({
+            nick: r.nick,
+            rp: r.rp,
+            rankLabel: r.rankLabel,
+            rankKey: r.rankKey,
+          }))
+        )
+        .catch(() => [] as HomePublicTopRow[]),
     ]);
-    return { previews, mvpBoard, pwrBoard, tierBoard };
+    return { previews, pwrBoard, tierBoard, publicTop };
   },
-  ["home-dashboard-v11-vps-disk"],
+  ["home-dashboard-v13-panels"],
   { revalidate: 120 }
 );
