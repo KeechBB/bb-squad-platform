@@ -641,14 +641,20 @@ def main() -> int:
     print(f"done added={added} auto_matches={len(auto)}", flush=True)
 
     if added:
-        # Rebuild train RP ledger (includes legacy MATCHES + auto)
+        # 1) Publish match JSON first so /tm updates without waiting for RP rebuild.
+        bump_cache_bust()
+        publish_live_mirrors()
+        # 2) Heavy RP rebuild — low CPU priority so Next/Postgres stay responsive.
+        import shutil
         import subprocess
 
-        subprocess.run(
-            [sys.executable, str(HERE / "build_train_rp_ledger.py")],
-            cwd=str(HERE),
-            check=False,
-        )
+        rebuild = [sys.executable, str(HERE / "build_train_rp_ledger.py")]
+        if shutil.which("nice"):
+            rebuild = ["nice", "-n", "15", *rebuild]
+        if shutil.which("ionice"):
+            rebuild = ["ionice", "-c3", *rebuild]
+        print("train RP rebuild (low priority)…", flush=True)
+        subprocess.run(rebuild, cwd=str(HERE), check=False)
         bump_cache_bust()
         publish_live_mirrors()
     return 0

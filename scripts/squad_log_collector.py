@@ -251,8 +251,11 @@ class Collector:
         self._public_rp_pending = False
         self._public_rp_last = 0.0
         self._public_rp_debounce = int(
-            os.environ.get("PUBLIC_RP_DEBOUNCE_SEC") or "180"
+            os.environ.get("PUBLIC_RP_DEBOUNCE_SEC") or "300"
         )
+        # One heavy Python job at a time (train sync / public RP) — protects 4GB VPS.
+        self._heavy_lock = Path(__file__).resolve().parent / "_tmp_heavy_job.lock"
+        self._heavy_lock_ttl = int(os.environ.get("HEAVY_JOB_LOCK_TTL_SEC") or "900")
         self.state_path = Path(
             os.environ.get("SQUAD_STATE_PATH", "squad_collector_state.json")
         )
@@ -982,8 +985,87 @@ class Collector:
             except Exception:
                 pass
 
+    def _heavy_job_busy(self) -> bool:
+        try:
+            if not self._heavy_lock.is_file():
+                return False
+            age = time.time() - self._heavy_lock.stat().st_mtime
+            if age > self._heavy_lock_ttl:
+                self._heavy_lock.unlink(missing_ok=True)
+                return False
+            return True
+        except Exception:
+            return False
+
+    def _try_acquire_heavy_lock(self, label: str) -> bool:
+        if self._heavy_job_busy():
+            return False
+        try:
+            self._heavy_lock.write_text(
+                f"{label} {datetime.now(timezone.utc).isoformat()}\n", encoding="utf-8"
+            )
+            return True
+        except Exception:
+            return False
+
+    def _spawn_low_priority(
+        self,
+        script: Path,
+        log_path: Path,
+        *,
+        env: dict[str, str] | None = None,
+        lock_label: str,
+    ) -> bool:
+        """Start heavy Python job with nice/ionice; single-flight via lock file."""
+        if not self._try_acquire_heavy_lock(lock_label):
+            _safe_print(f"{lock_label} skip — heavy job already running", flush=True)
+            return False
+        import shutil
+
+        cmd = [sys.executable, str(script)]
+        if shutil.which("nice"):
+            cmd = ["nice", "-n", "15", *cmd]
+        if shutil.which("ionice"):
+            cmd = ["ionice", "-c3", *cmd]
+        # Child clears lock when done (wrapper via bash if available).
+        bash = shutil.which("bash")
+        try:
+            log_f = open(log_path, "a", encoding="utf-8")
+            run_env = env or {**os.environ}
+            if bash:
+                import shlex
+
+                # Release lock after job exits so the next rebuild can start.
+                inner = " ".join(shlex.quote(c) for c in cmd)
+                lock_q = shlex.quote(str(self._heavy_lock))
+                wrapper = f"{inner}; ec=$?; rm -f {lock_q}; exit $ec"
+                subprocess.Popen(
+                    [bash, "-c", wrapper],
+                    cwd=str(script.parent),
+                    stdout=log_f,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                    env=run_env,
+                )
+            else:
+                subprocess.Popen(
+                    cmd,
+                    cwd=str(script.parent),
+                    stdout=log_f,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                    env=run_env,
+                )
+            return True
+        except Exception:
+            try:
+                self._heavy_lock.unlink(missing_ok=True)
+            except Exception:
+                pass
+            raise
+
     def maybe_rebuild_public_rp(self, *, force: bool = False) -> None:
-        """Rebuild PB1 combat/RP ledger from TPUB1 logs (debounced)."""
+        """Rebuild PB1 combat/RP ledger from TPUB1 logs (debounced, low priority)."""
         if not force and not self._public_rp_pending:
             return
         now = time.time()
@@ -992,20 +1074,18 @@ class Collector:
         script = Path(__file__).resolve().parent / "build_public_rp_ledger.py"
         if not script.is_file():
             return
+        if self._heavy_job_busy():
+            # Keep pending so we retry next poll after train sync finishes.
+            _safe_print("public RP deferred — heavy job running", flush=True)
+            return
         self._public_rp_pending = False
         self._public_rp_last = now
-        _safe_print("public RP rebuild start (background)", flush=True)
+        _safe_print("public RP rebuild start (background, nice)", flush=True)
         try:
             log_path = Path(__file__).resolve().parent / "_tmp_public_rp_rebuild.log"
-            log_f = open(log_path, "a", encoding="utf-8")
-            subprocess.Popen(
-                [sys.executable, str(script)],
-                cwd=str(script.parent),
-                stdout=log_f,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
+            self._spawn_low_priority(
+                script, log_path, lock_label="public-rp"
             )
-            # log_f stays open for child; OK for long-running collector
         except Exception as e:
             _safe_print(
                 "public RP rebuild error",
@@ -1018,17 +1098,22 @@ class Collector:
         """TR1 auto: digitize closed maps (21:30–00:00 MSK) + rebuild train RP."""
         now = time.time()
         last = getattr(self, "_train_sync_last", 0.0)
-        # ~every 3 minutes while collector runs
-        if (now - last) < 180:
+        # Evening window (MSK≈UTC+3): poll often. Daytime: rare (saves RAM/CPU).
+        msk_hour = (datetime.now(timezone.utc).hour + 3) % 24
+        in_train_window = msk_hour >= 21 or msk_hour < 1
+        interval = 180 if in_train_window else 1800
+        if (now - last) < interval:
+            return
+        if self._heavy_job_busy():
+            _safe_print("TR1 train sync deferred — heavy job running", flush=True)
             return
         self._train_sync_last = now
         script = Path(__file__).resolve().parent / "sync_train_from_tr1_logs.py"
         if not script.is_file():
             return
-        _safe_print("TR1 train sync start (background)", flush=True)
+        _safe_print("TR1 train sync start (background, nice)", flush=True)
         try:
             log_path = Path(__file__).resolve().parent / "_tmp_train_tr1_sync.log"
-            log_f = open(log_path, "a", encoding="utf-8")
             env = {
                 **os.environ,
                 "TR1_LOG_CACHE": str(
@@ -1051,13 +1136,8 @@ class Collector:
                         else:
                             env["BB_KV_PUBLIC"] = str(cand)
                         break
-            subprocess.Popen(
-                [sys.executable, str(script)],
-                cwd=str(script.parent),
-                stdout=log_f,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
-                env=env,
+            self._spawn_low_priority(
+                script, log_path, env=env, lock_label="train-sync"
             )
         except Exception as e:
             _safe_print(
