@@ -8,7 +8,7 @@ import {
   ymdFromMskParts,
 } from "@/lib/squadSessions";
 import { TRAINING_SERVER_KEYS } from "@/lib/squadServers";
-import { userInReserve } from "@/lib/reserve";
+import { findBlackberryClanIds, userInReserve } from "@/lib/reserve";
 
 export type AttendanceStreakRow = {
   userId: string;
@@ -229,9 +229,46 @@ export async function buildAttendanceStreakBoard(
     };
   }
 
+  const clanIds = await findBlackberryClanIds();
+  if (clanIds.length === 0) {
+    return {
+      registered: 0,
+      anchorYmd,
+      missedToday: 0,
+      missByDays: Object.fromEntries(
+        [2, 3, 4, 5, 6, 7].map((n) => [String(n), 0])
+      ),
+      rows: [],
+      top10: [],
+      updatedAt: new Date().toISOString(),
+    };
+  }
+  const bbMembers = await prisma.clanMember.findMany({
+    where: { clanId: { in: clanIds } },
+    select: { userId: true },
+  });
+  const bbIds = bbMembers.map((m) => m.userId);
+  if (bbIds.length === 0) {
+    return {
+      registered: 0,
+      anchorYmd,
+      missedToday: 0,
+      missByDays: Object.fromEntries(
+        [2, 3, 4, 5, 6, 7].map((n) => [String(n), 0])
+      ),
+      rows: [],
+      top10: [],
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
   const [users, sessions, stints] = await Promise.all([
     prisma.user.findMany({
-      where: { profileComplete: true, nick: { not: null } },
+      where: {
+        profileComplete: true,
+        nick: { not: null },
+        id: { in: bbIds },
+      },
       orderBy: [{ regNo: "asc" }, { createdAt: "asc" }],
       select: { id: true, nick: true, regNo: true, reserveUntil: true },
     }),
@@ -239,6 +276,7 @@ export async function buildAttendanceStreakBoard(
       where: {
         serverKey: { in: [...TRAINING_SERVER_KEYS] },
         joinedAt: { gte: attendanceCanonStartUtc() },
+        userId: { in: bbIds },
       },
       orderBy: { joinedAt: "asc" },
       select: {
@@ -249,6 +287,7 @@ export async function buildAttendanceStreakBoard(
       },
     }),
     prisma.reserveStint.findMany({
+      where: { userId: { in: bbIds } },
       select: {
         userId: true,
         enteredAt: true,

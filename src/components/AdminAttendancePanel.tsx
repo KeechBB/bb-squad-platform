@@ -395,6 +395,8 @@ export function AdminAttendancePanel() {
   const [server, setServer] = useState<ServerFilter>("TR1");
   const [leaveDay, setLeaveDay] = useState<string>("");
   const [streaks, setStreaks] = useState<AttendanceStreakBoard | null>(null);
+  const [clanSyncBusy, setClanSyncBusy] = useState(false);
+  const [clanSyncMsg, setClanSyncMsg] = useState<string | null>(null);
   const [streakSort, setStreakSort] = useState<{
     key:
       | "regNo"
@@ -472,6 +474,42 @@ export function AdminAttendancePanel() {
       kinds: ["attendance"],
     }
   );
+
+  async function syncClanFromTrain() {
+    if (clanSyncBusy) return;
+    if (
+      !window.confirm(
+        "Добавить в клан BlackBerry всех зареганных, кто заходил на TR1/TR2 или есть в тренировочном рейтинге? Чужие кланы не трогаем."
+      )
+    ) {
+      return;
+    }
+    setClanSyncBusy(true);
+    setClanSyncMsg(null);
+    try {
+      const res = await fetch("/api/admin/bb-clan-from-train", {
+        method: "POST",
+        cache: "no-store",
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        message?: string;
+        added?: number;
+        error?: string;
+        detail?: string;
+      };
+      if (!res.ok || json.ok === false) {
+        throw new Error(json.detail || json.error || json.message || "Ошибка");
+      }
+      setClanSyncMsg(json.message || `Добавлено: ${json.added ?? 0}`);
+      await load();
+      if (tab === "stats") await loadStreaks();
+    } catch (e) {
+      setClanSyncMsg(e instanceof Error ? e.message : "Ошибка");
+    } finally {
+      setClanSyncBusy(false);
+    }
+  }
 
   const leaveRows = useMemo(() => {
     if (!data) return [];
@@ -591,6 +629,28 @@ export function AdminAttendancePanel() {
 
   return (
     <section className="card" style={{ marginTop: 8 }}>
+      <p className="muted" style={{ marginTop: 0, marginBottom: 10 }}>
+        Тренировки (TR1): в таблице и статистике только участники клана{" "}
+        <strong>BlackBerry</strong>. Паблик (PB1) — все зареганые, как раньше.
+      </p>
+      <div className="attend-filter-row" style={{ marginBottom: 10 }}>
+        <button
+          type="button"
+          className="btn"
+          disabled={clanSyncBusy}
+          onClick={() => void syncClanFromTrain()}
+          title="Разово добавить в ClanMember BB всех с TR1 / train RP"
+        >
+          {clanSyncBusy
+            ? "Добавляю…"
+            : "Добавить всех с TR1 в BlackBerry"}
+        </button>
+        {clanSyncMsg ? (
+          <span className="muted" style={{ alignSelf: "center" }}>
+            {clanSyncMsg}
+          </span>
+        ) : null}
+      </div>
       <div className="admin-tabs" role="tablist">
         <button
           type="button"
@@ -895,14 +955,18 @@ export function AdminAttendancePanel() {
             className="training-chart-block"
             style={{ gridColumn: "1 / -1" }}
           >
-            <h3>Явка: зареганы на сайте → были на тренировке</h3>
-            <p className="muted" style={{ marginTop: 0, marginBottom: 8 }}>
-              По каждому дню: сколько человек уже было в базе к концу дня (МСК) и
-              сколько из них отмечены «был» (
+            <h3>
               {server === "TR1"
-                ? "≥60 мин вечером или уход ≥23:30"
+                ? "Явка: участники BlackBerry → были на тренировке"
+                : "Явка: зареганы на сайте → были на PB1"}
+            </h3>
+            <p className="muted" style={{ marginTop: 0, marginBottom: 8 }}>
+              По каждому дню: сколько человек из выборки уже было в базе к концу
+              дня (МСК) и сколько отмечены «был» (
+              {server === "TR1"
+                ? "≥60 мин вечером или уход ≥23:30 · только клан BB"
                 : "уникальные на PB1"}
-              ). Сейчас зарегано:{" "}
+              ). Сейчас в выборке:{" "}
               <strong>{data.stats.registeredNow ?? "—"}</strong>.
             </p>
             {(data.stats.turnoutByDay || []).length ? (
