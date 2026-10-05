@@ -153,23 +153,52 @@ class KeechHuntTracker:
         k = R.nick_key(nick)
         return float(rp.get(k, R.START_RP))
 
-    def _delta_kill(self, victim: str) -> tuple[float, float, float]:
+    @staticmethod
+    def _v2(at: datetime) -> bool:
+        """New RP coefs (nok/kill/death/revive) from cutover date MSK."""
+        return at.astimezone(MSK).strftime("%Y-%m-%d") >= R.RP_FORMULA_CUTOVER
+
+    def _raw_n_as_killer(self, victim: str) -> tuple[float, float, float]:
         rp, pmax = self._rp_map()
         me = float(rp.get("keech", R.START_RP))
         pv = self._weight(victim, rp)
-        return round(R.hunt_delta(me, pv, pmax), 2), me, pv
+        return R.hunt_delta(me, pv, pmax), me, pv
 
-    def _delta_death(self, killer: str) -> tuple[float, float, float]:
+    def _raw_n_as_victim(self, killer: str) -> tuple[float, float, float]:
         rp, pmax = self._rp_map()
         me = float(rp.get("keech", R.START_RP))
         pk = self._weight(killer, rp)
-        return round(R.hunt_delta(pk, me, pmax), 2), me, pk
+        return R.hunt_delta(pk, me, pmax), me, pk
 
-    def _delta_revive(self, patient: str) -> tuple[float, float, float]:
-        rp, pmax = self._rp_map()
-        me = float(rp.get("keech", R.START_RP))
-        pv = self._weight(patient, rp)
-        d = round(R.hunt_delta(me, pv, pmax) * R.REVIVE_COEF, 2)
+    def _delta_kill(self, victim: str, *, at: datetime | None = None) -> tuple[float, float, float]:
+        n, me, pv = self._raw_n_as_killer(victim)
+        coef = R.COEF_ENEMY_KILL if (at is None or self._v2(at)) else 1.0
+        # Pre-cutover Hunt = full Die N; v2 = N×kill coef (1.0).
+        return round(n * coef, 2), me, pv
+
+    def _delta_death(self, killer: str, *, at: datetime | None = None) -> tuple[float, float, float]:
+        n, me, pk = self._raw_n_as_victim(killer)
+        coef = R.COEF_OWN_DEATH if (at is not None and self._v2(at)) else 1.0
+        return round(n * coef, 2), me, pk
+
+    def _delta_nok(self, victim: str, *, at: datetime) -> tuple[float, float, float]:
+        """Enemy nok: 0 before cutover; N×COEF_ENEMY_NOK after."""
+        if not self._v2(at):
+            return 0.0, 0.0, 0.0
+        n, me, pv = self._raw_n_as_killer(victim)
+        return round(n * R.COEF_ENEMY_NOK, 2), me, pv
+
+    def _delta_gotnok(self, killer: str, *, at: datetime) -> tuple[float, float, float]:
+        """Being nokked: 0 before cutover; − shown via positive magnitude × COEF_BEING_NOKKED."""
+        if not self._v2(at):
+            return 0.0, 0.0, 0.0
+        n, me, pk = self._raw_n_as_victim(killer)
+        return round(n * R.COEF_BEING_NOKKED, 2), me, pk
+
+    def _delta_revive(self, patient: str, *, at: datetime | None = None) -> tuple[float, float, float]:
+        n, me, pv = self._raw_n_as_killer(patient)
+        coef = R.COEF_REVIVE if (at is not None and self._v2(at)) else R.REVIVE_COEF
+        d = round(n * coef, 2)
         return d, me, pv
 
     def _new_bucket(self, server: str, layer: str, start: datetime) -> dict[str, Any]:
@@ -405,7 +434,7 @@ class KeechHuntTracker:
                 ksteam = wm.group("steam")
                 victim = R.strip_tag(victim_raw)
                 vkey = R.nick_key(victim)
-                # Nok = Wound() down, enemy not give-up yet. Info only, delta always 0.
+                # Nok = Wound() down. Pre-cutover: info only (0). From cutover: N×0.1.
                 if ksteam == KEECH_STEAM and vkey != "keech":
                     veos = ""
                     for e, s in self.eos_steam.items():
@@ -425,6 +454,7 @@ class KeechHuntTracker:
                             victim_eos=None,
                             at=at,
                         )
+                    dlt, _me, pv = self._delta_nok(victim, at=at)
                     # Unique per second+victim; several downs same second still count once
                     self._add_event(
                         server,
@@ -434,8 +464,8 @@ class KeechHuntTracker:
                             "at": at.isoformat(),
                             "time": _msk_time(at),
                             "nick": victim,
-                            "delta": 0.0,
-                            "oppWeight": 0,
+                            "delta": dlt,
+                            "oppWeight": round(pv, 1) if dlt else 0,
                             "bones": bones,
                             "server": server,
                         },
@@ -457,6 +487,7 @@ class KeechHuntTracker:
                         if not b or b.lower() == "none":
                             continue
                         bones_on_me[b] = bones_on_me.get(b, 0) + 1
+                    dlt, _me, pk = self._delta_gotnok(attacker, at=at)
                     self._add_event(
                         server,
                         {
@@ -465,8 +496,8 @@ class KeechHuntTracker:
                             "at": at.isoformat(),
                             "time": _msk_time(at),
                             "nick": attacker,
-                            "delta": 0.0,
-                            "oppWeight": 0,
+                            "delta": -dlt if dlt else 0.0,
+                            "oppWeight": round(pk, 1) if dlt else 0,
                             "bones": bones_on_me,
                             "server": server,
                         },
@@ -481,7 +512,7 @@ class KeechHuntTracker:
                 victim = R.strip_tag(victim_raw)
                 vkey = R.nick_key(victim)
                 if ksteam == KEECH_STEAM and vkey != "keech":
-                    dlt, _me, pv = self._delta_kill(victim)
+                    dlt, _me, pv = self._delta_kill(victim, at=at)
                     veos = ""
                     for e, s in self.eos_steam.items():
                         if s != KEECH_STEAM and R.nick_key(self.eos_nick.get(e, "")) == vkey:
@@ -524,7 +555,7 @@ class KeechHuntTracker:
                         )
                     else:
                         killer = self._nick_of_steam(ksteam)
-                        dlt, _me, pk = self._delta_death(killer)
+                        dlt, _me, pk = self._delta_death(killer, at=at)
                         bones_on_me: dict[str, int] = {}
                         t0 = at.timestamp() - HIT_WINDOW_SEC
                         for h in self._hits:
@@ -558,7 +589,7 @@ class KeechHuntTracker:
             rm = R.REVIVE_RE.search(line)
             if rm and rm.group("msteam") == KEECH_STEAM:
                 patient = R.strip_tag(rm.group("patient"))
-                dlt, _me, pv = self._delta_revive(patient)
+                dlt, _me, pv = self._delta_revive(patient, at=at)
                 self._add_event(
                     server,
                     {
