@@ -68,6 +68,11 @@ def _layer_short(path: str) -> str:
     return p or "?"
 
 
+def _is_seed_layer(layer: str) -> bool:
+    """Jensen / Seed — не в Hunt-память и не в train RP."""
+    return R.is_seed_layer(layer or "", "")
+
+
 def _norm_server(key: str) -> str:
     k = (key or "").strip().upper()
     if k in ("PB1", "PUB", "TPUB1"):
@@ -192,6 +197,35 @@ class KeechHuntTracker:
         """Open/rotate per-server match bucket. One layer = one bucket; never rename in place."""
         server = _norm_server(server)
         short = _layer_short(layer) if layer else "?"
+        # Jensen/Seed: close previous real map into memory, but do not open a seed bucket.
+        if layer and short not in ("", "?") and _is_seed_layer(layer):
+            cur = self.matches.get(server)
+            if cur and not cur.get("endAt") and cur.get("events"):
+                prev = cur.get("layer") or cur.get("layerShort") or ""
+                if not _is_seed_layer(str(prev)):
+                    self._archive_match(cur, ended=start)
+            self.matches.pop(server, None)
+            self._dirty = True
+            # Empty placeholder so callers have a dict; never archived / never scored.
+            row = {
+                "id": f"{server}-seed",
+                "server": server,
+                "layer": layer,
+                "layerShort": short,
+                "startAt": start.isoformat(),
+                "endAt": None,
+                "events": [],
+                "net": 0.0,
+                "noks": 0,
+                "gotNoks": 0,
+                "kills": 0,
+                "deaths": 0,
+                "revives": 0,
+                "seed": True,
+            }
+            self.matches[server] = row
+            return row
+
         cur = self.matches.get(server)
 
         if cur and not cur.get("endAt"):
@@ -290,9 +324,15 @@ class KeechHuntTracker:
                 cur = self.matches.get(server)
                 layer = (cur or {}).get("layer") or "?"
                 # New round after a finished map sometimes skips LeavingMap.
-                # If open bucket already has events and Travel didn't rotate,
-                # InProgress with a much newer clock → force fresh bucket.
-                if cur and not cur.get("endAt") and cur.get("events"):
+                # Only force-rotate when the open bucket has NO known layer ("?"):
+                # a long live map (AlBasrah 40+ min) can re-fire InProgress and
+                # must NOT be archived into «Память» while still going.
+                if (
+                    cur
+                    and not cur.get("endAt")
+                    and cur.get("events")
+                    and (cur.get("layerShort") or "?") in ("", "?")
+                ):
                     try:
                         st = datetime.fromisoformat(
                             str(cur["startAt"]).replace("Z", "+00:00")
@@ -302,8 +342,6 @@ class KeechHuntTracker:
                         gap = (at - st).total_seconds()
                     except Exception:
                         gap = 0.0
-                    # >15 min since bucket start and InProgress again → new match
-                    # (same long map won't re-fire InProgress mid-round)
                     if gap > 15 * 60:
                         self._archive_match(cur, ended=at)
                         self.matches.pop(server, None)
@@ -541,6 +579,10 @@ class KeechHuntTracker:
 
     def _add_event(self, server: str, ev: dict[str, Any], at: datetime) -> None:
         bucket = self._open_bucket(server, at)
+        if bucket.get("seed") or _is_seed_layer(
+            str(bucket.get("layer") or bucket.get("layerShort") or "")
+        ):
+            return
         ids = {e.get("id") for e in bucket["events"]}
         if ev["id"] in ids:
             return
@@ -562,7 +604,10 @@ class KeechHuntTracker:
         self._dirty = True
 
     def _archive_match(self, row: dict[str, Any], ended: datetime) -> None:
-        if not row:
+        if not row or row.get("seed"):
+            return
+        layer = str(row.get("layer") or row.get("layerShort") or "")
+        if _is_seed_layer(layer):
             return
         archived = dict(row)
         archived["endAt"] = archived.get("endAt") or ended.isoformat()
