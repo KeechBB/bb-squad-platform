@@ -86,6 +86,7 @@ export type ClanStats = {
   total: number;
   played: number;
   upcoming: number;
+  cancelled: number;
   wins: number;
   draws: number;
   losses: number;
@@ -155,8 +156,25 @@ function tally(list: KvMatch[]) {
   const draws = played.filter((m) => m.status === "draw").length;
   const losses = played.filter((m) => m.status === "lose").length;
   const upcoming = list.filter((m) => m.status === "upcoming").length;
+  const cancelled = list.filter((m) => m.status === "cancel").length;
   const winrate = played.length ? Math.round((100 * wins) / played.length) : 0;
-  return { played: played.length, wins, draws, losses, upcoming, winrate, total: list.length };
+  return {
+    played: played.length,
+    wins,
+    draws,
+    losses,
+    upcoming,
+    cancelled,
+    winrate,
+    total: list.length,
+  };
+}
+
+function matchSortKey(m: KvMatch): number {
+  const y = Number(m.year) || 0;
+  const mo = Number(m.month) || 0;
+  const d = Number(m.day) || 0;
+  return y * 10000 + mo * 100 + d;
 }
 
 export async function buildClanKvStats(clanTag: string): Promise<ClanStats> {
@@ -174,17 +192,23 @@ export async function buildClanKvStats(clanTag: string): Promise<ClanStats> {
     if (!stacks.has(name)) stacks.set(name, []);
     stacks.get(name)!.push(m);
   }
-  const byStack = Array.from(stacks.entries()).map(([name, arr]) => {
-    const t = tally(arr);
-    return {
-      name,
-      played: t.played,
-      wins: t.wins,
-      draws: t.draws,
-      losses: t.losses,
-      winrate: t.winrate,
-    };
-  });
+  const byStack = Array.from(stacks.entries())
+    .map(([name, arr]) => {
+      const t = tally(arr);
+      return {
+        name,
+        played: t.played,
+        wins: t.wins,
+        draws: t.draws,
+        losses: t.losses,
+        winrate: t.winrate,
+      };
+    })
+    .sort((a, b) => {
+      const order = (n: string) =>
+        n.toLowerCase() === "main" ? 0 : n.toLowerCase() === "junior" ? 1 : 2;
+      return order(a.name) - order(b.name) || a.name.localeCompare(b.name, "ru");
+    });
 
   const mapMap = new Map<
     string,
@@ -207,12 +231,15 @@ export async function buildClanKvStats(clanTag: string): Promise<ClanStats> {
     else if (m.status === "draw") cur.draws += 1;
     mapMap.set(key, cur);
   }
-  const maps = Array.from(mapMap.values()).sort((a, b) => b.games - a.games);
+  const maps = Array.from(mapMap.values()).sort(
+    (a, b) => b.games - a.games || a.map.localeCompare(b.map, "ru")
+  );
 
   const recent = list
     .filter((m) => m.status && m.status !== "upcoming")
-    .slice(-8)
-    .reverse()
+    .slice()
+    .sort((a, b) => matchSortKey(b) - matchSortKey(a))
+    .slice(0, 16)
     .map((m) => ({
       day: Number(m.day) || 0,
       opp: m.opp || "—",
@@ -226,6 +253,7 @@ export async function buildClanKvStats(clanTag: string): Promise<ClanStats> {
     total: summary.total,
     played: summary.played,
     upcoming: summary.upcoming,
+    cancelled: summary.cancelled,
     wins: summary.wins,
     draws: summary.draws,
     losses: summary.losses,
@@ -247,6 +275,79 @@ function nickEq(a: string, b: string) {
   const nb = b.trim().toLowerCase();
   if (na === nb) return true;
   return na.replace(/\s+/g, "") === nb.replace(/\s+/g, "");
+}
+
+function nickKeyCompact(nick: string): string {
+  return nick.trim().toLowerCase().replace(/\s+/g, "");
+}
+
+/** TU по всем сыгранным КВ: (киллы + ресы − смерти) / катки. */
+export async function computeCwTuByNick(): Promise<Map<string, number>> {
+  const { matches } = await loadAllMatches();
+  const acc = new Map<
+    string,
+    { kills: number; deaths: number; res: number; games: number }
+  >();
+
+  for (const m of matches) {
+    if (!isPlayedStatus(m.status)) continue;
+    const playersUrl = String(m.playersUrl || "").trim();
+    if (!playersUrl) continue;
+    try {
+      const data = await loadKvJson<{
+        total?: Array<{ nick?: string; kills?: unknown; deaths?: unknown; res?: unknown }>;
+        players?: Array<{ nick?: string; kills?: unknown; deaths?: unknown; res?: unknown }>;
+        r1?: Array<{ nick?: string; kills?: unknown; deaths?: unknown; res?: unknown }>;
+        r2?: Array<{ nick?: string; kills?: unknown; deaths?: unknown; res?: unknown }>;
+      }>(playersUrl);
+
+      const rows =
+        data.total ||
+        data.players ||
+        (() => {
+          const by = new Map<
+            string,
+            { nick: string; kills: number; deaths: number; res: number }
+          >();
+          for (const rnd of [...(data.r1 || []), ...(data.r2 || [])]) {
+            const nick = String(rnd?.nick || "").trim();
+            if (!nick) continue;
+            const key = nickKeyCompact(nick);
+            const cur = by.get(key) || { nick, kills: 0, deaths: 0, res: 0 };
+            cur.kills += n(rnd.kills);
+            cur.deaths += n(rnd.deaths);
+            cur.res += n(rnd.res);
+            by.set(key, cur);
+          }
+          return [...by.values()];
+        })();
+
+      const seen = new Set<string>();
+      for (const row of rows) {
+        const nick = String(row?.nick || "").trim();
+        if (!nick) continue;
+        const key = nickKeyCompact(nick);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const cur = acc.get(key) || { kills: 0, deaths: 0, res: 0, games: 0 };
+        cur.kills += n(row.kills);
+        cur.deaths += n(row.deaths);
+        cur.res += n(row.res);
+        cur.games += 1;
+        acc.set(key, cur);
+      }
+    } catch {
+      /* skip missing players file */
+    }
+  }
+
+  const out = new Map<string, number>();
+  for (const [key, c] of acc) {
+    if (c.games <= 0) continue;
+    const tu = Math.round((100 * (c.kills + c.res - c.deaths)) / c.games) / 100;
+    out.set(key, tu);
+  }
+  return out;
 }
 
 /** Личная стата игрока по раундам из data/players + mvp-ledger */

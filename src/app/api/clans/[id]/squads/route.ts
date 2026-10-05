@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { canManageClanMembers, canDeleteClanSquad, type ClanRole } from "@/lib/clan";
 import { ensureDefaultSquads } from "@/lib/squads";
 import { BB_STACK_COMMAND, syncBbSquadsFromKv } from "@/lib/bbStackAuto";
+import { computeCwTuByNick } from "@/lib/kvStats";
+import { loadTierIndex } from "@/lib/loadTierIndex";
 import { canAssignClanSquadMembers } from "@/lib/titles";
 import { clanLiveChannel, livePublish } from "@/lib/liveBus";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
@@ -42,28 +44,45 @@ export async function GET(_req: Request, ctx: Ctx) {
   await ensureDefaultSquads(clanId);
   const clan = await loadClan(clanId);
   const bbAuto = clan ? isBbClan(clan.tag, clan.name) : false;
-  const squads = await prisma.clanSquad.findMany({
-    where: { clanId },
-    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-    include: {
-      members: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              nick: true,
-              name: true,
-              avatarUrl: true,
-              steamName: true,
+  const [squads, tuByNick, tierMap] = await Promise.all([
+    prisma.clanSquad.findMany({
+      where: { clanId },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      include: {
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                nick: true,
+                name: true,
+                avatarUrl: true,
+                steamName: true,
+              },
             },
           },
+          orderBy: { joinedAt: "asc" },
         },
-        orderBy: { joinedAt: "asc" },
       },
-    },
-  });
+    }),
+    computeCwTuByNick().catch(() => new Map<string, number>()),
+    loadTierIndex(),
+  ]);
+
+  const nickKey = (n: string) => n.trim().toLowerCase().replace(/\s+/g, "");
+  const enriched = squads.map((s) => ({
+    ...s,
+    members: s.members.map((m) => {
+      const nick = (m.user.nick || m.user.steamName || "").trim();
+      const key = nickKey(nick);
+      const tier = tierMap.get(key) ?? (nick ? 4 : null);
+      const tu = key ? tuByNick.get(key) ?? null : null;
+      return { ...m, tier, tu };
+    }),
+  }));
+
   return NextResponse.json({
-    squads,
+    squads: enriched,
     autoStacks: bbAuto,
     command: bbAuto ? BB_STACK_COMMAND : null,
   });

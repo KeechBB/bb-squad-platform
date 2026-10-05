@@ -51,6 +51,8 @@ type Member = {
 type SquadMember = {
   id: string;
   user: Member["user"];
+  tier?: number | null;
+  tu?: number | null;
 };
 
 type Squad = {
@@ -116,6 +118,7 @@ type ClanStatsData = {
   total: number;
   played: number;
   upcoming: number;
+  cancelled?: number;
   wins: number;
   draws: number;
   losses: number;
@@ -724,7 +727,7 @@ export function ClanDetailClient({
   }
 
   const maxGames = Math.max(...(stats?.maps.map((m) => m.games) || [1]), 1);
-  const mapPoints = stats?.maps.slice(0, 8) || [];
+  const mapPoints = stats?.maps || [];
   const squadUserIds = useMemo(() => {
     const map = new Map<string, string>();
     for (const s of squads) {
@@ -1295,7 +1298,13 @@ export function ClanDetailClient({
                 const nb = (b.user.nick || b.user.steamName || "").toLowerCase();
                 const rank = (n: string) =>
                   n === leadKey ? 0 : n === asstKey ? 1 : 2;
-                return rank(na) - rank(nb) || na.localeCompare(nb, "ru");
+                const tuA = a.tu == null ? -1e9 : Number(a.tu);
+                const tuB = b.tu == null ? -1e9 : Number(b.tu);
+                return (
+                  rank(na) - rank(nb) ||
+                  tuB - tuA ||
+                  na.localeCompare(nb, "ru")
+                );
               });
               return (
                 <div key={s.id} className="squad-card">
@@ -1323,6 +1332,13 @@ export function ClanDetailClient({
                       помощник: <strong>{cmd.assistant}</strong>
                     </p>
                   ) : null}
+                  <div className="squad-list-head" aria-hidden="true">
+                    <span>Тир</span>
+                    <span>Ник</span>
+                    <span title="TU — Ticket Utility: (киллы + ресы − смерти) / катки КВ">
+                      TU
+                    </span>
+                  </div>
                   <ul className="squad-list">
                     {ordered.length === 0 ? (
                       <li className="muted">
@@ -1340,25 +1356,63 @@ export function ClanDetailClient({
                             : nk === asstKey
                               ? "помощник"
                               : null;
+                        const tierNum =
+                          m.tier != null
+                            ? Number(m.tier)
+                            : (() => {
+                                const key = nick
+                                  .trim()
+                                  .toLowerCase()
+                                  .replace(/\s+/g, "");
+                                return tierMap.get(key) ?? 4;
+                              })();
+                        const tu = m.tu;
+                        const tuText =
+                          tu == null
+                            ? "—"
+                            : `${tu > 0 ? "+" : ""}${tu}`;
+                        const tuCls =
+                          tu == null
+                            ? ""
+                            : tu > 0
+                              ? "squad-tu-plus"
+                              : tu < 0
+                                ? "squad-tu-minus"
+                                : "";
                         return (
-                          <li key={m.id} className="squad-list-row">
-                            <span>
-                              {nick}
+                          <li key={m.id} className="squad-list-row squad-list-row-metrics">
+                            <span className={`squad-tier tier-${tierNum}`}>
+                              T{tierNum}
+                            </span>
+                            <span className="squad-nick">
+                              {m.user.nick ? (
+                                <Link
+                                  className="player-nick-link"
+                                  href={`/players/${encodeURIComponent(m.user.nick)}`}
+                                >
+                                  {nick}
+                                </Link>
+                              ) : (
+                                nick
+                              )}
                               {badge ? (
                                 <span className="muted"> · {badge}</span>
                               ) : null}
+                              {!autoStacks && canAssignSquads ? (
+                                <button
+                                  type="button"
+                                  className="btn ghost squad-remove-btn"
+                                  onClick={() =>
+                                    void setSquadMember(s.id, m.user.id, "remove")
+                                  }
+                                >
+                                  Убрать
+                                </button>
+                              ) : null}
                             </span>
-                            {!autoStacks && canAssignSquads ? (
-                              <button
-                                type="button"
-                                className="btn ghost"
-                                onClick={() =>
-                                  void setSquadMember(s.id, m.user.id, "remove")
-                                }
-                              >
-                                Убрать
-                              </button>
-                            ) : null}
+                            <span className={`squad-tu ${tuCls}`} title="TU">
+                              {tuText}
+                            </span>
                           </li>
                         );
                       })
@@ -1425,7 +1479,10 @@ export function ClanDetailClient({
                   <span className="muted">Всего матчей</span>
                   <strong>{stats.total}</strong>
                   <em className="stat-sub">
-                    сыграно {stats.played} · впереди {stats.upcoming}
+                    сыграно {stats.played}
+                    {stats.cancelled ? ` · отмена ${stats.cancelled}` : ""}
+                    {" · "}
+                    впереди {stats.upcoming}
                   </em>
                 </div>
                 <div>
