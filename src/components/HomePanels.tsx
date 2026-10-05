@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { HomeTrainPwrTop } from "@/components/HomeTrainPwrTop";
-import { HomeTierBoard } from "@/components/HomeTierBoard";
+import {
+  formatTierArrow,
+  type HomeTierBoardData,
+  type HomeTierCandidate,
+  type HomeTierTransfer,
+} from "@/lib/homeTierBoardUi";
 import type { HomeTrainPwrBoard } from "@/lib/homeTrainPwr";
-import type { HomeTierBoardData } from "@/lib/homeTierBoardUi";
 
 export type HomePublicTopRow = {
   nick: string;
@@ -14,84 +17,76 @@ export type HomePublicTopRow = {
   rankKey: string;
 };
 
-type Panel = "train" | "public" | "tiers";
-
 type Props = {
   pwrBoard: HomeTrainPwrBoard;
   publicTop: HomePublicTopRow[];
   tierBoard: HomeTierBoardData;
 };
 
-const BUTTONS: { id: Panel; label: string; tone: string }[] = [
-  { id: "train", label: "Top 10 Тренировки", tone: "is-train" },
-  { id: "public", label: "Топ 10 паблика", tone: "is-public" },
-  { id: "tiers", label: "Тиры", tone: "is-tiers" },
-];
-
 export function HomePanels({ pwrBoard, publicTop, tierBoard }: Props) {
-  const [open, setOpen] = useState<Panel | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(null);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  const transfers = tierBoard.transfers || [];
+  const candidates = tierBoard.candidates || [];
 
   return (
-    <>
-      <div className="home-dock" role="tablist" aria-label="Сводки главной">
-        {BUTTONS.map((b) => (
-          <button
-            key={b.id}
-            type="button"
-            role="tab"
-            aria-selected={open === b.id}
-            className={`home-dock-btn ${b.tone}${open === b.id ? " is-on" : ""}`}
-            onClick={() => setOpen(open === b.id ? null : b.id)}
-          >
-            {b.label}
-          </button>
-        ))}
-      </div>
+    <div className="home-dock" aria-label="Сводки главной">
+      <section className="home-dock-col is-train">
+        <header>Top 10 Тренировки</header>
+        <div className="home-dock-body">
+          <HomeTrainPwrTop initial={pwrBoard} />
+        </div>
+      </section>
 
-      {open ? (
-        <div className="home-overlay" role="dialog" aria-modal="true">
-          <button
-            type="button"
-            className="home-overlay-back"
-            aria-label="Закрыть"
-            onClick={() => setOpen(null)}
-          />
-          <div className="home-overlay-card">
-            <button
-              type="button"
-              className="home-overlay-x"
-              onClick={() => setOpen(null)}
-            >
-              закрыть
-            </button>
-            {open === "train" ? <HomeTrainPwrTop initial={pwrBoard} /> : null}
-            {open === "public" ? <PublicTop rows={publicTop} /> : null}
-            {open === "tiers" ? <HomeTierBoard initial={tierBoard} /> : null}
+      <section className="home-dock-col is-public">
+        <header>Топ 10 паблика</header>
+        <div className="home-dock-body">
+          <PublicTop rows={publicTop} />
+        </div>
+      </section>
+
+      <section className="home-dock-col is-tiers">
+        <header>Тиры</header>
+        <div className="home-dock-body home-dock-tiers">
+          <div className="home-dock-tier-block">
+            <h3>Переводы</h3>
+            {transfers.length === 0 ? (
+              <p className="home-dock-empty muted">Пока нет</p>
+            ) : (
+              <ul>
+                {transfers.map((row) => (
+                  <TransferRow
+                    key={`${row.nick}-${row.at}-${row.fromTier}-${row.toTier}`}
+                    row={row}
+                  />
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="home-dock-tier-block">
+            <h3>Кандидаты</h3>
+            {candidates.length === 0 ? (
+              <p className="home-dock-empty muted">Пока нет</p>
+            ) : (
+              <ul>
+                {candidates.map((row) => (
+                  <CandidateRow
+                    key={`${row.nick}-${row.dir}-${row.toTier}-${row.band}`}
+                    row={row}
+                  />
+                ))}
+              </ul>
+            )}
           </div>
         </div>
-      ) : null}
-    </>
+      </section>
+    </div>
   );
 }
 
 function PublicTop({ rows }: { rows: HomePublicTopRow[] }) {
   return (
     <div className="home-attend-streaks home-train-pwr" aria-label="Топ паблика">
-      <div className="home-attend-streaks-head">
-        <p className="home-attend-streaks-title">Паблик · ТОП 10</p>
-        <p className="home-attend-streaks-sub muted">RP публичных матчей</p>
-      </div>
       {rows.length === 0 ? (
-        <p className="home-attend-streaks-empty muted">Пока нет статы</p>
+        <p className="home-dock-empty muted">Пока нет статы</p>
       ) : (
         <ol className="home-attend-streaks-list home-train-pwr-list">
           {rows.map((r, i) => (
@@ -122,5 +117,32 @@ function PublicTop({ rows }: { rows: HomePublicTopRow[] }) {
         <Link href="/public">Полный рейтинг →</Link>
       </p>
     </div>
+  );
+}
+
+function TransferRow({ row }: { row: HomeTierTransfer }) {
+  const tone = row.dir === "up" ? "is-up" : "is-down";
+  return (
+    <li className={`home-dock-tier-row ${tone}`}>
+      <Link href={`/players/${encodeURIComponent(row.nick)}`} title={row.nick}>
+        {row.nick}
+      </Link>
+      <span>{formatTierArrow(row.fromTier, row.toTier)}</span>
+    </li>
+  );
+}
+
+function CandidateRow({ row }: { row: HomeTierCandidate }) {
+  const tone = row.dir === "down" ? "is-down" : "is-up";
+  return (
+    <li className={`home-dock-tier-row ${tone}`}>
+      <Link href={`/players/${encodeURIComponent(row.nick)}`} title={row.nick}>
+        {row.nick}
+      </Link>
+      <span>
+        {formatTierArrow(row.fromTier, row.toTier)}
+        <b>{row.fit.toFixed(0)}%</b>
+      </span>
+    </li>
   );
 }

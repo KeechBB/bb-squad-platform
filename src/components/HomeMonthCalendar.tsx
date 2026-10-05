@@ -298,6 +298,9 @@ export function HomeMonthCalendar({ previews }: Props) {
                           key={m.key}
                           className={`home-cal-half is-${m.status || "play"}`}
                         >
+                          {m.timeMsk && m.timeMsk !== "—" ? (
+                            <span className="home-cal-half-time">{m.timeMsk}</span>
+                          ) : null}
                           {m.status === "cancel" ? (
                             <span className="home-cal-stamp" aria-hidden="true">
                               ОТМЕНА
@@ -315,8 +318,8 @@ export function HomeMonthCalendar({ previews }: Props) {
                   ) : null}
                   <span className="home-cal-top">
                     <span className="home-cal-num">{n}</span>
-                    {times.length ? (
-                      <span className="home-cal-time">{times.join(" · ")}</span>
+                    {!split && times.length ? (
+                      <span className="home-cal-time">{times[0]}</span>
                     ) : null}
                   </span>
                   {!split && list.length > 0 ? (
