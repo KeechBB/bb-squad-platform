@@ -17,8 +17,30 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-KV_PUBLIC = ROOT / "KV" / "public"
+PLATFORM = Path(__file__).resolve().parents[1]
+REPO = PLATFORM.parent
+
+
+def resolve_kv_public() -> Path:
+    env = (os.environ.get("KV_LOCAL_DIR") or "").strip()
+    candidates = [
+        Path(env) if env else None,
+        PLATFORM / "data" / "kv-cache",
+        REPO / "KV" / "public",
+        PLATFORM / "KV" / "public",
+    ]
+    for p in candidates:
+        if p and (
+            (p / "data" / "training-index.json").is_file()
+            or (p / "data" / "training" / "rp-ladder.json").is_file()
+        ):
+            return p
+    raise SystemExit(
+        "KV training data not found. Set KV_LOCAL_DIR or sync data/kv-cache."
+    )
+
+
+KV_PUBLIC = resolve_kv_public()
 
 
 def nick_key(n: str) -> str:

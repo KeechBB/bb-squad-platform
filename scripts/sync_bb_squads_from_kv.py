@@ -19,10 +19,31 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-KV_PUBLIC = ROOT / "KV" / "public"
+PLATFORM = Path(__file__).resolve().parents[1]
+REPO = PLATFORM.parent  # локально: «Новый Проект Кича»; на VPS: /var/www
+
+
+def resolve_kv_public() -> Path:
+    env = (os.environ.get("KV_LOCAL_DIR") or "").strip()
+    candidates = [
+        Path(env) if env else None,
+        PLATFORM / "data" / "kv-cache",  # VPS deploy mirror
+        REPO / "KV" / "public",  # local monorepo
+        PLATFORM / "KV" / "public",
+    ]
+    for p in candidates:
+        if p and (p / "data" / "index.json").is_file():
+            return p
+    raise SystemExit(
+        "KV data not found (need data/index.json). "
+        "Set KV_LOCAL_DIR or sync data/kv-cache."
+    )
+
+
+KV_PUBLIC = resolve_kv_public()
 OUT_JSON = KV_PUBLIC / "data" / "bb-stack-auto.json"
 TIERS_PATH = KV_PUBLIC / "data" / "tiers.json"
+print(f"KV_PUBLIC={KV_PUBLIC}")
 
 FORCE = {
     "keech": "Main",

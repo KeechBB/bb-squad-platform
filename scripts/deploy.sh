@@ -144,6 +144,10 @@ pm2 restart bb-squad-collector || true
 echo "==> free -h (after)"
 free -h || true
 
+echo "==> BB clan: training players → clan + CW stacks by play frequency"
+python3 scripts/sync_bb_clan_from_training.py --apply || true
+python3 scripts/sync_bb_squads_from_kv.py --apply || true
+
 DEPLOY_OK=1
 # Do NOT rebuild public rp-ledger in the background during deploy:
 # the 30MB parse + python + pm2 restart was OOMing the 4GB box → 502 storms.
