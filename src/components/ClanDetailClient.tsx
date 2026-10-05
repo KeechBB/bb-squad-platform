@@ -1326,22 +1326,31 @@ export function ClanDetailClient({
                     ) : null}
                   </div>
                   {cmd ? (
-                    <p className="muted" style={{ margin: "0 0 8px", fontSize: "0.92em" }}>
+                    <p className="muted squad-cmd-line">
                       Главный: <strong>{cmd.lead}</strong>
                       {" · "}
                       помощник: <strong>{cmd.assistant}</strong>
                     </p>
                   ) : null}
-                  <div className="squad-list-head" aria-hidden="true">
-                    <span>Тир</span>
-                    <span>Ник</span>
-                    <span title="TU — Ticket Utility: (киллы + ресы − смерти) / катки КВ">
-                      TU
-                    </span>
+                  <div className="squad-list-heads" aria-hidden="true">
+                    <div className="squad-list-head">
+                      <span>Тир</span>
+                      <span>Ник</span>
+                      <span title="TU — Ticket Utility">TU</span>
+                    </div>
+                    <div className="squad-list-head">
+                      <span>Тир</span>
+                      <span>Ник</span>
+                      <span title="TU — Ticket Utility">TU</span>
+                    </div>
                   </div>
-                  <ul className="squad-list">
+                  <ul
+                    className={`squad-list${
+                      ordered.length > 12 ? " squad-list-dense" : ""
+                    }`}
+                  >
                     {ordered.length === 0 ? (
-                      <li className="muted">
+                      <li className="muted squad-list-empty">
                         {autoStacks
                           ? "Пока нет игроков с КВ-статой в этом составе"
                           : "Пока пусто — добавь игроков ниже"}
@@ -1352,9 +1361,9 @@ export function ClanDetailClient({
                         const nk = nick.toLowerCase();
                         const badge =
                           nk === leadKey
-                            ? "главный"
+                            ? "гл."
                             : nk === asstKey
-                              ? "помощник"
+                              ? "пом."
                               : null;
                         const tierNum =
                           m.tier != null
