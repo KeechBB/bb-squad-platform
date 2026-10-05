@@ -161,7 +161,8 @@ def msk_hour_ok(start_utc: datetime) -> bool:
     return 21 * 60 + 30 <= minutes < 24 * 60
 
 
-def match_id_for(m: dict) -> str:
+def match_id_for(m: dict, *, used_ids: set[str] | None = None) -> str:
+    """Stable id; if same map already used that day, append -2, -3, …"""
     msk = m["start"] + timedelta(hours=3)
     day = msk.day
     layer = str(m.get("layer") or m.get("map") or "map")
@@ -169,7 +170,14 @@ def match_id_for(m: dict) -> str:
     base = re.sub(r"\b(raas|aas|invasion|tc|skirmish)\b.*$", "", layer, flags=re.I)
     base = re.sub(r"\s*v\d+\s*$", "", base, flags=re.I)
     slug = re.sub(r"[^a-z0-9]+", "", base.lower())[:14] or "map"
-    return f"{day:02d}-{slug}"
+    primary = f"{day:02d}-{slug}"
+    used = used_ids or set()
+    if primary not in used:
+        return primary
+    n = 2
+    while f"{primary}-{n}" in used:
+        n += 1
+    return f"{primary}-{n}"
 
 
 def _map_stem(layer: str) -> str:
@@ -178,24 +186,108 @@ def _map_stem(layer: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", base.lower())
 
 
-def existing_month_keys() -> set[tuple[int, str]]:
-    """(day, mapStem) already in training month JSONs — avoid auto duplicates."""
-    keys: set[tuple[int, str]] = set()
+def existing_match_starts() -> set[str]:
+    """ISO start timestamps already recorded in _auto_matches — true dedupe."""
+    out: set[str] = set()
+    if AUTO_MATCHES.is_file():
+        try:
+            auto = json.loads(AUTO_MATCHES.read_text(encoding="utf-8"))
+            if isinstance(auto, list):
+                for row in auto:
+                    s = str(row.get("start") or "").strip()
+                    if s:
+                        out.add(s)
+        except Exception:
+            pass
+    return out
+
+
+def existing_month_ids() -> set[str]:
+    ids: set[str] = set()
     for path in TRAIN.glob("????-??.json"):
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
             continue
         for row in data.get("matches") or []:
+            mid = str(row.get("id") or "").strip()
+            if mid:
+                ids.add(mid)
+    return ids
+
+
+def existing_start_anchors() -> list[tuple[int, str, datetime]]:
+    """(day, mapStem, start_utc) from month JSON + auto — near-duplicate guard."""
+    anchors: list[tuple[int, str, datetime]] = []
+    for path in TRAIN.glob("????-??.json"):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        month = str(data.get("month") or path.stem)  # YYYY-MM
+        try:
+            y, mo = map(int, month.split("-")[:2])
+        except Exception:
+            continue
+        for row in data.get("matches") or []:
             day = int(row.get("day") or 0)
             stem = _map_stem(str(row.get("map") or ""))
-            if day and stem:
-                keys.add((day, stem))
-    return keys
+            tm = str(row.get("timeMsk") or "").strip()
+            if not (day and stem and tm and ":" in tm):
+                continue
+            try:
+                hh, mm = map(int, tm.split(":")[:2])
+                # timeMsk is Moscow wall clock → convert to UTC
+                start_utc = datetime(y, mo, day, hh, mm, tzinfo=timezone.utc) - timedelta(
+                    hours=3
+                )
+            except Exception:
+                continue
+            anchors.append((day, stem, start_utc))
+    if AUTO_MATCHES.is_file():
+        try:
+            auto = json.loads(AUTO_MATCHES.read_text(encoding="utf-8"))
+        except Exception:
+            auto = []
+        if isinstance(auto, list):
+            for row in auto:
+                s = str(row.get("start") or "").strip()
+                if not s:
+                    continue
+                try:
+                    start = datetime.fromisoformat(s.replace("Z", "+00:00"))
+                    if start.tzinfo is None:
+                        start = start.replace(tzinfo=timezone.utc)
+                except Exception:
+                    continue
+                msk = start + timedelta(hours=3)
+                stem = _map_stem(str(row.get("map") or ""))
+                if stem:
+                    anchors.append((msk.day, stem, start))
+    return anchors
+
+
+def is_near_duplicate(
+    day: int,
+    stem: str,
+    start: datetime,
+    anchors: list[tuple[int, str, datetime]],
+    *,
+    window_sec: int = 20 * 60,
+) -> bool:
+    for d, st, t0 in anchors:
+        if d != day or st != stem:
+            continue
+        if abs((start - t0).total_seconds()) <= window_sec:
+            return True
+    return False
 
 
 def load_aliases() -> dict[str, str]:
-    tiers = ROOT / "KV" / "public" / "data" / "tiers.json"
+    tiers = KV_PUBLIC / "data" / "tiers.json"
+    if not tiers.is_file():
+        # monorepo fallback
+        tiers = HERE.parents[1] / "KV" / "public" / "data" / "tiers.json"
     out: dict[str, str] = {}
     if tiers.is_file():
         t = json.loads(tiers.read_text(encoding="utf-8"))
@@ -413,8 +505,13 @@ def main() -> int:
                 auto = []
         except Exception:
             auto = []
-    known_ids = {m.get("id") for m in auto}
-    known_map_days = existing_month_keys()
+    known_ids = {m.get("id") for m in auto} | existing_month_ids()
+    known_starts = existing_match_starts()
+    anchors = existing_start_anchors()
+    for m in auto:
+        s = str(m.get("start") or "").strip()
+        if s:
+            known_starts.add(s)
 
     added = 0
     for m in discovered:
@@ -433,10 +530,18 @@ def main() -> int:
         if (end - start).total_seconds() <= 10 * 60:
             continue
 
-        mid = match_id_for(m)
+        start_iso = start.isoformat()
+        if start_iso in known_starts:
+            continue
+
         msk = start + timedelta(hours=3)
         stem = _map_stem(layer)
-        if mid in known_ids or (msk.day, stem) in known_map_days:
+        # Same map same evening within ~20 min of an existing row = rediscovery, not a new game.
+        if is_near_duplicate(msk.day, stem, start, anchors):
+            continue
+
+        mid = match_id_for(m, used_ids=known_ids)
+        if mid in known_ids:
             continue
 
         log_path = Path(m["logPath"]) if m.get("logPath") else CACHE / m.get("log", "")
@@ -452,7 +557,6 @@ def main() -> int:
         disp = {R.canon_key(n, aliases): n for n in steam.values()}
         team_a, team_b = agg_players(dies, wounds, revives, teams, disp)
 
-        msk = start + timedelta(hours=3)
         month = f"{msk.year:04d}-{msk.month:02d}"
         dur_sec = int((end - start).total_seconds())
         h, rem = divmod(dur_sec, 3600)
@@ -510,7 +614,7 @@ def main() -> int:
         # Pin away from rotating SquadGame.log — copy window into stable file name.
         log_name = log_path.name
         if log_name == "SquadGame.log":
-            stable = CACHE / f"SquadGame-{msk.strftime('%Y.%m.%d')}-{stem}.log"
+            stable = CACHE / f"SquadGame-{msk.strftime('%Y.%m.%d')}-{mid}.log"
             if not stable.is_file() or stable.stat().st_size < log_path.stat().st_size:
                 stable.write_bytes(log_path.read_bytes())
             log_name = stable.name
@@ -521,12 +625,13 @@ def main() -> int:
                 "map": layer,
                 "date": msk.strftime("%Y-%m-%d"),
                 "log": log_name,
-                "start": start.isoformat(),
+                "start": start_iso,
                 "end": end.isoformat(),
             }
         )
         known_ids.add(mid)
-        known_map_days.add((msk.day, stem))
+        known_starts.add(start_iso)
+        anchors.append((msk.day, stem, start))
         added += 1
         print(f"+ train {mid} {layer} {duration}", flush=True)
 
