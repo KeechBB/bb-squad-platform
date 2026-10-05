@@ -43,6 +43,9 @@ export async function middleware(req: NextRequest) {
     const isNextAsset =
       pathname.startsWith("/_next/") ||
       pathname === "/favicon.ico" ||
+      pathname === "/favicon-32.png" ||
+      pathname === "/icon.png" ||
+      pathname === "/apple-icon.png" ||
       pathname.startsWith("/brand/");
 
     if (!unlocked) {

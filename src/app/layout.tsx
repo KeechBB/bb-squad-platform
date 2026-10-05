@@ -19,6 +19,14 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "BlackBerry Squad",
   description: "Платформа клана BlackBerry — Squad",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "48x48" },
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon.png", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 export const viewport: Viewport = {
