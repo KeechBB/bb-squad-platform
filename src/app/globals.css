@@ -5627,7 +5627,7 @@ body:has(.home-page) {
 
 .home-cal-grid {
   flex: 0 0 auto;
-  grid-auto-rows: 76px;
+  grid-auto-rows: 86px;
 }
 
 .home-cal-cell {
@@ -5827,23 +5827,24 @@ body:has(.home-page) {
 
 .home-cal-logo {
   appearance: none;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  padding: 2px;
+  border: 0;
+  padding: 0;
   margin: 0;
-  width: 42px;
-  height: 42px;
-  border-radius: 8px;
-  background: rgba(6, 4, 12, 0.55);
+  width: 54px;
+  height: 54px;
+  border-radius: 0;
+  background: transparent;
   display: grid;
   place-items: center;
   cursor: pointer;
-  overflow: hidden;
-  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+  overflow: visible;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.85)) drop-shadow(0 0 5px rgba(255, 255, 255, 0.28));
+  transition: transform 0.16s ease, filter 0.16s ease;
 }
 
 .home-cal-logos:has(.home-cal-logo:nth-child(2)) .home-cal-logo {
-  width: 34px;
-  height: 34px;
+  width: 42px;
+  height: 42px;
 }
 
 .home-cal-logo img {
@@ -5851,24 +5852,23 @@ body:has(.home-page) {
   height: 100%;
   object-fit: contain;
   display: block;
+  background: transparent;
 }
 
 .home-cal-logo span {
-  font-size: 0.58rem;
+  font-size: 0.62rem;
   font-weight: 800;
   letter-spacing: 0.02em;
   color: #f5f1ff;
 }
 
 .home-cal-logo:hover {
-  transform: translateY(-1px) scale(1.06);
-  border-color: #fde047;
-  box-shadow: 0 0 0 2px rgba(253, 224, 71, 0.55), 0 8px 16px rgba(0, 0, 0, 0.35);
+  transform: translateY(-1px) scale(1.12);
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.8)) drop-shadow(0 0 8px rgba(253, 224, 71, 0.85));
 }
 
 .home-cal-cell.is-featured .home-cal-logo {
-  border-color: #fde047;
-  box-shadow: 0 0 0 1px rgba(253, 224, 71, 0.8);
+  filter: drop-shadow(0 0 7px rgba(253, 224, 71, 0.95)) drop-shadow(0 1px 0 rgba(0, 0, 0, 0.8));
 }
 
 .home-cal-day {
