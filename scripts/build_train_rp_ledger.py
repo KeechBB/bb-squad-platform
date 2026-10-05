@@ -674,27 +674,22 @@ def main() -> None:
 
     public_matches = []
     for mb in match_blocks:
-        # Pages-safe: omit shared match.events (huge).
+        # Pages/VPS: omit shared match.events (huge); per-player matches keep
+        # kill/nok/revive arrays for profile drilldown.
         public_matches.append(
             {k: v for k, v in mb.items() if k not in ("netByKey", "events")}
         )
 
-    # Pages-safe player history: keep nets + counts, drop per-event arrays (~MBs).
-    players_pub: dict[str, dict] = {}
-    for k, p in players_out.items():
-        hist = []
+    # Drop redundant "formula" on every event row — saves ~MBs, UI doesn't need it.
+    for p in players_out.values():
         for hm in p.get("matches") or []:
-            row = {
-                "id": hm["id"],
-                "map": hm["map"],
-                "date": hm["date"],
-                "net": hm["net"],
-            }
             for key in ("kills", "deaths", "noks", "gotNoks", "revives", "teamkills"):
-                v = hm.get(key)
-                row[key] = len(v) if isinstance(v, list) else int(v or 0)
-            hist.append(row)
-        players_pub[k] = {**p, "matches": hist}
+                arr = hm.get(key)
+                if not isinstance(arr, list):
+                    continue
+                for e in arr:
+                    if isinstance(e, dict):
+                        e.pop("formula", None)
 
     ledger = {
         "version": 3,
@@ -714,7 +709,7 @@ def main() -> None:
         "reviveCoef": R.COEF_REVIVE,
         "pMax": round(pmax_global, 1),
         "matches": public_matches,
-        "players": players_pub,
+        "players": players_out,
         "leaderboard": [
             {
                 "nick": players_out[k]["nick"],
