@@ -163,6 +163,15 @@ export function HomeMonthCalendar({ previews }: Props) {
           <h2>Календарь</h2>
         </div>
         <div className="home-cal-nav">
+          {selected ? (
+            <button
+              type="button"
+              className="home-cal-back"
+              onClick={() => setSelectedKey(null)}
+            >
+              ← Назад
+            </button>
+          ) : null}
           <button type="button" onClick={() => shiftMonth(-1)} aria-label="Предыдущий месяц">
             ‹
           </button>
@@ -177,13 +186,6 @@ export function HomeMonthCalendar({ previews }: Props) {
 
       {selected ? (
         <div className="home-match-detail">
-          <button
-            type="button"
-            className="home-match-back"
-            onClick={() => setSelectedKey(null)}
-          >
-            ← К {selected.day} {MONTHS[selected.month - 1]}
-          </button>
           <div className="home-match-detail-top">
             <div>
               <p className="home-match-detail-when muted">
