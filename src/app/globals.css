@@ -5328,14 +5328,30 @@ body:has(.home-page) {
 
 .home-layout > .home-hero {
   grid-area: brand;
-  justify-self: end;
-  align-self: center;
-  width: min(820px, 100%);
+  justify-self: stretch;
+  align-self: stretch;
+  position: relative;
+  left: auto;
+  top: auto;
+  z-index: 1;
+  width: auto;
   max-width: none;
   height: auto;
   margin: 0;
-  padding: 0 36px 0 16px;
-  grid-template-rows: auto;
+  padding: 0;
+  transform: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.home-layout > .home-hero .home-hero-brand {
+  width: max-content;
+  align-self: center;
+  transform: translate(
+    calc(-1 * var(--home-hero-nudge-x, 0px)),
+    calc(-1 * var(--home-hero-lift, 0px))
+  );
 }
 
 .home-layout > .home-hero .home-crest {
@@ -6167,7 +6183,8 @@ body:has(.home-page) {
 
 .home-layout > .home-hero {
   grid-area: brand;
-  align-self: center;
+  justify-self: stretch;
+  align-self: stretch;
   min-width: 0;
   min-height: 0;
 }

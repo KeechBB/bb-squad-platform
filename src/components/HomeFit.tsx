@@ -22,6 +22,29 @@ export function HomeFit({ children }: { children: ReactNode }) {
       const scale = Math.min(w / DESIGN_W, h / DESIGN_H);
       if (!Number.isFinite(scale) || scale <= 0) return;
       board.style.setProperty("--home-scale", String(scale));
+      board.style.setProperty("--home-hero-lift", "0px");
+      board.style.setProperty("--home-hero-nudge-x", "0px");
+      const brand = board.querySelector<HTMLElement>(".home-hero-brand");
+      const side = board.querySelector<HTMLElement>(".home-side");
+      if (brand && side) {
+        const boardRect = board.getBoundingClientRect();
+        const perDesign = boardRect.width / DESIGN_W || 1;
+        const rectsAreVisual = Math.abs(perDesign - scale) < 0.08;
+        const toDesign = (px: number) => (rectsAreVisual ? px / scale : px);
+        const brandRect = brand.getBoundingClientRect();
+        const sideRect = side.getBoundingClientRect();
+        const openRight = rectsAreVisual ? window.innerWidth : boardRect.right;
+        const targetX = sideRect.right + (openRight - sideRect.right) / 2;
+        const targetY = rectsAreVisual
+          ? window.innerHeight / 2
+          : window.innerHeight / 2 / scale;
+        const brandCx = brandRect.left + brandRect.width / 2;
+        const brandCy = brandRect.top + brandRect.height / 2;
+        const nudgeX = toDesign(brandCx - targetX);
+        const lift = toDesign(brandCy - targetY);
+        board.style.setProperty("--home-hero-nudge-x", `${nudgeX}px`);
+        board.style.setProperty("--home-hero-lift", `${lift}px`);
+      }
     };
 
     fit();
