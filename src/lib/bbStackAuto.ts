@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { loadKvJsonCached } from "@/lib/kvLocal";
 import { loadTierIndex } from "@/lib/loadTierIndex";
 import { ensureDefaultSquads } from "@/lib/squads";
+import { TRAINING_SERVER_KEYS } from "@/lib/squadServers";
 
 export type BbStackName = "Main" | "Junior";
 
@@ -258,6 +259,19 @@ export async function syncBbSquadsFromKv(): Promise<{
   });
 
   // Докинуть в клан: лиды + КВ-стата + тренировки (если ещё ни в каком клане)
+  // + все, кто заходил на TR1/TR2 (по сессиям)
+  const sessionUserRows = await prisma.squadServerSession.findMany({
+    where: {
+      serverKey: { in: [...TRAINING_SERVER_KEYS] },
+      userId: { not: null },
+    },
+    distinct: ["userId"],
+    select: { userId: true },
+  });
+  const fromTrSessions = new Set(
+    sessionUserRows.map((r) => r.userId!).filter(Boolean)
+  );
+
   const candidateIds: string[] = [];
   for (const u of users) {
     const label = (u.nick || u.steamName || "").trim();
@@ -267,8 +281,9 @@ export async function syncBbSquadsFromKv(): Promise<{
     const hit = byKey.get(k) || byCompact.get(kc);
     const forced = forceOf(label);
     const fromTrain = trainKeys.has(k) || trainCompact.has(kc);
-    if (!hit && !forced && !fromTrain) continue;
-    if (hit && hit.total <= 0 && !forced && !fromTrain) continue;
+    const fromSession = fromTrSessions.has(u.id);
+    if (!hit && !forced && !fromTrain && !fromSession) continue;
+    if (hit && hit.total <= 0 && !forced && !fromTrain && !fromSession) continue;
     candidateIds.push(u.id);
   }
   if (candidateIds.length) {

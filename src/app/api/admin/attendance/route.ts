@@ -12,6 +12,7 @@ import {
   trainingWindowOverlapMinutes,
 } from "@/lib/squadSessions";
 import { TRAINING_SERVER_KEYS } from "@/lib/squadServers";
+import { findBlackberryClanIds } from "@/lib/reserve";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -135,8 +136,80 @@ export async function GET(req: Request) {
     }
   }
 
+  // Тренировки: только участники BlackBerry. Паблик — все зареганые (как раньше).
+  let bbUserIds: string[] | null = null;
+  if (!isPublic) {
+    const clanIds = await findBlackberryClanIds();
+    if (clanIds.length === 0) {
+      return NextResponse.json({
+        from: fromYmd,
+        to: toYmd,
+        server: serverRaw,
+        days,
+        rows: [],
+        stats: {
+          totalSessions: 0,
+          totalMinutes: 0,
+          avgSessionMin: 0,
+          uniquePlayers: 0,
+          leaveBucket: {},
+          joinBucket: {},
+          weekday: [0, 0, 0, 0, 0, 0, 0],
+          dayPlayerCounts: days.map((d) => ({ day: d, players: 0 })),
+          calendarUnique: days.map((d) => ({ day: d, players: 0 })),
+          turnoutByDay: days.map((d) => ({
+            day: d,
+            registered: 0,
+            present: 0,
+            pct: 0,
+          })),
+          registeredNow: 0,
+          avgPlayersPerDay: 0,
+          windowLabel: "BlackBerry · нет клана",
+        },
+      });
+    }
+    const members = await prisma.clanMember.findMany({
+      where: { clanId: { in: clanIds } },
+      select: { userId: true },
+    });
+    bbUserIds = members.map((m) => m.userId);
+    if (bbUserIds.length === 0) {
+      return NextResponse.json({
+        from: fromYmd,
+        to: toYmd,
+        server: serverRaw,
+        days,
+        rows: [],
+        stats: {
+          totalSessions: 0,
+          totalMinutes: 0,
+          avgSessionMin: 0,
+          uniquePlayers: 0,
+          leaveBucket: {},
+          joinBucket: {},
+          weekday: [0, 0, 0, 0, 0, 0, 0],
+          dayPlayerCounts: days.map((d) => ({ day: d, players: 0 })),
+          calendarUnique: days.map((d) => ({ day: d, players: 0 })),
+          turnoutByDay: days.map((d) => ({
+            day: d,
+            registered: 0,
+            present: 0,
+            pct: 0,
+          })),
+          registeredNow: 0,
+          avgPlayersPerDay: 0,
+          windowLabel: "BlackBerry · нет участников",
+        },
+      });
+    }
+  }
+
   const users = await prisma.user.findMany({
-    where: { profileComplete: true },
+    where: {
+      profileComplete: true,
+      ...(bbUserIds ? { id: { in: bbUserIds } } : {}),
+    },
     orderBy: [{ regNo: "asc" }, { createdAt: "asc" }],
     select: {
       id: true,
@@ -151,6 +224,7 @@ export async function GET(req: Request) {
     where: {
       joinedAt: { gte: from, lt: to },
       ...sessionServerFilter,
+      ...(bbUserIds ? { userId: { in: bbUserIds } } : {}),
     },
     orderBy: { joinedAt: "asc" },
     select: {
