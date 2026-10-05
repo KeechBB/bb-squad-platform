@@ -155,6 +155,27 @@ export function HomeMonthCalendar({ previews }: Props) {
     });
   }
 
+  function logoButton(m: UpcomingMatchPreview) {
+    const clan = canonOpp(m.opp);
+    const src = clanLogoUrl(clan.key);
+    return (
+      <button
+        key={m.key}
+        type="button"
+        className={`home-cal-logo is-${m.status || "play"}`}
+        title={`${m.timeMsk} ${m.stack} vs ${clan.name}`}
+        onClick={() => setSelectedKey(m.key)}
+      >
+        {src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={src} alt={clan.tag} />
+        ) : (
+          <span>{clan.tag.slice(0, 4)}</span>
+        )}
+      </button>
+    );
+  }
+
   return (
     <section className="home-ops-board home-cal-board" aria-label="Календарь КВ">
       <header className="home-ops-head home-cal-head">
@@ -257,16 +278,37 @@ export function HomeMonthCalendar({ previews }: Props) {
               const featured = list.some((m) => isHqOpp(m.opp));
               const times = dayTimes(list);
               const allCancel = tone === "cancel";
+              const split = list.length >= 2;
               return (
                 <div
                   key={n}
                   className={`home-cal-cell${list.length ? " has-match" : ""}${
-                    tone ? ` is-${tone}` : ""
+                    split ? " is-split" : tone ? ` is-${tone}` : ""
                   }${isToday ? " is-today" : ""}${
                     weekend ? " is-weekend" : ""
                   }${featured ? " is-featured" : ""}`}
                 >
-                  {allCancel ? (
+                  {split ? (
+                    <span
+                      className="home-cal-split"
+                      style={{ gridTemplateColumns: `repeat(${list.length}, 1fr)` }}
+                    >
+                      {list.map((m) => (
+                        <span
+                          key={m.key}
+                          className={`home-cal-half is-${m.status || "play"}`}
+                        >
+                          {m.status === "cancel" ? (
+                            <span className="home-cal-stamp" aria-hidden="true">
+                              ОТМЕНА
+                            </span>
+                          ) : null}
+                          {logoButton(m)}
+                        </span>
+                      ))}
+                    </span>
+                  ) : null}
+                  {!split && allCancel ? (
                     <span className="home-cal-stamp" aria-hidden="true">
                       ОТМЕНА
                     </span>
@@ -277,28 +319,9 @@ export function HomeMonthCalendar({ previews }: Props) {
                       <span className="home-cal-time">{times.join(" · ")}</span>
                     ) : null}
                   </span>
-                  {list.length > 0 ? (
+                  {!split && list.length > 0 ? (
                     <span className="home-cal-logos">
-                      {list.map((m) => {
-                        const clan = canonOpp(m.opp);
-                        const src = clanLogoUrl(clan.key);
-                        return (
-                          <button
-                            key={m.key}
-                            type="button"
-                            className={`home-cal-logo is-${m.status || "play"}`}
-                            title={`${m.timeMsk} ${m.stack} vs ${clan.name}`}
-                            onClick={() => setSelectedKey(m.key)}
-                          >
-                            {src ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={src} alt={clan.tag} />
-                            ) : (
-                              <span>{clan.tag.slice(0, 4)}</span>
-                            )}
-                          </button>
-                        );
-                      })}
+                      {list.map((m) => logoButton(m))}
                     </span>
                   ) : null}
                 </div>
