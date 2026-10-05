@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { loadKvJsonCached } from "@/lib/kvLocal";
+import { loadTierIndex } from "@/lib/loadTierIndex";
 import { ensureDefaultSquads } from "@/lib/squads";
 
 export type BbStackName = "Main" | "Junior";
@@ -17,8 +18,11 @@ const FORCE_STACK: Record<string, BbStackName> = {
   chidori: "Main",
   "jimmy neutron": "Junior",
   jimmy: "Junior",
+  jimmyneutron: "Junior",
   vet: "Junior",
 };
+
+const ENSURE_NICKS = ["Keech", "Chidori", "Jimmy Neutron", "VET"] as const;
 
 type MonthIndex = { months?: Array<{ url?: string }> };
 type MonthFile = {
@@ -41,11 +45,21 @@ export type StackFreqRow = {
   main: number;
   junior: number;
   total: number;
+  tier: number;
+  prefer: BbStackName;
   stack: BbStackName;
 };
 
 function nickKey(nick: string): string {
   return nick.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function nickCompact(nick: string): string {
+  return nick.trim().toLowerCase().replace(/\s+/g, "");
+}
+
+function forceOf(nick: string): BbStackName | undefined {
+  return FORCE_STACK[nickKey(nick)] || FORCE_STACK[nickCompact(nick)];
 }
 
 function collectNicks(pj: PlayersFile): string[] {
@@ -59,11 +73,23 @@ function collectNicks(pj: PlayersFile): string[] {
   return [...nicks];
 }
 
+function resolveStack(
+  prefer: BbStackName,
+  tier: number,
+  forced?: BbStackName
+): BbStackName {
+  if (forced) return forced;
+  // Main только Тир 1 / Тир 2
+  if (prefer === "Main" && tier !== 1 && tier !== 2) return "Junior";
+  return prefer;
+}
+
 /** Считаем Main/Junior по всем сыгранным КВ со статой. */
 export async function computeBbStackFrequency(): Promise<StackFreqRow[]> {
   const idx = await loadKvJsonCached<MonthIndex>("data/index.json");
   if (!idx?.months?.length) return [];
 
+  const tierMap = await loadTierIndex();
   const counts = new Map<string, { nick: string; main: number; junior: number }>();
   const last = new Map<string, BbStackName>();
 
@@ -94,34 +120,36 @@ export async function computeBbStackFrequency(): Promise<StackFreqRow[]> {
 
   const rows: StackFreqRow[] = [];
   for (const [key, c] of counts) {
-    const forced = FORCE_STACK[key];
-    let stack: BbStackName;
-    if (forced) stack = forced;
-    else if (c.main > c.junior) stack = "Main";
-    else if (c.junior > c.main) stack = "Junior";
-    else stack = last.get(key) || "Main";
+    const forced = forceOf(c.nick);
+    let prefer: BbStackName;
+    if (c.main > c.junior) prefer = "Main";
+    else if (c.junior > c.main) prefer = "Junior";
+    else prefer = last.get(key) || "Main";
+    const tier = tierMap.get(nickCompact(c.nick)) ?? 4;
     rows.push({
       nick: c.nick,
       main: c.main,
       junior: c.junior,
       total: c.main + c.junior,
-      stack,
+      tier,
+      prefer,
+      stack: resolveStack(prefer, tier, forced),
     });
   }
 
-  // Leadership always present even if somehow missing from stats
-  for (const [alias, stack] of Object.entries(FORCE_STACK)) {
-    if (counts.has(alias)) continue;
-    const canon =
-      stack === "Main"
-        ? alias === "chidori"
-          ? "Chidori"
-          : "Keech"
-        : alias === "vet"
-          ? "VET"
-          : "Jimmy Neutron";
+  for (const canon of ENSURE_NICKS) {
     if (rows.some((r) => nickKey(r.nick) === nickKey(canon))) continue;
-    rows.push({ nick: canon, main: 0, junior: 0, total: 0, stack });
+    const forced = forceOf(canon) || "Junior";
+    const tier = tierMap.get(nickCompact(canon)) ?? 4;
+    rows.push({
+      nick: canon,
+      main: 0,
+      junior: 0,
+      total: 0,
+      tier,
+      prefer: forced,
+      stack: forced,
+    });
   }
 
   rows.sort(
@@ -141,8 +169,8 @@ function isBbClan(tag: string, name: string): boolean {
 
 /**
  * Пересобрать Main/Junior BB по частоте КВ.
- * Только члены клана BB; гости/разовые ники не попадают в состав.
- * Игроки клана без КВ-статы убираются из обоих составов.
+ * Main = чаще Main и Тир 1/2. Иначе Junior.
+ * Зарегистрированные с КВ-статой / лиды докидываются в ClanMember BB.
  */
 export async function syncBbSquadsFromKv(): Promise<{
   ok: boolean;
@@ -189,7 +217,35 @@ export async function syncBbSquadsFromKv(): Promise<{
   }
 
   const freq = await computeBbStackFrequency();
-  const preferByKey = new Map(freq.map((r) => [nickKey(r.nick), r]));
+  const byKey = new Map(freq.map((r) => [nickKey(r.nick), r]));
+  const byCompact = new Map(freq.map((r) => [nickCompact(r.nick), r]));
+
+  const users = await prisma.user.findMany({
+    where: { OR: [{ nick: { not: null } }, { steamName: { not: null } }] },
+    select: { id: true, nick: true, steamName: true },
+  });
+
+  // Докинуть в клан: лиды + все с КВ-статой
+  const ensureIds: string[] = [];
+  for (const u of users) {
+    const label = (u.nick || u.steamName || "").trim();
+    if (!label) continue;
+    const hit = byKey.get(nickKey(label)) || byCompact.get(nickCompact(label));
+    const forced = forceOf(label);
+    if (!hit && !forced) continue;
+    if (hit && hit.total <= 0 && !forced) continue;
+    ensureIds.push(u.id);
+  }
+  if (ensureIds.length) {
+    await prisma.clanMember.createMany({
+      data: ensureIds.map((userId) => ({
+        clanId: clan.id,
+        userId,
+        role: "MEMBER" as const,
+      })),
+      skipDuplicates: true,
+    });
+  }
 
   const members = await prisma.clanMember.findMany({
     where: { clanId: clan.id },
@@ -211,24 +267,18 @@ export async function syncBbSquadsFromKv(): Promise<{
       skipped += 1;
       continue;
     }
-    const hit = preferByKey.get(nickKey(nick));
-    if (!hit || hit.total <= 0) {
-      // leadership with 0 games still stays
-      const forced = FORCE_STACK[nickKey(nick)];
-      if (!forced) {
-        skipped += 1;
-        continue;
-      }
-      if (forced === "Main") {
-        mainIds.push(m.userId);
-        mainNicks.push(nick);
-      } else {
-        juniorIds.push(m.userId);
-        juniorNicks.push(nick);
-      }
+    const hit = byKey.get(nickKey(nick)) || byCompact.get(nickCompact(nick));
+    const forced = forceOf(nick);
+    if (!hit && !forced) {
+      skipped += 1;
       continue;
     }
-    if (hit.stack === "Main") {
+    if ((!hit || hit.total <= 0) && !forced) {
+      skipped += 1;
+      continue;
+    }
+    const stack = hit?.stack || forced!;
+    if (stack === "Main") {
       mainIds.push(m.userId);
       mainNicks.push(nick);
     } else {
@@ -253,7 +303,6 @@ export async function syncBbSquadsFromKv(): Promise<{
         skipDuplicates: true,
       });
     }
-    // удалить прочие кастомные составы BB — только Main/Junior
     const extras = squads.filter(
       (s) => !["main", "junior"].includes(s.name.toLowerCase())
     );

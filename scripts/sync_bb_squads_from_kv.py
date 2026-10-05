@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """Пересобрать составы BB Main/Junior по частоте КВ.
 
-Читает KV/public/data, пишет bb-stack-auto.json.
-С --apply обновляет Neon/Postgres (DATABASE_URL) — только члены клана BB.
+Main — только Тир 1/2 (кто чаще Main). Остальные с КВ → Junior.
+Лиды закреплены. Зарегистрированные игроки с КВ-статой докидываются в клан BB.
 
   python platform/scripts/sync_bb_squads_from_kv.py
   python platform/scripts/sync_bb_squads_from_kv.py --apply
@@ -22,6 +22,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 KV_PUBLIC = ROOT / "KV" / "public"
 OUT_JSON = KV_PUBLIC / "data" / "bb-stack-auto.json"
+TIERS_PATH = KV_PUBLIC / "data" / "tiers.json"
 
 FORCE = {
     "keech": "Main",
@@ -35,10 +36,16 @@ COMMAND = {
     "Main": {"lead": "Keech", "assistant": "Chidori"},
     "Junior": {"lead": "Jimmy Neutron", "assistant": "VET"},
 }
+# ники лидов, которых обязательно держать в клане/составе
+ENSURE_NICKS = ("Keech", "Chidori", "Jimmy Neutron", "VET")
 
 
 def nick_key(n: str) -> str:
     return re.sub(r"\s+", " ", (n or "").strip().lower())
+
+
+def nick_compact(n: str) -> str:
+    return re.sub(r"\s+", "", (n or "").strip().lower())
 
 
 def load_env_db() -> str:
@@ -63,8 +70,31 @@ def collect_nicks(pj: dict) -> set[str]:
     return out
 
 
+def load_tiers() -> dict[str, int]:
+    """compact nick → tier 1..3; else 4."""
+    data = json.loads(TIERS_PATH.read_text(encoding="utf-8"))
+    out: dict[str, int] = {}
+    for t, key in ((1, "tier1"), (2, "tier2"), (3, "tier3")):
+        for n in data.get(key) or []:
+            out[nick_compact(n)] = t
+    for alias, canon in (data.get("aliases") or {}).items():
+        t = out.get(nick_compact(canon))
+        if t:
+            out[nick_compact(alias)] = t
+    return out
+
+
+def resolve_stack(prefer: str, tier: int, forced: str | None) -> str:
+    if forced:
+        return forced
+    if prefer == "Main" and tier not in (1, 2):
+        return "Junior"
+    return prefer
+
+
 def compute() -> dict:
     idx = json.loads((KV_PUBLIC / "data" / "index.json").read_text(encoding="utf-8"))
+    tiers = load_tiers()
     counts: dict[str, dict] = defaultdict(lambda: {"nick": "", "Main": 0, "Junior": 0})
     last: dict[str, str] = {}
     matches = 0
@@ -96,22 +126,43 @@ def compute() -> dict:
     rows = []
     for k, c in counts.items():
         main, jun = c["Main"], c["Junior"]
-        forced = FORCE.get(k)
-        if forced:
-            stack = forced
-        elif main > jun:
-            stack = "Main"
+        forced = FORCE.get(k) or FORCE.get(nick_compact(c["nick"]))
+        if main > jun:
+            prefer = "Main"
         elif jun > main:
-            stack = "Junior"
+            prefer = "Junior"
         else:
-            stack = last.get(k, "Main")
+            prefer = last.get(k, "Main")
+        tier = tiers.get(nick_compact(c["nick"]), 4)
+        stack = resolve_stack(prefer, tier, forced)
         rows.append(
             {
                 "nick": c["nick"],
                 "main": main,
                 "junior": jun,
                 "total": main + jun,
+                "tier": tier,
+                "prefer": prefer,
                 "stack": stack,
+            }
+        )
+
+    # ensure leadership rows exist
+    have = {nick_key(r["nick"]) for r in rows}
+    for canon in ENSURE_NICKS:
+        if nick_key(canon) in have:
+            continue
+        forced = FORCE[nick_key(canon)]
+        tier = tiers.get(nick_compact(canon), 4)
+        rows.append(
+            {
+                "nick": canon,
+                "main": 0,
+                "junior": 0,
+                "total": 0,
+                "tier": tier,
+                "prefer": forced,
+                "stack": forced,
             }
         )
 
@@ -122,7 +173,7 @@ def compute() -> dict:
         "updatedAt": datetime.now(timezone.utc).isoformat(),
         "matchesWithStats": matches,
         "command": COMMAND,
-        "note": "stack = где чаще играл; ничья → последний матч; лиды закреплены",
+        "note": "prefer по частоте КВ; Main только T1/T2; иначе Junior; лиды закреплены",
         "main": main,
         "junior": junior,
         "all": rows,
@@ -140,9 +191,8 @@ def apply_db(payload: dict) -> None:
     if not db:
         raise SystemExit("DATABASE_URL not set")
 
-    prefer = {nick_key(r["nick"]): r["stack"] for r in payload["all"]}
-    for alias, stack in FORCE.items():
-        prefer.setdefault(alias, stack)
+    by_key = {nick_key(r["nick"]): r for r in payload["all"]}
+    by_compact = {nick_compact(r["nick"]): r for r in payload["all"]}
 
     conn = psycopg2.connect(db)
     conn.autocommit = False
@@ -185,7 +235,6 @@ def apply_db(payload: dict) -> None:
             if not main_id or not jun_id:
                 raise SystemExit("Main/Junior squad missing")
 
-            # drop custom squads
             cur.execute(
                 """
                 DELETE FROM "ClanSquad"
@@ -193,6 +242,45 @@ def apply_db(payload: dict) -> None:
                 """,
                 (clan_id,),
             )
+
+            # Все зарегистрированные с ником
+            cur.execute(
+                """
+                SELECT id, nick, "steamName" FROM "User"
+                WHERE nick IS NOT NULL OR "steamName" IS NOT NULL
+                """
+            )
+            users = cur.fetchall()
+
+            # Докинуть в клан BB: лиды + те, у кого есть КВ-стата
+            ensure_ids: list[str] = []
+            for user_id, nick, steam in users:
+                label = (nick or steam or "").strip()
+                if not label:
+                    continue
+                k = nick_key(label)
+                kc = nick_compact(label)
+                hit = by_key.get(k) or by_compact.get(kc)
+                forced = FORCE.get(k) or FORCE.get(kc)
+                if not hit and not forced:
+                    continue
+                if hit and hit["total"] <= 0 and not forced:
+                    continue
+                ensure_ids.append(user_id)
+
+            if ensure_ids:
+                execute_values(
+                    cur,
+                    """
+                    INSERT INTO "ClanMember" (id, "clanId", "userId", role, "joinedAt")
+                    VALUES %s
+                    ON CONFLICT ("clanId", "userId") DO NOTHING
+                    """,
+                    [
+                        (str(uuid.uuid4()), clan_id, uid, "MEMBER", datetime.now(timezone.utc))
+                        for uid in ensure_ids
+                    ],
+                )
 
             cur.execute(
                 """
@@ -205,24 +293,29 @@ def apply_db(payload: dict) -> None:
             )
             members = cur.fetchall()
 
-            main_users = []
-            jun_users = []
+            main_users: list[str] = []
+            jun_users: list[str] = []
+            main_nicks: list[str] = []
+            jun_nicks: list[str] = []
             for user_id, nick, steam in members:
                 label = (nick or steam or "").strip()
                 if not label:
                     continue
                 k = nick_key(label)
-                stack = prefer.get(k)
-                if not stack:
+                kc = nick_compact(label)
+                hit = by_key.get(k) or by_compact.get(kc)
+                forced = FORCE.get(k) or FORCE.get(kc)
+                if not hit and not forced:
                     continue
-                # require at least 1 game unless forced leadership
-                freq = next((r for r in payload["all"] if nick_key(r["nick"]) == k), None)
-                if (not freq or freq["total"] <= 0) and k not in FORCE:
+                if (not hit or hit["total"] <= 0) and not forced:
                     continue
+                stack = hit["stack"] if hit else forced
                 if stack == "Main":
                     main_users.append(user_id)
+                    main_nicks.append(label)
                 else:
                     jun_users.append(user_id)
+                    jun_nicks.append(label)
 
             cur.execute(
                 'DELETE FROM "ClanSquadMember" WHERE "squadId" IN (%s, %s)',
@@ -243,6 +336,12 @@ def apply_db(payload: dict) -> None:
                 )
         conn.commit()
         print(f"DB applied: Main={len(main_users)} Junior={len(jun_users)}")
+        print("MAIN:", ", ".join(sorted(main_nicks, key=str.lower)))
+        print("JUNIOR:", ", ".join(sorted(jun_nicks, key=str.lower)))
+        if "Jimmy Neutron" not in jun_nicks and not any(
+            nick_compact(n) == "jimmyneutron" for n in jun_nicks
+        ):
+            print("WARN: Jimmy Neutron still missing from Junior — check User.nick")
     except Exception:
         conn.rollback()
         raise
@@ -259,7 +358,10 @@ def main() -> int:
     OUT_JSON.parent.mkdir(parents=True, exist_ok=True)
     OUT_JSON.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"Wrote {OUT_JSON}")
-    print(f"matches={payload['matchesWithStats']} Main={len(payload['main'])} Junior={len(payload['junior'])}")
+    print(
+        f"matches={payload['matchesWithStats']} "
+        f"Main={len(payload['main'])} Junior={len(payload['junior'])}"
+    )
     if args.apply:
         apply_db(payload)
     return 0
