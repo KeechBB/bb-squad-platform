@@ -22,6 +22,8 @@ const OPP_CANON: Record<string, { key: string; tag: string; name: string }> = {
   omen: { key: "OMEN", tag: "OMEN", name: "Team Omen" },
   fal: { key: "FAL", tag: "FAL", name: "FALCONS" },
   falcons: { key: "FAL", tag: "FAL", name: "FALCONS" },
+  fox: { key: "FOX", tag: "FOX", name: "RED FOXES" },
+  redfoxes: { key: "FOX", tag: "FOX", name: "RED FOXES" },
 };
 
 const LOGO_EXT: Record<string, string> = {
@@ -44,6 +46,7 @@ const LOGO_EXT: Record<string, string> = {
   CUT: ".png",
   OMEN: ".png",
   FAL: ".png",
+  FOX: ".png",
 };
 
 export function canonOpp(oppRaw: string) {
