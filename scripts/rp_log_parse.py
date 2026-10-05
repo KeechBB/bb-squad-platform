@@ -63,6 +63,7 @@ DEPLOY_RE = re.compile(
 SEED_RE = re.compile(r"Seed|SEED|BP_GameStateSquad_Seed|Jensen", re.I)
 
 START_RP = 1000.0
+MIN_RP = 1.0  # ниже 1 опуститься нельзя (канон капитана 05.10.2026)
 REVIVE_COEF = 0.6  # legacy (pre cutover)
 STEP = 150
 RADIANT3_MAX = 4500
@@ -240,7 +241,12 @@ def score_match_rp(
         return hunt_delta(pk, pv, pmax), pk, pv
 
     def apply_delta(key: str, signed: float) -> None:
-        rp[key] = rp.get(key, START_RP) + signed
+        cur = rp.get(key, START_RP)
+        nxt = cur + signed
+        if nxt < MIN_RP:
+            signed = MIN_RP - cur
+            nxt = MIN_RP
+        rp[key] = nxt
         net[key] = round(net.get(key, 0.0) + signed, 2)
 
     def same_team(a: str, b: str) -> bool:
