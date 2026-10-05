@@ -61,7 +61,7 @@ export function ClanRosterChart({ buckets }: Props) {
       <p className="eyebrow">состав</p>
       <h3 className="clan-roster-chart-title">Ранги</h3>
       <p className="muted clan-roster-chart-lead">
-        Резерв, тиры КВ и TBD — кто не играет КВ.
+        Резерв и тиры 1–4. Новички без тира — Тир 4.
       </p>
 
       {total === 0 ? (

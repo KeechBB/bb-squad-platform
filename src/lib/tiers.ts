@@ -6,8 +6,7 @@ export type RosterBucket =
   | "tier1"
   | "tier2"
   | "tier3"
-  | "tier4"
-  | "tbd";
+  | "tier4";
 
 export const ROSTER_BUCKET_LABEL: Record<RosterBucket, string> = {
   reserve: "Резерв",
@@ -15,7 +14,6 @@ export const ROSTER_BUCKET_LABEL: Record<RosterBucket, string> = {
   tier2: "Тир 2",
   tier3: "Тир 3",
   tier4: "Тир 4",
-  tbd: "TBD",
 };
 
 export const ROSTER_BUCKET_COLOR: Record<RosterBucket, string> = {
@@ -24,7 +22,6 @@ export const ROSTER_BUCKET_COLOR: Record<RosterBucket, string> = {
   tier2: "#86efac",
   tier3: "#fde047",
   tier4: "#a78bfa",
-  tbd: "#6b7280",
 };
 
 function nickKey(nick: string): string {
@@ -56,21 +53,6 @@ export function buildTierIndex(data: {
   return map;
 }
 
-/** Участвует в КВ: мейн/junior или боевая роль состава */
-function isKvParticipant(
-  role: ClanRole,
-  squadName: string | null | undefined
-): boolean {
-  const squad = (squadName || "").trim().toLowerCase();
-  if (squad === "main" || squad === "junior") return true;
-  return (
-    role === "LEADER" ||
-    role === "DEPUTY" ||
-    role === "MAIN" ||
-    role === "SUB"
-  );
-}
-
 export function classifyRosterMember(opts: {
   nick: string | null | undefined;
   role: ClanRole;
@@ -94,8 +76,8 @@ export function classifyRosterMember(opts: {
     if (tier === 3) return "tier3";
   }
 
-  if (isKvParticipant(opts.role, opts.squadName)) return "tier4";
-  return "tbd";
+  // Все новые / без тира в списках — Тир 4 (TBD убрали)
+  return "tier4";
 }
 
 export type RosterBucketCount = {
@@ -120,7 +102,6 @@ export function tallyRosterBuckets(
     "tier2",
     "tier3",
     "tier4",
-    "tbd",
   ];
   const counts = Object.fromEntries(order.map((k) => [k, 0])) as Record<
     RosterBucket,
