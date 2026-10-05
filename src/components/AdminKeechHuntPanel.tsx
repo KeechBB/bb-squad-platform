@@ -540,7 +540,7 @@ export function AdminKeechHuntPanel() {
                   {hitEv.kind === "death"
                     ? "Убит"
                     : hitEv.kind === "gotnok"
-                      ? "Нокнули"
+                      ? "Меня нокнул"
                       : hitEv.kind === "nok"
                         ? "Нок"
                         : "Попадания в"}{" "}
@@ -620,7 +620,7 @@ export function AdminKeechHuntPanel() {
                 empty="—"
               />
               <Col
-                title={`нокнули (${detail.columns.gotNoks?.length ?? 0})`}
+                title={`Меня нокнул (${detail.columns.gotNoks?.length ?? 0})`}
                 items={detail.columns.gotNoks || []}
                 empty="—"
                 onHit={setHitEv}
