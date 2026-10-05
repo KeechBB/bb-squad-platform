@@ -30,9 +30,13 @@ PLATFORM = HERE.parent
 CACHE = HERE / "_tmp_tpub1_logs_cache"
 OUT_PRIMARY = PLATFORM / "data" / "public" / "rp-ledger.json"
 OUT_KV = PLATFORM.parent / "KV" / "public" / "data" / "public" / "rp-ledger.json"
+OUT_KV_CACHE = PLATFORM / "data" / "kv-cache" / "data" / "public" / "rp-ledger.json"
 OUT_LADDER_PRIMARY = PLATFORM / "data" / "public" / "rp-ladder.json"
 OUT_LADDER_KV = (
     PLATFORM.parent / "KV" / "public" / "data" / "public" / "rp-ladder.json"
+)
+OUT_LADDER_KV_CACHE = (
+    PLATFORM / "data" / "kv-cache" / "data" / "public" / "rp-ladder.json"
 )
 HISTORY_CACHE = PLATFORM / "data" / "public" / "match-history.json"
 TIERS = PLATFORM.parent / "KV" / "public" / "data" / "tiers.json"
@@ -196,7 +200,7 @@ def write_empty(note: str) -> None:
         "leaderboard": [],
         "note": note,
     }
-    for out in (OUT_PRIMARY, OUT_KV):
+    for out in (OUT_PRIMARY, OUT_KV, OUT_KV_CACHE):
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(f"wrote empty → {out}")
@@ -764,7 +768,7 @@ def main() -> None:
     }
 
     text = json.dumps(ledger, ensure_ascii=False, indent=2) + "\n"
-    for out in (OUT_PRIMARY, OUT_KV):
+    for out in (OUT_PRIMARY, OUT_KV, OUT_KV_CACHE):
         try:
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_text(text, encoding="utf-8")
@@ -817,7 +821,7 @@ def main() -> None:
         "leaderboard": ledger["leaderboard"],
     }
     slim_text = json.dumps(slim, ensure_ascii=False, separators=(",", ":")) + "\n"
-    for out in (OUT_LADDER_PRIMARY, OUT_LADDER_KV):
+    for out in (OUT_LADDER_PRIMARY, OUT_LADDER_KV, OUT_LADDER_KV_CACHE):
         try:
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_text(slim_text, encoding="utf-8")

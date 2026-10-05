@@ -43,10 +43,9 @@ function isCurrentPublicLedger(data: RpLedger | null | undefined): boolean {
 }
 
 function ledgerFreshness(data: RpLedger): number {
-  const t = Date.parse(String(data.updatedAt || "")) || 0;
-  const formula = String((data as { formula?: string }).formula || "");
-  const woundBonus = formula.includes("nok=Wound") ? 1e15 : 0;
-  return woundBonus + t;
+  // Prefer newest file by updatedAt. Do NOT substring-match formula:
+  // old ledgers contain "nok=Wound downs" and would beat a fresher copy.
+  return Date.parse(String(data.updatedAt || "")) || 0;
 }
 
 async function readJsonFile(path: string): Promise<RpLedger | null> {
