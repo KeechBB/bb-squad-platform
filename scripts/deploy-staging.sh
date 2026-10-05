@@ -19,6 +19,23 @@ if [[ ! -f .env ]]; then
   exit 1
 fi
 
+# Parent shell (bootstrap) may export prod DATABASE_URL — that overrides .env for Prisma/Next.
+# Force-load staging .env keys and refuse to proceed if still pointing at prod DB name.
+unset DATABASE_URL NEXTAUTH_URL PORT
+set -a
+# shellcheck disable=SC1090
+source <(grep -E '^(DATABASE_URL|NEXTAUTH_URL|PORT)=' .env | sed 's/\r$//')
+set +a
+case "${DATABASE_URL:-}" in
+  */bb_squad_staging*|*/bb_squad_staging\?*|*bb_squad_staging*)
+    echo "==> DATABASE_URL → staging OK"
+    ;;
+  *)
+    echo "REFUSING: DATABASE_URL is not bb_squad_staging: ${DATABASE_URL%%\?*}" >&2
+    exit 1
+    ;;
+esac
+
 echo "==> git fetch + checkout $BRANCH"
 git fetch origin
 git checkout "$BRANCH"

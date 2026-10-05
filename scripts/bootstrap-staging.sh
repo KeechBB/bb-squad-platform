@@ -127,6 +127,8 @@ else
 fi
 
 echo "==> first staging deploy (build + pm2)"
+# Drop prod DATABASE_URL exported earlier — deploy-staging loads staging .env itself.
+unset DATABASE_URL NEXTAUTH_URL PORT
 bash "$STAGING_ROOT/scripts/deploy-staging.sh"
 
 echo "==> DONE"
