@@ -7,7 +7,7 @@ import {
   CLAN_LOGO_MAX,
   detectClanLogoMime,
   saveClanLogo,
-} from "@/lib/clanLogo";
+} from "@/lib/clanLogoFile";
 import { ensureDefaultSquads } from "@/lib/squads";
 import { ensureDefaultTitles } from "@/lib/titles";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
