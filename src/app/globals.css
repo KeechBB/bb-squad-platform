@@ -5306,9 +5306,9 @@ body:has(.home-page) {
   width: 1920px;
   height: 1004px;
   zoom: var(--home-scale);
-  grid-template-columns: 700px minmax(0, 1fr) 440px;
+  grid-template-columns: 740px minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
-  grid-template-areas: "cal hero tiers";
+  grid-template-areas: "side brand";
   align-items: start;
   column-gap: 44px;
   row-gap: 12px;
@@ -5317,13 +5317,173 @@ body:has(.home-page) {
   overflow: hidden;
 }
 
-.home-layout > .home-ops-board:not(.home-mvp-board):not(.home-tier-board) {
-  grid-area: cal;
+.home-layout > .home-side {
+  grid-area: side;
   align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   min-width: 0;
+}
+
+.home-layout > .home-hero {
+  grid-area: brand;
+  justify-self: end;
+  align-self: center;
+  width: min(820px, 100%);
+  max-width: none;
   height: auto;
+  margin: 0;
+  padding: 0 36px 0 16px;
+  grid-template-rows: auto;
+}
+
+.home-layout > .home-hero .home-crest {
+  width: 280px;
+  max-width: 280px;
+}
+
+.home-layout > .home-hero h1 {
+  font-size: 5.6rem;
+  letter-spacing: 0.06em;
+  background-image: linear-gradient(
+    100deg,
+    #ffffff 0%,
+    #ddd6fe 18%,
+    #c4b5fd 36%,
+    #f0abfc 52%,
+    #ffffff 68%,
+    #e9d5ff 84%,
+    #c4b5fd 100%
+  );
+  background-size: 240% 100%;
+  animation: home-title-shimmer 7s linear infinite;
+}
+
+.home-layout > .home-hero .home-hero-kicker {
+  margin-top: 14px;
+  font-size: 1.15rem;
+  letter-spacing: 0.18em;
+}
+
+.home-layout > .home-hero .home-hero-tag {
+  margin-top: 10px;
+  max-width: 34rem;
+  font-size: 1.28rem;
+}
+
+@keyframes home-title-shimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-layout > .home-hero h1 {
+    animation: none;
+  }
+}
+
+.home-dock {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.home-dock-btn {
+  appearance: none;
+  min-height: 54px;
+  padding: 8px 8px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.86rem;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+.home-dock-btn:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+}
+
+.home-dock-btn.is-train {
+  background: linear-gradient(160deg, #7c3aed 0%, #4c1d95 100%);
+  box-shadow:
+    0 0 0 1px rgba(196, 181, 253, 0.55),
+    0 10px 22px rgba(109, 40, 217, 0.4);
+}
+
+.home-dock-btn.is-public {
+  background: linear-gradient(160deg, #0284c7 0%, #155e75 100%);
+  box-shadow:
+    0 0 0 1px rgba(125, 211, 252, 0.55),
+    0 10px 22px rgba(2, 132, 199, 0.38);
+}
+
+.home-dock-btn.is-tiers {
+  background: linear-gradient(160deg, #c026d3 0%, #86198f 100%);
+  box-shadow:
+    0 0 0 1px rgba(244, 114, 182, 0.55),
+    0 10px 22px rgba(192, 38, 211, 0.38);
+}
+
+.home-dock-btn.is-on {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.home-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+}
+
+.home-overlay-back {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: rgba(4, 2, 12, 0.72);
+  cursor: pointer;
+}
+
+.home-overlay-card {
+  position: relative;
+  z-index: 1;
+  width: min(980px, calc(100% - 40px));
+  max-height: calc(100% - 36px);
+  overflow: auto;
+  padding: 16px 16px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(196, 181, 253, 0.38);
+  background: rgba(10, 8, 18, 0.96);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+}
+
+.home-overlay-x {
+  position: sticky;
+  top: 0;
+  float: right;
+  z-index: 2;
+  appearance: none;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(221, 214, 254, 0.4);
+  background: rgba(24, 16, 40, 0.9);
+  color: #f5f1ff;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.home-overlay-card .home-tier-board,
+.home-overlay-card .home-train-pwr {
   max-height: none;
-  overflow: visible;
 }
 
 .home-layout > .home-mvp-board {
@@ -6003,8 +6163,8 @@ body:has(.home-page) {
 }
 
 .home-layout > .home-hero {
-  grid-area: hero;
-  align-self: stretch;
+  grid-area: brand;
+  align-self: center;
   min-width: 0;
   min-height: 0;
 }
