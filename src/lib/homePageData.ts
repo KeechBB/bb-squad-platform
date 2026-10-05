@@ -1,28 +1,23 @@
 import { unstable_cache } from "next/cache";
-import { buildUpcomingMatchPreviews } from "@/lib/kvForecast";
-import { emptyHomeMvpBoard } from "@/lib/homeMvp";
-import { buildHomeMvpBoard } from "@/lib/homeMvpBuild";
+import { buildCalendarMatches } from "@/lib/kvForecast";
 import {
   buildHomeTrainPwrBoard,
   emptyHomeTrainPwrBoard,
 } from "@/lib/homeTrainPwr";
 import { buildHomeTierBoard, emptyHomeTierBoard } from "@/lib/homeTierBoard";
 
-/** Общие блоки главной — один параллельный проход, кэш ~45с. */
+/** Общие блоки главной — один параллельный проход, кэш ~2 мин. */
 export const getHomeDashboardData = unstable_cache(
   async () => {
-    const [previews, mvpBoard, pwrBoard, tierBoard] = await Promise.all([
-      buildUpcomingMatchPreviews(12)
+    const [previews, pwrBoard, tierBoard] = await Promise.all([
+      buildCalendarMatches()
         .then((d) => d.previews)
-        .catch(() => [] as Awaited<
-          ReturnType<typeof buildUpcomingMatchPreviews>
-        >["previews"]),
-      buildHomeMvpBoard().catch(() => emptyHomeMvpBoard()),
+        .catch(() => [] as Awaited<ReturnType<typeof buildCalendarMatches>>["previews"]),
       buildHomeTrainPwrBoard().catch(() => emptyHomeTrainPwrBoard()),
       buildHomeTierBoard().catch(() => emptyHomeTierBoard()),
     ]);
-    return { previews, mvpBoard, pwrBoard, tierBoard };
+    return { previews, pwrBoard, tierBoard };
   },
-  ["home-dashboard-v11-vps-disk"],
+  ["home-dashboard-v12-calendar"],
   { revalidate: 120 }
 );

@@ -100,7 +100,7 @@ export async function computeBbStackFrequency(): Promise<StackFreqRow[]> {
       const st = String(m.status || "").toLowerCase();
       const stack = String(m.stack || "").trim() as BbStackName;
       if (stack !== "Main" && stack !== "Junior") continue;
-      if (st !== "win" && st !== "lose") continue;
+      if (st !== "win" && st !== "lose" && st !== "draw") continue;
       const purl = String(m.playersUrl || "").replace(/^\/+/, "");
       if (!purl) continue;
       const pj = await loadKvJsonCached<PlayersFile>(purl);

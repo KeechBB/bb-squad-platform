@@ -2,8 +2,7 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getHomeDashboardData } from "@/lib/homePageData";
-import { HomeUpcomingMatches } from "@/components/HomeUpcomingMatches";
-import { HomeMvpBoard } from "@/components/HomeMvpBoard";
+import { HomeMonthCalendar } from "@/components/HomeMonthCalendar";
 import { HomeTrainPwrTop } from "@/components/HomeTrainPwrTop";
 import { HomeTierBoard } from "@/components/HomeTierBoard";
 import { HomeFit } from "@/components/HomeFit";
@@ -16,7 +15,7 @@ export default async function HomePage() {
     redirect("/register");
   }
 
-  const { previews, mvpBoard, pwrBoard, tierBoard } = await getHomeDashboardData();
+  const { previews, pwrBoard, tierBoard } = await getHomeDashboardData();
 
   const loggedIn = Boolean(session?.user);
 
@@ -72,8 +71,7 @@ export default async function HomePage() {
       </div>
 
       <HomeFit>
-        <HomeUpcomingMatches previews={previews} />
-        <HomeMvpBoard initial={mvpBoard} />
+        <HomeMonthCalendar previews={previews} />
 
         <section className="home-hero">
           <div className="home-hero-brand">

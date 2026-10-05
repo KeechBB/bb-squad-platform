@@ -29,6 +29,8 @@ export type UpcomingMatchPreview = {
   server: string;
   rules: string;
   note: string | null;
+  status: string;
+  meeting: string | null;
   forecast: MatchForecast;
 };
 

@@ -97,72 +97,220 @@ function winRate(list: KvMatch[]): { rate: number | null; played: number; wins: 
   };
 }
 
-function buildForecast(match: TaggedMatch, history: TaggedMatch[]): MatchForecast {
-  const playedAll = history.filter((m) => isPlayedStatus(m.status));
-  const overall = winRate(playedAll);
-  const stackName = match.stack || "";
-  const stackHist = playedAll.filter(
-    (m) => (m.stack || "").toLowerCase() === stackName.toLowerCase()
+type StackBrief = {
+  last: TaggedMatch | null;
+  lastNicks: string[];
+  recent: TaggedMatch[];
+  core: string[];
+};
+
+function matchStamp(m: TaggedMatch): number {
+  return m.year * 10000 + m.month * 100 + (Number(m.day) || 0);
+}
+
+function sameStack(a: string | undefined, b: string | undefined): boolean {
+  return (a || "").trim().toLowerCase() === (b || "").trim().toLowerCase();
+}
+
+type PlayersFile = {
+  total?: Array<{ nick?: string }>;
+  players?: Array<{ nick?: string }>;
+  r1?: Array<{ nick?: string }>;
+  r2?: Array<{ nick?: string }>;
+};
+
+async function lineupOf(match: TaggedMatch): Promise<string[]> {
+  const purl = String(match.playersUrl || "").replace(/^\/+/, "");
+  if (!purl) return [];
+  try {
+    const pj = await loadJson<PlayersFile>(purl);
+    const set = new Set<string>();
+    for (const key of ["total", "players", "r1", "r2"] as const) {
+      for (const p of pj[key] || []) {
+        const n = String(p?.nick || "").trim();
+        if (n) set.add(n);
+      }
+    }
+    return [...set];
+  } catch {
+    return [];
+  }
+}
+
+function namesPreview(nicks: string[], limit = 5): string {
+  if (!nicks.length) return "состав не записан";
+  const head = nicks.slice(0, limit).join(", ");
+  const rest = nicks.length - limit;
+  return rest > 0 ? `${head} +${rest}` : head;
+}
+
+async function buildStackBriefs(
+  matches: TaggedMatch[]
+): Promise<Map<string, StackBrief>> {
+  const played = matches
+    .filter((m) => isPlayedStatus(m.status))
+    .sort((a, b) => matchStamp(b) - matchStamp(a));
+  const byStack = new Map<string, TaggedMatch[]>();
+  for (const m of played) {
+    const key = (m.stack || "").trim().toLowerCase();
+    if (!key) continue;
+    const list = byStack.get(key) || [];
+    list.push(m);
+    byStack.set(key, list);
+  }
+  const out = new Map<string, StackBrief>();
+  await Promise.all(
+    [...byStack.entries()].map(async ([key, list]) => {
+      const recent = list.slice(0, 5);
+      const last = recent[0] || null;
+      const lastNicks = last ? await lineupOf(last) : [];
+      const coreSet = new Set(lastNicks.map((n) => n.toLowerCase()));
+      const prev = recent.slice(1, 4);
+      const prevLines = await Promise.all(prev.map((m) => lineupOf(m)));
+      for (const line of prevLines) {
+        for (const n of line) {
+          const k = n.toLowerCase();
+          if (coreSet.has(k)) continue;
+          const hits =
+            prevLines.filter((row) =>
+              row.some((x) => x.toLowerCase() === k)
+            ).length + (lastNicks.some((x) => x.toLowerCase() === k) ? 1 : 0);
+          if (hits >= 2) coreSet.add(k);
+        }
+      }
+      const core = lastNicks.length
+        ? lastNicks
+        : [...coreSet].slice(0, 12);
+      out.set(key, { last, lastNicks, recent, core });
+    })
   );
+  return out;
+}
+
+function resultWord(status?: string): string {
+  if (status === "win") return "победа";
+  if (status === "lose") return "поражение";
+  if (status === "draw") return "ничья";
+  return status || "матч";
+}
+
+function buildForecast(
+  match: TaggedMatch,
+  history: TaggedMatch[],
+  brief?: StackBrief
+): MatchForecast {
+  const playedAll = history.filter(
+    (m) => isPlayedStatus(m.status) && matchStamp(m) < matchStamp(match)
+  );
+  const stackName = match.stack || "";
+  const stackHist = playedAll.filter((m) => sameStack(m.stack, stackName));
   const stack = winRate(stackHist);
   const mapKey = shortMap(match.map || "");
-  const mapHist = playedAll.filter(
+  const mapHist = stackHist.filter(
     (m) => m.map && shortMap(m.map).toLowerCase() === mapKey.toLowerCase()
   );
-  const onMap = winRate(mapHist);
+  const stackOnMap = winRate(mapHist);
+  const onMap = stackOnMap.played
+    ? stackOnMap
+    : winRate(
+        playedAll.filter(
+          (m) => m.map && shortMap(m.map).toLowerCase() === mapKey.toLowerCase()
+        )
+      );
+  const mapScope = stackOnMap.played ? "состава" : "клана";
   const oppKey = (match.opp || "").toLowerCase();
-  const h2hHist = playedAll.filter(
+  const h2hStackHist = stackHist.filter(
     (m) => (m.opp || "").toLowerCase() === oppKey
   );
-  const h2h = winRate(h2hHist);
+  const h2h = winRate(h2hStackHist);
+  const priorForm = [...stackHist]
+    .sort((a, b) => matchStamp(b) - matchStamp(a))
+    .slice(0, 5);
+  const recent = winRate(
+    match.status === "upcoming" && brief?.recent.length
+      ? brief.recent
+      : priorForm
+  );
 
   const factors: ForecastFactor[] = [];
   const weights: { w: number; rate: number }[] = [];
 
-  if (overall.rate != null) {
+  if (recent.rate != null && recent.played > 0 && stackName) {
     factors.push({
-      label: "Общий WR",
-      value: `${overall.rate}% · ${overall.played} игр`,
-      tone: toneForRate(overall.rate),
+      label: `Форма ${stackName}`,
+      value: `${recent.wins}W / ${recent.played} посл.`,
+      tone: toneForRate(recent.rate),
     });
-    weights.push({ w: 0.2, rate: overall.rate });
+    weights.push({ w: 0.28, rate: recent.rate });
   }
 
   if (stack.rate != null && stackName) {
     factors.push({
-      label: `Состав ${stackName}`,
+      label: `Сезон ${stackName}`,
       value: `${stack.rate}% · ${stack.played} игр`,
       tone: toneForRate(stack.rate),
     });
-    weights.push({ w: stack.played >= 3 ? 0.3 : 0.18, rate: stack.rate });
+    weights.push({ w: stack.played >= 3 ? 0.16 : 0.1, rate: stack.rate });
+  }
+
+  const sameOuting =
+    !!brief?.last &&
+    matchStamp(brief.last) === matchStamp(match) &&
+    (brief.last.opp || "").toLowerCase() === oppKey &&
+    sameStack(brief.last.stack, stackName);
+
+  if (brief?.core.length) {
+    const last = brief.last;
+    factors.push({
+      label: "Кто выходит",
+      value: namesPreview(brief.core),
+      tone:
+        last?.status === "win"
+          ? "good"
+          : last?.status === "lose"
+            ? "bad"
+            : "neutral",
+    });
+    if (last && !sameOuting) {
+      factors.push({
+        label: "Последний выход",
+        value: `${resultWord(last.status)} vs ${last.opp || "—"} · ${shortMap(last.map || "")}`,
+        tone:
+          last.status === "win"
+            ? "good"
+            : last.status === "lose"
+              ? "bad"
+              : "neutral",
+      });
+    }
   }
 
   if (onMap.rate != null) {
     factors.push({
       label: `Карта ${mapKey}`,
-      value: `${onMap.rate}% · ${onMap.played} игр`,
+      value: `${onMap.rate}% · ${onMap.played} игр ${mapScope}`,
       tone: toneForRate(onMap.rate),
     });
-    weights.push({ w: onMap.played >= 2 ? 0.35 : 0.2, rate: onMap.rate });
+    weights.push({ w: onMap.played >= 2 ? 0.22 : 0.12, rate: onMap.rate });
   } else {
     factors.push({
       label: `Карта ${mapKey || "—"}`,
-      value: "нет сыгранных",
+      value: "у состава нет сыгранных",
       tone: "neutral",
     });
   }
 
   if (h2h.rate != null) {
     factors.push({
-      label: `vs ${match.opp}`,
-      value: `${h2h.rate}% · ${h2h.played} встреч`,
+      label: `Личные ${stackName || "состава"}`,
+      value: `${h2h.wins}W / ${h2h.played} vs ${match.opp}`,
       tone: toneForRate(h2h.rate),
     });
-    weights.push({ w: h2h.played >= 2 ? 0.25 : 0.15, rate: h2h.rate });
+    weights.push({ w: h2h.played >= 2 ? 0.3 : 0.18, rate: h2h.rate });
   } else {
     factors.push({
-      label: `vs ${match.opp || "соперник"}`,
-      value: "первый раз / нет истории",
+      label: `Личные ${stackName || "состава"}`,
+      value: `с ${match.opp || "соперником"} ещё не играли`,
       tone: "neutral",
     });
   }
@@ -175,8 +323,8 @@ function buildForecast(match: TaggedMatch, history: TaggedMatch[]): MatchForecas
   winPct = clamp(winPct, 18, 88);
 
   const drawBase =
-    overall.played > 0
-      ? Math.round((100 * overall.draws) / overall.played)
+    stack.played > 0
+      ? Math.round((100 * stack.draws) / stack.played)
       : 8;
   const drawPct = clamp(Math.round(drawBase * 0.7), 4, 18);
   let losePct = 100 - winPct - drawPct;
@@ -197,7 +345,12 @@ function buildForecast(match: TaggedMatch, history: TaggedMatch[]): MatchForecas
     onMap,
     stackStats: stack,
     h2h,
+    recent,
     size: match.size || "",
+    status: match.status || "",
+    meeting: match.meeting || "",
+    core: brief?.core || [],
+    last: brief?.last || null,
   });
 
   return { winPct, drawPct, losePct, confidence, summary, factors };
@@ -211,45 +364,62 @@ function writeSummary(opts: {
   onMap: ReturnType<typeof winRate>;
   stackStats: ReturnType<typeof winRate>;
   h2h: ReturnType<typeof winRate>;
+  recent: ReturnType<typeof winRate>;
   size: string;
+  status: string;
+  meeting: string;
+  core: string[];
+  last: TaggedMatch | null;
 }): string {
   const bits: string[] = [];
-  if (opts.winPct >= 62) {
+  if (opts.status === "win" || opts.status === "lose" || opts.status === "draw") {
+    const score = opts.meeting ? ` (${opts.meeting})` : "";
     bits.push(
-      `Модель склоняется к победе BB (${opts.winPct}%) против ${opts.opp}.`
+      `Итог состава ${opts.stackName}: ${resultWord(opts.status)}${score} против ${opts.opp}.`
+    );
+  } else if (opts.winPct >= 62) {
+    bits.push(
+      `Модель склоняется к победе ${opts.stackName} (${opts.winPct}%) против ${opts.opp}.`
     );
   } else if (opts.winPct <= 42) {
     bits.push(
-      `Матч выглядит сложным: оценка победы ${opts.winPct}% против ${opts.opp}.`
+      `Для ${opts.stackName} матч выглядит сложным: ${opts.winPct}% на победу против ${opts.opp}.`
     );
   } else {
     bits.push(
-      `Ровный прогноз: ~${opts.winPct}% на победу BB против ${opts.opp}.`
+      `Ровный прогноз для ${opts.stackName}: ~${opts.winPct}% на победу против ${opts.opp}.`
+    );
+  }
+
+  if (opts.core.length) {
+    bits.push(`Сейчас выходят: ${namesPreview(opts.core, 6)}.`);
+  }
+  if (opts.last && (opts.last.opp || "").toLowerCase() !== opts.opp.toLowerCase()) {
+    bits.push(
+      `Последний выход этого состава — ${resultWord(opts.last.status)} против ${opts.last.opp || "—"}.`
+    );
+  }
+
+  if (opts.h2h.rate != null) {
+    bits.push(
+      `Личные ${opts.stackName} с ${opts.opp}: ${opts.h2h.wins} побед из ${opts.h2h.played}.`
+    );
+  } else {
+    bits.push(`Прямых встреч ${opts.stackName} с ${opts.opp} нет — смотрим форму ядра и карту.`);
+  }
+
+  if (opts.recent.rate != null && opts.recent.played >= 2) {
+    bits.push(
+      `Короткая форма: ${opts.recent.wins}W из ${opts.recent.played}.`
     );
   }
 
   if (opts.onMap.rate != null && opts.onMap.played >= 2) {
     bits.push(
       opts.onMap.rate >= 55
-        ? `На ${opts.map} состав чувствует себя уверенно (${opts.onMap.rate}% WR).`
-        : `Карта ${opts.map} — слабое место по истории (${opts.onMap.rate}% WR).`
+        ? `На ${opts.map} состав уверен (${opts.onMap.rate}% WR).`
+        : `Карта ${opts.map} по истории состава слабая (${opts.onMap.rate}% WR).`
     );
-  } else {
-    bits.push(`По карте ${opts.map} мало данных — вес оценки снижен.`);
-  }
-
-  if (opts.stackStats.rate != null) {
-    bits.push(
-      `${opts.stackName} сейчас на ${opts.stackStats.rate}% побед за сезонную выборку.`
-    );
-  }
-
-  if (opts.h2h.rate != null) {
-    bits.push(
-      `Личные встречи с ${opts.opp}: ${opts.h2h.wins}W / ${opts.h2h.played} игр.`
-    );
-  } else {
-    bits.push(`Прямой истории с ${opts.opp} почти нет — ставка на форму и карту.`);
   }
 
   if (opts.size) bits.push(`Формат ${opts.size}.`);
@@ -257,38 +427,58 @@ function writeSummary(opts: {
   return bits.join(" ");
 }
 
+function toPreview(
+  m: TaggedMatch,
+  i: number,
+  matches: TaggedMatch[],
+  briefs: Map<string, StackBrief>
+): UpcomingMatchPreview {
+  const mapFull = m.map || "—";
+  const brief = briefs.get((m.stack || "").trim().toLowerCase());
+  return {
+    key: m.id || `${m.year}-${m.month}-${m.day}-${m.opp}-${i}`,
+    day: Number(m.day) || 0,
+    month: m.month,
+    year: m.year,
+    timeMsk: m.timeMsk || "—",
+    opp: m.opp || "—",
+    map: mapFull,
+    mapShort: shortMap(mapFull),
+    size: m.size || "—",
+    stack: m.stack || "—",
+    server: m.server || "—",
+    rules: m.rules || "—",
+    note: m.note || null,
+    status: m.status || "",
+    meeting: m.meeting || null,
+    forecast: buildForecast(m, matches, brief),
+  };
+}
+
 export async function buildUpcomingMatchPreviews(
   limit = 6
 ): Promise<{ previews: UpcomingMatchPreview[]; source: string }> {
+  const { previews, source } = await buildCalendarMatches();
+  return {
+    previews: previews
+      .filter((m) => m.status === "upcoming")
+      .slice(0, limit),
+    source,
+  };
+}
+
+/** Все игры КВ для календаря главной, с прогнозом по составу. */
+export async function buildCalendarMatches(): Promise<{
+  previews: UpcomingMatchPreview[];
+  source: string;
+}> {
   const { matches, source } = await loadTaggedMatches();
-  const upcoming = matches
-    .filter((m) => m.status === "upcoming")
-    .sort((a, b) => {
-      const ay = a.year * 10000 + a.month * 100 + (Number(a.day) || 0);
-      const by = b.year * 10000 + b.month * 100 + (Number(b.day) || 0);
-      return ay - by;
-    })
-    .slice(0, limit);
-
-  const previews: UpcomingMatchPreview[] = upcoming.map((m, i) => {
-    const mapFull = m.map || "—";
-    return {
-      key: m.id || `${m.year}-${m.month}-${m.day}-${m.opp}-${i}`,
-      day: Number(m.day) || 0,
-      month: m.month,
-      year: m.year,
-      timeMsk: m.timeMsk || "—",
-      opp: m.opp || "—",
-      map: mapFull,
-      mapShort: shortMap(mapFull),
-      size: m.size || "—",
-      stack: m.stack || "—",
-      server: m.server || "—",
-      rules: m.rules || "—",
-      note: m.note || null,
-      forecast: buildForecast(m, matches),
-    };
-  });
-
-  return { previews, source };
+  const briefs = await buildStackBriefs(matches);
+  const dated = matches
+    .filter((m) => Number(m.day) > 0 && m.month > 0 && m.year > 0)
+    .sort((a, b) => matchStamp(a) - matchStamp(b));
+  return {
+    previews: dated.map((m, i) => toPreview(m, i, matches, briefs)),
+    source,
+  };
 }

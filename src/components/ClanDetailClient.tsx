@@ -62,6 +62,17 @@ type Squad = {
   members: SquadMember[];
 };
 
+type PlayedRow = {
+  nick: string;
+  main: number;
+  junior: number;
+  total: number;
+  tier: number;
+  stack: "Main" | "Junior";
+  tu: number | null;
+  userId: string | null;
+};
+
 type StackCommand = {
   overallLead: string;
   Main: { lead: string; assistant: string };
@@ -196,6 +207,7 @@ export function ClanDetailClient({
     clan.tag.trim().toLowerCase() === "bb"
   );
   const [stackCommand, setStackCommand] = useState<StackCommand | null>(null);
+  const [playedRows, setPlayedRows] = useState<PlayedRow[]>([]);
   const [newSquad, setNewSquad] = useState("");
   const [inviteNick, setInviteNick] = useState("");
   const [joinRequests, setJoinRequests] = useState(initialJoinRequests);
@@ -320,6 +332,7 @@ export function ClanDetailClient({
       if (!res.ok) return;
       const data = await res.json();
       setSquads(data.squads || []);
+      setPlayedRows(Array.isArray(data.played) ? data.played : []);
       if (typeof data.autoStacks === "boolean") setAutoStacks(data.autoStacks);
       setStackCommand((data.command as StackCommand | null) || null);
     } catch {
@@ -1263,8 +1276,9 @@ export function ClanDetailClient({
             <>
               <p className="muted" style={{ marginTop: 0 }}>
                 Main и Junior собираются <strong>автоматически</strong> по сыгранным
-                КВ: кто чаще играет за состав — туда и попадает. Ручное добавление
-                отключено.
+                КВ: в состав попадает каждый, кто выходил за этот стак. Если играл
+                и в Main, и в Junior — остаётся там, где матчей больше. Тир на
+                место не влияет. Ручное добавление отключено.
               </p>
               {stackCommand ? (
                 <p style={{ marginTop: 8 }}>
@@ -1344,11 +1358,34 @@ export function ClanDetailClient({
                   na.localeCompare(nb, "ru")
                 );
               });
+              const compactNick = (n: string) =>
+                n.trim().toLowerCase().replace(/\s+/g, "");
+              const playedHere =
+                autoStacks && cmdKey
+                  ? playedRows
+                      .filter((r) => r.stack === cmdKey)
+                      .sort((a, b) => {
+                        const rank = (n: string) =>
+                          compactNick(n) === compactNick(leadKey)
+                            ? 0
+                            : compactNick(n) === compactNick(asstKey)
+                              ? 1
+                              : 2;
+                        const games = (r: PlayedRow) =>
+                          cmdKey === "Main" ? r.main : r.junior;
+                        return (
+                          rank(a.nick) - rank(b.nick) ||
+                          games(b) - games(a) ||
+                          a.nick.localeCompare(b.nick, "ru")
+                        );
+                      })
+                  : null;
+              const headCount = playedHere ? playedHere.length : s.members.length;
               return (
                 <div key={s.id} className="squad-card">
                   <div className="squad-card-head">
                     <strong>{s.name}</strong>
-                    <span className="muted">{s.members.length} чел.</span>
+                    <span className="muted">{headCount} чел.</span>
                     {!autoStacks &&
                     canManage &&
                     myRole &&
@@ -1384,10 +1421,70 @@ export function ClanDetailClient({
                   </div>
                   <ul
                     className={`squad-list${
-                      ordered.length > 12 ? " squad-list-dense" : ""
+                      (playedHere ? playedHere.length : ordered.length) > 12
+                        ? " squad-list-dense"
+                        : ""
                     }`}
                   >
-                    {ordered.length === 0 ? (
+                    {playedHere ? (
+                      playedHere.length === 0 ? (
+                        <li className="muted squad-list-empty">
+                          Пока нет игроков с КВ-статой в этом составе
+                        </li>
+                      ) : (
+                        playedHere.map((r) => {
+                          const games = cmdKey === "Main" ? r.main : r.junior;
+                          const nk = r.nick.trim().toLowerCase();
+                          const badge =
+                            nk === leadKey
+                              ? "гл."
+                              : nk === asstKey
+                                ? "пом."
+                                : null;
+                          const tierNum = Number(r.tier) || 4;
+                          const tu = r.tu;
+                          const tuText =
+                            tu == null ? "—" : `${tu > 0 ? "+" : ""}${tu}`;
+                          const tuCls =
+                            tu == null
+                              ? ""
+                              : tu > 0
+                                ? "squad-tu-plus"
+                                : tu < 0
+                                  ? "squad-tu-minus"
+                                  : "";
+                          return (
+                            <li
+                              key={`${r.stack}-${r.nick}`}
+                              className="squad-list-row squad-list-row-metrics"
+                            >
+                              <span className={`squad-tier tier-${tierNum}`}>
+                                T{tierNum}
+                              </span>
+                              <span className="squad-nick">
+                                {r.userId ? (
+                                  <Link
+                                    className="player-nick-link"
+                                    href={`/players/${encodeURIComponent(r.nick)}`}
+                                  >
+                                    {r.nick}
+                                  </Link>
+                                ) : (
+                                  r.nick
+                                )}
+                                {badge ? (
+                                  <span className="muted"> · {badge}</span>
+                                ) : null}
+                                <span className="muted"> · {games} игр</span>
+                              </span>
+                              <span className={`squad-tu ${tuCls}`} title="TU">
+                                {tuText}
+                              </span>
+                            </li>
+                          );
+                        })
+                      )
+                    ) : ordered.length === 0 ? (
                       <li className="muted squad-list-empty">
                         {autoStacks
                           ? "Пока нет игроков с КВ-статой в этом составе"
