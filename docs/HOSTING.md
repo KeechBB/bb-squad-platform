@@ -50,10 +50,12 @@ Vercel не используем (SMS). Сайт и **Postgres** крутятс�
 cd /var/www/bb-squad-platform && git pull && bash scripts/deploy.sh
 ```
 
-Во время деплоя сайт показывает заглушку `public/maintenance.html` («технические работы… 5 минут») — флаг `maintenance.on`.  
-Один раз обновить nginx с репо: скопировать блоки maintenance из `deploy/nginx-bb-squad.conf` в `/etc/nginx/sites-available/bb-squad`, затем `nginx -t && systemctl reload nginx`.
+Во время деплоя сайт показывает заглушку `public/maintenance.html` (лого BB + «технические работы», авто-refresh 30с) — флаг `maintenance.on`.  
+Nginx также отдаёт её на **502/503/504** (когда Next/PM2 лежит), не дефолтную ошибку.  
+Один раз обновить nginx с репо: перенести `error_page 502 503 504`, `location = /maintenance.html`, `proxy_intercept_errors on` из `deploy/nginx-bb-squad.conf` в `/etc/nginx/sites-available/bb-squad`, затем `nginx -t && systemctl reload nginx`.
 
 Скрипт: maintenance ON → sync KV cache → `pm2 stop bb-squad` → билд → `pm2 start` → maintenance OFF.  
+При sync ledger берётся тот, где **больше матчей** (чтобы тонкий github.io не затирал полный диск).  
 Swap 2G поднимается, если его ещё нет.
 
 ### Staging (черновик) — смотришь сам, потом льёшь в прод
