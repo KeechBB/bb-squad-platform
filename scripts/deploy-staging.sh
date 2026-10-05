@@ -42,19 +42,27 @@ git checkout "$BRANCH"
 git pull --ff-only origin "$BRANCH" || git pull --ff-only || true
 echo "==> HEAD=$(git rev-parse --short HEAD)"
 
-# KV: симлинк на прод-кэш (не дублируем гигабайты)
-if [[ ! -e data/kv-cache ]]; then
-  mkdir -p data
-  if [[ -d /var/www/bb-squad-platform/data/kv-cache ]]; then
-    ln -sfn /var/www/bb-squad-platform/data/kv-cache data/kv-cache
-    echo "==> linked data/kv-cache → prod"
-  else
-    echo "==> WARN: no prod kv-cache; run sync if needed"
-    bash scripts/sync_kv_cache.sh || true
+# KV + public ledgers: всегда симлинк на прод (не дублируем гигабайты)
+mkdir -p data
+link_prod_data() {
+  local name="$1"
+  local prod="/var/www/bb-squad-platform/data/$name"
+  local local_path="data/$name"
+  if [[ -L "$local_path" ]]; then
+    echo "==> $local_path already symlink → $(readlink -f "$local_path" 2>/dev/null || readlink "$local_path")"
+    return 0
   fi
-elif [[ -d data/kv-cache && ! -L data/kv-cache ]]; then
-  echo "==> data/kv-cache exists as directory (ok)"
-fi
+  if [[ -d "$prod" ]]; then
+    rm -rf "$local_path"
+    ln -sfn "$prod" "$local_path"
+    echo "==> linked $local_path → $prod"
+  else
+    echo "==> WARN: missing $prod"
+  fi
+}
+link_prod_data kv-cache
+link_prod_data public
+link_prod_data keech-hunt
 
 if ! command -v pm2 >/dev/null 2>&1; then
   echo "pm2 not found" >&2
