@@ -112,7 +112,7 @@ type Props = {
   tierEntries: Array<[string, 1 | 2 | 3]>;
 };
 
-type Tab = "members" | "squads" | "matches" | "stats";
+type Tab = "members" | "squads" | "stats";
 
 type ClanStatsData = {
   total: number;
@@ -878,7 +878,6 @@ export function ClanDetailClient({
           [
             ["members", "Список игроков"],
             ["squads", "Составы"],
-            ["matches", "История матчей"],
             ["stats", "Статистика"],
           ] as const
         ).map(([id, label]) => (
@@ -1457,23 +1456,6 @@ export function ClanDetailClient({
               );
             })}
           </div>
-        </section>
-      ) : null}
-
-      {tab === "matches" ? (
-        <section className="card">
-          <p className="muted">
-            Календарь матчей с фильтром по тегу клана <strong>[{clan.tag}]</strong>.
-          </p>
-          <button
-            type="button"
-            className="btn primary"
-            onClick={() =>
-              router.push(`/cw?clan=${encodeURIComponent(clan.tag)}`)
-            }
-          >
-            Открыть календарь КВ →
-          </button>
         </section>
       ) : null}
 
