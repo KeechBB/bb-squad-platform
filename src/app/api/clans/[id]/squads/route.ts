@@ -191,10 +191,6 @@ export async function PATCH(req: Request, ctx: Ctx) {
       where: { id: userId },
       select: { nick: true, name: true, steamName: true },
     });
-    const clan = await prisma.clan.findUnique({
-      where: { id: clanId },
-      select: { tag: true, name: true },
-    });
     await prisma.clanSquadMember.deleteMany({ where: { squadId, userId } });
     await writeActionLog({
       category: "clan",
@@ -235,10 +231,6 @@ export async function PATCH(req: Request, ctx: Ctx) {
   const target = await prisma.user.findUnique({
     where: { id: userId },
     select: { nick: true, name: true, steamName: true },
-  });
-  const clan = await prisma.clan.findUnique({
-    where: { id: clanId },
-    select: { tag: true },
   });
   await writeActionLog({
     category: "clan",
