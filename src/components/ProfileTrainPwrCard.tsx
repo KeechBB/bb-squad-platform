@@ -17,6 +17,18 @@ function fmtDelta(n: number) {
   return v > 0 ? `+${v}` : String(v);
 }
 
+function normalizeMatch(m: RpPlayerMatch): RpPlayerMatch {
+  return {
+    ...m,
+    kills: Array.isArray(m.kills) ? m.kills : [],
+    deaths: Array.isArray(m.deaths) ? m.deaths : [],
+    teamkills: Array.isArray(m.teamkills) ? m.teamkills : [],
+    revives: Array.isArray(m.revives) ? m.revives : [],
+    noks: Array.isArray(m.noks) ? m.noks : [],
+    gotNoks: Array.isArray(m.gotNoks) ? m.gotNoks : [],
+  };
+}
+
 export function ProfileTrainPwrCard({ stats, compareNick }: Props) {
   const [open, setOpen] = useState(false);
   const [matchOpen, setMatchOpen] = useState<RpPlayerMatch | null>(null);
