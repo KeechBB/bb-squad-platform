@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """Пересобрать составы BB Main/Junior по частоте КВ.
 
-Main — только Тир 1/2 (кто чаще Main). Остальные с КВ → Junior.
-Лиды закреплены. Зарегистрированные игроки с КВ-статой докидываются в клан BB.
+Состав = где сыграл больше. Лиды закреплены.
+Зарегистрированные игроки с КВ-статой докидываются в клан BB.
 
   python platform/scripts/sync_bb_squads_from_kv.py
   python platform/scripts/sync_bb_squads_from_kv.py --apply
@@ -85,10 +85,9 @@ def load_tiers() -> dict[str, int]:
 
 
 def resolve_stack(prefer: str, tier: int, forced: str | None) -> str:
+    """Состав = где сыграл больше. Тир больше не режет Main."""
     if forced:
         return forced
-    if prefer == "Main" and tier not in (1, 2):
-        return "Junior"
     return prefer
 
 

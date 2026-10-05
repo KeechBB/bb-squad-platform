@@ -75,12 +75,11 @@ function collectNicks(pj: PlayersFile): string[] {
 
 function resolveStack(
   prefer: BbStackName,
-  tier: number,
+  _tier: number,
   forced?: BbStackName
 ): BbStackName {
   if (forced) return forced;
-  // Main только Тир 1 / Тир 2
-  if (prefer === "Main" && tier !== 1 && tier !== 2) return "Junior";
+  // Состав = где сыграл больше (тир не режет)
   return prefer;
 }
 
@@ -169,8 +168,7 @@ function isBbClan(tag: string, name: string): boolean {
 
 /**
  * Пересобрать Main/Junior BB по частоте КВ.
- * Main = чаще Main и Тир 1/2. Иначе Junior.
- * Зарегистрированные с КВ-статой / лиды докидываются в ClanMember BB.
+ * Состав = где сыграл больше. Зарегистрированные с КВ-статой / лиды → ClanMember BB.
  */
 export async function syncBbSquadsFromKv(): Promise<{
   ok: boolean;
