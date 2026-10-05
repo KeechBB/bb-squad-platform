@@ -63,6 +63,30 @@ function statusLabel(status: string) {
   return "Матч";
 }
 
+function stackMark(stack: string) {
+  return stack === "Junior" ? "J" : "M";
+}
+
+function gamesWord(n: number) {
+  const n10 = n % 10;
+  const n100 = n % 100;
+  if (n10 === 1 && n100 !== 11) return "игра";
+  if (n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14)) return "игры";
+  return "игр";
+}
+
+function cellTone(list: UpcomingMatchPreview[]) {
+  const live = list.find((m) => m.status !== "cancel") || list[0];
+  return live?.status || "";
+}
+
+function cellMeta(m: UpcomingMatchPreview) {
+  if (m.status === "upcoming") return `${m.mapShort} · ${m.forecast.winPct}%`;
+  if (m.status === "cancel") return "отмена";
+  if (m.meeting) return `${m.meeting} · ${m.mapShort}`;
+  return `${statusLabel(m.status)} · ${m.mapShort}`;
+}
+
 function WinRing({ pct, tone }: { pct: number; tone: string }) {
   const r = 18;
   const c = 2 * Math.PI * r;
@@ -231,30 +255,48 @@ export function HomeMonthCalendar({ previews }: Props) {
                 cursor.month === today.month &&
                 cursor.year === today.year;
               const open = day === n;
+              const tone = cellTone(list);
+              const weekend = i % 7 >= 5;
               return (
                 <button
                   key={n}
                   type="button"
                   className={`home-cal-cell${list.length ? " has-match" : ""}${
-                    isToday ? " is-today" : ""
-                  }${open ? " is-open" : ""}`}
+                    tone ? ` is-${tone}` : ""
+                  }${isToday ? " is-today" : ""}${open ? " is-open" : ""}${
+                    weekend ? " is-weekend" : ""
+                  }`}
                   onClick={() => setDay(open ? null : n)}
                 >
-                  <span className="home-cal-num">{n}</span>
-                  <span className="home-cal-chips">
-                    {list.slice(0, 2).map((m) => (
-                      <span
-                        key={m.key}
-                        className={`home-cal-chip is-${m.status || "play"}`}
-                        title={`${m.stack} vs ${m.opp}`}
-                      >
-                        {m.stack === "Junior" ? "J" : "M"} {m.opp}
+                  <span className="home-cal-top">
+                    <span className="home-cal-num">{n}</span>
+                    {list.length > 1 ? (
+                      <span className="home-cal-time">
+                        {list.length} {gamesWord(list.length)}
                       </span>
-                    ))}
-                    {list.length > 2 ? (
-                      <span className="home-cal-more">+{list.length - 2}</span>
+                    ) : list[0] ? (
+                      <span className="home-cal-time">{list[0].timeMsk}</span>
                     ) : null}
                   </span>
+                  {list.length > 0 ? (
+                    <span className="home-cal-games">
+                      {list.slice(0, 2).map((m) => (
+                        <span
+                          key={m.key}
+                          className={`home-cal-game is-${m.status || "play"}`}
+                          title={`${m.timeMsk} ${m.stack} vs ${m.opp} · ${m.map}`}
+                        >
+                          <i>{stackMark(m.stack)}</i>
+                          <b>{m.opp}</b>
+                        </span>
+                      ))}
+                      {list.length === 1 ? (
+                        <span className="home-cal-meta">{cellMeta(list[0])}</span>
+                      ) : list.length > 2 ? (
+                        <span className="home-cal-meta">ещё {list.length - 2}</span>
+                      ) : null}
+                    </span>
+                  ) : null}
                 </button>
               );
             })}
@@ -281,8 +323,11 @@ export function HomeMonthCalendar({ previews }: Props) {
                             {m.timeMsk} · {m.stack} vs {m.opp}
                           </strong>
                           <em>
-                            {statusLabel(m.status)}
-                            {m.meeting ? ` · ${m.meeting}` : ""} · {m.mapShort} · {m.size}
+                            {m.status === "upcoming"
+                              ? `прогноз ${m.forecast.winPct}% · ${m.mapShort} · ${m.size}`
+                              : `${statusLabel(m.status)}${
+                                  m.meeting ? ` ${m.meeting}` : ""
+                                } · ${m.mapShort} · ${m.size}`}
                           </em>
                         </span>
                         <span className="home-cal-event-go">разбор</span>

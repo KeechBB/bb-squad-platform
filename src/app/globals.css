@@ -5440,6 +5440,14 @@ body:has(.home-page) {
   width: 28px;
   height: 28px;
   font-size: 1.15rem;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
+}
+
+.home-cal-nav button:hover,
+.home-cal-day-title button:hover {
+  border-color: rgba(221, 214, 254, 0.7);
+  background: rgba(76, 46, 120, 0.55);
+  color: #fff;
 }
 
 .home-cal-weekdays,
@@ -5459,83 +5467,187 @@ body:has(.home-page) {
 
 .home-cal-grid {
   flex: 0 0 auto;
-  grid-auto-rows: 68px;
+  grid-auto-rows: 76px;
 }
 
 .home-cal-cell {
+  position: relative;
   appearance: none;
-  border: 1px solid rgba(167, 139, 250, 0.14);
+  border: 1px solid rgba(167, 139, 250, 0.16);
   border-radius: 8px;
-  background: rgba(10, 8, 18, 0.38);
+  background:
+    linear-gradient(165deg, rgba(28, 18, 48, 0.55), rgba(8, 6, 16, 0.42));
   color: inherit;
   text-align: left;
-  padding: 4px 5px;
+  padding: 5px 6px 4px 8px;
   min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   cursor: pointer;
   overflow: hidden;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.home-cal-cell::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 2px;
+  background: transparent;
+}
+
+.home-cal-cell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.08), transparent 46%);
+  opacity: 0;
+  transition: opacity 0.16s ease;
+  pointer-events: none;
 }
 
 .home-cal-cell.is-empty {
   background: transparent;
   border-color: transparent;
   cursor: default;
+  box-shadow: none;
+}
+
+.home-cal-cell.is-weekend:not(.has-match):not(.is-empty) {
+  background: rgba(8, 6, 16, 0.28);
 }
 
 .home-cal-cell.has-match {
-  border-color: rgba(196, 181, 253, 0.38);
-  background: rgba(18, 12, 32, 0.55);
+  border-color: rgba(196, 181, 253, 0.34);
+  background:
+    linear-gradient(165deg, rgba(42, 24, 72, 0.72), rgba(12, 8, 22, 0.62));
+}
+
+.home-cal-cell.has-match::before { background: #c4b5fd; }
+.home-cal-cell.is-win::before { background: #34d399; }
+.home-cal-cell.is-lose::before { background: #f87171; }
+.home-cal-cell.is-draw::before { background: #fbbf24; }
+.home-cal-cell.is-upcoming::before { background: #c4b5fd; }
+.home-cal-cell.is-cancel::before { background: #94a3b8; }
+
+.home-cal-cell.is-win.has-match {
+  background: linear-gradient(165deg, rgba(16, 58, 42, 0.55), rgba(10, 8, 18, 0.62));
+}
+.home-cal-cell.is-lose.has-match {
+  background: linear-gradient(165deg, rgba(68, 22, 32, 0.5), rgba(10, 8, 18, 0.62));
+}
+.home-cal-cell.is-upcoming.has-match {
+  background: linear-gradient(165deg, rgba(48, 28, 88, 0.72), rgba(12, 8, 24, 0.66));
+}
+
+.home-cal-cell:not(.is-empty):hover,
+.home-cal-cell.is-open {
+  border-color: rgba(221, 214, 254, 0.85);
+  box-shadow:
+    0 0 0 1px rgba(196, 181, 253, 0.35),
+    0 10px 24px rgba(76, 29, 149, 0.28);
+  z-index: 1;
+}
+
+.home-cal-cell:not(.is-empty):hover::after,
+.home-cal-cell.is-open::after {
+  opacity: 1;
 }
 
 .home-cal-cell.is-today {
-  box-shadow: inset 0 0 0 1px rgba(250, 204, 21, 0.7);
+  box-shadow: inset 0 0 0 1px rgba(250, 204, 21, 0.75);
 }
 
-.home-cal-cell.is-open {
-  border-color: #c4b5fd;
-  background: rgba(46, 28, 78, 0.55);
+.home-cal-cell.is-today:not(.is-empty):hover,
+.home-cal-cell.is-today.is-open {
+  box-shadow:
+    inset 0 0 0 1px rgba(250, 204, 21, 0.85),
+    0 0 0 1px rgba(250, 204, 21, 0.25),
+    0 10px 24px rgba(76, 29, 149, 0.28);
 }
 
-.home-cal-num {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: rgba(245, 241, 255, 0.86);
-}
-
-.home-cal-chips {
+.home-cal-top {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px;
   min-width: 0;
 }
 
-.home-cal-chip,
-.home-cal-more {
-  display: block;
-  max-width: 100%;
+.home-cal-num {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: rgba(245, 241, 255, 0.92);
+  font-variant-numeric: tabular-nums;
+}
+
+.home-cal-time {
+  font-size: 0.62rem;
+  letter-spacing: 0.02em;
+  color: rgba(210, 200, 235, 0.72);
+  font-variant-numeric: tabular-nums;
+}
+
+.home-cal-games {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.home-cal-game {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: 0.68rem;
+  line-height: 1.2;
+}
+
+.home-cal-game i {
+  flex: 0 0 auto;
+  font-style: normal;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgba(221, 214, 254, 0.8);
+}
+
+.home-cal-game b {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.62rem;
-  line-height: 1.25;
-  border-radius: 4px;
-  padding: 1px 4px;
+  font-weight: 700;
+  color: #f5f1ff;
 }
 
-.home-cal-chip.is-win { background: rgba(52, 211, 153, 0.22); color: #6ee7b7; }
-.home-cal-chip.is-lose { background: rgba(248, 113, 113, 0.2); color: #fca5a5; }
-.home-cal-chip.is-draw { background: rgba(251, 191, 36, 0.2); color: #fde68a; }
-.home-cal-chip.is-upcoming,
-.home-cal-chip.is-play { background: rgba(167, 139, 250, 0.22); color: #ddd6fe; }
-.home-cal-chip.is-cancel {
-  background: rgba(148, 163, 184, 0.16);
+.home-cal-game.is-win b { color: #6ee7b7; }
+.home-cal-game.is-lose b { color: #fca5a5; }
+.home-cal-game.is-draw b { color: #fde68a; }
+.home-cal-game.is-cancel b {
   color: #cbd5e1;
   text-decoration: line-through;
 }
-.home-cal-more { color: rgba(210, 200, 235, 0.7); padding: 0 4px; }
+
+.home-cal-meta {
+  display: block;
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.6rem;
+  letter-spacing: 0.01em;
+  color: rgba(210, 200, 235, 0.7);
+}
 
 .home-cal-day {
   border-top: 1px solid rgba(196, 181, 253, 0.18);
@@ -5572,11 +5684,22 @@ body:has(.home-page) {
   text-align: left;
   appearance: none;
   border: 1px solid rgba(196, 181, 253, 0.22);
-  background: rgba(10, 8, 18, 0.45);
+  background: linear-gradient(165deg, rgba(32, 18, 56, 0.72), rgba(10, 8, 18, 0.55));
   color: inherit;
   border-radius: 8px;
   padding: 8px 10px;
   cursor: pointer;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.home-cal-events button:hover {
+  border-color: rgba(221, 214, 254, 0.8);
+  background: linear-gradient(165deg, rgba(58, 32, 96, 0.8), rgba(16, 10, 28, 0.7));
+  box-shadow: 0 8px 20px rgba(76, 29, 149, 0.28);
+}
+
+.home-cal-events button:hover .home-cal-event-go {
+  color: #fff;
 }
 
 .home-cal-pip {
