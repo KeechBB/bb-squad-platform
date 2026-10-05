@@ -113,9 +113,6 @@ function PublicTop({ rows }: { rows: HomePublicTopRow[] }) {
           ))}
         </ol>
       )}
-      <p className="home-train-pwr-foot muted">
-        <Link href="/public">Полный рейтинг →</Link>
-      </p>
     </div>
   );
 }
