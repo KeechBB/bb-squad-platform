@@ -208,6 +208,9 @@ export function ClanDetailClient({
   );
   const [stackCommand, setStackCommand] = useState<StackCommand | null>(null);
   const [playedRows, setPlayedRows] = useState<PlayedRow[]>([]);
+  const [rosterSort, setRosterSort] = useState<
+    Record<string, { key: "tier" | "nick" | "tu"; dir: "asc" | "desc" }>
+  >({});
   const [newSquad, setNewSquad] = useState("");
   const [inviteNick, setInviteNick] = useState("");
   const [joinRequests, setJoinRequests] = useState(initialJoinRequests);
@@ -1380,7 +1383,68 @@ export function ClanDetailClient({
                         );
                       })
                   : null;
+              const spec = rosterSort[s.id];
+              const dir = spec?.dir === "asc" ? 1 : -1;
+              if (playedHere && spec) {
+                playedHere.sort((a, b) => {
+                  if (spec.key === "nick") {
+                    return dir * a.nick.localeCompare(b.nick, "ru");
+                  }
+                  if (spec.key === "tier") {
+                    return (
+                      dir * ((Number(a.tier) || 4) - (Number(b.tier) || 4)) ||
+                      a.nick.localeCompare(b.nick, "ru")
+                    );
+                  }
+                  const ta = a.tu == null ? -1e9 : Number(a.tu);
+                  const tb = b.tu == null ? -1e9 : Number(b.tu);
+                  return dir * (ta - tb) || a.nick.localeCompare(b.nick, "ru");
+                });
+              }
+              if (!playedHere && spec) {
+                ordered.sort((a, b) => {
+                  const na = a.user.nick || a.user.steamName || "";
+                  const nb = b.user.nick || b.user.steamName || "";
+                  if (spec.key === "nick") return dir * na.localeCompare(nb, "ru");
+                  if (spec.key === "tier") {
+                    const ta = a.tier != null ? Number(a.tier) : 4;
+                    const tb = b.tier != null ? Number(b.tier) : 4;
+                    return dir * (ta - tb) || na.localeCompare(nb, "ru");
+                  }
+                  const tua = a.tu == null ? -1e9 : Number(a.tu);
+                  const tub = b.tu == null ? -1e9 : Number(b.tu);
+                  return dir * (tua - tub) || na.localeCompare(nb, "ru");
+                });
+              }
               const headCount = playedHere ? playedHere.length : s.members.length;
+              const sortBtn = (key: "tier" | "nick" | "tu", label: string, title?: string) => {
+                const on = spec?.key === key;
+                return (
+                  <button
+                    type="button"
+                    className={`squad-sort${on ? " is-on" : ""}`}
+                    title={title}
+                    onClick={() =>
+                      setRosterSort((prev) => {
+                        const cur = prev[s.id];
+                        if (!cur || cur.key !== key) {
+                          return {
+                            ...prev,
+                            [s.id]: { key, dir: key === "nick" ? "asc" : "desc" },
+                          };
+                        }
+                        return {
+                          ...prev,
+                          [s.id]: { key, dir: cur.dir === "asc" ? "desc" : "asc" },
+                        };
+                      })
+                    }
+                  >
+                    {label}
+                    {on ? (spec.dir === "asc" ? " ↑" : " ↓") : ""}
+                  </button>
+                );
+              };
               return (
                 <div key={s.id} className="squad-card">
                   <div className="squad-card-head">
@@ -1407,16 +1471,16 @@ export function ClanDetailClient({
                       помощник: <strong>{cmd.assistant}</strong>
                     </p>
                   ) : null}
-                  <div className="squad-list-heads" aria-hidden="true">
+                  <div className="squad-list-heads">
                     <div className="squad-list-head">
-                      <span>Тир</span>
-                      <span>Ник</span>
-                      <span title="TU — Ticket Utility">TU</span>
+                      {sortBtn("tier", "Тир")}
+                      {sortBtn("nick", "Ник")}
+                      {sortBtn("tu", "TU", "TU — Ticket Utility")}
                     </div>
                     <div className="squad-list-head">
-                      <span>Тир</span>
-                      <span>Ник</span>
-                      <span title="TU — Ticket Utility">TU</span>
+                      {sortBtn("tier", "Тир")}
+                      {sortBtn("nick", "Ник")}
+                      {sortBtn("tu", "TU", "TU — Ticket Utility")}
                     </div>
                   </div>
                   <ul

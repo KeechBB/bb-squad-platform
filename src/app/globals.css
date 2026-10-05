@@ -9475,6 +9475,32 @@ body:has(.home-page) {
   color: var(--muted, #9ca3af);
 }
 
+.squad-sort {
+  appearance: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.squad-sort:last-child {
+  text-align: right;
+}
+
+.squad-sort.is-on {
+  color: #fde047;
+}
+
+.squad-sort:hover {
+  color: #fff;
+}
+
 .squad-list-row-metrics {
   display: grid;
   grid-template-columns: 2rem minmax(0, 1fr) 2.6rem;

@@ -3,6 +3,10 @@ import { findBlackberryClanIds } from "@/lib/reserve";
 import { TRAINING_SERVER_KEYS } from "@/lib/squadServers";
 import { loadKvJsonCached } from "@/lib/kvLocal";
 import { nickCompact, nickKey } from "@/lib/nickIdentity";
+import {
+  isBbDeparted,
+  removeDepartedBlackberryMembers,
+} from "@/lib/bbStackAuto";
 
 export type BbClanFromTrainResult = {
   ok: boolean;
@@ -37,6 +41,7 @@ export async function addTrainPlayersToBlackberryClan(): Promise<BbClanFromTrain
   const clanIds = await findBlackberryClanIds();
   if (clanIds.length === 0) return empty("Клан BlackBerry не найден");
   const clanId = clanIds[0];
+  await removeDepartedBlackberryMembers(clanId);
 
   const sessionRows = await prisma.squadServerSession.findMany({
     where: {
@@ -109,9 +114,14 @@ export async function addTrainPlayersToBlackberryClan(): Promise<BbClanFromTrain
       id: { in: [...candidateSet] },
       profileComplete: true,
     },
-    select: { id: true },
+    select: { id: true, nick: true, steamName: true },
   });
-  const candidates = profiled.map((u) => u.id);
+  const candidates = profiled
+    .filter(
+      (u) =>
+        !isBbDeparted(u.nick || "") && !isBbDeparted(u.steamName || "")
+    )
+    .map((u) => u.id);
 
   if (!candidates.length) {
     return {

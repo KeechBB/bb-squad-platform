@@ -4,7 +4,12 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canManageClanMembers, canDeleteClanSquad, type ClanRole } from "@/lib/clan";
 import { ensureDefaultSquads } from "@/lib/squads";
-import { BB_STACK_COMMAND, computeBbStackFrequency, syncBbSquadsFromKv } from "@/lib/bbStackAuto";
+import {
+  BB_STACK_COMMAND,
+  computeBbStackFrequency,
+  removeDepartedBlackberryMembers,
+  syncBbSquadsFromKv,
+} from "@/lib/bbStackAuto";
 import { computeCwTuByNick } from "@/lib/kvStats";
 import { loadTierIndex } from "@/lib/loadTierIndex";
 import { canAssignClanSquadMembers } from "@/lib/titles";
@@ -44,6 +49,7 @@ export async function GET(_req: Request, ctx: Ctx) {
   await ensureDefaultSquads(clanId);
   const clan = await loadClan(clanId);
   const bbAuto = clan ? isBbClan(clan.tag, clan.name) : false;
+  if (bbAuto) await removeDepartedBlackberryMembers(clanId);
   const nickKey = (n: string) => n.trim().toLowerCase().replace(/\s+/g, "");
   const [squads, tuByNick, tierMap, freq, clanMembers] = await Promise.all([
     prisma.clanSquad.findMany({
