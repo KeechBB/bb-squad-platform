@@ -1,12 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { signIn, useSession } from "next-auth/react";
 import type { ReactNode } from "react";
 
 type Props = {
   showClanSections: boolean;
 };
+
+function pathMatches(pathname: string, href: string): boolean {
+  if (href === "/") return pathname === "/";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 function NavItem({
   href,
@@ -15,6 +21,7 @@ function NavItem({
   short,
   mode,
   className,
+  active,
 }: {
   href: string;
   title?: string;
@@ -22,14 +29,18 @@ function NavItem({
   short: string;
   mode: "link" | "login" | "register";
   className?: string;
+  active?: boolean;
 }) {
-  const cls = className?.trim() || undefined;
+  const cls = ["nav-link", active ? "is-active" : "", className || ""]
+    .filter(Boolean)
+    .join(" ");
   if (mode === "login") {
     return (
       <button
         type="button"
         className={["nav-login-trigger", cls].filter(Boolean).join(" ")}
         title={title || "Войти через Steam"}
+        aria-current={active ? "page" : undefined}
         onClick={() => signIn("steam", { callbackUrl: href })}
       >
         <span className="nav-full">{full}</span>
@@ -43,6 +54,7 @@ function NavItem({
         href="/register"
         title="Завершите регистрацию"
         className={cls}
+        aria-current={active ? "page" : undefined}
       >
         <span className="nav-full">{full}</span>
         <span className="nav-short">{short}</span>
@@ -50,7 +62,12 @@ function NavItem({
     );
   }
   return (
-    <Link href={href} title={title} className={cls}>
+    <Link
+      href={href}
+      title={title}
+      className={cls}
+      aria-current={active ? "page" : undefined}
+    >
       <span className="nav-full">{full}</span>
       <span className="nav-short">{short}</span>
     </Link>
@@ -58,6 +75,7 @@ function NavItem({
 }
 
 export function SiteNav({ showClanSections }: Props) {
+  const pathname = usePathname() || "/";
   const { data: session, status } = useSession();
   const loading = status === "loading";
   const authed = Boolean(session?.user?.steamId);
@@ -77,6 +95,7 @@ export function SiteNav({ showClanSections }: Props) {
         full="Клановые войны"
         short="КВ"
         mode={mode}
+        active={pathMatches(pathname, "/cw")}
       />
       <NavItem
         href="/tm"
@@ -84,21 +103,35 @@ export function SiteNav({ showClanSections }: Props) {
         full="Тренировочные матчи"
         short="Трен."
         mode={mode}
+        active={pathMatches(pathname, "/tm")}
       />
     </>
   ) : null;
 
   return (
     <nav className="top-nav" aria-label="Разделы">
-      <NavItem href="/" full="Главная" short="Глав" mode="link" />
+      <NavItem
+        href="/"
+        full="Главная"
+        short="Глав"
+        mode="link"
+        active={pathMatches(pathname, "/")}
+      />
       {clanBlock}
-      <NavItem href="/clans" full="Кланы" short="Кланы" mode={mode} />
+      <NavItem
+        href="/clans"
+        full="Кланы"
+        short="Кланы"
+        mode={mode}
+        active={pathMatches(pathname, "/clans")}
+      />
       <NavItem
         href="/aim"
         title="Тренировка стрельбы"
         full="Тренировка стрельбы"
         short="Стрельба"
         mode={mode}
+        active={pathMatches(pathname, "/aim")}
       />
       <NavItem
         href="/public"
@@ -107,6 +140,7 @@ export function SiteNav({ showClanSections }: Props) {
         short="Паблик"
         mode="link"
         className="nav-public-pill"
+        active={pathMatches(pathname, "/public")}
       />
       {showClanSections ? (
         <NavItem
@@ -115,6 +149,7 @@ export function SiteNav({ showClanSections }: Props) {
           full="Карта клана"
           short="Карта"
           mode={mode}
+          active={pathMatches(pathname, "/map")}
         />
       ) : null}
     </nav>

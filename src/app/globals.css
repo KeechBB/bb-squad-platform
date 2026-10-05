@@ -198,14 +198,16 @@ svg {
 }
 
 .top-nav a:hover,
-.top-nav a:focus-visible {
+.top-nav a:focus-visible,
+.top-nav a.is-active {
   color: #fff;
   background: rgba(167, 139, 250, 0.12);
   text-shadow: 0 0 22px rgba(217, 70, 239, 0.45);
 }
 
 .top-nav a:hover::after,
-.top-nav a:focus-visible::after {
+.top-nav a:focus-visible::after,
+.top-nav a.is-active::after {
   transform: scaleX(1);
 }
 
@@ -246,14 +248,16 @@ svg {
 }
 
 .top-nav button.nav-login-trigger:hover,
-.top-nav button.nav-login-trigger:focus-visible {
+.top-nav button.nav-login-trigger:focus-visible,
+.top-nav button.nav-login-trigger.is-active {
   color: #fff;
   background: rgba(167, 139, 250, 0.12);
   text-shadow: 0 0 22px rgba(217, 70, 239, 0.45);
 }
 
 .top-nav button.nav-login-trigger:hover::after,
-.top-nav button.nav-login-trigger:focus-visible::after {
+.top-nav button.nav-login-trigger:focus-visible::after,
+.top-nav button.nav-login-trigger.is-active::after {
   transform: scaleX(1);
 }
 
@@ -283,6 +287,8 @@ svg {
   display: none;
 }
 
+.top-nav a.nav-public-pill.is-active,
+.top-nav button.nav-public-pill.is-active,
 .top-nav a.nav-public-pill:hover,
 .top-nav a.nav-public-pill:focus-visible,
 .top-nav button.nav-public-pill:hover,
