@@ -5546,56 +5546,62 @@ body:has(.home-page) {
 }
 
 .home-dock-col .home-attend-streaks-row {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
   height: auto;
   min-height: 0;
   max-height: none;
   box-sizing: border-box;
-  padding: 0 4px 0 2px;
-  grid-template-columns: 1.15rem minmax(0, 1fr) 5.5rem 4.6rem;
-  grid-template-rows: auto;
-  column-gap: 6px;
-  align-items: center;
+  padding: 0 2px;
+  gap: 6px;
+  overflow: hidden;
   border-bottom: 0;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.04);
 }
 
 .home-dock-col .home-attend-streaks-rank {
-  grid-row: auto;
-  grid-column: 1;
+  order: 1;
+  flex: 0 0 1.35rem;
   align-self: center;
-  justify-self: center;
+  text-align: center;
   font-size: 0.72rem;
 }
 
 .home-dock-col .home-attend-streaks-nick {
-  grid-column: 2;
-  grid-row: auto;
+  order: 2;
+  flex: 1 1 auto;
+  min-width: 0;
   align-self: center;
-  font-size: 0.74rem;
+  font-size: 0.78rem;
   line-height: 1;
 }
 
 .home-dock-col .home-pwr-badge {
-  grid-column: 3;
-  grid-row: auto;
-  justify-self: stretch;
+  order: 3;
+  flex: 0 0 auto;
   align-self: center;
+  width: auto;
   min-width: 0;
-  width: 100%;
-  padding: 1px 4px;
-  font-size: 0.48rem;
-  line-height: 1.25;
+  max-width: 46%;
+  padding: 1px 6px;
+  font-size: 0.5rem;
+  line-height: 1.3;
   text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .home-dock-col .home-attend-streaks-days {
-  grid-row: auto;
-  grid-column: 4;
+  order: 4;
+  flex: 0 0 4.7rem;
+  margin-left: auto;
   align-self: center;
-  justify-self: end;
-  width: 100%;
+  display: flex;
   justify-content: flex-end;
+  align-items: baseline;
+  white-space: nowrap;
 }
 
 .home-dock-col .home-attend-streaks-days b {

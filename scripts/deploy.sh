@@ -87,13 +87,37 @@ bash scripts/sync_kv_cache.sh || true
 
 # Public rating reads data/public/rp-ledger.json first; deploy used to restore a
 # preserved stale copy and ignore the fresher github.io mirror in kv-cache.
+# Prefer the copy with MORE scored matches (mtime alone can overwrite a fuller
+# VPS ledger with a thinner github.io rebuild).
 KV_PUB_LEDGER="$ROOT/data/kv-cache/data/public/rp-ledger.json"
 DISK_PUB_LEDGER="$ROOT/data/public/rp-ledger.json"
+KV_PUB_LADDER="$ROOT/data/kv-cache/data/public/rp-ladder.json"
+DISK_PUB_LADDER="$ROOT/data/public/rp-ladder.json"
+ledger_match_count() {
+  local f="$1"
+  [[ -f "$f" ]] || { echo 0; return; }
+  python3 - "$f" <<'PY' 2>/dev/null || echo 0
+import json,sys
+try:
+  d=json.load(open(sys.argv[1],encoding="utf-8"))
+  print(len(d.get("matches") or []))
+except Exception:
+  print(0)
+PY
+}
 if [[ -f "$KV_PUB_LEDGER" ]]; then
   mkdir -p "$(dirname "$DISK_PUB_LEDGER")"
-  if [[ ! -f "$DISK_PUB_LEDGER" ]] || [[ "$KV_PUB_LEDGER" -nt "$DISK_PUB_LEDGER" ]]; then
+  KV_N="$(ledger_match_count "$KV_PUB_LEDGER")"
+  DISK_N="$(ledger_match_count "$DISK_PUB_LEDGER")"
+  if [[ ! -f "$DISK_PUB_LEDGER" ]] || [[ "$KV_N" -gt "$DISK_N" ]]; then
     cp -a "$KV_PUB_LEDGER" "$DISK_PUB_LEDGER"
-    echo "==> refreshed $DISK_PUB_LEDGER from kv-cache"
+    echo "==> refreshed $DISK_PUB_LEDGER from kv-cache (matches $DISK_N → $KV_N)"
+    if [[ -f "$KV_PUB_LADDER" ]]; then
+      cp -a "$KV_PUB_LADDER" "$DISK_PUB_LADDER"
+      echo "==> refreshed $DISK_PUB_LADDER from kv-cache"
+    fi
+  else
+    echo "==> keep disk ledger (matches disk=$DISK_N kv=$KV_N)"
   fi
 fi
 
