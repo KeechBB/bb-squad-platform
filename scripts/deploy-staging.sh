@@ -64,6 +64,27 @@ link_prod_data kv-cache
 link_prod_data public
 link_prod_data keech-hunt
 
+# Uploaded clan logos / avatars live under storage/ (not in git)
+if [[ -d /var/www/bb-squad-platform/storage ]]; then
+  if [[ -L storage ]]; then
+    echo "==> storage already symlink → $(readlink -f storage 2>/dev/null || readlink storage)"
+  else
+    rm -rf storage
+    ln -sfn /var/www/bb-squad-platform/storage storage
+    echo "==> linked storage → prod"
+  fi
+fi
+if [[ -d /var/www/bb-squad-platform/public/uploads ]]; then
+  mkdir -p public
+  if [[ -L public/uploads ]]; then
+    echo "==> public/uploads already symlink"
+  else
+    rm -rf public/uploads
+    ln -sfn /var/www/bb-squad-platform/public/uploads public/uploads
+    echo "==> linked public/uploads → prod"
+  fi
+fi
+
 if ! command -v pm2 >/dev/null 2>&1; then
   echo "pm2 not found" >&2
   exit 1
