@@ -5857,17 +5857,15 @@ body:has(.home-page) {
   isolation: isolate;
   overflow: hidden;
   border-radius: 16px;
-  border-color: rgba(196, 181, 253, 0.42);
+  border-color: rgba(196, 181, 253, 0.18);
   background:
-    radial-gradient(90% 70% at 8% 0%, rgba(124, 58, 237, 0.34), transparent 58%),
-    radial-gradient(80% 60% at 100% 100%, rgba(217, 70, 239, 0.2), transparent 55%),
-    radial-gradient(40% 30% at 50% 40%, rgba(56, 189, 248, 0.08), transparent 70%),
-    linear-gradient(165deg, rgba(22, 12, 42, 0.82), rgba(8, 6, 16, 0.72));
+    radial-gradient(90% 70% at 8% 0%, rgba(88, 40, 160, 0.12), transparent 58%),
+    radial-gradient(80% 60% at 100% 100%, rgba(120, 40, 130, 0.07), transparent 55%),
+    linear-gradient(165deg, rgba(12, 8, 22, 0.94), rgba(6, 5, 12, 0.92));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    inset 0 0 40px rgba(124, 58, 237, 0.12),
-    0 0 0 1px rgba(167, 139, 250, 0.16),
-    0 18px 48px rgba(76, 29, 149, 0.32);
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 0 28px rgba(76, 29, 149, 0.06),
+    0 18px 48px rgba(0, 0, 0, 0.28);
 }
 
 .home-cal-board::before {
@@ -5879,11 +5877,11 @@ body:has(.home-page) {
   background: conic-gradient(
     from 140deg,
     transparent 0deg,
-    rgba(196, 181, 253, 0.14) 40deg,
+    rgba(196, 181, 253, 0.045) 40deg,
     transparent 80deg,
-    rgba(232, 121, 249, 0.1) 150deg,
+    rgba(232, 121, 249, 0.03) 150deg,
     transparent 200deg,
-    rgba(125, 211, 252, 0.08) 280deg,
+    rgba(125, 211, 252, 0.025) 280deg,
     transparent 330deg
   );
   animation: home-cal-sheen 22s linear infinite;
@@ -5896,10 +5894,10 @@ body:has(.home-page) {
   z-index: 0;
   pointer-events: none;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 18%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 18%),
     repeating-linear-gradient(
       90deg,
-      rgba(196, 181, 253, 0.045) 0 1px,
+      rgba(196, 181, 253, 0.02) 0 1px,
       transparent 1px 72px
     );
   mask-image: linear-gradient(180deg, #000, transparent 92%);
@@ -5991,11 +5989,11 @@ body:has(.home-page) {
 .home-cal-cell {
   position: relative;
   appearance: none;
-  border: 1px solid rgba(167, 139, 250, 0.22);
+  border: 1px solid rgba(167, 139, 250, 0.12);
   border-radius: 10px;
   background:
-    linear-gradient(165deg, rgba(36, 22, 64, 0.62), rgba(8, 6, 16, 0.5));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    linear-gradient(165deg, rgba(18, 12, 32, 0.55), rgba(6, 5, 12, 0.42));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
   color: inherit;
   text-align: left;
   padding: 5px 6px 4px 8px;
@@ -6028,7 +6026,7 @@ body:has(.home-page) {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.08), transparent 46%);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.04), transparent 46%);
   opacity: 0;
   transition: opacity 0.16s ease;
   pointer-events: none;
@@ -6046,9 +6044,9 @@ body:has(.home-page) {
 }
 
 .home-cal-cell.has-match {
-  border-color: rgba(196, 181, 253, 0.34);
+  border-color: rgba(196, 181, 253, 0.18);
   background:
-    linear-gradient(165deg, rgba(42, 24, 72, 0.72), rgba(12, 8, 22, 0.62));
+    linear-gradient(165deg, rgba(26, 16, 44, 0.62), rgba(8, 6, 16, 0.72));
 }
 
 .home-cal-cell.has-match::before { background: #c4b5fd; }
@@ -6058,8 +6056,8 @@ body:has(.home-page) {
 .home-cal-cell.is-upcoming::before { background: #c4b5fd; }
 .home-cal-cell.is-cancel::before { background: #eab308; }
 .home-cal-cell.is-cancel.has-match {
-  border-color: rgba(234, 179, 8, 0.34);
-  background: linear-gradient(165deg, rgba(72, 54, 16, 0.5), rgba(10, 8, 18, 0.62));
+  border-color: rgba(234, 179, 8, 0.2);
+  background: linear-gradient(165deg, rgba(42, 32, 12, 0.42), rgba(8, 6, 14, 0.72));
 }
 
 .home-cal-cell.is-split.has-match {
@@ -6093,20 +6091,20 @@ body:has(.home-page) {
 }
 
 .home-cal-half.is-win {
-  background: linear-gradient(165deg, rgba(16, 58, 42, 0.72), rgba(10, 8, 18, 0.78));
+  background: linear-gradient(165deg, rgba(10, 36, 26, 0.55), rgba(8, 6, 14, 0.82));
 }
 
 .home-cal-half.is-lose {
-  background: linear-gradient(165deg, rgba(68, 22, 32, 0.72), rgba(10, 8, 18, 0.78));
+  background: linear-gradient(165deg, rgba(42, 14, 20, 0.55), rgba(8, 6, 14, 0.82));
 }
 
 .home-cal-half.is-upcoming,
 .home-cal-half.is-play {
-  background: linear-gradient(165deg, rgba(48, 28, 88, 0.78), rgba(12, 8, 24, 0.74));
+  background: linear-gradient(165deg, rgba(28, 16, 48, 0.58), rgba(8, 6, 16, 0.8));
 }
 
 .home-cal-half.is-cancel {
-  background: linear-gradient(165deg, rgba(72, 54, 16, 0.72), rgba(10, 8, 18, 0.78));
+  background: linear-gradient(165deg, rgba(42, 32, 12, 0.5), rgba(8, 6, 14, 0.82));
 }
 
 .home-cal-half .home-cal-stamp {
@@ -6172,13 +6170,13 @@ body:has(.home-page) {
 }
 
 .home-cal-cell.is-win.has-match {
-  background: linear-gradient(165deg, rgba(16, 58, 42, 0.55), rgba(10, 8, 18, 0.62));
+  background: linear-gradient(165deg, rgba(10, 36, 26, 0.42), rgba(8, 6, 14, 0.72));
 }
 .home-cal-cell.is-lose.has-match {
-  background: linear-gradient(165deg, rgba(68, 22, 32, 0.5), rgba(10, 8, 18, 0.62));
+  background: linear-gradient(165deg, rgba(42, 14, 20, 0.4), rgba(8, 6, 14, 0.72));
 }
 .home-cal-cell.is-upcoming.has-match {
-  background: linear-gradient(165deg, rgba(48, 28, 88, 0.72), rgba(12, 8, 24, 0.66));
+  background: linear-gradient(165deg, rgba(28, 16, 48, 0.5), rgba(8, 6, 16, 0.74));
 }
 
 .home-cal-cell:not(.is-empty):hover,
@@ -6283,15 +6281,15 @@ body:has(.home-page) {
 }
 
 .home-cal-stack.is-main {
-  color: #f5f3ff;
-  background: rgba(91, 33, 182, 0.92);
-  box-shadow: 0 0 0 1px rgba(196, 181, 253, 0.75);
+  color: rgba(237, 233, 254, 0.82);
+  background: rgba(58, 24, 110, 0.72);
+  box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.28);
 }
 
 .home-cal-stack.is-junior {
-  color: #ecfeff;
-  background: rgba(14, 116, 144, 0.94);
-  box-shadow: 0 0 0 1px rgba(103, 232, 249, 0.75);
+  color: rgba(207, 250, 254, 0.82);
+  background: rgba(12, 72, 90, 0.72);
+  box-shadow: 0 0 0 1px rgba(103, 232, 249, 0.28);
 }
 
 .home-cal-stack.is-other {
