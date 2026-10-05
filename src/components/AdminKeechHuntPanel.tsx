@@ -55,7 +55,7 @@ type Feed = {
 
 const KIND_LABEL: Record<KeechHuntEvent["kind"], string> = {
   nok: "Нок",
-  gotnok: "Нокнули",
+  gotnok: "Меня нокнул",
   kill: "Килл",
   death: "Смерть",
   revive: "Рес",
@@ -491,7 +491,7 @@ export function AdminKeechHuntPanel() {
               empty="—"
             />
             <Col
-              title={`Нокнули (${cols?.gotNoks.length ?? 0})`}
+              title={`Меня нокнул (${cols?.gotNoks.length ?? 0})`}
               items={cols?.gotNoks || []}
               empty="—"
               onHit={setHitEv}
