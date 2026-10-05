@@ -674,10 +674,27 @@ def main() -> None:
 
     public_matches = []
     for mb in match_blocks:
-        # Pages-safe: omit shared match.events (huge); per-player matches keep events.
+        # Pages-safe: omit shared match.events (huge).
         public_matches.append(
             {k: v for k, v in mb.items() if k not in ("netByKey", "events")}
         )
+
+    # Pages-safe player history: keep nets + counts, drop per-event arrays (~MBs).
+    players_pub: dict[str, dict] = {}
+    for k, p in players_out.items():
+        hist = []
+        for hm in p.get("matches") or []:
+            row = {
+                "id": hm["id"],
+                "map": hm["map"],
+                "date": hm["date"],
+                "net": hm["net"],
+            }
+            for key in ("kills", "deaths", "noks", "gotNoks", "revives", "teamkills"):
+                v = hm.get(key)
+                row[key] = len(v) if isinstance(v, list) else int(v or 0)
+            hist.append(row)
+        players_pub[k] = {**p, "matches": hist}
 
     ledger = {
         "version": 3,
@@ -697,7 +714,7 @@ def main() -> None:
         "reviveCoef": R.COEF_REVIVE,
         "pMax": round(pmax_global, 1),
         "matches": public_matches,
-        "players": players_out,
+        "players": players_pub,
         "leaderboard": [
             {
                 "nick": players_out[k]["nick"],
@@ -709,8 +726,11 @@ def main() -> None:
             for k, _ in ranked
         ],
     }
-    OUT.write_text(json.dumps(ledger, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"Wrote {OUT}")
+    OUT.write_text(
+        json.dumps(ledger, ensure_ascii=False, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    print(f"Wrote {OUT} ({OUT.stat().st_size} bytes)")
 
     # Slim ladder for hot paths (home / TM rating / profile header) — no Die events.
     slim_matches = []
