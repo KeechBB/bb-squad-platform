@@ -397,12 +397,20 @@ def main() -> int:
         }
         upsert_month({"id": mid, "month": month, "row": row})
 
+        # Pin away from rotating SquadGame.log — copy window into stable file name.
+        log_name = log_path.name
+        if log_name == "SquadGame.log":
+            stable = CACHE / f"SquadGame-{msk.strftime('%Y.%m.%d')}-{stem}.log"
+            if not stable.is_file() or stable.stat().st_size < log_path.stat().st_size:
+                stable.write_bytes(log_path.read_bytes())
+            log_name = stable.name
+
         auto.append(
             {
                 "id": mid,
                 "map": layer,
                 "date": msk.strftime("%Y-%m-%d"),
-                "log": log_path.name,
+                "log": log_name,
                 "start": start.isoformat(),
                 "end": end.isoformat(),
             }
