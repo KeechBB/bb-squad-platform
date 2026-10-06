@@ -7,7 +7,7 @@ type Props = {
 };
 
 /** Меняй при обновлении KV, чтобы iframe не брал старый кэш */
-const KV_CACHE = "20261006-hell-15";
+const KV_CACHE = "20261006-hell-13-15";
 
 export default async function CwPage({ searchParams }: Props) {
   const session = await getSession();
