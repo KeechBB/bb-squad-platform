@@ -1,14 +1,11 @@
-/** Staging password gate — only when STAGING_GATE_ENABLED=1 on staging host */
-
+/** Staging password gate — DISABLED on purpose (emergency).
+ *  Was leaking onto bb-squad.ru and locking the whole clan out.
+ *  Re-enable later only behind staging host + STAGING_GATE_ENABLED=1.
+ */
 export const STAGING_GATE_COOKIE = "bb_stg_gate";
 
 export function stagingGateEnabled(): boolean {
-  const v = (process.env.STAGING_GATE_ENABLED || "").trim().toLowerCase();
-  if (!(v === "1" || v === "true" || v === "yes")) return false;
-  // Must be the staging app (NEXTAUTH_URL). Prod .env must never gate.
-  const url = (process.env.NEXTAUTH_URL || "").trim().toLowerCase();
-  if (!url.includes("staging.")) return false;
-  return true;
+  return false;
 }
 
 /** Host must be staging.* — bb-squad.ru must never show the draft password wall. */
