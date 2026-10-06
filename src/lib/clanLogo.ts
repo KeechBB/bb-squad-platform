@@ -24,6 +24,8 @@ const OPP_CANON: Record<string, { key: string; tag: string; name: string }> = {
   falcons: { key: "FAL", tag: "FAL", name: "FALCONS" },
   fox: { key: "FOX", tag: "FOX", name: "RED FOXES" },
   redfoxes: { key: "FOX", tag: "FOX", name: "RED FOXES" },
+  solid: { key: "SOLID", tag: ".solid", name: ".SOLID" },
+  ".solid": { key: "SOLID", tag: ".solid", name: ".SOLID" },
 };
 
 const LOGO_EXT: Record<string, string> = {
@@ -47,6 +49,7 @@ const LOGO_EXT: Record<string, string> = {
   OMEN: ".png",
   FAL: ".png",
   FOX: ".png",
+  SOLID: ".png",
 };
 
 export function canonOpp(oppRaw: string) {
