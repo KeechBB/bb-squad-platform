@@ -179,11 +179,19 @@ function countStat(v: unknown): number {
   return 0;
 }
 
-/** Combat rows from slim public ladder (or full ledger fallback). */
+/** Combat rows from slim public ladder; full ledger only if slim has no match rows. */
 async function loadPublicMatchBundlesFromLedger(): Promise<PublicBundle[]> {
   const { loadPublicRpLadder, loadPublicRpLedger } = await import("@/lib/publicRp");
-  const ledger =
-    (await loadPublicRpLadder()) || (await loadPublicRpLedger());
+  let ledger = await loadPublicRpLadder();
+  const slimHasRows = Boolean(
+    ledger?.players &&
+      Object.values(ledger.players).some(
+        (p) => Array.isArray(p.matches) && p.matches.length > 0
+      )
+  );
+  if (!slimHasRows) {
+    ledger = await loadPublicRpLedger();
+  }
   if (!ledger?.players || !ledger.matches?.length) return [];
 
   type Pm = {

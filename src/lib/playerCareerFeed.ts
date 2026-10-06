@@ -5,7 +5,7 @@ import {
   rpRankFromScore,
   type RpPlayerMatch,
 } from "@/lib/trainRp";
-import { loadPublicRpLadder, loadPublicRpLedger } from "@/lib/publicRp";
+import { loadPublicRpLadder } from "@/lib/publicRp";
 import { pickMvps } from "@/lib/homeMvp";
 import { formatTierArrow } from "@/lib/homeTierBoardUi";
 
@@ -172,9 +172,7 @@ export async function buildPlayerCareerFeed(nick: string): Promise<PlayerCareerF
     buildPlayerKvStats(want).catch(() => null),
     loadKvJson<TierBoardJson>("data/tier-board.json"),
     loadRpLadder().catch(() => null),
-    loadPublicRpLadder()
-      .then((d) => d || loadPublicRpLedger())
-      .catch(() => null),
+    loadPublicRpLadder().catch(() => null),
     prisma.tierChangeLog
       .findMany({
         where: { nick: { equals: want, mode: "insensitive" } },

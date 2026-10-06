@@ -10,7 +10,8 @@ export async function GET(req: Request, ctx: Ctx) {
   const channel = `clan:${id}`;
   const encoder = new TextEncoder();
 
-  let cleanup = () => {};
+  let unsub = () => {};
+  let ping: ReturnType<typeof setInterval> | null = null;
   const stream = new ReadableStream({
     start(controller) {
       const send = (event: string, data: string) => {
@@ -18,21 +19,23 @@ export async function GET(req: Request, ctx: Ctx) {
       };
       send("hello", JSON.stringify({ ok: true, t: Date.now() }));
 
-      cleanup = liveSubscribe(channel, (payload) => {
+      unsub = liveSubscribe(channel, (payload) => {
         send("clan", payload);
       });
 
-      const ping = setInterval(() => {
+      ping = setInterval(() => {
         try {
           send("ping", String(Date.now()));
         } catch {
-          clearInterval(ping);
+          if (ping) clearInterval(ping);
+          ping = null;
         }
       }, 15000);
 
       const close = () => {
-        clearInterval(ping);
-        cleanup();
+        if (ping) clearInterval(ping);
+        ping = null;
+        unsub();
         try {
           controller.close();
         } catch {
@@ -43,7 +46,9 @@ export async function GET(req: Request, ctx: Ctx) {
       req.signal.addEventListener("abort", close);
     },
     cancel() {
-      cleanup();
+      if (ping) clearInterval(ping);
+      ping = null;
+      unsub();
     },
   });
 

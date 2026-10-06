@@ -19,7 +19,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     return new NextResponse(new Uint8Array(buf), {
       headers: {
         "Content-Type": ext === "webp" ? "image/webp" : "image/png",
-        "Cache-Control": "no-store",
+        "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
       },
     });
   } catch {

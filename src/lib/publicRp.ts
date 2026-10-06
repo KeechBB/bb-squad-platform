@@ -1,7 +1,8 @@
 /**
  * Public (PB1) Respect Points — same ladder UI as train RP.
- * Hot path uses slim `data/public/rp-ladder.json` (~1MB).
- * Full `rp-ledger.json` (~30MB) only as fallback / rare drilldowns.
+ * Hot path uses slim `data/public/rp-ladder.json` (~1–2MB).
+ * Full `rp-ledger.json` (~80MB+) only for rare drilldowns — NEVER cached in process
+ * memory (parsed object blows RAM on a 4GB VPS).
  */
 import { rpRankFromScore, type RpLeaderRow, type RpLedger, type RpPlayer } from "@/lib/trainRp";
 
@@ -10,7 +11,6 @@ const KV_BASES = [
 ].filter(Boolean) as string[];
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
-let ledgerMem: { at: number; data: RpLedger | null } | null = null;
 let ladderMem: { at: number; data: RpLedger | null } | null = null;
 
 function nickKey(n: string) {
@@ -112,18 +112,17 @@ export async function loadPublicRpLadder(): Promise<RpLedger | null> {
   return data;
 }
 
-/** Full ledger (~30MB) — fallback if slim missing. Cached in process memory. */
+/**
+ * Full ledger — drilldown only. No process-wide cache (file can be 80MB+ on disk;
+ * JSON.parse residencies are several× that).
+ */
 export async function loadPublicRpLedger(): Promise<RpLedger | null> {
-  const now = Date.now();
-  if (ledgerMem && now - ledgerMem.at < CACHE_TTL_MS) return ledgerMem.data;
-
-  const data = await loadBestPublicJson("public/rp-ledger.json");
-  ledgerMem = { at: now, data };
-  return data;
+  return loadBestPublicJson("public/rp-ledger.json");
 }
 
+/** Home / boards: slim ladder only — never pull full ledger. */
 async function loadPublicRpData(): Promise<RpLedger | null> {
-  return (await loadPublicRpLadder()) || (await loadPublicRpLedger());
+  return loadPublicRpLadder();
 }
 
 export async function buildPublicRpLeaderboard(): Promise<{
@@ -133,7 +132,7 @@ export async function buildPublicRpLeaderboard(): Promise<{
   updatedAt: string;
   available: boolean;
 }> {
-  const ledger = await loadPublicRpData();
+  const ledger = await loadPublicRpLadder();
   if (!ledger?.leaderboard?.length) {
     return {
       rows: [],
@@ -195,5 +194,5 @@ export async function lookupPlayerPublicRp(
   if (opts?.full) {
     return pick(await loadPublicRpLedger());
   }
-  return pick(await loadPublicRpData());
+  return pick(await loadPublicRpLadder());
 }

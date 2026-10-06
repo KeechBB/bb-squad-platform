@@ -19,7 +19,8 @@ export async function GET(req: Request) {
 
   const channel = siteLiveChannel();
   const encoder = new TextEncoder();
-  let cleanup = () => {};
+  let unsub = () => {};
+  let ping: ReturnType<typeof setInterval> | null = null;
 
   const stream = new ReadableStream({
     start(controller) {
@@ -29,17 +30,19 @@ export async function GET(req: Request) {
         );
       };
       send("hello", JSON.stringify({ ok: true, t: Date.now() }));
-      cleanup = liveSubscribe(channel, (payload) => send("site", payload));
-      const ping = setInterval(() => {
+      unsub = liveSubscribe(channel, (payload) => send("site", payload));
+      ping = setInterval(() => {
         try {
           send("ping", String(Date.now()));
         } catch {
-          clearInterval(ping);
+          if (ping) clearInterval(ping);
+          ping = null;
         }
       }, 15000);
       const close = () => {
-        clearInterval(ping);
-        cleanup();
+        if (ping) clearInterval(ping);
+        ping = null;
+        unsub();
         try {
           controller.close();
         } catch {
@@ -49,7 +52,9 @@ export async function GET(req: Request) {
       req.signal.addEventListener("abort", close);
     },
     cancel() {
-      cleanup();
+      if (ping) clearInterval(ping);
+      ping = null;
+      unsub();
     },
   });
 
