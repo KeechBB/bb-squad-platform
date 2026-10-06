@@ -5217,133 +5217,53 @@ body:has(.home-page) {
 @media (max-width: 899px) {
   html:has(.home-page),
   body:has(.home-page) {
-    height: auto;
-    min-height: 100%;
-    overflow: auto;
+    height: 100%;
+    height: 100dvh;
+    overflow: hidden;
   }
 
   body:has(.home-page) {
-    display: block;
+    display: flex;
+    flex-direction: column;
   }
 
   .shell:has(.home-page) {
-    overflow: visible;
+    overflow: hidden;
+    flex: 1 1 auto;
+    min-height: 0;
     height: auto;
     max-height: none;
-    min-height: 0;
-    flex: none;
   }
 
   .home-page {
-    overflow: visible;
-    min-height: 100dvh;
+    overflow: hidden;
+    flex: 1 1 auto;
+    min-height: 0;
     height: auto;
     max-height: none;
   }
 
+  /* Same 1920×1004 home as desktop — swipe to pan, no reflow. */
   .home-fit {
-    overflow: visible;
-    height: auto;
+    overflow: scroll;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-x pan-y;
+    flex: 1 1 auto;
     min-height: 0;
+    width: 100%;
+    height: calc(100dvh - 76px);
+    max-height: calc(100dvh - 76px);
     align-items: flex-start;
     justify-content: flex-start;
   }
 
   .home-layout {
-    /* Phone: stack, no 1920px canvas — Safari zoom/transform clipped the calendar. */
-    width: 100%;
-    height: auto;
-    min-height: 0;
+    --home-scale: 1;
+    width: 1920px;
+    height: 1004px;
     transform: none;
     zoom: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    padding: 8px 10px 88px;
-    overflow: visible;
-    grid-template-columns: none;
-    grid-template-rows: none;
-    grid-template-areas: none;
-  }
-
-  .home-layout > .home-side {
-    width: 100%;
-    height: auto;
-    min-height: 0;
-    overflow: visible;
-  }
-
-  .home-layout > .home-hero {
-    order: -1;
-    width: 100%;
-    height: auto;
-    min-height: 0;
-    padding: 12px 8px 4px;
-    overflow: visible;
-  }
-
-  .home-layout > .home-hero .home-hero-brand {
-    transform: none;
-    width: 100%;
-  }
-
-  .home-layout > .home-hero .home-crest {
-    width: min(160px, 42vw);
-    max-width: 180px;
-  }
-
-  .home-layout > .home-hero h1 {
-    font-size: clamp(1.8rem, 11vw, 2.6rem);
-  }
-
-  .home-layout > .home-hero .home-hero-kicker {
-    font-size: 0.72rem;
-    letter-spacing: 0.12em;
-    margin-top: 8px;
-  }
-
-  .home-layout > .home-hero .home-hero-tag {
-    font-size: 0.82rem;
-    max-width: 22rem;
-  }
-
-  .home-dock {
-    display: flex;
-    flex-direction: column;
-    flex: none;
-    min-height: 0;
-    width: 100%;
-    grid-template-columns: none;
-    grid-template-rows: none;
-    gap: 10px;
-  }
-
-  .home-dock-col {
-    width: 100%;
-    min-height: 0;
-    height: auto;
-    overflow: visible;
-  }
-
-  .home-dock-col .home-attend-streaks,
-  .home-dock-col .home-train-pwr,
-  .home-dock-body {
-    height: auto;
-    max-height: none;
-    overflow: visible;
-  }
-
-  .home-ops-board.home-cal-board {
-    overflow: visible;
-  }
-
-  .home-cal-grid {
-    grid-auto-rows: minmax(56px, auto);
-  }
-
-  .home-cal-weekdays,
-  .home-cal-grid {
-    gap: 3px;
   }
 }
 

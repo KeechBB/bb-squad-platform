@@ -16,17 +16,17 @@ export function HomeFit({ children }: { children: ReactNode }) {
     if (!host || !board) return;
 
     const fit = () => {
-      const w = host.clientWidth;
-      const h = host.clientHeight;
-      if (w < 8 || h < 8) return;
-      // Phones: CSS stacks the home — don't keep a 1920px scaled canvas.
+      // Phones: keep the desktop 1920×1004 canvas and pan it with a finger.
       if (window.matchMedia("(max-width: 899px)").matches) {
         board.style.setProperty("--home-scale", "1");
         board.style.setProperty("--home-hero-lift", "0px");
         board.style.setProperty("--home-hero-nudge-x", "0px");
-        host.style.height = "auto";
+        host.style.height = "";
         return;
       }
+      const w = host.clientWidth;
+      const h = host.clientHeight;
+      if (w < 8 || h < 8) return;
       const scale = Math.min(w / DESIGN_W, h / DESIGN_H);
       if (!Number.isFinite(scale) || scale <= 0) return;
       board.style.setProperty("--home-scale", String(scale));
