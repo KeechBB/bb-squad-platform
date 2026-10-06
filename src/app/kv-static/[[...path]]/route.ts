@@ -49,8 +49,17 @@ async function readFromDisk(rel: string): Promise<Buffer | null> {
 function diskHeaders(rel: string): Headers {
   const headers = new Headers();
   headers.set("Content-Type", contentTypeFor(rel));
-  // Short browser cache; deploy/sync refreshes disk immediately
-  headers.set("Cache-Control", "public, max-age=60, must-revalidate");
+  const lower = rel.toLowerCase();
+  // JSON + app shell must refresh right after collector auto-ingest
+  if (
+    lower.endsWith(".json") ||
+    lower.endsWith("app.js") ||
+    lower.endsWith("index.html")
+  ) {
+    headers.set("Cache-Control", "no-store, max-age=0, must-revalidate");
+  } else {
+    headers.set("Cache-Control", "public, max-age=60, must-revalidate");
+  }
   headers.set("X-KV-Source", "vps-disk");
   return headers;
 }

@@ -1,13 +1,13 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { isBlackberryClanMember } from "@/lib/blackberryClan";
+import { liveKvBust } from "@/lib/kvBust";
+
+export const dynamic = "force-dynamic";
 
 type Props = {
   searchParams?: Promise<{ clan?: string }>;
 };
-
-/** Меняй при обновлении KV, чтобы iframe не брал старый кэш */
-const KV_CACHE = "20261006-fox-r2";
 
 export default async function CwPage({ searchParams }: Props) {
   const session = await getSession();
@@ -19,7 +19,8 @@ export default async function CwPage({ searchParams }: Props) {
 
   const sp = searchParams ? await searchParams : {};
   const clan = sp.clan ? String(sp.clan) : "";
-  const params = new URLSearchParams({ embed: "1", v: KV_CACHE });
+  const bust = await liveKvBust("20261006-fox-r2");
+  const params = new URLSearchParams({ embed: "1", v: bust });
   if (clan) params.set("clan", clan);
   const q = `?${params.toString()}#/cw`;
 

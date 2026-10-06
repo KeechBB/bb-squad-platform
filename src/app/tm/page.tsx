@@ -1,9 +1,9 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { isBlackberryClanMember } from "@/lib/blackberryClan";
+import { liveKvBust } from "@/lib/kvBust";
 
-/** Меняй при обновлении KV, чтобы iframe не брал старый кэш */
-const KV_CACHE = "20261006-train-time";
+export const dynamic = "force-dynamic";
 
 export default async function TrainingMatchesPage() {
   const session = await getSession();
@@ -13,7 +13,8 @@ export default async function TrainingMatchesPage() {
     redirect("/");
   }
 
-  const params = new URLSearchParams({ embed: "1", v: KV_CACHE });
+  const bust = await liveKvBust();
+  const params = new URLSearchParams({ embed: "1", v: bust });
   const q = `?${params.toString()}#/tm`;
 
   return (

@@ -102,6 +102,10 @@ Steam: если логин на staging ломается — в Steam API Key Do
 `/var/www/bb-squad-platform/data/kv-cache/` (на VPS: `git pull` в `/var/www/blackberry-kv`).  
 Живой сайт (`/kv-static`, home API) читает **только диск** — GitHub Pages в горячем пути не используется.  
 Nginx отдаёт `/kv-static/` напрямую с диска (см. `deploy/nginx-bb-squad.conf`).  
+
+**Автозалив TR1:** collector пишет training JSON + `data/cache-bust.json` в kv-cache.  
+`/tm` и `/cw` берут `v=` из bust на диске (без redeploy).  
+`sync_kv_cache.sh` после rsync **не затирает** более полный автозалив training/RP.  
 Hot-path рейтинга ТМ: slim `rp-ladder.json`; полный ledger — только drilldown.
 
 ## Squad log collector (24/7)

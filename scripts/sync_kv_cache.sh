@@ -73,6 +73,20 @@ for must in index.html app.js data/tiers.json; do
 done
 
 echo "==> rsync $SRC/ → $DEST/ (verified source)"
+
+# Preserve richer auto-train data that GitHub may not have yet (collector writes live).
+TRAIN_BAK="$(mktemp -d /tmp/bb-train-bak.XXXXXX)"
+if [[ -d "$DEST/data/training" ]]; then
+  cp -a "$DEST/data/training" "$TRAIN_BAK/training"
+  echo "==> backed up existing training → $TRAIN_BAK"
+fi
+if [[ -f "$DEST/data/cache-bust.json" ]]; then
+  cp -a "$DEST/data/cache-bust.json" "$TRAIN_BAK/cache-bust.json" || true
+fi
+if [[ -f "$DEST/app.js" ]]; then
+  cp -a "$DEST/app.js" "$TRAIN_BAK/app.js" || true
+fi
+
 if command -v rsync >/dev/null 2>&1; then
   # --delete only after source verified complete above
   rsync -a --delete \
@@ -84,6 +98,31 @@ else
   # no rsync: copy over without wiping first (safer)
   cp -a "$SRC/." "$DEST/"
 fi
+
+# Merge back auto-ingest if disk had more matches than GitHub warehouse
+if [[ -d "$TRAIN_BAK/training" ]]; then
+  echo "==> merge training (prefer richer auto-ingest)"
+  python3 "$ROOT/scripts/merge_train_after_kv_sync.py" "$TRAIN_BAK/training" "$DEST" || true
+fi
+# Prefer fresher cache-bust from backup if present
+if [[ -f "$TRAIN_BAK/cache-bust.json" ]]; then
+  mkdir -p "$DEST/data"
+  # keep whichever bust string is lexicographically newer (YYYYMMDD-HHMM)
+  python3 - "$TRAIN_BAK/cache-bust.json" "$DEST/data/cache-bust.json" <<'PY' || true
+import json,sys
+from pathlib import Path
+b,d=Path(sys.argv[1]),Path(sys.argv[2])
+def bust(p):
+  try: return str(json.loads(p.read_text(encoding='utf-8')).get('bust') or '')
+  except Exception: return ''
+bb,dd=bust(b),bust(d)
+if bb and bb>dd:
+  d.parent.mkdir(parents=True, exist_ok=True)
+  d.write_bytes(b.read_bytes())
+  print(f'restore cache-bust {dd} → {bb}')
+PY
+fi
+rm -rf "$TRAIN_BAK"
 
 for must in index.html app.js data/tiers.json; do
   if [[ ! -f "$DEST/$must" ]]; then

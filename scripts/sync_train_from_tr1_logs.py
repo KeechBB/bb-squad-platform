@@ -381,11 +381,13 @@ def publish_live_mirrors() -> None:
     import shutil
 
     rels = [
+        "data/cache-bust.json",
         "data/training/2026-10.json",
         "data/training/_auto_matches.json",
         "data/training/rp-ledger.json",
         "data/training/rp-ladder.json",
         "data/training-index.json",
+        "app.js",
     ]
     # also newest player files referenced by month
     try:
@@ -396,6 +398,9 @@ def publish_live_mirrors() -> None:
                 rels.append(pu)
     except Exception:
         pass
+    # all current-month training JSON if present
+    for path in TRAIN.glob("????-??.json"):
+        rels.append(f"data/training/{path.name}")
     for dest_root in mirrors:
         for rel in rels:
             src = KV_PUBLIC / rel
@@ -408,10 +413,24 @@ def publish_live_mirrors() -> None:
 
 
 def bump_cache_bust() -> None:
-    """Bump training-index bust + app.js DATA_VER so embed/UI refetch."""
+    """Bump training-index bust + app.js DATA_VER + cache-bust.json for /tm /cw."""
     from datetime import datetime as _dt
 
     tag = _dt.now().strftime("%Y%m%d-%H%M")
+    bust_doc = {
+        "bust": tag,
+        "updatedAt": _dt.now(timezone.utc).isoformat(),
+        "note": "Пишет sync_train / collector — Next /tm /cw читают live без redeploy",
+    }
+    try:
+        (KV_PUBLIC / "data" / "cache-bust.json").write_text(
+            json.dumps(bust_doc, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        print(f"cache-bust.json → {tag}", flush=True)
+    except Exception as e:
+        print(f"cache-bust fail: {e}", flush=True)
+
     if INDEX.is_file():
         try:
             idx = json.loads(INDEX.read_text(encoding="utf-8"))
@@ -537,7 +556,7 @@ def main() -> int:
 
         msk = start + timedelta(hours=3)
         stem = _map_stem(layer)
-        # Same map same evening within ~20 min of an existing row = rediscovery, not a new game.
+        # Same map rediscovery only (±3 мин). Две одинаковые карты за вечер — обе.
         if is_near_duplicate(msk.day, stem, start, anchors):
             continue
 
@@ -557,6 +576,29 @@ def main() -> int:
         revives = R.revives_in_window(idx, start, end)
         disp = {R.canon_key(n, aliases): n for n in steam.values()}
         team_a, team_b = agg_players(dies, wounds, revives, teams, disp)
+
+        # Перекур / пустая катка: мало игроков или почти нет give-up (Yehorivka 06.10).
+        n_players = len(team_a) + len(team_b)
+        n_dies = len(dies) if isinstance(dies, list) else 0
+        if n_players < 12 or n_dies < 25:
+            auto.append(
+                {
+                    "id": f"{mid}-skip",
+                    "map": layer,
+                    "date": msk.strftime("%Y-%m-%d"),
+                    "log": log_path.name,
+                    "start": start_iso,
+                    "end": end.isoformat(),
+                    "skip": True,
+                    "note": f"авто-skip перекур/тонкая катка (players={n_players}, dies={n_dies})",
+                }
+            )
+            known_starts.add(start_iso)
+            print(
+                f"skip thin {layer} players={n_players} dies={n_dies} {start_iso}",
+                flush=True,
+            )
+            continue
 
         month = f"{msk.year:04d}-{msk.month:02d}"
         dur_sec = int((end - start).total_seconds())
