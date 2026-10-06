@@ -3044,6 +3044,7 @@ body:has(.profile-page) {
     height: auto;
     max-height: none;
     overflow: visible;
+    isolation: isolate;
     grid-template-columns: 1fr;
     grid-template-rows: auto;
     grid-template-areas:
@@ -3054,6 +3055,26 @@ body:has(.profile-page) {
       "kvhist"
       "trainhist";
     gap: 12px;
+  }
+
+  .profile-area-head {
+    position: relative;
+    z-index: 1;
+    overflow: visible;
+  }
+
+  .profile-head-cluster,
+  .profile-head-main {
+    position: relative;
+    z-index: 1;
+    overflow: visible;
+  }
+
+  .profile-head-main > .profile-pwr-card,
+  .profile-head-main > .profile-public-rating-card,
+  .profile-head-main > .profile-kits-card {
+    position: relative;
+    z-index: 1;
   }
 
   .profile-area-account,
@@ -3153,6 +3174,23 @@ body:has(.profile-page) {
 
   .profile-compare-inline {
     max-width: none;
+  }
+
+  .profile-page .card {
+    position: relative;
+    z-index: auto;
+  }
+
+  /* iOS: don't let later cards paint over the rating/compare stack while scrolling */
+  .profile-area-account,
+  .profile-area-hitmap,
+  .profile-area-training,
+  .profile-area-kv-hist,
+  .profile-area-train-hist {
+    position: relative;
+    z-index: 0;
+    transform: none;
+    -webkit-overflow-scrolling: touch;
   }
 
   .profile-kits-title-row {
@@ -5176,6 +5214,108 @@ body:has(.home-page) {
   overflow: hidden;
 }
 
+@media (max-width: 899px) {
+  html:has(.home-page),
+  body:has(.home-page) {
+    height: auto;
+    min-height: 100%;
+    overflow: auto;
+  }
+
+  body:has(.home-page) {
+    display: block;
+  }
+
+  .home-page {
+    overflow: visible;
+    min-height: 100dvh;
+    height: auto;
+    max-height: none;
+  }
+
+  .home-fit {
+    overflow: visible;
+    height: auto;
+    min-height: 0;
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+
+  .home-layout {
+    /* Phone: stack, no 1920px canvas — Safari zoom/transform clipped the calendar. */
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    transform: none;
+    zoom: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 8px 10px 88px;
+    overflow: visible;
+    grid-template-columns: none;
+    grid-template-rows: none;
+    grid-template-areas: none;
+  }
+
+  .home-layout > .home-side {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .home-layout > .home-hero {
+    order: -1;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    padding: 12px 8px 4px;
+    overflow: visible;
+  }
+
+  .home-layout > .home-hero .home-hero-brand {
+    transform: none;
+    width: 100%;
+  }
+
+  .home-layout > .home-hero .home-crest {
+    width: min(160px, 42vw);
+    max-width: 180px;
+  }
+
+  .home-layout > .home-hero h1 {
+    font-size: clamp(1.8rem, 11vw, 2.6rem);
+  }
+
+  .home-layout > .home-hero .home-hero-kicker {
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    margin-top: 8px;
+  }
+
+  .home-layout > .home-hero .home-hero-tag {
+    font-size: 0.82rem;
+    max-width: 22rem;
+  }
+
+  .home-dock {
+    flex: none;
+    min-height: 0;
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    gap: 10px;
+  }
+
+  .home-dock-col {
+    min-height: 220px;
+  }
+
+  .home-ops-board.home-cal-board {
+    overflow: visible;
+  }
+}
+
 body:has(.home-page) {
   display: flex;
   flex-direction: column;
@@ -5323,8 +5463,8 @@ body:has(.home-page) {
   min-height: 0;
   overflow: hidden;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-start;
+  justify-content: flex-start;
 }
 
 .home-layout {
@@ -5335,7 +5475,8 @@ body:has(.home-page) {
   flex: none;
   width: 1920px;
   height: 1004px;
-  zoom: var(--home-scale);
+  transform: scale(var(--home-scale));
+  transform-origin: top left;
   grid-template-columns: 740px minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   grid-template-areas: "side brand";

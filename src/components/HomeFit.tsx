@@ -19,29 +19,33 @@ export function HomeFit({ children }: { children: ReactNode }) {
       const w = host.clientWidth;
       const h = host.clientHeight;
       if (w < 8 || h < 8) return;
+      // Phones: CSS stacks the home — don't keep a 1920px scaled canvas.
+      if (window.matchMedia("(max-width: 899px)").matches) {
+        board.style.setProperty("--home-scale", "1");
+        board.style.setProperty("--home-hero-lift", "0px");
+        board.style.setProperty("--home-hero-nudge-x", "0px");
+        host.style.height = "auto";
+        return;
+      }
       const scale = Math.min(w / DESIGN_W, h / DESIGN_H);
       if (!Number.isFinite(scale) || scale <= 0) return;
       board.style.setProperty("--home-scale", String(scale));
       board.style.setProperty("--home-hero-lift", "0px");
       board.style.setProperty("--home-hero-nudge-x", "0px");
+      // Visual size after transform:scale — Safari has no CSS zoom.
+      host.style.height = `${Math.round(DESIGN_H * scale)}px`;
       const brand = board.querySelector<HTMLElement>(".home-hero-brand");
       const side = board.querySelector<HTMLElement>(".home-side");
       if (brand && side) {
-        const boardRect = board.getBoundingClientRect();
-        const perDesign = boardRect.width / DESIGN_W || 1;
-        const rectsAreVisual = Math.abs(perDesign - scale) < 0.08;
-        const toDesign = (px: number) => (rectsAreVisual ? px / scale : px);
         const brandRect = brand.getBoundingClientRect();
         const sideRect = side.getBoundingClientRect();
-        const openRight = rectsAreVisual ? window.innerWidth : boardRect.right;
+        const openRight = window.innerWidth;
         const targetX = sideRect.right + (openRight - sideRect.right) / 2;
-        const targetY = rectsAreVisual
-          ? window.innerHeight / 2
-          : window.innerHeight / 2 / scale;
+        const targetY = window.innerHeight / 2;
         const brandCx = brandRect.left + brandRect.width / 2;
         const brandCy = brandRect.top + brandRect.height / 2;
-        const nudgeX = toDesign(brandCx - targetX);
-        const lift = toDesign(brandCy - targetY);
+        const nudgeX = (brandCx - targetX) / scale;
+        const lift = (brandCy - targetY) / scale;
         board.style.setProperty("--home-hero-nudge-x", `${nudgeX}px`);
         board.style.setProperty("--home-hero-lift", `${lift}px`);
       }
