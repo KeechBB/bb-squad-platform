@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import type {
   CompareMatchBundle,
   CompareSide,
@@ -734,6 +735,9 @@ export function ProfileCompareCard({
   /** Prefill from /profile?compare=Nick (e.g. Rank column on /tm rating). */
   const [urlOther, setUrlOther] = useState<string | null>(null);
   const [autoRan, setAutoRan] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -962,7 +966,8 @@ export function ProfileCompareCard({
         <div className="profile-compare-inline">{openBtn}</div>
       )}
 
-      {open ? (
+      {open && mounted
+        ? createPortal(
         <div
           className="compare-overlay"
           role="dialog"
@@ -1263,8 +1268,10 @@ export function ProfileCompareCard({
               )}
             </div>
           </div>
-        </div>
-      ) : null}
+        </div>,
+            document.body
+          )
+        : null}
     </>
   );
 }

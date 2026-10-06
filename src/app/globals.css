@@ -5226,6 +5226,14 @@ body:has(.home-page) {
     display: block;
   }
 
+  .shell:has(.home-page) {
+    overflow: visible;
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    flex: none;
+  }
+
   .home-page {
     overflow: visible;
     min-height: 100dvh;
@@ -5300,19 +5308,42 @@ body:has(.home-page) {
   }
 
   .home-dock {
+    display: flex;
+    flex-direction: column;
     flex: none;
     min-height: 0;
-    grid-template-columns: 1fr;
+    width: 100%;
+    grid-template-columns: none;
     grid-template-rows: none;
     gap: 10px;
   }
 
   .home-dock-col {
-    min-height: 220px;
+    width: 100%;
+    min-height: 0;
+    height: auto;
+    overflow: visible;
+  }
+
+  .home-dock-col .home-attend-streaks,
+  .home-dock-col .home-train-pwr,
+  .home-dock-body {
+    height: auto;
+    max-height: none;
+    overflow: visible;
   }
 
   .home-ops-board.home-cal-board {
     overflow: visible;
+  }
+
+  .home-cal-grid {
+    grid-auto-rows: minmax(56px, auto);
+  }
+
+  .home-cal-weekdays,
+  .home-cal-grid {
+    gap: 3px;
   }
 }
 
@@ -7139,12 +7170,14 @@ body:has(.home-page) {
 .compare-overlay {
   position: fixed;
   inset: 0;
-  z-index: 90;
+  z-index: 240;
   background: rgba(4, 2, 12, 0.78);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 12px 16px;
+  padding-top: max(12px, env(safe-area-inset-top));
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
 }
 .compare-panel {
   /* как .shell профиля / .cross-rating-shell — чтобы ники в ±RP читались */
@@ -7208,6 +7241,31 @@ body:has(.home-page) {
   margin-bottom: 12px;
 }
 @media (max-width: 820px) {
+  .compare-overlay {
+    padding: 0;
+    align-items: stretch;
+    justify-content: stretch;
+  }
+  .compare-panel {
+    width: 100%;
+    max-width: none;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    border: 0;
+  }
+  .compare-panel-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding: 12px 12px 12px max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+  .compare-close {
+    width: 44px;
+    height: 44px;
+    font-size: 1.2rem;
+  }
   .compare-controls {
     grid-template-columns: 1fr;
   }
