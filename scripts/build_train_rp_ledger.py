@@ -17,13 +17,43 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import rp_log_parse as R  # noqa: E402
+import os
 
-CACHE = HERE / "_tmp_tr1_logs_cache"
-TRAIN = HERE.parents[1] / "KV" / "public" / "data" / "training"
+
+def _resolve_kv_public() -> Path:
+    """Same roots as sync_train_from_tr1_logs (VPS kv-cache / blackberry-kv / monorepo)."""
+    env = (os.environ.get("BB_KV_PUBLIC") or os.environ.get("KV_LOCAL_DIR") or "").strip()
+    cands: list[Path] = []
+    if env:
+        p = Path(env)
+        cands += [p, p / "public"]
+    cands += [
+        Path("/var/www/blackberry-kv"),
+        Path("/var/www/bb-squad-platform/data/kv-cache"),
+        HERE.parents[1] / "KV" / "public",
+        HERE.parents[0] / "data" / "kv-cache",
+    ]
+    for c in cands:
+        try:
+            if (c / "data" / "training").is_dir():
+                return c
+        except OSError:
+            continue
+    fallback = HERE.parents[1] / "KV" / "public"
+    (fallback / "data" / "training" / "players").mkdir(parents=True, exist_ok=True)
+    return fallback
+
+
+KV_PUBLIC = _resolve_kv_public()
+CACHE = Path(os.environ.get("TR1_LOG_CACHE", str(HERE / "_tmp_tr1_logs_cache")))
+TRAIN = KV_PUBLIC / "data" / "training"
 PLAYERS = TRAIN / "players"
-TIERS = HERE.parents[1] / "KV" / "public" / "data" / "tiers.json"
+TIERS = KV_PUBLIC / "data" / "tiers.json"
+if not TIERS.is_file():
+    TIERS = HERE.parents[1] / "KV" / "public" / "data" / "tiers.json"
 OUT = TRAIN / "rp-ledger.json"
 OUT_LADDER = TRAIN / "rp-ladder.json"
+print(f"build_train_rp KV_PUBLIC={KV_PUBLIC}", flush=True)
 
 START_RP = 1000.0
 MIN_RP = 1.0  # ниже 1 нельзя (канон 05.10.2026)
@@ -511,6 +541,7 @@ def parse_revives(log_path: Path, t0: datetime, t1: datetime) -> list[dict]:
 
 
 def main() -> None:
+    force_full = (os.environ.get("TRAIN_RP_FULL") or "").strip() in ("1", "true", "yes")
     pwr, disp = load_pwr_map()
     aliases = load_alias_keys()
     # re-key pwr/disp through aliases
@@ -524,20 +555,68 @@ def main() -> None:
         disp2.setdefault(ck, n)
     pwr, disp = pwr2, disp2
 
-    log_paths = sorted({CACHE / m["log"] for m in MATCHES})
-    for p in log_paths:
-        if not p.is_file():
-            raise SystemExit(f"missing log {p}")
-    steam_to_nick = build_steam_map(log_paths)
-    print(f"steam map {len(steam_to_nick)}, pwr nicks {len(pwr)}, aliases {len(aliases)}")
+    # Incremental by default: keep prior ledger, append only unscored matches.
+    # Missing old logs must NOT abort (that blocked Mutaha RP all evening).
+    existing = None
+    if OUT.is_file() and not force_full:
+        try:
+            existing = json.loads(OUT.read_text(encoding="utf-8"))
+        except Exception as e:
+            print(f"warn: could not read existing ledger: {e}", flush=True)
 
-    pmax_global = max(pwr.values()) if pwr else 737.0
+    done_ids = {
+        str(m.get("id"))
+        for m in (existing or {}).get("matches") or []
+        if m.get("id")
+    }
+    pending = [m for m in MATCHES if m["id"] not in done_ids]
+    if force_full:
+        pending = list(MATCHES)
+        done_ids = set()
+        existing = None
+
+    need_logs = sorted({CACHE / m["log"] for m in pending})
+    missing_names = {p.name for p in need_logs if not p.is_file()}
+    for name in sorted(missing_names):
+        print(f"missing log {CACHE / name} — skip matches that need it", flush=True)
+    pending = [m for m in pending if m["log"] not in missing_names]
+
+    if not pending:
+        print(
+            f"RP ledger up to date ({len(done_ids)} matches) — nothing to append",
+            flush=True,
+        )
+        return
+
+    log_paths = sorted({CACHE / m["log"] for m in pending})
+    steam_to_nick = build_steam_map(log_paths)
+    print(
+        f"steam map {len(steam_to_nick)}, pwr nicks {len(pwr)}, aliases {len(aliases)}, "
+        f"pending={len(pending)} existing={len(done_ids)} full={force_full}",
+        flush=True,
+    )
+
+    pmax_global = float((existing or {}).get("pMax") or 0) or (
+        max(pwr.values()) if pwr else 737.0
+    )
     print(f"P_max (hidden PWR leader) = {pmax_global:.1f}")
 
     rp: dict[str, float] = {}
-    match_blocks = []
+    match_blocks: list[dict] = []
+    prior_players = dict((existing or {}).get("players") or {})
+    prior_matches = list((existing or {}).get("matches") or [])
 
-    for m in MATCHES:
+    if existing and not force_full:
+        for _pk, p in prior_players.items():
+            nick = str(p.get("nick") or _pk)
+            k = canon_key(nick, aliases)
+            try:
+                rp[k] = float(p.get("rp") or START_RP)
+            except (TypeError, ValueError):
+                rp[k] = START_RP
+            disp.setdefault(k, nick)
+
+    for m in pending:
         log_path = CACHE / m["log"]
         teams = load_match_teams(m["id"], aliases)
         idx = R.index_log_combat(log_path, aliases) if log_path.is_file() else None
@@ -614,55 +693,61 @@ def main() -> None:
             predator_place[k] = place
 
     players_out = {}
+    prior_by_key: dict[str, dict] = {}
+    for _pk, p in prior_players.items():
+        nick = str(p.get("nick") or _pk)
+        prior_by_key[canon_key(nick, aliases)] = p
+
     for k, val in ranked:
         info = rp_rank(val)
-        match_hist = []
+        match_hist = list((prior_by_key.get(k) or {}).get("matches") or [])
         for mb in match_blocks:
-            if k in mb["netByKey"]:
-                match_hist.append(
-                    {
-                        "id": mb["id"],
-                        "map": mb["map"],
-                        "date": mb["date"],
-                        "net": mb["netByKey"][k],
-                        "kills": [
-                            e
-                            for e in mb["events"]
-                            if e.get("kind") == "die"
-                            and canon_key(e["killer"], aliases) == k
-                        ],
-                        "deaths": [
-                            e
-                            for e in mb["events"]
-                            if e.get("kind") in ("die", "tk")
-                            and canon_key(e["victim"], aliases) == k
-                        ],
-                        "teamkills": [
-                            e
-                            for e in mb["events"]
-                            if e.get("kind") == "tk"
-                            and canon_key(e["killer"], aliases) == k
-                        ],
-                        "revives": [
-                            e
-                            for e in mb["events"]
-                            if e.get("kind") == "revive"
-                            and canon_key(e["killer"], aliases) == k
-                        ],
-                        "noks": [
-                            e
-                            for e in mb["events"]
-                            if e.get("kind") == "nok"
-                            and canon_key(e["killer"], aliases) == k
-                        ],
-                        "gotNoks": [
-                            e
-                            for e in mb["events"]
-                            if e.get("kind") == "nok"
-                            and canon_key(e["victim"], aliases) == k
-                        ],
-                    }
-                )
+            if k not in mb["netByKey"]:
+                continue
+            match_hist.append(
+                {
+                    "id": mb["id"],
+                    "map": mb["map"],
+                    "date": mb["date"],
+                    "net": mb["netByKey"][k],
+                    "kills": [
+                        e
+                        for e in mb["events"]
+                        if e.get("kind") == "die"
+                        and canon_key(e["killer"], aliases) == k
+                    ],
+                    "deaths": [
+                        e
+                        for e in mb["events"]
+                        if e.get("kind") in ("die", "tk")
+                        and canon_key(e["victim"], aliases) == k
+                    ],
+                    "teamkills": [
+                        e
+                        for e in mb["events"]
+                        if e.get("kind") == "tk"
+                        and canon_key(e["killer"], aliases) == k
+                    ],
+                    "revives": [
+                        e
+                        for e in mb["events"]
+                        if e.get("kind") == "revive"
+                        and canon_key(e["killer"], aliases) == k
+                    ],
+                    "noks": [
+                        e
+                        for e in mb["events"]
+                        if e.get("kind") == "nok"
+                        and canon_key(e["killer"], aliases) == k
+                    ],
+                    "gotNoks": [
+                        e
+                        for e in mb["events"]
+                        if e.get("kind") == "nok"
+                        and canon_key(e["victim"], aliases) == k
+                    ],
+                }
+            )
         players_out[k] = {
             "nick": disp.get(k, k),
             "rp": round(max(MIN_RP, float(val)), 1),
@@ -674,7 +759,7 @@ def main() -> None:
             "matches": match_hist,
         }
 
-    public_matches = []
+    public_matches = list(prior_matches)
     for mb in match_blocks:
         # Pages/VPS: omit shared match.events (huge); per-player matches keep
         # kill/nok/revive arrays for profile drilldown.
@@ -723,6 +808,7 @@ def main() -> None:
             for k, _ in ranked
         ],
     }
+    OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(
         json.dumps(ledger, ensure_ascii=False, separators=(",", ":")) + "\n",
         encoding="utf-8",

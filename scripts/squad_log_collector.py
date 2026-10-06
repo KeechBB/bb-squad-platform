@@ -1101,10 +1101,11 @@ class Collector:
         # Evening window (MSK≈UTC+3): poll often. Daytime: rare (saves RAM/CPU).
         msk_hour = (datetime.now(timezone.utc).hour + 3) % 24
         in_train_window = msk_hour >= 21 or msk_hour < 1
-        interval = 180 if in_train_window else 1800
+        interval = 90 if in_train_window else 1800
         if (now - last) < interval:
             return
         if self._heavy_job_busy():
+            # Do NOT advance _train_sync_last — retry next poll as soon as lock frees.
             _safe_print("TR1 train sync deferred — heavy job running", flush=True)
             return
         self._train_sync_last = now

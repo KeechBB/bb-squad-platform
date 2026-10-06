@@ -683,7 +683,37 @@ def main() -> int:
     )
     print(f"done added={added} auto_matches={len(auto)}", flush=True)
 
-    if added:
+    def _ledger_missing_auto() -> list[str]:
+        ladder = TRAIN / "rp-ladder.json"
+        if not ladder.is_file():
+            return [
+                str(m.get("id"))
+                for m in auto
+                if m.get("id")
+                and not m.get("skip")
+                and not str(m.get("id")).endswith("-skip")
+            ]
+        try:
+            ids = {
+                str(x.get("id"))
+                for x in (json.loads(ladder.read_text(encoding="utf-8")).get("matches") or [])
+                if x.get("id")
+            }
+        except Exception:
+            return ["(unreadable-ladder)"]
+        missing = []
+        for m in auto:
+            mid = str(m.get("id") or "")
+            if not mid or m.get("skip") or mid.endswith("-skip"):
+                continue
+            if mid not in ids:
+                missing.append(mid)
+        return missing
+
+    need_rp = _ledger_missing_auto()
+    if added or need_rp:
+        if need_rp and not added:
+            print(f"RP lag detected — rebuild for {need_rp}", flush=True)
         # 1) Publish match JSON first so /tm updates without waiting for RP rebuild.
         bump_cache_bust()
         publish_live_mirrors()
@@ -696,8 +726,12 @@ def main() -> int:
             rebuild = ["nice", "-n", "15", *rebuild]
         if shutil.which("ionice"):
             rebuild = ["ionice", "-c3", *rebuild]
+        env = {**os.environ, "BB_KV_PUBLIC": str(KV_PUBLIC)}
         print("train RP rebuild (low priority)…", flush=True)
-        subprocess.run(rebuild, cwd=str(HERE), check=False)
+        subprocess.run(rebuild, cwd=str(HERE), check=False, env=env)
+        still = _ledger_missing_auto()
+        if still:
+            print(f"WARN: RP still missing after rebuild: {still}", flush=True)
         bump_cache_bust()
         publish_live_mirrors()
     return 0
