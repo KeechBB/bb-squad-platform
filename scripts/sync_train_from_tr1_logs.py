@@ -273,8 +273,9 @@ def is_near_duplicate(
     start: datetime,
     anchors: list[tuple[int, str, datetime]],
     *,
-    window_sec: int = 20 * 60,
+    window_sec: int = 3 * 60,
 ) -> bool:
+    """Same map rediscovery only (same start ±3 мин). Две одинаковые карты за вечер — обе."""
     for d, st, t0 in anchors:
         if d != day or st != stem:
             continue

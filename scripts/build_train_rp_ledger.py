@@ -62,6 +62,8 @@ def _load_auto_matches() -> list[dict]:
         return []
     out = []
     for m in raw or []:
+        if m.get("skip") or str(m.get("id") or "").endswith("-skip"):
+            continue
         try:
             out.append(
                 {
