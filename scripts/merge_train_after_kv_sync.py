@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""After sync_kv_cache rsync from GitHub: keep richer on-disk training auto-ingest.
+"""After sync_kv_cache rsync: ADD missing auto matches from disk backup — never wipe GitHub.
 
-Deploy used to wipe Fallujah/RP that collector wrote but GitHub didn't have yet.
-Prefer whichever side has MORE month matches / MORE auto starts / MORE RP matches.
+Old logic restored wholesale backup when it had MORE rows (dupes/Yehorivka) and
+erased Fallujah-2 + UI just pulled from GitHub. That is why deploy looked «как раньше».
 """
 from __future__ import annotations
 
@@ -20,37 +20,104 @@ def _load(path: Path):
         return None
 
 
-def _match_n(month_path: Path) -> int:
-    d = _load(month_path)
-    if not isinstance(d, dict):
-        return 0
-    return len(d.get("matches") or [])
+def _dump(path: Path, obj) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
-def _auto_n(auto_path: Path) -> int:
-    d = _load(auto_path)
-    if not isinstance(d, list):
-        return 0
-    return len([x for x in d if isinstance(x, dict) and x.get("start")])
+def _is_junk_match(m: dict) -> bool:
+    mid = str(m.get("id") or "").lower()
+    mmap = str(m.get("map") or "").lower()
+    if mid.endswith("-skip") or m.get("skip"):
+        return True
+    if "yehorivka" in mid or "yehorivka" in mmap:
+        return True
+    return False
 
 
-def _rp_n(ledger_path: Path) -> int:
-    d = _load(ledger_path)
-    if not isinstance(d, dict):
-        return 0
-    return len(d.get("matches") or [])
-
-
-def restore_tree(src: Path, dst: Path) -> None:
-    if not src.exists():
+def merge_month(backup_month: Path, dest_month: Path, backup_train: Path, dest_train: Path) -> None:
+    b = _load(backup_month)
+    d = _load(dest_month)
+    if not isinstance(b, dict):
         return
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    if src.is_dir():
-        if dst.exists():
-            shutil.rmtree(dst)
-        shutil.copytree(src, dst)
-    else:
-        shutil.copy2(src, dst)
+    if not isinstance(d, dict):
+        d = {
+            "month": backup_month.stem,
+            "title": b.get("title") or backup_month.stem,
+            "note": b.get("note") or "",
+            "matches": [],
+        }
+    by_id: dict[str, dict] = {}
+    for m in d.get("matches") or []:
+        if isinstance(m, dict) and m.get("id") and not _is_junk_match(m):
+            by_id[str(m["id"])] = m
+    added = 0
+    for m in b.get("matches") or []:
+        if not isinstance(m, dict) or not m.get("id") or _is_junk_match(m):
+            continue
+        mid = str(m["id"])
+        if mid in by_id:
+            continue
+        by_id[mid] = m
+        added += 1
+        pu = str(m.get("playersUrl") or "")
+        if pu.startswith("data/training/players/"):
+            rel = pu.split("data/training/", 1)[-1]
+            bp = backup_train / rel
+            dp = dest_train / rel
+            if bp.is_file():
+                dp.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(bp, dp)
+    matches = sorted(by_id.values(), key=lambda m: (m.get("day") or 0, m.get("timeMsk") or ""))
+    d["matches"] = matches
+    _dump(dest_month, d)
+    if added:
+        print(f"merge {dest_month.name}: +{added} from backup, total={len(matches)}")
+
+
+def scrub_dest(dest_train: Path) -> None:
+    for month_file in dest_train.glob("????-??.json"):
+        d = _load(month_file)
+        if not isinstance(d, dict):
+            continue
+        old = d.get("matches") or []
+        matches = [m for m in old if isinstance(m, dict) and not _is_junk_match(m)]
+        if len(matches) != len(old):
+            d["matches"] = matches
+            _dump(month_file, d)
+            print(f"scrub junk from {month_file.name} → {len(matches)}")
+    ye = dest_train / "players" / "06-yehorivka.json"
+    if ye.is_file():
+        ye.unlink()
+        print("deleted players/06-yehorivka.json")
+
+
+def merge_auto(backup_auto: Path, dest_auto: Path) -> None:
+    b = _load(backup_auto)
+    d = _load(dest_auto)
+    if not isinstance(b, list):
+        b = []
+    if not isinstance(d, list):
+        d = []
+    by_start: dict[str, dict] = {}
+    for row in d:
+        if isinstance(row, dict) and row.get("start"):
+            by_start[str(row["start"])] = row
+    added = 0
+    for row in b:
+        if not isinstance(row, dict) or not row.get("start"):
+            continue
+        st = str(row["start"])
+        if st in by_start:
+            if row.get("skip") and not by_start[st].get("skip"):
+                by_start[st] = row
+            continue
+        by_start[st] = row
+        added += 1
+    out = sorted(by_start.values(), key=lambda r: str(r.get("start") or ""))
+    _dump(dest_auto, out)
+    if added:
+        print(f"merge _auto_matches: +{added}, total={len(out)}")
 
 
 def main() -> int:
@@ -66,50 +133,22 @@ def main() -> int:
     dest_train = dest / "data" / "training"
     dest_train.mkdir(parents=True, exist_ok=True)
 
-    # Month JSON: keep richer
     for month_file in backup.glob("????-??.json"):
-        name = month_file.name
-        cur = dest_train / name
-        bn, cn = _match_n(month_file), _match_n(cur)
-        if bn > cn:
-            shutil.copy2(month_file, cur)
-            print(f"restore {name} matches {cn} → {bn}")
-            # restore player files referenced by backup month
-            md = _load(month_file) or {}
-            for m in md.get("matches") or []:
-                pu = str(m.get("playersUrl") or "")
-                if not pu.startswith("data/training/players/"):
-                    continue
-                rel = pu.split("data/training/", 1)[-1]
-                bp = backup / rel
-                dp = dest_train / rel
-                if bp.is_file():
-                    dp.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(bp, dp)
+        merge_month(month_file, dest_train / month_file.name, backup, dest_train)
 
-    # auto_matches
-    b_auto, d_auto = backup / "_auto_matches.json", dest_train / "_auto_matches.json"
-    if _auto_n(b_auto) > _auto_n(d_auto):
-        shutil.copy2(b_auto, d_auto)
-        print(f"restore _auto_matches {_auto_n(d_auto)} → {_auto_n(b_auto)}")
+    scrub_dest(dest_train)
+    merge_auto(backup / "_auto_matches.json", dest_train / "_auto_matches.json")
 
-    # RP ledger/ladder
-    for name in ("rp-ledger.json", "rp-ladder.json"):
-        bp, dp = backup / name, dest_train / name
-        if _rp_n(bp) > _rp_n(dp):
-            shutil.copy2(bp, dp)
-            print(f"restore {name} matches {_rp_n(dp)} → {_rp_n(bp)}")
-
-    # cache-bust / index if backup newer tag
-    for rel in (
-        Path("data/cache-bust.json"),
-        Path("data/training-index.json"),
-    ):
-        # backup is training dir only — cache-bust lives beside
-        pass
-
-    bust_b = backup.parent / "cache-bust.json" if (backup.parent / "cache-bust.json").is_file() else None
-    # also accept backup/../cache-bust from full data backup
+    b_led, d_led = backup / "rp-ledger.json", dest_train / "rp-ledger.json"
+    b_lad, d_lad = backup / "rp-ladder.json", dest_train / "rp-ladder.json"
+    bn = len((_load(b_led) or {}).get("matches") or []) if b_led.is_file() else 0
+    dn = len((_load(d_led) or {}).get("matches") or []) if d_led.is_file() else 0
+    # Only take backup RP if clearly fuller AND dest missing recent maps (never shrink)
+    if bn > dn + 2 and b_led.is_file():
+        shutil.copy2(b_led, d_led)
+        if b_lad.is_file():
+            shutil.copy2(b_lad, d_lad)
+        print(f"restore RP ledger matches {dn} → {bn}")
     return 0
 
 

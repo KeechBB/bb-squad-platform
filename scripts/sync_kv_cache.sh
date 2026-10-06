@@ -101,28 +101,15 @@ fi
 
 # Merge back auto-ingest if disk had more matches than GitHub warehouse
 if [[ -d "$TRAIN_BAK/training" ]]; then
-  echo "==> merge training (prefer richer auto-ingest)"
+  echo "==> merge training (add missing only; never wipe GitHub; scrub Yehorivka)"
   python3 "$ROOT/scripts/merge_train_after_kv_sync.py" "$TRAIN_BAK/training" "$DEST" || true
-fi
-# Prefer fresher cache-bust from backup if present
-if [[ -f "$TRAIN_BAK/cache-bust.json" ]]; then
-  mkdir -p "$DEST/data"
-  # keep whichever bust string is lexicographically newer (YYYYMMDD-HHMM)
-  python3 - "$TRAIN_BAK/cache-bust.json" "$DEST/data/cache-bust.json" <<'PY' || true
-import json,sys
-from pathlib import Path
-b,d=Path(sys.argv[1]),Path(sys.argv[2])
-def bust(p):
-  try: return str(json.loads(p.read_text(encoding='utf-8')).get('bust') or '')
-  except Exception: return ''
-bb,dd=bust(b),bust(d)
-if bb and bb>dd:
-  d.parent.mkdir(parents=True, exist_ok=True)
-  d.write_bytes(b.read_bytes())
-  print(f'restore cache-bust {dd} → {bb}')
-PY
+  # always scrub junk even if backup missing
+  python3 "$ROOT/scripts/merge_train_after_kv_sync.py" "$DEST/data/training" "$DEST" || true
 fi
 rm -rf "$TRAIN_BAK"
+
+# Scrub junk (Yehorivka) and verify UI files
+python3 "$ROOT/scripts/merge_train_after_kv_sync.py" "$DEST/data/training" "$DEST" 2>/dev/null || true
 
 for must in index.html app.js data/tiers.json; do
   if [[ ! -f "$DEST/$must" ]]; then
@@ -132,6 +119,19 @@ for must in index.html app.js data/tiers.json; do
     echo "  ok $must ($sz bytes)"
   fi
 done
+
+# If Yehorivka leaked back or time column missing — force from GitHub warehouse
+NEED_REPAIR=0
+if [[ -f "$DEST/data/training/2026-10.json" ]] && grep -qi yehorivka "$DEST/data/training/2026-10.json" 2>/dev/null; then
+  NEED_REPAIR=1
+fi
+if [[ -f "$DEST/index.html" ]] && ! grep -q 'Время' "$DEST/index.html" 2>/dev/null; then
+  NEED_REPAIR=1
+fi
+if [[ "$NEED_REPAIR" -eq 1 ]]; then
+  echo "==> repair_train_live.sh (Yehorivka or missing time column)"
+  bash "$ROOT/scripts/repair_train_live.sh" || true
+fi
 
 # count JSON as sanity
 json_n=$(find "$DEST/data" -type f -name '*.json' 2>/dev/null | wc -l | tr -d ' ')

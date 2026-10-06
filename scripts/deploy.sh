@@ -84,6 +84,7 @@ echo "==> HEAD=$(git rev-parse --short HEAD)"
 
 echo "==> sync local KV cache (rp-ladder / ledger / indexes)"
 bash scripts/sync_kv_cache.sh || true
+bash scripts/repair_train_live.sh || true
 
 # Public rating reads data/public/rp-ledger.json first; deploy used to restore a
 # preserved stale copy and ignore the fresher github.io mirror in kv-cache.
