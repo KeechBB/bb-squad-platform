@@ -202,6 +202,20 @@ def existing_match_starts() -> set[str]:
     return out
 
 
+def layer_mode(layer: str) -> str:
+    """Canon: CSL* → Skirmish; else AAS/RAAS from layer name."""
+    u = (layer or "").upper()
+    if "CSL" in u:
+        return "Skirmish"
+    if "RAAS" in u:
+        return "RAAS"
+    if "AAS" in u:
+        return "AAS"
+    if "SKIRMISH" in u:
+        return "Skirmish"
+    return "—"
+
+
 def existing_month_ids() -> set[str]:
     ids: set[str] = set()
     for path in TRAIN.glob("????-??.json"):
@@ -617,7 +631,7 @@ def main() -> int:
         players_doc = {
             "matchId": mid,
             "map": layer,
-            "mode": "AAS" if "AAS" in layer.upper() else ("RAAS" if "RAAS" in layer.upper() else "—"),
+            "mode": layer_mode(layer),
             "server": "Blackberry | Training - Blackberries #1",
             "duration": duration,
             "winner": winner,
