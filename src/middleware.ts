@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import {
   STAGING_GATE_COOKIE,
+  isStagingRequestHost,
   stagingGateEnabled,
   stagingGateSecret,
   verifyStagingGateToken,
@@ -35,8 +36,9 @@ async function stagingGateOk(req: NextRequest): Promise<boolean> {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // --- Staging draft password gate (before anything else) ---
-  if (stagingGateEnabled()) {
+  // --- Staging draft password gate (ONLY on staging host) ---
+  const onStagingHost = isStagingRequestHost(req.headers.get("host"));
+  if (stagingGateEnabled() && onStagingHost) {
     const unlocked = await stagingGateOk(req);
     const isGatePage = pathname === "/staging-gate";
     const isGateApi = pathname.startsWith("/api/staging-gate");
@@ -71,8 +73,8 @@ export async function middleware(req: NextRequest) {
   }
 
   if (pathname === "/staging-gate") {
-    // Already unlocked — go home
-    if (stagingGateEnabled()) {
+    // Gate page only exists on staging; elsewhere go home
+    if (stagingGateEnabled() && onStagingHost) {
       return NextResponse.redirect(new URL("/", req.url));
     }
     return NextResponse.redirect(new URL("/", req.url));

@@ -1,10 +1,24 @@
-/** Staging password gate — only when STAGING_GATE_ENABLED=1 */
+/** Staging password gate — only when STAGING_GATE_ENABLED=1 on staging host */
 
 export const STAGING_GATE_COOKIE = "bb_stg_gate";
 
 export function stagingGateEnabled(): boolean {
   const v = (process.env.STAGING_GATE_ENABLED || "").trim().toLowerCase();
-  return v === "1" || v === "true" || v === "yes";
+  if (!(v === "1" || v === "true" || v === "yes")) return false;
+  // Safety: never gate production even if flag leaked into prod .env
+  const url = (process.env.NEXTAUTH_URL || "").trim().toLowerCase();
+  if (url.includes("bb-squad.ru") && !url.includes("staging.")) return false;
+  return true;
+}
+
+/** Host must be staging.* — bb-squad.ru must never show the draft password wall. */
+export function isStagingRequestHost(hostHeader: string | null | undefined): boolean {
+  const host = String(hostHeader || "")
+    .split(":")[0]
+    .trim()
+    .toLowerCase();
+  if (!host) return false;
+  return host === "staging.bb-squad.ru" || host.startsWith("staging.");
 }
 
 export function stagingGatePassword(): string {
