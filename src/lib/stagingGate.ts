@@ -5,9 +5,9 @@ export const STAGING_GATE_COOKIE = "bb_stg_gate";
 export function stagingGateEnabled(): boolean {
   const v = (process.env.STAGING_GATE_ENABLED || "").trim().toLowerCase();
   if (!(v === "1" || v === "true" || v === "yes")) return false;
-  // Safety: never gate production even if flag leaked into prod .env
+  // Must be the staging app (NEXTAUTH_URL). Prod .env must never gate.
   const url = (process.env.NEXTAUTH_URL || "").trim().toLowerCase();
-  if (url.includes("bb-squad.ru") && !url.includes("staging.")) return false;
+  if (!url.includes("staging.")) return false;
   return true;
 }
 
