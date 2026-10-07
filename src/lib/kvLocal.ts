@@ -15,6 +15,11 @@ export const KV_REMOTE_BASES: string[] = (() => {
   ].filter(Boolean) as string[];
 })();
 
+/** In-process memo: profile SSR hits the same JSON dozens of times per request. */
+const MEM_TTL_MS = Number(process.env.KV_MEM_TTL_MS || 45_000);
+const mem = new Map<string, { at: number; data: unknown }>();
+const inflight = new Map<string, Promise<unknown>>();
+
 /** Directories checked before remote fetch (first hit wins). */
 export function kvLocalRoots(): string[] {
   const roots = [
@@ -28,6 +33,27 @@ function cleanRel(relPath: string): string {
   return String(relPath || "")
     .replace(/^\/+/, "")
     .replace(/\.\./g, "");
+}
+
+function memGet<T>(rel: string): T | null | undefined {
+  const hit = mem.get(rel);
+  if (!hit) return undefined;
+  if (Date.now() - hit.at > MEM_TTL_MS) {
+    mem.delete(rel);
+    return undefined;
+  }
+  return hit.data as T | null;
+}
+
+function memSet(rel: string, data: unknown) {
+  mem.set(rel, { at: Date.now(), data });
+  // soft cap — drop oldest ~half if huge
+  if (mem.size > 400) {
+    const drop = [...mem.entries()]
+      .sort((a, b) => a[1].at - b[1].at)
+      .slice(0, 150);
+    for (const [k] of drop) mem.delete(k);
+  }
 }
 
 /** Read JSON from local KV cache if present. */
@@ -55,20 +81,50 @@ async function fetchRemoteJson<T>(url: string): Promise<T> {
 /**
  * Load KV JSON: local disk first; remote only if KV_ALLOW_REMOTE=1.
  * `relPath` like `data/training/rp-ladder.json`.
+ * Memoized ~45s in-process (+ coalesced in-flight).
  */
 export async function loadKvJsonCached<T>(relPath: string): Promise<T | null> {
   const rel = cleanRel(relPath);
   if (!rel) return null;
 
-  const local = await readKvLocalJson<T>(rel);
-  if (local != null) return local;
+  const cached = memGet<T>(rel);
+  if (cached !== undefined) return cached;
 
-  for (const base of KV_REMOTE_BASES) {
+  const pending = inflight.get(rel);
+  if (pending) return pending as Promise<T | null>;
+
+  const job = (async (): Promise<T | null> => {
     try {
-      return await fetchRemoteJson<T>(`${base.replace(/\/$/, "")}/${rel}`);
-    } catch {
-      /* next */
+      const local = await readKvLocalJson<T>(rel);
+      if (local != null) {
+        memSet(rel, local);
+        return local;
+      }
+
+      for (const base of KV_REMOTE_BASES) {
+        try {
+          const remote = await fetchRemoteJson<T>(
+            `${base.replace(/\/$/, "")}/${rel}`
+          );
+          memSet(rel, remote);
+          return remote;
+        } catch {
+          /* next */
+        }
+      }
+      memSet(rel, null);
+      return null;
+    } finally {
+      inflight.delete(rel);
     }
-  }
-  return null;
+  })();
+
+  inflight.set(rel, job);
+  return job;
+}
+
+/** Drop memo (tests / after heavy KV write). */
+export function clearKvMemCache() {
+  mem.clear();
+  inflight.clear();
 }

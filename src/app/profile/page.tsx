@@ -1,7 +1,7 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { AvatarEditor } from "@/components/AvatarEditor";
-import { isAdmin, syncBuiltinAdmins } from "@/lib/admin";
+import { isAdmin } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 import { ClanInvites } from "@/components/ClanInvites";
 import { AdminPanelLink } from "@/components/AdminPanelLink";
@@ -12,7 +12,6 @@ import { ProfileHitmapCard } from "@/components/ProfileHitmapCard";
 import { TrainingSessionsCard } from "@/components/TrainingSessionsCard";
 import { ProfileMatchHistoryTabs } from "@/components/ProfileMatchHistoryTabs";
 import { ProfilePublicRatingCard } from "@/components/ProfilePublicRatingCard";
-import { LivePageRefresh } from "@/components/LivePageRefresh";
 import { formatRuDate } from "@/lib/validation";
 import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
 import { CLAN_ROLE_LABEL, type ClanRole } from "@/lib/clan";
@@ -43,7 +42,7 @@ export default async function ProfilePage() {
 
   const u = session.user;
   const displayAvatar = u.avatarUrl || null;
-  await syncBuiltinAdmins();
+  // syncBuiltinAdmins — не на каждый заход в профиль (лишний UPDATE в Postgres)
   const admin = await isAdmin(u.steamId);
 
   const me = await prisma.user.findUnique({
@@ -224,12 +223,20 @@ export default async function ProfilePage() {
         <ProfileHitmapCard
           userId={me.id}
           subtitle="TR1+TR2"
-          matchHistory={matchHistory}
+          matchHistory={matchHistory.map((m) => ({
+            matchId: m.matchId,
+            dateLabel: m.dateLabel,
+            map: m.map,
+            timeLabel: m.timeLabel,
+            ticketsA: m.ticketsA,
+            ticketsB: m.ticketsB,
+            won: m.won,
+          }))}
         />
       </div>
 
       <div className="profile-area-training">
-        <LivePageRefresh intervalMs={15000} />
+        {/* Без LivePageRefresh: полный router.refresh каждые 15с убивал клики */}
         <TrainingSessionsCard
           sessions={training.sessions}
           presentDays={training.presentDays}

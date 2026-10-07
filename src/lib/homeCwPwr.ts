@@ -469,13 +469,31 @@ export async function buildPlayerCwMatchHistory(
   let prevPwr = 0;
   const history: CwMatchHistoryRow[] = [];
 
-  for (const match of matchMetas) {
-    const players = await loadFromKv<{
-      r1?: PlayerLine[];
-      r2?: PlayerLine[];
-      total?: PlayerLine[];
-      players?: PlayerLine[];
-    }>(match.playersUrl);
+  const CONCURRENCY = 12;
+  type PlayersDoc = {
+    r1?: PlayerLine[];
+    r2?: PlayerLine[];
+    total?: PlayerLine[];
+    players?: PlayerLine[];
+  };
+  const playerDocs: (PlayersDoc | null)[] = new Array(matchMetas.length).fill(
+    null
+  );
+  for (let i = 0; i < matchMetas.length; i += CONCURRENCY) {
+    const slice = matchMetas.slice(i, i + CONCURRENCY);
+    const loaded = await Promise.all(
+      slice.map((match) =>
+        loadFromKv<PlayersDoc>(match.playersUrl).catch(() => null)
+      )
+    );
+    for (let j = 0; j < loaded.length; j++) {
+      playerDocs[i + j] = loaded[j];
+    }
+  }
+
+  for (let mi = 0; mi < matchMetas.length; mi++) {
+    const match = matchMetas[mi];
+    const players = playerDocs[mi];
     if (!players) continue;
     const byNick = sumMeetingPlayers(players);
     let mine = byNick.get(want);

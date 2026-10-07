@@ -524,17 +524,36 @@ export async function buildPlayerTrainMatchHistory(
   const startRp = Number(ladder?.startRp) || 1000;
   const step = Number(ladder?.step) || 150;
   const radiant3Max = Number(ladder?.radiant3Max) || 4500;
-  let runningRp: number | null = null;
 
+  // Parallel disk reads (mem-cache coalesces duplicates with combat stats).
+  const CONCURRENCY = 12;
+  type PlayersDoc = {
+    players?: Record<string, unknown>[];
+    teamA?: Record<string, unknown>[];
+    teamB?: Record<string, unknown>[];
+    winner?: string;
+  };
+  const playerDocs: (PlayersDoc | null)[] = new Array(matchMetas.length).fill(
+    null
+  );
+  for (let i = 0; i < matchMetas.length; i += CONCURRENCY) {
+    const slice = matchMetas.slice(i, i + CONCURRENCY);
+    const loaded = await Promise.all(
+      slice.map((match) =>
+        loadFromKv<PlayersDoc>(match.playersUrl).catch(() => null)
+      )
+    );
+    for (let j = 0; j < loaded.length; j++) {
+      playerDocs[i + j] = loaded[j];
+    }
+  }
+
+  let runningRp: number | null = null;
   const history: TrainMatchHistoryRow[] = [];
 
-  for (const match of matchMetas) {
-    const players = await loadFromKv<{
-      players?: Record<string, unknown>[];
-      teamA?: Record<string, unknown>[];
-      teamB?: Record<string, unknown>[];
-      winner?: string;
-    }>(match.playersUrl);
+  for (let i = 0; i < matchMetas.length; i++) {
+    const match = matchMetas[i];
+    const players = playerDocs[i];
     if (!players) continue;
     const list = (
       players.players?.length

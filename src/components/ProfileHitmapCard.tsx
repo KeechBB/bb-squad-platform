@@ -8,9 +8,18 @@ import {
   useRef,
   useState,
 } from "react";
-import type { TrainMatchHistoryRow } from "@/lib/homeTrainPwr";
-
 export type HitBoneCounts = Record<string, number>;
+
+/** Slim list for picker — full TrainMatchHistoryRow bloated RSC payload. */
+export type HitmapMatchOption = {
+  matchId: string;
+  dateLabel: string;
+  map: string;
+  timeLabel?: string;
+  ticketsA?: number | null;
+  ticketsB?: number | null;
+  won?: boolean | null;
+};
 
 type Props = {
   userId: string;
@@ -20,7 +29,7 @@ type Props = {
   /** подпись под заголовком */
   subtitle?: string | null;
   /** История тренировочных матчей (как во вкладке «Тренировочные матчи») */
-  matchHistory?: TrainMatchHistoryRow[];
+  matchHistory?: HitmapMatchOption[];
 };
 
 /** Точки: кость с макс.% → 15, с мин.% → 1 (относительно этого игрока). */
@@ -156,12 +165,12 @@ function offsets(n: number): [number, number][] {
   return out;
 }
 
-function matchShortLabel(m: TrainMatchHistoryRow): string {
+function matchShortLabel(m: HitmapMatchOption): string {
   const map = (m.map || "матч").trim().replace(/\s+/g, " ");
   return `${m.dateLabel} · ${map}`;
 }
 
-function matchScore(m: TrainMatchHistoryRow): string {
+function matchScore(m: HitmapMatchOption): string {
   return `${m.ticketsA ?? "—"}:${m.ticketsB ?? "—"}`;
 }
 
