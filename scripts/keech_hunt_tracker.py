@@ -804,11 +804,17 @@ class KeechHuntTracker:
         if not row or row.get("seed"):
             return
         layer = str(row.get("layer") or row.get("layerShort") or "")
+        short = str(row.get("layerShort") or "")
         if _is_seed_layer(layer):
+            return
+        # Never put mystery "?" buckets into «Память» — only real finished maps.
+        if short in ("", "?"):
             return
         archived = dict(row)
         archived["endAt"] = archived.get("endAt") or ended.isoformat()
         if not archived.get("events"):
+            return
+        if len(archived["events"]) < 2:
             return
         mem = self._load_memory()
         mem = [m for m in mem if m.get("id") != archived["id"]]
