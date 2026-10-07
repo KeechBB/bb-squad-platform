@@ -233,6 +233,7 @@ export default async function ProfilePage() {
       <div className="profile-area-hitmap">
         <ProfileHitmapCard
           userId={me.id}
+          nick={nickForKv || me.nick || undefined}
           subtitle="TR1+TR2"
           matchHistory={[]}
         />

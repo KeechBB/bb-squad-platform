@@ -178,6 +178,7 @@ export default async function PlayerProfilePage({ params }: Props) {
           {primarySteam ? (
             <ProfileHitmapCard
               steamId={primarySteam}
+              nick={displayNick}
               bones={hits.bones}
               lastBone={hits.lastBone}
               subtitle="TR1+TR2"
@@ -421,8 +422,9 @@ export default async function PlayerProfilePage({ params }: Props) {
       <div className="profile-area-hitmap">
         <ProfileHitmapCard
           userId={user.id}
+          nick={nickForKv || user.nick || undefined}
           subtitle="TR1+TR2"
-          matchHistory={matchHistory}
+          matchHistory={[]}
         />
       </div>
 

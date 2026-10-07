@@ -183,7 +183,8 @@ export function ProfileHitmapCard({
   lastBone: initialLastBone,
   subtitle,
   matchHistory = [],
-}: Props) {
+  nick,
+}: Props & { nick?: string | null }) {
   const uid = useId().replace(/:/g, "");
   const identityKey = userId || steamId || "";
   const [bones, setBones] = useState<HitBoneCounts>(initialBones || {});
@@ -193,11 +194,15 @@ export function ProfileHitmapCard({
   const [matchId, setMatchId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [remoteMatches, setRemoteMatches] = useState<HitmapMatchOption[]>([]);
+  const [matchesLoading, setMatchesLoading] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
+  const effectiveHistory = matchHistory.length ? matchHistory : remoteMatches;
+
   const selectedMatch = useMemo(
-    () => matchHistory.find((m) => m.matchId === matchId) || null,
-    [matchHistory, matchId]
+    () => effectiveHistory.find((m) => m.matchId === matchId) || null,
+    [effectiveHistory, matchId]
   );
 
   useEffect(() => {
@@ -205,6 +210,7 @@ export function ProfileHitmapCard({
     setLastBone(initialLastBone || null);
     setMatchId(null);
     setPickerOpen(false);
+    setRemoteMatches([]);
   }, [initialBones, initialLastBone, identityKey]);
 
   const load = useCallback(
@@ -215,7 +221,7 @@ export function ProfileHitmapCard({
         const q = new URLSearchParams();
         if (userId) q.set("userId", userId);
         else if (steamId) q.set("steamId", steamId);
-        if (nextMatchId && userId) q.set("matchId", nextMatchId);
+        if (nextMatchId) q.set("matchId", nextMatchId);
         const res = await fetch(`/api/hitmap?${q}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as {
@@ -233,6 +239,28 @@ export function ProfileHitmapCard({
     [userId, steamId]
   );
 
+  const loadMatches = useCallback(async () => {
+    if (!userId && !steamId) return;
+    if (matchHistory.length > 0) return;
+    setMatchesLoading(true);
+    try {
+      const q = new URLSearchParams();
+      if (userId) q.set("userId", userId);
+      if (steamId) q.set("steamId", steamId);
+      if (nick) q.set("nick", nick);
+      const res = await fetch(`/api/hitmap/matches?${q}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as { matches?: HitmapMatchOption[] };
+      setRemoteMatches(data.matches || []);
+    } catch {
+      setRemoteMatches([]);
+    } finally {
+      setMatchesLoading(false);
+    }
+  }, [userId, steamId, nick, matchHistory.length]);
+
   // Lazy: after first paint when SSR skipped bones
   useEffect(() => {
     const empty =
@@ -241,14 +269,22 @@ export function ProfileHitmapCard({
     void load(null);
   }, [identityKey, initialBones, load]);
 
+  // Подтянуть список матчей с хитами (если SSR отдал пусто)
+  useEffect(() => {
+    if (matchHistory.length > 0) return;
+    if (!identityKey) return;
+    void loadMatches();
+  }, [identityKey, matchHistory.length, loadMatches]);
+
   useEffect(() => {
     if (!pickerOpen) return;
+    if (!effectiveHistory.length && !matchesLoading) void loadMatches();
     const onDoc = (e: MouseEvent) => {
       if (!wrapRef.current?.contains(e.target as Node)) setPickerOpen(false);
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
-  }, [pickerOpen]);
+  }, [pickerOpen, effectiveHistory.length, matchesLoading, loadMatches]);
 
   const selectAllTime = () => {
     setMatchId(null);
@@ -362,15 +398,19 @@ export function ProfileHitmapCard({
               aria-label="Тренировочные матчи"
             >
               <div className="profile-hitmap-matches-head">
-                Тренировочные матчи
+                Матчи с попаданиями
               </div>
-              {matchHistory.length === 0 ? (
+              {matchesLoading && effectiveHistory.length === 0 ? (
+                <p className="muted profile-hitmap-matches-empty">
+                  Ищем раунды…
+                </p>
+              ) : effectiveHistory.length === 0 ? (
                 <p className="muted profile-hitmap-matches-empty">
                   Нет матчей с логами попаданий (BBHitZone).
                 </p>
               ) : (
                 <ul className="profile-hitmap-matches-list">
-                  {matchHistory.map((m) => {
+                  {effectiveHistory.map((m) => {
                     const active = m.matchId === matchId;
                     const resultCls =
                       m.won === true

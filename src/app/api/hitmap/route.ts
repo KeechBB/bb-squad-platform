@@ -6,6 +6,7 @@ import {
   bonesForUser,
   bonesForUserMatch,
   bonesForSteamIds,
+  bonesForSteamMatch,
 } from "@/lib/squadHits";
 import { normalizeSteamId } from "@/lib/squadSessions";
 
@@ -68,6 +69,21 @@ export async function GET(req: Request) {
       ok: true,
       matchId: null,
       day,
+      bones: stats.bones,
+      total: stats.total,
+      lastBone: stats.lastBone,
+    });
+  }
+
+  if (matchId) {
+    const stats = await bonesForSteamMatch([steamId], matchId);
+    if (!stats) {
+      return NextResponse.json({ error: "match not found" }, { status: 404 });
+    }
+    return NextResponse.json({
+      ok: true,
+      matchId,
+      day: null,
       bones: stats.bones,
       total: stats.total,
       lastBone: stats.lastBone,
