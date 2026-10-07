@@ -39,6 +39,16 @@ SERVERS = frozenset({"TPUB1", "PB1", "PUB", "TR1", "TR2"})
 
 MSK = timezone(timedelta(hours=3))
 LINE_TS = re.compile(r"^\[(?P<ts>\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2})")
+LOGIN_RE = re.compile(
+    r"LogNet: Login request: \?Name=(?P<name>[^?]+)"
+    r"(?:\?[^\s]*)?"
+    r"\s+userId: RedpointEOS:(?P<eos>[0-9a-fA-F]{32})",
+    re.I,
+)
+REMOVE_RE = re.compile(
+    r"RemovePlayer\(UserId:\s*(?P<eos>[0-9a-fA-F]{32})\)",
+    re.I,
+)
 PC_RE = re.compile(
     r"PC=(?P<nick>.+?)\s*\(Online IDs:\s*EOS:\s*(?P<eos>[0-9a-fA-F]+)\s+steam:\s*(?P<steam>7656\d+)",
     re.I,
@@ -105,12 +115,37 @@ class KeechHuntTracker:
         self._hits: list[dict[str, Any]] = []
         # server -> open match
         self.matches: dict[str, dict[str, Any]] = {}
+        # Only this server is shown in Hunt live (where Keech is right now).
+        self.keech_server: str | None = None
         self._dirty = False
         self._last_write = 0.0
         OUT_DIR.mkdir(parents=True, exist_ok=True)
         self._hydrate_from_live()
         if not LIVE_PATH.is_file():
             self._write_live_empty()
+
+    def _mark_keech_on(self, server: str) -> None:
+        srv = _norm_server(server)
+        if not srv:
+            return
+        if self.keech_server != srv:
+            self.keech_server = srv
+            self._dirty = True
+
+    def _mark_keech_left(self, server: str) -> None:
+        srv = _norm_server(server)
+        if self.keech_server == srv:
+            self.keech_server = None
+            self._dirty = True
+
+    def _keech_here(self, server: str) -> bool:
+        return bool(self.keech_server) and self.keech_server == _norm_server(server)
+
+    def _is_keech_eos(self, eos: str) -> bool:
+        e = (eos or "").strip().lower()
+        if not e or e == "none":
+            return False
+        return self.eos_steam.get(e) == KEECH_STEAM
 
     def _hydrate_from_live(self) -> None:
         if not LIVE_PATH.is_file():
@@ -119,6 +154,9 @@ class KeechHuntTracker:
             data = json.loads(LIVE_PATH.read_text(encoding="utf-8"))
         except Exception:
             return
+        ks = _norm_server(str(data.get("keechServer") or ""))
+        if ks:
+            self.keech_server = ks
         rows = list(data.get("matches") or [])
         if not rows and data.get("match"):
             rows = [data["match"]]
@@ -131,6 +169,9 @@ class KeechHuntTracker:
             row = dict(row)
             row["server"] = srv
             self.matches[srv] = row
+            # Infer presence from open match with Keech combat if not stored.
+            if not self.keech_server and (row.get("events") or []):
+                self.keech_server = srv
 
     @property
     def match(self) -> dict[str, Any] | None:
@@ -165,31 +206,22 @@ class KeechHuntTracker:
             return False
 
     def _primary_match(self) -> dict[str, Any] | None:
-        if not self.matches:
+        """Live Hunt shows only the server Keech is on — never another TR/PB."""
+        if not self.keech_server or not self.matches:
+            return None
+        m = self.matches.get(self.keech_server)
+        if not m:
             return None
         now = datetime.now(timezone.utc)
-        open_live = [
-            m
-            for m in self.matches.values()
-            if m
-            and not m.get("endAt")
-            and not m.get("seed")
-            and not _is_seed_layer(str(m.get("layer") or m.get("layerShort") or ""))
-            and not self._is_stale_open(m, now=now)
-            and (m.get("events") or [])  # never show empty TR junk as "current"
-        ]
-        if not open_live:
+        if (
+            m.get("endAt")
+            or m.get("seed")
+            or _is_seed_layer(str(m.get("layer") or m.get("layerShort") or ""))
+            or self._is_stale_open(m, now=now)
+            or not (m.get("events") or [])
+        ):
             return None
-
-        def sort_key(m: dict[str, Any]) -> tuple[int, str]:
-            srv = str(m.get("server") or "").upper()
-            # Prefer public PB1 when several servers have open maps
-            pref = 2 if srv in ("TPUB1", "PB1", "PUB") else 1 if srv in ("TR1", "TR2") else 0
-            ev = m.get("events") or []
-            ts = str(ev[-1].get("at") or m.get("startAt") or "") if ev else str(m.get("startAt") or "")
-            return (pref, ts)
-
-        return max(open_live, key=sort_key)
+        return m
 
     def _ledger_for(self, server: str | None = None) -> Path:
         srv = _norm_server(server or "")
@@ -445,13 +477,30 @@ class KeechHuntTracker:
             self.steam_nick[steam] = nick
             self.eos_steam[eos] = steam
             self.eos_nick[eos] = nick
+            if steam == KEECH_STEAM or R.nick_key(nick) == "keech":
+                self._mark_keech_on(server)
+
+        # Presence: Keech login / leave — Hunt live follows only that server.
+        if "Login request:" in line:
+            lm = LOGIN_RE.search(line)
+            if lm:
+                eos = (lm.group("eos") or "").lower()
+                nick = R.strip_tag(lm.group("name") or "")
+                if self._is_keech_eos(eos) or R.nick_key(nick) == "keech":
+                    self._mark_keech_on(server)
+        if "RemovePlayer" in line:
+            rm = REMOVE_RE.search(line)
+            if rm and self._is_keech_eos(rm.group("eos") or ""):
+                self._mark_keech_left(server)
 
         if "has created Squad" in line:
             cm = R.CREATE_SQUAD_RE.search(line)
             if cm:
                 self.steam_faction[cm.group("steam")] = (cm.group("faction") or "").strip()
 
-        if "SeamlessTravel to:" in line and "HandleSeamless" not in line and "InitSeamless" not in line:
+        # Map rotation only where Keech is. Combat below self-filters to Keech
+        # and may mark presence (first fight after missed Login).
+        if "SeamlessTravel to:" in line and "HandleSeamless" not in line and "InitSeamless" not in line and self._keech_here(server):
             m = R.TRAVEL_RE.search(line)
             if m:
                 layer = m.group("path").strip()
@@ -487,7 +536,10 @@ class KeechHuntTracker:
                         self._dirty = True
                 self._ensure_match(server, layer, at)
 
-        if "has won the match" in line or "has lost the match" in line:
+        if (
+            ("has won the match" in line or "has lost the match" in line)
+            and self._keech_here(server)
+        ):
             mm = MATCH_END_RE.search(line)
             if mm:
                 layer = (mm.group("layer") or "").strip()
@@ -512,7 +564,11 @@ class KeechHuntTracker:
                         self.matches.pop(server, None)
                         self._dirty = True
 
-        if "Match State Changed" in line and "LogGameMode" in line:
+        if (
+            "Match State Changed" in line
+            and "LogGameMode" in line
+            and self._keech_here(server)
+        ):
             sm = R.STATE_RE.search(line)
             if sm and sm.group("state") == "InProgress":
                 cur = self.matches.get(server)
@@ -580,6 +636,7 @@ class KeechHuntTracker:
                     self.eos_steam.get(veos) == KEECH_STEAM or veos == keech_eos
                 )
                 if is_keech_atk or is_keech_vic:
+                    self._mark_keech_on(server)
                     self._hits.append(
                         {
                             "at": at,
@@ -607,6 +664,7 @@ class KeechHuntTracker:
                 vkey = R.nick_key(victim)
                 # Nok = Wound() down. Card from cutover: enemy +N×0.1 / TK −N×0.5.
                 if ksteam == KEECH_STEAM and vkey != "keech":
+                    self._mark_keech_on(server)
                     veos = ""
                     for e, s in self.eos_steam.items():
                         if s != KEECH_STEAM and R.nick_key(
@@ -655,6 +713,7 @@ class KeechHuntTracker:
                         at,
                     )
                 elif vkey == "keech" and ksteam != KEECH_STEAM:
+                    self._mark_keech_on(server)
                     # Who knocked Keech down (Wound), not a final Die
                     attacker = self._nick_of_steam(ksteam)
                     bones_on_me: dict[str, int] = {}
@@ -697,6 +756,7 @@ class KeechHuntTracker:
                 victim = R.strip_tag(victim_raw)
                 vkey = R.nick_key(victim)
                 if ksteam == KEECH_STEAM and vkey != "keech":
+                    self._mark_keech_on(server)
                     vsteam = ""
                     for e, s in self.eos_steam.items():
                         if R.nick_key(self.eos_nick.get(e, "")) == vkey:
@@ -732,6 +792,7 @@ class KeechHuntTracker:
                         at,
                     )
                 elif vkey == "keech":
+                    self._mark_keech_on(server)
                     if ksteam == KEECH_STEAM:
                         self._add_event(
                             server,
@@ -783,6 +844,7 @@ class KeechHuntTracker:
         if " has revived " in line:
             rm = R.REVIVE_RE.search(line)
             if rm and rm.group("msteam") == KEECH_STEAM:
+                self._mark_keech_on(server)
                 patient = R.strip_tag(rm.group("patient"))
                 dlt, _me, pv = self._delta_revive(patient, at=at, server=server)
                 self._last_wound_by_keech.pop(R.nick_key(patient), None)
@@ -905,6 +967,7 @@ class KeechHuntTracker:
                     "match": None,
                     "matches": [],
                     "keechSteam": KEECH_STEAM,
+                    "keechServer": None,
                 },
                 ensure_ascii=False,
                 indent=2,
@@ -954,11 +1017,20 @@ class KeechHuntTracker:
         # Primary = current map only. Finished → «Память», never live columns.
         primary = self._primary_match()
         match_out = dict(primary) if primary else None
+        # Chips / live: only the server Keech is on (empty if offline).
+        if self.keech_server:
+            open_list = [
+                m for m in open_list if _norm_server(str(m.get("server") or "")) == self.keech_server
+            ]
+        else:
+            open_list = []
+            match_out = None
         payload = {
             "updatedAt": now_dt.isoformat(),
             "match": match_out,
             "matches": open_list,
             "keechSteam": KEECH_STEAM,
+            "keechServer": self.keech_server,
         }
         LIVE_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
