@@ -659,7 +659,61 @@ def purge_phantom_train_matches() -> int:
             AUTO_MATCHES.write_text(
                 json.dumps(auto2, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
             )
+    if drop_ids:
+        strip_ids_from_rp_files(drop_ids)
     return removed
+
+
+def strip_ids_from_rp_files(drop_ids: set[str]) -> None:
+    """Remove purged match ids from rp-ledger/rp-ladder and unwind ΔRP.
+
+    Without this, incremental RP keeps phantom -5/-6 forever after month dedupe.
+    """
+    if not drop_ids:
+        return
+    for name in ("rp-ledger.json", "rp-ladder.json"):
+        path = TRAIN / name
+        if not path.is_file():
+            continue
+        try:
+            doc = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as e:
+            print(f"warn: strip rp {name}: {e}", flush=True)
+            continue
+        before = len(doc.get("matches") or [])
+        doc["matches"] = [
+            m
+            for m in (doc.get("matches") or [])
+            if str(m.get("id") or "") not in drop_ids
+        ]
+        for _pk, pl in list((doc.get("players") or {}).items()):
+            if not isinstance(pl, dict):
+                continue
+            kept = []
+            unwind = 0.0
+            for hm in pl.get("matches") or []:
+                mid = str(hm.get("id") or "")
+                if mid in drop_ids:
+                    try:
+                        unwind += float(hm.get("net") or 0)
+                    except (TypeError, ValueError):
+                        pass
+                    continue
+                kept.append(hm)
+            pl["matches"] = kept
+            if unwind:
+                try:
+                    pl["rp"] = round(float(pl.get("rp") or 1000) - unwind, 1)
+                except (TypeError, ValueError):
+                    pass
+        path.write_text(
+            json.dumps(doc, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+        print(
+            f"strip rp {name}: matches {before}→{len(doc.get('matches') or [])} "
+            f"drop={sorted(drop_ids)[:8]}",
+            flush=True,
+        )
 
 
 def reconcile_orphan_player_files() -> int:

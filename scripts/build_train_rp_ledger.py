@@ -564,6 +564,59 @@ def main() -> None:
         except Exception as e:
             print(f"warn: could not read existing ledger: {e}", flush=True)
 
+    canon_ids = {m["id"] for m in MATCHES}
+
+    def prune_orphan_ledger(doc: dict | None) -> dict | None:
+        """Drop ledger rows whose match id is gone from month/auto (renumber phantoms).
+
+        Unwinds per-player net from rp so incremental rebuild stays consistent.
+        """
+        if not doc:
+            return doc
+        kept_matches = []
+        orphan_ids: set[str] = set()
+        for m in doc.get("matches") or []:
+            mid = str(m.get("id") or "")
+            if mid and mid not in canon_ids:
+                orphan_ids.add(mid)
+                continue
+            kept_matches.append(m)
+        if not orphan_ids:
+            return doc
+        print(
+            f"prune orphan ledger matches ({len(orphan_ids)}): "
+            f"{sorted(orphan_ids)[:12]}{'…' if len(orphan_ids) > 12 else ''}",
+            flush=True,
+        )
+        players = dict(doc.get("players") or {})
+        for _pk, pl in players.items():
+            if not isinstance(pl, dict):
+                continue
+            hist = list(pl.get("matches") or [])
+            kept_h = []
+            unwind = 0.0
+            for hm in hist:
+                mid = str(hm.get("id") or "")
+                if mid in orphan_ids:
+                    try:
+                        unwind += float(hm.get("net") or 0)
+                    except (TypeError, ValueError):
+                        pass
+                    continue
+                kept_h.append(hm)
+            if unwind:
+                try:
+                    pl["rp"] = round(float(pl.get("rp") or START_RP) - unwind, 1)
+                except (TypeError, ValueError):
+                    pass
+            pl["matches"] = kept_h
+        doc["matches"] = kept_matches
+        doc["players"] = players
+        return doc
+
+    if existing and not force_full:
+        existing = prune_orphan_ledger(existing)
+
     done_ids = {
         str(m.get("id"))
         for m in (existing or {}).get("matches") or []
@@ -582,6 +635,116 @@ def main() -> None:
     pending = [m for m in pending if m["log"] not in missing_names]
 
     if not pending:
+        # Persist orphan prune + refresh slim ladder so site stops counting ghosts.
+        if existing is not None:
+            ranked0 = sorted(
+                (
+                    (
+                        canon_key(str(p.get("nick") or k), aliases),
+                        float(p.get("rp") or START_RP),
+                    )
+                    for k, p in (existing.get("players") or {}).items()
+                    if isinstance(p, dict)
+                ),
+                key=lambda x: -x[1],
+            )
+            predator_place0: dict[str, int] = {}
+            place0 = 0
+            for k0, val0 in ranked0:
+                info0 = rp_rank(val0)
+                if info0["predator"]:
+                    place0 += 1
+                    predator_place0[k0] = place0
+            for k0, val0 in ranked0:
+                pl = None
+                for _pk, p in (existing.get("players") or {}).items():
+                    if canon_key(str(p.get("nick") or _pk), aliases) == k0:
+                        pl = p
+                        break
+                if not pl:
+                    continue
+                info0 = rp_rank(val0)
+                pl["rp"] = round(max(MIN_RP, float(val0)), 1)
+                pl["rankLabel"] = info0["label"]
+                pl["rankKey"] = info0["rankKey"]
+                pl["roman"] = info0["roman"]
+                pl["predator"] = info0["predator"]
+                pl["predatorPlace"] = predator_place0.get(k0)
+            existing["updatedAt"] = datetime.now(timezone.utc).isoformat()
+            lb = []
+            for k0, val0 in ranked0:
+                pl = None
+                for _pk, p in (existing.get("players") or {}).items():
+                    if canon_key(str(p.get("nick") or _pk), aliases) == k0:
+                        pl = p
+                        break
+                info0 = rp_rank(val0)
+                lb.append(
+                    {
+                        "nick": (pl or {}).get("nick") or k0,
+                        "rp": round(max(MIN_RP, float(val0)), 1),
+                        "rankLabel": info0["label"],
+                        "rankKey": info0["rankKey"],
+                        "predatorPlace": predator_place0.get(k0),
+                    }
+                )
+            existing["leaderboard"] = lb
+            OUT.write_text(
+                json.dumps(existing, ensure_ascii=False, separators=(",", ":"))
+                + "\n",
+                encoding="utf-8",
+            )
+            slim_matches = []
+            for m in existing.get("matches") or []:
+                slim_matches.append(
+                    {
+                        "id": m.get("id"),
+                        "map": m.get("map"),
+                        "date": m.get("date"),
+                        "netByNick": m.get("netByNick") or {},
+                        "giveUpKills": m.get("giveUpKills"),
+                        "teamkills": m.get("teamkills"),
+                        "revives": m.get("revives"),
+                    }
+                )
+            slim_players = {}
+            for k, p in (existing.get("players") or {}).items():
+                if not isinstance(p, dict):
+                    continue
+                slim_players[k] = {
+                    "nick": p.get("nick"),
+                    "rp": p.get("rp"),
+                    "rankLabel": p.get("rankLabel"),
+                    "rankKey": p.get("rankKey"),
+                    "roman": p.get("roman"),
+                    "predator": p.get("predator"),
+                    "predatorPlace": p.get("predatorPlace"),
+                    "matches": [
+                        {
+                            "id": hm.get("id"),
+                            "map": hm.get("map"),
+                            "date": hm.get("date"),
+                            "net": hm.get("net"),
+                        }
+                        for hm in (p.get("matches") or [])
+                    ],
+                }
+            ladder = {
+                "version": existing.get("version"),
+                "updatedAt": existing.get("updatedAt"),
+                "startRp": existing.get("startRp"),
+                "step": existing.get("step"),
+                "radiant3Max": existing.get("radiant3Max"),
+                "pMax": existing.get("pMax"),
+                "matches": slim_matches,
+                "players": slim_players,
+                "leaderboard": existing.get("leaderboard") or [],
+            }
+            OUT_LADDER.write_text(
+                json.dumps(ladder, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            print(f"refreshed pruned ledger/ladder ({len(done_ids)} matches)", flush=True)
         print(
             f"RP ledger up to date ({len(done_ids)} matches) — nothing to append",
             flush=True,
