@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import type { RpMatchEvent, RpPlayerMatch } from "@/lib/trainRp";
 
 function fmtDelta(n: number) {
@@ -148,7 +150,20 @@ export function RpHuntMatchBreakdown({ match, onClose }: Props) {
         10
     ) / 10;
 
-  return (
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+
+  const ui = (
     <div
       className="rp-breakdown-overlay rp-breakdown-overlay-detail"
       role="dialog"
@@ -159,20 +174,34 @@ export function RpHuntMatchBreakdown({ match, onClose }: Props) {
     >
       <div className="rp-breakdown-panel hunt-wide">
         <header className="rp-breakdown-head">
-          <div>
-            <h3>
-              {match.map} · {dateShort}
-            </h3>
-            <p className="muted">
-              NET {fmtDelta(net)} · N {nokRows.length} / GN {gotRows.length} / K{" "}
-              {killRows.length} / D {deathRows.length} / R {reviveRows.length}
-            </p>
+          <div className="rp-breakdown-head-main">
+            <button
+              type="button"
+              className="rp-breakdown-back"
+              onClick={onClose}
+            >
+              ← Назад
+            </button>
+            <div>
+              <h3>
+                {match.map} · {dateShort}
+              </h3>
+              <p className="muted">
+                NET {fmtDelta(net)} · N {nokRows.length} / GN {gotRows.length} / K{" "}
+                {killRows.length} / D {deathRows.length} / R {reviveRows.length}
+              </p>
+            </div>
           </div>
-          <button type="button" className="rp-breakdown-close" onClick={onClose}>
+          <button
+            type="button"
+            className="rp-breakdown-close"
+            aria-label="Закрыть"
+            onClick={onClose}
+          >
             ✕
           </button>
         </header>
-        <div className="keech-hunt-cols detail">
+        <div className="keech-hunt-cols detail rp-breakdown-cols-scroll">
           <Col title={`ноки (${nokRows.length})`} rows={nokRows} />
           <Col title={`+ киллы (${killRows.length})`} rows={killRows} />
           <Col title={`− смерти (${deathRows.length})`} rows={deathRows} />
@@ -182,4 +211,7 @@ export function RpHuntMatchBreakdown({ match, onClose }: Props) {
       </div>
     </div>
   );
+
+  if (typeof document === "undefined") return ui;
+  return createPortal(ui, document.body);
 }

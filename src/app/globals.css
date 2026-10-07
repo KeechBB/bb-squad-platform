@@ -7836,14 +7836,17 @@ body:has(.home-page) {
   justify-content: center;
   padding: 18px;
 }
-/* поверх списка карт (профиль: overflow:hidden иначе клипнул разбор) */
+/* поверх профиля (portal → body; z выше shell) */
 .rp-breakdown-overlay-detail {
-  z-index: 130;
+  z-index: 240;
 }
 .rp-breakdown-panel {
   width: min(1100px, 100%);
   max-height: min(88vh, 920px);
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
   background: #120a1c;
   border: 1px solid rgba(167, 139, 250, 0.28);
   border-radius: 12px;
@@ -7860,6 +7863,29 @@ body:has(.home-page) {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 14px;
+  flex: 0 0 auto;
+}
+.rp-breakdown-head-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+.rp-breakdown-back {
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  background: rgba(167, 139, 250, 0.12);
+  color: #e8e0ff;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.86rem;
+  font-family: inherit;
+  cursor: pointer;
+  line-height: 1.2;
+}
+.rp-breakdown-back:hover {
+  background: rgba(167, 139, 250, 0.22);
+  border-color: rgba(167, 139, 250, 0.55);
 }
 .rp-breakdown-head h3 {
   margin: 0;
@@ -7876,6 +7902,16 @@ body:has(.home-page) {
   width: 34px;
   height: 34px;
   cursor: pointer;
+  flex: 0 0 auto;
+}
+.rp-breakdown-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.rp-breakdown-cols-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .rp-breakdown-cols {
   display: grid;
@@ -11692,13 +11728,18 @@ body.profile-match-modal-open {
 
 .profile-hist-row-click {
   cursor: pointer;
-  transition: background 0.12s ease;
+  transition: background 0.12s ease, box-shadow 0.12s ease;
 }
 
 .profile-hist-row-click:hover,
 .profile-hist-row-click:focus-visible {
-  background: rgba(167, 139, 250, 0.1);
+  background: rgba(167, 139, 250, 0.18);
+  box-shadow: inset 3px 0 0 rgba(167, 139, 250, 0.85);
   outline: none;
+}
+
+.profile-hist-row-click:active {
+  background: rgba(167, 139, 250, 0.26);
 }
 
 .profile-match-modal {
@@ -12902,13 +12943,22 @@ body.profile-match-modal-open {
   gap: 14px;
   padding: 16px 18px;
   overflow-x: auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .keech-hunt-col {
   min-width: 160px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
+}
+.keech-hunt-col h4 {
+  flex: 0 0 auto;
 }
 .keech-hunt-cols.detail {
   margin-top: 4px;
+  padding: 4px 2px 8px;
 }
 @media (max-width: 1100px) {
   .keech-hunt-cols {
@@ -12924,9 +12974,12 @@ body.profile-match-modal-open {
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: min(62vh, 640px);
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: min(58vh, 560px);
   overflow-x: hidden;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .keech-hunt-list.live {
   max-height: min(70vh, 720px);
@@ -12936,10 +12989,16 @@ body.profile-match-modal-open {
   grid-template-columns: 64px minmax(0, 1fr) 52px 26px;
   gap: 8px;
   align-items: center;
-  padding: 7px 2px;
+  padding: 7px 6px;
+  margin: 0 -4px;
+  border-radius: 6px;
   border-bottom: 1px solid rgba(167, 139, 250, 0.1);
   font-size: 0.9rem;
   min-width: 0;
+  transition: background 0.12s ease;
+}
+.keech-hunt-row:hover {
+  background: rgba(167, 139, 250, 0.12);
 }
 .keech-hunt-time {
   font-variant-numeric: tabular-nums;

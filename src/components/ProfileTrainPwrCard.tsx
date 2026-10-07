@@ -232,20 +232,10 @@ export function ProfileTrainPwrCard({ stats, compareNick }: Props) {
       {mapsModal && createPortal(mapsModal, document.body)}
 
       {matchOpen ? (
-        typeof document !== "undefined" ? (
-          createPortal(
-            <RpHuntMatchBreakdown
-              match={matchOpen}
-              onClose={() => setMatchOpen(null)}
-            />,
-            document.body
-          )
-        ) : (
-          <RpHuntMatchBreakdown
-            match={matchOpen}
-            onClose={() => setMatchOpen(null)}
-          />
-        )
+        <RpHuntMatchBreakdown
+          match={matchOpen}
+          onClose={() => setMatchOpen(null)}
+        />
       ) : null}
     </>
   );
