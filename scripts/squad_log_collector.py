@@ -250,6 +250,10 @@ class Collector:
         self.ingest_secret = env("SQUAD_INGEST_SECRET")
         self._public_rp_pending = False
         self._public_rp_last = 0.0
+        self._public_match_recover_last = 0.0
+        self._public_match_recover_every = int(
+            os.environ.get("PUBLIC_MATCH_RECOVER_SEC") or "120"
+        )
         # Coalesce only rapid double-ends; RP itself is incremental append.
         self._public_rp_debounce = int(
             os.environ.get("PUBLIC_RP_DEBOUNCE_SEC") or "5"
@@ -818,6 +822,13 @@ class Collector:
         match_ev = self._parse_match(line, server_key)
         if match_ev:
             events.append(match_ev)
+            _safe_print(
+                "public match end",
+                server_key,
+                match_ev.get("mapName"),
+                f"{match_ev.get('score1')}:{match_ev.get('score2')}",
+                flush=True,
+            )
 
         m = STEAM_EOS_RE.search(line)
         if m:
@@ -957,6 +968,190 @@ class Collector:
             _safe_print(f"backup catchup {server_key} {name} events≈{n}", flush=True)
         return batch
 
+    def _history_match_keys(self) -> set[str]:
+        cache_path = (
+            Path(__file__).resolve().parent.parent
+            / "data"
+            / "public"
+            / "match-history.json"
+        )
+        keys: set[str] = set()
+        if not cache_path.is_file():
+            return keys
+        try:
+            raw = json.loads(cache_path.read_text(encoding="utf-8"))
+            rows = list(
+                (raw.get("matches") if isinstance(raw, dict) else raw) or []
+            )
+        except Exception:
+            return keys
+        for m in rows:
+            if not isinstance(m, dict):
+                continue
+            ended = str(m.get("endedAt") or "")
+            # normalize Z / +00:00
+            ended = ended.replace("+00:00", "Z")
+            if ended.endswith(".000Z"):
+                ended = ended[:-5] + "Z"
+            keys.add(
+                "|".join(
+                    [
+                        ended[:19],  # YYYY-MM-DDTHH:MM:SS
+                        str(m.get("mapName") or ""),
+                        str(int(m.get("score1") or 0)),
+                        str(int(m.get("score2") or 0)),
+                    ]
+                )
+            )
+        return keys
+
+    def _match_events_from_wonlost_text(
+        self, text: str, server_key: str
+    ) -> list[dict[str, Any]]:
+        """Pair won/lost lines offline (same ts+layer) → match events."""
+        buf: dict[str, dict[str, Any]] = {}
+        out: list[dict[str, Any]] = []
+        for line in text.splitlines():
+            if "has won the match" not in line and "has lost the match" not in line:
+                continue
+            mm = MATCH_RESULT_RE.search(line)
+            if not mm:
+                continue
+            layer = (mm.group("layer") or "").strip()
+            level = (mm.group("level") or "").strip()
+            if re.search(r"\bseed\b", layer, re.I) or re.search(r"\bseed\b", level, re.I):
+                continue
+            team = int(mm.group("team"))
+            faction = (mm.group("faction") or "").strip()
+            side = (mm.group("side") or "").strip()
+            outcome = (mm.group("outcome") or "").lower()
+            tickets = int(mm.group("tickets"))
+            ts = mm.group("ts")
+            at = parse_ts(ts)
+            key = f"{ts}|{layer}"
+            slot = buf.get(key)
+            if not slot:
+                slot = {
+                    "at": at,
+                    "mapName": level,
+                    "layerName": layer,
+                    "teams": {},
+                    "winnerTeam": None,
+                    "winnerName": None,
+                }
+                buf[key] = slot
+            slot["teams"][team] = {
+                "faction": faction,
+                "side": side,
+                "score": tickets,
+            }
+            if outcome == "won":
+                slot["winnerTeam"] = team
+                slot["winnerName"] = faction
+            if 1 in slot["teams"] and 2 in slot["teams"] and slot.get("winnerTeam"):
+                t1, t2 = slot["teams"][1], slot["teams"][2]
+                out.append(
+                    {
+                        "type": "match",
+                        "at": slot["at"],
+                        "serverKey": server_key,
+                        "mapName": slot["mapName"],
+                        "layerName": slot["layerName"],
+                        "faction1": t1["faction"],
+                        "faction1Side": t1["side"],
+                        "score1": t1["score"],
+                        "faction2": t2["faction"],
+                        "faction2Side": t2["side"],
+                        "score2": t2["score"],
+                        "winnerTeam": slot["winnerTeam"],
+                        "winnerName": slot["winnerName"],
+                    }
+                )
+                buf.pop(key, None)
+        return out
+
+    def recover_missed_public_matches(
+        self, client: paramiko.SSHClient | None = None
+    ) -> int:
+        """Re-scan recent TPUB1 won/lost lines and ingest any gap vs history.
+
+        Live tail can skip a map end during restart/deploy; log still has the pair.
+        """
+        server_key = "TPUB1"
+        text = ""
+        cache_log = (
+            Path(__file__).resolve().parent / "_tmp_tpub1_logs_cache" / "SquadGame.log"
+        )
+        if cache_log.is_file() and (time.time() - cache_log.stat().st_mtime) < 3600:
+            try:
+                size = cache_log.stat().st_size
+                with cache_log.open("rb") as f:
+                    f.seek(max(0, size - 40_000_000))
+                    text = f.read().decode("utf-8", "replace")
+            except Exception as e:
+                _safe_print("recover read cache", type(e).__name__, e, file=sys.stderr)
+        if not text:
+            # remote: last ~8h of won/lost only
+            log_path = None
+            for key, path in self.targets:
+                if key in PUBLIC_MATCH_SERVERS:
+                    log_path = path
+                    break
+            if not log_path:
+                return 0
+            own_client = client is None
+            try:
+                if own_client:
+                    client = self._ssh()
+                assert client is not None
+                day = datetime.now(timezone.utc).strftime("%Y.%m.%d")
+                cmd = (
+                    f"grep -E 'has (won|lost) the match' {log_path} 2>/dev/null "
+                    f"| grep '{day}' | tail -n 80 || true"
+                )
+                _, out, _ = client.exec_command(cmd, timeout=120)
+                text = out.read().decode("utf-8", "replace")
+            except Exception as e:
+                _safe_print("recover ssh grep", type(e).__name__, e, file=sys.stderr)
+                return 0
+            finally:
+                if own_client and client is not None:
+                    try:
+                        client.close()
+                    except Exception:
+                        pass
+        events = self._match_events_from_wonlost_text(text, server_key)
+        if not events:
+            return 0
+        known = self._history_match_keys()
+        missing: list[dict[str, Any]] = []
+        for ev in events:
+            ended = str(ev.get("at") or "").replace("+00:00", "Z")[:19]
+            k = "|".join(
+                [
+                    ended,
+                    str(ev.get("mapName") or ""),
+                    str(int(ev.get("score1") or 0)),
+                    str(int(ev.get("score2") or 0)),
+                ]
+            )
+            if k not in known:
+                missing.append(ev)
+        if not missing:
+            return 0
+        _safe_print(
+            f"public match recover: {len(missing)} missing → ingest",
+            flush=True,
+        )
+        # Reuse post path (sets pending + RP rebuild).
+        before = len(missing)
+        try:
+            self._post(missing)
+        except Exception as e:
+            _safe_print("recover post fail", type(e).__name__, e, file=sys.stderr)
+            return 0
+        return before
+
     def poll_once(self) -> None:
         last_err: Exception | None = None
         client = None
@@ -991,6 +1186,19 @@ class Collector:
                         file=sys.stderr,
                     )
             self._post(batch)
+            now = time.time()
+            if now - self._public_match_recover_last >= self._public_match_recover_every:
+                self._public_match_recover_last = now
+                try:
+                    # Fill maps missed by live tail (restart/deploy gap).
+                    self.recover_missed_public_matches(client)
+                except Exception as e:
+                    _safe_print(
+                        "public match recover fail",
+                        type(e).__name__,
+                        e,
+                        file=sys.stderr,
+                    )
             self.maybe_rebuild_public_rp()
             self.maybe_sync_train_tr1()
             self.maybe_sync_cw_tr()
