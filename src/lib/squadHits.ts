@@ -428,6 +428,105 @@ export type TierHitmapAvg = {
   bones: HitBoneCounts;
 };
 
+export type ClanHitmapAvg = {
+  players: number;
+  totalHits: number;
+  /** средний % по кости (равный вес игрока), 0–100 */
+  bonePct: Record<string, number>;
+  /** синтетические счётчики для отрисовки (из %) */
+  bones: HitBoneCounts;
+};
+
+/**
+ * Средний «человечек» клана: берём всех игроков с хитами,
+ * считаем % по костям у каждого, усредняем с равным весом.
+ */
+export async function hitmapAverageForClan(opts: {
+  userIds?: string[];
+  steamIds?: string[];
+}): Promise<ClanHitmapAvg> {
+  const userIds = [...new Set((opts.userIds || []).filter(Boolean))];
+  const steamIds = [
+    ...new Set(
+      (opts.steamIds || [])
+        .map((s) => normalizeSteamId(s) || s)
+        .filter(Boolean)
+    ),
+  ];
+
+  const empty: ClanHitmapAvg = {
+    players: 0,
+    totalHits: 0,
+    bonePct: {},
+    bones: {},
+  };
+  if (!userIds.length && !steamIds.length) return empty;
+
+  const or: Array<{ userId?: { in: string[] }; steamId?: { in: string[] } }> =
+    [];
+  if (userIds.length) or.push({ userId: { in: userIds } });
+  if (steamIds.length) or.push({ steamId: { in: steamIds } });
+
+  const grouped = await prisma.squadHitEvent.groupBy({
+    by: ["userId", "steamId", "bone"],
+    where: {
+      OR: or,
+      NOT: { bone: "None" },
+    },
+    _count: { _all: true },
+  });
+
+  // ключ игрока: userId предпочтительнее steamId
+  const byPlayer = new Map<string, HitBoneCounts>();
+  for (const g of grouped) {
+    if (!g.bone || g.bone === "None") continue;
+    const key = g.userId
+      ? `u:${g.userId}`
+      : g.steamId
+        ? `s:${g.steamId}`
+        : "";
+    if (!key) continue;
+    // если есть userId — не дублируем тот же steam отдельной персоной
+    if (g.userId && g.steamId) {
+      /* ok */
+    }
+    const cur = byPlayer.get(key) || {};
+    cur[g.bone] = (cur[g.bone] || 0) + g._count._all;
+    byPlayer.set(key, cur);
+  }
+
+  // схлопнуть steam-only если тот же steam уже в userId-группе — сложно без join;
+  // достаточно: для членов клана передаём userIds, для pending — steamIds без userId.
+
+  const pctSum: Record<string, number> = {};
+  let players = 0;
+  let totalHits = 0;
+  for (const bones of byPlayer.values()) {
+    let sum = 0;
+    for (const n of Object.values(bones)) sum += n;
+    if (sum <= 0) continue;
+    players += 1;
+    totalHits += sum;
+    for (const [bone, n] of Object.entries(bones)) {
+      const p = (100 * n) / sum;
+      pctSum[bone] = (pctSum[bone] || 0) + p;
+    }
+  }
+
+  if (!players) return empty;
+
+  const bonePct: Record<string, number> = {};
+  const bones: HitBoneCounts = {};
+  for (const [bone, sumPct] of Object.entries(pctSum)) {
+    const avg = Math.round((sumPct / players) * 10) / 10;
+    if (avg <= 0) continue;
+    bonePct[bone] = avg;
+    bones[bone] = Math.max(1, Math.round(avg));
+  }
+
+  return { players, totalHits, bonePct, bones };
+}
+
 /** Средние профили попаданий по тирам 1–4 (зарегистрированные с хитами). */
 export async function hitmapAveragesByTier(): Promise<TierHitmapAvg[]> {
   const { loadTierIndex } = await import("@/lib/loadTierIndex");

@@ -28,6 +28,7 @@ import {
   tallyRosterBuckets,
 } from "@/lib/tiers";
 import { ClanRosterChart } from "@/components/ClanRosterChart";
+import { ClanAvgHitmap } from "@/components/ClanAvgHitmap";
 import { SitePresenceBadge } from "@/components/SitePresenceBadge";
 import { subscribeLive } from "@/lib/liveClient";
 
@@ -135,6 +136,16 @@ type Props = {
 
 type Tab = "members" | "squads" | "stats";
 
+type ClanPlayerAgg = {
+  nick: string;
+  kills: number;
+  deaths: number;
+  dmg: number;
+  res: number;
+  games: number;
+  kd: number;
+};
+
 type ClanStatsData = {
   total: number;
   played: number;
@@ -168,6 +179,37 @@ type ClanStatsData = {
     status: string;
     meeting: string;
   }[];
+  combat: {
+    kills: number;
+    deaths: number;
+    dmg: number;
+    res: number;
+    nok: number;
+    kd: number;
+    avgKills: number;
+    avgDeaths: number;
+    avgDmg: number;
+    avgRes: number;
+    avgKillsPerPlayer: number;
+    avgDmgPerPlayer: number;
+    matchesWithStats: number;
+    players: number;
+  } | null;
+  tops: {
+    kills: ClanPlayerAgg[];
+    kd: ClanPlayerAgg[];
+    dmg: ClanPlayerAgg[];
+    res: ClanPlayerAgg[];
+    mvpKills: { nick: string; n: number }[];
+    mvpDmg: { nick: string; n: number }[];
+    mvpRes: { nick: string; n: number }[];
+  } | null;
+  hitmap: {
+    players: number;
+    totalHits: number;
+    bonePct: Record<string, number>;
+    bones: Record<string, number>;
+  } | null;
 };
 
 const ROLE_ORDER: ClanRole[] = [
@@ -236,7 +278,6 @@ export function ClanDetailClient({
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
   const [loading, setLoading] = useState(false);
-  const [hoverMap, setHoverMap] = useState<string | null>(null);
   const [stats, setStats] = useState<ClanStatsData | null>(null);
   const [statsError, setStatsError] = useState("");
   const [liveOk, setLiveOk] = useState(false);
@@ -1727,75 +1768,196 @@ export function ClanDetailClient({
       ) : null}
 
       {tab === "stats" ? (
-        <section className="card clan-stats">
+        <section className="card clan-stats clan-stats-dense">
           {statsError ? <p className="error">{statsError}</p> : null}
-          {!stats && !statsError ? <p className="muted">Считаем стату из КВ…</p> : null}
+          {!stats && !statsError ? (
+            <p className="muted">Считаем стату из КВ…</p>
+          ) : null}
           {stats ? (
             <>
-              <div className="clan-stat-cards clan-stat-cards-rich">
+              <div className="clan-metric-strip">
                 <div>
-                  <span className="muted">Всего матчей</span>
-                  <strong>{stats.total}</strong>
-                  <em className="stat-sub">
-                    сыграно {stats.played}
-                    {stats.cancelled ? ` · отмена ${stats.cancelled}` : ""}
-                    {" · "}
-                    впереди {stats.upcoming}
-                  </em>
-                </div>
-                <div>
-                  <span className="muted">W–D–L</span>
+                  <span>W–D–L</span>
                   <strong>
                     {stats.wins}–{stats.draws}–{stats.losses}
                   </strong>
-                  <em className="stat-sub">встречи с результатом</em>
                 </div>
                 <div className="stat-winrate">
-                  <span className="muted">Winrate</span>
+                  <span>WR</span>
                   <strong>{stats.winrate}%</strong>
-                  <em className="stat-sub">победы / сыгранные</em>
                 </div>
+                <div>
+                  <span>Матчи</span>
+                  <strong>
+                    {stats.played}
+                    <em>/{stats.total}</em>
+                  </strong>
+                </div>
+                {stats.combat ? (
+                  <>
+                    <div>
+                      <span>K / D</span>
+                      <strong>
+                        {stats.combat.kills} / {stats.combat.deaths}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>KD</span>
+                      <strong>{stats.combat.kd}</strong>
+                    </div>
+                    <div>
+                      <span>DMG</span>
+                      <strong>
+                        {stats.combat.dmg.toLocaleString("ru-RU")}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>RES</span>
+                      <strong>{stats.combat.res}</strong>
+                    </div>
+                    <div>
+                      <span>ср.K/матч</span>
+                      <strong>{stats.combat.avgKills}</strong>
+                    </div>
+                    <div>
+                      <span>ср.D/матч</span>
+                      <strong>{stats.combat.avgDeaths}</strong>
+                    </div>
+                    <div>
+                      <span>ср.DMG</span>
+                      <strong>{stats.combat.avgDmg}</strong>
+                    </div>
+                    <div>
+                      <span>K/игрок</span>
+                      <strong>{stats.combat.avgKillsPerPlayer}</strong>
+                    </div>
+                    <div>
+                      <span>игроков</span>
+                      <strong>{stats.combat.players}</strong>
+                    </div>
+                  </>
+                ) : null}
               </div>
 
               {stats.byStack.length > 0 ? (
-                <div className="stack-stats">
-                  <h3 className="stats-h3">По составам</h3>
-                  <div className="stack-stats-row">
-                    {stats.byStack.map((s) => (
-                      <div key={s.name} className="stack-stat-pill">
-                        <strong>{s.name}</strong>
-                        <span>
-                          {s.played} игр · {s.wins}W {s.draws}D {s.losses}L ·{" "}
-                          <b>{s.winrate}%</b>
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                <div className="clan-stack-inline">
+                  {stats.byStack.map((s) => (
+                    <span key={s.name} className="clan-stack-chip">
+                      <b>{s.name}</b> {s.played} · {s.wins}W/{s.losses}L ·{" "}
+                      {s.winrate}%
+                    </span>
+                  ))}
                 </div>
               ) : null}
 
-              <div className="maps-stats-grid">
+              <div className="clan-stats-mid">
+                <div className="clan-tops-grid">
+                  {(
+                    [
+                      ["Убийства", stats.tops?.kills, "kills"],
+                      ["KD", stats.tops?.kd, "kd"],
+                      ["Урон", stats.tops?.dmg, "dmg"],
+                      ["Ресы", stats.tops?.res, "res"],
+                    ] as const
+                  ).map(([title, rows, key]) => (
+                    <div key={title} className="clan-top-card">
+                      <h3 className="stats-h3">{title}</h3>
+                      {!rows?.length ? (
+                        <p className="muted" style={{ margin: 0, fontSize: "0.8rem" }}>
+                          —
+                        </p>
+                      ) : (
+                        <ol className="clan-top-list">
+                          {rows.map((p, i) => (
+                            <li key={`${key}-${p.nick}`}>
+                              <span className="clan-top-i">{i + 1}</span>
+                              <Link
+                                className="player-nick-link"
+                                href={`/players/${encodeURIComponent(p.nick)}`}
+                              >
+                                {p.nick}
+                              </Link>
+                              <span className="clan-top-v">
+                                {key === "kd"
+                                  ? p.kd
+                                  : key === "kills"
+                                    ? p.kills
+                                    : key === "dmg"
+                                      ? p.dmg.toLocaleString("ru-RU")
+                                      : p.res}
+                              </span>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                    </div>
+                  ))}
+                  {(
+                    [
+                      ["MVP килл", stats.tops?.mvpKills],
+                      ["MVP урон", stats.tops?.mvpDmg],
+                      ["MVP рес", stats.tops?.mvpRes],
+                    ] as const
+                  ).map(([title, rows]) => (
+                    <div key={title} className="clan-top-card">
+                      <h3 className="stats-h3">{title}</h3>
+                      {!rows?.length ? (
+                        <p className="muted" style={{ margin: 0, fontSize: "0.8rem" }}>
+                          —
+                        </p>
+                      ) : (
+                        <ol className="clan-top-list">
+                          {rows.map((p, i) => (
+                            <li key={`${title}-${p.nick}`}>
+                              <span className="clan-top-i">{i + 1}</span>
+                              <Link
+                                className="player-nick-link"
+                                href={`/players/${encodeURIComponent(p.nick)}`}
+                              >
+                                {p.nick}
+                              </Link>
+                              <span className="clan-top-v">×{p.n}</span>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {stats.hitmap ? (
+                  <ClanAvgHitmap data={stats.hitmap} />
+                ) : (
+                  <div className="clan-avg-hitmap clan-avg-hitmap-empty">
+                    <strong>Средние попадания</strong>
+                    <p className="muted" style={{ margin: "6px 0 0", fontSize: "0.82rem" }}>
+                      Пока нет данных по хитам игроков клана
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="clan-stats-bottom">
                 <div>
                   <h3 className="stats-h3">Карты</h3>
-                  <p className="muted" style={{ marginTop: 0, fontSize: "0.85rem" }}>
-                    Сколько раз играли и чем закончилось
-                  </p>
-                  <ul className="map-bars">
+                  <ul className="map-bars map-bars-dense">
                     {mapPoints.length === 0 ? (
-                      <li className="muted">Пока нет сыгранных карт</li>
+                      <li className="muted">Пока нет</li>
                     ) : (
-                      mapPoints.map((m) => (
+                      mapPoints.slice(0, 8).map((m) => (
                         <li key={m.map}>
                           <div className="map-bar-head">
                             <span title={m.full}>{m.map}</span>
                             <span className="map-bar-nums">
-                              {m.games} · {m.wins}W/{m.draws}D/{m.losses}L
+                              {m.games} · {m.wins}W/{m.losses}L
                             </span>
                           </div>
                           <div className="map-bar-track">
                             <div
                               className="map-bar-fill"
-                              style={{ width: `${(m.games / maxGames) * 100}%` }}
+                              style={{
+                                width: `${(m.games / maxGames) * 100}%`,
+                              }}
                             />
                           </div>
                         </li>
@@ -1803,136 +1965,40 @@ export function ClanDetailClient({
                     )}
                   </ul>
                 </div>
-                <div>
-                  <h3 className="stats-h3">Радар карт</h3>
-                  <div className="radar-wrap">
-                    <svg viewBox="0 0 300 300" className="radar-svg" aria-label="Карты">
-                      {[1, 2, 3, 4].map((ring) => (
-                        <circle
-                          key={ring}
-                          cx="150"
-                          cy="150"
-                          r={ring * 22}
-                          fill="none"
-                          stroke="rgba(167,139,250,0.18)"
-                        />
-                      ))}
-                      {mapPoints.length >= 3
-                        ? (() => {
-                            const pts = mapPoints.map((m, i) => {
-                              const angle =
-                                (Math.PI * 2 * i) / mapPoints.length - Math.PI / 2;
-                              const r = 24 + (m.games / maxGames) * 64;
-                              return [150 + Math.cos(angle) * r, 150 + Math.sin(angle) * r];
-                            });
-                            return (
-                              <polygon
-                                points={pts.map((p) => p.join(",")).join(" ")}
-                                fill="rgba(167,139,250,0.18)"
-                                stroke="#a78bfa"
-                                strokeWidth="1.5"
-                              />
-                            );
-                          })()
-                        : null}
-                      {mapPoints.map((m, i) => {
-                        const angle =
-                          (Math.PI * 2 * i) / Math.max(mapPoints.length, 1) -
-                          Math.PI / 2;
-                        const cos = Math.cos(angle);
-                        const sin = Math.sin(angle);
-                        const r = 24 + (m.games / maxGames) * 64;
-                        const x = 150 + cos * r;
-                        const y = 150 + sin * r;
-                        const lx = 150 + cos * 112;
-                        const ly = 150 + sin * 112;
-                        const anchor =
-                          cos > 0.35 ? "start" : cos < -0.35 ? "end" : "middle";
-                        const dy = sin > 0.55 ? 4 : sin < -0.55 ? -2 : 0;
-                        const label =
-                          m.map.length > 12 ? `${m.map.slice(0, 11)}…` : m.map;
-                        return (
-                          <g key={m.map}>
-                            <line
-                              x1="150"
-                              y1="150"
-                              x2={150 + cos * 88}
-                              y2={150 + sin * 88}
-                              stroke="rgba(167,139,250,0.22)"
-                            />
-                            <circle
-                              cx={x}
-                              cy={y}
-                              r={hoverMap === m.map ? 7 : 5}
-                              fill="#c4b5fd"
-                              style={{ cursor: "pointer" }}
-                              onMouseEnter={() => setHoverMap(m.map)}
-                              onMouseLeave={() => setHoverMap(null)}
-                            />
-                            <text
-                              x={lx}
-                              y={ly + dy}
-                              textAnchor={anchor}
-                              dominantBaseline="middle"
-                              fill="#d4c8f0"
-                              fontSize="10"
-                              fontWeight="600"
-                            >
-                              {label}
-                            </text>
-                          </g>
-                        );
-                      })}
-                    </svg>
-                    <p className="radar-hint">
-                      {hoverMap
-                        ? (() => {
-                            const m = mapPoints.find((x) => x.map === hoverMap);
-                            return m
-                              ? `${m.map}: ${m.games} игр (${m.wins}W ${m.draws}D ${m.losses}L)`
-                              : "";
-                          })()
-                        : "Наведи на точку — цифры по карте"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {stats.recent.length > 0 ? (
-                <div style={{ marginTop: 18 }}>
-                  <h3 className="stats-h3">Последние матчи</h3>
-                  <div className="admin-table-wrap">
-                    <table className="admin-table">
-                      <thead>
-                        <tr>
-                          <th>День</th>
-                          <th>Соперник</th>
-                          <th>Карта</th>
-                          <th>Состав</th>
-                          <th>Счёт</th>
-                          <th>Итог</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {stats.recent.map((m, i) => (
-                          <tr key={`${m.day}-${m.opp}-${i}`}>
-                            <td>{String(m.day).padStart(2, "0")}</td>
-                            <td>{m.opp}</td>
-                            <td>{m.map}</td>
-                            <td>{m.stack}</td>
-                            <td>{m.meeting}</td>
-                            <td>
-                              <span className={`status-chip ${m.status}`}>
-                                {STATUS_RU[m.status] || m.status}
-                              </span>
-                            </td>
+                {stats.recent.length > 0 ? (
+                  <div>
+                    <h3 className="stats-h3">Последние</h3>
+                    <div className="admin-table-wrap">
+                      <table className="admin-table clan-recent-dense">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>vs</th>
+                            <th>карта</th>
+                            <th>счёт</th>
+                            <th></th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {stats.recent.slice(0, 10).map((m, i) => (
+                            <tr key={`${m.day}-${m.opp}-${i}`}>
+                              <td>{String(m.day).padStart(2, "0")}</td>
+                              <td>{m.opp}</td>
+                              <td>{m.map}</td>
+                              <td>{m.meeting}</td>
+                              <td>
+                                <span className={`status-chip ${m.status}`}>
+                                  {STATUS_RU[m.status] || m.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              ) : null}
+                ) : null}
+              </div>
             </>
           ) : null}
         </section>

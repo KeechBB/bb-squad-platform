@@ -9457,6 +9457,237 @@ body:has(.home-page) {
   font-weight: 700;
 }
 
+.clan-stats-dense {
+  padding-top: 14px;
+}
+
+.clan-metric-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin: 0 0 10px;
+}
+
+.clan-metric-strip > div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 64px;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.clan-metric-strip span {
+  font-size: 0.68rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.clan-metric-strip strong {
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+
+.clan-metric-strip strong em {
+  font-style: normal;
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.clan-stack-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.clan-stack-chip {
+  font-size: 0.78rem;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 10px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.clan-stack-chip b {
+  color: #efe8ff;
+  font-weight: 650;
+  margin-right: 4px;
+}
+
+.clan-stats-mid {
+  display: grid;
+  grid-template-columns: 1.35fr 0.85fr;
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 12px;
+}
+
+.clan-tops-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.clan-top-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.clan-top-card .stats-h3 {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+}
+
+.clan-top-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.clan-top-list li {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  gap: 4px;
+  align-items: center;
+  font-size: 0.78rem;
+  min-width: 0;
+}
+
+.clan-top-i {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.clan-top-list .player-nick-link {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clan-top-v {
+  font-variant-numeric: tabular-nums;
+  color: #c4b5fd;
+  font-weight: 650;
+}
+
+.clan-avg-hitmap {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.clan-avg-hitmap-empty {
+  min-height: 120px;
+}
+
+.clan-avg-hitmap-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 6px;
+  font-size: 0.82rem;
+}
+
+.clan-avg-hitmap-head .muted {
+  font-size: 0.72rem;
+}
+
+.clan-avg-hitmap-body {
+  display: grid;
+  grid-template-columns: 1fr 0.85fr;
+  gap: 8px;
+  align-items: start;
+}
+
+.clan-avg-hitmap-svg {
+  width: 100%;
+  max-width: 160px;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+.clan-avg-hitmap-strip {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  font-size: 0.72rem;
+}
+
+.clan-avg-hitmap-strip li {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.clan-avg-hitmap-strip li.is-on {
+  background: rgba(167, 139, 250, 0.15);
+}
+
+.clan-avg-hitmap-strip strong {
+  font-variant-numeric: tabular-nums;
+  color: #c4b5fd;
+}
+
+.clan-avg-hitmap-hover {
+  margin-top: 4px;
+  font-size: 0.7rem;
+}
+
+.clan-stats-bottom {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.map-bars-dense {
+  gap: 6px;
+}
+
+.map-bars-dense .map-bar-head {
+  font-size: 0.8rem;
+  margin-bottom: 2px;
+}
+
+.map-bars-dense .map-bar-track {
+  height: 5px;
+}
+
+.clan-recent-dense {
+  font-size: 0.8rem;
+}
+
+.clan-recent-dense th,
+.clan-recent-dense td {
+  padding: 4px 6px !important;
+}
+
+@media (max-width: 900px) {
+  .clan-stats-mid,
+  .clan-stats-bottom,
+  .clan-avg-hitmap-body {
+    grid-template-columns: 1fr;
+  }
+}
+
 .clan-stat-cards {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

@@ -82,6 +82,46 @@ export type PlayerKvStats = {
   source: string;
 };
 
+export type ClanPlayerAgg = {
+  nick: string;
+  kills: number;
+  deaths: number;
+  dmg: number;
+  res: number;
+  nok: number;
+  games: number;
+  kd: number;
+};
+
+export type ClanCombatStats = {
+  kills: number;
+  deaths: number;
+  dmg: number;
+  res: number;
+  nok: number;
+  kd: number;
+  /** средние на матч (сумма команды / сыгранные матчи со статой) */
+  avgKills: number;
+  avgDeaths: number;
+  avgDmg: number;
+  avgRes: number;
+  /** средние на игрока за матч */
+  avgKillsPerPlayer: number;
+  avgDmgPerPlayer: number;
+  matchesWithStats: number;
+  players: number;
+};
+
+export type ClanTops = {
+  kills: ClanPlayerAgg[];
+  kd: ClanPlayerAgg[];
+  dmg: ClanPlayerAgg[];
+  res: ClanPlayerAgg[];
+  mvpKills: { nick: string; n: number }[];
+  mvpDmg: { nick: string; n: number }[];
+  mvpRes: { nick: string; n: number }[];
+};
+
 export type ClanStats = {
   total: number;
   played: number;
@@ -94,6 +134,8 @@ export type ClanStats = {
   byStack: { name: string; played: number; wins: number; draws: number; losses: number; winrate: number }[];
   maps: { map: string; full: string; games: number; wins: number; losses: number; draws: number }[];
   recent: { day: number; opp: string; map: string; stack: string; status: string; meeting: string }[];
+  combat: ClanCombatStats | null;
+  tops: ClanTops | null;
   source: string;
 };
 
@@ -299,6 +341,8 @@ export async function buildClanKvStats(clanTag: string): Promise<ClanStats> {
       meeting: m.meeting || "—",
     }));
 
+  const { combat, tops } = await aggregateClanCombat(list, isBb);
+
   return {
     total: summary.total,
     played: summary.played,
@@ -311,8 +355,254 @@ export async function buildClanKvStats(clanTag: string): Promise<ClanStats> {
     byStack,
     maps,
     recent,
+    combat,
+    tops,
     source,
   };
+}
+
+type CombatRow = {
+  nick: string;
+  kills: number;
+  deaths: number;
+  dmg: number;
+  res: number;
+  nok: number;
+};
+
+function bumpMvp(
+  map: Map<string, { nick: string; n: number }>,
+  nick: string
+) {
+  const key = nickKeyCompact(nickBase(nick) || nick);
+  if (!key) return;
+  const cur = map.get(key) || { nick, n: 0 };
+  cur.n += 1;
+  if (nick.length > cur.nick.length) cur.nick = nick;
+  map.set(key, cur);
+}
+
+function topMvpNick(rows: CombatRow[], field: keyof CombatRow): string | null {
+  let best: CombatRow | null = null;
+  for (const r of rows) {
+    const v = Number(r[field]) || 0;
+    if (!best || v > (Number(best[field]) || 0)) best = r;
+  }
+  if (!best || (Number(best[field]) || 0) <= 0) return null;
+  return best.nick;
+}
+
+/** Боевая стата клана по playersUrl (BB = r1/r2, соперник = oppR1/oppR2). */
+async function aggregateClanCombat(
+  list: KvMatch[],
+  isBb: boolean
+): Promise<{ combat: ClanCombatStats | null; tops: ClanTops | null }> {
+  const played = list.filter((m) => isPlayedStatus(m.status));
+  type Acc = {
+    nick: string;
+    kills: number;
+    deaths: number;
+    dmg: number;
+    res: number;
+    nok: number;
+    games: number;
+  };
+  const byPlayer = new Map<string, Acc>();
+  const mvpK = new Map<string, { nick: string; n: number }>();
+  const mvpD = new Map<string, { nick: string; n: number }>();
+  const mvpR = new Map<string, { nick: string; n: number }>();
+  let matchesWithStats = 0;
+  let teamKills = 0;
+  let teamDeaths = 0;
+  let teamDmg = 0;
+  let teamRes = 0;
+  let teamNok = 0;
+  let playerMatchAppearances = 0;
+
+  for (const m of played) {
+    const playersUrl = String(m.playersUrl || "").trim();
+    if (!playersUrl) continue;
+    try {
+      const data = await loadKvJson<{
+        r1?: Record<string, unknown>[];
+        r2?: Record<string, unknown>[];
+        oppR1?: Record<string, unknown>[];
+        oppR2?: Record<string, unknown>[];
+        total?: Record<string, unknown>[];
+        players?: Record<string, unknown>[];
+      }>(playersUrl);
+
+      const roundSets: Record<string, unknown>[][] = isBb
+        ? [data.r1 || [], data.r2 || []]
+        : [data.oppR1 || [], data.oppR2 || []];
+
+      // fallback: total/players только для BB (там наша сторона)
+      const useFallback =
+        isBb &&
+        !roundSets[0].length &&
+        !roundSets[1].length &&
+        Boolean((data.total || data.players || []).length);
+
+      const matchAgg = new Map<string, CombatRow>();
+
+      const ingestRows = (rows: Record<string, unknown>[]) => {
+        for (const row of rows) {
+          const nick = String(row?.nick || "").trim();
+          if (!nick) continue;
+          const key = nickKeyCompact(nickBase(nick) || nick);
+          const cur = matchAgg.get(key) || {
+            nick,
+            kills: 0,
+            deaths: 0,
+            dmg: 0,
+            res: 0,
+            nok: 0,
+          };
+          cur.kills += n(row.kills);
+          cur.deaths += n(row.deaths);
+          cur.dmg += n(row.dmg);
+          cur.res += n(row.res);
+          cur.nok += n(row.nok);
+          if (nick.length > cur.nick.length) cur.nick = nick;
+          matchAgg.set(key, cur);
+        }
+      };
+
+      if (useFallback) {
+        ingestRows(data.total || data.players || []);
+      } else {
+        for (const rows of roundSets) {
+          if (!rows.length) continue;
+          const roundRows: CombatRow[] = [];
+          for (const row of rows) {
+            const nick = String(row?.nick || "").trim();
+            if (!nick) continue;
+            roundRows.push({
+              nick,
+              kills: n(row.kills),
+              deaths: n(row.deaths),
+              dmg: n(row.dmg),
+              res: n(row.res),
+              nok: n(row.nok),
+            });
+          }
+          const mk = topMvpNick(roundRows, "kills");
+          const md = topMvpNick(roundRows, "dmg");
+          const mr = topMvpNick(roundRows, "res");
+          if (mk) bumpMvp(mvpK, mk);
+          if (md) bumpMvp(mvpD, md);
+          if (mr) bumpMvp(mvpR, mr);
+          ingestRows(rows);
+        }
+      }
+
+      if (!matchAgg.size) continue;
+      matchesWithStats += 1;
+      for (const row of matchAgg.values()) {
+        teamKills += row.kills;
+        teamDeaths += row.deaths;
+        teamDmg += row.dmg;
+        teamRes += row.res;
+        teamNok += row.nok;
+        playerMatchAppearances += 1;
+        const key = nickKeyCompact(nickBase(row.nick) || row.nick);
+        const cur = byPlayer.get(key) || {
+          nick: row.nick,
+          kills: 0,
+          deaths: 0,
+          dmg: 0,
+          res: 0,
+          nok: 0,
+          games: 0,
+        };
+        cur.kills += row.kills;
+        cur.deaths += row.deaths;
+        cur.dmg += row.dmg;
+        cur.res += row.res;
+        cur.nok += row.nok;
+        cur.games += 1;
+        if (row.nick.length > cur.nick.length) cur.nick = row.nick;
+        byPlayer.set(key, cur);
+      }
+    } catch {
+      /* skip */
+    }
+  }
+
+  if (!matchesWithStats || !byPlayer.size) {
+    return { combat: null, tops: null };
+  }
+
+  const players = Array.from(byPlayer.values()).map((p) => ({
+    nick: p.nick,
+    kills: p.kills,
+    deaths: p.deaths,
+    dmg: p.dmg,
+    res: p.res,
+    nok: p.nok,
+    games: p.games,
+    kd:
+      p.deaths > 0
+        ? Math.round((100 * p.kills) / p.deaths) / 100
+        : p.kills,
+  }));
+
+  const sortTop = (
+    arr: ClanPlayerAgg[],
+    key: keyof ClanPlayerAgg,
+    minGames = 1
+  ) =>
+    [...arr]
+      .filter((p) => p.games >= minGames)
+      .sort(
+        (a, b) =>
+          Number(b[key]) - Number(a[key]) ||
+          b.games - a.games ||
+          a.nick.localeCompare(b.nick, "ru")
+      )
+      .slice(0, 5);
+
+  const mvpList = (map: Map<string, { nick: string; n: number }>) =>
+    [...map.values()]
+      .sort((a, b) => b.n - a.n || a.nick.localeCompare(b.nick, "ru"))
+      .slice(0, 5);
+
+  const r1 = (v: number) => Math.round(v * 10) / 10;
+  const combat: ClanCombatStats = {
+    kills: teamKills,
+    deaths: teamDeaths,
+    dmg: teamDmg,
+    res: teamRes,
+    nok: teamNok,
+    kd:
+      teamDeaths > 0
+        ? Math.round((100 * teamKills) / teamDeaths) / 100
+        : teamKills,
+    avgKills: r1(teamKills / matchesWithStats),
+    avgDeaths: r1(teamDeaths / matchesWithStats),
+    avgDmg: Math.round(teamDmg / matchesWithStats),
+    avgRes: r1(teamRes / matchesWithStats),
+    avgKillsPerPlayer: playerMatchAppearances
+      ? r1(teamKills / playerMatchAppearances)
+      : 0,
+    avgDmgPerPlayer: playerMatchAppearances
+      ? Math.round(teamDmg / playerMatchAppearances)
+      : 0,
+    matchesWithStats,
+    players: players.length,
+  };
+
+  const tops: ClanTops = {
+    kills: sortTop(players, "kills"),
+    kd: sortTop(players, "kd", 2),
+    dmg: sortTop(players, "dmg"),
+    res: sortTop(players, "res"),
+    mvpKills: mvpList(mvpK),
+    mvpDmg: mvpList(mvpD),
+    mvpRes: mvpList(mvpR),
+  };
+
+  return { combat, tops };
 }
 
 function n(v: unknown): number {
