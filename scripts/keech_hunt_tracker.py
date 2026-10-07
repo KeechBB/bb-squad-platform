@@ -43,6 +43,14 @@ PC_RE = re.compile(
     r"PC=(?P<nick>.+?)\s*\(Online IDs:\s*EOS:\s*(?P<eos>[0-9a-fA-F]+)\s+steam:\s*(?P<steam>7656\d+)",
     re.I,
 )
+# Layer name at map end (fills "?" buckets before archive → «Память»).
+MATCH_END_RE = re.compile(
+    r"LogSquadGameEvents:\s*Display:\s*Team\s+(?P<team>[12]),\s+"
+    r"(?P<faction>.+?)\s+\(\s*(?P<side>.+?)\s*\)\s+has\s+"
+    r"(?P<outcome>won|lost)\s+the\s+match\s+with\s+(?P<tickets>\d+)\s+Tickets\s+"
+    r"on\s+layer\s+(?P<layer>.+?)\s+\(level\s+(?P<level>.+?)\)!",
+    re.I,
+)
 HIT_RE = re.compile(
     r"BBHitZone:\s*"
     r"AttackerEOS=<?(?P<aeos>[0-9a-fA-F]{32}|none)>?\s+"
@@ -478,6 +486,16 @@ class KeechHuntTracker:
                         self.matches.pop(server, None)
                         self._dirty = True
                 self._ensure_match(server, layer, at)
+
+        if "has won the match" in line or "has lost the match" in line:
+            mm = MATCH_END_RE.search(line)
+            if mm:
+                layer = (mm.group("layer") or "").strip()
+                cur = self.matches.get(server)
+                if cur and not cur.get("endAt") and layer and not _is_seed_layer(layer):
+                    cur["layer"] = layer
+                    cur["layerShort"] = _layer_short(layer)
+                    self._dirty = True
 
         if "Match State Changed" in line and "LogGameMode" in line:
             sm = R.STATE_RE.search(line)
