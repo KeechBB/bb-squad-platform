@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import {
   ATTENDANCE_CANON_START_YMD,
-  TRAINING_PRESENT_MIN_MINUTES,
   trainingDayMarksFromSessions,
 } from "@/lib/squadSessions";
 import type { TrainMatchHistoryRow } from "@/lib/homeTrainPwr";
@@ -542,9 +541,7 @@ export function TrainingSessionsCard({
                   }`}
                   title={
                     mark === "present"
-                      ? `Был (≥${TRAINING_PRESENT_MIN_MINUTES} мин или до конца)${
-                          timeLabel ? ` · ${timeLabel}` : ""
-                        }`
+                      ? `Был${timeLabel ? ` · ${timeLabel}` : ""}`
                       : mark === "late"
                         ? `Был, опоздал (заход с 21:00)${
                             timeLabel ? ` · ${timeLabel}` : ""
@@ -552,7 +549,7 @@ export function TrainingSessionsCard({
                         : mark === "reserve"
                           ? "Резерв (уважительная причина)"
                           : mark === "absent"
-                            ? `Не был${timeLabel ? ` · ${timeLabel}` : ""}`
+                            ? "Не был"
                             : mark === "pending"
                               ? "Ещё рано / окно не закрыто"
                               : "Вне учёта"

@@ -5,8 +5,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import {
   ATTENDANCE_CANON_START_YMD,
-  TRAINING_PRESENT_MIN_MINUTES,
-  isTrainingPresentMinutes,
 } from "@/lib/squadSessions";
 import type {
   AttendanceStreakBoard,
@@ -20,7 +18,7 @@ type Row = {
   nick: string | null;
   steamId: string;
   cells: Record<string, Cell[]>;
-  /** Дни «был» (≥60 мин вечером TR1 или уход ≥23:30) — тот же расчёт, что календарь профиля */
+  /** Дни «был» (есть вечерний заход/выход) — тот же расчёт, что календарь профиля */
   presentDays?: string[];
   /** «Был», но заход после 21:00 — жёлтая отметка */
   lateDays?: string[];
@@ -172,7 +170,10 @@ function eveningMinutesForDay(cells: Cell[], dayYmd: string): number {
 
 function wasPresentTr1(row: Row, dayYmd: string): boolean {
   if (row.presentDays?.length) return row.presentDays.includes(dayYmd);
-  return isTrainingPresentMinutes(eveningMinutesForDay(row.cells[dayYmd] || [], dayYmd));
+  // fallback: любой вечерний заход в ячейке = был (как на календаре профиля)
+  const cells = row.cells[dayYmd] || [];
+  if (cells.some((c) => c.in || c.out)) return true;
+  return eveningMinutesForDay(cells, dayYmd) > 0;
 }
 
 function wasLateTr1(row: Row, dayYmd: string): boolean {
@@ -206,24 +207,21 @@ function nowMinsMsk(): number {
 
 /**
  * День закрыт для «не было»:
- * прошлое — да; сегодня — когда уже нельзя набрать 60 мин до 00:00.
+ * прошлое — да; сегодня — только если уже есть минуты/заход (явка решена как «был»).
+ * Иначе сегодняшний вечер ещё открыт (любой заход = «был»).
  */
 function absenceDecided(dayYmd: string, eveningMins = 0): boolean {
   const today = todayYmdMsk();
   if (dayYmd < today) return true;
   if (dayYmd > today) return false;
-  if (isTrainingPresentMinutes(eveningMins)) return true;
-  const now = nowMinsMsk();
-  if (now < 21 * 60) return false;
-  const remaining = 24 * 60 - now;
-  return eveningMins + remaining < TRAINING_PRESENT_MIN_MINUTES;
+  return eveningMins > 0;
 }
 
 /**
- * Пустая ячейка TR1 / вечер < 1ч:
- * будущее / сегодня ещё можно успеть → —
+ * Пустая ячейка TR1:
+ * будущее / сегодня ещё можно зайти → —
  * сегодня 21:00–21:30 → опаздывает
- * иначе не был / не было
+ * прошлое без захода → не было
  */
 function emptyTrLabel(dayYmd: string): { text: string; className: string } {
   const today = todayYmdMsk();
@@ -240,11 +238,7 @@ function emptyTrLabel(dayYmd: string): { text: string; className: string } {
   if (mins < 21 * 60 + 30) {
     return { text: "опаздывает", className: "attend-cell attend-late" };
   }
-  const remaining = 24 * 60 - mins;
-  if (remaining >= TRAINING_PRESENT_MIN_MINUTES) {
-    return { text: "—", className: "attend-cell empty" };
-  }
-  return { text: "не был", className: "attend-cell attend-absent" };
+  return { text: "—", className: "attend-cell empty" };
 }
 
 function defaultRange(): { from: string; to: string } {
@@ -612,7 +606,7 @@ export function AdminAttendancePanel() {
       const decidedDays = data.days.filter((d) => {
         if (!isTr) return d <= todayYmdMsk();
         const mins = wasPresentTr1(r, d)
-          ? TRAINING_PRESENT_MIN_MINUTES
+          ? 1
           : eveningMinutesForDay(r.cells[d] || [], d);
         return absenceDecided(d, mins);
       });
@@ -791,7 +785,7 @@ export function AdminAttendancePanel() {
         {tab === "table"
           ? [
               server === "TR1"
-                ? ` · Заход виден сразу (… = ещё на сервере). «Был» = ≥${TRAINING_PRESENT_MIN_MINUTES} мин в 21:00–00:00 или уход ≥23:30 (дропы/реконнекты). После 21:00 — жёлтый «был».`
+                ? " · Заход виден сразу (… = ещё на сервере). «Был» = есть заход/выход вечером (как на календаре профиля). После 21:00 — жёлтый «был»."
                 : "",
               showIn
                 ? " · Цвет захода: ≤21:00 зел., 21:00–21:30 жёлт., после 21:30 красн."
@@ -964,7 +958,7 @@ export function AdminAttendancePanel() {
               По каждому дню: сколько человек из выборки уже было в базе к концу
               дня (МСК) и сколько отмечены «был» (
               {server === "TR1"
-                ? "≥60 мин вечером или уход ≥23:30 · только клан BB"
+                ? "есть заход/выход вечером · только клан BB"
                 : "уникальные на PB1"}
               ). Сейчас в выборке:{" "}
               <strong>{data.stats.registeredNow ?? "—"}</strong>.
@@ -1116,7 +1110,7 @@ export function AdminAttendancePanel() {
                     : "—"}
                 </strong>
                 . До 21:00 МСК — вчерашняя тренировка; с 21:00 — сегодняшняя.
-                «Был» = ≥60 мин вечером или уход ≥23:30 (как в таблице/профиле).
+                «Был» = есть заход/выход вечером (как в таблице/профиле).
               </p>
               {streaks ? (
                 <>
