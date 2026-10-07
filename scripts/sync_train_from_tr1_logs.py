@@ -845,19 +845,8 @@ def main() -> int:
         winner_team = str(m.get("winnerTeam") or "")
         # Без победителя / 0-0 — фантом (Mutaha_Skirmish A/B), не в календарь.
         if not winner_team or (int(t1 or 0) == 0 and int(t2 or 0) == 0):
-            auto.append(
-                {
-                    "id": f"{mid}-skip",
-                    "map": layer,
-                    "date": msk.strftime("%Y-%m-%d"),
-                    "log": log_path.name,
-                    "start": start_iso,
-                    "end": end.isoformat(),
-                    "skip": True,
-                    "note": f"авто-skip без результата (winner={winner_team!r} tickets={t1}/{t2})",
-                }
-            )
-            known_starts.add(start_iso)
+            # Не пишем в known_starts — иначе фантом Mutaha_Skirmish блокирует
+            # реальную CSL Mutaha с тем же start (07.10 вечер).
             print(
                 f"skip no-result {layer} tickets={t1}/{t2} {start_iso}",
                 flush=True,
