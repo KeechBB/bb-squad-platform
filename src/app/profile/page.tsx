@@ -96,6 +96,17 @@ export default async function ProfilePage() {
   );
   const nickForKv = me.nick || u.nick || "";
 
+  // Warm slim ladders once — parallel lookup* used to JSON.parse the same
+  // 2MB files 3× before the in-memory cache was set (race on cold start).
+  if (nickForKv) {
+    const { loadPublicRpLadder } = await import("@/lib/publicRp");
+    const { loadRpLadder } = await import("@/lib/trainRp");
+    await Promise.all([
+      loadPublicRpLadder().catch(() => null),
+      loadRpLadder().catch(() => null),
+    ]);
+  }
+
   // Hot SSR: header + histories. Hitmap / kits / career load client-side after paint.
   const [
     training,
@@ -223,15 +234,7 @@ export default async function ProfilePage() {
         <ProfileHitmapCard
           userId={me.id}
           subtitle="TR1+TR2"
-          matchHistory={matchHistory.map((m) => ({
-            matchId: m.matchId,
-            dateLabel: m.dateLabel,
-            map: m.map,
-            timeLabel: m.timeLabel,
-            ticketsA: m.ticketsA,
-            ticketsB: m.ticketsB,
-            won: m.won,
-          }))}
+          matchHistory={[]}
         />
       </div>
 

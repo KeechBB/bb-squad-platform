@@ -129,8 +129,41 @@ class KeechHuntTracker:
         """Primary (most recently active) open match — backward compatible."""
         return self._primary_match()
 
+    def _is_stale_open(self, m: dict[str, Any], *, now: datetime | None = None) -> bool:
+        """Open bucket with no fresh events — finished map that missed WaitingPostMatch."""
+        if not m or m.get("endAt") or m.get("seed"):
+            return True
+        if _is_seed_layer(str(m.get("layer") or m.get("layerShort") or "")):
+            return True
+        ev = m.get("events") or []
+        if not ev:
+            return False
+        try:
+            last = datetime.fromisoformat(
+                str(ev[-1].get("at") or m.get("startAt") or "").replace("Z", "+00:00")
+            )
+            if last.tzinfo is None:
+                last = last.replace(tzinfo=timezone.utc)
+            ref = now or datetime.now(timezone.utc)
+            # >8 min without combat while still "open" → treat as ended (UI must not show it)
+            return (ref - last).total_seconds() > 8 * 60
+        except Exception:
+            return False
+
     def _primary_match(self) -> dict[str, Any] | None:
         if not self.matches:
+            return None
+        now = datetime.now(timezone.utc)
+        open_live = [
+            m
+            for m in self.matches.values()
+            if m
+            and not m.get("endAt")
+            and not m.get("seed")
+            and not _is_seed_layer(str(m.get("layer") or m.get("layerShort") or ""))
+            and not self._is_stale_open(m, now=now)
+        ]
+        if not open_live:
             return None
 
         def sort_key(m: dict[str, Any]) -> str:
@@ -139,7 +172,7 @@ class KeechHuntTracker:
                 return str(ev[-1].get("at") or m.get("startAt") or "")
             return str(m.get("startAt") or "")
 
-        return max(self.matches.values(), key=sort_key)
+        return max(open_live, key=sort_key)
 
     def _ledger_for(self, server: str | None = None) -> Path:
         srv = _norm_server(server or "")
@@ -319,8 +352,24 @@ class KeechHuntTracker:
                 return self._new_bucket(server, layer, start)
 
             if short == cur_short:
-                # Same map (InProgress after SeamlessTravel) — keep
-                return cur
+                # Same layer name after a real map cycle (Gorodok→…→Gorodok) must
+                # NOT reuse the old bucket — that glued finished-map kills into live.
+                try:
+                    st = datetime.fromisoformat(
+                        str(cur.get("startAt") or "").replace("Z", "+00:00")
+                    )
+                    if st.tzinfo is None:
+                        st = st.replace(tzinfo=timezone.utc)
+                    gap = (start - st).total_seconds()
+                except Exception:
+                    gap = 0.0
+                if gap <= 90:
+                    # Mid-match SeamlessTravel / reload — keep
+                    return cur
+                if cur.get("events"):
+                    self._archive_match(cur, ended=start)
+                self.matches.pop(server, None)
+                return self._new_bucket(server, layer, start)
 
             # Different map on same server → archive previous
             if cur.get("events"):
@@ -392,6 +441,33 @@ class KeechHuntTracker:
                 # New map — reset TK/own-nok context for this server feed
                 self.steam_faction.clear()
                 self._last_wound_by_keech.clear()
+                # Force-close previous live bucket before opening the next
+                # (covers missed WaitingPostMatch — finished map must leave live).
+                cur = self.matches.get(server)
+                if (
+                    cur
+                    and not cur.get("endAt")
+                    and not cur.get("seed")
+                    and cur.get("events")
+                    and not _is_seed_layer(
+                        str(cur.get("layer") or cur.get("layerShort") or "")
+                    )
+                ):
+                    cur_short = cur.get("layerShort") or "?"
+                    new_short = _layer_short(layer) if layer else "?"
+                    try:
+                        st = datetime.fromisoformat(
+                            str(cur.get("startAt") or "").replace("Z", "+00:00")
+                        )
+                        if st.tzinfo is None:
+                            st = st.replace(tzinfo=timezone.utc)
+                        gap = (at - st).total_seconds()
+                    except Exception:
+                        gap = 9999.0
+                    if new_short != cur_short or gap > 90:
+                        self._archive_match(cur, ended=at)
+                        self.matches.pop(server, None)
+                        self._dirty = True
                 self._ensure_match(server, layer, at)
 
         if "Match State Changed" in line and "LogGameMode" in line:
@@ -682,10 +758,19 @@ class KeechHuntTracker:
 
     def _add_event(self, server: str, ev: dict[str, Any], at: datetime) -> None:
         bucket = self._open_bucket(server, at)
-        if bucket.get("seed") or _is_seed_layer(
+        if bucket.get("seed") or bucket.get("endAt") or _is_seed_layer(
             str(bucket.get("layer") or bucket.get("layerShort") or "")
         ):
             return
+        # Never append into a finished map that is still lingering open.
+        if self._is_stale_open(bucket, now=at):
+            self._archive_match(bucket, ended=at)
+            self.matches.pop(_norm_server(server), None)
+            bucket = self._ensure_match(server, "?", at)
+            if bucket.get("seed") or _is_seed_layer(
+                str(bucket.get("layer") or bucket.get("layerShort") or "")
+            ):
+                return
         ids = {e.get("id") for e in bucket["events"]}
         if ev["id"] in ids:
             return
@@ -777,16 +862,41 @@ class KeechHuntTracker:
             return
         self._dirty = False
         self._last_write = now
+        now_dt = datetime.now(timezone.utc)
+        # Sweep stale "open" buckets into memory so live UI never shows a finished map.
+        for srv, row in list(self.matches.items()):
+            if self._is_stale_open(row, now=now_dt):
+                try:
+                    ev = row.get("events") or []
+                    ended = now_dt
+                    if ev:
+                        ended = datetime.fromisoformat(
+                            str(ev[-1].get("at") or "").replace("Z", "+00:00")
+                        )
+                        if ended.tzinfo is None:
+                            ended = ended.replace(tzinfo=timezone.utc)
+                    self._archive_match(row, ended=ended)
+                except Exception:
+                    self._archive_match(row, ended=now_dt)
+                self.matches.pop(srv, None)
         open_list = sorted(
-            self.matches.values(),
+            [
+                m
+                for m in self.matches.values()
+                if m
+                and not m.get("endAt")
+                and not m.get("seed")
+                and not _is_seed_layer(
+                    str(m.get("layer") or m.get("layerShort") or "")
+                )
+            ],
             key=lambda m: str(m.get("startAt") or ""),
         )
-        # Primary = current map (most recently active). Counters stay per-match —
-        # UI must not merge PB1+TR1 into one N/K/D/R block.
+        # Primary = current map only. Finished → «Память», never live columns.
         primary = self._primary_match()
         match_out = dict(primary) if primary else None
         payload = {
-            "updatedAt": datetime.now(timezone.utc).isoformat(),
+            "updatedAt": now_dt.isoformat(),
             "match": match_out,
             "matches": open_list,
             "keechSteam": KEECH_STEAM,
