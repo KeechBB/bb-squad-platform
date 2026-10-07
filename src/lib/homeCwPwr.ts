@@ -1,4 +1,9 @@
 import { loadTierIndex } from "@/lib/loadTierIndex";
+import {
+  nickMatchKey,
+  resolveNickKey as resolveNickKeyShared,
+  stripClanDecorRaw,
+} from "@/lib/nickIdentity";
 
 /** Тот же композитный PWR 0–1000, что у тренировок — для клановых войн. */
 export type HomeCwPwrRow = {
@@ -97,7 +102,7 @@ type PlayerLine = {
 };
 
 function nickKey(nick: string) {
-  return nick.trim().toLowerCase().replace(/\s+/g, "");
+  return nickMatchKey(nick);
 }
 
 function softSat(x: number, mid: number) {
@@ -210,7 +215,7 @@ function addLinesToMeetingMap(
     const key = nickKey(raw);
     if (!out.has(key)) {
       out.set(key, {
-        nick: raw,
+        nick: stripClanDecorRaw(raw) || raw,
         res: 0,
         nok: 0,
         kills: 0,
@@ -288,19 +293,15 @@ export async function buildCwPwrLeaderboard(): Promise<CwPwrLeaderboard> {
     aliases?: Record<string, string>;
   }>("data/tiers.json");
   const aliases = tiersRaw?.aliases || {};
-  const aliasCanon = new Map<string, string>();
-  for (const [a, c] of Object.entries(aliases)) {
-    aliasCanon.set(nickKey(a), String(c));
-  }
-  const resolveKey = (nick: string) => {
-    const key = nickKey(nick);
-    const canon = aliasCanon.get(key);
-    return canon ? nickKey(canon) : key;
-  };
+  const resolveKey = (nick: string) => resolveNickKeyShared(nick, aliases);
   const displayNick = (nick: string) => {
-    const key = nickKey(nick);
-    const canon = aliasCanon.get(key);
-    return canon || nick.trim();
+    const key = resolveKey(nick);
+    for (const [a, c] of Object.entries(aliases)) {
+      if (resolveKey(a) === key || resolveKey(c) === key) {
+        return String(c).trim() || stripClanDecorRaw(nick) || nick.trim();
+      }
+    }
+    return stripClanDecorRaw(nick) || nick.trim();
   };
   const tierIndex = await loadTierIndex();
   const tierOf = (nick: string) =>
@@ -461,15 +462,7 @@ export async function buildPlayerCwMatchHistory(
     "data/tiers.json"
   );
   const aliases = tiersRaw?.aliases || {};
-  const aliasCanon = new Map<string, string>();
-  for (const [a, c] of Object.entries(aliases)) {
-    aliasCanon.set(nickKey(a), String(c));
-  }
-  const resolveKey = (n: string) => {
-    const key = nickKey(n);
-    const canon = aliasCanon.get(key);
-    return canon ? nickKey(canon) : key;
-  };
+  const resolveKey = (n: string) => resolveNickKeyShared(n, aliases);
   const want = resolveKey(clean);
   const tierIndex = await loadTierIndex();
   const tier =
