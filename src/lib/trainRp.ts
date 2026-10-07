@@ -127,8 +127,11 @@ export type RpLadder = {
 
 const LEDGER_TTL_MS = 90_000;
 const LADDER_TTL_MS = 90_000;
+const FULL_PLAYER_TTL_MS = 120_000;
 let ledgerMem: { at: number; data: RpLedger | null } | null = null;
 let ladderMem: { at: number; data: RpLadder | null } | null = null;
+/** Extracted full player slices — avoid re-walking ledger.players for drilldown. */
+const fullPlayerMem = new Map<string, { at: number; data: RpPlayer | null }>();
 
 function nickKey(n: string) {
   return String(n || "")
@@ -300,14 +303,31 @@ export async function lookupPlayerTrainRp(
 ): Promise<RpPlayer | null> {
   const key = nickKey(nick);
   if (opts?.full) {
+    const hit = fullPlayerMem.get(key);
+    if (hit && Date.now() - hit.at < FULL_PLAYER_TTL_MS) return hit.data;
+
     const ledger = await loadRpLedger();
-    if (!ledger) return null;
-    const direct = ledger.players[key];
-    if (direct) return direct;
-    for (const p of Object.values(ledger.players)) {
-      if (nickKey(p.nick) === key) return p;
+    if (!ledger) {
+      fullPlayerMem.set(key, { at: Date.now(), data: null });
+      return null;
     }
-    return null;
+    let found: RpPlayer | null = ledger.players[key] || null;
+    if (!found) {
+      for (const p of Object.values(ledger.players)) {
+        if (nickKey(p.nick) === key) {
+          found = p;
+          break;
+        }
+      }
+    }
+    fullPlayerMem.set(key, { at: Date.now(), data: found });
+    if (fullPlayerMem.size > 200) {
+      const drop = [...fullPlayerMem.entries()]
+        .sort((a, b) => a[1].at - b[1].at)
+        .slice(0, 60);
+      for (const [k] of drop) fullPlayerMem.delete(k);
+    }
+    return found;
   }
 
   const ladder = await loadRpLadder();

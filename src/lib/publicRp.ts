@@ -11,7 +11,10 @@ const KV_BASES = [
 ].filter(Boolean) as string[];
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const FULL_PLAYER_TTL_MS = 120_000;
 let ladderMem: { at: number; data: RpLedger | null } | null = null;
+/** Per-nick drilldown extracts — do not keep full ledger resident. */
+const fullPlayerMem = new Map<string, { at: number; data: RpPlayer | null }>();
 
 function nickKey(n: string) {
   return String(n || "")
@@ -121,10 +124,6 @@ export async function loadPublicRpLedger(): Promise<RpLedger | null> {
 }
 
 /** Home / boards: slim ladder only — never pull full ledger. */
-async function loadPublicRpData(): Promise<RpLedger | null> {
-  return loadPublicRpLadder();
-}
-
 export async function buildPublicRpLeaderboard(): Promise<{
   rows: RpLeaderRow[];
   players: number;
@@ -192,7 +191,17 @@ export async function lookupPlayerPublicRp(
   };
 
   if (opts?.full) {
-    return pick(await loadPublicRpLedger());
+    const hit = fullPlayerMem.get(key);
+    if (hit && Date.now() - hit.at < FULL_PLAYER_TTL_MS) return hit.data;
+    const found = pick(await loadPublicRpLedger());
+    fullPlayerMem.set(key, { at: Date.now(), data: found });
+    if (fullPlayerMem.size > 200) {
+      const drop = [...fullPlayerMem.entries()]
+        .sort((a, b) => a[1].at - b[1].at)
+        .slice(0, 60);
+      for (const [k] of drop) fullPlayerMem.delete(k);
+    }
+    return found;
   }
   return pick(await loadPublicRpLadder());
 }

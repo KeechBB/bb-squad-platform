@@ -14,5 +14,12 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "nick required" }, { status: 400 });
   }
   const player = await lookupPlayerTrainRp(nick, { full: true });
-  return NextResponse.json({ player });
+  return NextResponse.json(
+    { player },
+    {
+      headers: {
+        "Cache-Control": "private, max-age=60, stale-while-revalidate=120",
+      },
+    }
+  );
 }

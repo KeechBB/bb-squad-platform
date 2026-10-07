@@ -752,59 +752,74 @@ export async function buildPlayerKvStats(nick: string): Promise<PlayerKvStats> {
   const rounds: PlayerKvRound[] = [];
   const matchMeta = new Map<string, KvMatch>();
 
+  type PlayersDoc = {
+    day?: number;
+    opp?: string;
+    r1?: Record<string, unknown>[];
+    r2?: Record<string, unknown>[];
+    oppR1?: Record<string, unknown>[];
+    oppR2?: Record<string, unknown>[];
+  };
+
+  const jobs: { m: KvMatch; mid: string; playersUrl: string }[] = [];
   for (const m of matches) {
     const mid = String(m.id || "").trim();
     if (mid) matchMeta.set(mid, m);
     const playersUrl = String(m.playersUrl || "").trim();
     if (!playersUrl || !mid) continue;
-    try {
-      const data = await loadKvJson<{
-        day?: number;
-        opp?: string;
-        r1?: Record<string, unknown>[];
-        r2?: Record<string, unknown>[];
-        oppR1?: Record<string, unknown>[];
-        oppR2?: Record<string, unknown>[];
-      }>(playersUrl);
-      const sides: Array<{
-        key: "r1" | "r2";
-        rows: Record<string, unknown>[] | undefined;
-        asOpp: boolean;
-      }> = [
-        { key: "r1", rows: data.r1, asOpp: false },
-        { key: "r2", rows: data.r2, asOpp: false },
-        { key: "r1", rows: data.oppR1, asOpp: true },
-        { key: "r2", rows: data.oppR2, asOpp: true },
-      ];
-      for (const side of sides) {
-        for (const row of side.rows || []) {
-          if (!nickEq(String(row?.nick || ""), want)) continue;
-          const status = side.asOpp
-            ? invertBbStatus(String(m.status || ""))
-            : String(m.status || "");
-          const meeting = side.asOpp
-            ? invertMeeting(String(m.meeting || "—"))
-            : String(m.meeting || "—");
-          rounds.push({
-            matchId: mid,
-            day: Number(m.day) || Number(data.day) || 0,
-            // для игрока соперника «противник» = BB
-            opp: side.asOpp ? "BB" : String(m.opp || data.opp || "—"),
-            map: shortMap(String(m.map || "—")),
-            stack: String(m.stack || "—"),
-            status,
-            meeting,
-            round: side.key,
-            kills: n(row.kills),
-            deaths: n(row.deaths),
-            dmg: n(row.dmg),
-            res: n(row.res),
-            nok: n(row.nok),
-          });
-        }
+    jobs.push({ m, mid, playersUrl });
+  }
+
+  const CONCURRENCY = 16;
+  const docs: (PlayersDoc | null)[] = new Array(jobs.length).fill(null);
+  for (let i = 0; i < jobs.length; i += CONCURRENCY) {
+    const slice = jobs.slice(i, i + CONCURRENCY);
+    const loaded = await Promise.all(
+      slice.map((j) => loadKvJson<PlayersDoc>(j.playersUrl).catch(() => null))
+    );
+    for (let k = 0; k < loaded.length; k++) docs[i + k] = loaded[k];
+  }
+
+  for (let i = 0; i < jobs.length; i++) {
+    const { m, mid } = jobs[i];
+    const data = docs[i];
+    if (!data) continue;
+    const sides: Array<{
+      key: "r1" | "r2";
+      rows: Record<string, unknown>[] | undefined;
+      asOpp: boolean;
+    }> = [
+      { key: "r1", rows: data.r1, asOpp: false },
+      { key: "r2", rows: data.r2, asOpp: false },
+      { key: "r1", rows: data.oppR1, asOpp: true },
+      { key: "r2", rows: data.oppR2, asOpp: true },
+    ];
+    for (const side of sides) {
+      for (const row of side.rows || []) {
+        if (!nickEq(String(row?.nick || ""), want)) continue;
+        const status = side.asOpp
+          ? invertBbStatus(String(m.status || ""))
+          : String(m.status || "");
+        const meeting = side.asOpp
+          ? invertMeeting(String(m.meeting || "—"))
+          : String(m.meeting || "—");
+        rounds.push({
+          matchId: mid,
+          day: Number(m.day) || Number(data.day) || 0,
+          // для игрока соперника «противник» = BB
+          opp: side.asOpp ? "BB" : String(m.opp || data.opp || "—"),
+          map: shortMap(String(m.map || "—")),
+          stack: String(m.stack || "—"),
+          status,
+          meeting,
+          round: side.key,
+          kills: n(row.kills),
+          deaths: n(row.deaths),
+          dmg: n(row.dmg),
+          res: n(row.res),
+          nok: n(row.nok),
+        });
       }
-    } catch {
-      /* нет файла игроков — пропускаем */
     }
   }
 

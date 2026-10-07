@@ -16,7 +16,8 @@ export const KV_REMOTE_BASES: string[] = (() => {
 })();
 
 /** In-process memo: profile SSR hits the same JSON dozens of times per request. */
-const MEM_TTL_MS = Number(process.env.KV_MEM_TTL_MS || 45_000);
+const MEM_TTL_MS = Number(process.env.KV_MEM_TTL_MS || 120_000);
+const MEM_SOFT_CAP = Number(process.env.KV_MEM_SOFT_CAP || 1200);
 const mem = new Map<string, { at: number; data: unknown }>();
 const inflight = new Map<string, Promise<unknown>>();
 
@@ -47,11 +48,11 @@ function memGet<T>(rel: string): T | null | undefined {
 
 function memSet(rel: string, data: unknown) {
   mem.set(rel, { at: Date.now(), data });
-  // soft cap — drop oldest ~half if huge
-  if (mem.size > 400) {
+  // soft cap — drop oldest chunk if huge
+  if (mem.size > MEM_SOFT_CAP) {
     const drop = [...mem.entries()]
       .sort((a, b) => a[1].at - b[1].at)
-      .slice(0, 150);
+      .slice(0, Math.floor(MEM_SOFT_CAP / 3));
     for (const [k] of drop) mem.delete(k);
   }
 }

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notFound, redirect } from "next/navigation";
@@ -7,30 +8,22 @@ import { CLAN_ROLE_LABEL, type ClanRole } from "@/lib/clan";
 import { withAvatarCacheBust } from "@/lib/avatarUrl";
 import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
 import { TrainingSessionsCard } from "@/components/TrainingSessionsCard";
-import { ProfileMatchHistoryTabs } from "@/components/ProfileMatchHistoryTabs";
 import { ProfilePublicRatingCard } from "@/components/ProfilePublicRatingCard";
-import { LivePageRefresh } from "@/components/LivePageRefresh";
-import { ProfileKvMatchHistory } from "@/components/ProfileKvStats";
-import { ProfileStatsTabs } from "@/components/ProfileStatsTabs";
 import { ProfileHitmapCard } from "@/components/ProfileHitmapCard";
 import { ProfileAccountCard } from "@/components/ProfileAccountCard";
 import { SitePresenceBadge } from "@/components/SitePresenceBadge";
 import { loadUserTrainingStats } from "@/lib/trainingStats";
 import { loadUserPublicAttendanceStats } from "@/lib/publicAttendance";
 import { lookupPlayerPublicRp } from "@/lib/publicRp";
-import { buildPlayerPublicCombatStats } from "@/lib/publicCombat";
-import { buildPlayerKvStats } from "@/lib/kvStats";
-import {
-  lookupPlayerTrainPwr,
-  buildPlayerTrainMatchHistory,
-  buildPlayerTrainCombatStats,
-} from "@/lib/homeTrainPwr";
-import { buildPlayerPublicMatchHistory } from "@/lib/publicMatchHistory";
-import { buildPlayerCwMatchHistory } from "@/lib/homeCwPwr";
+import { lookupPlayerTrainPwr } from "@/lib/homeTrainPwr";
 import { getEnemyPlayer } from "@/lib/crossRating";
 import { ProfileTrainPwrCard } from "@/components/ProfileTrainPwrCard";
 import { ProfileKitsCard } from "@/components/ProfileKitsCard";
 import { ProfileCareerCard } from "@/components/ProfileCareerCard";
+import {
+  ProfileHeavyFallback,
+  ProfileHeavySection,
+} from "@/components/ProfileHeavySection";
 import { isBlackberryClanMember } from "@/lib/blackberryClan";
 import {
   resolveGuestPlayerIdentity,
@@ -84,14 +77,7 @@ export default async function PlayerProfilePage({ params }: Props) {
     const displayNick0 = identity.nick || nick;
     const primarySteam = identity.steamIds[0] || null;
 
-    const [kvBundle, cwMatchHistory, enemy, training, hits] = await Promise.all([
-      buildPlayerKvStats(displayNick0)
-        .then((stats) => ({ stats, error: null as string | null }))
-        .catch(() => ({
-          stats: null,
-          error: "Не удалось загрузить стату КВ" as string | null,
-        })),
-      buildPlayerCwMatchHistory(displayNick0).catch(() => []),
+    const [enemy, training, hits] = await Promise.all([
       getEnemyPlayer(displayNick0).catch(() => null),
       loadGuestTrainingStats(identity.steamIds).catch(() => null),
       primarySteam
@@ -106,7 +92,6 @@ export default async function PlayerProfilePage({ params }: Props) {
             lastBone: null as string | null,
           }),
     ]);
-    const kvStats = kvBundle.stats;
     const displayNick = enemy?.nick || displayNick0;
     const clanTag = enemy?.clanTag || null;
     const clanKey = enemy?.clanKey || null;
@@ -166,12 +151,9 @@ export default async function PlayerProfilePage({ params }: Props) {
         </div>
 
         <div className="profile-area-account">
-          <ProfileStatsTabs
-            kvStats={kvStats}
-            kvError={kvBundle.error}
-            trainStats={null}
-            publicStats={null}
-          />
+          <Suspense fallback={<ProfileHeavyFallback label="Загрузка вкладок статы…" />}>
+            <ProfileHeavySection nick={displayNick} mode="stats-only" />
+          </Suspense>
         </div>
 
         <div className="profile-area-hitmap">
@@ -228,12 +210,9 @@ export default async function PlayerProfilePage({ params }: Props) {
           )}
         </div>
 
-        <div className="profile-area-kv-hist">
-          <ProfileKvMatchHistory
-            matchHistory={cwMatchHistory}
-            highlightNick={displayNick}
-          />
-        </div>
+        <Suspense fallback={<ProfileHeavyFallback label="Загрузка истории КВ…" />}>
+          <ProfileHeavySection nick={displayNick} mode="histories-only" />
+        </Suspense>
       </main>
     );
   }
@@ -264,25 +243,17 @@ export default async function PlayerProfilePage({ params }: Props) {
       .join(" · "),
   }));
 
-  // Hot SSR only — hitmap / kits / career fetch after paint
-  const [
-    training,
-    publicAtt,
-    publicRp,
-    publicCombat,
-    kvBundle,
-    trainPwr,
-    matchHistory,
-    publicMatchHistory,
-    cwMatchHistory,
-    trainCombat,
-  ] = await Promise.all([
+  // Slim critical path — combat/histories stream via Suspense.
+  const [training, publicAtt, publicRp, trainPwr] = await Promise.all([
     loadUserTrainingStats(user.id),
     loadUserPublicAttendanceStats(user.id).catch(() => ({
       sessions: [],
       presentDays: [] as string[],
       lateDays: [] as string[],
-      visitBounds: {} as Record<string, { joinHm: string; leaveHm: string | null }>,
+      visitBounds: {} as Record<
+        string,
+        { joinHm: string; leaveHm: string | null }
+      >,
       minutes30d: 0,
       sessions30d: 0,
       openNow: false,
@@ -291,38 +262,9 @@ export default async function PlayerProfilePage({ params }: Props) {
       ? lookupPlayerPublicRp(nickForKv).catch(() => null)
       : Promise.resolve(null),
     nickForKv
-      ? buildPlayerPublicCombatStats(nickForKv).catch(() => null)
-      : Promise.resolve(null),
-    nickForKv
-      ? buildPlayerKvStats(nickForKv)
-          .then((stats) => ({ stats, error: null as string | null }))
-          .catch(() => ({
-            stats: null,
-            error: "Не удалось загрузить стату КВ" as string | null,
-          }))
-      : Promise.resolve({
-          stats: null,
-          error: null as string | null,
-        }),
-    nickForKv
       ? lookupPlayerTrainPwr(nickForKv).catch(() => null)
       : Promise.resolve(null),
-    nickForKv
-      ? buildPlayerTrainMatchHistory(nickForKv).catch(() => [])
-      : Promise.resolve([]),
-    nickForKv
-      ? buildPlayerPublicMatchHistory(nickForKv).catch(() => [])
-      : Promise.resolve([]),
-    nickForKv
-      ? buildPlayerCwMatchHistory(nickForKv).catch(() => [])
-      : Promise.resolve([]),
-    nickForKv
-      ? buildPlayerTrainCombatStats(nickForKv).catch(() => null)
-      : Promise.resolve(null),
   ]);
-
-  const kvStats = kvBundle.stats;
-  const kvError = kvBundle.error;
 
   return (
     <main className="profile-page">
@@ -379,7 +321,7 @@ export default async function PlayerProfilePage({ params }: Props) {
             rp={publicRp?.rp ?? null}
             rankLabel={publicRp?.rankLabel ?? null}
             rankKey={publicRp?.rankKey ?? null}
-            combat={publicCombat}
+            combat={null}
             matches={publicRp?.matches ?? []}
           />
           <ProfileKitsCard
@@ -411,12 +353,11 @@ export default async function PlayerProfilePage({ params }: Props) {
             clans,
           }}
         />
-        <ProfileStatsTabs
-          kvStats={kvStats}
-          kvError={kvError}
-          trainStats={trainCombat}
-          publicStats={publicCombat}
-        />
+        {nickForKv ? (
+          <Suspense fallback={<ProfileHeavyFallback label="Загрузка вкладок статы…" />}>
+            <ProfileHeavySection nick={nickForKv} mode="stats-only" />
+          </Suspense>
+        ) : null}
       </div>
 
       <div className="profile-area-hitmap">
@@ -429,7 +370,6 @@ export default async function PlayerProfilePage({ params }: Props) {
       </div>
 
       <div className="profile-area-training">
-        <LivePageRefresh intervalMs={15000} />
         <TrainingSessionsCard
           sessions={training.tr1.sessions}
           presentDays={training.tr1.presentDays}
@@ -462,20 +402,15 @@ export default async function PlayerProfilePage({ params }: Props) {
         />
       </div>
 
-      <div className="profile-area-kv-hist">
-        <ProfileKvMatchHistory
-          matchHistory={cwMatchHistory}
-          highlightNick={nickForKv}
-        />
-      </div>
-      <div className="profile-area-train-hist">
-        <ProfileMatchHistoryTabs
-          trainHistory={matchHistory}
-          publicHistory={publicMatchHistory}
-          highlightNick={nickForKv}
-          defaultTab={isBb ? "train" : "public"}
-        />
-      </div>
+      {nickForKv ? (
+        <Suspense fallback={<ProfileHeavyFallback label="Загрузка историй матчей…" />}>
+          <ProfileHeavySection
+            nick={nickForKv}
+            mode="histories-only"
+            defaultHistTab={isBb ? "train" : "public"}
+          />
+        </Suspense>
+      ) : null}
     </main>
   );
 }
