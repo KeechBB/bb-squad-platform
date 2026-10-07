@@ -535,9 +535,100 @@ def upsert_month(match_meta: dict) -> None:
         INDEX.write_text(json.dumps(idx, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def reconcile_orphan_player_files() -> int:
+    """
+    If players/{id}.json exists but month JSON lost the row (rsync/github wipe),
+    restore the calendar row from the players doc. Prevents silent gaps like 06-cslmutaha.
+    """
+    auto_by_id: dict[str, dict] = {}
+    if AUTO_MATCHES.is_file():
+        try:
+            for am in json.loads(AUTO_MATCHES.read_text(encoding="utf-8")) or []:
+                mid0 = str(am.get("id") or "")
+                if mid0 and not am.get("skip"):
+                    auto_by_id[mid0] = am
+        except Exception:
+            pass
+
+    present: set[str] = set()
+    for month_path in TRAIN.glob("????-??.json"):
+        try:
+            data = json.loads(month_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        for x in data.get("matches") or []:
+            mid0 = str(x.get("id") or "")
+            if mid0:
+                present.add(mid0)
+
+    restored = 0
+    for path in sorted(PLAYERS.glob("*.json")):
+        mid = path.stem
+        if mid.endswith("-skip") or mid.startswith("_") or mid in present:
+            continue
+        m = re.match(r"^(\d{1,2})-", mid)
+        if not m:
+            continue
+        day = int(m.group(1))
+        try:
+            doc = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+
+        time_msk = "—"
+        month_key = None
+        am = auto_by_id.get(mid)
+        if am and am.get("start"):
+            try:
+                start = datetime.fromisoformat(str(am["start"]).replace("Z", "+00:00"))
+                if start.tzinfo is None:
+                    start = start.replace(tzinfo=timezone.utc)
+                msk = start + timedelta(hours=3)
+                time_msk = msk.strftime("%H:%M")
+                month_key = f"{msk.year:04d}-{msk.month:02d}"
+            except Exception:
+                pass
+        if not month_key:
+            # fallback: newest month file
+            months = sorted(TRAIN.glob("????-??.json"), reverse=True)
+            month_key = months[0].stem if months else None
+        if not month_key:
+            continue
+
+        side_a = doc.get("sideA") or {}
+        side_b = doc.get("sideB") or {}
+        row = {
+            "id": mid,
+            "day": day,
+            "timeMsk": time_msk,
+            "map": doc.get("map") or "—",
+            "mode": doc.get("mode") or layer_mode(str(doc.get("map") or "")),
+            "size": "—",
+            "server": doc.get("server") or "Blackberry | Training - Blackberries #1",
+            "duration": doc.get("duration") or "—",
+            "factionA": side_a.get("name") or "A",
+            "ticketsA": int(side_a.get("tickets") or 0),
+            "factionB": side_b.get("name") or "B",
+            "ticketsB": int(side_b.get("tickets") or 0),
+            "winner": doc.get("winner") or "—",
+            "status": "done",
+            "playersUrl": f"data/training/players/{mid}.json",
+            "source": doc.get("source") or "tr1-logs-auto",
+            "note": "reconcile orphan players JSON → month",
+        }
+        upsert_month({"id": mid, "month": month_key, "row": row})
+        restored += 1
+        print(f"reconcile +{mid} → {month_key}", flush=True)
+    return restored
+
+
 def main() -> int:
     aliases = load_aliases()
     print("=== sync TR1 logs ===", flush=True)
+    n_rec = reconcile_orphan_player_files()
+    if n_rec:
+        print(f"reconciled orphan player files: {n_rec}", flush=True)
+        bump_cache_bust()
     logs = sync_tr1_logs_via_ssh()
     if not logs:
         if not CACHE.is_dir():
