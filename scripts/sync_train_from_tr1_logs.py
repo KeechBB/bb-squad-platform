@@ -882,6 +882,13 @@ def main() -> int:
         f1 = next((f for f, t in ftt.items() if str(t) == "1"), "A")
         f2 = next((f for f, t in ftt.items() if str(t) == "2"), "B")
         winner = f1 if winner_team == "1" else f2 if winner_team == "2" else "—"
+        # team/won на каждом игроке — как в ручных JSON (история «Победа/Поражение»)
+        for p in team_a:
+            p["team"] = f1
+            p["won"] = winner_team == "1"
+        for p in team_b:
+            p["team"] = f2
+            p["won"] = winner_team == "2"
 
         log_name_l = log_path.name.upper()
         is_tr2 = "TR2" in log_name_l or "TR2" in str(log_path).upper()

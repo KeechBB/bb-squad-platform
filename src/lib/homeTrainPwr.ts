@@ -1,5 +1,96 @@
 import { loadTierIndex } from "@/lib/loadTierIndex";
 import { pickMvps } from "@/lib/homeMvp";
+import { abbreviateFaction } from "@/lib/factionAbbrev";
+
+/** «Russian Ground Forces» ↔ «RGF» ↔ winner из month JSON. */
+function factionEq(a: string, b: string): boolean {
+  const A = String(a || "").trim().toUpperCase();
+  const B = String(b || "").trim().toUpperCase();
+  if (!A || !B || A === "—" || B === "—") return false;
+  if (A === B) return true;
+  return (
+    abbreviateFaction(a).toUpperCase() === abbreviateFaction(b).toUpperCase()
+  );
+}
+
+type TrainPlayerLine = {
+  nick?: string;
+  res?: number;
+  nok?: number;
+  kills?: number;
+  deaths?: number;
+  dmg?: number;
+  team?: string;
+  won?: boolean;
+};
+
+type TrainPlayersDoc = {
+  players?: TrainPlayerLine[];
+  teamA?: TrainPlayerLine[];
+  teamB?: TrainPlayerLine[];
+  winner?: string;
+  sideA?: { name?: string; tickets?: number };
+  sideB?: { name?: string; tickets?: number };
+};
+
+/** Победа/поражение: поле won, team==winner, или членство в teamA/teamB vs side/winner. */
+function resolveTrainWon(
+  mine: TrainPlayerLine[],
+  players: TrainPlayersDoc,
+  matchWinner?: string
+): { team: string; won: boolean | null } {
+  const winner = String(matchWinner || players.winner || "").trim();
+  const wonExplicit = mine.some((p) => p.won === true);
+  const lostExplicit = mine.some((p) => p.won === false);
+  if (wonExplicit) {
+    const t = mine.find((p) => p.team)?.team || mine[0]?.team || "";
+    return { team: String(t).toUpperCase(), won: true };
+  }
+  if (lostExplicit && !wonExplicit) {
+    const t = mine.find((p) => p.team)?.team || mine[0]?.team || "";
+    return { team: String(t).toUpperCase(), won: false };
+  }
+
+  let team = "";
+  for (const p of mine) {
+    if (!team && p.team) team = String(p.team);
+  }
+
+  const wantNicks = new Set(
+    mine.map((p) => nickKey(String(p.nick || ""))).filter(Boolean)
+  );
+  const inList = (rows: TrainPlayerLine[] | undefined) =>
+    (rows || []).some((p) => wantNicks.has(nickKey(String(p.nick || ""))));
+
+  const sideA = String(players.sideA?.name || "").trim();
+  const sideB = String(players.sideB?.name || "").trim();
+  if (!team) {
+    if (inList(players.teamA)) team = sideA || "A";
+    else if (inList(players.teamB)) team = sideB || "B";
+  }
+
+  const teamU = team.toUpperCase();
+  if (winner && teamU) {
+    if (factionEq(team, winner)) return { team: teamU, won: true };
+    return { team: teamU, won: false };
+  }
+  // tickets fallback: своя сторона с большим счётом
+  const ta = Number(players.sideA?.tickets);
+  const tb = Number(players.sideB?.tickets);
+  if (
+    team &&
+    Number.isFinite(ta) &&
+    Number.isFinite(tb) &&
+    (ta > 0 || tb > 0) &&
+    ta !== tb
+  ) {
+    const mySideIsA = factionEq(team, sideA) || teamU === "A";
+    const myTickets = mySideIsA ? ta : tb;
+    const oppTickets = mySideIsA ? tb : ta;
+    return { team: teamU, won: myTickets > oppTickets };
+  }
+  return { team: teamU || "—", won: null };
+}
 
 export type HomeTrainPwrRow = {
   nick: string;
@@ -201,12 +292,7 @@ export async function buildTrainPwrLeaderboard(): Promise<TrainPwrLeaderboard> {
 
   const bundles = await Promise.all(
     matchList.map(async (m) => {
-      const players = await loadFromKv<{
-        players?: Record<string, unknown>[];
-        teamA?: Record<string, unknown>[];
-        teamB?: Record<string, unknown>[];
-        winner?: string;
-      }>(m.playersUrl);
+      const players = await loadFromKv<TrainPlayersDoc>(m.playersUrl);
       return { match: m, players };
     })
   );
@@ -221,18 +307,8 @@ export async function buildTrainPwrLeaderboard(): Promise<TrainPwrLeaderboard> {
       players.players?.length
         ? players.players
         : [...(players.teamA || []), ...(players.teamB || [])]
-    ) as {
-      nick?: string;
-      res?: number;
-      nok?: number;
-      kills?: number;
-      deaths?: number;
-      dmg?: number;
-      team?: string;
-      won?: boolean;
-    }[];
+    ) as TrainPlayerLine[];
 
-    const winner = String(match.winner || players.winner || "").toUpperCase();
     const seen = new Set<string>();
 
     for (const p of list) {
@@ -260,10 +336,8 @@ export async function buildTrainPwrLeaderboard(): Promise<TrainPwrLeaderboard> {
       if (seen.has(key)) continue;
       seen.add(key);
       row.games += 1;
-      const team = String(p.team || "").toUpperCase();
-      const won =
-        p.won === true || (Boolean(winner) && Boolean(team) && team === winner);
-      if (won) row.wins += 1;
+      const { won } = resolveTrainWon([p], players, match.winner);
+      if (won === true) row.wins += 1;
     }
   }
 
@@ -527,20 +601,14 @@ export async function buildPlayerTrainMatchHistory(
 
   // Parallel disk reads (mem-cache coalesces duplicates with combat stats).
   const CONCURRENCY = 12;
-  type PlayersDoc = {
-    players?: Record<string, unknown>[];
-    teamA?: Record<string, unknown>[];
-    teamB?: Record<string, unknown>[];
-    winner?: string;
-  };
-  const playerDocs: (PlayersDoc | null)[] = new Array(matchMetas.length).fill(
-    null
-  );
+  const playerDocs: (TrainPlayersDoc | null)[] = new Array(
+    matchMetas.length
+  ).fill(null);
   for (let i = 0; i < matchMetas.length; i += CONCURRENCY) {
     const slice = matchMetas.slice(i, i + CONCURRENCY);
     const loaded = await Promise.all(
       slice.map((match) =>
-        loadFromKv<PlayersDoc>(match.playersUrl).catch(() => null)
+        loadFromKv<TrainPlayersDoc>(match.playersUrl).catch(() => null)
       )
     );
     for (let j = 0; j < loaded.length; j++) {
@@ -559,37 +627,16 @@ export async function buildPlayerTrainMatchHistory(
       players.players?.length
         ? players.players
         : [...(players.teamA || []), ...(players.teamB || [])]
-    ) as {
-      nick?: string;
-      res?: number;
-      nok?: number;
-      kills?: number;
-      deaths?: number;
-      dmg?: number;
-      team?: string;
-      won?: boolean;
-    }[];
+    ) as TrainPlayerLine[];
 
     const mine = list.filter((p) => p?.nick && resolveKey(p.nick) === want);
     if (!mine.length) continue;
 
-    let team = "";
-    for (const p of mine) {
-      if (!team && p.team) team = String(p.team);
-    }
-
-    const winner = String(match.winner || players.winner || "").toUpperCase();
-    const teamU = team.toUpperCase();
-    const wonExplicit = mine.some((p) => p.won === true);
-    const wonFromWinner =
-      Boolean(winner) && Boolean(teamU) && teamU === winner;
-    const lostFromWinner =
-      Boolean(winner) && Boolean(teamU) && teamU !== winner;
-    const won: boolean | null = wonExplicit || wonFromWinner
-      ? true
-      : lostFromWinner
-        ? false
-        : null;
+    const { team: teamU, won } = resolveTrainWon(
+      mine,
+      players,
+      match.winner
+    );
 
     let rpDelta: number | null = null;
     let rpAfter: number | null = null;
@@ -731,55 +778,38 @@ export async function buildPlayerTrainCombatStats(
     }>(m.url);
     for (const match of monthData?.matches || []) {
       if (!match.playersUrl || match.status === "upcoming") continue;
-      const players = await loadFromKv<{
-        players?: Record<string, unknown>[];
-        teamA?: Record<string, unknown>[];
-        teamB?: Record<string, unknown>[];
-        winner?: string;
-        mvp?: { train?: {
-          medic?: string[];
-          killer?: string[];
-          damage?: string[];
-          antiDeath?: string[];
-        } };
-      }>(match.playersUrl);
+      const players = await loadFromKv<
+        TrainPlayersDoc & {
+          mvp?: {
+            train?: {
+              medic?: string[];
+              killer?: string[];
+              damage?: string[];
+              antiDeath?: string[];
+            };
+          };
+        }
+      >(match.playersUrl);
       if (!players) continue;
       const list = (
         players.players?.length
           ? players.players
           : [...(players.teamA || []), ...(players.teamB || [])]
-      ) as {
-        nick?: string;
-        res?: number;
-        nok?: number;
-        kills?: number;
-        deaths?: number;
-        dmg?: number;
-        team?: string;
-        won?: boolean;
-      }[];
+      ) as TrainPlayerLine[];
       const mine = list.filter((p) => p?.nick && resolveKey(p.nick) === want);
       if (!mine.length) continue;
       if (mine[0]?.nick) displayNick = String(mine[0].nick);
       matches += 1;
-      let team = "";
       for (const p of mine) {
         kills += Number(p.kills) || 0;
         deaths += Number(p.deaths) || 0;
         dmg += Number(p.dmg) || 0;
         res += Number(p.res) || 0;
         nok += Number(p.nok) || 0;
-        if (!team && p.team) team = String(p.team);
       }
-      const winner = String(match.winner || players.winner || "").toUpperCase();
-      const teamU = team.toUpperCase();
-      const wonExplicit = mine.some((p) => p.won === true);
-      const won =
-        wonExplicit || (Boolean(winner) && Boolean(teamU) && teamU === winner);
-      const lost =
-        !won && Boolean(winner) && Boolean(teamU) && teamU !== winner;
-      if (won) wins += 1;
-      else if (lost) losses += 1;
+      const { won } = resolveTrainWon(mine, players, match.winner);
+      if (won === true) wins += 1;
+      else if (won === false) losses += 1;
 
       const mvp =
         (players.mvp && players.mvp.train) ||
