@@ -806,8 +806,13 @@ class KeechHuntTracker:
 
     def _add_event(self, server: str, ev: dict[str, Any], at: datetime) -> None:
         bucket = self._open_bucket(server, at)
-        if bucket.get("seed") or bucket.get("endAt") or _is_seed_layer(
-            str(bucket.get("layer") or bucket.get("layerShort") or "")
+        if (
+            bucket.get("seed")
+            or bucket.get("endAt")
+            or bucket.get("pendingEnd")
+            or _is_seed_layer(
+                str(bucket.get("layer") or bucket.get("layerShort") or "")
+            )
         ):
             return
         # Never append into a finished map that is still lingering open.
