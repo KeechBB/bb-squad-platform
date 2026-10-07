@@ -6,7 +6,6 @@ import {
   normalizeEosId,
   normalizeSteamId,
   roleEventKey,
-  isRoleCombatWindowMsk,
   type SquadRoleIngestEvent,
 } from "@/lib/squadRoles";
 import {
@@ -39,7 +38,7 @@ async function resolveUser(opts: {
   steamRaw: string;
   eosId: string | null;
   nick: string | null;
-}): Promise<{ steamId: string; userId: string } | null> {
+}): Promise<{ steamId: string; userId: string | null } | null> {
   let steamId = normalizeSteamId(opts.steamRaw);
   if (!steamId && opts.eosId) {
     const mapped = await prisma.squadEosSteamMap.findUnique({
@@ -53,7 +52,7 @@ async function resolveUser(opts: {
       where: { steamId },
       select: { id: true },
     });
-    if (user) return { steamId, userId: user.id };
+    return { steamId, userId: user?.id ?? null };
   }
   const nick = (opts.nick || "").trim();
   if (nick) {
@@ -123,11 +122,8 @@ export async function POST(req: Request) {
     if (isPublic) {
       serverKey = "TPUB1";
     }
-    // TR1/TR2 — только боевое окно 21:30–01:00 МСК; PB1 — весь день.
-    if (isTraining && !isRoleCombatWindowMsk(at)) {
-      skipped += 1;
-      continue;
-    }
+    // Пишем все спавны TR1/TR2 (в т.ч. слот КВ ~20:00). Фильтр 21:30–01:00 —
+    // только при показе китов BB на профиле.
 
     const eosId = raw.eosId ? normalizeEosId(String(raw.eosId)) : null;
     const steamRaw = normalizeSteamId(String(raw.steamId || "")) || "";
@@ -162,7 +158,7 @@ export async function POST(req: Request) {
     try {
       await prisma.squadRoleEvent.create({
         data: {
-          userId,
+          userId: userId || undefined,
           steamId,
           eosId,
           nickAtSpawn: nick,
@@ -174,7 +170,7 @@ export async function POST(req: Request) {
         },
       });
       accepted += 1;
-      touchedUsers.add(userId);
+      if (userId) touchedUsers.add(userId);
     } catch {
       skipped += 1;
     }

@@ -112,10 +112,10 @@ export function formatMskYmd(d: Date): string {
   return fmt.format(d);
 }
 
-export async function bonesForUser(
-  userId: string,
+async function bonesWhere(
+  identity: { userId?: string | null; steamIds?: string[] },
   opts: BonesForUserOpts = {}
-): Promise<{ bones: HitBoneCounts; total: number; lastBone: string | null }> {
+) {
   const day = opts.dayYmd?.trim() || null;
   const range = mskRangeBoundsUtc(opts.fromYmd, opts.toYmd);
   const dayBounds = !range && day ? mskDayBoundsUtc(day) : null;
@@ -128,11 +128,59 @@ export async function bonesForUser(
       : dayBounds
         ? { gte: dayBounds.gte, lt: dayBounds.lt }
         : undefined;
-  const where = {
-    userId,
-    NOT: { bone: "None" },
+  const steamIds = (identity.steamIds || []).filter(Boolean);
+  const who = identity.userId
+    ? { userId: identity.userId }
+    : steamIds.length
+      ? { steamId: { in: steamIds } }
+      : null;
+  if (!who) return null;
+  return {
+    ...who,
+    NOT: { bone: "None" as const },
     ...(hitAt ? { hitAt } : {}),
   };
+}
+
+export async function bonesForUser(
+  userId: string,
+  opts: BonesForUserOpts = {}
+): Promise<{ bones: HitBoneCounts; total: number; lastBone: string | null }> {
+  const where = await bonesWhere({ userId }, opts);
+  if (!where) return { bones: {}, total: 0, lastBone: null };
+
+  const [rows, last] = await Promise.all([
+    prisma.squadHitEvent.groupBy({
+      by: ["bone"],
+      where,
+      _count: { _all: true },
+    }),
+    prisma.squadHitEvent.findFirst({
+      where,
+      orderBy: [{ hitAt: "desc" }, { createdAt: "desc" }],
+      select: { bone: true },
+    }),
+  ]);
+  const bones: HitBoneCounts = {};
+  let total = 0;
+  for (const r of rows) {
+    const n = r._count._all;
+    bones[r.bone] = n;
+    total += n;
+  }
+  const lastBone = last?.bone && last.bone !== "None" ? last.bone : null;
+  return { bones, total, lastBone };
+}
+
+/** Попадания по Steam (соперник без аккаунта). */
+export async function bonesForSteamIds(
+  steamIds: string[],
+  opts: BonesForUserOpts = {}
+): Promise<{ bones: HitBoneCounts; total: number; lastBone: string | null }> {
+  const ids = [...new Set(steamIds.filter(Boolean))];
+  if (!ids.length) return { bones: {}, total: 0, lastBone: null };
+  const where = await bonesWhere({ steamIds: ids }, opts);
+  if (!where) return { bones: {}, total: 0, lastBone: null };
 
   const [rows, last] = await Promise.all([
     prisma.squadHitEvent.groupBy({
@@ -405,10 +453,11 @@ export async function hitmapAveragesByTier(): Promise<TierHitmapAvg[]> {
 
   const byUser = new Map<string, HitBoneCounts>();
   for (const g of grouped) {
-    if (!g.bone || g.bone === "None") continue;
-    const cur = byUser.get(g.userId) || {};
+    const uid = g.userId;
+    if (!uid || !g.bone || g.bone === "None") continue;
+    const cur = byUser.get(uid) || {};
     cur[g.bone] = g._count._all;
-    byUser.set(g.userId, cur);
+    byUser.set(uid, cur);
   }
 
   type Acc = {

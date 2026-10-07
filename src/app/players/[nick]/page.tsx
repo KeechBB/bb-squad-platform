@@ -32,6 +32,11 @@ import { ProfileTrainPwrCard } from "@/components/ProfileTrainPwrCard";
 import { ProfileKitsCard } from "@/components/ProfileKitsCard";
 import { ProfileCareerCard } from "@/components/ProfileCareerCard";
 import { isBlackberryClanMember } from "@/lib/blackberryClan";
+import {
+  resolveGuestPlayerIdentity,
+  loadGuestTrainingStats,
+  loadGuestHitBones,
+} from "@/lib/guestPlayer";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -59,7 +64,15 @@ export default async function PlayerProfilePage({ params }: Props) {
     include: {
       clanMemberships: {
         include: {
-          clan: { select: { id: true, name: true, tag: true, logoUrl: true } },
+          clan: {
+            select: {
+              id: true,
+              name: true,
+              tag: true,
+              logoUrl: true,
+              isExternal: true,
+            },
+          },
           title: { select: { name: true } },
         },
       },
@@ -67,24 +80,38 @@ export default async function PlayerProfilePage({ params }: Props) {
   });
 
   if (!user) {
-    const [kvBundle, cwMatchHistory, enemy] = await Promise.all([
-      buildPlayerKvStats(nick)
+    const identity = await resolveGuestPlayerIdentity(nick);
+    const displayNick0 = identity.nick || nick;
+    const primarySteam = identity.steamIds[0] || null;
+
+    const [kvBundle, cwMatchHistory, enemy, training, hits] = await Promise.all([
+      buildPlayerKvStats(displayNick0)
         .then((stats) => ({ stats, error: null as string | null }))
         .catch(() => ({
           stats: null,
           error: "Не удалось загрузить стату КВ" as string | null,
         })),
-      buildPlayerCwMatchHistory(nick).catch(() => []),
-      getEnemyPlayer(nick).catch(() => null),
+      buildPlayerCwMatchHistory(displayNick0).catch(() => []),
+      getEnemyPlayer(displayNick0).catch(() => null),
+      loadGuestTrainingStats(identity.steamIds).catch(() => null),
+      primarySteam
+        ? loadGuestHitBones(identity.steamIds).catch(() => ({
+            bones: {},
+            total: 0,
+            lastBone: null as string | null,
+          }))
+        : Promise.resolve({
+            bones: {},
+            total: 0,
+            lastBone: null as string | null,
+          }),
     ]);
     const kvStats = kvBundle.stats;
-    const hasAny =
-      Boolean(enemy) ||
-      Boolean(kvStats && kvStats.rounds > 0) ||
-      cwMatchHistory.length > 0;
-    const displayNick = enemy?.nick || nick;
+    const displayNick = enemy?.nick || displayNick0;
     const clanTag = enemy?.clanTag || null;
     const clanKey = enemy?.clanKey || null;
+    const tr1 = training?.tr1;
+    const tr2 = training?.tr2;
 
     return (
       <main className="profile-page">
@@ -101,7 +128,7 @@ export default async function PlayerProfilePage({ params }: Props) {
                   </p>
                   <h1>{displayNick}</h1>
                   <p className="muted">
-                    Не зареган на bb-squad.ru · стата с табло КВ
+                    Не зареган на bb-squad.ru · стата с КВ и логов TR1/TR2
                   </p>
                   <p style={{ marginTop: 10, display: "flex", gap: 12, flexWrap: "wrap" }}>
                     {clanKey ? (
@@ -127,24 +154,74 @@ export default async function PlayerProfilePage({ params }: Props) {
                 </div>
               </div>
             </section>
+            {primarySteam ? (
+              <ProfileKitsCard
+                steamId={primarySteam}
+                allowTr1
+                initialLane="TR1"
+                combatWindow={false}
+              />
+            ) : null}
           </div>
         </div>
 
         <div className="profile-area-account">
-          {hasAny ? (
-            <ProfileStatsTabs
-              kvStats={kvStats}
-              kvError={kvBundle.error}
-              trainStats={null}
-              publicStats={null}
+          <ProfileStatsTabs
+            kvStats={kvStats}
+            kvError={kvBundle.error}
+            trainStats={null}
+            publicStats={null}
+          />
+        </div>
+
+        <div className="profile-area-hitmap">
+          {primarySteam ? (
+            <ProfileHitmapCard
+              steamId={primarySteam}
+              bones={hits.bones}
+              lastBone={hits.lastBone}
+              subtitle="TR1+TR2"
+              matchHistory={[]}
             />
           ) : (
             <section className="card">
-              <h2>Пока нет статистики</h2>
-              <p className="muted" style={{ margin: "8px 0 0", lineHeight: 1.5 }}>
-                Ник <strong>{displayNick}</strong> ещё не попал в `oppR1`/`oppR2`
-                и не зареган. После залива КВ или Steam-регистрации стату
-                подтянем сюда.
+              <h2>Попадания</h2>
+              <p className="muted" style={{ margin: "8px 0 0" }}>
+                Steam ещё не связан с ником в логах — попадания появятся после
+                захода на TR1/TR2.
+              </p>
+            </section>
+          )}
+        </div>
+
+        <div className="profile-area-training">
+          {tr1 && tr2 ? (
+            <TrainingSessionsCard
+              sessions={tr1.sessions}
+              presentDays={tr1.presentDays}
+              lateDays={tr1.lateDays}
+              reserveDays={tr1.reserveDays}
+              visitBounds={tr1.visitBounds}
+              minutes30d={tr1.minutes30d}
+              sessions30d={tr1.sessions30d}
+              openNow={tr1.openNow}
+              includeMatchHistory={false}
+              tr2Lane={{
+                sessions: tr2.sessions,
+                presentDays: tr2.presentDays,
+                lateDays: tr2.lateDays,
+                reserveDays: tr2.reserveDays,
+                visitBounds: tr2.visitBounds,
+                minutes30d: tr2.minutes30d,
+                sessions30d: tr2.sessions30d,
+                openNow: tr2.openNow,
+              }}
+            />
+          ) : (
+            <section className="card">
+              <h2>Посещаемость</h2>
+              <p className="muted" style={{ margin: "8px 0 0" }}>
+                Нет сессий TR1/TR2 по этому нику в логах.
               </p>
             </section>
           )}
@@ -167,7 +244,10 @@ export default async function PlayerProfilePage({ params }: Props) {
   const inReserve = isActiveReserve(user.reserveUntil);
   const nickForKv = user.nick || "";
   const isBb = await isBlackberryClanMember(user.steamId);
-  const kitsLane = isBb ? "TR1" : "PB1";
+  const isExternalClan = user.clanMemberships.some((m) => m.clan.isExternal);
+  // BB и соперники (DCAI…) — TR1+TR2; остальные паблик
+  const kitsAllowTr = isBb || isExternalClan;
+  const kitsLane = kitsAllowTr ? "TR1" : "PB1";
 
   const clans = user.clanMemberships.map((m) => ({
     id: m.clan.id,
@@ -303,8 +383,9 @@ export default async function PlayerProfilePage({ params }: Props) {
           />
           <ProfileKitsCard
             userId={user.id}
-            allowTr1={isBb}
+            allowTr1={kitsAllowTr}
             initialLane={kitsLane}
+            combatWindow={isBb}
           />
           {nickForKv ? <ProfileCareerCard nick={nickForKv} /> : null}
         </div>

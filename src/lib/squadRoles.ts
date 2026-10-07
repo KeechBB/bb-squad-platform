@@ -31,6 +31,8 @@ export type KitsForUserOpts = {
   toYmd?: string | null;
   /** TR1 (+TR2) с боевым окном; PB1 — весь день без окна */
   lane?: KitsLane;
+  /** false — без фильтра 21:30–01:00 (слоты КВ ~20:00, соперники) */
+  combatWindow?: boolean;
 };
 
 export function serverKeysForKitsLane(lane: KitsLane): string[] {
@@ -122,6 +124,14 @@ function spawnedAtFilter(opts: KitsForUserOpts):
   return undefined;
 }
 
+function kitCombatSql(lane: KitsLane, combatWindow: boolean) {
+  if (lane !== "TR1" || combatWindow === false) return Prisma.empty;
+  return Prisma.sql`AND (
+          (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::time >= TIME '21:30:00'
+          OR (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::time < TIME '01:00:00'
+        )`;
+}
+
 export async function kitsForUser(
   userId: string,
   opts: KitsForUserOpts = {}
@@ -129,13 +139,7 @@ export async function kitsForUser(
   const range = spawnedAtFilter(opts);
   const lane: KitsLane = opts.lane === "PB1" ? "PB1" : "TR1";
   const keys = serverKeysForKitsLane(lane);
-  const combatSql =
-    lane === "TR1"
-      ? Prisma.sql`AND (
-          (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::time >= TIME '21:30:00'
-          OR (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::time < TIME '01:00:00'
-        )`
-      : Prisma.empty;
+  const combatSql = kitCombatSql(lane, opts.combatWindow !== false);
   const rangeSql = range
     ? Prisma.sql`AND "spawnedAt" >= ${range.gte} AND "spawnedAt" < ${range.lt}`
     : Prisma.empty;
@@ -161,25 +165,84 @@ export async function kitsForUser(
   return { kits: kitCountsToPct(counts), total };
 }
 
+/** Киты по Steam (соперник без аккаунта). */
+export async function kitsForSteamIds(
+  steamIds: string[],
+  opts: KitsForUserOpts = {}
+): Promise<{ kits: KitPctRow[]; total: number }> {
+  const ids = [...new Set(steamIds.filter(Boolean))];
+  if (!ids.length) return { kits: [], total: 0 };
+  const range = spawnedAtFilter(opts);
+  const lane: KitsLane = opts.lane === "PB1" ? "PB1" : "TR1";
+  const keys = serverKeysForKitsLane(lane);
+  const combatSql = kitCombatSql(lane, opts.combatWindow !== false);
+  const rangeSql = range
+    ? Prisma.sql`AND "spawnedAt" >= ${range.gte} AND "spawnedAt" < ${range.lt}`
+    : Prisma.empty;
+
+  const rows = await prisma.$queryRaw<{ kit: string; n: bigint }[]>`
+    SELECT kit, COUNT(*)::bigint AS n
+    FROM "SquadRoleEvent"
+    WHERE "steamId" IN (${Prisma.join(ids)})
+      AND "serverKey" IN (${Prisma.join(keys)})
+      ${rangeSql}
+      ${combatSql}
+    GROUP BY kit
+  `;
+  const counts: Partial<Record<string, number>> = {};
+  let total = 0;
+  for (const r of rows) {
+    const n = Number(r.n) || 0;
+    if (n <= 0) continue;
+    const kit = canonKitName(r.kit);
+    counts[kit] = (counts[kit] || 0) + n;
+    total += n;
+  }
+  return { kits: kitCountsToPct(counts), total };
+}
+
 /** Дни МСК со спавнами ролей (календарь). TR1 — боевое окно; PB1 — весь день. */
 export async function kitDaysForUser(
   userId: string,
-  lane: KitsLane = "TR1"
+  lane: KitsLane = "TR1",
+  opts: { combatWindow?: boolean } = {}
 ): Promise<string[]> {
   const keys = serverKeysForKitsLane(lane);
-  const combatSql =
-    lane === "TR1"
-      ? Prisma.sql`AND (
-          (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::time >= TIME '21:30:00'
-          OR (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::time < TIME '01:00:00'
-        )`
-      : Prisma.empty;
+  const combatSql = kitCombatSql(lane, opts.combatWindow !== false);
   const rows = await prisma.$queryRaw<{ d: Date }[]>`
     SELECT DISTINCT (
       (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::date
     ) AS d
     FROM "SquadRoleEvent"
     WHERE "userId" = ${userId}
+      AND "serverKey" IN (${Prisma.join(keys)})
+      ${combatSql}
+    ORDER BY d DESC
+  `;
+  return rows.map((r) => {
+    const dt = r.d instanceof Date ? r.d : new Date(r.d);
+    const y = dt.getUTCFullYear();
+    const m = String(dt.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(dt.getUTCDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  });
+}
+
+export async function kitDaysForSteamIds(
+  steamIds: string[],
+  lane: KitsLane = "TR1",
+  opts: { combatWindow?: boolean } = {}
+): Promise<string[]> {
+  const ids = [...new Set(steamIds.filter(Boolean))];
+  if (!ids.length) return [];
+  const keys = serverKeysForKitsLane(lane);
+  const combatSql = kitCombatSql(lane, opts.combatWindow !== false);
+  const rows = await prisma.$queryRaw<{ d: Date }[]>`
+    SELECT DISTINCT (
+      (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::date
+    ) AS d
+    FROM "SquadRoleEvent"
+    WHERE "steamId" IN (${Prisma.join(ids)})
       AND "serverKey" IN (${Prisma.join(keys)})
       ${combatSql}
     ORDER BY d DESC

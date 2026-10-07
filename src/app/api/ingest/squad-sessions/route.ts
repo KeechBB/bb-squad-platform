@@ -114,11 +114,8 @@ export async function POST(req: Request) {
     }
     const { steamId, userId } = identity;
 
-    // TR1/TR2 — только зарегистрированные; PB1/TPUB1 — все Steam.
-    if (isTraining && !userId) {
-      skipped += 1;
-      continue;
-    }
+    // TR1/TR2/PB1 — пишем всех по Steam (соперники КВ без аккаунта тоже).
+    // userId заполняем, если зареган.
     if (!isPublic && !isTraining && !userId) {
       skipped += 1;
       continue;

@@ -298,7 +298,7 @@ model ClanJoinRequest {
 }
 
 /// Сессия на игровом сервере Squad (join → leave).
-/// TR1/TR2 — только зарегистрированные; TPUB1/PB1 — все Steam (userId может быть null).
+/// TR1/TR2/PB1 — все Steam; userId заполняется, если игрок зареган на сайте.
 model SquadServerSession {
   id         String    @id @default(cuid())
   userId     String?
@@ -359,10 +359,10 @@ model PublicMatch {
   @@index([mapName])
 }
 
-/// Попадание BBHitZone (атакующий = зарегистрированный игрок сайта). TR1.
+/// Попадание BBHitZone (атакующий). TR1+TR2. userId null = ещё не зареган (соперник КВ).
 model SquadHitEvent {
   id        String   @id @default(cuid())
-  userId    String
+  userId    String?
   steamId   String
   eosId     String?
   victimEos String?
@@ -376,17 +376,17 @@ model SquadHitEvent {
   eventKey  String   @unique
   createdAt DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, hitAt])
   @@index([userId, bone])
   @@index([steamId, hitAt])
 }
 
-/// Спавн стандартного кита (DeployRole). TR1. CQB и прочий кастом не пишем.
+/// Спавн стандартного кита (DeployRole). TR1+TR2. userId null = соперник без аккаунта.
 model SquadRoleEvent {
   id          String   @id @default(cuid())
-  userId      String
+  userId      String?
   steamId     String
   eosId       String?
   nickAtSpawn String?
@@ -400,7 +400,7 @@ model SquadRoleEvent {
   eventKey    String   @unique
   createdAt   DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, spawnedAt])
   @@index([userId, kit])

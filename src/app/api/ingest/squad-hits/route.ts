@@ -36,7 +36,7 @@ function checkSecret(req: Request): boolean {
 async function resolveSteam(
   rawSteam: string,
   eosId: string | null
-): Promise<{ steamId: string; userId: string } | null> {
+): Promise<{ steamId: string; userId: string | null } | null> {
   let steamId = normalizeSteamId(rawSteam);
   if (!steamId && eosId) {
     const mapped = await prisma.squadEosSteamMap.findUnique({
@@ -50,8 +50,7 @@ async function resolveSteam(
     where: { steamId },
     select: { id: true },
   });
-  if (!user) return null;
-  return { steamId, userId: user.id };
+  return { steamId, userId: user?.id ?? null };
 }
 
 export async function POST(req: Request) {
@@ -137,7 +136,7 @@ export async function POST(req: Request) {
     try {
       await prisma.squadHitEvent.create({
         data: {
-          userId,
+          userId: userId || undefined,
           steamId,
           eosId,
           victimEos,
@@ -151,7 +150,7 @@ export async function POST(req: Request) {
         },
       });
       accepted += 1;
-      touchedUsers.add(userId);
+      if (userId) touchedUsers.add(userId);
     } catch {
       skipped += 1;
     }

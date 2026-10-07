@@ -10,12 +10,16 @@ import {
 type KitsLane = "TR1" | "PB1";
 
 type Props = {
-  userId: string;
+  userId?: string | null;
+  /** Соперник без аккаунта — киты по Steam */
+  steamId?: string | null;
   kits?: KitPctRow[];
-  /** Член BlackBerry — видит переключатель TR1|PB1 */
+  /** Показывать переключатель TR1+TR2 | PB1 */
   allowTr1?: boolean;
   /** Стартовая лента (BB → TR1, остальные → PB1) */
   initialLane?: KitsLane;
+  /** false — без фильтра 21:30 (КВ / соперники) */
+  combatWindow?: boolean;
 };
 
 type Mode = "all" | "day" | "range";
@@ -90,11 +94,14 @@ function donutPaths(
 
 export function ProfileKitsCard({
   userId,
+  steamId,
   kits: initialKits,
   allowTr1 = false,
   initialLane,
+  combatWindow = true,
 }: Props) {
   const uid = useId().replace(/:/g, "");
+  const identityKey = userId || steamId || "";
   const defaultLane: KitsLane = allowTr1
     ? initialLane === "PB1"
       ? "PB1"
@@ -118,7 +125,7 @@ export function ProfileKitsCard({
 
   useEffect(() => {
     setKits(initialKits || []);
-  }, [initialKits, userId]);
+  }, [initialKits, identityKey]);
 
   useEffect(() => {
     if (!allowTr1 && lane !== "PB1") setLane("PB1");
@@ -134,10 +141,14 @@ export function ProfileKitsCard({
       },
       withDays: boolean
     ) => {
+      if (!userId && !steamId) return;
       setLoading(true);
       try {
-        const q = new URLSearchParams({ userId });
+        const q = new URLSearchParams();
+        if (userId) q.set("userId", userId);
+        else if (steamId) q.set("steamId", steamId);
         q.set("lane", opts.lane || lane);
+        if (!combatWindow) q.set("combat", "0");
         if (opts.day) q.set("day", opts.day);
         if (opts.from) q.set("from", opts.from);
         if (opts.to) q.set("to", opts.to);
@@ -156,7 +167,7 @@ export function ProfileKitsCard({
         setLoading(false);
       }
     },
-    [userId, lane]
+    [userId, steamId, lane, combatWindow]
   );
 
   useEffect(() => {
@@ -323,9 +334,9 @@ export function ProfileKitsCard({
                 className={`btn ghost${lane === "TR1" ? " active" : ""}`}
                 aria-pressed={lane === "TR1"}
                 onClick={() => setLane("TR1")}
-                title="Тренировка TR1"
+                title="Тренировка TR1+TR2"
               >
-                TR1
+                TR1+TR2
               </button>
               <button
                 type="button"
@@ -439,7 +450,12 @@ export function ProfileKitsCard({
 
       <p className="muted profile-kits-period">
         {loading ? "Обновляем…" : periodLabel}
-        {!loading && lane === "TR1" ? " · 21:30–01:00 МСК" : ""}
+        {!loading && lane === "TR1" && combatWindow
+          ? " · 21:30–01:00 МСК"
+          : ""}
+        {!loading && lane === "TR1" && !combatWindow
+          ? " · TR1+TR2 · весь день"
+          : ""}
         {!loading && lane === "PB1" ? " · PB1 · весь день" : ""}
       </p>
 
@@ -447,7 +463,9 @@ export function ProfileKitsCard({
         <p className="muted profile-kits-empty">
           {lane === "PB1"
             ? "Пока нет стандартных китов на PB1 за этот период."
-            : "Пока нет стандартных китов на TR1 в боевое окно (21:30–01:00 МСК) за этот период."}
+            : combatWindow
+              ? "Пока нет стандартных китов на TR1+TR2 в боевое окно (21:30–01:00 МСК) за этот период."
+              : "Пока нет стандартных китов на TR1/TR2 за этот период."}
         </p>
       ) : (
         <div className="profile-kits-body">

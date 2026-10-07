@@ -22,7 +22,9 @@ export type HitmapMatchOption = {
 };
 
 type Props = {
-  userId: string;
+  userId?: string | null;
+  /** Соперник без аккаунта */
+  steamId?: string | null;
   bones?: HitBoneCounts | null;
   /** кость последнего зафиксированного попадания */
   lastBone?: string | null;
@@ -176,12 +178,14 @@ function matchScore(m: HitmapMatchOption): string {
 
 export function ProfileHitmapCard({
   userId,
+  steamId,
   bones: initialBones,
   lastBone: initialLastBone,
   subtitle,
   matchHistory = [],
 }: Props) {
   const uid = useId().replace(/:/g, "");
+  const identityKey = userId || steamId || "";
   const [bones, setBones] = useState<HitBoneCounts>(initialBones || {});
   const [lastBone, setLastBone] = useState<string | null>(
     initialLastBone || null
@@ -201,14 +205,17 @@ export function ProfileHitmapCard({
     setLastBone(initialLastBone || null);
     setMatchId(null);
     setPickerOpen(false);
-  }, [initialBones, initialLastBone, userId]);
+  }, [initialBones, initialLastBone, identityKey]);
 
   const load = useCallback(
     async (nextMatchId: string | null) => {
+      if (!userId && !steamId) return;
       setLoading(true);
       try {
-        const q = new URLSearchParams({ userId });
-        if (nextMatchId) q.set("matchId", nextMatchId);
+        const q = new URLSearchParams();
+        if (userId) q.set("userId", userId);
+        else if (steamId) q.set("steamId", steamId);
+        if (nextMatchId && userId) q.set("matchId", nextMatchId);
         const res = await fetch(`/api/hitmap?${q}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as {
@@ -223,7 +230,7 @@ export function ProfileHitmapCard({
         setLoading(false);
       }
     },
-    [userId]
+    [userId, steamId]
   );
 
   // Lazy: after first paint when SSR skipped bones
@@ -232,7 +239,7 @@ export function ProfileHitmapCard({
       !initialBones || Object.keys(initialBones).length === 0;
     if (!empty) return;
     void load(null);
-  }, [userId, initialBones, load]);
+  }, [identityKey, initialBones, load]);
 
   useEffect(() => {
     if (!pickerOpen) return;
