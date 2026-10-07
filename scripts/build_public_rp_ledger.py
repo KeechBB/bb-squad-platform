@@ -795,6 +795,7 @@ def main() -> None:
                     "noks": len(m.get("noks") or []),
                     "revives": len(m.get("revives") or []),
                     "dmg": int(round(float(m.get("dmg") or 0))),
+                    "net": round(float(m.get("net") or 0), 1),
                     "won": m.get("won"),
                 }
             )

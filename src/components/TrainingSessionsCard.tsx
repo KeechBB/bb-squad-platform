@@ -145,15 +145,22 @@ function buildMonthGrid(year: number, month: number) {
 export function TrainingMatchHistory({
   matchHistory = [],
   highlightNick,
+  title = "История матчей тренировок",
+  hideTitle = false,
 }: {
   matchHistory?: TrainMatchHistoryRow[];
   highlightNick?: string;
+  title?: string;
+  /** когда снаружи уже вкладки */
+  hideTitle?: boolean;
 }) {
   const [open, setOpen] = useState<MatchStatsOpen | null>(null);
 
   return (
     <section className="card profile-hist-card profile-train-hist-card">
-      <h2 className="profile-hist-title">История матчей тренировок</h2>
+      {hideTitle ? null : (
+        <h2 className="profile-hist-title">{title}</h2>
+      )}
       {matchHistory.length === 0 ? (
         <p className="muted" style={{ margin: "8px 0 0" }}>
           Пока нет тренировочных матчей с ником в рейтинге — история RP

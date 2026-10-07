@@ -6,7 +6,8 @@ import { formatRuDate, isActiveReserve } from "@/lib/validation";
 import { CLAN_ROLE_LABEL, type ClanRole } from "@/lib/clan";
 import { withAvatarCacheBust } from "@/lib/avatarUrl";
 import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
-import { TrainingSessionsCard, TrainingMatchHistory } from "@/components/TrainingSessionsCard";
+import { TrainingSessionsCard } from "@/components/TrainingSessionsCard";
+import { ProfileMatchHistoryTabs } from "@/components/ProfileMatchHistoryTabs";
 import { ProfilePublicRatingCard } from "@/components/ProfilePublicRatingCard";
 import { LivePageRefresh } from "@/components/LivePageRefresh";
 import { ProfileKvMatchHistory } from "@/components/ProfileKvStats";
@@ -24,6 +25,7 @@ import {
   buildPlayerTrainMatchHistory,
   buildPlayerTrainCombatStats,
 } from "@/lib/homeTrainPwr";
+import { buildPlayerPublicMatchHistory } from "@/lib/publicMatchHistory";
 import { buildPlayerCwMatchHistory } from "@/lib/homeCwPwr";
 import { ProfileTrainPwrCard } from "@/components/ProfileTrainPwrCard";
 import { ProfileKitsCard } from "@/components/ProfileKitsCard";
@@ -123,6 +125,7 @@ export default async function PlayerProfilePage({ params }: Props) {
     kvBundle,
     trainPwr,
     matchHistory,
+    publicMatchHistory,
     cwMatchHistory,
     trainCombat,
   ] = await Promise.all([
@@ -158,6 +161,9 @@ export default async function PlayerProfilePage({ params }: Props) {
       : Promise.resolve(null),
     nickForKv
       ? buildPlayerTrainMatchHistory(nickForKv).catch(() => [])
+      : Promise.resolve([]),
+    nickForKv
+      ? buildPlayerPublicMatchHistory(nickForKv).catch(() => [])
       : Promise.resolve([]),
     nickForKv
       ? buildPlayerCwMatchHistory(nickForKv).catch(() => [])
@@ -303,9 +309,11 @@ export default async function PlayerProfilePage({ params }: Props) {
         />
       </div>
       <div className="profile-area-train-hist">
-        <TrainingMatchHistory
-          matchHistory={matchHistory}
+        <ProfileMatchHistoryTabs
+          trainHistory={matchHistory}
+          publicHistory={publicMatchHistory}
           highlightNick={nickForKv}
+          defaultTab={isBb ? "train" : "public"}
         />
       </div>
     </main>

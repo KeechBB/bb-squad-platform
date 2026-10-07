@@ -9,7 +9,8 @@ import { ProfileEditForm } from "@/components/ProfileEditForm";
 import { ProfileKvMatchHistory } from "@/components/ProfileKvStats";
 import { ProfileStatsTabs } from "@/components/ProfileStatsTabs";
 import { ProfileHitmapCard } from "@/components/ProfileHitmapCard";
-import { TrainingSessionsCard, TrainingMatchHistory } from "@/components/TrainingSessionsCard";
+import { TrainingSessionsCard } from "@/components/TrainingSessionsCard";
+import { ProfileMatchHistoryTabs } from "@/components/ProfileMatchHistoryTabs";
 import { ProfilePublicRatingCard } from "@/components/ProfilePublicRatingCard";
 import { LivePageRefresh } from "@/components/LivePageRefresh";
 import { formatRuDate } from "@/lib/validation";
@@ -25,6 +26,7 @@ import {
   buildPlayerTrainMatchHistory,
   buildPlayerTrainCombatStats,
 } from "@/lib/homeTrainPwr";
+import { buildPlayerPublicMatchHistory } from "@/lib/publicMatchHistory";
 import { buildPlayerCwMatchHistory } from "@/lib/homeCwPwr";
 import { ProfileTrainPwrCard } from "@/components/ProfileTrainPwrCard";
 import { ProfileKitsCard } from "@/components/ProfileKitsCard";
@@ -104,6 +106,7 @@ export default async function ProfilePage() {
     kvBundle,
     trainPwr,
     matchHistory,
+    publicMatchHistory,
     cwMatchHistory,
     trainCombat,
   ] = await Promise.all([
@@ -139,6 +142,9 @@ export default async function ProfilePage() {
       : Promise.resolve(null),
     nickForKv
       ? buildPlayerTrainMatchHistory(nickForKv).catch(() => [])
+      : Promise.resolve([]),
+    nickForKv
+      ? buildPlayerPublicMatchHistory(nickForKv).catch(() => [])
       : Promise.resolve([]),
     nickForKv
       ? buildPlayerCwMatchHistory(nickForKv).catch(() => [])
@@ -253,9 +259,11 @@ export default async function ProfilePage() {
         />
       </div>
       <div className="profile-area-train-hist">
-        <TrainingMatchHistory
-          matchHistory={matchHistory}
+        <ProfileMatchHistoryTabs
+          trainHistory={matchHistory}
+          publicHistory={publicMatchHistory}
           highlightNick={nickForKv}
+          defaultTab={isBb ? "train" : "public"}
         />
       </div>
     </main>
