@@ -20,6 +20,7 @@ import { listPendingForClan } from "@/lib/opponentClan";
 type Props = { params: Promise<{ id: string }> };
 
 const HOLDER_NICK = "BB-ClanHolder";
+const EXTERNAL_LEADER_STEAM_PREFIX = "7656119900001";
 
 export default async function ClanPage({ params }: Props) {
   const { id } = await params;
@@ -31,7 +32,7 @@ export default async function ClanPage({ params }: Props) {
   const clan = await prisma.clan.findUnique({
     where: { id },
     include: {
-      leader: { select: { nick: true } },
+      leader: { select: { nick: true, steamId: true } },
       members: {
         include: {
           user: {
@@ -41,6 +42,7 @@ export default async function ClanPage({ params }: Props) {
               name: true,
               avatarUrl: true,
               steamName: true,
+              steamId: true,
               reserveUntil: true,
               reserveReason: true,
               updatedAt: true,
@@ -57,21 +59,41 @@ export default async function ClanPage({ params }: Props) {
     },
   });
   if (!clan) notFound();
-  const externalLeaderNick =
-    clan.isExternal && clan.leader?.nick && clan.leader.nick !== HOLDER_NICK
-      ? clan.leader.nick
-      : null;
 
   const pendingMembers = clan.isExternal
     ? await listPendingForClan(clan.id)
     : [];
   const visibleMembers = clan.isExternal
-    ? clan.members.filter(
-        (m) =>
-          (m.user.nick || "").trim() !== HOLDER_NICK &&
-          (m.user.steamName || "").trim() !== HOLDER_NICK
-      )
+    ? clan.members.filter((m) => {
+        const nick = (m.user.nick || "").trim();
+        const steam = m.user.steamId || "";
+        if (nick === HOLDER_NICK || (m.user.steamName || "").trim() === HOLDER_NICK)
+          return false;
+        // фиктивные «главы» external-кланов не показываем в составе
+        if (steam.startsWith(EXTERNAL_LEADER_STEAM_PREFIX)) return false;
+        return true;
+      })
     : clan.members;
+
+  const realLeaderMember = clan.isExternal
+    ? visibleMembers.find((m) => m.role === "LEADER") ||
+      visibleMembers.find((m) =>
+        Boolean(
+          clan.leader?.nick &&
+            (m.user.nick || "")
+              .toLowerCase()
+              .includes(String(clan.leader.nick).toLowerCase())
+        )
+      )
+    : null;
+  const externalLeaderNick = clan.isExternal
+    ? realLeaderMember?.user.nick ||
+      (clan.leader?.nick &&
+      clan.leader.nick !== HOLDER_NICK &&
+      !clan.leader.steamId?.startsWith(EXTERNAL_LEADER_STEAM_PREFIX)
+        ? clan.leader.nick
+        : null)
+    : null;
 
   let myRole: ClanRole | null = null;
   let myUserId: string | null = null;

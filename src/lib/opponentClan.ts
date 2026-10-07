@@ -167,8 +167,45 @@ async function ensureExternalLeaderUser(
   return created.id;
 }
 
+function nickLooseMatch(a: string, b: string): boolean {
+  const ka = nickKey(a);
+  const kb = nickKey(b);
+  if (ka && kb && ka === kb) return true;
+  const ca = nickCompact(a);
+  const cb = nickCompact(b);
+  if (ca && cb && (ca === cb || ca.includes(cb) || cb.includes(ca))) return true;
+  const la = a.trim().toLowerCase();
+  const lb = b.trim().toLowerCase();
+  if (!la || !lb) return false;
+  return la === lb || la.includes(lb) || lb.includes(la);
+}
+
+/** Реальный зареганный юзер под ником главы (не синтетический 7656119900001…). */
+async function findRealLeaderUser(leaderNick: string) {
+  const nick = leaderNick.trim();
+  if (!nick) return null;
+  const users = await prisma.user.findMany({
+    where: {
+      profileComplete: true,
+      NOT: { steamId: { startsWith: EXTERNAL_LEADER_STEAM_PREFIX } },
+      OR: [
+        { nick: { contains: nick, mode: "insensitive" } },
+        { steamName: { contains: nick, mode: "insensitive" } },
+      ],
+    },
+    select: { id: true, nick: true, steamName: true, steamId: true },
+    take: 40,
+  });
+  return (
+    users.find((u) =>
+      nickLooseMatch(u.nick || u.steamName || "", nick)
+    ) || null
+  );
+}
+
 /**
  * Назначить отображаемого главу чужого клана (карточка КВ).
+ * Если есть реальный зареганный с этим ником — он глава (без фиктивного user).
  * Технический holder остаётся скрытым MEMBER.
  */
 export async function setExternalClanLeader(
@@ -184,22 +221,24 @@ export async function setExternalClanLeader(
   });
   if (!clan?.isExternal) return { ok: false, leaderNick: nick };
 
-  const leaderUserId = await ensureExternalLeaderUser(clan.tag, nick);
   const holderId = await ensureHolderUserId();
+  const real = await findRealLeaderUser(nick);
+  const leaderUserId =
+    real?.id || (await ensureExternalLeaderUser(clan.tag, nick));
+  const displayNick = (real?.nick || nick).trim();
 
   await prisma.clan.update({
     where: { id: clanId },
     data: { leaderId: leaderUserId },
   });
 
-  // глава-отображение
   await prisma.clanMember.upsert({
     where: { clanId_userId: { clanId, userId: leaderUserId } },
     create: { clanId, userId: leaderUserId, role: "LEADER" },
     update: { role: "LEADER" },
   });
 
-  // holder больше не LEADER (скрыт в UI по нику)
+  // holder больше не LEADER
   if (holderId !== leaderUserId) {
     await prisma.clanMember.upsert({
       where: { clanId_userId: { clanId, userId: holderId } },
@@ -208,7 +247,42 @@ export async function setExternalClanLeader(
     });
   }
 
-  return { ok: true, leaderNick: nick };
+  // убрать фиктивного главу из состава, если нашли реального
+  if (real) {
+    const synthSteam = `${EXTERNAL_LEADER_STEAM_PREFIX}${Array.from(
+      clan.tag.toUpperCase()
+    )
+      .map((c) => String(c.charCodeAt(0) % 10))
+      .join("")
+      .padEnd(4, "0")
+      .slice(0, 4)}`.slice(0, 17);
+    const synth = await prisma.user.findUnique({
+      where: { steamId: synthSteam },
+      select: { id: true },
+    });
+    if (synth && synth.id !== leaderUserId) {
+      await prisma.clanMember.deleteMany({
+        where: { clanId, userId: synth.id },
+      });
+    }
+    // на всякий случай — любой синтетический LEADER в этом клане
+    const fakeLeaders = await prisma.clanMember.findMany({
+      where: {
+        clanId,
+        role: "LEADER",
+        user: { steamId: { startsWith: EXTERNAL_LEADER_STEAM_PREFIX } },
+      },
+      select: { userId: true },
+    });
+    for (const f of fakeLeaders) {
+      if (f.userId === leaderUserId) continue;
+      await prisma.clanMember.delete({
+        where: { clanId_userId: { clanId, userId: f.userId } },
+      });
+    }
+  }
+
+  return { ok: true, leaderNick: displayNick };
 }
 
 export async function ensureOpponentClan(opts: {
@@ -449,15 +523,49 @@ export async function attachOpponentClanOnRegister(userId: string): Promise<{
 }
 
 export async function listPendingForClan(clanId: string) {
-  return prisma.clanPendingMember.findMany({
-    where: { clanId },
-    orderBy: { nick: "asc" },
-    select: {
-      id: true,
-      nick: true,
-      steamId: true,
-      matchId: true,
-      createdAt: true,
-    },
+  const [pending, members] = await Promise.all([
+    prisma.clanPendingMember.findMany({
+      where: { clanId },
+      orderBy: { nick: "asc" },
+      select: {
+        id: true,
+        nick: true,
+        steamId: true,
+        matchId: true,
+        createdAt: true,
+      },
+    }),
+    prisma.clanMember.findMany({
+      where: { clanId },
+      include: {
+        user: {
+          select: { nick: true, steamName: true, steamId: true },
+        },
+      },
+    }),
+  ]);
+
+  const memberSteams = new Set(
+    members
+      .map((m) => m.user.steamId)
+      .filter(
+        (s) => s && !s.startsWith(EXTERNAL_LEADER_STEAM_PREFIX) && s !== HOLDER_STEAM
+      )
+  );
+  const memberLabels = members
+    .filter(
+      (m) =>
+        m.user.steamId &&
+        !m.user.steamId.startsWith(EXTERNAL_LEADER_STEAM_PREFIX) &&
+        m.user.steamId !== HOLDER_STEAM
+    )
+    .map((m) => (m.user.nick || m.user.steamName || "").trim())
+    .filter(Boolean);
+
+  return pending.filter((p) => {
+    if (p.steamId && memberSteams.has(p.steamId)) return false;
+    const label = (p.nick || "").trim();
+    if (!label) return false;
+    return !memberLabels.some((m) => nickLooseMatch(m, label));
   });
 }

@@ -974,29 +974,19 @@ export function ClanDetailClient({
                       .toLowerCase()
                       .includes(String(clan.leaderNick).toLowerCase());
                   return (
-                  <li key={p.nick} className="invite-row">
-                    <div>
-                      <strong>{p.nick}</strong>
-                      {isLeader ? (
-                        <span
-                          className="pill"
-                          style={{ marginLeft: 8, fontSize: "0.75rem" }}
-                        >
-                          глава
-                        </span>
-                      ) : null}
-                      {p.steamId ? (
-                        <span className="muted" style={{ marginLeft: 8 }}>
-                          {p.steamId}
-                        </span>
-                      ) : null}
-                      {p.matchId ? (
-                        <span className="muted" style={{ marginLeft: 8 }}>
-                          {p.matchId}
-                        </span>
-                      ) : null}
-                    </div>
-                  </li>
+                    <li key={p.nick} className="invite-row">
+                      <div>
+                        <strong>{p.nick}</strong>
+                        {isLeader ? (
+                          <span
+                            className="pill"
+                            style={{ marginLeft: 8, fontSize: "0.75rem" }}
+                          >
+                            глава
+                          </span>
+                        ) : null}
+                      </div>
+                    </li>
                   );
                 })}
               </ul>
