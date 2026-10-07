@@ -164,6 +164,60 @@ async function loadFromKv<T>(path: string): Promise<T | null> {
   return loadKvJsonCached<T>(path.replace(/^\//, ""));
 }
 
+/** Снимок незареганных с КВ-табло — подцепится к аккаунту по нику/Steam при регистрации. */
+let orphansWriteAt = 0;
+async function persistCwRatingOrphans(
+  orphans: {
+    nick: string;
+    games: number;
+    wins: number;
+    pwr: number;
+    res: number;
+    nok: number;
+    kills: number;
+    deaths: number;
+    dmg: number;
+  }[],
+  matches: number
+): Promise<void> {
+  const now = Date.now();
+  if (now - orphansWriteAt < 60_000) return;
+  orphansWriteAt = now;
+  try {
+    const { promises: fs } = await import("node:fs");
+    const path = await import("node:path");
+    const roots = [
+      process.env.KV_LOCAL_DIR,
+      path.join(process.cwd(), "data", "kv-cache"),
+    ].filter(Boolean) as string[];
+    const payload = {
+      updatedAt: new Date().toISOString(),
+      matches,
+      players: orphans.length,
+      note: "Не в рейтинге до регистрации. Стата с табло; линк по nick/Steam через ClanPendingMember.",
+      rows: orphans.map((o) => ({
+        nick: o.nick,
+        games: o.games,
+        wins: o.wins,
+        pwr: o.pwr,
+        res: o.res,
+        nok: o.nok,
+        kills: o.kills,
+        deaths: o.deaths,
+        dmg: o.dmg,
+      })),
+    };
+    const body = JSON.stringify(payload, null, 2) + "\n";
+    for (const root of roots) {
+      const dir = path.join(root, "data");
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(path.join(dir, "cw-rating-orphans.json"), body, "utf8");
+    }
+  } catch {
+    /* disk optional */
+  }
+}
+
 const EXTERNAL_LEADER_STEAM_PREFIX = "7656119900001";
 
 /** Ники с завершённой регистрацией на сайте (не синтетические главы). */
@@ -187,6 +241,52 @@ async function loadRegisteredNickKeys(): Promise<Set<string>> {
   } catch {
     return new Set();
   }
+}
+
+/**
+ * Табло-ник → ник аккаунта: ClanPendingMember.steamId совпал с зареганным.
+ * Чтобы стата Wkaf с табло легла на аккаунт после логина по Steam.
+ */
+async function loadPendingSteamNickAliases(): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const pending = await prisma.clanPendingMember.findMany({
+      where: { steamId: { not: null } },
+      select: { nick: true, steamId: true },
+    });
+    const steams = [
+      ...new Set(
+        pending
+          .map((p) => String(p.steamId || "").trim())
+          .filter((s) => s && !s.startsWith(EXTERNAL_LEADER_STEAM_PREFIX))
+      ),
+    ];
+    if (!steams.length) return out;
+    const users = await prisma.user.findMany({
+      where: {
+        profileComplete: true,
+        steamId: { in: steams },
+        nick: { not: null },
+      },
+      select: { steamId: true, nick: true },
+    });
+    const nickBySteam = new Map(
+      users.map((u) => [u.steamId, String(u.nick || "").trim()] as const)
+    );
+    for (const p of pending) {
+      const steam = String(p.steamId || "").trim();
+      const accountNick = nickBySteam.get(steam);
+      const boardNick = String(p.nick || "").trim();
+      if (!accountNick || !boardNick) continue;
+      const from = nickKey(boardNick);
+      const to = nickKey(accountNick);
+      if (from && to && from !== to) out.set(from, to);
+    }
+  } catch {
+    /* optional */
+  }
+  return out;
 }
 
 function pad2(n: number) {
@@ -293,9 +393,15 @@ export async function buildCwPwrLeaderboard(): Promise<CwPwrLeaderboard> {
     aliases?: Record<string, string>;
   }>("data/tiers.json");
   const aliases = tiersRaw?.aliases || {};
-  const resolveKey = (nick: string) => resolveNickKeyShared(nick, aliases);
+  const steamAliases = await loadPendingSteamNickAliases();
+  const resolveKey = (nick: string) => {
+    const base = resolveNickKeyShared(nick, aliases);
+    return steamAliases.get(base) || steamAliases.get(nickKey(nick)) || base;
+  };
   const displayNick = (nick: string) => {
     const key = resolveKey(nick);
+    const account = accountNickByKey.get(key);
+    if (account) return account;
     for (const [a, c] of Object.entries(aliases)) {
       if (resolveKey(a) === key || resolveKey(c) === key) {
         return String(c).trim() || stripClanDecorRaw(nick) || nick.trim();
@@ -306,6 +412,26 @@ export async function buildCwPwrLeaderboard(): Promise<CwPwrLeaderboard> {
   const tierIndex = await loadTierIndex();
   const tierOf = (nick: string) =>
     tierIndex.get(resolveKey(nick)) || tierIndex.get(nickKey(nick)) || 4;
+
+  /** Канон-ник аккаунта для ключа (если Steam-линк есть). */
+  const accountNickByKey = new Map<string, string>();
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const users = await prisma.user.findMany({
+      where: {
+        profileComplete: true,
+        nick: { not: null },
+        NOT: { steamId: { startsWith: EXTERNAL_LEADER_STEAM_PREFIX } },
+      },
+      select: { nick: true },
+    });
+    for (const u of users) {
+      const n = String(u.nick || "").trim();
+      if (n) accountNickByKey.set(nickKey(n), n);
+    }
+  } catch {
+    /* optional */
+  }
 
   const months = await Promise.all(
     index.months.map(async (m) => {
@@ -361,7 +487,7 @@ export async function buildCwPwrLeaderboard(): Promise<CwPwrLeaderboard> {
       const key = resolveKey(p.nick);
       if (!map.has(key)) {
         map.set(key, {
-          nick: displayNick(p.nick),
+          nick: accountNickByKey.get(key) || displayNick(p.nick),
           games: 0,
           wins: 0,
           res: 0,
@@ -386,7 +512,15 @@ export async function buildCwPwrLeaderboard(): Promise<CwPwrLeaderboard> {
 
   const registeredKeys = await loadRegisteredNickKeys();
 
-  const ranked: HomeCwPwrRow[] = [];
+  type RankedFull = HomeCwPwrRow & {
+    res: number;
+    nok: number;
+    kills: number;
+    deaths: number;
+    dmg: number;
+    wins: number;
+  };
+  const allRanked: RankedFull[] = [];
   for (const row of map.values()) {
     if (row.games <= 0) continue;
     const winPct = Math.round((1000 * row.wins) / row.games) / 10;
@@ -397,20 +531,47 @@ export async function buildCwPwrLeaderboard(): Promise<CwPwrLeaderboard> {
       winPct,
       kd,
     });
-    ranked.push({
+    const isReg = registeredKeys.has(nickKey(row.nick));
+    allRanked.push({
       nick: row.nick,
       pwr,
       rankLabel: label,
       rankKey,
       games: row.games,
       place: 0,
-      registered: registeredKeys.has(nickKey(row.nick)),
+      registered: isReg,
+      res: row.res,
+      nok: row.nok,
+      kills: row.kills,
+      deaths: row.deaths,
+      dmg: row.dmg,
+      wins: row.wins,
     });
   }
 
-  ranked.sort(
+  allRanked.sort(
     (a, b) => b.pwr - a.pwr || b.games - a.games || a.nick.localeCompare(b.nick, "ru")
   );
+
+  // Склад незареганных: табло остаётся источником статы; здесь снимок для отладки/линка.
+  const orphans = allRanked.filter((r) => !r.registered);
+  void persistCwRatingOrphans(orphans, matchesWithStats).catch(() => null);
+
+  // В публичный рейтинг — только зареганные на сайте.
+  const ranked: HomeCwPwrRow[] = [];
+  for (const r of allRanked) {
+    if (!r.registered) continue;
+    ranked.push({
+      nick: r.nick,
+      pwr: r.pwr,
+      rankLabel: r.rankLabel,
+      rankKey: r.rankKey,
+      games: r.games,
+      place: 0,
+      registered: true,
+    });
+  }
+
   ranked.forEach((r, i) => {
     r.place = i + 1;
   });

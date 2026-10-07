@@ -508,6 +508,14 @@ export async function attachOpponentClanOnRegister(userId: string): Promise<{
     return { joined: false, clanId: null, tag: null };
   }
 
+  // Закрепить Steam на pending-нике с табло — рейтинг/история склеят по Steam.
+  if (!pending.steamId || pending.steamId !== user.steamId) {
+    await prisma.clanPendingMember.update({
+      where: { id: pending.id },
+      data: { steamId: user.steamId },
+    });
+  }
+
   await prisma.clanMember.create({
     data: {
       clanId: pending.clanId,
