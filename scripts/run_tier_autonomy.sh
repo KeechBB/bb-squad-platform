@@ -20,6 +20,15 @@ export KV_LOCAL_DIR="$KV_PUBLIC"
 
 cd "$PLATFORM"
 
+echo "[0/4] export DeployRole kits → KV (чтобы T2–T4 не сыпались в Стрелок)"
+if [[ -f scripts/_tmp_fit_kits.js ]]; then
+  node scripts/_tmp_fit_kits.js || true
+  if [[ -f /tmp/fit-kit-majority.json ]]; then
+    cp -f /tmp/fit-kit-majority.json "$KV_PUBLIC/data/fit-kit-majority.json" || true
+    cp -f /tmp/fit-kit-majority.json "$PLATFORM/scripts/_tmp_fit_kit_majority.json" || true
+  fi
+fi
+
 echo "[1/4] tier_fit_build"
 "$PY" scripts/tier_fit_build.py
 

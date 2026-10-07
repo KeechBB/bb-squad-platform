@@ -81,7 +81,42 @@ FAM_MAP = {
     "HAT": "Tandem",
     "LAT": "LAT",
     "CREW": "Crew",
+    "SAP": "Sap",
+    "GP": "GP",
+    "GRENADIER": "GP",
+    "ENGINEER": "Sap",
+    "ARTY": "Sap",
 }
+# Канон-киты из SquadRoleEvent (RU) → Fit-роль. Без этого T2–T4 сыпятся в Rifle.
+KIT_TO_FIT = {
+    "медик": "Medic",
+    "стрелок": "Rifle",
+    "командир отряда": "SL",
+    "командир": "CMD",
+    "командир мехводов": "Crew",
+    "легкая труба": "LAT",
+    "лёгкая труба": "LAT",
+    "тандем": "Tandem",
+    "мехвод": "Crew",
+    "сапер/инженер": "Sap",
+    "сапёр/инженер": "Sap",
+    "сапер": "Sap",
+    "сапёр": "Sap",
+    "гранатомет подствольный": "GP",
+    "гранатомёт подствольный": "GP",
+    "гранатомет подствельный": "GP",  # опечатка в старых ивентах
+    "легкий пулемет": "Rifle",
+    "лёгкий пулемёт": "Rifle",
+    "тяжелый пулемет": "Rifle",
+    "тяжёлый пулемёт": "Rifle",
+    "марксман": "Rifle",
+    "снайпер": "Rifle",
+    "автоматчик": "Rifle",
+    "пулеметчик": "Rifle",
+    "пилот": "Crew",
+}
+# При разборе log_top пропускаем мусор и берём первую «боевую» семью
+SKIP_FAM = {"OTHER", "CQB", "PILOT", "NONE", ""}
 ROLE_LABEL = {
     "CMD": "CMD",
     "SL": "КО (SL)",
@@ -165,16 +200,66 @@ def main() -> None:
     for p in orr.get("players") or []:
         orr_by[str(p.get("nick") or "").lower()] = p.get("orr")
 
+    def fam_from_log_top(top: list) -> str | None:
+        for item in top or []:
+            fam = item[0] if isinstance(item, (list, tuple)) else item
+            fam_u = str(fam or "").upper()
+            if fam_u in SKIP_FAM:
+                continue
+            if fam_u in FAM_MAP:
+                return fam_u
+        return None
+
     log_role: dict[str, str] = {}
-    if ORR_DETAIL.is_file():
-        detail = load_json(ORR_DETAIL)
-        for block in detail.get("tiers", {}).values():
-            for row in block.get("ranked") or []:
-                nick = row.get("nick")
-                top = row.get("log_top") or []
-                if nick and top:
-                    fam = top[0][0] if isinstance(top[0], (list, tuple)) else top[0]
-                    log_role[nick_key(nick)] = str(fam)
+    for detail_path in (
+        ORR_DETAIL,
+        HERE / "_tmp_orr_all_tiers_logroles.json",
+        DATA / "orr-logroles.json",
+    ):
+        if not detail_path.is_file():
+            continue
+        detail = load_json(detail_path)
+        blocks = detail.get("tiers") or {}
+        rows_iter = []
+        if blocks:
+            for block in blocks.values():
+                rows_iter.extend(block.get("ranked") or [])
+        else:
+            rows_iter = list(detail.get("ranked") or [])
+        for row in rows_iter:
+            nick = row.get("nick")
+            fam = fam_from_log_top(row.get("log_top") or [])
+            if nick and fam:
+                log_role.setdefault(nick_key(nick), fam)
+
+    # DeployRole majority с VPS (SquadRoleEvent) — главный источник для T2–T4
+    kit_role: dict[str, str] = {}
+    for kit_path in (
+        DATA / "fit-kit-majority.json",
+        DATA / "fit-roles.json",
+        HERE / "_tmp_fit_kit_majority.json",
+    ):
+        if not kit_path.is_file():
+            continue
+        kj = load_json(kit_path)
+        by = kj.get("byNick") or kj.get("roles") or {}
+        for nick, val in by.items():
+            # val = [{kit,n}, ...] | "Medic" | "Медик"
+            chosen = None
+            if isinstance(val, list) and val:
+                for item in val:
+                    kit_name = str((item or {}).get("kit") or item or "")
+                    mapped = KIT_TO_FIT.get(kit_name.strip().lower())
+                    if mapped:
+                        chosen = mapped
+                        break
+            elif isinstance(val, str):
+                chosen = KIT_TO_FIT.get(val.strip().lower()) or FAM_MAP.get(val.strip().upper()) or (
+                    val if val in W else None
+                )
+            if chosen:
+                kit_role[nick_key(str(nick))] = chosen
+        break
 
     def canon(n: str) -> str:
         return aliases.get(nick_key(n), n.strip())
@@ -185,10 +270,35 @@ def main() -> None:
                 return t
         return 4
 
+    # Известные роли ниже T1 (канон/мех), сильнее сырого majority паблика
+    KNOWN_KIT = {
+        "Tankist": "Crew",
+        "Gadler": "Crew",
+        "Kuchenchips": "Crew",
+        "Azure": "LAT",
+        "MrChaykaa": "LAT",
+        "GAD": "Crew",  # мех/наводчик; не сырой Rifle с паблика
+        "AkiN": "GP",
+        "KillReal": "Medic",
+        "VET": "Medic",
+        "Radislave": "Medic",
+        "Kroasawn": "Medic",
+        "akin0v": "SL",
+    }
+
     def role_of(nick: str) -> str:
+        # 1) канон T1  2) известные  3) ORR log_top (CW)  4) DeployRole majority  5) Rifle
         if nick in T1_KIT:
             return T1_KIT[nick]
-        return FAM_MAP.get(log_role.get(nick_key(nick), ""), "Rifle")
+        if nick in KNOWN_KIT:
+            return KNOWN_KIT[nick]
+        k = nick_key(nick)
+        fam = log_role.get(k)
+        if fam and fam in FAM_MAP:
+            return FAM_MAP[fam]
+        if k in kit_role:
+            return kit_role[k]
+        return "Rifle"
 
     # meetings chronological with stats
     index = load_json(DATA / "index.json")
@@ -365,11 +475,21 @@ def main() -> None:
 
         benches = {1: build_bench(1), 2: build_bench(2), 3: build_bench(3)}
 
-        def fit_detail(p: dict, bench: dict, role: str) -> dict[str, Any] | None:
+        def bench_for(tier: int, role: str) -> dict | None:
+            """Эталон роли: свой тир → соседние → любой, где есть ≥1 эталон."""
+            for t in (tier, tier - 1, tier + 1, 2, 1, 3):
+                if t < 1 or t > 3:
+                    continue
+                b = (benches.get(t) or {}).get(role)
+                if b:
+                    return b
+            return None
+
+        def fit_detail(p: dict, role_bench: dict | None, role: str) -> dict[str, Any] | None:
             """Fit % + компоненты + 1–2 рычага «как стать лучше»."""
-            if role not in bench or role not in W:
+            if not role_bench or role not in W:
                 return None
-            b = bench[role]
+            b = role_bench
 
             def f(val, tgt):
                 if not tgt:
@@ -445,8 +565,8 @@ def main() -> None:
                 "lever": tips[0]["text"] if tips else "",
             }
 
-        def fit_to(p: dict, bench: dict, role: str) -> float | None:
-            d = fit_detail(p, bench, role)
+        def fit_to(p: dict, tier: int, role: str) -> float | None:
+            d = fit_detail(p, bench_for(tier, role), role)
             return None if d is None else d["fit"]
 
         # enrich players with fits + tips к своему тиру / цели ↑
@@ -455,31 +575,19 @@ def main() -> None:
             p["role"] = role
             p["roleLabel"] = ROLE_LABEL.get(role, role)
             p["pause"] = p["tier"] in (1, 2, 3) and p["g"] < MIN_G_ACTIVE
-            own_d = (
-                fit_detail(p, benches[p["tier"]], role)
-                if p["tier"] in benches and p["tier"] <= 3
-                else None
-            )
-            # T4: ориентир = эталон T3
-            if p["tier"] == 4:
-                own_d = fit_detail(p, benches.get(3) or {}, role)
+            own_tier = 3 if p["tier"] == 4 else p["tier"]
+            own_d = fit_detail(p, bench_for(own_tier, role), role)
             p["fitOwn"] = own_d["fit"] if own_d else None
             p["compsOwn"] = own_d["comps"] if own_d else None
             p["tips"] = own_d["tips"] if own_d else []
             p["lever"] = own_d["lever"] if own_d else ""
             for tn in (1, 2, 3):
-                d = fit_detail(p, benches.get(tn) or {}, role) if tn in benches else None
+                d = fit_detail(p, bench_for(tn, role), role)
                 p[f"fitT{tn}"] = d["fit"] if d else None
-                if d and (
-                    (p["tier"] > tn)
-                    or (p["tier"] == 4 and tn == 3)
-                    or (p["tier"] == tn + 1)
-                ):
-                    # tips к цели повышения (если целимся вверх)
-                    if p["tier"] > tn:
-                        p["tipsUp"] = d["tips"]
-                        p["leverUp"] = d["lever"]
-                        p["compsUp"] = d["comps"]
+                if d and p["tier"] > tn:
+                    p["tipsUp"] = d["tips"]
+                    p["leverUp"] = d["lever"]
+                    p["compsUp"] = d["comps"]
 
         # role boards per tier: members of that tier + near candidates (fit to that tier >= 80)
         tier_boards: dict[str, Any] = {}
