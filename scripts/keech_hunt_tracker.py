@@ -492,10 +492,25 @@ class KeechHuntTracker:
             if mm:
                 layer = (mm.group("layer") or "").strip()
                 cur = self.matches.get(server)
-                if cur and not cur.get("endAt") and layer and not _is_seed_layer(layer):
+                if cur and layer and not _is_seed_layer(layer):
                     cur["layer"] = layer
                     cur["layerShort"] = _layer_short(layer)
                     self._dirty = True
+                    # WaitingPostMatch often arrives BEFORE won/lost — finish archive now.
+                    if cur.get("pendingEnd") or cur.get("endAt"):
+                        ended = at
+                        try:
+                            ended = datetime.fromisoformat(
+                                str(cur.get("pendingEnd") or cur.get("endAt") or "")
+                                .replace("Z", "+00:00")
+                            )
+                            if ended.tzinfo is None:
+                                ended = ended.replace(tzinfo=timezone.utc)
+                        except Exception:
+                            ended = at
+                        self._archive_match(cur, ended=ended)
+                        self.matches.pop(server, None)
+                        self._dirty = True
 
         if "Match State Changed" in line and "LogGameMode" in line:
             sm = R.STATE_RE.search(line)
@@ -509,6 +524,7 @@ class KeechHuntTracker:
                 if (
                     cur
                     and not cur.get("endAt")
+                    and not cur.get("pendingEnd")
                     and cur.get("events")
                     and (cur.get("layerShort") or "?") in ("", "?")
                 ):
@@ -528,11 +544,16 @@ class KeechHuntTracker:
                 self._ensure_match(server, layer, at)
             if sm and sm.group("state") in ("WaitingPostMatch", "LeavingMap"):
                 cur = self.matches.get(server)
-                if cur and not cur.get("endAt"):
+                if cur and not cur.get("endAt") and not cur.get("pendingEnd"):
                     cur["endAt"] = at.isoformat()
-                    self._archive_match(cur, ended=at)
-                    self.matches.pop(server, None)
-                    self._dirty = True
+                    # If layer still unknown, wait for won/lost to name the map.
+                    if (cur.get("layerShort") or "?") in ("", "?"):
+                        cur["pendingEnd"] = at.isoformat()
+                        self._dirty = True
+                    else:
+                        self._archive_match(cur, ended=at)
+                        self.matches.pop(server, None)
+                        self._dirty = True
 
         hm = HIT_RE.search(line)
         if hm:
