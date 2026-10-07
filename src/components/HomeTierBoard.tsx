@@ -40,6 +40,7 @@ function CandidateRow({ row }: { row: HomeTierCandidate }) {
           <span className="home-tier-move">{formatTierArrow(row.fromTier, row.toTier)}</span>
           <span className="home-tier-fit">{row.fit.toFixed(1)}%</span>
         </div>
+        {row.lever ? <p className="home-tier-lever">{row.lever}</p> : null}
       </div>
     </li>
   );
@@ -52,9 +53,12 @@ export function HomeTierBoard({ initial }: Props) {
 
   return (
     <section className="home-ops-board home-tier-board" aria-label="Автосистема тиров">
-      <header className="home-ops-head" title="FIT — насколько подходишь тиру по КВ (середина тира по роли)">
+      <header
+        className="home-ops-head"
+        title="FIT — % от эталона тира по роли (КВ). ≥95%↑ / <75%↓ два дня → авто ±1"
+      >
         <div>
-          <p className="home-ops-eyebrow">авто · Fit КВ</p>
+          <p className="home-ops-eyebrow">автономно · Fit КВ</p>
           <h2>Тиры</h2>
         </div>
         <span className="home-ops-count">

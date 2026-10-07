@@ -18,6 +18,7 @@ export type HomeTierCandidate = {
   band: string;
   fit: number;
   role?: string | null;
+  lever?: string | null;
   since?: string;
   daysHeld?: number;
   ready?: boolean;

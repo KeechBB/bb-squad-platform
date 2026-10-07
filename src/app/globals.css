@@ -5937,6 +5937,13 @@ body:has(.home-page) {
   margin-bottom: 6px;
 }
 
+.home-layout > .home-tier-board .home-tier-lever {
+  margin: 2px 0 0;
+  font-size: 0.68rem;
+  line-height: 1.25;
+  color: rgba(253, 230, 138, 0.85);
+  max-width: 100%;
+}
 .home-layout > .home-tier-board .home-tier-move,
 .home-layout > .home-tier-board .home-tier-fit {
   font-size: 0.72rem;

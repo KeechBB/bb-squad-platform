@@ -50,6 +50,7 @@ async function buildHomeTierBoard(): Promise<HomeTierBoardData> {
       band: String(c.band || "almost"),
       fit: Number(c.fit) || 0,
       role: c.role == null ? null : String(c.role),
+      lever: c.lever == null ? null : String(c.lever),
       since: c.since == null ? undefined : String(c.since),
       daysHeld: c.daysHeld == null ? undefined : Number(c.daysHeld),
       ready: Boolean(c.ready),
@@ -60,7 +61,7 @@ async function buildHomeTierBoard(): Promise<HomeTierBoardData> {
 
 export const getHomeTierBoard = unstable_cache(
   buildHomeTierBoard,
-  ["home-tier-board-v2-disk"],
+  ["home-tier-board-v3-lever"],
   { revalidate: 45 }
 );
 

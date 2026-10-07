@@ -24,11 +24,38 @@ from typing import Any
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
-KV_DATA = ROOT / "KV" / "public" / "data"
+
+
+def _resolve_kv_data() -> Path:
+    import os
+
+    env = (os.environ.get("BB_KV_PUBLIC") or os.environ.get("KV_LOCAL_DIR") or "").strip()
+    cands: list[Path] = []
+    if env:
+        p = Path(env)
+        cands += [p / "data", p]
+    cands += [
+        Path("/var/www/blackberry-kv/data"),
+        Path("/var/www/bb-squad-platform/data/kv-cache/data"),
+        ROOT / "KV" / "public" / "data",
+        HERE.parents[0] / "data" / "kv-cache" / "data",
+    ]
+    for c in cands:
+        try:
+            if (c / "tiers.json").is_file() or (c / "tfs-fit.json").is_file():
+                return c
+        except OSError:
+            continue
+    return ROOT / "KV" / "public" / "data"
+
+
+KV_DATA = _resolve_kv_data()
 FIT_PATH = KV_DATA / "tfs-fit.json"
 TIERS_PATH = KV_DATA / "tiers.json"
 STATE_PATH = KV_DATA / "tier-autofit-state.json"
 BOARD_PATH = KV_DATA / "tier-board.json"
+HISTORY_PATH = KV_DATA / "tier-autofit-history.json"
+print(f"tier_autofit KV_DATA={KV_DATA}", flush=True)
 
 HOLD_DAYS = 2
 DISPLAY_DAYS = 2
@@ -189,6 +216,7 @@ def run(apply: bool) -> dict[str, Any]:
             "fit": float(row["fit"]),
             "band": row.get("band") or "almost",
             "role": row.get("roleLabel") or row.get("role"),
+            "lever": row.get("lever") or "",
         }
         if row.get("band") == "strong" or float(row["fit"]) >= PROMOTE_STRONG:
             payload["band"] = "strong"
@@ -209,6 +237,7 @@ def run(apply: bool) -> dict[str, Any]:
             "fit": float(row["fit"]),
             "band": "hard",
             "role": row.get("roleLabel") or row.get("role"),
+            "lever": row.get("lever") or "",
         }
     for row in warn:
         nick = row["nick"]
@@ -221,6 +250,7 @@ def run(apply: bool) -> dict[str, Any]:
             "fit": float(row["fit"]),
             "band": "warn",
             "role": row.get("roleLabel") or row.get("role"),
+            "lever": row.get("lever") or "",
         }
 
     old_watches = {watch_key(w["kind"], w["nick"], w["toTier"]): w for w in state.get("watches") or []}
@@ -251,6 +281,7 @@ def run(apply: bool) -> dict[str, Any]:
                 "fit": signal["fit"],
                 "note": f"Авто Fit {signal['fit']:.1f}% · удержание {age}д",
                 "actor": "автофит",
+                "lever": signal.get("lever") or "",
             }
             applied.append(transfer)
             state.setdefault("transfers", []).append(transfer)
@@ -289,7 +320,8 @@ def run(apply: bool) -> dict[str, Any]:
                 "band": "almost",
                 "fit": sig["fit"],
                 "role": sig.get("role"),
-                "note": "Почти · Fit ≥90%",
+                "lever": sig.get("lever") or "",
+                "note": "Почти · Fit ≥90% к верхнему тиру",
             }
         )
     for sig in soft_down.values():
@@ -302,7 +334,8 @@ def run(apply: bool) -> dict[str, Any]:
                 "band": "warn",
                 "fit": sig["fit"],
                 "role": sig.get("role"),
-                "note": "Жёлтая зона · Fit 75–85%",
+                "lever": sig.get("lever") or "",
+                "note": "Риск · Fit 75–85% своего тира",
             }
         )
     for w in new_watches:
@@ -315,12 +348,14 @@ def run(apply: bool) -> dict[str, Any]:
                 "band": "strong" if w["kind"] == "promote" else "hard",
                 "fit": w["fit"],
                 "role": w.get("role"),
+                "lever": w.get("lever") or "",
                 "since": w["since"],
                 "daysHeld": w["daysHeld"],
                 "ready": w["ready"],
                 "note": (
                     f"{'Сильный ↑' if w['kind'] == 'promote' else 'Форма ↓'} · "
                     f"удержание {w['daysHeld']}/{HOLD_DAYS}д"
+                    + (f" · {w['lever']}" if w.get("lever") else "")
                 ),
             }
         )
@@ -361,6 +396,16 @@ def run(apply: bool) -> dict[str, Any]:
         if stamp not in note:
             tiers["note"] = (note + f" · {stamp}").strip(" ·")
         dump_json(TIERS_PATH, tiers)
+        # вечный лог применений (не режется DISPLAY_DAYS)
+        hist = {"events": []}
+        if HISTORY_PATH.is_file():
+            try:
+                hist = load_json(HISTORY_PATH)
+            except Exception:
+                hist = {"events": []}
+        hist.setdefault("events", []).extend(applied)
+        hist["updatedAt"] = now.isoformat()
+        dump_json(HISTORY_PATH, hist)
 
     dump_json(STATE_PATH, state)
     dump_json(BOARD_PATH, board)

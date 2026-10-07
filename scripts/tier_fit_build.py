@@ -16,10 +16,36 @@ from typing import Any
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
-KV = ROOT / "KV" / "public"
+
+
+def _resolve_kv_public() -> Path:
+    import os
+
+    env = (os.environ.get("BB_KV_PUBLIC") or os.environ.get("KV_LOCAL_DIR") or "").strip()
+    cands: list[Path] = []
+    if env:
+        p = Path(env)
+        cands += [p, p / "public"]
+    cands += [
+        Path("/var/www/blackberry-kv"),
+        Path("/var/www/bb-squad-platform/data/kv-cache"),
+        ROOT / "KV" / "public",
+        HERE.parents[0] / "data" / "kv-cache",
+    ]
+    for c in cands:
+        try:
+            if (c / "data" / "tiers.json").is_file() or (c / "data" / "training").is_dir():
+                return c
+        except OSError:
+            continue
+    return ROOT / "KV" / "public"
+
+
+KV = _resolve_kv_public()
 DATA = KV / "data"
 OUT = DATA / "tfs-fit.json"
 ORR_DETAIL = HERE / "_tmp_orr_v21_perf.json"
+print(f"tier_fit_build KV={KV}", flush=True)
 
 T1_KIT = {
     "LordWolf": "Sap",
@@ -68,16 +94,24 @@ ROLE_LABEL = {
     "Sap": "Сапёр",
 }
 ROLE_ORDER = ["CMD", "SL", "Medic", "Rifle", "GP", "LAT", "Tandem", "Crew", "Sap"]
+# Веса ролей (сумма=1). Прозрачно для UI «что качает Fit».
 W = {
-    "Medic": dict(res=0.45, kd=0.05, dmg=0.05, orr=0.35, pres=0.10),
-    "Rifle": dict(res=0.05, kd=0.30, dmg=0.25, orr=0.30, pres=0.10),
-    "Crew": dict(res=0.05, kd=0.15, dmg=0.40, orr=0.30, pres=0.10),
+    "Medic": dict(res=0.50, kd=0.00, dmg=0.05, orr=0.35, pres=0.10),  # медик: ресы, не KD
+    "Rifle": dict(res=0.05, kd=0.28, dmg=0.27, orr=0.30, pres=0.10),
+    "Crew": dict(res=0.05, kd=0.12, dmg=0.43, orr=0.30, pres=0.10),
     "SL": dict(res=0.10, kd=0.15, dmg=0.20, orr=0.40, pres=0.15),
-    "GP": dict(res=0.05, kd=0.30, dmg=0.25, orr=0.30, pres=0.10),
-    "LAT": dict(res=0.05, kd=0.20, dmg=0.35, orr=0.30, pres=0.10),
-    "Tandem": dict(res=0.05, kd=0.15, dmg=0.40, orr=0.30, pres=0.10),
-    "Sap": dict(res=0.10, kd=0.15, dmg=0.30, orr=0.35, pres=0.10),
-    "CMD": dict(res=0.05, kd=0.05, dmg=0.10, orr=0.50, pres=0.30),
+    "GP": dict(res=0.05, kd=0.28, dmg=0.27, orr=0.30, pres=0.10),
+    "LAT": dict(res=0.05, kd=0.18, dmg=0.37, orr=0.30, pres=0.10),
+    "Tandem": dict(res=0.05, kd=0.12, dmg=0.43, orr=0.30, pres=0.10),
+    "Sap": dict(res=0.10, kd=0.12, dmg=0.33, orr=0.35, pres=0.10),
+    "CMD": dict(res=0.05, kd=0.05, dmg=0.10, orr=0.45, pres=0.35),
+}
+METRIC_RU = {
+    "res": ("Ресы/игра", "чаще поднимай союзников"),
+    "kd": ("KD", "больше фрагов / меньше смертей"),
+    "dmg": ("Урон/игра", "больше урона по пехоте и технике"),
+    "orr": ("ORR", "польза в КВ-составах (роль + объём)"),
+    "pres": ("Активность", "заходи стабильно в клановые войны"),
 }
 # Which metrics count as "best" (yellow) per role
 BEST_KEYS = {
@@ -106,7 +140,7 @@ CREW_SHARE = {
     "pairs": [
         {"driver": "Gadler", "gunners": ["Tankist", "Kuchenchips"]},
     ],
-    "note": "Мех-шаринг: водитель получает 35% kills/dmg напарника (Tankist/Kuchenchips), если оба в одной встрече. ORR без изменений.",
+    "note": "Мех-шаринг: водитель (Gadler) +35% kills/dmg напарника в одной КВ-встрече. ORR без изменений.",
 }
 
 
@@ -331,7 +365,8 @@ def main() -> None:
 
         benches = {1: build_bench(1), 2: build_bench(2), 3: build_bench(3)}
 
-        def fit_to(p: dict, bench: dict, role: str) -> float | None:
+        def fit_detail(p: dict, bench: dict, role: str) -> dict[str, Any] | None:
+            """Fit % + компоненты + 1–2 рычага «как стать лучше»."""
             if role not in bench or role not in W:
                 return None
             b = bench[role]
@@ -348,22 +383,103 @@ def main() -> None:
                 "orr": f(p["orr"], b["orr"] or 1),
                 "pres": f(p["pres"], 0.45),
             }
+            weights = dict(W[role])
             if role == "Medic":
                 comps["kd"] = min(comps["kd"], 50.0)
-            return round(sum(W[role][k] * comps[k] for k in W[role]), 1)
+                weights["kd"] = 0.0  # медик: KD не качает Fit
+            wsum = sum(weights.values()) or 1.0
+            weights = {k: v / wsum for k, v in weights.items()}
+            score = round(sum(weights[k] * comps[k] for k in weights), 1)
 
-        # enrich players with fits
+            # рычаги: где недобор * вес максимален
+            gaps: list[tuple[float, str, float, float]] = []
+            for k, w in weights.items():
+                if w < 0.04:
+                    continue
+                short = max(0.0, 100.0 - comps[k])
+                if short < 8:
+                    continue
+                gaps.append((w * short, k, comps[k], w))
+            gaps.sort(reverse=True)
+            tips = []
+            for _, k, comp, w in gaps[:2]:
+                title, how = METRIC_RU[k]
+                tips.append(
+                    {
+                        "metric": k,
+                        "title": title,
+                        "how": how,
+                        "you": round(comp, 0),
+                        "weightPct": round(w * 100),
+                        "text": f"{title}: {comp:.0f}% от эталона роли — {how}",
+                    }
+                )
+            if not tips and score >= 95:
+                tips.append(
+                    {
+                        "metric": "hold",
+                        "title": "Держи уровень",
+                        "how": "стабильность важнее всплеска",
+                        "you": score,
+                        "weightPct": 0,
+                        "text": "Ты выше эталона — держи объём КВ и роль.",
+                    }
+                )
+            elif not tips:
+                tips.append(
+                    {
+                        "metric": "pres",
+                        "title": "Активность",
+                        "how": "заходи в КВ",
+                        "you": round(comps["pres"], 0),
+                        "weightPct": round(weights.get("pres", 0) * 100),
+                        "text": "Нет явного провала — копи объём КВ на своей роли.",
+                    }
+                )
+
+            return {
+                "fit": score,
+                "comps": {k: round(v, 1) for k, v in comps.items()},
+                "weights": {k: round(v, 3) for k, v in weights.items()},
+                "tips": tips,
+                "lever": tips[0]["text"] if tips else "",
+            }
+
+        def fit_to(p: dict, bench: dict, role: str) -> float | None:
+            d = fit_detail(p, bench, role)
+            return None if d is None else d["fit"]
+
+        # enrich players with fits + tips к своему тиру / цели ↑
         for p in players:
             role = p["role"] if p["role"] in W else "Rifle"
             p["role"] = role
             p["roleLabel"] = ROLE_LABEL.get(role, role)
             p["pause"] = p["tier"] in (1, 2, 3) and p["g"] < MIN_G_ACTIVE
-            p["fitOwn"] = (
-                fit_to(p, benches[p["tier"]], role) if p["tier"] in benches else None
+            own_d = (
+                fit_detail(p, benches[p["tier"]], role)
+                if p["tier"] in benches and p["tier"] <= 3
+                else None
             )
-            p["fitT1"] = fit_to(p, benches[1], role) if 1 in benches else None
-            p["fitT2"] = fit_to(p, benches[2], role) if 2 in benches else None
-            p["fitT3"] = fit_to(p, benches[3], role) if 3 in benches else None
+            # T4: ориентир = эталон T3
+            if p["tier"] == 4:
+                own_d = fit_detail(p, benches.get(3) or {}, role)
+            p["fitOwn"] = own_d["fit"] if own_d else None
+            p["compsOwn"] = own_d["comps"] if own_d else None
+            p["tips"] = own_d["tips"] if own_d else []
+            p["lever"] = own_d["lever"] if own_d else ""
+            for tn in (1, 2, 3):
+                d = fit_detail(p, benches.get(tn) or {}, role) if tn in benches else None
+                p[f"fitT{tn}"] = d["fit"] if d else None
+                if d and (
+                    (p["tier"] > tn)
+                    or (p["tier"] == 4 and tn == 3)
+                    or (p["tier"] == tn + 1)
+                ):
+                    # tips к цели повышения (если целимся вверх)
+                    if p["tier"] > tn:
+                        p["tipsUp"] = d["tips"]
+                        p["leverUp"] = d["lever"]
+                        p["compsUp"] = d["comps"]
 
         # role boards per tier: members of that tier + near candidates (fit to that tier >= 80)
         tier_boards: dict[str, Any] = {}
@@ -427,6 +543,9 @@ def main() -> None:
                             "g": r["g"],
                             "pause": r["pause"],
                             "bestInTier": r["nick"] == best_nick,
+                            "lever": r.get("lever") or "",
+                            "tips": (r.get("tips") or [])[:2],
+                            "comps": r.get("compsOwn"),
                         }
                         for r in enriched[:12]
                     ],
@@ -450,7 +569,8 @@ def main() -> None:
                 continue
             if fit is None or fit < PROMOTE_ALMOST:
                 continue
-            if p["g"] < MIN_G_ACTIVE and p["tier"] != 4:
+            # всем нужен объём КВ — иначе «ложные» ↑
+            if p["g"] < MIN_G_ACTIVE:
                 continue
             promote.append(
                 {
@@ -466,6 +586,8 @@ def main() -> None:
                     "kd": p["kd"],
                     "dmg_g": p["dmg_g"],
                     "orr": p["orr"],
+                    "lever": p.get("leverUp") or p.get("lever") or "",
+                    "tips": p.get("tipsUp") or p.get("tips") or [],
                 }
             )
         # also T4->T3 already; T3->T2; need T4 who fit T2? only +1
@@ -481,6 +603,10 @@ def main() -> None:
             fit = p.get("fitOwn")
             if fit is None:
                 continue
+            # тонкий эталон роли — не жмём ↓ (несправедливо vs 1–2 человек)
+            bench_role = (benches.get(p["tier"]) or {}).get(p["role"]) or {}
+            if bench_role.get("thin") and fit >= WARN - 5:
+                continue
             row = {
                 "nick": p["nick"],
                 "fromTier": p["tier"],
@@ -493,6 +619,8 @@ def main() -> None:
                 "kd": p["kd"],
                 "dmg_g": p["dmg_g"],
                 "orr": p["orr"],
+                "lever": p.get("lever") or "",
+                "tips": p.get("tips") or [],
             }
             if fit < WARN:
                 demote.append(row)
@@ -595,15 +723,44 @@ def main() -> None:
             "warn": WARN,
             "minGamesActive": MIN_G_ACTIVE,
         },
+        "guide": {
+            "title": "Как работает Fit — просто",
+            "steps": [
+                "Fit% = насколько ты похож на средний уровень своего тира в своей роли (медиана эталона).",
+                "100% = как эталон тира. Выше 100 — сильнее эталона. Ниже — слабее по смеси метрик роли.",
+                "У каждой роли свои веса: медик почти только ресы+ORR, стрелок — KD/урон, SL/CMD — ORR и активность.",
+                "Рядом с ником — «рычаг»: 1–2 метрики, которые сильнее всего тянут Fit вниз. Качай их — Fit растёт.",
+                "↑ авто: Fit к верхнему тиру ≥95% два дня подряд → +1 тир. 90–95% — кандидат (смотрит капитан).",
+                "↓ авто: Fit своего тира <75% два дня подряд → −1 тир. 75–85% — зона риска, без авто-снижения.",
+                "Мало игр (<8 раундов в окне) — пауза: тебя не двигают вниз. Тренировки в Fit не входят — только КВ.",
+            ],
+            "bands": [
+                {"key": "up_strong", "label": "↑ сильно", "rule": "≥95% к верхнему тиру · 2 дня → авто +1"},
+                {"key": "up_almost", "label": "↑ почти", "rule": "90–95% · кандидат на доске"},
+                {"key": "hold", "label": "держись", "rule": "≥85% своего тира"},
+                {"key": "warn", "label": "риск", "rule": "75–85% · без авто"},
+                {"key": "down", "label": "↓ жёстко", "rule": "<75% · 2 дня → авто −1"},
+            ],
+            "weightsRu": {
+                k: [
+                    f"{METRIC_RU[m][0]} {int(round(w * 100))}%"
+                    for m, w in sorted(ws.items(), key=lambda x: -x[1])
+                    if w >= 0.04
+                ]
+                for k, ws in W.items()
+            },
+            "autonomy": "После каждой КВ и по cron ночью: пересчёт Fit → автопереводы созревших → обновление доски на сайте.",
+        },
         "roleOrder": ROLE_ORDER,
         "roleLabels": ROLE_LABEL,
         "bestKeys": BEST_KEYS,
         "weights": W,
+        "metricLabels": {k: v[0] for k, v in METRIC_RU.items()},
         "crewShare": CREW_SHARE,
         "meetings": meetings_out,
         "rawPlayers": raw_players,
         "snapshot": snapshot,
-        "note": "Fit% = доля от медианы текущего тира по роли. Жёлтый = рекорд в группе. Лучший в тире — top Fit среди членов тира.",
+        "note": "Fit% = доля от медианы тира по роли. Рычаг = что качать. Автономно: ≥95%↑ / <75%↓ два дня → ±1 тир.",
     }
     OUT.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(
