@@ -161,36 +161,75 @@ function pad2(n: number) {
   return String(n).padStart(2, "0");
 }
 
-/** Сумма r1+r2 по нику за одну встречу. */
-function sumMeetingPlayers(players: {
-  r1?: PlayerLine[];
-  r2?: PlayerLine[];
-  total?: PlayerLine[];
-  players?: PlayerLine[];
-}): Map<string, { nick: string; res: number; nok: number; kills: number; deaths: number; dmg: number }> {
-  const out = new Map<
-    string,
-    { nick: string; res: number; nok: number; kills: number; deaths: number; dmg: number }
-  >();
-  const lines =
-    players.total?.length || players.players?.length
-      ? ([...(players.total || []), ...(players.players || [])] as PlayerLine[])
-      : ([...(players.r1 || []), ...(players.r2 || [])] as PlayerLine[]);
+/** Агрегат ника за встречу. */
+type MeetingPlayerAgg = {
+  nick: string;
+  res: number;
+  nok: number;
+  kills: number;
+  deaths: number;
+  dmg: number;
+  asOpp: boolean;
+};
 
-  for (const p of lines) {
+function addLinesToMeetingMap(
+  out: Map<string, MeetingPlayerAgg>,
+  lines: PlayerLine[] | undefined,
+  asOpp: boolean
+) {
+  for (const p of lines || []) {
     const raw = String(p?.nick || "").trim();
     if (!raw) continue;
     const key = nickKey(raw);
     if (!out.has(key)) {
-      out.set(key, { nick: raw, res: 0, nok: 0, kills: 0, deaths: 0, dmg: 0 });
+      out.set(key, {
+        nick: raw,
+        res: 0,
+        nok: 0,
+        kills: 0,
+        deaths: 0,
+        dmg: 0,
+        asOpp,
+      });
     }
     const row = out.get(key)!;
+    if (!asOpp) row.asOpp = false;
     row.res += Number(p.res) || 0;
     row.nok += Number(p.nok) || 0;
     row.kills += Number(p.kills) || 0;
     row.deaths += Number(p.deaths) || 0;
     row.dmg += Number(p.dmg) || 0;
   }
+}
+
+/** Сумма r1+r2 по нику за одну встречу (только наша сторона). */
+function sumMeetingPlayers(players: {
+  r1?: PlayerLine[];
+  r2?: PlayerLine[];
+  total?: PlayerLine[];
+  players?: PlayerLine[];
+}): Map<string, MeetingPlayerAgg> {
+  const out = new Map<string, MeetingPlayerAgg>();
+  const lines =
+    players.total?.length || players.players?.length
+      ? ([...(players.total || []), ...(players.players || [])] as PlayerLine[])
+      : ([...(players.r1 || []), ...(players.r2 || [])] as PlayerLine[]);
+  addLinesToMeetingMap(out, lines, false);
+  return out;
+}
+
+/** BB + соперник (oppR1/oppR2) — для истории профиля чужого ника. */
+function sumMeetingPlayersBothSides(players: {
+  r1?: PlayerLine[];
+  r2?: PlayerLine[];
+  total?: PlayerLine[];
+  players?: PlayerLine[];
+  oppR1?: PlayerLine[];
+  oppR2?: PlayerLine[];
+}): Map<string, MeetingPlayerAgg> {
+  const out = sumMeetingPlayers(players);
+  addLinesToMeetingMap(out, players.oppR1, true);
+  addLinesToMeetingMap(out, players.oppR2, true);
   return out;
 }
 
@@ -475,6 +514,8 @@ export async function buildPlayerCwMatchHistory(
     r2?: PlayerLine[];
     total?: PlayerLine[];
     players?: PlayerLine[];
+    oppR1?: PlayerLine[];
+    oppR2?: PlayerLine[];
   };
   const playerDocs: (PlayersDoc | null)[] = new Array(matchMetas.length).fill(
     null
@@ -495,7 +536,7 @@ export async function buildPlayerCwMatchHistory(
     const match = matchMetas[mi];
     const players = playerDocs[mi];
     if (!players) continue;
-    const byNick = sumMeetingPlayers(players);
+    const byNick = sumMeetingPlayersBothSides(players);
     let mine = byNick.get(want);
     if (!mine) {
       for (const [k, v] of byNick) {
@@ -508,8 +549,10 @@ export async function buildPlayerCwMatchHistory(
     if (!mine) continue;
 
     const status = match.status.toLowerCase();
-    const won =
+    let won =
       status === "win" ? true : status === "lose" ? false : null;
+    // для игрока соперника инвертируем результат встречи
+    if (mine.asOpp && won != null) won = !won;
 
     agg.games += 1;
     if (won === true) agg.wins += 1;
@@ -533,7 +576,7 @@ export async function buildPlayerCwMatchHistory(
     history.push({
       matchId: match.id,
       dateLabel: `${pad2(match.day)}.${pad2(match.month)}.${match.year}`,
-      opp: match.opp,
+      opp: mine.asOpp ? "BB" : match.opp,
       map: match.map,
       meeting: match.meeting,
       stack: match.stack,

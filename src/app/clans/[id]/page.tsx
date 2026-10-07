@@ -31,6 +31,7 @@ export default async function ClanPage({ params }: Props) {
   const clan = await prisma.clan.findUnique({
     where: { id },
     include: {
+      leader: { select: { nick: true } },
       members: {
         include: {
           user: {
@@ -56,6 +57,10 @@ export default async function ClanPage({ params }: Props) {
     },
   });
   if (!clan) notFound();
+  const externalLeaderNick =
+    clan.isExternal && clan.leader?.nick && clan.leader.nick !== HOLDER_NICK
+      ? clan.leader.nick
+      : null;
 
   const pendingMembers = clan.isExternal
     ? await listPendingForClan(clan.id)
@@ -164,6 +169,7 @@ export default async function ClanPage({ params }: Props) {
           tag: clan.tag,
           logoUrl: clan.logoUrl,
           isExternal: clan.isExternal,
+          leaderNick: externalLeaderNick,
         }}
         members={visibleMembers.map((m) => ({
           id: m.id,

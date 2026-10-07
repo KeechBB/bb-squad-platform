@@ -320,11 +320,40 @@ function n(v: unknown): number {
   return Number.isFinite(x) ? x : 0;
 }
 
+/** Снять клан-теги ↯DCAI↯ / 『DCAI』 / [BB] / DCI)(AG … */
+function stripClanDecor(nick: string): string {
+  return String(nick || "")
+    .replace(/↯[^↯]*↯/g, " ")
+    .replace(/『[^』]*』/g, " ")
+    .replace(/\[[^\]]*]/g, " ")
+    .replace(/DCI\)\(AG/gi, " ")
+    .replace(/[|/\\|]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function nickBase(nick: string): string {
+  return stripClanDecor(nick)
+    .replace(/\s*\([^)]*\)\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function nickEq(a: string, b: string) {
   const na = a.trim().toLowerCase();
   const nb = b.trim().toLowerCase();
+  if (!na || !nb) return false;
   if (na === nb) return true;
-  return na.replace(/\s+/g, "") === nb.replace(/\s+/g, "");
+  if (na.replace(/\s+/g, "") === nb.replace(/\s+/g, "")) return true;
+  const sa = stripClanDecor(a);
+  const sb = stripClanDecor(b);
+  if (sa && sb && (sa === sb || sa.replace(/\s+/g, "") === sb.replace(/\s+/g, ""))) {
+    return true;
+  }
+  const ba = nickBase(a);
+  const bb = nickBase(b);
+  return Boolean(ba && bb && ba === bb);
 }
 
 function nickKeyCompact(nick: string): string {
@@ -344,11 +373,14 @@ export async function computeCwTuByNick(): Promise<Map<string, number>> {
     const playersUrl = String(m.playersUrl || "").trim();
     if (!playersUrl) continue;
     try {
+      type Row = { nick?: string; kills?: unknown; deaths?: unknown; res?: unknown };
       const data = await loadKvJson<{
-        total?: Array<{ nick?: string; kills?: unknown; deaths?: unknown; res?: unknown }>;
-        players?: Array<{ nick?: string; kills?: unknown; deaths?: unknown; res?: unknown }>;
-        r1?: Array<{ nick?: string; kills?: unknown; deaths?: unknown; res?: unknown }>;
-        r2?: Array<{ nick?: string; kills?: unknown; deaths?: unknown; res?: unknown }>;
+        total?: Row[];
+        players?: Row[];
+        r1?: Row[];
+        r2?: Row[];
+        oppR1?: Row[];
+        oppR2?: Row[];
       }>(playersUrl);
 
       const rows =
@@ -359,10 +391,15 @@ export async function computeCwTuByNick(): Promise<Map<string, number>> {
             string,
             { nick: string; kills: number; deaths: number; res: number }
           >();
-          for (const rnd of [...(data.r1 || []), ...(data.r2 || [])]) {
+          for (const rnd of [
+            ...(data.r1 || []),
+            ...(data.r2 || []),
+            ...(data.oppR1 || []),
+            ...(data.oppR2 || []),
+          ]) {
             const nick = String(rnd?.nick || "").trim();
             if (!nick) continue;
-            const key = nickKeyCompact(nick);
+            const key = nickKeyCompact(nickBase(nick) || nick);
             const cur = by.get(key) || { nick, kills: 0, deaths: 0, res: 0 };
             cur.kills += n(rnd.kills);
             cur.deaths += n(rnd.deaths);
@@ -376,7 +413,7 @@ export async function computeCwTuByNick(): Promise<Map<string, number>> {
       for (const row of rows) {
         const nick = String(row?.nick || "").trim();
         if (!nick) continue;
-        const key = nickKeyCompact(nick);
+        const key = nickKeyCompact(nickBase(nick) || nick);
         if (seen.has(key)) continue;
         seen.add(key);
         const cur = acc.get(key) || { kills: 0, deaths: 0, res: 0, games: 0 };
@@ -418,19 +455,38 @@ export async function buildPlayerKvStats(nick: string): Promise<PlayerKvStats> {
         opp?: string;
         r1?: Record<string, unknown>[];
         r2?: Record<string, unknown>[];
+        oppR1?: Record<string, unknown>[];
+        oppR2?: Record<string, unknown>[];
       }>(playersUrl);
-      for (const rnd of ["r1", "r2"] as const) {
-        for (const row of data[rnd] || []) {
+      const sides: Array<{
+        key: "r1" | "r2";
+        rows: Record<string, unknown>[] | undefined;
+        asOpp: boolean;
+      }> = [
+        { key: "r1", rows: data.r1, asOpp: false },
+        { key: "r2", rows: data.r2, asOpp: false },
+        { key: "r1", rows: data.oppR1, asOpp: true },
+        { key: "r2", rows: data.oppR2, asOpp: true },
+      ];
+      for (const side of sides) {
+        for (const row of side.rows || []) {
           if (!nickEq(String(row?.nick || ""), want)) continue;
+          const status = side.asOpp
+            ? invertBbStatus(String(m.status || ""))
+            : String(m.status || "");
+          const meeting = side.asOpp
+            ? invertMeeting(String(m.meeting || "—"))
+            : String(m.meeting || "—");
           rounds.push({
             matchId: mid,
             day: Number(m.day) || Number(data.day) || 0,
-            opp: String(m.opp || data.opp || "—"),
+            // для игрока соперника «противник» = BB
+            opp: side.asOpp ? "BB" : String(m.opp || data.opp || "—"),
             map: shortMap(String(m.map || "—")),
             stack: String(m.stack || "—"),
-            status: String(m.status || ""),
-            meeting: String(m.meeting || "—"),
-            round: rnd,
+            status,
+            meeting,
+            round: side.key,
             kills: n(row.kills),
             deaths: n(row.deaths),
             dmg: n(row.dmg),
@@ -449,7 +505,9 @@ export async function buildPlayerKvStats(nick: string): Promise<PlayerKvStats> {
   let draws = 0;
   let losses = 0;
   for (const id of matchIds) {
-    const st = matchMeta.get(id)?.status;
+    // раунды соперника уже с invertBbStatus в status поля раунда
+    const sample = rounds.find((r) => r.matchId === id);
+    const st = sample?.status || matchMeta.get(id)?.status;
     if (st === "win") wins += 1;
     else if (st === "draw") draws += 1;
     else if (st === "lose") losses += 1;

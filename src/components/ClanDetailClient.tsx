@@ -110,6 +110,8 @@ type Props = {
     tag: string;
     logoUrl: string | null;
     isExternal?: boolean;
+    /** Отображаемый глава (external / КВ-карточка) */
+    leaderNick?: string | null;
   };
   members: Member[];
   pendingMembers?: PendingMember[];
@@ -871,6 +873,11 @@ export function ClanDetailClient({
           <h1>
             [{clan.tag}] {clan.name}
           </h1>
+          {clan.isExternal && clan.leaderNick ? (
+            <p className="muted" style={{ marginTop: 4 }}>
+              Глава: <strong>{clan.leaderNick}</strong>
+            </p>
+          ) : null}
           {myRole ? (
             <p className="muted">
               Твоя роль: {CLAN_ROLE_LABEL[myRole]}
@@ -960,10 +967,24 @@ export function ClanDetailClient({
                 {` (${pendingMembers.length})`}
               </h3>
               <ul className="invite-list">
-                {pendingMembers.map((p) => (
+                {pendingMembers.map((p) => {
+                  const isLeader =
+                    Boolean(clan.leaderNick) &&
+                    p.nick
+                      .toLowerCase()
+                      .includes(String(clan.leaderNick).toLowerCase());
+                  return (
                   <li key={p.nick} className="invite-row">
                     <div>
                       <strong>{p.nick}</strong>
+                      {isLeader ? (
+                        <span
+                          className="pill"
+                          style={{ marginLeft: 8, fontSize: "0.75rem" }}
+                        >
+                          глава
+                        </span>
+                      ) : null}
                       {p.steamId ? (
                         <span className="muted" style={{ marginLeft: 8 }}>
                           {p.steamId}
@@ -976,7 +997,8 @@ export function ClanDetailClient({
                       ) : null}
                     </div>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             </div>
           ) : null}

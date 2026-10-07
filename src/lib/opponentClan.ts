@@ -127,9 +127,95 @@ export type EnsureOpponentClanResult = {
  * Создать/обновить карточку чужого клана + pending ростер.
  * Зареганных с тем же ником/steam сразу в ClanMember.
  */
+const EXTERNAL_LEADER_STEAM_PREFIX = "7656119900001";
+
+/** Синтетический user для отображения «Глава: …» у external-клана. */
+async function ensureExternalLeaderUser(
+  tag: string,
+  leaderNick: string
+): Promise<string> {
+  const nick = leaderNick.trim() || "—";
+  // уникальный steam на тег клана (не пересекается с реальными)
+  const digits = Array.from(tag.toUpperCase())
+    .map((c) => String(c.charCodeAt(0) % 10))
+    .join("")
+    .padEnd(4, "0")
+    .slice(0, 4);
+  const steamId = `${EXTERNAL_LEADER_STEAM_PREFIX}${digits}`.slice(0, 17);
+  const existing = await prisma.user.findUnique({
+    where: { steamId },
+    select: { id: true },
+  });
+  if (existing) {
+    await prisma.user.update({
+      where: { id: existing.id },
+      data: { nick, steamName: nick, name: nick, profileComplete: true },
+    });
+    return existing.id;
+  }
+  const created = await prisma.user.create({
+    data: {
+      steamId,
+      nick,
+      name: nick,
+      steamName: nick,
+      profileComplete: true,
+      role: "USER",
+    },
+    select: { id: true },
+  });
+  return created.id;
+}
+
+/**
+ * Назначить отображаемого главу чужого клана (карточка КВ).
+ * Технический holder остаётся скрытым MEMBER.
+ */
+export async function setExternalClanLeader(
+  clanId: string,
+  leaderNick: string
+): Promise<{ ok: boolean; leaderNick: string }> {
+  const nick = leaderNick.trim();
+  if (!nick) return { ok: false, leaderNick: "" };
+
+  const clan = await prisma.clan.findUnique({
+    where: { id: clanId },
+    select: { id: true, tag: true, isExternal: true, leaderId: true },
+  });
+  if (!clan?.isExternal) return { ok: false, leaderNick: nick };
+
+  const leaderUserId = await ensureExternalLeaderUser(clan.tag, nick);
+  const holderId = await ensureHolderUserId();
+
+  await prisma.clan.update({
+    where: { id: clanId },
+    data: { leaderId: leaderUserId },
+  });
+
+  // глава-отображение
+  await prisma.clanMember.upsert({
+    where: { clanId_userId: { clanId, userId: leaderUserId } },
+    create: { clanId, userId: leaderUserId, role: "LEADER" },
+    update: { role: "LEADER" },
+  });
+
+  // holder больше не LEADER (скрыт в UI по нику)
+  if (holderId !== leaderUserId) {
+    await prisma.clanMember.upsert({
+      where: { clanId_userId: { clanId, userId: holderId } },
+      create: { clanId, userId: holderId, role: "MEMBER" },
+      update: { role: "MEMBER" },
+    });
+  }
+
+  return { ok: true, leaderNick: nick };
+}
+
 export async function ensureOpponentClan(opts: {
   opp: string;
   players?: OppPlayerIn[];
+  /** Отображаемый глава (ник), для external-карточки */
+  leaderNick?: string | null;
 }): Promise<EnsureOpponentClanResult> {
   const canon = canonOpp(opts.opp);
   const tag = dbTag(opts.opp);
@@ -215,6 +301,11 @@ export async function ensureOpponentClan(opts: {
   }
 
   const membersLinked = await linkRegisteredPlayersToClan(clan.id);
+
+  const leaderNick = String(opts.leaderNick || "").trim();
+  if (leaderNick && clan.isExternal) {
+    await setExternalClanLeader(clan.id, leaderNick);
+  }
 
   return {
     ok: true,

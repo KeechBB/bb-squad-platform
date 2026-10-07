@@ -11840,10 +11840,19 @@ body.profile-match-modal-open {
   font-family: inherit;
 }
 
+.profile-match-tab-opp {
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
 .profile-match-tab.active {
   color: var(--ink);
   border-color: rgba(167, 139, 250, 0.55);
   background: rgba(167, 139, 250, 0.14);
+}
+
+.profile-match-tab-opp.active {
+  border-color: rgba(248, 113, 113, 0.6);
+  background: rgba(248, 113, 113, 0.14);
 }
 
 .profile-match-modal-body {

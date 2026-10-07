@@ -621,7 +621,7 @@ export function ProfileHitmapCard({
           <p className="muted profile-hitmap-empty">
             {matchId
               ? "В этом матче попаданий нет."
-              : "Попадания появятся после стрельбы на TR1 (мод BBHitZone)."}
+              : "Попадания появятся после стрельбы на TR1/TR2 (мод BBHitZone)."}
           </p>
         )}
       </div>

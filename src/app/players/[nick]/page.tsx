@@ -27,6 +27,7 @@ import {
 } from "@/lib/homeTrainPwr";
 import { buildPlayerPublicMatchHistory } from "@/lib/publicMatchHistory";
 import { buildPlayerCwMatchHistory } from "@/lib/homeCwPwr";
+import { getEnemyPlayer } from "@/lib/crossRating";
 import { ProfileTrainPwrCard } from "@/components/ProfileTrainPwrCard";
 import { ProfileKitsCard } from "@/components/ProfileKitsCard";
 import { ProfileCareerCard } from "@/components/ProfileCareerCard";
@@ -46,10 +47,14 @@ export default async function PlayerProfilePage({ params }: Props) {
   const nick = decodeURIComponent(raw).trim();
   if (!nick) notFound();
 
+  // Синтетические «главы» чужих кланов (7656119900001…) — не живые аккаунты;
+  // для них показываем guest-профиль со статуй с табло.
+  const EXTERNAL_LEADER_STEAM_PREFIX = "7656119900001";
   const user = await prisma.user.findFirst({
     where: {
       nick: { equals: nick, mode: "insensitive" },
       profileComplete: true,
+      NOT: { steamId: { startsWith: EXTERNAL_LEADER_STEAM_PREFIX } },
     },
     include: {
       clanMemberships: {
@@ -62,33 +67,95 @@ export default async function PlayerProfilePage({ params }: Props) {
   });
 
   if (!user) {
+    const [kvBundle, cwMatchHistory, enemy] = await Promise.all([
+      buildPlayerKvStats(nick)
+        .then((stats) => ({ stats, error: null as string | null }))
+        .catch(() => ({
+          stats: null,
+          error: "Не удалось загрузить стату КВ" as string | null,
+        })),
+      buildPlayerCwMatchHistory(nick).catch(() => []),
+      getEnemyPlayer(nick).catch(() => null),
+    ]);
+    const kvStats = kvBundle.stats;
+    const hasAny =
+      Boolean(enemy) ||
+      Boolean(kvStats && kvStats.rounds > 0) ||
+      cwMatchHistory.length > 0;
+    const displayNick = enemy?.nick || nick;
+    const clanTag = enemy?.clanTag || null;
+    const clanKey = enemy?.clanKey || null;
+
     return (
-      <main className="profile-page profile-page-empty">
-        <section className="card profile-head-public">
-          <div className="profile-head-row">
-            <div className="admin-user-avatar admin-user-avatar-empty">
-              {nick.slice(0, 1).toUpperCase()}
-            </div>
-            <div className="profile-head-text">
-              <p className="eyebrow">профиль игрока</p>
-              <h1>{nick}</h1>
-              <p className="muted">Игрок не зареган на платформе</p>
-            </div>
+      <main className="profile-page">
+        <div className="profile-area-head">
+          <div className="profile-head-cluster">
+            <section className="card profile-head-public">
+              <div className="profile-head-row">
+                <div className="admin-user-avatar admin-user-avatar-empty">
+                  {displayNick.slice(0, 1).toUpperCase()}
+                </div>
+                <div className="profile-head-text">
+                  <p className="eyebrow">
+                    {clanTag ? `игрок [${clanTag}]` : "профиль игрока"}
+                  </p>
+                  <h1>{displayNick}</h1>
+                  <p className="muted">
+                    Не зареган на bb-squad.ru · стата с табло КВ
+                  </p>
+                  <p style={{ marginTop: 10, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    {clanKey ? (
+                      <Link
+                        className="kv-link"
+                        href={`/rating/clan/${encodeURIComponent(clanKey)}`}
+                      >
+                        клан [{clanTag}] →
+                      </Link>
+                    ) : null}
+                    {enemy ? (
+                      <Link
+                        className="kv-link"
+                        href={`/rating/players/${encodeURIComponent(displayNick)}`}
+                      >
+                        кросс-рейтинг →
+                      </Link>
+                    ) : null}
+                    <Link className="kv-link" href="/cw">
+                      ← КВ
+                    </Link>
+                  </p>
+                </div>
+              </div>
+            </section>
           </div>
-        </section>
-        <section className="card">
-          <h2>Пустой профиль</h2>
-          <p className="muted" style={{ margin: "8px 0 0", lineHeight: 1.5 }}>
-            Ник <strong>{nick}</strong> есть в таблице КВ, но аккаунта на
-            bb-squad.ru ещё нет. Когда игрок войдёт через Steam и завершит
-            регистрацию — здесь появятся аватар, клан и резерв.
-          </p>
-          <p style={{ marginTop: 12 }}>
-            <Link className="kv-link" href="/cw">
-              ← К клановым войнам
-            </Link>
-          </p>
-        </section>
+        </div>
+
+        <div className="profile-area-account">
+          {hasAny ? (
+            <ProfileStatsTabs
+              kvStats={kvStats}
+              kvError={kvBundle.error}
+              trainStats={null}
+              publicStats={null}
+            />
+          ) : (
+            <section className="card">
+              <h2>Пока нет статистики</h2>
+              <p className="muted" style={{ margin: "8px 0 0", lineHeight: 1.5 }}>
+                Ник <strong>{displayNick}</strong> ещё не попал в `oppR1`/`oppR2`
+                и не зареган. После залива КВ или Steam-регистрации стату
+                подтянем сюда.
+              </p>
+            </section>
+          )}
+        </div>
+
+        <div className="profile-area-kv-hist">
+          <ProfileKvMatchHistory
+            matchHistory={cwMatchHistory}
+            highlightNick={displayNick}
+          />
+        </div>
       </main>
     );
   }
@@ -281,15 +348,25 @@ export default async function PlayerProfilePage({ params }: Props) {
       <div className="profile-area-training">
         <LivePageRefresh intervalMs={15000} />
         <TrainingSessionsCard
-          sessions={training.sessions}
-          presentDays={training.presentDays}
-          lateDays={training.lateDays}
-          reserveDays={training.reserveDays}
-          visitBounds={training.visitBounds}
-          minutes30d={training.minutes30d}
-          sessions30d={training.sessions30d}
-          openNow={training.openNow}
+          sessions={training.tr1.sessions}
+          presentDays={training.tr1.presentDays}
+          lateDays={training.tr1.lateDays}
+          reserveDays={training.tr1.reserveDays}
+          visitBounds={training.tr1.visitBounds}
+          minutes30d={training.tr1.minutes30d}
+          sessions30d={training.tr1.sessions30d}
+          openNow={training.tr1.openNow}
           includeMatchHistory={false}
+          tr2Lane={{
+            sessions: training.tr2.sessions,
+            presentDays: training.tr2.presentDays,
+            lateDays: training.tr2.lateDays,
+            reserveDays: training.tr2.reserveDays,
+            visitBounds: training.tr2.visitBounds,
+            minutes30d: training.tr2.minutes30d,
+            sessions30d: training.tr2.sessions30d,
+            openNow: training.tr2.openNow,
+          }}
           publicLane={{
             sessions: publicAtt.sessions,
             presentDays: publicAtt.presentDays,

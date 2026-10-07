@@ -13,6 +13,8 @@ export type MatchStatsOpen =
       sub: string;
       playersUrl: string;
       meeting?: string;
+      /** Тег соперника — для вкладок oppR1/oppR2 */
+      opp?: string;
       r1Label: string;
       r2Label: string;
       r1Tickets?: string;
@@ -56,18 +58,42 @@ type LoadedPlayers = {
   total: PlayerRow[];
   r1: PlayerRow[];
   r2: PlayerRow[];
+  oppTotal: PlayerRow[];
+  oppR1: PlayerRow[];
+  oppR2: PlayerRow[];
   teamA: PlayerRow[];
   teamB: PlayerRow[];
   details: {
     r1?: { tickets?: string; len?: string };
     r2?: { tickets?: string; len?: string };
   } | null;
-  mvpByRound: { r1: MvpBlock; r2: MvpBlock };
+  mvpByRound: {
+    r1: MvpBlock;
+    r2: MvpBlock;
+    oppR1: MvpBlock;
+    oppR2: MvpBlock;
+  };
   training: boolean;
+  hasOpp: boolean;
 };
 
 type SortKey = "nick" | "res" | "nok" | "kills" | "deaths" | "kd" | "dmg" | "pwrDelta";
-type TabKey = "total" | "r1" | "r2" | "teamA" | "teamB";
+type TabKey =
+  | "total"
+  | "r1"
+  | "r2"
+  | "oppTotal"
+  | "oppR1"
+  | "oppR2"
+  | "teamA"
+  | "teamB";
+
+function flipTickets(t?: string | null): string {
+  if (!t || t === "—") return "—";
+  const parts = String(t).split(":");
+  if (parts.length !== 2) return String(t);
+  return `${parts[1].trim()}:${parts[0].trim()}`;
+}
 
 const MVP_LABEL: Record<keyof MvpBlock, string> = {
   medic: "MVP Medic",
@@ -256,33 +282,49 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
             total: all,
             r1: [],
             r2: [],
+            oppTotal: [],
+            oppR1: [],
+            oppR2: [],
             teamA,
             teamB,
             details: json.details || null,
             mvpByRound: {
               r1: (json.mvp && json.mvp.train) || pickMvps(all),
               r2: emptyMvp(),
+              oppR1: emptyMvp(),
+              oppR2: emptyMvp(),
             },
             training: true,
+            hasOpp: false,
           });
         } else {
           const r1 = enrich(json.r1 || []);
           const r2 = enrich(json.r2 || []);
+          const oppR1 = enrich(json.oppR1 || []);
+          const oppR2 = enrich(json.oppR2 || []);
           const total = enrich(
             json.total || json.players || sumRounds(r1, r2)
           );
+          const oppTotal = enrich(json.oppTotal || sumRounds(oppR1, oppR2));
+          const hasOpp = oppR1.length > 0 || oppR2.length > 0;
           setData({
             total,
             r1,
             r2,
+            oppTotal,
+            oppR1,
+            oppR2,
             teamA: [],
             teamB: [],
             details: json.details || null,
             mvpByRound: {
               r1: (json.mvp && json.mvp.r1) || pickMvps(r1),
               r2: (json.mvp && json.mvp.r2) || pickMvps(r2),
+              oppR1: (json.mvp && json.mvp.oppR1) || pickMvps(oppR1),
+              oppR2: (json.mvp && json.mvp.oppR2) || pickMvps(oppR2),
             },
             training: false,
+            hasOpp,
           });
         }
         setLoading(false);
@@ -322,6 +364,9 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
     }
     if (tab === "r1") return data.r1;
     if (tab === "r2") return data.r2;
+    if (tab === "oppTotal") return data.oppTotal;
+    if (tab === "oppR1") return data.oppR1;
+    if (tab === "oppR2") return data.oppR2;
     return data.total;
   }, [data, tab]);
 
@@ -385,9 +430,17 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
         ? (["r1"] as const)
         : tab === "total"
           ? (["r1", "r2"] as const)
-          : tab === "r1" || tab === "teamA"
-            ? (["r1"] as const)
-            : (["r2"] as const);
+          : tab === "oppTotal"
+            ? (["oppR1", "oppR2"] as const)
+            : tab === "r1" || tab === "teamA"
+              ? (["r1"] as const)
+              : tab === "r2" || tab === "teamB"
+                ? (["r2"] as const)
+                : tab === "oppR1"
+                  ? (["oppR1"] as const)
+                  : tab === "oppR2"
+                    ? (["oppR2"] as const)
+                    : (["r1", "r2"] as const);
       for (const rk of keys) {
         const block = data.mvpByRound[rk];
         if (!block) continue;
@@ -418,32 +471,77 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
   const hasTabs = data
     ? data.training
       ? data.teamA.length > 0 || data.teamB.length > 0
-      : data.r1.length > 0 || data.r2.length > 0
+      : data.r1.length > 0 || data.r2.length > 0 || data.hasOpp
     : false;
 
-  const tabs: { key: TabKey; label: string }[] = data?.training
-    ? [
-        { key: "total", label: "Все" },
-        {
-          key: "teamA",
-          label: `${
-            open.kind === "train" ? abbreviateFaction(open.factionA) : "A"
-          } · ${open.kind === "train" ? open.ticketsA ?? "—" : "—"}`,
-        },
-        {
-          key: "teamB",
-          label: `${
-            open.kind === "train" ? abbreviateFaction(open.factionB) : "B"
-          } · ${open.kind === "train" ? open.ticketsB ?? "—" : "—"}`,
-        },
-      ]
-    : open.kind === "cw"
+  const oppTag =
+    open.kind === "cw"
+      ? String(open.opp || "").trim() ||
+        (open.title.includes(" vs ")
+          ? open.title.split(" vs ").pop()?.trim() || "OPP"
+          : "OPP")
+      : "OPP";
+  const showSidePrefix = Boolean(data?.hasOpp);
+
+  const tabs: { key: TabKey; label: string; group?: "bb" | "opp" }[] =
+    data?.training
       ? [
-          { key: "total", label: "Итого" },
-          { key: "r1", label: open.r1Label },
-          { key: "r2", label: open.r2Label },
+          { key: "total", label: "Все" },
+          {
+            key: "teamA",
+            label: `${
+              open.kind === "train" ? abbreviateFaction(open.factionA) : "A"
+            } · ${open.kind === "train" ? open.ticketsA ?? "—" : "—"}`,
+          },
+          {
+            key: "teamB",
+            label: `${
+              open.kind === "train" ? abbreviateFaction(open.factionB) : "B"
+            } · ${open.kind === "train" ? open.ticketsB ?? "—" : "—"}`,
+          },
         ]
-      : [];
+      : open.kind === "cw"
+        ? [
+            {
+              key: "total",
+              label: showSidePrefix ? "BB · Итого" : "Итого",
+              group: "bb",
+            },
+            {
+              key: "r1",
+              label: showSidePrefix
+                ? `BB · ${open.r1Label}`
+                : open.r1Label,
+              group: "bb",
+            },
+            {
+              key: "r2",
+              label: showSidePrefix
+                ? `BB · ${open.r2Label}`
+                : open.r2Label,
+              group: "bb",
+            },
+            ...(data?.hasOpp
+              ? ([
+                  {
+                    key: "oppTotal",
+                    label: `${oppTag} · Итого`,
+                    group: "opp",
+                  },
+                  {
+                    key: "oppR1",
+                    label: `${oppTag} · Раунд 1 · ${flipTickets(open.r1Tickets)}`,
+                    group: "opp",
+                  },
+                  {
+                    key: "oppR2",
+                    label: `${oppTag} · Раунд 2 · ${flipTickets(open.r2Tickets)}`,
+                    group: "opp",
+                  },
+                ] as const)
+              : []),
+          ]
+        : [];
 
   const highlight = (open.highlightNick || "").trim().toLowerCase();
 
@@ -482,7 +580,9 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
               <button
                 key={t.key}
                 type="button"
-                className={`profile-match-tab${tab === t.key ? " active" : ""}`}
+                className={`profile-match-tab${
+                  t.group === "opp" ? " profile-match-tab-opp" : ""
+                }${tab === t.key ? " active" : ""}`}
                 onClick={() => setTab(t.key)}
               >
                 {t.label}
@@ -533,13 +633,23 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
                       <strong>{open.meeting || "—"}</strong>
                     </div>
                     <div>
-                      <span className="muted">Тикеты</span>
+                      <span className="muted">
+                        {tab.startsWith("opp")
+                          ? `Тикеты (${oppTag}:BB)`
+                          : "Тикеты"}
+                      </span>
                       <strong>
                         {tab === "r1"
                           ? open.r1Tickets || "—"
                           : tab === "r2"
                             ? open.r2Tickets || "—"
-                            : `${open.r1Tickets || "—"} · ${open.r2Tickets || "—"}`}
+                            : tab === "oppR1"
+                              ? flipTickets(open.r1Tickets)
+                              : tab === "oppR2"
+                                ? flipTickets(open.r2Tickets)
+                                : tab === "oppTotal"
+                                  ? `${flipTickets(open.r1Tickets)} · ${flipTickets(open.r2Tickets)}`
+                                  : `${open.r1Tickets || "—"} · ${open.r2Tickets || "—"}`}
                       </strong>
                     </div>
                   </>

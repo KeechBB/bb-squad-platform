@@ -45,6 +45,14 @@ export async function POST(req: Request) {
     }
   }
 
-  const result = await ensureOpponentClan({ opp, players });
+  const leaderNick = String(
+    (body as { leaderNick?: string }).leaderNick || ""
+  ).trim();
+
+  const result = await ensureOpponentClan({
+    opp,
+    players,
+    leaderNick: leaderNick || null,
+  });
   return NextResponse.json(result);
 }

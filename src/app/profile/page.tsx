@@ -241,15 +241,25 @@ export default async function ProfilePage() {
       <div className="profile-area-training">
         {/* Без LivePageRefresh: полный router.refresh каждые 15с убивал клики */}
         <TrainingSessionsCard
-          sessions={training.sessions}
-          presentDays={training.presentDays}
-          lateDays={training.lateDays}
-          reserveDays={training.reserveDays}
-          visitBounds={training.visitBounds}
-          minutes30d={training.minutes30d}
-          sessions30d={training.sessions30d}
-          openNow={training.openNow}
+          sessions={training.tr1.sessions}
+          presentDays={training.tr1.presentDays}
+          lateDays={training.tr1.lateDays}
+          reserveDays={training.tr1.reserveDays}
+          visitBounds={training.tr1.visitBounds}
+          minutes30d={training.tr1.minutes30d}
+          sessions30d={training.tr1.sessions30d}
+          openNow={training.tr1.openNow}
           includeMatchHistory={false}
+          tr2Lane={{
+            sessions: training.tr2.sessions,
+            presentDays: training.tr2.presentDays,
+            lateDays: training.tr2.lateDays,
+            reserveDays: training.tr2.reserveDays,
+            visitBounds: training.tr2.visitBounds,
+            minutes30d: training.tr2.minutes30d,
+            sessions30d: training.tr2.sessions30d,
+            openNow: training.tr2.openNow,
+          }}
           publicLane={{
             sessions: publicAtt.sessions,
             presentDays: publicAtt.presentDays,

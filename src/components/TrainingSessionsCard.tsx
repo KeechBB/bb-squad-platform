@@ -46,11 +46,16 @@ type Props = AttendanceLaneProps & {
   /** false — только посещаемость; историю выносим в отдельный блок */
   includeMatchHistory?: boolean;
   /**
-   * Вторая лента (PB1). Если передана — на календаре кнопка TR1 | PB1
-   * (по умолчанию TR1, как раньше).
+   * Лента TR2. Если передана — на календаре TR1 | TR2 (| PB1).
+   */
+  tr2Lane?: AttendanceLaneProps;
+  /**
+   * Лента PB1. Если передана — на календаре кнопка PB1 рядом с TR*.
    */
   publicLane?: AttendanceLaneProps;
 };
+
+type TrainServer = "TR1" | "TR2" | "PB1";
 
 const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const MONTHS_RU = [
@@ -308,23 +313,29 @@ export function TrainingSessionsCard({
   visitBounds: visitBoundsProp,
   matchHistory = [],
   includeMatchHistory = true,
+  tr2Lane,
   publicLane,
 }: Props) {
-  const [server, setServer] = useState<"TR1" | "PB1">("TR1");
+  const [server, setServer] = useState<TrainServer>("TR1");
+  const hasTr2 = Boolean(tr2Lane);
   const hasPublic = Boolean(publicLane);
+  const showToggle = hasTr2 || hasPublic;
+  const tr1Lane: AttendanceLaneProps = {
+    sessions,
+    minutes30d,
+    sessions30d,
+    openNow,
+    presentDays: presentDaysProp,
+    lateDays: lateDaysProp,
+    reserveDays: reserveDaysProp,
+    visitBounds: visitBoundsProp,
+  };
   const lane =
     server === "PB1" && publicLane
       ? publicLane
-      : {
-          sessions,
-          minutes30d,
-          sessions30d,
-          openNow,
-          presentDays: presentDaysProp,
-          lateDays: lateDaysProp,
-          reserveDays: reserveDaysProp,
-          visitBounds: visitBoundsProp,
-        };
+      : server === "TR2" && tr2Lane
+        ? tr2Lane
+        : tr1Lane;
 
   const normalized = useMemo(
     () => normalizeSessions(lane.sessions),
@@ -364,14 +375,25 @@ export function TrainingSessionsCard({
   }, [activeMinutes, activeSessions30d]);
 
   const isPb1 = server === "PB1";
+  const isTr2 = server === "TR2";
   const title = isPb1 ? "Посещаемость паблика" : "Посещаемость тренировок";
   const daysLabel = isPb1 ? "дней / 30 дн" : "вечеров / 30 дн";
-  const minutesLabel = isPb1 ? "мин на PB1 / 30 дн" : "мин 21–00 / 30 дн";
+  const minutesLabel = isPb1
+    ? "мин на PB1 / 30 дн"
+    : isTr2
+      ? "мин 21–00 / 30 дн · TR2"
+      : "мин 21–00 / 30 дн · TR1";
   const avgLabel = isPb1 ? "сред. мин / день" : "сред. мин / вечер";
-  const onlineLabel = isPb1 ? "сейчас на PB1" : "сейчас на TR1";
+  const onlineLabel = isPb1
+    ? "сейчас на PB1"
+    : isTr2
+      ? "сейчас на TR2"
+      : "сейчас на TR1";
   const calendarTitle = isPb1
     ? "Календарь паблика (PB1)"
-    : "Календарь тренировок (TR1)";
+    : isTr2
+      ? "Календарь тренировок (TR2)"
+      : "Календарь тренировок (TR1)";
 
   const cells = buildMonthGrid(viewY, viewM);
 
@@ -393,7 +415,7 @@ export function TrainingSessionsCard({
     setViewM(m);
   }
 
-  const serverToggle = hasPublic ? (
+  const serverToggle = showToggle ? (
     <div
       className="training-server-toggle"
       role="group"
@@ -401,22 +423,35 @@ export function TrainingSessionsCard({
     >
       <button
         type="button"
-        className={`btn ghost${!isPb1 ? " active" : ""}`}
-        aria-pressed={!isPb1}
+        className={`btn ghost${server === "TR1" ? " active" : ""}`}
+        aria-pressed={server === "TR1"}
         onClick={() => setServer("TR1")}
         title="Тренировка TR1"
       >
         TR1
       </button>
-      <button
-        type="button"
-        className={`btn ghost${isPb1 ? " active" : ""}`}
-        aria-pressed={isPb1}
-        onClick={() => setServer("PB1")}
-        title="Паблик PB1"
-      >
-        PB1
-      </button>
+      {hasTr2 ? (
+        <button
+          type="button"
+          className={`btn ghost${server === "TR2" ? " active" : ""}`}
+          aria-pressed={server === "TR2"}
+          onClick={() => setServer("TR2")}
+          title="Тренировка TR2"
+        >
+          TR2
+        </button>
+      ) : null}
+      {hasPublic ? (
+        <button
+          type="button"
+          className={`btn ghost${server === "PB1" ? " active" : ""}`}
+          aria-pressed={server === "PB1"}
+          onClick={() => setServer("PB1")}
+          title="Паблик PB1"
+        >
+          PB1
+        </button>
+      ) : null}
     </div>
   ) : null;
 
