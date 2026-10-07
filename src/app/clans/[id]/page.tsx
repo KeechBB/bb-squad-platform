@@ -170,6 +170,7 @@ export default async function ClanPage({ params }: Props) {
     myRole != null
       ? canReviewClanJoinRequests(myRole, myTitleName)
       : false;
+  // external-кланы не распускаем с сайта; заявки — через приглашение главы
   const canDisband =
     myRole && !clan.isExternal ? canDeleteClan(myRole) : false;
   const canApply =
@@ -213,19 +214,19 @@ export default async function ClanPage({ params }: Props) {
         }))}
         titles={clan.titles}
         myUserId={myUserId}
-        myRole={clan.isExternal && myRole === "LEADER" ? null : myRole}
+        myRole={myRole}
         myTitleName={myTitleName}
-        canManage={clan.isExternal ? false : canManage}
-        canManageTitles={clan.isExternal ? false : canTitles}
-        canReviewJoins={clan.isExternal ? false : canReviewJoins}
+        canManage={canManage}
+        canManageTitles={canTitles}
+        canReviewJoins={canReviewJoins}
         canDisband={canDisband}
         canApply={canApply}
         inOtherClan={inOtherClan}
         isLoggedIn={Boolean(session?.user?.steamId)}
         profileComplete={Boolean(session?.user?.profileComplete)}
         myPendingRequestId={myPendingRequestId}
-        joinRequests={clan.isExternal ? [] : joinRequests}
-        assignableRoles={clan.isExternal ? [] : assignable}
+        joinRequests={joinRequests}
+        assignableRoles={assignable}
         tierEntries={tierEntries}
       />
     </main>

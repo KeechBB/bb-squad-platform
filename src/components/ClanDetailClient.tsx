@@ -955,8 +955,9 @@ export function ClanDetailClient({
         <section className="card">
           {clan.isExternal ? (
             <p className="muted" style={{ marginTop: 0 }}>
-              Карточка соперника с КВ. Игроки с табло/логов — ниже; после регистрации на
-              площадке они сразу в этом клане.
+              Карточка соперника с КВ. Игроки с табло — ниже; после регистрации на
+              площадке попадают в клан. Глава может приглашать, кикать, создавать
+              роли и составы.
             </p>
           ) : null}
 
@@ -1066,8 +1067,8 @@ export function ClanDetailClient({
           {canTitles ? (
             <div className="clan-titles-panel">
               <p className="muted" style={{ margin: "0 0 8px" }}>
-                Должности клана (не влияют на права сайта). Создавать и удалять —
-                глава, заместитель и HR.
+                Роли/должности клана. Создавать и удалять — глава и заместитель
+                (HR тоже может). Выдаются игрокам в таблице ниже.
               </p>
               <div className="clan-invite-row">
                 <label className="field" style={{ flex: 1, margin: 0 }}>
@@ -1360,8 +1361,9 @@ export function ClanDetailClient({
             </>
           ) : (
             <p className="muted" style={{ marginTop: 0 }}>
-              Main и Junior — базовые составы. Можно создать ещё и раскидать
-              игроков клана. В рейтинге КВ появятся колонки «Клан» и «Состав».
+              {clan.isExternal
+                ? "Создавай свои составы и раскидывай игроков клана. Составы видны в рейтинге КВ."
+                : "Создавай составы и раскидывай игроков клана. В рейтинге КВ появятся колонки «Клан» и «Состав»."}
             </p>
           )}
           {!autoStacks && canManage ? (
@@ -1386,12 +1388,21 @@ export function ClanDetailClient({
             </div>
           ) : null}
           {error ? <p className="error">{error}</p> : null}
+          {!autoStacks && squads.length === 0 ? (
+            <p className="muted" style={{ marginTop: 16 }}>
+              Пока нет составов
+              {canManage ? " — создай первый выше." : "."}
+            </p>
+          ) : null}
 
           <div className="squad-grid">
             {squads.map((s) => {
               const inSquad = new Set(s.members.map((m) => m.user.id));
               const available = members.filter((m) => !inSquad.has(m.user.id));
-              const locked = ["main", "junior"].includes(s.name.toLowerCase());
+              // Main/Junior locked только у BB (autoStacks)
+              const locked =
+                autoStacks &&
+                ["main", "junior"].includes(s.name.toLowerCase());
               const cmdKey =
                 s.name.toLowerCase() === "main"
                   ? "Main"

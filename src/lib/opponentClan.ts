@@ -321,6 +321,7 @@ export async function ensureOpponentClan(opts: {
       },
     });
     created = true;
+    // external: без авто-Main/Junior (ensureDefaultSquads их сразу снесёт)
     await ensureDefaultSquads(clan.id);
     await ensureDefaultTitles(clan.id);
     const logoUrl = await copyBrandLogo(clan.id, logoKey);

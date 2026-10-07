@@ -22,9 +22,12 @@ export async function OPTIONS() {
 
 /** Публичная карта ник → клан/состав/номер регистрации для рейтинга КВ */
 export async function GET() {
+  // Main/Junior только у BB; у external ensureDefaultSquads чистит авто-составы
   await ensureBbDefaultSquads();
 
-  const clans = await prisma.clan.findMany({ select: { id: true } });
+  const clans = await prisma.clan.findMany({
+    select: { id: true, isExternal: true },
+  });
   await Promise.all(clans.map((c) => ensureDefaultSquads(c.id)));
 
   const refreshed = await prisma.clan.findMany({

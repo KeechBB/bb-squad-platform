@@ -308,11 +308,19 @@ export async function DELETE(req: Request, ctx: Ctx) {
 
   const url = new URL(req.url);
   const squadId = url.searchParams.get("squadId") || "";
-  const squad = await prisma.clanSquad.findFirst({ where: { id: squadId, clanId } });
+  const [squad, clan] = await Promise.all([
+    prisma.clanSquad.findFirst({ where: { id: squadId, clanId } }),
+    loadClan(clanId),
+  ]);
   if (!squad) {
     return NextResponse.json({ error: "Состав не найден" }, { status: 404 });
   }
-  if (["main", "junior"].includes(squad.name.toLowerCase())) {
+  // Main/Junior нельзя сносить только у BlackBerry (авто-стаки)
+  if (
+    clan &&
+    isBbClan(clan.tag, clan.name) &&
+    ["main", "junior"].includes(squad.name.toLowerCase())
+  ) {
     return NextResponse.json(
       { error: "Main и Junior нельзя удалить" },
       { status: 403 }
