@@ -32,7 +32,7 @@ import re
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -250,14 +250,19 @@ class Collector:
         self.ingest_secret = env("SQUAD_INGEST_SECRET")
         self._public_rp_pending = False
         self._public_rp_last = 0.0
-        # After map end: history is instant; RP used to wait 300s + full 14d rescore.
-        # Debounce only coalesces back-to-back ends; real speedup is incremental ledger.
+        # Coalesce only rapid double-ends; RP itself is incremental append.
         self._public_rp_debounce = int(
-            os.environ.get("PUBLIC_RP_DEBOUNCE_SEC") or "20"
+            os.environ.get("PUBLIC_RP_DEBOUNCE_SEC") or "5"
         )
-        # One heavy Python job at a time (train sync / public RP) — protects 4GB VPS.
-        self._heavy_lock = Path(__file__).resolve().parent / "_tmp_heavy_job.lock"
+        scripts_dir = Path(__file__).resolve().parent
+        # Train/CW share one lock; public RP has its own so a long full rescore
+        # (or train sync) cannot block scoring the map that just ended.
+        self._heavy_lock = scripts_dir / "_tmp_heavy_job.lock"
+        self._public_rp_lock = scripts_dir / "_tmp_public_rp.lock"
         self._heavy_lock_ttl = int(os.environ.get("HEAVY_JOB_LOCK_TTL_SEC") or "900")
+        self._public_rp_lock_ttl = int(
+            os.environ.get("PUBLIC_RP_LOCK_TTL_SEC") or "600"
+        )
         self.state_path = Path(
             os.environ.get("SQUAD_STATE_PATH", "squad_collector_state.json")
         )
@@ -317,6 +322,8 @@ class Collector:
                     f"state: dropped {len(raw_map) - len(self.eos_steam)} truncated steam ids",
                     file=sys.stderr,
                 )
+            if data.get("public_rp_pending"):
+                self._public_rp_pending = True
         except Exception as e:
             _safe_print("state load fail", e, file=sys.stderr)
 
@@ -331,6 +338,7 @@ class Collector:
             "pending_joins": self.pending_joins,
             "pending_leaves": self.pending_leaves,
             "processed_backups": sorted(self.processed_backups)[-80:],
+            "public_rp_pending": bool(self._public_rp_pending),
         }
         # keep legacy fields for the first target (compat)
         if self.targets:
@@ -473,6 +481,17 @@ class Collector:
                 except Exception as e:
                     _safe_print(
                         "match-history cache merge fail",
+                        type(e).__name__,
+                        e,
+                        file=sys.stderr,
+                    )
+                # Score RP immediately after the map hits history — do not wait
+                # for the next poll tick / 15‑min safety pass.
+                try:
+                    self.maybe_rebuild_public_rp(force=True)
+                except Exception as e:
+                    _safe_print(
+                        "public RP immediate rebuild fail",
                         type(e).__name__,
                         e,
                         file=sys.stderr,
@@ -988,28 +1007,37 @@ class Collector:
             except Exception:
                 pass
 
-    def _heavy_job_busy(self) -> bool:
+    def _lock_busy(self, lock: Path, ttl: int) -> bool:
         try:
-            if not self._heavy_lock.is_file():
+            if not lock.is_file():
                 return False
-            age = time.time() - self._heavy_lock.stat().st_mtime
-            if age > self._heavy_lock_ttl:
-                self._heavy_lock.unlink(missing_ok=True)
+            age = time.time() - lock.stat().st_mtime
+            if age > ttl:
+                lock.unlink(missing_ok=True)
                 return False
             return True
         except Exception:
             return False
 
-    def _try_acquire_heavy_lock(self, label: str) -> bool:
-        if self._heavy_job_busy():
+    def _heavy_job_busy(self) -> bool:
+        return self._lock_busy(self._heavy_lock, self._heavy_lock_ttl)
+
+    def _public_rp_busy(self) -> bool:
+        return self._lock_busy(self._public_rp_lock, self._public_rp_lock_ttl)
+
+    def _try_acquire_lock(self, lock: Path, ttl: int, label: str) -> bool:
+        if self._lock_busy(lock, ttl):
             return False
         try:
-            self._heavy_lock.write_text(
+            lock.write_text(
                 f"{label} {datetime.now(timezone.utc).isoformat()}\n", encoding="utf-8"
             )
             return True
         except Exception:
             return False
+
+    def _try_acquire_heavy_lock(self, label: str) -> bool:
+        return self._try_acquire_lock(self._heavy_lock, self._heavy_lock_ttl, label)
 
     def _spawn_low_priority(
         self,
@@ -1018,14 +1046,19 @@ class Collector:
         *,
         env: dict[str, str] | None = None,
         lock_label: str,
+        lock_path: Path | None = None,
+        lock_ttl: int | None = None,
+        extra_args: list[str] | None = None,
     ) -> bool:
         """Start heavy Python job with nice/ionice; single-flight via lock file."""
-        if not self._try_acquire_heavy_lock(lock_label):
-            _safe_print(f"{lock_label} skip — heavy job already running", flush=True)
+        lock = lock_path or self._heavy_lock
+        ttl = self._heavy_lock_ttl if lock_ttl is None else lock_ttl
+        if not self._try_acquire_lock(lock, ttl, lock_label):
+            _safe_print(f"{lock_label} skip — already running", flush=True)
             return False
         import shutil
 
-        cmd = [sys.executable, str(script)]
+        cmd = [sys.executable, str(script), *(extra_args or [])]
         if shutil.which("nice"):
             cmd = ["nice", "-n", "15", *cmd]
         if shutil.which("ionice"):
@@ -1040,7 +1073,7 @@ class Collector:
 
                 # Release lock after job exits so the next rebuild can start.
                 inner = " ".join(shlex.quote(c) for c in cmd)
-                lock_q = shlex.quote(str(self._heavy_lock))
+                lock_q = shlex.quote(str(lock))
                 wrapper = f"{inner}; ec=$?; rm -f {lock_q}; exit $ec"
                 subprocess.Popen(
                     [bash, "-c", wrapper],
@@ -1062,46 +1095,116 @@ class Collector:
             return True
         except Exception:
             try:
-                self._heavy_lock.unlink(missing_ok=True)
+                lock.unlink(missing_ok=True)
             except Exception:
                 pass
             raise
 
-    def maybe_rebuild_public_rp(self, *, force: bool = False) -> None:
-        """Rebuild PB1 combat/RP ledger from TPUB1 logs (debounced, low priority)."""
-        if not force and not self._public_rp_pending:
-            return
+    def _history_ahead_of_ladder(self) -> bool:
+        """True when newest PB1 history row is not yet on the RP ladder."""
+        try:
+            hist_p = (
+                Path(__file__).resolve().parent.parent
+                / "data"
+                / "public"
+                / "match-history.json"
+            )
+            ladder_p = (
+                Path(__file__).resolve().parent.parent
+                / "data"
+                / "public"
+                / "rp-ladder.json"
+            )
+            if not hist_p.is_file() or not ladder_p.is_file():
+                return False
+            hist = json.loads(hist_p.read_text(encoding="utf-8"))
+            rows = list(
+                (hist.get("matches") if isinstance(hist, dict) else hist) or []
+            )
+            if not rows:
+                return False
+            newest = max(rows, key=lambda m: str(m.get("endedAt") or ""))
+            ended = str(newest.get("endedAt") or "")
+            if not ended:
+                return False
+            # endedAt Z → ladder id uses MSK wall clock of match start; match by
+            # map token + calendar day from endedAt (UTC ok for same evening).
+            ladder = json.loads(ladder_p.read_text(encoding="utf-8"))
+            ids = {str(m.get("id") or "") for m in (ladder.get("matches") or [])}
+            map_name = str(newest.get("mapName") or newest.get("layerName") or "")
+            token = re.sub(r"[^a-z0-9]+", "-", map_name.lower()).strip("-")
+            day = ended[:10].replace("-", "")  # YYYYMMDD UTC
+            # Accept either UTC day or MSK day (UTC+3) in id prefix.
+            day_msk = ""
+            try:
+                dt = datetime.fromisoformat(ended.replace("Z", "+00:00"))
+                day_msk = dt.astimezone(timezone(timedelta(hours=3))).strftime("%Y%m%d")
+            except Exception:
+                pass
+            for mid in ids:
+                if token and token.split("-")[0] and token in mid:
+                    if mid.startswith(day) or (day_msk and mid.startswith(day_msk)):
+                        return False
+            # Fallback: if ladder updatedAt older than match end → behind
+            upd = str(ladder.get("updatedAt") or "")
+            if upd and ended:
+                try:
+                    u = datetime.fromisoformat(upd.replace("Z", "+00:00"))
+                    e = datetime.fromisoformat(ended.replace("Z", "+00:00"))
+                    if u < e:
+                        return True
+                except Exception:
+                    pass
+            return True
+        except Exception as e:
+            _safe_print("history/ladder gap check", type(e).__name__, e, file=sys.stderr)
+            return False
+
+    def maybe_rebuild_public_rp(
+        self, *, force: bool = False, full: bool = False
+    ) -> None:
+        """Append new PB1 matches into RP ladder (incremental unless full=True).
+
+        force= skip debounce and start now. full= rare complete rescore.
+        """
+        if not force and not full and not self._public_rp_pending:
+            if self._history_ahead_of_ladder():
+                self._public_rp_pending = True
+            else:
+                return
         now = time.time()
-        if not force and (now - self._public_rp_last) < self._public_rp_debounce:
+        if not force and not full and (now - self._public_rp_last) < self._public_rp_debounce:
             return
         script = Path(__file__).resolve().parent / "build_public_rp_ledger.py"
         if not script.is_file():
             return
-        if self._heavy_job_busy():
-            # Keep pending so we retry next poll after train sync finishes.
-            _safe_print("public RP deferred — heavy job running", flush=True)
+        if self._public_rp_busy():
+            # Keep pending so we retry next poll after current score finishes.
+            self._public_rp_pending = True
+            _safe_print("public RP deferred — score already running", flush=True)
+            return
+        mode = "full" if full else "incremental"
+        log_path = Path(__file__).resolve().parent / "_tmp_public_rp_rebuild.log"
+        run_env = {**os.environ}
+        if full:
+            run_env["PUBLIC_RP_FULL"] = "1"
+        else:
+            run_env.pop("PUBLIC_RP_FULL", None)
+        started = self._spawn_low_priority(
+            script,
+            log_path,
+            env=run_env,
+            lock_label="public-rp",
+            lock_path=self._public_rp_lock,
+            lock_ttl=self._public_rp_lock_ttl,
+            extra_args=["--full"] if full else None,
+        )
+        if not started:
+            self._public_rp_pending = True
             return
         self._public_rp_pending = False
         self._public_rp_last = now
-        mode = "full" if force else "incremental"
         _safe_print(f"public RP rebuild start ({mode}, background, nice)", flush=True)
-        try:
-            log_path = Path(__file__).resolve().parent / "_tmp_public_rp_rebuild.log"
-            run_env = {**os.environ}
-            if force:
-                run_env["PUBLIC_RP_FULL"] = "1"
-            else:
-                run_env.pop("PUBLIC_RP_FULL", None)
-            self._spawn_low_priority(
-                script, log_path, env=run_env, lock_label="public-rp"
-            )
-        except Exception as e:
-            _safe_print(
-                "public RP rebuild error",
-                type(e).__name__,
-                e,
-                file=sys.stderr,
-            )
 
     def _kv_public_env(self, env: dict[str, str]) -> dict[str, str]:
         """VPS: write into live KV tree (warehouse or kv-cache)."""
@@ -1317,23 +1420,22 @@ class Collector:
             self.host,
             ", ".join(f"{k}={p}" for k, p in self.targets),
         )
-        # Deploy/restart used to drop in-memory `_public_rp_pending` while a dead
-        # heavy-job lock still blocked rebuilds — newest PB1 maps sat in history
-        # without RP for minutes. Clear stale lock and force one pass on boot.
+        # Clear only the public-RP lock on boot (never kick a full 14d rescore —
+        # that blocked Gorodok while scoring Oct 4). Incremental gap fill only.
         try:
-            if self._heavy_lock.is_file():
-                age = time.time() - self._heavy_lock.stat().st_mtime
+            if self._public_rp_lock.is_file():
+                age = time.time() - self._public_rp_lock.stat().st_mtime
                 if age > 60:
-                    self._heavy_lock.unlink(missing_ok=True)
+                    self._public_rp_lock.unlink(missing_ok=True)
                     _safe_print(
-                        f"cleared stale heavy lock on boot (age={int(age)}s)",
+                        f"cleared stale public-rp lock on boot (age={int(age)}s)",
                         flush=True,
                     )
         except Exception as e:
-            _safe_print("heavy lock boot clear", type(e).__name__, e, file=sys.stderr)
+            _safe_print("public-rp lock boot clear", type(e).__name__, e, file=sys.stderr)
         self._public_rp_pending = True
         try:
-            self.maybe_rebuild_public_rp(force=True)
+            self.maybe_rebuild_public_rp(force=True, full=False)
         except Exception as e:
             _safe_print("public RP boot rebuild", type(e).__name__, e, file=sys.stderr)
         try:
@@ -1346,8 +1448,8 @@ class Collector:
         stale_tick_every = max(1, int(60 / max(self.poll_sec, 1)))
         # Очередь дозаливки после регистрации — раз в ~2 мин
         backfill_every = max(1, int(120 / max(self.poll_sec, 1)))
-        # Полный rebuild public RP раз в ~15 мин (страховка)
-        public_rp_every = max(1, int(900 / max(self.poll_sec, 1)))
+        # Gap check every ~60s; never full-rescore on this tick (full = nightly/manual).
+        public_rp_every = max(1, int(60 / max(self.poll_sec, 1)))
         while True:
             try:
                 ticks += 1
@@ -1360,9 +1462,12 @@ class Collector:
                     _safe_print("hourly backup re-catchup armed", flush=True)
                 self.poll_once()
                 if ticks % public_rp_every == 0:
-                    self._public_rp_pending = True
                     try:
-                        self.maybe_rebuild_public_rp(force=True)
+                        if self._history_ahead_of_ladder():
+                            self._public_rp_pending = True
+                            self.maybe_rebuild_public_rp(force=True, full=False)
+                        elif self._public_rp_pending:
+                            self.maybe_rebuild_public_rp(force=True, full=False)
                     except Exception as e:
                         _safe_print(
                             "public RP tick fail",

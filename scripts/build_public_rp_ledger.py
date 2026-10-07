@@ -183,6 +183,27 @@ def resolve_log_paths(local_only: bool) -> list[Path]:
         if live.is_file():
             paths = [live] + [p for p in paths if p.resolve() != live.resolve()]
         return paths[:16]
+    # Hot path after map end: skip multi‑hundred‑MB SFTP when local SquadGame.log
+    # is already fresh (collector just tailed TPUB1). Fall back to SSH sync if stale.
+    local_first = (os.environ.get("PUBLIC_RP_LOCAL_FIRST") or "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    live_cache = CACHE / "SquadGame.log"
+    if local_first and live_cache.is_file():
+        age = time.time() - live_cache.stat().st_mtime
+        max_age = int(os.environ.get("PUBLIC_RP_LOCAL_MAX_AGE_SEC") or "900")
+        if age <= max_age:
+            print(
+                f"local-first: use cache SquadGame.log (age={int(age)}s ≤ {max_age}s)",
+                flush=True,
+            )
+            return _pick_tpub1_logs(sorted(CACHE.glob("*.log")), limit=10)
+        print(
+            f"local-first: cache stale (age={int(age)}s) — SSH sync",
+            flush=True,
+        )
     return _pick_tpub1_logs(sync_logs_via_ssh(CACHE), limit=10)
 
 
