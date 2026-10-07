@@ -42,6 +42,11 @@ Vercel не используем (SMS). Сайт и **Postgres** крутятс�
 
 Агент с ПК Кича ходит на VPS по SSH (`~/.ssh/bb_vps_ed25519` → `root@91.222.237.91`) и сам гоняет деплой, когда Alex пишет «задеплой / на staging / на прод». В Timeweb-консоль лезть не нужно, пока SSH жив.
 
+**Не путать IP:** прод = `91.222.237.91` (Timeweb). Старый/чужой `194.87.92.114` — не этот VPS (SSH туда timeout).
+
+Деплой с ПК: `pwsh scripts/deploy-prod.ps1`  
+Проверка «задеплоилось ли»: `bash scripts/verify-deploy.sh` (с ПК) или на VPS `bash scripts/verify-deploy.sh --local --sha <commit>`.
+
 ### Прод (народ)
 
 После `git push` на `main`:
