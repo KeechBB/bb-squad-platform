@@ -250,8 +250,10 @@ class Collector:
         self.ingest_secret = env("SQUAD_INGEST_SECRET")
         self._public_rp_pending = False
         self._public_rp_last = 0.0
+        # After map end: history is instant; RP used to wait 300s + full 14d rescore.
+        # Debounce only coalesces back-to-back ends; real speedup is incremental ledger.
         self._public_rp_debounce = int(
-            os.environ.get("PUBLIC_RP_DEBOUNCE_SEC") or "300"
+            os.environ.get("PUBLIC_RP_DEBOUNCE_SEC") or "20"
         )
         # One heavy Python job at a time (train sync / public RP) — protects 4GB VPS.
         self._heavy_lock = Path(__file__).resolve().parent / "_tmp_heavy_job.lock"
@@ -1081,11 +1083,17 @@ class Collector:
             return
         self._public_rp_pending = False
         self._public_rp_last = now
-        _safe_print("public RP rebuild start (background, nice)", flush=True)
+        mode = "full" if force else "incremental"
+        _safe_print(f"public RP rebuild start ({mode}, background, nice)", flush=True)
         try:
             log_path = Path(__file__).resolve().parent / "_tmp_public_rp_rebuild.log"
+            run_env = {**os.environ}
+            if force:
+                run_env["PUBLIC_RP_FULL"] = "1"
+            else:
+                run_env.pop("PUBLIC_RP_FULL", None)
             self._spawn_low_priority(
-                script, log_path, lock_label="public-rp"
+                script, log_path, env=run_env, lock_label="public-rp"
             )
         except Exception as e:
             _safe_print(

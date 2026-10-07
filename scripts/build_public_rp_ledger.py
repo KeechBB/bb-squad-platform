@@ -9,8 +9,9 @@ Build public (PB1/TPUB1) RP ledger from logs.
 - Writes platform/data/public/rp-ledger.json (+ KV mirror if present)
 
 Usage:
-  python build_public_rp_ledger.py
-  python build_public_rp_ledger.py --local-only   # only cache / PUBLIC_RP_LOG_DIR
+  python build_public_rp_ledger.py              # incremental: append unscored matches
+  python build_public_rp_ledger.py --full       # rescore all (or PUBLIC_RP_FULL=1)
+  python build_public_rp_ledger.py --local-only # only cache / PUBLIC_RP_LOG_DIR
 """
 from __future__ import annotations
 
@@ -579,6 +580,65 @@ def process_match(
     }
 
 
+def _load_existing_ledger() -> dict | None:
+    for path in (OUT_PRIMARY, OUT_KV_CACHE, OUT_KV):
+        if not path.is_file():
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(data, dict) and data.get("players") is not None:
+                return data
+        except Exception as e:
+            print(f"warn: could not read {path}: {e}", flush=True)
+    return None
+
+
+def _match_hist_row(mb: dict, k: str, aliases: dict[str, str]) -> dict:
+    team = (mb.get("teamsByKey") or {}).get(k)
+    won = None
+    if team and mb.get("winnerTeam"):
+        won = team == str(mb["winnerTeam"])
+    return {
+        "id": mb["id"],
+        "map": mb["map"],
+        "date": mb["date"],
+        "net": mb["netByKey"].get(k, 0.0),
+        "won": won,
+        "dmg": round((mb.get("dmgByKey") or {}).get(k, 0.0)),
+        "kills": [
+            e
+            for e in mb["events"]
+            if e.get("kind") == "die" and R.canon_key(e["killer"], aliases) == k
+        ],
+        "deaths": [
+            e
+            for e in mb["events"]
+            if e.get("kind") in ("die", "tk")
+            and R.canon_key(e["victim"], aliases) == k
+        ],
+        "noks": [
+            e
+            for e in mb["events"]
+            if e.get("kind") == "nok" and R.canon_key(e["killer"], aliases) == k
+        ],
+        "gotNoks": [
+            e
+            for e in mb["events"]
+            if e.get("kind") == "nok" and R.canon_key(e["victim"], aliases) == k
+        ],
+        "teamkills": [
+            e
+            for e in mb["events"]
+            if e.get("kind") == "tk" and R.canon_key(e["killer"], aliases) == k
+        ],
+        "revives": [
+            e
+            for e in mb["events"]
+            if e.get("kind") == "revive" and R.canon_key(e["killer"], aliases) == k
+        ],
+    }
+
+
 def main() -> None:
     try:
         sys.stdout.reconfigure(encoding="utf-8")
@@ -587,10 +647,21 @@ def main() -> None:
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--local-only", action="store_true")
+    ap.add_argument(
+        "--full",
+        action="store_true",
+        help="Rescore all history-linked matches (ignore existing ledger)",
+    )
     args = ap.parse_args()
 
     load_dotenv(HERE / ".squad-collector.env")
     load_dotenv(PLATFORM / ".env")
+
+    force_full = args.full or (os.environ.get("PUBLIC_RP_FULL") or "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
 
     aliases = load_alias_keys()
     log_paths = resolve_log_paths(local_only=args.local_only)
@@ -623,23 +694,62 @@ def main() -> None:
         )
         return
 
-    steam_to_nick: dict[str, str] = {}
-    # steam map filled from combat indexes as we process logs
+    existing = None if force_full else _load_existing_ledger()
+    done_ids = {
+        str(m.get("id"))
+        for m in (existing or {}).get("matches") or []
+        if m.get("id")
+    }
+    pending = [m for m in matches if m["id"] not in done_ids]
+    if force_full:
+        pending = list(matches)
+        done_ids = set()
+        existing = None
 
+    if not pending:
+        print(
+            f"public RP up to date ({len(done_ids)} matches) — nothing to append",
+            flush=True,
+        )
+        return
+
+    print(
+        f"pending={len(pending)} existing={len(done_ids)} full={force_full}",
+        flush=True,
+    )
+
+    steam_to_nick: dict[str, str] = {}
     rp: dict[str, float] = {}
     disp: dict[str, str] = {}
     match_blocks: list[dict] = []
     log_index_cache: dict[str, dict] = {}
+    prior_players = dict((existing or {}).get("players") or {})
+    prior_matches = list((existing or {}).get("matches") or [])
 
-    for m in matches:
+    if existing and not force_full:
+        for _pk, p in prior_players.items():
+            if not isinstance(p, dict):
+                continue
+            nick = str(p.get("nick") or _pk)
+            k = R.canon_key(nick, aliases)
+            try:
+                rp[k] = float(p.get("rp") or R.START_RP)
+            except (TypeError, ValueError):
+                rp[k] = R.START_RP
+            disp.setdefault(k, nick)
+
+    for m in pending:
         block = process_match(
             m, steam_to_nick, aliases, rp, disp, log_index_cache
         )
         if block:
             match_blocks.append(block)
 
-    if not match_blocks:
+    if not match_blocks and not prior_matches:
         write_empty("Matches found but no combat parsed")
+        return
+    if not match_blocks:
+        print("pending matches had no combat — leaving ledger unchanged", flush=True)
         return
 
     ranked = sorted(rp.items(), key=lambda x: -x[1])
@@ -651,69 +761,22 @@ def main() -> None:
             place += 1
             predator_place[k] = place
 
+    prior_by_key: dict[str, dict] = {}
+    for _pk, p in prior_players.items():
+        if not isinstance(p, dict):
+            continue
+        nick = str(p.get("nick") or _pk)
+        prior_by_key[R.canon_key(nick, aliases)] = p
+
     players_out: dict = {}
     for k, val in ranked:
         info = R.rp_rank(val)
-        match_hist = []
+        match_hist = list((prior_by_key.get(k) or {}).get("matches") or []) if not force_full else []
         for mb in match_blocks:
             combat_keys = mb.get("combatants") or set(mb["netByKey"])
             if k not in combat_keys:
                 continue
-            team = (mb.get("teamsByKey") or {}).get(k)
-            won = None
-            if team and mb.get("winnerTeam"):
-                won = team == str(mb["winnerTeam"])
-            kills = [
-                e
-                for e in mb["events"]
-                if e.get("kind") == "die"
-                and R.canon_key(e["killer"], aliases) == k
-            ]
-            deaths = [
-                e
-                for e in mb["events"]
-                if e.get("kind") in ("die", "tk")
-                and R.canon_key(e["victim"], aliases) == k
-            ]
-            noks = [
-                e
-                for e in mb["events"]
-                if e.get("kind") == "nok"
-                and R.canon_key(e["killer"], aliases) == k
-            ]
-            got_noks = [
-                e
-                for e in mb["events"]
-                if e.get("kind") == "nok"
-                and R.canon_key(e["victim"], aliases) == k
-            ]
-            revives = [
-                e
-                for e in mb["events"]
-                if e.get("kind") == "revive"
-                and R.canon_key(e["killer"], aliases) == k
-            ]
-            match_hist.append(
-                {
-                    "id": mb["id"],
-                    "map": mb["map"],
-                    "date": mb["date"],
-                    "net": mb["netByKey"].get(k, 0.0),
-                    "won": won,
-                    "dmg": round((mb.get("dmgByKey") or {}).get(k, 0.0)),
-                    "kills": kills,
-                    "deaths": deaths,
-                    "noks": noks,
-                    "gotNoks": got_noks,
-                    "teamkills": [
-                        e
-                        for e in mb["events"]
-                        if e.get("kind") == "tk"
-                        and R.canon_key(e["killer"], aliases) == k
-                    ],
-                    "revives": revives,
-                }
-            )
+            match_hist.append(_match_hist_row(mb, k, aliases))
         players_out[k] = {
             "nick": disp.get(k, k),
             "rp": round(max(R.MIN_RP, float(val)), 1),
@@ -725,7 +788,7 @@ def main() -> None:
             "matches": match_hist,
         }
 
-    public_matches = []
+    public_matches = list(prior_matches) if not force_full else []
     for mb in match_blocks:
         public_matches.append(
             {
