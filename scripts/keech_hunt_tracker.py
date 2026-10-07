@@ -136,15 +136,21 @@ class KeechHuntTracker:
         if _is_seed_layer(str(m.get("layer") or m.get("layerShort") or "")):
             return True
         ev = m.get("events") or []
-        if not ev:
-            return False
+        ref = now or datetime.now(timezone.utc)
         try:
+            if not ev:
+                st = datetime.fromisoformat(
+                    str(m.get("startAt") or "").replace("Z", "+00:00")
+                )
+                if st.tzinfo is None:
+                    st = st.replace(tzinfo=timezone.utc)
+                # Empty placeholder older than 3 min — not a live map
+                return (ref - st).total_seconds() > 3 * 60
             last = datetime.fromisoformat(
                 str(ev[-1].get("at") or m.get("startAt") or "").replace("Z", "+00:00")
             )
             if last.tzinfo is None:
                 last = last.replace(tzinfo=timezone.utc)
-            ref = now or datetime.now(timezone.utc)
             # >8 min without combat while still "open" → treat as ended (UI must not show it)
             return (ref - last).total_seconds() > 8 * 60
         except Exception:
@@ -162,15 +168,18 @@ class KeechHuntTracker:
             and not m.get("seed")
             and not _is_seed_layer(str(m.get("layer") or m.get("layerShort") or ""))
             and not self._is_stale_open(m, now=now)
+            and (m.get("events") or [])  # never show empty TR junk as "current"
         ]
         if not open_live:
             return None
 
-        def sort_key(m: dict[str, Any]) -> str:
+        def sort_key(m: dict[str, Any]) -> tuple[int, str]:
+            srv = str(m.get("server") or "").upper()
+            # Prefer public PB1 when several servers have open maps
+            pref = 2 if srv in ("TPUB1", "PB1", "PUB") else 1 if srv in ("TR1", "TR2") else 0
             ev = m.get("events") or []
-            if ev:
-                return str(ev[-1].get("at") or m.get("startAt") or "")
-            return str(m.get("startAt") or "")
+            ts = str(ev[-1].get("at") or m.get("startAt") or "") if ev else str(m.get("startAt") or "")
+            return (pref, ts)
 
         return max(open_live, key=sort_key)
 
