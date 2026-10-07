@@ -535,10 +535,138 @@ def upsert_month(match_meta: dict) -> None:
         INDEX.write_text(json.dumps(idx, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def _players_doc_is_real(doc: dict) -> bool:
+    """Reject empty/phantom auto rows (A/B 0-0, no roster) so orphans don't spam /tm."""
+    team_a = doc.get("teamA") or []
+    team_b = doc.get("teamB") or []
+    players = doc.get("players") or doc.get("total") or []
+    n = len(team_a) + len(team_b) + len(players)
+    if n >= 12:
+        return True
+    side_a = doc.get("sideA") or {}
+    side_b = doc.get("sideB") or {}
+    ta = int(side_a.get("tickets") or doc.get("ticketsA") or 0)
+    tb = int(side_b.get("tickets") or doc.get("ticketsB") or 0)
+    winner = str(doc.get("winner") or "—").strip()
+    if winner not in ("", "—", "-") and (ta > 0 or tb > 0):
+        return True
+    return False
+
+
+def _month_row_is_phantom(m: dict) -> bool:
+    """0-0 A/B without winner, or mutaha row whose players JSON is empty."""
+    mid = str(m.get("id") or "")
+    winner = str(m.get("winner") or "—").strip()
+    ta = int(m.get("ticketsA") or 0)
+    tb = int(m.get("ticketsB") or 0)
+    if winner in ("", "—", "-") and ta == 0 and tb == 0:
+        return True
+    if mid.startswith("07-cslmutaha") or mid.startswith("07-mutahaskirmish"):
+        p = PLAYERS / f"{mid}.json"
+        if p.is_file():
+            try:
+                doc = json.loads(p.read_text(encoding="utf-8"))
+            except Exception:
+                return True
+            if not _players_doc_is_real(doc):
+                return True
+        elif winner in ("", "—", "-") or (ta == 0 and tb == 0):
+            return True
+    return False
+
+
+def purge_phantom_train_matches() -> int:
+    """Drop empty/duplicate Mutaha phantoms (0-0, no roster) without touching real 4."""
+    removed = 0
+    drop_ids: set[str] = set()
+    month_path = TRAIN / "2026-10.json"
+    if month_path.is_file():
+        data = json.loads(month_path.read_text(encoding="utf-8"))
+        keep = []
+        for m in data.get("matches") or []:
+            mid = str(m.get("id") or "")
+            if _month_row_is_phantom(m):
+                if mid:
+                    drop_ids.add(mid)
+                removed += 1
+                continue
+            keep.append(m)
+        data["matches"] = keep
+        month_path.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+    # Also drop day-7 Mutaha player files that are empty even if not in month
+    for path in list(PLAYERS.glob("07-cslmutaha*.json")) + list(
+        PLAYERS.glob("07-mutahaskirmish*.json")
+    ):
+        mid = path.stem
+        try:
+            doc = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            doc = {}
+        if mid in drop_ids or not _players_doc_is_real(doc):
+            drop_ids.add(mid)
+            path.unlink(missing_ok=True)
+            removed += 1
+            print(f"purge rm {path.name}", flush=True)
+    if AUTO_MATCHES.is_file() and drop_ids:
+        auto = json.loads(AUTO_MATCHES.read_text(encoding="utf-8"))
+        auto2 = [
+            am
+            for am in (auto if isinstance(auto, list) else [])
+            if str(am.get("id") or "") not in drop_ids
+        ]
+        AUTO_MATCHES.write_text(
+            json.dumps(auto2, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+    # Dedupe day-7 CSL Mutaha by score signature — keep one per (winner, ticketsA, ticketsB)
+    if month_path.is_file():
+        data = json.loads(month_path.read_text(encoding="utf-8"))
+        seen_sig: set[tuple] = set()
+        keep = []
+        for m in data.get("matches") or []:
+            mid = str(m.get("id") or "")
+            if m.get("day") == 7 and (
+                mid.startswith("07-cslmutaha") or mid.startswith("07-mutahaskirmish")
+            ):
+                sig = (
+                    str(m.get("winner") or ""),
+                    int(m.get("ticketsA") or 0),
+                    int(m.get("ticketsB") or 0),
+                    str(m.get("map") or ""),
+                )
+                if sig in seen_sig:
+                    drop_ids.add(mid)
+                    p = PLAYERS / f"{mid}.json"
+                    if p.is_file():
+                        p.unlink(missing_ok=True)
+                    removed += 1
+                    print(f"purge dup {mid} {sig}", flush=True)
+                    continue
+                seen_sig.add(sig)
+            keep.append(m)
+        data["matches"] = keep
+        month_path.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+        if AUTO_MATCHES.is_file() and drop_ids:
+            auto = json.loads(AUTO_MATCHES.read_text(encoding="utf-8"))
+            auto2 = [
+                am
+                for am in (auto if isinstance(auto, list) else [])
+                if str(am.get("id") or "") not in drop_ids
+            ]
+            AUTO_MATCHES.write_text(
+                json.dumps(auto2, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+            )
+    return removed
+
+
 def reconcile_orphan_player_files() -> int:
     """
     If players/{id}.json exists but month JSON lost the row (rsync/github wipe),
     restore the calendar row from the players doc. Prevents silent gaps like 06-cslmutaha.
+    Never restore empty/phantom docs (no roster + 0-0 tickets).
     """
     auto_by_id: dict[str, dict] = {}
     if AUTO_MATCHES.is_file():
@@ -573,6 +701,9 @@ def reconcile_orphan_player_files() -> int:
         try:
             doc = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
+            continue
+        if not _players_doc_is_real(doc):
+            print(f"reconcile skip empty {mid}", flush=True)
             continue
 
         time_msk = "—"
@@ -625,6 +756,10 @@ def reconcile_orphan_player_files() -> int:
 def main() -> int:
     aliases = load_aliases()
     print("=== sync TR1 logs ===", flush=True)
+    n_purge = purge_phantom_train_matches()
+    if n_purge:
+        print(f"purged phantom train rows/files: {n_purge}", flush=True)
+        bump_cache_bust()
     n_rec = reconcile_orphan_player_files()
     if n_rec:
         print(f"reconciled orphan player files: {n_rec}", flush=True)
@@ -705,6 +840,29 @@ def main() -> int:
         # Перекур / пустая катка: мало игроков или почти нет give-up (Yehorivka 06.10).
         n_players = len(team_a) + len(team_b)
         n_dies = len(dies) if isinstance(dies, list) else 0
+        t1 = m.get("score1")
+        t2 = m.get("score2")
+        winner_team = str(m.get("winnerTeam") or "")
+        # Без победителя / 0-0 — фантом (Mutaha_Skirmish A/B), не в календарь.
+        if not winner_team or (int(t1 or 0) == 0 and int(t2 or 0) == 0):
+            auto.append(
+                {
+                    "id": f"{mid}-skip",
+                    "map": layer,
+                    "date": msk.strftime("%Y-%m-%d"),
+                    "log": log_path.name,
+                    "start": start_iso,
+                    "end": end.isoformat(),
+                    "skip": True,
+                    "note": f"авто-skip без результата (winner={winner_team!r} tickets={t1}/{t2})",
+                }
+            )
+            known_starts.add(start_iso)
+            print(
+                f"skip no-result {layer} tickets={t1}/{t2} {start_iso}",
+                flush=True,
+            )
+            continue
         if n_players < 12 or n_dies < 25:
             auto.append(
                 {
@@ -731,12 +889,9 @@ def main() -> int:
         mi, s = divmod(rem, 60)
         duration = f"{h:02d}:{mi:02d}:{s:02d}" if h else f"{mi:02d}:{s:02d}"
 
-        t1 = m.get("score1")
-        t2 = m.get("score2")
         ftt = m.get("factionToTeam") or {}
         f1 = next((f for f, t in ftt.items() if str(t) == "1"), "A")
         f2 = next((f for f, t in ftt.items() if str(t) == "2"), "B")
-        winner_team = str(m.get("winnerTeam") or "")
         winner = f1 if winner_team == "1" else f2 if winner_team == "2" else "—"
 
         log_name_l = log_path.name.upper()
