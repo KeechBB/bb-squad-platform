@@ -12,6 +12,36 @@ import {
   type MatchStatsOpen,
 } from "@/components/ProfileMatchStatsModal";
 
+/** UI fallback: Победа/Поражение из team↔winner или тикетов своей стороны. */
+function deriveTrainResult(m: TrainMatchHistoryRow): boolean | null {
+  if (m.won === true || m.won === false) return m.won;
+  const team = String(m.team || "").trim();
+  const winner = String(m.winner || "").trim();
+  if (team && team !== "—" && winner && winner !== "—") {
+    const t = abbreviateFaction(team).toUpperCase();
+    const w = abbreviateFaction(winner).toUpperCase();
+    if (t && w) return t === w || team.toUpperCase() === winner.toUpperCase();
+  }
+  const ta = m.ticketsA;
+  const tb = m.ticketsB;
+  if (
+    team &&
+    team !== "—" &&
+    ta != null &&
+    tb != null &&
+    Number.isFinite(ta) &&
+    Number.isFinite(tb) &&
+    ta !== tb
+  ) {
+    const t = abbreviateFaction(team).toUpperCase();
+    const a = abbreviateFaction(m.factionA).toUpperCase();
+    const b = abbreviateFaction(m.factionB).toUpperCase();
+    if (t && a && t === a) return ta > tb;
+    if (t && b && t === b) return tb > ta;
+  }
+  return null;
+}
+
 export type SessionRow = {
   id: string;
   joinedAt: Date | string;
@@ -201,16 +231,17 @@ export function TrainingMatchHistory({
                       ? `+${delta}`
                       : String(delta);
                 const score = `${abbreviateFaction(m.factionA)} ${m.ticketsA ?? "—"} : ${m.ticketsB ?? "—"} ${abbreviateFaction(m.factionB)}`;
+                const wonUi = deriveTrainResult(m);
                 const resultCls =
-                  m.won === true
+                  wonUi === true
                     ? "kv-pill win"
-                    : m.won === false
+                    : wonUi === false
                       ? "kv-pill lose"
                       : "kv-pill";
                 const resultText =
-                  m.won === true
+                  wonUi === true
                     ? "Победа"
-                    : m.won === false
+                    : wonUi === false
                       ? "Поражение"
                       : "—";
                 const canOpen = Boolean(m.playersUrl);
@@ -618,16 +649,17 @@ export function TrainingSessionsCard({
                         ? `+${delta}`
                         : String(delta);
                   const score = `${abbreviateFaction(m.factionA)} ${m.ticketsA ?? "—"} : ${m.ticketsB ?? "—"} ${abbreviateFaction(m.factionB)}`;
+                  const wonUi = deriveTrainResult(m);
                   const resultCls =
-                    m.won === true
+                    wonUi === true
                       ? "kv-pill win"
-                      : m.won === false
+                      : wonUi === false
                         ? "kv-pill lose"
                         : "kv-pill";
                   const resultText =
-                    m.won === true
+                    wonUi === true
                       ? "Победа"
-                      : m.won === false
+                      : wonUi === false
                         ? "Поражение"
                         : "—";
                   const rpAfter = m.rpAfter;

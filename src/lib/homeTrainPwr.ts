@@ -2,6 +2,10 @@ import { loadTierIndex } from "@/lib/loadTierIndex";
 import { pickMvps } from "@/lib/homeMvp";
 import { abbreviateFaction } from "@/lib/factionAbbrev";
 
+function nickKey(nick: string) {
+  return nick.trim().toLowerCase().replace(/\s+/g, "");
+}
+
 /** «Russian Ground Forces» ↔ «RGF» ↔ winner из month JSON. */
 function factionEq(a: string, b: string): boolean {
   const A = String(a || "").trim().toUpperCase();
@@ -33,27 +37,34 @@ type TrainPlayersDoc = {
   sideB?: { name?: string; tickets?: number };
 };
 
-/** Победа/поражение: поле won, team==winner, или членство в teamA/teamB vs side/winner. */
+type TrainMatchSideMeta = {
+  winner?: string;
+  factionA?: string;
+  factionB?: string;
+  ticketsA?: number | null;
+  ticketsB?: number | null;
+};
+
+/** Победа/поражение по won/team, teamA/teamB или тикетам сторон. */
 function resolveTrainWon(
   mine: TrainPlayerLine[],
   players: TrainPlayersDoc,
-  matchWinner?: string
+  match?: TrainMatchSideMeta | string
 ): { team: string; won: boolean | null } {
-  const winner = String(matchWinner || players.winner || "").trim();
-  const wonExplicit = mine.some((p) => p.won === true);
-  const lostExplicit = mine.some((p) => p.won === false);
-  if (wonExplicit) {
-    const t = mine.find((p) => p.team)?.team || mine[0]?.team || "";
-    return { team: String(t).toUpperCase(), won: true };
-  }
-  if (lostExplicit && !wonExplicit) {
-    const t = mine.find((p) => p.team)?.team || mine[0]?.team || "";
-    return { team: String(t).toUpperCase(), won: false };
-  }
+  const meta: TrainMatchSideMeta =
+    typeof match === "string" ? { winner: match } : match || {};
+  const winner = String(
+    meta.winner || players.winner || ""
+  ).trim();
 
-  let team = "";
-  for (const p of mine) {
-    if (!team && p.team) team = String(p.team);
+  // Явный boolean (в т.ч. false) — главный источник
+  if (mine.some((p) => p.won === true)) {
+    const t = mine.find((p) => p.team)?.team || mine[0]?.team || "";
+    return { team: String(t).toUpperCase() || "—", won: true };
+  }
+  if (mine.some((p) => p.won === false)) {
+    const t = mine.find((p) => p.team)?.team || mine[0]?.team || "";
+    return { team: String(t).toUpperCase() || "—", won: false };
   }
 
   const wantNicks = new Set(
@@ -62,32 +73,59 @@ function resolveTrainWon(
   const inList = (rows: TrainPlayerLine[] | undefined) =>
     (rows || []).some((p) => wantNicks.has(nickKey(String(p.nick || ""))));
 
-  const sideA = String(players.sideA?.name || "").trim();
-  const sideB = String(players.sideB?.name || "").trim();
+  const sideA = String(
+    players.sideA?.name || meta.factionA || ""
+  ).trim();
+  const sideB = String(
+    players.sideB?.name || meta.factionB || ""
+  ).trim();
+
+  let team = "";
+  for (const p of mine) {
+    if (!team && p.team) team = String(p.team);
+  }
+
+  let onA = inList(players.teamA);
+  let onB = inList(players.teamB);
+  // если players[] без teamA/B — по полю team
+  if (!onA && !onB && team) {
+    onA = factionEq(team, sideA);
+    onB = factionEq(team, sideB);
+  }
   if (!team) {
-    if (inList(players.teamA)) team = sideA || "A";
-    else if (inList(players.teamB)) team = sideB || "B";
+    if (onA) team = sideA || "A";
+    else if (onB) team = sideB || "B";
   }
 
   const teamU = team.toUpperCase();
-  if (winner && teamU) {
-    if (factionEq(team, winner)) return { team: teamU, won: true };
-    return { team: teamU, won: false };
+  if (winner && (onA || onB || teamU)) {
+    if (factionEq(team || (onA ? sideA : sideB), winner)) {
+      return { team: teamU || (onA ? sideA : sideB).toUpperCase(), won: true };
+    }
+    if (onA || onB || teamU) {
+      return { team: teamU || (onA ? sideA : sideB).toUpperCase(), won: false };
+    }
   }
-  // tickets fallback: своя сторона с большим счётом
-  const ta = Number(players.sideA?.tickets);
-  const tb = Number(players.sideB?.tickets);
+
+  const ta = Number(
+    players.sideA?.tickets ?? meta.ticketsA
+  );
+  const tb = Number(
+    players.sideB?.tickets ?? meta.ticketsB
+  );
   if (
-    team &&
+    (onA || onB) &&
     Number.isFinite(ta) &&
     Number.isFinite(tb) &&
     (ta > 0 || tb > 0) &&
     ta !== tb
   ) {
-    const mySideIsA = factionEq(team, sideA) || teamU === "A";
-    const myTickets = mySideIsA ? ta : tb;
-    const oppTickets = mySideIsA ? tb : ta;
-    return { team: teamU, won: myTickets > oppTickets };
+    const myTickets = onA ? ta : tb;
+    const oppTickets = onA ? tb : ta;
+    return {
+      team: teamU || (onA ? sideA : sideB).toUpperCase() || "—",
+      won: myTickets > oppTickets,
+    };
   }
   return { team: teamU || "—", won: null };
 }
@@ -160,10 +198,6 @@ type Agg = {
   deaths: number;
   dmg: number;
 };
-
-function nickKey(nick: string) {
-  return nick.trim().toLowerCase().replace(/\s+/g, "");
-}
 
 function softSat(x: number, mid: number) {
   const v = Math.max(0, x);
@@ -276,17 +310,31 @@ export async function buildTrainPwrLeaderboard(): Promise<TrainPwrLeaderboard> {
     index.months.map(async (m) => {
       if (!m.url) return null;
       return loadFromKv<{
-        matches?: { playersUrl?: string; winner?: string }[];
+        matches?: {
+          playersUrl?: string;
+          winner?: string;
+          factionA?: string;
+          factionB?: string;
+          ticketsA?: number | null;
+          ticketsB?: number | null;
+        }[];
       }>(m.url);
     })
   );
 
-  const matchList: { playersUrl: string; winner?: string }[] = [];
+  const matchList: (TrainMatchSideMeta & { playersUrl: string })[] = [];
   for (const month of months) {
     if (!month?.matches) continue;
     for (const match of month.matches) {
-      if (match.playersUrl)
-        matchList.push({ playersUrl: match.playersUrl, winner: match.winner });
+      if (!match.playersUrl) continue;
+      matchList.push({
+        playersUrl: match.playersUrl,
+        winner: match.winner,
+        factionA: match.factionA,
+        factionB: match.factionB,
+        ticketsA: match.ticketsA,
+        ticketsB: match.ticketsB,
+      });
     }
   }
 
@@ -336,7 +384,7 @@ export async function buildTrainPwrLeaderboard(): Promise<TrainPwrLeaderboard> {
       if (seen.has(key)) continue;
       seen.add(key);
       row.games += 1;
-      const { won } = resolveTrainWon([p], players, match.winner);
+      const { won } = resolveTrainWon([p], players, match);
       if (won === true) row.wins += 1;
     }
   }
@@ -632,11 +680,7 @@ export async function buildPlayerTrainMatchHistory(
     const mine = list.filter((p) => p?.nick && resolveKey(p.nick) === want);
     if (!mine.length) continue;
 
-    const { team: teamU, won } = resolveTrainWon(
-      mine,
-      players,
-      match.winner
-    );
+    const { team: teamU, won } = resolveTrainWon(mine, players, match);
 
     let rpDelta: number | null = null;
     let rpAfter: number | null = null;
@@ -807,7 +851,7 @@ export async function buildPlayerTrainCombatStats(
         res += Number(p.res) || 0;
         nok += Number(p.nok) || 0;
       }
-      const { won } = resolveTrainWon(mine, players, match.winner);
+      const { won } = resolveTrainWon(mine, players, match);
       if (won === true) wins += 1;
       else if (won === false) losses += 1;
 
