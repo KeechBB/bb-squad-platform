@@ -1317,6 +1317,25 @@ class Collector:
             self.host,
             ", ".join(f"{k}={p}" for k, p in self.targets),
         )
+        # Deploy/restart used to drop in-memory `_public_rp_pending` while a dead
+        # heavy-job lock still blocked rebuilds — newest PB1 maps sat in history
+        # without RP for minutes. Clear stale lock and force one pass on boot.
+        try:
+            if self._heavy_lock.is_file():
+                age = time.time() - self._heavy_lock.stat().st_mtime
+                if age > 60:
+                    self._heavy_lock.unlink(missing_ok=True)
+                    _safe_print(
+                        f"cleared stale heavy lock on boot (age={int(age)}s)",
+                        flush=True,
+                    )
+        except Exception as e:
+            _safe_print("heavy lock boot clear", type(e).__name__, e, file=sys.stderr)
+        self._public_rp_pending = True
+        try:
+            self.maybe_rebuild_public_rp(force=True)
+        except Exception as e:
+            _safe_print("public RP boot rebuild", type(e).__name__, e, file=sys.stderr)
         try:
             self._bootstrap_keech_hunt()
         except Exception as e:
