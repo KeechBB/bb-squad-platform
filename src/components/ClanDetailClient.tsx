@@ -1839,7 +1839,7 @@ export function ClanDetailClient({
                 ) : null}
               </div>
 
-              {stats.byStack.length > 0 ? (
+              {!clan.isExternal && stats.byStack.length > 0 ? (
                 <div className="clan-stack-inline">
                   {stats.byStack.map((s) => (
                     <span key={s.name} className="clan-stack-chip">
@@ -1973,7 +1973,7 @@ export function ClanDetailClient({
                         <thead>
                           <tr>
                             <th>#</th>
-                            <th>vs</th>
+                            <th>{clan.isExternal ? "против" : "vs"}</th>
                             <th>карта</th>
                             <th>счёт</th>
                             <th></th>
@@ -1981,9 +1981,11 @@ export function ClanDetailClient({
                         </thead>
                         <tbody>
                           {stats.recent.slice(0, 10).map((m, i) => (
-                            <tr key={`${m.day}-${m.opp}-${i}`}>
+                            <tr key={`${m.day}-${m.opp}-${m.stack}-${i}`}>
                               <td>{String(m.day).padStart(2, "0")}</td>
-                              <td>{m.opp}</td>
+                              <td title={m.stack !== "—" ? m.stack : undefined}>
+                                {m.opp}
+                              </td>
                               <td>{m.map}</td>
                               <td>{m.meeting}</td>
                               <td>

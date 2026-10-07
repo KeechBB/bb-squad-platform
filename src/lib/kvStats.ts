@@ -256,6 +256,16 @@ function invertMeeting(meeting?: string): string {
   return `${hit[2]}–${hit[1]}`;
 }
 
+/** Состав BB, против которого играл соперник: «BB Main» / «BB Junior». */
+function bbStackLabel(stack?: string | null): string {
+  const s = String(stack || "").trim();
+  if (!s || s === "—") return "BB";
+  const low = s.toLowerCase();
+  if (low === "main") return "BB Main";
+  if (low === "junior") return "BB Junior";
+  return `BB ${s}`;
+}
+
 export async function buildClanKvStats(clanTag: string): Promise<ClanStats> {
   const { matches, source } = await loadAllMatches();
   // Календарь КВ — матчи BlackBerry; для BB/BlackBerry берём всё;
@@ -271,36 +281,44 @@ export async function buildClanKvStats(clanTag: string): Promise<ClanStats> {
           ...m,
           status: invertBbStatus(m.status),
           meeting: invertMeeting(m.meeting),
-          // в recent «opp» для чужого = мы (BB)
-          opp: isPlayedStatus(m.status) || m.status === "upcoming" || m.status === "cancel"
-            ? "BB"
-            : m.opp,
+          // для соперника «против кого» = состав BB (Main/Junior)
+          opp:
+            isPlayedStatus(m.status) ||
+            m.status === "upcoming" ||
+            m.status === "cancel"
+              ? bbStackLabel(m.stack)
+              : m.opp,
         }));
 
   const summary = tally(list);
-  const stacks = new Map<string, KvMatch[]>();
-  for (const m of list) {
-    const name = m.stack || "—";
-    if (!stacks.has(name)) stacks.set(name, []);
-    stacks.get(name)!.push(m);
+  // «По составам» имеет смысл только у BB (наши Main/Junior).
+  // У DCAI и др. это составы BB, не их — не показываем.
+  let byStack: ClanStats["byStack"] = [];
+  if (isBb) {
+    const stacks = new Map<string, KvMatch[]>();
+    for (const m of list) {
+      const name = m.stack || "—";
+      if (!stacks.has(name)) stacks.set(name, []);
+      stacks.get(name)!.push(m);
+    }
+    byStack = Array.from(stacks.entries())
+      .map(([name, arr]) => {
+        const t = tally(arr);
+        return {
+          name,
+          played: t.played,
+          wins: t.wins,
+          draws: t.draws,
+          losses: t.losses,
+          winrate: t.winrate,
+        };
+      })
+      .sort((a, b) => {
+        const order = (n: string) =>
+          n.toLowerCase() === "main" ? 0 : n.toLowerCase() === "junior" ? 1 : 2;
+        return order(a.name) - order(b.name) || a.name.localeCompare(b.name, "ru");
+      });
   }
-  const byStack = Array.from(stacks.entries())
-    .map(([name, arr]) => {
-      const t = tally(arr);
-      return {
-        name,
-        played: t.played,
-        wins: t.wins,
-        draws: t.draws,
-        losses: t.losses,
-        winrate: t.winrate,
-      };
-    })
-    .sort((a, b) => {
-      const order = (n: string) =>
-        n.toLowerCase() === "main" ? 0 : n.toLowerCase() === "junior" ? 1 : 2;
-      return order(a.name) - order(b.name) || a.name.localeCompare(b.name, "ru");
-    });
 
   const mapMap = new Map<
     string,
