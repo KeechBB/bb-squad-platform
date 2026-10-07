@@ -70,13 +70,22 @@ export function HomeCwPwrTop({ initial }: Props) {
               >
                 {r.rankLabel}
               </span>
-              <Link
-                className={`home-attend-streaks-nick${i === 0 ? " home-pwr-nick-top1" : ""}`}
-                href={`/players/${encodeURIComponent(r.nick)}`}
-                title={r.nick}
-              >
-                {r.nick}
-              </Link>
+              {r.registered ? (
+                <Link
+                  className={`home-attend-streaks-nick${i === 0 ? " home-pwr-nick-top1" : ""}`}
+                  href={`/players/${encodeURIComponent(r.nick)}`}
+                  title={r.nick}
+                >
+                  {r.nick}
+                </Link>
+              ) : (
+                <span
+                  className={`home-attend-streaks-nick${i === 0 ? " home-pwr-nick-top1" : ""}`}
+                  title={`${r.nick} · нет аккаунта на сайте`}
+                >
+                  {r.nick}
+                </span>
+              )}
               <span className="home-attend-streaks-days home-train-pwr-score">
                 <b>{r.pwr}</b>
                 <span>PWR</span>

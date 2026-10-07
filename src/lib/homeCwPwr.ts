@@ -8,6 +8,8 @@ export type HomeCwPwrRow = {
   rankKey: string;
   games: number;
   place: number;
+  /** Есть аккаунт на сайте (profileComplete) — ник кликабелен. */
+  registered?: boolean;
 };
 
 export type HomeCwPwrBoard = {
@@ -155,6 +157,31 @@ function calcCwPwr(row: Agg & { tier: number; winPct: number | null; kd: number 
 async function loadFromKv<T>(path: string): Promise<T | null> {
   const { loadKvJsonCached } = await import("@/lib/kvLocal");
   return loadKvJsonCached<T>(path.replace(/^\//, ""));
+}
+
+const EXTERNAL_LEADER_STEAM_PREFIX = "7656119900001";
+
+/** Ники с завершённой регистрацией на сайте (не синтетические главы). */
+async function loadRegisteredNickKeys(): Promise<Set<string>> {
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const users = await prisma.user.findMany({
+      where: {
+        profileComplete: true,
+        nick: { not: null },
+        NOT: { steamId: { startsWith: EXTERNAL_LEADER_STEAM_PREFIX } },
+      },
+      select: { nick: true },
+    });
+    const keys = new Set<string>();
+    for (const u of users) {
+      const n = String(u.nick || "").trim();
+      if (n) keys.add(nickKey(n));
+    }
+    return keys;
+  } catch {
+    return new Set();
+  }
 }
 
 function pad2(n: number) {
@@ -307,6 +334,8 @@ export async function buildCwPwrLeaderboard(): Promise<CwPwrLeaderboard> {
         r2?: PlayerLine[];
         total?: PlayerLine[];
         players?: PlayerLine[];
+        oppR1?: PlayerLine[];
+        oppR2?: PlayerLine[];
       }>(m.playersUrl);
       return { match: m, players };
     })
@@ -317,13 +346,16 @@ export async function buildCwPwrLeaderboard(): Promise<CwPwrLeaderboard> {
 
   for (const { match, players } of bundles) {
     if (!players) continue;
-    const byNick = sumMeetingPlayers(players);
+    // BB + соперники (oppR1/oppR2) — все, с кем играли КВ
+    const byNick = sumMeetingPlayersBothSides(players);
     if (!byNick.size) continue;
     matchesWithStats += 1;
     const status = String(match.status || "").toLowerCase();
-    const meetingWon = status === "win" ? true : status === "lose" ? false : null;
+    const bbWon =
+      status === "win" ? true : status === "lose" ? false : null;
 
-    for (const [rawKey, p] of byNick) {
+    for (const [, p] of byNick) {
+      const rawKey = nickKey(p.nick);
       if (RATING_EXCLUDE.has(rawKey)) continue;
       const key = resolveKey(p.nick);
       if (!map.has(key)) {
@@ -340,7 +372,9 @@ export async function buildCwPwrLeaderboard(): Promise<CwPwrLeaderboard> {
       }
       const row = map.get(key)!;
       row.games += 1;
-      if (meetingWon === true) row.wins += 1;
+      let won = bbWon;
+      if (p.asOpp && won != null) won = !won;
+      if (won === true) row.wins += 1;
       row.res += p.res;
       row.nok += p.nok;
       row.kills += p.kills;
@@ -348,6 +382,8 @@ export async function buildCwPwrLeaderboard(): Promise<CwPwrLeaderboard> {
       row.dmg += p.dmg;
     }
   }
+
+  const registeredKeys = await loadRegisteredNickKeys();
 
   const ranked: HomeCwPwrRow[] = [];
   for (const row of map.values()) {
@@ -367,6 +403,7 @@ export async function buildCwPwrLeaderboard(): Promise<CwPwrLeaderboard> {
       rankKey,
       games: row.games,
       place: 0,
+      registered: registeredKeys.has(nickKey(row.nick)),
     });
   }
 
