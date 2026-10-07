@@ -97,14 +97,22 @@ type JoinRequest = {
   };
 };
 
+type PendingMember = {
+  nick: string;
+  steamId: string | null;
+  matchId: string | null;
+};
+
 type Props = {
   clan: {
     id: string;
     name: string;
     tag: string;
     logoUrl: string | null;
+    isExternal?: boolean;
   };
   members: Member[];
+  pendingMembers?: PendingMember[];
   titles: ClanTitle[];
   myUserId: string | null;
   myRole: ClanRole | null;
@@ -178,6 +186,7 @@ const STATUS_RU: Record<string, string> = {
 export function ClanDetailClient({
   clan,
   members: initialMembers,
+  pendingMembers = [],
   titles: initialTitles,
   myUserId,
   myRole: initialMyRole,
@@ -937,6 +946,41 @@ export function ClanDetailClient({
 
       {tab === "members" ? (
         <section className="card">
+          {clan.isExternal ? (
+            <p className="muted" style={{ marginTop: 0 }}>
+              Карточка соперника с КВ. Игроки с табло/логов — ниже; после регистрации на
+              площадке они сразу в этом клане.
+            </p>
+          ) : null}
+
+          {clan.isExternal && pendingMembers.length > 0 ? (
+            <div className="clan-join-requests" style={{ marginBottom: 16 }}>
+              <h3 className="stats-h3" style={{ marginTop: 0 }}>
+                Ростер с КВ (ещё не на сайте)
+                {` (${pendingMembers.length})`}
+              </h3>
+              <ul className="invite-list">
+                {pendingMembers.map((p) => (
+                  <li key={p.nick} className="invite-row">
+                    <div>
+                      <strong>{p.nick}</strong>
+                      {p.steamId ? (
+                        <span className="muted" style={{ marginLeft: 8 }}>
+                          {p.steamId}
+                        </span>
+                      ) : null}
+                      {p.matchId ? (
+                        <span className="muted" style={{ marginLeft: 8 }}>
+                          {p.matchId}
+                        </span>
+                      ) : null}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
           {canReviewJoins ? (
             <div className="clan-join-requests">
               <h3 className="stats-h3" style={{ marginTop: 0 }}>

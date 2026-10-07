@@ -15,8 +15,11 @@ import {
   ensureDefaultTitles,
 } from "@/lib/titles";
 import { loadTierIndex } from "@/lib/loadTierIndex";
+import { listPendingForClan } from "@/lib/opponentClan";
 
 type Props = { params: Promise<{ id: string }> };
+
+const HOLDER_NICK = "BB-ClanHolder";
 
 export default async function ClanPage({ params }: Props) {
   const { id } = await params;
@@ -54,6 +57,17 @@ export default async function ClanPage({ params }: Props) {
   });
   if (!clan) notFound();
 
+  const pendingMembers = clan.isExternal
+    ? await listPendingForClan(clan.id)
+    : [];
+  const visibleMembers = clan.isExternal
+    ? clan.members.filter(
+        (m) =>
+          (m.user.nick || "").trim() !== HOLDER_NICK &&
+          (m.user.steamName || "").trim() !== HOLDER_NICK
+      )
+    : clan.members;
+
   let myRole: ClanRole | null = null;
   let myUserId: string | null = null;
   let myTitleName: string | null = null;
@@ -77,7 +91,8 @@ export default async function ClanPage({ params }: Props) {
     });
     if (me) {
       myUserId = me.id;
-      const membership = clan.members.find((m) => m.userId === me.id);
+      const membership = visibleMembers.find((m) => m.userId === me.id) ||
+        clan.members.find((m) => m.userId === me.id);
       myRole = (membership?.role as ClanRole) || null;
       myTitleName = membership?.title?.name || null;
 
@@ -128,12 +143,14 @@ export default async function ClanPage({ params }: Props) {
     myRole != null
       ? canReviewClanJoinRequests(myRole, myTitleName)
       : false;
-  const canDisband = myRole ? canDeleteClan(myRole) : false;
+  const canDisband =
+    myRole && !clan.isExternal ? canDeleteClan(myRole) : false;
   const canApply =
     Boolean(session?.user?.steamId) &&
     Boolean(session?.user?.profileComplete) &&
     myRole == null &&
-    !inOtherClan;
+    !inOtherClan &&
+    !clan.isExternal;
 
   const tierMap = await loadTierIndex();
   const tierEntries = Array.from(tierMap.entries());
@@ -146,8 +163,9 @@ export default async function ClanPage({ params }: Props) {
           name: clan.name,
           tag: clan.tag,
           logoUrl: clan.logoUrl,
+          isExternal: clan.isExternal,
         }}
-        members={clan.members.map((m) => ({
+        members={visibleMembers.map((m) => ({
           id: m.id,
           role: m.role as ClanRole,
           joinedAt: m.joinedAt.toISOString(),
@@ -160,21 +178,26 @@ export default async function ClanPage({ params }: Props) {
             lastSeenAt: m.user.lastSeenAt?.toISOString() ?? null,
           },
         }))}
+        pendingMembers={pendingMembers.map((p) => ({
+          nick: p.nick,
+          steamId: p.steamId,
+          matchId: p.matchId,
+        }))}
         titles={clan.titles}
         myUserId={myUserId}
-        myRole={myRole}
+        myRole={clan.isExternal && myRole === "LEADER" ? null : myRole}
         myTitleName={myTitleName}
-        canManage={canManage}
-        canManageTitles={canTitles}
-        canReviewJoins={canReviewJoins}
+        canManage={clan.isExternal ? false : canManage}
+        canManageTitles={clan.isExternal ? false : canTitles}
+        canReviewJoins={clan.isExternal ? false : canReviewJoins}
         canDisband={canDisband}
         canApply={canApply}
         inOtherClan={inOtherClan}
         isLoggedIn={Boolean(session?.user?.steamId)}
         profileComplete={Boolean(session?.user?.profileComplete)}
         myPendingRequestId={myPendingRequestId}
-        joinRequests={joinRequests}
-        assignableRoles={assignable}
+        joinRequests={clan.isExternal ? [] : joinRequests}
+        assignableRoles={clan.isExternal ? [] : assignable}
         tierEntries={tierEntries}
       />
     </main>

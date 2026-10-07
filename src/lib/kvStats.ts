@@ -177,13 +177,63 @@ function matchSortKey(m: KvMatch): number {
   return y * 10000 + mo * 100 + d;
 }
 
+function oppTagMatch(opp: string | undefined, clanTag: string): boolean {
+  const a = String(opp || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+  const b = String(clanTag || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+  if (!a || !b) return false;
+  if (a === b) return true;
+  // aliases: 20royals↔20r, falcons↔fal, redfoxes↔fox, .solid↔solid
+  const aliases: Record<string, string> = {
+    "20royals": "20r",
+    falcons: "fal",
+    redfoxes: "fox",
+    foxes: "fox",
+    avanguard: "avg",
+    solid: "solid",
+  };
+  const na = aliases[a] || a;
+  const nb = aliases[b] || b;
+  return na === nb;
+}
+
+/** Календарь с точки зрения BB: win = победа BB. Для чужого клана инвертируем. */
+function invertBbStatus(status?: string): string {
+  if (status === "win") return "lose";
+  if (status === "lose") return "win";
+  return status || "";
+}
+
+function invertMeeting(meeting?: string): string {
+  const m = String(meeting || "").trim();
+  const hit = m.match(/^(\d+)\s*[–\-—:]\s*(\d+)/);
+  if (!hit) return m || "—";
+  return `${hit[2]}–${hit[1]}`;
+}
+
 export async function buildClanKvStats(clanTag: string): Promise<ClanStats> {
   const { matches, source } = await loadAllMatches();
-  // Календарь КВ — матчи BlackBerry; для BB/BlackBerry берём всё
+  // Календарь КВ — матчи BlackBerry; для BB/BlackBerry берём всё;
+  // для чужого клана — слоты где opp совпал (статус с их стороны).
   const isBb =
     /^bb$/i.test(clanTag) ||
     /^blackberry$/i.test(clanTag);
-  const list = isBb ? matches : matches.filter(() => false);
+  const list = isBb
+    ? matches
+    : matches
+        .filter((m) => oppTagMatch(m.opp, clanTag))
+        .map((m) => ({
+          ...m,
+          status: invertBbStatus(m.status),
+          meeting: invertMeeting(m.meeting),
+          // в recent «opp» для чужого = мы (BB)
+          opp: isPlayedStatus(m.status) || m.status === "upcoming" || m.status === "cancel"
+            ? "BB"
+            : m.opp,
+        }));
 
   const summary = tally(list);
   const stacks = new Map<string, KvMatch[]>();

@@ -173,6 +173,8 @@ model Clan {
   logoUrl   String?
   leaderId  String
   leader    User     @relation("ClanLeader", fields: [leaderId], references: [id])
+  /// Чужой клан с КВ (карточка с TR/скринов). Лидер = технический holder.
+  isExternal Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -181,6 +183,25 @@ model Clan {
   squads       ClanSquad[]
   titles       ClanTitle[]
   joinRequests ClanJoinRequest[]
+  pendingMembers ClanPendingMember[]
+}
+
+/// Игроки соперника со скринов/логов КВ до регистрации на площадке.
+model ClanPendingMember {
+  id        String   @id @default(cuid())
+  clanId    String
+  clan      Clan     @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  nick      String
+  nickKey   String
+  steamId   String?
+  matchId   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([clanId, nickKey])
+  @@index([steamId])
+  @@index([nickKey])
+  @@index([clanId])
 }
 
 model ClanTitle {

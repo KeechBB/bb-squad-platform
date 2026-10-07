@@ -972,6 +972,7 @@ class Collector:
             self._post(batch)
             self.maybe_rebuild_public_rp()
             self.maybe_sync_train_tr1()
+            self.maybe_sync_cw_tr()
             kt = self._keech_tracker()
             if kt is not None:
                 try:
@@ -1094,8 +1095,27 @@ class Collector:
                 file=sys.stderr,
             )
 
+    def _kv_public_env(self, env: dict[str, str]) -> dict[str, str]:
+        """VPS: write into live KV tree (warehouse or kv-cache)."""
+        if env.get("BB_KV_PUBLIC") or env.get("KV_LOCAL_DIR"):
+            return env
+        for cand in (
+            Path("/var/www/blackberry-kv"),
+            Path("/var/www/bb-squad-platform/data/kv-cache"),
+            Path(__file__).resolve().parents[1] / "data" / "kv-cache",
+        ):
+            if (cand / "data" / "training").is_dir() or (
+                cand / "public" / "data" / "training"
+            ).is_dir():
+                if (cand / "public" / "data" / "training").is_dir():
+                    env["BB_KV_PUBLIC"] = str(cand / "public")
+                else:
+                    env["BB_KV_PUBLIC"] = str(cand)
+                break
+        return env
+
     def maybe_sync_train_tr1(self) -> None:
-        """TR1 auto: digitize closed maps (21:30–00:00 MSK) + rebuild train RP."""
+        """TR1/TR2 auto: digitize closed maps (21:30–00:00 MSK) + rebuild train RP."""
         now = time.time()
         last = getattr(self, "_train_sync_last", 0.0)
         # Evening window (MSK≈UTC+3): poll often. Daytime: rare (saves RAM/CPU).
@@ -1121,28 +1141,54 @@ class Collector:
                     Path(__file__).resolve().parent / "_tmp_tr1_logs_cache"
                 ),
             }
-            # VPS: write into live KV tree (warehouse or kv-cache), never invent /var/www/KV.
-            if not (env.get("BB_KV_PUBLIC") or env.get("KV_LOCAL_DIR")):
-                for cand in (
-                    Path("/var/www/blackberry-kv"),
-                    Path("/var/www/bb-squad-platform/data/kv-cache"),
-                    Path(__file__).resolve().parents[1] / "data" / "kv-cache",
-                ):
-                    if (cand / "data" / "training").is_dir() or (
-                        cand / "public" / "data" / "training"
-                    ).is_dir():
-                        # Prefer .../public when that is where Pages-style tree lives
-                        if (cand / "public" / "data" / "training").is_dir():
-                            env["BB_KV_PUBLIC"] = str(cand / "public")
-                        else:
-                            env["BB_KV_PUBLIC"] = str(cand)
-                        break
+            env = self._kv_public_env(env)
             self._spawn_low_priority(
                 script, log_path, env=env, lock_label="train-sync"
             )
         except Exception as e:
             _safe_print(
                 "TR1 train sync error",
+                type(e).__name__,
+                e,
+                file=sys.stderr,
+            )
+
+    def maybe_sync_cw_tr(self) -> None:
+        """CW on TR1/TR2: both teams + opponent clan card (kv-tr-both-teams-auto)."""
+        now = time.time()
+        last = getattr(self, "_cw_tr_sync_last", 0.0)
+        # CW slots often 17–21 UTC; poll every 3 min near then, else 20 min.
+        utc_hour = datetime.now(timezone.utc).hour
+        in_cw_window = 14 <= utc_hour <= 22
+        interval = 180 if in_cw_window else 1200
+        if (now - last) < interval:
+            return
+        if self._heavy_job_busy():
+            _safe_print("CW TR sync deferred — heavy job running", flush=True)
+            return
+        self._cw_tr_sync_last = now
+        script = Path(__file__).resolve().parent / "sync_kv_cw_from_tr_logs.py"
+        if not script.is_file():
+            return
+        _safe_print("CW TR sync start (background, nice)", flush=True)
+        try:
+            log_path = Path(__file__).resolve().parent / "_tmp_cw_tr_sync.log"
+            env = {
+                **os.environ,
+                "TR1_LOG_CACHE": str(
+                    Path(__file__).resolve().parent / "_tmp_tr1_logs_cache"
+                ),
+                "TR2_LOG_CACHE": str(
+                    Path(__file__).resolve().parent / "_tmp_tr2_logs_cache"
+                ),
+            }
+            env = self._kv_public_env(env)
+            self._spawn_low_priority(
+                script, log_path, env=env, lock_label="cw-tr-sync"
+            )
+        except Exception as e:
+            _safe_print(
+                "CW TR sync error",
                 type(e).__name__,
                 e,
                 file=sys.stderr,

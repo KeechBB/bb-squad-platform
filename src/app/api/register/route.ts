@@ -11,6 +11,7 @@ import {
 } from "@/lib/validation";
 import { assignRegNoIfNeeded } from "@/lib/regNo";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
+import { attachOpponentClanOnRegister } from "@/lib/opponentClan";
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -129,6 +130,24 @@ export async function POST(req: Request) {
       }
     } catch (err) {
       console.error("backfill enqueue failed", err);
+    }
+
+    // Чужой клан с КВ: если ник/steam уже в pending — сразу в карточке клана.
+    try {
+      const joined = await attachOpponentClanOnRegister(user.id);
+      if (joined.joined && joined.tag) {
+        await writeActionLog({
+          category: "clan",
+          action: "auto_join_external",
+          message: `${label} автоматически вступил в [${joined.tag}] (ростер КВ)`,
+          actorId: user.id,
+          actorNick: label,
+          clanId: joined.clanId || undefined,
+          clanTag: joined.tag,
+        });
+      }
+    } catch (err) {
+      console.error("attach opponent clan failed", err);
     }
   }
 

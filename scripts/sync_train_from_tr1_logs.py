@@ -80,32 +80,37 @@ def _load_collector_env() -> dict[str, str]:
     return out
 
 
-def sync_tr1_logs_via_ssh() -> list[Path]:
-    """Download current TR1 SquadGame.log + recent backups into CACHE."""
+def sync_tr_server_logs_via_ssh(server_key: str = "TR1") -> list[Path]:
+    """Download SquadGame.log + recent backups for TR1 or TR2."""
     env = _load_collector_env()
+    cache = (
+        CACHE
+        if server_key == "TR1"
+        else Path(os.environ.get("TR2_LOG_CACHE", str(HERE / "_tmp_tr2_logs_cache")))
+    )
     try:
         import paramiko
     except ImportError as e:
-        local = sorted(CACHE.glob("*.log"))
+        local = sorted(cache.glob("*.log"))
         if local:
-            print(f"paramiko missing ({e}) — using local TR1 cache", flush=True)
+            print(f"paramiko missing ({e}) — using local {server_key} cache", flush=True)
             return local
-        print(f"paramiko missing and no TR1 cache: {e}", flush=True)
+        print(f"paramiko missing and no {server_key} cache: {e}", flush=True)
         return []
 
     host = env.get("SQUAD_SSH_HOST")
     user = env.get("SQUAD_SSH_USER")
     password = env.get("SQUAD_SSH_PASSWORD")
     if not host or not user or not password:
-        print("SSH env missing — using local TR1 cache only", flush=True)
-        return sorted(CACHE.glob("*.log"))
+        print(f"SSH env missing — using local {server_key} cache only", flush=True)
+        return sorted(cache.glob("*.log"))
 
     import time
 
     port = int(env.get("SQUAD_SSH_PORT") or "2022")
     root = (env.get("SQUAD_LOG_ROOT") or "/home/squad/servers").rstrip("/")
-    remote_dir = f"{root}/TR1/SquadGame/Saved/Logs"
-    CACHE.mkdir(parents=True, exist_ok=True)
+    remote_dir = f"{root}/{server_key}/SquadGame/Saved/Logs"
+    cache.mkdir(parents=True, exist_ok=True)
 
     last_err: Exception | None = None
     for attempt in range(4):
@@ -127,21 +132,27 @@ def sync_tr1_logs_via_ssh() -> list[Path]:
             )[:3]
             for name in ["SquadGame.log"] + backups:
                 rpath = f"{remote_dir}/{name}"
-                lpath = CACHE / name
+                # Avoid TR1/TR2 overwriting same SquadGame.log name in shared caches
+                local_name = (
+                    name
+                    if server_key == "TR1"
+                    else f"{server_key}-{name}"
+                )
+                lpath = cache / local_name
                 try:
                     st = sftp.stat(rpath)
                     if lpath.is_file() and lpath.stat().st_size == st.st_size:
                         continue
-                    print(f"TR1 sftp ← {name} ({st.st_size})", flush=True)
+                    print(f"{server_key} sftp ← {name} ({st.st_size})", flush=True)
                     sftp.get(rpath, str(lpath))
                 except Exception as e:
-                    print(f"TR1 skip {name}: {e}", flush=True)
+                    print(f"{server_key} skip {name}: {e}", flush=True)
             sftp.close()
             transport.close()
             break
         except Exception as e:
             last_err = e
-            print(f"TR1 ssh fail {attempt+1}: {type(e).__name__}: {e}", flush=True)
+            print(f"{server_key} ssh fail {attempt+1}: {type(e).__name__}: {e}", flush=True)
             try:
                 if transport:
                     transport.close()
@@ -149,10 +160,19 @@ def sync_tr1_logs_via_ssh() -> list[Path]:
                 pass
             time.sleep(2 + attempt)
     else:
-        print(f"TR1 ssh gave up: {last_err}", flush=True)
+        print(f"{server_key} ssh gave up: {last_err}", flush=True)
 
-    return sorted(CACHE.glob("*.log"))
+    return sorted(cache.glob("*.log"))
 
+
+def sync_tr1_logs_via_ssh() -> list[Path]:
+    """TR1 + TR2 (паритет учёта)."""
+    logs = sync_tr_server_logs_via_ssh("TR1")
+    try:
+        logs = list(logs) + list(sync_tr_server_logs_via_ssh("TR2"))
+    except Exception as e:
+        print(f"TR2 sync optional fail: {e}", flush=True)
+    return logs
 
 def msk_hour_ok(start_utc: datetime) -> bool:
     msk = start_utc + timedelta(hours=3)
@@ -628,17 +648,24 @@ def main() -> int:
         winner_team = str(m.get("winnerTeam") or "")
         winner = f1 if winner_team == "1" else f2 if winner_team == "2" else "—"
 
+        log_name_l = log_path.name.upper()
+        is_tr2 = "TR2" in log_name_l or "TR2" in str(log_path).upper()
+        server_label = (
+            "Blackberry | Training - Blackberries #2"
+            if is_tr2
+            else "Blackberry | Training - Blackberries #1"
+        )
         players_doc = {
             "matchId": mid,
             "map": layer,
             "mode": layer_mode(layer),
-            "server": "Blackberry | Training - Blackberries #1",
+            "server": server_label,
             "duration": duration,
             "winner": winner,
             "sideA": {"name": f1, "tickets": int(t1 or 0)},
             "sideB": {"name": f2, "tickets": int(t2 or 0)},
-            "note": "Авто из логов TR1",
-            "source": "tr1-logs-auto",
+            "note": "Авто из логов TR2" if is_tr2 else "Авто из логов TR1",
+            "source": "tr2-logs-auto" if is_tr2 else "tr1-logs-auto",
             "teamA": team_a,
             "teamB": team_b,
         }
