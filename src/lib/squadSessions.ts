@@ -271,8 +271,10 @@ export function mergeSessionsWithRejoinGap(
 }
 
 /**
- * Заход (с вечера от 19:00) и итоговый выход по дням тренировки TR1.
+ * Заход (с вечера от 19:00) и итоговый выход по дням тренировки TR1/TR2.
  * Выход = ушёл и не вернулся за 5 минут (и больше не заходил в этот вечер).
+ * Если leave потерян, а окно вечера уже закрыто (≥02:00 МСК) — ставим
+ * авто-выход на конец окна, чтобы на календаре не висело «…».
  */
 export function trainingDayVisitBoundsFromSessions(
   sessions: SessionForAttendance[],
@@ -293,10 +295,11 @@ export function trainingDayVisitBoundsFromSessions(
     // 19:00 МСК = 16:00 UTC; 02:00 МСК след. = 23:00 UTC
     const from19 = new Date(Date.UTC(y, m - 1, d, 16, 0, 0));
     const until02 = new Date(Date.UTC(y, m - 1, d, 23, 0, 0));
+    const windowClosed = now.getTime() >= until02.getTime();
 
     const spans = mergeSessionsWithRejoinGap(list);
     const evening = spans.filter((sp) => {
-      const end = sp.leave ?? now;
+      const end = sp.leave ?? (windowClosed ? until02 : now);
       return sp.join.getTime() < until02.getTime() && end.getTime() > from19.getTime();
     });
     if (!evening.length) continue;
@@ -313,9 +316,15 @@ export function trainingDayVisitBoundsFromSessions(
       joinAt = from19;
     }
 
+    let leaveAt = last.leave;
+    // Прошлый вечер без leave в логе — не оставляем «…» на календаре
+    if (!leaveAt && windowClosed) {
+      leaveAt = until02;
+    }
+
     out.set(day, {
       joinHm: hmMskFromDate(joinAt),
-      leaveHm: last.leave ? hmMskFromDate(last.leave) : null,
+      leaveHm: leaveAt ? hmMskFromDate(leaveAt) : null,
     });
   }
   return out;

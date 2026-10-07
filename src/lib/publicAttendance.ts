@@ -83,14 +83,21 @@ export function publicDayVisitBoundsFromSessions(
   }
 
   const out = new Map<string, DayVisitBounds>();
+  const today = calendarDayYmdMsk(now);
   for (const [day, list] of byDay) {
     const spans = mergeSessionsWithRejoinGap(list);
     if (!spans.length) continue;
     const first = spans[0];
     const last = spans[spans.length - 1];
+    let leave = last.leave;
+    // Прошлый календарный день без leave — не оставляем «…»
+    if (!leave && day < today) {
+      const [y, m, d] = day.split("-").map(Number);
+      leave = new Date(Date.UTC(y, m - 1, d, 20, 59, 0)); // 23:59 МСК
+    }
     out.set(day, {
       joinHm: hmMskFromDate(first.join),
-      leaveHm: last.leave ? hmMskFromDate(last.leave) : null,
+      leaveHm: leave ? hmMskFromDate(leave) : null,
     });
   }
   return out;

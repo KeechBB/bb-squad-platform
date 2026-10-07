@@ -253,15 +253,38 @@ export async function POST(req: Request) {
 async function closeStaleOpenSessions(): Promise<number> {
   const hours = staleOpenHours();
   const cutoff = new Date(Date.now() - hours * 3600_000);
-  const stale = await prisma.squadServerSession.findMany({
-    where: { leftAt: null, joinedAt: { lt: cutoff } },
-    select: { id: true, joinedAt: true },
-    take: 200,
+  const now = new Date();
+  const open = await prisma.squadServerSession.findMany({
+    where: { leftAt: null },
+    select: { id: true, joinedAt: true, serverKey: true },
+    take: 400,
+    orderBy: { joinedAt: "asc" },
   });
-  if (stale.length === 0) return 0;
+  if (open.length === 0) return 0;
+
+  const { trainingDayYmd } = await import("@/lib/squadSessions");
   let n = 0;
-  for (const s of stale) {
-    const leaveAt = new Date(s.joinedAt.getTime() + hours * 3600_000);
+  for (const s of open) {
+    let leaveAt: Date | null = null;
+    const key = (s.serverKey || "").toUpperCase();
+    const isTrain = key === "TR1" || key === "TR2";
+
+    if (isTrain) {
+      // После 02:00 МСК следующего календарного дня вечер закрыт → авто leave
+      const day = trainingDayYmd(s.joinedAt);
+      const [y, m, d] = day.split("-").map(Number);
+      const until02 = new Date(Date.UTC(y, m - 1, d, 23, 0, 0)); // 02:00 МСК
+      if (now.getTime() >= until02.getTime()) {
+        leaveAt = until02;
+      }
+    }
+
+    if (!leaveAt && s.joinedAt.getTime() < cutoff.getTime()) {
+      leaveAt = new Date(s.joinedAt.getTime() + hours * 3600_000);
+    }
+    if (!leaveAt) continue;
+    if (leaveAt.getTime() <= s.joinedAt.getTime()) continue;
+
     await prisma.squadServerSession.update({
       where: { id: s.id },
       data: { leftAt: leaveAt },
