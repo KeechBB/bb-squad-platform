@@ -56,6 +56,7 @@ type MvpBlock = {
 
 type LoadedPlayers = {
   total: PlayerRow[];
+  bbTotal: PlayerRow[];
   r1: PlayerRow[];
   r2: PlayerRow[];
   oppTotal: PlayerRow[];
@@ -80,6 +81,7 @@ type LoadedPlayers = {
 type SortKey = "nick" | "res" | "nok" | "kills" | "deaths" | "kd" | "dmg" | "pwrDelta";
 type TabKey =
   | "total"
+  | "bbTotal"
   | "r1"
   | "r2"
   | "oppTotal"
@@ -280,6 +282,7 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
           );
           setData({
             total: all,
+            bbTotal: [],
             r1: [],
             r2: [],
             oppTotal: [],
@@ -302,13 +305,16 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
           const r2 = enrich(json.r2 || []);
           const oppR1 = enrich(json.oppR1 || []);
           const oppR2 = enrich(json.oppR2 || []);
-          const total = enrich(
+          const bbTotal = enrich(
             json.total || json.players || sumRounds(r1, r2)
           );
           const oppTotal = enrich(json.oppTotal || sumRounds(oppR1, oppR2));
           const hasOpp = oppR1.length > 0 || oppR2.length > 0;
+          // Итого = все игроки (BB + соперник)
+          const total = hasOpp ? sumRounds(bbTotal, oppTotal) : bbTotal;
           setData({
             total,
+            bbTotal,
             r1,
             r2,
             oppTotal,
@@ -362,6 +368,7 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
       if (tab === "teamB" || tab === "r2") return data.teamB;
       return data.total;
     }
+    if (tab === "bbTotal") return data.bbTotal;
     if (tab === "r1") return data.r1;
     if (tab === "r2") return data.r2;
     if (tab === "oppTotal") return data.oppTotal;
@@ -428,19 +435,21 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
       if (!data) return counts;
       const keys = data.training
         ? (["r1"] as const)
-        : tab === "total"
-          ? (["r1", "r2"] as const)
-          : tab === "oppTotal"
-            ? (["oppR1", "oppR2"] as const)
-            : tab === "r1" || tab === "teamA"
-              ? (["r1"] as const)
-              : tab === "r2" || tab === "teamB"
-                ? (["r2"] as const)
-                : tab === "oppR1"
-                  ? (["oppR1"] as const)
-                  : tab === "oppR2"
-                    ? (["oppR2"] as const)
-                    : (["r1", "r2"] as const);
+        : tab === "total" && data.hasOpp
+          ? (["r1", "r2", "oppR1", "oppR2"] as const)
+          : tab === "total" || tab === "bbTotal"
+            ? (["r1", "r2"] as const)
+            : tab === "oppTotal"
+              ? (["oppR1", "oppR2"] as const)
+              : tab === "r1" || tab === "teamA"
+                ? (["r1"] as const)
+                : tab === "r2" || tab === "teamB"
+                  ? (["r2"] as const)
+                  : tab === "oppR1"
+                    ? (["oppR1"] as const)
+                    : tab === "oppR2"
+                      ? (["oppR2"] as const)
+                      : (["r1", "r2"] as const);
       for (const rk of keys) {
         const block = data.mvpByRound[rk];
         if (!block) continue;
@@ -504,9 +513,18 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
         ? [
             {
               key: "total",
-              label: showSidePrefix ? "BB · Итого" : "Итого",
+              label: showSidePrefix ? "Итого · все" : "Итого",
               group: "bb",
             },
+            ...(data?.hasOpp
+              ? ([
+                  {
+                    key: "bbTotal",
+                    label: "BB · Итого",
+                    group: "bb",
+                  },
+                ] as const)
+              : []),
             {
               key: "r1",
               label: showSidePrefix
