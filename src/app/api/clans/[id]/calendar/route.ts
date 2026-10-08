@@ -30,7 +30,21 @@ export async function GET(_req: Request, ctx: Ctx) {
     take: 200,
   });
 
-  const mapped = events.map((e) => ({
+  type CalRow = {
+    id: string;
+    mode: string;
+    modeLabel: string;
+    format: number;
+    scheduledAt: string;
+    opponentTag: string;
+    opponentName: string;
+    assignedServer: string | null;
+    status: string;
+    challengeId: string | null;
+    source: "challenge" | "kv";
+  };
+
+  const mapped: CalRow[] = events.map((e) => ({
     id: e.id,
     mode: e.mode,
     modeLabel: modeLabel(e.mode),
@@ -41,7 +55,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     assignedServer: e.assignedServer,
     status: e.status,
     challengeId: e.challengeId,
-    source: "challenge" as const,
+    source: "challenge",
   }));
 
   // BlackBerry: плюс слоты из KV-календаря (раньше были на главной)
