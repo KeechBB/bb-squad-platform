@@ -10,12 +10,10 @@ import {
   canInviteClanMembers,
   canKickClanMember,
   canManageClanMembers,
-  canManageCwChallenges,
   canDeleteClanSquad,
   CLAN_ROLE_LABEL,
 } from "@/lib/clan";
 import { ClanCalendarPanel } from "@/components/ClanCalendarPanel";
-import { ClanCwRegistrationPanel } from "@/components/ClanCwRegistrationPanel";
 import { formatRuDate, isActiveReserve } from "@/lib/validation";
 import { withAvatarCacheBust } from "@/lib/avatarUrl";
 import {
@@ -137,7 +135,7 @@ type Props = {
   tierEntries: Array<[string, 1 | 2 | 3]>;
 };
 
-type Tab = "members" | "squads" | "stats" | "calendar" | "registration";
+type Tab = "members" | "squads" | "stats" | "calendar";
 
 type ClanPlayerAgg = {
   nick: string;
@@ -983,7 +981,6 @@ export function ClanDetailClient({
             ["squads", "Составы"],
             ["stats", "Статистика"],
             ["calendar", "Календарь"],
-            ["registration", "Регистрация"],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -2013,15 +2010,6 @@ export function ClanDetailClient({
 
       {tab === "calendar" ? (
         <ClanCalendarPanel clanId={clan.id} clanTag={clan.tag} />
-      ) : null}
-
-      {tab === "registration" ? (
-        <ClanCwRegistrationPanel
-          clanId={clan.id}
-          canManage={
-            myRole ? canManageCwChallenges(myRole) : false
-          }
-        />
       ) : null}
 
       <p style={{ marginTop: 16 }} className="clan-footer-actions">

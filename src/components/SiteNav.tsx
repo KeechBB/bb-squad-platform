@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { SteamAuthModal } from "@/components/SteamAuthModal";
 
 type Props = {
-  /** Полный доступ: КВ / ТМ / карта — только если пользователь в каком-либо клане */
+  /** Полный доступ: КВ / Поиск КВ / ТМ / карта — только если в клане */
   showClanSections: boolean;
 };
 
@@ -93,106 +93,142 @@ export function SiteNav({ showClanSections }: Props) {
   const guest = !loading && !authed;
   const needRegister = !loading && authed && !complete;
 
-  const clanBlock: ReactNode = showClanSections ? (
-    <>
+  function clansNav() {
+    if (guest) {
+      return (
+        <NavGateButton
+          title="Кланы"
+          full="Кланы"
+          short="Кланы"
+          active={pathMatches(pathname, "/clans")}
+          onClick={() =>
+            setAuthModal({
+              href: "/clans",
+              title: "Кланы — только после входа",
+              message:
+                "Авторизуйтесь через Steam, чтобы открыть раздел кланов.",
+            })
+          }
+        />
+      );
+    }
+    if (needRegister) {
+      return (
+        <NavLink
+          href="/register"
+          title="Завершите регистрацию"
+          full="Кланы"
+          short="Кланы"
+          active={pathMatches(pathname, "/clans")}
+        />
+      );
+    }
+    return (
       <NavLink
-        href="/cw"
-        title="Клановые войны"
-        full="Клановые войны"
-        short="КВ"
-        active={pathMatches(pathname, "/cw")}
+        href="/clans"
+        full="Кланы"
+        short="Кланы"
+        active={pathMatches(pathname, "/clans")}
       />
+    );
+  }
+
+  function aimNav() {
+    if (guest) {
+      return (
+        <NavGateButton
+          title="Тренировка стрельбы"
+          full="Тренировка стрельбы"
+          short="Стрельба"
+          active={pathMatches(pathname, "/aim")}
+          onClick={() =>
+            setAuthModal({
+              href: "/aim",
+              title: "Тренировка стрельбы — только после входа",
+              message:
+                "Авторизуйтесь через Steam, чтобы открыть тренировку стрельбы.",
+            })
+          }
+        />
+      );
+    }
+    if (needRegister) {
+      return (
+        <NavLink
+          href="/register"
+          title="Завершите регистрацию"
+          full="Тренировка стрельбы"
+          short="Стрельба"
+          active={pathMatches(pathname, "/aim")}
+        />
+      );
+    }
+    return (
       <NavLink
-        href="/tm"
-        title="Тренировочные матчи"
-        full="Тренировочные матчи"
-        short="Трен."
-        active={pathMatches(pathname, "/tm")}
+        href="/aim"
+        title="Тренировка стрельбы"
+        full="Тренировка стрельбы"
+        short="Стрельба"
+        active={pathMatches(pathname, "/aim")}
       />
-    </>
-  ) : null;
+    );
+  }
 
   return (
     <>
       <nav className="top-nav" aria-label="Разделы">
+        {/* 1 */}
         <NavLink
           href="/"
           full="Главная"
           short="Глав"
           active={pathMatches(pathname, "/")}
         />
-        {clanBlock}
-        {guest ? (
-          <NavGateButton
-            title="Кланы"
-            full="Кланы"
-            short="Кланы"
-            active={pathMatches(pathname, "/clans")}
-            onClick={() =>
-              setAuthModal({
-                href: "/clans",
-                title: "Кланы — только после входа",
-                message:
-                  "Авторизуйтесь через Steam, чтобы открыть раздел кланов.",
-              })
-            }
-          />
-        ) : needRegister ? (
-          <NavLink
-            href="/register"
-            title="Завершите регистрацию"
-            full="Кланы"
-            short="Кланы"
-            active={pathMatches(pathname, "/clans")}
-          />
-        ) : (
-          <NavLink
-            href="/clans"
-            full="Кланы"
-            short="Кланы"
-            active={pathMatches(pathname, "/clans")}
-          />
-        )}
-        {guest ? (
-          <NavGateButton
-            title="Тренировка стрельбы"
-            full="Тренировка стрельбы"
-            short="Стрельба"
-            active={pathMatches(pathname, "/aim")}
-            onClick={() =>
-              setAuthModal({
-                href: "/aim",
-                title: "Тренировка стрельбы — только после входа",
-                message:
-                  "Авторизуйтесь через Steam, чтобы открыть тренировку стрельбы.",
-              })
-            }
-          />
-        ) : needRegister ? (
-          <NavLink
-            href="/register"
-            title="Завершите регистрацию"
-            full="Тренировка стрельбы"
-            short="Стрельба"
-            active={pathMatches(pathname, "/aim")}
-          />
-        ) : (
-          <NavLink
-            href="/aim"
-            title="Тренировка стрельбы"
-            full="Тренировка стрельбы"
-            short="Стрельба"
-            active={pathMatches(pathname, "/aim")}
-          />
-        )}
+        {/* 2 — приглушённый */}
         <NavLink
           href="/public"
           title="Рейтинг паблика"
           full="Рейтинг паблика"
           short="Паблик"
-          className="nav-public-pill"
+          className="nav-public-quiet"
           active={pathMatches(pathname, "/public")}
         />
+        {/* 3 */}
+        {showClanSections ? (
+          <NavLink
+            href="/cw"
+            title="Клановые войны"
+            full="Клановые войны"
+            short="КВ"
+            active={pathMatches(pathname, "/cw")}
+          />
+        ) : null}
+        {/* 4 */}
+        {clansNav()}
+        {/* 5 — акцент красным */}
+        {showClanSections ? (
+          <NavLink
+            href="/cw-find"
+            title="Поиск КВ"
+            full="Поиск КВ"
+            short="Поиск"
+            className="nav-cw-find"
+            active={pathMatches(pathname, "/cw-find")}
+          />
+        ) : null}
+        {/* 6 */}
+        {showClanSections ? (
+          <NavLink
+            href="/tm"
+            title="Тренировочные матчи"
+            full="Тренировочные матчи"
+            short="Трен."
+            active={pathMatches(pathname, "/tm")}
+          />
+        ) : null}
+        {/* 7 */}
+        {aimNav()}
+        {/* 8 */}
         {showClanSections ? (
           <NavLink
             href="/map"

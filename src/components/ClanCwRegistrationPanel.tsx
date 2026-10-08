@@ -16,8 +16,9 @@ type ChallengeRow = {
 };
 
 type Props = {
-  clanId: string;
-  canManage: boolean;
+  /** Если задан — форма создания только когда это твой клан. Без него — standalone (Поиск КВ). */
+  clanId?: string | null;
+  canManage?: boolean;
 };
 
 function fmtMsk(iso: string) {
@@ -39,7 +40,10 @@ function modeLabel(mode: string) {
   return CW_MODES.find((m) => m.id === mode)?.label || mode;
 }
 
-export function ClanCwRegistrationPanel({ clanId, canManage }: Props) {
+export function ClanCwRegistrationPanel({
+  clanId = null,
+  canManage: canManageProp = true,
+}: Props) {
   const [rows, setRows] = useState<ChallengeRow[]>([]);
   const [myClanId, setMyClanId] = useState<string | null>(null);
   const [canCreate, setCanCreate] = useState(false);
@@ -77,7 +81,7 @@ export function ClanCwRegistrationPanel({ clanId, canManage }: Props) {
 
   async function createChallenge(e: React.FormEvent) {
     e.preventDefault();
-    if (!canManage || !canCreate) return;
+    if (!(canManageProp && canCreate && myClanId)) return;
     setBusy(true);
     setError("");
     try {
@@ -105,7 +109,7 @@ export function ClanCwRegistrationPanel({ clanId, canManage }: Props) {
   }
 
   async function acceptChallenge(id: string) {
-    if (!canManage || !canCreate) return;
+    if (!(canManageProp && canCreate && myClanId)) return;
     setBusy(true);
     setError("");
     try {
@@ -125,7 +129,10 @@ export function ClanCwRegistrationPanel({ clanId, canManage }: Props) {
     }
   }
 
-  const onThisClanPage = myClanId === clanId;
+  const canManage = canManageProp && canCreate;
+  // standalone (нет clanId) или страница своего клана
+  const canOfferCreate =
+    canManage && Boolean(myClanId) && (clanId == null || myClanId === clanId);
 
   return (
     <section className="card">
@@ -140,13 +147,13 @@ export function ClanCwRegistrationPanel({ clanId, canManage }: Props) {
       >
         <div>
           <h3 className="stats-h3" style={{ marginTop: 0, marginBottom: 4 }}>
-            Регистрация на КВ
+            Поиск КВ
           </h3>
           <p className="muted" style={{ margin: 0, maxWidth: 560 }}>
             {CW_SERVER_POOL_NOTE}
           </p>
         </div>
-        {canManage && canCreate && onThisClanPage ? (
+        {canOfferCreate ? (
           <button
             type="button"
             className="btn primary"
@@ -158,14 +165,14 @@ export function ClanCwRegistrationPanel({ clanId, canManage }: Props) {
         ) : null}
       </div>
 
-      {!canManage || !canCreate ? (
+      {!canManage ? (
         <p className="muted" style={{ marginTop: 12 }}>
           Создавать и принимать заявки могут только глава или заместитель
           главы своего клана.
         </p>
       ) : null}
 
-      {showForm && canManage && canCreate && onThisClanPage ? (
+      {showForm && canOfferCreate ? (
         <form className="form" style={{ marginTop: 16 }} onSubmit={createChallenge}>
           <label className="field">
             <span>Мод</span>
@@ -240,7 +247,6 @@ export function ClanCwRegistrationPanel({ clanId, canManage }: Props) {
                   const isMine = r.challenger.id === myClanId;
                   const canAccept =
                     canManage &&
-                    canCreate &&
                     r.status === "OPEN" &&
                     !isMine &&
                     myClanId != null;
