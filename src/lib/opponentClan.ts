@@ -29,7 +29,6 @@ const BRAND_LOGO_FILES: Record<string, string[]> = {
   SPH: ["sph.png"],
   FURY: ["fury.png"],
   IMP: ["imp.png", "imp.jpg"],
-  CUT: ["cut.png", "cut.jpg"],
   OMEN: ["omen.png"],
   FAL: ["fal.png"],
   FOX: ["fox.png"],
