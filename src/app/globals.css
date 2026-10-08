@@ -15110,13 +15110,13 @@ body.profile-match-modal-open {
 .clan-fifa-confidence {
   margin: 0;
   font-size: 0.78rem;
-  color: rgba(220, 252, 231, 0.65) !important;
+  color: rgba(148, 163, 184, 0.75) !important;
 }
 .clan-fifa-summary {
   margin: 0;
   font-size: 0.9rem;
   line-height: 1.45;
-  color: rgba(240, 253, 244, 0.92);
+  color: rgba(241, 245, 249, 0.92);
 }
 .clan-fifa-factors {
   list-style: none;
@@ -15133,11 +15133,11 @@ body.profile-match-modal-open {
   padding: 8px 10px;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(134, 239, 172, 0.12);
+  border: 1px solid rgba(167, 139, 250, 0.14);
   font-size: 0.82rem;
 }
 .clan-fifa-factors li span {
-  color: rgba(220, 252, 231, 0.65);
+  color: rgba(148, 163, 184, 0.75);
 }
 .clan-fifa-factors li.tone-good strong {
   color: #4ade80;
@@ -15146,7 +15146,7 @@ body.profile-match-modal-open {
   color: #f87171;
 }
 .clan-fifa-factors li.tone-neutral strong {
-  color: #bbf7d0;
+  color: #c4b5fd;
 }
 .clan-fifa-note {
   margin: 0;
@@ -15161,7 +15161,7 @@ body.profile-match-modal-open {
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: rgba(220, 252, 231, 0.55);
+  color: rgba(148, 163, 184, 0.6);
 }
 .clan-fifa-daylist button {
   appearance: none;
@@ -15169,9 +15169,9 @@ body.profile-match-modal-open {
   align-items: center;
   gap: 10px;
   text-align: left;
-  border: 1px solid rgba(134, 239, 172, 0.22);
+  border: 1px solid rgba(167, 139, 250, 0.22);
   background: rgba(0, 0, 0, 0.25);
-  color: #e8f5e0;
+  color: #e2e8f0;
   border-radius: 10px;
   padding: 8px 10px;
   font: inherit;
@@ -15200,8 +15200,8 @@ body.profile-match-modal-open {
   border-color: rgba(74, 222, 128, 0.45);
 }
 .clan-fifa-daylist button.is-active {
-  background: rgba(22, 101, 52, 0.45);
-  border-color: rgba(190, 242, 100, 0.7);
+  background: rgba(67, 56, 102, 0.5);
+  border-color: rgba(196, 181, 253, 0.7);
 }
 .clan-fifa-empty {
   flex: 1;
@@ -15216,7 +15216,7 @@ body.profile-match-modal-open {
   font-family: var(--font-display), Oxanium, sans-serif;
   font-size: 2rem;
   letter-spacing: 0.18em;
-  color: rgba(220, 252, 231, 0.28);
+  color: rgba(148, 163, 184, 0.28);
 }
 @media (max-width: 1100px) {
   .clan-fifa-layout {
