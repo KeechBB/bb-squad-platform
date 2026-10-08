@@ -216,7 +216,18 @@ export function SiteNav({ showClanSections }: Props) {
             active={pathMatches(pathname, "/cw-find")}
           />
         ) : null}
-        {/* 6 */}
+        {/* 6 — тиры FIT, фиолетовый акцент */}
+        {showClanSections ? (
+          <NavLink
+            href="/tiers-fit"
+            title="Тиры FIT"
+            full="Тиры FIT"
+            short="FIT"
+            className="nav-tiers-fit"
+            active={pathMatches(pathname, "/tiers-fit")}
+          />
+        ) : null}
+        {/* 7 */}
         {showClanSections ? (
           <NavLink
             href="/tm"
@@ -226,9 +237,9 @@ export function SiteNav({ showClanSections }: Props) {
             active={pathMatches(pathname, "/tm")}
           />
         ) : null}
-        {/* 7 */}
-        {aimNav()}
         {/* 8 */}
+        {aimNav()}
+        {/* 9 */}
         {showClanSections ? (
           <NavLink
             href="/map"

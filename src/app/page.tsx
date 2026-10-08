@@ -14,7 +14,7 @@ export default async function HomePage() {
     redirect("/register");
   }
 
-  const { pwrBoard, tierBoard, publicTop } = await getHomeDashboardData();
+  const { pwrBoard, publicTop } = await getHomeDashboardData();
 
   return (
     <main className="home-page">
@@ -74,11 +74,7 @@ export default async function HomePage() {
         <div className="home-side">
           {/* Календарь перенесён в профиль клана — слот пока пустой */}
           <div className="home-calendar-slot" aria-hidden="true" />
-          <HomePanels
-            pwrBoard={pwrBoard}
-            publicTop={publicTop}
-            tierBoard={tierBoard}
-          />
+          <HomePanels pwrBoard={pwrBoard} publicTop={publicTop} />
         </div>
 
         <section className="home-hero" aria-label="BlackBerry">

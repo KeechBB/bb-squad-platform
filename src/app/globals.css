@@ -5588,7 +5588,7 @@ body:has(.home-page) {
   height: 1004px;
   transform: scale(var(--home-scale));
   transform-origin: top left;
-  grid-template-columns: 920px minmax(0, 1fr);
+  grid-template-columns: 960px minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   grid-template-areas: "side brand";
   align-items: start;
@@ -5696,6 +5696,13 @@ body:has(.home-page) {
   grid-template-rows: minmax(0, 1fr);
   gap: 12px;
   align-items: stretch;
+}
+
+.home-dock.home-dock-two {
+  grid-template-columns: 1fr 1fr;
+  height: 460px;
+  max-height: 460px;
+  gap: 16px;
 }
 
 .home-dock-col {
@@ -13642,4 +13649,121 @@ body.profile-match-modal-open {
 }
 .home-calendar-slot {
   display: none;
+}
+
+
+/* Тиры FIT — фиолетовый pill как Поиск КВ */
+.top-nav a.nav-tiers-fit {
+  margin: 0 4px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(167, 139, 250, 0.85);
+  background: linear-gradient(
+    135deg,
+    rgba(91, 33, 182, 0.85),
+    rgba(124, 58, 237, 0.7)
+  );
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 0 14px rgba(139, 92, 246, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.top-nav a.nav-tiers-fit::after {
+  display: none;
+}
+.top-nav a.nav-tiers-fit:hover,
+.top-nav a.nav-tiers-fit:focus-visible,
+.top-nav a.nav-tiers-fit.is-active {
+  background: linear-gradient(
+    135deg,
+    rgba(124, 58, 237, 0.95),
+    rgba(167, 139, 250, 0.8)
+  );
+  border-color: rgba(221, 214, 254, 0.95);
+  color: #fff;
+  box-shadow: 0 0 22px rgba(167, 139, 250, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.tier-fit-page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 8px 12px 40px;
+}
+.tier-fit-hero {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+.tier-fit-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.tier-fit-stat {
+  min-width: 110px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  background: rgba(20, 12, 36, 0.65);
+}
+.tier-fit-stat span {
+  display: block;
+  font-size: 0.72rem;
+  color: rgba(226, 212, 255, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.tier-fit-stat strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 1.05rem;
+}
+.tier-fit-card {
+  margin-top: 16px;
+}
+.tier-fit-card h2 {
+  margin: 0 0 4px;
+  font-family: Oxanium, Manrope, sans-serif;
+}
+.tier-fit-sub {
+  margin: 0 0 12px;
+}
+.tier-fit-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+@media (max-width: 900px) {
+  .tier-fit-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.tier-fit-table td,
+.tier-fit-table th {
+  white-space: nowrap;
+}
+.tier-fit-table td:last-child,
+.tier-fit-table th:last-child {
+  white-space: normal;
+  min-width: 140px;
+}
+.tier-fit-row.is-up td:nth-child(2),
+.tier-fit-row.is-up td:nth-child(3),
+.tier-fit-row.is-up b {
+  color: #6ee7b7;
+}
+.tier-fit-row.is-down td:nth-child(2),
+.tier-fit-row.is-down td:nth-child(3),
+.tier-fit-row.is-down b {
+  color: #fca5a5;
+}
+.home-dock-two .home-attend-streaks-nick {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
