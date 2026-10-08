@@ -5540,26 +5540,29 @@ body:has(.home-page) {
   height: 1004px;
   transform: scale(var(--home-scale));
   transform-origin: top left;
-  grid-template-columns: 740px minmax(0, 1fr);
+  grid-template-columns: 920px minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   grid-template-areas: "side brand";
   align-items: start;
-  column-gap: 44px;
+  column-gap: 36px;
   row-gap: 12px;
-  padding: 10px 6px;
+  padding: 10px 10px 14px;
   box-sizing: border-box;
   overflow: hidden;
 }
 
 .home-layout > .home-side {
   grid-area: side;
-  align-self: stretch;
+  align-self: end;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  justify-content: flex-end;
+  gap: 0;
   min-width: 0;
   min-height: 0;
-  height: 100%;
+  height: auto;
+  width: 100%;
+  padding-bottom: 4px;
 }
 
 .home-layout > .home-hero {
@@ -5636,18 +5639,21 @@ body:has(.home-page) {
 }
 
 .home-dock {
-  flex: 1 1 340px;
-  min-height: 280px;
+  flex: 0 0 auto;
+  width: 100%;
+  height: 430px;
+  max-height: 430px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-rows: minmax(0, 1fr);
-  gap: 8px;
+  gap: 12px;
   align-items: stretch;
 }
 
 .home-dock-col {
   min-width: 0;
   min-height: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
   border-radius: 12px;
@@ -5656,15 +5662,15 @@ body:has(.home-page) {
 }
 
 .home-dock-col > header {
-  flex: 0 0 40px;
+  flex: 0 0 44px;
   display: grid;
   place-items: center;
-  padding: 0 8px;
+  padding: 0 10px;
   color: #fff;
   font-weight: 800;
-  font-size: 0.82rem;
+  font-size: 1.05rem;
   line-height: 1.15;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.02em;
   text-align: center;
 }
 
@@ -5715,7 +5721,7 @@ body:has(.home-page) {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  padding: 6px 8px 8px;
+  padding: 8px 10px 10px;
   background:
     linear-gradient(180deg, rgba(16, 10, 28, 0.72), rgba(8, 6, 14, 0.88));
 }
@@ -5745,7 +5751,7 @@ body:has(.home-page) {
   min-height: 0;
   display: grid;
   grid-template-rows: repeat(10, minmax(0, 1fr));
-  gap: 3px;
+  gap: 5px;
   align-content: stretch;
 }
 
@@ -5757,20 +5763,21 @@ body:has(.home-page) {
   min-height: 0;
   max-height: none;
   box-sizing: border-box;
-  padding: 0 2px;
-  gap: 4px;
+  padding: 0 6px;
+  gap: 6px;
   overflow: hidden;
   border-bottom: 0;
-  border-radius: 6px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.04);
 }
 
 .home-dock-col .home-attend-streaks-rank {
   order: 1;
-  flex: 0 0 1.05rem;
+  flex: 0 0 1.35rem;
   align-self: center;
   text-align: center;
-  font-size: 0.62rem;
+  font-size: 0.82rem;
+  font-weight: 700;
 }
 
 .home-dock-col .home-attend-streaks-nick {
@@ -5778,8 +5785,9 @@ body:has(.home-page) {
   flex: 1 1 auto;
   min-width: 0;
   align-self: center;
-  font-size: 0.64rem;
-  line-height: 1;
+  font-size: 0.92rem;
+  line-height: 1.15;
+  font-weight: 600;
 }
 
 .home-dock-col .home-pwr-badge {
@@ -5789,9 +5797,9 @@ body:has(.home-page) {
   width: auto;
   min-width: 0;
   max-width: none;
-  padding: 0 3px;
-  font-size: 0.42rem;
-  letter-spacing: 0;
+  padding: 2px 5px;
+  font-size: 0.58rem;
+  letter-spacing: 0.02em;
   line-height: 1.35;
   text-align: center;
   overflow: hidden;
@@ -5800,24 +5808,24 @@ body:has(.home-page) {
 
 .home-dock-col .home-attend-streaks-days {
   order: 4;
-  flex: 0 0 3.5rem;
+  flex: 0 0 4.2rem;
   margin-left: auto;
   align-self: center;
   display: flex;
   justify-content: flex-end;
   align-items: baseline;
-  gap: 2px;
+  gap: 3px;
   white-space: nowrap;
 }
 
 .home-dock-col .home-attend-streaks-days b {
-  font-size: 0.66rem;
+  font-size: 0.95rem;
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
 
 .home-dock-col .home-attend-streaks-days span {
-  font-size: 0.48rem;
+  font-size: 0.62rem;
 }
 
 .home-dock-col .home-attend-streaks-row:first-child .home-attend-streaks-days b {
@@ -5850,12 +5858,12 @@ body:has(.home-page) {
 
 .home-dock-tier-block h3 {
   flex: 0 0 auto;
-  margin: 0 0 4px;
-  font-size: 0.64rem;
+  margin: 0 0 6px;
+  font-size: 0.78rem;
   font-weight: 800;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(245, 241, 255, 0.72);
+  color: rgba(245, 241, 255, 0.78);
 }
 
 .home-dock-tier-block ul {
@@ -5865,25 +5873,25 @@ body:has(.home-page) {
   min-height: 0;
   overflow: auto;
   display: grid;
-  grid-auto-rows: 28px;
-  gap: 3px;
+  grid-auto-rows: 34px;
+  gap: 4px;
   align-content: start;
 }
 
 .home-dock-tier-row {
-  height: 28px;
-  min-height: 28px;
-  max-height: 28px;
+  height: 34px;
+  min-height: 34px;
+  max-height: 34px;
   box-sizing: border-box;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 6px;
-  padding: 0 6px;
-  border-radius: 6px;
+  gap: 8px;
+  padding: 0 8px;
+  border-radius: 8px;
   border: 1px solid rgba(167, 139, 250, 0.16);
   background: rgba(10, 8, 18, 0.45);
-  font-size: 0.72rem;
+  font-size: 0.88rem;
 }
 
 .home-dock-tier-row a {
@@ -13585,5 +13593,5 @@ body.profile-match-modal-open {
   font-family: Oxanium, Manrope, sans-serif;
 }
 .home-calendar-slot {
-  min-height: 120px;
+  display: none;
 }
