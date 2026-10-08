@@ -1,7 +1,10 @@
+import { Suspense } from "react";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { isAnyClanMember } from "@/lib/clanAccess";
 import { liveKvBust } from "@/lib/kvBust";
+import { buildHomeTierBoard, emptyHomeTierBoard } from "@/lib/homeTierBoard";
+import { TrainingMatchesHub } from "@/components/TrainingMatchesHub";
 
 export const dynamic = "force-dynamic";
 
@@ -15,16 +18,23 @@ export default async function TrainingMatchesPage() {
 
   const bust = await liveKvBust();
   const params = new URLSearchParams({ embed: "1", v: bust });
-  const q = `?${params.toString()}#/tm`;
+  const iframeSrc = `/kv-static/index.html?${params.toString()}#/tm`;
+  const board = await buildHomeTierBoard().catch(() => emptyHomeTierBoard());
 
   return (
-    <div className="cw-embed">
-      <iframe
-        className="cw-frame"
-        src={`/kv-static/index.html${q}`}
-        title="Тренировочные матчи BlackBerry"
-        allow="fullscreen"
-      />
-    </div>
+    <Suspense
+      fallback={
+        <div className="cw-embed">
+          <iframe
+            className="cw-frame"
+            src={iframeSrc}
+            title="Тренировочные матчи BlackBerry"
+            allow="fullscreen"
+          />
+        </div>
+      }
+    >
+      <TrainingMatchesHub iframeSrc={iframeSrc} board={board} />
+    </Suspense>
   );
 }

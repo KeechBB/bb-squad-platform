@@ -216,25 +216,17 @@ export function SiteNav({ showClanSections }: Props) {
             active={pathMatches(pathname, "/cw-find")}
           />
         ) : null}
-        {/* 6 — тиры FIT, фиолетовый акцент */}
-        {showClanSections ? (
-          <NavLink
-            href="/tiers-fit"
-            title="Тиры FIT"
-            full="Тиры FIT"
-            short="FIT"
-            className="nav-tiers-fit"
-            active={pathMatches(pathname, "/tiers-fit")}
-          />
-        ) : null}
-        {/* 7 */}
+        {/* 6 — Тиры FIT внутри /tm?tab=fit */}
         {showClanSections ? (
           <NavLink
             href="/tm"
             title="Тренировочные матчи"
             full="Тренировочные матчи"
             short="Трен."
-            active={pathMatches(pathname, "/tm")}
+            active={
+              pathMatches(pathname, "/tm") ||
+              pathMatches(pathname, "/tiers-fit")
+            }
           />
         ) : null}
         {/* 8 */}

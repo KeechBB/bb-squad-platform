@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 import {
   formatTierArrow,
@@ -11,13 +11,9 @@ import {
 
 type Props = {
   board: HomeTierBoardData;
+  /** Внутри /tm — без лишнего hero-заголовка страницы */
+  embedded?: boolean;
 };
-
-type TabId = "train";
-
-const TABS: { id: TabId; label: string }[] = [
-  { id: "train", label: "Тренировочные матчи" },
-];
 
 function fmtDate(iso: string) {
   if (!iso) return "—";
@@ -55,8 +51,7 @@ function fitTone(fit: number | null | undefined, dir: "up" | "down") {
   return "tone-muted";
 }
 
-export function TierFitPageClient({ board }: Props) {
-  const [tab, setTab] = useState<TabId>("train");
+export function TierFitPageClient({ board, embedded = false }: Props) {
   const transfers = board.transfers || [];
   const candidates = board.candidates || [];
 
@@ -69,11 +64,11 @@ export function TierFitPageClient({ board }: Props) {
   }, [candidates]);
 
   return (
-    <main className="tier-fit-page">
-      <section className="hero tier-fit-hero">
+    <div className={`tier-fit-page${embedded ? " is-embedded" : ""}`}>
+      <section className={`hero tier-fit-hero${embedded ? " is-compact" : ""}`}>
         <div>
           <p className="eyebrow">автосистема · Fit</p>
-          <h1>Тиры FIT</h1>
+          <h1>{embedded ? "Тиры FIT" : "Тиры FIT"}</h1>
           <p className="lead">
             Переводы и кандидаты по Fit (% от эталона тира по роли). Порог: ≥95%
             вверх / &lt;75% вниз · {board.holdDays || 2} дня подряд.
@@ -95,117 +90,86 @@ export function TierFitPageClient({ board }: Props) {
         </div>
       </section>
 
-      <nav className="tier-fit-tabs" aria-label="Разделы Тиры FIT">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            className={`tier-fit-tab${tab === t.id ? " is-active" : ""}`}
-            aria-pressed={tab === t.id}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
+      <div className="tier-fit-panels">
+        <section className="card tier-fit-card tier-fit-panel">
+          <header className="tier-fit-panel-head">
+            <div>
+              <h2>Переводы</h2>
+              <p className="muted tier-fit-sub">
+                Уже сработавшие смены тира · жёлтый = важно, зелёный = вверх,
+                красный = вниз
+              </p>
+            </div>
+            <span className="tier-fit-count tone-warn">{transfers.length}</span>
+          </header>
+          {transfers.length === 0 ? (
+            <p className="muted">Пока нет переводов.</p>
+          ) : (
+            <div className="tier-fit-table-scroll">
+              <table className="admin-table tier-fit-table">
+                <thead>
+                  <tr>
+                    <th>Игрок</th>
+                    <th>Переход</th>
+                    <th>Направление</th>
+                    <th>Fit</th>
+                    <th>Когда (МСК)</th>
+                    <th>Заметка</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transfers.map((row) => (
+                    <TransferTr
+                      key={`${row.nick}-${row.at}-${row.toTier}`}
+                      row={row}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
 
-      {tab === "train" ? (
-        <TrainMatchesTab
-          transfers={transfers}
-          candidates={sortedCandidates}
-        />
-      ) : null}
-    </main>
-  );
-}
-
-function TrainMatchesTab({
-  transfers,
-  candidates,
-}: {
-  transfers: HomeTierTransfer[];
-  candidates: HomeTierCandidate[];
-}) {
-  return (
-    <div className="tier-fit-panels">
-      <section className="card tier-fit-card tier-fit-panel">
-        <header className="tier-fit-panel-head">
-          <div>
-            <h2>Переводы</h2>
-            <p className="muted tier-fit-sub">
-              Уже сработавшие смены тира · жёлтый = важно, зелёный = вверх,
-              красный = вниз
-            </p>
-          </div>
-          <span className="tier-fit-count tone-warn">{transfers.length}</span>
-        </header>
-        {transfers.length === 0 ? (
-          <p className="muted">Пока нет переводов.</p>
-        ) : (
-          <div className="tier-fit-table-scroll">
-            <table className="admin-table tier-fit-table">
-              <thead>
-                <tr>
-                  <th>Игрок</th>
-                  <th>Переход</th>
-                  <th>Направление</th>
-                  <th>Fit</th>
-                  <th>Когда (МСК)</th>
-                  <th>Заметка</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transfers.map((row) => (
-                  <TransferTr
-                    key={`${row.nick}-${row.at}-${row.toTier}`}
-                    row={row}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      <section className="card tier-fit-card tier-fit-panel">
-        <header className="tier-fit-panel-head">
-          <div>
-            <h2>Кандидаты</h2>
-            <p className="muted tier-fit-sub">
-              Повышение и понижение в одной таблице · «готов» — жёлтым
-            </p>
-          </div>
-          <span className="tier-fit-count">{candidates.length}</span>
-        </header>
-        {candidates.length === 0 ? (
-          <p className="muted">Нет кандидатов.</p>
-        ) : (
-          <div className="tier-fit-table-scroll">
-            <table className="admin-table tier-fit-table">
-              <thead>
-                <tr>
-                  <th>Игрок</th>
-                  <th>Переход</th>
-                  <th>Fit</th>
-                  <th>Роль</th>
-                  <th>Статус</th>
-                  <th>Дней</th>
-                  <th>Готов</th>
-                  <th>Рычаг / заметка</th>
-                </tr>
-              </thead>
-              <tbody>
-                {candidates.map((row) => (
-                  <CandidateTr
-                    key={`${row.nick}-${row.dir}-${row.toTier}-${row.band}`}
-                    row={row}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+        <section className="card tier-fit-card tier-fit-panel">
+          <header className="tier-fit-panel-head">
+            <div>
+              <h2>Кандидаты</h2>
+              <p className="muted tier-fit-sub">
+                Повышение и понижение в одной таблице · «готов» — жёлтым
+              </p>
+            </div>
+            <span className="tier-fit-count">{candidates.length}</span>
+          </header>
+          {candidates.length === 0 ? (
+            <p className="muted">Нет кандидатов.</p>
+          ) : (
+            <div className="tier-fit-table-scroll">
+              <table className="admin-table tier-fit-table">
+                <thead>
+                  <tr>
+                    <th>Игрок</th>
+                    <th>Переход</th>
+                    <th>Fit</th>
+                    <th>Роль</th>
+                    <th>Статус</th>
+                    <th>Дней</th>
+                    <th>Готов</th>
+                    <th>Рычаг / заметка</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedCandidates.map((row) => (
+                    <CandidateTr
+                      key={`${row.nick}-${row.dir}-${row.toTier}-${row.band}`}
+                      row={row}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
@@ -236,9 +200,7 @@ function CandidateTr({ row }: { row: HomeTierCandidate }) {
   const fitCls = fitTone(row.fit, row.dir);
   const ready = Boolean(row.ready);
   return (
-    <tr
-      className={`tier-fit-row is-${row.dir}${ready ? " is-ready" : ""}`}
-    >
+    <tr className={`tier-fit-row is-${row.dir}${ready ? " is-ready" : ""}`}>
       <td className={`tier-fit-nick${ready ? " tone-warn" : ""}`}>
         <Link href={`/players/${encodeURIComponent(row.nick)}`}>{row.nick}</Link>
       </td>
