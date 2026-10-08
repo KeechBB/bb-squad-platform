@@ -74,7 +74,11 @@ export default async function HomePage() {
         <div className="home-side">
           {/* Календарь перенесён в профиль клана — слот пока пустой */}
           <div className="home-calendar-slot" aria-hidden="true" />
-          <HomePanels pwrBoard={pwrBoard} publicTop={publicTop} />
+          <HomePanels
+            pwrBoard={pwrBoard}
+            publicTop={publicTop}
+            viewerNick={session?.user?.nick || null}
+          />
         </div>
 
         <section className="home-hero" aria-label="BlackBerry">

@@ -5811,6 +5811,7 @@ body:has(.home-page) {
 }
 
 .home-dock-col .home-attend-streaks-row {
+  position: relative;
   display: flex;
   align-items: center;
   align-self: stretch;
@@ -5824,15 +5825,62 @@ body:has(.home-page) {
   border-bottom: 0;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.04);
+  isolation: isolate;
+  transition:
+    background 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.home-dock-col .home-attend-streaks-row:hover {
+  background: rgba(167, 139, 250, 0.1);
+  transform: translateX(1px);
 }
 
 .home-dock-col .home-attend-streaks-rank {
   order: 1;
-  flex: 0 0 1.35rem;
+  flex: 0 0 1.45rem;
   align-self: center;
   text-align: center;
   font-size: 0.82rem;
   font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+.home-dock-col .home-attend-streaks-rank.is-medal {
+  font-size: 0;
+}
+
+.home-podium-medal {
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.45),
+    0 0 6px rgba(0, 0, 0, 0.35);
+}
+
+.home-podium-medal.place-1 {
+  background: radial-gradient(circle at 30% 28%, #fff7c2, #f5c518 42%, #b8860b 100%);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.55),
+    0 0 8px rgba(245, 197, 24, 0.55);
+}
+
+.home-podium-medal.place-2 {
+  background: radial-gradient(circle at 30% 28%, #f8fafc, #c0c7d2 45%, #7b8494 100%);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.5),
+    0 0 7px rgba(192, 199, 210, 0.4);
+}
+
+.home-podium-medal.place-3 {
+  background: radial-gradient(circle at 30% 28%, #f6d3a8, #cd7f32 48%, #8a4b1f 100%);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.4),
+    0 0 7px rgba(205, 127, 50, 0.4);
 }
 
 .home-dock-col .home-attend-streaks-nick {
@@ -5883,9 +5931,144 @@ body:has(.home-page) {
   font-size: 0.62rem;
 }
 
-.home-dock-col .home-attend-streaks-row:first-child .home-attend-streaks-days b {
+/* ????????? 1?3: ??? ??????, ??????, ?????? ????? ? ??? ????? */
+.home-dock-col .home-attend-streaks-row.is-podium {
+  font-weight: 700;
+}
+
+.home-dock-col .home-attend-streaks-row.is-podium .home-attend-streaks-nick {
+  font-weight: 800;
+}
+
+.home-dock-col .home-attend-streaks-row.is-podium::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.9;
+  background: linear-gradient(
+    110deg,
+    transparent 0%,
+    transparent 38%,
+    rgba(255, 255, 255, 0.14) 50%,
+    transparent 62%,
+    transparent 100%
+  );
+  background-size: 220% 100%;
+  animation: home-podium-sheen 4.8s ease-in-out infinite;
+}
+
+.home-dock-col .home-attend-streaks-row.is-podium > * {
+  position: relative;
+  z-index: 1;
+}
+
+.home-dock-col .home-attend-streaks-row.is-gold {
+  background: linear-gradient(
+    90deg,
+    rgba(245, 197, 24, 0.22),
+    rgba(245, 197, 24, 0.07) 55%,
+    rgba(255, 255, 255, 0.03)
+  );
+  box-shadow: inset 3px 0 0 #f5c518;
+}
+
+.home-dock-col .home-attend-streaks-row.is-gold .home-attend-streaks-nick {
+  color: #fff4c4;
+  text-shadow: 0 0 10px rgba(245, 197, 24, 0.35);
+}
+
+.home-dock-col .home-attend-streaks-row.is-gold .home-attend-streaks-days b {
   color: #fde047;
-  text-shadow: 0 0 8px rgba(253, 224, 71, 0.9);
+  text-shadow: 0 0 8px rgba(253, 224, 71, 0.55);
+}
+
+.home-dock-col .home-attend-streaks-row.is-silver {
+  background: linear-gradient(
+    90deg,
+    rgba(192, 199, 210, 0.2),
+    rgba(192, 199, 210, 0.06) 55%,
+    rgba(255, 255, 255, 0.03)
+  );
+  box-shadow: inset 3px 0 0 #c0c7d2;
+}
+
+.home-dock-col .home-attend-streaks-row.is-silver .home-attend-streaks-nick {
+  color: #eef2f7;
+}
+
+.home-dock-col .home-attend-streaks-row.is-silver .home-attend-streaks-days b {
+  color: #e2e8f0;
+}
+
+.home-dock-col .home-attend-streaks-row.is-bronze {
+  background: linear-gradient(
+    90deg,
+    rgba(205, 127, 50, 0.22),
+    rgba(205, 127, 50, 0.07) 55%,
+    rgba(255, 255, 255, 0.03)
+  );
+  box-shadow: inset 3px 0 0 #cd7f32;
+}
+
+.home-dock-col .home-attend-streaks-row.is-bronze .home-attend-streaks-nick {
+  color: #f6d3a8;
+}
+
+.home-dock-col .home-attend-streaks-row.is-bronze .home-attend-streaks-days b {
+  color: #e8b07a;
+}
+
+/* ???? ?????? ? ???? ? ?????? ??????, ?? ?????? ? ??????????? */
+.home-dock-col .home-attend-streaks-row.is-me {
+  outline: 1px solid rgba(196, 181, 253, 0.55);
+  outline-offset: -1px;
+}
+
+.home-dock-col .home-attend-streaks-row.is-me:not(.is-podium) {
+  background: rgba(167, 139, 250, 0.16);
+  box-shadow: inset 3px 0 0 #a78bfa;
+}
+
+.home-dock-col .home-attend-streaks-row.is-me .home-attend-streaks-nick {
+  font-weight: 800;
+}
+
+.home-dock-col .home-attend-streaks-row.is-me::after {
+  content: "??";
+  position: absolute;
+  top: 2px;
+  right: 5px;
+  z-index: 2;
+  font-size: 0.52rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(226, 212, 255, 0.85);
+  pointer-events: none;
+}
+
+@keyframes home-podium-sheen {
+  0%,
+  100% {
+    background-position: 120% 0;
+  }
+  45%,
+  55% {
+    background-position: -20% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-dock-col .home-attend-streaks-row.is-podium::before {
+    animation: none;
+    opacity: 0.25;
+  }
+  .home-dock-col .home-attend-streaks-row:hover {
+    transform: none;
+  }
 }
 
 .home-dock-col .home-train-pwr-foot {

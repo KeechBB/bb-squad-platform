@@ -7,6 +7,7 @@ import type { HomeTrainPwrBoard } from "@/lib/homeTrainPwr";
 
 type Props = {
   initial: HomeTrainPwrBoard;
+  viewerNick?: string | null;
 };
 
 function emptyBoard(): HomeTrainPwrBoard {
@@ -18,7 +19,19 @@ function emptyBoard(): HomeTrainPwrBoard {
   };
 }
 
-export function HomeTrainPwrTop({ initial }: Props) {
+function podiumClass(place: number) {
+  if (place === 1) return "is-podium is-gold";
+  if (place === 2) return "is-podium is-silver";
+  if (place === 3) return "is-podium is-bronze";
+  return "";
+}
+
+function isViewer(nick: string, viewerNick?: string | null) {
+  if (!viewerNick) return false;
+  return nick.trim().toLowerCase() === viewerNick.trim().toLowerCase();
+}
+
+export function HomeTrainPwrTop({ initial, viewerNick = null }: Props) {
   const [data, setData] = useState<HomeTrainPwrBoard>(initial || emptyBoard());
   const [pulse, setPulse] = useState(false);
 
@@ -59,13 +72,31 @@ export function HomeTrainPwrTop({ initial }: Props) {
       ) : (
         <ol className="home-attend-streaks-list home-train-pwr-list">
           {rows.map((r, i) => {
+            const place = i + 1;
             const rp = Math.round(Number(r.rp ?? r.pwr) || 0);
+            const me = isViewer(r.nick, viewerNick);
             return (
               <li
                 key={r.nick}
-                className={`home-attend-streaks-row home-train-pwr-row${i === 0 ? " is-top1" : ""}`}
+                className={[
+                  "home-attend-streaks-row",
+                  "home-train-pwr-row",
+                  podiumClass(place),
+                  me ? "is-me" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
               >
-                <span className="home-attend-streaks-rank">{i + 1}</span>
+                <span
+                  className={`home-attend-streaks-rank${place <= 3 ? " is-medal" : ""}`}
+                  aria-label={`${place} место`}
+                >
+                  {place <= 3 ? (
+                    <span className={`home-podium-medal place-${place}`} />
+                  ) : (
+                    place
+                  )}
+                </span>
                 <span
                   className={`home-pwr-badge rank-${r.rankKey}`}
                   title={r.rankLabel}
@@ -73,7 +104,7 @@ export function HomeTrainPwrTop({ initial }: Props) {
                   {r.rankLabel}
                 </span>
                 <Link
-                  className={`home-attend-streaks-nick${i === 0 ? " home-pwr-nick-top1" : ""}`}
+                  className="home-attend-streaks-nick"
                   href={`/players/${encodeURIComponent(r.nick)}`}
                   title={r.nick}
                 >
