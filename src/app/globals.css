@@ -293,24 +293,53 @@ svg {
 
 /* Рейтинг паблика — выделенная кнопка в навбаре */
 /* ??????? ??????? ? ????? ????? */
+/* Рейтинг паблика — свечение с переливом (без мерцания) */
 .top-nav a.nav-public-quiet {
+  position: relative;
   margin: 0 4px;
   padding: 8px 14px;
   border-radius: 999px;
-  border: 1px solid rgba(250, 204, 21, 0.85);
-  background: linear-gradient(
-    135deg,
-    rgba(161, 98, 7, 0.55),
-    rgba(202, 138, 4, 0.42)
-  );
-  color: #fef9c3;
+  border: 1px solid rgba(253, 224, 71, 0.72);
+  color: #fff8d6;
   font-weight: 700;
   letter-spacing: 0.06em;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 0 12px rgba(250, 204, 21, 0.45);
+  background:
+    linear-gradient(
+      120deg,
+      rgba(120, 53, 15, 0.72) 0%,
+      rgba(202, 138, 4, 0.55) 28%,
+      rgba(253, 224, 71, 0.42) 50%,
+      rgba(202, 138, 4, 0.55) 72%,
+      rgba(120, 53, 15, 0.72) 100%
+    );
+  background-size: 220% 100%;
   box-shadow:
-    0 0 12px rgba(250, 204, 21, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  animation: nav-public-pulse 2.2s ease-in-out infinite;
+    0 0 14px rgba(250, 204, 21, 0.38),
+    0 0 28px rgba(234, 179, 8, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+  isolation: isolate;
+  animation: nav-public-glow-flow 5.5s linear infinite;
+}
+.top-nav a.nav-public-quiet::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(255, 250, 220, 0.38) 50%,
+    transparent 60%,
+    transparent 100%
+  );
+  background-size: 240% 100%;
+  animation: nav-public-sheen-flow 4.2s ease-in-out infinite;
+  mix-blend-mode: soft-light;
 }
 .top-nav a.nav-public-quiet::after {
   display: none;
@@ -319,40 +348,27 @@ svg {
 .top-nav a.nav-public-quiet:focus-visible,
 .top-nav a.nav-public-quiet.is-active {
   color: #fffbeb;
-  border-color: rgba(253, 224, 71, 0.95);
-  background: linear-gradient(
-    135deg,
-    rgba(202, 138, 4, 0.7),
-    rgba(234, 179, 8, 0.55)
-  );
+  border-color: rgba(254, 243, 199, 0.95);
   box-shadow:
-    0 0 22px rgba(250, 204, 21, 0.55),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18);
-  animation: none;
+    0 0 18px rgba(253, 224, 71, 0.5),
+    0 0 36px rgba(234, 179, 8, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
-@keyframes nav-public-pulse {
-  0%,
-  100% {
-    box-shadow:
-      0 0 10px rgba(250, 204, 21, 0.28),
-      inset 0 1px 0 rgba(255, 255, 255, 0.1);
-    border-color: rgba(250, 204, 21, 0.7);
-  }
-  50% {
-    box-shadow:
-      0 0 22px rgba(253, 224, 71, 0.65),
-      0 0 36px rgba(234, 179, 8, 0.35),
-      inset 0 1px 0 rgba(255, 255, 255, 0.16);
-    border-color: rgba(253, 224, 71, 0.95);
-  }
+@keyframes nav-public-glow-flow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+@keyframes nav-public-sheen-flow {
+  0% { background-position: 130% 0; }
+  100% { background-position: -30% 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .top-nav a.nav-public-quiet {
+  .top-nav a.nav-public-quiet,
+  .top-nav a.nav-public-quiet::before {
     animation: none;
   }
 }
 
-/* ????? ?? ? ??????? ?????? */
 .top-nav a.nav-cw-find {
   margin: 0 4px;
   padding: 8px 14px;
@@ -5931,9 +5947,11 @@ body:has(.home-page) {
   font-size: 0.62rem;
 }
 
-/* ????????? 1?3: ??? ??????, ??????, ?????? ????? ? ??? ????? */
+/* ????????? 1?3: ???????? ? ????????? (??? ????????) */
 .home-dock-col .home-attend-streaks-row.is-podium {
   font-weight: 700;
+  background-size: 240% 100%;
+  animation: home-podium-glow-flow 7s linear infinite;
 }
 
 .home-dock-col .home-attend-streaks-row.is-podium .home-attend-streaks-nick {
@@ -5947,17 +5965,18 @@ body:has(.home-page) {
   border-radius: inherit;
   pointer-events: none;
   z-index: 0;
-  opacity: 0.9;
   background: linear-gradient(
-    110deg,
+    105deg,
     transparent 0%,
-    transparent 38%,
-    rgba(255, 255, 255, 0.14) 50%,
-    transparent 62%,
+    transparent 42%,
+    rgba(255, 255, 255, 0.22) 50%,
+    transparent 58%,
     transparent 100%
   );
-  background-size: 220% 100%;
-  animation: home-podium-sheen 4.8s ease-in-out infinite;
+  background-size: 260% 100%;
+  animation: home-podium-sheen-flow 5.5s ease-in-out infinite;
+  mix-blend-mode: soft-light;
+  opacity: 0.85;
 }
 
 .home-dock-col .home-attend-streaks-row.is-podium > * {
@@ -5966,37 +5985,46 @@ body:has(.home-page) {
 }
 
 .home-dock-col .home-attend-streaks-row.is-gold {
-  background: linear-gradient(
-    90deg,
-    rgba(245, 197, 24, 0.22),
-    rgba(245, 197, 24, 0.07) 55%,
-    rgba(255, 255, 255, 0.03)
+  background-image: linear-gradient(
+    100deg,
+    rgba(120, 53, 15, 0.35) 0%,
+    rgba(245, 197, 24, 0.28) 28%,
+    rgba(254, 243, 199, 0.2) 50%,
+    rgba(245, 197, 24, 0.28) 72%,
+    rgba(120, 53, 15, 0.35) 100%
   );
-  box-shadow: inset 3px 0 0 #f5c518;
+  box-shadow:
+    inset 3px 0 0 #f5c518,
+    0 0 14px rgba(245, 197, 24, 0.22);
 }
 
 .home-dock-col .home-attend-streaks-row.is-gold .home-attend-streaks-nick {
   color: #fff4c4;
-  text-shadow: 0 0 10px rgba(245, 197, 24, 0.35);
+  text-shadow: 0 0 12px rgba(245, 197, 24, 0.4);
 }
 
 .home-dock-col .home-attend-streaks-row.is-gold .home-attend-streaks-days b {
   color: #fde047;
-  text-shadow: 0 0 8px rgba(253, 224, 71, 0.55);
+  text-shadow: 0 0 10px rgba(253, 224, 71, 0.5);
 }
 
 .home-dock-col .home-attend-streaks-row.is-silver {
-  background: linear-gradient(
-    90deg,
-    rgba(192, 199, 210, 0.2),
-    rgba(192, 199, 210, 0.06) 55%,
-    rgba(255, 255, 255, 0.03)
+  background-image: linear-gradient(
+    100deg,
+    rgba(71, 85, 105, 0.35) 0%,
+    rgba(192, 199, 210, 0.28) 28%,
+    rgba(248, 250, 252, 0.2) 50%,
+    rgba(192, 199, 210, 0.28) 72%,
+    rgba(71, 85, 105, 0.35) 100%
   );
-  box-shadow: inset 3px 0 0 #c0c7d2;
+  box-shadow:
+    inset 3px 0 0 #c0c7d2,
+    0 0 12px rgba(192, 199, 210, 0.2);
 }
 
 .home-dock-col .home-attend-streaks-row.is-silver .home-attend-streaks-nick {
   color: #eef2f7;
+  text-shadow: 0 0 10px rgba(226, 232, 240, 0.28);
 }
 
 .home-dock-col .home-attend-streaks-row.is-silver .home-attend-streaks-days b {
@@ -6004,24 +6032,28 @@ body:has(.home-page) {
 }
 
 .home-dock-col .home-attend-streaks-row.is-bronze {
-  background: linear-gradient(
-    90deg,
-    rgba(205, 127, 50, 0.22),
-    rgba(205, 127, 50, 0.07) 55%,
-    rgba(255, 255, 255, 0.03)
+  background-image: linear-gradient(
+    100deg,
+    rgba(88, 40, 16, 0.38) 0%,
+    rgba(205, 127, 50, 0.3) 28%,
+    rgba(246, 211, 168, 0.2) 50%,
+    rgba(205, 127, 50, 0.3) 72%,
+    rgba(88, 40, 16, 0.38) 100%
   );
-  box-shadow: inset 3px 0 0 #cd7f32;
+  box-shadow:
+    inset 3px 0 0 #cd7f32,
+    0 0 12px rgba(205, 127, 50, 0.22);
 }
 
 .home-dock-col .home-attend-streaks-row.is-bronze .home-attend-streaks-nick {
   color: #f6d3a8;
+  text-shadow: 0 0 10px rgba(205, 127, 50, 0.3);
 }
 
 .home-dock-col .home-attend-streaks-row.is-bronze .home-attend-streaks-days b {
   color: #e8b07a;
 }
 
-/* ???? ?????? ? ???? ? ?????? ??????, ?? ?????? ? ??????????? */
 .home-dock-col .home-attend-streaks-row.is-me {
   outline: 1px solid rgba(196, 181, 253, 0.55);
   outline-offset: -1px;
@@ -6050,21 +6082,28 @@ body:has(.home-page) {
   pointer-events: none;
 }
 
-@keyframes home-podium-sheen {
-  0%,
-  100% {
-    background-position: 120% 0;
+@keyframes home-podium-glow-flow {
+  0% {
+    background-position: 0% 50%;
   }
-  45%,
-  55% {
-    background-position: -20% 0;
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+@keyframes home-podium-sheen-flow {
+  0% {
+    background-position: 130% 0;
+  }
+  100% {
+    background-position: -30% 0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .home-dock-col .home-attend-streaks-row.is-podium,
   .home-dock-col .home-attend-streaks-row.is-podium::before {
     animation: none;
-    opacity: 0.25;
   }
   .home-dock-col .home-attend-streaks-row:hover {
     transform: none;
@@ -12644,7 +12683,7 @@ body.profile-match-modal-open {
   cursor: grabbing;
 }
 
-/* Player pin ? ~� size, color = clan (--pin-color) */
+/* Player pin ? ~� size, color = clan (--pin-color) */
 .clan-map-pin-wrap {
   --pin-color: #a78bfa;
   position: relative;
@@ -13776,7 +13815,7 @@ body.profile-match-modal-open {
 }
 
 
-/* �� Steam auth gate / modal �� */
+/* �� Steam auth gate / modal �� */
 .bb-auth-modal {
   position: fixed;
   inset: 0;
