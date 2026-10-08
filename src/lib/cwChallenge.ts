@@ -46,6 +46,28 @@ export function formatLabel(format: number): string {
   return `${format}vs${format}`;
 }
 
+/** Разбор формата из KV size: «20v20» / «20vs20» / «20» — не склеивать в 2020. */
+export function parseCwFormat(size: string | number | null | undefined): number | null {
+  if (typeof size === "number" && Number.isFinite(size)) {
+    return isCwFormat(size) ? size : null;
+  }
+  const s = String(size || "").trim();
+  if (!s || s === "—") return null;
+  const vs = s.match(/(\d{1,2})\s*v(?:s)?\s*\d{1,2}/i);
+  if (vs) {
+    const n = Number(vs[1]);
+    if (isCwFormat(n)) return n;
+  }
+  for (const f of [...CW_FORMATS].sort((a, b) => b - a)) {
+    if (new RegExp(`(?:^|\\b)${f}(?:\\b|$)`).test(s)) return f;
+  }
+  if (/^\d{1,2}$/.test(s)) {
+    const n = Number(s);
+    if (isCwFormat(n)) return n;
+  }
+  return null;
+}
+
 /** Угадать мод из строки карты / modeLabel (KV: «SEC 26 Mutaha…», «HotDrop Narva»). */
 export function detectCwModeFromText(raw: string): CwModeId {
   const s = String(raw || "").toUpperCase();

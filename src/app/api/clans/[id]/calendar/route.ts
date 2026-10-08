@@ -8,6 +8,7 @@ import {
   isCwMode,
   modeImage,
   modeLabel,
+  parseCwFormat,
 } from "@/lib/cwChallenge";
 import { buildCalendarMatches } from "@/lib/kvForecast";
 import type { MatchForecast, UpcomingMatchPreview } from "@/lib/kvForecastUi";
@@ -49,20 +50,19 @@ function enrichPreview(
 ): ClanCalMatch {
   const modeId = detectCwModeFromText(`${p.map} ${p.rules || ""} ${p.note || ""}`);
   const opp = canonOpp(p.opp);
-  const sizeNum = Number(String(p.size || "").replace(/[^\d]/g, ""));
+  const sizeNum = parseCwFormat(p.size);
+  const oppLogo =
+    clanLogoUrl(opp.key) ||
+    clanLogoUrl(p.opp) ||
+    clanLogoUrl(opp.tag);
   return {
     ...p,
     modeId,
     modeLabel: modeLabel(modeId),
     modeImage: modeImage(modeId),
     ourLogo,
-    oppLogo: clanLogoUrl(opp.key),
-    formatLabel:
-      sizeNum >= 1
-        ? formatLabel(sizeNum)
-        : p.size && p.size !== "—"
-          ? String(p.size)
-          : "—",
+    oppLogo,
+    formatLabel: sizeNum != null ? formatLabel(sizeNum) : "—",
     source,
   };
 }
@@ -83,9 +83,11 @@ export async function GET(_req: Request, ctx: Ctx) {
   }
 
   const tagUp = clan.tag.toUpperCase();
+  // Для BB всегда файлы из /rating-logos (DB logoUrl часто битый upload)
   const ourLogo =
-    clan.logoUrl ||
-    (tagUp === "BB" ? clanLogoUrl("BB-MAIN") : clanLogoUrl(tagUp));
+    tagUp === "BB"
+      ? clanLogoUrl("BB-MAIN")
+      : clanLogoUrl(tagUp) || clan.logoUrl || null;
 
   const matches: ClanCalMatch[] = [];
 
@@ -97,7 +99,7 @@ export async function GET(_req: Request, ctx: Ctx) {
         const stack = String(p.stack || "").toLowerCase();
         const stackLogo = stack.includes("jun")
           ? clanLogoUrl("BB-JUNIOR")
-          : ourLogo;
+          : clanLogoUrl("BB-MAIN");
         matches.push(enrichPreview(p, stackLogo, "kv"));
       }
     } catch {

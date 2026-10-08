@@ -14,6 +14,7 @@ import {
   CLAN_ROLE_LABEL,
 } from "@/lib/clan";
 import { ClanCalendarPanel } from "@/components/ClanCalendarPanel";
+import { clanLogoUrl as ratingClanLogo } from "@/lib/clanLogo";
 import { formatRuDate, isActiveReserve } from "@/lib/validation";
 import { withAvatarCacheBust } from "@/lib/avatarUrl";
 import {
@@ -901,12 +902,17 @@ export function ClanDetailClient({
     [members, squadUserIds, tierMap]
   );
 
+  const displayClanLogo =
+    ratingClanLogo(clan.tag.toUpperCase() === "BB" ? "BB-MAIN" : clan.tag) ||
+    clan.logoUrl ||
+    null;
+
   return (
     <div className="clan-detail">
       <section className="hero clan-detail-hero">
-        {clan.logoUrl ? (
+        {displayClanLogo ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img className="clan-detail-logo" src={clan.logoUrl} alt="" width={72} height={72} />
+          <img className="clan-detail-logo" src={displayClanLogo} alt="" width={72} height={72} />
         ) : (
           <div className="clan-detail-logo clan-row-logo-empty">{clan.tag.slice(0, 2)}</div>
         )}
@@ -2013,7 +2019,7 @@ export function ClanDetailClient({
           clanId={clan.id}
           clanTag={clan.tag}
           clanName={clan.name}
-          clanLogoUrl={clan.logoUrl}
+          clanLogoUrl={displayClanLogo}
         />
       ) : null}
 

@@ -1,12 +1,74 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { canonOpp } from "@/lib/clanLogo";
+import { canonOpp, clanLogoUrl } from "@/lib/clanLogo";
 import {
   confidenceLabel,
   formatMatchDate,
   type MatchForecast,
 } from "@/lib/kvForecastUi";
+
+function resolveLogoSrc(
+  src: string | null | undefined,
+  fallbackKey?: string | null,
+  alt?: string
+) {
+  // Сначала канон из /rating-logos — DB upload часто битый
+  return (
+    clanLogoUrl(fallbackKey || "") ||
+    (src && !src.includes("/uploads/") ? src : null) ||
+    clanLogoUrl(alt || "") ||
+    (src || null) ||
+    ""
+  );
+}
+
+function LogoImg({
+  src,
+  alt,
+  className,
+  fallbackKey,
+}: {
+  src: string | null | undefined;
+  alt: string;
+  className?: string;
+  fallbackKey?: string | null;
+}) {
+  const [url, setUrl] = useState(() => resolveLogoSrc(src, fallbackKey, alt));
+  useEffect(() => {
+    setUrl(resolveLogoSrc(src, fallbackKey, alt));
+  }, [src, fallbackKey, alt]);
+  if (!url) {
+    return (
+      <span className={`clan-fifa-club-fallback ${className || ""}`}>
+        {alt.slice(0, 4)}
+      </span>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      className={className}
+      src={url}
+      alt={alt}
+      onError={() => {
+        const fb =
+          clanLogoUrl(fallbackKey || "") ||
+          clanLogoUrl(alt) ||
+          "";
+        if (fb && fb !== url) setUrl(fb);
+        else setUrl("");
+      }}
+    />
+  );
+}
+
+function serverLogoKey(server: string): string | null {
+  const s = String(server || "").trim();
+  if (!s || s === "—" || /^any$/i.test(s) || /^tbd$/i.test(s)) return null;
+  const c = canonOpp(s);
+  return clanLogoUrl(c.key) || clanLogoUrl(s) ? c.key : null;
+}
 
 type ClanCalMatch = {
   key: string;
@@ -267,6 +329,7 @@ export function ClanCalendarPanel({
                       "clan-fifa-cell",
                       list.length ? "has-match" : "",
                       primary ? `is-${primary.status || "play"}` : "",
+                      primary ? `is-mode-${primary.modeId.toLowerCase()}` : "",
                       isToday ? "is-today" : "",
                       weekend ? "is-weekend" : "",
                       isSelected ? "is-selected" : "",
@@ -282,18 +345,24 @@ export function ClanCalendarPanel({
                       <>
                         <span className="clan-fifa-cell-time">{primary.timeMsk}</span>
                         <span className="clan-fifa-cell-logos">
-                          {primary.oppLogo ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={primary.oppLogo} alt="" />
-                          ) : (
-                            <span className="clan-fifa-cell-tag">
-                              {canonOpp(primary.opp).tag.slice(0, 4)}
-                            </span>
-                          )}
+                          <LogoImg
+                            src={primary.ourLogo}
+                            alt={clanTag}
+                            fallbackKey={
+                              stackMark(primary.stack).cls === "is-junior"
+                                ? "BB-JUNIOR"
+                                : "BB-MAIN"
+                            }
+                          />
+                          <LogoImg
+                            src={primary.oppLogo}
+                            alt={canonOpp(primary.opp).tag}
+                            fallbackKey={canonOpp(primary.opp).key}
+                          />
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             className="clan-fifa-cell-mod"
-                            src={`${primary.modeImage}?v=2`}
+                            src={`${primary.modeImage}?v=3`}
                             alt={primary.modeLabel}
                           />
                         </span>
@@ -324,15 +393,15 @@ export function ClanCalendarPanel({
 
                 <div className="clan-fifa-faceoff">
                   <div className="clan-fifa-club">
-                    {selected.ourLogo || clanLogoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={selected.ourLogo || clanLogoUrl || ""}
-                        alt={clanTag}
-                      />
-                    ) : (
-                      <span className="clan-fifa-club-fallback">{clanTag}</span>
-                    )}
+                    <LogoImg
+                      src={selected.ourLogo || clanLogoUrl}
+                      alt={clanTag}
+                      fallbackKey={
+                        stackMark(selected.stack).cls === "is-junior"
+                          ? "BB-JUNIOR"
+                          : "BB-MAIN"
+                      }
+                    />
                     <em>{stackMark(selected.stack).label}</em>
                   </div>
                   <div className="clan-fifa-vs">
@@ -343,21 +412,18 @@ export function ClanCalendarPanel({
                     />
                   </div>
                   <div className="clan-fifa-club">
-                    {selected.oppLogo ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={selected.oppLogo} alt={selected.opp} />
-                    ) : (
-                      <span className="clan-fifa-club-fallback">
-                        {canonOpp(selected.opp).tag.slice(0, 4)}
-                      </span>
-                    )}
+                    <LogoImg
+                      src={selected.oppLogo}
+                      alt={canonOpp(selected.opp).tag}
+                      fallbackKey={canonOpp(selected.opp).key}
+                    />
                     <em>{canonOpp(selected.opp).name}</em>
                   </div>
                 </div>
 
-                <div className="clan-fifa-modbanner">
+                <div className={`clan-fifa-modbanner is-mode-${selected.modeId.toLowerCase()}`}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={`${selected.modeImage}?v=2`} alt={selected.modeLabel} />
+                  <img src={`${selected.modeImage}?v=3`} alt={selected.modeLabel} />
                   <div>
                     <strong>{selected.modeLabel}</strong>
                     <span>{selected.map}</span>
@@ -375,7 +441,22 @@ export function ClanCalendarPanel({
                   </div>
                   <div>
                     <span>Сервер</span>
-                    <b>{selected.server && selected.server !== "—" ? selected.server : "TBD"}</b>
+                    <b className="clan-fifa-server">
+                      {(() => {
+                        const sk = serverLogoKey(selected.server);
+                        return sk ? (
+                          <LogoImg
+                            src={null}
+                            alt={selected.server}
+                            fallbackKey={sk}
+                            className="clan-fifa-server-logo"
+                          />
+                        ) : null;
+                      })()}
+                      {selected.server && selected.server !== "—"
+                        ? selected.server
+                        : "TBD"}
+                    </b>
                   </div>
                 </div>
 
@@ -404,17 +485,27 @@ export function ClanCalendarPanel({
                   <p className="clan-fifa-note muted">Заметка: {selected.note}</p>
                 ) : null}
 
-                {byDay.get(selected.day) && (byDay.get(selected.day)!.length > 1) ? (
+                {byDay.get(selected.day) && byDay.get(selected.day)!.length > 1 ? (
                   <div className="clan-fifa-daylist">
                     <span className="muted">Матчи дня</span>
                     {byDay.get(selected.day)!.map((m) => (
                       <button
                         key={m.key}
                         type="button"
-                        className={m.key === selected.key ? "is-active" : ""}
+                        className={`is-mode-${m.modeId.toLowerCase()}${
+                          m.key === selected.key ? " is-active" : ""
+                        }`}
                         onClick={() => setSelectedKey(m.key)}
                       >
-                        {m.timeMsk} · {m.stack} vs {m.opp}
+                        <LogoImg
+                          src={m.oppLogo}
+                          alt={canonOpp(m.opp).tag}
+                          fallbackKey={canonOpp(m.opp).key}
+                        />
+                        <span>
+                          {m.timeMsk} · {stackMark(m.stack).label} vs{" "}
+                          {canonOpp(m.opp).tag}
+                        </span>
                       </button>
                     ))}
                   </div>
