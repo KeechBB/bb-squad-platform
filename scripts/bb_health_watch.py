@@ -24,6 +24,14 @@ SITE_URL = os.environ.get("BB_HEALTH_URL", "https://bb-squad.ru/")
 PM2_PROCS = ["bb-squad", "bb-squad-collector"]
 STATE = HERE / "_tmp_health_watch_state.json"
 CACHE_LIMIT_GB = float(os.environ.get("BB_LOG_CACHE_LIMIT_GB", "8"))
+# deploy.sh ставит флаг → nginx 503 намеренно; не орём «сайт упал»
+MAINT_FLAG = Path(
+    os.environ.get("BB_MAINT_FLAG", "/var/www/bb-squad-platform/maintenance.on")
+)
+
+
+def under_maintenance() -> bool:
+    return MAINT_FLAG.is_file()
 
 
 def _load() -> dict:
@@ -41,6 +49,12 @@ def _save(d: dict) -> None:
 
 def check_site(st: dict) -> None:
     was_down = bool(st.get("site_down"))
+    if under_maintenance():
+        # Техработы / деплой — 503 ожидаем, алерт не шлём
+        st["site_down"] = False
+        st["maint"] = True
+        return
+    st["maint"] = False
     try:
         req = urllib.request.Request(
             SITE_URL,
@@ -83,8 +97,13 @@ def check_pm2(st: dict) -> None:
     statuses = pm2_status()
     down_prev = dict(st.get("pm2_down") or {})
     down_now: dict[str, bool] = {}
+    maint = under_maintenance()
     for name in PM2_PROCS:
         status = statuses.get(name, "missing")
+        # во время деплоя bb-squad специально stop — это не авария
+        if maint and name == "bb-squad" and status in ("stopped", "stopping", "missing"):
+            down_now[name] = False
+            continue
         is_down = status != "online"
         down_now[name] = is_down
         was = bool(down_prev.get(name))

@@ -167,8 +167,13 @@ echo "==> npm run build"
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2048}"
 npm run build
 
-echo "==> pm2 start/restart bb-squad"
-if [[ "$STOPPED" == "1" ]]; then
+echo "==> pm2 start/restart bb-squad (ecosystem: heap cap + max_memory_restart)"
+if [[ -f "$ROOT/ecosystem.config.cjs" ]]; then
+  # delete+start подхватывает NODE_OPTIONS / max_memory_restart из файла
+  pm2 delete bb-squad >/dev/null 2>&1 || true
+  pm2 start "$ROOT/ecosystem.config.cjs" --only bb-squad
+  pm2 save >/dev/null 2>&1 || true
+elif [[ "$STOPPED" == "1" ]]; then
   pm2 start bb-squad || pm2 restart bb-squad
 else
   pm2 restart bb-squad
