@@ -1,11 +1,10 @@
-/** Моды КВ на площадке. Картинки: public/cw-modes/<id>.jpg|png|webp */
+/** Моды КВ. Аватарки Workshop → public/cw-modes/<slug>.jpg (без ссылок на Steam). */
 export const CW_MODES = [
   { id: "HOTDROP", label: "Hotdrop", image: "/cw-modes/hotdrop.jpg" },
   { id: "CSL", label: "CSL", image: "/cw-modes/csl.jpg" },
   { id: "FCL", label: "FCL", image: "/cw-modes/fcl.jpg" },
   { id: "SEC", label: "SEC", image: "/cw-modes/sec.jpg" },
 ] as const;
-/* Пока нет jpg — UI падает на fallback; положи hotdrop/csl/fcl/sec.jpg в public/cw-modes/ */
 
 export type CwModeId = (typeof CW_MODES)[number]["id"];
 

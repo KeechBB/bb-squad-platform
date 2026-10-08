@@ -197,7 +197,7 @@ export function ClanCwRegistrationPanel({
       {showForm && canOfferCreate ? (
         <form className="form cw-find-form" onSubmit={createChallenge}>
           <div className="field">
-            <span>Мод — нажми на картинку</span>
+            <span>Мод</span>
             <div className="cw-mode-grid" role="listbox" aria-label="Мод КВ">
               {CW_MODES.map((m) => {
                 const selected = mode === m.id;
@@ -208,6 +208,7 @@ export function ClanCwRegistrationPanel({
                     type="button"
                     role="option"
                     aria-selected={selected}
+                    aria-label={m.label}
                     className={`cw-mode-card${selected ? " is-selected" : ""}`}
                     onClick={() => setMode(m.id)}
                     disabled={busy}
@@ -216,8 +217,9 @@ export function ClanCwRegistrationPanel({
                       {!broken ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={m.image}
+                          src={`${m.image}?v=2`}
                           alt=""
+                          draggable={false}
                           onError={() =>
                             setBrokenModeImg((prev) => ({
                               ...prev,
