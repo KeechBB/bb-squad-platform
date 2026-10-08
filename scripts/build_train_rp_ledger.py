@@ -90,17 +90,33 @@ def _load_auto_matches() -> list[dict]:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return []
+    try:
+        import train_rp_guard as TRG  # noqa: WPS433
+    except Exception:
+        TRG = None  # type: ignore
     out = []
     for m in raw or []:
         if m.get("skip") or str(m.get("id") or "").endswith("-skip"):
             continue
         try:
+            mid = str(m["id"])
+            date_ymd = str(m["date"])
+            log_name = str(m.get("log") or "")
+            server_key = str(m.get("serverKey") or "") or None
+            # Prefer pinned stable log; rewrite rotating names if pin exists.
+            if TRG is not None:
+                resolved = TRG.resolve_match_log(
+                    log_name, mid=mid, date_ymd=date_ymd, server=server_key
+                )
+                if resolved is not None:
+                    log_name = resolved.name
             out.append(
                 {
-                    "id": m["id"],
+                    "id": mid,
                     "map": m.get("map") or "—",
-                    "date": m["date"],
-                    "log": m["log"],
+                    "date": date_ymd,
+                    "log": log_name,
+                    "serverKey": server_key,
                     "start": datetime.fromisoformat(m["start"]),
                     "end": datetime.fromisoformat(m["end"]),
                 }
@@ -628,11 +644,41 @@ def main() -> None:
         done_ids = set()
         existing = None
 
-    need_logs = sorted({CACHE / m["log"] for m in pending})
-    missing_names = {p.name for p in need_logs if not p.is_file()}
-    for name in sorted(missing_names):
-        print(f"missing log {CACHE / name} — skip matches that need it", flush=True)
-    pending = [m for m in pending if m["log"] not in missing_names]
+    try:
+        import train_rp_guard as TRG  # noqa: WPS433
+    except Exception:
+        TRG = None  # type: ignore
+
+    def _log_path_for(m: dict) -> Path:
+        if TRG is not None:
+            hit = TRG.resolve_match_log(
+                str(m.get("log") or ""),
+                mid=str(m.get("id") or ""),
+                date_ymd=str(m.get("date") or ""),
+                server=str(m.get("serverKey") or "") or None,
+            )
+            if hit is not None:
+                m["log"] = hit.name
+                return hit
+        return CACHE / str(m.get("log") or "")
+
+    resolved_pending: list[dict] = []
+    for m in pending:
+        lp = _log_path_for(m)
+        if not lp.is_file():
+            print(f"missing log {lp} — skip {m.get('id')}", flush=True)
+            continue
+        # Keep a flat copy in legacy CACHE so older tooling still finds the pin.
+        try:
+            if lp.parent.resolve() != CACHE.resolve():
+                dest = CACHE / lp.name
+                if not dest.is_file() or dest.stat().st_size < lp.stat().st_size:
+                    dest.write_bytes(lp.read_bytes())
+                m["log"] = dest.name
+        except Exception as e:
+            print(f"warn: mirror pin to CACHE: {e}", flush=True)
+        resolved_pending.append(m)
+    pending = resolved_pending
 
     if not pending:
         # Persist orphan prune + refresh slim ladder so site stops counting ghosts.

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Force-repair training UI/data on VPS after a bad deploy merge.
+# Soft-repair training UI on VPS after a bad deploy merge.
+# NEVER git reset --hard blackberry-kv (that wiped live Mutaha).
+# NEVER overwrite live training/RP from GitHub if disk already has data.
 # Usage: bash scripts/repair_train_live.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -8,39 +10,26 @@ KV_REPO="${KV_REPO_DIR:-/var/www/blackberry-kv}"
 
 echo "==> repair train live → $DEST"
 
-if [[ -d "$KV_REPO/.git" ]]; then
-  git -C "$KV_REPO" fetch origin main || true
-  git -C "$KV_REPO" reset --hard origin/main || git -C "$KV_REPO" pull --ff-only || true
-fi
-
 SRC=""
 for cand in "$KV_REPO" "$KV_REPO/public"; do
-  if [[ -f "$cand/index.html" && -f "$cand/app.js" && -f "$cand/data/training/2026-10.json" ]]; then
+  if [[ -f "$cand/index.html" && -f "$cand/app.js" ]]; then
     SRC="$cand"
     break
   fi
 done
 if [[ -z "$SRC" ]]; then
-  echo "ERROR: no KV source" >&2
-  exit 1
+  echo "WARN: no KV UI source — only scrub local" >&2
+else
+  echo "==> copy UI only from $SRC (training untouched)"
+  cp -a "$SRC/index.html" "$DEST/index.html"
+  cp -a "$SRC/app.js" "$DEST/app.js"
+  # Fill missing training files from warehouse, never replace richer live ones
+  if [[ -d "$SRC/data/training" ]]; then
+    python3 "$ROOT/scripts/merge_train_after_kv_sync.py" "$SRC/data/training" "$DEST" || true
+  fi
 fi
 
-echo "==> copy UI + Oct training from $SRC"
 mkdir -p "$DEST/data/training/players"
-cp -a "$SRC/index.html" "$DEST/index.html"
-cp -a "$SRC/app.js" "$DEST/app.js"
-cp -a "$SRC/data/training/2026-10.json" "$DEST/data/training/2026-10.json"
-[[ -f "$SRC/data/training/_auto_matches.json" ]] && cp -a "$SRC/data/training/_auto_matches.json" "$DEST/data/training/_auto_matches.json"
-[[ -f "$SRC/data/training/rp-ledger.json" ]] && cp -a "$SRC/data/training/rp-ledger.json" "$DEST/data/training/rp-ledger.json"
-[[ -f "$SRC/data/training/rp-ladder.json" ]] && cp -a "$SRC/data/training/rp-ladder.json" "$DEST/data/training/rp-ladder.json"
-[[ -f "$SRC/data/cache-bust.json" ]] && cp -a "$SRC/data/cache-bust.json" "$DEST/data/cache-bust.json"
-[[ -f "$SRC/data/training-index.json" ]] && cp -a "$SRC/data/training-index.json" "$DEST/data/training-index.json"
-
-for f in 06-cslfallujah.json 06-cslfallujah-2.json; do
-  if [[ -f "$SRC/data/training/players/$f" ]]; then
-    cp -a "$SRC/data/training/players/$f" "$DEST/data/training/players/$f"
-  fi
-done
 rm -f "$DEST/data/training/players/06-yehorivka.json"
 
 # bump bust so /tm iframe picks new v=
@@ -58,14 +47,15 @@ python3 - <<PY
 import json
 from pathlib import Path
 p=Path("$DEST/data/training/2026-10.json")
-d=json.loads(p.read_text(encoding="utf-8"))
-ms=[m for m in d.get("matches") or [] if "yehorivka" not in str(m.get("id","")).lower() and "yehorivka" not in str(m.get("map","")).lower()]
-d["matches"]=ms
-p.write_text(json.dumps(d,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
-day6=[m for m in ms if m.get("day")==6]
-print("oct matches", len(ms), "day6", [(m["id"], m.get("timeMsk")) for m in day6])
-html=Path("$DEST/index.html").read_text(encoding="utf-8", errors="replace")
-print("time column", "Время" in html)
+if p.is_file():
+    d=json.loads(p.read_text(encoding="utf-8"))
+    ms=[m for m in d.get("matches") or [] if "yehorivka" not in str(m.get("id","")).lower() and "yehorivka" not in str(m.get("map","")).lower()]
+    d["matches"]=ms
+    p.write_text(json.dumps(d,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+    print("oct matches", len(ms))
+html=Path("$DEST/index.html")
+if html.is_file():
+    print("time column", "Время" in html.read_text(encoding="utf-8", errors="replace"))
 PY
 
 echo "==> repair done — hard-refresh /tm"

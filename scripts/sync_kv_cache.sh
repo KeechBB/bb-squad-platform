@@ -74,12 +74,18 @@ done
 
 echo "==> rsync $SRC/ → $DEST/ (verified source)"
 
-# Preserve richer auto-train data that GitHub may not have yet (collector writes live).
+# Preserve live auto-ingest (collector) — rsync must not wipe these.
 TRAIN_BAK="$(mktemp -d /tmp/bb-train-bak.XXXXXX)"
 if [[ -d "$DEST/data/training" ]]; then
   cp -a "$DEST/data/training" "$TRAIN_BAK/training"
   echo "==> backed up existing training → $TRAIN_BAK"
 fi
+mkdir -p "$TRAIN_BAK/public"
+for pubf in rp-ledger.json rp-ladder.json match-history.json; do
+  if [[ -f "$DEST/data/public/$pubf" ]]; then
+    cp -a "$DEST/data/public/$pubf" "$TRAIN_BAK/public/$pubf" || true
+  fi
+done
 if [[ -f "$DEST/data/cache-bust.json" ]]; then
   cp -a "$DEST/data/cache-bust.json" "$TRAIN_BAK/cache-bust.json" || true
 fi
@@ -88,24 +94,51 @@ if [[ -f "$DEST/app.js" ]]; then
 fi
 
 if command -v rsync >/dev/null 2>&1; then
-  # --delete only after source verified complete above
+  # --delete only after source verified complete above.
+  # NEVER rsync-wipe live training / public RP — collector writes these on VPS.
+  # GitHub may lag; deploy must not resurrect empty Mutaha / drop pending RP.
   rsync -a --delete \
     --exclude '.git/' \
     --exclude '.github/' \
     --exclude 'node_modules/' \
+    --exclude 'data/training/' \
+    --exclude 'data/public/rp-ledger.json' \
+    --exclude 'data/public/rp-ladder.json' \
+    --exclude 'data/public/match-history.json' \
+    --exclude 'data/cache-bust.json' \
     "$SRC/" "$DEST/"
 else
   # no rsync: copy over without wiping first (safer)
   cp -a "$SRC/." "$DEST/"
 fi
 
-# Merge back auto-ingest if disk had more matches than GitHub warehouse
+# Restore live training tree if rsync excluded it (always prefer disk backup)
 if [[ -d "$TRAIN_BAK/training" ]]; then
-  echo "==> merge training (add missing only; never wipe GitHub; scrub Yehorivka)"
-  python3 "$ROOT/scripts/merge_train_after_kv_sync.py" "$TRAIN_BAK/training" "$DEST" || true
-  # always scrub junk even if backup missing
-  python3 "$ROOT/scripts/merge_train_after_kv_sync.py" "$DEST/data/training" "$DEST" || true
+  echo "==> restore live training (excluded from rsync wipe)"
+  mkdir -p "$DEST/data"
+  if [[ ! -d "$DEST/data/training" ]]; then
+    cp -a "$TRAIN_BAK/training" "$DEST/data/training"
+  else
+    python3 "$ROOT/scripts/merge_train_after_kv_sync.py" "$TRAIN_BAK/training" "$DEST" || true
+  fi
 fi
+# Merge any NEW month rows / players from GitHub that disk does not have yet
+if [[ -d "$SRC/data/training" ]]; then
+  echo "==> merge training from warehouse (add missing only)"
+  python3 "$ROOT/scripts/merge_train_after_kv_sync.py" "$SRC/data/training" "$DEST" || true
+fi
+if [[ -f "$TRAIN_BAK/cache-bust.json" && ! -f "$DEST/data/cache-bust.json" ]]; then
+  cp -a "$TRAIN_BAK/cache-bust.json" "$DEST/data/cache-bust.json" || true
+fi
+# Restore public RP / match-history from live backup; fill gaps from warehouse
+mkdir -p "$DEST/data/public"
+for pubf in rp-ledger.json rp-ladder.json match-history.json; do
+  if [[ -f "$TRAIN_BAK/public/$pubf" ]]; then
+    cp -a "$TRAIN_BAK/public/$pubf" "$DEST/data/public/$pubf" || true
+  elif [[ ! -f "$DEST/data/public/$pubf" && -f "$SRC/data/public/$pubf" ]]; then
+    cp -a "$SRC/data/public/$pubf" "$DEST/data/public/$pubf" || true
+  fi
+done
 rm -rf "$TRAIN_BAK"
 
 # Scrub junk (Yehorivka) and verify UI files

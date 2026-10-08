@@ -108,9 +108,10 @@ Steam: если логин на staging ломается — в Steam API Key Do
 Живой сайт (`/kv-static`, home API) читает **только диск** — GitHub Pages в горячем пути не используется.  
 Nginx отдаёт `/kv-static/` напрямую с диска (см. `deploy/nginx-bb-squad.conf`).  
 
-**Автозалив TR1:** collector пишет training JSON + `data/cache-bust.json` в kv-cache.  
+**Автозалив TR\* + PB1:** collector (`SQUAD_SERVERS=TR1,TR2,TPUB1[,TR3…]`) параллельно тянет логи, пинит каждую закрытую карту, пишет training/public JSON + `cache-bust` в kv-cache.  
+Очередь `_pending_rp.json` догоняет RP; Telegram (`BB_TG_BOT_TOKEN` + `BB_TG_CHAT_ID`) если история есть, а ladder отстаёт >15 мин.  
 `/tm` и `/cw` берут `v=` из bust на диске (без redeploy).  
-`sync_kv_cache.sh` после rsync **не затирает** более полный автозалив training/RP.  
+`sync_kv_cache.sh` **не rsync-ит** `data/training/` и live `data/public/rp-*` / `match-history` — деплой не откатывает вечерний залив.  
 Hot-path рейтинга ТМ: slim `rp-ladder.json`; полный ledger — только drilldown.
 
 ## Squad log collector (24/7)

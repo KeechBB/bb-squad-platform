@@ -32,9 +32,20 @@ SQUAD_INGEST_URL=https://bb-squad.ru/api/ingest/squad-sessions
 SQUAD_INGEST_SECRET=…тот же, что в /var/www/bb-squad-platform/.env…
 SQUAD_STATE_PATH=/var/www/bb-squad-platform/scripts/squad_collector_state.json
 SQUAD_POLL_SEC=5
+
+# Логи: один кэш на все серверы (TR3…TRn без правок кода)
+# BB_LOG_CACHE_ROOT=/var/www/bb-squad-platform/scripts/_tmp_squad_logs
+# BB_LOG_SYNC_WORKERS=4
+# BB_TRAIN_SYNC_SERVERS=TR1,TR2,TR3   # опционально сузить вечерний digitize
+
+# Telegram: история есть, RP нет дольше N минут
+BB_TG_BOT_TOKEN=123456:ABC…
+BB_TG_CHAT_ID=-100…
+BB_TG_RP_LAG_MIN=15
 ```
 
-`SQUAD_INGEST_SECRET` возьми с VPS: `grep SQUAD_INGEST_SECRET /var/www/bb-squad-platform/.env`
+`SQUAD_INGEST_SECRET` возьми с VPS: `grep SQUAD_INGEST_SECRET /var/www/bb-squad-platform/.env`  
+Новые тренировочные сервера: добавь `TR3` в `SQUAD_SERVERS` — SSH/pin/RP/очередь подхватят сами.
 
 Коллектор шлёт **два** потока: join/leave (посещаемость TR1+TR2+TPUB1) и `BBHitZone` / DeployRole с **TR1 и TR2** (хитмап и киты в профиле).
 

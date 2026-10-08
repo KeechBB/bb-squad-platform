@@ -81,98 +81,19 @@ def _load_collector_env() -> dict[str, str]:
 
 
 def sync_tr_server_logs_via_ssh(server_key: str = "TR1") -> list[Path]:
-    """Download SquadGame.log + recent backups for TR1 or TR2."""
-    env = _load_collector_env()
-    cache = (
-        CACHE
-        if server_key == "TR1"
-        else Path(os.environ.get("TR2_LOG_CACHE", str(HERE / "_tmp_tr2_logs_cache")))
-    )
-    try:
-        import paramiko
-    except ImportError as e:
-        local = sorted(cache.glob("*.log"))
-        if local:
-            print(f"paramiko missing ({e}) — using local {server_key} cache", flush=True)
-            return local
-        print(f"paramiko missing and no {server_key} cache: {e}", flush=True)
-        return []
+    """Download logs for one server (TR1…TRn / TPUB1) into fleet cache."""
+    import bb_log_fleet as FLEET  # noqa: WPS433
 
-    host = env.get("SQUAD_SSH_HOST")
-    user = env.get("SQUAD_SSH_USER")
-    password = env.get("SQUAD_SSH_PASSWORD")
-    if not host or not user or not password:
-        print(f"SSH env missing — using local {server_key} cache only", flush=True)
-        return sorted(cache.glob("*.log"))
-
-    import time
-
-    port = int(env.get("SQUAD_SSH_PORT") or "2022")
-    root = (env.get("SQUAD_LOG_ROOT") or "/home/squad/servers").rstrip("/")
-    remote_dir = f"{root}/{server_key}/SquadGame/Saved/Logs"
-    cache.mkdir(parents=True, exist_ok=True)
-
-    last_err: Exception | None = None
-    for attempt in range(4):
-        transport = None
-        try:
-            transport = paramiko.Transport((host, port))
-            transport.banner_timeout = 120
-            transport.connect(username=user, password=password)
-            sftp = paramiko.SFTPClient.from_transport(transport)
-            assert sftp is not None
-            names = sftp.listdir(remote_dir)
-            backups = sorted(
-                [
-                    n
-                    for n in names
-                    if n.startswith("SquadGame-backup-") and n.endswith(".log")
-                ],
-                reverse=True,
-            )[:3]
-            for name in ["SquadGame.log"] + backups:
-                rpath = f"{remote_dir}/{name}"
-                # Avoid TR1/TR2 overwriting same SquadGame.log name in shared caches
-                local_name = (
-                    name
-                    if server_key == "TR1"
-                    else f"{server_key}-{name}"
-                )
-                lpath = cache / local_name
-                try:
-                    st = sftp.stat(rpath)
-                    if lpath.is_file() and lpath.stat().st_size == st.st_size:
-                        continue
-                    print(f"{server_key} sftp ← {name} ({st.st_size})", flush=True)
-                    sftp.get(rpath, str(lpath))
-                except Exception as e:
-                    print(f"{server_key} skip {name}: {e}", flush=True)
-            sftp.close()
-            transport.close()
-            break
-        except Exception as e:
-            last_err = e
-            print(f"{server_key} ssh fail {attempt+1}: {type(e).__name__}: {e}", flush=True)
-            try:
-                if transport:
-                    transport.close()
-            except Exception:
-                pass
-            time.sleep(2 + attempt)
-    else:
-        print(f"{server_key} ssh gave up: {last_err}", flush=True)
-
-    return sorted(cache.glob("*.log"))
+    _load_collector_env()
+    return FLEET.sync_servers_parallel([server_key], kind="train")
 
 
 def sync_tr1_logs_via_ssh() -> list[Path]:
-    """TR1 + TR2 (паритет учёта)."""
-    logs = sync_tr_server_logs_via_ssh("TR1")
-    try:
-        logs = list(logs) + list(sync_tr_server_logs_via_ssh("TR2"))
-    except Exception as e:
-        print(f"TR2 sync optional fail: {e}", flush=True)
-    return logs
+    """All training servers in parallel (TR1, TR2, TR3… from SQUAD_SERVERS)."""
+    import bb_log_fleet as FLEET  # noqa: WPS433
+
+    _load_collector_env()
+    return FLEET.sync_servers_parallel(kind="train")
 
 def msk_hour_ok(start_utc: datetime) -> bool:
     msk = start_utc + timedelta(hours=3)
@@ -944,24 +865,29 @@ def main() -> int:
             p["team"] = f2
             p["won"] = winner_team == "2"
 
-        log_name_l = log_path.name.upper()
-        is_tr2 = "TR2" in log_name_l or "TR2" in str(log_path).upper()
-        server_label = (
-            "Blackberry | Training - Blackberries #2"
-            if is_tr2
-            else "Blackberry | Training - Blackberries #1"
-        )
+        import bb_log_fleet as FLEET  # noqa: WPS433
+
+        server_key = FLEET.infer_server_from_path(log_path)
+        # TR1 → #1, TR2 → #2, TR3 → #3 …
+        n_tr = 1
+        if server_key.startswith("TR"):
+            try:
+                n_tr = int(server_key[2:] or "1")
+            except ValueError:
+                n_tr = 1
+        server_label = f"Blackberry | Training - Blackberries #{n_tr}"
         players_doc = {
             "matchId": mid,
             "map": layer,
             "mode": layer_mode(layer),
             "server": server_label,
+            "serverKey": server_key,
             "duration": duration,
             "winner": winner,
             "sideA": {"name": f1, "tickets": int(t1 or 0)},
             "sideB": {"name": f2, "tickets": int(t2 or 0)},
-            "note": "Авто из логов TR2" if is_tr2 else "Авто из логов TR1",
-            "source": "tr2-logs-auto" if is_tr2 else "tr1-logs-auto",
+            "note": f"Авто из логов {server_key}",
+            "source": f"{server_key.lower()}-logs-auto",
             "teamA": team_a,
             "teamB": team_b,
         }
@@ -987,26 +913,29 @@ def main() -> int:
             "winner": winner,
             "status": "done",
             "playersUrl": f"data/training/players/{mid}.json",
-            "source": "tr1-logs-auto",
+            "source": f"{server_key.lower()}-logs-auto",
+            "serverKey": server_key,
         }
         upsert_month({"id": mid, "month": month, "row": row})
 
-        # Pin away from rotating SquadGame.log — copy window into stable file name.
-        log_name = log_path.name
-        if log_name == "SquadGame.log":
-            stable = CACHE / f"SquadGame-{msk.strftime('%Y.%m.%d')}-{mid}.log"
-            if not stable.is_file() or stable.stat().st_size < log_path.stat().st_size:
-                stable.write_bytes(log_path.read_bytes())
-            log_name = stable.name
+        # Always pin away from rotating live log → stable name for RP rebuild.
+        import train_rp_guard as TRG  # noqa: WPS433
+
+        date_ymd = msk.strftime("%Y-%m-%d")
+        log_name = TRG.pin_match_log(
+            log_path, mid, date_ymd, dest_cache=CACHE, server=server_key
+        )
 
         auto.append(
             {
                 "id": mid,
                 "map": layer,
-                "date": msk.strftime("%Y-%m-%d"),
+                "date": date_ymd,
                 "log": log_name,
                 "start": start_iso,
                 "end": end.isoformat(),
+                "logPinned": True,
+                "serverKey": server_key,
             }
         )
         known_ids.add(mid)
@@ -1020,57 +949,63 @@ def main() -> int:
     )
     print(f"done added={added} auto_matches={len(auto)}", flush=True)
 
-    def _ledger_missing_auto() -> list[str]:
-        ladder = TRAIN / "rp-ladder.json"
-        if not ladder.is_file():
-            return [
-                str(m.get("id"))
-                for m in auto
-                if m.get("id")
-                and not m.get("skip")
-                and not str(m.get("id")).endswith("-skip")
-            ]
-        try:
-            ids = {
-                str(x.get("id"))
-                for x in (json.loads(ladder.read_text(encoding="utf-8")).get("matches") or [])
-                if x.get("id")
-            }
-        except Exception:
-            return ["(unreadable-ladder)"]
-        missing = []
-        for m in auto:
-            mid = str(m.get("id") or "")
-            if not mid or m.get("skip") or mid.endswith("-skip"):
-                continue
-            if mid not in ids:
-                missing.append(mid)
-        return missing
+    import train_rp_guard as TRG  # noqa: WPS433
 
-    need_rp = _ledger_missing_auto()
+    # Re-pin any auto rows still pointing at rotating logs (old entries).
+    for am in auto:
+        if not isinstance(am, dict) or am.get("skip"):
+            continue
+        mid = str(am.get("id") or "")
+        log_n = str(am.get("log") or "")
+        date_ymd = str(am.get("date") or "")
+        if not mid or not date_ymd:
+            continue
+        srv = str(am.get("serverKey") or "") or None
+        if TRG.is_rotating_log_name(log_n) or not am.get("logPinned"):
+            src = TRG.resolve_match_log(log_n, mid=mid, date_ymd=date_ymd, server=srv)
+            if src is None:
+                import bb_log_fleet as FLEET  # noqa: WPS433
+
+                for s in FLEET.train_servers() or ["TR1", "TR2"]:
+                    live = FLEET.server_cache(s) / "SquadGame.log"
+                    if live.is_file():
+                        src = live
+                        srv = s
+                        break
+            if src is not None:
+                am["log"] = TRG.pin_match_log(
+                    src, mid, date_ymd, dest_cache=CACHE, server=srv
+                )
+                am["logPinned"] = True
+                if srv:
+                    am["serverKey"] = srv
+    AUTO_MATCHES.write_text(
+        json.dumps(auto, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+
+    need_rp = TRG.auto_ids_needing_rp(TRAIN)
     if added or need_rp:
-        if need_rp and not added:
-            print(f"RP lag detected — rebuild for {need_rp}", flush=True)
+        if need_rp:
+            TRG.enqueue_pending(TRAIN, need_rp, reason="sync-added" if added else "rp-lag")
+            print(f"RP lag / new matches — queue {need_rp}", flush=True)
         # 1) Publish match JSON first so /tm updates without waiting for RP rebuild.
         bump_cache_bust()
         publish_live_mirrors()
-        # 2) Heavy RP rebuild — low CPU priority so Next/Postgres stay responsive.
-        import shutil
-        import subprocess
-
-        rebuild = [sys.executable, str(HERE / "build_train_rp_ledger.py")]
-        if shutil.which("nice"):
-            rebuild = ["nice", "-n", "15", *rebuild]
-        if shutil.which("ionice"):
-            rebuild = ["ionice", "-c3", *rebuild]
-        env = {**os.environ, "BB_KV_PUBLIC": str(KV_PUBLIC)}
-        print("train RP rebuild (low priority)…", flush=True)
-        subprocess.run(rebuild, cwd=str(HERE), check=False, env=env)
-        still = _ledger_missing_auto()
+        # 2) Drain pending RP (+ Telegram if still stale).
+        drain = TRG.drain_pending(TRAIN, KV_PUBLIC)
+        still = drain.get("still") or TRG.auto_ids_needing_rp(TRAIN)
         if still:
             print(f"WARN: RP still missing after rebuild: {still}", flush=True)
+        if drain.get("alerted"):
+            print(f"telegram alerted: {drain['alerted']}", flush=True)
         bump_cache_bust()
         publish_live_mirrors()
+    else:
+        # Periodic: clear done + alert anything stuck from earlier evenings.
+        TRG.clear_pending_done(TRAIN)
+        alerted = TRG.alert_stale_pending(TRAIN)
+        if alerted:
+            print(f"telegram alerted (idle scan): {alerted}", flush=True)
     return 0
 
 

@@ -39,11 +39,28 @@ from typing import Any
 import paramiko
 import requests
 
-# Join/leave со всех SQUAD_SERVERS; hits — только тренировочные (BBHitZone).
-# DeployRole / киты — TR1/TR2 + паблик PB1.
-TRAINING_HIT_ROLE_SERVERS = frozenset({"TR1", "TR2"})
+# Join/leave со всех SQUAD_SERVERS; hits — все TR* (BBHitZone).
+# DeployRole / киты — TR* + паблик PB1. Список TR растёт через SQUAD_SERVERS.
+def _train_hit_servers() -> frozenset[str]:
+    raw = os.environ.get("SQUAD_SERVERS", "TR1,TR2")
+    out = set()
+    for part in raw.replace(";", ",").split(","):
+        k = part.strip().upper()
+        if k.startswith("TR") and k[2:].isdigit():
+            out.add(k)
+    return frozenset(out or {"TR1", "TR2"})
+
+
 # История матчей паблика — только PB1/TPUB1 (SEED отфильтровываем).
 PUBLIC_MATCH_SERVERS = frozenset({"TPUB1", "PB1", "PUB"})
+
+
+def _role_servers() -> frozenset[str]:
+    return _train_hit_servers() | PUBLIC_MATCH_SERVERS
+
+
+# Back-compat names (refreshed after dotenv in main via reassignment if needed)
+TRAINING_HIT_ROLE_SERVERS = frozenset({"TR1", "TR2"})
 ROLE_SERVERS = TRAINING_HIT_ROLE_SERVERS | PUBLIC_MATCH_SERVERS
 
 # Name may contain spaces; passworded servers append ?PASSWORD=… before userId.
@@ -195,7 +212,13 @@ def resolve_log_targets() -> list[tuple[str, str]]:
             key = key.strip()
             if not key:
                 continue
-            path = f"{root}/{key}/SquadGame/Saved/Logs/SquadGame.log"
+            # PB1 → remote folder TPUB1 (game host naming)
+            remote = key
+            ku = key.upper()
+            if ku in ("PB1", "PUB", "PUBLIC"):
+                remote = "TPUB1"
+                key = "TPUB1"
+            path = f"{root}/{remote}/SquadGame/Saved/Logs/SquadGame.log"
             out.append((key, path))
         if out:
             return out
@@ -571,7 +594,7 @@ class Collector:
         if "BBHitZone:" not in line:
             return None
         # Hits only from training servers with BBHitZone mod
-        if server_key not in TRAINING_HIT_ROLE_SERVERS:
+        if server_key not in _train_hit_servers():
             return None
         hm = HIT_RE.search(line)
         if not hm:
@@ -625,7 +648,7 @@ class Collector:
     ) -> dict[str, Any] | None:
         if "DeployRole=" not in line:
             return None
-        if server_key not in ROLE_SERVERS:
+        if server_key not in _role_servers():
             return None
         dm = DEPLOY_RE.search(line)
         if not dm:
@@ -1202,6 +1225,7 @@ class Collector:
             self.maybe_rebuild_public_rp()
             self.maybe_sync_train_tr1()
             self.maybe_sync_cw_tr()
+            self.maybe_rp_lag_alerts()
             kt = self._keech_tracker()
             if kt is not None:
                 try:
@@ -1434,7 +1458,7 @@ class Collector:
         return env
 
     def maybe_sync_train_tr1(self) -> None:
-        """TR1/TR2 auto: digitize closed maps (21:30–00:00 MSK) + rebuild train RP."""
+        """All TR* servers: digitize closed maps (21:30–00:00 MSK) + train RP queue."""
         now = time.time()
         last = getattr(self, "_train_sync_last", 0.0)
         # Evening window (MSK≈UTC+3): poll often. Daytime: rare (saves RAM/CPU).
@@ -1445,20 +1469,21 @@ class Collector:
             return
         if self._heavy_job_busy():
             # Do NOT advance _train_sync_last — retry next poll as soon as lock frees.
-            _safe_print("TR1 train sync deferred — heavy job running", flush=True)
+            _safe_print("train sync deferred — heavy job running", flush=True)
             return
         self._train_sync_last = now
         script = Path(__file__).resolve().parent / "sync_train_from_tr1_logs.py"
         if not script.is_file():
             return
-        _safe_print("TR1 train sync start (background, nice)", flush=True)
+        _safe_print("train fleet sync start (background, nice)", flush=True)
         try:
             log_path = Path(__file__).resolve().parent / "_tmp_train_tr1_sync.log"
+            scripts_dir = Path(__file__).resolve().parent
             env = {
                 **os.environ,
-                "TR1_LOG_CACHE": str(
-                    Path(__file__).resolve().parent / "_tmp_tr1_logs_cache"
-                ),
+                "TR1_LOG_CACHE": str(scripts_dir / "_tmp_tr1_logs_cache"),
+                "TR2_LOG_CACHE": str(scripts_dir / "_tmp_tr2_logs_cache"),
+                "BB_LOG_CACHE_ROOT": str(scripts_dir / "_tmp_squad_logs"),
             }
             env = self._kv_public_env(env)
             self._spawn_low_priority(
@@ -1466,11 +1491,49 @@ class Collector:
             )
         except Exception as e:
             _safe_print(
-                "TR1 train sync error",
+                "train fleet sync error",
                 type(e).__name__,
                 e,
                 file=sys.stderr,
             )
+
+    def maybe_rp_lag_alerts(self) -> None:
+        """Telegram if history exists but RP ladder lags (train + PB1)."""
+        now = time.time()
+        last = getattr(self, "_rp_lag_alert_last", 0.0)
+        if (now - last) < 300:
+            return
+        self._rp_lag_alert_last = now
+        try:
+            import train_rp_guard as TRG  # noqa: WPS433
+        except Exception as e:
+            _safe_print("rp lag alert import fail", type(e).__name__, e, flush=True)
+            return
+        env = self._kv_public_env({**os.environ})
+        root = Path(env.get("BB_KV_PUBLIC") or env.get("KV_LOCAL_DIR") or "")
+        if not root.is_dir():
+            return
+        try:
+            train_dir = root / "data" / "training"
+            pub_dir = root / "data" / "public"
+            if train_dir.is_dir():
+                missing = TRG.auto_ids_needing_rp(train_dir)
+                if missing:
+                    TRG.enqueue_pending(train_dir, missing, reason="collector-scan")
+                alerted = TRG.alert_stale_pending(train_dir, kind="train")
+                if alerted:
+                    _safe_print(f"telegram train RP lag: {alerted}", flush=True)
+            if pub_dir.is_dir():
+                missing_p = TRG.public_ids_needing_rp(pub_dir)
+                if missing_p:
+                    TRG.enqueue_pending(
+                        pub_dir, missing_p, reason="collector-scan", kind="public"
+                    )
+                alerted_p = TRG.alert_stale_pending(pub_dir, kind="public")
+                if alerted_p:
+                    _safe_print(f"telegram public RP lag: {alerted_p}", flush=True)
+        except Exception as e:
+            _safe_print("rp lag alert error", type(e).__name__, e, flush=True)
 
     def maybe_sync_cw_tr(self) -> None:
         """CW on TR1/TR2: both teams + opponent clan card (kv-tr-both-teams-auto)."""
