@@ -113,6 +113,11 @@ export function canDeleteClanSquad(role: ClanRole): boolean {
   return role === "LEADER" || role === "DEPUTY";
 }
 
+/** Заявки на КВ: создать / принять вызов — только глава или зам. */
+export function canManageCwChallenges(role: ClanRole): boolean {
+  return role === "LEADER" || role === "DEPUTY";
+}
+
 export function isValidClanTag(tag: string): boolean {
   return /^[A-Za-z0-9]{2,8}$/.test(tag.trim());
 }

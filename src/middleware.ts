@@ -8,8 +8,16 @@ function isPublicAsset(pathname: string): boolean {
   if (pathname.startsWith("/api/auth")) return true;
   if (pathname.startsWith("/api/ingest")) return true;
   if (pathname.startsWith("/api/sessions/ingest")) return true;
-  // files with extension (png, css, etc.)
   if (/\.[a-zA-Z0-9]+$/.test(pathname)) return true;
+  return false;
+}
+
+/** Гость: главная, паблик. Кланы/стрельба — страница с окном Steam. */
+function guestAllowed(pathname: string): boolean {
+  if (pathname === "/") return true;
+  if (pathname === "/public" || pathname.startsWith("/public/")) return true;
+  if (pathname === "/clans" || pathname.startsWith("/clans/")) return true;
+  if (pathname === "/aim" || pathname.startsWith("/aim/")) return true;
   return false;
 }
 
@@ -22,7 +30,6 @@ function withPathHeader(req: NextRequest, pathname: string) {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // EMERGENCY: staging password wall fully disabled (was locking bb-squad.ru).
   if (pathname === "/staging-gate" || pathname.startsWith("/api/staging-gate")) {
     return NextResponse.redirect(new URL("/", req.url));
   }
@@ -31,7 +38,6 @@ export async function middleware(req: NextRequest) {
     return withPathHeader(req, pathname);
   }
 
-  // API routes: leave existing route-level auth (except we don't block guests here).
   if (pathname.startsWith("/api/")) {
     return withPathHeader(req, pathname);
   }
@@ -44,9 +50,8 @@ export async function middleware(req: NextRequest) {
   const isAuthed = Boolean(token?.steamId);
   const complete = Boolean(token?.profileComplete);
 
-  // Guests: only home. Any other click/deep-link → login.
   if (!isAuthed) {
-    if (pathname === "/") {
+    if (guestAllowed(pathname)) {
       return withPathHeader(req, pathname);
     }
     const url = new URL("/", req.url);
@@ -54,9 +59,12 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Steam ok, анкета не завершена — только регистрация.
   if (!complete) {
     if (pathname.startsWith("/register")) {
+      return withPathHeader(req, pathname);
+    }
+    // гости+регистрация: те же публичные страницы + анкета
+    if (guestAllowed(pathname)) {
       return withPathHeader(req, pathname);
     }
     return NextResponse.redirect(new URL("/register", req.url));

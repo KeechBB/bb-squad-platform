@@ -1,9 +1,10 @@
+import { Suspense } from "react";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getHomeDashboardData } from "@/lib/homePageData";
-import { HomeMonthCalendar } from "@/components/HomeMonthCalendar";
 import { HomePanels } from "@/components/HomePanels";
 import { HomeFit } from "@/components/HomeFit";
+import { HomeLoginPrompt } from "@/components/HomeLoginPrompt";
 
 export const dynamic = "force-dynamic";
 
@@ -13,10 +14,13 @@ export default async function HomePage() {
     redirect("/register");
   }
 
-  const { previews, pwrBoard, tierBoard, publicTop } = await getHomeDashboardData();
+  const { pwrBoard, tierBoard, publicTop } = await getHomeDashboardData();
 
   return (
     <main className="home-page">
+      <Suspense fallback={null}>
+        <HomeLoginPrompt />
+      </Suspense>
       <div className="home-stage" aria-hidden="true">
         <div className="home-stage-photo" />
         <div className="home-stage-veil" />
@@ -68,7 +72,8 @@ export default async function HomePage() {
 
       <HomeFit>
         <div className="home-side">
-          <HomeMonthCalendar previews={previews} />
+          {/* Календарь перенесён в профиль клана — слот пока пустой */}
+          <div className="home-calendar-slot" aria-hidden="true" />
           <HomePanels
             pwrBoard={pwrBoard}
             publicTop={publicTop}

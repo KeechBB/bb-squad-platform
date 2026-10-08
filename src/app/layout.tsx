@@ -5,7 +5,7 @@ import { AuthBar } from "@/components/AuthBar";
 import { SiteNav } from "@/components/SiteNav";
 import { SiteOnlineBadge } from "@/components/SiteOnlineBadge";
 import { getSession } from "@/lib/auth";
-import { isBlackberryClanMember } from "@/lib/blackberryClan";
+import { isAnyClanMember } from "@/lib/clanAccess";
 import { getCurrentBetaLabel } from "@/lib/siteReleases";
 import "@fontsource/oxanium/400.css";
 import "@fontsource/oxanium/600.css";
@@ -55,7 +55,7 @@ export default async function RootLayout({
   const showClanSections =
     Boolean(session?.user?.steamId) &&
     Boolean(session?.user?.profileComplete) &&
-    (await isBlackberryClanMember(session?.user?.steamId));
+    (await isAnyClanMember(session?.user?.steamId));
   const betaLabel = getCurrentBetaLabel();
 
   return (

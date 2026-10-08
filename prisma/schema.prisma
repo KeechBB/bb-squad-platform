@@ -83,6 +83,8 @@ model User {
   supportTicketsClaimed SupportTicket[] @relation("SupportTicketClaimer")
   supportMessages       SupportMessage[]
   mapPin                MapPin?
+  cwChallengesCreated   CwChallenge[] @relation("CwChallengeCreator")
+  cwChallengesAccepted  CwChallenge[] @relation("CwChallengeAcceptor")
 }
 
 /// Метка игрока на клановой карте (одна на пользователя).
@@ -184,6 +186,9 @@ model Clan {
   titles       ClanTitle[]
   joinRequests ClanJoinRequest[]
   pendingMembers ClanPendingMember[]
+  cwChallengesOut CwChallenge[] @relation("CwChallengerClan")
+  cwChallengesIn  CwChallenge[] @relation("CwAcceptorClan")
+  calendarEvents  ClanCalendarEvent[]
 }
 
 /// Игроки соперника со скринов/логов КВ до регистрации на площадке.
@@ -558,4 +563,66 @@ model SupportMessage {
   createdAt DateTime           @default(now())
 
   @@index([ticketId, createdAt])
+}
+
+enum CwChallengeMode {
+  HOTDROP
+  CSL
+  FCL
+  SEC
+}
+
+enum CwChallengeStatus {
+  OPEN
+  ACCEPTED
+  CANCELLED
+}
+
+/// Заявка на КВ: клан вызывает, другой принимает.
+model CwChallenge {
+  id               String            @id @default(cuid())
+  challengerClanId String
+  challengerClan   Clan              @relation("CwChallengerClan", fields: [challengerClanId], references: [id], onDelete: Cascade)
+  acceptorClanId   String?
+  acceptorClan     Clan?             @relation("CwAcceptorClan", fields: [acceptorClanId], references: [id], onDelete: SetNull)
+  mode             CwChallengeMode
+  /// Число игроков со стороны заявителя
+  format           Int
+  /// Когда хотят провести (храним UTC; UI — МСК)
+  scheduledAt      DateTime
+  /// Сервер после матчмейкинга (пока null)
+  assignedServer   String?
+  status           CwChallengeStatus @default(OPEN)
+  createdById      String
+  createdBy        User              @relation("CwChallengeCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  acceptedById     String?
+  acceptedBy       User?             @relation("CwChallengeAcceptor", fields: [acceptedById], references: [id], onDelete: SetNull)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  calendarEvents   ClanCalendarEvent[]
+
+  @@index([status, scheduledAt])
+  @@index([challengerClanId, status])
+  @@index([acceptorClanId, status])
+}
+
+/// Событие в календаре конкретного клана (после принятия заявки КВ).
+model ClanCalendarEvent {
+  id           String   @id @default(cuid())
+  clanId       String
+  clan         Clan     @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  challengeId  String?
+  challenge    CwChallenge? @relation(fields: [challengeId], references: [id], onDelete: SetNull)
+  mode         CwChallengeMode
+  format       Int
+  scheduledAt  DateTime
+  opponentTag  String
+  opponentName String
+  assignedServer String?
+  status       String   @default("upcoming")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([clanId, scheduledAt])
+  @@index([challengeId])
 }

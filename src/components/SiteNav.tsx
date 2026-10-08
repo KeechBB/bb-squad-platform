@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signIn, useSession } from "next-auth/react";
-import type { ReactNode } from "react";
+import { useSession } from "next-auth/react";
+import { useState, type ReactNode } from "react";
+import { SteamAuthModal } from "@/components/SteamAuthModal";
 
 type Props = {
+  /** Полный доступ: КВ / ТМ / карта — только если пользователь в каком-либо клане */
   showClanSections: boolean;
 };
 
@@ -14,12 +16,11 @@ function pathMatches(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function NavItem({
+function NavLink({
   href,
   title,
   full,
   short,
-  mode,
   className,
   active,
 }: {
@@ -27,40 +28,12 @@ function NavItem({
   title?: string;
   full: string;
   short: string;
-  mode: "link" | "login" | "register";
   className?: string;
   active?: boolean;
 }) {
   const cls = ["nav-link", active ? "is-active" : "", className || ""]
     .filter(Boolean)
     .join(" ");
-  if (mode === "login") {
-    return (
-      <button
-        type="button"
-        className={["nav-login-trigger", cls].filter(Boolean).join(" ")}
-        title={title || "Войти через Steam"}
-        aria-current={active ? "page" : undefined}
-        onClick={() => signIn("steam", { callbackUrl: href })}
-      >
-        <span className="nav-full">{full}</span>
-        <span className="nav-short">{short}</span>
-      </button>
-    );
-  }
-  if (mode === "register") {
-    return (
-      <Link
-        href="/register"
-        title="Завершите регистрацию"
-        className={cls}
-        aria-current={active ? "page" : undefined}
-      >
-        <span className="nav-full">{full}</span>
-        <span className="nav-short">{short}</span>
-      </Link>
-    );
-  }
   return (
     <Link
       href={href}
@@ -74,6 +47,36 @@ function NavItem({
   );
 }
 
+function NavGateButton({
+  title,
+  full,
+  short,
+  active,
+  onClick,
+}: {
+  title: string;
+  full: string;
+  short: string;
+  active?: boolean;
+  onClick: () => void;
+}) {
+  const cls = ["nav-link", "nav-login-trigger", active ? "is-active" : ""]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <button
+      type="button"
+      className={cls}
+      title={title}
+      aria-current={active ? "page" : undefined}
+      onClick={onClick}
+    >
+      <span className="nav-full">{full}</span>
+      <span className="nav-short">{short}</span>
+    </button>
+  );
+}
+
 export function SiteNav({ showClanSections }: Props) {
   const pathname = usePathname() || "/";
   const { data: session, status } = useSession();
@@ -81,77 +84,132 @@ export function SiteNav({ showClanSections }: Props) {
   const authed = Boolean(session?.user?.steamId);
   const complete = Boolean(session?.user?.profileComplete);
 
-  let mode: "link" | "login" | "register" = "link";
-  if (!loading) {
-    if (!authed) mode = "login";
-    else if (!complete) mode = "register";
-  }
+  const [authModal, setAuthModal] = useState<{
+    href: string;
+    title: string;
+    message: string;
+  } | null>(null);
+
+  const guest = !loading && !authed;
+  const needRegister = !loading && authed && !complete;
 
   const clanBlock: ReactNode = showClanSections ? (
     <>
-      <NavItem
+      <NavLink
         href="/cw"
         title="Клановые войны"
         full="Клановые войны"
         short="КВ"
-        mode={mode}
         active={pathMatches(pathname, "/cw")}
       />
-      <NavItem
+      <NavLink
         href="/tm"
         title="Тренировочные матчи"
         full="Тренировочные матчи"
         short="Трен."
-        mode={mode}
         active={pathMatches(pathname, "/tm")}
       />
     </>
   ) : null;
 
   return (
-    <nav className="top-nav" aria-label="Разделы">
-      <NavItem
-        href="/"
-        full="Главная"
-        short="Глав"
-        mode="link"
-        active={pathMatches(pathname, "/")}
-      />
-      {clanBlock}
-      <NavItem
-        href="/clans"
-        full="Кланы"
-        short="Кланы"
-        mode={mode}
-        active={pathMatches(pathname, "/clans")}
-      />
-      <NavItem
-        href="/aim"
-        title="Тренировка стрельбы"
-        full="Тренировка стрельбы"
-        short="Стрельба"
-        mode={mode}
-        active={pathMatches(pathname, "/aim")}
-      />
-      <NavItem
-        href="/public"
-        title="Рейтинг паблика"
-        full="Рейтинг паблика"
-        short="Паблик"
-        mode="link"
-        className="nav-public-pill"
-        active={pathMatches(pathname, "/public")}
-      />
-      {showClanSections ? (
-        <NavItem
-          href="/map"
-          title="Карта клана"
-          full="Карта клана"
-          short="Карта"
-          mode={mode}
-          active={pathMatches(pathname, "/map")}
+    <>
+      <nav className="top-nav" aria-label="Разделы">
+        <NavLink
+          href="/"
+          full="Главная"
+          short="Глав"
+          active={pathMatches(pathname, "/")}
         />
-      ) : null}
-    </nav>
+        {clanBlock}
+        {guest ? (
+          <NavGateButton
+            title="Кланы"
+            full="Кланы"
+            short="Кланы"
+            active={pathMatches(pathname, "/clans")}
+            onClick={() =>
+              setAuthModal({
+                href: "/clans",
+                title: "Кланы — только после входа",
+                message:
+                  "Авторизуйтесь через Steam, чтобы открыть раздел кланов.",
+              })
+            }
+          />
+        ) : needRegister ? (
+          <NavLink
+            href="/register"
+            title="Завершите регистрацию"
+            full="Кланы"
+            short="Кланы"
+            active={pathMatches(pathname, "/clans")}
+          />
+        ) : (
+          <NavLink
+            href="/clans"
+            full="Кланы"
+            short="Кланы"
+            active={pathMatches(pathname, "/clans")}
+          />
+        )}
+        {guest ? (
+          <NavGateButton
+            title="Тренировка стрельбы"
+            full="Тренировка стрельбы"
+            short="Стрельба"
+            active={pathMatches(pathname, "/aim")}
+            onClick={() =>
+              setAuthModal({
+                href: "/aim",
+                title: "Тренировка стрельбы — только после входа",
+                message:
+                  "Авторизуйтесь через Steam, чтобы открыть тренировку стрельбы.",
+              })
+            }
+          />
+        ) : needRegister ? (
+          <NavLink
+            href="/register"
+            title="Завершите регистрацию"
+            full="Тренировка стрельбы"
+            short="Стрельба"
+            active={pathMatches(pathname, "/aim")}
+          />
+        ) : (
+          <NavLink
+            href="/aim"
+            title="Тренировка стрельбы"
+            full="Тренировка стрельбы"
+            short="Стрельба"
+            active={pathMatches(pathname, "/aim")}
+          />
+        )}
+        <NavLink
+          href="/public"
+          title="Рейтинг паблика"
+          full="Рейтинг паблика"
+          short="Паблик"
+          className="nav-public-pill"
+          active={pathMatches(pathname, "/public")}
+        />
+        {showClanSections ? (
+          <NavLink
+            href="/map"
+            title="Карта клана"
+            full="Карта клана"
+            short="Карта"
+            active={pathMatches(pathname, "/map")}
+          />
+        ) : null}
+      </nav>
+      <SteamAuthModal
+        open={Boolean(authModal)}
+        onClose={() => setAuthModal(null)}
+        callbackUrl={authModal?.href || "/"}
+        title={authModal?.title}
+        message={authModal?.message}
+      />
+    </>
   );
 }

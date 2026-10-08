@@ -2,10 +2,19 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { GuestSteamGate } from "@/components/GuestSteamGate";
 
 export default async function ClansPage() {
   const session = await getSession();
-  if (session?.user?.steamId && !session.user.profileComplete) {
+  if (!session?.user?.steamId) {
+    return (
+      <GuestSteamGate
+        title="Кланы"
+        message="Авторизуйтесь через Steam, чтобы открыть раздел кланов."
+      />
+    );
+  }
+  if (!session.user.profileComplete) {
     redirect("/register");
   }
 

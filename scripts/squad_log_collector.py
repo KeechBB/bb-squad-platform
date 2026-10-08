@@ -1536,7 +1536,7 @@ class Collector:
             _safe_print("rp lag alert error", type(e).__name__, e, flush=True)
 
     def maybe_sync_cw_tr(self) -> None:
-        """CW on TR1/TR2: both teams + opponent clan card (kv-tr-both-teams-auto)."""
+        """CW on TR1/TR2: both teams stats (no auto clan cards)."""
         now = time.time()
         last = getattr(self, "_cw_tr_sync_last", 0.0)
         # CW slots often 17–21 UTC; poll every 3 min near then, else 20 min.

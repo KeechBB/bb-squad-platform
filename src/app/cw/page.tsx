@@ -1,6 +1,6 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { isBlackberryClanMember } from "@/lib/blackberryClan";
+import { isAnyClanMember } from "@/lib/clanAccess";
 import { liveKvBust } from "@/lib/kvBust";
 
 export const dynamic = "force-dynamic";
@@ -13,8 +13,8 @@ export default async function CwPage({ searchParams }: Props) {
   const session = await getSession();
   if (!session?.user?.steamId) redirect("/?login=1");
   if (!session.user.profileComplete) redirect("/register");
-  if (!(await isBlackberryClanMember(session.user.steamId))) {
-    redirect("/");
+  if (!(await isAnyClanMember(session.user.steamId))) {
+    redirect("/clans");
   }
 
   const sp = searchParams ? await searchParams : {};
@@ -28,7 +28,8 @@ export default async function CwPage({ searchParams }: Props) {
     <div className="cw-embed">
       {clan ? (
         <p className="cw-clan-filter muted">
-          Фильтр клана в календаре: <strong>[{clan}]</strong> — введи в поиск клана на таблице.
+          Фильтр клана в календаре: <strong>[{clan}]</strong> — введи в поиск
+          клана на таблице.
         </p>
       ) : null}
       <iframe

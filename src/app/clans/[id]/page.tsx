@@ -1,6 +1,6 @@
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import {
   assignableClanRoles,
   canDeleteClan,
@@ -16,6 +16,7 @@ import {
 } from "@/lib/titles";
 import { loadTierIndex } from "@/lib/loadTierIndex";
 import { listPendingForClan } from "@/lib/opponentClan";
+import { GuestSteamGate } from "@/components/GuestSteamGate";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -25,6 +26,17 @@ const EXTERNAL_LEADER_STEAM_PREFIX = "7656119900001";
 export default async function ClanPage({ params }: Props) {
   const { id } = await params;
   const session = await getSession();
+  if (!session?.user?.steamId) {
+    return (
+      <GuestSteamGate
+        title="Клан"
+        message="Авторизуйтесь через Steam, чтобы открыть карточку клана."
+      />
+    );
+  }
+  if (!session.user.profileComplete) {
+    redirect("/register");
+  }
 
   await ensureDefaultSquads(id);
   await ensureDefaultTitles(id);

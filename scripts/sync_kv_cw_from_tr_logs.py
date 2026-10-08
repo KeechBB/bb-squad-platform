@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Auto-digitize CW matches hosted on TR1/TR2 → KV players (BB + opp) + opponent clan card.
+Auto-digitize CW matches hosted on TR1/TR2 → KV players (BB + opp).
+Clan cards are NOT auto-created — clans register themselves on the site.
 
 Canon: .cursor/rules/kv-tr-both-teams-auto.mdc
 - calendar server is BB / TR1 / TR2 / Blackberry Training…
@@ -322,56 +323,11 @@ def tickets_for_side(
 
 
 def post_opponent_clan(opp: str, players: list[dict], match_id: str) -> None:
-    env = _load_collector_env()
-    secret = (
-        os.environ.get("SQUAD_INGEST_SECRET")
-        or env.get("SQUAD_INGEST_SECRET")
-        or ""
-    ).strip()
-    base = (
-        os.environ.get("BB_SITE_URL")
-        or env.get("BB_SITE_URL")
-        or env.get("NEXTAUTH_URL")
-        or "https://bb-squad.ru"
-    ).rstrip("/")
-    if not secret:
-        print("no SQUAD_INGEST_SECRET — skip clan API", flush=True)
-        # still write pending JSON for agent / later
-        pending_dir = KV_PUBLIC / "data" / "opponent-clans"
-        pending_dir.mkdir(parents=True, exist_ok=True)
-        path = pending_dir / f"{re.sub(r'[^A-Za-z0-9]+', '', opp).upper() or 'OPP'}.json"
-        doc = {"opp": opp, "matchId": match_id, "players": players, "updatedAt": datetime.now(timezone.utc).isoformat()}
-        path.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        return
-
-    body = {
-        "opp": opp,
-        "players": [
-            {
-                "nick": p["nick"],
-                "steamId": p.get("steamId"),
-                "matchId": match_id,
-            }
-            for p in players
-        ],
-    }
-    req = urllib.request.Request(
-        f"{base}/api/ingest/opponent-clan",
-        data=json.dumps(body).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {secret}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
+    """Disabled 08.10.2026 — clans create their own cards on the site."""
+    print(
+        f"skip opponent-clan card for {opp} ({len(players)} players, {match_id}) — self-serve only",
+        flush=True,
     )
-    try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            raw = resp.read().decode("utf-8", errors="replace")
-            print(f"opponent-clan API: {raw[:240]}", flush=True)
-    except urllib.error.HTTPError as e:
-        print(f"opponent-clan HTTP {e.code}: {e.read()[:200]}", flush=True)
-    except Exception as e:
-        print(f"opponent-clan fail: {type(e).__name__}: {e}", flush=True)
 
 
 def update_calendar_row(slot: dict, patch: dict) -> None:
