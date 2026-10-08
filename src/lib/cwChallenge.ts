@@ -45,3 +45,18 @@ export function modeLabel(mode: string): string {
 export function formatLabel(format: number): string {
   return `${format}vs${format}`;
 }
+
+/** Угадать мод из строки карты / modeLabel (KV: «SEC 26 Mutaha…», «HotDrop Narva»). */
+export function detectCwModeFromText(raw: string): CwModeId {
+  const s = String(raw || "").toUpperCase();
+  if (/\bCSL\b/.test(s)) return "CSL";
+  if (/\bFCL\b/.test(s)) return "FCL";
+  if (/\bSEC\b/.test(s) || /\bBALT\b/.test(s)) return "SEC";
+  if (/HOT\s*DROP|HOTDROP/.test(s)) return "HOTDROP";
+  return "HOTDROP";
+}
+
+export function modeImage(mode: string): string {
+  const id = isCwMode(mode) ? mode : detectCwModeFromText(mode);
+  return CW_MODES.find((m) => m.id === id)?.image || "/cw-modes/hotdrop.jpg";
+}

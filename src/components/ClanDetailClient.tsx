@@ -2009,7 +2009,12 @@ export function ClanDetailClient({
       ) : null}
 
       {tab === "calendar" ? (
-        <ClanCalendarPanel clanId={clan.id} clanTag={clan.tag} />
+        <ClanCalendarPanel
+          clanId={clan.id}
+          clanTag={clan.tag}
+          clanName={clan.name}
+          clanLogoUrl={clan.logoUrl}
+        />
       ) : null}
 
       <p style={{ marginTop: 16 }} className="clan-footer-actions">
