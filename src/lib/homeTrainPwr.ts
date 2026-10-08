@@ -597,9 +597,18 @@ export async function buildPlayerTrainMatchHistory(
     (monthData?.matches || []).forEach((match, ord) => {
       if (!match.playersUrl || !match.id || match.day == null) return;
       const time = String(match.timeMsk || "").trim();
-      const timeKey = /^\d{1,2}:\d{2}/.test(time)
+      // 00:00–00:29 = midnight grace после вечерней тренировки → после 23:59 того же day
+      let timeKey = /^\d{1,2}:\d{2}/.test(time)
         ? time.padStart(5, "0")
         : `99:${pad2(ord)}`;
+      const hm = /^(\d{1,2}):(\d{2})/.exec(timeKey);
+      if (hm) {
+        const h = Number(hm[1]);
+        const mi = Number(hm[2]);
+        if (h === 0 && mi <= 29) {
+          timeKey = `24:${pad2(mi)}`;
+        }
+      }
       matchMetas.push({
         id: match.id,
         day: match.day,
