@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CW_MODES, CW_SERVER_POOL_NOTE } from "@/lib/cwChallenge";
+import { CW_MODES } from "@/lib/cwChallenge";
 
 type ChallengeRow = {
   id: string;
@@ -149,9 +149,6 @@ export function ClanCwRegistrationPanel({
           <h3 className="stats-h3" style={{ marginTop: 0, marginBottom: 4 }}>
             Поиск КВ
           </h3>
-          <p className="muted" style={{ margin: 0, maxWidth: 560 }}>
-            {CW_SERVER_POOL_NOTE}
-          </p>
         </div>
         {canOfferCreate ? (
           <button
@@ -208,10 +205,6 @@ export function ClanCwRegistrationPanel({
               required
             />
           </label>
-          <p className="field-hint">
-            Сервер не выбирается здесь — назначается после нахождения матча
-            (приоритет TR2 → TR5, затем FCL ARENA 2–4).
-          </p>
           <button className="btn primary" type="submit" disabled={busy}>
             {busy ? "Создаём…" : "Опубликовать заявку"}
           </button>

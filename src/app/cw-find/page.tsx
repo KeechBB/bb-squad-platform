@@ -18,10 +18,7 @@ export default async function CwFindPage() {
       <section className="hero" style={{ marginBottom: 16 }}>
         <p className="eyebrow">клановые войны</p>
         <h1>Поиск КВ</h1>
-        <p className="lead">
-          Создай заявку или прими вызов другого клана. Сервер назначим после
-          матчмейкинга.
-        </p>
+        <p className="lead">Создай заявку или прими вызов другого клана.</p>
       </section>
       <ClanCwRegistrationPanel />
     </main>

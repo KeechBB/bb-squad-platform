@@ -294,14 +294,15 @@ svg {
 /* Рейтинг паблика — выделенная кнопка в навбаре */
 /* ??????? ??????? ? ????? ????? */
 .top-nav a.nav-public-quiet {
-  opacity: 0.62;
-  font-weight: 500;
-  letter-spacing: 0.02em;
+  color: #d4c4f0;
+  font-weight: 650;
+  text-shadow: 0 0 10px rgba(167, 139, 250, 0.18);
 }
 .top-nav a.nav-public-quiet:hover,
 .top-nav a.nav-public-quiet:focus-visible,
 .top-nav a.nav-public-quiet.is-active {
-  opacity: 0.9;
+  color: #f3e8ff;
+  text-shadow: 0 0 16px rgba(167, 139, 250, 0.28);
 }
 
 /* ????? ?? ? ??????? ?????? */
