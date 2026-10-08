@@ -98,13 +98,22 @@ def sync_tr1_logs_via_ssh() -> list[Path]:
 def msk_hour_ok(start_utc: datetime) -> bool:
     msk = start_utc + timedelta(hours=3)
     minutes = msk.hour * 60 + msk.minute
-    # 21:30 inclusive .. 24:00 exclusive
-    return 21 * 60 + 30 <= minutes < 24 * 60
+    # 21:30–00:00 MSK, plus grace to 00:30 for maps that tip over midnight
+    # (08.10: 4th Mutaha started 00:00 and was skipped → only 3/4 on site).
+    return (21 * 60 + 30 <= minutes < 24 * 60) or (minutes < 30)
+
+
+def training_evening_msk(start_utc: datetime) -> datetime:
+    """MSK clock for id/day: 00:00–00:29 counts as previous calendar evening."""
+    msk = start_utc + timedelta(hours=3)
+    if msk.hour == 0 and msk.minute < 30:
+        return msk - timedelta(days=1)
+    return msk
 
 
 def match_id_for(m: dict, *, used_ids: set[str] | None = None) -> str:
     """Stable id; if same map already used that day, append -2, -3, …"""
-    msk = m["start"] + timedelta(hours=3)
+    msk = training_evening_msk(m["start"] if m["start"].tzinfo else m["start"].replace(tzinfo=timezone.utc))
     day = msk.day
     layer = str(m.get("layer") or m.get("map") or "map")
     # Stable short id: "Al Basrah RAAS v3" → albasrah, "Sumari Bala AAS v1" → sumari
@@ -789,13 +798,13 @@ def main() -> int:
         if start_iso in known_starts:
             continue
 
-        msk = start + timedelta(hours=3)
+        msk = training_evening_msk(start)
         stem = _map_stem(layer)
         # Same map rediscovery only (±3 мин). Две одинаковые карты за вечер — обе.
         if is_near_duplicate(msk.day, stem, start, anchors):
             continue
 
-        mid = match_id_for(m, used_ids=known_ids)
+        mid = match_id_for({**m, "start": start}, used_ids=known_ids)
         if mid in known_ids:
             continue
 
