@@ -232,6 +232,11 @@ class KeechHuntTracker:
         return LEDGER_PATH
 
     def _rp_map(self, server: str | None = None) -> tuple[dict[str, float], float]:
+        """RP weights + P_max — as in train `score_match_rp` (max of current RPs).
+
+        Do **not** trust ledger `pMax`: train ledger still stores a stale PWR peak
+        (~770) which clamped Keech (~2300) down to START_RP and flattened Hunt to N=25.5.
+        """
         start = float(R.START_RP)
         rp: dict[str, float] = {}
         path = self._ledger_for(server)
@@ -241,12 +246,10 @@ class KeechHuntTracker:
                 for k, row in (data.get("players") or {}).items():
                     if isinstance(row, dict) and row.get("rp") is not None:
                         rp[str(k)] = float(row["rp"])
-                if data.get("pMax") is not None:
-                    return rp, max(float(data["pMax"]), start)
             except Exception:
                 pass
         pmax = max(rp.values()) if rp else start
-        return rp, max(pmax, start)
+        return rp, max(float(pmax), start)
 
     def _weight(self, nick: str, rp: dict[str, float]) -> float:
         k = R.nick_key(nick)

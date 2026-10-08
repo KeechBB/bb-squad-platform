@@ -775,13 +775,29 @@ def main() -> None:
                         for hm in (p.get("matches") or [])
                     ],
                 }
+            rp_vals = [
+                float(p["rp"])
+                for p in slim_players.values()
+                if p.get("rp") is not None
+            ]
+            pmax_now = max(rp_vals) if rp_vals else float(START_RP)
+            pmax_now = max(pmax_now, float(START_RP))
+            # Heal stale PWR pMax on no-op refresh so Hunt / readers stay correct.
+            if abs(float(existing.get("pMax") or 0) - pmax_now) > 0.05:
+                existing["pMax"] = round(pmax_now, 1)
+                OUT.write_text(
+                    json.dumps(existing, ensure_ascii=False, separators=(",", ":"))
+                    + "\n",
+                    encoding="utf-8",
+                )
+                print(f"healed ledger pMax → {pmax_now:.1f} (was PWR stale)", flush=True)
             ladder = {
                 "version": existing.get("version"),
                 "updatedAt": existing.get("updatedAt"),
                 "startRp": existing.get("startRp"),
                 "step": existing.get("step"),
                 "radiant3Max": existing.get("radiant3Max"),
-                "pMax": existing.get("pMax"),
+                "pMax": round(pmax_now, 1),
                 "matches": slim_matches,
                 "players": slim_players,
                 "leaderboard": existing.get("leaderboard") or [],
@@ -805,10 +821,9 @@ def main() -> None:
         flush=True,
     )
 
-    pmax_global = float((existing or {}).get("pMax") or 0) or (
-        max(pwr.values()) if pwr else 737.0
-    )
-    print(f"P_max (hidden PWR leader) = {pmax_global:.1f}")
+    # pMax = max train RP (same as score_match_rp / Hunt). Old field was PWR peak — stale.
+    pmax_global = float(START_RP)
+    print(f"P_max seed = {pmax_global:.1f} (recomputed from RP after matches)")
 
     rp: dict[str, float] = {}
     match_blocks: list[dict] = []
@@ -986,6 +1001,10 @@ def main() -> None:
                 for e in arr:
                     if isinstance(e, dict):
                         e.pop("formula", None)
+
+    pmax_global = max(rp.values()) if rp else float(START_RP)
+    pmax_global = max(float(pmax_global), float(START_RP))
+    print(f"P_max (max train RP) = {pmax_global:.1f}")
 
     ledger = {
         "version": 3,
