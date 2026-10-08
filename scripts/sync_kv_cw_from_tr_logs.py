@@ -161,8 +161,31 @@ def looks_bb_nick(nick: str) -> bool:
     return bool(re.search(r"(?:^|[\[\|\s])BB(?:[\]\|\s]|$)", u) or u.startswith("[BB]"))
 
 
+def looks_opp_tag(nick: str, opp: str) -> bool:
+    """True if nick carries opponent clan tag (do not count as BB)."""
+    n = nick or ""
+    u = n.upper()
+    tag = re.sub(r"[^A-Z0-9]", "", (opp or "").upper())
+    if not tag:
+        return False
+    if tag in re.sub(r"[^A-Z0-9]", "", u):
+        return True
+    # common wrappers: ↯DCAI↯ 『DCAI』 [DCAI]
+    if re.search(rf"[↯『\[\|\s]{re.escape(tag)}[↯』\]\|\s]", u):
+        return True
+    # DCAI sometimes as DCI)(AG …
+    if tag == "DCAI" and ("DCI)(AG" in u or "DCI)(AG" in n.upper()):
+        return True
+    return False
+
+
 def load_cw_slots() -> list[dict]:
-    """Upcoming + recently played CW rows that are on our TR servers."""
+    """CW rows to try against TR1/TR2 logs.
+
+    Calendar `server` often names the opponent (Dcai/FCL) even when played on TR.
+    Canon: time+map+rosters on TR logs decide — include all upcoming/win/lose slots;
+    process_slot no-ops if no matching closed layers.
+    """
     out: list[dict] = []
     for path in sorted((KV_PUBLIC / "data").glob("20??-??.json")):
         if "training" in str(path):
@@ -177,8 +200,6 @@ def load_cw_slots() -> list[dict]:
         except Exception:
             continue
         for m in data.get("matches") or []:
-            if not _server_is_ours(str(m.get("server") or ""), str(m.get("note") or "")):
-                continue
             st = str(m.get("status") or "")
             # upcoming always; also re-check recent win/lose if players missing opp
             if st not in ("upcoming", "win", "lose"):
@@ -226,20 +247,44 @@ def split_bb_opp(
     team_b: list[dict],
     bb_keys: set[str],
     aliases: dict[str, str],
-) -> tuple[list[dict], list[dict]]:
+    opp: str = "",
+) -> tuple[list[dict], list[dict], bool]:
+    """Return (bb_rows, opp_rows, bb_is_team_a).
+
+    bb_is_team_a is decided BEFORE filtering tagged opp out of the BB list —
+    otherwise a rebuilt `keep` list breaks `is team_a` and flips tickets.
+    """
+
     def score(rows: list[dict]) -> int:
         s = 0
         for r in rows:
             nick = str(r.get("nick") or "")
+            if looks_opp_tag(nick, opp):
+                s -= 2
+                continue
             k = R.canon_key(nick, aliases)
             if k in bb_keys or looks_bb_nick(nick):
                 s += 1
         return s
 
     sa, sb = score(team_a), score(team_b)
-    if sa >= sb:
-        return team_a, team_b
-    return team_b, team_a
+    bb_is_team_a = sa >= sb
+    if bb_is_team_a:
+        bb_side, opp_side = team_a, team_b
+    else:
+        bb_side, opp_side = team_b, team_a
+    # hard filter: tagged opp never stay on BB list
+    if opp:
+        keep, dump = [], []
+        for r in bb_side:
+            if looks_opp_tag(str(r.get("nick") or ""), opp):
+                dump.append(r)
+            else:
+                keep.append(r)
+        if dump:
+            bb_side = keep
+            opp_side = list(opp_side) + dump
+    return bb_side, opp_side, bb_is_team_a
 
 
 def attach_steam(
@@ -341,6 +386,11 @@ def update_calendar_row(slot: dict, patch: dict) -> None:
         if m.get("id") != mid:
             continue
         for k, v in patch.items():
+            if v is None:
+                if k in m:
+                    del m[k]
+                    changed = True
+                continue
             if m.get(k) != v:
                 m[k] = v
                 changed = True
@@ -358,8 +408,9 @@ def process_slot(
     auto: list[dict],
 ) -> bool:
     mid = str(slot.get("id") or "")
-    if any(a.get("id") == mid and not a.get("skip") for a in auto):
-        # already auto-filled
+    # Re-run while incomplete (R2 still open). Only skip fully finalized auto rows.
+    prior = next((a for a in auto if a.get("id") == mid and not a.get("skip")), None)
+    if prior and prior.get("rounds", 0) >= 2 and prior.get("status") in ("win", "lose"):
         return False
 
     t0 = slot_start_utc(slot)
@@ -392,7 +443,20 @@ def process_slot(
     if not candidates:
         return False
 
-    # take up to 2 rounds
+    # Prefer layers from the slot's TR server when calendar names TR1/TR2;
+    # drop empty-combat ghosts if a richer sibling exists in the same minute window.
+    want_sk = str(slot.get("server") or "").strip().upper()
+    if want_sk in {"TR1", "TR2"}:
+        preferred = [c for c in candidates if want_sk in str(c.get("serverKey") or "").upper()]
+        if preferred:
+            candidates = preferred
+
+    # Drop early warmup layers (often start before slot). Keep layers at/after t0−10m.
+    on_time = [c for c in candidates if c["start"] >= t0 - timedelta(minutes=10)]
+    if on_time:
+        candidates = on_time
+
+    # take up to 2 closed rounds
     rounds = candidates[:2]
     bb_rounds: list[list[dict]] = []
     opp_rounds: list[list[dict]] = []
@@ -414,23 +478,19 @@ def process_slot(
         disp = {R.canon_key(n, aliases): n for n in steam.values()}
         team_a, team_b = agg_players(dies, wounds, revives, teams, disp)
 
-        # which list is team1?
-        # agg puts team=="2" in b, else a. score1/score2 from discover.
-        bb_side, opp_side = split_bb_opp(team_a, team_b, bb_keys, aliases)
-        bb_is_a = bb_side is team_a
-        # team_a ≈ team1 in agg (non-2). If bb is team_a, bb_is_team1 True unless swapped by score.
-        bb_is_team1 = bb_is_a
-        # refine: if more BB keys on team that matched score winner — trust nick score only
+        # agg: team_a ≈ team1, team_b ≈ team2
+        bb_side, opp_side, bb_is_team_a = split_bb_opp(
+            team_a, team_b, bb_keys, aliases, opp=str(slot.get("opp") or "")
+        )
 
         bb_rows = attach_steam(bb_side, steam, aliases)
         opp_rows = attach_steam(opp_side, steam, aliases)
         # strip steam from public CW json? keep for clan ingest; remove from file later
         bb_rounds.append([{k: v for k, v in r.items() if k != "steamId"} for r in bb_rows])
         opp_rounds.append(opp_rows)  # keep steam for API
-        bt, ot = tickets_for_side(m, bb_is_team1)
-        # If nick split inverted relative to team numbers, tickets may be wrong —
-        # recompute: if bb_side was team_b (team 2), swap.
-        if not bb_is_a:
+        if bb_is_team_a:
+            bt, ot = int(m.get("score1") or 0), int(m.get("score2") or 0)
+        else:
             bt, ot = int(m.get("score2") or 0), int(m.get("score1") or 0)
         ticket_pairs.append((bt, ot))
         layer_names.append(m["layer"])
@@ -454,39 +514,34 @@ def process_slot(
         opp_rounds.append([])
         ticket_pairs.append((0, 0))
 
-    sum_bb = ticket_pairs[0][0] + ticket_pairs[1][0]
-    sum_opp = ticket_pairs[0][1] + ticket_pairs[1][1]
-    if sum_bb > sum_opp:
-        status, meeting = "win", "2–0"
-    elif sum_opp > sum_bb:
-        status, meeting = "lose", "0–2"
-    else:
-        # rare equal — still not draw per canon; leave upcoming if incomplete
-        if not rounds or len(candidates) < 2:
-            status, meeting = "upcoming", "—"
+    closed_rounds = sum(1 for rows in bb_rounds if rows)
+    sum_bb = ticket_pairs[0][0] + (ticket_pairs[1][0] if closed_rounds >= 2 else 0)
+    sum_opp = ticket_pairs[0][1] + (ticket_pairs[1][1] if closed_rounds >= 2 else 0)
+    # Finalize meeting only when both rounds are closed layers.
+    finalize = closed_rounds >= 2
+    if finalize:
+        if sum_bb > sum_opp:
+            status, meeting = "win", "2–0"
+        elif sum_opp > sum_bb:
+            status, meeting = "lose", "0–2"
         else:
-            status, meeting = "win", "2–0"  # ask captain later; don't write draw
+            status, meeting = "win", "2–0"  # ask captain later; never draw
             print("WARN equal ticket sum — marked win pending captain", flush=True)
+    else:
+        status, meeting = "upcoming", "—"
+        print(f"  {mid}: {closed_rounds} closed round(s) — write partial, wait for R2", flush=True)
 
-    # only finalize status if we have 2 rounds OR layer ended and slot clearly done
-    finalize = len(candidates) >= 2 or (
-        len(candidates) >= 1 and candidates[-1]["end"] < datetime.now(timezone.utc) - timedelta(minutes=5)
-        and len(bb_rounds[0]) >= 8
+    note_sum = (
+        f"сумма {sum_bb}:{sum_opp}"
+        if finalize
+        else f"R1 {ticket_pairs[0][0]}:{ticket_pairs[0][1]} · R2 идёт"
     )
-    # Prefer wait for 2 rounds for classic CW
-    if len(candidates) < 2:
-        print(f"  {mid}: only {len(candidates)} layer(s) — wait for R2", flush=True)
-        # still write partial? skip until 2 rounds unless lookback old
-        age_h = (datetime.now(timezone.utc) - t0).total_seconds() / 3600
-        if age_h < 6:
-            return False
-
     players_doc = {
         "matchId": mid,
         "opp": slot.get("opp"),
         "note": (
             f"Авто из логов TR · {server_label} · "
-            f"сумма {sum_bb}:{sum_opp} · source=tr-cw-auto"
+            f"{note_sum} · source=tr-cw-auto"
         ),
         "source": "tr-cw-auto",
         "server": server_label,
@@ -505,12 +560,25 @@ def process_slot(
     patch = {
         "playersUrl": f"data/players/{mid}.json",
         "r1": f"{ticket_pairs[0][0]}:{ticket_pairs[0][1]}",
-        "r2": f"{ticket_pairs[1][0]}:{ticket_pairs[1][1]}",
         "note": (slot.get("note") or "") + " · авто TR обе команды",
+        "status": status,
     }
-    if finalize and status in ("win", "lose"):
-        patch["status"] = status
+    if closed_rounds >= 2:
+        patch["r2"] = f"{ticket_pairs[1][0]}:{ticket_pairs[1][1]}"
         patch["meeting"] = meeting
+        patch["note"] = (
+            f"Main · HOTDROP Narva · TR2 · сумма {sum_bb}:{sum_opp} "
+            f"({ticket_pairs[0][0]}:{ticket_pairs[0][1]} · {ticket_pairs[1][0]}:{ticket_pairs[1][1]}) · "
+            f"авто обе команды"
+        )
+    else:
+        patch["note"] = (
+            f"Main · HOTDROP Narva · TR2 · R1 {ticket_pairs[0][0]}:{ticket_pairs[0][1]} · "
+            f"R2 идёт · авто обе команды"
+        )
+        # clear stale finalize fields if re-writing partial
+        patch["r2"] = None
+        patch["meeting"] = None
     update_calendar_row(slot, patch)
 
     opp_all = opp_rounds[0] + opp_rounds[1]
@@ -525,20 +593,20 @@ def process_slot(
         uniq.append(p)
     post_opponent_clan(str(slot.get("opp") or "OPP"), uniq, mid)
 
-    auto.append(
-        {
-            "id": mid,
-            "opp": slot.get("opp"),
-            "map": players_doc["map"],
-            "server": server_label,
-            "start": t0.isoformat(),
-            "rounds": len(candidates),
-            "sum": f"{sum_bb}:{sum_opp}",
-            "status": patch.get("status", slot.get("status")),
-            "source": "tr-cw-auto",
-        }
-    )
-    print(f"OK CW {mid} vs {slot.get('opp')} {sum_bb}:{sum_opp}", flush=True)
+    entry = {
+        "id": mid,
+        "opp": slot.get("opp"),
+        "map": players_doc["map"],
+        "server": server_label,
+        "start": t0.isoformat(),
+        "rounds": closed_rounds,
+        "sum": f"{sum_bb}:{sum_opp}" if finalize else f"R1 {ticket_pairs[0][0]}:{ticket_pairs[0][1]}",
+        "status": patch.get("status", slot.get("status")),
+        "source": "tr-cw-auto",
+    }
+    # replace prior partial row for this match id
+    auto[:] = [a for a in auto if a.get("id") != mid] + [entry]
+    print(f"OK CW {mid} vs {slot.get('opp')} {entry['sum']}", flush=True)
     return True
 
 
@@ -603,6 +671,18 @@ def main() -> int:
     AUTO_CW.write_text(json.dumps(auto, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     if added:
         bump_cache_bust()
+        try:
+            import bb_alerts as AL  # noqa: WPS433
+
+            AL.send(
+                kind="выгрузка",
+                title="КВ: залиты раунды с TR",
+                level="ok",
+                lines=[f"добавлено слотов/раундов: {added}"],
+                force=True,
+            )
+        except Exception as e:
+            print(f"alert cw skip: {e}", flush=True)
     print(f"done added={added}", flush=True)
     return 0
 

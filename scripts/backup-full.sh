@@ -20,6 +20,15 @@ WORK="$(mktemp -d /tmp/bb-full-backup.XXXXXX)"
 ARCHIVE="$BACKUP_ROOT/bb-squad-full_${STAMP}.tar.gz"
 
 cleanup() { rm -rf -- "$WORK"; }
+_on_fail() {
+  python3 - <<PY || true
+import sys
+sys.path.insert(0, "$APP_DIR/scripts")
+import bb_alerts as A
+A.backup_fail("полный", "backup-full.sh exit nonzero")
+PY
+}
+trap '_on_fail; cleanup' ERR
 trap cleanup EXIT
 
 mkdir -p "$BACKUP_ROOT" "$WORK"/{db,app,meta/nginx,meta/pm2,meta/cron}
@@ -118,6 +127,14 @@ fi
 echo "==> keep $KEEP_COUNT newest:"
 ls -lht "$BACKUP_ROOT"/bb-squad-full_*.tar.gz 2>/dev/null | head -n "$KEEP_COUNT" || true
 echo "full backup ok"
+
+SIZE="$(du -h "$ARCHIVE" 2>/dev/null | awk '{print $1}')"
+python3 - <<PY || true
+import sys
+sys.path.insert(0, "$APP_DIR/scripts")
+import bb_alerts as A
+A.backup_ok("полный", "$ARCHIVE", "$SIZE")
+PY
 
 # Установка cron (один раз, от root):
 #   chmod +x /var/www/bb-squad-platform/scripts/backup-full.sh

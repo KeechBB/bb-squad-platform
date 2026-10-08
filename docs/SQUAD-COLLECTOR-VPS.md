@@ -38,10 +38,16 @@ SQUAD_POLL_SEC=5
 # BB_LOG_SYNC_WORKERS=4
 # BB_TRAIN_SYNC_SERVERS=TR1,TR2,TR3   # опционально сузить вечерний digitize
 
-# Telegram: история есть, RP нет дольше N минут
-BB_TG_BOT_TOKEN=123456:ABC…
-BB_TG_CHAT_ID=-100…
+# Telegram через Cloudflare Worker (VPS не достучится до api.telegram.org)
+BB_TG_CHAT_ID=1806167653
+BB_TG_RELAY_URL=https://bb-squad-alert.lgsghla.workers.dev
+BB_TG_RELAY_SECRET=…
 BB_TG_RP_LAG_MIN=15
+# опционально прямой токен (с VPS обычно не работает):
+# BB_TG_BOT_TOKEN=…
+
+# Алерты: сайт/pm2/нагрузка/кеш — cron
+#   bash scripts/install-bb-alerts-cron.sh
 ```
 
 `SQUAD_INGEST_SECRET` возьми с VPS: `grep SQUAD_INGEST_SECRET /var/www/bb-squad-platform/.env`  

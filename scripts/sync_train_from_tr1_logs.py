@@ -943,6 +943,19 @@ def main() -> int:
         anchors.append((msk.day, stem, start))
         added += 1
         print(f"+ train {mid} {layer} {duration}", flush=True)
+        try:
+            import bb_alerts as AL  # noqa: WPS433
+
+            AL.map_ingested(
+                server=server_key,
+                match_id=mid,
+                map_name=layer,
+                score=f"{int(t1 or 0)}–{int(t2 or 0)}",
+                kind="тренировка",
+                rp_ok=False,
+            )
+        except Exception as e:
+            print(f"alert map_ingested skip: {e}", flush=True)
 
     AUTO_MATCHES.write_text(
         json.dumps(auto, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
@@ -996,6 +1009,12 @@ def main() -> int:
         still = drain.get("still") or TRG.auto_ids_needing_rp(TRAIN)
         if still:
             print(f"WARN: RP still missing after rebuild: {still}", flush=True)
+            try:
+                import bb_alerts as AL  # noqa: WPS433
+
+                AL.rp_lag(still, kind="тренировка")
+            except Exception as e:
+                print(f"alert rp_lag skip: {e}", flush=True)
         if drain.get("alerted"):
             print(f"telegram alerted: {drain['alerted']}", flush=True)
         bump_cache_bust()
@@ -1006,6 +1025,12 @@ def main() -> int:
         alerted = TRG.alert_stale_pending(TRAIN)
         if alerted:
             print(f"telegram alerted (idle scan): {alerted}", flush=True)
+            try:
+                import bb_alerts as AL  # noqa: WPS433
+
+                AL.rp_lag(alerted, kind="тренировка")
+            except Exception:
+                pass
     return 0
 
 

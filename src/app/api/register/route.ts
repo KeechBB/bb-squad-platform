@@ -12,6 +12,7 @@ import {
 import { assignRegNoIfNeeded } from "@/lib/regNo";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
 import { attachOpponentClanOnRegister } from "@/lib/opponentClan";
+import { alertNewRegistration } from "@/lib/bbAlerts";
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -148,6 +149,17 @@ export async function POST(req: Request) {
       }
     } catch (err) {
       console.error("attach opponent clan failed", err);
+    }
+
+    try {
+      await alertNewRegistration({
+        nick: user.nick || nick,
+        name: user.name || name,
+        steamId: user.steamId,
+        regNo,
+      });
+    } catch (err) {
+      console.error("telegram register alert failed", err);
     }
   }
 

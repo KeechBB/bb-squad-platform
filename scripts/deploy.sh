@@ -30,8 +30,20 @@ disable_maintenance() {
 cleanup() {
   if [[ "$DEPLOY_OK" == "1" ]]; then
     disable_maintenance
+    python3 - <<PY || true
+import sys
+sys.path.insert(0, "$ROOT/scripts")
+import bb_alerts as A
+A.deploy_ok("$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo '?')")
+PY
   else
     echo "==> deploy FAILED — leave maintenance.on (fix when ready, then: rm -f $MAINT_FLAG && nginx -s reload)" >&2
+    python3 - <<PY || true
+import sys
+sys.path.insert(0, "$ROOT/scripts")
+import bb_alerts as A
+A.deploy_fail("deploy.sh завершился с ошибкой; maintenance.on может остаться")
+PY
   fi
 }
 trap cleanup EXIT

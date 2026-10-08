@@ -253,17 +253,60 @@ def bump_attempt(
 
 
 def telegram_send(text: str) -> bool:
+    """Send via Cloudflare Worker relay (VPS→CF→Telegram) or direct Bot API."""
     env = load_collector_env()
-    token = (env.get("BB_TG_BOT_TOKEN") or "").strip()
     chat = (env.get("BB_TG_CHAT_ID") or "").strip()
-    if not token or not chat:
-        print("telegram skip: set BB_TG_BOT_TOKEN + BB_TG_CHAT_ID", flush=True)
+    text = str(text or "")[:3900]
+    if not chat or not text:
+        print("telegram skip: empty chat/text", flush=True)
+        return False
+
+    relay = (env.get("BB_TG_RELAY_URL") or "").strip().rstrip("/")
+    relay_secret = (env.get("BB_TG_RELAY_SECRET") or "").strip()
+    if relay and relay_secret:
+        payload = json.dumps(
+            {"secret": relay_secret, "chat_id": chat, "text": text},
+            ensure_ascii=False,
+        ).encode("utf-8")
+        req = urllib.request.Request(
+            relay.rstrip("/") + "/",
+            data=payload,
+            method="POST",
+            headers={
+                "Content-Type": "application/json",
+                # CF Bot Fight blocks empty/python UA → 1010; Worker then checks secret.
+                "User-Agent": "Mozilla/5.0 (compatible; BB-Squad-Alert/1.0)",
+                "X-Relay-Secret": relay_secret,
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=25) as resp:
+                raw = resp.read()[:300]
+                print(
+                    f"telegram relay status={getattr(resp, 'status', '?')} body={raw!r}",
+                    flush=True,
+                )
+                return 200 <= getattr(resp, "status", 200) < 300
+        except urllib.error.HTTPError as e:
+            print(f"telegram relay HTTP {e.code}: {e.read()[:300]!r}", flush=True)
+            return False
+        except Exception as e:
+            print(f"telegram relay error: {type(e).__name__}: {e}", flush=True)
+            return False
+
+    token = (env.get("BB_TG_BOT_TOKEN") or "").strip()
+    if not token:
+        print(
+            "telegram skip: set BB_TG_RELAY_URL+BB_TG_RELAY_SECRET "
+            "or BB_TG_BOT_TOKEN + BB_TG_CHAT_ID",
+            flush=True,
+        )
         return False
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     body = urllib.parse.urlencode(
         {
             "chat_id": chat,
-            "text": text[:3900],
+            "text": text,
             "disable_web_page_preview": "1",
         }
     ).encode("utf-8")
@@ -323,15 +366,33 @@ def alert_stale_pending(data_dir: Path, *, kind: str = "train") -> list[str]:
         if age_min < mins:
             continue
         err = it.get("lastError") or "RP ещё нет в ladder"
-        text = (
-            f"⚠️ BB {label} RP lag\n"
-            f"match: {mid}\n"
-            f"ждём {int(age_min)} мин (порог {mins})\n"
-            f"attempts: {it.get('attempts') or 0}\n"
-            f"err: {err}\n"
-            f"история есть, стата RP нет — очередь догона"
-        )
-        if telegram_send(text):
+        try:
+            import bb_alerts as AL  # noqa: WPS433
+
+            ok_send = AL.send(
+                kind="rp",
+                title=f"RP отстаёт ({label})",
+                level="warn",
+                lines=[
+                    f"матч: {mid}",
+                    f"ждём уже {int(age_min)} мин (порог {mins})",
+                    "история есть, стата RP нет — очередь догона",
+                ],
+                details={
+                    "попыток": it.get("attempts") or 0,
+                    "ошибка": err,
+                },
+                force=True,
+            )
+        except Exception:
+            ok_send = telegram_send(
+                f"⚠️ BB {label} RP lag\n"
+                f"match: {mid}\n"
+                f"ждём {int(age_min)} мин (порог {mins})\n"
+                f"attempts: {it.get('attempts') or 0}\n"
+                f"err: {err}"
+            )
+        if ok_send:
             it["alertedAt"] = _iso()
             changed = True
             alerted.append(mid)

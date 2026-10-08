@@ -9,6 +9,16 @@ ENV_FILE="$APP_DIR/.env"
 BACKUP_ROOT="${BACKUP_ROOT:-/var/backups/bb-squad}"
 KEEP_COUNT="${KEEP_COUNT:-5}"
 
+_on_fail() {
+  python3 - <<PY || true
+import sys
+sys.path.insert(0, "$APP_DIR/scripts")
+import bb_alerts as A
+A.backup_fail("БД", "backup-db.sh exit nonzero")
+PY
+}
+trap '_on_fail' ERR
+
 mkdir -p "$BACKUP_ROOT"
 chmod 700 "$BACKUP_ROOT"
 
@@ -46,3 +56,12 @@ fi
 
 echo "backup ok (kept up to $KEEP_COUNT)"
 ls -lh "$BACKUP_ROOT"/bb_squad_*.dump 2>/dev/null || true
+
+# Telegram alert (Cloudflare relay)
+SIZE="$(du -h "$OUT" 2>/dev/null | awk '{print $1}')"
+python3 - <<PY || true
+import sys
+sys.path.insert(0, "$APP_DIR/scripts")
+import bb_alerts as A
+A.backup_ok("БД", "$OUT", "$SIZE")
+PY
