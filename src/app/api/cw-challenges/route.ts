@@ -40,6 +40,7 @@ export async function GET() {
       mode: r.mode,
       format: r.format,
       scheduledAt: r.scheduledAt.toISOString(),
+      createdAt: r.createdAt.toISOString(),
       assignedServer: r.assignedServer,
       status: r.status,
       challenger: r.challengerClan,

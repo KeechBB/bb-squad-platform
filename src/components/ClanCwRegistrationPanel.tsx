@@ -5,6 +5,7 @@ import {
   CW_FORMATS,
   CW_MODES,
   formatLabel,
+  modeLabel,
   type CwFormat,
 } from "@/lib/cwChallenge";
 
@@ -13,6 +14,7 @@ type ChallengeRow = {
   mode: string;
   format: number;
   scheduledAt: string;
+  createdAt?: string;
   assignedServer: string | null;
   status: string;
   challenger: { id: string; tag: string; name: string; logoUrl: string | null };
@@ -27,6 +29,7 @@ type Props = {
 };
 
 function fmtMsk(iso: string) {
+  if (!iso) return "—";
   try {
     return new Intl.DateTimeFormat("ru-RU", {
       timeZone: "Europe/Moscow",
@@ -41,8 +44,20 @@ function fmtMsk(iso: string) {
   }
 }
 
-function modeLabel(mode: string) {
-  return CW_MODES.find((m) => m.id === mode)?.label || mode;
+function modeMeta(mode: string) {
+  return (
+    CW_MODES.find((m) => m.id === mode) || {
+      id: mode,
+      label: modeLabel(mode),
+      image: "",
+    }
+  );
+}
+
+function statusLabel(status: string) {
+  if (status === "OPEN") return "Открыта";
+  if (status === "ACCEPTED") return "Принята";
+  return status;
 }
 
 export function ClanCwRegistrationPanel({
@@ -281,90 +296,124 @@ export function ClanCwRegistrationPanel({
       {loading ? <p className="muted">Загрузка…</p> : null}
 
       {!loading ? (
-        <div className="admin-table-wrap cw-find-table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Статус</th>
-                <th>Клан</th>
-                <th>Мод</th>
-                <th>Формат</th>
-                <th>Когда (МСК)</th>
-                <th>Сервер</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="muted">
-                    Заявок пока нет.
-                  </td>
-                </tr>
-              ) : (
-                rows.map((r) => {
-                  const isMine = r.challenger.id === myClanId;
-                  const canAccept =
-                    canManage &&
-                    r.status === "OPEN" &&
-                    !isMine &&
-                    myClanId != null;
-                  const canCancel =
-                    canManage && r.status === "OPEN" && isMine;
-                  return (
-                    <tr key={r.id}>
-                      <td>
-                        {r.status === "OPEN"
-                          ? "Открыта"
-                          : r.status === "ACCEPTED"
-                            ? "Принята"
-                            : r.status}
-                      </td>
-                      <td>
+        <div className="cw-challenge-list" aria-label="Заявки на КВ">
+          {rows.length === 0 ? (
+            <p className="muted cw-challenge-empty">Заявок пока нет.</p>
+          ) : (
+            rows.map((r) => {
+              const isMine = r.challenger.id === myClanId;
+              const canAccept =
+                canManage &&
+                r.status === "OPEN" &&
+                !isMine &&
+                myClanId != null;
+              const canCancel = canManage && r.status === "OPEN" && isMine;
+              const meta = modeMeta(r.mode);
+              const imgBroken = brokenModeImg[`row-${r.id}`] || !meta.image;
+              return (
+                <article
+                  key={r.id}
+                  className={`cw-challenge-card${isMine ? " is-mine" : ""}${
+                    r.status === "ACCEPTED" ? " is-accepted" : ""
+                  }`}
+                >
+                  <div className="cw-challenge-mode" aria-label={meta.label}>
+                    {!imgBroken ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={`${meta.image}?v=2`}
+                        alt={meta.label}
+                        draggable={false}
+                        onError={() =>
+                          setBrokenModeImg((prev) => ({
+                            ...prev,
+                            [`row-${r.id}`]: true,
+                          }))
+                        }
+                      />
+                    ) : (
+                      <span className="cw-challenge-mode-fallback">
+                        {meta.label}
+                      </span>
+                    )}
+                    <span className="cw-challenge-mode-name">{meta.label}</span>
+                  </div>
+
+                  <div className="cw-challenge-body">
+                    <div className="cw-challenge-top">
+                      <span
+                        className={`cw-challenge-status status-${r.status.toLowerCase()}`}
+                      >
+                        {statusLabel(r.status)}
+                      </span>
+                      <h4 className="cw-challenge-clan">
                         [{r.challenger.tag}] {r.challenger.name}
                         {r.acceptor ? (
-                          <>
+                          <span className="cw-challenge-vs">
                             {" "}
-                            vs [{r.acceptor.tag}]
-                          </>
+                            vs [{r.acceptor.tag}] {r.acceptor.name}
+                          </span>
                         ) : null}
-                      </td>
-                      <td>{modeLabel(r.mode)}</td>
-                      <td>{formatLabel(r.format)}</td>
-                      <td>{fmtMsk(r.scheduledAt)}</td>
-                      <td>
-                        {r.assignedServer || (
-                          <span className="muted">после матчмейкинга</span>
-                        )}
-                      </td>
-                      <td>
-                        {canAccept ? (
-                          <button
-                            type="button"
-                            className="btn primary"
-                            disabled={busy}
-                            onClick={() => void acceptChallenge(r.id)}
-                          >
-                            Принять вызов
-                          </button>
-                        ) : null}
-                        {canCancel ? (
-                          <button
-                            type="button"
-                            className="btn cw-cancel-btn"
-                            disabled={busy}
-                            onClick={() => void cancelChallenge(r.id)}
-                          >
-                            Отменить
-                          </button>
-                        ) : null}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                      </h4>
+                    </div>
+
+                    <dl className="cw-challenge-meta">
+                      <div>
+                        <dt>Создал</dt>
+                        <dd>{r.createdByNick || "—"}</dd>
+                      </div>
+                      <div>
+                        <dt>Создана</dt>
+                        <dd>{fmtMsk(r.createdAt || "")}</dd>
+                      </div>
+                      <div>
+                        <dt>Формат</dt>
+                        <dd>{formatLabel(r.format)}</dd>
+                      </div>
+                      <div>
+                        <dt>Матч (МСК)</dt>
+                        <dd>{fmtMsk(r.scheduledAt)}</dd>
+                      </div>
+                      <div>
+                        <dt>Сервер</dt>
+                        <dd>
+                          {r.assignedServer || (
+                            <span className="muted">после матчмейкинга</span>
+                          )}
+                        </dd>
+                      </div>
+                    </dl>
+                  </div>
+
+                  <div className="cw-challenge-actions">
+                    {canAccept ? (
+                      <button
+                        type="button"
+                        className="btn primary"
+                        disabled={busy}
+                        onClick={() => void acceptChallenge(r.id)}
+                      >
+                        Принять вызов
+                      </button>
+                    ) : null}
+                    {canCancel ? (
+                      <button
+                        type="button"
+                        className="btn cw-cancel-btn"
+                        disabled={busy}
+                        onClick={() => void cancelChallenge(r.id)}
+                      >
+                        Отменить
+                      </button>
+                    ) : null}
+                    {isMine && r.status === "OPEN" && !canCancel ? (
+                      <span className="muted">ваша заявка</span>
+                    ) : null}
+                  </div>
+                </article>
+              );
+            })
+          )}
         </div>
       ) : null}
     </section>
