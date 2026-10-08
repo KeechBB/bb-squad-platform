@@ -9,7 +9,16 @@ export type MapPinGroup = {
   city: string;
   lat: number;
   lon: number;
-  members: { userId: string; nick: string; pinId: string }[];
+  clanId: string | null;
+  clanTag: string | null;
+  clanName: string | null;
+  clanColor: string;
+  members: {
+    userId: string;
+    nick: string;
+    pinId: string;
+    clanTag: string | null;
+  }[];
 };
 
 type MyPin = {
@@ -164,8 +173,11 @@ export function ClanMapClient() {
         .pointLat("lat")
         .pointLng("lon")
         .pointAltitude(0.001)
-        .pointRadius(0.08)
-        .pointColor(() => "rgba(196,181,253,0.12)")
+        .pointRadius(0.04)
+        .pointColor((d: object) => {
+          const c = (d as MapPinGroup).clanColor || "#a78bfa";
+          return c.length === 7 ? `${c}22` : "rgba(196,181,253,0.12)";
+        })
         .pointLabel(() => "")
         .onPointHover((d: object | null) => {
           if (!d) {
@@ -179,25 +191,35 @@ export function ClanMapClient() {
           setHover(grp);
           setPanel(grp);
         })
-        // atmospheric glow rings around player markers
         .ringsData([])
         .ringLat("lat")
         .ringLng("lon")
         .ringAltitude(0.0015)
-        .ringColor(() => (t: number) => `rgba(167,139,250,${0.45 * Math.sqrt(Math.max(0, 1 - t))})`)
-        .ringMaxRadius(1.6)
+        .ringColor((d: object) => {
+          const hex = (d as MapPinGroup).clanColor || "#a78bfa";
+          const r = parseInt(hex.slice(1, 3), 16) || 167;
+          const g = parseInt(hex.slice(3, 5), 16) || 139;
+          const b = parseInt(hex.slice(5, 7), 16) || 250;
+          return (t: number) =>
+            `rgba(${r},${g},${b},${0.45 * Math.sqrt(Math.max(0, 1 - t))})`;
+        })
+        .ringMaxRadius(0.85)
         .ringPropagationSpeed(1.4)
         .ringRepeatPeriod(1600)
-        // HTML pin flush to surface at exact geolocation
         .htmlElementsData([])
         .htmlLat("lat")
         .htmlLng("lon")
         .htmlAltitude(0.001)
         .htmlElement((d: object) => {
           const grp = d as MapPinGroup;
+          const color = grp.clanColor || "#a78bfa";
           const wrap = document.createElement("div");
           wrap.className = "clan-map-pin-wrap";
-          wrap.title = `${grp.city} · ${grp.country}`;
+          const clanLabel = grp.clanTag
+            ? `[${grp.clanTag}] ${grp.clanName || ""}`.trim()
+            : "без клана";
+          wrap.title = `${clanLabel} · ${grp.city} · ${grp.country}`;
+          wrap.style.setProperty("--pin-color", color);
           const glow = document.createElement("div");
           glow.className = "clan-map-pin-glow";
           const core = document.createElement("div");
@@ -390,14 +412,14 @@ export function ClanMapClient() {
     <div className="clan-map-page">
       <div className="clan-map-bar">
         <div className="clan-map-bar-left">
-          <h1>Карта клана</h1>
+          <h1>Карта игроков</h1>
           <div className="clan-map-stats" aria-label="Статистика карты">
             <div className="clan-map-stat">
-              <span className="clan-map-stat-label">Всего в клане на площадке</span>
+              <span className="clan-map-stat-label">Игроков в кланах на площадке</span>
               <span className="clan-map-stat-value">{clanMemberCount}</span>
             </div>
             <div className="clan-map-stat">
-              <span className="clan-map-stat-label">Отметок на карту поставили</span>
+              <span className="clan-map-stat-label">Отметок на карте</span>
               <span className="clan-map-stat-value">{pinCount}</span>
             </div>
           </div>
@@ -441,17 +463,40 @@ export function ClanMapClient() {
               ×
             </button>
           ) : null}
+          {tip.clanTag ? (
+            <div
+              className="clan-map-tip-clan"
+              style={{ borderColor: tip.clanColor || "#a78bfa" }}
+            >
+              <span
+                className="clan-map-tip-clan-dot"
+                style={{ background: tip.clanColor || "#a78bfa" }}
+              />
+              <strong>
+                [{tip.clanTag}] {tip.clanName || ""}
+              </strong>
+            </div>
+          ) : (
+            <div className="clan-map-tip-clan">
+              <strong>Без клана</strong>
+            </div>
+          )}
           <strong>
             {tip.city}
             {tip.region ? `, ${tip.region}` : ""} · {tip.country}
           </strong>
-          <span className="muted">Участники ({tip.members.length}):</span>
+          <span className="muted">Игроки ({tip.members.length}):</span>
           <ul className="clan-map-tip-list">
             {tip.members.map((m) => {
               const canRemove = m.userId === myUserId || canModerate;
               return (
                 <li key={m.userId}>
-                  <span>{m.nick}</span>
+                  <span>
+                    {m.nick}
+                    {m.clanTag ? (
+                      <span className="muted"> · [{m.clanTag}]</span>
+                    ) : null}
+                  </span>
                   {canRemove && panel ? (
                     <button
                       type="button"

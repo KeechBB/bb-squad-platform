@@ -3,21 +3,28 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isAdmin } from "@/lib/admin";
-import { countBlackberryClanMembers, isBlackberryClanMember } from "@/lib/blackberryClan";
+import { isAnyClanMember } from "@/lib/clanAccess";
+import { clanMapColor, clanPinJitter } from "@/lib/clanMapColor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function requireBbMember() {
+async function requireClanMember() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.steamId || !session.user.profileComplete) {
-    return { ok: false as const, response: NextResponse.json({ error: "Нужен полный профиль" }, { status: 401 }) };
-  }
-  if (!(await isBlackberryClanMember(session.user.steamId))) {
     return {
       ok: false as const,
       response: NextResponse.json(
-        { error: "Карта клана только для участников BlackBerry" },
+        { error: "Нужен полный профиль" },
+        { status: 401 }
+      ),
+    };
+  }
+  if (!(await isAnyClanMember(session.user.steamId))) {
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "Карта игроков только для участников клана" },
         { status: 403 }
       ),
     };
@@ -34,9 +41,13 @@ export type MapPinPublic = {
   city: string;
   lat: number;
   lon: number;
+  clanId: string | null;
+  clanTag: string | null;
+  clanName: string | null;
+  clanColor: string;
 };
 
-/** Сгруппированные точки: один город → список игроков */
+/** Группа: один город + один клан → список игроков */
 export type MapPinGroup = {
   key: string;
   country: string;
@@ -44,28 +55,57 @@ export type MapPinGroup = {
   city: string;
   lat: number;
   lon: number;
-  members: { userId: string; nick: string; pinId: string }[];
+  clanId: string | null;
+  clanTag: string | null;
+  clanName: string | null;
+  clanColor: string;
+  members: {
+    userId: string;
+    nick: string;
+    pinId: string;
+    clanTag: string | null;
+  }[];
 };
 
 function groupPins(pins: MapPinPublic[]): MapPinGroup[] {
   const map = new Map<string, MapPinGroup>();
   for (const p of pins) {
-    const key = `${p.country.trim().toLowerCase()}|${(p.region || "").trim().toLowerCase()}|${p.city.trim().toLowerCase()}`;
+    const clanKey = p.clanId || "none";
+    const key = `${clanKey}|${p.country.trim().toLowerCase()}|${(p.region || "").trim().toLowerCase()}|${p.city.trim().toLowerCase()}`;
     const existing = map.get(key);
     if (existing) {
-      existing.members.push({ userId: p.userId, nick: p.nick, pinId: p.id });
+      existing.members.push({
+        userId: p.userId,
+        nick: p.nick,
+        pinId: p.id,
+        clanTag: p.clanTag,
+      });
       const n = existing.members.length;
       existing.lat = (existing.lat * (n - 1) + p.lat) / n;
       existing.lon = (existing.lon * (n - 1) + p.lon) / n;
     } else {
+      const jitter = p.clanId
+        ? clanPinJitter(p.clanId)
+        : { dLat: 0, dLon: 0 };
       map.set(key, {
         key,
         country: p.country,
         region: p.region,
         city: p.city,
-        lat: p.lat,
-        lon: p.lon,
-        members: [{ userId: p.userId, nick: p.nick, pinId: p.id }],
+        lat: p.lat + jitter.dLat,
+        lon: p.lon + jitter.dLon,
+        clanId: p.clanId,
+        clanTag: p.clanTag,
+        clanName: p.clanName,
+        clanColor: p.clanColor,
+        members: [
+          {
+            userId: p.userId,
+            nick: p.nick,
+            pinId: p.id,
+            clanTag: p.clanTag,
+          },
+        ],
       });
     }
   }
@@ -74,25 +114,46 @@ function groupPins(pins: MapPinPublic[]): MapPinGroup[] {
 
 export async function GET() {
   try {
-    const gate = await requireBbMember();
+    const gate = await requireClanMember();
     if (!gate.ok) return gate.response;
     const session = gate.session;
 
     const rows = await prisma.mapPin.findMany({
-      include: { user: { select: { id: true, nick: true, steamName: true } } },
+      include: {
+        user: {
+          select: {
+            id: true,
+            nick: true,
+            steamName: true,
+            clanMemberships: {
+              take: 1,
+              select: {
+                clan: { select: { id: true, tag: true, name: true } },
+              },
+            },
+          },
+        },
+      },
       orderBy: { updatedAt: "desc" },
     });
 
-    const pins: MapPinPublic[] = rows.map((r) => ({
-      id: r.id,
-      userId: r.userId,
-      nick: r.user.nick || r.user.steamName || "Игрок",
-      country: r.country,
-      region: r.region,
-      city: r.city,
-      lat: r.lat,
-      lon: r.lon,
-    }));
+    const pins: MapPinPublic[] = rows.map((r) => {
+      const clan = r.user.clanMemberships[0]?.clan ?? null;
+      return {
+        id: r.id,
+        userId: r.userId,
+        nick: r.user.nick || r.user.steamName || "Игрок",
+        country: r.country,
+        region: r.region,
+        city: r.city,
+        lat: r.lat,
+        lon: r.lon,
+        clanId: clan?.id ?? null,
+        clanTag: clan?.tag ?? null,
+        clanName: clan?.name ?? null,
+        clanColor: clanMapColor(clan?.id || r.userId, clan?.tag),
+      };
+    });
 
     const me = await prisma.user.findUnique({
       where: { steamId: session.user.steamId },
@@ -100,7 +161,7 @@ export async function GET() {
     });
 
     const canModerate = await isAdmin(session.user.steamId);
-    const clanMemberCount = await countBlackberryClanMembers();
+    const clanMemberCount = await prisma.clanMember.count();
 
     return NextResponse.json({
       pins,
@@ -116,9 +177,12 @@ export async function GET() {
     const msg = e instanceof Error ? e.message : "Ошибка БД карты";
     return NextResponse.json(
       {
-        error: msg.includes("mapPin") || msg.includes("MapPin") || msg.includes("does not exist")
-          ? "Таблица меток ещё не создана — нужен prisma db push на сервере"
-          : "Не удалось загрузить метки",
+        error:
+          msg.includes("mapPin") ||
+          msg.includes("MapPin") ||
+          msg.includes("does not exist")
+            ? "Таблица меток ещё не создана — нужен prisma db push на сервере"
+            : "Не удалось загрузить метки",
       },
       { status: 500 }
     );
@@ -126,7 +190,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const gate = await requireBbMember();
+  const gate = await requireClanMember();
   if (!gate.ok) return gate.response;
   const session = gate.session;
 
@@ -155,7 +219,14 @@ export async function POST(req: Request) {
   if (city.length < 1 || city.length > 80) {
     return NextResponse.json({ error: "Укажи город" }, { status: 400 });
   }
-  if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+  if (
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lon) ||
+    lat < -90 ||
+    lat > 90 ||
+    lon < -180 ||
+    lon > 180
+  ) {
     return NextResponse.json({ error: "Некорректные координаты" }, { status: 400 });
   }
 
@@ -170,9 +241,8 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true, pin });
 }
 
-/** Своя метка: DELETE без body. Чужую: ?userId=… (только admin/HR/deputy/super). */
 export async function DELETE(req: Request) {
-  const gate = await requireBbMember();
+  const gate = await requireClanMember();
   if (!gate.ok) return gate.response;
   const session = gate.session;
 
@@ -191,7 +261,10 @@ export async function DELETE(req: Request) {
   if (targetUserId || targetPinId) {
     const canModerate = await isAdmin(session.user.steamId);
     if (!canModerate) {
-      return NextResponse.json({ error: "Нет прав снимать чужие метки" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Нет прав снимать чужие метки" },
+        { status: 403 }
+      );
     }
     if (targetPinId) {
       await prisma.mapPin.deleteMany({ where: { id: targetPinId } });

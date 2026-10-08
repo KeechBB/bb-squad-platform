@@ -196,8 +196,8 @@ export function SiteNav({ showClanSections }: Props) {
         {showClanSections ? (
           <NavLink
             href="/map"
-            title="Карта клана"
-            full="Карта клана"
+            title="Карта игроков"
+            full="Карта игроков"
             short="Карта"
             active={pathMatches(pathname, "/map")}
           />

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { isBlackberryClanMember } from "@/lib/blackberryClan";
+import { isAnyClanMember } from "@/lib/clanAccess";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,9 +37,9 @@ export async function GET(req: Request) {
   if (!session?.user?.steamId || !session.user.profileComplete) {
     return NextResponse.json({ error: "Нужен полный профиль" }, { status: 401 });
   }
-  if (!(await isBlackberryClanMember(session.user.steamId))) {
+  if (!(await isAnyClanMember(session.user.steamId))) {
     return NextResponse.json(
-      { error: "Карта клана только для участников BlackBerry" },
+      { error: "Карта игроков только для участников клана" },
       { status: 403 }
     );
   }

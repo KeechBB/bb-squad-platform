@@ -12350,29 +12350,29 @@ body.profile-match-modal-open {
   cursor: grabbing;
 }
 
-/* Player pin â€” flush to surface, compact bloom */
+/* Player pin ? ~½ size, color = clan (--pin-color) */
 .clan-map-pin-wrap {
+  --pin-color: #a78bfa;
   position: relative;
-  width: 18px;
-  height: 18px;
-  margin-left: -9px;
-  margin-top: -9px;
+  width: 9px;
+  height: 9px;
+  margin-left: -4.5px;
+  margin-top: -4.5px;
   pointer-events: auto;
   cursor: pointer;
 }
 
 .clan-map-pin-glow {
   position: absolute;
-  inset: -5px;
+  inset: -3px;
   border-radius: 50%;
   background: radial-gradient(
     circle,
-    rgba(196, 181, 253, 0.8) 0%,
-    rgba(167, 139, 250, 0.4) 40%,
-    rgba(124, 58, 237, 0.12) 65%,
+    color-mix(in srgb, var(--pin-color) 85%, white) 0%,
+    color-mix(in srgb, var(--pin-color) 45%, transparent) 45%,
     transparent 78%
   );
-  filter: blur(1px);
+  filter: blur(0.8px);
   animation: clan-map-pin-pulse 2.4s ease-in-out infinite;
 }
 
@@ -12380,31 +12380,48 @@ body.profile-match-modal-open {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 6px;
-  height: 6px;
-  margin: -3px 0 0 -3px;
+  width: 3px;
+  height: 3px;
+  margin: -1.5px 0 0 -1.5px;
   border-radius: 50%;
-  background: #ede9fe;
+  background: color-mix(in srgb, var(--pin-color) 35%, white);
   box-shadow:
-    0 0 4px 1px rgba(196, 181, 253, 0.9),
-    0 0 10px 3px rgba(167, 139, 250, 0.45),
-    0 0 16px 5px rgba(124, 58, 237, 0.22);
+    0 0 3px 1px color-mix(in srgb, var(--pin-color) 90%, transparent),
+    0 0 7px 2px color-mix(in srgb, var(--pin-color) 45%, transparent);
 }
 
 .clan-map-pin-n {
   position: absolute;
-  right: -3px;
-  top: -3px;
-  min-width: 12px;
-  height: 12px;
+  right: -4px;
+  top: -4px;
+  min-width: 10px;
+  height: 10px;
   padding: 0 2px;
   border-radius: 999px;
-  background: #7c3aed;
+  background: var(--pin-color);
   color: #fff;
-  font-size: 8px;
-  line-height: 12px;
+  font-size: 7px;
+  line-height: 10px;
   text-align: center;
   font-weight: 700;
+}
+
+.clan-map-tip-clan {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  background: rgba(20, 16, 32, 0.55);
+}
+
+.clan-map-tip-clan-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 @keyframes clan-map-pin-pulse {
