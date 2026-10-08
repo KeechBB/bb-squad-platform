@@ -26,6 +26,7 @@ const OPP_CANON: Record<string, { key: string; tag: string; name: string }> = {
   redfoxes: { key: "FOX", tag: "FOX", name: "RED FOXES" },
   solid: { key: "SOLID", tag: ".solid", name: ".SOLID" },
   ".solid": { key: "SOLID", tag: ".solid", name: ".SOLID" },
+  nklv: { key: "NKLV", tag: "NKLV", name: "NKLV" },
   bb: { key: "BB", tag: "BB", name: "BlackBerry" },
   blackberry: { key: "BB", tag: "BB", name: "BlackBerry" },
   "bb-main": { key: "BB-MAIN", tag: "BB", name: "BlackBerry Main" },
