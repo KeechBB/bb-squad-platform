@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canManageCwChallenges, type ClanRole } from "@/lib/clan";
-import { CW_SERVER_POOL_NOTE, isCwMode } from "@/lib/cwChallenge";
+import { CW_SERVER_POOL_NOTE, isCwFormat, isCwMode } from "@/lib/cwChallenge";
 import { getUserClanMembership } from "@/lib/clanAccess";
 
 export const dynamic = "force-dynamic";
@@ -91,9 +91,9 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
-  if (!Number.isInteger(format) || format < 1 || format > 80) {
+  if (!Number.isInteger(format) || !isCwFormat(format)) {
     return NextResponse.json(
-      { error: "Формат: число игроков от 1 до 80" },
+      { error: "Формат: 8vs8 / 16vs16 / 20vs20 / 26vs26 / 30vs30 / 36vs36" },
       { status: 400 }
     );
   }

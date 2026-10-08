@@ -1,12 +1,18 @@
-/** Моды КВ на площадке. */
+/** Моды КВ на площадке. Картинки: public/cw-modes/<id>.jpg|png|webp */
 export const CW_MODES = [
-  { id: "HOTDROP", label: "Hotdrop" },
-  { id: "CSL", label: "CSL" },
-  { id: "FCL", label: "FCL" },
-  { id: "SEC", label: "SEC" },
+  { id: "HOTDROP", label: "Hotdrop", image: "/cw-modes/hotdrop.jpg" },
+  { id: "CSL", label: "CSL", image: "/cw-modes/csl.jpg" },
+  { id: "FCL", label: "FCL", image: "/cw-modes/fcl.jpg" },
+  { id: "SEC", label: "SEC", image: "/cw-modes/sec.jpg" },
 ] as const;
+/* Пока нет jpg — UI падает на fallback; положи hotdrop/csl/fcl/sec.jpg в public/cw-modes/ */
 
 export type CwModeId = (typeof CW_MODES)[number]["id"];
+
+/** Формат стороны: N vs N */
+export const CW_FORMATS = [8, 16, 20, 26, 30, 36] as const;
+
+export type CwFormat = (typeof CW_FORMATS)[number];
 
 /**
  * Пул наших серверов. Назначается после нахождения матча.
@@ -29,6 +35,14 @@ export function isCwMode(v: string): v is CwModeId {
   return CW_MODES.some((m) => m.id === v);
 }
 
+export function isCwFormat(v: number): v is CwFormat {
+  return (CW_FORMATS as readonly number[]).includes(v);
+}
+
 export function modeLabel(mode: string): string {
   return CW_MODES.find((m) => m.id === mode)?.label || mode;
+}
+
+export function formatLabel(format: number): string {
+  return `${format}vs${format}`;
 }

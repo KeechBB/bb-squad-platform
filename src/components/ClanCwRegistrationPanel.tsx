@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CW_MODES } from "@/lib/cwChallenge";
+import {
+  CW_FORMATS,
+  CW_MODES,
+  formatLabel,
+  type CwFormat,
+} from "@/lib/cwChallenge";
 
 type ChallengeRow = {
   id: string;
@@ -51,9 +56,12 @@ export function ClanCwRegistrationPanel({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [mode, setMode] = useState("HOTDROP");
-  const [format, setFormat] = useState(40);
+  const [mode, setMode] = useState<string>(CW_MODES[0].id);
+  const [format, setFormat] = useState<CwFormat>(20);
   const [scheduledLocal, setScheduledLocal] = useState("");
+  const [brokenModeImg, setBrokenModeImg] = useState<Record<string, boolean>>(
+    {}
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -82,6 +90,10 @@ export function ClanCwRegistrationPanel({
   async function createChallenge(e: React.FormEvent) {
     e.preventDefault();
     if (!(canManageProp && canCreate && myClanId)) return;
+    if (!mode) {
+      setError("Выбери мод");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -129,22 +141,35 @@ export function ClanCwRegistrationPanel({
     }
   }
 
+  async function cancelChallenge(id: string) {
+    if (!(canManageProp && canCreate && myClanId)) return;
+    if (!window.confirm("Отменить эту заявку?")) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/cw-challenges/${id}/cancel`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Не удалось отменить");
+        return;
+      }
+      await load();
+    } catch {
+      setError("Сеть недоступна");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const canManage = canManageProp && canCreate;
-  // standalone (нет clanId) или страница своего клана
   const canOfferCreate =
     canManage && Boolean(myClanId) && (clanId == null || myClanId === clanId);
 
   return (
-    <section className="card">
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 12,
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
+    <section className="card cw-find-card">
+      <div className="cw-find-head">
         <div>
           <h3 className="stats-h3" style={{ marginTop: 0, marginBottom: 4 }}>
             Поиск КВ
@@ -170,41 +195,80 @@ export function ClanCwRegistrationPanel({
       ) : null}
 
       {showForm && canOfferCreate ? (
-        <form className="form" style={{ marginTop: 16 }} onSubmit={createChallenge}>
-          <label className="field">
-            <span>Мод</span>
-            <select
-              value={mode}
-              onChange={(e) => setMode(e.target.value)}
-              required
-            >
-              {CW_MODES.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>Формат (игроков с вашей стороны)</span>
-            <input
-              type="number"
-              min={1}
-              max={80}
-              value={format}
-              onChange={(e) => setFormat(Number(e.target.value))}
-              required
-            />
-          </label>
+        <form className="form cw-find-form" onSubmit={createChallenge}>
+          <div className="field">
+            <span>Мод — нажми на картинку</span>
+            <div className="cw-mode-grid" role="listbox" aria-label="Мод КВ">
+              {CW_MODES.map((m) => {
+                const selected = mode === m.id;
+                const broken = brokenModeImg[m.id];
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    className={`cw-mode-card${selected ? " is-selected" : ""}`}
+                    onClick={() => setMode(m.id)}
+                    disabled={busy}
+                  >
+                    <span className="cw-mode-card-media" aria-hidden>
+                      {!broken ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={m.image}
+                          alt=""
+                          onError={() =>
+                            setBrokenModeImg((prev) => ({
+                              ...prev,
+                              [m.id]: true,
+                            }))
+                          }
+                        />
+                      ) : (
+                        <span className="cw-mode-card-fallback">{m.label}</span>
+                      )}
+                    </span>
+                    <span className="cw-mode-card-label">{m.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="field">
+            <span>Формат</span>
+            <div className="cw-format-grid" role="listbox" aria-label="Формат">
+              {CW_FORMATS.map((f) => {
+                const selected = format === f;
+                return (
+                  <button
+                    key={f}
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    className={`cw-format-chip${selected ? " is-selected" : ""}`}
+                    onClick={() => setFormat(f)}
+                    disabled={busy}
+                  >
+                    {formatLabel(f)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <label className="field">
             <span>Дата и время (МСК)</span>
             <input
+              className="cw-find-datetime"
               type="datetime-local"
               value={scheduledLocal}
               onChange={(e) => setScheduledLocal(e.target.value)}
               required
             />
           </label>
+
           <button className="btn primary" type="submit" disabled={busy}>
             {busy ? "Создаём…" : "Опубликовать заявку"}
           </button>
@@ -215,7 +279,7 @@ export function ClanCwRegistrationPanel({
       {loading ? <p className="muted">Загрузка…</p> : null}
 
       {!loading ? (
-        <div className="admin-table-wrap" style={{ marginTop: 16 }}>
+        <div className="admin-table-wrap cw-find-table-wrap">
           <table className="admin-table">
             <thead>
               <tr>
@@ -243,6 +307,8 @@ export function ClanCwRegistrationPanel({
                     r.status === "OPEN" &&
                     !isMine &&
                     myClanId != null;
+                  const canCancel =
+                    canManage && r.status === "OPEN" && isMine;
                   return (
                     <tr key={r.id}>
                       <td>
@@ -262,7 +328,7 @@ export function ClanCwRegistrationPanel({
                         ) : null}
                       </td>
                       <td>{modeLabel(r.mode)}</td>
-                      <td>{r.format}</td>
+                      <td>{formatLabel(r.format)}</td>
                       <td>{fmtMsk(r.scheduledAt)}</td>
                       <td>
                         {r.assignedServer || (
@@ -279,8 +345,16 @@ export function ClanCwRegistrationPanel({
                           >
                             Принять вызов
                           </button>
-                        ) : isMine && r.status === "OPEN" ? (
-                          <span className="muted">ваша заявка</span>
+                        ) : null}
+                        {canCancel ? (
+                          <button
+                            type="button"
+                            className="btn cw-cancel-btn"
+                            disabled={busy}
+                            onClick={() => void cancelChallenge(r.id)}
+                          >
+                            Отменить
+                          </button>
                         ) : null}
                       </td>
                     </tr>
