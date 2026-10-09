@@ -123,8 +123,11 @@ export function canManageCwChallenges(role: ClanRole): boolean {
   return role === "LEADER" || role === "DEPUTY";
 }
 
+/** Тег: 1–7 символов, буквы/цифры/знаки; без пробелов и управляющих */
 export function isValidClanTag(tag: string): boolean {
-  return /^[A-Za-z0-9]{2,8}$/.test(tag.trim());
+  const t = tag.trim();
+  if (t.length < 1 || t.length > 7) return false;
+  return /^[^\s\u0000-\u001f\u007f]{1,7}$/u.test(t);
 }
 
 export function isValidClanName(name: string): boolean {

@@ -66,7 +66,7 @@ export async function POST(req: Request) {
   }
   if (!isValidClanTag(tag)) {
     return NextResponse.json(
-      { error: "Тег: 2–8 латиница/цифры" },
+      { error: "Тег: 1–7 символов без пробелов" },
       { status: 400 }
     );
   }

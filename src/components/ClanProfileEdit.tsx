@@ -82,12 +82,13 @@ export function ClanProfileEdit({ clanId, name, tag, logoUrl }: Props) {
             />
           </label>
           <label className="field">
-            <span>Тег (2–8, латиница)</span>
+            <span>Тег (1–7, можно символы)</span>
             <input
               value={editTag}
               onChange={(e) => setEditTag(e.target.value.toUpperCase())}
-              maxLength={8}
-              pattern="[A-Za-z0-9]{2,8}"
+              maxLength={7}
+              pattern={"[^\\s]{1,7}"}
+              title="1–7 символов без пробелов"
               required
             />
           </label>
