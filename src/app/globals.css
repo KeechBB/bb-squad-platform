@@ -12496,19 +12496,27 @@ body.profile-match-modal-open {
   font-size: 0.8rem;
   cursor: pointer;
   font-family: inherit;
+  outline: none;
+  box-shadow: none;
+}
+
+.profile-match-tab:focus,
+.profile-match-tab:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 .profile-match-tab-opp {
   border-color: rgba(248, 113, 113, 0.35);
 }
 
-.profile-match-tab.active {
+.profile-match-tab.is-active {
   color: var(--ink);
   border-color: rgba(167, 139, 250, 0.55);
   background: rgba(167, 139, 250, 0.14);
 }
 
-.profile-match-tab-opp.active {
+.profile-match-tab-opp.is-active {
   border-color: rgba(248, 113, 113, 0.6);
   background: rgba(248, 113, 113, 0.14);
 }

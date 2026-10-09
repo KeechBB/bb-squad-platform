@@ -369,6 +369,20 @@ def process_slot(
     if prior and prior.get("rounds", 0) >= 2 and prior.get("status") in ("win", "lose"):
         return False
 
+    # Не затирать уже залитый R2, если в логах раунд больше не находится
+    # (ротация SquadGame.log → парсер видит только R1 → снова «R2 идёт»).
+    players_path = CW_PLAYERS / f"{mid}.json"
+    prior_doc: dict | None = None
+    if players_path.exists():
+        try:
+            prior_doc = json.loads(players_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            prior_doc = None
+    prior_r2_n = len((prior_doc or {}).get("r2") or [])
+    prior_opp_r2_n = len((prior_doc or {}).get("oppR2") or [])
+    if prior_r2_n > 0 and slot.get("status") in ("win", "lose") and slot.get("r2"):
+        return False
+
     t0 = slot_start_utc(slot)
     if not t0:
         return False
@@ -471,6 +485,14 @@ def process_slot(
         ticket_pairs.append((0, 0))
 
     closed_rounds = sum(1 for rows in bb_rounds if rows)
+    # Если парсер потерял R2, а на диске он уже был — не даунгрейдим.
+    if closed_rounds < 2 and prior_r2_n > 0:
+        print(
+            f"  {mid}: skip write — logs show {closed_rounds} round(s), "
+            f"but players file already has R2 ({prior_r2_n}+{prior_opp_r2_n})",
+            flush=True,
+        )
+        return False
     sum_bb = ticket_pairs[0][0] + (ticket_pairs[1][0] if closed_rounds >= 2 else 0)
     sum_opp = ticket_pairs[0][1] + (ticket_pairs[1][1] if closed_rounds >= 2 else 0)
     # Finalize meeting only when both rounds are closed layers.

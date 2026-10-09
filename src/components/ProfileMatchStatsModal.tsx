@@ -361,6 +361,26 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
     };
   }, [open, onClose]);
 
+  /** Если вкладка пустая (нет R2 и т.п.) — уводим на Итого, не держим «пустой» active. */
+  useEffect(() => {
+    if (!data || data.training) return;
+    const len: Record<TabKey, number> = {
+      total: data.total.length,
+      bbTotal: data.bbTotal.length,
+      r1: data.r1.length,
+      r2: data.r2.length,
+      oppTotal: data.oppTotal.length,
+      oppR1: data.oppR1.length,
+      oppR2: data.oppR2.length,
+      teamA: data.teamA.length,
+      teamB: data.teamB.length,
+    };
+    if ((len[tab] || 0) > 0) return;
+    if (data.r1.length) setTab("r1");
+    else if (data.bbTotal.length) setTab("bbTotal");
+    else setTab("total");
+  }, [data, tab]);
+
   const rows = useMemo(() => {
     if (!data) return [];
     if (data.training) {
@@ -512,51 +532,67 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
       : open.kind === "cw"
         ? [
             {
-              key: "total",
+              key: "total" as const,
               label: showSidePrefix ? "Итого · все" : "Итого",
-              group: "bb",
+              group: "bb" as const,
             },
             ...(data?.hasOpp
-              ? ([
+              ? [
                   {
-                    key: "bbTotal",
+                    key: "bbTotal" as const,
                     label: "BB · Итого",
-                    group: "bb",
+                    group: "bb" as const,
                   },
-                ] as const)
+                ]
               : []),
-            {
-              key: "r1",
-              label: showSidePrefix
-                ? `BB · ${open.r1Label}`
-                : open.r1Label,
-              group: "bb",
-            },
-            {
-              key: "r2",
-              label: showSidePrefix
-                ? `BB · ${open.r2Label}`
-                : open.r2Label,
-              group: "bb",
-            },
+            ...((data?.r1.length || 0) > 0
+              ? [
+                  {
+                    key: "r1" as const,
+                    label: showSidePrefix
+                      ? `BB · ${open.r1Label}`
+                      : open.r1Label,
+                    group: "bb" as const,
+                  },
+                ]
+              : []),
+            ...((data?.r2.length || 0) > 0
+              ? [
+                  {
+                    key: "r2" as const,
+                    label: showSidePrefix
+                      ? `BB · ${open.r2Label}`
+                      : open.r2Label,
+                    group: "bb" as const,
+                  },
+                ]
+              : []),
             ...(data?.hasOpp
-              ? ([
+              ? [
                   {
-                    key: "oppTotal",
+                    key: "oppTotal" as const,
                     label: `${oppTag} · Итого`,
-                    group: "opp",
+                    group: "opp" as const,
                   },
-                  {
-                    key: "oppR1",
-                    label: `${oppTag} · Раунд 1 · ${flipTickets(open.r1Tickets)}`,
-                    group: "opp",
-                  },
-                  {
-                    key: "oppR2",
-                    label: `${oppTag} · Раунд 2 · ${flipTickets(open.r2Tickets)}`,
-                    group: "opp",
-                  },
-                ] as const)
+                  ...((data?.oppR1.length || 0) > 0
+                    ? [
+                        {
+                          key: "oppR1" as const,
+                          label: `${oppTag} · Раунд 1 · ${flipTickets(open.r1Tickets)}`,
+                          group: "opp" as const,
+                        },
+                      ]
+                    : []),
+                  ...((data?.oppR2.length || 0) > 0
+                    ? [
+                        {
+                          key: "oppR2" as const,
+                          label: `${oppTag} · Раунд 2 · ${flipTickets(open.r2Tickets)}`,
+                          group: "opp" as const,
+                        },
+                      ]
+                    : []),
+                ]
               : []),
           ]
         : [];
@@ -598,10 +634,15 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
               <button
                 key={t.key}
                 type="button"
+                aria-pressed={tab === t.key}
                 className={`profile-match-tab${
                   t.group === "opp" ? " profile-match-tab-opp" : ""
-                }${tab === t.key ? " active" : ""}`}
-                onClick={() => setTab(t.key)}
+                }${tab === t.key ? " is-active" : ""}`}
+                onClick={(e) => {
+                  setTab(t.key);
+                  // иначе :focus остаётся на прошлой кнопке и выглядит как «две активные»
+                  (e.currentTarget as HTMLButtonElement).blur();
+                }}
               >
                 {t.label}
               </button>
