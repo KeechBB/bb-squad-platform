@@ -597,6 +597,8 @@ model CwChallenge {
   createdBy        User              @relation("CwChallengeCreator", fields: [createdById], references: [id], onDelete: Cascade)
   acceptedById     String?
   acceptedBy       User?             @relation("CwChallengeAcceptor", fields: [acceptedById], references: [id], onDelete: SetNull)
+  /// Состав принимающего клана (Main / Junior / …), если выбирали при accept
+  acceptorStack    String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   calendarEvents   ClanCalendarEvent[]
@@ -619,6 +621,8 @@ model ClanCalendarEvent {
   opponentTag  String
   opponentName String
   assignedServer String?
+  /// Состав нашего клана на этот матч (если задан при принятии заявки)
+  stack        String?
   status       String   @default("upcoming")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

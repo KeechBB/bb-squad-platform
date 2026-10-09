@@ -9,6 +9,8 @@ import {
   type CwFormat,
 } from "@/lib/cwChallenge";
 
+type SquadOpt = { id: string; name: string };
+
 type ChallengeRow = {
   id: string;
   mode: string;
@@ -19,6 +21,7 @@ type ChallengeRow = {
   status: string;
   challenger: { id: string; tag: string; name: string; logoUrl: string | null };
   acceptor: { id: string; tag: string; name: string; logoUrl: string | null } | null;
+  acceptorStack?: string | null;
   createdByNick: string | null;
 };
 
@@ -66,6 +69,7 @@ export function ClanCwRegistrationPanel({
 }: Props) {
   const [rows, setRows] = useState<ChallengeRow[]>([]);
   const [myClanId, setMyClanId] = useState<string | null>(null);
+  const [mySquads, setMySquads] = useState<SquadOpt[]>([]);
   const [canCreate, setCanCreate] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -77,6 +81,10 @@ export function ClanCwRegistrationPanel({
   const [brokenModeImg, setBrokenModeImg] = useState<Record<string, boolean>>(
     {}
   );
+  const [acceptPick, setAcceptPick] = useState<{
+    challengeId: string;
+    squadId: string;
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -90,6 +98,11 @@ export function ClanCwRegistrationPanel({
       }
       setRows(data.challenges || []);
       setMyClanId(data.myClanId || null);
+      setMySquads(
+        Array.isArray(data.mySquads)
+          ? (data.mySquads as SquadOpt[]).filter((s) => s?.id && s?.name)
+          : []
+      );
       setCanCreate(Boolean(data.canManage));
     } catch {
       setError("Сеть недоступна");
@@ -135,25 +148,53 @@ export function ClanCwRegistrationPanel({
     }
   }
 
-  async function acceptChallenge(id: string) {
-    if (!(canManageProp && canCreate && myClanId)) return;
+  async function postAccept(id: string, squadId?: string) {
     setBusy(true);
     setError("");
     try {
       const res = await fetch(`/api/cw-challenges/${id}/accept`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(squadId ? { squadId } : {}),
       });
       const data = await res.json();
       if (!res.ok) {
+        if (data.needSquad && Array.isArray(data.squads) && data.squads.length) {
+          setMySquads(data.squads);
+          setAcceptPick({
+            challengeId: id,
+            squadId: String(data.squads[0].id || ""),
+          });
+          return;
+        }
         setError(data.error || "Не удалось принять");
         return;
       }
+      setAcceptPick(null);
       await load();
     } catch {
       setError("Сеть недоступна");
     } finally {
       setBusy(false);
     }
+  }
+
+  async function acceptChallenge(id: string) {
+    if (!(canManageProp && canCreate && myClanId)) return;
+    if (mySquads.length >= 2) {
+      setAcceptPick({
+        challengeId: id,
+        squadId: mySquads[0].id,
+      });
+      setError("");
+      return;
+    }
+    await postAccept(id);
+  }
+
+  async function confirmAcceptWithSquad() {
+    if (!acceptPick?.challengeId || !acceptPick.squadId) return;
+    await postAccept(acceptPick.challengeId, acceptPick.squadId);
   }
 
   async function cancelChallenge(id: string) {
@@ -382,6 +423,12 @@ export function ClanCwRegistrationPanel({
                           )}
                         </dd>
                       </div>
+                      {r.status === "ACCEPTED" && r.acceptorStack ? (
+                        <div>
+                          <dt>Состав</dt>
+                          <dd>{r.acceptorStack}</dd>
+                        </div>
+                      ) : null}
                     </dl>
                   </div>
 
@@ -414,6 +461,63 @@ export function ClanCwRegistrationPanel({
               );
             })
           )}
+        </div>
+      ) : null}
+
+      {acceptPick ? (
+        <div
+          className="cw-stack-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="cw-stack-modal-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !busy) setAcceptPick(null);
+          }}
+        >
+          <div className="cw-stack-dialog card">
+            <h4 id="cw-stack-modal-title" style={{ marginTop: 0 }}>
+              Какой состав играет?
+            </h4>
+            <p className="muted" style={{ marginTop: 0 }}>
+              В клане несколько составов — выбери, кто примет этот вызов.
+            </p>
+            <div className="cw-stack-options">
+              {mySquads.map((s) => (
+                <label key={s.id} className="cw-stack-option">
+                  <input
+                    type="radio"
+                    name="cw-accept-squad"
+                    value={s.id}
+                    checked={acceptPick.squadId === s.id}
+                    onChange={() =>
+                      setAcceptPick((p) =>
+                        p ? { ...p, squadId: s.id } : p
+                      )
+                    }
+                  />
+                  <span>{s.name}</span>
+                </label>
+              ))}
+            </div>
+            <div className="avatar-actions" style={{ marginTop: 16 }}>
+              <button
+                type="button"
+                className="btn primary"
+                disabled={busy || !acceptPick.squadId}
+                onClick={() => void confirmAcceptWithSquad()}
+              >
+                {busy ? "…" : "Принять вызов"}
+              </button>
+              <button
+                type="button"
+                className="btn ghost"
+                disabled={busy}
+                onClick={() => setAcceptPick(null)}
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
     </section>

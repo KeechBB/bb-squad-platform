@@ -146,6 +146,16 @@ export async function GET(_req: Request, ctx: Ctx) {
               ? "done"
               : "upcoming";
 
+    const stackName =
+      (e.stack && String(e.stack).trim()) ||
+      (tagUp === "BB" ? "Main" : clan.tag);
+    const stackLogo =
+      tagUp === "BB"
+        ? stackName.toLowerCase().includes("jun")
+          ? clanLogoUrl("BB-JUNIOR")
+          : clanLogoUrl("BB-MAIN")
+        : ourLogo;
+
     matches.push(
       enrichPreview(
         {
@@ -158,7 +168,7 @@ export async function GET(_req: Request, ctx: Ctx) {
           map: modeLabel(modeId),
           mapShort: modeLabel(modeId),
           size: e.format > 0 ? String(e.format) : "—",
-          stack: tagUp === "BB" ? "Main" : clan.tag,
+          stack: stackName,
           server: e.assignedServer || "—",
           rules: "—",
           note: null,
@@ -166,7 +176,7 @@ export async function GET(_req: Request, ctx: Ctx) {
           meeting: null,
           forecast: EMPTY_FORECAST,
         },
-        ourLogo,
+        stackLogo || ourLogo,
         "challenge"
       )
     );

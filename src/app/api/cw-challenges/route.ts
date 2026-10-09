@@ -27,6 +27,13 @@ export async function GET() {
   });
 
   const mine = await getUserClanMembership(session.user.steamId);
+  const mySquads = mine
+    ? await prisma.clanSquad.findMany({
+        where: { clanId: mine.membership.clanId },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        select: { id: true, name: true },
+      })
+    : [];
 
   return NextResponse.json({
     ok: true,
@@ -35,6 +42,7 @@ export async function GET() {
     canManage: mine
       ? canManageCwChallenges(mine.membership.role as ClanRole)
       : false,
+    mySquads,
     challenges: rows.map((r) => ({
       id: r.id,
       mode: r.mode,
@@ -45,6 +53,7 @@ export async function GET() {
       status: r.status,
       challenger: r.challengerClan,
       acceptor: r.acceptorClan,
+      acceptorStack: r.acceptorStack,
       createdByNick: r.createdBy.nick,
     })),
   });

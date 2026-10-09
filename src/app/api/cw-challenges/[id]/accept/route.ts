@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
 
 /** Принять вызов — глава/зам другого клана. Пишет события в календари обоих. */
-export async function POST(_req: Request, ctx: Ctx) {
+export async function POST(req: Request, ctx: Ctx) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.steamId || !session.user.profileComplete) {
     return NextResponse.json({ error: "Нужен вход" }, { status: 401 });
@@ -57,6 +57,43 @@ export async function POST(_req: Request, ctx: Ctx) {
   }
 
   const acceptor = mine.membership.clan;
+  const squads = await prisma.clanSquad.findMany({
+    where: { clanId: acceptor.id },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    select: { id: true, name: true },
+  });
+
+  const body = await req.json().catch(() => ({}));
+  const squadId = String(
+    (body as { squadId?: string })?.squadId || ""
+  ).trim();
+  const stackRaw = String(
+    (body as { stack?: string })?.stack || ""
+  ).trim();
+
+  let acceptorStack: string | null = null;
+  if (squads.length >= 2) {
+    const picked =
+      (squadId && squads.find((s) => s.id === squadId)) ||
+      (stackRaw &&
+        squads.find(
+          (s) => s.name.toLowerCase() === stackRaw.toLowerCase()
+        )) ||
+      null;
+    if (!picked) {
+      return NextResponse.json(
+        {
+          error: "Выберите состав, который будет играть",
+          needSquad: true,
+          squads,
+        },
+        { status: 400 }
+      );
+    }
+    acceptorStack = picked.name;
+  } else if (squads.length === 1) {
+    acceptorStack = squads[0].name;
+  }
 
   const result = await prisma.$transaction(async (tx) => {
     const updated = await tx.cwChallenge.update({
@@ -65,6 +102,7 @@ export async function POST(_req: Request, ctx: Ctx) {
         status: "ACCEPTED",
         acceptorClanId: acceptor.id,
         acceptedById: mine.userId,
+        acceptorStack,
       },
     });
 
@@ -79,6 +117,8 @@ export async function POST(_req: Request, ctx: Ctx) {
           opponentTag: acceptor.tag,
           opponentName: acceptor.name,
           status: "upcoming",
+          // у заявителя стек оппонента не наш — оставляем пусто
+          stack: null,
         },
         {
           clanId: acceptor.id,
@@ -89,6 +129,7 @@ export async function POST(_req: Request, ctx: Ctx) {
           opponentTag: challenge.challengerClan.tag,
           opponentName: challenge.challengerClan.name,
           status: "upcoming",
+          stack: acceptorStack,
         },
       ],
     });
@@ -96,5 +137,9 @@ export async function POST(_req: Request, ctx: Ctx) {
     return updated;
   });
 
-  return NextResponse.json({ ok: true, challengeId: result.id });
+  return NextResponse.json({
+    ok: true,
+    challengeId: result.id,
+    stack: acceptorStack,
+  });
 }
