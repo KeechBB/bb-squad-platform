@@ -109,6 +109,11 @@ export function canDeleteClan(role: ClanRole): boolean {
   return role === "LEADER";
 }
 
+/** Глава своего клана — имя / тег / лого */
+export function canEditOwnClanIdentity(role: ClanRole | null | undefined): boolean {
+  return role === "LEADER";
+}
+
 export function canDeleteClanSquad(role: ClanRole): boolean {
   return role === "LEADER" || role === "DEPUTY";
 }

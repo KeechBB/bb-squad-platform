@@ -31,8 +31,7 @@ export function detectClanLogoMime(buf: Buffer): ClanLogoMime | null {
   return null;
 }
 
-export async function saveClanLogo(clanId: string, buf: Buffer, mime: ClanLogoMime) {
-  await mkdir(CLAN_LOGO_DIR, { recursive: true });
+async function clearClanLogoFiles(clanId: string) {
   try {
     const files = await readdir(CLAN_LOGO_DIR);
     await Promise.all(
@@ -43,8 +42,17 @@ export async function saveClanLogo(clanId: string, buf: Buffer, mime: ClanLogoMi
   } catch {
     /* empty */
   }
+}
+
+export async function saveClanLogo(clanId: string, buf: Buffer, mime: ClanLogoMime) {
+  await mkdir(CLAN_LOGO_DIR, { recursive: true });
+  await clearClanLogoFiles(clanId);
   const ext = TYPES[mime];
   const filePath = path.join(CLAN_LOGO_DIR, `${clanId}.${ext}`);
   await writeFile(filePath, buf);
   return `/api/clans/logo/${clanId}.${ext}?v=${Date.now()}`;
+}
+
+export async function deleteClanLogo(clanId: string) {
+  await clearClanLogoFiles(clanId);
 }

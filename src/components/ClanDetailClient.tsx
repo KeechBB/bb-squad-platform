@@ -31,6 +31,7 @@ import {
 } from "@/lib/tiers";
 import { ClanRosterChart } from "@/components/ClanRosterChart";
 import { ClanAvgHitmap } from "@/components/ClanAvgHitmap";
+import { ClanProfileEdit } from "@/components/ClanProfileEdit";
 import { SitePresenceBadge } from "@/components/SitePresenceBadge";
 import { subscribeLive } from "@/lib/liveClient";
 
@@ -126,6 +127,7 @@ type Props = {
   canManageTitles: boolean;
   canReviewJoins: boolean;
   canDisband: boolean;
+  canEditClanProfile: boolean;
   canApply: boolean;
   inOtherClan: boolean;
   isLoggedIn: boolean;
@@ -241,6 +243,7 @@ export function ClanDetailClient({
   canManageTitles: initialCanManageTitles,
   canReviewJoins: initialCanReviewJoins,
   canDisband: initialCanDisband,
+  canEditClanProfile = false,
   canApply: initialCanApply,
   inOtherClan,
   isLoggedIn,
@@ -903,8 +906,8 @@ export function ClanDetailClient({
   );
 
   const displayClanLogo =
-    ratingClanLogo(clan.tag.toUpperCase() === "BB" ? "BB-MAIN" : clan.tag) ||
     clan.logoUrl ||
+    ratingClanLogo(clan.tag.toUpperCase() === "BB" ? "BB-MAIN" : clan.tag) ||
     null;
 
   return (
@@ -925,6 +928,17 @@ export function ClanDetailClient({
             <p className="muted" style={{ marginTop: 4 }}>
               Глава: <strong>{clan.leaderNick}</strong>
             </p>
+          ) : null}
+          {canEditClanProfile ? (
+            <div style={{ marginTop: 12 }}>
+              <ClanProfileEdit
+                key={`${clan.id}-${clan.tag}-${clan.name}-${clan.logoUrl || ""}`}
+                clanId={clan.id}
+                name={clan.name}
+                tag={clan.tag}
+                logoUrl={clan.logoUrl}
+              />
+            </div>
           ) : null}
           {myRole ? (
             <p className="muted">

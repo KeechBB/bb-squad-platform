@@ -73,6 +73,11 @@ export async function isSuperAdmin(steamId: string | null | undefined): Promise<
   return (await getUserRole(steamId)) === "SUPER_ADMIN";
 }
 
+/** Главный админ или HR — править имя/тег/лого любого клана */
+export function canEditAnyClanIdentity(role: AppRole | null | undefined): boolean {
+  return role === "SUPER_ADMIN" || role === "HR";
+}
+
 export async function isDeputyOrAbove(steamId: string | null | undefined): Promise<boolean> {
   if (!steamId) return false;
   const role = await getUserRole(steamId);

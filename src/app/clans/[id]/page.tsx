@@ -4,9 +4,11 @@ import { notFound, redirect } from "next/navigation";
 import {
   assignableClanRoles,
   canDeleteClan,
+  canEditOwnClanIdentity,
   canManageClanMembers,
   type ClanRole,
 } from "@/lib/clan";
+import { canEditAnyClanIdentity, getUserRole } from "@/lib/admin";
 import { ClanDetailClient } from "@/components/ClanDetailClient";
 import { ensureDefaultSquads } from "@/lib/squads";
 import {
@@ -192,6 +194,12 @@ export default async function ClanPage({ params }: Props) {
     !inOtherClan &&
     !clan.isExternal;
 
+  const appRole = session?.user?.steamId
+    ? await getUserRole(session.user.steamId)
+    : null;
+  const canEditClanProfile =
+    canEditAnyClanIdentity(appRole) || canEditOwnClanIdentity(myRole);
+
   const tierMap = await loadTierIndex();
   const tierEntries = Array.from(tierMap.entries());
 
@@ -232,6 +240,7 @@ export default async function ClanPage({ params }: Props) {
         canManageTitles={canTitles}
         canReviewJoins={canReviewJoins}
         canDisband={canDisband}
+        canEditClanProfile={canEditClanProfile}
         canApply={canApply}
         inOtherClan={inOtherClan}
         isLoggedIn={Boolean(session?.user?.steamId)}
