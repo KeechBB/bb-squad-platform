@@ -27,6 +27,9 @@ const OPP_CANON: Record<string, { key: string; tag: string; name: string }> = {
   solid: { key: "SOLID", tag: ".solid", name: ".SOLID" },
   ".solid": { key: "SOLID", tag: ".solid", name: ".SOLID" },
   nklv: { key: "NKLV", tag: "NKLV", name: "NKLV" },
+  ra: { key: "RA", tag: "RA", name: "Requiem Aeternam" },
+  requiem: { key: "RA", tag: "RA", name: "Requiem Aeternam" },
+  requiemaeternam: { key: "RA", tag: "RA", name: "Requiem Aeternam" },
   bb: { key: "BB", tag: "BB", name: "BlackBerry" },
   blackberry: { key: "BB", tag: "BB", name: "BlackBerry" },
   "bb-main": { key: "BB-MAIN", tag: "BB", name: "BlackBerry Main" },
@@ -57,6 +60,8 @@ const LOGO_EXT: Record<string, string> = {
   FAL: ".png",
   FOX: ".png",
   SOLID: ".png",
+  RA: ".png",
+  NKLV: ".png",
 };
 
 function normKey(raw: string): string {
