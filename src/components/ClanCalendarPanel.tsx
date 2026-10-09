@@ -13,14 +13,29 @@ function resolveLogoSrc(
   fallbackKey?: string | null,
   alt?: string
 ) {
-  // Сначала канон из /rating-logos — DB upload часто битый
+  // Свой URL (rating-logos / api/clans/logo) важнее fallback —
+  // иначе у чужих кланов всегда подставлялся BB-MAIN.
+  // /uploads/ часто битый — пробуем канон раньше него.
+  const raw = String(src || "").trim();
+  const srcOk =
+    raw &&
+    (raw.includes("/rating-logos/") ||
+      raw.includes("/api/clans/logo/") ||
+      (!raw.includes("/uploads/") && raw.startsWith("/")));
+  if (srcOk) return raw;
   return (
     clanLogoUrl(fallbackKey || "") ||
-    (src && !src.includes("/uploads/") ? src : null) ||
     clanLogoUrl(alt || "") ||
-    (src || null) ||
-    ""
+    (raw || "")
   );
+}
+
+function ourStackFallbackKey(clanTag: string, stack: string): string {
+  const tag = String(clanTag || "").trim().toUpperCase();
+  if (tag === "BB") {
+    return stackMark(stack).cls === "is-junior" ? "BB-JUNIOR" : "BB-MAIN";
+  }
+  return tag || "BB-MAIN";
 }
 
 function LogoImg({
@@ -348,11 +363,10 @@ export function ClanCalendarPanel({
                           <LogoImg
                             src={primary.ourLogo}
                             alt={clanTag}
-                            fallbackKey={
-                              stackMark(primary.stack).cls === "is-junior"
-                                ? "BB-JUNIOR"
-                                : "BB-MAIN"
-                            }
+                            fallbackKey={ourStackFallbackKey(
+                              clanTag,
+                              primary.stack
+                            )}
                           />
                           <LogoImg
                             src={primary.oppLogo}
@@ -396,13 +410,16 @@ export function ClanCalendarPanel({
                     <LogoImg
                       src={selected.ourLogo || clanLogoUrl}
                       alt={clanTag}
-                      fallbackKey={
-                        stackMark(selected.stack).cls === "is-junior"
-                          ? "BB-JUNIOR"
-                          : "BB-MAIN"
-                      }
+                      fallbackKey={ourStackFallbackKey(
+                        clanTag,
+                        selected.stack
+                      )}
                     />
-                    <em>{stackMark(selected.stack).label}</em>
+                    <em>
+                      {String(clanTag || "").toUpperCase() === "BB"
+                        ? stackMark(selected.stack).label
+                        : clanTag}
+                    </em>
                   </div>
                   <div className="clan-fifa-vs">
                     <span>VS</span>
