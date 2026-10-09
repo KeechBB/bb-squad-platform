@@ -1,8 +1,12 @@
-/** Моды КВ. Аватарки Workshop → public/cw-modes/<slug>.jpg (без ссылок на Steam). */
+/**
+ * Моды КВ. Картинки в public/cw-modes/ (локальные файлы сайта, не Steam CDN).
+ * FCL: канон — Fruit Cup League crest (прозрачный PNG). Не брать старый jpg/аватар
+ * из Steam Workshop мода — на сайте всегда fcl.png.
+ */
 export const CW_MODES = [
   { id: "HOTDROP", label: "Hotdrop", image: "/cw-modes/hotdrop.jpg" },
   { id: "CSL", label: "CSL", image: "/cw-modes/csl.jpg" },
-  { id: "FCL", label: "FCL", image: "/cw-modes/fcl.jpg" },
+  { id: "FCL", label: "FCL", image: "/cw-modes/fcl.png" },
   { id: "SEC", label: "SEC", image: "/cw-modes/sec.jpg" },
 ] as const;
 
@@ -82,3 +86,7 @@ export function modeImage(mode: string): string {
   const id = isCwMode(mode) ? mode : detectCwModeFromText(mode);
   return CW_MODES.find((m) => m.id === id)?.image || "/cw-modes/hotdrop.jpg";
 }
+
+/** Cache-bust for mode art (bump when replacing public/cw-modes/*). */
+export const CW_MODE_IMAGE_V = "4";
+

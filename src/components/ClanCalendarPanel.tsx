@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { canonOpp, clanLogoUrl } from "@/lib/clanLogo";
+import { CW_MODE_IMAGE_V } from "@/lib/cwChallenge";
 import {
   confidenceLabel,
   formatMatchDate,
@@ -376,7 +377,7 @@ export function ClanCalendarPanel({
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             className="clan-fifa-cell-mod"
-                            src={`${primary.modeImage}?v=3`}
+                            src={`${primary.modeImage}?v=${CW_MODE_IMAGE_V}`}
                             alt={primary.modeLabel}
                           />
                         </span>
@@ -440,7 +441,10 @@ export function ClanCalendarPanel({
 
                 <div className={`clan-fifa-modbanner is-mode-${selected.modeId.toLowerCase()}`}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={`${selected.modeImage}?v=3`} alt={selected.modeLabel} />
+                  <img
+                    src={`${selected.modeImage}?v=${CW_MODE_IMAGE_V}`}
+                    alt={selected.modeLabel}
+                  />
                   <div>
                     <strong>{selected.modeLabel}</strong>
                     <span>{selected.map}</span>

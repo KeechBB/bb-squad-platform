@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   CW_FORMATS,
+  CW_MODE_IMAGE_V,
   CW_MODES,
   formatLabel,
   modeLabel,
@@ -273,7 +274,7 @@ export function ClanCwRegistrationPanel({
                       {!broken ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={`${m.image}?v=2`}
+                          src={`${m.image}?v=${CW_MODE_IMAGE_V}`}
                           alt=""
                           draggable={false}
                           onError={() =>
@@ -362,7 +363,7 @@ export function ClanCwRegistrationPanel({
                     {!imgBroken ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={`${meta.image}?v=2`}
+                        src={`${meta.image}?v=${CW_MODE_IMAGE_V}`}
                         alt={meta.label}
                         draggable={false}
                         onError={() =>
