@@ -622,32 +622,85 @@ def purge_phantom_train_matches() -> int:
         AUTO_MATCHES.write_text(
             json.dumps(auto2, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
-    # Dedupe day-7 CSL Mutaha by score signature — keep one per (winner, ticketsA, ticketsB)
+    # Dedupe same-day same-score layers (Mutaha phantoms on 07/08/09…) —
+    # keep the row that is in RP ledger / has timeMsk; drop the rest.
     if month_path.is_file():
         data = json.loads(month_path.read_text(encoding="utf-8"))
-        seen_sig: set[tuple] = set()
-        keep = []
-        for m in data.get("matches") or []:
+        ledger_ids: set[str] = set()
+        for name in ("rp-ledger.json", "rp-ladder.json"):
+            lp = TRAIN / name
+            if not lp.is_file():
+                continue
+            try:
+                for lm in json.loads(lp.read_text(encoding="utf-8")).get("matches") or []:
+                    mid0 = str(lm.get("id") or "")
+                    if mid0:
+                        ledger_ids.add(mid0)
+            except Exception:
+                pass
+
+        def _dup_sig(m: dict) -> tuple | None:
             mid = str(m.get("id") or "")
-            if m.get("day") == 7 and (
-                mid.startswith("07-cslmutaha") or mid.startswith("07-mutahaskirmish")
+            ml = mid.lower()
+            map_l = str(m.get("map") or "").lower()
+            if not (
+                "mutaha" in ml
+                or "mutaha" in map_l
+                or "mutahaskirmish" in ml
             ):
-                sig = (
-                    str(m.get("winner") or ""),
-                    int(m.get("ticketsA") or 0),
-                    int(m.get("ticketsB") or 0),
-                    str(m.get("map") or ""),
-                )
-                if sig in seen_sig:
-                    drop_ids.add(mid)
-                    p = PLAYERS / f"{mid}.json"
-                    if p.is_file():
-                        p.unlink(missing_ok=True)
-                    removed += 1
-                    print(f"purge dup {mid} {sig}", flush=True)
+                return None
+            day = m.get("day")
+            if day is None:
+                return None
+            return (
+                int(day),
+                str(m.get("winner") or ""),
+                int(m.get("ticketsA") or 0),
+                int(m.get("ticketsB") or 0),
+                str(m.get("map") or "").strip().lower(),
+            )
+
+        def _keep_score(m: dict) -> tuple:
+            mid = str(m.get("id") or "")
+            time = str(m.get("timeMsk") or m.get("time") or "").strip()
+            has_time = 1 if time and time not in ("—", "-", "") else 0
+            in_led = 1 if mid in ledger_ids else 0
+            # higher suffix usually = later real ingest (09-cslmutaha-3 > -2)
+            suf = 0
+            if "-" in mid:
+                tail = mid.rsplit("-", 1)[-1]
+                if tail.isdigit():
+                    suf = int(tail)
+            return (in_led, has_time, suf)
+
+        by_sig: dict[tuple, list[dict]] = {}
+        for m in data.get("matches") or []:
+            sig = _dup_sig(m)
+            if sig is None:
+                continue
+            by_sig.setdefault(sig, []).append(m)
+
+        for sig, group in by_sig.items():
+            if len(group) < 2:
+                continue
+            group_sorted = sorted(group, key=_keep_score, reverse=True)
+            keep_mid = str(group_sorted[0].get("id") or "")
+            for m in group_sorted[1:]:
+                mid = str(m.get("id") or "")
+                if not mid or mid == keep_mid:
                     continue
-                seen_sig.add(sig)
-            keep.append(m)
+                drop_ids.add(mid)
+                p = PLAYERS / f"{mid}.json"
+                if p.is_file():
+                    p.unlink(missing_ok=True)
+                removed += 1
+                print(f"purge dup {mid} keep={keep_mid} {sig}", flush=True)
+
+        keep = [
+            m
+            for m in (data.get("matches") or [])
+            if str(m.get("id") or "") not in drop_ids
+        ]
         data["matches"] = keep
         month_path.write_text(
             json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
