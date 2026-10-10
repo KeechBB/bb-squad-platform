@@ -184,6 +184,22 @@ def training_evening_msk(start_utc: datetime) -> datetime:
     return msk
 
 
+def _train_evening_minutes(time_msk: str | None) -> int:
+    """Sort key minutes: 00:00–00:29 → after 23:59 (хвост вечера)."""
+    t = str(time_msk or "").strip()
+    m = re.match(r"^(\d{1,2}):(\d{2})", t)
+    if not m:
+        return -1
+    h, mi = int(m.group(1)), int(m.group(2))
+    if h == 0 and mi <= 29:
+        return 24 * 60 + mi
+    return h * 60 + mi
+
+
+def _train_chrono_key(m: dict) -> tuple:
+    return (int(m.get("day") or 0), _train_evening_minutes(m.get("timeMsk")))
+
+
 def match_id_for(m: dict, *, used_ids: set[str] | None = None) -> str:
     """Stable id; if same map already used that day, append -2, -3, …"""
     msk = training_evening_msk(m["start"] if m["start"].tzinfo else m["start"].replace(tzinfo=timezone.utc))
@@ -512,7 +528,7 @@ def upsert_month(match_meta: dict) -> None:
     mid = match_meta["id"]
     matches = [m for m in matches if m.get("id") != mid]
     matches.append(match_meta["row"])
-    matches.sort(key=lambda m: (m.get("day") or 0, m.get("timeMsk") or ""))
+    matches.sort(key=_train_chrono_key)
     data["matches"] = matches
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
