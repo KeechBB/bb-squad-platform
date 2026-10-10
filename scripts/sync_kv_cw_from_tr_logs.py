@@ -180,6 +180,23 @@ def looks_opp_tag(nick: str, opp: str) -> bool:
     return False
 
 
+def looks_foreign_clan_tag(nick: str) -> bool:
+    """Any decorative clan tag that is not BB (RA/DCAI/… leaked onto BB side)."""
+    n = nick or ""
+    if not n or looks_bb_nick(n):
+        return False
+    if re.search(
+        r"[✠✥❖↯『\[\u2726]\s*(?!BB\b)[A-Za-zА-Яа-я0-9]{2,8}\s*[✠✥❖↯』\]\u2726]",
+        n,
+        re.I,
+    ):
+        return True
+    u = n.upper()
+    if "RA" in u and re.search(r"[✠✥❖\u2726]", n):
+        return True
+    return False
+
+
 def load_cw_slots() -> list[dict]:
     """CW rows to try against TR1/TR2 logs.
 
@@ -228,9 +245,19 @@ def slot_start_utc(slot: dict) -> datetime | None:
     return None
 
 
+def _normalize_map_stem(stem: str) -> str:
+    """Collapse known Squad layer typos / spelling variants."""
+    s = (stem or "").lower()
+    # SEC pack sometimes ships AlBasras instead of AlBasrah
+    s = s.replace("albasras", "albasrah")
+    # bare AlBasra / Al Basra (not already AlBasrah)
+    s = re.sub(r"albasra(?!h)", "albasrah", s)
+    return s
+
+
 def map_fuzzy_match(slot_map: str, layer: str) -> bool:
-    a = _map_stem(slot_map).lower()
-    b = _map_stem(layer).lower()
+    a = _normalize_map_stem(_map_stem(slot_map))
+    b = _normalize_map_stem(_map_stem(layer))
     if not a or not b:
         return False
     if a == b:
@@ -274,17 +301,17 @@ def split_bb_opp(
         bb_side, opp_side = team_a, team_b
     else:
         bb_side, opp_side = team_b, team_a
-    # hard filter: tagged opp never stay on BB list
-    if opp:
-        keep, dump = [], []
-        for r in bb_side:
-            if looks_opp_tag(str(r.get("nick") or ""), opp):
-                dump.append(r)
-            else:
-                keep.append(r)
-        if dump:
-            bb_side = keep
-            opp_side = list(opp_side) + dump
+    # hard filter: tagged opp / any foreign clan tag never stay on BB list
+    keep, dump = [], []
+    for r in bb_side:
+        nick = str(r.get("nick") or "")
+        if (opp and looks_opp_tag(nick, opp)) or looks_foreign_clan_tag(nick):
+            dump.append(r)
+        else:
+            keep.append(r)
+    if dump:
+        bb_side = keep
+        opp_side = list(opp_side) + dump
     return bb_side, opp_side, bb_is_team_a
 
 
@@ -541,17 +568,22 @@ def process_slot(
         "note": (slot.get("note") or "") + " · авто TR обе команды",
         "status": status,
     }
+    stack = str(slot.get("stack") or "Main")
+    rules = str(slot.get("rules") or "")
+    map_label = layer_names[0] if layer_names else slot_map
+    srv = "TR2" if "TR2" in server_label.upper() or "Blackberries #2" in server_label else "TR1"
+    head = f"{stack} · {rules} · {map_label} · {srv}".replace(" ·  · ", " · ")
     if closed_rounds >= 2:
         patch["r2"] = f"{ticket_pairs[1][0]}:{ticket_pairs[1][1]}"
         patch["meeting"] = meeting
         patch["note"] = (
-            f"Main · HOTDROP Narva · TR2 · сумма {sum_bb}:{sum_opp} "
+            f"{head} · сумма {sum_bb}:{sum_opp} "
             f"({ticket_pairs[0][0]}:{ticket_pairs[0][1]} · {ticket_pairs[1][0]}:{ticket_pairs[1][1]}) · "
             f"авто обе команды"
         )
     else:
         patch["note"] = (
-            f"Main · HOTDROP Narva · TR2 · R1 {ticket_pairs[0][0]}:{ticket_pairs[0][1]} · "
+            f"{head} · R1 {ticket_pairs[0][0]}:{ticket_pairs[0][1]} · "
             f"R2 идёт · авто обе команды"
         )
         # clear stale finalize fields if re-writing partial
@@ -649,6 +681,7 @@ def main() -> int:
     AUTO_CW.write_text(json.dumps(auto, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     if added:
         bump_cache_bust()
+        publish_cw_live_mirrors(auto)
         try:
             import bb_alerts as AL  # noqa: WPS433
 
@@ -663,6 +696,71 @@ def main() -> int:
             print(f"alert cw skip: {e}", flush=True)
     print(f"done added={added}", flush=True)
     return 0
+
+
+def publish_cw_live_mirrors(auto: list[dict] | None = None) -> None:
+    """Copy CW calendar + player files into platform kv-cache for immediate site."""
+    import shutil
+
+    mirrors: list[Path] = []
+    for raw in (
+        os.environ.get("KV_LOCAL_DIR", "").strip(),
+        "/var/www/bb-squad-platform/data/kv-cache",
+        str(HERE.parents[0] / "data" / "kv-cache"),
+    ):
+        if not raw:
+            continue
+        p = Path(raw)
+        try:
+            if p.resolve() == KV_PUBLIC.resolve():
+                continue
+        except Exception:
+            pass
+        if (p / "data").is_dir() or p.is_dir():
+            mirrors.append(p)
+    if not mirrors:
+        return
+
+    rels = [
+        "data/cache-bust.json",
+        "data/_auto_cw_matches.json",
+        "app.js",
+    ]
+    # current-month calendars
+    for path in (KV_PUBLIC / "data").glob("20??-??.json"):
+        if "training" in path.name:
+            continue
+        rels.append(f"data/{path.name}")
+    # player files from auto ledger + any recent id we know
+    ids: set[str] = set()
+    for row in auto or []:
+        mid = str(row.get("id") or "").strip()
+        if mid:
+            ids.add(mid)
+    try:
+        for path in (KV_PUBLIC / "data").glob("20??-??.json"):
+            if "training" in str(path):
+                continue
+            doc = json.loads(path.read_text(encoding="utf-8"))
+            for m in doc.get("matches") or []:
+                if m.get("playersUrl"):
+                    mid = str(m.get("id") or "")
+                    if mid:
+                        ids.add(mid)
+    except Exception:
+        pass
+    for mid in ids:
+        rels.append(f"data/players/{mid}.json")
+
+    for dest_root in mirrors:
+        for rel in rels:
+            src = KV_PUBLIC / rel
+            if not src.is_file():
+                continue
+            dst = dest_root / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+        print(f"mirrored CW data → {dest_root}", flush=True)
 
 
 if __name__ == "__main__":
