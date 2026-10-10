@@ -71,14 +71,16 @@ export default async function HomePage() {
       </div>
 
       <HomeFit>
-        <section className="home-hero" aria-label="BlackBerry">
-          <div className="home-hero-brand">
-            <h1>BLACKBERRY</h1>
-            <p className="home-hero-sub">Автоматизированная игровая платформа</p>
-            <p className="home-hero-welcome">
+        <div className="home-side">
+          <aside className="home-welcome-plaque" aria-label="О платформе">
+            <p className="home-welcome-plaque-title">BLACKBERRY</p>
+            <p className="home-welcome-plaque-sub">
+              Автоматизированная игровая платформа
+            </p>
+            <p className="home-welcome-plaque-lead">
               Добро пожаловать на официальный портал сообщества BlackBerry Squad.
             </p>
-            <p className="home-hero-tag">
+            <p className="home-welcome-plaque-body">
               Здесь <strong>подробная</strong> аналитика. Игровые серверы полностью{" "}
               <strong>синхронизированы</strong> с платформой:{" "}
               <strong>каждый</strong> фраг, выстрел, время и другие показатели
@@ -86,22 +88,35 @@ export default async function HomePage() {
               ваших навыков. Цель — прозрачная соревновательная экосистема для всех{" "}
               <strong>игроков</strong> и участников <strong>кланов</strong>.
             </p>
-            <p className="home-hero-note">
+            <p className="home-welcome-plaque-note">
               В скором времени планируем проводить различные{" "}
               <strong>турниры</strong> для всех желающих.
             </p>
-          </div>
-        </section>
-
-        <div className="home-side">
-          {/* Календарь перенесён в профиль клана — слот пока пустой */}
-          <div className="home-calendar-slot" aria-hidden="true" />
+          </aside>
           <HomePanels
             pwrBoard={pwrBoard}
             publicTop={publicTop}
             viewerNick={session?.user?.nick || null}
           />
         </div>
+
+        <section className="home-hero" aria-label="BlackBerry">
+          <div className="home-hero-brand">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              className="home-crest"
+              src="/blackberry.png"
+              alt=""
+              width={280}
+              height={280}
+            />
+            <p className="home-hero-kicker">Squad - Фруктовый сад</p>
+            <h1>BLACKBERRY</h1>
+            <p className="home-hero-tag">
+              Платформа клана BlackBerry — Рейтинг, Аналитика, статистика.
+            </p>
+          </div>
+        </section>
       </HomeFit>
     </main>
   );
