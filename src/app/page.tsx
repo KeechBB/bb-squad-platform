@@ -91,10 +91,22 @@ export default async function HomePage() {
               width={280}
               height={280}
             />
-            <p className="home-hero-kicker">Squad - Фруктовый сад</p>
             <h1>BLACKBERRY</h1>
+            <p className="home-hero-sub">Автоматизированная игровая платформа</p>
+            <p className="home-hero-welcome">
+              Добро пожаловать на официальный портал сообщества BlackBerry Squad.
+            </p>
             <p className="home-hero-tag">
-              Платформа клана BlackBerry — Рейтинг, Аналитика, статистика.
+              Здесь <strong>подробная</strong> аналитика. Игровые серверы полностью{" "}
+              <strong>синхронизированы</strong> с платформой:{" "}
+              <strong>каждый</strong> фраг, выстрел, время и другие показатели
+              фиксируются в <strong>реальном времени</strong> — объективная оценка
+              ваших навыков. Цель — прозрачная соревновательная экосистема для всех{" "}
+              <strong>игроков</strong> и участников <strong>кланов</strong>.
+            </p>
+            <p className="home-hero-note">
+              В скором времени планируем проводить различные{" "}
+              <strong>турниры</strong> для всех желающих.
             </p>
           </div>
         </section>
