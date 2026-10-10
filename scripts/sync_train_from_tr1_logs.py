@@ -103,6 +103,79 @@ def msk_hour_ok(start_utc: datetime) -> bool:
     return (21 * 60 + 30 <= minutes < 24 * 60) or (minutes < 30)
 
 
+def load_cw_slot_windows() -> list[dict]:
+    """CW calendar windows — training ingest must never eat these layers."""
+    try:
+        from sync_kv_cw_from_tr_logs import (  # noqa: WPS433
+            calendar_server_key,
+            map_fuzzy_match,
+            slot_start_utc,
+        )
+    except Exception:
+        return []
+
+    out: list[dict] = []
+    for path in sorted((KV_PUBLIC / "data").glob("20??-??.json")):
+        if "training" in str(path):
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        month = str(data.get("month") or path.stem)
+        try:
+            y, mo = map(int, month.split("-")[:2])
+        except Exception:
+            continue
+        for m in data.get("matches") or []:
+            st = str(m.get("status") or "")
+            if st not in ("upcoming", "win", "lose"):
+                continue
+            slot = {**m, "_year": y, "_month": mo, "_monthKey": month}
+            t0 = slot_start_utc(slot)
+            if not t0:
+                continue
+            want = calendar_server_key(str(m.get("server") or ""))
+            out.append(
+                {
+                    "id": m.get("id"),
+                    "opp": m.get("opp"),
+                    "map": str(m.get("map") or ""),
+                    "t0": t0,
+                    "t1": t0 + timedelta(hours=4),
+                    "want_sk": want,  # TR1/TR2 or None
+                    "match": map_fuzzy_match,
+                }
+            )
+    return out
+
+
+def layer_is_cw_slot(
+    start: datetime,
+    layer: str,
+    server_key: str,
+    windows: list[dict] | None = None,
+) -> dict | None:
+    """If layer belongs to a CW slot, return that slot info (skip training write)."""
+    wins = windows if windows is not None else load_cw_slot_windows()
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=timezone.utc)
+    sk = (server_key or "").upper()
+    for w in wins:
+        if start < w["t0"] - timedelta(minutes=45) or start > w["t1"]:
+            continue
+        want = w.get("want_sk")
+        if want in {"TR1", "TR2"} and sk and want not in sk:
+            continue
+        try:
+            if not w["match"](w["map"], layer):
+                continue
+        except Exception:
+            continue
+        return w
+    return None
+
+
 def training_evening_msk(start_utc: datetime) -> datetime:
     """MSK clock for id/day: 00:00–00:29 counts as previous calendar evening."""
     msk = start_utc + timedelta(hours=3)
@@ -692,12 +765,14 @@ def reconcile_orphan_player_files() -> int:
 
         time_msk = "—"
         month_key = None
+        start_utc: datetime | None = None
         am = auto_by_id.get(mid)
         if am and am.get("start"):
             try:
                 start = datetime.fromisoformat(str(am["start"]).replace("Z", "+00:00"))
                 if start.tzinfo is None:
                     start = start.replace(tzinfo=timezone.utc)
+                start_utc = start
                 msk = start + timedelta(hours=3)
                 time_msk = msk.strftime("%H:%M")
                 month_key = f"{msk.year:04d}-{msk.month:02d}"
@@ -709,6 +784,31 @@ def reconcile_orphan_player_files() -> int:
             month_key = months[0].stem if months else None
         if not month_key:
             continue
+
+        # Never resurrect CW layers into training (AVG AlBasras leak 10.10).
+        sk = str(doc.get("serverKey") or "")
+        layer = str(doc.get("map") or "")
+        if start_utc is None and month_key and time_msk != "—":
+            try:
+                y, mo = map(int, month_key.split("-")[:2])
+                hh, mm = map(int, time_msk.split(":")[:2])
+                start_utc = datetime(y, mo, day, hh, mm, tzinfo=timezone.utc) - timedelta(
+                    hours=3
+                )
+            except Exception:
+                start_utc = None
+        if start_utc is not None:
+            cw_hit = layer_is_cw_slot(start_utc, layer, sk)
+            if cw_hit:
+                try:
+                    path.unlink()
+                except OSError:
+                    pass
+                print(
+                    f"reconcile drop CW orphan {mid} → {cw_hit.get('id')} vs {cw_hit.get('opp')}",
+                    flush=True,
+                )
+                continue
 
         side_a = doc.get("sideA") or {}
         side_b = doc.get("sideB") or {}
@@ -777,6 +877,7 @@ def main() -> int:
         if s:
             known_starts.add(s)
 
+    cw_windows = load_cw_slot_windows()
     added = 0
     for m in discovered:
         start: datetime = m["start"]
@@ -795,6 +896,48 @@ def main() -> int:
             continue
 
         start_iso = start.isoformat()
+        log_path = Path(m["logPath"]) if m.get("logPath") else CACHE / m.get("log", "")
+        if not log_path.is_file():
+            continue
+        import bb_log_fleet as FLEET  # noqa: WPS433
+
+        server_key = FLEET.infer_server_from_path(log_path)
+        # CW check BEFORE known_starts — иначе уже залитый КВ-слой навсегда
+        # останется «тренировкой» и не попадёт под skip.
+        cw_hit = layer_is_cw_slot(start, layer, server_key, cw_windows)
+        if cw_hit:
+            known_starts.add(start_iso)
+            # Drop any prior non-skip auto row for this start (CW leak cleanup).
+            auto[:] = [
+                a
+                for a in auto
+                if not (
+                    str(a.get("start") or "") == start_iso and not a.get("skip")
+                )
+            ]
+            skip_id = f"cw-skip-{cw_hit.get('id') or 'slot'}-{start.strftime('%H%M%S')}"
+            if not any(a.get("id") == skip_id for a in auto):
+                auto.append(
+                    {
+                        "id": skip_id,
+                        "map": layer,
+                        "date": (start + timedelta(hours=3)).strftime("%Y-%m-%d"),
+                        "log": log_path.name,
+                        "start": start_iso,
+                        "end": end.isoformat(),
+                        "skip": True,
+                        "note": (
+                            f"КВ-слот {cw_hit.get('id')} vs {cw_hit.get('opp')} "
+                            f"— не тренировка (source=tr-train-skip-cw)"
+                        ),
+                    }
+                )
+            print(
+                f"skip CW layer {layer} → {cw_hit.get('id')} vs {cw_hit.get('opp')} {start_iso}",
+                flush=True,
+            )
+            continue
+
         if start_iso in known_starts:
             continue
 
@@ -808,9 +951,6 @@ def main() -> int:
         if mid in known_ids:
             continue
 
-        log_path = Path(m["logPath"]) if m.get("logPath") else CACHE / m.get("log", "")
-        if not log_path.is_file():
-            continue
         idx = R.index_log_combat(log_path, aliases)
         steam = dict(idx.get("steam_to_nick") or {})
         faction_to_team = m.get("factionToTeam") or {}
