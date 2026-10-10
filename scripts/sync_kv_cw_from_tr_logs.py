@@ -42,8 +42,18 @@ TIME_SLACK_MIN = int(os.environ.get("CW_TR_TIME_SLACK_MIN", "45"))
 
 OUR_SERVER_RE = re.compile(
     r"\bTR\s*[12]\b|Blackberry\s*\|?\s*Training|Blackberry\s+Training|"
-    r"Blackberries\s*#|\bBB\b",
+    r"Blackberries\s*#|\bBB\b|FCL\s*ARENA\s*#?\s*2\b",
     re.I,
+)
+
+# Public browser name of our TR2 box (same logs /home/.../TR2).
+TR2_PUBLIC_ALIASES = (
+    "TR2",
+    "FCL ARENA #2",
+    "FCL ARENA 2",
+    "FCLARENA#2",
+    "BLACKBERRIES #2",
+    "BLACKBERRIES#2",
 )
 
 
@@ -52,7 +62,26 @@ def _server_is_ours(server: str, note: str = "") -> bool:
     if OUR_SERVER_RE.search(blob):
         return True
     s = (server or "").strip().upper()
-    return s in {"BB", "TR1", "TR2", "BB TRAINING", "BLACKBERRY"}
+    return s in {"BB", "TR1", "TR2", "BB TRAINING", "BLACKBERRY"} or s in {
+        a.upper() for a in TR2_PUBLIC_ALIASES
+    }
+
+
+def calendar_server_key(server: str) -> str | None:
+    """Map calendar `server` label → TR1/TR2 log folder key."""
+    s = re.sub(r"\s+", " ", (server or "").strip().upper())
+    if not s:
+        return None
+    if s in {"TR1", "BLACKBERRIES #1", "BLACKBERRIES#1"} or "BLACKBERRIES #1" in s:
+        return "TR1"
+    # TR2 public name in FCL browser / calendar: FCL ARENA #2
+    if s in {a.upper() for a in TR2_PUBLIC_ALIASES} or re.search(
+        r"FCL\s*ARENA\s*#?\s*2\b", s
+    ):
+        return "TR2"
+    if s == "TR2" or "BLACKBERRIES #2" in s or "BLACKBERRIES#2" in s:
+        return "TR2"
+    return None
 
 
 def sync_tr_logs(server_key: str) -> list[Path]:
@@ -440,11 +469,13 @@ def process_slot(
     if not candidates:
         return False
 
-    # Prefer layers from the slot's TR server when calendar names TR1/TR2;
-    # drop empty-combat ghosts if a richer sibling exists in the same minute window.
-    want_sk = str(slot.get("server") or "").strip().upper()
+    # Prefer layers from the slot's TR server when calendar names TR1/TR2
+    # (or public alias FCL ARENA #2 = TR2).
+    want_sk = calendar_server_key(str(slot.get("server") or ""))
     if want_sk in {"TR1", "TR2"}:
-        preferred = [c for c in candidates if want_sk in str(c.get("serverKey") or "").upper()]
+        preferred = [
+            c for c in candidates if want_sk in str(c.get("serverKey") or "").upper()
+        ]
         if preferred:
             candidates = preferred
 
@@ -493,7 +524,8 @@ def process_slot(
         layer_names.append(m["layer"])
         sk = str(m.get("serverKey") or m.get("server") or "")
         if "TR2" in sk.upper():
-            server_label = "Blackberry | Training - Blackberries #2"
+            # Same box as browser name FCL ARENA #2
+            server_label = "FCL ARENA #2 (TR2 / Blackberries #2)"
         elif "TR1" in sk.upper() or not sk:
             server_label = "Blackberry | Training - Blackberries #1"
 
@@ -571,7 +603,15 @@ def process_slot(
     stack = str(slot.get("stack") or "Main")
     rules = str(slot.get("rules") or "")
     map_label = layer_names[0] if layer_names else slot_map
-    srv = "TR2" if "TR2" in server_label.upper() or "Blackberries #2" in server_label else "TR1"
+    srv = (
+        "TR2"
+        if (
+            "TR2" in server_label.upper()
+            or "Blackberries #2" in server_label
+            or "FCL ARENA #2" in server_label.upper()
+        )
+        else "TR1"
+    )
     head = f"{stack} · {rules} · {map_label} · {srv}".replace(" ·  · ", " · ")
     if closed_rounds >= 2:
         patch["r2"] = f"{ticket_pairs[1][0]}:{ticket_pairs[1][1]}"
