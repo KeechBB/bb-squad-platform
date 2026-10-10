@@ -361,7 +361,7 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
     };
   }, [open, onClose]);
 
-  /** Если вкладка пустая (нет R2 и т.п.) — уводим на Итого, не держим «пустой» active. */
+  /** Если вкладка пустая (нет R2 и т.п.) — уводим на Итого, не на R1. */
   useEffect(() => {
     if (!data || data.training) return;
     const len: Record<TabKey, number> = {
@@ -376,8 +376,11 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
       teamB: data.teamB.length,
     };
     if ((len[tab] || 0) > 0) return;
-    if (data.r1.length) setTab("r1");
+    // Prefer totals — never silently map empty tab onto R1 (looks like «Итого = раунд 1»).
+    if (data.total.length) setTab("total");
     else if (data.bbTotal.length) setTab("bbTotal");
+    else if (data.r1.length) setTab("r1");
+    else if (data.r2.length) setTab("r2");
     else setTab("total");
   }, [data, tab]);
 
