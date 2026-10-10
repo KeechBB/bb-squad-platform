@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { setVisibleInterval } from "@/lib/visibleInterval";
 
-const POLL_MS = 30_000;
+const POLL_MS = 60_000;
 
 /** LIVE-style online counter in the top-left corner (replaces brand mark). */
 export function SiteOnlineBadge() {
@@ -12,7 +13,7 @@ export function SiteOnlineBadge() {
     let cancelled = false;
     const load = async () => {
       try {
-        const res = await fetch("/api/presence/online", { cache: "no-store" });
+        const res = await fetch("/api/presence/online");
         if (!res.ok) return;
         const data = (await res.json()) as { count?: number };
         if (!cancelled) setCount(Math.max(0, Number(data.count) || 0));
@@ -21,10 +22,10 @@ export function SiteOnlineBadge() {
       }
     };
     void load();
-    const id = window.setInterval(() => void load(), POLL_MS);
+    const clearPoll = setVisibleInterval(() => void load(), POLL_MS);
     return () => {
       cancelled = true;
-      window.clearInterval(id);
+      clearPoll();
     };
   }, []);
 

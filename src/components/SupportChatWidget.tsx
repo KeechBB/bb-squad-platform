@@ -352,17 +352,20 @@ export function SupportChatWidget() {
 
   useEffect(() => {
     if (!loggedIn) return;
-    // Поллинг как запасной канал (реже — не забиваем соединения)
-    const id = window.setInterval(
-      () => void refreshRef.current(),
-      mode === "closed" ? 30_000 : 12_000
-    );
+    // Поллинг как запасной канал (реже — не забиваем Next на вечернем онлайне)
+    const id = window.setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      void refreshRef.current();
+    }, mode === "closed" ? 90_000 : 25_000);
     return () => window.clearInterval(id);
   }, [mode, loggedIn]);
 
   useEffect(() => {
     if (mode === "closed" || !loggedIn) return;
-    const id = window.setInterval(() => void refreshActiveRef.current(), 8_000);
+    const id = window.setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      void refreshActiveRef.current();
+    }, 20_000);
     return () => window.clearInterval(id);
   }, [mode, loggedIn]);
 

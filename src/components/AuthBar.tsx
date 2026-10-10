@@ -4,6 +4,7 @@ import { signIn, signOut, useSession } from "next-auth/react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { subscribeLive } from "@/lib/liveClient";
+import { setVisibleInterval } from "@/lib/visibleInterval";
 import { PlayerSearch } from "@/components/PlayerSearch";
 
 type Props = {
@@ -49,10 +50,11 @@ export function AuthBar({ betaLabel }: Props) {
     const unsub = subscribeLive("/api/live/me", "user", () => {
       void checkAdmin();
     });
-    const id = window.setInterval(() => void checkAdmin(), 60_000);
+    // Was 60s — under evening load this + tickets/invites hammered Next.
+    const clearPoll = setVisibleInterval(() => void checkAdmin(), 180_000);
     return () => {
       unsub();
-      window.clearInterval(id);
+      clearPoll();
     };
   }, [checkAdmin, session?.user?.profileComplete]);
 

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { subscribeLive } from "@/lib/liveClient";
+import { setVisibleInterval } from "@/lib/visibleInterval";
 
 type Invite = {
   id: string;
@@ -32,10 +33,10 @@ export function ClanInvites({ initial }: { initial: Invite[] }) {
       void reload();
       router.refresh();
     });
-    const id = window.setInterval(() => void reload(), 60_000);
+    const clearPoll = setVisibleInterval(() => void reload(), 180_000);
     return () => {
       unsub();
-      window.clearInterval(id);
+      clearPoll();
     };
   }, [reload, router]);
 
