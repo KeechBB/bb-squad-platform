@@ -34,21 +34,6 @@ export function HomeFit({ children }: { children: ReactNode }) {
       board.style.setProperty("--home-hero-nudge-x", "0px");
       // Visual size after transform:scale — Safari has no CSS zoom.
       host.style.height = `${Math.round(DESIGN_H * scale)}px`;
-      const brand = board.querySelector<HTMLElement>(".home-hero-brand");
-      const side = board.querySelector<HTMLElement>(".home-side");
-      if (brand && side) {
-        const brandRect = brand.getBoundingClientRect();
-        const sideRect = side.getBoundingClientRect();
-        const openRight = window.innerWidth;
-        const targetX = sideRect.right + (openRight - sideRect.right) / 2;
-        const targetY = window.innerHeight / 2;
-        const brandCx = brandRect.left + brandRect.width / 2;
-        const brandCy = brandRect.top + brandRect.height / 2;
-        const nudgeX = (brandCx - targetX) / scale;
-        const lift = (brandCy - targetY) / scale;
-        board.style.setProperty("--home-hero-nudge-x", `${nudgeX}px`);
-        board.style.setProperty("--home-hero-lift", `${lift}px`);
-      }
     };
 
     fit();

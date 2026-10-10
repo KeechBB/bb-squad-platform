@@ -71,26 +71,8 @@ export default async function HomePage() {
       </div>
 
       <HomeFit>
-        <div className="home-side">
-          {/* Календарь перенесён в профиль клана — слот пока пустой */}
-          <div className="home-calendar-slot" aria-hidden="true" />
-          <HomePanels
-            pwrBoard={pwrBoard}
-            publicTop={publicTop}
-            viewerNick={session?.user?.nick || null}
-          />
-        </div>
-
         <section className="home-hero" aria-label="BlackBerry">
           <div className="home-hero-brand">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              className="home-crest"
-              src="/blackberry.png"
-              alt=""
-              width={280}
-              height={280}
-            />
             <h1>BLACKBERRY</h1>
             <p className="home-hero-sub">Автоматизированная игровая платформа</p>
             <p className="home-hero-welcome">
@@ -110,6 +92,16 @@ export default async function HomePage() {
             </p>
           </div>
         </section>
+
+        <div className="home-side">
+          {/* Календарь перенесён в профиль клана — слот пока пустой */}
+          <div className="home-calendar-slot" aria-hidden="true" />
+          <HomePanels
+            pwrBoard={pwrBoard}
+            publicTop={publicTop}
+            viewerNick={session?.user?.nick || null}
+          />
+        </div>
       </HomeFit>
     </main>
   );

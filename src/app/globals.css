@@ -5711,41 +5711,45 @@ body:has(.home-page) {
   height: 1004px;
   transform: scale(var(--home-scale));
   transform-origin: top left;
-  grid-template-columns: 960px minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
-  grid-template-areas: "side brand";
-  align-items: start;
-  column-gap: 36px;
-  row-gap: 12px;
-  padding: 10px 10px 14px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    "brand"
+    "side";
+  justify-items: center;
+  align-content: start;
+  column-gap: 0;
+  row-gap: 22px;
+  padding: 28px 48px 18px;
   box-sizing: border-box;
   overflow: hidden;
 }
 
 .home-layout > .home-side {
   grid-area: side;
-  align-self: end;
+  align-self: stretch;
+  justify-self: center;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 0;
   min-width: 0;
   min-height: 0;
   height: auto;
-  width: 100%;
+  width: min(1180px, 100%);
   padding-bottom: 4px;
 }
 
 .home-layout > .home-hero {
   grid-area: brand;
-  justify-self: stretch;
-  align-self: stretch;
+  justify-self: center;
+  align-self: start;
   position: relative;
   left: auto;
   top: auto;
   z-index: 1;
-  width: auto;
-  max-width: none;
+  width: min(980px, 100%);
+  max-width: 980px;
   height: auto;
   margin: 0;
   padding: 0;
@@ -5756,71 +5760,76 @@ body:has(.home-page) {
 }
 
 .home-layout > .home-hero .home-hero-brand {
-  width: min(42rem, 100%);
-  max-width: min(42rem, 100%);
+  width: 100%;
+  max-width: 980px;
   align-self: center;
-  transform: translate(
-    calc(-1 * var(--home-hero-nudge-x, 0px)),
-    calc(-1 * var(--home-hero-lift, 0px))
-  );
+  transform: none;
+  padding: 34px 48px 30px;
+  border-radius: 18px;
+  border: 1px solid rgba(167, 139, 250, 0.55);
+  background:
+    linear-gradient(180deg, rgba(28, 16, 52, 0.72), rgba(10, 6, 20, 0.78));
+  box-shadow:
+    0 0 0 1px rgba(124, 58, 237, 0.18),
+    0 18px 48px rgba(76, 29, 149, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 
 .home-layout > .home-hero .home-crest {
-  width: 220px;
-  max-width: 220px;
+  display: none;
 }
 
 .home-layout > .home-hero h1 {
-  font-size: 5.6rem;
-  letter-spacing: 0.06em;
-  background-image: linear-gradient(
-    100deg,
-    #ffffff 0%,
-    #ddd6fe 18%,
-    #c4b5fd 36%,
-    #f0abfc 52%,
-    #ffffff 68%,
-    #e9d5ff 84%,
-    #c4b5fd 100%
-  );
-  background-size: 240% 100%;
-  animation: home-title-shimmer 7s linear infinite;
+  margin: 0 0 10px;
+  font-size: 4.4rem;
+  letter-spacing: 0.08em;
+  background: none;
+  -webkit-background-clip: unset;
+  background-clip: unset;
+  color: #f7f3ff;
+  -webkit-text-fill-color: #f7f3ff;
+  text-shadow: 0 0 28px rgba(196, 181, 253, 0.45);
+  animation: none;
 }
 
 .home-layout > .home-hero .home-hero-sub {
-  margin-top: 6px;
-  font-size: 1.05rem;
-  letter-spacing: 0.12em;
+  margin: 0 0 18px;
+  font-size: 1.35rem;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: #f0c987;
+  font-family: inherit;
+  font-weight: 600;
 }
 
 .home-layout > .home-hero .home-hero-welcome {
-  margin-top: 14px;
-  max-width: 38rem;
+  margin: 0 auto 12px;
+  max-width: 52rem;
   font-size: 1.12rem;
+  color: rgba(247, 243, 255, 0.96);
 }
 
 .home-layout > .home-hero .home-hero-tag {
-  margin-top: 10px;
-  max-width: 40rem;
-  font-size: 1.05rem;
+  margin: 0 auto;
+  max-width: 52rem;
+  font-size: 1.08rem;
   line-height: 1.55;
+  color: rgba(236, 230, 255, 0.92);
 }
 
 .home-layout > .home-hero .home-hero-note {
-  margin-top: 12px;
-  max-width: 36rem;
-  font-size: 0.98rem;
+  margin: 14px auto 0;
+  max-width: 48rem;
+  font-size: 1.02rem;
+  color: rgba(236, 230, 255, 0.9);
 }
 
-@keyframes home-title-shimmer {
-  0% { background-position: 0% 50%; }
-  100% { background-position: 100% 50%; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .home-layout > .home-hero h1 {
-    animation: none;
-  }
+.home-layout > .home-hero .home-hero-tag strong,
+.home-layout > .home-hero .home-hero-note strong {
+  color: #f0c987;
+  font-weight: 700;
 }
 
 .home-dock {
@@ -7280,10 +7289,11 @@ body:has(.home-page) {
 
 .home-layout > .home-hero {
   grid-area: brand;
-  justify-self: stretch;
-  align-self: stretch;
+  justify-self: center;
+  align-self: start;
   min-width: 0;
   min-height: 0;
+  overflow: visible;
 }
 
 .home-hero {
@@ -7292,18 +7302,17 @@ body:has(.home-page) {
   top: auto;
   transform: none;
   z-index: 1;
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
-  justify-items: center;
+  justify-content: center;
   text-align: center;
   width: 100%;
-  max-width: min(100%, 48rem);
-  height: 100%;
+  max-width: 980px;
+  height: auto;
   min-height: 0;
   margin: 0 auto;
-  padding: 8px 6px 10px;
-  overflow: hidden;
+  padding: 0;
+  overflow: visible;
   pointer-events: none;
   animation: home-hero-in-stack 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
