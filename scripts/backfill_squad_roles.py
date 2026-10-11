@@ -12,6 +12,7 @@ Env: scripts/.squad-collector.env
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import sys
@@ -45,6 +46,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--from", dest="from_ymd", default=None)
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--backups", type=int, default=12)
+    p.add_argument(
+        "--nick-map",
+        default="",
+        help="JSON {nickCompact: steamId} from site users (glues spaced nicks)",
+    )
     return p.parse_args()
 
 
@@ -108,6 +114,14 @@ def main() -> None:
 
     eos_steam: dict[str, str] = {}
     nick_steam: dict[str, str] = {}
+    if args.nick_map:
+        raw_map = json.loads(Path(args.nick_map).read_text(encoding="utf-8"))
+        for k, v in (raw_map or {}).items():
+            nc = nick_compact(str(k))
+            steam = str(v or "").strip()
+            if nc and re.fullmatch(r"7656\d{13}", steam):
+                nick_steam[nc] = steam
+        print(f"nick-map loaded: {len(nick_steam)}", flush=True)
     events: list[dict] = []
 
     def server_from_path(path: str) -> str:

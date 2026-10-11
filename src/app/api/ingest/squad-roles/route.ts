@@ -79,7 +79,7 @@ async function resolveUser(opts: {
         SELECT id, "steamId"
         FROM "User"
         WHERE "profileComplete" = true
-          AND replace(lower(trim(nick)), ' ', '') = ${compact}
+          AND regexp_replace(lower(trim(nick)), '[[:space:]]+', '', 'g') = ${compact}
         LIMIT 2
       `;
       if (rows.length === 1) {
