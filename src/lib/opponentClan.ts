@@ -528,7 +528,7 @@ export async function attachOpponentClanOnRegister(userId: string): Promise<{
     await enqueueClanJoinLogBackfill({
       userId: user.id,
       steamId: user.steamId,
-      nick: user.nick,
+      nick: user.nick || user.steamId,
     });
   } catch (err) {
     console.error("[attachOpponentClanOnRegister] backfill", err);

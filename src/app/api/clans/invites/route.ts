@@ -123,7 +123,7 @@ export async function POST(req: Request) {
   await enqueueClanJoinLogBackfill({
     userId: me.id,
     steamId: me.steamId,
-    nick: me.nick,
+    nick: me.nick || me.steamId,
   });
 
   livePublish(clanLiveChannel(invite.clanId), JSON.stringify({ type: "join" }));

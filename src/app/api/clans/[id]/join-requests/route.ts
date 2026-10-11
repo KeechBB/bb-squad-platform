@@ -311,7 +311,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     await enqueueClanJoinLogBackfill({
       userId: joinedUser.id,
       steamId: joinedUser.steamId,
-      nick: joinedUser.nick,
+      nick: joinedUser.nick || joinedUser.steamId,
     });
   }
 
