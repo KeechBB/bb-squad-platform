@@ -746,38 +746,75 @@ export async function buildPlayerTrainMatchHistory(
   }
 
   const history: TrainMatchHistoryRow[] = [];
+  const seenIds = new Set<string>();
+  const metaById = new Map(matchMetas.map((m) => [m.id, m]));
 
-  for (const match of matchMetas) {
-    const players = match.doc;
-    if (!players) continue;
-    const list = (
-      players.players?.length
-        ? players.players
-        : [...(players.teamA || []), ...(players.teamB || [])]
-    ) as TrainPlayerLine[];
-
-    const mine = list.filter((p) => p?.nick && resolveKey(p.nick) === want);
-    if (!mine.length) continue;
-
-    const { team: teamU, won } = resolveTrainWon(mine, players, match);
-
+  const pushRpRow = (opts: {
+    matchId: string;
+    dateLabel: string;
+    timeLabel: string;
+    map: string;
+    factionA: string;
+    ticketsA: number | null;
+    factionB: string;
+    ticketsB: number | null;
+    team: string;
+    winner?: string;
+    duration?: string;
+    server?: string;
+    playersUrl: string;
+    won: boolean | null;
+  }) => {
     let rpDelta: number | null = null;
     let rpAfter: number | null = null;
     let rankLabel = "—";
     let rankKey = "iron";
-    if (rpAfterByMatch.has(match.id)) {
-      rpDelta = rpDeltaByMatch.get(match.id)!;
-      rpAfter = rpAfterByMatch.get(match.id)!;
+    if (rpAfterByMatch.has(opts.matchId)) {
+      rpDelta = rpDeltaByMatch.get(opts.matchId)!;
+      rpAfter = rpAfterByMatch.get(opts.matchId)!;
       const rk = rpRankFromScore(rpAfter, step, radiant3Max);
       rankLabel = rk.label;
       rankKey = rk.rankKey;
-    } else if (rpNetByMatch.has(match.id)) {
-      // матч ещё не в ladder.matches, но net уже есть — показываем Δ без after
-      rpDelta = Math.round(rpNetByMatch.get(match.id)!);
+    } else if (rpNetByMatch.has(opts.matchId)) {
+      rpDelta = Math.round(rpNetByMatch.get(opts.matchId)!);
+    }
+    history.push({
+      ...opts,
+      rpAfter,
+      rpDelta,
+      pwrAfter: rpAfter != null ? rpAfter : 0,
+      pwrDelta: rpDelta != null ? rpDelta : 0,
+      rankLabel,
+      rankKey,
+    });
+    seenIds.add(opts.matchId);
+  };
+
+  for (const match of matchMetas) {
+    const players = match.doc;
+    let teamU = "—";
+    let won: boolean | null = null;
+
+    if (players) {
+      const list = (
+        players.players?.length
+          ? players.players
+          : [...(players.teamA || []), ...(players.teamB || [])]
+      ) as TrainPlayerLine[];
+      const mine = list.filter((p) => p?.nick && resolveKey(p.nick) === want);
+      if (mine.length) {
+        const resolved = resolveTrainWon(mine, players, match);
+        teamU = resolved.team || "—";
+        won = resolved.won;
+      } else if (!rpAfterByMatch.has(match.id)) {
+        continue;
+      }
+    } else if (!rpAfterByMatch.has(match.id)) {
+      continue;
     }
 
     const timeRaw = String(match.timeMsk || "").trim();
-    history.push({
+    pushRpRow({
       matchId: match.id,
       dateLabel: `${pad2(match.day)}.${pad2(match.month)}.${match.year}`,
       timeLabel: timeRaw && timeRaw !== "—" ? timeRaw : "—",
@@ -786,22 +823,53 @@ export async function buildPlayerTrainMatchHistory(
       ticketsA: match.ticketsA ?? null,
       factionB: String(match.factionB || "—").toUpperCase(),
       ticketsB: match.ticketsB ?? null,
-      team: teamU || "—",
+      team: teamU,
       winner: match.winner,
       duration: match.duration,
       server: match.server,
-      playersUrl: match.playersUrl,
-      won: won,
-      rpAfter,
-      rpDelta,
-      pwrAfter: rpAfter != null ? rpAfter : 0,
-      pwrDelta: rpDelta != null ? rpDelta : 0,
-      rankLabel,
-      rankKey,
+      playersUrl: match.playersUrl || "",
+      won,
     });
   }
 
-  // свежие сверху
+  // Катки только в ladder (нет players.json / нет в month index) — иначе
+  // последняя строка истории отстаёт от бейджа.
+  for (const m of rpPlayer?.matches || []) {
+    if (seenIds.has(m.id) || !rpAfterByMatch.has(m.id)) continue;
+    const meta = metaById.get(m.id);
+    const date = String(m.date || "");
+    const dateLabel = meta
+      ? `${pad2(meta.day)}.${pad2(meta.month)}.${meta.year}`
+      : date.length >= 10
+        ? `${date.slice(8, 10)}.${date.slice(5, 7)}.${date.slice(0, 4)}`
+        : "—";
+    const timeRaw = String(meta?.timeMsk || "").trim();
+    pushRpRow({
+      matchId: m.id,
+      dateLabel,
+      timeLabel: timeRaw && timeRaw !== "—" ? timeRaw : "—",
+      map: meta?.map || m.map || "—",
+      factionA: String(meta?.factionA || "—").toUpperCase(),
+      ticketsA: meta?.ticketsA ?? null,
+      factionB: String(meta?.factionB || "—").toUpperCase(),
+      ticketsB: meta?.ticketsB ?? null,
+      team: "—",
+      winner: meta?.winner,
+      duration: meta?.duration,
+      server: meta?.server,
+      playersUrl: meta?.playersUrl || "",
+      won: null,
+    });
+  }
+
+  // хронология → свежие сверху
+  history.sort((a, b) => {
+    const ma = metaById.get(a.matchId);
+    const mb = metaById.get(b.matchId);
+    const ka = ma?.sortKey || a.dateLabel;
+    const kb = mb?.sortKey || b.dateLabel;
+    return ka.localeCompare(kb);
+  });
   return history.reverse();
 }
 
