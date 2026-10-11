@@ -144,10 +144,19 @@ export async function kitsForUser(
     ? Prisma.sql`AND "spawnedAt" >= ${range.gte} AND "spawnedAt" < ${range.lt}`
     : Prisma.empty;
 
+  const me = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { steamId: true },
+  });
+  const steamId = normalizeSteamId(me?.steamId || "") || "";
+  const whoSql = steamId
+    ? Prisma.sql`("userId" = ${userId} OR "steamId" = ${steamId})`
+    : Prisma.sql`"userId" = ${userId}`;
+
   const rows = await prisma.$queryRaw<{ kit: string; n: bigint }[]>`
     SELECT kit, COUNT(*)::bigint AS n
     FROM "SquadRoleEvent"
-    WHERE "userId" = ${userId}
+    WHERE ${whoSql}
       AND "serverKey" IN (${Prisma.join(keys)})
       ${rangeSql}
       ${combatSql}
@@ -209,12 +218,20 @@ export async function kitDaysForUser(
 ): Promise<string[]> {
   const keys = serverKeysForKitsLane(lane);
   const combatSql = kitCombatSql(lane, opts.combatWindow !== false);
+  const me = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { steamId: true },
+  });
+  const steamId = normalizeSteamId(me?.steamId || "") || "";
+  const whoSql = steamId
+    ? Prisma.sql`("userId" = ${userId} OR "steamId" = ${steamId})`
+    : Prisma.sql`"userId" = ${userId}`;
   const rows = await prisma.$queryRaw<{ d: Date }[]>`
     SELECT DISTINCT (
       (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::date
     ) AS d
     FROM "SquadRoleEvent"
-    WHERE "userId" = ${userId}
+    WHERE ${whoSql}
       AND "serverKey" IN (${Prisma.join(keys)})
       ${combatSql}
     ORDER BY d DESC

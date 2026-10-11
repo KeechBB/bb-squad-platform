@@ -202,6 +202,11 @@ def clean_nick(raw: str) -> str:
     return nick.strip()
 
 
+def nick_compact(raw: str) -> str:
+    """«Nestor Mahno» ↔ «NestorMahno» — ключ для nick→steam."""
+    return re.sub(r"\s+", "", (raw or "").strip().lower())
+
+
 def resolve_log_targets() -> list[tuple[str, str]]:
     """Return list of (serverKey, logPath)."""
     servers = os.environ.get("SQUAD_SERVERS", "").strip()
@@ -295,6 +300,8 @@ class Collector:
         )
         self.poll_sec = float(os.environ.get("SQUAD_POLL_SEC", "3"))
         self.eos_steam: dict[str, str] = {}
+        # nickCompact -> steam (DeployRole lines rarely carry steam)
+        self.nick_steam: dict[str, str] = {}
         # eos -> {nick, at, serverKey}
         self.pending_joins: dict[str, dict[str, Any]] = {}
         # leave до появления steam-карты
@@ -323,6 +330,13 @@ class Collector:
             }
             self.eos_steam = {
                 k: v for k, v in raw_map.items() if re.fullmatch(r"7656\d{13}", v)
+            }
+            raw_nick = {
+                nick_compact(str(k)): str(v)
+                for k, v in (data.get("nick_steam") or {}).items()
+            }
+            self.nick_steam = {
+                k: v for k, v in raw_nick.items() if k and re.fullmatch(r"7656\d{13}", v)
             }
             self.pending_joins = data.get("pending_joins") or {}
             self.pending_leaves = data.get("pending_leaves") or {}
@@ -362,6 +376,7 @@ class Collector:
         payload = {
             "logs": self.log_state,
             "eos_steam": self.eos_steam,
+            "nick_steam": self.nick_steam,
             "pending_joins": self.pending_joins,
             "pending_leaves": self.pending_leaves,
             "processed_backups": sorted(self.processed_backups)[-80:],
@@ -643,10 +658,22 @@ class Collector:
             "serverKey": server_key,
         }
 
+    def _remember_nick_steam(self, nick: str | None, steam: str | None) -> None:
+        steam_ok = self._valid_steam(steam or "")
+        nc = nick_compact(nick or "")
+        if steam_ok and nc:
+            self.nick_steam[nc] = steam_ok
+
     def _parse_role(
         self, line: str, server_key: str
     ) -> dict[str, Any] | None:
         if "DeployRole=" not in line:
+            return None
+        # Реальный спавн — RestartPlayer / SpawnDefaultPawn (не FindPlayerStart×N)
+        if (
+            "RestartPlayer" not in line
+            and "SpawnDefaultPawnFor" not in line
+        ):
             return None
         if server_key not in _role_servers():
             return None
@@ -668,8 +695,12 @@ class Collector:
             steam = self._valid_steam(sm.group("steam") or sm.group("steam2") or "") or ""
             if eos and steam:
                 self.eos_steam[eos] = steam
+            if steam and nick:
+                self._remember_nick_steam(nick, steam)
         if not steam and eos:
             steam = self.eos_steam.get(eos, "")
+        if not steam and nick:
+            steam = self.nick_steam.get(nick_compact(nick), "")
         if not steam and not eos and not nick:
             return None
         return {
@@ -692,12 +723,14 @@ class Collector:
         self.eos_steam[eos] = steam
         if eos in self.pending_joins:
             pj = self.pending_joins.pop(eos)
+            nick = pj.get("nick")
+            self._remember_nick_steam(str(nick) if nick else None, steam)
             events.append(
                 {
                     "type": "join",
                     "steamId": steam,
                     "eosId": eos,
-                    "nick": pj.get("nick"),
+                    "nick": nick,
                     "at": pj["at"],
                     "serverKey": pj.get("serverKey") or self.targets[0][0],
                 }

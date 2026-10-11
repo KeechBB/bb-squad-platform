@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { livePublish, livePublishSite, userLiveChannel } from "@/lib/liveBus";
 import { kitFromDeployRole } from "@/lib/squadKits";
+import { nickCompact } from "@/lib/nickIdentity";
 import {
   normalizeEosId,
   normalizeSteamId,
@@ -68,6 +69,25 @@ async function resolveUser(opts: {
         steamId: normalizeSteamId(byNick.steamId) || byNick.steamId,
         userId: byNick.id,
       };
+    }
+    // «Nestor Mahno» в логе ↔ «NestorMahno» в профиле
+    const compact = nickCompact(nick);
+    if (compact.length >= 2) {
+      const rows = await prisma.$queryRaw<
+        { id: string; steamId: string }[]
+      >`
+        SELECT id, "steamId"
+        FROM "User"
+        WHERE "profileComplete" = true
+          AND replace(lower(trim(nick)), ' ', '') = ${compact}
+        LIMIT 2
+      `;
+      if (rows.length === 1) {
+        return {
+          steamId: normalizeSteamId(rows[0].steamId) || rows[0].steamId,
+          userId: rows[0].id,
+        };
+      }
     }
   }
   return null;

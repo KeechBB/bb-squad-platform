@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -25,6 +26,7 @@ from squad_log_collector import (
     clean_nick,
     kit_from_role,
     load_dotenv_file,
+    nick_compact,
     parse_ts,
 )
 
@@ -105,6 +107,7 @@ def main() -> None:
             ordered.append(p)
 
     eos_steam: dict[str, str] = {}
+    nick_steam: dict[str, str] = {}
     events: list[dict] = []
 
     def server_from_path(path: str) -> str:
@@ -116,7 +119,7 @@ def main() -> None:
     for path in ordered:
         server_key = server_from_path(path)
         grep_cmd = (
-            f"grep -E 'DeployRole=|EOS:.*steam:|steam:.*EOS:' "
+            f"grep -E 'DeployRole=|EOS:.*steam:|steam:.*EOS:|LogSquad:.*steam:' "
             f"{path} 2>/dev/null || true"
         )
         try:
@@ -133,7 +136,15 @@ def main() -> None:
                 steam = sm.group("steam") or sm.group("steam2") or ""
                 if eos and steam:
                     eos_steam[eos] = steam
+                # nick from PC=… when steam on same line
+                m_pc = re.search(r"PC=([^\n]+?)(?:\s+\(Online IDs:|\s+Spawn=|\s+DeployRole=)", line)
+                if steam and m_pc:
+                    nc = nick_compact(clean_nick(m_pc.group(1)))
+                    if nc and re.fullmatch(r"7656\d{13}", steam):
+                        nick_steam[nc] = steam
             if "DeployRole=" not in line:
+                continue
+            if "RestartPlayer" not in line and "SpawnDefaultPawnFor" not in line:
                 continue
             dm = DEPLOY_RE.search(line)
             tm = LINE_TS_RE.match(line)
@@ -149,9 +160,6 @@ def main() -> None:
             nick = clean_nick(dm.group("nick") or "")
             eos = ""
             steam = ""
-            if sm:
-                eos = (sm.group("eos") or sm.group("eos2") or "").lower()
-                steam = sm.group("steam") or sm.group("steam2") or ""
             sm2 = STEAM_EOS_RE.search(line)
             if sm2:
                 eos = (sm2.group("eos") or sm2.group("eos2") or "").lower() or eos
@@ -160,6 +168,8 @@ def main() -> None:
                 eos_steam[eos] = steam
             if not steam and eos:
                 steam = eos_steam.get(eos, "")
+            if not steam and nick:
+                steam = nick_steam.get(nick_compact(nick), "")
             if not steam and not eos and not nick:
                 continue
             events.append(
@@ -177,7 +187,10 @@ def main() -> None:
         print(f"{server_key} {path.rsplit('/', 1)[-1]}: roles≈{n_roles}", flush=True)
 
     c.close()
-    print(f"total events: {len(events)} (eos_map={len(eos_steam)})", flush=True)
+    print(
+        f"total events: {len(events)} (eos_map={len(eos_steam)} nick_map={len(nick_steam)})",
+        flush=True,
+    )
 
     if args.dry_run:
         print("dry-run — not posting")
