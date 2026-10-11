@@ -140,7 +140,7 @@ def sync_tr_logs(server_key: str) -> list[Path]:
                     if local.is_file() and local.stat().st_size == st.st_size:
                         continue
                     sftp.get(remote, str(local))
-                    print(f"{server_key} sftp ← {name} ({st.st_size})", flush=True)
+                    print(f"{server_key} sftp <- {name} ({st.st_size})", flush=True)
                 except Exception as e:
                     print(f"{server_key} skip {name}: {e}", flush=True)
             sftp.close()
@@ -409,7 +409,7 @@ def update_calendar_row(slot: dict, patch: dict) -> None:
         break
     if changed:
         path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        print(f"calendar {mid} ← {patch}", flush=True)
+        print(f"calendar {mid} <- {patch}", flush=True)
 
 
 def process_slot(

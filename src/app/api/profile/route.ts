@@ -11,6 +11,7 @@ import {
 } from "@/lib/validation";
 import { parseDiscordInput, parseTelegramInput } from "@/lib/social";
 import { livePublish, userLiveChannel } from "@/lib/liveBus";
+import { recordNickRenameAlias } from "@/lib/tiersAliases";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -76,11 +77,19 @@ export async function PATCH(req: Request) {
   }
 
   const nickTaken = await prisma.user.findFirst({
-    where: { nick, NOT: { id: me.id } },
+    where: {
+      nick: { equals: nick, mode: "insensitive" },
+      NOT: { id: me.id },
+    },
   });
   if (nickTaken) {
     return NextResponse.json({ error: "Этот ник уже занят" }, { status: 409 });
   }
+
+  const prevNick = String(me.nick || "").trim();
+  const nickChanged =
+    Boolean(prevNick) &&
+    prevNick.localeCompare(nick, undefined, { sensitivity: "accent" }) !== 0;
 
   const user = await prisma.user.update({
     where: { id: me.id },
@@ -95,10 +104,21 @@ export async function PATCH(req: Request) {
     },
   });
 
+  let aliasOk: boolean | null = null;
+  if (nickChanged) {
+    const alias = await recordNickRenameAlias(prevNick, nick);
+    aliasOk = alias.ok;
+    if (!alias.ok) {
+      console.warn("[profile] nick alias write failed:", alias.error, alias.written);
+    }
+  }
+
   livePublish(userLiveChannel(user.id), JSON.stringify({ type: "profile" }));
 
   return NextResponse.json({
     ok: true,
+    nickChanged,
+    aliasOk,
     user: {
       id: user.id,
       name: user.name,

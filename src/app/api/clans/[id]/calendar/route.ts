@@ -91,10 +91,10 @@ export async function GET(_req: Request, ctx: Ctx) {
 
   const matches: ClanCalMatch[] = [];
 
-  // BlackBerry: полный KV-календарь с хирургическим прогнозом (форма / карта / h2h)
-  if (tagUp === "BB") {
-    try {
-      const { previews } = await buildCalendarMatches();
+  // BlackBerry: полный KV-календарь. Чужой клан: слоты где они opp (статус с их стороны).
+  try {
+    const { previews } = await buildCalendarMatches();
+    if (tagUp === "BB") {
       for (const p of previews) {
         const stack = String(p.stack || "").toLowerCase();
         const stackLogo = stack.includes("jun")
@@ -102,9 +102,57 @@ export async function GET(_req: Request, ctx: Ctx) {
           : clanLogoUrl("BB-MAIN");
         matches.push(enrichPreview(p, stackLogo, "kv"));
       }
-    } catch {
-      /* KV optional */
+    } else {
+      const oppNorm = tagUp.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const aliases: Record<string, string> = {
+        "20royals": "20r",
+        falcons: "fal",
+        redfoxes: "fox",
+        foxes: "fox",
+        avanguard: "avg",
+        solid: "solid",
+      };
+      const want = aliases[oppNorm] || oppNorm;
+      const invertStatus = (s?: string) =>
+        s === "win" ? "lose" : s === "lose" ? "win" : s || "";
+      const invertMeeting = (m?: string | null) => {
+        const hit = String(m || "").trim().match(/^(\d+)\s*[–\-—:]\s*(\d+)/);
+        return hit ? `${hit[2]}–${hit[1]}` : m || null;
+      };
+      const bbStack = (stack?: string | null) => {
+        const s = String(stack || "").trim().toLowerCase();
+        if (s === "main") return "BB Main";
+        if (s === "junior") return "BB Junior";
+        return s ? `BB ${stack}` : "BB";
+      };
+      for (const p of previews) {
+        const a = String(p.opp || "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, "");
+        const na = aliases[a] || a;
+        if (na !== want && a !== oppNorm) continue;
+        const stackLow = String(p.stack || "").toLowerCase();
+        const stackLogo = stackLow.includes("jun")
+          ? clanLogoUrl("BB-JUNIOR")
+          : clanLogoUrl("BB-MAIN");
+        matches.push(
+          enrichPreview(
+            {
+              ...p,
+              opp: bbStack(p.stack),
+              stack: clan.tag,
+              status: invertStatus(p.status),
+              meeting: invertMeeting(p.meeting),
+              forecast: EMPTY_FORECAST,
+            },
+            stackLogo,
+            "kv"
+          )
+        );
+      }
     }
+  } catch {
+    /* KV optional */
   }
 
   const events = await prisma.clanCalendarEvent.findMany({

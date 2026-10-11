@@ -523,6 +523,17 @@ export async function attachOpponentClanOnRegister(userId: string): Promise<{
     },
   });
 
+  try {
+    const { enqueueClanJoinLogBackfill } = await import("@/lib/clanJoinBackfill");
+    await enqueueClanJoinLogBackfill({
+      userId: user.id,
+      steamId: user.steamId,
+      nick: user.nick,
+    });
+  } catch (err) {
+    console.error("[attachOpponentClanOnRegister] backfill", err);
+  }
+
   return {
     joined: true,
     clanId: pending.clan.id,

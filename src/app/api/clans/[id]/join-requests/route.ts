@@ -302,6 +302,19 @@ export async function PATCH(req: Request, ctx: Ctx) {
     clanTag: clan?.tag,
   });
 
+  const joinedUser = await prisma.user.findUnique({
+    where: { id: request.userId },
+    select: { id: true, steamId: true, nick: true },
+  });
+  if (joinedUser?.steamId) {
+    const { enqueueClanJoinLogBackfill } = await import("@/lib/clanJoinBackfill");
+    await enqueueClanJoinLogBackfill({
+      userId: joinedUser.id,
+      steamId: joinedUser.steamId,
+      nick: joinedUser.nick,
+    });
+  }
+
   livePublish(clanLiveChannel(clanId), JSON.stringify({ type: "join" }));
   livePublish(userLiveChannel(request.userId), JSON.stringify({ type: "join" }));
   return NextResponse.json({ ok: true });

@@ -19,6 +19,7 @@ import { removeUserAvatarFiles } from "@/lib/avatar";
 import { livePublish, userLiveChannel } from "@/lib/liveBus";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
 import { parseDiscordInput, parseTelegramInput } from "@/lib/social";
+import { recordNickRenameAlias } from "@/lib/tiersAliases";
 
 export const runtime = "nodejs";
 
@@ -223,7 +224,10 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
 
   const nickTaken = await prisma.user.findFirst({
-    where: { nick, NOT: { id } },
+    where: {
+      nick: { equals: nick, mode: "insensitive" },
+      NOT: { id },
+    },
   });
   if (nickTaken) {
     return NextResponse.json({ error: "Ник уже занят" }, { status: 409 });
@@ -238,6 +242,10 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
   try {
     const locked = lockedRoleForSteam(steamId, nextRole);
+    const prevNick = String(existing.nick || "").trim();
+    const nickChanged =
+      Boolean(prevNick) &&
+      prevNick.localeCompare(nick, undefined, { sensitivity: "accent" }) !== 0;
     const user = await prisma.user.update({
       where: { id },
       data: {
@@ -252,6 +260,12 @@ export async function PATCH(req: Request, ctx: Ctx) {
         telegram: telegram.username,
       },
     });
+    if (nickChanged) {
+      const alias = await recordNickRenameAlias(prevNick, nick);
+      if (!alias.ok) {
+        console.warn("[admin] nick alias write failed:", alias.error);
+      }
+    }
     if (locked !== existingRole) {
       notifyRoleChange(user.id, locked);
       await writeActionLog({
@@ -268,13 +282,13 @@ export async function PATCH(req: Request, ctx: Ctx) {
     await writeActionLog({
       category: "admin",
       action: "edit_profile",
-      message: `${actor.nick} изменил анкету ${targetNick}${nick !== existing.nick ? ` → ${nick}` : ""}`,
+      message: `${actor.nick} изменил анкету ${targetNick}${nickChanged ? ` → ${nick}` : ""}`,
       actorId: actor.id,
       actorNick: actor.nick,
       targetId: existing.id,
       targetNick: nick || targetNick,
     });
-    return NextResponse.json({ ok: true, user });
+    return NextResponse.json({ ok: true, user, nickChanged });
   } catch {
     return NextResponse.json({ error: "Не удалось сохранить" }, { status: 500 });
   }

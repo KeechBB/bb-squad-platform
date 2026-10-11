@@ -119,6 +119,13 @@ export async function POST(req: Request) {
     clanTag: invite.clan.tag,
   });
 
+  const { enqueueClanJoinLogBackfill } = await import("@/lib/clanJoinBackfill");
+  await enqueueClanJoinLogBackfill({
+    userId: me.id,
+    steamId: me.steamId,
+    nick: me.nick,
+  });
+
   livePublish(clanLiveChannel(invite.clanId), JSON.stringify({ type: "join" }));
   livePublish(userLiveChannel(me.id), JSON.stringify({ type: "join" }));
 

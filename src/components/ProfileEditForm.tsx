@@ -123,7 +123,15 @@ export function ProfileEditForm({ initial, adminLink }: Props) {
         nick: next.nick,
         age: next.age ?? undefined,
       });
-      setOk("Сохранено");
+      if (data.nickChanged) {
+        setOk(
+          data.aliasOk === false
+            ? `Ник сменён на «${next.nick}». Статистика может подтянуть старый ник позже — напиши капитану, если цифры не сойдутся.`
+            : `Ник сменён на «${next.nick}». Статистика тренировок и КВ переедет со старого ника.`
+        );
+      } else {
+        setOk("Сохранено");
+      }
       setEditing(false);
       router.refresh();
     } catch {
@@ -154,7 +162,7 @@ export function ProfileEditForm({ initial, adminLink }: Props) {
             }}
             headAction={
               <button type="button" className="btn ghost" onClick={() => setEditing(true)}>
-                Редактировать
+                Сменить ник / анкету
               </button>
             }
           />
@@ -168,14 +176,18 @@ export function ProfileEditForm({ initial, adminLink }: Props) {
           </div>
           <form className="form profile-edit-form" onSubmit={onSubmit}>
           <label className="field">
-            <span>Ник</span>
+            <span>Игровой ник</span>
             <input
               value={nick}
               onChange={(e) => setNick(e.target.value)}
               maxLength={24}
               required
+              autoComplete="nickname"
             />
-            <span className="field-hint">Игровой ник: буквы (лат/кирилл)/цифры/символы/пробелы, 2–24</span>
+            <span className="field-hint">
+              Сменить можно в любой момент (2–24 символа). Старый ник останется
+              алиасом — стата и профиль не потеряются.
+            </span>
           </label>
           <label className="field">
             <span>Имя</span>
