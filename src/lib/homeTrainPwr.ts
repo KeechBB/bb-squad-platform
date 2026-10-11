@@ -698,46 +698,50 @@ export async function buildPlayerTrainMatchHistory(
   const ladder = await loadRpLadder();
   const rpPlayer = await lookupPlayerTrainRp(clean);
   const rpNetByMatch = new Map<string, number>();
+  // Канон — matches из карточки игрока в ladder (уже с алиасами), как у бейджа.
   for (const m of rpPlayer?.matches || []) {
     rpNetByMatch.set(m.id, Number(m.net) || 0);
   }
-  // fallback: ladder match netByNick
+  // fallback: netByNick по матчам ladder; суммируем все варианты ника (алиасы).
   if (ladder?.matches) {
     for (const m of ladder.matches) {
       if (rpNetByMatch.has(m.id)) continue;
+      let sum = 0;
+      let hit = false;
       for (const [n, net] of Object.entries(m.netByNick || {})) {
         if (resolveKey(n) === want) {
-          rpNetByMatch.set(m.id, Number(net) || 0);
-          break;
+          sum += Number(net) || 0;
+          hit = true;
         }
       }
+      if (hit) rpNetByMatch.set(m.id, sum);
     }
   }
   const startRp = Number(ladder?.startRp) || 1000;
   const step = Number(ladder?.step) || 150;
   const radiant3Max = Number(ladder?.radiant3Max) || 4500;
 
-  // Полная цепочка ladder (все катки с ΔRP игрока), даже если players/*.json нет —
-  // иначе rpAfter в UI отстаёт от бейджа ранга на сумму «дырявых» матчей.
+  // Полная цепочка ladder (все катки с ΔRP игрока), даже если players/*.json нет.
+  // rpAfter = round(start + Σ nets) как бейдж — не Math.round на каждом шаге (дрейф ±2).
   const rpAfterByMatch = new Map<string, number>();
   const rpDeltaByMatch = new Map<string, number>();
   {
-    let running = startRp;
+    let cum = 0;
     const orderedIds: string[] = [];
-    if (ladder?.matches?.length) {
-      for (const m of ladder.matches) {
+    if (rpPlayer?.matches?.length) {
+      for (const m of rpPlayer.matches) {
         if (rpNetByMatch.has(m.id)) orderedIds.push(m.id);
       }
-    } else {
-      for (const m of rpPlayer?.matches || []) {
+    } else if (ladder?.matches?.length) {
+      for (const m of ladder.matches) {
         if (rpNetByMatch.has(m.id)) orderedIds.push(m.id);
       }
     }
     for (const id of orderedIds) {
       const net = rpNetByMatch.get(id)!;
-      running = Math.round(running + net);
+      cum += net;
       rpDeltaByMatch.set(id, Math.round(net));
-      rpAfterByMatch.set(id, running);
+      rpAfterByMatch.set(id, Math.round(startRp + cum));
     }
   }
 
