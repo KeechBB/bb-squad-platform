@@ -82,15 +82,15 @@ async function loadPlayerProfileHeavyUncached(
   };
 }
 
-/** Тяжёлая стата профиля — dedupe в запросе + кэш 90с между запросами. */
+/** Тяжёлая стата профиля — dedupe в запросе + готовый ответ на 2 минуты. */
 export const loadPlayerProfileHeavy = cache(
   async (nick: string): Promise<PlayerProfileHeavy> => {
     const key = nickCacheKey(nick);
     if (!key) return loadPlayerProfileHeavyUncached(nick);
     const cached = unstable_cache(
       () => loadPlayerProfileHeavyUncached(nick),
-      ["profile-heavy-v1", key],
-      { revalidate: 90 }
+      ["profile-heavy-v2", key],
+      { revalidate: 120 }
     );
     return cached();
   }

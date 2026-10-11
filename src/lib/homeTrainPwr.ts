@@ -1,6 +1,7 @@
 import { loadTierIndex } from "@/lib/loadTierIndex";
 import { pickMvps } from "@/lib/homeMvp";
 import { abbreviateFaction } from "@/lib/factionAbbrev";
+import { memoTtl, PROFILE_CORPUS_TTL_MS } from "@/lib/memoTtl";
 
 function nickKey(nick: string) {
   return nick.trim().toLowerCase().replace(/\s+/g, "");
@@ -545,38 +546,46 @@ function pad2(n: number) {
   return String(n).padStart(2, "0");
 }
 
-/** История тренировок игрока с ΔRP после каждой катки (хронология). */
-export async function buildPlayerTrainMatchHistory(
-  nick: string
-): Promise<TrainMatchHistoryRow[]> {
-  const clean = String(nick || "").trim();
-  if (!clean) return [];
+type TrainCorpusDoc = TrainPlayersDoc & {
+  mvp?: {
+    train?: {
+      medic?: string[];
+      killer?: string[];
+      damage?: string[];
+      antiDeath?: string[];
+    };
+  };
+};
 
+type TrainCorpusRow = MatchMeta & {
+  status?: string;
+  inHistory: boolean;
+  doc: TrainCorpusDoc | null;
+};
+
+type TrainPlayerCorpus = {
+  hasIndex: boolean;
+  aliases: Record<string, string>;
+  rows: TrainCorpusRow[];
+};
+
+/** Все катки тренировок с файлами игроков — один проход на две минуты. */
+async function loadTrainPlayerCorpus(): Promise<TrainPlayerCorpus> {
   const index = await loadFromKv<{
     months?: { year?: number; month?: number; url?: string }[];
   }>("data/training-index.json");
-  if (!index?.months?.length) return [];
-
   const tiersRaw = await loadFromKv<{
     aliases?: Record<string, string>;
   }>("data/tiers.json");
   const aliases = tiersRaw?.aliases || {};
-  const aliasCanon = new Map<string, string>();
-  for (const [a, c] of Object.entries(aliases)) {
-    aliasCanon.set(nickKey(a), String(c));
-  }
-  const resolveKey = (n: string) => {
-    const key = nickKey(n);
-    const canon = aliasCanon.get(key);
-    return canon ? nickKey(canon) : key;
-  };
-  const want = resolveKey(clean);
+  if (!index?.months?.length) return { hasIndex: false, aliases, rows: [] };
 
-  const matchMetas: MatchMeta[] = [];
+  const pending: Omit<TrainCorpusRow, "doc">[] = [];
   for (const m of index.months) {
-    if (!m.url || m.year == null || m.month == null) continue;
-    const year = m.year;
-    const month = m.month;
+    if (!m.url) continue;
+    const year = m.year ?? 0;
+    const month = m.month ?? 0;
+    const monthOk = m.year != null && m.month != null;
     const monthData = await loadFromKv<{
       matches?: {
         id?: string;
@@ -590,14 +599,13 @@ export async function buildPlayerTrainMatchHistory(
         winner?: string;
         duration?: string;
         server?: string;
+        status?: string;
         playersUrl?: string;
       }[];
     }>(m.url);
-    // порядок в JSON месяца = хронология заливок; timeMsk — точное время старта
     (monthData?.matches || []).forEach((match, ord) => {
-      if (!match.playersUrl || !match.id || match.day == null) return;
+      if (!match.playersUrl) return;
       const time = String(match.timeMsk || "").trim();
-      // 00:00–00:29 = midnight grace после вечерней тренировки → после 23:59 того же day
       let timeKey = /^\d{1,2}:\d{2}/.test(time)
         ? time.padStart(5, "0")
         : `99:${pad2(ord)}`;
@@ -605,13 +613,14 @@ export async function buildPlayerTrainMatchHistory(
       if (hm) {
         const h = Number(hm[1]);
         const mi = Number(hm[2]);
-        if (h === 0 && mi <= 29) {
-          timeKey = `24:${pad2(mi)}`;
-        }
+        if (h === 0 && mi <= 29) timeKey = `24:${pad2(mi)}`;
       }
-      matchMetas.push({
-        id: match.id,
-        day: match.day,
+      const day = match.day ?? 0;
+      const inHistory = monthOk && Boolean(match.id) && match.day != null;
+      pending.push({
+        id: String(match.id || ""),
+        day,
+        inHistory,
         year,
         month,
         timeMsk: match.timeMsk,
@@ -623,12 +632,64 @@ export async function buildPlayerTrainMatchHistory(
         winner: match.winner,
         duration: match.duration,
         server: match.server,
+        status: match.status,
         playersUrl: match.playersUrl,
-        // НЕ сортировать по id (02-fallujah < 02-gorodok ломает вечер 02.10)
-        sortKey: `${year}-${pad2(month)}-${pad2(match.day)}T${timeKey}-${pad2(ord)}`,
+        sortKey: inHistory
+          ? `${year}-${pad2(month)}-${pad2(match.day!)}T${timeKey}-${pad2(ord)}`
+          : "",
       });
     });
   }
+
+  const CONCURRENCY = 12;
+  const rows: TrainCorpusRow[] = new Array(pending.length);
+  for (let i = 0; i < pending.length; i += CONCURRENCY) {
+    const slice = pending.slice(i, i + CONCURRENCY);
+    const loaded = await Promise.all(
+      slice.map((row) =>
+        loadFromKv<TrainCorpusDoc>(row.playersUrl).catch(() => null)
+      )
+    );
+    for (let j = 0; j < slice.length; j++) {
+      rows[i + j] = { ...slice[j], doc: loaded[j] };
+    }
+  }
+  return { hasIndex: true, aliases, rows };
+}
+
+function getTrainPlayerCorpus(): Promise<TrainPlayerCorpus> {
+  return memoTtl(
+    "train-player-corpus-v1",
+    PROFILE_CORPUS_TTL_MS,
+    loadTrainPlayerCorpus
+  );
+}
+
+function aliasResolver(aliases: Record<string, string>) {
+  const aliasCanon = new Map<string, string>();
+  for (const [a, c] of Object.entries(aliases)) {
+    aliasCanon.set(nickKey(a), String(c));
+  }
+  return (n: string) => {
+    const key = nickKey(n);
+    const canon = aliasCanon.get(key);
+    return canon ? nickKey(canon) : key;
+  };
+}
+
+/** История тренировок игрока с ΔRP после каждой катки (хронология). */
+export async function buildPlayerTrainMatchHistory(
+  nick: string
+): Promise<TrainMatchHistoryRow[]> {
+  const clean = String(nick || "").trim();
+  if (!clean) return [];
+
+  const corpus = await getTrainPlayerCorpus();
+  if (!corpus.hasIndex) return [];
+  const resolveKey = aliasResolver(corpus.aliases);
+  const want = resolveKey(clean);
+
+  const matchMetas = corpus.rows.filter((row) => row.inHistory);
   matchMetas.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
 
   const { loadRpLadder, rpRankFromScore, lookupPlayerTrainRp } = await import(
@@ -656,29 +717,34 @@ export async function buildPlayerTrainMatchHistory(
   const step = Number(ladder?.step) || 150;
   const radiant3Max = Number(ladder?.radiant3Max) || 4500;
 
-  // Parallel disk reads (mem-cache coalesces duplicates with combat stats).
-  const CONCURRENCY = 12;
-  const playerDocs: (TrainPlayersDoc | null)[] = new Array(
-    matchMetas.length
-  ).fill(null);
-  for (let i = 0; i < matchMetas.length; i += CONCURRENCY) {
-    const slice = matchMetas.slice(i, i + CONCURRENCY);
-    const loaded = await Promise.all(
-      slice.map((match) =>
-        loadFromKv<TrainPlayersDoc>(match.playersUrl).catch(() => null)
-      )
-    );
-    for (let j = 0; j < loaded.length; j++) {
-      playerDocs[i + j] = loaded[j];
+  // Полная цепочка ladder (все катки с ΔRP игрока), даже если players/*.json нет —
+  // иначе rpAfter в UI отстаёт от бейджа ранга на сумму «дырявых» матчей.
+  const rpAfterByMatch = new Map<string, number>();
+  const rpDeltaByMatch = new Map<string, number>();
+  {
+    let running = startRp;
+    const orderedIds: string[] = [];
+    if (ladder?.matches?.length) {
+      for (const m of ladder.matches) {
+        if (rpNetByMatch.has(m.id)) orderedIds.push(m.id);
+      }
+    } else {
+      for (const m of rpPlayer?.matches || []) {
+        if (rpNetByMatch.has(m.id)) orderedIds.push(m.id);
+      }
+    }
+    for (const id of orderedIds) {
+      const net = rpNetByMatch.get(id)!;
+      running = Math.round(running + net);
+      rpDeltaByMatch.set(id, Math.round(net));
+      rpAfterByMatch.set(id, running);
     }
   }
 
-  let runningRp: number | null = null;
   const history: TrainMatchHistoryRow[] = [];
 
-  for (let i = 0; i < matchMetas.length; i++) {
-    const match = matchMetas[i];
-    const players = playerDocs[i];
+  for (const match of matchMetas) {
+    const players = match.doc;
     if (!players) continue;
     const list = (
       players.players?.length
@@ -695,15 +761,15 @@ export async function buildPlayerTrainMatchHistory(
     let rpAfter: number | null = null;
     let rankLabel = "—";
     let rankKey = "iron";
-    if (rpNetByMatch.has(match.id)) {
-      if (runningRp == null) runningRp = startRp;
-      const net = rpNetByMatch.get(match.id)!;
-      rpDelta = Math.round(net);
-      runningRp = Math.round(runningRp + net);
-      rpAfter = runningRp;
-      const rk = rpRankFromScore(runningRp, step, radiant3Max);
+    if (rpAfterByMatch.has(match.id)) {
+      rpDelta = rpDeltaByMatch.get(match.id)!;
+      rpAfter = rpAfterByMatch.get(match.id)!;
+      const rk = rpRankFromScore(rpAfter, step, radiant3Max);
       rankLabel = rk.label;
       rankKey = rk.rankKey;
+    } else if (rpNetByMatch.has(match.id)) {
+      // матч ещё не в ladder.matches, но net уже есть — показываем Δ без after
+      rpDelta = Math.round(rpNetByMatch.get(match.id)!);
     }
 
     const timeRaw = String(match.timeMsk || "").trim();
@@ -763,44 +829,29 @@ export async function buildPlayerTrainCombatStats(
   const clean = String(nick || "").trim();
   if (!clean) return null;
 
-  const index = await loadFromKv<{
-    months?: { year?: number; month?: number; url?: string }[];
-  }>("data/training-index.json");
-  if (!index?.months?.length) {
-    return {
-      nick: clean,
-      matches: 0,
-      wins: 0,
-      losses: 0,
-      kills: 0,
-      deaths: 0,
-      dmg: 0,
-      res: 0,
-      nok: 0,
-      kd: 0,
-      avgKills: 0,
-      avgDmg: 0,
-      winrate: 0,
-      mvpDamage: 0,
-      mvpKiller: 0,
-      mvpMedic: 0,
-      antiDeath: 0,
-    };
-  }
-
-  const tiersRaw = await loadFromKv<{
-    aliases?: Record<string, string>;
-  }>("data/tiers.json");
-  const aliases = tiersRaw?.aliases || {};
-  const aliasCanon = new Map<string, string>();
-  for (const [a, c] of Object.entries(aliases)) {
-    aliasCanon.set(nickKey(a), String(c));
-  }
-  const resolveKey = (n: string) => {
-    const key = nickKey(n);
-    const canon = aliasCanon.get(key);
-    return canon ? nickKey(canon) : key;
+  const empty = {
+    nick: clean,
+    matches: 0,
+    wins: 0,
+    losses: 0,
+    kills: 0,
+    deaths: 0,
+    dmg: 0,
+    res: 0,
+    nok: 0,
+    kd: 0,
+    avgKills: 0,
+    avgDmg: 0,
+    winrate: 0,
+    mvpDamage: 0,
+    mvpKiller: 0,
+    mvpMedic: 0,
+    antiDeath: 0,
   };
+
+  const corpus = await getTrainPlayerCorpus();
+  if (!corpus.hasIndex) return empty;
+  const resolveKey = aliasResolver(corpus.aliases);
   const want = resolveKey(clean);
 
   let matches = 0;
@@ -820,30 +871,11 @@ export async function buildPlayerTrainCombatStats(
   const nickIn = (list: string[] | undefined) =>
     (list || []).some((n) => resolveKey(n) === want);
 
-  for (const m of index.months) {
-    if (!m.url) continue;
-    const monthData = await loadFromKv<{
-      matches?: {
-        playersUrl?: string;
-        winner?: string;
-        status?: string;
-      }[];
-    }>(m.url);
-    for (const match of monthData?.matches || []) {
-      if (!match.playersUrl || match.status === "upcoming") continue;
-      const players = await loadFromKv<
-        TrainPlayersDoc & {
-          mvp?: {
-            train?: {
-              medic?: string[];
-              killer?: string[];
-              damage?: string[];
-              antiDeath?: string[];
-            };
-          };
-        }
-      >(match.playersUrl);
-      if (!players) continue;
+  for (const match of corpus.rows) {
+    if (!match.playersUrl || match.status === "upcoming") continue;
+    const players = match.doc;
+    if (!players) continue;
+    {
       const list = (
         players.players?.length
           ? players.players
