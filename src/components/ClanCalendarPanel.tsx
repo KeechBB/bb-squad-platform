@@ -360,6 +360,12 @@ export function ClanCalendarPanel({
                     {primary ? (
                       <>
                         <span className="clan-fifa-cell-time">{primary.timeMsk}</span>
+                        <span className="clan-fifa-cell-map">
+                          {primary.mapShort || primary.map || "—"}
+                        </span>
+                        {primary.status === "cancel" ? (
+                          <span className="clan-fifa-cell-cancel">ОТМ</span>
+                        ) : null}
                         <span className="clan-fifa-cell-logos">
                           <LogoImg
                             src={primary.ourLogo}
@@ -406,10 +412,36 @@ export function ClanCalendarPanel({
                   </strong>
                 </div>
 
-                <div className="clan-fifa-faceoff">
+                <div
+                  className={[
+                    "clan-fifa-spotlight",
+                    selected.status === "cancel" ? "is-cancel" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
+                  {selected.status === "cancel" ? (
+                    <div className="clan-fifa-cancel-banner" role="status">
+                      ОТМЕНА
+                    </div>
+                  ) : null}
+                  <div className="clan-fifa-map-hero">
+                    <span>Карта</span>
+                    <strong>{selected.map || selected.mapShort || "—"}</strong>
+                  </div>
+                </div>
+
+                <div
+                  className={[
+                    "clan-fifa-faceoff",
+                    selected.status === "cancel" ? "is-cancel" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
                   <div className="clan-fifa-club">
                     <LogoImg
-                      src={selected.ourLogo || clanLogoUrl}
+                      src={selected.ourLogo}
                       alt={clanTag}
                       fallbackKey={ourStackFallbackKey(
                         clanTag,
@@ -423,11 +455,17 @@ export function ClanCalendarPanel({
                     </em>
                   </div>
                   <div className="clan-fifa-vs">
-                    <span>VS</span>
-                    <WinRing
-                      pct={selected.forecast.winPct}
-                      tone={pctTone(selected.forecast.winPct)}
-                    />
+                    <span>{selected.status === "cancel" ? "✕" : "VS"}</span>
+                    {selected.status === "cancel" ? (
+                      <div className="clan-fifa-winring is-cancel" aria-hidden="true">
+                        <span className="clan-fifa-winring-num">ОТМ</span>
+                      </div>
+                    ) : (
+                      <WinRing
+                        pct={selected.forecast.winPct}
+                        tone={pctTone(selected.forecast.winPct)}
+                      />
+                    )}
                   </div>
                   <div className="clan-fifa-club">
                     <LogoImg
@@ -447,12 +485,16 @@ export function ClanCalendarPanel({
                   />
                   <div>
                     <strong>{selected.modeLabel}</strong>
-                    <span>{selected.map}</span>
+                    <span className="clan-fifa-modbanner-map">{selected.map}</span>
                   </div>
                 </div>
 
                 <div className="clan-fifa-statrow">
-                  <div>
+                  <div
+                    className={
+                      selected.status === "cancel" ? "is-status-cancel" : ""
+                    }
+                  >
                     <span>Статус</span>
                     <b>{statusLabel(selected.status)}</b>
                   </div>
@@ -515,7 +557,7 @@ export function ClanCalendarPanel({
                         type="button"
                         className={`is-mode-${m.modeId.toLowerCase()}${
                           m.key === selected.key ? " is-active" : ""
-                        }`}
+                        }${m.status === "cancel" ? " is-cancel" : ""}`}
                         onClick={() => setSelectedKey(m.key)}
                       >
                         <LogoImg
@@ -526,6 +568,9 @@ export function ClanCalendarPanel({
                         <span>
                           {m.timeMsk} · {stackMark(m.stack).label} vs{" "}
                           {canonOpp(m.opp).tag}
+                          {" · "}
+                          {m.mapShort || m.map}
+                          {m.status === "cancel" ? " · ОТМ" : ""}
                         </span>
                       </button>
                     ))}

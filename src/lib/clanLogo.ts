@@ -63,7 +63,6 @@ const LOGO_EXT: Record<string, string> = {
   SOLID: ".png",
   RA: ".png",
   NKLV: ".png",
-  RPSS: ".png",
 };
 
 function normKey(raw: string): string {

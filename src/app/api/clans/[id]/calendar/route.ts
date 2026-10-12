@@ -133,15 +133,15 @@ export async function GET(_req: Request, ctx: Ctx) {
         return s ? `BB ${stack}` : "BB";
       };
       for (const p of previews) {
-        const asHost = !p.bbHost && (norm(p.clan) === want || norm(p.clan) === oppNorm);
+        const asHost =
+          !p.bbHost && (norm(p.clan) === want || norm(p.clan) === oppNorm);
         const asOpp = norm(p.opp) === want || norm(p.opp) === oppNorm;
         if (!asHost && !asOpp) continue;
-        const stackLow = String(p.stack || "").toLowerCase();
-        const stackLogo = p.bbHost
-          ? stackLow.includes("jun")
-            ? clanLogoUrl("BB-JUNIOR")
-            : clanLogoUrl("BB-MAIN")
-          : clanLogoUrl(asHost ? p.opp : p.clan) || ourLogo;
+        // Left side = viewing clan. Never put opp crest into ourLogo.
+        const sideLogo =
+          ourLogo ||
+          clanLogoUrl(clan.tag) ||
+          (!p.bbHost ? clanLogoUrl(p.clan) : null);
         if (asHost) {
           matches.push(
             enrichPreview(
@@ -150,7 +150,7 @@ export async function GET(_req: Request, ctx: Ctx) {
                 stack: clan.tag,
                 forecast: EMPTY_FORECAST,
               },
-              stackLogo,
+              sideLogo,
               "kv"
             )
           );
@@ -166,7 +166,7 @@ export async function GET(_req: Request, ctx: Ctx) {
               meeting: invertMeeting(p.meeting),
               forecast: EMPTY_FORECAST,
             },
-            stackLogo,
+            sideLogo,
             "kv"
           )
         );
