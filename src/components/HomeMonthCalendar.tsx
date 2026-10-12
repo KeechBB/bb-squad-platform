@@ -164,21 +164,23 @@ export function HomeMonthCalendar({ previews }: Props) {
   }
 
   function logoButton(m: UpcomingMatchPreview) {
-    const clan = canonOpp(m.opp);
-    const src = clanLogoUrl(clan.key);
+    const opp = canonOpp(m.opp);
+    const host = m.bbHost ? "BB" : m.clan;
+    const src = clanLogoUrl(opp.key);
+    const stackBit = m.bbHost && m.stack && m.stack !== "—" ? ` ${m.stack}` : "";
     return (
       <button
         key={m.key}
         type="button"
         className={`home-cal-logo is-${m.status || "play"}`}
-        title={`${m.timeMsk} ${m.stack} vs ${clan.name}`}
+        title={`${m.timeMsk} ${host}${stackBit} vs ${opp.name}`}
         onClick={() => setSelectedKey(m.key)}
       >
         {src ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={src} alt={clan.tag} />
+          <img src={src} alt={opp.tag} />
         ) : (
-          <span>{clan.tag.slice(0, 4)}</span>
+          <span>{opp.tag.slice(0, 4) || host.slice(0, 4)}</span>
         )}
       </button>
     );
@@ -224,12 +226,20 @@ export function HomeMonthCalendar({ previews }: Props) {
                 {selected.meeting ? ` · ${selected.meeting}` : ""}
               </p>
               <h3 className="home-match-detail-vs">
-                <span className="home-match-bb">BB</span>
+                <span className="home-match-bb">
+                  {selected.bbHost ? "BB" : selected.clan}
+                </span>
                 <span className="home-match-vs-sep">vs</span>
                 <span className="home-match-opp">{selected.opp}</span>
               </h3>
               <p className="home-match-meta">
-                {selected.map} · {selected.stack} · {selected.size}
+                {selected.map}
+                {selected.bbHost && selected.stack && selected.stack !== "—"
+                  ? ` · ${selected.stack}`
+                  : ""}
+                {" · "}
+                {selected.size}
+                {!selected.bbHost ? " · чужой КВ" : ""}
               </p>
             </div>
             <WinRing

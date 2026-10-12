@@ -21,6 +21,8 @@ export type UpcomingMatchPreview = {
   month: number;
   year: number;
   timeMsk: string;
+  /** Хост слота (сторона A). BlackBerry если наш КВ. */
+  clan: string;
   opp: string;
   map: string;
   mapShort: string;
@@ -31,6 +33,8 @@ export type UpcomingMatchPreview = {
   note: string | null;
   status: string;
   meeting: string | null;
+  /** false = чужой КВ (NKLV vs RPSS и т.п.), без BB-прогноза */
+  bbHost: boolean;
   forecast: MatchForecast;
 };
 

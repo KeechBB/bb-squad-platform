@@ -91,11 +91,12 @@ export async function GET(_req: Request, ctx: Ctx) {
 
   const matches: ClanCalMatch[] = [];
 
-  // BlackBerry: полный KV-календарь. Чужой клан: слоты где они opp (статус с их стороны).
+  // BB: только наши слоты. Чужой: host (clan=tag) без invert, или opp=tag с invert.
   try {
     const { previews } = await buildCalendarMatches();
     if (tagUp === "BB") {
       for (const p of previews) {
+        if (!p.bbHost) continue;
         const stack = String(p.stack || "").toLowerCase();
         const stackLogo = stack.includes("jun")
           ? clanLogoUrl("BB-JUNIOR")
@@ -113,6 +114,12 @@ export async function GET(_req: Request, ctx: Ctx) {
         solid: "solid",
       };
       const want = aliases[oppNorm] || oppNorm;
+      const norm = (s?: string | null) => {
+        const a = String(s || "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, "");
+        return aliases[a] || a;
+      };
       const invertStatus = (s?: string) =>
         s === "win" ? "lose" : s === "lose" ? "win" : s || "";
       const invertMeeting = (m?: string | null) => {
@@ -126,20 +133,34 @@ export async function GET(_req: Request, ctx: Ctx) {
         return s ? `BB ${stack}` : "BB";
       };
       for (const p of previews) {
-        const a = String(p.opp || "")
-          .toLowerCase()
-          .replace(/[^a-z0-9]/g, "");
-        const na = aliases[a] || a;
-        if (na !== want && a !== oppNorm) continue;
+        const asHost = !p.bbHost && (norm(p.clan) === want || norm(p.clan) === oppNorm);
+        const asOpp = norm(p.opp) === want || norm(p.opp) === oppNorm;
+        if (!asHost && !asOpp) continue;
         const stackLow = String(p.stack || "").toLowerCase();
-        const stackLogo = stackLow.includes("jun")
-          ? clanLogoUrl("BB-JUNIOR")
-          : clanLogoUrl("BB-MAIN");
+        const stackLogo = p.bbHost
+          ? stackLow.includes("jun")
+            ? clanLogoUrl("BB-JUNIOR")
+            : clanLogoUrl("BB-MAIN")
+          : clanLogoUrl(asHost ? p.opp : p.clan) || ourLogo;
+        if (asHost) {
+          matches.push(
+            enrichPreview(
+              {
+                ...p,
+                stack: clan.tag,
+                forecast: EMPTY_FORECAST,
+              },
+              stackLogo,
+              "kv"
+            )
+          );
+          continue;
+        }
         matches.push(
           enrichPreview(
             {
               ...p,
-              opp: bbStack(p.stack),
+              opp: p.bbHost ? bbStack(p.stack) : p.clan,
               stack: clan.tag,
               status: invertStatus(p.status),
               meeting: invertMeeting(p.meeting),
@@ -212,6 +233,7 @@ export async function GET(_req: Request, ctx: Ctx) {
           month,
           year,
           timeMsk: `${hh}:${mm}`,
+          clan: tagUp === "BB" ? "BlackBerry" : clan.tag,
           opp: e.opponentTag || e.opponentName || "?",
           map: modeLabel(modeId),
           mapShort: modeLabel(modeId),
@@ -222,6 +244,7 @@ export async function GET(_req: Request, ctx: Ctx) {
           note: null,
           status,
           meeting: null,
+          bbHost: tagUp === "BB",
           forecast: EMPTY_FORECAST,
         },
         stackLogo || ourLogo,

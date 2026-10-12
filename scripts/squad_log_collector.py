@@ -1304,6 +1304,20 @@ class Collector:
     def _try_acquire_heavy_lock(self, label: str) -> bool:
         return self._try_acquire_lock(self._heavy_lock, self._heavy_lock_ttl, label)
 
+    def _load_too_high(self, limit: float = 1.35) -> bool:
+        """2-vCPU box: skip heavy jobs when 1-min load is already hot (protect Next)."""
+        try:
+            load1 = os.getloadavg()[0]
+        except (AttributeError, OSError):
+            return False
+        if load1 >= limit:
+            _safe_print(
+                f"heavy job skip — loadavg {load1:.2f} >= {limit}",
+                flush=True,
+            )
+            return True
+        return False
+
     def _spawn_low_priority(
         self,
         script: Path,
@@ -1316,6 +1330,8 @@ class Collector:
         extra_args: list[str] | None = None,
     ) -> bool:
         """Start heavy Python job with nice/ionice; single-flight via lock file."""
+        if self._load_too_high():
+            return False
         lock = lock_path or self._heavy_lock
         ttl = self._heavy_lock_ttl if lock_ttl is None else lock_ttl
         if not self._try_acquire_lock(lock, ttl, lock_label):
@@ -1550,6 +1566,8 @@ class Collector:
             train_dir = root / "data" / "training"
             pub_dir = root / "data" / "public"
             if train_dir.is_dir():
+                # Always reconcile pending vs ladder first (stale warehouse alerts).
+                TRG.clear_pending_done(train_dir, kind="train")
                 missing = TRG.auto_ids_needing_rp(train_dir)
                 if missing:
                     TRG.enqueue_pending(train_dir, missing, reason="collector-scan")
@@ -1557,6 +1575,7 @@ class Collector:
                 if alerted:
                     _safe_print(f"telegram train RP lag: {alerted}", flush=True)
             if pub_dir.is_dir():
+                TRG.clear_pending_done(pub_dir, kind="public")
                 missing_p = TRG.public_ids_needing_rp(pub_dir)
                 if missing_p:
                     TRG.enqueue_pending(

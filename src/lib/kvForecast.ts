@@ -1,9 +1,18 @@
-import type { KvMatch } from "@/lib/kvStats";
+import { isBbHostMatch, hostClanLabel, type KvMatch } from "@/lib/kvStats";
 import type {
   ForecastFactor,
   MatchForecast,
   UpcomingMatchPreview,
 } from "@/lib/kvForecastUi";
+
+const EMPTY_FORECAST: MatchForecast = {
+  winPct: 0,
+  drawPct: 0,
+  losePct: 0,
+  confidence: "low",
+  summary: "Чужой КВ — прогноз BlackBerry не строится.",
+  factors: [],
+};
 
 export type {
   ForecastFactor,
@@ -434,6 +443,7 @@ function toPreview(
   briefs: Map<string, StackBrief>
 ): UpcomingMatchPreview {
   const mapFull = m.map || "—";
+  const bbHost = isBbHostMatch(m);
   const brief = briefs.get((m.stack || "").trim().toLowerCase());
   return {
     key: m.id || `${m.year}-${m.month}-${m.day}-${m.opp}-${i}`,
@@ -441,6 +451,7 @@ function toPreview(
     month: m.month,
     year: m.year,
     timeMsk: m.timeMsk || "—",
+    clan: hostClanLabel(m),
     opp: m.opp || "—",
     map: mapFull,
     mapShort: shortMap(mapFull),
@@ -451,7 +462,14 @@ function toPreview(
     note: m.note || null,
     status: m.status || "",
     meeting: m.meeting || null,
-    forecast: buildForecast(m, matches, brief),
+    bbHost,
+    forecast: bbHost
+      ? buildForecast(
+          m,
+          matches.filter((x) => isBbHostMatch(x)),
+          brief
+        )
+      : EMPTY_FORECAST,
   };
 }
 
@@ -473,7 +491,7 @@ export async function buildCalendarMatches(): Promise<{
   source: string;
 }> {
   const { matches, source } = await loadTaggedMatches();
-  const briefs = await buildStackBriefs(matches);
+  const briefs = await buildStackBriefs(matches.filter((m) => isBbHostMatch(m)));
   const dated = matches
     .filter((m) => Number(m.day) > 0 && m.month > 0 && m.year > 0)
     .sort((a, b) => matchStamp(a) - matchStamp(b));

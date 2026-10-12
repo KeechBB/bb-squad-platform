@@ -1,8 +1,12 @@
+import { memoTtl, PROFILE_CORPUS_TTL_MS } from "@/lib/memoTtl";
+
 export type KvMatch = {
   id?: string;
   day?: number;
   year?: number;
   month?: number;
+  /** Хост слота (сторона A). Пусто / BB / BlackBerry = наш КВ. Чужие: NKLV, RPSS… */
+  clan?: string;
   opp?: string;
   map?: string;
   stack?: string;
@@ -11,6 +15,17 @@ export type KvMatch = {
   size?: string;
   playersUrl?: string;
 };
+
+/** Хост = BlackBerry, если clan не задан или BB/BlackBerry. */
+export function isBbHostMatch(m: { clan?: string | null }): boolean {
+  const c = String(m.clan || "").trim();
+  if (!c) return true;
+  return /^(bb|blackberry)$/i.test(c);
+}
+
+export function hostClanLabel(m: { clan?: string | null }): string {
+  return isBbHostMatch(m) ? "BlackBerry" : String(m.clan || "").trim() || "—";
+}
 
 export type PlayerKvRound = {
   matchId: string;
@@ -268,27 +283,38 @@ function bbStackLabel(stack?: string | null): string {
 
 export async function buildClanKvStats(clanTag: string): Promise<ClanStats> {
   const { matches, source } = await loadAllMatches();
-  // Календарь КВ — матчи BlackBerry; для BB/BlackBerry берём всё;
-  // для чужого клана — слоты где opp совпал (статус с их стороны).
+  // BB: только наши слоты (clan пустой/BB). Чужие КВ в календарь есть, в статы BB — нет.
+  // Другой клан: host (clan=tag) без invert, или opp=tag с invert (vs BB или vs другого хоста).
   const isBb =
     /^bb$/i.test(clanTag) ||
     /^blackberry$/i.test(clanTag);
   const list = isBb
-    ? matches
+    ? matches.filter((m) => isBbHostMatch(m))
     : matches
-        .filter((m) => oppTagMatch(m.opp, clanTag))
-        .map((m) => ({
-          ...m,
-          status: invertBbStatus(m.status),
-          meeting: invertMeeting(m.meeting),
-          // для соперника «против кого» = состав BB (Main/Junior)
-          opp:
-            isPlayedStatus(m.status) ||
-            m.status === "upcoming" ||
-            m.status === "cancel"
-              ? bbStackLabel(m.stack)
-              : m.opp,
-        }));
+        .filter(
+          (m) =>
+            oppTagMatch(m.opp, clanTag) ||
+            (!isBbHostMatch(m) && oppTagMatch(m.clan, clanTag))
+        )
+        .map((m) => {
+          const asHost =
+            !isBbHostMatch(m) && oppTagMatch(m.clan, clanTag);
+          if (asHost) {
+            return { ...m, opp: m.opp || "—" };
+          }
+          return {
+            ...m,
+            status: invertBbStatus(m.status),
+            meeting: invertMeeting(m.meeting),
+            opp: isBbHostMatch(m)
+              ? isPlayedStatus(m.status) ||
+                m.status === "upcoming" ||
+                m.status === "cancel"
+                ? bbStackLabel(m.stack)
+                : m.opp
+              : hostClanLabel(m),
+          };
+        });
 
   const summary = tally(list);
   // «По составам» имеет смысл только у BB (наши Main/Junior).
@@ -745,23 +771,43 @@ export async function computeCwTuByNick(): Promise<Map<string, number>> {
   return out;
 }
 
-/** Личная стата игрока по раундам из data/players + mvp-ledger */
-export async function buildPlayerKvStats(nick: string): Promise<PlayerKvStats> {
-  const { matches, source } = await loadAllMatches();
-  const want = nick.trim();
-  const rounds: PlayerKvRound[] = [];
-  const matchMeta = new Map<string, KvMatch>();
+type KvPlayersDoc = {
+  day?: number;
+  opp?: string;
+  r1?: Record<string, unknown>[];
+  r2?: Record<string, unknown>[];
+  oppR1?: Record<string, unknown>[];
+  oppR2?: Record<string, unknown>[];
+};
 
-  type PlayersDoc = {
+type KvLedgerPlayer = {
+  mvpDamage?: unknown;
+  mvpKiller?: unknown;
+  mvpMedic?: unknown;
+  antiDeath?: unknown;
+  awards?: {
+    matchId?: string;
     day?: number;
     opp?: string;
-    r1?: Record<string, unknown>[];
-    r2?: Record<string, unknown>[];
-    oppR1?: Record<string, unknown>[];
-    oppR2?: Record<string, unknown>[];
-  };
+    round?: string;
+    type?: string;
+    label?: string;
+  }[];
+};
 
-  const jobs: { m: KvMatch; mid: string; playersUrl: string }[] = [];
+type KvPlayerCorpus = {
+  source: string;
+  jobs: { m: KvMatch; mid: string; playersUrl: string }[];
+  docs: (KvPlayersDoc | null)[];
+  matchMeta: Map<string, KvMatch>;
+  ledger: { players?: Record<string, KvLedgerPlayer> } | null;
+};
+
+/** Все файлы игроков КВ — один проход на две минуты, дальше профили только фильтруют. */
+async function loadKvPlayerCorpus(): Promise<KvPlayerCorpus> {
+  const { matches, source } = await loadAllMatches();
+  const jobs: KvPlayerCorpus["jobs"] = [];
+  const matchMeta = new Map<string, KvMatch>();
   for (const m of matches) {
     const mid = String(m.id || "").trim();
     if (mid) matchMeta.set(mid, m);
@@ -771,14 +817,42 @@ export async function buildPlayerKvStats(nick: string): Promise<PlayerKvStats> {
   }
 
   const CONCURRENCY = 16;
-  const docs: (PlayersDoc | null)[] = new Array(jobs.length).fill(null);
+  const docs: (KvPlayersDoc | null)[] = new Array(jobs.length).fill(null);
   for (let i = 0; i < jobs.length; i += CONCURRENCY) {
     const slice = jobs.slice(i, i + CONCURRENCY);
     const loaded = await Promise.all(
-      slice.map((j) => loadKvJson<PlayersDoc>(j.playersUrl).catch(() => null))
+      slice.map((j) =>
+        loadKvJson<KvPlayersDoc>(j.playersUrl).catch(() => null)
+      )
     );
     for (let k = 0; k < loaded.length; k++) docs[i + k] = loaded[k];
   }
+
+  let ledger: KvPlayerCorpus["ledger"] = null;
+  try {
+    ledger = await loadKvJson<{ players?: Record<string, KvLedgerPlayer> }>(
+      "data/mvp-ledger.json"
+    );
+  } catch {
+    ledger = null;
+  }
+
+  return { source, jobs, docs, matchMeta, ledger };
+}
+
+function getKvPlayerCorpus(): Promise<KvPlayerCorpus> {
+  return memoTtl(
+    "kv-player-corpus-v1",
+    PROFILE_CORPUS_TTL_MS,
+    loadKvPlayerCorpus
+  );
+}
+
+/** Личная стата игрока по раундам из data/players + mvp-ledger */
+export async function buildPlayerKvStats(nick: string): Promise<PlayerKvStats> {
+  const want = nick.trim();
+  const { source, jobs, docs, matchMeta, ledger } = await getKvPlayerCorpus();
+  const rounds: PlayerKvRound[] = [];
 
   for (let i = 0; i < jobs.length; i++) {
     const { m, mid } = jobs[i];
@@ -861,24 +935,7 @@ export async function buildPlayerKvStats(nick: string): Promise<PlayerKvStats> {
   let mvpKiller = 0;
   let mvpMedic = 0;
   let antiDeath = 0;
-  try {
-    type LedgerPlayer = {
-      mvpDamage?: unknown;
-      mvpKiller?: unknown;
-      mvpMedic?: unknown;
-      antiDeath?: unknown;
-      awards?: {
-        matchId?: string;
-        day?: number;
-        opp?: string;
-        round?: string;
-        type?: string;
-        label?: string;
-      }[];
-    };
-    const ledger = await loadKvJson<{
-      players?: Record<string, LedgerPlayer>;
-    }>("data/mvp-ledger.json");
+  {
     const entry =
       ledger?.players?.[want] ||
       Object.entries(ledger?.players || {}).find(([k]) => nickEq(k, want))?.[1];
@@ -910,8 +967,6 @@ export async function buildPlayerKvStats(nick: string): Promise<PlayerKvStats> {
         }
       );
     }
-  } catch {
-    /* ledger optional */
   }
 
   const recent = [...rounds].sort((a, b) => {

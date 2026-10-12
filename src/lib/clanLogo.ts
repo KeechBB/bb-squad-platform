@@ -27,6 +27,7 @@ const OPP_CANON: Record<string, { key: string; tag: string; name: string }> = {
   solid: { key: "SOLID", tag: ".solid", name: ".SOLID" },
   ".solid": { key: "SOLID", tag: ".solid", name: ".SOLID" },
   nklv: { key: "NKLV", tag: "NKLV", name: "NKLV" },
+  rpss: { key: "RPSS", tag: "RPSS", name: "RPSS" },
   ra: { key: "RA", tag: "RA", name: "Requiem Aeternam" },
   requiem: { key: "RA", tag: "RA", name: "Requiem Aeternam" },
   requiemaeternam: { key: "RA", tag: "RA", name: "Requiem Aeternam" },

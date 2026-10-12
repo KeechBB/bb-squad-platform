@@ -337,6 +337,9 @@ def lag_minutes() -> int:
 
 
 def alert_stale_pending(data_dir: Path, *, kind: str = "train") -> list[str]:
+    # Drop anything already on the ladder before enqueue/alert — avoids false
+    # Telegram when warehouse pending lags a newer mirrored ladder (or vice versa).
+    clear_pending_done(data_dir, kind=kind)
     if kind == "train":
         for mid in auto_ids_needing_rp(data_dir):
             enqueue_pending(data_dir, [mid], reason="lag-scan", kind=kind)
