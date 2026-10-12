@@ -455,8 +455,8 @@ export function PublicRatingClient({
                     <Th k="place" label="Место" />
                     <Th k="rankLabel" label="Rank" />
                     <Th k="rp" label="RP" />
-                    <Th k="nick" label="Ник" />
-                    <Th k="clan" label="Клан" />
+                    <Th k="clan" label="Тег" className="ctr col-tag" />
+                    <Th k="nick" label="Ник" className="col-nick" />
                     <Th k="games" label="Каток" />
                     <Th k="winPct" label="% побед" />
                     <Th k="res" label="Ресы" />
@@ -490,7 +490,8 @@ export function PublicRatingClient({
                         <td className={recordCls(rpVal, records.rp, "ctr")}>
                           {rpVal == null ? "—" : rpVal}
                         </td>
-                        <td className="ctr">
+                        <td className="ctr col-tag">{r.clan}</td>
+                        <td className="col-nick">
                           <button
                             type="button"
                             className="public-rating-nick-btn"
@@ -510,7 +511,6 @@ export function PublicRatingClient({
                             </Link>
                           ) : null}
                         </td>
-                        <td className="ctr">{r.clan}</td>
                         <td className={recordCls(r.games, records.games, "ctr")}>
                           {r.games}
                         </td>

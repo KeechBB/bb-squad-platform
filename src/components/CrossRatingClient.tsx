@@ -205,8 +205,8 @@ export function CrossRatingClient({ clans, enemies }: Props) {
                   <th className="ctr">Место</th>
                   <th className="ctr">Rank</th>
                   <th className="ctr">Сила</th>
-                  <th>Ник</th>
-                  <th className="ctr">Клан</th>
+                  <th className="ctr col-tag">Тег</th>
+                  <th className="col-nick">Ник</th>
                   <th className="ctr">Каток</th>
                   <th className="ctr">% побед</th>
                   <th className="ctr">Ресы</th>
@@ -240,14 +240,14 @@ export function CrossRatingClient({ clans, enemies }: Props) {
                       <td className="ctr">
                         <strong>{r.pwr}</strong>
                       </td>
-                      <td>
+                      <td className="ctr col-tag">{r.clanTag || "—"}</td>
+                      <td className="col-nick">
                         <Link
                           href={`/rating/players/${encodeURIComponent(r.nick)}`}
                         >
                           {r.nick}
                         </Link>
                       </td>
-                      <td className="ctr">[{r.clanTag}]</td>
                       <td className="ctr">{r.games}</td>
                       <td className="ctr">
                         {r.winPct != null ? `${r.winPct}%` : "—"}

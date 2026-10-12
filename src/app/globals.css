@@ -817,6 +817,18 @@ svg {
   font-variant-numeric: tabular-nums;
 }
 
+/* Ник слева; тег клана — отдельная колонка слева от ника */
+.public-rating-shell .public-rating-table-wrap table.admin-table th.col-nick,
+.public-rating-shell .public-rating-table-wrap table.admin-table td.col-nick,
+.public-rating-table-wrap table.admin-table th.col-nick,
+.public-rating-table-wrap table.admin-table td.col-nick,
+.cross-rating-table th.col-nick,
+.cross-rating-table td.col-nick,
+.admin-table.rating-like-cw th.col-nick,
+.admin-table.rating-like-cw td.col-nick {
+  text-align: left !important;
+}
+
 .public-rating-shell .public-rating-table-wrap table.admin-table td.ctr {
   display: table-cell;
 }
