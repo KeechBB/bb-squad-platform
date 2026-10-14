@@ -200,17 +200,31 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const userId = String((body as { userId?: string })?.userId || "").trim();
   const untilRaw = String((body as { until?: string })?.until || "").trim();
+  const fromRaw = String((body as { from?: string })?.from || "").trim();
   const reason = String((body as { reason?: string })?.reason || "").trim();
 
   if (!userId) {
     return NextResponse.json({ error: "userId обязателен" }, { status: 400 });
   }
-  const until = parseFutureOrTodayDate(untilRaw);
+  // Админ: можно задним числом (until в прошлом)
+  let until = parseFutureOrTodayDate(untilRaw);
+  if (!until) until = parseRuCalendarDate(untilRaw);
   if (!until) {
     return NextResponse.json(
-      { error: "Дата до (ДД.ММ.ГГГГ), не в прошлом" },
+      { error: "Дата до (ДД.ММ.ГГГГ)" },
       { status: 400 }
     );
+  }
+  let enteredAt: Date | undefined;
+  if (fromRaw) {
+    const from = parseRuCalendarDate(fromRaw);
+    if (!from) {
+      return NextResponse.json(
+        { error: "Дата с (ДД.ММ.ГГГГ)" },
+        { status: 400 }
+      );
+    }
+    enteredAt = from;
   }
   if (reason.length < 3 || reason.length > 300) {
     return NextResponse.json(
@@ -240,11 +254,18 @@ export async function POST(req: Request) {
       reason,
       source: "admin",
       actor,
+      enteredAt,
     });
     return NextResponse.json({ ok: true, reserve: user });
   } catch (e) {
     if (e instanceof Error && e.message === "user_not_found") {
       return NextResponse.json({ error: "Игрок не найден" }, { status: 404 });
+    }
+    if (e instanceof Error && e.message === "reserve_min_days") {
+      return NextResponse.json(
+        { error: "Дата «до» должна быть не раньше даты начала" },
+        { status: 400 }
+      );
     }
     throw e;
   }

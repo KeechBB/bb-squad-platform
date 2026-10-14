@@ -66,6 +66,7 @@ export type AttendanceLaneProps = {
   presentDays?: string[];
   lateDays?: string[];
   reserveDays?: string[];
+  dayOffDays?: string[];
   visitBounds?: Record<string, { joinHm: string; leaveHm: string | null }>;
 };
 
@@ -124,7 +125,14 @@ function todayYmdMsk(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Moscow" });
 }
 
-type DayMark = "present" | "late" | "absent" | "reserve" | "pending" | "outside";
+type DayMark =
+  | "present"
+  | "late"
+  | "absent"
+  | "reserve"
+  | "dayoff"
+  | "pending"
+  | "outside";
 
 function parseJoinHm(hm: string | undefined): number | null {
   if (!hm) return null;
@@ -147,13 +155,15 @@ function dayMark(
   presentDays: Set<string>,
   lateDays: Set<string>,
   reserveDays: Set<string>,
+  dayOffDays: Set<string>,
   joinHm?: string
 ): DayMark {
   if (ymd < ATTENDANCE_CANON_START_YMD) return "outside";
   const today = todayYmdMsk();
-  if (ymd > today) return "pending";
-  // Резерв — уваж. причина: синий «резерв», даже если заходил
+  // Выходной / резерв — заранее на будущие дни своим цветом
+  if (dayOffDays.has(ymd)) return "dayoff";
   if (reserveDays.has(ymd)) return "reserve";
+  if (ymd > today) return "pending";
   if (presentDays.has(ymd)) {
     if (isLateJoinHm(joinHm) || lateDays.has(ymd)) return "late";
     return "present";
@@ -340,6 +350,7 @@ export function TrainingSessionsCard({
   presentDays: presentDaysProp,
   lateDays: lateDaysProp,
   reserveDays: reserveDaysProp,
+  dayOffDays: dayOffDaysProp,
   visitBounds: visitBoundsProp,
   matchHistory = [],
   includeMatchHistory = true,
@@ -358,6 +369,7 @@ export function TrainingSessionsCard({
     presentDays: presentDaysProp,
     lateDays: lateDaysProp,
     reserveDays: reserveDaysProp,
+    dayOffDays: dayOffDaysProp,
     visitBounds: visitBoundsProp,
   };
   const lane =
@@ -392,6 +404,10 @@ export function TrainingSessionsCard({
   const reserveTrainingDays = useMemo(
     () => new Set(server === "TR1" ? lane.reserveDays || [] : []),
     [lane.reserveDays, server]
+  );
+  const dayOffTrainingDays = useMemo(
+    () => new Set(server === "TR1" ? lane.dayOffDays || [] : []),
+    [lane.dayOffDays, server]
   );
 
   const visitBounds = lane.visitBounds || {};
@@ -558,6 +574,7 @@ export function TrainingSessionsCard({
                 presentTrainingDays,
                 lateTrainingDays,
                 reserveTrainingDays,
+                dayOffTrainingDays,
                 bounds?.joinHm
               );
               const timeLabel =
@@ -577,18 +594,22 @@ export function TrainingSessionsCard({
                         ? `Был, опоздал (заход с 21:00)${
                             timeLabel ? ` · ${timeLabel}` : ""
                           }`
-                        : mark === "reserve"
-                          ? "Резерв (уважительная причина)"
-                          : mark === "absent"
-                            ? "Не был"
-                            : mark === "pending"
-                              ? "Ещё рано / окно не закрыто"
-                              : "Вне учёта"
+                        : mark === "dayoff"
+                          ? "Выходной (1–3 дня)"
+                          : mark === "reserve"
+                            ? "Резерв (от 4 дней)"
+                            : mark === "absent"
+                              ? "Не был"
+                              : mark === "pending"
+                                ? "Ещё рано / окно не закрыто"
+                                : "Вне учёта"
                   }
                 >
                   <span className="training-cal-day">{c.day}</span>
                   {mark === "present" || mark === "late" ? (
                     <span className="training-cal-dot">был</span>
+                  ) : mark === "dayoff" ? (
+                    <span className="training-cal-dot">вых</span>
                   ) : mark === "reserve" ? (
                     <span className="training-cal-dot">резерв</span>
                   ) : mark === "absent" ? (

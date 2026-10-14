@@ -11,6 +11,7 @@ import {
   type TrainingServerKey,
 } from "@/lib/squadServers";
 import { reserveDaysForUser } from "@/lib/reserve";
+import { dayOffDaysForUser } from "@/lib/dayOff";
 
 const LIST_LIMIT = 80;
 
@@ -25,6 +26,7 @@ export type TrainingLaneStats = {
   presentDays: string[];
   lateDays: string[];
   reserveDays: string[];
+  dayOffDays: string[];
   visitBounds: Record<string, { joinHm: string; leaveHm: string | null }>;
   minutes30d: number;
   sessions30d: number;
@@ -34,6 +36,7 @@ export type TrainingLaneStats = {
 function laneFromSessions(
   lean: TrainingLaneStats["sessions"],
   reserveDays: string[],
+  dayOffDays: string[],
   since: Date,
   serverFilter?: TrainingServerKey
 ): TrainingLaneStats {
@@ -71,6 +74,7 @@ function laneFromSessions(
     presentDays: [...marks.present],
     lateDays: [...marks.late],
     reserveDays: serverFilter === "TR2" ? [] : reserveDays,
+    dayOffDays: serverFilter === "TR2" ? [] : dayOffDays,
     visitBounds,
     minutes30d: [...eveningMinsByDay.values()].reduce((a, b) => a + b, 0),
     sessions30d: eveningMinsByDay.size,
@@ -83,7 +87,7 @@ export async function loadUserTrainingStats(userId: string) {
   const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const since = since30 > canonStart ? since30 : canonStart;
 
-  const [lean, reserveDays] = await Promise.all([
+  const [lean, reserveDays, dayOffDays] = await Promise.all([
     prisma.squadServerSession.findMany({
       where: { userId, joinedAt: { gte: canonStart } },
       orderBy: { joinedAt: "desc" },
@@ -96,11 +100,12 @@ export async function loadUserTrainingStats(userId: string) {
       },
     }),
     reserveDaysForUser(userId),
+    dayOffDaysForUser(userId),
   ]);
 
-  const combined = laneFromSessions(lean, reserveDays, since);
-  const tr1 = laneFromSessions(lean, reserveDays, since, "TR1");
-  const tr2 = laneFromSessions(lean, reserveDays, since, "TR2");
+  const combined = laneFromSessions(lean, reserveDays, dayOffDays, since);
+  const tr1 = laneFromSessions(lean, reserveDays, dayOffDays, since, "TR1");
+  const tr2 = laneFromSessions(lean, reserveDays, dayOffDays, since, "TR2");
 
   return {
     ...combined,

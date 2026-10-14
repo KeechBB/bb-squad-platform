@@ -187,6 +187,7 @@ function laneFromSessions(
     presentDays: [...present],
     lateDays: [...late],
     reserveDays: [],
+    dayOffDays: [],
     visitBounds,
     minutes30d: [...minsByDay.values()].reduce((a, b) => a + b, 0),
     sessions30d: minsByDay.size,

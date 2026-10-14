@@ -21,8 +21,10 @@ function addDaysYmd(ymd: string, delta: number): string {
 }
 
 /**
- * Дни МСК, когда игрок был в резерве (уваж. причина).
- * [enteredAt .. exitedAt|today] включительно, с канона посещаемости.
+ * Дни МСК резерва на календарь (уваж. причина).
+ * Открытый stint — до untilAt (в т.ч. будущие, заранее);
+ * закрытый — до exitedAt. С канона посещаемости.
+ * @param endCapYmd — опционально обрезать (для стриков посещаемости = сегодня)
  */
 export function reserveTrainingDaysFromStints(
   stints: Array<{
@@ -30,16 +32,15 @@ export function reserveTrainingDaysFromStints(
     untilAt: Date;
     exitedAt: Date | null;
   }>,
-  todayYmd?: string
+  endCapYmd?: string
 ): string[] {
-  const today =
-    todayYmd ||
-    new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Moscow" });
   const days = new Set<string>();
   for (const s of stints) {
     let start = formatMskYmd(s.enteredAt);
-    let end = s.exitedAt ? formatMskYmd(s.exitedAt) : today;
-    if (end > today) end = today;
+    let end = s.exitedAt
+      ? formatMskYmd(s.exitedAt)
+      : formatMskYmd(s.untilAt);
+    if (endCapYmd && end > endCapYmd) end = endCapYmd;
     if (start < ATTENDANCE_CANON_START_YMD) {
       start = ATTENDANCE_CANON_START_YMD;
     }
@@ -69,12 +70,33 @@ export async function enterReserve(opts: {
   reason: string;
   source: "self" | "admin";
   actor: ReserveActor;
+  /** Админ: дата начала (в т.ч. задним числом). */
+  enteredAt?: Date;
 }) {
   const me = await prisma.user.findUnique({
     where: { id: opts.userId },
     include: { clanMemberships: true },
   });
   if (!me) throw new Error("user_not_found");
+
+  const { inclusiveCalendarDays, RESERVE_MIN_DAYS, todayUtcMidnight } =
+    await import("@/lib/absenceDays");
+  const enteredAt = opts.enteredAt ?? todayUtcMidnight();
+  const days = inclusiveCalendarDays(enteredAt, opts.until);
+  if (opts.source === "self" && days < RESERVE_MIN_DAYS) {
+    throw new Error("reserve_min_days");
+  }
+  if (days < 1) throw new Error("reserve_min_days");
+
+  // Снять активный выходной — взаимоисключение
+  if (me.dayOffUntil && isActiveReserve(me.dayOffUntil)) {
+    const { exitDayOff } = await import("@/lib/dayOff");
+    await exitDayOff({
+      userId: me.id,
+      source: opts.source,
+      actor: opts.actor,
+    });
+  }
 
   // Закрыть висящий stint, если был
   await prisma.reserveStint.updateMany({
@@ -99,15 +121,53 @@ export async function enterReserve(opts: {
     },
   });
 
+  const today = todayUtcMidnight();
+  const pastOnly =
+    opts.source === "admin" && opts.until.getTime() < today.getTime();
+
   const stint = await prisma.reserveStint.create({
     data: {
       userId: me.id,
+      enteredAt,
       untilAt: opts.until,
       reason: opts.reason,
       source: opts.source,
       enteredById: opts.actor.id,
+      ...(pastOnly
+        ? { exitedAt: opts.until, exitedById: opts.actor.id }
+        : {}),
     },
   });
+
+  // Задним числом: только дни на календаре, роль/статус не трогаем
+  if (pastOnly) {
+    await prisma.user.update({
+      where: { id: me.id },
+      data: { reserveUntil: null, reserveReason: null },
+    });
+    user.reserveUntil = null;
+    user.reserveReason = null;
+    livePublish(userLiveChannel(me.id), JSON.stringify({ type: "reserve" }));
+    const target = personLabel(user);
+    const actor = personLabel(opts.actor);
+    await writeActionLog({
+      category: "admin",
+      action: "reserve_enter",
+      message: `${actor} записал резерв ${target} задним числом до ${formatRuDate(opts.until)} (причина: ${opts.reason})`,
+      actorId: opts.actor.id,
+      actorNick: actor,
+      targetId: me.id,
+      targetNick: target,
+      meta: {
+        until: opts.until.toISOString(),
+        reason: opts.reason,
+        source: opts.source,
+        stintId: stint.id,
+        pastOnly: true,
+      },
+    });
+    return { user, stint };
+  }
 
   for (const m of me.clanMemberships) {
     if (m.role === "LEADER") continue;

@@ -10,16 +10,17 @@ import { ProfileEditForm } from "@/components/ProfileEditForm";
 import { ProfileHitmapCard } from "@/components/ProfileHitmapCard";
 import { TrainingSessionsCard } from "@/components/TrainingSessionsCard";
 import { ProfilePublicRatingCard } from "@/components/ProfilePublicRatingCard";
-import { formatRuDate } from "@/lib/validation";
+import { formatRuDate, isActiveReserve } from "@/lib/validation";
 import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
 import { CLAN_ROLE_LABEL, type ClanRole } from "@/lib/clan";
 import { loadUserTrainingStats } from "@/lib/trainingStats";
 import { loadUserPublicAttendanceStats } from "@/lib/publicAttendance";
-import { lookupPlayerPublicRp } from "@/lib/publicRp";
+import { lookupPublicProfileSummary } from "@/lib/publicCombat";
 import { lookupPlayerTrainPwr } from "@/lib/homeTrainPwr";
 import { ProfileTrainPwrCard } from "@/components/ProfileTrainPwrCard";
 import { ProfileKitsCard } from "@/components/ProfileKitsCard";
 import { ProfileCareerCard } from "@/components/ProfileCareerCard";
+import { AbsencePanel } from "@/components/AbsencePanel";
 import {
   ProfileHeavyFallback,
   ProfileHeavySection,
@@ -99,7 +100,7 @@ export default async function ProfilePage() {
     ]);
   }
 
-  const [training, publicAtt, publicRp, trainPwr] = await Promise.all([
+  const [training, publicAtt, publicSummary, trainPwr] = await Promise.all([
     loadUserTrainingStats(me.id),
     loadUserPublicAttendanceStats(me.id).catch(() => ({
       sessions: [],
@@ -114,12 +115,14 @@ export default async function ProfilePage() {
       openNow: false,
     })),
     nickForKv
-      ? lookupPlayerPublicRp(nickForKv).catch(() => null)
+      ? lookupPublicProfileSummary(nickForKv).catch(() => null)
       : Promise.resolve(null),
     nickForKv
       ? lookupPlayerTrainPwr(nickForKv).catch(() => null)
       : Promise.resolve(null),
   ]);
+  const publicRp = publicSummary?.rp ?? null;
+  const publicCombat = publicSummary?.combat ?? null;
 
   return (
     <main className="profile-page">
@@ -134,6 +137,18 @@ export default async function ProfilePage() {
               adminLink={<AdminPanelLink initialAdmin={admin} />}
               lastSeenAt={me.lastSeenAt}
             />
+            <AbsencePanel
+              reserveActive={isActiveReserve(me.reserveUntil)}
+              reserveUntilLabel={
+                me.reserveUntil ? formatRuDate(me.reserveUntil) : null
+              }
+              reserveReason={me.reserveReason}
+              dayOffActive={isActiveReserve(me.dayOffUntil)}
+              dayOffUntilLabel={
+                me.dayOffUntil ? formatRuDate(me.dayOffUntil) : null
+              }
+              dayOffReason={me.dayOffReason}
+            />
             <ProfileTrainPwrCard
               stats={trainPwr}
               compareNick={nickForKv}
@@ -143,7 +158,7 @@ export default async function ProfilePage() {
               rp={publicRp?.rp ?? null}
               rankLabel={publicRp?.rankLabel ?? null}
               rankKey={publicRp?.rankKey ?? null}
-              combat={null}
+              combat={publicCombat}
               matches={publicRp?.matches ?? []}
             />
             <ProfileKitsCard
@@ -198,6 +213,7 @@ export default async function ProfilePage() {
           presentDays={training.tr1.presentDays}
           lateDays={training.tr1.lateDays}
           reserveDays={training.tr1.reserveDays}
+          dayOffDays={training.tr1.dayOffDays}
           visitBounds={training.tr1.visitBounds}
           minutes30d={training.tr1.minutes30d}
           sessions30d={training.tr1.sessions30d}
@@ -208,6 +224,7 @@ export default async function ProfilePage() {
             presentDays: training.tr2.presentDays,
             lateDays: training.tr2.lateDays,
             reserveDays: training.tr2.reserveDays,
+            dayOffDays: training.tr2.dayOffDays,
             visitBounds: training.tr2.visitBounds,
             minutes30d: training.tr2.minutes30d,
             sessions30d: training.tr2.sessions30d,

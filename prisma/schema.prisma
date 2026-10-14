@@ -52,6 +52,9 @@ model User {
   telegram        String?
   reserveUntil    DateTime?
   reserveReason   String?
+  /// Короткий выходной (1–3 дня), не путать с резервом
+  dayOffUntil     DateTime?
+  dayOffReason    String?
   role            Role     @default(USER)
   profileComplete Boolean  @default(false)
   /// Постоянный номер регистрации (1 = первый). Не пересчитывается при удалении других.
@@ -79,6 +82,9 @@ model User {
   reserveStints   ReserveStint[]
   reserveActionsAsActor ReserveStint[] @relation("ReserveActor")
   reserveExitsAsActor   ReserveStint[] @relation("ReserveExitActor")
+  dayOffStints          DayOffStint[]
+  dayOffActionsAsActor  DayOffStint[] @relation("DayOffActor")
+  dayOffExitsAsActor    DayOffStint[] @relation("DayOffExitActor")
   supportTickets        SupportTicket[] @relation("SupportTicketUser")
   supportTicketsClaimed SupportTicket[] @relation("SupportTicketClaimer")
   supportMessages       SupportMessage[]
@@ -104,7 +110,7 @@ model MapPin {
   @@index([lat, lon])
 }
 
-/// История уходов в резерв (открытый stint = сейчас в резерве).
+/// История уходов в резерв (открытый stint = сейчас в резерве). ≥4 дней.
 model ReserveStint {
   id          String    @id @default(cuid())
   userId      String
@@ -122,6 +128,27 @@ model ReserveStint {
   enteredBy   User?     @relation("ReserveActor", fields: [enteredById], references: [id], onDelete: SetNull)
   exitedById  String?
   exitedBy    User?     @relation("ReserveExitActor", fields: [exitedById], references: [id], onDelete: SetNull)
+
+  @@index([userId, enteredAt])
+  @@index([exitedAt])
+  @@index([untilAt])
+}
+
+/// Короткий выходной 1–3 дня (не меняет роль в клане).
+model DayOffStint {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enteredAt   DateTime  @default(now())
+  untilAt     DateTime
+  exitedAt    DateTime?
+  reason      String
+  /// self | admin
+  source      String    @default("self")
+  enteredById String?
+  enteredBy   User?     @relation("DayOffActor", fields: [enteredById], references: [id], onDelete: SetNull)
+  exitedById  String?
+  exitedBy    User?     @relation("DayOffExitActor", fields: [exitedById], references: [id], onDelete: SetNull)
 
   @@index([userId, enteredAt])
   @@index([exitedAt])

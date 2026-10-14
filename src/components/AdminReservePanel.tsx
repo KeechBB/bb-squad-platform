@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatBirthDateInput, formatRuDate } from "@/lib/validation";
 
+type AbsenceKind = "reserve" | "dayoff";
+
 type Player = {
   userId: string;
   nick: string | null;
@@ -13,6 +15,7 @@ type Player = {
   clanTag: string;
   clanRole: string;
   inReserve: boolean;
+  inDayOff?: boolean;
   stintId: string | null;
   reason: string | null;
   enteredAt: string | null;
@@ -57,59 +60,82 @@ function formatWhen(iso: string | null): string {
 }
 
 export function AdminReservePanel() {
+  const [kind, setKind] = useState<AbsenceKind>("reserve");
   const [players, setPlayers] = useState<Player[]>([]);
-  const [inReserveCount, setInReserveCount] = useState(0);
+  const [inCount, setInCount] = useState(0);
   const [total, setTotal] = useState(0);
   const [q, setQ] = useState("");
-  const [onlyReserve, setOnlyReserve] = useState(false);
+  const [onlyActive, setOnlyActive] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [selected, setSelected] = useState<Player | null>(null);
   const [history, setHistory] = useState<HistoryRow[]>([]);
+  const [from, setFrom] = useState("");
   const [until, setUntil] = useState("");
   const [reason, setReason] = useState("");
   const [enteredEdit, setEnteredEdit] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async (historyUserId?: string) => {
-    setLoading(true);
-    setErr(null);
-    try {
-      const params = new URLSearchParams();
-      if (historyUserId) params.set("historyUserId", historyUserId);
-      const res = await fetch(`/api/admin/reserve?${params}`, {
-        cache: "no-store",
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Ошибка");
-      const list = (json.players || []) as Player[];
-      setPlayers(list);
-      setInReserveCount(Number(json.inReserveCount) || 0);
-      setTotal(Number(json.total) || 0);
-      if (historyUserId) {
-        setHistory((json.history || []) as HistoryRow[]);
-        const fresh = list.find((p) => p.userId === historyUserId);
-        if (fresh) {
-          setSelected(fresh);
-          if (fresh.inReserve && fresh.enteredLabel) {
-            setEnteredEdit(fresh.enteredLabel);
+  const apiBase = kind === "reserve" ? "/api/admin/reserve" : "/api/admin/day-off";
+  const isActive = (p: Player) =>
+    kind === "reserve" ? p.inReserve : Boolean(p.inDayOff);
+
+  const load = useCallback(
+    async (historyUserId?: string) => {
+      setLoading(true);
+      setErr(null);
+      try {
+        const params = new URLSearchParams();
+        if (historyUserId) params.set("historyUserId", historyUserId);
+        const res = await fetch(`${apiBase}?${params}`, {
+          cache: "no-store",
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "Ошибка");
+        const list = (json.players || []) as Player[];
+        if (kind === "dayoff") {
+          for (const p of list) {
+            p.inDayOff = Boolean(
+              (p as Player & { inDayOff?: boolean }).inDayOff
+            );
           }
         }
+        setPlayers(list);
+        setInCount(
+          Number(
+            kind === "reserve" ? json.inReserveCount : json.inDayOffCount
+          ) || 0
+        );
+        setTotal(Number(json.total) || 0);
+        if (historyUserId) {
+          setHistory((json.history || []) as HistoryRow[]);
+          const fresh = list.find((p) => p.userId === historyUserId);
+          if (fresh) {
+            setSelected(fresh);
+            if (isActive(fresh) && fresh.enteredLabel) {
+              setEnteredEdit(fresh.enteredLabel);
+            }
+          }
+        }
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : "Ошибка");
+      } finally {
+        setLoading(false);
       }
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Ошибка");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [apiBase, kind]
+  );
 
   useEffect(() => {
+    setSelected(null);
+    setHistory([]);
     void load();
   }, [load]);
 
   const filtered = useMemo(() => {
     let list = players;
-    if (onlyReserve) list = list.filter((p) => p.inReserve);
+    if (onlyActive) list = list.filter((p) => isActive(p));
     const needle = q.trim().toLowerCase();
     if (needle) {
       list = list.filter((p) => {
@@ -118,33 +144,36 @@ export function AdminReservePanel() {
       });
     }
     return list;
-  }, [players, q, onlyReserve]);
+  }, [players, q, onlyActive, kind]);
 
   async function selectPlayer(p: Player) {
     setSelected(p);
+    setFrom("");
     setUntil("");
-    setReason(p.inReserve ? p.reason || "" : "");
-    setEnteredEdit(p.inReserve ? p.enteredLabel || "" : "");
+    setReason(isActive(p) ? p.reason || "" : "");
+    setEnteredEdit(isActive(p) ? p.enteredLabel || "" : "");
     await load(p.userId);
   }
 
-  async function putInReserve() {
+  async function putAbsence() {
     if (!selected) return;
     setBusy(true);
     setErr(null);
     try {
-      const res = await fetch("/api/admin/reserve", {
+      const res = await fetch(apiBase, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: selected.userId,
           until,
           reason,
+          ...(from.trim() ? { from: from.trim() } : {}),
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Ошибка");
       await load(selected.userId);
+      setFrom("");
       setUntil("");
       setReason("");
     } catch (e) {
@@ -154,14 +183,15 @@ export function AdminReservePanel() {
     }
   }
 
-  async function pullFromReserve() {
+  async function pullAbsence() {
     if (!selected) return;
-    if (!confirm(`Вернуть ${labelOf(selected)} из резерва?`)) return;
+    const label = kind === "reserve" ? "резерва" : "выходного";
+    if (!confirm(`Снять ${label} у ${labelOf(selected)}?`)) return;
     setBusy(true);
     setErr(null);
     try {
       const res = await fetch(
-        `/api/admin/reserve?userId=${encodeURIComponent(selected.userId)}`,
+        `${apiBase}?userId=${encodeURIComponent(selected.userId)}`,
         { method: "DELETE" }
       );
       const json = await res.json();
@@ -178,7 +208,7 @@ export function AdminReservePanel() {
     setBusy(true);
     setErr(null);
     try {
-      const res = await fetch("/api/admin/reserve", {
+      const res = await fetch(apiBase, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ stintId, enteredAt: raw }),
@@ -193,16 +223,34 @@ export function AdminReservePanel() {
     }
   }
 
+  const kindLabel = kind === "reserve" ? "резерв" : "выходной";
+
   return (
     <section className="card journal-card">
       <p className="muted" style={{ marginTop: 0 }}>
-        Весь состав BlackBerry: кто в резерве и кто в строю. Можно вручную
-        отправить в резерв, вернуть или поправить дату ухода (влияет на календарь
-        посещаемости). Действия пишутся в <strong>Журнал действий</strong>.
-        История резервов — справа по игроку.
+        Главный / Зам / HR: выходной (1–3 дня) и резерв (от 4 дней). Можно
+        выдать/снять задним числом (поля «с» и «до»), поправить дату начала —
+        дни появятся на календаре профиля своим цветом. Журнал действий
+        пишется автоматически.
       </p>
 
       <div className="journal-toolbar" style={{ flexWrap: "wrap", gap: 12 }}>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            type="button"
+            className={kind === "reserve" ? "btn" : "btn-ghost"}
+            onClick={() => setKind("reserve")}
+          >
+            Резерв
+          </button>
+          <button
+            type="button"
+            className={kind === "dayoff" ? "btn" : "btn-ghost"}
+            onClick={() => setKind("dayoff")}
+          >
+            Выходной
+          </button>
+        </div>
         <label className="field" style={{ margin: 0, flex: 1, minWidth: 160 }}>
           <span>Поиск</span>
           <input
@@ -224,10 +272,10 @@ export function AdminReservePanel() {
         >
           <input
             type="checkbox"
-            checked={onlyReserve}
-            onChange={(e) => setOnlyReserve(e.target.checked)}
+            checked={onlyActive}
+            onChange={(e) => setOnlyActive(e.target.checked)}
           />
-          <span>Только резерв</span>
+          <span>Только {kindLabel}</span>
         </label>
         <button
           type="button"
@@ -240,7 +288,7 @@ export function AdminReservePanel() {
       </div>
 
       <p className="muted">
-        В резерве: <strong>{inReserveCount}</strong> · всего в списке BB:{" "}
+        Сейчас ({kindLabel}): <strong>{inCount}</strong> · всего в списке BB:{" "}
         <strong>{total}</strong>
         {loading ? " · загрузка…" : ""}
       </p>
@@ -279,8 +327,10 @@ export function AdminReservePanel() {
                       cursor: "pointer",
                       background: active
                         ? "rgba(255,255,255,0.08)"
-                        : p.inReserve
-                          ? "rgba(250, 204, 21, 0.08)"
+                        : isActive(p)
+                          ? kind === "reserve"
+                            ? "rgba(59, 130, 246, 0.12)"
+                            : "rgba(20, 184, 166, 0.12)"
                           : undefined,
                     }}
                   >
@@ -291,9 +341,14 @@ export function AdminReservePanel() {
                       </div>
                     </td>
                     <td>
-                      {p.inReserve ? (
-                        <span style={{ color: "#facc15", fontWeight: 700 }}>
-                          резерв
+                      {isActive(p) ? (
+                        <span
+                          style={{
+                            color: kind === "reserve" ? "#93c5fd" : "#5eead4",
+                            fontWeight: 700,
+                          }}
+                        >
+                          {kindLabel}
                         </span>
                       ) : (
                         <span className="muted">в строю</span>
@@ -334,32 +389,32 @@ export function AdminReservePanel() {
             <>
               <h3 style={{ marginTop: 0 }}>{labelOf(selected)}</h3>
               <p className="muted" style={{ marginTop: 0 }}>
-                {selected.inReserve
-                  ? `Сейчас в резерве · ушёл ${selected.enteredLabel || "—"} · до ${selected.untilLabel || "—"}`
+                {isActive(selected)
+                  ? `Сейчас: ${kindLabel} · с ${selected.enteredLabel || "—"} · до ${selected.untilLabel || "—"}`
                   : "Сейчас в строю"}
               </p>
 
-              {selected.inReserve ? (
+              {isActive(selected) ? (
                 <p style={{ marginBottom: 14 }}>
                   <button
                     type="button"
                     className="btn"
                     disabled={busy}
-                    onClick={() => void pullFromReserve()}
+                    onClick={() => void pullAbsence()}
                   >
-                    Вернуть из резерва
+                    Снять {kindLabel}
                   </button>
                 </p>
               ) : null}
 
-              {selected.inReserve && selected.stintId ? (
+              {isActive(selected) && selected.stintId ? (
                 <div className="card" style={{ margin: "0 0 14px", padding: 12 }}>
-                  <h4 style={{ margin: "0 0 8px" }}>Дата ухода в резерв</h4>
+                  <h4 style={{ margin: "0 0 8px" }}>Дата начала</h4>
                   <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
-                    С этой даты в календаре тренировок — синие дни «резерв».
+                    Влияет на цвет дней в календаре профиля.
                   </p>
                   <label className="field">
-                    <span>Ушёл с (ДД.ММ.ГГГГ)</span>
+                    <span>С (ДД.ММ.ГГГГ)</span>
                     <input
                       type="text"
                       inputMode="numeric"
@@ -382,24 +437,43 @@ export function AdminReservePanel() {
                       void saveEnteredAt(selected.stintId!, enteredEdit)
                     }
                   >
-                    Сохранить дату ухода
+                    Сохранить дату начала
                   </button>
                 </div>
               ) : null}
 
               <div className="card" style={{ margin: "0 0 14px", padding: 12 }}>
                 <h4 style={{ margin: "0 0 8px" }}>
-                  {selected.inReserve
-                    ? "Продлить / сменить причину (заново в резерв)"
-                    : "Отправить в резерв"}
+                  {isActive(selected)
+                    ? `Обновить ${kindLabel}`
+                    : `Выдать ${kindLabel}`}
                 </h4>
+                <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+                  Можно задним числом: укажи «с» и «до» на любые даты.
+                  {kind === "dayoff"
+                    ? " Выходной обычно 1–3 дня."
+                    : " Резерв — от 4 дней."}
+                </p>
+                <label className="field">
+                  <span>С (необяз., задним числом)</span>
+                  <input
+                    type="text"
+                    placeholder="ДД.ММ.ГГГГ"
+                    value={from}
+                    onChange={(e) =>
+                      setFrom(formatBirthDateInput(e.target.value))
+                    }
+                  />
+                </label>
                 <label className="field">
                   <span>До какой даты</span>
                   <input
                     type="text"
                     placeholder="ДД.ММ.ГГГГ"
                     value={until}
-                    onChange={(e) => setUntil(e.target.value)}
+                    onChange={(e) =>
+                      setUntil(formatBirthDateInput(e.target.value))
+                    }
                   />
                 </label>
                 <label className="field">
@@ -415,13 +489,13 @@ export function AdminReservePanel() {
                   type="button"
                   className="btn"
                   disabled={busy || !until.trim() || reason.trim().length < 3}
-                  onClick={() => void putInReserve()}
+                  onClick={() => void putAbsence()}
                 >
-                  {selected.inReserve ? "Обновить резерв" : "В резерв"}
+                  {isActive(selected) ? `Обновить ${kindLabel}` : `Выдать ${kindLabel}`}
                 </button>
               </div>
 
-              <h4 style={{ margin: "0 0 8px" }}>История резервов</h4>
+              <h4 style={{ margin: "0 0 8px" }}>История ({kindLabel})</h4>
               <div
                 className="admin-table-wrap"
                 style={{ maxHeight: 280, overflow: "auto" }}

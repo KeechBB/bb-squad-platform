@@ -14,7 +14,7 @@ import { ProfileAccountCard } from "@/components/ProfileAccountCard";
 import { SitePresenceBadge } from "@/components/SitePresenceBadge";
 import { loadUserTrainingStats } from "@/lib/trainingStats";
 import { loadUserPublicAttendanceStats } from "@/lib/publicAttendance";
-import { lookupPlayerPublicRp } from "@/lib/publicRp";
+import { lookupPublicProfileSummary } from "@/lib/publicCombat";
 import { lookupPlayerTrainPwr } from "@/lib/homeTrainPwr";
 import { getEnemyPlayer } from "@/lib/crossRating";
 import { ProfileTrainPwrCard } from "@/components/ProfileTrainPwrCard";
@@ -184,6 +184,7 @@ export default async function PlayerProfilePage({ params }: Props) {
               presentDays={tr1.presentDays}
               lateDays={tr1.lateDays}
               reserveDays={tr1.reserveDays}
+              dayOffDays={tr1.dayOffDays}
               visitBounds={tr1.visitBounds}
               minutes30d={tr1.minutes30d}
               sessions30d={tr1.sessions30d}
@@ -194,6 +195,7 @@ export default async function PlayerProfilePage({ params }: Props) {
                 presentDays: tr2.presentDays,
                 lateDays: tr2.lateDays,
                 reserveDays: tr2.reserveDays,
+                dayOffDays: tr2.dayOffDays,
                 visitBounds: tr2.visitBounds,
                 minutes30d: tr2.minutes30d,
                 sessions30d: tr2.sessions30d,
@@ -222,6 +224,7 @@ export default async function PlayerProfilePage({ params }: Props) {
 
   const avatar = withAvatarCacheBust(user.avatarUrl, user.updatedAt);
   const inReserve = isActiveReserve(user.reserveUntil);
+  const inDayOff = isActiveReserve(user.dayOffUntil);
   const nickForKv = user.nick || "";
   const isBb = await isBlackberryClanMember(user.steamId);
   const isExternalClan = user.clanMemberships.some((m) => m.clan.isExternal);
@@ -244,7 +247,7 @@ export default async function PlayerProfilePage({ params }: Props) {
   }));
 
   // Slim critical path — combat/histories stream via Suspense.
-  const [training, publicAtt, publicRp, trainPwr] = await Promise.all([
+  const [training, publicAtt, publicSummary, trainPwr] = await Promise.all([
     loadUserTrainingStats(user.id),
     loadUserPublicAttendanceStats(user.id).catch(() => ({
       sessions: [],
@@ -259,12 +262,14 @@ export default async function PlayerProfilePage({ params }: Props) {
       openNow: false,
     })),
     nickForKv
-      ? lookupPlayerPublicRp(nickForKv).catch(() => null)
+      ? lookupPublicProfileSummary(nickForKv).catch(() => null)
       : Promise.resolve(null),
     nickForKv
       ? lookupPlayerTrainPwr(nickForKv).catch(() => null)
       : Promise.resolve(null),
   ]);
+  const publicRp = publicSummary?.rp ?? null;
+  const publicCombat = publicSummary?.combat ?? null;
 
   return (
     <main className="profile-page">
@@ -315,13 +320,27 @@ export default async function PlayerProfilePage({ params }: Props) {
               </p>
             </section>
           ) : null}
+          {inDayOff ? (
+            <section className="card reserve-banner dayoff-banner">
+              <h2>Выходной</h2>
+              <p className="reserve-status">
+                До <strong>{formatRuDate(user.dayOffUntil!)}</strong>
+                {user.dayOffReason ? (
+                  <>
+                    .<br />
+                    <span className="muted">Причина: {user.dayOffReason}</span>
+                  </>
+                ) : null}
+              </p>
+            </section>
+          ) : null}
           <ProfileTrainPwrCard stats={trainPwr} />
           <ProfilePublicRatingCard
             nick={nickForKv}
             rp={publicRp?.rp ?? null}
             rankLabel={publicRp?.rankLabel ?? null}
             rankKey={publicRp?.rankKey ?? null}
-            combat={null}
+            combat={publicCombat}
             matches={publicRp?.matches ?? []}
           />
           <ProfileKitsCard
@@ -375,6 +394,7 @@ export default async function PlayerProfilePage({ params }: Props) {
           presentDays={training.tr1.presentDays}
           lateDays={training.tr1.lateDays}
           reserveDays={training.tr1.reserveDays}
+          dayOffDays={training.tr1.dayOffDays}
           visitBounds={training.tr1.visitBounds}
           minutes30d={training.tr1.minutes30d}
           sessions30d={training.tr1.sessions30d}
@@ -385,6 +405,7 @@ export default async function PlayerProfilePage({ params }: Props) {
             presentDays: training.tr2.presentDays,
             lateDays: training.tr2.lateDays,
             reserveDays: training.tr2.reserveDays,
+            dayOffDays: training.tr2.dayOffDays,
             visitBounds: training.tr2.visitBounds,
             minutes30d: training.tr2.minutes30d,
             sessions30d: training.tr2.sessions30d,

@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parseFutureOrTodayDate } from "@/lib/validation";
 import { enterReserve, exitReserve } from "@/lib/reserve";
+import { RESERVE_MIN_DAYS } from "@/lib/absenceDays";
 
 export const runtime = "nodejs";
 
@@ -21,8 +22,7 @@ export async function POST(req: Request) {
   if (!until) {
     return NextResponse.json(
       {
-        error:
-          "Укажи дату до которой уходишь в резерв (ДД.ММ.ГГГГ, не в прошлом)",
+        error: `Укажи дату до которой уходишь в резерв (ДД.ММ.ГГГГ, не в прошлом). Резерв: от ${RESERVE_MIN_DAYS} дней`,
       },
       { status: 400 }
     );
@@ -48,15 +48,26 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Не найден" }, { status: 404 });
   }
 
-  const { user } = await enterReserve({
-    userId: me.id,
-    until,
-    reason,
-    source: "self",
-    actor: me,
-  });
-
-  return NextResponse.json({ ok: true, reserve: user });
+  try {
+    const { user } = await enterReserve({
+      userId: me.id,
+      until,
+      reason,
+      source: "self",
+      actor: me,
+    });
+    return NextResponse.json({ ok: true, reserve: user });
+  } catch (e) {
+    if (e instanceof Error && e.message === "reserve_min_days") {
+      return NextResponse.json(
+        {
+          error: `Резерв — от ${RESERVE_MIN_DAYS} дней. На 1–3 дня бери выходной`,
+        },
+        { status: 400 }
+      );
+    }
+    throw e;
+  }
 }
 
 export async function DELETE() {
