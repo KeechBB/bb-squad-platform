@@ -33,6 +33,7 @@ const BRAND_LOGO_FILES: Record<string, string[]> = {
   FAL: ["fal.png"],
   FOX: ["fox.png"],
   SOLID: ["solid.png", "solid.jpg"],
+  NS: ["ns.png"],
 };
 
 function dbTag(raw: string): string {
