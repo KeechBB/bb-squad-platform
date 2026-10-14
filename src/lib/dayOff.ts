@@ -33,7 +33,7 @@ export function dayOffTrainingDaysFromStints(
   const days = new Set<string>();
   for (const s of stints) {
     let start = formatMskYmd(s.enteredAt);
-    let end = s.exitedAt
+    const end = s.exitedAt
       ? formatMskYmd(s.exitedAt)
       : formatMskYmd(s.untilAt);
     if (start < ATTENDANCE_CANON_START_YMD) {

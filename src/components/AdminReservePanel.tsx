@@ -135,7 +135,11 @@ export function AdminReservePanel() {
 
   const filtered = useMemo(() => {
     let list = players;
-    if (onlyActive) list = list.filter((p) => isActive(p));
+    if (onlyActive) {
+      list = list.filter((p) =>
+        kind === "reserve" ? p.inReserve : Boolean(p.inDayOff)
+      );
+    }
     const needle = q.trim().toLowerCase();
     if (needle) {
       list = list.filter((p) => {
