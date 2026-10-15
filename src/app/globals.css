@@ -1613,28 +1613,54 @@ body:has(.profile-page) {
 
 .profile-head-cluster {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: stretch;
-  justify-content: space-between;
-  gap: 10px 14px;
+  justify-content: flex-start;
+  gap: 10px 12px;
+  min-width: 0;
 }
 
 .profile-head-main {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: stretch;
   justify-content: flex-start;
-  gap: 10px 12px;
+  gap: 8px 10px;
   flex: 1 1 auto;
   min-width: 0;
+  overflow: visible;
 }
 
 .profile-page .hero {
   margin-bottom: 0;
+  flex: 0 1 auto;
+  max-width: 248px;
+  min-width: 0;
+  width: auto;
+  padding: 8px 10px;
+  box-sizing: border-box;
 }
 
 .profile-page .hero-profile {
-  gap: 8px;
+  gap: 6px;
+}
+
+.profile-page .profile-head-row {
+  gap: 10px;
+}
+
+.profile-page .profile-head-title-row {
+  gap: 6px 8px;
+}
+
+.profile-page .profile-head-title-row .admin-panel-btn-inline {
+  padding: 4px 8px;
+  font-size: 0.72rem;
+}
+
+.profile-page .avatar-actions .btn {
+  padding: 4px 8px;
+  font-size: 0.72rem;
 }
 
 .profile-area-side {
@@ -1686,29 +1712,39 @@ body:has(.profile-page) {
 }
 
 .profile-head-main > .profile-pwr-card,
+.profile-head-main > .profile-public-rating-card,
 .profile-head-main > .profile-kits-card,
 .profile-head-cluster > .profile-pwr-card,
 .profile-head-cluster > .profile-kits-card {
-  flex: 1 1 220px;
-  max-width: 280px;
-  min-width: 180px;
+  flex: 1 1 160px;
+  max-width: 220px;
+  min-width: 140px;
   align-self: stretch;
   display: flex;
   flex-direction: column;
 }
 
+.profile-head-main > .absence-panel,
+.profile-head-main > .reserve-panel-compact {
+  flex: 0 0 148px;
+  max-width: 148px;
+  width: 148px;
+  align-self: stretch;
+}
+
 .profile-head-cluster > .profile-career-card {
-  flex: 1 1 min(320px, 34vw);
-  width: min(380px, 100%);
-  max-width: 400px;
-  min-width: 220px;
+  flex: 0 1 260px;
+  width: 260px;
+  max-width: 280px;
+  min-width: 200px;
   max-height: 320px;
-  margin-left: 0;
+  margin-left: auto;
   align-self: stretch;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   order: 2;
+  flex-shrink: 0;
 }
 
 .profile-career-card .profile-kv-head {
@@ -1818,10 +1854,11 @@ body:has(.profile-page) {
   border-color: rgba(167, 139, 250, 0.18);
 }
 
-.profile-head-cluster > .profile-kits-card {
-  flex: 0 1 300px;
-  max-width: 340px;
-  min-width: 240px;
+.profile-head-cluster > .profile-kits-card,
+.profile-head-main > .profile-kits-card {
+  flex: 0 1 200px;
+  max-width: 220px;
+  min-width: 160px;
   overflow: visible;
   position: relative;
 }
@@ -2105,37 +2142,38 @@ body:has(.profile-page) {
 }
 
 .profile-page .profile-avatar {
-  width: 96px;
-  height: 96px;
-  border-radius: 14px;
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
 }
 
 .profile-page .profile-avatar-fallback {
-  font-size: 1.8rem;
+  font-size: 1.45rem;
 }
 
 .profile-page .eyebrow {
-  margin-bottom: 2px;
-  font-size: 0.72rem;
+  margin-bottom: 0;
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
 }
 
 .profile-page .profile-head-text h1 {
   margin: 0;
-  font-size: clamp(1.35rem, 2vw, 1.85rem);
+  font-size: clamp(1.1rem, 1.4vw, 1.35rem);
   font-family: var(--font-display);
   line-height: 1.1;
 }
 
 .profile-page .lead {
-  margin-top: 2px;
-  font-size: 0.9rem;
+  margin-top: 1px;
+  font-size: 0.78rem;
 }
 
 .reserve-panel-compact {
-  max-width: 200px;
-  width: 100%;
-  flex: 0 0 auto;
-  align-self: flex-start;
+  max-width: 148px;
+  width: 148px;
+  flex: 0 0 148px;
+  align-self: stretch;
   padding: 8px 10px;
   position: relative;
   z-index: 1;
@@ -2147,8 +2185,9 @@ body:has(.profile-page) {
 /* Форма — оверлей, слот компактной карточки не раздвигается */
 .reserve-panel-compact.reserve-panel-open,
 .absence-panel.absence-panel-open {
-  max-width: 200px;
-  flex: 0 0 auto;
+  max-width: 148px;
+  width: 148px;
+  flex: 0 0 148px;
   z-index: 8;
   overflow: visible;
 }
@@ -3188,25 +3227,37 @@ body:has(.profile-page) {
 
   .profile-clan-card,
   .profile-head-main > .profile-pwr-card,
+  .profile-head-main > .profile-public-rating-card,
   .profile-head-main > .profile-kits-card,
   .profile-head-cluster > .profile-pwr-card,
   .profile-head-cluster > .profile-kits-card {
-    flex: 1 1 180px;
-    max-width: 220px;
-    min-width: 150px;
+    flex: 1 1 140px;
+    max-width: 200px;
+    min-width: 130px;
   }
 
   .profile-compare-inline {
     max-width: 200px;
   }
 
+  /* Карьера остаётся справа в шапке — не сбрасывать на 100% ширины */
   .profile-head-cluster > .profile-career-card {
-    flex: 1 1 100%;
-    width: 100%;
-    max-width: none;
-    min-width: 0;
-    order: 0;
+    flex: 0 1 240px;
+    width: 240px;
+    max-width: 260px;
+    min-width: 180px;
+    margin-left: auto;
+    order: 2;
     align-self: stretch;
+  }
+
+  .profile-page .hero {
+    max-width: 220px;
+  }
+
+  .profile-page .profile-avatar {
+    width: 64px;
+    height: 64px;
   }
 
   .profile-head-cluster .reaction-profile-card {
@@ -3228,8 +3279,12 @@ body:has(.profile-page) {
     font-size: 1.15rem;
   }
 
-  .reserve-panel-compact {
-    max-width: 170px;
+  .reserve-panel-compact,
+  .profile-head-main > .absence-panel,
+  .profile-head-main > .reserve-panel-compact {
+    max-width: 132px;
+    width: 132px;
+    flex: 0 0 132px;
     padding: 6px 8px;
   }
 
@@ -3323,15 +3378,25 @@ body:has(.profile-page) {
   .profile-clan-card,
   .profile-head-cluster > .profile-pwr-card,
   .profile-head-cluster > .profile-kits-card,
+  .profile-head-main > .profile-pwr-card,
+  .profile-head-main > .profile-public-rating-card,
+  .profile-head-main > .profile-kits-card,
   .profile-head-cluster .reaction-profile-card {
-    flex: 1 1 160px;
-    max-width: none;
+    flex: 1 1 140px;
+    max-width: 200px;
+    min-width: 128px;
+  }
+
+  .profile-page .hero {
+    max-width: 210px;
   }
 
   .profile-head-cluster > .profile-career-card {
-    flex: 1 1 240px;
-    min-width: 200px;
-    max-width: min(360px, 100%);
+    flex: 0 1 220px;
+    width: 220px;
+    min-width: 180px;
+    max-width: 240px;
+    margin-left: auto;
   }
 }
 
@@ -3376,6 +3441,7 @@ body:has(.profile-page) {
     position: relative;
     z-index: 1;
     overflow: visible;
+    flex-wrap: wrap;
   }
 
   .profile-head-main > .profile-pwr-card,
@@ -3383,6 +3449,20 @@ body:has(.profile-page) {
   .profile-head-main > .profile-kits-card {
     position: relative;
     z-index: 1;
+  }
+
+  .profile-page .hero {
+    max-width: none;
+    width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .profile-head-main > .absence-panel,
+  .profile-head-main > .reserve-panel-compact,
+  .reserve-panel-compact {
+    width: auto;
+    max-width: 200px;
+    flex: 1 1 160px;
   }
 
   .profile-area-account,
