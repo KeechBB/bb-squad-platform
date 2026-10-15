@@ -18,6 +18,8 @@
 html, body {
   margin: 0;
   min-height: 100%;
+  /* ПК-канва на телефоне: горизонтальный свайп, без мобильной адаптации */
+  min-width: 1440px;
   color: var(--ink);
   font-family: var(--font-body);
   background: var(--bg);
@@ -1569,11 +1571,16 @@ svg {
 */
 body:has(.profile-page) {
   overflow: hidden;
+  min-width: 1600px;
 }
 
-/* Профиль: влезает в экран, скролл в колонках и нижних историях */
+/* Профиль: фиксированная ПК-геометрия (одинаково на любом экране) */
 .shell:has(.profile-page) {
-  max-width: 1760px;
+  width: 1600px;
+  max-width: 1600px;
+  min-width: 1600px;
+  margin-left: auto;
+  margin-right: auto;
   padding: 10px 16px 12px;
   height: calc(100dvh - 76px);
   max-height: calc(100dvh - 76px);
@@ -1596,6 +1603,7 @@ body:has(.profile-page) {
   max-height: 100%;
   min-height: 0;
   overflow: hidden;
+  width: 100%;
 }
 
 .profile-page-empty {
@@ -1616,8 +1624,9 @@ body:has(.profile-page) {
   flex-wrap: nowrap;
   align-items: stretch;
   justify-content: flex-start;
-  gap: 10px 12px;
+  gap: 8px 10px;
   min-width: 0;
+  width: 100%;
 }
 
 .profile-head-main {
@@ -1633,10 +1642,10 @@ body:has(.profile-page) {
 
 .profile-page .hero {
   margin-bottom: 0;
-  flex: 0 1 auto;
-  max-width: 248px;
-  min-width: 0;
-  width: auto;
+  flex: 0 0 220px;
+  max-width: 220px;
+  min-width: 220px;
+  width: 220px;
   padding: 8px 10px;
   box-sizing: border-box;
 }
@@ -1716,9 +1725,10 @@ body:has(.profile-page) {
 .profile-head-main > .profile-kits-card,
 .profile-head-cluster > .profile-pwr-card,
 .profile-head-cluster > .profile-kits-card {
-  flex: 1 1 160px;
-  max-width: 220px;
-  min-width: 140px;
+  /* Равномерно заполняют ряд — без дыры до карьеры */
+  flex: 1 1 0;
+  max-width: none;
+  min-width: 0;
   align-self: stretch;
   display: flex;
   flex-direction: column;
@@ -1726,25 +1736,24 @@ body:has(.profile-page) {
 
 .profile-head-main > .absence-panel,
 .profile-head-main > .reserve-panel-compact {
-  flex: 0 0 148px;
-  max-width: 148px;
-  width: 148px;
+  flex: 0 0 140px;
+  max-width: 140px;
+  width: 140px;
   align-self: stretch;
 }
 
 .profile-head-cluster > .profile-career-card {
-  flex: 0 1 260px;
-  width: 260px;
-  max-width: 280px;
-  min-width: 200px;
+  flex: 1 1 0;
+  width: auto;
+  max-width: none;
+  min-width: 0;
   max-height: 320px;
-  margin-left: auto;
+  margin-left: 0;
   align-self: stretch;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   order: 2;
-  flex-shrink: 0;
 }
 
 .profile-career-card .profile-kv-head {
@@ -1856,9 +1865,9 @@ body:has(.profile-page) {
 
 .profile-head-cluster > .profile-kits-card,
 .profile-head-main > .profile-kits-card {
-  flex: 0 1 200px;
-  max-width: 220px;
-  min-width: 160px;
+  flex: 1 1 0;
+  max-width: none;
+  min-width: 0;
   overflow: visible;
   position: relative;
 }
@@ -2170,9 +2179,9 @@ body:has(.profile-page) {
 }
 
 .reserve-panel-compact {
-  max-width: 148px;
-  width: 148px;
-  flex: 0 0 148px;
+  max-width: 140px;
+  width: 140px;
+  flex: 0 0 140px;
   align-self: stretch;
   padding: 8px 10px;
   position: relative;
@@ -2185,9 +2194,9 @@ body:has(.profile-page) {
 /* Форма — оверлей, слот компактной карточки не раздвигается */
 .reserve-panel-compact.reserve-panel-open,
 .absence-panel.absence-panel-open {
-  max-width: 148px;
-  width: 148px;
-  flex: 0 0 148px;
+  max-width: 140px;
+  width: 140px;
+  flex: 0 0 140px;
   z-index: 8;
   overflow: visible;
 }
@@ -15665,3 +15674,103 @@ body.profile-match-modal-open {
   background: rgba(168, 85, 247, 0.12);
 }
 
+
+/* ==========================================================================
+   PROFILE DESKTOP LOCK
+   Геометрия профиля всегда ПК (1600px), на телефоне — свайп по горизонтали.
+   Перебивает адаптивные брейкпоинты ниже по файлу.
+   ========================================================================== */
+body:has(.profile-page) {
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  min-width: 1600px !important;
+}
+
+.shell:has(.profile-page) {
+  width: 1600px !important;
+  max-width: 1600px !important;
+  min-width: 1600px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding: 10px 16px 12px !important;
+  height: calc(100dvh - 76px) !important;
+  max-height: calc(100dvh - 76px) !important;
+  overflow: hidden !important;
+}
+
+.profile-page {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.4fr) minmax(0, 0.4fr) minmax(0, 1.15fr) !important;
+  grid-template-rows: auto minmax(0, 1.15fr) minmax(160px, 0.9fr) !important;
+  grid-template-areas:
+    "head head head head"
+    "account hitmap hitmap training"
+    "kvhist kvhist trainhist trainhist" !important;
+  gap: 8px !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  width: 100% !important;
+  isolation: auto !important;
+}
+
+.profile-head-cluster,
+.profile-head-main {
+  flex-wrap: nowrap !important;
+  overflow: visible !important;
+}
+
+.profile-head-cluster {
+  width: 100% !important;
+  gap: 8px 10px !important;
+}
+
+.profile-page .hero {
+  flex: 0 0 220px !important;
+  width: 220px !important;
+  max-width: 220px !important;
+  min-width: 220px !important;
+}
+
+.profile-head-main > .absence-panel,
+.profile-head-main > .reserve-panel-compact,
+.reserve-panel-compact {
+  flex: 0 0 140px !important;
+  width: 140px !important;
+  max-width: 140px !important;
+}
+
+.profile-head-main > .profile-pwr-card,
+.profile-head-main > .profile-public-rating-card,
+.profile-head-main > .profile-kits-card,
+.profile-head-cluster > .profile-pwr-card,
+.profile-head-cluster > .profile-kits-card,
+.profile-head-cluster > .profile-career-card {
+  flex: 1 1 0 !important;
+  width: auto !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin-left: 0 !important;
+}
+
+.profile-head-cluster > .profile-career-card {
+  order: 2 !important;
+  max-height: 320px !important;
+}
+
+.profile-area-head {
+  overflow: visible !important;
+}
+
+.profile-area-account,
+.profile-area-hitmap,
+.profile-area-training {
+  overflow: hidden !important;
+}
+
+.profile-area-kv-hist,
+.profile-area-train-hist {
+  min-height: 0 !important;
+  overflow: hidden !important;
+}

@@ -29,8 +29,9 @@ export const metadata: Metadata = {
   },
 };
 
+/** ПК-канва: на телефоне та же вёрстка, свайп по горизонтали (без mobile-адаптации). */
 export const viewport: Viewport = {
-  width: "device-width",
+  width: 1440,
   initialScale: 1,
   viewportFit: "cover",
 };
