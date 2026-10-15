@@ -34,6 +34,78 @@ export function isBbDeparted(nick: string): boolean {
   return DEPARTED_NICKS.has(key) || DEPARTED_NICKS.has(compact);
 }
 
+/**
+ * IPA / small-cap lookalikes (ɪʜ → IH) + NFKD — для детекта чужих клан-тегов в нике.
+ * Steam-теги IH часто пишут фонетикой, а не ASCII.
+ */
+const NICK_LOOKALIKE_MAP: Record<string, string> = {
+  "\u026a": "i", // ɪ
+  "\u029c": "h", // ʜ
+  "\u0280": "r", // ʀ
+  "\u029f": "l", // ʟ
+  "\u1d00": "a", // ᴀ
+  "\u0299": "b", // ʙ
+  "\u1d04": "c", // ᴄ
+  "\u1d05": "d", // ᴅ
+  "\u1d07": "e", // ᴇ
+  "\u0262": "g", // ɢ
+  "\u1d0a": "j", // ᴊ
+  "\u1d0b": "k", // ᴋ
+  "\u1d0d": "m", // ᴍ
+  "\u0274": "n", // ɴ
+  "\u1d0f": "o", // ᴏ
+  "\u1d18": "p", // ᴘ
+  "\u1d1b": "t", // ᴛ
+  "\u1d1c": "u", // ᴜ
+  "\u1d20": "v", // ᴠ
+  "\u1d21": "w", // ᴡ
+  "\u028f": "y", // ʏ
+  "\u1d22": "z", // ᴢ
+};
+
+export function foldNickLookalikes(nick: string): string {
+  const nfd = String(nick || "")
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "");
+  let out = "";
+  for (const ch of nfd) {
+    out += NICK_LOOKALIKE_MAP[ch] ?? ch;
+  }
+  return out;
+}
+
+function nickLeadingTagToken(nick: string): string {
+  const folded = foldNickLookalikes(nick).trim();
+  const first = folded.split(/\s+/)[0] || "";
+  return first.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+}
+
+/**
+ * Чужой клан-тег в нике (RA / DCAI / ɪʜ… / …) — не BB.
+ * Такие ники иногда попадают в r1/r2 КВ при кривом сплите команд.
+ */
+export function looksForeignClanTag(nick: string): boolean {
+  const n = String(nick || "").trim();
+  if (!n) return false;
+  const folded = foldNickLookalikes(n);
+  const u = folded.toUpperCase();
+  if (/(?:^|[\[\|\s])BB(?:[\]\|\s]|$)/.test(u) || u.startsWith("[BB]")) {
+    return false;
+  }
+  // IH / iHHHHHH gLow — префикс соперника без декоративных скобок
+  const lead = nickLeadingTagToken(n);
+  if (/^IH+$/.test(lead)) return true;
+  // ✠RA✠ · ✥ RA ✥ · ❖ RA ❖ · ↯DCAI↯ · [ALPHA] · 『FOO』
+  if (
+    /[✠✥❖↯『\[\u2726]\s*(?!BB\b)[A-ZА-Я0-9]{2,8}\s*[✠✥❖↯』\]\u2726]/i.test(folded)
+  ) {
+    return true;
+  }
+  // RA с декоративными звёздами вокруг тега
+  if (/RA/.test(u) && /[✠✥❖\u2726]/.test(n)) return true;
+  return false;
+}
+
 export async function removeDepartedBlackberryMembers(clanId: string): Promise<number> {
   const members = await prisma.clanMember.findMany({
     where: { clanId },
@@ -43,7 +115,10 @@ export async function removeDepartedBlackberryMembers(clanId: string): Promise<n
     },
   });
   const ids = members
-    .filter((m) => isBbDeparted(m.user.nick || m.user.steamName || ""))
+    .filter((m) => {
+      const nick = m.user.nick || m.user.steamName || "";
+      return isBbDeparted(nick) || looksForeignClanTag(nick);
+    })
     .map((m) => m.userId);
   if (!ids.length) return 0;
   await prisma.clanSquadMember.deleteMany({ where: { userId: { in: ids } } });
@@ -96,7 +171,8 @@ function collectNicks(pj: PlayersFile): string[] {
   for (const key of ["total", "players", "r1", "r2"] as const) {
     for (const p of pj[key] || []) {
       const n = String(p?.nick || "").trim();
-      if (n) nicks.add(n);
+      if (!n || looksForeignClanTag(n) || isBbDeparted(n)) continue;
+      nicks.add(n);
     }
   }
   return [...nicks];
@@ -358,7 +434,7 @@ export async function syncBbSquadsFromKv(): Promise<{
       skipped += 1;
       continue;
     }
-    if (isBbDeparted(nick)) {
+    if (isBbDeparted(nick) || looksForeignClanTag(nick)) {
       departedIds.push(m.userId);
       continue;
     }

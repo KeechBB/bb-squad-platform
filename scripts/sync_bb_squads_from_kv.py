@@ -82,12 +82,77 @@ def load_env_db() -> str:
     return (os.environ.get("DATABASE_URL") or "").strip().strip('"').strip("'")
 
 
+# IPA / small-cap lookalikes (ɪʜ → ih) — same canon as sync_kv_cw_from_tr_logs.
+_NICK_LOOKALIKES = str.maketrans(
+    {
+        "\u026a": "i",
+        "\u029c": "h",
+        "\u0280": "r",
+        "\u029f": "l",
+        "\u1d00": "a",
+        "\u0299": "b",
+        "\u1d04": "c",
+        "\u1d05": "d",
+        "\u1d07": "e",
+        "\u0262": "g",
+        "\u1d0a": "j",
+        "\u1d0b": "k",
+        "\u1d0d": "m",
+        "\u0274": "n",
+        "\u1d0f": "o",
+        "\u1d18": "p",
+        "\u1d1b": "t",
+        "\u1d1c": "u",
+        "\u1d20": "v",
+        "\u1d21": "w",
+        "\u028f": "y",
+        "\u1d22": "z",
+    }
+)
+
+
+def fold_nick_lookalikes(nick: str) -> str:
+    import unicodedata
+
+    s = unicodedata.normalize("NFKD", nick or "")
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    return s.translate(_NICK_LOOKALIKES)
+
+
+def looks_foreign_clan_tag(nick: str) -> bool:
+    """Чужой клан-тег (ɪʜ / IH+ / ✠RA✠…) — не считать BB."""
+    n = (nick or "").strip()
+    if not n:
+        return False
+    folded = fold_nick_lookalikes(n)
+    u = folded.upper()
+    if re.search(r"(?:^|[\[\|\s])BB(?:[\]\|\s]|$)", u) or u.startswith("[BB]"):
+        return False
+    first = folded.split()[0] if folded.split() else ""
+    lead = re.sub(r"[^A-Za-z0-9]", "", first).upper()
+    if re.match(r"^IH+$", lead):
+        return True
+    if re.search(
+        r"[✠✥❖↯『\[\u2726]\s*(?!BB\b)[A-Za-zА-Яа-я0-9]{2,8}\s*[✠✥❖↯』\]\u2726]",
+        folded,
+        re.I,
+    ):
+        return True
+    if "RA" in u and re.search(r"[✠✥❖\u2726]", n):
+        return True
+    return False
+
+
 def collect_nicks(pj: dict) -> set[str]:
     out: set[str] = set()
     for key in ("total", "players", "r1", "r2"):
         for p in pj.get(key) or []:
-            if p and p.get("nick"):
-                out.add(str(p["nick"]).strip())
+            if not p or not p.get("nick"):
+                continue
+            nick = str(p["nick"]).strip()
+            if looks_foreign_clan_tag(nick):
+                continue
+            out.add(nick)
     return out
 
 

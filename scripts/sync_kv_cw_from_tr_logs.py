@@ -37,7 +37,8 @@ KV_PUBLIC = _resolve_kv_public()
 CW_PLAYERS = KV_PUBLIC / "data" / "players"
 AUTO_CW = KV_PUBLIC / "data" / "_auto_cw_matches.json"
 LOOKBACK_DAYS = int(os.environ.get("CW_TR_LOOKBACK_DAYS", "5"))
-MIN_LAYER_SEC = 10 * 60
+# Canon «≥10 мин»; 9.5 ловит округление/обрезку (напр. FAL R2 9.9 мин).
+MIN_LAYER_SEC = int(9.5 * 60)
 TIME_SLACK_MIN = int(os.environ.get("CW_TR_TIME_SLACK_MIN", "45"))
 
 OUR_SERVER_RE = re.compile(
@@ -58,13 +59,47 @@ TR2_PUBLIC_ALIASES = (
 
 
 def _server_is_ours(server: str, note: str = "") -> bool:
-    blob = f"{server} {note}"
-    if OUR_SERVER_RE.search(blob):
+    # Only the calendar `server` field — never scan `note` (notes often say
+    # "OMEN vs BB" and `\bBB\b` would false-positive foreign hosts).
+    _ = note  # kept for call-site compat
+    s = (server or "").strip()
+    if not s:
+        return False
+    if OUR_SERVER_RE.search(s):
         return True
-    s = (server or "").strip().upper()
-    return s in {"BB", "TR1", "TR2", "BB TRAINING", "BLACKBERRY"} or s in {
+    su = s.upper()
+    return su in {"BB", "TR1", "TR2", "BB TRAINING", "BLACKBERRY"} or su in {
         a.upper() for a in TR2_PUBLIC_ALIASES
     }
+
+
+def slot_allows_tr_auto(slot: dict) -> bool:
+    """Auto-digitize only when the slot is (or may be) on TR1/TR2/BB.
+
+    Explicit foreign hosts (calendar server = OMEN / opponent name / etc.)
+    are screens-only — never attach a random TR layer by map+time.
+    Ambiguous labels (empty / ANY / after matchmaking) still try TR logs.
+    """
+    server = str(slot.get("server") or "").strip()
+    if calendar_server_key(server) in {"TR1", "TR2"}:
+        return True
+    if _server_is_ours(server):
+        return True
+    su = server.upper()
+    if not su or su in {
+        "ANY",
+        "TBD",
+        "—",
+        "-",
+        "AFTER MATCHMAKING",
+        "MM",
+        "MATCHMAKING",
+    }:
+        return True
+    # Cyrillic / free-text matchmaking labels
+    if "МАТЧМЕЙК" in su or "MATCHMAK" in su:
+        return True
+    return False
 
 
 def calendar_server_key(server: str) -> str | None:
@@ -186,41 +221,93 @@ def load_bb_nick_keys(aliases: dict[str, str]) -> set[str]:
     return keys
 
 
+# IPA / small-cap lookalikes (ɪʜ → ih) — Steam clan tags often use phonetics.
+_NICK_LOOKALIKES = str.maketrans(
+    {
+        "\u026a": "i",  # ɪ
+        "\u029c": "h",  # ʜ
+        "\u0280": "r",  # ʀ
+        "\u029f": "l",  # ʟ
+        "\u1d00": "a",  # ᴀ
+        "\u0299": "b",  # ʙ
+        "\u1d04": "c",  # ᴄ
+        "\u1d05": "d",  # ᴅ
+        "\u1d07": "e",  # ᴇ
+        "\u0262": "g",  # ɢ
+        "\u1d0a": "j",  # ᴊ
+        "\u1d0b": "k",  # ᴋ
+        "\u1d0d": "m",  # ᴍ
+        "\u0274": "n",  # ɴ
+        "\u1d0f": "o",  # ᴏ
+        "\u1d18": "p",  # ᴘ
+        "\u1d1b": "t",  # ᴛ
+        "\u1d1c": "u",  # ᴜ
+        "\u1d20": "v",  # ᴠ
+        "\u1d21": "w",  # ᴡ
+        "\u028f": "y",  # ʏ
+        "\u1d22": "z",  # ᴢ
+    }
+)
+
+
+def fold_nick_lookalikes(nick: str) -> str:
+    import unicodedata
+
+    s = unicodedata.normalize("NFKD", nick or "")
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    return s.translate(_NICK_LOOKALIKES)
+
+
+def nick_leading_tag_token(nick: str) -> str:
+    folded = fold_nick_lookalikes(nick).strip()
+    first = folded.split()[0] if folded.split() else ""
+    return re.sub(r"[^A-Za-z0-9]", "", first).upper()
+
+
 def looks_bb_nick(nick: str) -> bool:
-    u = (nick or "").upper()
+    u = fold_nick_lookalikes(nick or "").upper()
     return bool(re.search(r"(?:^|[\[\|\s])BB(?:[\]\|\s]|$)", u) or u.startswith("[BB]"))
 
 
 def looks_opp_tag(nick: str, opp: str) -> bool:
     """True if nick carries opponent clan tag (do not count as BB)."""
     n = nick or ""
-    u = n.upper()
-    tag = re.sub(r"[^A-Z0-9]", "", (opp or "").upper())
+    folded = fold_nick_lookalikes(n)
+    u = folded.upper()
+    tag = re.sub(r"[^A-Z0-9]", "", fold_nick_lookalikes(opp or "").upper())
     if not tag:
         return False
+    lead = nick_leading_tag_token(n)
+    if lead.startswith(tag) or lead == tag:
+        return True
     if tag in re.sub(r"[^A-Z0-9]", "", u):
         return True
     # common wrappers: ↯DCAI↯ 『DCAI』 [DCAI]
     if re.search(rf"[↯『\[\|\s]{re.escape(tag)}[↯』\]\|\s]", u):
         return True
     # DCAI sometimes as DCI)(AG …
-    if tag == "DCAI" and ("DCI)(AG" in u or "DCI)(AG" in n.upper()):
+    if tag == "DCAI" and ("DCI)(AG" in u):
         return True
     return False
 
 
 def looks_foreign_clan_tag(nick: str) -> bool:
-    """Any decorative clan tag that is not BB (RA/DCAI/… leaked onto BB side)."""
+    """Any decorative / phonetic clan tag that is not BB (RA/DCAI/ɪʜ… leaked onto BB side)."""
     n = nick or ""
     if not n or looks_bb_nick(n):
         return False
+    lead = nick_leading_tag_token(n)
+    # IH / iHHHHHH gLow — phonetic prefix without brackets
+    if re.match(r"^IH+$", lead):
+        return True
+    folded = fold_nick_lookalikes(n)
     if re.search(
         r"[✠✥❖↯『\[\u2726]\s*(?!BB\b)[A-Za-zА-Яа-я0-9]{2,8}\s*[✠✥❖↯』\]\u2726]",
-        n,
+        folded,
         re.I,
     ):
         return True
-    u = n.upper()
+    u = folded.upper()
     if "RA" in u and re.search(r"[✠✥❖\u2726]", n):
         return True
     return False
@@ -229,9 +316,8 @@ def looks_foreign_clan_tag(nick: str) -> bool:
 def load_cw_slots() -> list[dict]:
     """CW rows to try against TR1/TR2 logs.
 
-    Calendar `server` often names the opponent (Dcai/FCL) even when played on TR.
-    Canon: time+map+rosters on TR logs decide — include all upcoming/win/lose slots;
-    process_slot no-ops if no matching closed layers.
+    Only slots on our servers (TR1/TR2/BB) or ambiguous (ANY / empty).
+    Foreign hosts (OMEN, opponent-named server, …) are screens-only.
     """
     out: list[dict] = []
     for path in sorted((KV_PUBLIC / "data").glob("20??-??.json")):
@@ -250,6 +336,8 @@ def load_cw_slots() -> list[dict]:
             st = str(m.get("status") or "")
             # upcoming always; also re-check recent win/lose if players missing opp
             if st not in ("upcoming", "win", "lose"):
+                continue
+            if not slot_allows_tr_auto(m):
                 continue
             out.append({**m, "_year": y, "_month": mo, "_monthKey": month})
     return out
@@ -420,6 +508,11 @@ def process_slot(
     auto: list[dict],
 ) -> bool:
     mid = str(slot.get("id") or "")
+    # Manual / foreign-server block (e.g. OMEN screens-only).
+    if any(a.get("id") == mid and a.get("skip") for a in auto):
+        return False
+    if not slot_allows_tr_auto(slot):
+        return False
     # Re-run while incomplete (R2 still open). Only skip fully finalized auto rows.
     prior = next((a for a in auto if a.get("id") == mid and not a.get("skip")), None)
     if prior and prior.get("rounds", 0) >= 2 and prior.get("status") in ("win", "lose"):
