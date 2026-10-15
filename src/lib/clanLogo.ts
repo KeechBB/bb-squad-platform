@@ -31,6 +31,9 @@ const OPP_CANON: Record<string, { key: string; tag: string; name: string }> = {
   ns: { key: "NS", tag: "NS", name: "North Star" },
   northstar: { key: "NS", tag: "NS", name: "North Star" },
   "north-star": { key: "NS", tag: "NS", name: "North Star" },
+  dl: { key: "DL", tag: "DL", name: "Dead Legion" },
+  deadlegion: { key: "DL", tag: "DL", name: "Dead Legion" },
+  "dead-legion": { key: "DL", tag: "DL", name: "Dead Legion" },
   ra: { key: "RA", tag: "RA", name: "Requiem Aeternam" },
   requiem: { key: "RA", tag: "RA", name: "Requiem Aeternam" },
   requiemaeternam: { key: "RA", tag: "RA", name: "Requiem Aeternam" },
@@ -67,6 +70,7 @@ const LOGO_EXT: Record<string, string> = {
   RA: ".png",
   NKLV: ".png",
   NS: ".png",
+  DL: ".png",
 };
 
 function normKey(raw: string): string {
