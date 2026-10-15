@@ -12,7 +12,7 @@ import {
 } from "@/lib/cwChallenge";
 import { buildCalendarMatches } from "@/lib/kvForecast";
 import type { MatchForecast, UpcomingMatchPreview } from "@/lib/kvForecastUi";
-import { canonOpp, clanLogoUrl } from "@/lib/clanLogo";
+import { canonOpp, clanLogoUrl, kvOppMatchesClan } from "@/lib/clanLogo";
 
 export const dynamic = "force-dynamic";
 
@@ -83,11 +83,15 @@ export async function GET(_req: Request, ctx: Ctx) {
   }
 
   const tagUp = clan.tag.toUpperCase();
+  const clanCanon = canonOpp(clan.name || clan.tag);
   // Для BB всегда файлы из /rating-logos (DB logoUrl часто битый upload)
   const ourLogo =
     tagUp === "BB"
       ? clanLogoUrl("BB-MAIN")
-      : clanLogoUrl(tagUp) || clan.logoUrl || null;
+      : clanLogoUrl(tagUp) ||
+        clanLogoUrl(clanCanon.key) ||
+        clan.logoUrl ||
+        null;
 
   const matches: ClanCalMatch[] = [];
 
@@ -104,22 +108,6 @@ export async function GET(_req: Request, ctx: Ctx) {
         matches.push(enrichPreview(p, stackLogo, "kv"));
       }
     } else {
-      const oppNorm = tagUp.toLowerCase().replace(/[^a-z0-9]/g, "");
-      const aliases: Record<string, string> = {
-        "20royals": "20r",
-        falcons: "fal",
-        redfoxes: "fox",
-        foxes: "fox",
-        avanguard: "avg",
-        solid: "solid",
-      };
-      const want = aliases[oppNorm] || oppNorm;
-      const norm = (s?: string | null) => {
-        const a = String(s || "")
-          .toLowerCase()
-          .replace(/[^a-z0-9]/g, "");
-        return aliases[a] || a;
-      };
       const invertStatus = (s?: string) =>
         s === "win" ? "lose" : s === "lose" ? "win" : s || "";
       const invertMeeting = (m?: string | null) => {
@@ -133,9 +121,8 @@ export async function GET(_req: Request, ctx: Ctx) {
         return s ? `BB ${stack}` : "BB";
       };
       for (const p of previews) {
-        const asHost =
-          !p.bbHost && (norm(p.clan) === want || norm(p.clan) === oppNorm);
-        const asOpp = norm(p.opp) === want || norm(p.opp) === oppNorm;
+        const asHost = !p.bbHost && kvOppMatchesClan(p.clan, clan);
+        const asOpp = kvOppMatchesClan(p.opp, clan);
         if (!asHost && !asOpp) continue;
         // Left side = viewing clan. Never put opp crest into ourLogo.
         const sideLogo =

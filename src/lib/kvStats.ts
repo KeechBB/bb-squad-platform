@@ -1,4 +1,5 @@
 import { memoTtl, PROFILE_CORPUS_TTL_MS } from "@/lib/memoTtl";
+import { kvOppMatchesClan } from "@/lib/clanLogo";
 
 export type KvMatch = {
   id?: string;
@@ -235,26 +236,8 @@ function matchSortKey(m: KvMatch): number {
 }
 
 function oppTagMatch(opp: string | undefined, clanTag: string): boolean {
-  const a = String(opp || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
-  const b = String(clanTag || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
-  if (!a || !b) return false;
-  if (a === b) return true;
-  // aliases: 20royals↔20r, falcons↔fal, redfoxes↔fox, .solid↔solid
-  const aliases: Record<string, string> = {
-    "20royals": "20r",
-    falcons: "fal",
-    redfoxes: "fox",
-    foxes: "fox",
-    avanguard: "avg",
-    solid: "solid",
-  };
-  const na = aliases[a] || a;
-  const nb = aliases[b] || b;
-  return na === nb;
+  // tag `A` (ALPHA Group) must match KV opp `ALPHA` — see clanOppIdentityKeys
+  return kvOppMatchesClan(opp, { tag: clanTag, name: clanTag });
 }
 
 /** Календарь с точки зрения BB: win = победа BB. Для чужого клана инвертируем. */

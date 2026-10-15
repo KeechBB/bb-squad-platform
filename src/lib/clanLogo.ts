@@ -81,6 +81,82 @@ function normKey(raw: string): string {
     .replace(/^\[|\]$/g, "");
 }
 
+/** Mathematical Alphanumeric Symbols → ASCII (𝙰𝙻𝙿𝙷𝙰 → ALPHA). */
+export function foldFancyAlnum(input: string): string {
+  let out = "";
+  for (const ch of String(input || "")) {
+    const cp = ch.codePointAt(0)!;
+    if (cp >= 0x1d400 && cp <= 0x1d6a3) {
+      const within = (cp - 0x1d400) % 52;
+      out += String.fromCharCode(within < 26 ? 65 + within : 97 + (within - 26));
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+/** Short-tag / nickname aliases for KV opp ↔ clan card matching. */
+const OPP_ID_ALIASES: Record<string, string> = {
+  "20royals": "20r",
+  falcons: "fal",
+  redfoxes: "fox",
+  foxes: "fox",
+  avanguard: "avg",
+  solid: "solid",
+  /** DB card tag `[A]` / `A` vs KV `opp: "ALPHA"`. */
+  a: "alpha",
+};
+
+function idToken(raw: string): string {
+  const n = foldFancyAlnum(raw)
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+  if (!n) return "";
+  return OPP_ID_ALIASES[n] || n;
+}
+
+/**
+ * Identity tokens for a clan card vs KV `opp`/`clan` fields.
+ * Covers tag `A` + fancy name `𝙰𝙻𝙿𝙷𝙰 Group` + logo `ALPHA.png` → `alpha`.
+ */
+export function clanOppIdentityKeys(opts: {
+  tag?: string | null;
+  name?: string | null;
+  logoUrl?: string | null;
+}): Set<string> {
+  const keys = new Set<string>();
+  const add = (raw?: string | null) => {
+    if (!raw) return;
+    const t = idToken(raw);
+    if (t) keys.add(t);
+    const c = canonOpp(foldFancyAlnum(raw));
+    const ck = idToken(c.key);
+    const ct = idToken(c.tag);
+    if (ck) keys.add(ck);
+    if (ct) keys.add(ct);
+  };
+  add(opts.tag);
+  add(opts.name);
+  if (opts.logoUrl) {
+    const base = String(opts.logoUrl)
+      .split(/[/\\]/)
+      .pop()
+      ?.replace(/\.[^.]+$/, "");
+    add(base);
+  }
+  return keys;
+}
+
+export function kvOppMatchesClan(
+  kvOppOrClan: string | null | undefined,
+  clan: { tag?: string | null; name?: string | null; logoUrl?: string | null }
+): boolean {
+  const token = idToken(String(kvOppOrClan || ""));
+  if (!token) return false;
+  return clanOppIdentityKeys(clan).has(token);
+}
+
 export function canonOpp(oppRaw: string) {
   const raw = String(oppRaw || "").trim();
   if (!raw) return { key: "?", tag: "?", name: "?" };
