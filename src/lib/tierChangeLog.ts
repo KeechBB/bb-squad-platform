@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
+import { alertTierChange } from "@/lib/bbAlerts";
 
 export type TierChangeSeed = {
   nick: string;
@@ -125,13 +126,19 @@ export async function recordTierChange(input: {
     },
   });
 
+  const move = formatTierMove(input.fromTier, input.toTier);
+  void alertTierChange({
+    nick,
+    move,
+    actor: input.actorNick,
+  }).catch((err) => {
+    console.error("telegram tier alert failed", err);
+  });
+
   await writeActionLog({
     category: "admin",
     action: "tier_change",
-    message: `${input.actorNick || "админ"}: ${nick} ${formatTierMove(
-      input.fromTier,
-      input.toTier
-    )}`,
+    message: `${input.actorNick || "админ"}: ${nick} ${move}`,
     actorId: input.actorId,
     actorNick: input.actorNick,
     targetNick: nick,

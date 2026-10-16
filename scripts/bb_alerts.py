@@ -308,8 +308,11 @@ def map_ingested(
     score: str,
     kind: str = "тренировка",
     rp_ok: bool | None = None,
+    players: int | None = None,
 ) -> bool:
     lines = [f"карта: {map_name}", f"счёт: {score}", f"id: {match_id}"]
+    if players is not None:
+        lines.append(f"село: {players}")
     if rp_ok is True:
         lines.append("RP: пересчитан")
     elif rp_ok is False:

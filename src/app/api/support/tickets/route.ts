@@ -14,6 +14,7 @@ import {
   userLiveChannel,
 } from "@/lib/liveBus";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
+import { alertSupportTicket } from "@/lib/bbAlerts";
 
 export const dynamic = "force-dynamic";
 
@@ -263,6 +264,9 @@ export async function POST(req: Request) {
     targetId: user.id,
     targetNick: nick,
     meta: { ticketId: ticket.id, ticketNumber: ticket.number },
+  });
+  void alertSupportTicket({ number: ticket.number, nick, preview }).catch((err) => {
+    console.error("telegram ticket alert failed", err);
   });
   await writeActionLog({
     category: "support",

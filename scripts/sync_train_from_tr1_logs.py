@@ -1171,6 +1171,7 @@ def main() -> int:
                 score=f"{int(t1 or 0)}–{int(t2 or 0)}",
                 kind="тренировка",
                 rp_ok=False,
+                players=len(team_a) + len(team_b),
             )
         except Exception as e:
             print(f"alert map_ingested skip: {e}", flush=True)

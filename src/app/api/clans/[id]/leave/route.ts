@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { clanLiveChannel, livePublish, userLiveChannel } from "@/lib/liveBus";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
+import { alertClanLeft } from "@/lib/bbAlerts";
 
 export const runtime = "nodejs";
 
@@ -51,6 +52,13 @@ export async function POST(_req: Request, ctx: Ctx) {
     }
     // последний участник — удаляем клан
     await prisma.clan.delete({ where: { id: clanId } });
+    void alertClanLeft({
+      nick: meNick,
+      clan: clan ? `[${clan.tag}] ${clan.name}` : "клан",
+      how: "вышел",
+    }).catch((err) => {
+      console.error("telegram disband alert failed", err);
+    });
     await writeActionLog({
       category: "clan",
       action: "disband",
@@ -79,6 +87,11 @@ export async function POST(_req: Request, ctx: Ctx) {
   }
 
   await prisma.clanMember.delete({ where: { id: membership.id } });
+
+  const clanLabel = clan ? `[${clan.tag}] ${clan.name}` : "клан";
+  void alertClanLeft({ nick: meNick, clan: clanLabel, how: "вышел" }).catch((err) => {
+    console.error("telegram leave alert failed", err);
+  });
 
   await writeActionLog({
     category: "clan",

@@ -64,3 +64,61 @@ export async function alertNewRegistration(opts: {
   if (opts.regNo != null) lines.push(`• №: ${opts.regNo}`);
   await sendBbAlert(lines.join("\n"));
 }
+
+export async function alertSupportTicket(opts: {
+  number: number;
+  nick: string;
+  preview: string;
+}): Promise<void> {
+  const lines = [
+    "🆘 Новое обращение в поддержку",
+    `📅 ${mskStamp()}`,
+    "🏷 тип: поддержка",
+    "———",
+    `• тикет: #${opts.number}`,
+    `• от: ${opts.nick}`,
+    `• текст: ${opts.preview}`,
+  ];
+  await sendBbAlert(lines.join("\n"));
+}
+
+export async function alertClanLeft(opts: {
+  nick: string;
+  clan: string;
+  how: "вышел" | "кик" | "убран";
+  by?: string | null;
+}): Promise<void> {
+  const title =
+    opts.how === "кик"
+      ? "Кик из клана"
+      : opts.how === "убран"
+        ? "Убран из состава"
+        : "Выход из клана";
+  const lines = [
+    `🚪 ${title}`,
+    `📅 ${mskStamp()}`,
+    "🏷 тип: состав",
+    "———",
+    `• ник: ${opts.nick}`,
+    `• клан: ${opts.clan}`,
+  ];
+  if (opts.by) lines.push(`• кто: ${opts.by}`);
+  await sendBbAlert(lines.join("\n"));
+}
+
+export async function alertTierChange(opts: {
+  nick: string;
+  move: string;
+  actor?: string | null;
+}): Promise<void> {
+  const lines = [
+    "🎖 Смена тира",
+    `📅 ${mskStamp()}`,
+    "🏷 тип: тир",
+    "———",
+    `• ник: ${opts.nick}`,
+    `• перевод: ${opts.move}`,
+  ];
+  if (opts.actor) lines.push(`• кто: ${opts.actor}`);
+  await sendBbAlert(lines.join("\n"));
+}

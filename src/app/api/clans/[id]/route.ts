@@ -13,6 +13,7 @@ import {
 } from "@/lib/clan";
 import { clanLiveChannel, livePublish, userLiveChannel } from "@/lib/liveBus";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
+import { alertClanLeft } from "@/lib/bbAlerts";
 
 export const runtime = "nodejs";
 
@@ -277,9 +278,15 @@ export async function DELETE(req: Request, ctx: Ctx) {
   await prisma.clanMember.delete({ where: { id: memberId } });
   const actorNick = personLabel(actor.user);
   const targetNick = personLabel(target.user);
-  const clanLabel = clan
-    ? `[${clan.tag}] ${clan.name}`
-    : "[?]";
+  const clanLabel = clan ? `[${clan.tag}] ${clan.name}` : "[?]";
+  void alertClanLeft({
+    nick: targetNick,
+    clan: clanLabel,
+    how: "кик",
+    by: actorNick,
+  }).catch((err) => {
+    console.error("telegram kick alert failed", err);
+  });
   await writeActionLog({
     category: "clan",
     action: "kick",

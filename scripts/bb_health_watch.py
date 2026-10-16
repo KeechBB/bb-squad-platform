@@ -11,6 +11,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -198,6 +199,148 @@ def check_caches(st: dict) -> None:
         st["cache_flagged"] = list(flagged)
 
 
+def check_collector_heartbeat(st: dict) -> None:
+    """PM2 может быть online, а цикл опроса логов уже не пишет state."""
+    statuses = pm2_status()
+    if statuses.get("bb-squad-collector") != "online":
+        st["collector_silent"] = False
+        return
+    candidates = [
+        HERE / "squad_collector_state.json",
+        Path("/var/www/bb-squad-platform/scripts/squad_collector_state.json"),
+    ]
+    newest = 0.0
+    for p in candidates:
+        try:
+            if p.is_file():
+                newest = max(newest, p.stat().st_mtime)
+        except OSError:
+            pass
+    age = time.time() - newest if newest else 10**9
+    silent = age > 20 * 60
+    was = bool(st.get("collector_silent"))
+    if silent and not was:
+        mins = "нет файла" if newest == 0 else f"{int(age // 60)} мин"
+        A.send(
+            kind="сборщик",
+            title="Сборщик логов замолчал",
+            level="crit",
+            lines=[f"состояние не обновлялось: {mins}"],
+            details={"процесс": "bb-squad-collector online, логи не пишутся"},
+            force=True,
+        )
+    elif not silent and was:
+        A.send(
+            kind="сборщик",
+            title="Сборщик логов снова пишет",
+            level="ok",
+            force=True,
+        )
+    st["collector_silent"] = silent
+
+
+def _cw_rows() -> dict[str, dict]:
+    roots = [
+        Path("/var/www/bb-squad-platform/data/kv-cache/data"),
+        Path("/var/www/blackberry-kv/data"),
+    ]
+    root = next((p for p in roots if p.is_dir()), None)
+    if root is None:
+        return {}
+    out: dict[str, dict] = {}
+    for path in sorted(root.glob("20??-??.json")):
+        if "training" in path.name:
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        month = str(data.get("month") or path.stem)
+        for m in data.get("matches") or []:
+            mid = str(m.get("id") or "")
+            if not mid:
+                continue
+            out[mid] = {
+                "month": month,
+                "day": m.get("day"),
+                "time": m.get("timeMsk") or "",
+                "opp": m.get("opp") or "",
+                "stack": m.get("stack") or "",
+                "map": m.get("map") or "",
+                "status": str(m.get("status") or ""),
+                "meeting": m.get("meeting") or "",
+                "r1": m.get("r1") or "",
+                "r2": m.get("r2") or "",
+            }
+    return out
+
+
+def _cw_line(row: dict) -> str:
+    when = f"{row.get('day')}.{row.get('month')} {row.get('time')}".strip()
+    who = f"{row.get('stack') or 'Main'} vs {row.get('opp') or '?'}"
+    return f"{when} · {who} · {row.get('map') or '—'}"
+
+
+def check_cw_calendar(st: dict) -> None:
+    rows = _cw_rows()
+    if not rows:
+        return
+    prev = st.get("cw_seen")
+    if not isinstance(prev, dict):
+        st["cw_seen"] = rows
+        print(f"cw calendar seeded {len(rows)}", flush=True)
+        return
+    for mid, row in rows.items():
+        old = prev.get(mid)
+        status = row.get("status") or ""
+        if old is None:
+            if status == "cancel":
+                title = "КВ отмена"
+                level = "warn"
+            elif status in ("win", "lose"):
+                title = "КВ итог"
+                level = "ok" if status == "win" else "warn"
+            else:
+                title = "КВ бронь"
+                level = "ok"
+            lines = [_cw_line(row)]
+            if status in ("win", "lose"):
+                lines.append(
+                    f"{'победа' if status == 'win' else 'поражение'} · серия {row.get('meeting') or '—'} · {row.get('r1') or '—'} / {row.get('r2') or '—'}"
+                )
+            A.send(
+                kind="кв",
+                title=f"{title} {mid}",
+                level=level,
+                lines=lines,
+                force=True,
+            )
+            continue
+        old_status = str(old.get("status") or "")
+        if old_status == status:
+            continue
+        if status == "cancel":
+            A.send(
+                kind="кв",
+                title=f"КВ отмена {mid}",
+                level="warn",
+                lines=[_cw_line(row)],
+                force=True,
+            )
+        elif status in ("win", "lose") and old_status not in ("win", "lose"):
+            A.send(
+                kind="кв",
+                title=f"КВ итог {mid}",
+                level="ok" if status == "win" else "warn",
+                lines=[
+                    _cw_line(row),
+                    f"{'победа' if status == 'win' else 'поражение'} · серия {row.get('meeting') or '—'} · {row.get('r1') or '—'} / {row.get('r2') or '—'}",
+                ],
+                force=True,
+            )
+    st["cw_seen"] = rows
+
+
 def main() -> int:
     st = _load()
     try:
@@ -216,6 +359,14 @@ def main() -> int:
         check_caches(st)
     except Exception as e:
         print("cache check", e, flush=True)
+    try:
+        check_collector_heartbeat(st)
+    except Exception as e:
+        print("collector heartbeat", e, flush=True)
+    try:
+        check_cw_calendar(st)
+    except Exception as e:
+        print("cw calendar", e, flush=True)
     _save(st)
     print("health watch ok", st.get("load_last"), flush=True)
     return 0

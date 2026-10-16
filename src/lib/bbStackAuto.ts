@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { alertClanLeft } from "@/lib/bbAlerts";
 import { loadKvJsonCached } from "@/lib/kvLocal";
 import { loadTierIndex } from "@/lib/loadTierIndex";
 import { ensureDefaultSquads } from "@/lib/squads";
@@ -114,17 +115,22 @@ export async function removeDepartedBlackberryMembers(clanId: string): Promise<n
       user: { select: { nick: true, steamName: true } },
     },
   });
-  const ids = members
-    .filter((m) => {
-      const nick = m.user.nick || m.user.steamName || "";
-      return isBbDeparted(nick) || looksForeignClanTag(nick);
-    })
-    .map((m) => m.userId);
-  if (!ids.length) return 0;
+  const gone = members.filter((m) => {
+    const nick = m.user.nick || m.user.steamName || "";
+    return isBbDeparted(nick) || looksForeignClanTag(nick);
+  });
+  if (!gone.length) return 0;
+  const ids = gone.map((m) => m.userId);
   await prisma.clanSquadMember.deleteMany({ where: { userId: { in: ids } } });
   await prisma.clanMember.deleteMany({
     where: { clanId, userId: { in: ids } },
   });
+  for (const m of gone) {
+    const nick = m.user.nick || m.user.steamName || m.userId;
+    void alertClanLeft({ nick, clan: "BlackBerry", how: "убран" }).catch((err) => {
+      console.error("telegram departed alert failed", err);
+    });
+  }
   return ids.length;
 }
 
