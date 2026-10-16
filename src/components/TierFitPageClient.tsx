@@ -11,7 +11,7 @@ import {
 
 type Props = {
   board: HomeTierBoardData;
-  /** Внутри /tm — без лишнего hero-заголовка страницы */
+  /** Внутри /tm — компактный hero */
   embedded?: boolean;
 };
 
@@ -35,7 +35,7 @@ function bandLabel(band: string) {
   if (band === "strong") return "сильный ↑";
   if (band === "hard") return "форма ↓";
   if (band === "almost") return "почти";
-  if (band === "warn" || band === "ready") return "риск";
+  if (band === "warn") return "риск";
   return band || "—";
 }
 
@@ -84,8 +84,8 @@ export function TierFitPageClient({ board, embedded = false }: Props) {
           <p className="eyebrow">автосистема · Fit</p>
           <h1>Тиры FIT</h1>
           <p className="lead">
-            Fit% считается по КВ относительно эталона тира на твоей роли. Роль
-            берётся из кита, который чаще всего на залитых тренировках (не Jensens).
+            Прозрачный рост: роль с тренировок → Fit% в КВ → зоны цвета → автоперевод.
+            Ниже — автодоска; ещё ниже — полный разбор по ролям.
           </p>
         </div>
         <div className="tier-fit-meta">
@@ -112,45 +112,53 @@ export function TierFitPageClient({ board, embedded = false }: Props) {
         </div>
       </section>
 
-      <section className="tier-fit-legend" aria-label="Правила и цвета">
-        <h2 className="tier-fit-legend-title">Как подняться / опуститься</h2>
+      <section className="tier-fit-legend" aria-label="Как поднять тир">
+        <h2 className="tier-fit-legend-title">Как поднять тир — по шагам</h2>
         <ol className="tier-fit-steps">
           <li>
-            <b className="tone-warn">1. Роль</b> — кит, который чаще на залитых
-            тренировочных матчах (карточка «Роли» в профиле).
+            <b className="tone-warn">1. Роль</b> — кит, который чаще на{" "}
+            <em>залитых тренировках</em> (карточка «Роли» в профиле). По этой роли
+            считается Fit.
           </li>
           <li>
-            <b className="tone-warn">2. Fit% в КВ</b> — сравнение твоих цифр с
-            медианой того же кита в целевом / текущем тире.
+            <b className="tone-warn">2. Играй КВ в этой роли</b> — Fit% только из
+            клановых войн (тренировки дают роль, не Fit).
           </li>
           <li>
-            <b className="tone-good">3. Зелёный (≥95% ↑)</b> — удержание{" "}
-            {holdDays} дня подряд → автоперевод вверх на 1 тир.
+            <b className="tone-good">3. Зелёный · ≥95% к тиру выше</b> — держи{" "}
+            {holdDays} дня подряд → авто +1 тир.
           </li>
           <li>
-            <b className="tone-warn">4. Жёлтый (90–95% ↑ / 75–85% ↓)</b> — зона
-            «почти» / «риск»: видно в кандидатах, автоперевода ещё нет.
+            <b className="tone-warn">4. Жёлтый · 90–95% ↑ или 75–85% ↓</b> — «почти»
+            / «риск»: видно в кандидатах, автоперевода нет. Смотри рычаг «что
+            качать».
           </li>
           <li>
-            <b className="tone-bad">5. Красный (&lt;75% ↓)</b> — удержание{" "}
-            {holdDays} дня → автоперевод вниз на 1 тир.
+            <b className="tone-bad">5. Красный · &lt;75% своего тира</b> — {holdDays}{" "}
+            дня подряд → авто −1 тир.
           </li>
         </ol>
         <div className="tier-fit-swatches" aria-hidden="true">
           <span className="tier-fit-swatch is-good">↑ зелёный · готов / вверх</span>
-          <span className="tier-fit-swatch is-warn">● жёлтый · почти / риск / важно</span>
+          <span className="tier-fit-swatch is-warn">
+            ● жёлтый · почти / риск / важно
+          </span>
           <span className="tier-fit-swatch is-bad">↓ красный · вниз / слабо</span>
         </div>
+        <p className="tier-fit-legend-note muted">
+          Мало КВ-раундов (&lt;8) — вниз не двигаем. Детали метрик и доски по ролям —
+          в блоке «Детальный разбор» ниже.
+        </p>
       </section>
 
       <div className="tier-fit-panels">
         <section className="card tier-fit-card tier-fit-panel">
           <header className="tier-fit-panel-head">
             <div>
-              <h2>Переводы</h2>
+              <h2>Автопереводы</h2>
               <p className="muted tier-fit-sub">
-                Уже сработавшие смены тира · жёлтый = дата, зелёный = вверх,
-                красный = вниз
+                Уже сработавшие смены · зелёный = вверх, красный = вниз, жёлтый =
+                дата
               </p>
             </div>
             <span className="tier-fit-count tone-warn">{transfers.length}</span>
@@ -186,16 +194,16 @@ export function TierFitPageClient({ board, embedded = false }: Props) {
         <section className="card tier-fit-card tier-fit-panel">
           <header className="tier-fit-panel-head">
             <div>
-              <h2>Кандидаты</h2>
+              <h2>Очередь автосистемы</h2>
               <p className="muted tier-fit-sub">
-                Роль = majority кит с тренировок · «готов» (жёлтый) = удержание{" "}
-                {holdDays}д набрано
+                Кто на удержании {holdDays}д · «готов» жёлтым · роль = кит с
+                тренировок
               </p>
             </div>
             <span className="tier-fit-count">{candidates.length}</span>
           </header>
           {candidates.length === 0 ? (
-            <p className="muted">Нет кандидатов.</p>
+            <p className="muted">Нет кандидатов в автоочереди.</p>
           ) : (
             <div className="tier-fit-table-scroll">
               <table className="admin-table tier-fit-table">
@@ -262,16 +270,9 @@ function CandidateTr({
   const ready = Boolean(row.ready);
   const statusTone = bandTone(row.band, ready);
   const days = row.daysHeld;
-  const daysLabel =
-    days == null
-      ? "—"
-      : `${days}/${holdDays}`;
+  const daysLabel = days == null ? "—" : `${days}/${holdDays}`;
   const daysTone =
-    ready
-      ? "tone-warn"
-      : days != null && days > 0
-        ? "tone-warn"
-        : "tone-muted";
+    ready || (days != null && days > 0) ? "tone-warn" : "tone-muted";
 
   return (
     <tr className={`tier-fit-row is-${row.dir}${ready ? " is-ready" : ""}`}>

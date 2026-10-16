@@ -214,6 +214,32 @@ svg {
   overflow: auto;
   padding-bottom: 28px;
 }
+.tm-hub-fit-detail {
+  margin-top: 22px;
+  padding-top: 8px;
+}
+.tm-hub-fit-detail-head {
+  margin: 0 4px 12px;
+}
+.tm-hub-fit-detail-head h2 {
+  margin: 0 0 4px;
+  font-family: var(--font-display), Oxanium, Manrope, sans-serif;
+  font-size: clamp(1.1rem, 2vw, 1.4rem);
+}
+.tm-hub-fit-detail-head .muted {
+  margin: 0;
+  font-size: 0.88rem;
+}
+.tm-hub-fit-frame.cw-embed {
+  margin: 0;
+  height: min(92vh, 1400px);
+  min-height: 720px;
+}
+.tier-fit-legend-note {
+  margin: 12px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
 
 .tm-hub-fit .tier-fit-page.is-embedded {
   width: min(2200px, 100%);

@@ -17,9 +17,20 @@ export default async function TrainingMatchesPage() {
   }
 
   const bust = await liveKvBust();
-  // hideTiers=1 — маленькая вкладка «Тиры Fit» в iframe скрыта; большая = платформенный таб
-  const params = new URLSearchParams({ embed: "1", hideTiers: "1", v: bust });
-  const iframeSrc = `/kv-static/index.html?${params.toString()}#/tm`;
+  // Матчи: без дубля «Тиры Fit» в subnav — детальный FIT живёт в большой вкладке
+  const matchParams = new URLSearchParams({
+    embed: "1",
+    hideTiers: "1",
+    v: bust,
+  });
+  const iframeSrc = `/kv-static/index.html?${matchParams.toString()}#/tm`;
+  // Большая «Тиры FIT»: полный разбор из KV tfs-fit (доски / кандидаты / аналитика)
+  const fitParams = new URLSearchParams({
+    embed: "1",
+    tfsEmbed: "1",
+    v: bust,
+  });
+  const fitIframeSrc = `/kv-static/index.html?${fitParams.toString()}#/tm/tiers`;
   const board = await buildHomeTierBoard().catch(() => emptyHomeTierBoard());
 
   return (
@@ -35,7 +46,11 @@ export default async function TrainingMatchesPage() {
         </div>
       }
     >
-      <TrainingMatchesHub iframeSrc={iframeSrc} board={board} />
+      <TrainingMatchesHub
+        iframeSrc={iframeSrc}
+        fitIframeSrc={fitIframeSrc}
+        board={board}
+      />
     </Suspense>
   );
 }
