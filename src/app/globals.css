@@ -15774,3 +15774,102 @@ body:has(.profile-page) {
   min-height: 0 !important;
   overflow: hidden !important;
 }
+
+/* —— Admin: Нагрузка сервера —— */
+.admin-load-panel {
+  margin-top: 1rem;
+}
+.admin-load-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.admin-load-head h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+.admin-load-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.admin-load-now {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+@media (max-width: 720px) {
+  .admin-load-now {
+    grid-template-columns: 1fr;
+  }
+}
+.admin-load-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.25);
+}
+.admin-load-kpi strong {
+  font-size: 1.75rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.admin-load-kpi-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+.admin-load-ok {
+  border-color: rgba(46, 204, 113, 0.45);
+  box-shadow: inset 0 0 0 1px rgba(46, 204, 113, 0.12);
+}
+.admin-load-ok strong {
+  color: #2ecc71;
+}
+.admin-load-warn {
+  border-color: rgba(241, 196, 15, 0.5);
+  box-shadow: inset 0 0 0 1px rgba(241, 196, 15, 0.15);
+}
+.admin-load-warn strong {
+  color: #f1c40f;
+}
+.admin-load-bad {
+  border-color: rgba(231, 76, 60, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(231, 76, 60, 0.18);
+}
+.admin-load-bad strong {
+  color: #e74c3c;
+}
+.admin-load-charts {
+  display: grid;
+  gap: 14px;
+}
+.admin-load-chart h3 {
+  margin: 0 0 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.admin-load-spark {
+  display: block;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.admin-load-spark-ok polyline {
+  stroke: #2ecc71;
+}
+.admin-load-spark-warn polyline {
+  stroke: #f1c40f;
+}
+.admin-load-spark-bad polyline {
+  stroke: #e74c3c;
+}

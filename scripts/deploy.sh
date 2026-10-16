@@ -190,6 +190,14 @@ echo "==> BB clan: training players → clan + CW stacks by play frequency"
 python3 scripts/sync_bb_clan_from_training.py --apply || true
 python3 scripts/sync_bb_squads_from_kv.py --apply || true
 
+echo "==> sys-load cron (CPU/RAM/NVMe, every minute)"
+NODE_BIN="$(command -v node || true)"
+if [[ -n "$NODE_BIN" ]]; then
+  CRON_LINE="* * * * * cd $ROOT && $NODE_BIN scripts/sys-load-sample.mjs >> /var/log/bb-sys-load.log 2>&1"
+  (crontab -l 2>/dev/null | grep -v 'sys-load-sample' || true; echo "$CRON_LINE") | crontab - || true
+  "$NODE_BIN" scripts/sys-load-sample.mjs || true
+fi
+
 DEPLOY_OK=1
 # Do NOT rebuild public rp-ledger in the background during deploy:
 # the 30MB parse + python + pm2 restart was OOMing the 4GB box → 502 storms.

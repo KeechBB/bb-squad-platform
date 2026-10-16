@@ -10,6 +10,7 @@ import { AdminReservePanel } from "@/components/AdminReservePanel";
 import { AdminUpdatesPanel } from "@/components/AdminUpdatesPanel";
 import { AdminTierLogPanel } from "@/components/AdminTierLogPanel";
 import { AdminKeechHuntPanel } from "@/components/AdminKeechHuntPanel";
+import { AdminLoadPanel } from "@/components/AdminLoadPanel";
 import type { AppRole } from "@/lib/roles";
 
 type Props = {
@@ -32,7 +33,8 @@ type Tab =
   | "reserve"
   | "updates"
   | "tiers"
-  | "hunt";
+  | "hunt"
+  | "load";
 
 const TAB_LEAD: Record<Tab, string> = {
   users: "Пользователи платформы. Кликни по нику — правка анкеты и аватара.",
@@ -50,6 +52,7 @@ const TAB_LEAD: Record<Tab, string> = {
     "История переводов по тирам: кто, когда, из какого в какой. Можно дописать вручную.",
   hunt:
     "Личный live-лог PB1+TR1: ноки / киллы / смерти / ресы и пробный ±RP. Только для тебя.",
+  load: "Нагрузка plaza: CPU, RAM, NVMe. Фильтры Минуты / Часы / Дни.",
 };
 
 function readTab(
@@ -64,7 +67,8 @@ function readTab(
     t === "journal" ||
     t === "users" ||
     t === "updates" ||
-    t === "tiers"
+    t === "tiers" ||
+    t === "load"
   )
     return t;
   if (t === "visits" && allowVisits) return "visits";
@@ -201,6 +205,13 @@ export function AdminShell({
               Hunt
             </button>
           ) : null}
+          <button
+            type="button"
+            className={`admin-tab ${tab === "load" ? "active" : ""}`}
+            onClick={() => setTab("load")}
+          >
+            Нагрузка
+          </button>
         </div>
         <p style={{ marginTop: 12 }}>
           <Link className="kv-link" href="/profile">
@@ -223,6 +234,7 @@ export function AdminShell({
       {tab === "updates" ? <AdminUpdatesPanel /> : null}
       {tab === "visits" && showSiteVisits ? <AdminVisitsPanel /> : null}
       {tab === "hunt" && showKeechHunt ? <AdminKeechHuntPanel /> : null}
+      {tab === "load" ? <AdminLoadPanel /> : null}
     </main>
   );
 }
