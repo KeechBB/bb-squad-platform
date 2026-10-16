@@ -5945,6 +5945,178 @@ body:has(.home-page) {
   font-weight: 700;
 }
 
+.home-welcome-plaque-body {
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.home-welcome-plaque-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 14px;
+}
+.home-welcome-plaque-cta a {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(167, 139, 250, 0.45);
+  background: rgba(76, 29, 149, 0.28);
+  color: #f7f3ff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  letter-spacing: 0.02em;
+  transition: border-color 0.15s, background 0.15s;
+}
+.home-welcome-plaque-cta a:hover {
+  border-color: rgba(240, 201, 135, 0.7);
+  background: rgba(124, 58, 237, 0.35);
+  color: #fff;
+}
+
+/* Пульс: ближайший КВ + стрик */
+.home-pulse {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
+}
+.home-pulse.is-live .home-pulse-item {
+  box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.35);
+}
+.home-pulse-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(167, 139, 250, 0.28);
+  background: rgba(10, 6, 18, 0.45);
+}
+.home-pulse-label {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(196, 181, 253, 0.75);
+}
+.home-pulse-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+.home-pulse-vs {
+  font-weight: 700;
+  font-size: 0.92rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.home-pulse-meta {
+  font-size: 0.78rem;
+  width: 100%;
+}
+.home-pulse-chip {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.25);
+}
+.home-pulse-chip.is-good {
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.45);
+}
+.home-pulse-chip.is-warn {
+  color: #f5d76e;
+  border-color: rgba(245, 215, 110, 0.45);
+}
+.home-pulse-chip.is-bad {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.45);
+}
+
+.home-dock-col > header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.home-dock-live {
+  margin-left: auto;
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #34d399;
+  opacity: 0.55;
+}
+.home-dock-col:has(.home-attend-streaks-pulse) .home-dock-live {
+  opacity: 1;
+  text-shadow: 0 0 8px rgba(52, 211, 153, 0.55);
+}
+
+.home-dock-games {
+  flex: 0 0 auto;
+  order: 3;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  opacity: 0.85;
+  min-width: 1.4rem;
+  text-align: right;
+}
+.home-dock-games.is-good {
+  color: #34d399;
+}
+.home-dock-games.is-warn {
+  color: #f5d76e;
+}
+.home-dock-games.is-bad {
+  color: #f87171;
+}
+.home-dock-col .home-pwr-badge {
+  order: 4;
+}
+.home-dock-col .home-attend-streaks-days {
+  order: 5;
+}
+
+.home-dock-me-note {
+  margin: 8px 2px 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.home-dock-me-note.is-good {
+  color: #34d399;
+}
+.home-dock-me-note.is-warn {
+  color: #f5d76e;
+}
+.home-dock-me-note.is-bad {
+  color: #f87171;
+}
+
+.home-dock-two .home-attend-streaks-nick {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .home-layout > .home-hero {
   grid-area: brand;
   justify-self: stretch;

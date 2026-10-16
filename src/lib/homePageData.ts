@@ -1,10 +1,8 @@
 import { unstable_cache } from "next/cache";
-import { buildCalendarMatches } from "@/lib/kvForecast";
 import {
   buildHomeTrainPwrBoard,
   emptyHomeTrainPwrBoard,
 } from "@/lib/homeTrainPwr";
-import { buildHomeTierBoard, emptyHomeTierBoard } from "@/lib/homeTierBoard";
 import { buildPublicRpLeaderboard } from "@/lib/publicRp";
 
 export type HomePublicTopRow = {
@@ -12,17 +10,18 @@ export type HomePublicTopRow = {
   rp: number;
   rankLabel: string;
   rankKey: string;
+  games: number;
+  place: number;
 };
 
-/** Общие блоки главной — один параллельный проход, кэш ~2 мин. */
+/**
+ * Только то, что реально рисует главная (два топа).
+ * Calendar / tier board — через /api/home-pulse (не блокируют SSR).
+ */
 export const getHomeDashboardData = unstable_cache(
   async () => {
-    const [previews, pwrBoard, tierBoard, publicTop] = await Promise.all([
-      buildCalendarMatches()
-        .then((d) => d.previews)
-        .catch(() => [] as Awaited<ReturnType<typeof buildCalendarMatches>>["previews"]),
+    const [pwrBoard, publicTop] = await Promise.all([
       buildHomeTrainPwrBoard().catch(() => emptyHomeTrainPwrBoard()),
-      buildHomeTierBoard().catch(() => emptyHomeTierBoard()),
       buildPublicRpLeaderboard()
         .then((d) =>
           d.rows.slice(0, 10).map((r) => ({
@@ -30,12 +29,14 @@ export const getHomeDashboardData = unstable_cache(
             rp: r.rp,
             rankLabel: r.rankLabel,
             rankKey: r.rankKey,
+            games: r.games || 0,
+            place: r.place || 0,
           }))
         )
         .catch(() => [] as HomePublicTopRow[]),
     ]);
-    return { previews, pwrBoard, tierBoard, publicTop };
+    return { pwrBoard, publicTop };
   },
-  ["home-dashboard-v13-panels"],
+  ["home-dashboard-v14-slim"],
   { revalidate: 120 }
 );

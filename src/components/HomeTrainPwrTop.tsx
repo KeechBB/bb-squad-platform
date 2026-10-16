@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import type { HomeTrainPwrBoard } from "@/lib/homeTrainPwr";
 
@@ -31,6 +31,13 @@ function isViewer(nick: string, viewerNick?: string | null) {
   return nick.trim().toLowerCase() === viewerNick.trim().toLowerCase();
 }
 
+function gamesTone(games: number) {
+  if (games >= 10) return "is-good";
+  if (games >= 5) return "is-warn";
+  if (games > 0) return "is-bad";
+  return "";
+}
+
 export function HomeTrainPwrTop({ initial, viewerNick = null }: Props) {
   const [data, setData] = useState<HomeTrainPwrBoard>(initial || emptyBoard());
   const [pulse, setPulse] = useState(false);
@@ -56,9 +63,26 @@ export function HomeTrainPwrTop({ initial, viewerNick = null }: Props) {
 
   const rows = data.top10 || [];
 
+  const meNote = useMemo(() => {
+    if (!viewerNick || !rows.length) return null;
+    const me = rows.find((r) => isViewer(r.nick, viewerNick));
+    if (!me) return null;
+    const lead = rows[0];
+    const myRp = Math.round(Number(me.rp ?? me.pwr) || 0);
+    const leadRp = Math.round(Number(lead?.rp ?? lead?.pwr) || 0);
+    const gap = leadRp - myRp;
+    const place = me.place || rows.indexOf(me) + 1;
+    let tone = "is-warn";
+    if (place <= 3) tone = "is-good";
+    else if (place >= 8) tone = "is-bad";
+    return { place, gap, tone };
+  }, [rows, viewerNick]);
+
   return (
     <div
-      className={`home-attend-streaks home-train-pwr${pulse ? " home-attend-streaks-pulse" : ""}`}
+      className={`home-attend-streaks home-train-pwr${
+        pulse ? " home-attend-streaks-pulse" : ""
+      }`}
       aria-label="Топ игроков по RP на тренировках"
     >
       <div className="home-attend-streaks-head">
@@ -72,9 +96,10 @@ export function HomeTrainPwrTop({ initial, viewerNick = null }: Props) {
       ) : (
         <ol className="home-attend-streaks-list home-train-pwr-list">
           {rows.map((r, i) => {
-            const place = i + 1;
+            const place = r.place || i + 1;
             const rp = Math.round(Number(r.rp ?? r.pwr) || 0);
             const me = isViewer(r.nick, viewerNick);
+            const games = Number(r.games) || 0;
             return (
               <li
                 key={r.nick}
@@ -88,7 +113,9 @@ export function HomeTrainPwrTop({ initial, viewerNick = null }: Props) {
                   .join(" ")}
               >
                 <span
-                  className={`home-attend-streaks-rank${place <= 3 ? " is-medal" : ""}`}
+                  className={`home-attend-streaks-rank${
+                    place <= 3 ? " is-medal" : ""
+                  }`}
                   aria-label={`${place} место`}
                 >
                   {place <= 3 ? (
@@ -107,9 +134,18 @@ export function HomeTrainPwrTop({ initial, viewerNick = null }: Props) {
                   className="home-attend-streaks-nick"
                   href={`/players/${encodeURIComponent(r.nick)}`}
                   title={r.nick}
+                  prefetch={false}
                 >
                   {r.nick}
                 </Link>
+                {games > 0 ? (
+                  <span
+                    className={`home-dock-games ${gamesTone(games)}`}
+                    title="Матчей"
+                  >
+                    {games}
+                  </span>
+                ) : null}
                 <span className="home-attend-streaks-days home-train-pwr-score">
                   <b>{rp}</b>
                   <span>RP</span>
@@ -119,8 +155,16 @@ export function HomeTrainPwrTop({ initial, viewerNick = null }: Props) {
           })}
         </ol>
       )}
+      {meNote ? (
+        <p className={`home-dock-me-note ${meNote.tone}`}>
+          Ты · #{meNote.place}
+          {meNote.gap > 0 ? ` · −${meNote.gap} RP до #1` : " · лидер"}
+        </p>
+      ) : null}
       <p className="home-train-pwr-foot muted">
-        <Link href="/tm#/tm/rating">Полный рейтинг →</Link>
+        <Link href="/tm#/tm/rating" prefetch={false}>
+          Полный рейтинг →
+        </Link>
       </p>
     </div>
   );
