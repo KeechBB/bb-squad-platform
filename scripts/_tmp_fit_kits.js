@@ -1,12 +1,13 @@
 /**
  * Majority-кит по залитым тренировочным матчам (не Jensens AFK).
- * Пишет /tmp/fit-kit-majority.json → копируется в KV run_tier_autonomy.sh
+ * spawnedAt в БД — naive timestamp ≈ timeMsk МСК минус 2 часа.
  */
 const { PrismaClient } = require("@prisma/client");
 const fs = require("fs");
 const path = require("path");
 
 const p = new PrismaClient();
+const DB_WALL_OFFSET_MIN = -2 * 60;
 
 function isJensen(map) {
   return String(map || "")
@@ -34,10 +35,25 @@ function parseTimeMsk(raw) {
   return { h, m: min };
 }
 
-/** MSK wall → UTC Date (UTC+3). */
-function mskWallToUtc(ymd, hour, minute) {
+function naiveFromYmdMinutes(ymd, dayMinutes) {
   const [y, mo, d] = ymd.split("-").map(Number);
-  return new Date(Date.UTC(y, mo - 1, d, hour, minute, 0) - 3 * 3600_000);
+  return new Date(Date.UTC(y, mo - 1, d, 0, 0, 0) + dayMinutes * 60_000);
+}
+
+function formatNaive(d) {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mm = String(d.getUTCMinutes()).padStart(2, "0");
+  const ss = String(d.getUTCSeconds()).padStart(2, "0");
+  return `${y}-${m}-${day} ${hh}:${mm}:${ss}`;
+}
+
+function addDaysYmd(ymd, days) {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + days));
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
 }
 
 function kvRoots() {
@@ -79,18 +95,32 @@ function loadWindows() {
     if (!file) continue;
     const ym = String(file.month || monthId || "").trim();
     if (!/^\d{4}-\d{2}$/.test(ym)) continue;
+    const dayFallback = new Set();
     for (const match of file.matches || []) {
       if (match.status && match.status !== "done") continue;
       if (isJensen(match.map)) continue;
       const day = Number(match.day);
       if (!Number.isFinite(day) || day < 1 || day > 31) continue;
+      const ymd = `${ym}-${String(day).padStart(2, "0")}`;
       const t = parseTimeMsk(match.timeMsk);
       const dur = parseDurationSec(match.duration);
-      if (!t || !dur || dur < 60) continue;
-      const ymd = `${ym}-${String(day).padStart(2, "0")}`;
-      const gte = mskWallToUtc(ymd, t.h, t.m);
-      const lt = new Date(gte.getTime() + (dur + 90) * 1000);
-      windows.push({ gte, lt });
+      if (!t || !dur || dur < 60) {
+        dayFallback.add(ymd);
+        continue;
+      }
+      const startMin = t.h * 60 + t.m + DB_WALL_OFFSET_MIN - 12;
+      const endMin =
+        t.h * 60 + t.m + DB_WALL_OFFSET_MIN + Math.ceil(dur / 60) + 3;
+      windows.push({
+        gte: naiveFromYmdMinutes(ymd, startMin),
+        lt: naiveFromYmdMinutes(ymd, endMin),
+      });
+    }
+    for (const ymd of dayFallback) {
+      windows.push({
+        gte: naiveFromYmdMinutes(ymd, 18 * 60 + 30),
+        lt: naiveFromYmdMinutes(addDaysYmd(ymd, 1), 60),
+      });
     }
   }
   return windows;
@@ -103,13 +133,12 @@ function loadWindows() {
     process.exit(1);
   }
 
-  // OR-фрагменты параметризованно через Prisma.join неудобны в rawUnsafe —
-  // собираем ISO timestamps (безопасны: только Date.toISOString).
   const orSql = windows
-    .map(
-      (w) =>
-        `("spawnedAt" >= '${w.gte.toISOString()}'::timestamptz AND "spawnedAt" < '${w.lt.toISOString()}'::timestamptz)`
-    )
+    .map((w) => {
+      const a = formatNaive(w.gte);
+      const b = formatNaive(w.lt);
+      return `("spawnedAt" >= TIMESTAMP '${a}' AND "spawnedAt" < TIMESTAMP '${b}')`;
+    })
     .join(" OR ");
 
   const rows = await p.$queryRawUnsafe(`
@@ -135,12 +164,11 @@ function loadWindows() {
 
   const out = {
     updatedAt: new Date().toISOString(),
-    source: `uploaded TM windows · ${windows.length} matches · TR1+TR2`,
+    source: `uploaded TM windows · ${windows.length} ranges · TR1+TR2 · DB wall MSK-2h`,
     windows: windows.length,
     byNick: by,
   };
   fs.writeFileSync("/tmp/fit-kit-majority.json", JSON.stringify(out));
-  // локальный бэкап рядом со скриптом (для git/KV push)
   try {
     const localKv = path.join(__dirname, "..", "..", "KV", "public", "data");
     if (fs.existsSync(localKv)) {
