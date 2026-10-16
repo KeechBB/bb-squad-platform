@@ -27,7 +27,7 @@ function canManage(role: AppRole | null): boolean {
 export async function GET(req: Request) {
   const gate = await requireAdmin();
   if (gate.error) return gate.error;
-  const role = await getUserRole(gate.session!.user.steamId);
+  const role = await getUserRole(gate.session!.user.steamId || "");
   if (!canManage(role)) {
     return NextResponse.json({ error: "Нет доступа" }, { status: 403 });
   }
@@ -159,7 +159,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const gate = await requireAdmin();
   if (gate.error) return gate.error;
-  const role = await getUserRole(gate.session!.user.steamId);
+  const role = await getUserRole(gate.session!.user.steamId || "");
   if (!canManage(role)) {
     return NextResponse.json({ error: "Нет доступа" }, { status: 403 });
   }
@@ -246,7 +246,7 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   const gate = await requireAdmin();
   if (gate.error) return gate.error;
-  const role = await getUserRole(gate.session!.user.steamId);
+  const role = await getUserRole(gate.session!.user.steamId || "");
   if (!canManage(role)) {
     return NextResponse.json({ error: "Нет доступа" }, { status: 403 });
   }
@@ -321,7 +321,7 @@ export async function PATCH(req: Request) {
 export async function DELETE(req: Request) {
   const gate = await requireAdmin();
   if (gate.error) return gate.error;
-  const role = await getUserRole(gate.session!.user.steamId);
+  const role = await getUserRole(gate.session!.user.steamId || "");
   if (!canManage(role)) {
     return NextResponse.json({ error: "Нет доступа" }, { status: 403 });
   }
