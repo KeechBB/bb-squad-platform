@@ -218,6 +218,15 @@ svg {
   margin-top: 22px;
   padding-top: 8px;
 }
+.tm-hub-fit-detail.is-tab {
+  margin-top: 0;
+  padding-top: 0;
+}
+.tm-hub-fit > .tier-fit-tabs {
+  margin: 0 0 14px;
+  width: fit-content;
+  max-width: 100%;
+}
 .tm-hub-fit-detail-head {
   margin: 0 4px 12px;
 }

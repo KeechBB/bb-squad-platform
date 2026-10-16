@@ -85,7 +85,7 @@ export function TierFitPageClient({ board, embedded = false }: Props) {
           <h1>Тиры FIT</h1>
           <p className="lead">
             Прозрачный рост: роль с тренировок → Fit% в КВ → зоны цвета → автоперевод.
-            Ниже — автодоска; ещё ниже — полный разбор по ролям.
+            Здесь — автодоска; доски по ролям — во вкладке «Детальный разбор».
           </p>
         </div>
         <div className="tier-fit-meta">
@@ -147,7 +147,7 @@ export function TierFitPageClient({ board, embedded = false }: Props) {
         </div>
         <p className="tier-fit-legend-note muted">
           Мало КВ-раундов (&lt;8) — вниз не двигаем. Детали метрик и доски по ролям —
-          в блоке «Детальный разбор» ниже.
+          во вкладке «Детальный разбор».
         </p>
       </section>
 
