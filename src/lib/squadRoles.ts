@@ -9,6 +9,10 @@ import {
   type StandardKit,
 } from "@/lib/squadKits";
 import { normalizeEosId, normalizeSteamId } from "@/lib/squadSessions";
+import {
+  loadUploadedTrainingWindows,
+  uploadedWindowsSql,
+} from "@/lib/uploadedMatchWindows";
 
 export type SquadRoleIngestEvent = {
   type: "role";
@@ -29,9 +33,12 @@ export type KitsForUserOpts = {
   /** Интервал МСК включительно: from..to */
   fromYmd?: string | null;
   toYmd?: string | null;
-  /** TR1 (+TR2) с боевым окном; PB1 — весь день без окна */
+  /** TR1 (+TR2) с окнами залитых матчей; PB1 — весь день без окна */
   lane?: KitsLane;
-  /** false — без фильтра 21:30–01:00 (слоты КВ ~20:00, соперники) */
+  /**
+   * TR1: true (default) — только залитые тренировочные матчи (не Jensens AFK).
+   * false — весь день на TR1/TR2 (гости/соперники).
+   */
   combatWindow?: boolean;
 };
 
@@ -124,12 +131,11 @@ function spawnedAtFilter(opts: KitsForUserOpts):
   return undefined;
 }
 
-function kitCombatSql(lane: KitsLane, combatWindow: boolean) {
+/** TR1 + combatWindow: только залитые TM; иначе без фильтра окна. */
+async function kitMatchWindowSql(lane: KitsLane, combatWindow: boolean) {
   if (lane !== "TR1" || combatWindow === false) return Prisma.empty;
-  return Prisma.sql`AND (
-          (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::time >= TIME '21:30:00'
-          OR (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::time < TIME '01:00:00'
-        )`;
+  const windows = await loadUploadedTrainingWindows();
+  return uploadedWindowsSql(windows);
 }
 
 export async function kitsForUser(
@@ -139,7 +145,7 @@ export async function kitsForUser(
   const range = spawnedAtFilter(opts);
   const lane: KitsLane = opts.lane === "PB1" ? "PB1" : "TR1";
   const keys = serverKeysForKitsLane(lane);
-  const combatSql = kitCombatSql(lane, opts.combatWindow !== false);
+  const matchSql = await kitMatchWindowSql(lane, opts.combatWindow !== false);
   const rangeSql = range
     ? Prisma.sql`AND "spawnedAt" >= ${range.gte} AND "spawnedAt" < ${range.lt}`
     : Prisma.empty;
@@ -159,7 +165,7 @@ export async function kitsForUser(
     WHERE ${whoSql}
       AND "serverKey" IN (${Prisma.join(keys)})
       ${rangeSql}
-      ${combatSql}
+      ${matchSql}
     GROUP BY kit
   `;
   const counts: Partial<Record<string, number>> = {};
@@ -184,7 +190,7 @@ export async function kitsForSteamIds(
   const range = spawnedAtFilter(opts);
   const lane: KitsLane = opts.lane === "PB1" ? "PB1" : "TR1";
   const keys = serverKeysForKitsLane(lane);
-  const combatSql = kitCombatSql(lane, opts.combatWindow !== false);
+  const matchSql = await kitMatchWindowSql(lane, opts.combatWindow !== false);
   const rangeSql = range
     ? Prisma.sql`AND "spawnedAt" >= ${range.gte} AND "spawnedAt" < ${range.lt}`
     : Prisma.empty;
@@ -195,7 +201,7 @@ export async function kitsForSteamIds(
     WHERE "steamId" IN (${Prisma.join(ids)})
       AND "serverKey" IN (${Prisma.join(keys)})
       ${rangeSql}
-      ${combatSql}
+      ${matchSql}
     GROUP BY kit
   `;
   const counts: Partial<Record<string, number>> = {};
@@ -217,7 +223,7 @@ export async function kitDaysForUser(
   opts: { combatWindow?: boolean } = {}
 ): Promise<string[]> {
   const keys = serverKeysForKitsLane(lane);
-  const combatSql = kitCombatSql(lane, opts.combatWindow !== false);
+  const matchSql = await kitMatchWindowSql(lane, opts.combatWindow !== false);
   const me = await prisma.user.findUnique({
     where: { id: userId },
     select: { steamId: true },
@@ -233,7 +239,7 @@ export async function kitDaysForUser(
     FROM "SquadRoleEvent"
     WHERE ${whoSql}
       AND "serverKey" IN (${Prisma.join(keys)})
-      ${combatSql}
+      ${matchSql}
     ORDER BY d DESC
   `;
   return rows.map((r) => {
@@ -253,7 +259,7 @@ export async function kitDaysForSteamIds(
   const ids = [...new Set(steamIds.filter(Boolean))];
   if (!ids.length) return [];
   const keys = serverKeysForKitsLane(lane);
-  const combatSql = kitCombatSql(lane, opts.combatWindow !== false);
+  const matchSql = await kitMatchWindowSql(lane, opts.combatWindow !== false);
   const rows = await prisma.$queryRaw<{ d: Date }[]>`
     SELECT DISTINCT (
       (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::date
@@ -261,7 +267,7 @@ export async function kitDaysForSteamIds(
     FROM "SquadRoleEvent"
     WHERE "steamId" IN (${Prisma.join(ids)})
       AND "serverKey" IN (${Prisma.join(keys)})
-      ${combatSql}
+      ${matchSql}
     ORDER BY d DESC
   `;
   return rows.map((r) => {
@@ -305,16 +311,14 @@ export async function kitAveragesByTier(): Promise<TierKitAvg[]> {
 
   if (!users.length) return emptyTier();
 
+  const matchSql = await kitMatchWindowSql("TR1", true);
   const grouped = await prisma.$queryRaw<
     { userId: string; kit: string; n: bigint }[]
   >`
     SELECT "userId", kit, COUNT(*)::bigint AS n
     FROM "SquadRoleEvent"
     WHERE "userId" IN (${Prisma.join(users.map((u) => u.id))})
-      AND (
-        (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::time >= TIME '21:30:00'
-        OR (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::time < TIME '01:00:00'
-      )
+      ${matchSql}
     GROUP BY "userId", kit
   `;
 
@@ -466,16 +470,14 @@ export async function kitRankAnalytics(): Promise<KitRankAnalytics> {
   };
   if (!users.length) return empty;
 
+  const matchSql = await kitMatchWindowSql("TR1", true);
   const grouped = await prisma.$queryRaw<
     { userId: string; kit: string; n: bigint }[]
   >`
     SELECT "userId", kit, COUNT(*)::bigint AS n
     FROM "SquadRoleEvent"
     WHERE "userId" IN (${Prisma.join(users.map((u) => u.id))})
-      AND (
-        (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::time >= TIME '21:30:00'
-        OR (("spawnedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::time < TIME '01:00:00'
-      )
+      ${matchSql}
     GROUP BY "userId", kit
   `;
 

@@ -18,7 +18,7 @@ type Props = {
   allowTr1?: boolean;
   /** Стартовая лента (BB → TR1, остальные → PB1) */
   initialLane?: KitsLane;
-  /** false — без фильтра 21:30 (КВ / соперники) */
+  /** false — без фильтра залитых TM (гости / соперники) */
   combatWindow?: boolean;
 };
 
@@ -451,7 +451,7 @@ export function ProfileKitsCard({
       <p className="muted profile-kits-period">
         {loading ? "Обновляем…" : periodLabel}
         {!loading && lane === "TR1" && combatWindow
-          ? " · 21:30–01:00 МСК"
+          ? " · только залитые тренировочные матчи"
           : ""}
         {!loading && lane === "TR1" && !combatWindow
           ? " · TR1+TR2 · весь день"
@@ -464,7 +464,7 @@ export function ProfileKitsCard({
           {lane === "PB1"
             ? "Пока нет стандартных китов на PB1 за этот период."
             : combatWindow
-              ? "Пока нет стандартных китов на TR1+TR2 в боевое окно (21:30–01:00 МСК) за этот период."
+              ? "Пока нет китов в залитых тренировочных матчах за этот период (Jensens AFK не считается)."
               : "Пока нет стандартных китов на TR1/TR2 за этот период."}
         </p>
       ) : (

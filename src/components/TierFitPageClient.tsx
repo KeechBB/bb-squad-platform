@@ -32,10 +32,19 @@ function fmtDate(iso: string) {
 }
 
 function bandLabel(band: string) {
-  if (band === "strong" || band === "hard") return "удержание";
+  if (band === "strong") return "сильный ↑";
+  if (band === "hard") return "форма ↓";
   if (band === "almost") return "почти";
-  if (band === "ready") return "готов";
+  if (band === "warn" || band === "ready") return "риск";
   return band || "—";
+}
+
+function bandTone(band: string, ready?: boolean) {
+  if (ready) return "tone-warn";
+  if (band === "strong") return "tone-good";
+  if (band === "hard") return "tone-bad";
+  if (band === "almost" || band === "warn") return "tone-warn";
+  return "tone-muted";
 }
 
 function fitTone(fit: number | null | undefined, dir: "up" | "down") {
@@ -43,7 +52,7 @@ function fitTone(fit: number | null | undefined, dir: "up" | "down") {
   const v = Number(fit);
   if (dir === "up") {
     if (v >= 95) return "tone-good";
-    if (v >= 85) return "tone-warn";
+    if (v >= 90) return "tone-warn";
     return "tone-muted";
   }
   if (v < 75) return "tone-bad";
@@ -54,6 +63,7 @@ function fitTone(fit: number | null | undefined, dir: "up" | "down") {
 export function TierFitPageClient({ board, embedded = false }: Props) {
   const transfers = board.transfers || [];
   const candidates = board.candidates || [];
+  const holdDays = board.holdDays || 2;
 
   const sortedCandidates = useMemo(() => {
     return [...candidates].sort((a, b) => {
@@ -63,15 +73,19 @@ export function TierFitPageClient({ board, embedded = false }: Props) {
     });
   }, [candidates]);
 
+  const readyCount = candidates.filter((c) => c.ready).length;
+  const upCount = candidates.filter((c) => c.dir === "up").length;
+  const downCount = candidates.filter((c) => c.dir === "down").length;
+
   return (
     <div className={`tier-fit-page${embedded ? " is-embedded" : ""}`}>
       <section className={`hero tier-fit-hero${embedded ? " is-compact" : ""}`}>
         <div>
           <p className="eyebrow">автосистема · Fit</p>
-          <h1>{embedded ? "Тиры FIT" : "Тиры FIT"}</h1>
+          <h1>Тиры FIT</h1>
           <p className="lead">
-            Переводы и кандидаты по Fit (% от эталона тира по роли). Порог: ≥95%
-            вверх / &lt;75% вниз · {board.holdDays || 2} дня подряд.
+            Fit% считается по КВ относительно эталона тира на твоей роли. Роль
+            берётся из кита, который чаще всего на залитых тренировках (не Jensens).
           </p>
         </div>
         <div className="tier-fit-meta">
@@ -84,9 +98,48 @@ export function TierFitPageClient({ board, embedded = false }: Props) {
             <strong className="tone-warn">{transfers.length}</strong>
           </div>
           <div className="tier-fit-stat">
-            <span>Кандидаты</span>
-            <strong>{candidates.length}</strong>
+            <span>Кандидаты ↑</span>
+            <strong className="tone-good">{upCount}</strong>
           </div>
+          <div className="tier-fit-stat">
+            <span>Кандидаты ↓</span>
+            <strong className="tone-bad">{downCount}</strong>
+          </div>
+          <div className="tier-fit-stat">
+            <span>Готовы</span>
+            <strong className="tone-warn">{readyCount}</strong>
+          </div>
+        </div>
+      </section>
+
+      <section className="tier-fit-legend" aria-label="Правила и цвета">
+        <h2 className="tier-fit-legend-title">Как подняться / опуститься</h2>
+        <ol className="tier-fit-steps">
+          <li>
+            <b className="tone-warn">1. Роль</b> — кит, который чаще на залитых
+            тренировочных матчах (карточка «Роли» в профиле).
+          </li>
+          <li>
+            <b className="tone-warn">2. Fit% в КВ</b> — сравнение твоих цифр с
+            медианой того же кита в целевом / текущем тире.
+          </li>
+          <li>
+            <b className="tone-good">3. Зелёный (≥95% ↑)</b> — удержание{" "}
+            {holdDays} дня подряд → автоперевод вверх на 1 тир.
+          </li>
+          <li>
+            <b className="tone-warn">4. Жёлтый (90–95% ↑ / 75–85% ↓)</b> — зона
+            «почти» / «риск»: видно в кандидатах, автоперевода ещё нет.
+          </li>
+          <li>
+            <b className="tone-bad">5. Красный (&lt;75% ↓)</b> — удержание{" "}
+            {holdDays} дня → автоперевод вниз на 1 тир.
+          </li>
+        </ol>
+        <div className="tier-fit-swatches" aria-hidden="true">
+          <span className="tier-fit-swatch is-good">↑ зелёный · готов / вверх</span>
+          <span className="tier-fit-swatch is-warn">● жёлтый · почти / риск / важно</span>
+          <span className="tier-fit-swatch is-bad">↓ красный · вниз / слабо</span>
         </div>
       </section>
 
@@ -96,7 +149,7 @@ export function TierFitPageClient({ board, embedded = false }: Props) {
             <div>
               <h2>Переводы</h2>
               <p className="muted tier-fit-sub">
-                Уже сработавшие смены тира · жёлтый = важно, зелёный = вверх,
+                Уже сработавшие смены тира · жёлтый = дата, зелёный = вверх,
                 красный = вниз
               </p>
             </div>
@@ -135,7 +188,8 @@ export function TierFitPageClient({ board, embedded = false }: Props) {
             <div>
               <h2>Кандидаты</h2>
               <p className="muted tier-fit-sub">
-                Повышение и понижение в одной таблице · «готов» — жёлтым
+                Роль = majority кит с тренировок · «готов» (жёлтый) = удержание{" "}
+                {holdDays}д набрано
               </p>
             </div>
             <span className="tier-fit-count">{candidates.length}</span>
@@ -150,11 +204,11 @@ export function TierFitPageClient({ board, embedded = false }: Props) {
                     <th>Игрок</th>
                     <th>Переход</th>
                     <th>Fit</th>
-                    <th>Роль</th>
+                    <th>Роль (кит)</th>
                     <th>Статус</th>
                     <th>Дней</th>
                     <th>Готов</th>
-                    <th>Рычаг / заметка</th>
+                    <th>Рычаг / что качать</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -162,6 +216,7 @@ export function TierFitPageClient({ board, embedded = false }: Props) {
                     <CandidateTr
                       key={`${row.nick}-${row.dir}-${row.toTier}-${row.band}`}
                       row={row}
+                      holdDays={holdDays}
                     />
                   ))}
                 </tbody>
@@ -195,10 +250,29 @@ function TransferTr({ row }: { row: HomeTierTransfer }) {
   );
 }
 
-function CandidateTr({ row }: { row: HomeTierCandidate }) {
+function CandidateTr({
+  row,
+  holdDays,
+}: {
+  row: HomeTierCandidate;
+  holdDays: number;
+}) {
   const dirTone = row.dir === "up" ? "tone-good" : "tone-bad";
   const fitCls = fitTone(row.fit, row.dir);
   const ready = Boolean(row.ready);
+  const statusTone = bandTone(row.band, ready);
+  const days = row.daysHeld;
+  const daysLabel =
+    days == null
+      ? "—"
+      : `${days}/${holdDays}`;
+  const daysTone =
+    ready
+      ? "tone-warn"
+      : days != null && days > 0
+        ? "tone-warn"
+        : "tone-muted";
+
   return (
     <tr className={`tier-fit-row is-${row.dir}${ready ? " is-ready" : ""}`}>
       <td className={`tier-fit-nick${ready ? " tone-warn" : ""}`}>
@@ -210,9 +284,9 @@ function CandidateTr({ row }: { row: HomeTierCandidate }) {
       <td className={fitCls}>
         <b>{row.fit.toFixed(1)}%</b>
       </td>
-      <td>{row.role || "—"}</td>
-      <td className={ready ? "tone-warn" : undefined}>{bandLabel(row.band)}</td>
-      <td>{row.daysHeld ?? "—"}</td>
+      <td className="tone-warn">{row.role || "—"}</td>
+      <td className={statusTone}>{bandLabel(row.band)}</td>
+      <td className={daysTone}>{daysLabel}</td>
       <td className={ready ? "tone-warn" : "tone-muted"}>
         {ready ? "да" : "нет"}
       </td>
