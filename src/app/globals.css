@@ -5979,7 +5979,7 @@ body:has(.home-page) {
   color: #fff;
 }
 
-/* Пульс: ближайший КВ + стрик */
+/* Пульс: ближайший КВ */
 .home-pulse {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -5987,6 +5987,9 @@ body:has(.home-page) {
   flex: 0 0 auto;
   width: 100%;
   min-width: 0;
+}
+.home-pulse.home-pulse-single {
+  grid-template-columns: 1fr;
 }
 .home-pulse.is-live .home-pulse-item {
   box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.35);

@@ -10,7 +10,6 @@ import {
 
 type Pulse = {
   nextMatch: UpcomingMatchPreview | null;
-  streakLeader: { nick: string; attendStreak: number } | null;
   updatedAt: string;
 };
 
@@ -43,12 +42,11 @@ export function HomePulse() {
   useAutoRefresh(refresh, { intervalMs: 90_000 });
 
   const m = data?.nextMatch;
-  const s = data?.streakLeader;
 
   return (
     <div
-      className={`home-pulse${pulse ? " is-live" : ""}`}
-      aria-label="Пульс клана"
+      className={`home-pulse home-pulse-single${pulse ? " is-live" : ""}`}
+      aria-label="Ближайший КВ"
     >
       <div className="home-pulse-item">
         <span className="home-pulse-label">Ближайший КВ</span>
@@ -60,6 +58,7 @@ export function HomePulse() {
             <span className="home-pulse-meta muted">
               {formatMatchDate(m.day, m.month, m.year)} · {m.timeMsk} МСК
               {m.mapShort ? ` · ${m.mapShort}` : ""}
+              {m.stack ? ` · ${m.stack}` : ""}
             </span>
             {m.bbHost && m.forecast ? (
               <span
@@ -72,39 +71,11 @@ export function HomePulse() {
           </Link>
         ) : (
           <span className="home-pulse-main muted">
-            Нет в календаре ·{" "}
+            Нет ближайших слотов ·{" "}
             <Link href="/cw-find" prefetch={false}>
               Поиск КВ
             </Link>
           </span>
-        )}
-      </div>
-
-      <div className="home-pulse-item">
-        <span className="home-pulse-label">Стрик явки</span>
-        {s ? (
-          <Link
-            className="home-pulse-main"
-            href={`/players/${encodeURIComponent(s.nick)}`}
-            prefetch={false}
-          >
-            <span className="home-pulse-vs" title={s.nick}>
-              {s.nick}
-            </span>
-            <span
-              className={`home-pulse-chip ${
-                s.attendStreak >= 7
-                  ? "is-good"
-                  : s.attendStreak >= 3
-                    ? "is-warn"
-                    : ""
-              }`}
-            >
-              {s.attendStreak} дн
-            </span>
-          </Link>
-        ) : (
-          <span className="home-pulse-main muted">Пока нет серий</span>
         )}
       </div>
     </div>

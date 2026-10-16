@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getHomeDashboardData } from "@/lib/homePageData";
@@ -94,20 +93,6 @@ export default async function HomePage() {
               В скором времени планируем проводить различные{" "}
               <strong>турниры</strong> для всех желающих.
             </p>
-            <nav className="home-welcome-plaque-cta" aria-label="Быстрые ссылки">
-              <Link href="/public" prefetch={false}>
-                Паблик
-              </Link>
-              <Link href="/cw" prefetch={false}>
-                КВ
-              </Link>
-              <Link href="/profile" prefetch={false}>
-                Профиль
-              </Link>
-              <Link href="/tm" prefetch={false}>
-                Тренировки
-              </Link>
-            </nav>
           </aside>
           <HomePulse />
           <HomePanels
