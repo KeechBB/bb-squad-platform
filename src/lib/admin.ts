@@ -45,7 +45,10 @@ export function effectiveRole(steamId: string, role: AppRole): AppRole {
   return role;
 }
 
-export async function getUserRole(steamId: string): Promise<AppRole | null> {
+export async function getUserRole(
+  steamId: string | null | undefined
+): Promise<AppRole | null> {
+  if (!steamId) return null;
   if (isBuiltinSuperAdmin(steamId)) return "SUPER_ADMIN";
   if (isBuiltinDeputy(steamId)) return "DEPUTY";
   const u = await prisma.user.findUnique({
