@@ -19,6 +19,14 @@ function winTone(pct: number) {
   return "is-warn";
 }
 
+function hostLabel(clan: string, bbHost: boolean) {
+  if (bbHost) return "BB";
+  const t = String(clan || "").trim();
+  if (!t) return "—";
+  if (/^blackberry$/i.test(t) || /^bb$/i.test(t)) return "BB";
+  return t;
+}
+
 export function HomePulse() {
   const [data, setData] = useState<Pulse | null>(null);
   const [pulse, setPulse] = useState(false);
@@ -53,7 +61,8 @@ export function HomePulse() {
         {m ? (
           <Link className="home-pulse-main" href="/cw" prefetch={false}>
             <span className="home-pulse-vs">
-              BB <span className="muted">vs</span> {m.opp}
+              {hostLabel(m.clan, m.bbHost)}{" "}
+              <span className="muted">vs</span> {m.opp}
             </span>
             <span className="home-pulse-meta muted">
               {formatMatchDate(m.day, m.month, m.year)} · {m.timeMsk} МСК

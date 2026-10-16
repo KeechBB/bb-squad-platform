@@ -24,18 +24,21 @@ function previewStamp(p: { year: number; month: number; day: number }): number {
 
 async function loadPulse() {
   const today = todayMskStamp();
-  const { previews } = await buildUpcomingMatchPreviews(12);
+  const { previews } = await buildUpcomingMatchPreviews(24);
   const upcoming = previews.filter((m) => previewStamp(m) >= today);
+  // На главной BB — ближайший наш КВ (bbHost), не чужие слоты календаря (NKLV vs …)
+  const ours = upcoming.filter((m) => m.bbHost);
+  const nextMatch = ours[0] || null;
   return {
-    nextMatch: upcoming[0] || null,
-    upcoming: upcoming.slice(0, 2),
+    nextMatch,
+    upcoming: ours.slice(0, 2),
     updatedAt: new Date().toISOString(),
   };
 }
 
 export async function GET() {
   try {
-    const data = await memoTtl("home-pulse-v2-upcoming", 60_000, loadPulse);
+    const data = await memoTtl("home-pulse-v3-bb-host", 60_000, loadPulse);
     return NextResponse.json(data, {
       headers: {
         "Cache-Control":
