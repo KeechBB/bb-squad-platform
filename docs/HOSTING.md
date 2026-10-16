@@ -1,27 +1,41 @@
-# Хостинг платформы (Timeweb VPS)
+# Хостинг платформы (plaza)
 
-Vercel не используем (SMS). Сайт и **Postgres** крутятся на одном VPS.
+Vercel не используем (SMS). Сайт и **Postgres** на **plaza**.
 
 | | |
 |--|--|
-| Провайдер | Timeweb Cloud |
-| Имя в панели | Mysterious Lacerta |
-| IPv4 | **91.222.237.91** |
-| SSH | `ssh root@91.222.237.91` |
-| ОС | Ubuntu |
-| Регион | Санкт-Петербург |
-| Тариф | **апгрейд 25.09.2026:** было 2 CPU / 2 ГБ / 40 ГБ → **2×5 ГГц / 4 ГБ RAM / 50 ГБ / 200 Мбит** |
-| БД | **Postgres на VPS** (`bb_squad`, только `127.0.0.1`) |
+| Прод (plaza) | **`178.72.181.111`** · hostname `bb-plaza` |
+| SSH прод | `ssh -i ~/.ssh/bb_vps_ed25519 root@178.72.181.111` |
+| Код / PM2 | `/var/www/bb-squad-platform` · `bb-squad` (**4×cluster**) · collector `bb-squad-collector` |
+| БД | Postgres localhost `bb_squad` |
 | Репо | https://github.com/KeechBB/bb-squad-platform |
-| Бэкап кода на ПК | `D:\BlackBerry\backups\` — файл `bb-squad-platform_2026-09-25_1853.zip` (+ `.env` рядом) |
+| Бэкап кода на ПК | `D:\BlackBerry\backups\` — `bb-squad-platform_2026-09-25_1853.zip` (+ `.env`) |
 
-Пароль root — только в панели Timeweb (в чат/репо не писать).
+Сайт: **https://bb-squad.ru** · КВ: **https://kv.bb-squad.ru/** · staging: **https://staging.bb-squad.ru**  
+Деплой: `cd /var/www/bb-squad-platform && git pull && bash scripts/deploy.sh`
 
-Сайт: **https://bb-squad.ru** / **https://www.bb-squad.ru** (HTTPS Let's Encrypt, 2026-09-19).  
-Запасной IP: `http://91.222.237.91:3000`  
-Таблица КВ: **https://kv.bb-squad.ru/**  
-Инструкция: [DOMAIN.md](./DOMAIN.md)  
-Помощник по разработке: [COLLAB.md](./COLLAB.md)
+### DNS (Reg.ru) — обязательно проверить через ns1.reg.ru
+
+Панель Reg.ru может показывать A=`178.72.181.111`, но **авторитетный** `ns1.reg.ru` ещё отдавал `@`/`www` → `91.222.237.91` (2026-10-16).  
+`staging` уже на plaza. Пока `@`/`www` на старом IP — старый VPS только nginx-прокси на plaza (двойной хоп = тормоза).
+
+Нужные A-записи (TTL 300):
+
+| Имя | A |
+|--|--|
+| `@` | `178.72.181.111` |
+| `www` | `178.72.181.111` |
+| `staging` | `178.72.181.111` |
+
+Проверка: `nslookup bb-squad.ru ns1.reg.ru` → должен быть **178.72.181.111**.
+
+### Старый Timeweb (не прод)
+
+| | |
+|--|--|
+| IP | `91.222.237.91` (Mysterious Lacerta) |
+| Роль | Временный DNS-мост / не деплоить сюда |
+| PM2 | остановлен · сайт локально не крутить |
 
 ## База данных (Postgres localhost)
 
