@@ -208,11 +208,15 @@ svg {
   min-height: 560px;
 }
 
-.tm-hub-fit {
-  flex: 1 1 auto;
+/* FIT: один скролл страницы — без вложенного overflow */
+.tm-hub.is-fit {
   min-height: 0;
-  overflow: auto;
-  padding-bottom: 28px;
+}
+.tm-hub-fit {
+  flex: none;
+  min-height: 0;
+  overflow: visible;
+  padding-bottom: 40px;
 }
 .tm-hub-fit-detail {
   margin-top: 22px;
@@ -241,8 +245,17 @@ svg {
 }
 .tm-hub-fit-frame.cw-embed {
   margin: 0;
-  height: min(92vh, 1400px);
-  min-height: 720px;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  border: none;
+  background: transparent;
+}
+.tm-hub-fit-frame .cw-frame {
+  height: auto;
+  min-height: 520px;
+  border: 0;
+  vertical-align: top;
 }
 .tier-fit-legend-note {
   margin: 12px 0 0;

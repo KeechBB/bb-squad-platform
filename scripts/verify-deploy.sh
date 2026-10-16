@@ -5,7 +5,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VPS_HOST="${BB_VPS_HOST:-91.222.237.91}"
+VPS_HOST="${BB_VPS_HOST:-178.72.181.111}"
 VPS_USER="${BB_VPS_USER:-root}"
 VPS_KEY="${BB_VPS_KEY:-$HOME/.ssh/bb_vps_ed25519}"
 PLATFORM_DIR="${BB_PLATFORM_DIR:-/var/www/bb-squad-platform}"

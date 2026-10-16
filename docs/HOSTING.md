@@ -1,6 +1,6 @@
 # Хостинг платформы (plaza)
 
-Vercel не используем (SMS). Сайт и **Postgres** на **plaza**.
+Vercel не используем (SMS). Сайт и **Postgres** только на **plaza**. Старый Timeweb не используется.
 
 | | |
 |--|--|
@@ -14,54 +14,44 @@ Vercel не используем (SMS). Сайт и **Postgres** на **plaza**.
 Сайт: **https://bb-squad.ru** · КВ: **https://kv.bb-squad.ru/** · staging: **https://staging.bb-squad.ru**  
 Деплой: `cd /var/www/bb-squad-platform && git pull && bash scripts/deploy.sh`
 
-### DNS (Reg.ru) — обязательно проверить через ns1.reg.ru
+### DNS (Reg.ru) — только plaza
 
-Панель Reg.ru может показывать A=`178.72.181.111`, но **авторитетный** `ns1.reg.ru` ещё отдавал `@`/`www` → `91.222.237.91` (2026-10-16).  
-`staging` уже на plaza. Пока `@`/`www` на старом IP — старый VPS только nginx-прокси на plaza (двойной хоп = тормоза).
+| Имя | A | TTL |
+|--|--|--|
+| `@` | `178.72.181.111` | **300** |
+| `www` | `178.72.181.111` | **300** |
+| `staging` | `178.72.181.111` | **300** |
+| `kv` | CNAME → `keechbb.github.io.` | 300 |
 
-Нужные A-записи (TTL 300):
+Проверка авторитета (с любого Linux/`dig`):
 
-| Имя | A |
-|--|--|
-| `@` | `178.72.181.111` |
-| `www` | `178.72.181.111` |
-| `staging` | `178.72.181.111` |
+```bash
+dig +norecurse A bb-squad.ru @ns1.reg.ru
+# → 178.72.181.111
+```
 
-Проверка: `nslookup bb-squad.ru ns1.reg.ru` → должен быть **178.72.181.111**.
-
-### Старый Timeweb (не прод)
-
-| | |
-|--|--|
-| IP | `91.222.237.91` (Mysterious Lacerta) |
-| Роль | Временный DNS-мост / не деплоить сюда |
-| PM2 | остановлен · сайт локально не крутить |
+Если `nslookup` / Google / Cloudflare ещё показывают старый IP — это **кэш резолверов** (раньше TTL был 86400). Зона на plaza уже; кэш сам истечёт. Для своего ПК сразу: строка в `hosts` → `178.72.181.111 bb-squad.ru www.bb-squad.ru`, затем `ipconfig /flushdns`.
 
 ## База данных (Postgres localhost)
 
 - Слушает только localhost — **не** открывать `5432` в firewall.
 - `DATABASE_URL` в `/var/www/bb-squad-platform/.env` → `postgresql://bb_squad:…@127.0.0.1:5432/bb_squad`
-- Перенос с Neon: `bash scripts/migrate-neon-to-vps.sh` (на сервере, пока в `.env` ещё Neon URL).
 - Ежедневный бэкап **БД**: `scripts/backup-db.sh` → `/var/backups/bb-squad/` (**00:00 МСК**, хранит **5** последних).
 - Ежедневный **полный** бэкап: `scripts/backup-full.sh` → `/var/backups/bb-squad-full/*.tar.gz` (**00:15 МСК**, хранит **5**).
-  Внутри: Postgres dump + код сайта + `.env` + аплоады + nginx/pm2/cron. Без `node_modules`/`.next` (после отката — `npm ci && build`).
   Откат: `bash scripts/restore-full.sh /var/backups/bb-squad-full/bb-squad-full_….tar.gz`
 - Cron БД: `/etc/cron.d/bb-squad-db` · полный: `/etc/cron.d/bb-squad-full` (`CRON_TZ=Europe/Moscow`).
-- Откат на Neon: вернуть строку из `/root/bb-db-migrate/env.before-migrate` → `pm2 restart bb-squad bb-squad-collector`.
-- Neon можно держать 3–7 дней как read-only запас, потом выключить проект.
 
-С ПК к прод-БД: только SSH-туннель (`ssh -L 5432:127.0.0.1:5432 root@91.222.237.91`), порт наружу не светить.
+С ПК к прод-БД: SSH-туннель на plaza  
+`ssh -i ~/.ssh/bb_vps_ed25519 -L 5432:127.0.0.1:5432 root@178.72.181.111`
 
 ## Обновление кода (деплой)
 
-Агент с ПК Кича ходит на VPS по SSH (`~/.ssh/bb_vps_ed25519` → `root@91.222.237.91`) и сам гоняет деплой, когда Alex пишет «задеплой / на staging / на прод». В Timeweb-консоль лезть не нужно, пока SSH жив.
-
-**Не путать IP:** прод = `91.222.237.91` (Timeweb). Старый/чужой `194.87.92.114` — не этот VPS (SSH туда timeout).
+Агент с ПК → SSH на **plaza** (`root@178.72.181.111`) и деплой.
 
 Деплой с ПК: `pwsh scripts/deploy-prod.ps1`  
-Проверка «задеплоилось ли»: `bash scripts/verify-deploy.sh` (с ПК) или на VPS `bash scripts/verify-deploy.sh --local --sha <commit>`.
+Проверка: `bash scripts/verify-deploy.sh` (с ПК) или на VPS `bash scripts/verify-deploy.sh --local --sha <commit>`.
 
-### Прод (народ)
+### Прод
 
 После `git push` на `main`:
 
@@ -69,15 +59,10 @@ Vercel не используем (SMS). Сайт и **Postgres** на **plaza**.
 cd /var/www/bb-squad-platform && git pull && bash scripts/deploy.sh
 ```
 
-Во время деплоя сайт показывает заглушку `public/maintenance.html` (лого BB + «технические работы», авто-refresh 30с) — флаг `maintenance.on`.  
-Nginx также отдаёт её на **502/503/504** (когда Next/PM2 лежит), не дефолтную ошибку.  
-Один раз обновить nginx с репо: перенести `error_page 502 503 504`, `location = /maintenance.html`, `proxy_intercept_errors on` из `deploy/nginx-bb-squad.conf` в `/etc/nginx/sites-available/bb-squad`, затем `nginx -t && systemctl reload nginx`.
+Во время деплоя — заглушка `public/maintenance.html` (флаг `maintenance.on`).  
+Nginx отдаёт её на **502/503/504**.
 
-Скрипт: maintenance ON → sync KV cache → `pm2 stop bb-squad` → билд → `pm2 start` → maintenance OFF.  
-При sync ledger берётся тот, где **больше матчей** (чтобы тонкий github.io не затирал полный диск).  
-Swap 2G поднимается, если его ещё нет.
-
-### Staging (черновик) — смотришь сам, потом льёшь в прод
+### Staging
 
 | | |
 |--|--|
@@ -85,52 +70,13 @@ Swap 2G поднимается, если его ещё нет.
 | Код | `/var/www/bb-squad-platform-staging` |
 | Ветка | `staging` |
 | PM2 | `bb-squad-staging` → порт **3001** |
-| БД | Postgres `bb_squad_staging` (копия прода, отдельно) |
-| DNS | A `staging` → `91.222.237.91` |
+| БД | Postgres `bb_squad_staging` |
+| DNS | A `staging` → `178.72.181.111` |
 
-**Первый раз (один раз на сервере):**
+**Первый раз:**
 
 ```bash
 cd /var/www/bb-squad-platform && git pull && bash scripts/bootstrap-staging.sh
 ```
 
-**Обычный цикл:**
-
-```text
-1. Правки → push в ветку staging
-2. На VPS: cd /var/www/bb-squad-platform-staging && bash scripts/deploy-staging.sh
-3. Смотришь https://staging.bb-squad.ru
-4. Ок → merge staging → main → bash scripts/deploy.sh (прод)
-```
-
-Обновить данные staging из прода (без деплоя кода):
-
-```bash
-bash /var/www/bb-squad-platform-staging/scripts/refresh-staging-db.sh
-```
-
-Сэкономить RAM, когда черновик не нужен: `pm2 stop bb-squad-staging` (потом `pm2 start bb-squad-staging`).
-
-**Пароль на вход в черновик:** на staging включён gate (`STAGING_GATE_ENABLED=1` + `STAGING_GATE_PASSWORD` в `.env` staging). Без пароля — только окно входа, API/страницы закрыты. На проде эти переменные не ставить.
-
-Steam: если логин на staging ломается — в Steam API Key Domain оставь `bb-squad.ru` (часто хватает) или добавь `staging.bb-squad.ru`.
-
-### Локальный кэш KV (ускорение)
-
-При деплое `scripts/sync_kv_cache.sh` зеркалит **весь** `blackberry-kv/public` в  
-`/var/www/bb-squad-platform/data/kv-cache/` (на VPS: `git pull` в `/var/www/blackberry-kv`).  
-Живой сайт (`/kv-static`, home API) читает **только диск** — GitHub Pages в горячем пути не используется.  
-Nginx отдаёт `/kv-static/` напрямую с диска (см. `deploy/nginx-bb-squad.conf`).  
-
-**Автозалив TR\* + PB1:** collector (`SQUAD_SERVERS=TR1,TR2,TPUB1[,TR3…]`) параллельно тянет логи, пинит каждую закрытую карту, пишет training/public JSON + `cache-bust` в kv-cache.  
-Очередь `_pending_rp.json` догоняет RP; Telegram (`BB_TG_BOT_TOKEN` + `BB_TG_CHAT_ID`) если история есть, а ladder отстаёт >15 мин.  
-`/tm` и `/cw` берут `v=` из bust на диске (без redeploy).  
-`sync_kv_cache.sh` **не rsync-ит** `data/training/` и live `data/public/rp-*` / `match-history` — деплой не откатывает вечерний залив.  
-Hot-path рейтинга ТМ: slim `rp-ladder.json`; полный ledger — только drilldown.
-
-## Squad log collector (24/7)
-
-Заходы/выходы TR1+TR2+PB1 **и** попадания BBHitZone (TR1+TR2) → **локальный Postgres**. **Только на этом VPS** (`pm2 bb-squad-collector`), не на ПК.  
-
-Подробности: `docs/SQUAD-COLLECTOR-VPS.md`. После деплоя hit-ingest: `python scripts/backfill_squad_hits.py`.  
-Установка: [SQUAD-COLLECTOR-VPS.md](./SQUAD-COLLECTOR-VPS.md).
+**Обычный цикл:** правки → push `staging` → на plaza `cd /var/www/bb-squad-platform-staging && git pull && bash scripts/deploy-staging.sh`

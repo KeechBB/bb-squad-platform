@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { TierFitPageClient } from "@/components/TierFitPageClient";
 import type { HomeTierBoardData } from "@/lib/homeTierBoardUi";
@@ -33,6 +33,7 @@ export function TrainingMatchesHub({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const fitFrameRef = useRef<HTMLIFrameElement>(null);
   const tab = useMemo(
     () => parseTab(searchParams.get("tab")),
     [searchParams]
@@ -70,6 +71,23 @@ export function TrainingMatchesHub({
     [pathname, router, searchParams]
   );
 
+  const syncFitFrameHeight = useCallback(() => {
+    const frame = fitFrameRef.current;
+    if (!frame) return;
+    try {
+      const doc = frame.contentDocument;
+      if (!doc?.documentElement) return;
+      const h = Math.max(
+        doc.documentElement.scrollHeight || 0,
+        doc.body?.scrollHeight || 0,
+        520
+      );
+      frame.style.height = `${h}px`;
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   // Внешний hash #/tm/tiers → большая вкладка FIT (детальный разбор);
   // остальные #/tm* → матчи
   useEffect(() => {
@@ -88,6 +106,49 @@ export function TrainingMatchesHub({
     }
     if (tab !== "matches") setTab("matches");
   }, [tab, fitSub, setTab, pathname, router, searchParams]);
+
+  // Детальный FIT: растянуть iframe по контенту → один скролл страницы
+  useEffect(() => {
+    if (tab !== "fit" || fitSub !== "detail") return;
+    const frame = fitFrameRef.current;
+    if (!frame) return;
+
+    let ro: ResizeObserver | null = null;
+    let poll: number | undefined;
+    let stopPoll: number | undefined;
+
+    const attach = () => {
+      syncFitFrameHeight();
+      try {
+        const doc = frame.contentDocument;
+        if (!doc?.documentElement) return;
+        ro?.disconnect();
+        ro = new ResizeObserver(() => syncFitFrameHeight());
+        ro.observe(doc.documentElement);
+        if (doc.body) ro.observe(doc.body);
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const onLoad = () => {
+      attach();
+      window.clearInterval(poll);
+      window.clearTimeout(stopPoll);
+      poll = window.setInterval(syncFitFrameHeight, 400);
+      stopPoll = window.setTimeout(() => window.clearInterval(poll), 10000);
+    };
+
+    frame.addEventListener("load", onLoad);
+    if (frame.contentDocument?.readyState === "complete") onLoad();
+
+    return () => {
+      frame.removeEventListener("load", onLoad);
+      ro?.disconnect();
+      window.clearInterval(poll);
+      window.clearTimeout(stopPoll);
+    };
+  }, [tab, fitSub, fitIframeSrc, syncFitFrameHeight]);
 
   return (
     <div className={`tm-hub${tab === "matches" ? " is-matches" : " is-fit"}`}>
@@ -156,10 +217,12 @@ export function TrainingMatchesHub({
               </header>
               <div className="cw-embed tm-hub-fit-frame">
                 <iframe
+                  ref={fitFrameRef}
                   className="cw-frame"
                   src={fitIframeSrc}
                   title="Тиры Fit — детальный разбор"
                   allow="fullscreen"
+                  scrolling="no"
                 />
               </div>
             </section>
