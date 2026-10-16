@@ -14602,6 +14602,65 @@ body.profile-match-modal-open {
 .tier-fit-page .tone-muted {
   color: rgba(226, 212, 255, 0.55);
 }
+.tier-fit-legend {
+  margin: 18px 0 16px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(167, 139, 250, 0.28);
+  background: linear-gradient(
+    135deg,
+    rgba(20, 12, 36, 0.85),
+    rgba(12, 8, 22, 0.72)
+  );
+}
+.tier-fit-legend-title {
+  margin: 0 0 10px;
+  font-family: var(--font-display), Oxanium, Manrope, sans-serif;
+  font-size: 1.05rem;
+}
+.tier-fit-steps {
+  margin: 0;
+  padding-left: 1.15rem;
+  display: grid;
+  gap: 6px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: rgba(226, 212, 255, 0.88);
+}
+.tier-fit-steps b {
+  font-weight: 700;
+}
+.tier-fit-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.tier-fit-swatch {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+}
+.tier-fit-swatch.is-good {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.45);
+  background: rgba(22, 101, 52, 0.28);
+}
+.tier-fit-swatch.is-warn {
+  color: #facc15;
+  border-color: rgba(250, 204, 21, 0.45);
+  background: rgba(113, 63, 18, 0.35);
+}
+.tier-fit-swatch.is-bad {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.45);
+  background: rgba(127, 29, 29, 0.32);
+}
 @media (max-width: 720px) {
   .tier-fit-page {
     padding: 6px 8px 36px;

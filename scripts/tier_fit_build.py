@@ -287,17 +287,17 @@ def main() -> None:
     }
 
     def role_of(nick: str) -> str:
-        # 1) канон T1  2) известные  3) ORR log_top (CW)  4) DeployRole majority  5) Rifle
+        # 1) канон T1  2) известные  3) majority кит на залитых TM  4) ORR log_top (CW)  5) Rifle
         if nick in T1_KIT:
             return T1_KIT[nick]
         if nick in KNOWN_KIT:
             return KNOWN_KIT[nick]
         k = nick_key(nick)
+        if k in kit_role:
+            return kit_role[k]
         fam = log_role.get(k)
         if fam and fam in FAM_MAP:
             return FAM_MAP[fam]
-        if k in kit_role:
-            return kit_role[k]
         return "Rifle"
 
     # meetings chronological with stats

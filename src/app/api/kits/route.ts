@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
  *   from=&to= — интервал МСК включительно
  *   days=1 — список дней со спавнами
  *   lane=TR1|PB1 — сервер (по умолчанию TR1)
- *   combat=0 — без окна 21:30–01:00 (соперники / КВ)
+ *   combat=0 — без фильтра залитых TM (соперники / весь день)
  */
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);

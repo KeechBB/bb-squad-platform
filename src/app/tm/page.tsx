@@ -17,7 +17,8 @@ export default async function TrainingMatchesPage() {
   }
 
   const bust = await liveKvBust();
-  const params = new URLSearchParams({ embed: "1", v: bust });
+  // hideTiers=1 — маленькая вкладка «Тиры Fit» в iframe скрыта; большая = платформенный таб
+  const params = new URLSearchParams({ embed: "1", hideTiers: "1", v: bust });
   const iframeSrc = `/kv-static/index.html?${params.toString()}#/tm`;
   const board = await buildHomeTierBoard().catch(() => emptyHomeTierBoard());
 
