@@ -534,6 +534,92 @@ assert z_kills[0]["killer"] == "Moisha"
 assert not any(e["kind"] == "nok" for e in z_events)
 print("turret pawn is not a second vehicle OK", z_net.get("moisha"))
 
+# Crew give up a minute after the blast. That is the same life as the
+# vehicle loss, not an extra infantry kill for the gunner.
+late = z_at + timedelta(seconds=80)
+late_dies = [
+    {
+        "killer": "Moisha",
+        "victim": "DotaMax",
+        "killerKey": "moisha",
+        "victimKey": "dotamax",
+        "at_dt": late,
+        "at_msk": "15:32:57",
+        "dmg": -300,
+    },
+    {
+        "killer": "Moisha",
+        "victim": "Nahimov",
+        "killerKey": "moisha",
+        "victimKey": "nahimov",
+        "at_dt": late + timedelta(seconds=2),
+        "at_msk": "15:32:59",
+        "dmg": -300,
+    },
+]
+g_events, g_net, g_die, *_ = R.score_match_rp(
+    dies=late_dies,
+    wounds=z_wounds,
+    revives=[],
+    teams={"dotamax": "2", "nahimov": "2", "moisha": "1"},
+    rp={"dotamax": 1000.0, "nahimov": 1000.0, "moisha": 4000.0},
+    disp={"dotamax": "DotaMax", "nahimov": "Nahimov", "moisha": "Moisha"},
+    aliases={},
+    new_formula=True,
+    match_date="2026-10-17",
+    match_id="20261017-1200-test",
+    vehicle_ops=z_ops,
+)
+assert g_die == 0, [(e["kind"], e.get("victim"), e.get("delta")) for e in g_events if e["kind"] == "die"]
+assert not any(e["kind"] == "die" for e in g_events)
+assert any(e["kind"] == "vehicle_kill" for e in g_events)
+assert any(e["kind"] == "vehicle_loss" and e.get("victim") == "Nahimov" for e in g_events)
+# Revived, then a rifle. That death counts.
+rifle_at = late + timedelta(minutes=3)
+r_events, _, r_die, *_ = R.score_match_rp(
+    dies=[
+        {
+            "killer": "Moisha",
+            "victim": "Nahimov",
+            "killerKey": "moisha",
+            "victimKey": "nahimov",
+            "at_dt": rifle_at,
+            "at_msk": "15:35:59",
+            "dmg": -300,
+        }
+    ],
+    wounds=z_wounds
+    + [
+        {
+            "killer": "Moisha",
+            "victim": "Nahimov",
+            "killerKey": "moisha",
+            "victimKey": "nahimov",
+            "at_dt": rifle_at - timedelta(seconds=20),
+            "at_msk": "15:35:39",
+        }
+    ],
+    revives=[
+        {
+            "killer": "DotaMax",
+            "victim": "Nahimov",
+            "at_dt": late + timedelta(seconds=30),
+            "at_msk": "15:33:29",
+        }
+    ],
+    teams={"dotamax": "2", "nahimov": "2", "moisha": "1"},
+    rp={"dotamax": 1000.0, "nahimov": 1000.0, "moisha": 4000.0},
+    disp={"dotamax": "DotaMax", "nahimov": "Nahimov", "moisha": "Moisha"},
+    aliases={},
+    new_formula=True,
+    match_date="2026-10-17",
+    match_id="20261017-1200-test",
+    vehicle_ops=z_ops,
+)
+assert r_die == 1, [(e["kind"], e.get("victim")) for e in r_events]
+assert any(e["kind"] == "nok" and e.get("victim") == "Nahimov" for e in r_events)
+print("give-up after vehicle blast is not an infantry kill OK", g_net.get("moisha"))
+
 # Live Kamdesh layout: periscope of one ZBL is only ~18 ids from the next
 # turret. The turret must follow its own hull (dist 8), and the knock of
 # its gunner must not destroy the neighbour.
