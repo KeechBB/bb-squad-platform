@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ReplayPayload } from "@/lib/replays";
-import { formatDuration } from "@/lib/replays";
+import type { ReplayPayload } from "@/lib/replayTypes";
+import { formatDuration } from "@/lib/replayFormat";
 import { resolveReplayMap, worldToPixel } from "@/lib/replayMaps";
 
 const COLORS = [
