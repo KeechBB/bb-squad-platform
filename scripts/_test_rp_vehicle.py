@@ -350,7 +350,8 @@ assert any(e["kind"] == "vehicle_loss_driver" and e.get("victim") == "Keech" for
 assert eng.died_in_explosion("keech", boom + timedelta(milliseconds=991))
 print("engine occupied-hull OK")
 
-# F2/driver of a BTR cannot be knocked unless the hull died. No HP line at all.
+# A crew knock with no hull death is infantry. Burning or a repair
+# dismount does not write off the vehicle.
 knock_at = datetime(2026, 10, 17, 12, 39, 2, tzinfo=timezone.utc)
 btr = "BP_BTR4_AFU_C_200"
 turret = "BP_BTR4_Turret_C_190"
@@ -422,11 +423,10 @@ k_events, k_net, _, _, _, k_noks = R.score_match_rp(
     vehicle_ops=knock_ops,
 )
 k_kinds = [(e["kind"], e.get("victim")) for e in k_events]
-assert ("vehicle_loss", "Moisha") in k_kinds, k_kinds
-assert ("vehicle_loss_driver", "Driver") in k_kinds, k_kinds
-assert not any(e["kind"] == "nok" for e in k_events), k_kinds
-assert k_noks == 0
-print("armored crew knock is a hull loss OK", k_net.get("moisha"))
+assert ("vehicle_loss", "Moisha") not in k_kinds, k_kinds
+assert ("vehicle_loss_driver", "Driver") not in k_kinds, k_kinds
+assert any(e["kind"] == "nok" and e.get("victim") == "Moisha" for e in k_events), k_kinds
+print("crew knock without a dead hull is infantry OK", k_net.get("moisha"))
 
 # ZBL turret pawn has its own asset name. One hull death = one kill,
 # even if the gunner entered the turret before the driver entered the hull.
@@ -760,6 +760,170 @@ assert any(e["kind"] == "vehicle_loss" and e.get("victim") == "Moisha" for e in 
 assert any(e["kind"] == "vehicle_loss_driver" and e.get("victim") == "Golub" for e in b_events)
 assert not any(e["kind"] == "nok" for e in b_events)
 print("gunner still liable after driver-named kill OK", b_net.get("moisha"))
+
+# The hull pool can be written on the gunner, not only the driver.
+# Both still lose. A Bradley round that names the F2 is the same death.
+gun_at = datetime(2026, 10, 17, 12, 39, 2, tzinfo=timezone.utc)
+gun_hull = "BP_BTR4_AFU_C_2145106980"
+gun_tur = "BP_BTR4_Turret_C_2145106969"
+gun_ops = [
+    {
+        "kind": "v_enter",
+        "at_dt": gun_at - timedelta(minutes=6),
+        "at_msk": "15:33:02",
+        "nick": "Keech",
+        "nickKey": "keech",
+        "asset": "BP_BTR4_AFU_C",
+        "instance": gun_tur,
+        "pawn": gun_tur,
+        "seat": 1,
+    },
+    {
+        "kind": "v_enter",
+        "at_dt": gun_at - timedelta(minutes=5),
+        "at_msk": "15:34:02",
+        "nick": "Mount",
+        "nickKey": "mount",
+        "asset": "BP_BTR4_AFU_C",
+        "instance": gun_hull,
+        "seat": 0,
+    },
+    {
+        "kind": "v_exit",
+        "at_dt": gun_at,
+        "at_msk": "15:39:02",
+        "nick": "Mount",
+        "nickKey": "mount",
+        "instance": gun_hull,
+        "asset": "BP_BTR4_AFU_C",
+        "seat": 0,
+    },
+    {
+        "kind": "v_exit",
+        "at_dt": gun_at,
+        "at_msk": "15:39:02",
+        "nick": "Keech",
+        "nickKey": "keech",
+        "instance": gun_tur,
+        "asset": "BP_BTR4_Turret_C",
+        "seat": 1,
+    },
+    {
+        "kind": "v_dmg_named",
+        "at_dt": gun_at,
+        "at_msk": "15:39:02",
+        "who": "Keech",
+        "whoKey": "keech",
+        "dmg": 35.0,
+        "causer": "BFV_M252_AP_Woodland_C_1",
+        "killer": "Android",
+        "killerKey": "android",
+        "health": -21.3,
+        "burning": False,
+    },
+]
+gun_wounds = [
+    {
+        "killer": "Android",
+        "victim": "Keech",
+        "killerKey": "android",
+        "victimKey": "keech",
+        "at_dt": gun_at + timedelta(milliseconds=3),
+        "at_msk": "15:39:02",
+    },
+    {
+        "killer": "Android",
+        "victim": "Mount",
+        "killerKey": "android",
+        "victimKey": "mount",
+        "at_dt": gun_at + timedelta(milliseconds=3),
+        "at_msk": "15:39:02",
+    },
+]
+g_events, g_net, *_ = R.score_match_rp(
+    dies=[],
+    wounds=gun_wounds,
+    revives=[],
+    teams={"keech": "1", "mount": "1", "android": "2"},
+    rp={"keech": 2000.0, "mount": 1000.0, "android": 2000.0},
+    disp={"keech": "Keech", "mount": "Mount", "android": "Android"},
+    aliases={},
+    new_formula=True,
+    match_date="2026-10-17",
+    vehicle_ops=gun_ops,
+)
+assert any(e["kind"] == "vehicle_loss" and e.get("victim") == "Keech" for e in g_events), [
+    (e["kind"], e.get("victim")) for e in g_events
+]
+assert any(e["kind"] == "vehicle_loss_driver" and e.get("victim") == "Mount" for e in g_events)
+assert sum(1 for e in g_events if e["kind"] == "vehicle_kill") == 1
+assert not any(e["kind"] == "nok" for e in g_events)
+print("gunner-named hull death charges both crew OK", g_net.get("keech"))
+
+# Driver hopped out to repair and was knocked. Hull never reached 0.
+repair_at = datetime(2026, 10, 17, 12, 40, 0, tzinfo=timezone.utc)
+repair_ops = [
+    {
+        "kind": "v_enter",
+        "at_dt": repair_at - timedelta(minutes=2),
+        "at_msk": "15:38:00",
+        "nick": "Driver",
+        "nickKey": "driver",
+        "asset": "BP_BTR4_AFU_C",
+        "instance": "BP_BTR4_AFU_C_300",
+        "seat": 0,
+    },
+    {
+        "kind": "v_dmg_named",
+        "at_dt": repair_at - timedelta(seconds=30),
+        "at_msk": "15:39:30",
+        "who": "Driver",
+        "whoKey": "driver",
+        "dmg": 40.0,
+        "causer": "BFV_M252_AP_Woodland_C_2",
+        "killer": "Android",
+        "killerKey": "android",
+        "health": 600.0,
+        "burning": False,
+    },
+    {
+        "kind": "v_exit",
+        "at_dt": repair_at,
+        "at_msk": "15:40:00",
+        "nick": "Driver",
+        "nickKey": "driver",
+        "instance": "BP_BTR4_AFU_C_300",
+        "asset": "BP_BTR4_AFU_C",
+        "seat": 0,
+    },
+]
+repair_wounds = [
+    {
+        "killer": "Android",
+        "victim": "Driver",
+        "killerKey": "android",
+        "victimKey": "driver",
+        "at_dt": repair_at + timedelta(seconds=8),
+        "at_msk": "15:40:08",
+    }
+]
+r_events, *_ = R.score_match_rp(
+    dies=[],
+    wounds=repair_wounds,
+    revives=[],
+    teams={"driver": "1", "android": "2"},
+    rp={"driver": 1000.0, "android": 2000.0},
+    disp={"driver": "Driver", "android": "Android"},
+    aliases={},
+    new_formula=True,
+    match_date="2026-10-17",
+    vehicle_ops=repair_ops,
+)
+assert not any(e["kind"].startswith("vehicle_loss") for e in r_events), [
+    (e["kind"], e.get("victim")) for e in r_events
+]
+assert any(e["kind"] == "nok" for e in r_events)
+print("dismounted repair death leaves the hull alive OK")
 
 # Real log smoke (Kamaz burn-to-death by LordWolf)
 log = (

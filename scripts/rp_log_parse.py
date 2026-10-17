@@ -1145,88 +1145,19 @@ def score_match_rp(
 
     # --- new formula (cutover+) — chronological ---
     def _crew_knock_is_hull(vk: str, at_dt, dmg_row: dict) -> bool:
-        """БТР/БМП/танк: мехвода и стрелка не нокают, пока корпус жив.
+        """Нок или смерть экипажа сами по себе технику не списывают.
 
-        Грузовик и МРАП (≤5 тикетов) — можно выбить и без взрыва.
+        Корпус умер, только если его ХП дошло до нуля (строка может быть
+        на мехводе или на стрелке — оба теряют очки). Если взрыв уже
+        записан, пехотный нок поверх него не ставим.
+
+        Не взрыв: техника горела, экипаж умер, машину починили;
+        мехвод вылез чинить и умер, а корпус ещё жив.
         """
         if not do_vehicle or at_dt is None:
             return False
         prev = exploded_at.get(vk)
-        if prev is not None and abs((at_dt - prev).total_seconds()) <= 3:
-            return True
-        hid = player_hull.get(vk) or ""
-        if not hid:
-            rec = recent_exit.get(vk)
-            if (
-                rec
-                and rec[2] is not None
-                and 0 <= (at_dt - rec[2]).total_seconds() <= 2
-            ):
-                hid = rec[0]
-        h = hulls.get(hid) if hid else None
-        if not h or h.get("dead"):
-            return False
-        asset = str(h.get("asset") or "")
-        if vehicle_tickets(asset) <= 5:
-            return False
-        rec_vk = recent_exit.get(vk)
-        seat_vk = player_seat.get(vk)
-        if seat_vk is None and rec_vk:
-            seat_vk = rec_vk[1]
-        role_vk = (h.get("seat_roles") or {}).get(seat_vk) or vehicle_seat_role(
-            asset, int(seat_vk or 0), ""
-        )
-        if role_vk not in ("driver", "gunner"):
-            return False
-        # Turret/periscope is not its own vehicle. A hull that already
-        # exploded in this blast must not be scored a second time.
-        if _is_component_pawn(hid):
-            body = _nearest_body(hid, asset)
-            if body:
-                parent = hulls.get(body)
-                if parent and parent.get("dead"):
-                    return True
-                hid = body
-                h = parent or h
-                asset = str(h.get("asset") or asset)
-        # Restore crew who were thrown out by the same blast.
-        def _same_hull(a: str, b: str) -> bool:
-            if a == b:
-                return True
-            na, nb = _veh_id_num(a), _veh_id_num(b)
-            if na is None or nb is None:
-                return False
-            return abs(na - nb) < _HULL_LINK_DIST and (
-                _is_component_pawn(a) or _is_component_pawn(b)
-            )
-
-        for pk, rec in list(recent_exit.items()):
-            if not _same_hull(rec[0], hid) or rec[2] is None:
-                continue
-            if not (0 <= (at_dt - rec[2]).total_seconds() <= 2):
-                continue
-            rseat = int(rec[1])
-            role = vehicle_seat_role(asset, rseat, "")
-            if role not in ("driver", "gunner"):
-                continue
-            h.setdefault("seats", {})[rseat] = pk
-            h.setdefault("seat_roles", {})[rseat] = role
-        role_now = (h.get("seat_roles") or {}).get(player_seat.get(vk))
-        liable = set((h.get("seats") or {}).values()) | set((h.get("last_crew") or {}).values())
-        if vk not in liable and role_now not in ("driver", "gunner"):
-            return False
-        _destroy_vehicle(
-            hid,
-            dmg_row.get("at_msk") or "",
-            {
-                "at_dt": at_dt,
-                "killerKey": dmg_row.get("killerKey") or "",
-                "killer": dmg_row.get("killer") or "",
-                "causer": dmg_row.get("causer") or "",
-                "burning": False,
-            },
-        )
-        return True
+        return prev is not None and abs((at_dt - prev).total_seconds()) <= 3
 
     timeline: list[dict] = []
     for d in wounds:

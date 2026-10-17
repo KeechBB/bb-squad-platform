@@ -142,9 +142,11 @@ class VehicleRpEngine:
                 snap[0] = key
             elif role == "gunner":
                 snap[1] = key
-        if snap:
-            return snap
-        return dict(h.get("last_crew") or {})
+        # Убивающий удар часто подписан только мехводом. Стрелок всё равно в экипаже.
+        for seat, key in (h.get("last_crew") or {}).items():
+            if key:
+                snap.setdefault(int(seat), key)
+        return snap
 
     def credit_driver_share(
         self, gunner_key: str, applied_gain: float, at_msk: str, reason: str
