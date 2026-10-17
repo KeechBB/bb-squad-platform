@@ -719,24 +719,37 @@ export async function buildPlayerTrainMatchHistory(
   }
   const startRp = Number(ladder?.startRp) || 1000;
   const step = Number(ladder?.step) || 150;
-  const radiant3Max = Number(ladder?.radiant3Max) || 4500;
+  const radiant3Max = Number(ladder?.radiant3Max) || 4950;
 
   // Полная цепочка ladder (все катки с ΔRP игрока), даже если players/*.json нет.
   // rpAfter = round(start + Σ nets) как бейдж — не Math.round на каждом шаге (дрейф ±2).
+  // Порядок = календарное время (sortKey), НЕ date+id: иначе 16-cslmutaha
+  // оказывается «раньше» Fallujah/Kamdesh и колонка RP прыгает между соседними строками.
   const rpAfterByMatch = new Map<string, number>();
   const rpDeltaByMatch = new Map<string, number>();
   {
-    let cum = 0;
-    const orderedIds: string[] = [];
-    if (rpPlayer?.matches?.length) {
-      for (const m of rpPlayer.matches) {
-        if (rpNetByMatch.has(m.id)) orderedIds.push(m.id);
-      }
-    } else if (ladder?.matches?.length) {
-      for (const m of ladder.matches) {
-        if (rpNetByMatch.has(m.id)) orderedIds.push(m.id);
-      }
+    const metaOrder = new Map(
+      matchMetas.filter((m) => m.id).map((m) => [m.id, m.sortKey || ""])
+    );
+    const dateById = new Map<string, string>();
+    for (const m of rpPlayer?.matches || []) {
+      dateById.set(m.id, String(m.date || ""));
     }
+    for (const m of ladder?.matches || []) {
+      if (!dateById.has(m.id)) dateById.set(m.id, String(m.date || ""));
+    }
+    const orderedIds = [...rpNetByMatch.keys()].sort((a, b) => {
+      const ka = metaOrder.get(a) || "";
+      const kb = metaOrder.get(b) || "";
+      if (ka && kb && ka !== kb) return ka.localeCompare(kb);
+      if (ka && !kb) return -1;
+      if (!ka && kb) return 1;
+      const da = dateById.get(a) || "";
+      const db = dateById.get(b) || "";
+      if (da !== db) return da.localeCompare(db);
+      return a.localeCompare(b);
+    });
+    let cum = 0;
     for (const id of orderedIds) {
       const net = rpNetByMatch.get(id)!;
       cum += net;

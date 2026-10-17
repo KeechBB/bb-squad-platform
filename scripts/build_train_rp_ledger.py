@@ -598,8 +598,20 @@ def main() -> None:
             if mid and not mid.endswith("-skip"):
                 canon_ids.add(mid)
 
-    def _match_chrono_key(m: dict) -> tuple[str, str]:
-        return (str(m.get("date") or ""), str(m.get("id") or ""))
+    # Real start times beat date+id (16-cslmutaha sorts before 16-fallujah by id,
+    # but was played after midnight — after Fallujah/Kamdesh).
+    _start_by_id = {
+        str(m.get("id") or ""): m["start"]
+        for m in MATCHES
+        if m.get("id") is not None and m.get("start") is not None
+    }
+
+    def _match_chrono_key(m: dict) -> tuple:
+        mid = str(m.get("id") or "")
+        start = _start_by_id.get(mid)
+        if start is not None:
+            return (0, start.isoformat(), mid)
+        return (1, str(m.get("date") or ""), mid)
 
     def sort_histories_inplace(doc: dict | None) -> bool:
         """Ensure ledger match lists are chronological (backfills can append mid-chain)."""
@@ -1041,9 +1053,7 @@ def main() -> None:
             )
         # Keep player history chronological even after mid-chain backfills
         # (e.g. Mutaha 13–15 scored after 16 already existed).
-        match_hist.sort(
-            key=lambda hm: (str(hm.get("date") or ""), str(hm.get("id") or ""))
-        )
+        match_hist.sort(key=_match_chrono_key)
         players_out[k] = {
             "nick": disp.get(k, k),
             "rp": round(max(MIN_RP, float(val)), 1),
@@ -1062,9 +1072,7 @@ def main() -> None:
         public_matches.append(
             {k: v for k, v in mb.items() if k not in ("netByKey", "events")}
         )
-    public_matches.sort(
-        key=lambda hm: (str(hm.get("date") or ""), str(hm.get("id") or ""))
-    )
+    public_matches.sort(key=_match_chrono_key)
 
     # Drop redundant "formula" on every event row — saves ~MBs, UI doesn't need it.
     for p in players_out.values():
