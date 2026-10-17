@@ -66,7 +66,11 @@ START_RP = 1000.0
 MIN_RP = 1.0  # ниже 1 опуститься нельзя (канон капитана 05.10.2026)
 REVIVE_COEF = 0.6  # legacy (pre cutover)
 STEP = 150
-RADIANT3_MAX = 4500
+# Ceiling before Predator: Iron…Radiant (30) + Eclipse I–III (3) = 33×150 → 4950.
+# JSON field still named radiant3Max (legacy) — means «max RP before Predator».
+RADIANT3_MAX = 4950
+ECLIPSE3_MAX = RADIANT3_MAX
+NAMED_RANK_LEVELS = 33  # 11 ranks × 3 romans
 MIN_MATCH_SEC = 8 * 60
 
 # New unified RP formula (TR1 = PB1) — only matches on/after this date (YYYY-MM-DD).
@@ -80,6 +84,93 @@ COEF_TK_KILL_EXTRA = 0.6
 COEF_OWN_DEATH = 1.1
 COEF_BEING_NOKKED = 0.1
 
+# Soft-cap on RP *gains* from Immortal+ (losses always ×1). Matches on/after deploy.
+# Canon 17.10.2026 — does not rewrite older ledger rows.
+RP_GAIN_SOFT_CUTOVER = "2026-10-17"
+# Immortal 0.9 → Master 0.8 → Radiant I/II 0.7 → Radiant III 0.6 → Eclipse 0.55 → Predator 0.5
+GAIN_COEF_IMMORTAL = 0.9
+GAIN_COEF_MASTER = 0.8
+GAIN_COEF_RADIANT = 0.7
+GAIN_COEF_RADIANT3 = 0.6
+GAIN_COEF_ECLIPSE = 0.55
+GAIN_COEF_PREDATOR = 0.5
+
+# Vehicle RP (canon 17.10.2026) — tickets×12.5; F2 100% / driver 70%; finisher-only kill.
+# Cutover with soft-cap; does not rewrite older ledger rows.
+# Light tier: logi = 5 (=62.5 RP); unarmed transport = 2 (=25 RP).
+# Rate cut 17.10 night: was ×25 → ×12.5 (half) — less farm.
+RP_VEHICLE_CUTOVER = RP_GAIN_SOFT_CUTOVER
+VEHICLE_RP_PER_TICKET = 12.5
+VEHICLE_DRIVER_SHARE = 0.7
+_VEH_TANK_RE = re.compile(
+    r"(T72|T62|T80|T90|M1A|LEOPARD|M60|CHALLENGER|MERKAVA|T14|ZTZ|TYPE99|TYPE96)",
+    re.I,
+)
+_VEH_IFV_RE = re.compile(
+    r"(BTR|BMP|BFV|FV510|AAVP|WARRIOR|ZBD|ZBL|BMD|MTL|PIRANHA|STRYKER|"
+    r"LAV25|BOXER|ZTD|BRDM)",
+    re.I,
+)
+# Mobile hub — confirm Asset Name with captain if a new BP appears.
+_VEH_HUB_RE = re.compile(
+    r"WPMC.*(HUB|MCT|HQ|RADIO.?BIKE|MOBILE|COMMAND)",
+    re.I,
+)
+_VEH_LOGI_RE = re.compile(r"LOGI", re.I)
+# Softskin / troop movers without a dedicated gunner weapon — 2 tickets (=50 RP).
+_VEH_TRANSPORT_RE = re.compile(
+    r"(TRANSPORT|UTIL|URAL|KAMAZ|M939|CTM131|GAZ66|GAZ_66|"
+    r"MINSK|BIKE|MOTORCYCLE|QUAD|BICYCLE|BOAT|RHIB|ZODIAC|"
+    r"CH146|RAVEN|UH60|UH_60|MI8|MI_8|LOACH|SAFEZONE)",
+    re.I,
+)
+# Armed light (stay 5 tickets = 125) — has shooter / weapon in Asset Name.
+_VEH_ARMED_LIGHT_RE = re.compile(
+    r"(TOW|KORNET|M134|ZU23|QJZ|NSV|KORD|DSHK|SPG9|SPG_9|"
+    r"CAS|CROWS|RWS|ARMED|OPEN.?TOP|MINIGUN|ROCKET|M2HB|PKT|KPVT|"
+    r"OBLITERATE|DSHKM|HMG|GMG)",
+    re.I,
+)
+_VEH_SKIP_RE = re.compile(
+    r"(EMPLACED|DEPLOYABLE|TRIPOD|SANDBAG|FOB|HAB|RALLY|MINE|RAZOR)",
+    re.I,
+)
+ENTERED_VEH_RE = re.compile(
+    r"OnPossess\(\):\s*PC=(?P<nick>.+?)\s*\(Online IDs:.*?steam:\s*(?P<steam>7656\d+)\).*?"
+    r"Entered Vehicle\s+Pawn=(?P<pawn>\S+)\s+\(Asset Name\s*=\s*(?P<asset>[^)]+)\)\s+"
+    r"FullPath=(?P<fullpath>.+?)\s+Seat Number=(?P<seat>\d+)",
+    re.I,
+)
+EXITED_VEH_RE = re.compile(
+    r"OnUnPossess\(\):\s*PC=(?P<nick>.+?)\s*\(Online IDs:.*?steam:\s*(?P<steam>7656\d+)\).*?"
+    r"Exited Vehicle\s+Pawn=\S+\s+\(Asset Name\s*=\s*(?P<asset>[^)]+)\)\s+"
+    r"FullPath=(?P<fullpath>.+?)\s+Seat Number=(?P<seat>\d+)",
+    re.I,
+)
+VEH_DMG_RE = re.compile(
+    r"(?P<vid>BP_[A-Za-z0-9_]+_C_\d+):\s*(?P<dmg>[\d.]+)\s+damage taken by causer\s+"
+    r"(?P<causer>\S+)\s+instigator\s+(?:\(Online Ids:\s*(?P<nick>[^)]+)\)|"
+    r"(?P<nick2>[^\s(]+))\s+"
+    r"(?:EOS:\s*[0-9a-fA-F]+\s+steam:\s*(?P<steam>7656\d+)\s+)?"
+    r"(?:INVALID\s+)?"
+    r"health remaining\s+(?P<health>[-\d.]+)",
+    re.I,
+)
+# Squad writes the killing blow on an occupied hull as "DriverNick: 1400 … health remaining -800"
+# instead of "BP_AAVP…:". Same HP pool as the previous BP_ line (600 − 1400 = −800).
+VEH_OCC_DMG_RE = re.compile(
+    r"TraceAndMessageClient\(\):\s*(?P<who>.+?):\s*(?P<dmg>[\d.]+)\s+damage taken by causer\s+"
+    r"(?P<causer>\S+)\s+instigator\s+\(Online Ids:\s*(?P<nick>[^)]+)\)\s+"
+    r"EOS:\s*[0-9a-fA-F]+\s+steam:\s*(?P<steam>7656\d+)\s+"
+    r"(?:INVALID\s+)?health remaining\s+(?P<health>[-\d.]+)",
+    re.I,
+)
+VEH_BURN_RE = re.compile(
+    r"SQVehicleSeat::TakeDamage\[GenericDamage\]\s+(?P<vid>BP_[A-Za-z0-9_]+_C_\d+)\s+"
+    r"for\s+[\d.]+\s+damage\s+\(type=SQBurningDamage\)",
+    re.I,
+)
+
 RANK_NAMES = [
     ("Iron", "iron"),
     ("Bronze", "bronze"),
@@ -91,6 +182,7 @@ RANK_NAMES = [
     ("Immortal", "immortal"),
     ("Master", "master"),
     ("Radiant", "radiant"),
+    ("Eclipse", "eclipse"),
 ]
 ROMAN = ("I", "II", "III")
 
@@ -186,11 +278,193 @@ def use_new_rp_formula(match_date: str) -> bool:
     return str(match_date or "")[:10] >= RP_FORMULA_CUTOVER
 
 
+def use_rp_gain_softcap(match_date: str) -> bool:
+    """Diminishing gains from Immortal+ — only matches on/after soft cutover."""
+    return str(match_date or "")[:10] >= RP_GAIN_SOFT_CUTOVER
+
+
+def use_rp_vehicle(match_date: str) -> bool:
+    """Vehicle kill/loss RP — matches on/after vehicle cutover."""
+    return str(match_date or "")[:10] >= RP_VEHICLE_CUTOVER
+
+
+def _is_unarmed_transport(asset: str) -> bool:
+    """
+    Non-combat mover without a dedicated gunner (transport / bare util / softskin).
+    Logi is handled separately (stays 5 tickets). Armed light stays 5.
+    """
+    a = str(asset or "")
+    if not a or _VEH_LOGI_RE.search(a):
+        return False
+    if _VEH_ARMED_LIGHT_RE.search(a):
+        return False
+    if re.search(r"TRANSPORT", a, re.I):
+        return True
+    if _VEH_TRANSPORT_RE.search(a):
+        # Loach CAS already caught by armed; plain Loach = transport heli
+        if re.search(r"LOACH", a, re.I) and re.search(r"CAS", a, re.I):
+            return False
+        return True
+    return False
+
+
+def vehicle_tickets(asset: str) -> int:
+    """Ticket cost by Asset Name (not from match ticket log)."""
+    a = str(asset or "")
+    if _VEH_HUB_RE.search(a):
+        return 20
+    if _VEH_TANK_RE.search(a):
+        return 15
+    if _VEH_IFV_RE.search(a):
+        return 10
+    # Light tier: logi / armed light = 5 (=62.5 RP); unarmed transport = 2 (=25 RP)
+    if _VEH_LOGI_RE.search(a):
+        return 5
+    if _is_unarmed_transport(a):
+        return 2
+    return 5
+
+
+def vehicle_base_rp(asset: str) -> float:
+    return float(vehicle_tickets(asset) * VEHICLE_RP_PER_TICKET)
+
+
+def vehicle_short_name(asset: str) -> str:
+    """BP_T72S_GFI_C → T72S · BP_Kamaz_5350_Desert_C → Kamaz 5350."""
+    a = re.sub(r"^BP_", "", str(asset or ""), flags=re.I)
+    a = re.sub(r"_C$", "", a, flags=re.I)
+    a = re.sub(
+        r"_(Desert|Woodland|WoodLand|Black|Green|Urban|Snow|Forest)$",
+        "",
+        a,
+        flags=re.I,
+    )
+    a = re.sub(
+        r"_(GFI|RUS|USA|USMC|PLA|CAF|BAF|ADF|MEA|INS|IMF|WPMC|TLF|VDV|GB|IRAN)$",
+        "",
+        a,
+        flags=re.I,
+    )
+    a = a.replace("_", " ").strip()
+    return a or "техника"
+
+
+def vehicle_class_ru(asset: str) -> str:
+    a = str(asset or "")
+    t = vehicle_tickets(a)
+    if t >= 20:
+        return "хаб WPMC"
+    if t >= 15:
+        return "танк"
+    if t >= 10:
+        return "БТР/БМП"
+    if t <= 2:
+        return "транспорт"
+    if _VEH_LOGI_RE.search(a):
+        return "logi"
+    return "техника"
+
+
+def vehicle_label_ru(asset: str) -> str:
+    """Human label for detail UI: «танк T72S», «БТР/БМП BTR82A»."""
+    short = vehicle_short_name(asset)
+    cls = vehicle_class_ru(asset)
+    if cls == "хаб WPMC":
+        return f"{cls} {short}".strip() if short and short.lower() != "техника" else cls
+    return f"{cls} {short}".strip()
+
+
+def vehicle_seat_role(asset: str, seat: int, pawn: str = "") -> str:
+    """
+    Who can lose RP on vehicle destroy:
+      driver — seat 0 (всегда, в т.ч. грузовик/вертолёт)
+      gunner — F2 / башня (танк·БТР·БМП·AAVP·хаб); НЕ пассажир seat 1 на logi
+      passenger — десант / кузов / любые seat≥2 — **никогда** не теряют RP за технику
+    """
+    seat_i = int(seat or 0)
+    if seat_i == 0:
+        return "driver"
+    if seat_i >= 2:
+        return "passenger"
+    # seat 1
+    pawn_u = (pawn or "").upper()
+    if any(
+        x in pawn_u
+        for x in ("PASSENGER", "CARGO", "REAR", "BENCH", "TROOP")
+    ):
+        return "passenger"
+    tickets = vehicle_tickets(asset)
+    # Logi / transport / лёгкая техника (≤5 тик.): только водитель — seat 1 = пассажир.
+    if tickets <= 5:
+        return "passenger"
+    if any(
+        x in pawn_u
+        for x in ("TURRET", "GUNNER", "RWS", "CROWS", "CANNON", "OPEN_TOP")
+    ):
+        return "gunner"
+    # Танк / IFV / AAVP / хаб — seat 1 по умолчанию наводчик.
+    return "gunner"
+
+
+def _veh_instance(text: str) -> str:
+    m = re.search(r"(BP_[A-Za-z0-9_]+_C_\d+)", text or "")
+    return m.group(1) if m else ""
+
+
+def _skip_vehicle_asset(asset: str, pawn: str = "") -> bool:
+    return bool(_VEH_SKIP_RE.search(f"{asset} {pawn}"))
+
+
+def _veh_id_num(vid: str) -> int | None:
+    try:
+        return int(str(vid).rsplit("_", 1)[-1])
+    except (TypeError, ValueError):
+        return None
+
+
+def rp_gain_coef(current_rp: float) -> float:
+    """
+    Multiplier for positive RP only (kills/noks/revives/vehicle_kill…).
+    Losses (death, TK, vehicle_loss…) always stay at 1.0.
+    Rank is taken from RP *before* the gain.
+    """
+    info = rp_rank(float(current_rp))
+    if info.get("predator") or info.get("rankKey") == "predator":
+        return GAIN_COEF_PREDATOR
+    key = str(info.get("rankKey") or "")
+    if key == "eclipse":
+        return GAIN_COEF_ECLIPSE
+    if key == "radiant":
+        if str(info.get("roman") or "") == "III":
+            return GAIN_COEF_RADIANT3
+        return GAIN_COEF_RADIANT
+    if key == "master":
+        return GAIN_COEF_MASTER
+    if key == "immortal":
+        return GAIN_COEF_IMMORTAL
+    return 1.0
+
+
+# Same timestamp: leave the old seat before taking the new one, then apply damage.
+_KIND_RANK = {
+    "v_exit": 0,
+    "v_burn": 1,
+    "v_dmg": 2,
+    "v_dmg_named": 3,
+    "v_enter": 4,
+    "wound": 5,
+    "die": 6,
+    "revive": 7,
+}
+
+
 def _event_sort_key(e: dict) -> tuple:
+    kind = e.get("kind", "")
+    rank = _KIND_RANK.get(kind, 5)
     dt = e.get("at_dt")
     if dt is not None:
-        return (0, dt.isoformat(), e.get("kind", ""), e.get("at_msk", ""))
-    return (1, e.get("at_msk", ""), e.get("kind", ""))
+        return (0, dt.isoformat(), rank, kind)
+    return (1, e.get("at_msk", ""), rank, kind)
 
 
 def score_match_rp(
@@ -204,22 +478,38 @@ def score_match_rp(
     aliases: dict[str, str] | None = None,
     new_formula: bool,
     pwr_weights: dict[str, float] | None = None,
+    match_date: str | None = None,
+    vehicle_ops: list[dict] | None = None,
 ) -> tuple[list[dict], dict[str, float], int, int, int, int]:
     """
-    Apply Die/Wound/Revive to running RP.
+    Apply Die/Wound/Revive (+ vehicle kill/loss after cutover) to running RP.
 
     new_formula=False: legacy (Wound=0 RP; Die ±N; TK both −N; revive +N*0.6).
       Weight = pwr_weights[k] if given else current RP.
     new_formula=True: canon 05.10.2026 (N×coefs). Weight = current RP always.
+    match_date >= RP_GAIN_SOFT_CUTOVER: positive deltas × rank soft-cap
+      (Immortal 0.9 … Predator 0.5); losses always ×1.
+    match_date >= RP_VEHICLE_CUTOVER: vehicle tickets×12.5, F2/driver 70%, finisher kill.
 
     Returns: events, net, die_n, tk_n, rev_n, nok_rp_n
     """
     aliases = aliases or {}
+    soft_gain = use_rp_gain_softcap(str(match_date or ""))
+    do_vehicle = use_rp_vehicle(str(match_date or "")) and bool(vehicle_ops)
     events: list[dict] = []
     net: dict[str, float] = {}
     die_n = tk_n = rev_n = nok_rp_n = 0
+    # canon key → timestamp when their vehicle exploded (don't also count infantry Die)
+    exploded_at: dict[str, datetime] = {}
     # victimKey -> killerKey of last enemy/TK wound (for revive own-nok)
     last_wound_by: dict[str, str] = {}
+    # Vehicle crew state (hull id → seats / last responsible / finisher)
+    hulls: dict[str, dict] = {}
+    player_hull: dict[str, str] = {}  # nickKey → hull id
+    # Exit can be logged in the same second as the killing blow, a few ms earlier.
+    recent_exit: dict[str, tuple[str, int, datetime]] = {}
+    player_seat: dict[str, int] = {}
+    pawn_to_hull: dict[str, str] = {}
 
     def ensure(key: str, nick: str) -> str:
         ck = aliases.get(key, key)
@@ -240,17 +530,428 @@ def score_match_rp(
         pv = rp.get(other, START_RP)
         return hunt_delta(pk, pv, pmax), pk, pv
 
-    def apply_delta(key: str, signed: float) -> None:
+    def apply_delta(key: str, signed: float) -> float:
+        """Apply signed delta; soft-cap positive gains. Returns actual applied."""
         cur = rp.get(key, START_RP)
+        if soft_gain and signed > 0:
+            signed = round(signed * rp_gain_coef(cur), 2)
         nxt = cur + signed
         if nxt < MIN_RP:
             signed = MIN_RP - cur
             nxt = MIN_RP
         rp[key] = nxt
         net[key] = round(net.get(key, 0.0) + signed, 2)
+        return signed
 
     def same_team(a: str, b: str) -> bool:
         return a in teams and b in teams and teams[a] == teams[b]
+
+    def _ensure_hull(hid: str, asset: str) -> dict:
+        h = hulls.get(hid)
+        if h is None:
+            h = {
+                "asset": asset,
+                "seats": {},  # seat -> nickKey (all occupants tracked)
+                "seat_roles": {},  # seat -> driver|gunner|passenger
+                "last_crew": {},  # only liable: 0=driver, 1=gunner
+                "burn_crew": None,
+                "burning": False,
+                "dead": False,
+                "last_hit": None,  # {killerKey, killer, causer, at_msk}
+                "finisher": None,
+            }
+            hulls[hid] = h
+        elif asset and not h.get("asset"):
+            h["asset"] = asset
+        h.setdefault("seat_roles", {})
+        return h
+
+    def _resolve_hull_id(asset: str, instance: str, seat: int) -> str:
+        if not instance:
+            return ""
+        if seat == 0:
+            pawn_to_hull[instance] = instance
+            return instance
+        if instance in pawn_to_hull:
+            return pawn_to_hull[instance]
+        inst_n = _veh_id_num(instance)
+        best, best_d = "", 10**18
+        for hid, meta in hulls.items():
+            if asset and meta.get("asset") and meta["asset"] != asset:
+                continue
+            hid_n = _veh_id_num(hid)
+            if inst_n is None or hid_n is None:
+                continue
+            d = abs(hid_n - inst_n)
+            if d < best_d and d < 500:
+                best_d = d
+                best = hid
+        if best:
+            pawn_to_hull[instance] = best
+            return best
+        # No hull yet — treat pawn as provisional hull until seat-0 links.
+        pawn_to_hull[instance] = instance
+        return instance
+
+    def _snapshot_crew(h: dict) -> dict[int, str]:
+        """Только водитель + F2. Пассажиры/десант (seat≥2 и seat1 на logi) — вне штрафа."""
+        seats = h.get("seats") or {}
+        roles = h.get("seat_roles") or {}
+        snap: dict[int, str] = {}
+        for seat, key in seats.items():
+            role = roles.get(seat) or vehicle_seat_role(
+                str(h.get("asset") or ""), int(seat), ""
+            )
+            if role == "driver":
+                snap[0] = key
+            elif role == "gunner":
+                snap[1] = key
+        if snap:
+            return snap
+        return dict(h.get("last_crew") or {})
+
+    def _credit_driver_share(
+        gunner_key: str, applied_gain: float, at_msk: str, reason: str
+    ) -> None:
+        """§5: мехвод +70% от +RP наводчика F2, пока оба в одном экипаже."""
+        if applied_gain <= 0:
+            return
+        hid = player_hull.get(gunner_key)
+        if not hid:
+            return
+        h = hulls.get(hid) or {}
+        roles = h.get("seat_roles") or {}
+        g_seat = player_seat.get(gunner_key)
+        if g_seat is None or roles.get(g_seat) != "gunner":
+            return
+        # Driver = whoever currently holds driver role on this hull
+        driver = None
+        for seat, key in (h.get("seats") or {}).items():
+            if roles.get(seat) == "driver":
+                driver = key
+                break
+        if not driver:
+            driver = (h.get("last_crew") or {}).get(0)
+        if not driver or driver == gunner_key:
+            return
+        driver = ensure(driver, disp.get(driver, driver))
+        share = round(abs(applied_gain) * VEHICLE_DRIVER_SHARE, 2)
+        if share <= 0:
+            return
+        gcoef = rp_gain_coef(rp.get(driver, START_RP)) if soft_gain else 1.0
+        applied = apply_delta(driver, +share)
+        asset = h.get("asset") or ""
+        vlab = vehicle_label_ru(asset) if asset else "техника"
+        gun_nick = disp.get(gunner_key, gunner_key)
+        reason_ru = {"nok": "нок", "die": "килл", "vehicle_kill": "технику"}.get(
+            reason, reason
+        )
+        events.append(
+            {
+                "kind": "driver_share",
+                "time": at_msk,
+                "killer": disp[driver],
+                "victim": gun_nick,
+                "delta": round(abs(applied), 2),
+                "gainCoef": gcoef,
+                "vehicle": asset,
+                "tickets": vehicle_tickets(asset) if asset else None,
+                "reason": reason,
+                "label": f"мехвод 70% · {reason_ru} F2 ({gun_nick}) · {vlab}",
+                "formula": "v2",
+            }
+        )
+
+    def _destroy_vehicle(hid: str, at_msk: str, dmg_row: dict | None = None) -> None:
+        h = hulls.get(hid)
+        if not h or h.get("dead"):
+            return
+        h["dead"] = True
+        boom_at = (dmg_row or {}).get("at_dt")
+        if boom_at is not None:
+            liable = set((h.get("seats") or {}).values())
+            liable.update((h.get("burn_crew") or {}).values())
+            liable.update((h.get("last_crew") or {}).values())
+            for pk in liable:
+                if pk:
+                    exploded_at[pk] = boom_at
+        asset = h.get("asset") or ""
+        if dmg_row and not asset:
+            # Infer asset from vid prefix: BP_T62_C_123 → BP_T62_C
+            vid = dmg_row.get("vid") or hid
+            asset = re.sub(r"_\d+$", "", vid)
+            h["asset"] = asset
+        base = vehicle_base_rp(asset)
+        tickets = vehicle_tickets(asset)
+        vlab = vehicle_label_ru(asset)
+        crew = h.get("burn_crew") or _snapshot_crew(h)
+        # Canon: только F2 (gunner) + мехвод. Пассажиры грузовика/вертолёта — 0 штрафа.
+        f2 = crew.get(1)
+        driver = crew.get(0)
+        # Losses — always ×1 (no soft-cap). Never seats≥2 / transport passengers.
+        if f2:
+            f2 = ensure(f2, disp.get(f2, f2))
+            apply_delta(f2, -base)
+            events.append(
+                {
+                    "kind": "vehicle_loss",
+                    "time": at_msk,
+                    "killer": asset or hid,
+                    "victim": disp[f2],
+                    "delta": round(base, 2),
+                    "tickets": tickets,
+                    "vehicle": asset,
+                    "seat": 1,
+                    "label": f"потеря {vlab} (F2, {tickets} тик.)",
+                    "formula": "v2",
+                }
+            )
+        if driver and driver != f2:
+            driver = ensure(driver, disp.get(driver, driver))
+            dpen = round(base * VEHICLE_DRIVER_SHARE, 2)
+            apply_delta(driver, -dpen)
+            events.append(
+                {
+                    "kind": "vehicle_loss_driver",
+                    "time": at_msk,
+                    "killer": asset or hid,
+                    "victim": disp[driver],
+                    "delta": dpen,
+                    "tickets": tickets,
+                    "vehicle": asset,
+                    "seat": 0,
+                    "label": f"потеря {vlab} (мехвод 70%, {tickets} тик.)",
+                    "formula": "v2",
+                }
+            )
+        # Finisher kill credit
+        fin = h.get("finisher") or h.get("last_hit")
+        if dmg_row and not dmg_row.get("burning") and dmg_row.get("killerKey"):
+            fin = {
+                "killerKey": dmg_row["killerKey"],
+                "killer": dmg_row.get("killer") or "",
+                "causer": dmg_row.get("causer") or "",
+            }
+        kk = (fin or {}).get("killerKey") or ""
+        if not kk or str(kk).startswith("?"):
+            return
+        # Friendly fire / own crew: no +RP
+        crew_keys = {c for c in (f2, driver) if c}
+        if kk in crew_keys:
+            return
+        if any(same_team(kk, c) for c in crew_keys):
+            return
+        kk = ensure(kk, (fin or {}).get("killer") or kk)
+        gcoef = rp_gain_coef(rp.get(kk, START_RP)) if soft_gain else 1.0
+        applied = apply_delta(kk, +base)
+        events.append(
+            {
+                "kind": "vehicle_kill",
+                "time": at_msk,
+                "killer": disp[kk],
+                "victim": asset or hid,
+                "delta": round(abs(applied), 2),
+                "tickets": tickets,
+                "vehicle": asset,
+                "weapon": (fin or {}).get("causer") or "",
+                "gainCoef": gcoef,
+                "label": f"уничтожил {vlab} ({tickets} тик.)",
+                "formula": "v2",
+            }
+        )
+        _credit_driver_share(kk, applied, at_msk, "vehicle_kill")
+
+    def _handle_vehicle_op(d: dict) -> None:
+        kind = d["kind"]
+        at_msk = d.get("at_msk") or ""
+        if kind == "v_enter":
+            key = d.get("nickKey") or ""
+            if not key or key.startswith("?"):
+                return
+            key = ensure(key, d.get("nick") or key)
+            seat = int(d.get("seat") or 0)
+            asset = d.get("asset") or ""
+            inst = d.get("instance") or ""
+            hid = _resolve_hull_id(asset, inst, seat)
+            if not hid:
+                return
+            h = _ensure_hull(hid, asset)
+            if h.get("dead"):
+                return
+            # Leave previous seat
+            old = player_hull.get(key)
+            if old and old in hulls:
+                seats = hulls[old]["seats"]
+                roles_old = hulls[old].setdefault("seat_roles", {})
+                for s, pk in list(seats.items()):
+                    if pk == key:
+                        del seats[s]
+                        roles_old.pop(s, None)
+            role = vehicle_seat_role(asset, seat, d.get("pawn") or d.get("instance") or "")
+            h["seats"][seat] = key
+            h.setdefault("seat_roles", {})[seat] = role
+            player_hull[key] = hid
+            player_seat[key] = seat
+            # last_crew — только ответственные (не десант)
+            if role == "driver":
+                h["last_crew"][0] = key
+            elif role == "gunner":
+                h["last_crew"][1] = key
+            return
+
+        if kind == "v_exit":
+            key = d.get("nickKey") or ""
+            if not key:
+                return
+            key = aliases.get(key, key)
+            seat = int(d.get("seat") or 0)
+            hid = player_hull.get(key)
+            if not hid:
+                # Try resolve via fullpath instance
+                inst = _veh_instance(d.get("fullpath") or "") or d.get("instance") or ""
+                hid = pawn_to_hull.get(inst) or inst
+            if hid and hid in hulls:
+                h = hulls[hid]
+                seats = h["seats"]
+                roles = h.setdefault("seat_roles", {})
+
+                def _freeze_liable(s: int, pk: str) -> None:
+                    role = roles.get(s) or vehicle_seat_role(
+                        str(h.get("asset") or ""), s, ""
+                    )
+                    if role == "driver":
+                        h["last_crew"][0] = pk
+                    elif role == "gunner":
+                        h["last_crew"][1] = pk
+
+                if seats.get(seat) == key:
+                    _freeze_liable(seat, key)
+                    del seats[seat]
+                    roles.pop(seat, None)
+                else:
+                    for s, pk in list(seats.items()):
+                        if pk == key:
+                            _freeze_liable(s, pk)
+                            del seats[s]
+                            roles.pop(s, None)
+            if hid:
+                recent_exit[key] = (hid, int(seat or 0), d.get("at_dt"))
+            player_hull.pop(key, None)
+            player_seat.pop(key, None)
+            return
+
+        if kind == "v_burn":
+            vid = d.get("vid") or ""
+            hid = pawn_to_hull.get(vid) or vid
+            if hid not in hulls:
+                # Damage may arrive before any Enter in window — still track.
+                _ensure_hull(hid, re.sub(r"_\d+$", "", vid))
+            h = hulls[hid]
+            if h.get("dead"):
+                return
+            if not h.get("burning"):
+                h["burning"] = True
+                h["burn_crew"] = _snapshot_crew(h)
+                if h.get("last_hit"):
+                    h["finisher"] = dict(h["last_hit"])
+            return
+
+        if kind == "v_dmg":
+            vid = d.get("vid") or ""
+            hid = pawn_to_hull.get(vid) or vid
+            if hid not in hulls:
+                _ensure_hull(hid, re.sub(r"_\d+$", "", vid))
+                pawn_to_hull[vid] = hid
+            h = hulls[hid]
+            if h.get("dead"):
+                return
+            burning = bool(d.get("burning"))
+            kk = d.get("killerKey") or ""
+            if kk and not str(kk).startswith("?") and not burning:
+                hit = {
+                    "killerKey": aliases.get(kk, kk),
+                    "killer": d.get("killer") or "",
+                    "causer": d.get("causer") or "",
+                    "at_msk": at_msk,
+                }
+                h["last_hit"] = hit
+                if not h.get("burning"):
+                    h["finisher"] = hit
+            if burning and not h.get("burning"):
+                h["burning"] = True
+                h["burn_crew"] = _snapshot_crew(h)
+                if h.get("last_hit"):
+                    h["finisher"] = dict(h["last_hit"])
+            try:
+                health = float(d.get("health"))
+            except (TypeError, ValueError):
+                health = 1.0
+            h["health"] = health
+            if health <= 0:
+                _destroy_vehicle(hid, at_msk, d)
+            return
+
+        if kind == "v_dmg_named":
+            # Occupied hull: log names the driver, HP continues the BP_ pool.
+            key = d.get("whoKey") or ""
+            if not key or str(key).startswith("?"):
+                return
+            key = aliases.get(key, key)
+            hid = player_hull.get(key) or ""
+            ghost: tuple | None = None
+            if not hid:
+                rec = recent_exit.get(key)
+                at_dt = d.get("at_dt")
+                if rec and at_dt is not None and rec[2] is not None:
+                    rhid, rseat, rat = rec
+                    if 0 <= (at_dt - rat).total_seconds() <= 2:
+                        h0 = hulls.get(rhid)
+                        if h0 and not h0.get("dead"):
+                            role = vehicle_seat_role(
+                                str(h0.get("asset") or ""), rseat, ""
+                            )
+                            h0.setdefault("seats", {})[rseat] = key
+                            h0.setdefault("seat_roles", {})[rseat] = role
+                            if role == "driver":
+                                h0["last_crew"][0] = key
+                            elif role == "gunner":
+                                h0["last_crew"][1] = key
+                            hid = rhid
+                            ghost = (h0, rseat)
+            h = hulls.get(hid) if hid else None
+
+            def _drop_ghost() -> None:
+                if not ghost:
+                    return
+                gh, gs = ghost
+                if gh.get("seats", {}).get(gs) == key:
+                    gh["seats"].pop(gs, None)
+                    gh.get("seat_roles", {}).pop(gs, None)
+
+            if not h or h.get("dead"):
+                return
+            last = h.get("health")
+            if last is None:
+                _drop_ghost()
+                return
+            try:
+                health = float(d.get("health"))
+                dmg = float(d.get("dmg") or 0)
+            except (TypeError, ValueError):
+                _drop_ghost()
+                return
+            if abs((float(last) - dmg) - health) > 2.0:
+                _drop_ghost()
+                return
+            dmg_as_hull = {
+                **d,
+                "kind": "v_dmg",
+                "vid": hid,
+                "health": health,
+                "burning": False,
+            }
+            _handle_vehicle_op(dmg_as_hull)
+            return
 
     if not new_formula:
         # --- legacy path (matches before cutover) ---
@@ -363,10 +1064,18 @@ def score_match_rp(
                 "at_dt": at_dt,
             }
         )
+    if do_vehicle:
+        for d in vehicle_ops or []:
+            timeline.append(d)
     timeline.sort(key=_event_sort_key)
 
     for d in timeline:
         kind = d["kind"]
+        if kind in ("v_enter", "v_exit", "v_burn", "v_dmg", "v_dmg_named"):
+            if do_vehicle:
+                _handle_vehicle_op(d)
+            continue
+
         kk, vk = d.get("killerKey"), d.get("victimKey")
         if not kk or not vk or kk == vk or str(kk).startswith("?"):
             continue
@@ -396,7 +1105,8 @@ def score_match_rp(
             else:
                 delta_k = round(n * COEF_ENEMY_NOK, 2)
                 delta_v = round(n * COEF_BEING_NOKKED, 2)
-                apply_delta(kk, +delta_k)
+                gcoef = rp_gain_coef(pk) if soft_gain else 1.0
+                applied_k = apply_delta(kk, +delta_k)
                 apply_delta(vk, -delta_v)
                 events.append(
                     {
@@ -406,15 +1116,26 @@ def score_match_rp(
                         "victim": disp[vk],
                         "killerRp": round(pk, 1),
                         "victimRp": round(pv, 1),
-                        "delta": delta_k,
+                        "delta": round(abs(applied_k), 2),
                         "victimDelta": delta_v,
                         "teamkill": False,
                         "formula": "v2",
+                        "gainCoef": gcoef,
                     }
                 )
+                if do_vehicle:
+                    _credit_driver_share(kk, applied_k, d.get("at_msk") or "", "nok")
             nok_rp_n += 1
 
         elif kind == "die":
+            boom = exploded_at.get(vk)
+            at_dt = d.get("at_dt")
+            if (
+                boom is not None
+                and at_dt is not None
+                and abs((at_dt - boom).total_seconds()) <= 3
+            ):
+                continue
             if tk:
                 delta_k = round(n * COEF_TK_KILL_EXTRA, 2)
                 delta_v = round(n * COEF_OWN_DEATH, 2)
@@ -438,7 +1159,8 @@ def score_match_rp(
             else:
                 delta_k = round(n * COEF_ENEMY_KILL, 2)
                 delta_v = round(n * COEF_OWN_DEATH, 2)
-                apply_delta(kk, +delta_k)
+                gcoef = rp_gain_coef(pk) if soft_gain else 1.0
+                applied_k = apply_delta(kk, +delta_k)
                 apply_delta(vk, -delta_v)
                 events.append(
                     {
@@ -448,19 +1170,23 @@ def score_match_rp(
                         "victim": disp[vk],
                         "killerRp": round(pk, 1),
                         "victimRp": round(pv, 1),
-                        "delta": delta_k,
+                        "delta": round(abs(applied_k), 2),
                         "victimDelta": delta_v,
                         "teamkill": False,
                         "formula": "v2",
+                        "gainCoef": gcoef,
                     }
                 )
+                if do_vehicle:
+                    _credit_driver_share(kk, applied_k, d.get("at_msk") or "", "die")
                 die_n += 1
 
         elif kind == "revive":
             own_nok = last_wound_by.get(vk) == kk
             coef = COEF_REVIVE_OWN_NOK if own_nok else COEF_REVIVE
             delta = round(n * coef, 2)
-            apply_delta(kk, +delta)
+            gcoef = rp_gain_coef(pk) if soft_gain else 1.0
+            applied = apply_delta(kk, +delta)
             net.setdefault(vk, 0.0)
             events.append(
                 {
@@ -470,9 +1196,10 @@ def score_match_rp(
                     "victim": disp[vk],
                     "killerRp": round(pk, 1),
                     "victimRp": round(pv, 1),
-                    "delta": delta,
+                    "delta": round(abs(applied), 2),
                     "ownNokRevive": own_nok,
                     "formula": "v2",
+                    "gainCoef": gcoef,
                 }
             )
             rev_n += 1
@@ -488,10 +1215,10 @@ def rp_rank(rp: float) -> dict:
             "label": "PREDATOR",
             "rankKey": "predator",
             "roman": "",
-            "level": 30,
+            "level": NAMED_RANK_LEVELS,
             "predator": True,
         }
-    idx = 0 if rp_i < 1 else min(29, (rp_i - 1) // STEP)
+    idx = 0 if rp_i < 1 else min(NAMED_RANK_LEVELS - 1, (rp_i - 1) // STEP)
     name, key = RANK_NAMES[idx // 3]
     roman = ROMAN[idx % 3]
     return {
@@ -575,7 +1302,7 @@ def _has_inactive_soon(
 
 
 def index_log_combat(log_path: Path, aliases: dict[str, str]) -> dict:
-    """Single pass: steam map, inactive, dies, revives, squad/deploy for team."""
+    """Single pass: steam map, inactive, dies, revives, squad/deploy, vehicles."""
     steam_to_nick: dict[str, str] = {}
     inactive_by_nick: dict[str, list[datetime]] = {}
     inactive_by_steam: dict[str, list[datetime]] = {}
@@ -585,6 +1312,7 @@ def index_log_combat(log_path: Path, aliases: dict[str, str]) -> dict:
     revives: list[dict] = []
     squads: list[tuple[datetime, str, str]] = []  # at, nick_key, faction
     deploys: list[tuple[datetime, str, str]] = []  # at, nick_key, prefix
+    raw_vehicle_ops: list[dict] = []
 
     with log_path.open("r", encoding="utf-8", errors="replace") as f:
         for line in f:
@@ -677,9 +1405,110 @@ def index_log_combat(log_path: Path, aliases: dict[str, str]) -> dict:
                             (at, canon_key(dm.group("nick"), aliases), pref)
                         )
 
+            if "Entered Vehicle" in line:
+                em = ENTERED_VEH_RE.search(line)
+                if em:
+                    asset = (em.group("asset") or "").strip()
+                    pawn = em.group("pawn") or ""
+                    if not _skip_vehicle_asset(asset, pawn):
+                        raw_vehicle_ops.append(
+                            {
+                                "op": "enter",
+                                "at": at,
+                                "nick": strip_tag(em.group("nick")),
+                                "steam": em.group("steam"),
+                                "pawn": pawn,
+                                "asset": asset,
+                                "fullpath": em.group("fullpath") or "",
+                                "seat": int(em.group("seat") or 0),
+                            }
+                        )
+
+            if "Exited Vehicle" in line:
+                xm = EXITED_VEH_RE.search(line)
+                if xm:
+                    asset = (xm.group("asset") or "").strip()
+                    if not _skip_vehicle_asset(asset):
+                        raw_vehicle_ops.append(
+                            {
+                                "op": "exit",
+                                "at": at,
+                                "nick": strip_tag(xm.group("nick")),
+                                "steam": xm.group("steam"),
+                                "asset": asset,
+                                "fullpath": xm.group("fullpath") or "",
+                                "seat": int(xm.group("seat") or 0),
+                            }
+                        )
+
+            if "SQBurningDamage" in line:
+                bm = VEH_BURN_RE.search(line)
+                if bm:
+                    raw_vehicle_ops.append(
+                        {
+                            "op": "burn",
+                            "at": at,
+                            "vid": bm.group("vid"),
+                        }
+                    )
+
+            if "damage taken by causer" in line and "health remaining" in line:
+                # Vehicle actor, or the same HP pool written under the driver's nick.
+                if not re.search(r"BP_[A-Za-z0-9_]+_C_\d+:", line):
+                    om = VEH_OCC_DMG_RE.search(line)
+                    if om and not str(om.group("who") or "").startswith("BP_"):
+                        try:
+                            raw_vehicle_ops.append(
+                                {
+                                    "op": "dmg_named",
+                                    "at": at,
+                                    "who": strip_tag(om.group("who") or ""),
+                                    "dmg": float(om.group("dmg") or 0),
+                                    "causer": om.group("causer") or "",
+                                    "nick": strip_tag(om.group("nick") or ""),
+                                    "steam": om.group("steam") or "",
+                                    "health": float(om.group("health")),
+                                }
+                            )
+                        except ValueError:
+                            pass
+                elif re.search(r"BP_[A-Za-z0-9_]+_C_\d+:", line):
+                    dm = VEH_DMG_RE.search(line)
+                    if dm:
+                        nick = (dm.group("nick") or dm.group("nick2") or "").strip()
+                        causer = dm.group("causer") or ""
+                        vid = dm.group("vid")
+                        nick_l = nick.lower()
+                        # Burn ticks: causer is the vehicle itself; or explicit SQBurningDamage.
+                        burning = causer == vid or "SQBurningDamage" in line
+                        try:
+                            health = float(dm.group("health"))
+                            dmg = float(dm.group("dmg") or 0)
+                        except ValueError:
+                            continue
+                        raw_vehicle_ops.append(
+                            {
+                                "op": "dmg",
+                                "at": at,
+                                "vid": vid,
+                                "dmg": dmg,
+                                "causer": causer,
+                                "nick": (
+                                    ""
+                                    if nick_l in ("", "nullptr", "invalid")
+                                    else strip_tag(nick)
+                                ),
+                                "steam": dm.group("steam") or "",
+                                "health": health,
+                                "burning": burning,
+                            }
+                        )
+
     for d in (inactive_by_nick, inactive_by_steam):
         for k in d:
             d[k].sort()
+
+    raw_vehicle_ops.sort(key=lambda r: r["at"])
 
     return {
         "steam_to_nick": steam_to_nick,
@@ -691,7 +1520,107 @@ def index_log_combat(log_path: Path, aliases: dict[str, str]) -> dict:
         "revives": revives,
         "squads": squads,
         "deploys": deploys,
+        "raw_vehicle_ops": raw_vehicle_ops,
     }
+
+
+def vehicle_ops_in_window(
+    idx: dict,
+    t0: datetime,
+    t1: datetime,
+    steam_to_nick: dict[str, str],
+    aliases: dict[str, str],
+) -> list[dict]:
+    """Resolve vehicle enter/exit/dmg/burn ops inside [t0, t1) for score_match_rp."""
+    out: list[dict] = []
+    for raw in idx.get("raw_vehicle_ops") or []:
+        at = raw["at"]
+        if not (t0 <= at < t1):
+            continue
+        op = raw["op"]
+        at_msk = (at + timedelta(hours=3)).strftime("%H:%M:%S")
+        if op in ("enter", "exit"):
+            nick = raw.get("nick") or ""
+            steam = raw.get("steam") or ""
+            if steam and steam in steam_to_nick:
+                nick = steam_to_nick[steam]
+            elif steam and steam in idx.get("steam_to_nick", {}):
+                nick = idx["steam_to_nick"][steam]
+            pawn = raw.get("pawn") or ""
+            fullpath = raw.get("fullpath") or ""
+            inst = _veh_instance(pawn) or _veh_instance(fullpath)
+            out.append(
+                {
+                    "kind": f"v_{op}",
+                    "at_dt": at,
+                    "at_msk": at_msk,
+                    "nick": strip_tag(nick),
+                    "nickKey": canon_key(nick, aliases),
+                    "steam": steam,
+                    "asset": raw.get("asset") or "",
+                    "pawn": pawn,
+                    "fullpath": fullpath,
+                    "instance": inst,
+                    "seat": int(raw.get("seat") or 0),
+                }
+            )
+        elif op == "burn":
+            out.append(
+                {
+                    "kind": "v_burn",
+                    "at_dt": at,
+                    "at_msk": at_msk,
+                    "vid": raw.get("vid") or "",
+                }
+            )
+        elif op == "dmg":
+            nick = raw.get("nick") or ""
+            steam = raw.get("steam") or ""
+            if steam and steam in steam_to_nick:
+                nick = steam_to_nick[steam]
+            elif steam and steam in idx.get("steam_to_nick", {}):
+                nick = idx["steam_to_nick"][steam]
+            out.append(
+                {
+                    "kind": "v_dmg",
+                    "at_dt": at,
+                    "at_msk": at_msk,
+                    "vid": raw.get("vid") or "",
+                    "dmg": float(raw.get("dmg") or 0),
+                    "causer": raw.get("causer") or "",
+                    "killer": strip_tag(nick) if nick else "",
+                    "killerKey": canon_key(nick, aliases) if nick else "",
+                    "steam": steam,
+                    "health": float(raw.get("health") or 0),
+                    "burning": bool(raw.get("burning")),
+                }
+            )
+        elif op == "dmg_named":
+            who = raw.get("who") or ""
+            nick = raw.get("nick") or ""
+            steam = raw.get("steam") or ""
+            if steam and steam in steam_to_nick:
+                nick = steam_to_nick[steam]
+            elif steam and steam in idx.get("steam_to_nick", {}):
+                nick = idx["steam_to_nick"][steam]
+            out.append(
+                {
+                    "kind": "v_dmg_named",
+                    "at_dt": at,
+                    "at_msk": at_msk,
+                    "who": strip_tag(who),
+                    "whoKey": canon_key(who, aliases) if who else "",
+                    "dmg": float(raw.get("dmg") or 0),
+                    "causer": raw.get("causer") or "",
+                    "killer": strip_tag(nick) if nick else "",
+                    "killerKey": canon_key(nick, aliases) if nick else "",
+                    "steam": steam,
+                    "health": float(raw.get("health") or 0),
+                    "burning": False,
+                }
+            )
+    out.sort(key=_event_sort_key)
+    return out
 
 
 def _resolve_combat_row(
@@ -844,9 +1773,21 @@ def revives_in_window(idx: dict, t0: datetime, t1: datetime) -> list[dict]:
     return [r for r in idx["revives"] if t0 <= r["at"] < t1]
 
 
+_FACTION_INITIAL_SKIP = frozenset(
+    {"of", "the", "and", "de", "la", "le", "les", "van", "der"}
+)
+
+
 def _faction_initials(faction: str) -> str:
+    """Initials for DeployRole prefixes: 'Ground Forces of Iran' → GFI (skip of/the/…)."""
     parts = [w for w in re.split(r"[\s\-]+", faction.strip()) if w]
-    return "".join(w[0] for w in parts if w[0].isalpha()).upper()
+    letters: list[str] = []
+    for w in parts:
+        if w.lower() in _FACTION_INITIAL_SKIP:
+            continue
+        if w[0].isalpha():
+            letters.append(w[0])
+    return "".join(letters).upper()
 
 
 # DeployRole pawn prefixes that initials() miss (PNMC≠PLANMC, RAF≠VDV, …)
@@ -865,6 +1806,9 @@ _FACTION_ROLE_PREFIXES: dict[str, tuple[str, ...]] = {
     "insurgent forces": ("INS",),
     "irregular militia forces": ("IMF",),
     "ukraine": ("AFU",),
+    # GFI from DeployRole; initials without skip used to yield GFOI
+    "ground forces of iran": ("GFI",),
+    "iranian": ("GFI",),
 }
 
 
