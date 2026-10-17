@@ -556,11 +556,9 @@ def score_match_rp(
     events: list[dict] = []
     net: dict[str, float] = {}
     die_n = tk_n = rev_n = nok_rp_n = 0
-    # canon key → timestamp when their vehicle exploded (don't also count infantry Die)
+    # canon key → timestamp when their vehicle exploded.
+    # Infantry nok and give-up are still scored on top of the vehicle RP.
     exploded_at: dict[str, datetime] = {}
-    # Still down from that explosion. Give-up a minute later is the same life,
-    # not a fresh infantry kill. Cleared by a real nok or a revive.
-    downed_by_boom: set[str] = set()
     # victimKey -> killerKey of last enemy/TK wound (for revive own-nok)
     last_wound_by: dict[str, str] = {}
     # Vehicle crew state (hull id → seats / last responsible / finisher)
@@ -1178,21 +1176,10 @@ def score_match_rp(
         return events, net, die_n, tk_n, rev_n, 0
 
     # --- new formula (cutover+) — chronological ---
-    def _crew_knock_is_hull(vk: str, at_dt, dmg_row: dict) -> bool:
-        """Нок или смерть экипажа сами по себе технику не списывают.
-
-        Корпус умер, только если его ХП дошло до нуля (строка может быть
-        на мехводе или на стрелке — оба теряют очки). Если взрыв уже
-        записан, пехотный нок поверх него не ставим.
-
-        Не взрыв: техника горела, экипаж умер, машину починили;
-        мехвод вылез чинить и умер, а корпус ещё жив.
-        """
-        if not do_vehicle or at_dt is None:
-            return False
-        prev = exploded_at.get(vk)
-        return prev is not None and abs((at_dt - prev).total_seconds()) <= 3
-
+    # Нок или смерть сами по себе технику не списывают: корпус умер, только
+    # если ХП дошло до нуля. Если дошло — в счёт идёт и техника, и пехотная
+    # жизнь экипажа (нок + give up). Горение без нуля и смерть мехвода снаружи
+    # живого корпуса технику не списывают.
     timeline: list[dict] = []
     for d in wounds:
         timeline.append({**d, "kind": "wound"})
@@ -1238,10 +1225,6 @@ def score_match_rp(
         tk = same_team(kk, vk)
 
         if kind == "wound":
-            if _crew_knock_is_hull(vk, d.get("at_dt"), d):
-                downed_by_boom.add(vk)
-                continue
-            downed_by_boom.discard(vk)
             last_wound_by[vk] = kk
             if tk:
                 delta_k = round(n * COEF_TK_NOK, 2)
@@ -1285,18 +1268,6 @@ def score_match_rp(
             nok_rp_n += 1
 
         elif kind == "die":
-            # Same life as the vehicle: the knock was the blast, the give-up
-            # can land 10–90s later. Do not pay a second infantry kill/death.
-            if vk in downed_by_boom:
-                continue
-            boom = exploded_at.get(vk)
-            at_dt = d.get("at_dt")
-            if (
-                boom is not None
-                and at_dt is not None
-                and abs((at_dt - boom).total_seconds()) <= 3
-            ):
-                continue
             if tk:
                 delta_k = round(n * COEF_TK_KILL_EXTRA, 2)
                 delta_v = round(n * COEF_OWN_DEATH, 2)
@@ -1343,7 +1314,6 @@ def score_match_rp(
                 die_n += 1
 
         elif kind == "revive":
-            downed_by_boom.discard(vk)
             own_nok = last_wound_by.get(vk) == kk
             coef = COEF_REVIVE_OWN_NOK if own_nok else COEF_REVIVE
             delta = round(n * coef, 2)

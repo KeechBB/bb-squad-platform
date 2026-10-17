@@ -224,8 +224,8 @@ occ_events, occ_net, occ_die_n, *_ = R.score_match_rp(
 )
 occ_kinds = [(e["kind"], e.get("victim"), e.get("time")) for e in occ_events]
 assert ("vehicle_loss_driver", "Keech", "15:25:43") in occ_kinds, occ_kinds
-assert not any(e["kind"] == "die" and e.get("victim") == "Keech" for e in occ_events), occ_kinds
-assert occ_die_n == 0, occ_die_n
+assert any(e["kind"] == "die" and e.get("victim") == "Keech" for e in occ_events), occ_kinds
+assert occ_die_n == 1, occ_die_n
 assert any(e["kind"] == "vehicle_kill" and e.get("killer") == "Filin" for e in occ_events)
 print("occupied-hull kill OK", occ_net.get("keech"))
 
@@ -354,7 +354,7 @@ eng_events = []
 for op in sorted(occ_ops, key=R._event_sort_key):
     eng_events.extend(eng.handle(op))
 assert any(e["kind"] == "vehicle_loss_driver" and e.get("victim") == "Keech" for e in eng_events), eng_events
-assert eng.died_in_explosion("keech", boom + timedelta(milliseconds=991))
+assert not eng.died_in_explosion("keech", boom + timedelta(milliseconds=991))
 print("engine occupied-hull OK")
 
 # A crew knock with no hull death is infantry. Burning or a repair
@@ -531,11 +531,11 @@ z_events, z_net, *_ = R.score_match_rp(
 z_kills = [e for e in z_events if e["kind"] == "vehicle_kill"]
 assert len(z_kills) == 1, [(e["kind"], e.get("killer"), e.get("victim"), e.get("label")) for e in z_events]
 assert z_kills[0]["killer"] == "Moisha"
-assert not any(e["kind"] == "nok" for e in z_events)
+assert sum(1 for e in z_events if e["kind"] == "nok") == 2
 print("turret pawn is not a second vehicle OK", z_net.get("moisha"))
 
-# Crew give up a minute after the blast. That is the same life as the
-# vehicle loss, not an extra infantry kill for the gunner.
+# Crew give up a minute after the blast. Vehicle RP and the infantry
+# life both count: nok, give-up, and the hull.
 late = z_at + timedelta(seconds=80)
 late_dies = [
     {
@@ -570,8 +570,9 @@ g_events, g_net, g_die, *_ = R.score_match_rp(
     match_id="20261017-1200-test",
     vehicle_ops=z_ops,
 )
-assert g_die == 0, [(e["kind"], e.get("victim"), e.get("delta")) for e in g_events if e["kind"] == "die"]
-assert not any(e["kind"] == "die" for e in g_events)
+assert g_die == 2, [(e["kind"], e.get("victim"), e.get("delta")) for e in g_events if e["kind"] == "die"]
+assert sum(1 for e in g_events if e["kind"] == "nok") == 2
+assert any(e["kind"] == "die" and e.get("victim") == "DotaMax" and e.get("victimDelta") for e in g_events)
 assert any(e["kind"] == "vehicle_kill" for e in g_events)
 assert any(e["kind"] == "vehicle_loss" and e.get("victim") == "Nahimov" for e in g_events)
 # Revived, then a rifle. That death counts.
@@ -618,7 +619,7 @@ r_events, _, r_die, *_ = R.score_match_rp(
 )
 assert r_die == 1, [(e["kind"], e.get("victim")) for e in r_events]
 assert any(e["kind"] == "nok" and e.get("victim") == "Nahimov" for e in r_events)
-print("give-up after vehicle blast is not an infantry kill OK", g_net.get("moisha"))
+print("crew give-up counts on top of the vehicle OK", g_net.get("moisha"))
 
 # Live Kamdesh layout: periscope of one ZBL is only ~18 ids from the next
 # turret. The turret must follow its own hull (dist 8), and the knock of
@@ -755,7 +756,7 @@ w_kills = [e for e in w_events if e["kind"] == "vehicle_kill"]
 w_losses = [e for e in w_events if e["kind"].startswith("vehicle_loss")]
 assert len(w_kills) == 1, [(e["kind"], e.get("victim"), e.get("label")) for e in w_events]
 assert not any(e.get("victim") == "Farvort" for e in w_losses), w_losses
-assert not any(e["kind"] == "nok" for e in w_events)
+assert sum(1 for e in w_events if e["kind"] == "nok") == 2
 print("spawn-wave turret stays on its own hull OK", w_net.get("moisha"))
 
 # Killing blow is logged on the driver after both crew already exited.
@@ -855,7 +856,7 @@ assert any(e["kind"] == "vehicle_loss" and e.get("victim") == "Moisha" for e in 
     (e["kind"], e.get("victim")) for e in b_events
 ]
 assert any(e["kind"] == "vehicle_loss_driver" and e.get("victim") == "Golub" for e in b_events)
-assert not any(e["kind"] == "nok" for e in b_events)
+assert sum(1 for e in b_events if e["kind"] == "nok") == 2
 print("gunner still liable after driver-named kill OK", b_net.get("moisha"))
 
 # The hull pool can be written on the gunner, not only the driver.
@@ -955,7 +956,7 @@ assert any(e["kind"] == "vehicle_loss" and e.get("victim") == "Keech" for e in g
 ]
 assert any(e["kind"] == "vehicle_loss_driver" and e.get("victim") == "Mount" for e in g_events)
 assert sum(1 for e in g_events if e["kind"] == "vehicle_kill") == 1
-assert not any(e["kind"] == "nok" for e in g_events)
+assert sum(1 for e in g_events if e["kind"] == "nok") == 2
 print("gunner-named hull death charges both crew OK", g_net.get("keech"))
 
 # Driver hopped out to repair and was knocked. Hull never reached 0.

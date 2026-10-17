@@ -51,14 +51,13 @@ class VehicleRpEngine:
         self.exploded_at.clear()
 
     def died_in_explosion(self, key: str, at_dt: datetime | None) -> bool:
-        """True when this player's Die() is the vehicle blast, not an infantry death."""
-        if at_dt is None or not key:
-            return False
-        key = self.aliases.get(key, key)
-        boom = self.exploded_at.get(key)
-        if boom is None:
-            return False
-        return abs((at_dt - boom).total_seconds()) <= 3
+        """Crew death is infantry as well as the vehicle.
+
+        A blast still writes vehicle_kill / vehicle_loss. The nok and the
+        give-up are a separate life and stay on the card. This returns
+        False so Hunt does not drop that life.
+        """
+        return False
 
     def set_teams(self, teams: dict[str, str]) -> None:
         self.teams = teams
