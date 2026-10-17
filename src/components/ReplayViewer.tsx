@@ -80,30 +80,47 @@ export function ReplayViewer({ data }: Props) {
     img.src = map.image;
   }, [map]);
 
-  const fitMap = useCallback(() => {
+  const viewportSize = useCallback(() => {
     const wrap = wrapRef.current;
-    const img = mapImg;
-    if (!wrap || !img) return;
+    if (!wrap) return { vw: 960, vh: 640 };
     const vw = Math.max(wrap.clientWidth, 320);
-    const vh = Math.max(Math.min(wrap.clientWidth, 720), 420);
+    const vh = Math.max(wrap.clientHeight || Math.round(vw * 0.72), 480);
+    return { vw, vh };
+  }, []);
+
+  const fitMap = useCallback(() => {
+    const img = mapImg;
+    if (!img) return;
+    const { vw, vh } = viewportSize();
     const z = Math.min(vw / img.naturalWidth, vh / img.naturalHeight);
     const pw = img.naturalWidth * z;
     const ph = img.naturalHeight * z;
     setZoom(z);
     setPan({ x: (vw - pw) / 2, y: (vh - ph) / 2 });
     fittedRef.current = true;
-  }, [mapImg]);
+  }, [mapImg, viewportSize]);
 
   useEffect(() => {
-    if (mapImg && !fittedRef.current) fitMap();
+    if (mapImg && !fittedRef.current) {
+      // wait a frame so CSS height on wrap is applied
+      requestAnimationFrame(() => fitMap());
+    }
   }, [mapImg, fitMap]);
+
+  useEffect(() => {
+    const onResize = () => {
+      fittedRef.current = false;
+      fitMap();
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [fitMap]);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     const wrap = wrapRef.current;
     if (!canvas || !wrap || !map) return;
-    const cssW = Math.max(wrap.clientWidth, 320);
-    const cssH = Math.max(Math.min(wrap.clientWidth, 720), 420);
+    const { vw: cssW, vh: cssH } = viewportSize();
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.floor(cssW * dpr);
     canvas.height = Math.floor(cssH * dpr);
@@ -176,12 +193,6 @@ export function ReplayViewer({ data }: Props) {
 
   useEffect(() => {
     draw();
-  }, [draw]);
-
-  useEffect(() => {
-    const onResize = () => draw();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
   }, [draw]);
 
   useEffect(() => {
@@ -317,11 +328,15 @@ export function ReplayViewer({ data }: Props) {
             type="button"
             className="replay-btn"
             onClick={() => {
-              const wrap = wrapRef.current;
-              const img = mapImg;
-              if (!wrap || !img) return;
-              const z = Math.min(4, (wrap.clientWidth * 0.85) / 800);
-              setZoom(z);
+              const { vw, vh } = viewportSize();
+              const { zoom: z0, pan: p0 } = viewRef.current;
+              const cx = vw / 2;
+              const cy = vh / 2;
+              const z1 = Math.min(8, z0 * 1.35);
+              const mx = (cx - p0.x) / z0;
+              const my = (cy - p0.y) / z0;
+              setZoom(z1);
+              setPan({ x: cx - mx * z1, y: cy - my * z1 });
             }}
           >
             Zoom+
