@@ -224,6 +224,122 @@ assert occ_die_n == 0, occ_die_n
 assert any(e["kind"] == "vehicle_kill" and e.get("killer") == "Filin" for e in occ_events)
 print("occupied-hull kill OK", occ_net.get("keech"))
 
+# One-shot occupied kill WITHOUT prior BP_ health sample (Defstrouk/Kornet case).
+oneshot_ops = [
+    {
+        "kind": "v_enter",
+        "at_dt": boom,
+        "at_msk": "15:39:40",
+        "nick": "Rocker",
+        "nickKey": "rocker",
+        "asset": "BP_BFV_Woodland_C",
+        "pawn": "BP_BFV_Woodland_C_100",
+        "fullpath": "PersistentLevel.BP_BFV_Woodland_C_100",
+        "instance": "BP_BFV_Woodland_C_100",
+        "seat": 0,
+    },
+    {
+        "kind": "v_dmg_named",
+        "at_dt": boom + timedelta(seconds=7),
+        "at_msk": "15:39:47",
+        "who": "Rocker",
+        "whoKey": "rocker",
+        "dmg": 1800,
+        "causer": "BP_Kornet_Proj2_C_1",
+        "killer": "Defstrouk05",
+        "killerKey": "defstrouk05",
+        "health": -310,
+        "burning": False,
+    },
+]
+os_events, os_net, *_ = R.score_match_rp(
+    dies=[],
+    wounds=[],
+    revives=[],
+    teams={"rocker": "1", "defstrouk05": "2"},
+    rp={"rocker": 1000.0, "defstrouk05": 1000.0},
+    disp={"rocker": "Rocker", "defstrouk05": "Defstrouk05"},
+    aliases={},
+    new_formula=True,
+    match_date="2026-10-17",
+    vehicle_ops=oneshot_ops,
+)
+assert any(
+    e["kind"] == "vehicle_kill" and e.get("killer") == "Defstrouk05" for e in os_events
+), [(e["kind"], e.get("killer"), e.get("label")) for e in os_events]
+print("oneshot occupied-hull (no prior BP HP) OK", os_net.get("defstrouk05"))
+
+# Continuity break (INVALID tick) then finishing blow — still credit.
+brk_ops = [
+    {
+        "kind": "v_enter",
+        "at_dt": boom,
+        "at_msk": "15:43:00",
+        "nick": "Enterial",
+        "nickKey": "enterial",
+        "asset": "BP_US_Util_Woodland_Logi_C",
+        "pawn": "BP_US_Util_Woodland_Logi_C_200",
+        "fullpath": "PersistentLevel.BP_US_Util_Woodland_Logi_C_200",
+        "instance": "BP_US_Util_Woodland_Logi_C_200",
+        "seat": 0,
+    },
+    {
+        "kind": "v_dmg_named",
+        "at_dt": boom + timedelta(seconds=1),
+        "at_msk": "15:43:19",
+        "who": "Enterial",
+        "whoKey": "enterial",
+        "dmg": 31.25,
+        "causer": "BP_Projectile_30mm_HE_Green_C_1",
+        "killer": "Defstrouk05",
+        "killerKey": "defstrouk05",
+        "health": 48.27,
+        "burning": False,
+    },
+    {
+        "kind": "v_dmg_named",
+        "at_dt": boom + timedelta(seconds=2),
+        "at_msk": "15:43:20",
+        "who": "Enterial",
+        "whoKey": "enterial",
+        "dmg": 25.0,
+        "causer": "BP_Projectile_30mm_HE_Green_C_2",
+        "killer": "Defstrouk05",
+        "killerKey": "defstrouk05",
+        "health": 20.79,  # would fail continuity vs 48.27-25=23.27
+        "burning": False,
+    },
+    {
+        "kind": "v_dmg_named",
+        "at_dt": boom + timedelta(seconds=2, milliseconds=1),
+        "at_msk": "15:43:20",
+        "who": "Enterial",
+        "whoKey": "enterial",
+        "dmg": 31.25,
+        "causer": "BP_Projectile_30mm_HE_Green_C_3",
+        "killer": "Defstrouk05",
+        "killerKey": "defstrouk05",
+        "health": -10.46,
+        "burning": False,
+    },
+]
+brk_events, brk_net, *_ = R.score_match_rp(
+    dies=[],
+    wounds=[],
+    revives=[],
+    teams={"enterial": "1", "defstrouk05": "2"},
+    rp={"enterial": 1000.0, "defstrouk05": 1000.0},
+    disp={"enterial": "Enterial", "defstrouk05": "Defstrouk05"},
+    aliases={},
+    new_formula=True,
+    match_date="2026-10-17",
+    vehicle_ops=brk_ops,
+)
+assert any(
+    e["kind"] == "vehicle_kill" and e.get("killer") == "Defstrouk05" for e in brk_events
+), [(e["kind"], e.get("killer"), e.get("label")) for e in brk_events]
+print("continuity-break occupied finish OK", brk_net.get("defstrouk05"))
+
 from rp_vehicle_engine import VehicleRpEngine
 
 eng = VehicleRpEngine(soft_gain=False, teams={"keech": "1", "filin": "2"}, rp={"keech": 2000.0, "filin": 2000.0}, disp={"keech": "Keech", "filin": "Filin"})
@@ -233,6 +349,318 @@ for op in sorted(occ_ops, key=R._event_sort_key):
 assert any(e["kind"] == "vehicle_loss_driver" and e.get("victim") == "Keech" for e in eng_events), eng_events
 assert eng.died_in_explosion("keech", boom + timedelta(milliseconds=991))
 print("engine occupied-hull OK")
+
+# F2/driver of a BTR cannot be knocked unless the hull died. No HP line at all.
+knock_at = datetime(2026, 10, 17, 12, 39, 2, tzinfo=timezone.utc)
+btr = "BP_BTR4_AFU_C_200"
+turret = "BP_BTR4_Turret_C_190"
+knock_ops = [
+    {
+        "kind": "v_enter",
+        "at_dt": knock_at - timedelta(minutes=6),
+        "at_msk": "15:33:02",
+        "nick": "Driver",
+        "nickKey": "driver",
+        "asset": "BP_BTR4_AFU_C",
+        "instance": btr,
+        "seat": 0,
+    },
+    {
+        "kind": "v_enter",
+        "at_dt": knock_at - timedelta(minutes=6, seconds=-3),
+        "at_msk": "15:33:05",
+        "nick": "Moisha",
+        "nickKey": "moisha",
+        "asset": "BP_BTR4_AFU_C",
+        "instance": turret,
+        "pawn": turret,
+        "seat": 1,
+    },
+    {
+        "kind": "v_exit",
+        "at_dt": knock_at,
+        "at_msk": "15:39:02",
+        "nick": "Moisha",
+        "nickKey": "moisha",
+        "asset": "BP_BTR4_AFU_C",
+        "instance": turret,
+        "fullpath": f"PersistentLevel.{turret}",
+        "seat": 1,
+    },
+    {
+        "kind": "v_exit",
+        "at_dt": knock_at,
+        "at_msk": "15:39:02",
+        "nick": "Driver",
+        "nickKey": "driver",
+        "asset": "BP_BTR4_AFU_C",
+        "instance": btr,
+        "fullpath": f"PersistentLevel.{btr}",
+        "seat": 0,
+    },
+]
+knock_wounds = [
+    {
+        "killer": "Pr1meT1me",
+        "victim": "Moisha",
+        "killerKey": "primetime",
+        "victimKey": "moisha",
+        "at_dt": knock_at + timedelta(milliseconds=2),
+        "at_msk": "15:39:02",
+    }
+]
+k_events, k_net, _, _, _, k_noks = R.score_match_rp(
+    dies=[],
+    wounds=knock_wounds,
+    revives=[],
+    teams={"moisha": "1", "driver": "1", "primetime": "2"},
+    rp={"moisha": 4000.0, "driver": 2000.0, "primetime": 2000.0},
+    disp={"moisha": "Moisha", "driver": "Driver", "primetime": "Pr1meT1me"},
+    aliases={},
+    new_formula=True,
+    match_date="2026-10-17",
+    vehicle_ops=knock_ops,
+)
+k_kinds = [(e["kind"], e.get("victim")) for e in k_events]
+assert ("vehicle_loss", "Moisha") in k_kinds, k_kinds
+assert ("vehicle_loss_driver", "Driver") in k_kinds, k_kinds
+assert not any(e["kind"] == "nok" for e in k_events), k_kinds
+assert k_noks == 0
+print("armored crew knock is a hull loss OK", k_net.get("moisha"))
+
+# ZBL turret pawn has its own asset name. One hull death = one kill,
+# even if the gunner entered the turret before the driver entered the hull.
+z_at = datetime(2026, 10, 17, 12, 31, 37, tzinfo=timezone.utc)
+z_hull = "BP_ZBL08_HJ73C_Naval_C_2136887826"
+z_turret = "BP_ZBL08_Turret_HJ73C_Naval_C_2136887810"
+z_ops = [
+    {
+        "kind": "v_enter",
+        "at_dt": z_at - timedelta(minutes=2),
+        "at_msk": "15:29:37",
+        "nick": "Nahimov",
+        "nickKey": "nahimov",
+        "asset": "BP_ZBL08_Turret_HJ73C_Naval_C",
+        "instance": z_turret,
+        "pawn": z_turret,
+        "seat": 1,
+    },
+    {
+        "kind": "v_enter",
+        "at_dt": z_at - timedelta(minutes=1),
+        "at_msk": "15:30:37",
+        "nick": "DotaMax",
+        "nickKey": "dotamax",
+        "asset": "BP_ZBL08_HJ73C_Naval_C",
+        "instance": z_hull,
+        "seat": 0,
+    },
+    {
+        "kind": "v_dmg_named",
+        "at_dt": z_at,
+        "at_msk": "15:31:37",
+        "who": "DotaMax",
+        "whoKey": "dotamax",
+        "dmg": 30.0,
+        "causer": "BP_BTR4_ZTM1_AP_C_1",
+        "killer": "Moisha",
+        "killerKey": "moisha",
+        "health": -19.12,
+        "burning": False,
+    },
+    {
+        "kind": "v_exit",
+        "at_dt": z_at,
+        "at_msk": "15:31:37",
+        "nick": "DotaMax",
+        "nickKey": "dotamax",
+        "asset": "BP_ZBL08_HJ73C_Naval_C",
+        "instance": z_hull,
+        "seat": 0,
+    },
+    {
+        "kind": "v_exit",
+        "at_dt": z_at,
+        "at_msk": "15:31:37",
+        "nick": "Nahimov",
+        "nickKey": "nahimov",
+        "asset": "BP_ZBL08_Turret_HJ73C_Naval_C",
+        "instance": z_turret,
+        "seat": 1,
+    },
+]
+z_wounds = [
+    {
+        "killer": "Moisha",
+        "victim": "DotaMax",
+        "killerKey": "moisha",
+        "victimKey": "dotamax",
+        "at_dt": z_at + timedelta(milliseconds=3),
+        "at_msk": "15:31:37",
+    },
+    {
+        "killer": "Moisha",
+        "victim": "Nahimov",
+        "killerKey": "moisha",
+        "victimKey": "nahimov",
+        "at_dt": z_at + timedelta(milliseconds=4),
+        "at_msk": "15:31:37",
+    },
+]
+z_events, z_net, *_ = R.score_match_rp(
+    dies=[],
+    wounds=z_wounds,
+    revives=[],
+    teams={"dotamax": "2", "nahimov": "2", "moisha": "1"},
+    rp={"dotamax": 1000.0, "nahimov": 1000.0, "moisha": 4000.0},
+    disp={"dotamax": "DotaMax", "nahimov": "Nahimov", "moisha": "Moisha"},
+    aliases={},
+    new_formula=True,
+    match_date="2026-10-17",
+    vehicle_ops=z_ops,
+)
+z_kills = [e for e in z_events if e["kind"] == "vehicle_kill"]
+assert len(z_kills) == 1, [(e["kind"], e.get("killer"), e.get("victim"), e.get("label")) for e in z_events]
+assert z_kills[0]["killer"] == "Moisha"
+assert not any(e["kind"] == "nok" for e in z_events)
+print("turret pawn is not a second vehicle OK", z_net.get("moisha"))
+
+# Live Kamdesh layout: periscope of one ZBL is only ~18 ids from the next
+# turret. The turret must follow its own hull (dist 8), and the knock of
+# its gunner must not destroy the neighbour.
+wave_at = datetime(2026, 10, 17, 12, 31, 37, tzinfo=timezone.utc)
+scope = "BP_ZBL08_Commander_Periscope_Naval_C_2136887800"
+turret_live = "BP_ZBL08_Turret_HJ73C_Naval_C_2136887818"
+other_hull = "BP_ZBL08_HJ73C_Naval_C_2136887784"
+real_hull = "BP_ZBL08_HJ73C_Naval_C_2136887826"
+wave_ops = [
+    {
+        "kind": "v_enter",
+        "at_dt": wave_at - timedelta(minutes=11),
+        "at_msk": "15:20:37",
+        "nick": "Nahimov",
+        "nickKey": "nahimov",
+        "asset": "BP_ZBL08_HJ73C_Naval_C",
+        "instance": scope,
+        "pawn": scope,
+        "seat": 2,
+    },
+    {
+        "kind": "v_exit",
+        "at_dt": wave_at - timedelta(minutes=10, seconds=40),
+        "at_msk": "15:20:57",
+        "nick": "Nahimov",
+        "nickKey": "nahimov",
+        "asset": "BP_ZBL08_Commander_Periscope_Naval_C",
+        "instance": scope,
+        "seat": 1,
+    },
+    {
+        "kind": "v_enter",
+        "at_dt": wave_at - timedelta(minutes=10, seconds=40),
+        "at_msk": "15:20:57",
+        "nick": "Nahimov",
+        "nickKey": "nahimov",
+        "asset": "BP_ZBL08_HJ73C_Naval_C",
+        "instance": turret_live,
+        "pawn": turret_live,
+        "seat": 1,
+    },
+    {
+        "kind": "v_enter",
+        "at_dt": wave_at - timedelta(minutes=10),
+        "at_msk": "15:21:37",
+        "nick": "Farvort",
+        "nickKey": "farvort",
+        "asset": "BP_ZBL08_HJ73C_Naval_C",
+        "instance": other_hull,
+        "seat": 0,
+    },
+    {
+        "kind": "v_enter",
+        "at_dt": wave_at - timedelta(minutes=9, seconds=50),
+        "at_msk": "15:21:47",
+        "nick": "DotaMax",
+        "nickKey": "dotamax",
+        "asset": "BP_ZBL08_HJ73C_Naval_C",
+        "instance": real_hull,
+        "seat": 0,
+    },
+    {
+        "kind": "v_dmg_named",
+        "at_dt": wave_at,
+        "at_msk": "15:31:37",
+        "who": "DotaMax",
+        "whoKey": "dotamax",
+        "dmg": 30.0,
+        "causer": "BP_BTR4_ZTM1_AP_C_1",
+        "killer": "Moisha",
+        "killerKey": "moisha",
+        "health": -19.12,
+        "burning": False,
+    },
+    {
+        "kind": "v_exit",
+        "at_dt": wave_at,
+        "at_msk": "15:31:37",
+        "nick": "DotaMax",
+        "nickKey": "dotamax",
+        "instance": real_hull,
+        "asset": "BP_ZBL08_HJ73C_Naval_C",
+        "seat": 0,
+    },
+    {
+        "kind": "v_exit",
+        "at_dt": wave_at,
+        "at_msk": "15:31:37",
+        "nick": "Nahimov",
+        "nickKey": "nahimov",
+        "instance": turret_live,
+        "asset": "BP_ZBL08_Turret_HJ73C_Naval_C",
+        "seat": 1,
+    },
+]
+wave_wounds = [
+    {
+        "killer": "Moisha",
+        "victim": "DotaMax",
+        "killerKey": "moisha",
+        "victimKey": "dotamax",
+        "at_dt": wave_at + timedelta(milliseconds=3),
+        "at_msk": "15:31:37",
+    },
+    {
+        "killer": "Moisha",
+        "victim": "Nahimov",
+        "killerKey": "moisha",
+        "victimKey": "nahimov",
+        "at_dt": wave_at + timedelta(milliseconds=4),
+        "at_msk": "15:31:37",
+    },
+]
+w_events, w_net, *_ = R.score_match_rp(
+    dies=[],
+    wounds=wave_wounds,
+    revives=[],
+    teams={"dotamax": "2", "nahimov": "2", "moisha": "1", "farvort": "2"},
+    rp={"dotamax": 1000.0, "nahimov": 1000.0, "moisha": 4000.0, "farvort": 1000.0},
+    disp={
+        "dotamax": "DotaMax",
+        "nahimov": "Nahimov",
+        "moisha": "Moisha",
+        "farvort": "Farvort",
+    },
+    aliases={},
+    new_formula=True,
+    match_date="2026-10-17",
+    vehicle_ops=wave_ops,
+)
+w_kills = [e for e in w_events if e["kind"] == "vehicle_kill"]
+w_losses = [e for e in w_events if e["kind"].startswith("vehicle_loss")]
+assert len(w_kills) == 1, [(e["kind"], e.get("victim"), e.get("label")) for e in w_events]
+assert not any(e.get("victim") == "Farvort" for e in w_losses), w_losses
+assert not any(e["kind"] == "nok" for e in w_events)
+print("spawn-wave turret stays on its own hull OK", w_net.get("moisha"))
 
 # Real log smoke (Kamaz burn-to-death by LordWolf)
 log = (

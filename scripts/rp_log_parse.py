@@ -422,6 +422,32 @@ def _veh_id_num(vid: str) -> int | None:
         return None
 
 
+# Turret / periscope / seat pawn sits a few ids from its hull.
+# A neighbour vehicle in the same spawn wave is further out (~34+).
+_HULL_LINK_DIST = 32
+_COMPONENT_RE = re.compile(
+    r"TURRET|PERISCOPE|SCOPE|PASSENGER|GUNNER|RWS|CROWS",
+    re.I,
+)
+
+
+def _is_component_pawn(instance: str) -> bool:
+    return bool(_COMPONENT_RE.search(instance or ""))
+
+
+def _asset_same_vehicle(a: str, b: str) -> bool:
+    """Hull and its turret pawn are one vehicle.
+
+    BP_ZBL08_Turret_HJ73C_Naval_C and BP_ZBL08_HJ73C_Naval_C share a hull.
+    Different families (BTR vs ZBL) do not.
+    """
+    if not a or not b or a == b:
+        return True
+    def _norm(x: str) -> str:
+        return re.sub(r"_TURRET", "", x.upper())
+    return _norm(a) == _norm(b)
+
+
 def rp_gain_coef(current_rp: float) -> float:
     """
     Multiplier for positive RP only (kills/noks/revives/vehicle_kill…).
@@ -576,14 +602,22 @@ def score_match_rp(
             return pawn_to_hull[instance]
         inst_n = _veh_id_num(instance)
         best, best_d = "", 10**18
+        component = _is_component_pawn(instance)
+        limit = _HULL_LINK_DIST if component else 500
         for hid, meta in hulls.items():
-            if asset and meta.get("asset") and meta["asset"] != asset:
+            if meta.get("dead") or meta.get("absorbed"):
+                continue
+            # A turret must not latch onto a periscope of the vehicle next to it.
+            if _is_component_pawn(hid):
+                continue
+            meta_asset = str(meta.get("asset") or "")
+            if asset and meta_asset and not _asset_same_vehicle(asset, meta_asset):
                 continue
             hid_n = _veh_id_num(hid)
             if inst_n is None or hid_n is None:
                 continue
             d = abs(hid_n - inst_n)
-            if d < best_d and d < 500:
+            if d < best_d and d < limit:
                 best_d = d
                 best = hid
         if best:
@@ -592,6 +626,61 @@ def score_match_rp(
         # No hull yet — treat pawn as provisional hull until seat-0 links.
         pawn_to_hull[instance] = instance
         return instance
+
+    def _nearest_body(comp_id: str, asset: str, *, include_dead: bool = True) -> str:
+        n_id = _veh_id_num(comp_id)
+        if n_id is None:
+            return ""
+        best, best_d = "", 10**9
+        for cand, meta in hulls.items():
+            if cand == comp_id or _is_component_pawn(cand) or meta.get("absorbed"):
+                continue
+            if not include_dead and meta.get("dead"):
+                continue
+            meta_asset = str(meta.get("asset") or "")
+            if asset and meta_asset and not _asset_same_vehicle(asset, meta_asset):
+                continue
+            cn = _veh_id_num(cand)
+            if cn is None:
+                continue
+            dist = abs(cn - n_id)
+            if dist < best_d and dist < _HULL_LINK_DIST and vehicle_tickets(meta_asset or asset) > 5:
+                best, best_d = cand, dist
+        return best
+
+    def _absorb_nearby_turrets(hid: str, asset: str) -> None:
+        """Pull a turret/periscope that was logged before its hull onto that hull."""
+        parent = hulls.get(hid)
+        n_id = _veh_id_num(hid)
+        if not parent or n_id is None or _is_component_pawn(hid):
+            return
+        for cand, meta in list(hulls.items()):
+            if cand == hid or meta.get("dead") or meta.get("absorbed"):
+                continue
+            if not _is_component_pawn(cand):
+                continue
+            if not _asset_same_vehicle(asset, str(meta.get("asset") or "")):
+                continue
+            cn = _veh_id_num(cand)
+            if cn is None or abs(cn - n_id) >= _HULL_LINK_DIST:
+                continue
+            if _nearest_body(cand, asset) not in ("", hid):
+                continue
+            for seat, pk in list((meta.get("seats") or {}).items()):
+                role = (meta.get("seat_roles") or {}).get(seat) or vehicle_seat_role(
+                    asset, int(seat), cand
+                )
+                parent.setdefault("seats", {})[int(seat)] = pk
+                parent.setdefault("seat_roles", {})[int(seat)] = role
+                player_hull[pk] = hid
+                player_seat[pk] = int(seat)
+                if role == "driver":
+                    parent.setdefault("last_crew", {})[0] = pk
+                elif role == "gunner":
+                    parent.setdefault("last_crew", {})[1] = pk
+            meta["dead"] = True
+            meta["absorbed"] = True
+            pawn_to_hull[cand] = hid
 
     def _snapshot_crew(h: dict) -> dict[int, str]:
         """Только водитель + F2. Пассажиры/десант (seat≥2 и seat1 на logi) — вне штрафа."""
@@ -664,8 +753,17 @@ def score_match_rp(
 
     def _destroy_vehicle(hid: str, at_msk: str, dmg_row: dict | None = None) -> None:
         h = hulls.get(hid)
-        if not h or h.get("dead"):
+        if not h or h.get("dead") or h.get("absorbed"):
             return
+        # Turret and periscope are not a second vehicle. Score the hull, once.
+        if _is_component_pawn(hid):
+            body = _nearest_body(hid, str(h.get("asset") or ""))
+            if body and body != hid:
+                bh = hulls.get(body)
+                if not bh or bh.get("dead"):
+                    return
+                hid = body
+                h = bh
         h["dead"] = True
         boom_at = (dmg_row or {}).get("at_dt")
         if boom_at is not None:
@@ -797,6 +895,8 @@ def score_match_rp(
                 h["last_crew"][0] = key
             elif role == "gunner":
                 h["last_crew"][1] = key
+            if not _is_component_pawn(hid):
+                _absorb_nearby_turrets(hid, asset or str(h.get("asset") or ""))
             return
 
         if kind == "v_exit":
@@ -930,19 +1030,19 @@ def score_match_rp(
 
             if not h or h.get("dead"):
                 return
-            last = h.get("health")
-            if last is None:
-                _drop_ghost()
-                return
             try:
                 health = float(d.get("health"))
                 dmg = float(d.get("dmg") or 0)
             except (TypeError, ValueError):
                 _drop_ghost()
                 return
-            if abs((float(last) - dmg) - health) > 2.0:
-                _drop_ghost()
-                return
+            # who ∈ hull ⇒ TraceAndMessageClient HP *is* the vehicle pool.
+            # Continuity can break on unparsed INVALID/self ticks — still trust
+            # absolute health from the log (re-seed) instead of dropping the kill.
+            last = h.get("health")
+            if last is not None and abs((float(last) - dmg) - health) > 2.0:
+                # re-seed; do not return
+                pass
             dmg_as_hull = {
                 **d,
                 "kind": "v_dmg",
@@ -951,6 +1051,7 @@ def score_match_rp(
                 "burning": False,
             }
             _handle_vehicle_op(dmg_as_hull)
+            _drop_ghost()
             return
 
     if not new_formula:
@@ -1040,6 +1141,90 @@ def score_match_rp(
         return events, net, die_n, tk_n, rev_n, 0
 
     # --- new formula (cutover+) — chronological ---
+    def _crew_knock_is_hull(vk: str, at_dt, dmg_row: dict) -> bool:
+        """БТР/БМП/танк: мехвода и стрелка не нокают, пока корпус жив.
+
+        Грузовик и МРАП (≤5 тикетов) — можно выбить и без взрыва.
+        """
+        if not do_vehicle or at_dt is None:
+            return False
+        prev = exploded_at.get(vk)
+        if prev is not None and abs((at_dt - prev).total_seconds()) <= 3:
+            return True
+        hid = player_hull.get(vk) or ""
+        if not hid:
+            rec = recent_exit.get(vk)
+            if (
+                rec
+                and rec[2] is not None
+                and 0 <= (at_dt - rec[2]).total_seconds() <= 2
+            ):
+                hid = rec[0]
+        h = hulls.get(hid) if hid else None
+        if not h or h.get("dead"):
+            return False
+        asset = str(h.get("asset") or "")
+        if vehicle_tickets(asset) <= 5:
+            return False
+        rec_vk = recent_exit.get(vk)
+        seat_vk = player_seat.get(vk)
+        if seat_vk is None and rec_vk:
+            seat_vk = rec_vk[1]
+        role_vk = (h.get("seat_roles") or {}).get(seat_vk) or vehicle_seat_role(
+            asset, int(seat_vk or 0), ""
+        )
+        if role_vk not in ("driver", "gunner"):
+            return False
+        # Turret/periscope is not its own vehicle. A hull that already
+        # exploded in this blast must not be scored a second time.
+        if _is_component_pawn(hid):
+            body = _nearest_body(hid, asset)
+            if body:
+                parent = hulls.get(body)
+                if parent and parent.get("dead"):
+                    return True
+                hid = body
+                h = parent or h
+                asset = str(h.get("asset") or asset)
+        # Restore crew who were thrown out by the same blast.
+        def _same_hull(a: str, b: str) -> bool:
+            if a == b:
+                return True
+            na, nb = _veh_id_num(a), _veh_id_num(b)
+            if na is None or nb is None:
+                return False
+            return abs(na - nb) < _HULL_LINK_DIST and (
+                _is_component_pawn(a) or _is_component_pawn(b)
+            )
+
+        for pk, rec in list(recent_exit.items()):
+            if not _same_hull(rec[0], hid) or rec[2] is None:
+                continue
+            if not (0 <= (at_dt - rec[2]).total_seconds() <= 2):
+                continue
+            rseat = int(rec[1])
+            role = vehicle_seat_role(asset, rseat, "")
+            if role not in ("driver", "gunner"):
+                continue
+            h.setdefault("seats", {})[rseat] = pk
+            h.setdefault("seat_roles", {})[rseat] = role
+        role_now = (h.get("seat_roles") or {}).get(player_seat.get(vk))
+        liable = set((h.get("seats") or {}).values()) | set((h.get("last_crew") or {}).values())
+        if vk not in liable and role_now not in ("driver", "gunner"):
+            return False
+        _destroy_vehicle(
+            hid,
+            dmg_row.get("at_msk") or "",
+            {
+                "at_dt": at_dt,
+                "killerKey": dmg_row.get("killerKey") or "",
+                "killer": dmg_row.get("killer") or "",
+                "causer": dmg_row.get("causer") or "",
+                "burning": False,
+            },
+        )
+        return True
+
     timeline: list[dict] = []
     for d in wounds:
         timeline.append({**d, "kind": "wound"})
@@ -1085,6 +1270,8 @@ def score_match_rp(
         tk = same_team(kk, vk)
 
         if kind == "wound":
+            if _crew_knock_is_hull(vk, d.get("at_dt"), d):
+                continue
             last_wound_by[vk] = kk
             if tk:
                 delta_k = round(n * COEF_TK_NOK, 2)

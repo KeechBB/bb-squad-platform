@@ -4,9 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HitSilhouetteMini } from "@/components/HitSilhouetteMini";
 import {
   eventsForMatch,
+  huntEventBody,
   serverLabel,
   splitEvents,
   type KeechHuntEvent,
+  type KeechHuntEventKind,
   type KeechHuntMatch,
 } from "@/lib/keechHuntTypes";
 
@@ -53,13 +55,17 @@ type Feed = {
   history: HistRow[];
 };
 
-const KIND_LABEL: Record<KeechHuntEvent["kind"], string> = {
+const KIND_LABEL: Record<KeechHuntEventKind, string> = {
   nok: "Нок",
   gotnok: "Меня нокнул",
   kill: "Килл",
   death: "Смерть",
   revive: "Рес",
   self: "Сам",
+  vehicle_kill: "Техника +",
+  vehicle_loss: "Потеря F2",
+  vehicle_loss_driver: "Потеря мехвод",
+  driver_share: "Мехвод 70%",
 };
 
 function fmtDelta(n: number) {
@@ -136,21 +142,14 @@ function RepeatBadge({ n }: { n: number }) {
   );
 }
 
-function eventBodyParts(
-  e: KeechHuntEvent
-): { prefix: string; nick: string | null; suffix: string } {
-  const d = fmtDelta(e.delta);
-  if (e.kind === "nok")
-    return { prefix: "Нокнул ", nick: e.nick, suffix: "" };
-  if (e.kind === "gotnok")
-    return { prefix: "Нокнул тебя ", nick: e.nick, suffix: "" };
-  if (e.kind === "kill")
-    return { prefix: "Убил ", nick: e.nick, suffix: ` · ${d} RP` };
-  if (e.kind === "death")
-    return { prefix: "Убит ", nick: e.nick, suffix: ` · ${d} RP` };
-  if (e.kind === "revive")
-    return { prefix: "Поднял ", nick: e.nick, suffix: ` · ${d} RP` };
-  return { prefix: `Сам · ${d} RP`, nick: null, suffix: "" };
+function KitTag({ kit }: { kit?: string }) {
+  const k = String(kit || "").trim();
+  if (!k) return null;
+  return (
+    <span className="keech-hunt-kit" title={k}>
+      {k}
+    </span>
+  );
 }
 
 function EventRow({
@@ -165,18 +164,27 @@ function EventRow({
   onHit?: () => void;
 }) {
   const plus = e.delta >= 0;
+  const displayNick = e.label || e.nick;
   const nickLabel =
     e.kind === "death" || e.kind === "gotnok"
-      ? `← ${e.nick}`
+      ? `← ${displayNick}`
       : e.kind === "self"
         ? "сам"
-        : e.nick;
+        : displayNick;
+  const soft =
+    e.gainCoef != null && Number(e.gainCoef) > 0 && Number(e.gainCoef) < 1
+      ? ` · soft×${e.gainCoef}`
+      : "";
+  const title = [e.label || e.nick, e.kit, soft.trim()]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <li className={`keech-hunt-row kind-${e.kind}`}>
       <span className="keech-hunt-time">{e.time}</span>
-      <span className="keech-hunt-nick" title={e.nick}>
+      <span className="keech-hunt-nick" title={title}>
         {nickLabel}
         <RepeatBadge n={repeat} />
+        <KitTag kit={e.kit} />
       </span>
       <span className={`keech-hunt-delta ${plus ? "plus" : "minus"}`}>
         {fmtDelta(e.delta)}
@@ -405,8 +413,8 @@ export function AdminKeechHuntPanel() {
             >
               {liveLog.length === 0 ? (
                 <p className="journal-empty muted">
-                  Жду ноки / киллы / смерти / ресы на текущей карте. Лог и
-                  колонки справа — одни и те же события. Новые сверху.
+                  Личная RP-считалка: пехота + техника (×12.5) + soft-cap.
+                  Лог и колонки справа — одни события. Новые сверху.
                 </p>
               ) : null}
               {liveLog.map(({ e, repeat }) => {
@@ -416,7 +424,7 @@ export function AdminKeechHuntPanel() {
                   e.kind === "gotnok" ||
                   e.kind === "kill" ||
                   e.kind === "death";
-                const body = eventBodyParts(e);
+                const body = huntEventBody(e);
                 return (
                   <article
                     key={e.id}
@@ -454,6 +462,7 @@ export function AdminKeechHuntPanel() {
                         <>
                           <strong>{body.nick}</strong>
                           <RepeatBadge n={repeat} />
+                          <KitTag kit={e.kit} />
                         </>
                       ) : null}
                       {body.suffix}

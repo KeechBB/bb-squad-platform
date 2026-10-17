@@ -471,20 +471,18 @@ class VehicleRpEngine:
 
             if not h or h.get("dead"):
                 return []
-            last = h.get("health")
-            if last is None:
-                _drop_ghost()
-                return []
             try:
                 health = float(d.get("health"))
                 dmg = float(d.get("dmg") or 0)
             except (TypeError, ValueError):
                 _drop_ghost()
                 return []
-            if abs((float(last) - dmg) - health) > 2.0:
-                _drop_ghost()
-                return []
-            return self.handle(
+            # who ∈ hull ⇒ named HP is the vehicle pool. Continuity can break
+            # on INVALID/self ticks we don't parse — re-seed absolute HP.
+            last = h.get("health")
+            if last is not None and abs((float(last) - dmg) - health) > 2.0:
+                pass  # re-seed below
+            out = self.handle(
                 {
                     **d,
                     "kind": "v_dmg",
@@ -493,6 +491,8 @@ class VehicleRpEngine:
                     "burning": False,
                 }
             )
+            _drop_ghost()
+            return out
 
         return []
 
