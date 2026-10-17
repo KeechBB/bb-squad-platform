@@ -16315,14 +16315,23 @@ body:has(.profile-page) {
 }
 .replay-canvas-wrap {
   width: 100%;
-  max-width: 900px;
+  max-width: 1100px;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #0a0812;
+  touch-action: none;
 }
 .replay-canvas {
   display: block;
   width: 100%;
-  border-radius: 12px;
-  border: 1px solid var(--line);
   background: #0a0812;
+}
+.replay-canvas-pan {
+  cursor: grab;
+}
+.replay-canvas-pan:active {
+  cursor: grabbing;
 }
 .replay-transport {
   display: flex;

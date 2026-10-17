@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReplayPayload } from "@/lib/replayTypes";
 import { formatDuration } from "@/lib/replayFormat";
-import { resolveReplayMap, worldToPixel } from "@/lib/replayMaps";
+import { resolveReplayMap, worldToMapPixel } from "@/lib/replayMaps";
 
 const COLORS = [
   "#34d399",
@@ -54,42 +54,83 @@ export function ReplayViewer({ data }: Props) {
   const [showTrails, setShowTrails] = useState(true);
   const [hidden, setHidden] = useState<Record<string, boolean>>({});
   const [mapImg, setMapImg] = useState<HTMLImageElement | null>(null);
+  /** Zoom: screen pixels per map pixel. */
+  const [zoom, setZoom] = useState(0.2);
+  /** Pan: where map (0,0) lands on canvas (CSS px). */
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const dragRef = useRef<{
+    active: boolean;
+    sx: number;
+    sy: number;
+    px: number;
+    py: number;
+  } | null>(null);
+  const viewRef = useRef({ zoom, pan });
+  viewRef.current = { zoom, pan };
+  const fittedRef = useRef(false);
   const duration = data.duration_ms || 1;
 
   const tracks = useMemo(() => data.tracks?.players || [], [data.tracks?.players]);
 
   useEffect(() => {
     if (!map) return;
+    fittedRef.current = false;
     const img = new Image();
     img.onload = () => setMapImg(img);
     img.src = map.image;
   }, [map]);
 
+  const fitMap = useCallback(() => {
+    const wrap = wrapRef.current;
+    const img = mapImg;
+    if (!wrap || !img) return;
+    const vw = Math.max(wrap.clientWidth, 320);
+    const vh = Math.max(Math.min(wrap.clientWidth, 720), 420);
+    const z = Math.min(vw / img.naturalWidth, vh / img.naturalHeight);
+    const pw = img.naturalWidth * z;
+    const ph = img.naturalHeight * z;
+    setZoom(z);
+    setPan({ x: (vw - pw) / 2, y: (vh - ph) / 2 });
+    fittedRef.current = true;
+  }, [mapImg]);
+
+  useEffect(() => {
+    if (mapImg && !fittedRef.current) fitMap();
+  }, [mapImg, fitMap]);
+
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     const wrap = wrapRef.current;
     if (!canvas || !wrap || !map) return;
-    const size = Math.min(wrap.clientWidth, 900);
+    const cssW = Math.max(wrap.clientWidth, 320);
+    const cssH = Math.max(Math.min(wrap.clientWidth, 720), 420);
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = Math.floor(size * dpr);
-    canvas.height = Math.floor(size * dpr);
-    canvas.style.width = `${size}px`;
-    canvas.style.height = `${size}px`;
+    canvas.width = Math.floor(cssW * dpr);
+    canvas.height = Math.floor(cssH * dpr);
+    canvas.style.width = `${cssW}px`;
+    canvas.style.height = `${cssH}px`;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const w = size;
-    const h = size;
+    ctx.fillStyle = "#0a0812";
+    ctx.fillRect(0, 0, cssW, cssH);
 
+    const { zoom: z, pan: p } = viewRef.current;
+    const mw = mapImg?.naturalWidth || 1;
+    const mh = mapImg?.naturalHeight || 1;
+
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.scale(z, z);
     if (mapImg) {
-      ctx.drawImage(mapImg, 0, 0, w, h);
-      ctx.fillStyle = "rgba(7,6,12,0.28)";
-      ctx.fillRect(0, 0, w, h);
+      ctx.imageSmoothingEnabled = z < 1;
+      ctx.drawImage(mapImg, 0, 0);
     } else {
       ctx.fillStyle = "#12101c";
-      ctx.fillRect(0, 0, w, h);
+      ctx.fillRect(0, 0, mw, mh);
     }
 
+    const inv = 1 / z;
     tracks.forEach((track, i) => {
       if (hidden[track.key]) return;
       const color = COLORS[i % COLORS.length];
@@ -97,38 +138,41 @@ export function ReplayViewer({ data }: Props) {
       if (showTrails && samples.length > 1) {
         ctx.beginPath();
         ctx.strokeStyle = color;
-        ctx.globalAlpha = 0.45;
-        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.55;
+        ctx.lineWidth = Math.max(1.5, 2 * inv);
         let started = false;
         for (const s of samples) {
           if (s.t > t) break;
-          const { px, py } = worldToPixel(s.x, s.y, map, w, h);
+          const { mx, my } = worldToMapPixel(s.x, s.y, map, mw, mh);
           if (!started) {
-            ctx.moveTo(px, py);
+            ctx.moveTo(mx, my);
             started = true;
-          } else ctx.lineTo(px, py);
+          } else ctx.lineTo(mx, my);
         }
         ctx.stroke();
         ctx.globalAlpha = 1;
       }
       const pos = sampleAt(samples, t);
       if (!pos) return;
-      const { px, py } = worldToPixel(pos.x, pos.y, map, w, h);
+      const { mx, my } = worldToMapPixel(pos.x, pos.y, map, mw, mh);
+      const r = Math.max(4, 7 * inv);
       ctx.beginPath();
       ctx.fillStyle = color;
-      ctx.arc(px, py, 6, 0, Math.PI * 2);
+      ctx.arc(mx, my, r, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.85)";
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = "rgba(255,255,255,0.9)";
+      ctx.lineWidth = Math.max(1, 1.5 * inv);
       ctx.stroke();
-      ctx.font = "600 12px Manrope, sans-serif";
+      const fontPx = Math.max(11, 13 * inv);
+      ctx.font = `600 ${fontPx}px Manrope, sans-serif`;
       ctx.fillStyle = "#f2eefc";
-      ctx.strokeStyle = "rgba(0,0,0,0.65)";
-      ctx.lineWidth = 3;
-      ctx.strokeText(track.key, px + 9, py - 8);
-      ctx.fillText(track.key, px + 9, py - 8);
+      ctx.strokeStyle = "rgba(0,0,0,0.7)";
+      ctx.lineWidth = Math.max(2, 3 * inv);
+      ctx.strokeText(track.key, mx + r + 4, my - r);
+      ctx.fillText(track.key, mx + r + 4, my - r);
     });
-  }, [map, mapImg, tracks, t, showTrails, hidden]);
+    ctx.restore();
+  }, [map, mapImg, tracks, t, showTrails, hidden, zoom, pan]);
 
   useEffect(() => {
     draw();
@@ -161,6 +205,45 @@ export function ReplayViewer({ data }: Props) {
     return () => cancelAnimationFrame(raf);
   }, [playing, speed, duration]);
 
+  const onWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas || !mapImg) return;
+    const rect = canvas.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+    const { zoom: z0, pan: p0 } = viewRef.current;
+    const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    const z1 = Math.min(8, Math.max(0.05, z0 * factor));
+    // zoom toward cursor: map point under cursor stays fixed
+    const mx = (cx - p0.x) / z0;
+    const my = (cy - p0.y) / z0;
+    setZoom(z1);
+    setPan({ x: cx - mx * z1, y: cy - my * z1 });
+  };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    dragRef.current = {
+      active: true,
+      sx: e.clientX,
+      sy: e.clientY,
+      px: viewRef.current.pan.x,
+      py: viewRef.current.pan.y,
+    };
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d?.active) return;
+    setPan({
+      x: d.px + (e.clientX - d.sx),
+      y: d.py + (e.clientY - d.sy),
+    });
+  };
+  const onPointerUp = () => {
+    if (dragRef.current) dragRef.current.active = false;
+  };
+
   if (!map) {
     return (
       <p className="replay-missing-map">
@@ -173,7 +256,15 @@ export function ReplayViewer({ data }: Props) {
     <div className="replay-viewer">
       <div className="replay-viewer-main">
         <div className="replay-canvas-wrap" ref={wrapRef}>
-          <canvas ref={canvasRef} className="replay-canvas" />
+          <canvas
+            ref={canvasRef}
+            className="replay-canvas replay-canvas-pan"
+            onWheel={onWheel}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerUp}
+          />
         </div>
         <div className="replay-transport">
           <button
@@ -219,6 +310,26 @@ export function ReplayViewer({ data }: Props) {
             />
             Trails
           </label>
+          <button type="button" className="replay-btn" onClick={fitMap}>
+            Fit
+          </button>
+          <button
+            type="button"
+            className="replay-btn"
+            onClick={() => {
+              const wrap = wrapRef.current;
+              const img = mapImg;
+              if (!wrap || !img) return;
+              const z = Math.min(4, (wrap.clientWidth * 0.85) / 800);
+              setZoom(z);
+            }}
+          >
+            Zoom+
+          </button>
+          <span className="replay-muted">
+            {mapImg ? `${mapImg.naturalWidth}×${mapImg.naturalHeight}` : "…"} ·
+            колесо = зум · drag = пан · {Math.round(zoom * 100) / 100}×
+          </span>
         </div>
       </div>
       <aside className="replay-sidebar">
@@ -248,7 +359,8 @@ export function ReplayViewer({ data }: Props) {
           ))}
         </ul>
         <p className="replay-meta-note">
-          Карта: {map.label}. Координаты — world UU (SquadCalc bounds).
+          Vanilla minimap 4096², bounds SquadCalc (без сжатия). Колесом приближай
+          нужную точку — координаты считаются в полном разрешении текстуры.
         </p>
       </aside>
     </div>
