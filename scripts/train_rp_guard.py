@@ -122,26 +122,106 @@ def ladder_ids(ladder_file: Path) -> set[str] | None:
     return {str(x.get("id")) for x in (doc.get("matches") or []) if x.get("id")}
 
 
+def _pin_log_for_match(mid: str, date_ymd: str = "") -> Path | None:
+    """Find TR*-YYYY.MM.DD-{mid}.log in any train server cache."""
+    import re
+
+    mid = str(mid or "").strip()
+    if not mid:
+        return None
+    day_hint = ""
+    if date_ymd and len(date_ymd) >= 10:
+        day_hint = date_ymd[:10].replace("-", ".")
+    day_pat = re.escape(day_hint) if day_hint else r"\d{4}\.\d{2}\.\d{2}"
+    pat = re.compile(rf"^TR\d+-{day_pat}-{re.escape(mid)}\.log$", re.I)
+    loose = re.compile(rf"^TR\d+-\d{{4}}\.\d{{2}}\.\d{{2}}-{re.escape(mid)}\.log$", re.I)
+    caches: list[Path] = []
+    try:
+        for srv in FLEET.train_servers() or ["TR1", "TR2", "TR3"]:
+            caches.append(FLEET.server_cache(srv))
+    except Exception:
+        caches = []
+    caches.append(HERE / "_tmp_tr1_logs_cache")
+    for cache in caches:
+        if not cache.is_dir():
+            continue
+        try:
+            for p in cache.glob("TR*-*.log"):
+                if day_hint and pat.match(p.name):
+                    return p
+                if not day_hint and loose.match(p.name):
+                    return p
+        except OSError:
+            continue
+    return None
+
+
+def calendar_ids_needing_rp(train_dir: Path) -> list[str]:
+    """
+    Calendar rows with a pinned log on disk but no ladder RP yet.
+    Catches gaps where players JSON / month row exist but _auto_matches was missed.
+    """
+    done = ladder_ids(train_dir / "rp-ladder.json")
+    if done is None:
+        done = set()
+    missing: list[str] = []
+    seen: set[str] = set()
+    for month_path in sorted(train_dir.glob("????-??.json")):
+        try:
+            data = json.loads(month_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        y_m = month_path.stem  # 2026-10
+        for m in data.get("matches") or []:
+            if not isinstance(m, dict):
+                continue
+            mid = str(m.get("id") or "")
+            if not mid or mid in seen or mid.endswith("-skip"):
+                continue
+            if mid in done:
+                continue
+            day = m.get("day")
+            date_ymd = ""
+            if day is not None:
+                try:
+                    date_ymd = f"{y_m}-{int(day):02d}"
+                except Exception:
+                    date_ymd = ""
+            if (
+                _pin_log_for_match(mid, date_ymd) is None
+                and _night_pin_for_date(date_ymd) is None
+            ):
+                continue
+            seen.add(mid)
+            missing.append(mid)
+    return missing
+
+
 def auto_ids_needing_rp(train_dir: Path) -> list[str]:
     auto_path = train_dir / "_auto_matches.json"
-    if not auto_path.is_file():
-        return []
-    try:
-        auto = json.loads(auto_path.read_text(encoding="utf-8"))
-    except Exception:
-        return []
-    if not isinstance(auto, list):
-        return []
-    done = ladder_ids(train_dir / "rp-ladder.json")
     missing: list[str] = []
-    for m in auto:
-        if not isinstance(m, dict):
-            continue
-        mid = str(m.get("id") or "")
-        if not mid or m.get("skip") or mid.endswith("-skip"):
-            continue
-        if done is None or mid not in done:
+    seen: set[str] = set()
+    done = ladder_ids(train_dir / "rp-ladder.json")
+    if auto_path.is_file():
+        try:
+            auto = json.loads(auto_path.read_text(encoding="utf-8"))
+        except Exception:
+            auto = []
+        if isinstance(auto, list):
+            for m in auto:
+                if not isinstance(m, dict):
+                    continue
+                mid = str(m.get("id") or "")
+                if not mid or m.get("skip") or mid.endswith("-skip"):
+                    continue
+                if done is None or mid not in done:
+                    if mid not in seen:
+                        missing.append(mid)
+                        seen.add(mid)
+    for mid in calendar_ids_needing_rp(train_dir):
+        if mid not in seen:
             missing.append(mid)
+            seen.add(mid)
     return missing
 
 
@@ -423,8 +503,166 @@ def run_rp_rebuild(kv_public: Path, *, kind: str = "train") -> int:
     return int(subprocess.run(cmd, cwd=str(HERE), env=env, check=False).returncode or 0)
 
 
+def _night_pin_for_date(date_ymd: str) -> Path | None:
+    """Any TR*-YYYY.MM.DD-*.log for that civil date (full-night copies OK)."""
+    import re
+
+    if not date_ymd or len(date_ymd) < 10:
+        return None
+    day_dot = date_ymd[:10].replace("-", ".")
+    pat = re.compile(rf"^TR\d+-{re.escape(day_dot)}-.+\.log$", re.I)
+    caches: list[Path] = [HERE / "_tmp_tr1_logs_cache"]
+    try:
+        for srv in FLEET.train_servers() or ["TR1", "TR2", "TR3"]:
+            caches.append(FLEET.server_cache(srv))
+    except Exception:
+        pass
+    for cache in caches:
+        if not cache.is_dir():
+            continue
+        try:
+            hits = sorted(p for p in cache.glob("TR*-*.log") if pat.match(p.name))
+        except OSError:
+            continue
+        if hits:
+            return hits[0]
+    return None
+
+
+def ensure_auto_from_calendar_pins(train_dir: Path) -> list[str]:
+    """
+    Upsert _auto_matches for calendar ids missing from auto but present on disk pins.
+    Match layer by map + timeMsk (pins are often full-night copies).
+    """
+    import re
+    from datetime import timedelta
+
+    auto_path = train_dir / "_auto_matches.json"
+    auto: list[dict] = []
+    if auto_path.is_file():
+        try:
+            raw = json.loads(auto_path.read_text(encoding="utf-8"))
+            if isinstance(raw, list):
+                auto = raw
+        except Exception:
+            auto = []
+    by_id = {str(a.get("id") or ""): a for a in auto if isinstance(a, dict)}
+    added: list[str] = []
+    done = ladder_ids(train_dir / "rp-ladder.json") or set()
+
+    try:
+        import rp_log_parse as R  # noqa: WPS433
+        from sync_train_from_tr1_logs import _map_stem  # noqa: WPS433
+    except Exception as e:
+        print(f"ensure_auto pins: import fail ({e})", flush=True)
+        return []
+
+    def fuzzy(a: str, b: str) -> bool:
+        sa = _map_stem(a).lower().replace(" ", "")
+        sb = _map_stem(b).lower().replace(" ", "")
+        return bool(sa and sb and (sa in sb or sb in sa or sa[:6] == sb[:6]))
+
+    msk = timezone(timedelta(hours=3))
+    layers_cache: dict[str, list[dict]] = {}
+
+    for month_path in sorted(train_dir.glob("????-??.json")):
+        try:
+            data = json.loads(month_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        y_m = month_path.stem
+        try:
+            year, month = (int(x) for x in y_m.split("-")[:2])
+        except Exception:
+            continue
+        for m in data.get("matches") or []:
+            if not isinstance(m, dict):
+                continue
+            mid = str(m.get("id") or "")
+            if not mid or mid.endswith("-skip") or mid in done:
+                continue
+            existing = by_id.get(mid)
+            if existing and not existing.get("skip") and existing.get("start") and existing.get("end"):
+                continue
+            day = m.get("day")
+            if day is None:
+                continue
+            try:
+                day_i = int(day)
+                date_ymd = f"{y_m}-{day_i:02d}"
+            except Exception:
+                continue
+            tm = str(m.get("timeMsk") or "").strip()
+            hm = re.match(r"^(\d{1,2}):(\d{2})", tm)
+            if not hm:
+                continue
+            hh, mm = int(hm.group(1)), int(hm.group(2))
+            local = datetime(year, month, day_i, hh, mm, tzinfo=msk)
+            if hh < 6:
+                local = local + timedelta(days=1)
+            start_guess = local.astimezone(timezone.utc)
+
+            pin = _pin_log_for_match(mid, date_ymd) or _night_pin_for_date(date_ymd)
+            if pin is None or not pin.is_file():
+                continue
+            day_dot = date_ymd[:10].replace("-", ".")
+            if day_dot not in layers_cache:
+                try:
+                    layers_cache[day_dot] = R.discover_matches([pin])
+                except Exception as e:
+                    print(f"ensure_auto discover {day_dot}: {e}", flush=True)
+                    layers_cache[day_dot] = []
+            found = layers_cache.get(day_dot) or []
+            cmap = str(m.get("map") or "")
+            hit = None
+            best_dt = None
+            for L in found:
+                layer = str(L.get("map") or L.get("layer") or "")
+                if not fuzzy(cmap, layer):
+                    continue
+                dt = abs((L["start"] - start_guess).total_seconds())
+                if best_dt is None or dt < best_dt:
+                    hit, best_dt = L, dt
+            if hit is None or best_dt is None or best_dt > 45 * 60:
+                continue
+            start = hit["start"]
+            end = hit["end"]
+            if start.tzinfo is None:
+                start = start.replace(tzinfo=timezone.utc)
+                end = end.replace(tzinfo=timezone.utc)
+            srv = "TR1"
+            mmatch = re.match(r"^(TR\d+)-", pin.name, re.I)
+            if mmatch:
+                srv = mmatch.group(1).upper()
+            entry = {
+                "id": mid,
+                "map": m.get("map") or hit.get("map") or "—",
+                "date": date_ymd,
+                "log": pin.name,
+                "start": start.isoformat(),
+                "end": end.isoformat(),
+                "logPinned": True,
+                "serverKey": srv,
+                "note": f"auto-ensure map+time Δ{int(best_dt)}s",
+            }
+            if existing:
+                auto = [entry if str(a.get("id")) == mid else a for a in auto]
+            else:
+                auto.append(entry)
+            by_id[mid] = entry
+            added.append(mid)
+            print(f"ensure_auto +{mid} ← {pin.name} Δ{int(best_dt)}s", flush=True)
+
+    if added:
+        auto_path.write_text(
+            json.dumps(auto, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+    return added
+
+
 def drain_pending(data_dir: Path, kv_public: Path, *, kind: str = "train") -> dict:
     if kind == "train":
+        ensure_auto_from_calendar_pins(data_dir)
         missing = auto_ids_needing_rp(data_dir)
     else:
         missing = public_ids_needing_rp(data_dir)
