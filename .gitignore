@@ -43,6 +43,11 @@ scripts/.squad-collector.env
 # uploaded avatars (kept on server disk)
 /public/uploads/avatars/*
 !/public/uploads/avatars/.gitkeep
+
+# Vanilla minimaps (~30MB each) — sync to VPS disk, preserve in deploy.sh
+/public/replay-maps/*.png
+/public/replay-maps/*.PNG
+!/public/replay-maps/.gitkeep
 /storage/avatars/*
 !/storage/avatars/.gitkeep
 /storage/clans/*

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReplayPayload } from "@/lib/replayTypes";
 import { formatDuration } from "@/lib/replayFormat";
 import { resolveReplayMap, worldToMapPixel } from "@/lib/replayMaps";
+import { resolveReplayCapzones } from "@/lib/replayCapzones";
 
 const COLORS = [
   "#34d399",
@@ -52,6 +53,7 @@ export function ReplayViewer({ data }: Props) {
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(4);
   const [showTrails, setShowTrails] = useState(true);
+  const [showCaps, setShowCaps] = useState(true);
   const [hidden, setHidden] = useState<Record<string, boolean>>({});
   const [mapImg, setMapImg] = useState<HTMLImageElement | null>(null);
   /** Zoom: screen pixels per map pixel. */
@@ -71,6 +73,10 @@ export function ReplayViewer({ data }: Props) {
   const duration = data.duration_ms || 1;
 
   const tracks = useMemo(() => data.tracks?.players || [], [data.tracks?.players]);
+  const caps = useMemo(
+    () => resolveReplayCapzones(data.layer),
+    [data.layer]
+  );
 
   useEffect(() => {
     if (!map) return;
@@ -148,6 +154,38 @@ export function ReplayViewer({ data }: Props) {
     }
 
     const inv = 1 / z;
+
+    if (showCaps && caps.length) {
+      for (const cap of caps) {
+        const { mx, my } = worldToMapPixel(cap.x, cap.y, map, mw, mh);
+        const isMain = /^main$/i.test(cap.name) || cap.cluster === "00" || cap.cluster === "Z";
+        const r = Math.max(isMain ? 10 : 7, (isMain ? 14 : 9) * inv);
+        ctx.beginPath();
+        ctx.fillStyle = isMain ? "rgba(251, 191, 36, 0.85)" : "rgba(148, 163, 184, 0.75)";
+        ctx.strokeStyle = isMain ? "rgba(255, 255, 255, 0.95)" : "rgba(226, 232, 240, 0.8)";
+        ctx.lineWidth = Math.max(1.5, 2 * inv);
+        if (isMain) {
+          ctx.rect(mx - r, my - r, r * 2, r * 2);
+          ctx.fill();
+          ctx.stroke();
+        } else {
+          ctx.arc(mx, my, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
+        const label = isMain
+          ? `MAIN ${cap.cluster}`
+          : `${cap.cluster}-${cap.name}`;
+        const fontPx = Math.max(10, 12 * inv);
+        ctx.font = `600 ${fontPx}px Manrope, sans-serif`;
+        ctx.fillStyle = "#f8fafc";
+        ctx.strokeStyle = "rgba(0,0,0,0.75)";
+        ctx.lineWidth = Math.max(2, 3 * inv);
+        ctx.strokeText(label, mx + r + 3, my + fontPx * 0.35);
+        ctx.fillText(label, mx + r + 3, my + fontPx * 0.35);
+      }
+    }
+
     tracks.forEach((track, i) => {
       if (hidden[track.key]) return;
       const color = COLORS[i % COLORS.length];
@@ -189,7 +227,7 @@ export function ReplayViewer({ data }: Props) {
       ctx.fillText(track.key, mx + r + 4, my - r);
     });
     ctx.restore();
-  }, [map, mapImg, tracks, t, showTrails, hidden, zoom, pan]);
+  }, [map, mapImg, tracks, caps, t, showTrails, showCaps, hidden, zoom, pan]);
 
   useEffect(() => {
     draw();
@@ -321,6 +359,14 @@ export function ReplayViewer({ data }: Props) {
             />
             Trails
           </label>
+          <label className="replay-check">
+            <input
+              type="checkbox"
+              checked={showCaps}
+              onChange={(e) => setShowCaps(e.target.checked)}
+            />
+            Caps / Main
+          </label>
           <button type="button" className="replay-btn" onClick={fitMap}>
             Fit
           </button>
@@ -374,8 +420,8 @@ export function ReplayViewer({ data }: Props) {
           ))}
         </ul>
         <p className="replay-meta-note">
-          {map.label}: tracks = world UU из .replay; рамка = SquadCalc SDK;
-          текстура = Vanilla minimap (реестр). Колесо = зум, drag = пан.
+          {map.label}: UU → Vanilla minimap (без flipY; Y на юг). Caps/Main —
+          статика слоя. Колесо = зум, drag = пан.
         </p>
       </aside>
     </div>

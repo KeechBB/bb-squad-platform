@@ -86,6 +86,12 @@ for f in "${PRESERVE_PUBLIC[@]}"; do
     echo "==> preserve $f"
   fi
 done
+# Vanilla minimaps are large — live on disk, not in git.
+if [[ -d public/replay-maps ]]; then
+  rm -rf /tmp/bb-replay-maps.bak
+  cp -a public/replay-maps /tmp/bb-replay-maps.bak
+  echo "==> preserve public/replay-maps"
+fi
 git pull --ff-only || true
 # Some ops use reset --hard after fetch; restore preserved files either way.
 for f in "${PRESERVE_PUBLIC[@]}"; do
@@ -94,6 +100,15 @@ for f in "${PRESERVE_PUBLIC[@]}"; do
     echo "==> restored $f"
   fi
 done
+if [[ -d /tmp/bb-replay-maps.bak ]]; then
+  mkdir -p public/replay-maps
+  # Keep git-tracked files; fill in any missing PNGs from backup.
+  cp -an /tmp/bb-replay-maps.bak/. public/replay-maps/ 2>/dev/null || true
+  # Always restore disk PNGs over empty/missing after pull wipe.
+  rsync -a /tmp/bb-replay-maps.bak/ public/replay-maps/
+  echo "==> restored public/replay-maps"
+  rm -rf /tmp/bb-replay-maps.bak
+fi
 echo "==> HEAD=$(git rev-parse --short HEAD)"
 
 echo "==> sync local KV cache (rp-ladder / ledger / indexes)"

@@ -49,7 +49,8 @@ function toDef(key: string, meta: RegMap): ReplayMapDef {
     maxX: b.maxX * M,
     minY: b.minY * M,
     maxY: b.maxY * M,
-    flipY: meta.flipY !== false,
+    // Squad world Y increases southward (= screen/texture Y down). Do not flip.
+    flipY: meta.flipY === true,
     boundsSource: registry.boundsSource,
   };
 }
