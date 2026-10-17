@@ -695,9 +695,12 @@ def score_match_rp(
                 snap[0] = key
             elif role == "gunner":
                 snap[1] = key
-        if snap:
-            return snap
-        return dict(h.get("last_crew") or {})
+        # Same-second exit clears the seat, then the killing blow reseats only
+        # the driver whose name is on the HP line. The gunner is still liable.
+        for seat, key in (h.get("last_crew") or {}).items():
+            if key:
+                snap.setdefault(int(seat), key)
+        return snap
 
     def _credit_driver_share(
         gunner_key: str, applied_gain: float, at_msk: str, reason: str

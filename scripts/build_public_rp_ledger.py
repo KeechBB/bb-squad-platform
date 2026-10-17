@@ -11,6 +11,9 @@ Build public (PB1/TPUB1) RP ledger from logs.
 Usage:
   python build_public_rp_ledger.py              # incremental: append unscored matches
   python build_public_rp_ledger.py --full       # rescore all (or PUBLIC_RP_FULL=1)
+  python build_public_rp_ledger.py --rescore-last 2
+  python build_public_rp_ledger.py --rescore-from 20261017-0152-black-coast
+  python build_public_rp_ledger.py --rescore-ids id1,id2
   python build_public_rp_ledger.py --local-only # only cache / PUBLIC_RP_LOG_DIR
 """
 from __future__ import annotations
@@ -552,6 +555,12 @@ def process_match(
             dmg_by[kk] = round(dmg_by.get(kk, 0.0) + float(d.get("dmg") or 0))
 
     new_f = R.use_new_rp_formula(str(m.get("date") or ""))
+    match_date = str(m.get("date") or "")
+    vehicle_ops = (
+        R.vehicle_ops_in_window(idx, t0, t1, steam_to_nick, aliases)
+        if R.use_rp_vehicle(match_date)
+        else []
+    )
     events, net, die_n, tk_n, rev_n, _nok_rp = R.score_match_rp(
         dies=dies,
         wounds=noks,
@@ -561,6 +570,8 @@ def process_match(
         disp=disp,
         aliases=aliases,
         new_formula=new_f,
+        match_date=match_date,
+        vehicle_ops=vehicle_ops,
     )
     winner = m.get("winnerTeam")
 
@@ -629,13 +640,22 @@ def _match_hist_row(mb: dict, k: str, aliases: dict[str, str]) -> dict:
         "kills": [
             e
             for e in mb["events"]
-            if e.get("kind") == "die" and R.canon_key(e["killer"], aliases) == k
+            if e.get("kind") in ("die", "vehicle_kill", "driver_share")
+            and R.canon_key(e.get("killer") or "", aliases) == k
         ],
         "deaths": [
             e
             for e in mb["events"]
-            if e.get("kind") in ("die", "tk")
-            and R.canon_key(e["victim"], aliases) == k
+            if (
+                (
+                    e.get("kind") in ("die", "tk")
+                    and R.canon_key(e.get("victim") or "", aliases) == k
+                )
+                or (
+                    e.get("kind") in ("vehicle_loss", "vehicle_loss_driver")
+                    and R.canon_key(e.get("victim") or "", aliases) == k
+                )
+            )
         ],
         "noks": [
             e
@@ -673,6 +693,24 @@ def main() -> None:
         action="store_true",
         help="Rescore all history-linked matches (ignore existing ledger)",
     )
+    ap.add_argument(
+        "--rescore-ids",
+        type=str,
+        default="",
+        help="Comma-separated match ids to rewind + rescore (keeps other matches)",
+    )
+    ap.add_argument(
+        "--rescore-last",
+        type=int,
+        default=0,
+        help="Rescore N most recent ledger matches (by id order)",
+    )
+    ap.add_argument(
+        "--rescore-from",
+        type=str,
+        default="",
+        help="Rescore this match id and all later ones in ledger (by id order)",
+    )
     args = ap.parse_args()
 
     load_dotenv(HERE / ".squad-collector.env")
@@ -683,6 +721,11 @@ def main() -> None:
         "true",
         "yes",
     )
+    rescore_ids = {
+        x.strip()
+        for x in str(args.rescore_ids or "").split(",")
+        if x.strip()
+    }
 
     aliases = load_alias_keys()
     log_paths = resolve_log_paths(local_only=args.local_only)
@@ -716,6 +759,78 @@ def main() -> None:
         return
 
     existing = None if force_full else _load_existing_ledger()
+
+    if args.rescore_last and existing and not force_full:
+        prior_mids = [
+            str(m.get("id"))
+            for m in (existing.get("matches") or [])
+            if m.get("id")
+        ]
+        prior_mids_sorted = sorted(prior_mids)
+        for mid in prior_mids_sorted[-max(0, int(args.rescore_last)) :]:
+            rescore_ids.add(mid)
+        print(f"rescore-last={args.rescore_last} → {sorted(rescore_ids)}", flush=True)
+
+    rescore_from = str(args.rescore_from or "").strip()
+    if rescore_from and existing and not force_full:
+        prior_mids_sorted = sorted(
+            str(m.get("id"))
+            for m in (existing.get("matches") or [])
+            if m.get("id")
+        )
+        # Also include from discovered matches (newer than ledger)
+        disc_ids = sorted({m["id"] for m in matches})
+        universe = sorted(set(prior_mids_sorted) | set(disc_ids))
+        if rescore_from not in universe:
+            # prefix / slug fuzzy: take first id that contains the token
+            hit = next((x for x in universe if rescore_from in x), None)
+            if hit:
+                rescore_from = hit
+        for mid in universe:
+            if mid >= rescore_from:
+                rescore_ids.add(mid)
+        print(
+            f"rescore-from={rescore_from} → {len(rescore_ids)} matches "
+            f"{sorted(rescore_ids)[:3]}…{sorted(rescore_ids)[-3:]}",
+            flush=True,
+        )
+
+    if rescore_ids and existing and not force_full:
+        # Rewind RP nets for those matches (newest first), drop from player hist + match list.
+        drop = set(rescore_ids)
+        prior_players = dict(existing.get("players") or {})
+        for _pk, p in list(prior_players.items()):
+            if not isinstance(p, dict):
+                continue
+            mh = list(p.get("matches") or [])
+            # Sort matches to rewind by id desc so cumulative RP unwinds cleanly.
+            to_drop = [m for m in mh if str(m.get("id")) in drop]
+            to_drop.sort(key=lambda m: str(m.get("id") or ""), reverse=True)
+            rp_now = float(p.get("rp") or R.START_RP)
+            for m in to_drop:
+                try:
+                    rp_now -= float(m.get("net") or 0)
+                except (TypeError, ValueError):
+                    pass
+            rp_now = max(R.MIN_RP, round(rp_now, 1))
+            p["rp"] = rp_now
+            p["matches"] = [m for m in mh if str(m.get("id")) not in drop]
+            info = R.rp_rank(rp_now)
+            p["rankLabel"] = info["label"]
+            p["rankKey"] = info["rankKey"]
+            p["roman"] = info["roman"]
+            p["predator"] = info["predator"]
+        existing["players"] = prior_players
+        existing["matches"] = [
+            m
+            for m in (existing.get("matches") or [])
+            if str(m.get("id")) not in drop
+        ]
+        print(
+            f"rewound {len(drop)} match(es) from ledger for rescore: {sorted(drop)}",
+            flush=True,
+        )
+
     done_ids = {
         str(m.get("id"))
         for m in (existing or {}).get("matches") or []
@@ -726,6 +841,15 @@ def main() -> None:
         pending = list(matches)
         done_ids = set()
         existing = None
+    elif rescore_ids:
+        # Ensure rescored ids are pending even if somehow still marked done
+        by_id = {m["id"]: m for m in matches}
+        pending_ids = {m["id"] for m in pending}
+        for mid in sorted(rescore_ids):
+            if mid in by_id and mid not in pending_ids:
+                pending.append(by_id[mid])
+                pending_ids.add(mid)
+        pending.sort(key=lambda m: m["id"])
 
     if not pending:
         print(
@@ -735,7 +859,8 @@ def main() -> None:
         return
 
     print(
-        f"pending={len(pending)} existing={len(done_ids)} full={force_full}",
+        f"pending={len(pending)} existing={len(done_ids)} full={force_full} "
+        f"rescore={sorted(rescore_ids) if rescore_ids else []}",
         flush=True,
     )
 
@@ -905,7 +1030,14 @@ def main() -> None:
         "pMax": ledger["pMax"],
         "slim": True,
         "matches": [
-            {"id": m.get("id"), "date": m.get("date"), "map": m.get("map")}
+            {
+                "id": m.get("id"),
+                "date": m.get("date"),
+                "map": m.get("map"),
+                "score1": m.get("score1"),
+                "score2": m.get("score2"),
+                "winnerTeam": m.get("winnerTeam"),
+            }
             for m in public_matches
         ],
         "players": slim_players,

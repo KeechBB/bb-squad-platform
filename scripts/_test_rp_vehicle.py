@@ -662,6 +662,105 @@ assert not any(e.get("victim") == "Farvort" for e in w_losses), w_losses
 assert not any(e["kind"] == "nok" for e in w_events)
 print("spawn-wave turret stays on its own hull OK", w_net.get("moisha"))
 
+# Killing blow is logged on the driver after both crew already exited.
+# F2 must still lose the BTR; the kill is credited once.
+both_at = datetime(2026, 10, 17, 12, 33, 19, tzinfo=timezone.utc)
+btr_hull = "BP_BTR4_AFU_C_2136894020"
+btr_tur = "BP_BTR4_Turret_C_2136894009"
+both_ops = [
+    {
+        "kind": "v_enter",
+        "at_dt": both_at - timedelta(minutes=12),
+        "at_msk": "15:21:19",
+        "nick": "Moisha",
+        "nickKey": "moisha",
+        "asset": "BP_BTR4_AFU_C",
+        "instance": btr_tur,
+        "pawn": btr_tur,
+        "seat": 1,
+    },
+    {
+        "kind": "v_enter",
+        "at_dt": both_at - timedelta(minutes=10),
+        "at_msk": "15:23:19",
+        "nick": "Golub",
+        "nickKey": "golub",
+        "asset": "BP_BTR4_AFU_C",
+        "instance": btr_hull,
+        "seat": 0,
+    },
+    {
+        "kind": "v_exit",
+        "at_dt": both_at,
+        "at_msk": "15:33:19",
+        "nick": "Golub",
+        "nickKey": "golub",
+        "instance": btr_hull,
+        "asset": "BP_BTR4_AFU_C",
+        "seat": 0,
+    },
+    {
+        "kind": "v_exit",
+        "at_dt": both_at,
+        "at_msk": "15:33:19",
+        "nick": "Moisha",
+        "nickKey": "moisha",
+        "instance": btr_tur,
+        "asset": "BP_BTR4_Turret_C",
+        "seat": 1,
+    },
+    {
+        "kind": "v_dmg_named",
+        "at_dt": both_at,
+        "at_msk": "15:33:19",
+        "who": "Golub",
+        "whoKey": "golub",
+        "dmg": 30.0,
+        "causer": "BP_ZBL08_ZPT99_APFSDS_C_1",
+        "killer": "Pr1meT1me",
+        "killerKey": "primetime",
+        "health": -19.0,
+        "burning": False,
+    },
+]
+both_wounds = [
+    {
+        "killer": "Pr1meT1me",
+        "victim": "Moisha",
+        "killerKey": "primetime",
+        "victimKey": "moisha",
+        "at_dt": both_at + timedelta(milliseconds=2),
+        "at_msk": "15:33:19",
+    },
+    {
+        "killer": "Pr1meT1me",
+        "victim": "Golub",
+        "killerKey": "primetime",
+        "victimKey": "golub",
+        "at_dt": both_at + timedelta(milliseconds=2),
+        "at_msk": "15:33:19",
+    },
+]
+b_events, b_net, *_ = R.score_match_rp(
+    dies=[],
+    wounds=both_wounds,
+    revives=[],
+    teams={"moisha": "1", "golub": "1", "primetime": "2"},
+    rp={"moisha": 4000.0, "golub": 1000.0, "primetime": 2000.0},
+    disp={"moisha": "Moisha", "golub": "Golub", "primetime": "Pr1meT1me"},
+    aliases={},
+    new_formula=True,
+    match_date="2026-10-17",
+    vehicle_ops=both_ops,
+)
+assert sum(1 for e in b_events if e["kind"] == "vehicle_kill") == 1, b_events
+assert any(e["kind"] == "vehicle_loss" and e.get("victim") == "Moisha" for e in b_events), [
+    (e["kind"], e.get("victim")) for e in b_events
+]
+assert any(e["kind"] == "vehicle_loss_driver" and e.get("victim") == "Golub" for e in b_events)
+assert not any(e["kind"] == "nok" for e in b_events)
+print("gunner still liable after driver-named kill OK", b_net.get("moisha"))
+
 # Real log smoke (Kamaz burn-to-death by LordWolf)
 log = (
     Path(__file__).resolve().parent
