@@ -24,7 +24,7 @@ SQUAD_SSH_HOST=194.93.2.107
 SQUAD_SSH_PORT=2022
 SQUAD_SSH_USER=squad
 SQUAD_SSH_PASSWORD=…пароль game-сервера…
-SQUAD_SERVERS=TR1,TR2,TPUB1
+SQUAD_SERVERS=TR1,TR2,TR3,TPUB1
 SQUAD_LOG_ROOT=/home/squad/servers
 SQUAD_INGEST_URL=https://bb-squad.ru/api/ingest/squad-sessions
 # опционально (по умолчанию …/api/ingest/squad-hits):
@@ -36,7 +36,7 @@ SQUAD_POLL_SEC=5
 # Логи: один кэш на все серверы (TR3…TRn без правок кода)
 # BB_LOG_CACHE_ROOT=/var/www/bb-squad-platform/scripts/_tmp_squad_logs
 # BB_LOG_SYNC_WORKERS=4
-# BB_TRAIN_SYNC_SERVERS=TR1,TR2,TR3   # опционально сузить вечерний digitize
+# BB_TRAIN_SYNC_SERVERS=TR1,TR2,TR3   # опционально сузить; пусто = все TR из SQUAD_SERVERS
 
 # Telegram через Cloudflare Worker (VPS не достучится до api.telegram.org)
 BB_TG_CHAT_ID=1806167653

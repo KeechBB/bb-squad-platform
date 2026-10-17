@@ -107,7 +107,6 @@ def load_cw_slot_windows() -> list[dict]:
     """CW calendar windows — training ingest must never eat these layers."""
     try:
         from sync_kv_cw_from_tr_logs import (  # noqa: WPS433
-            calendar_server_key,
             map_fuzzy_match,
             slot_start_utc,
         )
@@ -135,15 +134,14 @@ def load_cw_slot_windows() -> list[dict]:
             t0 = slot_start_utc(slot)
             if not t0:
                 continue
-            want = calendar_server_key(str(m.get("server") or ""))
             out.append(
                 {
                     "id": m.get("id"),
                     "opp": m.get("opp"),
+                    "clan": m.get("clan"),
                     "map": str(m.get("map") or ""),
                     "t0": t0,
                     "t1": t0 + timedelta(hours=4),
-                    "want_sk": want,  # TR1/TR2 or None
                     "match": map_fuzzy_match,
                 }
             )
@@ -160,13 +158,10 @@ def layer_is_cw_slot(
     wins = windows if windows is not None else load_cw_slot_windows()
     if start.tzinfo is None:
         start = start.replace(tzinfo=timezone.utc)
-    sk = (server_key or "").upper()
     for w in wins:
         if start < w["t0"] - timedelta(minutes=45) or start > w["t1"]:
             continue
-        want = w.get("want_sk")
-        if want in {"TR1", "TR2"} and sk and want not in sk:
-            continue
+        # Calendar server is not a filter: same time + map on any TR is a CW.
         try:
             if not w["match"](w["map"], layer):
                 continue
@@ -402,13 +397,20 @@ def agg_players(
         row(kk, r.get("killer") or kk)["res"] += 1
 
     a, b = [], []
+    unknown = 0
     for k, s in stats.items():
         s["dmg"] = int(round(s["dmg"]))
         team = s.pop("team", None)
+        # Only known sides — never dump unknowns into A (that made Iran GFI
+        # players look like USMC teammates → false TK RP, e.g. bambozy Fallujah).
         if team == "2":
             b.append(s)
-        else:
+        elif team == "1":
             a.append(s)
+        else:
+            unknown += 1
+    if unknown:
+        print(f"  agg_players: skipped {unknown} combatants without team", flush=True)
     a.sort(key=lambda x: (-x["kills"], -x["nok"], x["nick"].lower()))
     b.sort(key=lambda x: (-x["kills"], -x["nok"], x["nick"].lower()))
     return a, b
@@ -1198,7 +1200,7 @@ def main() -> int:
             if src is None:
                 import bb_log_fleet as FLEET  # noqa: WPS433
 
-                for s in FLEET.train_servers() or ["TR1", "TR2"]:
+                for s in FLEET.train_servers() or ["TR1", "TR2", "TR3"]:
                     live = FLEET.server_cache(s) / "SquadGame.log"
                     if live.is_file():
                         src = live

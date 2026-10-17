@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Keech-only live hunt tracker (TPUB1/PB1 + TR1/TR2).
+Keech-only live hunt tracker (TPUB1/PB1 + TR1/TR2/TR3…).
 
 Writes:
   platform/data/keech-hunt/live.json
@@ -35,7 +35,7 @@ TRAIN_LEDGER_PATHS = (
 KEECH_STEAM = "76561198028435874"
 HIT_WINDOW_SEC = 45.0
 MEMORY_MAX = 40
-SERVERS = frozenset({"TPUB1", "PB1", "PUB", "TR1", "TR2"})
+SERVERS = frozenset({"TPUB1", "PB1", "PUB", "TR1", "TR2", "TR3"})
 
 MSK = timezone(timedelta(hours=3))
 LINE_TS = re.compile(r"^\[(?P<ts>\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2})")
@@ -225,7 +225,7 @@ class KeechHuntTracker:
 
     def _ledger_for(self, server: str | None = None) -> Path:
         srv = _norm_server(server or "")
-        if srv in ("TR1", "TR2"):
+        if srv.startswith("TR") and srv[2:].isdigit():
             for p in TRAIN_LEDGER_PATHS:
                 if p.is_file():
                     return p

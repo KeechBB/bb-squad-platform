@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Auto-digitize CW matches hosted on TR1/TR2 → KV players (BB + opp).
+Auto-digitize CW matches hosted on any TR (TR1, TR2, TR3…) → KV players.
 Clan cards are NOT auto-created — clans register themselves on the site.
 
 Canon: .cursor/rules/kv-tr-both-teams-auto.mdc
-- calendar server is BB / TR1 / TR2 / Blackberry Training…
-- match closed layer by time + map, duration ≥ 10 min
-- both teams; RP not applied
+- calendar `server` is NOT a filter (ANY, OMEN, a clan name — still try our logs)
+- match a closed layer by time + map (+ clan tags when present), duration ≥ 10 min
+- both sides, including clan vs clan with no BB; RP not applied
 """
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ MIN_LAYER_SEC = int(9.5 * 60)
 TIME_SLACK_MIN = int(os.environ.get("CW_TR_TIME_SLACK_MIN", "45"))
 
 OUR_SERVER_RE = re.compile(
-    r"\bTR\s*[12]\b|Blackberry\s*\|?\s*Training|Blackberry\s+Training|"
+    r"\bTR\s*\d+\b|Blackberry\s*\|?\s*Training|Blackberry\s+Training|"
     r"Blackberries\s*#|\bBB\b|FCL\s*ARENA\s*#?\s*2\b",
     re.I,
 )
@@ -74,49 +74,50 @@ def _server_is_ours(server: str, note: str = "") -> bool:
 
 
 def slot_allows_tr_auto(slot: dict) -> bool:
-    """Auto-digitize only when the slot is (or may be) on TR1/TR2/BB.
+    """Every calendar slot is a candidate. The `server` field is not a filter.
 
-    Explicit foreign hosts (calendar server = OMEN / opponent name / etc.)
-    are screens-only — never attach a random TR layer by map+time.
-    Ambiguous labels (empty / ANY / after matchmaking) still try TR logs.
+    A booking may say OMEN, ANY, or another clan's box and still be played
+    on TR1/TR2/TR3. Time + map (+ tags) decide. Cancelled rows never reach here.
     """
-    server = str(slot.get("server") or "").strip()
-    if calendar_server_key(server) in {"TR1", "TR2"}:
-        return True
-    if _server_is_ours(server):
-        return True
-    su = server.upper()
-    if not su or su in {
-        "ANY",
-        "TBD",
-        "—",
-        "-",
-        "AFTER MATCHMAKING",
-        "MM",
-        "MATCHMAKING",
-    }:
-        return True
-    # Cyrillic / free-text matchmaking labels
-    if "МАТЧМЕЙК" in su or "MATCHMAK" in su:
-        return True
-    return False
+    _ = slot
+    return True
 
 
 def calendar_server_key(server: str) -> str | None:
-    """Map calendar `server` label → TR1/TR2 log folder key."""
+    """Map a calendar label to a TR folder. Hint only — never a reason to skip."""
     s = re.sub(r"\s+", " ", (server or "").strip().upper())
     if not s:
         return None
-    if s in {"TR1", "BLACKBERRIES #1", "BLACKBERRIES#1"} or "BLACKBERRIES #1" in s:
-        return "TR1"
-    # TR2 public name in FCL browser / calendar: FCL ARENA #2
+    m = re.search(r"\bTR\s*(\d+)\b", s)
+    if m:
+        return f"TR{m.group(1)}"
+    m = re.search(r"BLACKBERRIES\s*#\s*(\d+)", s)
+    if m:
+        return f"TR{m.group(1)}"
     if s in {a.upper() for a in TR2_PUBLIC_ALIASES} or re.search(
         r"FCL\s*ARENA\s*#?\s*2\b", s
     ):
         return "TR2"
-    if s == "TR2" or "BLACKBERRIES #2" in s or "BLACKBERRIES#2" in s:
-        return "TR2"
     return None
+
+
+def tr_number(label: str) -> str | None:
+    m = re.search(r"TR\s*(\d+)", (label or "").upper())
+    return m.group(1) if m else None
+
+
+def server_label_for(sk: str) -> str:
+    n = tr_number(sk)
+    if n == "2":
+        return "FCL ARENA #2 (TR2 / Blackberries #2)"
+    if n:
+        return f"Blackberry | Training - Blackberries #{n}"
+    return "Blackberry | Training"
+
+
+def server_key_from_log(path: str) -> str:
+    m = re.search(r"TR\d+", (path or "").upper())
+    return m.group(0) if m else "TR1"
 
 
 def sync_tr_logs(server_key: str) -> list[Path]:
@@ -314,10 +315,9 @@ def looks_foreign_clan_tag(nick: str) -> bool:
 
 
 def load_cw_slots() -> list[dict]:
-    """CW rows to try against TR1/TR2 logs.
+    """CW rows to try against every TR log.
 
-    Only slots on our servers (TR1/TR2/BB) or ambiguous (ANY / empty).
-    Foreign hosts (OMEN, opponent-named server, …) are screens-only.
+    The calendar server label is ignored. Clan vs clan (no BB) is included.
     """
     out: list[dict] = []
     for path in sorted((KV_PUBLIC / "data").glob("20??-??.json")):
@@ -430,6 +430,50 @@ def split_bb_opp(
         bb_side = keep
         opp_side = list(opp_side) + dump
     return bb_side, opp_side, bb_is_team_a
+
+
+def split_match_sides(
+    slot: dict,
+    team_a: list[dict],
+    team_b: list[dict],
+    bb_keys: set[str],
+    aliases: dict[str, str],
+) -> tuple[list[dict], list[dict], bool]:
+    """Orient rounds as (our_side, their_side, our_side_is_team1).
+
+    BB stack: our side is the BB-tagged team.
+    Clan vs clan (no BB): our side is the calendar `clan`, theirs is `opp`.
+    """
+    stack = str(slot.get("stack") or "").strip()
+    clan = str(slot.get("clan") or "").strip()
+    opp = str(slot.get("opp") or "").strip()
+    bb_stack = stack in {"Main", "Junior", "BB"} or not clan
+
+    def bb_count(rows: list[dict]) -> int:
+        n = 0
+        for r in rows:
+            nick = str(r.get("nick") or "")
+            if looks_bb_nick(nick) or R.canon_key(nick, aliases) in bb_keys:
+                n += 1
+        return n
+
+    if bb_stack and max(bb_count(team_a), bb_count(team_b)) >= 3:
+        return split_bb_opp(team_a, team_b, bb_keys, aliases, opp=opp)
+
+    home = clan
+    if home and opp and home.upper() not in {"BB", "BLACKBERRY"}:
+
+        def tag_n(rows: list[dict], tag: str) -> int:
+            return sum(
+                1 for r in rows if looks_opp_tag(str(r.get("nick") or ""), tag)
+            )
+
+        score_a = tag_n(team_a, home) - tag_n(team_a, opp)
+        score_b = tag_n(team_b, home) - tag_n(team_b, opp)
+        if score_a >= score_b:
+            return team_a, team_b, True
+        return team_b, team_a, False
+    return split_bb_opp(team_a, team_b, bb_keys, aliases, opp=opp)
 
 
 def attach_steam(
@@ -562,15 +606,7 @@ def process_slot(
     if not candidates:
         return False
 
-    # Prefer layers from the slot's TR server when calendar names TR1/TR2
-    # (or public alias FCL ARENA #2 = TR2).
-    want_sk = calendar_server_key(str(slot.get("server") or ""))
-    if want_sk in {"TR1", "TR2"}:
-        preferred = [
-            c for c in candidates if want_sk in str(c.get("serverKey") or "").upper()
-        ]
-        if preferred:
-            candidates = preferred
+    # Calendar `server` does not choose the log. Any TR at this time+map counts.
 
     # Drop early warmup layers (often start before slot). Keep layers at/after t0−10m.
     on_time = [c for c in candidates if c["start"] >= t0 - timedelta(minutes=10)]
@@ -600,8 +636,8 @@ def process_slot(
         team_a, team_b = agg_players(dies, wounds, revives, teams, disp)
 
         # agg: team_a ≈ team1, team_b ≈ team2
-        bb_side, opp_side, bb_is_team_a = split_bb_opp(
-            team_a, team_b, bb_keys, aliases, opp=str(slot.get("opp") or "")
+        bb_side, opp_side, bb_is_team_a = split_match_sides(
+            slot, team_a, team_b, bb_keys, aliases
         )
 
         bb_rows = attach_steam(bb_side, steam, aliases)
@@ -615,12 +651,9 @@ def process_slot(
             bt, ot = int(m.get("score2") or 0), int(m.get("score1") or 0)
         ticket_pairs.append((bt, ot))
         layer_names.append(m["layer"])
-        sk = str(m.get("serverKey") or m.get("server") or "")
-        if "TR2" in sk.upper():
-            # Same box as browser name FCL ARENA #2
-            server_label = "FCL ARENA #2 (TR2 / Blackberries #2)"
-        elif "TR1" in sk.upper() or not sk:
-            server_label = "Blackberry | Training - Blackberries #1"
+        sk = str(m.get("serverKey") or "")
+        if sk:
+            server_label = server_label_for(sk)
 
         print(
             f"  R{i+1} {m['layer']} BB={len(bb_rows)} opp={len(opp_rows)} tickets {bt}:{ot}",
@@ -696,15 +729,10 @@ def process_slot(
     stack = str(slot.get("stack") or "Main")
     rules = str(slot.get("rules") or "")
     map_label = layer_names[0] if layer_names else slot_map
-    srv = (
-        "TR2"
-        if (
-            "TR2" in server_label.upper()
-            or "Blackberries #2" in server_label
-            or "FCL ARENA #2" in server_label.upper()
-        )
-        else "TR1"
+    played_on = tr_number(server_label) or tr_number(
+        str((rounds[0] if rounds else {}).get("serverKey") or "")
     )
+    srv = f"TR{played_on}" if played_on else "TR"
     head = f"{stack} · {rules} · {map_label} · {srv}".replace(" ·  · ", " · ")
     if closed_rounds >= 2:
         patch["r2"] = f"{ticket_pairs[1][0]}:{ticket_pairs[1][1]}"
@@ -758,28 +786,22 @@ def main() -> int:
     bb_keys = load_bb_nick_keys(aliases)
     print(f"KV_PUBLIC={KV_PUBLIC} bb_keys={len(bb_keys)}", flush=True)
 
-    logs: list[Path] = []
-    for sk in ("TR1", "TR2"):
-        found = sync_tr_logs(sk)
-        # tag server on discover via log path parent name
-        for p in found:
-            # copy with server prefix already
-            logs.append(p)
-        print(f"{sk} logs: {len(found)}", flush=True)
+    import bb_log_fleet as FLEET  # noqa: WPS433
+
+    _load_collector_env()
+    train = FLEET.train_servers() or ["TR1", "TR2", "TR3"]
+    logs = FLEET.sync_servers_parallel(train, kind="train")
+    print(f"TR fleet {train} logs: {len(logs)}", flush=True)
 
     if not logs:
         print("no TR logs", flush=True)
         return 0
 
-    # annotate discover with serverKey from filename/path
     discovered_raw = R.discover_matches(logs)
     discovered = []
     for m in discovered_raw:
         lp = str(m.get("logPath") or m.get("log") or "")
-        sk = "TR1"
-        if "TR2" in lp.upper() or "tr2" in lp.lower():
-            sk = "TR2"
-        m["serverKey"] = sk
+        m["serverKey"] = server_key_from_log(lp)
         discovered.append(m)
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=LOOKBACK_DAYS)
@@ -801,7 +823,7 @@ def main() -> int:
             auto = []
 
     slots = load_cw_slots()
-    print(f"CW slots on our servers: {len(slots)}", flush=True)
+    print(f"CW slots (server field ignored): {len(slots)}", flush=True)
     added = 0
     for slot in slots:
         try:

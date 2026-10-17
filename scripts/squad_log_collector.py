@@ -11,8 +11,8 @@ Env (не коммитить секреты):
   # Один лог (legacy):
   SQUAD_LOG_PATH=/home/squad/servers/TPUB1/SquadGame/Saved/Logs/SquadGame.log
   SQUAD_SERVER_KEY=TPUB1
-  # Или несколько серверов (тренировка TR1+TR2 + паб):
-  SQUAD_SERVERS=TR1,TR2,TPUB1
+  # Или несколько серверов (тренировка TR1+TR2+TR3 + паб):
+  SQUAD_SERVERS=TR1,TR2,TR3,TPUB1
   SQUAD_LOG_ROOT=/home/squad/servers
   SQUAD_INGEST_URL=https://bb-squad.ru/api/ingest/squad-sessions
   SQUAD_HITS_INGEST_URL=https://bb-squad.ru/api/ingest/squad-hits
@@ -42,13 +42,13 @@ import requests
 # Join/leave со всех SQUAD_SERVERS; hits — все TR* (BBHitZone).
 # DeployRole / киты — TR* + паблик PB1. Список TR растёт через SQUAD_SERVERS.
 def _train_hit_servers() -> frozenset[str]:
-    raw = os.environ.get("SQUAD_SERVERS", "TR1,TR2")
+    raw = os.environ.get("SQUAD_SERVERS", "TR1,TR2,TR3,TPUB1")
     out = set()
     for part in raw.replace(";", ",").split(","):
         k = part.strip().upper()
         if k.startswith("TR") and k[2:].isdigit():
             out.add(k)
-    return frozenset(out or {"TR1", "TR2"})
+    return frozenset(out or {"TR1", "TR2", "TR3"})
 
 
 # История матчей паблика — только PB1/TPUB1 (SEED отфильтровываем).
@@ -60,7 +60,7 @@ def _role_servers() -> frozenset[str]:
 
 
 # Back-compat names (refreshed after dotenv in main via reassignment if needed)
-TRAINING_HIT_ROLE_SERVERS = frozenset({"TR1", "TR2"})
+TRAINING_HIT_ROLE_SERVERS = frozenset({"TR1", "TR2", "TR3"})
 ROLE_SERVERS = TRAINING_HIT_ROLE_SERVERS | PUBLIC_MATCH_SERVERS
 
 # Name may contain spaces; passworded servers append ?PASSWORD=… before userId.
@@ -1304,8 +1304,22 @@ class Collector:
     def _try_acquire_heavy_lock(self, label: str) -> bool:
         return self._try_acquire_lock(self._heavy_lock, self._heavy_lock_ttl, label)
 
-    def _load_too_high(self, limit: float = 1.35) -> bool:
-        """2-vCPU box: skip heavy jobs when 1-min load is already hot (protect Next)."""
+    def _load_too_high(self, limit: float | None = None) -> bool:
+        """Skip heavy jobs only when the box is actually hot.
+
+        1.35 was the 2-vCPU cap. On plaza (20 cores) that skipped every
+        digitize, so TR maps never landed until someone ran sync by hand.
+        """
+        if limit is None:
+            raw = os.environ.get("BB_HEAVY_LOAD_LIMIT", "").strip()
+            if raw:
+                try:
+                    limit = float(raw)
+                except ValueError:
+                    limit = None
+            if limit is None:
+                cpus = os.cpu_count() or 2
+                limit = 1.35 if cpus <= 2 else cpus * 0.7
         try:
             load1 = os.getloadavg()[0]
         except (AttributeError, OSError):
@@ -1588,7 +1602,7 @@ class Collector:
             _safe_print("rp lag alert error", type(e).__name__, e, flush=True)
 
     def maybe_sync_cw_tr(self) -> None:
-        """CW on TR1/TR2: both teams stats (no auto clan cards)."""
+        """CW on any TR: both sides, calendar server ignored."""
         now = time.time()
         last = getattr(self, "_cw_tr_sync_last", 0.0)
         # CW slots often 17–21 UTC; poll every 3 min near then, else 20 min.
@@ -1693,12 +1707,17 @@ class Collector:
                 _safe_print("backfill complete fail", type(e).__name__, e, file=sys.stderr)
 
     def _bootstrap_keech_hunt(self) -> None:
-        """One-shot: rebuild open Keech matches from TPUB1 + TR1(+TR2) log tails."""
+        """One-shot: rebuild open Keech matches from public + every TR log tail."""
         kt = self._keech_tracker()
         if kt is None:
             return
-        want = ("TPUB1", "PB1", "PUB", "TR1", "TR2")
-        targets = [(k, p) for k, p in self.targets if k in want]
+        public = {"TPUB1", "PB1", "PUB"}
+        targets = [
+            (k, p)
+            for k, p in self.targets
+            if k.upper() in public
+            or (k.upper().startswith("TR") and k[2:].isdigit())
+        ]
         # Prefer one public + training; skip dupes after normalize inside tracker
         if not targets:
             return
