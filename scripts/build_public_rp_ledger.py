@@ -6,7 +6,8 @@ Build public (PB1/TPUB1) RP ledger from logs.
 - Auto-discover non-SEED matches (InProgress → WaitingPostMatch)
 - Weight = current public RP (not PWR)
 - Die/TK/Revive rules same as training
-- Writes platform/data/public/rp-ledger.json (+ KV mirror if present)
+- Writes ONLY platform/data/public/rp-ledger.json (+ slim rp-ladder.json)
+  (no kv-cache / KV / github.io mirrors — single source of truth)
 
 Usage:
   python build_public_rp_ledger.py              # incremental: append unscored matches
@@ -32,16 +33,9 @@ import rp_log_parse as R
 HERE = Path(__file__).resolve().parent
 PLATFORM = HERE.parent
 CACHE = HERE / "_tmp_tpub1_logs_cache"
+# Canonical public RP (single source of truth on VPS). Do not write mirrors.
 OUT_PRIMARY = PLATFORM / "data" / "public" / "rp-ledger.json"
-OUT_KV = PLATFORM.parent / "KV" / "public" / "data" / "public" / "rp-ledger.json"
-OUT_KV_CACHE = PLATFORM / "data" / "kv-cache" / "data" / "public" / "rp-ledger.json"
 OUT_LADDER_PRIMARY = PLATFORM / "data" / "public" / "rp-ladder.json"
-OUT_LADDER_KV = (
-    PLATFORM.parent / "KV" / "public" / "data" / "public" / "rp-ladder.json"
-)
-OUT_LADDER_KV_CACHE = (
-    PLATFORM / "data" / "kv-cache" / "data" / "public" / "rp-ladder.json"
-)
 HISTORY_CACHE = PLATFORM / "data" / "public" / "match-history.json"
 TIERS = PLATFORM.parent / "KV" / "public" / "data" / "tiers.json"
 # Rating starts from this date (MSK calendar day). Older log matches are ignored.
@@ -225,10 +219,11 @@ def write_empty(note: str) -> None:
         "leaderboard": [],
         "note": note,
     }
-    for out in (OUT_PRIMARY, OUT_KV, OUT_KV_CACHE):
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        print(f"wrote empty → {out}")
+    OUT_PRIMARY.parent.mkdir(parents=True, exist_ok=True)
+    OUT_PRIMARY.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    print(f"wrote empty → {OUT_PRIMARY}")
 
 
 def get_log_index(
@@ -618,15 +613,15 @@ def process_match(
 
 
 def _load_existing_ledger() -> dict | None:
-    for path in (OUT_PRIMARY, OUT_KV_CACHE, OUT_KV):
-        if not path.is_file():
-            continue
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            if isinstance(data, dict) and data.get("players") is not None:
-                return data
-        except Exception as e:
-            print(f"warn: could not read {path}: {e}", flush=True)
+    """Read only the canonical disk ledger — never kv-cache / KV mirrors."""
+    if not OUT_PRIMARY.is_file():
+        return None
+    try:
+        data = json.loads(OUT_PRIMARY.read_text(encoding="utf-8"))
+        if isinstance(data, dict) and data.get("players") is not None:
+            return data
+    except Exception as e:
+        print(f"warn: could not read {OUT_PRIMARY}: {e}", flush=True)
     return None
 
 
@@ -1057,13 +1052,13 @@ def main() -> None:
     }
 
     text = json.dumps(ledger, ensure_ascii=False, indent=2) + "\n"
-    for out in (OUT_PRIMARY, OUT_KV, OUT_KV_CACHE):
-        try:
-            out.parent.mkdir(parents=True, exist_ok=True)
-            out.write_text(text, encoding="utf-8")
-            print(f"Wrote {out} ({len(ledger['leaderboard'])} players, {len(public_matches)} matches)")
-        except Exception as e:
-            print(f"skip write {out}: {e}", flush=True)
+    OUT_PRIMARY.parent.mkdir(parents=True, exist_ok=True)
+    OUT_PRIMARY.write_text(text, encoding="utf-8")
+    print(
+        f"Wrote {OUT_PRIMARY} ({len(ledger['leaderboard'])} players, "
+        f"{len(public_matches)} matches)",
+        flush=True,
+    )
 
     # Slim ladder for Next hot path (~1MB vs ~30MB full ledger).
     slim_players: dict[str, dict] = {}
@@ -1118,13 +1113,9 @@ def main() -> None:
         "leaderboard": ledger["leaderboard"],
     }
     slim_text = json.dumps(slim, ensure_ascii=False, separators=(",", ":")) + "\n"
-    for out in (OUT_LADDER_PRIMARY, OUT_LADDER_KV, OUT_LADDER_KV_CACHE):
-        try:
-            out.parent.mkdir(parents=True, exist_ok=True)
-            out.write_text(slim_text, encoding="utf-8")
-            print(f"Wrote slim {out} ({out.stat().st_size} bytes)")
-        except Exception as e:
-            print(f"skip write {out}: {e}", flush=True)
+    OUT_LADDER_PRIMARY.parent.mkdir(parents=True, exist_ok=True)
+    OUT_LADDER_PRIMARY.write_text(slim_text, encoding="utf-8")
+    print(f"Wrote slim {OUT_LADDER_PRIMARY} ({OUT_LADDER_PRIMARY.stat().st_size} bytes)")
 
     print("TOP 10:")
     for i, row in enumerate(ledger["leaderboard"][:10], 1):

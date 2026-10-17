@@ -1,14 +1,14 @@
 /**
  * Public (PB1) Respect Points — same ladder UI as train RP.
- * Hot path uses slim `data/public/rp-ladder.json` (~1–2MB).
- * Full `rp-ledger.json` (~80MB+) only for rare drilldowns — NEVER cached in process
- * memory (parsed object blows RAM on a 4GB VPS).
+ *
+ * Single source of truth (VPS):
+ *   data/public/rp-ladder.json  — hot path (~1–2MB)
+ *   data/public/rp-ledger.json  — drilldowns only (~80MB+)
+ *
+ * Do NOT read kv-cache / KV / github.io mirrors — those caused Farvort-class desync.
+ * Full ledger is NEVER kept in process memory (JSON.parse residency blows RAM).
  */
 import { rpRankFromScore, type RpLeaderRow, type RpLedger, type RpPlayer } from "@/lib/trainRp";
-
-const KV_BASES = [
-  process.env.KV_DATA_BASE,
-].filter(Boolean) as string[];
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const FULL_PLAYER_TTL_MS = 120_000;
@@ -21,12 +21,6 @@ function nickKey(n: string) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, "");
-}
-
-async function fetchJson(url: string) {
-  const res = await fetch(url, { next: { revalidate: 120 } });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
 }
 
 /** Public rating starts 2026-10-03; reject pre-epoch / non-history ledgers. */
@@ -45,12 +39,6 @@ function isCurrentPublicLedger(data: RpLedger | null | undefined): boolean {
   return matches.every((m) => !m.date || m.date >= PUBLIC_RP_EPOCH);
 }
 
-function ledgerFreshness(data: RpLedger): number {
-  // Prefer newest file by updatedAt. Do NOT substring-match formula:
-  // old ledgers contain "nok=Wound downs" and would beat a fresher copy.
-  return Date.parse(String(data.updatedAt || "")) || 0;
-}
-
 async function readJsonFile(path: string): Promise<RpLedger | null> {
   try {
     const { readFile } = await import("fs/promises");
@@ -60,49 +48,18 @@ async function readJsonFile(path: string): Promise<RpLedger | null> {
   }
 }
 
-/** Keep only the freshest valid copy — never retain every parsed candidate. */
-async function loadBestPublicJson(relUnderData: string): Promise<RpLedger | null> {
+/**
+ * Canonical public RP files only: `data/public/rp-*.json` under the platform cwd.
+ * No multi-path "freshest wins" — one writer, one reader path.
+ */
+async function loadCanonicalPublicJson(
+  fileName: "rp-ladder.json" | "rp-ledger.json"
+): Promise<RpLedger | null> {
   const { join } = await import("path");
-  const cwd = process.cwd();
-  const diskPaths = [
-    join(cwd, "data", "kv-cache", "data", relUnderData),
-    join(cwd, "data", relUnderData),
-    join(cwd, "..", "KV", "public", "data", relUnderData),
-    join(cwd, "..", "KV", "data", relUnderData),
-  ];
-
-  let best: RpLedger | null = null;
-  let bestScore = -1;
-
-  for (const p of diskPaths) {
-    const data = await readJsonFile(p);
-    if (!data || !isCurrentPublicLedger(data)) continue;
-    const score = ledgerFreshness(data);
-    if (score > bestScore) {
-      best = data;
-      bestScore = score;
-    }
-  }
-
-  if (!best) {
-    for (const base of KV_BASES) {
-      try {
-        const data = (await fetchJson(
-          `${base.replace(/\/$/, "")}/data/${relUnderData}`
-        )) as RpLedger;
-        if (!isCurrentPublicLedger(data)) continue;
-        const score = ledgerFreshness(data);
-        if (score > bestScore) {
-          best = data;
-          bestScore = score;
-        }
-      } catch {
-        /* next */
-      }
-    }
-  }
-
-  return best;
+  const path = join(process.cwd(), "data", "public", fileName);
+  const data = await readJsonFile(path);
+  if (!data || !isCurrentPublicLedger(data)) return null;
+  return data;
 }
 
 /** Slim public ladder (~1MB) — rating table / aggregates. */
@@ -110,7 +67,7 @@ export async function loadPublicRpLadder(): Promise<RpLedger | null> {
   const now = Date.now();
   if (ladderMem && now - ladderMem.at < CACHE_TTL_MS) return ladderMem.data;
 
-  const data = await loadBestPublicJson("public/rp-ladder.json");
+  const data = await loadCanonicalPublicJson("rp-ladder.json");
   ladderMem = { at: now, data };
   return data;
 }
@@ -120,7 +77,7 @@ export async function loadPublicRpLadder(): Promise<RpLedger | null> {
  * JSON.parse residencies are several× that).
  */
 export async function loadPublicRpLedger(): Promise<RpLedger | null> {
-  return loadBestPublicJson("public/rp-ledger.json");
+  return loadCanonicalPublicJson("rp-ledger.json");
 }
 
 /** Home / boards: slim ladder only — never pull full ledger. */

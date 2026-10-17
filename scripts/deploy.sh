@@ -74,8 +74,10 @@ enable_maintenance
 
 echo "==> git pull"
 # Runtime public data lives on disk / DB — never let hard-reset wipe a fuller ledger.
+# Canonical public RP lives ONLY under data/public/ — never let git wipe it.
 PRESERVE_PUBLIC=(
   "data/public/rp-ledger.json"
+  "data/public/rp-ladder.json"
   "data/public/match-history.json"
 )
 for f in "${PRESERVE_PUBLIC[@]}"; do
@@ -98,41 +100,18 @@ echo "==> sync local KV cache (rp-ladder / ledger / indexes)"
 bash scripts/sync_kv_cache.sh || true
 bash scripts/repair_train_live.sh || true
 
-# Public rating reads data/public/rp-ledger.json first; deploy used to restore a
-# preserved stale copy and ignore the fresher github.io mirror in kv-cache.
-# Prefer the copy with MORE scored matches (mtime alone can overwrite a fuller
-# VPS ledger with a thinner github.io rebuild).
-KV_PUB_LEDGER="$ROOT/data/kv-cache/data/public/rp-ledger.json"
-DISK_PUB_LEDGER="$ROOT/data/public/rp-ledger.json"
-KV_PUB_LADDER="$ROOT/data/kv-cache/data/public/rp-ladder.json"
-DISK_PUB_LADDER="$ROOT/data/public/rp-ladder.json"
-ledger_match_count() {
-  local f="$1"
-  [[ -f "$f" ]] || { echo 0; return; }
-  python3 - "$f" <<'PY' 2>/dev/null || echo 0
-import json,sys
-try:
-  d=json.load(open(sys.argv[1],encoding="utf-8"))
-  print(len(d.get("matches") or []))
-except Exception:
-  print(0)
-PY
-}
-if [[ -f "$KV_PUB_LEDGER" ]]; then
-  mkdir -p "$(dirname "$DISK_PUB_LEDGER")"
-  KV_N="$(ledger_match_count "$KV_PUB_LEDGER")"
-  DISK_N="$(ledger_match_count "$DISK_PUB_LEDGER")"
-  if [[ ! -f "$DISK_PUB_LEDGER" ]] || [[ "$KV_N" -gt "$DISK_N" ]]; then
-    cp -a "$KV_PUB_LEDGER" "$DISK_PUB_LEDGER"
-    echo "==> refreshed $DISK_PUB_LEDGER from kv-cache (matches $DISK_N → $KV_N)"
-    if [[ -f "$KV_PUB_LADDER" ]]; then
-      cp -a "$KV_PUB_LADDER" "$DISK_PUB_LADDER"
-      echo "==> refreshed $DISK_PUB_LADDER from kv-cache"
-    fi
-  else
-    echo "==> keep disk ledger (matches disk=$DISK_N kv=$KV_N)"
+# Single source of truth: data/public/{rp-ledger,rp-ladder,match-history}.json
+# Never pull public RP from kv-cache / github.io (that caused Farvort-class desync).
+# One-way: if a legacy consumer still looks under kv-cache, mirror FROM disk only.
+DISK_PUB="$ROOT/data/public"
+KV_PUB="$ROOT/data/kv-cache/data/public"
+mkdir -p "$KV_PUB"
+for pubf in rp-ledger.json rp-ladder.json match-history.json; do
+  if [[ -f "$DISK_PUB/$pubf" ]]; then
+    cp -a "$DISK_PUB/$pubf" "$KV_PUB/$pubf"
+    echo "==> mirror $pubf → kv-cache (disk is canonical)"
   fi
-fi
+done
 
 ensure_swap
 

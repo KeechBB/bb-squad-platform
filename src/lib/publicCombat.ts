@@ -481,8 +481,8 @@ export async function buildPublicRatingTable(limit = 500): Promise<{
 }> {
   const cached = unstable_cache(
     () => buildPublicRatingTableUncached(limit),
-    // bump key when ledger repair / RP formula changes so stale Farvort-class boards die
-    ["public-rating-table-v3-slim", String(limit)],
+    // bump when public RP source-of-truth / formula changes
+    ["public-rating-table-v4-slim", String(limit)],
     { revalidate: 120 }
   );
   return cached();

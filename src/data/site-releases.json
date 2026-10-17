@@ -1,6 +1,15 @@
 {
-  "current": "1.1.154",
+  "current": "1.1.155",
   "releases": [
+    {
+      "version": "1.1.155",
+      "date": "2026-10-17",
+      "title": "Public RP = один каталог data/public",
+      "bullets": [
+        "Читаем и пишем только data/public/ (без гонки зеркал)",
+        "kv-cache/github.io больше не перетирают ledger при деплое"
+      ]
+    },
     {
       "version": "1.1.154",
       "date": "2026-10-17",

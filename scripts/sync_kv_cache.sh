@@ -130,13 +130,13 @@ fi
 if [[ -f "$TRAIN_BAK/cache-bust.json" && ! -f "$DEST/data/cache-bust.json" ]]; then
   cp -a "$TRAIN_BAK/cache-bust.json" "$DEST/data/cache-bust.json" || true
 fi
-# Restore public RP / match-history from live backup; fill gaps from warehouse
+# kv-cache/public is a derived mirror only. Canon = $ROOT/data/public/ (never github.io).
 mkdir -p "$DEST/data/public"
 for pubf in rp-ledger.json rp-ladder.json match-history.json; do
-  if [[ -f "$TRAIN_BAK/public/$pubf" ]]; then
+  if [[ -f "$ROOT/data/public/$pubf" ]]; then
+    cp -a "$ROOT/data/public/$pubf" "$DEST/data/public/$pubf" || true
+  elif [[ -f "$TRAIN_BAK/public/$pubf" ]]; then
     cp -a "$TRAIN_BAK/public/$pubf" "$DEST/data/public/$pubf" || true
-  elif [[ ! -f "$DEST/data/public/$pubf" && -f "$SRC/data/public/$pubf" ]]; then
-    cp -a "$SRC/data/public/$pubf" "$DEST/data/public/$pubf" || true
   fi
 done
 rm -rf "$TRAIN_BAK"
