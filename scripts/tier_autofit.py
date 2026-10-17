@@ -406,6 +406,26 @@ def run(apply: bool) -> dict[str, Any]:
         hist.setdefault("events", []).extend(applied)
         hist["updatedAt"] = now.isoformat()
         dump_json(HISTORY_PATH, hist)
+        # Админ «Лог тиров» (TierChangeLog) — те же переводы, что и ручные
+        try:
+            from tier_change_log_db import record_tier_changes  # noqa: WPS433
+
+            n_log = record_tier_changes(
+                [
+                    {
+                        "nick": t["nick"],
+                        "fromTier": t["fromTier"],
+                        "toTier": t["toTier"],
+                        "at": t.get("at") or now.isoformat(),
+                        "note": t.get("note") or "Авто Fit",
+                        "actorNick": t.get("actor") or "автофит",
+                    }
+                    for t in applied
+                ]
+            )
+            print(f"TierChangeLog: +{n_log}", flush=True)
+        except Exception as e:
+            print(f"TierChangeLog skip: {type(e).__name__}: {e}", flush=True)
 
     dump_json(STATE_PATH, state)
     dump_json(BOARD_PATH, board)

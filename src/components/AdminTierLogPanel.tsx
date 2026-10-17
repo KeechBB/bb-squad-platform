@@ -111,8 +111,8 @@ export function AdminTierLogPanel() {
         <div>
           <h2 className="admin-updates-title">Лог тиров</h2>
           <p className="muted admin-updates-lead">
-            Кто и когда переведён между тирами. Пакет 02.10.2026 уже в истории —
-            новые переводы добавляй формой ниже.
+            Все переходы тир↔тир: ручные (форма ниже) и автофит. В колонке «Кто» —
+            ник админа или «автофит» / «система».
           </p>
         </div>
         <button
