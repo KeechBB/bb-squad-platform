@@ -19,16 +19,20 @@ const COLORS = [
 
 type Props = { data: ReplayPayload };
 
+/** Demo position updates are sparse; don't invent a straight line across holes. */
+const GAP_MS = 3000;
+
 function sampleAt(
   samples: { t: number; x: number; y: number }[],
   t: number
 ): { x: number; y: number } | null {
   if (!samples.length) return null;
-  if (t <= samples[0].t) return { x: samples[0].x, y: samples[0].y };
-  if (t >= samples[samples.length - 1].t) {
-    const last = samples[samples.length - 1];
-    return { x: last.x, y: last.y };
-  }
+  const first = samples[0];
+  const last = samples[samples.length - 1];
+  // Outside recorded window → no marker (was freezing on last point forever).
+  if (t < first.t || t > last.t) return null;
+  if (t === first.t) return { x: first.x, y: first.y };
+  if (t === last.t) return { x: last.x, y: last.y };
   let lo = 0;
   let hi = samples.length - 1;
   while (lo < hi - 1) {
@@ -38,6 +42,10 @@ function sampleAt(
   }
   const a = samples[lo];
   const b = samples[hi];
+  if (b.t - a.t > GAP_MS) {
+    // Inside a demo hole: stay on last known sample, no A→B lerp.
+    return { x: a.x, y: a.y };
+  }
   const u = (t - a.t) / Math.max(1, b.t - a.t);
   return { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u };
 }
@@ -191,18 +199,20 @@ export function ReplayViewer({ data }: Props) {
       const color = COLORS[i % COLORS.length];
       const samples = track.samples;
       if (showTrails && samples.length > 1) {
-        ctx.beginPath();
         ctx.strokeStyle = color;
         ctx.globalAlpha = 0.55;
         ctx.lineWidth = Math.max(1.5, 2 * inv);
-        let started = false;
+        ctx.beginPath();
+        let prev: (typeof samples)[0] | null = null;
         for (const s of samples) {
           if (s.t > t) break;
           const { mx, my } = worldToMapPixel(s.x, s.y, map, mw, mh);
-          if (!started) {
+          if (!prev || s.t - prev.t > GAP_MS) {
             ctx.moveTo(mx, my);
-            started = true;
-          } else ctx.lineTo(mx, my);
+          } else {
+            ctx.lineTo(mx, my);
+          }
+          prev = s;
         }
         ctx.stroke();
         ctx.globalAlpha = 1;
@@ -414,7 +424,14 @@ export function ReplayViewer({ data }: Props) {
                   style={{ background: COLORS[i % COLORS.length] }}
                 />
                 {track.key}
-                <span className="replay-muted">{track.samples.length} pts</span>
+                <span className="replay-muted">
+                  {track.samples.length} pts
+                  {track.samples.length
+                    ? ` · ${formatDuration(track.samples[0].t)}–${formatDuration(
+                        track.samples[track.samples.length - 1].t
+                      )}`
+                    : ""}
+                </span>
               </label>
             </li>
           ))}
