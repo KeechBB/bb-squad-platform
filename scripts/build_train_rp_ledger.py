@@ -234,10 +234,13 @@ RANK_NAMES = [
     ("Immortal", "immortal"),
     ("Master", "master"),
     ("Radiant", "radiant"),
+    ("Eclipse", "eclipse"),
 ]
 ROMAN = ("I", "II", "III")
 STEP = 150
-RADIANT3_MAX = 1 + 30 * STEP - 1  # 4500
+# Iron…Radiant (30) + Eclipse I–III (3) = 33×150 → 4950; Predator 4951+
+RADIANT3_MAX = 1 + 33 * STEP - 1  # 4950
+NAMED_RANK_LEVELS = 33
 
 
 def strip_tag(n: str) -> str:
@@ -316,10 +319,10 @@ def rp_rank(rp: float) -> dict:
             "label": "PREDATOR",
             "rankKey": "predator",
             "roman": "",
-            "level": 30,
+            "level": NAMED_RANK_LEVELS,
             "predator": True,
         }
-    idx = 0 if rp_i < 1 else min(29, (rp_i - 1) // STEP)
+    idx = 0 if rp_i < 1 else min(NAMED_RANK_LEVELS - 1, (rp_i - 1) // STEP)
     name, key = RANK_NAMES[idx // 3]
     roman = ROMAN[idx % 3]
     return {
@@ -859,6 +862,15 @@ def main() -> None:
             revives = R.revives_in_window(idx, m["start"], m["end"])
 
         new_f = R.use_new_rp_formula(m["date"])
+        match_date = str(m.get("date") or "")
+        mid = str(m.get("id") or "")
+        vehicle_ops = (
+            R.vehicle_ops_in_window(
+                idx, m["start"], m["end"], steam_to_nick, aliases
+            )
+            if idx is not None and R.use_rp_vehicle(match_date, mid)
+            else []
+        )
         events, net, die_n, tk_n, rev_n, _ = R.score_match_rp(
             dies=dies,
             wounds=wounds,
@@ -869,6 +881,9 @@ def main() -> None:
             aliases=aliases,
             new_formula=new_f,
             pwr_weights=None if new_f else pwr,
+            match_date=match_date,
+            match_id=mid,
+            vehicle_ops=vehicle_ops,
         )
         print(
             f"{m['id']}: Die={die_n} TK={tk_n} rev={rev_n} formula={'v2' if new_f else 'legacy'}",
@@ -928,23 +943,36 @@ def main() -> None:
         for mb in match_blocks:
             if k not in mb["netByKey"]:
                 continue
+            kills_ev = [
+                e
+                for e in mb["events"]
+                if e.get("kind") in ("die", "vehicle_kill", "driver_share")
+                and canon_key(e.get("killer") or "", aliases) == k
+            ]
             match_hist.append(
                 {
                     "id": mb["id"],
                     "map": mb["map"],
                     "date": mb["date"],
                     "net": mb["netByKey"][k],
-                    "kills": [
-                        e
-                        for e in mb["events"]
-                        if e.get("kind") == "die"
-                        and canon_key(e["killer"], aliases) == k
-                    ],
+                    "vehicleKills": sum(
+                        1 for e in kills_ev if e.get("kind") == "vehicle_kill"
+                    ),
+                    "kills": kills_ev,
                     "deaths": [
                         e
                         for e in mb["events"]
-                        if e.get("kind") in ("die", "tk")
-                        and canon_key(e["victim"], aliases) == k
+                        if (
+                            (
+                                e.get("kind") in ("die", "tk")
+                                and canon_key(e.get("victim") or "", aliases) == k
+                            )
+                            or (
+                                e.get("kind")
+                                in ("vehicle_loss", "vehicle_loss_driver")
+                                and canon_key(e.get("victim") or "", aliases) == k
+                            )
+                        )
                     ],
                     "teamkills": [
                         e
@@ -1073,6 +1101,7 @@ def main() -> None:
                     "map": hm["map"],
                     "date": hm["date"],
                     "net": hm["net"],
+                    "vehicleKills": int(hm.get("vehicleKills") or 0),
                 }
                 for hm in (p.get("matches") or [])
             ],

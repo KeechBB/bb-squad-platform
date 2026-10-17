@@ -29,7 +29,10 @@ assert R.vehicle_base_rp("BP_US_Util_USMC_Woodland_Logi_C") == 62.5
 assert R.vehicle_class_ru("BP_US_Util_USMC_Woodland_C") == "транспорт"
 assert R.vehicle_class_ru("BP_US_Util_USMC_Woodland_Logi_C") == "logi"
 assert R.use_rp_vehicle("2026-10-16") is False
-assert R.use_rp_vehicle("2026-10-17") is True
+assert R.use_rp_vehicle("2026-10-17") is False  # no HHMM → pre-cutover safe
+assert R.use_rp_vehicle("2026-10-17", "20261017-0059-x") is False
+assert R.use_rp_vehicle("2026-10-17", "20261017-0100-x") is True
+assert R.use_rp_vehicle("2026-10-18") is True
 
 # Synthetic: tank loss F2+driver + LAT kill
 rp: dict[str, float] = {"gunner": 2000.0, "driver": 2000.0, "lat": 2000.0}
@@ -126,6 +129,7 @@ events, net, *_ = R.score_match_rp(
     aliases={},
     new_formula=True,
     match_date="2026-10-17",
+    match_id="20261017-1200-test",
     vehicle_ops=ops,
 )
 kinds = [e["kind"] for e in events]
@@ -215,6 +219,7 @@ occ_events, occ_net, occ_die_n, *_ = R.score_match_rp(
     aliases={},
     new_formula=True,
     match_date="2026-10-17",
+    match_id="20261017-1200-test",
     vehicle_ops=occ_ops,
 )
 occ_kinds = [(e["kind"], e.get("victim"), e.get("time")) for e in occ_events]
@@ -262,6 +267,7 @@ os_events, os_net, *_ = R.score_match_rp(
     aliases={},
     new_formula=True,
     match_date="2026-10-17",
+    match_id="20261017-1200-test",
     vehicle_ops=oneshot_ops,
 )
 assert any(
@@ -333,6 +339,7 @@ brk_events, brk_net, *_ = R.score_match_rp(
     aliases={},
     new_formula=True,
     match_date="2026-10-17",
+    match_id="20261017-1200-test",
     vehicle_ops=brk_ops,
 )
 assert any(
@@ -420,6 +427,7 @@ k_events, k_net, _, _, _, k_noks = R.score_match_rp(
     aliases={},
     new_formula=True,
     match_date="2026-10-17",
+    match_id="20261017-1200-test",
     vehicle_ops=knock_ops,
 )
 k_kinds = [(e["kind"], e.get("victim")) for e in k_events]
@@ -517,6 +525,7 @@ z_events, z_net, *_ = R.score_match_rp(
     aliases={},
     new_formula=True,
     match_date="2026-10-17",
+    match_id="20261017-1200-test",
     vehicle_ops=z_ops,
 )
 z_kills = [e for e in z_events if e["kind"] == "vehicle_kill"]
@@ -653,6 +662,7 @@ w_events, w_net, *_ = R.score_match_rp(
     aliases={},
     new_formula=True,
     match_date="2026-10-17",
+    match_id="20261017-1200-test",
     vehicle_ops=wave_ops,
 )
 w_kills = [e for e in w_events if e["kind"] == "vehicle_kill"]
@@ -751,6 +761,7 @@ b_events, b_net, *_ = R.score_match_rp(
     aliases={},
     new_formula=True,
     match_date="2026-10-17",
+    match_id="20261017-1200-test",
     vehicle_ops=both_ops,
 )
 assert sum(1 for e in b_events if e["kind"] == "vehicle_kill") == 1, b_events
@@ -850,6 +861,7 @@ g_events, g_net, *_ = R.score_match_rp(
     aliases={},
     new_formula=True,
     match_date="2026-10-17",
+    match_id="20261017-1200-test",
     vehicle_ops=gun_ops,
 )
 assert any(e["kind"] == "vehicle_loss" and e.get("victim") == "Keech" for e in g_events), [
@@ -917,6 +929,7 @@ r_events, *_ = R.score_match_rp(
     aliases={},
     new_formula=True,
     match_date="2026-10-17",
+    match_id="20261017-1200-test",
     vehicle_ops=repair_ops,
 )
 assert not any(e["kind"].startswith("vehicle_loss") for e in r_events), [
@@ -960,6 +973,7 @@ if log.is_file():
         aliases={},
         new_formula=True,
         match_date="2026-10-17",
+    match_id="20261017-1200-test",
         vehicle_ops=ops,
     )
     vk = [e for e in ev2 if e["kind"] == "vehicle_kill"]

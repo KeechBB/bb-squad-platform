@@ -305,10 +305,14 @@ class KeechHuntTracker:
         return at.astimezone(MSK).strftime("%Y-%m-%d")
 
     def _soft_on(self, server: str, at: datetime) -> bool:
-        return R.use_rp_gain_softcap(self._match_date(server, at))
+        return R.match_at_or_after_night_cutover(
+            match_date=self._match_date(server, at), at=at
+        )
 
     def _veh_on(self, server: str, at: datetime) -> bool:
-        return R.use_rp_vehicle(self._match_date(server, at))
+        return R.match_at_or_after_night_cutover(
+            match_date=self._match_date(server, at), at=at
+        )
 
     def _seed_keech_rp(self, server: str) -> float:
         srv = _norm_server(server)

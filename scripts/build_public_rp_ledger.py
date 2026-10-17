@@ -551,9 +551,10 @@ def process_match(
 
     new_f = R.use_new_rp_formula(str(m.get("date") or ""))
     match_date = str(m.get("date") or "")
+    mid = str(m.get("id") or "")
     vehicle_ops = (
         R.vehicle_ops_in_window(idx, t0, t1, steam_to_nick, aliases)
-        if R.use_rp_vehicle(match_date)
+        if R.use_rp_vehicle(match_date, mid)
         else []
     )
     events, net, die_n, tk_n, rev_n, _nok_rp = R.score_match_rp(
@@ -566,6 +567,7 @@ def process_match(
         aliases=aliases,
         new_formula=new_f,
         match_date=match_date,
+        match_id=mid,
         vehicle_ops=vehicle_ops,
     )
     winner = m.get("winnerTeam")
@@ -663,6 +665,13 @@ def _match_hist_row(mb: dict, k: str, aliases: dict[str, str]) -> dict:
     won = None
     if team and mb.get("winnerTeam"):
         won = team == str(mb["winnerTeam"])
+    kills = [
+        e
+        for e in mb["events"]
+        if e.get("kind") in ("die", "vehicle_kill", "driver_share")
+        and R.canon_key(e.get("killer") or "", aliases) == k
+    ]
+    vehicle_kills = sum(1 for e in kills if e.get("kind") == "vehicle_kill")
     return {
         "id": mb["id"],
         "map": mb["map"],
@@ -670,12 +679,8 @@ def _match_hist_row(mb: dict, k: str, aliases: dict[str, str]) -> dict:
         "net": mb["netByKey"].get(k, 0.0),
         "won": won,
         "dmg": round((mb.get("dmgByKey") or {}).get(k, 0.0)),
-        "kills": [
-            e
-            for e in mb["events"]
-            if e.get("kind") in ("die", "vehicle_kill", "driver_share")
-            and R.canon_key(e.get("killer") or "", aliases) == k
-        ],
+        "vehicleKills": vehicle_kills,
+        "kills": kills,
         "deaths": [
             e
             for e in mb["events"]
@@ -1072,6 +1077,7 @@ def main() -> None:
                     "deaths": len(m.get("deaths") or []),
                     "noks": len(m.get("noks") or []),
                     "revives": len(m.get("revives") or []),
+                    "vehicleKills": int(m.get("vehicleKills") or 0),
                     "dmg": int(round(float(m.get("dmg") or 0))),
                     "net": round(float(m.get("net") or 0), 1),
                     "won": m.get("won"),

@@ -16,7 +16,7 @@ type Acc = {
   medic: number;
   killer: number;
   war: number;
-  anti: number;
+  anti: number; // MVP Armor count (vehicle destroys) — field name kept for HomeMvpRow
 };
 
 type StatRow = {
@@ -26,6 +26,7 @@ type StatRow = {
   kills?: number;
   deaths?: number;
   dmg?: number;
+  vehicleKills?: number;
 };
 
 async function loadJson<T = unknown>(relPath: string): Promise<T> {
@@ -43,7 +44,7 @@ function toRow(p: Acc): HomeMvpRow {
     killer: p.killer,
     war: p.war,
     anti: p.anti,
-    medals: p.medic + p.killer + p.war,
+    medals: p.medic + p.killer + p.war + p.anti,
   };
 }
 
@@ -69,7 +70,7 @@ function applyMvpBlock(map: Map<string, Acc>, block: MvpBlock | null | undefined
   for (const nick of block.medic || []) bump(map, nick, "medic");
   for (const nick of block.killer || []) bump(map, nick, "killer");
   for (const nick of block.damage || []) bump(map, nick, "war");
-  for (const nick of block.antiDeath || []) bump(map, nick, "anti");
+  for (const nick of block.armor || block.antiDeath || []) bump(map, nick, "anti");
 }
 
 function laneFromMap(map: Map<string, Acc>): HomeMvpLane {

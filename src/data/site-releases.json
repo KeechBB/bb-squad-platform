@@ -1,6 +1,15 @@
 {
-  "current": "1.1.155",
+  "current": "1.1.156",
   "releases": [
+    {
+      "version": "1.1.156",
+      "date": "2026-10-17",
+      "title": "ТЕХ + MVP Armor · пересчёт с 01:00 МСК",
+      "bullets": [
+        "Пересчёт RP с 17.10 01:00 МСК (техника, soft-cap, occupied-hull)",
+        "Колонка «Уничтожено ТЕХ» после KD; Anti-MVP → MVP Armor"
+      ]
+    },
     {
       "version": "1.1.155",
       "date": "2026-10-17",

@@ -251,9 +251,10 @@ export function PublicRatingClient({
       kills: maxOf((r) => r.kills),
       deaths: maxOf((r) => r.deaths),
       kd: maxOf((r) => r.kd),
+      vehicleKills: maxOf((r) => r.vehicleKills),
       mvpMedic: maxOf((r) => r.mvpMedic),
       mvpKiller: maxOf((r) => r.mvpKiller),
-      antiDeath: maxOf((r) => r.antiDeath),
+      mvpArmor: maxOf((r) => r.mvpArmor),
     };
   }, [view]);
 
@@ -269,7 +270,7 @@ export function PublicRatingClient({
 
   function mvpCls(
     value: number,
-    kind: "medic" | "killer" | "war" | "anti",
+    kind: "medic" | "killer" | "war" | "armor",
     max: number
   ): string {
     const base = `ctr col-mvp-${kind}`;
@@ -355,17 +356,19 @@ export function PublicRatingClient({
     k,
     label,
     className = "ctr",
+    title,
   }: {
     k: SortKey;
     label: string;
     className?: string;
+    title?: string;
   }) {
     const active = sortKey === k;
     return (
       <th
         className={`${className} sortable${active ? " is-sorted" : ""}`}
         onClick={() => onSort(k)}
-        title="Сортировать"
+        title={title || "Сортировать"}
       >
         {label}
         <span className="sort-ind" aria-hidden="true">
@@ -471,9 +474,10 @@ export function PublicRatingClient({
               (нет достоверного источника без табло).
             </p>
             <p>
-              <strong>MVP Medic / Killer</strong> — награды за матч ·{" "}
-              <strong>Anti-MVP</strong> — антинаграда за смерти. Рекорды в таблице
-              — жёлтым.
+              <strong>Уничтожено ТЕХ</strong> — сколько техники уничтожил (с
+              17.10 01:00 МСК, по логам) ·{" "}
+              <strong>MVP Medic / Killer / Armor</strong> — награды за матч
+              (Armor = больше всех уничтожил техники). Рекорды — жёлтым.
             </p>
           </aside>
 
@@ -494,15 +498,26 @@ export function PublicRatingClient({
                     <Th k="kills" label="Килы" />
                     <Th k="deaths" label="Смерти" />
                     <Th k="kd" label="KD" />
+                    <Th
+                      k="vehicleKills"
+                      label="Уничтожено ТЕХ"
+                      className="ctr col-veh"
+                      title="Уничтоженная техника с 17.10.2026 01:00 МСК"
+                    />
                     <Th k="mvpMedic" label="MVP Medic" className="ctr col-mvp-medic" />
                     <Th k="mvpKiller" label="MVP Killer" className="ctr col-mvp-killer" />
-                    <Th k="antiDeath" label="Anti-MVP" className="ctr col-mvp-anti" />
+                    <Th
+                      k="mvpArmor"
+                      label="MVP Armor"
+                      className="ctr col-mvp-armor"
+                      title="MVP за уничтожение техники в матче"
+                    />
                   </tr>
                 </thead>
                 <tbody>
                   {view.length === 0 ? (
                     <tr>
-                      <td colSpan={15} className="muted">
+                      <td colSpan={16} className="muted">
                         Пока нет данных с паблика.
                       </td>
                     </tr>
@@ -566,14 +581,23 @@ export function PublicRatingClient({
                         <td className={recordCls(r.kd, records.kd, "ctr")}>
                           {r.kd}
                         </td>
+                        <td
+                          className={recordCls(
+                            r.vehicleKills,
+                            records.vehicleKills,
+                            "ctr col-veh"
+                          )}
+                        >
+                          {r.vehicleKills}
+                        </td>
                         <td className={mvpCls(r.mvpMedic, "medic", records.mvpMedic)}>
                           {r.mvpMedic}
                         </td>
                         <td className={mvpCls(r.mvpKiller, "killer", records.mvpKiller)}>
                           {r.mvpKiller}
                         </td>
-                        <td className={mvpCls(r.antiDeath, "anti", records.antiDeath)}>
-                          {r.antiDeath}
+                        <td className={mvpCls(r.mvpArmor, "armor", records.mvpArmor)}>
+                          {r.mvpArmor}
                         </td>
                       </tr>
                       );

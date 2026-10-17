@@ -1064,6 +1064,17 @@ svg {
   font-weight: 700;
 }
 
+.public-rating-table-wrap th.col-mvp-armor,
+.public-rating-table-wrap td.col-mvp-armor.has-mvp {
+  color: #7dd3fc !important;
+  font-weight: 700;
+}
+
+.public-rating-table-wrap th.col-veh,
+.public-rating-table-wrap td.col-veh.record {
+  font-weight: 700;
+}
+
 .public-rating-table-wrap td.record {
   color: #f5d76e !important;
   font-weight: 700;

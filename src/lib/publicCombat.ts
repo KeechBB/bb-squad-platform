@@ -28,6 +28,7 @@ type StatRow = {
   kills?: number;
   deaths?: number;
   dmg?: number;
+  vehicleKills?: number;
   won?: boolean;
 };
 
@@ -48,10 +49,13 @@ export type PublicCombatRow = {
   deaths: number;
   kd: number;
   dmg: number;
+  /** Destroyed vehicles (finisher) from 17.10 01:00 MSK */
+  vehicleKills: number;
   mvpMedic: number;
   mvpKiller: number;
   mvpDamage: number;
-  antiDeath: number;
+  /** MVP Armor medals (most vehicle destroys in a match) */
+  mvpArmor: number;
   /** days on PB1 (attendance) */
   days: number;
   /** registered on site — nick is linkable */
@@ -72,10 +76,11 @@ export type PlayerPublicCombatStats = {
   avgKills: number;
   avgDmg: number;
   winrate: number;
+  vehicleKills: number;
   mvpDamage: number;
   mvpKiller: number;
   mvpMedic: number;
-  antiDeath: number;
+  mvpArmor: number;
   days: number;
 };
 
@@ -88,10 +93,11 @@ type Acc = {
   kills: number;
   deaths: number;
   dmg: number;
+  vehicleKills: number;
   mvpMedic: number;
   mvpKiller: number;
   mvpDamage: number;
-  antiDeath: number;
+  mvpArmor: number;
 };
 
 function emptyAcc(nick: string): Acc {
@@ -104,10 +110,11 @@ function emptyAcc(nick: string): Acc {
     kills: 0,
     deaths: 0,
     dmg: 0,
+    vehicleKills: 0,
     mvpMedic: 0,
     mvpKiller: 0,
     mvpDamage: 0,
-    antiDeath: 0,
+    mvpArmor: 0,
   };
 }
 
@@ -194,6 +201,7 @@ async function loadPublicMatchBundlesFromLedger(): Promise<PublicBundle[]> {
     deaths?: unknown;
     revives?: unknown;
     noks?: unknown;
+    vehicleKills?: number;
     dmg?: number;
     won?: boolean | null;
   };
@@ -214,11 +222,14 @@ async function loadPublicMatchBundlesFromLedger(): Promise<PublicBundle[]> {
         res: 0,
         nok: 0,
         dmg: 0,
+        vehicleKills: 0,
       };
       prev.kills = (prev.kills || 0) + countStat(m.kills);
       prev.deaths = (prev.deaths || 0) + countStat(m.deaths);
       prev.res = (prev.res || 0) + countStat(m.revives);
       prev.nok = (prev.nok || 0) + countStat(m.noks);
+      prev.vehicleKills =
+        (prev.vehicleKills || 0) + Math.max(0, Math.floor(Number(m.vehicleKills) || 0));
       prev.dmg = Math.round((prev.dmg || 0) + (Number(m.dmg) || 0));
       if (m.won === true) prev.won = true;
       if (m.won === false && prev.won !== true) prev.won = false;
@@ -281,6 +292,7 @@ function aggregateCombat(
       row.kills += n(p.kills);
       row.deaths += n(p.deaths);
       row.dmg += n(p.dmg);
+      row.vehicleKills += n((p as StatRow).vehicleKills);
       if (p.nick.trim() && !row.nick) row.nick = p.nick.trim();
     }
     const mvp = mvpFromPlayers(players);
@@ -294,7 +306,7 @@ function aggregateCombat(
     bump(mvp.medic, "mvpMedic");
     bump(mvp.killer, "mvpKiller");
     // War-Score / боевой счёт — не считаем на паблике (нет достоверного табло)
-    bump(mvp.antiDeath, "antiDeath");
+    bump(mvp.armor || mvp.antiDeath, "mvpArmor");
   }
   return map;
 }
@@ -434,10 +446,11 @@ async function buildPublicRatingTableUncached(limit = 500): Promise<{
       deaths,
       kd: deaths > 0 ? Math.round((kills / deaths) * 100) / 100 : kills,
       dmg: Math.round(c?.dmg || 0),
+      vehicleKills: c?.vehicleKills || 0,
       mvpMedic: c?.mvpMedic || 0,
       mvpKiller: c?.mvpKiller || 0,
       mvpDamage: c?.mvpDamage || 0,
-      antiDeath: c?.antiDeath || 0,
+      mvpArmor: c?.mvpArmor || 0,
       days: m.days,
       hasProfile: m.hasProfile,
     });
@@ -448,14 +461,14 @@ async function buildPublicRatingTableUncached(limit = 500): Promise<{
     const br = b.rp == null ? -1e9 : b.rp;
     if (ar !== br) return br - ar;
     if (
-      b.mvpMedic + b.mvpKiller + b.mvpDamage !==
-      a.mvpMedic + a.mvpKiller + a.mvpDamage
+      b.mvpMedic + b.mvpKiller + b.mvpArmor !==
+      a.mvpMedic + a.mvpKiller + a.mvpArmor
     ) {
       return (
         b.mvpMedic +
         b.mvpKiller +
-        b.mvpDamage -
-        (a.mvpMedic + a.mvpKiller + a.mvpDamage)
+        b.mvpArmor -
+        (a.mvpMedic + a.mvpKiller + a.mvpArmor)
       );
     }
     if (b.days !== a.days) return b.days - a.days;
@@ -482,7 +495,7 @@ export async function buildPublicRatingTable(limit = 500): Promise<{
   const cached = unstable_cache(
     () => buildPublicRatingTableUncached(limit),
     // bump when public RP source-of-truth / formula changes
-    ["public-rating-table-v4-slim", String(limit)],
+    ["public-rating-table-v5-veh-armor", String(limit)],
     { revalidate: 120 }
   );
   return cached();
@@ -509,6 +522,7 @@ export async function buildPlayerPublicCombatStats(
     revives?: unknown;
     noks?: unknown;
     dmg?: number;
+    vehicleKills?: number;
     won?: boolean | null;
   };
   const matches = (player?.matches || []) as SlimM[];
@@ -518,6 +532,7 @@ export async function buildPlayerPublicCombatStats(
     let res = 0;
     let nok = 0;
     let dmg = 0;
+    let vehicleKills = 0;
     let wins = 0;
     let losses = 0;
     for (const m of matches) {
@@ -526,6 +541,7 @@ export async function buildPlayerPublicCombatStats(
       res += countStat(m.revives);
       nok += countStat(m.noks);
       dmg += Number(m.dmg) || 0;
+      vehicleKills += Math.max(0, Math.floor(Number(m.vehicleKills) || 0));
       if (m.won === true) wins += 1;
       else if (m.won === false) losses += 1;
     }
@@ -544,10 +560,11 @@ export async function buildPlayerPublicCombatStats(
       avgKills: games ? Math.round((kills / games) * 10) / 10 : 0,
       avgDmg: games ? Math.round(dmg / games) : 0,
       winrate: games ? Math.round((wins / games) * 1000) / 10 : 0,
+      vehicleKills,
       mvpDamage: 0,
       mvpKiller: 0,
       mvpMedic: 0,
-      antiDeath: 0,
+      mvpArmor: 0,
       days,
     };
   }
@@ -570,10 +587,11 @@ export async function buildPlayerPublicCombatStats(
       avgKills: 0,
       avgDmg: 0,
       winrate: 0,
+      vehicleKills: 0,
       mvpDamage: 0,
       mvpKiller: 0,
       mvpMedic: 0,
-      antiDeath: 0,
+      mvpArmor: 0,
       days,
     };
   }
@@ -592,10 +610,11 @@ export async function buildPlayerPublicCombatStats(
     avgKills: row.games ? Math.round((row.kills / row.games) * 10) / 10 : 0,
     avgDmg: row.games ? Math.round(row.dmg / row.games) : 0,
     winrate: row.winPct ?? 0,
+    vehicleKills: row.vehicleKills,
     mvpDamage: row.mvpDamage,
     mvpKiller: row.mvpKiller,
     mvpMedic: row.mvpMedic,
-    antiDeath: row.antiDeath,
+    mvpArmor: row.mvpArmor,
     days: row.days || days,
   };
 }

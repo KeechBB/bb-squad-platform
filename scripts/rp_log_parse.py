@@ -84,8 +84,8 @@ COEF_TK_KILL_EXTRA = 0.6
 COEF_OWN_DEATH = 1.1
 COEF_BEING_NOKKED = 0.1
 
-# Soft-cap on RP *gains* from Immortal+ (losses always ×1). Matches on/after deploy.
-# Canon 17.10.2026 — does not rewrite older ledger rows.
+# Soft-cap on RP *gains* from Immortal+ (losses always ×1).
+# Canon night: from 17.10.2026 01:00 MSK (match id YYYYMMDD-HHMM…).
 RP_GAIN_SOFT_CUTOVER = "2026-10-17"
 # Immortal 0.9 → Master 0.8 → Radiant I/II 0.7 → Radiant III 0.6 → Eclipse 0.55 → Predator 0.5
 GAIN_COEF_IMMORTAL = 0.9
@@ -96,10 +96,14 @@ GAIN_COEF_ECLIPSE = 0.55
 GAIN_COEF_PREDATOR = 0.5
 
 # Vehicle RP (canon 17.10.2026) — tickets×12.5; F2 100% / driver 70%; finisher-only kill.
-# Cutover with soft-cap; does not rewrite older ledger rows.
+# Same night cutover as soft-cap (01:00 MSK).
 # Light tier: logi = 5 (=62.5 RP); unarmed transport = 2 (=25 RP).
 # Rate cut 17.10 night: was ×25 → ×12.5 (half) — less farm.
 RP_VEHICLE_CUTOVER = RP_GAIN_SOFT_CUTOVER
+# Match-id / wall-clock gate: 2026-10-17 01:00:00 Europe/Moscow
+MSK = timezone(timedelta(hours=3))
+RP_NIGHT_CUTOVER_MSK = datetime(2026, 10, 17, 1, 0, 0, tzinfo=MSK)
+_MATCH_ID_START_RE = re.compile(r"^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})")
 VEHICLE_RP_PER_TICKET = 12.5
 VEHICLE_DRIVER_SHARE = 0.7
 _VEH_TANK_RE = re.compile(
@@ -278,14 +282,40 @@ def use_new_rp_formula(match_date: str) -> bool:
     return str(match_date or "")[:10] >= RP_FORMULA_CUTOVER
 
 
-def use_rp_gain_softcap(match_date: str) -> bool:
-    """Diminishing gains from Immortal+ — only matches on/after soft cutover."""
-    return str(match_date or "")[:10] >= RP_GAIN_SOFT_CUTOVER
+def match_at_or_after_night_cutover(
+    match_id: str = "",
+    match_date: str = "",
+    at: datetime | None = None,
+) -> bool:
+    """True if match/event is on/after 2026-10-17 01:00 MSK (vehicle + soft-cap night)."""
+    if at is not None:
+        if at.tzinfo is None:
+            at = at.replace(tzinfo=timezone.utc)
+        return at.astimezone(MSK) >= RP_NIGHT_CUTOVER_MSK
+    mid = str(match_id or "").strip()
+    m = _MATCH_ID_START_RE.match(mid)
+    if m:
+        y, mo, d, hh, mm = (int(x) for x in m.groups())
+        return datetime(y, mo, d, hh, mm, tzinfo=MSK) >= RP_NIGHT_CUTOVER_MSK
+    day = str(match_date or "")[:10]
+    if not day:
+        return False
+    if day > RP_GAIN_SOFT_CUTOVER:
+        return True
+    if day < RP_GAIN_SOFT_CUTOVER:
+        return False
+    # Same calendar day but no HHMM in id — treat as pre-cutover (safe).
+    return False
 
 
-def use_rp_vehicle(match_date: str) -> bool:
-    """Vehicle kill/loss RP — matches on/after vehicle cutover."""
-    return str(match_date or "")[:10] >= RP_VEHICLE_CUTOVER
+def use_rp_gain_softcap(match_date: str = "", match_id: str = "") -> bool:
+    """Diminishing gains from Immortal+ — from 17.10.2026 01:00 MSK."""
+    return match_at_or_after_night_cutover(match_id=match_id, match_date=match_date)
+
+
+def use_rp_vehicle(match_date: str = "", match_id: str = "") -> bool:
+    """Vehicle kill/loss RP — from 17.10.2026 01:00 MSK."""
+    return match_at_or_after_night_cutover(match_id=match_id, match_date=match_date)
 
 
 def _is_unarmed_transport(asset: str) -> bool:
@@ -505,6 +535,7 @@ def score_match_rp(
     new_formula: bool,
     pwr_weights: dict[str, float] | None = None,
     match_date: str | None = None,
+    match_id: str | None = None,
     vehicle_ops: list[dict] | None = None,
 ) -> tuple[list[dict], dict[str, float], int, int, int, int]:
     """
@@ -513,15 +544,15 @@ def score_match_rp(
     new_formula=False: legacy (Wound=0 RP; Die ±N; TK both −N; revive +N*0.6).
       Weight = pwr_weights[k] if given else current RP.
     new_formula=True: canon 05.10.2026 (N×coefs). Weight = current RP always.
-    match_date >= RP_GAIN_SOFT_CUTOVER: positive deltas × rank soft-cap
-      (Immortal 0.9 … Predator 0.5); losses always ×1.
-    match_date >= RP_VEHICLE_CUTOVER: vehicle tickets×12.5, F2/driver 70%, finisher kill.
+    From 17.10.2026 01:00 MSK: soft-cap on gains; vehicle tickets×12.5.
 
     Returns: events, net, die_n, tk_n, rev_n, nok_rp_n
     """
     aliases = aliases or {}
-    soft_gain = use_rp_gain_softcap(str(match_date or ""))
-    do_vehicle = use_rp_vehicle(str(match_date or "")) and bool(vehicle_ops)
+    mid = str(match_id or "")
+    mdate = str(match_date or "")
+    soft_gain = use_rp_gain_softcap(mdate, mid)
+    do_vehicle = use_rp_vehicle(mdate, mid) and bool(vehicle_ops)
     events: list[dict] = []
     net: dict[str, float] = {}
     die_n = tk_n = rev_n = nok_rp_n = 0

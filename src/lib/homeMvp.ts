@@ -1,6 +1,6 @@
 export type HomeMvpRow = {
   nick: string;
-  /** Positive medals only (Medic + Killer + War). Anti never counted here. */
+  /** Positive medals (Medic + Killer + War + Armor). */
   medals: number;
   medic: number;
   killer: number;
@@ -25,6 +25,9 @@ export type MvpBlock = {
   medic?: string[];
   killer?: string[];
   damage?: string[];
+  /** MVP Armor — most vehicle destroys in the match (from 17.10 01:00 MSK). */
+  armor?: string[];
+  /** @deprecated kept for old JSON; ignored when armor is present */
   antiDeath?: string[];
 };
 
@@ -46,19 +49,26 @@ type StatRow = {
   kills?: number;
   deaths?: number;
   dmg?: number;
+  vehicleKills?: number;
+  veh?: number;
 };
 
-/** MVP матча: medic=res, killer=kills, war=dmg, anti=deaths. */
+function vehOf(p: StatRow) {
+  return Math.max(n(p.vehicleKills), n(p.veh));
+}
+
+/** MVP матча: medic=res, killer=kills, war=dmg, armor=vehicle destroys. */
 export function pickMvps(rows: StatRow[]): MvpBlock {
   const empty: MvpBlock = {
     medic: [],
     killer: [],
     damage: [],
-    antiDeath: [],
+    armor: [],
   };
   const pool = rows.filter(
     (p) =>
-      n(p.res) + n(p.nok) + n(p.kills) + n(p.deaths) > 0 && Boolean(p.nick)
+      n(p.res) + n(p.nok) + n(p.kills) + n(p.deaths) + vehOf(p) > 0 &&
+      Boolean(p.nick)
   );
   if (!pool.length) return empty;
 
@@ -96,14 +106,14 @@ export function pickMvps(rows: StatRow[]): MvpBlock {
     return tied[0].nick;
   };
 
-  const pickAnti = () => {
-    const top = Math.max(...pool.map((p) => n(p.deaths)));
+  const pickArmor = () => {
+    const top = Math.max(...pool.map((p) => vehOf(p)));
     if (top <= 0) return null;
-    const tied = pool.filter((p) => n(p.deaths) === top);
+    const tied = pool.filter((p) => vehOf(p) === top);
     tied.sort(
       (a, b) =>
-        kdOf(a) - kdOf(b) ||
-        n(a.dmg) - n(b.dmg) ||
+        n(b.kills) - n(a.kills) ||
+        kdOf(b) - kdOf(a) ||
         nickKey(a).localeCompare(nickKey(b))
     );
     return tied[0].nick;
@@ -113,7 +123,7 @@ export function pickMvps(rows: StatRow[]): MvpBlock {
     medic: [pickMedic()].filter(Boolean) as string[],
     killer: [pickKiller()].filter(Boolean) as string[],
     damage: [pickDamage()].filter(Boolean) as string[],
-    antiDeath: [pickAnti()].filter(Boolean) as string[],
+    armor: [pickArmor()].filter(Boolean) as string[],
   };
 }
 
