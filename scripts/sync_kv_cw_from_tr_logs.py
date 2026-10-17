@@ -107,11 +107,17 @@ def tr_number(label: str) -> str | None:
 
 
 def server_label_for(sk: str) -> str:
+    try:
+        import bb_alerts as AL  # noqa: WPS433
+
+        label = AL.train_server_label(sk)
+        if label:
+            return label
+    except Exception:
+        pass
     n = tr_number(sk)
-    if n == "2":
-        return "FCL ARENA #2 (TR2 / Blackberries #2)"
     if n:
-        return f"Blackberry | Training - Blackberries #{n}"
+        return f"TR{n}"
     return "Blackberry | Training"
 
 
@@ -778,7 +784,7 @@ def process_slot(
     # replace prior partial row for this match id
     auto[:] = [a for a in auto if a.get("id") != mid] + [entry]
     print(f"OK CW {mid} vs {slot.get('opp')} {entry['sum']}", flush=True)
-    return True
+    return entry
 
 
 def main() -> int:
@@ -825,10 +831,14 @@ def main() -> int:
     slots = load_cw_slots()
     print(f"CW slots (server field ignored): {len(slots)}", flush=True)
     added = 0
+    written: list[dict] = []
     for slot in slots:
         try:
-            if process_slot(slot, discovered, bb_keys, aliases, auto):
+            report = process_slot(slot, discovered, bb_keys, aliases, auto)
+            if report:
                 added += 1
+                if isinstance(report, dict):
+                    written.append(report)
         except Exception as e:
             print(f"slot {slot.get('id')} err: {type(e).__name__}: {e}", flush=True)
 
@@ -840,11 +850,24 @@ def main() -> int:
         try:
             import bb_alerts as AL  # noqa: WPS433
 
+            lines = [f"залито слотов: {added}"]
+            for row in written:
+                opp = row.get("opp") or "?"
+                game = row.get("map") or "?"
+                where = row.get("server") or "TR"
+                score = row.get("sum") or ""
+                rounds = row.get("rounds")
+                bit = f"{where} · vs {opp} · {game}"
+                if score:
+                    bit += f" · {score}"
+                if rounds:
+                    bit += f" · раундов {rounds}"
+                lines.append(bit)
             AL.send(
                 kind="выгрузка",
-                title="КВ: залиты раунды с TR",
+                title="КВ: залиты раунды",
                 level="ok",
-                lines=[f"добавлено слотов/раундов: {added}"],
+                lines=lines,
                 force=True,
             )
         except Exception as e:

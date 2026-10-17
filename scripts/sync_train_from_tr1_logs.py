@@ -890,7 +890,7 @@ def reconcile_orphan_player_files() -> int:
             "map": doc.get("map") or "—",
             "mode": doc.get("mode") or layer_mode(str(doc.get("map") or "")),
             "size": "—",
-            "server": doc.get("server") or "Blackberry | Training - Blackberries #1",
+            "server": doc.get("server") or "BlackBerry 1 (TR1)",
             "duration": doc.get("duration") or "—",
             "factionA": side_a.get("name") or "A",
             "ticketsA": int(side_a.get("tickets") or 0),
@@ -1088,14 +1088,9 @@ def main() -> int:
         import bb_log_fleet as FLEET  # noqa: WPS433
 
         server_key = FLEET.infer_server_from_path(log_path)
-        # TR1 → #1, TR2 → #2, TR3 → #3 …
-        n_tr = 1
-        if server_key.startswith("TR"):
-            try:
-                n_tr = int(server_key[2:] or "1")
-            except ValueError:
-                n_tr = 1
-        server_label = f"Blackberry | Training - Blackberries #{n_tr}"
+        import bb_alerts as AL  # noqa: WPS433
+
+        server_label = AL.train_server_label(server_key) or "BlackBerry 1 (TR1)"
         players_doc = {
             "matchId": mid,
             "map": layer,

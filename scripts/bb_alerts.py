@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import socket
 import sys
 import time
@@ -58,6 +59,25 @@ def msk_now() -> datetime:
 
 def msk_stamp(dt: datetime | None = None) -> str:
     return (dt or msk_now()).strftime("%d.%m.%Y %H:%M:%S МСК")
+
+
+# Имена тренировочных серверов в алертах и подписях. Ключ лога остаётся TR1/TR2/TR3.
+TRAIN_SERVER_NAMES = {
+    "1": "BlackBerry 1",
+    "2": "FCL ARENA #2",
+    "3": "FCL ARENA #3",
+}
+
+
+def train_server_label(key: str) -> str:
+    """TR2 → «FCL ARENA #2 (TR2)». Пустой ключ не подменяем."""
+    raw = str(key or "").strip()
+    m = re.search(r"TR\s*(\d+)", raw.upper())
+    n = m.group(1) if m else (raw if raw.isdigit() else "")
+    name = TRAIN_SERVER_NAMES.get(n)
+    if name:
+        return f"{name} (TR{n})"
+    return raw
 
 
 def host_label() -> str:
@@ -280,10 +300,22 @@ def backup_fail(kind: str, err: str) -> bool:
 
 
 def deploy_ok(sha: str) -> bool:
+    subject = ""
+    try:
+        import subprocess
+
+        subject = subprocess.check_output(
+            ["git", "log", "-1", "--format=%s", sha or "HEAD"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except Exception:
+        subject = ""
     return send(
         kind="деплой",
         title="Деплой успешен",
         level="ok",
+        lines=[subject] if subject else None,
         details={"commit": sha, "хост": host_label()},
         force=True,
     )
@@ -310,6 +342,7 @@ def map_ingested(
     rp_ok: bool | None = None,
     players: int | None = None,
 ) -> bool:
+    shown = train_server_label(server)
     lines = [f"карта: {map_name}", f"счёт: {score}", f"id: {match_id}"]
     if players is not None:
         lines.append(f"село: {players}")
@@ -321,7 +354,7 @@ def map_ingested(
         kind="выгрузка",
         title=f"Карта залита ({kind})",
         level="ok",
-        server=server,
+        server=shown,
         lines=lines,
         force=True,
     )
