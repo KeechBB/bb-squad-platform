@@ -584,6 +584,19 @@ def main() -> None:
             print(f"warn: could not read existing ledger: {e}", flush=True)
 
     canon_ids = {m["id"] for m in MATCHES}
+    # Calendar month rows count as live even if _auto_matches briefly lost a pin
+    # (deploy/rsync). Otherwise prune unwinds real Mutaha RP as "orphans".
+    for month_path in sorted(TRAIN.glob("????-??.json")):
+        try:
+            month_doc = json.loads(month_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        for row in month_doc.get("matches") or []:
+            if not isinstance(row, dict):
+                continue
+            mid = str(row.get("id") or "")
+            if mid and not mid.endswith("-skip"):
+                canon_ids.add(mid)
 
     def _match_chrono_key(m: dict) -> tuple[str, str]:
         return (str(m.get("date") or ""), str(m.get("id") or ""))
