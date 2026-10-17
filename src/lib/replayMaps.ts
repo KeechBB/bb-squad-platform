@@ -1,45 +1,96 @@
-/** World UU ↔ official Squad minimap (SquadCalc / SDK corners). */
+/**
+ * Replay map projection — single registry:
+ * `data/replay-maps/registry.json`
+ *
+ * Tracks = world UU (cm) from .replay / squadreplay.
+ * Image = Vanilla minimap from AllMaps pack (full res).
+ * Bounds = SquadCalc SDK corners (metres × 100).
+ */
+
+import registryJson from "../../data/replay-maps/registry.json";
 
 export type ReplayMapDef = {
   key: string;
   label: string;
-  /** Full-resolution minimap under /public (no recompress). */
   image: string;
-  /** World AABB in Unreal units (cm) = SquadCalc metres × 100. */
   minX: number;
   maxX: number;
   minY: number;
   maxY: number;
-  /** If true (default), image top = +Y (north). */
   flipY?: boolean;
+  boundsSource?: string;
 };
 
-const M = 100; // metres → Unreal units
-
-/**
- * Bounds from SquadCalc SDK minimap corners (metres).
- * Image: Vanilla `Narva_Minimap.PNG` from AllMaps_Minimaps — full frame = these corners.
- */
-export const REPLAY_MAPS: Record<string, ReplayMapDef> = {
-  Narva: {
-    key: "Narva",
-    label: "Narva",
-    image: "/replay-maps/Narva.png",
-    minX: -1390 * M,
-    maxX: 1410 * M,
-    minY: -1402 * M,
-    maxY: 1398 * M,
-    flipY: true,
-  },
+type RegMap = {
+  label: string;
+  image: string;
+  packPath?: string | null;
+  boundsM: { minX: number; maxX: number; minY: number; maxY: number };
+  flipY?: boolean;
+  layers?: string[];
 };
 
-export function resolveReplayMap(mapKey?: string | null, layer?: string | null): ReplayMapDef | null {
+type Registry = {
+  version: number;
+  boundsSource: string;
+  maps: Record<string, RegMap>;
+};
+
+const registry = registryJson as Registry;
+const M = 100;
+
+function toDef(key: string, meta: RegMap): ReplayMapDef {
+  const b = meta.boundsM;
+  return {
+    key,
+    label: meta.label,
+    image: meta.image,
+    minX: b.minX * M,
+    maxX: b.maxX * M,
+    minY: b.minY * M,
+    maxY: b.maxY * M,
+    flipY: meta.flipY !== false,
+    boundsSource: registry.boundsSource,
+  };
+}
+
+export const REPLAY_MAPS: Record<string, ReplayMapDef> = Object.fromEntries(
+  Object.entries(registry.maps).map(([k, v]) => [k, toDef(k, v)])
+);
+
+const LAYER_TO_KEY: Record<string, string> = {};
+for (const [key, meta] of Object.entries(registry.maps)) {
+  for (const layer of meta.layers || []) {
+    LAYER_TO_KEY[layer.toLowerCase()] = key;
+  }
+}
+
+/** Resolve map from explicit mapKey or layer / path fragment. */
+export function resolveReplayMap(
+  mapKey?: string | null,
+  layer?: string | null
+): ReplayMapDef | null {
   if (mapKey && REPLAY_MAPS[mapKey]) return REPLAY_MAPS[mapKey];
-  const layerLower = (layer || "").toLowerCase();
-  for (const m of Object.values(REPLAY_MAPS)) {
-    if (layerLower.includes(m.key.toLowerCase())) return m;
+
+  const layerRaw = (layer || "").trim();
+  if (!layerRaw) return null;
+
+  const layerBase = layerRaw.includes("/")
+    ? layerRaw.split("/").pop() || layerRaw
+    : layerRaw;
+  const hit = LAYER_TO_KEY[layerBase.toLowerCase()];
+  if (hit) return REPLAY_MAPS[hit];
+
+  const lower = layerRaw.toLowerCase();
+  for (const [key, def] of Object.entries(REPLAY_MAPS)) {
+    if (lower.includes(key.toLowerCase())) return def;
   }
   return null;
+}
+
+/** Infer registry mapKey for ingest / viewer.json. */
+export function inferMapKeyFromLayer(layer: string): string | null {
+  return resolveReplayMap(null, layer)?.key ?? null;
 }
 
 /** World UU → pixel on the full-resolution minimap texture. */

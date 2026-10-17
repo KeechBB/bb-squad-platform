@@ -1,15 +1,40 @@
 # BB Replay (свой стек)
 
-## Актуальный путь (2026-10-18)
+## Пайплайн
 
-1. **Capture:** TR1 `/opt/bb-demo/` — `AdminDemoRec` после travel, стоп на следующем travel → `Saved/Demos/*.replay`
-2. **Parse:** plaza `/opt/bb-replay/` — Codycody31 `squadreplay` → archive + slim `viewer.json`
-3. **UI:** bb-squad.ru `/replays` + `/replays/[id]` — canvas поверх `public/replay-maps/`
+1. **Capture:** TR1 `/opt/bb-demo/` — `AdminDemoRec` после travel → `Saved/Demos/*.replay`
+2. **Parse:** plaza `/opt/bb-replay/` — `squadreplay` → archive + `viewer.json`
+3. **UI:** `/replays` — canvas + реестр карт
 
-Семпл в репо: `platform/data/replays/bb_20261018_003012_Narva_AAS_v1.json`.
+## Система координат (канон)
 
-Старый memory-reader вендор (`.sqrx`) остаётся в **`Новый Проект Кича/bb-replay/`** как запасной путь / референс — не использовать для UI.
+| Что | Откуда | Единицы |
+|-----|--------|---------|
+| Позиции игроков | `.replay` → squadreplay `tracks.*.samples` | Unreal **cm** (UU) |
+| Рамка карты | `data/replay-maps/registry.json` ← SquadCalc SDK corners | **метры** × 100 → UU |
+| Текстура | `public/replay-maps/{Key}.png` из `AllMaps_Minimaps.zip` Vanilla | полный PNG, без пережатия |
 
-Связанные доки: `LIVEMAP-MOD-SPEC.md` (координаты world UU). Правило хоста: `.cursor/rules/squad-game-host.mdc`.
+Слой матча (`Narva_AAS_v1`) → `mapKey` через `layers[]` в реестре → картинка + bounds.
 
-**Запрещено:** строить UI/архив на iframe или API squadreader.com.
+**Не смешивать** произвольные «красивые» карты 4098 с чужими углами — только пара *тот же минимап + те же corner0/corner1*.
+
+### Добавить карту
+
+1. Прописать в `data/replay-maps/registry.json` (bounds из SquadCalc + `packPath` + `layers`).
+2. Вытащить PNG:
+
+```bash
+python scripts/sync_replay_minimaps.py "C:\Users\...\AllMaps_Minimaps.zip" --only Narva,Mutaha
+```
+
+3. Закоммитить `public/replay-maps/{Key}.png` + registry.
+
+FCL-слои с отдельным минимапом — отдельный `mapKey` (своя текстура; bounds пока те же, пока не подтверждены другие углы).
+
+## Семпл
+
+`data/replays/bb_20261018_003012_Narva_AAS_v1.json`
+
+Старый memory-reader (`.sqrx`) в `Новый Проект Кича/bb-replay/` — запасной путь, не для UI.
+
+**Запрещено:** iframe / API squadreader.com.

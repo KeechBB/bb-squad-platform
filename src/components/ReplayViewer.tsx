@@ -374,8 +374,8 @@ export function ReplayViewer({ data }: Props) {
           ))}
         </ul>
         <p className="replay-meta-note">
-          Vanilla minimap 4096², bounds SquadCalc (без сжатия). Колесом приближай
-          нужную точку — координаты считаются в полном разрешении текстуры.
+          {map.label}: tracks = world UU из .replay; рамка = SquadCalc SDK;
+          текстура = Vanilla minimap (реестр). Колесо = зум, drag = пан.
         </p>
       </aside>
     </div>

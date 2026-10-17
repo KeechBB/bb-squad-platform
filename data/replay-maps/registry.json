@@ -1,0 +1,218 @@
+{
+  "version": 1,
+  "boundsSource": "SquadCalc SDK minimap corners (metres) — Metroseksuaali/SquadHeight tools/squadcalc_bounds.json",
+  "imagePack": "AllMaps_Minimaps.zip (Vanilla/*.PNG unless FCL noted)",
+  "unitNote": "Replay tracks are Unreal cm (UU). Viewer uses boundsM × 100.",
+  "maps": {
+    "Narva": {
+      "label": "Narva",
+      "image": "/replay-maps/Narva.png",
+      "packPath": "AllMaps_Minimaps/Vanilla/Narva_Minimap.PNG",
+      "boundsM": { "minX": -1390, "maxX": 1410, "minY": -1402, "maxY": 1398 },
+      "flipY": true,
+      "layers": [
+        "Narva_AAS_v1",
+        "Narva_AAS_v2",
+        "Narva_AAS_v3",
+        "Narva_RAAS_v1",
+        "Narva_Invasion_v1",
+        "Narva_Invasion_v2",
+        "Narva_Skirmish_v1",
+        "Narva_TC_v1",
+        "Narva_Destruction_v1"
+      ]
+    },
+    "Fallujah": {
+      "label": "Fallujah",
+      "image": "/replay-maps/Fallujah.png",
+      "packPath": "AllMaps_Minimaps/Vanilla/T_Fallujah_Minimap.PNG",
+      "boundsM": { "minX": -1315, "maxX": 1690, "minY": -1545, "maxY": 1460 },
+      "flipY": true,
+      "layers": ["Fallujah_AAS_v1", "Fallujah_AAS_v2", "Fallujah_RAAS_v1", "Fallujah_RAAS_v2", "Fallujah_Invasion_v1", "Fallujah_TC_v1", "Fallujah_Skirmish_v1", "Fallujah_Seed_v1"]
+    },
+    "Mutaha": {
+      "label": "Mutaha",
+      "image": "/replay-maps/Mutaha.png",
+      "packPath": "AllMaps_Minimaps/Vanilla/Mutaha_Minimap.PNG",
+      "boundsM": { "minX": -935, "maxX": 1820, "minY": -1140, "maxY": 1615 },
+      "flipY": true,
+      "layers": ["Mutaha_AAS_v1", "Mutaha_RAAS_v1", "Mutaha_RAAS_v2", "Mutaha_Invasion_v1", "Mutaha_Skirmish_v1", "Mutaha_TC_v1"]
+    },
+    "Chora": {
+      "label": "Chora",
+      "image": "/replay-maps/Chora.png",
+      "packPath": "AllMaps_Minimaps/Vanilla/Chora_Minimap.PNG",
+      "boundsM": { "minX": -2464, "maxX": 1600, "minY": -2664, "maxY": 1400 },
+      "flipY": true,
+      "layers": ["Chora_AAS_v1", "Chora_AAS_v2", "Chora_AAS_v3", "Chora_RAAS_v1", "Chora_Invasion_v1", "Chora_Skirmish_v1", "Chora_TC_v1"]
+    },
+    "Sumari": {
+      "label": "Sumari",
+      "image": "/replay-maps/Sumari.png",
+      "packPath": "AllMaps_Minimaps/Vanilla/Sumari_Minimap.PNG",
+      "boundsM": { "minX": -640, "maxX": 660, "minY": -447, "maxY": 853 },
+      "flipY": true,
+      "layers": ["Sumari_AAS_v1", "Sumari_RAAS_v1", "Sumari_Invasion_v1", "Sumari_Skirmish_v1", "Sumari_TC_v1", "Sumari_Seed_v1"]
+    },
+    "Skorpo": {
+      "label": "Skorpo",
+      "image": "/replay-maps/Skorpo.png",
+      "packPath": "AllMaps_Minimaps/Vanilla/Skorpo_Minimap_fix.PNG",
+      "boundsM": { "minX": -3611, "maxX": 3238, "minY": -3293, "maxY": 3576 },
+      "flipY": true,
+      "layers": ["Skorpo_AAS_v1", "Skorpo_RAAS_v1", "Skorpo_Invasion_v1", "Skorpo_Skirmish_v1", "Skorpo_TC_v1"]
+    },
+    "Harju": {
+      "label": "Harju",
+      "image": "/replay-maps/Harju.png",
+      "packPath": "AllMaps_Minimaps/Vanilla/Harju_Minimap.PNG",
+      "boundsM": { "minX": -2016, "maxX": 2016, "minY": -2016, "maxY": 2016 },
+      "flipY": true,
+      "layers": ["Harju_AAS_v1", "Harju_RAAS_v1", "Harju_Invasion_v1", "Harju_Skirmish_v1", "Harju_TC_v1"]
+    },
+    "AlBasrah": {
+      "label": "Al Basrah",
+      "image": "/replay-maps/AlBasrah.png",
+      "packPath": "AllMaps_Minimaps/Vanilla/T_AlBasrah_Minimap.PNG",
+      "boundsM": { "minX": -2000, "maxX": 2000, "minY": -2000, "maxY": 2000 },
+      "flipY": true,
+      "layers": ["AlBasrah_AAS_v1", "AlBasrah_AAS_v2", "AlBasrah_RAAS_v1", "AlBasrah_RAAS_v2", "AlBasrah_Invasion_v1", "AlBasrah_Skirmish_v1", "AlBasrah_TC_v1", "AlBasrah_Seed_v1"]
+    },
+    "Kamdesh": {
+      "label": "Kamdesh",
+      "image": "/replay-maps/Kamdesh.png",
+      "packPath": "AllMaps_Minimaps/Vanilla/Kamdesh_Minimap.PNG",
+      "boundsM": { "minX": -2016, "maxX": 2016, "minY": -2016, "maxY": 2016 },
+      "flipY": true,
+      "layers": ["Kamdesh_AAS_v1", "Kamdesh_RAAS_v1", "Kamdesh_Invasion_v1", "Kamdesh_TC_v1", "Kamdesh_Skirmish_v1"]
+    },
+    "Lashkar": {
+      "label": "Lashkar Valley",
+      "image": "/replay-maps/Lashkar.png",
+      "packPath": "AllMaps_Minimaps/Vanilla/T_Lashkar_Minimap.PNG",
+      "boundsM": { "minX": -2167, "maxX": 2167, "minY": -2167, "maxY": 2167 },
+      "flipY": true,
+      "layers": ["Lashkar_AAS_v1", "Lashkar_RAAS_v1", "Lashkar_Invasion_v1", "Lashkar_Skirmish_v1", "Lashkar_TC_v1"]
+    },
+    "GooseBay": {
+      "label": "Goose Bay",
+      "image": "/replay-maps/GooseBay.png",
+      "packPath": "AllMaps_Minimaps/Vanilla/GooseBay_Minimap_fix.PNG",
+      "boundsM": { "minX": -2016, "maxX": 2015, "minY": -2016, "maxY": 2015 },
+      "flipY": true,
+      "layers": ["GooseBay_AAS_v1", "GooseBay_RAAS_v1", "GooseBay_Invasion_v1", "GooseBay_Skirmish_v1", "GooseBay_TC_v1"]
+    },
+    "Jensens": {
+      "label": "Jensen's Range",
+      "image": "/replay-maps/Jensens.png",
+      "packPath": null,
+      "boundsM": { "minX": -2004, "maxX": 2004, "minY": -2004, "maxY": 2004 },
+      "flipY": true,
+      "layers": ["Jensens_Range_USA-PLA", "Jensens_Range_USMC-GFI", "Jensens_Range_WPMC-TLF", "Jensens_Range_v1"]
+    },
+    "BlackCoast": {
+      "label": "Black Coast",
+      "image": "/replay-maps/BlackCoast.png",
+      "packPath": "AllMaps_Minimaps/Vanilla/Black_Coast_Minimap_fix.PNG",
+      "boundsM": { "minX": -2299, "maxX": 2299, "minY": -2127, "maxY": 2472 },
+      "flipY": true,
+      "layers": ["BlackCoast_AAS_v1", "BlackCoast_RAAS_v1", "BlackCoast_Invasion_v1", "BlackCoast_Skirmish_v1"]
+    },
+    "Gorodok": {
+      "label": "Gorodok",
+      "image": "/replay-maps/Gorodok.png",
+      "packPath": "AllMaps_Minimaps/Vanilla/gorodok_minimap.PNG",
+      "boundsM": { "minX": -2032, "maxX": 2032, "minY": -2032, "maxY": 2032 },
+      "flipY": true,
+      "layers": ["Gorodok_AAS_v1", "Gorodok_RAAS_v1", "Gorodok_Invasion_v1", "Gorodok_TC_v1"]
+    },
+    "Yehorivka": {
+      "label": "Yehorivka",
+      "image": "/replay-maps/Yehorivka.png",
+      "packPath": "AllMaps_Minimaps/Vanilla/Yehorivka_Minimap.PNG",
+      "boundsM": { "minX": -3302, "maxX": 3048, "minY": -3302, "maxY": 3048 },
+      "flipY": true,
+      "layers": ["Yehorivka_AAS_v1", "Yehorivka_RAAS_v1", "Yehorivka_Invasion_v1", "Yehorivka_TC_v1"]
+    },
+    "Tallil": {
+      "label": "Tallil Outskirts",
+      "image": "/replay-maps/Tallil.png",
+      "packPath": "AllMaps_Minimaps/Vanilla/Tallil_Outskirts_Minimap.PNG",
+      "boundsM": { "minX": -2340, "maxX": 2340, "minY": -2340, "maxY": 2340 },
+      "flipY": true,
+      "layers": ["Tallil_AAS_v1", "Tallil_RAAS_v1", "Tallil_Invasion_v1", "Tallil_Skirmish_v1"]
+    },
+    "Kohat": {
+      "label": "Kohat Toi",
+      "image": "/replay-maps/Kohat.png",
+      "packPath": "AllMaps_Minimaps/Vanilla/kohat_minimap.PNG",
+      "boundsM": { "minX": -2300, "maxX": 2317, "minY": -2300, "maxY": 2317 },
+      "flipY": true,
+      "layers": ["Kohat_AAS_v1", "Kohat_RAAS_v1", "Kohat_Invasion_v1", "Kohat_TC_v1"]
+    },
+    "Kokan": {
+      "label": "Kokan",
+      "image": "/replay-maps/Kokan.png",
+      "packPath": "AllMaps_Minimaps/Vanilla/T_Kokan_Minimap.PNG",
+      "boundsM": { "minX": -1076, "maxX": 1420, "minY": -1076, "maxY": 1420 },
+      "flipY": true,
+      "layers": ["Kokan_AAS_v1", "Kokan_RAAS_v1", "Kokan_Invasion_v1", "Kokan_Skirmish_v1"]
+    },
+    "Logar": {
+      "label": "Logar Valley",
+      "image": "/replay-maps/Logar.png",
+      "packPath": "AllMaps_Minimaps/Vanilla/Logar_Valley_Minimap.PNG",
+      "boundsM": { "minX": -881, "maxX": 880, "minY": -1132, "maxY": 629 },
+      "flipY": true,
+      "layers": ["Logar_AAS_v1", "Logar_RAAS_v1", "Logar_Invasion_v1", "Logar_Skirmish_v1"]
+    },
+    "Anvil": {
+      "label": "Anvil",
+      "image": "/replay-maps/Anvil.png",
+      "packPath": "AllMaps_Minimaps/Vanilla/Anvil_Minimap.PNG",
+      "boundsM": { "minX": -2040, "maxX": 1020, "minY": -2040, "maxY": 1020 },
+      "flipY": true,
+      "layers": ["Anvil_AAS_v1", "Anvil_RAAS_v1", "Anvil_Invasion_v1"]
+    },
+    "Belaya": {
+      "label": "Belaya",
+      "image": "/replay-maps/Belaya.png",
+      "packPath": "AllMaps_Minimaps/Vanilla/Belaya_Minimap.PNG",
+      "boundsM": { "minX": -1954, "maxX": 1950, "minY": -2080, "maxY": 1825 },
+      "flipY": true,
+      "layers": ["Belaya_AAS_v1", "Belaya_RAAS_v1", "Belaya_Invasion_v1"]
+    },
+    "Manicouagan": {
+      "label": "Manicouagan",
+      "image": "/replay-maps/Manicouagan.png",
+      "packPath": "AllMaps_Minimaps/Vanilla/T_Manicouagan_Minimap.PNG",
+      "boundsM": { "minX": -2016, "maxX": 2015, "minY": -2016, "maxY": 2015 },
+      "flipY": true,
+      "layers": ["Manicouagan_AAS_v1", "Manicouagan_RAAS_v1", "Manicouagan_Invasion_v1"]
+    },
+    "Mestia": {
+      "label": "Mestia",
+      "image": "/replay-maps/Mestia.png",
+      "packPath": "AllMaps_Minimaps/Vanilla/T_Mestia_Minimap.PNG",
+      "boundsM": { "minX": -1200, "maxX": 1200, "minY": -1100, "maxY": 1300 },
+      "flipY": true,
+      "layers": ["Mestia_AAS_v1", "Mestia_RAAS_v1", "Mestia_Invasion_v1"]
+    },
+    "Sanxian": {
+      "label": "Sanxian Islands",
+      "image": "/replay-maps/Sanxian.png",
+      "packPath": "AllMaps_Minimaps/Vanilla/T_Sanxian_Minimap_Large.PNG",
+      "boundsM": { "minX": -2300, "maxX": 2300, "minY": -2050, "maxY": 2550 },
+      "flipY": true,
+      "layers": ["Sanxian_AAS_v1", "Sanxian_RAAS_v1", "Sanxian_Invasion_v1", "Sanxian_Skirmish_v1"]
+    },
+    "FoolsRoad": {
+      "label": "Fool's Road",
+      "image": "/replay-maps/FoolsRoad.png",
+      "packPath": "AllMaps_Minimaps/Vanilla/Fools_Road_Minimap.PNG",
+      "boundsM": { "minX": -1326, "maxX": 448, "minY": -1326, "maxY": 448 },
+      "flipY": true,
+      "layers": ["FoolsRoad_AAS_v1", "FoolsRoad_RAAS_v1", "FoolsRoad_Invasion_v1"]
+    }
+  }
+}
