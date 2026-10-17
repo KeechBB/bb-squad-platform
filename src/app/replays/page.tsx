@@ -1,18 +1,15 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { getSession } from "@/lib/auth";
-import { isAnyClanMember } from "@/lib/clanAccess";
+import { isBuiltinSuperAdmin } from "@/lib/admin";
 import { formatDuration, listReplays } from "@/lib/replays";
 
 export const dynamic = "force-dynamic";
 
 export default async function ReplaysPage() {
   const session = await getSession();
-  if (!session?.user?.steamId) redirect("/?login=1");
-  if (!session.user.profileComplete) redirect("/register");
-  if (!(await isAnyClanMember(session.user.steamId))) {
-    redirect("/clans");
-  }
+  // Beta: только Keech. Остальным — как будто раздела нет.
+  if (!isBuiltinSuperAdmin(session?.user?.steamId)) notFound();
 
   const matches = listReplays();
 

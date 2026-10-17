@@ -9,6 +9,8 @@ import { SteamAuthModal } from "@/components/SteamAuthModal";
 type Props = {
   /** Полный доступ: КВ / Поиск КВ / ТМ / карта — только если в клане */
   showClanSections: boolean;
+  /** Реплеи — пока только Keech (beta) */
+  showReplays?: boolean;
 };
 
 function pathMatches(pathname: string, href: string): boolean {
@@ -77,7 +79,7 @@ function NavGateButton({
   );
 }
 
-export function SiteNav({ showClanSections }: Props) {
+export function SiteNav({ showClanSections, showReplays = false }: Props) {
   const pathname = usePathname() || "/";
   const { data: session, status } = useSession();
   const loading = status === "loading";
@@ -240,10 +242,10 @@ export function SiteNav({ showClanSections }: Props) {
             active={pathMatches(pathname, "/map")}
           />
         ) : null}
-        {showClanSections ? (
+        {showReplays ? (
           <NavLink
             href="/replays"
-            title="Реплеи матчей"
+            title="Реплеи матчей (beta)"
             full="Реплеи"
             short="Реплей"
             active={pathMatches(pathname, "/replays")}
