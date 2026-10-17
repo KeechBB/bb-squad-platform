@@ -56,7 +56,7 @@ export function ReplayViewer({ data }: Props) {
   const [mapImg, setMapImg] = useState<HTMLImageElement | null>(null);
   const duration = data.duration_ms || 1;
 
-  const tracks = data.tracks?.players || [];
+  const tracks = useMemo(() => data.tracks?.players || [], [data.tracks?.players]);
 
   useEffect(() => {
     if (!map) return;
