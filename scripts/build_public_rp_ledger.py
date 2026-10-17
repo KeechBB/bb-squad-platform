@@ -575,6 +575,11 @@ def process_match(
     )
     winner = m.get("winnerTeam")
 
+    # netByKey is the source of truth (vehicle-only players may never appear in
+    # infantry combatants). Keep combatants ⊇ net keys so hist rows are written.
+    for nk in list(net.keys()):
+        combatants.add(nk)
+
     for k in combatants:
         ck = aliases.get(k, k)
         rp.setdefault(ck, R.START_RP)
@@ -623,6 +628,39 @@ def _load_existing_ledger() -> dict | None:
         except Exception as e:
             print(f"warn: could not read {path}: {e}", flush=True)
     return None
+
+
+def _implied_rp_from_nets(matches: list | None) -> float:
+    """Canonical RP: START + Σ match.net (soft-cap already baked into each net)."""
+    nets = 0.0
+    for m in matches or []:
+        try:
+            nets += float(m.get("net") or 0)
+        except (TypeError, ValueError):
+            pass
+    return max(R.MIN_RP, round(R.START_RP + nets, 1))
+
+
+def _reconcile_players_rp(players_out: dict) -> int:
+    """Force players_out[*].rp = START + Σnets. Returns how many were corrected."""
+    fixed = 0
+    for _k, p in players_out.items():
+        if not isinstance(p, dict):
+            continue
+        implied = _implied_rp_from_nets(p.get("matches"))
+        try:
+            old = float(p.get("rp") or R.START_RP)
+        except (TypeError, ValueError):
+            old = R.START_RP
+        if abs(old - implied) > 0.05:
+            fixed += 1
+            p["rp"] = implied
+            info = R.rp_rank(implied)
+            p["rankLabel"] = info["label"]
+            p["rankKey"] = info["rankKey"]
+            p["roman"] = info["roman"]
+            p["predator"] = info["predator"]
+    return fixed
 
 
 def _match_hist_row(mb: dict, k: str, aliases: dict[str, str]) -> dict:
@@ -873,16 +911,29 @@ def main() -> None:
     prior_matches = list((existing or {}).get("matches") or [])
 
     if existing and not force_full:
+        desync_loaded = 0
         for _pk, p in prior_players.items():
             if not isinstance(p, dict):
                 continue
             nick = str(p.get("nick") or _pk)
             k = R.canon_key(nick, aliases)
+            implied = _implied_rp_from_nets(p.get("matches"))
             try:
-                rp[k] = float(p.get("rp") or R.START_RP)
+                stored = float(p.get("rp") or R.START_RP)
             except (TypeError, ValueError):
-                rp[k] = R.START_RP
+                stored = R.START_RP
+            # Trust match history over a drifting rp field (Farvort-class ghost RP).
+            if abs(stored - implied) > 0.5:
+                desync_loaded += 1
+                rp[k] = implied
+            else:
+                rp[k] = stored
             disp.setdefault(k, nick)
+        if desync_loaded:
+            print(
+                f"warn: repaired {desync_loaded} player(s) with rp≠START+Σnets on load",
+                flush=True,
+            )
 
     for m in pending:
         block = process_match(
@@ -919,8 +970,9 @@ def main() -> None:
         info = R.rp_rank(val)
         match_hist = list((prior_by_key.get(k) or {}).get("matches") or []) if not force_full else []
         for mb in match_blocks:
-            combat_keys = mb.get("combatants") or set(mb["netByKey"])
-            if k not in combat_keys:
+            # Must use netByKey (not combatants): vehicle-only RP must get a hist row
+            # or rp drifts above Σnets on the next rescore/load.
+            if k not in (mb.get("netByKey") or {}):
                 continue
             match_hist.append(_match_hist_row(mb, k, aliases))
         players_out[k] = {
@@ -934,6 +986,25 @@ def main() -> None:
             "matches": match_hist,
         }
 
+    # Invariant: every player's rp == START + Σ match.net
+    n_fixed = _reconcile_players_rp(players_out)
+    if n_fixed:
+        print(f"reconcile: corrected {n_fixed} player(s) rp → START+Σnets", flush=True)
+
+    ranked = sorted(
+        players_out.items(),
+        key=lambda x: -float(x[1].get("rp") or R.START_RP),
+    )
+    predator_place = {}
+    place = 0
+    for k, p in ranked:
+        if p.get("predator"):
+            place += 1
+            predator_place[k] = place
+            p["predatorPlace"] = place
+        else:
+            p["predatorPlace"] = None
+
     public_matches = list(prior_matches) if not force_full else []
     for mb in match_blocks:
         public_matches.append(
@@ -945,7 +1016,10 @@ def main() -> None:
             }
         )
 
-    pmax = max(rp.values()) if rp else R.START_RP
+    pmax = max(
+        (float(p.get("rp") or R.START_RP) for p in players_out.values()),
+        default=R.START_RP,
+    )
     ledger = {
         "version": 1,
         "updatedAt": datetime.now(timezone.utc).isoformat(),
@@ -972,13 +1046,13 @@ def main() -> None:
         "players": players_out,
         "leaderboard": [
             {
-                "nick": players_out[k]["nick"],
-                "rp": players_out[k]["rp"],
-                "rankLabel": players_out[k]["rankLabel"],
-                "rankKey": players_out[k]["rankKey"],
-                "predatorPlace": players_out[k]["predatorPlace"],
+                "nick": p["nick"],
+                "rp": p["rp"],
+                "rankLabel": p["rankLabel"],
+                "rankKey": p["rankKey"],
+                "predatorPlace": p.get("predatorPlace"),
             }
-            for k, _ in ranked
+            for _k, p in ranked
         ],
     }
 

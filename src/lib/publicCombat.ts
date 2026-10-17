@@ -179,19 +179,13 @@ function countStat(v: unknown): number {
   return 0;
 }
 
-/** Combat rows from slim public ladder; full ledger only if slim has no match rows. */
+/**
+ * Combat rows from slim public ladder ONLY.
+ * Never parse full rp-ledger.json here (266MB+ — hangs profile for seconds/minutes).
+ */
 async function loadPublicMatchBundlesFromLedger(): Promise<PublicBundle[]> {
-  const { loadPublicRpLadder, loadPublicRpLedger } = await import("@/lib/publicRp");
-  let ledger = await loadPublicRpLadder();
-  const slimHasRows = Boolean(
-    ledger?.players &&
-      Object.values(ledger.players).some(
-        (p) => Array.isArray(p.matches) && p.matches.length > 0
-      )
-  );
-  if (!slimHasRows) {
-    ledger = await loadPublicRpLedger();
-  }
+  const { loadPublicRpLadder } = await import("@/lib/publicRp");
+  const ledger = await loadPublicRpLadder();
   if (!ledger?.players || !ledger.matches?.length) return [];
 
   type Pm = {
@@ -487,7 +481,8 @@ export async function buildPublicRatingTable(limit = 500): Promise<{
 }> {
   const cached = unstable_cache(
     () => buildPublicRatingTableUncached(limit),
-    ["public-rating-table-v2-slim", String(limit)],
+    // bump key when ledger repair / RP formula changes so stale Farvort-class boards die
+    ["public-rating-table-v3-slim", String(limit)],
     { revalidate: 120 }
   );
   return cached();
@@ -499,12 +494,67 @@ export async function buildPlayerPublicCombatStats(
   const clean = String(nick || "").trim();
   if (!clean) return null;
   const want = nickKey(clean);
-  const [table, att] = await Promise.all([
-    buildPublicRatingTable(500),
-    buildPublicAttendanceLeaderboard(500),
+
+  // Fast path: aggregate from slim ladder player.matches (no full-table rebuild).
+  const { lookupPlayerPublicRp } = await import("@/lib/publicRp");
+  const [player, att] = await Promise.all([
+    lookupPlayerPublicRp(clean).catch(() => null),
+    buildPublicAttendanceLeaderboard(500).catch(() => [] as { nick: string; days: number }[]),
   ]);
-  const row = table.rows.find((r) => nickKey(r.nick) === want);
   const days = att.find((a) => nickKey(a.nick) === want)?.days || 0;
+
+  type SlimM = {
+    kills?: unknown;
+    deaths?: unknown;
+    revives?: unknown;
+    noks?: unknown;
+    dmg?: number;
+    won?: boolean | null;
+  };
+  const matches = (player?.matches || []) as SlimM[];
+  if (matches.length) {
+    let kills = 0;
+    let deaths = 0;
+    let res = 0;
+    let nok = 0;
+    let dmg = 0;
+    let wins = 0;
+    let losses = 0;
+    for (const m of matches) {
+      kills += countStat(m.kills);
+      deaths += countStat(m.deaths);
+      res += countStat(m.revives);
+      nok += countStat(m.noks);
+      dmg += Number(m.dmg) || 0;
+      if (m.won === true) wins += 1;
+      else if (m.won === false) losses += 1;
+    }
+    const games = matches.length;
+    return {
+      nick: player?.nick || clean,
+      matches: games,
+      wins,
+      losses,
+      kills,
+      deaths,
+      dmg: Math.round(dmg),
+      res,
+      nok,
+      kd: deaths > 0 ? Math.round((kills / deaths) * 100) / 100 : kills,
+      avgKills: games ? Math.round((kills / games) * 10) / 10 : 0,
+      avgDmg: games ? Math.round(dmg / games) : 0,
+      winrate: games ? Math.round((wins / games) * 1000) / 10 : 0,
+      mvpDamage: 0,
+      mvpKiller: 0,
+      mvpMedic: 0,
+      antiDeath: 0,
+      days,
+    };
+  }
+
+  // Fallback: full table (MVP badges) — cached 2 min.
+  const table = await buildPublicRatingTable(500);
+  const row = table.rows.find((r) => nickKey(r.nick) === want);
   if (!row) {
     return {
       nick: clean,
