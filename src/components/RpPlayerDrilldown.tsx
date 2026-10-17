@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { RpPlayer, RpPlayerMatch } from "@/lib/trainRp";
-import { sortRpMatchesNewestFirst } from "@/lib/trainRp";
+import { sortRpMatchesNewestFirst } from "@/lib/rpMatchSort";
 import { RpHuntMatchBreakdown } from "@/components/RpHuntMatchBreakdown";
 
 function fmtDelta(n: number) {

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import type { HomeTrainPwrRow } from "@/lib/homeTrainPwr";
 import type { RpPlayer, RpPlayerMatch } from "@/lib/trainRp";
-import { sortRpMatchesNewestFirst } from "@/lib/trainRp";
+import { sortRpMatchesNewestFirst } from "@/lib/rpMatchSort";
 import { ProfileCompareCard } from "@/components/ProfileCompareCard";
 import { RpHuntMatchBreakdown } from "@/components/RpHuntMatchBreakdown";
 
