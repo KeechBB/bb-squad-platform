@@ -156,13 +156,15 @@ function Stat({
   label,
   value,
   hint,
+  highlight,
 }: {
   label: string;
   value: string | number;
   hint?: string;
+  highlight?: boolean;
 }) {
   return (
-    <div className="visits-stat">
+    <div className={highlight ? "visits-stat visits-stat-highlight" : "visits-stat"}>
       <div className="muted" style={{ fontSize: 12 }}>
         {label}
       </div>
@@ -514,7 +516,16 @@ export function AdminVisitsPanel() {
             <Stat
               label="Уникальных сегодня"
               value={traffic.uniqueToday}
-              hint="гости + свои"
+              hint="гости + свои, включая тех, кто уже был"
+            />
+            <Stat
+              label="Новых сегодня"
+              value={
+                (traffic.daily || []).find((d) => d.day === todayMsk())
+                  ?.newVisitors ?? 0
+              }
+              hint={`за ${periodDays} дн.: ${(traffic.daily || []).reduce((s, d) => s + (d.newVisitors || 0), 0)} · первый заход`}
+              highlight
             />
             <Stat
               label={`Уникальных за ${periodDays} дн.`}
@@ -550,6 +561,50 @@ export function AdminVisitsPanel() {
           ) : (
             <p className="muted visits-online-line">Сейчас на сайте никого нет</p>
           )}
+
+          <h3 style={{ marginBottom: 8 }}>Новые по дням</h3>
+          <p className="muted" style={{ marginTop: 0 }}>
+            Первый заход на сайт в этот день (МСК). Повторный визит сюда не
+            попадает.
+          </p>
+          <div
+            className="admin-table-wrap"
+            style={{ maxHeight: 320, overflow: "auto", marginBottom: 16 }}
+          >
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>День (МСК)</th>
+                  <th className="num">Новых уник.</th>
+                  <th className="num">Хиты</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...(traffic.daily || [])]
+                  .sort((a, b) => b.day.localeCompare(a.day))
+                  .map((d) => {
+                    const isToday = d.day === todayMsk();
+                    return (
+                      <tr
+                        key={d.day}
+                        style={
+                          isToday
+                            ? { background: "rgba(34,197,94,0.12)" }
+                            : undefined
+                        }
+                      >
+                        <td>
+                          {formatDayShort(d.day)}
+                          {isToday ? " · сегодня" : ""}
+                        </td>
+                        <td className="num">{d.newVisitors}</td>
+                        <td className="num">{d.hits}</td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
 
           <h3 style={{ marginBottom: 8 }}>Динамика · куда ходят</h3>
           <p className="muted" style={{ marginTop: 0 }}>
