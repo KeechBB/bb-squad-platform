@@ -128,11 +128,11 @@ _VEH_TRANSPORT_RE = re.compile(
     r"CH146|RAVEN|UH60|UH_60|MI8|MI_8|LOACH|SAFEZONE)",
     re.I,
 )
-# Armed light (stay 5 tickets = 125) — has shooter / weapon in Asset Name.
+# Armed light (stay 5 tickets = 62.5) — has shooter / weapon in Asset Name.
 _VEH_ARMED_LIGHT_RE = re.compile(
     r"(TOW|KORNET|M134|ZU23|QJZ|NSV|KORD|DSHK|SPG9|SPG_9|"
-    r"CAS|CROWS|RWS|ARMED|OPEN.?TOP|MINIGUN|ROCKET|M2HB|PKT|KPVT|"
-    r"OBLITERATE|DSHKM|HMG|GMG)",
+    r"CAS|CROWS|RWS|ARMED|OPEN.?TOP|MINIGUN|ROCKET|M2HB|M240|PKT|KPVT|"
+    r"MATV|M1151|M-?ATV|OBLITERATE|DSHKM|HMG|GMG)",
     re.I,
 )
 _VEH_SKIP_RE = re.compile(
@@ -304,18 +304,32 @@ def match_at_or_after_night_cutover(
         return True
     if day < RP_GAIN_SOFT_CUTOVER:
         return False
-    # Same calendar day but no HHMM in id — treat as pre-cutover (safe).
-    return False
+    # Same calendar day, no YYYYMMDD-HHMM in id (train-style: "17-cslmutaha").
+    # Callers should pass `at=match.start` when they have it. Without a timestamp,
+    # evening training that day is post-night — do not leave vehicle RP off.
+    return True
 
 
-def use_rp_gain_softcap(match_date: str = "", match_id: str = "") -> bool:
+def use_rp_gain_softcap(
+    match_date: str = "",
+    match_id: str = "",
+    at: datetime | None = None,
+) -> bool:
     """Diminishing gains from Immortal+ — from 17.10.2026 01:00 MSK."""
-    return match_at_or_after_night_cutover(match_id=match_id, match_date=match_date)
+    return match_at_or_after_night_cutover(
+        match_id=match_id, match_date=match_date, at=at
+    )
 
 
-def use_rp_vehicle(match_date: str = "", match_id: str = "") -> bool:
+def use_rp_vehicle(
+    match_date: str = "",
+    match_id: str = "",
+    at: datetime | None = None,
+) -> bool:
     """Vehicle kill/loss RP — from 17.10.2026 01:00 MSK."""
-    return match_at_or_after_night_cutover(match_id=match_id, match_date=match_date)
+    return match_at_or_after_night_cutover(
+        match_id=match_id, match_date=match_date, at=at
+    )
 
 
 def _is_unarmed_transport(asset: str) -> bool:
@@ -406,10 +420,14 @@ def vehicle_label_ru(asset: str) -> str:
 
 def vehicle_seat_role(asset: str, seat: int, pawn: str = "") -> str:
     """
-    Who can lose RP on vehicle destroy:
-      driver — seat 0 (всегда, в т.ч. грузовик/вертолёт)
-      gunner — F2 / башня (танк·БТР·БМП·AAVP·хаб); НЕ пассажир seat 1 на logi
-      passenger — десант / кузов / любые seat≥2 — **никогда** не теряют RP за технику
+    Роль места (для driver_share и идентификации экипажа):
+      driver — seat 0 (всегда)
+      gunner — F2 / башня / CROWS на armed light; танк·БТР·БМП·хаб
+      passenger — десант / logi seat1 / голый транспорт seat1 / seat≥2
+
+    Потеря RP при взрыве лёгкой техники (≤5 тик.) — только мехвод
+    (см. _destroy_vehicle: F2 loss только при tickets>5). Gunner на MATV
+    нужен, чтобы мехвод получал +70% от киллов F2 (симметрия штрафу).
     """
     seat_i = int(seat or 0)
     if seat_i == 0:
@@ -423,16 +441,16 @@ def vehicle_seat_role(asset: str, seat: int, pawn: str = "") -> str:
         for x in ("PASSENGER", "CARGO", "REAR", "BENCH", "TROOP")
     ):
         return "passenger"
-    tickets = vehicle_tickets(asset)
-    # Logi / transport / лёгкая техника (≤5 тик.): только водитель — seat 1 = пассажир.
-    if tickets <= 5:
+    a = str(asset or "")
+    # Logi / голый транспорт: seat 1 = пассажир (нет доли мехводу, нет F2-штрафа).
+    if _VEH_LOGI_RE.search(a) or _is_unarmed_transport(a) or vehicle_tickets(a) <= 2:
         return "passenger"
     if any(
         x in pawn_u
-        for x in ("TURRET", "GUNNER", "RWS", "CROWS", "CANNON", "OPEN_TOP")
+        for x in ("TURRET", "GUNNER", "RWS", "CROWS", "CANNON", "OPEN_TOP", "M240")
     ):
         return "gunner"
-    # Танк / IFV / AAVP / хаб — seat 1 по умолчанию наводчик.
+    # Armed light (MATV/CROWS/TOW…) и тяжёлая техника — seat 1 = наводчик.
     return "gunner"
 
 
@@ -537,6 +555,7 @@ def score_match_rp(
     match_date: str | None = None,
     match_id: str | None = None,
     vehicle_ops: list[dict] | None = None,
+    cutover_at: datetime | None = None,
 ) -> tuple[list[dict], dict[str, float], int, int, int, int]:
     """
     Apply Die/Wound/Revive (+ vehicle kill/loss after cutover) to running RP.
@@ -545,14 +564,15 @@ def score_match_rp(
       Weight = pwr_weights[k] if given else current RP.
     new_formula=True: canon 05.10.2026 (N×coefs). Weight = current RP always.
     From 17.10.2026 01:00 MSK: soft-cap on gains; vehicle tickets×12.5.
+    cutover_at: match start (for train-style ids without YYYYMMDD-HHMM).
 
     Returns: events, net, die_n, tk_n, rev_n, nok_rp_n
     """
     aliases = aliases or {}
     mid = str(match_id or "")
     mdate = str(match_date or "")
-    soft_gain = use_rp_gain_softcap(mdate, mid)
-    do_vehicle = use_rp_vehicle(mdate, mid) and bool(vehicle_ops)
+    soft_gain = use_rp_gain_softcap(mdate, mid, at=cutover_at)
+    do_vehicle = use_rp_vehicle(mdate, mid, at=cutover_at) and bool(vehicle_ops)
     events: list[dict] = []
     net: dict[str, float] = {}
     die_n = tk_n = rev_n = nok_rp_n = 0
@@ -822,7 +842,9 @@ def score_match_rp(
         f2 = crew.get(1)
         driver = crew.get(0)
         # Losses — always ×1 (no soft-cap). Never seats≥2 / transport passengers.
-        if f2:
+        # Лёгкая техника (≤5 тик., в т.ч. MATV/logi): штраф только мехводу (−70%).
+        # F2 на MATV остаётся gunner для driver_share, но не получает vehicle_loss.
+        if f2 and tickets > 5:
             f2 = ensure(f2, disp.get(f2, f2))
             apply_delta(f2, -base)
             events.append(

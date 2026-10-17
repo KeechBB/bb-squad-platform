@@ -29,7 +29,8 @@ assert R.vehicle_base_rp("BP_US_Util_USMC_Woodland_Logi_C") == 62.5
 assert R.vehicle_class_ru("BP_US_Util_USMC_Woodland_C") == "транспорт"
 assert R.vehicle_class_ru("BP_US_Util_USMC_Woodland_Logi_C") == "logi"
 assert R.use_rp_vehicle("2026-10-16") is False
-assert R.use_rp_vehicle("2026-10-17") is False  # no HHMM → pre-cutover safe
+# Date-only "2026-10-17" (train ids like 17-cslmutaha) → post-cutover (evening train).
+assert R.use_rp_vehicle("2026-10-17") is True
 assert R.use_rp_vehicle("2026-10-17", "20261017-0059-x") is False
 assert R.use_rp_vehicle("2026-10-17", "20261017-0100-x") is True
 assert R.use_rp_vehicle("2026-10-18") is True
@@ -1076,5 +1077,114 @@ if log.is_file():
     print("sample kills", vk[:5])
 else:
     print("skip log smoke — no TR1 SquadGame.log")
+
+# --- Armed light MATV: F2 kills → driver_share; destroy → driver-only loss ---
+assert R.vehicle_seat_role("BP_MATV_CROWS_C", 0) == "driver"
+assert R.vehicle_seat_role("BP_MATV_CROWS_C", 1) == "gunner"
+assert R.vehicle_seat_role("BP_MATV_M240_C", 1) == "gunner"
+assert R.vehicle_seat_role("BP_US_Util_USMC_Woodland_Logi_C", 1) == "passenger"
+assert R.vehicle_seat_role("BP_US_Util_USMC_Woodland_C", 1) == "passenger"
+
+matv = "BP_MATV_CROWS_C_500"
+matv_ops = [
+    {
+        "kind": "v_enter",
+        "at_dt": at(1),
+        "at_msk": "15:40:01",
+        "nick": "GAD",
+        "nickKey": "gad",
+        "asset": "BP_MATV_CROWS_C",
+        "instance": matv,
+        "seat": 0,
+    },
+    {
+        "kind": "v_enter",
+        "at_dt": at(2),
+        "at_msk": "15:40:02",
+        "nick": "Gunner",
+        "nickKey": "gunner",
+        "asset": "BP_MATV_CROWS_C",
+        "instance": matv,
+        "seat": 1,
+    },
+]
+matv_wounds = [
+    {
+        "killer": "Gunner",
+        "victim": "Enemy",
+        "killerKey": "gunner",
+        "victimKey": "enemy",
+        "at_dt": at(10),
+        "at_msk": "15:40:10",
+    }
+]
+matv_dies = [
+    {
+        "killer": "Gunner",
+        "victim": "Enemy",
+        "killerKey": "gunner",
+        "victimKey": "enemy",
+        "at_dt": at(12),
+        "at_msk": "15:40:12",
+        "dmg": -300,
+    }
+]
+# destroy MATV (enemy LAT) — burn + killing blow like tank fixture
+matv_ops_boom = matv_ops + [
+    {
+        "kind": "v_burn",
+        "at_dt": at(20),
+        "at_msk": "15:40:20",
+        "vid": matv,
+    },
+    {
+        "kind": "v_dmg",
+        "at_dt": at(20),
+        "at_msk": "15:40:20",
+        "vid": matv,
+        "dmg": 10,
+        "causer": "BP_LAT_HEAT_C",
+        "killerKey": "lat",
+        "killer": "LAT",
+        "health": 50,
+        "burning": False,
+    },
+    {
+        "kind": "v_dmg",
+        "at_dt": at(21),
+        "at_msk": "15:40:21",
+        "vid": matv,
+        "dmg": 80,
+        "causer": matv,
+        "killerKey": "lat",
+        "killer": "LAT",
+        "health": -1,
+        "burning": True,
+    },
+]
+m_events, m_net, *_ = R.score_match_rp(
+    dies=matv_dies,
+    wounds=matv_wounds,
+    revives=[],
+    teams={"gad": "1", "gunner": "1", "enemy": "2", "lat": "2"},
+    rp={"gad": 2000.0, "gunner": 2000.0, "enemy": 1800.0, "lat": 2000.0},
+    disp={"gad": "GAD", "gunner": "Gunner", "enemy": "Enemy", "lat": "LAT"},
+    aliases={},
+    new_formula=True,
+    match_date="2026-10-17",
+    match_id="20261017-1540-test",
+    vehicle_ops=matv_ops_boom,
+)
+shares = [e for e in m_events if e["kind"] == "driver_share" and e.get("killer") == "GAD"]
+assert shares, [(e["kind"], e.get("killer"), e.get("label")) for e in m_events]
+assert any(e.get("reason") == "die" for e in shares)
+# Loss: only driver (no F2 vehicle_loss on ≤5 ticket)
+assert any(
+    e["kind"] == "vehicle_loss_driver" and e.get("victim") == "GAD" for e in m_events
+), m_events
+assert not any(
+    e["kind"] == "vehicle_loss" and e.get("victim") == "Gunner" for e in m_events
+), "F2 must not take vehicle_loss on MATV"
+print("MATV CROWS driver_share + driver-only loss OK", m_net.get("gad"))
 
 print("ALL OK")
