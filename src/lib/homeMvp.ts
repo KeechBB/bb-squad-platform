@@ -54,7 +54,8 @@ type StatRow = {
 };
 
 function vehOf(p: StatRow) {
-  return Math.max(n(p.vehicleKills), n(p.veh));
+  // Only log-derived vehicleKills. Screenshot `veh` is team ticket ratio, not destroys.
+  return n(p.vehicleKills);
 }
 
 /** MVP матча: medic=res, killer=kills, war=dmg, armor=vehicle destroys. */

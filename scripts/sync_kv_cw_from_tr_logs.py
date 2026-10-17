@@ -482,14 +482,59 @@ def split_match_sides(
     return split_bb_opp(team_a, team_b, bb_keys, aliases, opp=opp)
 
 
+def vehicle_kill_counts(
+    *,
+    dies: list[dict],
+    wounds: list[dict],
+    revives: list[dict],
+    teams: dict[str, str],
+    disp: dict[str, str],
+    aliases: dict[str, str],
+    vehicle_ops: list[dict],
+    match_date: str,
+    match_id: str,
+) -> dict[str, int]:
+    """Finisher vehicle destroys per canon key — only after 17.10.2026 01:00 MSK."""
+    if not vehicle_ops or not R.use_rp_vehicle(match_date, match_id):
+        return {}
+    rp = {k: float(R.START_RP) for k in set(list(teams) + list(disp))}
+    events, *_ = R.score_match_rp(
+        dies=dies,
+        wounds=wounds,
+        revives=revives,
+        teams=teams,
+        rp=rp,
+        disp=dict(disp),
+        aliases=aliases,
+        new_formula=True,
+        match_date=match_date,
+        match_id=match_id,
+        vehicle_ops=vehicle_ops,
+    )
+    counts: dict[str, int] = {}
+    for e in events:
+        if e.get("kind") != "vehicle_kill":
+            continue
+        kk = R.canon_key(str(e.get("killer") or ""), aliases)
+        if not kk:
+            continue
+        counts[kk] = counts.get(kk, 0) + 1
+    return counts
+
+
 def attach_steam(
-    rows: list[dict], steam_to_nick: dict[str, str], aliases: dict[str, str]
+    rows: list[dict],
+    steam_to_nick: dict[str, str],
+    aliases: dict[str, str],
+    vk_by_key: dict[str, int] | None = None,
 ) -> list[dict]:
     nick_to_steam: dict[str, str] = {}
     for steam, nick in steam_to_nick.items():
         nick_to_steam[R.canon_key(nick, aliases)] = steam
+    vk_by_key = vk_by_key or {}
     out = []
     for r in rows:
+        ck = R.canon_key(r["nick"], aliases)
         nr = {
             "nick": r["nick"],
             "res": int(r.get("res") or 0),
@@ -497,8 +542,9 @@ def attach_steam(
             "kills": int(r.get("kills") or 0),
             "deaths": int(r.get("deaths") or 0),
             "dmg": int(r.get("dmg") or 0),
+            "vehicleKills": int(vk_by_key.get(ck) or r.get("vehicleKills") or 0),
         }
-        steam = nick_to_steam.get(R.canon_key(r["nick"], aliases))
+        steam = nick_to_steam.get(ck)
         if steam:
             nr["steamId"] = steam
         out.append(nr)
@@ -641,13 +687,31 @@ def process_slot(
         disp = {R.canon_key(n, aliases): n for n in steam.values()}
         team_a, team_b = agg_players(dies, wounds, revives, teams, disp)
 
+        start_msk = m["start"].astimezone(R.MSK)
+        match_date = start_msk.strftime("%Y-%m-%d")
+        match_id = start_msk.strftime("%Y%m%d-%H%M") + "-cw"
+        vehicle_ops = R.vehicle_ops_in_window(
+            idx, m["start"], m["end"], steam, aliases
+        )
+        vk_by_key = vehicle_kill_counts(
+            dies=dies,
+            wounds=wounds,
+            revives=revives,
+            teams=teams,
+            disp=disp,
+            aliases=aliases,
+            vehicle_ops=vehicle_ops,
+            match_date=match_date,
+            match_id=match_id,
+        )
+
         # agg: team_a ≈ team1, team_b ≈ team2
         bb_side, opp_side, bb_is_team_a = split_match_sides(
             slot, team_a, team_b, bb_keys, aliases
         )
 
-        bb_rows = attach_steam(bb_side, steam, aliases)
-        opp_rows = attach_steam(opp_side, steam, aliases)
+        bb_rows = attach_steam(bb_side, steam, aliases, vk_by_key)
+        opp_rows = attach_steam(opp_side, steam, aliases, vk_by_key)
         # strip steam from public CW json? keep for clan ingest; remove from file later
         bb_rounds.append([{k: v for k, v in r.items() if k != "steamId"} for r in bb_rows])
         opp_rounds.append(opp_rows)  # keep steam for API
