@@ -83,7 +83,6 @@ export function SiteNav({ showClanSections }: Props) {
   const loading = status === "loading";
   const authed = Boolean(session?.user?.steamId);
   const complete = Boolean(session?.user?.profileComplete);
-
   const [authModal, setAuthModal] = useState<{
     href: string;
     title: string;
@@ -239,6 +238,15 @@ export function SiteNav({ showClanSections }: Props) {
             full="Карта игроков"
             short="Карта"
             active={pathMatches(pathname, "/map")}
+          />
+        ) : null}
+        {showClanSections ? (
+          <NavLink
+            href="/replays"
+            title="Реплеи матчей"
+            full="Реплеи"
+            short="Реплей"
+            active={pathMatches(pathname, "/replays")}
           />
         ) : null}
       </nav>
