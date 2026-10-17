@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import type { HomeTrainPwrRow } from "@/lib/homeTrainPwr";
 import type { RpPlayer, RpPlayerMatch } from "@/lib/trainRp";
+import { sortRpMatchesNewestFirst } from "@/lib/trainRp";
 import { ProfileCompareCard } from "@/components/ProfileCompareCard";
 import { RpHuntMatchBreakdown } from "@/components/RpHuntMatchBreakdown";
 
@@ -95,7 +96,7 @@ export function ProfileTrainPwrCard({ stats, compareNick }: Props) {
     const src = fullPlayer?.matches?.length
       ? fullPlayer.matches
       : stats?.matches || [];
-    return [...src].map(normalizeMatch).reverse();
+    return sortRpMatchesNewestFirst(src.map(normalizeMatch));
   }, [fullPlayer, stats]);
 
   const compare =
@@ -118,7 +119,10 @@ export function ProfileTrainPwrCard({ stats, compareNick }: Props) {
     );
   }
 
-  const rpShow = Math.round(Number(stats.rp ?? stats.pwr) || 0);
+  const rpShow = Math.round(
+    Number(fullPlayer?.rp ?? stats.rp ?? stats.pwr) || 0
+  );
+  const rankLabel = fullPlayer?.rankLabel || stats.rankLabel;
 
   const mapsModal =
     open && mounted ? (
@@ -136,10 +140,10 @@ export function ProfileTrainPwrCard({ stats, compareNick }: Props) {
               <h3>RP · {stats.nick}</h3>
               <p className="muted">
                 {loading
-                  ? `${rpShow} · ${stats.rankLabel} · загрузка разбора…`
+                  ? `${rpShow} · ${rankLabel} · загрузка разбора…`
                   : error
-                    ? `${rpShow} · ${stats.rankLabel} · ${error}`
-                    : `${rpShow} · ${stats.rankLabel} · клик по карте — разбор`}
+                    ? `${rpShow} · ${rankLabel} · ${error}`
+                    : `${rpShow} · ${rankLabel} · клик по карте — разбор`}
               </p>
             </div>
             <button

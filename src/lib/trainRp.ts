@@ -165,6 +165,25 @@ function nickKey(n: string) {
     .replace(/\s+/g, "");
 }
 
+/** Chrono key: date then id (14-cslmutaha before 14-cslmutaha-2). */
+export function rpMatchSortKey(m: { date?: string; id?: string }): string {
+  return `${String(m.date || "")}\0${String(m.id || "")}`;
+}
+
+/** Newest first — history modals / career lists. */
+export function sortRpMatchesNewestFirst<T extends { date?: string; id?: string }>(
+  matches: T[]
+): T[] {
+  return [...matches].sort((a, b) => rpMatchSortKey(b).localeCompare(rpMatchSortKey(a)));
+}
+
+/** Oldest first — ledger write / RP chain. */
+export function sortRpMatchesOldestFirst<T extends { date?: string; id?: string }>(
+  matches: T[]
+): T[] {
+  return [...matches].sort((a, b) => rpMatchSortKey(a).localeCompare(rpMatchSortKey(b)));
+}
+
 function slimPlayerToRp(p: RpLadder["players"][string]): RpPlayer {
   return {
     nick: p.nick,
@@ -349,6 +368,12 @@ export async function lookupPlayerTrainRp(
         }
       }
     }
+    if (found?.matches?.length) {
+      found = {
+        ...found,
+        matches: sortRpMatchesOldestFirst(found.matches),
+      };
+    }
     fullPlayerMem.set(key, { at: Date.now(), data: found });
     if (fullPlayerMem.size > 200) {
       const drop = [...fullPlayerMem.entries()]
@@ -361,10 +386,15 @@ export async function lookupPlayerTrainRp(
 
   const ladder = await loadRpLadder();
   if (!ladder) return null;
+  const wrap = (p: RpLadder["players"][string]) => {
+    const slim = slimPlayerToRp(p);
+    slim.matches = sortRpMatchesOldestFirst(slim.matches || []);
+    return slim;
+  };
   const direct = ladder.players[key];
-  if (direct) return slimPlayerToRp(direct);
+  if (direct) return wrap(direct);
   for (const p of Object.values(ladder.players)) {
-    if (nickKey(p.nick) === key) return slimPlayerToRp(p);
+    if (nickKey(p.nick) === key) return wrap(p);
   }
   return null;
 }
@@ -400,19 +430,17 @@ export type RpMatchListItem = {
 export async function listRpTrainingMatches(): Promise<RpMatchListItem[]> {
   const ledger = await loadRpLadder();
   if (!ledger?.matches?.length) return [];
-  return [...ledger.matches]
-    .map((m) => {
-      const date = String(m.date || "");
-      const map = String(m.map || m.id);
-      const short = date.length >= 10 ? date.slice(5).replace("-", ".") : date;
-      return {
-        id: String(m.id),
-        map,
-        date,
-        label: `${short} · ${map}`,
-      };
-    })
-    .reverse();
+  return sortRpMatchesNewestFirst(ledger.matches).map((m) => {
+    const date = String(m.date || "");
+    const map = String(m.map || m.id);
+    const short = date.length >= 10 ? date.slice(5).replace("-", ".") : date;
+    return {
+      id: String(m.id),
+      map,
+      date,
+      label: `${short} · ${map}`,
+    };
+  });
 }
 
 /** Разбор RP одного игрока в конкретном матче (киллы / смерти / ресы / net). */

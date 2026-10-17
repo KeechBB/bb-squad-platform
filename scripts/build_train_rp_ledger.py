@@ -585,6 +585,29 @@ def main() -> None:
 
     canon_ids = {m["id"] for m in MATCHES}
 
+    def _match_chrono_key(m: dict) -> tuple[str, str]:
+        return (str(m.get("date") or ""), str(m.get("id") or ""))
+
+    def sort_histories_inplace(doc: dict | None) -> bool:
+        """Ensure ledger match lists are chronological (backfills can append mid-chain)."""
+        if not doc:
+            return False
+        changed = False
+        ms = list(doc.get("matches") or [])
+        ordered = sorted(ms, key=_match_chrono_key)
+        if [m.get("id") for m in ms] != [m.get("id") for m in ordered]:
+            doc["matches"] = ordered
+            changed = True
+        for _pk, pl in (doc.get("players") or {}).items():
+            if not isinstance(pl, dict):
+                continue
+            hist = list(pl.get("matches") or [])
+            oh = sorted(hist, key=_match_chrono_key)
+            if [m.get("id") for m in hist] != [m.get("id") for m in oh]:
+                pl["matches"] = oh
+                changed = True
+        return changed
+
     def prune_orphan_ledger(doc: dict | None) -> dict | None:
         """Drop ledger rows whose match id is gone from month/auto (renumber phantoms).
 
@@ -635,6 +658,8 @@ def main() -> None:
 
     if existing and not force_full:
         existing = prune_orphan_ledger(existing)
+        if sort_histories_inplace(existing):
+            print("sorted player/match histories (chrono)", flush=True)
 
     done_ids = {
         str(m.get("id"))
@@ -686,6 +711,7 @@ def main() -> None:
     if not pending:
         # Persist orphan prune + refresh slim ladder so site stops counting ghosts.
         if existing is not None:
+            sort_histories_inplace(existing)
             ranked0 = sorted(
                 (
                     (
@@ -1000,6 +1026,11 @@ def main() -> None:
                     ],
                 }
             )
+        # Keep player history chronological even after mid-chain backfills
+        # (e.g. Mutaha 13–15 scored after 16 already existed).
+        match_hist.sort(
+            key=lambda hm: (str(hm.get("date") or ""), str(hm.get("id") or ""))
+        )
         players_out[k] = {
             "nick": disp.get(k, k),
             "rp": round(max(MIN_RP, float(val)), 1),
@@ -1018,6 +1049,9 @@ def main() -> None:
         public_matches.append(
             {k: v for k, v in mb.items() if k not in ("netByKey", "events")}
         )
+    public_matches.sort(
+        key=lambda hm: (str(hm.get("date") or ""), str(hm.get("id") or ""))
+    )
 
     # Drop redundant "formula" on every event row — saves ~MBs, UI doesn't need it.
     for p in players_out.values():

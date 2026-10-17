@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { RpPlayer, RpPlayerMatch } from "@/lib/trainRp";
+import { sortRpMatchesNewestFirst } from "@/lib/trainRp";
 import { RpHuntMatchBreakdown } from "@/components/RpHuntMatchBreakdown";
 
 function fmtDelta(n: number) {
@@ -79,15 +80,15 @@ export function RpPlayerDrilldown({ nick, open, onClose, player: prefetched }: P
 
   // Slim ladder stubs have numeric kills/deaths and no map/date/net — hide them.
   const matches = player?.matches
-    ? [...player.matches]
-        .filter(
+    ? sortRpMatchesNewestFirst(
+        player.matches.filter(
           (m) =>
             typeof m.map === "string" &&
             m.map.length > 0 &&
             Array.isArray(m.kills) &&
             Array.isArray(m.deaths)
         )
-        .reverse()
+      )
     : [];
   const rpShow = player?.rp != null ? Math.round(player.rp) : null;
   const slimOnly =
