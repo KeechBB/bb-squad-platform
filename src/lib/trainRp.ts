@@ -16,12 +16,35 @@ export type RpMatchEvent = {
   killerPwr: number;
   victimPwr: number;
   delta: number;
-  kind?: "die" | "tk" | "revive" | "nok";
+  kind?:
+    | "die"
+    | "tk"
+    | "revive"
+    | "nok"
+    | "vehicle_kill"
+    | "vehicle_loss"
+    | "vehicle_loss_driver"
+    | "driver_share";
   teamkill?: boolean;
   /** Victim loss on nok (v2). */
   victimDelta?: number;
   dmg?: number;
+  tickets?: number;
+  vehicle?: string;
+  weapon?: string;
+  seat?: number;
+  /** Human label for detail UI («потеря танк T72 (F2)»). */
+  label?: string;
+  reason?: string;
 };
+
+export {
+  formatRpEventLabel,
+  isVehicleRpEvent,
+  vehicleClassRu,
+  vehicleLabelRu,
+  vehicleShortName,
+} from "@/lib/rpVehicleLabels";
 
 export type RpPlayerMatch = {
   id: string;
@@ -42,6 +65,8 @@ export type RpPlayerMatch = {
   gotNoks?: RpMatchEvent[];
   /** Public: combat damage from KillingDamage on enemy Die/nok (TK excluded). */
   dmg?: number;
+  /** Match net RP (slim public ladder). */
+  net?: number;
   /** Public PB1: won the layer (from team assignment) */
   won?: boolean | null;
 };
@@ -234,7 +259,8 @@ export async function loadRpLadder(): Promise<RpLadder | null> {
   return ok;
 }
 
-export function rpRankFromScore(rp: number, step = 150, radiant3Max = 4500) {
+/** radiant3Max = ceiling before Predator (legacy name; Eclipse III ends here). */
+export function rpRankFromScore(rp: number, step = 150, radiant3Max = 4950) {
   const names: [string, string][] = [
     ["Iron", "iron"],
     ["Bronze", "bronze"],
@@ -246,13 +272,16 @@ export function rpRankFromScore(rp: number, step = 150, radiant3Max = 4500) {
     ["Immortal", "immortal"],
     ["Master", "master"],
     ["Radiant", "radiant"],
+    ["Eclipse", "eclipse"],
   ];
   const roman = ["I", "II", "III"] as const;
+  const namedLevels = names.length * 3;
   const rpI = Math.round(rp);
   if (rpI > radiant3Max) {
     return { label: "PREDATOR", rankKey: "predator", predator: true as const };
   }
-  const idx = rpI < 1 ? 0 : Math.min(29, Math.floor((rpI - 1) / step));
+  const idx =
+    rpI < 1 ? 0 : Math.min(namedLevels - 1, Math.floor((rpI - 1) / step));
   const [name, key] = names[Math.floor(idx / 3)];
   return {
     label: `${name.toUpperCase()} ${roman[idx % 3]}`,
@@ -422,6 +451,17 @@ export async function playerRpMatchBreakdown(
     if (kind === "tk") {
       if (nickKey(e.killer) === want) teamkills.push(e);
       if (nickKey(e.victim) === want) deaths.push(e);
+      continue;
+    }
+    if (
+      kind === "vehicle_loss" ||
+      kind === "vehicle_loss_driver"
+    ) {
+      if (nickKey(e.victim) === want) deaths.push(e);
+      continue;
+    }
+    if (kind === "vehicle_kill" || kind === "driver_share") {
+      if (nickKey(e.killer) === want) kills.push(e);
       continue;
     }
     if (nickKey(e.killer) === want) kills.push(e);

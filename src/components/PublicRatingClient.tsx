@@ -5,6 +5,11 @@ import { useEffect, useMemo, useState } from "react";
 import type { PublicCombatRow } from "@/lib/publicCombat";
 import type { PublicMatchRow } from "@/lib/publicMatches";
 import { RpPlayerDrilldown } from "@/components/RpPlayerDrilldown";
+import {
+  ProfileMatchStatsModal,
+  type MatchStatsOpen,
+} from "@/components/ProfileMatchStatsModal";
+import { PublicRpGuide } from "@/components/PublicRpGuide";
 
 type Props = {
   rows: PublicCombatRow[];
@@ -13,7 +18,7 @@ type Props = {
   updatedAt?: string;
 };
 
-type Tab = "rating" | "history";
+type Tab = "rating" | "history" | "guide";
 type SortKey = keyof PublicCombatRow | "medals";
 type MatchSortKey =
   | "date"
@@ -38,7 +43,10 @@ const RP_BANDS: [string, string][] = [
   ["Immortal", "immortal"],
   ["Master", "master"],
   ["Radiant", "radiant"],
+  ["Eclipse", "eclipse"],
 ];
+/** Ceiling before Predator (= Eclipse III max). */
+const RP_PREDATOR_MIN = RP_BANDS.length * 3 * RP_STEP + 1; // 4951
 
 const MSK = "Europe/Moscow";
 
@@ -71,7 +79,8 @@ function mskParts(iso: string): { date: string; time: string; y: number; m: numb
 }
 
 function RpRankScale() {
-  const [romanIdx, setRomanIdx] = useState(0); // 0=I, 1=II, 2=III
+  // Per-rank roman (как на ТМ) — клик 1/2/3 меняет только этот ранг
+  const [romanByKey, setRomanByKey] = useState<Record<string, number>>({});
   const roman = ["I", "II", "III"] as const;
 
   return (
@@ -83,8 +92,9 @@ function RpRankScale() {
       </span>
       <div className="public-rp-scale-track">
         {RP_BANDS.map(([name, key], bi) => {
+          const ri = romanByKey[key] ?? 0;
           const min = bi * 3 * RP_STEP + 1;
-          const bandMin = min + romanIdx * RP_STEP;
+          const bandMin = min + ri * RP_STEP;
           const bandMax = bandMin + RP_STEP - 1;
           return (
             <span key={key} className="public-rp-scale-step-wrap">
@@ -95,18 +105,20 @@ function RpRankScale() {
                 <span
                   className={`home-pwr-badge rank-${key} public-rp-scale-badge`}
                 >
-                  {name.toUpperCase()} {roman[romanIdx]}
+                  {name.toUpperCase()} {roman[ri]}
                 </span>
                 <span className="public-rp-scale-tier-btns" role="group">
-                  {roman.map((r, ri) => (
+                  {roman.map((r, rIdx) => (
                     <button
                       key={r}
                       type="button"
-                      className={`public-rp-scale-tier-btn${ri === romanIdx ? " is-active" : ""}`}
-                      aria-pressed={ri === romanIdx}
-                      onClick={() => setRomanIdx(ri)}
+                      className={`public-rp-scale-tier-btn${rIdx === ri ? " is-active" : ""}`}
+                      aria-pressed={rIdx === ri}
+                      onClick={() =>
+                        setRomanByKey((prev) => ({ ...prev, [key]: rIdx }))
+                      }
                     >
-                      {ri + 1}
+                      {rIdx + 1}
                     </button>
                   ))}
                 </span>
@@ -118,7 +130,7 @@ function RpRankScale() {
           );
         })}
         <span className="public-rp-scale-step public-rp-scale-step-predator">
-          <span className="public-rp-scale-range">4501+</span>
+          <span className="public-rp-scale-range">{RP_PREDATOR_MIN}+</span>
           <span className="home-pwr-badge rank-predator public-rp-scale-badge">
             PREDATOR
             <br />
@@ -146,12 +158,17 @@ export function PublicRatingClient({
   const [mSortKey, setMSortKey] = useState<MatchSortKey>("date");
   const [mSortDir, setMSortDir] = useState<"asc" | "desc">("desc");
   const [drillNick, setDrillNick] = useState<string | null>(null);
+  const [matchOpen, setMatchOpen] = useState<MatchStatsOpen | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const hash = window.location.hash;
     if (hash === "#history") {
       setTab("history");
+      return;
+    }
+    if (hash === "#rp" || hash === "#guide") {
+      setTab("guide");
       return;
     }
     if (!hash.startsWith("#player-")) return;
@@ -403,9 +420,22 @@ export function PublicRatingClient({
         >
           История матчей
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "guide"}
+          className={`public-rating-tab public-rating-tab-guide${
+            tab === "guide" ? " is-active" : ""
+          }`}
+          onClick={() => setTab("guide")}
+        >
+          Как работает RP
+        </button>
       </div>
 
-      {tab === "rating" ? (
+      {tab === "guide" ? (
+        <PublicRpGuide />
+      ) : tab === "rating" ? (
         <>
           <p className="public-rating-top-label">Top 500</p>
           <RpRankScale />
@@ -559,7 +589,8 @@ export function PublicRatingClient({
           <aside className="public-rating-glossary" aria-label="История матчей">
             <p>
               Матчи паблика добавляются автоматически по окончании раунда (без
-              SEED). Победившая фракция подсвечена зелёным.
+              SEED). Победившая фракция подсвечена зелёным. Кликни строку —
+              разбор как на КВ/тренировках (Итого + фракции).
             </p>
           </aside>
 
@@ -642,7 +673,48 @@ export function PublicRatingClient({
                       const s1Win = m.winnerTeam === 1;
                       const s2Win = m.winnerTeam === 2;
                       return (
-                        <tr key={m.id}>
+                        <tr
+                          key={m.id}
+                          className="public-match-row is-clickable"
+                          role="button"
+                          tabIndex={0}
+                          title="Открыть разбор матча"
+                          onClick={() =>
+                            setMatchOpen({
+                              kind: "public",
+                              matchId: m.id,
+                              dateLabel: p.date,
+                              timeLabel: p.time,
+                              factionA: String(f1 || m.faction1 || "Команда 1"),
+                              factionB: String(f2 || m.faction2 || "Команда 2"),
+                              ticketsA: m.score1,
+                              ticketsB: m.score2,
+                              title: `${p.date} · ${m.mapName}`,
+                              sub: `${m.layerName || m.mapName} · ${m.serverLabel}`,
+                            })
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setMatchOpen({
+                                kind: "public",
+                                matchId: m.id,
+                                dateLabel: p.date,
+                                timeLabel: p.time,
+                                factionA: String(
+                                  f1 || m.faction1 || "Команда 1"
+                                ),
+                                factionB: String(
+                                  f2 || m.faction2 || "Команда 2"
+                                ),
+                                ticketsA: m.score1,
+                                ticketsB: m.score2,
+                                title: `${p.date} · ${m.mapName}`,
+                                sub: `${m.layerName || m.mapName} · ${m.serverLabel}`,
+                              });
+                            }
+                          }}
+                        >
                           <td className="ctr">{p.date}</td>
                           <td className="ctr">{p.time}</td>
                           <td className="ctr" title={m.layerName || undefined}>
@@ -698,6 +770,11 @@ export function PublicRatingClient({
           onClose={() => setDrillNick(null)}
         />
       ) : null}
+
+      <ProfileMatchStatsModal
+        open={matchOpen}
+        onClose={() => setMatchOpen(null)}
+      />
     </div>
   );
 }
