@@ -24,10 +24,7 @@ type Props = {
   leaderboard: BpPlayerProgress[];
 };
 
-function soldierSrc(level: number): string {
-  const n = String(Math.min(20, Math.max(1, level))).padStart(2, "0");
-  return `/bp-previews/soldier-${n}.jpg`;
-}
+const BP_BG = "/bp-previews/fruktovy-sad-bg.jpg";
 
 function RewardMark({ reward }: { reward: BpReward }) {
   return (
@@ -144,11 +141,7 @@ export function BattlePassClient({
         >
           <div className="bp-detail-bg" aria-hidden>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              key={level.level}
-              src={soldierSrc(level.level)}
-              alt=""
-            />
+            <img src={BP_BG} alt="" />
           </div>
           <div className="bp-detail-veil" aria-hidden />
 
