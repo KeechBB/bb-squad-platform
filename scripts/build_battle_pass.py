@@ -35,6 +35,13 @@ LEDGER = Path(
     or (ROOT / "data" / "public" / "rp-ledger.json")
 )
 
+TIERS = Path(
+    os.environ.get("TIERS_JSON")
+    or (ROOT / "data" / "kv-cache" / "data" / "tiers.json")
+)
+if not TIERS.is_file():
+    TIERS = ROOT.parent / "KV" / "public" / "data" / "tiers.json"
+
 SEASON_ID = "pb1-2026-10"
 LEVEL_TARGETS = {
     1: 1,
@@ -68,6 +75,22 @@ _HELI_RE = re.compile(
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def load_alias_keys() -> dict[str, str]:
+    out: dict[str, str] = {}
+    if not TIERS.is_file():
+        return out
+    try:
+        t = json.loads(TIERS.read_text(encoding="utf-8"))
+    except Exception:
+        return out
+    for raw, canon in (t.get("aliases") or {}).items():
+        ak, ck = R.nick_key(str(raw)), R.nick_key(str(canon))
+        if ak and ck:
+            out[ak] = ck
+            out.setdefault(ck, ck)
+    return out
 
 
 def _psycopg_dsn(db: str) -> str:
@@ -602,7 +625,7 @@ def finalize(state: dict) -> dict:
 
 
 def apply_blocks(blocks: list[dict], aliases: dict | None = None) -> dict:
-    aliases = aliases if aliases is not None else R.load_aliases()
+    aliases = aliases if aliases is not None else load_alias_keys()
     ledger = {}
     if LEDGER.is_file():
         try:
