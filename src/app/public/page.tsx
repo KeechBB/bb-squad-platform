@@ -1,19 +1,12 @@
-import { PublicRatingClient } from "@/components/PublicRatingClient";
-import { getPublicRatingPagePayload } from "@/lib/publicRatingPageCache";
+import { PublicRatingLoader } from "@/components/PublicRatingLoader";
 
 export const revalidate = 60;
 
-/** Публичный рейтинг паблика — доступен без Steam-логина. */
-export default async function PublicRatingPage() {
-  const { board, matchHistory } = await getPublicRatingPagePayload();
+/** Публичный рейтинг паблика — лёгкий SSR shell + JSON API (disk cache). */
+export default function PublicRatingPage() {
   return (
     <main className="public-rating-page">
-      <PublicRatingClient
-        rows={board.rows}
-        matches={board.matches}
-        matchHistory={matchHistory}
-        updatedAt={board.updatedAt}
-      />
+      <PublicRatingLoader />
     </main>
   );
 }
