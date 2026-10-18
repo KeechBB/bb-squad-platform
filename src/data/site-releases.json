@@ -1,6 +1,14 @@
 {
-  "current": "1.1.171",
+  "current": "1.1.172",
   "releases": [
+    {
+      "version": "1.1.172",
+      "date": "2026-10-18",
+      "title": "Календарь: NKLV vs ХУХ 25.10",
+      "bullets": [
+        "Залита заявка 25.10 NKLV vs ХУХ · FCL Narva Small · 12v12 · 16:00 МСК"
+      ]
+    },
     {
       "version": "1.1.171",
       "date": "2026-10-18",
