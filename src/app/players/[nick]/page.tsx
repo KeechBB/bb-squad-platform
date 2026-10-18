@@ -44,6 +44,23 @@ export default async function PlayerProfilePage({ params }: Props) {
   const { nick: raw } = await params;
   const nick = decodeURIComponent(raw).trim();
   if (!nick) notFound();
+
+  // Синтетические «главы» чужих кланов (7656119900001…) — не живые аккаунты;
+  // для них показываем guest-профиль со статуй с табло.
+  const EXTERNAL_LEADER_STEAM_PREFIX = "7656119900001";
+  const user = await prisma.user.findFirst({
+    where: {
+      nick: { equals: nick, mode: "insensitive" },
+      profileComplete: true,
+      NOT: { steamId: { startsWith: EXTERNAL_LEADER_STEAM_PREFIX } },
+    },
+    include: {
+      clanMemberships: {
+        include: {
+          clan: {
+            select: {
+              id: true,
+              name: true,
               tag: true,
               logoUrl: true,
               isExternal: true,
