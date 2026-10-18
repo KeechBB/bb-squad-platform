@@ -89,9 +89,47 @@ export const loadPlayerProfileHeavy = cache(
     if (!key) return loadPlayerProfileHeavyUncached(nick);
     const cached = unstable_cache(
       () => loadPlayerProfileHeavyUncached(nick),
-      ["profile-heavy-v2", key],
+      ["profile-heavy-v3", key],
       { revalidate: 120 }
     );
     return cached();
   }
 );
+
+export type PlayerProfileStats = {
+  kvStats: PlayerKvStats | null;
+  kvError: string | null;
+  trainCombat: PlayerTrainCombatStats | null;
+  publicCombat: PlayerPublicCombatStats | null;
+};
+
+export type PlayerProfileHistories = {
+  trainHistory: TrainMatchHistoryRow[];
+  publicHistory: TrainMatchHistoryRow[];
+  cwHistory: CwMatchHistoryRow[];
+};
+
+/** Вкладки статы профиля (КВ / train / public combat). */
+export async function loadPlayerProfileStats(
+  nick: string
+): Promise<PlayerProfileStats> {
+  const h = await loadPlayerProfileHeavy(nick);
+  return {
+    kvStats: h.kvStats,
+    kvError: h.kvError,
+    trainCombat: h.trainCombat,
+    publicCombat: h.publicCombat,
+  };
+}
+
+/** Истории матчей профиля (train / public / CW). */
+export async function loadPlayerProfileHistories(
+  nick: string
+): Promise<PlayerProfileHistories> {
+  const h = await loadPlayerProfileHeavy(nick);
+  return {
+    trainHistory: h.trainHistory,
+    publicHistory: h.publicHistory,
+    cwHistory: h.cwHistory,
+  };
+}

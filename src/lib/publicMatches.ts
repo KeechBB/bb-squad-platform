@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { isPublicServerKey } from "@/lib/squadServers";
 
@@ -61,7 +62,7 @@ export function isSeedLayer(layerName: string | null | undefined): boolean {
   return /\bseed\b/i.test(layerName || "");
 }
 
-export async function listPublicMatches(limit = 500): Promise<PublicMatchRow[]> {
+async function listPublicMatchesUncached(limit = 500): Promise<PublicMatchRow[]> {
   const rows = await prisma.publicMatch.findMany({
     where: {
       OR: [
@@ -89,6 +90,15 @@ export async function listPublicMatches(limit = 500): Promise<PublicMatchRow[]> 
     winnerTeam: r.winnerTeam,
     winnerName: r.winnerName,
   }));
+}
+
+export async function listPublicMatches(limit = 500): Promise<PublicMatchRow[]> {
+  const cached = unstable_cache(
+    () => listPublicMatchesUncached(limit),
+    ["public-matches-list-v1", String(limit)],
+    { revalidate: 90 }
+  );
+  return cached();
 }
 
 export function normalizePublicMatchServerKey(

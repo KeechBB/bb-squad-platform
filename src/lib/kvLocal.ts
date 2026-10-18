@@ -15,10 +15,17 @@ export const KV_REMOTE_BASES: string[] = (() => {
   ].filter(Boolean) as string[];
 })();
 
-/** In-process memo: profile SSR hits the same JSON dozens of times per request. */
-const MEM_TTL_MS = Number(process.env.KV_MEM_TTL_MS || 120_000);
-const MEM_SOFT_CAP = Number(process.env.KV_MEM_SOFT_CAP || 1200);
-const mem = new Map<string, { at: number; data: unknown }>();
+/**
+ * In-process memo: profile SSR hits the same JSON dozens of times per request.
+ * Freshness: invalidate when file mtime changes (always current on disk write).
+ * Soft TTL only as safety net if mtime unavailable.
+ */
+const MEM_TTL_MS = Number(process.env.KV_MEM_TTL_MS || 600_000);
+const MEM_SOFT_CAP = Number(process.env.KV_MEM_SOFT_CAP || 2500);
+const mem = new Map<
+  string,
+  { at: number; mtimeMs: number; data: unknown }
+>();
 const inflight = new Map<string, Promise<unknown>>();
 
 /** Directories checked before remote fetch (first hit wins). */
@@ -36,9 +43,16 @@ function cleanRel(relPath: string): string {
     .replace(/\.\./g, "");
 }
 
-function memGet<T>(rel: string): T | null | undefined {
+function memGet<T>(
+  rel: string,
+  mtimeMs: number
+): T | null | undefined {
   const hit = mem.get(rel);
   if (!hit) return undefined;
+  if (mtimeMs > 0 && hit.mtimeMs > 0 && hit.mtimeMs !== mtimeMs) {
+    mem.delete(rel);
+    return undefined;
+  }
   if (Date.now() - hit.at > MEM_TTL_MS) {
     mem.delete(rel);
     return undefined;
@@ -46,8 +60,8 @@ function memGet<T>(rel: string): T | null | undefined {
   return hit.data as T | null;
 }
 
-function memSet(rel: string, data: unknown) {
-  mem.set(rel, { at: Date.now(), data });
+function memSet(rel: string, data: unknown, mtimeMs = 0) {
+  mem.set(rel, { at: Date.now(), mtimeMs, data });
   // soft cap — drop oldest chunk if huge
   if (mem.size > MEM_SOFT_CAP) {
     const drop = [...mem.entries()]
@@ -57,15 +71,18 @@ function memSet(rel: string, data: unknown) {
   }
 }
 
-/** Read JSON from local KV cache if present. */
-export async function readKvLocalJson<T>(relPath: string): Promise<T | null> {
+/** Read JSON from local KV cache if present. Returns data + mtime for memo. */
+export async function readKvLocalJson<T>(
+  relPath: string
+): Promise<{ data: T; mtimeMs: number } | null> {
   const rel = cleanRel(relPath);
   if (!rel) return null;
   for (const root of kvLocalRoots()) {
     try {
       const full = path.join(root, rel);
+      const st = await fs.stat(full);
       const raw = await fs.readFile(full, "utf8");
-      return JSON.parse(raw) as T;
+      return { data: JSON.parse(raw) as T, mtimeMs: st.mtimeMs || 0 };
     } catch {
       /* next root */
     }
@@ -81,14 +98,23 @@ async function fetchRemoteJson<T>(url: string): Promise<T> {
 
 /**
  * Load KV JSON: local disk first; remote only if KV_ALLOW_REMOTE=1.
- * `relPath` like `data/training/rp-ladder.json`.
- * Memoized ~45s in-process (+ coalesced in-flight).
+ * Memo: reuse until file mtime changes (always fresh after sync/deploy).
  */
 export async function loadKvJsonCached<T>(relPath: string): Promise<T | null> {
   const rel = cleanRel(relPath);
   if (!rel) return null;
 
-  const cached = memGet<T>(rel);
+  let mtimeMs = 0;
+  for (const root of kvLocalRoots()) {
+    try {
+      const st = await fs.stat(path.join(root, rel));
+      mtimeMs = st.mtimeMs || 0;
+      break;
+    } catch {
+      /* next */
+    }
+  }
+  const cached = memGet<T>(rel, mtimeMs);
   if (cached !== undefined) return cached;
 
   const pending = inflight.get(rel);
@@ -98,8 +124,8 @@ export async function loadKvJsonCached<T>(relPath: string): Promise<T | null> {
     try {
       const local = await readKvLocalJson<T>(rel);
       if (local != null) {
-        memSet(rel, local);
-        return local;
+        memSet(rel, local.data, local.mtimeMs);
+        return local.data;
       }
 
       for (const base of KV_REMOTE_BASES) {
@@ -107,13 +133,13 @@ export async function loadKvJsonCached<T>(relPath: string): Promise<T | null> {
           const remote = await fetchRemoteJson<T>(
             `${base.replace(/\/$/, "")}/${rel}`
           );
-          memSet(rel, remote);
+          memSet(rel, remote, 0);
           return remote;
         } catch {
           /* next */
         }
       }
-      memSet(rel, null);
+      memSet(rel, null, mtimeMs);
       return null;
     } finally {
       inflight.delete(rel);

@@ -36,6 +36,19 @@ export type MatchStatsOpen =
       winner?: string;
       duration?: string;
       highlightNick?: string;
+    }
+  | {
+      kind: "public";
+      matchId: string;
+      title: string;
+      sub: string;
+      dateLabel?: string;
+      timeLabel?: string;
+      factionA: string;
+      ticketsA: number | null;
+      factionB: string;
+      ticketsB: number | null;
+      highlightNick?: string;
     };
 
 type PlayerRow = {
@@ -258,6 +271,70 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
     setPwrDeltas({});
 
     let cancelled = false;
+
+    const applyDeltas = (raw: Record<string, number> | undefined) => {
+      const normalized: Record<string, number> = {};
+      for (const [k, v] of Object.entries(raw || {})) {
+        normalized[k.trim().toLowerCase()] = Number(v) || 0;
+      }
+      setPwrDeltas(normalized);
+    };
+
+    // Public PB1: JSON API (no playersUrl / kv-static file).
+    if (open.kind === "public") {
+      fetch(
+        `/api/public/match-stats?id=${encodeURIComponent(open.matchId)}`,
+        { cache: "no-store" }
+      )
+        .then(async (res) => {
+          const json = await res.json();
+          if (!res.ok || !json?.ok) {
+            throw new Error(json?.error || "Нет статистики матча");
+          }
+          return json;
+        })
+        .then((json) => {
+          if (cancelled) return;
+          applyDeltas((json.deltas || {}) as Record<string, number>);
+          const teamA = enrich(json.teamA || []);
+          const teamB = enrich(json.teamB || []);
+          const all = enrich(
+            json.players?.length ? json.players : teamA.concat(teamB)
+          );
+          setData({
+            total: all,
+            bbTotal: [],
+            r1: [],
+            r2: [],
+            oppTotal: [],
+            oppR1: [],
+            oppR2: [],
+            teamA,
+            teamB,
+            details: null,
+            mvpByRound: {
+              r1: (json.mvp && (json.mvp.public || json.mvp.train)) || pickMvps(all),
+              r2: emptyMvp(),
+              oppR1: emptyMvp(),
+              oppR2: emptyMvp(),
+            },
+            training: true,
+            hasOpp: false,
+          });
+          setLoading(false);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setError(
+            "Не удалось загрузить статистику. Обнови страницу и открой катку ещё раз."
+          );
+          setLoading(false);
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+
     const kind = open.kind === "train" ? "train" : "cw";
     Promise.all([
       fetch(kvUrl(open.playersUrl), { cache: "no-store" }).then(async (res) => {
@@ -273,12 +350,7 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
     ])
       .then(([json, deltaPayload]) => {
         if (cancelled) return;
-        const rawDeltas = (deltaPayload?.deltas || {}) as Record<string, number>;
-        const normalized: Record<string, number> = {};
-        for (const [k, v] of Object.entries(rawDeltas)) {
-          normalized[k.trim().toLowerCase()] = Number(v) || 0;
-        }
-        setPwrDeltas(normalized);
+        applyDeltas((deltaPayload?.deltas || {}) as Record<string, number>);
 
         if (open.kind === "train") {
           const teamA = enrich(json.teamA || []);
@@ -439,8 +511,13 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
     });
   }, [rows, sortKey, sortDir, pwrDeltas]);
 
-  const showPwrDelta = tab === "total" && open?.kind === "train";
-  const hideWarScore = open?.kind === "train" || !!data?.training;
+  const showPwrDelta =
+    tab === "total" &&
+    (open?.kind === "train" || open?.kind === "public");
+  const hideWarScore =
+    open?.kind === "train" ||
+    open?.kind === "public" ||
+    !!data?.training;
 
   const records = useMemo(() => {
     return {
@@ -541,21 +618,27 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
       : "BB";
   const showSidePrefix = Boolean(data?.hasOpp);
 
+  const sideTabs =
+    open.kind === "train" || open.kind === "public"
+      ? {
+          a: abbreviateFaction(open.factionA),
+          b: abbreviateFaction(open.factionB),
+          ta: open.ticketsA ?? "—",
+          tb: open.ticketsB ?? "—",
+        }
+      : null;
+
   const tabs: { key: TabKey; label: string; group?: "bb" | "opp" }[] =
     data?.training
       ? [
           { key: "total", label: "Все" },
           {
             key: "teamA",
-            label: `${
-              open.kind === "train" ? abbreviateFaction(open.factionA) : "A"
-            } · ${open.kind === "train" ? open.ticketsA ?? "—" : "—"}`,
+            label: `${sideTabs?.a || "A"} · ${sideTabs?.ta ?? "—"}`,
           },
           {
             key: "teamB",
-            label: `${
-              open.kind === "train" ? abbreviateFaction(open.factionB) : "B"
-            } · ${open.kind === "train" ? open.ticketsB ?? "—" : "—"}`,
+            label: `${sideTabs?.b || "B"} · ${sideTabs?.tb ?? "—"}`,
           },
         ]
       : open.kind === "cw"
@@ -689,11 +772,15 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
           ) : (
             <>
               <div className="profile-match-summary">
-                {open.kind === "train" ? (
+                {open.kind === "train" || open.kind === "public" ? (
                   <>
                     <div>
                       <span className="muted">Дата</span>
-                      <strong>{open.title.split(" · ")[0]}</strong>
+                      <strong>
+                        {open.kind === "public" && open.dateLabel
+                          ? open.dateLabel
+                          : open.title.split(" · ")[0]}
+                      </strong>
                     </div>
                     <div>
                       <span className="muted">{abbreviateFaction(open.factionA)}</span>
@@ -706,12 +793,20 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
                     <div>
                       <span className="muted">Победитель</span>
                       <strong>
-                        {open.winner ? abbreviateFaction(open.winner) : "—"}
+                        {open.kind === "train" && open.winner
+                          ? abbreviateFaction(open.winner)
+                          : "—"}
                       </strong>
                     </div>
                     <div>
                       <span className="muted">Время</span>
-                      <strong>{open.duration || "—"}</strong>
+                      <strong>
+                        {open.kind === "public"
+                          ? open.timeLabel || "—"
+                          : open.kind === "train"
+                            ? open.duration || "—"
+                            : "—"}
+                      </strong>
                     </div>
                   </>
                 ) : (
