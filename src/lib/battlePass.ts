@@ -14,7 +14,7 @@ export const BP_SEASON = {
   note: "Подсчёт прогресса пока выключен — смотрим вёрстку и задания.",
 } as const;
 
-export type BpRewardKind = "badge" | "frame" | "banner" | "title";
+export type BpRewardKind = "badge" | "frame" | "nick" | "medal";
 
 export type BpReward = {
   level: number;
@@ -22,8 +22,10 @@ export type BpReward = {
   name: string;
   short: string;
   kind: BpRewardKind;
-  /** Как выглядит в профиле / превью */
+  /** Как выглядит / где висит */
   preview: string;
+  /** Текст при наведении (медаль и т.п.) */
+  hover?: string;
 };
 
 export type BpLevel = {
@@ -37,7 +39,7 @@ export type BpLevel = {
   unit: string;
 };
 
-/** Награды каждые 5 уровней. L20 — титул в профиль. */
+/** Награды каждые 5 уровней. */
 export const BP_REWARDS: BpReward[] = [
   {
     level: 5,
@@ -45,7 +47,8 @@ export const BP_REWARDS: BpReward[] = [
     name: "Искра разведки",
     short: "Значок",
     kind: "badge",
-    preview: "Малый значок под ником · «Искра»",
+    preview:
+      "В шапке профиля, сразу под ником — маленький золотой значок «Искра»",
   },
   {
     level: 10,
@@ -53,23 +56,27 @@ export const BP_REWARDS: BpReward[] = [
     name: "Бронелист",
     short: "Рамка",
     kind: "frame",
-    preview: "Металлическая рамка аватара",
+    preview: "Металлическая рамка вокруг аватара в профиле",
   },
   {
     level: 15,
-    id: "pb1-guard-banner",
-    name: "Гвардия прохода",
-    short: "Баннер",
-    kind: "banner",
-    preview: "Полоса-баннер над карточкой профиля",
+    id: "pb1-gold-nick",
+    name: "Золотой ник",
+    short: "Цвет ника",
+    kind: "nick",
+    preview:
+      "Ник цветом Battle Pass (золото) в рейтинге паблика и везде на сайте — у всех с этой наградой одинаково",
   },
   {
     level: 20,
     id: "pb1-best-tester",
     name: "Лучший тестировщик",
-    short: "Титул",
-    kind: "title",
-    preview: "Титул в профиле · сезон PB1",
+    short: "Медаль",
+    kind: "medal",
+    preview:
+      "Медаль слева в профиле под аватаром; наведение — за что выдана",
+    hover:
+      "Лучший тестировщик · Battle Pass PB1 · дошёл до 20 уровня (18–31.10.2026)",
   },
 ];
 

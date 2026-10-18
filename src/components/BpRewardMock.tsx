@@ -33,33 +33,90 @@ function Avatar({
   );
 }
 
-function HeadText({
+function ProfileHeadMock({
   player,
   kind,
-  rewardName,
+  reward,
+  compact,
 }: {
   player: BpPreviewPlayer;
   kind: BpRewardKind;
-  rewardName: string;
+  reward: BpReward;
+  compact?: boolean;
 }) {
+  const goldNick = kind === "nick";
   return (
-    <div className="bp-mock-text">
-      <p className="bp-mock-eyebrow">профиль</p>
-      <div className="bp-mock-title-row">
-        <h3>{player.nick}</h3>
-        {kind === "title" ? (
-          <span className="bp-mock-title-award">{rewardName}</span>
+    <div className="bp-mock-row">
+      <div className="bp-mock-av-col">
+        <Avatar player={player} framed={kind === "frame"} />
+        {kind === "medal" ? (
+          <button
+            type="button"
+            className="bp-mock-medal"
+            title={reward.hover || reward.name}
+            aria-label={reward.hover || reward.name}
+          >
+            <span className="bp-mock-medal-face" aria-hidden>
+              ★
+            </span>
+            {!compact ? (
+              <span className="bp-mock-medal-tip" role="tooltip">
+                {reward.hover || reward.name}
+              </span>
+            ) : null}
+          </button>
         ) : null}
       </div>
-      {kind === "badge" ? (
-        <span className="bp-mock-badge">✦ {rewardName}</span>
-      ) : null}
-      {player.name ? <p className="bp-mock-name">{player.name}</p> : null}
+      <div className="bp-mock-text">
+        <p className="bp-mock-eyebrow">профиль</p>
+        <div className="bp-mock-title-row">
+          <h3 className={goldNick ? "bp-nick-gold" : undefined}>
+            {player.nick}
+          </h3>
+        </div>
+        {kind === "badge" ? (
+          <span className="bp-mock-badge" title={reward.preview}>
+            ✦ Искра
+          </span>
+        ) : null}
+        {player.name && !compact ? (
+          <p className="bp-mock-name">{player.name}</p>
+        ) : null}
+      </div>
     </div>
   );
 }
 
-/** Живой пример шапки профиля с наградой BP. */
+/** Пример строки рейтинга паблика с золотым ником (L15). */
+function RatingNickMock({
+  player,
+  compact,
+}: {
+  player: BpPreviewPlayer;
+  compact?: boolean;
+}) {
+  return (
+    <div className={`bp-mock-rating${compact ? " is-compact" : ""}`}>
+      {!compact ? (
+        <p className="bp-mock-rating-label">рейтинг паблика · ник</p>
+      ) : null}
+      <div className="bp-mock-rating-row">
+        <span className="bp-mock-rating-rank">5</span>
+        <span className="bp-mock-rating-badge">RADIANT I</span>
+        <span className="bp-mock-rating-rp">4091</span>
+        <span className="bp-mock-rating-tag">BB</span>
+        <span className="bp-nick-gold bp-mock-rating-nick">{player.nick}</span>
+      </div>
+      {!compact ? (
+        <p className="bp-mock-rating-hint">
+          Так же у всех, кто взял L15 — один золотой цвет ника
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Живой пример, где висит награда. */
 export function BpRewardMock({
   reward,
   player,
@@ -75,22 +132,19 @@ export function BpRewardMock({
       className={`bp-mock kind-${kind}${compact ? " is-compact" : ""}`}
       aria-label={`Пример: ${reward.name}`}
     >
-      {kind === "banner" ? (
-        <div className="bp-mock-banner">
-          <span>◆ Гвардия прохода · PB1</span>
-        </div>
-      ) : null}
-      <div className="bp-mock-row">
-        <Avatar player={player} framed={kind === "frame"} />
-        <HeadText
+      {kind === "nick" ? (
+        <RatingNickMock player={player} compact={compact} />
+      ) : (
+        <ProfileHeadMock
           player={player}
           kind={kind}
-          rewardName={reward.name}
+          reward={reward}
+          compact={compact}
         />
-      </div>
+      )}
       {!compact ? (
         <p className="bp-mock-cap">
-          L{reward.level} · так будет в профиле
+          L{reward.level} · {reward.preview}
         </p>
       ) : null}
     </div>
@@ -109,8 +163,8 @@ export function BpRewardMockGallery({
   onPick?: (level: number) => void;
 }) {
   return (
-    <section className="bp-mock-gallery" aria-label="Примеры наград в профиле">
-      <h3>Как награды выглядят в профиле</h3>
+    <section className="bp-mock-gallery" aria-label="Примеры наград">
+      <h3>Где висят награды</h3>
       <div className="bp-mock-grid">
         {rewards.map((r) => (
           <button
