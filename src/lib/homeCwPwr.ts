@@ -34,6 +34,8 @@ export type CwPwrLeaderboard = {
 export type CwMatchHistoryRow = {
   matchId: string;
   dateLabel: string;
+  /** Хост слота (A): пусто/BB = BlackBerry; чужие КВ = NKLV и т.п. */
+  clan?: string;
   opp: string;
   map: string;
   meeting: string;
@@ -634,6 +636,7 @@ export async function buildPlayerCwMatchHistory(
     day: number;
     year: number;
     month: number;
+    clan: string;
     opp: string;
     map: string;
     meeting: string;
@@ -653,6 +656,7 @@ export async function buildPlayerCwMatchHistory(
       matches?: {
         id?: string;
         day?: number;
+        clan?: string;
         opp?: string;
         map?: string;
         meeting?: string;
@@ -671,6 +675,7 @@ export async function buildPlayerCwMatchHistory(
         day: match.day,
         year: m.year,
         month: m.month,
+        clan: String(match.clan || "").trim(),
         opp: match.opp || "—",
         map: match.map || "—",
         meeting: match.meeting || "—",
@@ -767,6 +772,7 @@ export async function buildPlayerCwMatchHistory(
     history.push({
       matchId: match.id,
       dateLabel: `${pad2(match.day)}.${pad2(match.month)}.${match.year}`,
+      clan: match.clan || undefined,
       opp: mine.asOpp ? "BB" : match.opp,
       map: match.map,
       meeting: match.meeting,

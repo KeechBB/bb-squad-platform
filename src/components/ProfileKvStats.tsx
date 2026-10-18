@@ -106,6 +106,7 @@ export function ProfileKvMatchHistory({
                           .join(" · "),
                         playersUrl: m.playersUrl,
                         meeting: m.meeting,
+                        clan: m.clan,
                         opp: m.opp,
                         r1Label:
                           m.r1 && m.r1 !== "—"

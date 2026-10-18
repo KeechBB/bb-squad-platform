@@ -13,6 +13,8 @@ export type MatchStatsOpen =
       sub: string;
       playersUrl: string;
       meeting?: string;
+      /** Хост слота (сторона A): BB / NKLV / … — для вкладок r1/r2/bbTotal */
+      clan?: string;
       /** Тег соперника — для вкладок oppR1/oppR2 */
       opp?: string;
       r1Label: string;
@@ -513,6 +515,15 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
           ? open.title.split(" vs ").pop()?.trim() || "OPP"
           : "OPP")
       : "OPP";
+  /** Хост слота: чужой КВ → NKLV и т.п.; пусто / BB → BB */
+  const ourTag =
+    open.kind === "cw"
+      ? (() => {
+          const c = String(open.clan || "").trim();
+          if (!c || /^(bb|blackberry)$/i.test(c)) return "BB";
+          return c;
+        })()
+      : "BB";
   const showSidePrefix = Boolean(data?.hasOpp);
 
   const tabs: { key: TabKey; label: string; group?: "bb" | "opp" }[] =
@@ -543,7 +554,7 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
               ? [
                   {
                     key: "bbTotal" as const,
-                    label: "BB · Итого",
+                    label: `${ourTag} · Итого`,
                     group: "bb" as const,
                   },
                 ]
@@ -553,7 +564,7 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
                   {
                     key: "r1" as const,
                     label: showSidePrefix
-                      ? `BB · ${open.r1Label}`
+                      ? `${ourTag} · ${open.r1Label}`
                       : open.r1Label,
                     group: "bb" as const,
                   },
@@ -564,7 +575,7 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
                   {
                     key: "r2" as const,
                     label: showSidePrefix
-                      ? `BB · ${open.r2Label}`
+                      ? `${ourTag} · ${open.r2Label}`
                       : open.r2Label,
                     group: "bb" as const,
                   },
@@ -697,7 +708,7 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
                     <div>
                       <span className="muted">
                         {tab.startsWith("opp")
-                          ? `Тикеты (${oppTag}:BB)`
+                          ? `Тикеты (${oppTag}:${ourTag})`
                           : "Тикеты"}
                       </span>
                       <strong>

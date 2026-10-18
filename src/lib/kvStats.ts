@@ -28,6 +28,13 @@ export function hostClanLabel(m: { clan?: string | null }): string {
   return isBbHostMatch(m) ? "BlackBerry" : String(m.clan || "").trim() || "—";
 }
 
+/** Короткий тег хоста для вкладок модалки: BB / NKLV / … */
+export function hostClanTag(m: { clan?: string | null }): string {
+  if (isBbHostMatch(m)) return "BB";
+  const t = String(m.clan || "").trim();
+  return t || "BB";
+}
+
 export type PlayerKvRound = {
   matchId: string;
   day: number;
