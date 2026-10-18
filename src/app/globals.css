@@ -16542,8 +16542,11 @@ body:has(.profile-page) {
 .bp-hero-status {
   margin: 8px auto 0;
   max-width: 640px;
-  font-size: 0.82rem;
-  color: #c4b89a;
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #ff2a2a;
+  text-shadow: 0 0 10px rgba(255, 42, 42, 0.35);
 }
 
 

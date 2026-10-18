@@ -85,13 +85,6 @@ export function battlePassLeaderboard(
   }));
 }
 
-export function battlePassStatusNote(state: BpSeasonState | null): string {
-  if (!state?.enabled) {
-    return "Подсчёт ещё не включён.";
-  }
-  const cut = state.cutoverAfterMatchId;
-  if (cut) {
-    return `Считаем с карты после ${cut}. Сезон: ${BP_SEASON.subtitle}.`;
-  }
-  return `Подсчёт включён. Сезон: ${BP_SEASON.subtitle}.`;
+export function battlePassStatusNote(_state: BpSeasonState | null): string {
+  return "Участвуют только пользователи, прошедшие регистрацию.";
 }
