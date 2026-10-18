@@ -217,7 +217,7 @@ export function BattlePassClient({
                     <th>#</th>
                     <th>Игрок</th>
                     <th>Ур.</th>
-                    <th>Задание</th>
+                    <th>Текущий результат</th>
                   </tr>
                 </thead>
                 <tbody>
