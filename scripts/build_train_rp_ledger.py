@@ -915,11 +915,14 @@ def main() -> None:
         new_f = R.use_new_rp_formula(m["date"])
         match_date = str(m.get("date") or "")
         mid = str(m.get("id") or "")
+        # Train ids are "17-cslmutaha" (no YYYYMMDD-HHMM). Pass match start so the
+        # 17.10 01:00 MSK vehicle/soft-cap gate can open for evening sessions.
+        start_at = m["start"]
         vehicle_ops = (
             R.vehicle_ops_in_window(
                 idx, m["start"], m["end"], steam_to_nick, aliases
             )
-            if idx is not None and R.use_rp_vehicle(match_date, mid)
+            if idx is not None and R.use_rp_vehicle(match_date, mid, at=start_at)
             else []
         )
         events, net, die_n, tk_n, rev_n, _ = R.score_match_rp(
@@ -935,6 +938,7 @@ def main() -> None:
             match_date=match_date,
             match_id=mid,
             vehicle_ops=vehicle_ops,
+            cutover_at=start_at,
         )
         print(
             f"{m['id']}: Die={die_n} TK={tk_n} rev={rev_n} formula={'v2' if new_f else 'legacy'}",

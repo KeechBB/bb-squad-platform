@@ -473,8 +473,13 @@ def _veh_id_num(vid: str) -> int | None:
 # Turret / periscope / seat pawn sits a few ids from its hull.
 # A neighbour vehicle in the same spawn wave is further out (~34+).
 _HULL_LINK_DIST = 32
+# ONLY real seat/turret pawns. Do NOT match weapon-family substrings inside
+# hull names — BP_MATV_CROWS_C / BP_Tigr_RWS_C are full vehicles; their
+# turrets are BP_CROWS_Turret_C / BP_Arbalet_Turret_C (have TURRET).
+# Bug 17.10.2026: CROWS|RWS here made MATV_CROWS hulls look like components
+# → hull↔turret link failed → driver_share=0 while F2 was scoring.
 _COMPONENT_RE = re.compile(
-    r"TURRET|PERISCOPE|SCOPE|PASSENGER|GUNNER|RWS|CROWS",
+    r"TURRET|PERISCOPE|PASSENGER|GUNNER|(?<![A-Za-z])SCOPE(?![A-Za-z])",
     re.I,
 )
 
@@ -487,13 +492,36 @@ def _asset_same_vehicle(a: str, b: str) -> bool:
     """Hull and its turret pawn are one vehicle.
 
     BP_ZBL08_Turret_HJ73C_Naval_C and BP_ZBL08_HJ73C_Naval_C share a hull.
+    BP_MATV_CROWS_C and BP_CROWS_Turret_C share a hull (token CROWS).
     Different families (BTR vs ZBL) do not.
     """
     if not a or not b or a == b:
         return True
+
     def _norm(x: str) -> str:
         return re.sub(r"_TURRET", "", x.upper())
-    return _norm(a) == _norm(b)
+
+    if _norm(a) == _norm(b):
+        return True
+
+    def _tokens(x: str) -> set[str]:
+        u = re.sub(r"_C(?:_\d+)?$", "", (x or "").upper())
+        u = re.sub(r"_(?:TURRET|PERISCOPE|PASSENGER|GUNNER)(?=_|$)", "", u)
+        for skin in (
+            "WOODLAND",
+            "DESERT",
+            "GREEN",
+            "NAVAL",
+            "OPEN_TOP",
+            "INSURGENT",
+            "REBEL",
+        ):
+            u = u.replace(f"_{skin}", "")
+        skip = {"BP", "US", "RU", "UK", "AU", "MEA", "USMC", "ADF", "BAF", "CAF"}
+        return {p for p in u.split("_") if p and p not in skip}
+
+    ta, tb = _tokens(a), _tokens(b)
+    return bool(ta and tb and (ta & tb))
 
 
 def rp_gain_coef(current_rp: float) -> float:

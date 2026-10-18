@@ -1085,7 +1085,25 @@ assert R.vehicle_seat_role("BP_MATV_M240_C", 1) == "gunner"
 assert R.vehicle_seat_role("BP_US_Util_USMC_Woodland_Logi_C", 1) == "passenger"
 assert R.vehicle_seat_role("BP_US_Util_USMC_Woodland_C", 1) == "passenger"
 
+# Hull names embed CROWS/RWS — must NOT be treated as turret components.
+assert not R._is_component_pawn("BP_MATV_CROWS_C_2147135441")
+assert not R._is_component_pawn("BP_MATV_CROWS_Woodland_C_2146762350")
+assert not R._is_component_pawn("BP_Tigr_RWS_Desert_C_2147135460")
+assert not R._is_component_pawn("BP_Tigr_RWS_C_2146762384")
+assert not R._is_component_pawn("BP_MATV_M240_C_2146900351")
+assert R._is_component_pawn("BP_CROWS_Turret_C_2147135434")
+assert R._is_component_pawn("BP_CROWS_Turret_Woodland_Green_C_2146762343")
+assert R._is_component_pawn("BP_Arbalet_Turret_Desert_C_2147135454")
+assert R._is_component_pawn("BP_M1151_M240_Turret_C_2146900344")
+assert R._asset_same_vehicle("BP_MATV_CROWS_C", "BP_CROWS_Turret_C")
+assert R._asset_same_vehicle(
+    "BP_MATV_CROWS_Woodland_C", "BP_CROWS_Turret_Woodland_Green_C"
+)
+assert R._asset_same_vehicle("BP_MATV_M240_C", "BP_M1151_M240_Turret_C")
+
+# Real Squad logs: driver on hull pawn, F2 on nearby turret pawn (id Δ≈7).
 matv = "BP_MATV_CROWS_C_500"
+matv_turret = "BP_CROWS_Turret_C_493"
 matv_ops = [
     {
         "kind": "v_enter",
@@ -1104,7 +1122,7 @@ matv_ops = [
         "nick": "Gunner",
         "nickKey": "gunner",
         "asset": "BP_MATV_CROWS_C",
-        "instance": matv,
+        "instance": matv_turret,
         "seat": 1,
     },
 ]
