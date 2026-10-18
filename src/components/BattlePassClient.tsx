@@ -142,6 +142,16 @@ export function BattlePassClient({
           className={`bp-detail${reward ? " has-reward" : ""}`}
           aria-live="polite"
         >
+          <div className="bp-detail-bg" aria-hidden>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              key={level.level}
+              src={soldierSrc(level.level)}
+              alt=""
+            />
+          </div>
+          <div className="bp-detail-veil" aria-hidden />
+
           <div className="bp-detail-top">
             <div className="bp-detail-head">
               <span className="bp-detail-lvl">Уровень {level.level}</span>
@@ -180,15 +190,6 @@ export function BattlePassClient({
                 <i style={{ width: `${pct}%` }} />
               </div>
             </div>
-          </div>
-
-          <div className="bp-detail-soldier">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              key={level.level}
-              src={soldierSrc(level.level)}
-              alt={`Солдат уровня ${level.level}`}
-            />
           </div>
         </section>
 
