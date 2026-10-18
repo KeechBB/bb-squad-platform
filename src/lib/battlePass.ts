@@ -11,7 +11,7 @@ export const BP_SEASON = {
   subtitle: "Тестовый сезон · Фруктовый Сад",
   startLabel: "18.10.2026",
   endLabel: "31.10.2026",
-  note: "Подсчёт прогресса пока выключен — смотрим вёрстку и задания.",
+  note: "Подсчёт прогресса пока выключен — можно смотреть уровни и награды.",
 } as const;
 
 export type BpRewardKind = "badge" | "frame" | "nick" | "medal";

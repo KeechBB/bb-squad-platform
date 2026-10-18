@@ -9,8 +9,6 @@ import { SteamAuthModal } from "@/components/SteamAuthModal";
 type Props = {
   /** Полный доступ: КВ / Поиск КВ / ТМ / карта — только если в клане */
   showClanSections: boolean;
-  /** Battle Pass — пока только Keech (превью) */
-  showBattlePass?: boolean;
 };
 
 function pathMatches(pathname: string, href: string): boolean {
@@ -79,7 +77,7 @@ function NavGateButton({
   );
 }
 
-export function SiteNav({ showClanSections, showBattlePass }: Props) {
+export function SiteNav({ showClanSections }: Props) {
   const pathname = usePathname() || "/";
   const { data: session, status } = useSession();
   const loading = status === "loading";
@@ -242,17 +240,14 @@ export function SiteNav({ showClanSections, showBattlePass }: Props) {
             active={pathMatches(pathname, "/map")}
           />
         ) : null}
-        {/* Battle Pass — preview Keech */}
-        {showBattlePass ? (
-          <NavLink
-            href="/battle-pass"
-            title="Battle Pass"
-            full="Battle Pass"
-            short="BP"
-            className="nav-battle-pass"
-            active={pathMatches(pathname, "/battle-pass")}
-          />
-        ) : null}
+        <NavLink
+          href="/battle-pass"
+          title="Battle Pass"
+          full="Battle Pass"
+          short="BP"
+          className="nav-battle-pass"
+          active={pathMatches(pathname, "/battle-pass")}
+        />
       </nav>
       <SteamAuthModal
         open={Boolean(authModal)}
