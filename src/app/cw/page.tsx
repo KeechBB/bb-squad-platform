@@ -19,7 +19,7 @@ export default async function CwPage({ searchParams }: Props) {
 
   const sp = searchParams ? await searchParams : {};
   const clan = sp.clan ? String(sp.clan) : "";
-  const bust = await liveKvBust("20261018-rnl-chora");
+  const bust = await liveKvBust("20261018-solid-sec");
   const params = new URLSearchParams({ embed: "1", v: bust });
   if (clan) params.set("clan", clan);
   const q = `?${params.toString()}#/cw`;
