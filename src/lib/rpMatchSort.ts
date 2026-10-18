@@ -1,8 +1,16 @@
 /** Pure match-list sort helpers — safe for client components (no node:fs). */
 
-/** Chrono key: date then id (14-cslmutaha before 14-cslmutaha-2). */
-export function rpMatchSortKey(m: { date?: string; id?: string }): string {
-  return `${String(m.date || "")}\0${String(m.id || "")}`;
+/**
+ * Chrono key: date, start time (HH:MM), then id.
+ * Training ids are `18-cslmutaha` — alpha order is not play order.
+ * Public ids already embed HHMM, so an empty time still sorts them.
+ */
+export function rpMatchSortKey(m: {
+  date?: string;
+  id?: string;
+  time?: string;
+}): string {
+  return `${String(m.date || "")}\0${String(m.time || "")}\0${String(m.id || "")}`;
 }
 
 /** Newest first — history modals / career lists. */

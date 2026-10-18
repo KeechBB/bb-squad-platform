@@ -60,6 +60,8 @@ export type RpPlayerMatch = {
   id: string;
   map: string;
   date: string;
+  /** Start time HH:MM for chronology. Training ids have no clock in the id. */
+  time?: string;
   net: number;
   /** Enemy final kills (gained) */
   kills: RpMatchEvent[];
@@ -173,6 +175,55 @@ function nickKey(n: string) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, "");
+}
+
+/** 00:00–00:29 → 24:xx so a match after midnight stays after the evening ones. */
+export function trainSortTime(raw?: string): string {
+  const hm = /^(\d{1,2}):(\d{2})/.exec(String(raw || "").trim());
+  if (!hm) return "";
+  let h = Number(hm[1]);
+  const mi = Number(hm[2]);
+  if (h === 0 && mi <= 29) h = 24;
+  return `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
+}
+
+let trainTimesMem: { at: number; map: Map<string, string> } | null = null;
+
+/** id → start time from the training calendar (data/training/*.json). */
+export async function trainMatchTimeById(): Promise<Map<string, string>> {
+  const now = Date.now();
+  if (trainTimesMem && now - trainTimesMem.at < LADDER_TTL_MS) {
+    return trainTimesMem.map;
+  }
+  const map = new Map<string, string>();
+  const index = await loadKvJsonCached<{
+    months?: { url?: string }[];
+  }>("data/training-index.json");
+  for (const month of index?.months || []) {
+    if (!month.url) continue;
+    const doc = await loadKvJsonCached<{
+      matches?: { id?: string; timeMsk?: string }[];
+    }>(month.url.replace(/^\//, ""));
+    for (const match of doc?.matches || []) {
+      const id = String(match.id || "");
+      const time = trainSortTime(match.timeMsk);
+      if (id && time) map.set(id, time);
+    }
+  }
+  trainTimesMem = { at: now, map };
+  return map;
+}
+
+export async function withTrainMatchTimes<T extends { id: string; time?: string }>(
+  matches: T[]
+): Promise<T[]> {
+  if (!matches.length) return matches;
+  const times = await trainMatchTimeById();
+  if (!times.size) return matches;
+  return matches.map((m) => {
+    const time = times.get(m.id);
+    return time ? { ...m, time } : m;
+  });
 }
 
 function slimPlayerToRp(p: RpLadder["players"][string]): RpPlayer {
@@ -362,7 +413,9 @@ export async function lookupPlayerTrainRp(
     if (found?.matches?.length) {
       found = {
         ...found,
-        matches: sortRpMatchesOldestFirst(found.matches),
+        matches: sortRpMatchesOldestFirst(
+          await withTrainMatchTimes(found.matches)
+        ),
       };
     }
     fullPlayerMem.set(key, { at: Date.now(), data: found });
@@ -377,9 +430,11 @@ export async function lookupPlayerTrainRp(
 
   const ladder = await loadRpLadder();
   if (!ladder) return null;
-  const wrap = (p: RpLadder["players"][string]) => {
+  const wrap = async (p: RpLadder["players"][string]) => {
     const slim = slimPlayerToRp(p);
-    slim.matches = sortRpMatchesOldestFirst(slim.matches || []);
+    slim.matches = sortRpMatchesOldestFirst(
+      await withTrainMatchTimes(slim.matches || [])
+    );
     return slim;
   };
   const direct = ladder.players[key];

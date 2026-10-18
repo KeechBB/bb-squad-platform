@@ -3,8 +3,10 @@ import { buildPlayerKvStats, type PlayerKvRound } from "@/lib/kvStats";
 import {
   loadRpLadder,
   rpRankFromScore,
+  withTrainMatchTimes,
   type RpPlayerMatch,
 } from "@/lib/trainRp";
+import { sortRpMatchesOldestFirst } from "@/lib/rpMatchSort";
 import { loadPublicRpLadder } from "@/lib/publicRp";
 import { pickMvps } from "@/lib/homeMvp";
 import { formatTierArrow } from "@/lib/homeTierBoardUi";
@@ -119,13 +121,7 @@ function buildRpRankEvents(
 ): CareerEvent[] {
   const idPrefix = opts?.idPrefix || "rp";
   const venue = opts?.venue || "тренировка";
-  // при одной дате сохраняем порядок ledger (как заливали: Gorodok→Mutaha→Fallujah)
-  const ordered = [...matches].sort((a, b) => {
-    const da = String(a.date || "");
-    const db = String(b.date || "");
-    if (da !== db) return da.localeCompare(db);
-    return 0;
-  });
+  const ordered = sortRpMatchesOldestFirst(matches);
   let rp = startRp;
   let prev = rpRankFromScore(rp, step, radiant3Max);
   const out: CareerEvent[] = [];
@@ -350,14 +346,16 @@ export async function buildPlayerCareerFeed(nick: string): Promise<PlayerCareerF
       rpLedger.players[key] ||
       Object.values(rpLedger.players).find((p) => nickKey(p.nick) === key);
     if (player?.matches?.length) {
-      const asRpMatches = player.matches.map((m) => ({
-        id: m.id,
-        map: m.map,
-        date: m.date,
-        net: m.net,
-        kills: [] as RpPlayerMatch["kills"],
-        deaths: [] as RpPlayerMatch["deaths"],
-      }));
+      const asRpMatches = await withTrainMatchTimes(
+        player.matches.map((m) => ({
+          id: m.id,
+          map: m.map,
+          date: m.date,
+          net: m.net,
+          kills: [] as RpPlayerMatch["kills"],
+          deaths: [] as RpPlayerMatch["deaths"],
+        }))
+      );
       events.push(
         ...buildRpRankEvents(
           asRpMatches,

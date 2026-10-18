@@ -485,16 +485,20 @@ export async function lookupPlayerTrainPwr(
     games: player.matches?.length || 0,
     place: place || (ladder.leaderboard?.length || 0) + 1,
     predatorPlace: player.predatorPlace ?? null,
-    matches: (player.matches || []).map((m) => ({
-      id: m.id,
-      map: m.map,
-      date: m.date,
-      net: m.net,
-      kills: [],
-      deaths: [],
-      teamkills: [],
-      revives: [],
-    })),
+    matches: await (
+      await import("@/lib/trainRp")
+    ).withTrainMatchTimes(
+      (player.matches || []).map((m) => ({
+        id: m.id,
+        map: m.map,
+        date: m.date,
+        net: m.net,
+        kills: [],
+        deaths: [],
+        teamkills: [],
+        revives: [],
+      }))
+    ),
   };
 }
 
