@@ -61,6 +61,20 @@ DEPLOY_RE = re.compile(
     r"PC=(?P<nick>.+?)\s+Spawn=\S+\s+DeployRole=(?P<role>\S+)",
     re.I,
 )
+LOGIN_REQUEST_RE = re.compile(
+    r"LogNet: Login request: \?Name=(?P<name>[^?]+)"
+    r"(?:\?[^\s]*)?"
+    r"\s+userId: RedpointEOS:(?P<eos>[0-9a-fA-F]{32})",
+    re.I,
+)
+REMOVE_PLAYER_RE = re.compile(
+    r"RemovePlayer\(UserId:\s*(?P<eos>[0-9a-fA-F]{32})\)",
+    re.I,
+)
+# BP / attendance: «сыграть матч» = ≥80% длительности в игре.
+PRESENCE_MIN_RATIO = 0.80
+# BP wins: смена стороны после первых 5 минут → матч не в зачёт победы/поражения.
+TEAM_SWITCH_GRACE_SEC = 5 * 60
 SEED_RE = re.compile(r"Seed|SEED|BP_GameStateSquad_Seed|Jensen", re.I)
 
 START_RP = 1000.0
@@ -1496,6 +1510,9 @@ def index_log_combat(log_path: Path, aliases: dict[str, str]) -> dict:
     squads: list[tuple[datetime, str, str]] = []  # at, nick_key, faction
     deploys: list[tuple[datetime, str, str]] = []  # at, nick_key, prefix
     raw_vehicle_ops: list[dict] = []
+    eos_to_nick: dict[str, str] = {}
+    logins: list[tuple[datetime, str, str]] = []  # at, eos, nick
+    removes: list[tuple[datetime, str]] = []  # at, eos
 
     with log_path.open("r", encoding="utf-8", errors="replace") as f:
         for line in f:
@@ -1510,11 +1527,31 @@ def index_log_combat(log_path: Path, aliases: dict[str, str]) -> dict:
                     if nick and "LogSquad" not in nick and "ChangeState" not in nick:
                         steam_to_nick[m.group("steam")] = nick
                         victim_steam[canon_key(nick, aliases)] = m.group("steam")
+                        eos = (m.group("eos") or "").lower()
+                        if eos:
+                            eos_to_nick[eos] = nick
                 for m in NICK_STEAM.finditer(line):
                     nick = strip_tag(m.group("nick"))
                     if nick and "LogSquad" not in nick and len(nick) < 64:
                         steam_to_nick[m.group("steam")] = nick
                         victim_steam[canon_key(nick, aliases)] = m.group("steam")
+                        eos = (m.group("eos") or "").lower()
+                        if eos:
+                            eos_to_nick[eos] = nick
+
+            if "Login request:" in line:
+                lm = LOGIN_REQUEST_RE.search(line)
+                if lm:
+                    eos = lm.group("eos").lower()
+                    nick = strip_tag(lm.group("name"))
+                    if eos and nick:
+                        eos_to_nick[eos] = nick
+                        logins.append((at, eos, nick))
+
+            if "RemovePlayer" in line:
+                rm = REMOVE_PLAYER_RE.search(line)
+                if rm:
+                    removes.append((at, rm.group("eos").lower()))
 
             if "NewState=Inactive" in line and "ChangeState():" in line:
                 im = INACTIVE_RE.search(line)
@@ -1704,6 +1741,9 @@ def index_log_combat(log_path: Path, aliases: dict[str, str]) -> dict:
         "squads": squads,
         "deploys": deploys,
         "raw_vehicle_ops": raw_vehicle_ops,
+        "eos_to_nick": eos_to_nick,
+        "logins": logins,
+        "removes": removes,
     }
 
 
@@ -1996,25 +2036,18 @@ _FACTION_ROLE_PREFIXES: dict[str, tuple[str, ...]] = {
 }
 
 
-def teams_in_window(
-    idx: dict,
-    t0: datetime,
-    t1: datetime,
+def _prefix_team_maps(
     faction_to_team: dict[str, str],
-) -> dict[str, str]:
-    """nick_key → '1'|'2' via create-squad faction + DeployRole prefix initials."""
-    nick_team: dict[str, str] = {}
-    nick_prefix: dict[str, str] = {}
+) -> tuple[dict[str, str], dict[str, str]]:
+    """faction_norm + DeployRole-prefix → team '1'|'2'."""
     faction_norm = {
         re.sub(r"\s+", " ", k.strip().lower()): v for k, v in faction_to_team.items()
     }
-    # USMC ← United States Marine Corps, ADF ← Australian Defence Force, …
     prefix_team: dict[str, str] = {}
     for faction, team in faction_to_team.items():
         initials = _faction_initials(faction)
         if initials:
             prefix_team[initials] = team
-        # also last acronym-like token (e.g. USMC if ever present)
         for w in re.split(r"[\s\-]+", faction):
             if len(w) >= 2 and w.isupper():
                 prefix_team[w.upper()] = team
@@ -2025,20 +2058,174 @@ def teams_in_window(
             if known in fk or fk in known:
                 for pref in prefs:
                     prefix_team[pref] = team
+    return faction_norm, prefix_team
 
-    def faction_team(faction: str) -> str | None:
-        f = re.sub(r"\s+", " ", (faction or "").strip().lower())
-        if f in faction_norm:
-            return faction_norm[f]
-        for fk, tv in faction_norm.items():
-            if fk in f or f in fk:
-                return tv
-        return None
+
+def _faction_team_lookup(
+    faction: str, faction_norm: dict[str, str]
+) -> str | None:
+    f = re.sub(r"\s+", " ", (faction or "").strip().lower())
+    if f in faction_norm:
+        return faction_norm[f]
+    for fk, tv in faction_norm.items():
+        if fk in f or f in fk:
+            return tv
+    return None
+
+
+def presence_ratio_by_key(
+    idx: dict,
+    t0: datetime,
+    t1: datetime,
+    aliases: dict[str, str],
+) -> dict[str, float]:
+    """nick_key → доля времени в матче [0..1] по Login/RemovePlayer (+ soft deploy)."""
+    dur = (t1 - t0).total_seconds()
+    if dur <= 0:
+        return {}
+
+    eos_to_nick = dict(idx.get("eos_to_nick") or {})
+    events_by_key: dict[str, list[tuple[datetime, int]]] = {}
+
+    def add_ev(kk: str, at: datetime, kind: int) -> None:
+        if not kk:
+            return
+        events_by_key.setdefault(kk, []).append((at, kind))
+
+    def key_for_eos(eos: str, fallback_nick: str | None = None) -> str:
+        nick = eos_to_nick.get(eos) or fallback_nick
+        return canon_key(nick, aliases) if nick else ""
+
+    for at, eos, nick in idx.get("logins") or []:
+        if nick:
+            eos_to_nick[eos] = nick
+        kk = key_for_eos(eos, nick)
+        add_ev(kk, at, 1)
+
+    for at, eos in idx.get("removes") or []:
+        kk = key_for_eos(eos)
+        add_ev(kk, at, -1)
+
+    # Soft join: first deploy in/near window if no login mapped.
+    for at, kk, _pref in idx.get("deploys") or []:
+        if at < t0 - timedelta(minutes=5) or at >= t1:
+            continue
+        if kk and kk not in events_by_key:
+            add_ev(kk, max(at, t0), 1)
+
+    out: dict[str, float] = {}
+    for kk, evs in events_by_key.items():
+        evs.sort(key=lambda x: (x[0], -x[1]))  # join before leave at same ts
+        online = False
+        for at, kind in evs:
+            if at >= t0:
+                break
+            online = kind > 0
+        total = 0.0
+        cur = t0
+        for at, kind in evs:
+            if at < t0:
+                continue
+            if at > t1:
+                break
+            if online:
+                total += (at - cur).total_seconds()
+            online = kind > 0
+            cur = at
+        if online:
+            total += (t1 - cur).total_seconds()
+        out[kk] = max(0.0, min(1.0, total / dur))
+
+    # Activity fallback when EOS join/leave missing for a combatant.
+    activity: dict[str, list[datetime]] = {}
+    for at, kk, _ in idx.get("deploys") or []:
+        if t0 <= at < t1 and kk:
+            activity.setdefault(kk, []).append(at)
+    for at, kk, _ in idx.get("squads") or []:
+        if t0 <= at < t1 and kk:
+            activity.setdefault(kk, []).append(at)
+    for d in idx.get("raw_dies") or []:
+        at = d.get("at")
+        vk = canon_key(str(d.get("victim") or ""), aliases)
+        if at is not None and t0 <= at < t1 and vk:
+            activity.setdefault(vk, []).append(at)
+    for d in idx.get("raw_wounds") or []:
+        at = d.get("at")
+        vk = canon_key(str(d.get("victim") or ""), aliases)
+        if at is not None and t0 <= at < t1 and vk:
+            activity.setdefault(vk, []).append(at)
+    for r in idx.get("revives") or []:
+        at = r.get("at")
+        if at is None or not (t0 <= at < t1):
+            continue
+        for field in ("killer", "victim"):
+            nk = canon_key(str(r.get(field) or ""), aliases)
+            if nk:
+                activity.setdefault(nk, []).append(at)
+
+    for kk, times in activity.items():
+        if kk in out:
+            continue
+        first, last = min(times), max(times)
+        join = t0 if (first - t0).total_seconds() <= 120 else first
+        leave = t1 if (t1 - last).total_seconds() <= 120 else last
+        if leave < join:
+            continue
+        out[kk] = max(0.0, min(1.0, (leave - join).total_seconds() / dur))
+
+    return out
+
+
+def team_switch_late_keys(
+    idx: dict,
+    t0: datetime,
+    t1: datetime,
+    faction_to_team: dict[str, str],
+    grace_sec: int = TEAM_SWITCH_GRACE_SEC,
+) -> set[str]:
+    """Keys that changed side after the first `grace_sec` of the match."""
+    faction_norm, prefix_team = _prefix_team_maps(faction_to_team)
+    timeline: list[tuple[datetime, str, str]] = []
+    for at, kk, faction in idx.get("squads") or []:
+        if at < t0 or at >= t1:
+            continue
+        team = _faction_team_lookup(faction, faction_norm)
+        if team in ("1", "2"):
+            timeline.append((at, kk, team))
+    for at, kk, pref in idx.get("deploys") or []:
+        if at < t0 or at >= t1:
+            continue
+        team = prefix_team.get(pref)
+        if team in ("1", "2"):
+            timeline.append((at, kk, team))
+    timeline.sort(key=lambda x: x[0])
+
+    last_team: dict[str, str] = {}
+    late: set[str] = set()
+    for at, kk, team in timeline:
+        prev = last_team.get(kk)
+        if prev and prev != team:
+            if (at - t0).total_seconds() > grace_sec:
+                late.add(kk)
+        last_team[kk] = team
+    return late
+
+
+def teams_in_window(
+    idx: dict,
+    t0: datetime,
+    t1: datetime,
+    faction_to_team: dict[str, str],
+) -> dict[str, str]:
+    """nick_key → '1'|'2' via create-squad faction + DeployRole prefix initials."""
+    nick_team: dict[str, str] = {}
+    nick_prefix: dict[str, str] = {}
+    faction_norm, prefix_team = _prefix_team_maps(faction_to_team)
 
     for at, kk, faction in idx["squads"]:
         if at < t0 - timedelta(minutes=5) or at >= t1:
             continue
-        team = faction_team(faction)
+        team = _faction_team_lookup(faction, faction_norm)
         if team:
             nick_team[kk] = team
 

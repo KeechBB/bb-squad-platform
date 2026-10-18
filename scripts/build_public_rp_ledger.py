@@ -488,6 +488,8 @@ def process_match(
     t0, t1 = m["start"], m["end"]
     faction_to_team = m.get("factionToTeam") or {}
     teams = R.teams_in_window(idx, t0, t1, faction_to_team)
+    presence_by_key = R.presence_ratio_by_key(idx, t0, t1, aliases)
+    team_switch_late = R.team_switch_late_keys(idx, t0, t1, faction_to_team)
     dies, die_noks = R.dies_in_window(idx, t0, t1, steam_to_nick, aliases)
     wound_noks = R.wounds_in_window(idx, t0, t1, steam_to_nick, aliases)
     # Prefer real Wound() downs; keep Die-without-Inactive only if no Wound nearby.
@@ -611,6 +613,9 @@ def process_match(
         "dmgByKey": dmg_by,
         "teamsByKey": teams,
         "combatants": combatants,
+        "presenceByKey": {k: round(v, 4) for k, v in presence_by_key.items()},
+        "teamSwitchLateKeys": sorted(team_switch_late),
+        "matchDurationSec": int((t1 - t0).total_seconds()),
     }
 
 

@@ -4,6 +4,8 @@ Battle Pass «Фруктовый Сад» — прогресс по матчам
 
 Считает только матчи ПОСЛЕ cutoverAfterMatchId (со следующей карты после включения).
 Участники: User с profileComplete=true.
+«Сыграть матч» (ур. 1/6/11/16): ≥80% длительности в игре (Login/Remove + deploy fallback).
+Победа/поражение (ур. 14/19): смена стороны после 5-й минуты → матч не в зачёт.
 
 Запуск:
   python build_battle_pass.py              # sync from ledger + ensure cutover
@@ -249,14 +251,22 @@ def per_player_stats(block: dict, aliases: dict) -> dict[str, dict]:
     s1 = int(block.get("score1") or 0)
     s2 = int(block.get("score2") or 0)
     winner = block.get("winnerTeam")
+    presence_by_key = block.get("presenceByKey") or {}
+    # Old blocks without presence metadata: don't invent attendance.
+    has_presence_meta = isinstance(block.get("presenceByKey"), dict)
+    late_switch_keys = {
+        str(k) for k in (block.get("teamSwitchLateKeys") or []) if k
+    }
     try:
         winner_i = int(winner) if winner is not None else None
     except (TypeError, ValueError):
         winner_i = None
 
     nick_team: dict[str, int] = {}
+    nick_key_of: dict[str, str] = {}
     for nick in net_by_nick:
         k = R.canon_key(str(nick), aliases)
+        nick_key_of[str(nick)] = k
         if k in teams:
             try:
                 nick_team[str(nick)] = int(teams[k])
@@ -357,51 +367,68 @@ def per_player_stats(block: dict, aliases: dict) -> dict[str, dict]:
             tied.sort(key=lambda p: (-p["dmg"], p["nick"].casefold()))
             mvp_medic = tied[0]["nick"]
 
-    out: dict[str, dict] = {}
-    for nick, s in stats.items():
+    def enrich(nick: str, s: dict) -> dict:
+        kk = nick_key_of.get(nick) or R.canon_key(nick, aliases)
+        nick_key_of[nick] = kk
         team = nick_team.get(nick)
+        if team is None and kk in teams:
+            try:
+                team = int(teams[kk])
+            except (TypeError, ValueError):
+                team = None
+        presence = float(presence_by_key.get(kk) or 0.0)
+        if has_presence_meta:
+            played_ok = presence >= float(getattr(R, "PRESENCE_MIN_RATIO", 0.80))
+        else:
+            # Legacy blocks (до правила 80%) — считаем как полное присутствие.
+            played_ok = True
+            presence = 1.0
+        team_switch_late = kk in late_switch_keys
         won = None
         ticket_delta = None
-        if winner_i in (1, 2) and team in (1, 2):
+        if (
+            winner_i in (1, 2)
+            and team in (1, 2)
+            and played_ok
+            and not team_switch_late
+        ):
             won = team == winner_i
             if won:
                 ticket_delta = (s1 - s2) if team == 1 else (s2 - s1)
             else:
                 ticket_delta = (s2 - s1) if team == 1 else (s1 - s2)
-        out[nick] = {
+        return {
             **s,
             "won": won,
             "ticketDelta": ticket_delta,
             "map": map_name,
             "mvpKiller": bool(mvp_killer and mvp_killer.casefold() == nick.casefold()),
             "mvpMedic": bool(mvp_medic and mvp_medic.casefold() == nick.casefold()),
+            "playedOk": played_ok,
+            "presenceRatio": round(presence, 4),
+            "teamSwitchLate": team_switch_late,
         }
+
+    out: dict[str, dict] = {}
+    for nick, s in stats.items():
+        out[nick] = enrich(nick, s)
     # Also include anyone in netByNick with zeros (played but no events?)
     for nick in net_by_nick:
         if nick not in out:
-            team = nick_team.get(nick)
-            won = None
-            ticket_delta = None
-            if winner_i in (1, 2) and team in (1, 2):
-                won = team == winner_i
-                if won:
-                    ticket_delta = (s1 - s2) if team == 1 else (s2 - s1)
-            out[nick] = {
-                "kills": 0,
-                "noks": 0,
-                "revives": 0,
-                "deaths": 0,
-                "tk": 0,
-                "vehicleKills": 0,
-                "tankKills": 0,
-                "heliKills": 0,
-                "dmg": 0,
-                "won": won,
-                "ticketDelta": ticket_delta,
-                "map": map_name,
-                "mvpKiller": False,
-                "mvpMedic": False,
-            }
+            out[nick] = enrich(
+                nick,
+                {
+                    "kills": 0,
+                    "noks": 0,
+                    "revives": 0,
+                    "deaths": 0,
+                    "tk": 0,
+                    "vehicleKills": 0,
+                    "tankKills": 0,
+                    "heliKills": 0,
+                    "dmg": 0,
+                },
+            )
     return out
 
 
@@ -441,12 +468,15 @@ def apply_level(p: dict, st: dict) -> bool:
     ticket_delta = st.get("ticketDelta")
     map_name = str(st.get("map") or "")
     mutaha = "mutaha" in map_name.lower()
+    played_ok = bool(st.get("playedOk", True))
 
     done = False
 
     if lvl == 1:
-        p["current"] = 1
-        done = True
+        # Сыграть матч: только при ≥80% времени в игре
+        if played_ok:
+            p["current"] = 1
+            done = True
     elif lvl == 2:
         p["current"] = min(15, noks)
         done = noks >= 15
@@ -460,8 +490,9 @@ def apply_level(p: dict, st: dict) -> bool:
         p["current"] = min(5, veh)
         done = veh >= 5
     elif lvl == 6:
-        p["current"] = min(3, int(p["current"]) + 1)
-        done = p["current"] >= 3
+        if played_ok:
+            p["current"] = min(3, int(p["current"]) + 1)
+            done = p["current"] >= 3
     elif lvl == 7:
         if mutaha:
             p["current"] = min(15, kills)
@@ -483,8 +514,9 @@ def apply_level(p: dict, st: dict) -> bool:
             p["current"] = min(3, int(p["current"]) + 1)
         done = p["current"] >= 3
     elif lvl == 11:
-        p["current"] = min(10, int(p["current"]) + 1)
-        done = p["current"] >= 10
+        if played_ok:
+            p["current"] = min(10, int(p["current"]) + 1)
+            done = p["current"] >= 10
     elif lvl == 12:
         window = list(p.get("window") or [])
         window.append(kills)
@@ -505,11 +537,11 @@ def apply_level(p: dict, st: dict) -> bool:
         p["current"] = min(5, int(p["current"]) + helis)
         done = p["current"] >= 5
     elif lvl == 14:
+        # won is None: <80% / смена команды после 5 мин → матч не в зачёт
         if won is True:
             p["streak"] = int(p.get("streak") or 0) + 1
         elif won is False:
             p["streak"] = 0
-        # won is None → don't break streak harshly? treat as no progress
         p["current"] = int(p.get("streak") or 0)
         done = p["current"] >= 5
     elif lvl == 15:
@@ -517,8 +549,9 @@ def apply_level(p: dict, st: dict) -> bool:
             p["current"] = min(3, int(p["current"]) + 1)
         done = p["current"] >= 3
     elif lvl == 16:
-        p["current"] = min(15, int(p["current"]) + 1)
-        done = p["current"] >= 15
+        if played_ok:
+            p["current"] = min(15, int(p["current"]) + 1)
+            done = p["current"] >= 15
     elif lvl == 17:
         ok = kills >= 10 and deaths <= 1
         p["current"] = 1 if ok else 0
