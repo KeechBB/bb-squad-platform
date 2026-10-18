@@ -22,6 +22,8 @@ type Props = {
   selfAvatarUrl: string | null;
   selfProgress: BpPlayerProgress;
   leaderboard: BpPlayerProgress[];
+  statusNote?: string;
+  scoringEnabled?: boolean;
 };
 
 const BP_BG = "/bp-previews/fruktovy-sad-bg.jpg";
@@ -85,6 +87,8 @@ export function BattlePassClient({
   selfAvatarUrl,
   selfProgress,
   leaderboard,
+  statusNote,
+  scoringEnabled,
 }: Props) {
   const [selected, setSelected] = useState(selfProgress.currentLevel);
   const player: BpPreviewPlayer = {
@@ -116,6 +120,7 @@ export function BattlePassClient({
         <p className="bp-hero-dates">
           {BP_SEASON.startLabel} — {BP_SEASON.endLabel}
         </p>
+        {statusNote ? <p className="bp-hero-status">{statusNote}</p> : null}
       </header>
 
       <section className="bp-track-wrap" aria-label="Уровни Battle Pass">
@@ -197,7 +202,11 @@ export function BattlePassClient({
           <section className="bp-board">
             <h3>Рейтинг прохождения</h3>
             {leaderboard.length === 0 ? (
-              <p className="bp-board-empty">Пока пусто — подсчёт выключен.</p>
+              <p className="bp-board-empty">
+                {scoringEnabled
+                  ? "Пока никого — ждём следующую карту на Фруктовом Саде (только зарегистрированные)."
+                  : "Подсчёт ещё не стартовал."}
+              </p>
             ) : (
               <table className="bp-board-table">
                 <thead>

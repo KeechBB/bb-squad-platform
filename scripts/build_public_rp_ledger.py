@@ -908,6 +908,12 @@ def main() -> None:
             f"public RP up to date ({len(done_ids)} matches) — nothing to append",
             flush=True,
         )
+        try:
+            import build_battle_pass as BP  # noqa: WPS433
+
+            BP.sync_cutover_only()
+        except Exception as e:
+            print(f"warn: Battle Pass sync skipped: {type(e).__name__}: {e}", flush=True)
         return
 
     print(
@@ -1161,6 +1167,15 @@ def main() -> None:
             )
         except Exception as e:
             print(f"warn: RP audit skipped: {type(e).__name__}: {e}", flush=True)
+
+    # Battle Pass — прогресс с матчей после cutover (следующая карта после включения).
+    if match_blocks:
+        try:
+            import build_battle_pass as BP  # noqa: WPS433
+
+            BP.apply_blocks(match_blocks, aliases=aliases)
+        except Exception as e:
+            print(f"warn: Battle Pass skipped: {type(e).__name__}: {e}", flush=True)
 
 
 if __name__ == "__main__":

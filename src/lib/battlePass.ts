@@ -1,6 +1,6 @@
 /**
  * Battle Pass — тестовый сезон «Фруктовый Сад».
- * Подсчёт прогресса выключен: только каталог уровней и наград.
+ * Подсчёт: scripts/build_battle_pass.py ← build_public_rp_ledger (со следующей карты).
  */
 
 export const BP_SEASON_ID = "pb1-2026-10";
@@ -11,7 +11,7 @@ export const BP_SEASON = {
   subtitle: "Тестовый сезон · Фруктовый Сад",
   startLabel: "18.10.2026",
   endLabel: "31.10.2026",
-  note: "Подсчёт прогресса пока выключен — можно смотреть уровни и награды.",
+  note: "Считаем с следующей карты на Фруктовом Саде (зарегистрированные).",
 } as const;
 
 export type BpRewardKind = "badge" | "frame" | "nick" | "medal";

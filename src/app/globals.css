@@ -16539,6 +16539,13 @@ body:has(.profile-page) {
   color: #e8d5a0;
 }
 
+.bp-hero-status {
+  margin: 8px auto 0;
+  max-width: 640px;
+  font-size: 0.82rem;
+  color: #c4b89a;
+}
+
 
 .bp-track-wrap {
   flex: 0 0 auto;
