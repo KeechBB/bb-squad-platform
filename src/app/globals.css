@@ -16704,6 +16704,37 @@ body:has(.profile-page) {
   overflow: auto;
 }
 
+.bp-detail {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.bp-detail-art {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.bp-detail-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid rgba(212, 168, 75, 0.28);
+  display: block;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.bp-detail-art img:first-child {
+  grid-row: 1 / span 2;
+}
+
 .bp-detail-head {
   display: flex;
   flex-direction: column;
@@ -16813,14 +16844,16 @@ body:has(.profile-page) {
 }
 
 .bp-side .bp-mock-gallery {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
+  max-height: 46%;
   min-height: 0;
   overflow: auto;
 }
 
 .bp-side .bp-board {
-  flex: 0 0 auto;
-  max-height: 28%;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
 }
 
 /* ——— BP reward profile mocks ——— */
@@ -16832,26 +16865,26 @@ body:has(.profile-page) {
 }
 
 .bp-mock-gallery h3 {
-  margin: 0 0 10px;
+  margin: 0 0 6px;
   font-family: var(--font-display);
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   letter-spacing: 0.06em;
 }
 
 .bp-mock-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 6px;
 }
 
 .bp-mock-card {
   appearance: none;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   text-align: left;
-  padding: 8px;
-  border-radius: 10px;
+  padding: 6px;
+  border-radius: 8px;
   border: 1px solid rgba(167, 139, 250, 0.18);
   background: rgba(0, 0, 0, 0.28);
   color: inherit;
@@ -16873,14 +16906,30 @@ body:has(.profile-page) {
 }
 
 .bp-mock-card-name {
-  font-size: 0.82rem;
+  font-size: 0.74rem;
   font-family: var(--font-display);
 }
 
 .bp-mock-card-kind {
   font-style: normal;
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   color: var(--muted);
+}
+
+.bp-mock-gallery .bp-mock-row {
+  padding: 6px;
+  gap: 6px;
+}
+
+.bp-mock-gallery .bp-mock.is-compact .bp-mock-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+.bp-mock-gallery .bp-mock.is-compact .bp-mock-medal {
+  width: 22px;
+  height: 22px;
 }
 
 .bp-mock {
@@ -17046,8 +17095,10 @@ body:has(.profile-page) {
   padding: 4px;
   border-radius: 14px;
   background:
-    linear-gradient(145deg, #d8dee8, #6a7380 40%, #e8edf4 70%, #8a93a0);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+    linear-gradient(145deg, #f0d078, #8a6420 38%, #e8c56a 68%, #b8860b);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 230, 160, 0.45),
+    0 0 10px rgba(212, 168, 75, 0.28);
 }
 
 .bp-mock-av-wrap.is-framed::before,
@@ -17057,8 +17108,8 @@ body:has(.profile-page) {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #c5ccd6;
-  box-shadow: 0 0 0 1px #5a6270;
+  background: #e8c56a;
+  box-shadow: 0 0 0 1px #6b4e12;
   z-index: 1;
 }
 .bp-mock-av-wrap.is-framed::before {

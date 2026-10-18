@@ -179,6 +179,15 @@ export function BattlePassClient({
               </p>
             ) : null}
           </div>
+
+          <div className="bp-detail-art" aria-hidden={!reward}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/bp-previews/art-ops.jpg" alt="" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/bp-previews/art-vault.jpg" alt="" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/bp-previews/art-track.jpg" alt="" />
+          </div>
         </section>
 
         <aside className="bp-side">

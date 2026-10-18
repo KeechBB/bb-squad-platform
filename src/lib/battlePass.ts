@@ -56,7 +56,7 @@ export const BP_REWARDS: BpReward[] = [
     name: "Бронелист",
     short: "Рамка",
     kind: "frame",
-    preview: "Металлическая рамка вокруг аватара в профиле",
+    preview: "Золотая рамка вокруг аватара в профиле",
   },
   {
     level: 15,
