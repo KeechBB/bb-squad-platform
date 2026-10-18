@@ -16812,13 +16812,236 @@ body:has(.profile-page) {
   overflow: hidden;
 }
 
-.bp-side .bp-rewards-panel {
-  flex: 0 1 auto;
-  max-height: 42%;
+.bp-side .bp-mock-gallery {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
 }
 
 .bp-side .bp-board {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
+  max-height: 28%;
+}
+
+/* ——— BP reward profile mocks ——— */
+.bp-mock-gallery {
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  padding: 12px 14px;
+}
+
+.bp-mock-gallery h3 {
+  margin: 0 0 10px;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+}
+
+.bp-mock-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.bp-mock-card {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(167, 139, 250, 0.18);
+  background: rgba(0, 0, 0, 0.28);
+  color: inherit;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.bp-mock-card.is-on,
+.bp-mock-card:hover {
+  border-color: rgba(212, 168, 75, 0.55);
+  background: rgba(40, 28, 10, 0.45);
+}
+
+.bp-mock-card-lvl {
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  color: var(--bp-amber, #d4a84b);
+}
+
+.bp-mock-card-name {
+  font-size: 0.82rem;
+  font-family: var(--font-display);
+}
+
+.bp-mock-card-kind {
+  font-style: normal;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.bp-mock {
+  border-radius: 10px;
+  border: 1px solid rgba(212, 168, 75, 0.28);
+  background: linear-gradient(160deg, rgba(22, 16, 28, 0.95), rgba(10, 8, 14, 0.95));
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.bp-mock.is-compact {
+  margin-top: 0;
+}
+
+.bp-mock-banner {
+  padding: 5px 10px;
+  background: linear-gradient(90deg, rgba(60, 42, 12, 0.95), rgba(28, 20, 10, 0.9));
+  border-bottom: 1px solid rgba(212, 168, 75, 0.55);
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #e8d5a0;
+}
+
+.bp-mock-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+}
+
+.bp-mock-av-wrap {
+  flex: 0 0 auto;
+  position: relative;
+}
+
+.bp-mock-av-wrap.is-framed {
+  padding: 4px;
+  border-radius: 14px;
+  background:
+    linear-gradient(145deg, #d8dee8, #6a7380 40%, #e8edf4 70%, #8a93a0);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+.bp-mock-av-wrap.is-framed::before,
+.bp-mock-av-wrap.is-framed::after {
+  content: "";
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #c5ccd6;
+  box-shadow: 0 0 0 1px #5a6270;
+  z-index: 1;
+}
+.bp-mock-av-wrap.is-framed::before {
+  top: 3px;
+  left: 3px;
+}
+.bp-mock-av-wrap.is-framed::after {
+  top: 3px;
+  right: 3px;
+}
+
+.bp-mock-avatar {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 12px;
+  display: block;
+  border: 1px solid rgba(167, 139, 250, 0.25);
+}
+
+.bp-mock.is-compact .bp-mock-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
+}
+
+.bp-mock-avatar-fallback {
+  display: grid;
+  place-items: center;
+  background: rgba(16, 12, 28, 0.9);
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--violet);
+}
+
+.bp-mock-text {
+  min-width: 0;
+}
+
+.bp-mock-eyebrow {
+  margin: 0;
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.bp-mock-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 8px;
+}
+
+.bp-mock-title-row h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  line-height: 1.15;
+}
+
+.bp-mock.is-compact .bp-mock-title-row h3 {
+  font-size: 0.88rem;
+}
+
+.bp-mock-title-award {
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  color: #e8d5a0;
+  letter-spacing: 0.02em;
+  padding: 1px 0;
+  border-bottom: 1px solid rgba(212, 168, 75, 0.7);
+}
+
+.bp-mock-badge {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(212, 168, 75, 0.55);
+  background: rgba(48, 34, 14, 0.85);
+  color: #e8d5a0;
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+}
+
+.bp-mock-name {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.bp-mock.is-compact .bp-mock-name,
+.bp-mock.is-compact .bp-mock-eyebrow {
+  display: none;
+}
+
+.bp-mock-cap {
+  margin: 0;
+  padding: 0 10px 8px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.bp-detail-reward .bp-mock {
+  margin-top: 12px;
 }
 
 .bp-rewards-panel h3,

@@ -15,10 +15,15 @@ export default async function BattlePassPage() {
   if (!isBuiltinSuperAdmin(session?.user?.steamId)) notFound();
 
   const nick = session?.user?.nick || session?.user?.steamName || "Keech";
+  const name = session?.user?.name || "";
+  const avatarUrl =
+    session?.user?.avatarUrl || session?.user?.steamAvatar || null;
 
   return (
     <BattlePassClient
       selfNick={nick}
+      selfName={name}
+      selfAvatarUrl={avatarUrl}
       selfProgress={emptySelfProgress(nick)}
       leaderboard={emptyLeaderboard()}
     />

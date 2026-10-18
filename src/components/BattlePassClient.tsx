@@ -10,9 +10,16 @@ import {
   type BpPlayerProgress,
   type BpReward,
 } from "@/lib/battlePass";
+import {
+  BpRewardMock,
+  BpRewardMockGallery,
+  type BpPreviewPlayer,
+} from "@/components/BpRewardMock";
 
 type Props = {
   selfNick: string;
+  selfName: string;
+  selfAvatarUrl: string | null;
   selfProgress: BpPlayerProgress;
   leaderboard: BpPlayerProgress[];
 };
@@ -72,10 +79,17 @@ function LevelNode({
 
 export function BattlePassClient({
   selfNick,
+  selfName,
+  selfAvatarUrl,
   selfProgress,
   leaderboard,
 }: Props) {
   const [selected, setSelected] = useState(selfProgress.currentLevel);
+  const player: BpPreviewPlayer = {
+    nick: selfNick,
+    name: selfName,
+    avatarUrl: selfAvatarUrl,
+  };
 
   const level = useMemo(
     () => BP_LEVELS.find((l) => l.level === selected) || BP_LEVELS[0],
@@ -133,6 +147,7 @@ export function BattlePassClient({
               <span className="bp-detail-reward-tag">Награда</span>
               <strong>{reward.name}</strong>
               <span className="bp-detail-reward-preview">{reward.preview}</span>
+              <BpRewardMock reward={reward} player={player} />
             </div>
           ) : null}
 
@@ -167,26 +182,12 @@ export function BattlePassClient({
         </section>
 
         <aside className="bp-side">
-          <section className="bp-rewards-panel">
-            <h3>Награды сезона</h3>
-            <ul>
-              {BP_REWARDS.map((r) => (
-                <li key={r.id}>
-                  <button
-                    type="button"
-                    className={selected === r.level ? "is-on" : ""}
-                    onClick={() => setSelected(r.level)}
-                  >
-                    <span className="bp-rew-lvl">L{r.level}</span>
-                    <span className="bp-rew-body">
-                      <strong>{r.name}</strong>
-                      <em>{r.preview}</em>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
+          <BpRewardMockGallery
+            rewards={BP_REWARDS}
+            player={player}
+            activeLevel={selected}
+            onPick={setSelected}
+          />
 
           <section className="bp-board">
             <h3>Рейтинг прохождения</h3>
