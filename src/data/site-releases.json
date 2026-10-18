@@ -1,6 +1,14 @@
 {
-  "current": "1.1.172",
+  "current": "1.1.173",
   "releases": [
+    {
+      "version": "1.1.173",
+      "date": "2026-10-18",
+      "title": "Battle Pass: SEED не в зачёт",
+      "bullets": [
+        "Карты режима SEED в Battle Pass не считаются — это подготовка, не матч"
+      ]
+    },
     {
       "version": "1.1.172",
       "date": "2026-10-18",

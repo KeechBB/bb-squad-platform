@@ -6,6 +6,7 @@ Battle Pass «Фруктовый Сад» — прогресс по матчам
 Участники: User с profileComplete=true.
 «Сыграть матч» (ур. 1/6/11/16): ≥80% длительности в игре (Login/Remove + deploy fallback).
 Победа/поражение (ур. 14/19): смена стороны после 5-й минуты → матч не в зачёт.
+SEED / Jensen — не игра, в Battle Pass не идут (прогресс не пишем).
 
 Запуск:
   python build_battle_pass.py              # sync from ledger + ensure cutover
@@ -234,6 +235,15 @@ def ensure_cutover(state: dict, ledger: dict) -> dict:
         flush=True,
     )
     return state
+
+
+def is_seed_block(block: dict) -> bool:
+    """SEED / Jensen — подготовка, не матч."""
+    blob = " ".join(
+        str(block.get(k) or "")
+        for k in ("map", "level", "layer", "id")
+    )
+    return bool(R.is_seed_layer(blob, ""))
 
 
 def match_after_cutover(mid: str, cutover: str) -> bool:
@@ -586,6 +596,9 @@ def apply_match_to_players(
         return 0
     cut = str(state.get("cutoverAfterMatchId") or "")
     if not match_after_cutover(mid, cut):
+        return 0
+    if is_seed_block(block):
+        print(f"BP: skip SEED {mid}", flush=True)
         return 0
 
     per = per_player_stats(block, aliases)
