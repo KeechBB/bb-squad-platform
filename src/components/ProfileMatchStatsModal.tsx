@@ -78,6 +78,10 @@ type LoadedPlayers = {
   };
   training: boolean;
   hasOpp: boolean;
+  /** Тег хоста из данных матча (календарь/players.clan) — NKLV, BB, … */
+  hostTag?: string;
+  /** Тег соперника из данных матча */
+  oppTag?: string;
 };
 
 type SortKey = "nick" | "res" | "nok" | "kills" | "deaths" | "kd" | "dmg" | "pwrDelta";
@@ -312,8 +316,16 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
           );
           const oppTotal = enrich(json.oppTotal || sumRounds(oppR1, oppR2));
           const hasOpp = oppR1.length > 0 || oppR2.length > 0;
-          // Итого = все игроки (BB + соперник)
+          // Итого = все игроки (хост + соперник)
           const total = hasOpp ? sumRounds(bbTotal, oppTotal) : bbTotal;
+          // Теги только из данных катки: players.json → calendar open.clan/opp
+          const hostRaw = String(
+            json.clan || json.host || open.clan || ""
+          ).trim();
+          const hostTag =
+            !hostRaw || /^(bb|blackberry)$/i.test(hostRaw) ? "BB" : hostRaw;
+          const oppTag =
+            String(json.opp || open.opp || "OPP").trim() || "OPP";
           setData({
             total,
             bbTotal,
@@ -333,6 +345,8 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
             },
             training: false,
             hasOpp,
+            hostTag,
+            oppTag,
           });
         }
         setLoading(false);
@@ -508,17 +522,18 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
       : data.r1.length > 0 || data.r2.length > 0 || data.hasOpp
     : false;
 
+  /** Соперник/хост — из загруженных данных матча, иначе из open (календарь дня). */
   const oppTag =
     open.kind === "cw"
-      ? String(open.opp || "").trim() ||
+      ? String(data?.oppTag || open.opp || "").trim() ||
         (open.title.includes(" vs ")
           ? open.title.split(" vs ").pop()?.trim() || "OPP"
           : "OPP")
       : "OPP";
-  /** Хост слота: чужой КВ → NKLV и т.п.; пусто / BB → BB */
   const ourTag =
     open.kind === "cw"
-      ? (() => {
+      ? String(data?.hostTag || "").trim() ||
+        (() => {
           const c = String(open.clan || "").trim();
           if (!c || /^(bb|blackberry)$/i.test(c)) return "BB";
           return c;
