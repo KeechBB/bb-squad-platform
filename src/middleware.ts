@@ -12,12 +12,13 @@ function isPublicAsset(pathname: string): boolean {
   return false;
 }
 
-/** Гость: главная, паблик. Кланы/стрельба — страница с окном Steam. */
+/** Гость: главная, паблик, BP. Кланы/стрельба — страница с окном Steam. */
 function guestAllowed(pathname: string): boolean {
   if (pathname === "/") return true;
   if (pathname === "/public" || pathname.startsWith("/public/")) return true;
   if (pathname === "/clans" || pathname.startsWith("/clans/")) return true;
   if (pathname === "/aim" || pathname.startsWith("/aim/")) return true;
+  if (pathname === "/battle-pass" || pathname.startsWith("/battle-pass/")) return true;
   return false;
 }
 
