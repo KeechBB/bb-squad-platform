@@ -614,7 +614,7 @@ def leaderboard_rows(state: dict) -> list[dict]:
     rows.sort(key=lambda r: (-r["_sort"], str(r["nick"] or "").casefold()))
     for r in rows:
         r.pop("_sort", None)
-    return rows
+    return rows[:20]
 
 
 def finalize(state: dict) -> dict:

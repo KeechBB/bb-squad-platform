@@ -73,7 +73,7 @@ export function battlePassLeaderboard(
   state: BpSeasonState | null
 ): BpPlayerProgress[] {
   if (!state?.leaderboard?.length) return [];
-  return state.leaderboard.map((r) => ({
+  return state.leaderboard.slice(0, 20).map((r) => ({
     nick: r.nick,
     steamId: r.steamId,
     currentLevel: Number(r.currentLevel) || 1,

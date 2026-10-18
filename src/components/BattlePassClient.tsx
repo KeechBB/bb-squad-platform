@@ -200,7 +200,10 @@ export function BattlePassClient({
           />
 
           <section className="bp-board">
-            <h3>Рейтинг прохождения</h3>
+            <h3>Топ-20 прохождения</h3>
+            <p className="bp-board-sub">
+              Рейтинг Battle Pass · максимум 20 мест
+            </p>
             {leaderboard.length === 0 ? (
               <p className="bp-board-empty">
                 {scoringEnabled
@@ -214,11 +217,11 @@ export function BattlePassClient({
                     <th>#</th>
                     <th>Игрок</th>
                     <th>Ур.</th>
-                    <th>Прогресс</th>
+                    <th>Задание</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {leaderboard.map((row, i) => (
+                  {leaderboard.slice(0, 20).map((row, i) => (
                     <tr key={row.nick}>
                       <td>{i + 1}</td>
                       <td>{row.nick}</td>

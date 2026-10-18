@@ -17299,6 +17299,13 @@ body:has(.profile-page) {
   color: var(--muted);
 }
 
+.bp-board-sub {
+  margin: -6px 0 10px;
+  font-size: 0.72rem;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
 .bp-board-empty {
   margin: 0;
   font-size: 0.88rem;
