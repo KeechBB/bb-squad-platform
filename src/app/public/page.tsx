@@ -1,15 +1,11 @@
 import { PublicRatingClient } from "@/components/PublicRatingClient";
-import { buildPublicRatingTable } from "@/lib/publicCombat";
-import { listPublicMatches } from "@/lib/publicMatches";
+import { getPublicRatingPagePayload } from "@/lib/publicRatingPageCache";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 /** Публичный рейтинг паблика — доступен без Steam-логина. */
 export default async function PublicRatingPage() {
-  const [board, matchHistory] = await Promise.all([
-    buildPublicRatingTable(500),
-    listPublicMatches(800),
-  ]);
+  const { board, matchHistory } = await getPublicRatingPagePayload();
   return (
     <main className="public-rating-page">
       <PublicRatingClient

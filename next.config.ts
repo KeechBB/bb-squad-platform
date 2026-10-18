@@ -19,6 +19,16 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      // Guest-facing public rating — allow short edge/browser cache (disk snapshot is source of truth).
+      {
+        source: "/public",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=30, s-maxage=60, stale-while-revalidate=300",
+          },
+        ],
+      },
       {
         source: "/:path*",
         headers: [

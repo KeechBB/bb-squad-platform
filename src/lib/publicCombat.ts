@@ -486,6 +486,12 @@ async function buildPublicRatingTableUncached(limit = 500): Promise<{
   };
 }
 
+/** Per-process single-flight — cluster stampede still covered by publicRatingPageCache disk. */
+const tableInflight = new Map<
+  number,
+  Promise<{ rows: PublicCombatRow[]; matches: number; updatedAt: string }>
+>();
+
 /** Cached hot path — avoid re-parsing public ladder on every /public hit. */
 export async function buildPublicRatingTable(limit = 500): Promise<{
   rows: PublicCombatRow[];
@@ -493,7 +499,15 @@ export async function buildPublicRatingTable(limit = 500): Promise<{
   updatedAt: string;
 }> {
   const cached = unstable_cache(
-    () => buildPublicRatingTableUncached(limit),
+    () => {
+      const hit = tableInflight.get(limit);
+      if (hit) return hit;
+      const job = buildPublicRatingTableUncached(limit).finally(() => {
+        tableInflight.delete(limit);
+      });
+      tableInflight.set(limit, job);
+      return job;
+    },
     // bump when public RP source-of-truth / formula changes
     ["public-rating-table-v5-veh-armor", String(limit)],
     { revalidate: 120 }

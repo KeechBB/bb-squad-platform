@@ -73,4 +73,6 @@ scripts/_tmp_tpub1_logs_cache/
 !/data/kv-cache/.gitkeep
 /data/sys-load/*
 !/data/sys-load/.gitkeep
+/data/cache/*
+!/data/cache/.gitkeep
 

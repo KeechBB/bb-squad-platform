@@ -197,4 +197,18 @@ DEPLOY_OK=1
 # the 30MB parse + python + pm2 restart was OOMing the 4GB box → 502 storms.
 # Rebuild manually when needed: python3 scripts/build_public_rp_ledger.py
 
+echo "==> warm public rating snapshot (disk cache for /public)"
+curl -sk --max-time 120 -H 'Host: bb-squad.ru' \
+  --resolve bb-squad.ru:443:127.0.0.1 \
+  "https://127.0.0.1/api/warm/public-rating" || true
+
+# Keep /public hot every minute (shared disk snapshot across cluster workers)
+if [[ ! -f /etc/cron.d/bb-squad-warm-public ]]; then
+  cat >/etc/cron.d/bb-squad-warm-public <<'EOF'
+CRON_TZ=Europe/Moscow
+* * * * * root curl -sk --max-time 90 -o /dev/null -H 'Host: bb-squad.ru' --resolve bb-squad.ru:443:127.0.0.1 https://127.0.0.1/api/warm/public-rating >/dev/null 2>&1
+EOF
+  chmod 644 /etc/cron.d/bb-squad-warm-public
+fi
+
 echo "==> OK commit=$(git rev-parse --short HEAD) $(date -Is)"
