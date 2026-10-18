@@ -24,14 +24,23 @@ function newestFirst(rows: Row[]): Row[] {
   return [...rows].sort((a, b) => String(b.time).localeCompare(String(a.time)));
 }
 
+function isDriverShareNok(e: RpMatchEvent): boolean {
+  return e.kind === "driver_share" && e.reason === "nok";
+}
+
 function toNokRows(events: RpMatchEvent[]): Row[] {
   return (events || []).map((e, i) => {
     const tk = Boolean(e.teamkill);
     const mag = Math.abs(Number(e.delta) || 0);
+    const vehicle = isVehicleRpEvent(e);
+    const nick = vehicle ? formatRpEventLabel(e, "kill") : e.victim;
     return {
-      key: `n-${i}-${e.time}-${e.victim}`,
+      key: `n-${i}-${e.time}-${e.victim}-${e.kind || "nok"}`,
       time: e.time || "—",
-      nick: e.victim,
+      nick,
+      title: vehicle
+        ? `${nick} · ${fmtDelta(mag)} RP`
+        : e.victim,
       delta: tk ? -mag : mag,
     };
   });
@@ -141,9 +150,12 @@ type Props = {
 
 /** Hunt-style 5-column match breakdown (ledger / post-match only). */
 export function RpHuntMatchBreakdown({ match, onClose }: Props) {
-  const noks = match.noks || [];
+  // Старые ledger: driver_share(reason=nok) ошибочно в kills — разводим в столбики.
+  const rawKills = match.kills || [];
+  const shareNoks = rawKills.filter(isDriverShareNok);
+  const kills = rawKills.filter((e) => !isDriverShareNok(e));
+  const noks = [...(match.noks || []), ...shareNoks];
   const gotNoks = match.gotNoks || [];
-  const kills = match.kills || [];
   const deaths = match.deaths || [];
   const teamkills = match.teamkills || [];
   const revives = match.revives || [];

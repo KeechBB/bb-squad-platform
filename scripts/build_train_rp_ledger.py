@@ -998,10 +998,17 @@ def main() -> None:
         for mb in match_blocks:
             if k not in mb["netByKey"]:
                 continue
+            # driver_share: reason=nok → ноки; die/vehicle_kill → киллы
             kills_ev = [
                 e
                 for e in mb["events"]
-                if e.get("kind") in ("die", "vehicle_kill", "driver_share")
+                if (
+                    e.get("kind") in ("die", "vehicle_kill")
+                    or (
+                        e.get("kind") == "driver_share"
+                        and e.get("reason") != "nok"
+                    )
+                )
                 and canon_key(e.get("killer") or "", aliases) == k
             ]
             match_hist.append(
@@ -1044,8 +1051,14 @@ def main() -> None:
                     "noks": [
                         e
                         for e in mb["events"]
-                        if e.get("kind") == "nok"
-                        and canon_key(e["killer"], aliases) == k
+                        if (
+                            e.get("kind") == "nok"
+                            or (
+                                e.get("kind") == "driver_share"
+                                and e.get("reason") == "nok"
+                            )
+                        )
+                        and canon_key(e.get("killer") or "", aliases) == k
                     ],
                     "gotNoks": [
                         e

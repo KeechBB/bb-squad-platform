@@ -665,10 +665,17 @@ def _match_hist_row(mb: dict, k: str, aliases: dict[str, str]) -> dict:
     won = None
     if team and mb.get("winnerTeam"):
         won = team == str(mb["winnerTeam"])
+    # driver_share: reason=nok → столбик ноков; die/vehicle_kill → киллы
     kills = [
         e
         for e in mb["events"]
-        if e.get("kind") in ("die", "vehicle_kill", "driver_share")
+        if (
+            e.get("kind") in ("die", "vehicle_kill")
+            or (
+                e.get("kind") == "driver_share"
+                and e.get("reason") != "nok"
+            )
+        )
         and R.canon_key(e.get("killer") or "", aliases) == k
     ]
     vehicle_kills = sum(1 for e in kills if e.get("kind") == "vehicle_kill")
@@ -698,7 +705,14 @@ def _match_hist_row(mb: dict, k: str, aliases: dict[str, str]) -> dict:
         "noks": [
             e
             for e in mb["events"]
-            if e.get("kind") == "nok" and R.canon_key(e["killer"], aliases) == k
+            if (
+                e.get("kind") == "nok"
+                or (
+                    e.get("kind") == "driver_share"
+                    and e.get("reason") == "nok"
+                )
+            )
+            and R.canon_key(e.get("killer") or "", aliases) == k
         ],
         "gotNoks": [
             e

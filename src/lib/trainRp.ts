@@ -449,8 +449,19 @@ export async function playerRpMatchBreakdown(
   if (player?.matches?.length) {
     const hit = player.matches.find((m) => m.id === matchId);
     if (hit) {
+      // Старые ledger: driver_share(nok) лежали в kills — разводим в столбики.
+      const rawKills = hit.kills || [];
+      const shareNoks = rawKills.filter(
+        (e) => e.kind === "driver_share" && e.reason === "nok"
+      );
+      const kills = rawKills.filter(
+        (e) => !(e.kind === "driver_share" && e.reason === "nok")
+      );
       return {
         ...hit,
+        kills,
+        noks: [...(hit.noks || []), ...shareNoks],
+        gotNoks: hit.gotNoks || [],
         teamkills: hit.teamkills || [],
         revives: hit.revives || [],
       };
@@ -461,6 +472,8 @@ export async function playerRpMatchBreakdown(
   const deaths: RpMatchEvent[] = [];
   const teamkills: RpMatchEvent[] = [];
   const revives: RpMatchEvent[] = [];
+  const noks: RpMatchEvent[] = [];
+  const gotNoks: RpMatchEvent[] = [];
   for (const e of match.events || []) {
     const kind = e.kind || "die";
     if (kind === "revive") {
@@ -479,8 +492,21 @@ export async function playerRpMatchBreakdown(
       if (nickKey(e.victim) === want) deaths.push(e);
       continue;
     }
-    if (kind === "vehicle_kill" || kind === "driver_share") {
+    if (kind === "vehicle_kill") {
       if (nickKey(e.killer) === want) kills.push(e);
+      continue;
+    }
+    if (kind === "driver_share") {
+      // reason=nok → столбик ноков; die/vehicle_kill → киллы
+      if (nickKey(e.killer) === want) {
+        if (e.reason === "nok") noks.push(e);
+        else kills.push(e);
+      }
+      continue;
+    }
+    if (kind === "nok") {
+      if (nickKey(e.killer) === want) noks.push(e);
+      if (nickKey(e.victim) === want) gotNoks.push(e);
       continue;
     }
     if (nickKey(e.killer) === want) kills.push(e);
@@ -493,6 +519,7 @@ export async function playerRpMatchBreakdown(
     netFromMap != null
       ? Number(netFromMap) || 0
       : kills.reduce((s, e) => s + e.delta, 0) +
+        noks.reduce((s, e) => s + e.delta, 0) +
         revives.reduce((s, e) => s + e.delta, 0) -
         deaths.reduce((s, e) => s + Math.abs(e.delta), 0) -
         teamkills.reduce((s, e) => s + Math.abs(e.delta), 0);
@@ -502,6 +529,8 @@ export async function playerRpMatchBreakdown(
     !deaths.length &&
     !revives.length &&
     !teamkills.length &&
+    !noks.length &&
+    !gotNoks.length &&
     net === 0
   )
     return null;
@@ -515,5 +544,7 @@ export async function playerRpMatchBreakdown(
     deaths,
     teamkills,
     revives,
+    noks,
+    gotNoks,
   };
 }
