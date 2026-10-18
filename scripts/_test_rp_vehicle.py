@@ -12,6 +12,9 @@ import rp_log_parse as R
 
 assert R.vehicle_tickets("BP_T72S_GFI_C") == 15
 assert R.vehicle_tickets("BP_BTR82A_RUS_C") == 10
+assert R.vehicle_tickets("BP_LAV6_Woodland_C") == 10  # LAV 6.0 = БТР, не лёгкая
+assert R.vehicle_tickets("BP_LAV6_Turret_Woodland_C") == 10
+assert R.vehicle_base_rp("BP_LAV6_Desert_C") == 125
 assert R.vehicle_tickets("BP_AAVP7A1_Woodland_C") == 10
 assert R.vehicle_tickets("BP_WPMC_Mobile_Hub_C") == 20
 # logi stays 5 (=62.5); unarmed transport/util = 2 (=25); rate 12.5 RP/ticket

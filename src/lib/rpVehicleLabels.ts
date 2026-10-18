@@ -60,7 +60,7 @@ function inferVehicleTickets(asset: string): number {
   )
     return 15;
   if (
-    /(BTR|BMP|BFV|FV510|AAVP|WARRIOR|ZBD|ZBL|BMD|MTL|PIRANHA|STRYKER|LAV25|BOXER|ZTD|BRDM)/i.test(
+    /(BTR|BMP|BFV|FV510|AAVP|WARRIOR|ZBD|ZBL|BMD|MTL|PIRANHA|STRYKER|LAV25|LAV6|LAV_6|BOXER|ZTD|BRDM)/i.test(
       a
     )
   )
