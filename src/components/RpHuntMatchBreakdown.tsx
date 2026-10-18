@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import type { RpMatchEvent, RpPlayerMatch } from "@/lib/trainRp";
+import { formatRpEventLabel, isVehicleRpEvent } from "@/lib/rpVehicleLabels";
 
 function fmtDelta(n: number) {
   const v = Math.round((Number(n) || 0) * 10) / 10;
@@ -15,6 +16,8 @@ type Row = {
   nick: string;
   delta: number;
   arrow?: boolean;
+  /** Full title hover — vehicle reason etc. */
+  title?: string;
 };
 
 function newestFirst(rows: Row[]): Row[] {
@@ -35,22 +38,39 @@ function toNokRows(events: RpMatchEvent[]): Row[] {
 }
 
 function toKillRows(events: RpMatchEvent[]): Row[] {
-  return (events || []).map((e, i) => ({
-    key: `k-${i}-${e.time}-${e.victim}`,
-    time: e.time || "—",
-    nick: e.victim,
-    delta: Math.abs(Number(e.delta) || 0) * (e.teamkill || e.kind === "tk" ? -1 : 1),
-  }));
+  return (events || []).map((e, i) => {
+    const vehicle = isVehicleRpEvent(e);
+    const nick = vehicle ? formatRpEventLabel(e, "kill") : e.victim;
+    return {
+      key: `k-${i}-${e.time}-${e.victim}-${e.kind || "die"}`,
+      time: e.time || "—",
+      nick,
+      title: vehicle
+        ? `${nick} · ${fmtDelta(Math.abs(Number(e.delta) || 0))} RP`
+        : e.victim,
+      delta:
+        Math.abs(Number(e.delta) || 0) *
+        (e.teamkill || e.kind === "tk" ? -1 : 1),
+    };
+  });
 }
 
 function toDeathRows(events: RpMatchEvent[]): Row[] {
-  return (events || []).map((e, i) => ({
-    key: `d-${i}-${e.time}-${e.killer}`,
-    time: e.time || "—",
-    nick: e.killer,
-    delta: -Math.abs(Number(e.delta) || 0),
-    arrow: true,
-  }));
+  return (events || []).map((e, i) => {
+    const vehicle = isVehicleRpEvent(e);
+    const nick = vehicle ? formatRpEventLabel(e, "death") : e.killer;
+    const mag = Math.abs(Number(e.delta) || 0);
+    return {
+      key: `d-${i}-${e.time}-${e.killer}-${e.kind || "die"}`,
+      time: e.time || "—",
+      nick,
+      title: vehicle
+        ? `${nick} · −${mag} RP`
+        : e.killer,
+      delta: -mag,
+      arrow: !vehicle,
+    };
+  });
 }
 
 function toReviveRows(events: RpMatchEvent[]): Row[] {
@@ -97,7 +117,7 @@ function Col({
           {list.map((r) => (
             <li key={r.key} className="keech-hunt-row">
               <span className="keech-hunt-time">{r.time}</span>
-              <span className="keech-hunt-nick" title={r.nick}>
+              <span className="keech-hunt-nick" title={r.title || r.nick}>
                 {r.arrow ? `← ${r.nick}` : r.nick}
               </span>
               <span

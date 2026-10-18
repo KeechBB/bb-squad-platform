@@ -8,6 +8,7 @@ import type {
   RpMatchListItem,
 } from "@/lib/playerCompare";
 import type { RpMatchEvent, RpPlayerMatch } from "@/lib/trainRp";
+import { formatRpEventLabel, isVehicleRpEvent } from "@/lib/rpVehicleLabels";
 import { HitmapSilhouette } from "@/components/HitmapSilhouette";
 
 type Props = {
@@ -137,40 +138,46 @@ function RpEventList({
         {events.length === 0 ? (
           <li className="muted">Нет</li>
         ) : (
-          events.map((e, i) => (
-            <li key={`${kind}-${i}`}>
-              <span className="rp-ev-time">{e.time}</span>
-              <span
-                className="rp-ev-nick"
-                title={kind === "gain" ? e.victim : e.killer}
-              >
-                {kind === "gain" ? e.victim : e.killer}
-              </span>
-              <span
-                className="rp-ev-bar-wrap"
-                title={`weight ${kind === "gain" ? e.victimPwr : e.killerPwr}`}
-              >
-                <span
-                  className={`rp-ev-bar ${kind === "gain" ? "gain" : "loss"}`}
-                  style={{
-                    width: `${pwrBarPct(
-                      kind === "gain" ? e.victimPwr : e.killerPwr
-                    )}%`,
-                  }}
-                />
-                <span className="rp-ev-roman">
-                  {romanFromPwr(kind === "gain" ? e.victimPwr : e.killerPwr)}
+          events.map((e, i) => {
+            const side = kind === "gain" ? "kill" : "death";
+            const vehicle = isVehicleRpEvent(e);
+            const text = vehicle
+              ? formatRpEventLabel(e, side)
+              : kind === "gain"
+                ? e.victim
+                : e.killer;
+            return (
+              <li key={`${kind}-${i}`}>
+                <span className="rp-ev-time">{e.time}</span>
+                <span className="rp-ev-nick" title={text}>
+                  {text}
                 </span>
-              </span>
-              <span
-                className={`rp-ev-delta ${kind === "gain" ? "plus" : "minus"}`}
-              >
-                {kind === "gain"
-                  ? fmtDelta(e.delta)
-                  : fmtDelta(-Math.abs(e.delta))}
-              </span>
-            </li>
-          ))
+                <span
+                  className="rp-ev-bar-wrap"
+                  title={`weight ${kind === "gain" ? e.victimPwr : e.killerPwr}`}
+                >
+                  <span
+                    className={`rp-ev-bar ${kind === "gain" ? "gain" : "loss"}`}
+                    style={{
+                      width: `${pwrBarPct(
+                        kind === "gain" ? e.victimPwr : e.killerPwr
+                      )}%`,
+                    }}
+                  />
+                  <span className="rp-ev-roman">
+                    {romanFromPwr(kind === "gain" ? e.victimPwr : e.killerPwr)}
+                  </span>
+                </span>
+                <span
+                  className={`rp-ev-delta ${kind === "gain" ? "plus" : "minus"}`}
+                >
+                  {kind === "gain"
+                    ? fmtDelta(e.delta)
+                    : fmtDelta(-Math.abs(e.delta))}
+                </span>
+              </li>
+            );
+          })
         )}
       </ul>
       <p className={`rp-breakdown-sum ${kind === "gain" ? "plus" : "minus"}`}>

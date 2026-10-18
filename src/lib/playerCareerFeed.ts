@@ -363,7 +363,7 @@ export async function buildPlayerCareerFeed(nick: string): Promise<PlayerCareerF
           asRpMatches,
           Number(rpLedger.startRp) || 0,
           Number(rpLedger.step) || 150,
-          Number(rpLedger.radiant3Max) || 4500,
+          Number(rpLedger.radiant3Max) || 4950,
           { idPrefix: "rp-train", venue: "тренировка" }
         )
       );
@@ -382,7 +382,7 @@ export async function buildPlayerCareerFeed(nick: string): Promise<PlayerCareerF
           pubPlayer.matches,
           Number(pubLedger.startRp) || 1000,
           Number(pubLedger.step) || 150,
-          Number(pubLedger.radiant3Max) || 4500,
+          Number(pubLedger.radiant3Max) || 4950,
           { idPrefix: "rp-pub", venue: "паблик PB1" }
         )
       );

@@ -179,7 +179,7 @@ export async function buildPlayerPublicMatchHistory(
 
   const startRp = Number(ladder.startRp) || 1000;
   const step = Number(ladder.step) || 150;
-  const radiant3Max = Number(ladder.radiant3Max) || 4500;
+  const radiant3Max = Number(ladder.radiant3Max) || 4950;
   let running = startRp;
   const canRunRp = rows.every((r) => r.hasNet);
 
