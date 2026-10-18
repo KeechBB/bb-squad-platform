@@ -710,13 +710,7 @@ def _match_hist_row(mb: dict, k: str, aliases: dict[str, str]) -> dict:
         "noks": [
             e
             for e in mb["events"]
-            if (
-                e.get("kind") == "nok"
-                or (
-                    e.get("kind") == "driver_share"
-                    and e.get("reason") == "nok"
-                )
-            )
+            if e.get("kind") == "nok"
             and R.canon_key(e.get("killer") or "", aliases) == k
         ],
         "gotNoks": [
@@ -1106,13 +1100,18 @@ def main() -> None:
             else:
                 veh_n = int(m.get("vehicleKills") or 0)
                 kill_n = max(0, len(ev) - veh_n)
+            nok_ev = m.get("noks") or []
+            if nok_ev and isinstance(nok_ev[0], dict):
+                nok_n = sum(1 for e in nok_ev if e.get("kind") == "nok")
+            else:
+                nok_n = len(nok_ev)
             slim_ms.append(
                 {
                     "id": m.get("id"),
                     "kills": kill_n,
                     "giveupKills": True,
                     "deaths": len(m.get("deaths") or []),
-                    "noks": len(m.get("noks") or []),
+                    "noks": nok_n,
                     "revives": len(m.get("revives") or []),
                     "vehicleKills": veh_n,
                     "dmg": int(round(float(m.get("dmg") or 0))),
