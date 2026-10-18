@@ -1185,6 +1185,25 @@ def main() -> None:
     for i, row in enumerate(ledger["leaderboard"][:10], 1):
         print(f"  {i}. {row['nick']:20} RP {row['rp']:7.1f}  {row['rankLabel']}")
 
+    # Integrity while events still in match_blocks (stripped from disk ledger).
+    if match_blocks:
+        try:
+            import rp_post_ingest_audit as AUD  # noqa: WPS433
+
+            fix = (os.environ.get("RP_AUDIT_FIX") or "1").strip().lower() not in (
+                "0",
+                "false",
+                "no",
+            )
+            AUD.run_audit_on_blocks(
+                "train",
+                match_blocks,
+                fix=fix,
+                players=players_out,
+            )
+        except Exception as e:
+            print(f"warn: RP audit skipped: {type(e).__name__}: {e}", flush=True)
+
 
 if __name__ == "__main__":
     main()

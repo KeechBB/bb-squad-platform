@@ -1127,6 +1127,27 @@ def main() -> None:
     for i, row in enumerate(ledger["leaderboard"][:10], 1):
         print(f"  {i}. {row['nick']:20} RP {row['rp']:7.1f}  {row['rankLabel']}")
 
+    # Post-ingest integrity: net↔events, vehicle formula, driver_share 70%.
+    if match_blocks:
+        try:
+            import rp_post_ingest_audit as AUD  # noqa: WPS433
+
+            # Auto-fix once on failure (rescore bad ids) unless disabled /
+            # already inside a repair pass.
+            fix = (os.environ.get("RP_AUDIT_FIX") or "1").strip().lower() not in (
+                "0",
+                "false",
+                "no",
+            ) and (os.environ.get("RP_AUDIT_REPAIR_PASS") or "").strip() != "1"
+            AUD.run_audit_on_blocks(
+                "public",
+                match_blocks,
+                fix=fix,
+                players=players_out,
+            )
+        except Exception as e:
+            print(f"warn: RP audit skipped: {type(e).__name__}: {e}", flush=True)
+
 
 if __name__ == "__main__":
     main()
