@@ -127,7 +127,7 @@ _VEH_TANK_RE = re.compile(
 )
 _VEH_IFV_RE = re.compile(
     r"(BTR|BMP|BFV|FV510|AAVP|WARRIOR|ZBD|ZBL|BMD|MTL|PIRANHA|STRYKER|"
-    r"LAV25|BOXER|ZTD|BRDM)",
+    r"LAV25|LAV6|LAV_6|BOXER|ZTD|BRDM)",
     re.I,
 )
 # Mobile hub — confirm Asset Name with captain if a new BP appears.
@@ -2273,9 +2273,40 @@ def parse_teams_from_log(
     return teams_in_window(idx, t0, t1, faction_to_team)
 
 def discover_matches(log_paths: list[Path]) -> list[dict]:
-    """Completed non-SEED matches: InProgress → WaitingPostMatch (+ winner)."""
+    """Completed non-SEED matches: InProgress → WaitingPostMatch (+ winner).
+
+    Each log file is its own match state machine. Mixing TR1+TR2+TR3 into one
+    timeline drops layers (a travel on another server resets the open map).
+    """
+    files = [p for p in log_paths if p.is_file()]
+    if len(files) > 1:
+        merged: list[dict] = []
+        for path in files:
+            merged.extend(_discover_matches_one(path))
+        return _dedupe_discovered(merged)
+    if not files:
+        return []
+    return _dedupe_discovered(_discover_matches_one(files[0]))
+
+
+def _dedupe_discovered(matches: list[dict]) -> list[dict]:
+    seen: set[str] = set()
+    out: list[dict] = []
+    for m in sorted(matches, key=lambda x: x["start"]):
+        key = f"{m['start'].strftime('%Y%m%d%H%M')}|{(m.get('level') or m['map']).lower()}"
+        if m["id"] in seen or key in seen:
+            continue
+        seen.add(m["id"])
+        seen.add(key)
+        out.append(m)
+    return out
+
+
+def _discover_matches_one(path: Path) -> list[dict]:
+    """Completed non-SEED matches inside a single SquadGame log."""
     # (dt, kind, payload, path)
     events: list[tuple[datetime, str, dict, Path]] = []
+    log_paths = [path]
     for path in log_paths:
         if not path.is_file():
             continue
@@ -2436,14 +2467,4 @@ def discover_matches(log_paths: list[Path]) -> list[dict]:
     if pending_end is not None:
         flush_end()
 
-    seen: set[str] = set()
-    out: list[dict] = []
-    for m in sorted(matches, key=lambda x: x["start"]):
-        # de-dupe identical windows across overlapping log copies
-        key = f"{m['start'].strftime('%Y%m%d%H%M')}|{(m.get('level') or m['map']).lower()}"
-        if m["id"] in seen or key in seen:
-            continue
-        seen.add(m["id"])
-        seen.add(key)
-        out.append(m)
-    return out
+    return matches

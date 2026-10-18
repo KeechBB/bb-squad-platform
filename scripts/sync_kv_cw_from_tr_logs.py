@@ -378,7 +378,33 @@ def _normalize_map_stem(stem: str) -> str:
     return s
 
 
+# paas/raas before aas — "paas" contains the letters of aas.
+_LAYER_MODES = (
+    "paas",
+    "raas",
+    "invasion",
+    "skirmish",
+    "insurgency",
+    "destruction",
+    "tc",
+    "aas",
+)
+
+
+def _mode_token(text: str) -> str | None:
+    s = re.sub(r"[^a-z0-9]", "", (text or "").lower())
+    for mode in _LAYER_MODES:
+        if mode in s:
+            return mode
+    return None
+
+
 def map_fuzzy_match(slot_map: str, layer: str) -> bool:
+    # Mutaha PAAS (КВ) must not swallow Mutaha RAAS / Skirmish the same evening.
+    mode_a = _mode_token(slot_map)
+    mode_b = _mode_token(layer)
+    if mode_a and mode_b and mode_a != mode_b:
+        return False
     a = _normalize_map_stem(_map_stem(slot_map))
     b = _normalize_map_stem(_map_stem(layer))
     if not a or not b:

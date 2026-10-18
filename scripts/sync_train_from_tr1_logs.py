@@ -1009,6 +1009,20 @@ def main() -> int:
             )
             continue
 
+        # Старый skip «это КВ» не должен навсегда прятать тренировку,
+        # если карта потом не совпала со слотом (Mutaha RAAS ≠ Mutaha PAAS).
+        stale_cw = [
+            a
+            for a in auto
+            if a.get("skip")
+            and str(a.get("start") or "") == start_iso
+            and "tr-train-skip-cw" in str(a.get("note") or "")
+        ]
+        if stale_cw:
+            drop = {id(a) for a in stale_cw}
+            auto[:] = [a for a in auto if id(a) not in drop]
+            known_starts.discard(start_iso)
+
         if start_iso in known_starts:
             continue
 
