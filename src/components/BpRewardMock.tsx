@@ -142,11 +142,6 @@ export function BpRewardMock({
           compact={compact}
         />
       )}
-      {!compact ? (
-        <p className="bp-mock-cap">
-          L{reward.level} · {reward.preview}
-        </p>
-      ) : null}
     </div>
   );
 }

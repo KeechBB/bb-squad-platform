@@ -24,6 +24,11 @@ type Props = {
   leaderboard: BpPlayerProgress[];
 };
 
+function soldierSrc(level: number): string {
+  const n = String(Math.min(20, Math.max(1, level))).padStart(2, "0");
+  return `/bp-previews/soldier-${n}.jpg`;
+}
+
 function RewardMark({ reward }: { reward: BpReward }) {
   return (
     <div className={`bp-reward-mark kind-${reward.kind}`} title={reward.name}>
@@ -114,7 +119,6 @@ export function BattlePassClient({
         <p className="bp-hero-dates">
           {BP_SEASON.startLabel} — {BP_SEASON.endLabel}
         </p>
-        <p className="bp-hero-note">{BP_SEASON.note}</p>
       </header>
 
       <section className="bp-track-wrap" aria-label="Уровни Battle Pass">
@@ -134,59 +138,57 @@ export function BattlePassClient({
       </section>
 
       <div className="bp-body">
-        <section className="bp-detail" aria-live="polite">
-          <div className="bp-detail-head">
-            <span className="bp-detail-lvl">Уровень {level.level}</span>
-            <h2>{level.title}</h2>
-          </div>
-          <p className="bp-detail-task">{level.task}</p>
-          {level.hint ? <p className="bp-detail-hint">{level.hint}</p> : null}
+        <section
+          className={`bp-detail${reward ? " has-reward" : ""}`}
+          aria-live="polite"
+        >
+          <div className="bp-detail-top">
+            <div className="bp-detail-head">
+              <span className="bp-detail-lvl">Уровень {level.level}</span>
+              <h2>{level.title}</h2>
+            </div>
+            <p className="bp-detail-task">{level.task}</p>
 
-          {reward ? (
-            <div className={`bp-detail-reward kind-${reward.kind}`}>
-              <span className="bp-detail-reward-tag">Награда</span>
-              <strong>{reward.name}</strong>
-              <span className="bp-detail-reward-preview">{reward.preview}</span>
-              <BpRewardMock reward={reward} player={player} />
-            </div>
-          ) : null}
-
-          <div className="bp-progress">
-            <div className="bp-progress-meta">
-              <span>
-                {selected === cur
-                  ? "Текущее задание"
-                  : selected < cur
-                    ? "Выполнено"
-                    : "Ещё не открыто"}
-              </span>
-              <span className="bp-progress-nums">
-                {progressCurrent}/{progressTarget} {level.unit}
-              </span>
-            </div>
-            <div
-              className="bp-progress-bar"
-              role="progressbar"
-              aria-valuenow={progressCurrent}
-              aria-valuemin={0}
-              aria-valuemax={progressTarget}
-            >
-              <i style={{ width: `${pct}%` }} />
-            </div>
-            {selected === cur ? (
-              <p className="bp-progress-foot muted">
-                Для {selfNick}: прогресс не считается — ждём включения сезона.
-              </p>
+            {reward ? (
+              <div className={`bp-detail-reward kind-${reward.kind}`}>
+                <span className="bp-detail-reward-tag">Награда</span>
+                <strong>{reward.name}</strong>
+                <BpRewardMock reward={reward} player={player} compact />
+              </div>
             ) : null}
+
+            <div className="bp-progress">
+              <div className="bp-progress-meta">
+                <span>
+                  {selected === cur
+                    ? "Текущее задание"
+                    : selected < cur
+                      ? "Выполнено"
+                      : "Ещё не открыто"}
+                </span>
+                <span className="bp-progress-nums">
+                  {progressCurrent}/{progressTarget} {level.unit}
+                </span>
+              </div>
+              <div
+                className="bp-progress-bar"
+                role="progressbar"
+                aria-valuenow={progressCurrent}
+                aria-valuemin={0}
+                aria-valuemax={progressTarget}
+              >
+                <i style={{ width: `${pct}%` }} />
+              </div>
+            </div>
           </div>
 
-          <div className="bp-detail-art" aria-hidden={!reward}>
+          <div className="bp-detail-soldier">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/bp-previews/art-ops.jpg" alt="" />
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/bp-previews/art-vault.jpg" alt="" />
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/bp-previews/art-track.jpg" alt="" />
+            <img
+              key={level.level}
+              src={soldierSrc(level.level)}
+              alt={`Солдат уровня ${level.level}`}
+            />
           </div>
         </section>
 
@@ -201,10 +203,7 @@ export function BattlePassClient({
           <section className="bp-board">
             <h3>Рейтинг прохождения</h3>
             {leaderboard.length === 0 ? (
-              <p className="bp-board-empty">
-                Таблица пустая: подсчёт выключен. После запуска здесь будут
-                зарегистрированные игроки и их уровень.
-              </p>
+              <p className="bp-board-empty">Пока пусто — подсчёт выключен.</p>
             ) : (
               <table className="bp-board-table">
                 <thead>
