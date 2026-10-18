@@ -13,6 +13,8 @@ export type PublicMatchStatRow = {
   res: number;
   nok: number;
   kills: number;
+  /** Уничтоженная техника. Не входит в kills. */
+  vehicleKills: number;
   deaths: number;
   dmg: number;
   kd: number;
@@ -225,7 +227,14 @@ export async function buildPublicMatchStats(
       if (!nick) continue;
       const hit = (p.matches || []).find((m) => String(m.id) === ledgerMatchId);
       if (!hit) continue;
-      const kills = countStat(hit.kills);
+      const vehicleKills = countStat(
+        (hit as { vehicleKills?: number }).vehicleKills
+      );
+      const rawKills = countStat(hit.kills);
+      // Старый ladder: len(die+vehicle_kill+driver_share). Технику вычитаем.
+      const kills = (hit as { giveupKills?: boolean }).giveupKills
+        ? rawKills
+        : Math.max(0, rawKills - vehicleKills);
       const deaths = countStat(hit.deaths);
       const res = countStat(hit.revives);
       const nok = countStat(hit.noks);
@@ -234,6 +243,7 @@ export async function buildPublicMatchStats(
       const stat: PublicMatchStatRow = {
         nick,
         kills,
+        vehicleKills,
         deaths,
         res,
         nok,

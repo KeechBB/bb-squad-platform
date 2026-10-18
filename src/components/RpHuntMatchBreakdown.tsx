@@ -153,7 +153,14 @@ export function RpHuntMatchBreakdown({ match, onClose }: Props) {
   // Старые ledger: driver_share(reason=nok) ошибочно в kills — разводим в столбики.
   const rawKills = match.kills || [];
   const shareNoks = rawKills.filter(isDriverShareNok);
-  const kills = rawKills.filter((e) => !isDriverShareNok(e));
+  const vehicleEvents = rawKills.filter(
+    (e) =>
+      e.kind === "vehicle_kill" ||
+      (e.kind === "driver_share" && e.reason !== "nok")
+  );
+  const kills = rawKills.filter(
+    (e) => !isDriverShareNok(e) && !vehicleEvents.includes(e)
+  );
   const noks = [...(match.noks || []), ...shareNoks];
   const gotNoks = match.gotNoks || [];
   const deaths = match.deaths || [];
@@ -168,6 +175,7 @@ export function RpHuntMatchBreakdown({ match, onClose }: Props) {
       teamkills.map((e) => ({ ...e, kind: "tk" as const, teamkill: true }))
     ),
   ];
+  const vehicleRows = toKillRows(vehicleEvents);
   const deathRows = toDeathRows(deaths);
   const reviveRows = toReviveRows(revives);
   const gotRows = toGotNokRows(gotNoks);
@@ -175,7 +183,7 @@ export function RpHuntMatchBreakdown({ match, onClose }: Props) {
   const net =
     Math.round(
       (Number(match.net) ||
-        [...nokRows, ...killRows, ...deathRows, ...reviveRows, ...gotRows].reduce(
+        [...nokRows, ...killRows, ...vehicleRows, ...deathRows, ...reviveRows, ...gotRows].reduce(
           (s, r) => s + r.delta,
           0
         )) *
@@ -220,7 +228,8 @@ export function RpHuntMatchBreakdown({ match, onClose }: Props) {
               </h3>
               <p className="muted">
                 NET {fmtDelta(net)} · N {nokRows.length} / GN {gotRows.length} / K{" "}
-                {killRows.length} / D {deathRows.length} / R {reviveRows.length}
+                {killRows.length} / Т {vehicleRows.length} / D {deathRows.length} / R{" "}
+                {reviveRows.length}
               </p>
             </div>
           </div>
@@ -236,6 +245,7 @@ export function RpHuntMatchBreakdown({ match, onClose }: Props) {
         <div className="keech-hunt-cols detail rp-breakdown-cols-scroll">
           <Col title={`ноки (${nokRows.length})`} rows={nokRows} />
           <Col title={`+ киллы (${killRows.length})`} rows={killRows} />
+          <Col title={`техника (${vehicleRows.length})`} rows={vehicleRows} />
           <Col title={`− смерти (${deathRows.length})`} rows={deathRows} />
           <Col title={`+ ресы (${reviveRows.length})`} rows={reviveRows} />
           <Col title={`Меня нокнул (${gotRows.length})`} rows={gotRows} />

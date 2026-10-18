@@ -497,7 +497,7 @@ export async function playerRpMatchBreakdown(
       continue;
     }
     if (kind === "driver_share") {
-      // reason=nok → столбик ноков; die/vehicle_kill → киллы
+      // reason=nok → столбик ноков. die/vehicle_kill — не кил, столбик техники.
       if (nickKey(e.killer) === want) {
         if (e.reason === "nok") noks.push(e);
         else kills.push(e);

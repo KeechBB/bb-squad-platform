@@ -670,20 +670,19 @@ def _match_hist_row(mb: dict, k: str, aliases: dict[str, str]) -> dict:
     won = None
     if team and mb.get("winnerTeam"):
         won = team == str(mb["winnerTeam"])
-    # driver_share: reason=nok → столбик ноков; die/vehicle_kill → киллы
+    # Килы = только гивап игрока (kind die). Техника и доля мехвода — не килы.
     kills = [
         e
         for e in mb["events"]
-        if (
-            e.get("kind") in ("die", "vehicle_kill")
-            or (
-                e.get("kind") == "driver_share"
-                and e.get("reason") != "nok"
-            )
-        )
+        if e.get("kind") == "die"
         and R.canon_key(e.get("killer") or "", aliases) == k
     ]
-    vehicle_kills = sum(1 for e in kills if e.get("kind") == "vehicle_kill")
+    vehicle_kills = sum(
+        1
+        for e in mb["events"]
+        if e.get("kind") == "vehicle_kill"
+        and R.canon_key(e.get("killer") or "", aliases) == k
+    )
     return {
         "id": mb["id"],
         "map": mb["map"],
@@ -692,6 +691,7 @@ def _match_hist_row(mb: dict, k: str, aliases: dict[str, str]) -> dict:
         "won": won,
         "dmg": round((mb.get("dmgByKey") or {}).get(k, 0.0)),
         "vehicleKills": vehicle_kills,
+        "giveupKills": True,
         "kills": kills,
         "deaths": [
             e
@@ -1095,14 +1095,26 @@ def main() -> None:
     for k, p in players_out.items():
         slim_ms = []
         for m in p.get("matches") or []:
+            ev = m.get("kills") or []
+            # Старые строки мешали die + vehicle_kill + driver_share в одном списке.
+            if m.get("giveupKills"):
+                kill_n = len(ev)
+                veh_n = int(m.get("vehicleKills") or 0)
+            elif ev and isinstance(ev[0], dict):
+                kill_n = sum(1 for e in ev if e.get("kind") == "die")
+                veh_n = sum(1 for e in ev if e.get("kind") == "vehicle_kill")
+            else:
+                veh_n = int(m.get("vehicleKills") or 0)
+                kill_n = max(0, len(ev) - veh_n)
             slim_ms.append(
                 {
                     "id": m.get("id"),
-                    "kills": len(m.get("kills") or []),
+                    "kills": kill_n,
+                    "giveupKills": True,
                     "deaths": len(m.get("deaths") or []),
                     "noks": len(m.get("noks") or []),
                     "revives": len(m.get("revives") or []),
-                    "vehicleKills": int(m.get("vehicleKills") or 0),
+                    "vehicleKills": veh_n,
                     "dmg": int(round(float(m.get("dmg") or 0))),
                     "net": round(float(m.get("net") or 0), 1),
                     "won": m.get("won"),

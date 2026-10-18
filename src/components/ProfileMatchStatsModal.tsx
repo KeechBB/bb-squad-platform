@@ -56,6 +56,8 @@ type PlayerRow = {
   res: number;
   nok: number;
   kills: number;
+  /** Уничтоженная техника. Не входит в kills. */
+  vehicleKills: number;
   deaths: number;
   dmg: number;
   kd: number;
@@ -97,7 +99,16 @@ type LoadedPlayers = {
   oppTag?: string;
 };
 
-type SortKey = "nick" | "res" | "nok" | "kills" | "deaths" | "kd" | "dmg" | "pwrDelta";
+type SortKey =
+  | "nick"
+  | "res"
+  | "nok"
+  | "kills"
+  | "vehicleKills"
+  | "deaths"
+  | "kd"
+  | "dmg"
+  | "pwrDelta";
 type TabKey =
   | "total"
   | "bbTotal"
@@ -141,12 +152,14 @@ function enrich(rows: unknown[]): PlayerRow[] {
   return (rows || []).map((raw) => {
     const p = (raw || {}) as Record<string, unknown>;
     const kills = Number(p.kills) || 0;
+    const vehicleKills = Number(p.vehicleKills) || 0;
     const deaths = Number(p.deaths) || 0;
     return {
       nick: String(p.nick || "—"),
       res: Number(p.res) || 0,
       nok: Number(p.nok) || 0,
       kills,
+      vehicleKills,
       deaths,
       dmg: Number(p.dmg) || 0,
       kd: deaths === 0 ? kills : Math.round((kills / deaths) * 100) / 100,
@@ -164,6 +177,7 @@ function sumRounds(r1: PlayerRow[], r2: PlayerRow[]): PlayerRow[] {
       res: 0,
       nok: 0,
       kills: 0,
+      vehicleKills: 0,
       deaths: 0,
       dmg: 0,
       kd: 0,
@@ -171,6 +185,7 @@ function sumRounds(r1: PlayerRow[], r2: PlayerRow[]): PlayerRow[] {
     cur.res += row.res;
     cur.nok += row.nok;
     cur.kills += row.kills;
+    cur.vehicleKills += row.vehicleKills;
     cur.deaths += row.deaths;
     cur.dmg += row.dmg;
     cur.kd =
@@ -518,12 +533,14 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
     open?.kind === "train" ||
     open?.kind === "public" ||
     !!data?.training;
+  const showVehicles = open?.kind === "public";
 
   const records = useMemo(() => {
     return {
       res: maxOf(sorted, "res"),
       nok: maxOf(sorted, "nok"),
       kills: maxOf(sorted, "kills"),
+      vehicleKills: maxOf(sorted, "vehicleKills"),
       deaths: maxOf(sorted, "deaths"),
       dmg: maxOf(sorted, "dmg"),
       kd: sorted.reduce((m, p) => Math.max(m, p.kd), 0),
@@ -537,10 +554,11 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
           res: a.res + p.res,
           nok: a.nok + p.nok,
           kills: a.kills + p.kills,
+          vehicleKills: a.vehicleKills + p.vehicleKills,
           deaths: a.deaths + p.deaths,
           dmg: a.dmg + p.dmg,
         }),
-        { res: 0, nok: 0, kills: 0, deaths: 0, dmg: 0 }
+        { res: 0, nok: 0, kills: 0, vehicleKills: 0, deaths: 0, dmg: 0 }
       ),
     [sorted]
   );
@@ -857,6 +875,9 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
                             ["res", "Ресы"],
                             ["nok", "Ноки"],
                             ["kills", "Килы"],
+                            ...(showVehicles
+                              ? ([["vehicleKills", "Тех"]] as [SortKey, string][])
+                              : []),
                             ["deaths", "Смерти"],
                             ["kd", "KD"],
                             ["dmg", "Боевой счёт"],
@@ -966,6 +987,14 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
                           >
                             {p.kills}
                           </td>
+                          {showVehicles ? (
+                            <td
+                              className={`ctr${records.vehicleKills > 0 && p.vehicleKills === records.vehicleKills ? " record" : ""}`}
+                              title="Уничтоженная техника"
+                            >
+                              {p.vehicleKills}
+                            </td>
+                          ) : null}
                           <td
                             className={`ctr${records.deaths > 0 && p.deaths === records.deaths ? " record anti" : ""}`}
                           >
@@ -997,6 +1026,9 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
                       <td className="ctr">{foot.res}</td>
                       <td className="ctr">{foot.nok}</td>
                       <td className="ctr">{foot.kills}</td>
+                      {showVehicles ? (
+                        <td className="ctr">{foot.vehicleKills}</td>
+                      ) : null}
                       <td className="ctr">{foot.deaths}</td>
                       <td className="ctr">
                         {foot.deaths
