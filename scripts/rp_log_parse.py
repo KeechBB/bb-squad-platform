@@ -48,7 +48,8 @@ MATCH_RESULT_RE = re.compile(
     r"LogSquadGameEvents:\s*Display:\s*Team\s+(?P<team>[12]),\s+"
     r"(?P<faction>.+?)\s+\(\s*(?P<side>.+?)\s*\)\s+has\s+"
     r"(?P<outcome>won|lost)\s+the\s+match\s+with\s+(?P<tickets>\d+)\s+Tickets\s+"
-    r"on\s+layer\s+(?P<layer>.+?)\s+\(level\s+(?P<level>.+?)\)!",
+    # SEC PAAS often ends with empty level: "(level )!"
+    r"on\s+layer\s+(?P<layer>.+?)\s+\(level\s*(?P<level>.*?)\)!",
     re.I,
 )
 CREATE_SQUAD_RE = re.compile(
@@ -1982,7 +1983,8 @@ _FACTION_ROLE_PREFIXES: dict[str, tuple[str, ...]] = {
     "united states army": ("USA", "US"),
     "canadian armed forces": ("CAF",),
     "western private military contractors": ("WPMC",),
-    "british army": ("BA", "GB"),
+    "british army": ("BA", "GB", "BAF"),
+    "british armed forces": ("BAF", "BA", "GB"),
     "australian defence force": ("ADF",),
     "middle eastern alliance": ("MEA",),
     "insurgent forces": ("INS",),

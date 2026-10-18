@@ -665,6 +665,15 @@ def process_slot(
     if on_time:
         candidates = on_time
 
+    # Prefer layers with parsed tickets (skip empty InProgress→PostMatch without Display winner).
+    scored = [
+        c
+        for c in candidates
+        if c.get("score1") is not None and c.get("score2") is not None
+    ]
+    if scored:
+        candidates = scored
+
     # take up to 2 closed rounds
     rounds = candidates[:2]
     bb_rounds: list[list[dict]] = []
