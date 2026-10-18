@@ -103,6 +103,54 @@ class VehicleRpEngine:
         h.setdefault("seat_roles", {})
         return h
 
+    def _absorb_component_crews(self, body_vid: str) -> str:
+        """Gunner often enters the turret pawn before the hull actor exists.
+
+        Damage and the killing blow are logged on the hull (BP_LAV6_Woodland_C_N),
+        while seat 1 lives on BP_LAV6_Turret_… a few ids away. Fold that crew
+        onto the hull so vehicle_loss still hits F2/driver.
+        """
+        if not body_vid or R._is_component_pawn(body_vid):
+            return body_vid
+        body_n = R._veh_id_num(body_vid)
+        if body_n is None:
+            return body_vid
+        body_asset = re.sub(r"_\d+$", "", body_vid)
+        body = self._ensure_hull(body_vid, body_asset)
+        for hid, h in list(self.hulls.items()):
+            if hid == body_vid or h.get("dead"):
+                continue
+            if not R._is_component_pawn(hid):
+                continue
+            hn = R._veh_id_num(hid)
+            if hn is None or abs(hn - body_n) >= R._HULL_LINK_DIST:
+                continue
+            ha = str(h.get("asset") or "")
+            if ha and not R._asset_same_vehicle(ha, body_asset):
+                continue
+            seats = h.get("seats") or {}
+            roles = h.get("seat_roles") or {}
+            for seat, key in list(seats.items()):
+                if not key:
+                    continue
+                seat_i = int(seat)
+                body.setdefault("seats", {})[seat_i] = key
+                if seat in roles or seat_i in roles:
+                    body.setdefault("seat_roles", {})[seat_i] = roles.get(
+                        seat, roles.get(seat_i)
+                    )
+                self.player_hull[key] = body_vid
+                self.player_seat[key] = seat_i
+            for seat, key in (h.get("last_crew") or {}).items():
+                if key:
+                    body.setdefault("last_crew", {}).setdefault(int(seat), key)
+            self.pawn_to_hull[hid] = body_vid
+            h["seats"] = {}
+            h["seat_roles"] = {}
+            h["dead"] = True
+        self.pawn_to_hull[body_vid] = body_vid
+        return body_vid
+
     def _resolve_hull_id(self, asset: str, instance: str, seat: int) -> str:
         if not instance:
             return ""
@@ -385,6 +433,8 @@ class VehicleRpEngine:
 
         if kind == "v_burn":
             vid = d.get("vid") or ""
+            if vid and not R._is_component_pawn(vid):
+                self._absorb_component_crews(vid)
             hid = self.pawn_to_hull.get(vid) or vid
             if hid not in self.hulls:
                 self._ensure_hull(hid, re.sub(r"_\d+$", "", vid))
@@ -400,6 +450,8 @@ class VehicleRpEngine:
 
         if kind == "v_dmg":
             vid = d.get("vid") or ""
+            if vid and not R._is_component_pawn(vid):
+                self._absorb_component_crews(vid)
             hid = self.pawn_to_hull.get(vid) or vid
             if hid not in self.hulls:
                 self._ensure_hull(hid, re.sub(r"_\d+$", "", vid))
