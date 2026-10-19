@@ -7,6 +7,7 @@ import { SiteOnlineBadge } from "@/components/SiteOnlineBadge";
 import { getSession } from "@/lib/auth";
 import { isAnyClanMember } from "@/lib/clanAccess";
 import { getCurrentBetaLabel } from "@/lib/siteReleases";
+import { YandexMetrika } from "@/components/YandexMetrika";
 import "@fontsource/oxanium/400.css";
 import "@fontsource/oxanium/600.css";
 import "@fontsource/oxanium/700.css";
@@ -15,6 +16,10 @@ import "@fontsource/manrope/500.css";
 import "@fontsource/manrope/600.css";
 import "@fontsource/manrope/700.css";
 import "./globals.css";
+
+const yandexVerification = (
+  process.env.NEXT_PUBLIC_YANDEX_WEBMASTER_VERIFICATION || ""
+).trim();
 
 export const metadata: Metadata = {
   title: "BlackBerry Squad",
@@ -27,6 +32,9 @@ export const metadata: Metadata = {
     ],
     apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
   },
+  ...(yandexVerification
+    ? { verification: { yandex: yandexVerification } }
+    : {}),
 };
 
 /** ПК-канва: на телефоне та же вёрстка, свайп по горизонтали (без mobile-адаптации). */
@@ -73,6 +81,7 @@ export default async function RootLayout({
             </div>
           </header>
           <div className="shell">{children}</div>
+          <YandexMetrika />
         </Providers>
       </body>
     </html>
