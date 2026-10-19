@@ -248,21 +248,56 @@
   max-width: none !important;
   width: 100% !important;
   flex: none !important;
-  padding: 8px 10px !important;
+  padding: 6px 8px !important;
   margin: 0 !important;
-  background: rgba(16, 12, 28, 0.55);
-  border: 1px solid var(--line);
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .profile-page-v2 .training-absence-slot .absence-panel-btns {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: row;
+  flex-wrap: nowrap;
   gap: 8px;
+  width: 100%;
 }
 
 .profile-page-v2 .training-absence-slot .absence-panel-btns .btn {
-  flex: 1 1 auto;
-  min-width: 120px;
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* Цвета как в календаре: выходной — бирюза, резерв — синий */
+.profile-page-v2 .training-absence-slot .absence-btn-dayoff {
+  color: #99f6e4;
+  background: rgba(20, 184, 166, 0.35);
+  border: 1px solid rgba(45, 212, 191, 0.85);
+  box-shadow: inset 0 0 0 1px rgba(94, 234, 212, 0.25);
+}
+
+.profile-page-v2 .training-absence-slot .absence-btn-dayoff:hover {
+  background: rgba(20, 184, 166, 0.5);
+  color: #ccfbf1;
+}
+
+.profile-page-v2 .training-absence-slot .absence-btn-reserve {
+  color: #bfdbfe;
+  background: rgba(59, 130, 246, 0.35);
+  border: 1px solid rgba(96, 165, 250, 0.85);
+  box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.25);
+}
+
+.profile-page-v2 .training-absence-slot .absence-btn-reserve:hover {
+  background: rgba(59, 130, 246, 0.5);
+  color: #dbeafe;
+}
+
+.profile-page-v2 .training-absence-slot .reserve-panel-hint {
+  display: none;
 }
 
 /* Стата плотнее заполняет окно */

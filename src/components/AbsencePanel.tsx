@@ -189,25 +189,24 @@ export function AbsencePanel({
           </form>
         </div>
       ) : (
-        <>
-          <p className="muted reserve-panel-hint">Выходной 1–3 · резерв от 4</p>
-          <div className="absence-panel-btns">
-            <button
-              type="button"
-              className="btn primary"
-              onClick={() => setMode("dayoff")}
-            >
-              Выходной
-            </button>
-            <button
-              type="button"
-              className="btn ghost"
-              onClick={() => setMode("reserve")}
-            >
-              Резерв
-            </button>
-          </div>
-        </>
+        <div className="absence-panel-btns">
+          <button
+            type="button"
+            className="btn absence-btn-dayoff"
+            onClick={() => setMode("dayoff")}
+            title="Выходной 1–3 дня"
+          >
+            Выходной
+          </button>
+          <button
+            type="button"
+            className="btn absence-btn-reserve"
+            onClick={() => setMode("reserve")}
+            title="Резерв от 4 дней"
+          >
+            Резерв
+          </button>
+        </div>
       )}
       {error && active ? <p className="error">{error}</p> : null}
     </section>

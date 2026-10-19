@@ -89,6 +89,8 @@ type Props = AttendanceLaneProps & {
   absenceSlot?: ReactNode;
   /** Синхрон с режимом профиля (паб/трени) */
   preferredServer?: "TR1" | "TR2" | "PB1";
+  /** Скрыть TR1/TR2/PB1 — режим уже выбран снаружи */
+  hideServerToggle?: boolean;
 };
 
 type TrainServer = "TR1" | "TR2" | "PB1";
@@ -387,6 +389,7 @@ export function TrainingSessionsCard({
   publicLane,
   absenceSlot,
   preferredServer,
+  hideServerToggle = false,
 }: Props) {
   const [server, setServer] = useState<TrainServer>(
     preferredServer || "TR1"
@@ -399,7 +402,7 @@ export function TrainingSessionsCard({
   }, [preferredServer, publicLane, tr2Lane]);
   const hasTr2 = Boolean(tr2Lane);
   const hasPublic = Boolean(publicLane);
-  const showToggle = hasTr2 || hasPublic;
+  const showToggle = !hideServerToggle && (hasTr2 || hasPublic);
   const tr1Lane: AttendanceLaneProps = {
     sessions,
     minutes30d,

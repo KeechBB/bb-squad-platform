@@ -291,6 +291,7 @@ export function ProfileClientHydrate({
         includeMatchHistory={false}
         absenceSlot={absenceSlot}
         preferredServer={preferredServer}
+        hideServerToggle
         tr2Lane={{
           sessions: training.tr2.sessions as never,
           presentDays: training.tr2.presentDays,
