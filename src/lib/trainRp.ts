@@ -268,6 +268,20 @@ export async function loadRpLedger(): Promise<RpLedger | null> {
   return ok;
 }
 
+/** Cron/worker warm: slim train ladder (+ optional ledger) into RAM. */
+export async function warmTrainRpCaches(): Promise<{
+  ladder: boolean;
+  ledger: boolean;
+  players: number;
+}> {
+  const [ladder, ledger] = await Promise.all([loadRpLadder(), loadRpLedger()]);
+  return {
+    ladder: Boolean(ladder?.leaderboard?.length || ladder?.players),
+    ledger: Boolean(ledger?.players),
+    players: ladder?.leaderboard?.length || Object.keys(ladder?.players || {}).length,
+  };
+}
+
 /** Slim ladder (~0.2MB) — home / TM / profile header / match ΔRP. */
 export async function loadRpLadder(): Promise<RpLadder | null> {
   const now = Date.now();

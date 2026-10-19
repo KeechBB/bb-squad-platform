@@ -59,7 +59,18 @@ export function AdminJournalPanel() {
         const res = await fetch(`/api/admin/journal?${params}`, {
           cache: "no-store",
         });
-        const json = await res.json();
+        const raw = await res.text();
+        let json: { error?: string; entries?: JournalEntry[]; hasMore?: boolean } =
+          {};
+        try {
+          json = raw ? (JSON.parse(raw) as typeof json) : {};
+        } catch {
+          throw new Error(
+            res.status >= 500
+              ? `Сервер временно недоступен (HTTP ${res.status})`
+              : `Ответ журнала не JSON (HTTP ${res.status})`
+          );
+        }
         if (!res.ok) throw new Error(json.error || "Ошибка загрузки");
         const next = (json.entries || []) as JournalEntry[];
         setHasMore(Boolean(json.hasMore));

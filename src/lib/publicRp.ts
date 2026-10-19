@@ -72,6 +72,18 @@ export async function loadPublicRpLadder(): Promise<RpLedger | null> {
   return data;
 }
 
+/** Cron/worker warm: touch slim ladder into process RAM (never full ledger). */
+export async function warmPublicRpCaches(): Promise<{
+  ladder: boolean;
+  players: number;
+}> {
+  const data = await loadPublicRpLadder();
+  return {
+    ladder: Boolean(data?.leaderboard?.length),
+    players: data?.leaderboard?.length || 0,
+  };
+}
+
 /**
  * Full ledger — drilldown only. No process-wide cache (file can be 80MB+ on disk;
  * JSON.parse residencies are several× that).
