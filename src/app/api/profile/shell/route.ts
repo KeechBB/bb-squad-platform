@@ -6,6 +6,7 @@ import { formatRuDate, isActiveReserve } from "@/lib/validation";
 import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
 import { CLAN_ROLE_LABEL, type ClanRole } from "@/lib/clan";
 import { normalizeProfileBg } from "@/lib/profileBg";
+import { buildPlayerMedalShelf } from "@/lib/profileMedals";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,6 +59,10 @@ export async function GET() {
     );
   });
 
+  const medals = me.nick
+    ? await buildPlayerMedalShelf(me.nick).catch(() => [])
+    : [];
+
   return NextResponse.json(
     {
       id: me.id,
@@ -66,6 +71,7 @@ export async function GET() {
       avatarUrl: session.user.avatarUrl || me.avatarUrl,
       steamAvatar: session.user.steamAvatar || me.steamAvatar,
       profileBg: normalizeProfileBg(me.profileBg),
+      medals,
       lastSeenAt: me.lastSeenAt,
       admin,
       isBb,

@@ -16,12 +16,14 @@ import {
   type ProfileMode,
 } from "@/components/ProfileModeSwitch";
 import { ProfileBgPicker } from "@/components/ProfileBgPicker";
+import { ProfileMedalShelf } from "@/components/ProfileMedalShelf";
 import { prefetchProfileView } from "@/lib/profileViewCache";
 import {
   normalizeProfileBg,
   profileBgUrl,
   type ProfileBgId,
 } from "@/lib/profileBg";
+import type { ProfileMedalItem } from "@/lib/profileMedals";
 
 type Shell = {
   id: string;
@@ -30,6 +32,7 @@ type Shell = {
   avatarUrl: string | null;
   steamAvatar: string | null;
   profileBg?: ProfileBgId | null;
+  medals?: ProfileMedalItem[];
   lastSeenAt: string | Date | null;
   admin: boolean;
   isBb: boolean;
@@ -63,7 +66,7 @@ type Shell = {
   }[];
 };
 
-const SHELL_CACHE_KEY = "bb_profile_shell_v1";
+const SHELL_CACHE_KEY = "bb_profile_shell_v2";
 const MODE_KEY = "bb_profile_mode_v1";
 
 function readShellCache(): Shell | null {
@@ -242,6 +245,7 @@ export function ProfilePageClient() {
         />
         <ProfileModeSwitch value={mode} onChange={changeMode} />
         <ClanInvites initial={shell.invites} />
+        <ProfileMedalShelf items={shell.medals || []} />
       </div>
 
       <div className="profile-v2-career">
