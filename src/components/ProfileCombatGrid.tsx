@@ -36,6 +36,11 @@ export type CombatGridInput = {
   mvpArmor?: number | null;
   /** нет на трени/КВ → 0 */
   vehicleKills?: number | null;
+  /**
+   * TU из рейтинга КВ: (киллы + ресы − смерти) / катки.
+   * Если задано — клетка «Урон» становится «Ср. тикеты».
+   */
+  avgTickets?: number | null;
 };
 
 type CellTone =
@@ -102,11 +107,18 @@ function cellsFrom(s: CombatGridInput): Cell[] {
       label: "Ср. киллы / катка",
       value: s.avgKills,
     },
-    {
-      tone: "neutral",
-      label: "Урон",
-      value: s.dmg.toLocaleString("ru-RU"),
-    },
+    s.avgTickets != null
+      ? {
+          tone: "neutral" as const,
+          label: "Ср. тикеты / катка",
+          value: s.avgTickets,
+          sub: "TU · килл+рес−смерть",
+        }
+      : {
+          tone: "neutral" as const,
+          label: "Урон",
+          value: s.dmg.toLocaleString("ru-RU"),
+        },
     {
       tone: "neutral",
       label: "Ср. урон / катка",

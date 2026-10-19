@@ -255,6 +255,14 @@ export function ProfileKvStats({
           mvpMedic: stats.mvpMedic,
           mvpArmor: 0,
           vehicleKills: 0,
+          // TU рейтинга КВ: (K + RES − D) / катки
+          avgTickets:
+            stats.matches > 0
+              ? Math.round(
+                  (100 * (stats.kills + stats.res - stats.deaths)) /
+                    stats.matches
+                ) / 100
+              : 0,
         }}
         mvpHits={mvpHitsFromKvAwards(stats.awards || [])}
         mvpFetch={{ nick: stats.nick, mode: "cw" }}
