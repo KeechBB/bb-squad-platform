@@ -155,7 +155,10 @@ else
 fi
 
 echo "==> prisma db push (schema)"
-npx prisma db push
+# skip-generate: client already from postinstall/npm ci; reinstall mid-push
+# races with empty node_modules and exit 254.
+npx prisma db push --skip-generate
+npx prisma generate
 
 echo "==> npm run build"
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2048}"
