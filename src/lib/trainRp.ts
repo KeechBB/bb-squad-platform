@@ -75,6 +75,12 @@ export type RpPlayerMatch = {
   noks?: RpMatchEvent[];
   /** Knockdowns received (Wound as victim). */
   gotNoks?: RpMatchEvent[];
+  /**
+   * Vehicle RP rows for the drilldown «техника» column:
+   * vehicle_kill (+) and vehicle_loss / vehicle_loss_driver (−).
+   * Not kills and not infantry deaths.
+   */
+  vehicles?: RpMatchEvent[];
   /** Public: combat damage from KillingDamage on enemy Die/nok (TK excluded). */
   dmg?: number;
   /** Match net RP (slim public ladder). */

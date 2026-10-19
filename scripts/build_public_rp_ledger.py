@@ -677,12 +677,18 @@ def _match_hist_row(mb: dict, k: str, aliases: dict[str, str]) -> dict:
         if e.get("kind") == "die"
         and R.canon_key(e.get("killer") or "", aliases) == k
     ]
-    vehicle_kills = sum(
-        1
+    vehicles = [
+        e
         for e in mb["events"]
         if e.get("kind") == "vehicle_kill"
         and R.canon_key(e.get("killer") or "", aliases) == k
-    )
+    ]
+    vehicle_losses = [
+        e
+        for e in mb["events"]
+        if e.get("kind") in ("vehicle_loss", "vehicle_loss_driver")
+        and R.canon_key(e.get("victim") or "", aliases) == k
+    ]
     return {
         "id": mb["id"],
         "map": mb["map"],
@@ -690,22 +696,15 @@ def _match_hist_row(mb: dict, k: str, aliases: dict[str, str]) -> dict:
         "net": mb["netByKey"].get(k, 0.0),
         "won": won,
         "dmg": round((mb.get("dmgByKey") or {}).get(k, 0.0)),
-        "vehicleKills": vehicle_kills,
+        "vehicleKills": len(vehicles),
         "giveupKills": True,
         "kills": kills,
+        "vehicles": vehicles + vehicle_losses,
         "deaths": [
             e
             for e in mb["events"]
-            if (
-                (
-                    e.get("kind") in ("die", "tk")
-                    and R.canon_key(e.get("victim") or "", aliases) == k
-                )
-                or (
-                    e.get("kind") in ("vehicle_loss", "vehicle_loss_driver")
-                    and R.canon_key(e.get("victim") or "", aliases) == k
-                )
-            )
+            if e.get("kind") in ("die", "tk")
+            and R.canon_key(e.get("victim") or "", aliases) == k
         ],
         "noks": [
             e

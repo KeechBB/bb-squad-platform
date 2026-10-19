@@ -150,23 +150,54 @@ type Props = {
 
 /** Hunt-style 5-column match breakdown (ledger / post-match only). */
 export function RpHuntMatchBreakdown({ match, onClose }: Props) {
-  // Старые ledger: driver_share(reason=nok) ошибочно в kills — разводим в столбики.
+  // Килы = гивапы. Техника = vehicle_kill / loss. Доля мехвода в столбики не идёт.
   const rawKills = match.kills || [];
   const shareNoks = rawKills.filter(isDriverShareNok);
-  const vehicleEvents = rawKills.filter(
+  const legacyVehicleFromKills = rawKills.filter(
     (e) =>
       e.kind === "vehicle_kill" ||
       (e.kind === "driver_share" && e.reason !== "nok")
   );
   const kills = rawKills.filter(
-    (e) => !isDriverShareNok(e) && !vehicleEvents.includes(e)
+    (e) =>
+      !isDriverShareNok(e) &&
+      e.kind !== "vehicle_kill" &&
+      e.kind !== "driver_share"
   );
   const noks = [...(match.noks || []), ...shareNoks];
   const gotNoks = match.gotNoks || [];
-  const deaths = match.deaths || [];
+  const rawDeaths = match.deaths || [];
+  const lossFromDeaths = rawDeaths.filter(
+    (e) =>
+      e.kind === "vehicle_loss" || e.kind === "vehicle_loss_driver"
+  );
+  const deaths = rawDeaths.filter(
+    (e) =>
+      e.kind !== "vehicle_loss" && e.kind !== "vehicle_loss_driver"
+  );
   const teamkills = match.teamkills || [];
   const revives = match.revives || [];
   const dateShort = match.date?.slice(5)?.replace("-", ".") || match.date;
+
+  const vehicleEvents = [
+    ...(match.vehicles || []),
+    ...legacyVehicleFromKills.filter(
+      (e) => !(match.vehicles || []).some(
+        (v) =>
+          v.time === e.time &&
+          v.kind === e.kind &&
+          v.victim === e.victim
+      )
+    ),
+    ...lossFromDeaths.filter(
+      (e) => !(match.vehicles || []).some(
+        (v) =>
+          v.time === e.time &&
+          v.kind === e.kind &&
+          v.victim === e.victim
+      )
+    ),
+  ];
 
   const nokRows = toNokRows(noks);
   const killRows = [
@@ -175,7 +206,16 @@ export function RpHuntMatchBreakdown({ match, onClose }: Props) {
       teamkills.map((e) => ({ ...e, kind: "tk" as const, teamkill: true }))
     ),
   ];
-  const vehicleRows = toKillRows(vehicleEvents);
+  const vehicleGainRows = toKillRows(
+    vehicleEvents.filter((e) => e.kind === "vehicle_kill")
+  );
+  const vehicleLossRows = toDeathRows(
+    vehicleEvents.filter(
+      (e) =>
+        e.kind === "vehicle_loss" || e.kind === "vehicle_loss_driver"
+    )
+  );
+  const vehicleRows = [...vehicleGainRows, ...vehicleLossRows];
   const deathRows = toDeathRows(deaths);
   const reviveRows = toReviveRows(revives);
   const gotRows = toGotNokRows(gotNoks);
@@ -228,7 +268,7 @@ export function RpHuntMatchBreakdown({ match, onClose }: Props) {
               </h3>
               <p className="muted">
                 NET {fmtDelta(net)} · N {nokRows.length} / GN {gotRows.length} / K{" "}
-                {killRows.length} / Т {vehicleRows.length} / D {deathRows.length} / R{" "}
+                {killRows.length} / Т {vehicleGainRows.length} / D {deathRows.length} / R{" "}
                 {reviveRows.length}
               </p>
             </div>
@@ -245,7 +285,12 @@ export function RpHuntMatchBreakdown({ match, onClose }: Props) {
         <div className="keech-hunt-cols detail rp-breakdown-cols-scroll">
           <Col title={`ноки (${nokRows.length})`} rows={nokRows} />
           <Col title={`+ киллы (${killRows.length})`} rows={killRows} />
-          <Col title={`техника (${vehicleRows.length})`} rows={vehicleRows} />
+          <Col
+            title={`техника (${vehicleGainRows.length}${
+              vehicleLossRows.length ? `/−${vehicleLossRows.length}` : ""
+            })`}
+            rows={vehicleRows}
+          />
           <Col title={`− смерти (${deathRows.length})`} rows={deathRows} />
           <Col title={`+ ресы (${reviveRows.length})`} rows={reviveRows} />
           <Col title={`Меня нокнул (${gotRows.length})`} rows={gotRows} />
