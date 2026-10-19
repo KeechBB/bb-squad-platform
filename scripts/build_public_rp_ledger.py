@@ -574,6 +574,32 @@ def process_match(
     )
     winner = m.get("winnerTeam")
 
+    # Integrity source of truth: signed sum of events by display nick.
+    # score_match_rp net can drift; never publish that drift. Adjust live rp too.
+    scored_net = {k: float(v) for k, v in net.items()}
+    try:
+        import rp_integrity as RI  # noqa: WPS433
+
+        net_by_nick = {
+            str(n): round(float(v), 2)
+            for n, v in RI._recompute_nets(events).items()
+            if n
+        }
+    except Exception:
+        net_by_nick = {
+            disp.get(k, k): round(float(v), 2) for k, v in net.items()
+        }
+    net = {}
+    for nick, val in net_by_nick.items():
+        ck = R.canon_key(nick, aliases)
+        net[ck] = round(float(net.get(ck, 0.0)) + float(val), 2)
+        if ck not in disp:
+            disp[ck] = nick
+    for ck in set(scored_net) | set(net):
+        adj = float(net.get(ck, 0.0)) - float(scored_net.get(ck, 0.0))
+        if abs(adj) > 0.001:
+            rp[ck] = float(rp.get(ck, R.START_RP)) + adj
+
     # netByKey is the source of truth (vehicle-only players may never appear in
     # infantry combatants). Keep combatants ⊇ net keys so hist rows are written.
     for nk in list(net.keys()):
@@ -606,9 +632,9 @@ def process_match(
         "score1": m.get("score1"),
         "score2": m.get("score2"),
         "events": events,
-        "netByNick": {
-            disp.get(k, k): v for k, v in sorted(net.items(), key=lambda x: -abs(x[1]))
-        },
+        "netByNick": dict(
+            sorted(net_by_nick.items(), key=lambda x: -abs(float(x[1])))
+        ),
         "netByKey": net,
         "dmgByKey": dmg_by,
         "teamsByKey": teams,
