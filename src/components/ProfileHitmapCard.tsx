@@ -450,13 +450,13 @@ export function ProfileHitmapCard({
         </div>
       </div>
 
-      <div className="profile-hitmap-total" aria-label="Всего попаданий">
-        <span className="profile-hitmap-total-label">Всего попаданий</span>
-        <strong className="profile-hitmap-total-n">{total}</strong>
-      </div>
-
       <div className="profile-hitmap-split">
-        <div className="profile-hitmap-body-wrap">
+        <div className="profile-hitmap-body-col">
+          <div className="profile-hitmap-total" aria-label="Всего попаданий">
+            <span className="profile-hitmap-total-label">Всего попаданий</span>
+            <strong className="profile-hitmap-total-n">{total}</strong>
+          </div>
+          <div className="profile-hitmap-body-wrap">
           <svg
             className="profile-hitmap-svg"
             role="img"
@@ -621,6 +621,7 @@ export function ProfileHitmapCard({
               </g>
             ) : null}
           </svg>
+          </div>
         </div>
         {strip.length > 0 ? (
           <aside
