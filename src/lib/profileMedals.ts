@@ -3,6 +3,7 @@ import {
   loadBattlePassState,
   progressForNick,
 } from "@/lib/battlePassData";
+import { prisma } from "@/lib/prisma";
 
 export type ProfileMedalItem = {
   id: string;
@@ -12,7 +13,18 @@ export type ProfileMedalItem = {
   level: number;
   hover: string;
   icon: string;
-  source: "bp";
+  source: "bp" | "site";
+};
+
+const REGISTRATION_MEDAL: ProfileMedalItem = {
+  id: "site-registration",
+  name: "Регистрация",
+  short: "Знак",
+  kind: "medal",
+  level: 0,
+  hover: "Прошёл регистрацию на сайте",
+  icon: "/awards/registration.png",
+  source: "site",
 };
 
 const BP_ICONS: Record<string, string> = {
@@ -37,7 +49,7 @@ export async function buildPlayerMedalShelf(
   const unlocked = (r: BpReward) =>
     Boolean(prog.completedAt) || prog.currentLevel >= r.level;
 
-  return BP_REWARDS.filter(unlocked).map((r) => ({
+  const bp = BP_REWARDS.filter(unlocked).map((r) => ({
     id: r.id,
     name: r.name,
     short: r.short,
@@ -47,4 +59,14 @@ export async function buildPlayerMedalShelf(
     icon: iconFor(r),
     source: "bp" as const,
   }));
+
+  const registered = await prisma.user.findFirst({
+    where: {
+      nick: { equals: clean, mode: "insensitive" },
+      profileComplete: true,
+    },
+    select: { id: true },
+  });
+
+  return registered ? [REGISTRATION_MEDAL, ...bp] : bp;
 }
