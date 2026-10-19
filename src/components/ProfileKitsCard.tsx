@@ -295,10 +295,30 @@ export function ProfileKitsCard({
   }, [viewY, viewM]);
 
   const slices = useMemo(
-    () => donutPaths(kits, 60, 60, 52, 30),
+    () => donutPaths(kits, 60, 60, 54, 28),
     [kits]
   );
   const top = kits[0] || null;
+  const [hoverKit, setHoverKit] = useState<string | null>(null);
+  const active =
+    (hoverKit && slices.find((s) => s.kit === hoverKit)) ||
+    (top
+      ? {
+          kit: top.kit,
+          pct: top.pct,
+          color: KIT_SLICE_COLORS[0],
+        }
+      : null);
+  const activePct =
+    active &&
+    (Number.isInteger(active.pct)
+      ? `${active.pct}%`
+      : `${active.pct.toFixed(1)}%`);
+  const activeLabel = active
+    ? active.kit.length > 18
+      ? `${active.kit.slice(0, 17)}…`
+      : active.kit
+    : "";
 
   const periodLabel =
     mode === "day" && day
@@ -471,12 +491,15 @@ export function ProfileKitsCard({
               : "Пока нет стандартных китов на TR1/TR2 за этот период."}
         </p>
       ) : (
-        <div className="profile-kits-body">
+        <div
+          className="profile-kits-body profile-kits-body-solo"
+          onMouseLeave={() => setHoverKit(null)}
+        >
           <svg
             className="profile-kits-donut"
             viewBox="0 0 120 120"
             role="img"
-            aria-label={`Роли: ${top ? `${top.kit} ${top.pct}%` : ""}`}
+            aria-label={`Роли: ${active ? `${active.kit} ${activePct}` : ""}`}
           >
             <defs>
               <filter id={`kits-glow-${uid}`} x="-20%" y="-20%" width="140%" height="140%">
@@ -486,59 +509,66 @@ export function ProfileKitsCard({
                   <feMergeNode in="SourceGraphic" />
                 </feMerge>
               </filter>
+              <filter id={`kits-pop-${uid}`} x="-30%" y="-30%" width="160%" height="160%">
+                <feGaussianBlur stdDeviation="1.2" result="b" />
+                <feMerge>
+                  <feMergeNode in="b" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
             </defs>
-            {slices.map((s) => (
-              <path
-                key={s.kit}
-                d={s.d}
-                fill={s.color}
-                filter={`url(#kits-glow-${uid})`}
-              >
-                <title>
-                  {s.kit}: {s.pct}%
-                </title>
-              </path>
-            ))}
-            <circle cx="60" cy="60" r="26" className="profile-kits-donut-hole" />
-            {top ? (
+            {slices.map((s) => {
+              const isHover = hoverKit === s.kit;
+              const dim = hoverKit != null && !isHover;
+              return (
+                <path
+                  key={s.kit}
+                  d={s.d}
+                  fill={s.color}
+                  className={
+                    isHover
+                      ? "profile-kits-slice is-hover"
+                      : dim
+                        ? "profile-kits-slice is-dim"
+                        : "profile-kits-slice"
+                  }
+                  filter={
+                    isHover
+                      ? `url(#kits-pop-${uid})`
+                      : `url(#kits-glow-${uid})`
+                  }
+                  onMouseEnter={() => setHoverKit(s.kit)}
+                  onFocus={() => setHoverKit(s.kit)}
+                  tabIndex={0}
+                  role="img"
+                  aria-label={`${s.kit}: ${
+                    Number.isInteger(s.pct) ? s.pct : s.pct.toFixed(1)
+                  }%`}
+                />
+              );
+            })}
+            <circle cx="60" cy="60" r="24" className="profile-kits-donut-hole" />
+            {active ? (
               <>
                 <text
                   x="60"
-                  y="56"
+                  y="54"
                   textAnchor="middle"
                   className="profile-kits-donut-pct"
                 >
-                  {Number.isInteger(top.pct) ? `${top.pct}%` : `${top.pct.toFixed(1)}%`}
+                  {activePct}
                 </text>
                 <text
                   x="60"
-                  y="72"
+                  y="70"
                   textAnchor="middle"
                   className="profile-kits-donut-label"
                 >
-                  {top.kit.length > 14 ? `${top.kit.slice(0, 13)}…` : top.kit}
+                  {activeLabel}
                 </text>
               </>
             ) : null}
           </svg>
-          <ul className="profile-kits-legend">
-            {kits.map((row, i) => (
-              <li key={row.kit}>
-                <span
-                  className="profile-kits-swatch"
-                  style={{ background: KIT_SLICE_COLORS[i % KIT_SLICE_COLORS.length] }}
-                />
-                <span className="profile-kits-name" title={row.kit}>
-                  {row.kit}
-                </span>
-                <strong className="profile-kits-pct">
-                  {Number.isInteger(row.pct)
-                    ? `${row.pct}%`
-                    : `${row.pct.toFixed(1)}%`}
-                </strong>
-              </li>
-            ))}
-          </ul>
         </div>
       )}
     </section>

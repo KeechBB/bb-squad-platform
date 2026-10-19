@@ -50,6 +50,56 @@
 .profile-v2-roles { grid-area: roles; }
 .profile-v2-hits { grid-area: hits; }
 
+/* Роли: диаграмма на всё окно, легенда убрана */
+.profile-page-v2 .profile-kits-card .profile-kv-head,
+.profile-page-v2 .profile-kits-card .profile-kits-period {
+  flex: 0 0 auto;
+}
+
+.profile-page-v2 .profile-kits-body-solo {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 4px;
+  justify-content: center;
+  align-items: center;
+}
+
+.profile-page-v2 .profile-kits-body-solo .profile-kits-donut {
+  width: min(100%, 260px);
+  height: auto;
+  max-height: calc(100% - 4px);
+  aspect-ratio: 1;
+  flex: 1 1 auto;
+}
+
+.profile-page-v2 .profile-kits-slice {
+  cursor: pointer;
+  transition: opacity 0.12s ease;
+  outline: none;
+}
+
+.profile-page-v2 .profile-kits-slice.is-dim {
+  opacity: 0.28;
+}
+
+.profile-page-v2 .profile-kits-slice.is-hover {
+  opacity: 1;
+}
+
+.profile-page-v2 .profile-kits-donut-hole,
+.profile-page-v2 .profile-kits-donut-pct,
+.profile-page-v2 .profile-kits-donut-label {
+  pointer-events: none;
+}
+
+.profile-page-v2 .profile-kits-body-solo .profile-kits-donut-pct {
+  font-size: 13px;
+}
+
+.profile-page-v2 .profile-kits-body-solo .profile-kits-donut-label {
+  font-size: 7.2px;
+}
+
 /* Всё содержимое ячеек — на 100% высоты ячейки, скролл только внутри */
 .profile-page-v2 > * > .card,
 .profile-page-v2 .profile-career-account,
