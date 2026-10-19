@@ -230,12 +230,29 @@
 
 .profile-page-v2 .profile-account-meta .meta-row {
   min-width: 0;
+  grid-template-columns: 110px minmax(0, 1fr);
+  justify-items: start;
+  text-align: left;
 }
 
 .profile-page-v2 .profile-account-meta .meta-row > span:last-child {
   min-width: 0;
+  justify-self: start;
+  text-align: left;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.profile-page-v2 .profile-account-meta .contact-cell {
+  justify-content: flex-start;
+  text-align: left;
+  width: 100%;
+}
+
+.profile-page-v2 .profile-account-meta .profile-account-clans,
+.profile-page-v2 .profile-account-meta .profile-account-clan-link {
+  justify-content: flex-start;
+  text-align: left;
 }
 
 /* Карьера внутри ячейки: список скроллится, карточка не растёт */
