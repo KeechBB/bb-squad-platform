@@ -17448,3 +17448,114 @@ a.not-found-home {
 a.not-found-home:hover {
   color: var(--ink);
 }
+
+
+/* -- Site footer -- */
+.site-footer {
+  margin-top: auto;
+  border-top: 1px solid var(--line);
+  background: rgba(7, 6, 12, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.site-footer-inner {
+  width: min(1100px, 100%);
+  margin: 0 auto;
+  padding: 28px 18px 32px;
+  display: grid;
+  gap: 22px;
+  align-items: start;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.1fr);
+}
+
+.site-footer-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.site-footer-logo {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  flex: 0 0 auto;
+  filter: drop-shadow(0 8px 18px rgba(124, 58, 237, 0.35));
+}
+
+.site-footer-brand-text {
+  min-width: 0;
+}
+
+.site-footer-name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--violet);
+}
+
+.site-footer-tag {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.site-footer-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-content: flex-start;
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.site-footer-nav a {
+  color: #efe8ff;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.site-footer-nav a:hover {
+  color: #c4b5fd;
+}
+
+.site-footer-meta {
+  text-align: right;
+}
+
+.site-footer-copy {
+  margin: 0;
+  font-size: 0.86rem;
+  color: #cfc6e4;
+}
+
+.site-footer-note {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+body:has(.home-page) .site-footer,
+body:has(.bp-page) .site-footer,
+body:has(.profile-page) .site-footer,
+body:has(.not-found-page) .site-footer {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .site-footer-inner {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .site-footer-meta {
+    text-align: left;
+  }
+}

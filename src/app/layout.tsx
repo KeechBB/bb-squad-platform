@@ -8,6 +8,7 @@ import { getSession } from "@/lib/auth";
 import { isAnyClanMember } from "@/lib/clanAccess";
 import { getCurrentBetaLabel } from "@/lib/siteReleases";
 import { YandexMetrika } from "@/components/YandexMetrika";
+import { SiteFooter } from "@/components/SiteFooter";
 import "@fontsource/oxanium/400.css";
 import "@fontsource/oxanium/600.css";
 import "@fontsource/oxanium/700.css";
@@ -81,6 +82,7 @@ export default async function RootLayout({
             </div>
           </header>
           <div className="shell">{children}</div>
+          <SiteFooter />
           <YandexMetrika />
         </Providers>
       </body>
