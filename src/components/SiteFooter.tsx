@@ -28,13 +28,6 @@ export function SiteFooter() {
           <Link href="/public">Рейтинг паблика</Link>
           <Link href="/battle-pass">Battle Pass</Link>
           <Link href="/clans">Кланы</Link>
-          <a
-            href="https://kv.bb-squad.ru/"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            КВ-рейтинг
-          </a>
         </nav>
 
         <div className="site-footer-meta">
