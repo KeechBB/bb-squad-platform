@@ -248,6 +248,12 @@
   flex: 0 0 auto;
 }
 
+.profile-page-v2 .profile-career-window {
+  margin: 0 0 8px;
+  font-size: 0.68rem;
+  flex: 0 0 auto;
+}
+
 .profile-page-v2 .profile-career-list {
   flex: 1 1 auto;
   min-height: 0;
@@ -255,6 +261,137 @@
   margin: 0;
   padding: 0;
   list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.profile-page-v2 .profile-career-item {
+  border-radius: 10px;
+  padding: 7px 9px;
+  border: 1px solid rgba(167, 139, 250, 0.16);
+  background: rgba(10, 8, 18, 0.45);
+}
+
+.profile-page-v2 .profile-career-item-top {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.profile-page-v2 .profile-career-badge {
+  flex: 0 0 auto;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  opacity: 0.9;
+}
+
+.profile-page-v2 .profile-career-item-top strong {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+.profile-page-v2 .profile-career-item-top time {
+  margin-left: auto;
+  font-size: 0.66rem;
+  color: rgba(180, 170, 210, 0.55);
+}
+
+.profile-page-v2 .profile-career-item p {
+  margin: 3px 0 0;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: rgba(190, 180, 220, 0.72);
+}
+
+.profile-page-v2 .profile-career-item.is-up {
+  border-color: rgba(52, 211, 153, 0.45);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(10, 8, 18, 0.4));
+  color: #6ee7b7;
+}
+.profile-page-v2 .profile-career-item.is-down {
+  border-color: rgba(248, 113, 113, 0.5);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.18), rgba(10, 8, 18, 0.4));
+  color: #fca5a5;
+}
+.profile-page-v2 .profile-career-item.is-almost {
+  border-color: rgba(251, 191, 36, 0.45);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.16), rgba(10, 8, 18, 0.4));
+  color: #fcd34d;
+}
+.profile-page-v2 .profile-career-item.is-warn {
+  border-color: rgba(251, 146, 60, 0.5);
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.18), rgba(10, 8, 18, 0.4));
+  color: #fdba74;
+}
+.profile-page-v2 .profile-career-item.is-mvp {
+  border-color: rgba(232, 121, 249, 0.5);
+  background: linear-gradient(135deg, rgba(192, 132, 252, 0.2), rgba(10, 8, 18, 0.4));
+  color: #e9d5ff;
+}
+.profile-page-v2 .profile-career-item.is-record,
+.profile-page-v2 .profile-career-item.is-best {
+  border-color: rgba(250, 204, 21, 0.55);
+  background: linear-gradient(135deg, rgba(234, 179, 8, 0.2), rgba(10, 8, 18, 0.4));
+  color: #fde047;
+}
+.profile-page-v2 .profile-career-item.is-good {
+  border-color: rgba(110, 231, 183, 0.4);
+  background: linear-gradient(135deg, rgba(52, 211, 153, 0.14), rgba(10, 8, 18, 0.4));
+  color: #a7f3d0;
+}
+.profile-page-v2 .profile-career-item.is-rp {
+  border-color: rgba(96, 165, 250, 0.5);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(10, 8, 18, 0.4));
+  color: #93c5fd;
+}
+.profile-page-v2 .profile-career-item.is-bp {
+  border-color: rgba(251, 191, 36, 0.55);
+  background: linear-gradient(135deg, rgba(217, 119, 6, 0.22), rgba(10, 8, 18, 0.4));
+  color: #fbbf24;
+}
+.profile-page-v2 .profile-career-item.is-bp-level {
+  border-color: rgba(245, 158, 11, 0.5);
+  background: linear-gradient(135deg, rgba(180, 83, 9, 0.22), rgba(10, 8, 18, 0.4));
+  color: #fdba74;
+}
+.profile-page-v2 .profile-career-item.is-bp-reward {
+  border-color: rgba(252, 211, 77, 0.65);
+  background: linear-gradient(135deg, rgba(202, 138, 4, 0.28), rgba(10, 8, 18, 0.4));
+  color: #fef08a;
+}
+.profile-page-v2 .profile-career-item.is-win {
+  border-color: rgba(74, 222, 128, 0.5);
+  background: linear-gradient(135deg, rgba(22, 163, 74, 0.2), rgba(10, 8, 18, 0.4));
+  color: #86efac;
+}
+.profile-page-v2 .profile-career-item.is-loss {
+  border-color: rgba(251, 113, 133, 0.5);
+  background: linear-gradient(135deg, rgba(225, 29, 72, 0.18), rgba(10, 8, 18, 0.4));
+  color: #fda4af;
+}
+.profile-page-v2 .profile-career-item.is-note {
+  border-color: rgba(167, 139, 250, 0.22);
+  color: rgba(196, 181, 253, 0.85);
+}
+
+.profile-page-v2 .profile-career-item-top strong,
+.profile-page-v2 .profile-career-item p {
+  color: inherit;
+}
+.profile-page-v2 .profile-career-item p {
+  opacity: 0.82;
+}
+.profile-page-v2 .profile-career-item-top time {
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .profile-page-v2 .profile-career-card.is-embedded .profile-kv-head {

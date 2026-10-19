@@ -11,7 +11,13 @@ type CareerTone =
   | "best"
   | "good"
   | "note"
-  | "rp";
+  | "rp"
+  | "bp"
+  | "bp_level"
+  | "bp_reward"
+  | "win"
+  | "loss"
+  | "record";
 
 type CareerEvent = {
   id: string;
@@ -26,6 +32,7 @@ type PlayerCareerFeed = {
   nick: string;
   events: CareerEvent[];
   updatedAt: string;
+  windowDays?: number;
 };
 
 type Props = {
@@ -39,7 +46,7 @@ type Props = {
 };
 
 function emptyFeed(nick = ""): PlayerCareerFeed {
-  return { nick, events: [], updatedAt: new Date().toISOString() };
+  return { nick, events: [], updatedAt: new Date().toISOString(), windowDays: 7 };
 }
 
 function toneClass(tone: CareerTone): string {
@@ -55,13 +62,58 @@ function toneClass(tone: CareerTone): string {
     case "mvp":
       return "is-mvp";
     case "best":
-      return "is-best";
+    case "record":
+      return "is-record";
     case "good":
       return "is-good";
     case "rp":
       return "is-rp";
+    case "bp":
+      return "is-bp";
+    case "bp_level":
+      return "is-bp-level";
+    case "bp_reward":
+      return "is-bp-reward";
+    case "win":
+      return "is-win";
+    case "loss":
+      return "is-loss";
     default:
       return "is-note";
+  }
+}
+
+function toneBadge(tone: CareerTone): string {
+  switch (tone) {
+    case "up":
+      return "тир ↑";
+    case "down":
+      return "тир ↓";
+    case "almost":
+      return "кандидат";
+    case "warn":
+      return "риск";
+    case "mvp":
+      return "MVP";
+    case "best":
+    case "record":
+      return "рекорд";
+    case "good":
+      return "игра";
+    case "rp":
+      return "ранг";
+    case "bp":
+      return "BP";
+    case "bp_level":
+      return "BP ур.";
+    case "bp_reward":
+      return "награда";
+    case "win":
+      return "победа";
+    case "loss":
+      return "пораж.";
+    default:
+      return "событие";
   }
 }
 
@@ -107,12 +159,18 @@ export function ProfileCareerCard({
   }, [seedNick, initial]);
 
   const events = feed.events || [];
+  const windowDays = feed.windowDays ?? 7;
+
   return (
     <section
       className={`card profile-career-card${embedded ? " is-embedded" : ""}`}
       aria-label="Карьера"
     >
-      {embedded ? null : (
+      {embedded ? (
+        <p className="muted profile-career-window">
+          {loading ? "Загрузка…" : `Лента · ${windowDays} дней · Battle Pass · тиры · рекорды`}
+        </p>
+      ) : (
         <header className="profile-kv-head">
           <h2>{self ? "Моя карьера" : "Карьера"}</h2>
           <span className="profile-career-count">
@@ -125,14 +183,17 @@ export function ProfileCareerCard({
         <p className="muted profile-career-empty">Загрузка…</p>
       ) : events.length === 0 ? (
         <p className="muted profile-career-empty">
-          Пока пусто — появятся переводы, MVP, лучшие катки КВ/паблика и ранги
-          RP.
+          За последние {windowDays} дней пока пусто — появятся катки, MVP,
+          рекорды, переводы и прогресс Battle Pass.
         </p>
       ) : (
         <ul className="profile-career-list">
           {events.map((e) => (
             <li key={e.id} className={`profile-career-item ${toneClass(e.tone)}`}>
               <div className="profile-career-item-top">
+                <span className="profile-career-badge" aria-hidden>
+                  {toneBadge(e.tone)}
+                </span>
                 <strong>{e.title}</strong>
                 <time dateTime={e.at}>{e.atLabel}</time>
               </div>
