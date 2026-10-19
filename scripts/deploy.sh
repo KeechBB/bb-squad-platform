@@ -92,6 +92,13 @@ if [[ -d public/replay-maps ]]; then
   cp -a public/replay-maps /tmp/bb-replay-maps.bak
   echo "==> preserve public/replay-maps"
 fi
+# Локальные правки кода на VPS не выбрасывать. checkout -- . / reset --hard запрещены.
+# replay-maps не в stash: они живут на диске и уже скопированы в /tmp.
+mapfile -t DIRTY_PATHS < <(git status --porcelain -- src docs scripts package.json package-lock.json public 2>/dev/null | awk '{print $NF}' | grep -v '^public/replay-maps' || true)
+if [[ ${#DIRTY_PATHS[@]} -gt 0 ]]; then
+  echo "==> dirty code tree — stash before pull (kept, not deleted)"
+  git stash push -u -m "deploy-preserve $(date -Is)" -- "${DIRTY_PATHS[@]}" || true
+fi
 git pull --ff-only || true
 # Some ops use reset --hard after fetch; restore preserved files either way.
 for f in "${PRESERVE_PUBLIC[@]}"; do
