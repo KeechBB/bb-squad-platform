@@ -179,6 +179,8 @@ def run(
             print(f"  … ещё {len(bad_rows) - 8}", flush=True)
     print(f"report → {report}", flush=True)
 
+    _telegram_ticket_report(kind, summary, bad_rows)
+
     if bad_rows and fix:
         if kind == "public":
             rc = AUD._fix_public(summary["badIds"])
@@ -188,6 +190,44 @@ def run(
             summary["fixRc"] = 0
 
     return summary
+
+
+def _telegram_ticket_report(kind: str, summary: dict, bad_rows: list[dict]) -> None:
+    if (os.environ.get("RP_AUDIT_TELEGRAM") or "1").strip() in ("0", "false", "no"):
+        return
+    if bad_rows:
+        title = f"Ticket-class ({kind}) — рассинхрон"
+        level = "warn"
+        lines = [
+            f"проверено: {summary['checked']} · bad: {summary['bad']} · evt: {summary['badEvents']}",
+        ]
+        for r in bad_rows[:6]:
+            sample = (r.get("issues") or [{}])[0]
+            lines.append(
+                f"• {r['id']}: {sample.get('asset')} "
+                f"{sample.get('stored')}→{sample.get('expected')}"
+            )
+        if summary.get("topPairs"):
+            lines.append("топ: " + ", ".join(f"{a}×{n}" for a, n in summary["topPairs"][:4]))
+    else:
+        title = f"Ticket-class ({kind}) — успешно"
+        level = "ok"
+        lines = [
+            f"проверено: {summary['checked']} матчей · ошибок класса тикетов: 0",
+        ]
+    try:
+        import bb_alerts as AL  # noqa: WPS433
+
+        AL.send(
+            kind="rp-ticket",
+            title=title,
+            level=level,
+            lines=lines,
+            force=True,
+            cooldown=0,
+        )
+    except Exception as e:
+        print(f"ticket telegram skip: {e}", flush=True)
 
 
 def main() -> int:

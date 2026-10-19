@@ -20,15 +20,23 @@ if [[ -f "$COL_ENV" ]]; then
   echo "==> mirrored BB_TG_* into $PLAT_ENV"
 fi
 
-cat >/etc/cron.d/bb-squad-alerts <<'EOF'
+PY="${APP}/scripts/.venv-collector/bin/python"
+if [[ ! -x "$PY" ]]; then
+  PY="$(command -v python3)"
+fi
+
+cat >/etc/cron.d/bb-squad-alerts <<EOF
 CRON_TZ=Europe/Moscow
 # сайт / pm2 / нагрузка / кеш — каждые 3 минуты
-*/3 * * * * root cd /var/www/bb-squad-platform/scripts && /var/www/bb-squad-platform/scripts/.venv-collector/bin/python bb_health_watch.py >> /var/log/bb-squad-alerts.log 2>&1
+*/3 * * * * root cd ${APP}/scripts && ${PY} bb_health_watch.py >> /var/log/bb-squad-alerts.log 2>&1
+# читать бота + автофикс RP/алертов — каждые 5 минут
+*/5 * * * * root cd ${APP}/scripts && ${PY} bb_tg_inbox.py >> /var/log/bb-tg-inbox.log 2>&1
 EOF
 chmod 644 /etc/cron.d/bb-squad-alerts
-touch /var/log/bb-squad-alerts.log
-chmod 644 /var/log/bb-squad-alerts.log
-echo "==> cron installed: /etc/cron.d/bb-squad-alerts"
+touch /var/log/bb-squad-alerts.log /var/log/bb-tg-inbox.log
+chmod 644 /var/log/bb-squad-alerts.log /var/log/bb-tg-inbox.log
+echo "==> cron installed: /etc/cron.d/bb-squad-alerts (+ bb_tg_inbox */5)"
 # smoke
-cd "$APP/scripts" && .venv-collector/bin/python bb_health_watch.py || true
+cd "$APP/scripts" && "$PY" bb_health_watch.py || true
+cd "$APP/scripts" && "$PY" bb_tg_inbox.py --no-fix || true
 echo "done"

@@ -10,7 +10,7 @@ Usage:
 
 Env:
   RP_AUDIT_FIX=1          — same as --fix
-  RP_AUDIT_TELEGRAM=1     — send Telegram on failures (default on)
+  RP_AUDIT_TELEGRAM=1     — Telegram on EVERY check (OK and FAIL; default on)
   RP_AUDIT_REPORT         — report path override
 """
 from __future__ import annotations
@@ -117,11 +117,33 @@ def audit_ledger(
 
 
 def _telegram(kind: str, audits: list[RI.MatchAudit]) -> None:
+    """Notify Alex on every audit — success and failure, with full result."""
     if (os.environ.get("RP_AUDIT_TELEGRAM") or "1").strip() in ("0", "false", "no"):
         return
     text = RI.format_telegram(kind, audits)
     if not text:
         return
+    bad = [a for a in audits if not a.ok]
+    level = "warn" if bad else "ok"
+    title = (
+        f"RP audit ({kind}) — рассинхрон"
+        if bad
+        else f"RP audit ({kind}) — успешно"
+    )
+    try:
+        import bb_alerts as AL  # noqa: WPS433
+
+        AL.send(
+            kind="rp-audit",
+            title=title,
+            level=level,
+            lines=text.splitlines()[1:],  # drop duplicate header emoji line
+            force=True,
+            cooldown=0,
+        )
+        return
+    except Exception as e:
+        print(f"bb_alerts skip: {type(e).__name__}: {e}", flush=True)
     try:
         import train_rp_guard as TRG  # noqa: WPS433
 
@@ -198,14 +220,42 @@ def run_audit_on_blocks(
         f"bad={summary['bad']} ticketClass={tcb} ids={summary['badIds']}",
         flush=True,
     )
+    _telegram(kind, audits)
     if summary["bad"]:
-        _telegram(kind, audits)
         if fix or (os.environ.get("RP_AUDIT_FIX") or "").strip() in ("1", "true", "yes"):
             if kind == "public":
                 _fix_public(summary["badIds"])
             else:
                 _fix_train_note(summary["badIds"])
+                _fix_train_run(summary["badIds"])
     return summary
+
+
+def _fix_train_run(ids: list[str]) -> int:
+    """Rebuild train RP ledger when audit finds desyncs."""
+    if not ids:
+        return 0
+    if (os.environ.get("RP_AUDIT_REPAIR_PASS") or "").strip() == "1":
+        print("FIX train skip: already in repair pass", flush=True)
+        return 0
+    script = HERE / "build_train_rp_ledger.py"
+    if not script.is_file():
+        return 1
+    env = {
+        **os.environ,
+        "RP_AUDIT_REPAIR_PASS": "1",
+        "RP_AUDIT_FIX": "0",
+    }
+    print(f"FIX train rebuild (queued ids={ids})", flush=True)
+    return int(
+        subprocess.run(
+            [sys.executable, str(script)],
+            cwd=str(HERE),
+            env=env,
+            check=False,
+        ).returncode
+        or 0
+    )
 
 
 def main() -> int:
@@ -240,8 +290,8 @@ def main() -> int:
     print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
     print(f"report → {report}", flush=True)
 
+    _telegram(args.kind, audits)
     if summary["bad"]:
-        _telegram(args.kind, audits)
         if args.fix or (os.environ.get("RP_AUDIT_FIX") or "").strip() in (
             "1",
             "true",
@@ -251,6 +301,7 @@ def main() -> int:
                 rc = _fix_public(summary["badIds"])
                 return rc if rc else 2
             _fix_train_note(summary["badIds"])
+            _fix_train_run(summary["badIds"])
             return 2
         return 2
     return 0

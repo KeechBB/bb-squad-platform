@@ -377,34 +377,67 @@ def write_report(path: Path, *, kind: str, audits: list[MatchAudit]) -> None:
     )
 
 
+def _audit_bits(a: MatchAudit) -> list[str]:
+    bits = []
+    if a.net_bad:
+        bits.append(f"netΔ{a.net_bad}")
+    if a.formula_bad:
+        bits.append(f"vehForm{a.formula_bad}")
+    if a.share_bad:
+        bits.append(f"share{a.share_bad}")
+    if a.ticket_class_bad:
+        bits.append(f"ticketClass{a.ticket_class_bad}")
+    if a.hist_veh_mismatches:
+        bits.append(f"histVeh{len(a.hist_veh_mismatches)}")
+    return bits
+
+
 def format_telegram(kind: str, audits: list[MatchAudit]) -> str | None:
+    """Always build a report (OK or FAIL) — caller sends every check to Telegram."""
+    if not audits:
+        return f"ℹ️ BB RP integrity ({kind})\nпроверено: 0 матчей (нечего аудитить)"
     bad = [a for a in audits if not a.ok]
+    s = summarize(audits)
     if not bad:
-        return None
-    lines = [f"⚠️ BB RP integrity ({kind})", f"косяков: {len(bad)}/{len(audits)}"]
-    for a in bad[:5]:
-        bits = []
-        if a.net_bad:
-            bits.append(f"netΔ{a.net_bad}")
-        if a.formula_bad:
-            bits.append(f"vehForm{a.formula_bad}")
-        if a.share_bad:
-            bits.append(f"share{a.share_bad}")
-        if a.ticket_class_bad:
-            bits.append(f"ticketClass{a.ticket_class_bad}")
-        if a.hist_veh_mismatches:
-            bits.append(f"histVeh{len(a.hist_veh_mismatches)}")
+        lines = [
+            f"✅ BB RP integrity ({kind}) — ОКЕШНО",
+            f"проверено: {s['checked']} · ok: {s['ok']}",
+            f"vehicle_kill: {s['vehicle_kill']} · ticketClass bad: {s['ticket_class_bad']}",
+            f"formula bad: {s['formula_bad']} · share bad: {s['share_bad']} · netΔ: {s['net_bad_players']}",
+        ]
+        for a in audits[:8]:
+            lines.append(f"• {a.id}: ok")
+        if len(audits) > 8:
+            lines.append(f"… ещё {len(audits) - 8} ok")
+        return "\n".join(lines)
+
+    lines = [
+        f"⚠️ BB RP integrity ({kind}) — ЕСТЬ РАССИНХРОНЫ",
+        f"косяков: {len(bad)}/{s['checked']} · ticketClass: {s['ticket_class_bad']} · netΔ: {s['net_bad_players']}",
+        f"formula: {s['formula_bad']} · share: {s['share_bad']}",
+    ]
+    for a in bad[:8]:
+        bits = _audit_bits(a)
         lines.append(f"• {a.id}: {', '.join(bits) or 'fail'}")
         if a.ticket_class_issues:
             t0 = a.ticket_class_issues[0]
             lines.append(
-                f"  e.g. {t0.get('asset')}: tickets {t0.get('stored')}→{t0.get('expected')}"
+                f"  ticket {t0.get('asset')}: {t0.get('stored')}→{t0.get('expected')}"
             )
-        elif a.net_diffs:
-            d0 = a.net_diffs[0]
-            lines.append(
-                f"  e.g. {d0.nick}: claimed {d0.claimed} ≠ {d0.recomputed}"
-            )
-    if len(bad) > 5:
-        lines.append(f"… ещё {len(bad) - 5}")
+        if a.net_diffs:
+            for d0 in a.net_diffs[:2]:
+                lines.append(
+                    f"  net {d0.nick}: claimed {d0.claimed} ≠ {d0.recomputed}"
+                )
+        if a.share_issues:
+            s0 = a.share_issues[0]
+            lines.append(f"  share {s0}")
+        if a.formula_issues:
+            f0 = a.formula_issues[0]
+            lines.append(f"  formula {f0}")
+    if len(bad) > 8:
+        lines.append(f"… ещё {len(bad) - 8}")
+    ok_ids = [a.id for a in audits if a.ok]
+    if ok_ids:
+        lines.append(f"ok: {', '.join(ok_ids[:5])}" + ("…" if len(ok_ids) > 5 else ""))
     return "\n".join(lines)

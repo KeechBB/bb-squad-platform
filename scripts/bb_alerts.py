@@ -204,9 +204,78 @@ def send(
         st.setdefault("sent", {})[key] = now
         _save_state(st)
         print(f"alert sent [{kind}] {title}", flush=True)
+        _record_sent_alert(kind=kind, title=title, level=level, text=text)
     else:
         print(f"alert FAIL [{kind}] {title}", flush=True)
     return ok
+
+
+def _record_sent_alert(
+    *, kind: str, title: str, level: str, text: str
+) -> None:
+    """Local mirror of bot traffic (bots cannot getUpdates their own messages)."""
+    path = HERE.parent / "data" / "cache" / "bb-tg-sent-log.json"
+    open_path = HERE.parent / "data" / "cache" / "bb-tg-open-errors.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    doc: dict[str, Any] = {"messages": []}
+    if path.is_file():
+        try:
+            doc = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            doc = {"messages": []}
+    row = {
+        "at": datetime.now(timezone.utc).isoformat(),
+        "kind": kind,
+        "level": level,
+        "title": title,
+        "text": (text or "")[:3500],
+        "source": "outbound",
+    }
+    msgs = list(doc.get("messages") or [])
+    msgs.append(row)
+    doc["messages"] = msgs[-300:]
+    doc["updatedAt"] = row["at"]
+    path.write_text(
+        json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    # Open-error queue for autofix / agent (warn+crit only; skip autofix/ok loops)
+    if level not in ("warn", "crit") or kind in ("autofix",):
+        return
+    if "успешн" in (title or "").lower():
+        return
+    open_doc: dict[str, Any] = {"items": []}
+    if open_path.is_file():
+        try:
+            open_doc = json.loads(open_path.read_text(encoding="utf-8"))
+        except Exception:
+            open_doc = {"items": []}
+    fp = f"{kind}|{title}|{(text or '').splitlines()[0][:80]}"
+    items = [
+        it
+        for it in (open_doc.get("items") or [])
+        if isinstance(it, dict) and not it.get("resolvedAt")
+    ]
+    if any(str(it.get("fp")) == fp for it in items):
+        return
+    items.append(
+        {
+            "fp": fp,
+            "kind": "error",
+            "status": "open",
+            "hits": 1,
+            "openedAt": row["at"],
+            "lastSeenAt": row["at"],
+            "text": text[:3500],
+            "title": title,
+            "alertKind": kind,
+            "source": "outbound",
+        }
+    )
+    open_doc["items"] = items[-100:]
+    open_doc["updatedAt"] = row["at"]
+    open_path.write_text(
+        json.dumps(open_doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
 
 
 # --- convenience wrappers ---
