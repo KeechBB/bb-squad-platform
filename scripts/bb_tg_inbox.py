@@ -224,7 +224,10 @@ def run(*, do_fix: bool = True, dump: bool = False) -> dict[str, Any]:
             encoding="utf-8",
         )
 
-    # merge open errors
+    # Outbound alerts are source of truth (VPS often cannot reach api.telegram.org).
+    _seed_open_from_sent_log()
+
+    # merge open errors (+ any inbound getUpdates errors)
     open_doc: dict[str, Any] = {"items": []}
     if OPEN.is_file():
         try:
@@ -268,30 +271,31 @@ def run(*, do_fix: bool = True, dump: bool = False) -> dict[str, Any]:
             print("---", it.get("fp"), flush=True)
             print((it.get("text") or "")[:400], flush=True)
 
-    # Outbound alerts (bb_alerts) are the source of truth — VPS often cannot
-    # reach api.telegram.org for getUpdates (relay works for send only).
-    _seed_open_from_sent_log()
-    if OPEN.is_file():
-        try:
-            open_doc = json.loads(OPEN.read_text(encoding="utf-8"))
-        except Exception:
-            pass
-
     fix_summary = None
     if do_fix and (open_doc.get("items") or []):
         try:
             import bb_alert_autofix as AF  # noqa: WPS433
 
             fix_summary = AF.run(open_doc)
+            # refresh open count after fix
+            if OPEN.is_file():
+                open_doc = json.loads(OPEN.read_text(encoding="utf-8"))
         except Exception as e:
             print(f"autofix fail: {type(e).__name__}: {e}", flush=True)
             fix_summary = {"error": str(e)}
 
+    open_n = len(
+        [
+            i
+            for i in (open_doc.get("items") or [])
+            if isinstance(i, dict) and not i.get("resolvedAt")
+        ]
+    )
     return {
         "ok": True,
         "updates": len(updates),
         "newErrors": len(new_errors),
-        "open": len((open_doc.get("items") if open_doc else None) or []),
+        "open": open_n,
         "fix": fix_summary,
     }
 

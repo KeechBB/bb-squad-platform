@@ -138,10 +138,22 @@ def run(open_doc: dict | None = None) -> dict[str, Any]:
         fp = str(it.get("fp") or "")
         if fp and fp in done_fps:
             continue
-        # don't hammer same error more than once per 30 min
+        # don't hammer same error more than once per 30 min (unless needs_agent retry)
         last = float((st.get("lastTry") or {}).get(fp) or 0)
         now = time_now()
-        if last and now - last < 1800:
+        if (
+            last
+            and now - last < 1800
+            and str(it.get("status") or "") != "needs_agent"
+        ):
+            continue
+        # needs_agent: at most once per 6h automatic; agent/session can force
+        if (
+            str(it.get("status") or "") == "needs_agent"
+            and last
+            and now - last < 21600
+            and (os.environ.get("BB_AUTOFIX_FORCE") or "").strip() != "1"
+        ):
             continue
 
         text = str(it.get("text") or "")
