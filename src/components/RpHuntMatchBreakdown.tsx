@@ -146,10 +146,11 @@ function Col({
 type Props = {
   match: RpPlayerMatch;
   onClose: () => void;
+  /** Вкладка внутри модалки матча — без своего оверлея. */
+  embedded?: boolean;
 };
 
-/** Hunt-style 5-column match breakdown (ledger / post-match only). */
-export function RpHuntMatchBreakdown({ match, onClose }: Props) {
+export function useRpMatchColumns(match: RpPlayerMatch) {
   // Килы = гивапы. Техника = vehicle_kill / loss. Доля мехвода в столбики не идёт.
   const rawKills = match.kills || [];
   const shareNoks = rawKills.filter(isDriverShareNok);
@@ -177,7 +178,6 @@ export function RpHuntMatchBreakdown({ match, onClose }: Props) {
   );
   const teamkills = match.teamkills || [];
   const revives = match.revives || [];
-  const dateShort = match.date?.slice(5)?.replace("-", ".") || match.date;
 
   const vehicleEvents = [
     ...(match.vehicles || []),
@@ -230,7 +230,26 @@ export function RpHuntMatchBreakdown({ match, onClose }: Props) {
         10
     ) / 10;
 
+  return {
+    net,
+    nokRows,
+    killRows,
+    vehicleRows,
+    vehicleGainRows,
+    vehicleLossRows,
+    deathRows,
+    reviveRows,
+    gotRows,
+  };
+}
+
+/** Hunt-style 5-column match breakdown (ledger / post-match only). */
+export function RpHuntMatchBreakdown({ match, onClose, embedded }: Props) {
+  const cols = useRpMatchColumns(match);
+  const dateShort = match.date?.slice(5)?.replace("-", ".") || match.date;
+
   useEffect(() => {
+    if (embedded) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => {
@@ -241,7 +260,41 @@ export function RpHuntMatchBreakdown({ match, onClose }: Props) {
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
     };
-  }, [onClose]);
+  }, [onClose, embedded]);
+
+  const board = (
+    <>
+      {embedded ? (
+        <p className="profile-rp-detail-net">
+          Итог катки{" "}
+          <b className={cols.net >= 0 ? "plus" : "minus"}>{fmtDelta(cols.net)} RP</b>
+          <span className="muted">
+            {" "}
+            · ноки {cols.nokRows.length} · киллы {cols.killRows.length} · техника{" "}
+            {cols.vehicleGainRows.length}
+            {cols.vehicleLossRows.length ? `/−${cols.vehicleLossRows.length}` : ""} ·
+            смерти {cols.deathRows.length} · ресы {cols.reviveRows.length} · нокнули{" "}
+            {cols.gotRows.length}
+          </span>
+        </p>
+      ) : null}
+      <div className="keech-hunt-cols detail rp-breakdown-cols-scroll">
+        <Col title={`ноки (${cols.nokRows.length})`} rows={cols.nokRows} />
+        <Col title={`+ киллы (${cols.killRows.length})`} rows={cols.killRows} />
+        <Col
+          title={`техника (${cols.vehicleGainRows.length}${
+            cols.vehicleLossRows.length ? `/−${cols.vehicleLossRows.length}` : ""
+          })`}
+          rows={cols.vehicleRows}
+        />
+        <Col title={`− смерти (${cols.deathRows.length})`} rows={cols.deathRows} />
+        <Col title={`+ ресы (${cols.reviveRows.length})`} rows={cols.reviveRows} />
+        <Col title={`Меня нокнул (${cols.gotRows.length})`} rows={cols.gotRows} />
+      </div>
+    </>
+  );
+
+  if (embedded) return <div className="profile-rp-detail">{board}</div>;
 
   const ui = (
     <div
@@ -267,9 +320,9 @@ export function RpHuntMatchBreakdown({ match, onClose }: Props) {
                 {match.map} · {dateShort}
               </h3>
               <p className="muted">
-                NET {fmtDelta(net)} · N {nokRows.length} / GN {gotRows.length} / K{" "}
-                {killRows.length} / Т {vehicleGainRows.length} / D {deathRows.length} / R{" "}
-                {reviveRows.length}
+                NET {fmtDelta(cols.net)} · N {cols.nokRows.length} / GN {cols.gotRows.length} / K{" "}
+                {cols.killRows.length} / Т {cols.vehicleGainRows.length} / D {cols.deathRows.length} / R{" "}
+                {cols.reviveRows.length}
               </p>
             </div>
           </div>
@@ -282,19 +335,7 @@ export function RpHuntMatchBreakdown({ match, onClose }: Props) {
             ✕
           </button>
         </header>
-        <div className="keech-hunt-cols detail rp-breakdown-cols-scroll">
-          <Col title={`ноки (${nokRows.length})`} rows={nokRows} />
-          <Col title={`+ киллы (${killRows.length})`} rows={killRows} />
-          <Col
-            title={`техника (${vehicleGainRows.length}${
-              vehicleLossRows.length ? `/−${vehicleLossRows.length}` : ""
-            })`}
-            rows={vehicleRows}
-          />
-          <Col title={`− смерти (${deathRows.length})`} rows={deathRows} />
-          <Col title={`+ ресы (${reviveRows.length})`} rows={reviveRows} />
-          <Col title={`Меня нокнул (${gotRows.length})`} rows={gotRows} />
-        </div>
+        {board}
       </div>
     </div>
   );

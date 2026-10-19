@@ -4,6 +4,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { abbreviateFaction } from "@/lib/factionAbbrev";
+import { RpHuntMatchBreakdown } from "@/components/RpHuntMatchBreakdown";
+import { loadRpPlayer } from "@/lib/rpPlayerClientCache";
+import type { RpPlayerMatch } from "@/lib/trainRp";
 
 export type MatchStatsOpen =
   | {
@@ -118,7 +121,8 @@ type TabKey =
   | "oppR1"
   | "oppR2"
   | "teamA"
-  | "teamB";
+  | "teamB"
+  | "rpDetail";
 
 function flipTickets(t?: string | null): string {
   if (!t || t === "—") return "—";
@@ -262,12 +266,44 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
   const [data, setData] = useState<LoadedPlayers | null>(null);
   const [pwrDeltas, setPwrDeltas] = useState<Record<string, number>>({});
   const [tab, setTab] = useState<TabKey>("total");
+  const [rpMatch, setRpMatch] = useState<RpPlayerMatch | null>(null);
+  const [rpLoading, setRpLoading] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("kills");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    setTab("total");
+    setRpMatch(null);
+  }, [open?.matchId, open?.kind]);
+
+  useEffect(() => {
+    if (!open || open.kind !== "train" || tab !== "rpDetail") return;
+    const nick = (open.highlightNick || "").trim();
+    if (!nick) return;
+    let cancelled = false;
+    setRpLoading(true);
+    setRpMatch(null);
+    loadRpPlayer("train", nick)
+      .then((player) => {
+        if (cancelled) return;
+        const hit =
+          player?.matches?.find((m) => m.id === open.matchId) || null;
+        setRpMatch(hit);
+      })
+      .catch(() => {
+        if (!cancelled) setRpMatch(null);
+      })
+      .finally(() => {
+        if (!cancelled) setRpLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, tab]);
 
   useEffect(() => {
     if (!open) {
@@ -758,7 +794,7 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
           </button>
         </header>
 
-        {hasTabs ? (
+        {hasTabs || (open.kind === "train" && Boolean(highlight)) ? (
           <div className="profile-match-modal-tabs">
             {tabs.map((t) => (
               <button
@@ -777,11 +813,36 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
                 {t.label}
               </button>
             ))}
+            {open.kind === "train" && highlight ? (
+              <button
+                type="button"
+                aria-pressed={tab === "rpDetail"}
+                className={`profile-match-tab profile-match-tab-rp${
+                  tab === "rpDetail" ? " is-active" : ""
+                }`}
+                onClick={(e) => {
+                  setTab("rpDetail");
+                  (e.currentTarget as HTMLButtonElement).blur();
+                }}
+              >
+                Детальный разбор
+              </button>
+            ) : null}
           </div>
         ) : null}
 
         <div className="profile-match-modal-body">
-          {loading ? (
+          {tab === "rpDetail" ? (
+            rpLoading ? (
+              <p className="muted">Считаю, из чего сложился RP…</p>
+            ) : rpMatch ? (
+              <RpHuntMatchBreakdown match={rpMatch} onClose={onClose} embedded />
+            ) : (
+              <p className="muted">
+                По этой катке нет построчного разбора RP.
+              </p>
+            )
+          ) : loading ? (
             <p className="muted">Загрузка…</p>
           ) : error ? (
             <p className="muted">{error}</p>

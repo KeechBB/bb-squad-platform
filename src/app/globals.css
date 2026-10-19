@@ -13600,6 +13600,47 @@ body.profile-match-modal-open {
   background: rgba(248, 113, 113, 0.14);
 }
 
+.profile-match-tab-rp {
+  color: #1c1404;
+  font-weight: 800;
+  border-color: #f6d365;
+  background: linear-gradient(135deg, #ffe08a, #f5b301);
+  box-shadow: 0 0 14px rgba(245, 179, 1, 0.45);
+}
+
+.profile-match-tab-rp.is-active {
+  color: #1c1404;
+  border-color: #fff6d0;
+  background: linear-gradient(135deg, #fff1b8, #ffbf1a);
+  box-shadow: 0 0 18px rgba(255, 196, 40, 0.7);
+}
+
+.profile-rp-detail {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.profile-rp-detail-net {
+  margin: 0 0 8px;
+  font-size: 0.92rem;
+}
+
+.profile-rp-detail-net b.plus {
+  color: #4ade80;
+}
+
+.profile-rp-detail-net b.minus {
+  color: #f87171;
+}
+
+.profile-rp-detail .keech-hunt-cols {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .profile-match-modal-body {
   padding: 14px 20px 20px;
   overflow: hidden;
