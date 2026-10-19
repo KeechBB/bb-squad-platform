@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { TrainMatchHistoryRow } from "@/lib/homeTrainPwr";
 import type { RpPlayer, RpPlayerMatch } from "@/lib/trainRp";
 import { abbreviateFaction } from "@/lib/factionAbbrev";
 import { RpHuntMatchBreakdown } from "@/components/RpHuntMatchBreakdown";
+import { ListPager, pageSlice } from "@/components/ListPager";
+import { useFitPageSize } from "@/hooks/useFitPageSize";
 
 type Props = {
   matchHistory?: TrainMatchHistoryRow[];
@@ -21,6 +23,14 @@ export function PublicMatchHistory({
   const [error, setError] = useState<string | null>(null);
   const [playerCache, setPlayerCache] = useState<RpPlayer | null>(null);
   const [openMatch, setOpenMatch] = useState<RpPlayerMatch | null>(null);
+  const [page, setPage] = useState(1);
+  const wrapRef = useRef<HTMLElement | null>(null);
+  const pageSize = useFitPageSize(wrapRef);
+  const sliced = pageSlice(matchHistory, page, pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [matchHistory.length, pageSize]);
 
   async function openRow(matchId: string) {
     const nick = (highlightNick || "").trim();
@@ -57,7 +67,10 @@ export function PublicMatchHistory({
   }
 
   return (
-    <section className="card profile-hist-card profile-train-hist-card profile-public-hist-card">
+    <section
+      ref={wrapRef}
+      className="card profile-hist-card profile-train-hist-card profile-public-hist-card profile-hist-paged"
+    >
       {hideTitle ? null : (
         <h2 className="profile-hist-title">История матчей паблика</h2>
       )}
@@ -72,6 +85,7 @@ export function PublicMatchHistory({
           появится после матчей с give-up киллами.
         </p>
       ) : (
+        <>
         <div className="admin-table-wrap profile-hist-table-wrap">
           <table className="admin-table training-sessions-table training-match-hist-table">
             <thead>
@@ -85,7 +99,7 @@ export function PublicMatchHistory({
               </tr>
             </thead>
             <tbody>
-              {matchHistory.map((m) => {
+              {sliced.rows.map((m) => {
                 const delta = m.rpDelta;
                 const deltaCls =
                   delta == null
@@ -176,6 +190,17 @@ export function PublicMatchHistory({
             </tbody>
           </table>
         </div>
+        <ListPager
+          page={sliced.page}
+          pageCount={sliced.pageCount}
+          total={sliced.total}
+          pageSize={pageSize}
+          onChange={setPage}
+          maxButtons={10}
+          label="Страницы истории паблика"
+          className="profile-hist-pager"
+        />
+        </>
       )}
       {openMatch ? (
         <RpHuntMatchBreakdown

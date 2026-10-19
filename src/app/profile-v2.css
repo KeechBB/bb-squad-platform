@@ -121,3 +121,37 @@
 .profile-v2-ident .clan-invites {
   margin-top: 8px;
 }
+
+/* История матчей: таблица заполняет ячейку, пагинатор снизу */
+.profile-v2-history {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.profile-v2-history > .profile-hist-paged,
+.profile-hist-paged {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.profile-hist-paged .profile-hist-table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.profile-hist-paged .profile-hist-pager {
+  flex: 0 0 auto;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.profile-hist-pager .public-rating-page-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}

@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { PlayerKvStats } from "@/lib/kvStats";
 import type { CwMatchHistoryRow } from "@/lib/homeCwPwr";
 import {
   ProfileMatchStatsModal,
   type MatchStatsOpen,
 } from "@/components/ProfileMatchStatsModal";
+import { ListPager, pageSlice } from "@/components/ListPager";
+import { useFitPageSize } from "@/hooks/useFitPageSize";
 
 function statusLabel(s: string) {
   if (s === "win") return "W";
@@ -40,9 +42,20 @@ export function ProfileKvMatchHistory({
   highlightNick?: string;
 }) {
   const [open, setOpen] = useState<MatchStatsOpen | null>(null);
+  const [page, setPage] = useState(1);
+  const wrapRef = useRef<HTMLElement | null>(null);
+  const pageSize = useFitPageSize(wrapRef);
+  const sliced = pageSlice(matchHistory, page, pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [matchHistory.length, pageSize]);
 
   return (
-    <section className="card profile-hist-card profile-kv-hist-card">
+    <section
+      ref={wrapRef}
+      className="card profile-hist-card profile-kv-hist-card profile-hist-paged"
+    >
       <h2 className="profile-hist-title">История матчей КВ</h2>
       {matchHistory.length === 0 ? (
         <p className="muted" style={{ margin: "8px 0 0" }}>
@@ -50,6 +63,7 @@ export function ProfileKvMatchHistory({
           табло.
         </p>
       ) : (
+        <>
         <div className="admin-table-wrap profile-hist-table-wrap">
           <table className="admin-table training-sessions-table training-match-hist-table">
             <thead>
@@ -62,7 +76,7 @@ export function ProfileKvMatchHistory({
               </tr>
             </thead>
             <tbody>
-              {matchHistory.map((m) => {
+              {sliced.rows.map((m) => {
                 const resultCls =
                   m.won === true
                     ? "kv-pill win"
@@ -150,6 +164,17 @@ export function ProfileKvMatchHistory({
             </tbody>
           </table>
         </div>
+        <ListPager
+          page={sliced.page}
+          pageCount={sliced.pageCount}
+          total={sliced.total}
+          pageSize={pageSize}
+          onChange={setPage}
+          maxButtons={10}
+          label="Страницы истории КВ"
+          className="profile-hist-pager"
+        />
+        </>
       )}
       <ProfileMatchStatsModal open={open} onClose={() => setOpen(null)} />
     </section>

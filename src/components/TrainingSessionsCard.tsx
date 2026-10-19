@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ATTENDANCE_CANON_START_YMD,
   trainingDayMarksFromSessions,
@@ -11,6 +11,8 @@ import {
   ProfileMatchStatsModal,
   type MatchStatsOpen,
 } from "@/components/ProfileMatchStatsModal";
+import { ListPager, pageSlice } from "@/components/ListPager";
+import { useFitPageSize } from "@/hooks/useFitPageSize";
 
 /** UI fallback: Победа/Поражение из team↔winner или тикетов своей стороны. */
 function deriveTrainResult(m: TrainMatchHistoryRow): boolean | null {
@@ -199,9 +201,20 @@ export function TrainingMatchHistory({
   hideTitle?: boolean;
 }) {
   const [open, setOpen] = useState<MatchStatsOpen | null>(null);
+  const [page, setPage] = useState(1);
+  const wrapRef = useRef<HTMLElement | null>(null);
+  const pageSize = useFitPageSize(wrapRef);
+  const sliced = pageSlice(matchHistory, page, pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [matchHistory.length, pageSize]);
 
   return (
-    <section className="card profile-hist-card profile-train-hist-card">
+    <section
+      ref={wrapRef}
+      className="card profile-hist-card profile-train-hist-card profile-hist-paged"
+    >
       {hideTitle ? null : (
         <h2 className="profile-hist-title">{title}</h2>
       )}
@@ -211,6 +224,7 @@ export function TrainingMatchHistory({
           появится после каток с give-up киллами.
         </p>
       ) : (
+        <>
         <div className="admin-table-wrap profile-hist-table-wrap">
           <table className="admin-table training-sessions-table training-match-hist-table">
             <thead>
@@ -224,7 +238,7 @@ export function TrainingMatchHistory({
               </tr>
             </thead>
             <tbody>
-              {matchHistory.map((m) => {
+              {sliced.rows.map((m) => {
                 const delta = m.rpDelta;
                 const deltaCls =
                   delta == null
@@ -336,6 +350,17 @@ export function TrainingMatchHistory({
             </tbody>
           </table>
         </div>
+        <ListPager
+          page={sliced.page}
+          pageCount={sliced.pageCount}
+          total={sliced.total}
+          pageSize={pageSize}
+          onChange={setPage}
+          maxButtons={10}
+          label="Страницы истории тренировок"
+          className="profile-hist-pager"
+        />
+        </>
       )}
       <ProfileMatchStatsModal open={open} onClose={() => setOpen(null)} />
     </section>
