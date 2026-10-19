@@ -20,6 +20,8 @@ export const PROFILE_BG_OPTIONS = [
     file: "anime-squad-girls-02.jpg",
     label: "Anime Squad Girls 2",
   },
+  { id: "cats-01", file: "anime-cats-01.jpg", label: "Anime Cats" },
+  { id: "wolves-01", file: "anime-wolves-01.jpg", label: "Anime Wolves" },
 ] as const;
 
 export type ProfileBgId = (typeof PROFILE_BG_OPTIONS)[number]["id"];
