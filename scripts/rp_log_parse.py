@@ -3,6 +3,7 @@
 """Shared Squad log parsers for train + public RP ledgers."""
 from __future__ import annotations
 
+import json
 import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -112,7 +113,7 @@ GAIN_COEF_PREDATOR = 0.5
 
 # Vehicle RP (canon 17.10.2026) — tickets×12.5; F2 100% / driver 70%; finisher-only kill.
 # Same night cutover as soft-cap (01:00 MSK).
-# Light tier: logi = 5 (=62.5 RP); unarmed transport = 2 (=25 RP).
+# Tickets = Squad ticketValue (v10.6.1 table). Rate: 1 ticket = 12.5 RP.
 # Rate cut 17.10 night: was ×25 → ×12.5 (half) — less farm.
 RP_VEHICLE_CUTOVER = RP_GAIN_SOFT_CUTOVER
 # Match-id / wall-clock gate: 2026-10-17 01:00:00 Europe/Moscow
@@ -121,30 +122,38 @@ RP_NIGHT_CUTOVER_MSK = datetime(2026, 10, 17, 1, 0, 0, tzinfo=MSK)
 _MATCH_ID_START_RE = re.compile(r"^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})")
 VEHICLE_RP_PER_TICKET = 12.5
 VEHICLE_DRIVER_SHARE = 0.7
+# Canon tickets: scripts/data/squad_vehicle_tickets.json (Squad v10.6.1 ticketValue).
+# Heuristics below are fallback only for unknown / future BP_ names.
+_VEH_TICKETS_BY_BP: dict[str, int] | None = None
 _VEH_TANK_RE = re.compile(
     # 2A6/2A7 = Leopard (Squad asset often BP_2A6_* without "LEOPARD" in name)
-    r"(T72|T62|T80|T90|M1A|LEOPARD|2A6|2A7|M60|CHALLENGER|MERKAVA|T14|ZTZ|TYPE99|TYPE96)",
+    r"(T72|T62|T80|T90|M1A|LEOPARD|2A6|2A7|M60|CHALLENGER|MERKAVA|T14|ZTZ|TYPE99|TYPE96|FV4034|T64)",
     re.I,
 )
 _VEH_IFV_RE = re.compile(
-    r"(BTR|BMP|BFV|FV510|AAVP|WARRIOR|ZBD|ZBL|BMD|MTL|PIRANHA|STRYKER|"
-    r"LAV25|LAV6|LAV_6|BOXER|ZTD|BRDM)",
+    r"(BTR82|BTR-?82|BTR4|BMP|BFV|FV510|FV520|AAVP|WARRIOR|ZBD|ZBL|BMD|"
+    r"PIRANHA|STRYKER|LAV25|LAV6|LAV_6|LAV2_COYOTE|BOXER|ZTD|ACV-?15|"
+    r"ASLAV|PARS3|M7A3|WZ551|ZSD89|M1126|M1128|SPRUT)",
     re.I,
 )
-# Mobile hub — confirm Asset Name with captain if a new BP appears.
+# WPMC mobile spawn vehicle (MSV) — 20 tickets in game table.
 _VEH_HUB_RE = re.compile(
-    r"WPMC.*(HUB|MCT|HQ|RADIO.?BIKE|MOBILE|COMMAND)",
+    r"(M113A3_MSV|WPMC.*(HUB|MCT|HQ|RADIO.?BIKE|MOBILE|COMMAND|MSV))",
     re.I,
 )
 _VEH_LOGI_RE = re.compile(r"LOGI", re.I)
-# Softskin / troop movers without a dedicated gunner weapon — 2 tickets (=50 RP).
+# Softskin / troop movers without a dedicated gunner — TRAN = 3 tickets in v10.6.1.
 _VEH_TRANSPORT_RE = re.compile(
     r"(TRANSPORT|UTIL|URAL|KAMAZ|M939|CTM131|GAZ66|GAZ_66|"
-    r"MINSK|BIKE|MOTORCYCLE|QUAD|BICYCLE|BOAT|RHIB|ZODIAC|"
-    r"CH146|RAVEN|UH60|UH_60|MI8|MI_8|LOACH|SAFEZONE)",
+    r"TECHNICAL4SEATER_TRANSPORT|SAFEZONE)",
     re.I,
 )
-# Armed light (stay 5 tickets = 62.5) — has shooter / weapon in Asset Name.
+# Tiny movers (bike/boat/gator) — often 1 ticket in the game table.
+_VEH_ULTV_RE = re.compile(
+    r"(MINSK|QUAD|BIKE|MOTORCYCLE|BICYCLE|RHIB|ZODIAC|M-?GATOR|LYNXATV)",
+    re.I,
+)
+# Armed light fallback (~5) — has shooter / weapon in Asset Name.
 _VEH_ARMED_LIGHT_RE = re.compile(
     r"(TOW|KORNET|M134|ZU23|QJZ|NSV|KORD|DSHK|SPG9|SPG_9|"
     r"CAS|CROWS|RWS|ARMED|OPEN.?TOP|MINIGUN|ROCKET|M2HB|M240|PKT|KPVT|"
@@ -351,7 +360,7 @@ def use_rp_vehicle(
 def _is_unarmed_transport(asset: str) -> bool:
     """
     Non-combat mover without a dedicated gunner (transport / bare util / softskin).
-    Logi is handled separately (stays 5 tickets). Armed light stays 5.
+    Logi is separate. Used for seat-role (seat1 = passenger) and fallback tickets.
     """
     a = str(asset or "")
     if not a or _VEH_LOGI_RE.search(a):
@@ -361,15 +370,69 @@ def _is_unarmed_transport(asset: str) -> bool:
     if re.search(r"TRANSPORT", a, re.I):
         return True
     if _VEH_TRANSPORT_RE.search(a):
-        # Loach CAS already caught by armed; plain Loach = transport heli
-        if re.search(r"LOACH", a, re.I) and re.search(r"CAS", a, re.I):
-            return False
         return True
     return False
 
 
+def _load_vehicle_tickets_by_bp() -> dict[str, int]:
+    global _VEH_TICKETS_BY_BP
+    if _VEH_TICKETS_BY_BP is not None:
+        return _VEH_TICKETS_BY_BP
+    out: dict[str, int] = {}
+    try:
+        path = Path(__file__).resolve().parent / "data" / "squad_vehicle_tickets.json"
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        for bp, meta in (raw.get("byBp") or {}).items():
+            key = str(bp or "").strip()
+            if not key:
+                continue
+            try:
+                out[key] = int(meta.get("tickets"))
+            except (TypeError, ValueError, AttributeError):
+                continue
+    except Exception:
+        out = {}
+    _VEH_TICKETS_BY_BP = out
+    return out
+
+
+def _asset_bp_key(asset: str) -> str:
+    """BP_LAV6_Woodland_C_2147… / BP_LAV6_Woodland_C → BP_LAV6_Woodland."""
+    a = str(asset or "").strip()
+    a = re.sub(r"_C_\d+$", "", a, flags=re.I)
+    a = re.sub(r"_C$", "", a, flags=re.I)
+    return a
+
+
+def _ticket_lookup_candidates(asset: str) -> list[str]:
+    """Hull keys to try, including stripping turret/periscope pawn suffixes."""
+    base = _asset_bp_key(asset)
+    if not base:
+        return []
+    cands = [base]
+    # BP_LAV6_Turret_Woodland → BP_LAV6_Woodland; BP_CROWS_Turret_… stays unknown.
+    stripped = re.sub(
+        r"_(Turret|Periscope|Gunner|Passenger)(?=_|$)",
+        "",
+        base,
+        flags=re.I,
+    )
+    if stripped and stripped not in cands:
+        cands.append(stripped)
+    return cands
+
+
 def vehicle_tickets(asset: str) -> int:
-    """Ticket cost by Asset Name (not from match ticket log)."""
+    """
+    Ticket cost = Squad ticketValue for this Asset Name (not from the match ticket log).
+
+    Primary: scripts/data/squad_vehicle_tickets.json (v10.6.1, 19.10.2026).
+    Fallback: class heuristics for unknown future BP_ names.
+    """
+    table = _load_vehicle_tickets_by_bp()
+    for key in _ticket_lookup_candidates(asset):
+        if key in table:
+            return int(table[key])
     a = str(asset or "")
     if _VEH_HUB_RE.search(a):
         return 20
@@ -377,11 +440,15 @@ def vehicle_tickets(asset: str) -> int:
         return 15
     if _VEH_IFV_RE.search(a):
         return 10
-    # Light tier: logi / armed light = 5 (=62.5 RP); unarmed transport = 2 (=25 RP)
     if _VEH_LOGI_RE.search(a):
+        # Tiny logi (LUVW/Technical/RHIB/Gator) are 1 in the table; unknown logi → 5.
+        if _VEH_ULTV_RE.search(a) or re.search(r"TECHNICAL|LUVW|M-?GATOR|LYNX", a, re.I):
+            return 1
         return 5
     if _is_unarmed_transport(a):
-        return 2
+        return 3
+    if _VEH_ULTV_RE.search(a):
+        return 1
     return 5
 
 
@@ -415,10 +482,16 @@ def vehicle_class_ru(asset: str) -> str:
     if t >= 20:
         return "хаб WPMC"
     if t >= 15:
+        if re.search(r"LOACH|CAS|HELI|UH|MI8|CH14", a, re.I):
+            return "вертолёт"
         return "танк"
     if t >= 10:
         return "БТР/БМП"
-    if t <= 2:
+    if t == 0:
+        return "RSV"
+    if t == 1:
+        return "лёгкий"
+    if t == 3 or _is_unarmed_transport(a):
         return "транспорт"
     if _VEH_LOGI_RE.search(a):
         return "logi"
@@ -459,7 +532,8 @@ def vehicle_seat_role(asset: str, seat: int, pawn: str = "") -> str:
         return "passenger"
     a = str(asset or "")
     # Logi / голый транспорт: seat 1 = пассажир (нет доли мехводу, нет F2-штрафа).
-    if _VEH_LOGI_RE.search(a) or _is_unarmed_transport(a) or vehicle_tickets(a) <= 2:
+    # Не использовать tickets<=N: у RHIB/ULTV ticketValue=1, но seat1 = gunner.
+    if _VEH_LOGI_RE.search(a) or _is_unarmed_transport(a):
         return "passenger"
     if any(
         x in pawn_u

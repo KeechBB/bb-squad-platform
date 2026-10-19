@@ -1,7 +1,11 @@
 /**
  * Human labels for vehicle RP events (client-safe — no node: imports).
- * Keep in sync with platform/scripts/rp_log_parse.py vehicle_label_ru.
+ * Tickets: Squad ticketValue table (src/lib/squadVehicleTickets.ts) =
+ * scripts/data/squad_vehicle_tickets.json. Keep fallback heuristics aligned
+ * with platform/scripts/rp_log_parse.py.
  */
+
+import { SQUAD_VEHICLE_TICKETS } from "@/lib/squadVehicleTickets";
 
 export type RpVehicleLabelEvent = {
   kind?: string;
@@ -39,34 +43,52 @@ function isUnarmedTransport(asset: string): boolean {
   const a = String(asset || "");
   if (!a || /LOGI/i.test(a) || isArmedLight(a)) return false;
   if (/TRANSPORT/i.test(a)) return true;
-  if (
-    /(UTIL|URAL|KAMAZ|M939|CTM131|GAZ66|GAZ_66|MINSK|BIKE|MOTORCYCLE|QUAD|BICYCLE|BOAT|RHIB|ZODIAC|CH146|RAVEN|UH60|UH_60|MI8|MI_8|LOACH|SAFEZONE)/i.test(
-      a
-    )
-  ) {
-    if (/LOACH/i.test(a) && /CAS/i.test(a)) return false;
-    return true;
+  return /(UTIL|URAL|KAMAZ|M939|CTM131|GAZ66|GAZ_66|TECHNICAL4SEATER_TRANSPORT|SAFEZONE)/i.test(
+    a
+  );
+}
+
+function assetBpKey(asset: string): string {
+  return String(asset || "")
+    .trim()
+    .replace(/_C_\d+$/i, "")
+    .replace(/_C$/i, "");
+}
+
+function lookupVehicleTickets(asset: string): number | null {
+  const base = assetBpKey(asset);
+  if (!base) return null;
+  const stripped = base.replace(/_(Turret|Periscope|Gunner|Passenger)(?=_|$)/gi, "");
+  for (const key of [base, stripped]) {
+    if (key && SQUAD_VEHICLE_TICKETS[key] != null) return SQUAD_VEHICLE_TICKETS[key];
   }
-  return false;
+  return null;
 }
 
 function inferVehicleTickets(asset: string): number {
+  const hit = lookupVehicleTickets(asset);
+  if (hit != null) return hit;
   const a = String(asset || "");
-  if (/WPMC.*(HUB|MCT|HQ|RADIO.?BIKE|MOBILE|COMMAND)/i.test(a)) return 20;
+  if (/M113A3_MSV|WPMC.*(HUB|MCT|HQ|RADIO.?BIKE|MOBILE|COMMAND|MSV)/i.test(a))
+    return 20;
   if (
-    /(T72|T62|T80|T90|M1A|LEOPARD|2A6|2A7|M60|CHALLENGER|MERKAVA|T14|ZTZ|TYPE99|TYPE96)/i.test(
+    /(T72|T62|T80|T90|M1A|LEOPARD|2A6|2A7|M60|CHALLENGER|MERKAVA|T14|ZTZ|TYPE99|TYPE96|FV4034|T64)/i.test(
       a
     )
   )
     return 15;
   if (
-    /(BTR|BMP|BFV|FV510|AAVP|WARRIOR|ZBD|ZBL|BMD|MTL|PIRANHA|STRYKER|LAV25|LAV6|LAV_6|BOXER|ZTD|BRDM)/i.test(
+    /(BTR82|BTR-?82|BTR4|BMP|BFV|FV510|FV520|AAVP|WARRIOR|ZBD|ZBL|BMD|PIRANHA|STRYKER|LAV25|LAV6|LAV_6|LAV2_COYOTE|BOXER|ZTD|ACV-?15|ASLAV|PARS3|M7A3|WZ551|ZSD89|M1126|M1128|SPRUT)/i.test(
       a
     )
   )
     return 10;
-  if (/LOGI/i.test(a)) return 5;
-  if (isUnarmedTransport(a)) return 2;
+  if (/LOGI/i.test(a)) {
+    if (/(MINSK|QUAD|RHIB|M-?GATOR|LYNX|TECHNICAL|LUVW)/i.test(a)) return 1;
+    return 5;
+  }
+  if (isUnarmedTransport(a)) return 3;
+  if (/(MINSK|QUAD|BIKE|RHIB|ZODIAC|M-?GATOR|LYNXATV)/i.test(a)) return 1;
   return 5;
 }
 
@@ -80,9 +102,14 @@ export function vehicleClassRu(
       ? Number(tickets)
       : inferVehicleTickets(asset);
   if (t >= 20) return "хаб WPMC";
-  if (t >= 15) return "танк";
+  if (t >= 15) {
+    if (/LOACH|CAS|HELI|UH|MI8|CH14/i.test(a)) return "вертолёт";
+    return "танк";
+  }
   if (t >= 10) return "БТР/БМП";
-  if (t <= 2) return "транспорт";
+  if (t === 0) return "RSV";
+  if (t === 1) return "лёгкий";
+  if (t === 3 || isUnarmedTransport(a)) return "транспорт";
   if (/LOGI/i.test(a)) return "logi";
   return "техника";
 }

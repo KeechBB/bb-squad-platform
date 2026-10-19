@@ -1,0 +1,3311 @@
+{
+  "source": "squad_vehicles_tickets.xlsx",
+  "gameVersion": "v10.6.1",
+  "asOf": "2026-10-19",
+  "note": "ticketValue from game; RP = tickets * 12.5",
+  "byBp": {
+    "BP_2A6_Desert": {
+      "tickets": 15,
+      "name": "Leopard 2A6M CAN",
+      "class": "MBT"
+    },
+    "BP_2A6_Desert_Cage": {
+      "tickets": 15,
+      "name": "Leopard 2A6M CAN",
+      "class": "MBT"
+    },
+    "BP_2A6_Woodland": {
+      "tickets": 15,
+      "name": "Leopard 2A6M CAN",
+      "class": "MBT"
+    },
+    "BP_2A6_Woodland_Cage": {
+      "tickets": 15,
+      "name": "Leopard 2A6M CAN",
+      "class": "MBT"
+    },
+    "BP_AAVP7A1": {
+      "tickets": 10,
+      "name": "AAVP-7A1",
+      "class": "APC"
+    },
+    "BP_AAVP7A1_Logi": {
+      "tickets": 5,
+      "name": "AAVC-7A1 Logistics",
+      "class": "LOGI"
+    },
+    "BP_AAVP7A1_Woodland": {
+      "tickets": 10,
+      "name": "AAVP-7A1",
+      "class": "APC"
+    },
+    "BP_AAVP7A1_Woodland_Logi": {
+      "tickets": 5,
+      "name": "AAVC-7A1 Logistics",
+      "class": "LOGI"
+    },
+    "BP_ACV-15": {
+      "tickets": 10,
+      "name": "ACV-15 25mm",
+      "class": "IFV"
+    },
+    "BP_ACV-15_Desert": {
+      "tickets": 10,
+      "name": "ACV-15 25mm",
+      "class": "IFV"
+    },
+    "BP_ACV-15_M2": {
+      "tickets": 5,
+      "name": "ACV-15 M2",
+      "class": "APC"
+    },
+    "BP_ACV-15_M2_Desert": {
+      "tickets": 5,
+      "name": "ACV-15 M2",
+      "class": "APC"
+    },
+    "BP_ACV-15_MG3": {
+      "tickets": 5,
+      "name": "ACV-15 MG3",
+      "class": "APC"
+    },
+    "BP_ACV-15_MG3_Desert": {
+      "tickets": 5,
+      "name": "ACV-15 MG3",
+      "class": "APC"
+    },
+    "BP_ASLAV": {
+      "tickets": 10,
+      "name": "ASLAV",
+      "class": "IFV"
+    },
+    "BP_AUS_M1A1": {
+      "tickets": 15,
+      "name": "M1A1",
+      "class": "MBT"
+    },
+    "BP_Armored_Technical2Seater_Camo_AGS17": {
+      "tickets": 5,
+      "name": "Technical AGS-17",
+      "class": "LTV"
+    },
+    "BP_Armored_Technical2Seater_Camo_DSHK": {
+      "tickets": 5,
+      "name": "Technical HMG",
+      "class": "LTV"
+    },
+    "BP_Armored_Technical2Seater_Camo_M2": {
+      "tickets": 5,
+      "name": "Technical HMG",
+      "class": "LTV"
+    },
+    "BP_Armored_Technical2Seater_Camo_SPG9": {
+      "tickets": 5,
+      "name": "Technical SPG-9",
+      "class": "TD"
+    },
+    "BP_Armored_Technical2Seater_White_AGS17": {
+      "tickets": 5,
+      "name": "Technical AGS-17",
+      "class": "TD"
+    },
+    "BP_Armored_Technical4Seater_Logi_Camo": {
+      "tickets": 5,
+      "name": "Logistics Modern Pickup",
+      "class": "LOGI"
+    },
+    "BP_Armored_Technical4Seater_Transport_Camo": {
+      "tickets": 3,
+      "name": "Transport Modern Pickup",
+      "class": "TRAN"
+    },
+    "BP_Armored_Ural_375_Logi_MIL": {
+      "tickets": 5,
+      "name": "Ural-375D Logistics",
+      "class": "LOGI"
+    },
+    "BP_Armored_Ural_375_MIL": {
+      "tickets": 3,
+      "name": "Ural-375D Transport",
+      "class": "TRAN"
+    },
+    "BP_Aussie_Util_Truck": {
+      "tickets": 3,
+      "name": "HX60 Transport",
+      "class": "TRAN"
+    },
+    "BP_Aussie_Util_Truck_Logi": {
+      "tickets": 5,
+      "name": "HX60 Logistics",
+      "class": "LOGI"
+    },
+    "BP_BFV": {
+      "tickets": 10,
+      "name": "M2A3",
+      "class": "IFV"
+    },
+    "BP_BFV_Woodland": {
+      "tickets": 10,
+      "name": "M2A3",
+      "class": "IFV"
+    },
+    "BP_BM21Grad_IMF": {
+      "tickets": 5,
+      "name": "Ural-375D BM-21 Grad",
+      "class": "SPA"
+    },
+    "BP_BMD1M": {
+      "tickets": 10,
+      "name": "BMD-1M",
+      "class": "IFV"
+    },
+    "BP_BMD1M_Desert": {
+      "tickets": 10,
+      "name": "BMD-1M",
+      "class": "IFV"
+    },
+    "BP_BMD4M": {
+      "tickets": 10,
+      "name": "BMD-4M",
+      "class": "IFV"
+    },
+    "BP_BMD4M_Desert": {
+      "tickets": 10,
+      "name": "BMD-4M",
+      "class": "IFV"
+    },
+    "BP_BMP1AM": {
+      "tickets": 10,
+      "name": "BMP-1AM",
+      "class": "IFV"
+    },
+    "BP_BMP1AM_Desert": {
+      "tickets": 10,
+      "name": "BMP-1AM",
+      "class": "IFV"
+    },
+    "BP_BMP1TS_AFU": {
+      "tickets": 10,
+      "name": "BMP-1TS",
+      "class": "IFV"
+    },
+    "BP_BMP1_AFU": {
+      "tickets": 10,
+      "name": "BMP-1",
+      "class": "IFV"
+    },
+    "BP_BMP1_GFI": {
+      "tickets": 10,
+      "name": "BMP-1",
+      "class": "IFV"
+    },
+    "BP_BMP1_INS": {
+      "tickets": 10,
+      "name": "BMP-1",
+      "class": "IFV"
+    },
+    "BP_BMP1_INS_ZU23": {
+      "tickets": 5,
+      "name": "BMP-1 ZU-23-2",
+      "class": "SPAA"
+    },
+    "BP_BMP1_MIL": {
+      "tickets": 10,
+      "name": "BMP-1",
+      "class": "IFV"
+    },
+    "BP_BMP1_MIL_ZU23": {
+      "tickets": 5,
+      "name": "BMP-1 ZU-23-2",
+      "class": "SPAA"
+    },
+    "BP_BMP2": {
+      "tickets": 10,
+      "name": "BMP-2",
+      "class": "IFV"
+    },
+    "BP_BMP2M": {
+      "tickets": 10,
+      "name": "BMP-2M",
+      "class": "IFV"
+    },
+    "BP_BMP2M_Desert": {
+      "tickets": 10,
+      "name": "BMP-2M",
+      "class": "IFV"
+    },
+    "BP_BMP2_AFU": {
+      "tickets": 10,
+      "name": "BMP-2",
+      "class": "IFV"
+    },
+    "BP_BMP2_Desert": {
+      "tickets": 10,
+      "name": "BMP-2",
+      "class": "IFV"
+    },
+    "BP_BMP2_GFI": {
+      "tickets": 10,
+      "name": "BMP-2",
+      "class": "IFV"
+    },
+    "BP_BMP2_IMF": {
+      "tickets": 10,
+      "name": "BMP-2",
+      "class": "IFV"
+    },
+    "BP_BMP3M": {
+      "tickets": 10,
+      "name": "BMP-3M",
+      "class": "IFV"
+    },
+    "BP_BMP3M_Desert": {
+      "tickets": 10,
+      "name": "BMP-3M",
+      "class": "IFV"
+    },
+    "BP_BRDM-2L1_AFU": {
+      "tickets": 5,
+      "name": "BRDM-2L1",
+      "class": "LTV"
+    },
+    "BP_BRDM-2_GFI": {
+      "tickets": 0,
+      "name": "BRDM-2 UB-32",
+      "class": "RSV"
+    },
+    "BP_BRDM-2_GFI_Spandrel": {
+      "tickets": 10,
+      "name": "BRDM-2 Spandrel",
+      "class": "TD"
+    },
+    "BP_BRDM-2_Insurgents": {
+      "tickets": 5,
+      "name": "BRDM-2",
+      "class": "LTV"
+    },
+    "BP_BRDM-2_MIL": {
+      "tickets": 5,
+      "name": "BRDM-2",
+      "class": "LTV"
+    },
+    "BP_BRDM-2_RUS": {
+      "tickets": 5,
+      "name": "BRDM-2",
+      "class": "LTV"
+    },
+    "BP_BRDM-2_RUS_Desert": {
+      "tickets": 5,
+      "name": "BRDM-2",
+      "class": "LTV"
+    },
+    "BP_BRDM-2_Spandrel_RUS": {
+      "tickets": 10,
+      "name": "BRDM-2 Spandrel",
+      "class": "TD"
+    },
+    "BP_BRDM-2_Spandrel_RUS_Desert": {
+      "tickets": 10,
+      "name": "BRDM-2 Spandrel",
+      "class": "TD"
+    },
+    "BP_BTR-DG_Logistics": {
+      "tickets": 5,
+      "name": "BTR-DG Logistics",
+      "class": "LOGI"
+    },
+    "BP_BTR-DG_Logistics_Desert": {
+      "tickets": 5,
+      "name": "BTR-DG Logistics",
+      "class": "LOGI"
+    },
+    "BP_BTR-D_AGS17": {
+      "tickets": 5,
+      "name": "BTR-D AGS-17",
+      "class": "APC"
+    },
+    "BP_BTR-D_AGS17_Desert": {
+      "tickets": 5,
+      "name": "BTR-D AGS-17",
+      "class": "APC"
+    },
+    "BP_BTR-D_Kord": {
+      "tickets": 5,
+      "name": "BTR-D Kord",
+      "class": "APC"
+    },
+    "BP_BTR-D_Kord_Desert": {
+      "tickets": 5,
+      "name": "BTR-D Kord",
+      "class": "APC"
+    },
+    "BP_BTR-D_PKM": {
+      "tickets": 5,
+      "name": "BTR-D PKM",
+      "class": "APC"
+    },
+    "BP_BTR-D_PKM_Desert": {
+      "tickets": 5,
+      "name": "BTR-D PKM",
+      "class": "APC"
+    },
+    "BP_BTR-D_Transport": {
+      "tickets": 5,
+      "name": "BTR-D",
+      "class": "APC"
+    },
+    "BP_BTR-D_Transport_Desert": {
+      "tickets": 5,
+      "name": "BTR-D",
+      "class": "APC"
+    },
+    "BP_BTR-ZD": {
+      "tickets": 5,
+      "name": "BTR-ZD",
+      "class": "SPAA"
+    },
+    "BP_BTR-ZD_Desert": {
+      "tickets": 5,
+      "name": "BTR-ZD",
+      "class": "SPAA"
+    },
+    "BP_BTR4_AFU": {
+      "tickets": 10,
+      "name": "BTR-4",
+      "class": "IFV"
+    },
+    "BP_BTR80_Militia": {
+      "tickets": 5,
+      "name": "BTR-80",
+      "class": "APC"
+    },
+    "BP_BTR80_RUS": {
+      "tickets": 5,
+      "name": "BTR-80",
+      "class": "APC"
+    },
+    "BP_BTR80_RUS_Desert": {
+      "tickets": 5,
+      "name": "BTR-80",
+      "class": "APC"
+    },
+    "BP_BTR82A_RUS": {
+      "tickets": 10,
+      "name": "BTR-82A",
+      "class": "APC"
+    },
+    "BP_BTR82A_RUS_Desert": {
+      "tickets": 10,
+      "name": "BTR-82A",
+      "class": "APC"
+    },
+    "BP_BTRMDM_PKT_RWS": {
+      "tickets": 5,
+      "name": "BTR-MDM",
+      "class": "APC"
+    },
+    "BP_BTRMDM_PKT_RWS_Desert": {
+      "tickets": 5,
+      "name": "BTR-MDM",
+      "class": "APC"
+    },
+    "BP_Brit_Util_Truck": {
+      "tickets": 3,
+      "name": "HX60 Transport",
+      "class": "TRAN"
+    },
+    "BP_Brit_Util_Truck_Logi": {
+      "tickets": 5,
+      "name": "HX60 Logistics",
+      "class": "LOGI"
+    },
+    "BP_Brit_Util_Truck_Logi_Woodland": {
+      "tickets": 5,
+      "name": "HX60 Logistics",
+      "class": "LOGI"
+    },
+    "BP_Brit_Util_Truck_Woodland": {
+      "tickets": 3,
+      "name": "HX60 Transport",
+      "class": "TRAN"
+    },
+    "BP_CAF_Util_Desert": {
+      "tickets": 3,
+      "name": "MSVS Transport",
+      "class": "TRAN"
+    },
+    "BP_CAF_Util_Desert_Logi": {
+      "tickets": 5,
+      "name": "MSVS Logistics",
+      "class": "LOGI"
+    },
+    "BP_CAF_Util_Woodland": {
+      "tickets": 3,
+      "name": "MSVS Transport",
+      "class": "TRAN"
+    },
+    "BP_CAF_Util_Woodland_Logi": {
+      "tickets": 5,
+      "name": "MSVS Logistics",
+      "class": "LOGI"
+    },
+    "BP_CH146": {
+      "tickets": 5,
+      "name": "CH-146",
+      "class": "UH"
+    },
+    "BP_CH146_CAS": {
+      "tickets": 10,
+      "name": "CH-146 CAS",
+      "class": "AH"
+    },
+    "BP_CH146_Desert": {
+      "tickets": 5,
+      "name": "CH-146",
+      "class": "UH"
+    },
+    "BP_CH146_Desert_CAS": {
+      "tickets": 10,
+      "name": "CH-146 CAS",
+      "class": "AH"
+    },
+    "BP_CH146_Raven": {
+      "tickets": 5,
+      "name": "Raven Transport",
+      "class": "UH"
+    },
+    "BP_CH178": {
+      "tickets": 5,
+      "name": "CH-178",
+      "class": "UH"
+    },
+    "BP_CPV_M134": {
+      "tickets": 5,
+      "name": "CPV M134 Minigun",
+      "class": "MRAP"
+    },
+    "BP_CPV_M134_Blue": {
+      "tickets": 5,
+      "name": "CPV M134 Minigun",
+      "class": "MRAP"
+    },
+    "BP_CPV_M134_Red": {
+      "tickets": 5,
+      "name": "CPV M134 Minigun",
+      "class": "MRAP"
+    },
+    "BP_CPV_Transport": {
+      "tickets": 5,
+      "name": "CPV Transport",
+      "class": "MRAP"
+    },
+    "BP_CPV_Transport_Blue": {
+      "tickets": 5,
+      "name": "CPV Transport",
+      "class": "MRAP"
+    },
+    "BP_CPV_Transport_CRF": {
+      "tickets": 5,
+      "name": "Light Transport",
+      "class": "MRAP"
+    },
+    "BP_CPV_Transport_Red": {
+      "tickets": 5,
+      "name": "CPV Transport",
+      "class": "MRAP"
+    },
+    "BP_CSK131_HJ-8ATGM": {
+      "tickets": 10,
+      "name": "CSK131 HJ8",
+      "class": "TD"
+    },
+    "BP_CSK131_HJ-8ATGM_Naval": {
+      "tickets": 10,
+      "name": "CSK131 HJ8",
+      "class": "TD"
+    },
+    "BP_CSK131_HJ8ATGM_Desert": {
+      "tickets": 10,
+      "name": "CSK131 HJ8",
+      "class": "TD"
+    },
+    "BP_CSK131_QJY88": {
+      "tickets": 5,
+      "name": "CSK131 QJY88",
+      "class": "MRAP"
+    },
+    "BP_CSK131_QJY88_Desert": {
+      "tickets": 5,
+      "name": "CSK131 QJY88",
+      "class": "MRAP"
+    },
+    "BP_CSK131_QJY88_Naval": {
+      "tickets": 5,
+      "name": "CSK131 QJY88",
+      "class": "MRAP"
+    },
+    "BP_CSK131_QJZ89": {
+      "tickets": 5,
+      "name": "CSK131 QJZ89",
+      "class": "MRAP"
+    },
+    "BP_CSK131_QJZ89_Desert": {
+      "tickets": 5,
+      "name": "CSK131 QJZ89",
+      "class": "MRAP"
+    },
+    "BP_CSK131_QJZ89_Naval": {
+      "tickets": 5,
+      "name": "CSK131 QJZ89",
+      "class": "MRAP"
+    },
+    "BP_CSK131_QLZ87": {
+      "tickets": 5,
+      "name": "CSK131 QLZ87",
+      "class": "MRAP"
+    },
+    "BP_CSK131_QLZ87_Desert": {
+      "tickets": 5,
+      "name": "CSK131 QLZ87",
+      "class": "MRAP"
+    },
+    "BP_CSK131_RWS": {
+      "tickets": 5,
+      "name": "CSK131 QJC88 RWS",
+      "class": "MRAP"
+    },
+    "BP_CSK131_RWS_Desert": {
+      "tickets": 5,
+      "name": "CSK131 QJC88 RWS",
+      "class": "MRAP"
+    },
+    "BP_CSK131_RWS_Naval": {
+      "tickets": 5,
+      "name": "CSK131 QJC88 RWS",
+      "class": "MRAP"
+    },
+    "BP_CTM131": {
+      "tickets": 3,
+      "name": "CTM131 Transport QJY88",
+      "class": "TRAN"
+    },
+    "BP_CTM131_Desert": {
+      "tickets": 3,
+      "name": "CTM131 Transport QJY88",
+      "class": "TRAN"
+    },
+    "BP_CTM131_Logistic": {
+      "tickets": 5,
+      "name": "CTM131 Logistics",
+      "class": "LOGI"
+    },
+    "BP_CTM131_Logistic_Desert": {
+      "tickets": 5,
+      "name": "CTM131 Logistics",
+      "class": "LOGI"
+    },
+    "BP_CTM131_Logistic_Naval": {
+      "tickets": 5,
+      "name": "CTM131 Logistics",
+      "class": "LOGI"
+    },
+    "BP_CTM131_Naval": {
+      "tickets": 3,
+      "name": "CTM131 QJY88",
+      "class": "TRAN"
+    },
+    "BP_CTM131_QJZ89": {
+      "tickets": 3,
+      "name": "CTM131 Transport QJZ89",
+      "class": "TRAN"
+    },
+    "BP_CTM131_QJZ89_Desert": {
+      "tickets": 3,
+      "name": "CTM131 Transport QJZ89",
+      "class": "TRAN"
+    },
+    "BP_CTM131_QJZ89_Naval": {
+      "tickets": 3,
+      "name": "CTM131 QJZ89",
+      "class": "TRAN"
+    },
+    "BP_Cobra2_M2": {
+      "tickets": 5,
+      "name": "Cobra II M2",
+      "class": "MRAP"
+    },
+    "BP_Cobra2_M2_Desert": {
+      "tickets": 5,
+      "name": "Cobra II M2",
+      "class": "MRAP"
+    },
+    "BP_Cobra2_MG3": {
+      "tickets": 5,
+      "name": "Cobra II MG3",
+      "class": "MRAP"
+    },
+    "BP_Cobra2_MG3_Desert": {
+      "tickets": 5,
+      "name": "Cobra II MG3",
+      "class": "MRAP"
+    },
+    "BP_Cobra2_RWS_M2": {
+      "tickets": 5,
+      "name": "Cobra II M2 RWS",
+      "class": "MRAP"
+    },
+    "BP_Cobra2_RWS_M2_Desert": {
+      "tickets": 5,
+      "name": "Cobra II M2 RWS",
+      "class": "MRAP"
+    },
+    "BP_Cobra2_RWS_MG3": {
+      "tickets": 5,
+      "name": "Cobra II MG3 RWS",
+      "class": "MRAP"
+    },
+    "BP_Cobra2_RWS_MG3_Desert": {
+      "tickets": 5,
+      "name": "Cobra II MG3 RWS",
+      "class": "MRAP"
+    },
+    "BP_FV107": {
+      "tickets": 5,
+      "name": "FV107",
+      "class": "APC"
+    },
+    "BP_FV107_Woodland": {
+      "tickets": 5,
+      "name": "FV107",
+      "class": "APC"
+    },
+    "BP_FV4034": {
+      "tickets": 15,
+      "name": "FV4034",
+      "class": "MBT"
+    },
+    "BP_FV4034_Woodland": {
+      "tickets": 15,
+      "name": "FV4034",
+      "class": "MBT"
+    },
+    "BP_FV432": {
+      "tickets": 5,
+      "name": "FV432 L11A1",
+      "class": "APC"
+    },
+    "BP_FV432_L37A2_RWS": {
+      "tickets": 5,
+      "name": "FV432 L37A2 RWS",
+      "class": "APC"
+    },
+    "BP_FV432_L37A2_RWS_Woodland": {
+      "tickets": 5,
+      "name": "FV432 L37A2 RWS",
+      "class": "APC"
+    },
+    "BP_FV432_M2_RWS": {
+      "tickets": 5,
+      "name": "FV432 L11A1 RWS",
+      "class": "APC"
+    },
+    "BP_FV432_M2_RWS_Woodland": {
+      "tickets": 5,
+      "name": "FV432 L11A1 RWS",
+      "class": "APC"
+    },
+    "BP_FV432_woodland": {
+      "tickets": 5,
+      "name": "FV432 L11A1",
+      "class": "APC"
+    },
+    "BP_FV510": {
+      "tickets": 10,
+      "name": "FV510",
+      "class": "IFV"
+    },
+    "BP_FV510UA": {
+      "tickets": 10,
+      "name": "FV510 UA",
+      "class": "IFV"
+    },
+    "BP_FV510UA_CTAS40": {
+      "tickets": 10,
+      "name": "FV520 CTAS40",
+      "class": "IFV"
+    },
+    "BP_FV510UA_CTAS40_Woodland": {
+      "tickets": 10,
+      "name": "FV520 CTAS40",
+      "class": "IFV"
+    },
+    "BP_FV510UA_Woodland": {
+      "tickets": 10,
+      "name": "FV510 UA",
+      "class": "IFV"
+    },
+    "BP_FV510_Woodland": {
+      "tickets": 10,
+      "name": "FV510",
+      "class": "IFV"
+    },
+    "BP_Kamaz_5350": {
+      "tickets": 3,
+      "name": "KamAZ 5350 Transport",
+      "class": "TRAN"
+    },
+    "BP_Kamaz_5350_Desert": {
+      "tickets": 3,
+      "name": "KamAZ 5350 Transport",
+      "class": "TRAN"
+    },
+    "BP_Kamaz_5350_Logi": {
+      "tickets": 5,
+      "name": "KamAZ 5350 Logistics",
+      "class": "LOGI"
+    },
+    "BP_Kamaz_5350_Logi_Desert": {
+      "tickets": 5,
+      "name": "KamAZ 5350 Logistics",
+      "class": "LOGI"
+    },
+    "BP_Kozak_2M1_AGS": {
+      "tickets": 5,
+      "name": "Kozak-2M1 AGS-17",
+      "class": "MRAP"
+    },
+    "BP_Kozak_2M1_Kord": {
+      "tickets": 5,
+      "name": "Kozak-2M1 NSV",
+      "class": "LTV"
+    },
+    "BP_Kraz_6322": {
+      "tickets": 3,
+      "name": "KrAZ-6322 Transport",
+      "class": "TRAN"
+    },
+    "BP_Kraz_6322_BM21Grad": {
+      "tickets": 5,
+      "name": "KrAZ-6322 BM-21 Grad",
+      "class": "SPA"
+    },
+    "BP_Kraz_6322_Logi": {
+      "tickets": 5,
+      "name": "KrAZ-6322 Logistics",
+      "class": "LOGI"
+    },
+    "BP_LAV25": {
+      "tickets": 10,
+      "name": "LAV-25",
+      "class": "APC"
+    },
+    "BP_LAV25_Woodland": {
+      "tickets": 10,
+      "name": "LAV-25",
+      "class": "APC"
+    },
+    "BP_LAV2_Coyote": {
+      "tickets": 10,
+      "name": "Coyote",
+      "class": "IFV"
+    },
+    "BP_LAV2_Coyote_CRF": {
+      "tickets": 10,
+      "name": "Coyote",
+      "class": "IFV"
+    },
+    "BP_LAV2_Coyote_Woodland": {
+      "tickets": 10,
+      "name": "Coyote",
+      "class": "IFV"
+    },
+    "BP_LAV6_Desert": {
+      "tickets": 10,
+      "name": "LAV 6",
+      "class": "IFV"
+    },
+    "BP_LAV6_Woodland": {
+      "tickets": 10,
+      "name": "LAV 6",
+      "class": "IFV"
+    },
+    "BP_LAV_RWS_C6": {
+      "tickets": 5,
+      "name": "LAV III C6 RWS",
+      "class": "APC"
+    },
+    "BP_LAV_RWS_C6_Desert": {
+      "tickets": 5,
+      "name": "LAV III C6 RWS",
+      "class": "APC"
+    },
+    "BP_LAV_RWS_M2": {
+      "tickets": 10,
+      "name": "LAV III M2 RWS",
+      "class": "APC"
+    },
+    "BP_LAV_RWS_M2_Desert": {
+      "tickets": 10,
+      "name": "LAV III M2 RWS",
+      "class": "APC"
+    },
+    "BP_LPPV": {
+      "tickets": 5,
+      "name": "LPPV",
+      "class": "MRAP"
+    },
+    "BP_LPPV_M2RWS": {
+      "tickets": 5,
+      "name": "LPPV RWS",
+      "class": "MRAP"
+    },
+    "BP_LPPV_M2RWS_Woodland": {
+      "tickets": 5,
+      "name": "LPPV RWS",
+      "class": "MRAP"
+    },
+    "BP_LPPV_Woodland": {
+      "tickets": 5,
+      "name": "LPPV",
+      "class": "MRAP"
+    },
+    "BP_LUVW": {
+      "tickets": 3,
+      "name": "LUVW Transport",
+      "class": "TRAN"
+    },
+    "BP_LUVW_C6": {
+      "tickets": 5,
+      "name": "LUVW C6",
+      "class": "MRAP"
+    },
+    "BP_LUVW_C6_Desert": {
+      "tickets": 5,
+      "name": "LUVW C6",
+      "class": "MRAP"
+    },
+    "BP_LUVW_CRF": {
+      "tickets": 5,
+      "name": "Light Transport",
+      "class": "MRAP"
+    },
+    "BP_LUVW_Desert": {
+      "tickets": 3,
+      "name": "LUVW Transport",
+      "class": "TRAN"
+    },
+    "BP_LUVW_Logi": {
+      "tickets": 1,
+      "name": "LUVW Logistics",
+      "class": "LOGI"
+    },
+    "BP_LUVW_Logi_Desert": {
+      "tickets": 1,
+      "name": "LUVW Logistics",
+      "class": "LOGI"
+    },
+    "BP_LUVW_M2": {
+      "tickets": 5,
+      "name": "LUVW M2",
+      "class": "MRAP"
+    },
+    "BP_LUVW_M2_Desert": {
+      "tickets": 5,
+      "name": "LUVW M2",
+      "class": "MRAP"
+    },
+    "BP_Loach": {
+      "tickets": 5,
+      "name": "Loach Scout",
+      "class": "AH"
+    },
+    "BP_Loach_CAS": {
+      "tickets": 10,
+      "name": "Loach CAS",
+      "class": "AH"
+    },
+    "BP_Loach_CAS_Large": {
+      "tickets": 15,
+      "name": "Loach CAS Large",
+      "class": "AH"
+    },
+    "BP_Loach_CAS_SingleLarge": {
+      "tickets": 15,
+      "name": "Loach CAS Single Large",
+      "class": "AH"
+    },
+    "BP_Loach_CAS_Small": {
+      "tickets": 10,
+      "name": "Loach CAS Small",
+      "class": "AH"
+    },
+    "BP_LynxATV": {
+      "tickets": 3,
+      "name": "Lynx8x8 Transport",
+      "class": "TRAN"
+    },
+    "BP_LynxATV_Logistic": {
+      "tickets": 1,
+      "name": "Lynx8x8 Logistics",
+      "class": "LOGI"
+    },
+    "BP_LynxATV_Rollcage_QJZ89": {
+      "tickets": 5,
+      "name": "Lynx8x8 QJZ89",
+      "class": "LTV"
+    },
+    "BP_LynxATV_Rollcage_QLZ87": {
+      "tickets": 5,
+      "name": "Lynx8x8 QLZ87",
+      "class": "LTV"
+    },
+    "BP_M-Gator_Logistics": {
+      "tickets": 1,
+      "name": "LUV-A1 Logistics",
+      "class": "LOGI"
+    },
+    "BP_M-Gator_Logistics_ARID": {
+      "tickets": 1,
+      "name": "LUV-A1 Logistics",
+      "class": "LOGI"
+    },
+    "BP_M-Gator_Transport": {
+      "tickets": 3,
+      "name": "LUV-A1 Transport",
+      "class": "TRAN"
+    },
+    "BP_M-Gator_Transport_ARID": {
+      "tickets": 3,
+      "name": "LUV-A1 Transport",
+      "class": "TRAN"
+    },
+    "BP_M1064A3_M121": {
+      "tickets": 5,
+      "name": "M1064A3 M121",
+      "class": "SPA"
+    },
+    "BP_M1064A3_M121_Desert": {
+      "tickets": 5,
+      "name": "M1064A3 M121",
+      "class": "SPA"
+    },
+    "BP_M1064_M121_TLF": {
+      "tickets": 5,
+      "name": "M113A2T M121",
+      "class": "SPA"
+    },
+    "BP_M1064_M121_TLF_Desert": {
+      "tickets": 5,
+      "name": "M113A2T M121",
+      "class": "SPA"
+    },
+    "BP_M1117": {
+      "tickets": 5,
+      "name": "M1117",
+      "class": "MRAP"
+    },
+    "BP_M1126": {
+      "tickets": 10,
+      "name": "M1126 CROWS M2",
+      "class": "APC"
+    },
+    "BP_M1126_M240": {
+      "tickets": 5,
+      "name": "M1126 CROWS M240",
+      "class": "APC"
+    },
+    "BP_M1126_M240_Woodland": {
+      "tickets": 5,
+      "name": "M1126 CROWS M240",
+      "class": "APC"
+    },
+    "BP_M1126_Woodland": {
+      "tickets": 10,
+      "name": "M1126 CROWS M2",
+      "class": "APC"
+    },
+    "BP_M1128": {
+      "tickets": 10,
+      "name": "M1128 MGS",
+      "class": "MGS"
+    },
+    "BP_M1128_Woodland": {
+      "tickets": 10,
+      "name": "M1128 MGS",
+      "class": "MGS"
+    },
+    "BP_M113A2T_Logistics_TLF": {
+      "tickets": 5,
+      "name": "M113A2 Logistics",
+      "class": "LOGI"
+    },
+    "BP_M113A2T_Logistics_TLF_Desert": {
+      "tickets": 5,
+      "name": "M113A2 Logistics",
+      "class": "LOGI"
+    },
+    "BP_M113A2T_M2_TLF": {
+      "tickets": 5,
+      "name": "M113A2T M2",
+      "class": "APC"
+    },
+    "BP_M113A2T_M2_TLF_Desert": {
+      "tickets": 5,
+      "name": "M113A2T M2",
+      "class": "APC"
+    },
+    "BP_M113A2T_MK19_TLF": {
+      "tickets": 5,
+      "name": "M113A2T Mk19",
+      "class": "APC"
+    },
+    "BP_M113A2T_MK19_TLF_Desert": {
+      "tickets": 5,
+      "name": "M113A2T Mk19",
+      "class": "APC"
+    },
+    "BP_M113A3_CAF_C6": {
+      "tickets": 5,
+      "name": "M113A3 C6",
+      "class": "APC"
+    },
+    "BP_M113A3_CAF_C6_Desert": {
+      "tickets": 5,
+      "name": "M113A3 C6",
+      "class": "APC"
+    },
+    "BP_M113A3_CAF_M2": {
+      "tickets": 5,
+      "name": "M113A3 M2",
+      "class": "APC"
+    },
+    "BP_M113A3_CAF_M2_Desert": {
+      "tickets": 5,
+      "name": "M113A3 M2",
+      "class": "APC"
+    },
+    "BP_M113A3_CAF_TLAV": {
+      "tickets": 5,
+      "name": "M113A3 TLAV",
+      "class": "APC"
+    },
+    "BP_M113A3_CAF_TLAV_Desert": {
+      "tickets": 5,
+      "name": "M113A3 TLAV",
+      "class": "APC"
+    },
+    "BP_M113A3_Logistics": {
+      "tickets": 5,
+      "name": "M113A3 Logistics",
+      "class": "LOGI"
+    },
+    "BP_M113A3_Logistics_Desert": {
+      "tickets": 5,
+      "name": "M113A3 Logistics",
+      "class": "LOGI"
+    },
+    "BP_M113A3_M2": {
+      "tickets": 5,
+      "name": "M113A3 M2",
+      "class": "APC"
+    },
+    "BP_M113A3_M2_CRF": {
+      "tickets": 5,
+      "name": "M113A3",
+      "class": "APC"
+    },
+    "BP_M113A3_M2_Desert": {
+      "tickets": 5,
+      "name": "M113A3 M2",
+      "class": "APC"
+    },
+    "BP_M113A3_M2_Desert_Cage": {
+      "tickets": 5,
+      "name": "M113A3 M2",
+      "class": "APC"
+    },
+    "BP_M113A3_MK19": {
+      "tickets": 5,
+      "name": "M113A3 Mk19",
+      "class": "APC"
+    },
+    "BP_M113A3_MK19_Desert": {
+      "tickets": 5,
+      "name": "M113A3 Mk19",
+      "class": "APC"
+    },
+    "BP_M113A3_MK19_Desert_Cage": {
+      "tickets": 5,
+      "name": "M113A3 Mk19",
+      "class": "APC"
+    },
+    "BP_M113A3_MSV_WPMC": {
+      "tickets": 20,
+      "name": "M113A3 MSV",
+      "class": "MSV"
+    },
+    "BP_M113A3_WPMC_M2": {
+      "tickets": 5,
+      "name": "M113A3 M2",
+      "class": "APC"
+    },
+    "BP_M1151": {
+      "tickets": 5,
+      "name": "M1151 M2",
+      "class": "MRAP"
+    },
+    "BP_M1151_CROWS": {
+      "tickets": 5,
+      "name": "M1151 CROWS M2",
+      "class": "MRAP"
+    },
+    "BP_M1151_CROWS_Woodland": {
+      "tickets": 5,
+      "name": "M1151 CROWS M2",
+      "class": "MRAP"
+    },
+    "BP_M1151_GFI": {
+      "tickets": 5,
+      "name": "M1151 M2",
+      "class": "MRAP"
+    },
+    "BP_M1151_Light": {
+      "tickets": 5,
+      "name": "M1151 M2",
+      "class": "MRAP"
+    },
+    "BP_M1151_Light_M240": {
+      "tickets": 5,
+      "name": "M1151 M240",
+      "class": "MRAP"
+    },
+    "BP_M1151_Light_M240_Woodland": {
+      "tickets": 5,
+      "name": "M1151 M240",
+      "class": "MRAP"
+    },
+    "BP_M1151_Light_Mk19": {
+      "tickets": 5,
+      "name": "M1151 Mk19",
+      "class": "MRAP"
+    },
+    "BP_M1151_Light_Mk19_Woodland": {
+      "tickets": 5,
+      "name": "M1151 Mk19",
+      "class": "MRAP"
+    },
+    "BP_M1151_Light_TOW": {
+      "tickets": 5,
+      "name": "M1151 TOW",
+      "class": "TD"
+    },
+    "BP_M1151_Light_TOW_Woodland": {
+      "tickets": 5,
+      "name": "M1151 TOW",
+      "class": "TD"
+    },
+    "BP_M1151_Light_TOW_Woodland_CRF": {
+      "tickets": 5,
+      "name": "M1151 TOW",
+      "class": "TD"
+    },
+    "BP_M1151_Light_Woodland": {
+      "tickets": 5,
+      "name": "M1151 M2",
+      "class": "MRAP"
+    },
+    "BP_M1151_Light_Woodland_CRF": {
+      "tickets": 5,
+      "name": "Light FSV",
+      "class": "LTV"
+    },
+    "BP_M1151_M240": {
+      "tickets": 5,
+      "name": "M1151 M240",
+      "class": "MRAP"
+    },
+    "BP_M1151_M240_WPMC": {
+      "tickets": 5,
+      "name": "M1151 M240",
+      "class": "LTV"
+    },
+    "BP_M1151_M240_Woodland": {
+      "tickets": 5,
+      "name": "M1151 M240",
+      "class": "MRAP"
+    },
+    "BP_M1151_Mk19": {
+      "tickets": 5,
+      "name": "M1151 Mk19",
+      "class": "MRAP"
+    },
+    "BP_M1151_Mk19_Woodland": {
+      "tickets": 5,
+      "name": "M1151 Mk19",
+      "class": "MRAP"
+    },
+    "BP_M1151_TOW_GFI": {
+      "tickets": 10,
+      "name": "M1151 TOW",
+      "class": "TD"
+    },
+    "BP_M1151_TOW_WPMC": {
+      "tickets": 5,
+      "name": "M1151 TOW",
+      "class": "TD"
+    },
+    "BP_M1151_Technical": {
+      "tickets": 5,
+      "name": "M1151 Technical DSHK",
+      "class": "LTV"
+    },
+    "BP_M1151_Technical_AGS17": {
+      "tickets": 5,
+      "name": "Technical AGS-17",
+      "class": "TD"
+    },
+    "BP_M1151_WPMC": {
+      "tickets": 5,
+      "name": "M1151 M2",
+      "class": "LTV"
+    },
+    "BP_M1151_Woodland": {
+      "tickets": 5,
+      "name": "M1151 M2",
+      "class": "MRAP"
+    },
+    "BP_M1A1_USMC": {
+      "tickets": 15,
+      "name": "M1A1",
+      "class": "MBT"
+    },
+    "BP_M1A1_USMC_Woodland": {
+      "tickets": 15,
+      "name": "M1A1",
+      "class": "MBT"
+    },
+    "BP_M1A2": {
+      "tickets": 15,
+      "name": "M1A2",
+      "class": "MBT"
+    },
+    "BP_M1A2_Woodland": {
+      "tickets": 15,
+      "name": "M1A2",
+      "class": "MBT"
+    },
+    "BP_M60T": {
+      "tickets": 15,
+      "name": "M60T",
+      "class": "MBT"
+    },
+    "BP_M60T_Desert": {
+      "tickets": 15,
+      "name": "M60T",
+      "class": "MBT"
+    },
+    "BP_M60T_WPMC": {
+      "tickets": 15,
+      "name": "M60T",
+      "class": "MBT"
+    },
+    "BP_M7A3_IFV": {
+      "tickets": 10,
+      "name": "M7A3",
+      "class": "IFV"
+    },
+    "BP_M7A3_IFV_Woodland": {
+      "tickets": 10,
+      "name": "M7A3",
+      "class": "IFV"
+    },
+    "BP_MATV": {
+      "tickets": 5,
+      "name": "M-ATV M2",
+      "class": "MRAP"
+    },
+    "BP_MATV_CROWS": {
+      "tickets": 5,
+      "name": "M-ATV CROWS M2",
+      "class": "MRAP"
+    },
+    "BP_MATV_CROWS_M240": {
+      "tickets": 5,
+      "name": "M-ATV CROWS M240",
+      "class": "MRAP"
+    },
+    "BP_MATV_CROWS_M240_Woodland": {
+      "tickets": 5,
+      "name": "M-ATV CROWS M240",
+      "class": "MRAP"
+    },
+    "BP_MATV_CROWS_Woodland": {
+      "tickets": 5,
+      "name": "M-ATV CROWS M2",
+      "class": "MRAP"
+    },
+    "BP_MATV_M240": {
+      "tickets": 5,
+      "name": "M-ATV M240",
+      "class": "MRAP"
+    },
+    "BP_MATV_M240_Woodland": {
+      "tickets": 5,
+      "name": "M-ATV M240",
+      "class": "MRAP"
+    },
+    "BP_MATV_Mk19": {
+      "tickets": 5,
+      "name": "M-ATV Mk19",
+      "class": "MRAP"
+    },
+    "BP_MATV_Mk19_USMC": {
+      "tickets": 5,
+      "name": "MATV Mk19",
+      "class": "MRAP"
+    },
+    "BP_MATV_Mk19_USMC_Woodland": {
+      "tickets": 5,
+      "name": "MATV Mk19",
+      "class": "MRAP"
+    },
+    "BP_MATV_Mk19_Woodland": {
+      "tickets": 5,
+      "name": "M-ATV Mk19",
+      "class": "MRAP"
+    },
+    "BP_MATV_TOW": {
+      "tickets": 10,
+      "name": "M-ATV TOW",
+      "class": "TD"
+    },
+    "BP_MATV_TOW_Woodland": {
+      "tickets": 10,
+      "name": "M-ATV TOW",
+      "class": "TD"
+    },
+    "BP_MATV_USMC": {
+      "tickets": 5,
+      "name": "MATV M2",
+      "class": "MRAP"
+    },
+    "BP_MATV_USMC_CROWS": {
+      "tickets": 5,
+      "name": "MATV CROWS M2",
+      "class": "MRAP"
+    },
+    "BP_MATV_USMC_CROWS_Woodland": {
+      "tickets": 5,
+      "name": "MATV CROWS M2",
+      "class": "MRAP"
+    },
+    "BP_MATV_USMC_TOW": {
+      "tickets": 10,
+      "name": "MATV TOW",
+      "class": "TD"
+    },
+    "BP_MATV_USMC_TOW_Woodland": {
+      "tickets": 10,
+      "name": "MATV TOW",
+      "class": "TD"
+    },
+    "BP_MATV_USMC_Woodland": {
+      "tickets": 5,
+      "name": "MATV M2",
+      "class": "MRAP"
+    },
+    "BP_MATV_Woodland": {
+      "tickets": 5,
+      "name": "M-ATV M2",
+      "class": "MRAP"
+    },
+    "BP_MI8": {
+      "tickets": 5,
+      "name": "Mi-8MTV-5",
+      "class": "UH"
+    },
+    "BP_MI8_AFU": {
+      "tickets": 5,
+      "name": "Mi-8",
+      "class": "UH"
+    },
+    "BP_MI8_VDV": {
+      "tickets": 5,
+      "name": "Mi-8",
+      "class": "UH"
+    },
+    "BP_MRH90_Mag58": {
+      "tickets": 5,
+      "name": "MRH-90",
+      "class": "UH"
+    },
+    "BP_MTLBM_6MA_GFI": {
+      "tickets": 10,
+      "name": "MTLB 6MA UB-32",
+      "class": "APC"
+    },
+    "BP_MTLBM_6MA_RUS": {
+      "tickets": 5,
+      "name": "MT-LBM 6MA",
+      "class": "APC"
+    },
+    "BP_MTLBM_6MA_RUS_Desert": {
+      "tickets": 5,
+      "name": "MT-LBM 6MA",
+      "class": "APC"
+    },
+    "BP_MTLBM_6MB_MIL": {
+      "tickets": 10,
+      "name": "MT-LBM 6MB",
+      "class": "IFV"
+    },
+    "BP_MTLBM_6MB_RUS": {
+      "tickets": 10,
+      "name": "MT-LBM 6MB",
+      "class": "IFV"
+    },
+    "BP_MTLBM_6MB_RUS_Desert": {
+      "tickets": 10,
+      "name": "MT-LBM 6MB",
+      "class": "IFV"
+    },
+    "BP_MTLB_AFU": {
+      "tickets": 5,
+      "name": "MTLB PKT",
+      "class": "APC"
+    },
+    "BP_MTLB_INS": {
+      "tickets": 5,
+      "name": "MT-LB PKT",
+      "class": "APC"
+    },
+    "BP_MTLB_LOGI_AFU": {
+      "tickets": 5,
+      "name": "MTLB Logistics",
+      "class": "LOGI"
+    },
+    "BP_MTLB_LOGI_GFI": {
+      "tickets": 5,
+      "name": "MT-LB Logistics",
+      "class": "LOGI"
+    },
+    "BP_MTLB_LOGI_IMF": {
+      "tickets": 5,
+      "name": "MT-LB Logistics",
+      "class": "LOGI"
+    },
+    "BP_MTLB_LOGI_INS": {
+      "tickets": 5,
+      "name": "MT-LB Logistics",
+      "class": "LOGI"
+    },
+    "BP_MTLB_LOGI_RUS": {
+      "tickets": 5,
+      "name": "MT-LB Logistics",
+      "class": "LOGI"
+    },
+    "BP_MTLB_LOGI_RUS_Desert": {
+      "tickets": 5,
+      "name": "MT-LB Logistics",
+      "class": "LOGI"
+    },
+    "BP_MTLB_RGF": {
+      "tickets": 5,
+      "name": "MT-LB PKT",
+      "class": "APC"
+    },
+    "BP_MTLB_RGF_Desert": {
+      "tickets": 5,
+      "name": "MT-LB PKT",
+      "class": "APC"
+    },
+    "BP_MTLB_VMK_GFI": {
+      "tickets": 5,
+      "name": "MTLB VMK",
+      "class": "APC"
+    },
+    "BP_MTLB_VMK_MIL": {
+      "tickets": 5,
+      "name": "MT-LB VMK",
+      "class": "APC"
+    },
+    "BP_MTLB_VMK_RUS": {
+      "tickets": 5,
+      "name": "MT-LB VMK",
+      "class": "APC"
+    },
+    "BP_MTLB_VMK_RUS_Desert": {
+      "tickets": 5,
+      "name": "MT-LB VMK",
+      "class": "APC"
+    },
+    "BP_MTLB_ZU23_AFU": {
+      "tickets": 5,
+      "name": "MTLB ZU23",
+      "class": "APC"
+    },
+    "BP_MTLB_ZU23_INS": {
+      "tickets": 5,
+      "name": "MT-LB ZU-23-2",
+      "class": "SPAA"
+    },
+    "BP_MTLB_ZU23_MIL": {
+      "tickets": 5,
+      "name": "MT-LB ZU-23-2",
+      "class": "SPAA"
+    },
+    "BP_Minsk_black": {
+      "tickets": 1,
+      "name": "Minsk 400",
+      "class": "ULTV"
+    },
+    "BP_Minsk_blue": {
+      "tickets": 1,
+      "name": "Minsk 400",
+      "class": "ULTV"
+    },
+    "BP_Minsk_green": {
+      "tickets": 1,
+      "name": "Minsk 400",
+      "class": "ULTV"
+    },
+    "BP_PARS3": {
+      "tickets": 10,
+      "name": "PARS III 25mm",
+      "class": "IFV"
+    },
+    "BP_PARS3_Desert": {
+      "tickets": 10,
+      "name": "PARS III 25mm",
+      "class": "IFV"
+    },
+    "BP_PARS3_M2": {
+      "tickets": 5,
+      "name": "PARS III M2 RWS",
+      "class": "APC"
+    },
+    "BP_PARS3_M2_Desert": {
+      "tickets": 5,
+      "name": "PARS III M2 RWS",
+      "class": "APC"
+    },
+    "BP_PARS3_MG3": {
+      "tickets": 5,
+      "name": "PARS III MG3 RWS",
+      "class": "APC"
+    },
+    "BP_PARS3_MG3_Desert": {
+      "tickets": 5,
+      "name": "PARS III MG3 RWS",
+      "class": "APC"
+    },
+    "BP_PARS3_MK19": {
+      "tickets": 5,
+      "name": "PARS III Mk19 RWS",
+      "class": "APC"
+    },
+    "BP_PARS3_MK19_Desert": {
+      "tickets": 5,
+      "name": "PARS III Mk19 RWS",
+      "class": "APC"
+    },
+    "BP_PMV_Mag58": {
+      "tickets": 5,
+      "name": "PMV Mag58",
+      "class": "MRAP"
+    },
+    "BP_PMV_Mag58x3": {
+      "tickets": 5,
+      "name": "PMV Mag58",
+      "class": "MRAP"
+    },
+    "BP_PMV_RWS": {
+      "tickets": 5,
+      "name": "PMV RWS M2",
+      "class": "MRAP"
+    },
+    "BP_Quadbike_Desert": {
+      "tickets": 1,
+      "name": "Quad Bike",
+      "class": "ULTV"
+    },
+    "BP_Quadbike_Woodland": {
+      "tickets": 1,
+      "name": "Quad Bike",
+      "class": "ULTV"
+    },
+    "BP_RHIB_AGS17": {
+      "tickets": 1,
+      "name": "RHIB AGS-17",
+      "class": "ULTV"
+    },
+    "BP_RHIB_DSHK": {
+      "tickets": 1,
+      "name": "RHIB DShK",
+      "class": "ULTV"
+    },
+    "BP_RHIB_GFI_MG3": {
+      "tickets": 1,
+      "name": "RHIB MG3",
+      "class": "ULTV"
+    },
+    "BP_RHIB_Logistics": {
+      "tickets": 1,
+      "name": "RHIB Logistics",
+      "class": "LOGI"
+    },
+    "BP_RHIB_PKM": {
+      "tickets": 1,
+      "name": "RHIB PKM",
+      "class": "ULTV"
+    },
+    "BP_RHIB_QJY88": {
+      "tickets": 1,
+      "name": "RHIB QJY88",
+      "class": "ULTV"
+    },
+    "BP_RHIB_QJZ89": {
+      "tickets": 1,
+      "name": "RHIB QJZ89",
+      "class": "ULTV"
+    },
+    "BP_RHIB_RUS_NSV": {
+      "tickets": 1,
+      "name": "RHIB NSV",
+      "class": "ULTV"
+    },
+    "BP_RHIB_RUS_PKP": {
+      "tickets": 1,
+      "name": "RHIB PKP",
+      "class": "ULTV"
+    },
+    "BP_RHIB_Transport": {
+      "tickets": 1,
+      "name": "RHIB Transport",
+      "class": "ULTV"
+    },
+    "BP_RHIB_US_M134": {
+      "tickets": 1,
+      "name": "RHIB M134",
+      "class": "ULTV"
+    },
+    "BP_RHIB_US_M2": {
+      "tickets": 1,
+      "name": "RHIB M2",
+      "class": "ULTV"
+    },
+    "BP_RHIB_US_M240": {
+      "tickets": 1,
+      "name": "RHIB M240",
+      "class": "ULTV"
+    },
+    "BP_RHIB_US_Mk19": {
+      "tickets": 1,
+      "name": "RHIB Mk19",
+      "class": "ULTV"
+    },
+    "BP_SA330": {
+      "tickets": 5,
+      "name": "SA330",
+      "class": "UH"
+    },
+    "BP_Safir": {
+      "tickets": 5,
+      "name": "Safir Logistics",
+      "class": "LOGI"
+    },
+    "BP_Safir_AGS-17": {
+      "tickets": 5,
+      "name": "Safir AGS-17",
+      "class": "LTV"
+    },
+    "BP_Safir_Kord": {
+      "tickets": 5,
+      "name": "Safir Kord",
+      "class": "LTV"
+    },
+    "BP_Safir_Kornet": {
+      "tickets": 5,
+      "name": "Safir Kornet",
+      "class": "TD"
+    },
+    "BP_Safir_MG3": {
+      "tickets": 5,
+      "name": "Safir MG3",
+      "class": "LTV"
+    },
+    "BP_Sprut": {
+      "tickets": 10,
+      "name": "Sprut-SDM1",
+      "class": "MGS"
+    },
+    "BP_Sprut_Desert": {
+      "tickets": 10,
+      "name": "Sprut-SDM1",
+      "class": "MGS"
+    },
+    "BP_T62": {
+      "tickets": 15,
+      "name": "T-62",
+      "class": "MBT"
+    },
+    "BP_T62_GFI": {
+      "tickets": 15,
+      "name": "T-62",
+      "class": "MBT"
+    },
+    "BP_T62_MIL": {
+      "tickets": 15,
+      "name": "T-62",
+      "class": "MBT"
+    },
+    "BP_T64BM2_Cage": {
+      "tickets": 15,
+      "name": "T-64BM2",
+      "class": "MBT"
+    },
+    "BP_T72A_IMF": {
+      "tickets": 15,
+      "name": "T-72A",
+      "class": "MBT"
+    },
+    "BP_T72B3": {
+      "tickets": 15,
+      "name": "T-72B3",
+      "class": "MBT"
+    },
+    "BP_T72B3_Desert": {
+      "tickets": 15,
+      "name": "T-72B3",
+      "class": "MBT"
+    },
+    "BP_T72S_GFI": {
+      "tickets": 15,
+      "name": "T-72S",
+      "class": "MBT"
+    },
+    "BP_T90A": {
+      "tickets": 15,
+      "name": "T-90A",
+      "class": "MBT"
+    },
+    "BP_T90A_Desert": {
+      "tickets": 15,
+      "name": "T-90A",
+      "class": "MBT"
+    },
+    "BP_TAPV_C16": {
+      "tickets": 5,
+      "name": "TAPV",
+      "class": "MRAP"
+    },
+    "BP_TAPV_C16_Desert": {
+      "tickets": 5,
+      "name": "TAPV",
+      "class": "MRAP"
+    },
+    "BP_TLF_Util_Truck": {
+      "tickets": 3,
+      "name": "BMC-185 Transport",
+      "class": "TRAN"
+    },
+    "BP_TLF_Util_Truck_Desert": {
+      "tickets": 3,
+      "name": "BMC-185 Transport",
+      "class": "TRAN"
+    },
+    "BP_TLF_Util_Truck_Logi": {
+      "tickets": 5,
+      "name": "BMC-185 Logistics",
+      "class": "LOGI"
+    },
+    "BP_TLF_Util_Truck_Logi_Desert": {
+      "tickets": 5,
+      "name": "BMC-185 Logistics",
+      "class": "LOGI"
+    },
+    "BP_Technical2Seater_AFU_Kornet": {
+      "tickets": 5,
+      "name": "Technical Kornet",
+      "class": "TD"
+    },
+    "BP_Technical2Seater_Camo_AGS17": {
+      "tickets": 5,
+      "name": "Technical AGS-17",
+      "class": "LTV"
+    },
+    "BP_Technical2Seater_Camo_DSHK": {
+      "tickets": 5,
+      "name": "Technical HMG",
+      "class": "LTV"
+    },
+    "BP_Technical2Seater_Camo_Kornet": {
+      "tickets": 5,
+      "name": "Technical Kornet",
+      "class": "TD"
+    },
+    "BP_Technical2Seater_Camo_M2": {
+      "tickets": 5,
+      "name": "Technical HMG",
+      "class": "LTV"
+    },
+    "BP_Technical2Seater_Camo_M2_CRF": {
+      "tickets": 5,
+      "name": "Light FSV",
+      "class": "LTV"
+    },
+    "BP_Technical2Seater_Camo_SPG9": {
+      "tickets": 5,
+      "name": "Technical SPG-9",
+      "class": "TD"
+    },
+    "BP_Technical2Seater_Camo_UB32": {
+      "tickets": 5,
+      "name": "Modern Technical UB-32",
+      "class": "SPA"
+    },
+    "BP_Technical2Seater_M134_Black": {
+      "tickets": 5,
+      "name": "Technical M134 Minigun",
+      "class": "LTV"
+    },
+    "BP_Technical2Seater_M134_Grey": {
+      "tickets": 5,
+      "name": "Technical M134 Minigun",
+      "class": "LTV"
+    },
+    "BP_Technical2Seater_M134_Tan": {
+      "tickets": 5,
+      "name": "Technical M134 Minigun",
+      "class": "LTV"
+    },
+    "BP_Technical2Seater_M2_Black": {
+      "tickets": 5,
+      "name": "Technical M2",
+      "class": "LTV"
+    },
+    "BP_Technical2Seater_M2_Grey": {
+      "tickets": 5,
+      "name": "Technical M2",
+      "class": "LTV"
+    },
+    "BP_Technical2Seater_M2_Tan": {
+      "tickets": 5,
+      "name": "Technical M2",
+      "class": "LTV"
+    },
+    "BP_Technical2Seater_Mortar_Black": {
+      "tickets": 5,
+      "name": "Technical Mortar",
+      "class": "SPA"
+    },
+    "BP_Technical2Seater_Mortar_Grey": {
+      "tickets": 5,
+      "name": "Technical Mortar",
+      "class": "SPA"
+    },
+    "BP_Technical2Seater_Mortar_Tan": {
+      "tickets": 5,
+      "name": "Technical Mortar",
+      "class": "SPA"
+    },
+    "BP_Technical2Seater_White_AGS17": {
+      "tickets": 5,
+      "name": "Technical AGS-17",
+      "class": "TD"
+    },
+    "BP_Technical2Seater_White_BMP1": {
+      "tickets": 10,
+      "name": "Technical BMP-1",
+      "class": "TD"
+    },
+    "BP_Technical2Seater_White_Dshk": {
+      "tickets": 5,
+      "name": "Technical HMG",
+      "class": "LTV"
+    },
+    "BP_Technical2Seater_White_Kornet": {
+      "tickets": 5,
+      "name": "Technical Kornet",
+      "class": "TD"
+    },
+    "BP_Technical2Seater_White_M2": {
+      "tickets": 5,
+      "name": "Technical HMG",
+      "class": "LTV"
+    },
+    "BP_Technical2Seater_White_Mortar": {
+      "tickets": 5,
+      "name": "Technical Mortar",
+      "class": "SPA"
+    },
+    "BP_Technical2Seater_White_SPG9": {
+      "tickets": 5,
+      "name": "Technical SPG-9",
+      "class": "TD"
+    },
+    "BP_Technical2Seater_White_UB32": {
+      "tickets": 5,
+      "name": "Technical UB-32",
+      "class": "SPA"
+    },
+    "BP_Technical2Seater_White_ZU23": {
+      "tickets": 5,
+      "name": "Technical ZU-23-2",
+      "class": "SPAA"
+    },
+    "BP_Technical4Seater_Logi": {
+      "tickets": 5,
+      "name": "Logistics Pickup Truck",
+      "class": "LOGI"
+    },
+    "BP_Technical4Seater_Logi_Black": {
+      "tickets": 1,
+      "name": "Technical Logistics",
+      "class": "LOGI"
+    },
+    "BP_Technical4Seater_Logi_Camo": {
+      "tickets": 5,
+      "name": "Logistics Modern Pickup",
+      "class": "LOGI"
+    },
+    "BP_Technical4Seater_Logi_Camo_CRF": {
+      "tickets": 1,
+      "name": "Technical Logistics",
+      "class": "LOGI"
+    },
+    "BP_Technical4Seater_Logi_Grey": {
+      "tickets": 1,
+      "name": "Technical Logistics",
+      "class": "LOGI"
+    },
+    "BP_Technical4Seater_Logi_Tan": {
+      "tickets": 1,
+      "name": "Technical Logistics",
+      "class": "LOGI"
+    },
+    "BP_Technical4Seater_M134_Black": {
+      "tickets": 5,
+      "name": "Technical M134 Minigun",
+      "class": "LTV"
+    },
+    "BP_Technical4Seater_M134_Grey": {
+      "tickets": 5,
+      "name": "Technical M134 Minigun",
+      "class": "LTV"
+    },
+    "BP_Technical4Seater_M134_Tan": {
+      "tickets": 5,
+      "name": "Technical M134 Minigun",
+      "class": "LTV"
+    },
+    "BP_Technical4Seater_Transport": {
+      "tickets": 3,
+      "name": "Transport Pickup Truck",
+      "class": "TRAN"
+    },
+    "BP_Technical4Seater_Transport_Black": {
+      "tickets": 3,
+      "name": "Pickup Truck",
+      "class": "TRAN"
+    },
+    "BP_Technical4Seater_Transport_CRF": {
+      "tickets": 5,
+      "name": "Light Transport",
+      "class": "MRAP"
+    },
+    "BP_Technical4Seater_Transport_Camo": {
+      "tickets": 3,
+      "name": "Transport Modern Pickup",
+      "class": "TRAN"
+    },
+    "BP_Technical4Seater_Transport_Grey": {
+      "tickets": 3,
+      "name": "Pickup Truck",
+      "class": "TRAN"
+    },
+    "BP_Technical4Seater_Transport_Tan": {
+      "tickets": 3,
+      "name": "Pickup Truck",
+      "class": "TRAN"
+    },
+    "BP_Technical_Dshk_INS_Armoured": {
+      "tickets": 5,
+      "name": "Technical HMG",
+      "class": "LTV"
+    },
+    "BP_Technical_SPG9_INS_Armoured": {
+      "tickets": 5,
+      "name": "Technical SPG-9",
+      "class": "TD"
+    },
+    "BP_Tigr": {
+      "tickets": 5,
+      "name": "Tigr-M Kord",
+      "class": "MRAP"
+    },
+    "BP_Tigr_AGS17": {
+      "tickets": 5,
+      "name": "Tigr-M AGS-17",
+      "class": "MRAP"
+    },
+    "BP_Tigr_AGS17_Desert": {
+      "tickets": 5,
+      "name": "Tigr-M AGS-17",
+      "class": "MRAP"
+    },
+    "BP_Tigr_Desert": {
+      "tickets": 5,
+      "name": "Tigr-M Kord",
+      "class": "MRAP"
+    },
+    "BP_Tigr_MIL": {
+      "tickets": 5,
+      "name": "Tigr-M Kord",
+      "class": "MRAP"
+    },
+    "BP_Tigr_RWS": {
+      "tickets": 5,
+      "name": "Tigr-M RWS Kord",
+      "class": "MRAP"
+    },
+    "BP_Tigr_RWS_Desert": {
+      "tickets": 5,
+      "name": "Tigr-M RWS Kord",
+      "class": "MRAP"
+    },
+    "BP_UH1H_GFI": {
+      "tickets": 5,
+      "name": "UH-1H MG3",
+      "class": "UH"
+    },
+    "BP_UH1Y": {
+      "tickets": 5,
+      "name": "UH-1Y",
+      "class": "UH"
+    },
+    "BP_UH60": {
+      "tickets": 5,
+      "name": "UH-60M",
+      "class": "UH"
+    },
+    "BP_UH60_AUS": {
+      "tickets": 5,
+      "name": "UH-60M",
+      "class": "UH"
+    },
+    "BP_UH60_TLF_PKM": {
+      "tickets": 5,
+      "name": "UH60 PKM",
+      "class": "UH"
+    },
+    "BP_US_Util_Desert": {
+      "tickets": 3,
+      "name": "M939 Transport",
+      "class": "TRAN"
+    },
+    "BP_US_Util_Desert_Logi": {
+      "tickets": 5,
+      "name": "M939 Logistics",
+      "class": "LOGI"
+    },
+    "BP_US_Util_USMC_Desert": {
+      "tickets": 3,
+      "name": "M939 Transport",
+      "class": "TRAN"
+    },
+    "BP_US_Util_USMC_Desert_Logi": {
+      "tickets": 5,
+      "name": "M939 Logistics",
+      "class": "LOGI"
+    },
+    "BP_US_Util_USMC_Woodland": {
+      "tickets": 3,
+      "name": "M939 Transport",
+      "class": "TRAN"
+    },
+    "BP_US_Util_USMC_Woodland_Logi": {
+      "tickets": 5,
+      "name": "M939 Logistics",
+      "class": "LOGI"
+    },
+    "BP_US_Util_Woodland": {
+      "tickets": 3,
+      "name": "M939 Transport",
+      "class": "TRAN"
+    },
+    "BP_US_Util_Woodland_Logi": {
+      "tickets": 5,
+      "name": "M939 Logistics",
+      "class": "LOGI"
+    },
+    "BP_US_Util_Woodland_Logi_CRF": {
+      "tickets": 5,
+      "name": "M939 Logistics",
+      "class": "LOGI"
+    },
+    "BP_Ural_375_INS": {
+      "tickets": 3,
+      "name": "Ural-375D Transport",
+      "class": "TRAN"
+    },
+    "BP_Ural_375_Logi_INS": {
+      "tickets": 5,
+      "name": "Ural-375D Logistics",
+      "class": "LOGI"
+    },
+    "BP_Ural_375_Logi_MIL": {
+      "tickets": 5,
+      "name": "Ural-375D Logistics",
+      "class": "LOGI"
+    },
+    "BP_Ural_375_MIL": {
+      "tickets": 3,
+      "name": "Ural-375D Transport",
+      "class": "TRAN"
+    },
+    "BP_Ural_375_ZU23": {
+      "tickets": 5,
+      "name": "Ural-375D ZU-23-2",
+      "class": "SPAA"
+    },
+    "BP_Ural_375_ZU23_MIL": {
+      "tickets": 5,
+      "name": "Ural-375D ZU-23-2",
+      "class": "SPAA"
+    },
+    "BP_Ural_4320_GFI": {
+      "tickets": 3,
+      "name": "Ural-4320 Transport",
+      "class": "TRAN"
+    },
+    "BP_Ural_4320_logi_GFI": {
+      "tickets": 5,
+      "name": "Ural-4320 Logistics",
+      "class": "LOGI"
+    },
+    "BP_WPMC_Util_Black": {
+      "tickets": 3,
+      "name": "M939 Transport",
+      "class": "TRAN"
+    },
+    "BP_WPMC_Util_Black_Logi": {
+      "tickets": 5,
+      "name": "M939 Logistics",
+      "class": "LOGI"
+    },
+    "BP_WZ551A": {
+      "tickets": 10,
+      "name": "ZSL92 IFV",
+      "class": "IFV"
+    },
+    "BP_WZ551A_Desert": {
+      "tickets": 10,
+      "name": "ZSL92 IFV",
+      "class": "IFV"
+    },
+    "BP_WZ551B": {
+      "tickets": 5,
+      "name": "ZSL92A APC QJZ89",
+      "class": "APC"
+    },
+    "BP_WZ551B_Desert": {
+      "tickets": 5,
+      "name": "ZSL92A APC QJZ89",
+      "class": "APC"
+    },
+    "BP_WZ551B_QLZ-87": {
+      "tickets": 5,
+      "name": "ZSL92A APC QLZ87",
+      "class": "APC"
+    },
+    "BP_WZ551B_QLZ-87_Desert": {
+      "tickets": 5,
+      "name": "ZSL92A APC QLZ87",
+      "class": "APC"
+    },
+    "BP_Z8G": {
+      "tickets": 5,
+      "name": "Z-8G",
+      "class": "UH"
+    },
+    "BP_Z8J": {
+      "tickets": 5,
+      "name": "Z-8J",
+      "class": "UH"
+    },
+    "BP_Z9A": {
+      "tickets": 5,
+      "name": "Z-9A",
+      "class": "UH"
+    },
+    "BP_ZBD04A": {
+      "tickets": 10,
+      "name": "ZBD04A",
+      "class": "IFV"
+    },
+    "BP_ZBD04A_Desert": {
+      "tickets": 10,
+      "name": "ZBD04A",
+      "class": "IFV"
+    },
+    "BP_ZBD05_HJ73C": {
+      "tickets": 10,
+      "name": "ZBD05",
+      "class": "IFV"
+    },
+    "BP_ZBD05_HJ73C_Woodland": {
+      "tickets": 10,
+      "name": "ZBD05",
+      "class": "IFV"
+    },
+    "BP_ZBL08_HJ73C": {
+      "tickets": 10,
+      "name": "ZBL08",
+      "class": "IFV"
+    },
+    "BP_ZBL08_HJ73C_Desert": {
+      "tickets": 10,
+      "name": "ZBL08",
+      "class": "IFV"
+    },
+    "BP_ZBL08_HJ73C_Naval": {
+      "tickets": 10,
+      "name": "ZBL08",
+      "class": "IFV"
+    },
+    "BP_ZSD05_Logi": {
+      "tickets": 5,
+      "name": "ZSD05 Logistics",
+      "class": "LOGI"
+    },
+    "BP_ZSD05_Logi_Woodland": {
+      "tickets": 5,
+      "name": "ZSD05 Logistics",
+      "class": "LOGI"
+    },
+    "BP_ZSD05_QJZ-89": {
+      "tickets": 5,
+      "name": "ZSD05",
+      "class": "APC"
+    },
+    "BP_ZSD05_QJZ-89_Woodland": {
+      "tickets": 5,
+      "name": "ZSD05 QJZ89",
+      "class": "APC"
+    },
+    "BP_ZSD89": {
+      "tickets": 5,
+      "name": "ZSD89 APC QJZ89",
+      "class": "APC"
+    },
+    "BP_ZSD89II": {
+      "tickets": 10,
+      "name": "ZSD89II IFV",
+      "class": "IFV"
+    },
+    "BP_ZSD89II_Desert": {
+      "tickets": 10,
+      "name": "ZSD89II IFV",
+      "class": "IFV"
+    },
+    "BP_ZSD89_Desert": {
+      "tickets": 5,
+      "name": "ZSD89 APC QJZ89",
+      "class": "APC"
+    },
+    "BP_ZSD89_QLZ-87": {
+      "tickets": 5,
+      "name": "ZSD89 APC QLZ87",
+      "class": "APC"
+    },
+    "BP_ZSD89_QLZ-87_Desert": {
+      "tickets": 5,
+      "name": "ZSD89 APC QLZ87",
+      "class": "APC"
+    },
+    "BP_ZSL10_QJZ-89": {
+      "tickets": 5,
+      "name": "ZSL10 QJZ89",
+      "class": "APC"
+    },
+    "BP_ZSL10_QJZ-89_Desert": {
+      "tickets": 5,
+      "name": "ZSL10 QJZ89",
+      "class": "APC"
+    },
+    "BP_ZSL10_QJZ-89_Naval": {
+      "tickets": 5,
+      "name": "ZSL10",
+      "class": "APC"
+    },
+    "BP_ZSL10_QLZ-87": {
+      "tickets": 5,
+      "name": "ZSL10 QLZ87",
+      "class": "APC"
+    },
+    "BP_ZTD05": {
+      "tickets": 10,
+      "name": "ZTD05",
+      "class": "MGS"
+    },
+    "BP_ZTD05_WoodLand": {
+      "tickets": 10,
+      "name": "ZTD05",
+      "class": "MGS"
+    },
+    "BP_ZTZ99_Desert_wCage": {
+      "tickets": 15,
+      "name": "ZTZ99A",
+      "class": "MBT"
+    },
+    "BP_ZTZ99_wCage": {
+      "tickets": 15,
+      "name": "ZTZ99A",
+      "class": "MBT"
+    },
+    "BP_minsk": {
+      "tickets": 1,
+      "name": "Minsk 400",
+      "class": "ULTV"
+    }
+  },
+  "byName": {
+    "AAVC-7A1 Logistics": {
+      "tickets": 5,
+      "class": "LOGI"
+    },
+    "AAVP-7A1": {
+      "tickets": 10,
+      "class": "APC"
+    },
+    "ACV-15 25mm": {
+      "tickets": 10,
+      "class": "IFV"
+    },
+    "ACV-15 M2": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "ACV-15 MG3": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "ASLAV": {
+      "tickets": 10,
+      "class": "IFV"
+    },
+    "BMC-185 Logistics": {
+      "tickets": 5,
+      "class": "LOGI"
+    },
+    "BMC-185 Transport": {
+      "tickets": 3,
+      "class": "TRAN"
+    },
+    "BMD-1M": {
+      "tickets": 10,
+      "class": "IFV"
+    },
+    "BMD-4M": {
+      "tickets": 10,
+      "class": "IFV"
+    },
+    "BMP-1": {
+      "tickets": 10,
+      "class": "IFV"
+    },
+    "BMP-1 ZU-23-2": {
+      "tickets": 5,
+      "class": "SPAA"
+    },
+    "BMP-1AM": {
+      "tickets": 10,
+      "class": "IFV"
+    },
+    "BMP-1TS": {
+      "tickets": 10,
+      "class": "IFV"
+    },
+    "BMP-2": {
+      "tickets": 10,
+      "class": "IFV"
+    },
+    "BMP-2M": {
+      "tickets": 10,
+      "class": "IFV"
+    },
+    "BMP-3M": {
+      "tickets": 10,
+      "class": "IFV"
+    },
+    "BRDM-2": {
+      "tickets": 5,
+      "class": "LTV"
+    },
+    "BRDM-2 Spandrel": {
+      "tickets": 10,
+      "class": "TD"
+    },
+    "BRDM-2 UB-32": {
+      "tickets": 0,
+      "class": "RSV"
+    },
+    "BRDM-2L1": {
+      "tickets": 5,
+      "class": "LTV"
+    },
+    "BTR-4": {
+      "tickets": 10,
+      "class": "IFV"
+    },
+    "BTR-80": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "BTR-82A": {
+      "tickets": 10,
+      "class": "APC"
+    },
+    "BTR-D": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "BTR-D AGS-17": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "BTR-D Kord": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "BTR-D PKM": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "BTR-DG Logistics": {
+      "tickets": 5,
+      "class": "LOGI"
+    },
+    "BTR-MDM": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "BTR-ZD": {
+      "tickets": 5,
+      "class": "SPAA"
+    },
+    "CH-146": {
+      "tickets": 5,
+      "class": "UH"
+    },
+    "CH-146 CAS": {
+      "tickets": 10,
+      "class": "AH"
+    },
+    "CH-178": {
+      "tickets": 5,
+      "class": "UH"
+    },
+    "CPV M134 Minigun": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "CPV Transport": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "CSK131 HJ8": {
+      "tickets": 10,
+      "class": "TD"
+    },
+    "CSK131 QJC88 RWS": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "CSK131 QJY88": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "CSK131 QJZ89": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "CSK131 QLZ87": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "CTM131 Logistics": {
+      "tickets": 5,
+      "class": "LOGI"
+    },
+    "CTM131 QJY88": {
+      "tickets": 3,
+      "class": "TRAN"
+    },
+    "CTM131 QJZ89": {
+      "tickets": 3,
+      "class": "TRAN"
+    },
+    "CTM131 Transport QJY88": {
+      "tickets": 3,
+      "class": "TRAN"
+    },
+    "CTM131 Transport QJZ89": {
+      "tickets": 3,
+      "class": "TRAN"
+    },
+    "Cobra II M2": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "Cobra II M2 RWS": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "Cobra II MG3": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "Cobra II MG3 RWS": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "Coyote": {
+      "tickets": 10,
+      "class": "IFV"
+    },
+    "FV107": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "FV4034": {
+      "tickets": 15,
+      "class": "MBT"
+    },
+    "FV432 L11A1": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "FV432 L11A1 RWS": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "FV432 L37A2 RWS": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "FV510": {
+      "tickets": 10,
+      "class": "IFV"
+    },
+    "FV510 UA": {
+      "tickets": 10,
+      "class": "IFV"
+    },
+    "FV520 CTAS40": {
+      "tickets": 10,
+      "class": "IFV"
+    },
+    "HX60 Logistics": {
+      "tickets": 5,
+      "class": "LOGI"
+    },
+    "HX60 Transport": {
+      "tickets": 3,
+      "class": "TRAN"
+    },
+    "KamAZ 5350 Logistics": {
+      "tickets": 5,
+      "class": "LOGI"
+    },
+    "KamAZ 5350 Transport": {
+      "tickets": 3,
+      "class": "TRAN"
+    },
+    "Kozak-2M1 AGS-17": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "Kozak-2M1 NSV": {
+      "tickets": 5,
+      "class": "LTV"
+    },
+    "KrAZ-6322 BM-21 Grad": {
+      "tickets": 5,
+      "class": "SPA"
+    },
+    "KrAZ-6322 Logistics": {
+      "tickets": 5,
+      "class": "LOGI"
+    },
+    "KrAZ-6322 Transport": {
+      "tickets": 3,
+      "class": "TRAN"
+    },
+    "LAV 6": {
+      "tickets": 10,
+      "class": "IFV"
+    },
+    "LAV III C6 RWS": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "LAV III M2 RWS": {
+      "tickets": 10,
+      "class": "APC"
+    },
+    "LAV-25": {
+      "tickets": 10,
+      "class": "APC"
+    },
+    "LPPV": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "LPPV RWS": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "LUV-A1 Logistics": {
+      "tickets": 1,
+      "class": "LOGI"
+    },
+    "LUV-A1 Transport": {
+      "tickets": 3,
+      "class": "TRAN"
+    },
+    "LUVW C6": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "LUVW Logistics": {
+      "tickets": 1,
+      "class": "LOGI"
+    },
+    "LUVW M2": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "LUVW Transport": {
+      "tickets": 3,
+      "class": "TRAN"
+    },
+    "Leopard 2A6M CAN": {
+      "tickets": 15,
+      "class": "MBT"
+    },
+    "Light FSV": {
+      "tickets": 5,
+      "class": "LTV"
+    },
+    "Light Transport": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "Loach CAS": {
+      "tickets": 10,
+      "class": "AH"
+    },
+    "Loach CAS Large": {
+      "tickets": 15,
+      "class": "AH"
+    },
+    "Loach CAS Single Large": {
+      "tickets": 15,
+      "class": "AH"
+    },
+    "Loach CAS Small": {
+      "tickets": 10,
+      "class": "AH"
+    },
+    "Loach Scout": {
+      "tickets": 5,
+      "class": "AH"
+    },
+    "Logistics Modern Pickup": {
+      "tickets": 5,
+      "class": "LOGI"
+    },
+    "Logistics Pickup Truck": {
+      "tickets": 5,
+      "class": "LOGI"
+    },
+    "Lynx8x8 Logistics": {
+      "tickets": 1,
+      "class": "LOGI"
+    },
+    "Lynx8x8 QJZ89": {
+      "tickets": 5,
+      "class": "LTV"
+    },
+    "Lynx8x8 QLZ87": {
+      "tickets": 5,
+      "class": "LTV"
+    },
+    "Lynx8x8 Transport": {
+      "tickets": 3,
+      "class": "TRAN"
+    },
+    "M-ATV CROWS M2": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "M-ATV CROWS M240": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "M-ATV M2": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "M-ATV M240": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "M-ATV Mk19": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "M-ATV TOW": {
+      "tickets": 10,
+      "class": "TD"
+    },
+    "M1064A3 M121": {
+      "tickets": 5,
+      "class": "SPA"
+    },
+    "M1117": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "M1126 CROWS M2": {
+      "tickets": 10,
+      "class": "APC"
+    },
+    "M1126 CROWS M240": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "M1128 MGS": {
+      "tickets": 10,
+      "class": "MGS"
+    },
+    "M113A2 Logistics": {
+      "tickets": 5,
+      "class": "LOGI"
+    },
+    "M113A2T M121": {
+      "tickets": 5,
+      "class": "SPA"
+    },
+    "M113A2T M2": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "M113A2T Mk19": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "M113A3": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "M113A3 C6": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "M113A3 Logistics": {
+      "tickets": 5,
+      "class": "LOGI"
+    },
+    "M113A3 M2": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "M113A3 MSV": {
+      "tickets": 20,
+      "class": "MSV"
+    },
+    "M113A3 Mk19": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "M113A3 TLAV": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "M1151 CROWS M2": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "M1151 M2": {
+      "tickets": 5,
+      "class": "LTV"
+    },
+    "M1151 M240": {
+      "tickets": 5,
+      "class": "LTV"
+    },
+    "M1151 Mk19": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "M1151 TOW": {
+      "tickets": 10,
+      "class": "TD"
+    },
+    "M1151 Technical DSHK": {
+      "tickets": 5,
+      "class": "LTV"
+    },
+    "M1A1": {
+      "tickets": 15,
+      "class": "MBT"
+    },
+    "M1A2": {
+      "tickets": 15,
+      "class": "MBT"
+    },
+    "M2A3": {
+      "tickets": 10,
+      "class": "IFV"
+    },
+    "M60T": {
+      "tickets": 15,
+      "class": "MBT"
+    },
+    "M7A3": {
+      "tickets": 10,
+      "class": "IFV"
+    },
+    "M939 Logistics": {
+      "tickets": 5,
+      "class": "LOGI"
+    },
+    "M939 Transport": {
+      "tickets": 3,
+      "class": "TRAN"
+    },
+    "MATV CROWS M2": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "MATV M2": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "MATV Mk19": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "MATV TOW": {
+      "tickets": 10,
+      "class": "TD"
+    },
+    "MRH-90": {
+      "tickets": 5,
+      "class": "UH"
+    },
+    "MSVS Logistics": {
+      "tickets": 5,
+      "class": "LOGI"
+    },
+    "MSVS Transport": {
+      "tickets": 3,
+      "class": "TRAN"
+    },
+    "MT-LB Logistics": {
+      "tickets": 5,
+      "class": "LOGI"
+    },
+    "MT-LB PKT": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "MT-LB VMK": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "MT-LB ZU-23-2": {
+      "tickets": 5,
+      "class": "SPAA"
+    },
+    "MT-LBM 6MA": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "MT-LBM 6MB": {
+      "tickets": 10,
+      "class": "IFV"
+    },
+    "MTLB 6MA UB-32": {
+      "tickets": 10,
+      "class": "APC"
+    },
+    "MTLB Logistics": {
+      "tickets": 5,
+      "class": "LOGI"
+    },
+    "MTLB PKT": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "MTLB VMK": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "MTLB ZU23": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "Mi-8": {
+      "tickets": 5,
+      "class": "UH"
+    },
+    "Mi-8MTV-5": {
+      "tickets": 5,
+      "class": "UH"
+    },
+    "Minsk 400": {
+      "tickets": 1,
+      "class": "ULTV"
+    },
+    "Modern Technical UB-32": {
+      "tickets": 5,
+      "class": "SPA"
+    },
+    "PARS III 25mm": {
+      "tickets": 10,
+      "class": "IFV"
+    },
+    "PARS III M2 RWS": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "PARS III MG3 RWS": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "PARS III Mk19 RWS": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "PMV Mag58": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "PMV RWS M2": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "Pickup Truck": {
+      "tickets": 3,
+      "class": "TRAN"
+    },
+    "Quad Bike": {
+      "tickets": 1,
+      "class": "ULTV"
+    },
+    "RHIB AGS-17": {
+      "tickets": 1,
+      "class": "ULTV"
+    },
+    "RHIB DShK": {
+      "tickets": 1,
+      "class": "ULTV"
+    },
+    "RHIB Logistics": {
+      "tickets": 1,
+      "class": "LOGI"
+    },
+    "RHIB M134": {
+      "tickets": 1,
+      "class": "ULTV"
+    },
+    "RHIB M2": {
+      "tickets": 1,
+      "class": "ULTV"
+    },
+    "RHIB M240": {
+      "tickets": 1,
+      "class": "ULTV"
+    },
+    "RHIB MG3": {
+      "tickets": 1,
+      "class": "ULTV"
+    },
+    "RHIB Mk19": {
+      "tickets": 1,
+      "class": "ULTV"
+    },
+    "RHIB NSV": {
+      "tickets": 1,
+      "class": "ULTV"
+    },
+    "RHIB PKM": {
+      "tickets": 1,
+      "class": "ULTV"
+    },
+    "RHIB PKP": {
+      "tickets": 1,
+      "class": "ULTV"
+    },
+    "RHIB QJY88": {
+      "tickets": 1,
+      "class": "ULTV"
+    },
+    "RHIB QJZ89": {
+      "tickets": 1,
+      "class": "ULTV"
+    },
+    "RHIB Transport": {
+      "tickets": 1,
+      "class": "ULTV"
+    },
+    "Raven Transport": {
+      "tickets": 5,
+      "class": "UH"
+    },
+    "SA330": {
+      "tickets": 5,
+      "class": "UH"
+    },
+    "Safir AGS-17": {
+      "tickets": 5,
+      "class": "LTV"
+    },
+    "Safir Kord": {
+      "tickets": 5,
+      "class": "LTV"
+    },
+    "Safir Kornet": {
+      "tickets": 5,
+      "class": "TD"
+    },
+    "Safir Logistics": {
+      "tickets": 5,
+      "class": "LOGI"
+    },
+    "Safir MG3": {
+      "tickets": 5,
+      "class": "LTV"
+    },
+    "Sprut-SDM1": {
+      "tickets": 10,
+      "class": "MGS"
+    },
+    "T-62": {
+      "tickets": 15,
+      "class": "MBT"
+    },
+    "T-64BM2": {
+      "tickets": 15,
+      "class": "MBT"
+    },
+    "T-72A": {
+      "tickets": 15,
+      "class": "MBT"
+    },
+    "T-72B3": {
+      "tickets": 15,
+      "class": "MBT"
+    },
+    "T-72S": {
+      "tickets": 15,
+      "class": "MBT"
+    },
+    "T-90A": {
+      "tickets": 15,
+      "class": "MBT"
+    },
+    "TAPV": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "Technical AGS-17": {
+      "tickets": 5,
+      "class": "TD"
+    },
+    "Technical BMP-1": {
+      "tickets": 10,
+      "class": "TD"
+    },
+    "Technical HMG": {
+      "tickets": 5,
+      "class": "LTV"
+    },
+    "Technical Kornet": {
+      "tickets": 5,
+      "class": "TD"
+    },
+    "Technical Logistics": {
+      "tickets": 1,
+      "class": "LOGI"
+    },
+    "Technical M134 Minigun": {
+      "tickets": 5,
+      "class": "LTV"
+    },
+    "Technical M2": {
+      "tickets": 5,
+      "class": "LTV"
+    },
+    "Technical Mortar": {
+      "tickets": 5,
+      "class": "SPA"
+    },
+    "Technical SPG-9": {
+      "tickets": 5,
+      "class": "TD"
+    },
+    "Technical UB-32": {
+      "tickets": 5,
+      "class": "SPA"
+    },
+    "Technical ZU-23-2": {
+      "tickets": 5,
+      "class": "SPAA"
+    },
+    "Tigr-M AGS-17": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "Tigr-M Kord": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "Tigr-M RWS Kord": {
+      "tickets": 5,
+      "class": "MRAP"
+    },
+    "Transport Modern Pickup": {
+      "tickets": 3,
+      "class": "TRAN"
+    },
+    "Transport Pickup Truck": {
+      "tickets": 3,
+      "class": "TRAN"
+    },
+    "UH-1H MG3": {
+      "tickets": 5,
+      "class": "UH"
+    },
+    "UH-1Y": {
+      "tickets": 5,
+      "class": "UH"
+    },
+    "UH-60M": {
+      "tickets": 5,
+      "class": "UH"
+    },
+    "UH60 PKM": {
+      "tickets": 5,
+      "class": "UH"
+    },
+    "Ural-375D BM-21 Grad": {
+      "tickets": 5,
+      "class": "SPA"
+    },
+    "Ural-375D Logistics": {
+      "tickets": 5,
+      "class": "LOGI"
+    },
+    "Ural-375D Transport": {
+      "tickets": 3,
+      "class": "TRAN"
+    },
+    "Ural-375D ZU-23-2": {
+      "tickets": 5,
+      "class": "SPAA"
+    },
+    "Ural-4320 Logistics": {
+      "tickets": 5,
+      "class": "LOGI"
+    },
+    "Ural-4320 Transport": {
+      "tickets": 3,
+      "class": "TRAN"
+    },
+    "Z-8G": {
+      "tickets": 5,
+      "class": "UH"
+    },
+    "Z-8J": {
+      "tickets": 5,
+      "class": "UH"
+    },
+    "Z-9A": {
+      "tickets": 5,
+      "class": "UH"
+    },
+    "ZBD04A": {
+      "tickets": 10,
+      "class": "IFV"
+    },
+    "ZBD05": {
+      "tickets": 10,
+      "class": "IFV"
+    },
+    "ZBL08": {
+      "tickets": 10,
+      "class": "IFV"
+    },
+    "ZSD05": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "ZSD05 Logistics": {
+      "tickets": 5,
+      "class": "LOGI"
+    },
+    "ZSD05 QJZ89": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "ZSD89 APC QJZ89": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "ZSD89 APC QLZ87": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "ZSD89II IFV": {
+      "tickets": 10,
+      "class": "IFV"
+    },
+    "ZSL10": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "ZSL10 QJZ89": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "ZSL10 QLZ87": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "ZSL92 IFV": {
+      "tickets": 10,
+      "class": "IFV"
+    },
+    "ZSL92A APC QJZ89": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "ZSL92A APC QLZ87": {
+      "tickets": 5,
+      "class": "APC"
+    },
+    "ZTD05": {
+      "tickets": 10,
+      "class": "MGS"
+    },
+    "ZTZ99A": {
+      "tickets": 15,
+      "class": "MBT"
+    }
+  }
+}

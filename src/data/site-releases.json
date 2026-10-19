@@ -1,6 +1,14 @@
 {
-  "current": "1.1.178",
+  "current": "1.1.179",
   "releases": [
+    {
+      "version": "1.1.179",
+      "date": "2026-10-19",
+      "title": "Тикеты техники = ticketValue игры",
+      "bullets": [
+        "Стоимость техники в RP из таблицы Squad ticketValue (v10.6.1), не грубые классы"
+      ]
+    },
     {
       "version": "1.1.178",
       "date": "2026-10-19",

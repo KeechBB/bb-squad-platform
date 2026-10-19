@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Unit + log smoke for vehicle RP (tickets×25, F2/driver, finisher)."""
+"""Unit + log smoke for vehicle RP (ticketValue×12.5, F2/driver, finisher)."""
 from __future__ import annotations
 
 import sys
@@ -10,29 +10,35 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import rp_log_parse as R
 
+# Canon = Squad v10.6.1 ticketValue (scripts/data/squad_vehicle_tickets.json)
 assert R.vehicle_tickets("BP_T72S_GFI_C") == 15
 assert R.vehicle_tickets("BP_2A6_Woodland_C") == 15  # Leopard (asset without LEOPARD)
 assert R.vehicle_tickets("BP_2A6_Desert_C") == 15
 assert R.vehicle_tickets("BP_2A7_Woodland_C") == 15
+assert R.vehicle_tickets("BP_FV4034_C") == 15
 assert R.vehicle_tickets("BP_BTR82A_RUS_C") == 10
-assert R.vehicle_tickets("BP_LAV6_Woodland_C") == 10  # LAV 6.0 = БТР, не лёгкая
+assert R.vehicle_tickets("BP_BTR80_RUS_C") == 5  # APC MG
+assert R.vehicle_tickets("BP_LAV6_Woodland_C") == 10  # LAV 6.0 = IFV
 assert R.vehicle_tickets("BP_LAV6_Turret_Woodland_C") == 10
 assert R.vehicle_base_rp("BP_LAV6_Desert_C") == 125
 assert R.vehicle_tickets("BP_AAVP7A1_Woodland_C") == 10
-assert R.vehicle_tickets("BP_WPMC_Mobile_Hub_C") == 20
-# logi stays 5 (=62.5); unarmed transport/util = 2 (=25); rate 12.5 RP/ticket
+assert R.vehicle_tickets("BP_M113A3_MSV_WPMC_C") == 20
+assert R.vehicle_tickets("BP_WPMC_Mobile_Hub_C") == 20  # fallback hub regex
 assert R.VEHICLE_RP_PER_TICKET == 12.5
 assert R.vehicle_tickets("BP_US_Util_USMC_Woodland_Logi_C") == 5
 assert R.vehicle_tickets("BP_Ural_375_Logi_MIL_C") == 5
-assert R.vehicle_tickets("BP_US_Util_USMC_Woodland_C") == 2
-assert R.vehicle_tickets("BP_CPV_Transport_C") == 2
-assert R.vehicle_tickets("BP_Kamaz_5350_Desert_C") == 2
-assert R.vehicle_tickets("BP_M1151_TOW_Woodland_C") == 5  # armed light
+assert R.vehicle_tickets("BP_US_Util_USMC_Woodland_C") == 3  # TRAN
+assert R.vehicle_tickets("BP_CPV_Transport_C") == 5  # MRAP
+assert R.vehicle_tickets("BP_Kamaz_5350_Desert_C") == 3  # TRAN
+assert R.vehicle_tickets("BP_MATV_TOW_Woodland_C") == 10  # TD
+assert R.vehicle_tickets("BP_M1151_TOW_GFI_C") == 10
 assert R.vehicle_tickets("BP_CPV_M134_C") == 5
-assert R.vehicle_tickets("BP_RHIB_US_M240_C") == 5  # armed boat, not soft skin
+assert R.vehicle_tickets("BP_RHIB_US_M240_C") == 1  # ULTV
+assert R.vehicle_tickets("BP_BRDM-2_RUS_C") == 5
+assert R.vehicle_tickets("BP_BRDM-2_Spandrel_RUS_C") == 10
 assert R.vehicle_base_rp("BP_T72S_GFI_C") == 187.5
 assert R.vehicle_base_rp("BP_2A6_Woodland_C") == 187.5
-assert R.vehicle_base_rp("BP_US_Util_USMC_Woodland_C") == 25
+assert R.vehicle_base_rp("BP_US_Util_USMC_Woodland_C") == 37.5  # TRAN 3×12.5
 assert R.vehicle_base_rp("BP_US_Util_USMC_Woodland_Logi_C") == 62.5
 assert R.vehicle_class_ru("BP_US_Util_USMC_Woodland_C") == "транспорт"
 assert R.vehicle_class_ru("BP_US_Util_USMC_Woodland_Logi_C") == "logi"
