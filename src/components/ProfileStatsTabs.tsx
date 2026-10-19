@@ -6,6 +6,7 @@ import type { PlayerKvStats } from "@/lib/kvStats";
 import type { PlayerTrainCombatStats } from "@/lib/homeTrainPwr";
 import type { PlayerPublicCombatStats } from "@/lib/publicCombat";
 import { ProfileKvStats } from "@/components/ProfileKvStats";
+import { ProfileCombatGrid } from "@/components/ProfileCombatGrid";
 
 type Tab = "train" | "cw" | "public";
 
@@ -45,107 +46,36 @@ function CombatBody({
     );
   }
 
-  const antiDeath =
-    "antiDeath" in stats && typeof stats.antiDeath === "number"
-      ? stats.antiDeath
-      : 0;
   const vehicleKills =
     "vehicleKills" in stats && typeof stats.vehicleKills === "number"
       ? stats.vehicleKills
-      : null;
+      : 0;
   const mvpArmor =
     "mvpArmor" in stats && typeof stats.mvpArmor === "number"
       ? stats.mvpArmor
-      : null;
-  const awardTotal =
-    stats.mvpKiller +
-    stats.mvpMedic +
-    antiDeath +
-    stats.mvpDamage +
-    (mvpArmor ?? 0);
-  const days =
-    "days" in stats && typeof stats.days === "number" ? stats.days : null;
+      : 0;
 
   return (
-    <>
-      <div className="profile-kv-summary">
-        <div>
-          <span className="muted">Катки</span>
-          <strong>{stats.matches}</strong>
-        </div>
-        <div>
-          <span className="muted">W–L</span>
-          <strong>
-            {stats.wins}–{stats.losses}
-          </strong>
-          <em className="stat-sub">winrate {stats.winrate}%</em>
-        </div>
-        <div>
-          <span className="muted">K / D</span>
-          <strong>
-            {stats.kills}
-            <em> / {stats.deaths}</em>
-          </strong>
-          <em className="stat-sub">KD {stats.kd}</em>
-        </div>
-        <div>
-          <span className="muted">Ср. киллы / катка</span>
-          <strong>{stats.avgKills}</strong>
-        </div>
-      </div>
-      <div className="profile-kv-extra">
-        <div>
-          <span className="muted">Урон</span>
-          <strong>{stats.dmg.toLocaleString("ru-RU")}</strong>
-          <em className="stat-sub">ср. {stats.avgDmg} / катка</em>
-        </div>
-        <div>
-          <span className="muted">Revives</span>
-          <strong>{stats.res}</strong>
-        </div>
-        <div>
-          <span className="muted">Ноки</span>
-          <strong>{stats.nok}</strong>
-        </div>
-        <div>
-          <span className="muted">Награды MVP</span>
-          <strong>{awardTotal}</strong>
-        </div>
-        {vehicleKills != null ? (
-          <div>
-            <span className="muted">Техника (киллы)</span>
-            <strong>{vehicleKills}</strong>
-          </div>
-        ) : null}
-        {days != null ? (
-          <div>
-            <span className="muted">Дней на PB1</span>
-            <strong>{days}</strong>
-          </div>
-        ) : null}
-      </div>
-      <div className="profile-kv-awards">
-        <span className="profile-kv-award">
-          War-Score <b>{stats.mvpDamage}</b>
-        </span>
-        <span className="profile-kv-award">
-          Killer <b>{stats.mvpKiller}</b>
-        </span>
-        <span className="profile-kv-award">
-          Medic <b>{stats.mvpMedic}</b>
-        </span>
-        {"antiDeath" in stats ? (
-          <span className="profile-kv-award">
-            Anti-Death <b>{antiDeath}</b>
-          </span>
-        ) : null}
-        {mvpArmor != null ? (
-          <span className="profile-kv-award">
-            Armor <b>{mvpArmor}</b>
-          </span>
-        ) : null}
-      </div>
-    </>
+    <ProfileCombatGrid
+      stats={{
+        matches: stats.matches,
+        wins: stats.wins,
+        losses: stats.losses,
+        winrate: stats.winrate,
+        kills: stats.kills,
+        deaths: stats.deaths,
+        kd: stats.kd,
+        avgKills: stats.avgKills,
+        dmg: stats.dmg,
+        avgDmg: stats.avgDmg,
+        res: stats.res,
+        nok: stats.nok,
+        mvpKiller: stats.mvpKiller,
+        mvpMedic: stats.mvpMedic,
+        mvpArmor,
+        vehicleKills,
+      }}
+    />
   );
 }
 

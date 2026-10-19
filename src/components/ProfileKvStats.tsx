@@ -10,6 +10,7 @@ import {
 } from "@/components/ProfileMatchStatsModal";
 import { ListPager, pageSlice } from "@/components/ListPager";
 import { useFitPageSize } from "@/hooks/useFitPageSize";
+import { ProfileCombatGrid } from "@/components/ProfileCombatGrid";
 
 function statusLabel(s: string) {
   if (s === "win") return "W";
@@ -227,76 +228,32 @@ export function ProfileKvStats({
     );
   }
 
-  const awardTotal =
-    stats.mvpDamage + stats.mvpKiller + stats.mvpMedic + stats.antiDeath;
-
   return wrap(
     <>
       {head}
 
-      <div className="profile-kv-summary">
-        <div>
-          <span className="muted">Матчи / раунды</span>
-          <strong>
-            {stats.matches}
-            <em> / {stats.rounds}</em>
-          </strong>
-        </div>
-        <div>
-          <span className="muted">W–D–L</span>
-          <strong>
-            {stats.wins}–{stats.draws}–{stats.losses}
-          </strong>
-          <em className="stat-sub">winrate {stats.winrate}%</em>
-        </div>
-        <div>
-          <span className="muted">K / D</span>
-          <strong>
-            {stats.kills}
-            <em> / {stats.deaths}</em>
-          </strong>
-          <em className="stat-sub">KD {stats.kd}</em>
-        </div>
-        <div>
-          <span className="muted">Урон</span>
-          <strong>{stats.dmg.toLocaleString("ru-RU")}</strong>
-          <em className="stat-sub">ср. {stats.avgDmg} / игра</em>
-        </div>
-      </div>
-
-      <div className="profile-kv-extra">
-        <div>
-          <span className="muted">Ср. киллы / игра</span>
-          <strong>{stats.avgKills}</strong>
-        </div>
-        <div>
-          <span className="muted">Revives</span>
-          <strong>{stats.res}</strong>
-        </div>
-        <div>
-          <span className="muted">Ноки</span>
-          <strong>{stats.nok}</strong>
-        </div>
-        <div>
-          <span className="muted">Награды MVP</span>
-          <strong>{awardTotal}</strong>
-        </div>
-      </div>
-
-      <div className="profile-kv-awards">
-        <span className="profile-kv-award">
-          War-Score <b>{stats.mvpDamage}</b>
-        </span>
-        <span className="profile-kv-award">
-          Killer <b>{stats.mvpKiller}</b>
-        </span>
-        <span className="profile-kv-award">
-          Medic <b>{stats.mvpMedic}</b>
-        </span>
-        <span className="profile-kv-award">
-          Anti-Death <b>{stats.antiDeath}</b>
-        </span>
-      </div>
+      <ProfileCombatGrid
+        stats={{
+          matches: stats.matches,
+          rounds: stats.rounds,
+          wins: stats.wins,
+          draws: stats.draws,
+          losses: stats.losses,
+          winrate: stats.winrate,
+          kills: stats.kills,
+          deaths: stats.deaths,
+          kd: stats.kd,
+          avgKills: stats.avgKills,
+          dmg: stats.dmg,
+          avgDmg: stats.avgDmg,
+          res: stats.res,
+          nok: stats.nok,
+          mvpKiller: stats.mvpKiller,
+          mvpMedic: stats.mvpMedic,
+          mvpArmor: 0,
+          vehicleKills: 0,
+        }}
+      />
 
       {stats.byStack.length > 0 ? (
         <div className="profile-kv-stacks">
