@@ -11,9 +11,9 @@
 .profile-page.profile-page-v2 {
   display: grid !important;
   flex: 1 1 auto !important;
-  /* Календарь шире; стата компактнее — роли/попадания подняты выше */
+  /* Календарь шире; стата крупнее; роли/попадания ниже — без пустоты */
   grid-template-columns: minmax(0, 0.78fr) minmax(0, 0.95fr) minmax(0, 2.45fr) !important;
-  grid-template-rows: minmax(0, 1.15fr) minmax(0, 0.5fr) minmax(0, 1.5fr) !important;
+  grid-template-rows: minmax(0, 1.12fr) minmax(0, 0.88fr) minmax(0, 1.05fr) !important;
   grid-template-areas:
     "ident career attend"
     "stats stats history"
@@ -664,25 +664,97 @@
   display: none;
 }
 
-/* Стата компактная — без пустоты снизу, ячейка отдана ролям/попаданиям */
+/* Стата заполняет свою ячейку крупнее */
 .profile-page-v2 .profile-stats-tabs-card {
   justify-content: flex-start !important;
 }
 
 .profile-page-v2 .profile-stats-tabpanel {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   justify-content: flex-start;
 }
 
 .profile-page-v2 .profile-kv-summary,
 .profile-page-v2 .profile-kv-extra {
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
+  gap: 8px;
+}
+
+.profile-page-v2 .profile-kv-summary > div,
+.profile-page-v2 .profile-kv-extra > div {
+  padding: 8px 10px;
+}
+
+.profile-page-v2 .profile-kv-summary strong,
+.profile-page-v2 .profile-kv-extra strong {
+  font-size: 1.12rem;
+  line-height: 1.15;
+}
+
+.profile-page-v2 .profile-kv-summary .muted,
+.profile-page-v2 .profile-kv-extra .muted {
+  font-size: 0.72rem;
+}
+
+.profile-page-v2 .profile-kv-awards {
+  font-size: 0.82rem;
+  gap: 8px;
+}
+
+.profile-page-v2 .profile-hitmap-head {
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.profile-page-v2 .profile-hitmap-head-text {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* Кнопки попаданий — без троеточий */
+.profile-page-v2 .profile-hitmap-filter {
+  max-width: none !important;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+.profile-page-v2 .profile-hitmap-filter-btn {
+  overflow: visible;
+  text-overflow: clip;
+  max-width: none;
+  min-width: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  padding: 6px 10px;
+}
+
+.profile-page-v2 .profile-hitmap-filter-btn.is-match-pick {
+  max-width: none;
+}
+
+.profile-page-v2 .profile-kits-filter {
+  flex-wrap: wrap;
+}
+
+.profile-page-v2 .profile-kits-filter .profile-hitmap-filter-btn {
+  overflow: visible;
+  text-overflow: clip;
+  max-width: none;
+  white-space: nowrap;
+}
+
+.profile-page-v2 .profile-kits-body-solo .profile-kits-donut {
+  width: min(100%, 200px);
+  max-height: calc(100% - 2px);
 }
 
 .profile-page-v2 .profile-kv-stacks {
