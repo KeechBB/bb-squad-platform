@@ -54,7 +54,7 @@ function inferVehicleTickets(asset: string): number {
   const a = String(asset || "");
   if (/WPMC.*(HUB|MCT|HQ|RADIO.?BIKE|MOBILE|COMMAND)/i.test(a)) return 20;
   if (
-    /(T72|T62|T80|T90|M1A|LEOPARD|M60|CHALLENGER|MERKAVA|T14|ZTZ|TYPE99|TYPE96)/i.test(
+    /(T72|T62|T80|T90|M1A|LEOPARD|2A6|2A7|M60|CHALLENGER|MERKAVA|T14|ZTZ|TYPE99|TYPE96)/i.test(
       a
     )
   )

@@ -122,7 +122,8 @@ _MATCH_ID_START_RE = re.compile(r"^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})")
 VEHICLE_RP_PER_TICKET = 12.5
 VEHICLE_DRIVER_SHARE = 0.7
 _VEH_TANK_RE = re.compile(
-    r"(T72|T62|T80|T90|M1A|LEOPARD|M60|CHALLENGER|MERKAVA|T14|ZTZ|TYPE99|TYPE96)",
+    # 2A6/2A7 = Leopard (Squad asset often BP_2A6_* without "LEOPARD" in name)
+    r"(T72|T62|T80|T90|M1A|LEOPARD|2A6|2A7|M60|CHALLENGER|MERKAVA|T14|ZTZ|TYPE99|TYPE96)",
     re.I,
 )
 _VEH_IFV_RE = re.compile(
