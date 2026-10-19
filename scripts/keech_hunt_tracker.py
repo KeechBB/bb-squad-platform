@@ -143,6 +143,8 @@ class KeechHuntTracker:
         self._veh: dict[str, VehicleRpEngine] = {}
         self._dirty = False
         self._last_write = 0.0
+        # Cache ledger RP maps — catchup was re-parsing ~300MB JSON per event.
+        self._rp_map_cache: dict[str, tuple[float, dict[str, float], float]] = {}
         OUT_DIR.mkdir(parents=True, exist_ok=True)
         self._hydrate_from_live()
         if not LIVE_PATH.is_file():
@@ -262,8 +264,17 @@ class KeechHuntTracker:
         (~770) which clamped Keech (~2300) down to START_RP and flattened Hunt to N=25.5.
         """
         start = float(R.START_RP)
-        rp: dict[str, float] = {}
         path = self._ledger_for(server)
+        cache_key = str(path)
+        try:
+            mtime = path.stat().st_mtime if path.is_file() else 0.0
+        except OSError:
+            mtime = 0.0
+        hit = self._rp_map_cache.get(cache_key)
+        if hit and hit[0] == mtime:
+            return hit[1], hit[2]
+
+        rp: dict[str, float] = {}
         if path.is_file():
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
@@ -273,7 +284,9 @@ class KeechHuntTracker:
             except Exception:
                 pass
         pmax = max(rp.values()) if rp else start
-        return rp, max(float(pmax), start)
+        pmax = max(float(pmax), start)
+        self._rp_map_cache[cache_key] = (mtime, rp, pmax)
+        return rp, pmax
 
     def _weight(self, nick: str, rp: dict[str, float]) -> float:
         k = R.nick_key(nick)
