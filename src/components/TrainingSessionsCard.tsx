@@ -206,8 +206,8 @@ export function TrainingMatchHistory({
 }) {
   const [open, setOpen] = useState<MatchStatsOpen | null>(null);
   const [page, setPage] = useState(1);
-  const wrapRef = useRef<HTMLElement | null>(null);
-  const pageSize = useFitPageSize(wrapRef);
+  const tableWrapRef = useRef<HTMLDivElement | null>(null);
+  const pageSize = useFitPageSize(tableWrapRef);
   const sliced = pageSlice(matchHistory, page, pageSize);
 
   useEffect(() => {
@@ -215,10 +215,7 @@ export function TrainingMatchHistory({
   }, [matchHistory.length, pageSize]);
 
   return (
-    <section
-      ref={wrapRef}
-      className="card profile-hist-card profile-train-hist-card profile-hist-paged"
-    >
+    <section className="card profile-hist-card profile-train-hist-card profile-hist-paged">
       {hideTitle ? null : (
         <h2 className="profile-hist-title">{title}</h2>
       )}
@@ -229,7 +226,10 @@ export function TrainingMatchHistory({
         </p>
       ) : (
         <>
-        <div className="admin-table-wrap profile-hist-table-wrap">
+        <div
+          ref={tableWrapRef}
+          className="admin-table-wrap profile-hist-table-wrap"
+        >
           <table className="admin-table training-sessions-table training-match-hist-table">
             <thead>
               <tr>

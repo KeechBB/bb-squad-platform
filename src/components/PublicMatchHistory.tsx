@@ -24,8 +24,8 @@ export function PublicMatchHistory({
   const [playerCache, setPlayerCache] = useState<RpPlayer | null>(null);
   const [openMatch, setOpenMatch] = useState<RpPlayerMatch | null>(null);
   const [page, setPage] = useState(1);
-  const wrapRef = useRef<HTMLElement | null>(null);
-  const pageSize = useFitPageSize(wrapRef);
+  const tableWrapRef = useRef<HTMLDivElement | null>(null);
+  const pageSize = useFitPageSize(tableWrapRef);
   const sliced = pageSlice(matchHistory, page, pageSize);
 
   useEffect(() => {
@@ -67,10 +67,7 @@ export function PublicMatchHistory({
   }
 
   return (
-    <section
-      ref={wrapRef}
-      className="card profile-hist-card profile-train-hist-card profile-public-hist-card profile-hist-paged"
-    >
+    <section className="card profile-hist-card profile-train-hist-card profile-public-hist-card profile-hist-paged">
       {hideTitle ? null : (
         <h2 className="profile-hist-title">История матчей паблика</h2>
       )}
@@ -86,7 +83,10 @@ export function PublicMatchHistory({
         </p>
       ) : (
         <>
-        <div className="admin-table-wrap profile-hist-table-wrap">
+        <div
+          ref={tableWrapRef}
+          className="admin-table-wrap profile-hist-table-wrap"
+        >
           <table className="admin-table training-sessions-table training-match-hist-table">
             <thead>
               <tr>

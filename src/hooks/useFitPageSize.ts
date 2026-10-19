@@ -3,18 +3,19 @@
 import { useEffect, useState, type RefObject } from "react";
 
 /**
- * Сколько строк таблицы влезает в контейнер (под шапку + пагинатор).
- * Минимум 6, максимум 40 — чтобы окно истории заполнялось без пустоты и без вечного списка.
+ * Сколько строк таблицы влезает в контейнер без скролла.
+ * `wrapRef` — область таблицы (`.profile-hist-table-wrap`): высота thead
+ * вычитается, высота строки берётся из первой tr (или fallback).
  */
 export function useFitPageSize(
   wrapRef: RefObject<HTMLElement | null>,
   opts?: { rowPx?: number; chromePx?: number; min?: number; max?: number }
 ) {
-  const rowPx = opts?.rowPx ?? 34;
-  const chromePx = opts?.chromePx ?? 96;
-  const min = opts?.min ?? 6;
+  const rowPxFallback = opts?.rowPx ?? 36;
+  const chromePx = opts?.chromePx ?? 0;
+  const min = opts?.min ?? 1;
   const max = opts?.max ?? 40;
-  const [size, setSize] = useState(12);
+  const [size, setSize] = useState(8);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -22,16 +23,36 @@ export function useFitPageSize(
 
     const measure = () => {
       const h = el.clientHeight;
-      if (h < 80) return;
-      const n = Math.floor((h - chromePx) / rowPx);
-      setSize(Math.min(max, Math.max(min, n || min)));
+      if (h < 40) return;
+
+      const thead = el.querySelector("thead");
+      const theadH = thead
+        ? Math.ceil((thead as HTMLElement).getBoundingClientRect().height)
+        : 32;
+      const rowEl = el.querySelector("tbody tr") as HTMLElement | null;
+      const rowH = rowEl
+        ? Math.max(
+            20,
+            Math.ceil(rowEl.getBoundingClientRect().height)
+          )
+        : rowPxFallback;
+
+      // 2px запас — последняя строка не должна упираться в край
+      const avail = h - theadH - chromePx - 2;
+      const n = Math.floor(avail / rowH);
+      setSize(Math.min(max, Math.max(min, n >= 1 ? n : min)));
     };
 
     measure();
     const ro = new ResizeObserver(() => measure());
     ro.observe(el);
-    return () => ro.disconnect();
-  }, [wrapRef, rowPx, chromePx, min, max]);
+    // Строки могли подгрузиться позже — перемер после paint
+    const t = window.setTimeout(measure, 0);
+    return () => {
+      ro.disconnect();
+      window.clearTimeout(t);
+    };
+  }, [wrapRef, rowPxFallback, chromePx, min, max]);
 
   return size;
 }

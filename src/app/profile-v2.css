@@ -294,11 +294,18 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-/* История матчей */
+/* История матчей — без скролла: лишнее уходит на следующую страницу */
+.profile-page-v2 .profile-hist-paged,
+.profile-page-v2 .profile-v2-history > .card {
+  overflow: hidden !important;
+}
+
 .profile-hist-paged .profile-hist-table-wrap {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden !important;
+  overflow-x: hidden !important;
+  overflow-y: hidden !important;
 }
 
 .profile-hist-paged .profile-hist-pager {
