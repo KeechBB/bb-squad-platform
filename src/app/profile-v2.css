@@ -710,7 +710,7 @@ body.has-profile-bg .shell:has(.profile-page) {
 }
 
 .profile-v2-ident .clan-invites {
-  margin-top: 8px;
+  margin-top: 6px;
   flex: 0 0 auto;
   max-height: 28%;
   overflow: auto;
@@ -719,6 +719,30 @@ body.has-profile-bg .shell:has(.profile-page) {
 .profile-v2-ident .avatar-editor,
 .profile-v2-ident [class*="avatar"] {
   flex: 0 0 auto;
+}
+
+/* Убрать пустой зазор под аватаром — кнопки выше, полка виднее */
+.profile-page-v2 .hero,
+.profile-page-v2 .hero-profile {
+  margin-bottom: 0 !important;
+  gap: 6px !important;
+}
+
+.profile-page-v2 .avatar-actions {
+  margin-top: 0;
+}
+
+.profile-page-v2 .avatar-actions .btn {
+  padding: 5px 10px;
+  font-size: 0.78rem;
+}
+
+.profile-bg-trigger {
+  margin-top: 6px !important;
+}
+
+.profile-mode-switch {
+  margin-top: 6px !important;
 }
 
 /* Аватар ~2× от прежних 72px */
