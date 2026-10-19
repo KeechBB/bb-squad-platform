@@ -44,11 +44,9 @@ export async function GET(req: Request) {
     take: limit,
   });
 
-  // В чате — снизу новее: отдаём хронологически (старые → новые)
-  const chronological = [...entries].reverse();
-
+  // Сверху новее, внизу раньше (лента, не чат)
   return NextResponse.json({
-    entries: chronological,
+    entries,
     hasMore: entries.length >= limit,
   });
 }

@@ -42,12 +42,11 @@ export function AdminJournalPanel() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
-  const bottomRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
-  const stickBottom = useRef(true);
+  const stickTop = useRef(true);
 
   const load = useCallback(
-    async (opts?: { prepend?: boolean; before?: string; silent?: boolean }) => {
+    async (opts?: { append?: boolean; before?: string; silent?: boolean }) => {
       if (!opts?.silent) {
         setLoading(true);
         setErr(null);
@@ -64,15 +63,15 @@ export function AdminJournalPanel() {
         if (!res.ok) throw new Error(json.error || "Ошибка загрузки");
         const next = (json.entries || []) as JournalEntry[];
         setHasMore(Boolean(json.hasMore));
-        if (opts?.prepend) {
+        if (opts?.append) {
           setEntries((prev) => {
             const ids = new Set(prev.map((e) => e.id));
             const older = next.filter((e) => !ids.has(e.id));
-            return [...older, ...prev];
+            return [...prev, ...older];
           });
         } else {
           setEntries(next);
-          if (!opts?.silent) stickBottom.current = true;
+          if (!opts?.silent) stickTop.current = true;
         }
       } catch (e) {
         if (!opts?.silent) {
@@ -95,15 +94,15 @@ export function AdminJournalPanel() {
   });
 
   useEffect(() => {
-    if (!stickBottom.current) return;
-    bottomRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+    if (!stickTop.current) return;
+    const el = listRef.current;
+    if (el) el.scrollTop = 0;
   }, [entries]);
 
   function onScroll() {
     const el = listRef.current;
     if (!el) return;
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
-    stickBottom.current = nearBottom;
+    stickTop.current = el.scrollTop < 48;
   }
 
   function applySearch(e: FormEvent) {
@@ -113,8 +112,9 @@ export function AdminJournalPanel() {
 
   async function loadOlder() {
     if (!entries.length || loading) return;
-    stickBottom.current = false;
-    await load({ prepend: true, before: entries[0].createdAt });
+    stickTop.current = false;
+    const oldest = entries[entries.length - 1];
+    await load({ append: true, before: oldest.createdAt });
   }
 
   return (
@@ -189,16 +189,6 @@ export function AdminJournalPanel() {
           role="log"
           aria-live="polite"
         >
-          {hasMore ? (
-            <button
-              type="button"
-              className="journal-load-older"
-              onClick={() => void loadOlder()}
-              disabled={loading}
-            >
-              Загрузить раньше
-            </button>
-          ) : null}
           {!loading && entries.length === 0 ? (
             <p className="journal-empty muted">
               Пока нет записей. Сюда попадают регистрации, кики, резерв,
@@ -222,7 +212,16 @@ export function AdminJournalPanel() {
               <p className="journal-msg-body">{e.message}</p>
             </article>
           ))}
-          <div ref={bottomRef} />
+          {hasMore ? (
+            <button
+              type="button"
+              className="journal-load-older"
+              onClick={() => void loadOlder()}
+              disabled={loading}
+            >
+              Загрузить раньше
+            </button>
+          ) : null}
         </div>
       </div>
     </section>
