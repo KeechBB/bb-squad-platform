@@ -34,6 +34,8 @@ type Props = {
   nick?: string;
   /** Own profile title */
   self?: boolean;
+  /** Внутри вкладки «Моя карьера» — без своего заголовка */
+  embedded?: boolean;
 };
 
 function emptyFeed(nick = ""): PlayerCareerFeed {
@@ -67,6 +69,7 @@ export function ProfileCareerCard({
   feed: initial,
   nick,
   self = false,
+  embedded = false,
 }: Props) {
   const seedNick = nick || initial?.nick || "";
   const [feed, setFeed] = useState<PlayerCareerFeed>(
@@ -105,13 +108,18 @@ export function ProfileCareerCard({
 
   const events = feed.events || [];
   return (
-    <section className="card profile-career-card" aria-label="Карьера">
-      <header className="profile-kv-head">
-        <h2>{self ? "Моя карьера" : "Карьера"}</h2>
-        <span className="profile-career-count">
-          {loading ? "…" : events.length || "—"}
-        </span>
-      </header>
+    <section
+      className={`card profile-career-card${embedded ? " is-embedded" : ""}`}
+      aria-label="Карьера"
+    >
+      {embedded ? null : (
+        <header className="profile-kv-head">
+          <h2>{self ? "Моя карьера" : "Карьера"}</h2>
+          <span className="profile-career-count">
+            {loading ? "…" : events.length || "—"}
+          </span>
+        </header>
+      )}
 
       {loading && events.length === 0 ? (
         <p className="muted profile-career-empty">Загрузка…</p>

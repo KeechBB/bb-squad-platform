@@ -1,15 +1,24 @@
-/* Profile page v2 (sketch: mode-aware layout) — overrides PROFILE DESKTOP LOCK */
+/* Profile v2 — строгая viewport-сетка как на эскизе. Ничего не раздувает страницу. */
+
+.shell:has(.profile-page-v2) {
+  display: flex !important;
+  flex-direction: column !important;
+  height: calc(100dvh - 76px) !important;
+  max-height: calc(100dvh - 76px) !important;
+  overflow: hidden !important;
+}
 
 .profile-page.profile-page-v2 {
   display: grid !important;
-  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.15fr) minmax(0, 1.05fr) minmax(0, 1.35fr) !important;
-  grid-template-rows: auto minmax(0, 1.1fr) minmax(0, 0.95fr) !important;
+  flex: 1 1 auto !important;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.15fr) minmax(0, 2.1fr) !important;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1.05fr) minmax(0, 0.95fr) !important;
   grid-template-areas:
-    "ident career attend attend"
-    "stats stats history history"
-    "roles hits history history" !important;
+    "ident career attend"
+    "stats stats history"
+    "roles hits history" !important;
   gap: 10px !important;
-  align-items: stretch;
+  align-items: stretch !important;
   height: 100% !important;
   max-height: 100% !important;
   min-height: 0 !important;
@@ -17,19 +26,55 @@
   width: 100% !important;
 }
 
-.profile-v2-ident { grid-area: ident; min-height: 0; overflow: auto; }
-.profile-v2-career { grid-area: career; min-height: 0; overflow: auto; }
-.profile-v2-attend { grid-area: attend; min-height: 0; overflow: auto; }
-.profile-v2-stats { grid-area: stats; min-height: 0; overflow: auto; }
-.profile-v2-history { grid-area: history; min-height: 0; overflow: auto; }
-.profile-v2-roles { grid-area: roles; min-height: 0; overflow: auto; }
-.profile-v2-hits { grid-area: hits; min-height: 0; overflow: auto; }
+.profile-v2-ident,
+.profile-v2-career,
+.profile-v2-attend,
+.profile-v2-stats,
+.profile-v2-history,
+.profile-v2-roles,
+.profile-v2-hits {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.profile-v2-ident { grid-area: ident; }
+.profile-v2-career { grid-area: career; }
+.profile-v2-attend { grid-area: attend; }
+.profile-v2-stats { grid-area: stats; }
+.profile-v2-history { grid-area: history; }
+.profile-v2-roles { grid-area: roles; }
+.profile-v2-hits { grid-area: hits; }
+
+/* Всё содержимое ячеек — на 100% высоты ячейки, скролл только внутри */
+.profile-page-v2 > * > .card,
+.profile-page-v2 .profile-career-account,
+.profile-page-v2 .profile-hist-paged,
+.profile-page-v2 .profile-career-card,
+.profile-page-v2 .profile-kits-card,
+.profile-page-v2 .profile-hitmap-card,
+.profile-page-v2 .profile-kv-card,
+.profile-page-v2 .profile-stats-tabs-card,
+.profile-page-v2 .training-sessions-card {
+  flex: 1 1 auto !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  margin: 0 !important;
+}
 
 .profile-mode-switch {
   display: flex;
   gap: 8px;
   margin-top: 10px;
   flex-wrap: wrap;
+  flex: 0 0 auto;
 }
 
 .profile-mode-pill {
@@ -71,10 +116,6 @@
 
 .profile-career-account {
   padding: 12px 14px;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
 }
 
 .profile-career-account-tabs {
@@ -107,7 +148,42 @@
 .profile-career-account-body {
   flex: 1 1 auto;
   min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-career-account-body > .profile-career-card,
+.profile-career-account-body > .absence-panel,
+.profile-career-account-body > form,
+.profile-career-account-body > .card {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+/* Карьера внутри ячейки: список скроллится, карточка не растёт */
+.profile-page-v2 .profile-career-card {
+  max-height: none !important; /* снять DESKTOP LOCK 320px / auto growth */
+  width: 100% !important;
+}
+
+.profile-page-v2 .profile-career-card .profile-kv-head {
+  flex: 0 0 auto;
+}
+
+.profile-page-v2 .profile-career-list {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.profile-page-v2 .profile-career-card.is-embedded .profile-kv-head {
+  display: none;
 }
 
 .profile-stats-forced-title {
@@ -120,24 +196,24 @@
 
 .profile-v2-ident .clan-invites {
   margin-top: 8px;
+  flex: 0 0 auto;
+  max-height: 28%;
+  overflow: auto;
 }
 
-/* История матчей: таблица заполняет ячейку, пагинатор снизу */
-.profile-v2-history {
-  display: flex;
-  flex-direction: column;
+.profile-v2-ident .avatar-editor,
+.profile-v2-ident [class*="avatar"] {
+  flex: 0 0 auto;
+}
+
+/* Посещаемость + календарь в одной ячейке */
+.profile-v2-attend > * {
+  flex: 1 1 auto;
   min-height: 0;
+  overflow: auto;
 }
 
-.profile-v2-history > .profile-hist-paged,
-.profile-hist-paged {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-}
-
+/* История матчей */
 .profile-hist-paged .profile-hist-table-wrap {
   flex: 1 1 auto;
   min-height: 0;
@@ -154,4 +230,10 @@
 .profile-hist-pager .public-rating-page-btn:disabled {
   opacity: 0.35;
   cursor: default;
+}
+
+.profile-hist-paged .profile-hist-title,
+.profile-page-v2 .profile-kv-head,
+.profile-page-v2 .profile-stats-tabs-head {
+  flex: 0 0 auto;
 }

@@ -75,7 +75,7 @@ export function ProfileCareerAccountPanel({
       </div>
       <div className="profile-career-account-body">
         {panel === "career" ? (
-          <ProfileCareerCard nick={nick} self />
+          <ProfileCareerCard nick={nick} self embedded />
         ) : (
           <>
             <AbsencePanel
