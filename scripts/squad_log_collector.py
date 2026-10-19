@@ -999,10 +999,16 @@ class Collector:
             name = path.rsplit("/", 1)[-1]
             if name in self.processed_backups:
                 continue
-            # Login / Remove / steam↔EOS / BBHitZone — не весь 20MB
+            # Login / Remove / steam↔EOS / match end (+ hits only on TR).
+            # TPUB1 BBHitZone in backups is huge → collector freezes for 20+ min,
+            # state mtime stalls, health watch fires «сборщик замолчал».
+            hit_pat = "" if server_key.upper().startswith("TPUB") or server_key.upper() in {
+                "PB1",
+                "PUB",
+            } else "BBHitZone:|"
             grep_cmd = (
                 f"grep -E 'Login request:|RemovePlayer\\(UserId:|"
-                f"EOS:.*steam:|steam:.*EOS:|BBHitZone:|DeployRole=|"
+                f"EOS:.*steam:|steam:.*EOS:|{hit_pat}DeployRole=|"
                 f"has won the match|has lost the match' "
                 f"{path} 2>/dev/null || true"
             )
@@ -1022,6 +1028,11 @@ class Collector:
                     n += 1
             self.processed_backups.add(name)
             _safe_print(f"backup catchup {server_key} {name} events≈{n}", flush=True)
+            # Heartbeat so health watch does not think we died mid-catchup.
+            try:
+                self._save_state()
+            except Exception:
+                pass
         return batch
 
     def _history_match_keys(self) -> set[str]:
