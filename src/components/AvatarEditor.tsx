@@ -194,6 +194,7 @@ export function AvatarEditor({
       />
 
       {readOnly ? null : (
+      <>
       <div className="avatar-actions">
         {phase === "idle" ? (
           <button type="button" className="btn ghost" onClick={openChooser}>
@@ -239,6 +240,7 @@ export function AvatarEditor({
       {phase !== "idle" ? (
         <p className="avatar-hint">jpg / png / webp, до 20 МБ</p>
       ) : null}
+      </>
       )}
     </section>
   );
