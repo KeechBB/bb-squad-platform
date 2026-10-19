@@ -67,8 +67,7 @@ export default async function ClansPage() {
                 Мой клан [{myClan.tag}]
               </Link>
               <p
-                className="muted"
-                style={{ margin: "8px 0 0", fontSize: "0.85rem" }}
+                className="muted clans-hero-hint"
               >
                 Чтобы создать новый — сначала выйди из текущего.
               </p>
