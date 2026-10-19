@@ -17340,3 +17340,111 @@ body:has(.profile-page) {
 }
 
 
+
+/* —— 404 —— */
+.shell:has(.not-found-page) {
+  max-width: none;
+  padding: 0;
+  min-height: calc(100dvh - 76px);
+  display: flex;
+  flex-direction: column;
+}
+
+.not-found-page {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px 72px;
+  overflow: hidden;
+}
+
+.not-found-stage {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.not-found-glow {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(520px 320px at 50% 28%, rgba(124, 58, 237, 0.28), transparent 70%),
+    radial-gradient(420px 260px at 70% 70%, rgba(217, 70, 239, 0.12), transparent 65%);
+}
+
+.not-found-grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.22;
+  background-image:
+    linear-gradient(rgba(167, 139, 250, 0.14) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(167, 139, 250, 0.14) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 55% 50% at 50% 40%, #000 20%, transparent 75%);
+}
+
+.not-found-panel {
+  position: relative;
+  z-index: 1;
+  width: min(480px, 100%);
+  text-align: center;
+  padding: 36px 32px 40px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+}
+
+.not-found-brand {
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  color: var(--violet);
+}
+
+.not-found-code {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(4.5rem, 12vw, 6.5rem);
+  font-weight: 700;
+  line-height: 0.95;
+  letter-spacing: 0.04em;
+  background: linear-gradient(135deg, #c4b5fd 0%, #a78bfa 45%, #d946ef 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.not-found-title {
+  margin: 18px 0 10px;
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.not-found-lead {
+  margin: 0 0 28px;
+  color: var(--muted);
+  font-size: 0.98rem;
+  line-height: 1.55;
+}
+
+a.not-found-home {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink);
+  text-decoration: none;
+  min-width: 180px;
+}
+
+a.not-found-home:hover {
+  color: var(--ink);
+}
