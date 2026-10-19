@@ -212,6 +212,78 @@ def load_state() -> dict:
     }
 
 
+BP_L5_PROFILE_BG = "bp-l5-gold"
+
+
+def persist_l5_backgrounds(state: dict) -> None:
+    """Золотой фон ур. 5 — в инвентарь навсегда. Повторный запуск ничего не снимает."""
+    nicks: list[str] = []
+    steams: list[str] = []
+    for p in (state.get("players") or {}).values():
+        if not isinstance(p, dict):
+            continue
+        lvl = 20 if p.get("finished") else int(p.get("currentLevel") or 1)
+        if lvl < 5:
+            continue
+        nick = str(p.get("nick") or "").strip()
+        steam = str(p.get("steamId") or "").strip()
+        if nick:
+            nicks.append(nick.casefold())
+        if steam:
+            steams.append(steam)
+    if not nicks and not steams:
+        print("BP bg: nobody at level 5+", flush=True)
+        return
+    db = (os.environ.get("DATABASE_URL") or "").strip().strip("'").strip('"')
+    if not db:
+        env_path = ROOT / ".env"
+        if env_path.is_file():
+            for line in env_path.read_text(encoding="utf-8").splitlines():
+                if line.startswith("DATABASE_URL="):
+                    db = line.split("=", 1)[1].strip().strip("'").strip('"')
+                    break
+    if not db:
+        print("BP bg: no DATABASE_URL — skip inventory", flush=True)
+        return
+    connect = None
+    try:
+        import psycopg2
+
+        connect = psycopg2.connect
+    except ImportError:
+        try:
+            import psycopg
+
+            connect = psycopg.connect
+        except ImportError:
+            print("BP bg: no psycopg — skip inventory", flush=True)
+            return
+    try:
+        conn = connect(_psycopg_dsn(db))
+        cur = conn.cursor()
+        cur.execute(
+            """
+            update "User"
+            set "unlockedProfileBgs" = array_append(
+              coalesce("unlockedProfileBgs", '{}'),
+              %s
+            )
+            where not (%s = any(coalesce("unlockedProfileBgs", '{}')))
+              and (
+                lower(nick) = any(%s)
+                or "steamId" = any(%s)
+              )
+            """,
+            (BP_L5_PROFILE_BG, BP_L5_PROFILE_BG, nicks or [""], steams or [""]),
+        )
+        print(f"BP bg: granted {BP_L5_PROFILE_BG} to {cur.rowcount} accounts", flush=True)
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as exc:
+        print(f"BP bg: inventory skip ({exc})", flush=True)
+
+
 def save_state(state: dict) -> None:
     state["updatedAt"] = _utc_now()
     OUT.parent.mkdir(parents=True, exist_ok=True)
@@ -756,6 +828,7 @@ def apply_blocks(blocks: list[dict], aliases: dict | None = None) -> dict:
         total_adv += apply_match_to_players(state, b, registered, aliases)
     state = finalize(state, registered)
     save_state(state)
+    persist_l5_backgrounds(state)
     print(
         f"BP: blocks={len(blocks)} advanced_levels={total_adv} "
         f"players={len(state.get('players') or {})} "
@@ -773,6 +846,7 @@ def sync_cutover_only() -> dict:
     registered = load_registered()
     state = finalize(state, registered)
     save_state(state)
+    persist_l5_backgrounds(state)
     return state
 
 
@@ -786,6 +860,10 @@ def main() -> None:
                     os.environ["DATABASE_URL"] = (
                         line.split("=", 1)[1].strip().strip("'").strip('"')
                     )
+
+    if "--grant-bgs-only" in sys.argv:
+        persist_l5_backgrounds(load_state())
+        return
 
     if "--from-blocks" in sys.argv:
         i = sys.argv.index("--from-blocks")

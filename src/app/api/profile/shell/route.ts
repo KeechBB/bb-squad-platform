@@ -5,7 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { formatRuDate, isActiveReserve } from "@/lib/validation";
 import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
 import { CLAN_ROLE_LABEL, type ClanRole } from "@/lib/clan";
-import { normalizeProfileBg } from "@/lib/profileBg";
+import { normalizeProfileBg, profileBgChoicesFor } from "@/lib/profileBg";
+import { profileBgChoicesForUser } from "@/lib/profileBgUnlocks";
 import { buildPlayerMedalShelf } from "@/lib/profileMedals";
 
 export const runtime = "nodejs";
@@ -77,6 +78,20 @@ export async function GET(req: Request) {
     ? await buildPlayerMedalShelf(me.nick).catch(() => [])
     : [];
 
+  const profileBgChoices = isSelf
+    ? await profileBgChoicesForUser({
+        id: me.id,
+        steamId: me.steamId,
+        nick: me.nick,
+        unlockedProfileBgs: me.unlockedProfileBgs,
+      }).catch(() =>
+        profileBgChoicesFor({
+          steamId: me.steamId,
+          unlocks: me.unlockedProfileBgs || [],
+        })
+      )
+    : [];
+
   return NextResponse.json(
     {
       id: me.id,
@@ -89,6 +104,7 @@ export async function GET(req: Request) {
         ? session.user.steamAvatar || me.steamAvatar
         : me.steamAvatar,
       profileBg: normalizeProfileBg(me.profileBg),
+      profileBgChoices,
       medals,
       lastSeenAt: me.lastSeenAt,
       admin,

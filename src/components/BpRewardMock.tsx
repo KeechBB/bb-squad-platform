@@ -1,4 +1,5 @@
 import type { BpReward, BpRewardKind } from "@/lib/battlePass";
+import { BP_L5_PROFILE_BG_ID, profileBgUrl } from "@/lib/profileBg";
 
 export type BpPreviewPlayer = {
   nick: string;
@@ -127,6 +128,8 @@ export function BpRewardMock({
   compact?: boolean;
 }) {
   const kind = reward.kind;
+  const bgUrl =
+    kind === "bg" ? profileBgUrl(BP_L5_PROFILE_BG_ID) : null;
   return (
     <div
       className={`bp-mock kind-${kind}${compact ? " is-compact" : ""}`}
@@ -134,6 +137,13 @@ export function BpRewardMock({
     >
       {kind === "nick" ? (
         <RatingNickMock player={player} compact={compact} />
+      ) : kind === "bg" && bgUrl ? (
+        <div
+          className="bp-mock-bg"
+          style={{ backgroundImage: `url(${bgUrl})` }}
+        >
+          <span className="bp-mock-bg-nick">{player.nick}</span>
+        </div>
       ) : (
         <ProfileHeadMock
           player={player}

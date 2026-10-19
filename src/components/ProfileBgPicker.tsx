@@ -3,13 +3,14 @@
 import { useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  PROFILE_BG_OPTIONS,
   normalizeProfileBg,
   profileBgUrl,
+  type ProfileBgChoice,
   type ProfileBgId,
 } from "@/lib/profileBg";
 
 type Props = {
+  options: ProfileBgChoice[];
   value: ProfileBgId | null;
   /** Живое превью на странице (пока модалка открыта) */
   onPreview: (bg: ProfileBgId | null) => void;
@@ -17,7 +18,7 @@ type Props = {
   onSaved: (bg: ProfileBgId | null) => void;
 };
 
-export function ProfileBgPicker({ value, onPreview, onSaved }: Props) {
+export function ProfileBgPicker({ options, value, onPreview, onSaved }: Props) {
   const titleId = useId();
   const [open, setOpen] = useState(false);
   const [pick, setPick] = useState<ProfileBgId | null>(value);
@@ -134,7 +135,7 @@ export function ProfileBgPicker({ value, onPreview, onSaved }: Props) {
                   <span className="profile-bg-tile-label">Без фона</span>
                   <span className="profile-bg-tile-hint">как сейчас</span>
                 </button>
-                {PROFILE_BG_OPTIONS.map((opt) => {
+                {options.map((opt) => {
                   const url = profileBgUrl(opt.id)!;
                   return (
                     <button

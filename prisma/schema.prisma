@@ -45,6 +45,8 @@ model User {
   avatarUrl       String?
   /// Фон профиля: null = без фона; id из PROFILE_BG_OPTIONS (/public/profile-bgs/)
   profileBg       String?
+  /// Навсегда открытые фоны (награда BP и т.п.). Не снимаются при сбросе сезона.
+  unlockedProfileBgs String[] @default([])
   name            String?
   nick            String?  @unique
   age             Int?

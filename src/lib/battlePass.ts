@@ -14,7 +14,7 @@ export const BP_SEASON = {
   note: "Считаем с следующей карты на Фруктовом Саде (зарегистрированные).",
 } as const;
 
-export type BpRewardKind = "badge" | "frame" | "nick" | "medal";
+export type BpRewardKind = "badge" | "frame" | "nick" | "medal" | "bg";
 
 export type BpReward = {
   level: number;
@@ -43,12 +43,12 @@ export type BpLevel = {
 export const BP_REWARDS: BpReward[] = [
   {
     level: 5,
-    id: "pb1-scout-spark",
-    name: "Искра разведки",
-    short: "Значок",
-    kind: "badge",
+    id: "pb1-gold-bg",
+    name: "Золотой фон",
+    short: "Фон",
+    kind: "bg",
     preview:
-      "В шапке профиля, сразу под ником — маленький золотой значок «Искра»",
+      "Золотой фон профиля. Остаётся в списке фонов навсегда",
   },
   {
     level: 10,

@@ -22,9 +22,60 @@ export const PROFILE_BG_OPTIONS = [
   },
   { id: "cats-01", file: "anime-cats-01.jpg", label: "Anime Cats" },
   { id: "wolves-01", file: "anime-wolves-01.jpg", label: "Anime Wolves" },
+  {
+    id: "creator-keech",
+    file: "profile-bg-site-creator-keech.jpg",
+    label: "Создатель сайта",
+    gate: "creator",
+  },
+  {
+    id: "bp-l5-gold",
+    file: "profile-bg-battle-pass-level-05-gold.jpg",
+    label: "Золото Battle Pass · ур. 5",
+    gate: "bp-l5",
+  },
 ] as const;
 
 export type ProfileBgId = (typeof PROFILE_BG_OPTIONS)[number]["id"];
+
+export type ProfileBgChoice = {
+  id: ProfileBgId;
+  file: string;
+  label: string;
+};
+
+/** Аккаунт создателя сайта. Не путать с другими админами из env. */
+export const SITE_CREATOR_STEAM_ID = "76561198028435874";
+
+export const BP_L5_PROFILE_BG_ID = "bp-l5-gold" as const satisfies ProfileBgId;
+
+type ProfileBgGate = "public" | "creator" | "bp-l5";
+
+function gateOf(opt: (typeof PROFILE_BG_OPTIONS)[number]): ProfileBgGate {
+  return "gate" in opt ? opt.gate : "public";
+}
+
+export function profileBgChoicesFor(opts: {
+  steamId: string;
+  unlocks: readonly string[];
+}): ProfileBgChoice[] {
+  const unlocks = new Set(opts.unlocks);
+  return PROFILE_BG_OPTIONS.filter((opt) => {
+    const gate = gateOf(opt);
+    if (gate === "public") return true;
+    if (gate === "creator") return opts.steamId === SITE_CREATOR_STEAM_ID;
+    if (gate === "bp-l5") return unlocks.has(opt.id);
+    return false;
+  }).map((opt) => ({ id: opt.id, file: opt.file, label: opt.label }));
+}
+
+export function canUseProfileBg(
+  id: ProfileBgId | null,
+  opts: { steamId: string; unlocks: readonly string[] }
+): boolean {
+  if (!id) return true;
+  return profileBgChoicesFor(opts).some((opt) => opt.id === id);
+}
 
 export const PROFILE_BG_IDS = PROFILE_BG_OPTIONS.map((o) => o.id) as unknown as readonly ProfileBgId[];
 

@@ -17587,6 +17587,26 @@ body:has(.profile-page) {
   margin-top: 0;
 }
 
+.bp-mock-bg {
+  min-height: 92px;
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: flex-end;
+  padding: 8px 10px;
+}
+
+.bp-mock.is-compact .bp-mock-bg {
+  min-height: 72px;
+}
+
+.bp-mock-bg-nick {
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #f8f1d8;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.85);
+}
+
 .bp-nick-gold {
   color: #e8c56a !important;
   text-shadow: 0 0 12px rgba(212, 168, 75, 0.35);
