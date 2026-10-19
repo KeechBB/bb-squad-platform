@@ -439,7 +439,53 @@
 .profile-v2-attend > * {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
+}
+
+.profile-page-v2 .training-sessions-card .training-stat-row {
+  display: none !important;
+}
+
+.profile-page-v2 .training-cal-times {
+  display: none !important;
+}
+
+.profile-page-v2 .training-charts-cal-only,
+.profile-page-v2 .training-cal-block {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-page-v2 .training-cal-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.profile-page-v2 .training-cal-cell {
+  min-height: 0;
+  padding: 2px 3px;
+  gap: 1px;
+}
+
+.profile-page-v2 .training-cal-opp-logo {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  object-fit: cover;
+  flex: 0 0 auto;
+}
+
+.profile-page-v2 .training-cal-cell.mark-nokv {
+  background: rgba(40, 36, 56, 0.35);
+  border-color: rgba(120, 110, 150, 0.25);
+  opacity: 0.72;
+}
+
+.profile-page-v2 .training-cal-cell.mark-nokv .training-cal-dot {
+  color: rgba(180, 170, 210, 0.55);
+  font-size: 0.55rem;
 }
 
 .profile-page-v2 .training-absence-slot {

@@ -86,6 +86,13 @@ type Props = {
   absenceSlot?: ReactNode;
 };
 
+type CwAtt = {
+  byDay: Record<
+    string,
+    { present: boolean; opp: string; logoUrl: string | null; map?: string }
+  >;
+} | null;
+
 function applyBundle(
   data: ProfileViewBundle | null,
   setters: {
@@ -93,6 +100,7 @@ function applyBundle(
     setPublicSummary: (v: PublicSummary) => void;
     setTraining: (v: TrainingBundle | null) => void;
     setPublicAtt: (v: PublicAtt) => void;
+    setCwAtt: (v: CwAtt) => void;
     setStats: (v: PlayerProfileStats | null) => void;
     setHistories: (v: PlayerProfileHistories | null) => void;
   }
@@ -109,6 +117,9 @@ function applyBundle(
   }
   if (data.publicAtt !== undefined) {
     setters.setPublicAtt((data.publicAtt as PublicAtt) ?? null);
+  }
+  if (data.cwAtt !== undefined) {
+    setters.setCwAtt((data.cwAtt as CwAtt) ?? null);
   }
   if (data.stats !== undefined) {
     setters.setStats((data.stats as PlayerProfileStats) ?? null);
@@ -139,6 +150,9 @@ export function ProfileClientHydrate({
   const [publicAtt, setPublicAtt] = useState<PublicAtt>(
     () => (cached?.publicAtt as PublicAtt) ?? null
   );
+  const [cwAtt, setCwAtt] = useState<CwAtt>(
+    () => (cached?.cwAtt as CwAtt) ?? null
+  );
   const [stats, setStats] = useState<PlayerProfileStats | null>(
     () => (cached?.stats as PlayerProfileStats) ?? null
   );
@@ -161,6 +175,7 @@ export function ProfileClientHydrate({
         setPublicSummary,
         setTraining,
         setPublicAtt,
+        setCwAtt,
         setStats,
         setHistories,
       });
@@ -181,6 +196,7 @@ export function ProfileClientHydrate({
         setPublicSummary,
         setTraining,
         setPublicAtt,
+        setCwAtt,
         setStats,
         setHistories,
       });
@@ -292,6 +308,9 @@ export function ProfileClientHydrate({
         absenceSlot={absenceSlot}
         preferredServer={preferredServer}
         hideServerToggle
+        hideStatRow
+        cwMode={mode === "cw"}
+        cwByDay={cwAtt?.byDay || {}}
         tr2Lane={{
           sessions: training.tr2.sessions as never,
           presentDays: training.tr2.presentDays,

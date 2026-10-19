@@ -9,6 +9,7 @@ export type ProfileViewBundle = {
   publicSummary?: unknown;
   training?: unknown;
   publicAtt?: unknown;
+  cwAtt?: unknown;
   stats?: unknown;
   histories?: unknown;
 };

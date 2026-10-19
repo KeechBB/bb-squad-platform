@@ -13,6 +13,7 @@ import {
   loadPlayerProfileHistories,
   loadPlayerProfileStats,
 } from "@/lib/playerProfileHeavy";
+import { buildPlayerCwAttendance } from "@/lib/homeCwPwr";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -113,20 +114,26 @@ export async function GET(req: Request) {
   const nick2 = nick || me.nick || "";
 
   if (part === "training") {
-    const [training, publicAtt] = await Promise.all([
+    const [training, publicAtt, cwAtt] = await Promise.all([
       loadUserTrainingStats(me.id),
       loadUserPublicAttendanceStats(me.id).catch(() => null),
+      nick2
+        ? buildPlayerCwAttendance(nick2).catch(() => ({ byDay: {} }))
+        : Promise.resolve({ byDay: {} }),
     ]);
-    return NextResponse.json({ training, publicAtt }, { headers: hdr });
+    return NextResponse.json({ training, publicAtt, cwAtt }, { headers: hdr });
   }
 
-  const [trainPwr, rp, combat, training, publicAtt, stats, histories] =
+  const [trainPwr, rp, combat, training, publicAtt, cwAtt, stats, histories] =
     await Promise.all([
       nick2 ? lookupPlayerTrainPwr(nick2).catch(() => null) : null,
       nick2 ? lookupPlayerPublicRp(nick2).catch(() => null) : null,
       nick2 ? buildPlayerPublicCombatStats(nick2).catch(() => null) : null,
       loadUserTrainingStats(me.id),
       loadUserPublicAttendanceStats(me.id).catch(() => null),
+      nick2
+        ? buildPlayerCwAttendance(nick2).catch(() => ({ byDay: {} }))
+        : Promise.resolve({ byDay: {} }),
       nick2 ? loadPlayerProfileStats(nick2).catch(() => null) : null,
       nick2 ? loadPlayerProfileHistories(nick2).catch(() => null) : null,
     ]);
@@ -137,6 +144,7 @@ export async function GET(req: Request) {
       publicSummary: { rp, combat },
       training,
       publicAtt,
+      cwAtt,
       stats,
       histories,
     },

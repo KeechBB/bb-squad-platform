@@ -4,6 +4,7 @@ import {
   resolveNickKey as resolveNickKeyShared,
   stripClanDecorRaw,
 } from "@/lib/nickIdentity";
+import { resolveClanLogo } from "@/lib/clanLogo";
 
 /** Тот же композитный PWR 0–1000, что у тренировок — для клановых войн. */
 export type HomeCwPwrRow = {
@@ -791,4 +792,144 @@ export async function buildPlayerCwMatchHistory(
   }
 
   return history.reverse();
+}
+
+export type CwAttendanceDay = {
+  present: boolean;
+  opp: string;
+  logoUrl: string | null;
+  map: string;
+  matchId: string;
+};
+
+/** Календарь КВ: был / не был по наличию ника в детализации матча. */
+export type PlayerCwAttendance = {
+  byDay: Record<string, CwAttendanceDay>;
+};
+
+function isBbCalendarClan(clan: string): boolean {
+  const c = String(clan || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\[\]]/g, "");
+  if (!c) return true;
+  return (
+    c === "bb" ||
+    c.startsWith("bb") ||
+    c.includes("blackberry") ||
+    c === "main" ||
+    c === "junior"
+  );
+}
+
+export async function buildPlayerCwAttendance(
+  nick: string
+): Promise<PlayerCwAttendance> {
+  const clean = String(nick || "").trim();
+  if (!clean) return { byDay: {} };
+
+  const index = await loadFromKv<{
+    months?: { year?: number; month?: number; url?: string }[];
+  }>("data/index.json");
+  if (!index?.months?.length) return { byDay: {} };
+
+  const tiersRaw = await loadFromKv<{ aliases?: Record<string, string> }>(
+    "data/tiers.json"
+  );
+  const aliases = tiersRaw?.aliases || {};
+  const resolveKey = (n: string) => resolveNickKeyShared(n, aliases);
+  const want = resolveKey(clean);
+
+  type Meta = {
+    id: string;
+    ymd: string;
+    opp: string;
+    map: string;
+    playersUrl: string;
+    status: string;
+  };
+
+  const metas: Meta[] = [];
+  for (const m of index.months) {
+    if (!m.url || !m.year || !m.month) continue;
+    const monthData = await loadFromKv<{
+      matches?: {
+        id?: string;
+        day?: number;
+        clan?: string;
+        opp?: string;
+        map?: string;
+        status?: string;
+        playersUrl?: string;
+      }[];
+    }>(m.url);
+    for (const match of monthData?.matches || []) {
+      if (!match.playersUrl || !match.id || match.day == null) continue;
+      const st = String(match.status || "").toLowerCase();
+      if (st === "cancelled" || st === "upcoming") continue;
+      if (!isBbCalendarClan(String(match.clan || ""))) continue;
+      metas.push({
+        id: match.id,
+        ymd: `${m.year}-${pad2(m.month)}-${pad2(match.day)}`,
+        opp: match.opp || "—",
+        map: match.map || "—",
+        playersUrl: match.playersUrl,
+        status: st,
+      });
+    }
+  }
+
+  type PlayersDoc = {
+    r1?: PlayerLine[];
+    r2?: PlayerLine[];
+    total?: PlayerLine[];
+    players?: PlayerLine[];
+    oppR1?: PlayerLine[];
+    oppR2?: PlayerLine[];
+  };
+
+  const CONCURRENCY = 12;
+  const docs: (PlayersDoc | null)[] = new Array(metas.length).fill(null);
+  for (let i = 0; i < metas.length; i += CONCURRENCY) {
+    const slice = metas.slice(i, i + CONCURRENCY);
+    const loaded = await Promise.all(
+      slice.map((match) =>
+        loadFromKv<PlayersDoc>(match.playersUrl).catch(() => null)
+      )
+    );
+    for (let j = 0; j < loaded.length; j++) docs[i + j] = loaded[j];
+  }
+
+  const byDay: Record<string, CwAttendanceDay> = {};
+  for (let i = 0; i < metas.length; i++) {
+    const match = metas[i];
+    const players = docs[i];
+    let present = false;
+    if (players) {
+      const byNick = sumMeetingPlayersBothSides(players);
+      let mine = byNick.get(want);
+      if (!mine) {
+        for (const [, v] of byNick) {
+          if (resolveKey(v.nick) === want) {
+            mine = v;
+            break;
+          }
+        }
+      }
+      present = Boolean(mine);
+    }
+    const logoUrl = resolveClanLogo(match.opp);
+    const prev = byDay[match.ymd];
+    // если в день несколько КВ — «был» важнее «не был»
+    if (prev?.present && !present) continue;
+    byDay[match.ymd] = {
+      present: prev?.present || present,
+      opp: match.opp,
+      logoUrl,
+      map: match.map,
+      matchId: match.id,
+    };
+  }
+
+  return { byDay };
 }

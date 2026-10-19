@@ -91,6 +91,19 @@ type Props = AttendanceLaneProps & {
   preferredServer?: "TR1" | "TR2" | "PB1";
   /** Скрыть TR1/TR2/PB1 — режим уже выбран снаружи */
   hideServerToggle?: boolean;
+  /** Режим КВ: календарь был/не был + лого соперника */
+  cwMode?: boolean;
+  cwByDay?: Record<
+    string,
+    {
+      present: boolean;
+      opp: string;
+      logoUrl: string | null;
+      map?: string;
+    }
+  >;
+  /** Скрыть блок минут/вечеров — больше места под календарь */
+  hideStatRow?: boolean;
 };
 
 type TrainServer = "TR1" | "TR2" | "PB1";
@@ -390,6 +403,9 @@ export function TrainingSessionsCard({
   absenceSlot,
   preferredServer,
   hideServerToggle = false,
+  cwMode = false,
+  cwByDay = {},
+  hideStatRow = false,
 }: Props) {
   const [server, setServer] = useState<TrainServer>(
     preferredServer || "TR1"
@@ -464,7 +480,11 @@ export function TrainingSessionsCard({
 
   const isPb1 = server === "PB1";
   const isTr2 = server === "TR2";
-  const title = isPb1 ? "Посещаемость паблика" : "Посещаемость тренировок";
+  const title = cwMode
+    ? "Посещаемость КВ"
+    : isPb1
+      ? "Посещаемость паблика"
+      : "Посещаемость тренировок";
   const daysLabel = isPb1 ? "дней / 30 дн" : "вечеров / 30 дн";
   const minutesLabel = isPb1
     ? "мин на PB1 / 30 дн"
@@ -477,11 +497,13 @@ export function TrainingSessionsCard({
     : isTr2
       ? "сейчас на TR2"
       : "сейчас на TR1";
-  const calendarTitle = isPb1
-    ? "Календарь паблика (PB1)"
-    : isTr2
-      ? "Календарь тренировок (TR2)"
-      : "Календарь тренировок (TR1)";
+  const calendarTitle = cwMode
+    ? "Календарь КВ"
+    : isPb1
+      ? "Календарь паблика (PB1)"
+      : isTr2
+        ? "Календарь тренировок (TR2)"
+        : "Календарь тренировок (TR1)";
 
   const cells = buildMonthGrid(viewY, viewM);
 
@@ -554,31 +576,33 @@ export function TrainingSessionsCard({
         <div className="training-absence-slot">{absenceSlot}</div>
       ) : null}
 
-      <div className="training-stat-row">
-        <div>
-          <strong>{activeSessions30d}</strong>
-          <span className="muted">{daysLabel}</span>
+      {!hideStatRow && !cwMode ? (
+        <div className="training-stat-row">
+          <div>
+            <strong>{activeSessions30d}</strong>
+            <span className="muted">{daysLabel}</span>
+          </div>
+          <div>
+            <strong>{activeMinutes}</strong>
+            <span className="muted">{minutesLabel}</span>
+          </div>
+          <div>
+            <strong>{avgMin || "—"}</strong>
+            <span className="muted">{avgLabel}</span>
+          </div>
+          <div>
+            <strong>{activeOpenNow ? "онлайн" : "—"}</strong>
+            <span className="muted">{onlineLabel}</span>
+          </div>
         </div>
-        <div>
-          <strong>{activeMinutes}</strong>
-          <span className="muted">{minutesLabel}</span>
-        </div>
-        <div>
-          <strong>{avgMin || "—"}</strong>
-          <span className="muted">{avgLabel}</span>
-        </div>
-        <div>
-          <strong>{activeOpenNow ? "онлайн" : "—"}</strong>
-          <span className="muted">{onlineLabel}</span>
-        </div>
-      </div>
+      ) : null}
 
       <div className="training-charts training-charts-cal-only">
         <div className="training-chart-block training-cal-block">
           <div className="training-cal-head">
             <div className="training-cal-head-left">
               <h3>{calendarTitle}</h3>
-              {serverToggle}
+              {cwMode ? null : serverToggle}
             </div>
             <div className="training-cal-nav">
               <button
@@ -614,6 +638,53 @@ export function TrainingSessionsCard({
               if (!c.ymd || c.day == null) {
                 return <div key={`e-${i}`} className="training-cal-cell empty" />;
               }
+
+              if (cwMode) {
+                const cw = cwByDay[c.ymd];
+                const isDayOff = dayOffTrainingDays.has(c.ymd);
+                const isReserve = reserveTrainingDays.has(c.ymd);
+                let mark = "nokv";
+                let label = "нет кв";
+                let title = "В этот день КВ не было";
+                if (isDayOff) {
+                  mark = "dayoff";
+                  label = "вых";
+                  title = "Выходной (1–3 дня)";
+                } else if (isReserve) {
+                  mark = "reserve";
+                  label = "резерв";
+                  title = "Резерв (от 4 дней)";
+                } else if (cw) {
+                  mark = cw.present ? "present" : "absent";
+                  label = cw.present ? "был" : "не был";
+                  title = cw.present
+                    ? `Был · vs ${cw.opp}${cw.map ? ` · ${cw.map}` : ""}`
+                    : `Не был · vs ${cw.opp}${cw.map ? ` · ${cw.map}` : ""}`;
+                }
+                return (
+                  <div
+                    key={c.ymd}
+                    className={`training-cal-cell mark-${mark}${
+                      c.ymd === today ? " is-today" : ""
+                    }`}
+                    title={title}
+                  >
+                    <span className="training-cal-day">{c.day}</span>
+                    {cw?.logoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        className="training-cal-opp-logo"
+                        src={cw.logoUrl}
+                        alt=""
+                        width={14}
+                        height={14}
+                      />
+                    ) : null}
+                    <span className="training-cal-dot">{label}</span>
+                  </div>
+                );
+              }
+
               const bounds = c.ymd ? visitBounds[c.ymd] : undefined;
               const mark = dayMark(
                 c.ymd,
@@ -623,10 +694,6 @@ export function TrainingSessionsCard({
                 dayOffTrainingDays,
                 bounds?.joinHm
               );
-              const timeLabel =
-                bounds != null
-                  ? `${bounds.joinHm}–${bounds.leaveHm ?? "…"}`
-                  : null;
               return (
                 <div
                   key={c.ymd}
@@ -635,11 +702,9 @@ export function TrainingSessionsCard({
                   }`}
                   title={
                     mark === "present"
-                      ? `Был${timeLabel ? ` · ${timeLabel}` : ""}`
+                      ? "Был"
                       : mark === "late"
-                        ? `Был, опоздал (заход с 21:00)${
-                            timeLabel ? ` · ${timeLabel}` : ""
-                          }`
+                        ? "Был, опоздал (заход с 21:00)"
                         : mark === "dayoff"
                           ? "Выходной (1–3 дня)"
                           : mark === "reserve"
@@ -663,12 +728,6 @@ export function TrainingSessionsCard({
                   ) : (
                     <span className="training-cal-dot muted">·</span>
                   )}
-                  {timeLabel &&
-                  (mark === "present" ||
-                    mark === "late" ||
-                    mark === "absent") ? (
-                    <span className="training-cal-times">{timeLabel}</span>
-                  ) : null}
                 </div>
               );
             })}
