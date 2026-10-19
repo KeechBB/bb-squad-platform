@@ -689,39 +689,105 @@
   align-content: stretch;
 }
 
-.profile-page-v2 .profile-kv-grid-12 > div {
+.profile-page-v2 .profile-kv-cell {
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 2px;
   padding: 8px 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(167, 139, 250, 0.14);
-  background: rgba(12, 10, 22, 0.45);
+  border-radius: 12px;
+  border: 1px solid transparent;
   min-width: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
-.profile-page-v2 .profile-kv-grid-12 .muted {
-  font-size: 0.7rem;
+.profile-page-v2 .profile-kv-cell-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  opacity: 0.88;
 }
 
 .profile-page-v2 .profile-kv-grid-12 strong {
   font-size: 1.08rem;
   line-height: 1.15;
   font-variant-numeric: tabular-nums;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
 .profile-page-v2 .profile-kv-grid-12 strong em {
   font-style: normal;
   font-weight: 600;
-  opacity: 0.7;
+  opacity: 0.75;
   font-size: 0.85em;
 }
 
 .profile-page-v2 .profile-kv-grid-12 .stat-sub {
   font-size: 0.68rem;
   font-style: normal;
-  color: rgba(180, 170, 210, 0.65);
+  opacity: 0.78;
+}
+
+.profile-page-v2 .profile-kv-cell.tone-matches {
+  color: #c4b5fd;
+  border-color: rgba(167, 139, 250, 0.45);
+  background: linear-gradient(145deg, rgba(124, 58, 237, 0.32), rgba(12, 10, 22, 0.55));
+}
+.profile-page-v2 .profile-kv-cell.tone-wl {
+  color: #86efac;
+  border-color: rgba(74, 222, 128, 0.45);
+  background: linear-gradient(145deg, rgba(22, 163, 74, 0.32), rgba(12, 10, 22, 0.55));
+}
+.profile-page-v2 .profile-kv-cell.tone-kd {
+  color: #7dd3fc;
+  border-color: rgba(56, 189, 248, 0.45);
+  background: linear-gradient(145deg, rgba(14, 165, 233, 0.3), rgba(12, 10, 22, 0.55));
+}
+.profile-page-v2 .profile-kv-cell.tone-avg-kills {
+  color: #fdba74;
+  border-color: rgba(251, 146, 60, 0.45);
+  background: linear-gradient(145deg, rgba(234, 88, 12, 0.28), rgba(12, 10, 22, 0.55));
+}
+.profile-page-v2 .profile-kv-cell.tone-dmg {
+  color: #f9a8d4;
+  border-color: rgba(244, 114, 182, 0.45);
+  background: linear-gradient(145deg, rgba(219, 39, 119, 0.28), rgba(12, 10, 22, 0.55));
+}
+.profile-page-v2 .profile-kv-cell.tone-avg-dmg {
+  color: #f0abfc;
+  border-color: rgba(232, 121, 249, 0.45);
+  background: linear-gradient(145deg, rgba(192, 38, 211, 0.26), rgba(12, 10, 22, 0.55));
+}
+.profile-page-v2 .profile-kv-cell.tone-revives {
+  color: #5eead4;
+  border-color: rgba(45, 212, 191, 0.5);
+  background: linear-gradient(145deg, rgba(13, 148, 136, 0.32), rgba(12, 10, 22, 0.55));
+}
+.profile-page-v2 .profile-kv-cell.tone-knocks {
+  color: #fcd34d;
+  border-color: rgba(250, 204, 21, 0.5);
+  background: linear-gradient(145deg, rgba(202, 138, 4, 0.3), rgba(12, 10, 22, 0.55));
+}
+.profile-page-v2 .profile-kv-cell.tone-mvp-killer {
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.55);
+  background: linear-gradient(145deg, rgba(220, 38, 38, 0.38), rgba(127, 29, 29, 0.35), rgba(12, 10, 22, 0.5));
+}
+.profile-page-v2 .profile-kv-cell.tone-mvp-medic {
+  color: #bbf7d0;
+  border-color: rgba(74, 222, 128, 0.55);
+  background: linear-gradient(145deg, rgba(22, 163, 74, 0.38), rgba(20, 83, 45, 0.35), rgba(12, 10, 22, 0.5));
+}
+.profile-page-v2 .profile-kv-cell.tone-mvp-armor {
+  color: #bfdbfe;
+  border-color: rgba(96, 165, 250, 0.55);
+  background: linear-gradient(145deg, rgba(37, 99, 235, 0.4), rgba(30, 64, 175, 0.35), rgba(12, 10, 22, 0.5));
+}
+.profile-page-v2 .profile-kv-cell.tone-vehicle {
+  color: #fde68a;
+  border-color: rgba(251, 191, 36, 0.55);
+  background: linear-gradient(145deg, rgba(180, 83, 9, 0.36), rgba(120, 53, 15, 0.35), rgba(12, 10, 22, 0.5));
 }
 
 .profile-page-v2 .profile-kv-awards {

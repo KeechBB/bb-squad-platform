@@ -27,7 +27,22 @@ export type CombatGridInput = {
   vehicleKills?: number | null;
 };
 
+type CellTone =
+  | "matches"
+  | "wl"
+  | "kd"
+  | "avg-kills"
+  | "dmg"
+  | "avg-dmg"
+  | "revives"
+  | "knocks"
+  | "mvp-killer"
+  | "mvp-medic"
+  | "mvp-armor"
+  | "vehicle";
+
 type Cell = {
+  tone: CellTone;
   label: string;
   value: ReactNode;
   sub?: string;
@@ -43,6 +58,7 @@ function cellsFrom(s: CombatGridInput): Cell[] {
 
   return [
     {
+      tone: "matches",
       label: s.rounds != null ? "Матчи / раунды" : "Катки",
       value:
         s.rounds != null ? (
@@ -55,11 +71,13 @@ function cellsFrom(s: CombatGridInput): Cell[] {
         ),
     },
     {
+      tone: "wl",
       label: s.draws != null && s.draws > 0 ? "W–D–L" : "W–L",
       value: wl,
       sub: `winrate ${s.winrate}%`,
     },
     {
+      tone: "kd",
       label: "K / D",
       value: (
         <>
@@ -70,38 +88,47 @@ function cellsFrom(s: CombatGridInput): Cell[] {
       sub: `KD ${s.kd}`,
     },
     {
+      tone: "avg-kills",
       label: "Ср. киллы / катка",
       value: s.avgKills,
     },
     {
+      tone: "dmg",
       label: "Урон",
       value: s.dmg.toLocaleString("ru-RU"),
     },
     {
+      tone: "avg-dmg",
       label: "Ср. урон / катка",
       value: s.avgDmg,
     },
     {
+      tone: "revives",
       label: "Revives",
       value: s.res,
     },
     {
+      tone: "knocks",
       label: "Ноки",
       value: s.nok,
     },
     {
+      tone: "mvp-killer",
       label: "MVP Killer",
       value: s.mvpKiller,
     },
     {
+      tone: "mvp-medic",
       label: "MVP Medic",
       value: s.mvpMedic,
     },
     {
+      tone: "mvp-armor",
       label: "MVP Armor",
       value: armor,
     },
     {
+      tone: "vehicle",
       label: "Техника",
       value: veh,
     },
@@ -113,8 +140,12 @@ export function ProfileCombatGrid({ stats }: { stats: CombatGridInput }) {
   return (
     <div className="profile-kv-grid-12" role="list">
       {cells.map((c) => (
-        <div key={c.label} role="listitem">
-          <span className="muted">{c.label}</span>
+        <div
+          key={c.label}
+          role="listitem"
+          className={`profile-kv-cell tone-${c.tone}`}
+        >
+          <span className="profile-kv-cell-label">{c.label}</span>
           <strong>{c.value}</strong>
           {c.sub ? <em className="stat-sub">{c.sub}</em> : null}
         </div>
