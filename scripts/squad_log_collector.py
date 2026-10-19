@@ -999,19 +999,27 @@ class Collector:
             name = path.rsplit("/", 1)[-1]
             if name in self.processed_backups:
                 continue
-            # Login / Remove / steam↔EOS / match end (+ hits only on TR).
-            # TPUB1 BBHitZone in backups is huge → collector freezes for 20+ min,
-            # state mtime stalls, health watch fires «сборщик замолчал».
-            hit_pat = "" if server_key.upper().startswith("TPUB") or server_key.upper() in {
+            # Login / Remove / steam↔EOS / match end.
+            # Public backups: skip BBHitZone + DeployRole (huge) — live tail covers
+            # hunt/kits; catchup freeze was firing «сборщик замолчал» (state >20m).
+            is_pub = server_key.upper().startswith("TPUB") or server_key.upper() in {
                 "PB1",
                 "PUB",
-            } else "BBHitZone:|"
-            grep_cmd = (
-                f"grep -E 'Login request:|RemovePlayer\\(UserId:|"
-                f"EOS:.*steam:|steam:.*EOS:|{hit_pat}DeployRole=|"
-                f"has won the match|has lost the match' "
-                f"{path} 2>/dev/null || true"
-            )
+            }
+            if is_pub:
+                grep_cmd = (
+                    f"grep -E 'Login request:|RemovePlayer\\(UserId:|"
+                    f"EOS:.*steam:|steam:.*EOS:|"
+                    f"has won the match|has lost the match' "
+                    f"{path} 2>/dev/null || true"
+                )
+            else:
+                grep_cmd = (
+                    f"grep -E 'Login request:|RemovePlayer\\(UserId:|"
+                    f"EOS:.*steam:|steam:.*EOS:|BBHitZone:|DeployRole=|"
+                    f"has won the match|has lost the match' "
+                    f"{path} 2>/dev/null || true"
+                )
             try:
                 _, gout, _ = client.exec_command(grep_cmd, timeout=180)
                 text = gout.read().decode("utf-8", "replace")
