@@ -114,10 +114,20 @@ def _ticket_scan_fix() -> tuple[int, str]:
 def _classify_action(text: str) -> str | None:
     t = text or ""
     low = t.lower()
-    if "ticketclass" in low or "ticket class" in low or "ticket-class" in low:
-        return "ticket_class"
-    if "rp integrity" in low or "rp audit" in low or "рассинхрон" in low:
+    # Prefer full RP integrity when netΔ / formula / share mentioned
+    if (
+        "rp audit" in low
+        or "rp integrity" in low
+        or "рассинхрон" in low
+        or "netΔ" in t
+        or "netδ" in low
+        or "formula bad" in low
+        or "share bad" in low
+    ):
         return "rp_integrity"
+    # Real ticket-class failures only (ignore "ticketClass: 0" summary lines)
+    if re.search(r"ticketclass\s*[:=]?\s*[1-9]", low) or "ticket-class" in low and "успеш" not in low:
+        return "ticket_class"
     if "rp отстаёт" in low or "rp lag" in low:
         return "rp_lag"
     if "train" in low and ("rp" in low or "тм" in low):
