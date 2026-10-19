@@ -2,10 +2,10 @@
 
 export type ProfileMode = "public" | "train" | "cw";
 
-const MODES: { id: ProfileMode; label: string; short: string }[] = [
-  { id: "public", label: "Паблик", short: "паб" },
-  { id: "train", label: "Тренировки", short: "трени" },
-  { id: "cw", label: "Клановые войны", short: "кв" },
+const MODES: { id: ProfileMode; label: string }[] = [
+  { id: "public", label: "Профиль паблика" },
+  { id: "train", label: "Профиль Тренировок" },
+  { id: "cw", label: "Профиль Клановых войн" },
 ];
 
 type Props = {
@@ -32,8 +32,7 @@ export function ProfileModeSwitch({ value, onChange }: Props) {
           title={m.label}
           onClick={() => onChange(m.id)}
         >
-          <span className="profile-mode-short">{m.short}</span>
-          <span className="profile-mode-full">{m.label}</span>
+          {m.label}
         </button>
       ))}
     </div>

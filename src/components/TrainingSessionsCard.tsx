@@ -679,8 +679,8 @@ export function TrainingSessionsCard({
                         className="training-cal-opp-logo"
                         src={cw.logoUrl}
                         alt=""
-                        width={18}
-                        height={18}
+                        width={64}
+                        height={64}
                       />
                     ) : null}
                   </div>
