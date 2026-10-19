@@ -698,29 +698,45 @@ export function TrainingSessionsCard({
                 dayOffTrainingDays,
                 bounds?.joinHm
               );
+              const timeLabel =
+                bounds != null
+                  ? `${bounds.joinHm}–${bounds.leaveHm ?? "…"}`
+                  : null;
+              const showTime =
+                Boolean(timeLabel) &&
+                (mark === "present" || mark === "late" || mark === "absent");
               return (
                 <div
                   key={c.ymd}
-                  className={`training-cal-cell mark-${mark}${
+                  className={`training-cal-cell training-cal-cell-attend mark-${mark}${
                     c.ymd === today ? " is-today" : ""
                   }`}
                   title={
                     mark === "present"
-                      ? "Был"
+                      ? `Был${timeLabel ? ` · ${timeLabel}` : ""}`
                       : mark === "late"
-                        ? "Был, опоздал (заход с 21:00)"
+                        ? `Был, опоздал (заход с 21:00)${
+                            timeLabel ? ` · ${timeLabel}` : ""
+                          }`
                         : mark === "dayoff"
                           ? "Выходной (1–3 дня)"
                           : mark === "reserve"
                             ? "Резерв (от 4 дней)"
                             : mark === "absent"
-                              ? "Не был"
+                              ? `Не был${timeLabel ? ` · ${timeLabel}` : ""}`
                               : mark === "pending"
                                 ? "Ещё рано / окно не закрыто"
                                 : "Вне учёта"
                   }
                 >
                   <span className="training-cal-day">{c.day}</span>
+                  {showTime ? (
+                    <span className="training-cal-times">{timeLabel}</span>
+                  ) : (
+                    <span className="training-cal-times training-cal-times-empty" aria-hidden>
+                      {" "}
+                    </span>
+                  )}
                   {mark === "present" || mark === "late" ? (
                     <span className="training-cal-dot">был</span>
                   ) : mark === "dayoff" ? (
