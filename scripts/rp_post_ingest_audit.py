@@ -192,9 +192,10 @@ def run_audit_on_blocks(
     report = _report_path(kind)
     RI.write_report(report, kind=kind, audits=audits)
     summary = RI.summarize(audits)
+    tcb = summary.get("ticket_class_bad") or 0
     print(
         f"RP audit [{kind}]: checked={summary['checked']} ok={summary['ok']} "
-        f"bad={summary['bad']} ids={summary['badIds']}",
+        f"bad={summary['bad']} ticketClass={tcb} ids={summary['badIds']}",
         flush=True,
     )
     if summary["bad"]:

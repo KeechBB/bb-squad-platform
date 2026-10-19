@@ -11,6 +11,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import rp_log_parse as R
 
 assert R.vehicle_tickets("BP_T72S_GFI_C") == 15
+assert R.vehicle_tickets("BP_2A6_Woodland_C") == 15  # Leopard (asset without LEOPARD)
+assert R.vehicle_tickets("BP_2A6_Desert_C") == 15
+assert R.vehicle_tickets("BP_2A7_Woodland_C") == 15
 assert R.vehicle_tickets("BP_BTR82A_RUS_C") == 10
 assert R.vehicle_tickets("BP_LAV6_Woodland_C") == 10  # LAV 6.0 = БТР, не лёгкая
 assert R.vehicle_tickets("BP_LAV6_Turret_Woodland_C") == 10
@@ -26,11 +29,14 @@ assert R.vehicle_tickets("BP_CPV_Transport_C") == 2
 assert R.vehicle_tickets("BP_Kamaz_5350_Desert_C") == 2
 assert R.vehicle_tickets("BP_M1151_TOW_Woodland_C") == 5  # armed light
 assert R.vehicle_tickets("BP_CPV_M134_C") == 5
+assert R.vehicle_tickets("BP_RHIB_US_M240_C") == 5  # armed boat, not soft skin
 assert R.vehicle_base_rp("BP_T72S_GFI_C") == 187.5
+assert R.vehicle_base_rp("BP_2A6_Woodland_C") == 187.5
 assert R.vehicle_base_rp("BP_US_Util_USMC_Woodland_C") == 25
 assert R.vehicle_base_rp("BP_US_Util_USMC_Woodland_Logi_C") == 62.5
 assert R.vehicle_class_ru("BP_US_Util_USMC_Woodland_C") == "транспорт"
 assert R.vehicle_class_ru("BP_US_Util_USMC_Woodland_Logi_C") == "logi"
+assert R.vehicle_class_ru("BP_2A6_Woodland_C") == "танк"
 assert R.use_rp_vehicle("2026-10-16") is False
 # Date-only "2026-10-17" (train ids like 17-cslmutaha) → post-cutover (evening train).
 assert R.use_rp_vehicle("2026-10-17") is True

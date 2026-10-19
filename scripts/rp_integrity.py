@@ -9,19 +9,35 @@ Verifies for each scored match:
   - hist.vehicleKills == count of vehicle_kill events (when hist present)
 
 Does not invent RP — only detects drift / pairing bugs after score_match_rp.
+
+Also checks vehicle *ticket class* from Asset Name (e.g. BP_2A6 must be 15,
+not default 5) so unknown tanks/boats are caught right after each PB1/TR score.
 """
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+HERE = Path(__file__).resolve().parent
+if str(HERE) not in sys.path:
+    sys.path.insert(0, str(HERE))
+
+try:
+    import rp_log_parse as R  # noqa: E402
+except Exception:  # pragma: no cover
+    R = None  # type: ignore
+
 VEHICLE_DRIVER_SHARE = 0.7
 NET_EPS = 0.08
 FORMULA_EPS = 0.15
 SHARE_EPS = 0.08
+TICKET_CLASS_KINDS = frozenset(
+    {"vehicle_kill", "vehicle_loss", "vehicle_loss_driver", "driver_share"}
+)
 
 
 @dataclass
@@ -53,11 +69,26 @@ class MatchAudit:
     share_issues: list[dict] = field(default_factory=list)
     veh_without_share: int = 0
     hist_veh_mismatches: list[dict] = field(default_factory=list)
+    ticket_class_ok: int = 0
+    ticket_class_bad: int = 0
+    ticket_class_issues: list[dict] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         d = asdict(self)
         return d
+
+
+def _event_vehicle_asset(e: dict) -> str:
+    asset = str(e.get("vehicle") or "").strip()
+    if asset.startswith("BP_"):
+        return asset
+    kind = str(e.get("kind") or "")
+    if kind in ("vehicle_kill", "vehicle_loss", "vehicle_loss_driver"):
+        killer = str(e.get("killer") or "").strip()
+        if killer.startswith("BP_"):
+            return killer
+    return asset if asset.startswith("BP_") else ""
 
 
 def _recompute_nets(events: list[dict]) -> dict[str, float]:
@@ -251,10 +282,50 @@ def audit_match(
                         }
                     )
 
+    # Ticket class from Asset Name (catch unknown tanks like BP_2A6 → was 5, must 15)
+    if R is not None:
+        seen_assets: set[tuple[str, int, int]] = set()
+        for e in events:
+            kind = str(e.get("kind") or "")
+            if kind not in TICKET_CLASS_KINDS:
+                continue
+            asset = _event_vehicle_asset(e)
+            if not asset:
+                continue
+            stored = e.get("tickets")
+            if stored is None:
+                continue
+            try:
+                stored_i = int(stored)
+            except (TypeError, ValueError):
+                continue
+            exp_i = int(R.vehicle_tickets(asset))
+            key = (asset, stored_i, exp_i)
+            if stored_i == exp_i:
+                if key not in seen_assets:
+                    a.ticket_class_ok += 1
+                    seen_assets.add(key)
+                continue
+            a.ticket_class_bad += 1
+            if key not in seen_assets and len(a.ticket_class_issues) < 12:
+                seen_assets.add(key)
+                a.ticket_class_issues.append(
+                    {
+                        "t": e.get("time"),
+                        "kind": kind,
+                        "asset": asset,
+                        "stored": stored_i,
+                        "expected": exp_i,
+                        "label": e.get("label"),
+                        "who": e.get("victim") or e.get("killer"),
+                    }
+                )
+
     a.ok = (
         a.net_bad == 0
         and a.formula_bad == 0
         and a.share_bad == 0
+        and a.ticket_class_bad == 0
         and not a.hist_veh_mismatches
     )
     return a
@@ -287,6 +358,7 @@ def summarize(audits: list[MatchAudit]) -> dict[str, Any]:
         "vehicle_kill": sum(a.vehicle_kill for a in audits),
         "formula_bad": sum(a.formula_bad for a in audits),
         "share_bad": sum(a.share_bad for a in audits),
+        "ticket_class_bad": sum(a.ticket_class_bad for a in audits),
         "net_bad_players": sum(a.net_bad for a in audits),
     }
 
@@ -318,10 +390,17 @@ def format_telegram(kind: str, audits: list[MatchAudit]) -> str | None:
             bits.append(f"vehForm{a.formula_bad}")
         if a.share_bad:
             bits.append(f"share{a.share_bad}")
+        if a.ticket_class_bad:
+            bits.append(f"ticketClass{a.ticket_class_bad}")
         if a.hist_veh_mismatches:
             bits.append(f"histVeh{len(a.hist_veh_mismatches)}")
         lines.append(f"• {a.id}: {', '.join(bits) or 'fail'}")
-        if a.net_diffs:
+        if a.ticket_class_issues:
+            t0 = a.ticket_class_issues[0]
+            lines.append(
+                f"  e.g. {t0.get('asset')}: tickets {t0.get('stored')}→{t0.get('expected')}"
+            )
+        elif a.net_diffs:
             d0 = a.net_diffs[0]
             lines.append(
                 f"  e.g. {d0.nick}: claimed {d0.claimed} ≠ {d0.recomputed}"
