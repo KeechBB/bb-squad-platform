@@ -162,19 +162,18 @@ export function ProfilePageClient() {
   }, [status, session, router]);
 
   useEffect(() => {
-    const shellEl = document.querySelector(".shell") as HTMLElement | null;
-    if (!shellEl) return;
+    const body = document.body;
     const url = profileBgUrl(previewBg);
     if (url) {
-      shellEl.style.setProperty("--profile-bg-image", `url(${url})`);
-      shellEl.classList.add("has-profile-bg");
+      body.style.setProperty("--profile-bg-image", `url(${url})`);
+      body.classList.add("has-profile-bg");
     } else {
-      shellEl.style.removeProperty("--profile-bg-image");
-      shellEl.classList.remove("has-profile-bg");
+      body.style.removeProperty("--profile-bg-image");
+      body.classList.remove("has-profile-bg");
     }
     return () => {
-      shellEl.style.removeProperty("--profile-bg-image");
-      shellEl.classList.remove("has-profile-bg");
+      body.style.removeProperty("--profile-bg-image");
+      body.classList.remove("has-profile-bg");
     };
   }, [previewBg]);
 

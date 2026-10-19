@@ -9,30 +9,21 @@
   position: relative;
 }
 
-.shell.has-profile-bg {
-  background-image: var(--profile-bg-image);
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+/* Фон на весь viewport (бока тоже), контент/shell не двигаем */
+body.has-profile-bg {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(8, 6, 16, 0.52) 0%,
+      rgba(8, 6, 16, 0.68) 45%,
+      rgba(8, 6, 16, 0.8) 100%
+    ),
+    var(--profile-bg-image) center / cover no-repeat fixed !important;
 }
 
-.shell.has-profile-bg::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(8, 6, 16, 0.55) 0%,
-    rgba(8, 6, 16, 0.72) 55%,
-    rgba(8, 6, 16, 0.82) 100%
-  );
-  pointer-events: none;
-  z-index: 0;
-}
-
-.shell.has-profile-bg > * {
-  position: relative;
-  z-index: 1;
+body.has-profile-bg .shell:has(.profile-page-v2),
+body.has-profile-bg .shell:has(.profile-page) {
+  background: transparent !important;
 }
 
 .profile-page.profile-page-v2 {
