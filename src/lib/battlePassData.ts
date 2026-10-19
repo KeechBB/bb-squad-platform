@@ -2,7 +2,6 @@ import { readFile } from "fs/promises";
 import path from "path";
 import {
   BP_LEVELS,
-  BP_SEASON,
   type BpPlayerProgress,
 } from "@/lib/battlePass";
 
@@ -52,15 +51,14 @@ export function progressForNick(
     if (!p?.nick) continue;
     if (String(p.nick).trim().toLocaleLowerCase("ru") === key) {
       const lvl = p.finished ? 20 : Number(p.currentLevel) || 1;
+      // Канон порога — из BP_LEVELS, не из залипшего JSON target
       const target =
-        Number(p.target) ||
-        BP_LEVELS.find((l) => l.level === lvl)?.target ||
-        L1.target;
+        BP_LEVELS.find((l) => l.level === lvl)?.target || L1.target;
       return {
         nick: p.nick,
         steamId: p.steamId,
         currentLevel: lvl,
-        current: Number(p.current) || 0,
+        current: Math.min(Number(p.current) || 0, target),
         target,
         completedAt: p.finished ? state.updatedAt || null : null,
       };
@@ -69,20 +67,46 @@ export function progressForNick(
   return fallback;
 }
 
+function normalizeBpRow(r: BpPlayerProgress): BpPlayerProgress {
+  const lvl = Number(r.currentLevel) || 1;
+  const target = BP_LEVELS.find((l) => l.level === lvl)?.target || 1;
+  return {
+    nick: r.nick,
+    steamId: r.steamId,
+    currentLevel: lvl,
+    current: Math.min(Number(r.current) || 0, target),
+    target,
+  };
+}
+
+/** Сортировка: выше уровень / прогресс, затем ник. */
+export function sortBattlePassRows(rows: BpPlayerProgress[]): BpPlayerProgress[] {
+  return [...rows].sort((a, b) => {
+    const sa =
+      a.currentLevel +
+      (a.current / Math.max(1, a.target)) * 0.99;
+    const sb =
+      b.currentLevel +
+      (b.current / Math.max(1, b.target)) * 0.99;
+    if (sb !== sa) return sb - sa;
+    return String(a.nick || "").localeCompare(String(b.nick || ""), "ru", {
+      sensitivity: "base",
+    });
+  });
+}
+
 export function battlePassLeaderboard(
   state: BpSeasonState | null
 ): BpPlayerProgress[] {
   if (!state?.leaderboard?.length) return [];
-  return state.leaderboard.slice(0, 20).map((r) => ({
-    nick: r.nick,
-    steamId: r.steamId,
-    currentLevel: Number(r.currentLevel) || 1,
-    current: Number(r.current) || 0,
-    target:
-      Number(r.target) ||
-      BP_LEVELS.find((l) => l.level === Number(r.currentLevel))?.target ||
-      1,
-  }));
+  return sortBattlePassRows(state.leaderboard.map(normalizeBpRow));
+}
+
+/** Топ-10 прохождения Battle Pass. */
+export function battlePassLeaderboardTop10(
+  state: BpSeasonState | null
+): BpPlayerProgress[] {
+  return battlePassLeaderboard(state).slice(0, 10);
 }
 
 export function battlePassStatusNote(_state: BpSeasonState | null): string {

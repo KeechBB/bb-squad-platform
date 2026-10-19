@@ -171,7 +171,6 @@ export function BpRewardMockGallery({
             <span className="bp-mock-card-lvl">L{r.level}</span>
             <BpRewardMock reward={r} player={player} compact />
             <strong className="bp-mock-card-name">{r.name}</strong>
-            <em className="bp-mock-card-kind">{r.short}</em>
           </button>
         ))}
       </div>

@@ -49,17 +49,17 @@ SEASON_ID = "pb1-2026-10"
 LEVEL_TARGETS = {
     1: 1,
     2: 15,
-    3: 15,
+    3: 10,
     4: 15,
-    5: 5,
+    5: 3,
     6: 3,
     7: 15,
     8: 3,
     9: 5,
     10: 3,
     11: 10,
-    12: 100,
-    13: 5,
+    12: 60,
+    13: 2,
     14: 5,
     15: 3,
     16: 15,
@@ -491,14 +491,14 @@ def apply_level(p: dict, st: dict) -> bool:
         p["current"] = min(15, noks)
         done = noks >= 15
     elif lvl == 3:
-        p["current"] = min(15, kills)
-        done = kills >= 15
+        p["current"] = min(10, kills)
+        done = kills >= 10
     elif lvl == 4:
         p["current"] = min(15, revs)
         done = revs >= 15
     elif lvl == 5:
-        p["current"] = min(5, veh)
-        done = veh >= 5
+        p["current"] = min(3, veh)
+        done = veh >= 3
     elif lvl == 6:
         if played_ok:
             p["current"] = min(3, int(p["current"]) + 1)
@@ -534,18 +534,18 @@ def apply_level(p: dict, st: dict) -> bool:
             window = window[-5:]
         p["window"] = window
         total = sum(window)
-        p["current"] = min(100, total)
+        p["current"] = min(60, total)
         if len(window) >= 5:
-            if total >= 100:
+            if total >= 60:
                 done = True
             else:
                 p["window"] = []
                 p["current"] = 0
         else:
-            done = total >= 100
+            done = total >= 60
     elif lvl == 13:
-        p["current"] = min(5, int(p["current"]) + helis)
-        done = p["current"] >= 5
+        p["current"] = min(2, int(p["current"]) + helis)
+        done = p["current"] >= 2
     elif lvl == 14:
         # won is None: <80% / смена команды после 5 мин → матч не в зачёт
         if won is True:
@@ -575,7 +575,7 @@ def apply_level(p: dict, st: dict) -> bool:
         p["current"] = 1 if ok else 0
         done = ok
     elif lvl == 20:
-        ok = kills > 30 and revs >= 10 and tk == 0 and deaths == 0
+        ok = kills > 20 and revs >= 10 and tk == 0 and deaths == 0
         p["current"] = 1 if ok else 0
         done = ok
 
@@ -634,15 +634,79 @@ def apply_match_to_players(
     return advanced
 
 
+def ensure_all_registered(state: dict, registered: dict[str, dict]) -> None:
+    """Все зареганные на сайте есть в players (даже без прогресса)."""
+    players = state.setdefault("players", {})
+    by_steam = {
+        str(p.get("steamId") or ""): key
+        for key, p in players.items()
+        if isinstance(p, dict) and p.get("steamId")
+    }
+    by_nick = {
+        str(p.get("nick") or "").casefold(): key
+        for key, p in players.items()
+        if isinstance(p, dict) and p.get("nick")
+    }
+    for _nk, reg in registered.items():
+        steam = str(reg.get("steamId") or "")
+        nick = str(reg.get("nick") or "")
+        key = by_steam.get(steam) or by_nick.get(nick.casefold())
+        if key and key in players:
+            p = players[key]
+            p["nick"] = nick or p.get("nick")
+            p["steamId"] = steam or p.get("steamId")
+            p["avatarUrl"] = reg.get("avatarUrl") or p.get("avatarUrl")
+            p["name"] = reg.get("name") or p.get("name") or ""
+            continue
+        new_key = steam or nick
+        if not new_key:
+            continue
+        players[new_key] = empty_player(reg)
+
+
+def reconcile_level_targets(state: dict) -> int:
+    """Sync targets from LEVEL_TARGETS; advance if current already meets new threshold."""
+    advanced = 0
+    for p in (state.get("players") or {}).values():
+        if not isinstance(p, dict) or not p.get("nick"):
+            continue
+        if p.get("finished"):
+            p["currentLevel"] = 20
+            p["target"] = LEVEL_TARGETS[20]
+            p["current"] = LEVEL_TARGETS[20]
+            continue
+        guard = 0
+        while guard < 25:
+            guard += 1
+            lvl = int(p.get("currentLevel") or 1)
+            if lvl < 1 or lvl > 20:
+                break
+            tgt = int(LEVEL_TARGETS.get(lvl, 1))
+            p["target"] = tgt
+            cur = int(p.get("current") or 0)
+            if cur >= tgt and lvl < 20:
+                advance_level(p)
+                advanced += 1
+                continue
+            if cur > tgt:
+                p["current"] = tgt
+            break
+    return advanced
+
+
 def leaderboard_rows(state: dict) -> list[dict]:
     rows = []
     for p in (state.get("players") or {}).values():
         if not isinstance(p, dict):
             continue
+        if not p.get("nick"):
+            continue
         lvl = int(p.get("currentLevel") or 1)
-        cur = int(p.get("current") or 0)
-        tgt = int(p.get("target") or LEVEL_TARGETS.get(lvl, 1))
         finished = bool(p.get("finished"))
+        tgt = int(LEVEL_TARGETS.get(20 if finished else lvl, 1))
+        cur = int(p.get("current") or 0)
+        if not finished:
+            cur = min(cur, tgt)
         # sort key: finished first as 21, else level + fraction
         score = 21 if finished else lvl + (cur / max(1, tgt)) * 0.99
         rows.append(
@@ -651,7 +715,7 @@ def leaderboard_rows(state: dict) -> list[dict]:
                 "steamId": p.get("steamId"),
                 "avatarUrl": p.get("avatarUrl"),
                 "currentLevel": 20 if finished else lvl,
-                "current": cur if not finished else tgt,
+                "current": tgt if finished else cur,
                 "target": tgt,
                 "finished": finished,
                 "_sort": score,
@@ -660,10 +724,15 @@ def leaderboard_rows(state: dict) -> list[dict]:
     rows.sort(key=lambda r: (-r["_sort"], str(r["nick"] or "").casefold()))
     for r in rows:
         r.pop("_sort", None)
-    return rows[:20]
+    return rows[:10]
 
 
-def finalize(state: dict) -> dict:
+def finalize(state: dict, registered: dict[str, dict] | None = None) -> dict:
+    if registered is not None:
+        ensure_all_registered(state, registered)
+    n = reconcile_level_targets(state)
+    if n:
+        print(f"BP: reconciled targets, advanced={n}", flush=True)
     state["leaderboard"] = leaderboard_rows(state)
     state["enabled"] = True
     state["seasonId"] = SEASON_ID
@@ -685,11 +754,12 @@ def apply_blocks(blocks: list[dict], aliases: dict | None = None) -> dict:
         if not isinstance(b, dict):
             continue
         total_adv += apply_match_to_players(state, b, registered, aliases)
-    state = finalize(state)
+    state = finalize(state, registered)
     save_state(state)
     print(
         f"BP: blocks={len(blocks)} advanced_levels={total_adv} "
-        f"players={len(state.get('players') or {})}",
+        f"players={len(state.get('players') or {})} "
+        f"leaderboard={len(state.get('leaderboard') or [])}",
         flush=True,
     )
     return state
@@ -700,7 +770,8 @@ def sync_cutover_only() -> dict:
     if LEDGER.is_file():
         ledger = json.loads(LEDGER.read_text(encoding="utf-8"))
     state = ensure_cutover(load_state(), ledger)
-    state = finalize(state)
+    registered = load_registered()
+    state = finalize(state, registered)
     save_state(state)
     return state
 

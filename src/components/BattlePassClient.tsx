@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   BP_LEVELS,
@@ -25,6 +26,13 @@ type Props = {
   statusNote?: string;
   scoringEnabled?: boolean;
 };
+
+function podiumClass(place: number) {
+  if (place === 1) return "is-podium is-gold";
+  if (place === 2) return "is-podium is-silver";
+  if (place === 3) return "is-podium is-bronze";
+  return "";
+}
 
 const BP_BG = "/bp-previews/fruktovy-sad-bg.jpg";
 
@@ -102,6 +110,7 @@ export function BattlePassClient({
     [selected]
   );
   const reward = rewardForLevel(level.level);
+  const top10 = useMemo(() => leaderboard.slice(0, 10), [leaderboard]);
 
   const cur = selfProgress.currentLevel;
   const progressCurrent =
@@ -199,40 +208,63 @@ export function BattlePassClient({
             onPick={setSelected}
           />
 
-          <section className="bp-board">
-            <h3>Топ-20 прохождения</h3>
-            <p className="bp-board-sub">
-              Рейтинг Battle Pass · максимум 20 мест
-            </p>
-            {leaderboard.length === 0 ? (
+          <section className="bp-board" aria-label="Топ-10 Battle Pass">
+            <h3>Топ-10 прохождения</h3>
+            <p className="bp-board-sub">Рейтинг Battle Pass · максимум 10 мест</p>
+            {top10.length === 0 ? (
               <p className="bp-board-empty">
                 {scoringEnabled
                   ? "Пока никого — ждём следующую карту на Фруктовом Саде (только зарегистрированные)."
                   : "Подсчёт ещё не стартовал."}
               </p>
             ) : (
-              <table className="bp-board-table">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Игрок</th>
-                    <th>Ур.</th>
-                    <th>Текущий результат</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {leaderboard.slice(0, 20).map((row, i) => (
-                    <tr key={row.nick}>
-                      <td>{i + 1}</td>
-                      <td>{row.nick}</td>
-                      <td>{row.currentLevel}</td>
-                      <td>
-                        {row.current}/{row.target}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <ol className="bp-board-list">
+                {top10.map((row, i) => {
+                  const place = i + 1;
+                  const me =
+                    selfNick.trim().toLowerCase() ===
+                    String(row.nick || "").trim().toLowerCase();
+                  return (
+                    <li
+                      key={row.nick}
+                      className={[
+                        "bp-board-row",
+                        podiumClass(place),
+                        me ? "is-me" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                    >
+                      <span
+                        className={`bp-board-rank${place <= 3 ? " is-medal" : ""}`}
+                        aria-label={`${place} место`}
+                      >
+                        {place <= 3 ? (
+                          <span className={`home-podium-medal place-${place}`} />
+                        ) : (
+                          place
+                        )}
+                      </span>
+                      <Link
+                        className="bp-board-nick"
+                        href={`/players/${encodeURIComponent(row.nick)}`}
+                        title={row.nick}
+                      >
+                        {row.nick}
+                      </Link>
+                      <span className="bp-board-lvl">
+                        Ур.{" "}
+                        <b className="bp-board-lvl-num">{row.currentLevel}</b>
+                      </span>
+                      <span className="bp-board-score">
+                        <b>
+                          {row.current}/{row.target}
+                        </b>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ol>
             )}
           </section>
         </aside>

@@ -2,7 +2,7 @@ import { getSession } from "@/lib/auth";
 import { BattlePassClient } from "@/components/BattlePassClient";
 import { emptySelfProgress } from "@/lib/battlePass";
 import {
-  battlePassLeaderboard,
+  battlePassLeaderboardTop10,
   battlePassStatusNote,
   loadBattlePassState,
   progressForNick,
@@ -31,7 +31,7 @@ export default async function BattlePassPage() {
       selfName={name}
       selfAvatarUrl={avatarUrl}
       selfProgress={selfProgress}
-      leaderboard={battlePassLeaderboard(state)}
+      leaderboard={battlePassLeaderboardTop10(state)}
       statusNote={battlePassStatusNote(state)}
       scoringEnabled={Boolean(state?.enabled && state.cutoverAfterMatchId)}
     />
