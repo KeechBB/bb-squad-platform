@@ -3,7 +3,7 @@
 import { useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  PROFILE_BG_IDS,
+  PROFILE_BG_OPTIONS,
   normalizeProfileBg,
   profileBgUrl,
   type ProfileBgId,
@@ -134,21 +134,21 @@ export function ProfileBgPicker({ value, onPreview, onSaved }: Props) {
                   <span className="profile-bg-tile-label">Без фона</span>
                   <span className="profile-bg-tile-hint">как сейчас</span>
                 </button>
-                {PROFILE_BG_IDS.map((id) => {
-                  const url = profileBgUrl(id)!;
+                {PROFILE_BG_OPTIONS.map((opt) => {
+                  const url = profileBgUrl(opt.id)!;
                   return (
                     <button
-                      key={id}
+                      key={opt.id}
                       type="button"
                       role="option"
-                      aria-selected={pick === id}
+                      aria-selected={pick === opt.id}
                       className={`profile-bg-tile${
-                        pick === id ? " is-selected" : ""
+                        pick === opt.id ? " is-selected" : ""
                       }`}
                       style={{ backgroundImage: `url(${url})` }}
-                      onClick={() => select(id)}
+                      onClick={() => select(opt.id)}
                     >
-                      <span className="profile-bg-tile-label">Вариант {id}</span>
+                      <span className="profile-bg-tile-label">{opt.label}</span>
                     </button>
                   );
                 })}

@@ -43,7 +43,7 @@ model User {
   steamName       String?
   steamAvatar     String?
   avatarUrl       String?
-  /// Фон профиля: null = без фона; "01"…"07" = /profile-bgs/variant-XX.jpg
+  /// Фон профиля: null = без фона; id из PROFILE_BG_OPTIONS (/public/profile-bgs/)
   profileBg       String?
   name            String?
   nick            String?  @unique

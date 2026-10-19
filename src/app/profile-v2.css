@@ -277,8 +277,8 @@ body.has-profile-bg .shell:has(.profile-page) {
 }
 
 .profile-bg-panel {
-  width: min(720px, calc(100vw - 24px));
-  max-height: min(88vh, 720px);
+  width: min(860px, calc(100vw - 24px));
+  max-height: min(90vh, 780px);
   display: flex;
   flex-direction: column;
 }
