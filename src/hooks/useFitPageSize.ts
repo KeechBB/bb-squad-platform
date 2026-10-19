@@ -37,9 +37,10 @@ export function useFitPageSize(
           )
         : rowPxFallback;
 
-      // 2px запас — последняя строка не должна упираться в край
-      const avail = h - theadH - chromePx - 2;
-      const n = Math.floor(avail / rowH);
+      // floor обычно оставляет почти целую пустую строку под таблицей —
+      // +1 заполняет это место (КВ / трени / паб).
+      const avail = h - theadH - chromePx;
+      const n = Math.floor(avail / rowH) + 1;
       setSize(Math.min(max, Math.max(min, n >= 1 ? n : min)));
     };
 
