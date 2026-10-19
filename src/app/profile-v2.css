@@ -482,45 +482,77 @@
   gap: 1px;
 }
 
-/* Трени / паб: время по центру ячейки */
+/* Трени / паб: время чуть выше центра, статус чуть ниже */
 .profile-page-v2 .training-cal-cell-attend {
   position: relative;
   align-items: flex-start;
-  justify-content: space-between;
+  justify-content: flex-start;
   overflow: hidden;
+  padding: 3px 4px 4px;
+}
+
+.profile-page-v2 .training-cal-cell-attend .training-cal-day {
+  position: relative;
+  z-index: 2;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .profile-page-v2 .training-cal-cell-attend .training-cal-times {
   display: block;
   position: absolute;
   left: 50%;
-  top: 50%;
+  top: 42%;
   transform: translate(-50%, -50%);
   width: calc(100% - 6px);
   margin: 0;
   padding: 0;
   text-align: center;
-  font-size: 0.62rem;
-  font-weight: 700;
-  line-height: 1.15;
-  letter-spacing: -0.02em;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: rgba(255, 255, 255, 0.92);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
   pointer-events: none;
   z-index: 1;
 }
 
-.profile-page-v2 .training-cal-cell-attend .training-cal-times-empty {
-  opacity: 0;
+.profile-page-v2 .training-cal-cell-attend .training-cal-dot {
+  position: absolute;
+  left: 50%;
+  top: 68%;
+  transform: translate(-50%, -50%);
+  width: calc(100% - 4px);
+  margin: 0;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  z-index: 2;
+  white-space: nowrap;
 }
 
-.profile-page-v2 .training-cal-cell-attend .training-cal-day,
-.profile-page-v2 .training-cal-cell-attend .training-cal-dot {
-  position: relative;
-  z-index: 2;
+.profile-page-v2 .training-cal-cell-attend.mark-present .training-cal-times,
+.profile-page-v2 .training-cal-cell-attend.mark-present .training-cal-dot {
+  color: #bbf7d0;
+}
+
+.profile-page-v2 .training-cal-cell-attend.mark-late .training-cal-times,
+.profile-page-v2 .training-cal-cell-attend.mark-late .training-cal-dot {
+  color: #fef08a;
+}
+
+.profile-page-v2 .training-cal-cell-attend.mark-absent .training-cal-times,
+.profile-page-v2 .training-cal-cell-attend.mark-absent .training-cal-dot {
+  color: #fecaca;
 }
 
 .profile-page-v2 .training-cal-cell-cw {

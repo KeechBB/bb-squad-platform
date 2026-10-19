@@ -732,19 +732,17 @@ export function TrainingSessionsCard({
                   <span className="training-cal-day">{c.day}</span>
                   {showTime ? (
                     <span className="training-cal-times">{timeLabel}</span>
-                  ) : (
-                    <span className="training-cal-times training-cal-times-empty" aria-hidden>
-                      {" "}
-                    </span>
-                  )}
-                  {mark === "present" || mark === "late" ? (
+                  ) : null}
+                  {mark === "present" ? (
                     <span className="training-cal-dot">был</span>
+                  ) : mark === "late" ? (
+                    <span className="training-cal-dot">опоздал</span>
                   ) : mark === "dayoff" ? (
                     <span className="training-cal-dot">вых</span>
                   ) : mark === "reserve" ? (
                     <span className="training-cal-dot">резерв</span>
                   ) : mark === "absent" ? (
-                    <span className="training-cal-dot">нет</span>
+                    <span className="training-cal-dot">не был</span>
                   ) : (
                     <span className="training-cal-dot muted">·</span>
                   )}
