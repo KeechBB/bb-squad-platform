@@ -193,15 +193,34 @@ def run(open_doc: dict | None = None) -> dict[str, Any]:
             rc = 1
             detail = f"{type(e).__name__}: {e}"
 
-        ok = rc == 0 or rc == 2  # audit exit 2 = still bad but fix ran
-        level = "ok" if rc == 0 else "warn"
+        # Re-check: do not mark resolved if desync still present.
+        still_bad = False
+        verify_note = ""
+        if ids and action in ("rp_integrity", "ticket_class", "rp_lag"):
+            try:
+                import rp_post_ingest_audit as AUD  # noqa: WPS433
+
+                audits = AUD.audit_ledger(
+                    "public", last=None, ids=set(ids), blocks=None
+                )
+                still_bad = any(not a.ok for a in audits)
+                verify_note = (
+                    f"verify: bad={sum(1 for a in audits if not a.ok)}/{len(audits)}"
+                )
+            except Exception as e:
+                still_bad = True
+                verify_note = f"verify fail: {e}"
+
+        level = "ok" if (rc == 0 and not still_bad) else "warn"
         lines_out.append(f"exit: {rc}")
+        if verify_note:
+            lines_out.append(verify_note)
         if detail.strip():
             lines_out.append("лог (хвост):")
             lines_out.extend(detail.strip().splitlines()[-8:])
 
         _notify(
-            f"Autofix {'OK' if rc == 0 else 'частично/повтор'} ({action})",
+            f"Autofix {'OK' if level == 'ok' else 'нужен повтор/агент'} ({action})",
             lines_out,
             level=level,
         )
@@ -209,12 +228,28 @@ def run(open_doc: dict | None = None) -> dict[str, Any]:
         it["lastFixAt"] = datetime.now(timezone.utc).isoformat()
         it["lastFixRc"] = rc
         it["lastFixAction"] = action
-        if rc == 0:
+        it["stillBad"] = still_bad
+        if rc == 0 and not still_bad:
             it["resolvedAt"] = it["lastFixAt"]
             it["status"] = "resolved"
             if fp:
                 done_fps.add(fp)
-        results.append({"fp": fp, "action": action, "rc": rc, "ids": ids})
+        else:
+            it["status"] = "needs_agent" if still_bad else "open"
+            it["agentHint"] = (
+                "netΔ/ticket desync survived rescore — agent must inspect events"
+                if still_bad
+                else ""
+            )
+        results.append(
+            {
+                "fp": fp,
+                "action": action,
+                "rc": rc,
+                "ids": ids,
+                "stillBad": still_bad,
+            }
+        )
 
     st["fixedFps"] = list(done_fps)[-200:]
     st["updatedAt"] = datetime.now(timezone.utc).isoformat()

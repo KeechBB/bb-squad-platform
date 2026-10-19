@@ -95,6 +95,60 @@ def _error_fingerprint(text: str) -> str:
     return f"{line0}|{','.join(ids[:4])}"
 
 
+def _seed_open_from_sent_log() -> None:
+    """Promote recent outbound warn/crit alerts into open-errors queue."""
+    sent_path = HERE.parent / "data" / "cache" / "bb-tg-sent-log.json"
+    if not sent_path.is_file():
+        return
+    try:
+        sent = json.loads(sent_path.read_text(encoding="utf-8"))
+    except Exception:
+        return
+    open_doc: dict[str, Any] = {"items": []}
+    if OPEN.is_file():
+        try:
+            open_doc = json.loads(OPEN.read_text(encoding="utf-8"))
+        except Exception:
+            open_doc = {"items": []}
+    by_fp = {
+        str(it.get("fp")): it
+        for it in (open_doc.get("items") or [])
+        if isinstance(it, dict) and it.get("fp") and not it.get("resolvedAt")
+    }
+    for row in sent.get("messages") or []:
+        if not isinstance(row, dict):
+            continue
+        if row.get("level") not in ("warn", "crit"):
+            continue
+        if row.get("kind") in ("autofix",):
+            continue
+        title = str(row.get("title") or "")
+        if "успешн" in title.lower():
+            continue
+        text = str(row.get("text") or "")
+        fp = f"{row.get('kind')}|{title}|{(text.splitlines() or [''])[0][:80]}"
+        if fp in by_fp:
+            continue
+        by_fp[fp] = {
+            "fp": fp,
+            "kind": "error",
+            "status": "open",
+            "hits": 1,
+            "openedAt": row.get("at"),
+            "lastSeenAt": row.get("at"),
+            "text": text[:3500],
+            "title": title,
+            "alertKind": row.get("kind"),
+            "source": "sent-log",
+        }
+    open_doc["items"] = list(by_fp.values())
+    open_doc["updatedAt"] = datetime.now(timezone.utc).isoformat()
+    OPEN.parent.mkdir(parents=True, exist_ok=True)
+    OPEN.write_text(
+        json.dumps(open_doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+
+
 def run(*, do_fix: bool = True, dump: bool = False) -> dict[str, Any]:
     env = _load_env()
     token = (env.get("BB_TG_BOT_TOKEN") or "").strip()
@@ -214,7 +268,9 @@ def run(*, do_fix: bool = True, dump: bool = False) -> dict[str, Any]:
             print("---", it.get("fp"), flush=True)
             print((it.get("text") or "")[:400], flush=True)
 
-    # Reload open errors (outbound alerts also write here via bb_alerts)
+    # Outbound alerts (bb_alerts) are the source of truth — VPS often cannot
+    # reach api.telegram.org for getUpdates (relay works for send only).
+    _seed_open_from_sent_log()
     if OPEN.is_file():
         try:
             open_doc = json.loads(OPEN.read_text(encoding="utf-8"))
