@@ -6,12 +6,14 @@ import { useRouter } from "next/navigation";
 import { AvatarEditor } from "@/components/AvatarEditor";
 import { ClanInvites } from "@/components/ClanInvites";
 import { AdminPanelLink } from "@/components/AdminPanelLink";
-import { ProfileEditForm } from "@/components/ProfileEditForm";
 import { ProfileHitmapCard } from "@/components/ProfileHitmapCard";
 import { ProfileKitsCard } from "@/components/ProfileKitsCard";
-import { ProfileCareerCard } from "@/components/ProfileCareerCard";
-import { AbsencePanel } from "@/components/AbsencePanel";
+import { ProfileCareerAccountPanel } from "@/components/ProfileCareerAccountPanel";
 import { ProfileClientHydrate } from "@/components/ProfileClientHydrate";
+import {
+  ProfileModeSwitch,
+  type ProfileMode,
+} from "@/components/ProfileModeSwitch";
 import { prefetchProfileView } from "@/lib/profileViewCache";
 
 type Shell = {
@@ -54,6 +56,7 @@ type Shell = {
 };
 
 const SHELL_CACHE_KEY = "bb_profile_shell_v1";
+const MODE_KEY = "bb_profile_mode_v1";
 
 function readShellCache(): Shell | null {
   try {
@@ -73,6 +76,16 @@ function writeShellCache(data: Shell) {
   }
 }
 
+function readMode(isBb: boolean): ProfileMode {
+  try {
+    const raw = sessionStorage.getItem(MODE_KEY);
+    if (raw === "public" || raw === "train" || raw === "cw") return raw;
+  } catch {
+    /* ignore */
+  }
+  return isBb ? "train" : "public";
+}
+
 export function ProfilePageClient() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -80,8 +93,12 @@ export function ProfilePageClient() {
     typeof window !== "undefined" ? readShellCache() : null
   );
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<ProfileMode>(() =>
+    typeof window !== "undefined" && shell
+      ? readMode(shell.isBb)
+      : "train"
+  );
 
-  // Shell сразу — не ждём useSession (он мог держать «Открываю профиль…»)
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -98,6 +115,7 @@ export function ProfilePageClient() {
         if (cancelled) return;
         writeShellCache(data);
         setShell(data);
+        setMode(readMode(data.isBb));
         setError(null);
         if (data.nick) prefetchProfileView(data.nick);
       } catch {
@@ -123,9 +141,18 @@ export function ProfilePageClient() {
     }
   }, [status, session, router]);
 
+  function changeMode(next: ProfileMode) {
+    setMode(next);
+    try {
+      sessionStorage.setItem(MODE_KEY, next);
+    } catch {
+      /* ignore */
+    }
+  }
+
   if (!shell && !error) {
     return (
-      <main className="profile-page">
+      <main className="profile-page profile-page-v2">
         <div className="card" style={{ padding: 16 }}>
           <p className="muted" style={{ margin: 0 }}>
             Открываю профиль…
@@ -137,7 +164,7 @@ export function ProfilePageClient() {
 
   if (error || !shell) {
     return (
-      <main className="profile-page">
+      <main className="profile-page profile-page-v2">
         <div className="card" style={{ padding: 16 }}>
           <p className="error" style={{ margin: 0 }}>
             {error || "Ошибка"}
@@ -148,89 +175,100 @@ export function ProfilePageClient() {
   }
 
   const nickForKv = shell.nick || session?.user?.nick || "";
+  const kitsLane =
+    mode === "public" ? "PB1" : shell.isBb ? "TR1" : shell.kitsLane;
+  const hitSubtitle =
+    mode === "public"
+      ? "Паблик · PB1"
+      : mode === "cw"
+        ? "КВ"
+        : "Тренировки · TR1+TR2";
 
   return (
-    <main className="profile-page">
-      <div className="profile-area-head">
-        <div className="profile-head-cluster">
-          <div className="profile-head-main">
-            <AvatarEditor
-              nick={shell.nick || session?.user?.nick || "Игрок"}
-              name={shell.name || session?.user?.name || ""}
-              initialAvatar={shell.avatarUrl}
-              steamAvatar={shell.steamAvatar}
-              adminLink={<AdminPanelLink initialAdmin={shell.admin} />}
-              lastSeenAt={
-                shell.lastSeenAt ? new Date(shell.lastSeenAt) : null
-              }
-            />
-            <AbsencePanel
-              reserveActive={shell.reserveActive}
-              reserveUntilLabel={shell.reserveUntilLabel}
-              reserveReason={shell.reserveReason}
-              dayOffActive={shell.dayOffActive}
-              dayOffUntilLabel={shell.dayOffUntilLabel}
-              dayOffReason={shell.dayOffReason}
-            />
-            {nickForKv ? (
-              <ProfileClientHydrate nick={nickForKv} slot="head" />
-            ) : null}
-            <ProfileKitsCard
-              userId={shell.id}
-              allowTr1={shell.isBb}
-              initialLane={shell.kitsLane}
-            />
-            <ClanInvites initial={shell.invites} />
-          </div>
-          {nickForKv ? <ProfileCareerCard nick={nickForKv} self /> : null}
-        </div>
+    <main className="profile-page profile-page-v2" data-mode={mode}>
+      <div className="profile-v2-ident">
+        <AvatarEditor
+          nick={shell.nick || session?.user?.nick || "Игрок"}
+          name={shell.name || session?.user?.name || ""}
+          initialAvatar={shell.avatarUrl}
+          steamAvatar={shell.steamAvatar}
+          adminLink={<AdminPanelLink initialAdmin={shell.admin} />}
+          lastSeenAt={shell.lastSeenAt ? new Date(shell.lastSeenAt) : null}
+        />
+        <ProfileModeSwitch value={mode} onChange={changeMode} />
+        <ClanInvites initial={shell.invites} />
       </div>
 
-      <div className="profile-area-account">
-        <ProfileEditForm
-          initial={{
-            nick: shell.nick || "",
-            name: shell.name || "",
-            birthDate: shell.birthDate,
-            age: shell.age,
-            discordTag: shell.discordTag,
-            discordId: shell.discordId,
-            telegram: shell.telegram,
-            steamId: shell.steamId,
-            steamName: shell.steamName,
-            siteRole: shell.siteRole,
-            regNo: shell.regNo,
-            clans: shell.clans,
-          }}
-        />
+      <div className="profile-v2-career">
         {nickForKv ? (
-          <ProfileClientHydrate nick={nickForKv} slot="stats" />
+          <ProfileCareerAccountPanel
+            nick={nickForKv}
+            account={{
+              nick: shell.nick || "",
+              name: shell.name || "",
+              birthDate: shell.birthDate,
+              age: shell.age,
+              discordTag: shell.discordTag,
+              discordId: shell.discordId,
+              telegram: shell.telegram,
+              steamId: shell.steamId,
+              steamName: shell.steamName,
+              siteRole: shell.siteRole,
+              regNo: shell.regNo,
+              clans: shell.clans,
+            }}
+            reserveActive={shell.reserveActive}
+            reserveUntilLabel={shell.reserveUntilLabel}
+            reserveReason={shell.reserveReason}
+            dayOffActive={shell.dayOffActive}
+            dayOffUntilLabel={shell.dayOffUntilLabel}
+            dayOffReason={shell.dayOffReason}
+          />
         ) : null}
       </div>
 
-      <div className="profile-area-hitmap">
-        <ProfileHitmapCard
-          userId={shell.id}
-          nick={nickForKv || shell.nick || undefined}
-          subtitle="TR1+TR2"
-          matchHistory={[]}
-        />
-      </div>
-
-      <div className="profile-area-training">
+      <div className="profile-v2-attend">
         <ProfileClientHydrate
           nick={nickForKv || shell.nick || ""}
           slot="training"
+          mode={mode}
         />
       </div>
 
-      {nickForKv ? (
-        <ProfileClientHydrate
-          nick={nickForKv}
-          slot="histories"
-          defaultHistTab={shell.isBb ? "train" : "public"}
+      <div className="profile-v2-stats">
+        {nickForKv ? (
+          <ProfileClientHydrate nick={nickForKv} slot="stats" mode={mode} />
+        ) : null}
+      </div>
+
+      <div className="profile-v2-history">
+        {nickForKv ? (
+          <ProfileClientHydrate
+            nick={nickForKv}
+            slot="history"
+            mode={mode}
+            defaultHistTab={shell.isBb ? "train" : "public"}
+          />
+        ) : null}
+      </div>
+
+      <div className="profile-v2-roles">
+        <ProfileKitsCard
+          key={`${mode}-${kitsLane}`}
+          userId={shell.id}
+          allowTr1={shell.isBb && mode !== "public"}
+          initialLane={kitsLane}
         />
-      ) : null}
+      </div>
+
+      <div className="profile-v2-hits">
+        <ProfileHitmapCard
+          userId={shell.id}
+          nick={nickForKv || shell.nick || undefined}
+          subtitle={hitSubtitle}
+          matchHistory={[]}
+        />
+      </div>
     </main>
   );
 }

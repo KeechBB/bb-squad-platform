@@ -16,6 +16,9 @@ type Props = {
   trainError?: string | null;
   publicStats?: PlayerPublicCombatStats | null;
   publicError?: string | null;
+  /** Внешний режим (профиль v2) — без внутренних вкладок */
+  forcedTab?: Tab;
+  hideTablist?: boolean;
 };
 
 function CombatBody({
@@ -115,41 +118,54 @@ export function ProfileStatsTabs({
   trainError,
   publicStats = null,
   publicError = null,
+  forcedTab,
+  hideTablist = false,
 }: Props) {
-  const [tab, setTab] = useState<Tab>("cw");
+  const [innerTab, setTab] = useState<Tab>("cw");
+  const tab = forcedTab ?? innerTab;
 
   return (
     <section className="card profile-kv-card profile-stats-tabs-card">
       <div className="profile-kv-head profile-stats-tabs-head">
-        <div className="profile-stats-tablist" role="tablist" aria-label="Тип статистики">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "train"}
-            className={`profile-stats-tab${tab === "train" ? " active" : ""}`}
-            onClick={() => setTab("train")}
-          >
-            Статистика тренировок
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "cw"}
-            className={`profile-stats-tab${tab === "cw" ? " active" : ""}`}
-            onClick={() => setTab("cw")}
-          >
-            Статистика КВ
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "public"}
-            className={`profile-stats-tab${tab === "public" ? " active" : ""}`}
-            onClick={() => setTab("public")}
-          >
-            Статистика паблика
-          </button>
-        </div>
+        {!hideTablist ? (
+          <div className="profile-stats-tablist" role="tablist" aria-label="Тип статистики">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "train"}
+              className={`profile-stats-tab${tab === "train" ? " active" : ""}`}
+              onClick={() => setTab("train")}
+            >
+              Статистика тренировок
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "cw"}
+              className={`profile-stats-tab${tab === "cw" ? " active" : ""}`}
+              onClick={() => setTab("cw")}
+            >
+              Статистика КВ
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "public"}
+              className={`profile-stats-tab${tab === "public" ? " active" : ""}`}
+              onClick={() => setTab("public")}
+            >
+              Статистика паблика
+            </button>
+          </div>
+        ) : (
+          <h2 className="profile-stats-forced-title">
+            {tab === "cw"
+              ? "Статистика КВ"
+              : tab === "train"
+                ? "Статистика тренировок"
+                : "Статистика паблика"}
+          </h2>
+        )}
         {tab === "cw" ? (
           <Link className="kv-link" href="/cw">
             Таблица КВ →

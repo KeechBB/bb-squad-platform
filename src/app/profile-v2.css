@@ -1,0 +1,123 @@
+/* Profile page v2 (sketch: mode-aware layout) — overrides PROFILE DESKTOP LOCK */
+
+.profile-page.profile-page-v2 {
+  display: grid !important;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.15fr) minmax(0, 1.05fr) minmax(0, 1.35fr) !important;
+  grid-template-rows: auto minmax(0, 1.1fr) minmax(0, 0.95fr) !important;
+  grid-template-areas:
+    "ident career attend attend"
+    "stats stats history history"
+    "roles hits history history" !important;
+  gap: 10px !important;
+  align-items: stretch;
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  width: 100% !important;
+}
+
+.profile-v2-ident { grid-area: ident; min-height: 0; overflow: auto; }
+.profile-v2-career { grid-area: career; min-height: 0; overflow: auto; }
+.profile-v2-attend { grid-area: attend; min-height: 0; overflow: auto; }
+.profile-v2-stats { grid-area: stats; min-height: 0; overflow: auto; }
+.profile-v2-history { grid-area: history; min-height: 0; overflow: auto; }
+.profile-v2-roles { grid-area: roles; min-height: 0; overflow: auto; }
+.profile-v2-hits { grid-area: hits; min-height: 0; overflow: auto; }
+
+.profile-mode-switch {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.profile-mode-pill {
+  border: 1px solid var(--line);
+  background: rgba(16, 12, 28, 0.7);
+  color: var(--muted);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.profile-mode-pill .profile-mode-full { display: none; }
+.profile-mode-pill .profile-mode-short { display: inline; }
+
+.profile-mode-public.is-active {
+  color: #ecfeff;
+  border-color: rgba(34, 211, 238, 0.55);
+  background: linear-gradient(135deg, rgba(8, 145, 178, 0.45), rgba(14, 116, 144, 0.25));
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.2);
+}
+.profile-mode-train.is-active {
+  color: #f5f3ff;
+  border-color: rgba(167, 139, 250, 0.65);
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.5), rgba(88, 28, 135, 0.3));
+  box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.25);
+}
+.profile-mode-cw.is-active {
+  color: #fff1f2;
+  border-color: rgba(251, 113, 133, 0.65);
+  background: linear-gradient(135deg, rgba(225, 29, 72, 0.45), rgba(159, 18, 57, 0.28));
+  box-shadow: 0 0 0 1px rgba(251, 113, 133, 0.22);
+}
+
+.profile-career-account {
+  padding: 12px 14px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.profile-career-account-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+  flex: 0 0 auto;
+}
+
+.profile-career-account-tabs button {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.profile-career-account-tabs button.is-active {
+  color: var(--ink);
+  border-color: rgba(167, 139, 250, 0.55);
+  background: rgba(167, 139, 250, 0.14);
+}
+
+.profile-career-account-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.profile-stats-forced-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.profile-v2-ident .clan-invites {
+  margin-top: 8px;
+}

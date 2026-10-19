@@ -17,6 +17,7 @@ import "@fontsource/manrope/500.css";
 import "@fontsource/manrope/600.css";
 import "@fontsource/manrope/700.css";
 import "./globals.css";
+import "./profile-v2.css";
 
 const yandexVerification = (
   process.env.NEXT_PUBLIC_YANDEX_WEBMASTER_VERIFICATION || ""
@@ -78,11 +79,11 @@ export default async function RootLayout({
                 <SiteOnlineBadge />
                 <SiteNav showClanSections={showClanSections} />
               </div>
-              <AuthBar betaLabel={betaLabel} />
+              <AuthBar />
             </div>
           </header>
           <div className="shell">{children}</div>
-          <SiteFooter />
+          <SiteFooter betaLabel={betaLabel} />
           <YandexMetrika />
         </Providers>
       </body>

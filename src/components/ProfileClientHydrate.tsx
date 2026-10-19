@@ -7,6 +7,9 @@ import { TrainingSessionsCard } from "@/components/TrainingSessionsCard";
 import { ProfileStatsTabs } from "@/components/ProfileStatsTabs";
 import { ProfileKvMatchHistory } from "@/components/ProfileKvStats";
 import { ProfileMatchHistoryTabs } from "@/components/ProfileMatchHistoryTabs";
+import { TrainingMatchHistory } from "@/components/TrainingSessionsCard";
+import { PublicMatchHistory } from "@/components/PublicMatchHistory";
+import type { ProfileMode } from "@/components/ProfileModeSwitch";
 import type { HomeTrainPwrRow } from "@/lib/homeTrainPwr";
 import type {
   PlayerProfileHistories,
@@ -76,7 +79,9 @@ type PublicAtt = {
 type Props = {
   nick: string;
   defaultHistTab?: "train" | "public";
-  slot: "head" | "stats" | "training" | "histories";
+  slot: "head" | "stats" | "training" | "histories" | "history";
+  /** Режим профиля v2 — фильтрует стату/историю */
+  mode?: ProfileMode;
 };
 
 function applyBundle(
@@ -115,6 +120,7 @@ export function ProfileClientHydrate({
   nick,
   defaultHistTab = "train",
   slot,
+  mode,
 }: Props) {
   const cached = typeof window !== "undefined" ? peekProfileView(nick) : null;
 
@@ -225,12 +231,16 @@ export function ProfileClientHydrate({
         />
       );
     }
+    const forced =
+      mode === "cw" ? "cw" : mode === "train" ? "train" : mode === "public" ? "public" : undefined;
     return (
       <ProfileStatsTabs
         kvStats={stats.kvStats}
         kvError={stats.kvError}
         trainStats={stats.trainCombat}
         publicStats={stats.publicCombat}
+        forcedTab={forced}
+        hideTablist={Boolean(forced)}
       />
     );
   }
@@ -312,6 +322,32 @@ export function ProfileClientHydrate({
       />
     );
   }
+
+  if (slot === "history" && mode) {
+    if (mode === "cw") {
+      return (
+        <ProfileKvMatchHistory
+          matchHistory={histories.cwHistory}
+          highlightNick={nick}
+        />
+      );
+    }
+    if (mode === "train") {
+      return (
+        <TrainingMatchHistory
+          matchHistory={histories.trainHistory}
+          highlightNick={nick}
+        />
+      );
+    }
+    return (
+      <PublicMatchHistory
+        matchHistory={histories.publicHistory}
+        highlightNick={nick}
+      />
+    );
+  }
+
   return (
     <>
       <div className="profile-area-kv-hist">
