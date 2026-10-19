@@ -1933,6 +1933,45 @@ body:has(.public-rating-page) {
   flex: 0 0 auto;
 }
 
+a.nav-discord {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  background: linear-gradient(180deg, #7289ff 0%, #5865f2 55%, #4752c4 100%);
+  box-shadow:
+    0 0 14px rgba(88, 101, 242, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transition: transform 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease;
+}
+
+a.nav-discord svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+a.nav-discord:hover,
+a.nav-discord:focus-visible {
+  color: #fff;
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+  outline: none;
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 18px rgba(88, 101, 242, 0.75);
+}
+
 .player-search {
   position: relative;
   flex: 0 1 240px;
@@ -6637,71 +6676,9 @@ body:has(.home-page) {
   margin-top: auto;
 }
 
-.home-info-row {
-  display: flex;
-  align-items: stretch;
-  gap: 12px;
-  width: 100%;
-  min-width: 0;
-}
-
-.home-discord-link {
-  flex: 0 0 156px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 16px 10px;
-  border-radius: 16px;
-  border: 2px solid #ffffff;
-  background:
-    radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.28), transparent 42%),
-    linear-gradient(180deg, #7289ff 0%, #5865f2 46%, #3c45a5 100%);
-  color: #fff;
-  text-decoration: none;
-  cursor: pointer;
-  box-shadow:
-    0 0 0 3px rgba(88, 101, 242, 0.55),
-    0 16px 34px rgba(88, 101, 242, 0.45);
-  transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
-}
-
-.home-discord-link svg {
-  width: 72px;
-  height: 72px;
-  filter: drop-shadow(0 6px 10px rgba(12, 8, 32, 0.35));
-}
-
-.home-discord-link-title {
-  font-family: var(--font-display);
-  font-size: 1.15rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  line-height: 1;
-}
-
-.home-discord-link-hint {
-  font-size: 0.82rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  opacity: 0.92;
-}
-
-.home-discord-link:hover,
-.home-discord-link:focus-visible {
-  transform: translateY(-4px) scale(1.03);
-  filter: brightness(1.08);
-  outline: none;
-  box-shadow:
-    0 0 0 3px #fff,
-    0 0 28px rgba(88, 101, 242, 0.85),
-    0 18px 36px rgba(88, 101, 242, 0.55);
-}
-
 .home-welcome-plaque {
-  flex: 1 1 auto;
-  width: auto;
+  flex: 0 1 auto;
+  width: 100%;
   min-width: 0;
   max-height: 460px;
   overflow: auto;
@@ -11690,6 +11667,11 @@ body:has(.home-page) {
   .top-nav a.nav-battle-pass {
     padding: 12px 18px;
     font-size: 0.82rem;
+  }
+
+  a.nav-discord {
+    padding: 8px 12px;
+    font-size: 0.72rem;
   }
 
   .top-nav a.nav-public-pill,
