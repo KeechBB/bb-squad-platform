@@ -168,7 +168,24 @@
   flex: 1 1 auto;
   min-height: 0;
   max-height: 100%;
-  overflow: hidden;
+  overflow: auto;
+}
+
+/* Аккаунт — одна колонка, длинные значения не вылезают */
+.profile-page-v2 .profile-account-meta {
+  grid-template-columns: 1fr !important;
+  column-gap: 0;
+  row-gap: 2px;
+}
+
+.profile-page-v2 .profile-account-meta .meta-row {
+  min-width: 0;
+}
+
+.profile-page-v2 .profile-account-meta .meta-row > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* Карьера внутри ячейки: список скроллится, карточка не растёт */
