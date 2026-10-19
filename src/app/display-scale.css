@@ -1,0 +1,17 @@
+/* Full HD 1920×1080 → визуальный масштаб ~75% (класс вешает BbDisplayScale) */
+html.bb-scale-1080 {
+  zoom: 0.75;
+}
+
+/* Firefox / без zoom */
+@supports not (zoom: 1) {
+  html.bb-scale-1080 {
+    zoom: normal;
+  }
+  html.bb-scale-1080 body {
+    transform: scale(0.75);
+    transform-origin: top left;
+    width: 133.333vw;
+    min-height: 133.333vh;
+  }
+}
