@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { TierFitPageClient } from "@/components/TierFitPageClient";
+import { KvAutoHeightFrame } from "@/components/KvAutoHeightFrame";
 import type { HomeTierBoardData } from "@/lib/homeTierBoardUi";
 
 type TabId = "matches" | "fit";
@@ -172,14 +173,11 @@ export function TrainingMatchesHub({
       </nav>
 
       {tab === "matches" ? (
-        <div className="cw-embed tm-hub-embed">
-          <iframe
-            className="cw-frame"
-            src={iframeSrc}
-            title="Тренировочные матчи BlackBerry"
-            allow="fullscreen"
-          />
-        </div>
+        <KvAutoHeightFrame
+          className="tm-hub-embed"
+          src={iframeSrc}
+          title="Тренировочные матчи BlackBerry"
+        />
       ) : (
         <div className="tm-hub-fit">
           <nav className="tier-fit-tabs" aria-label="Тиры FIT">

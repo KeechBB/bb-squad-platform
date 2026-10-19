@@ -2,6 +2,7 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { isAnyClanMember } from "@/lib/clanAccess";
 import { liveKvBust } from "@/lib/kvBust";
+import { KvAutoHeightFrame } from "@/components/KvAutoHeightFrame";
 
 export const dynamic = "force-dynamic";
 
@@ -25,18 +26,16 @@ export default async function CwPage({ searchParams }: Props) {
   const q = `?${params.toString()}#/cw`;
 
   return (
-    <div className="cw-embed">
+    <div className="cw-page-shell">
       {clan ? (
         <p className="cw-clan-filter muted">
           Фильтр клана в календаре: <strong>[{clan}]</strong> — введи в поиск
           клана на таблице.
         </p>
       ) : null}
-      <iframe
-        className="cw-frame"
+      <KvAutoHeightFrame
         src={`/kv-static/index.html${q}`}
         title="Клановые войны BlackBerry"
-        allow="fullscreen"
       />
     </div>
   );

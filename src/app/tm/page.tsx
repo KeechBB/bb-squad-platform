@@ -5,6 +5,7 @@ import { isAnyClanMember } from "@/lib/clanAccess";
 import { liveKvBust } from "@/lib/kvBust";
 import { buildHomeTierBoard, emptyHomeTierBoard } from "@/lib/homeTierBoard";
 import { TrainingMatchesHub } from "@/components/TrainingMatchesHub";
+import { KvAutoHeightFrame } from "@/components/KvAutoHeightFrame";
 
 export const dynamic = "force-dynamic";
 
@@ -36,14 +37,10 @@ export default async function TrainingMatchesPage() {
   return (
     <Suspense
       fallback={
-        <div className="cw-embed">
-          <iframe
-            className="cw-frame"
-            src={iframeSrc}
-            title="Тренировочные матчи BlackBerry"
-            allow="fullscreen"
-          />
-        </div>
+        <KvAutoHeightFrame
+          src={iframeSrc}
+          title="Тренировочные матчи BlackBerry"
+        />
       }
     >
       <TrainingMatchesHub
