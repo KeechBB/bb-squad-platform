@@ -31,6 +31,9 @@ type MatchSortKey =
   | "score2"
   | "winnerName";
 
+/** Одна страница рейтинга / истории — без внутреннего скролла таблицы. */
+const PAGE_SIZE = 50;
+
 const RP_STEP = 150;
 const RP_BANDS: [string, string][] = [
   ["Iron", "iron"],
@@ -142,6 +145,42 @@ function RpRankScale() {
   );
 }
 
+function PagePager({
+  page,
+  pageCount,
+  total,
+  onChange,
+}: {
+  page: number;
+  pageCount: number;
+  total: number;
+  onChange: (p: number) => void;
+}) {
+  if (pageCount <= 1) return null;
+  const from = (page - 1) * PAGE_SIZE + 1;
+  const to = Math.min(page * PAGE_SIZE, total);
+  return (
+    <nav className="public-rating-pager" aria-label="Страницы списка">
+      <span className="muted public-rating-pager-meta">
+        {from}–{to} из {total}
+      </span>
+      <div className="public-rating-pager-btns">
+        {Array.from({ length: pageCount }, (_, i) => i + 1).map((n) => (
+          <button
+            key={n}
+            type="button"
+            className={`public-rating-page-btn${n === page ? " is-active" : ""}`}
+            aria-current={n === page ? "page" : undefined}
+            onClick={() => onChange(n)}
+          >
+            {n}
+          </button>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
 export function PublicRatingClient({
   rows,
   matchHistory,
@@ -150,6 +189,7 @@ export function PublicRatingClient({
   const [q, setQ] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("place");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [page, setPage] = useState(1);
 
   const [mq, setMq] = useState("");
   const [year, setYear] = useState<string>("");
@@ -157,29 +197,9 @@ export function PublicRatingClient({
   const [day, setDay] = useState<string>("");
   const [mSortKey, setMSortKey] = useState<MatchSortKey>("date");
   const [mSortDir, setMSortDir] = useState<"asc" | "desc">("desc");
+  const [mPage, setMPage] = useState(1);
   const [drillNick, setDrillNick] = useState<string | null>(null);
   const [matchOpen, setMatchOpen] = useState<MatchStatsOpen | null>(null);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const hash = window.location.hash;
-    if (hash === "#history") {
-      setTab("history");
-      return;
-    }
-    if (hash === "#rp" || hash === "#guide") {
-      setTab("guide");
-      return;
-    }
-    if (!hash.startsWith("#player-")) return;
-    setTab("rating");
-    const id = decodeURIComponent(hash.slice(1));
-    const el = document.getElementById(id);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.classList.add("public-rating-row-flash");
-    }
-  }, [rows]);
 
   const yearOptions = useMemo(() => {
     const ys = new Set<number>();
@@ -232,6 +252,49 @@ export function PublicRatingClient({
       return a.nick.localeCompare(b.nick, "ru");
     });
   }, [rows, q, sortKey, sortDir]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [q, sortKey, sortDir]);
+
+  useEffect(() => {
+    setMPage(1);
+  }, [mq, year, month, day, mSortKey, mSortDir]);
+
+  const pageCount = Math.max(1, Math.ceil(view.length / PAGE_SIZE));
+  const pageSafe = Math.min(page, pageCount);
+  const pageRows = useMemo(() => {
+    const start = (pageSafe - 1) * PAGE_SIZE;
+    return view.slice(start, start + PAGE_SIZE);
+  }, [view, pageSafe]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hash = window.location.hash;
+    if (hash === "#history") {
+      setTab("history");
+      return;
+    }
+    if (hash === "#rp" || hash === "#guide") {
+      setTab("guide");
+      return;
+    }
+    if (!hash.startsWith("#player-")) return;
+    setTab("rating");
+    const nick = decodeURIComponent(hash.slice("#player-".length));
+    const idx = view.findIndex((r) => r.nick === nick);
+    if (idx >= 0) {
+      setPage(Math.floor(idx / PAGE_SIZE) + 1);
+    }
+    const id = `player-${nick}`;
+    requestAnimationFrame(() => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("public-rating-row-flash");
+      }
+    });
+  }, [rows, view]);
 
   const records = useMemo(() => {
     const maxOf = (pick: (r: PublicCombatRow) => number | null | undefined) => {
@@ -329,6 +392,27 @@ export function PublicRatingClient({
     });
     return list;
   }, [matchHistory, mq, year, month, day, mSortKey, mSortDir]);
+
+  const mPageCount = Math.max(1, Math.ceil(matchView.length / PAGE_SIZE));
+  const mPageSafe = Math.min(mPage, mPageCount);
+  const matchPageRows = useMemo(() => {
+    const start = (mPageSafe - 1) * PAGE_SIZE;
+    return matchView.slice(start, start + PAGE_SIZE);
+  }, [matchView, mPageSafe]);
+
+  function goPage(p: number) {
+    setPage(p);
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
+  function goMatchPage(p: number) {
+    setMPage(p);
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
 
   function onSort(key: SortKey) {
     if (sortKey === key) {
@@ -481,6 +565,13 @@ export function PublicRatingClient({
             </p>
           </aside>
 
+          <PagePager
+            page={pageSafe}
+            pageCount={pageCount}
+            total={view.length}
+            onChange={goPage}
+          />
+
           <section className="card public-rating-card">
             <div className="admin-table-wrap public-rating-table-wrap">
               <table className="admin-table cross-rating-table rating-like-cw">
@@ -515,14 +606,14 @@ export function PublicRatingClient({
                   </tr>
                 </thead>
                 <tbody>
-                  {view.length === 0 ? (
+                  {pageRows.length === 0 ? (
                     <tr>
                       <td colSpan={16} className="muted">
                         Пока нет данных с паблика.
                       </td>
                     </tr>
                   ) : (
-                    view.map((r) => {
+                    pageRows.map((r) => {
                       const rpVal = r.rp == null ? null : Math.round(r.rp);
                       return (
                       <tr key={r.steamId || r.nick} id={`player-${r.nick}`}>
@@ -607,6 +698,13 @@ export function PublicRatingClient({
               </table>
             </div>
           </section>
+
+          <PagePager
+            page={pageSafe}
+            pageCount={pageCount}
+            total={view.length}
+            onChange={goPage}
+          />
         </>
       ) : (
         <>
@@ -659,6 +757,13 @@ export function PublicRatingClient({
             </label>
           </div>
 
+          <PagePager
+            page={mPageSafe}
+            pageCount={mPageCount}
+            total={matchView.length}
+            onChange={goMatchPage}
+          />
+
           <section className="card public-rating-card">
             <div className="admin-table-wrap public-rating-table-wrap public-match-table-wrap">
               <table className="admin-table cross-rating-table">
@@ -676,7 +781,7 @@ export function PublicRatingClient({
                   </tr>
                 </thead>
                 <tbody>
-                  {matchView.length === 0 ? (
+                  {matchPageRows.length === 0 ? (
                     <tr>
                       <td colSpan={9} className="muted">
                         Пока нет матчей паблика (появятся после окончания
@@ -684,7 +789,7 @@ export function PublicRatingClient({
                       </td>
                     </tr>
                   ) : (
-                    matchView.map((m) => {
+                    matchPageRows.map((m) => {
                       const p = mskParts(m.endedAt);
                       const f1 =
                         m.faction1Side || m.faction1;
@@ -784,6 +889,13 @@ export function PublicRatingClient({
               </table>
             </div>
           </section>
+
+          <PagePager
+            page={mPageSafe}
+            pageCount={mPageCount}
+            total={matchView.length}
+            onChange={goMatchPage}
+          />
         </>
       )}
 
