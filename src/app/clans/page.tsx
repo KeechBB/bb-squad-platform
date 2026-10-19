@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { GuestSteamGate } from "@/components/GuestSteamGate";
+import { ClansListClient } from "@/components/ClansListClient";
 
 export default async function ClansPage() {
   const session = await getSession();
@@ -19,7 +20,7 @@ export default async function ClansPage() {
   }
 
   const clans = await prisma.clan.findMany({
-    orderBy: { createdAt: "desc" },
+    orderBy: { tag: "asc" },
     include: {
       _count: { select: { members: true } },
       leader: { select: { nick: true } },
@@ -40,13 +41,24 @@ export default async function ClansPage() {
     myClan = me?.clanMemberships[0]?.clan ?? null;
   }
 
+  const listItems = clans.map((c) => ({
+    id: c.id,
+    tag: c.tag,
+    name: c.name,
+    logoUrl: c.logoUrl,
+    members: c._count.members,
+    leaderNick: c.leader.nick,
+  }));
+
   return (
     <main className="clans-page">
       <section className="hero clans-hero">
         <div>
           <p className="eyebrow">кланы</p>
           <h1>Кланы</h1>
-          <p className="lead">Создай клан, зови игроков, смотри состав и стату.</p>
+          <p className="lead">
+            Создай клан, зови игроков, смотри состав и стату.
+          </p>
         </div>
         {session?.user?.profileComplete ? (
           myClan ? (
@@ -54,7 +66,10 @@ export default async function ClansPage() {
               <Link className="btn primary" href={`/clans/${myClan.id}`}>
                 Мой клан [{myClan.tag}]
               </Link>
-              <p className="muted" style={{ margin: "8px 0 0", fontSize: "0.85rem" }}>
+              <p
+                className="muted"
+                style={{ margin: "8px 0 0", fontSize: "0.85rem" }}
+              >
                 Чтобы создать новый — сначала выйди из текущего.
               </p>
             </div>
@@ -75,27 +90,7 @@ export default async function ClansPage() {
           </p>
         </section>
       ) : (
-        <div className="clan-list">
-          {clans.map((c) => (
-            <Link key={c.id} className="clan-row" href={`/clans/${c.id}`}>
-              {c.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img className="clan-row-logo" src={c.logoUrl} alt="" width={48} height={48} />
-              ) : (
-                <div className="clan-row-logo clan-row-logo-empty">{c.tag.slice(0, 2)}</div>
-              )}
-              <div className="clan-row-body">
-                <strong>
-                  [{c.tag}] {c.name}
-                </strong>
-                <span className="muted">
-                  Глава: {c.leader.nick || "—"} · игроков: {c._count.members}
-                </span>
-              </div>
-              <span className="clan-row-arrow">→</span>
-            </Link>
-          ))}
-        </div>
+        <ClansListClient clans={listItems} />
       )}
     </main>
   );

@@ -10185,17 +10185,46 @@ body:has(.home-page) {
 }
 
 
+.clans-page {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding-bottom: 40px;
+}
+
 .clans-hero {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
+  margin-bottom: 0;
+}
+
+.clans-hero .lead {
+  margin-bottom: 0;
+}
+
+.clan-list-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.clan-list-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+}
+
+.clan-list-toolbar-label {
+  font-size: 0.9rem;
 }
 
 .clan-list {
   display: grid;
-  gap: 10px;
+  gap: 14px;
 }
 
 .clan-row {
