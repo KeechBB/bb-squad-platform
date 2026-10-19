@@ -159,7 +159,7 @@ body.has-profile-bg .shell:has(.profile-page) {
   position: relative;
   flex: 0 0 auto;
   min-height: 0;
-  max-height: 108px;
+  max-height: 132px;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -255,6 +255,26 @@ body.has-profile-bg .shell:has(.profile-page) {
     drop-shadow(0 0 16px rgba(167, 139, 250, 0.75))
     brightness(1.28);
   transform: scale(1.06);
+}
+
+.profile-medal-tip {
+  position: fixed;
+  z-index: 500;
+  transform: translate(-50%, calc(-100% - 12px));
+  max-width: min(360px, calc(100vw - 24px));
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(245, 215, 110, 0.9);
+  background: rgba(22, 16, 8, 0.96);
+  color: #f8e7b0;
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(0, 0, 0, 0.4);
 }
 
 /* Подпись всегда снизу полки */

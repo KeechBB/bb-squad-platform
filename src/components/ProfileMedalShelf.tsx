@@ -1,15 +1,23 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import type { ProfileMedalItem } from "@/lib/profileMedals";
 
 type Props = {
   items: ProfileMedalItem[];
 };
 
+type Tip = { text: string; x: number; y: number };
+
 export function ProfileMedalShelf({ items }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null);
-  const active = items.find((m) => m.id === activeId) || null;
+  const [tip, setTip] = useState<Tip | null>(null);
+
+  function showTip(el: HTMLElement, text: string) {
+    const r = el.getBoundingClientRect();
+    setTip({ text, x: r.left + r.width / 2, y: r.top });
+  }
 
   return (
     <section className="profile-medal-shelf" aria-label="Полка наград">
@@ -31,10 +39,22 @@ export function ProfileMedalShelf({ items }: Props) {
                     activeId === m.id ? " is-active" : ""
                   }`}
                   aria-label={m.hover}
-                  onMouseEnter={() => setActiveId(m.id)}
-                  onMouseLeave={() => setActiveId(null)}
-                  onFocus={() => setActiveId(m.id)}
-                  onBlur={() => setActiveId(null)}
+                  onMouseEnter={(e) => {
+                    setActiveId(m.id);
+                    showTip(e.currentTarget, m.hover);
+                  }}
+                  onMouseLeave={() => {
+                    setActiveId(null);
+                    setTip(null);
+                  }}
+                  onFocus={(e) => {
+                    setActiveId(m.id);
+                    showTip(e.currentTarget, m.hover);
+                  }}
+                  onBlur={() => {
+                    setActiveId(null);
+                    setTip(null);
+                  }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={m.icon} alt="" width={80} height={80} />
@@ -43,13 +63,19 @@ export function ProfileMedalShelf({ items }: Props) {
             ))}
           </ul>
         )}
-        <p
-          className={`profile-medal-reason${active ? " is-on" : ""}`}
-          aria-live="polite"
-        >
-          {active ? active.hover : "\u00a0"}
-        </p>
       </div>
+      {tip && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              className="profile-medal-tip"
+              style={{ left: tip.x, top: tip.y }}
+              role="tooltip"
+            >
+              {tip.text}
+            </div>,
+            document.body
+          )
+        : null}
     </section>
   );
 }

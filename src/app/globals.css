@@ -13501,8 +13501,8 @@ body.profile-match-modal-open {
 .profile-match-modal-panel {
   position: relative;
   z-index: 1;
-  width: min(1220px, 100%);
-  max-height: min(86vh, 820px);
+  width: min(1480px, calc(100vw - 24px));
+  max-height: min(94vh, 980px);
   display: flex;
   flex-direction: column;
   border: 1px solid rgba(167, 139, 250, 0.22);
@@ -13639,6 +13639,11 @@ body.profile-match-modal-open {
 .profile-rp-detail .keech-hunt-cols {
   flex: 1 1 auto;
   min-height: 0;
+  overflow: auto;
+}
+
+.profile-rp-detail .keech-hunt-list {
+  max-height: calc(94vh - 250px);
 }
 
 .profile-match-modal-body {
