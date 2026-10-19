@@ -664,23 +664,27 @@ export function TrainingSessionsCard({
                 return (
                   <div
                     key={c.ymd}
-                    className={`training-cal-cell mark-${mark}${
+                    className={`training-cal-cell training-cal-cell-cw mark-${mark}${
                       c.ymd === today ? " is-today" : ""
                     }`}
                     title={title}
                   >
-                    <span className="training-cal-day">{c.day}</span>
+                    <div className="training-cal-cw-text">
+                      <span className="training-cal-day">{c.day}</span>
+                      <span className="training-cal-dot">{label}</span>
+                    </div>
                     {cw?.logoUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         className="training-cal-opp-logo"
                         src={cw.logoUrl}
                         alt=""
-                        width={14}
-                        height={14}
+                        width={36}
+                        height={36}
                       />
-                    ) : null}
-                    <span className="training-cal-dot">{label}</span>
+                    ) : (
+                      <span className="training-cal-opp-logo-spacer" aria-hidden />
+                    )}
                   </div>
                 );
               }

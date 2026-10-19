@@ -469,12 +469,40 @@
   gap: 1px;
 }
 
+.profile-page-v2 .training-cal-cell-cw {
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 3px 4px 3px 5px;
+  overflow: hidden;
+}
+
+.profile-page-v2 .training-cal-cw-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  min-width: 0;
+  flex: 1 1 auto;
+  z-index: 1;
+}
+
 .profile-page-v2 .training-cal-opp-logo {
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-  object-fit: cover;
+  width: auto;
+  height: auto;
+  max-width: 46%;
+  max-height: calc(100% - 2px);
+  aspect-ratio: 1;
+  align-self: center;
+  border-radius: 6px;
+  object-fit: contain;
   flex: 0 0 auto;
+  pointer-events: none;
+}
+
+.profile-page-v2 .training-cal-opp-logo-spacer {
+  display: none;
 }
 
 .profile-page-v2 .training-cal-cell.mark-nokv {
