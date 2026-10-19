@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { ProfileCareerCard } from "@/components/ProfileCareerCard";
 import { ProfileEditForm } from "@/components/ProfileEditForm";
-import { AbsencePanel } from "@/components/AbsencePanel";
 
 type AccountInitial = {
   nick: string;
@@ -29,26 +28,11 @@ type AccountInitial = {
 type Props = {
   nick: string;
   account: AccountInitial;
-  reserveActive: boolean;
-  reserveUntilLabel: string | null;
-  reserveReason: string | null;
-  dayOffActive: boolean;
-  dayOffUntilLabel: string | null;
-  dayOffReason: string | null;
 };
 
 type Panel = "career" | "account";
 
-export function ProfileCareerAccountPanel({
-  nick,
-  account,
-  reserveActive,
-  reserveUntilLabel,
-  reserveReason,
-  dayOffActive,
-  dayOffUntilLabel,
-  dayOffReason,
-}: Props) {
+export function ProfileCareerAccountPanel({ nick, account }: Props) {
   const [panel, setPanel] = useState<Panel>("career");
 
   return (
@@ -70,24 +54,14 @@ export function ProfileCareerAccountPanel({
           className={panel === "account" ? "is-active" : ""}
           onClick={() => setPanel("account")}
         >
-          Аккаунт / статус
+          Аккаунт
         </button>
       </div>
       <div className="profile-career-account-body">
         {panel === "career" ? (
           <ProfileCareerCard nick={nick} self embedded />
         ) : (
-          <>
-            <AbsencePanel
-              reserveActive={reserveActive}
-              reserveUntilLabel={reserveUntilLabel}
-              reserveReason={reserveReason}
-              dayOffActive={dayOffActive}
-              dayOffUntilLabel={dayOffUntilLabel}
-              dayOffReason={dayOffReason}
-            />
-            <ProfileEditForm initial={account} />
-          </>
+          <ProfileEditForm initial={account} />
         )}
       </div>
     </section>

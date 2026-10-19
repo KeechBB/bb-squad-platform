@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ProfileTrainPwrCard } from "@/components/ProfileTrainPwrCard";
 import { ProfilePublicRatingCard } from "@/components/ProfilePublicRatingCard";
 import { TrainingSessionsCard } from "@/components/TrainingSessionsCard";
@@ -82,6 +82,8 @@ type Props = {
   slot: "head" | "stats" | "training" | "histories" | "history";
   /** Режим профиля v2 — фильтрует стату/историю */
   mode?: ProfileMode;
+  /** Выходной / резерв — в календаре */
+  absenceSlot?: ReactNode;
 };
 
 function applyBundle(
@@ -121,6 +123,7 @@ export function ProfileClientHydrate({
   defaultHistTab = "train",
   slot,
   mode,
+  absenceSlot,
 }: Props) {
   const cached = typeof window !== "undefined" ? peekProfileView(nick) : null;
 
@@ -272,6 +275,8 @@ export function ProfileClientHydrate({
       sessions30d: 0,
       openNow: false,
     };
+    const preferredServer =
+      mode === "public" ? "PB1" : mode === "train" ? "TR1" : undefined;
     return (
       <TrainingSessionsCard
         sessions={training.tr1.sessions as never}
@@ -284,6 +289,8 @@ export function ProfileClientHydrate({
         sessions30d={training.tr1.sessions30d}
         openNow={training.tr1.openNow}
         includeMatchHistory={false}
+        absenceSlot={absenceSlot}
+        preferredServer={preferredServer}
         tr2Lane={{
           sessions: training.tr2.sessions as never,
           presentDays: training.tr2.presentDays,

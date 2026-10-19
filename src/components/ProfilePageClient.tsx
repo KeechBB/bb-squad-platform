@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { AvatarEditor } from "@/components/AvatarEditor";
 import { ClanInvites } from "@/components/ClanInvites";
 import { AdminPanelLink } from "@/components/AdminPanelLink";
+import { AbsencePanel } from "@/components/AbsencePanel";
 import { ProfileHitmapCard } from "@/components/ProfileHitmapCard";
 import { ProfileKitsCard } from "@/components/ProfileKitsCard";
 import { ProfileCareerAccountPanel } from "@/components/ProfileCareerAccountPanel";
@@ -217,12 +218,6 @@ export function ProfilePageClient() {
               regNo: shell.regNo,
               clans: shell.clans,
             }}
-            reserveActive={shell.reserveActive}
-            reserveUntilLabel={shell.reserveUntilLabel}
-            reserveReason={shell.reserveReason}
-            dayOffActive={shell.dayOffActive}
-            dayOffUntilLabel={shell.dayOffUntilLabel}
-            dayOffReason={shell.dayOffReason}
           />
         ) : null}
       </div>
@@ -232,6 +227,17 @@ export function ProfilePageClient() {
           nick={nickForKv || shell.nick || ""}
           slot="training"
           mode={mode}
+          absenceSlot={
+            <AbsencePanel
+              compact
+              reserveActive={shell.reserveActive}
+              reserveUntilLabel={shell.reserveUntilLabel}
+              reserveReason={shell.reserveReason}
+              dayOffActive={shell.dayOffActive}
+              dayOffUntilLabel={shell.dayOffUntilLabel}
+              dayOffReason={shell.dayOffReason}
+            />
+          }
         />
       </div>
 
@@ -257,6 +263,7 @@ export function ProfilePageClient() {
           key={`${mode}-${kitsLane}`}
           userId={shell.id}
           allowTr1={shell.isBb && mode !== "public"}
+          hideLaneToggle
           initialLane={kitsLane}
         />
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ATTENDANCE_CANON_START_YMD,
   trainingDayMarksFromSessions,
@@ -85,6 +85,10 @@ type Props = AttendanceLaneProps & {
    * Лента PB1. Если передана — на календаре кнопка PB1 рядом с TR*.
    */
   publicLane?: AttendanceLaneProps;
+  /** Выходной / резерв — блок над календарём */
+  absenceSlot?: ReactNode;
+  /** Синхрон с режимом профиля (паб/трени) */
+  preferredServer?: "TR1" | "TR2" | "PB1";
 };
 
 type TrainServer = "TR1" | "TR2" | "PB1";
@@ -381,8 +385,18 @@ export function TrainingSessionsCard({
   includeMatchHistory = true,
   tr2Lane,
   publicLane,
+  absenceSlot,
+  preferredServer,
 }: Props) {
-  const [server, setServer] = useState<TrainServer>("TR1");
+  const [server, setServer] = useState<TrainServer>(
+    preferredServer || "TR1"
+  );
+  useEffect(() => {
+    if (!preferredServer) return;
+    if (preferredServer === "PB1" && !publicLane) return;
+    if (preferredServer === "TR2" && !tr2Lane) return;
+    setServer(preferredServer);
+  }, [preferredServer, publicLane, tr2Lane]);
   const hasTr2 = Boolean(tr2Lane);
   const hasPublic = Boolean(publicLane);
   const showToggle = hasTr2 || hasPublic;
@@ -532,6 +546,10 @@ export function TrainingSessionsCard({
         <h2>{title}</h2>
         {serverToggle}
       </div>
+
+      {absenceSlot ? (
+        <div className="training-absence-slot">{absenceSlot}</div>
+      ) : null}
 
       <div className="training-stat-row">
         <div>

@@ -298,6 +298,29 @@ export function ProfileKvStats({
         </span>
       </div>
 
+      {stats.byStack.length > 0 ? (
+        <div className="profile-kv-stacks">
+          <h3 className="stats-h3">По стакам</h3>
+          <div className="profile-kv-extra profile-kv-stacks-grid">
+            {stats.byStack.slice(0, 6).map((s) => (
+              <div key={s.name}>
+                <span className="muted">{s.name}</span>
+                <strong>
+                  {s.rounds}р · {s.kills}/{s.deaths}
+                </strong>
+                <em className="stat-sub">
+                  KD{" "}
+                  {s.deaths > 0
+                    ? (s.kills / s.deaths).toFixed(2)
+                    : s.kills.toFixed(2)}{" "}
+                  · {s.dmg.toLocaleString("ru-RU")} dmg
+                </em>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {includeMatchHistory ? (
         <div className="profile-kv-block">
           <h3 className="stats-h3">История матчей КВ</h3>

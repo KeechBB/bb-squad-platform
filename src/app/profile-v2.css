@@ -11,8 +11,9 @@
 .profile-page.profile-page-v2 {
   display: grid !important;
   flex: 1 1 auto !important;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.15fr) minmax(0, 2.1fr) !important;
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1.05fr) minmax(0, 0.95fr) !important;
+  /* Календарь шире и выше; левые колонки сдвигаются вместе с ним */
+  grid-template-columns: minmax(0, 0.78fr) minmax(0, 0.95fr) minmax(0, 2.45fr) !important;
+  grid-template-rows: minmax(0, 1.25fr) minmax(0, 0.95fr) minmax(0, 0.9fr) !important;
   grid-template-areas:
     "ident career attend"
     "stats stats history"
@@ -78,9 +79,7 @@
 }
 
 .profile-mode-pill {
-  border: 1px solid var(--line);
-  background: rgba(16, 12, 28, 0.7);
-  color: var(--muted);
+  border: 1px solid transparent;
   border-radius: 10px;
   padding: 8px 12px;
   font-family: var(--font-display);
@@ -89,29 +88,39 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: filter 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+  filter: brightness(0.92);
 }
 
 .profile-mode-pill .profile-mode-full { display: none; }
 .profile-mode-pill .profile-mode-short { display: inline; }
 
-.profile-mode-public.is-active {
+/* Всегда яркие — неактивные чуть приглушены, активный с обводкой */
+.profile-mode-public {
   color: #ecfeff;
   border-color: rgba(34, 211, 238, 0.55);
-  background: linear-gradient(135deg, rgba(8, 145, 178, 0.45), rgba(14, 116, 144, 0.25));
-  box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.2);
+  background: linear-gradient(135deg, rgba(8, 145, 178, 0.55), rgba(14, 116, 144, 0.35));
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.18);
 }
-.profile-mode-train.is-active {
+.profile-mode-train {
   color: #f5f3ff;
   border-color: rgba(167, 139, 250, 0.65);
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.5), rgba(88, 28, 135, 0.3));
-  box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.25);
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.58), rgba(88, 28, 135, 0.38));
+  box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.2);
 }
-.profile-mode-cw.is-active {
+.profile-mode-cw {
   color: #fff1f2;
   border-color: rgba(251, 113, 133, 0.65);
-  background: linear-gradient(135deg, rgba(225, 29, 72, 0.45), rgba(159, 18, 57, 0.28));
-  box-shadow: 0 0 0 1px rgba(251, 113, 133, 0.22);
+  background: linear-gradient(135deg, rgba(225, 29, 72, 0.52), rgba(159, 18, 57, 0.35));
+  box-shadow: 0 0 0 1px rgba(251, 113, 133, 0.18);
+}
+
+.profile-mode-pill.is-active {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.18),
+    0 6px 16px rgba(0, 0, 0, 0.35);
 }
 
 .profile-career-account {
@@ -154,7 +163,6 @@
 }
 
 .profile-career-account-body > .profile-career-card,
-.profile-career-account-body > .absence-panel,
 .profile-career-account-body > form,
 .profile-career-account-body > .card {
   flex: 1 1 auto;
@@ -165,7 +173,7 @@
 
 /* Карьера внутри ячейки: список скроллится, карточка не растёт */
 .profile-page-v2 .profile-career-card {
-  max-height: none !important; /* снять DESKTOP LOCK 320px / auto growth */
+  max-height: none !important;
   width: 100% !important;
 }
 
@@ -206,11 +214,84 @@
   flex: 0 0 auto;
 }
 
+/* Аватар ~2× от прежних 72px */
+.profile-page-v2 .profile-avatar,
+.profile-page-v2 .profile-avatar-fallback {
+  width: 144px !important;
+  height: 144px !important;
+  border-radius: 16px !important;
+}
+
+.profile-page-v2 .profile-avatar-fallback {
+  font-size: 2.4rem !important;
+}
+
+.profile-page-v2 .profile-head-row {
+  gap: 14px;
+  align-items: flex-start;
+}
+
 /* Посещаемость + календарь в одной ячейке */
 .profile-v2-attend > * {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
+}
+
+.profile-page-v2 .training-absence-slot {
+  flex: 0 0 auto;
+  margin: 0 0 8px;
+}
+
+.profile-page-v2 .training-absence-slot .absence-panel-in-cal,
+.profile-page-v2 .training-absence-slot .reserve-panel-compact {
+  max-width: none !important;
+  width: 100% !important;
+  flex: none !important;
+  padding: 8px 10px !important;
+  margin: 0 !important;
+  background: rgba(16, 12, 28, 0.55);
+  border: 1px solid var(--line);
+}
+
+.profile-page-v2 .training-absence-slot .absence-panel-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.profile-page-v2 .training-absence-slot .absence-panel-btns .btn {
+  flex: 1 1 auto;
+  min-width: 120px;
+}
+
+/* Стата плотнее заполняет окно */
+.profile-page-v2 .profile-stats-tabpanel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profile-page-v2 .profile-kv-summary,
+.profile-page-v2 .profile-kv-extra {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.profile-page-v2 .profile-kv-stacks {
+  flex: 0 0 auto;
+  margin-top: 4px;
+}
+
+.profile-page-v2 .profile-kv-stacks .stats-h3 {
+  margin: 4px 0 6px;
+  font-size: 0.78rem;
+}
+
+.profile-page-v2 .profile-kv-stacks-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 /* История матчей */

@@ -13,6 +13,8 @@ type Props = {
   dayOffActive: boolean;
   dayOffUntilLabel: string | null;
   dayOffReason: string | null;
+  /** Компактный вид в календаре (без заголовка «Статус») */
+  compact?: boolean;
 };
 
 /**
@@ -26,6 +28,7 @@ export function AbsencePanel({
   dayOffActive,
   dayOffUntilLabel,
   dayOffReason,
+  compact = false,
 }: Props) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("idle");
@@ -90,10 +93,10 @@ export function AbsencePanel({
   return (
     <section
       className={`card reserve-panel reserve-panel-compact absence-panel${
-        openForm ? " reserve-panel-open absence-panel-open" : ""
-      }`}
+        compact ? " absence-panel-in-cal" : ""
+      }${openForm ? " reserve-panel-open absence-panel-open" : ""}`}
     >
-      <h2>Статус</h2>
+      {compact ? null : <h2>Статус</h2>}
 
       {reserveActive ? (
         <>

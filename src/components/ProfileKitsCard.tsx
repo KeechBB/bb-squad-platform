@@ -16,6 +16,8 @@ type Props = {
   kits?: KitPctRow[];
   /** Показывать переключатель TR1+TR2 | PB1 */
   allowTr1?: boolean;
+  /** Скрыть выбор сервера (режим паб/трени/КВ снаружи) */
+  hideLaneToggle?: boolean;
   /** Стартовая лента (BB → TR1, остальные → PB1) */
   initialLane?: KitsLane;
   /** false — без фильтра залитых TM (гости / соперники) */
@@ -97,6 +99,7 @@ export function ProfileKitsCard({
   steamId,
   kits: initialKits,
   allowTr1 = false,
+  hideLaneToggle = false,
   initialLane,
   combatWindow = true,
 }: Props) {
@@ -323,7 +326,7 @@ export function ProfileKitsCard({
       <div className="profile-kv-head">
         <div className="profile-kits-title-row">
           <h2>Роли</h2>
-          {allowTr1 ? (
+          {hideLaneToggle ? null : allowTr1 ? (
             <div
               className="training-server-toggle profile-kits-lane-toggle"
               role="group"
