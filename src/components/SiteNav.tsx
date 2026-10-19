@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { SteamAuthModal } from "@/components/SteamAuthModal";
 
 type Props = {
-  /** Полный доступ: КВ / Поиск КВ / ТМ / карта — только если в клане */
+  /** Полный доступ: КВ / Поиск КВ / ТМ — только если в клане */
   showClanSections: boolean;
 };
 
@@ -47,33 +47,60 @@ function NavLink({
   );
 }
 
-function NavGateButton({
-  title,
-  full,
+function NavDropdown({
+  label,
   short,
   active,
-  onClick,
+  children,
 }: {
-  title: string;
-  full: string;
+  label: string;
   short: string;
   active?: boolean;
-  onClick: () => void;
+  children: ReactNode;
 }) {
-  const cls = ["nav-link", "nav-login-trigger", active ? "is-active" : ""]
-    .filter(Boolean)
-    .join(" ");
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
   return (
-    <button
-      type="button"
-      className={cls}
-      title={title}
-      aria-current={active ? "page" : undefined}
-      onClick={onClick}
+    <div
+      ref={rootRef}
+      className={`nav-dd${active ? " is-active" : ""}${open ? " is-open" : ""}`}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
     >
-      <span className="nav-full">{full}</span>
-      <span className="nav-short">{short}</span>
-    </button>
+      <button
+        type="button"
+        className={`nav-link nav-dd-trigger${active ? " is-active" : ""}`}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="nav-full">{label}</span>
+        <span className="nav-short">{short}</span>
+        <span className="nav-dd-caret" aria-hidden>
+          ▾
+        </span>
+      </button>
+      <div className="nav-dd-menu" role="menu" hidden={!open}>
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -92,98 +119,90 @@ export function SiteNav({ showClanSections }: Props) {
   const guest = !loading && !authed;
   const needRegister = !loading && authed && !complete;
 
-  function clansNav() {
-    if (guest) {
-      return (
-        <NavGateButton
-          title="Кланы"
-          full="Кланы"
-          short="Кланы"
-          active={pathMatches(pathname, "/clans")}
-          onClick={() =>
-            setAuthModal({
-              href: "/clans",
-              title: "Кланы — только после входа",
-              message:
-                "Авторизуйтесь через Steam, чтобы открыть раздел кланов.",
-            })
-          }
-        />
-      );
-    }
-    if (needRegister) {
-      return (
-        <NavLink
-          href="/register"
-          title="Завершите регистрацию"
-          full="Кланы"
-          short="Кланы"
-          active={pathMatches(pathname, "/clans")}
-        />
-      );
-    }
-    return (
-      <NavLink
-        href="/clans"
-        full="Кланы"
-        short="Кланы"
-        active={pathMatches(pathname, "/clans")}
-      />
-    );
+  const clansActive =
+    pathMatches(pathname, "/clans") ||
+    pathMatches(pathname, "/cw") ||
+    pathMatches(pathname, "/cw-find");
+
+  const trainActive =
+    pathMatches(pathname, "/tm") ||
+    pathMatches(pathname, "/tiers-fit") ||
+    pathMatches(pathname, "/aim");
+
+  function openAuth(href: string, title: string, message: string) {
+    setAuthModal({ href, title, message });
   }
 
-  function aimNav() {
+  function menuItem(
+    href: string,
+    label: string,
+    opts?: { clanOnly?: boolean; accent?: string }
+  ) {
+    const active = pathMatches(pathname, href);
+    const cls = [
+      "nav-dd-item",
+      active ? "is-active" : "",
+      opts?.accent || "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
     if (guest) {
       return (
-        <NavGateButton
-          title="Тренировка стрельбы"
-          full="Тренировка стрельбы"
-          short="Стрельба"
-          active={pathMatches(pathname, "/aim")}
+        <button
+          key={href}
+          type="button"
+          role="menuitem"
+          className={cls}
           onClick={() =>
-            setAuthModal({
-              href: "/aim",
-              title: "Тренировка стрельбы — только после входа",
-              message:
-                "Авторизуйтесь через Steam, чтобы открыть тренировку стрельбы.",
-            })
+            openAuth(
+              href,
+              `${label} — только после входа`,
+              "Авторизуйтесь через Steam, чтобы открыть раздел."
+            )
           }
-        />
+        >
+          {label}
+        </button>
       );
     }
     if (needRegister) {
       return (
-        <NavLink
-          href="/register"
-          title="Завершите регистрацию"
-          full="Тренировка стрельбы"
-          short="Стрельба"
-          active={pathMatches(pathname, "/aim")}
-        />
+        <Link key={href} href="/register" role="menuitem" className={cls}>
+          {label}
+        </Link>
+      );
+    }
+    if (opts?.clanOnly && !showClanSections) {
+      return (
+        <Link
+          key={href}
+          href="/clans"
+          role="menuitem"
+          className={cls}
+          title="Доступно участникам клана"
+        >
+          {label}
+        </Link>
       );
     }
     return (
-      <NavLink
-        href="/aim"
-        title="Тренировка стрельбы"
-        full="Тренировка стрельбы"
-        short="Стрельба"
-        active={pathMatches(pathname, "/aim")}
-      />
+      <Link key={href} href={href} role="menuitem" className={cls}>
+        {label}
+      </Link>
     );
   }
 
   return (
     <>
       <nav className="top-nav" aria-label="Разделы">
-        {/* 1 */}
         <NavLink
           href="/"
           full="Главная"
           short="Глав"
           active={pathMatches(pathname, "/")}
         />
-        {/* 2 — приглушённый */}
+
         <NavLink
           href="/public"
           title="Рейтинг паблика"
@@ -192,54 +211,21 @@ export function SiteNav({ showClanSections }: Props) {
           className="nav-public-quiet"
           active={pathMatches(pathname, "/public")}
         />
-        {/* 3 */}
-        {showClanSections ? (
-          <NavLink
-            href="/cw"
-            title="Клановые войны"
-            full="Клановые войны"
-            short="КВ"
-            active={pathMatches(pathname, "/cw")}
-          />
-        ) : null}
-        {/* 4 */}
-        {clansNav()}
-        {/* 5 — акцент красным */}
-        {showClanSections ? (
-          <NavLink
-            href="/cw-find"
-            title="Поиск КВ"
-            full="Поиск КВ"
-            short="Поиск"
-            className="nav-cw-find"
-            active={pathMatches(pathname, "/cw-find")}
-          />
-        ) : null}
-        {/* 6 — Тиры FIT внутри /tm?tab=fit */}
-        {showClanSections ? (
-          <NavLink
-            href="/tm"
-            title="Тренировочные матчи"
-            full="Тренировочные матчи"
-            short="Трен."
-            active={
-              pathMatches(pathname, "/tm") ||
-              pathMatches(pathname, "/tiers-fit")
-            }
-          />
-        ) : null}
-        {/* 8 */}
-        {aimNav()}
-        {/* 9 */}
-        {showClanSections ? (
-          <NavLink
-            href="/map"
-            title="Карта игроков"
-            full="Карта игроков"
-            short="Карта"
-            active={pathMatches(pathname, "/map")}
-          />
-        ) : null}
+
+        <NavDropdown label="Кланы" short="Кланы" active={clansActive}>
+          {menuItem("/clans", "Список кланов")}
+          {menuItem("/cw", "Клановые войны", { clanOnly: true })}
+          {menuItem("/cw-find", "Поиск КВ", {
+            clanOnly: true,
+            accent: "nav-dd-accent",
+          })}
+        </NavDropdown>
+
+        <NavDropdown label="Тренировка" short="Трен." active={trainActive}>
+          {menuItem("/tm", "Тренировочные матчи", { clanOnly: true })}
+          {menuItem("/aim", "Тренировка стрельбы")}
+        </NavDropdown>
+
         <NavLink
           href="/battle-pass"
           title="Battle Pass"

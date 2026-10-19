@@ -7,14 +7,13 @@ import { subscribeLive } from "@/lib/liveClient";
 import { setVisibleInterval } from "@/lib/visibleInterval";
 import { PlayerSearch } from "@/components/PlayerSearch";
 
-type Props = {
-  betaLabel?: string;
-};
-
-export function AuthBar({ betaLabel }: Props) {
+export function AuthBar() {
   const { data: session, status } = useSession();
   const [admin, setAdmin] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const loginPrompted = useRef(false);
+  const closeTimer = useRef<number | null>(null);
 
   useEffect(() => {
     if (status !== "unauthenticated" || loginPrompted.current) return;
@@ -24,7 +23,6 @@ export function AuthBar({ betaLabel }: Props) {
     loginPrompted.current = true;
     void signIn("steam", { callbackUrl: "/" });
   }, [status]);
-
 
   const checkAdmin = useCallback(async () => {
     if (!session?.user?.profileComplete) {
@@ -50,7 +48,6 @@ export function AuthBar({ betaLabel }: Props) {
     const unsub = subscribeLive("/api/live/me", "user", () => {
       void checkAdmin();
     });
-    // Was 60s — under evening load this + tickets/invites hammered Next.
     const clearPoll = setVisibleInterval(() => void checkAdmin(), 180_000);
     return () => {
       unsub();
@@ -58,11 +55,43 @@ export function AuthBar({ betaLabel }: Props) {
     };
   }, [checkAdmin, session?.user?.profileComplete]);
 
-  const beta = betaLabel ? (
-    <p className="site-beta" aria-label="Версия сайта">
-      {betaLabel}
-    </p>
-  ) : null;
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onDoc(e: MouseEvent) {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimer.current != null) window.clearTimeout(closeTimer.current);
+    };
+  }, []);
+
+  function openMenu() {
+    if (closeTimer.current != null) {
+      window.clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+    setMenuOpen(true);
+  }
+
+  function scheduleCloseMenu() {
+    if (closeTimer.current != null) window.clearTimeout(closeTimer.current);
+    closeTimer.current = window.setTimeout(() => {
+      setMenuOpen(false);
+      closeTimer.current = null;
+    }, 180);
+  }
 
   if (status === "loading") {
     return (
@@ -75,18 +104,15 @@ export function AuthBar({ betaLabel }: Props) {
   if (!session?.user) {
     return (
       <div className="auth-bar">
-        <div className="auth-bar-stack">
-          <div className="auth-bar-row">
-            <button
-              type="button"
-              id="auth-login-btn"
-              className="btn steam"
-              onClick={() => signIn("steam", { callbackUrl: "/register" })}
-            >
-              Войти
-            </button>
-          </div>
-          {beta}
+        <div className="auth-bar-row">
+          <button
+            type="button"
+            id="auth-login-btn"
+            className="btn steam"
+            onClick={() => signIn("steam", { callbackUrl: "/register" })}
+          >
+            Войти
+          </button>
         </div>
       </div>
     );
@@ -98,42 +124,76 @@ export function AuthBar({ betaLabel }: Props) {
   return (
     <div className="auth-bar">
       {session.user.profileComplete ? <PlayerSearch /> : null}
-      <div className="auth-bar-stack">
-        <div className="auth-bar-row">
+      <div
+        ref={menuRef}
+        className={`auth-user-dd${menuOpen ? " is-open" : ""}`}
+        onMouseEnter={openMenu}
+        onMouseLeave={scheduleCloseMenu}
+      >
+        <button
+          type="button"
+          className="auth-user-trigger"
+          aria-expanded={menuOpen}
+          aria-haspopup="menu"
+          onClick={() => setMenuOpen((v) => !v)}
+        >
           {avatar ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               className="avatar"
               src={avatar}
               alt=""
-              width={36}
-              height={36}
+              width={32}
+              height={32}
             />
           ) : null}
-          <Link className="nick-link" href="/profile" title={label}>
-            {label}
-          </Link>
-          {admin ? (
-            <Link className="btn primary" href="/admin">
-              Админ
-            </Link>
-          ) : null}
+          <span className="auth-user-nick">{label}</span>
+          <span className="nav-dd-caret" aria-hidden>
+            ▾
+          </span>
+        </button>
+        <div className="auth-user-menu" role="menu" hidden={!menuOpen}>
           {!session.user.profileComplete ? (
-            <Link className="btn ghost auth-finish-btn" href="/register">
-              <span className="nav-full">Завершить регистрацию</span>
-              <span className="nav-short">Анкету</span>
+            <Link
+              role="menuitem"
+              className="auth-user-item"
+              href="/register"
+              onClick={() => setMenuOpen(false)}
+            >
+              Завершить регистрацию
+            </Link>
+          ) : (
+            <Link
+              role="menuitem"
+              className="auth-user-item"
+              href="/profile"
+              onClick={() => setMenuOpen(false)}
+            >
+              Профиль
+            </Link>
+          )}
+          {admin ? (
+            <Link
+              role="menuitem"
+              className="auth-user-item"
+              href="/admin"
+              onClick={() => setMenuOpen(false)}
+            >
+              Админка
             </Link>
           ) : null}
           <button
             type="button"
-            className="btn ghost auth-logout-btn"
-            onClick={() => signOut({ callbackUrl: "/" })}
+            role="menuitem"
+            className="auth-user-item auth-user-logout"
+            onClick={() => {
+              setMenuOpen(false);
+              void signOut({ callbackUrl: "/" });
+            }}
           >
-            <span className="nav-full">Выйти</span>
-            <span className="nav-short">✕</span>
+            Выйти
           </button>
         </div>
-        {beta}
       </div>
     </div>
   );
