@@ -955,9 +955,9 @@ body.has-profile-bg .shell:has(.profile-page) {
 }
 
 .profile-page-v2 .training-cal-cell.mark-nokv {
-  background: rgba(40, 36, 56, 0.35);
-  border-color: rgba(120, 110, 150, 0.25);
-  opacity: 0.72;
+  background: rgba(22, 18, 36, 0.55);
+  border-color: rgba(180, 170, 210, 0.4);
+  opacity: 0.85;
 }
 
 .profile-page-v2 .training-cal-cell.mark-nokv .training-cal-dot {
