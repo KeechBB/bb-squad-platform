@@ -10,7 +10,10 @@ import {
 } from "@/components/ProfileMatchStatsModal";
 import { ListPager, pageSlice } from "@/components/ListPager";
 import { useFitPageSize } from "@/hooks/useFitPageSize";
-import { ProfileCombatGrid } from "@/components/ProfileCombatGrid";
+import {
+  ProfileCombatGrid,
+  mvpHitsFromKvAwards,
+} from "@/components/ProfileCombatGrid";
 
 function statusLabel(s: string) {
   if (s === "win") return "W";
@@ -253,6 +256,8 @@ export function ProfileKvStats({
           mvpArmor: 0,
           vehicleKills: 0,
         }}
+        mvpHits={mvpHitsFromKvAwards(stats.awards || [])}
+        mvpFetch={{ nick: stats.nick, mode: "cw" }}
       />
 
       {includeMatchHistory ? (

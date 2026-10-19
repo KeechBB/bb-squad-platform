@@ -178,13 +178,6 @@ export function ProfilePageClient() {
   const nickForKv = shell.nick || session?.user?.nick || "";
   const kitsLane =
     mode === "public" ? "PB1" : shell.isBb ? "TR1" : shell.kitsLane;
-  const hitSubtitle =
-    mode === "public"
-      ? "Паблик · PB1"
-      : mode === "cw"
-        ? "КВ"
-        : "Тренировки · TR1+TR2";
-
   return (
     <main className="profile-page profile-page-v2" data-mode={mode}>
       <div className="profile-v2-ident">
@@ -272,7 +265,6 @@ export function ProfilePageClient() {
         <ProfileHitmapCard
           userId={shell.id}
           nick={nickForKv || shell.nick || undefined}
-          subtitle={hitSubtitle}
           matchHistory={[]}
         />
       </div>

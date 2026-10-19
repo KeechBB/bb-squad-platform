@@ -909,6 +909,30 @@ export type PlayerTrainCombatStats = {
   mvpKiller: number;
   mvpMedic: number;
   antiDeath: number;
+  /** Матчи с MVP Killer / Medic (для клика по клеткам) */
+  mvpHits?: {
+    killer: {
+      id: string;
+      dateLabel: string;
+      title: string;
+      sub?: string;
+      playersUrl?: string | null;
+    }[];
+    medic: {
+      id: string;
+      dateLabel: string;
+      title: string;
+      sub?: string;
+      playersUrl?: string | null;
+    }[];
+    armor: {
+      id: string;
+      dateLabel: string;
+      title: string;
+      sub?: string;
+      playersUrl?: string | null;
+    }[];
+  };
 };
 
 /** Сводка боевой статы по тренировочным каткам (для вкладки профиля). */
@@ -936,6 +960,7 @@ export async function buildPlayerTrainCombatStats(
     mvpKiller: 0,
     mvpMedic: 0,
     antiDeath: 0,
+    mvpHits: { killer: [], medic: [], armor: [] },
   };
 
   const corpus = await getTrainPlayerCorpus();
@@ -956,6 +981,11 @@ export async function buildPlayerTrainCombatStats(
   let mvpMedic = 0;
   let antiDeath = 0;
   let displayNick = clean;
+  const mvpHits = {
+    killer: [] as NonNullable<PlayerTrainCombatStats["mvpHits"]>["killer"],
+    medic: [] as NonNullable<PlayerTrainCombatStats["mvpHits"]>["medic"],
+    armor: [] as NonNullable<PlayerTrainCombatStats["mvpHits"]>["armor"],
+  };
 
   const nickIn = (list: string[] | undefined) =>
     (list || []).some((n) => resolveKey(n) === want);
@@ -999,9 +1029,28 @@ export async function buildPlayerTrainCombatStats(
               dmg: Number(p.dmg) || 0,
             }))
         );
+      const dateLabel = `${pad2(match.day)}.${pad2(match.month)}.${match.year}`;
+      const hitBase = {
+        dateLabel,
+        title: match.map || "Тренировка",
+        sub: match.timeMsk ? `${match.timeMsk} МСК` : undefined,
+        playersUrl: match.playersUrl || null,
+      };
       // War-Score на тренировках не считаем (боевой счёт недостоверен)
-      if (nickIn(mvp.killer)) mvpKiller += 1;
-      if (nickIn(mvp.medic)) mvpMedic += 1;
+      if (nickIn(mvp.killer)) {
+        mvpKiller += 1;
+        mvpHits.killer.push({
+          id: `${match.id}-killer`,
+          ...hitBase,
+        });
+      }
+      if (nickIn(mvp.medic)) {
+        mvpMedic += 1;
+        mvpHits.medic.push({
+          id: `${match.id}-medic`,
+          ...hitBase,
+        });
+      }
       if (nickIn(mvp.antiDeath)) antiDeath += 1;
     }
   }
@@ -1034,5 +1083,6 @@ export async function buildPlayerTrainCombatStats(
     mvpKiller,
     mvpMedic,
     antiDeath,
+    mvpHits,
   };
 }

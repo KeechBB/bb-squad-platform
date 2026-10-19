@@ -181,7 +181,6 @@ export function ProfileHitmapCard({
   steamId,
   bones: initialBones,
   lastBone: initialLastBone,
-  subtitle,
   matchHistory = [],
   nick,
 }: Props & { nick?: string | null }) {
@@ -347,19 +346,11 @@ export function ProfileHitmapCard({
     };
   }, [bones]);
 
-  const periodLabel = selectedMatch
-    ? matchShortLabel(selectedMatch)
-    : "всё время";
-
   return (
     <section className="card profile-hitmap-card">
       <div className="profile-hitmap-head">
         <div className="profile-hitmap-head-text">
           <h2>Попадания</h2>
-          <span className="muted profile-hitmap-sub">
-            {subtitle || "TR1+TR2"} · {periodLabel}
-            {loading ? "…" : ""}
-          </span>
         </div>
         <div className="profile-hitmap-filter" ref={wrapRef}>
           <button

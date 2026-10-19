@@ -62,6 +62,14 @@ export type PublicCombatRow = {
   hasProfile: boolean;
 };
 
+export type PublicMvpHit = {
+  id: string;
+  dateLabel: string;
+  title: string;
+  sub?: string;
+  playersUrl?: string | null;
+};
+
 export type PlayerPublicCombatStats = {
   nick: string;
   matches: number;
@@ -82,6 +90,11 @@ export type PlayerPublicCombatStats = {
   mvpMedic: number;
   mvpArmor: number;
   days: number;
+  mvpHits?: {
+    killer: PublicMvpHit[];
+    medic: PublicMvpHit[];
+    armor: PublicMvpHit[];
+  };
 };
 
 type Acc = {
@@ -140,6 +153,9 @@ function mvpFromPlayers(players: {
 }
 
 type PublicBundle = {
+  matchId?: string;
+  dateLabel?: string;
+  map?: string;
   players: {
     mvp?: { public?: MvpBlock; train?: MvpBlock };
     total?: StatRow[];
@@ -242,7 +258,14 @@ async function loadPublicMatchBundlesFromLedger(): Promise<PublicBundle[]> {
     const rows = byMatch.get(m.id);
     if (!rows?.size) continue;
     const total = [...rows.values()];
+    const dateRaw = String((m as { date?: string }).date || "");
+    const dateLabel = dateRaw
+      ? dateRaw.slice(0, 10).split("-").reverse().join(".")
+      : m.id;
     bundles.push({
+      matchId: m.id,
+      dateLabel,
+      map: String((m as { map?: string }).map || "") || undefined,
       players: {
         total,
         mvp: { public: pickMvps(total) },
@@ -250,6 +273,42 @@ async function loadPublicMatchBundlesFromLedger(): Promise<PublicBundle[]> {
     });
   }
   return bundles;
+}
+
+/** Список матчей PB1, где ник взял Killer / Medic / Armor. */
+export async function buildPlayerPublicMvpHits(
+  nick: string
+): Promise<NonNullable<PlayerPublicCombatStats["mvpHits"]>> {
+  const empty = {
+    killer: [] as PublicMvpHit[],
+    medic: [] as PublicMvpHit[],
+    armor: [] as PublicMvpHit[],
+  };
+  const want = nickKey(nick);
+  if (!want) return empty;
+  const bundles = await loadPublicMatchBundles();
+  for (const b of bundles) {
+    if (!b.players) continue;
+    const mvp = mvpFromPlayers(b.players);
+    const dateLabel = b.dateLabel || b.matchId || "—";
+    const title = b.map || "PB1";
+    const idBase = b.matchId || dateLabel;
+    const push = (
+      list: string[] | undefined,
+      kind: keyof typeof empty
+    ) => {
+      if (!(list || []).some((n) => nickKey(n) === want)) return;
+      empty[kind].push({
+        id: `${idBase}-${kind}`,
+        dateLabel,
+        title,
+      });
+    };
+    push(mvp.killer, "killer");
+    push(mvp.medic, "medic");
+    push(mvp.armor || mvp.antiDeath, "armor");
+  }
+  return empty;
 }
 
 async function loadPublicMatchBundles(): Promise<PublicBundle[]> {

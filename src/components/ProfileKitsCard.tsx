@@ -320,15 +320,6 @@ export function ProfileKitsCard({
       : active.kit
     : "";
 
-  const periodLabel =
-    mode === "day" && day
-      ? formatRuDay(day)
-      : mode === "range" && rangeFrom && rangeTo
-        ? `${formatRuDay(rangeFrom)}–${formatRuDay(rangeTo)}`
-        : mode === "range" && rangeFrom
-          ? `с ${formatRuDay(rangeFrom)}…`
-          : "всё время";
-
   const monthTitle = new Intl.DateTimeFormat("ru-RU", {
     month: "long",
     year: "numeric",
@@ -470,17 +461,6 @@ export function ProfileKitsCard({
           ) : null}
         </div>
       </div>
-
-      <p className="muted profile-kits-period">
-        {loading ? "Обновляем…" : periodLabel}
-        {!loading && lane === "TR1" && combatWindow
-          ? " · только залитые тренировочные матчи"
-          : ""}
-        {!loading && lane === "TR1" && !combatWindow
-          ? " · TR1+TR2 · весь день"
-          : ""}
-        {!loading && lane === "PB1" ? " · PB1 · весь день" : ""}
-      </p>
 
       {kits.length === 0 ? (
         <p className="muted profile-kits-empty">

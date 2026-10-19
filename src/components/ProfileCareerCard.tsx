@@ -166,11 +166,7 @@ export function ProfileCareerCard({
       className={`card profile-career-card${embedded ? " is-embedded" : ""}`}
       aria-label="Карьера"
     >
-      {embedded ? (
-        <p className="muted profile-career-window">
-          {loading ? "Загрузка…" : `Лента · ${windowDays} дней · Battle Pass · тиры · рекорды`}
-        </p>
-      ) : (
+      {embedded ? null : (
         <header className="profile-kv-head">
           <h2>{self ? "Моя карьера" : "Карьера"}</h2>
           <span className="profile-career-count">

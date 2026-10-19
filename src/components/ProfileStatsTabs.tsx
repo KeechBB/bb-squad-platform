@@ -6,7 +6,10 @@ import type { PlayerKvStats } from "@/lib/kvStats";
 import type { PlayerTrainCombatStats } from "@/lib/homeTrainPwr";
 import type { PlayerPublicCombatStats } from "@/lib/publicCombat";
 import { ProfileKvStats } from "@/components/ProfileKvStats";
-import { ProfileCombatGrid } from "@/components/ProfileCombatGrid";
+import {
+  ProfileCombatGrid,
+  type MvpHits,
+} from "@/components/ProfileCombatGrid";
 
 type Tab = "train" | "cw" | "public";
 
@@ -26,10 +29,12 @@ function CombatBody({
   stats,
   error,
   emptyHint,
+  mode,
 }: {
   stats: PlayerTrainCombatStats | PlayerPublicCombatStats | null;
   error?: string | null;
   emptyHint: string;
+  mode: "train" | "public";
 }) {
   if (error) {
     return (
@@ -54,6 +59,10 @@ function CombatBody({
     "mvpArmor" in stats && typeof stats.mvpArmor === "number"
       ? stats.mvpArmor
       : 0;
+  const mvpHits =
+    "mvpHits" in stats && stats.mvpHits
+      ? (stats.mvpHits as MvpHits)
+      : undefined;
 
   return (
     <ProfileCombatGrid
@@ -75,6 +84,8 @@ function CombatBody({
         mvpArmor,
         vehicleKills,
       }}
+      mvpHits={mvpHits}
+      mvpFetch={{ nick: stats.nick, mode }}
     />
   );
 }
@@ -163,6 +174,7 @@ export function ProfileStatsTabs({
           <CombatBody
             stats={trainStats}
             error={trainError}
+            mode="train"
             emptyHint={`Пока нет раундов с ником ${trainStats?.nick || "—"} в тренировочных матчах.`}
           />
         </div>
@@ -171,6 +183,7 @@ export function ProfileStatsTabs({
           <CombatBody
             stats={publicStats}
             error={publicError}
+            mode="public"
             emptyHint={`Пока нет каток паблика с ником ${publicStats?.nick || "—"}. MVP и стата появятся после заливки (без SEED). Дней на PB1: ${publicStats?.days ?? 0}.`}
           />
         </div>
