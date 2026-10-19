@@ -196,7 +196,7 @@ export function AbsencePanel({
             onClick={() => setMode("dayoff")}
             title="Выходной 1–3 дня"
           >
-            Выходной
+            Взять выходной
           </button>
           <button
             type="button"
@@ -204,7 +204,7 @@ export function AbsencePanel({
             onClick={() => setMode("reserve")}
             title="Резерв от 4 дней"
           >
-            Резерв
+            Уйти в резерв
           </button>
         </div>
       )}

@@ -679,12 +679,10 @@ export function TrainingSessionsCard({
                         className="training-cal-opp-logo"
                         src={cw.logoUrl}
                         alt=""
-                        width={36}
-                        height={36}
+                        width={18}
+                        height={18}
                       />
-                    ) : (
-                      <span className="training-cal-opp-logo-spacer" aria-hidden />
-                    )}
+                    ) : null}
                   </div>
                 );
               }
