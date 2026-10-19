@@ -15,7 +15,13 @@ import {
   ProfileModeSwitch,
   type ProfileMode,
 } from "@/components/ProfileModeSwitch";
+import { ProfileBgPicker } from "@/components/ProfileBgPicker";
 import { prefetchProfileView } from "@/lib/profileViewCache";
+import {
+  normalizeProfileBg,
+  profileBgUrl,
+  type ProfileBgId,
+} from "@/lib/profileBg";
 
 type Shell = {
   id: string;
@@ -23,6 +29,7 @@ type Shell = {
   name: string | null;
   avatarUrl: string | null;
   steamAvatar: string | null;
+  profileBg?: ProfileBgId | null;
   lastSeenAt: string | Date | null;
   admin: boolean;
   isBb: boolean;
@@ -99,6 +106,12 @@ export function ProfilePageClient() {
       ? readMode(shell.isBb)
       : "train"
   );
+  const [savedBg, setSavedBg] = useState<ProfileBgId | null>(() =>
+    normalizeProfileBg(shell?.profileBg)
+  );
+  const [previewBg, setPreviewBg] = useState<ProfileBgId | null>(() =>
+    normalizeProfileBg(shell?.profileBg)
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -117,6 +130,9 @@ export function ProfilePageClient() {
         writeShellCache(data);
         setShell(data);
         setMode(readMode(data.isBb));
+        const bg = normalizeProfileBg(data.profileBg);
+        setSavedBg(bg);
+        setPreviewBg(bg);
         setError(null);
         if (data.nick) prefetchProfileView(data.nick);
       } catch {
@@ -141,6 +157,23 @@ export function ProfilePageClient() {
       router.replace("/register");
     }
   }, [status, session, router]);
+
+  useEffect(() => {
+    const shellEl = document.querySelector(".shell") as HTMLElement | null;
+    if (!shellEl) return;
+    const url = profileBgUrl(previewBg);
+    if (url) {
+      shellEl.style.setProperty("--profile-bg-image", `url(${url})`);
+      shellEl.classList.add("has-profile-bg");
+    } else {
+      shellEl.style.removeProperty("--profile-bg-image");
+      shellEl.classList.remove("has-profile-bg");
+    }
+    return () => {
+      shellEl.style.removeProperty("--profile-bg-image");
+      shellEl.classList.remove("has-profile-bg");
+    };
+  }, [previewBg]);
 
   function changeMode(next: ProfileMode) {
     setMode(next);
@@ -179,7 +212,11 @@ export function ProfilePageClient() {
   const kitsLane =
     mode === "public" ? "PB1" : shell.isBb ? "TR1" : shell.kitsLane;
   return (
-    <main className="profile-page profile-page-v2" data-mode={mode}>
+    <main
+      className="profile-page profile-page-v2"
+      data-mode={mode}
+      data-profile-bg={previewBg || undefined}
+    >
       <div className="profile-v2-ident">
         <AvatarEditor
           nick={shell.nick || session?.user?.nick || "Игрок"}
@@ -188,6 +225,20 @@ export function ProfilePageClient() {
           steamAvatar={shell.steamAvatar}
           adminLink={<AdminPanelLink initialAdmin={shell.admin} />}
           lastSeenAt={shell.lastSeenAt ? new Date(shell.lastSeenAt) : null}
+        />
+        <ProfileBgPicker
+          value={savedBg}
+          onPreview={setPreviewBg}
+          onSaved={(bg) => {
+            setSavedBg(bg);
+            setPreviewBg(bg);
+            setShell((prev) => {
+              if (!prev) return prev;
+              const next = { ...prev, profileBg: bg };
+              writeShellCache(next);
+              return next;
+            });
+          }}
         />
         <ProfileModeSwitch value={mode} onChange={changeMode} />
         <ClanInvites initial={shell.invites} />

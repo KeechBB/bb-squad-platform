@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { formatRuDate, isActiveReserve } from "@/lib/validation";
 import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
 import { CLAN_ROLE_LABEL, type ClanRole } from "@/lib/clan";
+import { normalizeProfileBg } from "@/lib/profileBg";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -64,6 +65,7 @@ export async function GET() {
       name: me.name,
       avatarUrl: session.user.avatarUrl || me.avatarUrl,
       steamAvatar: session.user.steamAvatar || me.steamAvatar,
+      profileBg: normalizeProfileBg(me.profileBg),
       lastSeenAt: me.lastSeenAt,
       admin,
       isBb,
