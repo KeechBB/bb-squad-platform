@@ -3,12 +3,12 @@
 import { SessionProvider } from "next-auth/react";
 import { PresenceHeartbeat } from "@/components/PresenceHeartbeat";
 import { SupportChatWidget } from "@/components/SupportChatWidget";
-import { BbDisplayScale } from "@/components/BbDisplayScale";
+import { BbDisplayScaleCleanup } from "@/components/BbDisplayScale";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
-      <BbDisplayScale />
+      <BbDisplayScaleCleanup />
       <PresenceHeartbeat />
       {children}
       <SupportChatWidget />

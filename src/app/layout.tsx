@@ -18,7 +18,6 @@ import "@fontsource/manrope/600.css";
 import "@fontsource/manrope/700.css";
 import "./globals.css";
 import "./profile-v2.css";
-import "./display-scale.css";
 
 const yandexVerification = (
   process.env.NEXT_PUBLIC_YANDEX_WEBMASTER_VERIFICATION || ""
