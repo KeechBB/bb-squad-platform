@@ -97,11 +97,12 @@ function readMode(isBb: boolean): ProfileMode {
   return isBb ? "train" : "public";
 }
 
-export function ProfilePageClient() {
+export function ProfilePageClient({ subjectNick }: { subjectNick?: string } = {}) {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const readOnly = Boolean(subjectNick);
   const [shell, setShell] = useState<Shell | null>(() =>
-    typeof window !== "undefined" ? readShellCache() : null
+    typeof window !== "undefined" && !subjectNick ? readShellCache() : null
   );
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<ProfileMode>(() =>
@@ -120,9 +121,12 @@ export function ProfilePageClient() {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch("/api/profile/shell", {
-          credentials: "same-origin",
-        });
+        const res = await fetch(
+          subjectNick
+            ? `/api/profile/shell?nick=${encodeURIComponent(subjectNick)}`
+            : "/api/profile/shell",
+          { credentials: "same-origin" }
+        );
         if (res.status === 401) {
           if (!cancelled) router.replace("/?login=1");
           return;
@@ -130,7 +134,7 @@ export function ProfilePageClient() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as Shell;
         if (cancelled) return;
-        writeShellCache(data);
+        if (!subjectNick) writeShellCache(data);
         setShell(data);
         setMode(readMode(data.isBb));
         const bg = normalizeProfileBg(data.profileBg);
@@ -147,7 +151,7 @@ export function ProfilePageClient() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [router, subjectNick]);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -225,9 +229,13 @@ export function ProfilePageClient() {
           name={shell.name || session?.user?.name || ""}
           initialAvatar={shell.avatarUrl}
           steamAvatar={shell.steamAvatar}
-          adminLink={<AdminPanelLink initialAdmin={shell.admin} />}
+          adminLink={
+            readOnly ? undefined : <AdminPanelLink initialAdmin={shell.admin} />
+          }
           lastSeenAt={shell.lastSeenAt ? new Date(shell.lastSeenAt) : null}
+          readOnly={readOnly}
         />
+        {readOnly ? null : (
         <ProfileBgPicker
           value={savedBg}
           onPreview={setPreviewBg}
@@ -242,8 +250,9 @@ export function ProfilePageClient() {
             });
           }}
         />
+        )}
         <ProfileModeSwitch value={mode} onChange={changeMode} />
-        <ClanInvites initial={shell.invites} />
+        {readOnly ? null : <ClanInvites initial={shell.invites} />}
         <ProfileMedalShelf items={shell.medals || []} />
       </div>
 
@@ -275,6 +284,7 @@ export function ProfilePageClient() {
           slot="training"
           mode={mode}
           absenceSlot={
+            readOnly ? null : (
             <AbsencePanel
               compact
               reserveActive={shell.reserveActive}
@@ -284,6 +294,7 @@ export function ProfilePageClient() {
               dayOffUntilLabel={shell.dayOffUntilLabel}
               dayOffReason={shell.dayOffReason}
             />
+            )
           }
         />
       </div>

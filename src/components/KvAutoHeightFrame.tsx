@@ -61,6 +61,13 @@ export function KvAutoHeightFrame({
       try {
         const doc = frame.contentDocument;
         if (!doc?.documentElement) return;
+        if (!doc.getElementById("bb-embed-clear-bg")) {
+          const style = doc.createElement("style");
+          style.id = "bb-embed-clear-bg";
+          style.textContent =
+            "html,body{background:transparent!important;background-image:none!important;color-scheme:normal!important}.atmosphere{display:none!important}";
+          doc.head?.appendChild(style);
+        }
         ro?.disconnect();
         ro = new ResizeObserver(() => syncFromDoc());
         ro.observe(doc.documentElement);

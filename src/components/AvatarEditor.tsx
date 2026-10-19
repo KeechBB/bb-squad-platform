@@ -12,6 +12,7 @@ type Props = {
   steamAvatar: string | null;
   adminLink?: ReactNode;
   lastSeenAt?: string | Date | null;
+  readOnly?: boolean;
 };
 
 type Phase = "idle" | "chooser" | "pending";
@@ -23,6 +24,7 @@ export function AvatarEditor({
   steamAvatar,
   adminLink,
   lastSeenAt,
+  readOnly = false,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -191,6 +193,7 @@ export function AvatarEditor({
         }}
       />
 
+      {readOnly ? null : (
       <div className="avatar-actions">
         {phase === "idle" ? (
           <button type="button" className="btn ghost" onClick={openChooser}>
@@ -236,6 +239,7 @@ export function AvatarEditor({
       {phase !== "idle" ? (
         <p className="avatar-hint">jpg / png / webp, до 20 МБ</p>
       ) : null}
+      )}
     </section>
   );
 }
