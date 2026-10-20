@@ -46,6 +46,12 @@ export const PROFILE_BG_OPTIONS = [
     gate: "creator",
   },
   {
+    id: "creator-royal-core",
+    file: "profile-bg-keech-blackberry-royal-core.jpg",
+    label: "Keech · BlackBerry Royal Core",
+    gate: "creator",
+  },
+  {
     id: "bp-l5-gold",
     file: "profile-bg-keech-gold-tournament-02.jpg",
     label: "Турнирное золото II",
