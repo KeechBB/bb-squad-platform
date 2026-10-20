@@ -746,6 +746,15 @@ body.has-profile-bg .shell:has(.profile-page) {
   color: rgba(190, 180, 220, 0.72);
 }
 
+.profile-page-v2 .profile-career-item p.profile-career-rp {
+  color: #fbbf24;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  opacity: 1;
+  text-shadow: 0 0 10px rgba(251, 191, 36, 0.35);
+}
+
 .profile-page-v2 .profile-career-item.is-up {
   border-color: rgba(52, 211, 153, 0.45);
   background: linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(10, 8, 18, 0.4));

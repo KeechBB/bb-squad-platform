@@ -2687,6 +2687,13 @@ body:has(.profile-page) {
   color: rgba(190, 180, 220, 0.68);
 }
 
+.profile-career-item p.profile-career-rp {
+  color: #fbbf24;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  opacity: 1;
+}
+
 .profile-career-item.is-up {
   border-color: rgba(52, 211, 153, 0.35);
   background: linear-gradient(135deg, rgba(16, 185, 129, 0.14), rgba(10, 8, 18, 0.4));

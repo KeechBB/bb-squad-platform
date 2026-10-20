@@ -24,9 +24,15 @@ type CareerEvent = {
   tone: CareerTone;
   title: string;
   body?: string;
+  rpNet?: number | null;
   at: string;
   atLabel: string;
 };
+
+function formatRpNet(n: number): string {
+  const v = Math.round(n);
+  return `${v > 0 ? "+" : ""}${v} RP`;
+}
 
 type PlayerCareerFeed = {
   nick: string;
@@ -193,6 +199,9 @@ export function ProfileCareerCard({
                 <strong>{e.title}</strong>
                 <time dateTime={e.at}>{e.atLabel}</time>
               </div>
+              {e.rpNet != null && Number.isFinite(e.rpNet) ? (
+                <p className="profile-career-rp">{formatRpNet(e.rpNet)}</p>
+              ) : null}
               {e.body ? <p>{e.body}</p> : null}
             </li>
           ))}

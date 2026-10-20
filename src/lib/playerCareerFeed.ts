@@ -67,6 +67,8 @@ export type CareerEvent = {
   tone: CareerTone;
   title: string;
   body?: string;
+  /** Выделяется жёлтым в карточке (+/− RP) */
+  rpNet?: number | null;
   at: string; // ISO date or sortable ymd
   atLabel: string;
 };
@@ -547,13 +549,13 @@ export async function buildPlayerCareerFeed(nick: string): Promise<PlayerCareerF
       }
       for (const m of recent.slice(0, 12)) {
         const at = String(m.date || "").slice(0, 10);
-        const net = Number(m.net) || 0;
+        const net = Math.round(Number(m.net) || 0);
         events.push({
           id: `train-note-${m.id}`,
           kind: net >= 40 ? "good" : "note",
           tone: net >= 40 ? "good" : "note",
           title: `Тренировка · ${m.map || "карта"}`,
-          body: `${net >= 0 ? "+" : ""}${Math.round(net)} RP`,
+          rpNet: net,
           at,
           atLabel: ymdLabel(at),
         });
@@ -653,35 +655,21 @@ export async function buildPlayerCareerFeed(nick: string): Promise<PlayerCareerF
         });
       }
 
-      for (const r of snaps) {
-        if (pubRoundScore(r) >= 220 && (r.kills >= 5 || r.res >= 4 || r.net >= 60)) {
-          const kd =
-            r.deaths > 0 ? (r.kills / r.deaths).toFixed(2) : String(r.kills);
-          const st =
-            r.won === true ? "победа" : r.won === false ? "поражение" : "катка";
-          events.push({
-            id: `pub-good-${r.id}`,
-            kind: "good",
-            tone: "good",
-            title: "Хорошая игра · PB1",
-            body: `${r.map} · ${st} · ${r.kills}/${r.deaths} KD ${kd}${r.res ? ` · ${r.res} res` : ""} · ${r.net >= 0 ? "+" : ""}${Math.round(r.net)} RP`,
-            at: r.date,
-            atLabel: ymdLabel(r.date),
-          });
-        }
-      }
-
-      for (const r of snaps) {
-        const st =
-          r.won === true ? "победа" : r.won === false ? "поражение" : "катка";
-        const tone: CareerTone =
-          r.won === true ? "win" : r.won === false ? "loss" : "note";
+      // Каждая катка паблика — как тренировка: карта + жёлтый +/− RP
+      const pubRecent = [...snaps]
+        .sort(
+          (a, b) =>
+            b.date.localeCompare(a.date) || b.id.localeCompare(a.id)
+        )
+        .slice(0, 16);
+      for (const r of pubRecent) {
+        const net = Math.round(r.net);
         events.push({
           id: `pub-note-${r.id}`,
-          kind: r.won === true ? "win" : r.won === false ? "loss" : "note",
-          tone,
-          title: `PB1 · ${r.map}`,
-          body: `${st} · ${r.kills} килов · ${r.deaths} смертей${r.res ? ` · ${r.res} res` : ""}${r.nok ? ` · ${r.nok} ноков` : ""} · ${r.net >= 0 ? "+" : ""}${Math.round(r.net)} RP`,
+          kind: net >= 40 ? "good" : "note",
+          tone: net >= 40 ? "good" : "note",
+          title: `Паблик · ${r.map}`,
+          rpNet: net,
           at: r.date,
           atLabel: ymdLabel(r.date),
         });
