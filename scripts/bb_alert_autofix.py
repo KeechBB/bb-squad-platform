@@ -111,9 +111,29 @@ def _ticket_scan_fix() -> tuple[int, str]:
     return int(p.returncode or 0), ((p.stdout or "") + (p.stderr or ""))[-1200:]
 
 
+def _rebuild_battle_pass() -> tuple[int, str]:
+    cmd = [
+        sys.executable,
+        str(HERE / "build_battle_pass.py"),
+        "--rebuild-from-ledger",
+    ]
+    p = subprocess.run(
+        cmd, cwd=str(HERE), env={**os.environ}, check=False, capture_output=True, text=True
+    )
+    return int(p.returncode or 0), ((p.stdout or "") + (p.stderr or ""))[-1200:]
+
+
 def _classify_action(text: str) -> str | None:
     t = text or ""
     low = t.lower()
+    # Battle Pass before generic «рассинхрон» (BP audit title also uses that word)
+    if (
+        "battle pass" in low
+        or "battle-pass" in low
+        or "bp audit" in low
+        or "bp:" in low
+    ):
+        return "battle_pass"
     # Prefer full RP integrity when netΔ / formula / share mentioned
     if (
         "rp audit" in low
@@ -188,6 +208,9 @@ def run(open_doc: dict | None = None) -> dict[str, Any]:
                 else:
                     rc, detail = _ticket_scan_fix()
                     lines_out.append("действие: ticket-class scan (нет id в тексте)")
+            elif action == "battle_pass":
+                rc, detail = _rebuild_battle_pass()
+                lines_out.append("действие: BP rebuild_from_ledger")
             elif action in ("rp_lag", "train_rp"):
                 if "паб" in text.lower() or "pb1" in text.lower() or "public" in text.lower():
                     if ids:
@@ -232,6 +255,19 @@ def run(open_doc: dict | None = None) -> dict[str, Any]:
             except Exception as e:
                 still_bad = True
                 verify_note = f"verify fail: {e}"
+        elif action == "battle_pass":
+            try:
+                import build_battle_pass as BP  # noqa: WPS433
+
+                rep = BP.audit_bp_vs_ledger(last=5)
+                still_bad = not bool(rep.get("ok"))
+                verify_note = (
+                    f"verify BP: ok={rep.get('ok')} missing={rep.get('missingIds')} "
+                    f"join={rep.get('joinDetail')}"
+                )
+            except Exception as e:
+                still_bad = True
+                verify_note = f"verify BP fail: {e}"
 
         level = "ok" if (rc == 0 and not still_bad) else "warn"
         lines_out.append(f"exit: {rc}")

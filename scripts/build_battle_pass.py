@@ -11,6 +11,8 @@ SEED / Jensen — не игра, в Battle Pass не идут (прогресс 
 Запуск:
   python build_battle_pass.py              # sync from ledger + ensure cutover
   python build_battle_pass.py --from-blocks /tmp/bp_blocks.json
+  python build_battle_pass.py --rebuild-from-ledger  # полный пересчёт после cutover
+  python build_battle_pass.py --audit --last 5
 Вызывается из build_public_rp_ledger после скоринга новых матчей.
 """
 from __future__ import annotations
@@ -109,7 +111,11 @@ def _psycopg_dsn(db: str) -> str:
 
 
 def load_registered() -> dict[str, dict]:
-    """nick_key(casefold) -> {nick, steamId, avatarUrl, name}"""
+    """nick_key (spaces stripped) -> {nick, steamId, avatarUrl, name}.
+
+    Must use nick_key, not str.casefold(): ledger often has «One Attack»
+    while the site account is «OneAttack» — both → oneattack.
+    """
     out: dict[str, dict] = {}
     db = (os.environ.get("DATABASE_URL") or "").strip().strip("'").strip('"')
     if not db:
@@ -151,7 +157,10 @@ def load_registered() -> dict[str, dict]:
             n = str(nick or "").strip()
             if not n:
                 continue
-            out[n.casefold()] = {
+            nk = R.nick_key(n)
+            if not nk:
+                continue
+            out[nk] = {
                 "nick": n,
                 "steamId": str(steam or "") or None,
                 "avatarUrl": str(avatar or "") or None,
@@ -674,15 +683,40 @@ def apply_match_to_players(
         return 0
 
     per = per_player_stats(block, aliases)
-    # index by casefold
-    per_cf = {n.casefold(): (n, st) for n, st in per.items()}
+    # Index by nick_key / canon_key — NOT str.casefold().
+    # «One Attack» (logs) and «OneAttack» (site) must hit the same bucket.
+    per_by_key: dict[str, dict] = {}
+    for n, st in per.items():
+        ck = R.canon_key(str(n), aliases)
+        if not ck:
+            continue
+        prev = per_by_key.get(ck)
+        if prev is None:
+            per_by_key[ck] = st
+            continue
+        # Keep the richer combat row if duplicates collapse.
+        prev_score = sum(
+            int(prev.get(k) or 0)
+            for k in ("kills", "noks", "revives", "deaths", "vehicleKills")
+        )
+        cur_score = sum(
+            int(st.get(k) or 0)
+            for k in ("kills", "noks", "revives", "deaths", "vehicleKills")
+        )
+        if cur_score > prev_score or (
+            cur_score == prev_score
+            and float(st.get("presenceRatio") or 0) > float(prev.get("presenceRatio") or 0)
+        ):
+            per_by_key[ck] = st
 
     advanced = 0
     players = state.setdefault("players", {})
     for nk, reg in registered.items():
-        if nk not in per_cf:
+        st = per_by_key.get(nk) or per_by_key.get(
+            R.canon_key(str(reg.get("nick") or ""), aliases)
+        )
+        if not st:
             continue
-        _disp_nick, st = per_cf[nk]
         key = reg.get("steamId") or reg["nick"]
         p = players.get(key) or players.get(nk)
         if not p:
@@ -715,14 +749,14 @@ def ensure_all_registered(state: dict, registered: dict[str, dict]) -> None:
         if isinstance(p, dict) and p.get("steamId")
     }
     by_nick = {
-        str(p.get("nick") or "").casefold(): key
+        R.nick_key(str(p.get("nick") or "")): key
         for key, p in players.items()
-        if isinstance(p, dict) and p.get("nick")
+        if isinstance(p, dict) and p.get("nick") and R.nick_key(str(p.get("nick") or ""))
     }
     for _nk, reg in registered.items():
         steam = str(reg.get("steamId") or "")
         nick = str(reg.get("nick") or "")
-        key = by_steam.get(steam) or by_nick.get(nick.casefold())
+        key = by_steam.get(steam) or by_nick.get(R.nick_key(nick))
         if key and key in players:
             p = players[key]
             p["nick"] = nick or p.get("nick")
@@ -850,6 +884,116 @@ def sync_cutover_only() -> dict:
     return state
 
 
+def rebuild_from_ledger() -> dict:
+    """Full BP replay from public rp-ledger after cutover.
+
+    Use after nick-key matching fixes so already-scored matches are re-applied
+    without double-counting (progress is reset first).
+    """
+    ledger: dict = {}
+    if LEDGER.is_file():
+        try:
+            ledger = json.loads(LEDGER.read_text(encoding="utf-8"))
+        except Exception:
+            ledger = {}
+    state = ensure_cutover(load_state(), ledger)
+    cut = str(state.get("cutoverAfterMatchId") or "")
+    registered = load_registered()
+    aliases = load_alias_keys()
+
+    players: dict[str, dict] = {}
+    for _nk, reg in registered.items():
+        key = reg.get("steamId") or reg["nick"]
+        players[str(key)] = empty_player(reg)
+    state["players"] = players
+    state["scoredMatchIds"] = []
+
+    blocks = [
+        m
+        for m in (ledger.get("matches") or [])
+        if isinstance(m, dict)
+        and match_after_cutover(str(m.get("id") or ""), cut)
+    ]
+    blocks.sort(key=lambda m: str(m.get("id") or ""))
+    total_adv = 0
+    for b in blocks:
+        total_adv += apply_match_to_players(state, b, registered, aliases)
+    state = finalize(state, registered)
+    save_state(state)
+    persist_l5_backgrounds(state)
+    print(
+        f"BP: rebuild_from_ledger matches={len(blocks)} advanced_levels={total_adv} "
+        f"players={len(state.get('players') or {})} "
+        f"scored={len(state.get('scoredMatchIds') or [])}",
+        flush=True,
+    )
+    return state
+
+
+def audit_bp_vs_ledger(*, last: int = 5) -> dict:
+    """Check recent public ledger matches are in BP scoredMatchIds."""
+    ledger: dict = {}
+    if LEDGER.is_file():
+        try:
+            ledger = json.loads(LEDGER.read_text(encoding="utf-8"))
+        except Exception:
+            ledger = {}
+    state = load_state()
+    cut = str(state.get("cutoverAfterMatchId") or "")
+    scored = {str(x) for x in (state.get("scoredMatchIds") or [])}
+    pool = [
+        m
+        for m in (ledger.get("matches") or [])
+        if isinstance(m, dict)
+        and str(m.get("id") or "")
+        and match_after_cutover(str(m.get("id")), cut)
+        and (m.get("events") or m.get("netByNick"))
+    ]
+    pool.sort(key=lambda m: str(m.get("id") or ""))
+    recent = pool[-max(1, int(last)) :] if pool else []
+    missing = [str(m.get("id")) for m in recent if str(m.get("id")) not in scored]
+    # Nick-join smoke: last match must credit ≥1 registered player when presence≥80%.
+    join_ok = True
+    join_detail = "n/a"
+    if recent:
+        aliases = load_alias_keys()
+        registered = load_registered()
+        last_m = recent[-1]
+        per = per_player_stats(last_m, aliases)
+        present_reg = 0
+        for n, st in per.items():
+            ck = R.canon_key(str(n), aliases)
+            if ck in registered and bool(st.get("playedOk", True)):
+                present_reg += 1
+        # Recount with the same index the scorer uses
+        credited = 0
+        per_by_key: dict[str, dict] = {}
+        for n, st in per.items():
+            ck = R.canon_key(str(n), aliases)
+            if ck:
+                per_by_key[ck] = st
+        for nk, _reg in registered.items():
+            st = per_by_key.get(nk)
+            if st and bool(st.get("playedOk", True)):
+                credited += 1
+        join_detail = (
+            f"match={last_m.get('id')} present_reg={present_reg} credited={credited}"
+        )
+        if present_reg > 0 and credited == 0:
+            join_ok = False
+    ok = not missing and join_ok
+    return {
+        "ok": ok,
+        "cutoverAfterMatchId": cut,
+        "checked": [str(m.get("id")) for m in recent],
+        "missingIds": missing,
+        "joinOk": join_ok,
+        "joinDetail": join_detail,
+        "scoredCount": len(scored),
+        "enabled": bool(state.get("enabled")),
+    }
+
+
 def main() -> None:
     # Load DATABASE_URL from platform .env if needed
     if not (os.environ.get("DATABASE_URL") or "").strip():
@@ -864,6 +1008,19 @@ def main() -> None:
     if "--grant-bgs-only" in sys.argv:
         persist_l5_backgrounds(load_state())
         return
+
+    if "--rebuild-from-ledger" in sys.argv:
+        rebuild_from_ledger()
+        return
+
+    if "--audit" in sys.argv:
+        last = 5
+        if "--last" in sys.argv:
+            i = sys.argv.index("--last")
+            last = int(sys.argv[i + 1])
+        rep = audit_bp_vs_ledger(last=last)
+        print(json.dumps(rep, ensure_ascii=False, indent=2), flush=True)
+        raise SystemExit(0 if rep.get("ok") else 2)
 
     if "--from-blocks" in sys.argv:
         i = sys.argv.index("--from-blocks")
