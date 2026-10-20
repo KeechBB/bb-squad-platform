@@ -1233,24 +1233,22 @@ body:has(.public-rating-page) {
   background:
     linear-gradient(
       180deg,
-      #fffdf0 0%,
-      #ffe19a 18%,
-      #a65b03 35%,
-      #ffd65a 50%,
-      #713200 68%,
-      #e7a118 83%,
-      #fff0ad 100%
+      #fff8d6 0%,
+      #f9d86e 32%,
+      #ad6b08 57%,
+      #f0b936 78%,
+      #fff0ae 100%
     );
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  -webkit-text-stroke: 0.65px rgba(205, 130, 18, 0.95);
-  font-family: "Courier New", Courier, monospace;
-  font-size: 0.94rem;
-  font-weight: 900;
-  letter-spacing: -0.055em;
-  line-height: 1;
-  text-transform: uppercase;
+  -webkit-text-stroke: 0.22px rgba(117, 65, 4, 0.9);
+  font-family: var(--font-display), Oxanium, Manrope, sans-serif;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.018em;
+  line-height: 1.05;
+  text-transform: none;
   transition: filter 0.16s ease;
 }
 .public-rating-nick-label.is-metallic-gold::after {
