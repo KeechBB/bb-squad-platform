@@ -990,6 +990,31 @@ body.has-profile-bg .shell:has(.profile-page) {
     drop-shadow(0 0 24px rgba(158, 91, 4, 0.68))
     brightness(1.28);
 }
+.profile-patch-tile[data-patch-id="public-100-vehicles-t62"]
+  .profile-patch-tile-art {
+  width: 96%;
+  transform: none;
+  filter:
+    drop-shadow(0 0 4px rgba(244, 226, 158, 0.84))
+    drop-shadow(0 0 10px rgba(132, 119, 67, 0.76));
+  animation: public-vehicle-hunter-patch-glow 3.8s ease-in-out infinite;
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+.profile-patch-tile[data-patch-id="public-100-vehicles-t62"]:hover
+  .profile-patch-tile-art,
+.profile-patch-tile[data-patch-id="public-100-vehicles-t62"]:focus-visible
+  .profile-patch-tile-art,
+.profile-patch-tile[data-patch-id="public-100-vehicles-t62"].is-selected
+  .profile-patch-tile-art {
+  animation: none;
+  transform: scale(1.08);
+  filter:
+    drop-shadow(0 0 7px rgba(255, 247, 211, 1))
+    drop-shadow(0 0 16px rgba(211, 181, 89, 1))
+    drop-shadow(0 0 24px rgba(81, 101, 55, 0.7))
+    brightness(1.28)
+    saturate(1.12);
+}
 .profile-nick-style-tile {
   display: flex;
   flex-direction: column;

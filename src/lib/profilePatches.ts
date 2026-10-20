@@ -17,6 +17,13 @@ export const PROFILE_PATCH_OPTIONS = [
     tip: "Протокол: «Оранжевый призрак» · Как получить: скрытая награда",
     gate: "creator" as const,
   },
+  {
+    id: "public-100-vehicles-t62",
+    file: "public-100-vehicles-t62-steel-hunter.png",
+    label: "Т-62 «Стальной охотник»",
+    tip: "Т-62 «Стальной охотник» · Награда за 100 уничтоженных единиц техники на паблике",
+    gate: "public-vehicles-100" as const,
+  },
 ] as const;
 
 export type ProfilePatchId = (typeof PROFILE_PATCH_OPTIONS)[number]["id"];
@@ -29,8 +36,10 @@ export type ProfilePatchChoice = {
 };
 
 export const BP_L15_PATCH_ID = "bp-l15-keech" as const satisfies ProfilePatchId;
+export const PUBLIC_100_VEHICLES_PATCH_ID =
+  "public-100-vehicles-t62" as const satisfies ProfilePatchId;
 
-type PatchGate = "bp-l15" | "creator";
+type PatchGate = "bp-l15" | "creator" | "public-vehicles-100";
 
 function gateOf(opt: (typeof PROFILE_PATCH_OPTIONS)[number]): PatchGate {
   return opt.gate;
@@ -81,6 +90,9 @@ export function profilePatchChoicesFor(opts: {
         unlocks.has("pb1-gold-nick") ||
         unlocks.has("pb1-profile-customize")
       );
+    }
+    if (gate === "public-vehicles-100") {
+      return unlocks.has(opt.id);
     }
     return false;
   }).map((opt) => ({

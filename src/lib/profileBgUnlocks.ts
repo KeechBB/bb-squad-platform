@@ -6,6 +6,7 @@ import {
 } from "@/lib/profileBg";
 import {
   BP_L15_PATCH_ID,
+  PUBLIC_100_VEHICLES_PATCH_ID,
   profilePatchChoicesFor,
   type ProfilePatchChoice,
 } from "@/lib/profilePatches";
@@ -105,6 +106,46 @@ export async function ensureBpL15NickPatch(user: {
   return unlocks;
 }
 
+/** Паблик: нашивка за 100 уничтоженных единиц техники остаётся в инвентаре навсегда. */
+export async function ensurePublic100VehiclesNickPatch(user: {
+  id: string;
+  steamId: string;
+  nick: string | null;
+  unlockedNickPatches: string[];
+}): Promise<string[]> {
+  const unlocks = [...(user.unlockedNickPatches || [])];
+  if (unlocks.includes(PUBLIC_100_VEHICLES_PATCH_ID)) return unlocks;
+
+  const steamId = String(user.steamId || "").trim();
+  const nickKey = String(user.nick || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "");
+  if (!steamId && !nickKey) return unlocks;
+
+  const payload = await import("@/lib/publicRatingPageCache")
+    .then(({ getPublicRatingPagePayload }) => getPublicRatingPagePayload())
+    .catch(() => null);
+  const row = payload?.board.rows.find((candidate) => {
+    if (steamId && candidate.steamId === steamId) return true;
+    return (
+      nickKey &&
+      String(candidate.nick || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "") === nickKey
+    );
+  });
+  if (!row || Number(row.vehicleKills || 0) < 100) return unlocks;
+
+  unlocks.push(PUBLIC_100_VEHICLES_PATCH_ID);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { unlockedNickPatches: unlocks },
+  });
+  return unlocks;
+}
+
 export async function profileBgChoicesForUser(user: {
   id: string;
   steamId: string;
@@ -121,7 +162,11 @@ export async function profilePatchChoicesForUser(user: {
   nick: string | null;
   unlockedNickPatches: string[];
 }): Promise<ProfilePatchChoice[]> {
-  const unlocks = await ensureBpL15NickPatch(user);
+  let unlocks = await ensureBpL15NickPatch(user);
+  unlocks = await ensurePublic100VehiclesNickPatch({
+    ...user,
+    unlockedNickPatches: unlocks,
+  });
   return profilePatchChoicesFor({ steamId: user.steamId, unlocks });
 }
 
