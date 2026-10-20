@@ -1223,6 +1223,66 @@ body:has(.public-rating-page) {
   color: #fff;
   text-decoration-color: rgba(240, 171, 252, 0.85);
 }
+.public-rating-nick-btn.bp-nick-patch-test {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 132px;
+  min-height: 30px;
+  padding: 0 38px 0 10px;
+  color: #fff8d6;
+  text-decoration: none;
+  vertical-align: middle;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.95),
+    0 0 5px rgba(255, 224, 126, 0.95),
+    0 0 11px rgba(255, 153, 28, 0.72);
+}
+.public-rating-nick-btn.bp-nick-patch-test::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  width: 154px;
+  height: 50px;
+  transform: translateY(-50%);
+  background: url("/bp-assets/l15-nick-patch-keech-test.png") center / contain no-repeat;
+  filter:
+    drop-shadow(0 0 3px rgba(255, 215, 88, 0.88))
+    drop-shadow(0 0 8px rgba(255, 139, 20, 0.48));
+  opacity: 0.9;
+  animation: bp-nick-patch-glow 3.6s ease-in-out infinite;
+}
+.public-rating-nick-btn.bp-nick-patch-test:hover {
+  color: #fff;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.95),
+    0 0 7px rgba(255, 240, 174, 1),
+    0 0 16px rgba(255, 161, 31, 0.92);
+}
+@keyframes bp-nick-patch-glow {
+  0%,
+  100% {
+    filter:
+      drop-shadow(0 0 3px rgba(255, 215, 88, 0.82))
+      drop-shadow(0 0 8px rgba(255, 139, 20, 0.42));
+    opacity: 0.86;
+  }
+  50% {
+    filter:
+      drop-shadow(0 0 5px rgba(255, 237, 157, 1))
+      drop-shadow(0 0 13px rgba(255, 159, 28, 0.72));
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .public-rating-nick-btn.bp-nick-patch-test::before {
+    animation: none;
+  }
+}
 .public-rating-profile-link,
 .public-rating-profile-pill {
   display: inline-flex;

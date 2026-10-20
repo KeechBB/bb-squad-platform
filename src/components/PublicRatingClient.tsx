@@ -33,6 +33,7 @@ type MatchSortKey =
 
 /** Одна страница рейтинга / истории — без внутреннего скролла таблицы. */
 const PAGE_SIZE = 50;
+const KEECH_STEAM_ID = "76561198028435874";
 
 const RP_STEP = 150;
 const RP_BANDS: [string, string][] = [
@@ -615,6 +616,7 @@ export function PublicRatingClient({
                   ) : (
                     pageRows.map((r) => {
                       const rpVal = r.rp == null ? null : Math.round(r.rp);
+                      const hasKeechPatch = r.steamId === KEECH_STEAM_ID;
                       return (
                       <tr key={r.steamId || r.nick} id={`player-${r.nick}`}>
                         <td className="ctr">{r.place}</td>
@@ -630,7 +632,9 @@ export function PublicRatingClient({
                         <td className="col-nick">
                           <button
                             type="button"
-                            className="public-rating-nick-btn"
+                            className={`public-rating-nick-btn${
+                              hasKeechPatch ? " bp-nick-patch-test" : ""
+                            }`}
                             title="Карты и детальный разбор RP"
                             onClick={() => setDrillNick(r.nick)}
                           >
