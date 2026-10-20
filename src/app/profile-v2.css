@@ -994,11 +994,9 @@ body.has-profile-bg .shell:has(.profile-page) {
   .profile-patch-tile-art {
   width: 96%;
   transform: none;
-  filter:
-    drop-shadow(0 0 3px rgba(169, 83, 255, 0.62))
-    drop-shadow(0 0 7px rgba(67, 184, 255, 0.4));
-  animation: neon-harvest-patch-shimmer 5.6s ease-in-out infinite;
-  transition: filter 0.15s ease, transform 0.15s ease;
+  filter: none;
+  animation: none;
+  transition: none;
 }
 .profile-patch-tile[data-patch-id="public-100-vehicles-t62"]:hover
   .profile-patch-tile-art,
@@ -1007,13 +1005,8 @@ body.has-profile-bg .shell:has(.profile-page) {
 .profile-patch-tile[data-patch-id="public-100-vehicles-t62"].is-selected
   .profile-patch-tile-art {
   animation: none;
-  transform: scale(1.07);
-  filter:
-    drop-shadow(0 0 5px rgba(171, 86, 255, 0.96))
-    drop-shadow(0 0 12px rgba(65, 199, 255, 0.84))
-    drop-shadow(0 0 18px rgba(210, 76, 255, 0.5))
-    brightness(1.2)
-    saturate(1.18);
+  transform: none;
+  filter: none;
 }
 .profile-nick-style-tile {
   display: flex;
