@@ -351,8 +351,10 @@ def agg_players(
     revives: list[dict],
     teams: dict[str, str],
     disp: dict[str, str],
+    aliases: dict[str, str] | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """Build teamA/teamB rows from combat logs."""
+    aliases = aliases or {}
     stats: dict[str, dict] = {}
 
     def row(k: str, nick: str) -> dict:
@@ -391,10 +393,12 @@ def agg_players(
         r_v["deaths"] += 1
 
     for r in revives:
-        kk = R.canon_key(r.get("killer") or "", {})
+        # Must use same aliases as dies/wounds/teams — empty {} dropped res for
+        # aliased medics (Inrikus→Innikus typo left revive key outside teams).
+        kk = R.canon_key(r.get("killer") or "", aliases)
         if not kk:
             continue
-        row(kk, r.get("killer") or kk)["res"] += 1
+        row(kk, disp.get(kk) or r.get("killer") or kk)["res"] += 1
 
     a, b = [], []
     unknown = 0
@@ -1044,7 +1048,9 @@ def main() -> int:
         wounds = R.wounds_in_window(idx, start, end, steam, aliases)
         revives = R.revives_in_window(idx, start, end)
         disp = {R.canon_key(n, aliases): n for n in steam.values()}
-        team_a, team_b = agg_players(dies, wounds, revives, teams, disp)
+        team_a, team_b = agg_players(
+            dies, wounds, revives, teams, disp, aliases=aliases
+        )
 
         # Перекур / пустая катка: мало игроков или почти нет give-up (Yehorivka 06.10).
         n_players = len(team_a) + len(team_b)
