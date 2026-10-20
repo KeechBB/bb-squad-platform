@@ -17,10 +17,12 @@ import {
 } from "@/components/ProfileModeSwitch";
 import { ProfileBgPicker } from "@/components/ProfileBgPicker";
 import { ProfileMedalShelf } from "@/components/ProfileMedalShelf";
+import { ProfileV2ScaleStage } from "@/components/ProfileV2ScaleStage";
 import { prefetchProfileView } from "@/lib/profileViewCache";
 import {
   normalizeProfileBg,
   profileBgUrl,
+  type ProfileBgChoice,
   type ProfileBgId,
 } from "@/lib/profileBg";
 import type { ProfileMedalItem } from "@/lib/profileMedals";
@@ -32,6 +34,7 @@ type Shell = {
   avatarUrl: string | null;
   steamAvatar: string | null;
   profileBg?: ProfileBgId | null;
+  profileBgChoices?: ProfileBgChoice[];
   medals?: ProfileMedalItem[];
   lastSeenAt: string | Date | null;
   admin: boolean;
@@ -66,7 +69,7 @@ type Shell = {
   }[];
 };
 
-const SHELL_CACHE_KEY = "bb_profile_shell_v2";
+const SHELL_CACHE_KEY = "bb_profile_shell_v4";
 const MODE_KEY = "bb_profile_mode_v1";
 
 function readShellCache(): Shell | null {
@@ -192,25 +195,29 @@ export function ProfilePageClient({ subjectNick }: { subjectNick?: string } = {}
 
   if (!shell && !error) {
     return (
-      <main className="profile-page profile-page-v2">
-        <div className="card" style={{ padding: 16 }}>
-          <p className="muted" style={{ margin: 0 }}>
-            Открываю профиль…
-          </p>
-        </div>
-      </main>
+      <ProfileV2ScaleStage>
+        <main className="profile-page profile-page-v2">
+          <div className="card" style={{ padding: 16 }}>
+            <p className="muted" style={{ margin: 0 }}>
+              Открываю профиль…
+            </p>
+          </div>
+        </main>
+      </ProfileV2ScaleStage>
     );
   }
 
   if (error || !shell) {
     return (
-      <main className="profile-page profile-page-v2">
-        <div className="card" style={{ padding: 16 }}>
-          <p className="error" style={{ margin: 0 }}>
-            {error || "Ошибка"}
-          </p>
-        </div>
-      </main>
+      <ProfileV2ScaleStage>
+        <main className="profile-page profile-page-v2">
+          <div className="card" style={{ padding: 16 }}>
+            <p className="error" style={{ margin: 0 }}>
+              {error || "Ошибка"}
+            </p>
+          </div>
+        </main>
+      </ProfileV2ScaleStage>
     );
   }
 
@@ -218,6 +225,7 @@ export function ProfilePageClient({ subjectNick }: { subjectNick?: string } = {}
   const kitsLane =
     mode === "public" ? "PB1" : shell.isBb ? "TR1" : shell.kitsLane;
   return (
+    <ProfileV2ScaleStage hasBg={Boolean(previewBg)}>
     <main
       className="profile-page profile-page-v2"
       data-mode={mode}
@@ -237,6 +245,11 @@ export function ProfilePageClient({ subjectNick }: { subjectNick?: string } = {}
         />
         {readOnly ? null : (
         <ProfileBgPicker
+          options={
+            Array.isArray(shell.profileBgChoices)
+              ? shell.profileBgChoices
+              : []
+          }
           value={savedBg}
           onPreview={setPreviewBg}
           onSaved={(bg) => {
@@ -334,5 +347,6 @@ export function ProfilePageClient({ subjectNick }: { subjectNick?: string } = {}
         />
       </div>
     </main>
+    </ProfileV2ScaleStage>
   );
 }

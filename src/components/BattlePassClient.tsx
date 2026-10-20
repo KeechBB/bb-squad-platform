@@ -16,6 +16,7 @@ import {
   BpRewardMockGallery,
   type BpPreviewPlayer,
 } from "@/components/BpRewardMock";
+import { CanvasScaleStage } from "@/components/CanvasScaleStage";
 
 type Props = {
   selfNick: string;
@@ -122,6 +123,7 @@ export function BattlePassClient({
   );
 
   return (
+    <CanvasScaleStage contentWidth="full" className="is-bp">
     <main className="bp-page">
       <header className="bp-hero">
         <p className="bp-hero-eyebrow">{BP_SEASON.subtitle}</p>
@@ -270,5 +272,6 @@ export function BattlePassClient({
         </aside>
       </div>
     </main>
+    </CanvasScaleStage>
   );
 }

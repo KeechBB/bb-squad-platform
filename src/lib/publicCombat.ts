@@ -90,6 +90,11 @@ export type PlayerPublicCombatStats = {
   mvpMedic: number;
   mvpArmor: number;
   days: number;
+  /** Рейтинг RP паблика (для клетки в профиле). */
+  rp?: number | null;
+  rankLabel?: string | null;
+  rankKey?: string | null;
+  predatorPlace?: number | null;
   mvpHits?: {
     killer: PublicMvpHit[];
     medic: PublicMvpHit[];
@@ -639,6 +644,10 @@ export async function buildPlayerPublicCombatStats(
       mvpMedic: 0,
       mvpArmor: 0,
       days,
+      rp: player?.rp ?? null,
+      rankLabel: player?.rankLabel ?? null,
+      rankKey: player?.rankKey ?? null,
+      predatorPlace: player?.predatorPlace ?? null,
     };
   }
 
@@ -666,6 +675,10 @@ export async function buildPlayerPublicCombatStats(
       mvpMedic: 0,
       mvpArmor: 0,
       days,
+      rp: player?.rp ?? null,
+      rankLabel: player?.rankLabel ?? null,
+      rankKey: player?.rankKey ?? null,
+      predatorPlace: player?.predatorPlace ?? null,
     };
   }
   const losses = Math.max(0, row.games - row.wins);
@@ -689,6 +702,10 @@ export async function buildPlayerPublicCombatStats(
     mvpMedic: row.mvpMedic,
     mvpArmor: row.mvpArmor,
     days: row.days || days,
+    rp: row.rp,
+    rankLabel: row.rankLabel,
+    rankKey: row.rankKey,
+    predatorPlace: row.predatorPlace ?? null,
   };
 }
 

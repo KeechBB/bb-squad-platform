@@ -1012,6 +1012,15 @@ export function ClanDetailClient({
             {label}
           </button>
         ))}
+        {myRole || inOtherClan ? (
+          <Link
+            href="/map"
+            className="admin-tab clan-map-nav-tab"
+            title="Карта игроков кланов"
+          >
+            Карта игроков
+          </Link>
+        ) : null}
       </div>
 
       {tab === "members" ? (
@@ -1399,9 +1408,9 @@ export function ClanDetailClient({
             <>
               <p className="muted" style={{ marginTop: 0 }}>
                 Main и Junior собираются <strong>автоматически</strong> по сыгранным
-                КВ: в состав попадает каждый, кто выходил за этот стак. Если играл
-                и в Main, и в Junior — остаётся там, где матчей больше. Тир на
-                место не влияет. Ручное добавление отключено.
+                КВ среди участников клана BlackBerry. Если играл и в Main, и в
+                Junior — остаётся там, где матчей больше. Тир на место не влияет.
+                Ручное добавление отключено.
               </p>
               {stackCommand ? (
                 <p style={{ marginTop: 8 }}>

@@ -1,6 +1,13 @@
 # Деплой платформы на bb-squad.ru
 
-GitHub Pages (таблица КВ) и эта платформа — **разные** вещи. Платформе нужен Node (Vercel).
+## VPS (прод bb-squad.ru) — правило навсегда
+
+1. Правки кода **сначала commit + push** в `KeechBB/bb-squad-platform` (ветка `main`).
+2. На сервере: `cd /var/www/bb-squad-platform && bash scripts/deploy.sh`
+3. **Нельзя** жить на SCP без git: старый `deploy.sh` делал `git stash` перед pull и **не возвращал** stash → пропадали фоны, BP L5, календарь, RP, Predator/Eclipse.
+4. Если на VPS «грязное» дерево — деплой **aborтит**. Либо запушь с ПК, либо явно: `BB_DEPLOY_FORCE_CLEAN=1 bash scripts/deploy.sh` (после того как нужное уже в GitHub).
+
+GitHub Pages (таблица КВ) и эта платформа — **разные** вещи.
 
 ## Важно про базу
 

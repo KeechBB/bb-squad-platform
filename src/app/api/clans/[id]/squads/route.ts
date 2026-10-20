@@ -95,7 +95,9 @@ export async function GET(_req: Request, ctx: Ctx) {
     }
   }
 
-  const played = freq.map((r) => {
+  const played = freq
+    .filter((r) => !bbAuto || userByNick.has(nickKey(r.nick)))
+    .map((r) => {
     const key = nickKey(r.nick);
     return {
       nick: r.nick,

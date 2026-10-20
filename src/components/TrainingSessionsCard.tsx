@@ -97,6 +97,8 @@ type Props = AttendanceLaneProps & {
     string,
     {
       present: boolean;
+      /** win/lose встречи клана — отдельно от был/не был */
+      result?: "win" | "lose" | null;
       opp: string;
       logoUrl: string | null;
       map?: string;
@@ -655,11 +657,56 @@ export function TrainingSessionsCard({
                   label = "резерв";
                   title = "Резерв (от 4 дней)";
                 } else if (cw) {
-                  mark = cw.present ? "present" : "absent";
+                  mark = cw.present ? "cw-present" : "cw-absent";
                   label = cw.present ? "был" : "не был";
-                  title = cw.present
-                    ? `Был · vs ${cw.opp}${cw.map ? ` · ${cw.map}` : ""}`
-                    : `Не был · vs ${cw.opp}${cw.map ? ` · ${cw.map}` : ""}`;
+                  const res =
+                    cw.result === "win"
+                      ? "win"
+                      : cw.result === "lose"
+                        ? "lose"
+                        : null;
+                  const resLabel =
+                    res === "win" ? "победа" : res === "lose" ? "поражение" : "";
+                  title = [
+                    cw.present ? "Был" : "Не был",
+                    resLabel,
+                    `vs ${cw.opp}`,
+                    cw.map || "",
+                  ]
+                    .filter(Boolean)
+                    .join(" · ");
+                  return (
+                    <div
+                      key={c.ymd}
+                      className={`training-cal-cell training-cal-cell-cw mark-${mark}${
+                        res ? ` result-${res}` : ""
+                      }${c.ymd === today ? " is-today" : ""}`}
+                      title={title}
+                    >
+                      <div className="training-cal-cw-text">
+                        <span className="training-cal-day">{c.day}</span>
+                        {res ? (
+                          <span
+                            className={`training-cal-cw-result is-${res}`}
+                            aria-label={resLabel}
+                          >
+                            {res === "win" ? "W" : "L"}
+                          </span>
+                        ) : null}
+                        <span className="training-cal-dot">{label}</span>
+                      </div>
+                      {cw.logoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          className="training-cal-opp-logo"
+                          src={cw.logoUrl}
+                          alt=""
+                          width={64}
+                          height={64}
+                        />
+                      ) : null}
+                    </div>
+                  );
                 }
                 return (
                   <div
@@ -673,16 +720,6 @@ export function TrainingSessionsCard({
                       <span className="training-cal-day">{c.day}</span>
                       <span className="training-cal-dot">{label}</span>
                     </div>
-                    {cw?.logoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        className="training-cal-opp-logo"
-                        src={cw.logoUrl}
-                        alt=""
-                        width={64}
-                        height={64}
-                      />
-                    ) : null}
                   </div>
                 );
               }

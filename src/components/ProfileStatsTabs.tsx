@@ -64,6 +64,16 @@ function CombatBody({
       ? (stats.mvpHits as MvpHits)
       : undefined;
 
+  const pub = mode === "public" ? (stats as PlayerPublicCombatStats) : null;
+  const publicRp = pub
+    ? {
+        rp: pub.rp ?? null,
+        rankLabel: pub.rankLabel ?? null,
+        rankKey: pub.rankKey ?? null,
+        predatorPlace: pub.predatorPlace ?? null,
+      }
+    : null;
+
   return (
     <ProfileCombatGrid
       stats={{
@@ -83,6 +93,7 @@ function CombatBody({
         mvpMedic: stats.mvpMedic,
         mvpArmor,
         vehicleKills,
+        publicRp,
       }}
       mvpHits={mvpHits}
       mvpFetch={{ nick: stats.nick, mode }}

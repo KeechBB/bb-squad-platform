@@ -9,6 +9,9 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { formatBirthDateInput, formatRuDate } from "@/lib/validation";
+import { ListPager, pageSlice } from "@/components/ListPager";
+
+const RESERVE_PAGE_SIZE = 20;
 
 type AbsenceKind = "reserve" | "dayoff";
 
@@ -85,6 +88,7 @@ export function AdminReservePanel() {
   const [enteredEdit, setEnteredEdit] = useState("");
   const [busy, setBusy] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [page, setPage] = useState(1);
 
   const apiBase = kind === "reserve" ? "/api/admin/reserve" : "/api/admin/day-off";
   const isActive = (p: Player) =>
@@ -180,6 +184,15 @@ export function AdminReservePanel() {
     }
     return list;
   }, [players, q, onlyActive, kind]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [q, onlyActive, kind]);
+
+  const slice = useMemo(
+    () => pageSlice(filtered, page, RESERVE_PAGE_SIZE),
+    [filtered, page]
+  );
 
   function closeModal() {
     setModalOpen(false);
@@ -580,10 +593,15 @@ export function AdminReservePanel() {
       </p>
       {err && !modalOpen ? <p className="form-error">{err}</p> : null}
 
-      <div
-        className="admin-table-wrap"
-        style={{ maxHeight: 640, overflow: "auto", marginTop: 12 }}
-      >
+      <ListPager
+        page={slice.page}
+        pageCount={slice.pageCount}
+        total={slice.total}
+        pageSize={RESERVE_PAGE_SIZE}
+        onChange={setPage}
+        label="Страницы резерва"
+      />
+      <div className="admin-table-wrap" style={{ marginTop: 12 }}>
         <table className="admin-table">
           <thead>
             <tr>
@@ -595,7 +613,7 @@ export function AdminReservePanel() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((p) => (
+            {slice.rows.map((p) => (
               <tr
                 key={p.userId}
                 onClick={() => void selectPlayer(p)}
@@ -639,7 +657,7 @@ export function AdminReservePanel() {
                 </td>
               </tr>
             ))}
-            {!filtered.length && !loading ? (
+            {!slice.rows.length && !loading ? (
               <tr>
                 <td colSpan={5} className="muted">
                   {total === 0
@@ -651,6 +669,14 @@ export function AdminReservePanel() {
           </tbody>
         </table>
       </div>
+      <ListPager
+        page={slice.page}
+        pageCount={slice.pageCount}
+        total={slice.total}
+        pageSize={RESERVE_PAGE_SIZE}
+        onChange={setPage}
+        label="Страницы резерва (низ)"
+      />
 
       {modal}
     </section>

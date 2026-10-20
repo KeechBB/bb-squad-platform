@@ -28,21 +28,27 @@ const callbacks: NextAuthOptions["callbacks"] = {
         ? ("DEPUTY" as const)
         : null;
 
-    await prisma.user.upsert({
-      where: { steamId },
-      create: {
-        steamId,
-        steamName,
-        steamAvatar,
-        profileComplete: false,
-        ...(builtinRole ? { role: builtinRole } : {}),
-      },
-      update: {
-        steamName,
-        steamAvatar,
-        ...(builtinRole ? { role: builtinRole } : {}),
-      },
-    });
+    try {
+      await prisma.user.upsert({
+        where: { steamId },
+        create: {
+          steamId,
+          steamName,
+          steamAvatar,
+          profileComplete: false,
+          ...(builtinRole ? { role: builtinRole } : {}),
+        },
+        update: {
+          steamName,
+          steamAvatar,
+          ...(builtinRole ? { role: builtinRole } : {}),
+        },
+      });
+    } catch (err) {
+      // NextAuth кладёт текст ошибки в Location — перевод строки ломает Headers.set
+      console.error("steam signIn upsert failed", err);
+      return false;
+    }
     return true;
   },
   async jwt({ token, account, profile, trigger, session }) {

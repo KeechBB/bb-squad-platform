@@ -78,16 +78,19 @@ export async function GET(req: Request) {
     ? await buildPlayerMedalShelf(me.nick).catch(() => [])
     : [];
 
+  const unlocks = Array.isArray(me.unlockedProfileBgs)
+    ? me.unlockedProfileBgs
+    : [];
   const profileBgChoices = isSelf
     ? await profileBgChoicesForUser({
         id: me.id,
         steamId: me.steamId,
         nick: me.nick,
-        unlockedProfileBgs: me.unlockedProfileBgs,
+        unlockedProfileBgs: unlocks,
       }).catch(() =>
         profileBgChoicesFor({
           steamId: me.steamId,
-          unlocks: me.unlockedProfileBgs || [],
+          unlocks,
         })
       )
     : [];

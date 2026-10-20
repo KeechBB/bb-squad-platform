@@ -9,6 +9,9 @@ import {
 import type {
   AttendanceStreakBoard,
 } from "@/lib/attendanceStreaks";
+import { ListPager, pageSlice } from "@/components/ListPager";
+
+const ATTEND_PAGE_SIZE = 50;
 
 type Cell = { in: string; out: string | null; mins: number };
 
@@ -384,6 +387,7 @@ export function AdminAttendancePanel() {
   const [loading, setLoading] = useState(false);
   const [onlyAbsent, setOnlyAbsent] = useState(false);
   const [nickQuery, setNickQuery] = useState("");
+  const [page, setPage] = useState(1);
   const [showIn, setShowIn] = useState(true);
   const [showOut, setShowOut] = useState(true);
   const [server, setServer] = useState<ServerFilter>("TR1");
@@ -621,6 +625,15 @@ export function AdminAttendancePanel() {
     });
   }, [data, onlyAbsent, server, nickQuery]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [nickQuery, onlyAbsent, from, to, server, data?.from, data?.to]);
+
+  const tableSlice = useMemo(
+    () => pageSlice(rows, page, ATTEND_PAGE_SIZE),
+    [rows, page]
+  );
+
   return (
     <section className="card" style={{ marginTop: 8 }}>
       <p className="muted" style={{ marginTop: 0, marginBottom: 10 }}>
@@ -801,6 +814,15 @@ export function AdminAttendancePanel() {
       {err ? <p style={{ color: "#fca5a5" }}>{err}</p> : null}
 
       {tab === "table" && data ? (
+        <>
+        <ListPager
+          page={tableSlice.page}
+          pageCount={tableSlice.pageCount}
+          total={tableSlice.total}
+          pageSize={ATTEND_PAGE_SIZE}
+          onChange={setPage}
+          label="Страницы посещаемости"
+        />
         <div className="attend-matrix-wrap">
           <table className="attend-matrix">
             <thead>
@@ -814,7 +836,7 @@ export function AdminAttendancePanel() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {tableSlice.rows.map((r) => (
                 <tr key={r.userId}>
                   <td>{r.regNo}</td>
                   <td>
@@ -920,6 +942,15 @@ export function AdminAttendancePanel() {
             </tbody>
           </table>
         </div>
+        <ListPager
+          page={tableSlice.page}
+          pageCount={tableSlice.pageCount}
+          total={tableSlice.total}
+          pageSize={ATTEND_PAGE_SIZE}
+          onChange={setPage}
+          label="Страницы посещаемости (низ)"
+        />
+        </>
       ) : null}
 
       {tab === "stats" && data ? (

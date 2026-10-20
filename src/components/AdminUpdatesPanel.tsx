@@ -1,6 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ListPager, pageSlice } from "@/components/ListPager";
+
+const UPDATES_PAGE_SIZE = 30;
 
 type Release = {
   version: string;
@@ -20,6 +23,7 @@ export function AdminUpdatesPanel() {
   const [releases, setReleases] = useState<Release[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -40,6 +44,15 @@ export function AdminUpdatesPanel() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const slice = useMemo(
+    () => pageSlice(releases, page, UPDATES_PAGE_SIZE),
+    [releases, page]
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [releases.length]);
 
   return (
     <section className="card admin-updates-panel">
@@ -68,8 +81,16 @@ export function AdminUpdatesPanel() {
         <p className="muted">Пока нет записей об обновлениях.</p>
       ) : null}
 
+      <ListPager
+        page={slice.page}
+        pageCount={slice.pageCount}
+        total={slice.total}
+        pageSize={UPDATES_PAGE_SIZE}
+        onChange={setPage}
+        label="Страницы логов обновлений"
+      />
       <ul className="admin-updates-list">
-        {releases.map((r) => (
+        {slice.rows.map((r) => (
           <li key={`${r.version}-${r.date}`} className="admin-updates-item">
             <header className="admin-updates-item-head">
               <span className="admin-updates-ver">Beta v{r.version}</span>
@@ -86,6 +107,14 @@ export function AdminUpdatesPanel() {
           </li>
         ))}
       </ul>
+      <ListPager
+        page={slice.page}
+        pageCount={slice.pageCount}
+        total={slice.total}
+        pageSize={UPDATES_PAGE_SIZE}
+        onChange={setPage}
+        label="Страницы логов обновлений (низ)"
+      />
     </section>
   );
 }

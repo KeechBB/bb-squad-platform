@@ -92,14 +92,24 @@ if [[ -d public/replay-maps ]]; then
   cp -a public/replay-maps /tmp/bb-replay-maps.bak
   echo "==> preserve public/replay-maps"
 fi
-# Локальные правки кода на VPS не выбрасывать. checkout -- . / reset --hard запрещены.
-# replay-maps не в stash: они живут на диске и уже скопированы в /tmp.
+# CRITICAL: never stash-before-pull. Old deploy stashed SCP edits and never
+# popped them → "lost" BP L5 / calendar / RP / Predator CSS after every deploy.
+# Source of truth = GitHub. Dirty tree on VPS = abort (commit+push from PC first).
+# checkout -- . / reset --hard запрещены.
 mapfile -t DIRTY_PATHS < <(git status --porcelain -- src docs scripts package.json package-lock.json public 2>/dev/null | awk '{print $NF}' | grep -v '^public/replay-maps' || true)
-if [[ ${#DIRTY_PATHS[@]} -gt 0 ]]; then
-  echo "==> dirty code tree — stash before pull (kept, not deleted)"
-  git stash push -u -m "deploy-preserve $(date -Is)" -- "${DIRTY_PATHS[@]}" || true
+if [[ "${BB_DEPLOY_FORCE_CLEAN:-}" == "1" ]]; then
+  echo "==> BB_DEPLOY_FORCE_CLEAN=1 — fetch + reset --hard origin/main (only after GitHub has the truth)"
+  git fetch origin
+  git reset --hard origin/main
+elif [[ ${#DIRTY_PATHS[@]} -gt 0 ]]; then
+  echo "==> ABORT: dirty code on VPS (would be wiped by pull). Commit+push from PC, then redeploy." >&2
+  echo "==> dirty paths:" >&2
+  printf '  %s\n' "${DIRTY_PATHS[@]}" >&2
+  echo "==> or after GitHub is correct: BB_DEPLOY_FORCE_CLEAN=1 bash scripts/deploy.sh" >&2
+  exit 1
+else
+  git pull --ff-only
 fi
-git pull --ff-only || true
 # Some ops use reset --hard after fetch; restore preserved files either way.
 for f in "${PRESERVE_PUBLIC[@]}"; do
   if [[ -f "$f.deploybak" ]]; then

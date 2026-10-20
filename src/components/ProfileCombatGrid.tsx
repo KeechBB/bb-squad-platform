@@ -41,13 +41,23 @@ export type CombatGridInput = {
    * Если задано — клетка «Урон» становится «Ср. тикеты».
    */
   avgTickets?: number | null;
+  /**
+   * Только паблик: вместо «Урон + Ср. урон» — широкий блок RP.
+   */
+  publicRp?: {
+    rp: number | null;
+    rankLabel: string | null;
+    rankKey: string | null;
+    predatorPlace?: number | null;
+  } | null;
 };
 
 type CellTone =
   | "neutral"
   | "mvp-killer"
   | "mvp-medic"
-  | "mvp-armor";
+  | "mvp-armor"
+  | "rp";
 
 type Cell = {
   tone: CellTone;
@@ -55,6 +65,8 @@ type Cell = {
   value: ReactNode;
   sub?: string;
   mvpKind?: MvpKind;
+  span?: 2;
+  rankKey?: string | null;
 };
 
 const MVP_TITLE: Record<MvpKind, string> = {
@@ -107,33 +119,72 @@ function cellsFrom(s: CombatGridInput): Cell[] {
       label: "Ср. киллы / катка",
       value: s.avgKills,
     },
-    s.avgTickets != null
-      ? {
-          tone: "neutral" as const,
-          label: "Ср. тикеты / катка",
-          value: s.avgTickets,
-          sub: "TU · килл+рес−смерть",
-        }
-      : {
-          tone: "neutral" as const,
-          label: "Урон",
-          value: s.dmg.toLocaleString("ru-RU"),
-        },
-    {
-      tone: "neutral",
-      label: "Ср. урон / катка",
-      value: s.avgDmg,
-    },
-    {
-      tone: "neutral",
-      label: "Revives",
-      value: s.res,
-    },
-    {
-      tone: "neutral",
-      label: "Ноки",
-      value: s.nok,
-    },
+    ...(s.publicRp
+      ? ([
+          {
+            tone: "neutral" as const,
+            label: "Revives",
+            value: s.res,
+          },
+          {
+            tone: "rp" as const,
+            label: "Рейтинг паблика",
+            span: 2 as const,
+            rankKey: s.publicRp.rankKey,
+            value:
+              s.publicRp.rp != null ? (
+                <>
+                  <span
+                    className={`home-pwr-badge rank-${s.publicRp.rankKey || "iron"}`}
+                  >
+                    {s.publicRp.predatorPlace
+                      ? `PREDATOR #${s.publicRp.predatorPlace}`
+                      : s.publicRp.rankLabel || "—"}
+                  </span>
+                  <em>
+                    {" "}
+                    {Math.round(s.publicRp.rp).toLocaleString("ru-RU")} RP
+                  </em>
+                </>
+              ) : (
+                "—"
+              ),
+          },
+          {
+            tone: "neutral" as const,
+            label: "Ноки",
+            value: s.nok,
+          },
+        ] as Cell[])
+      : ([
+          s.avgTickets != null
+            ? {
+                tone: "neutral" as const,
+                label: "Ср. тикеты / катка",
+                value: s.avgTickets,
+                sub: "TU · килл+рес−смерть",
+              }
+            : {
+                tone: "neutral" as const,
+                label: "Урон",
+                value: s.dmg.toLocaleString("ru-RU"),
+              },
+          {
+            tone: "neutral" as const,
+            label: "Ср. урон / катка",
+            value: s.avgDmg,
+          },
+          {
+            tone: "neutral" as const,
+            label: "Revives",
+            value: s.res,
+          },
+          {
+            tone: "neutral" as const,
+            label: "Ноки",
+            value: s.nok,
+          },
+        ] as Cell[])),
     {
       tone: "mvp-killer",
       label: "MVP Killer",
@@ -301,9 +352,15 @@ export function ProfileCombatGrid({ stats, mvpHits, mvpFetch }: Props) {
     <>
       <div className="profile-kv-grid-12" role="list">
         {cells.map((c) => {
-          const className = `profile-kv-cell tone-${c.tone}${
-            c.mvpKind ? " is-mvp is-clickable" : ""
-          }`;
+          const className = [
+            "profile-kv-cell",
+            `tone-${c.tone}`,
+            c.mvpKind ? "is-mvp is-clickable" : "",
+            c.span === 2 ? "is-span-2" : "",
+            c.tone === "rp" && c.rankKey ? `rank-${c.rankKey}` : "",
+          ]
+            .filter(Boolean)
+            .join(" ");
           const inner = (
             <>
               <span className="profile-kv-cell-label">{c.label}</span>

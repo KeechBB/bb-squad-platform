@@ -796,6 +796,8 @@ export async function buildPlayerCwMatchHistory(
 
 export type CwAttendanceDay = {
   present: boolean;
+  /** Итог встречи клана (не путать с «был/не был»). */
+  result: "win" | "lose" | null;
   opp: string;
   logoUrl: string | null;
   map: string;
@@ -866,7 +868,13 @@ export async function buildPlayerCwAttendance(
     for (const match of monthData?.matches || []) {
       if (!match.playersUrl || !match.id || match.day == null) continue;
       const st = String(match.status || "").toLowerCase();
-      if (st === "cancelled" || st === "upcoming") continue;
+      if (
+        st === "cancelled" ||
+        st === "cancel" ||
+        st === "upcoming"
+      ) {
+        continue;
+      }
       if (!isBbCalendarClan(String(match.clan || ""))) continue;
       metas.push({
         id: match.id,
@@ -919,11 +927,19 @@ export async function buildPlayerCwAttendance(
       present = Boolean(mine);
     }
     const logoUrl = resolveClanLogo(match.opp);
+    const result: "win" | "lose" | null =
+      match.status === "win"
+        ? "win"
+        : match.status === "lose"
+          ? "lose"
+          : null;
     const prev = byDay[match.ymd];
     // если в день несколько КВ — «был» важнее «не был»
     if (prev?.present && !present) continue;
     byDay[match.ymd] = {
       present: prev?.present || present,
+      // результат берём у той встречи, которую оставляем в клетке
+      result,
       opp: match.opp,
       logoUrl,
       map: match.map,

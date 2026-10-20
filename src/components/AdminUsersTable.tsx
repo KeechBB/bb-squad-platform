@@ -6,6 +6,9 @@ import type { AppRole } from "@/lib/roles";
 import { roleLabel } from "@/lib/roles";
 import { isSiteOnline } from "@/lib/presence";
 import { SitePresenceBadge } from "@/components/SitePresenceBadge";
+import { ListPager, pageSlice } from "@/components/ListPager";
+
+const PAGE_SIZE = 50;
 
 export type AdminUserRow = {
   id: string;
@@ -70,10 +73,15 @@ export function AdminUsersTable({ initialUsers, roleOptions, actorRole }: Props)
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     setUsers(initialUsers);
   }, [initialUsers]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [q, sort, order]);
 
   /** Подтягиваем lastSeenAt раз в 30 сек, чтобы статусы не устаревали */
   useEffect(() => {
@@ -246,6 +254,7 @@ export function AdminUsersTable({ initialUsers, roleOptions, actorRole }: Props)
   }
 
   const showDeleteCol = users.some((u) => u.canDelete);
+  const slice = pageSlice(rows, page, PAGE_SIZE);
 
   return (
     <div className="admin-panel">
@@ -267,6 +276,14 @@ export function AdminUsersTable({ initialUsers, roleOptions, actorRole }: Props)
       {error ? <p className="error">{error}</p> : null}
       {ok ? <p className="ok-msg">{ok}</p> : null}
 
+      <ListPager
+        page={slice.page}
+        pageCount={slice.pageCount}
+        total={slice.total}
+        pageSize={PAGE_SIZE}
+        onChange={setPage}
+        label="Страницы пользователей"
+      />
       <div className="admin-table-wrap">
         <table className="admin-table">
           <thead>
@@ -347,7 +364,7 @@ export function AdminUsersTable({ initialUsers, roleOptions, actorRole }: Props)
             </tr>
           </thead>
           <tbody>
-            {rows.map((u) => {
+            {slice.rows.map((u) => {
               const editable = u.canEditRole && roleOptions.length > 0;
               const options = editable
                 ? Array.from(new Set<AppRole>([u.role, ...roleOptions])).filter(
@@ -416,7 +433,7 @@ export function AdminUsersTable({ initialUsers, roleOptions, actorRole }: Props)
                 </tr>
               );
             })}
-            {rows.length === 0 ? (
+            {slice.rows.length === 0 ? (
               <tr>
                 <td colSpan={showDeleteCol ? 9 : 8} className="muted">
                   Никого не найдено
@@ -426,6 +443,14 @@ export function AdminUsersTable({ initialUsers, roleOptions, actorRole }: Props)
           </tbody>
         </table>
       </div>
+      <ListPager
+        page={slice.page}
+        pageCount={slice.pageCount}
+        total={slice.total}
+        pageSize={PAGE_SIZE}
+        onChange={setPage}
+        label="Страницы пользователей (низ)"
+      />
     </div>
   );
 }

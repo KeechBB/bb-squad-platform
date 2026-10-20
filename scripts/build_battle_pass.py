@@ -55,7 +55,7 @@ LEVEL_TARGETS = {
     6: 3,
     7: 15,
     8: 3,
-    9: 5,
+    9: 2,
     10: 3,
     11: 10,
     12: 60,
@@ -589,8 +589,8 @@ def apply_level(p: dict, st: dict) -> bool:
         p["current"] = int(p["streak"])
         done = p["streak"] >= 3
     elif lvl == 9:
-        p["current"] = min(5, int(p["current"]) + tanks)
-        done = p["current"] >= 5
+        p["current"] = min(2, int(p["current"]) + tanks)
+        done = p["current"] >= 2
     elif lvl == 10:
         if st.get("mvpKiller"):
             p["current"] = min(3, int(p["current"]) + 1)

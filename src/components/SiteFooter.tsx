@@ -3,7 +3,11 @@ import Link from "next/link";
 
 const YEAR = new Date().getFullYear();
 
-export function SiteFooter() {
+type Props = {
+  betaLabel?: string;
+};
+
+export function SiteFooter({ betaLabel }: Props) {
   return (
     <footer className="site-footer">
       <div className="site-footer-inner">
@@ -11,8 +15,8 @@ export function SiteFooter() {
           <Image
             src="/brand/blackberry.png"
             alt=""
-            width={48}
-            height={48}
+            width={32}
+            height={32}
             className="site-footer-logo"
           />
           <div className="site-footer-brand-text">
@@ -31,6 +35,11 @@ export function SiteFooter() {
         </nav>
 
         <div className="site-footer-meta">
+          {betaLabel ? (
+            <p className="site-footer-beta" aria-label="Версия сайта">
+              {betaLabel}
+            </p>
+          ) : null}
           <p className="site-footer-copy">
             © 2023–{YEAR} BlackBerry Squad · bb-squad.ru
           </p>

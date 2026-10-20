@@ -11,6 +11,7 @@ type Props = {
 type Tip = { text: string; x: number; y: number };
 
 export function ProfileMedalShelf({ items }: Props) {
+  const list = Array.isArray(items) ? items : [];
   const [activeId, setActiveId] = useState<string | null>(null);
   const [tip, setTip] = useState<Tip | null>(null);
 
@@ -25,13 +26,13 @@ export function ProfileMedalShelf({ items }: Props) {
         <span className="profile-medal-watermark" aria-hidden>
           Награды
         </span>
-        {items.length === 0 ? (
+        {list.length === 0 ? (
           <p className="profile-medal-shelf-empty">
             Полка пуста — награды появятся с Battle Pass и других сезонов.
           </p>
         ) : (
           <ul className="profile-medal-shelf-row">
-            {items.map((m) => (
+            {list.map((m) => (
               <li key={m.id} className="profile-medal-slot">
                 <button
                   type="button"

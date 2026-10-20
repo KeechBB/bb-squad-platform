@@ -20,6 +20,7 @@ type Props = {
 
 export function ProfileBgPicker({ options, value, onPreview, onSaved }: Props) {
   const titleId = useId();
+  const tiles = Array.isArray(options) ? options : [];
   const [open, setOpen] = useState(false);
   const [pick, setPick] = useState<ProfileBgId | null>(value);
   const [saving, setSaving] = useState(false);
@@ -135,8 +136,9 @@ export function ProfileBgPicker({ options, value, onPreview, onSaved }: Props) {
                   <span className="profile-bg-tile-label">Без фона</span>
                   <span className="profile-bg-tile-hint">как сейчас</span>
                 </button>
-                {options.map((opt) => {
-                  const url = profileBgUrl(opt.id)!;
+                {tiles.map((opt) => {
+                  const url = profileBgUrl(opt.id);
+                  if (!url) return null;
                   return (
                     <button
                       key={opt.id}

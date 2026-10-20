@@ -23,15 +23,32 @@ export const PROFILE_BG_OPTIONS = [
   { id: "cats-01", file: "anime-cats-01.jpg", label: "Anime Cats" },
   { id: "wolves-01", file: "anime-wolves-01.jpg", label: "Anime Wolves" },
   {
+    id: "trucks-01",
+    file: "profile-bg-semi-trucks-01.jpg",
+    label: "Фуры",
+  },
+  {
     id: "creator-keech",
     file: "profile-bg-site-creator-keech.jpg",
     label: "Создатель сайта",
     gate: "creator",
   },
   {
+    id: "creator-tournament-01",
+    file: "profile-bg-keech-gold-tournament-01.jpg",
+    label: "Keech · Турнирное золото I",
+    gate: "creator",
+  },
+  {
+    id: "creator-tournament-03",
+    file: "profile-bg-keech-gold-tournament-03.jpg",
+    label: "Keech · Турнирное золото III",
+    gate: "creator",
+  },
+  {
     id: "bp-l5-gold",
-    file: "profile-bg-battle-pass-level-05-gold.jpg",
-    label: "Золото Battle Pass · ур. 5",
+    file: "profile-bg-keech-gold-tournament-02.jpg",
+    label: "Турнирное золото II",
     gate: "bp-l5",
   },
 ] as const;
@@ -64,7 +81,12 @@ export function profileBgChoicesFor(opts: {
     const gate = gateOf(opt);
     if (gate === "public") return true;
     if (gate === "creator") return opts.steamId === SITE_CREATOR_STEAM_ID;
-    if (gate === "bp-l5") return unlocks.has(opt.id);
+    if (gate === "bp-l5") {
+      return (
+        unlocks.has(opt.id) ||
+        (opt.id === "bp-l5-gold" && unlocks.has("creator-tournament-02"))
+      );
+    }
     return false;
   }).map((opt) => ({ id: opt.id, file: opt.file, label: opt.label }));
 }
@@ -97,7 +119,15 @@ export function profileBgLabel(id: ProfileBgId): string {
   return BY_ID.get(id)?.label || id;
 }
 
+/** Старые id → актуальные (после смены награды L5). */
+const PROFILE_BG_ALIASES: Record<string, ProfileBgId> = {
+  "creator-tournament-02": "bp-l5-gold",
+};
+
 export function normalizeProfileBg(v: unknown): ProfileBgId | null {
   if (v == null || v === "" || v === "none" || v === "default") return null;
+  if (typeof v !== "string") return null;
+  const aliased = PROFILE_BG_ALIASES[v];
+  if (aliased) return aliased;
   return isProfileBgId(v) ? v : null;
 }

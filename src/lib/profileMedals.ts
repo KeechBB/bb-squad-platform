@@ -49,16 +49,20 @@ export async function buildPlayerMedalShelf(
   const unlocked = (r: BpReward) =>
     Boolean(prog.completedAt) || prog.currentLevel >= r.level;
 
-  const bp = BP_REWARDS.filter(unlocked).map((r) => ({
-    id: r.id,
-    name: r.name,
-    short: r.short,
-    kind: r.kind,
-    level: r.level,
-    hover: r.hover || r.preview || r.name,
-    icon: iconFor(r),
-    source: "bp" as const,
-  }));
+  // Полка «Награды» — только медали и значки.
+  // Фон → библиотека фонов; рамка / цвет ника вешаются на профиль сами.
+  const bp = BP_REWARDS.filter((r) => r.kind === "medal" || r.kind === "badge")
+    .filter(unlocked)
+    .map((r) => ({
+      id: r.id,
+      name: r.name,
+      short: r.short,
+      kind: r.kind,
+      level: r.level,
+      hover: r.hover || r.preview || r.name,
+      icon: iconFor(r),
+      source: "bp" as const,
+    }));
 
   const registered = await prisma.user.findFirst({
     where: {
