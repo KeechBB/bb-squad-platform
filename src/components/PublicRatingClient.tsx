@@ -56,6 +56,43 @@ const RP_BANDS: [string, string][] = [
 /** Ceiling before Predator (= Eclipse III max). */
 const RP_PREDATOR_MIN = RP_BANDS.length * 3 * RP_STEP + 1; // 4951
 
+/** Iron → … → Eclipse → Predator (как на шкале TOP 500). */
+const RANK_KEY_ORDER = [
+  "iron",
+  "bronze",
+  "silver",
+  "gold",
+  "platinum",
+  "diamond",
+  "legend",
+  "immortal",
+  "master",
+  "radiant",
+  "eclipse",
+  "predator",
+] as const;
+
+/** Число для сортировки Rank: выше ранг / дивизион / RP → больше значение. */
+function rankSortValue(r: PublicCombatRow): number {
+  const key = String(r.rankKey || "").toLowerCase();
+  const band = RANK_KEY_ORDER.indexOf(
+    key as (typeof RANK_KEY_ORDER)[number]
+  );
+  const bandIdx = band >= 0 ? band : -1;
+  if (key === "predator") {
+    const m = String(r.rankLabel || "").match(/#(\d+)/);
+    const place = m ? Number(m[1]) : 999;
+    // #1 выше #2; RP — тонкий тай-брейк
+    return bandIdx * 1_000_000 + (1000 - Math.min(999, place)) * 1000 + (Number(r.rp) || 0);
+  }
+  const label = String(r.rankLabel || "").toUpperCase();
+  let div = 0;
+  if (/\bIII\b/.test(label)) div = 2;
+  else if (/\bII\b/.test(label)) div = 1;
+  else if (/\bI\b/.test(label)) div = 0;
+  return bandIdx * 1_000_000 + div * 1000 + (Number(r.rp) || 0);
+}
+
 const MSK = "Europe/Moscow";
 
 function mskParts(iso: string): { date: string; time: string; y: number; m: number; d: string } {
@@ -223,7 +260,13 @@ export function PublicRatingClient({
     }
     const dir = sortDir === "asc" ? 1 : -1;
     return list.slice().sort((a, b) => {
-      if (sortKey === "nick" || sortKey === "clan" || sortKey === "rankLabel") {
+      if (sortKey === "rankLabel") {
+        const av = rankSortValue(a);
+        const bv = rankSortValue(b);
+        if (av !== bv) return dir * (av - bv);
+        return a.nick.localeCompare(b.nick, "ru");
+      }
+      if (sortKey === "nick" || sortKey === "clan") {
         return (
           dir *
           String(a[sortKey] || "").localeCompare(String(b[sortKey] || ""), "ru")

@@ -1,6 +1,14 @@
 {
-  "current": "1.1.210",
+  "current": "1.1.225",
   "releases": [
+    {
+      "version": "1.1.225",
+      "date": "2026-10-21",
+      "title": "Сортировка Rank по шкале",
+      "bullets": [
+        "Rank в рейтинге паблика: Iron → … → Predator, не алфавит"
+      ]
+    },
     {
       "version": "1.1.210",
       "date": "2026-10-20",
