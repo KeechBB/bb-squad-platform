@@ -1,5 +1,10 @@
 import type { BpReward, BpRewardKind } from "@/lib/battlePass";
 import { BP_L5_PROFILE_BG_ID, profileBgUrl } from "@/lib/profileBg";
+import {
+  BP_L15_PATCH_ID,
+  profilePatchTip,
+  profilePatchUrl,
+} from "@/lib/profilePatches";
 
 export type BpPreviewPlayer = {
   nick: string;
@@ -88,7 +93,7 @@ function ProfileHeadMock({
   );
 }
 
-/** Пример строки рейтинга паблика с золотым ником (L15). */
+/** Пример строки рейтинга паблика с золотым ником (legacy L15). */
 function RatingNickMock({
   player,
   compact,
@@ -117,6 +122,48 @@ function RatingNickMock({
   );
 }
 
+/** L15: нашивка у ника, как в рейтингах. */
+function RatingPatchMock({
+  player,
+  reward,
+  compact,
+}: {
+  player: BpPreviewPlayer;
+  reward: BpReward;
+  compact?: boolean;
+}) {
+  const url = profilePatchUrl(BP_L15_PATCH_ID);
+  const tip = reward.hover || profilePatchTip(BP_L15_PATCH_ID);
+  return (
+    <div className={`bp-mock-rating bp-mock-patch${compact ? " is-compact" : ""}`}>
+      {!compact ? (
+        <p className="bp-mock-rating-label">рейтинг · нашивка</p>
+      ) : null}
+      <div className="bp-mock-rating-row bp-mock-patch-row">
+        <span className="bp-mock-rating-nick">{player.nick}</span>
+        {url ? (
+          <span
+            className="nick-patch-mark is-active bp-mock-patch-mark"
+            title={tip}
+            aria-label={tip}
+          >
+            <span
+              className="nick-patch-mark-art"
+              style={{ backgroundImage: `url(${url})` }}
+              aria-hidden
+            />
+          </span>
+        ) : null}
+      </div>
+      {!compact ? (
+        <p className="bp-mock-rating-hint">
+          Видна в паблике, КВ и тренировках — ставится в кастомизации профиля
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 /** Живой пример, где висит награда. */
 export function BpRewardMock({
   reward,
@@ -137,6 +184,8 @@ export function BpRewardMock({
     >
       {kind === "nick" ? (
         <RatingNickMock player={player} compact={compact} />
+      ) : kind === "customize" ? (
+        <RatingPatchMock player={player} reward={reward} compact={compact} />
       ) : kind === "bg" && bgUrl ? (
         <div
           className="bp-mock-bg"
