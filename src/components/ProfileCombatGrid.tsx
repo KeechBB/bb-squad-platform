@@ -42,9 +42,10 @@ export type CombatGridInput = {
    */
   avgTickets?: number | null;
   /**
-   * Только паблик: вместо «Урон + Ср. урон» — широкий блок RP.
+   * Паблик / тренировки: вместо «Урон + Ср. урон» — широкий блок RP.
    */
-  publicRp?: {
+  ratingRp?: {
+    title: string;
     rp: number | null;
     rankLabel: string | null;
     rankKey: string | null;
@@ -119,7 +120,7 @@ function cellsFrom(s: CombatGridInput): Cell[] {
       label: "Ср. киллы / катка",
       value: s.avgKills,
     },
-    ...(s.publicRp
+    ...(s.ratingRp
       ? ([
           {
             tone: "neutral" as const,
@@ -128,22 +129,22 @@ function cellsFrom(s: CombatGridInput): Cell[] {
           },
           {
             tone: "rp" as const,
-            label: "Рейтинг паблика",
+            label: s.ratingRp.title,
             span: 2 as const,
-            rankKey: s.publicRp.rankKey,
+            rankKey: s.ratingRp.rankKey,
             value:
-              s.publicRp.rp != null ? (
+              s.ratingRp.rp != null ? (
                 <>
                   <span
-                    className={`home-pwr-badge rank-${s.publicRp.rankKey || "iron"}`}
+                    className={`home-pwr-badge rank-${s.ratingRp.rankKey || "iron"}`}
                   >
-                    {s.publicRp.predatorPlace
-                      ? `PREDATOR #${s.publicRp.predatorPlace}`
-                      : s.publicRp.rankLabel || "—"}
+                    {s.ratingRp.predatorPlace
+                      ? `PREDATOR #${s.ratingRp.predatorPlace}`
+                      : s.ratingRp.rankLabel || "—"}
                   </span>
                   <em>
                     {" "}
-                    {Math.round(s.publicRp.rp).toLocaleString("ru-RU")} RP
+                    {Math.round(s.ratingRp.rp).toLocaleString("ru-RU")} RP
                   </em>
                 </>
               ) : (

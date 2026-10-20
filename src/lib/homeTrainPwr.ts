@@ -909,6 +909,11 @@ export type PlayerTrainCombatStats = {
   mvpKiller: number;
   mvpMedic: number;
   antiDeath: number;
+  /** Рейтинг RP тренировок (клетка в профиле, как у паблика). */
+  rp?: number | null;
+  rankLabel?: string | null;
+  rankKey?: string | null;
+  predatorPlace?: number | null;
   /** Матчи с MVP Killer / Medic (для клика по клеткам) */
   mvpHits?: {
     killer: {
@@ -942,7 +947,7 @@ export async function buildPlayerTrainCombatStats(
   const clean = String(nick || "").trim();
   if (!clean) return null;
 
-  const empty = {
+  const emptyBase = {
     nick: clean,
     matches: 0,
     wins: 0,
@@ -963,8 +968,21 @@ export async function buildPlayerTrainCombatStats(
     mvpHits: { killer: [], medic: [], armor: [] },
   };
 
+  async function withTrainRp(
+    base: typeof emptyBase & { nick: string }
+  ): Promise<PlayerTrainCombatStats> {
+    const trainRp = await lookupPlayerTrainPwr(base.nick).catch(() => null);
+    return {
+      ...base,
+      rp: trainRp?.rp ?? null,
+      rankLabel: trainRp?.rankLabel ?? null,
+      rankKey: trainRp?.rankKey ?? null,
+      predatorPlace: trainRp?.predatorPlace ?? null,
+    };
+  }
+
   const corpus = await getTrainPlayerCorpus();
-  if (!corpus.hasIndex) return empty;
+  if (!corpus.hasIndex) return withTrainRp(emptyBase);
   const resolveKey = aliasResolver(corpus.aliases);
   const want = resolveKey(clean);
 
@@ -1065,7 +1083,7 @@ export async function buildPlayerTrainCombatStats(
   const winrate =
     decided > 0 ? Math.round((1000 * wins) / decided) / 10 : 0;
 
-  return {
+  return withTrainRp({
     nick: displayNick,
     matches,
     wins,
@@ -1084,5 +1102,5 @@ export async function buildPlayerTrainCombatStats(
     mvpMedic,
     antiDeath,
     mvpHits,
-  };
+  });
 }

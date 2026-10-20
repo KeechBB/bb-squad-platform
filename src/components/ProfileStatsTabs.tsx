@@ -65,14 +65,24 @@ function CombatBody({
       : undefined;
 
   const pub = mode === "public" ? (stats as PlayerPublicCombatStats) : null;
-  const publicRp = pub
+  const train = mode === "train" ? (stats as PlayerTrainCombatStats) : null;
+  const ratingRp = pub
     ? {
+        title: "Рейтинг паблика",
         rp: pub.rp ?? null,
         rankLabel: pub.rankLabel ?? null,
         rankKey: pub.rankKey ?? null,
         predatorPlace: pub.predatorPlace ?? null,
       }
-    : null;
+    : train
+      ? {
+          title: "Рейтинг тренировок",
+          rp: train.rp ?? null,
+          rankLabel: train.rankLabel ?? null,
+          rankKey: train.rankKey ?? null,
+          predatorPlace: train.predatorPlace ?? null,
+        }
+      : null;
 
   return (
     <ProfileCombatGrid
@@ -93,7 +103,7 @@ function CombatBody({
         mvpMedic: stats.mvpMedic,
         mvpArmor,
         vehicleKills,
-        publicRp,
+        ratingRp,
       }}
       mvpHits={mvpHits}
       mvpFetch={{ nick: stats.nick, mode }}
