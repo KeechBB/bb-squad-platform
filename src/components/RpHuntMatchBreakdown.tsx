@@ -64,11 +64,24 @@ function toKillRows(events: RpMatchEvent[]): Row[] {
   });
 }
 
+/** Потеря самого игрока. У Die/TK/nok это victimDelta, не delta киллера. */
+function victimLoss(e: RpMatchEvent): number {
+  if (e.victimDelta != null && Number.isFinite(Number(e.victimDelta))) {
+    return Math.abs(Number(e.victimDelta) || 0);
+  }
+  // TK-нок: штраф только у того, кто нокнул. Жертва RP не теряет.
+  if (e.teamkill || e.kind === "tk") return 0;
+  return Math.abs(Number(e.delta) || 0);
+}
+
 function toDeathRows(events: RpMatchEvent[]): Row[] {
   return (events || []).map((e, i) => {
     const vehicle = isVehicleRpEvent(e);
     const nick = vehicle ? formatRpEventLabel(e, "death") : e.killer;
-    const mag = Math.abs(Number(e.delta) || 0);
+    const mag =
+      e.kind === "vehicle_loss" || e.kind === "vehicle_loss_driver"
+        ? Math.abs(Number(e.delta) || 0)
+        : victimLoss(e);
     return {
       key: `d-${i}-${e.time}-${e.killer}-${e.kind || "die"}`,
       time: e.time || "—",
@@ -93,9 +106,7 @@ function toReviveRows(events: RpMatchEvent[]): Row[] {
 
 function toGotNokRows(events: RpMatchEvent[]): Row[] {
   return (events || []).map((e, i) => {
-    const mag = Math.abs(
-      Number((e as RpMatchEvent & { victimDelta?: number }).victimDelta ?? e.delta) || 0
-    );
+    const mag = victimLoss(e);
     return {
       key: `gn-${i}-${e.time}-${e.killer}`,
       time: e.time || "—",
@@ -150,20 +161,23 @@ type Props = {
   embedded?: boolean;
 };
 
+function isDriverShareVehicleKill(e: RpMatchEvent): boolean {
+  return e.kind === "driver_share" && e.reason === "vehicle_kill";
+}
+
 export function useRpMatchColumns(match: RpPlayerMatch) {
-  // Килы = гивапы. Техника = vehicle_kill / loss. Доля мехвода в столбики не идёт.
+  // Килы = свои гивапы + 70% киллов наводчика (driver_share/die).
+  // Техника = уничтожение и 70% техники наводчика, плюс потери.
   const rawKills = match.kills || [];
   const shareNoks = rawKills.filter(isDriverShareNok);
   const legacyVehicleFromKills = rawKills.filter(
-    (e) =>
-      e.kind === "vehicle_kill" ||
-      (e.kind === "driver_share" && e.reason !== "nok")
+    (e) => e.kind === "vehicle_kill" || isDriverShareVehicleKill(e)
   );
   const kills = rawKills.filter(
     (e) =>
       !isDriverShareNok(e) &&
       e.kind !== "vehicle_kill" &&
-      e.kind !== "driver_share"
+      !isDriverShareVehicleKill(e)
   );
   const noks = [...(match.noks || []), ...shareNoks];
   const gotNoks = match.gotNoks || [];
@@ -207,7 +221,9 @@ export function useRpMatchColumns(match: RpPlayerMatch) {
     ),
   ];
   const vehicleGainRows = toKillRows(
-    vehicleEvents.filter((e) => e.kind === "vehicle_kill")
+    vehicleEvents.filter(
+      (e) => e.kind === "vehicle_kill" || isDriverShareVehicleKill(e)
+    )
   );
   const vehicleLossRows = toDeathRows(
     vehicleEvents.filter(
