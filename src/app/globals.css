@@ -1450,6 +1450,10 @@ body:has(.public-rating-page) {
   isolation: isolate;
   overflow: visible;
 }
+.rating-like-cw tbody tr:has(.nick-patch-mark[data-patch-id="public-100-vehicles-t62"]) > td {
+  padding-top: 5.25px;
+  padding-bottom: 5.25px;
+}
 .nick-patch-mark[data-patch-id="public-100-vehicles-t62"]::before {
   content: "";
   position: absolute;
