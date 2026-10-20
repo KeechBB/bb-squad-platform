@@ -44,6 +44,7 @@ export function NickPatchMark({ patchId, className }: Props) {
         className={`nick-patch-mark${active ? " is-active" : ""}${
           className ? ` ${className}` : ""
         }`}
+        data-patch-id={id}
         aria-label={tipText}
         onMouseEnter={(e) => show(e.currentTarget)}
         onMouseLeave={hide}

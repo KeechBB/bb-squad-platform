@@ -66,6 +66,7 @@ export async function PATCH(req: Request) {
       : nickPatch;
   if (
     !canUseProfilePatch(nextPatch, {
+      steamId: session.user.steamId,
       unlocks: patchUnlocks,
     })
   ) {

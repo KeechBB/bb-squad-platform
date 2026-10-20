@@ -104,6 +104,7 @@ export async function GET(req: Request) {
   const profilePatchChoices = isSelf
     ? await profilePatchChoicesForUser({
         id: me.id,
+        steamId: me.steamId,
         nick: me.nick,
         unlockedNickPatches: patchUnlocks,
       }).catch(() => [])

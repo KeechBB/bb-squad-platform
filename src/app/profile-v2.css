@@ -945,6 +945,27 @@ body.has-profile-bg .shell:has(.profile-page) {
   background-repeat: no-repeat;
   filter: drop-shadow(0 0 6px rgba(255, 180, 40, 0.55));
 }
+.profile-patch-tile[data-patch-id="creator-orange-phantom"]
+  .profile-patch-tile-art {
+  width: 94%;
+  transform: none;
+  filter:
+    drop-shadow(0 0 4px rgba(255, 255, 255, 0.75))
+    drop-shadow(0 0 9px rgba(255, 106, 0, 0.8));
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+.profile-patch-tile[data-patch-id="creator-orange-phantom"]:hover
+  .profile-patch-tile-art,
+.profile-patch-tile[data-patch-id="creator-orange-phantom"]:focus-visible
+  .profile-patch-tile-art,
+.profile-patch-tile[data-patch-id="creator-orange-phantom"].is-selected
+  .profile-patch-tile-art {
+  transform: scale(1.06);
+  filter:
+    drop-shadow(0 0 7px rgba(255, 255, 255, 1))
+    drop-shadow(0 0 15px rgba(255, 106, 0, 1))
+    brightness(1.22);
+}
 
 .profile-mode-switch {
   margin-top: 4px !important;

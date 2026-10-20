@@ -89,9 +89,10 @@ export async function profileBgChoicesForUser(user: {
 
 export async function profilePatchChoicesForUser(user: {
   id: string;
+  steamId: string;
   nick: string | null;
   unlockedNickPatches: string[];
 }): Promise<ProfilePatchChoice[]> {
   const unlocks = await ensureBpL15NickPatch(user);
-  return profilePatchChoicesFor({ unlocks });
+  return profilePatchChoicesFor({ steamId: user.steamId, unlocks });
 }

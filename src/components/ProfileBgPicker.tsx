@@ -220,6 +220,8 @@ export function ProfileBgPicker({
                           className={`profile-bg-tile profile-patch-tile${
                             patchPick === opt.id ? " is-selected" : ""
                           }`}
+                          data-patch-id={opt.id}
+                          title={opt.tip}
                           onClick={() => setPatchPick(opt.id)}
                         >
                           <span

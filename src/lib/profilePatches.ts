@@ -1,5 +1,7 @@
 /** Нашивки ника (рейтинг паблика / КВ / тренировок). Файлы в /public/bp-assets/. */
 
+import { SITE_CREATOR_STEAM_ID } from "@/lib/profileBg";
+
 export const PROFILE_PATCH_OPTIONS = [
   {
     id: "bp-l15-keech",
@@ -7,6 +9,13 @@ export const PROFILE_PATCH_OPTIONS = [
     label: "Хищник · BP L15",
     tip: "Награда за достижение 15го уровня Battle Pass Тестовый сезон",
     gate: "bp-l15" as const,
+  },
+  {
+    id: "creator-orange-phantom",
+    file: "keech-hidden-orange-phantom.png",
+    label: "Протокол: Оранжевый призрак",
+    tip: "Протокол: «Оранжевый призрак» · Как получить: скрытая награда",
+    gate: "creator" as const,
   },
 ] as const;
 
@@ -21,7 +30,7 @@ export type ProfilePatchChoice = {
 
 export const BP_L15_PATCH_ID = "bp-l15-keech" as const satisfies ProfilePatchId;
 
-type PatchGate = "bp-l15";
+type PatchGate = "bp-l15" | "creator";
 
 function gateOf(opt: (typeof PROFILE_PATCH_OPTIONS)[number]): PatchGate {
   return opt.gate;
@@ -57,11 +66,15 @@ export function profilePatchLabel(id: ProfilePatchId): string {
 }
 
 export function profilePatchChoicesFor(opts: {
+  steamId: string;
   unlocks: readonly string[];
 }): ProfilePatchChoice[] {
   const unlocks = new Set(opts.unlocks);
   return PROFILE_PATCH_OPTIONS.filter((opt) => {
     const gate = gateOf(opt);
+    if (gate === "creator") {
+      return opts.steamId === SITE_CREATOR_STEAM_ID;
+    }
     if (gate === "bp-l15") {
       return (
         unlocks.has(opt.id) ||
@@ -80,7 +93,7 @@ export function profilePatchChoicesFor(opts: {
 
 export function canUseProfilePatch(
   id: ProfilePatchId | null,
-  opts: { unlocks: readonly string[] }
+  opts: { steamId: string; unlocks: readonly string[] }
 ): boolean {
   if (!id) return true;
   return profilePatchChoicesFor(opts).some((opt) => opt.id === id);
