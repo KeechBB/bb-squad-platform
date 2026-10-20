@@ -995,8 +995,8 @@ body.has-profile-bg .shell:has(.profile-page) {
   width: 96%;
   transform: none;
   filter:
-    drop-shadow(0 0 4px rgba(244, 226, 158, 0.84))
-    drop-shadow(0 0 10px rgba(132, 119, 67, 0.76));
+    drop-shadow(0 0 2px rgba(244, 226, 158, 0.56))
+    drop-shadow(0 0 6px rgba(132, 119, 67, 0.42));
   animation: public-vehicle-hunter-patch-glow 3.8s ease-in-out infinite;
   transition: filter 0.15s ease, transform 0.15s ease;
 }
@@ -1007,13 +1007,13 @@ body.has-profile-bg .shell:has(.profile-page) {
 .profile-patch-tile[data-patch-id="public-100-vehicles-t62"].is-selected
   .profile-patch-tile-art {
   animation: none;
-  transform: scale(1.08);
+  transform: scale(1.05);
   filter:
-    drop-shadow(0 0 7px rgba(255, 247, 211, 1))
-    drop-shadow(0 0 16px rgba(211, 181, 89, 1))
-    drop-shadow(0 0 24px rgba(81, 101, 55, 0.7))
-    brightness(1.28)
-    saturate(1.12);
+    drop-shadow(0 0 4px rgba(255, 247, 211, 0.82))
+    drop-shadow(0 0 10px rgba(211, 181, 89, 0.7))
+    drop-shadow(0 0 14px rgba(81, 101, 55, 0.4))
+    brightness(1.12)
+    saturate(1.05);
 }
 .profile-nick-style-tile {
   display: flex;

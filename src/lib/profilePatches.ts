@@ -19,7 +19,7 @@ export const PROFILE_PATCH_OPTIONS = [
   },
   {
     id: "public-100-vehicles-t62",
-    file: "public-100-vehicles-t62-steel-hunter.png",
+    file: "public-100-vehicles-t62-steel-hunter-v2.png",
     label: "Т-62 «Стальной охотник»",
     tip: "Т-62 «Стальной охотник» · Награда за 100 уничтоженных единиц техники на паблике",
     gate: "public-vehicles-100" as const,
