@@ -30,7 +30,7 @@ const REGISTRATION_MEDAL: ProfileMedalItem = {
 const BP_ICONS: Record<string, string> = {
   "pb1-scout-spark": "/bp-previews/l5-iskra.png",
   "pb1-gold-nick": "/bp-previews/l15-gold-nick.png",
-  "pb1-profile-customize": "/bp-assets/l15-nick-patch-keech-test.png",
+  "pb1-profile-customize": "/bp-assets/keech-m4a1-gold-standard.png",
   "pb1-best-tester": "/bp-previews/l20-medal.png",
 };
 

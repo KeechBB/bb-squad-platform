@@ -5,9 +5,9 @@ import { SITE_CREATOR_STEAM_ID } from "@/lib/profileBg";
 export const PROFILE_PATCH_OPTIONS = [
   {
     id: "bp-l15-keech",
-    file: "l15-nick-patch-keech-test.png",
-    label: "Хищник · BP L15",
-    tip: "Награда за достижение 15го уровня Battle Pass Тестовый сезон",
+    file: "keech-m4a1-gold-standard.png",
+    label: "M4A1 «Золотой стандарт» · BP L15",
+    tip: "M4A1 «Золотой стандарт» · Награда за достижение 15 уровня Battle Pass Тестовый сезон",
     gate: "bp-l15" as const,
   },
   {
@@ -15,27 +15,6 @@ export const PROFILE_PATCH_OPTIONS = [
     file: "keech-hidden-orange-phantom.png",
     label: "Протокол: Оранжевый призрак",
     tip: "Протокол: «Оранжевый призрак» · Как получить: скрытая награда",
-    gate: "creator" as const,
-  },
-  {
-    id: "creator-m4a1-golden-vanguard",
-    file: "keech-m4a1-golden-vanguard.png",
-    label: "M4A1 «Золотой авангард»",
-    tip: "M4A1 «Золотой авангард» · Как получить: персональная скрытая награда создателя",
-    gate: "creator" as const,
-  },
-  {
-    id: "creator-m4a1-black-monarch",
-    file: "keech-m4a1-black-monarch.png",
-    label: "M4A1 «Чёрный монарх»",
-    tip: "M4A1 «Чёрный монарх» · Как получить: персональная скрытая награда создателя",
-    gate: "creator" as const,
-  },
-  {
-    id: "creator-m4a1-gold-standard",
-    file: "keech-m4a1-gold-standard.png",
-    label: "M4A1 «Золотой стандарт»",
-    tip: "M4A1 «Золотой стандарт» · Как получить: персональная скрытая награда создателя",
     gate: "creator" as const,
   },
 ] as const;
