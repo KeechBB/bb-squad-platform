@@ -5,7 +5,7 @@ import { SITE_CREATOR_STEAM_ID } from "@/lib/profileBg";
 export const PROFILE_PATCH_OPTIONS = [
   {
     id: "bp-l15-keech",
-    file: "keech-m4a1-gold-standard.png",
+    file: "keech-m4a1-gold-standard-v2.png",
     label: "M4A1 «Золотой стандарт» · BP L15",
     tip: "M4A1 «Золотой стандарт» · Награда за достижение 15 уровня Battle Pass Тестовый сезон",
     gate: "bp-l15" as const,
