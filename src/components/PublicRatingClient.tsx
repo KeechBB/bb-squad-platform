@@ -11,6 +11,7 @@ import {
 } from "@/components/ProfileMatchStatsModal";
 import { PublicRpGuide } from "@/components/PublicRpGuide";
 import { NickPatchMark } from "@/components/NickPatchMark";
+import { SITE_CREATOR_STEAM_ID } from "@/lib/profileBg";
 
 type Props = {
   rows: PublicCombatRow[];
@@ -615,6 +616,8 @@ export function PublicRatingClient({
                   ) : (
                     pageRows.map((r) => {
                       const rpVal = r.rp == null ? null : Math.round(r.rp);
+                      const hasCreatorGoldNick =
+                        r.steamId === SITE_CREATOR_STEAM_ID;
                       return (
                       <tr key={r.steamId || r.nick} id={`player-${r.nick}`}>
                         <td className="ctr">{r.place}</td>
@@ -630,11 +633,24 @@ export function PublicRatingClient({
                         <td className="col-nick">
                           <button
                             type="button"
-                            className="public-rating-nick-btn"
+                            className={`public-rating-nick-btn${
+                              hasCreatorGoldNick
+                                ? " is-keech-gold-nick-test"
+                                : ""
+                            }`}
                             title="Карты и детальный разбор RP"
                             onClick={() => setDrillNick(r.nick)}
                           >
-                            <span className="public-rating-nick-label">
+                            <span
+                              className={`public-rating-nick-label${
+                                hasCreatorGoldNick
+                                  ? " is-metallic-gold"
+                                  : ""
+                              }`}
+                              data-text={
+                                hasCreatorGoldNick ? r.nick : undefined
+                              }
+                            >
                               {r.nick}
                             </span>
                           </button>

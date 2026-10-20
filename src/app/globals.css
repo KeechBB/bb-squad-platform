@@ -1223,6 +1223,77 @@ body:has(.public-rating-page) {
   color: #fff;
   text-decoration-color: rgba(240, 171, 252, 0.85);
 }
+.public-rating-nick-btn.is-keech-gold-nick-test {
+  text-decoration: none;
+}
+.public-rating-nick-label.is-metallic-gold {
+  position: relative;
+  display: inline-block;
+  color: transparent;
+  background:
+    linear-gradient(
+      180deg,
+      #fffdf0 0%,
+      #ffe19a 18%,
+      #a65b03 35%,
+      #ffd65a 50%,
+      #713200 68%,
+      #e7a118 83%,
+      #fff0ad 100%
+    );
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 0.65px rgba(205, 130, 18, 0.95);
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.94rem;
+  font-weight: 900;
+  letter-spacing: -0.055em;
+  line-height: 1;
+  text-transform: uppercase;
+  transition: filter 0.16s ease;
+}
+.public-rating-nick-label.is-metallic-gold::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: transparent;
+  background:
+    linear-gradient(
+      105deg,
+      transparent 22%,
+      rgba(255, 255, 238, 0.18) 39%,
+      rgba(255, 255, 250, 0.92) 48%,
+      rgba(255, 223, 126, 0.22) 57%,
+      transparent 72%
+    );
+  background-position: 145% 0;
+  background-size: 240% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  animation: keech-gold-nick-shine 5.2s ease-in-out infinite;
+}
+.public-rating-nick-btn.is-keech-gold-nick-test:hover
+  .public-rating-nick-label.is-metallic-gold,
+.public-rating-nick-btn.is-keech-gold-nick-test:focus-visible
+  .public-rating-nick-label.is-metallic-gold {
+  filter: brightness(1.15) saturate(1.08);
+}
+@keyframes keech-gold-nick-shine {
+  0%,
+  58%,
+  100% {
+    background-position: 145% 0;
+  }
+  76% {
+    background-position: -45% 0;
+  }
+}
 .nick-patch-mark,
 .public-rating-bp-patch-test {
   display: inline-flex;
@@ -1333,6 +1404,9 @@ body:has(.public-rating-page) {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .public-rating-nick-label.is-metallic-gold::after {
+    animation: none;
+  }
   .nick-patch-mark-art,
   .public-rating-bp-patch-test-art {
     animation: none;
