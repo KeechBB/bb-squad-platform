@@ -1935,7 +1935,9 @@ body:has(.public-rating-page) {
   background: rgba(12, 10, 22, 0.45);
   color: #efe8ff;
   border-radius: 999px;
-  padding: 4px 10px 4px 4px;
+  box-sizing: border-box;
+  min-height: 40px;
+  padding: 4px 12px 4px 4px;
   cursor: pointer;
   font: inherit;
   max-width: 220px;
@@ -2015,8 +2017,8 @@ body:has(.public-rating-page) {
   color: #fecaca;
 }
 .auth-bar .avatar {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   object-fit: cover;
   flex: 0 0 auto;
@@ -2091,6 +2093,7 @@ a.nav-discord:focus-visible {
   background: rgba(12, 10, 22, 0.55);
   color: var(--ink);
   border-radius: 10px;
+  min-height: 40px;
   padding: 8px 12px;
   font: inherit;
   font-size: 0.85rem;
