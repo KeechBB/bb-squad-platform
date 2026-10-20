@@ -94,6 +94,19 @@ body.has-profile-bg .shell:has(.profile-page) {
   background-color: #07060c;
 }
 
+/* Royal Core уже спроектирован с тёмным центром под интерфейс — затемнять его повторно не нужно. */
+.canvas-scale-slot.has-stage-bg
+  .canvas-scale-stage:has(
+    .profile-page-v2[data-profile-bg="creator-royal-core"]
+  ),
+.canvas-scale-host.is-profile.has-stage-bg
+  .canvas-scale-stage:has(
+    .profile-page-v2[data-profile-bg="creator-royal-core"]
+  ) {
+  background: var(--profile-bg-image) center / cover no-repeat;
+  background-color: #07060c;
+}
+
 .canvas-scale-inner {
   height: 100%;
   margin: 0 auto;
