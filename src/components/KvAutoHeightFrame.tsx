@@ -17,7 +17,7 @@ export function KvAutoHeightFrame({
   src,
   title,
   className,
-  minHeight = 480,
+  minHeight = 1100,
 }: Props) {
   const frameRef = useRef<HTMLIFrameElement>(null);
 
@@ -37,9 +37,20 @@ export function KvAutoHeightFrame({
     try {
       const doc = frame.contentDocument;
       if (!doc?.documentElement) return;
+      const y = doc.defaultView?.scrollY || 0;
+      let bottom = 0;
+      for (const id of ["view-tm", "view-cw", "view-home"]) {
+        const el = doc.getElementById(id);
+        if (!el || el.hidden) continue;
+        if (doc.defaultView?.getComputedStyle(el).display === "none") continue;
+        bottom = Math.max(bottom, el.getBoundingClientRect().bottom + y);
+      }
       const h = Math.max(
+        bottom + 24,
         doc.documentElement.scrollHeight || 0,
+        doc.documentElement.offsetHeight || 0,
         doc.body?.scrollHeight || 0,
+        doc.body?.offsetHeight || 0,
         minHeight
       );
       applyHeight(h);
@@ -54,7 +65,7 @@ export function KvAutoHeightFrame({
 
     let ro: ResizeObserver | null = null;
     let poll: number | undefined;
-    let stopPoll: number | undefined;
+    let slowPoll: number | undefined;
 
     const attach = () => {
       syncFromDoc();
@@ -72,6 +83,10 @@ export function KvAutoHeightFrame({
         ro = new ResizeObserver(() => syncFromDoc());
         ro.observe(doc.documentElement);
         if (doc.body) ro.observe(doc.body);
+        const tm = doc.getElementById("view-tm");
+        if (tm) ro.observe(tm);
+        const cw = doc.getElementById("view-cw");
+        if (cw) ro.observe(cw);
       } catch {
         /* ignore */
       }
@@ -80,9 +95,13 @@ export function KvAutoHeightFrame({
     const onLoad = () => {
       attach();
       window.clearInterval(poll);
-      window.clearTimeout(stopPoll);
-      poll = window.setInterval(syncFromDoc, 500);
-      stopPoll = window.setTimeout(() => window.clearInterval(poll), 15000);
+      window.clearInterval(slowPoll);
+      // Быстрый опрос пока таблица подгружается, потом редкий — на случай дорисовки.
+      poll = window.setInterval(syncFromDoc, 400);
+      window.setTimeout(() => {
+        window.clearInterval(poll);
+        slowPoll = window.setInterval(syncFromDoc, 2000);
+      }, 20000);
     };
 
     const onMsg = (e: MessageEvent) => {
@@ -103,7 +122,7 @@ export function KvAutoHeightFrame({
       window.removeEventListener("message", onMsg);
       ro?.disconnect();
       window.clearInterval(poll);
-      window.clearTimeout(stopPoll);
+      window.clearInterval(slowPoll);
     };
   }, [src, syncFromDoc, applyHeight]);
 
@@ -116,6 +135,7 @@ export function KvAutoHeightFrame({
         title={title}
         allow="fullscreen"
         scrolling="no"
+        style={{ minHeight }}
       />
     </div>
   );
