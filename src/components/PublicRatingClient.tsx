@@ -638,7 +638,9 @@ export function PublicRatingClient({
                             title="Карты и детальный разбор RP"
                             onClick={() => setDrillNick(r.nick)}
                           >
-                            {r.nick}
+                            <span className="public-rating-nick-label">
+                              {r.nick}
+                            </span>
                           </button>
                           {r.hasProfile ? (
                             <Link

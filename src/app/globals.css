@@ -1240,6 +1240,21 @@ body:has(.public-rating-page) {
     0 0 5px rgba(255, 224, 126, 0.95),
     0 0 11px rgba(255, 153, 28, 0.72);
 }
+.public-rating-nick-label {
+  position: relative;
+  z-index: 2;
+}
+.public-rating-nick-btn.bp-nick-patch-test .public-rating-nick-label {
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: linear-gradient(
+    90deg,
+    rgba(10, 7, 10, 0.82),
+    rgba(22, 12, 8, 0.62) 72%,
+    transparent
+  );
+  box-shadow: -3px 0 8px rgba(0, 0, 0, 0.42);
+}
 .public-rating-nick-btn.bp-nick-patch-test::before {
   content: "";
   pointer-events: none;
@@ -1254,6 +1269,7 @@ body:has(.public-rating-page) {
     drop-shadow(0 0 3px rgba(255, 215, 88, 0.88))
     drop-shadow(0 0 8px rgba(255, 139, 20, 0.48));
   opacity: 0.9;
+  z-index: 1;
   animation: bp-nick-patch-glow 3.6s ease-in-out infinite;
 }
 .public-rating-nick-btn.bp-nick-patch-test:hover {
