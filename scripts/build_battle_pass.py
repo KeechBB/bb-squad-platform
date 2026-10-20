@@ -722,25 +722,26 @@ def apply_level(p: dict, st: dict) -> bool:
             p["current"] = 1
             done = True
     elif lvl == 2:
-        p["current"] = min(15, noks)
-        done = noks >= 15
+        # Best single-match progress (don't let a later weak game wipe a 25-nok)
+        p["current"] = max(int(p.get("current") or 0), min(15, noks))
+        done = p["current"] >= 15
     elif lvl == 3:
-        p["current"] = min(10, kills)
-        done = kills >= 10
+        p["current"] = max(int(p.get("current") or 0), min(10, kills))
+        done = p["current"] >= 10
     elif lvl == 4:
-        p["current"] = min(15, revs)
-        done = revs >= 15
+        p["current"] = max(int(p.get("current") or 0), min(15, revs))
+        done = p["current"] >= 15
     elif lvl == 5:
-        p["current"] = min(3, veh)
-        done = veh >= 3
+        p["current"] = max(int(p.get("current") or 0), min(3, veh))
+        done = p["current"] >= 3
     elif lvl == 6:
         if played_ok:
             p["current"] = min(3, int(p["current"]) + 1)
             done = p["current"] >= 3
     elif lvl == 7:
         if mutaha:
-            p["current"] = min(15, kills)
-            done = kills >= 15
+            p["current"] = max(int(p.get("current") or 0), min(15, kills))
+            done = p["current"] >= 15
         # иначе катка не Mutaha — прогресс не трогаем
 
     elif lvl == 8:
@@ -883,6 +884,7 @@ def apply_match_to_players(
         if p.get("finished"):
             players[key] = p
             continue
+        # Canon: 1 match → at most 1 level (no cascade).
         if apply_level(p, st):
             advance_level(p)
             advanced += 1
