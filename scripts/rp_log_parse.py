@@ -674,6 +674,7 @@ def score_match_rp(
     match_id: str | None = None,
     vehicle_ops: list[dict] | None = None,
     cutover_at: datetime | None = None,
+    team_timeline: dict[str, list[tuple[datetime, str]]] | None = None,
 ) -> tuple[list[dict], dict[str, float], int, int, int, int]:
     """
     Apply Die/Wound/Revive (+ vehicle kill/loss after cutover) to running RP.
@@ -683,6 +684,7 @@ def score_match_rp(
     new_formula=True: canon 05.10.2026 (N×coefs). Weight = current RP always.
     From 17.10.2026 01:00 MSK: soft-cap on gains; vehicle tickets×12.5.
     cutover_at: match start (for train-style ids without YYYYMMDD-HHMM).
+    team_timeline: optional per-event side lookup (fixes late team-switch TK false positives).
 
     Returns: events, net, die_n, tk_n, rev_n, nok_rp_n
     """
@@ -739,7 +741,12 @@ def score_match_rp(
         net[key] = round(net.get(key, 0.0) + signed, 2)
         return signed
 
-    def same_team(a: str, b: str) -> bool:
+    def same_team(a: str, b: str, at: datetime | None = None) -> bool:
+        if team_timeline is not None:
+            ta = team_at(team_timeline, a, at)
+            tb = team_at(team_timeline, b, at)
+            if ta is not None and tb is not None:
+                return ta == tb
         return a in teams and b in teams and teams[a] == teams[b]
 
     def _ensure_hull(hid: str, asset: str) -> dict:
@@ -1239,7 +1246,10 @@ def score_match_rp(
             vk = ensure(vk, d.get("victim") or vk)
             n, pk, pv = n_base(kk, vk)
             delta = round(n, 2)
-            if same_team(kk, vk):
+            at_ev = d.get("at_dt") or d.get("at")
+            if same_team(
+                kk, vk, at_ev if isinstance(at_ev, datetime) else None
+            ):
                 apply_delta(kk, -delta)
                 apply_delta(vk, -delta)
                 events.append(
@@ -1298,6 +1308,7 @@ def score_match_rp(
             )
             rev_n += 1
         for d in wounds:
+            at_ev = d.get("at_dt") or d.get("at")
             events.append(
                 {
                     "kind": "nok",
@@ -1308,6 +1319,7 @@ def score_match_rp(
                     "teamkill": same_team(
                         aliases.get(d.get("killerKey") or "", d.get("killerKey") or ""),
                         aliases.get(d.get("victimKey") or "", d.get("victimKey") or ""),
+                        at_ev if isinstance(at_ev, datetime) else None,
                     ),
                     "formula": "legacy",
                 }
@@ -1362,7 +1374,8 @@ def score_match_rp(
         kk = ensure(kk, d.get("killer") or kk)
         vk = ensure(vk, d.get("victim") or vk)
         n, pk, pv = n_base(kk, vk)
-        tk = same_team(kk, vk)
+        at_ev = d.get("at_dt") or d.get("at")
+        tk = same_team(kk, vk, at_ev if isinstance(at_ev, datetime) else None)
 
         if kind == "wound":
             last_wound_by[vk] = kk
@@ -2251,6 +2264,58 @@ def presence_ratio_by_key(
     return out
 
 
+def team_timeline_in_window(
+    idx: dict,
+    t0: datetime,
+    t1: datetime,
+    faction_to_team: dict[str, str],
+) -> dict[str, list[tuple[datetime, str]]]:
+    """nick_key → [(at, team), ...] chronological side assignments in the match."""
+    faction_norm, prefix_team = _prefix_team_maps(faction_to_team)
+    raw: list[tuple[datetime, str, str]] = []
+    for at, kk, faction in idx.get("squads") or []:
+        if at < t0 - timedelta(minutes=5) or at >= t1:
+            continue
+        team = _faction_team_lookup(faction, faction_norm)
+        if team in ("1", "2"):
+            raw.append((at, kk, team))
+    for at, kk, pref in idx.get("deploys") or []:
+        if at < t0 - timedelta(minutes=5) or at >= t1:
+            continue
+        team = prefix_team.get(pref)
+        if team in ("1", "2"):
+            raw.append((at, kk, team))
+    raw.sort(key=lambda x: x[0])
+
+    out: dict[str, list[tuple[datetime, str]]] = {}
+    for at, kk, team in raw:
+        seq = out.setdefault(kk, [])
+        if seq and seq[-1][1] == team:
+            continue
+        seq.append((at, team))
+    return out
+
+
+def team_at(
+    timeline: dict[str, list[tuple[datetime, str]]],
+    key: str,
+    at: datetime | None,
+) -> str | None:
+    """Side at event time. Last assign ≤ at; if none yet — first known side."""
+    seq = timeline.get(key) or []
+    if not seq:
+        return None
+    if at is None:
+        return seq[-1][1]
+    chosen: str | None = None
+    for t, team in seq:
+        if t <= at:
+            chosen = team
+        else:
+            break
+    return chosen if chosen is not None else seq[0][1]
+
+
 def team_switch_late_keys(
     idx: dict,
     t0: datetime,
@@ -2259,30 +2324,17 @@ def team_switch_late_keys(
     grace_sec: int = TEAM_SWITCH_GRACE_SEC,
 ) -> set[str]:
     """Keys that changed side after the first `grace_sec` of the match."""
-    faction_norm, prefix_team = _prefix_team_maps(faction_to_team)
-    timeline: list[tuple[datetime, str, str]] = []
-    for at, kk, faction in idx.get("squads") or []:
-        if at < t0 or at >= t1:
-            continue
-        team = _faction_team_lookup(faction, faction_norm)
-        if team in ("1", "2"):
-            timeline.append((at, kk, team))
-    for at, kk, pref in idx.get("deploys") or []:
-        if at < t0 or at >= t1:
-            continue
-        team = prefix_team.get(pref)
-        if team in ("1", "2"):
-            timeline.append((at, kk, team))
-    timeline.sort(key=lambda x: x[0])
-
-    last_team: dict[str, str] = {}
+    timeline = team_timeline_in_window(idx, t0, t1, faction_to_team)
     late: set[str] = set()
-    for at, kk, team in timeline:
-        prev = last_team.get(kk)
-        if prev and prev != team:
-            if (at - t0).total_seconds() > grace_sec:
+    for kk, seq in timeline.items():
+        if len(seq) < 2:
+            continue
+        for i in range(1, len(seq)):
+            at, team = seq[i]
+            prev = seq[i - 1][1]
+            if prev != team and (at - t0).total_seconds() > grace_sec:
                 late.add(kk)
-        last_team[kk] = team
+                break
     return late
 
 
@@ -2292,32 +2344,30 @@ def teams_in_window(
     t1: datetime,
     faction_to_team: dict[str, str],
 ) -> dict[str, str]:
-    """nick_key → '1'|'2' via create-squad faction + DeployRole prefix initials."""
-    nick_team: dict[str, str] = {}
-    nick_prefix: dict[str, str] = {}
-    faction_norm, prefix_team = _prefix_team_maps(faction_to_team)
-
-    for at, kk, faction in idx["squads"]:
-        if at < t0 - timedelta(minutes=5) or at >= t1:
+    """nick_key → '1'|'2'. Majority side by time (not last deploy) — team-switch safe."""
+    timeline = team_timeline_in_window(idx, t0, t1, faction_to_team)
+    out: dict[str, str] = {}
+    for kk, seq in timeline.items():
+        if not seq:
             continue
-        team = _faction_team_lookup(faction, faction_norm)
-        if team:
-            nick_team[kk] = team
-
-    for at, kk, pref in idx["deploys"]:
-        if at < t0 - timedelta(minutes=5) or at >= t1:
+        if len(seq) == 1:
+            out[kk] = seq[0][1]
             continue
-        nick_prefix[kk] = pref
-        # DeployRole is the strongest signal for combatants
-        if pref in prefix_team:
-            nick_team[kk] = prefix_team[pref]
-
-    # fill remaining from last known prefix even if initials missed
-    for kk, pref in nick_prefix.items():
-        if kk not in nick_team and pref in prefix_team:
-            nick_team[kk] = prefix_team[pref]
-
-    return {k: v for k, v in nick_team.items() if v in ("1", "2")}
+        # duration on each side until match end
+        dur = {"1": 0.0, "2": 0.0}
+        for i, (at, team) in enumerate(seq):
+            end = seq[i + 1][0] if i + 1 < len(seq) else t1
+            start = max(at, t0)
+            if end > start:
+                dur[team] = dur.get(team, 0.0) + (end - start).total_seconds()
+        if dur["1"] > dur["2"]:
+            out[kk] = "1"
+        elif dur["2"] > dur["1"]:
+            out[kk] = "2"
+        else:
+            # tie → first side (usually the one they fought on)
+            out[kk] = seq[0][1]
+    return out
 
 
 def parse_dies(

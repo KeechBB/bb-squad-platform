@@ -487,6 +487,7 @@ def process_match(
     steam_to_nick.update(idx["steam_to_nick"])
     t0, t1 = m["start"], m["end"]
     faction_to_team = m.get("factionToTeam") or {}
+    team_timeline = R.team_timeline_in_window(idx, t0, t1, faction_to_team)
     teams = R.teams_in_window(idx, t0, t1, faction_to_team)
     presence_by_key = R.presence_ratio_by_key(idx, t0, t1, aliases)
     team_switch_late = R.team_switch_late_keys(idx, t0, t1, faction_to_team)
@@ -538,7 +539,14 @@ def process_match(
             continue
         combatants.add(aliases.get(kk, kk))
         combatants.add(aliases.get(vk, vk))
-        same_team = kk in teams and vk in teams and teams[kk] == teams[vk]
+        at_ev = d.get("at_dt")
+        ta = R.team_at(team_timeline, kk, at_ev)
+        tb = R.team_at(team_timeline, vk, at_ev)
+        same_team = (
+            ta is not None and tb is not None and ta == tb
+            if (ta is not None or tb is not None)
+            else (kk in teams and vk in teams and teams[kk] == teams[vk])
+        )
         if not same_team:
             dmg_by[kk] = round(dmg_by.get(kk, 0.0) + float(d.get("dmg") or 0))
     for d in dies:
@@ -547,7 +555,14 @@ def process_match(
             continue
         combatants.add(aliases.get(kk, kk))
         combatants.add(aliases.get(vk, vk))
-        same_team = kk in teams and vk in teams and teams[kk] == teams[vk]
+        at_ev = d.get("at_dt")
+        ta = R.team_at(team_timeline, kk, at_ev)
+        tb = R.team_at(team_timeline, vk, at_ev)
+        same_team = (
+            ta is not None and tb is not None and ta == tb
+            if (ta is not None or tb is not None)
+            else (kk in teams and vk in teams and teams[kk] == teams[vk])
+        )
         if not same_team and not wound_covers_kill(kk, vk, d.get("at_dt")):
             dmg_by[kk] = round(dmg_by.get(kk, 0.0) + float(d.get("dmg") or 0))
 
@@ -571,6 +586,7 @@ def process_match(
         match_date=match_date,
         match_id=mid,
         vehicle_ops=vehicle_ops,
+        team_timeline=team_timeline,
     )
     winner = m.get("winnerTeam")
 
