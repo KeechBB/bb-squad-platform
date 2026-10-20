@@ -8,6 +8,11 @@ import {
   normalizeProfilePatch,
 } from "@/lib/profilePatches";
 import {
+  canUseProfileNickStyle,
+  normalizeProfileNickStyle,
+} from "@/lib/profileNickStyles";
+import {
+  ensureBpL10NickStyle,
   ensureBpL5ProfileBg,
   ensureBpL15NickPatch,
 } from "@/lib/profileBgUnlocks";
@@ -22,9 +27,17 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "auth" }, { status: 401 });
   }
 
-  let body: { bg?: unknown; nickPatch?: unknown } = {};
+  let body: {
+    bg?: unknown;
+    nickPatch?: unknown;
+    nickStyle?: unknown;
+  } = {};
   try {
-    body = (await req.json()) as { bg?: unknown; nickPatch?: unknown };
+    body = (await req.json()) as {
+      bg?: unknown;
+      nickPatch?: unknown;
+      nickStyle?: unknown;
+    };
   } catch {
     return NextResponse.json({ error: "bad_json" }, { status: 400 });
   }
@@ -34,6 +47,10 @@ export async function PATCH(req: Request) {
     body.nickPatch === undefined
       ? undefined
       : normalizeProfilePatch(body.nickPatch);
+  const nickStyle =
+    body.nickStyle === undefined
+      ? undefined
+      : normalizeProfileNickStyle(body.nickStyle);
 
   const current = await prisma.user.findUnique({
     where: { steamId: session.user.steamId },
@@ -43,6 +60,8 @@ export async function PATCH(req: Request) {
       unlockedProfileBgs: true,
       unlockedNickPatches: true,
       nickPatch: true,
+      unlockedNickStyles: true,
+      nickStyle: true,
     },
   });
   if (!current) {
@@ -73,13 +92,27 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "locked" }, { status: 403 });
   }
 
+  const nickStyleUnlocks = await ensureBpL10NickStyle(current);
+  const nextNickStyle =
+    nickStyle === undefined
+      ? normalizeProfileNickStyle(current.nickStyle)
+      : nickStyle;
+  if (
+    !canUseProfileNickStyle(nextNickStyle, {
+      unlocks: nickStyleUnlocks,
+    })
+  ) {
+    return NextResponse.json({ error: "locked" }, { status: 403 });
+  }
+
   const me = await prisma.user.update({
     where: { steamId: session.user.steamId },
     data: {
       profileBg: bg,
       ...(nickPatch !== undefined ? { nickPatch: nextPatch } : {}),
+      ...(nickStyle !== undefined ? { nickStyle: nextNickStyle } : {}),
     },
-    select: { profileBg: true, nickPatch: true },
+    select: { profileBg: true, nickPatch: true, nickStyle: true },
   });
 
   // Синхронно: рейтинги КВ/ТМ читают nick-patches.json; паблик — live overlay из БД.
@@ -92,5 +125,6 @@ export async function PATCH(req: Request) {
   return NextResponse.json({
     bg: me.profileBg || null,
     nickPatch: me.nickPatch || null,
+    nickStyle: me.nickStyle || null,
   });
 }

@@ -10,6 +10,11 @@ import {
   type ProfilePatchChoice,
 } from "@/lib/profilePatches";
 import {
+  BP_L10_NICK_STYLE_ID,
+  profileNickStyleChoicesFor,
+  type ProfileNickStyleChoice,
+} from "@/lib/profileNickStyles";
+import {
   loadBattlePassState,
   progressForNick,
 } from "@/lib/battlePassData";
@@ -36,6 +41,29 @@ export async function ensureBpL5ProfileBg(user: {
   await prisma.user.update({
     where: { id: user.id },
     data: { unlockedProfileBgs: unlocks },
+  });
+  return unlocks;
+}
+
+/** L10: металлический стиль ника в инвентарь навсегда. */
+export async function ensureBpL10NickStyle(user: {
+  id: string;
+  nick: string | null;
+  unlockedNickStyles: string[];
+}): Promise<string[]> {
+  const unlocks = [...(user.unlockedNickStyles || [])];
+  if (unlocks.includes(BP_L10_NICK_STYLE_ID)) return unlocks;
+  const nick = String(user.nick || "").trim();
+  if (!nick) return unlocks;
+
+  const state = await loadBattlePassState().catch(() => null);
+  const prog = progressForNick(state, nick);
+  if (prog.currentLevel < 10 && !prog.completedAt) return unlocks;
+
+  unlocks.push(BP_L10_NICK_STYLE_ID);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { unlockedNickStyles: unlocks },
   });
   return unlocks;
 }
@@ -95,4 +123,13 @@ export async function profilePatchChoicesForUser(user: {
 }): Promise<ProfilePatchChoice[]> {
   const unlocks = await ensureBpL15NickPatch(user);
   return profilePatchChoicesFor({ steamId: user.steamId, unlocks });
+}
+
+export async function profileNickStyleChoicesForUser(user: {
+  id: string;
+  nick: string | null;
+  unlockedNickStyles: string[];
+}): Promise<ProfileNickStyleChoice[]> {
+  const unlocks = await ensureBpL10NickStyle(user);
+  return profileNickStyleChoicesFor({ unlocks });
 }

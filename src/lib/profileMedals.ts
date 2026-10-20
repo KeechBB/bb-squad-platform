@@ -29,7 +29,6 @@ const REGISTRATION_MEDAL: ProfileMedalItem = {
 
 const BP_ICONS: Record<string, string> = {
   "pb1-scout-spark": "/bp-previews/l5-iskra.png",
-  "pb1-iron-frame": "/bp-previews/l10-bronelist.png",
   "pb1-gold-nick": "/bp-previews/l15-gold-nick.png",
   "pb1-profile-customize": "/bp-assets/l15-nick-patch-keech-test.png",
   "pb1-best-tester": "/bp-previews/l20-medal.png",
@@ -50,8 +49,8 @@ export async function buildPlayerMedalShelf(
   const unlocked = (r: BpReward) =>
     Boolean(prog.completedAt) || prog.currentLevel >= r.level;
 
-  // Полка «Награды» — медали, значки и кастомизация (L15).
-  // Фон → библиотека фонов; рамка вешается на профиль сама.
+  // Полка «Награды» — медали, значки и нашивка L15.
+  // Фон L5 и стиль ника L10 живут в «Кастомизации профиля».
   const bp = BP_REWARDS.filter(
     (r) => r.kind === "medal" || r.kind === "badge" || r.kind === "customize"
   )

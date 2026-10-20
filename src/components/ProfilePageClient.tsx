@@ -30,6 +30,11 @@ import {
   type ProfilePatchChoice,
   type ProfilePatchId,
 } from "@/lib/profilePatches";
+import {
+  normalizeProfileNickStyle,
+  type ProfileNickStyleChoice,
+  type ProfileNickStyleId,
+} from "@/lib/profileNickStyles";
 import type { ProfileMedalItem } from "@/lib/profileMedals";
 
 type Shell = {
@@ -42,6 +47,8 @@ type Shell = {
   profileBgChoices?: ProfileBgChoice[];
   nickPatch?: ProfilePatchId | null;
   profilePatchChoices?: ProfilePatchChoice[];
+  nickStyle?: ProfileNickStyleId | null;
+  profileNickStyleChoices?: ProfileNickStyleChoice[];
   medals?: ProfileMedalItem[];
   lastSeenAt: string | Date | null;
   admin: boolean;
@@ -76,7 +83,7 @@ type Shell = {
   }[];
 };
 
-const SHELL_CACHE_KEY = "bb_profile_shell_v5";
+const SHELL_CACHE_KEY = "bb_profile_shell_v6";
 const MODE_KEY = "bb_profile_mode_v1";
 
 function readShellCache(): Shell | null {
@@ -129,6 +136,10 @@ export function ProfilePageClient({ subjectNick }: { subjectNick?: string } = {}
   const [savedPatch, setSavedPatch] = useState<ProfilePatchId | null>(() =>
     normalizeProfilePatch(shell?.nickPatch)
   );
+  const [savedNickStyle, setSavedNickStyle] =
+    useState<ProfileNickStyleId | null>(() =>
+      normalizeProfileNickStyle(shell?.nickStyle)
+    );
 
   useEffect(() => {
     let cancelled = false;
@@ -154,6 +165,7 @@ export function ProfilePageClient({ subjectNick }: { subjectNick?: string } = {}
         setSavedBg(bg);
         setPreviewBg(bg);
         setSavedPatch(normalizeProfilePatch(data.nickPatch));
+        setSavedNickStyle(normalizeProfileNickStyle(data.nickStyle));
         setError(null);
         if (data.nick) prefetchProfileView(data.nick);
       } catch {
@@ -266,8 +278,14 @@ export function ProfilePageClient({ subjectNick }: { subjectNick?: string } = {}
               ? shell.profilePatchChoices
               : []
           }
+          nickStyleOptions={
+            Array.isArray(shell.profileNickStyleChoices)
+              ? shell.profileNickStyleChoices
+              : []
+          }
           value={savedBg}
           patchValue={savedPatch}
+          nickStyleValue={savedNickStyle}
           onPreview={setPreviewBg}
           onSaved={(bg) => {
             setSavedBg(bg);
@@ -284,6 +302,15 @@ export function ProfilePageClient({ subjectNick }: { subjectNick?: string } = {}
             setShell((prev) => {
               if (!prev) return prev;
               const next = { ...prev, nickPatch: patch };
+              writeShellCache(next);
+              return next;
+            });
+          }}
+          onNickStyleSaved={(nickStyle) => {
+            setSavedNickStyle(nickStyle);
+            setShell((prev) => {
+              if (!prev) return prev;
+              const next = { ...prev, nickStyle };
               writeShellCache(next);
               return next;
             });

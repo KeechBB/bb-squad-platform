@@ -51,6 +51,10 @@ model User {
   nickPatch       String?
   /// Открытые нашивки (BP L15 и т.п.)
   unlockedNickPatches String[] @default([])
+  /// Выбранный стиль ника в рейтингах (паблик / КВ / тренировки)
+  nickStyle       String?
+  /// Навсегда открытые стили ника (BP L10 и т.п.)
+  unlockedNickStyles String[] @default([])
   name            String?
   nick            String?  @unique
   age             Int?

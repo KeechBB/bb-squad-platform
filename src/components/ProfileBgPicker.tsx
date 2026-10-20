@@ -14,37 +14,52 @@ import {
   type ProfilePatchChoice,
   type ProfilePatchId,
 } from "@/lib/profilePatches";
+import {
+  normalizeProfileNickStyle,
+  profileNickStyleCssClass,
+  type ProfileNickStyleChoice,
+  type ProfileNickStyleId,
+} from "@/lib/profileNickStyles";
 
-type Tab = "patches" | "bg";
+type Tab = "patches" | "nick" | "bg";
 
 type Props = {
   options: ProfileBgChoice[];
   patchOptions?: ProfilePatchChoice[];
+  nickStyleOptions?: ProfileNickStyleChoice[];
   value: ProfileBgId | null;
   patchValue?: ProfilePatchId | null;
+  nickStyleValue?: ProfileNickStyleId | null;
   /** Живое превью фона на странице (пока модалка открыта) */
   onPreview: (bg: ProfileBgId | null) => void;
   /** После успешного сохранения */
   onSaved: (bg: ProfileBgId | null) => void;
   onPatchSaved?: (patch: ProfilePatchId | null) => void;
+  onNickStyleSaved?: (style: ProfileNickStyleId | null) => void;
 };
 
 export function ProfileBgPicker({
   options,
   patchOptions = [],
+  nickStyleOptions = [],
   value,
   patchValue = null,
+  nickStyleValue = null,
   onPreview,
   onSaved,
   onPatchSaved,
+  onNickStyleSaved,
 }: Props) {
   const titleId = useId();
   const tiles = Array.isArray(options) ? options : [];
   const patches = Array.isArray(patchOptions) ? patchOptions : [];
+  const nickStyles = Array.isArray(nickStyleOptions) ? nickStyleOptions : [];
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("patches");
   const [pick, setPick] = useState<ProfileBgId | null>(value);
   const [patchPick, setPatchPick] = useState<ProfilePatchId | null>(patchValue);
+  const [nickStylePick, setNickStylePick] =
+    useState<ProfileNickStyleId | null>(nickStyleValue);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -52,8 +67,9 @@ export function ProfileBgPicker({
     if (!open) {
       setPick(value);
       setPatchPick(patchValue);
+      setNickStylePick(nickStyleValue);
     }
-  }, [value, patchValue, open]);
+  }, [value, patchValue, nickStyleValue, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -73,6 +89,7 @@ export function ProfileBgPicker({
     setError("");
     setPick(value);
     setPatchPick(patchValue);
+    setNickStylePick(nickStyleValue);
     setTab("patches");
     onPreview(value);
     setOpen(true);
@@ -96,11 +113,16 @@ export function ProfileBgPicker({
       const res = await fetch("/api/profile/bg", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bg: pick, nickPatch: patchPick }),
+        body: JSON.stringify({
+          bg: pick,
+          nickPatch: patchPick,
+          nickStyle: nickStylePick,
+        }),
       });
       const data = (await res.json().catch(() => null)) as {
         bg?: unknown;
         nickPatch?: unknown;
+        nickStyle?: unknown;
         error?: string;
       } | null;
       if (!res.ok) {
@@ -113,8 +135,10 @@ export function ProfileBgPicker({
       }
       const nextBg = normalizeProfileBg(data?.bg);
       const nextPatch = normalizeProfilePatch(data?.nickPatch);
+      const nextNickStyle = normalizeProfileNickStyle(data?.nickStyle);
       onSaved(nextBg);
       onPatchSaved?.(nextPatch);
+      onNickStyleSaved?.(nextNickStyle);
       setOpen(false);
     } catch {
       setError("Сеть или сервер недоступны");
@@ -146,7 +170,7 @@ export function ProfileBgPicker({
                 <div>
                   <h2 id={titleId}>Кастомизация профиля</h2>
                   <p className="profile-match-modal-sub">
-                    Нашивки — в рейтингах. Фон — на странице профиля.
+                    Ник и нашивки — во всех рейтингах. Фон — на странице профиля.
                   </p>
                 </div>
                 <button
@@ -170,6 +194,17 @@ export function ProfileBgPicker({
                   onClick={() => setTab("patches")}
                 >
                   Нашивки
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === "nick"}
+                  className={`profile-customize-tab${
+                    tab === "nick" ? " is-active" : ""
+                  }`}
+                  onClick={() => setTab("nick")}
+                >
+                  Стиль ника
                 </button>
                 <button
                   type="button"
@@ -231,6 +266,64 @@ export function ProfileBgPicker({
                           />
                           <span className="profile-bg-tile-label">
                             {opt.label}
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              ) : tab === "nick" ? (
+                <div
+                  className="profile-bg-grid profile-nick-style-grid"
+                  role="listbox"
+                  aria-label="Стиль ника"
+                >
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={nickStylePick == null}
+                    className={`profile-bg-tile profile-nick-style-tile is-none${
+                      nickStylePick == null ? " is-selected" : ""
+                    }`}
+                    onClick={() => setNickStylePick(null)}
+                  >
+                    <span className="profile-bg-tile-label">Обычный ник</span>
+                    <span className="profile-bg-tile-hint">без оформления</span>
+                  </button>
+                  {nickStyles.length === 0 ? (
+                    <div className="profile-patch-empty" role="status">
+                      Пока нет открытых стилей ника.
+                      <span>Награда Battle Pass · ур. 10</span>
+                    </div>
+                  ) : (
+                    nickStyles.map((option) => {
+                      const cssClass = profileNickStyleCssClass(option.id);
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          role="option"
+                          aria-selected={nickStylePick === option.id}
+                          className={`profile-bg-tile profile-nick-style-tile${
+                            nickStylePick === option.id ? " is-selected" : ""
+                          }`}
+                          data-nick-style={option.id}
+                          title={option.tip}
+                          onClick={() => setNickStylePick(option.id)}
+                        >
+                          <span
+                            className={`public-rating-nick-label profile-nick-style-sample${
+                              cssClass ? ` ${cssClass}` : ""
+                            }`}
+                            data-text="Keech"
+                          >
+                            Keech
+                          </span>
+                          <span className="profile-bg-tile-label">
+                            {option.label}
+                          </span>
+                          <span className="profile-bg-tile-hint">
+                            Battle Pass · уровень 10
                           </span>
                         </button>
                       );

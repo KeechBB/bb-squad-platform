@@ -1223,7 +1223,7 @@ body:has(.public-rating-page) {
   color: #fff;
   text-decoration-color: rgba(240, 171, 252, 0.85);
 }
-.public-rating-nick-btn.is-keech-gold-nick-test {
+.public-rating-nick-btn.has-custom-nick-style {
   text-decoration: none;
 }
 .public-rating-nick-label.is-metallic-gold {
@@ -1274,15 +1274,15 @@ body:has(.public-rating-page) {
   font: inherit;
   letter-spacing: inherit;
   text-transform: inherit;
-  animation: keech-gold-nick-shine 5.2s ease-in-out infinite;
+  animation: aurum-clean-nick-shine 5.2s ease-in-out infinite;
 }
-.public-rating-nick-btn.is-keech-gold-nick-test:hover
+.public-rating-nick-btn.has-custom-nick-style:hover
   .public-rating-nick-label.is-metallic-gold,
-.public-rating-nick-btn.is-keech-gold-nick-test:focus-visible
+.public-rating-nick-btn.has-custom-nick-style:focus-visible
   .public-rating-nick-label.is-metallic-gold {
   filter: brightness(1.15) saturate(1.08);
 }
-@keyframes keech-gold-nick-shine {
+@keyframes aurum-clean-nick-shine {
   0%,
   58%,
   100% {

@@ -62,6 +62,8 @@ export type PublicCombatRow = {
   hasProfile: boolean;
   /** Equipped nick patch (BP L15 customize) */
   nickPatch?: string | null;
+  /** Equipped nickname style (BP L10 customize) */
+  nickStyle?: string | null;
 };
 
 export type PublicMvpHit = {
@@ -522,6 +524,9 @@ async function buildPublicRatingTableUncached(limit = 500): Promise<{
       hasProfile: m.hasProfile,
       nickPatch: m.steamId
         ? patchBySteam.get(m.steamId)?.patchId || null
+        : null,
+      nickStyle: m.steamId
+        ? patchBySteam.get(m.steamId)?.styleId || null
         : null,
     });
   }

@@ -8,9 +8,11 @@ import { CLAN_ROLE_LABEL, type ClanRole } from "@/lib/clan";
 import { normalizeProfileBg, profileBgChoicesFor } from "@/lib/profileBg";
 import {
   profileBgChoicesForUser,
+  profileNickStyleChoicesForUser,
   profilePatchChoicesForUser,
 } from "@/lib/profileBgUnlocks";
 import { normalizeProfilePatch } from "@/lib/profilePatches";
+import { normalizeProfileNickStyle } from "@/lib/profileNickStyles";
 import { buildPlayerMedalShelf } from "@/lib/profileMedals";
 
 export const runtime = "nodejs";
@@ -88,6 +90,9 @@ export async function GET(req: Request) {
   const patchUnlocks = Array.isArray(me.unlockedNickPatches)
     ? me.unlockedNickPatches
     : [];
+  const nickStyleUnlocks = Array.isArray(me.unlockedNickStyles)
+    ? me.unlockedNickStyles
+    : [];
   const profileBgChoices = isSelf
     ? await profileBgChoicesForUser({
         id: me.id,
@@ -109,6 +114,13 @@ export async function GET(req: Request) {
         unlockedNickPatches: patchUnlocks,
       }).catch(() => [])
     : [];
+  const profileNickStyleChoices = isSelf
+    ? await profileNickStyleChoicesForUser({
+        id: me.id,
+        nick: me.nick,
+        unlockedNickStyles: nickStyleUnlocks,
+      }).catch(() => [])
+    : [];
 
   return NextResponse.json(
     {
@@ -125,6 +137,8 @@ export async function GET(req: Request) {
       profileBgChoices,
       nickPatch: normalizeProfilePatch(me.nickPatch),
       profilePatchChoices,
+      nickStyle: normalizeProfileNickStyle(me.nickStyle),
+      profileNickStyleChoices,
       medals,
       lastSeenAt: me.lastSeenAt,
       admin,

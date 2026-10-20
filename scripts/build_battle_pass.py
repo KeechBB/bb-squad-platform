@@ -222,6 +222,7 @@ def load_state() -> dict:
 
 
 BP_L5_PROFILE_BG = "bp-l5-gold"
+BP_L10_NICK_STYLE = "bp-l10-aurum-clean"
 BP_L15_PATCH = "bp-l15-keech"
 BP_L15_CUSTOMIZE = "pb1-profile-customize"
 
@@ -293,7 +294,86 @@ def persist_l5_backgrounds(state: dict) -> None:
         conn.close()
     except Exception as exc:
         print(f"BP bg: inventory skip ({exc})", flush=True)
+    persist_l10_nick_styles(state)
     persist_l15_patches(state)
+
+
+def persist_l10_nick_styles(state: dict) -> None:
+    """L10 Aurum Clean — стиль ника в инвентарь навсегда."""
+    nicks: list[str] = []
+    steams: list[str] = []
+    for p in (state.get("players") or {}).values():
+        if not isinstance(p, dict):
+            continue
+        lvl = 20 if p.get("finished") else int(p.get("currentLevel") or 1)
+        if lvl < 10:
+            continue
+        nick = str(p.get("nick") or "").strip()
+        steam = str(p.get("steamId") or "").strip()
+        if nick:
+            nicks.append(nick.casefold())
+        if steam:
+            steams.append(steam)
+    if not nicks and not steams:
+        print("BP nick style: nobody at level 10+", flush=True)
+        return
+    db = (os.environ.get("DATABASE_URL") or "").strip().strip("'").strip('"')
+    if not db:
+        env_path = ROOT / ".env"
+        if env_path.is_file():
+            for line in env_path.read_text(encoding="utf-8").splitlines():
+                if line.startswith("DATABASE_URL="):
+                    db = line.split("=", 1)[1].strip().strip("'").strip('"')
+                    break
+    if not db:
+        print("BP nick style: no DATABASE_URL — skip", flush=True)
+        return
+    connect = None
+    try:
+        import psycopg2
+
+        connect = psycopg2.connect
+    except ImportError:
+        try:
+            import psycopg
+
+            connect = psycopg.connect
+        except ImportError:
+            print("BP nick style: no psycopg — skip", flush=True)
+            return
+    try:
+        conn = connect(_psycopg_dsn(db))
+        cur = conn.cursor()
+        cur.execute(
+            """
+            update "User"
+            set "unlockedNickStyles" = array_append(
+              coalesce("unlockedNickStyles", '{}'),
+              %s
+            )
+            where not (%s = any(coalesce("unlockedNickStyles", '{}')))
+              and (
+                lower(nick) = any(%s)
+                or "steamId" = any(%s)
+              )
+            """,
+            (
+                BP_L10_NICK_STYLE,
+                BP_L10_NICK_STYLE,
+                nicks or [""],
+                steams or [""],
+            ),
+        )
+        print(
+            f"BP nick style: granted {BP_L10_NICK_STYLE} "
+            f"to {cur.rowcount} accounts",
+            flush=True,
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as exc:
+        print(f"BP nick style: inventory skip ({exc})", flush=True)
 
 
 def persist_l15_patches(state: dict) -> None:

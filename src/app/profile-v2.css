@@ -966,6 +966,26 @@ body.has-profile-bg .shell:has(.profile-page) {
     drop-shadow(0 0 15px rgba(255, 106, 0, 1))
     brightness(1.22);
 }
+.profile-nick-style-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background:
+    radial-gradient(
+      circle at 50% 42%,
+      rgba(146, 93, 13, 0.28),
+      rgba(12, 8, 20, 0.94) 68%
+    );
+}
+.profile-nick-style-tile.is-none {
+  justify-content: center;
+}
+.profile-nick-style-sample {
+  font-size: 1.7rem !important;
+  line-height: 1.1 !important;
+}
 
 .profile-mode-switch {
   margin-top: 4px !important;

@@ -6,38 +6,47 @@ import {
   profilePatchTip,
   profilePatchUrl,
 } from "@/lib/profilePatches";
+import { normalizeProfileNickStyle } from "@/lib/profileNickStyles";
 
 export type NickPatchPublicRow = {
   nick: string;
   steamId: string;
-  patchId: string;
+  patchId: string | null;
   url: string;
   tip: string;
+  styleId: string | null;
 };
 
-/** Снимок нашивок для рейтингов (паблик / КВ / ТМ). */
+/** Снимок оформления ника для рейтингов (паблик / КВ / ТМ). */
 export async function writeNickPatchesCache(): Promise<NickPatchPublicRow[]> {
   const users = await prisma.user.findMany({
     where: {
       profileComplete: true,
       nick: { not: null },
-      nickPatch: { not: null },
+      OR: [{ nickPatch: { not: null } }, { nickStyle: { not: null } }],
     },
-    select: { nick: true, steamId: true, nickPatch: true },
+    select: {
+      nick: true,
+      steamId: true,
+      nickPatch: true,
+      nickStyle: true,
+    },
   });
 
   const rows: NickPatchPublicRow[] = [];
   for (const u of users) {
     const patchId = normalizeProfilePatch(u.nickPatch);
     const url = profilePatchUrl(patchId);
+    const styleId = normalizeProfileNickStyle(u.nickStyle);
     const nick = String(u.nick || "").trim();
-    if (!patchId || !url || !nick) continue;
+    if ((!patchId && !styleId) || !nick) continue;
     rows.push({
       nick,
       steamId: u.steamId,
       patchId,
-      url,
-      tip: profilePatchTip(patchId),
+      url: url || "",
+      tip: patchId ? profilePatchTip(patchId) : "",
+      styleId,
     });
   }
 
@@ -74,21 +83,28 @@ export async function loadNickPatchBySteam(): Promise<
   const users = await prisma.user.findMany({
     where: {
       profileComplete: true,
-      nickPatch: { not: null },
+      OR: [{ nickPatch: { not: null } }, { nickStyle: { not: null } }],
     },
-    select: { nick: true, steamId: true, nickPatch: true },
+    select: {
+      nick: true,
+      steamId: true,
+      nickPatch: true,
+      nickStyle: true,
+    },
   });
   const map = new Map<string, NickPatchPublicRow>();
   for (const u of users) {
     const patchId = normalizeProfilePatch(u.nickPatch);
     const url = profilePatchUrl(patchId);
-    if (!patchId || !url) continue;
+    const styleId = normalizeProfileNickStyle(u.nickStyle);
+    if (!patchId && !styleId) continue;
     map.set(u.steamId, {
       nick: String(u.nick || ""),
       steamId: u.steamId,
       patchId,
-      url,
-      tip: profilePatchTip(patchId),
+      url: url || "",
+      tip: patchId ? profilePatchTip(patchId) : "",
+      styleId,
     });
   }
   return map;

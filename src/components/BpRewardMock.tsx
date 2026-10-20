@@ -93,7 +93,7 @@ function ProfileHeadMock({
   );
 }
 
-/** Пример строки рейтинга паблика с золотым ником (legacy L15). */
+/** L10: пример золотого ника в строке рейтинга. */
 function RatingNickMock({
   player,
   compact,
@@ -111,11 +111,16 @@ function RatingNickMock({
         <span className="bp-mock-rating-badge">RADIANT I</span>
         <span className="bp-mock-rating-rp">4091</span>
         <span className="bp-mock-rating-tag">BB</span>
-        <span className="bp-nick-gold bp-mock-rating-nick">{player.nick}</span>
+        <span
+          className="public-rating-nick-label is-metallic-gold bp-mock-rating-nick"
+          data-text={player.nick}
+        >
+          {player.nick}
+        </span>
       </div>
       {!compact ? (
         <p className="bp-mock-rating-hint">
-          Так же у всех, кто взял L15 — один золотой цвет ника
+          Награда L10 · выбирается в кастомизации и видна во всех трёх рейтингах
         </p>
       ) : null}
     </div>

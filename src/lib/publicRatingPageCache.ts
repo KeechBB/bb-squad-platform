@@ -90,7 +90,7 @@ function kickRefresh(): void {
   });
 }
 
-/** Нашивки живут отдельно от тяжёлого combat-кэша — всегда подмешиваем из БД. */
+/** Оформление ника живёт отдельно от combat-кэша — всегда подмешиваем из БД. */
 async function withLiveNickPatches(
   data: PublicRatingPagePayload
 ): Promise<PublicRatingPagePayload> {
@@ -100,10 +100,11 @@ async function withLiveNickPatches(
     const rows = data.board.rows.map((r) => ({
       ...r,
       nickPatch: r.steamId ? map.get(r.steamId)?.patchId || null : null,
+      nickStyle: r.steamId ? map.get(r.steamId)?.styleId || null : null,
     }));
     return { ...data, board: { ...data.board, rows } };
   } catch (e) {
-    console.warn("[publicRatingPageCache] nickPatch overlay failed", e);
+    console.warn("[publicRatingPageCache] nick customization overlay failed", e);
     return data;
   }
 }

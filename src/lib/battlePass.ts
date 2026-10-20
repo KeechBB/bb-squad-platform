@@ -58,11 +58,14 @@ export const BP_REWARDS: BpReward[] = [
   },
   {
     level: 10,
-    id: "pb1-iron-frame",
-    name: "Бронелист",
-    short: "Рамка",
-    kind: "frame",
-    preview: "Золотая рамка вокруг аватара в профиле",
+    id: "pb1-aurum-clean",
+    name: "Aurum Clean",
+    short: "Золотой ник",
+    kind: "nick",
+    preview:
+      "Металлический золотой стиль ника для рейтингов паблика, КВ и тренировок. Ставится и снимается в «Кастомизация профиля»",
+    hover:
+      "Aurum Clean · Награда за достижение 10 уровня Battle Pass Тестовый сезон",
   },
   {
     level: 15,

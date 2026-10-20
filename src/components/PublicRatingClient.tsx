@@ -11,7 +11,10 @@ import {
 } from "@/components/ProfileMatchStatsModal";
 import { PublicRpGuide } from "@/components/PublicRpGuide";
 import { NickPatchMark } from "@/components/NickPatchMark";
-import { SITE_CREATOR_STEAM_ID } from "@/lib/profileBg";
+import {
+  normalizeProfileNickStyle,
+  profileNickStyleCssClass,
+} from "@/lib/profileNickStyles";
 
 type Props = {
   rows: PublicCombatRow[];
@@ -616,8 +619,10 @@ export function PublicRatingClient({
                   ) : (
                     pageRows.map((r) => {
                       const rpVal = r.rp == null ? null : Math.round(r.rp);
-                      const hasCreatorGoldNick =
-                        r.steamId === SITE_CREATOR_STEAM_ID;
+                      const nickStyle = normalizeProfileNickStyle(r.nickStyle);
+                      const nickStyleClass =
+                        profileNickStyleCssClass(nickStyle);
+                      const hasCustomNickStyle = Boolean(nickStyleClass);
                       return (
                       <tr key={r.steamId || r.nick} id={`player-${r.nick}`}>
                         <td className="ctr">{r.place}</td>
@@ -634,8 +639,8 @@ export function PublicRatingClient({
                           <button
                             type="button"
                             className={`public-rating-nick-btn${
-                              hasCreatorGoldNick
-                                ? " is-keech-gold-nick-test"
+                              hasCustomNickStyle
+                                ? " has-custom-nick-style"
                                 : ""
                             }`}
                             title="Карты и детальный разбор RP"
@@ -643,12 +648,12 @@ export function PublicRatingClient({
                           >
                             <span
                               className={`public-rating-nick-label${
-                                hasCreatorGoldNick
-                                  ? " is-metallic-gold"
+                                nickStyleClass
+                                  ? ` ${nickStyleClass}`
                                   : ""
                               }`}
                               data-text={
-                                hasCreatorGoldNick ? r.nick : undefined
+                                hasCustomNickStyle ? r.nick : undefined
                               }
                             >
                               {r.nick}
