@@ -81,7 +81,12 @@ export async function PATCH(req: Request) {
     select: { profileBg: true, nickPatch: true },
   });
 
-  void writeNickPatchesCache().catch(() => null);
+  // Синхронно: рейтинги КВ/ТМ читают nick-patches.json; паблик — live overlay из БД.
+  try {
+    await writeNickPatchesCache();
+  } catch (e) {
+    console.warn("[profile/bg] writeNickPatchesCache failed", e);
+  }
 
   return NextResponse.json({
     bg: me.profileBg || null,

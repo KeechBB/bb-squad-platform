@@ -90,6 +90,24 @@ function kickRefresh(): void {
   });
 }
 
+/** Нашивки живут отдельно от тяжёлого combat-кэша — всегда подмешиваем из БД. */
+async function withLiveNickPatches(
+  data: PublicRatingPagePayload
+): Promise<PublicRatingPagePayload> {
+  try {
+    const { loadNickPatchBySteam } = await import("@/lib/nickPatchesCache");
+    const map = await loadNickPatchBySteam();
+    const rows = data.board.rows.map((r) => ({
+      ...r,
+      nickPatch: r.steamId ? map.get(r.steamId)?.patchId || null : null,
+    }));
+    return { ...data, board: { ...data.board, rows } };
+  } catch (e) {
+    console.warn("[publicRatingPageCache] nickPatch overlay failed", e);
+    return data;
+  }
+}
+
 /**
  * Fast path for /public. Prefer fresh mem/disk; serve stale while refreshing;
  * only block on cold miss.
@@ -98,15 +116,15 @@ export async function getPublicRatingPagePayload(opts?: {
   force?: boolean;
 }): Promise<PublicRatingPagePayload> {
   if (opts?.force) {
-    if (inflight) return inflight;
+    if (inflight) return withLiveNickPatches(await inflight);
     inflight = rebuild().finally(() => {
       inflight = null;
     });
-    return inflight;
+    return withLiveNickPatches(await inflight);
   }
 
   if (mem && Date.now() - mem.at < FRESH_MS && ageMs(mem.data) < FRESH_MS) {
-    return mem.data;
+    return withLiveNickPatches(mem.data);
   }
 
   const disk = await readDisk();
@@ -114,18 +132,18 @@ export async function getPublicRatingPagePayload(opts?: {
     const age = ageMs(disk);
     if (age < FRESH_MS) {
       mem = { at: Date.now(), data: disk };
-      return disk;
+      return withLiveNickPatches(disk);
     }
     if (age < STALE_MS) {
       mem = { at: Date.now(), data: disk };
       kickRefresh();
-      return disk;
+      return withLiveNickPatches(disk);
     }
   }
 
-  if (inflight) return inflight;
+  if (inflight) return withLiveNickPatches(await inflight);
   inflight = rebuild().finally(() => {
     inflight = null;
   });
-  return inflight;
+  return withLiveNickPatches(await inflight);
 }

@@ -46,18 +46,24 @@ export async function writeNickPatchesCache(): Promise<NickPatchPublicRow[]> {
     rows,
     bySteam: Object.fromEntries(rows.map((r) => [r.steamId, r])),
     byNick: Object.fromEntries(
-      rows.map((r) => [r.nick.casefold(), r])
+      rows.map((r) => [r.nick.trim().toLowerCase(), r])
     ),
   };
 
   const roots = [
     path.join(process.cwd(), "data", "public"),
     path.join(process.cwd(), "data", "kv-cache", "data"),
+    "/var/www/blackberry-kv/public/data",
+    "/var/www/blackberry-kv/data",
   ];
   const body = JSON.stringify(payload, null, 2) + "\n";
   for (const dir of roots) {
-    await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(path.join(dir, "nick-patches.json"), body, "utf8");
+    try {
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(path.join(dir, "nick-patches.json"), body, "utf8");
+    } catch (e) {
+      console.warn("[nickPatchesCache] write failed", dir, e);
+    }
   }
   return rows;
 }
