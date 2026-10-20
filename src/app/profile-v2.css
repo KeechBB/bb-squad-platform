@@ -81,28 +81,9 @@ body.has-profile-bg .shell:has(.profile-page) {
   left: 0;
 }
 
+/* Фоны без затемнения — полная яркость/цвет картинки (как Royal Core). */
 .canvas-scale-slot.has-stage-bg .canvas-scale-stage,
 .canvas-scale-host.is-profile.has-stage-bg .canvas-scale-stage {
-  background:
-    linear-gradient(
-      180deg,
-      rgba(8, 6, 16, 0.52) 0%,
-      rgba(8, 6, 16, 0.68) 45%,
-      rgba(8, 6, 16, 0.8) 100%
-    ),
-    var(--profile-bg-image) center / cover no-repeat;
-  background-color: #07060c;
-}
-
-/* Royal Core уже спроектирован с тёмным центром под интерфейс — затемнять его повторно не нужно. */
-.canvas-scale-slot.has-stage-bg
-  .canvas-scale-stage:has(
-    .profile-page-v2[data-profile-bg="creator-royal-core"]
-  ),
-.canvas-scale-host.is-profile.has-stage-bg
-  .canvas-scale-stage:has(
-    .profile-page-v2[data-profile-bg="creator-royal-core"]
-  ) {
   background: var(--profile-bg-image) center / cover no-repeat;
   background-color: #07060c;
 }
