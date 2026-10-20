@@ -14,7 +14,13 @@ export const BP_SEASON = {
   note: "Считаем с следующей карты на Фруктовом Саде (зарегистрированные).",
 } as const;
 
-export type BpRewardKind = "badge" | "frame" | "nick" | "medal" | "bg";
+export type BpRewardKind =
+  | "badge"
+  | "frame"
+  | "nick"
+  | "medal"
+  | "bg"
+  | "customize";
 
 export type BpReward = {
   level: number;
@@ -60,12 +66,14 @@ export const BP_REWARDS: BpReward[] = [
   },
   {
     level: 15,
-    id: "pb1-gold-nick",
-    name: "Золотой ник",
-    short: "Цвет ника",
-    kind: "nick",
+    id: "pb1-profile-customize",
+    name: "Кастомизация профиля",
+    short: "Нашивки + фон",
+    kind: "customize",
     preview:
-      "Ник цветом Battle Pass (золото) в рейтинге паблика и везде на сайте — у всех с этой наградой одинаково",
+      "Кнопка «Кастомизация профиля»: нашивки в рейтингах (паблик / КВ / тренировки) и выбор фона",
+    hover:
+      "Награда за достижение 15го уровня Battle Pass Тестовый сезон",
   },
   {
     level: 20,

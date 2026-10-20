@@ -3,7 +3,15 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canUseProfileBg, normalizeProfileBg } from "@/lib/profileBg";
-import { ensureBpL5ProfileBg } from "@/lib/profileBgUnlocks";
+import {
+  canUseProfilePatch,
+  normalizeProfilePatch,
+} from "@/lib/profilePatches";
+import {
+  ensureBpL5ProfileBg,
+  ensureBpL15NickPatch,
+} from "@/lib/profileBgUnlocks";
+import { writeNickPatchesCache } from "@/lib/nickPatchesCache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,27 +22,51 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "auth" }, { status: 401 });
   }
 
-  let body: { bg?: unknown } = {};
+  let body: { bg?: unknown; nickPatch?: unknown } = {};
   try {
-    body = (await req.json()) as { bg?: unknown };
+    body = (await req.json()) as { bg?: unknown; nickPatch?: unknown };
   } catch {
     return NextResponse.json({ error: "bad_json" }, { status: 400 });
   }
 
   const bg = normalizeProfileBg(body.bg);
+  const nickPatch =
+    body.nickPatch === undefined
+      ? undefined
+      : normalizeProfilePatch(body.nickPatch);
 
   const current = await prisma.user.findUnique({
     where: { steamId: session.user.steamId },
-    select: { id: true, nick: true, unlockedProfileBgs: true },
+    select: {
+      id: true,
+      nick: true,
+      unlockedProfileBgs: true,
+      unlockedNickPatches: true,
+      nickPatch: true,
+    },
   });
   if (!current) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
-  const unlocks = await ensureBpL5ProfileBg(current);
+
+  const bgUnlocks = await ensureBpL5ProfileBg(current);
   if (
     !canUseProfileBg(bg, {
       steamId: session.user.steamId,
-      unlocks,
+      unlocks: bgUnlocks,
+    })
+  ) {
+    return NextResponse.json({ error: "locked" }, { status: 403 });
+  }
+
+  const patchUnlocks = await ensureBpL15NickPatch(current);
+  const nextPatch =
+    nickPatch === undefined
+      ? normalizeProfilePatch(current.nickPatch)
+      : nickPatch;
+  if (
+    !canUseProfilePatch(nextPatch, {
+      unlocks: patchUnlocks,
     })
   ) {
     return NextResponse.json({ error: "locked" }, { status: 403 });
@@ -42,9 +74,17 @@ export async function PATCH(req: Request) {
 
   const me = await prisma.user.update({
     where: { steamId: session.user.steamId },
-    data: { profileBg: bg },
-    select: { profileBg: true },
+    data: {
+      profileBg: bg,
+      ...(nickPatch !== undefined ? { nickPatch: nextPatch } : {}),
+    },
+    select: { profileBg: true, nickPatch: true },
   });
 
-  return NextResponse.json({ bg: me.profileBg || null });
+  void writeNickPatchesCache().catch(() => null);
+
+  return NextResponse.json({
+    bg: me.profileBg || null,
+    nickPatch: me.nickPatch || null,
+  });
 }

@@ -47,6 +47,10 @@ model User {
   profileBg       String?
   /// Навсегда открытые фоны (награда BP и т.п.). Не снимаются при сбросе сезона.
   unlockedProfileBgs String[] @default([])
+  /// Нашивка рядом с ником в рейтингах (паблик / КВ / тренировки)
+  nickPatch       String?
+  /// Открытые нашивки (BP L15 и т.п.)
+  unlockedNickPatches String[] @default([])
   name            String?
   nick            String?  @unique
   age             Int?

@@ -60,6 +60,8 @@ export type PublicCombatRow = {
   days: number;
   /** registered on site — nick is linkable */
   hasProfile: boolean;
+  /** Equipped nick patch (BP L15 customize) */
+  nickPatch?: string | null;
 };
 
 export type PublicMvpHit = {
@@ -380,7 +382,7 @@ async function buildPublicRatingTableUncached(limit = 500): Promise<{
   matches: number;
   updatedAt: string;
 }> {
-  const [bundles, att, rpBoard, users] = await Promise.all([
+  const [bundles, att, rpBoard, users, patchBySteam] = await Promise.all([
     loadPublicMatchBundles(),
     buildPublicAttendanceLeaderboard(2000),
     buildPublicRpLeaderboard(),
@@ -395,6 +397,7 @@ async function buildPublicRatingTableUncached(limit = 500): Promise<{
         },
       },
     }),
+    import("@/lib/nickPatchesCache").then((m) => m.loadNickPatchBySteam()),
   ]);
 
   const combat = aggregateCombat(bundles);
@@ -517,6 +520,9 @@ async function buildPublicRatingTableUncached(limit = 500): Promise<{
       mvpArmor: c?.mvpArmor || 0,
       days: m.days,
       hasProfile: m.hasProfile,
+      nickPatch: m.steamId
+        ? patchBySteam.get(m.steamId)?.patchId || null
+        : null,
     });
   }
 

@@ -1223,6 +1223,7 @@ body:has(.public-rating-page) {
   color: #fff;
   text-decoration-color: rgba(240, 171, 252, 0.85);
 }
+.nick-patch-mark,
 .public-rating-bp-patch-test {
   display: inline-flex;
   align-items: center;
@@ -1237,14 +1238,15 @@ body:has(.public-rating-page) {
   cursor: help;
   transition: transform 0.15s ease;
 }
+.nick-patch-mark-art,
 .public-rating-bp-patch-test-art {
   display: block;
   width: 100%;
   height: 100%;
-  /* ?????? ????? ????? (???? ??????) */
   transform: scaleX(-1);
-  background: url("/bp-assets/l15-nick-patch-keech-test.png") center / contain
-    no-repeat;
+  background-position: center;
+  background-size: contain;
+  background-repeat: no-repeat;
   filter:
     drop-shadow(0 0 3px rgba(255, 215, 88, 0.88))
     drop-shadow(0 0 8px rgba(255, 139, 20, 0.48));
@@ -1252,12 +1254,18 @@ body:has(.public-rating-page) {
   animation: bp-nick-patch-glow 3.6s ease-in-out infinite;
   transition: filter 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
 }
+.nick-patch-mark:hover,
+.nick-patch-mark:focus-visible,
+.nick-patch-mark.is-active,
 .public-rating-bp-patch-test:hover,
 .public-rating-bp-patch-test:focus-visible,
 .public-rating-bp-patch-test.is-active {
   outline: none;
   transform: translateY(-2px);
 }
+.nick-patch-mark:hover .nick-patch-mark-art,
+.nick-patch-mark:focus-visible .nick-patch-mark-art,
+.nick-patch-mark.is-active .nick-patch-mark-art,
 .public-rating-bp-patch-test:hover .public-rating-bp-patch-test-art,
 .public-rating-bp-patch-test:focus-visible .public-rating-bp-patch-test-art,
 .public-rating-bp-patch-test.is-active .public-rating-bp-patch-test-art {
@@ -1285,9 +1293,13 @@ body:has(.public-rating-page) {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .nick-patch-mark-art,
   .public-rating-bp-patch-test-art {
     animation: none;
   }
+  .nick-patch-mark:hover,
+  .nick-patch-mark:focus-visible,
+  .nick-patch-mark.is-active,
   .public-rating-bp-patch-test:hover,
   .public-rating-bp-patch-test:focus-visible,
   .public-rating-bp-patch-test.is-active {

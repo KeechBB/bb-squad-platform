@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import type { PublicCombatRow } from "@/lib/publicCombat";
 import type { PublicMatchRow } from "@/lib/publicMatches";
 import { RpPlayerDrilldown } from "@/components/RpPlayerDrilldown";
@@ -11,9 +10,7 @@ import {
   type MatchStatsOpen,
 } from "@/components/ProfileMatchStatsModal";
 import { PublicRpGuide } from "@/components/PublicRpGuide";
-
-const BP_L15_PATCH_TIP =
-  "Награда за достижение 15го уровня Battle Pass Тестовый сезон";
+import { NickPatchMark } from "@/components/NickPatchMark";
 
 type Props = {
   rows: PublicCombatRow[];
@@ -37,7 +34,6 @@ type MatchSortKey =
 
 /** Одна страница рейтинга / истории — без внутреннего скролла таблицы. */
 const PAGE_SIZE = 50;
-const KEECH_STEAM_ID = "76561198028435874";
 
 const RP_STEP = 150;
 const RP_BANDS: [string, string][] = [
@@ -205,23 +201,6 @@ export function PublicRatingClient({
   const [mPage, setMPage] = useState(1);
   const [drillNick, setDrillNick] = useState<string | null>(null);
   const [matchOpen, setMatchOpen] = useState<MatchStatsOpen | null>(null);
-  const [bpPatchTip, setBpPatchTip] = useState<{
-    x: number;
-    y: number;
-  } | null>(null);
-  const [bpPatchActive, setBpPatchActive] = useState(false);
-
-  function showBpPatchTip(el: HTMLElement) {
-    const r = el.getBoundingClientRect();
-    setBpPatchTip({ x: r.left + r.width / 2, y: r.top });
-    setBpPatchActive(true);
-  }
-
-  function hideBpPatchTip() {
-    setBpPatchTip(null);
-    setBpPatchActive(false);
-  }
-
   const yearOptions = useMemo(() => {
     const ys = new Set<number>();
     for (const m of matchHistory) ys.add(mskParts(m.endedAt).y);
@@ -636,7 +615,6 @@ export function PublicRatingClient({
                   ) : (
                     pageRows.map((r) => {
                       const rpVal = r.rp == null ? null : Math.round(r.rp);
-                      const hasKeechPatch = r.steamId === KEECH_STEAM_ID;
                       return (
                       <tr key={r.steamId || r.nick} id={`player-${r.nick}`}>
                         <td className="ctr">{r.place}</td>
@@ -670,27 +648,10 @@ export function PublicRatingClient({
                               profile
                             </Link>
                           ) : null}
-                          {hasKeechPatch ? (
-                            <button
-                              type="button"
-                              className={`public-rating-bp-patch-test${
-                                bpPatchActive ? " is-active" : ""
-                              }`}
-                              aria-label={BP_L15_PATCH_TIP}
-                              onMouseEnter={(e) =>
-                                showBpPatchTip(e.currentTarget)
-                              }
-                              onMouseLeave={hideBpPatchTip}
-                              onFocus={(e) => showBpPatchTip(e.currentTarget)}
-                              onBlur={hideBpPatchTip}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <span
-                                className="public-rating-bp-patch-test-art"
-                                aria-hidden
-                              />
-                            </button>
-                          ) : null}
+                          <NickPatchMark
+                            patchId={r.nickPatch}
+                            className="public-rating-bp-patch-test"
+                          />
                         </td>
                         <td className={recordCls(r.games, records.games, "ctr")}>
                           {r.games}
@@ -957,18 +918,6 @@ export function PublicRatingClient({
         onClose={() => setMatchOpen(null)}
       />
 
-      {bpPatchTip && typeof document !== "undefined"
-        ? createPortal(
-            <div
-              className="profile-medal-tip"
-              style={{ left: bpPatchTip.x, top: bpPatchTip.y }}
-              role="tooltip"
-            >
-              {BP_L15_PATCH_TIP}
-            </div>,
-            document.body
-          )
-        : null}
     </div>
   );
 }

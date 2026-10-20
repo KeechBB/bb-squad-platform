@@ -6,7 +6,11 @@ import { formatRuDate, isActiveReserve } from "@/lib/validation";
 import { effectiveRole, roleLabel, type AppRole } from "@/lib/admin";
 import { CLAN_ROLE_LABEL, type ClanRole } from "@/lib/clan";
 import { normalizeProfileBg, profileBgChoicesFor } from "@/lib/profileBg";
-import { profileBgChoicesForUser } from "@/lib/profileBgUnlocks";
+import {
+  profileBgChoicesForUser,
+  profilePatchChoicesForUser,
+} from "@/lib/profileBgUnlocks";
+import { normalizeProfilePatch } from "@/lib/profilePatches";
 import { buildPlayerMedalShelf } from "@/lib/profileMedals";
 
 export const runtime = "nodejs";
@@ -81,6 +85,9 @@ export async function GET(req: Request) {
   const unlocks = Array.isArray(me.unlockedProfileBgs)
     ? me.unlockedProfileBgs
     : [];
+  const patchUnlocks = Array.isArray(me.unlockedNickPatches)
+    ? me.unlockedNickPatches
+    : [];
   const profileBgChoices = isSelf
     ? await profileBgChoicesForUser({
         id: me.id,
@@ -93,6 +100,13 @@ export async function GET(req: Request) {
           unlocks,
         })
       )
+    : [];
+  const profilePatchChoices = isSelf
+    ? await profilePatchChoicesForUser({
+        id: me.id,
+        nick: me.nick,
+        unlockedNickPatches: patchUnlocks,
+      }).catch(() => [])
     : [];
 
   return NextResponse.json(
@@ -108,6 +122,8 @@ export async function GET(req: Request) {
         : me.steamAvatar,
       profileBg: normalizeProfileBg(me.profileBg),
       profileBgChoices,
+      nickPatch: normalizeProfilePatch(me.nickPatch),
+      profilePatchChoices,
       medals,
       lastSeenAt: me.lastSeenAt,
       admin,

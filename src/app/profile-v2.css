@@ -859,6 +859,90 @@ body.has-profile-bg .shell:has(.profile-page) {
   margin-top: 2px !important;
 }
 
+/* Кастомизация профиля — заметнее, размеры кнопки те же */
+.profile-page-v2 .profile-customize-trigger {
+  color: #f8e7b0 !important;
+  border-color: rgba(245, 215, 110, 0.85) !important;
+  background: linear-gradient(
+    135deg,
+    rgba(120, 70, 12, 0.55),
+    rgba(40, 24, 8, 0.72)
+  ) !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 220, 120, 0.22) inset,
+    0 0 14px rgba(255, 180, 40, 0.28);
+  text-shadow: 0 0 8px rgba(255, 210, 90, 0.45);
+  font-weight: 800 !important;
+  letter-spacing: 0.02em;
+}
+.profile-page-v2 .profile-customize-trigger:hover,
+.profile-page-v2 .profile-customize-trigger:focus-visible {
+  border-color: rgba(255, 230, 150, 0.95) !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 230, 150, 0.35) inset,
+    0 0 18px rgba(255, 190, 60, 0.45);
+  color: #fff6d0 !important;
+}
+
+.profile-customize-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 10px;
+  flex: 0 0 auto;
+}
+.profile-customize-tab {
+  flex: 1 1 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(180, 160, 220, 0.35);
+  background: rgba(20, 14, 32, 0.75);
+  color: rgba(230, 220, 255, 0.78);
+  font-weight: 700;
+  cursor: pointer;
+}
+.profile-customize-tab.is-active {
+  border-color: rgba(245, 215, 110, 0.75);
+  background: rgba(80, 50, 12, 0.45);
+  color: #f8e7b0;
+}
+.profile-patch-empty {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  padding: 16px;
+  border-radius: 10px;
+  border: 1px dashed rgba(180, 160, 220, 0.35);
+  color: rgba(220, 210, 255, 0.7);
+  text-align: center;
+  font-weight: 600;
+}
+.profile-patch-empty span {
+  font-size: 0.82rem;
+  opacity: 0.75;
+}
+.profile-patch-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  background:
+    radial-gradient(circle at 50% 40%, rgba(80, 50, 10, 0.55), rgba(12, 8, 20, 0.92));
+}
+.profile-patch-tile-art {
+  width: 88%;
+  height: 58%;
+  transform: scaleX(-1);
+  background-position: center;
+  background-size: contain;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 0 6px rgba(255, 180, 40, 0.55));
+}
+
 .profile-mode-switch {
   margin-top: 4px !important;
 }

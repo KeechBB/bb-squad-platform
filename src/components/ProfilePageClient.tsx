@@ -25,6 +25,11 @@ import {
   type ProfileBgChoice,
   type ProfileBgId,
 } from "@/lib/profileBg";
+import {
+  normalizeProfilePatch,
+  type ProfilePatchChoice,
+  type ProfilePatchId,
+} from "@/lib/profilePatches";
 import type { ProfileMedalItem } from "@/lib/profileMedals";
 
 type Shell = {
@@ -35,6 +40,8 @@ type Shell = {
   steamAvatar: string | null;
   profileBg?: ProfileBgId | null;
   profileBgChoices?: ProfileBgChoice[];
+  nickPatch?: ProfilePatchId | null;
+  profilePatchChoices?: ProfilePatchChoice[];
   medals?: ProfileMedalItem[];
   lastSeenAt: string | Date | null;
   admin: boolean;
@@ -69,7 +76,7 @@ type Shell = {
   }[];
 };
 
-const SHELL_CACHE_KEY = "bb_profile_shell_v4";
+const SHELL_CACHE_KEY = "bb_profile_shell_v5";
 const MODE_KEY = "bb_profile_mode_v1";
 
 function readShellCache(): Shell | null {
@@ -119,6 +126,9 @@ export function ProfilePageClient({ subjectNick }: { subjectNick?: string } = {}
   const [previewBg, setPreviewBg] = useState<ProfileBgId | null>(() =>
     normalizeProfileBg(shell?.profileBg)
   );
+  const [savedPatch, setSavedPatch] = useState<ProfilePatchId | null>(() =>
+    normalizeProfilePatch(shell?.nickPatch)
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -143,6 +153,7 @@ export function ProfilePageClient({ subjectNick }: { subjectNick?: string } = {}
         const bg = normalizeProfileBg(data.profileBg);
         setSavedBg(bg);
         setPreviewBg(bg);
+        setSavedPatch(normalizeProfilePatch(data.nickPatch));
         setError(null);
         if (data.nick) prefetchProfileView(data.nick);
       } catch {
@@ -250,7 +261,13 @@ export function ProfilePageClient({ subjectNick }: { subjectNick?: string } = {}
               ? shell.profileBgChoices
               : []
           }
+          patchOptions={
+            Array.isArray(shell.profilePatchChoices)
+              ? shell.profilePatchChoices
+              : []
+          }
           value={savedBg}
+          patchValue={savedPatch}
           onPreview={setPreviewBg}
           onSaved={(bg) => {
             setSavedBg(bg);
@@ -258,6 +275,15 @@ export function ProfilePageClient({ subjectNick }: { subjectNick?: string } = {}
             setShell((prev) => {
               if (!prev) return prev;
               const next = { ...prev, profileBg: bg };
+              writeShellCache(next);
+              return next;
+            });
+          }}
+          onPatchSaved={(patch) => {
+            setSavedPatch(patch);
+            setShell((prev) => {
+              if (!prev) return prev;
+              const next = { ...prev, nickPatch: patch };
               writeShellCache(next);
               return next;
             });
