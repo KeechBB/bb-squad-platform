@@ -19,7 +19,7 @@ export const PROFILE_PATCH_OPTIONS = [
   },
   {
     id: "public-100-vehicles-t62",
-    file: "public-100-vehicles-t62-neon-harvest.png",
+    file: "public-100-vehicles-t62-neon-harvest-v2.png",
     label: "Т-62 «Неоновый урожай»",
     tip: "Т-62 «Неоновый урожай» · Награда за 100 уничтоженных единиц техники на паблике «Фруктовый сад»",
     gate: "public-vehicles-100" as const,
