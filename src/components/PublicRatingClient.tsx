@@ -632,9 +632,7 @@ export function PublicRatingClient({
                         <td className="col-nick">
                           <button
                             type="button"
-                            className={`public-rating-nick-btn${
-                              hasKeechPatch ? " bp-nick-patch-test" : ""
-                            }`}
+                            className="public-rating-nick-btn"
                             title="Карты и детальный разбор RP"
                             onClick={() => setDrillNick(r.nick)}
                           >
@@ -651,6 +649,13 @@ export function PublicRatingClient({
                             >
                               profile
                             </Link>
+                          ) : null}
+                          {hasKeechPatch ? (
+                            <span
+                              className="public-rating-bp-patch-test"
+                              aria-label="Тестовая нашивка Battle Pass"
+                              title="Тестовая нашивка Battle Pass"
+                            />
                           ) : null}
                         </td>
                         <td className={recordCls(r.games, records.games, "ctr")}>
