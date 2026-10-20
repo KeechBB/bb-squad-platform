@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import type { PublicCombatRow } from "@/lib/publicCombat";
 import type { PublicMatchRow } from "@/lib/publicMatches";
 import { RpPlayerDrilldown } from "@/components/RpPlayerDrilldown";
@@ -10,6 +11,9 @@ import {
   type MatchStatsOpen,
 } from "@/components/ProfileMatchStatsModal";
 import { PublicRpGuide } from "@/components/PublicRpGuide";
+
+const BP_L15_PATCH_TIP =
+  "Награда за достижение 15го уровня Battle Pass Тестовый сезон";
 
 type Props = {
   rows: PublicCombatRow[];
@@ -201,6 +205,22 @@ export function PublicRatingClient({
   const [mPage, setMPage] = useState(1);
   const [drillNick, setDrillNick] = useState<string | null>(null);
   const [matchOpen, setMatchOpen] = useState<MatchStatsOpen | null>(null);
+  const [bpPatchTip, setBpPatchTip] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [bpPatchActive, setBpPatchActive] = useState(false);
+
+  function showBpPatchTip(el: HTMLElement) {
+    const r = el.getBoundingClientRect();
+    setBpPatchTip({ x: r.left + r.width / 2, y: r.top });
+    setBpPatchActive(true);
+  }
+
+  function hideBpPatchTip() {
+    setBpPatchTip(null);
+    setBpPatchActive(false);
+  }
 
   const yearOptions = useMemo(() => {
     const ys = new Set<number>();
@@ -651,11 +671,25 @@ export function PublicRatingClient({
                             </Link>
                           ) : null}
                           {hasKeechPatch ? (
-                            <span
-                              className="public-rating-bp-patch-test"
-                              aria-label="Тестовая нашивка Battle Pass"
-                              title="Тестовая нашивка Battle Pass"
-                            />
+                            <button
+                              type="button"
+                              className={`public-rating-bp-patch-test${
+                                bpPatchActive ? " is-active" : ""
+                              }`}
+                              aria-label={BP_L15_PATCH_TIP}
+                              onMouseEnter={(e) =>
+                                showBpPatchTip(e.currentTarget)
+                              }
+                              onMouseLeave={hideBpPatchTip}
+                              onFocus={(e) => showBpPatchTip(e.currentTarget)}
+                              onBlur={hideBpPatchTip}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <span
+                                className="public-rating-bp-patch-test-art"
+                                aria-hidden
+                              />
+                            </button>
                           ) : null}
                         </td>
                         <td className={recordCls(r.games, records.games, "ctr")}>
@@ -922,6 +956,19 @@ export function PublicRatingClient({
         open={matchOpen}
         onClose={() => setMatchOpen(null)}
       />
+
+      {bpPatchTip && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              className="profile-medal-tip"
+              style={{ left: bpPatchTip.x, top: bpPatchTip.y }}
+              role="tooltip"
+            >
+              {BP_L15_PATCH_TIP}
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }

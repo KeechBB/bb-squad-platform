@@ -1224,17 +1224,50 @@ body:has(.public-rating-page) {
   text-decoration-color: rgba(240, 171, 252, 0.85);
 }
 .public-rating-bp-patch-test {
-  display: inline-block;
-  width: 84px;
-  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 118px;
+  height: 36px;
   margin-left: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   vertical-align: middle;
-  background: url("/bp-assets/l15-nick-patch-keech-test.png") center / contain no-repeat;
+  cursor: help;
+  transition: transform 0.15s ease;
+}
+.public-rating-bp-patch-test-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* ?????? ????? ????? (???? ??????) */
+  transform: scaleX(-1);
+  background: url("/bp-assets/l15-nick-patch-keech-test.png") center / contain
+    no-repeat;
   filter:
     drop-shadow(0 0 3px rgba(255, 215, 88, 0.88))
     drop-shadow(0 0 8px rgba(255, 139, 20, 0.48));
-  opacity: 0.9;
+  opacity: 0.92;
   animation: bp-nick-patch-glow 3.6s ease-in-out infinite;
+  transition: filter 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
+}
+.public-rating-bp-patch-test:hover,
+.public-rating-bp-patch-test:focus-visible,
+.public-rating-bp-patch-test.is-active {
+  outline: none;
+  transform: translateY(-2px);
+}
+.public-rating-bp-patch-test:hover .public-rating-bp-patch-test-art,
+.public-rating-bp-patch-test:focus-visible .public-rating-bp-patch-test-art,
+.public-rating-bp-patch-test.is-active .public-rating-bp-patch-test-art {
+  animation: none;
+  transform: scaleX(-1) scale(1.08);
+  filter:
+    drop-shadow(0 0 8px rgba(245, 215, 110, 0.95))
+    drop-shadow(0 0 16px rgba(167, 139, 250, 0.75))
+    brightness(1.28);
+  opacity: 1;
 }
 @keyframes bp-nick-patch-glow {
   0%,
@@ -1242,7 +1275,7 @@ body:has(.public-rating-page) {
     filter:
       drop-shadow(0 0 3px rgba(255, 215, 88, 0.82))
       drop-shadow(0 0 8px rgba(255, 139, 20, 0.42));
-    opacity: 0.86;
+    opacity: 0.88;
   }
   50% {
     filter:
@@ -1252,8 +1285,13 @@ body:has(.public-rating-page) {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .public-rating-bp-patch-test {
+  .public-rating-bp-patch-test-art {
     animation: none;
+  }
+  .public-rating-bp-patch-test:hover,
+  .public-rating-bp-patch-test:focus-visible,
+  .public-rating-bp-patch-test.is-active {
+    transform: none;
   }
 }
 .public-rating-profile-link,
