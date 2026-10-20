@@ -149,6 +149,7 @@ function RatingPatchMock({
         {url ? (
           <span
             className="nick-patch-mark is-active bp-mock-patch-mark"
+            data-patch-id={BP_L15_PATCH_ID}
             title={tip}
             aria-label={tip}
           >
