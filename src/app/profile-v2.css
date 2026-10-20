@@ -966,6 +966,30 @@ body.has-profile-bg .shell:has(.profile-page) {
     drop-shadow(0 0 15px rgba(255, 106, 0, 1))
     brightness(1.22);
 }
+.profile-patch-tile[data-patch-id^="creator-m4a1-"]
+  .profile-patch-tile-art {
+  width: 96%;
+  transform: none;
+  filter:
+    drop-shadow(0 0 4px rgba(255, 241, 180, 0.82))
+    drop-shadow(0 0 10px rgba(225, 152, 25, 0.78));
+  animation: creator-m4a1-patch-glow 3.4s ease-in-out infinite;
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+.profile-patch-tile[data-patch-id^="creator-m4a1-"]:hover
+  .profile-patch-tile-art,
+.profile-patch-tile[data-patch-id^="creator-m4a1-"]:focus-visible
+  .profile-patch-tile-art,
+.profile-patch-tile[data-patch-id^="creator-m4a1-"].is-selected
+  .profile-patch-tile-art {
+  animation: none;
+  transform: scale(1.08);
+  filter:
+    drop-shadow(0 0 7px rgba(255, 250, 220, 1))
+    drop-shadow(0 0 16px rgba(245, 188, 50, 1))
+    drop-shadow(0 0 24px rgba(158, 91, 4, 0.68))
+    brightness(1.28);
+}
 .profile-nick-style-tile {
   display: flex;
   flex-direction: column;

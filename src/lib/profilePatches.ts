@@ -17,6 +17,27 @@ export const PROFILE_PATCH_OPTIONS = [
     tip: "Протокол: «Оранжевый призрак» · Как получить: скрытая награда",
     gate: "creator" as const,
   },
+  {
+    id: "creator-m4a1-golden-vanguard",
+    file: "keech-m4a1-golden-vanguard.png",
+    label: "M4A1 «Золотой авангард»",
+    tip: "M4A1 «Золотой авангард» · Как получить: персональная скрытая награда создателя",
+    gate: "creator" as const,
+  },
+  {
+    id: "creator-m4a1-black-monarch",
+    file: "keech-m4a1-black-monarch.png",
+    label: "M4A1 «Чёрный монарх»",
+    tip: "M4A1 «Чёрный монарх» · Как получить: персональная скрытая награда создателя",
+    gate: "creator" as const,
+  },
+  {
+    id: "creator-m4a1-gold-standard",
+    file: "keech-m4a1-gold-standard.png",
+    label: "M4A1 «Золотой стандарт»",
+    tip: "M4A1 «Золотой стандарт» · Как получить: персональная скрытая награда создателя",
+    gate: "creator" as const,
+  },
 ] as const;
 
 export type ProfilePatchId = (typeof PROFILE_PATCH_OPTIONS)[number]["id"];
