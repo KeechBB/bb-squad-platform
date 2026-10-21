@@ -214,7 +214,7 @@ function ShelfMedalMock({
               aria-label={tip}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={icon} alt="" width={160} height={160} />
+              <img src={icon} alt="" width={768} height={768} />
             </button>
           </li>
           <li className="bp-shelf-preview-slot is-empty">

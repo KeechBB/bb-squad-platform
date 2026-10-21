@@ -17929,7 +17929,8 @@ body:has(.profile-page) {
 }
 
 .bp-detail.has-reward:has(.bp-detail-reward.kind-medal) .bp-detail-top {
-  max-height: 72%;
+  max-height: 88%;
+  overflow: visible;
 }
 
 .bp-detail-head {
@@ -18002,8 +18003,10 @@ body:has(.profile-page) {
 
 .bp-detail-reward.kind-medal {
   overflow: visible;
-  padding: 8px 10px 10px;
-  gap: 6px;
+  padding: 10px 12px 12px;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .bp-detail-reward.kind-medal .bp-mock {
@@ -18011,7 +18014,8 @@ body:has(.profile-page) {
   overflow: visible;
   border: none;
   background: transparent;
-  margin-top: 2px;
+  margin-top: 4px;
+  flex: 1 1 auto;
 }
 
 .bp-progress {
@@ -18208,11 +18212,12 @@ body:has(.profile-page) {
 }
 .bp-shelf-preview-stage {
   position: relative;
-  min-height: 168px;
+  min-height: 336px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 12px 10px 14px;
+  align-items: center;
+  padding: 18px 14px 20px;
   border-radius: 12px;
   border: 1px solid rgba(212, 175, 55, 0.28);
   background:
@@ -18247,16 +18252,17 @@ body:has(.profile-page) {
 }
 .bp-shelf-preview-empty {
   display: block;
-  width: 44px;
-  height: 44px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   border: 1px dashed rgba(212, 175, 55, 0.28);
   background: rgba(0, 0, 0, 0.18);
-  opacity: 0.55;
+  opacity: 0.45;
 }
 .bp-shelf-preview.is-compact .bp-shelf-preview-empty {
   width: 32px;
   height: 32px;
+  opacity: 0.55;
 }
 .bp-shelf-preview-item {
   display: flex;
@@ -18274,23 +18280,34 @@ body:has(.profile-page) {
   outline: none;
 }
 .bp-shelf-preview-item img {
-  width: 112px;
-  height: 112px;
+  width: 224px;
+  height: 224px;
+  max-width: min(224px, 42vw);
+  max-height: min(224px, 42vw);
   object-fit: contain;
-  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.65));
+  object-position: center;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: auto;
+  -ms-interpolation-mode: bicubic;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7));
   transition: filter 0.15s ease, transform 0.15s ease;
+  /* keep raster sharp when scaled down from 768px source */
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 .bp-shelf-preview.is-compact .bp-shelf-preview-item img {
   width: 96px;
   height: 96px;
+  max-width: 96px;
+  max-height: 96px;
 }
 .bp-shelf-preview-item:hover img,
 .bp-shelf-preview-item:focus-visible img {
   filter:
-    drop-shadow(0 0 10px rgba(49, 202, 255, 1))
-    drop-shadow(0 0 22px rgba(245, 197, 72, 0.95))
-    brightness(1.3);
-  transform: scale(1.08);
+    drop-shadow(0 0 12px rgba(49, 202, 255, 1))
+    drop-shadow(0 0 26px rgba(245, 197, 72, 0.95))
+    brightness(1.28);
+  transform: translateZ(0) scale(1.06);
 }
 .bp-mock-gallery .bp-mock-card:has(.bp-shelf-preview) {
   min-height: 168px;
