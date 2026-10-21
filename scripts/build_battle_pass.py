@@ -59,12 +59,12 @@ LEVEL_TARGETS = {
     8: 2,
     9: 1,
     10: 1,
-    11: 10,
+    11: 5,
     12: 30,
     13: 1,
     14: 3,
     15: 1,
-    16: 15,
+    16: 5,
     17: 1,
     18: 1,
     19: 1,
@@ -767,9 +767,10 @@ def apply_level(p: dict, st: dict) -> bool:
             p["current"] = min(tgt, int(p["current"]) + 1)
         done = p["current"] >= tgt
     elif lvl == 11:
+        tgt = LEVEL_TARGETS[11]
         if played_ok:
-            p["current"] = min(10, int(p["current"]) + 1)
-            done = p["current"] >= 10
+            p["current"] = min(tgt, int(p["current"]) + 1)
+            done = p["current"] >= tgt
     elif lvl == 12:
         tgt = LEVEL_TARGETS[12]
         window = list(p.get("window") or [])
@@ -806,9 +807,10 @@ def apply_level(p: dict, st: dict) -> bool:
             p["current"] = min(tgt, int(p["current"]) + 1)
         done = p["current"] >= tgt
     elif lvl == 16:
+        tgt = LEVEL_TARGETS[16]
         if played_ok:
-            p["current"] = min(15, int(p["current"]) + 1)
-            done = p["current"] >= 15
+            p["current"] = min(tgt, int(p["current"]) + 1)
+            done = p["current"] >= tgt
     elif lvl == 17:
         ok = kills >= 10 and deaths <= 1
         p["current"] = 1 if ok else 0
