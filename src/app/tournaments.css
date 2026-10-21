@@ -238,6 +238,130 @@
   color: #f0d078;
   font-size: 0.78rem;
 }
+.tn-register-btn.is-danger {
+  border-color: rgba(240, 120, 120, 0.55);
+  color: #ffc8c8;
+  background: rgba(60, 20, 24, 0.65);
+}
+.tn-reg-dates {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--tn-muted);
+}
+.tn-reg-badge {
+  margin: 8px 0 0;
+  align-self: flex-start;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid rgba(180, 180, 180, 0.35);
+  color: rgba(210, 200, 185, 0.8);
+}
+.tn-reg-badge.is-open {
+  border-color: rgba(143, 217, 164, 0.55);
+  color: #c8f0d4;
+  background: rgba(30, 60, 40, 0.45);
+}
+.tn-reg-status.is-ok {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.86rem;
+  line-height: 1.4;
+  color: var(--tn-ink);
+}
+.tn-reg-roster {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--tn-muted);
+}
+.tn-reg-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+}
+.tn-reg-counts {
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  color: #f0d078;
+}
+.tn-reg-pick-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow: auto;
+}
+.tn-reg-pick-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(212, 168, 75, 0.18);
+  background: rgba(0, 0, 0, 0.22);
+}
+.tn-reg-pick-nick {
+  font-weight: 700;
+  font-size: 0.84rem;
+  min-width: 0;
+}
+.tn-reg-pick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.tn-reg-pick-actions button {
+  appearance: none;
+  border-radius: 8px;
+  border: 1px solid rgba(212, 168, 75, 0.3);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--tn-muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+.tn-reg-pick-actions button.is-on {
+  border-color: rgba(240, 208, 120, 0.7);
+  color: #1a1208;
+  background: linear-gradient(180deg, #f0d078, #c9962a);
+}
+.tn-reg-pick-actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.tn-reg-picker-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tn-reg-bracket-note {
+  margin: 8px 0 0;
+  font-size: 0.72rem;
+  color: rgba(210, 200, 185, 0.7);
+}
+.tn-prize-img {
+  display: block;
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  margin: 0 auto 6px;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.5));
+}
 
 .tn-register-btn:hover:not(:disabled),
 .tn-register-btn:focus-visible:not(:disabled) {

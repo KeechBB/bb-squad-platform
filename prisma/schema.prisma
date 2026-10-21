@@ -108,6 +108,8 @@ model User {
   tournamentTeamMemberships TournamentTeamMember[]
   tournamentInvitesReceived TournamentTeamInvite[] @relation("TournamentInvitee")
   tournamentInvitesSent     TournamentTeamInvite[] @relation("TournamentInviter")
+  tournamentEntriesSubmitted TournamentEntry[] @relation("TournamentEntrySubmitter")
+  tournamentEntrySlots       TournamentEntryPlayer[]
 }
 
 /// Метка игрока на клановой карте (одна на пользователя).
@@ -702,8 +704,52 @@ model TournamentTeam {
 
   members TournamentTeamMember[]
   invites TournamentTeamInvite[]
+  entries TournamentEntry[]
 
   @@index([createdAt])
+}
+
+enum TournamentEntryStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+enum TournamentEntrySlot {
+  STARTER
+  SUB
+}
+
+/// Заявка команды на конкретный турнир (Fruit Strike и т.п.)
+model TournamentEntry {
+  id           String                @id @default(cuid())
+  tournamentId String
+  teamId       String
+  submittedBy  String
+  status       TournamentEntryStatus @default(CONFIRMED)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  team      TournamentTeam           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  submitter User                     @relation("TournamentEntrySubmitter", fields: [submittedBy], references: [id], onDelete: Cascade)
+  players   TournamentEntryPlayer[]
+
+  @@unique([tournamentId, teamId])
+  @@index([tournamentId, status])
+  @@index([submittedBy])
+}
+
+model TournamentEntryPlayer {
+  id     String              @id @default(cuid())
+  entryId String
+  userId String
+  slot   TournamentEntrySlot
+  ord    Int                 @default(0)
+
+  entry TournamentEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([entryId, userId])
+  @@index([userId])
 }
 
 model TournamentTeamMember {

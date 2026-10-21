@@ -4,30 +4,32 @@ import { useMemo, useState, type ReactNode } from "react";
 import {
   ACTIVE_TOURNAMENT,
   TOURNAMENT_TABS,
+  isRegistrationOpen,
   type TournamentTabId,
 } from "@/lib/tournaments";
 import { TournamentTeamsTab } from "@/components/TournamentTeamsTab";
 import { TournamentPlayerStatsTab } from "@/components/TournamentPlayerStatsTab";
 import { TournamentTeamRatingTab } from "@/components/TournamentTeamRatingTab";
 import { TournamentMatchHistoryTab } from "@/components/TournamentMatchHistoryTab";
+import { TournamentRegisterPanel } from "@/components/TournamentRegisterPanel";
 
 type Props = {
   viewerNick: string;
 };
 
 function Placeholder({ children }: { children: ReactNode }) {
-  return <p className="tour-placeholder">{children}</p>;
+  return <p className="tn-placeholder">{children}</p>;
 }
 
 function TournamentsHomeTab() {
   const t = ACTIVE_TOURNAMENT;
+  const regOpen = isRegistrationOpen(t);
 
   function onBracket() {
     if (t.bracketHref) {
       window.location.href = t.bracketHref;
       return;
     }
-    // Сетка ещё не залита — визуальная кнопка уже живая
   }
 
   return (
@@ -35,14 +37,10 @@ function TournamentsHomeTab() {
       <div className="tn-home-left">
         <section className="tn-panel tn-announce" aria-label="Анонс турнира">
           <h2 className="tn-panel-title">Анонс турнира</h2>
-          {t.announce ? (
-            <div className="tn-announce-body">{t.announce}</div>
-          ) : (
-            <Placeholder>
-              Здесь появятся даты турнира, окна регистрации и ключевые сроки.
-              Пока раздел в подготовке.
-            </Placeholder>
-          )}
+          <div className="tn-announce-body">{t.announce}</div>
+          <p className={`tn-reg-badge${regOpen ? " is-open" : ""}`}>
+            {regOpen ? "Регистрация открыта" : "Регистрация закрыта"}
+          </p>
         </section>
 
         <section className="tn-panel tn-logo-only" aria-label="Логотип турнира">
@@ -57,28 +55,7 @@ function TournamentsHomeTab() {
           />
         </section>
 
-        <section
-          className="tn-panel tn-register"
-          aria-label="Регистрация команды"
-        >
-          <h2 className="tn-panel-title">Регистрация команды на турнир</h2>
-          <Placeholder>
-            Доступна только капитанам команд (не кланов), собравших нужный
-            состав. Форма заявки появится после открытия регистрации.
-          </Placeholder>
-          <button
-            type="button"
-            className="tn-register-btn"
-            disabled={!t.registrationOpen}
-            title={
-              t.registrationOpen
-                ? "Подать заявку"
-                : "Регистрация ещё не открыта"
-            }
-          >
-            {t.registrationOpen ? "Подать заявку" : "Регистрация закрыта"}
-          </button>
-        </section>
+        <TournamentRegisterPanel />
       </div>
 
       <div className="tn-home-right">
@@ -88,6 +65,16 @@ function TournamentsHomeTab() {
             {t.prizes.map((p) => (
               <div key={p.place} className={`tn-prize place-${p.place}`}>
                 <h3>{p.label}</h3>
+                {p.imageSrc ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    className="tn-prize-img"
+                    src={p.imageSrc}
+                    alt=""
+                    width={160}
+                    height={160}
+                  />
+                ) : null}
                 {p.items.length ? (
                   <ul>
                     {p.items.map((item) => (
@@ -106,14 +93,7 @@ function TournamentsHomeTab() {
           <h2 className="tn-panel-title">
             Правила · регистрация · основные положения
           </h2>
-          {t.rules ? (
-            <div className="tn-rules-body">{t.rules}</div>
-          ) : (
-            <Placeholder>
-              Здесь будут формат, карты, моды и регламент. Текст ещё
-              готовится.
-            </Placeholder>
-          )}
+          <div className="tn-rules-body">{t.rules}</div>
           <button
             type="button"
             className="tn-bracket-btn"
@@ -123,7 +103,10 @@ function TournamentsHomeTab() {
             СЕТКА ТУРНИРА
           </button>
           {!t.bracketHref ? (
-            <p className="tn-bracket-hint">Кнопка живая · сетка появится позже</p>
+            <p className="tn-bracket-hint">
+              Сетка заполнится зарегистрированными командами · карты — за 5 дней
+              до конца регистрации
+            </p>
           ) : null}
         </section>
       </div>
@@ -158,7 +141,7 @@ export function TournamentsClient({ viewerNick }: Props) {
           <p className="tn-eyebrow">BlackBerry · турнирный хаб</p>
           <h1>Турниры</h1>
           <p className="tn-sub">
-            Черновик раздела · видно только тебе ({viewerNick || "Keech"})
+            {ACTIVE_TOURNAMENT.name} · видно только тебе ({viewerNick || "Keech"})
           </p>
         </div>
       </header>
