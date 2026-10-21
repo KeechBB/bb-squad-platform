@@ -84,14 +84,25 @@ function TournamentsHomeTab() {
               <div key={p.place} className={`tn-prize place-${p.place}`}>
                 <h3>{p.label}</h3>
                 {p.imageSrc ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    className="tn-prize-img"
-                    src={p.imageSrc}
-                    alt=""
-                    width={220}
-                    height={220}
-                  />
+                  <button
+                    type="button"
+                    className="tn-prize-media"
+                    aria-label={p.hoverTip || p.label}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      className="tn-prize-img"
+                      src={p.imageSrc}
+                      alt=""
+                      width={240}
+                      height={240}
+                    />
+                    {p.hoverTip ? (
+                      <span className="tn-prize-tip" role="tooltip">
+                        {p.hoverTip}
+                      </span>
+                    ) : null}
+                  </button>
                 ) : null}
                 {p.cashBanner ? (
                   <div className="tn-prize-cash" aria-label="Денежный приз">

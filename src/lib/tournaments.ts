@@ -30,6 +30,8 @@ export type TournamentPrizeSlot = {
   imageSrc?: string | null;
   /** Главный денежный приз (командный, через капитана) */
   cashBanner?: { amount: string; note: string } | null;
+  /** Подпись при наведении на картинку награды */
+  hoverTip?: string | null;
 };
 
 /** Макс. игроков в турнирной команде (состав на сайте). */
@@ -123,6 +125,8 @@ export const ACTIVE_TOURNAMENT: ActiveTournamentDraft = {
       place: 1,
       label: "1 место",
       imageSrc: "/awards/fruit-strike-place1-trophy-v1.png",
+      hoverTip:
+        "Кубок «Алый урожай» — в награды профиля всем игрокам из заявки",
       cashBanner: {
         amount: "10 000 ₽",
         note: "Командный приз · выдаётся капитану",
@@ -135,6 +139,8 @@ export const ACTIVE_TOURNAMENT: ActiveTournamentDraft = {
       place: 2,
       label: "2 место",
       imageSrc: "/bp-assets/fruit-strike-place2-ak-v2.png",
+      hoverTip:
+        "Нашивка АК «Цитрусовый шторм» — в кастомизацию профиля всем из заявки",
       items: [
         "Нашивка АК «Цитрусовый шторм» — всем из заявки",
       ],
@@ -143,6 +149,8 @@ export const ACTIVE_TOURNAMENT: ActiveTournamentDraft = {
       place: 3,
       label: "3 место",
       imageSrc: "/profile-bgs/fruit-strike-place3-bg-v3.jpg",
+      hoverTip:
+        "Фон «Тактический урожай» — в кастомизацию профиля всем из заявки",
       items: [
         "Фон «Тактический урожай» — всем из заявки",
       ],
