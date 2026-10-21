@@ -89,13 +89,19 @@ export async function PATCH(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Пустой файл" }, { status: 400 });
   }
   if (blob.size > TEAM_LOGO_MAX) {
-    return NextResponse.json({ error: "Лого до 5 МБ (png/webp)" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Лого до 20 МБ (png/webp/jpeg)" },
+      { status: 400 }
+    );
   }
   const buf = Buffer.from(await blob.arrayBuffer());
   const mime = detectClanLogoMime(buf);
   if (!mime) {
     return NextResponse.json(
-      { error: "Лого: только png или webp" },
+      {
+        error:
+          "Лого не распознано. Нужен настоящий png, webp или jpeg (не переименованный файл)",
+      },
       { status: 400 }
     );
   }

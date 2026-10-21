@@ -1,20 +1,42 @@
 import { mkdir, writeFile, unlink, readdir } from "fs/promises";
 import path from "path";
-import {
-  detectClanLogoMime,
-  type ClanLogoMime,
-  CLAN_LOGO_MAX,
-} from "@/lib/clanLogoFile";
 
 export const TEAM_LOGO_DIR = path.join(process.cwd(), "storage", "tournament-teams");
-export const TEAM_LOGO_MAX = CLAN_LOGO_MAX;
-export { detectClanLogoMime };
-export type TeamLogoMime = ClanLogoMime;
+/** Турнирные лого — до 20 МБ (клановые отдельно, 5 МБ). */
+export const TEAM_LOGO_MAX = 20 * 1024 * 1024;
+export const TEAM_LOGO_MAX_MB = 20;
 
 const TYPES = {
   "image/png": "png",
   "image/webp": "webp",
+  "image/jpeg": "jpg",
 } as const;
+
+export type TeamLogoMime = keyof typeof TYPES;
+
+/** Magic-bytes: png / webp / jpeg (Discord часто отдаёт jpeg под именем .png). */
+export function detectClanLogoMime(buf: Buffer): TeamLogoMime | null {
+  if (
+    buf.length >= 8 &&
+    buf[0] === 0x89 &&
+    buf[1] === 0x50 &&
+    buf[2] === 0x4e &&
+    buf[3] === 0x47
+  ) {
+    return "image/png";
+  }
+  if (
+    buf.length >= 12 &&
+    buf.toString("ascii", 0, 4) === "RIFF" &&
+    buf.toString("ascii", 8, 12) === "WEBP"
+  ) {
+    return "image/webp";
+  }
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+    return "image/jpeg";
+  }
+  return null;
+}
 
 async function clearTeamLogoFiles(teamId: string) {
   try {

@@ -132,12 +132,14 @@ function TeamsOverview({
       return "Тег: 2–6 букв/цифр";
     }
     if (logoFile) {
-      if (logoFile.size > 5 * 1024 * 1024) return "Лого до 5 МБ";
+      if (logoFile.size > 20 * 1024 * 1024) return "Лого до 20 МБ";
       const ok =
         logoFile.type === "image/png" ||
         logoFile.type === "image/webp" ||
-        /\.(png|webp)$/i.test(logoFile.name);
-      if (!ok) return "Лого: только png или webp";
+        logoFile.type === "image/jpeg" ||
+        logoFile.type === "image/jpg" ||
+        /\.(png|webp|jpe?g)$/i.test(logoFile.name);
+      if (!ok) return "Лого: png, webp или jpeg";
     }
     return null;
   }
@@ -176,12 +178,19 @@ function TeamsOverview({
         method: "POST",
         body: form,
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        team?: ApiTeam;
-      };
+      const raw = await res.text();
+      let data: { error?: string; team?: ApiTeam } = {};
+      try {
+        data = raw ? (JSON.parse(raw) as typeof data) : {};
+      } catch {
+        /* nginx 413 и т.п. отдают HTML */
+      }
       if (!res.ok || !data.team) {
-        setError(data.error || "Не удалось создать");
+        if (res.status === 413) {
+          setError("Файл слишком большой для сервера (лимит 20 МБ)");
+        } else {
+          setError(data.error || `Не удалось создать (HTTP ${res.status})`);
+        }
         return;
       }
       onCreated(data.team);
@@ -243,10 +252,10 @@ function TeamsOverview({
                 />
               </label>
               <label className="tn-field">
-                <span>Логотип (png/webp, до 5 МБ)</span>
+                <span>Логотип (png/webp/jpeg, до 20 МБ)</span>
                 <input
                   type="file"
-                  accept="image/png,image/webp,.png,.webp"
+                  accept="image/png,image/webp,image/jpeg,.png,.webp,.jpg,.jpeg"
                   onChange={(e) =>
                     onLogoPick(e.target.files?.[0] || null)
                   }
@@ -446,9 +455,19 @@ function MyTeamPanel({
         method: "PATCH",
         body: form,
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      const raw = await res.text();
+      let data: { error?: string } = {};
+      try {
+        data = raw ? (JSON.parse(raw) as typeof data) : {};
+      } catch {
+        /* nginx 413 */
+      }
       if (!res.ok) {
-        setError(data.error || "Не удалось обновить лого");
+        if (res.status === 413) {
+          setError("Файл слишком большой для сервера (лимит 20 МБ)");
+        } else {
+          setError(data.error || `Не удалось обновить лого (HTTP ${res.status})`);
+        }
         return;
       }
       setOkMsg(remove ? "Лого удалено" : "Лого обновлено");
@@ -563,13 +582,19 @@ function MyTeamPanel({
                 Сменить лого
                 <input
                   type="file"
-                  accept="image/png,image/webp,.png,.webp"
+                  accept="image/png,image/webp,image/jpeg,.png,.webp,.jpg,.jpeg"
                   hidden
                   disabled={busy}
                   onChange={(e) => {
                     const f = e.target.files?.[0] || null;
                     e.target.value = "";
-                    if (f) void uploadLogo(f);
+                    if (f) {
+                      if (f.size > 20 * 1024 * 1024) {
+                        setError("Лого до 20 МБ");
+                        return;
+                      }
+                      void uploadLogo(f);
+                    }
                   }}
                 />
               </label>

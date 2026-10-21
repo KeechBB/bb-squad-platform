@@ -190,13 +190,19 @@ export async function POST(req: Request) {
   let logoMime: ReturnType<typeof detectClanLogoMime> = null;
   if (logoBlob && logoBlob.size > 0) {
     if (logoBlob.size > TEAM_LOGO_MAX) {
-      return NextResponse.json({ error: "Лого до 5 МБ (png/webp)" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Лого до 20 МБ (png/webp/jpeg)" },
+        { status: 400 }
+      );
     }
     logoBuf = Buffer.from(await logoBlob.arrayBuffer());
     logoMime = detectClanLogoMime(logoBuf);
     if (!logoMime) {
       return NextResponse.json(
-        { error: "Лого: только png или webp" },
+        {
+          error:
+            "Лого не распознано. Нужен настоящий png, webp или jpeg (не переименованный файл)",
+        },
         { status: 400 }
       );
     }
