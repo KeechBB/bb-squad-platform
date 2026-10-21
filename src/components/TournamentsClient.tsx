@@ -9,6 +9,7 @@ import {
 import { TournamentTeamsTab } from "@/components/TournamentTeamsTab";
 import { TournamentPlayerStatsTab } from "@/components/TournamentPlayerStatsTab";
 import { TournamentTeamRatingTab } from "@/components/TournamentTeamRatingTab";
+import { TournamentMatchHistoryTab } from "@/components/TournamentMatchHistoryTab";
 
 type Props = {
   viewerNick: string;
@@ -143,6 +144,8 @@ export function TournamentsClient({ viewerNick }: Props) {
         return <TournamentPlayerStatsTab />;
       case "team-rating":
         return <TournamentTeamRatingTab />;
+      case "match-history":
+        return <TournamentMatchHistoryTab />;
       default:
         return null;
     }

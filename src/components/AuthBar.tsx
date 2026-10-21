@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { subscribeLive } from "@/lib/liveClient";
 import { setVisibleInterval } from "@/lib/visibleInterval";
 import { PlayerSearch } from "@/components/PlayerSearch";
+import { NotificationsBell } from "@/components/NotificationsBell";
 
 function DiscordHeaderLink() {
   return (
@@ -145,6 +146,7 @@ export function AuthBar() {
 
   return (
     <div className="auth-bar">
+      {session.user.profileComplete ? <NotificationsBell /> : null}
       <DiscordHeaderLink />
       {session.user.profileComplete ? <PlayerSearch /> : null}
       <div

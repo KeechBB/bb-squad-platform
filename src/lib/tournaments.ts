@@ -4,7 +4,8 @@ export type TournamentTabId =
   | "tournaments"
   | "teams"
   | "player-stats"
-  | "team-rating";
+  | "team-rating"
+  | "match-history";
 
 export type TournamentTab = {
   id: TournamentTabId;
@@ -17,9 +18,10 @@ export const TOURNAMENT_TABS: TournamentTab[] = [
   { id: "teams", label: "Команды", short: "Ком." },
   { id: "player-stats", label: "Статистика игроков", short: "Статы" },
   { id: "team-rating", label: "Рейтинг команд", short: "Рейт." },
+  { id: "match-history", label: "История матчей", short: "История" },
 ];
 
-export const FRUIT_STRIKE_LOGO = "/tournaments/fruit-strike-logo.png";
+export const FRUIT_STRIKE_LOGO = "/tournaments/fruit-strike-logo-hq.png";
 
 export type TournamentPrizeSlot = {
   place: 1 | 2 | 3;
@@ -85,6 +87,37 @@ export const TOURNAMENT_TEAM_ROLE_LABEL: Record<TournamentTeamRole, string> = {
   sub: "Замена",
   reserve: "Резерв",
 };
+
+/** Prisma enum → UI */
+export function mapDbTeamRole(
+  role: string
+): TournamentTeamRole {
+  switch (role) {
+    case "CAPTAIN":
+      return "captain";
+    case "DEPUTY":
+      return "deputy";
+    case "SUB":
+      return "sub";
+    case "RESERVE":
+      return "reserve";
+    default:
+      return "starter";
+  }
+}
+
+export type TournamentMatchHistoryRow = {
+  id: string;
+  dateLabel: string;
+  teamA: string;
+  teamB: string;
+  map: string;
+  score: string;
+  result: "win" | "lose" | "pending" | string;
+};
+
+/** Пока пусто — как КВ-таблица, строки после оцифровки турнира. */
+export const TOURNAMENT_MATCH_HISTORY_DRAFT: TournamentMatchHistoryRow[] = [];
 
 export type TournamentTeamMemberDraft = {
   id: string;

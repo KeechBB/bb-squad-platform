@@ -200,7 +200,9 @@
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.65));
+  image-rendering: auto;
+  filter: none;
+  transform: none;
   user-select: none;
   pointer-events: none;
 }
@@ -927,6 +929,104 @@
 .tn-trating-titles {
   color: #f0d078;
   font-weight: 700;
+}
+
+.tn-mh-score {
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-weight: 700;
+}
+.tn-mh-win {
+  color: #8fd9a4;
+}
+.tn-mh-lose {
+  color: #f0a8a8;
+}
+.tn-mh-pending {
+  color: var(--tn-muted);
+}
+
+.tn-teams-ok {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #8fd9a4;
+}
+
+/* Suggest / autocomplete */
+.tn-suggest {
+  position: relative;
+  flex: 1 1 160px;
+  min-width: 0;
+}
+.tn-suggest input {
+  width: 100%;
+  box-sizing: border-box;
+  appearance: none;
+  border-radius: 10px;
+  border: 1px solid rgba(212, 168, 75, 0.3);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--tn-ink, #f2ebe0);
+  padding: 10px 12px;
+  font-size: 0.9rem;
+}
+.tn-suggest input:focus {
+  outline: none;
+  border-color: rgba(240, 208, 120, 0.75);
+}
+.tn-suggest-list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 40;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border-radius: 10px;
+  border: 1px solid rgba(212, 168, 75, 0.4);
+  background: rgba(12, 10, 18, 0.98);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
+  max-height: 220px;
+  overflow: auto;
+}
+.tn-suggest-empty {
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  color: rgba(210, 200, 185, 0.65);
+}
+.tn-suggest-item {
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: 7px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.tn-suggest-item:hover,
+.tn-suggest-item.is-active {
+  background: rgba(212, 168, 75, 0.16);
+}
+.tn-suggest-item img,
+.tn-suggest-av {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.08);
+}
+.tn-suggest-nick {
+  font-weight: 700;
+  font-size: 0.84rem;
+}
+.tn-suggest-steam {
+  font-size: 0.68rem;
+  color: rgba(210, 200, 185, 0.55);
+  font-family: ui-monospace, monospace;
 }
 
 @media (max-width: 1100px) {
