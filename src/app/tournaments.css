@@ -183,8 +183,48 @@
   white-space: pre-wrap;
 }
 
-.tn-announce {
+.tn-rules-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
   gap: 6px;
+  white-space: normal;
+  font-size: clamp(0.88rem, 1vw, 1.02rem);
+  line-height: 1.4;
+  font-weight: 550;
+  color: #efe6d6;
+}
+
+.tn-rules-line {
+  margin: 0;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(212, 168, 75, 0.12);
+  background: rgba(255, 220, 120, 0.03);
+}
+
+.tn-rules-line.is-prize {
+  border-color: rgba(253, 224, 71, 0.65);
+  background:
+    linear-gradient(
+      100deg,
+      rgba(90, 55, 10, 0.55) 0%,
+      rgba(40, 28, 12, 0.45) 100%
+    );
+  color: #fff3c8;
+  font-weight: 750;
+  box-shadow: 0 0 14px rgba(250, 204, 21, 0.22);
+}
+
+.tn-rules-line.is-prize strong {
+  color: #ffe566;
+  font-size: 1.08em;
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 12px rgba(253, 224, 71, 0.55);
+}
+
+.tn-announce {
+  gap: 10px;
   overflow: hidden;
 }
 
@@ -192,11 +232,12 @@
   margin: 0;
   flex: 0 0 auto;
   font-family: var(--font-display), Oxanium, sans-serif;
-  font-size: 0.88rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: #f2e6c8;
+  font-size: clamp(1.05rem, 1.35vw, 1.35rem);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #fff4d2;
   line-height: 1.2;
+  text-shadow: 0 0 18px rgba(240, 208, 120, 0.35);
 }
 
 .tn-announce-cols {
@@ -204,8 +245,8 @@
   min-height: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px 14px;
-  align-content: start;
+  gap: 12px 18px;
+  align-content: stretch;
   overflow: visible;
 }
 
@@ -213,44 +254,56 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
   overflow: visible;
+  justify-content: flex-start;
 }
 
 .tn-announce-col-title {
   margin: 0;
   flex: 0 0 auto;
-  font-size: 0.66rem;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-size: 0.8rem;
   font-weight: 800;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(212, 168, 75, 0.85);
+  color: #f0d078;
+  text-shadow: 0 0 12px rgba(212, 168, 75, 0.35);
 }
 
 .tn-announce-list {
   margin: 0;
-  padding: 0 0 2px;
+  padding: 0;
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-size: 0.78rem;
-  line-height: 1.35;
-  color: var(--tn-muted, rgba(210, 200, 185, 0.88));
+  justify-content: space-evenly;
+  flex: 1 1 auto;
+  gap: 8px;
+  font-size: clamp(0.92rem, 1.05vw, 1.08rem);
+  line-height: 1.4;
+  font-weight: 600;
+  color: #f0e6d4;
   overflow: visible;
 }
 
 .tn-announce-list li {
   position: relative;
-  padding-left: 0.85em;
+  padding: 6px 8px 6px 1.1em;
   overflow: visible;
+  border-radius: 8px;
+  background: rgba(255, 220, 120, 0.04);
+  border: 1px solid rgba(212, 168, 75, 0.14);
 }
 
 .tn-announce-list li::before {
-  content: "·";
+  content: "▸";
   position: absolute;
-  left: 0;
-  color: rgba(212, 168, 75, 0.7);
+  left: 0.35em;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #f0d078;
+  font-size: 0.75em;
 }
 
 /* Средний блок слева — только лого, без рамки/подложки */
@@ -324,21 +377,22 @@
   color: var(--tn-muted);
 }
 .tn-reg-badge {
-  margin: 8px 0 0;
+  margin: 4px 0 0;
   align-self: flex-start;
-  padding: 4px 10px;
+  padding: 7px 14px;
   border-radius: 999px;
-  font-size: 0.68rem;
+  font-size: 0.78rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   border: 1px solid rgba(180, 180, 180, 0.35);
   color: rgba(210, 200, 185, 0.8);
 }
 .tn-reg-badge.is-open {
-  border-color: rgba(143, 217, 164, 0.55);
-  color: #c8f0d4;
-  background: rgba(30, 60, 40, 0.45);
+  border-color: rgba(143, 217, 164, 0.7);
+  color: #d8ffe4;
+  background: rgba(30, 70, 45, 0.55);
+  box-shadow: 0 0 14px rgba(80, 180, 110, 0.28);
 }
 .tn-reg-status.is-ok {
   display: flex;
@@ -643,7 +697,12 @@
 }
 
 .tn-rules {
-  gap: 12px;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.tn-rules .tn-panel-title {
+  font-size: 0.88rem;
 }
 
 .tn-bracket-btn {

@@ -132,7 +132,33 @@ function TournamentsHomeTab() {
           <h2 className="tn-panel-title">
             Правила · регистрация · основные положения
           </h2>
-          <div className="tn-rules-body">{t.rules}</div>
+          <div className="tn-rules-body">
+            {(t.rules || "")
+              .split("\n")
+              .filter((line) => line.trim().length > 0)
+              .map((line) => {
+                const isPrize = /10\s*000|10\s*000\s*₽/.test(line);
+                if (!isPrize) {
+                  return (
+                    <p key={line} className="tn-rules-line">
+                      {line}
+                    </p>
+                  );
+                }
+                const parts = line.split(/(10\s*000\s*₽)/);
+                return (
+                  <p key={line} className="tn-rules-line is-prize">
+                    {parts.map((part, i) =>
+                      /10\s*000\s*₽/.test(part) ? (
+                        <strong key={i}>{part}</strong>
+                      ) : (
+                        <span key={i}>{part}</span>
+                      )
+                    )}
+                  </p>
+                );
+              })}
+          </div>
           <button
             type="button"
             className="tn-bracket-btn"
