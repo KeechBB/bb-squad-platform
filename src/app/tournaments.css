@@ -228,6 +228,27 @@
   overflow: hidden;
 }
 
+.tn-announce-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.tn-announce-head .tn-panel-title {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tn-announce-head .tn-reg-badge {
+  margin: 0;
+  flex: 0 0 auto;
+  align-self: center;
+}
+
 .tn-announce-name {
   margin: 0;
   flex: 0 0 auto;
@@ -377,8 +398,7 @@
   color: var(--tn-muted);
 }
 .tn-reg-badge {
-  margin: 4px 0 0;
-  align-self: flex-start;
+  margin: 0;
   padding: 7px 14px;
   border-radius: 999px;
   font-size: 0.78rem;
@@ -387,6 +407,7 @@
   text-transform: uppercase;
   border: 1px solid rgba(180, 180, 180, 0.35);
   color: rgba(210, 200, 185, 0.8);
+  white-space: nowrap;
 }
 .tn-reg-badge.is-open {
   border-color: rgba(143, 217, 164, 0.7);

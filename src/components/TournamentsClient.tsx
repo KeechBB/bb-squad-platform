@@ -36,7 +36,12 @@ function TournamentsHomeTab() {
     <div className="tn-home">
       <div className="tn-home-left">
         <section className="tn-panel tn-announce" aria-label="Анонс турнира">
-          <h2 className="tn-panel-title">Анонс турнира</h2>
+          <div className="tn-announce-head">
+            <h2 className="tn-panel-title">Анонс турнира</h2>
+            <p className={`tn-reg-badge${regOpen ? " is-open" : ""}`}>
+              {regOpen ? "Регистрация открыта" : "Регистрация закрыта"}
+            </p>
+          </div>
           <p className="tn-announce-name">{t.name}</p>
           <div className="tn-announce-cols">
             <div className="tn-announce-col">
@@ -56,9 +61,6 @@ function TournamentsHomeTab() {
               </ul>
             </div>
           </div>
-          <p className={`tn-reg-badge${regOpen ? " is-open" : ""}`}>
-            {regOpen ? "Регистрация открыта" : "Регистрация закрыта"}
-          </p>
         </section>
 
         <section className="tn-panel tn-logo-only" aria-label="Логотип турнира">
