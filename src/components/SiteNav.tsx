@@ -9,6 +9,8 @@ import { SteamAuthModal } from "@/components/SteamAuthModal";
 type Props = {
   /** Полный доступ: КВ / Поиск КВ / ТМ — только если в клане */
   showClanSections: boolean;
+  /** Черновик «Турниры» — пока только Keech */
+  showTournaments?: boolean;
 };
 
 function pathMatches(pathname: string, href: string): boolean {
@@ -104,7 +106,7 @@ function NavDropdown({
   );
 }
 
-export function SiteNav({ showClanSections }: Props) {
+export function SiteNav({ showClanSections, showTournaments = false }: Props) {
   const pathname = usePathname() || "/";
   const { data: session, status } = useSession();
   const loading = status === "loading";
@@ -234,6 +236,17 @@ export function SiteNav({ showClanSections }: Props) {
           className="nav-battle-pass"
           active={pathMatches(pathname, "/battle-pass")}
         />
+
+        {showTournaments ? (
+          <NavLink
+            href="/tournaments"
+            title="Турниры"
+            full="Турниры"
+            short="Турн."
+            className="nav-tournaments"
+            active={pathMatches(pathname, "/tournaments")}
+          />
+        ) : null}
       </nav>
       <SteamAuthModal
         open={Boolean(authModal)}

@@ -1,0 +1,405 @@
+/* ——— Турниры (черновик, Keech-only) ——— */
+
+.tn-page {
+  --tn-gold: #d4a84b;
+  --tn-gold-soft: rgba(212, 168, 75, 0.35);
+  --tn-line: rgba(212, 168, 75, 0.28);
+  --tn-panel: rgba(14, 12, 20, 0.82);
+  --tn-ink: #f2ebe0;
+  --tn-muted: rgba(210, 200, 185, 0.72);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  color: var(--tn-ink);
+}
+
+.tn-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.tn-eyebrow {
+  margin: 0 0 4px;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--tn-gold);
+}
+
+.tn-head h1 {
+  margin: 0;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-size: clamp(1.45rem, 2.2vw, 1.85rem);
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+}
+
+.tn-sub {
+  margin: 6px 0 0;
+  font-size: 0.82rem;
+  color: var(--tn-muted);
+}
+
+.tn-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--tn-line);
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.tn-tab {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--tn-muted);
+  border-radius: 9px;
+  padding: 9px 14px;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.tn-tab-short {
+  display: none;
+}
+
+.tn-tab:hover,
+.tn-tab:focus-visible {
+  color: #fff6d6;
+  border-color: rgba(212, 168, 75, 0.45);
+  outline: none;
+}
+
+.tn-tab.is-on {
+  color: #1a1208;
+  background: linear-gradient(180deg, #f0d078 0%, #c9962a 100%);
+  border-color: rgba(255, 230, 160, 0.7);
+  box-shadow: 0 0 16px rgba(212, 168, 75, 0.35);
+}
+
+.tn-body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.tn-placeholder {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--tn-muted);
+}
+
+/* ——— Вкладка «Турниры»: сетка по макету ——— */
+
+.tn-home {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(360px, 1.35fr);
+  gap: 12px;
+  min-height: min(720px, calc(100dvh - 210px));
+  align-items: stretch;
+}
+
+.tn-home-left,
+.tn-home-right {
+  display: grid;
+  gap: 12px;
+  min-height: 0;
+}
+
+.tn-home-left {
+  grid-template-rows: minmax(120px, 0.85fr) minmax(220px, 1.35fr) minmax(140px, 1fr);
+}
+
+.tn-home-right {
+  grid-template-rows: minmax(160px, 0.72fr) minmax(280px, 1.4fr);
+}
+
+.tn-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--tn-line);
+  background:
+    linear-gradient(165deg, rgba(28, 22, 36, 0.92) 0%, rgba(10, 8, 16, 0.9) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+}
+
+.tn-panel-title {
+  margin: 0;
+  flex: 0 0 auto;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--tn-gold);
+}
+
+.tn-announce-body,
+.tn-rules-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+/* Средний блок слева — только лого */
+.tn-logo-only {
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  background:
+    radial-gradient(ellipse 70% 65% at 50% 45%, rgba(180, 40, 50, 0.18), transparent 70%),
+    linear-gradient(165deg, rgba(22, 16, 28, 0.95) 0%, rgba(8, 6, 12, 0.96) 100%);
+}
+
+.tn-logo {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.65));
+  user-select: none;
+  pointer-events: none;
+}
+
+.tn-register {
+  justify-content: space-between;
+}
+
+.tn-register-btn,
+.tn-bracket-btn {
+  appearance: none;
+  align-self: center;
+  margin-top: auto;
+  border-radius: 12px;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.tn-register-btn {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid rgba(212, 168, 75, 0.4);
+  background: rgba(40, 28, 12, 0.55);
+  color: #f0d078;
+  font-size: 0.78rem;
+}
+
+.tn-register-btn:hover:not(:disabled),
+.tn-register-btn:focus-visible:not(:disabled) {
+  border-color: rgba(240, 208, 120, 0.85);
+  box-shadow: 0 0 18px rgba(212, 168, 75, 0.35);
+  outline: none;
+}
+
+.tn-register-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.tn-prizes-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tn-prize {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding: 12px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(212, 168, 75, 0.22);
+  background: rgba(0, 0, 0, 0.28);
+  overflow: auto;
+}
+
+.tn-prize h3 {
+  margin: 0;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.tn-prize.place-1 {
+  border-color: rgba(240, 208, 120, 0.55);
+  background:
+    linear-gradient(180deg, rgba(90, 70, 20, 0.35), rgba(0, 0, 0, 0.3));
+}
+.tn-prize.place-1 h3 {
+  color: #f5d76e;
+}
+.tn-prize.place-2 {
+  border-color: rgba(190, 200, 220, 0.4);
+}
+.tn-prize.place-2 h3 {
+  color: #d7dde8;
+}
+.tn-prize.place-3 {
+  border-color: rgba(196, 120, 70, 0.45);
+}
+.tn-prize.place-3 h3 {
+  color: #e0a878;
+}
+
+.tn-prize ul {
+  margin: 0;
+  padding: 0 0 0 1.1em;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--tn-muted);
+}
+
+.tn-rules {
+  gap: 12px;
+}
+
+.tn-bracket-btn {
+  width: min(420px, 100%);
+  padding: 14px 22px;
+  border: 1px solid rgba(253, 224, 71, 0.75);
+  color: #fff8d6;
+  font-size: 0.92rem;
+  background:
+    linear-gradient(
+      120deg,
+      rgba(120, 30, 40, 0.92) 0%,
+      rgba(160, 50, 40, 0.7) 35%,
+      rgba(202, 138, 4, 0.55) 55%,
+      rgba(120, 30, 40, 0.92) 100%
+    );
+  background-size: 200% 100%;
+  box-shadow:
+    0 0 18px rgba(180, 40, 50, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.tn-bracket-btn:hover,
+.tn-bracket-btn:focus-visible {
+  transform: translateY(-2px);
+  border-color: rgba(255, 240, 180, 0.95);
+  box-shadow:
+    0 0 28px rgba(250, 204, 21, 0.45),
+    0 0 40px rgba(180, 40, 50, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  outline: none;
+  background-position: 100% 0;
+}
+
+.tn-bracket-btn:active {
+  transform: translateY(0);
+}
+
+.tn-bracket-hint {
+  margin: 0;
+  text-align: center;
+  font-size: 0.7rem;
+  color: rgba(210, 200, 185, 0.55);
+}
+
+.tn-soon {
+  display: grid;
+  place-content: center;
+  gap: 10px;
+  min-height: min(420px, calc(100dvh - 240px));
+  padding: 28px;
+  border-radius: 14px;
+  border: 1px dashed var(--tn-line);
+  background: rgba(0, 0, 0, 0.22);
+  text-align: center;
+}
+
+.tn-soon h2 {
+  margin: 0;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-size: 1.2rem;
+  letter-spacing: 0.06em;
+}
+
+/* Nav accent for Турниры (после BP, спокойнее) */
+.top-nav a.nav-tournaments {
+  position: relative;
+  margin: 0 4px;
+  padding: 12px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(196, 60, 70, 0.55);
+  color: #ffe8e4;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(70, 18, 28, 0.85) 0%,
+      rgba(120, 40, 45, 0.55) 45%,
+      rgba(40, 18, 50, 0.8) 100%
+    );
+  box-shadow: 0 0 14px rgba(160, 40, 55, 0.28);
+}
+
+.top-nav a.nav-tournaments:hover,
+.top-nav a.nav-tournaments:focus-visible,
+.top-nav a.nav-tournaments.is-active {
+  border-color: rgba(240, 180, 90, 0.75);
+  color: #fff6d6;
+  box-shadow:
+    0 0 18px rgba(212, 168, 75, 0.35),
+    0 0 22px rgba(160, 40, 55, 0.3);
+}
+
+@media (max-width: 1100px) {
+  .tn-home {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+  .tn-home-left,
+  .tn-home-right {
+    grid-template-rows: none;
+  }
+  .tn-logo-only {
+    min-height: 260px;
+  }
+  .tn-tab-full {
+    display: none;
+  }
+  .tn-tab-short {
+    display: inline;
+  }
+}
