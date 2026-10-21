@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Периодическая проверка: сайт, PM2, нагрузка, кеш логов.
+Периодическая проверка: сайт, PM2, нагрузка, кеш логов,
+orphan heavy-lock (блокирует train/CW sync), deferred spam.
+
 Cron: */3 * * * * cd /var/www/bb-squad-platform/scripts && .venv-collector/bin/python bb_health_watch.py
+
+Ручной прогон только heavy-lock:
+  python bb_health_watch.py --heavy-lock
 """
 from __future__ import annotations
 
@@ -28,6 +33,18 @@ CACHE_LIMIT_GB = float(os.environ.get("BB_LOG_CACHE_LIMIT_GB", "8"))
 # deploy.sh ставит флаг → nginx 503 намеренно; не орём «сайт упал»
 MAINT_FLAG = Path(
     os.environ.get("BB_MAINT_FLAG", "/var/www/bb-squad-platform/maintenance.on")
+)
+
+HEAVY_LOCK = HERE / "_tmp_heavy_job.lock"
+# Лок без живого sync-процесса дольше этого → orphan (снять + алерт)
+HEAVY_ORPHAN_SEC = float(os.environ.get("BB_HEAVY_ORPHAN_SEC", "90"))
+# Сколько «deferred» строк в хвосте лога коллектора считать проблемой
+DEFERRED_TAIL_BYTES = int(os.environ.get("BB_DEFERRED_TAIL_BYTES", str(200_000)))
+DEFERRED_MIN_HITS = int(os.environ.get("BB_DEFERRED_MIN_HITS", "4"))
+HEAVY_WORKER_NEEDLES = (
+    "sync_train_from_tr1_logs.py",
+    "sync_kv_cw_from_tr_logs.py",
+    "build_train_rp_ledger.py",
 )
 
 
@@ -239,6 +256,164 @@ def check_collector_heartbeat(st: dict) -> None:
     st["collector_silent"] = silent
 
 
+def heavy_workers_running() -> list[str]:
+    """Живые python-процессы sync/RP, которые держат heavy-lock легитимно."""
+    found: list[str] = []
+    try:
+        for ent in Path("/proc").iterdir():
+            if not ent.name.isdigit():
+                continue
+            try:
+                raw = (ent / "cmdline").read_bytes()
+            except OSError:
+                continue
+            if not raw:
+                continue
+            cmd = raw.replace(b"\x00", b" ").decode("utf-8", errors="replace")
+            for needle in HEAVY_WORKER_NEEDLES:
+                if needle in cmd:
+                    found.append(f"pid={ent.name} {needle}")
+                    break
+    except OSError:
+        pass
+    return found
+
+
+def _lock_label(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8", errors="replace").strip().split()[0]
+    except Exception:
+        return "?"
+
+
+def _collector_deferred_hits() -> int:
+    """Сколько train/CW deferred в хвосте out-лога коллектора."""
+    paths = [
+        Path("/root/.pm2/logs/bb-squad-collector-out.log"),
+        HERE / "_collector_out_live.txt",
+    ]
+    hits = 0
+    for p in paths:
+        if not p.is_file():
+            continue
+        try:
+            data = p.read_bytes()[-DEFERRED_TAIL_BYTES:].decode("utf-8", errors="replace")
+        except OSError:
+            continue
+        hits += data.count("train sync deferred")
+        hits += data.count("CW TR sync deferred")
+        if hits:
+            break
+    return hits
+
+
+def check_heavy_job_lock(st: dict, *, autofix: bool = True) -> dict:
+    """
+    Orphan `_tmp_heavy_job.lock` после рестарта PM2/деплоя блокирует
+    train sync и CW TR sync до TTL (до 15 мин) — как с 21-cslmutaha 21.10.
+
+    Если лока нет живого worker дольше HEAVY_ORPHAN_SEC — снимаем и алертим.
+    """
+    report: dict = {
+        "lock": False,
+        "orphan": False,
+        "fixed": False,
+        "age_sec": None,
+        "label": None,
+        "workers": [],
+        "deferred_hits": 0,
+    }
+    workers = heavy_workers_running()
+    report["workers"] = workers
+    deferred = _collector_deferred_hits()
+    report["deferred_hits"] = deferred
+
+    if not HEAVY_LOCK.is_file():
+        was_orphan = bool(st.get("heavy_lock_orphan"))
+        if was_orphan:
+            A.send(
+                kind="сборщик",
+                title="Heavy-lock снят — sync снова может идти",
+                level="ok",
+                force=True,
+            )
+        st["heavy_lock_orphan"] = False
+        st["heavy_lock_last"] = report
+        # deferred без лока: просто шум после фикса — не орём
+        return report
+
+    try:
+        age = max(0.0, time.time() - HEAVY_LOCK.stat().st_mtime)
+    except OSError:
+        age = 0.0
+    label = _lock_label(HEAVY_LOCK)
+    report["lock"] = True
+    report["age_sec"] = round(age, 1)
+    report["label"] = label
+
+    orphan = (not workers) and age >= HEAVY_ORPHAN_SEC
+    report["orphan"] = orphan
+    was = bool(st.get("heavy_lock_orphan"))
+
+    if orphan:
+        if autofix:
+            try:
+                HEAVY_LOCK.unlink(missing_ok=True)
+                report["fixed"] = True
+            except OSError as e:
+                report["fixed"] = False
+                report["fix_error"] = str(e)
+        if not was or report.get("fixed"):
+            lines = [
+                f"лок: {label} · возраст {int(age)}с · worker-ов нет",
+                "train/CW sync откладывались (deferred)",
+            ]
+            if report.get("fixed"):
+                lines.append("автофикс: лок удалён — следующий цикл коллектора подхватит карты")
+            else:
+                lines.append("автофикс не удался — сними вручную _tmp_heavy_job.lock")
+            if deferred >= DEFERRED_MIN_HITS:
+                lines.append(f"в логе коллектора deferred≈{deferred}")
+            A.send(
+                kind="сборщик",
+                title="Orphan heavy-lock блокировал sync",
+                level="crit",
+                lines=lines,
+                details={
+                    "файл": str(HEAVY_LOCK),
+                    "порог_orphan_сек": HEAVY_ORPHAN_SEC,
+                },
+                force=True,
+            )
+        st["heavy_lock_orphan"] = True
+    else:
+        # Живой worker или свежий лок — ок; но deferred+старый лок (>5 мин) с worker-ом
+        # тоже подозрительно (зависший sync) — только warn без unlink.
+        if workers and age >= 600 and deferred >= DEFERRED_MIN_HITS and not was:
+            A.send(
+                kind="сборщик",
+                title="Heavy-lock держится слишком долго",
+                level="warn",
+                lines=[
+                    f"лок: {label} · {int(age)}с · workers: {len(workers)}",
+                    f"deferred в логе ≈{deferred}",
+                    "проверь sync_train / cw-tr — возможно завис",
+                ],
+                details={"workers": "; ".join(workers[:4])},
+            )
+        if was and not orphan:
+            st["heavy_lock_orphan"] = False
+
+    st["heavy_lock_last"] = report
+    print(
+        "heavy-lock",
+        f"lock={report['lock']} orphan={orphan} age={report['age_sec']} "
+        f"workers={len(workers)} deferred={deferred} fixed={report['fixed']}",
+        flush=True,
+    )
+    return report
+
+
 def _cw_rows() -> dict[str, dict]:
     roots = [
         Path("/var/www/bb-squad-platform/data/kv-cache/data"),
@@ -341,8 +516,23 @@ def check_cw_calendar(st: dict) -> None:
     st["cw_seen"] = rows
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    args = list(argv if argv is not None else sys.argv[1:])
+    only_heavy = "--heavy-lock" in args
+    no_fix = "--no-fix" in args
     st = _load()
+    if only_heavy:
+        try:
+            rep = check_heavy_job_lock(st, autofix=not no_fix)
+        except Exception as e:
+            print("heavy-lock check", e, flush=True)
+            return 1
+        _save(st)
+        # exit 2 = была проблема (orphan / долгий лок)
+        if rep.get("orphan") or (rep.get("lock") and (rep.get("age_sec") or 0) >= 600):
+            return 2
+        return 0
+
     try:
         check_site(st)
     except Exception as e:
@@ -363,6 +553,10 @@ def main() -> int:
         check_collector_heartbeat(st)
     except Exception as e:
         print("collector heartbeat", e, flush=True)
+    try:
+        check_heavy_job_lock(st, autofix=not no_fix)
+    except Exception as e:
+        print("heavy-lock check", e, flush=True)
     try:
         check_cw_calendar(st)
     except Exception as e:
