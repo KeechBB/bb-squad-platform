@@ -51,6 +51,10 @@ function ProfileHeadMock({
   compact?: boolean;
 }) {
   const goldNick = kind === "nick";
+  const medalIcon =
+    reward.id === "pb1-best-tester"
+      ? "/awards/bp-s1-l20-cobalt-core.png"
+      : null;
   return (
     <div className="bp-mock-row">
       <div className="bp-mock-av-col">
@@ -58,13 +62,24 @@ function ProfileHeadMock({
         {kind === "medal" ? (
           <button
             type="button"
-            className="bp-mock-medal"
+            className={`bp-mock-medal${medalIcon ? " is-image" : ""}`}
             title={reward.hover || reward.name}
             aria-label={reward.hover || reward.name}
           >
-            <span className="bp-mock-medal-face" aria-hidden>
-              ★
-            </span>
+            {medalIcon ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                className="bp-mock-medal-image"
+                src={medalIcon}
+                alt=""
+                width={80}
+                height={80}
+              />
+            ) : (
+              <span className="bp-mock-medal-face" aria-hidden>
+                ★
+              </span>
+            )}
             {!compact ? (
               <span className="bp-mock-medal-tip" role="tooltip">
                 {reward.hover || reward.name}
