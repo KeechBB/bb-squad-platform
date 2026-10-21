@@ -1130,6 +1130,76 @@
   letter-spacing: 0.04em;
 }
 
+.tn-teams-row-click {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.tn-teams-row-click:hover,
+.tn-teams-row-click:focus-visible {
+  background: rgba(212, 168, 75, 0.1);
+  outline: none;
+}
+
+.tn-teams-row-click:focus-visible td:first-child {
+  box-shadow: inset 3px 0 0 var(--tn-gold);
+}
+
+.tn-team-inspect {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.tn-team-inspect-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+
+.tn-team-inspect-head .tn-panel-title {
+  margin: 0;
+}
+
+.tn-team-inspect-back {
+  flex: 0 0 auto;
+}
+
+.tn-team-inspect-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.tn-team-inspect-meta {
+  min-width: 0;
+}
+
+.tn-team-inspect-name {
+  margin: 0 0 2px;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #f7f3ff;
+}
+
+.tn-team-inspect-tag {
+  margin: 0 0 4px;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  color: #f0d078;
+  letter-spacing: 0.06em;
+}
+
+.tn-team-inspect-sub {
+  margin: 0;
+  font-size: 0.82rem;
+  color: rgba(236, 230, 255, 0.78);
+}
+
 .tn-my-team {
   display: grid;
   grid-template-columns: minmax(280px, 0.95fr) minmax(360px, 1.35fr);

@@ -29,6 +29,7 @@ type ApiMember = {
   steamId: string;
   joinedAt: string;
   role: string;
+  matchesPlayed?: number;
   clanTag: string | null;
   clanName: string | null;
 };
@@ -69,6 +70,14 @@ function formatDate(iso: string): string {
   });
 }
 
+const ROLE_ORDER: TournamentTeamRole[] = [
+  "captain",
+  "deputy",
+  "starter",
+  "sub",
+  "reserve",
+];
+
 function roleOptionsForActor(
   actorRole: string | null,
   target: ApiMember,
@@ -94,6 +103,103 @@ function roleOptionsForActor(
   return null;
 }
 
+function TeamPublicInspect({
+  team,
+  onBack,
+}: {
+  team: ApiTeam;
+  onBack: () => void;
+}) {
+  const roster = useMemo(
+    () =>
+      [...team.members].sort((a, b) => {
+        const ra = ROLE_ORDER.indexOf(mapDbTeamRole(a.role));
+        const rb = ROLE_ORDER.indexOf(mapDbTeamRole(b.role));
+        if (ra !== rb) return ra - rb;
+        return a.joinedAt.localeCompare(b.joinedAt);
+      }),
+    [team.members]
+  );
+
+  return (
+    <section
+      className="tn-panel tn-team-inspect"
+      aria-label={`Команда ${team.name}`}
+    >
+      <div className="tn-team-inspect-head">
+        <button
+          type="button"
+          className="tn-teams-cancel-btn tn-team-inspect-back"
+          onClick={onBack}
+        >
+          ← К таблице
+        </button>
+        <h2 className="tn-panel-title">Просмотр команды</h2>
+      </div>
+
+      <div className="tn-team-inspect-info">
+        {team.logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            className="tn-teams-table-logo is-lg"
+            src={team.logoUrl}
+            alt=""
+            width={72}
+            height={72}
+          />
+        ) : (
+          <span className="tn-teams-table-logo is-empty is-lg" aria-hidden />
+        )}
+        <div className="tn-team-inspect-meta">
+          <p className="tn-team-inspect-name">{team.name}</p>
+          <p className="tn-team-inspect-tag">[{team.tag}]</p>
+          <p className="tn-team-inspect-sub">
+            Создана {formatDate(team.createdAt)} · состав{" "}
+            {team.membersCount}/{team.rosterMax || TOURNAMENT_TEAM_ROSTER_MAX}
+          </p>
+        </div>
+      </div>
+
+      <div className="tn-teams-table-scroll">
+        <table className="tn-teams-table">
+          <thead>
+            <tr>
+              <th>№</th>
+              <th>Ник</th>
+              <th>Роль</th>
+              <th>В команде с</th>
+              <th>Матчи</th>
+              <th>Клан</th>
+            </tr>
+          </thead>
+          <tbody>
+            {roster.length === 0 ? (
+              <tr>
+                <td colSpan={6}>В команде пока никого нет.</td>
+              </tr>
+            ) : (
+              roster.map((m, i) => (
+                <tr key={m.id}>
+                  <td>{i + 1}</td>
+                  <td>{m.nick}</td>
+                  <td>
+                    {TOURNAMENT_TEAM_ROLE_LABEL[mapDbTeamRole(m.role)]}
+                  </td>
+                  <td>{formatDate(m.joinedAt)}</td>
+                  <td>{m.matchesPlayed ?? 0}</td>
+                  <td>
+                    {m.clanTag ? `[${m.clanTag}]` : m.clanName || "—"}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 function TeamsOverview({
   teams,
   canCreate,
@@ -113,6 +219,12 @@ function TeamsOverview({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [inspectId, setInspectId] = useState<string | null>(null);
+
+  const inspectTeam = useMemo(
+    () => (inspectId ? teams.find((t) => t.id === inspectId) || null : null),
+    [inspectId, teams]
+  );
 
   function onLogoPick(file: File | null) {
     if (logoPreview) URL.revokeObjectURL(logoPreview);
@@ -311,69 +423,84 @@ function TeamsOverview({
         </section>
       </div>
 
-      <section className="tn-panel tn-teams-table-wrap" aria-label="Таблица команд">
-        <h2 className="tn-panel-title">Таблица команд</h2>
-        {teams.length === 0 ? (
-          <Placeholder>
-            Команд пока нет. Создай первую — она появится в таблице.
-          </Placeholder>
-        ) : (
-          <div className="tn-teams-table-scroll">
-            <table className="tn-teams-table">
-              <thead>
-                <tr>
-                  <th>Лого</th>
-                  <th>Название</th>
-                  <th>Тег</th>
-                  <th>Дата создания</th>
-                  <th>Состав</th>
-                </tr>
-              </thead>
-              <tbody>
-                {teams.map((tm) => (
-                  <tr key={tm.id}>
-                    <td>
-                      {tm.logoUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          className="tn-teams-table-logo"
-                          src={tm.logoUrl}
-                          alt=""
-                          width={36}
-                          height={36}
-                        />
-                      ) : (
-                        <span
-                          className="tn-teams-table-logo is-empty"
-                          aria-hidden
-                        />
-                      )}
-                    </td>
-                    <td>{tm.name}</td>
-                    <td className="tn-teams-tag">[{tm.tag}]</td>
-                    <td>{formatDate(tm.createdAt)}</td>
-                    <td>
-                      {tm.membersCount}/
-                      {tm.rosterMax || TOURNAMENT_TEAM_ROSTER_MAX}
-                    </td>
+      {inspectTeam ? (
+        <TeamPublicInspect
+          team={inspectTeam}
+          onBack={() => setInspectId(null)}
+        />
+      ) : (
+        <section
+          className="tn-panel tn-teams-table-wrap"
+          aria-label="Таблица команд"
+        >
+          <h2 className="tn-panel-title">Таблица команд</h2>
+          {teams.length === 0 ? (
+            <Placeholder>
+              Команд пока нет. Создай первую — она появится в таблице.
+            </Placeholder>
+          ) : (
+            <div className="tn-teams-table-scroll">
+              <table className="tn-teams-table">
+                <thead>
+                  <tr>
+                    <th>Лого</th>
+                    <th>Название</th>
+                    <th>Тег</th>
+                    <th>Дата создания</th>
+                    <th>Состав</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+                </thead>
+                <tbody>
+                  {teams.map((tm) => (
+                    <tr
+                      key={tm.id}
+                      className="tn-teams-row-click"
+                      tabIndex={0}
+                      role="link"
+                      aria-label={`Открыть команду ${tm.name}`}
+                      onClick={() => setInspectId(tm.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setInspectId(tm.id);
+                        }
+                      }}
+                    >
+                      <td>
+                        {tm.logoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            className="tn-teams-table-logo"
+                            src={tm.logoUrl}
+                            alt=""
+                            width={36}
+                            height={36}
+                          />
+                        ) : (
+                          <span
+                            className="tn-teams-table-logo is-empty"
+                            aria-hidden
+                          />
+                        )}
+                      </td>
+                      <td>{tm.name}</td>
+                      <td className="tn-teams-tag">[{tm.tag}]</td>
+                      <td>{formatDate(tm.createdAt)}</td>
+                      <td>
+                        {tm.membersCount}/
+                        {tm.rosterMax || TOURNAMENT_TEAM_ROSTER_MAX}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
-
-const ROLE_ORDER: TournamentTeamRole[] = [
-  "captain",
-  "deputy",
-  "starter",
-  "sub",
-  "reserve",
-];
 
 function MyTeamPanel({
   team,

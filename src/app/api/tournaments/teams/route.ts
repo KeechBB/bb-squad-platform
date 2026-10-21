@@ -33,7 +33,7 @@ const teamInclude = {
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapTeam(team: any) {
+function mapTeam(team: any, opts?: { includeInvites?: boolean }) {
   return {
     id: team.id as string,
     name: team.name as string,
@@ -60,17 +60,25 @@ function mapTeam(team: any) {
         steamId: m.user.steamId,
         joinedAt: new Date(m.joinedAt).toISOString(),
         role: m.role,
+        /** Турнирные матчи ещё не оцифрованы — всегда 0. */
+        matchesPlayed: 0,
         clanTag: m.user.clanMemberships[0]?.clan.tag || null,
         clanName: m.user.clanMemberships[0]?.clan.name || null,
       })
     ),
-    pendingInvites: team.invites.map(
-      (i: { id: string; createdAt: Date; user: { nick: string | null } }) => ({
-        id: i.id,
-        nick: i.user.nick || "?",
-        sentAt: new Date(i.createdAt).toISOString(),
-      })
-    ),
+    pendingInvites: opts?.includeInvites
+      ? team.invites.map(
+          (i: {
+            id: string;
+            createdAt: Date;
+            user: { nick: string | null };
+          }) => ({
+            id: i.id,
+            nick: i.user.nick || "?",
+            sentAt: new Date(i.createdAt).toISOString(),
+          })
+        )
+      : [],
   };
 }
 
@@ -106,7 +114,9 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true,
-    teams: teams.map(mapTeam),
+    teams: teams.map((t) =>
+      mapTeam(t, { includeInvites: Boolean(myTeamId && t.id === myTeamId) })
+    ),
     myTeamId,
     myRole,
     myUserId,
