@@ -71,8 +71,8 @@ function TournamentsHomeTab() {
                     className="tn-prize-img"
                     src={p.imageSrc}
                     alt=""
-                    width={160}
-                    height={160}
+                    width={220}
+                    height={220}
                   />
                 ) : null}
                 {p.items.length ? (
