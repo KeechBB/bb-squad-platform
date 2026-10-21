@@ -675,7 +675,7 @@ model ClanCalendarEvent {
   @@index([challengeId])
 }
 
-/* ——— Турнирные команды (не кланы) ——— */
+// ——— Турнирные команды (не кланы) ———
 
 enum TournamentTeamRole {
   CAPTAIN
