@@ -144,7 +144,7 @@
 }
 
 .tn-home-right {
-  grid-template-rows: minmax(160px, 0.72fr) minmax(280px, 1.4fr);
+  grid-template-rows: minmax(220px, 1.15fr) minmax(200px, 1fr);
 }
 
 .tn-panel {
@@ -421,19 +421,25 @@
   font-size: 0.72rem;
   color: rgba(210, 200, 185, 0.7);
 }
+.tn-prizes {
+  overflow: hidden;
+}
+
 .tn-prize-img {
   display: block;
-  width: min(168px, 78%);
+  width: 100%;
+  max-width: 160px;
   height: auto;
-  aspect-ratio: 1;
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: 100%;
+  margin: 0 auto;
   object-fit: contain;
-  margin: 4px auto 10px;
   filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55));
-  flex: 0 0 auto;
 }
 
 .tn-prize.place-1 .tn-prize-img {
-  width: min(200px, 88%);
+  max-width: 180px;
 }
 
 .tn-register-btn:hover:not(:disabled),
@@ -453,26 +459,29 @@
   min-height: 0;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
   align-items: stretch;
+  overflow: hidden;
 }
 
 .tn-prize {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
   min-height: 0;
-  padding: 14px 12px 16px;
+  height: 100%;
+  padding: 10px 8px 10px;
   border-radius: 14px;
   border: 1px solid rgba(212, 168, 75, 0.22);
   background: rgba(0, 0, 0, 0.28);
-  overflow: auto;
+  overflow: hidden;
 }
 
 .tn-prize h3 {
   margin: 0;
+  flex: 0 0 auto;
   font-family: var(--font-display), Oxanium, sans-serif;
-  font-size: 0.95rem;
+  font-size: 0.82rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   text-align: center;
@@ -501,10 +510,12 @@
 
 .tn-prize ul {
   margin: 0;
-  padding: 0 0 0 1.15em;
-  font-size: 0.88rem;
-  line-height: 1.45;
+  flex: 0 0 auto;
+  padding: 0 0 0 1em;
+  font-size: 0.72rem;
+  line-height: 1.3;
   color: var(--tn-muted);
+  overflow: hidden;
 }
 
 .tn-prize.place-1 ul {
