@@ -9,10 +9,14 @@
   --tn-muted: rgba(210, 200, 185, 0.72);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
   width: 100%;
   max-width: none;
+  flex: 1 1 auto;
+  height: 100%;
   min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
   box-sizing: border-box;
   color: var(--tn-ink);
 }
@@ -21,7 +25,8 @@
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
+  flex: 0 0 auto;
 }
 
 .tn-eyebrow {
@@ -36,14 +41,14 @@
 .tn-head h1 {
   margin: 0;
   font-family: var(--font-display), Oxanium, sans-serif;
-  font-size: clamp(1.45rem, 2.2vw, 1.85rem);
+  font-size: clamp(1.2rem, 1.8vw, 1.55rem);
   letter-spacing: 0.04em;
   line-height: 1.1;
 }
 
 .tn-sub {
-  margin: 6px 0 0;
-  font-size: 0.82rem;
+  margin: 4px 0 0;
+  font-size: 0.76rem;
   color: var(--tn-muted);
 }
 
@@ -51,10 +56,11 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 4px;
+  padding: 3px;
   border-radius: 12px;
   border: 1px solid var(--tn-line);
   background: rgba(0, 0, 0, 0.28);
+  flex: 0 0 auto;
 }
 
 .tn-tab {
@@ -63,9 +69,9 @@
   background: transparent;
   color: var(--tn-muted);
   border-radius: 9px;
-  padding: 9px 14px;
+  padding: 7px 12px;
   font-family: var(--font-display), Oxanium, sans-serif;
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   cursor: pointer;
@@ -97,6 +103,14 @@
 .tn-body {
   flex: 1 1 auto;
   min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.tn-body > * {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .tn-placeholder {
@@ -111,9 +125,11 @@
 .tn-home {
   display: grid;
   grid-template-columns: minmax(280px, 0.9fr) minmax(360px, 1.35fr);
-  gap: 12px;
-  min-height: min(720px, calc(100dvh - 210px));
+  gap: 10px;
+  height: 100%;
+  min-height: 0;
   align-items: stretch;
+  overflow: hidden;
 }
 
 .tn-home-left,
@@ -135,9 +151,9 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   min-height: 0;
-  padding: 14px 16px;
+  padding: 12px 14px;
   border-radius: 14px;
   border: 1px solid var(--tn-line);
   background:
@@ -342,12 +358,14 @@
   display: grid;
   place-content: center;
   gap: 10px;
-  min-height: min(420px, calc(100dvh - 240px));
+  height: 100%;
+  min-height: 0;
   padding: 28px;
   border-radius: 14px;
   border: 1px dashed var(--tn-line);
   background: rgba(0, 0, 0, 0.22);
   text-align: center;
+  overflow: hidden;
 }
 
 .tn-soon h2 {
@@ -392,7 +410,16 @@
 .tn-teams-root {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tn-teams-root > .tn-teams,
+.tn-teams-root > .tn-my-team,
+.tn-teams-root > .tn-soon {
+  flex: 1 1 auto;
   min-height: 0;
 }
 
@@ -400,6 +427,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  flex: 0 0 auto;
 }
 
 .tn-subtab {
@@ -441,9 +469,12 @@
 .tn-teams {
   display: grid;
   grid-template-columns: minmax(280px, 0.95fr) minmax(360px, 1.35fr);
-  gap: 12px;
-  min-height: min(640px, calc(100dvh - 260px));
+  gap: 10px;
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
   align-items: stretch;
+  overflow: hidden;
 }
 
 .tn-teams-left {
@@ -646,9 +677,12 @@
 .tn-my-team {
   display: grid;
   grid-template-columns: minmax(280px, 0.95fr) minmax(360px, 1.35fr);
-  gap: 12px;
-  min-height: min(640px, calc(100dvh - 260px));
+  gap: 10px;
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
   align-items: stretch;
+  overflow: hidden;
 }
 
 .tn-my-team-left {
@@ -788,8 +822,10 @@
 /* ——— Статистика игроков ——— */
 
 .tn-pstats {
-  min-height: min(560px, calc(100dvh - 240px));
-  gap: 12px;
+  height: 100%;
+  min-height: 0;
+  gap: 10px;
+  overflow: hidden;
 }
 
 .tn-pstats-head {
@@ -897,13 +933,14 @@
   .tn-home {
     grid-template-columns: 1fr;
     min-height: 0;
+    overflow: auto;
   }
   .tn-home-left,
   .tn-home-right {
     grid-template-rows: none;
   }
   .tn-logo-only {
-    min-height: 260px;
+    min-height: 220px;
   }
   .tn-tab-full {
     display: none;
@@ -915,6 +952,7 @@
   .tn-my-team {
     grid-template-columns: 1fr;
     min-height: 0;
+    overflow: auto;
   }
   .tn-teams-left,
   .tn-my-team-left {
