@@ -1,8 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  TOURNAMENT_TEAM_RATING_DRAFT,
   type TournamentTeamRatingRow,
   type TournamentTeamRatingSortKey,
 } from "@/lib/tournaments";
@@ -35,8 +34,7 @@ function cmp(
   const mul = dir === "asc" ? 1 : -1;
   if (key === "name" || key === "tag") {
     return (
-      mul *
-      a[key].localeCompare(b[key], "ru", { sensitivity: "base" })
+      mul * a[key].localeCompare(b[key], "ru", { sensitivity: "base" })
     );
   }
   const av = a[key];
@@ -46,12 +44,50 @@ function cmp(
 }
 
 export function TournamentTeamRatingTab() {
-  const [rows] = useState<TournamentTeamRatingRow[]>(
-    () => [...TOURNAMENT_TEAM_RATING_DRAFT]
-  );
+  const [rows, setRows] = useState<TournamentTeamRatingRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [sortKey, setSortKey] =
-    useState<TournamentTeamRatingSortKey>("titles");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
+    useState<TournamentTeamRatingSortKey>("name");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await fetch("/api/tournaments/teams", { cache: "no-store" });
+        const data = (await res.json().catch(() => ({}))) as {
+          teams?: {
+            id: string;
+            name: string;
+            tag: string;
+            logoUrl: string | null;
+          }[];
+        };
+        if (cancelled || !res.ok) return;
+        setRows(
+          (data.teams || []).map((t) => ({
+            id: t.id,
+            name: t.name,
+            tag: t.tag,
+            logoSrc: t.logoUrl,
+            matches: 0,
+            winPct: 0,
+            avgKd: 0,
+            tournamentsPlayed: 0,
+            titles: 0,
+          }))
+        );
+      } catch {
+        if (!cancelled) setRows([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const sorted = useMemo(() => {
     const out = [...rows];
@@ -73,8 +109,8 @@ export function TournamentTeamRatingTab() {
       <div className="tn-pstats-head">
         <h2 className="tn-panel-title">Рейтинг команд</h2>
         <p className="tn-pstats-hint">
-          Сводка по турнирным командам. «Турниры» — сколько раз участвовали,
-          «Титулы» — сколько раз взяли 1 место. № следует за сортировкой.
+          Все созданные турнирные команды (пока с нулями). По умолчанию — по
+          алфавиту названия.
         </p>
       </div>
 
@@ -85,10 +121,7 @@ export function TournamentTeamRatingTab() {
               {COLS.map((c) => {
                 if (c.key === "rank" || c.key === "logo") {
                   return (
-                    <th
-                      key={c.key}
-                      className={c.left ? "is-nick" : "ctr"}
-                    >
+                    <th key={c.key} className={c.left ? "is-nick" : "ctr"}>
                       {c.label}
                     </th>
                   );
@@ -118,11 +151,16 @@ export function TournamentTeamRatingTab() {
             </tr>
           </thead>
           <tbody>
-            {sorted.length === 0 ? (
+            {loading ? (
               <tr>
                 <td colSpan={COLS.length} className="tn-pstats-empty">
-                  Команд в рейтинге пока нет — таблица и сортировка готовы,
-                  строки появятся после первых турнирных матчей.
+                  Загрузка…
+                </td>
+              </tr>
+            ) : sorted.length === 0 ? (
+              <tr>
+                <td colSpan={COLS.length} className="tn-pstats-empty">
+                  Команд пока нет — после создания появятся здесь с нулями.
                 </td>
               </tr>
             ) : (

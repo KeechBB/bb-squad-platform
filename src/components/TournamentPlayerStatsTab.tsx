@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  TOURNAMENT_PLAYER_STATS_DRAFT,
   type TournamentPlayerStatRow,
   type TournamentPlayerStatSortKey,
 } from "@/lib/tournaments";
@@ -30,6 +29,26 @@ const COLS: {
   { key: "mvpMedic", label: "MVP Medic", sortable: true },
   { key: "mvpArmor", label: "MVP Armor", sortable: true },
 ];
+
+function zeroRow(
+  nick: string,
+  clanTag: string | null
+): TournamentPlayerStatRow {
+  return {
+    nick,
+    clanTag,
+    noks: 0,
+    kills: 0,
+    deaths: 0,
+    kd: 0,
+    matches: 0,
+    winPct: 0,
+    vehicles: 0,
+    mvpKiller: 0,
+    mvpMedic: 0,
+    mvpArmor: 0,
+  };
+}
 
 function cmp(
   a: TournamentPlayerStatRow,
@@ -58,12 +77,46 @@ function formatWin(n: number): string {
 }
 
 export function TournamentPlayerStatsTab() {
-  const [rows] = useState<TournamentPlayerStatRow[]>(
-    () => [...TOURNAMENT_PLAYER_STATS_DRAFT]
-  );
+  const [rows, setRows] = useState<TournamentPlayerStatRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [sortKey, setSortKey] =
-    useState<TournamentPlayerStatSortKey>("kills");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
+    useState<TournamentPlayerStatSortKey>("nick");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await fetch("/api/tournaments/teams", { cache: "no-store" });
+        const data = (await res.json().catch(() => ({}))) as {
+          teams?: {
+            members: { nick: string; clanTag: string | null }[];
+          }[];
+        };
+        if (cancelled || !res.ok) return;
+        const byNick = new Map<string, TournamentPlayerStatRow>();
+        for (const team of data.teams || []) {
+          for (const m of team.members || []) {
+            const nick = (m.nick || "").trim();
+            if (!nick) continue;
+            const key = nick.toLowerCase();
+            if (!byNick.has(key)) {
+              byNick.set(key, zeroRow(nick, m.clanTag || null));
+            }
+          }
+        }
+        setRows([...byNick.values()]);
+      } catch {
+        if (!cancelled) setRows([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const sorted = useMemo(() => {
     const out = [...rows];
@@ -85,8 +138,8 @@ export function TournamentPlayerStatsTab() {
       <div className="tn-pstats-head">
         <h2 className="tn-panel-title">Рейтинг игроков</h2>
         <p className="tn-pstats-hint">
-          Статистика по матчам турнира. Клик по нику — личный профиль. Сортировка
-          по колонке; № следует за порядком.
+          Все игроки из турнирных команд (пока с нулями). По умолчанию — по
+          алфавиту. Клик по нику — профиль.
         </p>
       </div>
 
@@ -129,11 +182,17 @@ export function TournamentPlayerStatsTab() {
             </tr>
           </thead>
           <tbody>
-            {sorted.length === 0 ? (
+            {loading ? (
               <tr>
                 <td colSpan={COLS.length} className="tn-pstats-empty">
-                  Пока нет данных — таблица и сортировка уже живые, строки
-                  появятся после первых матчей турнира.
+                  Загрузка…
+                </td>
+              </tr>
+            ) : sorted.length === 0 ? (
+              <tr>
+                <td colSpan={COLS.length} className="tn-pstats-empty">
+                  Пока никто не зарегистрирован в командах — появятся здесь с
+                  нулями.
                 </td>
               </tr>
             ) : (
