@@ -50,20 +50,20 @@ if not TIERS.is_file():
 SEASON_ID = "pb1-2026-10"
 LEVEL_TARGETS = {
     1: 1,
-    2: 15,
-    3: 10,
-    4: 15,
-    5: 3,
+    2: 5,
+    3: 5,
+    4: 5,
+    5: 2,
     6: 3,
-    7: 15,
-    8: 3,
-    9: 2,
-    10: 3,
+    7: 5,
+    8: 2,
+    9: 1,
+    10: 1,
     11: 10,
-    12: 60,
-    13: 2,
-    14: 5,
-    15: 3,
+    12: 30,
+    13: 1,
+    14: 3,
+    15: 1,
     16: 15,
     17: 1,
     18: 1,
@@ -722,77 +722,89 @@ def apply_level(p: dict, st: dict) -> bool:
             p["current"] = 1
             done = True
     elif lvl == 2:
-        # Best single-match progress (don't let a later weak game wipe a 25-nok)
-        p["current"] = max(int(p.get("current") or 0), min(15, noks))
-        done = p["current"] >= 15
+        # Best single-match progress (don't let a later weak game wipe a strong one)
+        tgt = LEVEL_TARGETS[2]
+        p["current"] = max(int(p.get("current") or 0), min(tgt, noks))
+        done = p["current"] >= tgt
     elif lvl == 3:
-        p["current"] = max(int(p.get("current") or 0), min(10, kills))
-        done = p["current"] >= 10
+        tgt = LEVEL_TARGETS[3]
+        p["current"] = max(int(p.get("current") or 0), min(tgt, kills))
+        done = p["current"] >= tgt
     elif lvl == 4:
-        p["current"] = max(int(p.get("current") or 0), min(15, revs))
-        done = p["current"] >= 15
+        tgt = LEVEL_TARGETS[4]
+        p["current"] = max(int(p.get("current") or 0), min(tgt, revs))
+        done = p["current"] >= tgt
     elif lvl == 5:
-        p["current"] = max(int(p.get("current") or 0), min(3, veh))
-        done = p["current"] >= 3
+        tgt = LEVEL_TARGETS[5]
+        p["current"] = max(int(p.get("current") or 0), min(tgt, veh))
+        done = p["current"] >= tgt
     elif lvl == 6:
         if played_ok:
             p["current"] = min(3, int(p["current"]) + 1)
             done = p["current"] >= 3
     elif lvl == 7:
         if mutaha:
-            p["current"] = max(int(p.get("current") or 0), min(15, kills))
-            done = p["current"] >= 15
+            tgt = LEVEL_TARGETS[7]
+            p["current"] = max(int(p.get("current") or 0), min(tgt, kills))
+            done = p["current"] >= tgt
         # иначе катка не Mutaha — прогресс не трогаем
 
     elif lvl == 8:
+        tgt = LEVEL_TARGETS[8]
         if revs >= 10:
             p["streak"] = int(p.get("streak") or 0) + 1
         else:
             p["streak"] = 0
         p["current"] = int(p["streak"])
-        done = p["streak"] >= 3
+        done = p["streak"] >= tgt
     elif lvl == 9:
-        p["current"] = min(2, int(p["current"]) + tanks)
-        done = p["current"] >= 2
+        tgt = LEVEL_TARGETS[9]
+        p["current"] = min(tgt, int(p["current"]) + tanks)
+        done = p["current"] >= tgt
     elif lvl == 10:
+        tgt = LEVEL_TARGETS[10]
         if st.get("mvpKiller"):
-            p["current"] = min(3, int(p["current"]) + 1)
-        done = p["current"] >= 3
+            p["current"] = min(tgt, int(p["current"]) + 1)
+        done = p["current"] >= tgt
     elif lvl == 11:
         if played_ok:
             p["current"] = min(10, int(p["current"]) + 1)
             done = p["current"] >= 10
     elif lvl == 12:
+        tgt = LEVEL_TARGETS[12]
         window = list(p.get("window") or [])
         window.append(kills)
         if len(window) > 5:
             window = window[-5:]
         p["window"] = window
         total = sum(window)
-        p["current"] = min(60, total)
+        p["current"] = min(tgt, total)
         if len(window) >= 5:
-            if total >= 60:
+            if total >= tgt:
                 done = True
             else:
                 p["window"] = []
                 p["current"] = 0
         else:
-            done = total >= 60
+            done = total >= tgt
     elif lvl == 13:
-        p["current"] = min(2, int(p["current"]) + helis)
-        done = p["current"] >= 2
+        tgt = LEVEL_TARGETS[13]
+        p["current"] = min(tgt, int(p["current"]) + helis)
+        done = p["current"] >= tgt
     elif lvl == 14:
         # won is None: <80% / смена команды после 5 мин → матч не в зачёт
+        tgt = LEVEL_TARGETS[14]
         if won is True:
             p["streak"] = int(p.get("streak") or 0) + 1
         elif won is False:
             p["streak"] = 0
         p["current"] = int(p.get("streak") or 0)
-        done = p["current"] >= 5
+        done = p["current"] >= tgt
     elif lvl == 15:
+        tgt = LEVEL_TARGETS[15]
         if st.get("mvpMedic"):
-            p["current"] = min(3, int(p["current"]) + 1)
-        done = p["current"] >= 3
+            p["current"] = min(tgt, int(p["current"]) + 1)
+        done = p["current"] >= tgt
     elif lvl == 16:
         if played_ok:
             p["current"] = min(15, int(p["current"]) + 1)
