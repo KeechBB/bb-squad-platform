@@ -201,11 +201,11 @@ function ShelfMedalMock({
   return (
     <div className={`bp-shelf-preview${compact ? " is-compact" : ""}`}>
       <div className="bp-shelf-preview-stage">
-        <span className="bp-shelf-preview-wm" aria-hidden>
-          Награды
-        </span>
         <ul className="bp-shelf-preview-row">
-          <li className="bp-shelf-preview-slot">
+          <li className="bp-shelf-preview-slot is-empty">
+            <span className="bp-shelf-preview-empty" aria-hidden />
+          </li>
+          <li className="bp-shelf-preview-slot is-hero">
             <button
               type="button"
               data-medal-id={reward.id}
@@ -214,11 +214,8 @@ function ShelfMedalMock({
               aria-label={tip}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={icon} alt="" width={80} height={80} />
+              <img src={icon} alt="" width={160} height={160} />
             </button>
-          </li>
-          <li className="bp-shelf-preview-slot is-empty">
-            <span className="bp-shelf-preview-empty" aria-hidden />
           </li>
           <li className="bp-shelf-preview-slot is-empty">
             <span className="bp-shelf-preview-empty" aria-hidden />
