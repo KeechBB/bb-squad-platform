@@ -119,3 +119,36 @@ export const TEAMS_SECTION_BLURB = [
   "Команда собирается под конкретный турнир: свой тег, логотип и состав.",
   "Создать команду может любой игрок; заявку на турнир подаёт капитан, когда набран нужный состав.",
 ].join("\n\n");
+
+/* ——— Статистика / рейтинг игроков турнира ——— */
+
+export type TournamentPlayerStatRow = {
+  nick: string;
+  clanTag: string | null;
+  noks: number;
+  kills: number;
+  deaths: number;
+  kd: number;
+  matches: number;
+  winPct: number;
+  vehicles: number;
+  mvpKiller: number;
+  mvpMedic: number;
+  mvpArmor: number;
+};
+
+/** Пока пусто — подтянем с матчей турнира. */
+export const TOURNAMENT_PLAYER_STATS_DRAFT: TournamentPlayerStatRow[] = [];
+
+export type TournamentPlayerStatSortKey =
+  | "noks"
+  | "kills"
+  | "deaths"
+  | "kd"
+  | "matches"
+  | "winPct"
+  | "vehicles"
+  | "mvpKiller"
+  | "mvpMedic"
+  | "mvpArmor"
+  | "nick";
