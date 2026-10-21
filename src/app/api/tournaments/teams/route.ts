@@ -102,10 +102,11 @@ export async function GET() {
     teams: teams.map(mapTeam),
     myTeamId: membership?.teamId || null,
     myRole: membership?.role || null,
+    myUserId: me.id,
   });
 }
 
-/** POST — создать команду */
+/** POST — создать команду (JSON или FormData с logo) */
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.steamId || !session.user.profileComplete) {
@@ -128,14 +129,31 @@ export async function POST(req: Request) {
     );
   }
 
-  const body = (await req.json().catch(() => ({}))) as {
-    name?: string;
-    tag?: string;
-  };
-  const name = String(body.name || "").trim();
-  const tag = String(body.tag || "")
-    .trim()
-    .toUpperCase();
+  const ct = req.headers.get("content-type") || "";
+  let name = "";
+  let tag = "";
+  let logoBlob: Blob | null = null;
+
+  if (ct.includes("multipart/form-data")) {
+    const form = await req.formData();
+    name = String(form.get("name") || "").trim();
+    tag = String(form.get("tag") || "")
+      .trim()
+      .toUpperCase();
+    const logo = form.get("logo");
+    if (logo && typeof logo !== "string" && "arrayBuffer" in logo) {
+      logoBlob = logo as Blob;
+    }
+  } else {
+    const body = (await req.json().catch(() => ({}))) as {
+      name?: string;
+      tag?: string;
+    };
+    name = String(body.name || "").trim();
+    tag = String(body.tag || "")
+      .trim()
+      .toUpperCase();
+  }
 
   if (name.length < 2 || name.length > 32) {
     return NextResponse.json({ error: "Название 2–32 символа" }, { status: 400 });
@@ -152,6 +170,29 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Тег занят" }, { status: 409 });
   }
 
+  const {
+    TEAM_LOGO_MAX,
+    detectClanLogoMime,
+    saveTeamLogo,
+    deleteTeamLogo,
+  } = await import("@/lib/tournamentTeamLogoFile");
+
+  let logoBuf: Buffer | null = null;
+  let logoMime: ReturnType<typeof detectClanLogoMime> = null;
+  if (logoBlob && logoBlob.size > 0) {
+    if (logoBlob.size > TEAM_LOGO_MAX) {
+      return NextResponse.json({ error: "Лого до 5 МБ (png/webp)" }, { status: 400 });
+    }
+    logoBuf = Buffer.from(await logoBlob.arrayBuffer());
+    logoMime = detectClanLogoMime(logoBuf);
+    if (!logoMime) {
+      return NextResponse.json(
+        { error: "Лого: только png или webp" },
+        { status: 400 }
+      );
+    }
+  }
+
   const team = await prisma.tournamentTeam.create({
     data: {
       name,
@@ -165,6 +206,19 @@ export async function POST(req: Request) {
     },
     include: teamInclude,
   });
+
+  if (logoBuf && logoMime) {
+    try {
+      const logoUrl = await saveTeamLogo(team.id, logoBuf, logoMime);
+      await prisma.tournamentTeam.update({
+        where: { id: team.id },
+        data: { logoUrl },
+      });
+      team.logoUrl = logoUrl;
+    } catch {
+      await deleteTeamLogo(team.id).catch(() => undefined);
+    }
+  }
 
   return NextResponse.json({ ok: true, team: mapTeam(team) });
 }

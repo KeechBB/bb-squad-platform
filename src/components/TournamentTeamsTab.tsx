@@ -24,6 +24,7 @@ import {
 
 type ApiMember = {
   id: string;
+  userId: string;
   nick: string;
   steamId: string;
   joinedAt: string;
@@ -44,6 +45,16 @@ type ApiTeam = {
   pendingInvites: { id: string; nick: string; sentAt: string }[];
 };
 
+const DB_ROLES = [
+  "CAPTAIN",
+  "DEPUTY",
+  "STARTER",
+  "SUB",
+  "RESERVE",
+] as const;
+
+type DbRole = (typeof DB_ROLES)[number];
+
 function Placeholder({ children }: { children: ReactNode }) {
   return <p className="tn-placeholder">{children}</p>;
 }
@@ -58,6 +69,31 @@ function formatDate(iso: string): string {
   });
 }
 
+function roleOptionsForActor(
+  actorRole: string | null,
+  target: ApiMember,
+  actorUserId: string | null
+): DbRole[] | null {
+  if (actorRole === "CAPTAIN") {
+    // Себя как капитана не демотим через select — только передача другому
+    if (
+      actorUserId &&
+      target.userId === actorUserId &&
+      target.role === "CAPTAIN"
+    ) {
+      return null;
+    }
+    return [...DB_ROLES];
+  }
+  if (actorRole === "DEPUTY") {
+    if (target.role === "CAPTAIN") return null;
+    if (target.role === "DEPUTY") return null;
+    if (actorUserId && target.userId === actorUserId) return null;
+    return ["STARTER", "SUB", "RESERVE"];
+  }
+  return null;
+}
+
 function TeamsOverview({
   teams,
   canCreate,
@@ -69,9 +105,17 @@ function TeamsOverview({
 }) {
   const [name, setName] = useState("");
   const [tag, setTag] = useState("");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  function onLogoPick(file: File | null) {
+    if (logoPreview) URL.revokeObjectURL(logoPreview);
+    setLogoFile(file);
+    setLogoPreview(file ? URL.createObjectURL(file) : null);
+  }
 
   function validate(): string | null {
     const n = name.trim();
@@ -83,6 +127,14 @@ function TeamsOverview({
     }
     if (!/^[A-Za-zА-Яа-яЁё0-9]{2,6}$/.test(t)) {
       return "Тег: 2–6 букв/цифр";
+    }
+    if (logoFile) {
+      if (logoFile.size > 5 * 1024 * 1024) return "Лого до 5 МБ";
+      const ok =
+        logoFile.type === "image/png" ||
+        logoFile.type === "image/webp" ||
+        /\.(png|webp)$/i.test(logoFile.name);
+      if (!ok) return "Лого: только png или webp";
     }
     return null;
   }
@@ -113,10 +165,13 @@ function TeamsOverview({
     setBusy(true);
     setError(null);
     try {
+      const form = new FormData();
+      form.set("name", name.trim());
+      form.set("tag", tag.trim());
+      if (logoFile) form.set("logo", logoFile);
       const res = await fetch("/api/tournaments/teams", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), tag: tag.trim() }),
+        body: form,
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
@@ -130,6 +185,7 @@ function TeamsOverview({
       setConfirmOpen(false);
       setName("");
       setTag("");
+      onLogoPick(null);
     } catch {
       setError("Сеть недоступна");
     } finally {
@@ -178,12 +234,33 @@ function TeamsOverview({
                   autoComplete="off"
                 />
               </label>
-              <p className="tn-my-note">
-                Логотип добавим позже (загрузка на сервер).
-              </p>
+              <label className="tn-field">
+                <span>Логотип (png/webp, до 5 МБ)</span>
+                <input
+                  type="file"
+                  accept="image/png,image/webp,.png,.webp"
+                  onChange={(e) =>
+                    onLogoPick(e.target.files?.[0] || null)
+                  }
+                />
+              </label>
+              {logoPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  className="tn-logo-preview"
+                  src={logoPreview}
+                  alt=""
+                  width={64}
+                  height={64}
+                />
+              ) : null}
               {error ? <p className="tn-teams-error">{error}</p> : null}
               {!confirmOpen ? (
-                <button type="submit" className="tn-teams-create-btn" disabled={busy}>
+                <button
+                  type="submit"
+                  className="tn-teams-create-btn"
+                  disabled={busy}
+                >
                   Создать
                 </button>
               ) : (
@@ -249,14 +326,18 @@ function TeamsOverview({
                           height={36}
                         />
                       ) : (
-                        <span className="tn-teams-table-logo is-empty" aria-hidden />
+                        <span
+                          className="tn-teams-table-logo is-empty"
+                          aria-hidden
+                        />
                       )}
                     </td>
                     <td>{tm.name}</td>
                     <td className="tn-teams-tag">[{tm.tag}]</td>
                     <td>{formatDate(tm.createdAt)}</td>
                     <td>
-                      {tm.membersCount}/{tm.rosterMax || TOURNAMENT_TEAM_ROSTER_MAX}
+                      {tm.membersCount}/
+                      {tm.rosterMax || TOURNAMENT_TEAM_ROSTER_MAX}
                     </td>
                   </tr>
                 ))}
@@ -280,19 +361,27 @@ const ROLE_ORDER: TournamentTeamRole[] = [
 function MyTeamPanel({
   team,
   myRole,
-  onInvited,
+  myUserId,
+  onChanged,
+  onDeleted,
 }: {
   team: ApiTeam | null;
   myRole: string | null;
-  onInvited: () => void;
+  myUserId: string | null;
+  onChanged: () => void;
+  onDeleted: () => void;
 }) {
   const [inviteQ, setInviteQ] = useState("");
   const [picked, setPicked] = useState<PlayerSuggestHit | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
+  const [roleBusyId, setRoleBusyId] = useState<string | null>(null);
 
   const canInvite = myRole === "CAPTAIN" || myRole === "DEPUTY";
+  const canLogo = canInvite;
+  const canDelete = myRole === "CAPTAIN";
+  const canRoles = canInvite;
 
   async function sendInvite() {
     if (!team || !canInvite) return;
@@ -324,7 +413,99 @@ function MyTeamPanel({
       setOkMsg(`Приглашение отправлено: ${data.invite?.nick || q}`);
       setInviteQ("");
       setPicked(null);
-      onInvited();
+      onChanged();
+    } catch {
+      setError("Сеть недоступна");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function uploadLogo(file: File | null, remove = false) {
+    if (!team || !canLogo) return;
+    setBusy(true);
+    setError(null);
+    setOkMsg(null);
+    try {
+      const form = new FormData();
+      if (remove) form.set("removeLogo", "1");
+      else if (file) form.set("logo", file);
+      else {
+        setBusy(false);
+        return;
+      }
+      const res = await fetch(`/api/tournaments/teams/${team.id}`, {
+        method: "PATCH",
+        body: form,
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setError(data.error || "Не удалось обновить лого");
+        return;
+      }
+      setOkMsg(remove ? "Лого удалено" : "Лого обновлено");
+      onChanged();
+    } catch {
+      setError("Сеть недоступна");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function setRole(target: ApiMember, role: DbRole) {
+    if (!team || !canRoles || target.role === role) return;
+    if (
+      role === "CAPTAIN" &&
+      !confirm(
+        `Передать капитанство игроку ${target.nick}? Ты станешь основным составом.`
+      )
+    ) {
+      return;
+    }
+    setRoleBusyId(target.userId);
+    setError(null);
+    setOkMsg(null);
+    try {
+      const res = await fetch(`/api/tournaments/teams/${team.id}/role`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetUserId: target.userId, role }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setError(data.error || "Не удалось сменить роль");
+        return;
+      }
+      setOkMsg(`Роль ${target.nick}: ${TOURNAMENT_TEAM_ROLE_LABEL[mapDbTeamRole(role)]}`);
+      onChanged();
+    } catch {
+      setError("Сеть недоступна");
+    } finally {
+      setRoleBusyId(null);
+    }
+  }
+
+  async function deleteTeam() {
+    if (!team || !canDelete) return;
+    if (
+      !confirm(
+        `Удалить команду [${team.tag}] ${team.name}? Состав и заявки на турнир будут сняты.`
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/tournaments/teams/${team.id}`, {
+        method: "DELETE",
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setError(data.error || "Не удалось удалить");
+        return;
+      }
+      onDeleted();
     } catch {
       setError("Сеть недоступна");
     } finally {
@@ -363,8 +544,39 @@ function MyTeamPanel({
                 Состав {team.membersCount}/{team.rosterMax} · с{" "}
                 {formatDate(team.createdAt)}
               </p>
+              <p className="tn-my-note">
+                Название и тег менять нельзя.
+              </p>
             </div>
           </div>
+          {canLogo ? (
+            <div className="tn-my-logo-actions">
+              <label className="tn-teams-create-btn tn-logo-file-btn">
+                Сменить лого
+                <input
+                  type="file"
+                  accept="image/png,image/webp,.png,.webp"
+                  hidden
+                  disabled={busy}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] || null;
+                    e.target.value = "";
+                    if (f) void uploadLogo(f);
+                  }}
+                />
+              </label>
+              {team.logoUrl ? (
+                <button
+                  type="button"
+                  className="tn-teams-cancel-btn"
+                  disabled={busy}
+                  onClick={() => void uploadLogo(null, true)}
+                >
+                  Убрать лого
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </section>
 
         <section
@@ -380,21 +592,24 @@ function MyTeamPanel({
                 <li key={role}>
                   <strong>{TOURNAMENT_TEAM_ROLE_LABEL[role]}</strong>
                   {role === "captain" ? (
-                    <span> — по умолчанию создатель, можно передать</span>
+                    <span> — создатель; можно передать</span>
+                  ) : null}
+                  {role === "deputy" ? (
+                    <span> — приглашения, роли (кроме кап./зама), турнир</span>
                   ) : null}
                 </li>
               ))}
             </ul>
-            <Placeholder>
-              Смена роли у игрока в таблице — следующим шагом.
-            </Placeholder>
+            <p className="tn-my-note">
+              Меняй роль в таблице справа. Зам не трогает капитана и не выдаёт
+              роли капитана/зама.
+            </p>
           </div>
 
           <div className="tn-my-control-block">
             <h3>Приглашения в команду</h3>
             <p className="tn-my-note">
               Подать заявку нельзя — только приглашение от капитана / зама.
-              Поиск по нику и Steam ID с подсказками.
             </p>
             {canInvite ? (
               <div className="tn-my-invite-row">
@@ -436,6 +651,21 @@ function MyTeamPanel({
               </ul>
             )}
           </div>
+
+          {canDelete ? (
+            <div className="tn-my-control-block">
+              <h3>Удаление команды</h3>
+              <p className="tn-my-note">Только капитан. Действие необратимо.</p>
+              <button
+                type="button"
+                className="tn-register-btn is-danger"
+                disabled={busy}
+                onClick={() => void deleteTeam()}
+              >
+                Удалить команду
+              </button>
+            </div>
+          ) : null}
         </section>
 
         <section
@@ -466,23 +696,52 @@ function MyTeamPanel({
               </tr>
             </thead>
             <tbody>
-              {team.members.map((m, i) => (
-                <tr key={m.id}>
-                  <td>{i + 1}</td>
-                  <td>{m.nick}</td>
-                  <td>{formatDate(m.joinedAt)}</td>
-                  <td>
-                    {
-                      TOURNAMENT_TEAM_ROLE_LABEL[
-                        mapDbTeamRole(m.role)
-                      ]
-                    }
-                  </td>
-                  <td>
-                    {m.clanTag ? `[${m.clanTag}]` : m.clanName || "—"}
-                  </td>
-                </tr>
-              ))}
+              {team.members.map((m, i) => {
+                const opts = roleOptionsForActor(myRole, m, myUserId);
+                return (
+                  <tr key={m.id}>
+                    <td>{i + 1}</td>
+                    <td>{m.nick}</td>
+                    <td>{formatDate(m.joinedAt)}</td>
+                    <td>
+                      {opts ? (
+                        <select
+                          className="tn-role-select"
+                          value={m.role}
+                          disabled={roleBusyId === m.userId || busy}
+                          onChange={(e) =>
+                            void setRole(m, e.target.value as DbRole)
+                          }
+                        >
+                          {opts.map((r) => (
+                            <option key={r} value={r}>
+                              {
+                                TOURNAMENT_TEAM_ROLE_LABEL[
+                                  mapDbTeamRole(r)
+                                ]
+                              }
+                            </option>
+                          ))}
+                          {!opts.includes(m.role as DbRole) ? (
+                            <option value={m.role}>
+                              {
+                                TOURNAMENT_TEAM_ROLE_LABEL[
+                                  mapDbTeamRole(m.role)
+                                ]
+                              }
+                            </option>
+                          ) : null}
+                        </select>
+                      ) : (
+                        TOURNAMENT_TEAM_ROLE_LABEL[mapDbTeamRole(m.role)]
+                      )}
+                    </td>
+                    <td>
+                      {m.clanTag ? `[${m.clanTag}]` : m.clanName || "—"}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -497,6 +756,7 @@ export function TournamentTeamsTab({ viewerNick }: { viewerNick: string }) {
   const [teams, setTeams] = useState<ApiTeam[]>([]);
   const [myTeamId, setMyTeamId] = useState<string | null>(null);
   const [myRole, setMyRole] = useState<string | null>(null);
+  const [myUserId, setMyUserId] = useState<string | null>(null);
   const [bootError, setBootError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
@@ -507,6 +767,7 @@ export function TournamentTeamsTab({ viewerNick }: { viewerNick: string }) {
         teams?: ApiTeam[];
         myTeamId?: string | null;
         myRole?: string | null;
+        myUserId?: string | null;
       };
       if (!res.ok) {
         setBootError(data.error || "Не удалось загрузить команды");
@@ -515,6 +776,7 @@ export function TournamentTeamsTab({ viewerNick }: { viewerNick: string }) {
       setTeams(Array.isArray(data.teams) ? data.teams : []);
       setMyTeamId(data.myTeamId || null);
       setMyRole(data.myRole || null);
+      setMyUserId(data.myUserId || null);
       setBootError(null);
     } catch {
       setBootError("Сеть недоступна");
@@ -535,6 +797,13 @@ export function TournamentTeamsTab({ viewerNick }: { viewerNick: string }) {
     setMyTeamId(team.id);
     setMyRole("CAPTAIN");
     setSub("my-team");
+  }
+
+  function onDeleted() {
+    setTeams((prev) => prev.filter((t) => t.id !== myTeamId));
+    setMyTeamId(null);
+    setMyRole(null);
+    setSub("overview");
   }
 
   return (
@@ -571,7 +840,13 @@ export function TournamentTeamsTab({ viewerNick }: { viewerNick: string }) {
           onCreated={onCreated}
         />
       ) : (
-        <MyTeamPanel team={myTeam} myRole={myRole} onInvited={() => void reload()} />
+        <MyTeamPanel
+          team={myTeam}
+          myRole={myRole}
+          myUserId={myUserId}
+          onChanged={() => void reload()}
+          onDeleted={onDeleted}
+        />
       )}
     </div>
   );

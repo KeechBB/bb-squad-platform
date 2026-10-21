@@ -149,7 +149,8 @@ export function TournamentRegisterPanel() {
   }
 
   const t = ACTIVE_TOURNAMENT;
-  const isCaptain = data?.myRole === "CAPTAIN";
+  const canManageEntry =
+    data?.myRole === "CAPTAIN" || data?.myRole === "DEPUTY";
   const registered = Boolean(data?.myEntry);
 
   return (
@@ -181,7 +182,7 @@ export function TournamentRegisterPanel() {
               )
               .join(", ")}
           </p>
-          {isCaptain && data.canWithdraw ? (
+          {canManageEntry && data.canWithdraw ? (
             <button
               type="button"
               className="tn-register-btn is-danger"
@@ -192,22 +193,23 @@ export function TournamentRegisterPanel() {
             </button>
           ) : (
             <p className="tn-placeholder">
-              {isCaptain
+              {canManageEntry
                 ? "Срок отмены истёк или регистрация закрыта."
-                : "Отменить может только капитан в срок регистрации."}
+                : "Отменить могут капитан или зам в срок регистрации."}
             </p>
           )}
         </div>
       ) : !data.myTeam ? (
         <p className="tn-placeholder">
           Сначала создай турнирную команду во вкладке «Команды». Заявку подаёт
-          капитан.
+          капитан или зам.
         </p>
       ) : !data.registrationOpen ? (
         <p className="tn-placeholder">Регистрация сейчас закрыта.</p>
-      ) : !isCaptain ? (
+      ) : !canManageEntry ? (
         <p className="tn-placeholder">
-          Команда [{data.myTeam.tag}] ещё не в сетке. Заявку подаёт капитан.
+          Команда [{data.myTeam.tag}] ещё не в сетке. Заявку подаёт капитан или
+          зам.
         </p>
       ) : !pickerOpen ? (
         <>

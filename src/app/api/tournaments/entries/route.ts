@@ -123,7 +123,7 @@ export async function GET() {
   });
 }
 
-/** POST — подать / обновить заявку (капитан) */
+/** POST — подать / обновить заявку (капитан или зам) */
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.steamId || !session.user.profileComplete) {
@@ -176,11 +176,14 @@ export async function POST(req: Request) {
   }
 
   const membership = await prisma.tournamentTeamMember.findFirst({
-    where: { userId: me.id, role: "CAPTAIN" },
+    where: {
+      userId: me.id,
+      role: { in: ["CAPTAIN", "DEPUTY"] },
+    },
   });
   if (!membership) {
     return NextResponse.json(
-      { error: "Заявку подаёт только капитан команды" },
+      { error: "Заявку подаёт капитан или зам" },
       { status: 403 }
     );
   }
@@ -280,7 +283,7 @@ export async function POST(req: Request) {
   });
 }
 
-/** DELETE — отменить заявку (капитан, в срок) */
+/** DELETE — отменить заявку (капитан или зам, в срок) */
 export async function DELETE() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.steamId || !session.user.profileComplete) {
@@ -300,11 +303,14 @@ export async function DELETE() {
   if (!me) return NextResponse.json({ error: "no user" }, { status: 401 });
 
   const membership = await prisma.tournamentTeamMember.findFirst({
-    where: { userId: me.id, role: "CAPTAIN" },
+    where: {
+      userId: me.id,
+      role: { in: ["CAPTAIN", "DEPUTY"] },
+    },
   });
   if (!membership) {
     return NextResponse.json(
-      { error: "Отменить может только капитан" },
+      { error: "Отменить может капитан или зам" },
       { status: 403 }
     );
   }

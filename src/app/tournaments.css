@@ -847,6 +847,39 @@
   color: var(--tn-muted);
 }
 
+.tn-my-logo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.tn-logo-file-btn {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.tn-logo-preview {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid rgba(212, 168, 75, 0.35);
+}
+
+.tn-role-select {
+  max-width: 100%;
+  min-width: 9rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(212, 168, 75, 0.35);
+  background: rgba(12, 10, 18, 0.85);
+  color: var(--tn-gold, #e8c56a);
+  font: inherit;
+  font-size: 0.82rem;
+}
+
 .tn-my-control {
   overflow: auto;
 }
