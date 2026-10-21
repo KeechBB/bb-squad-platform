@@ -57,3 +57,35 @@ export const ACTIVE_TOURNAMENT: ActiveTournamentDraft = {
   bracketHref: null,
   registrationOpen: false,
 };
+
+/* ——— Команды (турнирные, не кланы) ——— */
+
+export type TeamSubTabId = "overview" | "my-team";
+
+export const TEAM_SUB_TABS: { id: TeamSubTabId; label: string }[] = [
+  { id: "overview", label: "Общая" },
+  { id: "my-team", label: "Моя команда" },
+];
+
+/** Сколько слотов в турнирной команде (позже уточним). */
+export const TOURNAMENT_TEAM_ROSTER_MAX = 8;
+
+export type TournamentTeamDraft = {
+  id: string;
+  name: string;
+  tag: string;
+  logoSrc: string | null;
+  createdAt: string; // ISO date
+  membersCount: number;
+  rosterMax: number;
+};
+
+/** Пока пусто — список придёт с бэка. */
+export const TOURNAMENT_TEAMS_DRAFT: TournamentTeamDraft[] = [];
+
+export const TEAMS_SECTION_BLURB = [
+  "Турнирная команда — это не клан.",
+  "Клан живёт на платформе постоянно (КВ, тренировки, рейтинг).",
+  "Команда собирается под конкретный турнир: свой тег, логотип и состав.",
+  "Создать команду может любой игрок; заявку на турнир подаёт капитан, когда набран нужный состав.",
+].join("\n\n");

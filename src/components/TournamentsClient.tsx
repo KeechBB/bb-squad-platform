@@ -6,6 +6,7 @@ import {
   TOURNAMENT_TABS,
   type TournamentTabId,
 } from "@/lib/tournaments";
+import { TournamentTeamsTab } from "@/components/TournamentTeamsTab";
 
 type Props = {
   viewerNick: string;
@@ -147,7 +148,7 @@ export function TournamentsClient({ viewerNick }: Props) {
       case "tournaments":
         return <TournamentsHomeTab />;
       case "teams":
-        return <ComingSoonTab title="Команды" />;
+        return <TournamentTeamsTab />;
       case "player-stats":
         return <ComingSoonTab title="Статистика игроков" />;
       case "team-rating":
