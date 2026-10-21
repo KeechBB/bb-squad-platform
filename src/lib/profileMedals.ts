@@ -30,41 +30,16 @@ const REGISTRATION_MEDAL: ProfileMedalItem = {
   source: "site",
 };
 
-const KEECH_FRUIT_STRIKE_TROPHY_TRIALS: ProfileMedalItem[] = [
-  {
-    id: "keech-fruit-strike-place1-trophy-v1",
-    name: "Кубок «Алый урожай»",
-    short: "1 место · V1",
-    kind: "medal",
-    level: 0,
-    hover:
-      "Кубок «Алый урожай» · Тест награды Fruit Strike за 1 место · Вариант 1",
-    icon: "/awards/fruit-strike-place1-trophy-v1.png",
-    source: "site",
-  },
-  {
-    id: "keech-fruit-strike-place1-trophy-v2",
-    name: "Кубок «Фруктовый фронт»",
-    short: "1 место · V2",
-    kind: "medal",
-    level: 0,
-    hover:
-      "Кубок «Фруктовый фронт» · Тест награды Fruit Strike за 1 место · Вариант 2",
-    icon: "/awards/fruit-strike-place1-trophy-v2.png",
-    source: "site",
-  },
-  {
-    id: "keech-fruit-strike-place1-trophy-v3",
-    name: "Кубок «Сад чемпионов»",
-    short: "1 место · V3",
-    kind: "medal",
-    level: 0,
-    hover:
-      "Кубок «Сад чемпионов» · Тест награды Fruit Strike за 1 место · Вариант 3",
-    icon: "/awards/fruit-strike-place1-trophy-v3.png",
-    source: "site",
-  },
-];
+const KEECH_FRUIT_STRIKE_TROPHY: ProfileMedalItem = {
+  id: "keech-fruit-strike-place1-trophy-v1",
+  name: "Кубок «Алый урожай»",
+  short: "1 место",
+  kind: "medal",
+  level: 0,
+  hover: "Кубок «Алый урожай» · Награда за 1 место в Fruit Strike",
+  icon: "/awards/fruit-strike-place1-trophy-v1.png",
+  source: "site",
+};
 
 const BP_ICONS: Record<string, string> = {
   "pb1-scout-spark": "/bp-previews/l5-iskra.png",
@@ -115,7 +90,7 @@ export async function buildPlayerMedalInventory(
 
   const inventory = registered ? [REGISTRATION_MEDAL, ...bp] : bp;
   return clean.toLowerCase() === "keech"
-    ? [...KEECH_FRUIT_STRIKE_TROPHY_TRIALS, ...inventory]
+    ? [KEECH_FRUIT_STRIKE_TROPHY, ...inventory]
     : inventory;
 }
 

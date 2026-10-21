@@ -52,18 +52,6 @@ export const PROFILE_BG_OPTIONS = [
     gate: "creator",
   },
   {
-    id: "creator-fruit-strike-place3-v1",
-    file: "fruit-strike-place3-bg-v1.jpg",
-    label: "Fruit Strike · Арена чемпиона",
-    gate: "creator",
-  },
-  {
-    id: "creator-fruit-strike-place3-v2",
-    file: "fruit-strike-place3-bg-v2.jpg",
-    label: "Fruit Strike · Операция «Сад»",
-    gate: "creator",
-  },
-  {
     id: "creator-fruit-strike-place3-v3",
     file: "fruit-strike-place3-bg-v3.jpg",
     label: "Fruit Strike · Тактический урожай",

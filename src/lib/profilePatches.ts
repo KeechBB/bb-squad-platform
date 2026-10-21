@@ -18,24 +18,10 @@ export const PROFILE_PATCH_OPTIONS = [
     gate: "creator" as const,
   },
   {
-    id: "creator-fruit-strike-ak-v1",
-    file: "fruit-strike-place2-ak-v1.png",
-    label: "АК «Гранатовый залп» · Fruit Strike",
-    tip: "АК «Гранатовый залп» · Тест нашивки Fruit Strike за 2 место · Вариант 1",
-    gate: "creator" as const,
-  },
-  {
     id: "creator-fruit-strike-ak-v2",
     file: "fruit-strike-place2-ak-v2.png",
     label: "АК «Цитрусовый шторм» · Fruit Strike",
-    tip: "АК «Цитрусовый шторм» · Тест нашивки Fruit Strike за 2 место · Вариант 2",
-    gate: "creator" as const,
-  },
-  {
-    id: "creator-fruit-strike-ak-v3",
-    file: "fruit-strike-place2-ak-v3.png",
-    label: "АК «Ягодный калибр» · Fruit Strike",
-    tip: "АК «Ягодный калибр» · Тест нашивки Fruit Strike за 2 место · Вариант 3",
+    tip: "АК «Цитрусовый шторм» · Награда за 2 место в Fruit Strike",
     gate: "creator" as const,
   },
   {
