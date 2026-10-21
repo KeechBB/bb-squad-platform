@@ -182,6 +182,15 @@ export async function GET(_req: Request, ctx: Ctx) {
     return "other";
   }
 
+  /** Один клан для дедупа: BB / BB Main / BB Junior — не два матча. */
+  function sameClanSide(a: string, b: string): boolean {
+    const ca = canonOpp(a);
+    const cb = canonOpp(b);
+    if (ca.key === cb.key) return true;
+    if (ca.tag === "BB" && cb.tag === "BB") return true;
+    return false;
+  }
+
   /** KV-слот уже есть (заявка принята в календарь) — не дублировать challenge. */
   function coveredByKv(opts: {
     year: number;
@@ -191,7 +200,6 @@ export async function GET(_req: Request, ctx: Ctx) {
     oppRaw: string;
     stack: string;
   }): boolean {
-    const oppKey = canonOpp(opts.oppRaw).key;
     const sk = stackKind(opts.stack);
     const mins = timeMskMinutes(opts.timeMsk);
     return matches.some((m) => {
@@ -199,7 +207,7 @@ export async function GET(_req: Request, ctx: Ctx) {
       if (m.year !== opts.year || m.month !== opts.month || m.day !== opts.day) {
         return false;
       }
-      if (canonOpp(m.opp).key !== oppKey) return false;
+      if (!sameClanSide(m.opp, opts.oppRaw)) return false;
       if (sk !== "other" && stackKind(m.stack) !== "other" && stackKind(m.stack) !== sk) {
         return false;
       }
