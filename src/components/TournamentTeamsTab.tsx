@@ -609,7 +609,8 @@ function MyTeamPanel({
           <div className="tn-my-control-block">
             <h3>Приглашения в команду</h3>
             <p className="tn-my-note">
-              Подать заявку нельзя — только приглашение от капитана / зама.
+              Только приглашение от капитана / зама. Приглашать можно лишь
+              игроков, зарегистрированных на сайте.
             </p>
             {canInvite ? (
               <div className="tn-my-invite-row">

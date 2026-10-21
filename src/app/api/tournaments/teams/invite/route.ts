@@ -82,7 +82,13 @@ export async function POST(req: Request) {
     });
   }
   if (!target) {
-    return NextResponse.json({ error: "Игрок не найден" }, { status: 404 });
+    return NextResponse.json(
+      {
+        error:
+          "Игрок не найден на сайте. Приглашать можно только зарегистрированных пользователей с заполненным профилем.",
+      },
+      { status: 404 }
+    );
   }
   if (target.id === me.id) {
     return NextResponse.json({ error: "Нельзя пригласить себя" }, { status: 400 });
