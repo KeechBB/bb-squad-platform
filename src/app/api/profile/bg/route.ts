@@ -17,10 +17,8 @@ import {
   ensureBpL15NickPatch,
 } from "@/lib/profileBgUnlocks";
 import { writeNickPatchesCache } from "@/lib/nickPatchesCache";
-import {
-  buildPlayerMedalInventory,
-  normalizeMedalShelfIds,
-} from "@/lib/profileMedals";
+import { buildPlayerMedalInventory } from "@/lib/profileMedals";
+import { normalizeMedalShelfIds } from "@/lib/profileMedalsShared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

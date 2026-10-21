@@ -20,13 +20,25 @@ import {
   type ProfileNickStyleChoice,
   type ProfileNickStyleId,
 } from "@/lib/profileNickStyles";
-import {
-  MEDAL_SHELF_SLOTS,
-  normalizeMedalShelfIds,
-  type ProfileMedalItem,
-} from "@/lib/profileMedals";
+import type { ProfileMedalItem } from "@/lib/profileMedals";
 
 type Tab = "awards" | "patches" | "nick" | "bg";
+
+const MEDAL_SHELF_SLOTS = 3;
+
+function normalizeMedalShelfIds(raw: unknown, ownedIds: Set<string>): string[] {
+  const list = Array.isArray(raw) ? raw : [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const x of list) {
+    const id = String(x || "").trim();
+    if (!id || seen.has(id) || !ownedIds.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+    if (out.length >= MEDAL_SHELF_SLOTS) break;
+  }
+  return out;
+}
 
 type Props = {
   options: ProfileBgChoice[];

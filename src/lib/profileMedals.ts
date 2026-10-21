@@ -1,25 +1,23 @@
-import { BP_REWARDS, type BpReward, type BpRewardKind } from "@/lib/battlePass";
+import { BP_REWARDS, type BpReward } from "@/lib/battlePass";
 import {
   loadBattlePassState,
   progressForNick,
 } from "@/lib/battlePassData";
 import { prisma } from "@/lib/prisma";
+import {
+  MEDAL_SHELF_SLOTS,
+  normalizeMedalShelfIds,
+  resolveMedalShelfSlots,
+  type ProfileMedalItem,
+} from "@/lib/profileMedalsShared";
 
-export const MEDAL_SHELF_SLOTS = 3;
-
-export type ProfileMedalItem = {
-  id: string;
-  name: string;
-  short: string;
-  kind: BpRewardKind;
-  level: number;
-  hover: string;
-  icon: string;
-  source: "bp" | "site";
-};
-
-/** Слот полки: награда или пусто. */
-export type ProfileMedalSlot = ProfileMedalItem | null;
+export {
+  MEDAL_SHELF_SLOTS,
+  normalizeMedalShelfIds,
+  resolveMedalShelfSlots,
+  type ProfileMedalItem,
+  type ProfileMedalSlot,
+} from "@/lib/profileMedalsShared";
 
 const REGISTRATION_MEDAL: ProfileMedalItem = {
   id: "site-registration",
@@ -56,8 +54,6 @@ export async function buildPlayerMedalInventory(
   const unlocked = (r: BpReward) =>
     Boolean(prog.completedAt) || prog.currentLevel >= r.level;
 
-  // Полка / инвентарь «Награды» — медали, значки и нашивка L15.
-  // Фон L5 и стиль ника L10 живут в других вкладках кастомизации.
   const bp = BP_REWARDS.filter(
     (r) => r.kind === "medal" || r.kind === "badge" || r.kind === "customize"
   )
@@ -82,47 +78,6 @@ export async function buildPlayerMedalInventory(
   });
 
   return registered ? [REGISTRATION_MEDAL, ...bp] : bp;
-}
-
-export function normalizeMedalShelfIds(
-  raw: unknown,
-  ownedIds: Set<string>
-): string[] {
-  const list = Array.isArray(raw) ? raw : [];
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const x of list) {
-    const id = String(x || "").trim();
-    if (!id || seen.has(id) || !ownedIds.has(id)) continue;
-    seen.add(id);
-    out.push(id);
-    if (out.length >= MEDAL_SHELF_SLOTS) break;
-  }
-  return out;
-}
-
-/**
- * 3 слота для полки.
- * Пустой выбор → авто первые из инвентаря (миграция / пока не настроил в кастомизации).
- */
-export function resolveMedalShelfSlots(
-  inventory: ProfileMedalItem[],
-  selectedIds: string[] | null | undefined
-): ProfileMedalSlot[] {
-  const byId = new Map(inventory.map((m) => [m.id, m]));
-  const owned = new Set(byId.keys());
-  const picked = normalizeMedalShelfIds(selectedIds, owned);
-  const ids =
-    picked.length > 0
-      ? picked
-      : inventory.slice(0, MEDAL_SHELF_SLOTS).map((m) => m.id);
-
-  const slots: ProfileMedalSlot[] = [];
-  for (let i = 0; i < MEDAL_SHELF_SLOTS; i++) {
-    const id = ids[i];
-    slots.push(id ? byId.get(id) || null : null);
-  }
-  return slots;
 }
 
 /** Награды на полке (без null) — совместимость со старым API. */

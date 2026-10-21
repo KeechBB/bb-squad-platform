@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import {
-  MEDAL_SHELF_SLOTS,
-  type ProfileMedalItem,
-  type ProfileMedalSlot,
+import type {
+  ProfileMedalItem,
+  ProfileMedalSlot,
 } from "@/lib/profileMedals";
+
+const MEDAL_SHELF_SLOTS = 3;
 
 type Props = {
   /** До 3 слотов; можно передать плоский список — добиваем до 3. */

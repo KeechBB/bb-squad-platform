@@ -35,7 +35,7 @@ import {
   type ProfileNickStyleChoice,
   type ProfileNickStyleId,
 } from "@/lib/profileNickStyles";
-import type { ProfileMedalItem } from "@/lib/profileMedals";
+import type { ProfileMedalItem } from "@/lib/profileMedalsShared";
 
 type Shell = {
   id: string;
