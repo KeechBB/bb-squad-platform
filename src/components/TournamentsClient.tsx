@@ -130,18 +130,6 @@ function TournamentsHomeTab() {
   );
 }
 
-function ComingSoonTab({ title }: { title: string }) {
-  return (
-    <section className="tn-soon" aria-label={title}>
-      <h2>{title}</h2>
-      <Placeholder>
-        Вкладка в разработке. Сетка и логика уже заложены — контент добавим
-        следом.
-      </Placeholder>
-    </section>
-  );
-}
-
 export function TournamentsClient({ viewerNick }: Props) {
   const [tab, setTab] = useState<TournamentTabId>("tournaments");
 
