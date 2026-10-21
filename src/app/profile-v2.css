@@ -1045,22 +1045,26 @@ body.has-profile-bg .shell:has(.profile-page) {
   opacity: 0.75;
 }
 .profile-patch-tile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
+  display: block;
   background:
-    radial-gradient(circle at 50% 40%, rgba(80, 50, 10, 0.55), rgba(12, 8, 20, 0.92));
+    radial-gradient(circle at 50% 28%, rgba(80, 50, 10, 0.55), rgba(12, 8, 20, 0.92));
 }
 .profile-patch-tile-art {
-  width: 88%;
-  height: 58%;
+  position: absolute;
+  left: 5%;
+  right: 5%;
+  top: 4%;
+  bottom: 26%;
+  width: auto;
+  height: auto;
   transform: scaleX(-1);
-  background-position: center;
+  background-position: center top;
   background-size: contain;
   background-repeat: no-repeat;
   filter: drop-shadow(0 0 6px rgba(255, 180, 40, 0.55));
+}
+.profile-patch-tile .profile-bg-tile-label {
+  z-index: 1;
 }
 .profile-patch-tile[data-patch-id="creator-orange-phantom"]
   .profile-patch-tile-art {
