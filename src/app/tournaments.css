@@ -253,30 +253,32 @@
   color: rgba(212, 168, 75, 0.7);
 }
 
-/* Средний блок слева — только лого */
+/* Средний блок слева — только лого, без рамки/подложки */
 .tn-logo-only {
   align-items: center;
   justify-content: center;
-  padding: 8px 12px;
-  background:
-    radial-gradient(ellipse 62% 58% at 50% 48%, rgba(48, 42, 52, 0.55), transparent 72%),
-    radial-gradient(ellipse 70% 65% at 50% 45%, rgba(180, 40, 50, 0.12), transparent 70%),
-    linear-gradient(165deg, rgba(22, 16, 28, 0.95) 0%, rgba(8, 6, 12, 0.96) 100%);
+  padding: 0;
+  border: none;
+  background: #050408;
+  box-shadow: none;
 }
 
 .tn-logo {
   display: block;
   width: auto;
   height: auto;
-  max-width: min(100%, 420px);
+  max-width: min(100%, 460px);
   max-height: 100%;
   object-fit: contain;
   image-rendering: auto;
-  -webkit-font-smoothing: antialiased;
-  filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.65));
+  filter: none;
   transform: none;
   user-select: none;
   pointer-events: none;
+  background: transparent;
+  border: 0;
+  outline: none;
+  box-shadow: none;
 }
 
 .tn-register {
