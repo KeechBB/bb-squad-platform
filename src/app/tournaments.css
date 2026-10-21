@@ -140,7 +140,7 @@
 }
 
 .tn-home-left {
-  grid-template-rows: minmax(100px, 0.7fr) minmax(260px, 1.55fr) minmax(130px, 0.95fr);
+  grid-template-rows: minmax(140px, 0.9fr) minmax(240px, 1.4fr) minmax(130px, 0.95fr);
 }
 
 .tn-home-right {
@@ -184,7 +184,7 @@
 }
 
 .tn-announce {
-  gap: 8px;
+  gap: 6px;
   overflow: hidden;
 }
 
@@ -192,11 +192,11 @@
   margin: 0;
   flex: 0 0 auto;
   font-family: var(--font-display), Oxanium, sans-serif;
-  font-size: 0.95rem;
+  font-size: 0.88rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   color: #f2e6c8;
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
 .tn-announce-cols {
@@ -204,20 +204,23 @@
   min-height: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px 16px;
-  overflow: hidden;
+  gap: 8px 14px;
+  align-content: start;
+  overflow: visible;
 }
 
 .tn-announce-col {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+  overflow: visible;
 }
 
 .tn-announce-col-title {
   margin: 0;
-  font-size: 0.68rem;
+  flex: 0 0 auto;
+  font-size: 0.66rem;
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -226,19 +229,21 @@
 
 .tn-announce-list {
   margin: 0;
-  padding: 0;
+  padding: 0 0 2px;
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  font-size: 0.82rem;
+  gap: 4px;
+  font-size: 0.78rem;
   line-height: 1.35;
   color: var(--tn-muted, rgba(210, 200, 185, 0.88));
+  overflow: visible;
 }
 
 .tn-announce-list li {
   position: relative;
   padding-left: 0.85em;
+  overflow: visible;
 }
 
 .tn-announce-list li::before {
