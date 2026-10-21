@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { TOURNAMENT_TEAM_ROSTER_MAX } from "@/lib/tournaments";
+import { TOURNAMENT_TEAM_ROSTER_MAX, ACTIVE_TOURNAMENT } from "@/lib/tournaments";
+import { personLabel, writeActionLog } from "@/lib/actionLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -123,7 +124,7 @@ export async function POST(req: Request) {
 
   const me = await prisma.user.findUnique({
     where: { steamId: session.user.steamId },
-    select: { id: true },
+    select: { id: true, nick: true, name: true, steamName: true, steamId: true },
   });
   if (!me) return NextResponse.json({ error: "no user" }, { status: 401 });
 
@@ -227,6 +228,24 @@ export async function POST(req: Request) {
       await deleteTeamLogo(team.id).catch(() => undefined);
     }
   }
+
+  const nick = personLabel(me);
+  await writeActionLog({
+    category: "tournament",
+    action: "team_create",
+    message: `${nick} создал команду [${tag}] ${name}`,
+    actorId: me.id,
+    actorNick: nick,
+    clanId: team.id,
+    clanTag: tag,
+    meta: {
+      tournamentId: ACTIVE_TOURNAMENT.id,
+      tournamentName: ACTIVE_TOURNAMENT.name,
+      teamId: team.id,
+      teamName: name,
+      hasLogo: Boolean(team.logoUrl),
+    },
+  });
 
   return NextResponse.json({ ok: true, team: mapTeam(team) });
 }

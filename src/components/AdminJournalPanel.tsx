@@ -14,11 +14,20 @@ type JournalEntry = {
   clanTag: string | null;
 };
 
+type JournalCategory =
+  | ""
+  | "admin"
+  | "clan"
+  | "profile"
+  | "support"
+  | "tournament";
+
 const CATEGORY_LABEL: Record<string, string> = {
   admin: "Админ",
   clan: "Клан",
   profile: "Профиль",
   support: "Поддержка",
+  tournament: "Турнир",
 };
 
 function formatWhen(iso: string): string {
@@ -32,18 +41,33 @@ function formatWhen(iso: string): string {
   return `${dd}.${mm}.${yyyy} ${hh}:${mi}`;
 }
 
-export function AdminJournalPanel() {
+export type AdminJournalPanelProps = {
+  /** Если задано — фильтр категории зафиксирован (отдельная вкладка турниров). */
+  fixedCategory?: Exclude<JournalCategory, "">;
+  title?: string;
+  emptyHint?: string;
+  searchPlaceholder?: string;
+};
+
+export function AdminJournalPanel({
+  fixedCategory,
+  title = "Журнал действий",
+  emptyHint = "Пока нет записей. Сюда попадают регистрации, кики, резерв, роли, тикеты поддержки и другие движения.",
+  searchPlaceholder = "Ник, роль, клан, слово…",
+}: AdminJournalPanelProps = {}) {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [q, setQ] = useState("");
   const [qApplied, setQApplied] = useState("");
-  const [category, setCategory] = useState<
-    "" | "admin" | "clan" | "profile" | "support"
-  >("");
+  const [category, setCategory] = useState<JournalCategory>(fixedCategory || "");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const listRef = useRef<HTMLDivElement | null>(null);
   const stickTop = useRef(true);
+
+  useEffect(() => {
+    if (fixedCategory) setCategory(fixedCategory);
+  }, [fixedCategory]);
 
   const load = useCallback(
     async (opts?: { append?: boolean; before?: string; silent?: boolean }) => {
@@ -54,7 +78,8 @@ export function AdminJournalPanel() {
       try {
         const params = new URLSearchParams({ limit: "200" });
         if (qApplied) params.set("q", qApplied);
-        if (category) params.set("category", category);
+        const cat = fixedCategory || category;
+        if (cat) params.set("category", cat);
         if (opts?.before) params.set("before", opts.before);
         const res = await fetch(`/api/admin/journal?${params}`, {
           cache: "no-store",
@@ -92,7 +117,7 @@ export function AdminJournalPanel() {
         if (!opts?.silent) setLoading(false);
       }
     },
-    [qApplied, category]
+    [qApplied, category, fixedCategory]
   );
 
   useEffect(() => {
@@ -137,47 +162,56 @@ export function AdminJournalPanel() {
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Ник, роль, клан, слово…"
+            placeholder={searchPlaceholder}
             autoComplete="off"
           />
         </label>
-        <div className="attend-mode-toggle" role="group" aria-label="Категория">
-          <button
-            type="button"
-            className={category === "" ? "active" : ""}
-            onClick={() => setCategory("")}
-          >
-            Все
-          </button>
-          <button
-            type="button"
-            className={category === "admin" ? "active" : ""}
-            onClick={() => setCategory("admin")}
-          >
-            Админ
-          </button>
-          <button
-            type="button"
-            className={category === "clan" ? "active" : ""}
-            onClick={() => setCategory("clan")}
-          >
-            Клан
-          </button>
-          <button
-            type="button"
-            className={category === "profile" ? "active" : ""}
-            onClick={() => setCategory("profile")}
-          >
-            Профиль
-          </button>
-          <button
-            type="button"
-            className={category === "support" ? "active" : ""}
-            onClick={() => setCategory("support")}
-          >
-            Поддержка
-          </button>
-        </div>
+        {!fixedCategory ? (
+          <div className="attend-mode-toggle" role="group" aria-label="Категория">
+            <button
+              type="button"
+              className={category === "" ? "active" : ""}
+              onClick={() => setCategory("")}
+            >
+              Все
+            </button>
+            <button
+              type="button"
+              className={category === "admin" ? "active" : ""}
+              onClick={() => setCategory("admin")}
+            >
+              Админ
+            </button>
+            <button
+              type="button"
+              className={category === "clan" ? "active" : ""}
+              onClick={() => setCategory("clan")}
+            >
+              Клан
+            </button>
+            <button
+              type="button"
+              className={category === "profile" ? "active" : ""}
+              onClick={() => setCategory("profile")}
+            >
+              Профиль
+            </button>
+            <button
+              type="button"
+              className={category === "support" ? "active" : ""}
+              onClick={() => setCategory("support")}
+            >
+              Поддержка
+            </button>
+            <button
+              type="button"
+              className={category === "tournament" ? "active" : ""}
+              onClick={() => setCategory("tournament")}
+            >
+              Турнир
+            </button>
+          </div>
+        ) : null}
         <button type="submit" className="btn" disabled={loading}>
           {loading ? "…" : "Найти"}
         </button>
@@ -187,7 +221,7 @@ export function AdminJournalPanel() {
 
       <div className="journal-window">
         <div className="journal-window-head">
-          <span>Журнал действий</span>
+          <span>{title}</span>
           <span className="muted">
             {entries.length ? `${entries.length} записей` : "пусто"}
             {qApplied ? ` · «${qApplied}»` : ""}
@@ -201,10 +235,7 @@ export function AdminJournalPanel() {
           aria-live="polite"
         >
           {!loading && entries.length === 0 ? (
-            <p className="journal-empty muted">
-              Пока нет записей. Сюда попадают регистрации, кики, резерв,
-              роли, тикеты поддержки и другие движения.
-            </p>
+            <p className="journal-empty muted">{emptyHint}</p>
           ) : null}
           {entries.map((e) => (
             <article

@@ -6473,6 +6473,11 @@ body:has(.profile-page) {
   border-color: rgba(251, 191, 36, 0.28);
 }
 
+.journal-msg-cat-tournament {
+  background: rgba(45, 212, 191, 0.1);
+  border-color: rgba(45, 212, 191, 0.28);
+}
+
 .journal-msg-meta {
   display: flex;
   flex-wrap: wrap;

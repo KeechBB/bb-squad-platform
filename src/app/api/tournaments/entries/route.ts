@@ -10,6 +10,7 @@ import {
   canWithdrawEntry,
   isRegistrationOpen,
 } from "@/lib/tournaments";
+import { personLabel, writeActionLog } from "@/lib/actionLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -138,7 +139,7 @@ export async function POST(req: Request) {
 
   const me = await prisma.user.findUnique({
     where: { steamId: session.user.steamId },
-    select: { id: true },
+    select: { id: true, nick: true, name: true, steamName: true, steamId: true },
   });
   if (!me) return NextResponse.json({ error: "no user" }, { status: 401 });
 
@@ -273,6 +274,29 @@ export async function POST(req: Request) {
     });
   });
 
+  const nick = personLabel(me);
+  const wasReopen = Boolean(existing);
+  await writeActionLog({
+    category: "tournament",
+    action: "entry_submit",
+    message: wasReopen
+      ? `${nick} повторно подал заявку [${entry.team.tag}] ${entry.team.name} · ${ACTIVE_TOURNAMENT.name}`
+      : `${nick} подал заявку [${entry.team.tag}] ${entry.team.name} · ${ACTIVE_TOURNAMENT.name} · ${starterIds.length} основа / ${subIds.length} замена`,
+    actorId: me.id,
+    actorNick: nick,
+    clanId: entry.team.id,
+    clanTag: entry.team.tag,
+    meta: {
+      tournamentId: TID,
+      tournamentName: ACTIVE_TOURNAMENT.name,
+      teamId: entry.team.id,
+      entryId: entry.id,
+      starters: starterIds.length,
+      subs: subIds.length,
+      reopen: wasReopen,
+    },
+  });
+
   return NextResponse.json({
     ok: true,
     entry: {
@@ -298,7 +322,7 @@ export async function DELETE() {
 
   const me = await prisma.user.findUnique({
     where: { steamId: session.user.steamId },
-    select: { id: true },
+    select: { id: true, nick: true, name: true, steamName: true, steamId: true },
   });
   if (!me) return NextResponse.json({ error: "no user" }, { status: 401 });
 
@@ -307,6 +331,7 @@ export async function DELETE() {
       userId: me.id,
       role: { in: ["CAPTAIN", "DEPUTY"] },
     },
+    include: { team: { select: { id: true, tag: true, name: true } } },
   });
   if (!membership) {
     return NextResponse.json(
@@ -330,6 +355,23 @@ export async function DELETE() {
   await prisma.tournamentEntry.update({
     where: { id: entry.id },
     data: { status: "CANCELLED" },
+  });
+
+  const nick = personLabel(me);
+  await writeActionLog({
+    category: "tournament",
+    action: "entry_withdraw",
+    message: `${nick} отменил заявку [${membership.team.tag}] ${membership.team.name} · ${ACTIVE_TOURNAMENT.name}`,
+    actorId: me.id,
+    actorNick: nick,
+    clanId: membership.team.id,
+    clanTag: membership.team.tag,
+    meta: {
+      tournamentId: TID,
+      tournamentName: ACTIVE_TOURNAMENT.name,
+      teamId: membership.teamId,
+      entryId: entry.id,
+    },
   });
 
   return NextResponse.json({ ok: true });

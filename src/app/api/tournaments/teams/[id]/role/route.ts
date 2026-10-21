@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { TournamentTeamRole } from "@prisma/client";
 import { allowedTargetRoles } from "@/lib/tournamentTeamPerms";
+import { ACTIVE_TOURNAMENT } from "@/lib/tournaments";
+import { personLabel, writeActionLog } from "@/lib/actionLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,6 +20,14 @@ const ALL: TournamentTeamRole[] = [
   "RESERVE",
 ];
 
+const ROLE_RU: Record<TournamentTeamRole, string> = {
+  CAPTAIN: "капитан",
+  DEPUTY: "зам",
+  STARTER: "основа",
+  SUB: "замена",
+  RESERVE: "резерв",
+};
+
 /** POST — выдать роль игроку */
 export async function POST(req: Request, ctx: Ctx) {
   const session = await getServerSession(authOptions);
@@ -28,7 +38,7 @@ export async function POST(req: Request, ctx: Ctx) {
 
   const me = await prisma.user.findUnique({
     where: { steamId: session.user.steamId },
-    select: { id: true },
+    select: { id: true, nick: true, name: true, steamName: true, steamId: true },
   });
   if (!me) return NextResponse.json({ error: "no user" }, { status: 401 });
 
@@ -85,6 +95,22 @@ export async function POST(req: Request, ctx: Ctx) {
     );
   }
 
+  const [teamRow, targetUser] = await Promise.all([
+    prisma.tournamentTeam.findUnique({
+      where: { id: teamId },
+      select: { id: true, tag: true, name: true },
+    }),
+    prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { id: true, nick: true, name: true, steamName: true, steamId: true },
+    }),
+  ]);
+  if (!teamRow) {
+    return NextResponse.json({ error: "Команда не найдена" }, { status: 404 });
+  }
+
+  const prevRole = target.role;
+
   await prisma.$transaction(async (tx) => {
     if (role === "CAPTAIN") {
       // Передача капитанства: старый капитан → STARTER
@@ -103,6 +129,30 @@ export async function POST(req: Request, ctx: Ctx) {
       where: { id: target.id },
       data: { role },
     });
+  });
+
+  const actorNick = personLabel(me);
+  const targetNick = targetUser ? personLabel(targetUser) : targetUserId;
+  const roleMsg =
+    role === "CAPTAIN"
+      ? `${actorNick} передал капитанство ${targetNick} в [${teamRow.tag}]`
+      : `${actorNick} сменил роль ${targetNick}: ${ROLE_RU[prevRole]} → ${ROLE_RU[role]} в [${teamRow.tag}]`;
+  await writeActionLog({
+    category: "tournament",
+    action: "role_set",
+    message: roleMsg,
+    actorId: me.id,
+    actorNick,
+    targetId: targetUserId,
+    targetNick,
+    clanId: teamRow.id,
+    clanTag: teamRow.tag,
+    meta: {
+      tournamentId: ACTIVE_TOURNAMENT.id,
+      teamId,
+      from: prevRole,
+      to: role,
+    },
   });
 
   return NextResponse.json({ ok: true, role });

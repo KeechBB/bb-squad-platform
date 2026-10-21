@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { TOURNAMENT_TEAM_ROSTER_MAX } from "@/lib/tournaments";
+import { TOURNAMENT_TEAM_ROSTER_MAX, ACTIVE_TOURNAMENT } from "@/lib/tournaments";
 import type { Prisma } from "@prisma/client";
+import { personLabel, writeActionLog } from "@/lib/actionLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ export async function POST(req: Request) {
 
   const me = await prisma.user.findUnique({
     where: { steamId: session.user.steamId },
-    select: { id: true, nick: true },
+    select: { id: true, nick: true, name: true, steamName: true, steamId: true },
   });
   if (!me) return NextResponse.json({ error: "no user" }, { status: 401 });
 
@@ -117,6 +118,25 @@ export async function POST(req: Request) {
       userId: target.id,
       invitedBy: me.id,
       status: "PENDING",
+    },
+  });
+
+  const actorNick = personLabel(me);
+  const targetNick = personLabel(target);
+  await writeActionLog({
+    category: "tournament",
+    action: "team_invite",
+    message: `${actorNick} пригласил ${targetNick} в [${team.tag}] ${team.name}`,
+    actorId: me.id,
+    actorNick,
+    targetId: target.id,
+    targetNick,
+    clanId: team.id,
+    clanTag: team.tag,
+    meta: {
+      tournamentId: ACTIVE_TOURNAMENT.id,
+      teamId,
+      inviteId: invite.id,
     },
   });
 

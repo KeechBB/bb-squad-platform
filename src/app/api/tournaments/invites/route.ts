@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { TOURNAMENT_TEAM_ROSTER_MAX } from "@/lib/tournaments";
+import { TOURNAMENT_TEAM_ROSTER_MAX, ACTIVE_TOURNAMENT } from "@/lib/tournaments";
+import { personLabel, writeActionLog } from "@/lib/actionLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,7 +51,7 @@ export async function POST(req: Request) {
 
   const me = await prisma.user.findUnique({
     where: { steamId: session.user.steamId },
-    select: { id: true },
+    select: { id: true, nick: true, name: true, steamName: true, steamId: true },
   });
   if (!me) return NextResponse.json({ error: "no user" }, { status: 401 });
 
@@ -72,10 +73,26 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Приглашение не найдено" }, { status: 404 });
   }
 
+  const nick = personLabel(me);
+
   if (action === "decline") {
     await prisma.tournamentTeamInvite.update({
       where: { id: invite.id },
       data: { status: "DECLINED" },
+    });
+    await writeActionLog({
+      category: "tournament",
+      action: "invite_decline",
+      message: `${nick} отклонил приглашение в [${invite.team.tag}] ${invite.team.name}`,
+      actorId: me.id,
+      actorNick: nick,
+      clanId: invite.teamId,
+      clanTag: invite.team.tag,
+      meta: {
+        tournamentId: ACTIVE_TOURNAMENT.id,
+        teamId: invite.teamId,
+        inviteId: invite.id,
+      },
     });
     return NextResponse.json({ ok: true, action: "decline" });
   }
@@ -110,6 +127,21 @@ export async function POST(req: Request) {
       },
     }),
   ]);
+
+  await writeActionLog({
+    category: "tournament",
+    action: "invite_accept",
+    message: `${nick} принял приглашение в [${invite.team.tag}] ${invite.team.name}`,
+    actorId: me.id,
+    actorNick: nick,
+    clanId: invite.teamId,
+    clanTag: invite.team.tag,
+    meta: {
+      tournamentId: ACTIVE_TOURNAMENT.id,
+      teamId: invite.teamId,
+      inviteId: invite.id,
+    },
+  });
 
   return NextResponse.json({
     ok: true,

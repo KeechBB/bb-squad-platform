@@ -9,6 +9,8 @@ import {
   deleteTeamLogo,
 } from "@/lib/tournamentTeamLogoFile";
 import { canChangeLogo, canDeleteTeam } from "@/lib/tournamentTeamPerms";
+import { ACTIVE_TOURNAMENT } from "@/lib/tournaments";
+import { personLabel, writeActionLog } from "@/lib/actionLog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,14 +20,14 @@ type Ctx = { params: Promise<{ id: string }> };
 async function actorOnTeam(teamId: string, steamId: string) {
   const me = await prisma.user.findUnique({
     where: { steamId },
-    select: { id: true },
+    select: { id: true, nick: true, name: true, steamName: true, steamId: true },
   });
   if (!me) return null;
   const m = await prisma.tournamentTeamMember.findFirst({
     where: { teamId, userId: me.id },
   });
   if (!m) return null;
-  return { userId: me.id, role: m.role };
+  return { userId: me.id, role: m.role, user: me };
 }
 
 /** PATCH — сменить лого (капитан/зам). Имя и тег нельзя. */
@@ -47,11 +49,34 @@ export async function PATCH(req: Request, ctx: Ctx) {
   const remove = String(form.get("removeLogo") || "") === "1";
   const logo = form.get("logo");
 
+  const teamRow = await prisma.tournamentTeam.findUnique({
+    where: { id: teamId },
+    select: { id: true, tag: true, name: true },
+  });
+  if (!teamRow) {
+    return NextResponse.json({ error: "Команда не найдена" }, { status: 404 });
+  }
+  const nick = personLabel(actor.user);
+
   if (remove) {
     await deleteTeamLogo(teamId);
     const team = await prisma.tournamentTeam.update({
       where: { id: teamId },
       data: { logoUrl: null },
+    });
+    await writeActionLog({
+      category: "tournament",
+      action: "team_logo",
+      message: `${nick} снял лого команды [${teamRow.tag}] ${teamRow.name}`,
+      actorId: actor.userId,
+      actorNick: nick,
+      clanId: teamRow.id,
+      clanTag: teamRow.tag,
+      meta: {
+        tournamentId: ACTIVE_TOURNAMENT.id,
+        teamId,
+        remove: true,
+      },
     });
     return NextResponse.json({ ok: true, logoUrl: team.logoUrl });
   }
@@ -79,6 +104,20 @@ export async function PATCH(req: Request, ctx: Ctx) {
     where: { id: teamId },
     data: { logoUrl },
   });
+  await writeActionLog({
+    category: "tournament",
+    action: "team_logo",
+    message: `${nick} сменил лого команды [${teamRow.tag}] ${teamRow.name}`,
+    actorId: actor.userId,
+    actorNick: nick,
+    clanId: teamRow.id,
+    clanTag: teamRow.tag,
+    meta: {
+      tournamentId: ACTIVE_TOURNAMENT.id,
+      teamId,
+      remove: false,
+    },
+  });
   return NextResponse.json({ ok: true, logoUrl });
 }
 
@@ -97,7 +136,32 @@ export async function DELETE(_req: Request, ctx: Ctx) {
     );
   }
 
+  const teamRow = await prisma.tournamentTeam.findUnique({
+    where: { id: teamId },
+    select: { id: true, tag: true, name: true },
+  });
+  if (!teamRow) {
+    return NextResponse.json({ error: "Команда не найдена" }, { status: 404 });
+  }
+
   await deleteTeamLogo(teamId);
   await prisma.tournamentTeam.delete({ where: { id: teamId } });
+
+  const nick = personLabel(actor.user);
+  await writeActionLog({
+    category: "tournament",
+    action: "team_disband",
+    message: `${nick} распустил команду [${teamRow.tag}] ${teamRow.name}`,
+    actorId: actor.userId,
+    actorNick: nick,
+    clanId: teamRow.id,
+    clanTag: teamRow.tag,
+    meta: {
+      tournamentId: ACTIVE_TOURNAMENT.id,
+      teamId,
+      teamName: teamRow.name,
+    },
+  });
+
   return NextResponse.json({ ok: true });
 }

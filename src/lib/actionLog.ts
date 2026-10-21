@@ -2,7 +2,12 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { livePublishSite } from "@/lib/liveBus";
 
-export type ActionCategory = "admin" | "clan" | "profile" | "support";
+export type ActionCategory =
+  | "admin"
+  | "clan"
+  | "profile"
+  | "support"
+  | "tournament";
 
 export type WriteActionLogInput = {
   category: ActionCategory;

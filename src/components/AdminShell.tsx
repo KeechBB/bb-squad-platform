@@ -29,6 +29,7 @@ type Tab =
   | "users"
   | "attendance"
   | "journal"
+  | "tournaments"
   | "visits"
   | "reserve"
   | "updates"
@@ -41,7 +42,9 @@ const TAB_LEAD: Record<Tab, string> = {
   attendance:
     "Посещаемость тренировок — только клан BlackBerry (логи TR1). Паблик PB1 — отдельно. Таблица до 30 дней.",
   journal:
-    "Накопительный журнал: роли, клан, профиль и тикеты поддержки (открытие, сообщения, ответы, закрытие).",
+    "Накопительный журнал: роли, клан, профиль, тикеты поддержки и турниры.",
+  tournaments:
+    "Все движения по вкладке Турниры: команды, приглашения, роли, лого, заявки на кубок.",
   visits:
     "Кто заходит на сайт, где сидит, куда тыкает. Keech / Зам / HR. Не путать с посещаемостью TR1.",
   reserve:
@@ -65,6 +68,7 @@ function readTab(
   if (
     t === "attendance" ||
     t === "journal" ||
+    t === "tournaments" ||
     t === "users" ||
     t === "updates" ||
     t === "tiers" ||
@@ -175,6 +179,13 @@ export function AdminShell({
           </button>
           <button
             type="button"
+            className={`admin-tab ${tab === "tournaments" ? "active" : ""}`}
+            onClick={() => setTab("tournaments")}
+          >
+            Турниры
+          </button>
+          <button
+            type="button"
             className={`admin-tab ${tab === "tiers" ? "active" : ""}`}
             onClick={() => setTab("tiers")}
           >
@@ -230,6 +241,14 @@ export function AdminShell({
       {tab === "attendance" ? <AdminAttendancePanel /> : null}
       {tab === "reserve" && showReserve ? <AdminReservePanel /> : null}
       {tab === "journal" ? <AdminJournalPanel /> : null}
+      {tab === "tournaments" ? (
+        <AdminJournalPanel
+          fixedCategory="tournament"
+          title="Журнал турниров"
+          emptyHint="Пока нет записей. Сюда попадают создание/роспуск команд, приглашения, роли, лого и заявки на кубок."
+          searchPlaceholder="Ник, тег команды, заявка…"
+        />
+      ) : null}
       {tab === "tiers" ? <AdminTierLogPanel /> : null}
       {tab === "updates" ? <AdminUpdatesPanel /> : null}
       {tab === "visits" && showSiteVisits ? <AdminVisitsPanel /> : null}

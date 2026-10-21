@@ -546,9 +546,9 @@ model TierChangeLog {
 model ActionLog {
   id         String   @id @default(cuid())
   createdAt  DateTime @default(now())
-  /// admin | clan | profile
+  /// admin | clan | profile | support | tournament
   category   String
-  /// role_set, invite, kick, join, leave, create_clan, disband, …
+  /// role_set, invite, kick, join, leave, create_clan, disband, team_create, entry_submit, …
   action     String
   /// Человекочитаемая строка для чата и поиска
   message    String

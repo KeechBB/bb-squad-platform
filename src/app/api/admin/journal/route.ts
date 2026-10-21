@@ -26,7 +26,8 @@ export async function GET(req: Request) {
     category === "admin" ||
     category === "clan" ||
     category === "profile" ||
-    category === "support"
+    category === "support" ||
+    category === "tournament"
   ) {
     where.category = category;
   }
