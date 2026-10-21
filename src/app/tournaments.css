@@ -327,14 +327,11 @@
   font-size: 0.75em;
 }
 
-/* Средний блок слева — только лого, без рамки/подложки */
+/* Средний блок слева — прозрачное лого на общей турнирной панели */
 .tn-logo-only {
   align-items: center;
   justify-content: center;
-  padding: 0;
-  border: none;
-  background: #050408;
-  box-shadow: none;
+  padding: 8px 14px;
 }
 
 .tn-logo {
