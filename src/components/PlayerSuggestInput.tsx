@@ -122,7 +122,6 @@ export function PlayerSuggestInput({
         aria-label={ariaLabel || placeholder}
         aria-autocomplete="list"
         aria-controls={listId}
-        aria-expanded={open}
         autoComplete="off"
         maxLength={64}
         onChange={(e) => onChange(e.target.value)}
