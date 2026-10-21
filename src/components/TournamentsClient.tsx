@@ -116,13 +116,7 @@ function TournamentsHomeTab() {
                     </span>
                   </div>
                 ) : null}
-                {p.items.length ? (
-                  <ul>
-                    {p.items.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                ) : !p.cashBanner ? (
+                {!p.imageSrc && !p.cashBanner ? (
                   <Placeholder>Состав призов — скоро</Placeholder>
                 ) : null}
               </div>
