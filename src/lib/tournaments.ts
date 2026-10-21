@@ -70,6 +70,31 @@ export const TEAM_SUB_TABS: { id: TeamSubTabId; label: string }[] = [
 /** Сколько слотов в турнирной команде (позже уточним). */
 export const TOURNAMENT_TEAM_ROSTER_MAX = 8;
 
+/** Роли внутри турнирной команды (не путать с клановыми). */
+export type TournamentTeamRole =
+  | "captain"
+  | "deputy"
+  | "starter"
+  | "sub"
+  | "reserve";
+
+export const TOURNAMENT_TEAM_ROLE_LABEL: Record<TournamentTeamRole, string> = {
+  captain: "Капитан",
+  deputy: "Зам",
+  starter: "Основной состав",
+  sub: "Замена",
+  reserve: "Резерв",
+};
+
+export type TournamentTeamMemberDraft = {
+  id: string;
+  nick: string;
+  joinedAt: string;
+  role: TournamentTeamRole;
+  /** Клан на сайте — позже с профиля */
+  clanName: string | null;
+};
+
 export type TournamentTeamDraft = {
   id: string;
   name: string;
@@ -78,6 +103,11 @@ export type TournamentTeamDraft = {
   createdAt: string; // ISO date
   membersCount: number;
   rosterMax: number;
+  members: TournamentTeamMemberDraft[];
+  /** Исходящие инвайты в команду — позже */
+  pendingInvites: { nick: string; sentAt: string }[];
+  /** Инвайты на ивенты от площадки — позже */
+  eventInvites: { title: string; note: string }[];
 };
 
 /** Пока пусто — список придёт с бэка. */

@@ -4,10 +4,12 @@ import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
   TEAM_SUB_TABS,
   TEAMS_SECTION_BLURB,
+  TOURNAMENT_TEAM_ROLE_LABEL,
   TOURNAMENT_TEAM_ROSTER_MAX,
   TOURNAMENT_TEAMS_DRAFT,
   type TeamSubTabId,
   type TournamentTeamDraft,
+  type TournamentTeamRole,
 } from "@/lib/tournaments";
 
 function Placeholder({ children }: { children: ReactNode }) {
@@ -26,9 +28,11 @@ function formatDate(iso: string): string {
 
 function TeamsOverview({
   teams,
+  viewerNick,
   onCreated,
 }: {
   teams: TournamentTeamDraft[];
+  viewerNick: string;
   onCreated: (team: TournamentTeamDraft) => void;
 }) {
   const [name, setName] = useState("");
@@ -91,14 +95,26 @@ function TeamsOverview({
       setConfirmOpen(false);
       return;
     }
+    const now = new Date().toISOString();
     const team: TournamentTeamDraft = {
       id: `local-${Date.now()}`,
       name: name.trim(),
       tag: tag.trim().toUpperCase(),
       logoSrc: logoPreview,
-      createdAt: new Date().toISOString(),
+      createdAt: now,
       membersCount: 1,
       rosterMax: TOURNAMENT_TEAM_ROSTER_MAX,
+      members: [
+        {
+          id: "self",
+          nick: viewerNick || "Keech",
+          joinedAt: now,
+          role: "captain",
+          clanName: "BlackBerry",
+        },
+      ],
+      pendingInvites: [],
+      eventInvites: [],
     };
     onCreated(team);
     setConfirmOpen(false);
@@ -243,47 +259,171 @@ function TeamsOverview({
   );
 }
 
+const ROLE_ORDER: TournamentTeamRole[] = [
+  "captain",
+  "deputy",
+  "starter",
+  "sub",
+  "reserve",
+];
+
 function MyTeamPanel({ team }: { team: TournamentTeamDraft | null }) {
+  const [inviteNick, setInviteNick] = useState("");
+
   if (!team) {
     return (
       <section className="tn-soon" aria-label="Моя команда">
         <h2>Моя команда</h2>
         <Placeholder>
           Сначала создай команду на вкладке «Общая». После создания эта вкладка
-          откроется с карточкой состава, ролями и заявкой на турнир.
+          откроется с управлением составом и приглашениями.
         </Placeholder>
       </section>
     );
   }
 
   return (
-    <section className="tn-panel tn-my-team" aria-label="Моя команда">
-      <header className="tn-my-team-head">
-        {team.logoSrc ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={team.logoSrc} alt="" width={72} height={72} />
-        ) : (
-          <span className="tn-teams-table-logo is-empty is-lg" aria-hidden />
-        )}
-        <div>
-          <h2>
-            {team.name} <span className="tn-teams-tag">[{team.tag}]</span>
-          </h2>
-          <p>
-            Состав {team.membersCount}/{team.rosterMax} · создана{" "}
-            {formatDate(team.createdAt)}
-          </p>
+    <div className="tn-my-team" aria-label="Моя команда">
+      <div className="tn-my-team-left">
+        <section className="tn-panel tn-my-info" aria-label="Информация о команде">
+          <h2 className="tn-panel-title">Информация о команде</h2>
+          <div className="tn-my-info-row">
+            {team.logoSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={team.logoSrc} alt="" width={88} height={88} />
+            ) : (
+              <span className="tn-teams-table-logo is-empty is-lg" aria-hidden />
+            )}
+            <div>
+              <h3 className="tn-my-info-name">{team.name}</h3>
+              <p className="tn-teams-tag">[{team.tag}]</p>
+              <p className="tn-my-info-meta">
+                Состав {team.membersCount}/{team.rosterMax} · с{" "}
+                {formatDate(team.createdAt)}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section
+          className="tn-panel tn-my-control"
+          aria-label="Панель управления командой"
+        >
+          <h2 className="tn-panel-title">Панель управления командой</h2>
+
+          <div className="tn-my-control-block">
+            <h3>Выдача ролей</h3>
+            <ul className="tn-my-roles">
+              {ROLE_ORDER.map((role) => (
+                <li key={role}>
+                  <strong>{TOURNAMENT_TEAM_ROLE_LABEL[role]}</strong>
+                  {role === "captain" ? (
+                    <span> — по умолчанию создатель, можно передать</span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+            <Placeholder>
+              Выбор роли у игрока в таблице — следующим шагом (нужен бэк).
+            </Placeholder>
+          </div>
+
+          <div className="tn-my-control-block">
+            <h3>Приглашения в команду</h3>
+            <p className="tn-my-note">
+              Подать заявку в команду нельзя — только получить приглашение от
+              капитана / зама.
+            </p>
+            <div className="tn-my-invite-row">
+              <input
+                type="text"
+                value={inviteNick}
+                placeholder="Ник игрока"
+                maxLength={32}
+                onChange={(e) => setInviteNick(e.target.value)}
+                aria-label="Ник для приглашения"
+              />
+              <button
+                type="button"
+                className="tn-teams-create-btn"
+                disabled={!inviteNick.trim()}
+                title="Пока UI-черновик, на сервер не уходит"
+              >
+                Пригласить
+              </button>
+            </div>
+            {team.pendingInvites.length === 0 ? (
+              <Placeholder>Исходящих приглашений пока нет.</Placeholder>
+            ) : (
+              <ul className="tn-my-invite-list">
+                {team.pendingInvites.map((inv) => (
+                  <li key={`${inv.nick}-${inv.sentAt}`}>
+                    {inv.nick} · {formatDate(inv.sentAt)}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </section>
+
+        <section
+          className="tn-panel tn-my-events"
+          aria-label="Приглашения на ивенты"
+        >
+          <h2 className="tn-panel-title">Ивенты от площадки</h2>
+          {team.eventInvites.length === 0 ? (
+            <Placeholder>
+              Здесь появятся приглашения на участие в турнирах и других ивентах
+              от площадки.
+            </Placeholder>
+          ) : (
+            <ul className="tn-my-event-list">
+              {team.eventInvites.map((ev) => (
+                <li key={ev.title}>
+                  <strong>{ev.title}</strong>
+                  <span>{ev.note}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+
+      <section
+        className="tn-panel tn-my-players"
+        aria-label="Таблица игроков команды"
+      >
+        <h2 className="tn-panel-title">Таблица игроков команды</h2>
+        <div className="tn-teams-table-scroll">
+          <table className="tn-teams-table">
+            <thead>
+              <tr>
+                <th>№</th>
+                <th>Ник</th>
+                <th>Дата вступления</th>
+                <th>Основная роль</th>
+                <th>Клан на сайте</th>
+              </tr>
+            </thead>
+            <tbody>
+              {team.members.map((m, i) => (
+                <tr key={m.id}>
+                  <td>{i + 1}</td>
+                  <td>{m.nick}</td>
+                  <td>{formatDate(m.joinedAt)}</td>
+                  <td>{TOURNAMENT_TEAM_ROLE_LABEL[m.role]}</td>
+                  <td>{m.clanName || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      </header>
-      <Placeholder>
-        Здесь будут слоты игроков, приглашения и кнопка заявки на турнир.
-        Логика на сервере — следующим шагом.
-      </Placeholder>
-    </section>
+      </section>
+    </div>
   );
 }
 
-export function TournamentTeamsTab() {
+export function TournamentTeamsTab({ viewerNick }: { viewerNick: string }) {
   const [sub, setSub] = useState<TeamSubTabId>("overview");
   const [teams, setTeams] = useState<TournamentTeamDraft[]>(
     () => [...TOURNAMENT_TEAMS_DRAFT]
@@ -327,7 +467,11 @@ export function TournamentTeamsTab() {
       </nav>
 
       {sub === "overview" ? (
-        <TeamsOverview teams={teams} onCreated={onCreated} />
+        <TeamsOverview
+          teams={teams}
+          viewerNick={viewerNick}
+          onCreated={onCreated}
+        />
       ) : (
         <MyTeamPanel team={myTeam} />
       )}

@@ -148,7 +148,7 @@ export function TournamentsClient({ viewerNick }: Props) {
       case "tournaments":
         return <TournamentsHomeTab />;
       case "teams":
-        return <TournamentTeamsTab />;
+        return <TournamentTeamsTab viewerNick={viewerNick} />;
       case "player-stats":
         return <ComingSoonTab title="Статистика игроков" />;
       case "team-rating":
@@ -156,7 +156,7 @@ export function TournamentsClient({ viewerNick }: Props) {
       default:
         return null;
     }
-  }, [tab]);
+  }, [tab, viewerNick]);
 
   return (
     <main className="tn-page">

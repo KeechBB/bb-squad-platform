@@ -641,34 +641,145 @@
 }
 
 .tn-my-team {
-  min-height: min(420px, calc(100dvh - 280px));
-  gap: 16px;
+  display: grid;
+  grid-template-columns: minmax(280px, 0.95fr) minmax(360px, 1.35fr);
+  gap: 12px;
+  min-height: min(640px, calc(100dvh - 260px));
+  align-items: stretch;
 }
 
-.tn-my-team-head {
+.tn-my-team-left {
+  display: grid;
+  grid-template-rows: minmax(120px, 0.7fr) minmax(260px, 1.35fr) minmax(120px, 0.75fr);
+  gap: 12px;
+  min-height: 0;
+}
+
+.tn-my-info-row {
   display: flex;
   align-items: center;
   gap: 14px;
+  min-height: 0;
 }
 
-.tn-my-team-head h2 {
-  margin: 0 0 4px;
-  font-family: var(--font-display), Oxanium, sans-serif;
-  font-size: 1.2rem;
-}
-
-.tn-my-team-head p {
-  margin: 0;
-  color: var(--tn-muted);
-  font-size: 0.86rem;
-}
-
-.tn-my-team-head img {
-  width: 72px;
-  height: 72px;
+.tn-my-info-row img {
+  width: 88px;
+  height: 88px;
   object-fit: cover;
   border-radius: 12px;
   border: 1px solid rgba(212, 168, 75, 0.4);
+  flex: 0 0 auto;
+}
+
+.tn-my-info-name {
+  margin: 0 0 4px;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-size: 1.15rem;
+  line-height: 1.15;
+}
+
+.tn-my-info-meta {
+  margin: 6px 0 0;
+  font-size: 0.8rem;
+  color: var(--tn-muted);
+}
+
+.tn-my-control {
+  overflow: auto;
+}
+
+.tn-my-control-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.tn-my-control-block + .tn-my-control-block {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(212, 168, 75, 0.18);
+}
+
+.tn-my-control-block h3 {
+  margin: 0;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f0d078;
+}
+
+.tn-my-roles {
+  margin: 0;
+  padding-left: 1.15em;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--tn-muted);
+}
+
+.tn-my-roles strong {
+  color: var(--tn-ink);
+}
+
+.tn-my-note {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--tn-muted);
+}
+
+.tn-my-invite-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tn-my-invite-row input {
+  flex: 1 1 140px;
+  appearance: none;
+  border-radius: 10px;
+  border: 1px solid rgba(212, 168, 75, 0.3);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--tn-ink);
+  padding: 10px 12px;
+  font-size: 0.9rem;
+}
+
+.tn-my-invite-row input:focus {
+  outline: none;
+  border-color: rgba(240, 208, 120, 0.75);
+}
+
+.tn-my-invite-row .tn-teams-create-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.tn-my-invite-list,
+.tn-my-event-list {
+  margin: 0;
+  padding-left: 1.1em;
+  font-size: 0.84rem;
+  color: var(--tn-muted);
+  line-height: 1.45;
+}
+
+.tn-my-event-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.tn-my-event-list strong {
+  color: var(--tn-ink);
+}
+
+.tn-my-players {
+  min-height: 0;
 }
 
 @media (max-width: 1100px) {
@@ -689,11 +800,13 @@
   .tn-tab-short {
     display: inline;
   }
-  .tn-teams {
+  .tn-teams,
+  .tn-my-team {
     grid-template-columns: 1fr;
     min-height: 0;
   }
-  .tn-teams-left {
+  .tn-teams-left,
+  .tn-my-team-left {
     grid-template-rows: none;
   }
 }
