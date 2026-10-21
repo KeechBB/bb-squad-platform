@@ -10,8 +10,13 @@ type Props = {
 
 type Tip = { text: string; x: number; y: number };
 
+function isKeechBpS1Trial(id: string) {
+  return id.startsWith("keech-bp-s1-blueberry-test-");
+}
+
 export function ProfileMedalShelf({ items }: Props) {
   const list = Array.isArray(items) ? items : [];
+  const hasKeechBpS1Trial = list.some((m) => isKeechBpS1Trial(m.id));
   const [activeId, setActiveId] = useState<string | null>(null);
   const [tip, setTip] = useState<Tip | null>(null);
 
@@ -31,11 +36,21 @@ export function ProfileMedalShelf({ items }: Props) {
             Полка пуста — награды появятся с Battle Pass и других сезонов.
           </p>
         ) : (
-          <ul className="profile-medal-shelf-row">
+          <ul
+            className={`profile-medal-shelf-row${
+              hasKeechBpS1Trial ? " is-keech-bp-s1-trial" : ""
+            }`}
+          >
             {list.map((m) => (
-              <li key={m.id} className="profile-medal-slot">
+              <li
+                key={m.id}
+                className={`profile-medal-slot${
+                  isKeechBpS1Trial(m.id) ? " is-bp-s1-trial" : ""
+                }`}
+              >
                 <button
                   type="button"
+                  data-medal-id={m.id}
                   className={`profile-medal-item kind-${m.kind}${
                     activeId === m.id ? " is-active" : ""
                   }`}

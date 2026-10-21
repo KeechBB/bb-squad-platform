@@ -27,6 +27,42 @@ const REGISTRATION_MEDAL: ProfileMedalItem = {
   source: "site",
 };
 
+const KEECH_BP_S1_L20_TRIALS: ProfileMedalItem[] = [
+  {
+    id: "keech-bp-s1-blueberry-test-v1",
+    name: "Черничный Разрыв",
+    short: "Вариант 1",
+    kind: "medal",
+    level: 20,
+    hover:
+      "Черничный Разрыв · Тестовая награда за прохождение 20 уровней Battle Pass «Тестовый сезон: Фруктовый Сад»",
+    icon: "/awards/bp-s1-blueberry-grenade-v1.png",
+    source: "bp",
+  },
+  {
+    id: "keech-bp-s1-blueberry-test-v2",
+    name: "Кобальтовое Ядро",
+    short: "Вариант 2",
+    kind: "medal",
+    level: 20,
+    hover:
+      "Кобальтовое Ядро · Тестовая награда за прохождение 20 уровней Battle Pass «Тестовый сезон: Фруктовый Сад»",
+    icon: "/awards/bp-s1-blueberry-grenade-v2.png",
+    source: "bp",
+  },
+  {
+    id: "keech-bp-s1-blueberry-test-v3",
+    name: "Аметистовый Урожай",
+    short: "Вариант 3",
+    kind: "medal",
+    level: 20,
+    hover:
+      "Аметистовый Урожай · Тестовая награда за прохождение 20 уровней Battle Pass «Тестовый сезон: Фруктовый Сад»",
+    icon: "/awards/bp-s1-blueberry-grenade-v3.png",
+    source: "bp",
+  },
+];
+
 const BP_ICONS: Record<string, string> = {
   "pb1-scout-spark": "/bp-previews/l5-iskra.png",
   "pb1-gold-nick": "/bp-previews/l15-gold-nick.png",
@@ -74,5 +110,8 @@ export async function buildPlayerMedalShelf(
     select: { id: true },
   });
 
-  return registered ? [REGISTRATION_MEDAL, ...bp] : bp;
+  const earned = registered ? [REGISTRATION_MEDAL, ...bp] : bp;
+  return clean.toLowerCase() === "keech"
+    ? [...KEECH_BP_S1_L20_TRIALS, ...earned]
+    : earned;
 }
