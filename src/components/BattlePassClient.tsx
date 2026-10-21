@@ -172,7 +172,11 @@ export function BattlePassClient({
               <div className={`bp-detail-reward kind-${reward.kind}`}>
                 <span className="bp-detail-reward-tag">Награда</span>
                 <strong>{reward.name}</strong>
-                <BpRewardMock reward={reward} player={player} compact />
+                <BpRewardMock
+                  reward={reward}
+                  player={player}
+                  compact={reward.kind !== "medal"}
+                />
               </div>
             ) : null}
 

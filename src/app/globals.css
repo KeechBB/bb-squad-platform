@@ -17996,6 +17996,13 @@ body:has(.profile-page) {
   overflow: hidden;
 }
 
+.bp-detail-reward.kind-medal .bp-mock {
+  max-height: none;
+  overflow: visible;
+  border: none;
+  background: transparent;
+}
+
 .bp-progress {
   margin: 0;
   flex: 0 0 auto;
@@ -18179,6 +18186,80 @@ body:has(.profile-page) {
   flex-direction: column;
   align-items: center;
   gap: 8px;
+}
+
+/* L20 medal preview ? same scale/hover as profile shelf */
+.bp-mock-shelf-medal {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 4px 4px;
+  min-height: 72px;
+}
+.bp-mock-shelf-medal.is-compact {
+  padding: 6px 2px 2px;
+}
+.bp-mock-shelf-medal-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.bp-mock-shelf-medal-item:hover,
+.bp-mock-shelf-medal-item:focus-visible {
+  transform: translateY(-3px);
+  outline: none;
+}
+.bp-mock-shelf-medal-item img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.55));
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+.bp-mock-shelf-medal-item:hover img,
+.bp-mock-shelf-medal-item:focus-visible img {
+  filter:
+    drop-shadow(0 0 8px rgba(49, 202, 255, 1))
+    drop-shadow(0 0 17px rgba(245, 197, 72, 0.92))
+    brightness(1.27);
+  transform: scale(1.06);
+}
+.bp-mock-shelf-medal-note {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: rgba(230, 220, 200, 0.78);
+  text-align: left;
+}
+.bp-mock-shelf-medal-note strong {
+  color: #f0d078;
+  font-weight: 700;
+}
+.bp-mock-shelf-medal-edge {
+  align-self: flex-start;
+  margin-left: auto;
+  font-family: var(--font-display);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  color: rgba(212, 168, 75, 0.85);
+  white-space: nowrap;
+}
+.bp-mock-gallery .bp-mock.kind-medal {
+  border: none;
+  background: transparent;
+  overflow: visible;
+}
+.bp-mock-gallery .bp-mock-shelf-medal-item img {
+  width: 48px;
+  height: 48px;
 }
 
 .bp-mock-medal {

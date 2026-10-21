@@ -185,6 +185,45 @@ function RatingPatchMock({
   );
 }
 
+/** Как на полке профиля — только награда + hover, без аватара/ника. */
+function ShelfMedalMock({
+  reward,
+  compact,
+}: {
+  reward: BpReward;
+  compact?: boolean;
+}) {
+  const icon =
+    reward.id === "pb1-best-tester"
+      ? "/awards/bp-s1-l20-cobalt-core.png"
+      : "/bp-previews/l20-medal.png";
+  const tip = reward.hover || reward.name;
+  return (
+    <div className={`bp-mock-shelf-medal${compact ? " is-compact" : ""}`}>
+      <button
+        type="button"
+        data-medal-id={reward.id}
+        className="bp-mock-shelf-medal-item profile-medal-item kind-medal"
+        title={tip}
+        aria-label={tip}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={icon} alt="" width={80} height={80} />
+      </button>
+      {!compact ? (
+        <p className="bp-mock-shelf-medal-note">
+          Награда за <strong>{reward.level} уровень</strong> Battle Pass ·
+          ставится на полку профиля
+        </p>
+      ) : (
+        <span className="bp-mock-shelf-medal-edge" aria-hidden>
+          BP L{reward.level}
+        </span>
+      )}
+    </div>
+  );
+}
+
 /** Живой пример, где висит награда. */
 export function BpRewardMock({
   reward,
@@ -207,6 +246,8 @@ export function BpRewardMock({
         <RatingNickMock player={player} compact={compact} />
       ) : kind === "customize" ? (
         <RatingPatchMock player={player} reward={reward} compact={compact} />
+      ) : kind === "medal" ? (
+        <ShelfMedalMock reward={reward} compact={compact} />
       ) : kind === "bg" && bgUrl ? (
         <div
           className="bp-mock-bg"
