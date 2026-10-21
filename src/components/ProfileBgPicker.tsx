@@ -20,13 +20,20 @@ import {
   type ProfileNickStyleChoice,
   type ProfileNickStyleId,
 } from "@/lib/profileNickStyles";
+import {
+  MEDAL_SHELF_SLOTS,
+  normalizeMedalShelfIds,
+  type ProfileMedalItem,
+} from "@/lib/profileMedals";
 
-type Tab = "patches" | "nick" | "bg";
+type Tab = "awards" | "patches" | "nick" | "bg";
 
 type Props = {
   options: ProfileBgChoice[];
   patchOptions?: ProfilePatchChoice[];
   nickStyleOptions?: ProfileNickStyleChoice[];
+  medalInventory?: ProfileMedalItem[];
+  medalShelfIds?: string[];
   value: ProfileBgId | null;
   patchValue?: ProfilePatchId | null;
   nickStyleValue?: ProfileNickStyleId | null;
@@ -36,12 +43,15 @@ type Props = {
   onSaved: (bg: ProfileBgId | null) => void;
   onPatchSaved?: (patch: ProfilePatchId | null) => void;
   onNickStyleSaved?: (style: ProfileNickStyleId | null) => void;
+  onMedalShelfSaved?: (ids: string[]) => void;
 };
 
 export function ProfileBgPicker({
   options,
   patchOptions = [],
   nickStyleOptions = [],
+  medalInventory = [],
+  medalShelfIds = [],
   value,
   patchValue = null,
   nickStyleValue = null,
@@ -49,17 +59,32 @@ export function ProfileBgPicker({
   onSaved,
   onPatchSaved,
   onNickStyleSaved,
+  onMedalShelfSaved,
 }: Props) {
   const titleId = useId();
   const tiles = Array.isArray(options) ? options : [];
   const patches = Array.isArray(patchOptions) ? patchOptions : [];
   const nickStyles = Array.isArray(nickStyleOptions) ? nickStyleOptions : [];
+  const inventory = Array.isArray(medalInventory) ? medalInventory : [];
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<Tab>("patches");
+  const [tab, setTab] = useState<Tab>("awards");
   const [pick, setPick] = useState<ProfileBgId | null>(value);
   const [patchPick, setPatchPick] = useState<ProfilePatchId | null>(patchValue);
   const [nickStylePick, setNickStylePick] =
     useState<ProfileNickStyleId | null>(nickStyleValue);
+  function padShelf(ids: unknown): string[] {
+    const owned = new Set(inventory.map((m) => m.id));
+    const n = normalizeMedalShelfIds(ids, owned);
+    return Array.from(
+      { length: MEDAL_SHELF_SLOTS },
+      (_, i) => n[i] || ""
+    );
+  }
+
+  const [shelfPick, setShelfPick] = useState<string[]>(() =>
+    padShelf(medalShelfIds)
+  );
+  const [activeSlot, setActiveSlot] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -68,8 +93,10 @@ export function ProfileBgPicker({
       setPick(value);
       setPatchPick(patchValue);
       setNickStylePick(nickStyleValue);
+      setShelfPick(padShelf(medalShelfIds));
     }
-  }, [value, patchValue, nickStyleValue, open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, patchValue, nickStyleValue, medalShelfIds, medalInventory, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -90,9 +117,40 @@ export function ProfileBgPicker({
     setPick(value);
     setPatchPick(patchValue);
     setNickStylePick(nickStyleValue);
-    setTab("patches");
+    setShelfPick(padShelf(medalShelfIds));
+    setActiveSlot(0);
+    setTab("awards");
     onPreview(value);
     setOpen(true);
+  }
+
+  function placeMedal(id: string) {
+    setShelfPick((prev) => {
+      const owned = new Set(inventory.map((m) => m.id));
+      if (!owned.has(id)) return prev;
+      const next = Array.from(
+        { length: MEDAL_SHELF_SLOTS },
+        (_, i) => prev[i] || ""
+      );
+      for (let i = 0; i < next.length; i++) {
+        if (next[i] === id) next[i] = "";
+      }
+      const i = Math.min(Math.max(0, activeSlot), MEDAL_SHELF_SLOTS - 1);
+      next[i] = id;
+      return next;
+    });
+  }
+
+  function clearSlot(i: number) {
+    setShelfPick((prev) => {
+      const next = Array.from(
+        { length: MEDAL_SHELF_SLOTS },
+        (_, j) => prev[j] || ""
+      );
+      if (i >= 0 && i < next.length) next[i] = "";
+      return next;
+    });
+    setActiveSlot(i);
   }
 
   function close() {
@@ -117,12 +175,14 @@ export function ProfileBgPicker({
           bg: pick,
           nickPatch: patchPick,
           nickStyle: nickStylePick,
+          medalShelfIds: shelfPick.filter(Boolean),
         }),
       });
       const data = (await res.json().catch(() => null)) as {
         bg?: unknown;
         nickPatch?: unknown;
         nickStyle?: unknown;
+        medalShelfIds?: unknown;
         error?: string;
       } | null;
       if (!res.ok) {
@@ -136,9 +196,13 @@ export function ProfileBgPicker({
       const nextBg = normalizeProfileBg(data?.bg);
       const nextPatch = normalizeProfilePatch(data?.nickPatch);
       const nextNickStyle = normalizeProfileNickStyle(data?.nickStyle);
+      const nextShelf = padShelf(data?.medalShelfIds ?? shelfPick).filter(
+        Boolean
+      );
       onSaved(nextBg);
       onPatchSaved?.(nextPatch);
       onNickStyleSaved?.(nextNickStyle);
+      onMedalShelfSaved?.(nextShelf);
       setOpen(false);
     } catch {
       setError("Сеть или сервер недоступны");
@@ -170,7 +234,8 @@ export function ProfileBgPicker({
                 <div>
                   <h2 id={titleId}>Кастомизация профиля</h2>
                   <p className="profile-match-modal-sub">
-                    Ник и нашивки — во всех рейтингах. Фон — на странице профиля.
+                    Награды на полке · нашивки и стиль ника в рейтингах · фон на
+                    профиле.
                   </p>
                 </div>
                 <button
@@ -184,6 +249,17 @@ export function ProfileBgPicker({
               </header>
 
               <div className="profile-customize-tabs" role="tablist">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === "awards"}
+                  className={`profile-customize-tab${
+                    tab === "awards" ? " is-active" : ""
+                  }`}
+                  onClick={() => setTab("awards")}
+                >
+                  Награды
+                </button>
                 <button
                   type="button"
                   role="tab"
@@ -219,7 +295,100 @@ export function ProfileBgPicker({
                 </button>
               </div>
 
-              {tab === "patches" ? (
+              {tab === "awards" ? (
+                <div className="profile-award-customize" aria-label="Полка наград">
+                  <p className="profile-award-hint muted">
+                    Выбери слот, затем награду из инвентаря — на полке до{" "}
+                    {MEDAL_SHELF_SLOTS} мест.
+                  </p>
+                  <div className="profile-award-slots" role="list">
+                    {Array.from({ length: MEDAL_SHELF_SLOTS }, (_, i) => {
+                      const id = shelfPick[i] || "";
+                      const item = inventory.find((m) => m.id === id) || null;
+                      return (
+                        <div
+                          key={`slot-${i}`}
+                          className={`profile-award-slot${
+                            activeSlot === i ? " is-active" : ""
+                          }${item ? "" : " is-empty"}`}
+                          role="listitem"
+                        >
+                          <button
+                            type="button"
+                            className="profile-award-slot-btn"
+                            aria-label={
+                              item
+                                ? `Слот ${i + 1}: ${item.name}`
+                                : `Пустой слот ${i + 1}`
+                            }
+                            aria-pressed={activeSlot === i}
+                            onClick={() => setActiveSlot(i)}
+                          >
+                            {item ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={item.icon} alt="" />
+                            ) : (
+                              <span>{i + 1}</span>
+                            )}
+                          </button>
+                          {item ? (
+                            <button
+                              type="button"
+                              className="profile-award-slot-clear"
+                              aria-label="Убрать"
+                              onClick={() => clearSlot(i)}
+                            >
+                              ×
+                            </button>
+                          ) : null}
+                          <span className="profile-award-slot-name">
+                            {item ? item.short : "пусто"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {inventory.length === 0 ? (
+                    <div className="profile-patch-empty" role="status">
+                      Пока нет открытых наград.
+                      <span>Регистрация и Battle Pass</span>
+                    </div>
+                  ) : (
+                    <div
+                      className="profile-bg-grid profile-award-inventory"
+                      role="listbox"
+                      aria-label="Инвентарь наград"
+                    >
+                      {inventory.map((opt) => {
+                        const onShelf = shelfPick.includes(opt.id);
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            role="option"
+                            aria-selected={onShelf}
+                            className={`profile-bg-tile profile-award-tile${
+                              onShelf ? " is-selected" : ""
+                            }`}
+                            title={opt.hover}
+                            onClick={() => placeMedal(opt.id)}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              className="profile-award-tile-art"
+                              src={opt.icon}
+                              alt=""
+                            />
+                            <span className="profile-bg-tile-label">
+                              {opt.name}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : tab === "patches" ? (
                 <div
                   className="profile-bg-grid profile-patch-grid"
                   role="listbox"

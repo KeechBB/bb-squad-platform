@@ -13,7 +13,10 @@ import {
 } from "@/lib/profileBgUnlocks";
 import { normalizeProfilePatch } from "@/lib/profilePatches";
 import { normalizeProfileNickStyle } from "@/lib/profileNickStyles";
-import { buildPlayerMedalShelf } from "@/lib/profileMedals";
+import {
+  buildPlayerMedalInventory,
+  resolveMedalShelfSlots,
+} from "@/lib/profileMedals";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -80,9 +83,12 @@ export async function GET(req: Request) {
     );
   });
 
-  const medals = me.nick
-    ? await buildPlayerMedalShelf(me.nick).catch(() => [])
+  const medalInventory = me.nick
+    ? await buildPlayerMedalInventory(me.nick).catch(() => [])
     : [];
+  const medalShelfIds = Array.isArray(me.medalShelfIds) ? me.medalShelfIds : [];
+  const medalSlots = resolveMedalShelfSlots(medalInventory, medalShelfIds);
+  const medals = medalSlots.filter((x): x is NonNullable<typeof x> => Boolean(x));
 
   const unlocks = Array.isArray(me.unlockedProfileBgs)
     ? me.unlockedProfileBgs
@@ -140,6 +146,9 @@ export async function GET(req: Request) {
       nickStyle: normalizeProfileNickStyle(me.nickStyle),
       profileNickStyleChoices,
       medals,
+      medalSlots,
+      medalInventory: isSelf ? medalInventory : undefined,
+      medalShelfIds: isSelf ? medalShelfIds : undefined,
       lastSeenAt: me.lastSeenAt,
       admin,
       isBb,

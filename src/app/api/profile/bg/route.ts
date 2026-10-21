@@ -17,6 +17,10 @@ import {
   ensureBpL15NickPatch,
 } from "@/lib/profileBgUnlocks";
 import { writeNickPatchesCache } from "@/lib/nickPatchesCache";
+import {
+  buildPlayerMedalInventory,
+  normalizeMedalShelfIds,
+} from "@/lib/profileMedals";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,12 +35,14 @@ export async function PATCH(req: Request) {
     bg?: unknown;
     nickPatch?: unknown;
     nickStyle?: unknown;
+    medalShelfIds?: unknown;
   } = {};
   try {
     body = (await req.json()) as {
       bg?: unknown;
       nickPatch?: unknown;
       nickStyle?: unknown;
+      medalShelfIds?: unknown;
     };
   } catch {
     return NextResponse.json({ error: "bad_json" }, { status: 400 });
@@ -62,10 +68,22 @@ export async function PATCH(req: Request) {
       nickPatch: true,
       unlockedNickStyles: true,
       nickStyle: true,
+      medalShelfIds: true,
     },
   });
   if (!current) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+
+  let nextMedalShelfIds: string[] | undefined;
+  if (body.medalShelfIds !== undefined) {
+    const inventory = current.nick
+      ? await buildPlayerMedalInventory(current.nick).catch(() => [])
+      : [];
+    nextMedalShelfIds = normalizeMedalShelfIds(
+      body.medalShelfIds,
+      new Set(inventory.map((m) => m.id))
+    );
   }
 
   const bgUnlocks = await ensureBpL5ProfileBg(current);
@@ -111,8 +129,16 @@ export async function PATCH(req: Request) {
       profileBg: bg,
       ...(nickPatch !== undefined ? { nickPatch: nextPatch } : {}),
       ...(nickStyle !== undefined ? { nickStyle: nextNickStyle } : {}),
+      ...(nextMedalShelfIds !== undefined
+        ? { medalShelfIds: nextMedalShelfIds }
+        : {}),
     },
-    select: { profileBg: true, nickPatch: true, nickStyle: true },
+    select: {
+      profileBg: true,
+      nickPatch: true,
+      nickStyle: true,
+      medalShelfIds: true,
+    },
   });
 
   // Синхронно: рейтинги КВ/ТМ читают nick-patches.json; паблик — live overlay из БД.
@@ -126,5 +152,6 @@ export async function PATCH(req: Request) {
     bg: me.profileBg || null,
     nickPatch: me.nickPatch || null,
     nickStyle: me.nickStyle || null,
+    medalShelfIds: Array.isArray(me.medalShelfIds) ? me.medalShelfIds : [],
   });
 }

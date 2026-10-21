@@ -297,30 +297,30 @@ body.has-profile-bg .shell:has(.profile-page) {
   margin: 0;
   padding: 4px 2px 6px;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  justify-content: flex-start;
-  gap: 10px 12px;
+  justify-content: space-evenly;
+  gap: 8px;
   flex: 1 1 auto;
   min-height: 0;
   z-index: 1;
 }
 
-.profile-page-v2 .profile-medal-shelf-row.is-keech-bp-s1-trial {
-  flex-wrap: nowrap;
-  justify-content: center;
-  gap: 10px;
-  padding-inline: 0;
-}
-
-.profile-page-v2
-  .profile-medal-shelf-row.is-keech-bp-s1-trial
-  .profile-medal-slot:not(.is-bp-s1-trial) {
-  display: none;
-}
-
 .profile-page-v2 .profile-medal-slot {
-  flex: 0 0 auto;
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.profile-page-v2 .profile-medal-slot-empty {
+  display: block;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1px dashed rgba(212, 175, 55, 0.28);
+  background: rgba(0, 0, 0, 0.18);
 }
 
 .profile-page-v2 .profile-medal-item {
@@ -349,14 +349,6 @@ body.has-profile-bg .shell:has(.profile-page) {
   transition: filter 0.15s ease, transform 0.15s ease;
 }
 
-.profile-page-v2
-  .profile-medal-shelf-row.is-keech-bp-s1-trial
-  .profile-medal-item
-  img {
-  width: 68px;
-  height: 68px;
-}
-
 .profile-page-v2 .profile-medal-item:hover img,
 .profile-page-v2 .profile-medal-item:focus-visible img,
 .profile-page-v2 .profile-medal-item.is-active img {
@@ -368,20 +360,7 @@ body.has-profile-bg .shell:has(.profile-page) {
 }
 
 .profile-page-v2
-  .profile-medal-item[data-medal-id="keech-bp-s1-blueberry-test-v1"]:is(
-    :hover,
-    :focus-visible,
-    .is-active
-  )
-  img {
-  filter:
-    drop-shadow(0 0 7px rgba(108, 79, 255, 1))
-    drop-shadow(0 0 16px rgba(245, 197, 72, 0.92))
-    brightness(1.25);
-}
-
-.profile-page-v2
-  .profile-medal-item[data-medal-id="keech-bp-s1-blueberry-test-v2"]:is(
+  .profile-medal-item[data-medal-id="pb1-best-tester"]:is(
     :hover,
     :focus-visible,
     .is-active
@@ -391,19 +370,6 @@ body.has-profile-bg .shell:has(.profile-page) {
     drop-shadow(0 0 8px rgba(49, 202, 255, 1))
     drop-shadow(0 0 17px rgba(245, 197, 72, 0.92))
     brightness(1.27);
-}
-
-.profile-page-v2
-  .profile-medal-item[data-medal-id="keech-bp-s1-blueberry-test-v3"]:is(
-    :hover,
-    :focus-visible,
-    .is-active
-  )
-  img {
-  filter:
-    drop-shadow(0 0 8px rgba(178, 76, 255, 1))
-    drop-shadow(0 0 18px rgba(255, 207, 87, 0.95))
-    brightness(1.3);
 }
 
 .profile-medal-tip {
@@ -968,6 +934,97 @@ body.has-profile-bg .shell:has(.profile-page) {
   background: rgba(80, 50, 12, 0.45);
   color: #f8e7b0;
 }
+
+.profile-award-customize {
+  padding: 0 16px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow: auto;
+}
+.profile-award-hint {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+.profile-award-slots {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.profile-award-slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.profile-award-slot-btn {
+  width: 100%;
+  aspect-ratio: 1;
+  max-height: 96px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  background: rgba(18, 12, 28, 0.85);
+  color: rgba(245, 230, 180, 0.55);
+  font-weight: 800;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 8px;
+}
+.profile-award-slot.is-active .profile-award-slot-btn {
+  border-color: rgba(245, 215, 110, 0.9);
+  box-shadow: 0 0 0 2px rgba(245, 215, 110, 0.25);
+}
+.profile-award-slot-btn img {
+  width: 72%;
+  height: 72%;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.55));
+}
+.profile-award-slot-clear {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 180, 180, 0.45);
+  background: rgba(40, 12, 16, 0.9);
+  color: #ffc9c9;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.profile-award-slot-name {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: rgba(240, 230, 200, 0.8);
+  text-align: center;
+}
+.profile-award-inventory {
+  max-height: min(42vh, 320px);
+  overflow: auto;
+}
+.profile-award-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-height: 110px;
+  background-size: cover;
+}
+.profile-award-tile-art {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.5));
+}
+
 .profile-patch-empty {
   grid-column: 1 / -1;
   display: flex;

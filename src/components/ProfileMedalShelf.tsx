@@ -2,21 +2,38 @@
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import type { ProfileMedalItem } from "@/lib/profileMedals";
+import {
+  MEDAL_SHELF_SLOTS,
+  type ProfileMedalItem,
+  type ProfileMedalSlot,
+} from "@/lib/profileMedals";
 
 type Props = {
-  items: ProfileMedalItem[];
+  /** До 3 слотов; можно передать плоский список — добиваем до 3. */
+  items?: ProfileMedalItem[];
+  slots?: ProfileMedalSlot[];
 };
 
 type Tip = { text: string; x: number; y: number };
 
-function isKeechBpS1Trial(id: string) {
-  return id.startsWith("keech-bp-s1-blueberry-test-");
+function toSlots(
+  slots: ProfileMedalSlot[] | undefined,
+  items: ProfileMedalItem[] | undefined
+): ProfileMedalSlot[] {
+  if (Array.isArray(slots) && slots.length) {
+    const out = slots.slice(0, MEDAL_SHELF_SLOTS);
+    while (out.length < MEDAL_SHELF_SLOTS) out.push(null);
+    return out;
+  }
+  const list = Array.isArray(items) ? items.slice(0, MEDAL_SHELF_SLOTS) : [];
+  const out: ProfileMedalSlot[] = [...list];
+  while (out.length < MEDAL_SHELF_SLOTS) out.push(null);
+  return out;
 }
 
-export function ProfileMedalShelf({ items }: Props) {
-  const list = Array.isArray(items) ? items : [];
-  const hasKeechBpS1Trial = list.some((m) => isKeechBpS1Trial(m.id));
+export function ProfileMedalShelf({ items, slots }: Props) {
+  const row = toSlots(slots, items);
+  const hasAny = row.some(Boolean);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [tip, setTip] = useState<Tip | null>(null);
 
@@ -31,50 +48,48 @@ export function ProfileMedalShelf({ items }: Props) {
         <span className="profile-medal-watermark" aria-hidden>
           Награды
         </span>
-        {list.length === 0 ? (
+        {!hasAny ? (
           <p className="profile-medal-shelf-empty">
-            Полка пуста — награды появятся с Battle Pass и других сезонов.
+            Полка пуста — выбери до 3 наград в «Кастомизация профиля → Награды».
           </p>
         ) : (
-          <ul
-            className={`profile-medal-shelf-row${
-              hasKeechBpS1Trial ? " is-keech-bp-s1-trial" : ""
-            }`}
-          >
-            {list.map((m) => (
+          <ul className="profile-medal-shelf-row">
+            {row.map((m, i) => (
               <li
-                key={m.id}
-                className={`profile-medal-slot${
-                  isKeechBpS1Trial(m.id) ? " is-bp-s1-trial" : ""
-                }`}
+                key={m?.id || `empty-${i}`}
+                className={`profile-medal-slot${m ? "" : " is-empty"}`}
               >
-                <button
-                  type="button"
-                  data-medal-id={m.id}
-                  className={`profile-medal-item kind-${m.kind}${
-                    activeId === m.id ? " is-active" : ""
-                  }`}
-                  aria-label={m.hover}
-                  onMouseEnter={(e) => {
-                    setActiveId(m.id);
-                    showTip(e.currentTarget, m.hover);
-                  }}
-                  onMouseLeave={() => {
-                    setActiveId(null);
-                    setTip(null);
-                  }}
-                  onFocus={(e) => {
-                    setActiveId(m.id);
-                    showTip(e.currentTarget, m.hover);
-                  }}
-                  onBlur={() => {
-                    setActiveId(null);
-                    setTip(null);
-                  }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={m.icon} alt="" width={80} height={80} />
-                </button>
+                {m ? (
+                  <button
+                    type="button"
+                    data-medal-id={m.id}
+                    className={`profile-medal-item kind-${m.kind}${
+                      activeId === m.id ? " is-active" : ""
+                    }`}
+                    aria-label={m.hover}
+                    onMouseEnter={(e) => {
+                      setActiveId(m.id);
+                      showTip(e.currentTarget, m.hover);
+                    }}
+                    onMouseLeave={() => {
+                      setActiveId(null);
+                      setTip(null);
+                    }}
+                    onFocus={(e) => {
+                      setActiveId(m.id);
+                      showTip(e.currentTarget, m.hover);
+                    }}
+                    onBlur={() => {
+                      setActiveId(null);
+                      setTip(null);
+                    }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={m.icon} alt="" width={80} height={80} />
+                  </button>
+                ) : (
+                  <span className="profile-medal-slot-empty" aria-hidden />
+                )}
               </li>
             ))}
           </ul>

@@ -55,6 +55,8 @@ model User {
   nickStyle       String?
   /// Навсегда открытые стили ника (BP L10 и т.п.)
   unlockedNickStyles String[] @default([])
+  /// До 3 id наград на полке профиля (порядок = слоты). Пустой = авто первые из инвентаря.
+  medalShelfIds   String[] @default([])
   name            String?
   nick            String?  @unique
   age             Int?

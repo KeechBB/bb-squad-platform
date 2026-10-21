@@ -50,6 +50,9 @@ type Shell = {
   nickStyle?: ProfileNickStyleId | null;
   profileNickStyleChoices?: ProfileNickStyleChoice[];
   medals?: ProfileMedalItem[];
+  medalSlots?: Array<ProfileMedalItem | null>;
+  medalInventory?: ProfileMedalItem[];
+  medalShelfIds?: string[];
   lastSeenAt: string | Date | null;
   admin: boolean;
   isBb: boolean;
@@ -283,6 +286,12 @@ export function ProfilePageClient({ subjectNick }: { subjectNick?: string } = {}
               ? shell.profileNickStyleChoices
               : []
           }
+          medalInventory={
+            Array.isArray(shell.medalInventory) ? shell.medalInventory : []
+          }
+          medalShelfIds={
+            Array.isArray(shell.medalShelfIds) ? shell.medalShelfIds : []
+          }
           value={savedBg}
           patchValue={savedPatch}
           nickStyleValue={savedNickStyle}
@@ -315,11 +324,37 @@ export function ProfilePageClient({ subjectNick }: { subjectNick?: string } = {}
               return next;
             });
           }}
+          onMedalShelfSaved={(ids) => {
+            setShell((prev) => {
+              if (!prev) return prev;
+              const inv = Array.isArray(prev.medalInventory)
+                ? prev.medalInventory
+                : [];
+              const byId = new Map(inv.map((m) => [m.id, m]));
+              const medalSlots = [0, 1, 2].map((i) =>
+                ids[i] ? byId.get(ids[i]) || null : null
+              );
+              const medals = medalSlots.filter(
+                (x): x is ProfileMedalItem => Boolean(x)
+              );
+              const next = {
+                ...prev,
+                medalShelfIds: ids,
+                medalSlots,
+                medals,
+              };
+              writeShellCache(next);
+              return next;
+            });
+          }}
         />
         )}
         <ProfileModeSwitch value={mode} onChange={changeMode} />
         {readOnly ? null : <ClanInvites initial={shell.invites} />}
-        <ProfileMedalShelf items={shell.medals || []} />
+        <ProfileMedalShelf
+          slots={shell.medalSlots}
+          items={shell.medals || []}
+        />
       </div>
 
       <div className="profile-v2-career">
