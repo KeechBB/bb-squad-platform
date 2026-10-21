@@ -152,3 +152,30 @@ export type TournamentPlayerStatSortKey =
   | "mvpMedic"
   | "mvpArmor"
   | "nick";
+
+/* ——— Рейтинг команд ——— */
+
+export type TournamentTeamRatingRow = {
+  id: string;
+  name: string;
+  tag: string;
+  logoSrc: string | null;
+  matches: number;
+  winPct: number;
+  avgKd: number;
+  /** Сколько турниров команда сыграла */
+  tournamentsPlayed: number;
+  /** Сколько раз взяли 1 место */
+  titles: number;
+};
+
+export const TOURNAMENT_TEAM_RATING_DRAFT: TournamentTeamRatingRow[] = [];
+
+export type TournamentTeamRatingSortKey =
+  | "name"
+  | "tag"
+  | "matches"
+  | "winPct"
+  | "avgKd"
+  | "tournamentsPlayed"
+  | "titles";

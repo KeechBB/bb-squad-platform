@@ -872,6 +872,24 @@
   color: #a8c8f0;
 }
 
+/* ——— Рейтинг команд ——— */
+
+.tn-trating-logo {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid rgba(212, 168, 75, 0.4);
+  background: rgba(0, 0, 0, 0.35);
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.tn-trating-titles {
+  color: #f0d078;
+  font-weight: 700;
+}
+
 @media (max-width: 1100px) {
   .tn-home {
     grid-template-columns: 1fr;
