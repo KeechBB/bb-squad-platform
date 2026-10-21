@@ -185,7 +185,7 @@ function RatingPatchMock({
   );
 }
 
-/** Как на полке профиля — только награда + hover, без аватара/ника. */
+/** Полная имитация полки профиля (3 слота), как на /profile. */
 function ShelfMedalMock({
   reward,
   compact,
@@ -199,27 +199,41 @@ function ShelfMedalMock({
       : "/bp-previews/l20-medal.png";
   const tip = reward.hover || reward.name;
   return (
-    <div className={`bp-mock-shelf-medal${compact ? " is-compact" : ""}`}>
-      <button
-        type="button"
-        data-medal-id={reward.id}
-        className="bp-mock-shelf-medal-item profile-medal-item kind-medal"
-        title={tip}
-        aria-label={tip}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={icon} alt="" width={80} height={80} />
-      </button>
-      {!compact ? (
-        <p className="bp-mock-shelf-medal-note">
-          Награда за <strong>{reward.level} уровень</strong> Battle Pass ·
-          ставится на полку профиля
-        </p>
-      ) : (
-        <span className="bp-mock-shelf-medal-edge" aria-hidden>
+    <div className={`bp-shelf-preview${compact ? " is-compact" : ""}`}>
+      <div className="bp-shelf-preview-stage">
+        <span className="bp-shelf-preview-wm" aria-hidden>
+          Награды
+        </span>
+        <ul className="bp-shelf-preview-row">
+          <li className="bp-shelf-preview-slot">
+            <button
+              type="button"
+              data-medal-id={reward.id}
+              className="bp-shelf-preview-item kind-medal"
+              title={tip}
+              aria-label={tip}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={icon} alt="" width={80} height={80} />
+            </button>
+          </li>
+          <li className="bp-shelf-preview-slot is-empty">
+            <span className="bp-shelf-preview-empty" aria-hidden />
+          </li>
+          <li className="bp-shelf-preview-slot is-empty">
+            <span className="bp-shelf-preview-empty" aria-hidden />
+          </li>
+        </ul>
+        <span className="bp-shelf-preview-badge" aria-hidden>
           BP L{reward.level}
         </span>
-      )}
+      </div>
+      {!compact ? (
+        <p className="bp-shelf-preview-note">
+          Так будет на полке профиля · награда за{" "}
+          <strong>{reward.level} уровень</strong> Battle Pass
+        </p>
+      ) : null}
     </div>
   );
 }

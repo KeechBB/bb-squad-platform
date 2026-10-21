@@ -17928,6 +17928,10 @@ body:has(.profile-page) {
   max-height: 58%;
 }
 
+.bp-detail.has-reward:has(.bp-detail-reward.kind-medal) .bp-detail-top {
+  max-height: 72%;
+}
+
 .bp-detail-head {
   display: flex;
   flex-direction: column;
@@ -17996,11 +18000,18 @@ body:has(.profile-page) {
   overflow: hidden;
 }
 
+.bp-detail-reward.kind-medal {
+  overflow: visible;
+  padding: 8px 10px 10px;
+  gap: 6px;
+}
+
 .bp-detail-reward.kind-medal .bp-mock {
   max-height: none;
   overflow: visible;
   border: none;
   background: transparent;
+  margin-top: 2px;
 }
 
 .bp-progress {
@@ -18188,78 +18199,151 @@ body:has(.profile-page) {
   gap: 8px;
 }
 
-/* L20 medal preview ? same scale/hover as profile shelf */
-.bp-mock-shelf-medal {
+/* L20: full profile medal-shelf imitation */
+.bp-shelf-preview {
   display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 10px 4px 4px;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.bp-shelf-preview-stage {
+  position: relative;
+  min-height: 118px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 8px 10px 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(212, 175, 55, 0.28);
+  background:
+    linear-gradient(180deg, rgba(18, 14, 32, 0.55) 0%, rgba(12, 10, 22, 0.78) 70%);
+  overflow: hidden;
+}
+.bp-shelf-preview.is-compact .bp-shelf-preview-stage {
   min-height: 72px;
+  padding: 4px 6px;
 }
-.bp-mock-shelf-medal.is-compact {
-  padding: 6px 2px 2px;
-}
-.bp-mock-shelf-medal-item {
+.bp-shelf-preview-wm {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 auto;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-size: clamp(1.2rem, 2.8vw, 1.75rem);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  line-height: 1;
+  color: transparent;
+  background: linear-gradient(180deg, #fff6d0 0%, #f5d76e 42%, #c9962a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  opacity: 0.22;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+}
+.bp-shelf-preview.is-compact .bp-shelf-preview-wm {
+  font-size: 0.95rem;
+  letter-spacing: 0.12em;
+}
+.bp-shelf-preview-row {
+  list-style: none;
+  margin: 0;
+  padding: 4px 2px 4px;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-evenly;
+  gap: 8px;
+  z-index: 1;
+}
+.bp-shelf-preview-slot {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+.bp-shelf-preview-empty {
+  display: block;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1px dashed rgba(212, 175, 55, 0.28);
+  background: rgba(0, 0, 0, 0.18);
+}
+.bp-shelf-preview.is-compact .bp-shelf-preview-empty {
+  width: 36px;
+  height: 36px;
+}
+.bp-shelf-preview-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 0;
   border: none;
   background: transparent;
   cursor: pointer;
   transition: transform 0.15s ease;
 }
-.bp-mock-shelf-medal-item:hover,
-.bp-mock-shelf-medal-item:focus-visible {
+.bp-shelf-preview-item:hover,
+.bp-shelf-preview-item:focus-visible {
   transform: translateY(-3px);
   outline: none;
 }
-.bp-mock-shelf-medal-item img {
+.bp-shelf-preview-item img {
   width: 64px;
   height: 64px;
   object-fit: contain;
   filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.55));
   transition: filter 0.15s ease, transform 0.15s ease;
 }
-.bp-mock-shelf-medal-item:hover img,
-.bp-mock-shelf-medal-item:focus-visible img {
+.bp-shelf-preview.is-compact .bp-shelf-preview-item img {
+  width: 40px;
+  height: 40px;
+}
+.bp-shelf-preview-item:hover img,
+.bp-shelf-preview-item:focus-visible img {
   filter:
     drop-shadow(0 0 8px rgba(49, 202, 255, 1))
     drop-shadow(0 0 17px rgba(245, 197, 72, 0.92))
     brightness(1.27);
   transform: scale(1.06);
 }
-.bp-mock-shelf-medal-note {
-  margin: 0;
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: 0.72rem;
-  line-height: 1.35;
-  color: rgba(230, 220, 200, 0.78);
-  text-align: left;
-}
-.bp-mock-shelf-medal-note strong {
-  color: #f0d078;
-  font-weight: 700;
-}
-.bp-mock-shelf-medal-edge {
-  align-self: flex-start;
-  margin-left: auto;
+.bp-shelf-preview-badge {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 2;
   font-family: var(--font-display);
   font-size: 0.62rem;
-  letter-spacing: 0.08em;
-  color: rgba(212, 168, 75, 0.85);
-  white-space: nowrap;
+  letter-spacing: 0.1em;
+  color: rgba(240, 208, 120, 0.9);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.75);
+  pointer-events: none;
+}
+.bp-shelf-preview.is-compact .bp-shelf-preview-badge {
+  top: 4px;
+  right: 6px;
+  font-size: 0.55rem;
+}
+.bp-shelf-preview-note {
+  margin: 0;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  color: rgba(230, 220, 200, 0.78);
+  text-align: center;
+}
+.bp-shelf-preview-note strong {
+  color: #f0d078;
+  font-weight: 700;
 }
 .bp-mock-gallery .bp-mock.kind-medal {
   border: none;
   background: transparent;
   overflow: visible;
-}
-.bp-mock-gallery .bp-mock-shelf-medal-item img {
-  width: 48px;
-  height: 48px;
 }
 
 .bp-mock-medal {
