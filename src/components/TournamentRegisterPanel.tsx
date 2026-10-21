@@ -153,20 +153,31 @@ export function TournamentRegisterPanel() {
     data?.myRole === "CAPTAIN" || data?.myRole === "DEPUTY";
   const registered = Boolean(data?.myEntry);
 
+  const dOpen = `${t.regOpenDate.slice(8, 10)}.${t.regOpenDate.slice(5, 7)}.${t.regOpenDate.slice(2, 4)}`;
+  const dClose = `${t.regCloseDate.slice(8, 10)}.${t.regCloseDate.slice(5, 7)}.${t.regCloseDate.slice(2, 4)}`;
+  const dWithdraw = `${t.withdrawUntilDate.slice(8, 10)}.${t.withdrawUntilDate.slice(5, 7)}.${t.withdrawUntilDate.slice(2, 4)}`;
+
   return (
     <section className="tn-panel tn-register" aria-label="Регистрация команды">
-      <h2 className="tn-panel-title">Регистрация команды на турнир</h2>
-      <p className="tn-reg-dates">
-        Окно: {t.regOpenDate.slice(8, 10)}.{t.regOpenDate.slice(5, 7)}.
-        {t.regOpenDate.slice(2, 4)} — {t.regCloseDate.slice(8, 10)}.
-        {t.regCloseDate.slice(5, 7)}.{t.regCloseDate.slice(2, 4)} · отказ до{" "}
-        {t.withdrawUntilDate.slice(8, 10)}.{t.withdrawUntilDate.slice(5, 7)}.
-        {t.withdrawUntilDate.slice(2, 4)} · в заявке {TOURNAMENT_ENTRY_STARTERS}+
-        {TOURNAMENT_ENTRY_SUBS} (макс. {TOURNAMENT_ENTRY_MAX})
-      </p>
+      <div className="tn-register-top">
+        <h2 className="tn-panel-title">Регистрация команды на турнир</h2>
+        <p className="tn-reg-dates">
+          Окно: <span className="tn-hi">{dOpen}</span>
+          {" — "}
+          <span className="tn-hi">{dClose}</span>
+          {" · отказ до "}
+          <span className="tn-hi">{dWithdraw}</span>
+          {" · в заявке "}
+          <span className="tn-hi">
+            {TOURNAMENT_ENTRY_STARTERS}+{TOURNAMENT_ENTRY_SUBS}
+          </span>
+          {" (макс. "}
+          <span className="tn-hi">{TOURNAMENT_ENTRY_MAX}</span>)
+        </p>
+      </div>
 
       {!data ? (
-        <p className="tn-placeholder">Загрузка…</p>
+        <p className="tn-reg-note">Загрузка…</p>
       ) : registered ? (
         <div className="tn-reg-status is-ok">
           <p>
@@ -192,7 +203,7 @@ export function TournamentRegisterPanel() {
               Отменить регистрацию
             </button>
           ) : (
-            <p className="tn-placeholder">
+            <p className="tn-reg-note">
               {canManageEntry
                 ? "Срок отмены истёк или регистрация закрыта."
                 : "Отменить могут капитан или зам в срок регистрации."}
@@ -200,22 +211,27 @@ export function TournamentRegisterPanel() {
           )}
         </div>
       ) : !data.myTeam ? (
-        <p className="tn-placeholder">
-          Сначала создай турнирную команду во вкладке «Команды». Заявку подаёт
-          капитан или зам.
+        <p className="tn-reg-note">
+          Сначала создай турнирную команду во вкладке{" "}
+          <span className="tn-hi">«Команды»</span>. Заявку подаёт{" "}
+          <span className="tn-hi">капитан</span> или{" "}
+          <span className="tn-hi">зам</span>.
         </p>
       ) : !data.registrationOpen ? (
-        <p className="tn-placeholder">Регистрация сейчас закрыта.</p>
+        <p className="tn-reg-note">Регистрация сейчас закрыта.</p>
       ) : !canManageEntry ? (
-        <p className="tn-placeholder">
-          Команда [{data.myTeam.tag}] ещё не в сетке. Заявку подаёт капитан или
-          зам.
+        <p className="tn-reg-note">
+          Команда [{data.myTeam.tag}] ещё не в сетке. Заявку подаёт{" "}
+          <span className="tn-hi">капитан</span> или{" "}
+          <span className="tn-hi">зам</span>.
         </p>
       ) : !pickerOpen ? (
         <>
-          <p className="tn-placeholder">
-            Выбери {TOURNAMENT_ENTRY_STARTERS} основных и до{" "}
-            {TOURNAMENT_ENTRY_SUBS} замен из состава [{data.myTeam.tag}].
+          <p className="tn-reg-note">
+            Выбери <span className="tn-hi">{TOURNAMENT_ENTRY_STARTERS}</span>{" "}
+            основных и до{" "}
+            <span className="tn-hi">{TOURNAMENT_ENTRY_SUBS}</span> замен из
+            состава [{data.myTeam.tag}].
           </p>
           <button
             type="button"

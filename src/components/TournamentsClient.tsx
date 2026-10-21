@@ -24,12 +24,14 @@ function Placeholder({ children }: { children: ReactNode }) {
 function TournamentsHomeTab() {
   const t = ACTIVE_TOURNAMENT;
   const regOpen = isRegistrationOpen(t);
+  const [bracketOpen, setBracketOpen] = useState(false);
 
   function onBracket() {
     if (t.bracketHref) {
       window.location.href = t.bracketHref;
       return;
     }
+    setBracketOpen(true);
   }
 
   return (
@@ -163,14 +165,43 @@ function TournamentsHomeTab() {
           >
             СЕТКА ТУРНИРА
           </button>
-          {!t.bracketHref ? (
-            <p className="tn-bracket-hint">
-              Сетка заполнится зарегистрированными командами · карты — за 5 дней
-              до конца регистрации
-            </p>
-          ) : null}
         </section>
       </div>
+
+      {bracketOpen ? (
+        <div
+          className="tn-modal-backdrop"
+          role="presentation"
+          onClick={() => setBracketOpen(false)}
+        >
+          <div
+            className="tn-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="tn-bracket-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="tn-bracket-modal-title" className="tn-modal-title">
+              Сетка турнира
+            </h3>
+            <p className="tn-modal-body">
+              Сетка станет доступна за{" "}
+              <span className="tn-hi">5 дней</span> до окончания регистрации
+              команд.
+            </p>
+            <p className="tn-modal-body">
+              Сейчас идёт набор команд · карты появятся вместе с сеткой.
+            </p>
+            <button
+              type="button"
+              className="tn-teams-create-btn"
+              onClick={() => setBracketOpen(false)}
+            >
+              Понятно
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -201,9 +232,6 @@ export function TournamentsClient({ viewerNick }: Props) {
         <div className="tn-head-text">
           <p className="tn-eyebrow">BlackBerry · турнирный хаб</p>
           <h1>Турниры</h1>
-          <p className="tn-sub">
-            {ACTIVE_TOURNAMENT.name} · видно только тебе ({viewerNick || "Keech"})
-          </p>
         </div>
       </header>
 
