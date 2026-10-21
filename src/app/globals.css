@@ -17681,23 +17681,34 @@ body:has(.profile-page) {
   padding: 4px 4px 10px;
   margin: 0;
   min-height: 0;
+  /* Layout canon: line through disc centers; reward row one baseline */
+  --bp-pad-y: 8px;
+  --bp-reward-h: 58px;
+  --bp-gap: 8px;
+  --bp-disc: 48px;
+  --bp-line-h: 3px;
 }
 
 .bp-track {
   display: flex;
   gap: 10px;
   min-width: max-content;
-  padding: 8px 8px 4px;
+  padding: var(--bp-pad-y) 8px 4px;
   position: relative;
+  align-items: flex-start;
 }
 
 .bp-track::before {
   content: "";
   position: absolute;
-  left: 24px;
-  right: 24px;
-  top: 78px;
-  height: 3px;
+  left: 28px;
+  right: 28px;
+  /* Center of disc row: pad + reward + gap + half disc ? half line */
+  top: calc(
+    var(--bp-pad-y) + var(--bp-reward-h) + var(--bp-gap) + (var(--bp-disc) / 2) -
+      (var(--bp-line-h) / 2)
+  );
+  height: var(--bp-line-h);
   background: linear-gradient(
     90deg,
     transparent,
@@ -17706,6 +17717,7 @@ body:has(.profile-page) {
     transparent
   );
   pointer-events: none;
+  z-index: 0;
 }
 
 .bp-node {
@@ -17713,8 +17725,9 @@ body:has(.profile-page) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  width: 92px;
+  gap: var(--bp-gap);
+  width: 118px;
+  flex: 0 0 118px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -17725,10 +17738,14 @@ body:has(.profile-page) {
 }
 
 .bp-node-reward {
-  min-height: 44px;
+  height: var(--bp-reward-h);
+  min-height: var(--bp-reward-h);
+  max-height: var(--bp-reward-h);
+  width: 100%;
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  box-sizing: border-box;
 }
 
 .bp-node-reward-empty {
@@ -17739,12 +17756,15 @@ body:has(.profile-page) {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
-  padding: 4px 6px;
+  padding: 5px 8px;
   border-radius: 8px;
   border: 1px solid rgba(212, 168, 75, 0.45);
   background: rgba(40, 28, 12, 0.9);
-  max-width: 88px;
+  width: 100%;
+  max-width: 112px;
+  box-sizing: border-box;
 }
 
 .bp-reward-mark-short {
@@ -17753,6 +17773,8 @@ body:has(.profile-page) {
   text-transform: uppercase;
   color: var(--bp-amber);
   font-family: var(--font-display);
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
 .bp-reward-mark-name {
@@ -17760,17 +17782,24 @@ body:has(.profile-page) {
   line-height: 1.15;
   text-align: center;
   color: #f0e6c8;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-height: 2.3em;
 }
 
 .bp-node-disc {
-  width: 48px;
-  height: 48px;
+  width: var(--bp-disc);
+  height: var(--bp-disc);
+  flex: 0 0 var(--bp-disc);
   border-radius: 50%;
   display: grid;
   place-items: center;
   border: 2px solid rgba(138, 155, 176, 0.45);
   background: linear-gradient(160deg, #1a1624, #0c0a12);
-  transition: border-color 0.15s ease, transform 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
 }
 
 .bp-node-num {
@@ -17784,7 +17813,9 @@ body:has(.profile-page) {
   color: var(--muted);
   text-align: center;
   line-height: 1.2;
-  max-width: 88px;
+  width: 100%;
+  max-width: 112px;
+  min-height: 2.4em;
 }
 
 .bp-node.is-current .bp-node-disc {
@@ -17802,8 +17833,8 @@ body:has(.profile-page) {
 }
 
 .bp-node.is-selected .bp-node-disc {
-  transform: scale(1.08);
   border-color: #f0d078;
+  box-shadow: 0 0 0 3px rgba(240, 208, 120, 0.28);
 }
 
 .bp-node:hover .bp-node-disc {
