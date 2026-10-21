@@ -93,15 +93,25 @@ function TournamentsHomeTab() {
                     height={220}
                   />
                 ) : null}
+                {p.cashBanner ? (
+                  <div className="tn-prize-cash" aria-label="Денежный приз">
+                    <span className="tn-prize-cash-amount">
+                      {p.cashBanner.amount}
+                    </span>
+                    <span className="tn-prize-cash-note">
+                      {p.cashBanner.note}
+                    </span>
+                  </div>
+                ) : null}
                 {p.items.length ? (
                   <ul>
                     {p.items.map((item) => (
                       <li key={item}>{item}</li>
                     ))}
                   </ul>
-                ) : (
+                ) : !p.cashBanner ? (
                   <Placeholder>Состав призов — скоро</Placeholder>
-                )}
+                ) : null}
               </div>
             ))}
           </div>
