@@ -37,7 +37,25 @@ function TournamentsHomeTab() {
       <div className="tn-home-left">
         <section className="tn-panel tn-announce" aria-label="Анонс турнира">
           <h2 className="tn-panel-title">Анонс турнира</h2>
-          <div className="tn-announce-body">{t.announce}</div>
+          <p className="tn-announce-name">{t.name}</p>
+          <div className="tn-announce-cols">
+            <div className="tn-announce-col">
+              <h3 className="tn-announce-col-title">Регистрация и даты</h3>
+              <ul className="tn-announce-list">
+                {t.announceSchedule.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="tn-announce-col">
+              <h3 className="tn-announce-col-title">Формат</h3>
+              <ul className="tn-announce-list">
+                {t.announceFormat.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
           <p className={`tn-reg-badge${regOpen ? " is-open" : ""}`}>
             {regOpen ? "Регистрация открыта" : "Регистрация закрыта"}
           </p>

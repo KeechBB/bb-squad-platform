@@ -43,7 +43,12 @@ export type ActiveTournamentDraft = {
   id: string;
   name: string;
   logoSrc: string;
+  /** @deprecated — используй announceSchedule / announceFormat */
   announce: string | null;
+  /** Левая колонка анонса: даты / регистрация */
+  announceSchedule: string[];
+  /** Правая колонка анонса: формат / состав / карты */
+  announceFormat: string[];
   prizes: TournamentPrizeSlot[];
   rules: string | null;
   bracketHref: string | null;
@@ -55,6 +60,13 @@ export type ActiveTournamentDraft = {
   resultsDate: string;
   mapsRevealBeforeRegEndDays: number;
 };
+
+/** День ISO → ДД.ММ.ГГ */
+export function formatTourDay(isoDay: string): string {
+  const [y, m, d] = isoDay.split("-");
+  if (!y || !m || !d) return isoDay;
+  return `${d}.${m}.${y.slice(2)}`;
+}
 
 function mskDayStart(isoDay: string): Date {
   // МСК = UTC+3, день начинается 00:00 МСК
@@ -92,18 +104,18 @@ export const ACTIVE_TOURNAMENT: ActiveTournamentDraft = {
   playDate: "2026-10-31",
   resultsDate: "2026-11-01",
   mapsRevealBeforeRegEndDays: 5,
-  announce: [
-    "Fruit Strike Squad Cup Event #01",
-    "",
+  announce: null,
+  announceSchedule: [
     "Регистрация команд: 21.10.26 — 30.10.26",
     "Отказ от участия: до 29.10.26",
     "Дни проведения: 31.10.26",
     "Подведение итогов: 01.11.26",
-    "",
+  ],
+  announceFormat: [
     "Формат 8×8 · мод Fruit Cup League",
     "В заявке: до 8 основных + 2 замены (макс. 10 человек).",
     "Карты появятся в сетке за 5 дней до конца регистрации.",
-  ].join("\n"),
+  ],
   prizes: [
     {
       place: 1,
