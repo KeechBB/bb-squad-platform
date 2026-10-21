@@ -140,7 +140,7 @@
 }
 
 .tn-home-left {
-  grid-template-rows: minmax(120px, 0.85fr) minmax(220px, 1.35fr) minmax(140px, 1fr);
+  grid-template-rows: minmax(100px, 0.7fr) minmax(260px, 1.55fr) minmax(130px, 0.95fr);
 }
 
 .tn-home-right {
@@ -187,9 +187,10 @@
 .tn-logo-only {
   align-items: center;
   justify-content: center;
-  padding: 10px;
+  padding: 8px 12px;
   background:
-    radial-gradient(ellipse 70% 65% at 50% 45%, rgba(180, 40, 50, 0.18), transparent 70%),
+    radial-gradient(ellipse 62% 58% at 50% 48%, rgba(48, 42, 52, 0.55), transparent 72%),
+    radial-gradient(ellipse 70% 65% at 50% 45%, rgba(180, 40, 50, 0.12), transparent 70%),
     linear-gradient(165deg, rgba(22, 16, 28, 0.95) 0%, rgba(8, 6, 12, 0.96) 100%);
 }
 
@@ -197,11 +198,12 @@
   display: block;
   width: auto;
   height: auto;
-  max-width: 100%;
+  max-width: min(100%, 420px);
   max-height: 100%;
   object-fit: contain;
   image-rendering: auto;
-  filter: none;
+  -webkit-font-smoothing: antialiased;
+  filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.65));
   transform: none;
   user-select: none;
   pointer-events: none;

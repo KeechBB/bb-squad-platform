@@ -21,7 +21,7 @@ export const TOURNAMENT_TABS: TournamentTab[] = [
   { id: "match-history", label: "История матчей", short: "История" },
 ];
 
-export const FRUIT_STRIKE_LOGO = "/tournaments/fruit-strike-logo-hq.png";
+export const FRUIT_STRIKE_LOGO = "/tournaments/fruit-strike-logo-hq.png?v=2";
 
 export type TournamentPrizeSlot = {
   place: 1 | 2 | 3;

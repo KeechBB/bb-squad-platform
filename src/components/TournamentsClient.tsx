@@ -50,7 +50,7 @@ function TournamentsHomeTab() {
             src={t.logoSrc}
             alt={t.name}
             width={1024}
-            height={1024}
+            height={1005}
             decoding="async"
           />
         </section>
