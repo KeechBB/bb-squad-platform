@@ -21,7 +21,9 @@ function addDaysYmd(ymd: string, delta: number): string {
 
 /**
  * Дни МСК выходного на календарь.
- * Открытый stint — до untilAt (в т.ч. будущие); закрытый — до exitedAt.
+ * Открытый stint — до untilAt (в т.ч. будущие).
+ * Закрытый — до min(exitedAt, untilAt): если вышли поздно (после срока),
+ * лишние дни после untilAt не красим как выходной.
  */
 export function dayOffTrainingDaysFromStints(
   stints: Array<{
@@ -33,9 +35,12 @@ export function dayOffTrainingDaysFromStints(
   const days = new Set<string>();
   for (const s of stints) {
     let start = formatMskYmd(s.enteredAt);
-    const end = s.exitedAt
-      ? formatMskYmd(s.exitedAt)
-      : formatMskYmd(s.untilAt);
+    const untilYmd = formatMskYmd(s.untilAt);
+    let end = untilYmd;
+    if (s.exitedAt) {
+      const exitedYmd = formatMskYmd(s.exitedAt);
+      end = exitedYmd < untilYmd ? exitedYmd : untilYmd;
+    }
     if (start < ATTENDANCE_CANON_START_YMD) {
       start = ATTENDANCE_CANON_START_YMD;
     }
@@ -48,6 +53,11 @@ export function dayOffTrainingDaysFromStints(
     }
   }
   return [...days].sort();
+}
+
+/** При закрытии stint не уезжать exitedAt за untilAt. */
+export function clampDayOffExitAt(untilAt: Date, when: Date = new Date()): Date {
+  return when.getTime() <= untilAt.getTime() ? when : untilAt;
 }
 
 export async function dayOffDaysForUser(userId: string): Promise<string[]> {
@@ -107,13 +117,20 @@ export async function enterDayOff(opts: {
     });
   }
 
-  await prisma.dayOffStint.updateMany({
+  const openPrev = await prisma.dayOffStint.findMany({
     where: { userId: me.id, exitedAt: null },
-    data: {
-      exitedAt: new Date(),
-      exitedById: opts.actor.id,
-    },
+    select: { id: true, untilAt: true },
   });
+  const now = new Date();
+  for (const prev of openPrev) {
+    await prisma.dayOffStint.update({
+      where: { id: prev.id },
+      data: {
+        exitedAt: clampDayOffExitAt(prev.untilAt, now),
+        exitedById: opts.actor.id,
+      },
+    });
+  }
 
   const user = await prisma.user.update({
     where: { id: me.id },
@@ -219,13 +236,20 @@ export async function exitDayOff(opts: {
     },
   });
 
-  await prisma.dayOffStint.updateMany({
+  const open = await prisma.dayOffStint.findMany({
     where: { userId: me.id, exitedAt: null },
-    data: {
-      exitedAt: new Date(),
-      exitedById: opts.actor.id,
-    },
+    select: { id: true, untilAt: true },
   });
+  const nowExit = new Date();
+  for (const s of open) {
+    await prisma.dayOffStint.update({
+      where: { id: s.id },
+      data: {
+        exitedAt: clampDayOffExitAt(s.untilAt, nowExit),
+        exitedById: opts.actor.id,
+      },
+    });
+  }
 
   livePublish(userLiveChannel(me.id), JSON.stringify({ type: "day-off" }));
 

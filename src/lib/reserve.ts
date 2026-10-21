@@ -23,7 +23,7 @@ function addDaysYmd(ymd: string, delta: number): string {
 /**
  * Дни МСК резерва на календарь (уваж. причина).
  * Открытый stint — до untilAt (в т.ч. будущие, заранее);
- * закрытый — до exitedAt. С канона посещаемости.
+ * закрытый — до min(exitedAt, untilAt). С канона посещаемости.
  * @param endCapYmd — опционально обрезать (для стриков посещаемости = сегодня)
  */
 export function reserveTrainingDaysFromStints(
@@ -37,9 +37,12 @@ export function reserveTrainingDaysFromStints(
   const days = new Set<string>();
   for (const s of stints) {
     let start = formatMskYmd(s.enteredAt);
-    let end = s.exitedAt
-      ? formatMskYmd(s.exitedAt)
-      : formatMskYmd(s.untilAt);
+    const untilYmd = formatMskYmd(s.untilAt);
+    let end = untilYmd;
+    if (s.exitedAt) {
+      const exitedYmd = formatMskYmd(s.exitedAt);
+      end = exitedYmd < untilYmd ? exitedYmd : untilYmd;
+    }
     if (endCapYmd && end > endCapYmd) end = endCapYmd;
     if (start < ATTENDANCE_CANON_START_YMD) {
       start = ATTENDANCE_CANON_START_YMD;
