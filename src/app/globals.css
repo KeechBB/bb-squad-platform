@@ -7272,6 +7272,138 @@ body:has(.home-page) {
   font-weight: 700;
 }
 
+/* ????????? ????? ?? ??????? ? ????? plaque ? ?????? */
+.home-tour-announce {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: minmax(96px, 132px) minmax(0, 1fr);
+  gap: 14px 18px;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  margin-top: 10px;
+  padding: 12px 16px 12px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(240, 201, 135, 0.45);
+  background:
+    linear-gradient(
+      115deg,
+      rgba(28, 12, 48, 0.72) 0%,
+      rgba(76, 29, 149, 0.38) 48%,
+      rgba(20, 10, 36, 0.7) 100%
+    );
+  box-shadow:
+    0 0 0 1px rgba(240, 201, 135, 0.12),
+    0 12px 32px rgba(76, 29, 149, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  text-decoration: none;
+  color: inherit;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.home-tour-announce:hover {
+  border-color: rgba(240, 201, 135, 0.75);
+  box-shadow:
+    0 0 0 1px rgba(240, 201, 135, 0.22),
+    0 16px 40px rgba(124, 58, 237, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+.home-tour-announce:focus-visible {
+  outline: 2px solid #f0c987;
+  outline-offset: 3px;
+}
+
+.home-tour-announce-logo-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.home-tour-announce-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+}
+
+.home-tour-announce-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.home-tour-announce-eyebrow {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #f0c987;
+}
+
+.home-tour-announce-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.05rem, 1.6vw, 1.35rem);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1.15;
+  color: #f7f3ff;
+  text-shadow: 0 0 18px rgba(196, 181, 253, 0.35);
+}
+
+.home-tour-announce-meta {
+  margin: 2px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: rgba(236, 230, 255, 0.88);
+}
+
+.home-tour-announce-meta strong {
+  color: #f0c987;
+  font-weight: 700;
+}
+
+.home-tour-announce-cta {
+  margin: 6px 0 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #f0c987;
+  letter-spacing: 0.02em;
+}
+
+.home-tour-announce:hover .home-tour-announce-cta {
+  color: #ffe6b0;
+}
+
+@media (max-width: 640px) {
+  .home-tour-announce {
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: 10px 12px;
+    padding: 10px 12px 10px 10px;
+  }
+
+  .home-tour-announce-title {
+    font-size: 1rem;
+  }
+
+  .home-tour-announce-meta {
+    font-size: 0.76rem;
+  }
+}
+
 .home-layout > .home-hero {
   grid-area: brand;
   justify-self: stretch;

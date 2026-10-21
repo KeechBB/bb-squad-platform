@@ -73,36 +73,44 @@ function mapTeam(team: any) {
   };
 }
 
-/** GET — список команд + моя команда */
+/** GET — список команд (публично) + моя команда (если залогинен) */
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.steamId || !session.user.profileComplete) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-
-  const me = await prisma.user.findUnique({
-    where: { steamId: session.user.steamId },
-    select: { id: true },
+  const teams = await prisma.tournamentTeam.findMany({
+    orderBy: { createdAt: "desc" },
+    include: teamInclude,
   });
-  if (!me) return NextResponse.json({ error: "no user" }, { status: 401 });
 
-  const [teams, membership] = await Promise.all([
-    prisma.tournamentTeam.findMany({
-      orderBy: { createdAt: "desc" },
-      include: teamInclude,
-    }),
-    prisma.tournamentTeamMember.findFirst({
-      where: { userId: me.id },
-      select: { teamId: true, role: true },
-    }),
-  ]);
+  let myTeamId: string | null = null;
+  let myRole: string | null = null;
+  let myUserId: string | null = null;
+  let canCreate = false;
+
+  if (session?.user?.steamId && session.user.profileComplete) {
+    const me = await prisma.user.findUnique({
+      where: { steamId: session.user.steamId },
+      select: { id: true },
+    });
+    if (me) {
+      myUserId = me.id;
+      const membership = await prisma.tournamentTeamMember.findFirst({
+        where: { userId: me.id },
+        select: { teamId: true, role: true },
+      });
+      myTeamId = membership?.teamId || null;
+      myRole = membership?.role || null;
+      canCreate = !myTeamId;
+    }
+  }
 
   return NextResponse.json({
     ok: true,
     teams: teams.map(mapTeam),
-    myTeamId: membership?.teamId || null,
-    myRole: membership?.role || null,
-    myUserId: me.id,
+    myTeamId,
+    myRole,
+    myUserId,
+    canCreate,
+    authed: Boolean(session?.user?.steamId && session.user.profileComplete),
   });
 }
 

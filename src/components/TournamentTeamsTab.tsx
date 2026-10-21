@@ -97,10 +97,13 @@ function roleOptionsForActor(
 function TeamsOverview({
   teams,
   canCreate,
+  authed,
   onCreated,
 }: {
   teams: ApiTeam[];
   canCreate: boolean;
+  /** Зарегистрированный пользователь (профиль заполнен) */
+  authed: boolean;
   onCreated: (team: ApiTeam) => void;
 }) {
   const [name, setName] = useState("");
@@ -206,7 +209,12 @@ function TeamsOverview({
           aria-label="Создание команды"
         >
           <h2 className="tn-panel-title">Окно создания команды</h2>
-          {!canCreate ? (
+          {!authed ? (
+            <Placeholder>
+              Создать команду могут только зарегистрированные игроки —
+              войди через Steam и заверши регистрацию на сайте.
+            </Placeholder>
+          ) : !canCreate ? (
             <Placeholder>
               Ты уже состоишь в команде — создание недоступно.
             </Placeholder>
@@ -758,6 +766,8 @@ export function TournamentTeamsTab({ viewerNick }: { viewerNick: string }) {
   const [myTeamId, setMyTeamId] = useState<string | null>(null);
   const [myRole, setMyRole] = useState<string | null>(null);
   const [myUserId, setMyUserId] = useState<string | null>(null);
+  const [authed, setAuthed] = useState(false);
+  const [canCreate, setCanCreate] = useState(false);
   const [bootError, setBootError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
@@ -769,6 +779,8 @@ export function TournamentTeamsTab({ viewerNick }: { viewerNick: string }) {
         myTeamId?: string | null;
         myRole?: string | null;
         myUserId?: string | null;
+        canCreate?: boolean;
+        authed?: boolean;
       };
       if (!res.ok) {
         setBootError(data.error || "Не удалось загрузить команды");
@@ -778,6 +790,8 @@ export function TournamentTeamsTab({ viewerNick }: { viewerNick: string }) {
       setMyTeamId(data.myTeamId || null);
       setMyRole(data.myRole || null);
       setMyUserId(data.myUserId || null);
+      setAuthed(Boolean(data.authed));
+      setCanCreate(Boolean(data.canCreate));
       setBootError(null);
     } catch {
       setBootError("Сеть недоступна");
@@ -797,6 +811,8 @@ export function TournamentTeamsTab({ viewerNick }: { viewerNick: string }) {
     setTeams((prev) => [team, ...prev.filter((t) => t.id !== team.id)]);
     setMyTeamId(team.id);
     setMyRole("CAPTAIN");
+    setCanCreate(false);
+    setAuthed(true);
     setSub("my-team");
   }
 
@@ -804,6 +820,7 @@ export function TournamentTeamsTab({ viewerNick }: { viewerNick: string }) {
     setTeams((prev) => prev.filter((t) => t.id !== myTeamId));
     setMyTeamId(null);
     setMyRole(null);
+    setCanCreate(authed);
     setSub("overview");
   }
 
@@ -837,7 +854,8 @@ export function TournamentTeamsTab({ viewerNick }: { viewerNick: string }) {
       {sub === "overview" ? (
         <TeamsOverview
           teams={teams}
-          canCreate={!myTeamId}
+          canCreate={canCreate}
+          authed={authed}
           onCreated={onCreated}
         />
       ) : (

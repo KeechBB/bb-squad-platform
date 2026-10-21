@@ -5,6 +5,7 @@ import { getHomeDashboardData } from "@/lib/homePageData";
 import { HomePanels } from "@/components/HomePanels";
 import { HomeFit } from "@/components/HomeFit";
 import { HomeLoginPrompt } from "@/components/HomeLoginPrompt";
+import { HomeTournamentAnnounce } from "@/components/HomeTournamentAnnounce";
 
 export const dynamic = "force-dynamic";
 
@@ -89,10 +90,11 @@ export default async function HomePage() {
               <strong>игроков</strong> и участников <strong>кланов</strong>.
             </p>
             <p className="home-welcome-plaque-note">
-              В скором времени планируем проводить различные{" "}
-              <strong>турниры</strong> для всех желающих.
+              Стартовал первый <strong>турнир</strong> Fruit Strike — регистрация
+              открыта для всех желающих.
             </p>
           </aside>
+          <HomeTournamentAnnounce />
           <HomePanels
             pwrBoard={pwrBoard}
             publicTop={publicTop}
