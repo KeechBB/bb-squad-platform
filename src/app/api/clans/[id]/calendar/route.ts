@@ -169,6 +169,46 @@ export async function GET(_req: Request, ctx: Ctx) {
     take: 200,
   });
 
+  function timeMskMinutes(t: string): number {
+    const m = String(t || "").trim().match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return -1;
+    return Number(m[1]) * 60 + Number(m[2]);
+  }
+
+  function stackKind(stack: string): "junior" | "main" | "other" {
+    const s = String(stack || "").toLowerCase();
+    if (s.includes("jun")) return "junior";
+    if (s.includes("main")) return "main";
+    return "other";
+  }
+
+  /** KV-слот уже есть (заявка принята в календарь) — не дублировать challenge. */
+  function coveredByKv(opts: {
+    year: number;
+    month: number;
+    day: number;
+    timeMsk: string;
+    oppRaw: string;
+    stack: string;
+  }): boolean {
+    const oppKey = canonOpp(opts.oppRaw).key;
+    const sk = stackKind(opts.stack);
+    const mins = timeMskMinutes(opts.timeMsk);
+    return matches.some((m) => {
+      if (m.source !== "kv") return false;
+      if (m.year !== opts.year || m.month !== opts.month || m.day !== opts.day) {
+        return false;
+      }
+      if (canonOpp(m.opp).key !== oppKey) return false;
+      if (sk !== "other" && stackKind(m.stack) !== "other" && stackKind(m.stack) !== sk) {
+        return false;
+      }
+      const mm = timeMskMinutes(m.timeMsk);
+      if (mins >= 0 && mm >= 0 && Math.abs(mins - mm) > 90) return false;
+      return true;
+    });
+  }
+
   for (const e of events) {
     const d = new Date(e.scheduledAt);
     const parts = new Intl.DateTimeFormat("en-GB", {
@@ -205,6 +245,21 @@ export async function GET(_req: Request, ctx: Ctx) {
     const stackName =
       (e.stack && String(e.stack).trim()) ||
       (tagUp === "BB" ? "Main" : clan.tag);
+    const oppRaw = e.opponentTag || e.opponentName || "?";
+    // Принятая заявка уже лежит в KV (карта/сервер) — второй чип «Hotdrop» без карты не нужен.
+    if (
+      coveredByKv({
+        year,
+        month,
+        day,
+        timeMsk: `${hh}:${mm}`,
+        oppRaw,
+        stack: stackName,
+      })
+    ) {
+      continue;
+    }
+
     const stackLogo =
       tagUp === "BB"
         ? stackName.toLowerCase().includes("jun")
@@ -221,7 +276,7 @@ export async function GET(_req: Request, ctx: Ctx) {
           year,
           timeMsk: `${hh}:${mm}`,
           clan: tagUp === "BB" ? "BlackBerry" : clan.tag,
-          opp: e.opponentTag || e.opponentName || "?",
+          opp: oppRaw,
           map: modeLabel(modeId),
           mapShort: modeLabel(modeId),
           size: e.format > 0 ? String(e.format) : "—",
