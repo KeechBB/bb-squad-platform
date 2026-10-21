@@ -27,6 +27,7 @@
   justify-content: space-between;
   gap: 12px;
   flex: 0 0 auto;
+  padding-bottom: 2px;
 }
 
 .tn-eyebrow {
@@ -44,6 +45,7 @@
   font-size: clamp(1.2rem, 1.8vw, 1.55rem);
   letter-spacing: 0.04em;
   line-height: 1.1;
+  margin-bottom: 0;
 }
 
 .tn-sub {
@@ -834,14 +836,6 @@
   font-size: 0.92rem;
   line-height: 1.45;
   color: #efe6d6;
-}
-
-.tn-head {
-  padding-bottom: 2px;
-}
-
-.tn-head h1 {
-  margin-bottom: 0;
 }
 
 .tn-soon {
