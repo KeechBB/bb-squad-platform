@@ -13,10 +13,11 @@
   width: 100%;
   max-width: none;
   flex: 1 1 auto;
-  height: 100%;
+  height: auto;
   min-height: 0;
-  max-height: 100%;
-  overflow: hidden;
+  min-width: 0;
+  max-height: none;
+  overflow: visible;
   box-sizing: border-box;
   color: var(--tn-ink);
 }
@@ -105,7 +106,8 @@
 .tn-body {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: hidden;
+  min-width: 0;
+  overflow: visible;
   display: flex;
   flex-direction: column;
 }
@@ -126,12 +128,13 @@
 
 .tn-home {
   display: grid;
-  grid-template-columns: minmax(280px, 0.9fr) minmax(360px, 1.35fr);
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.35fr);
   gap: 10px;
-  height: 100%;
+  height: auto;
   min-height: 0;
-  align-items: stretch;
-  overflow: hidden;
+  min-width: 0;
+  align-items: start;
+  overflow: visible;
 }
 
 .tn-home-left,
@@ -139,14 +142,15 @@
   display: grid;
   gap: 12px;
   min-height: 0;
+  min-width: 0;
 }
 
 .tn-home-left {
-  grid-template-rows: minmax(140px, 0.9fr) minmax(240px, 1.4fr) minmax(130px, 0.95fr);
+  grid-template-rows: auto auto auto;
 }
 
 .tn-home-right {
-  grid-template-rows: minmax(160px, 0.72fr) minmax(280px, 1.4fr);
+  grid-template-rows: auto auto;
 }
 
 .tn-panel {
@@ -161,7 +165,8 @@
   background:
     linear-gradient(165deg, rgba(28, 22, 36, 0.92) 0%, rgba(10, 8, 16, 0.9) 100%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  overflow: hidden;
+  overflow: visible;
+  min-width: 0;
 }
 
 .tn-panel-title {
@@ -199,6 +204,7 @@
 
 .tn-rules-line {
   margin: 0;
+  overflow-wrap: anywhere;
   padding: 5px 8px;
   border-radius: 8px;
   border: 1px solid rgba(212, 168, 75, 0.12);
@@ -227,7 +233,7 @@
 
 .tn-announce {
   gap: 8px;
-  overflow: hidden;
+  overflow: visible;
   box-sizing: border-box;
 }
 
@@ -235,6 +241,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
   flex: 0 0 auto;
   min-width: 0;
@@ -273,7 +280,7 @@
   flex-direction: column;
   gap: 10px;
   justify-content: center;
-  overflow: hidden;
+  overflow: visible;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
@@ -307,7 +314,7 @@
   font-weight: 700;
   letter-spacing: 0.02em;
   color: #fff4d2;
-  overflow: hidden;
+  overflow: visible;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
@@ -323,6 +330,8 @@
   border: 0;
   border-radius: 0;
   text-shadow: 0 0 14px rgba(240, 208, 120, 0.22);
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .tn-announce-list li::before {
@@ -346,7 +355,7 @@
   width: auto;
   height: auto;
   max-width: min(100%, 460px);
-  max-height: 100%;
+  max-height: min(42vh, 420px);
   object-fit: contain;
   image-rendering: auto;
   filter: none;
@@ -362,7 +371,7 @@
 .tn-register {
   justify-content: flex-start;
   gap: 10px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .tn-register-top {
@@ -530,7 +539,8 @@
   color: rgba(210, 200, 185, 0.7);
 }
 .tn-prizes {
-  overflow: hidden;
+  overflow: visible;
+  min-width: 0;
 }
 
 .tn-prize-media {
@@ -661,6 +671,7 @@
   line-height: 1.25;
   letter-spacing: 0.02em;
   color: rgba(255, 236, 180, 0.88);
+  overflow-wrap: anywhere;
 }
 
 .tn-register-btn:hover:not(:disabled),
@@ -678,11 +689,12 @@
 .tn-prizes-grid {
   flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   align-items: stretch;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .tn-prize {
@@ -1661,11 +1673,11 @@
   font-family: ui-monospace, monospace;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1366px) {
   .tn-home {
     grid-template-columns: 1fr;
     min-height: 0;
-    overflow: auto;
+    overflow: visible;
   }
   .tn-home-left,
   .tn-home-right {
