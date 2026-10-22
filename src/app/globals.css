@@ -7711,11 +7711,12 @@ body:has(.home-page) {
 
 .home-dock-col .home-attend-streaks-rank {
   order: 1;
-  flex: 0 0 1.45rem;
+  flex: 0 0 1.75rem;
   align-self: center;
   text-align: center;
   font-size: 0.82rem;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
   display: grid;
   place-items: center;
 }
@@ -7767,14 +7768,14 @@ body:has(.home-page) {
 
 .home-dock-col .home-pwr-badge {
   order: 3;
-  flex: 0 0 auto;
+  flex: 0 0 6.15rem;
   align-self: center;
-  width: auto;
-  min-width: 0;
-  max-width: none;
-  padding: 2px 5px;
-  font-size: 0.58rem;
-  letter-spacing: 0.02em;
+  width: 6.15rem;
+  min-width: 6.15rem;
+  max-width: 6.15rem;
+  padding: 2px 4px;
+  font-size: 0.56rem;
+  letter-spacing: 0.01em;
   line-height: 1.35;
   text-align: center;
   overflow: hidden;
@@ -9177,7 +9178,7 @@ body:has(.home-page) {
 }
 
 .home-train-pwr-list .home-train-pwr-row {
-  grid-template-columns: 1.1rem minmax(3.6rem, auto) minmax(0, 1fr) auto;
+  grid-template-columns: 1.75rem minmax(0, 1fr) 6.15rem 4.2rem;
   gap: 6px 8px;
   align-items: center;
 }
@@ -9188,6 +9189,12 @@ body:has(.home-page) {
   gap: 4px;
   min-width: 0;
   max-width: 100%;
+}
+
+.home-dock-col .home-nick-decor {
+  order: 2;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .home-nick-decor .home-attend-streaks-nick {
