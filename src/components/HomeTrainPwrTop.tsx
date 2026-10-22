@@ -106,7 +106,6 @@ export function HomeTrainPwrTop({ initial, viewerNick = null }: Props) {
                 </span>
                 <HomeNickDecor
                   nick={r.nick}
-                  nickPatch={r.nickPatch}
                   nickStyle={r.nickStyle}
                   href={`/players/${encodeURIComponent(r.nick)}`}
                 />

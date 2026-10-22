@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { NickPatchMark } from "@/components/NickPatchMark";
 import {
   normalizeProfileNickStyle,
   profileNickStyleCssClass,
@@ -9,16 +8,14 @@ import {
 
 type Props = {
   nick: string;
-  nickPatch?: string | null;
   nickStyle?: string | null;
   href?: string;
   className?: string;
 };
 
-/** Ник + стиль шрифта + нашивка (как в рейтингах). */
+/** Ник + стиль шрифта на топах главной. Нашивку здесь не показываем. */
 export function HomeNickDecor({
   nick,
-  nickPatch = null,
   nickStyle = null,
   href,
   className = "home-attend-streaks-nick",
@@ -53,7 +50,6 @@ export function HomeNickDecor({
           {label}
         </span>
       )}
-      <NickPatchMark patchId={nickPatch} className="home-nick-patch" />
     </span>
   );
 }
