@@ -5934,7 +5934,7 @@ body:has(.profile-page) {
   align-items: flex-end;
   gap: 4px;
   min-height: 220px;
-  padding: 8px 4px 0;
+  padding: 18px 4px 0;
   overflow-x: auto;
 }
 
@@ -5982,12 +5982,13 @@ body:has(.profile-page) {
 
 .attend-dynamics-bar span {
   position: absolute;
-  top: -16px;
+  top: -15px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   font-weight: 700;
   white-space: nowrap;
+  line-height: 1;
 }
 
 .attend-dynamics-bar.u span {

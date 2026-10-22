@@ -208,17 +208,13 @@ export function AttendEveningDynamics() {
                       className="attend-dynamics-bar u"
                       style={{ height: `${d.unique ? uh : 0}%` }}
                     >
-                      {d.unique > 0 && board.days.length <= 14 ? (
-                        <span>{d.unique}</span>
-                      ) : null}
+                      {d.unique > 0 ? <span>{d.unique}</span> : null}
                     </div>
                     <div
                       className="attend-dynamics-bar p"
                       style={{ height: `${d.peak ? ph : 0}%` }}
                     >
-                      {d.peak > 0 && board.days.length <= 14 ? (
-                        <span>{d.peak}</span>
-                      ) : null}
+                      {d.peak > 0 ? <span>{d.peak}</span> : null}
                     </div>
                   </div>
                   <div className="attend-dynamics-xlabel">
