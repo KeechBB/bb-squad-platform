@@ -6015,6 +6015,71 @@ body:has(.profile-page) {
   font-weight: 700;
 }
 
+.attend-tiers-kpis .attend-dynamics-kpi strong {
+  color: inherit;
+}
+
+.attend-tiers-legend {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.attend-tiers-leg {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: rgba(160, 150, 175, 0.95);
+}
+
+.attend-tiers-leg i {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.attend-tiers-stack {
+  position: relative;
+  width: 100%;
+  max-width: 36px;
+  height: 180px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-start;
+  border-radius: 6px 6px 2px 2px;
+  overflow: hidden;
+}
+
+.attend-tiers-seg {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  flex-shrink: 0;
+}
+
+.attend-tiers-seg span {
+  font-size: 0.58rem;
+  font-weight: 700;
+  color: rgba(18, 14, 28, 0.9);
+  line-height: 1;
+}
+
+.attend-tiers-total {
+  position: absolute;
+  top: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: rgba(246, 243, 236, 0.95);
+  white-space: nowrap;
+  z-index: 1;
+}
+
 .attend-timeline-wrap {
   margin-top: 12px;
 }

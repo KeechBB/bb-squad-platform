@@ -11,6 +11,7 @@ import type {
 } from "@/lib/attendanceStreaks";
 import { ListPager, pageSlice } from "@/components/ListPager";
 import { AttendEveningDynamics } from "@/components/AttendEveningDynamics";
+import { AttendEveningTiers } from "@/components/AttendEveningTiers";
 
 const ATTEND_PAGE_SIZE = 50;
 
@@ -800,6 +801,7 @@ export function AdminAttendancePanel() {
       {tab === "stats" ? (
         <div className="attend-stats-grid attend-stats-grid-v2">
           <AttendEveningDynamics />
+          <AttendEveningTiers />
 
           <div
             className="training-chart-block attend-streak-board"
