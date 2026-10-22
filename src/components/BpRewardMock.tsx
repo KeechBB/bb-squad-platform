@@ -53,7 +53,7 @@ function ProfileHeadMock({
   const goldNick = kind === "nick";
   const medalIcon =
     reward.id === "pb1-best-tester"
-      ? "/awards/bp-s1-l20-cobalt-core.png"
+      ? "/awards/bp-s1-l20-pink-strawberry.png"
       : null;
   return (
     <div className="bp-mock-row">
@@ -195,7 +195,7 @@ function ShelfMedalMock({
 }) {
   const icon =
     reward.id === "pb1-best-tester"
-      ? "/awards/bp-s1-l20-cobalt-core.png"
+      ? "/awards/bp-s1-l20-pink-strawberry.png"
       : "/bp-previews/l20-medal.png";
   const tip = reward.hover || reward.name;
   return (

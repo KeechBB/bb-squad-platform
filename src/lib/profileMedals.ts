@@ -46,7 +46,7 @@ const BP_ICONS: Record<string, string> = {
   "pb1-gold-nick": "/bp-previews/l15-gold-nick.png",
   "pb1-aurum-clean": "/bp-previews/l15-gold-nick.png",
   "pb1-profile-customize": "/bp-assets/keech-m4a1-gold-standard-v2.png",
-  "pb1-best-tester": "/awards/bp-s1-l20-cobalt-core.png",
+  "pb1-best-tester": "/awards/bp-s1-l20-pink-strawberry.png",
   "pb1-gold-bg": "/bp-previews/l5-iskra.png",
 };
 
