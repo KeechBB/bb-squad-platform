@@ -45,23 +45,13 @@ function TournamentsHomeTab() {
             </p>
           </div>
           <p className="tn-announce-name">{t.name}</p>
-          <div className="tn-announce-cols">
-            <div className="tn-announce-col">
-              <h3 className="tn-announce-col-title">Регистрация и даты</h3>
-              <ul className="tn-announce-list">
-                {t.announceSchedule.map((line) => (
-                  <li key={line}>{line}</li>
-                ))}
-              </ul>
-            </div>
-            <div className="tn-announce-col">
-              <h3 className="tn-announce-col-title">Формат</h3>
-              <ul className="tn-announce-list">
-                {t.announceFormat.map((line) => (
-                  <li key={line}>{line}</li>
-                ))}
-              </ul>
-            </div>
+          <div className="tn-announce-schedule">
+            <h3 className="tn-announce-col-title">Регистрация и даты</h3>
+            <ul className="tn-announce-list">
+              {t.announceSchedule.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
           </div>
         </section>
 
