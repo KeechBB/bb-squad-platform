@@ -103,20 +103,28 @@ export async function GET(req: Request) {
     return NextResponse.json({ histories }, { headers: hdr });
   }
 
-  // training / all — нужен userId
-  const me = await prisma.user.findUnique({
-    where: { steamId: session.user.steamId },
-    select: { id: true, nick: true },
-  });
-  if (!me) {
+  // training / all — явка по субъекту профиля (свой = session; чужой ?nick= → его id)
+  const subject = nickParam
+    ? await prisma.user.findFirst({
+        where: {
+          nick: { equals: nickParam, mode: "insensitive" },
+          profileComplete: true,
+        },
+        select: { id: true, nick: true },
+      })
+    : await prisma.user.findUnique({
+        where: { steamId: session.user.steamId },
+        select: { id: true, nick: true },
+      });
+  if (!subject) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
-  const nick2 = nick || me.nick || "";
+  const nick2 = nickParam || subject.nick || nick || "";
 
   if (part === "training") {
     const [training, publicAtt, cwAtt] = await Promise.all([
-      loadUserTrainingStats(me.id),
-      loadUserPublicAttendanceStats(me.id).catch(() => null),
+      loadUserTrainingStats(subject.id),
+      loadUserPublicAttendanceStats(subject.id).catch(() => null),
       nick2
         ? buildPlayerCwAttendance(nick2).catch(() => ({ byDay: {} }))
         : Promise.resolve({ byDay: {} }),
@@ -129,8 +137,8 @@ export async function GET(req: Request) {
       nick2 ? lookupPlayerTrainPwr(nick2).catch(() => null) : null,
       nick2 ? lookupPlayerPublicRp(nick2).catch(() => null) : null,
       nick2 ? buildPlayerPublicCombatStats(nick2).catch(() => null) : null,
-      loadUserTrainingStats(me.id),
-      loadUserPublicAttendanceStats(me.id).catch(() => null),
+      loadUserTrainingStats(subject.id),
+      loadUserPublicAttendanceStats(subject.id).catch(() => null),
       nick2
         ? buildPlayerCwAttendance(nick2).catch(() => ({ byDay: {} }))
         : Promise.resolve({ byDay: {} }),
