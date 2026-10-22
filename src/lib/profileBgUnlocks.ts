@@ -2,14 +2,17 @@ import { prisma } from "@/lib/prisma";
 import {
   BP_L5_PROFILE_BG_ID,
   profileBgChoicesFor,
+  profileBgUrl,
   type ProfileBgChoice,
 } from "@/lib/profileBg";
 import {
   BP_L15_PATCH_ID,
   PUBLIC_100_VEHICLES_PATCH_ID,
   profilePatchChoicesFor,
+  profilePatchUrl,
   type ProfilePatchChoice,
 } from "@/lib/profilePatches";
+import { notifyRewardUnlock } from "@/lib/rewardNotice";
 import {
   BP_L10_NICK_STYLE_ID,
   profileNickStyleChoicesFor,
@@ -43,6 +46,15 @@ export async function ensureBpL5ProfileBg(user: {
     where: { id: user.id },
     data: { unlockedProfileBgs: unlocks },
   });
+  await notifyRewardUnlock({
+    userId: user.id,
+    dedupeKey: `reward:bg:${BP_L5_PROFILE_BG_ID}`,
+    title: "Турнирное золото II",
+    body: "Новый фон профиля. Его можно поставить в кастомизации.",
+    href: "/profile",
+    linkLabel: "Открыть профиль",
+    imageUrl: profileBgUrl(BP_L5_PROFILE_BG_ID),
+  }).catch(() => undefined);
   return unlocks;
 }
 
@@ -66,6 +78,14 @@ export async function ensureBpL10NickStyle(user: {
     where: { id: user.id },
     data: { unlockedNickStyles: unlocks },
   });
+  await notifyRewardUnlock({
+    userId: user.id,
+    dedupeKey: `reward:font:${BP_L10_NICK_STYLE_ID}`,
+    title: "Aurum Clean",
+    body: "Новый золотой стиль ника в рейтингах. Ставится в кастомизации профиля.",
+    href: "/profile",
+    linkLabel: "Открыть профиль",
+  }).catch(() => undefined);
   return unlocks;
 }
 
@@ -103,6 +123,15 @@ export async function ensureBpL15NickPatch(user: {
     where: { id: user.id },
     data: { unlockedNickPatches: unlocks },
   });
+  await notifyRewardUnlock({
+    userId: user.id,
+    dedupeKey: `reward:patch:${BP_L15_PATCH_ID}`,
+    title: "M4A1 «Золотой стандарт»",
+    body: "Новая нашивка. Её можно поставить у ника в рейтингах паблика, КВ и тренировок.",
+    href: "/profile",
+    linkLabel: "Открыть профиль",
+    imageUrl: profilePatchUrl(BP_L15_PATCH_ID),
+  }).catch(() => undefined);
   return unlocks;
 }
 
@@ -143,6 +172,15 @@ export async function ensurePublic100VehiclesNickPatch(user: {
     where: { id: user.id },
     data: { unlockedNickPatches: unlocks },
   });
+  await notifyRewardUnlock({
+    userId: user.id,
+    dedupeKey: `reward:patch:${PUBLIC_100_VEHICLES_PATCH_ID}`,
+    title: "Т-62 «Неоновый урожай»",
+    body: "Новая нашивка за 100 уничтоженных единиц техники на паблике.",
+    href: "/profile",
+    linkLabel: "Открыть профиль",
+    imageUrl: profilePatchUrl(PUBLIC_100_VEHICLES_PATCH_ID),
+  }).catch(() => undefined);
   return unlocks;
 }
 

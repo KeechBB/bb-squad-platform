@@ -9,8 +9,10 @@ type SiteNoticeItem = {
   id: string;
   title: string;
   body: string;
-  href: string;
-  linkLabel: string;
+  href: string | null;
+  linkLabel: string | null;
+  imageUrl?: string | null;
+  kind?: string;
   seen: boolean;
 };
 
@@ -197,15 +199,25 @@ export function NotificationsBell() {
           ) : (
             <ul className="notif-list">
               {notices.map((n) => (
-                <li key={n.id} className="notif-item">
+                <li
+                  key={n.id}
+                  className={`notif-item${n.kind === "reward" ? " is-reward" : ""}`}
+                >
+                  {n.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img className="notif-reward-img" src={n.imageUrl} alt="" />
+                  ) : null}
                   <div className="notif-item-text">
+                    {n.kind === "reward" ? <em>Награда</em> : null}
                     <strong>{n.title}</strong>
                     <span>{n.body}</span>
                   </div>
                   <div className="notif-item-actions">
-                    <Link className="notif-link" href={n.href} onClick={() => setOpen(false)}>
-                      {n.linkLabel}
-                    </Link>
+                    {n.href ? (
+                      <Link className="notif-link" href={n.href} onClick={() => setOpen(false)}>
+                        {n.linkLabel || "Открыть"}
+                      </Link>
+                    ) : null}
                     <button
                       type="button"
                       className="notif-decline"

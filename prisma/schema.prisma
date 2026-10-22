@@ -113,6 +113,7 @@ model User {
   tournamentTeamVotes        TournamentTeamVote[]
   trainingMatchVotes         TrainingMatchVote[]
   siteNoticeStates           SiteNoticeState[]
+  userNotices                UserNotice[]
 }
 
 /// Метка игрока на клановой карте (одна на пользователя).
@@ -534,6 +535,27 @@ model SiteNoticeState {
 
   @@id([userId, noticeId])
   @@index([userId])
+}
+
+/// Личное уведомление: награда, нашивка, фон, шрифт. Закрытие только у этого игрока.
+model UserNotice {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Один раз на игрока. Повторная выдача ту же награду не дублирует карточку.
+  dedupeKey   String
+  kind        String
+  title       String
+  body        String
+  href        String?
+  linkLabel   String?
+  imageUrl    String?
+  createdAt   DateTime  @default(now())
+  seenAt      DateTime?
+  dismissedAt DateTime?
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, dismissedAt])
 }
 
 /// Лог смен тиров состава (кто / когда / из какого в какой).
