@@ -35,12 +35,40 @@ const teamInclude = {
   },
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type MapTeamMember = {
+  id: string;
+  role: string;
+  joinedAt: Date;
+  user: {
+    id: string;
+    nick: string | null;
+    steamId: string;
+    clanMemberships: { clan: { tag: string; name: string } }[];
+  };
+};
+
+type MapTeamInvite = {
+  id: string;
+  createdAt: Date;
+  user: { nick: string | null };
+};
+
+type MapTeamInput = {
+  id: string;
+  name: string;
+  tag: string;
+  logoUrl: string | null;
+  createdAt: Date;
+  members: MapTeamMember[];
+  invites: MapTeamInvite[];
+  votes?: { userId: string; value: number }[];
+};
+
 function mapTeam(
-  team: any,
+  team: MapTeamInput,
   opts?: { includeInvites?: boolean; viewerUserId?: string | null }
 ) {
-  const votes = (team.votes || []) as { userId: string; value: number }[];
+  const votes = team.votes || [];
   let likes = 0;
   let dislikes = 0;
   let myVote: 1 | -1 | null = null;
@@ -52,52 +80,34 @@ function mapTeam(
     }
   }
   return {
-    id: team.id as string,
-    name: team.name as string,
-    tag: team.tag as string,
-    logoUrl: (team.logoUrl as string | null) ?? null,
+    id: team.id,
+    name: team.name,
+    tag: team.tag,
+    logoUrl: team.logoUrl ?? null,
     createdAt: new Date(team.createdAt).toISOString(),
-    membersCount: team.members.length as number,
+    membersCount: team.members.length,
     rosterMax: TOURNAMENT_TEAM_ROSTER_MAX,
     likes,
     dislikes,
     myVote,
-    members: team.members.map(
-      (m: {
-        id: string;
-        role: string;
-        joinedAt: Date;
-        user: {
-          id: string;
-          nick: string | null;
-          steamId: string;
-          clanMemberships: { clan: { tag: string; name: string } }[];
-        };
-      }) => ({
-        id: m.id,
-        userId: m.user.id,
-        nick: m.user.nick || m.user.steamId,
-        steamId: m.user.steamId,
-        joinedAt: new Date(m.joinedAt).toISOString(),
-        role: m.role,
-        /** Турнирные матчи ещё не оцифрованы — всегда 0. */
-        matchesPlayed: 0,
-        clanTag: m.user.clanMemberships[0]?.clan.tag || null,
-        clanName: m.user.clanMemberships[0]?.clan.name || null,
-      })
-    ),
+    members: team.members.map((m) => ({
+      id: m.id,
+      userId: m.user.id,
+      nick: m.user.nick || m.user.steamId,
+      steamId: m.user.steamId,
+      joinedAt: new Date(m.joinedAt).toISOString(),
+      role: m.role,
+      /** Турнирные матчи ещё не оцифрованы — всегда 0. */
+      matchesPlayed: 0,
+      clanTag: m.user.clanMemberships[0]?.clan.tag || null,
+      clanName: m.user.clanMemberships[0]?.clan.name || null,
+    })),
     pendingInvites: opts?.includeInvites
-      ? team.invites.map(
-          (i: {
-            id: string;
-            createdAt: Date;
-            user: { nick: string | null };
-          }) => ({
-            id: i.id,
-            nick: i.user.nick || "?",
-            sentAt: new Date(i.createdAt).toISOString(),
-          })
-        )
+      ? team.invites.map((i) => ({
+          id: i.id,
+          nick: i.user.nick || "?",
+          sentAt: new Date(i.createdAt).toISOString(),
+        }))
       : [],
   };
 }
