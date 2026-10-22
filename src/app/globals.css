@@ -2385,6 +2385,40 @@ a.nav-discord:focus-visible {
   box-shadow: 0 0 14px rgba(212, 168, 75, 0.3);
   outline: none;
 }
+@keyframes notif-bell-alarm {
+  0%,
+  100% {
+    background: #c43c4a;
+    color: #fff;
+    border-color: #ffb4bc;
+    box-shadow: 0 0 0 0 rgba(196, 60, 74, 0.55);
+  }
+  50% {
+    background: #8e1524;
+    color: #fff;
+    border-color: #fff;
+    box-shadow: 0 0 16px 3px rgba(255, 70, 90, 0.85);
+  }
+}
+.notif-bell.has-unseen .notif-bell-btn {
+  animation: notif-bell-alarm 1s ease-in-out infinite;
+  color: #fff;
+  border-color: #ffb4bc;
+}
+.notif-bell.has-unseen.is-open .notif-bell-btn,
+.notif-bell.has-unseen .notif-bell-btn:hover,
+.notif-bell.has-unseen .notif-bell-btn:focus-visible {
+  color: #fff;
+  border-color: #fff;
+}
+@media (prefers-reduced-motion: reduce) {
+  .notif-bell.has-unseen .notif-bell-btn {
+    animation: none;
+    background: #c43c4a;
+    color: #fff;
+    border-color: #ffb4bc;
+  }
+}
 .notif-bell-badge {
   position: absolute;
   top: -4px;
@@ -2482,10 +2516,23 @@ a.nav-discord:focus-visible {
   text-transform: uppercase;
   cursor: pointer;
 }
-.notif-accept {
+.notif-accept,
+a.notif-link {
   border: 1px solid rgba(143, 217, 164, 0.55);
   background: rgba(40, 80, 50, 0.55);
   color: #c8f0d4;
+  text-decoration: none;
+}
+a.notif-link {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9px;
+  padding: 7px 12px;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 .notif-decline {
   border: 1px solid rgba(240, 168, 168, 0.45);

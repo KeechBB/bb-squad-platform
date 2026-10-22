@@ -110,6 +110,7 @@ model User {
   tournamentInvitesSent     TournamentTeamInvite[] @relation("TournamentInviter")
   tournamentEntriesSubmitted TournamentEntry[] @relation("TournamentEntrySubmitter")
   tournamentEntrySlots       TournamentEntryPlayer[]
+  siteNoticeStates           SiteNoticeState[]
 }
 
 /// Метка игрока на клановой карте (одна на пользователя).
@@ -519,6 +520,18 @@ model SitePageVisit {
   @@index([visitorId, createdAt])
   @@index([createdAt])
   @@index([path, createdAt])
+}
+
+/// Прочтение и закрытие общего уведомления сайта. Само объявление живёт в коде.
+model SiteNoticeState {
+  userId      String
+  noticeId    String
+  seenAt      DateTime?
+  dismissedAt DateTime?
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, noticeId])
+  @@index([userId])
 }
 
 /// Лог смен тиров состава (кто / когда / из какого в какой).
