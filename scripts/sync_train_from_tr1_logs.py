@@ -4,7 +4,8 @@
 Auto-digitize TR1 training matches from logs → KV training JSON + auto MATCHES for RP.
 
 Canon: .cursor/rules/tr1-pb1-auto-canon.mdc
-- start 21:30–00:00 MSK, not Jensen*, layer >10 min, only after map end
+- CW only if a calendar slot already exists (time + map). No slot → training, any hour.
+- not Jensen*, layer >10 min, only after map end, winner present.
 """
 from __future__ import annotations
 
@@ -96,10 +97,13 @@ def sync_tr1_logs_via_ssh() -> list[Path]:
     return FLEET.sync_servers_parallel(kind="train")
 
 def msk_hour_ok(start_utc: datetime) -> bool:
+    """Legacy evening window (21:30–00:30 МСК). Not the CW/train split.
+
+    Клановая война — только слой, который попал в уже записанный слот календаря КВ.
+    Нет записи — тренировка, в том числе днём. Этот хелпер оставлен для ручных проб.
+    """
     msk = start_utc + timedelta(hours=3)
     minutes = msk.hour * 60 + msk.minute
-    # 21:30–00:00 MSK, plus grace to 00:30 for maps that tip over midnight
-    # (08.10: 4th Mutaha started 00:00 and was skipped → only 3/4 on site).
     return (21 * 60 + 30 <= minutes < 24 * 60) or (minutes < 30)
 
 
@@ -962,8 +966,7 @@ def main() -> int:
             end = end.replace(tzinfo=timezone.utc)
         if start < cutoff:
             continue
-        if not msk_hour_ok(start):
-            continue
+        # Час не решает. Нет слота в календаре КВ — это тренировка (проверка ниже).
         layer = str(m.get("layer") or m.get("map") or "")
         if R.is_seed_layer(layer, str(m.get("level") or "")):
             continue
