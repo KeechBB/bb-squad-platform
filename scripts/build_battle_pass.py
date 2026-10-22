@@ -9,10 +9,12 @@ Battle Pass «Фруктовый Сад» — прогресс по матчам
 SEED / Jensen — не игра, в Battle Pass не идут (прогресс не пишем).
 
 Запуск:
-  python build_battle_pass.py              # sync from ledger + ensure cutover
+  python build_battle_pass.py              # sync cutover + heal дыр BP↔ledger
   python build_battle_pass.py --from-blocks /tmp/bp_blocks.json
   python build_battle_pass.py --rebuild-from-ledger  # полный пересчёт после cutover
-  python build_battle_pass.py --audit --last 5
+  python build_battle_pass.py --audit --last 40
+  python build_battle_pass.py --heal [--dry-run] [--last 40]
+  python check_bp_sync.py                  # то же heal, удобно для cron
 Вызывается из build_public_rp_ledger после скоринга новых матчей.
 """
 from __future__ import annotations
@@ -1099,8 +1101,26 @@ def rebuild_from_ledger() -> dict:
     return state
 
 
-def audit_bp_vs_ledger(*, last: int = 5) -> dict:
-    """Check recent public ledger matches are in BP scoredMatchIds."""
+def _ledger_bp_pool(ledger: dict, cut: str) -> list[dict]:
+    pool = [
+        m
+        for m in (ledger.get("matches") or [])
+        if isinstance(m, dict)
+        and str(m.get("id") or "")
+        and match_after_cutover(str(m.get("id")), cut)
+        and (m.get("events") or m.get("netByNick"))
+        and not is_seed_block(m)
+    ]
+    pool.sort(key=lambda m: str(m.get("id") or ""))
+    return pool
+
+
+def audit_bp_vs_ledger(*, last: int = 40) -> dict:
+    """Check public ledger matches after cutover are in BP scoredMatchIds.
+
+    ``last`` — сколько хвоста проверять (0 / отрицательное = все после cutover).
+    Кейс Diray 22.10: матч уже в rp-ledger, но не в scoredMatchIds → 1/2 вместо 2/2.
+    """
     ledger: dict = {}
     if LEDGER.is_file():
         try:
@@ -1110,17 +1130,14 @@ def audit_bp_vs_ledger(*, last: int = 5) -> dict:
     state = load_state()
     cut = str(state.get("cutoverAfterMatchId") or "")
     scored = {str(x) for x in (state.get("scoredMatchIds") or [])}
-    pool = [
-        m
-        for m in (ledger.get("matches") or [])
-        if isinstance(m, dict)
-        and str(m.get("id") or "")
-        and match_after_cutover(str(m.get("id")), cut)
-        and (m.get("events") or m.get("netByNick"))
-    ]
-    pool.sort(key=lambda m: str(m.get("id") or ""))
-    recent = pool[-max(1, int(last)) :] if pool else []
+    pool = _ledger_bp_pool(ledger, cut)
+    if int(last) > 0:
+        recent = pool[-max(1, int(last)) :] if pool else []
+    else:
+        recent = pool
     missing = [str(m.get("id")) for m in recent if str(m.get("id")) not in scored]
+    # Полный список дыр после cutover (для heal), даже если audit смотрит хвост.
+    missing_all = [str(m.get("id")) for m in pool if str(m.get("id")) not in scored]
     # Nick-join smoke: last match must credit ≥1 registered player when presence≥80%.
     join_ok = True
     join_detail = "n/a"
@@ -1134,7 +1151,6 @@ def audit_bp_vs_ledger(*, last: int = 5) -> dict:
             ck = R.canon_key(str(n), aliases)
             if ck in registered and bool(st.get("playedOk", True)):
                 present_reg += 1
-        # Recount with the same index the scorer uses
         credited = 0
         per_by_key: dict[str, dict] = {}
         for n, st in per.items():
@@ -1156,10 +1172,90 @@ def audit_bp_vs_ledger(*, last: int = 5) -> dict:
         "cutoverAfterMatchId": cut,
         "checked": [str(m.get("id")) for m in recent],
         "missingIds": missing,
+        "missingAllIds": missing_all,
         "joinOk": join_ok,
         "joinDetail": join_detail,
         "scoredCount": len(scored),
+        "poolCount": len(pool),
         "enabled": bool(state.get("enabled")),
+    }
+
+
+def heal_bp_vs_ledger(
+    *,
+    last: int = 40,
+    fix: bool = True,
+    rebuild_if_gap: bool = True,
+) -> dict:
+    """Найти дыры BP↔ledger и починить.
+
+    - Только хвост (все missing > max(scored)) → apply_blocks по недостающим.
+    - Дыра в середине / много пропусков → полный rebuild_from_ledger.
+    """
+    ledger: dict = {}
+    if LEDGER.is_file():
+        try:
+            ledger = json.loads(LEDGER.read_text(encoding="utf-8"))
+        except Exception:
+            ledger = {}
+    rep = audit_bp_vs_ledger(last=last)
+    missing = list(rep.get("missingAllIds") or rep.get("missingIds") or [])
+    if rep.get("ok") and not missing:
+        return {**rep, "healed": False, "action": "noop"}
+    if not fix:
+        return {**rep, "healed": False, "action": "report_only"}
+
+    cut = str(rep.get("cutoverAfterMatchId") or "")
+    scored = sorted(
+        str(x)
+        for x in (load_state().get("scoredMatchIds") or [])
+        if match_after_cutover(str(x), cut)
+    )
+    missing_sorted = sorted(missing)
+    max_scored = scored[-1] if scored else ""
+    trailing_only = bool(missing_sorted) and all(
+        mid > max_scored for mid in missing_sorted
+    ) if max_scored else bool(missing_sorted)
+
+    action = "rebuild"
+    if trailing_only and len(missing_sorted) <= 20:
+        action = "apply_missing"
+    elif not rebuild_if_gap and trailing_only:
+        action = "apply_missing"
+
+    print(
+        f"BP heal: action={action} missing={len(missing_sorted)} "
+        f"trailing_only={trailing_only} ids={missing_sorted[:8]}",
+        flush=True,
+    )
+
+    if action == "apply_missing":
+        by_id = {
+            str(m.get("id")): m
+            for m in _ledger_bp_pool(ledger, cut)
+            if str(m.get("id") or "")
+        }
+        blocks = [by_id[i] for i in missing_sorted if i in by_id]
+        if not blocks:
+            action = "rebuild"
+        else:
+            apply_blocks(blocks)
+            rep2 = audit_bp_vs_ledger(last=last)
+            return {
+                **rep2,
+                "healed": bool(rep2.get("ok")),
+                "action": "apply_missing",
+                "appliedIds": [str(b.get("id")) for b in blocks],
+                "beforeMissing": missing_sorted,
+            }
+
+    rebuild_from_ledger()
+    rep2 = audit_bp_vs_ledger(last=last)
+    return {
+        **rep2,
+        "healed": bool(rep2.get("ok")),
+        "action": "rebuild",
+        "beforeMissing": missing_sorted,
     }
 
 
@@ -1183,11 +1279,21 @@ def main() -> None:
         return
 
     if "--audit" in sys.argv:
-        last = 5
+        last = 40
         if "--last" in sys.argv:
             i = sys.argv.index("--last")
             last = int(sys.argv[i + 1])
         rep = audit_bp_vs_ledger(last=last)
+        print(json.dumps(rep, ensure_ascii=False, indent=2), flush=True)
+        raise SystemExit(0 if rep.get("ok") else 2)
+
+    if "--heal" in sys.argv:
+        last = 40
+        if "--last" in sys.argv:
+            i = sys.argv.index("--last")
+            last = int(sys.argv[i + 1])
+        fix = "--dry-run" not in sys.argv
+        rep = heal_bp_vs_ledger(last=last, fix=fix)
         print(json.dumps(rep, ensure_ascii=False, indent=2), flush=True)
         raise SystemExit(0 if rep.get("ok") else 2)
 
@@ -1198,8 +1304,13 @@ def main() -> None:
         apply_blocks(blocks if isinstance(blocks, list) else [])
         return
 
+    # Default: cutover + автопочинка дыр (хвост ledger без BP).
     sync_cutover_only()
-    print("BP: cutover ensured (no new blocks)", flush=True)
+    try:
+        heal_bp_vs_ledger(last=40, fix=True)
+    except Exception as e:
+        print(f"BP heal skipped: {type(e).__name__}: {e}", flush=True)
+    print("BP: cutover ensured + heal", flush=True)
 
 
 if __name__ == "__main__":

@@ -516,6 +516,54 @@ def check_cw_calendar(st: dict) -> None:
     st["cw_seen"] = rows
 
 
+def check_bp_sync(st: dict, *, autofix: bool = True) -> None:
+    """Раз в ~15 мин: дыры Battle Pass ↔ rp-ledger → heal (кейс Diray)."""
+    now = time.time()
+    last = float(st.get("bp_sync_at") or 0)
+    if now - last < 900:
+        return
+    st["bp_sync_at"] = now
+    try:
+        import build_battle_pass as BP  # noqa: WPS433
+    except Exception as e:
+        print(f"bp sync import skip: {type(e).__name__}: {e}", flush=True)
+        return
+    try:
+        rep = BP.heal_bp_vs_ledger(last=40, fix=autofix)
+    except Exception as e:
+        print(f"bp sync failed: {type(e).__name__}: {e}", flush=True)
+        return
+    missing = rep.get("missingIds") or []
+    print(
+        f"bp sync: ok={rep.get('ok')} action={rep.get('action')} "
+        f"healed={rep.get('healed')} missing={missing}",
+        flush=True,
+    )
+    if rep.get("healed"):
+        A.send(
+            kind="autofix",
+            title="Autofix OK (battle_pass)",
+            level="ok",
+            lines=[
+                f"действие: {rep.get('action')}",
+                f"было missing: {rep.get('beforeMissing') or []}",
+            ],
+            force=True,
+        )
+    elif not rep.get("ok"):
+        A.send(
+            kind="bp-audit",
+            title="Battle Pass — дыра после heal",
+            level="warn",
+            lines=[
+                f"missing: {missing}",
+                f"action: {rep.get('action')}",
+                f"join: {rep.get('joinDetail')}",
+            ],
+            force=True,
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = list(argv if argv is not None else sys.argv[1:])
     only_heavy = "--heavy-lock" in args
@@ -561,6 +609,10 @@ def main(argv: list[str] | None = None) -> int:
         check_cw_calendar(st)
     except Exception as e:
         print("cw calendar", e, flush=True)
+    try:
+        check_bp_sync(st, autofix=not no_fix)
+    except Exception as e:
+        print("bp sync", e, flush=True)
     _save(st)
     print("health watch ok", st.get("load_last"), flush=True)
     return 0

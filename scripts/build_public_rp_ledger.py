@@ -952,6 +952,15 @@ def main() -> None:
             import build_battle_pass as BP  # noqa: WPS433
 
             BP.sync_cutover_only()
+            # Даже без новых матчей — догнать BP, если ledger ушёл вперёд
+            # (кейс Diray: Harju в RP, но не в scoredMatchIds).
+            heal = BP.heal_bp_vs_ledger(last=40, fix=True)
+            if heal.get("healed"):
+                print(
+                    f"BP heal: action={heal.get('action')} "
+                    f"before={heal.get('beforeMissing')}",
+                    flush=True,
+                )
         except Exception as e:
             print(f"warn: Battle Pass sync skipped: {type(e).__name__}: {e}", flush=True)
         return
@@ -1231,6 +1240,14 @@ def main() -> None:
             import build_battle_pass as BP  # noqa: WPS433
 
             BP.apply_blocks(match_blocks, aliases=aliases)
+            # Страховка: если apply_blocks частично не дотянул — догнать хвост.
+            heal = BP.heal_bp_vs_ledger(last=40, fix=True)
+            if heal.get("healed"):
+                print(
+                    f"BP heal after apply: action={heal.get('action')} "
+                    f"before={heal.get('beforeMissing')}",
+                    flush=True,
+                )
         except Exception as e:
             print(f"warn: Battle Pass skipped: {type(e).__name__}: {e}", flush=True)
 

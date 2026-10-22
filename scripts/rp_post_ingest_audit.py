@@ -182,7 +182,7 @@ def _fix_public(ids: list[str]) -> int:
     )
 
 
-def _audit_battle_pass(*, last: int = 5, fix: bool = False) -> dict:
+def _audit_battle_pass(*, last: int = 40, fix: bool = False) -> dict:
     """Public-only: BP scoredMatchIds must cover recent ledger matches."""
     if (os.environ.get("BP_AUDIT") or "1").strip().lower() in ("0", "false", "no"):
         return {"ok": True, "skipped": True}
@@ -191,19 +191,44 @@ def _audit_battle_pass(*, last: int = 5, fix: bool = False) -> dict:
     except Exception as e:
         print(f"BP audit skip import: {type(e).__name__}: {e}", flush=True)
         return {"ok": True, "skipped": True, "error": str(e)}
-    rep = BP.audit_bp_vs_ledger(last=last)
+    do_fix = bool(fix) or (os.environ.get("RP_AUDIT_FIX") or "1").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    if (os.environ.get("RP_AUDIT_REPAIR_PASS") or "").strip() == "1":
+        do_fix = False
+    rep = BP.heal_bp_vs_ledger(last=last, fix=do_fix) if do_fix else BP.audit_bp_vs_ledger(last=last)
     print(
         f"BP audit: ok={rep.get('ok')} missing={rep.get('missingIds')} "
-        f"join={rep.get('joinDetail')}",
+        f"action={rep.get('action')} join={rep.get('joinDetail')}",
         flush=True,
     )
     if rep.get("ok"):
+        if rep.get("healed"):
+            try:
+                import bb_alerts as AL  # noqa: WPS433
+
+                AL.send(
+                    kind="autofix",
+                    title="Autofix OK (battle_pass)",
+                    level="ok",
+                    lines=[
+                        f"действие: {rep.get('action')}",
+                        f"было missing: {rep.get('beforeMissing') or []}",
+                    ],
+                    force=True,
+                    cooldown=0,
+                )
+            except Exception:
+                pass
         return rep
     try:
         import bb_alerts as AL  # noqa: WPS433
 
         lines = [
             f"missing: {', '.join(rep.get('missingIds') or []) or '—'}",
+            f"action: {rep.get('action') or '—'}",
             f"join: {rep.get('joinDetail')}",
             f"cutover: {rep.get('cutoverAfterMatchId')}",
         ]
@@ -217,40 +242,6 @@ def _audit_battle_pass(*, last: int = 5, fix: bool = False) -> dict:
         )
     except Exception as e:
         print(f"BP audit telegram skip: {type(e).__name__}: {e}", flush=True)
-    if fix or (os.environ.get("RP_AUDIT_FIX") or "").strip() in ("1", "true", "yes"):
-        if (os.environ.get("RP_AUDIT_REPAIR_PASS") or "").strip() == "1":
-            print("BP FIX skip: already in repair pass", flush=True)
-            return rep
-        print("BP FIX: rebuild_from_ledger", flush=True)
-        try:
-            os.environ["RP_AUDIT_REPAIR_PASS"] = "1"
-            BP.rebuild_from_ledger()
-            rep2 = BP.audit_bp_vs_ledger(last=last)
-            print(
-                f"BP FIX verify: ok={rep2.get('ok')} missing={rep2.get('missingIds')}",
-                flush=True,
-            )
-            if rep2.get("ok"):
-                try:
-                    import bb_alerts as AL  # noqa: WPS433
-
-                    AL.send(
-                        kind="autofix",
-                        title="Autofix OK (battle_pass)",
-                        level="ok",
-                        lines=[
-                            "действие: rebuild_from_ledger",
-                            f"verify: missing={rep2.get('missingIds') or []}",
-                        ],
-                        force=True,
-                        cooldown=0,
-                    )
-                except Exception:
-                    pass
-            return rep2
-        except Exception as e:
-            print(f"BP FIX failed: {type(e).__name__}: {e}", flush=True)
-            rep["fixError"] = f"{type(e).__name__}: {e}"
     return rep
 
 
