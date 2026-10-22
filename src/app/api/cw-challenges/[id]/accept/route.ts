@@ -4,12 +4,13 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canManageCwChallenges, type ClanRole } from "@/lib/clan";
 import { getUserClanMembership } from "@/lib/clanAccess";
+import { publishAcceptedChallengeToKv } from "@/lib/kvChallengeCalendar";
 
 export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-/** Принять вызов — глава/зам другого клана. Пишет события в календари обоих. */
+/** Принять вызов — глава/зам другого клана. Пишет события в календари обоих + KV /cw. */
 export async function POST(req: Request, ctx: Ctx) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.steamId || !session.user.profileComplete) {
@@ -136,6 +137,29 @@ export async function POST(req: Request, ctx: Ctx) {
 
     return updated;
   });
+
+  // KV «Клановые войны» / история матчей — отдельный календарь.
+  // Без этого слот есть только в календаре клана на сайте.
+  const challengerTag = challenge.challengerClan.tag.toUpperCase();
+  const acceptorTag = acceptor.tag.toUpperCase();
+  const bbIsAcceptor = acceptorTag === "BB";
+  const bbIsChallenger = challengerTag === "BB";
+  if (bbIsAcceptor || bbIsChallenger) {
+    const oppTag = bbIsAcceptor ? challengerTag : acceptorTag;
+    const bbStack = bbIsAcceptor
+      ? acceptorStack
+      : // заявитель BB пока не выбирает состав при создании
+        "Main";
+    await publishAcceptedChallengeToKv({
+      challengeId: result.id,
+      mode: challenge.mode,
+      format: challenge.format,
+      scheduledAt: challenge.scheduledAt,
+      oppTag,
+      bbStack,
+      assignedServer: challenge.assignedServer,
+    }).catch(() => undefined);
+  }
 
   return NextResponse.json({
     ok: true,
