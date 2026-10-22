@@ -77,10 +77,28 @@ export async function writeNickPatchesCache(): Promise<NickPatchPublicRow[]> {
   return rows;
 }
 
-export async function loadNickPatchBySteam(): Promise<
-  Map<string, NickPatchPublicRow>
-> {
-  const users = await prisma.user.findMany({
+function rowFromUser(u: {
+  nick: string | null;
+  steamId: string;
+  nickPatch: string | null;
+  nickStyle: string | null;
+}): NickPatchPublicRow | null {
+  const patchId = normalizeProfilePatch(u.nickPatch);
+  const url = profilePatchUrl(patchId);
+  const styleId = normalizeProfileNickStyle(u.nickStyle);
+  if (!patchId && !styleId) return null;
+  return {
+    nick: String(u.nick || ""),
+    steamId: u.steamId,
+    patchId,
+    url: url || "",
+    tip: patchId ? profilePatchTip(patchId) : "",
+    styleId,
+  };
+}
+
+async function loadNickPatchUsers() {
+  return prisma.user.findMany({
     where: {
       profileComplete: true,
       OR: [{ nickPatch: { not: null } }, { nickStyle: { not: null } }],
@@ -92,20 +110,35 @@ export async function loadNickPatchBySteam(): Promise<
       nickStyle: true,
     },
   });
+}
+
+export async function loadNickPatchBySteam(): Promise<
+  Map<string, NickPatchPublicRow>
+> {
+  const users = await loadNickPatchUsers();
   const map = new Map<string, NickPatchPublicRow>();
   for (const u of users) {
-    const patchId = normalizeProfilePatch(u.nickPatch);
-    const url = profilePatchUrl(patchId);
-    const styleId = normalizeProfileNickStyle(u.nickStyle);
-    if (!patchId && !styleId) continue;
-    map.set(u.steamId, {
-      nick: String(u.nick || ""),
-      steamId: u.steamId,
-      patchId,
-      url: url || "",
-      tip: patchId ? profilePatchTip(patchId) : "",
-      styleId,
-    });
+    const row = rowFromUser(u);
+    if (!row) continue;
+    map.set(u.steamId, row);
+  }
+  return map;
+}
+
+/** Ник → нашивка/стиль (ключ = lower(nick)). */
+export async function loadNickPatchByNick(): Promise<
+  Map<string, NickPatchPublicRow>
+> {
+  const users = await loadNickPatchUsers();
+  const map = new Map<string, NickPatchPublicRow>();
+  for (const u of users) {
+    const row = rowFromUser(u);
+    if (!row) continue;
+    const key = String(u.nick || "")
+      .trim()
+      .toLowerCase();
+    if (!key) continue;
+    map.set(key, row);
   }
   return map;
 }

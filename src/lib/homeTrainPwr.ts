@@ -142,6 +142,8 @@ export type HomeTrainPwrRow = {
   games: number;
   place: number;
   predatorPlace?: number | null;
+  nickPatch?: string | null;
+  nickStyle?: string | null;
   matches?: import("@/lib/trainRp").RpPlayerMatch[];
 };
 
@@ -430,9 +432,14 @@ export async function buildTrainPwrLeaderboard(): Promise<TrainPwrLeaderboard> {
 
 export async function buildHomeTrainPwrBoard(): Promise<HomeTrainPwrBoard> {
   const { buildTrainRpLeaderboard } = await import("@/lib/trainRp");
-  const board = await buildTrainRpLeaderboard();
+  const { loadNickPatchByNick } = await import("@/lib/nickPatchesCache");
+  const [board, cosmetics] = await Promise.all([
+    buildTrainRpLeaderboard(),
+    loadNickPatchByNick().catch(() => new Map()),
+  ]);
   const rows: HomeTrainPwrRow[] = board.rows.map((r) => {
     const rp = Math.round(Number(r.rp) || 0);
+    const cos = cosmetics.get(String(r.nick || "").trim().toLowerCase());
     return {
       nick: r.nick,
       rp,
@@ -442,6 +449,8 @@ export async function buildHomeTrainPwrBoard(): Promise<HomeTrainPwrBoard> {
       games: r.games,
       place: r.place,
       predatorPlace: r.predatorPlace ?? null,
+      nickPatch: cos?.patchId || null,
+      nickStyle: cos?.styleId || null,
     };
   });
   return {

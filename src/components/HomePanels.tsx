@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { HomeTrainPwrTop } from "@/components/HomeTrainPwrTop";
+import { HomeNickDecor } from "@/components/HomeNickDecor";
 import type { HomeTrainPwrBoard } from "@/lib/homeTrainPwr";
 
 export type HomePublicTopRow = {
@@ -9,6 +9,8 @@ export type HomePublicTopRow = {
   rp: number;
   rankLabel: string;
   rankKey: string;
+  nickPatch?: string | null;
+  nickStyle?: string | null;
 };
 
 type Props = {
@@ -93,13 +95,12 @@ function PublicTop({
                 >
                   {r.rankLabel}
                 </span>
-                <Link
-                  className="home-attend-streaks-nick"
+                <HomeNickDecor
+                  nick={r.nick}
+                  nickPatch={r.nickPatch}
+                  nickStyle={r.nickStyle}
                   href={`/players/${encodeURIComponent(r.nick)}`}
-                  title={r.nick}
-                >
-                  {r.nick}
-                </Link>
+                />
                 <span className="home-attend-streaks-days home-train-pwr-score">
                   <b>{Math.round(Number(r.rp) || 0)}</b>
                   <span>RP</span>

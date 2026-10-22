@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { HomeNickDecor } from "@/components/HomeNickDecor";
 import type { HomeTrainPwrBoard } from "@/lib/homeTrainPwr";
 
 type Props = {
@@ -103,13 +104,12 @@ export function HomeTrainPwrTop({ initial, viewerNick = null }: Props) {
                 >
                   {r.rankLabel}
                 </span>
-                <Link
-                  className="home-attend-streaks-nick"
+                <HomeNickDecor
+                  nick={r.nick}
+                  nickPatch={r.nickPatch}
+                  nickStyle={r.nickStyle}
                   href={`/players/${encodeURIComponent(r.nick)}`}
-                  title={r.nick}
-                >
-                  {r.nick}
-                </Link>
+                />
                 <span className="home-attend-streaks-days home-train-pwr-score">
                   <b>{rp}</b>
                   <span>RP</span>

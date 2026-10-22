@@ -9182,6 +9182,91 @@ body:has(.home-page) {
   align-items: center;
 }
 
+.home-nick-decor {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.home-nick-decor .home-attend-streaks-nick {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.home-nick-label {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.home-attend-streaks-nick.has-custom-nick-style {
+  text-decoration: none;
+}
+
+.home-nick-label.is-metallic-gold {
+  position: relative;
+  display: inline-block;
+  color: transparent;
+  background:
+    linear-gradient(
+      180deg,
+      #fff8d6 0%,
+      #f9d86e 32%,
+      #ad6b08 57%,
+      #f0b936 78%,
+      #fff0ae 100%
+    );
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 0.22px rgba(117, 65, 4, 0.9);
+  font-family: var(--font-display), Oxanium, Manrope, sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.018em;
+}
+
+.home-nick-label.is-metallic-gold::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: transparent;
+  background:
+    linear-gradient(
+      105deg,
+      transparent 22%,
+      rgba(255, 255, 238, 0.18) 39%,
+      rgba(255, 255, 250, 0.92) 48%,
+      rgba(255, 223, 126, 0.22) 57%,
+      transparent 72%
+    );
+  background-position: 145% 0;
+  background-size: 240% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font: inherit;
+  letter-spacing: inherit;
+  animation: aurum-clean-nick-shine 5.2s ease-in-out infinite;
+}
+
+.home-dock-col .nick-patch-mark.home-nick-patch {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 18px;
+  margin-left: 0;
+}
+
+.home-dock-col .home-attend-streaks-row.is-podium .home-nick-label.is-metallic-gold,
+.home-dock-col .home-attend-streaks-row.is-me .home-nick-label.is-metallic-gold {
+  /* ????? BP ?????? ????????? ??????? */
+  filter: none;
+}
+
 .home-pwr-badge {
   display: inline-block;
   padding: 2px 10px;
