@@ -111,6 +111,7 @@ model User {
   tournamentEntriesSubmitted TournamentEntry[] @relation("TournamentEntrySubmitter")
   tournamentEntrySlots       TournamentEntryPlayer[]
   tournamentTeamVotes        TournamentTeamVote[]
+  trainingMatchVotes         TrainingMatchVote[]
   siteNoticeStates           SiteNoticeState[]
 }
 
@@ -739,6 +740,23 @@ model TournamentTeamVote {
 
   @@unique([teamId, userId])
   @@index([teamId])
+  @@index([userId])
+}
+
+/// Голос за тренировочный матч. matchKey = "YYYY-MM:matchId" (напр. 2026-10:02-gorodok)
+model TrainingMatchVote {
+  id        String   @id @default(cuid())
+  matchKey  String
+  userId    String
+  /// 1 = вверх, -1 = вниз
+  value     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([matchKey, userId])
+  @@index([matchKey])
   @@index([userId])
 }
 
