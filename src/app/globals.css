@@ -5816,6 +5816,204 @@ body:has(.profile-page) {
   background: rgba(248, 113, 113, 0.06);
 }
 
+.attend-dynamics-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin-bottom: 14px;
+}
+
+.attend-dynamics-head h3 {
+  margin: 0;
+}
+
+.attend-dynamics-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.attend-dynamics-month {
+  margin: 0;
+  min-width: 160px;
+}
+
+.attend-dynamics-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 1100px) {
+  .attend-dynamics-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.attend-dynamics-kpi {
+  border-radius: 12px;
+  padding: 12px 14px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(20, 16, 30, 0.7);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-left: 4px solid transparent;
+}
+
+.attend-dynamics-kpi.green {
+  border-left-color: #5ad28c;
+}
+
+.attend-dynamics-kpi.orange {
+  border-left-color: #ffa046;
+}
+
+.attend-dynamics-kpi.soft {
+  opacity: 0.95;
+}
+
+.attend-dynamics-kpi-lab {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(180, 170, 200, 0.85);
+}
+
+.attend-dynamics-kpi strong {
+  font-size: 1.85rem;
+  line-height: 1.1;
+  font-weight: 700;
+}
+
+.attend-dynamics-kpi.green strong {
+  color: #5ad28c;
+}
+
+.attend-dynamics-kpi.orange strong {
+  color: #ffa046;
+}
+
+.attend-dynamics-kpi-sub {
+  font-size: 0.78rem;
+  color: rgba(160, 150, 175, 0.95);
+}
+
+.attend-dynamics-legend {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 8px;
+  font-size: 0.78rem;
+  color: rgba(160, 150, 175, 0.95);
+}
+
+.attend-dynamics-leg::before {
+  content: "";
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  margin-right: 6px;
+  vertical-align: -2px;
+}
+
+.attend-dynamics-leg.u::before {
+  background: #5ad28c;
+}
+
+.attend-dynamics-leg.p::before {
+  background: #ffa046;
+}
+
+.attend-dynamics-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  min-height: 220px;
+  padding: 8px 4px 0;
+  overflow-x: auto;
+}
+
+.attend-dynamics-col {
+  flex: 1 1 0;
+  min-width: 28px;
+  max-width: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.attend-dynamics-col.today {
+  outline: 1px solid rgba(232, 190, 90, 0.55);
+  outline-offset: 2px;
+  border-radius: 8px;
+  padding-top: 4px;
+}
+
+.attend-dynamics-bars {
+  width: 100%;
+  height: 180px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+}
+
+.attend-dynamics-bar {
+  flex: 1 1 0;
+  max-width: 22px;
+  border-radius: 5px 5px 2px 2px;
+  position: relative;
+  min-height: 0;
+}
+
+.attend-dynamics-bar.u {
+  background: linear-gradient(180deg, #7ae0a8, #5ad28c);
+}
+
+.attend-dynamics-bar.p {
+  background: linear-gradient(180deg, #ffb86a, #ffa046);
+}
+
+.attend-dynamics-bar span {
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.attend-dynamics-bar.u span {
+  color: #5ad28c;
+}
+
+.attend-dynamics-bar.p span {
+  color: #ffa046;
+}
+
+.attend-dynamics-xlabel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 0.68rem;
+  line-height: 1.15;
+  color: rgba(220, 214, 235, 0.9);
+  text-align: center;
+  min-height: 2.2em;
+}
+
+.attend-dynamics-col.today .attend-dynamics-xlabel {
+  color: #e8be5a;
+  font-weight: 700;
+}
+
 .attend-timeline-wrap {
   margin-top: 12px;
 }

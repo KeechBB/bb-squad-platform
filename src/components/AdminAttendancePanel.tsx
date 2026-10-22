@@ -10,6 +10,7 @@ import type {
   AttendanceStreakBoard,
 } from "@/lib/attendanceStreaks";
 import { ListPager, pageSlice } from "@/components/ListPager";
+import { AttendEveningDynamics } from "@/components/AttendEveningDynamics";
 
 const ATTEND_PAGE_SIZE = 50;
 
@@ -81,22 +82,6 @@ type Payload = {
 
 /** UI labels; PB1 maps to TPUB1 in DB */
 type ServerFilter = "TR1" | "PB1";
-
-const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
-const MONTHS_RU = [
-  "январь",
-  "февраль",
-  "март",
-  "апрель",
-  "май",
-  "июнь",
-  "июль",
-  "август",
-  "сентябрь",
-  "октябрь",
-  "ноябрь",
-  "декабрь",
-];
 
 function ymdLabel(ymd: string): string {
   const [, m, d] = ymd.split("-");
@@ -258,125 +243,6 @@ function defaultRange(): { from: string; to: string } {
   return { from, to };
 }
 
-function TimelineTable({
-  rows,
-  countLabel,
-}: {
-  rows: Array<{
-    label: string;
-    count: number;
-    cumulative?: number;
-    nicks?: string[];
-  }>;
-  countLabel: string;
-}) {
-  if (!rows.length) {
-    return <p className="muted">Нет данных за период</p>;
-  }
-  const showNicks = rows.some((r) => (r.nicks?.length || 0) > 0);
-  return (
-    <div className="admin-table-wrap attend-timeline-wrap">
-      <table className="admin-table attend-timeline-table">
-        <thead>
-          <tr>
-            <th>Время</th>
-            <th>{countLabel}</th>
-            {showNicks ? <th>Ники</th> : null}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.label}>
-              <td>{r.label}</td>
-              <td>{r.count}</td>
-              {showNicks ? (
-                <td className="attend-leave-nicks">
-                  {r.nicks?.length ? r.nicks.join(", ") : "—"}
-                </td>
-              ) : null}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function StatsMonthCalendar({
-  days,
-  counts,
-}: {
-  days: string[];
-  counts: Map<string, number>;
-}) {
-  const months = useMemo(() => {
-    const set = new Set<string>();
-    for (const d of days) set.add(d.slice(0, 7));
-    return [...set].sort();
-  }, [days]);
-
-  return (
-    <div className="attend-stats-cal-list">
-      {months.map((ym) => {
-        const [y, m] = ym.split("-").map(Number);
-        const first = new Date(Date.UTC(y, m - 1, 1));
-        const startDow = first.getUTCDay();
-        const mondayOffset = startDow === 0 ? 6 : startDow - 1;
-        const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
-        const cells: Array<{ day: number | null; ymd: string | null }> = [];
-        for (let i = 0; i < mondayOffset; i++) cells.push({ day: null, ymd: null });
-        for (let d = 1; d <= daysInMonth; d++) {
-          const ymd = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-          cells.push({ day: d, ymd });
-        }
-        while (cells.length % 7 !== 0) cells.push({ day: null, ymd: null });
-        const monthName = MONTHS_RU[m - 1];
-        return (
-          <div key={ym} className="attend-stats-cal">
-            <h4>
-              {monthName} {y}
-            </h4>
-            <div className="attend-stats-cal-weekdays">
-              {WEEKDAYS.map((w) => (
-                <span key={w}>{w}</span>
-              ))}
-            </div>
-            <div className="attend-stats-cal-grid">
-              {cells.map((c, i) => {
-                if (!c.ymd || c.day == null) {
-                  return <div key={`e-${ym}-${i}`} className="attend-stats-cal-cell empty" />;
-                }
-                const inRange = days.includes(c.ymd);
-                const n = counts.get(c.ymd) || 0;
-                return (
-                  <div
-                    key={c.ymd}
-                    className={`attend-stats-cal-cell${inRange ? " in-range" : ""}${
-                      n > 0 ? " has-players" : ""
-                    }`}
-                    title={
-                      inRange
-                        ? `${c.ymd}: ${n} уникальных (21:00–02:00)`
-                        : "Вне выбранного периода"
-                    }
-                  >
-                    <span className="attend-stats-cal-day">{c.day}</span>
-                    {inRange ? (
-                      <span className="attend-stats-cal-num">{n || "·"}</span>
-                    ) : (
-                      <span className="attend-stats-cal-num muted">·</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 export function AdminAttendancePanel() {
   const init = useMemo(() => defaultRange(), []);
   const [from, setFrom] = useState(init.from);
@@ -391,7 +257,6 @@ export function AdminAttendancePanel() {
   const [showIn, setShowIn] = useState(true);
   const [showOut, setShowOut] = useState(true);
   const [server, setServer] = useState<ServerFilter>("TR1");
-  const [leaveDay, setLeaveDay] = useState<string>("");
   const [streaks, setStreaks] = useState<AttendanceStreakBoard | null>(null);
   const [clanSyncBusy, setClanSyncBusy] = useState(false);
   const [clanSyncMsg, setClanSyncMsg] = useState<string | null>(null);
@@ -409,10 +274,6 @@ export function AdminAttendancePanel() {
   }>({ key: "missStreak", dir: "desc" });
 
   const loadStreaks = useCallback(async () => {
-    if (server !== "TR1") {
-      setStreaks(null);
-      return;
-    }
     try {
       const res = await fetch("/api/admin/attendance-streaks", {
         cache: "no-store",
@@ -422,7 +283,7 @@ export function AdminAttendancePanel() {
     } catch {
       /* keep previous */
     }
-  }, [server]);
+  }, []);
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) {
@@ -436,14 +297,7 @@ export function AdminAttendancePanel() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Ошибка загрузки");
-      const payload = json as Payload;
-      setData(payload);
-      setLeaveDay((prev) => {
-        const days = payload.days || [];
-        if (!days.length) return "";
-        if (prev && days.includes(prev)) return prev;
-        return days[days.length - 1];
-      });
+      setData(json as Payload);
       if (opts?.silent) setErr(null);
     } catch (e) {
       if (!opts?.silent) {
@@ -455,8 +309,8 @@ export function AdminAttendancePanel() {
   }, [from, to, server]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (tab === "table") void load();
+  }, [load, tab]);
 
   useEffect(() => {
     if (tab === "stats") void loadStreaks();
@@ -464,7 +318,7 @@ export function AdminAttendancePanel() {
 
   useAutoRefresh(
     () => {
-      void load({ silent: true });
+      if (tab === "table") void load({ silent: true });
       if (tab === "stats") void loadStreaks();
     },
     {
@@ -508,24 +362,6 @@ export function AdminAttendancePanel() {
       setClanSyncBusy(false);
     }
   }
-
-  const leaveRows = useMemo(() => {
-    if (!data) return [];
-    if (server === "TR1" && data.stats.leaveByDay) {
-      const day =
-        leaveDay && data.days.includes(leaveDay)
-          ? leaveDay
-          : data.days[data.days.length - 1];
-      if (day && data.stats.leaveByDay[day]) {
-        return data.stats.leaveByDay[day];
-      }
-      return (data.stats.leaveTimeline || []).map((r) => ({
-        label: r.label,
-        count: 0,
-      }));
-    }
-    return data.stats.leaveTimeline || [];
-  }, [data, server, leaveDay]);
 
   const streakRowsSorted = useMemo(() => {
     if (!streaks?.rows?.length) return [];
@@ -637,8 +473,9 @@ export function AdminAttendancePanel() {
   return (
     <section className="card" style={{ marginTop: 8 }}>
       <p className="muted" style={{ marginTop: 0, marginBottom: 10 }}>
-        Тренировки (TR1): в таблице и статистике только участники клана{" "}
-        <strong>BlackBerry</strong>. Паблик (PB1) — все зареганые, как раньше.
+        {tab === "table"
+          ? "Таблица: участники клана BlackBerry (TR) или все зареганые (PB1)."
+          : "Статистика: динамика вечера на TR1+TR2 и стрики явки клана BlackBerry."}
       </p>
       <div className="attend-filter-row" style={{ marginBottom: 10 }}>
         <button
@@ -675,6 +512,8 @@ export function AdminAttendancePanel() {
         </button>
       </div>
 
+      {tab === "table" ? (
+        <>
       <div className="attend-filter-row">
         <label className="field">
           <span>С</span>
@@ -811,7 +650,12 @@ export function AdminAttendancePanel() {
             ].join("")
           : ""}
       </p>
-      {err ? <p style={{ color: "#fca5a5" }}>{err}</p> : null}
+        </>
+      ) : null}
+
+      {tab === "table" && err ? (
+        <p style={{ color: "#fca5a5" }}>{err}</p>
+      ) : null}
 
       {tab === "table" && data ? (
         <>
@@ -953,339 +797,158 @@ export function AdminAttendancePanel() {
         </>
       ) : null}
 
-      {tab === "stats" && data ? (
+      {tab === "stats" ? (
         <div className="attend-stats-grid attend-stats-grid-v2">
-          <div className="training-chart-block">
-            <h3>Средние (окно 21:00–00:00)</h3>
-            <div className="meta-row">
-              <span>В среднем за день</span>
-              <span>{data.stats.avgPlayersPerDay}</span>
-            </div>
-            <div className="meta-row">
-              <span>В среднем за неделю</span>
-              <span>{data.stats.avgPlayersPerWeek ?? "—"}</span>
-            </div>
-            <div className="meta-row">
-              <span>В среднем за месяц</span>
-              <span>{data.stats.avgPlayersPerMonth ?? "—"}</span>
-            </div>
-            <p className="muted" style={{ margin: "8px 0 0", fontSize: "0.78rem" }}>
-              Уникальные игроки с пересечением 21:00–00:00 МСК. Неделя/месяц —
-              сумма вечерних уникальных по дням, усреднённая по неделям/месяцам
-              в выбранном периоде.
-            </p>
-          </div>
+          <AttendEveningDynamics />
 
           <div
-            className="training-chart-block"
+            className="training-chart-block attend-streak-board"
             style={{ gridColumn: "1 / -1" }}
           >
-            <h3>
-              {server === "TR1"
-                ? "Явка: участники BlackBerry → были на тренировке"
-                : "Явка: зареганы на сайте → были на PB1"}
-            </h3>
-            <p className="muted" style={{ marginTop: 0, marginBottom: 8 }}>
-              По каждому дню: сколько человек из выборки уже было в базе к концу
-              дня (МСК) и сколько отмечены «был» (
-              {server === "TR1"
-                ? "есть заход/выход вечером · только клан BB"
-                : "уникальные на PB1"}
-              ). Сейчас в выборке:{" "}
-              <strong>{data.stats.registeredNow ?? "—"}</strong>.
+            <h3>Пропуски и стрики явки (TR1)</h3>
+            <p className="muted" style={{ marginTop: 0, marginBottom: 10 }}>
+              Якорь:{" "}
+              <strong>
+                {streaks?.anchorYmd
+                  ? `${ymdLabel(streaks.anchorYmd)} (${streaks.anchorYmd})`
+                  : "—"}
+              </strong>
+              . До 21:00 МСК — вчерашняя тренировка; с 21:00 — сегодняшняя.
+              «Был» = есть заход/выход вечером (как в таблице/профиле).
             </p>
-            {(data.stats.turnoutByDay || []).length ? (
+            {streaks ? (
               <>
-                <div className="attend-turnout-legend">
-                  <span className="attend-turnout-leg a">Зареганы</span>
-                  <span className="attend-turnout-leg b">
-                    {server === "TR1" ? "Были на тренировке" : "Были на PB1"}
-                  </span>
-                </div>
-                {(() => {
-                  const turnout = data.stats.turnoutByDay!;
-                  const max = Math.max(
-                    1,
-                    ...turnout.map((x) => Math.max(x.registered, x.present))
-                  );
-                  return (
-                    <div className="visits-col-chart attend-turnout-chart">
-                      {turnout.map((c) => (
-                        <div key={c.day} className="visits-col">
-                          <div className="visits-col-bars">
-                            <div
-                              className="visits-col-a"
-                              style={{
-                                height: `${Math.max(2, (100 * c.registered) / max)}%`,
-                              }}
-                              title={`${ymdLabel(c.day)}: зареганы ${c.registered}`}
-                            />
-                            <div
-                              className="visits-col-b"
-                              style={{
-                                height: `${Math.max(0, (100 * c.present) / max)}%`,
-                              }}
-                              title={`${ymdLabel(c.day)}: были ${c.present} (${c.pct}%)`}
-                            />
-                          </div>
-                          <span className="visits-col-label">{ymdLabel(c.day)}</span>
-                          <span className="attend-turnout-pct">{c.pct}%</span>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
-              </>
-            ) : (
-              <p className="muted" style={{ margin: 0 }}>
-                Нет дней в выбранном периоде
-              </p>
-            )}
-          </div>
-
-          <div className="training-chart-block">
-            <h3>Норма захода</h3>
-            {data.stats.joinNorm ? (
-              <>
-                <div className="attend-norm-row">
-                  <div className="attend-norm-pill ok">
-                    <strong>{data.stats.joinNorm.onTime}</strong>
-                    <span>≤21:00 норм</span>
-                  </div>
-                  <div className="attend-norm-pill warn">
-                    <strong>{data.stats.joinNorm.lateOk}</strong>
-                    <span>21:00–21:30</span>
+                <div className="attend-streak-summary">
+                  <div className="attend-norm-pill">
+                    <strong>{streaks.registered}</strong>
+                    <span>Зарегано</span>
                   </div>
                   <div className="attend-norm-pill bad">
-                    <strong>{data.stats.joinNorm.late}</strong>
-                    <span>после 21:30</span>
+                    <strong>{streaks.missedToday}</strong>
+                    <span>Не пришли (якорь)</span>
                   </div>
+                  {[2, 3, 4, 5, 6, 7].map((n) => (
+                    <div key={n} className="attend-norm-pill warn">
+                      <strong>{streaks.missByDays[String(n)] ?? 0}</strong>
+                      <span>
+                        {n === 7 ? "7+ дн подряд" : `${n} дн подряд`}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-                <p className="muted" style={{ margin: "8px 0 0", fontSize: "0.78rem" }}>
-                  По первому заходу в вечер (21:00–02:00), человек×день:{" "}
-                  {data.stats.joinNorm.total}
-                </p>
+
+                <div className="admin-table-wrap attend-streak-table-wrap">
+                  <table className="admin-table attend-streak-table">
+                    <thead>
+                      <tr>
+                        <th>
+                          <button
+                            type="button"
+                            className="attend-sort-btn"
+                            onClick={() => toggleStreakSort("regNo")}
+                          >
+                            №{streakSortMark("regNo")}
+                          </button>
+                        </th>
+                        <th>
+                          <button
+                            type="button"
+                            className="attend-sort-btn"
+                            onClick={() => toggleStreakSort("nick")}
+                          >
+                            Ник{streakSortMark("nick")}
+                          </button>
+                        </th>
+                        <th>
+                          <button
+                            type="button"
+                            className="attend-sort-btn"
+                            onClick={() => toggleStreakSort("inReserve")}
+                          >
+                            Резерв{streakSortMark("inReserve")}
+                          </button>
+                        </th>
+                        <th>
+                          <button
+                            type="button"
+                            className="attend-sort-btn"
+                            onClick={() => toggleStreakSort("missedToday")}
+                          >
+                            Сегодня{streakSortMark("missedToday")}
+                          </button>
+                        </th>
+                        <th>
+                          <button
+                            type="button"
+                            className="attend-sort-btn"
+                            onClick={() => toggleStreakSort("missStreak")}
+                          >
+                            Пропуск подряд{streakSortMark("missStreak")}
+                          </button>
+                        </th>
+                        <th>
+                          <button
+                            type="button"
+                            className="attend-sort-btn"
+                            onClick={() => toggleStreakSort("attendStreak")}
+                          >
+                            Явка подряд{streakSortMark("attendStreak")}
+                          </button>
+                        </th>
+                        <th>
+                          <button
+                            type="button"
+                            className="attend-sort-btn"
+                            onClick={() => toggleStreakSort("maxAttendStreak")}
+                          >
+                            Макс. явка{streakSortMark("maxAttendStreak")}
+                          </button>
+                        </th>
+                        <th>
+                          <button
+                            type="button"
+                            className="attend-sort-btn"
+                            onClick={() => toggleStreakSort("lastPresent")}
+                          >
+                            Последний «был»{streakSortMark("lastPresent")}
+                          </button>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {streakRowsSorted.map((r) => (
+                        <tr
+                          key={r.userId}
+                          className={
+                            r.missedToday ? "attend-streak-row-miss" : undefined
+                          }
+                        >
+                          <td>{r.regNo || "—"}</td>
+                          <td>
+                            <Link
+                              href={`/players/${encodeURIComponent(r.nick)}`}
+                            >
+                              {r.nick}
+                            </Link>
+                          </td>
+                          <td>{r.inReserve ? "да" : "нет"}</td>
+                          <td>{r.missedToday ? "нет" : "был"}</td>
+                          <td>{r.missStreak}</td>
+                          <td>{r.attendStreak}</td>
+                          <td>{r.maxAttendStreak}</td>
+                          <td>
+                            {r.lastPresent ? ymdLabel(r.lastPresent) : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </>
             ) : (
-              <p className="muted">Для PB1 норма захода не считается</p>
+              <p className="muted">Загрузка стриков…</p>
             )}
           </div>
-
-          <div className="training-chart-block" style={{ gridColumn: "1 / -1" }}>
-            <h3>Выходы — ушёл и больше не заходил</h3>
-            <p className="muted" style={{ marginTop: 0, marginBottom: 8 }}>
-              Только финальный выход за вечер (21:00–02:00). Промежуточные
-              «вышел → снова зашёл» не считаются. Ники — у всех окончательных
-              уходов в выбранный день.
-            </p>
-            {server === "TR1" && data.days.length > 0 ? (
-              <label
-                className="muted"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
-                  marginBottom: 10,
-                  fontSize: "0.85rem",
-                }}
-              >
-                День тренировки
-                <select
-                  value={leaveDay || data.days[data.days.length - 1]}
-                  onChange={(e) => setLeaveDay(e.target.value)}
-                >
-                  {[...data.days].reverse().map((d) => (
-                    <option key={d} value={d}>
-                      {ymdLabel(d)} ({d})
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
-            <TimelineTable
-              rows={leaveRows}
-              countLabel="Ушли"
-            />
-          </div>
-
-          <div className="training-chart-block" style={{ gridColumn: "1 / -1" }}>
-            <h3>Календарь уникальных (21:00–02:00)</h3>
-            <p className="muted" style={{ marginTop: 0 }}>
-              Цифра на дате — сколько уникальных было в окне 21:00–02:00 МСК
-              (выход до 02:00 относится к вчерашней тренировке). Вне этого окна в
-              цифру не входят.
-            </p>
-            <StatsMonthCalendar
-              days={data.days}
-              counts={
-                new Map(
-                  (data.stats.calendarUnique || data.stats.dayPlayerCounts).map(
-                    (x) => [x.day, x.players]
-                  )
-                )
-              }
-            />
-          </div>
-
-          {server === "TR1" ? (
-            <div
-              className="training-chart-block attend-streak-board"
-              style={{ gridColumn: "1 / -1" }}
-            >
-              <h3>Пропуски и стрики явки (TR1)</h3>
-              <p className="muted" style={{ marginTop: 0, marginBottom: 10 }}>
-                Якорь:{" "}
-                <strong>
-                  {streaks?.anchorYmd
-                    ? `${ymdLabel(streaks.anchorYmd)} (${streaks.anchorYmd})`
-                    : "—"}
-                </strong>
-                . До 21:00 МСК — вчерашняя тренировка; с 21:00 — сегодняшняя.
-                «Был» = есть заход/выход вечером (как в таблице/профиле).
-              </p>
-              {streaks ? (
-                <>
-                  <div className="attend-streak-summary">
-                    <div className="attend-norm-pill">
-                      <strong>{streaks.registered}</strong>
-                      <span>Зарегано</span>
-                    </div>
-                    <div className="attend-norm-pill bad">
-                      <strong>{streaks.missedToday}</strong>
-                      <span>Не пришли (якорь)</span>
-                    </div>
-                    {[2, 3, 4, 5, 6, 7].map((n) => (
-                      <div key={n} className="attend-norm-pill warn">
-                        <strong>{streaks.missByDays[String(n)] ?? 0}</strong>
-                        <span>
-                          {n === 7 ? "7+ дн подряд" : `${n} дн подряд`}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="admin-table-wrap attend-streak-table-wrap">
-                    <table className="admin-table attend-streak-table">
-                      <thead>
-                        <tr>
-                          <th>
-                            <button
-                              type="button"
-                              className="attend-sort-btn"
-                              onClick={() => toggleStreakSort("regNo")}
-                            >
-                              №{streakSortMark("regNo")}
-                            </button>
-                          </th>
-                          <th>
-                            <button
-                              type="button"
-                              className="attend-sort-btn"
-                              onClick={() => toggleStreakSort("nick")}
-                            >
-                              Ник{streakSortMark("nick")}
-                            </button>
-                          </th>
-                          <th>
-                            <button
-                              type="button"
-                              className="attend-sort-btn"
-                              onClick={() => toggleStreakSort("inReserve")}
-                            >
-                              Резерв{streakSortMark("inReserve")}
-                            </button>
-                          </th>
-                          <th>
-                            <button
-                              type="button"
-                              className="attend-sort-btn"
-                              onClick={() => toggleStreakSort("missedToday")}
-                            >
-                              Сегодня{streakSortMark("missedToday")}
-                            </button>
-                          </th>
-                          <th>
-                            <button
-                              type="button"
-                              className="attend-sort-btn"
-                              onClick={() => toggleStreakSort("missStreak")}
-                            >
-                              Пропуск подряд{streakSortMark("missStreak")}
-                            </button>
-                          </th>
-                          <th>
-                            <button
-                              type="button"
-                              className="attend-sort-btn"
-                              onClick={() => toggleStreakSort("attendStreak")}
-                            >
-                              Явка подряд{streakSortMark("attendStreak")}
-                            </button>
-                          </th>
-                          <th>
-                            <button
-                              type="button"
-                              className="attend-sort-btn"
-                              onClick={() => toggleStreakSort("maxAttendStreak")}
-                            >
-                              Макс. явка{streakSortMark("maxAttendStreak")}
-                            </button>
-                          </th>
-                          <th>
-                            <button
-                              type="button"
-                              className="attend-sort-btn"
-                              onClick={() => toggleStreakSort("lastPresent")}
-                            >
-                              Последний «был»{streakSortMark("lastPresent")}
-                            </button>
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {streakRowsSorted.map((r) => (
-                          <tr
-                            key={r.userId}
-                            className={
-                              r.missedToday ? "attend-streak-row-miss" : undefined
-                            }
-                          >
-                            <td>{r.regNo || "—"}</td>
-                            <td>
-                              <Link
-                                href={`/players/${encodeURIComponent(r.nick)}`}
-                              >
-                                {r.nick}
-                              </Link>
-                            </td>
-                            <td>{r.inReserve ? "да" : "нет"}</td>
-                            <td>{r.missedToday ? "нет" : "был"}</td>
-                            <td>{r.missStreak}</td>
-                            <td>{r.attendStreak}</td>
-                            <td>{r.maxAttendStreak}</td>
-                            <td>
-                              {r.lastPresent ? ymdLabel(r.lastPresent) : "—"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              ) : (
-                <p className="muted">Загрузка стриков…</p>
-              )}
-            </div>
-          ) : (
-            <div
-              className="training-chart-block"
-              style={{ gridColumn: "1 / -1" }}
-            >
-              <p className="muted" style={{ margin: 0 }}>
-                Стрики пропусков/явки считаются только для TR1.
-              </p>
-            </div>
-          )}
         </div>
       ) : null}
     </section>
