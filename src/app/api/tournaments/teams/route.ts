@@ -30,10 +30,27 @@ const teamInclude = {
     include: { user: { select: { nick: true } } },
     orderBy: { createdAt: "desc" as const },
   },
+  votes: {
+    select: { userId: true, value: true },
+  },
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapTeam(team: any, opts?: { includeInvites?: boolean }) {
+function mapTeam(
+  team: any,
+  opts?: { includeInvites?: boolean; viewerUserId?: string | null }
+) {
+  const votes = (team.votes || []) as { userId: string; value: number }[];
+  let likes = 0;
+  let dislikes = 0;
+  let myVote: 1 | -1 | null = null;
+  for (const v of votes) {
+    if (v.value === 1) likes += 1;
+    else if (v.value === -1) dislikes += 1;
+    if (opts?.viewerUserId && v.userId === opts.viewerUserId) {
+      myVote = v.value === 1 || v.value === -1 ? (v.value as 1 | -1) : null;
+    }
+  }
   return {
     id: team.id as string,
     name: team.name as string,
@@ -42,6 +59,9 @@ function mapTeam(team: any, opts?: { includeInvites?: boolean }) {
     createdAt: new Date(team.createdAt).toISOString(),
     membersCount: team.members.length as number,
     rosterMax: TOURNAMENT_TEAM_ROSTER_MAX,
+    likes,
+    dislikes,
+    myVote,
     members: team.members.map(
       (m: {
         id: string;
@@ -115,7 +135,10 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     teams: teams.map((t) =>
-      mapTeam(t, { includeInvites: Boolean(myTeamId && t.id === myTeamId) })
+      mapTeam(t, {
+        includeInvites: Boolean(myTeamId && t.id === myTeamId),
+        viewerUserId: myUserId,
+      })
     ),
     myTeamId,
     myRole,

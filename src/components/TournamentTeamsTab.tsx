@@ -12,7 +12,6 @@ import {
   TEAM_SUB_TABS,
   TEAMS_SECTION_BLURB,
   TOURNAMENT_TEAM_ROLE_LABEL,
-  TOURNAMENT_TEAM_ROSTER_MAX,
   mapDbTeamRole,
   type TeamSubTabId,
   type TournamentTeamRole,
@@ -42,6 +41,9 @@ type ApiTeam = {
   createdAt: string;
   membersCount: number;
   rosterMax: number;
+  likes: number;
+  dislikes: number;
+  myVote: 1 | -1 | null;
   members: ApiMember[];
   pendingInvites: { id: string; nick: string; sentAt: string }[];
 };
@@ -155,7 +157,7 @@ function TeamPublicInspect({
           <p className="tn-team-inspect-tag">[{team.tag}]</p>
           <p className="tn-team-inspect-sub">
             Создана {formatDate(team.createdAt)} · состав{" "}
-            {team.membersCount}/{team.rosterMax || TOURNAMENT_TEAM_ROSTER_MAX}
+            {team.membersCount}
           </p>
         </div>
       </div>
@@ -200,17 +202,115 @@ function TeamPublicInspect({
   );
 }
 
+function TeamVoteCell({
+  team,
+  authed,
+  onVoted,
+}: {
+  team: ApiTeam;
+  authed: boolean;
+  onVoted: (
+    teamId: string,
+    next: { likes: number; dislikes: number; myVote: 1 | -1 | null }
+  ) => void;
+}) {
+  const [busy, setBusy] = useState<1 | -1 | null>(null);
+  const [pop, setPop] = useState<1 | -1 | null>(null);
+
+  async function vote(value: 1 | -1) {
+    if (!authed || busy) return;
+    setBusy(value);
+    setPop(value);
+    window.setTimeout(() => setPop(null), 420);
+    try {
+      const res = await fetch(`/api/tournaments/teams/${team.id}/vote`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        likes?: number;
+        dislikes?: number;
+        myVote?: 1 | -1 | null;
+      };
+      if (!res.ok) {
+        if (res.status === 401) {
+          window.alert("Войди через Steam, чтобы голосовать");
+        }
+        return;
+      }
+      onVoted(team.id, {
+        likes: Number(data.likes) || 0,
+        dislikes: Number(data.dislikes) || 0,
+        myVote:
+          data.myVote === 1 || data.myVote === -1 ? data.myVote : null,
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div
+      className="tn-team-votes"
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        className={`tn-team-vote-btn is-up${team.myVote === 1 ? " is-on" : ""}${pop === 1 ? " is-pop" : ""}`}
+        disabled={!authed || busy !== null}
+        title={authed ? "Нравится" : "Войди, чтобы голосовать"}
+        aria-pressed={team.myVote === 1}
+        aria-label={`Лайк, ${team.likes}`}
+        onClick={() => void vote(1)}
+      >
+        <svg className="tn-team-vote-ico" viewBox="0 0 24 24" aria-hidden>
+          <path
+            fill="currentColor"
+            d="M14 3v8h6.2c.7 0 1.3.5 1.4 1.2l-.8 5.5c-.1.9-.9 1.6-1.8 1.6H9V9.8L12.4 2.6c.3-.7 1.2-.9 1.8-.5.4.3.6.7.6 1.2zM2 10h5v10H2z"
+          />
+        </svg>
+        <span className="tn-team-vote-n">{team.likes}</span>
+      </button>
+      <button
+        type="button"
+        className={`tn-team-vote-btn is-down${team.myVote === -1 ? " is-on" : ""}${pop === -1 ? " is-pop" : ""}`}
+        disabled={!authed || busy !== null}
+        title={authed ? "Не нравится" : "Войди, чтобы голосовать"}
+        aria-pressed={team.myVote === -1}
+        aria-label={`Дизлайк, ${team.dislikes}`}
+        onClick={() => void vote(-1)}
+      >
+        <svg className="tn-team-vote-ico" viewBox="0 0 24 24" aria-hidden>
+          <path
+            fill="currentColor"
+            d="M10 21v-8H3.8c-.7 0-1.3-.5-1.4-1.2l.8-5.5C3.3 5.4 4.1 4.7 5 4.7H15V14.2L11.6 21.4c-.3.7-1.2.9-1.8.5-.4-.3-.6-.7-.6-1.2zM22 14h-5V4h5z"
+          />
+        </svg>
+        <span className="tn-team-vote-n">{team.dislikes}</span>
+      </button>
+    </div>
+  );
+}
+
 function TeamsOverview({
   teams,
   canCreate,
   authed,
   onCreated,
+  onTeamVotes,
 }: {
   teams: ApiTeam[];
   canCreate: boolean;
   /** Зарегистрированный пользователь (профиль заполнен) */
   authed: boolean;
   onCreated: (team: ApiTeam) => void;
+  onTeamVotes: (
+    teamId: string,
+    next: { likes: number; dislikes: number; myVote: 1 | -1 | null }
+  ) => void;
 }) {
   const [name, setName] = useState("");
   const [tag, setTag] = useState("");
@@ -446,8 +546,9 @@ function TeamsOverview({
                     <th>Лого</th>
                     <th>Название</th>
                     <th>Тег</th>
-                    <th>Дата создания</th>
                     <th>Состав</th>
+                    <th>Дата создания</th>
+                    <th>Оценка</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -485,10 +586,14 @@ function TeamsOverview({
                       </td>
                       <td>{tm.name}</td>
                       <td className="tn-teams-tag">[{tm.tag}]</td>
+                      <td>{tm.membersCount}</td>
                       <td>{formatDate(tm.createdAt)}</td>
                       <td>
-                        {tm.membersCount}/
-                        {tm.rosterMax || TOURNAMENT_TEAM_ROSTER_MAX}
+                        <TeamVoteCell
+                          team={tm}
+                          authed={authed}
+                          onVoted={onTeamVotes}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -695,8 +800,7 @@ function MyTeamPanel({
               <h3 className="tn-my-info-name">{team.name}</h3>
               <p className="tn-teams-tag">[{team.tag}]</p>
               <p className="tn-my-info-meta">
-                Состав {team.membersCount}/{team.rosterMax} · с{" "}
-                {formatDate(team.createdAt)}
+                Состав {team.membersCount} · с {formatDate(team.createdAt)}
               </p>
               <p className="tn-my-note">
                 Название и тег менять нельзя.
@@ -938,7 +1042,17 @@ export function TournamentTeamsTab({ viewerNick }: { viewerNick: string }) {
         setBootError(data.error || "Не удалось загрузить команды");
         return;
       }
-      setTeams(Array.isArray(data.teams) ? data.teams : []);
+      setTeams(
+        Array.isArray(data.teams)
+          ? data.teams.map((t) => ({
+              ...t,
+              likes: Number(t.likes) || 0,
+              dislikes: Number(t.dislikes) || 0,
+              myVote:
+                t.myVote === 1 || t.myVote === -1 ? t.myVote : null,
+            }))
+          : []
+      );
       setMyTeamId(data.myTeamId || null);
       setMyRole(data.myRole || null);
       setMyUserId(data.myUserId || null);
@@ -960,12 +1074,30 @@ export function TournamentTeamsTab({ viewerNick }: { viewerNick: string }) {
   );
 
   function onCreated(team: ApiTeam) {
-    setTeams((prev) => [team, ...prev.filter((t) => t.id !== team.id)]);
+    setTeams((prev) => [
+      {
+        ...team,
+        likes: Number(team.likes) || 0,
+        dislikes: Number(team.dislikes) || 0,
+        myVote:
+          team.myVote === 1 || team.myVote === -1 ? team.myVote : null,
+      },
+      ...prev.filter((t) => t.id !== team.id),
+    ]);
     setMyTeamId(team.id);
     setMyRole("CAPTAIN");
     setCanCreate(false);
     setAuthed(true);
     setSub("my-team");
+  }
+
+  function onTeamVotes(
+    teamId: string,
+    next: { likes: number; dislikes: number; myVote: 1 | -1 | null }
+  ) {
+    setTeams((prev) =>
+      prev.map((t) => (t.id === teamId ? { ...t, ...next } : t))
+    );
   }
 
   function onDeleted() {
@@ -1009,6 +1141,7 @@ export function TournamentTeamsTab({ viewerNick }: { viewerNick: string }) {
           canCreate={canCreate}
           authed={authed}
           onCreated={onCreated}
+          onTeamVotes={onTeamVotes}
         />
       ) : (
         <MyTeamPanel

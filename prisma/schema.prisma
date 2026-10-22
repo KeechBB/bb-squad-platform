@@ -110,6 +110,7 @@ model User {
   tournamentInvitesSent     TournamentTeamInvite[] @relation("TournamentInviter")
   tournamentEntriesSubmitted TournamentEntry[] @relation("TournamentEntrySubmitter")
   tournamentEntrySlots       TournamentEntryPlayer[]
+  tournamentTeamVotes        TournamentTeamVote[]
   siteNoticeStates           SiteNoticeState[]
 }
 
@@ -718,8 +719,27 @@ model TournamentTeam {
   members TournamentTeamMember[]
   invites TournamentTeamInvite[]
   entries TournamentEntry[]
+  votes   TournamentTeamVote[]
 
   @@index([createdAt])
+}
+
+/// Один голос на аккаунт на команду: +1 лайк / −1 дизлайк
+model TournamentTeamVote {
+  id        String   @id @default(cuid())
+  teamId    String
+  userId    String
+  /// 1 = вверх, -1 = вниз
+  value     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  team TournamentTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([teamId])
+  @@index([userId])
 }
 
 enum TournamentEntryStatus {

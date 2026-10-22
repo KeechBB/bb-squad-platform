@@ -35,8 +35,8 @@ export type TournamentPrizeSlot = {
   hoverTip?: string | null;
 };
 
-/** Макс. игроков в турнирной команде (состав на сайте). */
-export const TOURNAMENT_TEAM_ROSTER_MAX = 12;
+/** Макс. игроков в турнирной команде (состав на сайте). На матч всё равно заявка. */
+export const TOURNAMENT_TEAM_ROSTER_MAX = 50;
 
 /** Заявка на Fruit Strike: 8 основных + 2 замены. */
 export const TOURNAMENT_ENTRY_STARTERS = 8;
