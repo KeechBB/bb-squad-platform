@@ -10,43 +10,19 @@ import {
   resolveDynamicsRange,
   todayEveYmdMsk,
 } from "@/lib/trainEveningDynamics";
+import {
+  TIER_KEYS,
+  type EveningTierBoard,
+  type EveningTierDay,
+  type TierKey,
+} from "@/lib/trainEveningTiersUi";
 
-export const TIER_KEYS = ["T1", "T2", "T3", "T4"] as const;
-export type TierKey = (typeof TIER_KEYS)[number];
+export type { EveningTierBoard, EveningTierDay, TierKey };
+export { TIER_KEYS, TIER_COLORS } from "@/lib/trainEveningTiersUi";
+export { availableDynamicsMonths };
 
-export const TIER_COLORS: Record<TierKey, string> = {
-  T1: "#7dd3fc",
-  T2: "#86efac",
-  T3: "#fde047",
-  T4: "#a78bfa",
-};
-
-const DOW = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"] as const;
 const MSK_OFFSET_MS = 3 * 3600 * 1000;
-
-export type EveningTierDay = {
-  day: string;
-  label: string;
-  dow: string;
-  counts: Record<TierKey, number>;
-  total: number;
-  isToday: boolean;
-};
-
-export type EveningTierBoard = {
-  mode: "week" | "month";
-  from: string;
-  to: string;
-  window: "21:00–00:00 МСК";
-  servers: "TR1 + TR2";
-  todayEve: string;
-  days: EveningTierDay[];
-  today: EveningTierDay;
-  avg: Record<TierKey, number>;
-  monthUnique: Record<TierKey, number>;
-  sumEvenings: Record<TierKey, number>;
-  updatedAt: string;
-};
+const DOW = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"] as const;
 
 function nickKey(n: string): string {
   return n.trim().toLowerCase().replace(/\s+/g, "");
@@ -229,5 +205,3 @@ export async function buildEveningTierDynamics(opts: {
     updatedAt: new Date().toISOString(),
   };
 }
-
-export { availableDynamicsMonths };

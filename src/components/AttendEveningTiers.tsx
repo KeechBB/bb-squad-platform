@@ -7,7 +7,7 @@ import {
   TIER_KEYS,
   type EveningTierBoard,
   type TierKey,
-} from "@/lib/trainEveningTiers";
+} from "@/lib/trainEveningTiersUi";
 
 type Board = EveningTierBoard & { months?: string[] };
 
