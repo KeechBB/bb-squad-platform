@@ -202,16 +202,17 @@ export function AttendEveningTiers() {
                       const c = d.counts[t];
                       if (!c) return null;
                       const h = (c / maxV) * 100;
+                      const thin = h * 1.8 < 12;
                       return (
                         <div
                           key={t}
-                          className="attend-tiers-seg"
+                          className={`attend-tiers-seg tier-${t.toLowerCase()}${thin ? " is-thin" : ""}`}
                           style={{
-                            height: `${Math.max(h, c > 0 ? 1.5 : 0)}%`,
+                            height: `${Math.max(h, 1.6)}%`,
                             background: TIER_COLORS[t],
                           }}
                         >
-                          {h >= 8 ? <span>{c}</span> : null}
+                          <span className="attend-tiers-num">{c}</span>
                         </div>
                       );
                     })}

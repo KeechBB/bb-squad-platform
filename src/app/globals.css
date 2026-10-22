@@ -6051,24 +6051,102 @@ body:has(.profile-page) {
   display: flex;
   flex-direction: column-reverse;
   justify-content: flex-start;
-  border-radius: 6px 6px 2px 2px;
-  overflow: hidden;
+  overflow: visible;
+}
+
+.attend-tiers-chart .attend-dynamics-col {
+  position: relative;
+}
+
+.attend-tiers-chart .attend-dynamics-col:has(.attend-tiers-seg:hover) {
+  z-index: 6;
 }
 
 .attend-tiers-seg {
+  position: relative;
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 0;
   flex-shrink: 0;
+  cursor: pointer;
 }
 
-.attend-tiers-seg span {
-  font-size: 0.58rem;
-  font-weight: 700;
-  color: rgba(18, 14, 28, 0.9);
+.attend-tiers-seg:first-of-type {
+  border-radius: 0 0 2px 2px;
+}
+
+.attend-tiers-seg:last-child {
+  border-radius: 6px 6px 0 0;
+}
+
+.attend-tiers-seg:hover {
+  z-index: 5;
+  box-shadow:
+    inset 0 0 0 2px #fff,
+    0 0 0 1px rgba(0, 0, 0, 0.45);
+}
+
+.attend-tiers-seg:hover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.22);
+  pointer-events: none;
+}
+
+.attend-tiers-stack:has(.attend-tiers-seg:hover) .attend-tiers-seg:not(:hover) {
+  opacity: 0.38;
+}
+
+.attend-tiers-num {
+  position: relative;
+  z-index: 2;
+  font-size: 12px;
+  font-weight: 800;
   line-height: 1;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+  color: #140e1c;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.attend-tiers-seg.tier-t4 .attend-tiers-num {
+  color: #fff;
+  text-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.55),
+    0 0 2px rgba(0, 0, 0, 0.85);
+}
+
+.attend-tiers-seg.is-thin .attend-tiers-num {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+}
+
+.attend-tiers-seg:hover .attend-tiers-num {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 1;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.15;
+  color: #120c18;
+  text-shadow: none;
+  background: #fff;
+  border-radius: 5px;
+  padding: 3px 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
 }
 
 .attend-tiers-total {
