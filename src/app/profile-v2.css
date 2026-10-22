@@ -609,23 +609,66 @@ body.has-profile-bg .shell:has(.profile-page) {
 }
 
 .profile-career-account-tabs button {
+  flex: 1 1 0;
+  min-width: 0;
   border: 1px solid var(--line);
   background: transparent;
   color: var(--muted);
   border-radius: 8px;
-  padding: 7px 12px;
+  padding: 7px 6px;
   font-family: var(--font-display);
-  font-size: 0.75rem;
+  font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .profile-career-account-tabs button.is-active {
   color: var(--ink);
   border-color: rgba(167, 139, 250, 0.55);
   background: rgba(167, 139, 250, 0.14);
+}
+
+.profile-career-account-tabs button.is-bp-tab {
+  --bp-accent: #d4a84b;
+  --bp-deep: #6a4514;
+  --bp-hot: #fff1c4;
+  color: #fff6d8;
+  border-color: var(--bp-accent);
+  background: linear-gradient(135deg, rgba(212, 168, 75, 0.55), rgba(70, 42, 10, 0.72));
+}
+
+.profile-career-account-tabs button.is-bp-tab[data-tier="5"] {
+  --bp-accent: #e8b15a;
+  --bp-deep: #7a4e12;
+  --bp-hot: #ffe3a8;
+}
+
+.profile-career-account-tabs button.is-bp-tab[data-tier="10"] {
+  --bp-accent: #f0d078;
+  --bp-deep: #8a6420;
+  --bp-hot: #fff6d0;
+}
+
+.profile-career-account-tabs button.is-bp-tab[data-tier="15"] {
+  --bp-accent: #f6e27a;
+  --bp-deep: #a07828;
+  --bp-hot: #fffceb;
+}
+
+.profile-career-account-tabs button.is-bp-tab[data-tier="20"] {
+  --bp-accent: #9fd0ff;
+  --bp-deep: #1d4e86;
+  --bp-hot: #f8efd6;
+  background: linear-gradient(135deg, rgba(159, 208, 255, 0.45), rgba(18, 42, 78, 0.78));
+}
+
+.profile-career-account-tabs button.is-bp-tab.is-active {
+  color: #fff;
+  border-color: var(--bp-hot);
+  box-shadow: 0 0 14px rgba(212, 168, 75, 0.35);
 }
 
 .profile-career-account-body {
@@ -643,6 +686,204 @@ body.has-profile-bg .shell:has(.profile-page) {
   min-height: 0;
   max-height: 100%;
   overflow: auto;
+}
+
+.profile-bp-panel {
+  --bp-accent: #d4a84b;
+  --bp-deep: #5c3a12;
+  --bp-hot: #fff1c4;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 2px 0;
+  container-type: size;
+}
+
+.profile-bp-panel[data-tier="5"] {
+  --bp-accent: #e8b15a;
+  --bp-deep: #7a4e12;
+  --bp-hot: #ffe3a8;
+}
+
+.profile-bp-panel[data-tier="10"] {
+  --bp-accent: #f0d078;
+  --bp-deep: #8a6420;
+  --bp-hot: #fff6d0;
+}
+
+.profile-bp-panel[data-tier="15"] {
+  --bp-accent: #f6e27a;
+  --bp-deep: #a07828;
+  --bp-hot: #fffceb;
+}
+
+.profile-bp-panel[data-tier="20"] {
+  --bp-accent: #9fd0ff;
+  --bp-deep: #1d4e86;
+  --bp-hot: #f8efd6;
+}
+
+.profile-bp-wait {
+  margin: auto;
+  color: var(--bp-hot);
+  font-family: var(--font-display), Oxanium, sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+}
+
+.profile-bp-eyebrow {
+  margin: 0;
+  flex: 0 0 auto;
+  text-align: center;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--bp-accent);
+}
+
+.profile-bp-hero {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  overflow: hidden;
+}
+
+.profile-bp-kicker {
+  margin: 0;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(248, 239, 214, 0.72);
+}
+
+.profile-bp-num {
+  margin: 2px 0 0;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-weight: 800;
+  font-size: clamp(2.8rem, 46cqh, 5.6rem);
+  line-height: 0.85;
+  letter-spacing: 0.04em;
+  background: linear-gradient(
+    110deg,
+    var(--bp-deep) 0%,
+    var(--bp-accent) 22%,
+    var(--bp-hot) 42%,
+    #fff 50%,
+    var(--bp-accent) 68%,
+    var(--bp-deep) 100%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: profile-bp-sheen 4.2s linear infinite;
+}
+
+.profile-bp-title {
+  margin: 6px 0 0;
+  max-width: 100%;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-size: clamp(0.95rem, 8cqh, 1.35rem);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #f8efd6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-bp-task {
+  margin: 0;
+  flex: 0 0 auto;
+  text-align: center;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: rgba(243, 232, 208, 0.82);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.profile-bp-pips {
+  display: flex;
+  gap: 3px;
+  width: 100%;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.profile-bp-pips i {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 5px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.profile-bp-pips i.is-done {
+  background: var(--bp-accent);
+}
+
+.profile-bp-pips i.is-now {
+  background: var(--bp-hot);
+  box-shadow: 0 0 6px var(--bp-accent);
+}
+
+.profile-bp-progress {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.profile-bp-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+  font-size: 0.72rem;
+  color: rgba(232, 213, 160, 0.9);
+}
+
+.profile-bp-progress-meta span:last-child {
+  font-family: var(--font-display), Oxanium, sans-serif;
+  color: #f8efd6;
+  white-space: nowrap;
+}
+
+.profile-bp-bar {
+  height: 8px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(212, 168, 75, 0.28);
+}
+
+.profile-bp-bar > i {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--bp-deep), var(--bp-accent), var(--bp-hot));
+}
+
+@keyframes profile-bp-sheen {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 220% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-bp-num { animation: none; }
 }
 
 /* Аккаунт — одна колонка, длинные значения не вылезают */

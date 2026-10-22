@@ -1,8 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ProfileCareerCard } from "@/components/ProfileCareerCard";
 import { ProfileEditForm } from "@/components/ProfileEditForm";
+import {
+  ProfileBpLevelPanel,
+  bpTier,
+  type ProfileBpView,
+} from "@/components/ProfileBpLevelPanel";
 
 type AccountInitial = {
   nick: string;
@@ -30,10 +35,27 @@ type Props = {
   account: AccountInitial;
 };
 
-type Panel = "career" | "account";
+type Panel = "career" | "account" | "bp";
 
 export function ProfileCareerAccountPanel({ nick, account }: Props) {
   const [panel, setPanel] = useState<Panel>("career");
+  const [bp, setBp] = useState<ProfileBpView | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/profile/bp?nick=${encodeURIComponent(nick)}`, { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: ProfileBpView | null) => {
+        if (cancelled || !data || typeof data.level !== "number") return;
+        setBp(data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [nick]);
+
+  const tier = bpTier(bp?.done ? 20 : bp?.level || 1);
 
   return (
     <section className="profile-career-account card">
@@ -56,12 +78,24 @@ export function ProfileCareerAccountPanel({ nick, account }: Props) {
         >
           Аккаунт
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={panel === "bp"}
+          className={`is-bp-tab${panel === "bp" ? " is-active" : ""}`}
+          data-tier={tier}
+          onClick={() => setPanel("bp")}
+        >
+          Уровень BP
+        </button>
       </div>
       <div className="profile-career-account-body">
         {panel === "career" ? (
           <ProfileCareerCard nick={nick} self embedded />
-        ) : (
+        ) : panel === "account" ? (
           <ProfileEditForm initial={account} />
+        ) : (
+          <ProfileBpLevelPanel bp={bp} />
         )}
       </div>
     </section>
