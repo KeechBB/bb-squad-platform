@@ -12,7 +12,7 @@ export default async function TmSapperPage() {
   if (!isBuiltinSuperAdmin(session.user.steamId)) redirect("/tm");
 
   return (
-    <main className="public-rating-page tm-sapper-page">
+    <main className="tm-sapper-page">
       <TmSapperRatingClient />
     </main>
   );

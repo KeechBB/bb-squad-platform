@@ -11,6 +11,7 @@ import type {
 const PAGE_SIZE = 50;
 
 type SortKey = keyof SapperRatingRow;
+type Tab = "mines" | "fob";
 
 function PagePager({
   page,
@@ -27,16 +28,16 @@ function PagePager({
   const from = (page - 1) * PAGE_SIZE + 1;
   const to = Math.min(page * PAGE_SIZE, total);
   return (
-    <nav className="public-rating-pager" aria-label="Страницы списка">
-      <span className="muted public-rating-pager-meta">
+    <nav className="tm-sapper-pager" aria-label="Страницы списка">
+      <span className="tm-sapper-muted">
         {from}–{to} из {total}
       </span>
-      <div className="public-rating-pager-btns">
+      <div className="tm-sapper-pager-btns">
         {Array.from({ length: pageCount }, (_, i) => i + 1).map((n) => (
           <button
             key={n}
             type="button"
-            className={`public-rating-page-btn${n === page ? " is-active" : ""}`}
+            className={`tm-sapper-page-btn${n === page ? " is-active" : ""}`}
             aria-current={n === page ? "page" : undefined}
             onClick={() => onChange(n)}
           >
@@ -49,26 +50,10 @@ function PagePager({
 }
 
 function StyleBadge({ style, label }: { style: SapperPlaceStyle; label: string }) {
-  if (style === "none") return <span className="muted">—</span>;
-  const color =
-    style === "cluster"
-      ? "#f0a060"
-      : style === "precision"
-        ? "#7dcea0"
-        : "#c4b5fd";
+  if (style === "none") return <span className="tm-sapper-muted">—</span>;
   return (
     <span
-      className="tm-sapper-style"
-      style={{
-        display: "inline-block",
-        padding: "2px 8px",
-        borderRadius: 6,
-        border: `1px solid ${color}88`,
-        color,
-        fontSize: "0.78rem",
-        fontWeight: 700,
-        letterSpacing: "0.04em",
-      }}
+      className={`tm-sapper-badge tm-sapper-badge--${style}`}
       title={
         style === "cluster"
           ? "Мины рядом: часто цепляют друг друга"
@@ -82,35 +67,24 @@ function StyleBadge({ style, label }: { style: SapperPlaceStyle; label: string }
   );
 }
 
-/** Полоска: одиночные (зелень) vs цепь (оранж) среди сработавших */
 function TriggerSplit({ solo, chain }: { solo: number; chain: number }) {
   const t = solo + chain;
-  if (t <= 0) return <span className="muted">—</span>;
+  if (t <= 0) return <span className="tm-sapper-muted">—</span>;
   const soloPct = Math.round((100 * solo) / t);
   return (
-    <div style={{ minWidth: 110 }}>
+    <div className="tm-sapper-split">
       <div
-        style={{
-          display: "flex",
-          height: 8,
-          borderRadius: 4,
-          overflow: "hidden",
-          background: "rgba(255,255,255,0.08)",
-          marginBottom: 4,
-        }}
+        className="tm-sapper-split-bar"
         title={`одиночные ${solo} · цепью ${chain}`}
       >
         {solo > 0 ? (
-          <div style={{ width: `${soloPct}%`, background: "#5bbf8a" }} />
+          <div className="tm-sapper-split-solo" style={{ width: `${soloPct}%` }} />
         ) : null}
-        {chain > 0 ? (
-          <div style={{ flex: 1, background: "#e0894a" }} />
-        ) : null}
+        {chain > 0 ? <div className="tm-sapper-split-chain" /> : null}
       </div>
-      <div className="muted" style={{ fontSize: "0.75rem", whiteSpace: "nowrap" }}>
-        <span style={{ color: "#7dcea0" }}>{solo} од.</span>
-        {" · "}
-        <span style={{ color: "#f0a060" }}>{chain} цепь</span>
+      <div className="tm-sapper-split-legend">
+        <span className="is-solo">{solo} од.</span>
+        <span className="is-chain">{chain} цепь</span>
       </div>
     </div>
   );
@@ -122,7 +96,8 @@ export function TmSapperRatingClient() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
-  const [onlyPlanted, setOnlyPlanted] = useState(true);
+  const [onlyActive, setOnlyActive] = useState(true);
+  const [tab, setTab] = useState<Tab>("mines");
   const [sortKey, setSortKey] = useState<SortKey>("minesPlanted");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
   const [page, setPage] = useState(1);
@@ -150,12 +125,27 @@ export function TmSapperRatingClient() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (tab === "fob") {
+      setSortKey("fobDamage");
+      setSortDir("desc");
+    } else {
+      setSortKey("minesPlanted");
+      setSortDir("desc");
+    }
+    setPage(1);
+  }, [tab]);
+
   const view = useMemo(() => {
     const rows = board?.rows || [];
     const needle = q.trim().toLowerCase();
     const list = rows.filter((r) => {
-      if (onlyPlanted && r.minesPlanted <= 0 && r.minesTriggered <= 0) {
-        return false;
+      if (onlyActive) {
+        if (tab === "mines") {
+          if (r.minesPlanted <= 0 && r.minesTriggered <= 0) return false;
+        } else if (r.fobHits <= 0 && r.fobDamage <= 0 && r.fobsDestroyed <= 0) {
+          return false;
+        }
       }
       if (!needle) return true;
       return (
@@ -174,12 +164,12 @@ export function TmSapperRatingClient() {
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
-    return list;
-  }, [board, q, sortKey, sortDir, onlyPlanted]);
+    return list.map((r, i) => ({ ...r, place: i + 1 }));
+  }, [board, q, sortKey, sortDir, onlyActive, tab]);
 
   useEffect(() => {
     setPage(1);
-  }, [q, sortKey, sortDir, server, onlyPlanted]);
+  }, [q, sortKey, sortDir, server, onlyActive]);
 
   const pageCount = Math.max(1, Math.ceil(view.length / PAGE_SIZE));
   const pageSafe = Math.min(page, pageCount);
@@ -215,7 +205,7 @@ export function TmSapperRatingClient() {
           active ? (sortDir === "asc" ? "ascending" : "descending") : "none"
         }
       >
-        <button type="button" className="th-sort" onClick={() => toggleSort(k)}>
+        <button type="button" className="tm-sapper-th" onClick={() => toggleSort(k)}>
           {label}
           {active ? (sortDir === "desc" ? " ↓" : " ↑") : ""}
         </button>
@@ -224,25 +214,41 @@ export function TmSapperRatingClient() {
   }
 
   return (
-    <>
-      <header className="public-rating-head">
-        <p className="muted" style={{ margin: "0 0 6px" }}>
-          <Link className="kv-link" href="/tm">
-            ← Тренировочные матчи
-          </Link>
+    <div className="tm-sapper-shell">
+      <header className="tm-sapper-head">
+        <p className="tm-sapper-back">
+          <Link href="/tm">← Тренировочные матчи</Link>
         </p>
-        <h1 className="public-rating-title">Сапёры BlackBerry</h1>
-        <p className="muted public-rating-sub">
-          Поставил → сработало · одиночные vs цепь · стиль постановки
+        <h1 className="tm-sapper-title">Сапёры &amp; FOB</h1>
+        <p className="tm-sapper-sub">
+          BlackBerry · логи TR1/TR2 · только для тебя
         </p>
       </header>
 
-      <div
-        className="public-rating-filters"
-        style={{ gap: 12, flexWrap: "wrap" }}
-      >
-        <label className="public-rating-search">
-          <span className="muted">Сервер</span>
+      <div className="tm-sapper-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "mines"}
+          className={`tm-sapper-tab${tab === "mines" ? " is-active" : ""}`}
+          onClick={() => setTab("mines")}
+        >
+          Мины
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "fob"}
+          className={`tm-sapper-tab tm-sapper-tab--fob${tab === "fob" ? " is-active" : ""}`}
+          onClick={() => setTab("fob")}
+        >
+          FOB
+        </button>
+      </div>
+
+      <div className="tm-sapper-toolbar">
+        <label className="tm-sapper-field">
+          <span>Сервер</span>
           <select
             value={server}
             onChange={(e) =>
@@ -254,67 +260,61 @@ export function TmSapperRatingClient() {
             <option value="TR2">TR2</option>
           </select>
         </label>
-        <label className="public-rating-search">
-          <span className="muted">Поиск</span>
+        <label className="tm-sapper-field tm-sapper-field--grow">
+          <span>Поиск</span>
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Ник или Steam ID…"
           />
         </label>
-        <label
-          className="muted"
-          style={{
-            display: "flex",
-            alignItems: "flex-end",
-            gap: 8,
-            paddingBottom: 8,
-          }}
-        >
+        <label className="tm-sapper-check">
           <input
             type="checkbox"
-            checked={onlyPlanted}
-            onChange={(e) => setOnlyPlanted(e.target.checked)}
+            checked={onlyActive}
+            onChange={(e) => setOnlyActive(e.target.checked)}
           />
-          только с минами
+          только с активностью
         </label>
         <button
           type="button"
-          className="public-rating-page-btn"
+          className="tm-sapper-page-btn"
           onClick={() => void load()}
           disabled={loading}
-          style={{ alignSelf: "flex-end" }}
         >
           {loading ? "Считаю…" : "Обновить"}
         </button>
       </div>
 
-      {err ? (
-        <p className="muted" style={{ color: "#f88" }}>
-          {err}
-        </p>
-      ) : null}
+      {err ? <p className="tm-sapper-err">{err}</p> : null}
 
       {board ? (
-        <aside className="public-rating-glossary" aria-label="Пояснения">
-          <p>
-            <strong>Поставил → сработало</strong> — сколько мин поставил и
-            сколько из них хоть раз нанесли урон (и %).
-          </p>
-          <p>
-            <span style={{ color: "#7dcea0" }}>● одиночные</span> — мина била
-            только по целям ·{" "}
-            <span style={{ color: "#f0a060" }}>● цепью</span> — задела другую
-            мину (куча рядом). Стиль считается по доле цепных сработок.
-          </p>
-          {board.notes.slice(3).map((n) => (
-            <p key={n} className="muted">
-              {n}
-            </p>
-          ))}
-          <p className="muted">
-            Состав BB: {board.membersMatched} · файлов:{" "}
-            {board.filesScanned.length} ·{" "}
+        <aside className="tm-sapper-hint">
+          {tab === "mines" ? (
+            <>
+              <p>
+                <strong>Поставил → сработало</strong> — сколько мин и сколько из
+                них нанесли урон.
+              </p>
+              <p>
+                <span className="is-solo">● одиночные</span> — только по целям ·{" "}
+                <span className="is-chain">● цепью</span> — задела другую мину.
+              </p>
+            </>
+          ) : (
+            <>
+              <p>
+                <strong>FOB</strong> — урон и хиты по рации из логов. «Снёс» =
+                последний хит до 0 HP.
+              </p>
+              <p className="tm-sapper-muted">
+                Кто поставил или вкопал FOB лопатой — в логах Squad нет.
+              </p>
+            </>
+          )}
+          <p className="tm-sapper-muted">
+            Файлов: {board.filesScanned.length} · состав BB:{" "}
+            {board.membersMatched} ·{" "}
             {new Date(board.updatedAt).toLocaleString("ru-RU", {
               timeZone: "Europe/Moscow",
             })}
@@ -329,105 +329,125 @@ export function TmSapperRatingClient() {
         onChange={setPage}
       />
 
-      <section className="card public-rating-card">
-        <div className="admin-table-wrap public-rating-table-wrap">
-          <table className="admin-table cross-rating-table rating-like-cw">
-            <thead>
+      <div className="tm-sapper-table-wrap">
+        <table className="tm-sapper-table">
+          <thead>
+            {tab === "mines" ? (
               <tr>
                 <Th k="place" label="#" />
                 <Th k="nick" label="Кто" />
                 <Th
                   k="minesPlanted"
                   label="Поставил → сработало"
-                  title="Сколько поставил и сколько из них сработали"
+                  title="Сколько поставил и сколько сработали"
                 />
                 <Th
                   k="soloTriggers"
                   label="Как сработали"
-                  title="Одиночные vs цепная реакция"
+                  title="Одиночные vs цепь"
                 />
-                <Th
-                  k="placeStyleLabel"
-                  label="Стиль"
-                  title="кучно / точечно / смесь"
-                />
-                <Th
-                  k="soloDamage"
-                  label="Урон целям"
-                  title="Урон по игрокам / технике / строениям"
-                />
-                <Th
-                  k="chainDamage"
-                  label="Урон цепи"
-                  title="Урон по другим минам"
-                />
+                <Th k="placeStyleLabel" label="Стиль" />
+                <Th k="soloDamage" label="Урон целям" />
+                <Th k="chainDamage" label="Урон цепи" />
                 <Th
                   k="chainMinesKilled"
                   label="Снёс мин"
-                  title="Чужих мин добито цепью до 0 HP"
+                  title="Чужих мин добито цепью"
+                />
+                <Th k="mineKills" label="Уничтожил" />
+              </tr>
+            ) : (
+              <tr>
+                <Th k="place" label="#" />
+                <Th k="nick" label="Кто" />
+                <Th
+                  k="fobDamage"
+                  label="Урон FOB"
+                  title="Суммарный урон по рациям"
+                />
+                <Th k="fobHits" label="Хитов" title="Сколько раз бил по рации" />
+                <Th
+                  k="fobsDestroyed"
+                  label="Снёс FOB"
+                  title="Последний хит до 0 HP"
                 />
                 <Th
-                  k="mineKills"
-                  label="Уничтожил"
-                  title="Целей до 0 HP (не мины)"
+                  k="minesPlanted"
+                  label="Мин (справка)"
+                  title="Сколько мин поставил (для контекста)"
                 />
               </tr>
-            </thead>
-            <tbody>
-              {loading && !board ? (
-                <tr>
-                  <td colSpan={9} className="muted">
-                    Считаю по логам…
+            )}
+          </thead>
+          <tbody>
+            {loading && !board ? (
+              <tr>
+                <td colSpan={9} className="tm-sapper-muted">
+                  Считаю по логам…
+                </td>
+              </tr>
+            ) : pageRows.length === 0 ? (
+              <tr>
+                <td colSpan={9} className="tm-sapper-muted">
+                  Нет строк
+                </td>
+              </tr>
+            ) : tab === "mines" ? (
+              pageRows.map((r) => (
+                <tr key={r.steamId}>
+                  <td className="tm-sapper-place">{r.place}</td>
+                  <td className="tm-sapper-nick">
+                    <Link href={`/players/${encodeURIComponent(r.nick)}`}>
+                      {r.nick}
+                    </Link>
                   </td>
-                </tr>
-              ) : pageRows.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="muted">
-                    Нет строк
+                  <td>
+                    <span className="tm-sapper-planted">{r.minesPlanted}</span>
+                    <span className="tm-sapper-muted"> → </span>
+                    <span className="tm-sapper-trig">{r.minesTriggered}</span>
+                    {r.minesPlanted > 0 ? (
+                      <span className="tm-sapper-pct"> {r.triggerPct}%</span>
+                    ) : null}
                   </td>
+                  <td>
+                    <TriggerSplit
+                      solo={r.soloTriggers}
+                      chain={r.chainTriggers}
+                    />
+                  </td>
+                  <td>
+                    <StyleBadge
+                      style={r.placeStyle}
+                      label={r.placeStyleLabel}
+                    />
+                  </td>
+                  <td>{r.soloDamage}</td>
+                  <td>{r.chainDamage}</td>
+                  <td>{r.chainMinesKilled}</td>
+                  <td>{r.mineKills}</td>
                 </tr>
-              ) : (
-                pageRows.map((r) => (
-                  <tr key={r.steamId}>
-                    <td>{r.place}</td>
-                    <td className="col-nick">
-                      <Link href={`/players/${encodeURIComponent(r.nick)}`}>
-                        {r.nick}
-                      </Link>
-                    </td>
-                    <td>
-                      <strong>{r.minesPlanted}</strong>
-                      <span className="muted"> → </span>
-                      <strong>{r.minesTriggered}</strong>
-                      {r.minesPlanted > 0 ? (
-                        <span className="muted" style={{ marginLeft: 6 }}>
-                          ({r.triggerPct}%)
-                        </span>
-                      ) : null}
-                    </td>
-                    <td>
-                      <TriggerSplit
-                        solo={r.soloTriggers}
-                        chain={r.chainTriggers}
-                      />
-                    </td>
-                    <td>
-                      <StyleBadge
-                        style={r.placeStyle}
-                        label={r.placeStyleLabel}
-                      />
-                    </td>
-                    <td>{r.soloDamage}</td>
-                    <td>{r.chainDamage}</td>
-                    <td>{r.chainMinesKilled}</td>
-                    <td>{r.mineKills}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+              ))
+            ) : (
+              pageRows.map((r) => (
+                <tr key={r.steamId}>
+                  <td className="tm-sapper-place">{r.place}</td>
+                  <td className="tm-sapper-nick">
+                    <Link href={`/players/${encodeURIComponent(r.nick)}`}>
+                      {r.nick}
+                    </Link>
+                  </td>
+                  <td className="tm-sapper-fob-dmg">{r.fobDamage}</td>
+                  <td>{r.fobHits}</td>
+                  <td className={r.fobsDestroyed > 0 ? "tm-sapper-fob-kill" : undefined}>
+                    {r.fobsDestroyed}
+                  </td>
+                  <td className="tm-sapper-muted">{r.minesPlanted}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
 
       <PagePager
         page={pageSafe}
@@ -435,6 +455,6 @@ export function TmSapperRatingClient() {
         total={view.length}
         onChange={setPage}
       />
-    </>
+    </div>
   );
 }

@@ -442,6 +442,12 @@ export type SapperRatingRow = {
   /** Кучно / точечно / смесь */
   placeStyle: SapperPlaceStyle;
   placeStyleLabel: string;
+  /** Хитов по FOB-рации */
+  fobHits: number;
+  /** Урон по FOB-рации */
+  fobDamage: number;
+  /** Сколько раз последний хит до 0 HP рации */
+  fobsDestroyed: number;
   /** Условный score для сортировки */
   score: number;
 };
@@ -466,7 +472,7 @@ export function buildBbSapperRating(
   bbRoster: Array<{ steamId: string; nick: string }>,
   opts?: { servers?: string[]; maxFilesPerServer?: number }
 ): BbSapperRatingBoard {
-  const { filesScanned, plants, dets, maxFiles } = scanLogs(opts);
+  const { filesScanned, plants, dets, fobHits, maxFiles } = scanLogs(opts);
   const bySteam = new Map(
     bbRoster
       .filter((m) => m.steamId)
@@ -486,6 +492,9 @@ export function buildBbSapperRating(
     soloDamage: number;
     chainDamage: number;
     chainMinesKilled: number;
+    fobHits: number;
+    fobDamage: number;
+    fobsDestroyed: number;
   };
 
   const acc = new Map<string, Acc>();
@@ -504,6 +513,9 @@ export function buildBbSapperRating(
       soloDamage: 0,
       chainDamage: 0,
       chainMinesKilled: 0,
+      fobHits: 0,
+      fobDamage: 0,
+      fobsDestroyed: 0,
     };
   }
 
@@ -552,6 +564,28 @@ export function buildBbSapperRating(
       cur.soloMineKeys.add(key);
     }
     if (d.killed) cur.mineKills += 1;
+  }
+
+  // FOB: урон по рации + «снёс» = последний хит до ~0 HP
+  const byFob = new Map<string, typeof fobHits>();
+  for (const h of fobHits) {
+    const k = `${h.server}|${h.fobId}`;
+    if (!byFob.has(k)) byFob.set(k, []);
+    byFob.get(k)!.push(h);
+  }
+  for (const list of byFob.values()) {
+    list.sort((a, b) => a.at.localeCompare(b.at));
+    const last = list[list.length - 1];
+    if (last && last.healthLeft <= 0.05) {
+      const cur = ensure(last.steamId, last.nick);
+      if (cur) cur.fobsDestroyed += 1;
+    }
+  }
+  for (const h of fobHits) {
+    const cur = ensure(h.steamId, h.nick);
+    if (!cur) continue;
+    cur.fobHits += 1;
+    cur.fobDamage += h.damage;
   }
 
   for (const m of bySteam.values()) {
@@ -603,12 +637,15 @@ export function buildBbSapperRating(
       soloTriggers,
       chainTriggers
     );
+    const fobDamage = round2(a.fobDamage);
     const score =
       minesPlanted * 10 +
       minesTriggered * 35 +
       a.mineKills * 50 +
       soloDamage +
-      chainDamage * 0.35;
+      chainDamage * 0.35 +
+      fobDamage * 2 +
+      a.fobsDestroyed * 200;
 
     return {
       place: 0,
@@ -626,6 +663,9 @@ export function buildBbSapperRating(
       mineKills: a.mineKills,
       placeStyle,
       placeStyleLabel,
+      fobHits: a.fobHits,
+      fobDamage,
+      fobsDestroyed: a.fobsDestroyed,
       score: round2(score),
     } satisfies SapperRatingRow;
   });
@@ -633,6 +673,7 @@ export function buildBbSapperRating(
   rowsRaw.sort(
     (a, b) =>
       b.minesPlanted - a.minesPlanted ||
+      b.fobDamage - a.fobDamage ||
       b.minesTriggered - a.minesTriggered ||
       b.soloDamage - a.soloDamage ||
       b.mineKills - a.mineKills
@@ -644,9 +685,8 @@ export function buildBbSapperRating(
     filesScanned,
     notes: [
       "Только TR1 + TR2.",
-      "Поставил → Сработало: сколько мин spawn’нул и сколько из них хоть раз нанесли урон.",
-      "Одиночные — мина била только по целям (игрок/техника/мешки). Цепью — задела другую мину (кучная постановка).",
-      "Стиль: кучно (≥55% сработок с цепью) · точечно (почти без цепей) · смесь.",
+      "Мины: поставил → сработало; одиночные vs цепь; урон целям / цепи.",
+      "FOB: урон и хиты по рации; «снёс» = последний хит до 0 HP. Кто поставил/вкопал FOB — в логах нет.",
       `Файлов: ${filesScanned.length}.`,
     ],
     membersMatched: bySteam.size,
