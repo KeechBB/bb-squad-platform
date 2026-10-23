@@ -4290,32 +4290,6 @@ body:has(.profile-page) {
   font-size: 6.5px;
 }
 
-.profile-kits-legend {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.profile-kits-legend li {
-  display: grid;
-  grid-template-columns: 8px minmax(0, 1fr) auto;
-  gap: 6px;
-  align-items: center;
-  font-size: 0.72rem;
-  line-height: 1.25;
-}
-
-.profile-kits-swatch {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
-}
 
 .profile-kits-name {
   overflow: hidden;

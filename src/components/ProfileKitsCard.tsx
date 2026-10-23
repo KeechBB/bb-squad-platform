@@ -577,16 +577,6 @@ export function ProfileKitsCard({
           </svg>
         </div>
       )}
-      {kits.length > 0 ? (
-        <ul className="profile-kits-legend">
-          {kits.map((k) => (
-            <li key={k.kit}>
-              <span>{k.kit}</span>
-              <span>{Number.isInteger(k.pct) ? k.pct : k.pct.toFixed(1)}%</span>
-            </li>
-          ))}
-        </ul>
-      ) : null}
     </section>
   );
 }
