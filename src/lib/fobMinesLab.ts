@@ -85,8 +85,9 @@ const FOB_HIT_RE =
 const MINE_PLANT_RE =
   /Deployable\s+(BP_Deployable_[A-Za-z0-9]*Mine[A-Za-z0-9_]*)\s+spawned for team\s+(\d+)\s+at location\s+(\{[^}]+\})\s+by player\s+(.+?)\s+\(ID:\s*\d+,\s*OnlineIDs:.*?steam:\s*(\d+)\)/i;
 
+/** Урон ОТ мины (causer = mine). Online IDs опциональны — иногда только ник. */
 const MINE_DETON_RE =
-  /TakeDamage\(\):\s+([A-Za-z0-9_]+):\s+([\d.]+)\s+damage taken by causer\s+(BP_Deployable_[A-Za-z0-9]*Mine[A-Za-z0-9_]*)\s+instigator\s+(.+?)\s+\(Online IDs:.*?steam:\s*(\d+)\)\s+health remaining\s+([\d.]+)/i;
+  /TakeDamage\(\):\s+([A-Za-z0-9_]+):\s+([\d.]+)\s+damage taken by causer\s+(BP_Deployable_[A-Za-z0-9]*Mine[A-Za-z0-9_]*)\s+instigator\s+(.+?)(?:\s+\(Online IDs:.*?steam:\s*(\d+)\))?\s+health remaining\s+(-?[\d.]+)/i;
 
 function logRoot(): string {
   const env = process.env.BB_LOG_CACHE_ROOT?.trim();
@@ -123,7 +124,9 @@ function fobKind(id: string): string {
 function listLogFiles(server: string, maxFiles: number): string[] {
   const dir = path.join(logRoot(), server);
   if (!fs.existsSync(dir)) return [];
-  const names = fs.readdirSync(dir).filter((n) => n.startsWith("SquadGame") && n.endsWith(".log"));
+  const names = fs
+    .readdirSync(dir)
+    .filter((n) => n.startsWith("SquadGame") && n.endsWith(".log"));
   const full = names.map((n) => path.join(dir, n));
   full.sort((a, b) => {
     try {
@@ -132,6 +135,8 @@ function listLogFiles(server: string, maxFiles: number): string[] {
       return 0;
     }
   });
+  // 0 / отрицательное = все файлы сервера (только TR*, паблик не трогаем на уровне servers)
+  if (!maxFiles || maxFiles < 0) return full;
   return full.slice(0, maxFiles);
 }
 
@@ -206,21 +211,27 @@ function scanFile(
       continue;
     }
 
-    if (line.includes("damage taken") && /Mine/i.test(line) && line.includes("causer BP_Deployable_")) {
+    if (
+      line.includes("damage taken") &&
+      /Mine/i.test(line) &&
+      line.includes("causer BP_Deployable_")
+    ) {
       const m = MINE_DETON_RE.exec(line);
       if (m) {
         const [, target, dmg, mineId, nickRaw, steam, hp] = m;
         const healthLeft = Number(hp) || 0;
+        // цель = другая мина — цепная реакция, в «уничтожил» не считаем
+        const targetIsMine = /Mine/i.test(target);
         out.dets.push({
           at,
           server,
           mineId,
           mineKind: mineKind(mineId),
           nick: nickRaw.trim(),
-          steamId: steam,
+          steamId: steam || "",
           target: shortWeapon(target),
           damage: Number(dmg) || 0,
-          killed: healthLeft <= 0.05,
+          killed: !targetIsMine && healthLeft <= 0.05,
         });
       }
     }
@@ -341,8 +352,9 @@ function scanLogs(opts?: {
   dets: MineDetonation[];
   maxFiles: number;
 } {
+  // Только тренировочные: TR1/TR2. Паблик (TPUB1/PB*) сюда не передаём.
   const servers = opts?.servers?.length ? opts.servers : ["TR1", "TR2"];
-  const maxFiles = opts?.maxFilesPerServer ?? 5;
+  const maxFiles = opts?.maxFilesPerServer ?? 0;
   const root = logRoot();
   const filesScanned: string[] = [];
   const fobHits: FobHit[] = [];
@@ -451,12 +463,13 @@ export function buildBbSapperRating(
   const planterOf = new Map<string, { steamId: string; nick: string }>();
 
   function ensure(steamId: string, nickHint: string): Acc | null {
+    if (!steamId) return null;
     const member = bySteam.get(steamId);
-    if (!member) return null;
+    // Состав BB + любой, кто ставил на TR (даже если ещё не в ClanMember)
     let cur = acc.get(steamId);
     if (!cur) {
       cur = {
-        nick: member.nick || nickHint,
+        nick: (member?.nick || nickHint || steamId).replace(/^\[BB\]\s*/i, "").trim() || steamId,
         steamId,
         plantedIds: new Set(),
         triggeredIds: new Set(),
@@ -464,8 +477,10 @@ export function buildBbSapperRating(
         mineDamage: 0,
       };
       acc.set(steamId, cur);
+    } else if (member?.nick) {
+      cur.nick = member.nick;
     } else if (nickHint && nickHint !== steamId) {
-      cur.nick = nickHint;
+      cur.nick = nickHint.replace(/^\[BB\]\s*/i, "").trim() || cur.nick;
     }
     return cur;
   }
@@ -480,8 +495,9 @@ export function buildBbSapperRating(
   for (const d of dets) {
     const key = `${d.server}|${d.mineId}`;
     const planter = planterOf.get(key);
-    // Кредит ставившему (по mineId), иначе instigator из лога
+    // Кредит ставившему (по mineId); без spawn — instigator, если есть steam
     const steamId = planter?.steamId || d.steamId;
+    if (!steamId) continue;
     const nick = planter?.nick || d.nick;
     const cur = ensure(steamId, nick);
     if (!cur) continue;
@@ -542,10 +558,10 @@ export function buildBbSapperRating(
     updatedAt: new Date().toISOString(),
     filesScanned,
     notes: [
-      "Состав BlackBerry · логи TR1/TR2.",
-      "Поставил — spawn мины by player. Сработало — сколько из этих mineId нанесли урон.",
-      "Урон / Уничтожил — сумма урона и добиваний (HP→0) от его мин (игрок или техника).",
-      `Скан: до ${maxFiles} файлов на сервер.`,
+      "Только TR1 + TR2 (паблик не трогаем).",
+      "Поставил — spawn by player. Сработало — из поставленных mineId с уроном.",
+      "Урон — весь урон от его мин. Уничтожил — HP→0 (не считая чужие мины).",
+      `Файлов в скане: ${filesScanned.length}${maxFiles ? ` (лимит ${maxFiles}/сервер)` : " (все бэкапы)"}.`,
     ],
     membersMatched: bySteam.size,
     rows,

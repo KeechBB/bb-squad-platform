@@ -59,7 +59,7 @@ export function TmSapperRatingClient() {
     setLoading(true);
     setErr(null);
     try {
-      const qs = new URLSearchParams({ server, files: "5" });
+      const qs = new URLSearchParams({ server, files: "0" });
       const res = await fetch(`/api/tm/sapper-rating?${qs}`, {
         cache: "no-store",
       });

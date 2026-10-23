@@ -1,14 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
+import fs from "node:fs";
+import path from "node:path";
 import { getSession } from "@/lib/auth";
 import { isBuiltinSuperAdmin } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 import { findBlackberryClanIds } from "@/lib/reserve";
-import { buildBbSapperRating } from "@/lib/fobMinesLab";
+import {
+  buildBbSapperRating,
+  type BbSapperRatingBoard,
+} from "@/lib/fobMinesLab";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-/** Keech-only: рейтинг BB по минам/FOB из логов TR. */
+function cachePath(): string {
+  return path.join(process.cwd(), "data", "tm", "sapper-rating-tr.json");
+}
+
+function writeCache(board: BbSapperRatingBoard) {
+  try {
+    const p = cachePath();
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, JSON.stringify(board, null, 2), "utf8");
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Keech-only: рейтинг мин BB из логов TR1/TR2 (паблик не трогаем). */
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!isBuiltinSuperAdmin(session?.user?.steamId)) {
@@ -17,7 +36,10 @@ export async function GET(req: NextRequest) {
 
   const sp = req.nextUrl.searchParams;
   const server = (sp.get("server") || "all").toUpperCase();
-  const files = Math.min(12, Math.max(1, Number(sp.get("files") || 5) || 5));
+  // 0 = все логи TR*; паблик (TPUB1) никогда не в списке
+  const filesRaw = Number(sp.get("files"));
+  const files =
+    Number.isFinite(filesRaw) && filesRaw >= 0 ? Math.min(80, filesRaw) : 0;
   const servers =
     server === "TR1" || server === "TR2" ? [server] : ["TR1", "TR2"];
 
@@ -43,6 +65,8 @@ export async function GET(req: NextRequest) {
     servers,
     maxFilesPerServer: files,
   });
+
+  writeCache(board);
 
   return NextResponse.json(board, {
     headers: { "Cache-Control": "no-store" },
