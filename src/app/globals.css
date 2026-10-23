@@ -217,6 +217,7 @@ body:has(.bp-page) {
 .shell:has(.tm-hub),
 .shell:has(.cross-rating-page),
 .shell:has(.public-rating-page),
+.shell:has(.tm-sapper-page),
 .shell:has(.admin-keech-hunt-page) {
   max-width: none;
   padding: 12px 12px 0;
@@ -245,7 +246,8 @@ body:has(.reaction-page) {
   background-attachment: fixed;
 }
 
-body:has(.public-rating-page) {
+body:has(.public-rating-page),
+body:has(.tm-sapper-page) {
   background: #07060c;
 }
 
@@ -255,7 +257,8 @@ body:has(.public-rating-page) {
 .shell:has(.tm-hub),
 .shell:has(.reaction-page),
 .shell:has(.cross-rating-page),
-.shell:has(.public-rating-page) {
+.shell:has(.public-rating-page),
+.shell:has(.tm-sapper-page) {
   background: transparent;
 }
 
