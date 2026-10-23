@@ -2,7 +2,11 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { BbSapperRatingBoard, SapperRatingRow } from "@/lib/fobMinesLab";
+import type {
+  BbSapperRatingBoard,
+  SapperPlaceStyle,
+  SapperRatingRow,
+} from "@/lib/fobMinesLab";
 
 const PAGE_SIZE = 50;
 
@@ -41,6 +45,74 @@ function PagePager({
         ))}
       </div>
     </nav>
+  );
+}
+
+function StyleBadge({ style, label }: { style: SapperPlaceStyle; label: string }) {
+  if (style === "none") return <span className="muted">—</span>;
+  const color =
+    style === "cluster"
+      ? "#f0a060"
+      : style === "precision"
+        ? "#7dcea0"
+        : "#c4b5fd";
+  return (
+    <span
+      className="tm-sapper-style"
+      style={{
+        display: "inline-block",
+        padding: "2px 8px",
+        borderRadius: 6,
+        border: `1px solid ${color}88`,
+        color,
+        fontSize: "0.78rem",
+        fontWeight: 700,
+        letterSpacing: "0.04em",
+      }}
+      title={
+        style === "cluster"
+          ? "Мины рядом: часто цепляют друг друга"
+          : style === "precision"
+            ? "Мины поодиночке, без цепных сработок"
+            : "И кучно, и точечно"
+      }
+    >
+      {label}
+    </span>
+  );
+}
+
+/** Полоска: одиночные (зелень) vs цепь (оранж) среди сработавших */
+function TriggerSplit({ solo, chain }: { solo: number; chain: number }) {
+  const t = solo + chain;
+  if (t <= 0) return <span className="muted">—</span>;
+  const soloPct = Math.round((100 * solo) / t);
+  return (
+    <div style={{ minWidth: 110 }}>
+      <div
+        style={{
+          display: "flex",
+          height: 8,
+          borderRadius: 4,
+          overflow: "hidden",
+          background: "rgba(255,255,255,0.08)",
+          marginBottom: 4,
+        }}
+        title={`одиночные ${solo} · цепью ${chain}`}
+      >
+        {solo > 0 ? (
+          <div style={{ width: `${soloPct}%`, background: "#5bbf8a" }} />
+        ) : null}
+        {chain > 0 ? (
+          <div style={{ flex: 1, background: "#e0894a" }} />
+        ) : null}
+      </div>
+      <div className="muted" style={{ fontSize: "0.75rem", whiteSpace: "nowrap" }}>
+        <span style={{ color: "#7dcea0" }}>{solo} од.</span>
+        {" · "}
+        <span style={{ color: "#f0a060" }}>{chain} цепь</span>
+      </div>
+    </div>
   );
 }
 
@@ -121,7 +193,7 @@ export function TmSapperRatingClient() {
       setSortDir((d) => (d === "desc" ? "asc" : "desc"));
     } else {
       setSortKey(k);
-      setSortDir(k === "nick" ? "asc" : "desc");
+      setSortDir(k === "nick" || k === "placeStyleLabel" ? "asc" : "desc");
     }
   }
 
@@ -161,7 +233,7 @@ export function TmSapperRatingClient() {
         </p>
         <h1 className="public-rating-title">Сапёры BlackBerry</h1>
         <p className="muted public-rating-sub">
-          Кто поставил · сколько из них сработало · урон · уничтожил
+          Поставил → сработало · одиночные vs цепь · стиль постановки
         </p>
       </header>
 
@@ -225,8 +297,20 @@ export function TmSapperRatingClient() {
 
       {board ? (
         <aside className="public-rating-glossary" aria-label="Пояснения">
-          {board.notes.map((n) => (
-            <p key={n}>{n}</p>
+          <p>
+            <strong>Поставил → сработало</strong> — сколько мин поставил и
+            сколько из них хоть раз нанесли урон (и %).
+          </p>
+          <p>
+            <span style={{ color: "#7dcea0" }}>● одиночные</span> — мина била
+            только по целям ·{" "}
+            <span style={{ color: "#f0a060" }}>● цепью</span> — задела другую
+            мину (куча рядом). Стиль считается по доле цепных сработок.
+          </p>
+          {board.notes.slice(3).map((n) => (
+            <p key={n} className="muted">
+              {n}
+            </p>
           ))}
           <p className="muted">
             Состав BB: {board.membersMatched} · файлов:{" "}
@@ -254,36 +338,51 @@ export function TmSapperRatingClient() {
                 <Th k="nick" label="Кто" />
                 <Th
                   k="minesPlanted"
-                  label="Поставил"
-                  title="Сколько мин поставил"
+                  label="Поставил → сработало"
+                  title="Сколько поставил и сколько из них сработали"
                 />
                 <Th
-                  k="minesTriggered"
-                  label="Сработало"
-                  title="Сколько из поставленных нанесли урон"
+                  k="soloTriggers"
+                  label="Как сработали"
+                  title="Одиночные vs цепная реакция"
                 />
                 <Th
-                  k="mineDamage"
-                  label="Урон"
-                  title="Суммарный урон от его мин"
+                  k="placeStyleLabel"
+                  label="Стиль"
+                  title="кучно / точечно / смесь"
+                />
+                <Th
+                  k="soloDamage"
+                  label="Урон целям"
+                  title="Урон по игрокам / технике / строениям"
+                />
+                <Th
+                  k="chainDamage"
+                  label="Урон цепи"
+                  title="Урон по другим минам"
+                />
+                <Th
+                  k="chainMinesKilled"
+                  label="Снёс мин"
+                  title="Чужих мин добито цепью до 0 HP"
                 />
                 <Th
                   k="mineKills"
                   label="Уничтожил"
-                  title="Целей до 0 HP (игрок / техника)"
+                  title="Целей до 0 HP (не мины)"
                 />
               </tr>
             </thead>
             <tbody>
               {loading && !board ? (
                 <tr>
-                  <td colSpan={6} className="muted">
+                  <td colSpan={9} className="muted">
                     Считаю по логам…
                   </td>
                 </tr>
               ) : pageRows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="muted">
+                  <td colSpan={9} className="muted">
                     Нет строк
                   </td>
                 </tr>
@@ -296,20 +395,31 @@ export function TmSapperRatingClient() {
                         {r.nick}
                       </Link>
                     </td>
-                    <td>{r.minesPlanted}</td>
                     <td>
-                      {r.minesTriggered}
+                      <strong>{r.minesPlanted}</strong>
+                      <span className="muted"> → </span>
+                      <strong>{r.minesTriggered}</strong>
                       {r.minesPlanted > 0 ? (
                         <span className="muted" style={{ marginLeft: 6 }}>
-                          (
-                          {Math.round(
-                            (100 * r.minesTriggered) / r.minesPlanted
-                          )}
-                          %)
+                          ({r.triggerPct}%)
                         </span>
                       ) : null}
                     </td>
-                    <td>{r.mineDamage}</td>
+                    <td>
+                      <TriggerSplit
+                        solo={r.soloTriggers}
+                        chain={r.chainTriggers}
+                      />
+                    </td>
+                    <td>
+                      <StyleBadge
+                        style={r.placeStyle}
+                        label={r.placeStyleLabel}
+                      />
+                    </td>
+                    <td>{r.soloDamage}</td>
+                    <td>{r.chainDamage}</td>
+                    <td>{r.chainMinesKilled}</td>
                     <td>{r.mineKills}</td>
                   </tr>
                 ))

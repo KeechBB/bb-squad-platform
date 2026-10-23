@@ -50,8 +50,16 @@ export type MineDetonation = {
   steamId: string;
   target: string;
   damage: number;
+  /** HP→0 по не-мине (игрок / техника / строение) */
   killed: boolean;
+  /** Урон по другой мине = цепная реакция */
+  chainHit: boolean;
+  /** Другая мина добита до 0 */
+  chainMineKill: boolean;
 };
+
+/** Как ставит: кучно (цепи) / точечно / смесь */
+export type SapperPlaceStyle = "cluster" | "precision" | "mixed" | "none";
 
 export type FobMinesLabBoard = {
   updatedAt: string;
@@ -220,7 +228,6 @@ function scanFile(
       if (m) {
         const [, target, dmg, mineId, nickRaw, steam, hp] = m;
         const healthLeft = Number(hp) || 0;
-        // цель = другая мина — цепная реакция, в «уничтожил» не считаем
         const targetIsMine = /Mine/i.test(target);
         out.dets.push({
           at,
@@ -232,6 +239,8 @@ function scanFile(
           target: shortWeapon(target),
           damage: Number(dmg) || 0,
           killed: !targetIsMine && healthLeft <= 0.05,
+          chainHit: targetIsMine,
+          chainMineKill: targetIsMine && healthLeft <= 0.05,
         });
       }
     }
@@ -405,7 +414,7 @@ export async function buildFobMinesLab(opts?: {
   };
 }
 
-/** Строка рейтинга сапёра: кто поставил → из них сработало → урон / уничтожения. */
+/** Строка рейтинга сапёра: поставил / сработало + одиночные vs цепь. */
 export type SapperRatingRow = {
   place: number;
   nick: string;
@@ -414,10 +423,25 @@ export type SapperRatingRow = {
   minesPlanted: number;
   /** Сколько из поставленных сработали (уник. mineId с уроном) */
   minesTriggered: number;
+  /** % сработавших от поставленных */
+  triggerPct: number;
+  /** Сработавшие мины, бившие только по целям (не по минам) */
+  soloTriggers: number;
+  /** Сработавшие мины, хотя бы раз задевшие другую мину */
+  chainTriggers: number;
+  /** Сколько чужих мин добито цепью (HP→0) */
+  chainMinesKilled: number;
+  /** Урон по целям (не мины) */
+  soloDamage: number;
+  /** Урон по другим минам (цепь) */
+  chainDamage: number;
   /** Суммарный урон от его мин */
   mineDamage: number;
-  /** Уничтожено миной (цель до 0 HP: игрок / техника) */
+  /** Уничтожено миной (цель до 0 HP: игрок / техника / строение) */
   mineKills: number;
+  /** Кучно / точечно / смесь */
+  placeStyle: SapperPlaceStyle;
+  placeStyleLabel: string;
   /** Условный score для сортировки */
   score: number;
 };
@@ -454,33 +478,51 @@ export function buildBbSapperRating(
     steamId: string;
     plantedIds: Set<string>;
     triggeredIds: Set<string>;
+    /** mineKey → saw chain hit */
+    chainMineKeys: Set<string>;
+    /** mineKey → saw non-mine hit */
+    soloMineKeys: Set<string>;
     mineKills: number;
-    mineDamage: number;
+    soloDamage: number;
+    chainDamage: number;
+    chainMinesKilled: number;
   };
 
   const acc = new Map<string, Acc>();
   /** server|mineId → planter steam */
   const planterOf = new Map<string, { steamId: string; nick: string }>();
 
+  function blankAcc(nick: string, steamId: string): Acc {
+    return {
+      nick,
+      steamId,
+      plantedIds: new Set(),
+      triggeredIds: new Set(),
+      chainMineKeys: new Set(),
+      soloMineKeys: new Set(),
+      mineKills: 0,
+      soloDamage: 0,
+      chainDamage: 0,
+      chainMinesKilled: 0,
+    };
+  }
+
   function ensure(steamId: string, nickHint: string): Acc | null {
     if (!steamId) return null;
     const member = bySteam.get(steamId);
-    // Состав BB + любой, кто ставил на TR (даже если ещё не в ClanMember)
     let cur = acc.get(steamId);
     if (!cur) {
-      cur = {
-        nick: (member?.nick || nickHint || steamId).replace(/^\[BB\]\s*/i, "").trim() || steamId,
-        steamId,
-        plantedIds: new Set(),
-        triggeredIds: new Set(),
-        mineKills: 0,
-        mineDamage: 0,
-      };
+      const nick =
+        (member?.nick || nickHint || steamId)
+          .replace(/^\[BB\]\s*/i, "")
+          .trim() || steamId;
+      cur = blankAcc(nick, steamId);
       acc.set(steamId, cur);
     } else if (member?.nick) {
       cur.nick = member.nick;
     } else if (nickHint && nickHint !== steamId) {
-      cur.nick = nickHint.replace(/^\[BB\]\s*/i, "").trim() || cur.nick;
+      cur.nick =
+        nickHint.replace(/^\[BB\]\s*/i, "").trim() || cur.nick;
     }
     return cur;
   }
@@ -495,52 +537,95 @@ export function buildBbSapperRating(
   for (const d of dets) {
     const key = `${d.server}|${d.mineId}`;
     const planter = planterOf.get(key);
-    // Кредит ставившему (по mineId); без spawn — instigator, если есть steam
     const steamId = planter?.steamId || d.steamId;
     if (!steamId) continue;
     const nick = planter?.nick || d.nick;
     const cur = ensure(steamId, nick);
     if (!cur) continue;
     cur.triggeredIds.add(key);
-    cur.mineDamage += d.damage;
+    if (d.chainHit) {
+      cur.chainDamage += d.damage;
+      cur.chainMineKeys.add(key);
+      if (d.chainMineKill) cur.chainMinesKilled += 1;
+    } else {
+      cur.soloDamage += d.damage;
+      cur.soloMineKeys.add(key);
+    }
     if (d.killed) cur.mineKills += 1;
   }
 
   for (const m of bySteam.values()) {
     if (!acc.has(m.steamId)) {
-      acc.set(m.steamId, {
-        nick: m.nick,
-        steamId: m.steamId,
-        plantedIds: new Set(),
-        triggeredIds: new Set(),
-        mineKills: 0,
-        mineDamage: 0,
-      });
+      acc.set(m.steamId, blankAcc(m.nick, m.steamId));
     }
+  }
+
+  function placeStyleOf(
+    solo: number,
+    chain: number
+  ): { placeStyle: SapperPlaceStyle; placeStyleLabel: string } {
+    const t = solo + chain;
+    if (t === 0) return { placeStyle: "none", placeStyleLabel: "—" };
+    const chainShare = chain / t;
+    if (chainShare >= 0.55) {
+      return { placeStyle: "cluster", placeStyleLabel: "кучно" };
+    }
+    if (chainShare <= 0.15 || chain === 0) {
+      return { placeStyle: "precision", placeStyleLabel: "точечно" };
+    }
+    return { placeStyle: "mixed", placeStyleLabel: "смесь" };
   }
 
   const rowsRaw = [...acc.values()].map((a) => {
     const minesPlanted = a.plantedIds.size;
-    const minesTriggered = [...a.triggeredIds].filter((id) =>
-      a.plantedIds.has(id)
-    ).length;
-    // если spawn не попал в хвост лога, а сработки есть — покажем сработки отдельно
-    const triggeredShown =
-      minesPlanted > 0 ? minesTriggered : a.triggeredIds.size;
-    const mineDamage = round2(a.mineDamage);
+    const triggeredKeys =
+      minesPlanted > 0
+        ? [...a.triggeredIds].filter((id) => a.plantedIds.has(id))
+        : [...a.triggeredIds];
+    const minesTriggered = triggeredKeys.length;
+    const triggerPct =
+      minesPlanted > 0
+        ? Math.round((1000 * minesTriggered) / minesPlanted) / 10
+        : 0;
+
+    // Мина «цепная», если хоть раз била по другой мине; иначе одиночная
+    let chainTriggers = 0;
+    let soloTriggers = 0;
+    for (const k of triggeredKeys) {
+      if (a.chainMineKeys.has(k)) chainTriggers += 1;
+      else soloTriggers += 1;
+    }
+
+    const soloDamage = round2(a.soloDamage);
+    const chainDamage = round2(a.chainDamage);
+    const mineDamage = round2(soloDamage + chainDamage);
+    const { placeStyle, placeStyleLabel } = placeStyleOf(
+      soloTriggers,
+      chainTriggers
+    );
     const score =
       minesPlanted * 10 +
-      triggeredShown * 35 +
+      minesTriggered * 35 +
       a.mineKills * 50 +
-      mineDamage;
+      soloDamage +
+      chainDamage * 0.35;
+
     return {
       place: 0,
       nick: a.nick,
       steamId: a.steamId,
       minesPlanted,
-      minesTriggered: triggeredShown,
+      minesTriggered,
+      triggerPct,
+      soloTriggers,
+      chainTriggers,
+      chainMinesKilled: a.chainMinesKilled,
+      soloDamage,
+      chainDamage,
       mineDamage,
       mineKills: a.mineKills,
+      placeStyle,
+      placeStyleLabel,
       score: round2(score),
     } satisfies SapperRatingRow;
   });
@@ -549,7 +634,7 @@ export function buildBbSapperRating(
     (a, b) =>
       b.minesPlanted - a.minesPlanted ||
       b.minesTriggered - a.minesTriggered ||
-      b.mineDamage - a.mineDamage ||
+      b.soloDamage - a.soloDamage ||
       b.mineKills - a.mineKills
   );
   const rows = rowsRaw.map((r, i) => ({ ...r, place: i + 1 }));
@@ -558,10 +643,11 @@ export function buildBbSapperRating(
     updatedAt: new Date().toISOString(),
     filesScanned,
     notes: [
-      "Только TR1 + TR2 (паблик не трогаем).",
-      "Поставил — spawn by player. Сработало — из поставленных mineId с уроном.",
-      "Урон — весь урон от его мин. Уничтожил — HP→0 (не считая чужие мины).",
-      `Файлов в скане: ${filesScanned.length}${maxFiles ? ` (лимит ${maxFiles}/сервер)` : " (все бэкапы)"}.`,
+      "Только TR1 + TR2.",
+      "Поставил → Сработало: сколько мин spawn’нул и сколько из них хоть раз нанесли урон.",
+      "Одиночные — мина била только по целям (игрок/техника/мешки). Цепью — задела другую мину (кучная постановка).",
+      "Стиль: кучно (≥55% сработок с цепью) · точечно (почти без цепей) · смесь.",
+      `Файлов: ${filesScanned.length}.`,
     ],
     membersMatched: bySteam.size,
     rows,
