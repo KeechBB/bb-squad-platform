@@ -50,7 +50,8 @@ export function TmSapperRatingClient() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("score");
+  const [onlyPlanted, setOnlyPlanted] = useState(true);
+  const [sortKey, setSortKey] = useState<SortKey>("minesPlanted");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
   const [page, setPage] = useState(1);
 
@@ -80,13 +81,15 @@ export function TmSapperRatingClient() {
   const view = useMemo(() => {
     const rows = board?.rows || [];
     const needle = q.trim().toLowerCase();
-    const list = needle
-      ? rows.filter(
-          (r) =>
-            r.nick.toLowerCase().includes(needle) ||
-            r.steamId.includes(needle)
-        )
-      : rows.slice();
+    const list = rows.filter((r) => {
+      if (onlyPlanted && r.minesPlanted <= 0 && r.minesTriggered <= 0) {
+        return false;
+      }
+      if (!needle) return true;
+      return (
+        r.nick.toLowerCase().includes(needle) || r.steamId.includes(needle)
+      );
+    });
 
     list.sort((a, b) => {
       const av = a[sortKey];
@@ -100,11 +103,11 @@ export function TmSapperRatingClient() {
       return sortDir === "asc" ? cmp : -cmp;
     });
     return list;
-  }, [board, q, sortKey, sortDir]);
+  }, [board, q, sortKey, sortDir, onlyPlanted]);
 
   useEffect(() => {
     setPage(1);
-  }, [q, sortKey, sortDir, server]);
+  }, [q, sortKey, sortDir, server, onlyPlanted]);
 
   const pageCount = Math.max(1, Math.ceil(view.length / PAGE_SIZE));
   const pageSafe = Math.min(page, pageCount);
@@ -122,7 +125,15 @@ export function TmSapperRatingClient() {
     }
   }
 
-  function Th({ k, label, title }: { k: SortKey; label: string; title?: string }) {
+  function Th({
+    k,
+    label,
+    title,
+  }: {
+    k: SortKey;
+    label: string;
+    title?: string;
+  }) {
     const active = sortKey === k;
     return (
       <th
@@ -150,11 +161,14 @@ export function TmSapperRatingClient() {
         </p>
         <h1 className="public-rating-title">Сапёры BlackBerry</h1>
         <p className="muted public-rating-sub">
-          Личный рейтинг по логам TR · мины и урон FOB · только для тебя
+          Кто поставил · сколько из них сработало · урон · уничтожил
         </p>
       </header>
 
-      <div className="public-rating-filters" style={{ gap: 12, flexWrap: "wrap" }}>
+      <div
+        className="public-rating-filters"
+        style={{ gap: 12, flexWrap: "wrap" }}
+      >
         <label className="public-rating-search">
           <span className="muted">Сервер</span>
           <select
@@ -169,12 +183,28 @@ export function TmSapperRatingClient() {
           </select>
         </label>
         <label className="public-rating-search">
-          <span className="muted">Поиск ника / Steam ID</span>
+          <span className="muted">Поиск</span>
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Ник или Steam ID…"
           />
+        </label>
+        <label
+          className="muted"
+          style={{
+            display: "flex",
+            alignItems: "flex-end",
+            gap: 8,
+            paddingBottom: 8,
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={onlyPlanted}
+            onChange={(e) => setOnlyPlanted(e.target.checked)}
+          />
+          только с минами
         </label>
         <button
           type="button"
@@ -187,7 +217,11 @@ export function TmSapperRatingClient() {
         </button>
       </div>
 
-      {err ? <p className="muted" style={{ color: "#f88" }}>{err}</p> : null}
+      {err ? (
+        <p className="muted" style={{ color: "#f88" }}>
+          {err}
+        </p>
+      ) : null}
 
       {board ? (
         <aside className="public-rating-glossary" aria-label="Пояснения">
@@ -195,7 +229,8 @@ export function TmSapperRatingClient() {
             <p key={n}>{n}</p>
           ))}
           <p className="muted">
-            Состав BB: {board.membersMatched} · файлов: {board.filesScanned.length} ·{" "}
+            Состав BB: {board.membersMatched} · файлов:{" "}
+            {board.filesScanned.length} ·{" "}
             {new Date(board.updatedAt).toLocaleString("ru-RU", {
               timeZone: "Europe/Moscow",
             })}
@@ -216,37 +251,39 @@ export function TmSapperRatingClient() {
             <thead>
               <tr>
                 <Th k="place" label="#" />
-                <Th k="nick" label="Ник" />
-                <Th k="minesPlanted" label="Мин ↑" title="Сколько мин поставил" />
+                <Th k="nick" label="Кто" />
+                <Th
+                  k="minesPlanted"
+                  label="Поставил"
+                  title="Сколько мин поставил"
+                />
                 <Th
                   k="minesTriggered"
                   label="Сработало"
-                  title="Уникальных мин, которые нанесли урон"
+                  title="Сколько из поставленных нанесли урон"
                 />
-                <Th k="mineHits" label="Хитов мин" title="Событий урона от мин" />
-                <Th k="mineKills" label="Килы мин" title="Health → 0 от мины" />
-                <Th k="mineDamage" label="Урон мин" />
-                <Th k="fobDamage" label="Урон FOB" />
-                <Th k="fobHits" label="Хитов FOB" />
                 <Th
-                  k="fobsDestroyed"
-                  label="Снёс FOB"
-                  title="Последний хит до 0 HP рации"
+                  k="mineDamage"
+                  label="Урон"
+                  title="Суммарный урон от его мин"
                 />
-                <Th k="totalDamage" label="Σ урон" />
-                <Th k="score" label="Score" title="Взвешенный счёт для сортировки" />
+                <Th
+                  k="mineKills"
+                  label="Уничтожил"
+                  title="Целей до 0 HP (игрок / техника)"
+                />
               </tr>
             </thead>
             <tbody>
               {loading && !board ? (
                 <tr>
-                  <td colSpan={12} className="muted">
+                  <td colSpan={6} className="muted">
                     Считаю по логам…
                   </td>
                 </tr>
               ) : pageRows.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="muted">
+                  <td colSpan={6} className="muted">
                     Нет строк
                   </td>
                 </tr>
@@ -260,15 +297,20 @@ export function TmSapperRatingClient() {
                       </Link>
                     </td>
                     <td>{r.minesPlanted}</td>
-                    <td>{r.minesTriggered}</td>
-                    <td>{r.mineHits}</td>
-                    <td>{r.mineKills}</td>
+                    <td>
+                      {r.minesTriggered}
+                      {r.minesPlanted > 0 ? (
+                        <span className="muted" style={{ marginLeft: 6 }}>
+                          (
+                          {Math.round(
+                            (100 * r.minesTriggered) / r.minesPlanted
+                          )}
+                          %)
+                        </span>
+                      ) : null}
+                    </td>
                     <td>{r.mineDamage}</td>
-                    <td>{r.fobDamage}</td>
-                    <td>{r.fobHits}</td>
-                    <td>{r.fobsDestroyed}</td>
-                    <td>{r.totalDamage}</td>
-                    <td>{r.score}</td>
+                    <td>{r.mineKills}</td>
                   </tr>
                 ))
               )}

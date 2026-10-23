@@ -393,30 +393,20 @@ export async function buildFobMinesLab(opts?: {
   };
 }
 
-/** Строка рейтинга сапёра / FOB по логам TR (BlackBerry). */
+/** Строка рейтинга сапёра: кто поставил → из них сработало → урон / уничтожения. */
 export type SapperRatingRow = {
   place: number;
   nick: string;
   steamId: string;
-  /** Мины поставлено */
+  /** Сколько мин поставил */
   minesPlanted: number;
-  /** Уникальных мин, которые хоть раз нанесли урон */
+  /** Сколько из поставленных сработали (уник. mineId с уроном) */
   minesTriggered: number;
-  /** Событий урона от мин */
-  mineHits: number;
-  /** Убийств / добиваний миной (health → 0) */
-  mineKills: number;
-  /** Суммарный урон от мин */
+  /** Суммарный урон от его мин */
   mineDamage: number;
-  /** Урон по FOB-рациям */
-  fobDamage: number;
-  /** Хитов по FOB */
-  fobHits: number;
-  /** Сколько раз последний хит по FOB (likely destroy) */
-  fobsDestroyed: number;
-  /** mineDamage + fobDamage */
-  totalDamage: number;
-  /** Условный score для сортировки по умолчанию */
+  /** Уничтожено миной (цель до 0 HP: игрок / техника) */
+  mineKills: number;
+  /** Условный score для сортировки */
   score: number;
 };
 
@@ -433,14 +423,14 @@ function round2(n: number): number {
 }
 
 /**
- * Рейтинг игроков BlackBerry по минам / FOB из логов TR1+TR2.
- * `bbSteamIds` — состав клана; строки только по ним (ник подтягиваем из roster).
+ * Рейтинг сапёров BlackBerry: поставил → из них сработало → урон / уничтожения.
+ * Сработка и урон привязаны к той же mineId, что и spawn «by player».
  */
 export function buildBbSapperRating(
   bbRoster: Array<{ steamId: string; nick: string }>,
   opts?: { servers?: string[]; maxFilesPerServer?: number }
 ): BbSapperRatingBoard {
-  const { filesScanned, fobHits, plants, dets, maxFiles } = scanLogs(opts);
+  const { filesScanned, plants, dets, maxFiles } = scanLogs(opts);
   const bySteam = new Map(
     bbRoster
       .filter((m) => m.steamId)
@@ -450,17 +440,15 @@ export function buildBbSapperRating(
   type Acc = {
     nick: string;
     steamId: string;
-    minesPlanted: number;
+    plantedIds: Set<string>;
     triggeredIds: Set<string>;
-    mineHits: number;
     mineKills: number;
     mineDamage: number;
-    fobDamage: number;
-    fobHits: number;
-    fobsDestroyed: number;
   };
 
   const acc = new Map<string, Acc>();
+  /** server|mineId → planter steam */
+  const planterOf = new Map<string, { steamId: string; nick: string }>();
 
   function ensure(steamId: string, nickHint: string): Acc | null {
     const member = bySteam.get(steamId);
@@ -470,14 +458,10 @@ export function buildBbSapperRating(
       cur = {
         nick: member.nick || nickHint,
         steamId,
-        minesPlanted: 0,
+        plantedIds: new Set(),
         triggeredIds: new Set(),
-        mineHits: 0,
         mineKills: 0,
         mineDamage: 0,
-        fobDamage: 0,
-        fobHits: 0,
-        fobsDestroyed: 0,
       };
       acc.set(steamId, cur);
     } else if (nickHint && nickHint !== steamId) {
@@ -487,100 +471,81 @@ export function buildBbSapperRating(
   }
 
   for (const p of plants) {
+    const key = `${p.server}|${p.mineId}`;
+    planterOf.set(key, { steamId: p.steamId, nick: p.nick });
     const cur = ensure(p.steamId, p.nick);
-    if (cur) cur.minesPlanted += 1;
+    if (cur) cur.plantedIds.add(key);
   }
 
   for (const d of dets) {
-    const cur = ensure(d.steamId, d.nick);
+    const key = `${d.server}|${d.mineId}`;
+    const planter = planterOf.get(key);
+    // Кредит ставившему (по mineId), иначе instigator из лога
+    const steamId = planter?.steamId || d.steamId;
+    const nick = planter?.nick || d.nick;
+    const cur = ensure(steamId, nick);
     if (!cur) continue;
-    cur.mineHits += 1;
+    cur.triggeredIds.add(key);
     cur.mineDamage += d.damage;
     if (d.killed) cur.mineKills += 1;
-    if (d.mineId) cur.triggeredIds.add(d.mineId);
   }
 
-  // FOB destroy attribution: last hit when health ~0
-  const byFob = new Map<string, FobHit[]>();
-  for (const h of fobHits) {
-    const k = `${h.server}|${h.fobId}`;
-    if (!byFob.has(k)) byFob.set(k, []);
-    byFob.get(k)!.push(h);
-  }
-  for (const list of byFob.values()) {
-    list.sort((a, b) => a.at.localeCompare(b.at));
-    const last = list[list.length - 1];
-    if (last && last.healthLeft <= 0.05) {
-      const cur = ensure(last.steamId, last.nick);
-      if (cur) cur.fobsDestroyed += 1;
-    }
-  }
-
-  for (const h of fobHits) {
-    const cur = ensure(h.steamId, h.nick);
-    if (!cur) continue;
-    cur.fobHits += 1;
-    cur.fobDamage += h.damage;
-  }
-
-  // Include BB members with zero activity so roster is complete
   for (const m of bySteam.values()) {
     if (!acc.has(m.steamId)) {
       acc.set(m.steamId, {
         nick: m.nick,
         steamId: m.steamId,
-        minesPlanted: 0,
+        plantedIds: new Set(),
         triggeredIds: new Set(),
-        mineHits: 0,
         mineKills: 0,
         mineDamage: 0,
-        fobDamage: 0,
-        fobHits: 0,
-        fobsDestroyed: 0,
       });
     }
   }
 
   const rowsRaw = [...acc.values()].map((a) => {
+    const minesPlanted = a.plantedIds.size;
+    const minesTriggered = [...a.triggeredIds].filter((id) =>
+      a.plantedIds.has(id)
+    ).length;
+    // если spawn не попал в хвост лога, а сработки есть — покажем сработки отдельно
+    const triggeredShown =
+      minesPlanted > 0 ? minesTriggered : a.triggeredIds.size;
     const mineDamage = round2(a.mineDamage);
-    const fobDamage = round2(a.fobDamage);
-    const totalDamage = round2(mineDamage + fobDamage);
-    const minesTriggered = a.triggeredIds.size;
     const score =
-      a.minesPlanted * 10 +
-      minesTriggered * 25 +
-      a.mineKills * 40 +
-      mineDamage +
-      fobDamage * 2 +
-      a.fobsDestroyed * 200;
+      minesPlanted * 10 +
+      triggeredShown * 35 +
+      a.mineKills * 50 +
+      mineDamage;
     return {
       place: 0,
       nick: a.nick,
       steamId: a.steamId,
-      minesPlanted: a.minesPlanted,
-      minesTriggered,
-      mineHits: a.mineHits,
-      mineKills: a.mineKills,
+      minesPlanted,
+      minesTriggered: triggeredShown,
       mineDamage,
-      fobDamage,
-      fobHits: a.fobHits,
-      fobsDestroyed: a.fobsDestroyed,
-      totalDamage,
+      mineKills: a.mineKills,
       score: round2(score),
     } satisfies SapperRatingRow;
   });
 
-  rowsRaw.sort((a, b) => b.score - a.score || b.totalDamage - a.totalDamage);
+  rowsRaw.sort(
+    (a, b) =>
+      b.minesPlanted - a.minesPlanted ||
+      b.minesTriggered - a.minesTriggered ||
+      b.mineDamage - a.mineDamage ||
+      b.mineKills - a.mineKills
+  );
   const rows = rowsRaw.map((r, i) => ({ ...r, place: i + 1 }));
 
   return {
     updatedAt: new Date().toISOString(),
     filesScanned,
     notes: [
-      "Только состав BlackBerry. Источник — логи TR1/TR2 (тренировки).",
-      "Мины: поставлено / сработало (уник. мины с уроном) / урон / киллы миной.",
-      "FOB: урон по рации + «снёс» = последний хит до 0 HP. Кто поставил/вкопал FOB — в логах нет.",
-      `Скан: до ${maxFiles} файлов на сервер, хвост ~80MB.`,
+      "Состав BlackBerry · логи TR1/TR2.",
+      "Поставил — spawn мины by player. Сработало — сколько из этих mineId нанесли урон.",
+      "Урон / Уничтожил — сумма урона и добиваний (HP→0) от его мин (игрок или техника).",
+      `Скан: до ${maxFiles} файлов на сервер.`,
     ],
     membersMatched: bySteam.size,
     rows,
