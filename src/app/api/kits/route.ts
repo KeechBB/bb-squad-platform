@@ -14,6 +14,27 @@ import { normalizeSteamId } from "@/lib/squadSessions";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+async function isBlackberryKitsSubject(
+  userId: string,
+  steamId: string
+): Promise<boolean> {
+  const { findBlackberryClanIds } = await import("@/lib/reserve");
+  const clanIds = await findBlackberryClanIds();
+  if (!clanIds.length) return false;
+  if (userId) {
+    const n = await prisma.clanMember.count({
+      where: { userId, clanId: { in: clanIds } },
+    });
+    return n > 0;
+  }
+  const steam = normalizeSteamId(steamId);
+  if (!steam) return false;
+  const n = await prisma.clanMember.count({
+    where: { clanId: { in: clanIds }, user: { steamId: steam } },
+  });
+  return n > 0;
+}
+
 /**
  * GET /api/kits?userId=… | steamId=…
  *   day=YYYY-MM-DD — сутки МСК
@@ -49,7 +70,12 @@ export async function GET(req: Request) {
   const wantDays = url.searchParams.get("days") === "1";
   const laneRaw = (url.searchParams.get("lane") || "TR1").trim().toUpperCase();
   const lane: KitsLane = laneRaw === "PB1" ? "PB1" : "TR1";
-  const combatWindow = url.searchParams.get("combat") !== "0";
+  // Паблик (PB1) не фильтруем. У состава BlackBerry на TR — только залитые тренировки.
+  let combatWindow = url.searchParams.get("combat") !== "0";
+  if (lane === "TR1") {
+    const bb = await isBlackberryKitsSubject(userId, steamId);
+    if (bb) combatWindow = true;
+  }
 
   if (userId) {
     const target = await prisma.user.findFirst({

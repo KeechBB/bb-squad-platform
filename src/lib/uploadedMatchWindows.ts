@@ -2,9 +2,8 @@
  * Окна залитых тренировочных матчей (KV training-index).
  * Роли / киты — только внутри этих интервалов (без пустых вечеров на Jensens).
  *
- * Важно: SquadRoleEvent.spawnedAt = timestamp WITHOUT time zone, и в практике
- * стенка в БД ≈ timeMsk МСК минус 2 часа (лог-часы сервера). Сравниваем
- * naive TIMESTAMP, без timestamptz-конвертаций Prisma.
+ * Важно: SquadRoleEvent.spawnedAt = timestamp WITHOUT time zone и хранит UTC
+ * из лога. timeMsk на сайте — Москва (UTC+3). Сравниваем naive TIMESTAMP.
  * SERVER ONLY.
  */
 import { Prisma } from "@prisma/client";
@@ -35,8 +34,11 @@ type TrainingMonthFile = {
   }[];
 };
 
-/** Логи в БД отстают от timeMsk на сайте примерно на 2 часа. */
-const DB_WALL_OFFSET_MIN = -2 * 60;
+/**
+ * spawnedAt в SquadRoleEvent — naive UTC (как в логе).
+ * timeMsk на сайте — Москва, UTC+3.
+ */
+const DB_WALL_OFFSET_MIN = -3 * 60;
 
 const MEM_TTL_MS = 90_000;
 let mem: { at: number; windows: MatchTimeWindow[] } | null = null;
@@ -98,12 +100,6 @@ function resolveMonthUrl(url: string): string {
   return u.replace(/^\/+/, "");
 }
 
-function addDaysYmd(ymd: string, days: number): string {
-  const [y, m, d] = ymd.split("-").map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d + days));
-  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
-}
-
 /**
  * Все окна залитых TM. Кэш ~90с.
  */
@@ -125,8 +121,6 @@ export async function loadUploadedTrainingWindows(): Promise<MatchTimeWindow[]> 
     const ym = String(file.month || monthId || "").trim();
     if (!/^\d{4}-\d{2}$/.test(ym)) continue;
 
-    const dayCombatFallback = new Set<string>();
-
     for (const match of file.matches || []) {
       if (match.status && match.status !== "done") continue;
       const map = String(match.map || "");
@@ -136,10 +130,9 @@ export async function loadUploadedTrainingWindows(): Promise<MatchTimeWindow[]> 
       const ymd = `${ym}-${String(day).padStart(2, "0")}`;
       const t = parseTimeMsk(match.timeMsk);
       const durSec = parseDurationSec(match.duration);
-      if (!t || !durSec || durSec < 60) {
-        dayCombatFallback.add(ymd);
-        continue;
-      }
+      // Без точного старта и длины матч не берём: широкий «весь вечер» тащил
+      // прогрев и паузы между катками.
+      if (!t || !durSec || durSec < 60) continue;
       // timeMsk МСК → naive DB wall (MSK − 2ч), паддинг −12/+3 мин
       const startMin = t.h * 60 + t.m + DB_WALL_OFFSET_MIN - 12;
       const endMin =
@@ -152,20 +145,6 @@ export async function loadUploadedTrainingWindows(): Promise<MatchTimeWindow[]> 
         lt,
         map,
         id: String(match.id || `${ym}-${day}`),
-        month: ym,
-      });
-    }
-
-    // Дни без точного timeMsk: вечерние логи 18:30–01:00 naive (как empirically combat)
-    for (const ymd of dayCombatFallback) {
-      const gte = naiveFromYmdMinutes(ymd, 18 * 60 + 30);
-      const lt = naiveFromYmdMinutes(addDaysYmd(ymd, 1), 1 * 60);
-      if (!gte || !lt) continue;
-      out.push({
-        gte,
-        lt,
-        map: "day-fallback",
-        id: `day-${ymd}`,
         month: ym,
       });
     }

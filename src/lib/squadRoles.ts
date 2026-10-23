@@ -44,7 +44,7 @@ export type KitsForUserOpts = {
 
 export function serverKeysForKitsLane(lane: KitsLane): string[] {
   if (lane === "PB1") return ["TPUB1", "PB1", "PUB"];
-  return ["TR1", "TR2"];
+  return ["TR1", "TR2", "TR3"];
 }
 
 /**
