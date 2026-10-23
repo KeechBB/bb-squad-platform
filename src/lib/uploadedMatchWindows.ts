@@ -41,7 +41,13 @@ type TrainingMonthFile = {
 const DB_WALL_OFFSET_MIN = -3 * 60;
 
 const MEM_TTL_MS = 90_000;
-let mem: { at: number; windows: MatchTimeWindow[] } | null = null;
+let mem: {
+  at: number;
+  /** Слитые соседние окна — фильтр «этот спавн внутри тренировки». */
+  merged: MatchTimeWindow[];
+  /** Окно каждого матча отдельно — потолок времени в ките, без паузы между катками. */
+  slices: MatchTimeWindow[];
+} | null = null;
 
 export function isJensenMap(map: string | null | undefined): boolean {
   const m = String(map || "").toLowerCase();
@@ -100,11 +106,14 @@ function resolveMonthUrl(url: string): string {
   return u.replace(/^\/+/, "");
 }
 
-/**
- * Все окна залитых TM. Кэш ~90с.
- */
-export async function loadUploadedTrainingWindows(): Promise<MatchTimeWindow[]> {
-  if (mem && Date.now() - mem.at < MEM_TTL_MS) return mem.windows;
+/** Окна залитых TM. Кэш ~90с. slices — матч как есть, merged — соседние склеены. */
+async function readTrainingWindows(): Promise<{
+  merged: MatchTimeWindow[];
+  slices: MatchTimeWindow[];
+}> {
+  if (mem && Date.now() - mem.at < MEM_TTL_MS) {
+    return { merged: mem.merged, slices: mem.slices };
+  }
 
   const idx = await loadKvJsonCached<TrainingIndex>("data/training-index.json");
   const months = idx?.months || [];
@@ -133,7 +142,7 @@ export async function loadUploadedTrainingWindows(): Promise<MatchTimeWindow[]> 
       // Без точного старта и длины матч не берём: широкий «весь вечер» тащил
       // прогрев и паузы между катками.
       if (!t || !durSec || durSec < 60) continue;
-      // timeMsk МСК → naive DB wall (MSK − 2ч), паддинг −12/+3 мин
+      // timeMsk МСК → naive UTC (МСК−3ч), паддинг −12/+3 мин
       const startMin = t.h * 60 + t.m + DB_WALL_OFFSET_MIN - 12;
       const endMin =
         t.h * 60 + t.m + DB_WALL_OFFSET_MIN + Math.ceil(durSec / 60) + 3;
@@ -151,6 +160,7 @@ export async function loadUploadedTrainingWindows(): Promise<MatchTimeWindow[]> 
   }
 
   out.sort((a, b) => a.gte.getTime() - b.gte.getTime());
+  const slices = out.map((w) => ({ ...w }));
   const merged: MatchTimeWindow[] = [];
   for (const w of out) {
     const last = merged[merged.length - 1];
@@ -160,8 +170,45 @@ export async function loadUploadedTrainingWindows(): Promise<MatchTimeWindow[]> 
     }
     merged.push({ ...w });
   }
-  mem = { at: Date.now(), windows: merged };
+  mem = { at: Date.now(), merged, slices };
+  return { merged, slices };
+}
+
+/** Слитые окна залитых TM. Кэш ~90с. Фильтр «спавн попал в тренировку». */
+export async function loadUploadedTrainingWindows(): Promise<MatchTimeWindow[]> {
+  const { merged } = await readTrainingWindows();
   return merged;
+}
+
+/**
+ * Окно каждого залитого матча отдельно.
+ * Время в ките обрывается в конце этого матча и не перетекает в паузу и следующую катку.
+ */
+export async function loadUploadedTrainingSlices(): Promise<MatchTimeWindow[]> {
+  const { slices } = await readTrainingWindows();
+  return slices;
+}
+
+/** SQL: (gte, lt) naive TIMESTAMP для JOIN времени в ките. */
+export function windowBoundsValuesSql(windows: MatchTimeWindow[]): Prisma.Sql {
+  const tuples: Prisma.Sql[] = [];
+  for (const w of windows) {
+    const a = formatNaiveUtcFields(w.gte);
+    const b = formatNaiveUtcFields(w.lt);
+    if (
+      !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(a) ||
+      !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(b)
+    ) {
+      continue;
+    }
+    tuples.push(
+      Prisma.raw(`(TIMESTAMP '${a}'::timestamp, TIMESTAMP '${b}'::timestamp)`)
+    );
+  }
+  if (!tuples.length) {
+    return Prisma.sql`(VALUES (TIMESTAMP '1970-01-01 00:00:00'::timestamp, TIMESTAMP '1970-01-01 00:00:00'::timestamp))`;
+  }
+  return Prisma.sql`(VALUES ${Prisma.join(tuples)})`;
 }
 
 /** SQL: spawnedAt (naive) внутри залитого матча. */

@@ -24,6 +24,14 @@ type Props = {
   combatWindow?: boolean;
 };
 
+function formatKitMinutes(totalMinutes: number): string {
+  const m = Math.max(0, Math.round(totalMinutes));
+  if (m < 60) return `${m} мин`;
+  const h = Math.floor(m / 60);
+  const rest = m % 60;
+  return rest ? `${h} ч ${rest} мин` : `${h} ч`;
+}
+
 type Mode = "all" | "day" | "range";
 
 function todayMskYmd(): string {
@@ -113,6 +121,7 @@ export function ProfileKitsCard({
   const [lane, setLane] = useState<KitsLane>(defaultLane);
   const [kits, setKits] = useState<KitPctRow[]>(initialKits || []);
   const [spawnTotal, setSpawnTotal] = useState(0);
+  const [basis, setBasis] = useState<"time" | "spawns">("spawns");
   const [mode, setMode] = useState<Mode>("all");
   const [day, setDay] = useState<string | null>(null);
   const [rangeFrom, setRangeFrom] = useState<string | null>(null);
@@ -163,9 +172,11 @@ export function ProfileKitsCard({
           kits?: KitPctRow[];
           days?: string[];
           total?: number;
+          basis?: "time" | "spawns";
         };
         setKits(Array.isArray(data.kits) ? data.kits : []);
         setSpawnTotal(Number(data.total) || 0);
+        setBasis(data.basis === "time" ? "time" : "spawns");
         if (Array.isArray(data.days)) setKitDays(new Set(data.days));
       } catch {
         /* keep previous */
@@ -468,9 +479,13 @@ export function ProfileKitsCard({
       <p className="muted profile-kits-cal-hint">
         {lane === "PB1"
           ? "Паблик PB1. Чистка ролей состава его не меняет."
-          : spawnTotal
-            ? `Только залитые тренировки · ${spawnTotal} спавнов`
-            : "Только залитые тренировки"}
+          : basis === "time"
+            ? spawnTotal
+              ? `Только залитые тренировки · по времени в ките · ${formatKitMinutes(spawnTotal)}`
+              : "Только залитые тренировки · по времени в ките"
+            : spawnTotal
+              ? `Только залитые тренировки · ${spawnTotal} спавнов`
+              : "Только залитые тренировки"}
       </p>
 
       {kits.length === 0 ? (

@@ -10,8 +10,10 @@ import {
 } from "@/lib/squadKits";
 import { normalizeEosId, normalizeSteamId } from "@/lib/squadSessions";
 import {
+  loadUploadedTrainingSlices,
   loadUploadedTrainingWindows,
   uploadedWindowsSql,
+  windowBoundsValuesSql,
 } from "@/lib/uploadedMatchWindows";
 
 export type SquadRoleIngestEvent = {
@@ -138,14 +140,113 @@ async function kitMatchWindowSql(lane: KitsLane, combatWindow: boolean) {
   return uploadedWindowsSql(windows);
 }
 
+export type KitShareBasis = "time" | "spawns";
+
+export type KitShare = {
+  kits: KitPctRow[];
+  /** Минуты в ките, если basis=time. Число спавнов, если basis=spawns. */
+  total: number;
+  basis: KitShareBasis;
+};
+
+/**
+ * Тренировочная полоса считается по времени в ките: от спавна до следующего
+ * спавна на том же сервере, но не дальше конца этого матча.
+ * Паблик и выборка без окна матча остаются по числу спавнов.
+ */
+function trainingTimeBasis(lane: KitsLane, combatWindow: boolean | undefined): boolean {
+  return lane === "TR1" && combatWindow !== false;
+}
+
+function weightsToShare(
+  rows: { kit: string; n: bigint }[],
+  basis: KitShareBasis
+): KitShare {
+  const counts: Partial<Record<string, number>> = {};
+  let raw = 0;
+  for (const r of rows) {
+    const n = Number(r.n) || 0;
+    if (n <= 0) continue;
+    const kit = canonKitName(r.kit);
+    counts[kit] = (counts[kit] || 0) + n;
+    raw += n;
+  }
+  return {
+    kits: kitCountsToPct(counts),
+    total: basis === "time" ? Math.round(raw / 60) : raw,
+    basis,
+  };
+}
+
+async function queryKitShares(opts: {
+  whoSql: Prisma.Sql;
+  keys: string[];
+  rangeSql: Prisma.Sql;
+  lane: KitsLane;
+  combatWindow: boolean;
+  /** Колонки LEAD. Для одного игрока — только сервер, чтобы steam и userId были одной лентой. */
+  leadPartition: Prisma.Sql;
+}): Promise<KitShare> {
+  const byTime = trainingTimeBasis(opts.lane, opts.combatWindow);
+  if (!byTime) {
+    const matchSql = await kitMatchWindowSql(opts.lane, opts.combatWindow);
+    const rows = await prisma.$queryRaw<{ kit: string; n: bigint }[]>`
+      SELECT kit, COUNT(*)::bigint AS n
+      FROM "SquadRoleEvent"
+      WHERE ${opts.whoSql}
+        AND "serverKey" IN (${Prisma.join(opts.keys)})
+        ${opts.rangeSql}
+        ${matchSql}
+      GROUP BY kit
+    `;
+    return weightsToShare(rows, "spawns");
+  }
+
+  const slices = await loadUploadedTrainingSlices();
+  if (!slices.length) return { kits: [], total: 0, basis: "time" };
+  const boundsSql = windowBoundsValuesSql(slices);
+  const rows = await prisma.$queryRaw<{ kit: string; n: bigint }[]>`
+    WITH bounds(gte, lt) AS ${boundsSql},
+    ev AS (
+      SELECT kit, "spawnedAt", "serverKey",
+             LEAD("spawnedAt") OVER (
+               PARTITION BY ${opts.leadPartition}
+               ORDER BY "spawnedAt", "id"
+             ) AS nxt
+      FROM "SquadRoleEvent"
+      WHERE ${opts.whoSql}
+        AND "serverKey" IN (${Prisma.join(opts.keys)})
+        ${opts.rangeSql}
+        AND EXISTS (
+          SELECT 1 FROM bounds b
+          WHERE "SquadRoleEvent"."spawnedAt" >= b.gte
+            AND "SquadRoleEvent"."spawnedAt" < b.lt
+        )
+    )
+    SELECT e.kit,
+           ROUND(SUM(GREATEST(
+             0,
+             EXTRACT(EPOCH FROM (LEAST(COALESCE(e.nxt, b.lt), b.lt) - e."spawnedAt"))
+           )))::bigint AS n
+    FROM ev e
+    JOIN LATERAL (
+      SELECT lt FROM bounds b
+      WHERE e."spawnedAt" >= b.gte AND e."spawnedAt" < b.lt
+      ORDER BY b.lt
+      LIMIT 1
+    ) b ON true
+    GROUP BY e.kit
+  `;
+  return weightsToShare(rows, "time");
+}
+
 export async function kitsForUser(
   userId: string,
   opts: KitsForUserOpts = {}
-): Promise<{ kits: KitPctRow[]; total: number }> {
+): Promise<KitShare> {
   const range = spawnedAtFilter(opts);
   const lane: KitsLane = opts.lane === "PB1" ? "PB1" : "TR1";
   const keys = serverKeysForKitsLane(lane);
-  const matchSql = await kitMatchWindowSql(lane, opts.combatWindow !== false);
   const rangeSql = range
     ? Prisma.sql`AND "spawnedAt" >= ${range.gte} AND "spawnedAt" < ${range.lt}`
     : Prisma.empty;
@@ -159,61 +260,38 @@ export async function kitsForUser(
     ? Prisma.sql`("userId" = ${userId} OR "steamId" = ${steamId})`
     : Prisma.sql`"userId" = ${userId}`;
 
-  const rows = await prisma.$queryRaw<{ kit: string; n: bigint }[]>`
-    SELECT kit, COUNT(*)::bigint AS n
-    FROM "SquadRoleEvent"
-    WHERE ${whoSql}
-      AND "serverKey" IN (${Prisma.join(keys)})
-      ${rangeSql}
-      ${matchSql}
-    GROUP BY kit
-  `;
-  const counts: Partial<Record<string, number>> = {};
-  let total = 0;
-  for (const r of rows) {
-    const n = Number(r.n) || 0;
-    if (n <= 0) continue;
-    const kit = canonKitName(r.kit);
-    counts[kit] = (counts[kit] || 0) + n;
-    total += n;
-  }
-  return { kits: kitCountsToPct(counts), total };
+  return queryKitShares({
+    whoSql,
+    keys,
+    rangeSql,
+    lane,
+    combatWindow: opts.combatWindow !== false,
+    leadPartition: Prisma.raw(`"serverKey"`),
+  });
 }
 
 /** Киты по Steam (соперник без аккаунта). */
 export async function kitsForSteamIds(
   steamIds: string[],
   opts: KitsForUserOpts = {}
-): Promise<{ kits: KitPctRow[]; total: number }> {
+): Promise<KitShare> {
   const ids = [...new Set(steamIds.filter(Boolean))];
-  if (!ids.length) return { kits: [], total: 0 };
+  if (!ids.length) return { kits: [], total: 0, basis: "spawns" };
   const range = spawnedAtFilter(opts);
   const lane: KitsLane = opts.lane === "PB1" ? "PB1" : "TR1";
   const keys = serverKeysForKitsLane(lane);
-  const matchSql = await kitMatchWindowSql(lane, opts.combatWindow !== false);
   const rangeSql = range
     ? Prisma.sql`AND "spawnedAt" >= ${range.gte} AND "spawnedAt" < ${range.lt}`
     : Prisma.empty;
 
-  const rows = await prisma.$queryRaw<{ kit: string; n: bigint }[]>`
-    SELECT kit, COUNT(*)::bigint AS n
-    FROM "SquadRoleEvent"
-    WHERE "steamId" IN (${Prisma.join(ids)})
-      AND "serverKey" IN (${Prisma.join(keys)})
-      ${rangeSql}
-      ${matchSql}
-    GROUP BY kit
-  `;
-  const counts: Partial<Record<string, number>> = {};
-  let total = 0;
-  for (const r of rows) {
-    const n = Number(r.n) || 0;
-    if (n <= 0) continue;
-    const kit = canonKitName(r.kit);
-    counts[kit] = (counts[kit] || 0) + n;
-    total += n;
-  }
-  return { kits: kitCountsToPct(counts), total };
+  return queryKitShares({
+    whoSql: Prisma.sql`"steamId" IN (${Prisma.join(ids)})`,
+    keys,
+    rangeSql,
+    lane,
+    combatWindow: opts.combatWindow !== false,
+    leadPartition: Prisma.raw(`"steamId", "serverKey"`),
+  });
 }
 
 /** Дни МСК со спавнами ролей (календарь). TR1 — боевое окно; PB1 — весь день. */
@@ -287,6 +365,61 @@ export type TierKitAvg = {
   kits: KitPctRow[];
 };
 
+/** Секунды в ките по игрокам: только залитые тренировки, TR1–TR3. */
+async function kitSecondsByUser(
+  userIds: string[]
+): Promise<Map<string, Partial<Record<string, number>>>> {
+  const byUser = new Map<string, Partial<Record<string, number>>>();
+  if (!userIds.length) return byUser;
+  const slices = await loadUploadedTrainingSlices();
+  if (!slices.length) return byUser;
+  const boundsSql = windowBoundsValuesSql(slices);
+  const keys = serverKeysForKitsLane("TR1");
+  const grouped = await prisma.$queryRaw<
+    { userId: string; kit: string; n: bigint }[]
+  >`
+    WITH bounds(gte, lt) AS ${boundsSql},
+    ev AS (
+      SELECT "userId", kit, "spawnedAt", "serverKey",
+             LEAD("spawnedAt") OVER (
+               PARTITION BY "userId", "serverKey"
+               ORDER BY "spawnedAt", "id"
+             ) AS nxt
+      FROM "SquadRoleEvent"
+      WHERE "userId" IN (${Prisma.join(userIds)})
+        AND "serverKey" IN (${Prisma.join(keys)})
+        AND "userId" IS NOT NULL
+        AND EXISTS (
+          SELECT 1 FROM bounds b
+          WHERE "SquadRoleEvent"."spawnedAt" >= b.gte
+            AND "SquadRoleEvent"."spawnedAt" < b.lt
+        )
+    )
+    SELECT e."userId" AS "userId",
+           e.kit,
+           ROUND(SUM(GREATEST(
+             0,
+             EXTRACT(EPOCH FROM (LEAST(COALESCE(e.nxt, b.lt), b.lt) - e."spawnedAt"))
+           )))::bigint AS n
+    FROM ev e
+    JOIN LATERAL (
+      SELECT lt FROM bounds b
+      WHERE e."spawnedAt" >= b.gte AND e."spawnedAt" < b.lt
+      ORDER BY b.lt
+      LIMIT 1
+    ) b ON true
+    GROUP BY e."userId", e.kit
+  `;
+  for (const g of grouped) {
+    if (!g.userId) continue;
+    const cur = byUser.get(g.userId) || {};
+    const kit = canonKitName(g.kit);
+    cur[kit] = (cur[kit] || 0) + (Number(g.n) || 0);
+    byUser.set(g.userId, cur);
+  }
+  return byUser;
+}
+
 /** Средний % китов по тирам 1–4 (равный вес игрока внутри тира). */
 export async function kitAveragesByTier(): Promise<TierKitAvg[]> {
   const { loadTierIndex } = await import("@/lib/loadTierIndex");
@@ -311,24 +444,7 @@ export async function kitAveragesByTier(): Promise<TierKitAvg[]> {
 
   if (!users.length) return emptyTier();
 
-  const matchSql = await kitMatchWindowSql("TR1", true);
-  const grouped = await prisma.$queryRaw<
-    { userId: string; kit: string; n: bigint }[]
-  >`
-    SELECT "userId", kit, COUNT(*)::bigint AS n
-    FROM "SquadRoleEvent"
-    WHERE "userId" IN (${Prisma.join(users.map((u) => u.id))})
-      ${matchSql}
-    GROUP BY "userId", kit
-  `;
-
-  const byUser = new Map<string, Partial<Record<string, number>>>();
-  for (const g of grouped) {
-    const cur = byUser.get(g.userId) || {};
-    const kit = canonKitName(g.kit);
-    cur[kit] = (cur[kit] || 0) + (Number(g.n) || 0);
-    byUser.set(g.userId, cur);
-  }
+  const byUser = await kitSecondsByUser(users.map((u) => u.id));
 
   type Acc = {
     players: number;
@@ -470,24 +586,7 @@ export async function kitRankAnalytics(): Promise<KitRankAnalytics> {
   };
   if (!users.length) return empty;
 
-  const matchSql = await kitMatchWindowSql("TR1", true);
-  const grouped = await prisma.$queryRaw<
-    { userId: string; kit: string; n: bigint }[]
-  >`
-    SELECT "userId", kit, COUNT(*)::bigint AS n
-    FROM "SquadRoleEvent"
-    WHERE "userId" IN (${Prisma.join(users.map((u) => u.id))})
-      ${matchSql}
-    GROUP BY "userId", kit
-  `;
-
-  const byUser = new Map<string, Partial<Record<string, number>>>();
-  for (const g of grouped) {
-    const cur = byUser.get(g.userId) || {};
-    const kit = canonKitName(g.kit);
-    cur[kit] = (cur[kit] || 0) + (Number(g.n) || 0);
-    byUser.set(g.userId, cur);
-  }
+  const byUser = await kitSecondsByUser(users.map((u) => u.id));
 
   function nickKey(nick: string): string {
     return nick.trim().toLowerCase().replace(/\s+/g, "");
@@ -525,11 +624,16 @@ export async function kitRankAnalytics(): Promise<KitRankAnalytics> {
       level: (i + 1) as 1 | 2 | 3,
       kit: row.kit,
       pct: Math.round((1000 * row.n) / total) / 10,
-      n: row.n,
+      n: Math.max(1, Math.round(row.n / 60)),
     }));
     if (!levels.length) continue;
 
-    players.push({ nick, tier, total, levels });
+    players.push({
+      nick,
+      tier,
+      total: Math.max(1, Math.round(total / 60)),
+      levels,
+    });
     kitsUsedSum += rows.length;
     l1PctSum += levels[0].pct;
     if (levels[0].kit === "Стрелок") riflemanL1 += 1;
