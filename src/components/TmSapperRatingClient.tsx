@@ -304,8 +304,9 @@ export function TmSapperRatingClient() {
           ) : (
             <>
               <p>
-                <strong>FOB</strong> — урон и хиты по рации из логов. «Снёс» =
-                последний хит до 0 HP.
+                <strong>FOB</strong> — урон и хиты по рации. «Снёс» — удар,
+                после которого HP рации упало с &gt;24 до ≤24 (в логах нет 0 HP
+                и нет строки «сгорела/пропала» с id).
               </p>
               <p className="tm-sapper-muted">
                 Кто поставил или вкопал FOB лопатой — в логах Squad нет.
@@ -369,7 +370,7 @@ export function TmSapperRatingClient() {
                 <Th
                   k="fobsDestroyed"
                   label="Снёс FOB"
-                  title="Последний хит до 0 HP"
+                  title="Удар, после которого HP рации ≤24 (пол в логах)"
                 />
                 <Th
                   k="minesPlanted"

@@ -566,7 +566,11 @@ export function buildBbSapperRating(
     if (d.killed) cur.mineKills += 1;
   }
 
-  // FOB: урон по рации + «снёс» = последний хит до ~0 HP
+  // FOB: урон по рации.
+  // В логах HP рации почти никогда не падает до 0 — «смерть» = пол ~24 HP.
+  // «Снёс» = кто пробил порог (было >24 → стало ≤24). Если рацию починили и
+  // снова убили — считаем повторно. Явной строки «FOB burned/removed» с id нет.
+  const FOB_FLOOR = 24.05;
   const byFob = new Map<string, typeof fobHits>();
   for (const h of fobHits) {
     const k = `${h.server}|${h.fobId}`;
@@ -574,11 +578,19 @@ export function buildBbSapperRating(
     byFob.get(k)!.push(h);
   }
   for (const list of byFob.values()) {
-    list.sort((a, b) => a.at.localeCompare(b.at));
-    const last = list[list.length - 1];
-    if (last && last.healthLeft <= 0.05) {
-      const cur = ensure(last.steamId, last.nick);
-      if (cur) cur.fobsDestroyed += 1;
+    list.sort((a, b) => a.at.localeCompare(b.at) || a.healthLeft - b.healthLeft);
+    let prevHp: number | null = null;
+    for (const h of list) {
+      const curHp = h.healthLeft;
+      if (
+        prevHp != null &&
+        prevHp > FOB_FLOOR &&
+        curHp <= FOB_FLOOR
+      ) {
+        const cur = ensure(h.steamId, h.nick);
+        if (cur) cur.fobsDestroyed += 1;
+      }
+      prevHp = curHp;
     }
   }
   for (const h of fobHits) {
@@ -686,7 +698,7 @@ export function buildBbSapperRating(
     notes: [
       "Только TR1 + TR2.",
       "Мины: поставил → сработало; одиночные vs цепь; урон целям / цепи.",
-      "FOB: урон и хиты по рации; «снёс» = последний хит до 0 HP. Кто поставил/вкопал FOB — в логах нет.",
+      "FOB: урон/хиты по рации. «Снёс» = удар, после которого HP упало с >24 до ≤24 (в логах рация не пишет 0 HP и нет burn/remove с id).",
       `Файлов: ${filesScanned.length}.`,
     ],
     membersMatched: bySteam.size,
