@@ -5,6 +5,7 @@ import { AuthBar } from "@/components/AuthBar";
 import { SiteNav } from "@/components/SiteNav";
 import { SiteOnlineBadge } from "@/components/SiteOnlineBadge";
 import { getSession } from "@/lib/auth";
+import { isBuiltinSuperAdmin } from "@/lib/admin";
 import { isAnyClanMember } from "@/lib/clanAccess";
 import { getCurrentBetaLabel } from "@/lib/siteReleases";
 import { YandexMetrika } from "@/components/YandexMetrika";
@@ -67,6 +68,7 @@ export default async function RootLayout({
     Boolean(session?.user?.steamId) &&
     Boolean(session?.user?.profileComplete) &&
     (await isAnyClanMember(session?.user?.steamId));
+  const showSapperLab = isBuiltinSuperAdmin(session?.user?.steamId);
   const betaLabel = getCurrentBetaLabel();
 
   return (
@@ -77,7 +79,10 @@ export default async function RootLayout({
             <div className="site-top-inner">
               <div className="top-left">
                 <SiteOnlineBadge />
-                <SiteNav showClanSections={showClanSections} />
+                <SiteNav
+                  showClanSections={showClanSections}
+                  showSapperLab={showSapperLab}
+                />
               </div>
               <AuthBar />
             </div>
