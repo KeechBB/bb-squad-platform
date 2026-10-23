@@ -80,7 +80,7 @@ export function TmSapperRatingClient() {
   const view = useMemo(() => {
     const rows = board?.rows || [];
     const needle = q.trim().toLowerCase();
-    let list = needle
+    const list = needle
       ? rows.filter(
           (r) =>
             r.nick.toLowerCase().includes(needle) ||
