@@ -112,6 +112,7 @@ export function ProfileKitsCard({
     : "PB1";
   const [lane, setLane] = useState<KitsLane>(defaultLane);
   const [kits, setKits] = useState<KitPctRow[]>(initialKits || []);
+  const [spawnTotal, setSpawnTotal] = useState(0);
   const [mode, setMode] = useState<Mode>("all");
   const [day, setDay] = useState<string | null>(null);
   const [rangeFrom, setRangeFrom] = useState<string | null>(null);
@@ -161,8 +162,10 @@ export function ProfileKitsCard({
         const data = (await res.json()) as {
           kits?: KitPctRow[];
           days?: string[];
+          total?: number;
         };
         setKits(Array.isArray(data.kits) ? data.kits : []);
+        setSpawnTotal(Number(data.total) || 0);
         if (Array.isArray(data.days)) setKitDays(new Set(data.days));
       } catch {
         /* keep previous */
@@ -348,9 +351,9 @@ export function ProfileKitsCard({
                 className={`btn ghost${lane === "TR1" ? " active" : ""}`}
                 aria-pressed={lane === "TR1"}
                 onClick={() => setLane("TR1")}
-                title="Тренировка TR1+TR2"
+                title="Только залитые тренировки, TR1–TR3"
               >
-                TR1+TR2
+                Тренировки
               </button>
               <button
                 type="button"
@@ -462,6 +465,14 @@ export function ProfileKitsCard({
         </div>
       </div>
 
+      <p className="muted profile-kits-cal-hint">
+        {lane === "PB1"
+          ? "Паблик PB1. Чистка ролей состава его не меняет."
+          : spawnTotal
+            ? `Только залитые тренировки · ${spawnTotal} спавнов`
+            : "Только залитые тренировки"}
+      </p>
+
       {kits.length === 0 ? (
         <p className="muted profile-kits-empty">
           {lane === "PB1"
@@ -551,6 +562,16 @@ export function ProfileKitsCard({
           </svg>
         </div>
       )}
+      {kits.length > 0 ? (
+        <ul className="profile-kits-legend">
+          {kits.map((k) => (
+            <li key={k.kit}>
+              <span>{k.kit}</span>
+              <span>{Number.isInteger(k.pct) ? k.pct : k.pct.toFixed(1)}%</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </section>
   );
 }

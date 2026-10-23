@@ -157,7 +157,23 @@ body.has-profile-bg .shell:has(.profile-page) {
 .profile-v2-roles { grid-area: roles; }
 .profile-v2-hits { grid-area: hits; }
 
-/* Роли: диаграмма на всё окно, легенда убрана */
+.profile-page-v2 .profile-kits-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0 10px 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.profile-page-v2 .profile-kits-legend li {
+  display: flex;
+  gap: 6px;
+}
+
+/* Роли: диаграмма на всё окно */
 .profile-page-v2 .profile-kits-card .profile-kv-head,
 .profile-page-v2 .profile-kits-card .profile-kits-period {
   flex: 0 0 auto;
