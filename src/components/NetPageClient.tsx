@@ -667,7 +667,6 @@ export function NetPageClient({ nick }: { nick: string }) {
           {data.news.map((item) => (
             <button key={item.id} type="button" className="net-news-item" onClick={() => setOpenNews(item)}>
               {item.title}
-              <small>{item.authorNick}</small>
             </button>
           ))}
         </div>
@@ -1056,7 +1055,6 @@ export function NetPageClient({ nick }: { nick: string }) {
         <div className="net-modal-back" onMouseDown={() => setOpenNews(null)}>
           <div className="net-modal" onMouseDown={(e) => e.stopPropagation()} role="dialog">
             <h3>{openNews.title}</h3>
-            <p className="net-empty">{openNews.authorNick}</p>
             <div className="net-post-body" style={{ whiteSpace: "pre-wrap" }}>{openNews.body}</div>
             <div className="net-modal-actions">
               <button type="button" className="net-quiet" onClick={() => setOpenNews(null)}>Закрыть</button>
