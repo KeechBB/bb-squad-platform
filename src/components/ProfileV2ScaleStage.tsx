@@ -13,12 +13,13 @@ export const PROFILE_V2_REF_H = CANVAS_REF_H;
 type Props = {
   children: ReactNode;
   hasBg?: boolean;
+  contentWidth?: number;
 };
 
 /** Профиль: сцена 2K, контент 1600px по центру — бока под фон. */
-export function ProfileV2ScaleStage({ children, hasBg = false }: Props) {
+export function ProfileV2ScaleStage({ children, hasBg = false, contentWidth = 1600 }: Props) {
   return (
-    <CanvasScaleStage hasBg={hasBg} contentWidth={1600} className="is-profile">
+    <CanvasScaleStage hasBg={hasBg} contentWidth={contentWidth} className="is-profile">
       {children}
     </CanvasScaleStage>
   );

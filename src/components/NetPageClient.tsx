@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ProfileV2ScaleStage } from "@/components/ProfileV2ScaleStage";
 import { NetEmojiBar, NetRichText } from "@/components/NetEmoji";
 import { netVisibleLength } from "@/lib/netEmoji";
-import type { NetNewsCard, NetPageData, NetPerson, NetThemeCard } from "@/lib/netTypes";
+import type { NetChatLine, NetNewsCard, NetPageData, NetPerson, NetThemeCard } from "@/lib/netTypes";
 
 type Modal = null | "avatar" | "theme" | "bg" | "status" | "subs" | "post" | "news";
 
@@ -31,7 +31,11 @@ function NetFrame({
     };
   }, [bgUrl]);
 
-  return <ProfileV2ScaleStage hasBg={Boolean(bgUrl)}>{children}</ProfileV2ScaleStage>;
+  return (
+    <ProfileV2ScaleStage hasBg={Boolean(bgUrl)} contentWidth={1780}>
+      {children}
+    </ProfileV2ScaleStage>
+  );
 }
 
 function commentWord(n: number) {
@@ -88,6 +92,92 @@ function CommentComposer({
         </button>
       </div>
     </div>
+  );
+}
+
+function NetFlood() {
+  const [lines, setLines] = useState<NetChatLine[]>([]);
+  const [online, setOnline] = useState<string[]>([]);
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  const logRef = useRef<HTMLDivElement>(null);
+  const pinRef = useRef(true);
+
+  const pull = useCallback(async () => {
+    const res = await fetch("/api/net/chat", { cache: "no-store" });
+    const json = await res.json().catch(() => null);
+    if (!res.ok || !json) return;
+    setLines(json.messages || []);
+    setOnline((json.online || []).map((p: NetPerson) => p.nick));
+  }, []);
+
+  useEffect(() => {
+    void pull();
+    const id = window.setInterval(() => void pull(), 4000);
+    return () => window.clearInterval(id);
+  }, [pull]);
+
+  useEffect(() => {
+    const el = logRef.current;
+    if (el && pinRef.current) el.scrollTop = el.scrollHeight;
+  }, [lines]);
+
+  async function send() {
+    const body = text.trim();
+    if (!body || sending) return;
+    setSending(true);
+    const res = await fetch("/api/net/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body }),
+    });
+    setSending(false);
+    if (!res.ok) return;
+    setText("");
+    pinRef.current = true;
+    await pull();
+  }
+
+  return (
+    <section className="net-panel net-chat" aria-label="Чат">
+      <h2>
+        Чат <span className="net-chat-count">{online.length} онлайн</span>
+      </h2>
+      <div
+        className="net-chat-log"
+        ref={logRef}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          pinRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+        }}
+      >
+        {lines.length === 0 ? <p className="net-empty">Пока тихо. Напиши первым.</p> : null}
+        {lines.map((m) => (
+          <p key={m.id} className="net-chat-line">
+            <Link href={`/profile/web/${encodeURIComponent(m.nick)}`}>{m.nick}</Link>
+            <span>
+              <NetRichText text={m.body} />
+            </span>
+          </p>
+        ))}
+      </div>
+      <div className="net-chat-compose">
+        <input
+          value={text}
+          placeholder="Написать всем"
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void send();
+            }
+          }}
+        />
+        <button type="button" className="net-send" disabled={sending || !text.trim()} onClick={() => void send()}>
+          ок
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -302,18 +392,7 @@ export function NetPageClient({ nick }: { nick: string }) {
         <div className="net-scroll">{people(data.followers)}</div>
       </section>
 
-      <section className="net-panel net-online" aria-label="Кто онлайн">
-        <h2>Кто онлайн</h2>
-        <div className="net-scroll">
-          {data.online.length === 0 ? <p className="net-empty">Сейчас никого</p> : null}
-          {data.online.map((p) => (
-            <Link key={p.nick} className="net-person" href={`/profile/web/${encodeURIComponent(p.nick)}`}>
-              <span className="net-dot" />
-              {p.nick}
-            </Link>
-          ))}
-        </div>
-      </section>
+      <NetFlood />
 
       <section className="net-panel net-feed" aria-label="Лента">
         <h2>Лента</h2>

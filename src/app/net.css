@@ -1,4 +1,7 @@
-/* Та же сцена, что у профиля: холст 2K, контент 1600 по центру. */
+/* Та же сцена, что у профиля, но колонка на 180 шире: 1780, не на весь холст. */
+.canvas-scale-host.is-profile:has(.net-page) .canvas-scale-inner:not(.is-full) {
+  max-width: 1780px;
+}
 html:has(.net-page),
 body:has(.net-page) {
   height: 100%;
@@ -51,13 +54,13 @@ body:has(.net-page) .site-footer {
   padding: 0;
   overflow: hidden;
   display: grid;
-  grid-template-columns: 200px 240px minmax(280px, 1fr) 250px;
-  grid-template-rows: 168px 56px minmax(110px, 0.7fr) minmax(200px, 1.3fr);
+  grid-template-columns: 250px minmax(340px, 520px) minmax(380px, 1fr) 270px;
+  grid-template-rows: 136px 44px minmax(88px, 0.4fr) minmax(200px, 1.05fr);
   grid-template-areas:
     "avatar panel themes popular"
     "status panel themes popular"
-    "subs feed feed news"
-    "online feed feed news";
+    "subs feed themes news"
+    "chat feed themes news";
   gap: 10px;
   color: var(--net-ink);
   background: transparent;
@@ -156,28 +159,35 @@ body:has(.net-page) .site-footer {
 .net-popular { grid-area: popular; }
 .net-news { grid-area: news; }
 .net-subs { grid-area: subs; }
-.net-online { grid-area: online; }
+.net-chat { grid-area: chat; }
 .net-feed { grid-area: feed; }
 
 .net-theme-list {
   overflow: auto;
-  max-height: 148px;
-  padding: 6px 8px 8px;
+  flex: 1;
+  min-height: 0;
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 .net-theme-row,
 .net-pop-row {
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
-.net-theme-row,
-.net-pop-row,
 .net-person {
   display: flex;
   align-items: center;
   gap: 6px;
-  min-height: 40px;
+  min-height: 28px;
 }
 .net-theme-title,
 .net-pop-title,
@@ -193,11 +203,12 @@ body:has(.net-page) .site-footer {
 }
 .net-theme-title,
 .net-pop-title {
-  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 0.95rem;
+  font-weight: 700;
 }
 .net-vote,
 .net-like {
@@ -329,6 +340,53 @@ body:has(.net-page) .site-footer {
 }
 .net-empty { color: var(--net-muted); font-size: 0.8rem; margin: 8px 10px; }
 
+.net-chat-count {
+  margin-left: 6px;
+  color: #4ade80;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.net-chat-log {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.net-chat-line {
+  margin: 0;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+.net-chat-line a {
+  color: #93c5fd;
+  font-weight: 700;
+  text-decoration: none;
+  flex: 0 0 auto;
+}
+.net-chat-line span { min-width: 0; word-break: break-word; }
+.net-chat-compose {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.net-chat-compose input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font: inherit;
+  padding: 8px 12px;
+}
+
 .net-feed { display: flex; flex-direction: column; }
 .net-feed-scroll {
   flex: 1;
@@ -340,7 +398,7 @@ body:has(.net-page) .site-footer {
   gap: 10px;
 }
 .net-post {
-  min-height: 180px;
+  min-height: 0;
   border: 1px solid var(--net-line);
   border-radius: 10px;
   padding: 10px;

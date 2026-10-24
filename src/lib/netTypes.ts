@@ -42,6 +42,13 @@ export type NetNewsCard = {
 
 export type NetBgChoice = { id: string; file: string; label: string };
 
+export type NetChatLine = {
+  id: string;
+  nick: string;
+  body: string;
+  createdAt: string;
+};
+
 export type NetPageData = {
   nick: string;
   isOwn: boolean;

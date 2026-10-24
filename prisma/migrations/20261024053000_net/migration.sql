@@ -104,3 +104,15 @@ ALTER TABLE "NetComment" ADD CONSTRAINT "NetComment_userId_fkey" FOREIGN KEY ("u
 ALTER TABLE "NetFollow" ADD CONSTRAINT "NetFollow_followerId_fkey" FOREIGN KEY ("followerId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "NetFollow" ADD CONSTRAINT "NetFollow_followingId_fkey" FOREIGN KEY ("followingId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "NetNews" ADD CONSTRAINT "NetNews_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+CREATE TABLE "NetChatMessage" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "body" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "NetChatMessage_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX "NetChatMessage_createdAt_idx" ON "NetChatMessage"("createdAt");
+
+ALTER TABLE "NetChatMessage" ADD CONSTRAINT "NetChatMessage_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;

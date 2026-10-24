@@ -9,7 +9,7 @@ import {
 } from "@/lib/profileBg";
 import { netVisibleLength } from "@/lib/netEmoji";
 import { detectNetMime, extOf, isStillImage, removeNetFile, saveNetFile, NET_MAX_BYTES, type NetMime } from "@/lib/netMedia";
-import type { NetPageData, NetPerson, NetThemeCard } from "@/lib/netTypes";
+import type { NetChatLine, NetPageData, NetPerson, NetThemeCard } from "@/lib/netTypes";
 import type { Role } from "@prisma/client";
 
 export const NET_THEME_LIMIT = 10;
@@ -438,6 +438,55 @@ export async function commentNetPost(postId: string, bodyRaw: string) {
   const post = await prisma.netPost.findUnique({ where: { id: postId }, select: { id: true } });
   if (!post) return { error: "Пост не найден" };
   await prisma.netComment.create({ data: { postId, userId: gate.me.id, body } });
+  return { ok: true as const };
+}
+
+const CHAT_KEEP_MS = 2 * 24 * 60 * 60 * 1000;
+
+export async function loadNetChat(): Promise<
+  { messages: NetChatLine[]; online: NetPerson[] } | { error: string }
+> {
+  const gate = await own();
+  if ("error" in gate) return gate;
+  const [rows, onlineUsers] = await Promise.all([
+    prisma.netChatMessage.findMany({
+      where: { createdAt: { gte: new Date(Date.now() - CHAT_KEEP_MS) } },
+      orderBy: { createdAt: "desc" },
+      take: 80,
+      include: { user: { select: { nick: true } } },
+    }),
+    prisma.user.findMany({
+      where: { profileComplete: true, lastSeenAt: { gte: new Date(Date.now() - ONLINE_MS) }, nick: { not: null } },
+      orderBy: { lastSeenAt: "desc" },
+      take: 40,
+      select: { nick: true, netProfile: { select: { avatarUrl: true } } },
+    }),
+  ]);
+  const messages = rows
+    .reverse()
+    .filter((row) => row.user.nick)
+    .map((row) => ({
+      id: row.id,
+      nick: row.user.nick as string,
+      body: row.body,
+      createdAt: row.createdAt.toISOString(),
+    }));
+  const online = onlineUsers
+    .map((u) => person(u.nick, u.netProfile?.avatarUrl ?? null))
+    .filter((x): x is NetPerson => Boolean(x));
+  return { messages, online };
+}
+
+export async function postNetChat(bodyRaw: string) {
+  const gate = await own();
+  if ("error" in gate) return gate;
+  const body = bodyRaw.replace(/\s+/g, " ").trim();
+  if (!body) return { error: "Пустое сообщение" };
+  if (netVisibleLength(body) > 200) return { error: "Сообщение до 200 знаков" };
+  await prisma.netChatMessage.create({ data: { userId: gate.me.id, body } });
+  await prisma.netChatMessage
+    .deleteMany({ where: { createdAt: { lt: new Date(Date.now() - CHAT_KEEP_MS) } } })
+    .catch(() => undefined);
   return { ok: true as const };
 }
 

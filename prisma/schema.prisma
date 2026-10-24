@@ -121,6 +121,7 @@ model User {
   netPostVotes               NetPostVote[]
   netComments                NetComment[]
   netThemeComments           NetThemeComment[]
+  netChatMessages            NetChatMessage[]
   netFollowing               NetFollow[] @relation("NetFollower")
   netFollowers               NetFollow[] @relation("NetFollowing")
   netNews                    NetNews[]
@@ -972,6 +973,18 @@ model NetFollow {
 
   @@id([followerId, followingId])
   @@index([followingId])
+}
+
+/// Общий чат Сети: флудилка, не привязана к странице игрока.
+model NetChatMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
 }
 
 model NetNews {
