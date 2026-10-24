@@ -29,7 +29,12 @@ function NetFrame({
     return () => {
       body.style.removeProperty("--profile-bg-image");
       body.classList.remove("has-profile-bg");
+      document.documentElement.style.removeProperty("--net-visor");
     };
+  }, [bgUrl]);
+
+  useEffect(() => {
+    paintVisor(bgUrl || null);
   }, [bgUrl]);
 
   return (
@@ -45,6 +50,68 @@ function commentWord(n: number) {
   if (n10 === 1 && n100 !== 11) return "комментарий";
   if (n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14)) return "комментария";
   return "комментариев";
+}
+
+function clockLabel(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+}
+
+function sampleOnline(nicks: string[], prevKey: string, prev: string[]) {
+  const key = [...nicks].sort().join("|");
+  if (key === prevKey) return { key, list: prev.filter((nick) => nicks.includes(nick)) };
+  if (nicks.length <= 15) return { key, list: nicks };
+  const copy = [...nicks];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const swap = copy[i];
+    copy[i] = copy[j];
+    copy[j] = swap;
+  }
+  const count = 10 + Math.floor(Math.random() * 6);
+  return { key, list: copy.slice(0, count) };
+}
+
+function paintVisor(url: string | null) {
+  const root = document.documentElement;
+  if (!url) {
+    root.style.removeProperty("--net-visor");
+    return;
+  }
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 24;
+    canvas.height = 24;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return;
+    ctx.drawImage(img, 0, 0, 24, 24);
+    const data = ctx.getImageData(0, 0, 24, 24).data;
+    const buckets = new Map<string, { r: number; g: number; b: number; n: number }>();
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      if (r + g + b < 48) continue;
+      const key = `${r >> 4}-${g >> 4}-${b >> 4}`;
+      const bucket = buckets.get(key) || { r: 0, g: 0, b: 0, n: 0 };
+      bucket.r += r;
+      bucket.g += g;
+      bucket.b += b;
+      bucket.n += 1;
+      buckets.set(key, bucket);
+    }
+    let best: { r: number; g: number; b: number; n: number } | null = null;
+    for (const bucket of buckets.values()) {
+      if (!best || bucket.n > best.n) best = bucket;
+    }
+    if (!best || best.n === 0) return;
+    const scale = Math.min(2.1, 210 / Math.max(best.r, best.g, best.b, 1));
+    const tone = (value: number) => Math.min(255, Math.round((value / best.n) * Math.max(1.15, scale)));
+    root.style.setProperty("--net-visor", `rgb(${tone(best.r)} ${tone(best.g)} ${tone(best.b)})`);
+  };
+  img.src = url;
 }
 
 function whenLabel(iso: string) {
@@ -97,6 +164,9 @@ function CommentComposer({
 function NetFlood() {
   const [lines, setLines] = useState<NetChatLine[]>([]);
   const [online, setOnline] = useState<string[]>([]);
+  const [shown, setShown] = useState<string[]>([]);
+  const onlineKey = useRef("");
+  const shownRef = useRef<string[]>([]);
   const [text, setText] = useState("");
   const [emoji, setEmoji] = useState(false);
   const [sending, setSending] = useState(false);
@@ -108,7 +178,12 @@ function NetFlood() {
     const json = await res.json().catch(() => null);
     if (!res.ok || !json) return;
     setLines(json.messages || []);
-    setOnline((json.online || []).map((p: NetPerson) => p.nick));
+    const nicks = (json.online || []).map((p: NetPerson) => p.nick);
+    setOnline(nicks);
+    const picked = sampleOnline(nicks, onlineKey.current, shownRef.current);
+    onlineKey.current = picked.key;
+    shownRef.current = picked.list;
+    setShown(picked.list);
   }, []);
 
   useEffect(() => {
@@ -144,9 +219,9 @@ function NetFlood() {
         Чат <span className="net-chat-count">{online.length} в сети</span>
       </h2>
       <p className="net-chat-who">
-        {online.length === 0
+        {shown.length === 0
           ? "В Сети сейчас никого"
-          : online.map((nick, i) => (
+          : shown.map((nick, i) => (
               <span key={nick}>
                 {i > 0 ? ", " : null}
                 <Link href={`/profile/web/${encodeURIComponent(nick)}`}>{nick}</Link>
@@ -163,12 +238,15 @@ function NetFlood() {
       >
         {lines.length === 0 ? <p className="net-empty">Пока тихо. Напиши первым.</p> : null}
         {lines.map((m) => (
-          <p key={m.id} className="net-chat-line">
-            <Link href={`/profile/web/${encodeURIComponent(m.nick)}`}>{m.nick}</Link>
-            <span>
+          <div key={m.id} className="net-chat-line">
+            <div className="net-chat-meta">
+              <Link href={`/profile/web/${encodeURIComponent(m.nick)}`}>{m.nick}</Link>
+              <time>{clockLabel(m.createdAt)}</time>
+            </div>
+            <div className="net-chat-body">
               <NetRichText text={m.body} />
-            </span>
-          </p>
+            </div>
+          </div>
         ))}
       </div>
       <div className="net-chat-compose">
