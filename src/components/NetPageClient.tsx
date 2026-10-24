@@ -64,21 +64,6 @@ function clockLabel(iso: string) {
   return d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 }
 
-function sampleOnline(nicks: string[], prevKey: string, prev: string[]) {
-  const key = [...nicks].sort().join("|");
-  if (key === prevKey) return { key, list: prev.filter((nick) => nicks.includes(nick)) };
-  if (nicks.length <= 15) return { key, list: nicks };
-  const copy = [...nicks];
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    const swap = copy[i];
-    copy[i] = copy[j];
-    copy[j] = swap;
-  }
-  const count = 10 + Math.floor(Math.random() * 6);
-  return { key, list: copy.slice(0, count) };
-}
-
 function paintVisor(url: string | null) {
   const root = document.documentElement;
   if (!url) {
@@ -170,9 +155,7 @@ function CommentComposer({
 function NetFlood() {
   const [lines, setLines] = useState<NetChatLine[]>([]);
   const [online, setOnline] = useState<string[]>([]);
-  const [shown, setShown] = useState<string[]>([]);
-  const onlineKey = useRef("");
-  const shownRef = useRef<string[]>([]);
+  const [whoOpen, setWhoOpen] = useState(false);
   const [text, setText] = useState("");
   const [emoji, setEmoji] = useState(false);
   const [sending, setSending] = useState(false);
@@ -184,12 +167,7 @@ function NetFlood() {
     const json = await res.json().catch(() => null);
     if (!res.ok || !json) return;
     setLines(json.messages || []);
-    const nicks = (json.online || []).map((p: NetPerson) => p.nick);
-    setOnline(nicks);
-    const picked = sampleOnline(nicks, onlineKey.current, shownRef.current);
-    onlineKey.current = picked.key;
-    shownRef.current = picked.list;
-    setShown(picked.list);
+    setOnline((json.online || []).map((p: NetPerson) => p.nick));
   }, []);
 
   useEffect(() => {
@@ -222,18 +200,28 @@ function NetFlood() {
   return (
     <section className="net-panel net-chat" aria-label="Чат">
       <h2>
-        Чат <span className="net-chat-count">{online.length} в сети</span>
+        Чат{" "}
+        <button
+          type="button"
+          className={`net-chat-count${whoOpen ? " is-on" : ""}`}
+          aria-expanded={whoOpen}
+          onClick={() => setWhoOpen((v) => !v)}
+        >
+          {online.length} в сети
+        </button>
       </h2>
-      <p className="net-chat-who">
-        {shown.length === 0
-          ? "В Сети сейчас никого"
-          : shown.map((nick, i) => (
-              <span key={nick}>
-                {i > 0 ? ", " : null}
-                <Link href={`/profile/web/${encodeURIComponent(nick)}`} style={{ color: nickColor(nick) }}>{nick}</Link>
-              </span>
-            ))}
-      </p>
+      {whoOpen ? (
+        <p className="net-chat-who">
+          {online.length === 0
+            ? "В Сети сейчас никого"
+            : online.map((nick, i) => (
+                <span key={nick}>
+                  {i > 0 ? ", " : null}
+                  <Link href={`/profile/web/${encodeURIComponent(nick)}`} style={{ color: nickColor(nick) }}>{nick}</Link>
+                </span>
+              ))}
+        </p>
+      ) : null}
       <div
         className="net-chat-log"
         ref={logRef}

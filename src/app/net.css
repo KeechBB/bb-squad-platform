@@ -165,7 +165,21 @@ body:has(.net-page) .site-footer {
   border-color: rgba(251, 113, 133, 0.7);
   background: linear-gradient(120deg, rgba(136, 19, 55, 0.88), rgba(244, 63, 94, 0.42));
 }
-.net-ctrl-list button:hover { filter: brightness(1.12); }
+.net-ctrl-list button:hover {
+  filter: brightness(1.2);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.45), 0 0 18px rgba(255, 255, 255, 0.16);
+}
+.net-sub-btn:hover:not(:disabled),
+.net-create:hover,
+.net-send:hover:not(:disabled) {
+  filter: brightness(1.16);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.4), 0 0 16px rgba(255, 255, 255, 0.14);
+}
+.net-emoji-toggle:hover {
+  filter: brightness(1.16);
+  border-color: rgba(250, 204, 21, 0.8);
+  box-shadow: 0 0 14px rgba(250, 204, 21, 0.28);
+}
 
 .net-sub-btn {
   margin: auto 10px 0;
@@ -487,9 +501,21 @@ body:has(.net-page) .site-footer {
 
 .net-chat-count {
   margin-left: 6px;
+  border: 0;
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: transparent;
   color: #4ade80;
-  font-size: 0.72rem;
-  font-weight: 600;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+.net-chat-count:hover,
+.net-chat-count.is-on {
+  background: rgba(74, 222, 128, 0.16);
+  box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.55), 0 0 14px rgba(74, 222, 128, 0.28);
 }
 .net-chat-who {
   margin: 4px 12px 0;
