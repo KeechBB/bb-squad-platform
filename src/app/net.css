@@ -54,13 +54,13 @@ body:has(.net-page) .site-footer {
   padding: 0;
   overflow: hidden;
   display: grid;
-  grid-template-columns: 250px minmax(340px, 520px) minmax(380px, 1fr) 270px;
-  grid-template-rows: 136px minmax(48px, auto) minmax(88px, 0.4fr) minmax(200px, 1.05fr);
+  grid-template-columns: 240px minmax(280px, 1fr) minmax(340px, 1.2fr) 250px;
+  grid-template-rows: 132px 46px minmax(72px, auto) minmax(0, 1fr);
   grid-template-areas:
     "avatar panel themes popular"
     "status panel themes popular"
-    "subs feed themes news"
-    "chat feed themes news";
+    "subs   panel themes popular"
+    "chat   feed  feed   news";
   gap: 10px;
   color: var(--net-ink);
   background: transparent;
