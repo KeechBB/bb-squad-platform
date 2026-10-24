@@ -3,9 +3,11 @@ import { buildCalendarMatches } from "@/lib/kvForecast";
 import {
   buildHomeTrainPwrBoard,
   emptyHomeTrainPwrBoard,
+  type HomeTrainPwrBoard,
 } from "@/lib/homeTrainPwr";
 import { buildHomeTierBoard, emptyHomeTierBoard } from "@/lib/homeTierBoard";
 import { buildPublicRpLeaderboard } from "@/lib/publicRp";
+import type { NickPatchPublicRow } from "@/lib/nickPatchesCache";
 
 export type HomePublicTopRow = {
   nick: string;
@@ -16,35 +18,60 @@ export type HomePublicTopRow = {
   nickStyle?: string | null;
 };
 
-/** Общие блоки главной — один параллельный проход, кэш ~2 мин. */
-export const getHomeDashboardData = unstable_cache(
-  async () => {
+type HomeDashboardCached = {
+  previews: Awaited<ReturnType<typeof buildCalendarMatches>>["previews"];
+  pwrBoard: HomeTrainPwrBoard;
+  tierBoard: Awaited<ReturnType<typeof buildHomeTierBoard>>;
+  publicTop: HomePublicTopRow[];
+};
+
+function nickKey(nick: string | null | undefined): string {
+  return String(nick || "")
+    .trim()
+    .toLowerCase();
+}
+
+function applyLiveNickCosmetics<T extends { nick: string; nickPatch?: string | null; nickStyle?: string | null }>(
+  rows: T[],
+  cosmetics: Map<string, NickPatchPublicRow>
+): T[] {
+  if (!cosmetics.size) return rows;
+  return rows.map((r) => {
+    const cos = cosmetics.get(nickKey(r.nick));
+    if (!cos) return { ...r, nickPatch: null, nickStyle: null };
+    return {
+      ...r,
+      nickPatch: cos.patchId || null,
+      nickStyle: cos.styleId || null,
+    };
+  });
+}
+
+/** Тяжёлые блоки главной — кэш ~2 мин; стили ника подмешиваем live из БД. */
+const getHomeDashboardCached = unstable_cache(
+  async (): Promise<HomeDashboardCached> => {
     const [previews, pwrBoard, tierBoard, publicTop] = await Promise.all([
       buildCalendarMatches()
         .then((d) => d.previews)
-        .catch(() => [] as Awaited<ReturnType<typeof buildCalendarMatches>>["previews"]),
+        .catch(
+          () =>
+            [] as Awaited<
+              ReturnType<typeof buildCalendarMatches>
+            >["previews"]
+        ),
       buildHomeTrainPwrBoard().catch(() => emptyHomeTrainPwrBoard()),
       buildHomeTierBoard().catch(() => emptyHomeTierBoard()),
       (async () => {
         try {
-          const { loadNickPatchByNick } = await import("@/lib/nickPatchesCache");
-          const [board, cosmetics] = await Promise.all([
-            buildPublicRpLeaderboard(),
-            loadNickPatchByNick().catch(() => new Map()),
-          ]);
-          return board.rows.slice(0, 10).map((r) => {
-            const cos = cosmetics.get(
-              String(r.nick || "").trim().toLowerCase()
-            );
-            return {
-              nick: r.nick,
-              rp: r.rp,
-              rankLabel: r.rankLabel,
-              rankKey: r.rankKey,
-              nickPatch: cos?.patchId || null,
-              nickStyle: cos?.styleId || null,
-            };
-          }) as HomePublicTopRow[];
+          const board = await buildPublicRpLeaderboard();
+          return board.rows.slice(0, 10).map((r) => ({
+            nick: r.nick,
+            rp: r.rp,
+            rankLabel: r.rankLabel,
+            rankKey: r.rankKey,
+            nickPatch: null as string | null,
+            nickStyle: null as string | null,
+          })) as HomePublicTopRow[];
         } catch {
           return [] as HomePublicTopRow[];
         }
@@ -52,6 +79,24 @@ export const getHomeDashboardData = unstable_cache(
     ]);
     return { previews, pwrBoard, tierBoard, publicTop };
   },
-  ["home-dashboard-v14-nick-cosmetics"],
+  ["home-dashboard-v15-nick-cosmetics-live"],
   { revalidate: 120 }
 );
+
+export async function getHomeDashboardData(): Promise<HomeDashboardCached> {
+  const data = await getHomeDashboardCached();
+  try {
+    const { loadNickPatchByNick } = await import("@/lib/nickPatchesCache");
+    const cosmetics = await loadNickPatchByNick();
+    return {
+      ...data,
+      publicTop: applyLiveNickCosmetics(data.publicTop, cosmetics),
+      pwrBoard: {
+        ...data.pwrBoard,
+        top10: applyLiveNickCosmetics(data.pwrBoard.top10, cosmetics),
+      },
+    };
+  } catch {
+    return data;
+  }
+}
