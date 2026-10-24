@@ -19100,19 +19100,19 @@ body:has(.profile-page) {
   overflow: visible;
 }
 
-/* Season 2 detail: ??????? ??????, ??? ?????? ???? ?????????? */
+/* Season 2 detail: content packed at top (no empty middle) */
+.bp-page.is-season2 > .bp-detail {
+  padding: 0;
+}
 .bp-page.is-season2 > .bp-detail .bp-detail-top {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   max-height: none;
-  height: 100%;
+  height: auto;
   overflow: auto;
   justify-content: flex-start;
   gap: 8px;
   padding: 12px 14px;
   box-sizing: border-box;
-}
-.bp-page.is-season2 > .bp-detail .bp-progress {
-  margin-top: auto;
 }
 .bp-page.is-season2 > .bp-detail.has-reward .bp-detail-reward .bp-mock {
   max-height: 140px;
