@@ -20325,27 +20325,27 @@ body:has(.profile-page) {
 }
 
 .bp-s2-track {
-  --s2-disc: 42px;
-  --s2-reward-h: 52px;
+  --s2-disc: 48px;
+  --s2-reward-h: 56px;
   grid-area: track;
+  justify-self: center;
   position: relative;
   z-index: 6;
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: flex-start;
-  gap: 0;
-  /* layout footprint unchanged ? visual scale only */
+  gap: 6px;
+  width: max-content;
+  max-width: 100%;
   margin-top: -28px;
-  padding: 0 6px 6px;
+  padding: 0 8px 6px;
   min-height: calc(var(--s2-reward-h) + 8px + var(--s2-disc));
   overflow: visible;
-  transform: scale(1.5);
-  transform-origin: center top;
 }
 .bp-s2-track-line {
   position: absolute;
-  left: 10px;
-  right: 10px;
+  left: 14px;
+  right: 14px;
   top: calc(var(--s2-reward-h) + 8px + var(--s2-disc) / 2);
   height: 3px;
   background: linear-gradient(
@@ -20363,9 +20363,9 @@ body:has(.profile-page) {
   appearance: none;
   position: relative;
   z-index: 1;
-  flex: 1 1 0;
-  min-width: 0;
-  max-width: 56px;
+  flex: 0 0 auto;
+  width: 42px;
+  min-width: 42px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -20378,8 +20378,8 @@ body:has(.profile-page) {
 }
 .bp-s2-node.has-reward {
   z-index: 2;
-  max-width: 96px;
-  flex: 1.35 1 0;
+  width: 90px;
+  min-width: 90px;
 }
 .bp-s2-node.has-reward:hover,
 .bp-s2-node.has-reward.is-on {
@@ -20449,7 +20449,7 @@ body:has(.profile-page) {
   z-index: 1;
 }
 .bp-s2-reward-mark-short {
-  font-size: 0.58rem;
+  font-size: 0.68rem;
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--s2-green);
@@ -20459,7 +20459,7 @@ body:has(.profile-page) {
   text-shadow: 0 0 8px rgba(74, 222, 128, 0.55);
 }
 .bp-s2-reward-mark-name {
-  font-size: 0.64rem;
+  font-size: 0.74rem;
   line-height: 1.15;
   text-align: center;
   color: #e8ffe8;
@@ -20490,7 +20490,7 @@ body:has(.profile-page) {
   display: grid;
   place-items: center;
   font-family: var(--font-display);
-  font-size: 0.92rem;
+  font-size: 1.02rem;
   font-weight: 700;
   border: 2px solid rgba(138, 155, 176, 0.45);
   background: linear-gradient(160deg, #14181a, #0a0c10);
