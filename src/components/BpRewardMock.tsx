@@ -52,9 +52,10 @@ function ProfileHeadMock({
 }) {
   const goldNick = kind === "nick";
   const medalIcon =
-    reward.id === "pb1-best-tester"
+    reward.image ??
+    (reward.id === "pb1-best-tester"
       ? "/awards/bp-s1-l20-pink-strawberry.png"
-      : null;
+      : null);
   return (
     <div className="bp-mock-row">
       <div className="bp-mock-av-col">
@@ -152,7 +153,7 @@ function RatingPatchMock({
   reward: BpReward;
   compact?: boolean;
 }) {
-  const url = profilePatchUrl(BP_L15_PATCH_ID);
+  const url = reward.image ?? profilePatchUrl(BP_L15_PATCH_ID);
   const tip = reward.hover || profilePatchTip(BP_L15_PATCH_ID);
   return (
     <div className={`bp-mock-rating bp-mock-patch${compact ? " is-compact" : ""}`}>
@@ -194,9 +195,10 @@ function ShelfMedalMock({
   compact?: boolean;
 }) {
   const icon =
-    reward.id === "pb1-best-tester"
+    reward.image ??
+    (reward.id === "pb1-best-tester"
       ? "/awards/bp-s1-l20-pink-strawberry.png"
-      : "/bp-previews/l20-medal.png";
+      : "/bp-previews/l20-medal.png");
   const tip = reward.hover || reward.name;
   return (
     <div className={`bp-shelf-preview${compact ? " is-compact" : ""}`}>
@@ -247,13 +249,28 @@ export function BpRewardMock({
 }) {
   const kind = reward.kind;
   const bgUrl =
-    kind === "bg" ? profileBgUrl(BP_L5_PROFILE_BG_ID) : null;
+    kind === "bg" ? (reward.image ?? profileBgUrl(BP_L5_PROFILE_BG_ID)) : null;
   return (
     <div
       className={`bp-mock kind-${kind}${compact ? " is-compact" : ""}`}
       aria-label={`Пример: ${reward.name}`}
     >
-      {kind === "nick" ? (
+      {kind === "nick" && reward.image ? (
+        <div className={`bp-mock-rating${compact ? " is-compact" : ""}`}>
+          {!compact ? (
+            <p className="bp-mock-rating-label">рейтинг паблика · ник</p>
+          ) : null}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={reward.image}
+            alt={reward.name}
+            style={{ width: "100%", height: "auto", display: "block", borderRadius: 8 }}
+          />
+          {!compact ? (
+            <p className="bp-mock-rating-hint">{reward.preview}</p>
+          ) : null}
+        </div>
+      ) : kind === "nick" ? (
         <RatingNickMock player={player} compact={compact} />
       ) : kind === "customize" ? (
         <RatingPatchMock player={player} reward={reward} compact={compact} />

@@ -6,7 +6,6 @@ import {
   BP_LEVELS,
   BP_REWARDS,
   BP_SEASON,
-  rewardForLevel,
   type BpLevel,
   type BpPlayerProgress,
   type BpReward,
@@ -26,6 +25,10 @@ type Props = {
   leaderboard: BpPlayerProgress[];
   statusNote?: string;
   scoringEnabled?: boolean;
+  /** Подмена сезона/картинок/наград для скрытых превью; живой BP — без этого пропа */
+  seasonOverride?: { subtitle: string; startLabel: string; endLabel: string };
+  detailBg?: string;
+  rewardsOverride?: BpReward[];
 };
 
 function podiumClass(place: number) {
@@ -48,6 +51,7 @@ function RewardMark({ reward }: { reward: BpReward }) {
 
 function LevelNode({
   level,
+  reward,
   selected,
   locked,
   done,
@@ -55,13 +59,13 @@ function LevelNode({
   onSelect,
 }: {
   level: BpLevel;
+  reward?: BpReward;
   selected: boolean;
   locked: boolean;
   done: boolean;
   current: boolean;
   onSelect: () => void;
 }) {
-  const reward = rewardForLevel(level.level);
   const cls = [
     "bp-node",
     selected ? "is-selected" : "",
@@ -98,6 +102,9 @@ export function BattlePassClient({
   leaderboard,
   statusNote,
   scoringEnabled,
+  seasonOverride,
+  detailBg,
+  rewardsOverride,
 }: Props) {
   const [selected, setSelected] = useState(selfProgress.currentLevel);
   const player: BpPreviewPlayer = {
@@ -105,12 +112,15 @@ export function BattlePassClient({
     name: selfName,
     avatarUrl: selfAvatarUrl,
   };
+  const rewardsList = rewardsOverride ?? BP_REWARDS;
+  const season = seasonOverride ?? BP_SEASON;
 
   const level = useMemo(
     () => BP_LEVELS.find((l) => l.level === selected) || BP_LEVELS[0],
     [selected]
   );
-  const reward = rewardForLevel(level.level);
+  const levelRewards = rewardsList.filter((r) => r.level === level.level);
+  const reward = levelRewards[0];
   const top10 = useMemo(() => leaderboard.slice(0, 10), [leaderboard]);
 
   const cur = selfProgress.currentLevel;
@@ -126,10 +136,10 @@ export function BattlePassClient({
     <CanvasScaleStage contentWidth="full" className="is-bp">
     <main className="bp-page">
       <header className="bp-hero">
-        <p className="bp-hero-eyebrow">{BP_SEASON.subtitle}</p>
+        <p className="bp-hero-eyebrow">{season.subtitle}</p>
         <h1 className="bp-hero-title">{BP_SEASON.title}</h1>
         <p className="bp-hero-dates">
-          {BP_SEASON.startLabel} — {BP_SEASON.endLabel}
+          {season.startLabel} — {season.endLabel}
         </p>
         {statusNote ? <p className="bp-hero-status">{statusNote}</p> : null}
       </header>
@@ -140,6 +150,7 @@ export function BattlePassClient({
             <LevelNode
               key={l.level}
               level={l}
+              reward={rewardsList.find((r) => r.level === l.level)}
               selected={selected === l.level}
               locked={l.level > cur}
               done={l.level < cur}
@@ -157,7 +168,7 @@ export function BattlePassClient({
         >
           <div className="bp-detail-bg" aria-hidden>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={BP_BG} alt="" />
+            <img src={detailBg ?? BP_BG} alt="" />
           </div>
           <div className="bp-detail-veil" aria-hidden />
 
@@ -168,17 +179,17 @@ export function BattlePassClient({
             </div>
             <p className="bp-detail-task">{level.task}</p>
 
-            {reward ? (
-              <div className={`bp-detail-reward kind-${reward.kind}`}>
+            {levelRewards.map((r) => (
+              <div key={r.id} className={`bp-detail-reward kind-${r.kind}`}>
                 <span className="bp-detail-reward-tag">Награда</span>
-                <strong>{reward.name}</strong>
+                <strong>{r.name}</strong>
                 <BpRewardMock
-                  reward={reward}
+                  reward={r}
                   player={player}
-                  compact={reward.kind !== "medal"}
+                  compact={r.kind !== "medal"}
                 />
               </div>
-            ) : null}
+            ))}
 
             <div className="bp-progress">
               <div className="bp-progress-meta">
@@ -208,7 +219,7 @@ export function BattlePassClient({
 
         <aside className="bp-side">
           <BpRewardMockGallery
-            rewards={BP_REWARDS}
+            rewards={rewardsList}
             player={player}
             activeLevel={selected}
             onPick={setSelected}

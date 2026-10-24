@@ -32,6 +32,8 @@ export type BpReward = {
   preview: string;
   /** Текст при наведении (медаль и т.п.) */
   hover?: string;
+  /** Своя картинка награды (превью сезонов); без неё — стандартные ассеты PB1 */
+  image?: string;
 };
 
 export type BpLevel = {
