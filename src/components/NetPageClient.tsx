@@ -375,6 +375,7 @@ export function NetPageClient({ nick }: { nick: string }) {
         </div>
       </section>
 
+      <div className="net-rail">
       <section className="net-panel net-popular" aria-label="Популярные темы">
         <h2>Популярные темы</h2>
         <div className="net-scroll">
@@ -391,6 +392,25 @@ export function NetPageClient({ nick }: { nick: string }) {
           ))}
         </div>
       </section>
+
+      <section className="net-panel net-news" aria-label="Новости">
+        <h2>Новости</h2>
+        <div className="net-scroll">
+          {data.canNews ? (
+            <button type="button" className="net-create" onClick={() => setModal("news")}>
+              Новая новость
+            </button>
+          ) : null}
+          {data.news.length === 0 ? <p className="net-empty">За неделю новостей нет</p> : null}
+          {data.news.map((item) => (
+            <button key={item.id} type="button" className="net-news-item" onClick={() => setOpenNews(item)}>
+              {item.title}
+              <small>{item.authorNick}</small>
+            </button>
+          ))}
+        </div>
+      </section>
+      </div>
 
       <section className="net-panel net-subs" aria-label="Подписчики">
         <h2>Подписчики</h2>
@@ -457,24 +477,6 @@ export function NetPageClient({ nick }: { nick: string }) {
             Создать пост
           </button>
         ) : null}
-      </section>
-
-      <section className="net-panel net-news" aria-label="Новости">
-        <h2>Новости</h2>
-        <div className="net-scroll">
-          {data.canNews ? (
-            <button type="button" className="net-create" onClick={() => setModal("news")}>
-              Новая новость
-            </button>
-          ) : null}
-          {data.news.length === 0 ? <p className="net-empty">За неделю новостей нет</p> : null}
-          {data.news.map((item) => (
-            <button key={item.id} type="button" className="net-news-item" onClick={() => setOpenNews(item)}>
-              {item.title}
-              <small>{item.authorNick}</small>
-            </button>
-          ))}
-        </div>
       </section>
 
       {modal ? (
