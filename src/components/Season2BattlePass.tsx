@@ -141,7 +141,7 @@ export function Season2BattlePass({
           {statusNote ? <p className="bp-s2-hero-status">{statusNote}</p> : null}
         </header>
 
-        {/* 2 — 25 уровней в одну полосу */}
+        {/* 2 — 25 уровней: круги + плашки наград как на BP1 (зелёные, поверх шапки) */}
         <section className="bp-s2-track" aria-label="Уровни Season 2">
           <div className="bp-s2-track-line" aria-hidden />
           {levels.map((l) => {
@@ -164,9 +164,22 @@ export function Season2BattlePass({
                 onClick={() => pickLevel(l.level)}
               >
                 {rew ? (
-                  <span className="bp-s2-node-tip">{rew.short}</span>
+                  <span className="bp-s2-node-reward">
+                    <span
+                      className={`bp-s2-reward-mark kind-${rew.kind}`}
+                      title={rew.name}
+                    >
+                      <span className="bp-s2-reward-mark-short">
+                        {rew.short}
+                      </span>
+                      <span className="bp-s2-reward-mark-name">{rew.name}</span>
+                    </span>
+                  </span>
                 ) : (
-                  <span className="bp-s2-node-tip is-empty" aria-hidden />
+                  <span
+                    className="bp-s2-node-reward bp-s2-node-reward-empty"
+                    aria-hidden
+                  />
                 )}
                 <span className="bp-s2-node-disc">{l.level}</span>
               </button>
