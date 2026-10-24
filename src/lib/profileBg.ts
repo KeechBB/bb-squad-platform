@@ -58,6 +58,12 @@ export const PROFILE_BG_OPTIONS = [
     gate: "creator",
   },
   {
+    id: "hw2-night-harvest",
+    file: "halloween-s2-night-harvest.jpg",
+    label: "Halloween S2 · Ночной урожай",
+    gate: "creator",
+  },
+  {
     id: "bp-l5-gold",
     file: "profile-bg-keech-gold-tournament-02.jpg",
     label: "Турнирное золото II",

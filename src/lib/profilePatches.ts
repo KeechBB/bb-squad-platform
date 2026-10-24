@@ -25,6 +25,20 @@ export const PROFILE_PATCH_OPTIONS = [
     gate: "creator" as const,
   },
   {
+    id: "hw2-knife-hook",
+    file: "halloween-s2-knife-hook.png",
+    label: "Крюк «Жнец сада» · Halloween S2",
+    tip: "Крюк «Жнец сада» · Награда за 5 уровень Halloween Season 2",
+    gate: "creator" as const,
+  },
+  {
+    id: "hw2-ak-pumpkin",
+    file: "halloween-s2-ak-pumpkin.png",
+    label: "АК «Тыквенный магазин» · Halloween S2",
+    tip: "АК «Тыквенный магазин» · Награда за 20 уровень Halloween Season 2",
+    gate: "creator" as const,
+  },
+  {
     id: "public-100-vehicles-t62",
     file: "public-100-vehicles-t62-neon-harvest-v2.png",
     label: "Т-62 «Неоновый урожай»",

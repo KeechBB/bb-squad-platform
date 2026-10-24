@@ -210,9 +210,10 @@ export async function profilePatchChoicesForUser(user: {
 
 export async function profileNickStyleChoicesForUser(user: {
   id: string;
+  steamId?: string;
   nick: string | null;
   unlockedNickStyles: string[];
 }): Promise<ProfileNickStyleChoice[]> {
   const unlocks = await ensureBpL10NickStyle(user);
-  return profileNickStyleChoicesFor({ unlocks });
+  return profileNickStyleChoicesFor({ unlocks, steamId: user.steamId });
 }

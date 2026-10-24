@@ -116,6 +116,7 @@ export async function PATCH(req: Request) {
   if (
     !canUseProfileNickStyle(nextNickStyle, {
       unlocks: nickStyleUnlocks,
+      steamId: session.user.steamId,
     })
   ) {
     return NextResponse.json({ error: "locked" }, { status: 403 });

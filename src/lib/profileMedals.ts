@@ -41,6 +41,17 @@ const KEECH_FRUIT_STRIKE_TROPHY: ProfileMedalItem = {
   source: "site",
 };
 
+const KEECH_HALLOWEEN_TROPHY: ProfileMedalItem = {
+  id: "keech-halloween-s2-trophy",
+  name: "Кубок «Золотая тыква»",
+  short: "S2 финал",
+  kind: "medal",
+  level: 0,
+  hover: "Кубок «Золотая тыква» · Финал Halloween Season 2",
+  icon: "/bp-halloween/trophy-v1.png",
+  source: "site",
+};
+
 const BP_ICONS: Record<string, string> = {
   "pb1-scout-spark": "/bp-previews/l5-iskra.png",
   "pb1-gold-nick": "/bp-previews/l15-gold-nick.png",
@@ -90,7 +101,7 @@ export async function buildPlayerMedalInventory(
 
   const inventory = registered ? [REGISTRATION_MEDAL, ...bp] : bp;
   return clean.toLowerCase() === "keech"
-    ? [KEECH_FRUIT_STRIKE_TROPHY, ...inventory]
+    ? [KEECH_FRUIT_STRIKE_TROPHY, KEECH_HALLOWEEN_TROPHY, ...inventory]
     : inventory;
 }
 

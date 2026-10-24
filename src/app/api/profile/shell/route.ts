@@ -123,6 +123,7 @@ export async function GET(req: Request) {
   const profileNickStyleChoices = isSelf
     ? await profileNickStyleChoicesForUser({
         id: me.id,
+        steamId: me.steamId,
         nick: me.nick,
         unlockedNickStyles: nickStyleUnlocks,
       }).catch(() => [])

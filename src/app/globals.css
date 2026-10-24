@@ -9747,6 +9747,56 @@ body:has(.home-page) {
   animation: aurum-clean-nick-shine 5.2s ease-in-out infinite;
 }
 
+.home-nick-label.is-halloween-gothic {
+  position: relative;
+  display: inline-block;
+  color: transparent;
+  background:
+    linear-gradient(
+      180deg,
+      #f3e8ff 0%,
+      #c084fc 30%,
+      #7c3aed 56%,
+      #3b0764 82%,
+      #8b5cf6 100%
+    );
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 0.3px rgba(24, 4, 48, 0.95);
+  font-family: var(--font-display), Oxanium, Manrope, sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.018em;
+  filter:
+    drop-shadow(0 0 5px rgba(132, 255, 54, 0.5))
+    drop-shadow(0 2px 9px rgba(88, 28, 220, 0.6));
+}
+
+.home-nick-label.is-halloween-gothic::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: transparent;
+  background:
+    linear-gradient(
+      105deg,
+      transparent 22%,
+      rgba(216, 255, 196, 0.16) 39%,
+      rgba(240, 255, 235, 0.85) 48%,
+      rgba(168, 85, 247, 0.22) 57%,
+      transparent 72%
+    );
+  background-position: 145% 0;
+  background-size: 240% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font: inherit;
+  letter-spacing: inherit;
+  animation: aurum-clean-nick-shine 6.4s ease-in-out infinite;
+}
+
 .home-dock-col .nick-patch-mark.home-nick-patch {
   flex: 0 0 auto;
   width: 56px;

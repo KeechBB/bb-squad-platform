@@ -1,5 +1,7 @@
 /** Стили ника в рейтингах (паблик / КВ / тренировки). */
 
+import { SITE_CREATOR_STEAM_ID } from "@/lib/profileBg";
+
 export const PROFILE_NICK_STYLE_OPTIONS = [
   {
     id: "bp-l10-aurum-clean",
@@ -7,6 +9,13 @@ export const PROFILE_NICK_STYLE_OPTIONS = [
     tip: "Металлический золотой ник · Награда за 10 уровень Battle Pass",
     cssClass: "is-metallic-gold",
     gate: "bp-l10" as const,
+  },
+  {
+    id: "hw2-violet-gothic",
+    label: "Фиолетовая готика",
+    tip: "Фиолетовый готический ник с кислотно-зелёной подсветкой · Награда за 15 уровень Halloween Season 2",
+    cssClass: "is-halloween-gothic",
+    gate: "creator" as const,
   },
 ] as const;
 
@@ -22,6 +31,9 @@ export type ProfileNickStyleChoice = {
 
 export const BP_L10_NICK_STYLE_ID =
   "bp-l10-aurum-clean" as const satisfies ProfileNickStyleId;
+
+export const HW2_NICK_STYLE_ID =
+  "hw2-violet-gothic" as const satisfies ProfileNickStyleId;
 
 const BY_ID = new Map(
   PROFILE_NICK_STYLE_OPTIONS.map((option) => [option.id, option] as const)
@@ -51,11 +63,15 @@ export function normalizeProfileNickStyle(
 
 export function profileNickStyleChoicesFor(opts: {
   unlocks: readonly string[];
+  steamId?: string;
 }): ProfileNickStyleChoice[] {
   const unlocks = new Set(opts.unlocks);
   return PROFILE_NICK_STYLE_OPTIONS.filter((option) => {
     if (option.gate === "bp-l10") {
       return unlocks.has(option.id);
+    }
+    if (option.gate === "creator") {
+      return opts.steamId === SITE_CREATOR_STEAM_ID;
     }
     return false;
   }).map((option) => ({
@@ -68,7 +84,7 @@ export function profileNickStyleChoicesFor(opts: {
 
 export function canUseProfileNickStyle(
   id: ProfileNickStyleId | null,
-  opts: { unlocks: readonly string[] }
+  opts: { unlocks: readonly string[]; steamId?: string }
 ): boolean {
   if (!id) return true;
   return profileNickStyleChoicesFor(opts).some((option) => option.id === id);
