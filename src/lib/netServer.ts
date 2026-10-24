@@ -16,7 +16,7 @@ export const NET_THEME_LIMIT = 10;
 export const NET_TITLE_MAX = 30;
 export const NET_STATUS_MAX = 20;
 export const NET_NEWS_DAYS = 7;
-const ONLINE_MS = 5 * 60 * 1000;
+const NET_HERE_MS = 15 * 1000;
 const NEWS_ROLES: Role[] = ["ADMIN", "HR", "DEPUTY", "SUPER_ADMIN"];
 
 export function canPostNetNews(role: Role): boolean {
@@ -36,6 +36,28 @@ async function viewer() {
       unlockedProfileBgs: true,
     },
   });
+}
+
+async function markNetHere(userId: string) {
+  const now = new Date();
+  await prisma.netProfile.upsert({
+    where: { userId },
+    create: { userId, netSeenAt: now },
+    update: { netSeenAt: now },
+  });
+}
+
+async function netHere(): Promise<NetPerson[]> {
+  const rows = await prisma.netProfile.findMany({
+    where: {
+      netSeenAt: { gte: new Date(Date.now() - NET_HERE_MS) },
+      user: { profileComplete: true, nick: { not: null } },
+    },
+    orderBy: { netSeenAt: "desc" },
+    take: 40,
+    select: { avatarUrl: true, user: { select: { nick: true } } },
+  });
+  return rows.map((row) => person(row.user.nick, row.avatarUrl)).filter((x): x is NetPerson => Boolean(x));
 }
 
 function person(nick: string | null, avatarUrl: string | null): NetPerson | null {
@@ -105,6 +127,7 @@ export async function loadNetPage(rawNick: string): Promise<NetPageData | { erro
 
   const weekAgo = new Date(Date.now() - NET_NEWS_DAYS * 24 * 60 * 60 * 1000);
   await prisma.netNews.deleteMany({ where: { createdAt: { lt: weekAgo } } }).catch(() => undefined);
+  await markNetHere(me.id);
 
   const [themes, popularRaw, posts, news, followers, following, onlineUsers, sub] = await Promise.all([
     prisma.netTheme.findMany({
@@ -165,12 +188,7 @@ export async function loadNetPage(rawNick: string): Promise<NetPageData | { erro
       take: 80,
       include: { following: { select: { nick: true, netProfile: { select: { avatarUrl: true } } } } },
     }),
-    prisma.user.findMany({
-      where: { profileComplete: true, lastSeenAt: { gte: new Date(Date.now() - ONLINE_MS) }, nick: { not: null } },
-      orderBy: { lastSeenAt: "desc" },
-      take: 40,
-      select: { nick: true, netProfile: { select: { avatarUrl: true } } },
-    }),
+    netHere(),
     prisma.netFollow.findUnique({
       where: { followerId_followingId: { followerId: me.id, followingId: owner.id } },
       select: { followerId: true },
@@ -233,7 +251,7 @@ export async function loadNetPage(rawNick: string): Promise<NetPageData | { erro
         authorNick: n.author.nick as string,
         createdAt: n.createdAt.toISOString(),
       })),
-    online: onlineUsers.map((u) => person(u.nick, u.netProfile?.avatarUrl ?? null)).filter((x): x is NetPerson => Boolean(x)),
+    online: onlineUsers,
   };
 }
 
@@ -503,19 +521,15 @@ export async function loadNetChat(): Promise<
 > {
   const gate = await own();
   if ("error" in gate) return gate;
-  const [rows, onlineUsers] = await Promise.all([
+  await markNetHere(gate.me.id);
+  const [rows, online] = await Promise.all([
     prisma.netChatMessage.findMany({
       where: { createdAt: { gte: new Date(Date.now() - CHAT_KEEP_MS) } },
       orderBy: { createdAt: "desc" },
       take: 80,
       include: { user: { select: { nick: true } } },
     }),
-    prisma.user.findMany({
-      where: { profileComplete: true, lastSeenAt: { gte: new Date(Date.now() - ONLINE_MS) }, nick: { not: null } },
-      orderBy: { lastSeenAt: "desc" },
-      take: 40,
-      select: { nick: true, netProfile: { select: { avatarUrl: true } } },
-    }),
+    netHere(),
   ]);
   const messages = rows
     .reverse()
@@ -526,9 +540,6 @@ export async function loadNetChat(): Promise<
       body: row.body,
       createdAt: row.createdAt.toISOString(),
     }));
-  const online = onlineUsers
-    .map((u) => person(u.nick, u.netProfile?.avatarUrl ?? null))
-    .filter((x): x is NetPerson => Boolean(x));
   return { messages, online };
 }
 

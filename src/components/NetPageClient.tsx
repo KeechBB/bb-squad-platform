@@ -140,8 +140,18 @@ function NetFlood() {
   return (
     <section className="net-panel net-chat" aria-label="Чат">
       <h2>
-        Чат <span className="net-chat-count">{online.length} онлайн</span>
+        Чат <span className="net-chat-count">{online.length} в сети</span>
       </h2>
+      <p className="net-chat-who">
+        {online.length === 0
+          ? "В Сети сейчас никого"
+          : online.map((nick, i) => (
+              <span key={nick}>
+                {i > 0 ? ", " : null}
+                <Link href={`/profile/web/${encodeURIComponent(nick)}`}>{nick}</Link>
+              </span>
+            ))}
+      </p>
       <div
         className="net-chat-log"
         ref={logRef}

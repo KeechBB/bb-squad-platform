@@ -875,9 +875,13 @@ model NetProfile {
   status    String?
   /// Фон только этой страницы. Id из PROFILE_BG_OPTIONS.
   bgId      String?
+  /// Последний заход именно на страницу Сети. Не путать с lastSeenAt сайта.
+  netSeenAt DateTime?
   updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([netSeenAt])
 }
 
 model NetTheme {
