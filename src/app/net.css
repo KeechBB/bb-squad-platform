@@ -448,8 +448,8 @@ body:has(.net-page) .site-footer {
 
 .net-modal.net-theme-sheet {
   width: min(1120px, 96vw);
-  height: auto;
-  max-height: min(92vh, 1440px);
+  height: min(92vh, 1100px);
+  max-height: 92vh;
   padding: 0;
   overflow: hidden;
 }
@@ -460,7 +460,7 @@ body:has(.net-page) .site-footer {
 .net-theme-sheet .net-photo {
   width: 100%;
   height: auto;
-  max-height: min(64vh, 880px);
+  max-height: min(28vh, 320px);
   object-fit: contain;
 }
 .net-theme-read .net-post-body {
@@ -468,7 +468,8 @@ body:has(.net-page) .site-footer {
   line-height: 1.45;
 }
 .net-theme-read {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
+  max-height: min(36vh, 420px);
   min-height: 0;
   overflow: auto;
   padding: 0 0 8px;
@@ -503,8 +504,8 @@ body:has(.net-page) .site-footer {
   margin-right: 14px;
 }
 .net-theme-comments {
-  flex: 0 0 auto;
-  max-height: 118px;
+  flex: 1 1 auto;
+  min-height: 220px;
   overflow: auto;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   padding: 10px 14px;
