@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { isAnyClanMember } from "@/lib/clanAccess";
+import { canonicalizeMapCountry } from "@/lib/mapLocationCanon";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -88,7 +89,11 @@ export async function GET(req: Request) {
       const a = item.address || {};
       const hitCity = a.city || a.town || a.village || a.municipality || city;
       const hitRegion = a.state || a.region || a.county || region || null;
-      const hitCountry = a.country || country;
+      const hitCountry = canonicalizeMapCountry({
+        country: a.country || country,
+        region: hitRegion,
+        city: hitCity,
+      });
       return {
         lat: Number(item.lat),
         lon: Number(item.lon),

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { isAdmin } from "@/lib/admin";
 import { isAnyClanMember } from "@/lib/clanAccess";
 import { clanMapColor, clanPinJitter } from "@/lib/clanMapColor";
+import { canonicalizeMapCountry } from "@/lib/mapLocationCanon";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -143,7 +144,11 @@ export async function GET() {
         id: r.id,
         userId: r.userId,
         nick: r.user.nick || r.user.steamName || "Игрок",
-        country: r.country,
+        country: canonicalizeMapCountry({
+          country: r.country,
+          region: r.region,
+          city: r.city,
+        }),
         region: r.region,
         city: r.city,
         lat: r.lat,
@@ -207,11 +212,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Некорректные данные" }, { status: 400 });
   }
 
-  const country = String((body as { country?: string }).country ?? "").trim();
   const regionRaw = String((body as { region?: string }).region ?? "").trim();
   const city = String((body as { city?: string }).city ?? "").trim();
   const lat = Number((body as { lat?: number }).lat);
   const lon = Number((body as { lon?: number }).lon);
+  const region = regionRaw.length > 0 ? regionRaw.slice(0, 80) : null;
+  const country = canonicalizeMapCountry({
+    country: String((body as { country?: string }).country ?? "").trim(),
+    region,
+    city,
+  });
 
   if (country.length < 2 || country.length > 80) {
     return NextResponse.json({ error: "Укажи страну" }, { status: 400 });
@@ -229,8 +239,6 @@ export async function POST(req: Request) {
   ) {
     return NextResponse.json({ error: "Некорректные координаты" }, { status: 400 });
   }
-
-  const region = regionRaw.length > 0 ? regionRaw.slice(0, 80) : null;
 
   const pin = await prisma.mapPin.upsert({
     where: { userId: me.id },
