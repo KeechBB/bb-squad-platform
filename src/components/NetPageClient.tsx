@@ -568,15 +568,15 @@ export function NetPageClient({ nick }: { nick: string }) {
         <div className="net-ctrl-list">
           {data.isOwn ? (
             <>
-              <button type="button" onClick={() => setModal("avatar")}>Аватар</button>
-              <button type="button" onClick={() => { setTitle(""); setBody(""); setImages([]); setThemeSize("md"); setThemeBold(false); setModal("theme"); }}>
+              <button type="button" className="net-ctrl-avatar" onClick={() => setModal("avatar")}>Аватар</button>
+              <button type="button" className="net-ctrl-theme" onClick={() => { setTitle(""); setBody(""); setImages([]); setThemeSize("md"); setThemeBold(false); setModal("theme"); }}>
                 Создание темы
               </button>
-              <button type="button" onClick={() => { setBgId(data.bgId); setModal("bg"); }}>Фон</button>
-              <button type="button" onClick={() => { setStatus(data.status); setModal("status"); }}>Статус</button>
+              <button type="button" className="net-ctrl-bg" onClick={() => { setBgId(data.bgId); setModal("bg"); }}>Фон</button>
+              <button type="button" className="net-ctrl-status" onClick={() => { setStatus(data.status); setModal("status"); }}>Статус</button>
             </>
           ) : null}
-          <button type="button" onClick={() => setModal("subs")}>Мои подписки</button>
+          <button type="button" className="net-ctrl-subs" onClick={() => setModal("subs")}>Мои подписки</button>
         </div>
         {data.isOwn ? null : (
           <button

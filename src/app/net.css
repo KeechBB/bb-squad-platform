@@ -133,16 +133,39 @@ body:has(.net-page) .site-footer {
 }
 .net-ctrl-list button {
   text-align: left;
-  border-radius: 8px;
-  border: 1px solid rgba(167, 139, 250, 0.35);
-  background: rgba(88, 28, 135, 0.28);
-  color: #f5f3ff;
-  padding: 7px 10px;
-  font: inherit;
-  font-size: 0.82rem;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  color: #f8fafc;
+  padding: 9px 12px;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-size: 0.98rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   cursor: pointer;
 }
-.net-ctrl-list button:hover { background: rgba(124, 58, 237, 0.45); }
+.net-ctrl-avatar {
+  border-color: rgba(192, 132, 252, 0.7);
+  background: linear-gradient(120deg, rgba(88, 28, 135, 0.85), rgba(168, 85, 247, 0.45));
+}
+.net-ctrl-theme {
+  border-color: rgba(96, 165, 250, 0.7);
+  background: linear-gradient(120deg, rgba(30, 58, 138, 0.85), rgba(59, 130, 246, 0.45));
+}
+.net-ctrl-bg {
+  border-color: rgba(250, 204, 21, 0.75);
+  color: #fff8d6;
+  background: linear-gradient(120deg, rgba(120, 53, 15, 0.9), rgba(234, 179, 8, 0.5));
+}
+.net-ctrl-status {
+  border-color: rgba(74, 222, 128, 0.7);
+  background: linear-gradient(120deg, rgba(20, 83, 45, 0.9), rgba(34, 197, 94, 0.42));
+}
+.net-ctrl-subs {
+  border-color: rgba(251, 113, 133, 0.7);
+  background: linear-gradient(120deg, rgba(136, 19, 55, 0.88), rgba(244, 63, 94, 0.42));
+}
+.net-ctrl-list button:hover { filter: brightness(1.12); }
 
 .net-sub-btn {
   margin: auto 10px 0;
