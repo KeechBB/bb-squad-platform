@@ -437,6 +437,7 @@ export function NetPageClient({ nick }: { nick: string }) {
   const [newsBody, setNewsBody] = useState("");
   const [comments, setComments] = useState<Record<string, string>>({});
   const [themeDraft, setThemeDraft] = useState("");
+  const [subsOpen, setSubsOpen] = useState(false);
   const [picker, setPicker] = useState(false);
   const [themeSize, setThemeSize] = useState<WriteSize>("md");
   const [themeBold, setThemeBold] = useState(false);
@@ -547,8 +548,16 @@ export function NetPageClient({ nick }: { nick: string }) {
       </section>
 
       <section className="net-panel net-subs" aria-label="Подписчики">
-        <h2>Подписчики</h2>
-        <div className="net-scroll">{people(data.followers)}</div>
+        <button
+          type="button"
+          className={`net-subs-btn${subsOpen ? " is-on" : ""}`}
+          aria-expanded={subsOpen}
+          onClick={() => setSubsOpen((v) => !v)}
+        >
+          Подписчики
+          <span>{data.followers.length}</span>
+        </button>
+        {subsOpen ? <div className="net-subs-list">{people(data.followers)}</div> : null}
       </section>
 
       <NetFlood />
