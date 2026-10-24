@@ -20725,6 +20725,7 @@ body:has(.profile-page) {
 }
 .bp-s2-side-preview-lvl {
   margin: 0;
+  flex: 0 0 auto;
   font-family: var(--font-display);
   font-size: 0.62rem;
   letter-spacing: 0.12em;
@@ -20733,6 +20734,7 @@ body:has(.profile-page) {
   padding-right: 34px;
 }
 .bp-s2-side-preview-name {
+  flex: 0 0 auto;
   font-family: var(--font-display);
   font-size: 0.95rem;
   line-height: 1.15;
@@ -20740,10 +20742,11 @@ body:has(.profile-page) {
 }
 .bp-s2-side-preview-desc {
   margin: 0;
+  flex: 0 0 auto;
   font-size: 0.78rem;
-  line-height: 1.3;
+  line-height: 1.35;
   color: #bbf7d0;
-  max-height: 3.6em;
+  max-height: 3.9em;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -20751,17 +20754,28 @@ body:has(.profile-page) {
 }
 .bp-s2-side-preview-art {
   flex: 1 1 auto;
-  min-height: 0;
+  min-height: 120px;
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid rgba(74, 222, 128, 0.3);
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 45%, rgba(88, 28, 135, 0.28), transparent 70%),
+    #0c0a12;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .bp-s2-side-preview-art img {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  object-position: center;
   background: transparent;
   display: block;
+}
+/* ??? ??????? ? ?? ???? ????, ??? ?????? ????? ?? ????? */
+.bp-s2-side-preview-art.is-bg img {
+  object-fit: cover;
 }
 .bp-s2-side-preview-mock {
   flex: 0 0 auto;

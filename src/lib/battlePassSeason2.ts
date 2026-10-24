@@ -105,18 +105,22 @@ export const BP_S2_REWARDS: BpReward[] = [
     preview:
       "Кубок за полное прохождение Season 2 — финальная награда на полке профиля",
     hover: "Кубок «Золотая тыква» · ур. 25 Season 2 Halloween",
-    image: "/bp-halloween/trophy-v1.png",
+    image: "/bp-halloween/trophy-v1-cutout.png",
   },
 ];
 
 export const BP_S2_HERO_ART = "/bp-halloween/hero-squad.jpg";
 export const BP_S2_IDLE_ART = "/bp-halloween/gallows-animated.webp";
 
-/** Крупный превью (можно с фоном сцены). */
+/**
+ * Крупный превью в правом окне.
+ * Предметы — cutout PNG (без чёрного JPG-фона); фон профиля — сам арт сцены.
+ */
 export function s2RewardFullImage(reward: BpReward): string {
-  if (reward.id === "hw2-knife") return "/bp-halloween/knife-hook-v2-full.jpg";
-  if (reward.id === "hw2-gun") return "/bp-halloween/weapon-ak-v2-full.jpg";
-  if (reward.id === "hw2-trophy") return "/bp-halloween/trophy-v1-full.jpg";
+  if (reward.kind === "bg") return reward.image || BP_S2_IDLE_ART;
+  if (reward.id === "hw2-knife") return "/bp-halloween/knife-hook-v2-cutout.png";
+  if (reward.id === "hw2-gun") return "/bp-halloween/weapon-ak-v2-cutout.png";
+  if (reward.id === "hw2-trophy") return "/bp-halloween/trophy-v1-cutout.png";
   if (reward.id === "hw2-nick") return "/bp-halloween/nick-v2-cutout.png";
   return reward.image || BP_S2_IDLE_ART;
 }

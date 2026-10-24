@@ -352,7 +352,11 @@ export function Season2BattlePass({
                   {sideReward.name}
                 </strong>
                 <p className="bp-s2-side-preview-desc">{sideReward.preview}</p>
-                <div className="bp-s2-side-preview-art">
+                <div
+                  className={`bp-s2-side-preview-art${
+                    sideReward.kind === "bg" ? " is-bg" : ""
+                  }`}
+                >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={s2RewardFullImage(sideReward)} alt="" />
                 </div>
