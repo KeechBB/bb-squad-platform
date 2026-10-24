@@ -323,13 +323,20 @@ body:has(.net-page) .site-footer {
 .net-send:disabled { opacity: 0.45; cursor: default; }
 
 .net-theme-sheet {
-  width: min(480px, 100%);
-  height: min(78vh, 720px);
-  max-height: min(78vh, 720px);
+  width: min(1440px, 96vw);
+  height: 94vh;
+  max-height: 94vh;
   padding: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+.net-theme-sheet .net-photo {
+  max-height: min(58vh, 860px);
+}
+.net-theme-read .net-post-body {
+  font-size: 1.2rem;
+  line-height: 1.45;
 }
 .net-theme-read {
   flex: 0 1 46%;
@@ -352,7 +359,7 @@ body:has(.net-page) .site-footer {
 .net-theme-read-head h3 {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 1.25rem;
+  font-size: 1.7rem;
 }
 .net-theme-read > a,
 .net-theme-read > .net-post-body,
