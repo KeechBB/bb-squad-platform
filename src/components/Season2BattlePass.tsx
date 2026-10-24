@@ -63,6 +63,7 @@ export function Season2BattlePass({
 }: Props) {
   const [selected, setSelected] = useState(selfProgress.currentLevel);
   const [previewId, setPreviewId] = useState<string | null>(null);
+  const [hoverId, setHoverId] = useState<string | null>(null);
   const [boardPage, setBoardPage] = useState(0);
 
   const player: BpPreviewPlayer = {
@@ -88,6 +89,12 @@ export function Season2BattlePass({
     () => (previewId ? rewards.find((r) => r.id === previewId) || null : null),
     [previewId, rewards]
   );
+  const hoverReward = useMemo(
+    () => (hoverId ? rewards.find((r) => r.id === hoverId) || null : null),
+    [hoverId, rewards]
+  );
+  /** Правое окно: ховер → клик-превью → idle-арт */
+  const sideReward = hoverReward || previewReward;
 
   const cur = selfProgress.currentLevel;
   const progressCurrent =
@@ -286,51 +293,71 @@ export function Season2BattlePass({
         {/* 5+6 — низ: 5 кругов | правое окно награды */}
         <div className="bp-s2-bottom">
           <section className="bp-s2-milestones" aria-label="Награды сезона">
-            {milestoneRewards.map((r) => (
-              <button
-                key={r.id}
-                type="button"
-                className={`bp-s2-mile${previewId === r.id ? " is-on" : ""}`}
-                onClick={() => openReward(r)}
-                title={`L${r.level} · ${r.name}`}
-              >
-                <span className="bp-s2-mile-lvl">L{r.level}</span>
-                {r.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={r.image} alt="" />
-                ) : null}
-                <span className="bp-s2-mile-name">{r.short}</span>
-              </button>
-            ))}
+            {milestoneRewards.map((r) => {
+              const isBg = r.kind === "bg";
+              const iconSrc = isBg ? r.image : s2RewardFullImage(r);
+              return (
+                <button
+                  key={r.id}
+                  type="button"
+                  className={[
+                    "bp-s2-mile",
+                    isBg ? "is-bg" : "is-clean",
+                    previewId === r.id ? "is-on" : "",
+                    hoverId === r.id ? "is-hover" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  onClick={() => openReward(r)}
+                  onMouseEnter={() => setHoverId(r.id)}
+                  onMouseLeave={() => setHoverId(null)}
+                  onFocus={() => setHoverId(r.id)}
+                  onBlur={() => setHoverId(null)}
+                  title={`L${r.level} · ${r.name}`}
+                >
+                  <span className="bp-s2-mile-lvl">L{r.level}</span>
+                  {iconSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={iconSrc} alt="" />
+                  ) : null}
+                  <span className="bp-s2-mile-name">{r.short}</span>
+                </button>
+              );
+            })}
           </section>
 
           <aside
-            className={`bp-s2-side-art${previewReward ? " has-preview" : ""}`}
+            className={`bp-s2-side-art${sideReward ? " has-preview" : ""}${
+              hoverReward ? " is-hovering" : ""
+            }`}
             aria-label="Превью награды"
           >
-            {previewReward ? (
+            {sideReward ? (
               <div className="bp-s2-side-preview">
-                <button
-                  type="button"
-                  className="bp-s2-preview-close"
-                  aria-label="Закрыть"
-                  onClick={() => setPreviewId(null)}
-                >
-                  ×
-                </button>
+                {previewReward && !hoverReward ? (
+                  <button
+                    type="button"
+                    className="bp-s2-preview-close"
+                    aria-label="Закрыть"
+                    onClick={() => setPreviewId(null)}
+                  >
+                    ×
+                  </button>
+                ) : null}
                 <p className="bp-s2-side-preview-lvl">
-                  Уровень {previewReward.level}
+                  Уровень {sideReward.level} · {sideReward.short}
                 </p>
                 <strong className="bp-s2-side-preview-name">
-                  {previewReward.name}
+                  {sideReward.name}
                 </strong>
+                <p className="bp-s2-side-preview-desc">{sideReward.preview}</p>
                 <div className="bp-s2-side-preview-art">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={s2RewardFullImage(previewReward)} alt="" />
+                  <img src={s2RewardFullImage(sideReward)} alt="" />
                 </div>
                 <div className="bp-s2-side-preview-mock">
                   <BpRewardMock
-                    reward={previewReward}
+                    reward={sideReward}
                     player={player}
                     compact={false}
                   />
