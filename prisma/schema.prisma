@@ -871,7 +871,7 @@ model TournamentTeamInvite {
 model NetProfile {
   userId    String   @id
   avatarUrl String?
-  /// Мысли, до 20 видимых знаков (смайл считается за один).
+  /// Мысли, до 40 видимых знаков (смайл считается за один).
   status    String?
   /// Фон только этой страницы. Id из PROFILE_BG_OPTIONS.
   bgId      String?

@@ -14,7 +14,7 @@ import type { Role } from "@prisma/client";
 
 export const NET_THEME_LIMIT = 10;
 export const NET_TITLE_MAX = 30;
-export const NET_STATUS_MAX = 20;
+export const NET_STATUS_MAX = 40;
 export const NET_NEWS_DAYS = 7;
 const NET_HERE_MS = 15 * 1000;
 const NEWS_ROLES: Role[] = ["ADMIN", "HR", "DEPUTY", "SUPER_ADMIN"];
