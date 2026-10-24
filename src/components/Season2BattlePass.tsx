@@ -39,6 +39,13 @@ function podiumClass(place: number) {
   return "";
 }
 
+/**
+ * Раскладка строго по белому вайрфрейму:
+ * [шапка]
+ * [25 уровней]
+ * [задание+5 бойцов | рейтинг]
+ * [5 кругов наград | превью награды / halloween-арт]
+ */
 export function Season2BattlePass({
   selfNick,
   selfName,
@@ -107,21 +114,16 @@ export function Season2BattlePass({
     setSelected(r.level);
   }
 
-  function closePreview() {
-    setPreviewId(null);
-  }
-
   function pickLevel(lv: number) {
     setSelected(lv);
     const hit = rewards.find((r) => r.level === lv);
     if (hit) setPreviewId(hit.id);
-    else setPreviewId(null);
   }
 
   return (
     <CanvasScaleStage contentWidth="full" className="is-bp">
-      <main className="bp-s2">
-        {/* 1. Шапка */}
+      <main className="bp-page bp-s2">
+        {/* 1 — шапка */}
         <header className="bp-s2-hero">
           <p className="bp-s2-hero-eyebrow">{seasonSubtitle}</p>
           <h1 className="bp-s2-hero-title">{seasonTitle}</h1>
@@ -131,25 +133,21 @@ export function Season2BattlePass({
           {statusNote ? <p className="bp-s2-hero-status">{statusNote}</p> : null}
         </header>
 
-        {/* 2. 25 уровней в одну полосу */}
+        {/* 2 — 25 уровней в одну полосу */}
         <section className="bp-s2-track" aria-label="Уровни Season 2">
           <div className="bp-s2-track-line" aria-hidden />
           {levels.map((l) => {
             const rew = rewards.find((r) => r.level === l.level);
-            const on = selected === l.level;
-            const locked = l.level > cur;
-            const done = l.level < cur;
-            const current = l.level === cur;
             return (
               <button
                 key={l.level}
                 type="button"
                 className={[
                   "bp-s2-node",
-                  on ? "is-on" : "",
-                  locked ? "is-locked" : "",
-                  done ? "is-done" : "",
-                  current ? "is-current" : "",
+                  selected === l.level ? "is-on" : "",
+                  l.level > cur ? "is-locked" : "",
+                  l.level < cur ? "is-done" : "",
+                  l.level === cur ? "is-current" : "",
                   rew ? "has-reward" : "",
                 ]
                   .filter(Boolean)
@@ -168,73 +166,43 @@ export function Season2BattlePass({
           })}
         </section>
 
-        {/* 3+4 середина */}
+        {/* 3+4 — середина: задание+арт | рейтинг */}
         <div className="bp-s2-mid">
           <section className="bp-s2-stage" aria-live="polite">
-            {previewReward ? (
-              <div className="bp-s2-preview">
-                <button
-                  type="button"
-                  className="bp-s2-preview-close"
-                  aria-label="Закрыть"
-                  onClick={closePreview}
+            <div className="bp-s2-task">
+              <div className="bp-s2-task-head">
+                <span>Уровень {level.level}</span>
+                <h2>{level.title}</h2>
+              </div>
+              <p className="bp-s2-task-body">{level.task}</p>
+              <div className="bp-s2-task-progress">
+                <div className="bp-s2-task-meta">
+                  <span>
+                    {selected === cur
+                      ? "Текущее задание"
+                      : selected < cur
+                        ? "Выполнено"
+                        : "Ещё не открыто"}
+                  </span>
+                  <span>
+                    {progressCurrent}/{progressTarget} {level.unit}
+                  </span>
+                </div>
+                <div
+                  className="bp-s2-task-bar"
+                  role="progressbar"
+                  aria-valuenow={progressCurrent}
+                  aria-valuemin={0}
+                  aria-valuemax={progressTarget}
                 >
-                  ×
-                </button>
-                <p className="bp-s2-preview-lvl">Уровень {previewReward.level}</p>
-                <h2 className="bp-s2-preview-name">{previewReward.name}</h2>
-                <p className="bp-s2-preview-text">{previewReward.preview}</p>
-                <div className="bp-s2-preview-art">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={s2RewardFullImage(previewReward)}
-                    alt=""
-                  />
-                </div>
-                <div className="bp-s2-preview-mock">
-                  <BpRewardMock
-                    reward={previewReward}
-                    player={player}
-                    compact={false}
-                  />
+                  <i style={{ width: `${pct}%` }} />
                 </div>
               </div>
-            ) : (
-              <div className="bp-s2-task">
-                <div className="bp-s2-task-head">
-                  <span>Уровень {level.level}</span>
-                  <h2>{level.title}</h2>
-                </div>
-                <p className="bp-s2-task-body">{level.task}</p>
-                <div className="bp-s2-task-progress">
-                  <div className="bp-s2-task-meta">
-                    <span>
-                      {selected === cur
-                        ? "Текущее задание"
-                        : selected < cur
-                          ? "Выполнено"
-                          : "Ещё не открыто"}
-                    </span>
-                    <span>
-                      {progressCurrent}/{progressTarget} {level.unit}
-                    </span>
-                  </div>
-                  <div
-                    className="bp-s2-task-bar"
-                    role="progressbar"
-                    aria-valuenow={progressCurrent}
-                    aria-valuemin={0}
-                    aria-valuemax={progressTarget}
-                  >
-                    <i style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-                <div className="bp-s2-task-art">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={BP_S2_HERO_ART} alt="" />
-                </div>
+              <div className="bp-s2-task-art">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={BP_S2_HERO_ART} alt="" />
               </div>
-            )}
+            </div>
           </section>
 
           <aside className="bp-s2-board" aria-label="Рейтинг игроков">
@@ -250,7 +218,10 @@ export function Season2BattlePass({
               </p>
             ) : (
               <>
-                <ol className="bp-s2-board-list" start={pageSafe * PAGE_SIZE + 1}>
+                <ol
+                  className="bp-s2-board-list"
+                  start={pageSafe * PAGE_SIZE + 1}
+                >
                   {pageSlice.map((row, i) => {
                     const place = pageSafe * PAGE_SIZE + i + 1;
                     const me =
@@ -277,10 +248,7 @@ export function Season2BattlePass({
                         <span className="bp-s2-board-lvl">
                           Ур. <b>{row.currentLevel}</b>
                         </span>
-                        <span
-                          className="bp-s2-board-maps"
-                          title="Карт с старта BP"
-                        >
+                        <span className="bp-s2-board-maps" title="Карт с старта BP">
                           —
                         </span>
                       </li>
@@ -315,7 +283,7 @@ export function Season2BattlePass({
           </aside>
         </div>
 
-        {/* 5+6 низ */}
+        {/* 5+6 — низ: 5 кругов | правое окно награды */}
         <div className="bp-s2-bottom">
           <section className="bp-s2-milestones" aria-label="Награды сезона">
             {milestoneRewards.map((r) => (
@@ -336,12 +304,37 @@ export function Season2BattlePass({
             ))}
           </section>
 
-          <aside className="bp-s2-side-art" aria-label="Превью награды">
+          <aside
+            className={`bp-s2-side-art${previewReward ? " has-preview" : ""}`}
+            aria-label="Превью награды"
+          >
             {previewReward ? (
-              <div className="bp-s2-side-reward">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={s2RewardFullImage(previewReward)} alt="" />
-                <strong>{previewReward.name}</strong>
+              <div className="bp-s2-side-preview">
+                <button
+                  type="button"
+                  className="bp-s2-preview-close"
+                  aria-label="Закрыть"
+                  onClick={() => setPreviewId(null)}
+                >
+                  ×
+                </button>
+                <p className="bp-s2-side-preview-lvl">
+                  Уровень {previewReward.level}
+                </p>
+                <strong className="bp-s2-side-preview-name">
+                  {previewReward.name}
+                </strong>
+                <div className="bp-s2-side-preview-art">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={s2RewardFullImage(previewReward)} alt="" />
+                </div>
+                <div className="bp-s2-side-preview-mock">
+                  <BpRewardMock
+                    reward={previewReward}
+                    player={player}
+                    compact={false}
+                  />
+                </div>
               </div>
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
