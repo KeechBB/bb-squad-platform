@@ -377,14 +377,12 @@ body:has(.net-page) .site-footer {
 }
 .net-send:disabled { opacity: 0.45; cursor: default; }
 
-.net-theme-sheet {
-  width: min(1440px, 96vw);
-  height: 94vh;
-  max-height: 94vh;
+.net-modal.net-theme-sheet {
+  width: min(1120px, 96vw);
+  height: min(92vh, 1440px);
+  max-height: min(92vh, 1440px);
   padding: 0;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
 }
 .net-theme-sheet .net-photo {
   max-height: min(58vh, 860px);
