@@ -1,8 +1,8 @@
 /**
- * Server-only: имитация рейтинга Season 2 для halloween-preview.
+ * Server-only (импортировать только из RSC / route):
+ * имитация рейтинга Season 2 для halloween-preview.
  * Не трогает живой BP / инвентарь / награды.
  */
-import "server-only";
 
 import type { BpPlayerProgress } from "@/lib/battlePass";
 import { sortBattlePassRows } from "@/lib/battlePassData";
