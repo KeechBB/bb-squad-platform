@@ -320,10 +320,12 @@ export function Season2BattlePass({
                   onMouseLeave={() => setHoverId(null)}
                   onFocus={() => setHoverId(r.id)}
                   onBlur={() => setHoverId(null)}
-                  title={`L${r.level} · ${r.name}`}
+                  title={`Уровень ${r.level} · ${r.name}`}
                 >
+                  <span className="bp-s2-mile-lvl" data-text={`Уровень ${r.level}`}>
+                    Уровень {r.level}
+                  </span>
                   <span className="bp-s2-mile-ring">
-                    <span className="bp-s2-mile-lvl">L{r.level}</span>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={iconSrc} alt="" />
                   </span>

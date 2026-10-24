@@ -20699,10 +20699,17 @@ body:has(.profile-page) {
   justify-content: space-evenly;
   align-items: center;
   gap: 10px;
-  padding: 4px 6px;
+  padding: 10px 10px 8px;
   border-radius: 14px;
-  border: 1px solid rgba(249, 115, 22, 0.28);
-  background: transparent;
+  border: 1px solid rgba(74, 222, 128, 0.35);
+  background:
+    radial-gradient(ellipse 70% 90% at 50% 0%, rgba(74, 222, 128, 0.22), transparent 60%),
+    radial-gradient(ellipse 50% 70% at 85% 40%, rgba(249, 115, 22, 0.14), transparent 55%),
+    radial-gradient(ellipse 40% 60% at 15% 50%, rgba(167, 139, 250, 0.16), transparent 50%),
+    linear-gradient(180deg, rgba(12, 20, 14, 0.94), rgba(10, 8, 16, 0.88));
+  box-shadow:
+    0 0 20px rgba(74, 222, 128, 0.14),
+    inset 0 1px 0 rgba(134, 239, 172, 0.16);
   min-height: 0;
 }
 .bp-s2-mile {
@@ -20714,7 +20721,7 @@ body:has(.profile-page) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 6px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -20727,7 +20734,7 @@ body:has(.profile-page) {
   aspect-ratio: 1;
   border-radius: 50%;
   border: 2px solid rgba(74, 222, 128, 0.45);
-  background: transparent;
+  background: rgba(8, 10, 12, 0.35);
   overflow: hidden;
   display: grid;
   place-items: center;
@@ -20735,7 +20742,7 @@ body:has(.profile-page) {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .bp-s2-mile.is-clean .bp-s2-mile-ring {
-  background: transparent;
+  background: rgba(8, 10, 12, 0.28);
 }
 .bp-s2-mile.is-bg .bp-s2-mile-ring {
   background: #0a0810;
@@ -20749,18 +20756,60 @@ body:has(.profile-page) {
     0 0 20px rgba(249, 115, 22, 0.4),
     0 0 28px rgba(74, 222, 128, 0.3);
 }
+/* ??? ?????? ? ?????????? ??????? (??? ????? ????) */
 .bp-s2-mile-lvl {
-  position: absolute;
-  top: 6px;
-  left: 50%;
-  transform: translateX(-50%);
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
   z-index: 2;
-  font-family: var(--font-display);
-  font-size: 0.62rem;
-  letter-spacing: 0.08em;
-  color: var(--s2-orange);
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+  font-family: var(--font-display), Oxanium, Manrope, sans-serif;
+  font-size: clamp(0.78rem, 1.1vw, 0.95rem);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.05;
+  text-align: center;
+  color: transparent;
+  background:
+    linear-gradient(
+      180deg,
+      #f3e8ff 0%,
+      #c084fc 30%,
+      #7c3aed 56%,
+      #3b0764 82%,
+      #8b5cf6 100%
+    );
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 0.3px rgba(24, 4, 48, 0.95);
+  filter:
+    drop-shadow(0 0 5px rgba(132, 255, 54, 0.45))
+    drop-shadow(0 2px 8px rgba(88, 28, 220, 0.55));
   pointer-events: none;
+}
+.bp-s2-mile-lvl::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: transparent;
+  background:
+    linear-gradient(
+      105deg,
+      transparent 22%,
+      rgba(216, 255, 196, 0.16) 39%,
+      rgba(240, 255, 235, 0.85) 48%,
+      rgba(168, 85, 247, 0.22) 57%,
+      transparent 72%
+    );
+  background-position: 145% 0;
+  background-size: 240% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font: inherit;
+  letter-spacing: inherit;
+  animation: aurum-clean-nick-shine 6.4s ease-in-out infinite;
 }
 .bp-s2-mile-ring img {
   width: 92%;
