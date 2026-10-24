@@ -548,7 +548,20 @@ export async function commentNetPost(postId: string, bodyRaw: string) {
   return { ok: true as const };
 }
 
-const CHAT_KEEP_MS = 2 * 24 * 60 * 60 * 1000;
+/** Общий чат Сети: только последние N сообщений, старше удаляем из БД. */
+export const NET_CHAT_KEEP = 100;
+
+async function trimNetChat() {
+  const keep = await prisma.netChatMessage.findMany({
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: NET_CHAT_KEEP,
+    select: { id: true },
+  });
+  if (keep.length < NET_CHAT_KEEP) return;
+  await prisma.netChatMessage.deleteMany({
+    where: { id: { notIn: keep.map((row) => row.id) } },
+  });
+}
 
 export async function loadNetChat(): Promise<
   { messages: NetChatLine[]; online: NetPerson[] } | { error: string }
@@ -556,11 +569,11 @@ export async function loadNetChat(): Promise<
   const gate = await own();
   if ("error" in gate) return gate;
   await markNetHere(gate.me.id);
+  await trimNetChat().catch(() => undefined);
   const [rows, online] = await Promise.all([
     prisma.netChatMessage.findMany({
-      where: { createdAt: { gte: new Date(Date.now() - CHAT_KEEP_MS) } },
-      orderBy: { createdAt: "desc" },
-      take: 80,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: NET_CHAT_KEEP,
       include: { user: { select: { nick: true } } },
     }),
     netHere(),
@@ -584,9 +597,7 @@ export async function postNetChat(bodyRaw: string) {
   if (!body) return { error: "Пустое сообщение" };
   if (netVisibleLength(body) > 200) return { error: "Сообщение до 200 знаков" };
   await prisma.netChatMessage.create({ data: { userId: gate.me.id, body } });
-  await prisma.netChatMessage
-    .deleteMany({ where: { createdAt: { lt: new Date(Date.now() - CHAT_KEEP_MS) } } })
-    .catch(() => undefined);
+  await trimNetChat().catch(() => undefined);
   return { ok: true as const };
 }
 
