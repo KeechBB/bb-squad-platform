@@ -379,20 +379,28 @@ body:has(.net-page) .site-footer {
 
 .net-modal.net-theme-sheet {
   width: min(1120px, 96vw);
-  height: min(92vh, 1440px);
+  height: auto;
   max-height: min(92vh, 1440px);
   padding: 0;
   overflow: hidden;
 }
+.net-theme-sheet .net-photo-btn {
+  width: auto;
+  max-width: calc(100% - 28px);
+}
 .net-theme-sheet .net-photo {
-  max-height: min(58vh, 860px);
+  width: 100%;
+  height: auto;
+  max-height: min(64vh, 880px);
+  object-fit: contain;
 }
 .net-theme-read .net-post-body {
   font-size: 1.2rem;
   line-height: 1.45;
 }
 .net-theme-read {
-  flex: 0 1 46%;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
   padding: 0 0 8px;
   display: flex;
@@ -426,8 +434,8 @@ body:has(.net-page) .site-footer {
   margin-right: 14px;
 }
 .net-theme-comments {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 0 0 auto;
+  max-height: 118px;
   overflow: auto;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   padding: 10px 14px;
