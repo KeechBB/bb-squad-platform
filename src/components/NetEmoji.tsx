@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { NET_EMOJI, netEmojiById, type NetEmoji } from "@/lib/netEmoji";
 import type { ReactNode } from "react";
 
@@ -81,6 +82,37 @@ export function NetMark({ id, size = 44 }: { id: string; size?: number }) {
   );
 }
 
+function linkify(chunk: string): ReactNode[] {
+  const re = /(?:https?:\/\/|bb-squad\.ru\/)[^\s<>"']+/gi;
+  const nodes: ReactNode[] = [];
+  let last = 0;
+  let key = 0;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(chunk))) {
+    if (match.index > last) nodes.push(chunk.slice(last, match.index));
+    let raw = match[0];
+    const trail = raw.match(/[),.;:!?]+$/)?.[0] ?? "";
+    if (trail) raw = raw.slice(0, -trail.length);
+    const href = raw.startsWith("http") ? raw : `https://${raw}`;
+    const internal = href.replace(/^https:\/\/(?:www\.)?bb-squad\.ru(?=\/|$)/, "");
+    nodes.push(
+      internal !== href ? (
+        <Link key={key++} className="net-link" href={internal || "/"}>
+          {raw}
+        </Link>
+      ) : (
+        <a key={key++} className="net-link" href={href} target="_blank" rel="noreferrer">
+          {raw}
+        </a>
+      ),
+    );
+    if (trail) nodes.push(trail);
+    last = match.index + match[0].length;
+  }
+  if (last < chunk.length) nodes.push(chunk.slice(last));
+  return nodes;
+}
+
 export function NetRichText({ text }: { text: string }) {
   const re = /\[\[b\]\]|\[\[\/b\]\]|\[\[s:(md|lg|xl)\]\]|\[\[\/s\]\]|:([a-z0-9-]+):/g;
   const nodes: ReactNode[] = [];
@@ -93,7 +125,7 @@ export function NetRichText({ text }: { text: string }) {
     const cls = [bold ? "is-bold" : "", size].filter(Boolean).join(" ");
     nodes.push(
       <span key={key++} className={cls || undefined}>
-        {chunk}
+        {linkify(chunk)}
       </span>,
     );
   };

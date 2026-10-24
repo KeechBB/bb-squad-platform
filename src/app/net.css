@@ -247,8 +247,7 @@ body:has(.net-page) .site-footer {
 }
 .net-theme-title,
 .net-pop-title,
-.net-person,
-.net-news-item {
+.net-person {
   color: inherit;
   text-decoration: none;
   background: transparent;
@@ -687,26 +686,42 @@ body:has(.net-page) .site-footer {
   cursor: pointer;
 }
 
-.net-news .net-news-item {
-  display: block;
-  width: auto;
-  margin: 0 8px 8px;
-  padding: 11px 12px 11px 14px;
-  border: 0;
-  border-radius: 10px;
-  border-left: 3px solid #fbbf24;
-  background: linear-gradient(100deg, rgba(251, 191, 36, 0.28), rgba(251, 191, 36, 0.07) 70%);
-  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.35), 0 0 16px rgba(251, 191, 36, 0.12);
-  color: #fde68a;
-  font-family: var(--font-display);
-  font-size: 1.08rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  line-height: 1.25;
-  text-align: left;
-  text-shadow: 0 0 14px rgba(251, 191, 36, 0.45);
-  cursor: pointer;
+.net-news-card {
+  margin: 0 12px 14px;
+  padding: 2px 2px 4px;
 }
+.net-news-title {
+  margin: 0 0 6px;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  line-height: 1.15;
+  color: #fff6c8;
+  text-shadow: 0 0 14px rgba(251, 191, 36, 0.7);
+}
+.net-news-body {
+  color: #e7e9f2;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+.net-link {
+  color: #93c5fd;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.net-link:hover { color: #fde68a; }
+.net-own-nick,
+.net-pop-author {
+  color: #93c5fd;
+  font-weight: 800;
+  text-decoration: none;
+}
+.net-own-nick:hover,
+.net-pop-author:hover { color: #fde68a; }
+.net-pop-main { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.net-pop-author { font-size: 0.82rem; }
 
 .net-modal-back {
   position: fixed;

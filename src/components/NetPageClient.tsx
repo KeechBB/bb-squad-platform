@@ -6,7 +6,7 @@ import Link from "next/link";
 import { ProfileV2ScaleStage } from "@/components/ProfileV2ScaleStage";
 import { NetEmojiBar, NetEmojiToggle, NetRichText } from "@/components/NetEmoji";
 import { NET_TEXT_MAX, netVisibleLength } from "@/lib/netEmoji";
-import type { NetChatLine, NetNewsCard, NetPageData, NetPerson, NetThemeCard } from "@/lib/netTypes";
+import type { NetChatLine, NetPageData, NetPerson, NetThemeCard } from "@/lib/netTypes";
 
 type Modal = null | "avatar" | "theme" | "bg" | "status" | "subs" | "post" | "news";
 
@@ -435,7 +435,6 @@ export function NetPageClient({ nick }: { nick: string }) {
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
   const [openTheme, setOpenTheme] = useState<NetThemeCard | null>(null);
-  const [openNews, setOpenNews] = useState<NetNewsCard | null>(null);
   const [status, setStatus] = useState("");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -570,7 +569,7 @@ export function NetPageClient({ nick }: { nick: string }) {
       <section className="net-panel net-panel-ctrl" aria-label="Пульт">
         <h2>
           <Link className="net-back" href="/profile">← профиль</Link>
-          Сеть · {data.nick}
+          Сеть · <Link className="net-own-nick" href={`/profile/web/${encodeURIComponent(data.nick)}`}>{data.nick}</Link>
         </h2>
         <div className="net-ctrl-list">
           {data.isOwn ? (
@@ -645,10 +644,12 @@ export function NetPageClient({ nick }: { nick: string }) {
           {data.popular.length === 0 ? <p className="net-empty">Пока тихо</p> : null}
           {data.popular.map((theme) => (
             <div className="net-pop-row" key={theme.id}>
-              <button type="button" className="net-pop-title" onClick={() => { setThemeDraft(""); setOpenTheme(theme); }}>
-                {theme.title}
-                <small style={{ display: "block", opacity: 0.6 }}>{theme.authorNick}</small>
-              </button>
+              <div className="net-pop-main">
+                <button type="button" className="net-pop-title" onClick={() => { setThemeDraft(""); setOpenTheme(theme); }}>
+                  {theme.title}
+                </button>
+                <Link className="net-pop-author" href={`/profile/web/${encodeURIComponent(theme.authorNick)}`}>{theme.authorNick}</Link>
+              </div>
               <span className="net-like"><Thumb /> {theme.likes}</span>
               <span className="net-vote"><Thumb down /> {theme.dislikes}</span>
             </div>
@@ -661,9 +662,10 @@ export function NetPageClient({ nick }: { nick: string }) {
         <div className="net-scroll">
           {data.news.length === 0 ? <p className="net-empty">За неделю новостей нет</p> : null}
           {data.news.map((item) => (
-            <button key={item.id} type="button" className="net-news-item" onClick={() => setOpenNews(item)}>
-              {item.title}
-            </button>
+            <article key={item.id} className="net-news-card">
+              <h3 className="net-news-title">{item.title}</h3>
+              <div className="net-news-body"><NetRichText text={item.body} /></div>
+            </article>
           ))}
         </div>
       </section>
@@ -1082,18 +1084,6 @@ export function NetPageClient({ nick }: { nick: string }) {
                 })
               }
             />
-          </div>
-        </div>
-      ) : null}
-
-      {openNews ? (
-        <div className="net-modal-back" onMouseDown={() => setOpenNews(null)}>
-          <div className="net-modal" onMouseDown={(e) => e.stopPropagation()} role="dialog">
-            <h3>{openNews.title}</h3>
-            <div className="net-post-body" style={{ whiteSpace: "pre-wrap" }}>{openNews.body}</div>
-            <div className="net-modal-actions">
-              <button type="button" className="net-quiet" onClick={() => setOpenNews(null)}>Закрыть</button>
-            </div>
           </div>
         </div>
       ) : null}
