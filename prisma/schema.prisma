@@ -947,6 +947,8 @@ model NetPostVote {
   id     String @id @default(cuid())
   postId String
   userId String
+  /// 1 лайк, -1 дизлайк. Старые голоса без значения считаются лайком.
+  value  Int    @default(1)
 
   post NetPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   user User    @relation(fields: [userId], references: [id], onDelete: Cascade)

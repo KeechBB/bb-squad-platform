@@ -589,10 +589,17 @@ export function NetPageClient({ nick }: { nick: string }) {
               <div className="net-vk-bar">
                 <button
                   type="button"
-                  className={`net-like${post.liked ? " is-on" : ""}`}
-                  onClick={() => void act({ action: "like", id: post.id })}
+                  className={`net-like${post.myVote === 1 ? " is-on" : ""}`}
+                  onClick={() => void act({ action: "like", id: post.id, value: post.myVote === 1 ? 0 : 1 })}
                 >
                   Лайк {post.likes}
+                </button>
+                <button
+                  type="button"
+                  className={`net-vote${post.myVote === -1 ? " is-on" : ""}`}
+                  onClick={() => void act({ action: "like", id: post.id, value: post.myVote === -1 ? 0 : -1 })}
+                >
+                  Дизлайк {post.dislikes}
                 </button>
                 <span className="net-vk-count">
                   {post.comments.length} {commentWord(post.comments.length)}

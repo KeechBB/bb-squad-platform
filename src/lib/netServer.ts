@@ -162,7 +162,7 @@ export async function loadNetPage(rawNick: string): Promise<NetPageData | { erro
       orderBy: { createdAt: "desc" },
       take: 40,
       include: {
-        votes: { select: { userId: true } },
+        votes: { select: { userId: true, value: true } },
         comments: {
           orderBy: { createdAt: "asc" },
           take: 50,
@@ -230,8 +230,9 @@ export async function loadNetPage(rawNick: string): Promise<NetPageData | { erro
       imageUrl: p.imageUrl,
       gifUrl: p.gifUrl,
       videoUrl: p.videoUrl,
-      likes: p.votes.length,
-      liked: p.votes.some((v) => v.userId === me.id),
+      likes: p.votes.filter((v) => v.value > 0).length,
+      dislikes: p.votes.filter((v) => v.value < 0).length,
+      myVote: (p.votes.find((v) => v.userId === me.id)?.value === -1 ? -1 : p.votes.some((v) => v.userId === me.id && v.value > 0) ? 1 : 0) as -1 | 0 | 1,
       createdAt: p.createdAt.toISOString(),
       comments: p.comments
         .filter((c) => c.user.nick)
@@ -421,17 +422,20 @@ export async function deleteNetPost(id: string) {
   return { ok: true as const };
 }
 
-export async function likeNetPost(id: string) {
+export async function voteNetPost(id: string, value: -1 | 0 | 1) {
   const gate = await own();
   if ("error" in gate) return gate;
   const post = await prisma.netPost.findUnique({ where: { id }, select: { id: true } });
   if (!post) return { error: "Пост не найден" };
-  const existing = await prisma.netPostVote.findUnique({
-    where: { postId_userId: { postId: id, userId: gate.me.id } },
-    select: { id: true },
-  });
-  if (existing) await prisma.netPostVote.delete({ where: { id: existing.id } });
-  else await prisma.netPostVote.create({ data: { postId: id, userId: gate.me.id } });
+  if (value === 0) {
+    await prisma.netPostVote.deleteMany({ where: { postId: id, userId: gate.me.id } });
+  } else {
+    await prisma.netPostVote.upsert({
+      where: { postId_userId: { postId: id, userId: gate.me.id } },
+      create: { postId: id, userId: gate.me.id, value },
+      update: { value },
+    });
+  }
   return { ok: true as const };
 }
 

@@ -27,7 +27,8 @@ export type NetPostCard = {
   gifUrl: string | null;
   videoUrl: string | null;
   likes: number;
-  liked: boolean;
+  dislikes: number;
+  myVote: -1 | 0 | 1;
   createdAt: string;
   comments: NetCommentCard[];
 };

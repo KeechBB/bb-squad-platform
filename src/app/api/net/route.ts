@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { loadNetPage, setNetStatus, setNetBg, voteNetTheme, deleteNetTheme, likeNetPost, deleteNetPost, commentNetPost, commentNetTheme, setNetFollow, createNetNews } from "@/lib/netServer";
+import { loadNetPage, setNetStatus, setNetBg, voteNetTheme, deleteNetTheme, voteNetPost, deleteNetPost, commentNetPost, commentNetTheme, setNetFollow, createNetNews } from "@/lib/netServer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,7 +27,11 @@ export async function POST(req: Request) {
       return voteNetTheme(String(b.id || ""), value);
     }
     if (action === "delete-theme") return deleteNetTheme(String(b.id || ""));
-    if (action === "like") return likeNetPost(String(b.id || ""));
+    if (action === "like") {
+      const value = b.value === 1 || b.value === -1 || b.value === 0 ? b.value : null;
+      if (value === null) return { error: "Некорректный голос" };
+      return voteNetPost(String(b.id || ""), value);
+    }
     if (action === "delete-post") return deleteNetPost(String(b.id || ""));
     if (action === "comment") return commentNetPost(String(b.postId || ""), String(b.body || ""));
     if (action === "comment-theme") return commentNetTheme(String(b.themeId || ""), String(b.body || ""));

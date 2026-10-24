@@ -267,7 +267,17 @@ body:has(.net-page) .site-footer {
 .net-vk-bar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+}
+.net-vk-bar .net-like,
+.net-vk-bar .net-vote,
+.net-vk-bar .net-vk-count,
+.net-vk-bar .net-quiet {
+  font-size: 0.95rem;
+}
+.net-vk-bar .net-like,
+.net-vk-bar .net-vote {
+  padding: 5px 12px;
 }
 .net-vk-count { color: var(--net-muted); font-size: 0.78rem; }
 .net-vk-comment {
