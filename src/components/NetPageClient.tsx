@@ -52,6 +52,12 @@ function commentWord(n: number) {
   return "комментариев";
 }
 
+function nickColor(nick: string) {
+  let hash = 0;
+  for (const ch of nick) hash = (hash * 33 + ch.charCodeAt(0)) % 360;
+  return `hsl(${hash} 78% 68%)`;
+}
+
 function clockLabel(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
@@ -224,7 +230,7 @@ function NetFlood() {
           : shown.map((nick, i) => (
               <span key={nick}>
                 {i > 0 ? ", " : null}
-                <Link href={`/profile/web/${encodeURIComponent(nick)}`}>{nick}</Link>
+                <Link href={`/profile/web/${encodeURIComponent(nick)}`} style={{ color: nickColor(nick) }}>{nick}</Link>
               </span>
             ))}
       </p>
@@ -240,7 +246,8 @@ function NetFlood() {
         {lines.map((m) => (
           <div key={m.id} className="net-chat-line">
             <div className="net-chat-meta">
-              <Link href={`/profile/web/${encodeURIComponent(m.nick)}`}>{m.nick}</Link>
+              <Link href={`/profile/web/${encodeURIComponent(m.nick)}`} style={{ color: nickColor(m.nick) }}>{m.nick}</Link>
+              <span className="net-chat-rule" style={{ background: nickColor(m.nick) }} />
               <time>{clockLabel(m.createdAt)}</time>
             </div>
             <div className="net-chat-body">

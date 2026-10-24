@@ -502,13 +502,17 @@ body:has(.net-page) .site-footer {
 }
 .net-chat-meta {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
 }
+.net-chat-rule {
+  flex: 1 1 auto;
+  height: 2px;
+  min-width: 18px;
+  border-radius: 99px;
+}
 .net-chat-meta a {
-  color: #93c5fd;
-  font-weight: 700;
+  font-weight: 800;
   text-decoration: none;
 }
 .net-chat-meta time {
