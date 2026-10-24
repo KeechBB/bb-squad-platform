@@ -792,7 +792,8 @@ body:has(.net-page) .site-footer {
   max-height: 88vh;
 }
 .net-modal.is-post {
-  width: min(760px, 94vw);
+  width: min(1520px, 96vw);
+  max-height: min(92vh, 1200px);
 }
 .net-modal > h3 {
   margin: -14px -14px 0;
@@ -819,7 +820,20 @@ body:has(.net-page) .site-footer {
 }
 .net-modal textarea { min-height: 120px; resize: vertical; }
 .net-modal.is-theme textarea { flex: 1 1 auto; min-height: 420px; }
-.net-modal.is-post textarea { min-height: 220px; }
+.net-modal.is-post textarea { min-height: 440px; }
+.net-modal .net-lock {
+  align-self: flex-start;
+  width: auto;
+}
+.net-modal .net-lock input {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
 .net-modal textarea.is-lg { font-size: 1.45rem; line-height: 1.35; }
 .net-modal textarea.is-xl { font-size: 2rem; line-height: 1.25; }
 .net-modal textarea.is-bold { font-weight: 800; }
