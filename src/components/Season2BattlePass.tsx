@@ -233,7 +233,7 @@ export function Season2BattlePass({
             ) : (
               <>
                 <ol
-                  className="bp-s2-board-list"
+                  className="bp-board-list bp-s2-board-list"
                   start={pageSafe * PAGE_SIZE + 1}
                 >
                   {pageSlice.map((row, i) => {
@@ -245,6 +245,7 @@ export function Season2BattlePass({
                       <li
                         key={row.nick}
                         className={[
+                          "bp-board-row",
                           "bp-s2-board-row",
                           podiumClass(place),
                           me ? "is-me" : "",
@@ -252,18 +253,42 @@ export function Season2BattlePass({
                           .filter(Boolean)
                           .join(" ")}
                       >
-                        <span className="bp-s2-board-rank">{place}</span>
-                        <Link
-                          className="bp-s2-board-nick"
-                          href={`/players/${encodeURIComponent(row.nick)}`}
+                        <span
+                          className={`bp-board-rank${
+                            place <= 3 ? " is-medal" : ""
+                          }`}
+                          aria-label={`${place} место`}
                         >
-                          {row.nick}
-                        </Link>
-                        <span className="bp-s2-board-lvl">
-                          Ур. <b>{row.currentLevel}</b>
+                          {place <= 3 ? (
+                            <span
+                              className={`home-podium-medal place-${place}`}
+                            />
+                          ) : (
+                            place
+                          )}
                         </span>
-                        <span className="bp-s2-board-maps" title="Карт с старта BP">
-                          —
+                        <span className="bp-s2-board-player">
+                          <Link
+                            className="bp-board-nick"
+                            href={`/players/${encodeURIComponent(row.nick)}`}
+                            title={row.nick}
+                          >
+                            {row.nick}
+                          </Link>
+                          {/* Слот под нашивку — как в рейтингах КВ/ТМ */}
+                          <span
+                            className="bp-s2-board-patch"
+                            aria-hidden
+                          />
+                        </span>
+                        <span className="bp-board-lvl">
+                          Ур.{" "}
+                          <b className="bp-board-lvl-num">{row.currentLevel}</b>
+                        </span>
+                        <span className="bp-board-score">
+                          <b>
+                            {row.current}/{row.target}
+                          </b>
                         </span>
                       </li>
                     );
