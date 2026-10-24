@@ -9,6 +9,7 @@ export type NetThemeCard = {
   likes: number;
   dislikes: number;
   myVote: -1 | 0 | 1;
+  mine: boolean;
   createdAt: string;
   comments: NetCommentCard[];
 };

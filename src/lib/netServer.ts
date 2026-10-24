@@ -73,6 +73,7 @@ function themeCard(
     imageUrls: string[];
     createdAt: Date;
     user: { nick: string | null };
+    userId: string;
     votes: { userId: string; value: number }[];
     comments: { id: string; body: string; createdAt: Date; user: { nick: string | null } }[];
   },
@@ -96,6 +97,7 @@ function themeCard(
     likes,
     dislikes,
     myVote,
+    mine: Boolean(viewerId && row.userId === viewerId),
     createdAt: row.createdAt.toISOString(),
     comments: row.comments
       .filter((c) => c.user.nick)

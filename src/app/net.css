@@ -201,7 +201,7 @@ body:has(.net-page) .site-footer {
 .net-theme-row,
 .net-pop-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 8px;
   min-height: 42px;
@@ -256,6 +256,18 @@ body:has(.net-page) .site-footer {
   font-weight: 700;
 }
 .net-vote.is-on { color: #fef3c7; border-color: rgba(250, 204, 21, 0.7); }
+.net-theme-del {
+  border: 1px solid rgba(251, 113, 133, 0.6);
+  background: rgba(127, 29, 29, 0.4);
+  color: #fecdd3;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
 
 .net-vk {
   border-top: 1px solid rgba(255, 255, 255, 0.08);

@@ -524,6 +524,17 @@ export function NetPageClient({ nick }: { nick: string }) {
               >
                 Дизлайк {theme.dislikes}
               </button>
+              {theme.mine ? (
+                <button
+                  type="button"
+                  className="net-theme-del"
+                  onClick={() => {
+                    if (window.confirm("Удалить тему?")) void act({ action: "delete-theme", id: theme.id });
+                  }}
+                >
+                  Удалить
+                </button>
+              ) : null}
             </div>
           ))}
         </div>
@@ -883,7 +894,24 @@ export function NetPageClient({ nick }: { nick: string }) {
             <div className="net-theme-read">
               <div className="net-theme-read-head">
                 <h3>{openTheme.title}</h3>
-                <button type="button" className="net-quiet" onClick={() => setOpenTheme(null)}>Закрыть</button>
+                <div className="net-row-actions">
+                  {openTheme.mine ? (
+                    <button
+                      type="button"
+                      className="net-theme-del"
+                      onClick={() => {
+                        if (window.confirm("Удалить тему?")) {
+                          void act({ action: "delete-theme", id: openTheme.id }).then((ok) => {
+                            if (ok) setOpenTheme(null);
+                          });
+                        }
+                      }}
+                    >
+                      Удалить
+                    </button>
+                  ) : null}
+                  <button type="button" className="net-quiet" onClick={() => setOpenTheme(null)}>Закрыть</button>
+                </div>
               </div>
               <Link href={`/profile/web/${encodeURIComponent(openTheme.authorNick)}`}>{openTheme.authorNick}</Link>
               <div className="net-post-body"><NetRichText text={openTheme.body} /></div>
@@ -899,11 +927,6 @@ export function NetPageClient({ nick }: { nick: string }) {
                 <button type="button" className={`net-vote${openTheme.myVote === -1 ? " is-on" : ""}`} onClick={() => void act({ action: "vote", id: openTheme.id, value: openTheme.myVote === -1 ? 0 : -1 })}>
                   Дизлайк {openTheme.dislikes}
                 </button>
-                {data.isOwn && data.nick === openTheme.authorNick ? (
-                  <button type="button" className="net-quiet" onClick={() => void act({ action: "delete-theme", id: openTheme.id }).then((ok) => { if (ok) setOpenTheme(null); })}>
-                    удалить
-                  </button>
-                ) : null}
               </div>
             </div>
             <div className="net-theme-comments">
