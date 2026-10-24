@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { BpLevel, BpPlayerProgress, BpReward } from "@/lib/battlePass";
-import { BpRewardMock, type BpPreviewPlayer } from "@/components/BpRewardMock";
 import { CanvasScaleStage } from "@/components/CanvasScaleStage";
 import {
   BP_S2_HERO_ART,
@@ -66,12 +65,6 @@ export function Season2BattlePass({
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [boardPage, setBoardPage] = useState(0);
-
-  const player: BpPreviewPlayer = {
-    nick: selfNick,
-    name: selfName,
-    avatarUrl: selfAvatarUrl,
-  };
 
   const milestoneRewards = useMemo(
     () =>
@@ -364,21 +357,20 @@ export function Season2BattlePass({
                 <strong className="bp-s2-side-preview-name">
                   {sideReward.name}
                 </strong>
-                <p className="bp-s2-side-preview-desc">{sideReward.preview}</p>
                 <div
                   className={`bp-s2-side-preview-art${
                     sideReward.kind === "bg" ? " is-bg" : ""
                   }`}
+                  tabIndex={0}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={s2RewardFullImage(sideReward)} alt="" />
-                </div>
-                <div className="bp-s2-side-preview-mock">
-                  <BpRewardMock
-                    reward={sideReward}
-                    player={player}
-                    compact={false}
-                  />
+                  <div className="bp-s2-side-preview-hint">
+                    <span className="bp-s2-side-preview-hint-label">
+                      За что награда
+                    </span>
+                    <p>{sideReward.preview || sideReward.hover}</p>
+                  </div>
                 </div>
               </div>
             ) : (
