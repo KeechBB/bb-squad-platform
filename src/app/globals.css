@@ -1407,7 +1407,7 @@ body:has(.tm-sapper-page) {
   -webkit-text-stroke: 1px rgba(12, 2, 28, 0.92);
   paint-order: stroke fill;
   font-family: var(--font-display), Oxanium, Manrope, sans-serif;
-  font-size: 1rem;
+  font-size: 1.12rem;
   font-weight: 800;
   letter-spacing: 0.018em;
   line-height: 1.05;
@@ -9769,6 +9769,7 @@ body:has(.home-page) {
   -webkit-text-stroke: 1px rgba(12, 2, 28, 0.92);
   paint-order: stroke fill;
   font-family: var(--font-display), Oxanium, Manrope, sans-serif;
+  font-size: 1.12rem;
   font-weight: 800;
   letter-spacing: 0.018em;
   filter:
