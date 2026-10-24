@@ -56,7 +56,21 @@ function Face({ item, size }: { item: NetEmoji; size: number }) {
   );
 }
 
-export function NetMark({ id, size = 22 }: { id: string; size?: number }) {
+export function NetEmojiToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      className={`net-emoji-toggle${open ? " is-on" : ""}`}
+      onClick={onToggle}
+      aria-label="Смайлы"
+      title="Смайлы"
+    >
+      <Face item={NET_EMOJI[0]} size={32} />
+    </button>
+  );
+}
+
+export function NetMark({ id, size = 44 }: { id: string; size?: number }) {
   const item = netEmojiById(id);
   if (!item) return null;
   return (
@@ -89,7 +103,7 @@ export function NetEmojiBar({ onPick }: { onPick: (token: string) => void }) {
           title={`${item.label}: ${item.emotion}`}
           onClick={() => onPick(`:${item.id}:`)}
         >
-          <Face item={item} size={26} />
+          <Face item={item} size={52} />
         </button>
       ))}
     </div>

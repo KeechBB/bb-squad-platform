@@ -55,7 +55,7 @@ body:has(.net-page) .site-footer {
   overflow: hidden;
   display: grid;
   grid-template-columns: 250px minmax(340px, 520px) minmax(380px, 1fr) 270px;
-  grid-template-rows: 136px 44px minmax(88px, 0.4fr) minmax(200px, 1.05fr);
+  grid-template-rows: 136px minmax(48px, auto) minmax(88px, 0.4fr) minmax(200px, 1.05fr);
   grid-template-areas:
     "avatar panel themes popular"
     "status panel themes popular"
@@ -515,15 +515,33 @@ body:has(.net-page) .site-footer {
 }
 .net-bg-grid button.is-on { border-color: #facc15; }
 .net-bg-grid img { width: 100%; height: 52px; object-fit: cover; display: block; }
-.net-emoji-bar { display: flex; flex-wrap: wrap; gap: 4px; }
+.net-emoji-bar { display: flex; flex-wrap: wrap; gap: 8px; }
 .net-emoji-btn {
   border: 0;
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 8px;
-  padding: 2px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 4px;
   cursor: pointer;
+  line-height: 0;
 }
-.net-mark { display: inline-block; vertical-align: middle; line-height: 0; }
+.net-emoji-btn:hover { background: rgba(255, 255, 255, 0.14); }
+.net-emoji-toggle {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  line-height: 0;
+}
+.net-emoji-toggle.is-on { border-color: #facc15; background: rgba(250, 204, 21, 0.16); }
+.net-mark { display: inline-block; vertical-align: middle; line-height: 0; margin: 0 2px; }
+.net-chat-compose { flex-direction: column; }
+.net-compose-row .net-empty { margin: 0; flex: 1; }
 .net-error { color: #fda4af; font-size: 0.8rem; margin: 0; }
 .net-back {
   color: #fde68a;

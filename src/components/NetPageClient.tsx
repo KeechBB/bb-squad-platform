@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ProfileV2ScaleStage } from "@/components/ProfileV2ScaleStage";
-import { NetEmojiBar, NetRichText } from "@/components/NetEmoji";
+import { NetEmojiBar, NetEmojiToggle, NetRichText } from "@/components/NetEmoji";
 import { netVisibleLength } from "@/lib/netEmoji";
 import type { NetChatLine, NetNewsCard, NetPageData, NetPerson, NetThemeCard } from "@/lib/netTypes";
 
@@ -73,9 +73,6 @@ function CommentComposer({
     <div className="net-compose">
       {emoji ? <NetEmojiBar onPick={(token) => onChange(value + token)} /> : null}
       <div className="net-compose-row">
-        <button type="button" className="net-quiet" onClick={() => setEmoji((v) => !v)}>
-          смайлы
-        </button>
         <input
           value={value}
           placeholder="Написать комментарий"
@@ -87,6 +84,7 @@ function CommentComposer({
             }
           }}
         />
+        <NetEmojiToggle open={emoji} onToggle={() => setEmoji((v) => !v)} />
         <button type="button" className="net-send" disabled={busy || !value.trim()} onClick={onSend}>
           Отправить
         </button>
@@ -99,6 +97,7 @@ function NetFlood() {
   const [lines, setLines] = useState<NetChatLine[]>([]);
   const [online, setOnline] = useState<string[]>([]);
   const [text, setText] = useState("");
+  const [emoji, setEmoji] = useState(false);
   const [sending, setSending] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
   const pinRef = useRef(true);
@@ -162,20 +161,24 @@ function NetFlood() {
         ))}
       </div>
       <div className="net-chat-compose">
-        <input
-          value={text}
-          placeholder="Написать всем"
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              void send();
-            }
-          }}
-        />
-        <button type="button" className="net-send" disabled={sending || !text.trim()} onClick={() => void send()}>
-          ок
-        </button>
+        {emoji ? <NetEmojiBar onPick={(token) => setText((v) => v + token)} /> : null}
+        <div className="net-compose-row">
+          <input
+            value={text}
+            placeholder="Написать всем"
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void send();
+              }
+            }}
+          />
+          <NetEmojiToggle open={emoji} onToggle={() => setEmoji((v) => !v)} />
+          <button type="button" className="net-send" disabled={sending || !text.trim()} onClick={() => void send()}>
+            ок
+          </button>
+        </div>
       </div>
     </section>
   );
@@ -211,6 +214,7 @@ export function NetPageClient({ nick }: { nick: string }) {
   const [newsBody, setNewsBody] = useState("");
   const [comments, setComments] = useState<Record<string, string>>({});
   const [themeDraft, setThemeDraft] = useState("");
+  const [picker, setPicker] = useState(false);
 
   const reload = useCallback(async () => {
     const res = await fetch(`/api/net?nick=${encodeURIComponent(nick)}`, { cache: "no-store" });
@@ -235,6 +239,7 @@ export function NetPageClient({ nick }: { nick: string }) {
 
   function closeModal() {
     setModal(null);
+    setPicker(false);
     setFormError("");
     setBusy(false);
     if (avatarPreview) URL.revokeObjectURL(avatarPreview);
@@ -516,8 +521,11 @@ export function NetPageClient({ nick }: { nick: string }) {
               <>
                 <h3>Статус</h3>
                 <textarea value={status} onChange={(e) => setStatus(e.target.value)} />
-                <NetEmojiBar onPick={(token) => pickEmoji(token, status, setStatus)} />
-                <p className="net-empty">{netVisibleLength(status)} / 20</p>
+                {picker ? <NetEmojiBar onPick={(token) => pickEmoji(token, status, setStatus)} /> : null}
+                <div className="net-compose-row">
+                  <p className="net-empty">{netVisibleLength(status)} / 20</p>
+                  <NetEmojiToggle open={picker} onToggle={() => setPicker((v) => !v)} />
+                </div>
                 <div className="net-modal-actions">
                   <button type="button" className="net-quiet" onClick={closeModal}>Закрыть</button>
                   <button
@@ -574,7 +582,11 @@ export function NetPageClient({ nick }: { nick: string }) {
                   onChange={(e) => setTitle(e.target.value)}
                 />
                 <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Текст" />
-                <NetEmojiBar onPick={(token) => pickEmoji(token, body, setBody)} />
+                {picker ? <NetEmojiBar onPick={(token) => pickEmoji(token, body, setBody)} /> : null}
+                <div className="net-compose-row">
+                  <span className="net-empty">Смайлы в текст</span>
+                  <NetEmojiToggle open={picker} onToggle={() => setPicker((v) => !v)} />
+                </div>
                 <input
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
@@ -606,7 +618,11 @@ export function NetPageClient({ nick }: { nick: string }) {
               <>
                 <h3>Новый пост</h3>
                 <textarea value={postBody} onChange={(e) => setPostBody(e.target.value)} placeholder="Текст" />
-                <NetEmojiBar onPick={(token) => pickEmoji(token, postBody, setPostBody)} />
+                {picker ? <NetEmojiBar onPick={(token) => pickEmoji(token, postBody, setPostBody)} /> : null}
+                <div className="net-compose-row">
+                  <span className="net-empty">Смайлы в текст</span>
+                  <NetEmojiToggle open={picker} onToggle={() => setPicker((v) => !v)} />
+                </div>
                 <input
                   type="file"
                   accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm"
@@ -663,6 +679,11 @@ export function NetPageClient({ nick }: { nick: string }) {
                 <h3>Новость</h3>
                 <input value={newsTitle} maxLength={80} placeholder="Заголовок" onChange={(e) => setNewsTitle(e.target.value)} />
                 <textarea value={newsBody} onChange={(e) => setNewsBody(e.target.value)} placeholder="Текст" />
+                {picker ? <NetEmojiBar onPick={(token) => pickEmoji(token, newsBody, setNewsBody)} /> : null}
+                <div className="net-compose-row">
+                  <span className="net-empty">Смайлы в текст</span>
+                  <NetEmojiToggle open={picker} onToggle={() => setPicker((v) => !v)} />
+                </div>
                 <div className="net-modal-actions">
                   <button type="button" className="net-quiet" onClick={closeModal}>Закрыть</button>
                   <button
