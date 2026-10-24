@@ -10,11 +10,7 @@ import {
   type BpPlayerProgress,
   type BpReward,
 } from "@/lib/battlePass";
-import {
-  BpRewardMock,
-  BpRewardMockGallery,
-  type BpPreviewPlayer,
-} from "@/components/BpRewardMock";
+import { BpRewardMock, type BpPreviewPlayer } from "@/components/BpRewardMock";
 import { CanvasScaleStage } from "@/components/CanvasScaleStage";
 
 type Props = {
@@ -25,10 +21,25 @@ type Props = {
   leaderboard: BpPlayerProgress[];
   statusNote?: string;
   scoringEnabled?: boolean;
-  /** Подмена сезона/картинок/наград для скрытых превью; живой BP — без этого пропа */
-  seasonOverride?: { subtitle: string; startLabel: string; endLabel: string };
+  /** Подмена сезона для скрытых превью */
+  seasonOverride?: {
+    title?: string;
+    subtitle: string;
+    startLabel: string;
+    endLabel: string;
+  };
   detailBg?: string;
   rewardsOverride?: BpReward[];
+  levelsOverride?: BpLevel[];
+  /** halloween = фиолетово-тыквенное окно деталей; gold = как S1 */
+  detailTheme?: "gold" | "halloween";
+  /**
+   * season2: детали над треком, снизу топ-10 | арт.
+   * classic: детали слева, топ-10 справа (без галереи «где висят»).
+   */
+  layout?: "classic" | "season2";
+  /** Правая картинка (season2). null/undefined = пустой слот «скоро». */
+  sideArtUrl?: string | null;
 };
 
 function podiumClass(place: number) {
@@ -94,6 +105,160 @@ function LevelNode({
   );
 }
 
+function Top10Board({
+  top10,
+  selfNick,
+  scoringEnabled,
+}: {
+  top10: BpPlayerProgress[];
+  selfNick: string;
+  scoringEnabled?: boolean;
+}) {
+  return (
+    <section className="bp-board" aria-label="Топ-10 Battle Pass">
+      <h3>Топ-10 прохождения</h3>
+      <p className="bp-board-sub">Рейтинг Battle Pass · максимум 10 мест</p>
+      {top10.length === 0 ? (
+        <p className="bp-board-empty">
+          {scoringEnabled
+            ? "Пока никого — ждём следующую карту на Фруктовом Саде (только зарегистрированные)."
+            : "Подсчёт ещё не стартовал."}
+        </p>
+      ) : (
+        <ol className="bp-board-list">
+          {top10.map((row, i) => {
+            const place = i + 1;
+            const me =
+              selfNick.trim().toLowerCase() ===
+              String(row.nick || "").trim().toLowerCase();
+            return (
+              <li
+                key={row.nick}
+                className={[
+                  "bp-board-row",
+                  podiumClass(place),
+                  me ? "is-me" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              >
+                <span
+                  className={`bp-board-rank${place <= 3 ? " is-medal" : ""}`}
+                  aria-label={`${place} место`}
+                >
+                  {place <= 3 ? (
+                    <span className={`home-podium-medal place-${place}`} />
+                  ) : (
+                    place
+                  )}
+                </span>
+                <Link
+                  className="bp-board-nick"
+                  href={`/players/${encodeURIComponent(row.nick)}`}
+                  title={row.nick}
+                >
+                  {row.nick}
+                </Link>
+                <span className="bp-board-lvl">
+                  Ур. <b className="bp-board-lvl-num">{row.currentLevel}</b>
+                </span>
+                <span className="bp-board-score">
+                  <b>
+                    {row.current}/{row.target}
+                  </b>
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+    </section>
+  );
+}
+
+function DetailPanel({
+  level,
+  levelRewards,
+  reward,
+  player,
+  selected,
+  cur,
+  progressCurrent,
+  progressTarget,
+  pct,
+  detailBg,
+  detailTheme,
+}: {
+  level: BpLevel;
+  levelRewards: BpReward[];
+  reward?: BpReward;
+  player: BpPreviewPlayer;
+  selected: number;
+  cur: number;
+  progressCurrent: number;
+  progressTarget: number;
+  pct: number;
+  detailBg?: string;
+  detailTheme: "gold" | "halloween";
+}) {
+  return (
+    <section
+      className={`bp-detail theme-${detailTheme}${reward ? " has-reward" : ""}`}
+      aria-live="polite"
+    >
+      <div className="bp-detail-bg" aria-hidden>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={detailBg ?? BP_BG} alt="" />
+      </div>
+      <div className="bp-detail-veil" aria-hidden />
+
+      <div className="bp-detail-top">
+        <div className="bp-detail-head">
+          <span className="bp-detail-lvl">Уровень {level.level}</span>
+          <h2>{level.title}</h2>
+        </div>
+        <p className="bp-detail-task">{level.task}</p>
+
+        {levelRewards.map((r) => (
+          <div key={r.id} className={`bp-detail-reward kind-${r.kind}`}>
+            <span className="bp-detail-reward-tag">Награда</span>
+            <strong>{r.name}</strong>
+            <BpRewardMock
+              reward={r}
+              player={player}
+              compact={r.kind !== "medal" && r.kind !== "nick" && r.kind !== "bg"}
+            />
+          </div>
+        ))}
+
+        <div className="bp-progress">
+          <div className="bp-progress-meta">
+            <span>
+              {selected === cur
+                ? "Текущее задание"
+                : selected < cur
+                  ? "Выполнено"
+                  : "Ещё не открыто"}
+            </span>
+            <span className="bp-progress-nums">
+              {progressCurrent}/{progressTarget} {level.unit}
+            </span>
+          </div>
+          <div
+            className="bp-progress-bar"
+            role="progressbar"
+            aria-valuenow={progressCurrent}
+            aria-valuemin={0}
+            aria-valuemax={progressTarget}
+          >
+            <i style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function BattlePassClient({
   selfNick,
   selfName,
@@ -105,7 +270,12 @@ export function BattlePassClient({
   seasonOverride,
   detailBg,
   rewardsOverride,
+  levelsOverride,
+  detailTheme = "gold",
+  layout = "classic",
+  sideArtUrl,
 }: Props) {
+  const levels = levelsOverride ?? BP_LEVELS;
   const [selected, setSelected] = useState(selfProgress.currentLevel);
   const player: BpPreviewPlayer = {
     nick: selfNick,
@@ -113,11 +283,16 @@ export function BattlePassClient({
     avatarUrl: selfAvatarUrl,
   };
   const rewardsList = rewardsOverride ?? BP_REWARDS;
-  const season = seasonOverride ?? BP_SEASON;
+  const season = {
+    title: seasonOverride?.title ?? BP_SEASON.title,
+    subtitle: seasonOverride?.subtitle ?? BP_SEASON.subtitle,
+    startLabel: seasonOverride?.startLabel ?? BP_SEASON.startLabel,
+    endLabel: seasonOverride?.endLabel ?? BP_SEASON.endLabel,
+  };
 
   const level = useMemo(
-    () => BP_LEVELS.find((l) => l.level === selected) || BP_LEVELS[0],
-    [selected]
+    () => levels.find((l) => l.level === selected) || levels[0],
+    [selected, levels]
   );
   const levelRewards = rewardsList.filter((r) => r.level === level.level);
   const reward = levelRewards[0];
@@ -132,161 +307,96 @@ export function BattlePassClient({
     Math.round((progressCurrent / Math.max(1, progressTarget)) * 100)
   );
 
+  const track = (
+    <section className="bp-track-wrap" aria-label="Уровни Battle Pass">
+      <div className="bp-track">
+        {levels.map((l) => (
+          <LevelNode
+            key={l.level}
+            level={l}
+            reward={rewardsList.find((r) => r.level === l.level)}
+            selected={selected === l.level}
+            locked={l.level > cur}
+            done={l.level < cur}
+            current={l.level === cur}
+            onSelect={() => setSelected(l.level)}
+          />
+        ))}
+      </div>
+    </section>
+  );
+
+  const detail = (
+    <DetailPanel
+      level={level}
+      levelRewards={levelRewards}
+      reward={reward}
+      player={player}
+      selected={selected}
+      cur={cur}
+      progressCurrent={progressCurrent}
+      progressTarget={progressTarget}
+      pct={pct}
+      detailBg={detailBg}
+      detailTheme={detailTheme}
+    />
+  );
+
   return (
     <CanvasScaleStage contentWidth="full" className="is-bp">
-    <main className="bp-page">
-      <header className="bp-hero">
-        <p className="bp-hero-eyebrow">{season.subtitle}</p>
-        <h1 className="bp-hero-title">{BP_SEASON.title}</h1>
-        <p className="bp-hero-dates">
-          {season.startLabel} — {season.endLabel}
-        </p>
-        {statusNote ? <p className="bp-hero-status">{statusNote}</p> : null}
-      </header>
+      <main
+        className={`bp-page${layout === "season2" ? " is-season2" : ""}${
+          reward ? " has-reward-selected" : ""
+        }`}
+      >
+        <header className="bp-hero">
+          <p className="bp-hero-eyebrow">{season.subtitle}</p>
+          <h1 className="bp-hero-title">{season.title}</h1>
+          <p className="bp-hero-dates">
+            {season.startLabel} — {season.endLabel}
+          </p>
+          {statusNote ? <p className="bp-hero-status">{statusNote}</p> : null}
+        </header>
 
-      <section className="bp-track-wrap" aria-label="Уровни Battle Pass">
-        <div className="bp-track">
-          {BP_LEVELS.map((l) => (
-            <LevelNode
-              key={l.level}
-              level={l}
-              reward={rewardsList.find((r) => r.level === l.level)}
-              selected={selected === l.level}
-              locked={l.level > cur}
-              done={l.level < cur}
-              current={l.level === cur}
-              onSelect={() => setSelected(l.level)}
-            />
-          ))}
-        </div>
-      </section>
-
-      <div className="bp-body">
-        <section
-          className={`bp-detail${reward ? " has-reward" : ""}`}
-          aria-live="polite"
-        >
-          <div className="bp-detail-bg" aria-hidden>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={detailBg ?? BP_BG} alt="" />
-          </div>
-          <div className="bp-detail-veil" aria-hidden />
-
-          <div className="bp-detail-top">
-            <div className="bp-detail-head">
-              <span className="bp-detail-lvl">Уровень {level.level}</span>
-              <h2>{level.title}</h2>
+        {layout === "season2" ? (
+          <>
+            {detail}
+            {track}
+            <div className="bp-body bp-body-s2">
+              <Top10Board
+                top10={top10}
+                selfNick={selfNick}
+                scoringEnabled={scoringEnabled}
+              />
+              <aside className="bp-side-art" aria-label="Арт сезона">
+                {sideArtUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={sideArtUrl} alt="" />
+                ) : (
+                  <div className="bp-side-art-slot">
+                    <span>Картинка сезона</span>
+                    <small>слот · добавим позже</small>
+                  </div>
+                )}
+              </aside>
             </div>
-            <p className="bp-detail-task">{level.task}</p>
-
-            {levelRewards.map((r) => (
-              <div key={r.id} className={`bp-detail-reward kind-${r.kind}`}>
-                <span className="bp-detail-reward-tag">Награда</span>
-                <strong>{r.name}</strong>
-                <BpRewardMock
-                  reward={r}
-                  player={player}
-                  compact={r.kind !== "medal"}
+          </>
+        ) : (
+          <>
+            {track}
+            <div className="bp-body">
+              {detail}
+              <aside className="bp-side">
+                <Top10Board
+                  top10={top10}
+                  selfNick={selfNick}
+                  scoringEnabled={scoringEnabled}
                 />
-              </div>
-            ))}
-
-            <div className="bp-progress">
-              <div className="bp-progress-meta">
-                <span>
-                  {selected === cur
-                    ? "Текущее задание"
-                    : selected < cur
-                      ? "Выполнено"
-                      : "Ещё не открыто"}
-                </span>
-                <span className="bp-progress-nums">
-                  {progressCurrent}/{progressTarget} {level.unit}
-                </span>
-              </div>
-              <div
-                className="bp-progress-bar"
-                role="progressbar"
-                aria-valuenow={progressCurrent}
-                aria-valuemin={0}
-                aria-valuemax={progressTarget}
-              >
-                <i style={{ width: `${pct}%` }} />
-              </div>
+              </aside>
             </div>
-          </div>
-        </section>
-
-        <aside className="bp-side">
-          <BpRewardMockGallery
-            rewards={rewardsList}
-            player={player}
-            activeLevel={selected}
-            onPick={setSelected}
-          />
-
-          <section className="bp-board" aria-label="Топ-10 Battle Pass">
-            <h3>Топ-10 прохождения</h3>
-            <p className="bp-board-sub">Рейтинг Battle Pass · максимум 10 мест</p>
-            {top10.length === 0 ? (
-              <p className="bp-board-empty">
-                {scoringEnabled
-                  ? "Пока никого — ждём следующую карту на Фруктовом Саде (только зарегистрированные)."
-                  : "Подсчёт ещё не стартовал."}
-              </p>
-            ) : (
-              <ol className="bp-board-list">
-                {top10.map((row, i) => {
-                  const place = i + 1;
-                  const me =
-                    selfNick.trim().toLowerCase() ===
-                    String(row.nick || "").trim().toLowerCase();
-                  return (
-                    <li
-                      key={row.nick}
-                      className={[
-                        "bp-board-row",
-                        podiumClass(place),
-                        me ? "is-me" : "",
-                      ]
-                        .filter(Boolean)
-                        .join(" ")}
-                    >
-                      <span
-                        className={`bp-board-rank${place <= 3 ? " is-medal" : ""}`}
-                        aria-label={`${place} место`}
-                      >
-                        {place <= 3 ? (
-                          <span className={`home-podium-medal place-${place}`} />
-                        ) : (
-                          place
-                        )}
-                      </span>
-                      <Link
-                        className="bp-board-nick"
-                        href={`/players/${encodeURIComponent(row.nick)}`}
-                        title={row.nick}
-                      >
-                        {row.nick}
-                      </Link>
-                      <span className="bp-board-lvl">
-                        Ур.{" "}
-                        <b className="bp-board-lvl-num">{row.currentLevel}</b>
-                      </span>
-                      <span className="bp-board-score">
-                        <b>
-                          {row.current}/{row.target}
-                        </b>
-                      </span>
-                    </li>
-                  );
-                })}
-              </ol>
-            )}
-          </section>
-        </aside>
-      </div>
-    </main>
+          </>
+        )}
+      </main>
     </CanvasScaleStage>
   );
 }

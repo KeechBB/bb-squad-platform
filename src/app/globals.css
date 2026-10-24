@@ -18556,6 +18556,50 @@ body:has(.profile-page) {
   gap: 8px;
 }
 
+/* Season 2: ?????? ??? ??????, ????? ???-10 | ??? */
+.bp-page.is-season2 {
+  gap: 10px;
+}
+.bp-page.is-season2 > .bp-detail {
+  flex: 0 1 34%;
+  min-height: 160px;
+  max-height: 38%;
+}
+.bp-page.is-season2.has-reward-selected > .bp-detail {
+  flex: 1 1 48%;
+  max-height: 52%;
+  min-height: 240px;
+}
+.bp-page.is-season2 > .bp-track-wrap {
+  flex: 0 0 auto;
+}
+.bp-page.is-season2 > .bp-body-s2 {
+  flex: 1 1 28%;
+  min-height: 140px;
+}
+.bp-page.is-season2 .bp-reward-mark {
+  border-color: rgba(167, 139, 250, 0.5);
+  background: rgba(28, 14, 40, 0.92);
+}
+.bp-page.is-season2 .bp-reward-mark-short {
+  color: #c4b5fd;
+}
+.bp-page.is-season2 .bp-track::before {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(167, 139, 250, 0.35) 8%,
+    rgba(249, 115, 22, 0.35) 50%,
+    rgba(167, 139, 250, 0.35) 92%,
+    transparent
+  );
+}
+.bp-page.is-season2 .bp-node.is-current .bp-node-disc,
+.bp-page.is-season2 .bp-node.is-selected .bp-node-disc {
+  border-color: #c4b5fd;
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.25);
+}
+
 .bp-hero {
   flex: 0 0 auto;
   text-align: center;
@@ -18785,6 +18829,48 @@ body:has(.profile-page) {
   overflow: hidden;
 }
 
+.bp-body-s2 {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.bp-side-art {
+  position: relative;
+  border-radius: 14px;
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  background: rgba(12, 8, 18, 0.85);
+  overflow: hidden;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+}
+.bp-side-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.bp-side-art-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 24px;
+  text-align: center;
+  color: #c4b5fd;
+  font-family: var(--font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+}
+.bp-side-art-slot small {
+  font-family: inherit;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  color: rgba(196, 181, 253, 0.55);
+  text-transform: none;
+}
+
 .bp-detail,
 .bp-rewards-panel,
 .bp-board {
@@ -18845,6 +18931,50 @@ body:has(.profile-page) {
     );
 }
 
+/* Halloween detail: ?????????-????????? ????? ?????? ?????? */
+.bp-detail.theme-halloween {
+  border-color: rgba(167, 139, 250, 0.38);
+  box-shadow: inset 0 0 0 1px rgba(249, 115, 22, 0.12);
+}
+.bp-detail.theme-halloween .bp-detail-veil {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(12, 6, 22, 0.9) 0%,
+      rgba(18, 8, 28, 0.55) 24%,
+      rgba(10, 6, 16, 0.2) 50%,
+      rgba(20, 8, 14, 0.4) 78%,
+      rgba(8, 4, 14, 0.78) 100%
+    ),
+    radial-gradient(
+      ellipse 70% 55% at 50% 70%,
+      rgba(249, 115, 22, 0.14),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 50% 40% at 80% 20%,
+      rgba(139, 92, 246, 0.18),
+      transparent 65%
+    );
+}
+.bp-detail.theme-halloween .bp-detail-lvl,
+.bp-detail.theme-halloween .bp-detail-reward-tag {
+  color: #c4b5fd;
+}
+.bp-detail.theme-halloween .bp-detail-reward {
+  border-color: rgba(167, 139, 250, 0.45);
+  background: rgba(36, 16, 48, 0.62);
+}
+.bp-detail.theme-halloween .bp-progress-bar {
+  border-color: rgba(167, 139, 250, 0.28);
+}
+.bp-detail.theme-halloween .bp-progress-bar > i {
+  background: linear-gradient(90deg, #7c3aed, #f97316);
+}
+.bp-detail.theme-halloween .bp-progress-nums {
+  color: #e9d5ff;
+}
+
 .bp-detail-top {
   position: relative;
   z-index: 2;
@@ -18864,6 +18994,22 @@ body:has(.profile-page) {
 .bp-detail.has-reward:has(.bp-detail-reward.kind-medal) .bp-detail-top {
   max-height: 88%;
   overflow: visible;
+}
+
+/* Season 2: ? ??????? ???? ??? ??????? ? ?????? ????? ??? ?????? */
+.bp-page.is-season2 > .bp-detail .bp-detail-top {
+  flex: 1 1 auto;
+  max-height: none;
+  overflow: auto;
+}
+.bp-page.is-season2 > .bp-detail.has-reward .bp-detail-reward .bp-mock {
+  max-height: min(220px, 36vh);
+  overflow: hidden;
+}
+.bp-page.is-season2 > .bp-detail.has-reward .bp-detail-reward.kind-nick .bp-mock,
+.bp-page.is-season2 > .bp-detail.has-reward .bp-detail-reward.kind-bg .bp-mock,
+.bp-page.is-season2 > .bp-detail.has-reward .bp-detail-reward.kind-medal .bp-mock {
+  max-height: min(280px, 42vh);
 }
 
 .bp-detail-head {
