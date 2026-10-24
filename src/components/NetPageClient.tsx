@@ -260,6 +260,7 @@ export function NetPageClient({ nick }: { nick: string }) {
   const [themeBold, setThemeBold] = useState(false);
   const [postSize, setPostSize] = useState<WriteSize>("md");
   const [postBold, setPostBold] = useState(false);
+  const [photo, setPhoto] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     const res = await fetch(`/api/net?nick=${encodeURIComponent(nick)}`, { cache: "no-store" });
@@ -475,8 +476,16 @@ export function NetPageClient({ nick }: { nick: string }) {
               <div className="net-post-body">
                 {post.body ? <NetRichText text={post.body} /> : null}
               </div>
-              {post.imageUrl ? <img src={post.imageUrl} alt="" /> : null}
-              {post.gifUrl ? <img src={post.gifUrl} alt="" /> : null}
+              {post.imageUrl ? (
+                <button type="button" className="net-photo-btn" onClick={() => setPhoto(post.imageUrl)}>
+                  <img className="net-photo" src={post.imageUrl} alt="" />
+                </button>
+              ) : null}
+              {post.gifUrl ? (
+                <button type="button" className="net-photo-btn" onClick={() => setPhoto(post.gifUrl)}>
+                  <img className="net-photo" src={post.gifUrl} alt="" />
+                </button>
+              ) : null}
               {post.videoUrl ? <video src={post.videoUrl} controls /> : null}
               <div className="net-vk-bar">
                 <button
@@ -773,7 +782,9 @@ export function NetPageClient({ nick }: { nick: string }) {
               <Link href={`/profile/web/${encodeURIComponent(openTheme.authorNick)}`}>{openTheme.authorNick}</Link>
               <div className="net-post-body"><NetRichText text={openTheme.body} /></div>
               {openTheme.imageUrls.map((url) => (
-                <img key={url} src={url} alt="" style={{ maxWidth: "100%", borderRadius: 8 }} />
+                <button type="button" key={url} className="net-photo-btn" onClick={() => setPhoto(url)}>
+                  <img className="net-photo" src={url} alt="" />
+                </button>
               ))}
               <div className="net-row-actions">
                 <button type="button" className={`net-like${openTheme.myVote === 1 ? " is-on" : ""}`} onClick={() => void act({ action: "vote", id: openTheme.id, value: openTheme.myVote === 1 ? 0 : 1 })}>
@@ -823,6 +834,12 @@ export function NetPageClient({ nick }: { nick: string }) {
               <button type="button" className="net-quiet" onClick={() => setOpenNews(null)}>Закрыть</button>
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {photo ? (
+        <div className="net-photo-back" onMouseDown={() => setPhoto(null)}>
+          <img src={photo} alt="" />
         </div>
       ) : null}
     </main>
