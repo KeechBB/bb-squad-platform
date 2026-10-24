@@ -3,8 +3,9 @@
  * Живой S1 (battlePass.ts) не трогаем.
  */
 
-import type { BpLevel, BpReward } from "@/lib/battlePass";
+import type { BpLevel, BpPlayerProgress, BpReward } from "@/lib/battlePass";
 import { BP_LEVELS } from "@/lib/battlePass";
+import { sortBattlePassRows } from "@/lib/battlePassData";
 
 const S2_TAIL: BpLevel[] = [
   {
@@ -136,4 +137,100 @@ export function s2RewardMileImage(reward: BpReward): string {
   if (reward.id === "hw2-trophy") return "/bp-halloween/trophy-v1-cutout.png";
   if (reward.id === "hw2-nick") return "/bp-halloween/nick-v2-cutout.png";
   return reward.image || BP_S2_IDLE_ART;
+}
+
+/** Детерминированный 0..1 от ника — стабильная имитация между рефрешами. */
+function previewSeed(nick: string): number {
+  let h = 2166136261;
+  const s = String(nick || "").trim().toLowerCase();
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return ((h >>> 0) % 10000) / 10000;
+}
+
+function mockProgressForNick(
+  nick: string,
+  placeHint: number,
+  levels: BpLevel[] = BP_S2_LEVELS
+): BpPlayerProgress {
+  const seed = previewSeed(nick);
+  // Топ по RP → выше в BP; хвост — низкие уровни. Без выдачи наград.
+  const placeBoost = Math.max(0, 1 - placeHint / 55);
+  const mix = Math.min(0.98, seed * 0.35 + placeBoost * 0.72);
+  const maxLv = levels.length;
+  const currentLevel = Math.max(1, Math.min(maxLv, Math.floor(mix * maxLv) + 1));
+  const L = levels[currentLevel - 1] || levels[0];
+  const current = Math.min(
+    L.target - (currentLevel >= maxLv ? 0 : 1),
+    Math.max(0, Math.floor(seed * L.target * 0.85))
+  );
+  return {
+    nick,
+    currentLevel,
+    current,
+    target: L.target,
+  };
+}
+
+/**
+ * Только для /battle-pass/halloween-preview (Keech).
+ * Реальные ники с трейн-рейтинга + фейковые уровни. Ничего не пишет в BP/инвентарь.
+ */
+export async function buildSeason2PreviewMockLeaderboard(opts?: {
+  selfNick?: string;
+  cap?: number;
+}): Promise<{ board: BpPlayerProgress[]; self: BpPlayerProgress }> {
+  const cap = Math.max(10, Math.min(50, opts?.cap ?? 50));
+  const selfNick = String(opts?.selfNick || "").trim();
+
+  let nicks: string[] = [];
+  try {
+    const { buildTrainRpLeaderboard } = await import("@/lib/trainRp");
+    const board = await buildTrainRpLeaderboard();
+    nicks = (board.rows || [])
+      .map((r) => String(r.nick || "").trim())
+      .filter(Boolean);
+  } catch {
+    nicks = [];
+  }
+
+  if (nicks.length < 12) {
+    try {
+      const { prisma } = await import("@/lib/prisma");
+      const users = await prisma.user.findMany({
+        where: { profileComplete: true, nick: { not: null } },
+        select: { nick: true },
+        take: 80,
+        orderBy: { createdAt: "asc" },
+      });
+      for (const u of users) {
+        const n = String(u.nick || "").trim();
+        if (n && !nicks.includes(n)) nicks.push(n);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (selfNick && !nicks.some((n) => n.toLowerCase() === selfNick.toLowerCase())) {
+    nicks.unshift(selfNick);
+  }
+
+  const rows = nicks.slice(0, cap).map((nick, i) =>
+    mockProgressForNick(nick, i + 1)
+  );
+  const board = sortBattlePassRows(rows);
+  const self =
+    board.find(
+      (r) =>
+        selfNick &&
+        r.nick.trim().toLowerCase() === selfNick.toLowerCase()
+    ) ||
+    (selfNick
+      ? mockProgressForNick(selfNick, 8)
+      : mockProgressForNick("Keech", 8));
+
+  return { board, self };
 }

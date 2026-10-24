@@ -3,8 +3,11 @@ import { notFound } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { SITE_CREATOR_STEAM_ID } from "@/lib/profileBg";
 import { BattlePassClient } from "@/components/BattlePassClient";
-import { emptySelfProgress } from "@/lib/battlePass";
-import { BP_S2_LEVELS, BP_S2_REWARDS } from "@/lib/battlePassSeason2";
+import {
+  BP_S2_LEVELS,
+  BP_S2_REWARDS,
+  buildSeason2PreviewMockLeaderboard,
+} from "@/lib/battlePassSeason2";
 
 export const dynamic = "force-dynamic";
 
@@ -20,16 +23,20 @@ export default async function HalloweenBattlePassPreviewPage() {
   }
 
   const nick = session.user.nick || session.user.steamName || "Keech";
+  const mock = await buildSeason2PreviewMockLeaderboard({
+    selfNick: nick,
+    cap: 50,
+  });
 
   return (
     <BattlePassClient
       selfNick={nick}
       selfName={session.user.name || ""}
       selfAvatarUrl={session.user.avatarUrl || session.user.steamAvatar || null}
-      selfProgress={emptySelfProgress(nick)}
-      leaderboard={[]}
+      selfProgress={mock.self}
+      leaderboard={mock.board}
       statusNote="Скрытое превью Season 2 · только Keech"
-      scoringEnabled={false}
+      scoringEnabled
       layout="season2"
       seasonOverride={{
         title: "SEASON 2",
