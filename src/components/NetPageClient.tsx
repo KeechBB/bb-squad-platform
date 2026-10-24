@@ -649,8 +649,8 @@ export function NetPageClient({ nick }: { nick: string }) {
         <h2>Новости</h2>
         <div className="net-scroll">
           {data.news.length === 0 ? <p className="net-empty">За неделю новостей нет</p> : null}
-          {data.news.map((item) => (
-            <article key={item.id} className="net-news-card">
+          {data.news.map((item, i) => (
+            <article key={item.id} className={`net-news-card is-${["violet", "blue", "gold", "green", "rose"][i % 5]}`}>
               <h3 className="net-news-title">{item.title}</h3>
               <div className="net-news-body"><NetRichText text={item.body} /></div>
             </article>
