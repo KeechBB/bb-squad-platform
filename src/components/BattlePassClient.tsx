@@ -331,24 +331,18 @@ function Season2BattlePass({
   );
 }
 
-export function BattlePassClient(props: Props) {
-  if (props.layout === "season2") {
-    return <Season2BattlePass {...props} />;
-  }
-
-  const {
-    selfNick,
-    selfName,
-    selfAvatarUrl,
-    selfProgress,
-    leaderboard,
-    statusNote,
-    scoringEnabled,
-    seasonOverride,
-    detailBg,
-    rewardsOverride,
-  } = props;
-
+function ClassicBattlePass({
+  selfNick,
+  selfName,
+  selfAvatarUrl,
+  selfProgress,
+  leaderboard,
+  statusNote,
+  scoringEnabled,
+  seasonOverride,
+  detailBg,
+  rewardsOverride,
+}: Props) {
   const [selected, setSelected] = useState(selfProgress.currentLevel);
   const player: BpPreviewPlayer = {
     nick: selfNick,
@@ -478,4 +472,11 @@ export function BattlePassClient(props: Props) {
       </main>
     </CanvasScaleStage>
   );
+}
+
+export function BattlePassClient(props: Props) {
+  if (props.layout === "season2") {
+    return <Season2BattlePass {...props} />;
+  }
+  return <ClassicBattlePass {...props} />;
 }
