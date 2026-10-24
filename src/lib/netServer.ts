@@ -7,7 +7,7 @@ import {
   profileBgUrl,
   type ProfileBgId,
 } from "@/lib/profileBg";
-import { netVisibleLength } from "@/lib/netEmoji";
+import { NET_TEXT_MAX, netPlainLength, netVisibleLength } from "@/lib/netEmoji";
 import { detectNetMime, extOf, isStillImage, removeNetFile, saveNetFile, NET_MAX_BYTES, type NetMime } from "@/lib/netMedia";
 import type { NetChatLine, NetPageData, NetPerson, NetThemeCard } from "@/lib/netTypes";
 import type { Role } from "@prisma/client";
@@ -327,6 +327,7 @@ export async function createNetTheme(titleRaw: string, bodyRaw: string, images: 
   const body = bodyRaw.trim();
   if (!title) return { error: "Нужно название темы" };
   if ([...title].length > NET_TITLE_MAX) return { error: `Название до ${NET_TITLE_MAX} знаков` };
+  if (netPlainLength(body) > NET_TEXT_MAX) return { error: `Текст темы до ${NET_TEXT_MAX} знаков` };
   if (!body && images.length === 0) return { error: "Напиши текст или приложи картинку" };
   if (images.length > 3) return { error: "До трёх картинок" };
   const count = await prisma.netTheme.count({ where: { userId: gate.me.id } });
@@ -389,6 +390,7 @@ export async function createNetPost(bodyRaw: string, file: Buffer | null) {
   const gate = await own();
   if ("error" in gate) return gate;
   const body = bodyRaw.trim();
+  if (netPlainLength(body) > NET_TEXT_MAX) return { error: `Текст поста до ${NET_TEXT_MAX} знаков` };
   if (!body && !file) return { error: "Пустой пост" };
   let imageUrl: string | null = null;
   let gifUrl: string | null = null;

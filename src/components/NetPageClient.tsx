@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ProfileV2ScaleStage } from "@/components/ProfileV2ScaleStage";
 import { NetEmojiBar, NetEmojiToggle, NetRichText } from "@/components/NetEmoji";
-import { netVisibleLength } from "@/lib/netEmoji";
+import { NET_TEXT_MAX, netVisibleLength } from "@/lib/netEmoji";
 import type { NetChatLine, NetNewsCard, NetPageData, NetPerson, NetThemeCard } from "@/lib/netTypes";
 
 type Modal = null | "avatar" | "theme" | "bg" | "status" | "subs" | "post" | "news";
@@ -780,7 +780,7 @@ export function NetPageClient({ nick }: { nick: string }) {
                 />
                 {picker ? <NetEmojiBar onPick={(token) => pickEmoji(token, body, setBody)} /> : null}
                 <div className="net-compose-row">
-                  <span className="net-empty">Смайлы в текст</span>
+                  <span className="net-empty">{netVisibleLength(body)} / {NET_TEXT_MAX}</span>
                   <NetEmojiToggle open={picker} onToggle={() => setPicker((v) => !v)} />
                 </div>
                 <input
@@ -794,7 +794,7 @@ export function NetPageClient({ nick }: { nick: string }) {
                   <button
                     type="button"
                     className="net-sub-btn"
-                    disabled={busy || [...title].length > 30}
+                    disabled={busy || [...title].length > 30 || netVisibleLength(body) > NET_TEXT_MAX}
                     onClick={() => {
                       const fd = new FormData();
                       fd.set("kind", "theme");
@@ -822,7 +822,7 @@ export function NetPageClient({ nick }: { nick: string }) {
                 />
                 {picker ? <NetEmojiBar onPick={(token) => pickEmoji(token, postBody, setPostBody)} /> : null}
                 <div className="net-compose-row">
-                  <span className="net-empty">Смайлы в текст</span>
+                  <span className="net-empty">{netVisibleLength(postBody)} / {NET_TEXT_MAX}</span>
                   <NetEmojiToggle open={picker} onToggle={() => setPicker((v) => !v)} />
                 </div>
                 <input
@@ -835,7 +835,7 @@ export function NetPageClient({ nick }: { nick: string }) {
                   <button
                     type="button"
                     className="net-sub-btn"
-                    disabled={busy}
+                    disabled={busy || netVisibleLength(postBody) > NET_TEXT_MAX}
                     onClick={() => {
                       const fd = new FormData();
                       fd.set("kind", "post");

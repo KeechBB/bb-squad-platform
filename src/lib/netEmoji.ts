@@ -35,8 +35,16 @@ export function netEmojiById(id: string): NetEmoji | undefined {
 
 const TOKEN = /:([a-z0-9-]+):/g;
 
+/** Текст одного поста и одной темы. Смайл считается одним знаком. */
+export const NET_TEXT_MAX = 1000;
+
 /** Смайл считается одним знаком, обычные буквы — по одной. */
 export function netVisibleLength(text: string): number {
   const masked = text.replace(TOKEN, (full, id: string) => (BY_ID.has(id) ? "•" : full));
   return [...masked].length;
+}
+
+/** Длина текста без пометок жирного и размера. */
+export function netPlainLength(text: string): number {
+  return netVisibleLength(text.replace(/\[\[\/?(?:b|s:(?:md|lg|xl))\]\]/g, ""));
 }
