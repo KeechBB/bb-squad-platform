@@ -359,20 +359,19 @@ export function Season2BattlePass({
                 <strong className="bp-s2-side-preview-name">
                   {sideReward.name}
                 </strong>
+                <p className="bp-s2-side-preview-desc">
+                  <span className="bp-s2-side-preview-desc-label">
+                    За что награда
+                  </span>
+                  {sideReward.preview || sideReward.hover}
+                </p>
                 <div
                   className={`bp-s2-side-preview-art${
                     sideReward.kind === "bg" ? " is-bg" : ""
                   }`}
-                  tabIndex={0}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={s2RewardFullImage(sideReward)} alt="" />
-                  <div className="bp-s2-side-preview-hint">
-                    <span className="bp-s2-side-preview-hint-label">
-                      За что награда
-                    </span>
-                    <p>{sideReward.preview || sideReward.hover}</p>
-                  </div>
                 </div>
               </div>
             ) : (
