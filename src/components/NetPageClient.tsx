@@ -315,6 +315,7 @@ export function NetPageClient({ nick }: { nick: string }) {
   return (
     <NetFrame bgUrl={data.bgUrl}>
     <main className="net-page">
+      <div className="net-side">
       <section className="net-panel net-avatar" aria-label="Аватар сети">
         {data.avatarUrl ? (
           <img src={data.avatarUrl} alt="" />
@@ -326,6 +327,14 @@ export function NetPageClient({ nick }: { nick: string }) {
       <section className="net-panel net-status" aria-label="Статус">
         {data.status ? <NetRichText text={data.status} /> : <span className="net-empty">Статус</span>}
       </section>
+
+      <section className="net-panel net-subs" aria-label="Подписчики">
+        <h2>Подписчики</h2>
+        <div className="net-scroll">{people(data.followers)}</div>
+      </section>
+
+      <NetFlood />
+      </div>
 
       <section className="net-panel net-panel-ctrl" aria-label="Пульт">
         <Link className="net-back" href="/profile">
@@ -421,13 +430,6 @@ export function NetPageClient({ nick }: { nick: string }) {
         </div>
       </section>
       </div>
-
-      <section className="net-panel net-subs" aria-label="Подписчики">
-        <h2>Подписчики</h2>
-        <div className="net-scroll">{people(data.followers)}</div>
-      </section>
-
-      <NetFlood />
 
       <section className="net-panel net-feed" aria-label="Лента">
         <h2>Лента</h2>

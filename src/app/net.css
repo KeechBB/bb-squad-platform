@@ -57,11 +57,11 @@ body:has(.net-page) .site-footer {
   grid-template-columns: 360px minmax(200px, 1fr) minmax(240px, 1.05fr) 375px;
   grid-template-rows: 132px 46px minmax(72px, auto) 64px minmax(0, 1fr);
   grid-template-areas:
-    "avatar panel themes rail"
-    "status panel themes rail"
-    "subs   panel themes rail"
-    "chat   panel themes rail"
-    "chat   feed  feed   rail";
+    "side panel themes rail"
+    "side panel themes rail"
+    "side panel themes rail"
+    "side panel themes rail"
+    "side feed  feed   rail";
   gap: 10px;
   color: var(--net-ink);
   background: transparent;
@@ -90,8 +90,8 @@ body:has(.net-page) .site-footer {
 .net-avatar { grid-area: avatar; align-items: center; justify-content: center; }
 .net-avatar img,
 .net-avatar .net-avatar-empty {
-  width: 132px;
-  height: 132px;
+  width: 210px;
+  height: 210px;
   border-radius: 12px;
   object-fit: cover;
   background: rgba(255, 255, 255, 0.04);
@@ -155,6 +155,19 @@ body:has(.net-page) .site-footer {
   background: rgba(255, 255, 255, 0.08);
   box-shadow: none;
 }
+
+.net-side {
+  grid-area: side;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.net-side > .net-avatar { flex: 0 0 240px; }
+.net-side > .net-status { flex: 0 0 120px; }
+.net-side > .net-subs { flex: 0 0 auto; max-height: 110px; }
+.net-side > .net-chat { flex: 1 1 0; min-height: 0; }
 
 .net-themes { grid-area: themes; }
 .net-rail {
