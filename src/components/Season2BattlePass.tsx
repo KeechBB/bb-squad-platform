@@ -54,7 +54,7 @@ export function Season2BattlePass({
   leaderboard,
   statusNote,
   scoringEnabled,
-  seasonTitle = "SEASON 2",
+  seasonTitle = "Battle Pass Season 2",
   seasonSubtitle = "Halloween · Фруктовый Сад",
   startLabel = "03.11.2026",
   endLabel = "30.11.2026",

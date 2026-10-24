@@ -36,7 +36,7 @@ export default async function HalloweenBattlePassPreviewPage() {
       scoringEnabled
       layout="season2"
       seasonOverride={{
-        title: "SEASON 2",
+        title: "Battle Pass Season 2",
         subtitle: "Halloween · Фруктовый Сад",
         startLabel: "03.11.2026",
         endLabel: "30.11.2026",
