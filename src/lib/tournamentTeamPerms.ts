@@ -25,6 +25,20 @@ export function canRegisterTournament(actor: ActorCtx): boolean {
   return actor.role === "CAPTAIN" || actor.role === "DEPUTY";
 }
 
+/** Кик из команды: капитан — всех кроме себя; зам — основу/замену/резерв (не кап./зама). */
+export function canKickMember(
+  actor: ActorCtx,
+  targetRole: DbRole,
+  targetUserId: string
+): boolean {
+  if (targetUserId === actor.userId) return false;
+  if (actor.role === "CAPTAIN") return true;
+  if (actor.role === "DEPUTY") {
+    return targetRole !== "CAPTAIN" && targetRole !== "DEPUTY";
+  }
+  return false;
+}
+
 /** Какие роли актёр может выдать цели. */
 export function allowedTargetRoles(
   actor: ActorCtx,

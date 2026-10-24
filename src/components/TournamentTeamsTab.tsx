@@ -105,6 +105,19 @@ function roleOptionsForActor(
   return null;
 }
 
+function canKickTarget(
+  actorRole: string | null,
+  target: ApiMember,
+  actorUserId: string | null
+): boolean {
+  if (!actorUserId || target.userId === actorUserId) return false;
+  if (actorRole === "CAPTAIN") return true;
+  if (actorRole === "DEPUTY") {
+    return target.role !== "CAPTAIN" && target.role !== "DEPUTY";
+  }
+  return false;
+}
+
 function TeamPublicInspect({
   team,
   onBack,
@@ -626,11 +639,13 @@ function MyTeamPanel({
   const [error, setError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const [roleBusyId, setRoleBusyId] = useState<string | null>(null);
+  const [kickBusyId, setKickBusyId] = useState<string | null>(null);
 
   const canInvite = myRole === "CAPTAIN" || myRole === "DEPUTY";
   const canLogo = canInvite;
   const canDelete = myRole === "CAPTAIN";
   const canRoles = canInvite;
+  const canKick = canInvite;
 
   async function sendInvite() {
     if (!team || !canInvite) return;
@@ -772,6 +787,38 @@ function MyTeamPanel({
     }
   }
 
+  async function kickMember(target: ApiMember) {
+    if (!team || !canKick || !canKickTarget(myRole, target, myUserId)) return;
+    if (
+      !confirm(
+        `Кикнуть ${target.nick} из команды [${team.tag}]? Игрок также будет снят с заявки на турнир.`
+      )
+    ) {
+      return;
+    }
+    setKickBusyId(target.userId);
+    setError(null);
+    setOkMsg(null);
+    try {
+      const res = await fetch(`/api/tournaments/teams/${team.id}/kick`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetUserId: target.userId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setError(data.error || "Не удалось кикнуть");
+        return;
+      }
+      setOkMsg(`${target.nick} исключён из команды`);
+      onChanged();
+    } catch {
+      setError("Сеть недоступна");
+    } finally {
+      setKickBusyId(null);
+    }
+  }
+
   if (!team) {
     return (
       <section className="tn-soon" aria-label="Моя команда">
@@ -859,7 +906,10 @@ function MyTeamPanel({
                     <span> — создатель; можно передать</span>
                   ) : null}
                   {role === "deputy" ? (
-                    <span> — приглашения, роли (кроме кап./зама), турнир</span>
+                    <span>
+                      {" "}
+                      — приглашения, кик, роли (кроме кап./зама), турнир
+                    </span>
                   ) : null}
                 </li>
               ))}
@@ -958,11 +1008,13 @@ function MyTeamPanel({
                 <th>Дата вступления</th>
                 <th>Основная роль</th>
                 <th>Клан на сайте</th>
+                {canKick ? <th>Кик</th> : null}
               </tr>
             </thead>
             <tbody>
               {team.members.map((m, i) => {
                 const opts = roleOptionsForActor(myRole, m, myUserId);
+                const showKick = canKickTarget(myRole, m, myUserId);
                 return (
                   <tr key={m.id}>
                     <td>{i + 1}</td>
@@ -1004,6 +1056,26 @@ function MyTeamPanel({
                     <td>
                       {m.clanTag ? `[${m.clanTag}]` : m.clanName || "—"}
                     </td>
+                    {canKick ? (
+                      <td>
+                        {showKick ? (
+                          <button
+                            type="button"
+                            className="tn-kick-btn"
+                            disabled={
+                              busy ||
+                              kickBusyId === m.userId ||
+                              roleBusyId === m.userId
+                            }
+                            onClick={() => void kickMember(m)}
+                          >
+                            Кик
+                          </button>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    ) : null}
                   </tr>
                 );
               })}

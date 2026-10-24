@@ -1367,6 +1367,25 @@
   font-size: 0.82rem;
 }
 
+.tn-kick-btn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(248, 113, 113, 0.55);
+  background: rgba(127, 29, 29, 0.35);
+  color: #fecaca;
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.tn-kick-btn:hover:not(:disabled) {
+  background: rgba(185, 28, 28, 0.55);
+  color: #fff;
+}
+.tn-kick-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .tn-my-control {
   overflow: auto;
 }
