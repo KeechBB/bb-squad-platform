@@ -5,6 +5,10 @@ const nextConfig: NextConfig = {
   compress: true,
   // Не блокировать прод-деплой на существующих nullability warnings в admin routes.
   typescript: { ignoreBuildErrors: true },
+  // Сеть принимает картинки до 50 МБ. Без этого Next обрезает тело запроса на 10 МБ.
+  experimental: {
+    middlewareClientMaxBodySize: "55mb",
+  },
 
   // После деплоя браузер не должен держать старый HTML/RSC.
   // Хэшированные /_next/static/* по-прежнему можно кешировать надолго.

@@ -428,7 +428,7 @@ export function NetPageClient({ nick }: { nick: string }) {
     const json = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) {
-      setFormError(json.error || "Не загрузилось");
+      setFormError(json.error || "Не загрузилось. Если файл большой, подожди и нажми ещё раз.");
       return false;
     }
     await reload();

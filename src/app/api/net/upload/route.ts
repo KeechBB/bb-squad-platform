@@ -18,7 +18,12 @@ async function readBlob(blob: Blob): Promise<Buffer | { error: string }> {
 
 export async function POST(req: Request) {
   const form = await req.formData().catch(() => null);
-  if (!form) return NextResponse.json({ error: "Пустой запрос" }, { status: 400 });
+  if (!form) {
+    return NextResponse.json(
+      { error: "Файл не дошёл. Картинка до 50 МБ: png, jpeg или webp." },
+      { status: 400 },
+    );
+  }
   const kind = String(form.get("kind") || "");
 
   if (kind === "avatar") {
