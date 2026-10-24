@@ -349,10 +349,26 @@ body:has(.net-page) .site-footer {
 }
 .net-vk-comment p { margin: 0; grid-column: 2; }
 .net-vk-comment time {
-  grid-column: 2;
   color: var(--net-muted);
   font-size: 0.7rem;
 }
+.net-vk-meta {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.net-comment-del { font-size: 0.72rem; color: #fda4af; }
+.net-lock {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 0;
+  color: #fde68a;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.net-lock input { width: 16px; height: 16px; accent-color: #f59e0b; }
 .net-compose { display: flex; flex-direction: column; gap: 6px; }
 .net-compose-row { display: flex; gap: 6px; align-items: center; }
 .net-compose-row input {

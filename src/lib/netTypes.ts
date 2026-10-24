@@ -30,6 +30,7 @@ export type NetPostCard = {
   likes: number;
   dislikes: number;
   myVote: -1 | 0 | 1;
+  commentsOpen: boolean;
   createdAt: string;
   comments: NetCommentCard[];
 };

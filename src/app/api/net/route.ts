@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { loadNetPage, setNetStatus, setNetBg, voteNetTheme, deleteNetTheme, voteNetPost, deleteNetPost, commentNetPost, commentNetTheme, setNetFollow, createNetNews } from "@/lib/netServer";
+import { loadNetPage, setNetStatus, setNetBg, voteNetTheme, deleteNetTheme, voteNetPost, deleteNetPost, deleteNetComment, deleteNetThemeComment, commentNetPost, commentNetTheme, setNetFollow, createNetNews } from "@/lib/netServer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,6 +33,8 @@ export async function POST(req: Request) {
       return voteNetPost(String(b.id || ""), value);
     }
     if (action === "delete-post") return deleteNetPost(String(b.id || ""));
+    if (action === "delete-comment") return deleteNetComment(String(b.id || ""));
+    if (action === "delete-theme-comment") return deleteNetThemeComment(String(b.id || ""));
     if (action === "comment") return commentNetPost(String(b.postId || ""), String(b.body || ""));
     if (action === "comment-theme") return commentNetTheme(String(b.themeId || ""), String(b.body || ""));
     if (action === "follow") return setNetFollow(String(b.nick || ""), Boolean(b.on));

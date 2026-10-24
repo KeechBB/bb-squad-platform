@@ -445,6 +445,7 @@ export function NetPageClient({ nick }: { nick: string }) {
   const [images, setImages] = useState<File[]>([]);
   const [postBody, setPostBody] = useState("");
   const [postFile, setPostFile] = useState<File | null>(null);
+  const [postLocked, setPostLocked] = useState(false);
   const [newsTitle, setNewsTitle] = useState("");
   const [newsBody, setNewsBody] = useState("");
   const [comments, setComments] = useState<Record<string, string>>({});
@@ -726,25 +727,44 @@ export function NetPageClient({ nick }: { nick: string }) {
                     <p>
                       <NetRichText text={c.body} />
                     </p>
-                    <time>{whenLabel(c.createdAt)}</time>
+                    <div className="net-vk-meta">
+                      <time>{whenLabel(c.createdAt)}</time>
+                      {data.isOwn ? (
+                        <button
+                          type="button"
+                          className="net-quiet net-comment-del"
+                          onClick={() => {
+                            if (window.confirm("Удалить комментарий?")) {
+                              void act({ action: "delete-comment", id: c.id });
+                            }
+                          }}
+                        >
+                          Удалить
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                 ))}
-                <CommentComposer
-                  value={comments[post.id] || ""}
-                  busy={busy}
-                  onChange={(v) => setComments((prev) => ({ ...prev, [post.id]: v }))}
-                  onSend={() =>
-                    void act({ action: "comment", postId: post.id, body: comments[post.id] || "" }).then((ok) => {
-                      if (ok) setComments((prev) => ({ ...prev, [post.id]: "" }));
-                    })
-                  }
-                />
+                {post.commentsOpen ? (
+                  <CommentComposer
+                    value={comments[post.id] || ""}
+                    busy={busy}
+                    onChange={(v) => setComments((prev) => ({ ...prev, [post.id]: v }))}
+                    onSend={() =>
+                      void act({ action: "comment", postId: post.id, body: comments[post.id] || "" }).then((ok) => {
+                        if (ok) setComments((prev) => ({ ...prev, [post.id]: "" }));
+                      })
+                    }
+                  />
+                ) : (
+                  <p className="net-empty">Комментарии закрыты</p>
+                )}
               </div>
             </article>
           ))}
         </div>
         {data.isOwn ? (
-          <button type="button" className="net-create" onClick={() => { setPostBody(""); setPostFile(null); setPostSize("md"); setPostBold(false); setModal("post"); }}>
+          <button type="button" className="net-create" onClick={() => { setPostBody(""); setPostFile(null); setPostLocked(false); setPostSize("md"); setPostBold(false); setModal("post"); }}>
             Создать пост
           </button>
         ) : null}
@@ -913,6 +933,10 @@ export function NetPageClient({ nick }: { nick: string }) {
                   accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm"
                   onChange={(e) => setPostFile(e.target.files?.[0] || null)}
                 />
+                <label className="net-lock">
+                  <input type="checkbox" checked={postLocked} onChange={(e) => setPostLocked(e.target.checked)} />
+                  Запретить комментарии
+                </label>
                 <div className="net-modal-actions">
                   <button type="button" className="net-quiet" onClick={closeModal}>Закрыть</button>
                   <button
@@ -923,6 +947,7 @@ export function NetPageClient({ nick }: { nick: string }) {
                       const fd = new FormData();
                       fd.set("kind", "post");
                       fd.set("body", packWrite(postBody, postSize, postBold));
+                      if (postLocked) fd.set("commentsOpen", "0");
                       if (postFile) fd.set("file", postFile);
                       void upload(fd).then((ok) => { if (ok) closeModal(); });
                     }}
@@ -1033,7 +1058,22 @@ export function NetPageClient({ nick }: { nick: string }) {
                 <div className="net-vk-comment" key={c.id}>
                   <Link href={`/profile/web/${encodeURIComponent(c.nick)}`}>{c.nick}</Link>
                   <p><NetRichText text={c.body} /></p>
-                  <time>{whenLabel(c.createdAt)}</time>
+                  <div className="net-vk-meta">
+                    <time>{whenLabel(c.createdAt)}</time>
+                    {openTheme.mine ? (
+                      <button
+                        type="button"
+                        className="net-quiet net-comment-del"
+                        onClick={() => {
+                          if (window.confirm("Удалить комментарий?")) {
+                            void act({ action: "delete-theme-comment", id: c.id });
+                          }
+                        }}
+                      >
+                        Удалить
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               ))}
             </div>

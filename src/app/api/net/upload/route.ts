@@ -58,7 +58,8 @@ export async function POST(req: Request) {
       if ("error" in buf) return NextResponse.json(buf, { status: 400 });
       file = buf;
     }
-    const result = await createNetPost(String(form.get("body") || ""), file);
+    const commentsOpen = String(form.get("commentsOpen") || "") !== "0";
+    const result = await createNetPost(String(form.get("body") || ""), file, commentsOpen);
     if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
     return NextResponse.json(result);
   }

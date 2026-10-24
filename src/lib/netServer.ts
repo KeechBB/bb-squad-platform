@@ -235,6 +235,7 @@ export async function loadNetPage(rawNick: string): Promise<NetPageData | { erro
       likes: p.votes.filter((v) => v.value > 0).length,
       dislikes: p.votes.filter((v) => v.value < 0).length,
       myVote: (p.votes.find((v) => v.userId === me.id)?.value === -1 ? -1 : p.votes.some((v) => v.userId === me.id && v.value > 0) ? 1 : 0) as -1 | 0 | 1,
+      commentsOpen: p.commentsOpen,
       createdAt: p.createdAt.toISOString(),
       comments: p.comments
         .filter((c) => c.user.nick)
@@ -386,7 +387,7 @@ function mediaSlot(mime: NetMime): "imageUrl" | "gifUrl" | "videoUrl" {
   return "imageUrl";
 }
 
-export async function createNetPost(bodyRaw: string, file: Buffer | null) {
+export async function createNetPost(bodyRaw: string, file: Buffer | null, commentsOpen = true) {
   const gate = await own();
   if ("error" in gate) return gate;
   const body = bodyRaw.trim();
@@ -406,7 +407,7 @@ export async function createNetPost(bodyRaw: string, file: Buffer | null) {
     else videoUrl = saved;
   }
   await prisma.netPost.create({
-    data: { userId: gate.me.id, body, imageUrl, gifUrl, videoUrl },
+    data: { userId: gate.me.id, body, imageUrl, gifUrl, videoUrl, commentsOpen },
   });
   return { ok: true as const };
 }
@@ -423,6 +424,30 @@ export async function deleteNetPost(id: string) {
   await removeNetFile(row.imageUrl);
   await removeNetFile(row.gifUrl);
   await removeNetFile(row.videoUrl);
+  return { ok: true as const };
+}
+
+export async function deleteNetComment(id: string) {
+  const gate = await own();
+  if ("error" in gate) return gate;
+  const row = await prisma.netComment.findUnique({
+    where: { id },
+    select: { id: true, post: { select: { userId: true } } },
+  });
+  if (!row || row.post.userId !== gate.me.id) return { error: "Комментарий не найден" };
+  await prisma.netComment.delete({ where: { id } });
+  return { ok: true as const };
+}
+
+export async function deleteNetThemeComment(id: string) {
+  const gate = await own();
+  if ("error" in gate) return gate;
+  const row = await prisma.netThemeComment.findUnique({
+    where: { id },
+    select: { id: true, theme: { select: { userId: true } } },
+  });
+  if (!row || row.theme.userId !== gate.me.id) return { error: "Комментарий не найден" };
+  await prisma.netThemeComment.delete({ where: { id } });
   return { ok: true as const };
 }
 
@@ -505,9 +530,10 @@ export async function commentNetPost(postId: string, bodyRaw: string) {
   if (netVisibleLength(body) > 400) return { error: "Комментарий до 400 знаков" };
   const post = await prisma.netPost.findUnique({
     where: { id: postId },
-    select: { id: true, userId: true, user: { select: { nick: true } } },
+    select: { id: true, userId: true, commentsOpen: true, user: { select: { nick: true } } },
   });
   if (!post) return { error: "Пост не найден" };
+  if (!post.commentsOpen) return { error: "Комментарии закрыты" };
   const row = await prisma.netComment.create({ data: { postId, userId: gate.me.id, body } });
   if (post.userId !== gate.me.id && post.user.nick && gate.me.nick) {
     await netNotice({
