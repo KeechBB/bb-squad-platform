@@ -506,21 +506,46 @@ body:has(.net-page) .site-footer {
   background: transparent;
   cursor: zoom-in;
 }
-.net-photo-back {
+.net-loupe {
   position: fixed;
   inset: 0;
-  z-index: 80;
+  z-index: 200;
   overflow: auto;
-  background: rgba(0, 0, 0, 0.86);
-  padding: 28px;
+  background: rgba(0, 0, 0, 0.92);
+  cursor: grab;
 }
-.net-photo-back img {
+.net-loupe.is-drag { cursor: grabbing; }
+.net-loupe-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  background: rgba(8, 10, 16, 0.94);
+  box-shadow: inset 0 -3px 0 #d8b4fe;
+}
+.net-loupe-bar button {
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+  font: inherit;
+  font-weight: 700;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.net-loupe-hint { color: rgba(248, 250, 252, 0.62); font-size: 0.85rem; }
+.net-loupe img {
   display: block;
   width: auto;
   height: auto;
   max-width: none;
-  margin: 0 auto;
-  cursor: zoom-out;
+  margin: 16px auto 48px;
+  user-select: none;
 }
 .net-post-actions,
 .net-comments { display: flex; flex-direction: column; gap: 6px; }

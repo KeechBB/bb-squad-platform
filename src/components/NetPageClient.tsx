@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ProfileV2ScaleStage } from "@/components/ProfileV2ScaleStage";
 import { NetEmojiBar, NetEmojiToggle, NetRichText } from "@/components/NetEmoji";
@@ -191,6 +192,104 @@ function NetFlood() {
         </div>
       </div>
     </section>
+  );
+}
+
+function PhotoLoupe({ src, onClose }: { src: string; onClose: () => void }) {
+  const scroller = useRef<HTMLDivElement>(null);
+  const zoomRef = useRef(1);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const drag = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [natural, setNatural] = useState({ w: 0, h: 0 });
+  const [dragging, setDragging] = useState(false);
+
+  const applyZoom = useCallback((next: number, anchor?: { x: number; y: number }) => {
+    const el = scroller.current;
+    const prev = zoomRef.current || 1;
+    const clamped = Math.min(8, Math.max(0.2, next));
+    zoomRef.current = clamped;
+    setZoom(clamped);
+    if (!el || !anchor) return;
+    const ratio = clamped / prev;
+    const rect = el.getBoundingClientRect();
+    const ox = anchor.x - rect.left + el.scrollLeft;
+    const oy = anchor.y - rect.top + el.scrollTop;
+    requestAnimationFrame(() => {
+      el.scrollLeft = ox * ratio - (anchor.x - rect.left);
+      el.scrollTop = oy * ratio - (anchor.y - rect.top);
+    });
+  }, []);
+
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const dir = e.deltaY < 0 ? 1.2 : 1 / 1.2;
+      applyZoom(zoomRef.current * dir, { x: e.clientX, y: e.clientY });
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeRef.current();
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("keydown", onKey);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [applyZoom]);
+
+  return createPortal(
+    <div
+      className={`net-loupe${dragging ? " is-drag" : ""}`}
+      ref={scroller}
+      onMouseDown={(e) => {
+        if ((e.target as HTMLElement).closest("button")) return;
+        const el = scroller.current;
+        if (!el) return;
+        drag.current = { x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop };
+        setDragging(true);
+      }}
+      onMouseMove={(e) => {
+        if (!drag.current || !scroller.current) return;
+        scroller.current.scrollLeft = drag.current.left - (e.clientX - drag.current.x);
+        scroller.current.scrollTop = drag.current.top - (e.clientY - drag.current.y);
+      }}
+      onMouseUp={() => {
+        drag.current = null;
+        setDragging(false);
+      }}
+      onMouseLeave={() => {
+        drag.current = null;
+        setDragging(false);
+      }}
+    >
+      <div className="net-loupe-bar">
+        <button type="button" onClick={() => applyZoom(zoomRef.current * 1.35)}>Приблизить</button>
+        <button type="button" onClick={() => applyZoom(zoomRef.current / 1.35)}>Отдалить</button>
+        <span>{Math.round(zoom * 100)}%</span>
+        <span className="net-loupe-hint">колёсико — лупа, картинку можно тащить</span>
+        <button type="button" onClick={onClose}>Закрыть</button>
+      </div>
+      <img
+        src={src}
+        alt=""
+        draggable={false}
+        style={natural.w ? { width: Math.round(natural.w * zoom), height: Math.round(natural.h * zoom) } : undefined}
+        onLoad={(e) => {
+          const img = e.currentTarget;
+          const w = img.naturalWidth;
+          const h = img.naturalHeight;
+          setNatural({ w, h });
+          const fit = Math.min((window.innerWidth - 48) / w, (window.innerHeight - 96) / h, 1);
+          zoomRef.current = fit > 0 ? fit : 1;
+          setZoom(zoomRef.current);
+        }}
+      />
+    </div>,
+    document.body,
   );
 }
 
@@ -837,11 +936,7 @@ export function NetPageClient({ nick }: { nick: string }) {
         </div>
       ) : null}
 
-      {photo ? (
-        <div className="net-photo-back" onMouseDown={() => setPhoto(null)}>
-          <img src={photo} alt="" />
-        </div>
-      ) : null}
+      {photo ? <PhotoLoupe src={photo} onClose={() => setPhoto(null)} /> : null}
     </main>
     </NetFrame>
   );
