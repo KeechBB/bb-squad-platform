@@ -247,7 +247,6 @@ function NetFlood() {
           <div key={m.id} className="net-chat-line">
             <div className="net-chat-meta">
               <Link href={`/profile/web/${encodeURIComponent(m.nick)}`} style={{ color: nickColor(m.nick) }}>{m.nick}</Link>
-              <span className="net-chat-rule" style={{ background: nickColor(m.nick) }} />
               <time>{clockLabel(m.createdAt)}</time>
             </div>
             <div className="net-chat-body">

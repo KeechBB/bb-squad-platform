@@ -500,14 +500,12 @@ body:has(.net-page) .site-footer {
 }
 .net-chat-meta {
   display: flex;
-  align-items: center;
+  align-items: baseline;
+  justify-content: space-between;
   gap: 8px;
-}
-.net-chat-rule {
-  flex: 1 1 auto;
-  height: 2px;
-  min-width: 18px;
-  border-radius: 99px;
+  margin: 0 -10px;
+  padding: 1px 10px;
+  background: rgba(255, 255, 255, 0.06);
 }
 .net-chat-meta a {
   font-weight: 800;
