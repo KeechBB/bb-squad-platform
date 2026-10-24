@@ -46,5 +46,5 @@ export function netVisibleLength(text: string): number {
 
 /** Длина текста без пометок жирного и размера. */
 export function netPlainLength(text: string): number {
-  return netVisibleLength(text.replace(/\[\[\/?(?:b|s:(?:md|lg|xl))\]\]/g, ""));
+  return netVisibleLength(text.replace(/\[\[\/?(?:b|y|s:(?:md|lg|xl))\]\]/g, ""));
 }

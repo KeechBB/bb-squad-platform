@@ -114,15 +114,16 @@ function linkify(chunk: string): ReactNode[] {
 }
 
 export function NetRichText({ text }: { text: string }) {
-  const re = /\[\[b\]\]|\[\[\/b\]\]|\[\[s:(md|lg|xl)\]\]|\[\[\/s\]\]|:([a-z0-9-]+):/g;
+  const re = /\[\[b\]\]|\[\[\/b\]\]|\[\[y\]\]|\[\[\/y\]\]|\[\[s:(md|lg|xl)\]\]|\[\[\/s\]\]|:([a-z0-9-]+):/g;
   const nodes: ReactNode[] = [];
   let bold = false;
+  let gold = false;
   let size = "";
   let last = 0;
   let key = 0;
   const push = (chunk: string) => {
     if (!chunk) return;
-    const cls = [bold ? "is-bold" : "", size].filter(Boolean).join(" ");
+    const cls = [bold ? "is-bold" : "", gold ? "is-y" : "", size].filter(Boolean).join(" ");
     nodes.push(
       <span key={key++} className={cls || undefined}>
         {linkify(chunk)}
@@ -134,6 +135,8 @@ export function NetRichText({ text }: { text: string }) {
     push(text.slice(last, match.index));
     if (match[0] === "[[b]]") bold = true;
     else if (match[0] === "[[/b]]") bold = false;
+    else if (match[0] === "[[y]]") gold = true;
+    else if (match[0] === "[[/y]]") gold = false;
     else if (match[0] === "[[/s]]") size = "";
     else if (match[1] === "lg") size = "is-lg";
     else if (match[1] === "xl") size = "is-xl";

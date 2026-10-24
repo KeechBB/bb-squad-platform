@@ -734,10 +734,18 @@ body:has(.net-page) .site-footer {
   text-shadow: 0 0 14px rgba(251, 191, 36, 0.7);
 }
 .net-news-body {
-  color: #e7e9f2;
-  font-size: 0.95rem;
-  line-height: 1.45;
+  color: #f4f0ff;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.5;
   white-space: pre-wrap;
+}
+.net-rich .is-y {
+  color: #fde68a;
+  font-weight: 800;
+  text-shadow: 0 0 12px rgba(250, 204, 21, 0.4);
 }
 .net-link {
   color: #93c5fd;
