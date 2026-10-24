@@ -203,6 +203,37 @@ function people(list: NetPerson[]) {
   ));
 }
 
+type WriteSize = "md" | "lg" | "xl";
+
+function packWrite(text: string, size: WriteSize, bold: boolean) {
+  const clean = text.replace(/\[\[\/?(?:b|s:(?:md|lg|xl))\]\]/g, "");
+  let out = clean;
+  if (bold) out = `[[b]]${out}[[/b]]`;
+  if (size !== "md") out = `[[s:${size}]]${out}[[/s]]`;
+  return out;
+}
+
+function WriteTools({
+  size,
+  bold,
+  onSize,
+  onBold,
+}: {
+  size: WriteSize;
+  bold: boolean;
+  onSize: (size: WriteSize) => void;
+  onBold: () => void;
+}) {
+  return (
+    <div className="net-write-tools">
+      <button type="button" className={size === "md" ? "is-on" : ""} onClick={() => onSize("md")}>Обычный</button>
+      <button type="button" className={size === "lg" ? "is-on" : ""} onClick={() => onSize("lg")}>Крупный</button>
+      <button type="button" className={size === "xl" ? "is-on" : ""} onClick={() => onSize("xl")}>Огромный</button>
+      <button type="button" className={bold ? "is-on" : ""} onClick={onBold}><b>Жирный</b></button>
+    </div>
+  );
+}
+
 export function NetPageClient({ nick }: { nick: string }) {
   const [data, setData] = useState<NetPageData | null>(null);
   const [error, setError] = useState("");
@@ -225,6 +256,10 @@ export function NetPageClient({ nick }: { nick: string }) {
   const [comments, setComments] = useState<Record<string, string>>({});
   const [themeDraft, setThemeDraft] = useState("");
   const [picker, setPicker] = useState(false);
+  const [themeSize, setThemeSize] = useState<WriteSize>("md");
+  const [themeBold, setThemeBold] = useState(false);
+  const [postSize, setPostSize] = useState<WriteSize>("md");
+  const [postBold, setPostBold] = useState(false);
 
   const reload = useCallback(async () => {
     const res = await fetch(`/api/net?nick=${encodeURIComponent(nick)}`, { cache: "no-store" });
@@ -337,15 +372,15 @@ export function NetPageClient({ nick }: { nick: string }) {
       </div>
 
       <section className="net-panel net-panel-ctrl" aria-label="Пульт">
-        <Link className="net-back" href="/profile">
-          ← профиль
-        </Link>
-        <h2>Сеть · {data.nick}</h2>
+        <h2>
+          <Link className="net-back" href="/profile">← профиль</Link>
+          Сеть · {data.nick}
+        </h2>
         <div className="net-ctrl-list">
           {data.isOwn ? (
             <>
               <button type="button" onClick={() => setModal("avatar")}>Аватар</button>
-              <button type="button" onClick={() => { setTitle(""); setBody(""); setImages([]); setModal("theme"); }}>
+              <button type="button" onClick={() => { setTitle(""); setBody(""); setImages([]); setThemeSize("md"); setThemeBold(false); setModal("theme"); }}>
                 Создание темы
               </button>
               <button type="button" onClick={() => { setBgId(data.bgId); setModal("bg"); }}>Фон</button>
@@ -485,7 +520,7 @@ export function NetPageClient({ nick }: { nick: string }) {
           ))}
         </div>
         {data.isOwn ? (
-          <button type="button" className="net-create" onClick={() => { setPostBody(""); setPostFile(null); setModal("post"); }}>
+          <button type="button" className="net-create" onClick={() => { setPostBody(""); setPostFile(null); setPostSize("md"); setPostBold(false); setModal("post"); }}>
             Создать пост
           </button>
         ) : null}
@@ -493,7 +528,7 @@ export function NetPageClient({ nick }: { nick: string }) {
 
       {modal ? (
         <div className="net-modal-back" onMouseDown={closeModal}>
-          <div className="net-modal" onMouseDown={(e) => e.stopPropagation()} role="dialog">
+          <div className={`net-modal${modal === "theme" ? " is-theme" : modal === "post" ? " is-post" : ""}`} onMouseDown={(e) => e.stopPropagation()} role="dialog">
             {formError ? <p className="net-error">{formError}</p> : null}
 
             {modal === "avatar" ? (
@@ -595,7 +630,13 @@ export function NetPageClient({ nick }: { nick: string }) {
                   placeholder="Название, до 30 знаков"
                   onChange={(e) => setTitle(e.target.value)}
                 />
-                <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Текст" />
+                <WriteTools size={themeSize} bold={themeBold} onSize={setThemeSize} onBold={() => setThemeBold((v) => !v)} />
+                <textarea
+                  className={`${themeSize === "md" ? "" : `is-${themeSize}`}${themeBold ? " is-bold" : ""}`}
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  placeholder="Текст"
+                />
                 {picker ? <NetEmojiBar onPick={(token) => pickEmoji(token, body, setBody)} /> : null}
                 <div className="net-compose-row">
                   <span className="net-empty">Смайлы в текст</span>
@@ -617,7 +658,7 @@ export function NetPageClient({ nick }: { nick: string }) {
                       const fd = new FormData();
                       fd.set("kind", "theme");
                       fd.set("title", title);
-                      fd.set("body", body);
+                      fd.set("body", packWrite(body, themeSize, themeBold));
                       for (const file of images) fd.append("images", file);
                       void upload(fd).then((ok) => { if (ok) closeModal(); });
                     }}
@@ -631,7 +672,13 @@ export function NetPageClient({ nick }: { nick: string }) {
             {modal === "post" ? (
               <>
                 <h3>Новый пост</h3>
-                <textarea value={postBody} onChange={(e) => setPostBody(e.target.value)} placeholder="Текст" />
+                <WriteTools size={postSize} bold={postBold} onSize={setPostSize} onBold={() => setPostBold((v) => !v)} />
+                <textarea
+                  className={`${postSize === "md" ? "" : `is-${postSize}`}${postBold ? " is-bold" : ""}`}
+                  value={postBody}
+                  onChange={(e) => setPostBody(e.target.value)}
+                  placeholder="Текст"
+                />
                 {picker ? <NetEmojiBar onPick={(token) => pickEmoji(token, postBody, setPostBody)} /> : null}
                 <div className="net-compose-row">
                   <span className="net-empty">Смайлы в текст</span>
@@ -651,7 +698,7 @@ export function NetPageClient({ nick }: { nick: string }) {
                     onClick={() => {
                       const fd = new FormData();
                       fd.set("kind", "post");
-                      fd.set("body", postBody);
+                      fd.set("body", packWrite(postBody, postSize, postBold));
                       if (postFile) fd.set("file", postFile);
                       void upload(fd).then((ok) => { if (ok) closeModal(); });
                     }}

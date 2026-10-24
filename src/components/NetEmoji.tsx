@@ -1,6 +1,7 @@
 "use client";
 
 import { NET_EMOJI, netEmojiById, type NetEmoji } from "@/lib/netEmoji";
+import type { ReactNode } from "react";
 
 function Face({ item, size }: { item: NetEmoji; size: number }) {
   const m = item.mouth;
@@ -81,15 +82,36 @@ export function NetMark({ id, size = 44 }: { id: string; size?: number }) {
 }
 
 export function NetRichText({ text }: { text: string }) {
-  const parts = text.split(/:([a-z0-9-]+):/g);
-  return (
-    <span className="net-rich">
-      {parts.map((part, i) => {
-        if (i % 2 === 1 && netEmojiById(part)) return <NetMark key={i} id={part} />;
-        return <span key={i}>{part}</span>;
-      })}
-    </span>
-  );
+  const re = /\[\[b\]\]|\[\[\/b\]\]|\[\[s:(md|lg|xl)\]\]|\[\[\/s\]\]|:([a-z0-9-]+):/g;
+  const nodes: ReactNode[] = [];
+  let bold = false;
+  let size = "";
+  let last = 0;
+  let key = 0;
+  const push = (chunk: string) => {
+    if (!chunk) return;
+    const cls = [bold ? "is-bold" : "", size].filter(Boolean).join(" ");
+    nodes.push(
+      <span key={key++} className={cls || undefined}>
+        {chunk}
+      </span>,
+    );
+  };
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text))) {
+    push(text.slice(last, match.index));
+    if (match[0] === "[[b]]") bold = true;
+    else if (match[0] === "[[/b]]") bold = false;
+    else if (match[0] === "[[/s]]") size = "";
+    else if (match[1] === "lg") size = "is-lg";
+    else if (match[1] === "xl") size = "is-xl";
+    else if (match[1] === "md") size = "";
+    else if (match[2] && netEmojiById(match[2])) nodes.push(<NetMark key={key++} id={match[2]} />);
+    else push(match[0]);
+    last = match.index + match[0].length;
+  }
+  push(text.slice(last));
+  return <span className="net-rich">{nodes}</span>;
 }
 
 export function NetEmojiBar({ onPick }: { onPick: (token: string) => void }) {

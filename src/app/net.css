@@ -80,11 +80,13 @@ body:has(.net-page) .site-footer {
 
 .net-panel h2 {
   margin: 0;
-  padding: 8px 10px 0;
+  padding: 12px 16px;
   font-family: var(--font-display);
-  font-size: 0.78rem;
-  letter-spacing: 0.04em;
+  font-size: 1.15rem;
+  letter-spacing: 0.03em;
   font-weight: 700;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -3px 0 #d8b4fe;
 }
 
 .net-avatar { grid-area: avatar; align-items: center; justify-content: center; }
@@ -322,13 +324,33 @@ body:has(.net-page) .site-footer {
 .net-theme-read {
   flex: 0 1 46%;
   overflow: auto;
-  padding: 14px 14px 8px;
+  padding: 0 0 8px;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-.net-theme-read-head { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
-.net-theme-read-head h3 { margin: 0; }
+.net-theme-read-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  margin: 0;
+  padding: 12px 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -3px 0 #d8b4fe;
+}
+.net-theme-read-head h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+}
+.net-theme-read > a,
+.net-theme-read > .net-post-body,
+.net-theme-read > img,
+.net-theme-read > .net-row-actions {
+  margin-left: 14px;
+  margin-right: 14px;
+}
 .net-theme-comments {
   flex: 1 1 auto;
   min-height: 0;
@@ -522,7 +544,22 @@ body:has(.net-page) .site-footer {
   flex-direction: column;
   gap: 8px;
 }
-.net-modal h3 { margin: 0; font-family: var(--font-display); }
+.net-modal.is-theme {
+  width: min(1120px, 94vw);
+  height: min(88vh, 960px);
+  max-height: 88vh;
+}
+.net-modal.is-post {
+  width: min(760px, 94vw);
+}
+.net-modal > h3 {
+  margin: -14px -14px 0;
+  padding: 14px 16px;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -3px 0 #d8b4fe;
+}
 .net-modal input,
 .net-modal textarea {
   width: 100%;
@@ -535,6 +572,28 @@ body:has(.net-page) .site-footer {
   padding: 8px;
 }
 .net-modal textarea { min-height: 120px; resize: vertical; }
+.net-modal.is-theme textarea { flex: 1 1 auto; min-height: 420px; }
+.net-modal.is-post textarea { min-height: 220px; }
+.net-modal textarea.is-lg { font-size: 1.45rem; line-height: 1.35; }
+.net-modal textarea.is-xl { font-size: 2rem; line-height: 1.25; }
+.net-modal textarea.is-bold { font-weight: 800; }
+.net-rich .is-lg { font-size: 1.45rem; line-height: 1.35; }
+.net-rich .is-xl { font-size: 2rem; line-height: 1.25; }
+.net-rich .is-bold { font-weight: 800; }
+.net-write-tools { display: flex; flex-wrap: wrap; gap: 6px; }
+.net-write-tools button {
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font: inherit;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.net-write-tools button.is-on {
+  border-color: #facc15;
+  background: rgba(250, 204, 21, 0.16);
+}
 .net-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .net-bg-grid {
   display: grid;
@@ -584,7 +643,12 @@ body:has(.net-page) .site-footer {
 .net-error { color: #fda4af; font-size: 0.8rem; margin: 0; }
 .net-back {
   color: #fde68a;
-  font-size: 0.75rem;
   text-decoration: none;
-  padding: 8px 10px 0;
+}
+.net-panel h2 .net-back {
+  display: block;
+  padding: 0 0 2px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0;
 }
