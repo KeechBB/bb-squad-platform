@@ -39,7 +39,7 @@ export default async function HalloweenBattlePassPreviewPage() {
         endLabel: "30.11.2026",
       }}
       detailBg="/bp-halloween/hero-squad.jpg"
-      sideArtUrl={null}
+      sideArtUrl="/bp-halloween/gallows-animated.webp"
       levelsOverride={BP_S2_LEVELS}
       rewardsOverride={BP_S2_REWARDS}
     />

@@ -18849,6 +18849,24 @@ body:has(.profile-page) {
   height: 100%;
   object-fit: cover;
   display: block;
+  animation: bp-side-art-breathe 9s ease-in-out infinite alternate;
+}
+
+@keyframes bp-side-art-breathe {
+  from {
+    transform: scale(1.02);
+    filter: brightness(0.94) saturate(1.02);
+  }
+  to {
+    transform: scale(1.09);
+    filter: brightness(1.06) saturate(1.12);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bp-side-art img {
+    animation: none;
+  }
 }
 .bp-side-art-slot {
   display: flex;
