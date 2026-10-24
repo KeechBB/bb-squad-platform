@@ -796,7 +796,7 @@ export function NetPageClient({ nick }: { nick: string }) {
                 <textarea value={status} onChange={(e) => setStatus(e.target.value)} />
                 {picker ? <NetEmojiBar onPick={(token) => pickEmoji(token, status, setStatus)} /> : null}
                 <div className="net-compose-row">
-                  <p className="net-empty">{netVisibleLength(status)} / 40</p>
+                  <p className="net-empty">{netVisibleLength(status)} / 50</p>
                   <NetEmojiToggle open={picker} onToggle={() => setPicker((v) => !v)} />
                 </div>
                 <div className="net-modal-actions">
@@ -804,7 +804,7 @@ export function NetPageClient({ nick }: { nick: string }) {
                   <button
                     type="button"
                     className="net-sub-btn"
-                    disabled={busy || netVisibleLength(status) > 40}
+                    disabled={busy || netVisibleLength(status) > 50}
                     onClick={() => void act({ action: "status", text: status }).then((ok) => { if (ok) closeModal(); })}
                   >
                     Подтвердить
