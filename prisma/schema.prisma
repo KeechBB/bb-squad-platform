@@ -114,6 +114,16 @@ model User {
   trainingMatchVotes         TrainingMatchVote[]
   siteNoticeStates           SiteNoticeState[]
   userNotices                UserNotice[]
+  netProfile                 NetProfile?
+  netThemes                  NetTheme[]
+  netThemeVotes              NetThemeVote[]
+  netPosts                   NetPost[]
+  netPostVotes               NetPostVote[]
+  netComments                NetComment[]
+  netThemeComments           NetThemeComment[]
+  netFollowing               NetFollow[] @relation("NetFollower")
+  netFollowers               NetFollow[] @relation("NetFollowing")
+  netNews                    NetNews[]
 }
 
 /// Метка игрока на клановой карте (одна на пользователя).
@@ -854,4 +864,124 @@ model TournamentTeamInvite {
 
   @@index([userId, status])
   @@index([teamId, status])
+}
+
+/// Страница «Сеть»: аватар, статус и фон отдельно от профиля.
+model NetProfile {
+  userId    String   @id
+  avatarUrl String?
+  /// Мысли, до 20 видимых знаков (смайл считается за один).
+  status    String?
+  /// Фон только этой страницы. Id из PROFILE_BG_OPTIONS.
+  bgId      String?
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model NetTheme {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  body      String   @db.Text
+  imageUrls String[] @default([])
+  createdAt DateTime @default(now())
+
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  votes    NetThemeVote[]
+  comments NetThemeComment[]
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
+model NetThemeComment {
+  id        String   @id @default(cuid())
+  themeId   String
+  userId    String
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  theme NetTheme @relation(fields: [themeId], references: [id], onDelete: Cascade)
+  user  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([themeId, createdAt])
+}
+
+model NetThemeVote {
+  id      String @id @default(cuid())
+  themeId String
+  userId  String
+  /// 1 лайк, -1 дизлайк
+  value   Int
+
+  theme NetTheme @relation(fields: [themeId], references: [id], onDelete: Cascade)
+  user  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([themeId, userId])
+  @@index([userId])
+}
+
+model NetPost {
+  id        String   @id @default(cuid())
+  userId    String
+  body      String   @default("") @db.Text
+  imageUrl  String?
+  gifUrl    String?
+  videoUrl  String?
+  createdAt DateTime @default(now())
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  votes    NetPostVote[]
+  comments NetComment[]
+
+  @@index([userId, createdAt])
+}
+
+model NetPostVote {
+  id     String @id @default(cuid())
+  postId String
+  userId String
+
+  post NetPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+}
+
+model NetComment {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  post NetPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+}
+
+model NetFollow {
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("NetFollower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("NetFollowing", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
+  @@index([followingId])
+}
+
+model NetNews {
+  id        String   @id @default(cuid())
+  authorId  String
+  title     String
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
 }

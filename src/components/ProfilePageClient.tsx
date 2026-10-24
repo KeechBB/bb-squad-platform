@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { AvatarEditor } from "@/components/AvatarEditor";
 import { ClanInvites } from "@/components/ClanInvites";
 import { AdminPanelLink } from "@/components/AdminPanelLink";
@@ -350,6 +351,14 @@ export function ProfilePageClient({ subjectNick }: { subjectNick?: string } = {}
         />
         )}
         <ProfileModeSwitch value={mode} onChange={changeMode} />
+        {nickForKv ? (
+          <Link
+            href={`/profile/web/${encodeURIComponent(nickForKv)}`}
+            className="profile-net-entry"
+          >
+            Сеть
+          </Link>
+        ) : null}
         {readOnly ? null : <ClanInvites initial={shell.invites} />}
         <ProfileMedalShelf
           slots={shell.medalSlots}
