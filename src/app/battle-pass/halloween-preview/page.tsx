@@ -3,11 +3,8 @@ import { notFound } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { SITE_CREATOR_STEAM_ID } from "@/lib/profileBg";
 import { BattlePassClient } from "@/components/BattlePassClient";
-import {
-  BP_S2_LEVELS,
-  BP_S2_REWARDS,
-  buildSeason2PreviewMockLeaderboard,
-} from "@/lib/battlePassSeason2";
+import { BP_S2_LEVELS, BP_S2_REWARDS } from "@/lib/battlePassSeason2";
+import { buildSeason2PreviewMockLeaderboard } from "@/lib/battlePassSeason2Preview";
 
 export const dynamic = "force-dynamic";
 
