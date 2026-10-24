@@ -18556,26 +18556,41 @@ body:has(.profile-page) {
   gap: 8px;
 }
 
-/* Season 2: ?????? ??? ??????, ????? ???-10 | ??? */
+/* Season 2 layout: hero ? detail ? track ? top10|art (??? ?????? ?????) */
 .bp-page.is-season2 {
-  gap: 10px;
+  gap: 8px;
+}
+.bp-page.is-season2 > .bp-hero {
+  flex: 0 0 auto;
+  padding: 10px 16px 8px;
+}
+.bp-page.is-season2 > .bp-hero .bp-hero-title {
+  font-size: clamp(1.6rem, 2.6vw, 2.2rem);
+}
+.bp-page.is-season2 > .bp-hero .bp-hero-dates {
+  margin-top: 4px;
 }
 .bp-page.is-season2 > .bp-detail {
-  flex: 0 1 34%;
-  min-height: 160px;
-  max-height: 38%;
+  flex: 0 0 auto;
+  height: 200px;
+  min-height: 200px;
+  max-height: 200px;
 }
 .bp-page.is-season2.has-reward-selected > .bp-detail {
-  flex: 1 1 48%;
-  max-height: 52%;
-  min-height: 240px;
+  height: 320px;
+  min-height: 320px;
+  max-height: 320px;
 }
 .bp-page.is-season2 > .bp-track-wrap {
   flex: 0 0 auto;
+  flex-shrink: 0;
+  min-height: 148px;
+  overflow-x: auto;
+  overflow-y: visible;
 }
 .bp-page.is-season2 > .bp-body-s2 {
-  flex: 1 1 28%;
-  min-height: 140px;
+  flex: 1 1 auto;
+  min-height: 160px;
 }
 /* Season 2 rewards: toxic green + pumpkin orange glow (?? ?????? S1) */
 .bp-page.is-season2 {
@@ -19085,20 +19100,35 @@ body:has(.profile-page) {
   overflow: visible;
 }
 
-/* Season 2: ? ??????? ???? ??? ??????? ? ?????? ????? ??? ?????? */
+/* Season 2 detail: ??????? ??????, ??? ?????? ???? ?????????? */
 .bp-page.is-season2 > .bp-detail .bp-detail-top {
   flex: 1 1 auto;
   max-height: none;
+  height: 100%;
   overflow: auto;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 12px 14px;
+  box-sizing: border-box;
+}
+.bp-page.is-season2 > .bp-detail .bp-progress {
+  margin-top: auto;
 }
 .bp-page.is-season2 > .bp-detail.has-reward .bp-detail-reward .bp-mock {
-  max-height: min(220px, 36vh);
+  max-height: 140px;
   overflow: hidden;
 }
 .bp-page.is-season2 > .bp-detail.has-reward .bp-detail-reward.kind-nick .bp-mock,
 .bp-page.is-season2 > .bp-detail.has-reward .bp-detail-reward.kind-bg .bp-mock,
 .bp-page.is-season2 > .bp-detail.has-reward .bp-detail-reward.kind-medal .bp-mock {
-  max-height: min(280px, 42vh);
+  max-height: 180px;
+}
+.bp-page.is-season2 > .bp-body-s2 {
+  border: none;
+  border-top: none;
+}
+.bp-page.is-season2 > .bp-body-s2 .bp-board {
+  border-color: rgba(167, 139, 250, 0.28);
 }
 
 .bp-detail-head {
