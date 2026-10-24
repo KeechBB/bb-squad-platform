@@ -6,6 +6,7 @@ import { HomePanels } from "@/components/HomePanels";
 import { HomeFit } from "@/components/HomeFit";
 import { HomeLoginPrompt } from "@/components/HomeLoginPrompt";
 import { HomeTournamentAnnounce } from "@/components/HomeTournamentAnnounce";
+import { HomeNetAnnounce } from "@/components/HomeNetAnnounce";
 
 export const dynamic = "force-dynamic";
 
@@ -103,6 +104,7 @@ export default async function HomePage() {
         </div>
 
         <section className="home-hero" aria-label="BlackBerry">
+          <HomeNetAnnounce nick={session?.user?.nick || null} />
           <div className="home-hero-brand">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
