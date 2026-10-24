@@ -1394,16 +1394,18 @@ body:has(.tm-sapper-page) {
   background:
     linear-gradient(
       180deg,
-      #f3e8ff 0%,
-      #c084fc 30%,
-      #7c3aed 56%,
-      #3b0764 82%,
-      #8b5cf6 100%
+      #f5e9ff 0%,
+      #d8b4fe 28%,
+      #a855f7 52%,
+      #6b21a8 78%,
+      #c4b5fd 100%
     );
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  -webkit-text-stroke: 0.3px rgba(24, 4, 48, 0.95);
+  /* ?????? ?????? ?????? + ?????? ?????????? ???????? */
+  -webkit-text-stroke: 1px rgba(12, 2, 28, 0.92);
+  paint-order: stroke fill;
   font-family: var(--font-display), Oxanium, Manrope, sans-serif;
   font-size: 1rem;
   font-weight: 800;
@@ -1411,8 +1413,9 @@ body:has(.tm-sapper-page) {
   line-height: 1.05;
   text-transform: none;
   filter:
-    drop-shadow(0 0 5px rgba(132, 255, 54, 0.5))
-    drop-shadow(0 2px 9px rgba(88, 28, 220, 0.6));
+    drop-shadow(0 0 0.6px rgba(8, 0, 20, 1))
+    drop-shadow(0 1px 1px rgba(0, 0, 0, 0.85))
+    drop-shadow(0 0 3px rgba(124, 58, 237, 0.28));
   transition: filter 0.16s ease;
 }
 .public-rating-nick-label.is-halloween-gothic::after {
@@ -1424,10 +1427,10 @@ body:has(.tm-sapper-page) {
   background:
     linear-gradient(
       105deg,
-      transparent 22%,
-      rgba(216, 255, 196, 0.16) 39%,
-      rgba(240, 255, 235, 0.85) 48%,
-      rgba(168, 85, 247, 0.22) 57%,
+      transparent 24%,
+      rgba(233, 213, 255, 0.12) 40%,
+      rgba(250, 245, 255, 0.45) 48%,
+      rgba(168, 85, 247, 0.14) 56%,
       transparent 72%
     );
   background-position: 145% 0;
@@ -1445,9 +1448,9 @@ body:has(.tm-sapper-page) {
 .public-rating-nick-btn.has-custom-nick-style:focus-visible
   .public-rating-nick-label.is-halloween-gothic {
   filter:
-    drop-shadow(0 0 8px rgba(132, 255, 54, 0.75))
-    drop-shadow(0 2px 11px rgba(109, 40, 217, 0.75))
-    brightness(1.14);
+    drop-shadow(0 0 0.6px rgba(8, 0, 20, 1))
+    drop-shadow(0 1px 1px rgba(0, 0, 0, 0.9))
+    drop-shadow(0 0 5px rgba(139, 92, 246, 0.38));
 }
 .nick-patch-mark,
 .public-rating-bp-patch-test {
@@ -9754,22 +9757,24 @@ body:has(.home-page) {
   background:
     linear-gradient(
       180deg,
-      #f3e8ff 0%,
-      #c084fc 30%,
-      #7c3aed 56%,
-      #3b0764 82%,
-      #8b5cf6 100%
+      #f5e9ff 0%,
+      #d8b4fe 28%,
+      #a855f7 52%,
+      #6b21a8 78%,
+      #c4b5fd 100%
     );
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  -webkit-text-stroke: 0.3px rgba(24, 4, 48, 0.95);
+  -webkit-text-stroke: 1px rgba(12, 2, 28, 0.92);
+  paint-order: stroke fill;
   font-family: var(--font-display), Oxanium, Manrope, sans-serif;
   font-weight: 800;
   letter-spacing: 0.018em;
   filter:
-    drop-shadow(0 0 5px rgba(132, 255, 54, 0.5))
-    drop-shadow(0 2px 9px rgba(88, 28, 220, 0.6));
+    drop-shadow(0 0 0.6px rgba(8, 0, 20, 1))
+    drop-shadow(0 1px 1px rgba(0, 0, 0, 0.85))
+    drop-shadow(0 0 3px rgba(124, 58, 237, 0.28));
 }
 
 .home-nick-label.is-halloween-gothic::after {
@@ -9781,10 +9786,10 @@ body:has(.home-page) {
   background:
     linear-gradient(
       105deg,
-      transparent 22%,
-      rgba(216, 255, 196, 0.16) 39%,
-      rgba(240, 255, 235, 0.85) 48%,
-      rgba(168, 85, 247, 0.22) 57%,
+      transparent 24%,
+      rgba(233, 213, 255, 0.12) 40%,
+      rgba(250, 245, 255, 0.45) 48%,
+      rgba(168, 85, 247, 0.14) 56%,
       transparent 72%
     );
   background-position: 145% 0;
