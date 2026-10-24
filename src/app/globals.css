@@ -18674,6 +18674,73 @@ body:has(.profile-page) {
   gap: 8px;
 }
 
+/* ????? ????? ???????? (01?03.11 ????? PB1) */
+.bp-page.bp-intermission {
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: 24px 16px;
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 30%, rgba(74, 222, 128, 0.12), transparent 55%),
+    radial-gradient(ellipse 50% 50% at 80% 70%, rgba(167, 139, 250, 0.1), transparent 50%),
+    #07060c;
+}
+.bp-intermission-card {
+  width: min(560px, 100%);
+  text-align: center;
+  padding: 36px 28px 32px;
+  border-radius: 16px;
+  border: 1px solid rgba(74, 222, 128, 0.35);
+  background:
+    linear-gradient(180deg, rgba(14, 22, 16, 0.96), rgba(10, 8, 16, 0.92));
+  box-shadow:
+    0 0 28px rgba(74, 222, 128, 0.14),
+    inset 0 1px 0 rgba(134, 239, 172, 0.14);
+}
+.bp-intermission-eyebrow {
+  margin: 0 0 8px;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #4ade80;
+}
+.bp-intermission-title {
+  margin: 0;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-size: clamp(1.6rem, 3vw, 2.1rem);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #ecfdf5;
+}
+.bp-intermission-headline {
+  margin: 14px 0 0;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-size: clamp(1.15rem, 2vw, 1.45rem);
+  font-weight: 700;
+  color: #bbf7d0;
+}
+.bp-intermission-body {
+  margin: 16px 0 0;
+  font-size: 1rem;
+  line-height: 1.55;
+  color: #c7d2d4;
+}
+.bp-intermission-wait {
+  margin: 22px 0 0;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #fb923c;
+}
+.bp-intermission-dates {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  color: #86efac;
+}
+
 /* Season 2 layout: hero ? detail ? track ? top10|art (??? ?????? ?????) */
 .bp-page.is-season2 {
   gap: 8px;

@@ -1,5 +1,6 @@
 import { getSession } from "@/lib/auth";
 import { BattlePassClient } from "@/components/BattlePassClient";
+import { BattlePassIntermission } from "@/components/BattlePassIntermission";
 import { emptySelfProgress } from "@/lib/battlePass";
 import {
   battlePassLeaderboardTop10,
@@ -7,10 +8,16 @@ import {
   loadBattlePassState,
   progressForNick,
 } from "@/lib/battlePassData";
+import { isBattlePassIntermission } from "@/lib/battlePassSchedule";
 
 export const dynamic = "force-dynamic";
 
 export default async function BattlePassPage() {
+  /* После PB1 — 3 дня заглушки, пока Season 2 не выкатим */
+  if (isBattlePassIntermission()) {
+    return <BattlePassIntermission />;
+  }
+
   const session = await getSession();
   const state = await loadBattlePassState();
 

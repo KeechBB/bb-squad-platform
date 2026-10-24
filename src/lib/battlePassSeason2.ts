@@ -1,6 +1,8 @@
 /**
- * Season 2 · Halloween Battle Pass — только скрытое превью.
- * Живой S1 (battlePass.ts) не трогаем.
+ * Season 2 · Halloween Battle Pass — UI готов, заморожен.
+ * Превью: /battle-pass/halloween-preview (Keech).
+ * Прод: после паузы 01–03.11 → с 04.11 (см. battlePassSchedule.ts, docs/BP-SEASON2-READY.md).
+ * Живой S1 (battlePass.ts) не трогаем до выката.
  */
 
 import type { BpLevel, BpReward } from "@/lib/battlePass";

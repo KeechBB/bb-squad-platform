@@ -5,6 +5,7 @@ import { SITE_CREATOR_STEAM_ID } from "@/lib/profileBg";
 import { BattlePassClient } from "@/components/BattlePassClient";
 import { BP_S2_LEVELS, BP_S2_REWARDS } from "@/lib/battlePassSeason2";
 import { buildSeason2PreviewMockLeaderboard } from "@/lib/battlePassSeason2Preview";
+import { BP_S2_SCHEDULE } from "@/lib/battlePassSchedule";
 
 export const dynamic = "force-dynamic";
 
@@ -36,10 +37,10 @@ export default async function HalloweenBattlePassPreviewPage() {
       scoringEnabled
       layout="season2"
       seasonOverride={{
-        title: "Battle Pass Season 2",
-        subtitle: "Halloween · Фруктовый Сад",
-        startLabel: "03.11.2026",
-        endLabel: "30.11.2026",
+        title: BP_S2_SCHEDULE.title,
+        subtitle: BP_S2_SCHEDULE.subtitle,
+        startLabel: BP_S2_SCHEDULE.startLabel,
+        endLabel: BP_S2_SCHEDULE.endLabel,
       }}
       levelsOverride={BP_S2_LEVELS}
       rewardsOverride={BP_S2_REWARDS}
