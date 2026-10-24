@@ -20327,25 +20327,24 @@ body:has(.profile-page) {
 .bp-s2-track {
   --s2-disc: 48px;
   --s2-reward-h: 56px;
+  --s2-levels: 25;
   grid-area: track;
-  justify-self: center;
   position: relative;
   z-index: 6;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  gap: 6px;
-  width: max-content;
-  max-width: 100%;
+  display: grid;
+  grid-template-columns: repeat(var(--s2-levels), minmax(0, 1fr));
+  align-items: start;
+  width: 100%;
   margin-top: -28px;
-  padding: 0 8px 6px;
+  padding: 0 10px 6px;
+  box-sizing: border-box;
   min-height: calc(var(--s2-reward-h) + 8px + var(--s2-disc));
   overflow: visible;
 }
 .bp-s2-track-line {
   position: absolute;
-  left: 14px;
-  right: 14px;
+  left: calc(10px + 100% / var(--s2-levels) / 2);
+  right: calc(10px + 100% / var(--s2-levels) / 2);
   top: calc(var(--s2-reward-h) + 8px + var(--s2-disc) / 2);
   height: 3px;
   background: linear-gradient(
@@ -20363,9 +20362,8 @@ body:has(.profile-page) {
   appearance: none;
   position: relative;
   z-index: 1;
-  flex: 0 0 auto;
-  width: 42px;
-  min-width: 42px;
+  width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -20378,8 +20376,6 @@ body:has(.profile-page) {
 }
 .bp-s2-node.has-reward {
   z-index: 2;
-  width: 90px;
-  min-width: 90px;
 }
 .bp-s2-node.has-reward:hover,
 .bp-s2-node.has-reward.is-on {
