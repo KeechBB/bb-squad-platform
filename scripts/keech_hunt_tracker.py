@@ -58,6 +58,12 @@ PC_RE = re.compile(
     r"PC=(?P<nick>.+?)\s*\(Online IDs:\s*EOS:\s*(?P<eos>[0-9a-fA-F]+)\s+steam:\s*(?P<steam>7656\d+)",
     re.I,
 )
+# Map markers / chat-ish lines: "Player Nick (Team: 1; ID: EOS: … steam: …)"
+TEAM_STEAM_RE = re.compile(
+    r"\(Team:\s*(?P<team>[12]);\s*ID:\s*EOS:\s*(?P<eos>[0-9a-fA-F]+)\s+"
+    r"steam:\s*(?P<steam>7656\d+)",
+    re.I,
+)
 # Layer name at map end (fills "?" buckets before archive → «Память»).
 MATCH_END_RE = re.compile(
     r"LogSquadGameEvents:\s*Display:\s*Team\s+(?P<team>[12]),\s+"
@@ -127,6 +133,8 @@ class KeechHuntTracker:
         self.eos_nick: dict[str, str] = {}
         # steam → faction (from "has created Squad … on Faction") for TK detect
         self.steam_faction: dict[str, str] = {}
+        # steam → "1"|"2" from live log Team: markers (preferred over faction name)
+        self.steam_team: dict[str, str] = {}
         # last known kit from DeployRole (steam / nick_key)
         self._kit_by_steam: dict[str, str] = {}
         self._kit_by_nick: dict[str, str] = {}
@@ -293,6 +301,15 @@ class KeechHuntTracker:
         return float(rp.get(k, R.START_RP))
 
     def _same_team_steam(self, other_steam: str) -> bool:
+        """TK detect: prefer Team:1/2 from log; faction name only as fallback.
+
+        Faction-from-SL-create goes stale across maps / team switches and caused
+        false TK zeros on enemy gotnok (e.g. Steepich still tagged USA while on Team 1).
+        """
+        mine_t = (self.steam_team.get(KEECH_STEAM) or "").strip()
+        theirs_t = (self.steam_team.get(other_steam) or "").strip()
+        if mine_t and theirs_t:
+            return mine_t == theirs_t
         mine = (self.steam_faction.get(KEECH_STEAM) or "").strip().lower()
         theirs = (self.steam_faction.get(other_steam) or "").strip().lower()
         return bool(mine and theirs and mine == theirs)
@@ -733,9 +750,9 @@ class KeechHuntTracker:
         """Being nokked −N×0.1 (enemy only). TK victim: 0 (penalty on killer)."""
         if not self._v2(at):
             return 0.0, 0.0, 0.0
-        if killer_steam and self._same_team_steam(killer_steam):
-            return 0.0, 0.0, 0.0
         n, me, pk = self._raw_n_as_victim(killer, server)
+        if killer_steam and self._same_team_steam(killer_steam):
+            return 0.0, me, pk
         mag = round(n * R.COEF_BEING_NOKKED, 2)
         self._bump_keech_rp(server, -mag)
         return mag, me, pk
@@ -983,7 +1000,19 @@ class KeechHuntTracker:
         if "has created Squad" in line:
             cm = R.CREATE_SQUAD_RE.search(line)
             if cm:
-                self.steam_faction[cm.group("steam")] = (cm.group("faction") or "").strip()
+                steam_c = cm.group("steam")
+                self.steam_faction[steam_c] = (cm.group("faction") or "").strip()
+                if steam_c == KEECH_STEAM:
+                    self._mark_keech_on(server)
+
+        for tm in TEAM_STEAM_RE.finditer(line):
+            steam_t = tm.group("steam")
+            self.steam_team[steam_t] = tm.group("team")
+            eos_t = (tm.group("eos") or "").lower()
+            if eos_t:
+                self.eos_steam[eos_t] = steam_t
+            if steam_t == KEECH_STEAM:
+                self._mark_keech_on(server)
 
         self._parse_deploy_kit(line)
 
@@ -998,12 +1027,18 @@ class KeechHuntTracker:
 
         # Map rotation only where Keech is. Combat below self-filters to Keech
         # and may mark presence (first fight after missed Login).
-        if "SeamlessTravel to:" in line and "HandleSeamless" not in line and "InitSeamless" not in line and self._keech_here(server):
+        if (
+            "SeamlessTravel to:" in line
+            and "HandleSeamless" not in line
+            and "InitSeamless" not in line
+            and self._keech_here(server)
+        ):
             m = R.TRAVEL_RE.search(line)
             if m:
                 layer = m.group("path").strip()
                 # New map — reset TK/own-nok/kit/vehicle context for this server feed
                 self.steam_faction.clear()
+                self.steam_team.clear()
                 self._last_wound_by_keech.clear()
                 self._kit_by_steam.clear()
                 self._kit_by_nick.clear()
@@ -1243,6 +1278,9 @@ class KeechHuntTracker:
                     mag, _me, pk = self._delta_gotnok(
                         attacker, at=at, server=server, killer_steam=ksteam
                     )
+                    tk_gn = bool(
+                        ksteam and self._same_team_steam(ksteam) and self._v2(at)
+                    )
                     kit = self._kit_of(steam=ksteam, nick=attacker)
                     self._add_event(
                         server,
@@ -1254,9 +1292,10 @@ class KeechHuntTracker:
                             "nick": attacker,
                             "kit": kit,
                             "delta": -mag if mag else 0.0,
-                            "oppWeight": round(pk, 1) if mag else 0,
+                            "oppWeight": round(pk, 1) if pk else 0,
                             "bones": bones_on_me,
                             "server": server,
+                            "teamkill": tk_gn,
                         },
                         at,
                     )

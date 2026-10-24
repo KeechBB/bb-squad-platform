@@ -21,16 +21,25 @@ def _load(path: Path):
 
 
 def _dump(path: Path, obj) -> None:
+    import os
+
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
 
 
 def _is_junk_match(m: dict) -> bool:
+    """Only skip-markers. Do NOT scrub Yehorivka — real TR maps (22/23-yehorivka…);
+
+    Old blanket `yehorivka in id` wiped month rows on every KV sync → profile
+    history fell back to ladder-only («— — : — —» score, no win/loss) while ΔRP stayed.
+    """
     mid = str(m.get("id") or "").lower()
-    mmap = str(m.get("map") or "").lower()
     if mid.endswith("-skip") or m.get("skip"):
         return True
-    if "yehorivka" in mid or "yehorivka" in mmap:
+    # Legacy phantom only (empty dupe from early auto) — not live Yehorivka RAAS.
+    if mid == "06-yehorivka":
         return True
     return False
 

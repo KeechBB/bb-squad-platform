@@ -522,6 +522,16 @@ def bump_cache_bust() -> None:
             print(f"app.js bust fail: {e}", flush=True)
 
 
+def _atomic_json_write(path: Path, obj: object) -> None:
+    """Write JSON via temp+replace so readers never see a half-written month file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(
+        json.dumps(obj, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    os.replace(tmp, path)
+
+
 def upsert_month(match_meta: dict) -> None:
     month = match_meta["month"]  # YYYY-MM
     path = TRAIN / f"{month}.json"
@@ -540,8 +550,7 @@ def upsert_month(match_meta: dict) -> None:
     matches.append(match_meta["row"])
     matches.sort(key=_train_chrono_key)
     data["matches"] = matches
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    _atomic_json_write(path, data)
 
     if INDEX.is_file():
         idx = json.loads(INDEX.read_text(encoding="utf-8"))
@@ -561,7 +570,7 @@ def upsert_month(match_meta: dict) -> None:
                 "url": url,
             },
         )
-        INDEX.write_text(json.dumps(idx, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        _atomic_json_write(INDEX, idx)
 
 
 def _players_doc_is_real(doc: dict) -> bool:
