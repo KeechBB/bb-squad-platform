@@ -10,6 +10,13 @@ export type SiteNotice = {
 
 export const SITE_NOTICES: SiteNotice[] = [
   {
+    id: "fssc-1-week",
+    title: "Неделя до конца регистрации",
+    body: "До конца регистрации на турнир осталась неделя. Не упусти свой шанс.",
+    href: "/tournaments",
+    linkLabel: "К турниру",
+  },
+  {
     id: "fssc-1",
     title: "FSSC #1",
     body: "Приглашаем принять участие в турнире Fruit Strike Squad Cup #1. Регистрация команд открыта до 30 октября.",
