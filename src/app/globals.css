@@ -20581,13 +20581,14 @@ body:has(.profile-page) {
   cursor: default;
 }
 
+
 .bp-s2-milestones {
   grid-area: miles;
   display: flex;
   justify-content: space-evenly;
-  align-items: stretch;
+  align-items: center;
   gap: 10px;
-  padding: 6px 8px;
+  padding: 4px 6px;
   border-radius: 14px;
   border: 1px solid rgba(249, 115, 22, 0.28);
   background: transparent;
@@ -20597,62 +20598,75 @@ body:has(.profile-page) {
   appearance: none;
   flex: 1 1 0;
   min-width: 0;
+  max-width: 160px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 4px;
-  padding: 4px 2px 6px;
-  border-radius: 999px;
-  border: 2px solid rgba(74, 222, 128, 0.4);
+  padding: 0;
+  border: 0;
   background: transparent;
   color: inherit;
   cursor: pointer;
-  box-shadow: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
 }
-/* ??? ??????? ? ?????? ???/?????/?????/????? */
-.bp-s2-mile.is-clean {
+.bp-s2-mile-ring {
+  position: relative;
+  width: min(118px, 100%);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2px solid rgba(74, 222, 128, 0.45);
+  background: transparent;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.bp-s2-mile.is-clean .bp-s2-mile-ring {
   background: transparent;
 }
-/* ??? ? ???????????? ? ?????????-????????? ? ????? */
-.bp-s2-mile.is-bg {
-  background:
-    radial-gradient(circle at 50% 40%, rgba(74, 222, 128, 0.08), transparent 65%),
-    rgba(10, 8, 14, 0.55);
-  overflow: hidden;
+.bp-s2-mile.is-bg .bp-s2-mile-ring {
+  background: #0a0810;
 }
-.bp-s2-mile.is-bg img {
-  object-fit: cover;
-  border-radius: 50%;
-  width: 72px;
-  height: 72px;
-}
-.bp-s2-mile.is-on,
-.bp-s2-mile.is-hover,
-.bp-s2-mile:hover {
+.bp-s2-mile.is-on .bp-s2-mile-ring,
+.bp-s2-mile.is-hover .bp-s2-mile-ring,
+.bp-s2-mile:hover .bp-s2-mile-ring {
   border-color: var(--s2-orange);
   box-shadow:
-    0 0 0 2px rgba(249, 115, 22, 0.25),
-    0 0 18px rgba(249, 115, 22, 0.45),
-    0 0 28px rgba(74, 222, 128, 0.28);
-  filter: drop-shadow(0 0 10px rgba(74, 222, 128, 0.35));
+    0 0 0 2px rgba(249, 115, 22, 0.28),
+    0 0 20px rgba(249, 115, 22, 0.4),
+    0 0 28px rgba(74, 222, 128, 0.3);
 }
 .bp-s2-mile-lvl {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
   font-family: var(--font-display);
   font-size: 0.62rem;
   letter-spacing: 0.08em;
   color: var(--s2-orange);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+  pointer-events: none;
 }
-.bp-s2-mile.is-clean img {
-  width: 78px;
-  height: 78px;
+.bp-s2-mile-ring img {
+  width: 92%;
+  height: 92%;
   object-fit: contain;
-  filter: drop-shadow(0 0 10px rgba(74, 222, 128, 0.4));
+  background: transparent !important;
+  filter: drop-shadow(0 0 8px rgba(74, 222, 128, 0.35));
+}
+.bp-s2-mile.is-bg .bp-s2-mile-ring img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: none;
 }
 .bp-s2-mile-name {
   font-family: var(--font-display);
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: #ecfdf5;

@@ -11,6 +11,7 @@ import {
   BP_S2_LEVELS,
   BP_S2_REWARDS,
   s2RewardFullImage,
+  s2RewardMileImage,
 } from "@/lib/battlePassSeason2";
 
 const PAGE_SIZE = 10;
@@ -295,7 +296,7 @@ export function Season2BattlePass({
           <section className="bp-s2-milestones" aria-label="Награды сезона">
             {milestoneRewards.map((r) => {
               const isBg = r.kind === "bg";
-              const iconSrc = isBg ? r.image : s2RewardFullImage(r);
+              const iconSrc = s2RewardMileImage(r);
               return (
                 <button
                   key={r.id}
@@ -315,11 +316,11 @@ export function Season2BattlePass({
                   onBlur={() => setHoverId(null)}
                   title={`L${r.level} · ${r.name}`}
                 >
-                  <span className="bp-s2-mile-lvl">L{r.level}</span>
-                  {iconSrc ? (
-                    // eslint-disable-next-line @next/next/no-img-element
+                  <span className="bp-s2-mile-ring">
+                    <span className="bp-s2-mile-lvl">L{r.level}</span>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={iconSrc} alt="" />
-                  ) : null}
+                  </span>
                   <span className="bp-s2-mile-name">{r.short}</span>
                 </button>
               );
