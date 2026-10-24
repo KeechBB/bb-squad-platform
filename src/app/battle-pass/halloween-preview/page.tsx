@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-/** Season 2 Halloween BP — скрытое превью (только Keech). */
+/** Season 2 Halloween BP — скрытое превью (только Keech). Живой /battle-pass не трогаем. */
 export default async function HalloweenBattlePassPreviewPage() {
   const session = await getSession();
   if (!session?.user?.steamId || session.user.steamId !== SITE_CREATOR_STEAM_ID) {
@@ -28,18 +28,15 @@ export default async function HalloweenBattlePassPreviewPage() {
       selfAvatarUrl={session.user.avatarUrl || session.user.steamAvatar || null}
       selfProgress={emptySelfProgress(nick)}
       leaderboard={[]}
-      statusNote="Скрытое превью Season 2 · только Keech · задания 21–25 — черновик"
+      statusNote="Скрытое превью Season 2 · только Keech"
       scoringEnabled={false}
       layout="season2"
-      detailTheme="halloween"
       seasonOverride={{
         title: "SEASON 2",
         subtitle: "Halloween · Фруктовый Сад",
         startLabel: "03.11.2026",
         endLabel: "30.11.2026",
       }}
-      detailBg="/bp-halloween/hero-squad.jpg"
-      sideArtUrl="/bp-halloween/gallows-animated.webp"
       levelsOverride={BP_S2_LEVELS}
       rewardsOverride={BP_S2_REWARDS}
     />

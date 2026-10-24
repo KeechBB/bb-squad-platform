@@ -16,6 +16,7 @@ import {
   type BpPreviewPlayer,
 } from "@/components/BpRewardMock";
 import { CanvasScaleStage } from "@/components/CanvasScaleStage";
+import { Season2BattlePass } from "@/components/Season2BattlePass";
 
 type Props = {
   selfNick: string;
@@ -175,162 +176,6 @@ function Top10Board({
   );
 }
 
-/** Скрытое превью Season 2 — не трогает живой /battle-pass */
-function Season2BattlePass({
-  selfNick,
-  selfName,
-  selfAvatarUrl,
-  selfProgress,
-  leaderboard,
-  statusNote,
-  scoringEnabled,
-  seasonOverride,
-  detailBg,
-  rewardsOverride,
-  levelsOverride,
-  detailTheme = "halloween",
-  sideArtUrl,
-}: Props) {
-  const levels = levelsOverride ?? BP_LEVELS;
-  const [selected, setSelected] = useState(selfProgress.currentLevel);
-  const player: BpPreviewPlayer = {
-    nick: selfNick,
-    name: selfName,
-    avatarUrl: selfAvatarUrl,
-  };
-  const rewardsList = rewardsOverride ?? BP_REWARDS;
-  const season = {
-    title: seasonOverride?.title ?? "SEASON 2",
-    subtitle: seasonOverride?.subtitle ?? BP_SEASON.subtitle,
-    startLabel: seasonOverride?.startLabel ?? BP_SEASON.startLabel,
-    endLabel: seasonOverride?.endLabel ?? BP_SEASON.endLabel,
-  };
-
-  const level = useMemo(
-    () => levels.find((l) => l.level === selected) || levels[0],
-    [selected, levels]
-  );
-  const levelRewards = rewardsList.filter((r) => r.level === level.level);
-  const reward = levelRewards[0];
-  const top10 = useMemo(() => leaderboard.slice(0, 10), [leaderboard]);
-
-  const cur = selfProgress.currentLevel;
-  const progressCurrent =
-    selected === cur ? selfProgress.current : selected < cur ? level.target : 0;
-  const progressTarget = level.target;
-  const pct = Math.min(
-    100,
-    Math.round((progressCurrent / Math.max(1, progressTarget)) * 100)
-  );
-
-  return (
-    <CanvasScaleStage contentWidth="full" className="is-bp">
-      <main
-        className={`bp-page is-season2${reward ? " has-reward-selected" : ""}`}
-      >
-        <header className="bp-hero">
-          <p className="bp-hero-eyebrow">{season.subtitle}</p>
-          <h1 className="bp-hero-title">{season.title}</h1>
-          <p className="bp-hero-dates">
-            {season.startLabel} — {season.endLabel}
-          </p>
-          {statusNote ? <p className="bp-hero-status">{statusNote}</p> : null}
-        </header>
-
-        <section
-          className={`bp-detail theme-${detailTheme}${reward ? " has-reward" : ""}`}
-          aria-live="polite"
-        >
-          <div className="bp-detail-bg" aria-hidden>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={detailBg ?? BP_BG} alt="" />
-          </div>
-          <div className="bp-detail-veil" aria-hidden />
-          <div className="bp-detail-top">
-            <div className="bp-detail-head">
-              <span className="bp-detail-lvl">Уровень {level.level}</span>
-              <h2>{level.title}</h2>
-            </div>
-            <p className="bp-detail-task">{level.task}</p>
-            {levelRewards.map((r) => (
-              <div key={r.id} className={`bp-detail-reward kind-${r.kind}`}>
-                <span className="bp-detail-reward-tag">Награда</span>
-                <strong>{r.name}</strong>
-                <BpRewardMock
-                  reward={r}
-                  player={player}
-                  compact={
-                    r.kind !== "medal" && r.kind !== "nick" && r.kind !== "bg"
-                  }
-                />
-              </div>
-            ))}
-            <div className="bp-progress">
-              <div className="bp-progress-meta">
-                <span>
-                  {selected === cur
-                    ? "Текущее задание"
-                    : selected < cur
-                      ? "Выполнено"
-                      : "Ещё не открыто"}
-                </span>
-                <span className="bp-progress-nums">
-                  {progressCurrent}/{progressTarget} {level.unit}
-                </span>
-              </div>
-              <div
-                className="bp-progress-bar"
-                role="progressbar"
-                aria-valuenow={progressCurrent}
-                aria-valuemin={0}
-                aria-valuemax={progressTarget}
-              >
-                <i style={{ width: `${pct}%` }} />
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="bp-track-wrap" aria-label="Уровни Battle Pass">
-          <div className="bp-track">
-            {levels.map((l) => (
-              <LevelNode
-                key={l.level}
-                level={l}
-                reward={rewardsList.find((r) => r.level === l.level)}
-                selected={selected === l.level}
-                locked={l.level > cur}
-                done={l.level < cur}
-                current={l.level === cur}
-                onSelect={() => setSelected(l.level)}
-              />
-            ))}
-          </div>
-        </section>
-
-        <div className="bp-body bp-body-s2">
-          <Top10Board
-            top10={top10}
-            selfNick={selfNick}
-            scoringEnabled={scoringEnabled}
-          />
-          <aside className="bp-side-art" aria-label="Арт сезона">
-            {sideArtUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={sideArtUrl} alt="" />
-            ) : (
-              <div className="bp-side-art-slot">
-                <span>Картинка сезона</span>
-                <small>слот · добавим позже</small>
-              </div>
-            )}
-          </aside>
-        </div>
-      </main>
-    </CanvasScaleStage>
-  );
-}
-
 function ClassicBattlePass({
   selfNick,
   selfName,
@@ -476,7 +321,23 @@ function ClassicBattlePass({
 
 export function BattlePassClient(props: Props) {
   if (props.layout === "season2") {
-    return <Season2BattlePass {...props} />;
+    return (
+      <Season2BattlePass
+        selfNick={props.selfNick}
+        selfName={props.selfName}
+        selfAvatarUrl={props.selfAvatarUrl}
+        selfProgress={props.selfProgress}
+        leaderboard={props.leaderboard}
+        statusNote={props.statusNote}
+        scoringEnabled={props.scoringEnabled}
+        seasonTitle={props.seasonOverride?.title}
+        seasonSubtitle={props.seasonOverride?.subtitle}
+        startLabel={props.seasonOverride?.startLabel}
+        endLabel={props.seasonOverride?.endLabel}
+        levels={props.levelsOverride}
+        rewards={props.rewardsOverride}
+      />
+    );
   }
   return <ClassicBattlePass {...props} />;
 }

@@ -1,18 +1,17 @@
 /**
- * Season 2 · Halloween Battle Pass — черновик уровней/наград для скрытого превью.
+ * Season 2 · Halloween Battle Pass — только скрытое превью.
  * Живой S1 (battlePass.ts) не трогаем.
  */
 
 import type { BpLevel, BpReward } from "@/lib/battlePass";
 import { BP_LEVELS } from "@/lib/battlePass";
 
-/** Уровни 1–20 = те же задания, что S1; 21–25 — черновик под Season 2. */
 const S2_TAIL: BpLevel[] = [
   {
     level: 21,
     title: "Жатва",
     task: "Сыграть 3 матча (пока открыт этот уровень)",
-    hint: "Черновик Season 2 · матч ≥80% времени",
+    hint: "Черновик Season 2",
     target: 3,
     unit: "матчей",
   },
@@ -34,7 +33,6 @@ const S2_TAIL: BpLevel[] = [
     level: 24,
     title: "Безжалостный",
     task: "Победить 2 карты подряд",
-    hint: "Черновик · поражение → сброс",
     target: 2,
     unit: "побед",
   },
@@ -49,62 +47,74 @@ const S2_TAIL: BpLevel[] = [
 
 export const BP_S2_LEVELS: BpLevel[] = [...BP_LEVELS, ...S2_TAIL];
 
-/** Награды Season 2 (финал на L25). */
+/**
+ * Каждые 5 уровней — награда (канон схемы):
+ * 5 нож · 10 фон · 15 текст · 20 пушка · 25 кубок
+ */
 export const BP_S2_REWARDS: BpReward[] = [
   {
     level: 5,
-    id: "hw2-gold-bg",
+    id: "hw2-knife",
+    name: "Крюк «Жнец сада»",
+    short: "Нож",
+    kind: "customize",
+    preview:
+      "Нашивка-крюк у ника в рейтингах. Ставится и снимается в «Кастомизация профиля»",
+    hover: "Крюк «Жнец сада» · ур. 5 Season 2 Halloween",
+    image: "/bp-halloween/knife-hook-v2.png",
+  },
+  {
+    level: 10,
+    id: "hw2-bg",
     name: "Ночной урожай",
     short: "Фон",
     kind: "bg",
     preview:
-      "Фон профиля «Ночной урожай»: центр чистый под текст, тыквы, фонари и луна только по краям. Остаётся в списке фонов навсегда",
-    hover: "Ночной урожай · Награда за достижение 5 уровня Battle Pass Season 2",
+      "Фон профиля «Ночной урожай». Остаётся в списке фонов навсегда",
+    hover: "Ночной урожай · ур. 10 Season 2 Halloween",
     image: "/bp-halloween/profile-bg-v1.jpg",
   },
   {
-    level: 10,
+    level: 15,
     id: "hw2-nick",
     name: "Фиолетовая готика",
-    short: "Стиль ника",
+    short: "Текст",
     kind: "nick",
     preview:
-      "Фиолетовый объёмный шрифт ника с кислотно-зелёной подсветкой для рейтингов паблика, КВ и тренировок",
-    hover: "Фиолетовая готика · Награда за достижение 10 уровня Battle Pass Season 2",
+      "Фиолетовый объёмный шрифт ника с кислотно-зелёной подсветкой для рейтингов",
+    hover: "Фиолетовая готика · ур. 15 Season 2 Halloween",
     image: "/bp-halloween/nick-v2.jpg",
   },
   {
-    level: 15,
-    id: "hw2-ak-patch",
+    level: 20,
+    id: "hw2-gun",
     name: "АК «Тыквенный магазин»",
-    short: "Нашивка",
+    short: "Пушка",
     kind: "customize",
     preview:
-      "Нашивка у ника в рейтингах паблика, КВ и тренировок. Ставится и снимается в «Кастомизация профиля»",
-    hover:
-      "АК «Тыквенный магазин» · Награда за достижение 15 уровня Battle Pass Season 2",
+      "Нашивка АК у ника в рейтингах. Ставится и снимается в «Кастомизация профиля»",
+    hover: "АК «Тыквенный магазин» · ур. 20 Season 2 Halloween",
     image: "/bp-halloween/weapon-ak-v2.png",
   },
   {
     level: 25,
     id: "hw2-trophy",
     name: "Кубок «Золотая тыква»",
-    short: "Медаль",
+    short: "Кубок",
     kind: "medal",
     preview:
       "Кубок за полное прохождение Season 2 — финальная награда на полке профиля",
-    hover: "Кубок «Золотая тыква» · Награда за прохождение 25 уровней Season 2",
+    hover: "Кубок «Золотая тыква» · ур. 25 Season 2 Halloween",
     image: "/bp-halloween/trophy-v1.png",
   },
-  {
-    level: 25,
-    id: "hw2-hook-patch",
-    name: "Крюк «Жнец сада»",
-    short: "Нашивка",
-    kind: "customize",
-    preview:
-      "Вторая часть финального комплекта L25: нашивка-крюк у ника в рейтингах. Идёт вместе с кубком",
-    hover: "Крюк «Жнец сада» · Награда за прохождение 25 уровней Season 2",
-    image: "/bp-halloween/knife-hook-v2.png",
-  },
 ];
+
+export const BP_S2_HERO_ART = "/bp-halloween/hero-squad.jpg";
+export const BP_S2_IDLE_ART = "/bp-halloween/gallows-animated.webp";
+
+export function s2RewardFullImage(reward: BpReward): string {
+  if (reward.id === "hw2-knife") return "/bp-halloween/knife-hook-v2-full.jpg";
+  if (reward.id === "hw2-gun") return "/bp-halloween/weapon-ak-v2-full.jpg";
+  if (reward.id === "hw2-trophy") return "/bp-halloween/trophy-v1-full.jpg";
+  return reward.image || BP_S2_IDLE_ART;
+}
