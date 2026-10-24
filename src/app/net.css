@@ -239,23 +239,37 @@ body:has(.net-page) .site-footer {
 }
 .net-vote,
 .net-like {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   border: 1px solid var(--net-line);
   background: transparent;
-  color: var(--net-muted);
   border-radius: 999px;
   padding: 2px 8px;
   font: inherit;
-  font-size: 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
 }
+.net-like { color: #4ade80; border-color: rgba(74, 222, 128, 0.55); }
+.net-vote { color: #f87171; border-color: rgba(248, 113, 113, 0.55); }
 .net-like.is-on {
-  color: #052e16;
-  background: #facc15;
-  border-color: #facc15;
-  font-weight: 700;
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.22);
+  border-color: #4ade80;
 }
-.net-vote.is-on { color: #fef3c7; border-color: rgba(250, 204, 21, 0.7); }
+.net-vote.is-on {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.22);
+  border-color: #f87171;
+}
+.net-thumb {
+  width: 1.15em;
+  height: 1.15em;
+  display: block;
+}
+.net-thumb.is-down { transform: rotate(180deg); }
 .net-theme-del {
   border: 1px solid rgba(251, 113, 133, 0.6);
   background: rgba(127, 29, 29, 0.4);

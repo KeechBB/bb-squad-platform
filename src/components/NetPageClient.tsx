@@ -293,6 +293,17 @@ function PhotoLoupe({ src, onClose }: { src: string; onClose: () => void }) {
   );
 }
 
+function Thumb({ down }: { down?: boolean }) {
+  return (
+    <svg className={`net-thumb${down ? " is-down" : ""}`} viewBox="0 0 24 24" aria-hidden>
+      <path
+        fill="currentColor"
+        d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"
+      />
+    </svg>
+  );
+}
+
 function people(list: NetPerson[]) {
   if (!list.length) return <p className="net-empty">Пока никого</p>;
   return list.map((p) => (
@@ -514,15 +525,17 @@ export function NetPageClient({ nick }: { nick: string }) {
                 type="button"
                 className={`net-like${theme.myVote === 1 ? " is-on" : ""}`}
                 onClick={() => void act({ action: "vote", id: theme.id, value: theme.myVote === 1 ? 0 : 1 })}
+                aria-label="Лайк"
               >
-                Лайк {theme.likes}
+                <Thumb /> {theme.likes}
               </button>
               <button
                 type="button"
                 className={`net-vote${theme.myVote === -1 ? " is-on" : ""}`}
                 onClick={() => void act({ action: "vote", id: theme.id, value: theme.myVote === -1 ? 0 : -1 })}
+                aria-label="Дизлайк"
               >
-                Дизлайк {theme.dislikes}
+                <Thumb down /> {theme.dislikes}
               </button>
               {theme.mine ? (
                 <button
@@ -551,8 +564,8 @@ export function NetPageClient({ nick }: { nick: string }) {
                 {theme.title}
                 <small style={{ display: "block", opacity: 0.6 }}>{theme.authorNick}</small>
               </button>
-              <span className="net-like">Лайк {theme.likes}</span>
-              <span className="net-vote">Дизлайк {theme.dislikes}</span>
+              <span className="net-like"><Thumb /> {theme.likes}</span>
+              <span className="net-vote"><Thumb down /> {theme.dislikes}</span>
             </div>
           ))}
         </div>
@@ -602,15 +615,17 @@ export function NetPageClient({ nick }: { nick: string }) {
                   type="button"
                   className={`net-like${post.myVote === 1 ? " is-on" : ""}`}
                   onClick={() => void act({ action: "like", id: post.id, value: post.myVote === 1 ? 0 : 1 })}
+                  aria-label="Лайк"
                 >
-                  Лайк {post.likes}
+                  <Thumb /> {post.likes}
                 </button>
                 <button
                   type="button"
                   className={`net-vote${post.myVote === -1 ? " is-on" : ""}`}
                   onClick={() => void act({ action: "like", id: post.id, value: post.myVote === -1 ? 0 : -1 })}
+                  aria-label="Дизлайк"
                 >
-                  Дизлайк {post.dislikes}
+                  <Thumb down /> {post.dislikes}
                 </button>
                 <span className="net-vk-count">
                   {post.comments.length} {commentWord(post.comments.length)}
@@ -921,11 +936,11 @@ export function NetPageClient({ nick }: { nick: string }) {
                 </button>
               ))}
               <div className="net-row-actions">
-                <button type="button" className={`net-like${openTheme.myVote === 1 ? " is-on" : ""}`} onClick={() => void act({ action: "vote", id: openTheme.id, value: openTheme.myVote === 1 ? 0 : 1 })}>
-                  Лайк {openTheme.likes}
+                <button type="button" className={`net-like${openTheme.myVote === 1 ? " is-on" : ""}`} aria-label="Лайк" onClick={() => void act({ action: "vote", id: openTheme.id, value: openTheme.myVote === 1 ? 0 : 1 })}>
+                  <Thumb /> {openTheme.likes}
                 </button>
-                <button type="button" className={`net-vote${openTheme.myVote === -1 ? " is-on" : ""}`} onClick={() => void act({ action: "vote", id: openTheme.id, value: openTheme.myVote === -1 ? 0 : -1 })}>
-                  Дизлайк {openTheme.dislikes}
+                <button type="button" className={`net-vote${openTheme.myVote === -1 ? " is-on" : ""}`} aria-label="Дизлайк" onClick={() => void act({ action: "vote", id: openTheme.id, value: openTheme.myVote === -1 ? 0 : -1 })}>
+                  <Thumb down /> {openTheme.dislikes}
                 </button>
               </div>
             </div>
