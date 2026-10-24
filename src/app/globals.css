@@ -18577,27 +18577,93 @@ body:has(.profile-page) {
   flex: 1 1 28%;
   min-height: 140px;
 }
+/* Season 2 rewards: toxic green + pumpkin orange glow (?? ?????? S1) */
+.bp-page.is-season2 {
+  --bp-hw-green: #86efac;
+  --bp-hw-green-hot: #4ade80;
+  --bp-hw-orange: #fb923c;
+  --bp-hw-violet: #c4b5fd;
+}
 .bp-page.is-season2 .bp-reward-mark {
-  border-color: rgba(167, 139, 250, 0.5);
-  background: rgba(28, 14, 40, 0.92);
+  border-color: rgba(74, 222, 128, 0.55);
+  background: linear-gradient(
+    160deg,
+    rgba(22, 40, 24, 0.95),
+    rgba(28, 14, 40, 0.92)
+  );
+  box-shadow:
+    0 0 10px rgba(74, 222, 128, 0.35),
+    0 0 22px rgba(249, 115, 22, 0.18),
+    inset 0 0 12px rgba(74, 222, 128, 0.08);
+  animation: bp-hw-reward-glow 2.8s ease-in-out infinite;
 }
 .bp-page.is-season2 .bp-reward-mark-short {
-  color: #c4b5fd;
+  color: var(--bp-hw-green);
+  text-shadow: 0 0 8px rgba(74, 222, 128, 0.55);
+}
+.bp-page.is-season2 .bp-reward-mark-name {
+  color: #e8ffe8;
+  text-shadow: 0 0 6px rgba(74, 222, 128, 0.25);
+}
+.bp-page.is-season2 .bp-node.has-reward.is-selected .bp-reward-mark,
+.bp-page.is-season2 .bp-node.has-reward:hover .bp-reward-mark {
+  border-color: rgba(134, 239, 172, 0.9);
+  box-shadow:
+    0 0 14px rgba(74, 222, 128, 0.65),
+    0 0 28px rgba(249, 115, 22, 0.35),
+    0 0 40px rgba(167, 139, 250, 0.2),
+    inset 0 0 14px rgba(74, 222, 128, 0.12);
 }
 .bp-page.is-season2 .bp-track::before {
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(167, 139, 250, 0.35) 8%,
-    rgba(249, 115, 22, 0.35) 50%,
-    rgba(167, 139, 250, 0.35) 92%,
+    rgba(74, 222, 128, 0.28) 8%,
+    rgba(249, 115, 22, 0.4) 50%,
+    rgba(74, 222, 128, 0.28) 92%,
     transparent
   );
 }
 .bp-page.is-season2 .bp-node.is-current .bp-node-disc,
 .bp-page.is-season2 .bp-node.is-selected .bp-node-disc {
-  border-color: #c4b5fd;
-  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.25);
+  border-color: var(--bp-hw-green-hot);
+  box-shadow:
+    0 0 0 3px rgba(74, 222, 128, 0.28),
+    0 0 16px rgba(74, 222, 128, 0.35),
+    0 0 22px rgba(249, 115, 22, 0.2);
+}
+.bp-page.is-season2 .bp-node:hover .bp-node-disc {
+  border-color: var(--bp-hw-green);
+  box-shadow:
+    0 0 0 3px rgba(74, 222, 128, 0.22),
+    0 0 14px rgba(74, 222, 128, 0.3);
+}
+.bp-page.is-season2 .bp-node.has-reward .bp-node-disc {
+  border-color: rgba(251, 146, 60, 0.65);
+  box-shadow: 0 0 10px rgba(249, 115, 22, 0.28);
+}
+.bp-page.is-season2 .bp-node.has-reward.is-selected .bp-node-disc,
+.bp-page.is-season2 .bp-node.has-reward.is-current .bp-node-disc {
+  border-color: var(--bp-hw-green-hot);
+  box-shadow:
+    0 0 0 3px rgba(74, 222, 128, 0.3),
+    0 0 18px rgba(74, 222, 128, 0.45),
+    0 0 26px rgba(249, 115, 22, 0.28);
+}
+@keyframes bp-hw-reward-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 8px rgba(74, 222, 128, 0.28),
+      0 0 18px rgba(249, 115, 22, 0.14),
+      inset 0 0 10px rgba(74, 222, 128, 0.06);
+  }
+  50% {
+    box-shadow:
+      0 0 14px rgba(74, 222, 128, 0.55),
+      0 0 28px rgba(249, 115, 22, 0.28),
+      inset 0 0 14px rgba(74, 222, 128, 0.12);
+  }
 }
 
 .bp-hero {
@@ -18977,20 +19043,25 @@ body:has(.profile-page) {
 }
 .bp-detail.theme-halloween .bp-detail-lvl,
 .bp-detail.theme-halloween .bp-detail-reward-tag {
-  color: #c4b5fd;
+  color: #86efac;
+  text-shadow: 0 0 10px rgba(74, 222, 128, 0.4);
 }
 .bp-detail.theme-halloween .bp-detail-reward {
-  border-color: rgba(167, 139, 250, 0.45);
-  background: rgba(36, 16, 48, 0.62);
+  border-color: rgba(74, 222, 128, 0.45);
+  background: rgba(16, 28, 20, 0.62);
+  box-shadow:
+    0 0 16px rgba(74, 222, 128, 0.22),
+    0 0 28px rgba(249, 115, 22, 0.12);
 }
 .bp-detail.theme-halloween .bp-progress-bar {
-  border-color: rgba(167, 139, 250, 0.28);
+  border-color: rgba(74, 222, 128, 0.28);
 }
 .bp-detail.theme-halloween .bp-progress-bar > i {
-  background: linear-gradient(90deg, #7c3aed, #f97316);
+  background: linear-gradient(90deg, #16a34a, #f97316);
+  box-shadow: 0 0 10px rgba(74, 222, 128, 0.45);
 }
 .bp-detail.theme-halloween .bp-progress-nums {
-  color: #e9d5ff;
+  color: #bbf7d0;
 }
 
 .bp-detail-top {
