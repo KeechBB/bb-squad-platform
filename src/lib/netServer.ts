@@ -417,15 +417,57 @@ export async function likeNetPost(id: string) {
   return { ok: true as const };
 }
 
+function clipNote(text: string) {
+  const flat = text.replace(/\s+/g, " ").trim();
+  const chars = [...flat];
+  return chars.length > 90 ? `${chars.slice(0, 89).join("")}…` : flat;
+}
+
+async function netNotice(input: {
+  userId: string;
+  dedupeKey: string;
+  title: string;
+  body: string;
+  href: string;
+  linkLabel: string;
+}) {
+  await prisma.userNotice
+    .create({
+      data: {
+        userId: input.userId,
+        dedupeKey: input.dedupeKey,
+        kind: "net",
+        title: input.title,
+        body: input.body,
+        href: input.href,
+        linkLabel: input.linkLabel,
+      },
+    })
+    .catch(() => undefined);
+}
+
 export async function commentNetTheme(themeId: string, bodyRaw: string) {
   const gate = await own();
   if ("error" in gate) return gate;
   const body = bodyRaw.trim();
   if (!body) return { error: "Пустой комментарий" };
   if (netVisibleLength(body) > 400) return { error: "Комментарий до 400 знаков" };
-  const theme = await prisma.netTheme.findUnique({ where: { id: themeId }, select: { id: true } });
+  const theme = await prisma.netTheme.findUnique({
+    where: { id: themeId },
+    select: { id: true, title: true, userId: true, user: { select: { nick: true } } },
+  });
   if (!theme) return { error: "Тема не найдена" };
-  await prisma.netThemeComment.create({ data: { themeId, userId: gate.me.id, body } });
+  const row = await prisma.netThemeComment.create({ data: { themeId, userId: gate.me.id, body } });
+  if (theme.userId !== gate.me.id && theme.user.nick && gate.me.nick) {
+    await netNotice({
+      userId: theme.userId,
+      dedupeKey: `net-theme-c:${row.id}`,
+      title: "Комментарий к теме",
+      body: `${gate.me.nick} к «${theme.title}»: ${clipNote(body)}`,
+      href: `/profile/web/${encodeURIComponent(theme.user.nick)}`,
+      linkLabel: "К теме",
+    });
+  }
   return { ok: true as const };
 }
 
@@ -435,9 +477,22 @@ export async function commentNetPost(postId: string, bodyRaw: string) {
   const body = bodyRaw.trim();
   if (!body) return { error: "Пустой комментарий" };
   if (netVisibleLength(body) > 400) return { error: "Комментарий до 400 знаков" };
-  const post = await prisma.netPost.findUnique({ where: { id: postId }, select: { id: true } });
+  const post = await prisma.netPost.findUnique({
+    where: { id: postId },
+    select: { id: true, userId: true, user: { select: { nick: true } } },
+  });
   if (!post) return { error: "Пост не найден" };
-  await prisma.netComment.create({ data: { postId, userId: gate.me.id, body } });
+  const row = await prisma.netComment.create({ data: { postId, userId: gate.me.id, body } });
+  if (post.userId !== gate.me.id && post.user.nick && gate.me.nick) {
+    await netNotice({
+      userId: post.userId,
+      dedupeKey: `net-post-c:${row.id}`,
+      title: "Комментарий к посту",
+      body: `${gate.me.nick}: ${clipNote(body)}`,
+      href: `/profile/web/${encodeURIComponent(post.user.nick)}`,
+      linkLabel: "К посту",
+    });
+  }
   return { ok: true as const };
 }
 
@@ -495,16 +550,28 @@ export async function setNetFollow(targetNick: string, on: boolean) {
   if ("error" in gate) return gate;
   const target = await prisma.user.findFirst({
     where: { nick: { equals: targetNick.trim(), mode: "insensitive" }, profileComplete: true },
-    select: { id: true },
+    select: { id: true, nick: true },
   });
-  if (!target) return { error: "Игрок не найден" };
+  if (!target?.nick) return { error: "Игрок не найден" };
   if (target.id === gate.me.id) return { error: "На себя не подписаться" };
   if (on) {
-    await prisma.netFollow.upsert({
+    const already = await prisma.netFollow.findUnique({
       where: { followerId_followingId: { followerId: gate.me.id, followingId: target.id } },
-      create: { followerId: gate.me.id, followingId: target.id },
-      update: {},
+      select: { followerId: true },
     });
+    if (!already) {
+      await prisma.netFollow.create({ data: { followerId: gate.me.id, followingId: target.id } });
+      if (gate.me.nick) {
+        await netNotice({
+          userId: target.id,
+          dedupeKey: `net-follow:${gate.me.id}:${Date.now()}`,
+          title: "Новая подписка",
+          body: `${gate.me.nick} подписался на тебя`,
+          href: `/profile/web/${encodeURIComponent(target.nick)}`,
+          linkLabel: "Моя страница",
+        });
+      }
+    }
   } else {
     await prisma.netFollow.deleteMany({
       where: { followerId: gate.me.id, followingId: target.id },
