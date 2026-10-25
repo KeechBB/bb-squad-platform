@@ -114,6 +114,104 @@ model User {
   trainingMatchVotes         TrainingMatchVote[]
   siteNoticeStates           SiteNoticeState[]
   userNotices                UserNotice[]
+  canonMatchPlayers          CanonMatchPlayer[]
+}
+
+/// Тип матча в едином каноне plaza (фаза 1+).
+enum CanonMatchKind {
+  TRAIN
+  CW
+  PUBLIC
+}
+
+/// Откуда пришёл факт матча.
+enum CanonMatchSource {
+  LOG
+  SCREENSHOT
+  /// Импорт из legacy kv-cache JSON (не удалять исходники).
+  IMPORT_JSON
+}
+
+/// Единый канон матча на plaza. Сайт позже читает отсюда; JSON kv-cache = legacy/проекция.
+model CanonMatch {
+  id        String @id @default(cuid())
+  /// Стабильный ключ: 2026-10-25_tr1_cslmutaha_2329
+  matchKey  String @unique
+  kind      CanonMatchKind
+  source    CanonMatchSource
+  /// Legacy id из JSON (02-gorodok, 25-alpha)
+  legacyId  String?
+  year      Int
+  month     Int
+  day       Int
+  timeMsk   String?
+  startedAt DateTime?
+  endedAt   DateTime?
+  serverKey String?
+  serverLabel String?
+  mapName   String
+  mode      String?
+  size      String?
+  durationSec Int?
+  factionA  String?
+  ticketsA  Int?
+  factionB  String?
+  ticketsB  Int?
+  winner    String?
+  /// CW
+  opp       String?
+  stack     String?
+  rules     String?
+  meeting   String?
+  r1        String?
+  r2        String?
+  status    String?
+  note      String? @db.Text
+  legacyPlayersPath String?
+  /// Полный snapshot строки месяца / мета
+  rawJson   Json?
+  verifiedAt  DateTime?
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  players CanonMatchPlayer[]
+
+  @@unique([kind, year, month, legacyId])
+  @@index([kind, year, month, day])
+  @@index([endedAt])
+  @@index([serverKey, endedAt])
+  @@index([legacyId])
+}
+
+/// Стата игрока в канон-матче (один раунд или суммарно).
+model CanonMatchPlayer {
+  id      String  @id @default(cuid())
+  matchId String
+  /// A / B / opp / null
+  side    String?
+  /// 1 / 2 / null (сумма или трень без раундов)
+  round   Int?
+  nick    String
+  steamId String?
+  userId  String?
+  kills   Int     @default(0)
+  deaths  Int     @default(0)
+  nok     Int     @default(0)
+  res     Int     @default(0)
+  dmg     Float?
+  vehicleKills Int?
+  won     Boolean?
+  rawJson Json?
+
+  match CanonMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user  User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([matchId, nick, round, side])
+  @@index([nick])
+  @@index([steamId])
+  @@index([userId])
+  @@index([matchId])
 }
 
 /// Метка игрока на клановой карте (одна на пользователя).
