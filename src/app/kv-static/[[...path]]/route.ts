@@ -2,11 +2,15 @@ import type { NextRequest } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
 import { kvLocalRoots } from "@/lib/kvLocal";
+import {
+  isCanonKvRel,
+  resolveCanonKvJson,
+} from "@/lib/canonMatchRead";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Serve KV UI + JSON from VPS disk only (data/kv-cache). No GitHub Pages. */
+/** Serve KV UI + JSON from VPS disk; month/players JSON overlay from CanonMatch. */
 
 function safeRel(pathParts: string[] | undefined): string {
   const clean = (pathParts ?? []).filter(
@@ -46,11 +50,10 @@ async function readFromDisk(rel: string): Promise<Buffer | null> {
   return null;
 }
 
-function diskHeaders(rel: string): Headers {
+function diskHeaders(rel: string, source: "vps-disk" | "canon-overlay"): Headers {
   const headers = new Headers();
   headers.set("Content-Type", contentTypeFor(rel));
   const lower = rel.toLowerCase();
-  // JSON + app shell must refresh right after collector auto-ingest
   if (
     lower.endsWith(".json") ||
     lower.endsWith("app.js") ||
@@ -60,34 +63,64 @@ function diskHeaders(rel: string): Headers {
   } else {
     headers.set("Cache-Control", "public, max-age=60, must-revalidate");
   }
-  headers.set("X-KV-Source", "vps-disk");
+  headers.set("X-KV-Source", source);
   return headers;
 }
 
 type Ctx = { params: Promise<{ path?: string[] }> };
 
+async function resolveBody(
+  rel: string
+): Promise<{ buf: Buffer; source: "vps-disk" | "canon-overlay" } | null> {
+  const diskBuf = await readFromDisk(rel);
+
+  if (isCanonKvRel(rel)) {
+    let diskJson: unknown = null;
+    if (diskBuf) {
+      try {
+        diskJson = JSON.parse(diskBuf.toString("utf8"));
+      } catch {
+        diskJson = null;
+      }
+    }
+    const canon = await resolveCanonKvJson(rel, diskJson);
+    if (canon) {
+      return {
+        buf: Buffer.from(JSON.stringify(canon.data), "utf8"),
+        source: "canon-overlay",
+      };
+    }
+  }
+
+  if (!diskBuf) return null;
+  return { buf: diskBuf, source: "vps-disk" };
+}
+
 export async function GET(_req: NextRequest, ctx: Ctx) {
   const { path: parts } = await ctx.params;
   const rel = safeRel(parts);
-  const buf = await readFromDisk(rel);
-  if (!buf) {
+  const hit = await resolveBody(rel);
+  if (!hit) {
     return new Response(
       `KV file not on VPS cache: ${rel}\nRun scripts/sync_kv_cache.sh on the server.`,
       { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" } }
     );
   }
-  return new Response(new Uint8Array(buf), {
+  return new Response(new Uint8Array(hit.buf), {
     status: 200,
-    headers: diskHeaders(rel),
+    headers: diskHeaders(rel, hit.source),
   });
 }
 
 export async function HEAD(_req: NextRequest, ctx: Ctx) {
   const { path: parts } = await ctx.params;
   const rel = safeRel(parts);
-  const buf = await readFromDisk(rel);
-  if (!buf) {
+  const hit = await resolveBody(rel);
+  if (!hit) {
     return new Response(null, { status: 404 });
   }
-  return new Response(null, { status: 200, headers: diskHeaders(rel) });
+  return new Response(null, {
+    status: 200,
+    headers: diskHeaders(rel, hit.source),
+  });
 }

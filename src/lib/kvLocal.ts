@@ -5,6 +5,11 @@
  */
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import {
+  canonReadEnabled,
+  isCanonKvRel,
+  resolveCanonKvJson,
+} from "@/lib/canonMatchRead";
 
 /** Optional emergency remotes (off by default). Set KV_ALLOW_REMOTE=1 to enable. */
 export const KV_REMOTE_BASES: string[] = (() => {
@@ -114,6 +119,10 @@ export async function loadKvJsonCached<T>(relPath: string): Promise<T | null> {
       /* next */
     }
   }
+  // Canon overlay: invalidate memo every 15s so collector upserts show up.
+  if (canonReadEnabled() && isCanonKvRel(rel)) {
+    mtimeMs = (mtimeMs || 1) + Math.floor(Date.now() / 15_000);
+  }
   const cached = memGet<T>(rel, mtimeMs);
   if (cached !== undefined) return cached;
 
@@ -123,6 +132,20 @@ export async function loadKvJsonCached<T>(relPath: string): Promise<T | null> {
   const job = (async (): Promise<T | null> => {
     try {
       const local = await readKvLocalJson<T>(rel);
+
+      // Phase 3: overlay TRAIN/CW month + players from CanonMatch when present.
+      if (canonReadEnabled() && isCanonKvRel(rel)) {
+        try {
+          const canon = await resolveCanonKvJson(rel, local?.data ?? null);
+          if (canon) {
+            memSet(rel, canon.data, mtimeMs);
+            return canon.data as T;
+          }
+        } catch {
+          /* prisma / canon unavailable — fall through to disk */
+        }
+      }
+
       if (local != null) {
         memSet(rel, local.data, local.mtimeMs);
         return local.data;
