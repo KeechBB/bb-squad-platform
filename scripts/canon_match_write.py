@@ -482,10 +482,27 @@ def upsert_cw_final(
     players_doc: dict[str, Any],
     *,
     source: str = "LOG",
+    require_finalize: bool | None = None,
 ) -> str | None:
-    """Upsert CW only when meeting is finalized (both rounds)."""
+    """Upsert CW into canon.
+
+    LOG (collector): only when meeting finalized (both rounds) — default.
+    SCREENSHOT: allow as soon as players JSON has roster (R1 and/or R2).
+    """
     legacy_id = str(slot.get("id") or players_doc.get("matchId") or "").strip()
     if not legacy_id:
+        return None
+    src = source if source in ("LOG", "SCREENSHOT", "IMPORT_JSON") else "LOG"
+    if require_finalize is None:
+        require_finalize = src == "LOG"
+    meeting = slot.get("meeting")
+    status = str(slot.get("status") or "")
+    finalized = bool(meeting) and status in ("win", "lose") and meeting not in (
+        "—",
+        "-",
+        "",
+    )
+    if require_finalize and not finalized:
         return None
     year = int(slot.get("_year") or 0)
     month = int(slot.get("_month") or 0)
@@ -505,9 +522,11 @@ def upsert_cw_final(
         year, month, day, str(srv) if srv else None, map_name, time_msk, legacy_id, "CW"
     )
     players = _players_from_cw_doc(players_doc)
+    if src == "SCREENSHOT" and not players:
+        return None
     return _upsert(
         kind="CW",
-        source=source if source in ("LOG", "SCREENSHOT", "IMPORT_JSON") else "LOG",
+        source=src,
         match_key=match_key,
         legacy_id=legacy_id,
         year=year,
@@ -521,7 +540,7 @@ def upsert_cw_final(
         opp=slot.get("opp") or players_doc.get("opp"),
         stack=slot.get("stack"),
         rules=slot.get("rules"),
-        meeting=slot.get("meeting"),
+        meeting=meeting if isinstance(meeting, str) else None,
         r1=slot.get("r1") if isinstance(slot.get("r1"), str) else None,
         r2=slot.get("r2") if isinstance(slot.get("r2"), str) else None,
         status=slot.get("status"),
@@ -531,3 +550,71 @@ def upsert_cw_final(
         raw_json={k: v for k, v in slot.items() if not str(k).startswith("_")},
         players=players,
     )
+
+
+def publish_match_from_kv(
+    *,
+    root: Path,
+    kind: str,
+    legacy_id: str,
+    month: str,
+    source: str = "SCREENSHOT",
+) -> str | None:
+    """Load month row + players JSON from kv-cache data root → CanonMatch upsert.
+
+    root = .../data/kv-cache/data  (has training/, players/, YYYY-MM.json)
+    """
+    kind_u = kind.upper().strip()
+    legacy_id = legacy_id.strip()
+    if kind_u == "TRAIN":
+        month_path = root / "training" / f"{month}.json"
+        players_path = root / "training" / "players" / f"{legacy_id}.json"
+        if not month_path.is_file():
+            print(f"missing month {month_path}", flush=True)
+            return None
+        data = json.loads(month_path.read_text(encoding="utf-8"))
+        row = next(
+            (m for m in (data.get("matches") or []) if str(m.get("id")) == legacy_id),
+            None,
+        )
+        if not row:
+            print(f"TRAIN id {legacy_id} not in {month_path.name}", flush=True)
+            return None
+        return upsert_train_row(
+            month, row, players_path=players_path, source=source
+        )
+
+    if kind_u == "CW":
+        month_path = root / f"{month}.json"
+        players_path = root / "players" / f"{legacy_id}.json"
+        if not month_path.is_file():
+            print(f"missing month {month_path}", flush=True)
+            return None
+        data = json.loads(month_path.read_text(encoding="utf-8"))
+        try:
+            year, mo = map(int, month.split("-")[:2])
+        except ValueError:
+            return None
+        row = next(
+            (m for m in (data.get("matches") or []) if str(m.get("id")) == legacy_id),
+            None,
+        )
+        if not row:
+            print(f"CW id {legacy_id} not in {month_path.name}", flush=True)
+            return None
+        players_doc: dict[str, Any] = {}
+        if players_path.is_file():
+            try:
+                players_doc = json.loads(players_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                players_doc = {}
+        slot = {**row, "_year": year, "_month": mo, "_monthKey": month}
+        return upsert_cw_final(
+            slot,
+            players_doc,
+            source=source,
+            require_finalize=False if source == "SCREENSHOT" else None,
+        )
+
+    print(f"unknown kind {kind}", flush=True)
+    return None
