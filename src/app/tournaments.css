@@ -1300,9 +1300,30 @@
 
 .tn-my-team-left {
   display: grid;
-  grid-template-rows: minmax(120px, 0.7fr) minmax(260px, 1.35fr) minmax(120px, 0.75fr);
+  grid-template-rows: minmax(168px, auto) minmax(220px, 1.2fr) minmax(100px, 0.7fr);
   gap: 12px;
   min-height: 0;
+}
+
+.tn-my-info {
+  overflow: auto;
+}
+
+.tn-my-rename {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+  margin-top: 4px;
+}
+
+.tn-my-rename .tn-field {
+  flex: 1 1 140px;
+  margin: 0;
+}
+
+.tn-my-rename .tn-field-tag {
+  flex: 0 1 92px;
 }
 
 .tn-my-info-row {

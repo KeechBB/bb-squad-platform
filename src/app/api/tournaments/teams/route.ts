@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { TOURNAMENT_TEAM_ROSTER_MAX, ACTIVE_TOURNAMENT } from "@/lib/tournaments";
+import {
+  TOURNAMENT_TEAM_ROSTER_MAX,
+  ACTIVE_TOURNAMENT,
+  normalizeTeamTag,
+  teamIdentityError,
+} from "@/lib/tournaments";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
 
 export const runtime = "nodejs";
@@ -189,9 +194,7 @@ export async function POST(req: Request) {
   if (ct.includes("multipart/form-data")) {
     const form = await req.formData();
     name = String(form.get("name") || "").trim();
-    tag = String(form.get("tag") || "")
-      .trim()
-      .toUpperCase();
+    tag = normalizeTeamTag(String(form.get("tag") || ""));
     const logo = form.get("logo");
     if (logo && typeof logo !== "string" && "arrayBuffer" in logo) {
       logoBlob = logo as Blob;
@@ -202,20 +205,14 @@ export async function POST(req: Request) {
       tag?: string;
     };
     name = String(body.name || "").trim();
-    tag = String(body.tag || "")
-      .trim()
-      .toUpperCase();
+    tag = normalizeTeamTag(String(body.tag || ""));
   }
 
-  if (name.length < 2 || name.length > 32) {
-    return NextResponse.json({ error: "Название 2–32 символа" }, { status: 400 });
+  const identityError = teamIdentityError(name, tag);
+  if (identityError) {
+    return NextResponse.json({ error: identityError }, { status: 400 });
   }
-  if (!/^[A-Za-zА-Яа-яЁё0-9 _.\-]{2,32}$/.test(name)) {
-    return NextResponse.json({ error: "Недопустимое название" }, { status: 400 });
-  }
-  if (!/^[A-Za-zА-Яа-яЁё0-9]{2,6}$/.test(tag)) {
-    return NextResponse.json({ error: "Тег: 2–6 букв/цифр" }, { status: 400 });
-  }
+  name = name.trim();
 
   const taken = await prisma.tournamentTeam.findUnique({ where: { tag } });
   if (taken) {

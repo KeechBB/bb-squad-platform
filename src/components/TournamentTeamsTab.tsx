@@ -11,6 +11,7 @@ import {
 import {
   TEAM_SUB_TABS,
   TEAMS_SECTION_BLURB,
+  teamIdentityError,
   TOURNAMENT_TEAM_ROLE_LABEL,
   mapDbTeamRole,
   type TeamSubTabId,
@@ -348,14 +349,8 @@ function TeamsOverview({
   function validate(): string | null {
     const n = name.trim();
     const t = tag.trim().toUpperCase();
-    if (n.length < 2) return "Название — минимум 2 символа";
-    if (n.length > 32) return "Название — максимум 32 символа";
-    if (!/^[A-Za-zА-Яа-яЁё0-9 _.\-]{2,32}$/.test(n)) {
-      return "В названии недопустимые символы";
-    }
-    if (!/^[A-Za-zА-Яа-яЁё0-9]{2,6}$/.test(t)) {
-      return "Тег: 2–6 букв/цифр";
-    }
+    const identity = teamIdentityError(n, t);
+    if (identity) return identity;
     if (logoFile) {
       if (logoFile.size > 20 * 1024 * 1024) return "Лого до 20 МБ";
       const ok =
@@ -466,7 +461,7 @@ function TeamsOverview({
                 />
               </label>
               <label className="tn-field">
-                <span>Тег</span>
+                <span>Тег (1–6)</span>
                 <input
                   type="text"
                   value={tag}
@@ -640,10 +635,20 @@ function MyTeamPanel({
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const [roleBusyId, setRoleBusyId] = useState<string | null>(null);
   const [kickBusyId, setKickBusyId] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(team?.name ?? "");
+  const [editTag, setEditTag] = useState(team?.tag ?? "");
+
+  useEffect(() => {
+    setEditName(team?.name ?? "");
+    setEditTag(team?.tag ?? "");
+    setEditing(false);
+  }, [team?.id, team?.name, team?.tag]);
 
   const canInvite = myRole === "CAPTAIN" || myRole === "DEPUTY";
   const canLogo = canInvite;
   const canDelete = myRole === "CAPTAIN";
+  const canRename = canDelete;
   const canRoles = canInvite;
   const canKick = canInvite;
 
@@ -677,6 +682,41 @@ function MyTeamPanel({
       setOkMsg(`Приглашение отправлено: ${data.invite?.nick || q}`);
       setInviteQ("");
       setPicked(null);
+      onChanged();
+    } catch {
+      setError("Сеть недоступна");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveIdentity(e: FormEvent) {
+    e.preventDefault();
+    if (!team || !canRename) return;
+    const err = teamIdentityError(editName, editTag);
+    if (err) {
+      setError(err);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setOkMsg(null);
+    try {
+      const res = await fetch(`/api/tournaments/teams/${team.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editName.trim(),
+          tag: editTag.trim(),
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setError(data.error || "Не удалось сохранить");
+        return;
+      }
+      setOkMsg("Название и тег сохранены");
+      setEditing(false);
       onChanged();
     } catch {
       setError("Сеть недоступна");
@@ -849,11 +889,75 @@ function MyTeamPanel({
               <p className="tn-my-info-meta">
                 Состав {team.membersCount} · с {formatDate(team.createdAt)}
               </p>
-              <p className="tn-my-note">
-                Название и тег менять нельзя.
-              </p>
             </div>
           </div>
+          {canRename && editing ? (
+            <form className="tn-my-rename" onSubmit={(e) => void saveIdentity(e)}>
+              <label className="tn-field">
+                <span>Название</span>
+                <input
+                  type="text"
+                  value={editName}
+                  maxLength={32}
+                  disabled={busy}
+                  autoComplete="off"
+                  onChange={(e) => setEditName(e.target.value)}
+                />
+              </label>
+              <label className="tn-field tn-field-tag">
+                <span>Тег (1–6)</span>
+                <input
+                  type="text"
+                  value={editTag}
+                  maxLength={6}
+                  disabled={busy}
+                  autoComplete="off"
+                  onChange={(e) => setEditTag(e.target.value.toUpperCase())}
+                />
+              </label>
+              <div className="tn-my-logo-actions">
+                <button
+                  type="submit"
+                  className="tn-teams-create-btn"
+                  disabled={busy}
+                >
+                  Сохранить
+                </button>
+                <button
+                  type="button"
+                  className="tn-teams-cancel-btn"
+                  disabled={busy}
+                  onClick={() => {
+                    setEditing(false);
+                    setEditName(team.name);
+                    setEditTag(team.tag);
+                    setError(null);
+                  }}
+                >
+                  Отмена
+                </button>
+              </div>
+              {error ? <p className="tn-teams-error">{error}</p> : null}
+            </form>
+          ) : null}
+          {canRename && !editing ? (
+            <div className="tn-my-logo-actions">
+              <button
+                type="button"
+                className="tn-teams-create-btn"
+                disabled={busy}
+                onClick={() => {
+                  setEditName(team.name);
+                  setEditTag(team.tag);
+                  setError(null);
+                  setOkMsg(null);
+                  setEditing(true);
+                }}
+              >
+                Изменить название и тег
+              </button>
+            </div>
+          ) : null}
           {canLogo ? (
             <div className="tn-my-logo-actions">
               <label className="tn-teams-create-btn tn-logo-file-btn">

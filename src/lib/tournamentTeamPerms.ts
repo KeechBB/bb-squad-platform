@@ -17,6 +17,11 @@ export function canChangeLogo(actor: ActorCtx): boolean {
   return actor.role === "CAPTAIN" || actor.role === "DEPUTY";
 }
 
+/** Название и тег — только капитан. */
+export function canRenameTeam(actor: ActorCtx): boolean {
+  return actor.role === "CAPTAIN";
+}
+
 export function canInvite(actor: ActorCtx): boolean {
   return actor.role === "CAPTAIN" || actor.role === "DEPUTY";
 }

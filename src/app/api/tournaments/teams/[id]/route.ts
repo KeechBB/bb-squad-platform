@@ -8,8 +8,17 @@ import {
   saveTeamLogo,
   deleteTeamLogo,
 } from "@/lib/tournamentTeamLogoFile";
-import { canChangeLogo, canDeleteTeam } from "@/lib/tournamentTeamPerms";
-import { ACTIVE_TOURNAMENT } from "@/lib/tournaments";
+import {
+  canChangeLogo,
+  canDeleteTeam,
+  canRenameTeam,
+} from "@/lib/tournamentTeamPerms";
+import {
+  ACTIVE_TOURNAMENT,
+  normalizeTeamTag,
+  teamIdentityError,
+} from "@/lib/tournaments";
+import { Prisma } from "@prisma/client";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
 
 export const runtime = "nodejs";
@@ -30,7 +39,7 @@ async function actorOnTeam(teamId: string, steamId: string) {
   return { userId: me.id, role: m.role, user: me };
 }
 
-/** PATCH — сменить лого (капитан/зам). Имя и тег нельзя. */
+/** PATCH — название и тег (капитан, JSON) или лого (капитан/зам, FormData). */
 export async function PATCH(req: Request, ctx: Ctx) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.steamId || !session.user.profileComplete) {
@@ -38,7 +47,77 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
   const { id: teamId } = await ctx.params;
   const actor = await actorOnTeam(teamId, session.user.steamId);
-  if (!actor || !canChangeLogo(actor)) {
+  if (!actor) {
+    return NextResponse.json({ error: "Нет прав" }, { status: 403 });
+  }
+
+  const ct = req.headers.get("content-type") || "";
+  if (ct.includes("application/json")) {
+    if (!canRenameTeam(actor)) {
+      return NextResponse.json(
+        { error: "Название и тег меняет только капитан" },
+        { status: 403 }
+      );
+    }
+    const body = (await req.json().catch(() => ({}))) as {
+      name?: string;
+      tag?: string;
+    };
+    const name = String(body.name || "").trim();
+    const tag = normalizeTeamTag(String(body.tag || ""));
+    const identityError = teamIdentityError(name, tag);
+    if (identityError) {
+      return NextResponse.json({ error: identityError }, { status: 400 });
+    }
+    const teamRow = await prisma.tournamentTeam.findUnique({
+      where: { id: teamId },
+      select: { id: true, tag: true, name: true },
+    });
+    if (!teamRow) {
+      return NextResponse.json({ error: "Команда не найдена" }, { status: 404 });
+    }
+    if (teamRow.name === name && teamRow.tag === tag) {
+      return NextResponse.json({ ok: true, name, tag });
+    }
+    const taken = await prisma.tournamentTeam.findUnique({ where: { tag } });
+    if (taken && taken.id !== teamId) {
+      return NextResponse.json({ error: "Тег занят" }, { status: 409 });
+    }
+    try {
+      await prisma.tournamentTeam.update({
+        where: { id: teamId },
+        data: { name, tag },
+      });
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2002"
+      ) {
+        return NextResponse.json({ error: "Тег занят" }, { status: 409 });
+      }
+      throw err;
+    }
+    const nick = personLabel(actor.user);
+    await writeActionLog({
+      category: "tournament",
+      action: "team_rename",
+      message: `${nick} переименовал команду [${teamRow.tag}] ${teamRow.name} → [${tag}] ${name}`,
+      actorId: actor.userId,
+      actorNick: nick,
+      clanId: teamRow.id,
+      clanTag: tag,
+      meta: {
+        tournamentId: ACTIVE_TOURNAMENT.id,
+        teamId,
+        fromName: teamRow.name,
+        fromTag: teamRow.tag,
+        teamName: name,
+      },
+    });
+    return NextResponse.json({ ok: true, name, tag });
+  }
+
+  if (!canChangeLogo(actor)) {
     return NextResponse.json({ error: "Нет прав менять лого" }, { status: 403 });
   }
 

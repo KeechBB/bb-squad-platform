@@ -225,6 +225,24 @@ export type TournamentMatchHistoryRow = {
 
 export const TOURNAMENT_MATCH_HISTORY_DRAFT: TournamentMatchHistoryRow[] = [];
 
+/** Тег турнирной команды: 1–6 букв или цифр, без пробелов. */
+export const TEAM_TAG_RE = /^[A-Za-zА-Яа-яЁё0-9]{1,6}$/;
+export const TEAM_NAME_RE = /^[A-Za-zА-Яа-яЁё0-9 _.\-]{2,32}$/;
+
+export function normalizeTeamTag(raw: string): string {
+  return raw.trim().toUpperCase();
+}
+
+/** null — название и тег годятся. */
+export function teamIdentityError(name: string, tag: string): string | null {
+  const n = name.trim();
+  const t = normalizeTeamTag(tag);
+  if (n.length < 2 || n.length > 32) return "Название 2–32 символа";
+  if (!TEAM_NAME_RE.test(n)) return "Недопустимое название";
+  if (!TEAM_TAG_RE.test(t)) return "Тег: 1–6 букв или цифр";
+  return null;
+}
+
 export const TEAMS_SECTION_BLURB = [
   "Турнирная команда — это не клан.",
   "Клан живёт на платформе постоянно (КВ, тренировки, рейтинг).",
