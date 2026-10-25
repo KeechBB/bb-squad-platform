@@ -69,8 +69,18 @@ PLAYER_DMG = re.compile(
     r"(?:\(Online Ids:\s*(?P<nick>[^)]+)\)|(?P<nick2>[^\s(]+))",
     re.I,
 )
+# Башня в ванили: SQVehicleSeat::TakeDamage на BP_*_Turret_* (не на корпус MATV_CROWS)
+SEAT_DMG = re.compile(
+    r"SQVehicleSeat::TakeDamage\[(?P<kind>\w+)\]\s+(?P<vid>BP_[A-Za-z0-9_]+)\s+"
+    r"for\s+(?P<dmg>[\d.]+)\s+damage\s+\(type=(?P<typ>[^)]+)\)",
+    re.I,
+)
 TAG_RE = re.compile(r"^\[(?:BB|BBCOP|BBC|BBr)\]\s*", re.I)
 ZONES = ("turret", "hull", "engine", "wheel", "track")
+TURRET_ACTOR_RE = re.compile(
+    r"Turret|Arbalet_Turret|CROWS_Turret|M1151_Turret|Kord_Turret",
+    re.I,
+)
 
 
 def strip_tag(n: str) -> str:
@@ -93,9 +103,21 @@ def root_vid(target: str) -> str:
     return t.split(".", 1)[0] if "." in t else t
 
 
+def is_turret_actor(vid: str) -> bool:
+    """BP_M1151_Turret_C / BP_CROWS_Turret_C — да; BP_MATV_CROWS_C (корпус) — нет."""
+    t = str(vid or "")
+    if not TURRET_ACTOR_RE.search(t):
+        return False
+    # целый armed light с CROWS в имени корпуса — не башня
+    if re.search(r"MATV_CROWS|Tigr_RWS|LAV_RWS", t, re.I) and not re.search(
+        r"Turret", t, re.I
+    ):
+        return False
+    return True
+
+
 def zone_of(target: str) -> str:
     t = str(target or "")
-    u = t.upper()
     if "." in t:
         comp = t.split(".", 1)[1].upper()
         if "ENGINE" in comp:
@@ -107,7 +129,7 @@ def zone_of(target: str) -> str:
         if "TURRET" in comp or "GUN" in comp:
             return "turret"
         return "hull"
-    if re.search(r"_TURRET_|TURRET_C|CROWS_TURRET|ARBA", u):
+    if is_turret_actor(t):
         return "turret"
     return "hull"
 
@@ -191,6 +213,7 @@ def process_log(
 ) -> None:
     seats: dict[str, tuple[str, int, str]] = {}
     pending: list[tuple[datetime, str, str, float]] = []
+    recent_hitters: list[tuple[datetime, str]] = []
 
     def key_of(nick: str) -> str:
         n = strip_tag(nick)
@@ -209,16 +232,62 @@ def process_log(
         asset, _seat, role = st
         return role in ("driver", "gunner") and R.is_train_armor_vehicle(asset)
 
+    def note_hitter(at: datetime, nick: str) -> None:
+        recent_hitters.append((at, nick))
+        if len(recent_hitters) > 80:
+            del recent_hitters[:40]
+
+    def credit_zone(nick: str, zone: str, dmg: float) -> None:
+        if dmg <= 0:
+            return
+        k = ensure(nick)
+        acc[k]["zones"][zone] = float(acc[k]["zones"].get(zone) or 0) + dmg
+
+    def nearest_hitter(at: datetime, window: float = 0.4) -> str | None:
+        best = None
+        best_dt = window + 1
+        for hat, hnick in recent_hitters:
+            dt = abs((at - hat).total_seconds())
+            if dt <= window and dt < best_dt:
+                best = hnick
+                best_dt = dt
+        return best
+
     def flush_parts(at: datetime, root: str, shooter: str, taken: float) -> None:
-        k = ensure(shooter)
+        """Привязать part-attempt / turret-seat к стрелку.
+
+        engine/wheel/track — тот же root vid;
+        turret — отдельный BP_*_Turret_* → матчим только по времени (±0.4с).
+        """
+        note_hitter(at, shooter)
         left = []
         for pat, proot, zone, pdmg in pending:
-            if abs((at - pat).total_seconds()) > 0.35 or proot != root:
-                if abs((at - pat).total_seconds()) <= 0.5:
+            dt = abs((at - pat).total_seconds())
+            if dt > 0.4:
+                if dt <= 0.8:
                     left.append((pat, proot, zone, pdmg))
                 continue
-            if taken > 0:
-                acc[k]["zones"][zone] = float(acc[k]["zones"].get(zone) or 0) + pdmg
+            same = proot == root or zone == "turret"
+            if not same:
+                left.append((pat, proot, zone, pdmg))
+                continue
+            if taken > 0 or zone == "turret":
+                use = pdmg if pdmg > 0 else taken
+                credit_zone(shooter, zone, use)
+        pending[:] = left
+
+    def flush_turrets_by_time(at: datetime | None = None) -> None:
+        """Осиротевшие turret-seat → ближайший hitter в окне."""
+        left = []
+        for pat, proot, zone, pdmg in pending:
+            if zone != "turret":
+                left.append((pat, proot, zone, pdmg))
+                continue
+            hit = nearest_hitter(pat, 0.5)
+            if hit:
+                credit_zone(hit, "turret", pdmg)
+            elif at is None or abs((at - pat).total_seconds()) <= 1.0:
+                left.append((pat, proot, zone, pdmg))
         pending[:] = left
 
     with path.open("r", encoding="utf-8", errors="ignore") as f:
@@ -244,6 +313,32 @@ def process_log(
             if xm:
                 seats.pop(key_of(xm.group("nick")), None)
                 continue
+
+            # Башня: Seat TakeDamage на turret-pawn
+            if "SQVehicleSeat::TakeDamage" in line:
+                sm = SEAT_DMG.search(line)
+                if sm:
+                    typ = sm.group("typ") or ""
+                    kind = sm.group("kind") or ""
+                    vid = sm.group("vid") or ""
+                    try:
+                        dmg = float(sm.group("dmg") or 0)
+                    except ValueError:
+                        dmg = 0.0
+                    if (
+                        dmg > 0
+                        and "Burning" not in typ
+                        and kind != "GenericDamage"
+                        and is_turret_actor(vid)
+                    ):
+                        # сразу пробуем привязать к недавнему стрелку
+                        hit = nearest_hitter(at, 0.4)
+                        if hit:
+                            credit_zone(hit, "turret", dmg)
+                        else:
+                            pending.append((at, vid, "turret", dmg))
+                            if len(pending) > 4000:
+                                pending[:] = pending[-2000:]
 
             if "damage attempt" in line and "BP_" in line:
                 pm = PART_ATTEMPT.search(line)
@@ -278,9 +373,9 @@ def process_log(
                             acc[k]["noPen"] += 1
                         else:
                             acc[k]["dmgToVeh"] += dmg
-                            # hull by default; parts overwrite via flush
                             had_parts = any(
-                                abs((at - p[0]).total_seconds()) <= 0.35 and p[1] == root
+                                abs((at - p[0]).total_seconds()) <= 0.35
+                                and (p[1] == root or p[2] == "turret")
                                 for p in pending
                             )
                             if not had_parts:
@@ -318,11 +413,14 @@ def process_log(
                     dmg = float(pm.group("dmg") or 0)
                 except ValueError:
                     dmg = 0.0
-                nick = strip_tag(pm.group("nick") or pm.group("nick2") or "")
+                    nick = strip_tag(pm.group("nick") or pm.group("nick2") or "")
                 if dmg > 0 and nick:
                     k = ensure(nick)
                     if in_armor_crew(k):
                         acc[k]["dmgFromVeh"] += dmg
+
+        # хвост: башни без пары damage-taken
+        flush_turrets_by_time(None)
 
 
 def main() -> int:
