@@ -6,6 +6,7 @@ import {
   publicMatchEventKey,
   type PublicMatchIngestEvent,
 } from "@/lib/publicMatches";
+import { upsertCanonFromPublicMatch } from "@/lib/canonPublicUpsert";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -134,6 +135,20 @@ export async function POST(req: Request) {
         update: {},
       });
       accepted += 1;
+      // Phase 8: mirror into unified CanonMatch (best-effort)
+      void upsertCanonFromPublicMatch({
+        eventKey,
+        serverKey,
+        endedAt,
+        mapName,
+        layerName,
+        faction1,
+        score1,
+        faction2,
+        score2,
+        winnerTeam,
+        winnerName,
+      });
     } catch {
       skipped += 1;
     }

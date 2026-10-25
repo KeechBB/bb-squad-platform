@@ -63,16 +63,13 @@ def find_slice_dirs(
             base = parent / base_key
             if base.is_dir() and base not in out:
                 out.append(base)
-            stem = CANON.slug_map(map_name or "")
-            srv = (server or "").lower()
+            # Prefer exact / stripped-key only — loose map-stem matching pulled
+            # extra rounds from other matches and inflated kill sums.
+            prefix = (base_key or match_key)[:22].lower()
             for p in parent.iterdir():
                 if not p.is_dir() or p in out:
                     continue
-                name = p.name.lower()
-                if stem and stem in name.replace("-", "").replace("_", ""):
-                    if not srv or srv in name:
-                        out.append(p)
-                elif base_key and name.startswith(base_key[:16]):
+                if prefix and p.name.lower().startswith(prefix):
                     out.append(p)
     return out
 
@@ -338,9 +335,10 @@ def verify_one(match: dict[str, Any]) -> dict[str, Any]:
         parsed_any = True
         for k, v in logk.items():
             cur = merged_log.get(k) or {"kills": 0, "deaths": 0, "nok": 0}
-            cur["kills"] = max(cur["kills"], v["kills"])
-            cur["deaths"] = max(cur["deaths"], v["deaths"])
-            cur["nok"] = max(cur["nok"], v["nok"])
+            # CW: multiple slices = rounds — sum, don't max
+            cur["kills"] += int(v["kills"] or 0)
+            cur["deaths"] += int(v["deaths"] or 0)
+            cur["nok"] += int(v["nok"] or 0)
             merged_log[k] = cur
 
     cmp = compare(screen, merged_log if parsed_any else None)
