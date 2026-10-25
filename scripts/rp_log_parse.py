@@ -507,6 +507,31 @@ def vehicle_label_ru(asset: str) -> str:
     return f"{cls} {short}".strip()
 
 
+def is_train_armor_vehicle(asset: str) -> bool:
+    """
+    Рейтинг «Техника» (тренировки): мехвод/наводчик на тяжёлой —
+    10–15 тикетов (БМП/БТР/танки), RWS PARS / Stryker / MRAP·LAV RWS.
+    Вертолёты и лёгкая MATV/logi (≤5) — не этот трек.
+    """
+    a = str(asset or "")
+    if not a:
+        return False
+    au = a.upper()
+    # Air — never armor track
+    if re.search(
+        r"LOACH|UH60|UH-60|MI8|MI-8|CH14|CH-14|HELI|CAS_|_CAS\b|BLACKHAWK",
+        au,
+    ):
+        return False
+    t = int(vehicle_tickets(a) or 0)
+    if t in (10, 15):
+        return True
+    # Edge: named heavy RWS / Stryker / PARS if tickets somehow mis-read but ≥10
+    if t >= 10 and re.search(r"STRYKER|PARS|LAV_RWS|RWS", au):
+        return True
+    return False
+
+
 def vehicle_seat_role(asset: str, seat: int, pawn: str = "") -> str:
     """
     Роль места (для driver_share и идентификации экипажа):
@@ -859,6 +884,63 @@ def score_match_rp(
             meta["absorbed"] = True
             pawn_to_hull[cand] = hid
 
+    def _player_crew_track(pk: str) -> tuple[str, str | None, int | None, str | None]:
+        """
+        infantry | vehicle for train rating split.
+        Только driver/gunner на is_train_armor_vehicle. Пассажир/пех/лёгкая → infantry.
+        """
+        if not pk:
+            return ("infantry", None, None, None)
+        hid = player_hull.get(pk)
+        if not hid:
+            return ("infantry", None, None, None)
+        h = hulls.get(hid) or {}
+        if h.get("dead") or h.get("absorbed"):
+            return ("infantry", None, None, None)
+        seat = player_seat.get(pk)
+        if seat is None:
+            return ("infantry", None, None, None)
+        roles = h.get("seat_roles") or {}
+        role = roles.get(seat) or vehicle_seat_role(
+            str(h.get("asset") or ""), int(seat), ""
+        )
+        if role not in ("driver", "gunner"):
+            return ("infantry", None, None, None)
+        asset = str(h.get("asset") or "")
+        tickets = vehicle_tickets(asset) if asset else None
+        if not is_train_armor_vehicle(asset):
+            return ("infantry", asset or None, tickets, role)
+        return ("vehicle", asset or None, tickets, role)
+
+    def _annotate_crew_tracks(
+        ev: dict, *, killer_key: str | None = None, victim_key: str | None = None
+    ) -> dict:
+        """Stamp track / victimTrack (+ vehicle meta) for infantry|vehicle rating."""
+        if killer_key:
+            tr, asset, tickets, role = _player_crew_track(killer_key)
+            ev["track"] = tr
+            if asset:
+                ev.setdefault("vehicle", asset)
+            if tickets is not None:
+                ev.setdefault("tickets", tickets)
+            if role:
+                ev["crewRole"] = role
+        else:
+            ev.setdefault("track", "infantry")
+        if victim_key:
+            vtr, vasset, vtickets, vrole = _player_crew_track(victim_key)
+            ev["victimTrack"] = vtr
+            if vrole:
+                ev["victimCrewRole"] = vrole
+            if vasset and not ev.get("vehicle"):
+                ev["vehicle"] = vasset
+            if vtickets is not None and ev.get("tickets") is None:
+                ev["tickets"] = vtickets
+        return ev
+
+    def _track_for_asset(asset: str) -> str:
+        return "vehicle" if is_train_armor_vehicle(asset) else "infantry"
+
     def _snapshot_crew(h: dict) -> dict[int, str]:
         """Только водитель + F2. Пассажиры/десант (seat≥2 и seat1 на logi) — вне штрафа."""
         seats = h.get("seats") or {}
@@ -928,6 +1010,8 @@ def score_match_rp(
                 "reason": reason,
                 "label": f"мехвод 70% · {reason_ru} F2 ({gun_nick}) · {vlab}",
                 "formula": "v2",
+                "track": _track_for_asset(asset),
+                "crewRole": "driver",
             }
         )
 
@@ -969,6 +1053,7 @@ def score_match_rp(
         # Losses — always ×1 (no soft-cap). Never seats≥2 / transport passengers.
         # Лёгкая техника (≤5 тик., в т.ч. MATV/logi): штраф только мехводу (−70%).
         # F2 на MATV остаётся gunner для driver_share, но не получает vehicle_loss.
+        loss_track = _track_for_asset(asset)
         if f2 and tickets > 5:
             f2 = ensure(f2, disp.get(f2, f2))
             apply_delta(f2, -base)
@@ -984,6 +1069,9 @@ def score_match_rp(
                     "seat": 1,
                     "label": f"потеря {vlab} (F2, {tickets} тик.)",
                     "formula": "v2",
+                    "track": loss_track,
+                    "victimTrack": loss_track,
+                    "crewRole": "gunner",
                 }
             )
         if driver and driver != f2:
@@ -1002,6 +1090,9 @@ def score_match_rp(
                     "seat": 0,
                     "label": f"потеря {vlab} (мехвод 70%, {tickets} тик.)",
                     "formula": "v2",
+                    "track": loss_track,
+                    "victimTrack": loss_track,
+                    "crewRole": "driver",
                 }
             )
         # Finisher kill credit
@@ -1024,21 +1115,22 @@ def score_match_rp(
         kk = ensure(kk, (fin or {}).get("killer") or kk)
         gcoef = rp_gain_coef(rp.get(kk, START_RP)) if soft_gain else 1.0
         applied = apply_delta(kk, +base)
-        events.append(
-            {
-                "kind": "vehicle_kill",
-                "time": at_msk,
-                "killer": disp[kk],
-                "victim": asset or hid,
-                "delta": round(abs(applied), 2),
-                "tickets": tickets,
-                "vehicle": asset,
-                "weapon": (fin or {}).get("causer") or "",
-                "gainCoef": gcoef,
-                "label": f"уничтожил {vlab} ({tickets} тик.)",
-                "formula": "v2",
-            }
-        )
+        # Track = seat of finisher (F2/driver in armor → vehicle; LAT с пеха → infantry)
+        kill_ev = {
+            "kind": "vehicle_kill",
+            "time": at_msk,
+            "killer": disp[kk],
+            "victim": asset or hid,
+            "delta": round(abs(applied), 2),
+            "tickets": tickets,
+            "vehicle": asset,
+            "weapon": (fin or {}).get("causer") or "",
+            "gainCoef": gcoef,
+            "label": f"уничтожил {vlab} ({tickets} тик.)",
+            "formula": "v2",
+        }
+        _annotate_crew_tracks(kill_ev, killer_key=kk)
+        events.append(kill_ev)
         _credit_driver_share(kk, applied, at_msk, "vehicle_kill")
 
     def _handle_vehicle_op(d: dict) -> None:
@@ -1383,17 +1475,21 @@ def score_match_rp(
                 delta_k = round(n * COEF_TK_NOK, 2)
                 apply_delta(kk, -delta_k)
                 events.append(
-                    {
-                        "kind": "nok",
-                        "time": d.get("at_msk"),
-                        "killer": disp[kk],
-                        "victim": disp[vk],
-                        "killerRp": round(pk, 1),
-                        "victimRp": round(pv, 1),
-                        "delta": delta_k,
-                        "teamkill": True,
-                        "formula": "v2",
-                    }
+                    _annotate_crew_tracks(
+                        {
+                            "kind": "nok",
+                            "time": d.get("at_msk"),
+                            "killer": disp[kk],
+                            "victim": disp[vk],
+                            "killerRp": round(pk, 1),
+                            "victimRp": round(pv, 1),
+                            "delta": delta_k,
+                            "teamkill": True,
+                            "formula": "v2",
+                        },
+                        killer_key=kk,
+                        victim_key=vk,
+                    )
                 )
             else:
                 delta_k = round(n * COEF_ENEMY_NOK, 2)
@@ -1402,19 +1498,23 @@ def score_match_rp(
                 applied_k = apply_delta(kk, +delta_k)
                 apply_delta(vk, -delta_v)
                 events.append(
-                    {
-                        "kind": "nok",
-                        "time": d.get("at_msk"),
-                        "killer": disp[kk],
-                        "victim": disp[vk],
-                        "killerRp": round(pk, 1),
-                        "victimRp": round(pv, 1),
-                        "delta": round(abs(applied_k), 2),
-                        "victimDelta": delta_v,
-                        "teamkill": False,
-                        "formula": "v2",
-                        "gainCoef": gcoef,
-                    }
+                    _annotate_crew_tracks(
+                        {
+                            "kind": "nok",
+                            "time": d.get("at_msk"),
+                            "killer": disp[kk],
+                            "victim": disp[vk],
+                            "killerRp": round(pk, 1),
+                            "victimRp": round(pv, 1),
+                            "delta": round(abs(applied_k), 2),
+                            "victimDelta": delta_v,
+                            "teamkill": False,
+                            "formula": "v2",
+                            "gainCoef": gcoef,
+                        },
+                        killer_key=kk,
+                        victim_key=vk,
+                    )
                 )
                 if do_vehicle:
                     _credit_driver_share(kk, applied_k, d.get("at_msk") or "", "nok")
@@ -1427,18 +1527,22 @@ def score_match_rp(
                 apply_delta(kk, -delta_k)
                 apply_delta(vk, -delta_v)
                 events.append(
-                    {
-                        "kind": "tk",
-                        "time": d.get("at_msk"),
-                        "killer": disp[kk],
-                        "victim": disp[vk],
-                        "killerRp": round(pk, 1),
-                        "victimRp": round(pv, 1),
-                        "delta": delta_k,
-                        "victimDelta": delta_v,
-                        "teamkill": True,
-                        "formula": "v2",
-                    }
+                    _annotate_crew_tracks(
+                        {
+                            "kind": "tk",
+                            "time": d.get("at_msk"),
+                            "killer": disp[kk],
+                            "victim": disp[vk],
+                            "killerRp": round(pk, 1),
+                            "victimRp": round(pv, 1),
+                            "delta": delta_k,
+                            "victimDelta": delta_v,
+                            "teamkill": True,
+                            "formula": "v2",
+                        },
+                        killer_key=kk,
+                        victim_key=vk,
+                    )
                 )
                 tk_n += 1
             else:
@@ -1448,19 +1552,23 @@ def score_match_rp(
                 applied_k = apply_delta(kk, +delta_k)
                 apply_delta(vk, -delta_v)
                 events.append(
-                    {
-                        "kind": "die",
-                        "time": d.get("at_msk"),
-                        "killer": disp[kk],
-                        "victim": disp[vk],
-                        "killerRp": round(pk, 1),
-                        "victimRp": round(pv, 1),
-                        "delta": round(abs(applied_k), 2),
-                        "victimDelta": delta_v,
-                        "teamkill": False,
-                        "formula": "v2",
-                        "gainCoef": gcoef,
-                    }
+                    _annotate_crew_tracks(
+                        {
+                            "kind": "die",
+                            "time": d.get("at_msk"),
+                            "killer": disp[kk],
+                            "victim": disp[vk],
+                            "killerRp": round(pk, 1),
+                            "victimRp": round(pv, 1),
+                            "delta": round(abs(applied_k), 2),
+                            "victimDelta": delta_v,
+                            "teamkill": False,
+                            "formula": "v2",
+                            "gainCoef": gcoef,
+                        },
+                        killer_key=kk,
+                        victim_key=vk,
+                    )
                 )
                 if do_vehicle:
                     _credit_driver_share(kk, applied_k, d.get("at_msk") or "", "die")
@@ -1474,18 +1582,22 @@ def score_match_rp(
             applied = apply_delta(kk, +delta)
             net.setdefault(vk, 0.0)
             events.append(
-                {
-                    "kind": "revive",
-                    "time": d.get("at_msk"),
-                    "killer": disp[kk],
-                    "victim": disp[vk],
-                    "killerRp": round(pk, 1),
-                    "victimRp": round(pv, 1),
-                    "delta": round(abs(applied), 2),
-                    "ownNokRevive": own_nok,
-                    "formula": "v2",
-                    "gainCoef": gcoef,
-                }
+                _annotate_crew_tracks(
+                    {
+                        "kind": "revive",
+                        "time": d.get("at_msk"),
+                        "killer": disp[kk],
+                        "victim": disp[vk],
+                        "killerRp": round(pk, 1),
+                        "victimRp": round(pv, 1),
+                        "delta": round(abs(applied), 2),
+                        "ownNokRevive": own_nok,
+                        "formula": "v2",
+                        "gainCoef": gcoef,
+                    },
+                    killer_key=kk,
+                    victim_key=vk,
+                )
             )
             rev_n += 1
 

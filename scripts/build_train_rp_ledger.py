@@ -977,6 +977,89 @@ def main() -> None:
             f"{m['id']}: {die_n} enemy Die, {tk_n} TK, {rev_n} revives, {len(net)} players"
         )
 
+    def _infer_tracks(e: dict) -> tuple[str, str]:
+        """(killerTrack, victimTrack) — parser stamp or heuristic for old rows."""
+        tr = e.get("track")
+        vtr = e.get("victimTrack")
+        if tr in ("infantry", "vehicle") and vtr in ("infantry", "vehicle"):
+            return str(tr), str(vtr)
+        kind = e.get("kind")
+        asset = str(e.get("vehicle") or "")
+        tickets = e.get("tickets")
+        armor = False
+        if asset:
+            armor = R.is_train_armor_vehicle(asset)
+        elif tickets in (10, 15):
+            armor = True
+        if kind in ("vehicle_loss", "vehicle_loss_driver", "driver_share"):
+            t = "vehicle" if armor else "infantry"
+            return t, t
+        # vehicle_kill without seat stamp: pech LAT vs F2 unknown → infantry
+        if kind == "vehicle_kill":
+            t = tr if tr in ("infantry", "vehicle") else "infantry"
+            return t, "infantry"
+        return (
+            tr if tr in ("infantry", "vehicle") else "infantry",
+            vtr if vtr in ("infantry", "vehicle") else "infantry",
+        )
+
+    def _apply_track_delta(
+        store: dict[str, float], key: str, signed: float
+    ) -> None:
+        if not key:
+            return
+        cur = store.get(key, float(START_RP))
+        nxt = cur + float(signed)
+        if nxt < float(MIN_RP):
+            nxt = float(MIN_RP)
+        store[key] = nxt
+
+    # Dual RP tracks (Пехота / Техника) from per-event stamps.
+    rp_inf: dict[str, float] = {k: float(START_RP) for k in rp}
+    rp_veh: dict[str, float] = {k: float(START_RP) for k in rp}
+    for mb in match_blocks:
+        for e in mb.get("events") or []:
+            if not isinstance(e, dict):
+                continue
+            tr, vtr = _infer_tracks(e)
+            e["track"] = tr
+            e["victimTrack"] = vtr
+            kind = e.get("kind")
+            kk = canon_key(str(e.get("killer") or ""), aliases)
+            vk = canon_key(str(e.get("victim") or ""), aliases)
+            delta = float(e.get("delta") or 0)
+            vdelta = e.get("victimDelta")
+            vdelta_f = float(vdelta) if vdelta is not None else delta
+
+            def _bucket(track: str) -> dict[str, float]:
+                return rp_veh if track == "vehicle" else rp_inf
+
+            if kind in ("die", "nok") and not e.get("teamkill"):
+                # killer +delta, victim −victimDelta
+                if kk and not str(kk).startswith("?"):
+                    _apply_track_delta(_bucket(tr), kk, +abs(delta))
+                if vk and kind == "die":
+                    _apply_track_delta(_bucket(vtr), vk, -abs(vdelta_f))
+                elif vk and kind == "nok" and vdelta is not None:
+                    _apply_track_delta(_bucket(vtr), vk, -abs(vdelta_f))
+            elif kind == "tk" or (kind == "nok" and e.get("teamkill")):
+                if kk:
+                    _apply_track_delta(_bucket(tr), kk, -abs(delta))
+                if vk and vdelta is not None:
+                    _apply_track_delta(_bucket(vtr), vk, -abs(vdelta_f))
+            elif kind == "revive":
+                if kk:
+                    _apply_track_delta(_bucket(tr), kk, +abs(delta))
+            elif kind == "vehicle_kill":
+                if kk and not str(kk).startswith("?"):
+                    _apply_track_delta(_bucket(tr), kk, +abs(delta))
+            elif kind == "driver_share":
+                if kk:
+                    _apply_track_delta(_bucket(tr), kk, +abs(delta))
+            elif kind in ("vehicle_loss", "vehicle_loss_driver"):
+                if vk:
+                    _apply_track_delta(_bucket(vtr), vk, -abs(delta))
+
     ranked = sorted(rp.items(), key=lambda x: -x[1])
     predator_place: dict[str, int] = {}
     place = 0
@@ -986,6 +1069,18 @@ def main() -> None:
             place += 1
             predator_place[k] = place
 
+    def _track_predator(store: dict[str, float]) -> dict[str, int]:
+        out: dict[str, int] = {}
+        place_i = 0
+        for key, val in sorted(store.items(), key=lambda x: -x[1]):
+            if rp_rank(val)["predator"]:
+                place_i += 1
+                out[key] = place_i
+        return out
+
+    pred_inf = _track_predator(rp_inf)
+    pred_veh = _track_predator(rp_veh)
+
     players_out = {}
     prior_by_key: dict[str, dict] = {}
     for _pk, p in prior_players.items():
@@ -994,6 +1089,8 @@ def main() -> None:
 
     for k, val in ranked:
         info = rp_rank(val)
+        info_i = rp_rank(rp_inf.get(k, START_RP))
+        info_v = rp_rank(rp_veh.get(k, START_RP))
         match_hist = list((prior_by_key.get(k) or {}).get("matches") or [])
         for mb in match_blocks:
             if k not in mb["netByKey"]:
@@ -1011,55 +1108,97 @@ def main() -> None:
                 )
                 and canon_key(e.get("killer") or "", aliases) == k
             ]
+            deaths_ev = [
+                e
+                for e in mb["events"]
+                if (
+                    (
+                        e.get("kind") in ("die", "tk")
+                        and canon_key(e.get("victim") or "", aliases) == k
+                    )
+                    or (
+                        e.get("kind")
+                        in ("vehicle_loss", "vehicle_loss_driver")
+                        and canon_key(e.get("victim") or "", aliases) == k
+                    )
+                )
+            ]
+            noks_ev = [
+                e
+                for e in mb["events"]
+                if (
+                    e.get("kind") == "nok"
+                    or (
+                        e.get("kind") == "driver_share"
+                        and e.get("reason") == "nok"
+                    )
+                )
+                and canon_key(e.get("killer") or "", aliases) == k
+            ]
+            rev_ev = [
+                e
+                for e in mb["events"]
+                if e.get("kind") == "revive"
+                and canon_key(e["killer"], aliases) == k
+            ]
+
+            def _net_track(track: str) -> float:
+                s = 0.0
+                for e in mb["events"]:
+                    tr = e.get("track") or "infantry"
+                    vtr = e.get("victimTrack") or "infantry"
+                    kind = e.get("kind")
+                    delta = abs(float(e.get("delta") or 0))
+                    vdelta = e.get("victimDelta")
+                    kk2 = canon_key(str(e.get("killer") or ""), aliases)
+                    vk2 = canon_key(str(e.get("victim") or ""), aliases)
+                    tk = bool(e.get("teamkill")) or kind == "tk"
+                    if kk2 == k and tr == track:
+                        if kind in ("vehicle_loss", "vehicle_loss_driver"):
+                            pass
+                        elif tk:
+                            s -= delta
+                        elif kind in (
+                            "die",
+                            "nok",
+                            "revive",
+                            "vehicle_kill",
+                            "driver_share",
+                        ):
+                            s += delta
+                    if vk2 == k and vtr == track:
+                        if kind in ("vehicle_loss", "vehicle_loss_driver"):
+                            s -= delta
+                        elif kind in ("die", "tk") or (
+                            kind == "nok" and vdelta is not None
+                        ):
+                            s -= abs(float(vdelta) if vdelta is not None else delta)
+                return round(s, 2)
+
             match_hist.append(
                 {
                     "id": mb["id"],
                     "map": mb["map"],
                     "date": mb["date"],
                     "net": mb["netByKey"][k],
+                    "netInfantry": _net_track("infantry"),
+                    "netVehicle": _net_track("vehicle"),
                     "vehicleKills": sum(
-                        1 for e in kills_ev if e.get("kind") == "vehicle_kill"
+                        1
+                        for e in kills_ev
+                        if e.get("kind") == "vehicle_kill"
+                        and (e.get("track") or "infantry") == "vehicle"
                     ),
                     "kills": kills_ev,
-                    "deaths": [
-                        e
-                        for e in mb["events"]
-                        if (
-                            (
-                                e.get("kind") in ("die", "tk")
-                                and canon_key(e.get("victim") or "", aliases) == k
-                            )
-                            or (
-                                e.get("kind")
-                                in ("vehicle_loss", "vehicle_loss_driver")
-                                and canon_key(e.get("victim") or "", aliases) == k
-                            )
-                        )
-                    ],
+                    "deaths": deaths_ev,
                     "teamkills": [
                         e
                         for e in mb["events"]
                         if e.get("kind") == "tk"
                         and canon_key(e["killer"], aliases) == k
                     ],
-                    "revives": [
-                        e
-                        for e in mb["events"]
-                        if e.get("kind") == "revive"
-                        and canon_key(e["killer"], aliases) == k
-                    ],
-                    "noks": [
-                        e
-                        for e in mb["events"]
-                        if (
-                            e.get("kind") == "nok"
-                            or (
-                                e.get("kind") == "driver_share"
-                                and e.get("reason") == "nok"
-                            )
-                        )
-                        and canon_key(e.get("killer") or "", aliases) == k
-                    ],
+                    "revives": rev_ev,
+                    "noks": noks_ev,
                     "gotNoks": [
                         e
                         for e in mb["events"]
@@ -1079,6 +1218,14 @@ def main() -> None:
             "roman": info["roman"],
             "predator": info["predator"],
             "predatorPlace": predator_place.get(k),
+            "rpInfantry": round(max(MIN_RP, float(rp_inf.get(k, START_RP))), 1),
+            "rankLabelInfantry": info_i["label"],
+            "rankKeyInfantry": info_i["rankKey"],
+            "predatorPlaceInfantry": pred_inf.get(k),
+            "rpVehicle": round(max(MIN_RP, float(rp_veh.get(k, START_RP))), 1),
+            "rankLabelVehicle": info_v["label"],
+            "rankKeyVehicle": info_v["rankKey"],
+            "predatorPlaceVehicle": pred_veh.get(k),
             "matches": match_hist,
         }
 
@@ -1135,6 +1282,38 @@ def main() -> None:
             }
             for k, _ in ranked
         ],
+        "leaderboardInfantry": [
+            {
+                "nick": players_out[k]["nick"],
+                "rp": players_out[k]["rpInfantry"],
+                "rankLabel": players_out[k]["rankLabelInfantry"],
+                "rankKey": players_out[k]["rankKeyInfantry"],
+                "predatorPlace": players_out[k].get("predatorPlaceInfantry"),
+            }
+            for k, _ in sorted(
+                ((k, players_out[k]["rpInfantry"]) for k in players_out),
+                key=lambda x: -x[1],
+            )
+        ],
+        "leaderboardVehicle": [
+            {
+                "nick": players_out[k]["nick"],
+                "rp": players_out[k]["rpVehicle"],
+                "rankLabel": players_out[k]["rankLabelVehicle"],
+                "rankKey": players_out[k]["rankKeyVehicle"],
+                "predatorPlace": players_out[k].get("predatorPlaceVehicle"),
+            }
+            for k, _ in sorted(
+                ((k, players_out[k]["rpVehicle"]) for k in players_out),
+                key=lambda x: -x[1],
+            )
+            # только кто реально имел vehicle-net ≠ 0 хотя бы раз
+            if abs(float(players_out[k]["rpVehicle"]) - float(START_RP)) > 0.05
+            or any(
+                abs(float(hm.get("netVehicle") or 0)) > 0.05
+                for hm in (players_out[k].get("matches") or [])
+            )
+        ],
     }
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(
@@ -1167,12 +1346,22 @@ def main() -> None:
             "roman": p.get("roman"),
             "predator": p.get("predator"),
             "predatorPlace": p.get("predatorPlace"),
+            "rpInfantry": p.get("rpInfantry"),
+            "rankLabelInfantry": p.get("rankLabelInfantry"),
+            "rankKeyInfantry": p.get("rankKeyInfantry"),
+            "predatorPlaceInfantry": p.get("predatorPlaceInfantry"),
+            "rpVehicle": p.get("rpVehicle"),
+            "rankLabelVehicle": p.get("rankLabelVehicle"),
+            "rankKeyVehicle": p.get("rankKeyVehicle"),
+            "predatorPlaceVehicle": p.get("predatorPlaceVehicle"),
             "matches": [
                 {
                     "id": hm["id"],
                     "map": hm["map"],
                     "date": hm["date"],
                     "net": hm["net"],
+                    "netInfantry": hm.get("netInfantry"),
+                    "netVehicle": hm.get("netVehicle"),
                     "vehicleKills": int(hm.get("vehicleKills") or 0),
                 }
                 for hm in (p.get("matches") or [])
@@ -1188,6 +1377,8 @@ def main() -> None:
         "matches": slim_matches,
         "players": slim_players,
         "leaderboard": ledger["leaderboard"],
+        "leaderboardInfantry": ledger.get("leaderboardInfantry") or [],
+        "leaderboardVehicle": ledger.get("leaderboardVehicle") or [],
     }
     OUT_LADDER.write_text(
         json.dumps(ladder, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
