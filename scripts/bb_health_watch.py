@@ -451,7 +451,16 @@ def _cw_rows() -> dict[str, dict]:
 
 
 def _cw_line(row: dict) -> str:
-    when = f"{row.get('day')}.{row.get('month')} {row.get('time')}".strip()
+    month = str(row.get("month") or "")
+    day = row.get("day")
+    when_date = f"{day}.{month}"
+    parts = month.split("-")
+    if len(parts) == 2 and day is not None:
+        try:
+            when_date = f"{int(day):02d}.{int(parts[1]):02d}.{parts[0]}"
+        except (TypeError, ValueError):
+            pass
+    when = f"{when_date} {row.get('time') or ''}".strip()
     who = f"{row.get('stack') or 'Main'} vs {row.get('opp') or '?'}"
     return f"{when} · {who} · {row.get('map') or '—'}"
 

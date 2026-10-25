@@ -156,6 +156,107 @@ def _pin_log_for_match(mid: str, date_ymd: str = "") -> Path | None:
     return None
 
 
+def _auto_index(train_dir: Path) -> dict[str, dict]:
+    auto_path = train_dir / "_auto_matches.json"
+    if not auto_path.is_file():
+        return {}
+    try:
+        raw = json.loads(auto_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    if not isinstance(raw, list):
+        return {}
+    return {
+        str(a.get("id")): a
+        for a in raw
+        if isinstance(a, dict) and a.get("id")
+    }
+
+
+def own_log_ready(train_dir: Path, mid: str) -> bool:
+    """True only when a pin file is named for this match. A night copy of another id does not count."""
+    row = _auto_index(train_dir).get(mid) or {}
+    return _pin_log_for_match(mid, str(row.get("date") or "")) is not None
+
+
+def _parked_ids(data_dir: Path, *, kind: str = "train") -> set[str]:
+    doc = load_pending(data_dir, kind=kind)
+    out: set[str] = set()
+    for it in doc.get("items") or []:
+        if isinstance(it, dict) and it.get("parked") and it.get("id"):
+            out.add(str(it["id"]))
+    return out
+
+
+def settle_pending(data_dir: Path, *, kind: str = "train") -> list[str]:
+    """Stop the 15-minute loop.
+
+    No own log → park at once (nothing to score).
+    Own log, but the rebuild already failed three times → park, do not telegram again.
+    A newer pin file un-parks the row so a real log still gets one more try.
+    """
+    if kind != "train":
+        return []
+    doc = load_pending(data_dir, kind=kind)
+    parked_now: list[str] = []
+    changed = False
+    for it in doc.get("items") or []:
+        if not isinstance(it, dict):
+            continue
+        mid = str(it.get("id") or "")
+        if not mid:
+            continue
+        if it.get("parked"):
+            pin = _pin_log_for_match(mid, str((_auto_index(data_dir).get(mid) or {}).get("date") or ""))
+            stamped = str(it.get("parkedAt") or "")
+            try:
+                pin_ts = datetime.fromtimestamp(pin.stat().st_mtime, timezone.utc).isoformat() if pin else ""
+            except OSError:
+                pin_ts = ""
+            if pin is not None and pin_ts and stamped and pin_ts > stamped:
+                it["parked"] = False
+                it["attempts"] = 0
+                it["lastError"] = None
+                changed = True
+            continue
+        attempts = int(it.get("attempts") or 0)
+        if not own_log_ready(data_dir, mid):
+            it["parked"] = True
+            it["parkedAt"] = _iso()
+            it["lastError"] = "нет своего лога — RP не из чего считать"
+            parked_now.append(mid)
+            changed = True
+        elif attempts >= 3:
+            it["parked"] = True
+            it["parkedAt"] = _iso()
+            it["lastError"] = "сборщик уже не записал RP, повтор остановлен"
+            parked_now.append(mid)
+            changed = True
+    if changed:
+        save_pending(data_dir, doc, kind=kind)
+        if parked_now:
+            print(f"pending-{kind}-rp parked {len(parked_now)}: {parked_now[:12]}", flush=True)
+    return parked_now
+
+
+def _skipped_auto_ids(train_dir: Path) -> set[str]:
+    """Auto rows explicitly marked skip must not be re-queued from a night pin."""
+    auto_path = train_dir / "_auto_matches.json"
+    if not auto_path.is_file():
+        return set()
+    try:
+        raw = json.loads(auto_path.read_text(encoding="utf-8"))
+    except Exception:
+        return set()
+    if not isinstance(raw, list):
+        return set()
+    return {
+        str(a.get("id"))
+        for a in raw
+        if isinstance(a, dict) and a.get("skip") and a.get("id")
+    }
+
+
 def calendar_ids_needing_rp(train_dir: Path) -> list[str]:
     """
     Calendar rows with a pinned log on disk but no ladder RP yet.
@@ -164,6 +265,7 @@ def calendar_ids_needing_rp(train_dir: Path) -> list[str]:
     done = ladder_ids(train_dir / "rp-ladder.json")
     if done is None:
         done = set()
+    skipped = _skipped_auto_ids(train_dir)
     missing: list[str] = []
     seen: set[str] = set()
     for month_path in sorted(train_dir.glob("????-??.json")):
@@ -187,10 +289,9 @@ def calendar_ids_needing_rp(train_dir: Path) -> list[str]:
                     date_ymd = f"{y_m}-{int(day):02d}"
                 except Exception:
                     date_ymd = ""
-            if (
-                _pin_log_for_match(mid, date_ymd) is None
-                and _night_pin_for_date(date_ymd) is None
-            ):
+            # Ночной лог чужого матча — не доказательство, что этот можно посчитать.
+            # Иначе календарная строка без своего файла вечно висит в «RP отстаёт».
+            if _pin_log_for_match(mid, date_ymd) is None:
                 continue
             seen.add(mid)
             missing.append(mid)
@@ -202,6 +303,7 @@ def auto_ids_needing_rp(train_dir: Path) -> list[str]:
     missing: list[str] = []
     seen: set[str] = set()
     done = ladder_ids(train_dir / "rp-ladder.json")
+    parked = _parked_ids(train_dir, kind="train")
     if auto_path.is_file():
         try:
             auto = json.loads(auto_path.read_text(encoding="utf-8"))
@@ -214,14 +316,17 @@ def auto_ids_needing_rp(train_dir: Path) -> list[str]:
                 mid = str(m.get("id") or "")
                 if not mid or m.get("skip") or mid.endswith("-skip"):
                     continue
+                if mid in parked or not own_log_ready(train_dir, mid):
+                    continue
                 if done is None or mid not in done:
                     if mid not in seen:
                         missing.append(mid)
                         seen.add(mid)
     for mid in calendar_ids_needing_rp(train_dir):
-        if mid not in seen:
-            missing.append(mid)
-            seen.add(mid)
+        if mid in parked or mid in seen or not own_log_ready(train_dir, mid):
+            continue
+        missing.append(mid)
+        seen.add(mid)
     return missing
 
 
@@ -419,6 +524,7 @@ def lag_minutes() -> int:
 def alert_stale_pending(data_dir: Path, *, kind: str = "train") -> list[str]:
     # Drop anything already on the ladder before enqueue/alert — avoids false
     # Telegram when warehouse pending lags a newer mirrored ladder (or vice versa).
+    settle_pending(data_dir, kind=kind)
     clear_pending_done(data_dir, kind=kind)
     if kind == "train":
         for mid in auto_ids_needing_rp(data_dir):
@@ -434,7 +540,7 @@ def alert_stale_pending(data_dir: Path, *, kind: str = "train") -> list[str]:
     changed = False
     label = "train ТМ" if kind == "train" else "паб PB1"
     for it in doc.get("items") or []:
-        if not isinstance(it, dict) or it.get("alertedAt"):
+        if not isinstance(it, dict) or it.get("alertedAt") or it.get("parked"):
             continue
         mid = str(it.get("id") or "")
         if not mid:
@@ -634,11 +740,20 @@ def ensure_auto_from_calendar_pins(train_dir: Path) -> list[str]:
             mmatch = re.match(r"^(TR\d+)-", pin.name, re.I)
             if mmatch:
                 srv = mmatch.group(1).upper()
+            log_name = pin.name
+            # Ночной файл назван чужим id. Копия должна носить имя этого матча,
+            # иначе сборщик ищет Harju в логе Mutaha и вечно пишет «нет RP».
+            if mid.lower() not in pin.name.lower():
+                try:
+                    log_name = pin_match_log(pin, mid, date_ymd, server=srv)
+                except Exception as e:
+                    print(f"ensure_auto pin copy {mid}: {e}", flush=True)
+                    continue
             entry = {
                 "id": mid,
                 "map": m.get("map") or hit.get("map") or "—",
                 "date": date_ymd,
-                "log": pin.name,
+                "log": log_name,
                 "start": start.isoformat(),
                 "end": end.isoformat(),
                 "logPinned": True,
@@ -661,6 +776,7 @@ def ensure_auto_from_calendar_pins(train_dir: Path) -> list[str]:
 
 
 def drain_pending(data_dir: Path, kv_public: Path, *, kind: str = "train") -> dict:
+    settle_pending(data_dir, kind=kind)
     if kind == "train":
         ensure_auto_from_calendar_pins(data_dir)
         missing = auto_ids_needing_rp(data_dir)
@@ -668,7 +784,11 @@ def drain_pending(data_dir: Path, kv_public: Path, *, kind: str = "train") -> di
         missing = public_ids_needing_rp(data_dir)
     enqueue_pending(data_dir, missing, reason="drain", kind=kind)
     doc = load_pending(data_dir, kind=kind)
-    pending_ids = [str(it.get("id")) for it in (doc.get("items") or []) if it.get("id")]
+    pending_ids = [
+        str(it.get("id"))
+        for it in (doc.get("items") or [])
+        if isinstance(it, dict) and it.get("id") and not it.get("parked")
+    ]
     result: dict = {"kind": kind, "pending": pending_ids, "cleared": [], "alerted": [], "rc": 0}
     if not pending_ids and not missing:
         result["alerted"] = alert_stale_pending(data_dir, kind=kind)

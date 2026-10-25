@@ -603,6 +603,29 @@ def main() -> None:
             if mid and not mid.endswith("-skip"):
                 canon_ids.add(mid)
 
+    # Уже посчитанный матч не выкидывать, даже если в этом дереве календарь короче.
+    # Иначе пересчёт по kv-cache стирает книгу склада (58 → 19) и сайт расходится.
+    if existing:
+        for m in existing.get("matches") or []:
+            mid = str(m.get("id") or "")
+            if mid and not mid.endswith("-skip"):
+                canon_ids.add(mid)
+    for extra_ladder in (
+        Path("/var/www/blackberry-kv/data/training/rp-ladder.json"),
+        Path("/var/www/bb-squad-platform/data/kv-cache/data/training/rp-ladder.json"),
+        OUT_LADDER,
+    ):
+        try:
+            if not extra_ladder.is_file():
+                continue
+            extra_doc = json.loads(extra_ladder.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        for m in extra_doc.get("matches") or []:
+            mid = str(m.get("id") or "")
+            if mid and not mid.endswith("-skip"):
+                canon_ids.add(mid)
+
     # Real start times beat date+id (16-cslmutaha sorts before 16-fallujah by id,
     # but was played after midnight — after Fallujah/Kamdesh).
     _start_by_id = {

@@ -464,12 +464,31 @@ def publish_live_mirrors() -> None:
     # all current-month training JSON if present
     for path in TRAIN.glob("????-??.json"):
         rels.append(f"data/training/{path.name}")
+    def _ladder_ids(path: Path) -> set[str] | None:
+        if not path.is_file():
+            return None
+        try:
+            doc = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+        return {str(m.get("id")) for m in (doc.get("matches") or []) if m.get("id")}
+
     for dest_root in mirrors:
         for rel in rels:
             src = KV_PUBLIC / rel
             if not src.is_file():
                 continue
             dst = dest_root / rel
+            if rel.endswith("rp-ladder.json") or rel.endswith("rp-ledger.json"):
+                src_ids = _ladder_ids(src)
+                dst_ids = _ladder_ids(dst)
+                if src_ids is not None and dst_ids and not dst_ids <= src_ids:
+                    lost = sorted(dst_ids - src_ids)
+                    print(
+                        f"refuse mirror shrink {rel}: у приёмника {len(lost)} матчей, которых нет в источнике",
+                        flush=True,
+                    )
+                    continue
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
         print(f"mirrored train data → {dest_root}", flush=True)
