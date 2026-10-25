@@ -1,6 +1,9 @@
+import { readdirSync, statSync } from "node:fs";
+import path from "node:path";
 import { loadTierIndex } from "@/lib/loadTierIndex";
 import { pickMvps } from "@/lib/homeMvp";
 import { abbreviateFaction } from "@/lib/factionAbbrev";
+import { kvLocalRoots } from "@/lib/kvLocal";
 import { memoTtl, PROFILE_CORPUS_TTL_MS } from "@/lib/memoTtl";
 
 function nickKey(nick: string) {
@@ -617,7 +620,9 @@ async function loadTrainPlayerCorpus(): Promise<TrainPlayerCorpus> {
       }[];
     }>(m.url);
     (monthData?.matches || []).forEach((match, ord) => {
-      if (!match.playersUrl) return;
+      // Без playersUrl катка всё равно нужна в календаре: иначе её ΔRP
+      // уезжает в конец суммы и колонка RP прыгает (бейдж при этом верный).
+      if (!match.id) return;
       const time = String(match.timeMsk || "").trim();
       let timeKey = /^\d{1,2}:\d{2}/.test(time)
         ? time.padStart(5, "0")
@@ -646,7 +651,7 @@ async function loadTrainPlayerCorpus(): Promise<TrainPlayerCorpus> {
         duration: match.duration,
         server: match.server,
         status: match.status,
-        playersUrl: match.playersUrl,
+        playersUrl: match.playersUrl || "",
         sortKey: inHistory
           ? `${year}-${pad2(month)}-${pad2(match.day!)}T${timeKey}-${pad2(ord)}`
           : "",
@@ -660,7 +665,9 @@ async function loadTrainPlayerCorpus(): Promise<TrainPlayerCorpus> {
     const slice = pending.slice(i, i + CONCURRENCY);
     const loaded = await Promise.all(
       slice.map((row) =>
-        loadFromKv<TrainCorpusDoc>(row.playersUrl).catch(() => null)
+        row.playersUrl
+          ? loadFromKv<TrainCorpusDoc>(row.playersUrl).catch(() => null)
+          : Promise.resolve(null)
       )
     );
     for (let j = 0; j < slice.length; j++) {
@@ -670,9 +677,34 @@ async function loadTrainPlayerCorpus(): Promise<TrainPlayerCorpus> {
   return { hasIndex: true, aliases, rows };
 }
 
+/** mtime календаря и лестницы. Ключ мемо меняется сразу после записи файла. */
+function trainCorpusStamp(): string {
+  const bits: string[] = [];
+  for (const root of kvLocalRoots()) {
+    const dir = path.join(root, "data", "training");
+    try {
+      const names = readdirSync(dir)
+        .filter((n) => n === "rp-ladder.json" || /^\d{4}-\d{2}\.json$/.test(n))
+        .sort();
+      for (const name of names) {
+        bits.push(
+          `${name}:${Math.floor(statSync(path.join(dir, name)).mtimeMs)}`
+        );
+      }
+      bits.push(
+        `idx:${Math.floor(statSync(path.join(root, "data", "training-index.json")).mtimeMs)}`
+      );
+      if (bits.length) return bits.join("|");
+    } catch {
+      /* следующий корень */
+    }
+  }
+  return "0";
+}
+
 function getTrainPlayerCorpus(): Promise<TrainPlayerCorpus> {
   return memoTtl(
-    "train-player-corpus-v1",
+    `train-player-corpus-v2:${trainCorpusStamp()}`,
     PROFILE_CORPUS_TTL_MS,
     loadTrainPlayerCorpus
   );
@@ -751,16 +783,18 @@ export async function buildPlayerTrainMatchHistory(
     for (const m of ladder?.matches || []) {
       if (!dateById.has(m.id)) dateById.set(m.id, String(m.date || ""));
     }
+    // Нет sortKey — всё равно дата катки, а не «в конец списка».
+    // Иначе катки без файла состава суммируются после сегодняшних,
+    // и на свежей строке оказывается чужой промежуточный RP.
+    const orderKey = (id: string) => {
+      const sk = metaOrder.get(id);
+      if (sk) return sk;
+      const d = dateById.get(id) || "9999-99-99";
+      return `${d}T99:99-${id}`;
+    };
     const orderedIds = [...rpNetByMatch.keys()].sort((a, b) => {
-      const ka = metaOrder.get(a) || "";
-      const kb = metaOrder.get(b) || "";
-      if (ka && kb && ka !== kb) return ka.localeCompare(kb);
-      if (ka && !kb) return -1;
-      if (!ka && kb) return 1;
-      const da = dateById.get(a) || "";
-      const db = dateById.get(b) || "";
-      if (da !== db) return da.localeCompare(db);
-      return a.localeCompare(b);
+      const c = orderKey(a).localeCompare(orderKey(b));
+      return c || a.localeCompare(b);
     });
     let cum = 0;
     for (const id of orderedIds) {
@@ -820,8 +854,22 @@ export async function buildPlayerTrainMatchHistory(
     const players = match.doc;
     let teamU = "—";
     let won: boolean | null = null;
+    let ticketsA = match.ticketsA ?? null;
+    let ticketsB = match.ticketsB ?? null;
+    let factionA = String(match.factionA || "").trim();
+    let factionB = String(match.factionB || "").trim();
+    let winner = match.winner;
 
     if (players) {
+      if (ticketsA == null && players.sideA?.tickets != null) {
+        ticketsA = Number(players.sideA.tickets);
+      }
+      if (ticketsB == null && players.sideB?.tickets != null) {
+        ticketsB = Number(players.sideB.tickets);
+      }
+      if (!factionA && players.sideA?.name) factionA = String(players.sideA.name);
+      if (!factionB && players.sideB?.name) factionB = String(players.sideB.name);
+      if (!winner && players.winner) winner = String(players.winner);
       const list = (
         players.players?.length
           ? players.players
@@ -829,7 +877,13 @@ export async function buildPlayerTrainMatchHistory(
       ) as TrainPlayerLine[];
       const mine = list.filter((p) => p?.nick && resolveKey(p.nick) === want);
       if (mine.length) {
-        const resolved = resolveTrainWon(mine, players, match);
+        const resolved = resolveTrainWon(mine, players, {
+          winner,
+          factionA,
+          factionB,
+          ticketsA,
+          ticketsB,
+        });
         teamU = resolved.team || "—";
         won = resolved.won;
       } else if (!rpAfterByMatch.has(match.id)) {
@@ -845,12 +899,12 @@ export async function buildPlayerTrainMatchHistory(
       dateLabel: `${pad2(match.day)}.${pad2(match.month)}.${match.year}`,
       timeLabel: timeRaw && timeRaw !== "—" ? timeRaw : "—",
       map: match.map || "—",
-      factionA: String(match.factionA || "—").toUpperCase(),
-      ticketsA: match.ticketsA ?? null,
-      factionB: String(match.factionB || "—").toUpperCase(),
-      ticketsB: match.ticketsB ?? null,
+      factionA: (factionA || "—").toUpperCase(),
+      ticketsA,
+      factionB: (factionB || "—").toUpperCase(),
+      ticketsB,
       team: teamU,
-      winner: match.winner,
+      winner,
       duration: match.duration,
       server: match.server,
       playersUrl: match.playersUrl || "",
@@ -858,11 +912,49 @@ export async function buildPlayerTrainMatchHistory(
     });
   }
 
-  // Катки только в ladder (нет players.json / нет в month index) — иначе
-  // последняя строка истории отстаёт от бейджа.
+  // Катки только в ladder (нет в month index) — подтянуть счёт из players/*.json.
+  // Иначе витрина профиля: ΔRP есть, а «-- : --» и результат «-».
   for (const m of rpPlayer?.matches || []) {
     if (seenIds.has(m.id) || !rpAfterByMatch.has(m.id)) continue;
     const meta = metaById.get(m.id);
+    const playersUrl =
+      meta?.playersUrl || `data/training/players/${m.id}.json`;
+    const playersDoc =
+      meta?.doc ||
+      (await loadFromKv<TrainCorpusDoc>(playersUrl).catch(() => null));
+    let teamU = "—";
+    let won: boolean | null = null;
+    let ticketsA = meta?.ticketsA ?? null;
+    let ticketsB = meta?.ticketsB ?? null;
+    let factionA = String(meta?.factionA || "").trim();
+    let factionB = String(meta?.factionB || "").trim();
+    let winner = meta?.winner;
+    if (playersDoc) {
+      const sa = playersDoc.sideA;
+      const sb = playersDoc.sideB;
+      if (ticketsA == null && sa?.tickets != null) ticketsA = Number(sa.tickets);
+      if (ticketsB == null && sb?.tickets != null) ticketsB = Number(sb.tickets);
+      if (!factionA && sa?.name) factionA = String(sa.name);
+      if (!factionB && sb?.name) factionB = String(sb.name);
+      if (!winner && playersDoc.winner) winner = String(playersDoc.winner);
+      const list = (
+        playersDoc.players?.length
+          ? playersDoc.players
+          : [...(playersDoc.teamA || []), ...(playersDoc.teamB || [])]
+      ) as TrainPlayerLine[];
+      const mine = list.filter((p) => p?.nick && resolveKey(p.nick) === want);
+      if (mine.length) {
+        const resolved = resolveTrainWon(mine, playersDoc, {
+          winner,
+          factionA,
+          factionB,
+          ticketsA,
+          ticketsB,
+        });
+        teamU = resolved.team || "—";
+        won = resolved.won;
+      }
+    }
     const date = String(m.date || "");
     const dateLabel = meta
       ? `${pad2(meta.day)}.${pad2(meta.month)}.${meta.year}`
@@ -875,18 +967,47 @@ export async function buildPlayerTrainMatchHistory(
       dateLabel,
       timeLabel: timeRaw && timeRaw !== "—" ? timeRaw : "—",
       map: meta?.map || m.map || "—",
-      factionA: String(meta?.factionA || "—").toUpperCase(),
-      ticketsA: meta?.ticketsA ?? null,
-      factionB: String(meta?.factionB || "—").toUpperCase(),
-      ticketsB: meta?.ticketsB ?? null,
-      team: "—",
-      winner: meta?.winner,
+      factionA: (factionA || "—").toUpperCase(),
+      ticketsA,
+      factionB: (factionB || "—").toUpperCase(),
+      ticketsB,
+      team: teamU,
+      winner,
       duration: meta?.duration,
       server: meta?.server,
-      playersUrl: meta?.playersUrl || "",
-      won: null,
+      playersUrl,
+      won,
     });
   }
+
+  // Один и тот же счёт без RP — копия уже засчитанной катки. Оставляем строку с ΔRP.
+  const kept: TrainMatchHistoryRow[] = [];
+  const bySig = new Map<string, TrainMatchHistoryRow[]>();
+  for (const row of history) {
+    const sig = [
+      row.dateLabel,
+      row.map,
+      row.ticketsA ?? "",
+      row.ticketsB ?? "",
+      row.duration || "",
+      row.factionA,
+      row.factionB,
+    ].join("|");
+    const list = bySig.get(sig);
+    if (list) list.push(row);
+    else bySig.set(sig, [row]);
+  }
+  for (const list of bySig.values()) {
+    const withRp = list.filter((row) => row.rpDelta != null);
+    if (withRp.length) kept.push(...withRp);
+    else {
+      kept.push(
+        list.find((row) => row.timeLabel && row.timeLabel !== "—") || list[0]
+      );
+    }
+  }
+  history.length = 0;
+  history.push(...kept);
 
   // хронология → свежие сверху
   history.sort((a, b) => {
