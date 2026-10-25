@@ -250,6 +250,22 @@ def run_slice(env: dict[str, str] | None = None) -> dict[str, int]:
         except Exception as e:
             print(f"verify after slice skip: {e}", flush=True)
 
+    # Phase 9: PUBLIC roster from new PB slices
+    if new and (env.get("BB_FILL_PUBLIC_PLAYERS") or "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+    ):
+        try:
+            import canon_fill_public_players as FP  # noqa: WPS433
+
+            for m in FP.list_public_needing(30):
+                n = FP.fill_match(m)
+                if n:
+                    print(f"public players +{m.get('matchKey')} n={n}", flush=True)
+        except Exception as e:
+            print(f"fill public players skip: {e}", flush=True)
+
     return {"logs": len(logs), "new": new, "already": seen}
 
 
