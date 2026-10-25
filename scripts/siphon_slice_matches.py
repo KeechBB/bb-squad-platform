@@ -236,6 +236,20 @@ def run_slice(env: dict[str, str] | None = None) -> dict[str, int]:
         except Exception as e:
             print(f"slice tg skip: {e}", flush=True)
 
+    # Phase 7: re-check unverified canon rows when new slices appear
+    if new and (env.get("BB_VERIFY_AFTER_SLICE") or "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+    ):
+        try:
+            import canon_verify_match as V  # noqa: WPS433
+
+            for m in V.list_pending(25):
+                V.verify_one(m)
+        except Exception as e:
+            print(f"verify after slice skip: {e}", flush=True)
+
     return {"logs": len(logs), "new": new, "already": seen}
 
 

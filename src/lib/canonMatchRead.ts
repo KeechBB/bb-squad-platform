@@ -11,6 +11,12 @@ export function canonReadEnabled(): boolean {
   return v !== "0" && v !== "false" && v !== "no";
 }
 
+/** If 1: SCREENSHOT rows without verifiedAt are not overlaid (disk wins). */
+export function verifierGateEnabled(): boolean {
+  const v = (process.env.BB_VERIFIER_GATE || "0").trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes";
+}
+
 const TRAIN_MONTH = /^data\/training\/(\d{4}-\d{2})\.json$/i;
 const CW_MONTH = /^data\/(\d{4}-\d{2})\.json$/i;
 const TRAIN_PLAYERS = /^data\/training\/players\/([^/]+)\.json$/i;
@@ -120,8 +126,15 @@ async function mergeTrainMonth(
   });
   if (!rows.length) return disk;
 
+  const gate = verifierGateEnabled();
   const byId = new Map(
-    rows.filter((r) => r.legacyId).map((r) => [r.legacyId as string, r])
+    rows
+      .filter((r) => r.legacyId)
+      .filter(
+        (r) =>
+          !(gate && r.source === "SCREENSHOT" && r.verifiedAt == null)
+      )
+      .map((r) => [r.legacyId as string, r])
   );
   const base: MonthDoc = disk
     ? { ...disk, matches: [...(disk.matches || [])] }
@@ -168,8 +181,15 @@ async function mergeCwMonth(
   });
   if (!rows.length) return disk;
 
+  const gate = verifierGateEnabled();
   const byId = new Map(
-    rows.filter((r) => r.legacyId).map((r) => [r.legacyId as string, r])
+    rows
+      .filter((r) => r.legacyId)
+      .filter(
+        (r) =>
+          !(gate && r.source === "SCREENSHOT" && r.verifiedAt == null)
+      )
+      .map((r) => [r.legacyId as string, r])
   );
   const base: MonthDoc = disk
     ? { ...disk, matches: [...(disk.matches || [])] }
