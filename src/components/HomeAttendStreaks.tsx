@@ -31,9 +31,7 @@ export function HomeAttendStreaks({ initial }: Props) {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch("/api/home-attendance-streaks", {
-        cache: "no-store",
-      });
+      const res = await fetch("/api/home-attendance-streaks");
       if (!res.ok) return;
       const next = (await res.json()) as Board;
       setData(next);
@@ -44,7 +42,8 @@ export function HomeAttendStreaks({ initial }: Props) {
     }
   }, []);
 
-  useAutoRefresh(refresh, { intervalMs: 60_000 });
+  // Snapshot freezes at :00 MSK — poll lightly for the next publish, not live.
+  useAutoRefresh(refresh, { intervalMs: 5 * 60_000 });
 
   useEffect(() => {
     setData(initial || emptyBoard());
@@ -60,7 +59,7 @@ export function HomeAttendStreaks({ initial }: Props) {
       <div className="home-attend-streaks-head">
         <p className="home-attend-streaks-title">Стрик явки · ТОП 10</p>
         <p className="home-attend-streaks-sub muted">
-          Дней подряд на TR1 · обновляется само
+          Дней подряд на TR1 · обновление каждый час (:00 МСК)
         </p>
       </div>
       {rows.length === 0 ? (

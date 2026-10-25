@@ -231,4 +231,16 @@ EOF
   chmod 644 /etc/cron.d/bb-squad-warm-public
 fi
 
+echo "==> attendance hourly publish cron (:00 MSK)"
+chmod +x "$ROOT/scripts/publish_attendance_hourly.sh" 2>/dev/null || true
+cat >/etc/cron.d/bb-attendance-hourly <<EOF
+CRON_TZ=Europe/Moscow
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+0 * * * * root BB_PLATFORM_ROOT=$ROOT bash $ROOT/scripts/publish_attendance_hourly.sh >>/var/log/bb-attendance-hourly.log 2>&1
+EOF
+chmod 644 /etc/cron.d/bb-attendance-hourly
+# Bootstrap snapshot so /home is not empty until next :00
+bash "$ROOT/scripts/publish_attendance_hourly.sh" >>/var/log/bb-attendance-hourly.log 2>&1 || true
+
 echo "==> OK commit=$(git rev-parse --short HEAD) $(date -Is)"

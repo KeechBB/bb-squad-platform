@@ -12,6 +12,10 @@ import {
 } from "@/lib/squadServers";
 import { reserveDaysForUser } from "@/lib/reserve";
 import { dayOffDaysForUser } from "@/lib/dayOff";
+import {
+  attendancePublishedUntilUtc,
+  clipSessionsToPublishedUntil,
+} from "@/lib/attendancePublish";
 
 const LIST_LIMIT = 80;
 
@@ -82,12 +86,25 @@ function laneFromSessions(
   };
 }
 
-export async function loadUserTrainingStats(userId: string) {
+export type LoadTrainingStatsOpts = {
+  /**
+   * Site (non-admin): clip to last MSK :00 boundary so mid-hour joins
+   * do not appear until the hourly publish. Default true.
+   */
+  publicFreeze?: boolean;
+};
+
+export async function loadUserTrainingStats(
+  userId: string,
+  opts: LoadTrainingStatsOpts = {}
+) {
+  const publicFreeze = opts.publicFreeze !== false;
   const canonStart = attendanceCanonStartUtc();
   const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const since = since30 > canonStart ? since30 : canonStart;
+  const until = publicFreeze ? attendancePublishedUntilUtc() : null;
 
-  const [lean, reserveDays, dayOffDays] = await Promise.all([
+  const [leanRaw, reserveDays, dayOffDays] = await Promise.all([
     prisma.squadServerSession.findMany({
       where: { userId, joinedAt: { gte: canonStart } },
       orderBy: { joinedAt: "desc" },
@@ -103,13 +120,28 @@ export async function loadUserTrainingStats(userId: string) {
     dayOffDaysForUser(userId),
   ]);
 
+  const lean = until
+    ? clipSessionsToPublishedUntil(leanRaw, until)
+    : leanRaw;
+
   const combined = laneFromSessions(lean, reserveDays, dayOffDays, since);
   const tr1 = laneFromSessions(lean, reserveDays, dayOffDays, since, "TR1");
   const tr2 = laneFromSessions(lean, reserveDays, dayOffDays, since, "TR2");
 
+  // Online badge stays live (plaza session); calendar marks use freeze clip above.
+  const openLive = (key?: TrainingServerKey) =>
+    leanRaw.some(
+      (s) =>
+        s.leftAt == null &&
+        (key
+          ? (s.serverKey || "").toUpperCase() === key
+          : isTrainingServerKey(s.serverKey))
+    );
+
   return {
     ...combined,
-    tr1,
-    tr2,
+    openNow: openLive(),
+    tr1: { ...tr1, openNow: openLive("TR1") },
+    tr2: { ...tr2, openNow: openLive("TR2") },
   };
 }

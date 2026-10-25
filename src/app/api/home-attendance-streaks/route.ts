@@ -1,22 +1,31 @@
 import { NextResponse } from "next/server";
+import { emptyAttendanceStreakBoard } from "@/lib/attendanceStreaks";
 import {
-  buildAttendanceStreakBoard,
-  emptyAttendanceStreakBoard,
-} from "@/lib/attendanceStreaks";
+  getPublishedAttendanceBoard,
+  readAttendancePublished,
+} from "@/lib/attendancePublish";
 
 export const dynamic = "force-dynamic";
 
+const hdr = {
+  "Cache-Control": "public, max-age=60, stale-while-revalidate=300",
+  "X-Attendance-Publish": "hourly-msk",
+};
+
 export async function GET() {
   try {
-    const data = await buildAttendanceStreakBoard();
+    const meta = await readAttendancePublished();
+    const data = await getPublishedAttendanceBoard();
     return NextResponse.json(
       {
         registered: data.registered,
         anchorYmd: data.anchorYmd,
         top10: data.top10,
         updatedAt: data.updatedAt,
+        publishedAt: meta?.publishedAt ?? data.updatedAt,
+        hourKey: meta?.hourKey ?? null,
       },
-      { headers: { "Cache-Control": "no-store, max-age=0" } }
+      { headers: hdr }
     );
   } catch (e) {
     const empty = emptyAttendanceStreakBoard();
@@ -28,7 +37,7 @@ export async function GET() {
         updatedAt: empty.updatedAt,
         error: String((e as Error)?.message || e),
       },
-      { status: 200 }
+      { status: 200, headers: hdr }
     );
   }
 }
