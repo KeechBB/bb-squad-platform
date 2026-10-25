@@ -114,28 +114,51 @@ def load_log_kills(slice_dir: Path) -> dict[str, dict[str, int]] | None:
         t1 = datetime(2099, 1, 1, tzinfo=timezone.utc)
 
     try:
-        from sync_train_from_tr1_logs import agg_players  # noqa: WPS433
+        from collections import defaultdict
 
         aliases: dict[str, str] = {}
         idx = R.index_log_combat(log_path, aliases)
         steam = dict(idx.get("steam_to_nick") or {})
-        teams = R.teams_in_window(idx, t0, t1, {})
-        dies, _ = R.dies_in_window(idx, t0, t1, steam, aliases)
-        wounds = R.wounds_in_window(idx, t0, t1, steam, aliases)
-        revives = R.revives_in_window(idx, t0, t1)
-        disp = {R.canon_key(n, aliases): n for n in steam.values()}
-        team_a, team_b = agg_players(dies, wounds, revives, teams, disp, aliases=aliases)
-        out: dict[str, dict[str, int]] = {}
-        for p in team_a + team_b:
-            k = nick_key(str(p.get("nick") or ""))
-            if not k:
-                continue
-            out[k] = {
-                "kills": int(p.get("kills") or 0),
-                "deaths": int(p.get("deaths") or 0),
-                "nok": int(p.get("nok") or 0),
+        def _aware(dt: datetime) -> datetime:
+            if dt.tzinfo is None:
+                return dt.replace(tzinfo=timezone.utc)
+            return dt
+
+        def _combat(a: datetime, b: datetime) -> dict[str, dict[str, int]]:
+            dies, _ = R.dies_in_window(idx, _aware(a), _aware(b), steam, aliases)
+            wounds = R.wounds_in_window(idx, _aware(a), _aware(b), steam, aliases)
+            kills: dict[str, int] = defaultdict(int)
+            deaths: dict[str, int] = defaultdict(int)
+            nok: dict[str, int] = defaultdict(int)
+            for d in dies or []:
+                kk = nick_key(str(d.get("killer") or d.get("killerKey") or ""))
+                vk = nick_key(str(d.get("victim") or d.get("victimKey") or ""))
+                if kk:
+                    kills[kk] += 1
+                if vk:
+                    deaths[vk] += 1
+            for w in wounds or []:
+                kk = nick_key(str(w.get("killer") or w.get("killerKey") or ""))
+                if kk:
+                    nok[kk] += 1
+            return {
+                k: {
+                    "kills": kills.get(k, 0),
+                    "deaths": deaths.get(k, 0),
+                    "nok": nok.get(k, 0),
+                }
+                for k in set(kills) | set(deaths) | set(nok)
             }
+
+        out = _combat(t0, t1)
+        # layer.log already time-sliced — if window TZ missed, take whole index span
+        if not out and log_path.name == "layer.log":
+            out = _combat(
+                datetime(2020, 1, 1, tzinfo=timezone.utc),
+                datetime(2099, 1, 1, tzinfo=timezone.utc),
+            )
         return out
+
     except Exception as e:
         print(f"log parse fail {log_path}: {e}", flush=True)
         return None
