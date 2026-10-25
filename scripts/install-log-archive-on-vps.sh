@@ -22,6 +22,7 @@ if [[ ! -d "$VENV" ]]; then
   exit 1
 fi
 PY="$VENV/bin/python"
+"$VENV/bin/pip" install -q -r "$SCRIPTS/requirements-squad-collector.txt"
 
 mkdir -p "$ARCHIVE_ROOT"
 
