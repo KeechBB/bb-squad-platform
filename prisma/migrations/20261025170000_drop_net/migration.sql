@@ -1,0 +1,15 @@
+-- Сеть снята: страницы, лента, темы, чат, новости.
+
+DROP TABLE IF EXISTS "NetThemeComment" CASCADE;
+DROP TABLE IF EXISTS "NetThemeVote" CASCADE;
+DROP TABLE IF EXISTS "NetComment" CASCADE;
+DROP TABLE IF EXISTS "NetPostVote" CASCADE;
+DROP TABLE IF EXISTS "NetPost" CASCADE;
+DROP TABLE IF EXISTS "NetTheme" CASCADE;
+DROP TABLE IF EXISTS "NetFollow" CASCADE;
+DROP TABLE IF EXISTS "NetChatMessage" CASCADE;
+DROP TABLE IF EXISTS "NetNews" CASCADE;
+DROP TABLE IF EXISTS "NetProfile" CASCADE;
+
+DELETE FROM "UserNotice"
+WHERE kind = 'net' OR href LIKE '%/profile/web%';

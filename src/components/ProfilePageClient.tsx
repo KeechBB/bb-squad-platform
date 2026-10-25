@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { AvatarEditor } from "@/components/AvatarEditor";
 import { ClanInvites } from "@/components/ClanInvites";
 import { AdminPanelLink } from "@/components/AdminPanelLink";
@@ -41,7 +40,6 @@ import type { ProfileMedalItem } from "@/lib/profileMedalsShared";
 type Shell = {
   id: string;
   nick: string | null;
-  name: string | null;
   avatarUrl: string | null;
   steamAvatar: string | null;
   profileBg?: ProfileBgId | null;
@@ -58,8 +56,6 @@ type Shell = {
   admin: boolean;
   isBb: boolean;
   kitsLane: "TR1" | "PB1";
-  birthDate: string | null;
-  age: number | null;
   discordTag: string | null;
   discordId: string | null;
   telegram: string | null;
@@ -87,7 +83,7 @@ type Shell = {
   }[];
 };
 
-const SHELL_CACHE_KEY = "bb_profile_shell_v6";
+const SHELL_CACHE_KEY = "bb_profile_shell_v7";
 const MODE_KEY = "bb_profile_mode_v1";
 
 function readShellCache(): Shell | null {
@@ -261,7 +257,6 @@ export function ProfilePageClient({ subjectNick }: { subjectNick?: string } = {}
       <div className="profile-v2-ident">
         <AvatarEditor
           nick={shell.nick || session?.user?.nick || "Игрок"}
-          name={shell.name || session?.user?.name || ""}
           initialAvatar={shell.avatarUrl}
           steamAvatar={shell.steamAvatar}
           adminLink={
@@ -351,14 +346,6 @@ export function ProfilePageClient({ subjectNick }: { subjectNick?: string } = {}
         />
         )}
         <ProfileModeSwitch value={mode} onChange={changeMode} />
-        {nickForKv ? (
-          <Link
-            href={`/profile/web/${encodeURIComponent(nickForKv)}`}
-            className="profile-net-entry"
-          >
-            Сеть
-          </Link>
-        ) : null}
         {readOnly ? null : <ClanInvites initial={shell.invites} />}
         <ProfileMedalShelf
           slots={shell.medalSlots}
@@ -372,9 +359,6 @@ export function ProfilePageClient({ subjectNick }: { subjectNick?: string } = {}
             nick={nickForKv}
             account={{
               nick: shell.nick || "",
-              name: shell.name || "",
-              birthDate: shell.birthDate,
-              age: shell.age,
               discordTag: shell.discordTag,
               discordId: shell.discordId,
               telegram: shell.telegram,

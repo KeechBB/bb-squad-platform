@@ -513,24 +513,6 @@ body.has-profile-bg .shell:has(.profile-page) {
   flex: 0 0 auto;
 }
 
-.profile-net-entry {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 8px 0 2px;
-  min-height: 44px;
-  border-radius: 10px;
-  border: 1px solid rgba(250, 204, 21, 0.75);
-  background: linear-gradient(135deg, rgba(22, 101, 52, 0.78), rgba(120, 53, 15, 0.62));
-  color: #fef3c7;
-  font-family: var(--font-display);
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-decoration: none;
-  text-transform: uppercase;
-}
-.profile-net-entry:hover { filter: brightness(1.12); }
-
 .profile-mode-switch {
   display: flex;
   gap: 6px;

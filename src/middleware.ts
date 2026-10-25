@@ -35,6 +35,10 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/", req.url));
   }
 
+  if (pathname === "/profile/web" || pathname.startsWith("/profile/web/")) {
+    return NextResponse.redirect(new URL("/", req.url));
+  }
+
   if (isPublicAsset(pathname)) {
     return withPathHeader(req, pathname);
   }
