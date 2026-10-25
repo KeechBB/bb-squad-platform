@@ -8,10 +8,10 @@ HDR=(-H "x-bb-attendance-cron: 1" -H "Host: 127.0.0.1:3000")
 if [[ -n "${CRON_SECRET:-}" ]]; then
   HDR+=(-H "x-cron-secret: ${CRON_SECRET}")
 elif [[ -f "$ROOT/.env" ]]; then
-  SECRET="$(grep -E '^CRON_SECRET=' "$ROOT/.env" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'")"
+  SECRET="$(grep -E '^CRON_SECRET=' "$ROOT/.env" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
   if [[ -n "${SECRET:-}" ]]; then
     HDR+=(-H "x-cron-secret: ${SECRET}")
   fi
 fi
-curl -sS --max-time 120 "${HDR[@]}" -X POST "$URL" || curl -sS --max-time 120 "${HDR[@]}" "$URL"
+curl -sS --max-time 120 "${HDR[@]}" -X POST "$URL" || curl -sS --max-time 120 "${HDR[@]}" "$URL" || true
 echo
