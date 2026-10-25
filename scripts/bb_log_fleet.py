@@ -12,9 +12,12 @@ Legacy caches (_tmp_tr1_logs_cache, _tmp_tr2_logs_cache) still readable.
 Env:
   SQUAD_SERVERS=TR1,TR2,TPUB1[,TR3…]
   BB_LOG_CACHE_ROOT=…/scripts/_tmp_squad_logs
+  BB_LOG_ARCHIVE_ROOT=/var/www/bb-squad-logs   # long-term PB1/TR1…/YYYY-MM
   BB_LOG_SYNC_WORKERS=4          # parallel SSH
   BB_TRAIN_SYNC_SERVERS=TR1,TR2  # optional subset for train digitize
   BB_PUBLIC_SYNC_SERVERS=TPUB1,PB1
+
+See docs/SQUAD-LOG-ARCHIVE.md
 """
 from __future__ import annotations
 
@@ -124,6 +127,24 @@ def cache_root(env: dict[str, str] | None = None) -> Path:
     return HERE / "_tmp_squad_logs"
 
 
+def archive_root(env: dict[str, str] | None = None) -> Path | None:
+    """Immutable long-term archive (PB1/TR1…/YYYY-MM/). Optional."""
+    env = env or load_env()
+    raw = (env.get("BB_LOG_ARCHIVE_ROOT") or "").strip()
+    if raw:
+        return Path(raw)
+    default = Path("/var/www/bb-squad-logs")
+    return default if default.is_dir() else None
+
+
+def archive_folder_name(server: str) -> str:
+    """Display folder in archive: TPUB1 → PB1."""
+    s = canon_server(server)
+    if s in {"TPUB1", "PB1", "PUB", "PUBLIC"}:
+        return "PB1"
+    return s
+
+
 def server_cache(server: str, env: dict[str, str] | None = None) -> Path:
     """Unified per-server dir. Legacy TR1/TR2 dirs still work as fallbacks."""
     env = env or load_env()
@@ -147,7 +168,7 @@ def legacy_caches(server: str) -> list[Path]:
 
 
 def all_search_dirs(server: str | None = None) -> list[Path]:
-    """Dirs to search for a log file (pins + live + legacy)."""
+    """Dirs to search for a log file (pins + live + legacy + long-term archive)."""
     env = load_env()
     dirs: list[Path] = []
     servers = [canon_server(server)] if server else all_servers(env)
@@ -165,6 +186,17 @@ def all_search_dirs(server: str | None = None) -> list[Path]:
         dirs.append(c)
         for leg in legacy_caches(s):
             dirs.append(leg)
+        # Long-term archive: PB1|TR*/YYYY-MM + _live
+        ar = archive_root(env)
+        if ar is not None:
+            af = ar / archive_folder_name(s)
+            if af.is_dir():
+                live = af / "_live"
+                if live.is_dir():
+                    dirs.append(live)
+                for month in sorted(af.iterdir(), reverse=True):
+                    if month.is_dir() and not month.name.startswith("_"):
+                        dirs.append(month)
     # Dedup preserving order
     seen: set[str] = set()
     out: list[Path] = []
