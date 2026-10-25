@@ -1,3 +1,17 @@
+## v. 1.1.327 — 26.10.2026 · Фаза 6: siphon срезы по matchKey
+
+Siphon после архива пишет `bb-squad-logs/matches/YYYY/MM/DD/<matchKey>/` (meta + layer.log). Сырые backup-логи без изменений.
+
+**Анонс (внутренний):**
+
+```
+Beta v1.1.327
+
+Логи закрытых карт режутся в папки по match id — удобно перепарсить позже.
+```
+
+---
+
 ## v. 1.1.326 — 26.10.2026 · Фаза 5: скрины → CanonMatch
 
 После залива КВ/трень со скринов: `canon_publish_match.py --source SCREENSHOT` пишет в Postgres. Skill screenshot-match-intake обновлён (шаг 4b).

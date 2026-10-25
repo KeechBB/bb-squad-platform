@@ -17,6 +17,9 @@ Layout (append-only для backup'ов):
       _live/
         SquadGame.log    # зеркало текущего (перезаписывается)
       _state.json
+    matches/YYYY/MM/DD/<matchKey>/   # фаза 6: срез закрытого слоя
+      meta.json
+      layer.log | source.ref
 
 Env (из .squad-collector.env):
   SQUAD_SSH_* , SQUAD_LOG_ROOT
@@ -25,6 +28,8 @@ Env (из .squad-collector.env):
   BB_LOG_ARCHIVE_POLL_SEC=300
   BB_LOG_ARCHIVE_GZ_DAYS=90
   BB_LOG_ARCHIVE_ONCE=1   # один проход и выход (cron)
+  BB_SIPHON_SLICE=1       # после архива — срезы matches/…/<matchKey>/
+  BB_SIPHON_SLICE_TG=0    # Telegram при новых срезах
 """
 from __future__ import annotations
 
@@ -390,9 +395,17 @@ def run_once(env: dict[str, str], *, full: bool = True) -> int:
             "BlackBerry Squad log archive (immutable backups).\n"
             "Folders: PB1, TR1… — year-month / SquadGame-backup-*.log[.gz]\n"
             "_live/SquadGame.log = current mirror.\n"
+            "matches/YYYY/MM/DD/<matchKey>/ — closed-layer slices (phase 6).\n"
             "Do not delete. Re-parse anytime.\n",
             encoding="utf-8",
         )
+    # Phase 6: closed layers → matches/YYYY/MM/DD/<matchKey>/
+    try:
+        import siphon_slice_matches as SL  # noqa: WPS433
+
+        SL.run_slice(env)
+    except Exception as e:
+        print(f"siphon slice skip: {type(e).__name__}: {e}", flush=True)
     return 0 if errors == 0 else 1
 
 
