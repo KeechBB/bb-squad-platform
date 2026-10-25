@@ -288,6 +288,16 @@ export async function loadRpLadder(): Promise<RpLadder | null> {
   if (ladderMem && now - ladderMem.at < LADDER_TTL_MS) {
     return ladderMem.data;
   }
+  try {
+    const { loadRpLadderFromDb } = await import("@/lib/rpDbRead");
+    const fromDb = await loadRpLadderFromDb("TRAIN");
+    if (fromDb?.players && Object.keys(fromDb.players).length) {
+      ladderMem = { at: now, data: fromDb };
+      return fromDb;
+    }
+  } catch {
+    /* file fallback */
+  }
   let data = await loadKvJsonCached<RpLadder>(
     "data/training/rp-ladder.json"
   );

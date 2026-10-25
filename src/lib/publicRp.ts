@@ -67,6 +67,17 @@ export async function loadPublicRpLadder(): Promise<RpLedger | null> {
   const now = Date.now();
   if (ladderMem && now - ladderMem.at < CACHE_TTL_MS) return ladderMem.data;
 
+  try {
+    const { loadPublicRpLadderFromDb } = await import("@/lib/rpDbRead");
+    const fromDb = await loadPublicRpLadderFromDb();
+    if (fromDb?.players && Object.keys(fromDb.players).length) {
+      ladderMem = { at: now, data: fromDb };
+      return fromDb;
+    }
+  } catch {
+    /* file fallback */
+  }
+
   const data = await loadCanonicalPublicJson("rp-ladder.json");
   ladderMem = { at: now, data };
   return data;

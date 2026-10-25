@@ -1208,6 +1208,12 @@ def main() -> None:
     OUT_LADDER_PRIMARY.parent.mkdir(parents=True, exist_ok=True)
     OUT_LADDER_PRIMARY.write_text(slim_text, encoding="utf-8")
     print(f"Wrote slim {OUT_LADDER_PRIMARY} ({OUT_LADDER_PRIMARY.stat().st_size} bytes)")
+    try:
+        import rp_ladder_db as RPDB  # noqa: WPS433
+
+        RPDB.sync_from_path("PUBLIC", OUT_LADDER_PRIMARY)
+    except Exception as e:
+        print(f"warn: RP DB sync skipped: {e}", flush=True)
 
     print("TOP 10:")
     for i, row in enumerate(ledger["leaderboard"][:10], 1):

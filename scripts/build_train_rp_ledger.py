@@ -958,6 +958,12 @@ def main() -> None:
                 encoding="utf-8",
             )
             print(f"refreshed pruned ledger/ladder ({len(done_ids)} matches)", flush=True)
+            try:
+                import rp_ladder_db as RPDB  # noqa: WPS433
+
+                RPDB.sync_from_path("TRAIN", OUT_LADDER)
+            except Exception as e:
+                print(f"warn: RP DB sync skipped: {e}", flush=True)
         print(
             f"RP ledger up to date ({len(done_ids)} matches) — nothing to append",
             flush=True,
@@ -1565,6 +1571,12 @@ def main() -> None:
         json.dumps(ladder, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     print(f"Wrote {OUT_LADDER} ({OUT_LADDER.stat().st_size} bytes)")
+    try:
+        import rp_ladder_db as RPDB  # noqa: WPS433
+
+        RPDB.sync_from_path("TRAIN", OUT_LADDER)
+    except Exception as e:
+        print(f"warn: RP DB sync skipped: {e}", flush=True)
 
     print("TOP 10:")
     for i, row in enumerate(ledger["leaderboard"][:10], 1):

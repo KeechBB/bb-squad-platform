@@ -124,6 +124,65 @@ enum CanonMatchKind {
   PUBLIC
 }
 
+/// Область рейтинга RP (фаза 10).
+enum RpScope {
+  TRAIN
+  PUBLIC
+}
+
+/// Мета slim-лестницы RP (один ряд на scope). JSON ledger остаётся для drilldown.
+model RpMeta {
+  scope        RpScope  @id
+  version      Int      @default(1)
+  updatedAt    DateTime @default(now())
+  startRp      Float    @default(1000)
+  step         Int      @default(150)
+  radiant3Max  Int      @default(4500)
+  pMax         Float?
+  epoch        String?
+  historyOnly  Boolean  @default(false)
+  slim         Boolean  @default(true)
+  formula      Json?
+  /// Полный header ladder (leaderboardInfantry и т.п.)
+  rawJson      Json?
+  importedAt   DateTime @default(now())
+}
+
+/// Игрок на slim RP-лестнице.
+model RpLadderPlayer {
+  id             String   @id @default(cuid())
+  scope          RpScope
+  nickKey        String
+  nick           String
+  rp             Float
+  rankLabel      String
+  rankKey        String
+  predatorPlace  Int?
+  games          Int      @default(0)
+  place          Int?
+  /// Slim matches: [{id,map?,date?,net?,kills?,…}]
+  matchesJson    Json
+  updatedAt      DateTime @updatedAt
+
+  @@unique([scope, nickKey])
+  @@index([scope, rp(sort: Desc)])
+  @@index([scope, place])
+}
+
+/// Каталог засчитанных матчей в slim ladder.
+model RpScoredMatch {
+  id        String   @id @default(cuid())
+  scope     RpScope
+  matchKey  String
+  date      String?
+  mapName   String?
+  rawJson   Json?
+  updatedAt DateTime @updatedAt
+
+  @@unique([scope, matchKey])
+  @@index([scope, date])
+}
+
 /// Откуда пришёл факт матча.
 enum CanonMatchSource {
   LOG
