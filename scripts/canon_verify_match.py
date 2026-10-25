@@ -41,6 +41,23 @@ def nick_key(n: str) -> str:
         return re.sub(r"\s+", "", (n or "").lower())
 
 
+def _hhmm_minutes(key: str) -> int | None:
+    m = re.search(r"_(\d{4})$", key or "")
+    if not m:
+        return None
+    v = int(m.group(1))
+    hh, mm = divmod(v, 100)
+    if hh > 23 or mm > 59:
+        return None
+    return hh * 60 + mm
+
+
+def _map_stem_key(match_key: str) -> str | None:
+    """`YYYY-MM-DD_server_mapstem` without trailing _HHMM."""
+    m = re.match(r"^(\d{4}-\d{2}-\d{2}_[^_]+_.+)_(\d{4})$", match_key or "")
+    return m.group(1).lower() if m else None
+
+
 def find_slice_dirs(
     match_key: str,
     *,
@@ -48,7 +65,7 @@ def find_slice_dirs(
     server: str | None = None,
     map_name: str | None = None,
 ) -> list[Path]:
-    """Exact matchKey dir, or same day + server/map stem fuzzy."""
+    """Exact matchKey dir, else same day+server+mapstem ordered by HHMM distance."""
     out: list[Path] = []
     # strip CW legacy suffix _25-alpha
     base_key = re.sub(r"_[0-9]{2}-[a-z0-9-]+$", "", match_key)
@@ -63,14 +80,25 @@ def find_slice_dirs(
             base = parent / base_key
             if base.is_dir() and base not in out:
                 out.append(base)
-            # Prefer exact / stripped-key only — loose map-stem matching pulled
-            # extra rounds from other matches and inflated kill sums.
-            prefix = (base_key or match_key)[:22].lower()
-            for p in parent.iterdir():
-                if not p.is_dir() or p in out:
-                    continue
-                if prefix and p.name.lower().startswith(prefix):
-                    out.append(p)
+            stem = _map_stem_key(base_key) or _map_stem_key(match_key)
+            if stem:
+                for p in parent.iterdir():
+                    if not p.is_dir() or p in out:
+                        continue
+                    nl = p.name.lower()
+                    if nl == stem or nl.startswith(stem + "_"):
+                        out.append(p)
+            target = _hhmm_minutes(match_key)
+
+            def _score(p: Path) -> tuple[int, int]:
+                if p.name == match_key or p.name == base_key:
+                    return (0, 0)
+                h = _hhmm_minutes(p.name)
+                if target is None or h is None:
+                    return (2, 9999)
+                return (1, abs(h - target))
+
+            out.sort(key=_score)
     return out
 
 
