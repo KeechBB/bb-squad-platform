@@ -107,6 +107,13 @@ export async function loadRpLadderFromDb(
   }
 }
 
+/** Slim public ladder stores kills/deaths as numbers; full ledger uses event arrays. */
+function slimCombatField(v: unknown): number | unknown[] {
+  if (typeof v === "number" && Number.isFinite(v)) return Math.max(0, v);
+  if (Array.isArray(v)) return v;
+  return 0;
+}
+
 /** Public slim — RpLedger shape for leaderboard / profile header (no events). */
 export async function loadPublicRpLadderFromDb(): Promise<RpLedger | null> {
   if (!dbReadEnabled()) return null;
@@ -126,18 +133,29 @@ export async function loadPublicRpLadderFromDb(): Promise<RpLedger | null> {
         rankLabel: p.rankLabel,
         rankKey: p.rankKey,
         predatorPlace: p.predatorPlace,
-        matches: ms.map((m) => ({
-          id: String(m.id || ""),
-          map: String(m.map || ""),
-          date: String(m.date || ""),
-          net: Number(m.net || 0),
-          kills: [],
-          deaths: [],
-          noks: [],
-          revives: [],
-          dmg: typeof m.dmg === "number" ? m.dmg : undefined,
-          won: typeof m.won === "boolean" ? m.won : null,
-        })),
+        matches: ms.map((m) => {
+          const kills = slimCombatField(m.kills);
+          const deaths = slimCombatField(m.deaths);
+          const noks = slimCombatField(m.noks);
+          const revives = slimCombatField(m.revives);
+          return {
+            id: String(m.id || ""),
+            map: String(m.map || ""),
+            date: String(m.date || ""),
+            net: Number(m.net || 0),
+            // publicCombat.countStat accepts number | array length
+            kills: kills as RpPlayer["matches"][number]["kills"],
+            deaths: deaths as RpPlayer["matches"][number]["deaths"],
+            noks: noks as RpPlayer["matches"][number]["noks"],
+            revives: revives as RpPlayer["matches"][number]["revives"],
+            dmg: typeof m.dmg === "number" ? m.dmg : undefined,
+            vehicleKills:
+              typeof m.vehicleKills === "number"
+                ? Math.max(0, Math.floor(m.vehicleKills))
+                : undefined,
+            won: typeof m.won === "boolean" ? m.won : null,
+          };
+        }),
       };
       leaderboard.push({
         nick: p.nick,
