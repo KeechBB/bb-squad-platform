@@ -1,3 +1,18 @@
+## v. 1.1.323 — 26.10.2026 · Фаза 2: collector → CanonMatch
+
+После конца трень / финала КВ collector upsert’ит матч в Postgres (`canon_match_write.py`). JSON kv-cache без изменений. Сайт пока читает JSON.
+
+**Анонс (внутренний):**
+
+```
+Beta v1.1.323
+
+Новые матчи с логов пишутся и в базу plaza (канон), не только в JSON.
+Сайт пока как раньше — следующий шаг читать канон.
+```
+
+---
+
 ## v. 1.1.322 — 26.10.2026 · Фаза 1: канон матчей в Postgres
 
 На plaza: таблицы `CanonMatch` / `CanonMatchPlayer`, импорт TRAIN+CW из `kv-cache` (JSON не удаляем). Сайт пока читает JSON как раньше. Док: `docs/PHASE1-CANON.md`.

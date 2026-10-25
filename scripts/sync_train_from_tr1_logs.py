@@ -664,6 +664,23 @@ def upsert_month(match_meta: dict) -> None:
     data["matches"] = matches
     _atomic_json_write(path, data)
 
+    # Phase 2: plaza canon (Postgres). Soft-fail — JSON remains source for /tm.
+    try:
+        import canon_match_write as CANON  # noqa: WPS433
+
+        src = str(match_meta["row"].get("source") or "")
+        canon_src = "LOG" if "logs-auto" in src or "log" in src.lower() else "LOG"
+        cid = CANON.upsert_train_row(
+            month,
+            match_meta["row"],
+            players_path=PLAYERS / f"{mid}.json",
+            source=canon_src,
+        )
+        if cid:
+            print(f"canon TRAIN {mid} → {cid[:10]}…", flush=True)
+    except Exception as e:
+        print(f"canon TRAIN skip {mid}: {e}", flush=True)
+
     if INDEX.is_file():
         idx = json.loads(INDEX.read_text(encoding="utf-8"))
     else:

@@ -857,6 +857,18 @@ def process_slot(
         patch["meeting"] = None
     update_calendar_row(slot, patch)
 
+    # Phase 2: canon only after both rounds closed (no mid-meeting publish).
+    if finalize:
+        try:
+            import canon_match_write as CANON  # noqa: WPS433
+
+            merged = {**slot, **{k: v for k, v in patch.items() if v is not None}}
+            cid = CANON.upsert_cw_final(merged, players_doc, source="LOG")
+            if cid:
+                print(f"canon CW {mid} → {cid[:10]}…", flush=True)
+        except Exception as e:
+            print(f"canon CW skip {mid}: {e}", flush=True)
+
     opp_all = opp_rounds[0] + opp_rounds[1]
     # dedupe by nick
     seen: set[str] = set()
