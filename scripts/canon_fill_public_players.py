@@ -69,60 +69,52 @@ def roster_from_slice(slice_dir: Path) -> list[dict[str, Any]]:
     revives = R.revives_in_window(idx, t0, t1)
     disp = {R.canon_key(n, aliases): n for n in steam.values()}
 
-    rows: list[dict[str, Any]] = []
+    # Flat combat first (complete roster). Overlay A/B when team known.
+    flat = V.load_log_kills(slice_dir) or {}
+    by_nick: dict[str, dict[str, Any]] = {}
+    for k, st in flat.items():
+        nick = disp.get(k) or k
+        by_nick[R.canon_key(nick, aliases)] = {
+            "nick": nick,
+            "side": "U",
+            "round": 0,
+            "kills": int(st.get("kills") or 0),
+            "deaths": int(st.get("deaths") or 0),
+            "nok": int(st.get("nok") or 0),
+            "res": 0,
+            "dmg": None,
+        }
+
     try:
         from sync_train_from_tr1_logs import agg_players  # noqa: WPS433
 
         team_a, team_b = agg_players(
             dies, wounds, revives, teams, disp, aliases=aliases
         )
-        for p in team_a:
-            rows.append(
-                {
+        for side, bucket in (("A", team_a), ("B", team_b)):
+            for p in bucket:
+                ck = R.canon_key(p["nick"], aliases)
+                row = by_nick.get(ck) or {
                     "nick": p["nick"],
-                    "side": "A",
                     "round": 0,
-                    "kills": int(p.get("kills") or 0),
-                    "deaths": int(p.get("deaths") or 0),
-                    "nok": int(p.get("nok") or 0),
-                    "res": int(p.get("res") or 0),
-                    "dmg": float(p.get("dmg") or 0) or None,
-                }
-            )
-        for p in team_b:
-            rows.append(
-                {
-                    "nick": p["nick"],
-                    "side": "B",
-                    "round": 0,
-                    "kills": int(p.get("kills") or 0),
-                    "deaths": int(p.get("deaths") or 0),
-                    "nok": int(p.get("nok") or 0),
-                    "res": int(p.get("res") or 0),
-                    "dmg": float(p.get("dmg") or 0) or None,
-                }
-            )
-    except Exception:
-        rows = []
-
-    if not rows:
-        # flat combat without teams
-        flat = V.load_log_kills(slice_dir) or {}
-        for k, st in flat.items():
-            nick = disp.get(k) or k
-            rows.append(
-                {
-                    "nick": nick,
-                    "side": "U",  # unknown team — unique (matchId,nick,round,side)
-                    "round": 0,
-                    "kills": st["kills"],
-                    "deaths": st["deaths"],
-                    "nok": st["nok"],
+                    "kills": 0,
+                    "deaths": 0,
+                    "nok": 0,
                     "res": 0,
                     "dmg": None,
                 }
-            )
-    return rows
+                row["side"] = side
+                row["kills"] = int(p.get("kills") or row["kills"] or 0)
+                row["deaths"] = int(p.get("deaths") or row["deaths"] or 0)
+                row["nok"] = int(p.get("nok") or row["nok"] or 0)
+                row["res"] = int(p.get("res") or row["res"] or 0)
+                if p.get("dmg") is not None:
+                    row["dmg"] = float(p.get("dmg") or 0) or None
+                by_nick[ck] = row
+    except Exception:
+        pass
+
+    return list(by_nick.values())
 
 
 def fill_match(match: dict[str, Any], *, force: bool = False) -> int:
@@ -190,7 +182,9 @@ def fill_match(match: dict[str, Any], *, force: bool = False) -> int:
     return len(players)
 
 
-def list_public_needing(limit: int) -> list[dict[str, Any]]:
+def list_public(
+    limit: int, *, needing_only: bool = True
+) -> list[dict[str, Any]]:
     db = CANON.load_env_db()
     if not db:
         return []
@@ -199,20 +193,36 @@ def list_public_needing(limit: int) -> list[dict[str, Any]]:
 
     with psycopg2.connect(db) as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(
-                """
-                SELECT m.*
-                FROM "CanonMatch" m
-                WHERE m.kind = 'PUBLIC'::"CanonMatchKind"
-                  AND NOT EXISTS (
-                    SELECT 1 FROM "CanonMatchPlayer" p WHERE p."matchId" = m.id
-                  )
-                ORDER BY m."endedAt" DESC NULLS LAST, m."updatedAt" DESC
-                LIMIT %s
-                """,
-                (limit,),
-            )
+            if needing_only:
+                cur.execute(
+                    """
+                    SELECT m.*
+                    FROM "CanonMatch" m
+                    WHERE m.kind = 'PUBLIC'::"CanonMatchKind"
+                      AND NOT EXISTS (
+                        SELECT 1 FROM "CanonMatchPlayer" p WHERE p."matchId" = m.id
+                      )
+                    ORDER BY m."endedAt" DESC NULLS LAST, m."updatedAt" DESC
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT m.*
+                    FROM "CanonMatch" m
+                    WHERE m.kind = 'PUBLIC'::"CanonMatchKind"
+                    ORDER BY m."endedAt" DESC NULLS LAST, m."updatedAt" DESC
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
             return [dict(r) for r in cur.fetchall()]
+
+
+def list_public_needing(limit: int) -> list[dict[str, Any]]:
+    return list_public(limit, needing_only=True)
 
 
 def main() -> int:
@@ -231,7 +241,7 @@ def main() -> int:
         print(f"{args.match_key} players={n}")
         return 0 if n else 2
 
-    rows = list_public_needing(args.limit)
+    rows = list_public(args.limit, needing_only=not args.force)
     filled = 0
     total_pl = 0
     for m in rows:
