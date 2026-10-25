@@ -241,10 +241,12 @@ def existing_match_starts() -> set[str]:
 
 
 def layer_mode(layer: str) -> str:
-    """Canon: CSL* → Skirmish; else AAS/RAAS from layer name."""
+    """Canon: CSL* → Skirmish; FCL* → FCL; else AAS/RAAS from layer name."""
     u = (layer or "").upper()
     if "CSL" in u:
         return "Skirmish"
+    if "FCL" in u:
+        return "FCL"
     if "RAAS" in u:
         return "RAAS"
     if "AAS" in u:
@@ -479,7 +481,24 @@ def publish_live_mirrors() -> None:
             if not src.is_file():
                 continue
             dst = dest_root / rel
-            if rel.endswith("rp-ladder.json") or rel.endswith("rp-ledger.json"):
+            try:
+                if dst.exists() and src.resolve() == dst.resolve():
+                    continue
+            except OSError:
+                pass
+            # Never overwrite a fuller month / ledger with a shorter copy.
+            # (Без этого /tm показывал 10 каток вместо полного октября.)
+            month_name = Path(rel).name
+            is_month_json = bool(re.fullmatch(r"\d{4}-\d{2}\.json", month_name))
+            if (
+                rel.endswith("rp-ladder.json")
+                or rel.endswith("rp-ledger.json")
+                or (
+                    rel.startswith("data/training/")
+                    and is_month_json
+                    and "/players/" not in rel
+                )
+            ):
                 src_ids = _ladder_ids(src)
                 dst_ids = _ladder_ids(dst)
                 if src_ids is not None and dst_ids and not dst_ids <= src_ids:
@@ -492,6 +511,80 @@ def publish_live_mirrors() -> None:
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
         print(f"mirrored train data → {dest_root}", flush=True)
+
+
+def heal_month_files_from_siblings() -> None:
+    """Merge missing match rows from sibling KV trees into KV_PUBLIC months.
+
+    Collector may resolve BB_KV_PUBLIC to kv-cache while blackberry-kv still has
+    the full month (or vice versa). Without this, a lookback-only rewrite of one
+    tree leaves /tm with ~last-3-days matches forever.
+    """
+    siblings: list[Path] = []
+    for raw in (
+        "/var/www/blackberry-kv",
+        "/var/www/bb-squad-platform/data/kv-cache",
+        str(HERE.parents[0] / "data" / "kv-cache"),
+        str(HERE.parents[1] / "KV" / "public"),
+    ):
+        p = Path(raw)
+        try:
+            if p.resolve() == KV_PUBLIC.resolve():
+                continue
+        except OSError:
+            continue
+        if (p / "data" / "training").is_dir():
+            siblings.append(p)
+    if not siblings:
+        return
+    train_dir = TRAIN
+    for month_path in sorted(train_dir.glob("????-??.json")):
+        try:
+            dest_doc = json.loads(month_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        by_id: dict[str, dict] = {
+            str(m.get("id")): m
+            for m in (dest_doc.get("matches") or [])
+            if isinstance(m, dict) and m.get("id")
+        }
+        before = len(by_id)
+        for sib in siblings:
+            cand = sib / "data" / "training" / month_path.name
+            if not cand.is_file():
+                continue
+            try:
+                src_doc = json.loads(cand.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            for m in src_doc.get("matches") or []:
+                if not isinstance(m, dict) or not m.get("id"):
+                    continue
+                mid = str(m["id"])
+                if mid in by_id:
+                    continue
+                by_id[mid] = m
+                pu = str(m.get("playersUrl") or "")
+                if pu.startswith("data/training/players/"):
+                    rel = pu.split("data/training/", 1)[-1]
+                    sp = sib / "data" / "training" / rel
+                    dp = train_dir / rel
+                    if sp.is_file() and not dp.is_file():
+                        dp.parent.mkdir(parents=True, exist_ok=True)
+                        import shutil
+
+                        shutil.copy2(sp, dp)
+        if len(by_id) <= before:
+            continue
+        dest_doc["matches"] = sorted(
+            by_id.values(),
+            key=lambda m: (m.get("day") or 0, m.get("timeMsk") or "", m.get("id") or ""),
+        )
+        _atomic_json_write(month_path, dest_doc)
+        print(
+            f"heal {month_path.name}: {before} → {len(by_id)} (+{len(by_id) - before} from siblings)",
+            flush=True,
+        )
 
 
 def bump_cache_bust() -> None:
@@ -924,7 +1017,11 @@ def reconcile_orphan_player_files() -> int:
             "day": day,
             "timeMsk": time_msk,
             "map": doc.get("map") or "—",
-            "mode": doc.get("mode") or layer_mode(str(doc.get("map") or "")),
+            "mode": (
+                layer_mode(str(doc.get("map") or "") + " " + mid)
+                if ("FCL" in (str(doc.get("map") or "") + mid).upper() or "CSL" in str(doc.get("map") or "").upper())
+                else (doc.get("mode") or layer_mode(str(doc.get("map") or "")))
+            ),
             "size": "—",
             "server": doc.get("server") or "BlackBerry 1 (TR1)",
             "duration": doc.get("duration") or "—",
@@ -947,6 +1044,7 @@ def reconcile_orphan_player_files() -> int:
 def main() -> int:
     aliases = load_aliases()
     print("=== sync TR1 logs ===", flush=True)
+    heal_month_files_from_siblings()
     n_purge = purge_phantom_train_matches()
     if n_purge:
         print(f"purged phantom train rows/files: {n_purge}", flush=True)
@@ -1145,7 +1243,7 @@ def main() -> int:
         players_doc = {
             "matchId": mid,
             "map": layer,
-            "mode": layer_mode(layer),
+            "mode": layer_mode(f"{layer} {mid}"),
             "server": server_label,
             "serverKey": server_key,
             "duration": duration,
