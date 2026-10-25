@@ -1009,15 +1009,41 @@ export async function buildPlayerTrainMatchHistory(
   history.length = 0;
   history.push(...kept);
 
-  // хронология → свежие сверху
-  history.sort((a, b) => {
-    const ma = metaById.get(a.matchId);
-    const mb = metaById.get(b.matchId);
-    const ka = ma?.sortKey || a.dateLabel;
-    const kb = mb?.sortKey || b.dateLabel;
-    return ka.localeCompare(kb);
+  return sortTrainHistoryNewestFirst(history, metaById);
+}
+
+/**
+ * История ТМ / паблика: всегда свежие сверху.
+ * Ключ только YYYY-MM-DD + время — никогда не мешать ISO sortKey с подписью DD.MM.YYYY
+ * (иначе строки без календаря уезжают в чужой порядок).
+ */
+export function trainHistoryChronoKey(
+  row: Pick<TrainMatchHistoryRow, "matchId" | "dateLabel" | "timeLabel">,
+  metaSortKey?: string | null
+): string {
+  if (metaSortKey) return metaSortKey;
+  const d = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(String(row.dateLabel || "").trim());
+  const iso = d ? `${d[3]}-${d[2]}-${d[1]}` : "0000-00-00";
+  let timeKey = "23:59";
+  const hm = /^(\d{1,2}):(\d{2})/.exec(String(row.timeLabel || "").trim());
+  if (hm) {
+    let h = Number(hm[1]);
+    const mi = Number(hm[2]);
+    if (h === 0 && mi <= 29) h = 24;
+    timeKey = `${String(h).padStart(2, "0")}:${pad2(mi)}`;
+  }
+  return `${iso}T${timeKey}-${row.matchId}`;
+}
+
+export function sortTrainHistoryNewestFirst(
+  rows: TrainMatchHistoryRow[],
+  metaById?: Map<string, { sortKey?: string }>
+): TrainMatchHistoryRow[] {
+  return [...rows].sort((a, b) => {
+    const ka = trainHistoryChronoKey(a, metaById?.get(a.matchId)?.sortKey);
+    const kb = trainHistoryChronoKey(b, metaById?.get(b.matchId)?.sortKey);
+    return kb.localeCompare(ka);
   });
-  return history.reverse();
 }
 
 export type PlayerTrainCombatStats = {

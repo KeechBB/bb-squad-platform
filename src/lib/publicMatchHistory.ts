@@ -5,7 +5,10 @@
 import { prisma } from "@/lib/prisma";
 import { loadPublicRpLadder, lookupPlayerPublicRp } from "@/lib/publicRp";
 import { rpRankFromScore } from "@/lib/trainRp";
-import type { TrainMatchHistoryRow } from "@/lib/homeTrainPwr";
+import {
+  sortTrainHistoryNewestFirst,
+  type TrainMatchHistoryRow,
+} from "@/lib/homeTrainPwr";
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -239,5 +242,6 @@ export async function buildPlayerPublicMatchHistory(
     });
   }
 
-  return history.reverse();
+  // RP running считали от старых к новым; витрина — свежие сверху.
+  return sortTrainHistoryNewestFirst(history);
 }
