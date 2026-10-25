@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Долговременный архив логов Squad (PB1, TR1…TR5) на plaza.
-# PM2: bb-squad-log-archive — раз в ~5 мин тянет ВСЕ backup'ы + live mirror.
+# PM2: bb-squad-siphon — раз в ~5 мин тянет ВСЕ backup'ы + live mirror.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPTS="$ROOT/scripts"
 ENV_FILE="$SCRIPTS/.squad-collector.env"
 VENV="$SCRIPTS/.venv-collector"
-NAME="bb-squad-log-archive"
+NAME="bb-squad-siphon"
 ARCHIVE_ROOT="${BB_LOG_ARCHIVE_ROOT:-/var/www/bb-squad-logs}"
 
 cd "$ROOT"

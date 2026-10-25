@@ -414,7 +414,7 @@ def main(argv: list[str] | None = None) -> int:
     if once:
         return run_once(env, full=True)
 
-    print(f"bb-squad-log-archive loop poll={poll}s", flush=True)
+    print(f"bb-squad-siphon loop poll={poll}s", flush=True)
     while True:
         try:
             run_once(env, full=True)

@@ -13,7 +13,7 @@
 | | |
 |--|--|
 | Скрипт | `scripts/squad_log_archive.py` |
-| PM2 | `bb-squad-log-archive` |
+| PM2 | `bb-squad-siphon` |
 | Корень | `/var/www/bb-squad-logs` (`BB_LOG_ARCHIVE_ROOT`) |
 | Установка | `bash scripts/install-log-archive-on-vps.sh` |
 
@@ -59,6 +59,6 @@ bash scripts/install-log-archive-on-vps.sh
 # разовый полный проход
 cd scripts && .venv-collector/bin/python squad_log_archive.py --once --full
 
-pm2 logs bb-squad-log-archive --lines 40
+pm2 logs bb-squad-siphon --lines 40
 du -sh /var/www/bb-squad-logs/*
 ```

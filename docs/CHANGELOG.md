@@ -22,7 +22,7 @@ Beta v1.1.314
 
 На plaza — долговременный архив логов:
 /var/www/bb-squad-logs/{PB1,TR1…TR5}/YYYY-MM/
-PM2 bb-squad-log-archive тянет ВСЕ backup'ы (append-only + gzip старых).
+PM2 bb-squad-siphon тянет ВСЕ backup'ы (append-only + gzip старых).
 Реалтайм join/hits — как раньше (bb-squad-collector).
 Digitize/RP ищут историю и в архиве.
 Док: docs/SQUAD-LOG-ARCHIVE.md

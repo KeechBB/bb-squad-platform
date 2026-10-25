@@ -40,7 +40,7 @@ SQUAD_POLL_SEC=5
 
 # Долговременный архив (все backup'ы, PB1/TR1…): docs/SQUAD-LOG-ARCHIVE.md
 # BB_LOG_ARCHIVE_ROOT=/var/www/bb-squad-logs
-# bash scripts/install-log-archive-on-vps.sh  →  pm2 bb-squad-log-archive
+# bash scripts/install-log-archive-on-vps.sh  →  pm2 bb-squad-siphon
 
 # Telegram через Cloudflare Worker (VPS не достучится до api.telegram.org)
 BB_TG_CHAT_ID=1806167653
