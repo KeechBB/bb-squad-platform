@@ -61,60 +61,68 @@ def roster_from_slice(slice_dir: Path) -> list[dict[str, Any]]:
     aliases: dict[str, str] = {}
     idx = R.index_log_combat(log_path, aliases)
     steam = dict(idx.get("steam_to_nick") or {})
-    faction_to_team = {}
-    # try pull from match results in index if any
-    teams = R.teams_in_window(idx, t0, t1, faction_to_team)
+    teams = R.teams_in_window(idx, t0, t1, {})
     dies, _ = R.dies_in_window(idx, t0, t1, steam, aliases)
     wounds = R.wounds_in_window(idx, t0, t1, steam, aliases)
     revives = R.revives_in_window(idx, t0, t1)
     disp = {R.canon_key(n, aliases): n for n in steam.values()}
 
-    # Flat combat first (complete roster). Overlay A/B when team known.
-    flat = V.load_log_kills(slice_dir) or {}
-    by_nick: dict[str, dict[str, Any]] = {}
-    for k, st in flat.items():
-        nick = disp.get(k) or k
-        by_nick[R.canon_key(nick, aliases)] = {
-            "nick": nick,
-            "side": "U",
-            "round": 0,
-            "kills": int(st.get("kills") or 0),
-            "deaths": int(st.get("deaths") or 0),
-            "nok": int(st.get("nok") or 0),
-            "res": 0,
-            "dmg": None,
-        }
+    stats: dict[str, dict[str, Any]] = {}
 
-    try:
-        from sync_train_from_tr1_logs import agg_players  # noqa: WPS433
+    def row(k: str, nick: str) -> dict[str, Any]:
+        if k not in stats:
+            side = teams.get(k)
+            if side in ("A", "B", "1", "2"):
+                side = "A" if side in ("A", "1") else "B"
+            else:
+                side = "U"
+            stats[k] = {
+                "nick": nick,
+                "side": side,
+                "round": 0,
+                "kills": 0,
+                "deaths": 0,
+                "nok": 0,
+                "res": 0,
+                "dmg": 0.0,
+            }
+        return stats[k]
 
-        team_a, team_b = agg_players(
-            dies, wounds, revives, teams, disp, aliases=aliases
+    for w in wounds or []:
+        kk, vk = w.get("killerKey"), w.get("victimKey")
+        if not kk or not vk or kk == vk:
+            continue
+        row(kk, w.get("killer") or disp.get(kk, kk))["nok"] += 1
+        row(kk, w.get("killer") or kk)["dmg"] += float(w.get("dmg") or 0)
+        row(vk, w.get("victim") or disp.get(vk, vk))
+
+    for d in dies or []:
+        kk, vk = d.get("killerKey"), d.get("victimKey")
+        if not kk or not vk or kk == vk:
+            continue
+        row(kk, d.get("killer") or disp.get(kk, kk))["kills"] += 1
+        row(vk, d.get("victim") or disp.get(vk, vk))["deaths"] += 1
+
+    for r in revives or []:
+        mk = r.get("medicKey") or r.get("reviverKey")
+        if mk:
+            row(mk, r.get("medic") or r.get("reviver") or disp.get(mk, mk))["res"] += 1
+
+    out: list[dict[str, Any]] = []
+    for st in stats.values():
+        out.append(
+            {
+                "nick": st["nick"],
+                "side": st["side"],
+                "round": 0,
+                "kills": int(st["kills"]),
+                "deaths": int(st["deaths"]),
+                "nok": int(st["nok"]),
+                "res": int(st["res"]),
+                "dmg": float(st["dmg"]) or None,
+            }
         )
-        for side, bucket in (("A", team_a), ("B", team_b)):
-            for p in bucket:
-                ck = R.canon_key(p["nick"], aliases)
-                row = by_nick.get(ck) or {
-                    "nick": p["nick"],
-                    "round": 0,
-                    "kills": 0,
-                    "deaths": 0,
-                    "nok": 0,
-                    "res": 0,
-                    "dmg": None,
-                }
-                row["side"] = side
-                row["kills"] = int(p.get("kills") or row["kills"] or 0)
-                row["deaths"] = int(p.get("deaths") or row["deaths"] or 0)
-                row["nok"] = int(p.get("nok") or row["nok"] or 0)
-                row["res"] = int(p.get("res") or row["res"] or 0)
-                if p.get("dmg") is not None:
-                    row["dmg"] = float(p.get("dmg") or 0) or None
-                by_nick[ck] = row
-    except Exception:
-        pass
-
-    return list(by_nick.values())
+    return out
 
 
 def fill_match(match: dict[str, Any], *, force: bool = False) -> int:
