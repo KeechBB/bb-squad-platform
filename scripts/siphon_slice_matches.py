@@ -185,7 +185,13 @@ def run_slice(env: dict[str, str] | None = None) -> dict[str, int]:
         log_path = Path(m["logPath"]) if m.get("logPath") else None
         if log_path is None or not log_path.is_file():
             continue
-        server = FLEET.infer_server_from_path(log_path) or "unk"
+        server = FLEET.infer_server_from_path(log_path) or "TR1"
+        try:
+            top = log_path.resolve().relative_to(root.resolve()).parts[0].upper()
+            if re.fullmatch(r"TR\d+", top) or top in ("PB1", "TPUB1"):
+                server = top
+        except ValueError:
+            pass
         key = match_key_for(m, server)
         dest = slice_dir(root, key)
         meta_path = dest / "meta.json"
