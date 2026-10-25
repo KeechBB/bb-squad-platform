@@ -827,6 +827,8 @@ export function TrainingSessionsCard({
                       : delta > 0
                         ? `+${delta}`
                         : String(delta);
+                  const rpMissingHint =
+                    "RP не засчитан: нет боевого лога за эту катку (или ещё в очереди). Счёт из календаря.";
                   const score = `${abbreviateFaction(m.factionA)} ${m.ticketsA ?? "—"} : ${m.ticketsB ?? "—"} ${abbreviateFaction(m.factionB)}`;
                   const wonUi = deriveTrainResult(m);
                   const resultCls =
@@ -855,11 +857,19 @@ export function TrainingSessionsCard({
                         ) : null}
                       </td>
                       <td className="training-match-score">{score}</td>
-                      <td className={`num ${deltaCls}`}>{deltaText}</td>
+                      <td
+                        className={`num ${deltaCls}`}
+                        title={delta == null ? rpMissingHint : undefined}
+                      >
+                        {deltaText}
+                      </td>
                       <td>
                         <span className={resultCls}>{resultText}</span>
                       </td>
-                      <td className="num">
+                      <td
+                        className="num"
+                        title={rpAfter == null ? rpMissingHint : undefined}
+                      >
                         {rpAfter != null ? (
                           <>
                             <span

@@ -1378,6 +1378,14 @@ def main() -> int:
         json.dumps(auto, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
 
+    # Always re-bind calendar pins before RP drain (closes id gaps).
+    try:
+        pinned = TRG.ensure_auto_from_calendar_pins(TRAIN)
+        if pinned:
+            print(f"ensure_auto pins +{len(pinned)}: {pinned[:12]}", flush=True)
+    except Exception as e:
+        print(f"ensure_auto pins skip: {e}", flush=True)
+
     need_rp = TRG.auto_ids_needing_rp(TRAIN)
     if added or need_rp:
         if need_rp:

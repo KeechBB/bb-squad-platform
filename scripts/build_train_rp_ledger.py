@@ -1048,6 +1048,15 @@ def main() -> None:
             flush=True,
         )
 
+        # Never lock a calendar id as "scored" with zero combat — usually a wrong
+        # night pin / lost log. Leaving it out keeps the id pending for a real log.
+        if die_n == 0 and tk_n == 0 and rev_n == 0:
+            print(
+                f"REFUSE empty combat {m['id']} — skip (log window has no Die/TK/revive)",
+                flush=True,
+            )
+            continue
+
         players_file = PLAYERS / f"{m['id']}.json"
         if players_file.is_file():
             pj = json.loads(players_file.read_text(encoding="utf-8"))
