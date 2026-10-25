@@ -561,6 +561,11 @@ def parse_revives(log_path: Path, t0: datetime, t1: datetime) -> list[dict]:
 
 def main() -> None:
     force_full = (os.environ.get("TRAIN_RP_FULL") or "").strip() in ("1", "true", "yes")
+    force_rescore = (os.environ.get("TRAIN_RP_RESCORE") or "").strip() in (
+        "1",
+        "true",
+        "yes",
+    )
     pwr, disp = load_pwr_map()
     aliases = load_alias_keys()
     # re-key pwr/disp through aliases
@@ -703,17 +708,86 @@ def main() -> None:
         TRG = None  # type: ignore
 
     def _log_path_for(m: dict) -> Path:
+        mid = str(m.get("id") or "")
+        date_ymd = str(m.get("date") or "")
+        log_name = str(m.get("log") or "")
         if TRG is not None:
             hit = TRG.resolve_match_log(
-                str(m.get("log") or ""),
-                mid=str(m.get("id") or ""),
-                date_ymd=str(m.get("date") or ""),
+                log_name,
+                mid=mid,
+                date_ymd=date_ymd,
                 server=str(m.get("serverKey") or "") or None,
             )
-            if hit is not None:
+            if hit is not None and hit.is_file():
                 m["log"] = hit.name
                 return hit
-        return CACHE / str(m.get("log") or "")
+            # Fuzzy: TR*-date-mid.log anywhere in train caches
+            try:
+                pin = TRG._pin_log_for_match(mid, date_ymd)  # noqa: SLF001
+            except Exception:
+                pin = None
+            if pin is not None and pin.is_file():
+                m["log"] = pin.name
+                return pin
+        # Legacy flat name + SquadGame-*-mid*.log in CACHE
+        direct = CACHE / log_name
+        if direct.is_file():
+            return direct
+        if mid and CACHE.is_dir():
+            bare = re.sub(r"^\d{1,2}-", "", mid)
+            for p in CACHE.glob("*.log"):
+                n = p.name.lower()
+                if mid.lower() in n or (bare and bare.lower() in n):
+                    m["log"] = p.name
+                    return p
+        return direct
+
+    if force_rescore and existing is not None and not force_full:
+        # Drop resolvable matches from ledger so they re-enter pending (tracks refresh).
+        resolvable_ids: set[str] = set()
+        for m in MATCHES:
+            lp = _log_path_for(dict(m))
+            if lp.is_file():
+                resolvable_ids.add(str(m["id"]))
+        if resolvable_ids:
+            print(
+                f"TRAIN_RP_RESCORE: re-queue {len(resolvable_ids)} matches with logs",
+                flush=True,
+            )
+            kept_matches = []
+            for m in existing.get("matches") or []:
+                mid = str(m.get("id") or "")
+                if mid in resolvable_ids:
+                    continue
+                kept_matches.append(m)
+            for _pk, pl in (existing.get("players") or {}).items():
+                if not isinstance(pl, dict):
+                    continue
+                hist = list(pl.get("matches") or [])
+                kept_h = []
+                unwind = 0.0
+                for hm in hist:
+                    mid = str(hm.get("id") or "")
+                    if mid in resolvable_ids:
+                        try:
+                            unwind += float(hm.get("net") or 0)
+                        except (TypeError, ValueError):
+                            pass
+                        continue
+                    kept_h.append(hm)
+                if unwind:
+                    try:
+                        pl["rp"] = round(float(pl.get("rp") or START_RP) - unwind, 1)
+                    except (TypeError, ValueError):
+                        pass
+                pl["matches"] = kept_h
+            existing["matches"] = kept_matches
+            done_ids = {
+                str(m.get("id"))
+                for m in kept_matches
+                if m.get("id")
+            }
+            pending = [m for m in MATCHES if m["id"] not in done_ids]
 
     resolved_pending: list[dict] = []
     for m in pending:
@@ -1218,6 +1292,7 @@ def main() -> None:
             "roman": info["roman"],
             "predator": info["predator"],
             "predatorPlace": predator_place.get(k),
+            # Dual fields filled after full-history recompute below
             "rpInfantry": round(max(MIN_RP, float(rp_inf.get(k, START_RP))), 1),
             "rankLabelInfantry": info_i["label"],
             "rankKeyInfantry": info_i["rankKey"],
@@ -1228,6 +1303,89 @@ def main() -> None:
             "predatorPlaceVehicle": pred_veh.get(k),
             "matches": match_hist,
         }
+
+    def _nets_from_hist(player_key: str, hm: dict) -> tuple[float, float]:
+        """Infantry/vehicle net for one player in one match (events or stored nets)."""
+        if hm.get("netInfantry") is not None and hm.get("netVehicle") is not None:
+            return float(hm["netInfantry"] or 0), float(hm["netVehicle"] or 0)
+        net_i = 0.0
+        net_v = 0.0
+
+        def _add(track: str, signed: float) -> None:
+            nonlocal net_i, net_v
+            if track == "vehicle":
+                net_v += signed
+            else:
+                net_i += signed
+
+        for arr_name, as_victim in (
+            ("kills", False),
+            ("noks", False),
+            ("revives", False),
+            ("teamkills", False),
+            ("deaths", True),
+            ("gotNoks", True),
+        ):
+            for e in hm.get(arr_name) or []:
+                if not isinstance(e, dict):
+                    continue
+                tr, vtr = _infer_tracks(e)
+                e["track"] = tr
+                e["victimTrack"] = vtr
+                kind = e.get("kind")
+                delta = abs(float(e.get("delta") or 0))
+                vdelta = e.get("victimDelta")
+                kk = canon_key(str(e.get("killer") or ""), aliases)
+                vk = canon_key(str(e.get("victim") or ""), aliases)
+                tk = bool(e.get("teamkill")) or kind == "tk"
+                if not as_victim and kk == player_key:
+                    if kind in ("vehicle_loss", "vehicle_loss_driver"):
+                        pass
+                    elif tk:
+                        _add(tr, -delta)
+                    elif kind in (
+                        "die",
+                        "nok",
+                        "revive",
+                        "vehicle_kill",
+                        "driver_share",
+                    ):
+                        _add(tr, +delta)
+                if as_victim and vk == player_key:
+                    if kind in ("vehicle_loss", "vehicle_loss_driver"):
+                        _add(vtr, -delta)
+                    elif kind in ("die", "tk") or (
+                        kind == "nok" and vdelta is not None
+                    ):
+                        pen = abs(float(vdelta) if vdelta is not None else delta)
+                        _add(vtr, -pen)
+        hm["netInfantry"] = round(net_i, 2)
+        hm["netVehicle"] = round(net_v, 2)
+        return net_i, net_v
+
+    # Full-history dual RP (prior rows + newly scored) so incremental stays correct.
+    rp_inf = {k: float(START_RP) for k in players_out}
+    rp_veh = {k: float(START_RP) for k in players_out}
+    for k, pl in players_out.items():
+        for hm in pl.get("matches") or []:
+            if not isinstance(hm, dict):
+                continue
+            ni, nv = _nets_from_hist(k, hm)
+            _apply_track_delta(rp_inf, k, ni)
+            _apply_track_delta(rp_veh, k, nv)
+    pred_inf = _track_predator(rp_inf)
+    pred_veh = _track_predator(rp_veh)
+    for k, pl in players_out.items():
+        info_i = rp_rank(rp_inf.get(k, START_RP))
+        info_v = rp_rank(rp_veh.get(k, START_RP))
+        pl["rpInfantry"] = round(max(MIN_RP, float(rp_inf.get(k, START_RP))), 1)
+        pl["rankLabelInfantry"] = info_i["label"]
+        pl["rankKeyInfantry"] = info_i["rankKey"]
+        pl["predatorPlaceInfantry"] = pred_inf.get(k)
+        pl["rpVehicle"] = round(max(MIN_RP, float(rp_veh.get(k, START_RP))), 1)
+        pl["rankLabelVehicle"] = info_v["label"]
+        pl["rankKeyVehicle"] = info_v["rankKey"]
+        pl["predatorPlaceVehicle"] = pred_veh.get(k)
 
     public_matches = list(prior_matches)
     for mb in match_blocks:
