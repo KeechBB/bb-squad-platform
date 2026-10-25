@@ -111,7 +111,7 @@ const OPP_ID_ALIASES: Record<string, string> = {
 function idToken(raw: string): string {
   const n = foldFancyAlnum(raw)
     .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
+    .replace(/[^a-z0-9а-яё]/g, "");
   if (!n) return "";
   return OPP_ID_ALIASES[n] || n;
 }
