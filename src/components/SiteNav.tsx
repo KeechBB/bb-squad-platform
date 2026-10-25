@@ -9,8 +9,6 @@ import { SteamAuthModal } from "@/components/SteamAuthModal";
 type Props = {
   /** Полный доступ: КВ / Поиск КВ / ТМ — только если в клане */
   showClanSections: boolean;
-  /** Личный рейтинг сапёров BB — только Keech */
-  showSapperLab?: boolean;
 };
 
 function pathMatches(pathname: string, href: string): boolean {
@@ -106,7 +104,7 @@ function NavDropdown({
   );
 }
 
-export function SiteNav({ showClanSections, showSapperLab }: Props) {
+export function SiteNav({ showClanSections }: Props) {
   const pathname = usePathname() || "/";
   const { data: session, status } = useSession();
   const loading = status === "loading";
@@ -127,10 +125,7 @@ export function SiteNav({ showClanSections, showSapperLab }: Props) {
     pathMatches(pathname, "/cw-find");
 
   const trainActive =
-    pathMatches(pathname, "/tm") ||
-    pathMatches(pathname, "/tm/sapper") ||
-    pathMatches(pathname, "/tiers-fit") ||
-    pathMatches(pathname, "/aim");
+    pathMatches(pathname, "/tm") || pathMatches(pathname, "/aim");
 
   function openAuth(href: string, title: string, message: string) {
     setAuthModal({ href, title, message });
@@ -247,16 +242,6 @@ export function SiteNav({ showClanSections, showSapperLab }: Props) {
           active={pathMatches(pathname, "/tournaments")}
         />
 
-        {showSapperLab ? (
-          <NavLink
-            href="/tm/sapper"
-            title="Сапёры BB (логи TR)"
-            full="Сапёры"
-            short="Сап."
-            className="nav-sapper-lab"
-            active={pathMatches(pathname, "/tm/sapper")}
-          />
-        ) : null}
       </nav>
       <SteamAuthModal
         open={Boolean(authModal)}

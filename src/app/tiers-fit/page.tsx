@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-/** Старый URL → вкладка внутри Тренировочных матчей */
+/** FIT/ORR сняты с сайта — старые ссылки ведут на тренировки. */
 export default function TiersFitRedirectPage() {
-  redirect("/tm?tab=fit");
+  redirect("/tm");
 }
