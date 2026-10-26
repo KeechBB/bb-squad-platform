@@ -50,9 +50,20 @@ export async function GET(req: Request) {
   }
 
   const url = new URL(req.url);
-  const userId = (url.searchParams.get("userId") || "").trim();
+  let userId = (url.searchParams.get("userId") || "").trim();
   const steamRaw = (url.searchParams.get("steamId") || "").trim();
   const steamId = normalizeSteamId(steamRaw) || steamRaw || "";
+  const nick = (url.searchParams.get("nick") || "").trim();
+  if (!userId && !steamId && nick) {
+    const byNick = await prisma.user.findFirst({
+      where: {
+        profileComplete: true,
+        nick: { equals: nick, mode: "insensitive" },
+      },
+      select: { id: true },
+    });
+    if (byNick) userId = byNick.id;
+  }
   if (!userId && !steamId) {
     return NextResponse.json(
       { error: "userId or steamId required" },

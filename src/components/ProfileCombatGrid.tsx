@@ -9,6 +9,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import type { MvpHits, MvpKind, MvpMatchHit } from "@/lib/mvpHits";
+import { rollingMainRoleWindow } from "@/lib/mainRoleWindow";
 
 export type { MvpHits, MvpKind, MvpMatchHit } from "@/lib/mvpHits";
 export { mvpHitsFromKvAwards } from "@/lib/mvpHits";
@@ -50,6 +51,9 @@ export type CombatGridInput = {
     rankLabel: string | null;
     rankKey: string | null;
     predatorPlace?: number | null;
+    /** Тренировки: одна плашка, роль за 14 дней и уровень. */
+    split?: boolean;
+    nick?: string | null;
   } | null;
 };
 
@@ -68,6 +72,8 @@ type Cell = {
   mvpKind?: MvpKind;
   span?: 2;
   rankKey?: string | null;
+  split?: boolean;
+  nick?: string | null;
 };
 
 const MVP_TITLE: Record<MvpKind, string> = {
@@ -129,11 +135,12 @@ function cellsFrom(s: CombatGridInput): Cell[] {
           },
           {
             tone: "rp" as const,
-            label: s.ratingRp.title,
+            label: s.ratingRp.split ? "" : s.ratingRp.title,
             span: 2 as const,
-            rankKey: s.ratingRp.rankKey,
-            value:
-              s.ratingRp.rp != null ? (
+            rankKey: s.ratingRp.split ? null : s.ratingRp.rankKey,
+            split: !!s.ratingRp.split,
+            nick: s.ratingRp.nick,
+            value: s.ratingRp.split ? null : s.ratingRp.rp != null ? (
                 <>
                   <span
                     className={`home-pwr-badge rank-${s.ratingRp.rankKey || "iron"}`}
@@ -305,6 +312,47 @@ type Props = {
   } | null;
 };
 
+function TrainRoleSplit({ nick }: { nick: string }) {
+  const [role, setRole] = useState<string>("—");
+
+  useEffect(() => {
+    const roleWindow = rollingMainRoleWindow();
+    const q = new URLSearchParams({
+      nick,
+      lane: "TR1",
+      from: roleWindow.from,
+      to: roleWindow.to,
+    });
+    let cancel = false;
+    fetch(`/api/kits?${q}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { kits?: { kit?: string }[] } | null) => {
+        if (cancel) return;
+        const kit = data?.kits?.[0]?.kit;
+        setRole(kit || "—");
+      })
+      .catch(() => {
+        if (!cancel) setRole("—");
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [nick]);
+
+  return (
+    <div className="profile-role-split">
+      <div>
+        <span>Основная роль</span>
+        <strong>{role}</strong>
+      </div>
+      <div>
+        <span>Уровень</span>
+        <strong>—</strong>
+      </div>
+    </div>
+  );
+}
+
 export function ProfileCombatGrid({ stats, mvpHits, mvpFetch }: Props) {
   const cells = cellsFrom(stats);
   const [openKind, setOpenKind] = useState<MvpKind | null>(null);
@@ -358,7 +406,8 @@ export function ProfileCombatGrid({ stats, mvpHits, mvpFetch }: Props) {
             `tone-${c.tone}`,
             c.mvpKind ? "is-mvp is-clickable" : "",
             c.span === 2 ? "is-span-2" : "",
-            c.tone === "rp" && c.rankKey ? `rank-${c.rankKey}` : "",
+            c.split ? "is-role-split" : "",
+            c.tone === "rp" && c.rankKey && !c.split ? `rank-${c.rankKey}` : "",
           ]
             .filter(Boolean)
             .join(" ");
@@ -385,8 +434,8 @@ export function ProfileCombatGrid({ stats, mvpHits, mvpFetch }: Props) {
             );
           }
           return (
-            <div key={c.label} role="listitem" className={className}>
-              {inner}
+            <div key={c.split ? "role-split" : c.label} role="listitem" className={className}>
+              {c.split ? <TrainRoleSplit nick={c.nick || mvpFetch?.nick || ""} /> : inner}
             </div>
           );
         })}

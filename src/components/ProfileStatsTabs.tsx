@@ -77,10 +77,11 @@ function CombatBody({
     : train
       ? {
           title: "Рейтинг тренировок",
-          rp: train.rp ?? null,
-          rankLabel: train.rankLabel ?? null,
-          rankKey: train.rankKey ?? null,
-          predatorPlace: train.predatorPlace ?? null,
+          rp: null,
+          rankLabel: null,
+          rankKey: null,
+          split: true,
+          nick: train.nick,
         }
       : null;
 

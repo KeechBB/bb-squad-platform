@@ -4344,6 +4344,21 @@ body:has(.profile-page) {
   text-align: center;
 }
 
+.profile-kits-window {
+  margin: 0;
+  max-width: 16rem;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: #f4f0ff;
+  text-align: right;
+}
+
+.profile-kits-window strong {
+  font-weight: 700;
+  color: #f4f0ff;
+}
+
 .profile-kits-period {
   margin: 4px 0 0;
   font-size: 0.75rem;

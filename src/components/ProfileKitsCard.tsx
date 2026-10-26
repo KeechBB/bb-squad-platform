@@ -6,6 +6,7 @@ import {
   KIT_SLICE_COLORS,
   type KitPctRow,
 } from "@/lib/squadKits";
+import { rollingMainRoleWindow } from "@/lib/mainRoleWindow";
 
 type KitsLane = "TR1" | "PB1";
 
@@ -160,13 +161,20 @@ export function ProfileKitsCard({
         const q = new URLSearchParams();
         if (userId) q.set("userId", userId);
         else if (steamId) q.set("steamId", steamId);
-        q.set("lane", opts.lane || lane);
+        const activeLane = opts.lane || lane;
+        q.set("lane", activeLane);
         if (!combatWindow) q.set("combat", "0");
-        if (opts.day) q.set("day", opts.day);
-        if (opts.from) q.set("from", opts.from);
-        if (opts.to) q.set("to", opts.to);
+        if (activeLane === "TR1") {
+          const roleWindow = rollingMainRoleWindow();
+          q.set("from", roleWindow.from);
+          q.set("to", roleWindow.to);
+        } else {
+          if (opts.day) q.set("day", opts.day);
+          if (opts.from) q.set("from", opts.from);
+          if (opts.to) q.set("to", opts.to);
+        }
         if (withDays) q.set("days", "1");
-        const res = await fetch(`/api/kits?${q}`, { cache: "no-store" });
+        const res = await fetch(`/api/kits?${q}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as {
           kits?: KitPctRow[];
@@ -380,6 +388,11 @@ export function ProfileKitsCard({
             <span className="muted profile-kits-lane-label">PB1</span>
           )}
         </div>
+        {lane === "TR1" ? (
+          <p className="profile-kits-window">
+            <strong>система учитывает последние 14 дней</strong>
+          </p>
+        ) : (
         <div className="profile-kits-filter" ref={wrapRef}>
           <button
             type="button"
@@ -474,8 +487,10 @@ export function ProfileKitsCard({
             </div>
           ) : null}
         </div>
+        )}
       </div>
 
+      {lane === "TR1" ? null : (
       <p className="muted profile-kits-cal-hint">
         {lane === "PB1"
           ? "Паблик PB1. Чистка ролей состава его не меняет."
@@ -487,6 +502,7 @@ export function ProfileKitsCard({
               ? `Только залитые тренировки · ${spawnTotal} спавнов`
               : "Только залитые тренировки"}
       </p>
+      )}
 
       {kits.length === 0 ? (
         <p className="muted profile-kits-empty">

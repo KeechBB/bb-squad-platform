@@ -20,6 +20,7 @@ import {
   isTrainStatsYmdOk,
   trainStatsSinceYmd,
 } from "@/lib/trainStatsSince";
+import { rollingMainRoleWindow } from "@/lib/mainRoleWindow";
 
 export type SquadRoleIngestEvent = {
   type: "role";
@@ -382,7 +383,8 @@ export type TierKitAvg = {
 
 /** Секунды в ките по игрокам: только залитые тренировки, TR1–TR3. */
 async function kitSecondsByUser(
-  userIds: string[]
+  userIds: string[],
+  range?: { gte: Date; lt: Date } | null
 ): Promise<Map<string, Partial<Record<string, number>>>> {
   const byUser = new Map<string, Partial<Record<string, number>>>();
   if (!userIds.length) return byUser;
@@ -404,6 +406,11 @@ async function kitSecondsByUser(
       WHERE "userId" IN (${Prisma.join(userIds)})
         AND "serverKey" IN (${Prisma.join(keys)})
         AND "userId" IS NOT NULL
+        ${
+          range
+            ? Prisma.sql`AND "spawnedAt" >= ${range.gte} AND "spawnedAt" < ${range.lt}`
+            : Prisma.empty
+        }
         AND EXISTS (
           SELECT 1 FROM bounds b
           WHERE "SquadRoleEvent"."spawnedAt" >= b.gte
@@ -601,7 +608,12 @@ export async function kitRankAnalytics(): Promise<KitRankAnalytics> {
   };
   if (!users.length) return empty;
 
-  const byUser = await kitSecondsByUser(users.map((u) => u.id));
+  const roleWindow = rollingMainRoleWindow();
+  const roleRange = mskRangeBoundsUtc(roleWindow.from, roleWindow.to);
+  const byUser = await kitSecondsByUser(
+    users.map((u) => u.id),
+    roleRange
+  );
 
   function nickKey(nick: string): string {
     return nick.trim().toLowerCase().replace(/\s+/g, "");
