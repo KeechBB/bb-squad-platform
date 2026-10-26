@@ -1,21 +1,16 @@
 #!/usr/bin/env python3
-"""Train accuracy: hits / shots * 100 — только по полным правдоподобным дням.
+"""Train accuracy: hits / shots * 100 — по полным окнам каток из календаря.
 
-Shots: BBAcuracy players shots (EOS → сумма пиков по сессиям за день;
-  сброс счётчика между катками = новая сессия).
-Hits:  BBHitZone AttackerEOS (EOS → count за тот же день).
+Не режем по календарным суткам UTC (катка 23:29→00:24 иначе рвётся).
+Окно = timeMsk … timeMsk+duration из 2026-MM.json (полная длина катки).
 
-Откуда лог (Alex 26.10.2026): только архив, одна основная копия ночи.
-  {BB_LOG_ARCHIVE_ROOT}/TR*/_live/SquadGame.log
-  {BB_LOG_ARCHIVE_ROOT}/TR*/YYYY-MM/SquadGame-backup-*.log
-Булавки pins/, рабочая копия scripts/_tmp_squad_logs и срез matches/…/layer.log
-— те же байты под другими именами. Их не читаем, иначе попадания множатся.
+Shots: BBAcuracy players shots внутри окна (сумма пиков сессий).
+Hits:  BBHitZone AttackerEOS=… внутри того же окна (только атакующий).
 
-Правило дней:
-  брать только дни, где есть И выстрелы, И попадания;
-  и hits <= shots (иначе BBAcuracy недописал выстрелы — день мусор);
-  суммарно shots < MIN_SHOTS → accuracyPct = null (в таблице «—»);
-  иначе accuracyPct = min(100, round(100 * hits / shots, 1)).
+  accuracyPct = min(100, round(100 * hits / shots, 1))
+  если shots < MIN_SHOTS или hits > shots → null («—»).
+
+Откуда лог: только архив TR*/_live + rotated backup (без pins/срезов).
 
 Writes: data/training/accuracy-stats.json
 """
@@ -28,7 +23,8 @@ import os
 import re
 import sys
 from collections import defaultdict
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -38,34 +34,45 @@ SHOT_LINE = re.compile(r"BBAcuracy:\s*players?\s+shots:\s*(.+)$", re.I)
 PAIR_RE = re.compile(
     r'"player_id"\s*:\s*"([^"]+)"\s*,\s*"shots"\s*:\s*(\d+)', re.I
 )
-# Live format: BBHitZone: AttackerEOS=<0002…> VictimEOS=<…> Zone=<…> …
 HIT_EOS = re.compile(r"AttackerEOS=<\s*([0-9a-fA-F]{32})\s*>", re.I)
-HIT_STEAM = re.compile(r"AttackerSteam=<\s*(7656\d{13})\s*>", re.I)
-HIT_NICK = re.compile(r"Attacker(?:Name|Nick)=<\s*([^>]+?)\s*>", re.I)
 EOS_STEAM = re.compile(
     r"EOS:\s*([0-9a-f]{32}).*?steam:\s*(7656\d{13})", re.I
 )
-# Canon nick bind: OnPossess(): PC=Nick (Online IDs: EOS: … steam: …)
 ON_POSSESS = re.compile(
     r"OnPossess\(\):\s*PC=(\S+)\s*\(Online IDs:\s*EOS:\s*([0-9a-f]{32})\s*steam:\s*(7656\d{13})\)",
     re.I,
 )
-# Damage lines also carry nick + EOS + steam
 DMG_IDS = re.compile(
     r"from\s+(.+?)\s*\(Online IDs:\s*EOS:\s*([0-9a-f]{32})\s*steam:\s*(7656\d{13})\)",
     re.I,
 )
-DATE_RE = re.compile(r"\[(\d{4})\.(\d{2})\.(\d{2})")
+LINE_TS = re.compile(
+    r"^\[(\d{4})\.(\d{2})\.(\d{2})-(\d{2})\.(\d{2})\.(\d{2}):(\d{3})\]"
+)
 
-# Ниже порога — шум (1–2 выстрела в дампе BBAcuracy при десятках попаданий).
 MIN_SHOTS_TOTAL = 20
+# Небольшой запас на рассинхрон часов; длительность катки не режем.
+PAD_START_SEC = 60
+PAD_END_SEC = 120
+MSK = timezone(timedelta(hours=3))
+
+
+@dataclass
+class MatchWin:
+    id: str
+    map: str
+    gte: datetime  # aware UTC
+    lt: datetime
 
 
 def resolve_train() -> Path:
     env = (os.environ.get("BB_KV_PUBLIC") or "").strip()
     cands = []
     if env:
-        cands += [Path(env) / "data" / "training", Path(env) / "public" / "data" / "training"]
+        cands += [
+            Path(env) / "data" / "training",
+            Path(env) / "public" / "data" / "training",
+        ]
     cands += [
         Path("/var/www/bb-squad-platform/data/kv-cache/data/training"),
         Path("/var/www/blackberry-kv/data/training"),
@@ -82,10 +89,6 @@ def archive_root() -> Path:
 
 
 def iter_logs(since: str) -> list[Path]:
-    """Archive originals only: live mirror + one rotated backup per file.
-
-    Pins, the script working copy and per-match slices repeat the same night.
-    """
     root = archive_root()
     out: list[Path] = []
     if not root.is_dir():
@@ -97,7 +100,9 @@ def iter_logs(since: str) -> list[Path]:
         live = base / "_live" / "SquadGame.log"
         if live.is_file():
             out.append(live)
-        for month in sorted(p for p in base.iterdir() if p.is_dir() and re.fullmatch(r"\d{4}-\d{2}", p.name)):
+        for month in sorted(
+            p for p in base.iterdir() if p.is_dir() and re.fullmatch(r"\d{4}-\d{2}", p.name)
+        ):
             plain = list(month.glob("SquadGame-backup-*.log"))
             plain_names = {p.name for p in plain}
             files = list(plain)
@@ -127,6 +132,103 @@ def nick_key(n: str) -> str:
     return "".join(str(n or "").strip().lower().split())
 
 
+def parse_duration_sec(raw: str) -> int | None:
+    s = str(raw or "").strip()
+    if not s or s in {"—", "-"}:
+        return None
+    parts = s.split(":")
+    try:
+        nums = [int(p) for p in parts]
+    except ValueError:
+        return None
+    if len(nums) == 3:
+        return nums[0] * 3600 + nums[1] * 60 + nums[2]
+    if len(nums) == 2:
+        return nums[0] * 60 + nums[1]
+    return None
+
+
+def parse_ts(m: re.Match) -> datetime:
+    y, mo, d, h, mi, s, _ms = map(int, m.groups())
+    return datetime(y, mo, d, h, mi, s, tzinfo=timezone.utc)
+
+
+def load_match_windows(train: Path, since: str) -> list[MatchWin]:
+    """Полные окна каток из month JSON (timeMsk + duration)."""
+    out: list[MatchWin] = []
+    for month_path in sorted(train.glob("20??-??.json")):
+        try:
+            data = json.loads(month_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        ym = str(data.get("month") or month_path.stem)
+        if not re.fullmatch(r"\d{4}-\d{2}", ym):
+            continue
+        y, mo = map(int, ym.split("-"))
+        for match in data.get("matches") or []:
+            if match.get("status") and match.get("status") != "done":
+                continue
+            day = match.get("day")
+            if day is None:
+                continue
+            ymd = f"{y:04d}-{mo:02d}-{int(day):02d}"
+            if ymd < since:
+                continue
+            t_raw = str(match.get("timeMsk") or "").strip()
+            hm = re.match(r"^(\d{1,2}):(\d{2})$", t_raw)
+            dur = parse_duration_sec(str(match.get("duration") or ""))
+            if not hm or not dur or dur < 60:
+                continue
+            hh, mi = int(hm.group(1)), int(hm.group(2))
+            start_msk = datetime(y, mo, int(day), hh, mi, 0, tzinfo=MSK)
+            end_msk = start_msk + timedelta(seconds=dur)
+            gte = (start_msk - timedelta(seconds=PAD_START_SEC)).astimezone(
+                timezone.utc
+            )
+            lt = (end_msk + timedelta(seconds=PAD_END_SEC)).astimezone(timezone.utc)
+            out.append(
+                MatchWin(
+                    id=str(match.get("id") or f"{ymd}"),
+                    map=str(match.get("map") or ""),
+                    gte=gte,
+                    lt=lt,
+                )
+            )
+    out.sort(key=lambda w: w.gte)
+    return out
+
+
+def find_match(wins: list[MatchWin], ts: datetime) -> MatchWin | None:
+    """Линейный поиск ок — каток мало; при росте можно bipartite."""
+    for w in wins:
+        if w.gte <= ts < w.lt:
+            return w
+    return None
+
+
+def session_shot_total(samples: list[int]) -> int:
+    if not samples:
+        return 0
+    total = 0
+    session_max = 0
+    prev = 0
+    started = False
+    for shots in samples:
+        if not started:
+            session_max = shots
+            prev = shots
+            started = True
+            continue
+        if shots < prev:
+            total += session_max
+            session_max = shots
+        else:
+            session_max = max(session_max, shots)
+        prev = shots
+    total += session_max
+    return total
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--since", default="2026-10-20")
@@ -134,36 +236,41 @@ def main() -> int:
     since = args.since
     train = resolve_train()
 
-    # eos -> day -> chronological shot samples (for session peaks)
-    shots_samples: dict[str, dict[str, list[int]]] = defaultdict(
-        lambda: defaultdict(list)
-    )
-    hits_day: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    wins = load_match_windows(train, since)
+    print(f"matches={len(wins)} since={since}", flush=True)
+    if not wins:
+        raise SystemExit("no match windows")
+
+    # eos -> matchId -> hits / shot samples
+    hits_m: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    shots_m: dict[str, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
     eos_to_steam: dict[str, str] = {}
     steam_to_nick: dict[str, str] = {}
     eos_to_nick: dict[str, str] = {}
 
     logs = iter_logs(since)
-    print(f"logs={len(logs)} since={since}", flush=True)
+    print(f"logs={len(logs)}", flush=True)
+    t_min = wins[0].gte - timedelta(hours=2)
+    t_max = wins[-1].lt + timedelta(hours=2)
 
     for path in logs:
         opener = gzip.open if path.suffix == ".gz" else open
         try:
             with opener(path, "rt", encoding="utf-8", errors="replace") as fh:  # type: ignore
-                day = "9999-99-99"
                 for line in fh:
-                    dm = DATE_RE.search(line)
-                    if dm:
-                        day = f"{dm.group(1)}-{dm.group(2)}-{dm.group(3)}"
-                    if day < since:
-                        continue
+                    tm = LINE_TS.match(line)
+                    ts = parse_ts(tm) if tm else None
 
                     for em in EOS_STEAM.finditer(line):
                         eos_to_steam[em.group(1).lower()] = em.group(2)
 
                     om = ON_POSSESS.search(line)
                     if om:
-                        nick, eos, steam = om.group(1), om.group(2).lower(), om.group(3)
+                        nick, eos, steam = (
+                            om.group(1),
+                            om.group(2).lower(),
+                            om.group(3),
+                        )
                         if nick.lower() not in {"newplayer", "none", "null"}:
                             eos_to_nick[eos] = nick
                             eos_to_steam[eos] = steam
@@ -178,53 +285,27 @@ def main() -> int:
                             eos_to_steam.setdefault(eos, steam)
                             steam_to_nick.setdefault(steam, nick)
 
+                    if ts is None or ts < t_min or ts > t_max:
+                        continue
+                    win = find_match(wins, ts)
+                    if not win:
+                        continue
+
                     sm = SHOT_LINE.search(line)
                     if sm:
                         blob = sm.group(1).strip()
-                        # пустой дамп {} — граница сессии (сброс)
-                        if blob in {"{}", ""}:
-                            continue
-                        for eos, shots in PAIR_RE.findall(blob):
-                            e = eos.lower()
-                            shots_samples[e][day].append(int(shots))
+                        if blob not in {"{}", ""}:
+                            for eos, shots in PAIR_RE.findall(blob):
+                                shots_m[eos.lower()][win.id].append(int(shots))
                         continue
 
                     if "BBHitZone:" not in line:
                         continue
                     m = HIT_EOS.search(line)
-                    if m and day >= since:
-                        hits_day[m.group(1).lower()][day] += 1
+                    if m:
+                        hits_m[m.group(1).lower()][win.id] += 1
         except Exception as e:
             print("ERR", path, e, flush=True)
-
-    def session_shot_total(samples: list[int]) -> int:
-        """Сумма пиков сессий: при падении счётчика — новая катка/сброс."""
-        if not samples:
-            return 0
-        total = 0
-        session_max = 0
-        prev = 0
-        started = False
-        for shots in samples:
-            if not started:
-                session_max = shots
-                prev = shots
-                started = True
-                continue
-            if shots < prev:
-                total += session_max
-                session_max = shots
-            else:
-                session_max = max(session_max, shots)
-            prev = shots
-        total += session_max
-        return total
-
-    shots_day: dict[str, dict[str, int]] = {}
-    for eos, by_day in shots_samples.items():
-        shots_day[eos] = {
-            d: session_shot_total(samples) for d, samples in by_day.items()
-        }
 
     for eos, steam in eos_to_steam.items():
         n = steam_to_nick.get(steam)
@@ -232,32 +313,33 @@ def main() -> int:
             eos_to_nick.setdefault(eos, n)
 
     by_nick: dict[str, dict] = {}
-    complete_days_total = 0
-    skipped_hits_gt_shots = 0
+    complete_slots = 0
+    skipped_gt = 0
 
-    for eos, day_shots in shots_day.items():
+    all_eos = set(hits_m) | set(shots_m)
+    for eos in all_eos:
         nick = eos_to_nick.get(eos)
         if not nick:
             continue
-        day_hits = hits_day.get(eos) or {}
-        # дни с обоими источниками и правдоподобным hits<=shots
-        complete: list[str] = []
-        for d in set(day_shots) | set(day_hits):
-            sh = int(day_shots.get(d) or 0)
-            hi = int(day_hits.get(d) or 0)
+        match_ids = set(hits_m.get(eos, {})) | set(shots_m.get(eos, {}))
+        sh_sum = 0
+        hi_sum = 0
+        days = 0
+        for mid in match_ids:
+            hi = int((hits_m.get(eos) or {}).get(mid) or 0)
+            samples = (shots_m.get(eos) or {}).get(mid) or []
+            sh = session_shot_total(samples)
             if sh <= 0 or hi <= 0:
                 continue
             if hi > sh:
-                skipped_hits_gt_shots += 1
+                skipped_gt += 1
                 continue
-            complete.append(d)
-        if not complete:
+            sh_sum += sh
+            hi_sum += hi
+            days += 1
+        if sh_sum < MIN_SHOTS_TOTAL or hi_sum <= 0:
             continue
-        sh = sum(int(day_shots[d]) for d in complete)
-        hi = sum(int(day_hits[d]) for d in complete)
-        if sh < MIN_SHOTS_TOTAL:
-            continue
-        complete_days_total += len(complete)
+        complete_slots += days
         k = nick_key(nick)
         row = by_nick.get(k)
         if not row:
@@ -265,24 +347,24 @@ def main() -> int:
                 "nick": nick,
                 "shots": 0,
                 "hits": 0,
-                "days": 0,
+                "matches": 0,
                 "accuracyPct": None,
             }
             by_nick[k] = row
-        row["shots"] += sh
-        row["hits"] += hi
-        row["days"] += len(complete)
+        row["shots"] += sh_sum
+        row["hits"] += hi_sum
+        row["matches"] += days
 
     for row in by_nick.values():
         sh = int(row["shots"] or 0)
         hi = int(row["hits"] or 0)
         if sh >= MIN_SHOTS_TOTAL and hi > 0:
-            # потолок 100% — защита от остаточного шума BBAcuracy
             row["accuracyPct"] = min(100.0, round(100.0 * hi / sh, 1))
         else:
             row["accuracyPct"] = None
+        # compat with UI that may read .days
+        row["days"] = row.get("matches") or 0
 
-    # drop rows without a computable pct
     by_nick = {
         k: v for k, v in by_nick.items() if v.get("accuracyPct") is not None
     }
@@ -292,13 +374,14 @@ def main() -> int:
             "builtAt": datetime.now(timezone.utc).isoformat(),
             "since": since,
             "formula": (
-                f"hits/shots*100; days with both and hits<=shots; "
-                f"minShots={MIN_SHOTS_TOTAL}; cap 100; session-sum BBAcuracy"
+                "hits/shots*100 per full calendar match window "
+                f"(timeMsk+duration, pad ±{PAD_START_SEC}/{PAD_END_SEC}s); "
+                f"AttackerEOS only; minShots={MIN_SHOTS_TOTAL}; "
+                "skip match if hits>shots; cap 100"
             ),
-            "shotEos": len(shots_day),
-            "hitEos": len(hits_day),
-            "completeDaySlots": complete_days_total,
-            "skippedHitsGtShotsDays": skipped_hits_gt_shots,
+            "matches": len(wins),
+            "completeMatchSlots": complete_slots,
+            "skippedHitsGtShotsMatches": skipped_gt,
             "minShots": MIN_SHOTS_TOTAL,
             "playersWithAccuracy": len(by_nick),
             "logs": len(logs),
@@ -306,11 +389,14 @@ def main() -> int:
         "byNick": by_nick,
     }
     dest = train / "accuracy-stats.json"
-    dest.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    # mirror
+    dest.write_text(
+        json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
     for mirror in (
         Path("/var/www/blackberry-kv/data/training/accuracy-stats.json"),
-        Path("/var/www/bb-squad-platform/data/kv-cache/data/training/accuracy-stats.json"),
+        Path(
+            "/var/www/bb-squad-platform/data/kv-cache/data/training/accuracy-stats.json"
+        ),
     ):
         if mirror.parent.is_dir() and mirror != dest:
             try:
@@ -318,8 +404,11 @@ def main() -> int:
             except OSError:
                 pass
 
-    with_acc = sum(1 for v in out["byNick"].values() if v.get("accuracyPct") is not None)
-    print(f"wrote {dest} players={len(out['byNick'])} with_accuracy={with_acc}", flush=True)
+    print(
+        f"wrote {dest} players={len(by_nick)} "
+        f"slots={complete_slots} skipped_gt={skipped_gt}",
+        flush=True,
+    )
     return 0
 
 

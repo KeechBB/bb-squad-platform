@@ -145,10 +145,15 @@ async function readTrainingWindows(): Promise<{
       // Без точного старта и длины матч не берём: широкий «весь вечер» тащил
       // прогрев и паузы между катками.
       if (!t || !durSec || durSec < 60) continue;
-      // timeMsk МСК → naive UTC (МСК−3ч), паддинг −12/+3 мин
-      const startMin = t.h * 60 + t.m + DB_WALL_OFFSET_MIN - 12;
+      // Полная длина катки (timeMsk → +duration). Небольшой pad на рассинхрон
+      // часов — без срезания хвоста и без −12 мин (не тянем прошлую катку).
+      const startMin = t.h * 60 + t.m + DB_WALL_OFFSET_MIN - 2;
       const endMin =
-        t.h * 60 + t.m + DB_WALL_OFFSET_MIN + Math.ceil(durSec / 60) + 3;
+        t.h * 60 +
+        t.m +
+        DB_WALL_OFFSET_MIN +
+        Math.ceil(durSec / 60) +
+        5;
       const gte = naiveFromYmdMinutes(ymd, startMin);
       const lt = naiveFromYmdMinutes(ymd, endMin);
       if (!gte || !lt) continue;
