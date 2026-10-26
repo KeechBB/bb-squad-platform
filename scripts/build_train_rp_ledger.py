@@ -220,6 +220,10 @@ for _am in _load_auto_matches():
     if _am["id"] not in _seen_match_ids:
         MATCHES.append(_am)
         _seen_match_ids.add(_am["id"])
+# Optional cutover: BB_TRAIN_RP_SINCE=2026-10-20 drops legacy hardcoded + older auto
+_RP_SINCE = (os.environ.get("BB_TRAIN_RP_SINCE") or "").strip()
+if _RP_SINCE:
+    MATCHES[:] = [m for m in MATCHES if str(m.get("date") or "") >= _RP_SINCE]
 # RP weights depend on prior RP — always process in real time order
 MATCHES.sort(key=lambda m: m["start"])
 
