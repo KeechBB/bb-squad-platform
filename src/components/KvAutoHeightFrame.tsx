@@ -17,7 +17,7 @@ export function KvAutoHeightFrame({
   src,
   title,
   className,
-  minHeight = 1100,
+  minHeight = 420,
 }: Props) {
   const frameRef = useRef<HTMLIFrameElement>(null);
 
@@ -45,14 +45,9 @@ export function KvAutoHeightFrame({
         if (doc.defaultView?.getComputedStyle(el).display === "none") continue;
         bottom = Math.max(bottom, el.getBoundingClientRect().bottom + y);
       }
-      const h = Math.max(
-        bottom + 24,
-        doc.documentElement.scrollHeight || 0,
-        doc.documentElement.offsetHeight || 0,
-        doc.body?.scrollHeight || 0,
-        doc.body?.offsetHeight || 0,
-        minHeight
-      );
+      // Только низ активной вкладки — не scrollHeight документа
+      // (иначе iframe min-height раздувает пустоту по кругу).
+      const h = Math.max(bottom + 24, minHeight);
       applyHeight(h);
     } catch {
       /* ignore */

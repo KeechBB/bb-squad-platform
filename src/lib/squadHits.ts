@@ -116,18 +116,29 @@ async function bonesWhere(
   identity: { userId?: string | null; steamIds?: string[] },
   opts: BonesForUserOpts = {}
 ) {
-  const day = opts.dayYmd?.trim() || null;
-  const range = mskRangeBoundsUtc(opts.fromYmd, opts.toYmd);
-  const dayBounds = !range && day ? mskDayBoundsUtc(day) : null;
-  const hitAt =
-    range && (range.gte || range.lt)
+  const { clampTrainStatsFromYmd, isTrainStatsYmdOk } = await import(
+    "@/lib/trainStatsSince"
+  );
+  const dayRaw = opts.dayYmd?.trim() || null;
+  // Один день до cutover — пусто (синхрон с рейтингом с 20.10).
+  if (dayRaw && !isTrainStatsYmdOk(dayRaw)) {
+    return null;
+  }
+  const day = dayRaw;
+  const fromClamped = clampTrainStatsFromYmd(opts.fromYmd);
+  // Явный день — только он; иначе диапазон с cutover (и «всё время»).
+  const dayBounds = day ? mskDayBoundsUtc(day) : null;
+  const range = !day
+    ? mskRangeBoundsUtc(fromClamped, opts.toYmd)
+    : null;
+  const hitAt = dayBounds
+    ? { gte: dayBounds.gte, lt: dayBounds.lt }
+    : range && (range.gte || range.lt)
       ? {
           ...(range.gte ? { gte: range.gte } : {}),
           ...(range.lt ? { lt: range.lt } : {}),
         }
-      : dayBounds
-        ? { gte: dayBounds.gte, lt: dayBounds.lt }
-        : undefined;
+      : undefined;
   const steamIds = (identity.steamIds || []).filter(Boolean);
   const who = identity.userId
     ? { userId: identity.userId }

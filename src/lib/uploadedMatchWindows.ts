@@ -8,6 +8,7 @@
  */
 import { Prisma } from "@prisma/client";
 import { loadKvJsonCached } from "@/lib/kvLocal";
+import { isTrainStatsYmdOk } from "@/lib/trainStatsSince";
 
 export type MatchTimeWindow = {
   /** naive DB wall as Date (UTC fields = wall clock) */
@@ -137,6 +138,8 @@ async function readTrainingWindows(): Promise<{
       const day = Number(match.day);
       if (!Number.isFinite(day) || day < 1 || day > 31) continue;
       const ymd = `${ym}-${String(day).padStart(2, "0")}`;
+      // Синхрон с TRAIN RP / ролями / попаданиями: до cutover не считаем.
+      if (!isTrainStatsYmdOk(ymd)) continue;
       const t = parseTimeMsk(match.timeMsk);
       const durSec = parseDurationSec(match.duration);
       // Без точного старта и длины матч не берём: широкий «весь вечер» тащил

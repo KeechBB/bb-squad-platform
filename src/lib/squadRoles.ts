@@ -15,6 +15,11 @@ import {
   uploadedWindowsSql,
   windowBoundsValuesSql,
 } from "@/lib/uploadedMatchWindows";
+import {
+  clampTrainStatsFromYmd,
+  isTrainStatsYmdOk,
+  trainStatsSinceYmd,
+} from "@/lib/trainStatsSince";
 
 export type SquadRoleIngestEvent = {
   type: "role";
@@ -111,10 +116,13 @@ function spawnedAtFilter(opts: KitsForUserOpts):
   | undefined {
   const day = opts.dayYmd?.trim() || null;
   if (day) {
+    if (!isTrainStatsYmdOk(day)) {
+      return { gte: new Date(0), lt: new Date(0) };
+    }
     const b = mskDayBoundsUtc(day);
     return b || undefined;
   }
-  const from = opts.fromYmd?.trim() || null;
+  const from = clampTrainStatsFromYmd(opts.fromYmd);
   const to = opts.toYmd?.trim() || null;
   if (from && to) {
     const b = mskRangeBoundsUtc(from, to);
@@ -128,9 +136,16 @@ function spawnedAtFilter(opts: KitsForUserOpts):
   if (to) {
     const b = mskDayBoundsUtc(to);
     if (!b) return undefined;
-    return { gte: new Date(0), lt: b.lt };
+    const sinceB = mskDayBoundsUtc(trainStatsSinceYmd());
+    return {
+      gte: sinceB?.gte || new Date(0),
+      lt: b.lt,
+    };
   }
-  return undefined;
+  // «Всё время» → с cutover (20.10), не с начала логов.
+  const sinceB = mskDayBoundsUtc(trainStatsSinceYmd());
+  if (!sinceB) return undefined;
+  return { gte: sinceB.gte, lt: new Date("9999-12-31T00:00:00.000Z") };
 }
 
 /** TR1 + combatWindow: только залитые TM; иначе без фильтра окна. */
