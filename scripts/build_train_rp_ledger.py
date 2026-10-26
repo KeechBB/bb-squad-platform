@@ -564,6 +564,8 @@ def parse_revives(log_path: Path, t0: datetime, t1: datetime) -> list[dict]:
 
 
 def main() -> None:
+    print("train RP counting is off (2026-10-26); ledger not rebuilt", flush=True)
+    return
     force_full = (os.environ.get("TRAIN_RP_FULL") or "").strip() in ("1", "true", "yes")
     force_rescore = (os.environ.get("TRAIN_RP_RESCORE") or "").strip() in (
         "1",

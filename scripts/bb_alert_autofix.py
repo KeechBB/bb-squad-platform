@@ -84,6 +84,7 @@ def _rescore_public(ids: list[str]) -> tuple[int, str]:
 
 
 def _rebuild_train() -> tuple[int, str]:
+    return 0, "train RP counting is off"
     env = {
         **os.environ,
         "RP_AUDIT_REPAIR_PASS": "1",

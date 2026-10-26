@@ -299,6 +299,8 @@ def calendar_ids_needing_rp(train_dir: Path) -> list[str]:
 
 
 def auto_ids_needing_rp(train_dir: Path) -> list[str]:
+    # 26.10.2026: тренировочный RP выключен. Паблик считает своим путём.
+    return []
     auto_path = train_dir / "_auto_matches.json"
     missing: list[str] = []
     seen: set[str] = set()
@@ -776,6 +778,16 @@ def ensure_auto_from_calendar_pins(train_dir: Path) -> list[str]:
 
 
 def drain_pending(data_dir: Path, kv_public: Path, *, kind: str = "train") -> dict:
+    if kind == "train":
+        return {
+            "kind": kind,
+            "pending": [],
+            "cleared": [],
+            "alerted": [],
+            "rc": 0,
+            "still": [],
+            "skipped": "train-rp-off",
+        }
     settle_pending(data_dir, kind=kind)
     if kind == "train":
         ensure_auto_from_calendar_pins(data_dir)

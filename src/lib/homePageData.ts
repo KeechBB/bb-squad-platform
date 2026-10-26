@@ -1,7 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { buildCalendarMatches } from "@/lib/kvForecast";
 import {
-  buildHomeTrainPwrBoard,
   emptyHomeTrainPwrBoard,
   type HomeTrainPwrBoard,
 } from "@/lib/homeTrainPwr";
@@ -59,7 +58,7 @@ const getHomeDashboardCached = unstable_cache(
               ReturnType<typeof buildCalendarMatches>
             >["previews"]
         ),
-      buildHomeTrainPwrBoard().catch(() => emptyHomeTrainPwrBoard()),
+      Promise.resolve(emptyHomeTrainPwrBoard()),
       buildHomeTierBoard().catch(() => emptyHomeTierBoard()),
       (async () => {
         try {

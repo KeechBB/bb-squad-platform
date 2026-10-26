@@ -15,7 +15,7 @@ export default async function HomePage() {
     redirect("/register");
   }
 
-  const { pwrBoard, publicTop } = await getHomeDashboardData();
+  const { publicTop } = await getHomeDashboardData();
 
   return (
     <main className="home-page">
@@ -96,7 +96,6 @@ export default async function HomePage() {
           </aside>
           <HomeTournamentAnnounce />
           <HomePanels
-            pwrBoard={pwrBoard}
             publicTop={publicTop}
             viewerNick={session?.user?.nick || null}
           />

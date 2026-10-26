@@ -1,8 +1,6 @@
 "use client";
 
-import { HomeTrainPwrTop } from "@/components/HomeTrainPwrTop";
 import { HomeNickDecor } from "@/components/HomeNickDecor";
-import type { HomeTrainPwrBoard } from "@/lib/homeTrainPwr";
 
 export type HomePublicTopRow = {
   nick: string;
@@ -14,7 +12,6 @@ export type HomePublicTopRow = {
 };
 
 type Props = {
-  pwrBoard: HomeTrainPwrBoard;
   publicTop: HomePublicTopRow[];
   viewerNick?: string | null;
 };
@@ -31,16 +28,9 @@ function isViewer(nick: string, viewerNick?: string | null) {
   return nick.trim().toLowerCase() === viewerNick.trim().toLowerCase();
 }
 
-export function HomePanels({ pwrBoard, publicTop, viewerNick = null }: Props) {
+export function HomePanels({ publicTop, viewerNick = null }: Props) {
   return (
-    <div className="home-dock home-dock-two" aria-label="Сводки главной">
-      <section className="home-dock-col is-train">
-        <header>Топ 10 Тренировки</header>
-        <div className="home-dock-body">
-          <HomeTrainPwrTop initial={pwrBoard} viewerNick={viewerNick} />
-        </div>
-      </section>
-
+    <div className="home-dock home-dock-one" aria-label="Сводки главной">
       <section className="home-dock-col is-public">
         <header>Топ 10 паблика</header>
         <div className="home-dock-body">
