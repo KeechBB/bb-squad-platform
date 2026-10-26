@@ -704,7 +704,7 @@ function trainCorpusStamp(): string {
 
 function getTrainPlayerCorpus(): Promise<TrainPlayerCorpus> {
   return memoTtl(
-    `train-player-corpus-v2:${trainCorpusStamp()}`,
+    `train-player-corpus-v3:${trainCorpusStamp()}`,
     PROFILE_CORPUS_TTL_MS,
     loadTrainPlayerCorpus
   );
@@ -742,15 +742,21 @@ export async function buildPlayerTrainMatchHistory(
   );
   const ladder = await loadRpLadder();
   const rpPlayer = await lookupPlayerTrainRp(clean);
+  // Только катки из карточки рейтинга — календарь/FCL без RP в историю не попадают.
+  const ratedMatches = rpPlayer?.matches || [];
+  if (!ratedMatches.length) return [];
+
+  const ratedIds = new Set(ratedMatches.map((m) => m.id).filter(Boolean));
   const rpNetByMatch = new Map<string, number>();
-  // Канон — matches из карточки игрока в ladder (уже с алиасами), как у бейджа.
-  for (const m of rpPlayer?.matches || []) {
+  for (const m of ratedMatches) {
+    if (!m.id) continue;
     rpNetByMatch.set(m.id, Number(m.net) || 0);
   }
-  // fallback: netByNick по матчам ladder; суммируем все варианты ника (алиасы).
+  // Добрать net только для уже засчитанных id (алиасы в netByNick).
   if (ladder?.matches) {
     for (const m of ladder.matches) {
-      if (rpNetByMatch.has(m.id)) continue;
+      if (!ratedIds.has(m.id) || !rpNetByMatch.has(m.id)) continue;
+      if (Number(rpNetByMatch.get(m.id)) !== 0) continue;
       let sum = 0;
       let hit = false;
       for (const [n, net] of Object.entries(m.netByNick || {})) {
@@ -766,10 +772,8 @@ export async function buildPlayerTrainMatchHistory(
   const step = Number(ladder?.step) || 150;
   const radiant3Max = Number(ladder?.radiant3Max) || 4950;
 
-  // Полная цепочка ladder (все катки с ΔRP игрока), даже если players/*.json нет.
-  // rpAfter = round(start + Σ nets) как бейдж — не Math.round на каждом шаге (дрейф ±2).
-  // Порядок = календарное время (sortKey), НЕ date+id: иначе 16-cslmutaha
-  // оказывается «раньше» Fallujah/Kamdesh и колонка RP прыгает между соседними строками.
+  // rpAfter = round(start + Σ nets) как бейдж — не Math.round на каждом шаге.
+  // Порядок = календарное время (sortKey).
   const rpAfterByMatch = new Map<string, number>();
   const rpDeltaByMatch = new Map<string, number>();
   {
@@ -777,15 +781,9 @@ export async function buildPlayerTrainMatchHistory(
       matchMetas.filter((m) => m.id).map((m) => [m.id, m.sortKey || ""])
     );
     const dateById = new Map<string, string>();
-    for (const m of rpPlayer?.matches || []) {
+    for (const m of ratedMatches) {
       dateById.set(m.id, String(m.date || ""));
     }
-    for (const m of ladder?.matches || []) {
-      if (!dateById.has(m.id)) dateById.set(m.id, String(m.date || ""));
-    }
-    // Нет sortKey — всё равно дата катки, а не «в конец списка».
-    // Иначе катки без файла состава суммируются после сегодняшних,
-    // и на свежей строке оказывается чужой промежуточный RP.
     const orderKey = (id: string) => {
       const sk = metaOrder.get(id);
       if (sk) return sk;
@@ -806,116 +804,10 @@ export async function buildPlayerTrainMatchHistory(
   }
 
   const history: TrainMatchHistoryRow[] = [];
-  const seenIds = new Set<string>();
   const metaById = new Map(matchMetas.map((m) => [m.id, m]));
 
-  const pushRpRow = (opts: {
-    matchId: string;
-    dateLabel: string;
-    timeLabel: string;
-    map: string;
-    factionA: string;
-    ticketsA: number | null;
-    factionB: string;
-    ticketsB: number | null;
-    team: string;
-    winner?: string;
-    duration?: string;
-    server?: string;
-    playersUrl: string;
-    won: boolean | null;
-  }) => {
-    let rpDelta: number | null = null;
-    let rpAfter: number | null = null;
-    let rankLabel = "—";
-    let rankKey = "iron";
-    if (rpAfterByMatch.has(opts.matchId)) {
-      rpDelta = rpDeltaByMatch.get(opts.matchId)!;
-      rpAfter = rpAfterByMatch.get(opts.matchId)!;
-      const rk = rpRankFromScore(rpAfter, step, radiant3Max);
-      rankLabel = rk.label;
-      rankKey = rk.rankKey;
-    } else if (rpNetByMatch.has(opts.matchId)) {
-      rpDelta = Math.round(rpNetByMatch.get(opts.matchId)!);
-    }
-    history.push({
-      ...opts,
-      rpAfter,
-      rpDelta,
-      pwrAfter: rpAfter != null ? rpAfter : 0,
-      pwrDelta: rpDelta != null ? rpDelta : 0,
-      rankLabel,
-      rankKey,
-    });
-    seenIds.add(opts.matchId);
-  };
-
-  for (const match of matchMetas) {
-    const players = match.doc;
-    let teamU = "—";
-    let won: boolean | null = null;
-    let ticketsA = match.ticketsA ?? null;
-    let ticketsB = match.ticketsB ?? null;
-    let factionA = String(match.factionA || "").trim();
-    let factionB = String(match.factionB || "").trim();
-    let winner = match.winner;
-
-    if (players) {
-      if (ticketsA == null && players.sideA?.tickets != null) {
-        ticketsA = Number(players.sideA.tickets);
-      }
-      if (ticketsB == null && players.sideB?.tickets != null) {
-        ticketsB = Number(players.sideB.tickets);
-      }
-      if (!factionA && players.sideA?.name) factionA = String(players.sideA.name);
-      if (!factionB && players.sideB?.name) factionB = String(players.sideB.name);
-      if (!winner && players.winner) winner = String(players.winner);
-      const list = (
-        players.players?.length
-          ? players.players
-          : [...(players.teamA || []), ...(players.teamB || [])]
-      ) as TrainPlayerLine[];
-      const mine = list.filter((p) => p?.nick && resolveKey(p.nick) === want);
-      if (mine.length) {
-        const resolved = resolveTrainWon(mine, players, {
-          winner,
-          factionA,
-          factionB,
-          ticketsA,
-          ticketsB,
-        });
-        teamU = resolved.team || "—";
-        won = resolved.won;
-      } else if (!rpAfterByMatch.has(match.id)) {
-        continue;
-      }
-    } else if (!rpAfterByMatch.has(match.id)) {
-      continue;
-    }
-
-    const timeRaw = String(match.timeMsk || "").trim();
-    pushRpRow({
-      matchId: match.id,
-      dateLabel: `${pad2(match.day)}.${pad2(match.month)}.${match.year}`,
-      timeLabel: timeRaw && timeRaw !== "—" ? timeRaw : "—",
-      map: match.map || "—",
-      factionA: (factionA || "—").toUpperCase(),
-      ticketsA,
-      factionB: (factionB || "—").toUpperCase(),
-      ticketsB,
-      team: teamU,
-      winner,
-      duration: match.duration,
-      server: match.server,
-      playersUrl: match.playersUrl || "",
-      won,
-    });
-  }
-
-  // Катки только в ladder (нет в month index) — подтянуть счёт из players/*.json.
-  // Иначе витрина профиля: ΔRP есть, а «-- : --» и результат «-».
-  for (const m of rpPlayer?.matches || []) {
-    if (seenIds.has(m.id) || !rpAfterByMatch.has(m.id)) continue;
+  for (const m of ratedMatches) {
+    if (!m.id || !rpAfterByMatch.has(m.id)) continue;
     const meta = metaById.get(m.id);
     const playersUrl =
       meta?.playersUrl || `data/training/players/${m.id}.json`;
@@ -962,7 +854,10 @@ export async function buildPlayerTrainMatchHistory(
         ? `${date.slice(8, 10)}.${date.slice(5, 7)}.${date.slice(0, 4)}`
         : "—";
     const timeRaw = String(meta?.timeMsk || "").trim();
-    pushRpRow({
+    const rpDelta = rpDeltaByMatch.get(m.id)!;
+    const rpAfter = rpAfterByMatch.get(m.id)!;
+    const rk = rpRankFromScore(rpAfter, step, radiant3Max);
+    history.push({
       matchId: m.id,
       dateLabel,
       timeLabel: timeRaw && timeRaw !== "—" ? timeRaw : "—",
@@ -977,37 +872,14 @@ export async function buildPlayerTrainMatchHistory(
       server: meta?.server,
       playersUrl,
       won,
+      rpAfter,
+      rpDelta,
+      pwrAfter: rpAfter,
+      pwrDelta: rpDelta,
+      rankLabel: rk.label,
+      rankKey: rk.rankKey,
     });
   }
-
-  // Один и тот же счёт без RP — копия уже засчитанной катки. Оставляем строку с ΔRP.
-  const kept: TrainMatchHistoryRow[] = [];
-  const bySig = new Map<string, TrainMatchHistoryRow[]>();
-  for (const row of history) {
-    const sig = [
-      row.dateLabel,
-      row.map,
-      row.ticketsA ?? "",
-      row.ticketsB ?? "",
-      row.duration || "",
-      row.factionA,
-      row.factionB,
-    ].join("|");
-    const list = bySig.get(sig);
-    if (list) list.push(row);
-    else bySig.set(sig, [row]);
-  }
-  for (const list of bySig.values()) {
-    const withRp = list.filter((row) => row.rpDelta != null);
-    if (withRp.length) kept.push(...withRp);
-    else {
-      kept.push(
-        list.find((row) => row.timeLabel && row.timeLabel !== "—") || list[0]
-      );
-    }
-  }
-  history.length = 0;
-  history.push(...kept);
 
   return sortTrainHistoryNewestFirst(history, metaById);
 }
