@@ -176,11 +176,13 @@ def layer_is_cw_slot(
 
 
 def training_evening_msk(start_utc: datetime) -> datetime:
-    """MSK clock for id/day: 00:00–00:29 counts as previous calendar evening."""
-    msk = start_utc + timedelta(hours=3)
-    if msk.hour == 0 and msk.minute < 30:
-        return msk - timedelta(days=1)
-    return msk
+    """Real MSK clock of the layer start.
+
+    Do not roll 00:00–00:29 back onto the previous date. day+timeMsk is the
+    window for accuracy and profile hits. A rolled day points that window
+    24 hours early, so the match's shots never enter «Точн.».
+    """
+    return start_utc + timedelta(hours=3)
 
 
 def _train_evening_minutes(time_msk: str | None) -> int:
@@ -426,6 +428,53 @@ def agg_players(
     return a, b
 
 
+def stamp_vehicle_kills(
+    rows_a: list[dict],
+    rows_b: list[dict],
+    *,
+    idx: dict,
+    start: datetime,
+    end: datetime,
+    steam: dict[str, str],
+    aliases: dict[str, str],
+    teams: dict[str, str],
+    disp: dict[str, str],
+    dies: list[dict],
+    wounds: list[dict],
+    revives: list[dict],
+) -> None:
+    """Finisher vehicle destroys onto the row. Infantry LAT counts, not only crew."""
+    for row in rows_a + rows_b:
+        row["vehicleKills"] = 0
+    vops = R.vehicle_ops_in_window(idx, start, end, steam, aliases)
+    if not vops or not R.use_rp_vehicle(at=start):
+        return
+    rp = {k: float(R.START_RP) for k in set(list(teams) + list(disp))}
+    events, *_ = R.score_match_rp(
+        dies=dies,
+        wounds=wounds,
+        revives=revives,
+        teams=teams,
+        rp=rp,
+        disp=dict(disp),
+        aliases=aliases,
+        new_formula=True,
+        vehicle_ops=vops,
+        cutover_at=start,
+    )
+    counts: dict[str, int] = {}
+    for e in events:
+        if e.get("kind") != "vehicle_kill":
+            continue
+        kk = R.canon_key(str(e.get("killer") or ""), aliases)
+        if not kk:
+            continue
+        counts[kk] = counts.get(kk, 0) + 1
+    for row in rows_a + rows_b:
+        ck = R.canon_key(row.get("nick") or "", aliases)
+        row["vehicleKills"] = int(counts.get(ck) or 0)
+
+
 def publish_live_mirrors() -> None:
     """Copy training outputs into VPS kv-cache so /tm sees them without waiting for Pages."""
     mirrors: list[Path] = []
@@ -451,6 +500,7 @@ def publish_live_mirrors() -> None:
         "data/training/_auto_matches.json",
         "data/training/rp-ledger.json",
         "data/training/rp-ladder.json",
+        "data/training/accuracy-stats.json",
         "data/training-index.json",
         "app.js",
     ]
@@ -486,10 +536,27 @@ def publish_live_mirrors() -> None:
                     continue
             except OSError:
                 pass
-            # Never overwrite a fuller month / ledger with a shorter copy.
+            # Never overwrite a fuller month / ledger / accuracy file with a shorter copy.
             # (Без этого /tm показывал 10 каток вместо полного октября.)
             month_name = Path(rel).name
             is_month_json = bool(re.fullmatch(r"\d{4}-\d{2}\.json", month_name))
+            if rel.endswith("accuracy-stats.json") and dst.is_file():
+                def _nick_n(path: Path) -> int | None:
+                    try:
+                        doc = json.loads(path.read_text(encoding="utf-8"))
+                    except Exception:
+                        return None
+                    by = doc.get("byNick")
+                    return len(by) if isinstance(by, dict) else None
+
+                src_n = _nick_n(src)
+                dst_n = _nick_n(dst)
+                if src_n is not None and dst_n is not None and dst_n > src_n:
+                    print(
+                        f"refuse mirror shrink {rel}: у приёмника {dst_n} ников, в источнике {src_n}",
+                        flush=True,
+                    )
+                    continue
             if (
                 rel.endswith("rp-ladder.json")
                 or rel.endswith("rp-ledger.json")
@@ -664,7 +731,7 @@ def upsert_month(match_meta: dict) -> None:
     data["matches"] = matches
     _atomic_json_write(path, data)
 
-    # Phase 2: plaza canon (Postgres). Soft-fail — JSON remains source for /tm.
+    # Plaza is the match record. This JSON is the outward copy. Soft-fail keeps the copy.
     try:
         import canon_match_write as CANON  # noqa: WPS433
 
@@ -1197,6 +1264,20 @@ def main() -> int:
         team_a, team_b = agg_players(
             dies, wounds, revives, teams, disp, aliases=aliases
         )
+        stamp_vehicle_kills(
+            team_a,
+            team_b,
+            idx=idx,
+            start=start,
+            end=end,
+            steam=steam,
+            aliases=aliases,
+            teams=teams,
+            disp=disp,
+            dies=dies,
+            wounds=wounds,
+            revives=revives,
+        )
 
         # Перекур / пустая катка: мало игроков или почти нет give-up (Yehorivka 06.10).
         n_players = len(team_a) + len(team_b)
@@ -1296,6 +1377,8 @@ def main() -> int:
             "playersUrl": f"data/training/players/{mid}.json",
             "source": f"{server_key.lower()}-logs-auto",
             "serverKey": server_key,
+            "startUtc": start.isoformat(),
+            "endUtc": end.isoformat(),
         }
         upsert_month({"id": mid, "month": month, "row": row})
 
@@ -1385,6 +1468,25 @@ def main() -> int:
             print(f"ensure_auto pins +{len(pinned)}: {pinned[:12]}", flush=True)
     except Exception as e:
         print(f"ensure_auto pins skip: {e}", flush=True)
+
+    if added:
+        # Точность рейтинга и «% точности» в профиле читают accuracy-stats.json.
+        # Без этого прогона новая катка в «Точн.» не появляется.
+        try:
+            import subprocess
+
+            rc = subprocess.call(
+                [
+                    sys.executable,
+                    str(HERE / "build_train_accuracy_stats.py"),
+                    "--since",
+                    "2026-10-20",
+                ],
+                cwd=str(HERE),
+            )
+            print(f"accuracy rebuild rc={rc}", flush=True)
+        except Exception as e:
+            print(f"accuracy rebuild skip: {e}", flush=True)
 
     need_rp = TRG.auto_ids_needing_rp(TRAIN)
     if added or need_rp:

@@ -161,8 +161,28 @@ echo "==> pm2 stop bb-squad (maintenance page)"
 pm2 stop bb-squad || true
 STOPPED=1
 
-echo "==> clear Next.js build cache (.next)"
-rm -rf .next
+# Keep the live build. A failed compile or a failed gate puts it back
+# and the old pages stay up. npm run build also drops webpack cache.
+echo "==> park previous .next"
+NEXT_BAK="$(mktemp -d /tmp/bb-next-bak.XXXXXX)"
+if [[ -d .next ]]; then
+  mv .next "$NEXT_BAK/next"
+fi
+
+restore_previous_build() {
+  echo "==> restoring previous build" >&2
+  rm -rf .next
+  if [[ -d "$NEXT_BAK/next" ]]; then
+    mv "$NEXT_BAK/next" .next
+  fi
+  if [[ -f "$ROOT/ecosystem.config.cjs" ]]; then
+    pm2 start "$ROOT/ecosystem.config.cjs" --only bb-squad >/dev/null 2>&1 \
+      || pm2 restart bb-squad || true
+  else
+    pm2 start bb-squad >/dev/null 2>&1 || pm2 restart bb-squad || true
+  fi
+  disable_maintenance
+}
 
 echo "==> npm ci (install deps for build)"
 if [[ -f package-lock.json ]]; then
@@ -179,7 +199,25 @@ npx prisma generate
 
 echo "==> npm run build"
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2048}"
+set +e
 npm run build
+BUILD_RC=$?
+set -e
+if [[ "$BUILD_RC" -ne 0 ]]; then
+  restore_previous_build
+  exit "$BUILD_RC"
+fi
+
+echo "==> deploy gate (history columns + plaza covers disk matches)"
+set +e
+python3 scripts/check_deploy_gate.py
+GATE_RC=$?
+set -e
+if [[ "$GATE_RC" -ne 0 ]]; then
+  restore_previous_build
+  exit "$GATE_RC"
+fi
+rm -rf "$NEXT_BAK"
 
 echo "==> pm2 start/restart bb-squad (ecosystem: heap cap + max_memory_restart)"
 if [[ -f "$ROOT/ecosystem.config.cjs" ]]; then

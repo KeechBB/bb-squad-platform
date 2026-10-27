@@ -314,9 +314,10 @@ type Props = {
 
 function TrainRoleSplit({ nick }: { nick: string }) {
   const [role, setRole] = useState<string>("—");
+  const roleWindow = rollingMainRoleWindow();
+  const windowTitle = `14 дней, одни даты у всех: ${roleWindow.from} — ${roleWindow.to}`;
 
   useEffect(() => {
-    const roleWindow = rollingMainRoleWindow();
     const q = new URLSearchParams({
       nick,
       lane: "TR1",
@@ -337,17 +338,18 @@ function TrainRoleSplit({ nick }: { nick: string }) {
     return () => {
       cancel = true;
     };
-  }, [nick]);
+  }, [nick, roleWindow.from, roleWindow.to]);
 
   return (
-    <div className="profile-role-split">
-      <div>
+    <div className="profile-role-split" title={windowTitle}>
+      <div title={windowTitle}>
         <span>Основная роль</span>
         <strong>{role}</strong>
       </div>
-      <div>
+      <div title={windowTitle}>
         <span>Уровень</span>
         <strong>—</strong>
+        <em className="stat-sub">в разработке</em>
       </div>
     </div>
   );

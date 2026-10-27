@@ -39,6 +39,8 @@ AUTO_CW = KV_PUBLIC / "data" / "_auto_cw_matches.json"
 LOOKBACK_DAYS = int(os.environ.get("CW_TR_LOOKBACK_DAYS", "5"))
 # Canon «≥10 мин»; 9.5 ловит округление/обрезку (напр. FAL R2 9.9 мин).
 MIN_LAYER_SEC = int(9.5 * 60)
+# Warmup / partial fill often lasts >MIN_LAYER_SEC but has a tiny roster (e.g. 3+2).
+MIN_ROUND_PLAYERS = 10  # bb_rows + opp_rows after side split
 TIME_SLACK_MIN = int(os.environ.get("CW_TR_TIME_SLACK_MIN", "45"))
 
 OUR_SERVER_RE = re.compile(
@@ -607,7 +609,21 @@ def update_calendar_row(slot: dict, patch: dict) -> None:
     for m in data.get("matches") or []:
         if m.get("id") != mid:
             continue
-        for k, v in patch.items():
+        # Никогда не откатывать закрытый слот win/lose → upcoming
+        # (типичный сбой: заливка другого матча целым месяцем / повторный partial sync).
+        cur_st = str(m.get("status") or "")
+        new_st = patch.get("status")
+        safe_patch = dict(patch)
+        if cur_st in ("win", "lose") and new_st == "upcoming":
+            print(
+                f"calendar {mid}: refuse status downgrade {cur_st} → upcoming",
+                flush=True,
+            )
+            for k in ("status", "r1", "r2", "meeting", "note", "server", "playersUrl"):
+                safe_patch.pop(k, None)
+            if not safe_patch:
+                return
+        for k, v in safe_patch.items():
             if v is None:
                 if k in m:
                     del m[k]
@@ -700,15 +716,18 @@ def process_slot(
     if scored:
         candidates = scored
 
-    # take up to 2 closed rounds
-    rounds = candidates[:2]
+    # Walk candidates in time order; keep up to 2 rounds with a real roster
+    # (skip long warmups that pass MIN_LAYER_SEC but only have a handful of players).
     bb_rounds: list[list[dict]] = []
     opp_rounds: list[list[dict]] = []
     ticket_pairs: list[tuple[int, int]] = []
     layer_names: list[str] = []
     server_label = "Blackberry | Training"
+    rounds: list[dict] = []
 
-    for i, m in enumerate(rounds):
+    for m in candidates:
+        if len(bb_rounds) >= 2:
+            break
         log_path = Path(m["logPath"]) if m.get("logPath") else Path(m.get("log") or "")
         if not log_path.is_file():
             continue
@@ -747,6 +766,14 @@ def process_slot(
 
         bb_rows = attach_steam(bb_side, steam, aliases, vk_by_key)
         opp_rows = attach_steam(opp_side, steam, aliases, vk_by_key)
+        if len(bb_rows) + len(opp_rows) < MIN_ROUND_PLAYERS:
+            print(
+                f"  skip sparse layer {m['layer']} BB={len(bb_rows)} opp={len(opp_rows)} "
+                f"(<{MIN_ROUND_PLAYERS} — warmup/partial)",
+                flush=True,
+            )
+            continue
+        rounds.append(m)
         # strip steam from public CW json? keep for clan ingest; remove from file later
         bb_rounds.append([{k: v for k, v in r.items() if k != "steamId"} for r in bb_rows])
         opp_rounds.append(opp_rows)  # keep steam for API
@@ -761,7 +788,7 @@ def process_slot(
             server_label = server_label_for(sk)
 
         print(
-            f"  R{i+1} {m['layer']} BB={len(bb_rows)} opp={len(opp_rows)} tickets {bt}:{ot}",
+            f"  R{len(bb_rounds)} {m['layer']} BB={len(bb_rows)} opp={len(opp_rows)} tickets {bt}:{ot}",
             flush=True,
         )
 
@@ -1048,8 +1075,58 @@ def publish_cw_live_mirrors(auto: list[dict] | None = None) -> None:
                 continue
             dst = dest_root / rel
             dst.parent.mkdir(parents=True, exist_ok=True)
+            # Month calendars: merge by match id — never clobber win/lose with upcoming.
+            if (
+                rel.startswith("data/20")
+                and rel.endswith(".json")
+                and "training" not in rel
+                and dst.is_file()
+            ):
+                try:
+                    merge_cw_month_preserve_final(src, dst)
+                    continue
+                except Exception as e:
+                    print(f"merge {rel} failed ({e}), fallback copy", flush=True)
             shutil.copy2(src, dst)
         print(f"mirrored CW data → {dest_root}", flush=True)
+
+
+def merge_cw_month_preserve_final(src: Path, dst: Path) -> None:
+    """Write src month JSON into dst, keeping finalized rows if src downgrades them."""
+    incoming = json.loads(src.read_text(encoding="utf-8"))
+    existing = json.loads(dst.read_text(encoding="utf-8"))
+    by_id = {
+        str(m.get("id") or ""): m
+        for m in (existing.get("matches") or [])
+        if m.get("id")
+    }
+    out_matches: list[dict] = []
+    seen: set[str] = set()
+    for m in incoming.get("matches") or []:
+        mid = str(m.get("id") or "")
+        prev = by_id.get(mid)
+        if (
+            prev
+            and str(prev.get("status") or "") in ("win", "lose")
+            and str(m.get("status") or "") == "upcoming"
+        ):
+            print(f"mirror preserve finalized {mid}", flush=True)
+            out_matches.append(prev)
+        else:
+            out_matches.append(m)
+        if mid:
+            seen.add(mid)
+    # keep any existing finalized rows missing from incoming
+    for mid, prev in by_id.items():
+        if mid in seen:
+            continue
+        if str(prev.get("status") or "") in ("win", "lose"):
+            print(f"mirror keep orphan finalized {mid}", flush=True)
+            out_matches.append(prev)
+    incoming["matches"] = out_matches
+    dst.write_text(
+        json.dumps(incoming, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
 
 
 if __name__ == "__main__":

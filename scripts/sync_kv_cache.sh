@@ -101,7 +101,11 @@ if command -v rsync >/dev/null 2>&1; then
     --exclude '.git/' \
     --exclude '.github/' \
     --exclude 'node_modules/' \
+    --exclude 'app-month.js' \
     --exclude 'data/training/' \
+    --exclude 'data/training-index.json' \
+    --exclude 'data/players/' \
+    --exclude 'data/[0-9][0-9][0-9][0-9]-[0-9][0-9].json' \
     --exclude 'data/public/rp-ledger.json' \
     --exclude 'data/public/rp-ladder.json' \
     --exclude 'data/public/match-history.json' \

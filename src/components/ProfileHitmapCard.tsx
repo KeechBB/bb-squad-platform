@@ -237,7 +237,7 @@ export function ProfileHitmapCard({
         if (userId) q.set("userId", userId);
         else if (steamId) q.set("steamId", steamId);
         if (nextMatchId) q.set("matchId", nextMatchId);
-        const res = await fetch(`/api/hitmap?${q}`, { cache: "no-store" });
+        const res = await fetch(`/api/hitmap?${q}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as {
           bones?: HitBoneCounts;
@@ -263,9 +263,7 @@ export function ProfileHitmapCard({
       if (userId) q.set("userId", userId);
       if (steamId) q.set("steamId", steamId);
       if (nick) q.set("nick", nick);
-      const res = await fetch(`/api/hitmap/matches?${q}`, {
-        cache: "no-store",
-      });
+      const res = await fetch(`/api/hitmap/matches?${q}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as { matches?: HitmapMatchOption[] };
       setRemoteMatches(data.matches || []);
@@ -317,7 +315,9 @@ export function ProfileHitmapCard({
         if (nextMatchId) q.set("matchId", nextMatchId);
         const res = await fetch(`/api/accuracy?${q}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = (await res.json()) as { accuracyPct?: number | null };
+        const data = (await res.json()) as {
+          accuracyPct?: number | null;
+        };
         setAccuracyPct(
           data.accuracyPct != null && Number.isFinite(Number(data.accuracyPct))
             ? Number(data.accuracyPct)
@@ -413,7 +413,7 @@ export function ProfileHitmapCard({
             }
             onClick={selectAllTime}
           >
-            Всё время
+            14 дней
           </button>
           <button
             type="button"
@@ -676,11 +676,6 @@ export function ProfileHitmapCard({
           <div
             className="profile-hitmap-accuracy"
             aria-label="Процент точности"
-            title={
-              matchId
-                ? "Попадания разделить на выстрелы в этой катке"
-                : "Попадания разделить на выстрелы за 14 дней"
-            }
           >
             <span className="profile-hitmap-acc-label">% точности</span>
             <strong className="profile-hitmap-acc-val profile-hitmap-acc-pct">

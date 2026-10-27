@@ -2,7 +2,8 @@
 """Train accuracy: hits / shots * 100 — по полным окнам каток из календаря.
 
 Не режем по календарным суткам UTC (катка 23:29→00:24 иначе рвётся).
-Окно = timeMsk … timeMsk+duration из 2026-MM.json (полная длина катки).
+Окно = startUtc…endUtc, если они есть на строке катки.
+Иначе timeMsk … timeMsk+duration из 2026-MM.json (полная длина катки).
 
 Shots: BBAcuracy players shots внутри окна (сумма пиков сессий).
 Hits:  BBHitZone AttackerEOS=… внутри того же окна (только атакующий).
@@ -57,12 +58,18 @@ PAD_END_SEC = 120
 MSK = timezone(timedelta(hours=3))
 
 
+# FCL Sanxian, 27.10.2026 00:24 МСК. До неё счётчик выстрелов врал у всех.
+# В точность берём только эту катку и всё, что после неё.
+ACCURACY_TRUST_FROM_UTC = datetime(2026, 10, 26, 21, 24, 47, tzinfo=timezone.utc)
+
+
 @dataclass
 class MatchWin:
     id: str
     map: str
     gte: datetime  # aware UTC
     lt: datetime
+    start: datetime  # real layer start, aware UTC
 
 
 def resolve_train() -> Path:
@@ -153,8 +160,28 @@ def parse_ts(m: re.Match) -> datetime:
     return datetime(y, mo, d, h, mi, s, tzinfo=timezone.utc)
 
 
+def iso_bounds(match: dict) -> tuple[datetime, datetime] | None:
+    """Real log window. day+timeMsk is only the label and can be a day early."""
+    raw_s = str(match.get("startUtc") or "").strip()
+    raw_e = str(match.get("endUtc") or "").strip()
+    if not raw_s or not raw_e:
+        return None
+    try:
+        start = datetime.fromisoformat(raw_s.replace("Z", "+00:00"))
+        end = datetime.fromisoformat(raw_e.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=timezone.utc)
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=timezone.utc)
+    if end <= start:
+        return None
+    return start, end
+
+
 def load_match_windows(train: Path, since: str) -> list[MatchWin]:
-    """Полные окна каток из month JSON (timeMsk + duration)."""
+    """Полные окна каток. startUtc/endUtc, иначе day + timeMsk + duration."""
     out: list[MatchWin] = []
     for month_path in sorted(train.glob("20??-??.json")):
         try:
@@ -167,6 +194,27 @@ def load_match_windows(train: Path, since: str) -> list[MatchWin]:
         y, mo = map(int, ym.split("-"))
         for match in data.get("matches") or []:
             if match.get("status") and match.get("status") != "done":
+                continue
+            bounds = iso_bounds(match)
+            if bounds:
+                start, end = bounds
+                msk_day = start.astimezone(MSK).strftime("%Y-%m-%d")
+                utc_day = start.astimezone(timezone.utc).strftime("%Y-%m-%d")
+                if msk_day < since and utc_day < since:
+                    continue
+                gte = (start - timedelta(seconds=PAD_START_SEC)).astimezone(
+                    timezone.utc
+                )
+                lt = (end + timedelta(seconds=PAD_END_SEC)).astimezone(timezone.utc)
+                out.append(
+                    MatchWin(
+                        id=str(match.get("id") or msk_day),
+                        map=str(match.get("map") or ""),
+                        gte=gte,
+                        lt=lt,
+                        start=start.astimezone(timezone.utc),
+                    )
+                )
                 continue
             day = match.get("day")
             if day is None:
@@ -192,6 +240,7 @@ def load_match_windows(train: Path, since: str) -> list[MatchWin]:
                     map=str(match.get("map") or ""),
                     gte=gte,
                     lt=lt,
+                    start=start_msk.astimezone(timezone.utc),
                 )
             )
     out.sort(key=lambda w: w.gte)
@@ -317,6 +366,7 @@ def main() -> int:
     skipped_gt = 0
 
     all_eos = set(hits_m) | set(shots_m)
+    win_by_id = {w.id: w for w in wins}
     for eos in all_eos:
         nick = eos_to_nick.get(eos)
         if not nick:
@@ -325,7 +375,11 @@ def main() -> int:
         sh_sum = 0
         hi_sum = 0
         days = 0
+        slot_rows: dict[str, dict] = {}
         for mid in match_ids:
+            win = win_by_id.get(mid)
+            if win is None or win.start < ACCURACY_TRUST_FROM_UTC:
+                continue
             hi = int((hits_m.get(eos) or {}).get(mid) or 0)
             samples = (shots_m.get(eos) or {}).get(mid) or []
             sh = session_shot_total(samples)
@@ -337,6 +391,11 @@ def main() -> int:
             sh_sum += sh
             hi_sum += hi
             days += 1
+            slot_rows[mid] = {
+                "hits": hi,
+                "shots": sh,
+                "accuracyPct": min(100.0, round(100.0 * hi / sh, 1)),
+            }
         if sh_sum < MIN_SHOTS_TOTAL or hi_sum <= 0:
             continue
         complete_slots += days
@@ -349,11 +408,28 @@ def main() -> int:
                 "hits": 0,
                 "matches": 0,
                 "accuracyPct": None,
+                "byMatch": {},
             }
             by_nick[k] = row
         row["shots"] += sh_sum
         row["hits"] += hi_sum
         row["matches"] += days
+        by_m = row.setdefault("byMatch", {})
+        for mid, slot in slot_rows.items():
+            prev = by_m.get(mid)
+            if prev:
+                # rare: same nick via multiple EOS — sum
+                hi2 = int(prev.get("hits") or 0) + int(slot["hits"])
+                sh2 = int(prev.get("shots") or 0) + int(slot["shots"])
+                by_m[mid] = {
+                    "hits": hi2,
+                    "shots": sh2,
+                    "accuracyPct": min(100.0, round(100.0 * hi2 / sh2, 1))
+                    if sh2 > 0
+                    else None,
+                }
+            else:
+                by_m[mid] = slot
 
     for row in by_nick.values():
         sh = int(row["shots"] or 0)
@@ -364,6 +440,8 @@ def main() -> int:
             row["accuracyPct"] = None
         # compat with UI that may read .days
         row["days"] = row.get("matches") or 0
+        if not isinstance(row.get("byMatch"), dict):
+            row["byMatch"] = {}
 
     by_nick = {
         k: v for k, v in by_nick.items() if v.get("accuracyPct") is not None
@@ -394,6 +472,7 @@ def main() -> int:
     )
     for mirror in (
         Path("/var/www/blackberry-kv/data/training/accuracy-stats.json"),
+        Path("/var/www/blackberry-kv/public/data/training/accuracy-stats.json"),
         Path(
             "/var/www/bb-squad-platform/data/kv-cache/data/training/accuracy-stats.json"
         ),

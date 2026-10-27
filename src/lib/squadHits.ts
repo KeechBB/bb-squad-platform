@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { normalizeEosId, normalizeSteamId } from "@/lib/squadSessions";
+import { rollingMainRoleWindow } from "@/lib/mainRoleWindow";
+import { isTrainStatsYmdOk } from "@/lib/trainStatsSince";
 
 export type SquadHitIngestEvent = {
   type: "hit";
@@ -125,12 +127,19 @@ async function bonesWhere(
     return null;
   }
   const day = dayRaw;
-  const fromClamped = clampTrainStatsFromYmd(opts.fromYmd);
-  // Явный день — только он; иначе диапазон с cutover (и «всё время»).
+  // Без явного диапазона — те же 14 суток МСК, что у роли и точности.
+  // Окно одно на всех: сегодня минус 13 дней, завтра старый день выпадает.
+  let fromYmd = (opts.fromYmd || "").trim() || null;
+  let toYmd = (opts.toYmd || "").trim() || null;
+  if (!day && !fromYmd && !toYmd) {
+    const w = rollingMainRoleWindow();
+    fromYmd = w.from;
+    toYmd = w.to;
+  } else if (!day) {
+    fromYmd = clampTrainStatsFromYmd(fromYmd);
+  }
   const dayBounds = day ? mskDayBoundsUtc(day) : null;
-  const range = !day
-    ? mskRangeBoundsUtc(fromClamped, opts.toYmd)
-    : null;
+  const range = !day ? mskRangeBoundsUtc(fromYmd, toYmd) : null;
   const hitAt = dayBounds
     ? { gte: dayBounds.gte, lt: dayBounds.lt }
     : range && (range.gte || range.lt)
@@ -239,13 +248,6 @@ function mskWallToUtc(ymd: string, secOfDay: number): Date {
   return new Date(
     Date.UTC(y, m - 1, d, 0, 0, 0, 0) - 3 * 3600_000 + secOfDay * 1000
   );
-}
-
-function parseHmToSec(raw: string): number | null {
-  const t = String(raw || "").trim();
-  if (!/^\d{1,2}:\d{2}(:\d{2})?$/.test(t)) return null;
-  const [hh, mm, ss] = t.split(":").map(Number);
-  return (hh || 0) * 3600 + (mm || 0) * 60 + (ss || 0);
 }
 
 function clusterHitRanges(
@@ -591,7 +593,7 @@ function hitsInRange(hitTimes: number[], gteMs: number, ltMs: number): number[] 
 
 /**
  * Оставляет только матчи, где у игрока есть логи попаданий с костью
- * (BBHitZone) внутри окна катки. Запись в RP-ledger не нужна:
+ * (BBHitZone) внутри окна катки. В RP-ledger катка не обязана быть:
  * с 26.10 тренировочный RP выключен, и вечерние катки иначе пропадали.
  */
 async function historyRowsWithHits<
@@ -599,7 +601,6 @@ async function historyRowsWithHits<
 >(hitTimes: number[], history: T[]): Promise<T[]> {
   if (!history.length || !hitTimes.length) return [];
   const { matchHitWindow } = await import("@/lib/playerCompare");
-  const { isTrainStatsYmdOk } = await import("@/lib/trainStatsSince");
   const out: T[] = [];
   for (const row of history) {
     const win = await matchHitWindow(row.matchId);
@@ -698,7 +699,7 @@ export async function buildHitmapMatchOptions(opts: {
       byDay.get(ymd)!.push(t);
     }
     const days = [...byDay.keys()].sort((a, b) => b.localeCompare(a));
-    for (const ymd of days.slice(0, 5)) {
+    for (const ymd of days.filter((d) => isTrainStatsYmdOk(d)).slice(0, 5)) {
       const times = byDay.get(ymd)!;
       const clusters = clusterHitRanges(times);
       const [y, mo, d] = ymd.split("-");
