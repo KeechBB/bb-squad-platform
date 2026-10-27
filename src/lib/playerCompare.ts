@@ -331,13 +331,45 @@ async function loadMatchCombat(
   }
 }
 
-/** Окно матча по give-up событиям ledger (МСК date + time), иначе сутки матча. */
+function mskYmd(d: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Moscow",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+
+/**
+ * Окно матча на всю его длину, в том числе через полночь.
+ * Сначала календарь тренировки (старт МСК + длительность).
+ * Иначе времена событий; если конец по часам раньше начала — это уже следующие сутки.
+ */
 export async function matchHitWindow(
   matchId: string
 ): Promise<{ fromYmd: string; toYmd: string; gte?: Date; lt?: Date } | null> {
+  const id = String(matchId || "").trim();
+  if (!id) return null;
+
+  const { loadUploadedTrainingSlices } = await import(
+    "@/lib/uploadedMatchWindows"
+  );
+  const slice = (await loadUploadedTrainingSlices()).find((s) => s.id === id);
+  if (slice) {
+    // Лог слоя часто кончается раньше последних попаданий (Mutaha AAS 26.10).
+    const lt = new Date(slice.lt.getTime() + 12 * 60_000);
+    const end = new Date(lt.getTime() - 1);
+    return {
+      fromYmd: mskYmd(slice.gte),
+      toYmd: mskYmd(end),
+      gte: slice.gte,
+      lt,
+    };
+  }
+
   const { loadRpLedger } = await import("@/lib/trainRp");
   const ledger = await loadRpLedger();
-  const match = ledger?.matches?.find((m) => m.id === matchId);
+  const match = ledger?.matches?.find((m) => m.id === id);
   if (!match?.date || !/^\d{4}-\d{2}-\d{2}$/.test(match.date)) return null;
   const ymd = match.date;
   const times = (match.events || [])
@@ -350,18 +382,15 @@ export async function matchHitWindow(
     .sort((a, b) => a - b);
 
   if (times.length >= 2) {
-    const pad = 90; // сек запас
-    const startSec = Math.max(0, times[0] - pad);
-    const endSec = Math.min(24 * 3600 - 1, times[times.length - 1] + pad);
+    const pad = 90;
+    const startSec = times[0] - pad;
+    let endSec = times[times.length - 1] + pad;
+    if (endSec <= startSec) endSec += 24 * 3600;
     const [y, m, d] = ymd.split("-").map(Number);
-    // MSK = UTC+3
-    const gte = new Date(
-      Date.UTC(y, m - 1, d, 0, 0, 0, 0) - 3 * 3600_000 + startSec * 1000
-    );
-    const lt = new Date(
-      Date.UTC(y, m - 1, d, 0, 0, 0, 0) - 3 * 3600_000 + (endSec + 1) * 1000
-    );
-    return { fromYmd: ymd, toYmd: ymd, gte, lt };
+    const base = Date.UTC(y, m - 1, d, 0, 0, 0, 0) - 3 * 3600_000;
+    const gte = new Date(base + startSec * 1000);
+    const lt = new Date(base + (endSec + 1) * 1000);
+    return { fromYmd: ymd, toYmd: mskYmd(new Date(lt.getTime() - 1)), gte, lt };
   }
   return { fromYmd: ymd, toYmd: ymd };
 }

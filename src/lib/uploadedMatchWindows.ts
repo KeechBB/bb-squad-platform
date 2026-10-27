@@ -32,6 +32,9 @@ type TrainingMonthFile = {
     duration?: string;
     map?: string;
     status?: string;
+    /** Real layer start/end (ISO). day+timeMsk is the label and can lag a day. */
+    startUtc?: string;
+    endUtc?: string;
   }[];
 };
 
@@ -81,6 +84,26 @@ function parseTimeMsk(raw: string | null | undefined): { h: number; m: number } 
 }
 
 /** Собрать naive Date (UTC fields = wall) из ymd + минуты суток (могут быть <0 / >1440). */
+/** Real log window. UTC fields of the Date are the naive DB wall (UTC). */
+function windowFromUtcIso(
+  startUtc: string | undefined,
+  endUtc: string | undefined
+): { gte: Date; lt: Date } | null {
+  const s = Date.parse(String(startUtc || ""));
+  const e = Date.parse(String(endUtc || ""));
+  if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s) return null;
+  return { gte: new Date(s - 2 * 60_000), lt: new Date(e + 5 * 60_000) };
+}
+
+function mskYmdFromMs(ms: number): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Moscow",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(ms));
+}
+
 function naiveFromYmdMinutes(ymd: string, dayMinutes: number): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
   const [y, mo, d] = ymd.split("-").map(Number);
@@ -135,6 +158,19 @@ async function readTrainingWindows(): Promise<{
       if (match.status && match.status !== "done") continue;
       const map = String(match.map || "");
       if (isJensenMap(map)) continue;
+      const iso = windowFromUtcIso(match.startUtc, match.endUtc);
+      if (iso) {
+        const ymd = mskYmdFromMs(iso.gte.getTime());
+        if (!isTrainStatsYmdOk(ymd)) continue;
+        out.push({
+          gte: iso.gte,
+          lt: iso.lt,
+          map,
+          id: String(match.id || ymd),
+          month: ym,
+        });
+        continue;
+      }
       const day = Number(match.day);
       if (!Number.isFinite(day) || day < 1 || day > 31) continue;
       const ymd = `${ym}-${String(day).padStart(2, "0")}`;
