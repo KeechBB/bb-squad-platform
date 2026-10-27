@@ -5,6 +5,10 @@ import { pickMvps } from "@/lib/homeMvp";
 import { abbreviateFaction } from "@/lib/factionAbbrev";
 import { kvLocalRoots } from "@/lib/kvLocal";
 import { memoTtl, PROFILE_CORPUS_TTL_MS } from "@/lib/memoTtl";
+import {
+  isTrainStatsYmdOk,
+  trainStatsSinceYmd,
+} from "@/lib/trainStatsSince";
 
 function nickKey(nick: string) {
   return nick.trim().toLowerCase().replace(/\s+/g, "");
@@ -28,6 +32,7 @@ type TrainPlayerLine = {
   kills?: number;
   deaths?: number;
   dmg?: number;
+  vehicleKills?: number;
   team?: string;
   won?: boolean;
 };
@@ -529,6 +534,10 @@ export type TrainMatchHistoryRow = {
   server?: string;
   playersUrl: string;
   won: boolean | null;
+  res: number;
+  nok: number;
+  kills: number;
+  deaths: number;
   /** Итоговое RP после матча; null если матч ещё без RP-ledger */
   rpAfter: number | null;
   /** Δ RP за матч; null если нет ledger */
@@ -569,9 +578,41 @@ type TrainCorpusDoc = TrainPlayersDoc & {
       killer?: string[];
       damage?: string[];
       antiDeath?: string[];
+      armor?: string[];
     };
   };
 };
+
+/** Уничтоженная техника из полного RP-журнала (пехотный LAT тоже, не только экипаж). */
+function loadTrainVehicleKillIndex(): Promise<Record<string, Record<string, number>>> {
+  return memoTtl("train-vehicle-kills-v1", PROFILE_CORPUS_TTL_MS, async () => {
+    const ledger = await loadFromKv<{
+      players?: Record<
+        string,
+        {
+          nick?: string;
+          matches?: { id?: string; kills?: { kind?: string }[] }[];
+        }
+      >;
+    }>("data/training/rp-ledger.json");
+    const out: Record<string, Record<string, number>> = {};
+    for (const [bucket, p] of Object.entries(ledger?.players || {})) {
+      for (const m of p?.matches || []) {
+        const id = String(m?.id || "");
+        if (!id) continue;
+        const n = (m?.kills || []).filter((e) => e?.kind === "vehicle_kill").length;
+        if (!n) continue;
+        const slot = out[id] || (out[id] = {});
+        for (const raw of [p?.nick, bucket]) {
+          const k = nickKey(String(raw || ""));
+          if (!k) continue;
+          slot[k] = Math.max(slot[k] || 0, n);
+        }
+      }
+    }
+    return out;
+  });
+}
 
 type TrainCorpusRow = MatchMeta & {
   status?: string;
@@ -733,30 +774,43 @@ export async function buildPlayerTrainMatchHistory(
   if (!corpus.hasIndex) return [];
   const resolveKey = aliasResolver(corpus.aliases);
   const want = resolveKey(clean);
+  const sinceYmd = trainStatsSinceYmd();
 
-  const matchMetas = corpus.rows.filter((row) => row.inHistory);
-  matchMetas.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+  // Все катки календаря с 20.10, где ник есть в players — не только RP-ledger.
+  // Иначе вечерние катки без RP «пропадают» из профиля (кейс Keech 26.10).
+  const matchMetas = corpus.rows
+    .filter((row) => {
+      if (!row.inHistory || !row.id || !row.doc) return false;
+      const ymd = `${row.year}-${pad2(row.month)}-${pad2(row.day)}`;
+      if (!isTrainStatsYmdOk(ymd) || ymd < sinceYmd) return false;
+      const list = (
+        row.doc.players?.length
+          ? row.doc.players
+          : [...(row.doc.teamA || []), ...(row.doc.teamB || [])]
+      ) as TrainPlayerLine[];
+      return list.some((p) => p?.nick && resolveKey(p.nick) === want);
+    })
+    .sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+
+  if (!matchMetas.length) return [];
 
   const { loadRpLadder, rpRankFromScore, lookupPlayerTrainRp } = await import(
     "@/lib/trainRp"
   );
   const ladder = await loadRpLadder();
   const rpPlayer = await lookupPlayerTrainRp(clean);
-  // Только катки из карточки рейтинга — календарь/FCL без RP в историю не попадают.
-  const ratedMatches = rpPlayer?.matches || [];
-  if (!ratedMatches.length) return [];
 
+  const ratedMatches = rpPlayer?.matches || [];
   const ratedIds = new Set(ratedMatches.map((m) => m.id).filter(Boolean));
   const rpNetByMatch = new Map<string, number>();
   for (const m of ratedMatches) {
     if (!m.id) continue;
     rpNetByMatch.set(m.id, Number(m.net) || 0);
   }
-  // Добрать net только для уже засчитанных id (алиасы в netByNick).
   if (ladder?.matches) {
     for (const m of ladder.matches) {
-      if (!ratedIds.has(m.id) || !rpNetByMatch.has(m.id)) continue;
-      if (Number(rpNetByMatch.get(m.id)) !== 0) continue;
+      if (!m.id) continue;
+      // net из ladder для любых наших каток (даже если ещё нет в карточке игрока)
       let sum = 0;
       let hit = false;
       for (const [n, net] of Object.entries(m.netByNick || {})) {
@@ -765,35 +819,32 @@ export async function buildPlayerTrainMatchHistory(
           hit = true;
         }
       }
-      if (hit) rpNetByMatch.set(m.id, sum);
+      if (hit) {
+        if (!rpNetByMatch.has(m.id) || Number(rpNetByMatch.get(m.id)) === 0) {
+          rpNetByMatch.set(m.id, sum);
+        }
+        ratedIds.add(m.id);
+      }
     }
   }
   const startRp = Number(ladder?.startRp) || 1000;
   const step = Number(ladder?.step) || 150;
   const radiant3Max = Number(ladder?.radiant3Max) || 4950;
 
-  // rpAfter = round(start + Σ nets) как бейдж — не Math.round на каждом шаге.
-  // Порядок = календарное время (sortKey).
+  // Кумулятив RP только по каткам, которые реально в ledger (есть net).
   const rpAfterByMatch = new Map<string, number>();
   const rpDeltaByMatch = new Map<string, number>();
   {
     const metaOrder = new Map(
       matchMetas.filter((m) => m.id).map((m) => [m.id, m.sortKey || ""])
     );
-    const dateById = new Map<string, string>();
-    for (const m of ratedMatches) {
-      dateById.set(m.id, String(m.date || ""));
-    }
-    const orderKey = (id: string) => {
-      const sk = metaOrder.get(id);
-      if (sk) return sk;
-      const d = dateById.get(id) || "9999-99-99";
-      return `${d}T99:99-${id}`;
-    };
-    const orderedIds = [...rpNetByMatch.keys()].sort((a, b) => {
-      const c = orderKey(a).localeCompare(orderKey(b));
-      return c || a.localeCompare(b);
-    });
+    const orderedIds = [...rpNetByMatch.keys()]
+      .filter((id) => metaOrder.has(id) || ratedIds.has(id))
+      .sort((a, b) => {
+        const ka = metaOrder.get(a) || `9999-${a}`;
+        const kb = metaOrder.get(b) || `9999-${b}`;
+        return ka.localeCompare(kb) || a.localeCompare(b);
+      });
     let cum = 0;
     for (const id of orderedIds) {
       const net = rpNetByMatch.get(id)!;
@@ -806,76 +857,81 @@ export async function buildPlayerTrainMatchHistory(
   const history: TrainMatchHistoryRow[] = [];
   const metaById = new Map(matchMetas.map((m) => [m.id, m]));
 
-  for (const m of ratedMatches) {
-    if (!m.id || !rpAfterByMatch.has(m.id)) continue;
-    const meta = metaById.get(m.id);
-    const playersUrl =
-      meta?.playersUrl || `data/training/players/${m.id}.json`;
-    const playersDoc =
-      meta?.doc ||
-      (await loadFromKv<TrainCorpusDoc>(playersUrl).catch(() => null));
+  for (const meta of matchMetas) {
+    const playersDoc = meta.doc;
+    if (!playersDoc) continue;
     let teamU = "—";
     let won: boolean | null = null;
-    let ticketsA = meta?.ticketsA ?? null;
-    let ticketsB = meta?.ticketsB ?? null;
-    let factionA = String(meta?.factionA || "").trim();
-    let factionB = String(meta?.factionB || "").trim();
-    let winner = meta?.winner;
-    if (playersDoc) {
-      const sa = playersDoc.sideA;
-      const sb = playersDoc.sideB;
-      if (ticketsA == null && sa?.tickets != null) ticketsA = Number(sa.tickets);
-      if (ticketsB == null && sb?.tickets != null) ticketsB = Number(sb.tickets);
-      if (!factionA && sa?.name) factionA = String(sa.name);
-      if (!factionB && sb?.name) factionB = String(sb.name);
-      if (!winner && playersDoc.winner) winner = String(playersDoc.winner);
-      const list = (
-        playersDoc.players?.length
-          ? playersDoc.players
-          : [...(playersDoc.teamA || []), ...(playersDoc.teamB || [])]
-      ) as TrainPlayerLine[];
-      const mine = list.filter((p) => p?.nick && resolveKey(p.nick) === want);
-      if (mine.length) {
-        const resolved = resolveTrainWon(mine, playersDoc, {
-          winner,
-          factionA,
-          factionB,
-          ticketsA,
-          ticketsB,
-        });
-        teamU = resolved.team || "—";
-        won = resolved.won;
-      }
+    let ticketsA = meta.ticketsA ?? null;
+    let ticketsB = meta.ticketsB ?? null;
+    let factionA = String(meta.factionA || "").trim();
+    let factionB = String(meta.factionB || "").trim();
+    let winner = meta.winner;
+    let res = 0;
+    let nok = 0;
+    let kills = 0;
+    let deaths = 0;
+    const sa = playersDoc.sideA;
+    const sb = playersDoc.sideB;
+    if (ticketsA == null && sa?.tickets != null) ticketsA = Number(sa.tickets);
+    if (ticketsB == null && sb?.tickets != null) ticketsB = Number(sb.tickets);
+    if (!factionA && sa?.name) factionA = String(sa.name);
+    if (!factionB && sb?.name) factionB = String(sb.name);
+    if (!winner && playersDoc.winner) winner = String(playersDoc.winner);
+    const list = (
+      playersDoc.players?.length
+        ? playersDoc.players
+        : [...(playersDoc.teamA || []), ...(playersDoc.teamB || [])]
+    ) as TrainPlayerLine[];
+    const mine = list.filter((p) => p?.nick && resolveKey(p.nick) === want);
+    if (!mine.length) continue;
+    const resolved = resolveTrainWon(mine, playersDoc, {
+      winner,
+      factionA,
+      factionB,
+      ticketsA,
+      ticketsB,
+    });
+    teamU = resolved.team || "—";
+    won = resolved.won;
+    for (const p of mine) {
+      res += Number(p.res) || 0;
+      nok += Number(p.nok) || 0;
+      kills += Number(p.kills) || 0;
+      deaths += Number(p.deaths) || 0;
     }
-    const date = String(m.date || "");
-    const dateLabel = meta
-      ? `${pad2(meta.day)}.${pad2(meta.month)}.${meta.year}`
-      : date.length >= 10
-        ? `${date.slice(8, 10)}.${date.slice(5, 7)}.${date.slice(0, 4)}`
-        : "—";
-    const timeRaw = String(meta?.timeMsk || "").trim();
-    const rpDelta = rpDeltaByMatch.get(m.id)!;
-    const rpAfter = rpAfterByMatch.get(m.id)!;
-    const rk = rpRankFromScore(rpAfter, step, radiant3Max);
+    const dateLabel = `${pad2(meta.day)}.${pad2(meta.month)}.${meta.year}`;
+    const timeRaw = String(meta.timeMsk || "").trim();
+    const hasRp = rpAfterByMatch.has(meta.id);
+    const rpDelta = hasRp ? rpDeltaByMatch.get(meta.id)! : null;
+    const rpAfter = hasRp ? rpAfterByMatch.get(meta.id)! : null;
+    const rk =
+      rpAfter != null
+        ? rpRankFromScore(rpAfter, step, radiant3Max)
+        : { label: "—", rankKey: "" };
     history.push({
-      matchId: m.id,
+      matchId: meta.id,
       dateLabel,
       timeLabel: timeRaw && timeRaw !== "—" ? timeRaw : "—",
-      map: meta?.map || m.map || "—",
+      map: meta.map || "—",
       factionA: (factionA || "—").toUpperCase(),
       ticketsA,
       factionB: (factionB || "—").toUpperCase(),
       ticketsB,
       team: teamU,
       winner,
-      duration: meta?.duration,
-      server: meta?.server,
-      playersUrl,
+      duration: meta.duration,
+      server: meta.server,
+      playersUrl: meta.playersUrl || `data/training/players/${meta.id}.json`,
       won,
+      res,
+      nok,
+      kills,
+      deaths,
       rpAfter,
       rpDelta,
-      pwrAfter: rpAfter,
-      pwrDelta: rpDelta,
+      pwrAfter: rpAfter ?? 0,
+      pwrDelta: rpDelta ?? 0,
       rankLabel: rk.label,
       rankKey: rk.rankKey,
     });
@@ -937,6 +993,9 @@ export type PlayerTrainCombatStats = {
   mvpKiller: number;
   mvpMedic: number;
   antiDeath: number;
+  /** Уничтоженная техника. Считается с 20.10.2026, как и остальная стата карточки. */
+  vehicleKills?: number;
+  mvpArmor?: number;
   /** Рейтинг RP тренировок (клетка в профиле, как у паблика). */
   rp?: number | null;
   rankLabel?: string | null;
@@ -1013,6 +1072,17 @@ export async function buildPlayerTrainCombatStats(
   if (!corpus.hasIndex) return withTrainRp(emptyBase);
   const resolveKey = aliasResolver(corpus.aliases);
   const want = resolveKey(clean);
+  const vehIndex = await loadTrainVehicleKillIndex().catch(
+    () => ({}) as Record<string, Record<string, number>>
+  );
+  const vehOfNick = (matchId: string, nick: string, rowVk: number) => {
+    const slot = vehIndex[matchId] || {};
+    return Math.max(
+      Math.max(0, Math.floor(Number(rowVk) || 0)),
+      slot[resolveKey(nick)] || 0,
+      slot[nickKey(nick)] || 0
+    );
+  };
 
   let matches = 0;
   let wins = 0;
@@ -1022,9 +1092,11 @@ export async function buildPlayerTrainCombatStats(
   let dmg = 0;
   let res = 0;
   let nok = 0;
+  let vehicleKills = 0;
   const mvpDamage = 0;
   let mvpKiller = 0;
   let mvpMedic = 0;
+  let mvpArmor = 0;
   let antiDeath = 0;
   let displayNick = clean;
   const mvpHits = {
@@ -1048,6 +1120,8 @@ export async function buildPlayerTrainCombatStats(
       ) as TrainPlayerLine[];
       const mine = list.filter((p) => p?.nick && resolveKey(p.nick) === want);
       if (!mine.length) continue;
+      const ymd = `${match.year}-${pad2(match.month)}-${pad2(match.day)}`;
+      if (!isTrainStatsYmdOk(ymd)) continue;
       if (mine[0]?.nick) displayNick = String(mine[0].nick);
       matches += 1;
       for (const p of mine) {
@@ -1057,24 +1131,38 @@ export async function buildPlayerTrainCombatStats(
         res += Number(p.res) || 0;
         nok += Number(p.nok) || 0;
       }
+      const fromRows = mine.reduce(
+        (s, p) => s + (Number(p.vehicleKills) || 0),
+        0
+      );
+      vehicleKills += Math.max(
+        fromRows,
+        vehOfNick(match.id, String(mine[0]?.nick || ""), 0)
+      );
       const { won } = resolveTrainWon(mine, players, match);
       if (won === true) wins += 1;
       else if (won === false) losses += 1;
 
-      const mvp =
-        (players.mvp && players.mvp.train) ||
-        pickMvps(
-          list
-            .filter((p) => p?.nick)
-            .map((p) => ({
-              nick: String(p.nick),
-              res: Number(p.res) || 0,
-              nok: Number(p.nok) || 0,
-              kills: Number(p.kills) || 0,
-              deaths: Number(p.deaths) || 0,
-              dmg: Number(p.dmg) || 0,
-            }))
-        );
+      const picked = pickMvps(
+        list
+          .filter((p) => p?.nick)
+          .map((p) => ({
+            nick: String(p.nick),
+            res: Number(p.res) || 0,
+            nok: Number(p.nok) || 0,
+            kills: Number(p.kills) || 0,
+            deaths: Number(p.deaths) || 0,
+            dmg: Number(p.dmg) || 0,
+            vehicleKills: vehOfNick(
+              match.id,
+              String(p.nick),
+              Number(p.vehicleKills) || 0
+            ),
+          }))
+      );
+      const stored = players.mvp?.train;
+      const mvp = stored || picked;
+      const armorNicks = stored?.armor?.length ? stored.armor : picked.armor;
       const dateLabel = `${pad2(match.day)}.${pad2(match.month)}.${match.year}`;
       const hitBase = {
         dateLabel,
@@ -1094,6 +1182,13 @@ export async function buildPlayerTrainCombatStats(
         mvpMedic += 1;
         mvpHits.medic.push({
           id: `${match.id}-medic`,
+          ...hitBase,
+        });
+      }
+      if (nickIn(armorNicks)) {
+        mvpArmor += 1;
+        mvpHits.armor.push({
+          id: `${match.id}-armor`,
           ...hitBase,
         });
       }
@@ -1128,6 +1223,8 @@ export async function buildPlayerTrainCombatStats(
     mvpDamage,
     mvpKiller,
     mvpMedic,
+    mvpArmor,
+    vehicleKills,
     antiDeath,
     mvpHits,
   });

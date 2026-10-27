@@ -238,8 +238,8 @@ export function TrainingMatchHistory({
       )}
       {matchHistory.length === 0 ? (
         <p className="muted" style={{ margin: "8px 0 0" }}>
-          Пока нет тренировочных матчей с ником в рейтинге — история RP
-          появится после каток с give-up киллами.
+          Пока нет тренировочных матчей с 20.10 — история появится
+          после каток, где ник есть в стате.
         </p>
       ) : (
         <>
@@ -253,28 +253,15 @@ export function TrainingMatchHistory({
                 <th>Дата</th>
                 <th>Карта</th>
                 <th>Счёт</th>
-                <th className="num">Δ RP</th>
                 <th>Результат</th>
-                <th className="num">RP</th>
+                <th className="num">Ресы</th>
+                <th className="num">Ноки</th>
+                <th className="num">Килы</th>
+                <th className="num">Смерти</th>
               </tr>
             </thead>
             <tbody>
               {sliced.rows.map((m) => {
-                const delta = m.rpDelta;
-                const deltaCls =
-                  delta == null
-                    ? "pwr-delta zero"
-                    : delta > 0
-                      ? "pwr-delta plus"
-                      : delta < 0
-                        ? "pwr-delta minus"
-                        : "pwr-delta zero";
-                const deltaText =
-                  delta == null
-                    ? "—"
-                    : delta > 0
-                      ? `+${delta}`
-                      : String(delta);
                 const score = `${abbreviateFaction(m.factionA)} ${m.ticketsA ?? "—"} : ${m.ticketsB ?? "—"} ${abbreviateFaction(m.factionB)}`;
                 const wonUi = deriveTrainResult(m);
                 const resultCls =
@@ -290,7 +277,6 @@ export function TrainingMatchHistory({
                       ? "Поражение"
                       : "—";
                 const canOpen = Boolean(m.playersUrl);
-                const rpAfter = m.rpAfter;
                 return (
                   <tr
                     key={m.matchId}
@@ -340,31 +326,13 @@ export function TrainingMatchHistory({
                     <td className="training-match-score" title={score}>
                       {score}
                     </td>
-                    <td className={`num ${deltaCls}`}>{deltaText}</td>
                     <td>
                       <span className={resultCls}>{resultText}</span>
                     </td>
-                    <td
-                      className="num"
-                      title={
-                        rpAfter != null
-                          ? `${m.rankLabel} · ${rpAfter}`
-                          : "RP ещё не считался"
-                      }
-                    >
-                      {rpAfter != null ? (
-                        <span className="profile-hist-pwr">
-                          <span
-                            className={`home-pwr-badge rank-${m.rankKey}`}
-                          >
-                            {m.rankLabel}
-                          </span>
-                          <span className="profile-hist-pwr-n">{rpAfter}</span>
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
+                    <td className="num">{Number(m.res) || 0}</td>
+                    <td className="num">{Number(m.nok) || 0}</td>
+                    <td className="num">{Number(m.kills) || 0}</td>
+                    <td className="num">{Number(m.deaths) || 0}</td>
                   </tr>
                 );
               })}
@@ -791,8 +759,8 @@ export function TrainingSessionsCard({
       {includeMatchHistory ? (
         matchHistory.length === 0 ? (
           <p className="muted" style={{ marginTop: 14 }}>
-            Пока нет тренировочных матчей с ником в рейтинге — история RP
-            появится после каток с give-up киллами.
+            Пока нет тренировочных матчей с ником в рейтинге — история
+            появится после каток со статой.
           </p>
         ) : (
           <div className="admin-table-wrap" style={{ marginTop: 14 }}>
@@ -805,30 +773,15 @@ export function TrainingSessionsCard({
                   <th>Дата</th>
                   <th>Карта</th>
                   <th>Счёт</th>
-                  <th className="num">Δ RP</th>
                   <th>Результат</th>
-                  <th className="num">RP</th>
+                  <th className="num">Ресы</th>
+                  <th className="num">Ноки</th>
+                  <th className="num">Килы</th>
+                  <th className="num">Смерти</th>
                 </tr>
               </thead>
               <tbody>
                 {matchHistory.map((m) => {
-                  const delta = m.rpDelta;
-                  const deltaCls =
-                    delta == null
-                      ? "pwr-delta zero"
-                      : delta > 0
-                        ? "pwr-delta plus"
-                        : delta < 0
-                          ? "pwr-delta minus"
-                          : "pwr-delta zero";
-                  const deltaText =
-                    delta == null
-                      ? "—"
-                      : delta > 0
-                        ? `+${delta}`
-                        : String(delta);
-                  const rpMissingHint =
-                    "RP не засчитан: нет боевого лога за эту катку (или ещё в очереди). Счёт из календаря.";
                   const score = `${abbreviateFaction(m.factionA)} ${m.ticketsA ?? "—"} : ${m.ticketsB ?? "—"} ${abbreviateFaction(m.factionB)}`;
                   const wonUi = deriveTrainResult(m);
                   const resultCls =
@@ -843,7 +796,6 @@ export function TrainingSessionsCard({
                       : wonUi === false
                         ? "Поражение"
                         : "—";
-                  const rpAfter = m.rpAfter;
                   return (
                     <tr key={m.matchId}>
                       <td>{m.dateLabel}</td>
@@ -857,34 +809,13 @@ export function TrainingSessionsCard({
                         ) : null}
                       </td>
                       <td className="training-match-score">{score}</td>
-                      <td
-                        className={`num ${deltaCls}`}
-                        title={delta == null ? rpMissingHint : undefined}
-                      >
-                        {deltaText}
-                      </td>
                       <td>
                         <span className={resultCls}>{resultText}</span>
                       </td>
-                      <td
-                        className="num"
-                        title={rpAfter == null ? rpMissingHint : undefined}
-                      >
-                        {rpAfter != null ? (
-                          <>
-                            <span
-                              className={`home-pwr-badge rank-${m.rankKey}`}
-                              title={m.rankLabel}
-                              style={{ fontSize: "0.62rem", padding: "1px 5px" }}
-                            >
-                              {m.rankLabel}
-                            </span>{" "}
-                            {rpAfter}
-                          </>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
+                      <td className="num">{Number(m.res) || 0}</td>
+                      <td className="num">{Number(m.nok) || 0}</td>
+                      <td className="num">{Number(m.kills) || 0}</td>
+                      <td className="num">{Number(m.deaths) || 0}</td>
                     </tr>
                   );
                 })}
