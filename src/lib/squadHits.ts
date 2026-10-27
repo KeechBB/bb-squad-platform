@@ -645,8 +645,7 @@ function hitmapChronoKey(row: {
 }
 
 /**
- * Список матчей/раундов для пикера хитмапа:
- * тренировки с хитами + КВ (если 2 кластера хитов вечером — R1 и R2).
+ * Список матчей для пикера хитмапа: только тренировки, где есть попадания.
  */
 export async function buildHitmapMatchOptions(opts: {
   userId?: string | null;
@@ -687,95 +686,6 @@ export async function buildHitmapMatchOptions(opts: {
         won: m.won,
         kind: "train",
       });
-    }
-  }
-
-  // —— Clan wars (possibly split into R1/R2 by hit clusters) ——
-  if (nick) {
-    const { buildPlayerCwMatchHistory } = await import("@/lib/homeCwPwr");
-    const cwHist = await buildPlayerCwMatchHistory(nick).catch(() => []);
-    for (const m of cwHist) {
-      const meta = await loadCwMatchMeta(m.matchId);
-      if (!meta) continue;
-      const eveningGte = mskWallToUtc(meta.ymd, 19 * 3600).getTime();
-      const eveningLt = mskWallToUtc(meta.ymd, 23 * 3600 + 30 * 60).getTime();
-      const inEve = hitsInRange(hitTimes, eveningGte, eveningLt);
-      if (!inEve.length) {
-        const day = mskDayBoundsUtc(meta.ymd);
-        if (
-          !day ||
-          !hasHitInRange(hitTimes, day.gte.getTime(), day.lt.getTime())
-        ) {
-          continue;
-        }
-      }
-
-      const clusters = clusterHitRanges(inEve.length ? inEve : hitsInRange(
-        hitTimes,
-        mskDayBoundsUtc(meta.ymd)!.gte.getTime(),
-        mskDayBoundsUtc(meta.ymd)!.lt.getTime()
-      ));
-
-      const dateLabel = m.dateLabel;
-      const parseTickets = (s: string): number | null => {
-        const n = Number(String(s || "").replace(/[^\d-]/g, ""));
-        return Number.isFinite(n) ? n : null;
-      };
-
-      if (clusters.length >= 2 && (m.r1 || m.r2)) {
-        const rounds: Array<{
-          id: string;
-          label: string;
-          ta: number | null;
-          tb: number | null;
-          cluster: { gte: number; lt: number };
-        }> = [
-          {
-            id: `${m.matchId}#r1`,
-            label: `R1 · ${m.map}`,
-            ta: parseTickets(String(m.r1 || "").split(/[–\-:]/)[0] || ""),
-            tb: parseTickets(String(m.r1 || "").split(/[–\-:]/)[1] || ""),
-            cluster: clusters[0],
-          },
-          {
-            id: `${m.matchId}#r2`,
-            label: `R2 · ${m.map}`,
-            ta: parseTickets(String(m.r2 || "").split(/[–\-:]/)[0] || ""),
-            tb: parseTickets(String(m.r2 || "").split(/[–\-:]/)[1] || ""),
-            cluster: clusters[Math.min(1, clusters.length - 1)],
-          },
-        ];
-        for (const r of rounds) {
-          if (!hasHitInRange(hitTimes, r.cluster.gte, r.cluster.lt)) continue;
-          if (seen.has(r.id)) continue;
-          seen.add(r.id);
-          out.push({
-            matchId: r.id,
-            dateLabel,
-            map: r.label,
-            timeLabel: m.opp,
-            ticketsA: r.ta,
-            ticketsB: r.tb,
-            won: m.won,
-            kind: "cw",
-          });
-        }
-      } else {
-        if (seen.has(m.matchId)) continue;
-        seen.add(m.matchId);
-        const meeting = String(m.meeting || "");
-        const parts = meeting.split(/[–\-:]/).map((x) => x.trim());
-        out.push({
-          matchId: m.matchId,
-          dateLabel,
-          map: `КВ · ${m.map}`,
-          timeLabel: m.opp,
-          ticketsA: parseTickets(parts[0] || ""),
-          ticketsB: parseTickets(parts[1] || ""),
-          won: m.won,
-          kind: "cw",
-        });
-      }
     }
   }
 
