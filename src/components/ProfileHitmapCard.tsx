@@ -301,19 +301,54 @@ export function ProfileHitmapCard({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [pickerOpen, effectiveHistory.length, matchesLoading, loadMatches]);
 
+  const [hoverBone, setHoverBone] = useState<string | null>(null);
+  const [accuracyPct, setAccuracyPct] = useState<number | null>(null);
+
+  const loadAccuracy = useCallback(
+    async (nextMatchId: string | null) => {
+      if (!nick && !userId) {
+        setAccuracyPct(null);
+        return;
+      }
+      try {
+        const q = new URLSearchParams();
+        if (nick) q.set("nick", nick);
+        if (userId) q.set("userId", userId);
+        if (nextMatchId) q.set("matchId", nextMatchId);
+        const res = await fetch(`/api/accuracy?${q}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = (await res.json()) as { accuracyPct?: number | null };
+        setAccuracyPct(
+          data.accuracyPct != null && Number.isFinite(Number(data.accuracyPct))
+            ? Number(data.accuracyPct)
+            : null
+        );
+      } catch {
+        setAccuracyPct(null);
+      }
+    },
+    [nick, userId]
+  );
+
   const selectAllTime = () => {
     setMatchId(null);
     setPickerOpen(false);
+    setAccuracyPct(null);
     void load(null);
+    void loadAccuracy(null);
   };
 
   const selectMatch = (id: string) => {
     setMatchId(id);
     setPickerOpen(false);
+    setAccuracyPct(null);
     void load(id);
+    void loadAccuracy(id);
   };
 
-  const [hoverBone, setHoverBone] = useState<string | null>(null);
+  useEffect(() => {
+    void loadAccuracy(matchId);
+  }, [matchId, loadAccuracy, identityKey]);
 
   const { total, strip, plot, minHits, maxHits } = useMemo(() => {
     const map = bones || {};
@@ -637,6 +672,20 @@ export function ProfileHitmapCard({
               </g>
             ) : null}
           </svg>
+          </div>
+          <div
+            className="profile-hitmap-accuracy"
+            aria-label="Процент точности"
+            title={
+              matchId
+                ? "Попадания разделить на выстрелы в этой катке"
+                : "Попадания разделить на выстрелы за 14 дней"
+            }
+          >
+            <span className="profile-hitmap-acc-label">% точности</span>
+            <strong className="profile-hitmap-acc-val profile-hitmap-acc-pct">
+              {accuracyPct != null ? `${accuracyPct}%` : "—"}
+            </strong>
           </div>
         </div>
         {strip.length > 0 ? (
