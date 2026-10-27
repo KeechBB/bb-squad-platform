@@ -197,7 +197,23 @@ export function ProfileHitmapCard({
   const [matchesLoading, setMatchesLoading] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
-  const effectiveHistory = matchHistory.length ? matchHistory : remoteMatches;
+  const effectiveHistory = useMemo(() => {
+    const rows = matchHistory.length ? matchHistory : remoteMatches;
+    const keyOf = (m: HitmapMatchOption) => {
+      const d = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec((m.dateLabel || "").trim());
+      const iso = d ? `${d[3]}-${d[2]}-${d[1]}` : "0000-00-00";
+      const hm = /^(\d{1,2}):(\d{2})$/.exec((m.timeLabel || "").trim());
+      let time = "00:00";
+      if (hm) {
+        let h = Number(hm[1]);
+        const mi = Number(hm[2]);
+        if (h === 0 && mi <= 29) h = 24;
+        time = `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
+      }
+      return `${iso}T${time}-${m.matchId}`;
+    };
+    return [...rows].sort((a, b) => keyOf(b).localeCompare(keyOf(a)));
+  }, [matchHistory, remoteMatches]);
 
   const selectedMatch = useMemo(
     () => effectiveHistory.find((m) => m.matchId === matchId) || null,

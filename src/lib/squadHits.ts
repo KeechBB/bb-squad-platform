@@ -591,43 +591,24 @@ function hitsInRange(hitTimes: number[], gteMs: number, ltMs: number): number[] 
 
 /**
  * Оставляет только матчи, где у игрока есть логи попаданий с костью
- * (BBHitZone). Матчи без точных хитов в список «Матчи» не попадают.
+ * (BBHitZone) внутри окна катки. Запись в RP-ledger не нужна:
+ * с 26.10 тренировочный RP выключен, и вечерние катки иначе пропадали.
  */
-export async function filterTrainHistoryWithHitLogs<
+async function historyRowsWithHits<
   T extends { matchId: string },
->(userId: string, history: T[]): Promise<T[]> {
-  if (!history.length) return [];
-  const hitTimes = await loadHitTimes({ userId });
-  if (!hitTimes.length) return [];
-
-  const { loadRpLedger } = await import("@/lib/trainRp");
-  const ledger = await loadRpLedger();
-  if (!ledger?.matches?.length) return [];
-
-  const byId = new Map(ledger.matches.map((m) => [m.id, m]));
+>(hitTimes: number[], history: T[]): Promise<T[]> {
+  if (!history.length || !hitTimes.length) return [];
+  const { matchHitWindow } = await import("@/lib/playerCompare");
+  const { isTrainStatsYmdOk } = await import("@/lib/trainStatsSince");
   const out: T[] = [];
-
   for (const row of history) {
-    const match = byId.get(row.matchId);
-    if (!match?.date || !/^\d{4}-\d{2}-\d{2}$/.test(match.date)) continue;
-    const ymd = match.date;
-    const times = (match.events || [])
-      .map((e) => String(e.time || "").trim())
-      .map((t) => parseHmToSec(t))
-      .filter((n): n is number => n != null)
-      .sort((a, b) => a - b);
-
-    if (times.length >= 2) {
-      const pad = 90;
-      const startSec = Math.max(0, times[0] - pad);
-      const endSec = Math.min(24 * 3600 - 1, times[times.length - 1] + pad);
-      const gte = mskWallToUtc(ymd, startSec);
-      const lt = mskWallToUtc(ymd, endSec + 1);
-      if (hasHitInRange(hitTimes, gte.getTime(), lt.getTime())) out.push(row);
+    const win = await matchHitWindow(row.matchId);
+    if (!win || !isTrainStatsYmdOk(win.fromYmd)) continue;
+    if (win.gte && win.lt) {
+      if (hasHitInRange(hitTimes, win.gte.getTime(), win.lt.getTime())) out.push(row);
       continue;
     }
-
-    const dayBounds = mskDayBoundsUtc(ymd);
+    const dayBounds = mskDayBoundsUtc(win.fromYmd);
     if (
       dayBounds &&
       hasHitInRange(hitTimes, dayBounds.gte.getTime(), dayBounds.lt.getTime())
@@ -635,8 +616,32 @@ export async function filterTrainHistoryWithHitLogs<
       out.push(row);
     }
   }
-
   return out;
+}
+
+export async function filterTrainHistoryWithHitLogs<
+  T extends { matchId: string },
+>(userId: string, history: T[]): Promise<T[]> {
+  const hitTimes = await loadHitTimes({ userId });
+  return historyRowsWithHits(hitTimes, history);
+}
+
+function hitmapChronoKey(row: {
+  dateLabel: string;
+  timeLabel?: string;
+  matchId: string;
+}): string {
+  const d = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(String(row.dateLabel || "").trim());
+  const iso = d ? `${d[3]}-${d[2]}-${d[1]}` : "0000-00-00";
+  const hm = /^(\d{1,2}):(\d{2})$/.exec(String(row.timeLabel || "").trim());
+  let timeKey = "00:00";
+  if (hm) {
+    let h = Number(hm[1]);
+    const mi = Number(hm[2]);
+    if (h === 0 && mi <= 29) h = 24;
+    timeKey = `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
+  }
+  return `${iso}T${timeKey}-${row.matchId}`;
 }
 
 /**
@@ -667,35 +672,7 @@ export async function buildHitmapMatchOptions(opts: {
   if (nick) {
     const { buildPlayerTrainMatchHistory } = await import("@/lib/homeTrainPwr");
     const trainHist = await buildPlayerTrainMatchHistory(nick).catch(() => []);
-    const filtered = userId
-      ? await filterTrainHistoryWithHitLogs(userId, trainHist)
-      : await (async () => {
-          // steam-only: reuse day/window check without userId filter helper
-          const { loadRpLedger } = await import("@/lib/trainRp");
-          const ledger = await loadRpLedger();
-          const byId = new Map((ledger?.matches || []).map((m) => [m.id, m]));
-          return trainHist.filter((row) => {
-            const match = byId.get(row.matchId);
-            if (!match?.date) return false;
-            const times = (match.events || [])
-              .map((e) => parseHmToSec(String(e.time || "")))
-              .filter((n): n is number => n != null)
-              .sort((a, b) => a - b);
-            if (times.length >= 2) {
-              const gte = mskWallToUtc(match.date, Math.max(0, times[0] - 90));
-              const lt = mskWallToUtc(
-                match.date,
-                Math.min(24 * 3600 - 1, times[times.length - 1] + 91)
-              );
-              return hasHitInRange(hitTimes, gte.getTime(), lt.getTime());
-            }
-            const day = mskDayBoundsUtc(match.date);
-            return Boolean(
-              day &&
-                hasHitInRange(hitTimes, day.gte.getTime(), day.lt.getTime())
-            );
-          });
-        })();
+    const filtered = await historyRowsWithHits(hitTimes, trainHist);
 
     for (const m of filtered) {
       if (seen.has(m.matchId)) continue;
@@ -845,6 +822,7 @@ export async function buildHitmapMatchOptions(opts: {
     }
   }
 
+  out.sort((a, b) => hitmapChronoKey(b).localeCompare(hitmapChronoKey(a)));
   return out;
 }
 
