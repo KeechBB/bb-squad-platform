@@ -19,12 +19,12 @@ NICK_STEAM = re.compile(
     re.I,
 )
 DIE_RE = re.compile(
-    r"Die\(\):\s*Player:(?P<victim>.+?)\s+KillingDamage=(?P<dmg>[-\d.]+)\s+from\s+\S+\s+"
+    r"Die\(\):\s*Player:(?P<victim>.+?)\s+KillingDamage=(?P<dmg>[-\d.]+)\s+from\s+(?P<causer>\S+)\s+"
     r"\(Online IDs:\s*EOS:\s*(?P<eos>[0-9a-fA-F]+)\s+steam:\s*(?P<steam>7656\d+)",
     re.I,
 )
 WOUND_RE = re.compile(
-    r"Wound\(\):\s*Player:(?P<victim>.+?)\s+KillingDamage=(?P<dmg>[-\d.]+)\s+from\s+\S+\s+"
+    r"Wound\(\):\s*Player:(?P<victim>.+?)\s+KillingDamage=(?P<dmg>[-\d.]+)\s+from\s+(?P<causer>\S+)\s+"
     r"\(Online IDs:\s*EOS:\s*(?P<eos>[0-9a-fA-F]+)\s+steam:\s*(?P<steam>7656\d+)",
     re.I,
 )
@@ -55,7 +55,7 @@ MATCH_RESULT_RE = re.compile(
 )
 CREATE_SQUAD_RE = re.compile(
     r"LogSquad:\s*(?P<nick>.+?)\s*\(Online IDs:\s*EOS:\s*[0-9a-fA-F]+\s+steam:\s*(?P<steam>7656\d+)\)\s+"
-    r"has created Squad\s+\d+\s+\(Squad Name:\s*.+?\)\s+on\s+(?P<faction>.+)$",
+    r"has created Squad\s+(?P<num>\d+)\s+\(Squad Name:\s*(?P<name>.*?)\)\s+on\s+(?P<faction>.+)$",
     re.I,
 )
 DEPLOY_RE = re.compile(
@@ -552,7 +552,7 @@ def vehicle_seat_role(asset: str, seat: int, pawn: str = "") -> str:
     pawn_u = (pawn or "").upper()
     if any(
         x in pawn_u
-        for x in ("PASSENGER", "CARGO", "REAR", "BENCH", "TROOP")
+        for x in ("PASSENGER", "CARGO", "REAR", "BENCH", "TROOP", "PERISCOPE", "CMDRSCOPE", "SCOPE")
     ):
         return "passenger"
     a = str(asset or "")
@@ -585,22 +585,41 @@ def _veh_id_num(vid: str) -> int | None:
         return None
 
 
-# Turret / periscope / seat pawn sits a few ids from its hull.
-# A neighbour vehicle in the same spawn wave is further out (~34+).
+# Seat pawns are allocated before the body, so the body id is higher.
+# Own turret sits ~8–11 ids forward; a BTR-4 neighbour in the same wave can be
+# only ~29 ids the other way. Absolute "nearest within 32" glued that turret
+# onto the previous vehicle (Manicouagan 27.10, Moisha charged for Abby's BTR).
 _HULL_LINK_DIST = 32
 # ONLY real seat/turret pawns. Do NOT match weapon-family substrings inside
 # hull names — BP_MATV_CROWS_C / BP_Tigr_RWS_C are full vehicles; their
 # turrets are BP_CROWS_Turret_C / BP_Arbalet_Turret_C (have TURRET).
 # Bug 17.10.2026: CROWS|RWS here made MATV_CROWS hulls look like components
 # → hull↔turret link failed → driver_share=0 while F2 was scoring.
+# CMDRSCOPE is the BTR-4 commander optic (CmdrScope). It is not a hull.
 _COMPONENT_RE = re.compile(
-    r"TURRET|PERISCOPE|PASSENGER|GUNNER|(?<![A-Za-z])SCOPE(?![A-Za-z])",
+    r"TURRET|PERISCOPE|CMDRSCOPE|PASSENGER|GUNNER|(?<![A-Za-z])SCOPE(?![A-Za-z])",
     re.I,
 )
 
 
 def _is_component_pawn(instance: str) -> bool:
     return bool(_COMPONENT_RE.search(instance or ""))
+
+
+def _forward_hull_dist(comp_id: str, hull_id: str) -> int | None:
+    """Positive distance if hull_id is the body allocated after this seat pawn.
+
+    Returns None when the candidate is behind the pawn or outside the window.
+    Behind is the previous vehicle in a spawn wave, not this crew's body.
+    """
+    cn = _veh_id_num(comp_id)
+    hn = _veh_id_num(hull_id)
+    if cn is None or hn is None:
+        return None
+    dist = hn - cn
+    if dist <= 0 or dist >= _HULL_LINK_DIST:
+        return None
+    return dist
 
 
 def _asset_same_vehicle(a: str, b: str) -> bool:
@@ -797,15 +816,14 @@ def score_match_rp(
     def _resolve_hull_id(asset: str, instance: str, seat: int) -> str:
         if not instance:
             return ""
-        if seat == 0:
+        # Seat 0 is the body. Any pawn that is not a turret/scope is the body
+        # too. A 500-id search from those pawns glued a crew onto a neighbour.
+        if seat == 0 or not _is_component_pawn(instance):
             pawn_to_hull[instance] = instance
             return instance
         if instance in pawn_to_hull:
             return pawn_to_hull[instance]
-        inst_n = _veh_id_num(instance)
         best, best_d = "", 10**18
-        component = _is_component_pawn(instance)
-        limit = _HULL_LINK_DIST if component else 500
         for hid, meta in hulls.items():
             if meta.get("dead") or meta.get("absorbed"):
                 continue
@@ -815,23 +833,20 @@ def score_match_rp(
             meta_asset = str(meta.get("asset") or "")
             if asset and meta_asset and not _asset_same_vehicle(asset, meta_asset):
                 continue
-            hid_n = _veh_id_num(hid)
-            if inst_n is None or hid_n is None:
+            d = _forward_hull_dist(instance, hid)
+            if d is None or d >= best_d:
                 continue
-            d = abs(hid_n - inst_n)
-            if d < best_d and d < limit:
-                best_d = d
-                best = hid
+            best_d = d
+            best = hid
         if best:
             pawn_to_hull[instance] = best
             return best
-        # No hull yet — treat pawn as provisional hull until seat-0 links.
+        # No body yet — keep the seat pawn until the driver sits and absorb runs.
         pawn_to_hull[instance] = instance
         return instance
 
     def _nearest_body(comp_id: str, asset: str, *, include_dead: bool = True) -> str:
-        n_id = _veh_id_num(comp_id)
-        if n_id is None:
+        if _veh_id_num(comp_id) is None:
             return ""
         best, best_d = "", 10**9
         for cand, meta in hulls.items():
@@ -842,11 +857,10 @@ def score_match_rp(
             meta_asset = str(meta.get("asset") or "")
             if asset and meta_asset and not _asset_same_vehicle(asset, meta_asset):
                 continue
-            cn = _veh_id_num(cand)
-            if cn is None:
+            dist = _forward_hull_dist(comp_id, cand)
+            if dist is None or vehicle_tickets(meta_asset or asset) <= 5:
                 continue
-            dist = abs(cn - n_id)
-            if dist < best_d and dist < _HULL_LINK_DIST and vehicle_tickets(meta_asset or asset) > 5:
+            if dist < best_d:
                 best, best_d = cand, dist
         return best
 
@@ -863,8 +877,7 @@ def score_match_rp(
                 continue
             if not _asset_same_vehicle(asset, str(meta.get("asset") or "")):
                 continue
-            cn = _veh_id_num(cand)
-            if cn is None or abs(cn - n_id) >= _HULL_LINK_DIST:
+            if _forward_hull_dist(cand, hid) is None:
                 continue
             if _nearest_body(cand, asset) not in ("", hid):
                 continue
@@ -872,6 +885,12 @@ def score_match_rp(
                 role = (meta.get("seat_roles") or {}).get(seat) or vehicle_seat_role(
                     asset, int(seat), cand
                 )
+                # Commander optic shares seat index 1 with the turret. It must
+                # not evict the gunner who actually owes the vehicle loss.
+                if role not in ("driver", "gunner") and (
+                    parent.get("seat_roles") or {}
+                ).get(int(seat)) in ("driver", "gunner"):
+                    continue
                 parent.setdefault("seats", {})[int(seat)] = pk
                 parent.setdefault("seat_roles", {})[int(seat)] = role
                 player_hull[pk] = hid
@@ -1486,6 +1505,7 @@ def score_match_rp(
                             "delta": delta_k,
                             "teamkill": True,
                             "formula": "v2",
+                            "weapon": d.get("weapon") or "",
                         },
                         killer_key=kk,
                         victim_key=vk,
@@ -1511,6 +1531,7 @@ def score_match_rp(
                             "teamkill": False,
                             "formula": "v2",
                             "gainCoef": gcoef,
+                            "weapon": d.get("weapon") or "",
                         },
                         killer_key=kk,
                         victim_key=vk,
@@ -1539,6 +1560,7 @@ def score_match_rp(
                             "victimDelta": delta_v,
                             "teamkill": True,
                             "formula": "v2",
+                            "weapon": d.get("weapon") or "",
                         },
                         killer_key=kk,
                         victim_key=vk,
@@ -1565,6 +1587,7 @@ def score_match_rp(
                             "teamkill": False,
                             "formula": "v2",
                             "gainCoef": gcoef,
+                            "weapon": d.get("weapon") or "",
                         },
                         killer_key=kk,
                         victim_key=vk,
@@ -1672,7 +1695,7 @@ def parse_inactive_times(
             if not tm or not im:
                 continue
             at = parse_ts(tm.group("ts"))
-            if not (t0 <= at < t1):
+            if not in_match_window(at, t0, t1):
                 continue
             nick = strip_tag(im.group("nick"))
             steam = im.group("steam")
@@ -1708,6 +1731,7 @@ def index_log_combat(log_path: Path, aliases: dict[str, str]) -> dict:
     raw_wounds: list[dict] = []
     revives: list[dict] = []
     squads: list[tuple[datetime, str, str]] = []  # at, nick_key, faction
+    squad_opens: list[dict] = []  # at, key, num, name, faction
     deploys: list[tuple[datetime, str, str]] = []  # at, nick_key, prefix
     raw_vehicle_ops: list[dict] = []
     eos_to_nick: dict[str, str] = {}
@@ -1774,6 +1798,7 @@ def index_log_combat(log_path: Path, aliases: dict[str, str]) -> dict:
                             "victim": strip_tag(wm.group("victim")),
                             "steam": wm.group("steam"),
                             "dmg": dmg,
+                            "causer": wm.group("causer") or "",
                         }
                     )
 
@@ -1790,6 +1815,7 @@ def index_log_combat(log_path: Path, aliases: dict[str, str]) -> dict:
                             "victim": strip_tag(dm.group("victim")),
                             "steam": dm.group("steam"),
                             "dmg": dmg,
+                            "causer": dm.group("causer") or "",
                         }
                     )
 
@@ -1808,13 +1834,26 @@ def index_log_combat(log_path: Path, aliases: dict[str, str]) -> dict:
             if "has created Squad" in line:
                 cm = CREATE_SQUAD_RE.search(line)
                 if cm:
-                    squads.append(
-                        (
-                            at,
-                            canon_key(cm.group("nick"), aliases),
-                            (cm.group("faction") or "").strip(),
+                    faction = (cm.group("faction") or "").strip()
+                    key = canon_key(cm.group("nick"), aliases)
+                    squads.append((at, key, faction))
+                    raw_name = (cm.group("name") or "").strip()
+                    if re.fullmatch(r"squad\s*\d+", raw_name, re.I):
+                        raw_name = ""
+                    try:
+                        squad_num = int(cm.group("num"))
+                    except ValueError:
+                        squad_num = 0
+                    if squad_num > 0 and key:
+                        squad_opens.append(
+                            {
+                                "at": at,
+                                "key": key,
+                                "num": squad_num,
+                                "name": raw_name,
+                                "faction": faction,
+                            }
                         )
-                    )
 
             if "DeployRole=" in line:
                 dm = DEPLOY_RE.search(line)
@@ -1939,12 +1978,28 @@ def index_log_combat(log_path: Path, aliases: dict[str, str]) -> dict:
         "raw_wounds": raw_wounds,
         "revives": revives,
         "squads": squads,
+        "squad_opens": squad_opens,
         "deploys": deploys,
         "raw_vehicle_ops": raw_vehicle_ops,
         "eos_to_nick": eos_to_nick,
         "logins": logins,
         "removes": removes,
     }
+
+
+def match_window_end_exclusive(t1: datetime) -> datetime:
+    """Exclusive end bound that keeps the whole second of ``t1``.
+
+    Match ends are often truncated to whole seconds (``…:33.000``), while combat
+    lines keep milliseconds (``…:33.756``). Raw ``at < t1`` drops finishers on
+    that last second (e.g. COBRA HAT → M1A2 on PB1 Al Basrah 28.10.2026 19:32).
+    """
+    return t1.replace(microsecond=0) + timedelta(seconds=1)
+
+
+def in_match_window(at: datetime, t0: datetime, t1: datetime) -> bool:
+    """True if ``at`` belongs to match window ``[t0, t1]`` (end second inclusive)."""
+    return t0 <= at < match_window_end_exclusive(t1)
 
 
 def vehicle_ops_in_window(
@@ -1954,11 +2009,11 @@ def vehicle_ops_in_window(
     steam_to_nick: dict[str, str],
     aliases: dict[str, str],
 ) -> list[dict]:
-    """Resolve vehicle enter/exit/dmg/burn ops inside [t0, t1) for score_match_rp."""
+    """Resolve vehicle enter/exit/dmg/burn ops inside [t0, t1] (end second incl.)."""
     out: list[dict] = []
     for raw in idx.get("raw_vehicle_ops") or []:
         at = raw["at"]
-        if not (t0 <= at < t1):
+        if not in_match_window(at, t0, t1):
             continue
         op = raw["op"]
         at_msk = (at + timedelta(hours=3)).strftime("%H:%M:%S")
@@ -2046,6 +2101,20 @@ def vehicle_ops_in_window(
     return out
 
 
+def short_causer(raw: str) -> str:
+    """BP_AK74_C_123 → AK74. Empty for blanks and bare soldier pawns."""
+    s = str(raw or "").strip()
+    if not s or s.lower() in ("none", "null"):
+        return ""
+    s = re.sub(r"_C(?:_\d+)?$", "", s, flags=re.I)
+    s = re.sub(r"^BP_", "", s, flags=re.I)
+    if not s or re.fullmatch(r"Soldier|Player", s, flags=re.I):
+        return ""
+    if re.search(r"PlayerController|Soldier|Pawn", s, re.I):
+        return ""
+    return s.replace("_", " ")[:48]
+
+
 def _resolve_combat_row(
     rd: dict,
     *,
@@ -2079,6 +2148,7 @@ def _resolve_combat_row(
         "victimKey": vk,
         "steam": steam,
         "dmg": float(rd.get("dmg") or 0),
+        "weapon": short_causer(str(rd.get("causer") or "")),
     }
 
 
@@ -2108,7 +2178,7 @@ def dies_in_window(
 
     for rd in idx["raw_dies"]:
         at = rd["at"]
-        if not (t0 <= at < t1):
+        if not in_match_window(at, t0, t1):
             continue
         row = _resolve_combat_row(
             rd,
@@ -2135,6 +2205,7 @@ def dies_in_window(
             "victimKey": row["victimKey"],
             "steam": row["steam"],
             "dmg": row["dmg"],
+            "weapon": row.get("weapon") or "",
         }
         if not _has_inactive_soon(times, at):
             pub["kind"] = "nok"
@@ -2163,7 +2234,7 @@ def wounds_in_window(
 
     for rd in idx.get("raw_wounds") or []:
         at = rd["at"]
-        if not (t0 <= at < t1):
+        if not in_match_window(at, t0, t1):
             continue
         row = _resolve_combat_row(
             rd,
@@ -2187,13 +2258,14 @@ def wounds_in_window(
                 "steam": row["steam"],
                 "dmg": row["dmg"],
                 "source": "wound",
+                "weapon": row.get("weapon") or "",
             }
         )
     return out
 
 
 def revives_in_window(idx: dict, t0: datetime, t1: datetime) -> list[dict]:
-    return [r for r in idx["revives"] if t0 <= r["at"] < t1]
+    return [r for r in idx["revives"] if in_match_window(r["at"], t0, t1)]
 
 
 _FACTION_INITIAL_SKIP = frozenset(
@@ -2326,7 +2398,8 @@ def presence_ratio_by_key(
         for at, kind in evs:
             if at < t0:
                 continue
-            if at > t1:
+            t1x = match_window_end_exclusive(t1)
+            if at >= t1x:
                 break
             if online:
                 total += (at - cur).total_seconds()
@@ -2339,24 +2412,24 @@ def presence_ratio_by_key(
     # Activity fallback when EOS join/leave missing for a combatant.
     activity: dict[str, list[datetime]] = {}
     for at, kk, _ in idx.get("deploys") or []:
-        if t0 <= at < t1 and kk:
+        if in_match_window(at, t0, t1) and kk:
             activity.setdefault(kk, []).append(at)
     for at, kk, _ in idx.get("squads") or []:
-        if t0 <= at < t1 and kk:
+        if in_match_window(at, t0, t1) and kk:
             activity.setdefault(kk, []).append(at)
     for d in idx.get("raw_dies") or []:
         at = d.get("at")
         vk = canon_key(str(d.get("victim") or ""), aliases)
-        if at is not None and t0 <= at < t1 and vk:
+        if at is not None and in_match_window(at, t0, t1) and vk:
             activity.setdefault(vk, []).append(at)
     for d in idx.get("raw_wounds") or []:
         at = d.get("at")
         vk = canon_key(str(d.get("victim") or ""), aliases)
-        if at is not None and t0 <= at < t1 and vk:
+        if at is not None and in_match_window(at, t0, t1) and vk:
             activity.setdefault(vk, []).append(at)
     for r in idx.get("revives") or []:
         at = r.get("at")
-        if at is None or not (t0 <= at < t1):
+        if at is None or not in_match_window(at, t0, t1):
             continue
         for field in ("killer", "victim"):
             nk = canon_key(str(r.get(field) or ""), aliases)
@@ -2385,14 +2458,15 @@ def team_timeline_in_window(
     """nick_key → [(at, team), ...] chronological side assignments in the match."""
     faction_norm, prefix_team = _prefix_team_maps(faction_to_team)
     raw: list[tuple[datetime, str, str]] = []
+    t1x = match_window_end_exclusive(t1)
     for at, kk, faction in idx.get("squads") or []:
-        if at < t0 - timedelta(minutes=5) or at >= t1:
+        if at < t0 - timedelta(minutes=5) or at >= t1x:
             continue
         team = _faction_team_lookup(faction, faction_norm)
         if team in ("1", "2"):
             raw.append((at, kk, team))
     for at, kk, pref in idx.get("deploys") or []:
-        if at < t0 - timedelta(minutes=5) or at >= t1:
+        if at < t0 - timedelta(minutes=5) or at >= t1x:
             continue
         team = prefix_team.get(pref)
         if team in ("1", "2"):
@@ -2509,21 +2583,25 @@ def parse_teams_from_log(
     idx = index_log_combat(log_path, aliases)
     return teams_in_window(idx, t0, t1, faction_to_team)
 
-def discover_matches(log_paths: list[Path]) -> list[dict]:
+def discover_matches(log_paths: list[Path], *, min_sec: int | None = None) -> list[dict]:
     """Completed non-SEED matches: InProgress → WaitingPostMatch (+ winner).
 
     Each log file is its own match state machine. Mixing TR1+TR2+TR3 into one
     timeline drops layers (a travel on another server resets the open map).
+    min_sec defaults to MIN_MATCH_SEC (8 min). Training ingest passes 3 min so
+    a finished post-midnight round is visible; the roster check decides if it
+    was a real match.
     """
+    floor = MIN_MATCH_SEC if min_sec is None else int(min_sec)
     files = [p for p in log_paths if p.is_file()]
     if len(files) > 1:
         merged: list[dict] = []
         for path in files:
-            merged.extend(_discover_matches_one(path))
+            merged.extend(_discover_matches_one(path, min_sec=floor))
         return _dedupe_discovered(merged)
     if not files:
         return []
-    return _dedupe_discovered(_discover_matches_one(files[0]))
+    return _dedupe_discovered(_discover_matches_one(files[0], min_sec=floor))
 
 
 def _dedupe_discovered(matches: list[dict]) -> list[dict]:
@@ -2539,7 +2617,7 @@ def _dedupe_discovered(matches: list[dict]) -> list[dict]:
     return out
 
 
-def _discover_matches_one(path: Path) -> list[dict]:
+def _discover_matches_one(path: Path, *, min_sec: int = MIN_MATCH_SEC) -> list[dict]:
     """Completed non-SEED matches inside a single SquadGame log."""
     # (dt, kind, payload, path)
     events: list[tuple[datetime, str, dict, Path]] = []
@@ -2636,7 +2714,7 @@ def _discover_matches_one(path: Path) -> list[dict]:
         t_start = None
         sp = start_path
         start_path = None
-        if dur < MIN_MATCH_SEC:
+        if dur < min_sec:
             return
         if is_seed_layer(layer_name, level_name):
             return

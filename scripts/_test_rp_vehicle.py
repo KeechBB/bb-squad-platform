@@ -1220,4 +1220,198 @@ assert not any(
 ), "F2 must not take vehicle_loss on MATV"
 print("MATV CROWS driver_share + driver-only loss OK", m_net.get("gad"))
 
+# Two BTR-4s spawned as one wave (Manicouagan 27.10). Moisha's turret is 29 ids
+# behind Abby's hull and 11 ids in front of his own hull, which the driver
+# enters later. The loss belongs to Rig, who was in Abby's turret.
+wave = datetime(2026, 10, 27, 15, 51, 0, tzinfo=timezone.utc)
+
+
+def _btr(nick, key, inst, seat, dt):
+    return {
+        "kind": "v_enter",
+        "at_dt": dt,
+        "at_msk": "18:51:00",
+        "nick": nick,
+        "nickKey": key,
+        "asset": "BP_BTR4_AFU_C",
+        "instance": inst,
+        "pawn": inst,
+        "seat": seat,
+    }
+
+
+def _out(nick, key, inst, seat, dt):
+    return {
+        "kind": "v_exit",
+        "at_dt": dt,
+        "at_msk": "19:06:48",
+        "nick": nick,
+        "nickKey": key,
+        "asset": "BP_BTR4_AFU_C",
+        "instance": inst,
+        "fullpath": f"PersistentLevel.{inst}",
+        "seat": seat,
+    }
+
+
+abby_hull = "BP_BTR4_AFU_C_2138874696"
+rig_turret = "BP_BTR4_Turret_C_2138874685"
+moisha_scope = "BP_BTR4_CmdrScope_C_2138874705"
+moisha_turret = "BP_BTR4_Turret_C_2138874725"
+own_hull = "BP_BTR4_AFU_C_2138874736"
+boom = wave + timedelta(minutes=15, seconds=48)
+pair_ops = [
+    _btr("Moisha", "moisha", moisha_scope, 1, wave + timedelta(seconds=35)),
+    _btr("Rig", "rig", rig_turret, 1, wave + timedelta(seconds=37)),
+    _btr("Abby", "abby", abby_hull, 0, wave + timedelta(seconds=40)),
+    _out("Moisha", "moisha", moisha_scope, 1, wave + timedelta(minutes=6, seconds=2)),
+    _btr("Moisha", "moisha", moisha_turret, 1, wave + timedelta(minutes=6, seconds=2)),
+    _btr("BlackLord", "blacklord", own_hull, 0, wave + timedelta(minutes=7, seconds=32)),
+    _out("Abby", "abby", abby_hull, 0, boom),
+    _out("Rig", "rig", rig_turret, 1, boom),
+    {
+        "kind": "v_dmg_named",
+        "at_dt": boom,
+        "at_msk": "19:06:48",
+        "who": "Abby",
+        "whoKey": "abby",
+        "dmg": 675,
+        "causer": "BP_FFV751_Tandem_Heat_Proj2_C_1",
+        "killer": "Jurgen",
+        "killerKey": "jurgen",
+        "health": -484.94,
+        "burning": False,
+    },
+]
+pair_events, pair_net, *_ = R.score_match_rp(
+    dies=[],
+    wounds=[],
+    revives=[],
+    teams={k: "1" for k in ("moisha", "rig", "abby", "blacklord")} | {"jurgen": "2"},
+    rp={k: 1000.0 for k in ("moisha", "rig", "abby", "blacklord", "jurgen")},
+    disp={
+        "moisha": "Moisha",
+        "rig": "Rig",
+        "abby": "Abby",
+        "blacklord": "BlackLord",
+        "jurgen": "Jurgen",
+    },
+    aliases={},
+    new_formula=True,
+    match_date="2026-10-27",
+    match_id="20261027-1851-manicouagan",
+    vehicle_ops=pair_ops,
+)
+pair_losses = [e for e in pair_events if str(e["kind"]).startswith("vehicle_loss")]
+assert any(e["kind"] == "vehicle_loss" and e.get("victim") == "Rig" for e in pair_losses), pair_losses
+assert any(
+    e["kind"] == "vehicle_loss_driver" and e.get("victim") == "Abby" for e in pair_losses
+), pair_losses
+assert not any(e.get("victim") == "Moisha" for e in pair_losses), pair_losses
+assert abs(pair_net.get("moisha", 0.0)) < 0.01
+print("neighbour BTR-4 does not inherit the other turret OK")
+
+# End-second inclusive: kill at t1+756ms must count (COBRA M1A2 Al Basrah).
+_t0 = datetime(2026, 10, 28, 16, 4, 50, tzinfo=timezone.utc)
+_t1 = datetime(2026, 10, 28, 16, 32, 33, tzinfo=timezone.utc)  # whole-second end
+_at_fin = datetime(2026, 10, 28, 16, 32, 33, 756000, tzinfo=timezone.utc)
+assert not (_t0 <= _at_fin < _t1), "precondition: raw half-open drops finisher"
+assert R.in_match_window(_at_fin, _t0, _t1)
+assert R.in_match_window(_t1, _t0, _t1)
+assert not R.in_match_window(
+    datetime(2026, 10, 28, 16, 32, 34, tzinfo=timezone.utc), _t0, _t1
+)
+_end_ops = [
+    {
+        "kind": "v_enter",
+        "at_dt": _t0 + timedelta(minutes=15),
+        "at_msk": "19:19:58",
+        "nick": "MrSnark",
+        "nickKey": "mrsnark",
+        "asset": "BP_M1A2_C",
+        "instance": "BP_M1A2_C_2142543925",
+        "seat": 0,
+    },
+    {
+        "kind": "v_exit",
+        "at_dt": _t1 - timedelta(seconds=63),
+        "at_msk": "19:31:30",
+        "nick": "MrSnark",
+        "nickKey": "mrsnark",
+        "asset": "BP_M1A2_C",
+        "instance": "BP_M1A2_C_2142543925",
+        "seat": 0,
+    },
+    {
+        "kind": "v_dmg",
+        "at_dt": _at_fin,
+        "at_msk": "19:32:33",
+        "vid": "BP_M1A2_C_2142543925",
+        "killer": "COBRA",
+        "killerKey": "cobra",
+        "causer": "BP_FFV751_Tandem_Heat_Proj2_C_1",
+        "health": -132.0,
+        "dmg": 1360.0,
+        "burning": False,
+    },
+]
+_end_idx = {
+    "raw_vehicle_ops": [
+        {
+            "op": "enter",
+            "at": _end_ops[0]["at_dt"],
+            "nick": "MrSnark",
+            "steam": "",
+            "pawn": "BP_M1A2_C_2142543925",
+            "asset": "BP_M1A2_C",
+            "fullpath": "",
+            "seat": 0,
+        },
+        {
+            "op": "exit",
+            "at": _end_ops[1]["at_dt"],
+            "nick": "MrSnark",
+            "steam": "",
+            "asset": "BP_M1A2_C",
+            "fullpath": "…BP_M1A2_C_2142543925",
+            "seat": 0,
+        },
+        {
+            "op": "dmg",
+            "at": _at_fin,
+            "vid": "BP_M1A2_C_2142543925",
+            "nick": "COBRA",
+            "steam": "76561199545962907",
+            "causer": "BP_FFV751_Tandem_Heat_Proj2_C_1",
+            "health": -132.0,
+            "dmg": 1360.0,
+            "burning": False,
+        },
+    ]
+}
+_vops = R.vehicle_ops_in_window(_end_idx, _t0, _t1, {"76561199545962907": "COBRA"}, {})
+assert any(
+    o.get("kind") == "v_dmg" and o.get("killerKey") == "cobra" and float(o.get("health") or 0) < 0
+    for o in _vops
+), _vops
+_ev, _net, *_ = R.score_match_rp(
+    dies=[],
+    wounds=[],
+    revives=[],
+    teams={"cobra": "1", "mrsnark": "2"},
+    rp={"cobra": 1000.0, "mrsnark": 1000.0},
+    disp={"cobra": "COBRA", "mrsnark": "MrSnark"},
+    aliases={},
+    new_formula=True,
+    vehicle_ops=_vops,
+    cutover_at=_t0,
+)
+assert any(
+    e.get("kind") == "vehicle_kill"
+    and str(e.get("killer") or "").lower() == "cobra"
+    and "m1a2" in str(e.get("vehicle") or "").lower()
+    for e in _ev
+), _ev
+print("end-second vehicle finisher (COBRA M1A2) OK")
+
 print("ALL OK")
