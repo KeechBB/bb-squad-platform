@@ -14,7 +14,7 @@ export type ProfileViewBundle = {
   histories?: unknown;
 };
 
-const SS_KEY = "bb_profile_view_v5";
+const SS_KEY = "bb_profile_view_v6";
 const inflight = new Map<string, Promise<ProfileViewBundle | null>>();
 const mem = new Map<string, { at: number; data: ProfileViewBundle }>();
 const MEM_TTL_MS = 90_000;
@@ -26,11 +26,24 @@ function nickKey(nick: string) {
     .replace(/\s+/g, "");
 }
 
+type SsEnvelope = { at: number; data: ProfileViewBundle };
+
 function readSs(nick: string): ProfileViewBundle | null {
   try {
     const raw = sessionStorage.getItem(`${SS_KEY}:${nickKey(nick)}`);
     if (!raw) return null;
-    return JSON.parse(raw) as ProfileViewBundle;
+    const parsed = JSON.parse(raw) as SsEnvelope | ProfileViewBundle;
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      "at" in parsed &&
+      "data" in parsed
+    ) {
+      if (Date.now() - Number(parsed.at) > MEM_TTL_MS) return null;
+      return parsed.data;
+    }
+    // legacy bare bundle — drop (could mark «не был» after midnight)
+    return null;
   } catch {
     return null;
   }
@@ -38,7 +51,8 @@ function readSs(nick: string): ProfileViewBundle | null {
 
 function writeSs(nick: string, data: ProfileViewBundle) {
   try {
-    sessionStorage.setItem(`${SS_KEY}:${nickKey(nick)}`, JSON.stringify(data));
+    const env: SsEnvelope = { at: Date.now(), data };
+    sessionStorage.setItem(`${SS_KEY}:${nickKey(nick)}`, JSON.stringify(env));
   } catch {
     /* quota */
   }
@@ -97,4 +111,17 @@ export function loadProfileView(
 export function prefetchProfileView(nick: string) {
   if (!nickKey(nick)) return;
   void loadProfileView(nick);
+}
+
+/** Сброс кэша после выходного/резерва — календарь подтянет свежие дни. */
+export function invalidateProfileView(nick: string) {
+  const k = nickKey(nick);
+  if (!k) return;
+  mem.delete(k);
+  inflight.delete(k);
+  try {
+    sessionStorage.removeItem(`${SS_KEY}:${k}`);
+  } catch {
+    /* ignore */
+  }
 }

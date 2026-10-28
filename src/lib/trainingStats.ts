@@ -88,8 +88,10 @@ function laneFromSessions(
 
 export type LoadTrainingStatsOpts = {
   /**
-   * Site (non-admin): clip to last MSK :00 boundary so mid-hour joins
-   * do not appear until the hourly publish. Default true.
+   * Clip sessions to last MSK :00 (Phase 4 hourly publish).
+   * Default false: profile calendar is live so a mid-hour join is not
+   * shown as «не был» after midnight from a frozen/stale hour.
+   * Home streak board still uses attendance-published.json.
    */
   publicFreeze?: boolean;
 };
@@ -98,7 +100,7 @@ export async function loadUserTrainingStats(
   userId: string,
   opts: LoadTrainingStatsOpts = {}
 ) {
-  const publicFreeze = opts.publicFreeze !== false;
+  const publicFreeze = opts.publicFreeze === true;
   const canonStart = attendanceCanonStartUtc();
   const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const since = since30 > canonStart ? since30 : canonStart;

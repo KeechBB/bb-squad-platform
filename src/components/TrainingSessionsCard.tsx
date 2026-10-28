@@ -7,11 +7,13 @@ import {
 } from "@/lib/squadSessions";
 import type { TrainMatchHistoryRow } from "@/lib/homeTrainPwr";
 import { abbreviateFaction } from "@/lib/factionAbbrev";
+import { shortMapName } from "@/lib/shortMapName";
 import {
   ProfileMatchStatsModal,
   type MatchStatsOpen,
 } from "@/components/ProfileMatchStatsModal";
 import { ListPager, pageSlice } from "@/components/ListPager";
+import { useProfileHistoryPage } from "@/hooks/useProfileHistoryPage";
 import { useFitPageSize } from "@/hooks/useFitPageSize";
 
 /** UI fallback: Победа/Поражение из team↔winner или тикетов своей стороны. */
@@ -173,6 +175,13 @@ function isLateJoinHm(hm: string | undefined): boolean {
   return mins >= 21 * 60;
 }
 
+/** Вечер дня ymd закрыт после 02:00 МСК следующих суток. */
+function trainingEveningClosed(ymd: string, now = new Date()): boolean {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const until02 = new Date(Date.UTC(y, m - 1, d, 23, 0, 0));
+  return now.getTime() >= until02.getTime();
+}
+
 function dayMark(
   ymd: string,
   presentDays: Set<string>,
@@ -191,7 +200,9 @@ function dayMark(
     if (isLateJoinHm(joinHm) || lateDays.has(ymd)) return "late";
     return "present";
   }
-  if (ymd === today) return "pending";
+  // До 02:00 вечер ещё идёт (и после полуночи календарного дня) —
+  // не ставим «не был» по устаревшему кэшу / hourly freeze.
+  if (ymd === today || !trainingEveningClosed(ymd)) return "pending";
   return "absent";
 }
 
@@ -225,28 +236,45 @@ export function TrainingMatchHistory({
   const [page, setPage] = useState(1);
   const tableWrapRef = useRef<HTMLDivElement | null>(null);
   const pageSize = useFitPageSize(tableWrapRef);
-  const sliced = pageSlice(matchHistory, page, pageSize);
+  const remote = useProfileHistoryPage<TrainMatchHistoryRow>(
+    highlightNick,
+    "train",
+    page,
+    pageSize
+  );
+  const local = pageSlice(matchHistory, page, pageSize);
+  const sliced = remote.active && !remote.failed
+    ? {
+        page,
+        pageCount: remote.pageCount,
+        total: remote.total,
+        rows: remote.rows,
+      }
+    : local;
 
   useEffect(() => {
     setPage(1);
-  }, [matchHistory.length, pageSize]);
+  }, [highlightNick, matchHistory.length, pageSize]);
 
   return (
     <section className="card profile-hist-card profile-train-hist-card profile-hist-paged">
       {hideTitle ? null : (
         <h2 className="profile-hist-title">{title}</h2>
       )}
-      {matchHistory.length === 0 ? (
+      <div
+        ref={tableWrapRef}
+        className="admin-table-wrap profile-hist-table-wrap"
+      >
+      {remote.failed && matchHistory.length === 0 ? (
+        <p className="muted" style={{ margin: "8px 0 0" }}>
+          История тренировок временно недоступна.
+        </p>
+      ) : pageSize > 0 && sliced.total === 0 && !remote.loading ? (
         <p className="muted" style={{ margin: "8px 0 0" }}>
           Пока нет тренировочных матчей с 20.10 — история появится
           после каток, где ник есть в стате.
         </p>
       ) : (
-        <>
-        <div
-          ref={tableWrapRef}
-          className="admin-table-wrap profile-hist-table-wrap"
-        >
           <table className="admin-table training-sessions-table training-match-hist-table">
             <thead>
               <tr>
@@ -261,6 +289,13 @@ export function TrainingMatchHistory({
               </tr>
             </thead>
             <tbody>
+              {pageSize < 1 || (remote.active && remote.loading && sliced.rows.length === 0) ? (
+                <tr>
+                  <td colSpan={8} className="muted">
+                    Загрузка истории тренировок…
+                  </td>
+                </tr>
+              ) : null}
               {sliced.rows.map((m) => {
                 const score = `${abbreviateFaction(m.factionA)} ${m.ticketsA ?? "—"} : ${m.ticketsB ?? "—"} ${abbreviateFaction(m.factionB)}`;
                 const wonUi = deriveTrainResult(m);
@@ -321,7 +356,7 @@ export function TrainingMatchHistory({
                         .filter(Boolean)
                         .join(" · ")}
                     >
-                      <span className="training-match-map">{m.map}</span>
+                      <span className="training-match-map">{shortMapName(m.map)}</span>
                     </td>
                     <td className="training-match-score" title={score}>
                       {score}
@@ -338,19 +373,20 @@ export function TrainingMatchHistory({
               })}
             </tbody>
           </table>
-        </div>
+      )}
+      </div>
+      <div className="profile-hist-pager-slot">
         <ListPager
           page={sliced.page}
           pageCount={sliced.pageCount}
           total={sliced.total}
-          pageSize={pageSize}
+          pageSize={pageSize || 1}
           onChange={setPage}
           maxButtons={10}
           label="Страницы истории тренировок"
           className="profile-hist-pager"
         />
-        </>
-      )}
+      </div>
       <ProfileMatchStatsModal open={open} onClose={() => setOpen(null)} />
     </section>
   );
@@ -800,7 +836,7 @@ export function TrainingSessionsCard({
                     <tr key={m.matchId}>
                       <td>{m.dateLabel}</td>
                       <td title={m.map}>
-                        <span className="training-match-map">{m.map}</span>
+                        <span className="training-match-map">{shortMapName(m.map)}</span>
                         {m.team && m.team !== "—" ? (
                           <span className="muted training-match-team">
                             {" "}
