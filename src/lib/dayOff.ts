@@ -12,6 +12,7 @@ import {
 } from "@/lib/absenceDays";
 import type { ReserveActor } from "@/lib/reserve";
 import { exitReserve, userInReserve } from "@/lib/reserve";
+import { markProfileViewStale } from "@/lib/profileViewQueue";
 
 function addDaysYmd(ymd: string, delta: number): string {
   const [y, m, d] = ymd.split("-").map(Number);
@@ -184,6 +185,8 @@ export async function enterDayOff(opts: {
       ? `${actor} выдал выходной ${target} до ${untilLabel} (причина: ${opts.reason})`
       : `${target} взял выходной до ${untilLabel} (причина: ${opts.reason})`;
 
+  if (user.nick) void markProfileViewStale(user.nick).catch(() => undefined);
+
   await writeActionLog({
     category: opts.source === "admin" ? "admin" : "profile",
     action: "day_off_enter",
@@ -259,6 +262,8 @@ export async function exitDayOff(opts: {
     opts.source === "admin"
       ? `${actor} снял выходной у ${target}`
       : `${target} вышел с выходного`;
+
+  if (user.nick) void markProfileViewStale(user.nick).catch(() => undefined);
 
   await writeActionLog({
     category: opts.source === "admin" ? "admin" : "profile",

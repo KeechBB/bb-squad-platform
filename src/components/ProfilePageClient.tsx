@@ -18,7 +18,11 @@ import {
 import { ProfileBgPicker } from "@/components/ProfileBgPicker";
 import { ProfileMedalShelf } from "@/components/ProfileMedalShelf";
 import { ProfileV2ScaleStage } from "@/components/ProfileV2ScaleStage";
-import { prefetchProfileView } from "@/lib/profileViewCache";
+import {
+  prefetchProfileView,
+  seedProfileView,
+  type ProfileViewBundle,
+} from "@/lib/profileViewCache";
 import {
   normalizeProfileBg,
   profileBgUrl,
@@ -114,7 +118,16 @@ function readMode(isBb: boolean): ProfileMode {
   return isBb ? "train" : "public";
 }
 
-export function ProfilePageClient({ subjectNick }: { subjectNick?: string } = {}) {
+export function ProfilePageClient({
+  subjectNick,
+  initialNick,
+  initialView = null,
+}: {
+  subjectNick?: string;
+  initialNick?: string;
+  initialView?: ProfileViewBundle | null;
+} = {}) {
+  if (initialNick && initialView) seedProfileView(initialNick, initialView);
   const { data: session, status } = useSession();
   const router = useRouter();
   const readOnly = Boolean(subjectNick);
@@ -220,11 +233,40 @@ export function ProfilePageClient({ subjectNick }: { subjectNick?: string } = {}
     return (
       <ProfileV2ScaleStage>
         <main className="profile-page profile-page-v2">
-          <div className="card" style={{ padding: 16 }}>
-            <p className="muted" style={{ margin: 0 }}>
-              Открываю профиль…
-            </p>
-          </div>
+          {initialNick && initialView ? (
+            <>
+              <div className="profile-v2-attend">
+                <ProfileClientHydrate
+                  nick={initialNick}
+                  slot="training"
+                  mode="train"
+                  initial={initialView}
+                />
+              </div>
+              <div className="profile-v2-stats">
+                <ProfileClientHydrate
+                  nick={initialNick}
+                  slot="stats"
+                  mode="train"
+                  initial={initialView}
+                />
+              </div>
+              <div className="profile-v2-history">
+                <ProfileClientHydrate
+                  nick={initialNick}
+                  slot="history"
+                  mode="train"
+                  initial={initialView}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="card" style={{ padding: 16 }}>
+              <p className="muted" style={{ margin: 0 }}>
+                Открываю профиль…
+              </p>
+            </div>
+          )}
         </main>
       </ProfileV2ScaleStage>
     );
@@ -244,7 +286,7 @@ export function ProfilePageClient({ subjectNick }: { subjectNick?: string } = {}
     );
   }
 
-  const nickForKv = shell.nick || session?.user?.nick || "";
+  const nickForKv = shell.nick || session?.user?.nick || initialNick || "";
   const kitsLane =
     mode === "public" ? "PB1" : shell.isBb ? "TR1" : shell.kitsLane;
   return (
@@ -377,6 +419,7 @@ export function ProfilePageClient({ subjectNick }: { subjectNick?: string } = {}
           nick={nickForKv || shell.nick || ""}
           slot="training"
           mode={mode}
+          initial={initialView}
           absenceSlot={
             readOnly ? null : (
             <AbsencePanel
@@ -395,7 +438,12 @@ export function ProfilePageClient({ subjectNick }: { subjectNick?: string } = {}
 
       <div className="profile-v2-stats">
         {nickForKv ? (
-          <ProfileClientHydrate nick={nickForKv} slot="stats" mode={mode} />
+          <ProfileClientHydrate
+            nick={nickForKv}
+            slot="stats"
+            mode={mode}
+            initial={initialView}
+          />
         ) : null}
       </div>
 
@@ -406,6 +454,7 @@ export function ProfilePageClient({ subjectNick }: { subjectNick?: string } = {}
             slot="history"
             mode={mode}
             defaultHistTab={shell.isBb ? "train" : "public"}
+            initial={initialView}
           />
         ) : null}
       </div>

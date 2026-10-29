@@ -18,6 +18,7 @@ import type {
 import {
   loadProfileView,
   peekProfileView,
+  seedProfileView,
   type ProfileViewBundle,
 } from "@/lib/profileViewCache";
 
@@ -84,6 +85,8 @@ type Props = {
   mode?: ProfileMode;
   /** Выходной / резерв — в календаре */
   absenceSlot?: ReactNode;
+  /** Готовый снимок с сервера — первый кадр без «Загрузка…». */
+  initial?: ProfileViewBundle | null;
 };
 
 type CwAtt = {
@@ -135,8 +138,13 @@ export function ProfileClientHydrate({
   slot,
   mode,
   absenceSlot,
+  initial = null,
 }: Props) {
-  const cached = typeof window !== "undefined" ? peekProfileView(nick) : null;
+  if (nick && initial) seedProfileView(nick, initial);
+  const cached =
+    (typeof window !== "undefined" ? peekProfileView(nick) : null) ||
+    initial ||
+    null;
 
   const [trainPwr, setTrainPwr] = useState<HomeTrainPwrRow | null>(
     () => (cached?.trainPwr as HomeTrainPwrRow) ?? null
@@ -168,7 +176,7 @@ export function ProfileClientHydrate({
       return;
     }
     let cancelled = false;
-    const peek = peekProfileView(nick);
+    const peek = peekProfileView(nick) || initial || null;
     if (peek) {
       applyBundle(peek, {
         setTrainPwr,
@@ -207,7 +215,7 @@ export function ProfileClientHydrate({
     return () => {
       cancelled = true;
     };
-  }, [nick, slot]);
+  }, [nick, slot, initial]);
 
   if (slot === "head") {
     return (

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ProfilePageClient } from "@/components/ProfilePageClient";
+import { readStoredProfileView } from "@/lib/profileViewSnapshot";
 import { TrainingSessionsCard } from "@/components/TrainingSessionsCard";
 import { ProfileHitmapCard } from "@/components/ProfileHitmapCard";
 import { getEnemyPlayer } from "@/lib/crossRating";
@@ -209,5 +210,13 @@ export default async function PlayerProfilePage({ params }: Props) {
   const isSelf = session.user.steamId === user.steamId;
   if (isSelf) redirect("/profile");
 
-  return <ProfilePageClient subjectNick={user.nick || nick} />;
+  const shown = user.nick || nick;
+  const initialView = await readStoredProfileView(shown).catch(() => null);
+  return (
+    <ProfilePageClient
+      subjectNick={shown}
+      initialNick={shown}
+      initialView={initialView}
+    />
+  );
 }

@@ -14,7 +14,7 @@ export type ProfileViewBundle = {
   histories?: unknown;
 };
 
-const SS_KEY = "bb_profile_view_v6";
+const SS_KEY = "bb_profile_view_v7";
 const inflight = new Map<string, Promise<ProfileViewBundle | null>>();
 const mem = new Map<string, { at: number; data: ProfileViewBundle }>();
 const MEM_TTL_MS = 90_000;
@@ -56,6 +56,15 @@ function writeSs(nick: string, data: ProfileViewBundle) {
   } catch {
     /* quota */
   }
+}
+
+/** Кладёт снимок с сервера в память вкладки до первого кадра карточек. */
+export function seedProfileView(nick: string, data: ProfileViewBundle) {
+  const k = nickKey(nick);
+  if (!k || !data) return;
+  const hit = mem.get(k);
+  if (hit && Date.now() - hit.at < MEM_TTL_MS) return;
+  mem.set(k, { at: Date.now(), data });
 }
 
 /** Sync peek — for useState initializer (instant paint from last visit). */

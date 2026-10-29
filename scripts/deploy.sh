@@ -281,4 +281,14 @@ chmod 644 /etc/cron.d/bb-attendance-hourly
 # Bootstrap snapshot so /home is not empty until next :00
 bash "$ROOT/scripts/publish_attendance_hourly.sh" >>/var/log/bb-attendance-hourly.log 2>&1 || true
 
+echo "==> profile view files (separate process, a few players per minute)"
+chmod +x "$ROOT/scripts/warm-profile-views.sh" 2>/dev/null || true
+cat >/etc/cron.d/bb-profile-warm <<EOF
+CRON_TZ=Europe/Moscow
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+* * * * * root flock -n /tmp/bb-profile-warm.lock env BB_PLATFORM_ROOT=$ROOT bash $ROOT/scripts/warm-profile-views.sh 3 >>/var/log/bb-profile-warm.log 2>&1
+EOF
+chmod 644 /etc/cron.d/bb-profile-warm
+
 echo "==> OK commit=$(git rev-parse --short HEAD) $(date -Is)"

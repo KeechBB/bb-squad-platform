@@ -29,7 +29,7 @@ export async function readSnapshot<T>(
   }
 }
 
-async function writeSnapshot<T>(rel: string, data: T): Promise<void> {
+export async function writeSnapshot<T>(rel: string, data: T): Promise<void> {
   const file = snapshotFile(rel);
   await fs.mkdir(path.dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;

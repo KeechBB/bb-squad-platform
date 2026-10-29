@@ -1,19 +1,10 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { loadUserTrainingStats } from "@/lib/trainingStats";
-import { loadUserPublicAttendanceStats } from "@/lib/publicAttendance";
-import {
-  buildPlayerPublicCombatStats,
-} from "@/lib/publicCombat";
+import { buildPlayerPublicCombatStats } from "@/lib/publicCombat";
 import { lookupPlayerPublicRp } from "@/lib/publicRp";
 import { lookupPlayerTrainPwr } from "@/lib/homeTrainPwr";
-import {
-  loadPlayerProfileHistories,
-  loadPlayerProfileStats,
-} from "@/lib/playerProfileHeavy";
-import { buildPlayerCwAttendance } from "@/lib/homeCwPwr";
+import { readStoredProfileView } from "@/lib/profileViewSnapshot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,7 +34,7 @@ function parsePart(raw: string | null): Part {
 }
 
 const hdr = {
-  "Cache-Control": "private, max-age=90, stale-while-revalidate=300",
+  "Cache-Control": "private, max-age=30, stale-while-revalidate=120",
 };
 
 export async function GET(req: Request) {
@@ -89,73 +80,34 @@ export async function GET(req: Request) {
     );
   }
 
+  // Календарь, стата, истории — готовый файл. Пересчёт здесь не запускается.
+  const payload = await readStoredProfileView(nick);
+
   if (part === "stats") {
-    const stats = nick
-      ? await loadPlayerProfileStats(nick).catch(() => null)
-      : null;
-    return NextResponse.json({ stats }, { headers: hdr });
+    return NextResponse.json(
+      {
+        trainPwr: payload.trainPwr,
+        publicSummary: payload.publicSummary,
+        stats: payload.stats,
+      },
+      { headers: hdr }
+    );
   }
 
   if (part === "hist") {
-    const histories = nick
-      ? await loadPlayerProfileHistories(nick).catch(() => null)
-      : null;
-    return NextResponse.json({ histories }, { headers: hdr });
+    return NextResponse.json({ histories: payload.histories }, { headers: hdr });
   }
-
-  // training / all — явка по субъекту профиля (свой = session; чужой ?nick= → его id)
-  const subject = nickParam
-    ? await prisma.user.findFirst({
-        where: {
-          nick: { equals: nickParam, mode: "insensitive" },
-          profileComplete: true,
-        },
-        select: { id: true, nick: true },
-      })
-    : await prisma.user.findUnique({
-        where: { steamId: session.user.steamId },
-        select: { id: true, nick: true },
-      });
-  if (!subject) {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
-  }
-  const nick2 = nickParam || subject.nick || nick || "";
 
   if (part === "training") {
-    const [training, publicAtt, cwAtt] = await Promise.all([
-      loadUserTrainingStats(subject.id),
-      loadUserPublicAttendanceStats(subject.id).catch(() => null),
-      nick2
-        ? buildPlayerCwAttendance(nick2).catch(() => ({ byDay: {} }))
-        : Promise.resolve({ byDay: {} }),
-    ]);
-    return NextResponse.json({ training, publicAtt, cwAtt }, { headers: hdr });
+    return NextResponse.json(
+      {
+        training: payload.training,
+        publicAtt: payload.publicAtt,
+        cwAtt: payload.cwAtt,
+      },
+      { headers: hdr }
+    );
   }
 
-  const [trainPwr, rp, combat, training, publicAtt, cwAtt, stats, histories] =
-    await Promise.all([
-      nick2 ? lookupPlayerTrainPwr(nick2).catch(() => null) : null,
-      nick2 ? lookupPlayerPublicRp(nick2).catch(() => null) : null,
-      nick2 ? buildPlayerPublicCombatStats(nick2).catch(() => null) : null,
-      loadUserTrainingStats(subject.id),
-      loadUserPublicAttendanceStats(subject.id).catch(() => null),
-      nick2
-        ? buildPlayerCwAttendance(nick2).catch(() => ({ byDay: {} }))
-        : Promise.resolve({ byDay: {} }),
-      nick2 ? loadPlayerProfileStats(nick2).catch(() => null) : null,
-      nick2 ? loadPlayerProfileHistories(nick2).catch(() => null) : null,
-    ]);
-
-  return NextResponse.json(
-    {
-      trainPwr,
-      publicSummary: { rp, combat },
-      training,
-      publicAtt,
-      cwAtt,
-      stats,
-      histories,
-    },
-    { headers: hdr }
-  );
+  return NextResponse.json(payload, { headers: hdr });
 }
