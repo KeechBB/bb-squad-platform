@@ -133,9 +133,24 @@ export async function buildProfileViewPayload(
   };
 }
 
+function storedHistoryCount(hist: unknown): number {
+  if (!hist || typeof hist !== "object") return 0;
+  const row = hist as {
+    trainHistory?: unknown[];
+    publicHistory?: unknown[];
+    cwHistory?: unknown[];
+  };
+  return (
+    (row.trainHistory?.length || 0) +
+    (row.publicHistory?.length || 0) +
+    (row.cwHistory?.length || 0)
+  );
+}
+
 /**
- * Только готовый файл. Нет файла — пустая оболочка и уже записанные строки
- * истории. Запрос страницы пересчёт не запускает.
+ * Только готовый файл. Пустые истории в старом файле добираем готовыми
+ * строками из базы — это чтение, не пересчёт. Нет файла — пустая оболочка.
+ * Запрос страницы сборку не запускает.
  */
 export async function readStoredProfileView(
   nick: string
@@ -143,7 +158,16 @@ export async function readStoredProfileView(
   const name = (nick || "").trim();
   if (!name) return emptyPayload();
   const hit = await readSnapshot<ProfileViewPayload>(fileFor(name));
-  if (hit?.data && typeof hit.data === "object") return present(hit.data);
+  if (hit?.data && typeof hit.data === "object") {
+    const data = present(hit.data);
+    if (storedHistoryCount(data.histories) === 0) {
+      const histories = await loadReadyHistories(name).catch(() => null);
+      if (histories && storedHistoryCount(histories) > 0) {
+        data.histories = histories;
+      }
+    }
+    return data;
+  }
   const histories = await loadReadyHistories(name).catch(() => null);
   const base = emptyPayload();
   if (histories) base.histories = histories;
