@@ -6,7 +6,9 @@ import { KvAutoHeightFrame } from "@/components/KvAutoHeightFrame";
 
 export const dynamic = "force-dynamic";
 
-export default async function TrainingMatchesPage() {
+type Props = { searchParams?: Promise<{ tab?: string }> };
+
+export default async function TrainingMatchesPage({ searchParams }: Props) {
   const session = await getSession();
   if (!session?.user?.steamId) redirect("/?login=1");
   if (!session.user.profileComplete) redirect("/register");
@@ -14,13 +16,24 @@ export default async function TrainingMatchesPage() {
     redirect("/clans");
   }
 
+  const sp = searchParams ? await searchParams : {};
+  const tab = sp.tab || "";
+  const hash =
+    tab === "growth"
+      ? "#/tm/growth"
+      : tab === "rating"
+        ? "#/tm/rating"
+        : tab === "hits"
+          ? "#/tm/hits"
+          : "#/tm";
+
   const bust = await liveKvBust();
   const matchParams = new URLSearchParams({
     embed: "1",
     hideTiers: "1",
     v: bust,
   });
-  const iframeSrc = `/kv-static/index.html?${matchParams.toString()}#/tm`;
+  const iframeSrc = `/kv-static/index.html?${matchParams.toString()}${hash}`;
 
   return (
     <KvAutoHeightFrame

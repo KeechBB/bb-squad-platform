@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 
 type Props = {
   src: string;
@@ -20,6 +21,7 @@ export function KvAutoHeightFrame({
   minHeight = 420,
 }: Props) {
   const frameRef = useRef<HTMLIFrameElement>(null);
+  const [devOpen, setDevOpen] = useState(false);
 
   const applyHeight = useCallback(
     (raw: number) => {
@@ -101,7 +103,33 @@ export function KvAutoHeightFrame({
 
     const onMsg = (e: MessageEvent) => {
       const data = e.data;
-      if (!data || data.type !== "bb-kv-embed-height") return;
+      if (!data || typeof data !== "object") return;
+      if (e.origin !== window.location.origin) return;
+      if (data.type === "bb-tm-dev-open") {
+        setDevOpen(true);
+        return;
+      }
+      if (data.type === "bb-kv-hash" && typeof data.hash === "string") {
+        const path = window.location.pathname;
+        if (path !== "/tm" && path !== "/cw") return;
+        const hash = data.hash;
+        let tab = "";
+        if (path === "/tm") {
+          if (hash.startsWith("#/tm/growth")) tab = "growth";
+          else if (hash.includes("rating")) tab = "rating";
+          else if (hash.includes("/hits")) tab = "hits";
+        } else if (hash.includes("analytics")) tab = "analytics";
+        else if (hash.includes("rating")) tab = "rating";
+        const url = new URL(window.location.href);
+        if (tab) url.searchParams.set("tab", tab);
+        else url.searchParams.delete("tab");
+        url.hash = "";
+        const next = url.pathname + url.search;
+        const cur = window.location.pathname + window.location.search;
+        if (next !== cur) history.replaceState(null, "", next);
+        return;
+      }
+      if (data.type !== "bb-kv-embed-height") return;
       if (typeof data.height !== "number" || !Number.isFinite(data.height)) {
         return;
       }
@@ -132,6 +160,19 @@ export function KvAutoHeightFrame({
         scrolling="no"
         style={{ minHeight }}
       />
+      {devOpen
+        ? createPortal(
+            <div className="tm-dev-plaque" role="dialog" aria-modal="true">
+              <div className="tm-dev-plaque-card">
+                <p>На данный момент раздел находится в разработке</p>
+                <button type="button" onClick={() => setDevOpen(false)}>
+                  Понял
+                </button>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }
