@@ -2501,26 +2501,26 @@ body.has-profile-bg .shell:has(.profile-page) {
   flex: 0 0 auto;
 }
 
-/* Свой профиль: поля по бокам, чтобы был виден фон.
-   Картинка фона на весь хост, сцена прозрачная — края не чёрные. */
+/* Свой профиль: поля по бокам ≈ красная рамка (~10% слева/справа), фон виден. */
 .canvas-scale-host.is-profile.is-side-inset {
-  /* Шире поля: фон читается с боков; на узких экранах не давим почту. */
-  padding: 0 clamp(72px, 12vw, 520px);
   box-sizing: border-box;
+  padding: 0 max(96px, 10vw);
 }
 
+.canvas-scale-host.is-profile.is-side-inset.has-stage-bg,
 body.has-profile-bg .canvas-scale-host.is-profile.is-side-inset {
   background: var(--profile-bg-image) center / cover no-repeat;
   background-color: #07060c;
 }
 
+.canvas-scale-host.is-profile.is-side-inset.has-stage-bg .canvas-scale-stage,
 body.has-profile-bg .canvas-scale-host.is-profile.is-side-inset .canvas-scale-stage {
-  background: transparent;
+  background: transparent !important;
 }
 
-@media (max-width: 1480px) {
+@media (max-width: 1280px) {
   .canvas-scale-host.is-profile.is-side-inset {
-    padding: 0 clamp(28px, 5vw, 160px);
+    padding: 0 max(36px, 4vw);
   }
 }
 

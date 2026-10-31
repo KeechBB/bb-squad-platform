@@ -49,6 +49,7 @@ export function CanvasScaleStage({
     stageH: CANVAS_REF_H,
     scale: 1,
   });
+  const [box, setBox] = useState({ w: CANVAS_REF_W, h: CANVAS_REF_H });
   const [useZoom, setUseZoom] = useState(true);
 
   useEffect(() => {
@@ -60,8 +61,15 @@ export function CanvasScaleStage({
     if (!host || typeof ResizeObserver === "undefined") return;
 
     const measure = () => {
-      const w = host.clientWidth;
-      const h = host.clientHeight;
+      const style = getComputedStyle(host);
+      const padX =
+        (parseFloat(style.paddingLeft) || 0) +
+        (parseFloat(style.paddingRight) || 0);
+      const padY =
+        (parseFloat(style.paddingTop) || 0) +
+        (parseFloat(style.paddingBottom) || 0);
+      const w = host.clientWidth - padX;
+      const h = host.clientHeight - padY;
       if (w < 32 || h < 32) return;
 
       const hostAspect = w / h;
@@ -75,6 +83,7 @@ export function CanvasScaleStage({
         stageH = Math.round(CANVAS_REF_W / hostAspect);
       }
       const scale = w / stageW;
+      setBox({ w, h });
       setFit({
         stageW,
         stageH,
@@ -103,12 +112,13 @@ export function CanvasScaleStage({
         } as CSSProperties)),
   } as CSSProperties;
 
-  const slotStyle = useZoom
-    ? undefined
-    : ({
-        width: fit.stageW * fit.scale,
-        height: fit.stageH * fit.scale,
-      } as CSSProperties);
+  // Слот строго в content-box хоста — не залезает на боковые поля с фоном.
+  const slotStyle = {
+    width: box.w,
+    height: box.h,
+    maxWidth: "100%",
+    overflow: "hidden",
+  } as CSSProperties;
 
   const innerStyle =
     contentWidth === "full"
