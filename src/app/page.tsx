@@ -119,10 +119,6 @@ export default async function HomePage() {
                 ваших навыков. Цель — прозрачная соревновательная экосистема для всех{" "}
                 <strong>игроков</strong> и участников <strong>кланов</strong>.
               </p>
-              <p className="home-welcome-plaque-note">
-                Стартовал первый <strong>турнир</strong> Fruit Strike — регистрация
-                открыта для всех желающих.
-              </p>
             </aside>
           </div>
           <HomeTournamentAnnounce />
