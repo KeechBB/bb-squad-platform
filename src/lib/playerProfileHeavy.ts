@@ -1,21 +1,16 @@
 import { cache } from "react";
-import { unstable_cache } from "next/cache";
 import { buildPlayerKvStats, type PlayerKvStats } from "@/lib/kvStats";
 import {
-  buildPlayerTrainMatchHistory,
   buildPlayerTrainCombatStats,
   type TrainMatchHistoryRow,
   type PlayerTrainCombatStats,
 } from "@/lib/homeTrainPwr";
-import {
-  buildPlayerCwMatchHistory,
-  type CwMatchHistoryRow,
-} from "@/lib/homeCwPwr";
-import { buildPlayerPublicMatchHistory } from "@/lib/publicMatchHistory";
+import { type CwMatchHistoryRow } from "@/lib/homeCwPwr";
 import {
   buildPlayerPublicCombatStats,
   type PlayerPublicCombatStats,
 } from "@/lib/publicCombat";
+import { loadReadyHistories } from "@/lib/profileMatchLines";
 
 export type PlayerProfileHeavy = {
   kvStats: PlayerKvStats | null;
@@ -25,14 +20,10 @@ export type PlayerProfileHeavy = {
   trainHistory: TrainMatchHistoryRow[];
   publicHistory: TrainMatchHistoryRow[];
   cwHistory: CwMatchHistoryRow[];
+  trainTotal: number;
+  publicTotal: number;
+  cwTotal: number;
 };
-
-function nickCacheKey(nick: string) {
-  return String(nick || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "");
-}
 
 async function loadPlayerProfileHeavyUncached(
   nick: string
@@ -47,17 +38,13 @@ async function loadPlayerProfileHeavyUncached(
       trainHistory: [],
       publicHistory: [],
       cwHistory: [],
+      trainTotal: 0,
+      publicTotal: 0,
+      cwTotal: 0,
     };
   }
 
-  const [
-    kvBundle,
-    trainCombat,
-    publicCombat,
-    trainHistory,
-    publicHistory,
-    cwHistory,
-  ] = await Promise.all([
+  const [kvBundle, trainCombat, publicCombat, ready] = await Promise.all([
     buildPlayerKvStats(clean)
       .then((stats) => ({ stats, error: null as string | null }))
       .catch(() => ({
@@ -66,9 +53,7 @@ async function loadPlayerProfileHeavyUncached(
       })),
     buildPlayerTrainCombatStats(clean).catch(() => null),
     buildPlayerPublicCombatStats(clean).catch(() => null),
-    buildPlayerTrainMatchHistory(clean).catch(() => []),
-    buildPlayerPublicMatchHistory(clean).catch(() => []),
-    buildPlayerCwMatchHistory(clean).catch(() => []),
+    loadReadyHistories(clean).catch(() => null),
   ]);
 
   return {
@@ -76,25 +61,31 @@ async function loadPlayerProfileHeavyUncached(
     kvError: kvBundle.error,
     trainCombat,
     publicCombat,
-    trainHistory,
-    publicHistory,
-    cwHistory,
+    trainHistory: (ready?.trainHistory || []) as TrainMatchHistoryRow[],
+    publicHistory: (ready?.publicHistory || []) as TrainMatchHistoryRow[],
+    cwHistory: (ready?.cwHistory || []) as CwMatchHistoryRow[],
+    trainTotal: ready?.trainTotal || 0,
+    publicTotal: ready?.publicTotal || 0,
+    cwTotal: ready?.cwTotal || 0,
   };
 }
 
-/** Тяжёлая стата профиля — dedupe в запросе + готовый ответ на 2 минуты. */
-export const loadPlayerProfileHeavy = cache(
-  async (nick: string): Promise<PlayerProfileHeavy> => {
-    const key = nickCacheKey(nick);
-    if (!key) return loadPlayerProfileHeavyUncached(nick);
-    const cached = unstable_cache(
-      () => loadPlayerProfileHeavyUncached(nick),
-      ["profile-heavy-v3", key],
-      { revalidate: 120 }
-    );
-    return cached();
+/**
+ * Тяжёлая стата профиля.
+ * `cache()` — только внутри Next-запроса; cron/tsx без incrementalCache
+ * иначе падает и тёплый снимок пишет trainCombat:null (пустая «Статистика тренировок»).
+ */
+const loadPlayerProfileHeavyCached = cache(loadPlayerProfileHeavyUncached);
+
+export async function loadPlayerProfileHeavy(
+  nick: string
+): Promise<PlayerProfileHeavy> {
+  try {
+    return await loadPlayerProfileHeavyCached(nick);
+  } catch {
+    return loadPlayerProfileHeavyUncached(nick);
   }
-);
+}
 
 export type PlayerProfileStats = {
   kvStats: PlayerKvStats | null;
@@ -107,6 +98,9 @@ export type PlayerProfileHistories = {
   trainHistory: TrainMatchHistoryRow[];
   publicHistory: TrainMatchHistoryRow[];
   cwHistory: CwMatchHistoryRow[];
+  trainTotal?: number;
+  publicTotal?: number;
+  cwTotal?: number;
 };
 
 /** Вкладки статы профиля (КВ / train / public combat). */
@@ -131,5 +125,8 @@ export async function loadPlayerProfileHistories(
     trainHistory: h.trainHistory,
     publicHistory: h.publicHistory,
     cwHistory: h.cwHistory,
+    trainTotal: h.trainTotal,
+    publicTotal: h.publicTotal,
+    cwTotal: h.cwTotal,
   };
 }

@@ -170,11 +170,52 @@ async function withLivePublicRp(
     };
   }
   const rp = await lookupPlayerPublicRp(name).catch(() => null);
-  if (rp) {
+  if (rp && Number.isFinite(Number(rp.rp))) {
+    const official = Math.round(Number(rp.rp));
+    const combat = data.publicSummary?.combat;
     data.publicSummary = {
       rp,
-      combat: data.publicSummary?.combat ?? null,
+      combat: combat
+        ? {
+            ...combat,
+            rp: official,
+            rankLabel: rp.rankLabel,
+            rankKey: rp.rankKey,
+            predatorPlace: rp.predatorPlace ?? null,
+          }
+        : combat ?? null,
     };
+    const stats = data.stats as {
+      publicCombat?: {
+        rp?: number | null;
+        rankLabel?: string | null;
+        rankKey?: string | null;
+        predatorPlace?: number | null;
+      } | null;
+    } | null;
+    if (stats?.publicCombat) {
+      data.stats = {
+        ...stats,
+        publicCombat: {
+          ...stats.publicCombat,
+          rp: official,
+          rankLabel: rp.rankLabel,
+          rankKey: rp.rankKey,
+          predatorPlace: rp.predatorPlace ?? null,
+        },
+      };
+    }
+    const hist = data.histories as { publicHistory?: unknown[] } | null;
+    const rows = hist?.publicHistory;
+    const newest = rows?.[0];
+    if (rows && newest && typeof newest === "object") {
+      const first = { ...(newest as Record<string, unknown>) };
+      first.rpAfter = official;
+      first.pwrAfter = official;
+      first.rankLabel = rp.rankLabel;
+      first.rankKey = rp.rankKey;
+      data.histories = { ...hist, publicHistory: [first, ...rows.slice(1)] };
+    }
   }
   return data;
 }
@@ -223,6 +264,67 @@ async function withLiveTrainingIfEmpty(
   return data;
 }
 
+function trainCombatMatches(stats: unknown): number {
+  if (!stats || typeof stats !== "object") return 0;
+  const row = stats as { trainCombat?: { matches?: number } | null };
+  const n = row.trainCombat?.matches;
+  return Number.isFinite(n) ? Number(n) : 0;
+}
+
+/**
+ * Сломанный warm (tsx без Next cache) писал trainCombat:null при живых катках.
+ * На чтении поднимаем стату/историю и ставим полный rebuild в фон.
+ */
+async function withLiveCombatIfEmpty(
+  nick: string,
+  data: ProfileViewPayload
+): Promise<ProfileViewPayload> {
+  const hist = data.histories as {
+    trainHistory?: unknown[];
+    trainTotal?: number;
+  } | null;
+  const needCombat = trainCombatMatches(data.stats) <= 0;
+  const needTrainHist = !(hist?.trainHistory && hist.trainHistory.length > 0);
+  if (!needCombat && !needTrainHist) return data;
+
+  const heavy = await loadPlayerProfileHeavy(nick).catch(() => null);
+  if (!heavy) return data;
+
+  if (needCombat && (heavy.trainCombat?.matches || 0) > 0) {
+    const prev =
+      data.stats && typeof data.stats === "object"
+        ? (data.stats as Record<string, unknown>)
+        : {};
+    data.stats = {
+      ...prev,
+      kvStats: heavy.kvStats ?? prev.kvStats ?? null,
+      kvError: heavy.kvError ?? prev.kvError ?? null,
+      trainCombat: heavy.trainCombat,
+      publicCombat: heavy.publicCombat ?? prev.publicCombat ?? null,
+    };
+  }
+  if (needTrainHist && heavy.trainHistory.length > 0) {
+    const prev =
+      data.histories && typeof data.histories === "object"
+        ? (data.histories as Record<string, unknown>)
+        : {};
+    data.histories = {
+      ...prev,
+      trainHistory: heavy.trainHistory,
+      trainTotal: heavy.trainTotal || heavy.trainHistory.length,
+      publicHistory: prev.publicHistory ?? heavy.publicHistory,
+      cwHistory: prev.cwHistory ?? heavy.cwHistory,
+      publicTotal: prev.publicTotal ?? heavy.publicTotal,
+      cwTotal: prev.cwTotal ?? heavy.cwTotal,
+    };
+  }
+
+  void import("@/lib/profileViewQueue")
+    .then((m) => m.markProfileViewStale(nick))
+    .catch(() => undefined);
+  return data;
+}
+
 /**
  * Готовый файл для календаря и статы. RP паблика и его история — из лестницы.
  */
@@ -240,7 +342,13 @@ export async function readStoredProfileView(
         data.histories = histories;
       }
     }
-    return withLivePublicRp(name, await withLiveTrainingIfEmpty(name, data));
+    return withLivePublicRp(
+      name,
+      await withLiveCombatIfEmpty(
+        name,
+        await withLiveTrainingIfEmpty(name, data)
+      )
+    );
   }
   const histories = await loadReadyHistories(name).catch(() => null);
   const base = emptyPayload();
@@ -249,7 +357,13 @@ export async function readStoredProfileView(
   void import("@/lib/profileViewQueue")
     .then((m) => m.markProfileViewStale(name))
     .catch(() => undefined);
-  return withLivePublicRp(name, await withLiveTrainingIfEmpty(name, base));
+  return withLivePublicRp(
+    name,
+    await withLiveCombatIfEmpty(
+      name,
+      await withLiveTrainingIfEmpty(name, base)
+    )
+  );
 }
 
 /** Совместимость: старые вызовы больше не пересчитывают профиль. */
