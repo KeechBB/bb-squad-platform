@@ -5,6 +5,7 @@ import { getHomeDashboardData } from "@/lib/homePageData";
 import { HomePanels } from "@/components/HomePanels";
 import { HomeFit } from "@/components/HomeFit";
 import { HomeLoginPrompt } from "@/components/HomeLoginPrompt";
+import { HomeBattlePassTeaser } from "@/components/HomeBattlePassTeaser";
 import { HomeTournamentAnnounce } from "@/components/HomeTournamentAnnounce";
 import type { HomeCwCard } from "@/components/HomeCwAnnounce";
 import {
@@ -16,6 +17,7 @@ import {
 } from "@/lib/cwReady";
 import { syncCwMails } from "@/lib/cwMailSync";
 import { syncTournamentEliminationMails } from "@/lib/tournamentEliminationMail";
+import { isBattlePassIntermission } from "@/lib/battlePassSchedule";
 
 export const dynamic = "force-dynamic";
 
@@ -123,7 +125,11 @@ export default async function HomePage() {
               </p>
             </aside>
           </div>
-          <HomeTournamentAnnounce />
+          {isBattlePassIntermission() ? (
+            <HomeBattlePassTeaser />
+          ) : (
+            <HomeTournamentAnnounce />
+          )}
           <HomePanels
             publicTop={publicTop}
             viewerNick={session?.user?.nick || null}
