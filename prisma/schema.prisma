@@ -79,6 +79,7 @@ model User {
   lastSeenAt      DateTime?
 
   clanMemberships ClanMember[]
+  cwReadies       CwReady[]
   clanInvites     ClanInvite[] @relation("Invitee")
   sentInvites     ClanInvite[] @relation("Inviter")
   ledClans        Clan[]       @relation("ClanLeader")
@@ -115,6 +116,9 @@ model User {
   siteNoticeStates           SiteNoticeState[]
   userNotices                UserNotice[]
   canonMatchPlayers          CanonMatchPlayer[]
+  authoredProfileMail        ProfileMail[] @relation("ProfileMailAuthor")
+  profileMail                ProfileMailRecipient[]
+  tournamentBets             TournamentBet[]
 }
 
 /// Тип матча в едином каноне plaza (фаза 1+).
@@ -181,6 +185,46 @@ model RpScoredMatch {
 
   @@unique([scope, matchKey])
   @@index([scope, date])
+}
+
+/// Готовая строка истории профиля. Пишется при сборке истории, читается постранично.
+model ProfileMatchLine {
+  id        String   @id @default(cuid())
+  /// public | train | cw
+  kind      String
+  nickKey   String
+  nick      String
+  matchId   String
+  /// YYYY-MM-DD
+  playedOn  String
+  timeLabel String   @default("")
+  /// Свежие сверху: лексикографический ключ даты и времени.
+  sortKey   String
+  map       String   @default("")
+  /// Счёт витрины: тикеты или итог встречи.
+  score     String   @default("")
+  kills     Int      @default(0)
+  deaths    Int      @default(0)
+  res       Int      @default(0)
+  nok       Int      @default(0)
+  rpAfter   Float?
+  rpDelta   Float?
+  /// Полная строка таблицы профиля, чтобы страница не собирала её заново.
+  payload   Json
+  updatedAt DateTime @updatedAt
+
+  @@unique([kind, nickKey, matchId])
+  @@index([kind, nickKey, sortKey(sort: Desc)])
+}
+
+/// Когда строки истории собраны. Пустая история тоже отмечается, чтобы не собирать её на каждый заход.
+model ProfileMatchStamp {
+  id       String   @id @default(cuid())
+  kind     String
+  nickKey  String
+  builtAt  DateTime @default(now())
+
+  @@unique([kind, nickKey])
 }
 
 /// Откуда пришёл факт матча.
@@ -1011,4 +1055,112 @@ model TournamentTeamInvite {
 
   @@index([userId, status])
   @@index([teamId, status])
+}
+
+/// Отметка «Буду на КВ» с главной. Строка не удаляется: снятие галочки пишет withdrawnAt.
+model CwReady {
+  id          String    @id @default(cuid())
+  matchId     String
+  userId      String
+  nick        String
+  stack       String    @default("")
+  opp         String    @default("")
+  dateLabel   String    @default("")
+  timeMsk     String    @default("")
+  map         String    @default("")
+  going       Boolean   @default(true)
+  signedAt    DateTime  @default(now())
+  withdrawnAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, userId])
+  @@index([matchId, going])
+  @@index([signedAt])
+}
+
+/// Готовый срез «Отчет по BB». Пишет cron в 21:30 и 01:00 МСК.
+/// Сайт читает не эту таблицу, а вью BbTrainReportV.
+model BbTrainReport {
+  id            String   @id
+  reportDate    DateTime @db.Date
+  /// 2130 — начало тренировки, 0100 — разбор того же вечера
+  slot          String
+  takenAt       DateTime
+  peakOnline    Int
+  joinedTotal   Int
+  ydayMissingN  Int
+  weekMissingN  Int
+  schedExpected Int
+  schedPresent  Int
+  lateFirstN    Int
+  payload       Json
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([reportDate, slot])
+  @@index([reportDate])
+}
+
+/// Письмо в профиле. Одно на всех адресатов, состояние у каждого своё.
+model ProfileMail {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  title       String
+  body        String
+  /// developer | admin | hr | custom
+  senderKind  String
+  senderLabel String
+  /// Цветные метки на письме: Турнир, Тактика и свои.
+  tags        String[] @default([])
+  /// cw:id встречи — одно письмо на одну КВ. Пусто у ручных писем.
+  sourceKey   String?  @unique
+  cwMatchId   String?
+  authorId    String
+  author      User     @relation("ProfileMailAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  recipients  ProfileMailRecipient[]
+
+  @@index([createdAt])
+}
+
+model ProfileMailRecipient {
+  id          String    @id @default(cuid())
+  mailId      String
+  mail        ProfileMail @relation(fields: [mailId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readAt      DateTime?
+  favoritedAt DateTime?
+  deletedAt   DateTime?
+
+  @@unique([mailId, userId])
+  @@index([userId, deletedAt])
+  @@index([deletedAt])
+}
+
+/// Прогноз на турнир. Один бланк на игрока. Верный ответ = 100 BB Points.
+model TournamentBet {
+  id               String   @id @default(cuid())
+  tournamentId     String
+  userId           String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  place1TeamId     String?
+  place2TeamId     String?
+  place3TeamId     String?
+  topKillsUserId   String?
+  topCutsUserId    String?
+  lowKdTeamId      String?
+  killsOver2000    Boolean?
+  cutsOver500      Boolean?
+  mostDeathsTeamId String?
+  topKillsMap      String?
+  blowoutScore     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, userId])
+  @@index([tournamentId])
 }
