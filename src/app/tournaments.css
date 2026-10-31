@@ -3141,13 +3141,48 @@ a.tn-bet-save {
   grid-template-columns: 48px minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.9rem;
+  width: 100%;
   padding: 0.85rem 1rem;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
   color: inherit;
+  text-align: left;
   text-decoration: none;
+  cursor: pointer;
+  font: inherit;
   transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.tn-cup-wait {
+  margin-top: 1.25rem;
+  padding: 1.75rem 1.25rem;
+  border-radius: 14px;
+  border: 1px solid rgba(226, 197, 106, 0.35);
+  background: rgba(226, 197, 106, 0.06);
+  text-align: center;
+}
+
+.tn-cup-wait-eyebrow {
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: var(--tn-muted, #b7b0a2);
+}
+
+.tn-cup-wait-title {
+  margin: 0.55rem 0 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #f4f0e6;
+}
+
+.tn-cup-wait-body {
+  margin: 0.55rem auto 1.15rem;
+  max-width: 28rem;
+  color: var(--tn-muted, #b7b0a2);
+  line-height: 1.5;
+  font-size: 0.95rem;
 }
 
 .tn-cup-row:hover {
