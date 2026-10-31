@@ -2,6 +2,9 @@
  * Ближайшие КВ Main/Junior и отметки «буду».
  * Список виден только участникам клана BlackBerry.
  * Отметки лежат в таблице CwReady, не в файле. Снятие галочки строку не удаляет.
+ *
+ * Перенос слота: в календаре status=move + movedTo=<новый id> —
+ * главная берёт только upcoming, а отметки «буду» сами переезжают на новый id.
  */
 import { promises as fs } from "node:fs";
 import path from "node:path";
@@ -84,10 +87,171 @@ type DiskMatch = {
   rules?: string;
   stack?: string;
   status?: string;
+  /** Новый id слота после переноса (главная / CwReady). */
+  movedTo?: string;
+  note?: string;
   clan?: string;
   r1?: string;
   r2?: string;
 };
+
+type MonthDisk = {
+  year?: number;
+  month?: string | number;
+  matches?: DiskMatch[];
+};
+
+/** Раз в 30с на воркер — подтянуть movedTo → CwReady. */
+let moveSyncAt = 0;
+let moveSyncInflight: Promise<number> | null = null;
+
+function parseMovedToDayMonth(note: string): { day: number; month: number } | null {
+  const m = /перенос\s*→\s*(\d{1,2})\.(\d{1,2})/i.exec(note);
+  if (!m) return null;
+  return { day: Number(m[1]), month: Number(m[2]) };
+}
+
+function resolveMoveChain(
+  fromId: string,
+  hops: Map<string, string>,
+  depth = 0
+): string {
+  if (depth > 8) return fromId;
+  const next = hops.get(fromId);
+  if (!next || next === fromId) return fromId;
+  return resolveMoveChain(next, hops, depth + 1);
+}
+
+async function loadCalendarMoveHops(): Promise<Map<string, string>> {
+  const index = await loadKvJsonCached<{
+    months?: { url?: string; year?: number; month?: number }[];
+  }>("data/index.json");
+  const hops = new Map<string, string>();
+  /** key: `MM-DD|OPP|Stack` → upcoming match id (год не важен для поиска цели переноса). */
+  const upcomingByDayOppStack = new Map<string, string>();
+  const moveRows: {
+    id: string;
+    opp: string;
+    stack: CwStack;
+    note: string;
+    movedTo: string;
+  }[] = [];
+
+  for (const meta of index?.months || []) {
+    if (!meta.url) continue;
+    const data = await loadKvJsonCached<MonthDisk>(meta.url);
+    if (!data) continue;
+    const month =
+      Number(meta.month) ||
+      Number(String(data.month || "").slice(5, 7)) ||
+      Number(data.month) ||
+      0;
+    for (const match of data.matches || []) {
+      const id = cleanText(match.id);
+      if (!id) continue;
+      const stack = stackOf(match.stack);
+      const opp = cleanText(match.opp).toUpperCase();
+      const day = Number(match.day) || 0;
+      const status = String(match.status || "");
+      if (status === "upcoming" && stack && opp && day && month) {
+        upcomingByDayOppStack.set(
+          `${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}|${opp}|${stack}`,
+          id
+        );
+      }
+      if (status === "move") {
+        moveRows.push({
+          id,
+          opp,
+          stack: stack || "Main",
+          note: String(match.note || ""),
+          movedTo: cleanText(match.movedTo),
+        });
+      }
+    }
+  }
+
+  for (const row of moveRows) {
+    if (row.movedTo && row.movedTo !== row.id) {
+      hops.set(row.id, row.movedTo);
+      continue;
+    }
+    const parsed = parseMovedToDayMonth(row.note);
+    if (!parsed || !row.opp) continue;
+    const key = `${String(parsed.month).padStart(2, "0")}-${String(parsed.day).padStart(2, "0")}|${row.opp}|${row.stack}`;
+    const target = upcomingByDayOppStack.get(key);
+    if (target && target !== row.id) hops.set(row.id, target);
+  }
+
+  return hops;
+}
+
+/**
+ * Переносит отметки CwReady со старых id на финальный movedTo.
+ * Вызывать с главной / API — тогда после правки календаря «буду» не залипает.
+ */
+export async function applyCwCalendarMoves(): Promise<number> {
+  const hops = await loadCalendarMoveHops();
+  if (!hops.size) return 0;
+  let moved = 0;
+  for (const fromId of hops.keys()) {
+    const toId = resolveMoveChain(fromId, hops);
+    if (!toId || toId === fromId) continue;
+    const rows = await prisma.cwReady.findMany({ where: { matchId: fromId } });
+    for (const row of rows) {
+      await prisma.cwReady.upsert({
+        where: {
+          matchId_userId: { matchId: toId, userId: row.userId },
+        },
+        create: {
+          matchId: toId,
+          userId: row.userId,
+          nick: row.nick,
+          going: row.going,
+          signedAt: row.signedAt,
+          withdrawnAt: row.withdrawnAt,
+          stack: row.stack,
+          opp: row.opp,
+          dateLabel: row.dateLabel,
+          timeMsk: row.timeMsk,
+          map: row.map,
+        },
+        update: {
+          nick: row.nick,
+          // не затираем уже подтверждённое «буду» ложным going со старого слота
+          ...(row.going ? { going: true, withdrawnAt: null } : {}),
+          stack: row.stack,
+          opp: row.opp,
+          dateLabel: row.dateLabel,
+          timeMsk: row.timeMsk,
+          map: row.map,
+        },
+      });
+      moved += 1;
+    }
+  }
+  return moved;
+}
+
+async function ensureCwReadyMovesSynced(): Promise<void> {
+  const now = Date.now();
+  if (now - moveSyncAt < 30_000) return;
+  if (moveSyncInflight) {
+    await moveSyncInflight;
+    return;
+  }
+  moveSyncAt = now;
+  moveSyncInflight = (async () => {
+    try {
+      return await applyCwCalendarMoves();
+    } catch {
+      return 0;
+    } finally {
+      moveSyncInflight = null;
+    }
+  })();
+  await moveSyncInflight;
+}
 
 function ticketPair(raw: unknown): boolean {
   return /^\d+\s*[:\-–—]\s*\d+$/.test(String(raw || "").trim());
@@ -103,17 +267,14 @@ function meetingClosed(match: DiskMatch): boolean {
 async function upcomingBb(): Promise<
   (CwAnnounce & { start: number })[]
 > {
+  await ensureCwReadyMovesSynced();
   const index = await loadKvJsonCached<{
     months?: { url?: string; year?: number; month?: number }[];
   }>("data/index.json");
   const out: (CwAnnounce & { start: number })[] = [];
   for (const meta of index?.months || []) {
     if (!meta.url) continue;
-    const data = await loadKvJsonCached<{
-      year?: number;
-      month?: string | number;
-      matches?: DiskMatch[];
-    }>(meta.url);
+    const data = await loadKvJsonCached<MonthDisk>(meta.url);
     if (!data) continue;
     const year = Number(meta.year) || Number(data.year) || 0;
     const month =

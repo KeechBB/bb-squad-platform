@@ -170,6 +170,18 @@ if [[ "$NEED_REPAIR" -eq 1 ]]; then
   bash "$ROOT/scripts/repair_train_live.sh" || true
 fi
 
+# Canon for home CW announce: keep nested public/data mirrors equal to data/*.json
+# (иначе точечный scp в data/ оставляет public/data устаревшим).
+if [[ -d "$DEST/data" ]]; then
+  mkdir -p "$DEST/public/data"
+  find "$DEST/data" -maxdepth 1 -type f -name '20[0-9][0-9]-[0-9][0-9].json' -print0 |
+    while IFS= read -r -d '' f; do
+      base="$(basename "$f")"
+      cp -a "$f" "$DEST/public/data/$base"
+    done
+  echo "==> mirrored month JSON data/ → public/data/ (home + pages)"
+fi
+
 # count JSON as sanity
 json_n=$(find "$DEST/data" -type f -name '*.json' 2>/dev/null | wc -l | tr -d ' ')
 echo "==> KV cache sync done (json files in data/: $json_n)"
