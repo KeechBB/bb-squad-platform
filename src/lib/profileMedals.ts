@@ -1,31 +1,32 @@
 import { BP_REWARDS, type BpReward } from "@/lib/battlePass";
 import {
+  hasBattlePassL20Reward,
   loadBattlePassState,
   progressForNick,
 } from "@/lib/battlePassData";
 import { prisma } from "@/lib/prisma";
 import {
-  MEDAL_SHELF_SLOTS,
-  normalizeMedalShelfIds,
+  isProfileShelfAward,
   resolveMedalShelfSlots,
   type ProfileMedalItem,
 } from "@/lib/profileMedalsShared";
 
 export {
   MEDAL_SHELF_SLOTS,
+  isProfileShelfAward,
   normalizeMedalShelfIds,
   resolveMedalShelfSlots,
   type ProfileMedalItem,
   type ProfileMedalSlot,
 } from "@/lib/profileMedalsShared";
 
-const REGISTRATION_MEDAL: ProfileMedalItem = {
+const REGISTRATION_SIGN: ProfileMedalItem = {
   id: "site-registration",
   name: "Регистрация",
   short: "Знак",
-  kind: "medal",
+  kind: "badge",
   level: 0,
-  hover: "Прошёл регистрацию на сайте",
+  hover: "Знак регистрации на сайте",
   icon: "/awards/registration.png",
   source: "site",
 };
@@ -73,12 +74,12 @@ export async function buildPlayerMedalInventory(
   if (!clean) return [];
   const state = await loadBattlePassState().catch(() => null);
   const prog = progressForNick(state, clean);
-  const unlocked = (r: BpReward) =>
-    Boolean(prog.completedAt) || prog.currentLevel >= r.level;
+  const unlocked = (r: BpReward) => {
+    if (r.level === 20 && hasBattlePassL20Reward(state, clean)) return true;
+    return Boolean(prog.completedAt) || prog.currentLevel >= r.level;
+  };
 
-  const bp = BP_REWARDS.filter(
-    (r) => r.kind === "medal" || r.kind === "badge" || r.kind === "customize"
-  )
+  const bp = BP_REWARDS.filter((r) => r.kind === "medal")
     .filter(unlocked)
     .map((r) => ({
       id: r.id,
@@ -98,11 +99,12 @@ export async function buildPlayerMedalInventory(
     },
     select: { id: true },
   });
-
-  const inventory = registered ? [REGISTRATION_MEDAL, ...bp] : bp;
-  return clean.toLowerCase() === "keech"
-    ? [KEECH_FRUIT_STRIKE_TROPHY, KEECH_HALLOWEEN_TROPHY, ...inventory]
-    : inventory;
+  const signs = registered ? [REGISTRATION_SIGN] : [];
+  const cups =
+    clean.toLowerCase() === "keech"
+      ? [KEECH_FRUIT_STRIKE_TROPHY, KEECH_HALLOWEEN_TROPHY]
+      : [];
+  return [...cups, ...signs, ...bp].filter(isProfileShelfAward);
 }
 
 /** Награды на полке (без null) — совместимость со старым API. */

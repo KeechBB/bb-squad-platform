@@ -23,8 +23,12 @@ import json
 import os
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+# S1 ends 31.10.2026 23:59:59 Moscow — if nobody finished L20, medal → closest.
+MSK = timezone(timedelta(hours=3))
+S1_END = datetime(2026, 10, 31, 23, 59, 59, tzinfo=MSK)
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -492,6 +496,10 @@ def per_player_stats(block: dict, aliases: dict) -> dict[str, dict]:
     """nick -> stats for one match block (from process_match)."""
     events = block.get("events") or []
     teams = block.get("teamsByKey") or {}
+    # Fallback: старые записи ledger без teamsByKey — победа из players.*.matches.won
+    won_by_key = block.get("_wonByKey") or {}
+    if not isinstance(won_by_key, dict):
+        won_by_key = {}
     net_by_nick = block.get("netByNick") or {}
     map_name = str(block.get("map") or "")
     s1 = int(block.get("score1") or 0)
@@ -643,6 +651,18 @@ def per_player_stats(block: dict, aliases: dict) -> dict[str, dict]:
                 ticket_delta = (s1 - s2) if team == 1 else (s2 - s1)
             else:
                 ticket_delta = (s2 - s1) if team == 1 else (s1 - s2)
+        elif (
+            won is None
+            and played_ok
+            and not team_switch_late
+            and kk in won_by_key
+            and won_by_key[kk] is not None
+        ):
+            # Ledger без teamsByKey: берём won из истории игрока.
+            won = bool(won_by_key[kk])
+            if winner_i in (1, 2) and s1 is not None and s2 is not None:
+                # Без номера команды дельту тикетов не восстанавливаем точно.
+                ticket_delta = abs(int(s1) - int(s2)) if won else -abs(int(s1) - int(s2))
         return {
             **s,
             "won": won,
@@ -1004,12 +1024,110 @@ def leaderboard_rows(state: dict) -> list[dict]:
     return rows[:10]
 
 
+def _player_progress_score(p: dict) -> float:
+    if p.get("finished"):
+        return 21.0
+    lvl = int(p.get("currentLevel") or 1)
+    tgt = max(1, int(p.get("target") or LEVEL_TARGETS.get(lvl, 1)))
+    cur = min(int(p.get("current") or 0), tgt)
+    return lvl + (cur / tgt) * 0.99
+
+
+def closest_to_l20(state: dict) -> dict | None:
+    best = None
+    best_score = -1.0
+    best_nick = ""
+    for p in (state.get("players") or {}).values():
+        if not isinstance(p, dict) or not p.get("nick"):
+            continue
+        score = _player_progress_score(p)
+        nick = str(p.get("nick") or "")
+        if score > best_score or (
+            score == best_score and nick.casefold() < best_nick.casefold()
+        ):
+            best = p
+            best_score = score
+            best_nick = nick
+    return best
+
+
+def maybe_award_l20_closest(state: dict, now: datetime | None = None) -> bool:
+    """
+    After S1 end: if nobody finished L20, grant finale medal to closest player.
+    Idempotent via state['l20Finale'].
+    Returns True if state changed.
+    """
+    now = now or datetime.now(MSK)
+    if now < S1_END:
+        return False
+    if isinstance(state.get("l20Finale"), dict) and state["l20Finale"].get("mode"):
+        return False
+
+    players = state.get("players") or {}
+    finishers = [
+        p
+        for p in players.values()
+        if isinstance(p, dict) and p.get("nick") and p.get("finished")
+    ]
+    awarded_at = _utc_now()
+
+    if finishers:
+        names = [str(p.get("nick")) for p in finishers]
+        state["l20Finale"] = {
+            "mode": "completed",
+            "awardedAt": awarded_at,
+            "nick": names[0],
+            "note": f"20 уровень взят: {', '.join(names)}",
+        }
+        print(f"BP L20 finale: completed by {names}", flush=True)
+        return True
+
+    lead = closest_to_l20(state)
+    if not lead:
+        state["l20Finale"] = {
+            "mode": "closest",
+            "awardedAt": awarded_at,
+            "note": "Сезон закрыт без участников у финиша",
+        }
+        print("BP L20 finale: no players", flush=True)
+        return True
+
+    at_lvl = int(lead.get("currentLevel") or 1)
+    at_cur = int(lead.get("current") or 0)
+    at_tgt = int(lead.get("target") or LEVEL_TARGETS.get(at_lvl, 1))
+    lead["finished"] = True
+    lead["finishedReason"] = "closest-at-season-end"
+    lead["currentLevel"] = 20
+    lead["current"] = LEVEL_TARGETS[20]
+    lead["target"] = LEVEL_TARGETS[20]
+    nick = str(lead.get("nick") or "")
+    state["l20Finale"] = {
+        "mode": "closest",
+        "awardedAt": awarded_at,
+        "nick": nick,
+        "steamId": lead.get("steamId"),
+        "atLevel": at_lvl,
+        "current": at_cur,
+        "target": at_tgt,
+        "note": (
+            f"Никто не достиг 20 ур. к 31.10 23:59 — «Клубничный Импульс» у {nick} "
+            f"(ближайший к финишу, был ур. {at_lvl})"
+        ),
+    }
+    print(
+        f"BP L20 finale: closest award → {nick} (was L{at_lvl} {at_cur}/{at_tgt})",
+        flush=True,
+    )
+    return True
+
+
 def finalize(state: dict, registered: dict[str, dict] | None = None) -> dict:
     if registered is not None:
         ensure_all_registered(state, registered)
     n = reconcile_level_targets(state)
     if n:
         print(f"BP: reconciled targets, advanced={n}", flush=True)
+    maybe_award_l20_closest(state)
     state["leaderboard"] = leaderboard_rows(state)
     state["enabled"] = True
     state["seasonId"] = SEASON_ID
@@ -1079,8 +1197,9 @@ def rebuild_from_ledger() -> dict:
     state["players"] = players
     state["scoredMatchIds"] = []
 
+    won_idx = _won_by_key_index(ledger)
     blocks = [
-        m
+        _attach_won_fallback(m, won_idx)
         for m in (ledger.get("matches") or [])
         if isinstance(m, dict)
         and match_after_cutover(str(m.get("id") or ""), cut)
@@ -1101,9 +1220,45 @@ def rebuild_from_ledger() -> dict:
     return state
 
 
+def _won_by_key_index(ledger: dict) -> dict[str, dict[str, bool]]:
+    """matchId → {nickKey: won} из players.*.matches (для ledger без teamsByKey)."""
+    out: dict[str, dict[str, bool]] = {}
+    for nk, p in (ledger.get("players") or {}).items():
+        if not isinstance(p, dict):
+            continue
+        key = str(nk or "").strip()
+        if not key:
+            continue
+        for hm in p.get("matches") or []:
+            if not isinstance(hm, dict):
+                continue
+            mid = str(hm.get("id") or "").strip()
+            if not mid or hm.get("won") is None:
+                continue
+            out.setdefault(mid, {})[key] = bool(hm.get("won"))
+    return out
+
+
+def _attach_won_fallback(block: dict, won_idx: dict[str, dict[str, bool]]) -> dict:
+    """Добавить _wonByKey, если в блоке нет teamsByKey."""
+    if not isinstance(block, dict):
+        return block
+    teams = block.get("teamsByKey") or {}
+    if isinstance(teams, dict) and teams:
+        return block
+    mid = str(block.get("id") or "")
+    by = won_idx.get(mid) or {}
+    if not by:
+        return block
+    enriched = dict(block)
+    enriched["_wonByKey"] = dict(by)
+    return enriched
+
+
 def _ledger_bp_pool(ledger: dict, cut: str) -> list[dict]:
+    won_idx = _won_by_key_index(ledger)
     pool = [
-        m
+        _attach_won_fallback(m, won_idx)
         for m in (ledger.get("matches") or [])
         if isinstance(m, dict)
         and str(m.get("id") or "")
@@ -1179,6 +1334,163 @@ def audit_bp_vs_ledger(*, last: int = 40) -> dict:
         "poolCount": len(pool),
         "enabled": bool(state.get("enabled")),
     }
+
+
+def _msk_ymd_now() -> str:
+    from datetime import timedelta
+
+    # Europe/Moscow = UTC+3 (без DST)
+    msk = timezone(timedelta(hours=3))
+    return datetime.now(msk).strftime("%Y%m%d")
+
+
+def audit_today_players(*, day: str | None = None, fix: bool = False) -> dict:
+    """Все паблик-матчи за день (МСК) в BP + won доступен для зачёта.
+
+    day: YYYYMMDD, по умолчанию сегодня МСК.
+    """
+    day = str(day or _msk_ymd_now()).strip()
+    ledger: dict = {}
+    if LEDGER.is_file():
+        try:
+            ledger = json.loads(LEDGER.read_text(encoding="utf-8"))
+        except Exception:
+            ledger = {}
+    state = load_state()
+    cut = str(state.get("cutoverAfterMatchId") or "")
+    scored = {str(x) for x in (state.get("scoredMatchIds") or [])}
+    registered = load_registered()
+    aliases = load_alias_keys()
+    won_idx = _won_by_key_index(ledger)
+
+    today_blocks: list[dict] = []
+    for m in ledger.get("matches") or []:
+        if not isinstance(m, dict):
+            continue
+        mid = str(m.get("id") or "")
+        if not mid.startswith(day):
+            continue
+        if not match_after_cutover(mid, cut):
+            continue
+        if is_seed_block(m):
+            continue
+        if not (m.get("events") or m.get("netByNick")):
+            continue
+        today_blocks.append(_attach_won_fallback(m, won_idx))
+    today_blocks.sort(key=lambda m: str(m.get("id") or ""))
+
+    missing = [str(m.get("id")) for m in today_blocks if str(m.get("id")) not in scored]
+
+    # Игроки дня: зареганные с ≥80% и что у них с won
+    players_today: dict[str, dict] = {}
+    won_none_ok: list[dict] = []  # playedOk but won is None (не сменить стрик)
+    for b in today_blocks:
+        mid = str(b.get("id") or "")
+        per = per_player_stats(b, aliases)
+        per_by_key: dict[str, dict] = {}
+        for n, st in per.items():
+            ck = R.canon_key(str(n), aliases)
+            if ck:
+                per_by_key[ck] = st
+        for nk, reg in registered.items():
+            st = per_by_key.get(nk)
+            if not st or not bool(st.get("playedOk", True)):
+                continue
+            steam = str(reg.get("steamId") or "") or str(reg.get("nick") or "")
+            row = players_today.setdefault(
+                steam,
+                {
+                    "nick": reg.get("nick"),
+                    "steamId": reg.get("steamId"),
+                    "matches": [],
+                    "wins": 0,
+                    "losses": 0,
+                    "noResult": 0,
+                },
+            )
+            won = st.get("won")
+            bit = {
+                "id": mid,
+                "map": b.get("map"),
+                "won": won,
+                "lateSwitch": bool(st.get("teamSwitchLate")),
+                "presence": st.get("presenceRatio"),
+            }
+            row["matches"].append(bit)
+            if won is True:
+                row["wins"] += 1
+            elif won is False:
+                row["losses"] += 1
+            else:
+                row["noResult"] += 1
+                if not st.get("teamSwitchLate"):
+                    won_none_ok.append(
+                        {
+                            "nick": reg.get("nick"),
+                            "matchId": mid,
+                            "presence": st.get("presenceRatio"),
+                        }
+                    )
+
+    # BP карточки этих игроков
+    bp_players = state.get("players") or {}
+    by_steam = {
+        str(p.get("steamId") or ""): p
+        for p in bp_players.values()
+        if isinstance(p, dict) and p.get("steamId")
+    }
+    progress_rows = []
+    for steam, info in sorted(
+        players_today.items(), key=lambda x: (-len(x[1]["matches"]), str(x[1].get("nick")))
+    ):
+        bp = by_steam.get(str(steam)) or bp_players.get(str(steam))
+        progress_rows.append(
+            {
+                "nick": info.get("nick"),
+                "matchesToday": len(info["matches"]),
+                "wins": info["wins"],
+                "losses": info["losses"],
+                "noResult": info["noResult"],
+                "bpLevel": (bp or {}).get("currentLevel"),
+                "bpCurrent": (bp or {}).get("current"),
+                "bpTarget": (bp or {}).get("target"),
+            }
+        )
+
+    rep = {
+        "ok": not missing and not won_none_ok,
+        "day": day,
+        "todayMatchIds": [str(m.get("id")) for m in today_blocks],
+        "todayMatchCount": len(today_blocks),
+        "missingIds": missing,
+        "registeredPlayersToday": len(players_today),
+        "wonNoneWhilePlayedOk": won_none_ok[:40],
+        "wonNoneCount": len(won_none_ok),
+        "players": progress_rows,
+        "cutoverAfterMatchId": cut,
+        "scoredCount": len(scored),
+    }
+
+    if fix and missing:
+        # Полный хвост / день: heal с last=0 (все после cutover)
+        heal = heal_bp_vs_ledger(last=0, fix=True)
+        # повторный аудит дня
+        again = audit_today_players(day=day, fix=False)
+        again["healed"] = bool(heal.get("healed"))
+        again["healAction"] = heal.get("action")
+        again["beforeMissing"] = missing
+        return again
+
+    if fix and won_none_ok and not missing:
+        # Матчи в scored, но won пустой — нужен rebuild с fallback won
+        rebuild_from_ledger()
+        again = audit_today_players(day=day, fix=False)
+        again["healed"] = True
+        again["healAction"] = "rebuild_won_fallback"
+        again["beforeWonNone"] = len(won_none_ok)
+        return again
+
+    return rep
 
 
 def heal_bp_vs_ledger(
@@ -1274,26 +1586,59 @@ def main() -> None:
         persist_l5_backgrounds(load_state())
         return
 
+    if "--finalize-s1" in sys.argv:
+        state = load_state()
+        changed = maybe_award_l20_closest(state)
+        state = finalize(state)
+        save_state(state)
+        persist_l5_backgrounds(state)
+        print(
+            json.dumps(
+                {
+                    "changed": changed,
+                    "l20Finale": state.get("l20Finale"),
+                    "nowMsk": datetime.now(MSK).isoformat(),
+                    "s1End": S1_END.isoformat(),
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            flush=True,
+        )
+        return
+
     if "--rebuild-from-ledger" in sys.argv:
         rebuild_from_ledger()
         return
 
     if "--audit" in sys.argv:
-        last = 40
-        if "--last" in sys.argv:
-            i = sys.argv.index("--last")
-            last = int(sys.argv[i + 1])
-        rep = audit_bp_vs_ledger(last=last)
+        if "--today" in sys.argv:
+            day = None
+            if "--day" in sys.argv:
+                day = sys.argv[sys.argv.index("--day") + 1]
+            rep = audit_today_players(day=day, fix=False)
+        else:
+            last = 40
+            if "--last" in sys.argv:
+                i = sys.argv.index("--last")
+                last = int(sys.argv[i + 1])
+            rep = audit_bp_vs_ledger(last=last)
         print(json.dumps(rep, ensure_ascii=False, indent=2), flush=True)
         raise SystemExit(0 if rep.get("ok") else 2)
 
     if "--heal" in sys.argv:
-        last = 40
-        if "--last" in sys.argv:
-            i = sys.argv.index("--last")
-            last = int(sys.argv[i + 1])
         fix = "--dry-run" not in sys.argv
-        rep = heal_bp_vs_ledger(last=last, fix=fix)
+        if "--today" in sys.argv:
+            day = None
+            if "--day" in sys.argv:
+                day = sys.argv[sys.argv.index("--day") + 1]
+            rep = audit_today_players(day=day, fix=fix)
+        else:
+            last = 40
+            if "--last" in sys.argv:
+                i = sys.argv.index("--last")
+                last = int(sys.argv[i + 1])
+            rep = heal_bp_vs_ledger(last=last, fix=fix)
         print(json.dumps(rep, ensure_ascii=False, indent=2), flush=True)
         raise SystemExit(0 if rep.get("ok") else 2)
 

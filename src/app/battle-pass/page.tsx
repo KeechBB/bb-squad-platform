@@ -5,6 +5,7 @@ import { emptySelfProgress } from "@/lib/battlePass";
 import {
   battlePassLeaderboardTop10,
   battlePassStatusNote,
+  ensureBattlePassL20Finale,
   loadBattlePassState,
   progressForNick,
 } from "@/lib/battlePassData";
@@ -19,11 +20,12 @@ export default async function BattlePassPage() {
   }
 
   const session = await getSession();
-  const state = await loadBattlePassState();
+  let state = await loadBattlePassState();
+  state = await ensureBattlePassL20Finale(state);
 
   const nick =
     session?.user?.nick || session?.user?.steamName || "Гость";
-  const name = session?.user?.name || "";
+  const name = "";
   const avatarUrl =
     session?.user?.avatarUrl || session?.user?.steamAvatar || null;
 

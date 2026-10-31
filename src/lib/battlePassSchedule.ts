@@ -8,6 +8,11 @@
 
 export const BP_S1_END_MS = Date.parse("2026-10-31T23:59:59+03:00");
 
+/** S1 закрыт: после 31.10.2026 23:59:59 MSK */
+export function isBattlePassS1Ended(now: Date = new Date()): boolean {
+  return now.getTime() >= BP_S1_END_MS;
+}
+
 /** Включительно по календарю: 1, 2, 3 ноября 2026 */
 export const BP_INTERMISSION = {
   startMs: Date.parse("2026-11-01T00:00:00+03:00"),
