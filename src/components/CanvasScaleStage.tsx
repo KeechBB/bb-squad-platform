@@ -12,9 +12,9 @@ import {
 export const CANVAS_REF_W = 2560;
 export const CANVAS_REF_H = 1364;
 
-/** Доля ширины окна слева/справа под фон (≈ красная рамка). */
-const SIDE_INSET_FRAC = 0.1;
-const SIDE_INSET_MIN_PX = 96;
+/** Лёгкие поля: основной зазор даёт узкая почта + центрирование блока. */
+const SIDE_INSET_FRAC = 0.04;
+const SIDE_INSET_MIN_PX = 48;
 
 type Props = {
   children: ReactNode;

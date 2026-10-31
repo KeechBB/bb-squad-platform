@@ -107,6 +107,7 @@ body.has-profile-bg .shell:has(.profile-page) {
 .canvas-scale-inner.is-full {
   width: 100%;
   padding: 10px 28px 12px;
+  align-items: center;
 }
 
 .canvas-scale-inner > .profile-page-v2,
@@ -2522,7 +2523,7 @@ body.has-profile-bg .canvas-scale-host.is-profile.is-side-inset .canvas-scale-st
   background: transparent !important;
 }
 
-/* Почта слева, текущий профиль 1600px у правого края сцены */
+/* Почта узкая + профиль 1600 — блок по центру, по бокам виден фон. */
 .canvas-scale-inner.is-full > .profile-v2-with-mail {
   flex: 1 1 auto;
   min-height: 0;
@@ -2531,23 +2532,28 @@ body.has-profile-bg .canvas-scale-host.is-profile.is-side-inset .canvas-scale-st
 
 .profile-v2-with-mail {
   display: flex;
-  width: 100%;
+  width: max-content;
+  max-width: 100%;
   height: 100%;
   min-height: 0;
   gap: 14px;
   align-items: stretch;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .profile-v2-with-mail > .profile-page-v2 {
   flex: 0 0 1600px;
   width: 1600px !important;
   max-width: 1600px;
-  margin-left: auto;
+  margin-left: 0;
 }
 
 .profile-mail {
-  flex: 1 1 auto;
-  min-width: 320px;
+  flex: 0 0 340px;
+  width: 340px;
+  max-width: 340px;
+  min-width: 280px;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -2574,11 +2580,11 @@ body.has-profile-bg .canvas-scale-host.is-profile.is-side-inset .canvas-scale-st
   color: #ffffff;
   border: 1px solid rgba(180, 160, 220, 0.35);
   border-radius: 10px;
-  padding: 10px 8px;
+  padding: 8px 4px;
   font-family: var(--font-display), Oxanium, sans-serif;
-  font-size: 1.45rem;
+  font-size: 0.95rem;
   font-weight: 800;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
   cursor: pointer;
   text-align: center;
   white-space: nowrap;
