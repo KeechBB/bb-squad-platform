@@ -18,6 +18,7 @@ import {
 import { ProfileBgPicker } from "@/components/ProfileBgPicker";
 import { ProfileMedalShelf } from "@/components/ProfileMedalShelf";
 import { ProfileV2ScaleStage } from "@/components/ProfileV2ScaleStage";
+import { ProfileMailBox } from "@/components/ProfileMailBox";
 import {
   prefetchProfileView,
   seedProfileView,
@@ -40,6 +41,29 @@ import {
   type ProfileNickStyleId,
 } from "@/lib/profileNickStyles";
 import type { ProfileMedalItem } from "@/lib/profileMedalsShared";
+import type { ReactNode } from "react";
+
+function ProfileStage({
+  readOnly,
+  hasBg,
+  children,
+}: {
+  readOnly: boolean;
+  hasBg?: boolean;
+  children: ReactNode;
+}) {
+  if (readOnly) {
+    return <ProfileV2ScaleStage hasBg={hasBg}>{children}</ProfileV2ScaleStage>;
+  }
+  return (
+    <ProfileV2ScaleStage hasBg={hasBg} contentWidth="full">
+      <div className="profile-v2-with-mail">
+        <ProfileMailBox />
+        {children}
+      </div>
+    </ProfileV2ScaleStage>
+  );
+}
 
 type Shell = {
   id: string;
@@ -231,7 +255,7 @@ export function ProfilePageClient({
 
   if (!shell && !error) {
     return (
-      <ProfileV2ScaleStage>
+      <ProfileStage readOnly={readOnly}>
         <main className="profile-page profile-page-v2">
           {initialNick && initialView ? (
             <>
@@ -268,13 +292,13 @@ export function ProfilePageClient({
             </div>
           )}
         </main>
-      </ProfileV2ScaleStage>
+      </ProfileStage>
     );
   }
 
   if (error || !shell) {
     return (
-      <ProfileV2ScaleStage>
+      <ProfileStage readOnly={readOnly}>
         <main className="profile-page profile-page-v2">
           <div className="card" style={{ padding: 16 }}>
             <p className="error" style={{ margin: 0 }}>
@@ -282,7 +306,7 @@ export function ProfilePageClient({
             </p>
           </div>
         </main>
-      </ProfileV2ScaleStage>
+      </ProfileStage>
     );
   }
 
@@ -290,7 +314,7 @@ export function ProfilePageClient({
   const kitsLane =
     mode === "public" ? "PB1" : shell.isBb ? "TR1" : shell.kitsLane;
   return (
-    <ProfileV2ScaleStage hasBg={Boolean(previewBg)}>
+    <ProfileStage readOnly={readOnly} hasBg={Boolean(previewBg)}>
     <main
       className="profile-page profile-page-v2"
       data-mode={mode}
@@ -477,6 +501,6 @@ export function ProfilePageClient({
         />
       </div>
     </main>
-    </ProfileV2ScaleStage>
+    </ProfileStage>
   );
 }
