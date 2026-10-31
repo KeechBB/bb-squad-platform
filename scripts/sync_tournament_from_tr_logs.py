@@ -354,12 +354,20 @@ def discover_natural_layers(servers: list[str]) -> list[dict[str, Any]]:
                     )
                     continue
                 players = player_keys_in_window(lp, start, end)
+                # Tournament: tickets+winner already prove a real round. Join-window
+                # nick count is often tiny (players joined before InProgress).
                 if len(players) < MIN_PLAYERS:
+                    if m.get("score1") is None or m.get("winnerTeam") is None:
+                        print(
+                            f"skip tiny roster {srv} {m.get('map')} n={len(players)}",
+                            flush=True,
+                        )
+                        continue
                     print(
-                        f"skip tiny roster {srv} {m.get('map')} n={len(players)}",
+                        f"weak roster ok {srv} {m.get('map')} n={len(players)} "
+                        f"score={m.get('score1')}:{m.get('score2')}",
                         flush=True,
                     )
-                    continue
                 out.append(
                     {
                         **m,
