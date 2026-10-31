@@ -6,8 +6,27 @@ import { HomePanels } from "@/components/HomePanels";
 import { HomeFit } from "@/components/HomeFit";
 import { HomeLoginPrompt } from "@/components/HomeLoginPrompt";
 import { HomeTournamentAnnounce } from "@/components/HomeTournamentAnnounce";
+import type { HomeCwCard } from "@/components/HomeCwAnnounce";
+import {
+  nextCwAnnounces,
+  readyNicks,
+  viewerGoing,
+  viewerIsBlackberry,
+  type CwAnnounce,
+} from "@/lib/cwReady";
+import { syncCwMails } from "@/lib/cwMailSync";
 
 export const dynamic = "force-dynamic";
+
+async function toCard(
+  slot: CwAnnounce | null,
+  userId: string
+): Promise<HomeCwCard | null> {
+  if (!slot) return null;
+  const ready = await readyNicks(slot.id);
+  const going = await viewerGoing(slot.id, userId);
+  return { ...slot, ready, going };
+}
 
 export default async function HomePage() {
   const session = await getSession();
@@ -16,6 +35,16 @@ export default async function HomePage() {
   }
 
   const { publicTop } = await getHomeDashboardData();
+  await syncCwMails();
+  const userId = session?.user?.id || "";
+  const showCw = await viewerIsBlackberry(userId);
+  let cwMain: HomeCwCard | null = null;
+  let cwJunior: HomeCwCard | null = null;
+  if (showCw) {
+    const next = await nextCwAnnounces();
+    cwMain = await toCard(next.main, userId);
+    cwJunior = await toCard(next.junior, userId);
+  }
 
   return (
     <main className="home-page">
@@ -98,6 +127,9 @@ export default async function HomePage() {
           <HomePanels
             publicTop={publicTop}
             viewerNick={session?.user?.nick || null}
+            showCw={showCw}
+            cwMain={cwMain}
+            cwJunior={cwJunior}
           />
         </div>
 

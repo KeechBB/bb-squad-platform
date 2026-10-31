@@ -1,6 +1,7 @@
 "use client";
 
 import { HomeNickDecor } from "@/components/HomeNickDecor";
+import { HomeCwAnnounce, type HomeCwCard } from "@/components/HomeCwAnnounce";
 
 export type HomePublicTopRow = {
   nick: string;
@@ -14,6 +15,10 @@ export type HomePublicTopRow = {
 type Props = {
   publicTop: HomePublicTopRow[];
   viewerNick?: string | null;
+  /** Только для участника клана BlackBerry. */
+  cwMain?: HomeCwCard | null;
+  cwJunior?: HomeCwCard | null;
+  showCw?: boolean;
 };
 
 function podiumClass(place: number) {
@@ -28,15 +33,25 @@ function isViewer(nick: string, viewerNick?: string | null) {
   return nick.trim().toLowerCase() === viewerNick.trim().toLowerCase();
 }
 
-export function HomePanels({ publicTop, viewerNick = null }: Props) {
+export function HomePanels({
+  publicTop,
+  viewerNick = null,
+  cwMain = null,
+  cwJunior = null,
+  showCw = false,
+}: Props) {
   return (
-    <div className="home-dock home-dock-one" aria-label="Сводки главной">
+    <div
+      className={showCw ? "home-dock home-dock-split" : "home-dock home-dock-one"}
+      aria-label="Сводки главной"
+    >
       <section className="home-dock-col is-public">
         <header>Топ 10 паблика</header>
         <div className="home-dock-body">
           <PublicTop rows={publicTop} viewerNick={viewerNick} />
         </div>
       </section>
+      {showCw ? <HomeCwAnnounce main={cwMain} junior={cwJunior} /> : null}
     </div>
   );
 }
