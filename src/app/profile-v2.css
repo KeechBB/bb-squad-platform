@@ -2504,7 +2504,8 @@ body.has-profile-bg .shell:has(.profile-page) {
 /* Свой профиль: поля по бокам, чтобы был виден фон.
    Картинка фона на весь хост, сцена прозрачная — края не чёрные. */
 .canvas-scale-host.is-profile.is-side-inset {
-  padding: 0 420px;
+  /* 300: больше фона, чем было 220, но почта слева не схлопывается */
+  padding: 0 300px;
 }
 
 body.has-profile-bg .canvas-scale-host.is-profile.is-side-inset {
@@ -2541,7 +2542,7 @@ body.has-profile-bg .canvas-scale-host.is-profile.is-side-inset .canvas-scale-st
 
 .profile-mail {
   flex: 1 1 auto;
-  min-width: 280px;
+  min-width: 320px;
   min-height: 0;
   display: flex;
   flex-direction: column;
