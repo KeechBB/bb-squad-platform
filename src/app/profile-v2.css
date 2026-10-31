@@ -2504,7 +2504,7 @@ body.has-profile-bg .shell:has(.profile-page) {
 /* Свой профиль: поля по бокам, чтобы был виден фон.
    Картинка фона на весь хост, сцена прозрачная — края не чёрные. */
 .canvas-scale-host.is-profile.is-side-inset {
-  padding: 0 220px;
+  padding: 0 420px;
 }
 
 body.has-profile-bg .canvas-scale-host.is-profile.is-side-inset {
