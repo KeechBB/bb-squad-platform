@@ -30,6 +30,14 @@ const COLS: {
   { key: "mvpArmor", label: "MVP Armor", sortable: true },
 ];
 
+function nickKey(raw: string): string {
+  return (raw || "")
+    .normalize("NFKC")
+    .replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF\u{E0000}-\u{E007F}]/gu, "")
+    .replace(/\s+/g, "")
+    .toLowerCase();
+}
+
 function zeroRow(
   nick: string,
   clanTag: string | null
@@ -88,11 +96,17 @@ export function TournamentPlayerStatsTab() {
     (async () => {
       setLoading(true);
       try {
-        const res = await fetch("/api/tournaments/teams", { cache: "no-store" });
+        const [res, liveRes] = await Promise.all([
+          fetch("/api/tournaments/teams", { cache: "no-store" }),
+          fetch("/api/tournaments/live", { cache: "no-store" }),
+        ]);
         const data = (await res.json().catch(() => ({}))) as {
           teams?: {
             members: { nick: string; clanTag: string | null }[];
           }[];
+        };
+        const live = (await liveRes.json().catch(() => ({}))) as {
+          playerStats?: Array<Partial<TournamentPlayerStatRow> & { nick?: string }>;
         };
         if (cancelled || !res.ok) return;
         const byNick = new Map<string, TournamentPlayerStatRow>();
@@ -100,11 +114,35 @@ export function TournamentPlayerStatsTab() {
           for (const m of team.members || []) {
             const nick = (m.nick || "").trim();
             if (!nick) continue;
-            const key = nick.toLowerCase();
+            const key = nickKey(nick);
             if (!byNick.has(key)) {
               byNick.set(key, zeroRow(nick, m.clanTag || null));
             }
           }
+        }
+        // Log nick → roster nick (Isaiah / Иcaйя, etc.)
+        const ALIASES: Record<string, string> = {
+          isaiah: nickKey("Иcaйя"),
+          исайя: nickKey("Иcaйя"),
+          trixx: "trix",
+        };
+        for (const stat of live.playerStats || []) {
+          const nick = (stat.nick || "").trim();
+          if (!nick) continue;
+          let key = nickKey(nick);
+          key = ALIASES[key] || key;
+          const row = byNick.get(key) || zeroRow(nick, stat.clanTag || null);
+          row.noks = Number(stat.noks) || 0;
+          row.kills = Number(stat.kills) || 0;
+          row.deaths = Number(stat.deaths) || 0;
+          row.kd = Number(stat.kd) || 0;
+          row.matches = Number(stat.matches) || 0;
+          row.winPct = Number(stat.winPct) || 0;
+          row.vehicles = Number(stat.vehicles) || 0;
+          row.mvpKiller = Number(stat.mvpKiller) || 0;
+          row.mvpMedic = Number(stat.mvpMedic) || 0;
+          row.mvpArmor = Number(stat.mvpArmor) || 0;
+          byNick.set(key, row);
         }
         setRows([...byNick.values()]);
       } catch {
@@ -138,8 +176,8 @@ export function TournamentPlayerStatsTab() {
       <div className="tn-pstats-head">
         <h2 className="tn-panel-title">Рейтинг игроков</h2>
         <p className="tn-pstats-hint">
-          Все игроки из турнирных команд (пока с нулями). По умолчанию — по
-          алфавиту. Клик по нику — профиль.
+          По закрытым встречам турнира. По умолчанию — по алфавиту. Клик по
+          нику — профиль.
         </p>
       </div>
 

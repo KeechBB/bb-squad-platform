@@ -128,8 +128,25 @@ def live_path() -> Path:
     return HERE.parent / "data" / "tournaments" / "fruit-strike-s1-live.json"
 
 
+_INVISIBLE_RE = re.compile(
+    r"[\u200b-\u200f\u202a-\u202e\ufeff\U000e0000-\U000e007f]+"
+)
+
+
+def clean_nick(n: str) -> str:
+    return _INVISIBLE_RE.sub("", (n or "")).strip()
+
+
 def nick_key(n: str) -> str:
-    return re.sub(r"\s+", "", (n or "").strip().lower())
+    return re.sub(r"\s+", "", clean_nick(n).lower())
+
+
+# Log nick → roster nick_key (Fruit Strike night fixes)
+TOURNAMENT_NICK_ALIASES = {
+    "isaiah": "иcaйя",  # site nick is И + latin c + aйя
+    "исайя": "иcaйя",
+    "trixx": "trix",
+}
 
 
 def map_stem(layer: str) -> str:
@@ -233,6 +250,11 @@ def save_live(data: dict[str, Any], *, preserve_owned: bool = True) -> None:
                     owned[mid] = row
             if cur.get("playerStats") and not data.get("playerStats"):
                 data["playerStats"] = cur.get("playerStats")
+        history, players, teams = rebuild_stats(data.get("matches") or {})
+        if history:
+            data["history"] = history
+            data["playerStats"] = players
+            data["teamStats"] = teams
         tmp = p.with_suffix(".tmp")
         tmp.write_text(
             json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
@@ -731,7 +753,7 @@ def finalize_meeting(
 
 def _blank_player(nick: str) -> dict:
     return {
-        "nick": nick,
+        "nick": clean_nick(nick) or nick,
         "noks": 0,
         "kills": 0,
         "deaths": 0,
@@ -747,6 +769,17 @@ def _blank_player(nick: str) -> dict:
     }
 
 
+def _canonical_player_nick(raw: str, display: dict[str, str], aliases: dict[str, str]) -> tuple[str, str]:
+    """Return (merge_key, display_nick) for rating table."""
+    nick = clean_nick(raw)
+    key = nick_key(nick)
+    key = TOURNAMENT_NICK_ALIASES.get(key, key)
+    key = aliases.get(key, key)
+    if key in display:
+        return key, display[key]
+    return key, nick or raw.strip()
+
+
 def _top_nick(rows: list, key: str) -> str | None:
     best_v = 0
     best = None
@@ -758,11 +791,248 @@ def _top_nick(rows: list, key: str) -> str | None:
     return best or None
 
 
+def _load_train_helpers():
+    """Reuse training combat aggregation (dies/wounds → player rows)."""
+    import sync_train_from_tr1_logs as TRAIN  # noqa: WPS433
+
+    return TRAIN.load_aliases, TRAIN.agg_players, TRAIN.stamp_vehicle_kills
+
+
+def _resolve_round_log(rr: dict) -> Path | None:
+    raw = str(rr.get("logPath") or "")
+    if raw:
+        p = Path(raw)
+        if p.is_file():
+            return p
+    srv = str(rr.get("server") or "")
+    if not srv:
+        return None
+    try:
+        env = FLEET.load_env()
+        root = FLEET.archive_root(env)
+        if root is None:
+            return None
+        folder = FLEET.archive_folder_name(srv)
+        live = root / folder / "_live" / "SquadGame.log"
+        if live.is_file():
+            return live
+    except Exception:
+        return None
+    return None
+
+
+def combat_rows_for_round(rr: dict, aliases: dict[str, str]) -> tuple[list[dict], list[dict]]:
+    """Parse one stored round → (log team1 rows, log team2 rows)."""
+    load_aliases, agg_players, stamp_vehicle_kills = _load_train_helpers()
+    if not aliases:
+        aliases = load_aliases()
+    lp = _resolve_round_log(rr)
+    if lp is None or not rr.get("start") or not rr.get("end"):
+        return [], []
+    try:
+        start = datetime.fromisoformat(str(rr["start"]))
+        end = datetime.fromisoformat(str(rr["end"]))
+    except Exception:
+        return [], []
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=MSK)
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=MSK)
+    try:
+        idx = R.index_log_combat(lp, aliases)
+        steam = dict(idx.get("steam_to_nick") or {})
+        teams = R.teams_in_window(idx, start, end, {})
+        dies, _ = R.dies_in_window(idx, start, end, steam, aliases)
+        wounds = R.wounds_in_window(idx, start, end, steam, aliases)
+        revives = R.revives_in_window(idx, start, end)
+        disp = {R.canon_key(n, aliases): n for n in steam.values()}
+        t1, t2 = agg_players(dies, wounds, revives, teams, disp, aliases=aliases)
+        stamp_vehicle_kills(
+            t1,
+            t2,
+            idx=idx,
+            start=start,
+            end=end,
+            steam=steam,
+            aliases=aliases,
+            teams=teams,
+            disp=disp,
+            dies=dies,
+            wounds=wounds,
+            revives=revives,
+        )
+        return t1, t2
+    except Exception as e:
+        print(f"combat parse fail {lp}: {e}", flush=True)
+        return [], []
+
+
+def _roster_overlap(rows: list[dict], tag: str, rosters: dict[str, set[str]]) -> int:
+    want = rosters.get(tag) or set()
+    if not want or not rows:
+        return 0
+    n = 0
+    for p in rows:
+        if nick_key(str(p.get("nick") or "")) in want:
+            n += 1
+    return n
+
+
+def _roster_display_by_key(rosters: dict[str, set[str]]) -> dict[str, str]:
+    """nick_key → preferred display nick from TournamentEntry / members.
+
+    Rosters currently store only keys — reload display map from Postgres when needed.
+    """
+    # Built lazily in enrich via load_roster_display().
+    return {}
+
+
+_ROSTER_DISPLAY: dict[str, str] = {}
+
+
+def load_roster_display() -> dict[str, str]:
+    """nick_key → site nick (for Isaiah→Исайя merge in UI)."""
+    global _ROSTER_DISPLAY
+    if _ROSTER_DISPLAY:
+        return _ROSTER_DISPLAY
+    out: dict[str, str] = {}
+
+    def run_sql(sql: str) -> str:
+        proc = subprocess.run(
+            ["sudo", "-u", "postgres", "psql", "-d", "bb_squad", "-At", "-F", "|", "-c", sql],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+        return proc.stdout if proc.returncode == 0 else ""
+
+    try:
+        text = run_sql(
+            """
+SELECT u.nick
+FROM "TournamentEntry" e
+JOIN "TournamentEntryPlayer" ep ON ep."entryId" = e.id
+JOIN "User" u ON u.id = ep."userId"
+WHERE e."tournamentId" = 'fruit-strike-s1' AND e.status = 'CONFIRMED'
+UNION
+SELECT u.nick
+FROM "TournamentTeamMember" m
+JOIN "TournamentTeam" t ON t.id = m."teamId"
+JOIN "User" u ON u.id = m."userId"
+WHERE t.id IN (
+  SELECT e."teamId" FROM "TournamentEntry" e
+  WHERE e."tournamentId" = 'fruit-strike-s1' AND e.status = 'CONFIRMED'
+);
+"""
+        )
+        for nick in text.splitlines():
+            nick = (nick or "").strip()
+            if not nick:
+                continue
+            out[nick_key(nick)] = nick
+    except Exception as e:
+        print("roster display load error", e, flush=True)
+    _ROSTER_DISPLAY = out
+    print(f"roster display nicks: {len(out)}", flush=True)
+    return out
+
+
+def _map_nicks_to_roster(
+    rows: list[dict],
+    tag: str,
+    rosters: dict[str, set[str]],
+    display: dict[str, str] | None = None,
+) -> list[dict]:
+    """Rewrite log nicks to site roster spelling when keys match."""
+    disp = display or _ROSTER_DISPLAY
+    out = []
+    for p in rows:
+        q = dict(p)
+        raw = str(q.get("nick") or "").strip()
+        nk = nick_key(raw)
+        if nk and nk in disp:
+            q["nick"] = disp[nk]
+        out.append(q)
+    return out
+
+
+def attach_sheet(
+    row: dict,
+    rosters: dict[str, set[str]],
+    aliases: dict[str, str] | None = None,
+) -> bool:
+    """Fill row['sheet'] from TR logs for R1/R2. Returns True if any players found."""
+    if row.get("status") != "done":
+        return False
+    team_a = row.get("teamA") or {}
+    team_b = row.get("teamB") or {}
+    tag_a = team_a.get("tag") or ""
+    tag_b = team_b.get("tag") or ""
+    sheet: dict[str, list] = {"r1": [], "r2": [], "oppR1": [], "oppR2": []}
+    found = False
+    for rk, sk_a, sk_b in (("r1", "r1", "oppR1"), ("r2", "r2", "oppR2")):
+        rr = row.get(rk) or {}
+        if not rr.get("start"):
+            continue
+        t1, t2 = combat_rows_for_round(rr, aliases or {})
+        if not t1 and not t2:
+            continue
+        # Assign log sides → bracket teamA / teamB via roster overlap.
+        a_on_1 = _roster_overlap(t1, tag_a, rosters)
+        a_on_2 = _roster_overlap(t2, tag_a, rosters)
+        b_on_1 = _roster_overlap(t1, tag_b, rosters)
+        b_on_2 = _roster_overlap(t2, tag_b, rosters)
+        if a_on_1 + b_on_2 >= a_on_2 + b_on_1 and (a_on_1 + b_on_2) > 0:
+            left, right = t1, t2
+        elif a_on_2 + b_on_1 > 0:
+            left, right = t2, t1
+        else:
+            # Fallback: USA=left using faction names stored on round if any
+            # else keep log order (team1=left).
+            left, right = t1, t2
+        disp = load_roster_display()
+        sheet[sk_a] = _map_nicks_to_roster(left, tag_a, rosters, disp)
+        sheet[sk_b] = _map_nicks_to_roster(right, tag_b, rosters, disp)
+        if sheet[sk_a] or sheet[sk_b]:
+            found = True
+            print(
+                f"sheet {tag_a}vs{tag_b} {rk}: A={len(sheet[sk_a])} B={len(sheet[sk_b])} "
+                f"(overlap a1={a_on_1} a2={a_on_2} b1={b_on_1} b2={b_on_2})",
+                flush=True,
+            )
+    if found:
+        row["sheet"] = sheet
+    return found
+
+
+def enrich_sheets(matches: dict[str, dict], rosters: dict[str, set[str]]) -> int:
+    load_aliases, _, _ = _load_train_helpers()
+    aliases = load_aliases()
+    n = 0
+    for mid, row in matches.items():
+        if row.get("status") != "done":
+            continue
+        # Always refresh sheets so late captain locks still get combat.
+        if attach_sheet(row, rosters, aliases):
+            n += 1
+        else:
+            print(f"sheet miss {mid}", flush=True)
+    return n
+
+
 def rebuild_stats(matches: dict[str, dict]) -> tuple[list, list, list]:
     history = []
     player_acc: dict[str, dict] = {}
     team_acc: dict[str, dict] = {}
     team_kd: dict[str, list[int]] = {}
+    display = load_roster_display()
+    try:
+        load_aliases, _, _ = _load_train_helpers()
+        aliases = load_aliases()
+    except Exception:
+        aliases = {}
     for mid, row in matches.items():
         if row.get("status") != "done":
             continue
@@ -817,21 +1087,22 @@ def rebuild_stats(matches: dict[str, dict]) -> tuple[list, list, list]:
                 medic = _top_nick(rows, "res")
                 armor = _top_nick(rows, "vehicleKills")
                 for p in rows:
-                    nick = str(p.get("nick") or "").strip()
-                    if not nick or nick == "—":
+                    raw = str(p.get("nick") or "").strip()
+                    if not raw or raw == "—":
                         continue
-                    k = nick.lower()
-                    s = buckets[side_name].setdefault(k, _blank_player(nick))
+                    merge_key, disp_nick = _canonical_player_nick(raw, display, aliases)
+                    s = buckets[side_name].setdefault(merge_key, _blank_player(disp_nick))
+                    s["nick"] = disp_nick
                     s["noks"] += int(p.get("nok") or 0)
                     s["kills"] += int(p.get("kills") or 0)
                     s["deaths"] += int(p.get("deaths") or 0)
                     s["vehicles"] += int(p.get("vehicleKills") or 0)
                     s["res"] += int(p.get("res") or 0)
-                    if killer and nick == killer:
+                    if killer and clean_nick(raw) == clean_nick(killer):
                         s["mvpKiller"] += 1
-                    if medic and nick == medic:
+                    if medic and clean_nick(raw) == clean_nick(medic):
                         s["mvpMedic"] += 1
-                    if armor and nick == armor:
+                    if armor and clean_nick(raw) == clean_nick(armor):
                         s["mvpArmor"] += 1
 
         def _load(s: dict) -> int:
@@ -843,8 +1114,6 @@ def rebuild_stats(matches: dict[str, dict]) -> tuple[list, list, list]:
             tag_a = side_meta["A"][2]
             tag_b = side_meta["B"][2]
             if left and right:
-                # One meeting. A nick on both sides is a side-detect miss:
-                # keep the side where he actually fought.
                 if _load(right) > _load(left) and tag_b:
                     chosen, tag = right, tag_b
                 else:
@@ -856,6 +1125,7 @@ def rebuild_stats(matches: dict[str, dict]) -> tuple[list, list, list]:
             else:
                 continue
             acc = player_acc.setdefault(key, _blank_player(chosen["nick"]))
+            acc["nick"] = chosen["nick"]
             for fld in ("noks", "kills", "deaths", "vehicles", "res", "mvpKiller", "mvpMedic", "mvpArmor"):
                 acc[fld] += chosen[fld]
             acc["matches"] += 1
@@ -1024,11 +1294,14 @@ def run(dry_run: bool = False, reset: bool = False) -> int:
         )
 
     seed_advanced_sides(done)
+    sheets_n = enrich_sheets(done, rosters)
+    print(f"sheets enriched: {sheets_n}", flush=True)
     history, player_stats, team_stats = rebuild_stats(done)
     live["matches"] = done
     live["history"] = history
     live["playerStats"] = player_stats
     live["teamStats"] = team_stats
+    print(f"playerStats: {len(player_stats)} teamStats: {len(team_stats)}", flush=True)
     if dry_run:
         print("DRY-RUN — not writing", flush=True)
         for mid in order:
