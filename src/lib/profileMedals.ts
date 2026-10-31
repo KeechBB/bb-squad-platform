@@ -53,6 +53,18 @@ const KEECH_HALLOWEEN_TROPHY: ProfileMedalItem = {
   source: "site",
 };
 
+/** Превью/тест: медаль за лучшие прогнозы FSSC #1 (позже — всем с макс. верных). */
+const KEECH_FSSC_PREDICTIONS_MEDAL: ProfileMedalItem = {
+  id: "keech-fssc-predictions-medal-v1",
+  name: "Медаль «Прогноз»",
+  short: "FSSC #1",
+  kind: "medal",
+  level: 0,
+  hover: "За лучшие прогнозы турнира FSSC #1",
+  icon: "/awards/fssc-predictions-medal-v1.png",
+  source: "site",
+};
+
 const BP_ICONS: Record<string, string> = {
   "pb1-scout-spark": "/bp-previews/l5-iskra.png",
   "pb1-gold-nick": "/bp-previews/l15-gold-nick.png",
@@ -102,7 +114,11 @@ export async function buildPlayerMedalInventory(
   const signs = registered ? [REGISTRATION_SIGN] : [];
   const cups =
     clean.toLowerCase() === "keech"
-      ? [KEECH_FRUIT_STRIKE_TROPHY, KEECH_HALLOWEEN_TROPHY]
+      ? [
+          KEECH_FRUIT_STRIKE_TROPHY,
+          KEECH_HALLOWEEN_TROPHY,
+          KEECH_FSSC_PREDICTIONS_MEDAL,
+        ]
       : [];
   return [...cups, ...signs, ...bp].filter(isProfileShelfAward);
 }
