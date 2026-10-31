@@ -32,6 +32,30 @@ export function HomeCwAnnounce({ main, junior }: Props) {
     setCards({ main, junior });
   }, [main, junior]);
 
+  // Подтягиваем актуальный слот с сервера (перенос даты / обнуление «буду»).
+  useEffect(() => {
+    let cancelled = false;
+    async function pull() {
+      try {
+        const res = await fetch("/api/cw-announce", { cache: "no-store" });
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as {
+          main: HomeCwCard | null;
+          junior: HomeCwCard | null;
+        };
+        if (!cancelled) setCards({ main: data.main, junior: data.junior });
+      } catch {
+        /* keep SSR */
+      }
+    }
+    void pull();
+    const id = window.setInterval(pull, 45_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {

@@ -111,17 +111,6 @@ function parseMovedToDayMonth(note: string): { day: number; month: number } | nu
   return { day: Number(m[1]), month: Number(m[2]) };
 }
 
-function resolveMoveChain(
-  fromId: string,
-  hops: Map<string, string>,
-  depth = 0
-): string {
-  if (depth > 8) return fromId;
-  const next = hops.get(fromId);
-  if (!next || next === fromId) return fromId;
-  return resolveMoveChain(next, hops, depth + 1);
-}
-
 async function loadCalendarMoveHops(): Promise<Map<string, string>> {
   const index = await loadKvJsonCached<{
     months?: { url?: string; year?: number; month?: number }[];
@@ -187,50 +176,19 @@ async function loadCalendarMoveHops(): Promise<Map<string, string>> {
 }
 
 /**
- * Переносит отметки CwReady со старых id на финальный movedTo.
- * Вызывать с главной / API — тогда после правки календаря «буду» не залипает.
+ * При переносе слота (status=move → movedTo) обнуляем «буду» на СТАРОМ id.
+ * На новый слот отметки не копируем — состав подтверждает заново.
  */
 export async function applyCwCalendarMoves(): Promise<number> {
   const hops = await loadCalendarMoveHops();
   if (!hops.size) return 0;
-  let moved = 0;
-  for (const fromId of hops.keys()) {
-    const toId = resolveMoveChain(fromId, hops);
-    if (!toId || toId === fromId) continue;
-    const rows = await prisma.cwReady.findMany({ where: { matchId: fromId } });
-    for (const row of rows) {
-      await prisma.cwReady.upsert({
-        where: {
-          matchId_userId: { matchId: toId, userId: row.userId },
-        },
-        create: {
-          matchId: toId,
-          userId: row.userId,
-          nick: row.nick,
-          going: row.going,
-          signedAt: row.signedAt,
-          withdrawnAt: row.withdrawnAt,
-          stack: row.stack,
-          opp: row.opp,
-          dateLabel: row.dateLabel,
-          timeMsk: row.timeMsk,
-          map: row.map,
-        },
-        update: {
-          nick: row.nick,
-          // не затираем уже подтверждённое «буду» ложным going со старого слота
-          ...(row.going ? { going: true, withdrawnAt: null } : {}),
-          stack: row.stack,
-          opp: row.opp,
-          dateLabel: row.dateLabel,
-          timeMsk: row.timeMsk,
-          map: row.map,
-        },
-      });
-      moved += 1;
-    }
-  }
-  return moved;
+  const fromIds = [...hops.keys()];
+  if (!fromIds.length) return 0;
+  const res = await prisma.cwReady.updateMany({
+    where: { matchId: { in: fromIds }, going: true },
+    data: { going: false, withdrawnAt: new Date() },
+  });
+  return res.count;
 }
 
 async function ensureCwReadyMovesSynced(): Promise<void> {
@@ -268,6 +226,8 @@ async function upcomingBb(): Promise<
   (CwAnnounce & { start: number })[]
 > {
   await ensureCwReadyMovesSynced();
+  const moveHops = await loadCalendarMoveHops();
+  const movedAway = new Set(moveHops.keys());
   const index = await loadKvJsonCached<{
     months?: { url?: string; year?: number; month?: number }[];
   }>("data/index.json");
@@ -284,13 +244,17 @@ async function upcomingBb(): Promise<
       0;
     for (const match of data.matches || []) {
       const status = String(match.status || "");
-      if (status === "cancel" || meetingClosed(match)) continue;
+      if (status === "cancel" || status === "move" || meetingClosed(match)) {
+        continue;
+      }
       if (status !== "upcoming") continue;
       if (!isBbHostMatch(match)) continue;
       const stack = stackOf(match.stack);
       if (!stack) continue;
       const id = cleanText(match.id);
       if (!id) continue;
+      // Даже если canon снова проставил upcoming — слот-источник переноса не показываем.
+      if (movedAway.has(id) || cleanText(match.movedTo)) continue;
       const start = startUtcMs({
         year,
         month,
