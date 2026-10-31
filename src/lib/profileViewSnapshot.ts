@@ -7,7 +7,7 @@ import { buildPlayerPublicCombatStats } from "@/lib/publicCombat";
 import { lookupPlayerPublicRp } from "@/lib/publicRp";
 import { lookupPlayerTrainPwr } from "@/lib/homeTrainPwr";
 import { loadPlayerProfileHeavy } from "@/lib/playerProfileHeavy";
-import { loadReadyHistories } from "@/lib/profileMatchLines";
+import { ensureProfileLines, loadReadyHistories } from "@/lib/profileMatchLines";
 import { buildPlayerCwAttendance } from "@/lib/homeCwPwr";
 import { takeStaleNicks } from "@/lib/profileViewQueue";
 
@@ -148,9 +148,83 @@ function storedHistoryCount(hist: unknown): number {
 }
 
 /**
- * Только готовый файл. Пустые истории в старом файле добираем готовыми
- * строками из базы — это чтение, не пересчёт. Нет файла — пустая оболочка.
- * Запрос страницы сборку не запускает.
+ * История паблика и число RP в шапке профиля берутся из лестницы.
+ * Файл профиля может быть старше пересчёта RP — его катки паблика не показываем.
+ * Если лестница новее сохранённых строк, строки этого игрока пересобираются один раз.
+ */
+async function withLivePublicRp(
+  name: string,
+  data: ProfileViewPayload
+): Promise<ProfileViewPayload> {
+  await ensureProfileLines(name, "public").catch(() => undefined);
+  const ready = await loadReadyHistories(name).catch(() => null);
+  const prev =
+    data.histories && typeof data.histories === "object"
+      ? (data.histories as Record<string, unknown>)
+      : {};
+  if (ready) {
+    data.histories = {
+      ...prev,
+      publicHistory: ready.publicHistory,
+      publicTotal: ready.publicTotal,
+    };
+  }
+  const rp = await lookupPlayerPublicRp(name).catch(() => null);
+  if (rp) {
+    data.publicSummary = {
+      rp,
+      combat: data.publicSummary?.combat ?? null,
+    };
+  }
+  return data;
+}
+
+function trainingPresentCount(training: unknown): number {
+  if (!training || typeof training !== "object") return 0;
+  const t = training as {
+    presentDays?: unknown[];
+    tr1?: { presentDays?: unknown[] };
+    tr2?: { presentDays?: unknown[] };
+  };
+  return (
+    (t.presentDays?.length || 0) +
+    (t.tr1?.presentDays?.length || 0) +
+    (t.tr2?.presentDays?.length || 0)
+  );
+}
+
+/**
+ * Если кэш профиля стёрт — календарь не должен навсегда стать «не был».
+ * Подтягиваем посещаемость из БД и ставим полный пересчёт файла в фон.
+ */
+async function withLiveTrainingIfEmpty(
+  nick: string,
+  data: ProfileViewPayload
+): Promise<ProfileViewPayload> {
+  if (trainingPresentCount(data.training) > 0) return data;
+  const user = await prisma.user.findFirst({
+    where: {
+      nick: { equals: nick, mode: "insensitive" },
+      profileComplete: true,
+    },
+    select: { id: true, nick: true },
+  });
+  if (!user?.nick) return data;
+  const [training, publicAtt] = await Promise.all([
+    loadUserTrainingStats(user.id).catch(() => null),
+    loadUserPublicAttendanceStats(user.id).catch(() => null),
+  ]);
+  if (training) data.training = training;
+  if (publicAtt) data.publicAtt = publicAtt;
+  // Полный файл только если в БД реально есть посещения — иначе крутим пустой rebuild.
+  if (trainingPresentCount(training) > 0) {
+    void rebuildProfileViewFile(user.id, user.nick).catch(() => undefined);
+  }
+  return data;
+}
+
+/**
+ * Готовый файл для календаря и статы. RP паблика и его история — из лестницы.
  */
 export async function readStoredProfileView(
   nick: string
@@ -166,12 +240,16 @@ export async function readStoredProfileView(
         data.histories = histories;
       }
     }
-    return data;
+    return withLivePublicRp(name, await withLiveTrainingIfEmpty(name, data));
   }
   const histories = await loadReadyHistories(name).catch(() => null);
   const base = emptyPayload();
   if (histories) base.histories = histories;
-  return base;
+  // Нет файла — сразу восстановим посещаемость из БД; полный файл — в фон/cron.
+  void import("@/lib/profileViewQueue")
+    .then((m) => m.markProfileViewStale(name))
+    .catch(() => undefined);
+  return withLivePublicRp(name, await withLiveTrainingIfEmpty(name, base));
 }
 
 /** Совместимость: старые вызовы больше не пересчитывают профиль. */

@@ -65,6 +65,10 @@ type PlayerRow = {
   dmg: number;
   kd: number;
   team?: string;
+  /** Номер отряда, который этот игрок открыл. Состав отряда в логе не пишется. */
+  squad?: number;
+  squadName?: string;
+  squadSide?: string;
 };
 
 type MvpBlock = {
@@ -168,6 +172,9 @@ function enrich(rows: unknown[]): PlayerRow[] {
       dmg: Number(p.dmg) || 0,
       kd: deaths === 0 ? kills : Math.round((kills / deaths) * 100) / 100,
       team: p.team != null ? String(p.team) : undefined,
+      squad: Number(p.squad) > 0 ? Number(p.squad) : undefined,
+      squadName: p.squadName ? String(p.squadName) : undefined,
+      squadSide: p.squadSide ? String(p.squadSide) : undefined,
     };
   });
 }
@@ -287,19 +294,45 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
     let cancelled = false;
     setRpLoading(true);
     setRpMatch(null);
-    loadRpPlayer("train", nick)
-      .then((player) => {
+
+    const lineCount = (m: RpPlayerMatch | null | undefined) =>
+      (m?.kills?.length || 0) +
+      (m?.deaths?.length || 0) +
+      (m?.noks?.length || 0) +
+      (m?.revives?.length || 0) +
+      (m?.gotNoks?.length || 0);
+
+    (async () => {
+      // Канон для профиля: карточка из лога (combat-detail), не RP-лестница.
+      try {
+        const res = await fetch(
+          `/api/train/combat-detail?nick=${encodeURIComponent(nick)}&matchId=${encodeURIComponent(open.matchId)}`,
+          { cache: "no-store", credentials: "same-origin" }
+        );
+        if (res.ok) {
+          const json = (await res.json()) as { match?: RpPlayerMatch | null };
+          if (json.match && lineCount(json.match) > 0) {
+            if (!cancelled) setRpMatch(json.match);
+            return;
+          }
+        }
+      } catch {
+        /* fallback ниже */
+      }
+      if (cancelled) return;
+      try {
+        const player = await loadRpPlayer("train", nick);
         if (cancelled) return;
         const hit =
           player?.matches?.find((m) => m.id === open.matchId) || null;
-        setRpMatch(hit);
-      })
-      .catch(() => {
+        setRpMatch(hit && lineCount(hit) > 0 ? hit : null);
+      } catch {
         if (!cancelled) setRpMatch(null);
-      })
-      .finally(() => {
-        if (!cancelled) setRpLoading(false);
-      });
+      }
+    })().finally(() => {
+      if (!cancelled) setRpLoading(false);
+    });
+
     return () => {
       cancelled = true;
     };
@@ -834,12 +867,17 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
         <div className="profile-match-modal-body">
           {tab === "rpDetail" ? (
             rpLoading ? (
-              <p className="muted">Считаю, из чего сложился RP…</p>
+              <p className="muted">Загружаю детальный разбор…</p>
             ) : rpMatch ? (
-              <RpHuntMatchBreakdown match={rpMatch} onClose={onClose} embedded />
+              <RpHuntMatchBreakdown
+                match={rpMatch}
+                onClose={onClose}
+                embedded
+                hideRp
+              />
             ) : (
               <p className="muted">
-                По этой катке нет построчного разбора RP.
+                По этой катке нет построчного разбора.
               </p>
             )
           ) : loading ? (
@@ -989,6 +1027,11 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
                           : deltaRounded > 0
                             ? `+${deltaRounded}`
                             : String(deltaRounded);
+                      const squadN =
+                        open.kind === "public" ? 0 : Number(p.squad) || 0;
+                      const squadTitle = squadN
+                        ? `${abbreviateFaction(p.squadSide || p.team || "")} · отряд ${squadN}${p.squadName ? ` · ${p.squadName}` : ""} · открыл отряд`
+                        : "";
                       return (
                         <tr
                           key={`${p.nick}-${i}`}
@@ -1002,6 +1045,14 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
                               >
                                 {p.nick}
                               </Link>
+                              {squadN > 0 ? (
+                                <span
+                                  className={`squad-mark squad-mark-${squadN}`}
+                                  title={squadTitle}
+                                >
+                                  {squadN}
+                                </span>
+                              ) : null}
                               <span className="mvp-row">
                                 {(
                                   Object.keys(medals) as (keyof MvpBlock)[]
