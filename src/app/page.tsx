@@ -15,6 +15,7 @@ import {
   type CwAnnounce,
 } from "@/lib/cwReady";
 import { syncCwMails } from "@/lib/cwMailSync";
+import { syncTournamentEliminationMails } from "@/lib/tournamentEliminationMail";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,7 @@ export default async function HomePage() {
 
   const { publicTop } = await getHomeDashboardData();
   await syncCwMails();
+  await syncTournamentEliminationMails();
   const userId = session?.user?.id || "";
   const showCw = await viewerIsBlackberry(userId);
   let cwMain: HomeCwCard | null = null;

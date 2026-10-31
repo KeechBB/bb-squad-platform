@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { findBlackberryClanIds } from "@/lib/reserve";
 import { syncCwMails } from "@/lib/cwMailSync";
+import { syncTournamentEliminationMails } from "@/lib/tournamentEliminationMail";
 
 export const MAIL_KEEP_DELETED_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -40,6 +41,7 @@ export async function purgeExpiredMail() {
 
 export async function listMailForUser(userId: string): Promise<MailRow[]> {
   await syncCwMails();
+  await syncTournamentEliminationMails();
   await purgeExpiredMail();
   const rows = await prisma.profileMailRecipient.findMany({
     where: { userId },
