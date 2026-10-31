@@ -1007,14 +1007,22 @@ def attach_sheet(
     return found
 
 
-def enrich_sheets(matches: dict[str, dict], rosters: dict[str, set[str]]) -> int:
+def enrich_sheets(
+    matches: dict[str, dict],
+    rosters: dict[str, set[str]],
+    *,
+    force: bool = False,
+) -> int:
     load_aliases, _, _ = _load_train_helpers()
     aliases = load_aliases()
     n = 0
     for mid, row in matches.items():
         if row.get("status") != "done":
             continue
-        # Always refresh sheets so late captain locks still get combat.
+        # Skip already-filled sheets on the hot 45s poll — full reparse is minutes.
+        sheet = row.get("sheet") or {}
+        if not force and any(sheet.get(k) for k in ("r1", "r2", "oppR1", "oppR2")):
+            continue
         if attach_sheet(row, rosters, aliases):
             n += 1
         else:
@@ -1294,7 +1302,8 @@ def run(dry_run: bool = False, reset: bool = False) -> int:
         )
 
     seed_advanced_sides(done)
-    sheets_n = enrich_sheets(done, rosters)
+    force_sheets = "--force-sheets" in set(sys.argv[1:])
+    sheets_n = enrich_sheets(done, rosters, force=force_sheets)
     print(f"sheets enriched: {sheets_n}", flush=True)
     history, player_stats, team_stats = rebuild_stats(done)
     live["matches"] = done

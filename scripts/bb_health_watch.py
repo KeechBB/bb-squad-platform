@@ -37,13 +37,15 @@ MAINT_FLAG = Path(
 
 HEAVY_LOCK = HERE / "_tmp_heavy_job.lock"
 # Лок без живого sync-процесса дольше этого → orphan (снять + алерт)
-HEAVY_ORPHAN_SEC = float(os.environ.get("BB_HEAVY_ORPHAN_SEC", "90"))
+# Tournament sync + sheet parse often runs 3–8 min; 90s caused false orphans.
+HEAVY_ORPHAN_SEC = float(os.environ.get("BB_HEAVY_ORPHAN_SEC", "900"))
 # Сколько «deferred» строк в хвосте лога коллектора считать проблемой
 DEFERRED_TAIL_BYTES = int(os.environ.get("BB_DEFERRED_TAIL_BYTES", str(200_000)))
 DEFERRED_MIN_HITS = int(os.environ.get("BB_DEFERRED_MIN_HITS", "4"))
 HEAVY_WORKER_NEEDLES = (
     "sync_train_from_tr1_logs.py",
     "sync_kv_cw_from_tr_logs.py",
+    "sync_tournament_from_tr_logs.py",
     "build_train_rp_ledger.py",
 )
 
@@ -526,7 +528,7 @@ def check_cw_calendar(st: dict) -> None:
 
 
 def check_bp_sync(st: dict, *, autofix: bool = True) -> None:
-    """Раз в ~15 мин: дыры Battle Pass ↔ rp-ledger → heal (кейс Diray)."""
+    """Раз в ~15 мин: дыры BP↔ledger. Раз в час — полный день (сегодня МСК)."""
     now = time.time()
     last = float(st.get("bp_sync_at") or 0)
     if now - last < 900:
@@ -537,8 +539,50 @@ def check_bp_sync(st: dict, *, autofix: bool = True) -> None:
     except Exception as e:
         print(f"bp sync import skip: {type(e).__name__}: {e}", flush=True)
         return
+
+    # Раз в час — проверка всех, кто сегодня играл на паблике
+    last_today = float(st.get("bp_today_at") or 0)
+    run_today = (now - last_today) >= 3600
     try:
-        rep = BP.heal_bp_vs_ledger(last=40, fix=autofix)
+        if run_today:
+            st["bp_today_at"] = now
+            rep = BP.audit_today_players(fix=autofix)
+            print(
+                f"bp today: ok={rep.get('ok')} day={rep.get('day')} "
+                f"matches={rep.get('todayMatchCount')} "
+                f"players={rep.get('registeredPlayersToday')} "
+                f"missing={rep.get('missingIds')} "
+                f"wonNone={rep.get('wonNoneCount')} "
+                f"heal={rep.get('healAction')}",
+                flush=True,
+            )
+            if not rep.get("ok"):
+                A.send(
+                    kind="bp-audit",
+                    title="Battle Pass — сегодня не всё в зачёте",
+                    level="warn",
+                    lines=[
+                        f"день: {rep.get('day')}",
+                        f"missing: {rep.get('missingIds')}",
+                        f"wonNone: {rep.get('wonNoneCount')}",
+                        f"heal: {rep.get('healAction')}",
+                    ],
+                    force=True,
+                )
+            elif rep.get("healed"):
+                A.send(
+                    kind="autofix",
+                    title="Autofix OK (battle_pass today)",
+                    level="ok",
+                    lines=[
+                        f"день: {rep.get('day')}",
+                        f"действие: {rep.get('healAction')}",
+                    ],
+                    force=True,
+                )
+            return
+
+        rep = BP.heal_bp_vs_ledger(last=80, fix=autofix)
     except Exception as e:
         print(f"bp sync failed: {type(e).__name__}: {e}", flush=True)
         return
