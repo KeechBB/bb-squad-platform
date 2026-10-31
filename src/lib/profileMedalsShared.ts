@@ -2,6 +2,21 @@ import type { BpRewardKind } from "@/lib/battlePass";
 
 export const MEDAL_SHELF_SLOTS = 3;
 
+/** На полку: медали, кубки и знаки. Нашивки, фон и стиль ника — нет. */
+export function isProfileShelfAward(item: {
+  id: string;
+  kind: string;
+  name?: string;
+  short?: string;
+}): boolean {
+  const id = String(item.id || "").trim();
+  if (!id) return false;
+  const label = `${item.name || ""} ${item.short || ""}`.toLowerCase();
+  if (id.includes("trophy") || label.includes("кубок")) return true;
+  if (item.kind === "badge" || label.includes("знак")) return true;
+  return item.kind === "medal";
+}
+
 export type ProfileMedalItem = {
   id: string;
   name: string;
@@ -41,13 +56,19 @@ export function resolveMedalShelfSlots(
   inventory: ProfileMedalItem[],
   selectedIds: string[] | null | undefined
 ): ProfileMedalSlot[] {
-  const byId = new Map(inventory.map((m) => [m.id, m]));
+  const awards = inventory.filter(isProfileShelfAward);
+  const byId = new Map(awards.map((m) => [m.id, m]));
   const owned = new Set(byId.keys());
   const picked = normalizeMedalShelfIds(selectedIds, owned);
+  const explicit = Array.isArray(selectedIds)
+    ? selectedIds.some((x) => String(x || "").trim())
+    : false;
   const ids =
     picked.length > 0
       ? picked
-      : inventory.slice(0, MEDAL_SHELF_SLOTS).map((m) => m.id);
+      : explicit
+        ? []
+        : awards.slice(0, MEDAL_SHELF_SLOTS).map((m) => m.id);
 
   const slots: ProfileMedalSlot[] = [];
   for (let i = 0; i < MEDAL_SHELF_SLOTS; i++) {

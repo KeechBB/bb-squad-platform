@@ -21,6 +21,16 @@ export const TOURNAMENT_TABS: TournamentTab[] = [
   { id: "match-history", label: "История матчей", short: "История" },
 ];
 
+export const TOURNAMENT_BETS_HREF = "/tournaments/bets";
+
+export function isTournamentTab(value: string | undefined): value is TournamentTabId {
+  return TOURNAMENT_TABS.some((tab) => tab.id === value);
+}
+
+export function tournamentTabHref(id: TournamentTabId): string {
+  return id === "tournaments" ? "/tournaments" : `/tournaments?tab=${id}`;
+}
+
 export const FRUIT_STRIKE_LOGO =
   "/tournaments/fruit-strike-logo-hq.png?v=20261021-blue-gold-transparent";
 
@@ -86,6 +96,8 @@ export function isRegistrationOpen(
   t: ActiveTournamentDraft,
   now = new Date()
 ): boolean {
+  // Открыта с 00:00 дня открытия до 23:59:59 дня закрытия (МСК).
+  // С 00:00 следующего дня (для #01 = 31.10) — закрыта.
   return now >= mskDayStart(t.regOpenDate) && now <= mskDayEnd(t.regCloseDate);
 }
 
@@ -98,6 +110,70 @@ export function canWithdrawEntry(
   return now <= mskDayEnd(t.withdrawUntilDate);
 }
 
+/** Фаза турнира для баннеров и CTA. */
+export type TournamentPhase =
+  | "registration"
+  | "upcoming"
+  | "live"
+  | "results";
+
+export function tournamentPhase(
+  t: ActiveTournamentDraft,
+  now = new Date()
+): TournamentPhase {
+  if (isRegistrationOpen(t, now)) return "registration";
+  if (now < mskDayStart(t.playDate)) return "upcoming";
+  if (now <= mskDayEnd(t.playDate)) return "live";
+  return "results";
+}
+
+/** Текст CTA на главной / в анонсе. */
+export function tournamentHomeCta(
+  t: ActiveTournamentDraft,
+  now = new Date()
+): string {
+  const phase = tournamentPhase(t, now);
+  if (phase === "registration") return "Регистрация открыта — перейти →";
+  if (phase === "upcoming") return "Регистрация закрыта · завтра игры →";
+  if (phase === "live") return "Регистрация закрыта · идут игры турнира →";
+  return "Турнир завершён · смотреть итоги →";
+}
+
+/** Короткая строка статуса под заголовком на главной. */
+export function tournamentHomeStatusLine(
+  t: ActiveTournamentDraft,
+  now = new Date()
+): { lead: string; emphasis: string; rest: string } {
+  const phase = tournamentPhase(t, now);
+  const play = formatTourDay(t.playDate);
+  if (phase === "registration") {
+    return {
+      lead: "Регистрация",
+      emphasis: `${formatTourDay(t.regOpenDate)} — ${formatTourDay(t.regCloseDate)}`,
+      rest: `· игра ${play} · приз 10 000 ₽`,
+    };
+  }
+  if (phase === "upcoming") {
+    return {
+      lead: "Регистрация закрыта",
+      emphasis: `завтра игры · ${play}`,
+      rest: "· приз 10 000 ₽",
+    };
+  }
+  if (phase === "live") {
+    return {
+      lead: "Регистрация закрыта",
+      emphasis: `сегодня идут игры · ${play}`,
+      rest: "· приз 10 000 ₽",
+    };
+  }
+  return {
+    lead: "Регистрация закрыта",
+    emphasis: "турнир завершён",
+    rest: `· итоги ${formatTourDay(t.resultsDate)} · приз 10 000 ₽`,
+  };
+}
+
 /** Черновик активного турнира (Fruit Strike Squad Cup #01). */
 export const ACTIVE_TOURNAMENT: ActiveTournamentDraft = {
   id: "fruit-strike-s1",
@@ -105,14 +181,14 @@ export const ACTIVE_TOURNAMENT: ActiveTournamentDraft = {
   logoSrc: FRUIT_STRIKE_LOGO,
   regOpenDate: "2026-10-21",
   regCloseDate: "2026-10-30",
-  withdrawUntilDate: "2026-10-29",
+  withdrawUntilDate: "2026-10-30",
   playDate: "2026-10-31",
   resultsDate: "2026-11-01",
   mapsRevealBeforeRegEndDays: 5,
   announce: null,
   announceSchedule: [
     "Регистрация команд: 21.10.26 — 30.10.26",
-    "Отказ от участия: до 29.10.26",
+    "Отказ от участия: до конца регистрации 30.10.26",
     "Дни проведения: 31.10.26",
     "Подведение итогов: 01.11.26",
   ],
@@ -120,7 +196,7 @@ export const ACTIVE_TOURNAMENT: ActiveTournamentDraft = {
     "Формат 8×8 · мод Fruit Cup League",
     "Заявка: 8 основных + 2 замены (макс. 10).",
     "В команде — только игроки с аккаунтом на сайте.",
-    "Карты в сетке — за 5 дней до конца регистрации.",
+    "Карты FCL назначены в сетке · матч = R1+R2 · победа по сумме тикетов.",
   ],
   prizes: [
     {
@@ -161,14 +237,16 @@ export const ACTIVE_TOURNAMENT: ActiveTournamentDraft = {
   rules: [
     "1. Для данного турнира используется мод Fruit Cup League (FCL).",
     "2. Формат турнира — 8×8.",
-    "3. Карты будут назначены и показаны в сетке турнира за 5 дней до окончания регистрации.",
+    "3. Карты FCL 8×8 назначены на каждый матч сетки (слой вида FCL_Map_v1 / FCL_Map_v2).",
+    "3a. Каждый матч — два раунда (R1 и R2). Победа во встрече считается по сумме тикетов за оба раунда (не по счёту раундов 2–0 / 1–1).",
+    "3b. Фракции по умолчанию: слева USA, справа RGF.",
     "4. В заявке на участие — не больше 10 человек: 8 основных игроков и 2 замены.",
     "5. Награды за 1–3 места указаны в блоке призов. Их получают все игроки команды, указанные в заявке.",
     "6. Главный приз 10 000 ₽ — командный: побеждает вся команда из заявки, сумма передаётся капитану для команды (это не личная награда капитана).",
     "7. Регламент игровых правил полностью совпадает с возможностями мода FCL: всё, что разрешено модом — разрешено регламентом.",
     "8. Состав команды любой: неважно, из каких кланов игроки.",
     "9. Создавать команду и принимать игроков можно только среди зарегистрированных на сайте (Steam + заполненный профиль). Без аккаунта на платформе в команду не попасть.",
-    "10. Регистрация команд: 21.10.26–30.10.26. Отменить заявку можно только в срок регистрации (отказ от участия — до 29.10.26).",
+    "10. Регистрация команд: 21.10.26–30.10.26. Отменить заявку можно до конца этого срока, потом поменять состав и зарегистрироваться снова.",
     "11. Заявку на турнир подаёт капитан или зам: выбирает состав из своей команды в пределах лимита 8+2.",
   ].join("\n"),
   bracketHref: "/tournaments/bracket",
