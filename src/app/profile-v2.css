@@ -60,7 +60,8 @@ body.has-profile-bg .shell:has(.profile-page) {
   flex-shrink: 0;
 }
 
-.canvas-scale-host.is-zoom .canvas-scale-slot {
+/* width:auto только без side-inset — иначе слот снова на весь экран и фон не виден. */
+.canvas-scale-host.is-zoom:not(.is-side-inset) .canvas-scale-slot {
   width: auto;
   height: auto;
 }
@@ -2501,27 +2502,24 @@ body.has-profile-bg .shell:has(.profile-page) {
   flex: 0 0 auto;
 }
 
-/* Свой профиль: поля по бокам ≈ красная рамка (~10% слева/справа), фон виден. */
+/* Свой профиль: боковые поля (~10%) рисует CanvasScaleStage инлайном.
+   Фон на хосте, сцена прозрачная — по краям видна картинка. */
 .canvas-scale-host.is-profile.is-side-inset {
-  box-sizing: border-box;
-  padding: 0 max(96px, 10vw);
+  box-sizing: border-box !important;
+  justify-items: center;
+  align-items: stretch;
 }
 
 .canvas-scale-host.is-profile.is-side-inset.has-stage-bg,
 body.has-profile-bg .canvas-scale-host.is-profile.is-side-inset {
-  background: var(--profile-bg-image) center / cover no-repeat;
-  background-color: #07060c;
+  background: var(--profile-bg-image) center / cover no-repeat !important;
+  background-color: #07060c !important;
 }
 
 .canvas-scale-host.is-profile.is-side-inset.has-stage-bg .canvas-scale-stage,
+.canvas-scale-host.is-profile.is-side-inset .canvas-scale-slot.has-stage-bg .canvas-scale-stage,
 body.has-profile-bg .canvas-scale-host.is-profile.is-side-inset .canvas-scale-stage {
   background: transparent !important;
-}
-
-@media (max-width: 1280px) {
-  .canvas-scale-host.is-profile.is-side-inset {
-    padding: 0 max(36px, 4vw);
-  }
 }
 
 /* Почта слева, текущий профиль 1600px у правого края сцены */

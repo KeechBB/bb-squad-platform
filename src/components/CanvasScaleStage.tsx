@@ -12,6 +12,10 @@ import {
 export const CANVAS_REF_W = 2560;
 export const CANVAS_REF_H = 1364;
 
+/** Доля ширины окна слева/справа под фон (≈ красная рамка). */
+const SIDE_INSET_FRAC = 0.1;
+const SIDE_INSET_MIN_PX = 96;
+
 type Props = {
   children: ReactNode;
   hasBg?: boolean;
@@ -23,6 +27,9 @@ type Fit = {
   stageW: number;
   stageH: number;
   scale: number;
+  boxW: number;
+  boxH: number;
+  insetPx: number;
 };
 
 function supportsCssZoom() {
@@ -34,8 +41,7 @@ function supportsCssZoom() {
 }
 
 /**
- * Сцена 2K на весь экран без чёрных полей.
- * Равномерный CSS zoom (чёткий текст) — холст подгоняется под aspect окна.
+ * Сцена 2K. Для профиля с is-side-inset — поля по бокам под фон.
  */
 export function CanvasScaleStage({
   children,
@@ -48,8 +54,10 @@ export function CanvasScaleStage({
     stageW: CANVAS_REF_W,
     stageH: CANVAS_REF_H,
     scale: 1,
+    boxW: CANVAS_REF_W,
+    boxH: CANVAS_REF_H,
+    insetPx: 0,
   });
-  const [box, setBox] = useState({ w: CANVAS_REF_W, h: CANVAS_REF_H });
   const [useZoom, setUseZoom] = useState(true);
 
   useEffect(() => {
@@ -61,33 +69,40 @@ export function CanvasScaleStage({
     if (!host || typeof ResizeObserver === "undefined") return;
 
     const measure = () => {
-      const style = getComputedStyle(host);
-      const padX =
-        (parseFloat(style.paddingLeft) || 0) +
-        (parseFloat(style.paddingRight) || 0);
-      const padY =
-        (parseFloat(style.paddingTop) || 0) +
-        (parseFloat(style.paddingBottom) || 0);
-      const w = host.clientWidth - padX;
-      const h = host.clientHeight - padY;
+      const sideInset = host.classList.contains("is-side-inset");
+      const hostW = host.clientWidth;
+      const hostH = host.clientHeight;
+      const insetPx = sideInset
+        ? Math.max(SIDE_INSET_MIN_PX, Math.round(hostW * SIDE_INSET_FRAC))
+        : 0;
+      // Поля задаём инлайном — CSS zoom/slot больше их не съедает.
+      host.style.paddingLeft = insetPx ? `${insetPx}px` : "";
+      host.style.paddingRight = insetPx ? `${insetPx}px` : "";
+      host.style.paddingTop = "";
+      host.style.paddingBottom = "";
+      host.style.boxSizing = "border-box";
+
+      const w = Math.max(32, hostW - insetPx * 2);
+      const h = Math.max(32, hostH);
       if (w < 32 || h < 32) return;
 
       const hostAspect = w / h;
       const refAspect = CANVAS_REF_W / CANVAS_REF_H;
       let stageW = CANVAS_REF_W;
       let stageH = CANVAS_REF_H;
-      // Расширяем холст под окно → равномерный scale заполняет 100% без letterbox.
       if (hostAspect > refAspect) {
         stageW = Math.round(CANVAS_REF_H * hostAspect);
       } else {
         stageH = Math.round(CANVAS_REF_W / hostAspect);
       }
       const scale = w / stageW;
-      setBox({ w, h });
       setFit({
         stageW,
         stageH,
         scale: Number.isFinite(scale) && scale > 0 ? scale : 1,
+        boxW: w,
+        boxH: h,
+        insetPx,
       });
     };
 
@@ -98,8 +113,10 @@ export function CanvasScaleStage({
     return () => {
       ro.disconnect();
       window.removeEventListener("resize", measure);
+      host.style.paddingLeft = "";
+      host.style.paddingRight = "";
     };
-  }, []);
+  }, [className]);
 
   const stageStyle = {
     width: fit.stageW,
@@ -112,12 +129,12 @@ export function CanvasScaleStage({
         } as CSSProperties)),
   } as CSSProperties;
 
-  // Слот строго в content-box хоста — не залезает на боковые поля с фоном.
   const slotStyle = {
-    width: box.w,
-    height: box.h,
+    width: fit.boxW,
+    height: fit.boxH,
     maxWidth: "100%",
     overflow: "hidden",
+    flexShrink: 0,
   } as CSSProperties;
 
   const innerStyle =
