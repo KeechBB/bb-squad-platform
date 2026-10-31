@@ -342,6 +342,81 @@ def player_keys_in_window(log_path: Path, t0: datetime, t1: datetime) -> set[str
     return keys
 
 
+CREATE_SQUAD_RE = re.compile(
+    r"LogSquad:\s*(?P<nick>.+?)\s*\(Online IDs:.*?steam:\s*7656\d+\)\s+"
+    r"has created Squad\s+\d+\s+\(Squad Name:.*?\)\s+on\s+(?P<faction>.+)$"
+)
+POSSESS_SIDE_RE = re.compile(
+    r"OnPossess\(\):\s*PC=(?P<nick>.+?)\s*\(Online IDs:.*?steam:\s*7656\d+\).*?"
+    r"Pawn=BP_Soldier_(?P<side>USA|RU)_",
+    re.I,
+)
+
+
+def side_nicks_in_window(
+    log_path: Path, t0: datetime, t1: datetime, faction1: str, faction2: str
+) -> tuple[set[str], set[str]]:
+    """Split nicks onto score team1 / team2 via CreateSquad faction + USA/RU possess."""
+    t1_keys: set[str] = set()
+    t2_keys: set[str] = set()
+    if not log_path.is_file():
+        return t1_keys, t2_keys
+    f1u = (faction1 or "").upper()
+    f2u = (faction2 or "").upper()
+    try:
+        with log_path.open("r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                m = re.match(r"^\[(\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2})", line)
+                if not m:
+                    continue
+                ts = R.parse_ts(m.group(1))
+                if ts < t0 or ts > t1:
+                    continue
+                cm = CREATE_SQUAD_RE.search(line)
+                if cm:
+                    nick = nick_key(cm.group("nick"))
+                    fac = (cm.group("faction") or "").strip().upper()
+                    if not nick or not fac:
+                        continue
+                    if f1u and (fac == f1u or fac in f1u or f1u in fac):
+                        t1_keys.add(nick)
+                        continue
+                    if f2u and (fac == f2u or fac in f2u or f2u in fac):
+                        t2_keys.add(nick)
+                        continue
+                    # fallback by USA/RGF family
+                    if faction_is_usa(fac):
+                        if faction_is_usa(f1u):
+                            t1_keys.add(nick)
+                        elif faction_is_usa(f2u):
+                            t2_keys.add(nick)
+                    elif faction_is_rgf(fac):
+                        if faction_is_rgf(f1u):
+                            t1_keys.add(nick)
+                        elif faction_is_rgf(f2u):
+                            t2_keys.add(nick)
+                    continue
+                pm = POSSESS_SIDE_RE.search(line)
+                if pm:
+                    nick = nick_key(pm.group("nick"))
+                    side = (pm.group("side") or "").upper()
+                    if not nick:
+                        continue
+                    if side == "USA":
+                        if faction_is_usa(f1u):
+                            t1_keys.add(nick)
+                        elif faction_is_usa(f2u):
+                            t2_keys.add(nick)
+                    elif side == "RU":
+                        if faction_is_rgf(f1u):
+                            t1_keys.add(nick)
+                        elif faction_is_rgf(f2u):
+                            t2_keys.add(nick)
+    except OSError:
+        pass
+    return t1_keys, t2_keys
+
+
 def discover_natural_layers(servers: list[str]) -> list[dict[str, Any]]:
     env = FLEET.load_env()
     root = FLEET.archive_root(env)
@@ -408,6 +483,8 @@ def discover_natural_layers(servers: list[str]) -> list[dict[str, Any]]:
                         "end": end,
                         "players": players,
                         "logPath": str(lp),
+                        "faction1": m.get("faction1") or "",
+                        "faction2": m.get("faction2") or "",
                     }
                 )
     out.sort(key=lambda x: x["start"])
@@ -430,6 +507,37 @@ def resolve_sides(match_id: str, done: dict[str, dict]) -> tuple[dict, dict] | N
         team = row["winner"] if wl == "W" else row["loser"]
         sides.append(team)
     return sides[0], sides[1]
+
+
+def seed_advanced_sides(done: dict[str, dict]) -> None:
+    """Put a known winner on the upper bracket and the loser on the red drop,
+    even when the other feeder match is still open."""
+    for mid, feed in FEEDS.items():
+        row = dict(done.get(mid) or {})
+        if row.get("locked") or row.get("status") == "done":
+            continue
+        left_src, right_src = feed
+
+        def pick(src: tuple[str, str]) -> dict | None:
+            src_id, kind = src
+            src_row = done.get(src_id) or {}
+            if src_row.get("status") != "done":
+                return None
+            team = src_row.get("winner") if kind == "W" else src_row.get("loser")
+            if not isinstance(team, dict) or not team.get("tag"):
+                return None
+            return {"name": team.get("name"), "tag": team.get("tag")}
+
+        left, right = pick(left_src), pick(right_src)
+        if not left and not right:
+            continue
+        if left:
+            row["teamA"] = left
+        if right:
+            row["teamB"] = right
+        row.setdefault("status", "pending")
+        row["map"] = row.get("map") or MAP_BY_MATCH.get(mid)
+        done[mid] = row
 
 
 def roster_score(players: set[str], tag: str, rosters: dict[str, set[str]]) -> int:
@@ -496,10 +604,54 @@ def planned_start_for(match_id: str) -> datetime | None:
     return PLAY_DAY + timedelta(minutes=40 + 20 * i)
 
 
-def orient_tickets(layer: dict) -> tuple[int, int]:
-    """Orient tickets to team_a / team_b using USA=left preference."""
+def orient_tickets(
+    layer: dict,
+    team_a: dict | None = None,
+    team_b: dict | None = None,
+    rosters: dict[str, set[str]] | None = None,
+) -> tuple[int, int]:
+    """Orient tickets to team_a / team_b.
+
+    Prefer nick∩roster on each score-side (CreateSquad / Possess).
+    Fallback: USA=left / RGF=right.
+    """
     f1, f2 = str(layer.get("faction1") or ""), str(layer.get("faction2") or "")
     s1, s2 = int(layer.get("score1") or 0), int(layer.get("score2") or 0)
+
+    if team_a and team_b and rosters is not None:
+        lp = Path(str(layer.get("logPath") or ""))
+        t0, t1 = layer.get("start"), layer.get("end")
+        if lp.is_file() and isinstance(t0, datetime) and isinstance(t1, datetime):
+            side1, side2 = side_nicks_in_window(lp, t0, t1, f1, f2)
+            ra = rosters.get(team_a["tag"]) or set()
+            rb = rosters.get(team_b["tag"]) or set()
+            a_on_1 = len(side1 & ra)
+            a_on_2 = len(side2 & ra)
+            b_on_1 = len(side1 & rb)
+            b_on_2 = len(side2 & rb)
+            # team_a should map to the side where its roster dominates
+            score_a_on_1 = a_on_1 - a_on_2
+            score_b_on_1 = b_on_1 - b_on_2
+            if score_a_on_1 > 0 and score_b_on_1 <= 0:
+                print(
+                    f"orient nicks {team_a['tag']}→T1({a_on_1}) {team_b['tag']}→T2({b_on_2}) "
+                    f"{s1}:{s2}",
+                    flush=True,
+                )
+                return s1, s2
+            if score_a_on_2 > 0 and score_b_on_2 <= 0:
+                print(
+                    f"orient nicks {team_a['tag']}→T2({a_on_2}) {team_b['tag']}→T1({b_on_1}) "
+                    f"flip {s2}:{s1}",
+                    flush=True,
+                )
+                return s2, s1
+            # weaker signal: whichever side has more of team_a
+            if a_on_1 + a_on_2 + b_on_1 + b_on_2 >= 2:
+                if a_on_1 >= a_on_2:
+                    return s1, s2
+                return s2, s1
+
     if faction_is_usa(f1) and faction_is_rgf(f2):
         return s1, s2
     if faction_is_usa(f2) and faction_is_rgf(f1):
@@ -516,13 +668,20 @@ def round_payload(layer: dict, tickets_a: int, tickets_b: int) -> dict:
         "server": layer.get("server"),
         "layer": layer.get("map"),
         "naturalEnd": True,
+        "logPath": layer.get("logPath"),
     }
 
 
-def finalize_meeting(r1: dict, r2: dict, team_a: dict, team_b: dict) -> dict:
-    """Orient tickets to team_a / team_b using USA=left preference + roster."""
-    a1, b1 = orient_tickets(r1)
-    a2, b2 = orient_tickets(r2)
+def finalize_meeting(
+    r1: dict,
+    r2: dict,
+    team_a: dict,
+    team_b: dict,
+    rosters: dict[str, set[str]] | None = None,
+) -> dict:
+    """Orient tickets to team_a / team_b using nick overlap + USA/RGF fallback."""
+    a1, b1 = orient_tickets(r1, team_a, team_b, rosters)
+    a2, b2 = orient_tickets(r2, team_a, team_b, rosters)
     sum_a, sum_b = a1 + a2, b1 + b2
     if sum_a == sum_b:
         # rare: ask captain — mark draw pending (still pick higher R2 as tiebreak)
@@ -608,7 +767,8 @@ def run(dry_run: bool = False, reset: bool = False) -> int:
     order = ["q1", "q2", "q3", "q4", "s1", "s2", "l1", "l2", "wf", "r1", "r2", "ls", "lf", "gf"]
     changed = False
     for mid in order:
-        if done.get(mid, {}).get("status") == "done":
+        row0 = done.get(mid) or {}
+        if row0.get("locked") or row0.get("status") == "done":
             continue
         sides = resolve_sides(mid, done)
         if not sides:
@@ -676,7 +836,7 @@ def run(dry_run: bool = False, reset: bool = False) -> int:
             r2_layer = None
 
         if r1_layer is not None and r2_layer is None and not prev_r1:
-            a1, b1 = orient_tickets(r1_layer)
+            a1, b1 = orient_tickets(r1_layer, team_a, team_b, rosters)
             done[mid] = {
                 "status": "pending",
                 "teamA": team_a,
@@ -704,11 +864,14 @@ def run(dry_run: bool = False, reset: bool = False) -> int:
                 changed = True
             continue
 
-        meeting = finalize_meeting(r1_layer, r2_layer, team_a, team_b)
+        meeting = finalize_meeting(r1_layer, r2_layer, team_a, team_b, rosters)
         if prev_r1:
             meeting["r1"] = prev_r1
-            meeting["sumA"] = int(prev_r1["ticketsA"]) + int(meeting["r2"]["ticketsA"])
-            meeting["sumB"] = int(prev_r1["ticketsB"]) + int(meeting["r2"]["ticketsB"])
+            # Re-orient R2 with nicks; keep stored R1 tickets.
+            a2, b2 = orient_tickets(r2_layer, team_a, team_b, rosters)
+            meeting["r2"] = round_payload(r2_layer, a2, b2)
+            meeting["sumA"] = int(prev_r1["ticketsA"]) + a2
+            meeting["sumB"] = int(prev_r1["ticketsB"]) + b2
             sa, sb = meeting["sumA"], meeting["sumB"]
             if sa > sb:
                 meeting["winner"], meeting["loser"] = team_a, team_b
@@ -730,6 +893,7 @@ def run(dry_run: bool = False, reset: bool = False) -> int:
             flush=True,
         )
 
+    seed_advanced_sides(done)
     history, player_stats, team_stats = rebuild_stats(done)
     live["matches"] = done
     live["history"] = history
