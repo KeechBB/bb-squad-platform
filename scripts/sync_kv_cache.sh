@@ -39,8 +39,9 @@ if [[ -d "$KV_REPO/.git" ]]; then
   git -C "$KV_REPO" pull --ff-only || echo "==> WARN git pull failed — will use whatever is already on disk" >&2
 fi
 
-# GitHub Pages repo = content at ROOT (index.html next to data/).
-# Local monorepo = KV/public/. Prefer whichever has a complete tree.
+# GitHub Pages repo sometimes has content at ROOT, sometimes under public/.
+# Monorepo = KV/public/. Prefer the tree that still has «Развитие» (growth tab) —
+# root-of-repo copies have repeatedly wiped that tab on deploy.
 SRC=""
 pick_src() {
   local cand="$1"
@@ -48,9 +49,22 @@ pick_src() {
   SRC="$cand"
   return 0
 }
-if pick_src "$KV_REPO"; then
+src_has_growth() {
+  local cand="$1"
+  [[ -f "$cand/index.html" ]] && grep -q 'data-tm="growth"' "$cand/index.html"
+}
+# Prefer growth-enabled trees first (public/ / monorepo), then fall back.
+if src_has_growth "$KV_REPO/public" && pick_src "$KV_REPO/public"; then
+  :
+elif src_has_growth "$ROOT/../KV/public" && pick_src "$ROOT/../KV/public"; then
+  :
+elif [[ -n "${KV_SRC_DIR:-}" ]] && src_has_growth "$KV_SRC_DIR" && pick_src "$KV_SRC_DIR"; then
+  :
+elif src_has_growth "$KV_REPO" && pick_src "$KV_REPO"; then
   :
 elif pick_src "$KV_REPO/public"; then
+  :
+elif pick_src "$KV_REPO"; then
   :
 elif [[ -n "${KV_SRC_DIR:-}" ]] && pick_src "$KV_SRC_DIR"; then
   :
@@ -72,7 +86,17 @@ for must in index.html app.js data/tiers.json; do
   fi
 done
 
-echo "==> rsync $SRC/ → $DEST/ (verified source)"
+# Never deploy an index that drops «Развитие» over a cache that still has it.
+if ! src_has_growth "$SRC"; then
+  if src_has_growth "$DEST" || src_has_growth "$DEST/public"; then
+    echo "==> WARN source has no growth tab — KEEP existing index.html (Развитие)" >&2
+    KEEP_GROWTH_INDEX=1
+  else
+    echo "==> WARN source has no growth tab and cache also missing it" >&2
+  fi
+fi
+
+echo "==> rsync $SRC/ → $DEST/ (verified source, growth=$(src_has_growth "$SRC" && echo yes || echo NO))"
 
 # Preserve live auto-ingest (collector) — rsync must not wipe these.
 TRAIN_BAK="$(mktemp -d /tmp/bb-train-bak.XXXXXX)"
@@ -97,23 +121,45 @@ if command -v rsync >/dev/null 2>&1; then
   # --delete only after source verified complete above.
   # NEVER rsync-wipe live training / public RP — collector writes these on VPS.
   # GitHub may lag; deploy must not resurrect empty Mutaha / drop pending RP.
-  rsync -a --delete \
-    --exclude '.git/' \
-    --exclude '.github/' \
-    --exclude 'node_modules/' \
-    --exclude 'app-month.js' \
-    --exclude 'data/training/' \
-    --exclude 'data/training-index.json' \
-    --exclude 'data/players/' \
-    --exclude 'data/[0-9][0-9][0-9][0-9]-[0-9][0-9].json' \
-    --exclude 'data/public/rp-ledger.json' \
-    --exclude 'data/public/rp-ladder.json' \
-    --exclude 'data/public/match-history.json' \
-    --exclude 'data/cache-bust.json' \
-    "$SRC/" "$DEST/"
+  RSYNC_EXCL=(
+    --exclude '.git/'
+    --exclude '.github/'
+    --exclude 'node_modules/'
+    --exclude 'app-month.js'
+    --exclude 'data/training/'
+    --exclude 'data/training-index.json'
+    --exclude 'data/players/'
+    --exclude 'data/[0-9][0-9][0-9][0-9]-[0-9][0-9].json'
+    --exclude 'data/public/rp-ledger.json'
+    --exclude 'data/public/rp-ladder.json'
+    --exclude 'data/public/match-history.json'
+    --exclude 'data/cache-bust.json'
+  )
+  if [[ "${KEEP_GROWTH_INDEX:-0}" == "1" ]]; then
+    RSYNC_EXCL+=(--exclude 'index.html')
+  fi
+  rsync -a --delete "${RSYNC_EXCL[@]}" "$SRC/" "$DEST/"
 else
   # no rsync: copy over without wiping first (safer)
   cp -a "$SRC/." "$DEST/"
+fi
+
+# Ensure served root index always has «Развитие» if any copy does.
+if ! src_has_growth "$DEST"; then
+  if src_has_growth "$SRC"; then
+    cp -a "$SRC/index.html" "$DEST/index.html"
+    echo "==> restored growth index from $SRC"
+  elif src_has_growth "$DEST/public"; then
+    cp -a "$DEST/public/index.html" "$DEST/index.html"
+    echo "==> restored growth index from $DEST/public"
+  elif src_has_growth "$KV_REPO/public"; then
+    cp -a "$KV_REPO/public/index.html" "$DEST/index.html"
+    echo "==> restored growth index from $KV_REPO/public"
+  fi
+fi
+# Keep nested public/index in sync with served root when root is the good one.
+if src_has_growth "$DEST" && [[ -d "$DEST/public" ]]; then
+  cp -a "$DEST/index.html" "$DEST/public/index.html"
 fi
 
 # Restore live training tree if rsync excluded it (always prefer disk backup)
