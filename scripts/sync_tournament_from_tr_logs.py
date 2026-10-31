@@ -12,6 +12,7 @@ Writes: platform/data/tournaments/fruit-strike-s1-live.json
 """
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import re
@@ -35,12 +36,16 @@ TIME_EARLY_MIN = int(os.environ.get("FS_TIME_EARLY_MIN", "5"))
 TIME_LATE_MIN = int(os.environ.get("FS_TIME_LATE_MIN", "50"))
 LOOKBACK_H = int(os.environ.get("FS_LOOKBACK_H", "36"))
 
-# Planned bracket server for each QF (must match fruitStrikeSchedule)
+# Planned bracket server (must match fruitStrikeSchedule wave assignment)
 MATCH_SERVER = {
     "q1": "TR1",
     "q2": "TR3",
     "q3": "TR4",
     "q4": "TR5",
+    "s1": "TR1",
+    "s2": "TR3",
+    "l1": "TR4",
+    "l2": "TR5",
 }
 
 FORCE_END_RE = re.compile(
@@ -210,15 +215,29 @@ def load_live() -> dict[str, Any]:
     }
 
 
-def save_live(data: dict[str, Any]) -> None:
+def save_live(data: dict[str, Any], *, preserve_owned: bool = True) -> None:
     p = live_path()
     p.parent.mkdir(parents=True, exist_ok=True)
+    lock = p.with_suffix(".lock")
     data["updatedAt"] = datetime.now(timezone.utc).isoformat()
-    tmp = p.with_suffix(".tmp")
-    tmp.write_text(
-        json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-    )
-    tmp.replace(p)
+    with lock.open("a+", encoding="utf-8") as lf:
+        fcntl.flock(lf, fcntl.LOCK_EX)
+        if preserve_owned and p.is_file():
+            try:
+                cur = json.loads(p.read_text(encoding="utf-8"))
+            except Exception:
+                cur = {}
+            owned = data.setdefault("matches", {})
+            for mid, row in (cur.get("matches") or {}).items():
+                if row.get("watch") or row.get("locked"):
+                    owned[mid] = row
+            if cur.get("playerStats") and not data.get("playerStats"):
+                data["playerStats"] = cur.get("playerStats")
+        tmp = p.with_suffix(".tmp")
+        tmp.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+        tmp.replace(p)
 
 
 def load_rosters() -> dict[str, set[str]]:
@@ -584,9 +603,10 @@ def layer_fits_slot(
         early = (planned_start - start_m).total_seconds() / 60.0
         late = (start_m - planned_start).total_seconds() / 60.0
         # Reject warmups that start too early / too late vs slot clock.
+        late_limit = 120 if match_id in ("s1", "s2", "l1", "l2") else TIME_LATE_MIN
         if early > TIME_EARLY_MIN:
             return -1.0
-        if late > TIME_LATE_MIN:
+        if late > late_limit:
             return -1.0
         time_score = max(0.0, 30.0 - abs(min(0.0, -early) + max(0.0, late)) / 3.0)
     return fac_ok * 3.0 + people * 2.0 + time_score
@@ -596,6 +616,8 @@ def planned_start_for(match_id: str) -> datetime | None:
     """QF all open 19:00; later rounds paced after."""
     if match_id in ("q1", "q2", "q3", "q4"):
         return PLAY_DAY
+    if match_id in ("s1", "s2", "l1", "l2"):
+        return PLAY_DAY + timedelta(minutes=60)
     order = ["s1", "s2", "l1", "l2", "wf", "r1", "r2", "ls", "lf", "gf"]
     try:
         i = order.index(match_id)
@@ -632,6 +654,8 @@ def orient_tickets(
             # team_a should map to the side where its roster dominates
             score_a_on_1 = a_on_1 - a_on_2
             score_b_on_1 = b_on_1 - b_on_2
+            score_a_on_2 = a_on_2 - a_on_1
+            score_b_on_2 = b_on_2 - b_on_1
             if score_a_on_1 > 0 and score_b_on_1 <= 0:
                 print(
                     f"orient nicks {team_a['tag']}→T1({a_on_1}) {team_b['tag']}→T2({b_on_2}) "
@@ -705,18 +729,49 @@ def finalize_meeting(
     }
 
 
+def _blank_player(nick: str) -> dict:
+    return {
+        "nick": nick,
+        "noks": 0,
+        "kills": 0,
+        "deaths": 0,
+        "vehicles": 0,
+        "res": 0,
+        "matches": 0,
+        "wins": 0,
+        "winPct": 0,
+        "mvpKiller": 0,
+        "mvpMedic": 0,
+        "mvpArmor": 0,
+        "kd": 0.0,
+    }
+
+
+def _top_nick(rows: list, key: str) -> str | None:
+    best_v = 0
+    best = None
+    for p in rows:
+        v = int(p.get(key) or 0)
+        if v > best_v:
+            best_v = v
+            best = str(p.get("nick") or "").strip()
+    return best or None
+
+
 def rebuild_stats(matches: dict[str, dict]) -> tuple[list, list, list]:
     history = []
     player_acc: dict[str, dict] = {}
     team_acc: dict[str, dict] = {}
+    team_kd: dict[str, list[int]] = {}
     for mid, row in matches.items():
         if row.get("status") != "done":
             continue
         wa, wb = row["winner"], row["loser"]
+        end = str((row.get("r2") or row.get("r1") or {}).get("end") or "")
         history.append(
             {
                 "id": mid,
-                "dateLabel": (row.get("r2") or row.get("r1") or {}).get("end", "")[:10],
+                "dateLabel": end[:10] or "2026-10-31",
                 "teamA": row["teamA"]["name"],
                 "teamB": row["teamB"]["name"],
                 "map": row.get("map") or MAP_BY_MATCH.get(mid, ""),
@@ -745,8 +800,83 @@ def rebuild_stats(matches: dict[str, dict]) -> tuple[list, list, list]:
             if won:
                 slot["wins"] += 1
             slot["winPct"] = round(100.0 * slot["wins"] / max(1, slot["matches"]))
+
+        sheet = row.get("sheet") or {}
+        winner_tag = (row.get("winner") or {}).get("tag")
+        side_meta = {
+            "A": ("r1", "r2", (row.get("teamA") or {}).get("tag")),
+            "B": ("oppR1", "oppR2", (row.get("teamB") or {}).get("tag")),
+        }
+        buckets: dict[str, dict[str, dict]] = {"A": {}, "B": {}}
+        for side_name, (k1, k2, tag) in side_meta.items():
+            if not tag:
+                continue
+            for key in (k1, k2):
+                rows = sheet.get(key) or []
+                killer = _top_nick(rows, "kills")
+                medic = _top_nick(rows, "res")
+                armor = _top_nick(rows, "vehicleKills")
+                for p in rows:
+                    nick = str(p.get("nick") or "").strip()
+                    if not nick or nick == "—":
+                        continue
+                    k = nick.lower()
+                    s = buckets[side_name].setdefault(k, _blank_player(nick))
+                    s["noks"] += int(p.get("nok") or 0)
+                    s["kills"] += int(p.get("kills") or 0)
+                    s["deaths"] += int(p.get("deaths") or 0)
+                    s["vehicles"] += int(p.get("vehicleKills") or 0)
+                    s["res"] += int(p.get("res") or 0)
+                    if killer and nick == killer:
+                        s["mvpKiller"] += 1
+                    if medic and nick == medic:
+                        s["mvpMedic"] += 1
+                    if armor and nick == armor:
+                        s["mvpArmor"] += 1
+
+        def _load(s: dict) -> int:
+            return s["kills"] + s["deaths"] + s["noks"] + s["res"] + s["vehicles"]
+
+        for key in set(buckets["A"]) | set(buckets["B"]):
+            left = buckets["A"].get(key)
+            right = buckets["B"].get(key)
+            tag_a = side_meta["A"][2]
+            tag_b = side_meta["B"][2]
+            if left and right:
+                # One meeting. A nick on both sides is a side-detect miss:
+                # keep the side where he actually fought.
+                if _load(right) > _load(left) and tag_b:
+                    chosen, tag = right, tag_b
+                else:
+                    chosen, tag = left, tag_a
+            elif left and tag_a:
+                chosen, tag = left, tag_a
+            elif right and tag_b:
+                chosen, tag = right, tag_b
+            else:
+                continue
+            acc = player_acc.setdefault(key, _blank_player(chosen["nick"]))
+            for fld in ("noks", "kills", "deaths", "vehicles", "res", "mvpKiller", "mvpMedic", "mvpArmor"):
+                acc[fld] += chosen[fld]
+            acc["matches"] += 1
+            if tag == winner_tag:
+                acc["wins"] += 1
+            kd_slot = team_kd.setdefault(tag, [0, 0])
+            kd_slot[0] += chosen["kills"]
+            kd_slot[1] += chosen["deaths"]
+
+    for acc in player_acc.values():
+        deaths = acc["deaths"]
+        acc["kd"] = round(acc["kills"] / deaths, 2) if deaths else float(acc["kills"])
+        acc["winPct"] = round(100.0 * acc["wins"] / max(1, acc["matches"]))
+        acc.pop("res", None)
+        acc.pop("wins", None)
+    for tag, (kills, deaths) in team_kd.items():
+        if tag in team_acc:
+            team_acc[tag]["avgKd"] = round(kills / deaths, 2) if deaths else float(kills)
+    players = sorted(player_acc.values(), key=lambda x: (-x["kills"], x["nick"].lower()))
     teams = sorted(team_acc.values(), key=lambda x: (-x["wins"], -x["matches"], x["name"]))
-    return history, list(player_acc.values()), teams
+    return history, players, teams
 
 
 def run(dry_run: bool = False, reset: bool = False) -> int:
@@ -768,7 +898,7 @@ def run(dry_run: bool = False, reset: bool = False) -> int:
     changed = False
     for mid in order:
         row0 = done.get(mid) or {}
-        if row0.get("locked") or row0.get("status") == "done":
+        if row0.get("locked") or row0.get("watch") or row0.get("status") == "done":
             continue
         sides = resolve_sides(mid, done)
         if not sides:
