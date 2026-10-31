@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { TournamentBracketBoard } from "@/components/TournamentBracketBoard";
+import { loadFruitStrikeLive } from "@/lib/fruitStrikeLive";
 import { ACTIVE_TOURNAMENT } from "@/lib/tournaments";
 
-export function TournamentBracketPage() {
+export async function TournamentBracketPage() {
   const t = ACTIVE_TOURNAMENT;
+  const initialLive = await loadFruitStrikeLive();
 
   return (
     <main className="tn-page tn-bracket-page">
@@ -44,7 +46,7 @@ export function TournamentBracketPage() {
 
         <section className="tn-panel tn-br-board" aria-label="Сетка">
           <h2 className="tn-panel-title">Сетка</h2>
-          <TournamentBracketBoard />
+          <TournamentBracketBoard initialLive={initialLive} />
         </section>
       </div>
     </main>

@@ -6,6 +6,6 @@ export const metadata = {
   title: "Сетка турнира · BlackBerry Squad",
 };
 
-export default function TournamentBracketRoute() {
+export default async function TournamentBracketRoute() {
   return <TournamentBracketPage />;
 }

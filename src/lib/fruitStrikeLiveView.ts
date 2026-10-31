@@ -80,16 +80,24 @@ export function fruitMatchView(
   const liveMatch = live?.matches?.[id] || null;
   const left = teamSlot(liveMatch?.teamA) || brief.left;
   const right = teamSlot(liveMatch?.teamB) || brief.right;
+  let scoreLabel: string | null = null;
+  if (liveMatch?.status === "done") {
+    scoreLabel =
+      liveMatch.scoreLabel ||
+      `${liveMatch.sumA ?? "—"}:${liveMatch.sumB ?? "—"}`;
+  } else if (liveMatch?.r1 && liveMatch.r1.ticketsA != null && liveMatch.r1.ticketsB != null) {
+    const r1 = `${liveMatch.r1.ticketsA}:${liveMatch.r1.ticketsB}`;
+    scoreLabel = liveMatch.r2
+      ? `${r1} / ${liveMatch.r2.ticketsA}:${liveMatch.r2.ticketsB}`
+      : `R1 ${r1}`;
+  }
+
   return {
     brief: { ...brief, left, right },
     liveMatch,
     leftLabel: sideFullLabel(left),
     rightLabel: sideFullLabel(right),
-    scoreLabel:
-      liveMatch?.status === "done"
-        ? liveMatch.scoreLabel ||
-          `${liveMatch.sumA ?? "—"}:${liveMatch.sumB ?? "—"}`
-        : null,
+    scoreLabel,
     status: liveMatch?.status || "pending",
   };
 }

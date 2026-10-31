@@ -269,14 +269,18 @@ function buildEdges(byId: Map<string, PlannedMatch>): Edge[] {
   return edges;
 }
 
-export function TournamentBracketBoard() {
+export function TournamentBracketBoard({
+  initialLive = null,
+}: {
+  initialLive?: FruitLiveState | null;
+}) {
   const matches = FRUIT_STRIKE_PLAN;
   const byId = useMemo(() => new Map(matches.map((m) => [m.id, m])), [matches]);
   const edges = useMemo(() => buildEdges(byId), [byId]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [timeSlot, setTimeSlot] = useState<HTMLElement | null>(null);
-  const [live, setLive] = useState<FruitLiveState | null>(null);
+  const [live, setLive] = useState<FruitLiveState | null>(initialLive);
   const [rosterTeams, setRosterTeams] = useState<RosterTeam[]>([]);
   const [rosterId, setRosterId] = useState<string | null>(null);
   const open = openId ? byId.get(openId) ?? null : null;
@@ -307,7 +311,10 @@ export function TournamentBracketBoard() {
     let cancelled = false;
     const pull = async () => {
       try {
-        const res = await fetch("/api/tournaments/live", { cache: "no-store" });
+        const res = await fetch(`/api/tournaments/live?t=${Date.now()}`, {
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+        });
         if (!res.ok) return;
         const data = (await res.json()) as FruitLiveState;
         if (!cancelled) setLive(data);
@@ -316,7 +323,7 @@ export function TournamentBracketBoard() {
       }
     };
     void pull();
-    const t = window.setInterval(() => void pull(), 45_000);
+    const t = window.setInterval(() => void pull(), 10_000);
     return () => {
       cancelled = true;
       window.clearInterval(t);
@@ -632,7 +639,7 @@ export function TournamentBracketBoard() {
                       <div className="tn-br-round-slot">
                         <span>R1</span>
                         <b>
-                          {r1
+                          {r1 && r1.ticketsA != null && r1.ticketsB != null
                             ? `${r1.ticketsA} : ${r1.ticketsB}`
                             : "— : —"}
                         </b>
@@ -640,7 +647,7 @@ export function TournamentBracketBoard() {
                       <div className="tn-br-round-slot">
                         <span>R2</span>
                         <b>
-                          {r2
+                          {r2 && r2.ticketsA != null && r2.ticketsB != null
                             ? `${r2.ticketsA} : ${r2.ticketsB}`
                             : "— : —"}
                         </b>
