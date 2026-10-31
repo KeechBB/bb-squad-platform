@@ -2,12 +2,15 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ACTIVE_TOURNAMENT,
-  TOURNAMENT_TABS,
   isRegistrationOpen,
+  tournamentPhase,
+  tournamentTabHref,
   type TournamentTabId,
 } from "@/lib/tournaments";
+import { TournamentHubFrame } from "@/components/TournamentHubFrame";
 import { TournamentTeamsTab } from "@/components/TournamentTeamsTab";
 import { TournamentPlayerStatsTab } from "@/components/TournamentPlayerStatsTab";
 import { TournamentTeamRatingTab } from "@/components/TournamentTeamRatingTab";
@@ -16,6 +19,7 @@ import { TournamentRegisterPanel } from "@/components/TournamentRegisterPanel";
 
 type Props = {
   viewerNick: string;
+  initialTab?: TournamentTabId;
 };
 
 function Placeholder({ children }: { children: ReactNode }) {
@@ -25,6 +29,15 @@ function Placeholder({ children }: { children: ReactNode }) {
 function TournamentsHomeTab() {
   const t = ACTIVE_TOURNAMENT;
   const regOpen = isRegistrationOpen(t);
+  const phase = tournamentPhase(t);
+  const phaseBadge =
+    phase === "registration"
+      ? "Регистрация открыта"
+      : phase === "upcoming"
+        ? "Регистрация закрыта · завтра игры"
+        : phase === "live"
+          ? "Регистрация закрыта · идут игры"
+          : "Турнир завершён";
 
   return (
     <div className="tn-home">
@@ -32,8 +45,8 @@ function TournamentsHomeTab() {
         <section className="tn-panel tn-announce" aria-label="Анонс турнира">
           <div className="tn-announce-head">
             <h2 className="tn-panel-title">Анонс турнира</h2>
-            <p className={`tn-reg-badge${regOpen ? " is-open" : ""}`}>
-              {regOpen ? "Регистрация открыта" : "Регистрация закрыта"}
+            <p className={`tn-reg-badge${regOpen ? " is-open" : " is-closed"}`}>
+              {phaseBadge}
             </p>
           </div>
           <p className="tn-announce-name">{t.name}</p>
@@ -153,8 +166,9 @@ function TournamentsHomeTab() {
   );
 }
 
-export function TournamentsClient({ viewerNick }: Props) {
-  const [tab, setTab] = useState<TournamentTabId>("tournaments");
+export function TournamentsClient({ viewerNick, initialTab = "tournaments" }: Props) {
+  const router = useRouter();
+  const [tab, setTab] = useState<TournamentTabId>(initialTab);
 
   const body = useMemo(() => {
     switch (tab) {
@@ -174,33 +188,14 @@ export function TournamentsClient({ viewerNick }: Props) {
   }, [tab, viewerNick]);
 
   return (
-    <main className="tn-page">
-      <header className="tn-head">
-        <div className="tn-head-text">
-          <p className="tn-eyebrow">BlackBerry · турнирный хаб</p>
-          <h1>Турниры</h1>
-        </div>
-      </header>
-
-      <nav className="tn-tabs" aria-label="Разделы турниров">
-        {TOURNAMENT_TABS.map((t) => {
-          const on = tab === t.id;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              className={`tn-tab${on ? " is-on" : ""}`}
-              aria-pressed={on}
-              onClick={() => setTab(t.id)}
-            >
-              <span className="tn-tab-full">{t.label}</span>
-              <span className="tn-tab-short">{t.short}</span>
-            </button>
-          );
-        })}
-      </nav>
-
-      <div className="tn-body">{body}</div>
-    </main>
+    <TournamentHubFrame
+      active={tab}
+      onTab={(id) => {
+        setTab(id);
+        router.replace(tournamentTabHref(id), { scroll: false });
+      }}
+    >
+      {body}
+    </TournamentHubFrame>
   );
 }
