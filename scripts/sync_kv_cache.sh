@@ -228,8 +228,8 @@ if [[ -d "$DEST/data" ]]; then
   echo "==> mirrored month JSON data/ → public/data/ (home + pages)"
 fi
 
-# Always keep «Развитие» after sync (save gold backup / restore if wiped).
-bash "$ROOT/scripts/ensure_tm_growth_tab.sh" || true
+# Always keep «Развитие» + other critical runtime after sync.
+bash "$ROOT/scripts/ensure_runtime_gold.sh" || true
 
 # count JSON as sanity
 json_n=$(find "$DEST/data" -type f -name '*.json' 2>/dev/null | wc -l | tr -d ' ')
