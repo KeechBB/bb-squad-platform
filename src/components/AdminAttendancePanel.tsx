@@ -12,6 +12,7 @@ import type {
 import { ListPager, pageSlice } from "@/components/ListPager";
 import { AttendEveningDynamics } from "@/components/AttendEveningDynamics";
 import { AttendEveningTiers } from "@/components/AttendEveningTiers";
+import { AdminBbTrainReport } from "@/components/AdminBbTrainReport";
 
 const ATTEND_PAGE_SIZE = 50;
 
@@ -248,7 +249,7 @@ export function AdminAttendancePanel() {
   const init = useMemo(() => defaultRange(), []);
   const [from, setFrom] = useState(init.from);
   const [to, setTo] = useState(init.to);
-  const [tab, setTab] = useState<"table" | "stats">("table");
+  const [tab, setTab] = useState<"table" | "stats" | "report">("table");
   const [data, setData] = useState<Payload | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -476,7 +477,9 @@ export function AdminAttendancePanel() {
       <p className="muted" style={{ marginTop: 0, marginBottom: 10 }}>
         {tab === "table"
           ? "Таблица: участники клана BlackBerry (TR) или все зареганые (PB1)."
-          : "Статистика: динамика вечера на TR1+TR2 и стрики явки клана BlackBerry."}
+          : tab === "stats"
+            ? "Статистика: динамика вечера на TR1+TR2 и стрики явки клана BlackBerry."
+            : "Отчет по BB: срез на 21:30 и разбор в 01:00."}
       </p>
       <div className="attend-filter-row" style={{ marginBottom: 10 }}>
         <button
@@ -510,6 +513,13 @@ export function AdminAttendancePanel() {
           onClick={() => setTab("stats")}
         >
           Статистика
+        </button>
+        <button
+          type="button"
+          className={`admin-tab ${tab === "report" ? "active" : ""}`}
+          onClick={() => setTab("report")}
+        >
+          Отчет
         </button>
       </div>
 
@@ -797,6 +807,8 @@ export function AdminAttendancePanel() {
         />
         </>
       ) : null}
+
+      {tab === "report" ? <AdminBbTrainReport /> : null}
 
       {tab === "stats" ? (
         <div className="attend-stats-grid attend-stats-grid-v2">
