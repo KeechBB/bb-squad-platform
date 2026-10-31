@@ -12,7 +12,7 @@ Env (не коммитить секреты):
   SQUAD_LOG_PATH=/home/squad/servers/TPUB1/SquadGame/Saved/Logs/SquadGame.log
   SQUAD_SERVER_KEY=TPUB1
   # Или несколько серверов (тренировка TR1+TR2+TR3 + паб):
-  SQUAD_SERVERS=TR1,TR2,TR3,TPUB1
+  SQUAD_SERVERS=TR1,TR2,TR3,TR4,TR5,TPUB1
   SQUAD_LOG_ROOT=/home/squad/servers
   SQUAD_INGEST_URL=https://bb-squad.ru/api/ingest/squad-sessions
   SQUAD_HITS_INGEST_URL=https://bb-squad.ru/api/ingest/squad-hits
@@ -42,13 +42,13 @@ import requests
 # Join/leave со всех SQUAD_SERVERS; hits — все TR* (BBHitZone).
 # DeployRole / киты — TR* + паблик PB1. Список TR растёт через SQUAD_SERVERS.
 def _train_hit_servers() -> frozenset[str]:
-    raw = os.environ.get("SQUAD_SERVERS", "TR1,TR2,TR3,TPUB1")
+    raw = os.environ.get("SQUAD_SERVERS", "TR1,TR2,TR3,TR4,TR5,TPUB1")
     out = set()
     for part in raw.replace(";", ",").split(","):
         k = part.strip().upper()
         if k.startswith("TR") and k[2:].isdigit():
             out.add(k)
-    return frozenset(out or {"TR1", "TR2", "TR3"})
+    return frozenset(out or {"TR1", "TR2", "TR3", "TR4", "TR5"})
 
 
 # История матчей паблика — только PB1/TPUB1 (SEED отфильтровываем).
@@ -59,9 +59,9 @@ def _role_servers() -> frozenset[str]:
     return _train_hit_servers() | PUBLIC_MATCH_SERVERS
 
 
-# Back-compat names (refreshed after dotenv in main via reassignment if needed)
-TRAINING_HIT_ROLE_SERVERS = frozenset({"TR1", "TR2", "TR3"})
-ROLE_SERVERS = TRAINING_HIT_ROLE_SERVERS | PUBLIC_MATCH_SERVERS
+# Back-compat names — always derived from SQUAD_SERVERS (TR1…TRn), not a hardcode.
+TRAINING_HIT_ROLE_SERVERS = _train_hit_servers()
+ROLE_SERVERS = _role_servers()
 
 # Name may contain spaces; passworded servers append ?PASSWORD=… before userId.
 LOGIN_RE = re.compile(
@@ -89,7 +89,7 @@ HIT_RE = re.compile(
     r"BBHitZone:\s*"
     r"AttackerEOS=<?(?P<aeos>[0-9a-fA-F]{32}|none)>?\s+"
     r"(?:AttackerSteam=<?(?P<asteam>7656\d{13}|none)>?\s+)?"
-    r"VictimEOS=<?(?P<veos>[0-9a-fA-F]{32}|none)>?\s+"
+    r"VictimEOS=<?(?P<veos>[0-9a-fA-F]{32}|none|)?>?\s+"
     r"Zone=<?(?P<zone>[^>\s]+)>?\s+"
     r"Damage=<?(?P<damage>[^>\s]+)>?\s+"
     r"Bone=<?(?P<bone>[^>\s]+)>?"
@@ -861,14 +861,24 @@ class Collector:
                 self._keech_hunt = False  # type: ignore
         return self._keech_hunt if self._keech_hunt is not False else None
 
-    def _handle_line(self, line: str, server_key: str) -> list[dict[str, Any]]:
+    def _handle_line(
+        self,
+        line: str,
+        server_key: str,
+        *,
+        feed_keech: bool = True,
+    ) -> list[dict[str, Any]]:
         events: list[dict[str, Any]] = []
-        kt = self._keech_tracker()
-        if kt is not None:
-            try:
-                kt.feed(line, server_key)
-            except Exception as e:
-                _safe_print("keech hunt feed", type(e).__name__, e, file=sys.stderr)
+        # Backup catchup must NOT feed Hunt — it replays hours of BBHitZone and
+        # blocks live poll (collector pegged at 100% CPU, live.json frozen).
+        # Hunt is bootstrapped from live tail + live _poll_one only.
+        if feed_keech:
+            kt = self._keech_tracker()
+            if kt is not None:
+                try:
+                    kt.feed(line, server_key)
+                except Exception as e:
+                    _safe_print("keech hunt feed", type(e).__name__, e, file=sys.stderr)
         hit = self._parse_hit(line, server_key)
         if hit:
             events.append(hit)
@@ -1030,7 +1040,7 @@ class Collector:
                 continue
             n = 0
             for line in text.splitlines():
-                ev = self._handle_line(line, server_key)
+                ev = self._handle_line(line, server_key, feed_keech=False)
                 if ev:
                     batch.extend(ev)
                     n += 1
@@ -1277,6 +1287,7 @@ class Collector:
             self.maybe_rebuild_public_rp()
             self.maybe_sync_train_tr1()
             self.maybe_sync_cw_tr()
+            self.maybe_sync_tournament()
             self.maybe_rp_lag_alerts()
             kt = self._keech_tracker()
             if kt is not None:
@@ -1540,12 +1551,21 @@ class Collector:
         return env
 
     def maybe_sync_train_tr1(self) -> None:
-        """All TR* servers: digitize closed maps (21:30–00:00 MSK) + train RP queue."""
+        """All TR* servers: digitize closed maps, including after 00:00 MSK."""
         now = time.time()
         last = getattr(self, "_train_sync_last", 0.0)
-        # Evening window (MSK≈UTC+3): poll often. Daytime: rare (saves RAM/CPU).
-        msk_hour = (datetime.now(timezone.utc).hour + 3) % 24
-        in_train_window = msk_hour >= 21 or msk_hour < 1
+        # Fruit Strike day: do not write anything into training matches.
+        msk_now = datetime.now(timezone.utc) + timedelta(hours=3)
+        if os.environ.get("BB_SKIP_TRAIN_SYNC", "").strip() in ("1", "true", "yes"):
+            return
+        if msk_now.date().isoformat() == "2026-10-31":
+            # Tournament night — only sync_tournament_from_tr_logs.
+            return
+        # Evening through the night tail (MSK≈UTC+3). 00:00–03:59 stays on the
+        # fast poll so a full round after midnight is written before the 03:00
+        # log rotate. Daytime: rare (saves RAM/CPU).
+        msk_hour = msk_now.hour
+        in_train_window = msk_hour >= 21 or msk_hour < 4
         interval = 90 if in_train_window else 1800
         if (now - last) < interval:
             return
@@ -1580,7 +1600,7 @@ class Collector:
             )
 
     def maybe_rp_lag_alerts(self) -> None:
-        """Telegram if history exists but RP ladder lags (train + PB1)."""
+        """Telegram if public RP lags. Тренировочный RP выключен с 26.10."""
         now = time.time()
         last = getattr(self, "_rp_lag_alert_last", 0.0)
         if (now - last) < 300:
@@ -1596,17 +1616,7 @@ class Collector:
         if not root.is_dir():
             return
         try:
-            train_dir = root / "data" / "training"
             pub_dir = root / "data" / "public"
-            if train_dir.is_dir():
-                # Always reconcile pending vs ladder first (stale warehouse alerts).
-                TRG.clear_pending_done(train_dir, kind="train")
-                missing = TRG.auto_ids_needing_rp(train_dir)
-                if missing:
-                    TRG.enqueue_pending(train_dir, missing, reason="collector-scan")
-                alerted = TRG.alert_stale_pending(train_dir, kind="train")
-                if alerted:
-                    _safe_print(f"telegram train RP lag: {alerted}", flush=True)
             if pub_dir.is_dir():
                 TRG.clear_pending_done(pub_dir, kind="public")
                 missing_p = TRG.public_ids_needing_rp(pub_dir)
@@ -1656,6 +1666,39 @@ class Collector:
         except Exception as e:
             _safe_print(
                 "CW TR sync error",
+                type(e).__name__,
+                e,
+                file=sys.stderr,
+            )
+
+    def maybe_sync_tournament(self) -> None:
+        """Fruit Strike: TR1…TR5 → bracket live JSON (natural end only)."""
+        now = time.time()
+        last = getattr(self, "_tournament_sync_last", 0.0)
+        # Tournament day / evening: poll often; otherwise rare.
+        msk_hour = (datetime.now(timezone.utc).hour + 3) % 24
+        in_window = msk_hour >= 17 or msk_hour < 3
+        # Live bracket night: every ~45s so R1 appears before R2 ends.
+        interval = 45 if in_window else 1800
+        if (now - last) < interval:
+            return
+        if self._heavy_job_busy():
+            _safe_print("tournament sync deferred — heavy job running", flush=True)
+            return
+        self._tournament_sync_last = now
+        script = Path(__file__).resolve().parent / "sync_tournament_from_tr_logs.py"
+        if not script.is_file():
+            return
+        _safe_print("tournament sync start (background, nice)", flush=True)
+        try:
+            log_path = Path(__file__).resolve().parent / "_tmp_tournament_sync.log"
+            env = {**os.environ}
+            self._spawn_low_priority(
+                script, log_path, env=env, lock_label="tournament-sync"
+            )
+        except Exception as e:
+            _safe_print(
+                "tournament sync error",
                 type(e).__name__,
                 e,
                 file=sys.stderr,
@@ -1873,4 +1916,7 @@ class Collector:
 if __name__ == "__main__":
     here = Path(__file__).resolve().parent
     load_dotenv_file(here / ".squad-collector.env", override=True)
+    # Refresh TR* sets after dotenv (SQUAD_SERVERS may add TR4/TR5).
+    globals()["TRAINING_HIT_ROLE_SERVERS"] = _train_hit_servers()
+    globals()["ROLE_SERVERS"] = _role_servers()
     Collector().run()

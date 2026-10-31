@@ -5,7 +5,8 @@ Auto-digitize TR1 training matches from logs → KV training JSON + auto MATCHES
 
 Canon: .cursor/rules/tr1-pb1-auto-canon.mdc
 - CW only if a calendar slot already exists (time + map). No slot → training, any hour.
-- not Jensen*, layer >10 min, only after map end, winner present.
+- not Jensen*, only after map end, winner present. Under 3 min is a layer
+  flicker. A finished 3–10 min round with a winner is kept (8×8 FCL).
 """
 from __future__ import annotations
 
@@ -95,6 +96,19 @@ def sync_tr1_logs_via_ssh() -> list[Path]:
 
     _load_collector_env()
     return FLEET.sync_servers_parallel(kind="train")
+
+def post_midnight_msk(start_utc: datetime) -> bool:
+    """00:00–05:59 MSK. The training night does not stop at midnight.
+
+    A round in this window is written when it was actually played: the map
+    ended, there is a winner and a ticket score, at least 12 players and
+    25 deaths. Length alone must not drop it. Under 3 minutes is still a
+    layer change, not a match.
+    """
+    msk = start_utc if start_utc.tzinfo else start_utc.replace(tzinfo=timezone.utc)
+    msk = msk + timedelta(hours=3)
+    return msk.hour < 6
+
 
 def msk_hour_ok(start_utc: datetime) -> bool:
     """Legacy evening window (21:30–00:30 МСК). Not the CW/train split.
@@ -186,14 +200,12 @@ def training_evening_msk(start_utc: datetime) -> datetime:
 
 
 def _train_evening_minutes(time_msk: str | None) -> int:
-    """Sort key minutes: 00:00–00:29 → after 23:59 (хвост вечера)."""
+    """Sort key minutes on the real MSK clock. 00:24 is before 22:03."""
     t = str(time_msk or "").strip()
     m = re.match(r"^(\d{1,2}):(\d{2})", t)
     if not m:
         return -1
     h, mi = int(m.group(1)), int(m.group(2))
-    if h == 0 and mi <= 29:
-        return 24 * 60 + mi
     return h * 60 + mi
 
 
@@ -351,6 +363,53 @@ def load_aliases() -> dict[str, str]:
         for a, c in (t.get("aliases") or {}).items():
             out[R.nick_key(str(a))] = R.nick_key(str(c))
     return out
+
+
+_GENERIC_SQUAD_NAME = re.compile(r"^squad\s*\d+$", re.I)
+
+
+def _faction_same(a: str, b: str) -> bool:
+    x = (a or "").strip().casefold()
+    y = (b or "").strip().casefold()
+    if not x or not y:
+        return False
+    return x == y or x in y or y in x
+
+
+def stamp_squad_creators(
+    rows: list[dict],
+    opens: list[dict],
+    start: datetime,
+    end: datetime,
+    aliases: dict[str, str],
+) -> None:
+    """Mark who opened a squad. The log has no join lines, so members stay blank."""
+    if not rows or not opens:
+        return
+    lo = start - timedelta(seconds=90)
+    for row in rows:
+        key = R.canon_key(str(row.get("nick") or ""), aliases)
+        team = str(row.get("team") or "")
+        best = None
+        for ev in opens:
+            if ev.get("key") != key:
+                continue
+            at = ev.get("at")
+            if at is None or not (lo <= at < end):
+                continue
+            if team and not _faction_same(str(ev.get("faction") or ""), team):
+                continue
+            if best is None or at >= best["at"]:
+                best = ev
+        if not best:
+            continue
+        row["squad"] = int(best["num"])
+        row["squadSide"] = team
+        name = str(best.get("name") or "").strip()
+        if name and not _GENERIC_SQUAD_NAME.match(name):
+            row["squadName"] = name
+        else:
+            row.pop("squadName", None)
 
 
 def agg_players(
@@ -885,6 +944,7 @@ def purge_phantom_train_matches() -> int:
                 return None
             return (
                 int(day),
+                str(m.get("timeMsk") or m.get("time") or "").strip(),
                 str(m.get("winner") or ""),
                 int(m.get("ticketsA") or 0),
                 int(m.get("ticketsB") or 0),
@@ -1126,6 +1186,14 @@ def reconcile_orphan_player_files() -> int:
 
 
 def main() -> int:
+    # Fruit Strike 31.10: nothing goes into training — tournament only.
+    if os.environ.get("BB_SKIP_TRAIN_SYNC", "").strip().lower() in ("1", "true", "yes"):
+        print("BB_SKIP_TRAIN_SYNC=1 — skip training digitize", flush=True)
+        return 0
+    msk_today = (datetime.now(timezone.utc) + timedelta(hours=3)).date().isoformat()
+    if msk_today == "2026-10-31":
+        print("tournament day 2026-10-31 — skip training digitize", flush=True)
+        return 0
     aliases = load_aliases()
     print("=== sync TR1 logs ===", flush=True)
     heal_month_files_from_siblings()
@@ -1149,7 +1217,9 @@ def main() -> int:
     print(f"TR1 logs: {len(logs)} {[p.name for p in logs[:8]]}", flush=True)
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=LOOKBACK_DAYS)
-    discovered = R.discover_matches(logs)
+    # 3 min, not the public 8 min floor: a full 8×8 after midnight can end
+    # in 6–9 minutes. Smoke breaks still die on the roster check below.
+    discovered = R.discover_matches(logs, min_sec=3 * 60)
     auto: list[dict] = []
     if AUTO_MATCHES.is_file():
         try:
@@ -1180,7 +1250,18 @@ def main() -> int:
         layer = str(m.get("layer") or m.get("map") or "")
         if R.is_seed_layer(layer, str(m.get("level") or "")):
             continue
-        if (end - start).total_seconds() <= 10 * 60:
+        dur_s = (end - start).total_seconds()
+        # Короче 3 минут — смена слоя в любой час.
+        # После 00:00 длина не решает: катка доиграна, если ниже есть
+        # победитель, тикеты, ≥12 игроков и ≥25 смертей.
+        # До полуночи короткий раунд без победителя — не катка.
+        if dur_s <= 3 * 60:
+            continue
+        if (
+            dur_s <= 10 * 60
+            and not post_midnight_msk(start)
+            and not str(m.get("winnerTeam") or "")
+        ):
             continue
 
         start_iso = start.isoformat()
@@ -1331,6 +1412,12 @@ def main() -> int:
         for p in team_b:
             p["team"] = f2
             p["won"] = winner_team == "2"
+        stamp_squad_creators(
+            team_a, idx.get("squad_opens") or [], start, end, aliases
+        )
+        stamp_squad_creators(
+            team_b, idx.get("squad_opens") or [], start, end, aliases
+        )
 
         import bb_log_fleet as FLEET  # noqa: WPS433
 
@@ -1416,7 +1503,6 @@ def main() -> int:
                 map_name=layer,
                 score=f"{int(t1 or 0)}–{int(t2 or 0)}",
                 kind="тренировка",
-                rp_ok=False,
                 players=len(team_a) + len(team_b),
             )
         except Exception as e:
@@ -1488,41 +1574,11 @@ def main() -> int:
         except Exception as e:
             print(f"accuracy rebuild skip: {e}", flush=True)
 
-    need_rp = TRG.auto_ids_needing_rp(TRAIN)
-    if added or need_rp:
-        if need_rp:
-            TRG.enqueue_pending(TRAIN, need_rp, reason="sync-added" if added else "rp-lag")
-            print(f"RP lag / new matches — queue {need_rp}", flush=True)
-        # 1) Publish match JSON first so /tm updates without waiting for RP rebuild.
+    # Тренировочный RP выключен с 26.10. Катку публикуем, очередь RP не трогаем.
+    # Паблик считается своим путём.
+    if added:
         bump_cache_bust()
         publish_live_mirrors()
-        # 2) Drain pending RP (+ Telegram if still stale).
-        drain = TRG.drain_pending(TRAIN, KV_PUBLIC)
-        still = drain.get("still") or TRG.auto_ids_needing_rp(TRAIN)
-        if still:
-            print(f"WARN: RP still missing after rebuild: {still}", flush=True)
-            try:
-                import bb_alerts as AL  # noqa: WPS433
-
-                AL.rp_lag(still, kind="тренировка")
-            except Exception as e:
-                print(f"alert rp_lag skip: {e}", flush=True)
-        if drain.get("alerted"):
-            print(f"telegram alerted: {drain['alerted']}", flush=True)
-        bump_cache_bust()
-        publish_live_mirrors()
-    else:
-        # Periodic: clear done + alert anything stuck from earlier evenings.
-        TRG.clear_pending_done(TRAIN)
-        alerted = TRG.alert_stale_pending(TRAIN)
-        if alerted:
-            print(f"telegram alerted (idle scan): {alerted}", flush=True)
-            try:
-                import bb_alerts as AL  # noqa: WPS433
-
-                AL.rp_lag(alerted, kind="тренировка")
-            except Exception:
-                pass
     return 0
 
 

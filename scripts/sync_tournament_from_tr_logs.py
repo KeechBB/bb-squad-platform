@@ -447,20 +447,33 @@ def planned_start_for(match_id: str) -> datetime | None:
     return PLAY_DAY + timedelta(minutes=20 * (i // 2))
 
 
+def orient_tickets(layer: dict) -> tuple[int, int]:
+    """Orient tickets to team_a / team_b using USA=left preference."""
+    f1, f2 = str(layer.get("faction1") or ""), str(layer.get("faction2") or "")
+    s1, s2 = int(layer.get("score1") or 0), int(layer.get("score2") or 0)
+    if faction_is_usa(f1) and faction_is_rgf(f2):
+        return s1, s2
+    if faction_is_usa(f2) and faction_is_rgf(f1):
+        return s2, s1
+    return s1, s2
+
+
+def round_payload(layer: dict, tickets_a: int, tickets_b: int) -> dict:
+    return {
+        "ticketsA": tickets_a,
+        "ticketsB": tickets_b,
+        "start": layer["start"].astimezone(MSK).isoformat(),
+        "end": layer["end"].astimezone(MSK).isoformat(),
+        "server": layer.get("server"),
+        "layer": layer.get("map"),
+        "naturalEnd": True,
+    }
+
+
 def finalize_meeting(r1: dict, r2: dict, team_a: dict, team_b: dict) -> dict:
     """Orient tickets to team_a / team_b using USA=left preference + roster."""
-    def orient(layer: dict) -> tuple[int, int]:
-        # Prefer faction: USA → team_a, RGF → team_b
-        f1, f2 = str(layer.get("faction1") or ""), str(layer.get("faction2") or "")
-        s1, s2 = int(layer.get("score1") or 0), int(layer.get("score2") or 0)
-        if faction_is_usa(f1) and faction_is_rgf(f2):
-            return s1, s2
-        if faction_is_usa(f2) and faction_is_rgf(f1):
-            return s2, s1
-        return s1, s2
-
-    a1, b1 = orient(r1)
-    a2, b2 = orient(r2)
+    a1, b1 = orient_tickets(r1)
+    a2, b2 = orient_tickets(r2)
     sum_a, sum_b = a1 + a2, b1 + b2
     if sum_a == sum_b:
         # rare: ask captain — mark draw pending (still pick higher R2 as tiebreak)
@@ -474,24 +487,8 @@ def finalize_meeting(r1: dict, r2: dict, team_a: dict, team_b: dict) -> dict:
         "teamA": team_a,
         "teamB": team_b,
         "map": MAP_BY_MATCH.get(r1.get("matchId") or "", r1.get("map")),
-        "r1": {
-            "ticketsA": a1,
-            "ticketsB": b1,
-            "start": r1["start"].astimezone(MSK).isoformat(),
-            "end": r1["end"].astimezone(MSK).isoformat(),
-            "server": r1.get("server"),
-            "layer": r1.get("map"),
-            "naturalEnd": True,
-        },
-        "r2": {
-            "ticketsA": a2,
-            "ticketsB": b2,
-            "start": r2["start"].astimezone(MSK).isoformat(),
-            "end": r2["end"].astimezone(MSK).isoformat(),
-            "server": r2.get("server"),
-            "layer": r2.get("map"),
-            "naturalEnd": True,
-        },
+        "r1": round_payload(r1, a1, b1),
+        "r2": round_payload(r2, a2, b2),
         "sumA": sum_a,
         "sumB": sum_b,
         "scoreLabel": f"{sum_a}:{sum_b}",
@@ -577,8 +574,13 @@ def run() -> int:
             if sc >= 0:
                 scored.append((sc, layer))
         scored.sort(key=lambda x: (-x[0], x[1]["start"]))
-        if len(scored) < 2:
-            # keep pending with known sides
+        prev = done.get(mid) or {}
+        prev_r1 = prev.get("r1") if prev.get("status") != "done" else None
+
+        def layer_id(L: dict) -> str:
+            return f"{L.get('server')}|{L['start'].astimezone(MSK).isoformat()}"
+
+        if not scored and not prev_r1:
             if mid not in done:
                 done[mid] = {
                     "status": "pending",
@@ -588,39 +590,89 @@ def run() -> int:
                 }
                 changed = True
             continue
-        # take best two chronological among top candidates
+
+        # New layers for this slot (chronological among top candidates).
         top = [L for _, L in scored[:8]]
         top.sort(key=lambda x: x["start"])
-        # pick first two that share map family
-        r1 = top[0]
-        r2 = None
-        for cand in top[1:]:
-            if maps_compatible(str(r1.get("map")), str(cand.get("map"))):
-                # same meeting: within ~2h
-                if (cand["start"] - r1["start"]).total_seconds() <= 2.5 * 3600:
-                    r2 = cand
+
+        r1_layer: dict | None = None
+        r2_layer: dict | None = None
+        if prev_r1 and top:
+            # R1 already on disk — next compatible layer is R2.
+            r2_layer = None
+            for cand in top:
+                if maps_compatible(MAP_BY_MATCH[mid], str(cand.get("map") or "")):
+                    r2_layer = cand
                     break
-        if r2 is None:
+            if r2_layer is None:
+                continue
+            # Rebuild a synthetic r1 layer dict for finalize from stored tickets.
+            r1_layer = {
+                "map": prev_r1.get("layer") or MAP_BY_MATCH[mid],
+                "start": datetime.fromisoformat(prev_r1["start"]),
+                "end": datetime.fromisoformat(prev_r1["end"]),
+                "server": prev_r1.get("server"),
+                "score1": prev_r1.get("ticketsA"),
+                "score2": prev_r1.get("ticketsB"),
+                "faction1": "USA",
+                "faction2": "RGF",
+            }
+        elif len(top) >= 2:
+            r1_layer = top[0]
+            for cand in top[1:]:
+                if maps_compatible(str(r1_layer.get("map")), str(cand.get("map"))):
+                    if (cand["start"] - r1_layer["start"]).total_seconds() <= 2.5 * 3600:
+                        r2_layer = cand
+                        break
+        elif len(top) == 1:
+            r1_layer = top[0]
+
+        if r1_layer is not None and r2_layer is None and not prev_r1:
+            a1, b1 = orient_tickets(r1_layer)
             done[mid] = {
                 "status": "pending",
                 "teamA": team_a,
                 "teamB": team_b,
                 "map": MAP_BY_MATCH[mid],
-                "r1Partial": {
-                    "layer": r1.get("map"),
-                    "start": r1["start"].astimezone(MSK).isoformat(),
-                    "server": r1.get("server"),
-                },
+                "r1": round_payload(r1_layer, a1, b1),
             }
+            used_layer_ids.add(layer_id(r1_layer))
             changed = True
+            print(
+                f"R1 {mid}: {team_a['tag']} vs {team_b['tag']} "
+                f"{a1}:{b1} (waiting R2)",
+                flush=True,
+            )
             continue
-        meeting = finalize_meeting(r1, r2, team_a, team_b)
+
+        if r1_layer is None or r2_layer is None:
+            if mid not in done:
+                done[mid] = {
+                    "status": "pending",
+                    "teamA": team_a,
+                    "teamB": team_b,
+                    "map": MAP_BY_MATCH[mid],
+                }
+                changed = True
+            continue
+
+        meeting = finalize_meeting(r1_layer, r2_layer, team_a, team_b)
+        # If r1 came from prev store, keep exact stored tickets (already USA-oriented).
+        if prev_r1:
+            meeting["r1"] = prev_r1
+            meeting["sumA"] = int(prev_r1["ticketsA"]) + int(meeting["r2"]["ticketsA"])
+            meeting["sumB"] = int(prev_r1["ticketsB"]) + int(meeting["r2"]["ticketsB"])
+            sa, sb = meeting["sumA"], meeting["sumB"]
+            if sa >= sb:
+                meeting["winner"], meeting["loser"] = team_a, team_b
+            else:
+                meeting["winner"], meeting["loser"] = team_b, team_a
+            meeting["scoreLabel"] = f"{sa}:{sb}"
         meeting["map"] = MAP_BY_MATCH[mid]
         done[mid] = meeting
-        for L in (r1, r2):
-            used_layer_ids.add(
-                f"{L.get('server')}|{L['start'].astimezone(MSK).isoformat()}"
-            )
+        if not prev_r1:
+            used_layer_ids.add(layer_id(r1_layer))
+        used_layer_ids.add(layer_id(r2_layer))
         changed = True
         print(
             f"DONE {mid}: {team_a['tag']} vs {team_b['tag']} "
