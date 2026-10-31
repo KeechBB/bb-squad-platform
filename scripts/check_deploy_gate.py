@@ -29,6 +29,10 @@ def fail(msg: str) -> None:
     raise SystemExit(1)
 
 
+def warn(msg: str) -> None:
+    print(f"gate WARN: {msg}", file=sys.stderr)
+
+
 def check_columns() -> None:
     root = ROOT / ".next"
     if not root.is_dir():
@@ -171,7 +175,9 @@ def check_kind(kind: str) -> None:
     )
     if missing:
         preview = ", ".join(missing[:8])
-        fail(f"{kind} disk matches absent from plaza: {preview}")
+        # A match that is on disk but not in plaza yet must not roll the whole
+        # site back to the previous build. Columns and unreadable data still fail.
+        warn(f"{kind} disk matches absent from plaza: {preview}")
 
 
 def main() -> int:

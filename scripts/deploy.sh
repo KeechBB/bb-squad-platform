@@ -7,6 +7,24 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# One build at a time. A second next build in the same tree corrupts .next
+# and the failed one restores the previous site.
+exec 9>/tmp/bb-deploy.lock
+if ! flock -n 9; then
+  echo "==> ABORT: another deploy is already running (/tmp/bb-deploy.lock)" >&2
+  exit 1
+fi
+
+# Untracked screens live only on this disk. reset/pull does not put them in
+# the build. Stop before maintenance, even if BB_DEPLOY_FORCE_CLEAN=1.
+mapfile -t UNTRACKED_SRC < <(git status --porcelain -u -- src | sed -n 's/^?? //p' | grep -E '\.(ts|tsx)$' | grep -v -E '(^|/)_tmp' || true)
+if [[ ${#UNTRACKED_SRC[@]} -gt 0 ]]; then
+  echo "==> ABORT: untracked TypeScript in src/ on VPS. The live site is built only from GitHub." >&2
+  echo "==> Commit these from the PC, push, then deploy again:" >&2
+  printf '  %s\n' "${UNTRACKED_SRC[@]}" >&2
+  exit 1
+fi
+
 MAINT_FLAG="$ROOT/maintenance.on"
 DEPLOY_OK=0
 STOPPED=0
@@ -208,6 +226,12 @@ if [[ "$BUILD_RC" -ne 0 ]]; then
   exit "$BUILD_RC"
 fi
 
+# Next создаёт .next с правами 700. Nginx читает статику с диска от www-data
+# и без прохода в каталог отдаёт 403, браузер показывает «client-side exception».
+chmod 755 .next
+find .next -type d ! -perm -005 -exec chmod 755 {} \;
+find .next -type f ! -perm -004 -exec chmod 644 {} \;
+
 echo "==> deploy gate (history columns + plaza covers disk matches)"
 set +e
 python3 scripts/check_deploy_gate.py
@@ -280,6 +304,16 @@ EOF
 chmod 644 /etc/cron.d/bb-attendance-hourly
 # Bootstrap snapshot so /home is not empty until next :00
 bash "$ROOT/scripts/publish_attendance_hourly.sh" >>/var/log/bb-attendance-hourly.log 2>&1 || true
+
+echo "==> BB train report cron (21:30 and 01:00 MSK)"
+cat >/etc/cron.d/bb-train-report <<EOF
+CRON_TZ=Europe/Moscow
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+30 21 * * * root cd $ROOT && python3 scripts/tr1_yavka_report.py data/BB-schedule-visits.xlsx --write-db --slot 2130 >>/var/log/bb-train-report.log 2>&1
+0 1 * * * root cd $ROOT && python3 scripts/tr1_yavka_report.py data/BB-schedule-visits.xlsx --write-db --slot 0100 >>/var/log/bb-train-report.log 2>&1
+EOF
+chmod 644 /etc/cron.d/bb-train-report
 
 echo "==> profile view files (separate process, a few players per minute)"
 chmod +x "$ROOT/scripts/warm-profile-views.sh" 2>/dev/null || true
