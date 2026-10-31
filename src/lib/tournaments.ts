@@ -5,7 +5,8 @@ export type TournamentTabId =
   | "teams"
   | "player-stats"
   | "team-rating"
-  | "match-history";
+  | "match-history"
+  | "cup-history";
 
 export type TournamentTab = {
   id: TournamentTabId;
@@ -13,12 +14,25 @@ export type TournamentTab = {
   short: string;
 };
 
-export const TOURNAMENT_TABS: TournamentTab[] = [
+/** Основные вкладки до прогнозов. */
+export const TOURNAMENT_PRIMARY_TABS: TournamentTab[] = [
   { id: "tournaments", label: "Турниры", short: "Турн." },
   { id: "teams", label: "Команды", short: "Ком." },
   { id: "player-stats", label: "Статистика игроков", short: "Статы" },
   { id: "team-rating", label: "Рейтинг команд", short: "Рейт." },
-  { id: "match-history", label: "История матчей", short: "История" },
+  { id: "match-history", label: "История матчей", short: "Матчи" },
+];
+
+/** После прогнозов. */
+export const TOURNAMENT_HISTORY_TAB: TournamentTab = {
+  id: "cup-history",
+  label: "История турниров",
+  short: "Кубки",
+};
+
+export const TOURNAMENT_TABS: TournamentTab[] = [
+  ...TOURNAMENT_PRIMARY_TABS,
+  TOURNAMENT_HISTORY_TAB,
 ];
 
 export const TOURNAMENT_BETS_HREF = "/tournaments/bets";

@@ -10,16 +10,21 @@ import {
   tournamentTabHref,
   type TournamentTabId,
 } from "@/lib/tournaments";
+import type { TournamentHubState } from "@/lib/tournamentHubShared";
 import { TournamentHubFrame } from "@/components/TournamentHubFrame";
+import { TournamentHubIdle } from "@/components/TournamentHubIdle";
+import { TournamentChampionHome } from "@/components/TournamentChampionHome";
 import { TournamentTeamsTab } from "@/components/TournamentTeamsTab";
 import { TournamentPlayerStatsTab } from "@/components/TournamentPlayerStatsTab";
 import { TournamentTeamRatingTab } from "@/components/TournamentTeamRatingTab";
 import { TournamentMatchHistoryTab } from "@/components/TournamentMatchHistoryTab";
+import { TournamentHistoryTab } from "@/components/TournamentHistoryTab";
 import { TournamentRegisterPanel } from "@/components/TournamentRegisterPanel";
 
 type Props = {
   viewerNick: string;
   initialTab?: TournamentTabId;
+  hub: TournamentHubState;
 };
 
 function Placeholder({ children }: { children: ReactNode }) {
@@ -166,13 +171,21 @@ function TournamentsHomeTab() {
   );
 }
 
-export function TournamentsClient({ viewerNick, initialTab = "tournaments" }: Props) {
+export function TournamentsClient({
+  viewerNick,
+  initialTab = "tournaments",
+  hub,
+}: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<TournamentTabId>(initialTab);
 
   const body = useMemo(() => {
     switch (tab) {
       case "tournaments":
+        if (hub.surface === "idle") return <TournamentHubIdle kind="tournaments" />;
+        if (hub.surface === "champion") {
+          return <TournamentChampionHome hub={hub} />;
+        }
         return <TournamentsHomeTab />;
       case "teams":
         return <TournamentTeamsTab viewerNick={viewerNick} />;
@@ -182,10 +195,12 @@ export function TournamentsClient({ viewerNick, initialTab = "tournaments" }: Pr
         return <TournamentTeamRatingTab />;
       case "match-history":
         return <TournamentMatchHistoryTab />;
+      case "cup-history":
+        return <TournamentHistoryTab hub={hub} />;
       default:
         return null;
     }
-  }, [tab, viewerNick]);
+  }, [tab, viewerNick, hub]);
 
   return (
     <TournamentHubFrame

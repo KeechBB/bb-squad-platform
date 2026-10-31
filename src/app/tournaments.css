@@ -2994,3 +2994,212 @@ a.tn-bet-save {
     grid-template-columns: 1fr;
   }
 }
+
+/* —— Idle stub / champion window / cup history —— */
+.tn-idle {
+  max-width: 720px;
+  margin: 1.5rem auto 2rem;
+  text-align: center;
+  padding: 2.25rem 1.75rem 2.5rem;
+}
+
+.tn-idle-eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--tn-gold, #e2c56a);
+  opacity: 0.85;
+}
+
+.tn-idle-body {
+  margin: 0.65rem auto 0;
+  max-width: 36rem;
+  color: var(--tn-muted, #b7b0a2);
+  line-height: 1.55;
+  font-size: 1.02rem;
+}
+
+.tn-idle-hint {
+  margin: 1.25rem auto 0;
+  max-width: 38rem;
+  color: rgba(244, 240, 230, 0.62);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.tn-reg-badge.is-champion {
+  background: linear-gradient(135deg, rgba(226, 197, 106, 0.28), rgba(180, 40, 40, 0.22));
+  border: 1px solid rgba(226, 197, 106, 0.55);
+  color: #f6e7b0;
+}
+
+.tn-home-champion .tn-champ-card {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+  margin-top: 1.15rem;
+  padding: 1rem 1.15rem;
+  border-radius: 14px;
+  border: 1px solid rgba(226, 197, 106, 0.45);
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(226, 197, 106, 0.18), transparent 55%),
+    rgba(255, 255, 255, 0.03);
+}
+
+.tn-champ-logo {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.25);
+  flex-shrink: 0;
+}
+
+.tn-champ-logo.is-empty {
+  border: 1px dashed rgba(226, 197, 106, 0.35);
+}
+
+.tn-champ-eyebrow {
+  margin: 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--tn-gold, #e2c56a);
+}
+
+.tn-champ-name {
+  margin: 0.35rem 0 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #f4f0e6;
+}
+
+.tn-podium {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.tn-podium-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.tn-podium-row.place-1 {
+  border-color: rgba(226, 197, 106, 0.5);
+  background: rgba(226, 197, 106, 0.1);
+}
+
+.tn-podium-row.place-2 {
+  border-color: rgba(180, 190, 210, 0.35);
+}
+
+.tn-podium-row.place-3 {
+  border-color: rgba(180, 110, 60, 0.35);
+}
+
+.tn-podium-place {
+  width: 1.6rem;
+  height: 1.6rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 0.85rem;
+  background: rgba(226, 197, 106, 0.2);
+  color: #f6e7b0;
+}
+
+.tn-podium-team {
+  font-weight: 700;
+  color: #f4f0e6;
+}
+
+.tn-cup-history {
+  display: grid;
+  gap: 1rem;
+}
+
+.tn-cup-list {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.75rem;
+}
+
+.tn-cup-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.tn-cup-chip img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  flex-shrink: 0;
+}
+
+.tn-cup-chip span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.tn-cup-chip b {
+  font-size: 0.95rem;
+  color: #f4f0e6;
+}
+
+.tn-cup-chip small {
+  color: var(--tn-muted, #b7b0a2);
+  font-size: 0.78rem;
+}
+
+.tn-cup-chip.is-on,
+.tn-cup-chip:hover {
+  border-color: rgba(226, 197, 106, 0.55);
+  background: rgba(226, 197, 106, 0.08);
+}
+
+.tn-bracket-btn-inline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.tn-cup-bracket-board {
+  margin-top: 0.75rem;
+  overflow-x: auto;
+}
+
+@media (max-width: 900px) {
+  .tn-home-champion .tn-champ-card {
+    flex-direction: column;
+    text-align: center;
+  }
+}
