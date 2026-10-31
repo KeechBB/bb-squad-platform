@@ -31,8 +31,17 @@ TOURNAMENT_ID = "fruit-strike-s1"
 MSK = timezone(timedelta(hours=3))
 MIN_LAYER_SEC = int(float(os.environ.get("FS_MIN_LAYER_SEC", str(8 * 60))))
 MIN_PLAYERS = int(os.environ.get("FS_MIN_PLAYERS", "10"))
-TIME_SLACK_MIN = int(os.environ.get("FS_TIME_SLACK_MIN", "90"))
+TIME_EARLY_MIN = int(os.environ.get("FS_TIME_EARLY_MIN", "5"))
+TIME_LATE_MIN = int(os.environ.get("FS_TIME_LATE_MIN", "50"))
 LOOKBACK_H = int(os.environ.get("FS_LOOKBACK_H", "36"))
+
+# Planned bracket server for each QF (must match fruitStrikeSchedule)
+MATCH_SERVER = {
+    "q1": "TR1",
+    "q2": "TR3",
+    "q3": "TR4",
+    "q4": "TR5",
+}
 
 FORCE_END_RE = re.compile(
     r"AdminEndMatch|ForceEndMatch|Execute:\s*EndMatch|\bendmatch\b|RCON:.*[Ee]nd\s*Match",
@@ -131,6 +140,11 @@ def maps_compatible(planned: str, found: str) -> bool:
     b = map_stem(found)
     if not a or not b:
         return False
+    # Never treat Skirmish/Small as the planned 8x8 layer.
+    if re.search(r"skirmish|small|_tc\b", b) and not re.search(
+        r"skirmish|small|_tc\b", a
+    ):
+        return False
     # FCL_Mutaha_v1 vs Mutaha / FCL_Mutaha_v2
     a0 = re.sub(r"_v\d+$", "", a)
     b0 = re.sub(r"_v\d+$", "", b)
@@ -146,12 +160,30 @@ def maps_compatible(planned: str, found: str) -> bool:
 
 def faction_is_usa(name: str) -> bool:
     u = (name or "").upper()
-    return "USA" in u or "USMC" in u or "UNITED STATES" in u or u == "US"
+    if not u:
+        return False
+    if "USA" in u or "USMC" in u or "UNITED STATES" in u or u == "US":
+        return True
+    # FCL / vanilla US display names
+    if "10TH MOUNTAIN" in u or "MARINE EXPEDITIONARY" in u or "101ST" in u:
+        return True
+    if "BP_SOLDIER_USA" in u:
+        return True
+    return False
 
 
 def faction_is_rgf(name: str) -> bool:
     u = (name or "").upper()
-    return "RGF" in u or "RUSSIA" in u or "VDV" in u or "MSV" in u
+    if not u:
+        return False
+    if "RGF" in u or "RUSSIA" in u or "VDV" in u or "MSV" in u or "RU_" in u:
+        return True
+    # FCL Russian display names
+    if "1398" in u or "RECONNAISSANCE BATTALION" in u or "21ST DIVISION" in u:
+        return True
+    if "BP_SOLDIER_RU" in u:
+        return True
+    return False
 
 
 def load_live() -> dict[str, Any]:
@@ -418,6 +450,9 @@ def layer_fits_slot(
     planned_map = MAP_BY_MATCH[match_id]
     if not maps_compatible(planned_map, str(layer.get("map") or "")):
         return -1.0
+    want_srv = MATCH_SERVER.get(match_id)
+    if want_srv and layer.get("server") != want_srv:
+        return -1.0
     # factions: left USA / right RGF preferred
     f1 = str(layer.get("faction1") or "")
     f2 = str(layer.get("faction2") or "")
@@ -437,22 +472,28 @@ def layer_fits_slot(
         people = float(sa + sb)
     time_score = 0.0
     if planned_start is not None:
-        delta = abs((layer["start"].astimezone(MSK) - planned_start).total_seconds()) / 60.0
-        if delta > TIME_SLACK_MIN:
+        start_m = layer["start"].astimezone(MSK)
+        early = (planned_start - start_m).total_seconds() / 60.0
+        late = (start_m - planned_start).total_seconds() / 60.0
+        # Reject warmups that start too early / too late vs slot clock.
+        if early > TIME_EARLY_MIN:
             return -1.0
-        time_score = max(0.0, 30.0 - delta / 3.0)
+        if late > TIME_LATE_MIN:
+            return -1.0
+        time_score = max(0.0, 30.0 - abs(min(0.0, -early) + max(0.0, late)) / 3.0)
     return fac_ok * 3.0 + people * 2.0 + time_score
 
 
 def planned_start_for(match_id: str) -> datetime | None:
-    """Rough window: QF from 19:00, later rounds later same night."""
-    order = ["q1", "q2", "q3", "q4", "s1", "s2", "l1", "l2", "wf", "r1", "r2", "ls", "lf", "gf"]
+    """QF all open 19:00; later rounds paced after."""
+    if match_id in ("q1", "q2", "q3", "q4"):
+        return PLAY_DAY
+    order = ["s1", "s2", "l1", "l2", "wf", "r1", "r2", "ls", "lf", "gf"]
     try:
         i = order.index(match_id)
     except ValueError:
         return PLAY_DAY
-    # 40 min play + hold pacing ≈ wave every ~20–40 min across 4 servers
-    return PLAY_DAY + timedelta(minutes=20 * (i // 2))
+    return PLAY_DAY + timedelta(minutes=40 + 20 * i)
 
 
 def orient_tickets(layer: dict) -> tuple[int, int]:
@@ -549,9 +590,11 @@ def rebuild_stats(matches: dict[str, dict]) -> tuple[list, list, list]:
     return history, list(player_acc.values()), teams
 
 
-def run() -> int:
+def run(dry_run: bool = False, reset: bool = False) -> int:
     live = load_live()
-    done: dict[str, dict] = dict(live.get("matches") or {})
+    done: dict[str, dict] = {} if reset else dict(live.get("matches") or {})
+    if reset:
+        print("reset: cleared matches for rebuild", flush=True)
     rosters = load_rosters()
     servers = ["TR1", "TR2", "TR3", "TR4", "TR5"]
     layers = discover_natural_layers(servers)
@@ -572,7 +615,6 @@ def run() -> int:
             continue
         team_a, team_b = sides
         planned = planned_start_for(mid)
-        # score all unused layers
         scored: list[tuple[float, dict]] = []
         for layer in layers:
             lid = f"{layer.get('server')}|{layer['start'].astimezone(MSK).isoformat()}"
@@ -599,22 +641,24 @@ def run() -> int:
                 changed = True
             continue
 
-        # New layers for this slot (chronological among top candidates).
         top = [L for _, L in scored[:8]]
         top.sort(key=lambda x: x["start"])
 
         r1_layer: dict | None = None
         r2_layer: dict | None = None
         if prev_r1 and top:
-            # R1 already on disk — next compatible layer is R2.
             r2_layer = None
+            r1_end = datetime.fromisoformat(str(prev_r1.get("end") or prev_r1.get("start")))
+            if r1_end.tzinfo is None:
+                r1_end = r1_end.replace(tzinfo=MSK)
             for cand in top:
+                if cand["start"] <= r1_end:
+                    continue
                 if maps_compatible(MAP_BY_MATCH[mid], str(cand.get("map") or "")):
                     r2_layer = cand
                     break
             if r2_layer is None:
                 continue
-            # Rebuild a synthetic r1 layer dict for finalize from stored tickets.
             r1_layer = {
                 "map": prev_r1.get("layer") or MAP_BY_MATCH[mid],
                 "start": datetime.fromisoformat(prev_r1["start"]),
@@ -625,15 +669,11 @@ def run() -> int:
                 "faction1": "USA",
                 "faction2": "RGF",
             }
-        elif len(top) >= 2:
+        elif len(top) >= 1:
+            # Always write R1 first. Only finalize R2 on a later poll after R1 is stored,
+            # so warmups + official R1 never collapse into a fake DONE in one pass.
             r1_layer = top[0]
-            for cand in top[1:]:
-                if maps_compatible(str(r1_layer.get("map")), str(cand.get("map"))):
-                    if (cand["start"] - r1_layer["start"]).total_seconds() <= 2.5 * 3600:
-                        r2_layer = cand
-                        break
-        elif len(top) == 1:
-            r1_layer = top[0]
+            r2_layer = None
 
         if r1_layer is not None and r2_layer is None and not prev_r1:
             a1, b1 = orient_tickets(r1_layer)
@@ -665,16 +705,18 @@ def run() -> int:
             continue
 
         meeting = finalize_meeting(r1_layer, r2_layer, team_a, team_b)
-        # If r1 came from prev store, keep exact stored tickets (already USA-oriented).
         if prev_r1:
             meeting["r1"] = prev_r1
             meeting["sumA"] = int(prev_r1["ticketsA"]) + int(meeting["r2"]["ticketsA"])
             meeting["sumB"] = int(prev_r1["ticketsB"]) + int(meeting["r2"]["ticketsB"])
             sa, sb = meeting["sumA"], meeting["sumB"]
-            if sa >= sb:
+            if sa > sb:
                 meeting["winner"], meeting["loser"] = team_a, team_b
-            else:
+            elif sb > sa:
                 meeting["winner"], meeting["loser"] = team_b, team_a
+            else:
+                print(f"SKIP equal sum {mid} {sa}:{sb}", flush=True)
+                continue
             meeting["scoreLabel"] = f"{sa}:{sb}"
         meeting["map"] = MAP_BY_MATCH[mid]
         done[mid] = meeting
@@ -693,15 +735,36 @@ def run() -> int:
     live["history"] = history
     live["playerStats"] = player_stats
     live["teamStats"] = team_stats
-    if changed or not live_path().is_file():
-        save_live(live)
-        print(f"wrote {live_path()}", flush=True)
-    else:
-        # still refresh timestamp lightly when pending sides update
-        save_live(live)
-        print("live refreshed", flush=True)
+    if dry_run:
+        print("DRY-RUN — not writing", flush=True)
+        for mid in order:
+            row = done.get(mid)
+            if not row:
+                continue
+            r1 = row.get("r1") or {}
+            r2 = row.get("r2") or {}
+            print(
+                mid,
+                row.get("status"),
+                (
+                    f"r1={r1.get('ticketsA')}:{r1.get('ticketsB')}"
+                    if r1
+                    else "r1=-"
+                ),
+                (
+                    f"r2={r2.get('ticketsA')}:{r2.get('ticketsB')}"
+                    if r2
+                    else "r2=-"
+                ),
+                flush=True,
+            )
+        return 0
+    save_live(live)
+    print(f"wrote {live_path()}", flush=True)
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(run())
+    args = set(sys.argv[1:])
+    raise SystemExit(run(dry_run="--dry-run" in args, reset="--reset" in args))
+
