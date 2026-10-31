@@ -12,6 +12,11 @@
 
 # testing
 /coverage
+/qa/test-results/
+/qa/last-results.json
+/qa/auth/
+/playwright-report/
+/test-results/
 
 # next.js
 /.next/
@@ -71,6 +76,9 @@ scripts/_tmp_tpub1_logs_cache/
 !/data/public/.gitkeep
 /data/kv-cache/*
 !/data/kv-cache/.gitkeep
+# Runtime gold copy of /tm index (written by ensure_tm_growth_tab.sh on VPS)
+/data/kv-ui-backup/*
+!/data/kv-ui-backup/.gitkeep
 /data/sys-load/*
 !/data/sys-load/.gitkeep
 /data/cache/*

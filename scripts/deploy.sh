@@ -149,6 +149,8 @@ echo "==> HEAD=$(git rev-parse --short HEAD)"
 echo "==> sync local KV cache (rp-ladder / ledger / indexes)"
 bash scripts/sync_kv_cache.sh || true
 bash scripts/repair_train_live.sh || true
+# Hard save: «Развитие» must survive every deploy (gold backup + fallback).
+bash scripts/ensure_tm_growth_tab.sh || true
 
 # Single source of truth: data/public/{rp-ledger,rp-ladder,match-history}.json
 # Never pull public RP from kv-cache / github.io (that caused Farvort-class desync).
@@ -324,5 +326,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 * * * * * root flock -n /tmp/bb-profile-warm.lock env BB_PLATFORM_ROOT=$ROOT bash $ROOT/scripts/warm-profile-views.sh 3 >>/var/log/bb-profile-warm.log 2>&1
 EOF
 chmod 644 /etc/cron.d/bb-profile-warm
+
+echo "==> ensure /tm «Развитие» still present (post-deploy save)"
+bash scripts/ensure_tm_growth_tab.sh || true
 
 echo "==> OK commit=$(git rev-parse --short HEAD) $(date -Is)"
