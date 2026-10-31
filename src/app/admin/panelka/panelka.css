@@ -1,0 +1,458 @@
+body:has(.panelka-page) .shell {
+  max-width: none;
+  padding: 12px 12px 0;
+}
+
+.panelka-page {
+  width: 100%;
+  min-height: calc(100vh - 100px);
+}
+
+.panelka-shell {
+  width: 100%;
+  max-width: min(1760px, 100%);
+  margin: 0 auto;
+  padding: 12px clamp(16px, 2.2vw, 24px) 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.panelka-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.panelka-head h1 {
+  margin: 0;
+}
+
+.panelka-head .lead {
+  margin: 6px 0 0;
+}
+
+.panelka-back {
+  color: var(--gold, #d4a84b);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.panelka-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.panelka-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 180px;
+  border: 1px solid rgba(212, 168, 75, 0.35);
+  border-radius: 12px;
+  background: rgba(12, 10, 16, 0.88);
+  overflow: hidden;
+}
+
+.panelka-card.is-on {
+  border-color: #e2c56a;
+  box-shadow: 0 0 0 1px #e2c56a;
+}
+
+.panelka-card-main,
+.panelka-count,
+.panelka-actions button,
+.panelka-modes button,
+.panelka-layer-list button,
+.panelka-confirm button,
+.panelka-player-actions button,
+.panelka-modal header button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.panelka-card-main {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 14px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.panelka-card-main b {
+  font-size: 0.98rem;
+  line-height: 1.3;
+}
+
+.panelka-card-main span {
+  color: rgba(239, 230, 214, 0.78);
+  font-size: 0.92rem;
+}
+
+.panelka-count {
+  margin: 0 12px 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(212, 168, 75, 0.45);
+  background: rgba(0, 0, 0, 0.35);
+  color: #efe6d6;
+}
+
+.panelka-desk {
+  border: 1px solid rgba(212, 168, 75, 0.28);
+  border-radius: 12px;
+  padding: 16px;
+  background: rgba(12, 10, 16, 0.72);
+}
+
+.panelka-desk h2 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.panelka-picked {
+  margin: 0 0 12px;
+}
+
+.panelka-actions,
+.panelka-modes,
+.panelka-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.panelka-actions button,
+.panelka-modes button,
+.panelka-confirm button,
+.panelka-player-actions button,
+.panelka-modal header button {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(212, 168, 75, 0.45);
+  background: rgba(20, 16, 28, 0.95);
+  color: #efe6d6;
+}
+
+.panelka-actions button:disabled,
+.panelka-confirm button:disabled,
+.panelka-player-actions button:disabled,
+.panelka-count:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.panelka-modes button.is-on,
+.panelka-layer-list button.is-on {
+  border-color: #e2c56a;
+  color: #e2c56a;
+}
+
+.panelka-maps {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.panelka-layer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 280px;
+  overflow: auto;
+}
+
+.panelka-layer-list button {
+  text-align: left;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.28);
+  color: #efe6d6;
+  font: inherit;
+  cursor: pointer;
+}
+
+.panelka-notice {
+  margin: 10px 0 0;
+  color: #e2c56a;
+}
+
+.panelka-chat-log {
+  height: 240px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.panelka-chat-log p {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  line-height: 1.35;
+}
+
+.panelka-chat-log span {
+  color: rgba(239, 230, 214, 0.55);
+}
+
+.panelka-chat-log b {
+  color: #e2c56a;
+}
+
+.panelka-chat-empty {
+  color: rgba(239, 230, 214, 0.55);
+}
+
+.panelka-chat-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.panelka-chat-form input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(212, 168, 75, 0.45);
+  background: rgba(0, 0, 0, 0.35);
+  color: #efe6d6;
+  font: inherit;
+}
+
+.panelka-chat-form button {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(212, 168, 75, 0.45);
+  background: rgba(20, 16, 28, 0.95);
+  color: #efe6d6;
+  font: inherit;
+  cursor: pointer;
+}
+
+.panelka-chat-ask {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #e2c56a;
+  background: rgba(226, 197, 106, 0.08);
+}
+
+.panelka-chat-ask p {
+  margin: 0 0 6px;
+}
+
+.panelka-chat-ask b {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 18px;
+  line-height: 1.35;
+  color: #efe6d6;
+}
+
+.panelka-chat-ask div {
+  display: flex;
+  gap: 8px;
+}
+
+.panelka-chat-ask button {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(212, 168, 75, 0.45);
+  background: rgba(20, 16, 28, 0.95);
+  color: #efe6d6;
+  font: inherit;
+  cursor: pointer;
+}
+
+.panelka-chat-sent {
+  margin: 10px 0 0;
+  color: #8dcf8a;
+}
+
+.panelka-modal-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.panelka-modal {
+  width: min(1180px, 100%);
+  max-height: min(86vh, 900px);
+  overflow: auto;
+  border-radius: 14px;
+  border: 1px solid rgba(212, 168, 75, 0.45);
+  background: #141018;
+  padding: 14px;
+}
+
+.panelka-modal > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.panelka-modal > header h3 {
+  margin: 0;
+}
+
+.panelka-modal ul {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.panelka-modal li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.panelka-modal li b,
+.panelka-modal li span {
+  display: block;
+}
+
+.panelka-modal li span {
+  color: rgba(239, 230, 214, 0.7);
+  font-size: 0.82rem;
+}
+
+.panelka-roster {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.panelka-roster > section {
+  min-width: 0;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+}
+
+.panelka-roster > section > header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.panelka-roster > section.is-a > header {
+  background: linear-gradient(90deg, rgba(42, 92, 168, 0.55), rgba(20, 16, 28, 0.2));
+}
+
+.panelka-roster > section.is-b > header {
+  background: linear-gradient(90deg, rgba(140, 48, 42, 0.55), rgba(20, 16, 28, 0.2));
+}
+
+.panelka-roster > section > header b {
+  font-size: 1.05rem;
+}
+
+.panelka-roster > section > header span {
+  color: rgba(239, 230, 214, 0.75);
+}
+
+.panelka-squad {
+  margin: 0 8px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.panelka-squad-head {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 7px 8px;
+  color: rgba(239, 230, 214, 0.8);
+}
+
+.panelka-squad-head b {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.panelka-slot {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto auto;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 8px 6px;
+}
+
+.panelka-slot.is-lead b {
+  color: #f2d98a;
+}
+
+.panelka-role {
+  color: rgba(239, 230, 214, 0.62);
+  font-size: 0.82rem;
+}
+
+.panelka-slot b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.panelka-slot button {
+  padding: 3px 7px;
+  border-radius: 6px;
+  border: 1px solid rgba(212, 168, 75, 0.35);
+  background: transparent;
+  color: #efe6d6;
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+@media (max-width: 800px) {
+  .panelka-roster {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1100px) {
+  .panelka-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .panelka-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .panelka-modal li {
+    flex-direction: column;
+  }
+}

@@ -11,6 +11,7 @@ import { AdminUpdatesPanel } from "@/components/AdminUpdatesPanel";
 import { AdminTierLogPanel } from "@/components/AdminTierLogPanel";
 import { AdminKeechHuntPanel } from "@/components/AdminKeechHuntPanel";
 import { AdminLoadPanel } from "@/components/AdminLoadPanel";
+import { AdminMailPanel } from "@/components/AdminMailPanel";
 import type { AppRole } from "@/lib/roles";
 
 type Props = {
@@ -35,7 +36,8 @@ type Tab =
   | "updates"
   | "tiers"
   | "hunt"
-  | "load";
+  | "load"
+  | "mail";
 
 const TAB_LEAD: Record<Tab, string> = {
   users: "Пользователи платформы. Кликни по нику — правка анкеты и аватара.",
@@ -56,6 +58,7 @@ const TAB_LEAD: Record<Tab, string> = {
   hunt:
     "Личный live-лог PB1+TR1: ноки / киллы / смерти / ресы и пробный ±RP. Только для тебя.",
   load: "Нагрузка plaza: CPU, RAM, NVMe. Фильтры Минуты / Часы / Дни.",
+  mail: "Письмо в почту профиля: от разработчика, администрации, отдела кадров или со своей подписью.",
 };
 
 function readTab(
@@ -75,6 +78,7 @@ function readTab(
     t === "load"
   )
     return t;
+  if (t === "mail" && allowVisits) return "mail";
   if (t === "visits" && allowVisits) return "visits";
   if (t === "reserve" && allowReserve) return "reserve";
   if (t === "hunt" && allowHunt) return "hunt";
@@ -108,6 +112,10 @@ export function AdminShell({
       return;
     }
     if (tab === "hunt" && !showKeechHunt) {
+      setTab("users");
+      return;
+    }
+    if (tab === "mail" && !showSiteVisits) {
       setTab("users");
       return;
     }
@@ -201,6 +209,20 @@ export function AdminShell({
           {showSiteVisits ? (
             <button
               type="button"
+              className={`admin-tab ${tab === "mail" ? "active" : ""}`}
+              onClick={() => setTab("mail")}
+            >
+              Письмо
+            </button>
+          ) : null}
+          {showSiteVisits ? (
+            <Link href="/admin/panelka" className="admin-tab" style={{ textDecoration: "none", display: "inline-block" }}>
+              Серверы
+            </Link>
+          ) : null}
+          {showSiteVisits ? (
+            <button
+              type="button"
               className={`admin-tab ${tab === "visits" ? "active" : ""}`}
               onClick={() => setTab("visits")}
             >
@@ -251,6 +273,7 @@ export function AdminShell({
       ) : null}
       {tab === "tiers" ? <AdminTierLogPanel /> : null}
       {tab === "updates" ? <AdminUpdatesPanel /> : null}
+      {tab === "mail" && showSiteVisits ? <AdminMailPanel /> : null}
       {tab === "visits" && showSiteVisits ? <AdminVisitsPanel /> : null}
       {tab === "hunt" && showKeechHunt ? <AdminKeechHuntPanel /> : null}
       {tab === "load" ? <AdminLoadPanel /> : null}
