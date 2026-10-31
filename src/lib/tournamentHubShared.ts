@@ -32,6 +32,8 @@ export type TournamentCupRecord = {
   logoSrc: string;
   format: string;
   bracketHref: string;
+  /** Чемпион для списка истории; null пока GF не сыгран. */
+  winnerLabel?: string | null;
 };
 
 /** Каталог кубков для вкладки «История турниров». */

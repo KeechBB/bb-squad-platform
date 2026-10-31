@@ -3123,83 +3123,99 @@ a.tn-bet-save {
   color: #f4f0e6;
 }
 
-.tn-cup-history {
-  display: grid;
-  gap: 1rem;
+.tn-cup-history .tn-idle-hint {
+  margin-top: 0.35rem;
+  text-align: left;
 }
 
 .tn-cup-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
   display: grid;
   gap: 0.55rem;
-  margin-top: 0.75rem;
 }
 
-.tn-cup-chip {
-  display: flex;
+.tn-cup-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.85rem;
-  width: 100%;
-  text-align: left;
-  padding: 0.7rem 0.85rem;
+  gap: 0.9rem;
+  padding: 0.85rem 1rem;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
   color: inherit;
-  cursor: pointer;
+  text-decoration: none;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-.tn-cup-chip img {
-  width: 40px;
-  height: 40px;
-  object-fit: contain;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.25);
-  flex-shrink: 0;
-}
-
-.tn-cup-chip span {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  min-width: 0;
-}
-
-.tn-cup-chip b {
-  font-size: 0.95rem;
-  color: #f4f0e6;
-}
-
-.tn-cup-chip small {
-  color: var(--tn-muted, #b7b0a2);
-  font-size: 0.78rem;
-}
-
-.tn-cup-chip.is-on,
-.tn-cup-chip:hover {
+.tn-cup-row:hover {
   border-color: rgba(226, 197, 106, 0.55);
   background: rgba(226, 197, 106, 0.08);
 }
 
-.tn-bracket-btn-inline {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.45rem 0.9rem;
-  font-size: 0.78rem;
-  letter-spacing: 0.06em;
-  text-decoration: none;
-  white-space: nowrap;
+.tn-cup-row img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
 }
 
-.tn-cup-bracket-board {
-  margin-top: 0.75rem;
-  overflow-x: auto;
+.tn-cup-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.tn-cup-row-main b {
+  font-size: 1rem;
+  color: #f4f0e6;
+}
+
+.tn-cup-row-main small {
+  color: var(--tn-muted, #b7b0a2);
+  font-size: 0.82rem;
+}
+
+.tn-cup-row-winner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
+  text-align: right;
+  min-width: 8rem;
+}
+
+.tn-cup-row-winner em {
+  font-style: normal;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--tn-gold, #e2c56a);
+}
+
+.tn-cup-row-winner strong {
+  font-size: 0.95rem;
+  color: #f4f0e6;
 }
 
 @media (max-width: 900px) {
   .tn-home-champion .tn-champ-card {
     flex-direction: column;
     text-align: center;
+  }
+
+  .tn-cup-row {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  .tn-cup-row-winner {
+    grid-column: 2;
+    align-items: flex-start;
+    text-align: left;
+    min-width: 0;
   }
 }

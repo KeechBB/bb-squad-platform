@@ -43,12 +43,18 @@ export async function loadTournamentHubState(
       }
     : null;
 
+  const winnerLabel = champion
+    ? `[${champion.tag}] ${champion.name}`
+    : null;
+
   const historyCups = TOURNAMENT_CUP_CATALOG.filter((cup) => {
     if (cup.id === t.id) {
       return surface === "idle" || surface === "champion" || Boolean(gf);
     }
     return true;
-  });
+  }).map((cup) =>
+    cup.id === t.id ? { ...cup, winnerLabel } : { ...cup, winnerLabel: cup.winnerLabel ?? null }
+  );
 
   return {
     surface,
