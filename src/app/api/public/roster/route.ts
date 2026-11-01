@@ -34,6 +34,7 @@ export async function GET() {
     select: {
       name: true,
       tag: true,
+      isExternal: true,
       squads: {
         orderBy: { sortOrder: "asc" },
         select: {
@@ -121,9 +122,15 @@ export async function GET() {
     }
   }
 
+  const clans = refreshed
+    .filter((c) => !c.isExternal && c.tag)
+    .map((c) => ({ tag: c.tag, name: c.name }))
+    .sort((a, b) => a.tag.localeCompare(b.tag, "ru"));
+
   return NextResponse.json(
     {
       byNick,
+      clans,
       registeredCount: registered.length,
       updatedAt: new Date().toISOString(),
     },

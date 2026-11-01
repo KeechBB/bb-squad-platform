@@ -1732,6 +1732,7 @@ body:has(.tm-sapper-page) {
 }
 
 .public-rating-search input,
+.public-rating-search select,
 .public-match-filters input,
 .public-match-filters select {
   min-width: 160px;

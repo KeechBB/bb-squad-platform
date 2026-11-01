@@ -379,7 +379,10 @@ function aggregateCombat(
   return map;
 }
 
-async function buildPublicRatingTableUncached(limit = 500): Promise<{
+async function buildPublicRatingTableUncached(
+  limit = 500,
+  clanTag = ""
+): Promise<{
   rows: PublicCombatRow[];
   matches: number;
   updatedAt: string;
@@ -394,8 +397,7 @@ async function buildPublicRatingTableUncached(limit = 500): Promise<{
         nick: true,
         steamId: true,
         clanMemberships: {
-          take: 1,
-          include: { clan: { select: { tag: true } } },
+          select: { clan: { select: { tag: true, isExternal: true } } },
         },
       },
     }),
@@ -408,7 +410,9 @@ async function buildPublicRatingTableUncached(limit = 500): Promise<{
   for (const u of users) {
     if (!u.nick) continue;
     const k = nickKey(u.nick);
-    const tag = u.clanMemberships[0]?.clan?.tag;
+    const memberships = u.clanMemberships || [];
+    const real = memberships.find((m) => m.clan && !m.clan.isExternal && m.clan.tag);
+    const tag = (real || memberships.find((m) => m.clan?.tag))?.clan?.tag;
     if (tag) clanByNick.set(k, tag);
     if (u.steamId) steamByNick.set(k, u.steamId);
   }
@@ -554,8 +558,13 @@ async function buildPublicRatingTableUncached(limit = 500): Promise<{
     r.place = i + 1;
   });
 
+  const want = clanTag.trim().toUpperCase();
+  const filtered = want
+    ? rows.filter((r) => r.clan.toUpperCase() === want)
+    : rows.slice(0, limit);
+
   return {
-    rows: rows.slice(0, limit),
+    rows: filtered,
     matches: bundles.filter((b) => b.players).length,
     updatedAt: new Date().toISOString(),
   };
@@ -563,28 +572,33 @@ async function buildPublicRatingTableUncached(limit = 500): Promise<{
 
 /** Per-process single-flight — cluster stampede still covered by publicRatingPageCache disk. */
 const tableInflight = new Map<
-  number,
+  string,
   Promise<{ rows: PublicCombatRow[]; matches: number; updatedAt: string }>
 >();
 
 /** Cached hot path — avoid re-parsing public ladder on every /public hit. */
-export async function buildPublicRatingTable(limit = 500): Promise<{
+export async function buildPublicRatingTable(
+  limit = 500,
+  clanTag = ""
+): Promise<{
   rows: PublicCombatRow[];
   matches: number;
   updatedAt: string;
 }> {
+  const tag = clanTag.trim().toUpperCase();
+  const flightKey = `${limit}:${tag}`;
   const cached = unstable_cache(
     () => {
-      const hit = tableInflight.get(limit);
+      const hit = tableInflight.get(flightKey);
       if (hit) return hit;
-      const job = buildPublicRatingTableUncached(limit).finally(() => {
-        tableInflight.delete(limit);
+      const job = buildPublicRatingTableUncached(limit, tag).finally(() => {
+        tableInflight.delete(flightKey);
       });
-      tableInflight.set(limit, job);
+      tableInflight.set(flightKey, job);
       return job;
     },
     // bump when public RP source-of-truth / formula changes
-    ["public-rating-table-v5-veh-armor", String(limit)],
+    ["public-rating-table-v6-clan", String(limit), tag],
     { revalidate: 120 }
   );
   return cached();

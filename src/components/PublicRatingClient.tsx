@@ -229,6 +229,9 @@ export function PublicRatingClient({
 }: Props) {
   const [tab, setTab] = useState<Tab>("rating");
   const [q, setQ] = useState("");
+  const [clan, setClan] = useState("");
+  const [clans, setClans] = useState<{ tag: string; name: string }[]>([]);
+  const [clanRows, setClanRows] = useState<PublicCombatRow[] | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("place");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
@@ -248,9 +251,53 @@ export function PublicRatingClient({
     return Array.from(ys).sort((a, b) => b - a);
   }, [matchHistory]);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/public/clans", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : { clans: [] }))
+      .then((data) => {
+        if (!cancelled) setClans(Array.isArray(data.clans) ? data.clans : []);
+      })
+      .catch(() => {
+        if (!cancelled) setClans([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!clan) {
+      setClanRows(null);
+      return;
+    }
+    setClanRows(null);
+    let cancelled = false;
+    const tag = clan;
+    fetch(`/api/public/rating-page?clan=${encodeURIComponent(tag)}`, {
+      cache: "no-store",
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        setClanRows(Array.isArray(data?.rows) ? data.rows : []);
+      })
+      .catch(() => {
+        if (!cancelled) setClanRows([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [clan]);
+
+  const sourceRows = clan
+    ? clanRows ??
+      rows.filter((r) => r.clan.toUpperCase() === clan.toUpperCase())
+    : rows;
+
   const view = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    let list = rows;
+    let list = sourceRows;
     if (needle) {
       list = list.filter(
         (r) =>
@@ -298,11 +345,11 @@ export function PublicRatingClient({
       if (av !== bv) return dir * (av - bv);
       return a.nick.localeCompare(b.nick, "ru");
     });
-  }, [rows, q, sortKey, sortDir]);
+  }, [sourceRows, q, sortKey, sortDir]);
 
   useEffect(() => {
     setPage(1);
-  }, [q, sortKey, sortDir]);
+  }, [q, clan, sortKey, sortDir]);
 
   useEffect(() => {
     setMPage(1);
@@ -576,6 +623,23 @@ export function PublicRatingClient({
 
           <div className="public-rating-filters">
             <label className="public-rating-search">
+              <span className="muted">Клан</span>
+              <select
+                value={clan}
+                onChange={(e) => setClan(e.target.value)}
+                aria-label="Клан игроков"
+              >
+                <option value="">Все кланы</option>
+                {clans.map((c) => (
+                  <option key={c.tag} value={c.tag}>
+                    {c.name && c.name.toUpperCase() !== c.tag.toUpperCase()
+                      ? `${c.tag} · ${c.name}`
+                      : c.tag}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="public-rating-search">
               <span className="muted">Поиск ника / Steam ID</span>
               <input
                 value={q}
@@ -656,7 +720,9 @@ export function PublicRatingClient({
                   {pageRows.length === 0 ? (
                     <tr>
                       <td colSpan={16} className="muted">
-                        Пока нет данных с паблика.
+                        {clan
+                          ? "В этом клане пока нет игроков в рейтинге паблика."
+                          : "Пока нет данных с паблика."}
                       </td>
                     </tr>
                   ) : (
