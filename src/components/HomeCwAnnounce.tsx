@@ -143,7 +143,7 @@ export function HomeCwAnnounce({ cards: initial }: Props) {
         ))}
       </div>
     ) : null}
-      {opened}
+      {opened
         ? createPortal(
             <div
               className="home-cw-modal"
