@@ -122,7 +122,7 @@ export async function GET() {
     }
   }
 
-  const clans = refreshed
+  const siteClans = refreshed
     .filter((c) => !c.isExternal && c.tag)
     .map((c) => ({ tag: c.tag, name: c.name }))
     .sort((a, b) => a.tag.localeCompare(b.tag, "ru"));
@@ -130,7 +130,7 @@ export async function GET() {
   return NextResponse.json(
     {
       byNick,
-      clans,
+      clans: siteClans,
       registeredCount: registered.length,
       updatedAt: new Date().toISOString(),
     },
