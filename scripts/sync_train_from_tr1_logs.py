@@ -352,6 +352,10 @@ def is_near_duplicate(
     return False
 
 
+# Distinct people — never fold via tiers.json (historical bug: trix→Trixx).
+_SPLIT_NICKS = frozenset({"trix", "trixx"})
+
+
 def load_aliases() -> dict[str, str]:
     tiers = KV_PUBLIC / "data" / "tiers.json"
     if not tiers.is_file():
@@ -361,7 +365,15 @@ def load_aliases() -> dict[str, str]:
     if tiers.is_file():
         t = json.loads(tiers.read_text(encoding="utf-8"))
         for a, c in (t.get("aliases") or {}).items():
-            out[R.nick_key(str(a))] = R.nick_key(str(c))
+            ak = R.nick_key(str(a))
+            ck = R.nick_key(str(c))
+            if not ak or not ck:
+                continue
+            # Keep Trix and Trixx as separate players forever.
+            if ak in _SPLIT_NICKS or ck in _SPLIT_NICKS:
+                if ak != ck:
+                    continue
+            out[ak] = ck
     return out
 
 

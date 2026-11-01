@@ -145,8 +145,29 @@ def nick_key(n: str) -> str:
 TOURNAMENT_NICK_ALIASES = {
     "isaiah": "иcaйя",  # site nick is И + latin c + aйя
     "исайя": "иcaйя",
-    "trixx": "trix",
+    "кузнец/kon": "kon",
 }
+
+# Distinct players — never fold via tiers.json / train aliases.
+# (tiers historically had trix→Trixx and wiped tournament rating.)
+TOURNAMENT_SPLIT_NICKS = frozenset({"trix", "trixx"})
+
+
+def _sanitize_tournament_aliases(aliases: dict[str, str]) -> dict[str, str]:
+    """Drop aliases that would merge forever-split nicks."""
+    out: dict[str, str] = {}
+    for raw_k, raw_v in (aliases or {}).items():
+        k = nick_key(str(raw_k))
+        v = nick_key(str(raw_v))
+        if not k or not v:
+            continue
+        if k in TOURNAMENT_SPLIT_NICKS or v in TOURNAMENT_SPLIT_NICKS:
+            # Allow only identity / display-case for the same person.
+            if k == v:
+                out[k] = str(raw_v).strip() or str(raw_k).strip()
+            continue
+        out[k] = str(raw_v).strip() or str(raw_k).strip()
+    return out
 
 
 def map_stem(layer: str) -> str:
@@ -250,6 +271,8 @@ def save_live(data: dict[str, Any], *, preserve_owned: bool = True) -> None:
                     owned[mid] = row
             if cur.get("playerStats") and not data.get("playerStats"):
                 data["playerStats"] = cur.get("playerStats")
+            if cur.get("facts") and not data.get("facts"):
+                data["facts"] = cur.get("facts")
         history, players, teams = rebuild_stats(data.get("matches") or {})
         if history:
             data["history"] = history
@@ -774,9 +797,20 @@ def _canonical_player_nick(raw: str, display: dict[str, str], aliases: dict[str,
     nick = clean_nick(raw)
     key = nick_key(nick)
     key = TOURNAMENT_NICK_ALIASES.get(key, key)
-    key = aliases.get(key, key)
+    safe = _sanitize_tournament_aliases(aliases)
+    if key not in TOURNAMENT_SPLIT_NICKS:
+        aliased = safe.get(key)
+        if aliased:
+            key = nick_key(aliased)
+    # Absolute guard: never let split nicks collapse into each other.
+    if key in TOURNAMENT_SPLIT_NICKS:
+        key = nick_key(key)
     if key in display:
         return key, display[key]
+    if key == "trix":
+        return key, "Trix"
+    if key == "trixx":
+        return key, "Trixx"
     return key, nick or raw.strip()
 
 
@@ -1014,7 +1048,7 @@ def enrich_sheets(
     force: bool = False,
 ) -> int:
     load_aliases, _, _ = _load_train_helpers()
-    aliases = load_aliases()
+    aliases = _sanitize_tournament_aliases(load_aliases())
     n = 0
     for mid, row in matches.items():
         if row.get("status") != "done":
@@ -1038,7 +1072,7 @@ def rebuild_stats(matches: dict[str, dict]) -> tuple[list, list, list]:
     display = load_roster_display()
     try:
         load_aliases, _, _ = _load_train_helpers()
-        aliases = load_aliases()
+        aliases = _sanitize_tournament_aliases(load_aliases())
     except Exception:
         aliases = {}
     for mid, row in matches.items():
@@ -1077,6 +1111,8 @@ def rebuild_stats(matches: dict[str, dict]) -> tuple[list, list, list]:
             slot["matches"] += 1
             if won:
                 slot["wins"] += 1
+                if mid == "gf":
+                    slot["titles"] = 1
             slot["winPct"] = round(100.0 * slot["wins"] / max(1, slot["matches"]))
 
         sheet = row.get("sheet") or {}

@@ -60,11 +60,22 @@ export function nicksMatch(a: string, b: string): boolean {
   return Boolean(ba && bb && ba === bb);
 }
 
+/** Distinct players — never fold via tiers aliases (trix≠trixx). */
+const SPLIT_NICKS = new Set(["trix", "trixx"]);
+
+function isSplitNick(n: string): boolean {
+  return SPLIT_NICKS.has(nickMatchKey(n)) || SPLIT_NICKS.has(nickKey(n));
+}
+
 /** Канон через aliases из tiers.json + compact (+ clan-tag strip). */
 export function resolveNickKey(
   nick: string,
   aliases: Record<string, string> = {}
 ): string {
+  const selfKey = nickMatchKey(nick);
+  if (SPLIT_NICKS.has(selfKey) || SPLIT_NICKS.has(nickKey(nick))) {
+    return selfKey || nickKey(nick);
+  }
   const variants = [
     nickKey(nick),
     nickCompact(nick),
@@ -75,6 +86,10 @@ export function resolveNickKey(
   ].filter(Boolean);
   const aliasCanon = new Map<string, string>();
   for (const [a, c] of Object.entries(aliases)) {
+    if (isSplitNick(a) || isSplitNick(c)) {
+      // Only allow identity for split nicks.
+      if (nickMatchKey(a) !== nickMatchKey(c)) continue;
+    }
     for (const k of [
       nickKey(a),
       nickCompact(a),
@@ -88,7 +103,11 @@ export function resolveNickKey(
   }
   for (const v of variants) {
     const canon = aliasCanon.get(v);
-    if (canon) return nickMatchKey(canon);
+    if (canon) {
+      const ck = nickMatchKey(canon);
+      if (SPLIT_NICKS.has(ck) && ck !== selfKey) continue;
+      return ck;
+    }
   }
-  return nickMatchKey(nick);
+  return selfKey;
 }
