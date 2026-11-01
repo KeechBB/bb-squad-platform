@@ -46,6 +46,8 @@ export const TOURNAMENT_CUP_CATALOG: TournamentCupRecord[] = [
     logoSrc: FRUIT_STRIKE_LOGO,
     format: "Двойное выбывание · 8×8 FCL",
     bracketHref: "/tournaments/bracket?cup=fruit-strike-s1",
+    // GF done — keep winner even if hub surface flips idle.
+    winnerLabel: "[PX] PHOENIX",
   },
 ];
 

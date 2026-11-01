@@ -649,23 +649,27 @@ export function TournamentBracketBoard({
                         <b>
                           {r2 && r2.ticketsA != null && r2.ticketsB != null
                             ? `${r2.ticketsA} : ${r2.ticketsB}`
-                            : "— : —"}
+                            : r1 && lm?.status !== "done"
+                              ? "идёт"
+                              : "— : —"}
                         </b>
                       </div>
                       <div className="tn-br-round-slot is-sum">
                         <span>Σ тикеты</span>
                         <b>
-                          {view.scoreLabel ||
-                            (lm?.sumA != null && lm?.sumB != null
-                              ? `${lm.sumA} : ${lm.sumB}`
-                              : "— : —")}
+                          {lm?.status === "done" &&
+                          (view.scoreLabel || (lm?.sumA != null && lm?.sumB != null))
+                            ? view.scoreLabel || `${lm.sumA} : ${lm.sumB}`
+                            : "— : —"}
                         </b>
                       </div>
                     </div>
                     <p className="tn-br-sum-hint">
                       {lm?.status === "done" && lm.winner
-                        ? `Победа: ${lm.winner.name} [${lm.winner.tag}] · только катки с естественным концом (без endmatch).`
-                        : "Победа во встрече — у кого больше сумма тикетов за R1+R2. Учитываются только катки, закончившиеся сами (не endmatch)."}
+                        ? `Победа: ${lm.winner.name} [${lm.winner.tag}]. Первая цифра — команда слева, вторая — справа.`
+                        : r1 && lm?.status !== "done"
+                          ? "R2 ещё идёт. Первая цифра — команда слева, вторая — справа."
+                          : "Победа во встрече — у кого больше сумма тикетов за R1+R2. Первая цифра — команда слева, вторая — справа."}
                     </p>
                     <p>
                       {open.server} занят до {open.freeAt.slice(-5)}. Как только появится итог,

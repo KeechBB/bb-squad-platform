@@ -4,6 +4,7 @@
  * Места и самый разгромный раунд считаются из сетки.
  * Киллы, разрезы, KD и карта — из статистики турнира, если она уже есть.
  */
+import { FRUIT_MAP_BY_MATCH } from "@/lib/fruitStrikeBracket";
 import type { FruitLiveMatch, FruitLiveState } from "@/lib/fruitStrikeLiveView";
 import {
   BET_QUESTIONS,
@@ -106,6 +107,7 @@ export function fruitStrikeBetTruth(
 
   const answers: Partial<BetSlip> = {};
   const lines: Partial<Record<BetField, string>> = {};
+  const accept: NonNullable<BetReveal["accept"]> = {};
 
   const put = (field: BetField, value: BetSlip[BetField], line: string) => {
     if (value === "" || value == null) return;
@@ -306,6 +308,91 @@ export function fruitStrikeBetTruth(
     if (factBlow) fillFact("blowoutScore", factBlow, factBlow);
   }
 
+  // Разрезы = ресы (подъёмы союзников). Смерти команды и киллы карты — из листов матчей.
+  {
+    const revives = new Map<string, number>();
+    const deathsByTag = new Map<string, { tag: string; name: string; deaths: number }>();
+    const killsByMap = new Map<string, number>();
+    let reviveTotal = 0;
+    for (const [mid, row] of Object.entries(live.matches || {})) {
+      if (!row || row.status !== "done") continue;
+      const sheet = asRecord((row as { sheet?: unknown }).sheet);
+      const mapId = FRUIT_MAP_BY_MATCH[mid] || "";
+      const sides: Array<[string, string, string]> = [
+        ["r1", str(row.teamA?.tag), str(row.teamA?.name)],
+        ["r2", str(row.teamA?.tag), str(row.teamA?.name)],
+        ["oppR1", str(row.teamB?.tag), str(row.teamB?.name)],
+        ["oppR2", str(row.teamB?.tag), str(row.teamB?.name)],
+      ];
+      let mapKills = 0;
+      for (const [key, tag, name] of sides) {
+        const list = sheet?.[key];
+        if (!Array.isArray(list)) continue;
+        for (const raw of list) {
+          const p = asRecord(raw);
+          if (!p) continue;
+          const nick = str(p.nick);
+          const kills = num(p.kills) ?? 0;
+          const deaths = num(p.deaths) ?? 0;
+          const res = num(p.res) ?? 0;
+          mapKills += kills;
+          if (nick && nick !== "—") {
+            revives.set(nick, (revives.get(nick) || 0) + res);
+            reviveTotal += res;
+          }
+          if (tag) {
+            const slot = deathsByTag.get(tag.toUpperCase()) || { tag, name, deaths: 0 };
+            slot.deaths += deaths;
+            deathsByTag.set(tag.toUpperCase(), slot);
+          }
+        }
+      }
+      if (mapId) killsByMap.set(mapId, (killsByMap.get(mapId) || 0) + mapKills);
+    }
+    const reviveRows = [...revives.entries()].sort(
+      (a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "ru")
+    );
+    if (reviveRows.length && reviveRows[0][1] > 0) {
+      const best = reviveRows[0][1];
+      const tied = reviveRows.filter((row) => row[1] === best);
+      const found = tied
+        .map(([nick]) => ({ nick, player: findPlayer(teams, nick) }))
+        .filter((row) => row.player);
+      const line =
+        tied.length === 1
+          ? `${found[0]?.player?.nick || tied[0][0]} · ${best} ресов`
+          : `${tied.map(([nick]) => nick).join(" и ")} · по ${best} ресов`;
+      lines.topCutsUserId = line;
+      if (found[0]?.player) answers.topCutsUserId = found[0].player.userId;
+      if (found.length > 1) {
+        accept.topCutsUserId = found.map((row) => row.player!.userId);
+      }
+      answers.cutsOver500 = reviveTotal > 500;
+      lines.cutsOver500 = `${reviveTotal > 500 ? "Да" : "Нет"} · ${reviveTotal} ресов`;
+    }
+    let deathTop: { tag: string; name: string; deaths: number } | null = null;
+    for (const slot of deathsByTag.values()) {
+      if (!deathTop || slot.deaths > deathTop.deaths) deathTop = slot;
+    }
+    if (deathTop && deathTop.deaths > 0) {
+      const team = findTeam(teams, deathTop.tag, deathTop.name);
+      lines.mostDeathsTeamId = `${team?.name || deathTop.name || deathTop.tag} · ${deathTop.deaths} смертей`;
+      if (team) answers.mostDeathsTeamId = team.id;
+    }
+    let mapBest = "";
+    let mapKills = -1;
+    for (const [map, kills] of killsByMap) {
+      if (kills > mapKills && mapLabel(map)) {
+        mapKills = kills;
+        mapBest = map;
+      }
+    }
+    if (mapBest && mapKills > 0) {
+      answers.topKillsMap = mapBest;
+      lines.topKillsMap = `${mapLabel(mapBest)} · ${mapKills} киллов`;
+    }
+  }
+
   if (key) {
     for (const q of BET_QUESTIONS) {
       if (!empty(q.field)) continue;
@@ -333,5 +420,6 @@ export function fruitStrikeBetTruth(
     champion: place1?.name || gf.winner?.name || gf.winner?.tag || null,
     answers,
     lines,
+    accept,
   };
 }

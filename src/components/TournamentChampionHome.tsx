@@ -80,29 +80,49 @@ export function TournamentChampionHome({ hub }: { hub: TournamentHubState }) {
         <section className="tn-panel tn-prizes" aria-label="Награды">
           <h2 className="tn-panel-title">Награды за турнир</h2>
           <div className="tn-prizes-grid">
-            {t.prizes.map((p) => (
-              <div key={p.place} className={`tn-prize place-${p.place}`}>
-                <h3>{p.label}</h3>
-                {p.imageSrc ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    className="tn-prize-img"
-                    src={p.imageSrc}
-                    alt=""
-                    width={240}
-                    height={240}
-                  />
-                ) : null}
-                {p.cashBanner ? (
-                  <div className="tn-prize-cash">
-                    <span className="tn-prize-cash-amount">
-                      {p.cashBanner.amount}
-                    </span>
-                    <span className="tn-prize-cash-note">{p.cashBanner.note}</span>
-                  </div>
-                ) : null}
-              </div>
-            ))}
+            {t.prizes.map((p) => {
+              const team = hub.places.find((row) => row.place === p.place);
+              return (
+                <div key={p.place} className={`tn-prize place-${p.place}`}>
+                  <h3>{p.label}</h3>
+                  {p.imageSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      className="tn-prize-img"
+                      src={p.imageSrc}
+                      alt=""
+                      width={240}
+                      height={240}
+                    />
+                  ) : null}
+                  {p.cashBanner ? (
+                    <div className="tn-prize-cash">
+                      <span className="tn-prize-cash-amount">
+                        {p.cashBanner.amount}
+                      </span>
+                      <span className="tn-prize-cash-note">{p.cashBanner.note}</span>
+                    </div>
+                  ) : null}
+                  {team ? (
+                    <p className="tn-prize-team">
+                      {team.logoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          className="tn-prize-team-logo"
+                          src={team.logoUrl}
+                          alt=""
+                          width={36}
+                          height={36}
+                        />
+                      ) : null}
+                      <span>
+                        [{team.tag}] {team.name}
+                      </span>
+                    </p>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         </section>
         <section className="tn-panel" aria-label="Сетка">

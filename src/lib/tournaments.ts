@@ -315,8 +315,6 @@ export type TournamentMatchHistoryRow = {
   result: "win" | "lose" | "pending" | string;
 };
 
-export const TOURNAMENT_MATCH_HISTORY_DRAFT: TournamentMatchHistoryRow[] = [];
-
 /** Тег турнирной команды: 1–6 букв или цифр, без пробелов. */
 export const TEAM_TAG_RE = /^[A-Za-zА-Яа-яЁё0-9]{1,6}$/;
 export const TEAM_NAME_RE = /^[A-Za-zА-Яа-яЁё0-9 _.\-]{2,32}$/;

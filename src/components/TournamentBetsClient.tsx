@@ -50,14 +50,18 @@ function TruthMark({
   }
   const official = reveal.answers[field];
   const mineAns = mine ? betAnswer(mine, field) : null;
+  const extras = reveal.accept?.[field] || [];
   let tone: "hit" | "miss" | "open" = "open";
-  if (mineAns !== null && official !== undefined && official !== null && official !== "") {
+  if (mineAns !== null && (official !== undefined && official !== null && official !== "" || extras.length)) {
     if (kind === "score") {
       const a = blowoutKey(String(mineAns));
       const b = blowoutKey(String(official));
       tone = a && b && a === b ? "hit" : "miss";
     } else {
-      tone = mineAns === official ? "hit" : "miss";
+      tone =
+        mineAns === official || extras.includes(mineAns as string | boolean)
+          ? "hit"
+          : "miss";
     }
   }
   const team =

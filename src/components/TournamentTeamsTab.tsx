@@ -8,6 +8,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+import Link from "next/link";
 import {
   TEAM_SUB_TABS,
   TEAMS_SECTION_BLURB,
@@ -197,7 +198,11 @@ function TeamPublicInspect({
               roster.map((m, i) => (
                 <tr key={m.id}>
                   <td>{i + 1}</td>
-                  <td>{m.nick}</td>
+                  <td>
+                    <Link className="tn-team-nick-link" href={`/players/${encodeURIComponent(m.nick)}`}>
+                      {m.nick}
+                    </Link>
+                  </td>
                   <td>
                     {TOURNAMENT_TEAM_ROLE_LABEL[mapDbTeamRole(m.role)]}
                   </td>
@@ -1122,7 +1127,11 @@ function MyTeamPanel({
                 return (
                   <tr key={m.id}>
                     <td>{i + 1}</td>
-                    <td>{m.nick}</td>
+                    <td>
+                      <Link className="tn-team-nick-link" href={`/players/${encodeURIComponent(m.nick)}`}>
+                        {m.nick}
+                      </Link>
+                    </td>
                     <td>{formatDate(m.joinedAt)}</td>
                     <td>
                       {opts ? (

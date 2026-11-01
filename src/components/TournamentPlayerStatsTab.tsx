@@ -17,7 +17,7 @@ const COLS: {
 }[] = [
   { key: "rank", label: "№" },
   { key: "nick", label: "Ник", sortable: true, nick: true },
-  { key: "clanTag", label: "Клан" },
+  { key: "clanTag", label: "Команда" },
   { key: "noks", label: "Ноки", sortable: true },
   { key: "kills", label: "Убийства", sortable: true },
   { key: "deaths", label: "Смерти", sortable: true },
@@ -102,6 +102,7 @@ export function TournamentPlayerStatsTab() {
         ]);
         const data = (await res.json().catch(() => ({}))) as {
           teams?: {
+            tag?: string;
             members: { nick: string; clanTag: string | null }[];
           }[];
         };
@@ -116,21 +117,21 @@ export function TournamentPlayerStatsTab() {
             if (!nick) continue;
             const key = nickKey(nick);
             if (!byNick.has(key)) {
-              byNick.set(key, zeroRow(nick, m.clanTag || null));
+              byNick.set(key, zeroRow(nick, team.tag || m.clanTag || null));
             }
           }
         }
-        // Log nick → roster nick (Isaiah / Иcaйя, etc.)
+        // Log nick → roster nick, only when that roster row exists.
         const ALIASES: Record<string, string> = {
           isaiah: nickKey("Иcaйя"),
           исайя: nickKey("Иcaйя"),
-          trixx: "trix",
         };
         for (const stat of live.playerStats || []) {
           const nick = (stat.nick || "").trim();
           if (!nick) continue;
           let key = nickKey(nick);
-          key = ALIASES[key] || key;
+          const alias = ALIASES[key];
+          if (alias && byNick.has(alias)) key = alias;
           const row = byNick.get(key) || zeroRow(nick, stat.clanTag || null);
           row.noks = Number(stat.noks) || 0;
           row.kills = Number(stat.kills) || 0;
