@@ -114,6 +114,98 @@ function slimCombatField(v: unknown): number | unknown[] {
   return 0;
 }
 
+/** Write time of the public ladder. Readers compare this instead of trusting a file or a page snapshot. */
+export async function loadPublicRpUpdatedAt(): Promise<string | null> {
+  if (!dbReadEnabled()) return null;
+  try {
+    const meta = await prisma.rpMeta.findUnique({
+      where: { scope: "PUBLIC" },
+      select: { updatedAt: true },
+    });
+    return meta?.updatedAt ? meta.updatedAt.toISOString() : null;
+  } catch (e) {
+    console.warn("[rpDbRead] public stamp skip", e);
+    return null;
+  }
+}
+
+/** RP board without matchesJson — home top /public overlay (13k full ladder OOMs workers). */
+export async function loadPublicRpTopFromDb(
+  limit = 10
+): Promise<
+  Array<{
+    nick: string;
+    rp: number;
+    rankLabel: string;
+    rankKey: string;
+    predatorPlace: number | null;
+  }>
+> {
+  if (!dbReadEnabled()) return [];
+  try {
+    const rows = await prisma.rpLadderPlayer.findMany({
+      where: { scope: "PUBLIC" },
+      orderBy: [{ place: "asc" }, { rp: "desc" }],
+      take: Math.max(1, Math.min(2000, limit)),
+      select: {
+        nick: true,
+        rp: true,
+        rankLabel: true,
+        rankKey: true,
+        predatorPlace: true,
+      },
+    });
+    return rows.map((r) => ({
+      nick: r.nick,
+      rp: r.rp,
+      rankLabel: r.rankLabel,
+      rankKey: r.rankKey,
+      predatorPlace: r.predatorPlace,
+    }));
+  } catch (e) {
+    console.warn("[rpDbRead] public top skip", e);
+    return [];
+  }
+}
+
+/** One player's official public RP. Same row the home top and /public use. */
+export async function loadPublicRpOneFromDb(nick: string): Promise<{
+  nick: string;
+  rp: number;
+  rankLabel: string;
+  rankKey: string;
+  predatorPlace: number | null;
+} | null> {
+  if (!dbReadEnabled()) return null;
+  const key = nickKey(nick);
+  if (!key) return null;
+  try {
+    const row = await prisma.rpLadderPlayer.findUnique({
+      where: { scope_nickKey: { scope: "PUBLIC", nickKey: key } },
+      select: {
+        nick: true,
+        rp: true,
+        rankLabel: true,
+        rankKey: true,
+        predatorPlace: true,
+      },
+    });
+    if (!row || !Number.isFinite(row.rp)) return null;
+    return {
+      nick: row.nick,
+      rp: row.rp,
+      rankLabel: row.predatorPlace
+        ? `PREDATOR #${row.predatorPlace}`
+        : row.rankLabel,
+      rankKey: row.predatorPlace ? "predator" : row.rankKey,
+      predatorPlace: row.predatorPlace,
+    };
+  } catch (e) {
+    console.warn("[rpDbRead] public one skip", e);
+    return null;
+  }
+}
+
 /** Public slim — RpLedger shape for leaderboard / profile header (no events). */
 export async function loadPublicRpLadderFromDb(): Promise<RpLedger | null> {
   if (!dbReadEnabled()) return null;
