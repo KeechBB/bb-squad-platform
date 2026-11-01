@@ -55,8 +55,11 @@ export function TournamentTeamRatingTab() {
     (async () => {
       setLoading(true);
       try {
-        const res = await fetch("/api/tournaments/teams", { cache: "no-store" });
-        const data = (await res.json().catch(() => ({}))) as {
+        const [teamsRes, liveRes] = await Promise.all([
+          fetch("/api/tournaments/teams", { cache: "no-store" }),
+          fetch("/api/tournaments/live", { cache: "no-store" }),
+        ]);
+        const data = (await teamsRes.json().catch(() => ({}))) as {
           teams?: {
             id: string;
             name: string;
@@ -64,19 +67,36 @@ export function TournamentTeamRatingTab() {
             logoUrl: string | null;
           }[];
         };
-        if (cancelled || !res.ok) return;
+        const live = (await liveRes.json().catch(() => ({}))) as {
+          teamStats?: Array<{
+            tag: string;
+            name: string;
+            matches: number;
+            winPct: number;
+            avgKd: number;
+            tournamentsPlayed: number;
+            titles: number;
+          }>;
+        };
+        if (cancelled || !teamsRes.ok) return;
+        const byTag = new Map(
+          (live.teamStats || []).map((s) => [s.tag.toUpperCase(), s])
+        );
         setRows(
-          (data.teams || []).map((t) => ({
-            id: t.id,
-            name: t.name,
-            tag: t.tag,
-            logoSrc: t.logoUrl,
-            matches: 0,
-            winPct: 0,
-            avgKd: 0,
-            tournamentsPlayed: 0,
-            titles: 0,
-          }))
+          (data.teams || []).map((t) => {
+            const s = byTag.get(t.tag.toUpperCase());
+            return {
+              id: t.id,
+              name: t.name,
+              tag: t.tag,
+              logoSrc: t.logoUrl,
+              matches: s?.matches ?? 0,
+              winPct: s?.winPct ?? 0,
+              avgKd: s?.avgKd ?? 0,
+              tournamentsPlayed: s?.tournamentsPlayed ?? (s ? 1 : 0),
+              titles: s?.titles ?? 0,
+            };
+          })
         );
       } catch {
         if (!cancelled) setRows([]);
@@ -109,8 +129,7 @@ export function TournamentTeamRatingTab() {
       <div className="tn-pstats-head">
         <h2 className="tn-panel-title">Рейтинг команд</h2>
         <p className="tn-pstats-hint">
-          Все созданные турнирные команды (пока с нулями). По умолчанию — по
-          алфавиту названия.
+          По закрытым встречам турнира. По умолчанию — по алфавиту названия.
         </p>
       </div>
 
