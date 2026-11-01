@@ -328,45 +328,8 @@ def apply_db(payload: dict) -> None:
                 (clan_id,),
             )
 
-            # Все зарегистрированные с ником
-            cur.execute(
-                """
-                SELECT id, nick, "steamName" FROM "User"
-                WHERE nick IS NOT NULL OR "steamName" IS NOT NULL
-                """
-            )
-            users = cur.fetchall()
-
-            # Докинуть в клан BB: лиды + те, у кого есть КВ-стата
-            ensure_ids: list[str] = []
-            for user_id, nick, steam in users:
-                label = (nick or steam or "").strip()
-                if not label:
-                    continue
-                k = nick_key(label)
-                kc = nick_compact(label)
-                hit = by_key.get(k) or by_compact.get(kc)
-                forced = FORCE.get(k) or FORCE.get(kc)
-                if not hit and not forced:
-                    continue
-                if hit and hit["total"] <= 0 and not forced:
-                    continue
-                ensure_ids.append(user_id)
-
-            if ensure_ids:
-                execute_values(
-                    cur,
-                    """
-                    INSERT INTO "ClanMember" (id, "clanId", "userId", role, "joinedAt")
-                    VALUES %s
-                    ON CONFLICT ("clanId", "userId") DO NOTHING
-                    """,
-                    [
-                        (str(uuid.uuid4()), clan_id, uid, "MEMBER", datetime.now(timezone.utc))
-                        for uid in ensure_ids
-                    ],
-                )
-
+            # В клан никого не докидываем. Состав — только заявка / инвайт.
+            # Раньше сюда писались все с КВ-статой, в том числе игроки чужих кланов.
             cur.execute(
                 """
                 SELECT cm."userId", u.nick, u."steamName"

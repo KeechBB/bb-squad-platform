@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Добавить в клан BB всех зарегистрированных, кто есть в статистике тренировок.
+"""Раньше добавлял в клан BB всех с тренировок. Запись отключена.
 
-Пропускает тех, кто уже в любом клане. Без заявок.
+В состав только заявка или инвайт. Скрипт оставлен как сухой просмотр.
 
   python platform/scripts/sync_bb_clan_from_training.py
   python platform/scripts/sync_bb_clan_from_training.py --apply
@@ -13,8 +13,6 @@ import json
 import os
 import re
 import sys
-import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 
 PLATFORM = Path(__file__).resolve().parents[1]
@@ -130,7 +128,6 @@ def main() -> int:
 
     try:
         import psycopg2
-        from psycopg2.extras import execute_values
     except ImportError as e:
         raise SystemExit(f"psycopg2 required: {e}") from e
 
@@ -199,47 +196,11 @@ def main() -> int:
             for _, label in sorted(to_add, key=lambda x: x[1].lower()):
                 print(f"  + {label}")
 
-            if args.apply and to_add:
-                now = datetime.now(timezone.utc)
-                execute_values(
-                    cur,
-                    """
-                    INSERT INTO "ClanMember" (id, "clanId", "userId", role, "joinedAt")
-                    VALUES %s
-                    ON CONFLICT ("clanId", "userId") DO NOTHING
-                    """,
-                    [(str(uuid.uuid4()), clan_id, uid, "MEMBER", now) for uid, _ in to_add],
-                )
-                # закрыть висящие заявки этих игроков
-                ids = [uid for uid, _ in to_add]
-                cur.execute(
-                    """
-                    UPDATE "ClanJoinRequest"
-                    SET status = 'ACCEPTED'
-                    WHERE "clanId" = %s
-                      AND status = 'PENDING'
-                      AND "userId" = ANY(%s)
-                    """,
-                    (clan_id, ids),
-                )
-                cur.execute(
-                    """
-                    UPDATE "ClanJoinRequest"
-                    SET status = 'CANCELLED'
-                    WHERE status = 'PENDING'
-                      AND "userId" = ANY(%s)
-                      AND "clanId" <> %s
-                    """,
-                    (ids, clan_id),
-                )
-                conn.commit()
-                print(f"Applied: +{len(to_add)} members")
-            elif args.apply:
-                print("Nothing to apply")
-                conn.rollback()
+            if args.apply:
+                print("Автодобавление в клан отключено. В состав только заявка или инвайт.")
             else:
-                print("Dry-run (pass --apply to write)")
-                conn.rollback()
+                print("Dry-run. Запись в клан отключена.")
+            conn.rollback()
     finally:
         conn.close()
     return 0

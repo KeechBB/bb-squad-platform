@@ -264,8 +264,7 @@ pm2 restart bb-squad-collector || true
 echo "==> free -h (after)"
 free -h || true
 
-echo "==> BB clan: training players → clan + CW stacks by play frequency"
-python3 scripts/sync_bb_clan_from_training.py --apply || true
+echo "==> BB clan: squads only, no auto-join (заявка / инвайт)"
 python3 scripts/sync_bb_squads_from_kv.py --apply || true
 
 echo "==> sys-load cron (CPU/RAM/NVMe, every minute)"
