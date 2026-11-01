@@ -12,7 +12,7 @@ function DiscordHeaderLink() {
   return (
     <a
       className="nav-discord"
-      href="https://discord.gg/UptthuJ3a"
+      href="https://discord.gg/zthxsxxjp"
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Discord сервер BlackBerry"
