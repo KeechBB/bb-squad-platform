@@ -110,7 +110,7 @@ def upsert_ladder(scope: str, ladder: dict[str, Any]) -> dict[str, int]:
                 (
                     scope_u,
                     int(ladder.get("version") or 1),
-                    _parse_dt(ladder.get("updatedAt")) or now,
+                    now,
                     float(ladder.get("startRp") or 1000),
                     int(ladder.get("step") or 150),
                     int(ladder.get("radiant3Max") or 4500),
@@ -248,6 +248,22 @@ def sync_from_path(scope: str, path: Path | str) -> None:
         )
     except Exception as e:
         print(f"rp_ladder_db sync skip: {e}", flush=True)
+
+
+def sync_required(scope: str, ladder: dict[str, Any]) -> dict[str, int]:
+    """Public publish: a failed write must fail the scoring job."""
+    if not _enabled():
+        raise RuntimeError("RP database write is disabled")
+    if not CANON.load_env_db():
+        raise RuntimeError("no database url")
+    stats = upsert_ladder(scope, ladder)
+    if int(stats.get("players") or 0) <= 0 and (ladder.get("players") or {}):
+        raise RuntimeError("RP database sync wrote no players")
+    print(
+        f"rp_ladder_db required {scope}: players={stats['players']} matches={stats['matches']}",
+        flush=True,
+    )
+    return stats
 
 
 def main() -> int:

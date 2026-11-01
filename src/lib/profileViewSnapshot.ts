@@ -7,7 +7,7 @@ import { buildPlayerPublicCombatStats } from "@/lib/publicCombat";
 import { lookupPlayerPublicRp } from "@/lib/publicRp";
 import { lookupPlayerTrainPwr } from "@/lib/homeTrainPwr";
 import { loadPlayerProfileHeavy } from "@/lib/playerProfileHeavy";
-import { ensureProfileLines, loadReadyHistories } from "@/lib/profileMatchLines";
+import { loadReadyHistories } from "@/lib/profileMatchLines";
 import { buildPlayerCwAttendance } from "@/lib/homeCwPwr";
 import { takeStaleNicks } from "@/lib/profileViewQueue";
 
@@ -148,19 +148,13 @@ function storedHistoryCount(hist: unknown): number {
 }
 
 /**
- * История паблика и число RP в шапке профиля берутся из лестницы.
- * Файл профиля может быть старше пересчёта RP — его катки паблика не показываем.
- * Если лестница новее сохранённых строк, строки этого игрока пересобираются один раз.
+ * Шапка профиля берёт живое RP из базы. История уже лежит в строках,
+ * их пишет подсчёт матча. Открытие только читает.
  */
 async function withLivePublicRp(
   name: string,
   data: ProfileViewPayload
 ): Promise<ProfileViewPayload> {
-  await Promise.all(
-    (["public", "train", "cw"] as const).map((kind) =>
-      ensureProfileLines(name, kind).catch(() => undefined)
-    )
-  );
   const ready = await loadReadyHistories(name).catch(() => null);
   const prev =
     data.histories && typeof data.histories === "object"

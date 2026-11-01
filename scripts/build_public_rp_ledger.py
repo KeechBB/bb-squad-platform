@@ -707,11 +707,48 @@ def _reconcile_players_rp(players_out: dict) -> int:
     return fixed
 
 
+def _refuse_bad_publish(players_out: dict, match_blocks: list[dict]) -> None:
+    """Do not write the ladder when a player in this match would lose RP or a match."""
+    new_ids = {str(b.get("id")) for b in match_blocks if b.get("id")}
+    touched: set[str] = set()
+    for block in match_blocks:
+        touched.update((block.get("netByKey") or {}).keys())
+    problems: list[str] = []
+    for key in touched:
+        player = players_out.get(key)
+        nick = str((player or {}).get("nick") or key)
+        if not isinstance(player, dict):
+            problems.append(f"{nick}: нет в лестнице")
+            continue
+        matches = [m for m in (player.get("matches") or []) if isinstance(m, dict)]
+        ids = [str(m.get("id") or "") for m in matches if m.get("id")]
+        if len(ids) != len(set(ids)):
+            problems.append(f"{nick}: один матч записан дважды")
+        if new_ids and not (set(ids) & new_ids):
+            problems.append(f"{nick}: свежий матч не попал в историю")
+        implied = _implied_rp_from_nets(matches)
+        try:
+            got = round(float(player.get("rp") or 0), 1)
+        except (TypeError, ValueError):
+            got = 0.0
+        if abs(got - round(implied, 1)) > 0.2:
+            problems.append(f"{nick}: RP {got} не равен сумме матчей {implied}")
+    if not problems:
+        return
+    print(f"PUBLISH BLOCKED ({len(problems)}):", flush=True)
+    for line in problems[:30]:
+        print(f"  {line}", flush=True)
+    raise SystemExit(1)
+
+
 def _match_hist_row(mb: dict, k: str, aliases: dict[str, str]) -> dict:
     team = (mb.get("teamsByKey") or {}).get(k)
     won = None
-    if team and mb.get("winnerTeam"):
-        won = team == str(mb["winnerTeam"])
+    if team is not None and mb.get("winnerTeam") is not None:
+        try:
+            won = int(team) == int(mb["winnerTeam"])
+        except (TypeError, ValueError):
+            won = str(team) == str(mb["winnerTeam"])
     # Килы = только гивап игрока (kind die). Техника и доля мехвода — не килы.
     kills = [
         e
@@ -963,6 +1000,9 @@ def main() -> None:
                 )
         except Exception as e:
             print(f"warn: Battle Pass sync skipped: {type(e).__name__}: {e}", flush=True)
+        import publish_public_surfaces as PUBLISH  # noqa: WPS433
+
+        PUBLISH.catch_up(OUT_LADDER_PRIMARY)
         return
 
     print(
@@ -1076,14 +1116,17 @@ def main() -> None:
 
     public_matches = list(prior_matches) if not force_full else []
     for mb in match_blocks:
+        # Keep teamsByKey — Battle Pass (ур.14/19) и heal/rebuild без него
+        # ставят won=None и «Победный стрик» не двигается.
         public_matches.append(
             {
                 kk: vv
                 for kk, vv in mb.items()
-                if kk
-                not in ("netByKey", "teamsByKey", "dmgByKey", "combatants")
+                if kk not in ("netByKey", "dmgByKey", "combatants")
             }
         )
+
+    _refuse_bad_publish(players_out, match_blocks)
 
     pmax = max(
         (float(p.get("rp") or R.START_RP) for p in players_out.values()),
@@ -1208,12 +1251,17 @@ def main() -> None:
     OUT_LADDER_PRIMARY.parent.mkdir(parents=True, exist_ok=True)
     OUT_LADDER_PRIMARY.write_text(slim_text, encoding="utf-8")
     print(f"Wrote slim {OUT_LADDER_PRIMARY} ({OUT_LADDER_PRIMARY.stat().st_size} bytes)")
-    try:
-        import rp_ladder_db as RPDB  # noqa: WPS433
+    import publish_public_surfaces as PUBLISH  # noqa: WPS433
+    import rp_ladder_db as RPDB  # noqa: WPS433
 
-        RPDB.sync_from_path("PUBLIC", OUT_LADDER_PRIMARY)
+    try:
+        RPDB.sync_required("PUBLIC", slim)
     except Exception as e:
-        print(f"warn: RP DB sync skipped: {e}", flush=True)
+        print(f"RP DB sync failed: {e}", flush=True)
+        raise SystemExit(1)
+    new_ids = {str(b.get("id")) for b in match_blocks if b.get("id")}
+    PUBLISH.publish_match_rows(slim, new_ids)
+    PUBLISH.drop_rating_cache()
 
     print("TOP 10:")
     for i, row in enumerate(ledger["leaderboard"][:10], 1):

@@ -296,7 +296,6 @@ export async function pageProfileLines(
   page: number,
   pageSize: number
 ) {
-  await ensureProfileLines(nick, kind).catch(() => undefined);
   const ready = await readProfileLines(nick, kind, page, pageSize);
   if (kind === "public" && ready.page === 1 && ready.rows.length) {
     const { loadPublicRpOneFromDb } = await import("@/lib/rpDbRead");

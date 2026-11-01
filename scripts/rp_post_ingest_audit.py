@@ -351,16 +351,21 @@ def _sync_profile_after_ingest(
                 got = 0.0
             if abs(got - implied) > 1.5:
                 problems.append(f"{nick}: RP {got} не равен сумме матчей {implied}")
-    stamp_kind = "public" if kind == "public" else "train"
-    dropped = _drop_profile_stamps(stamp_kind, sorted(want))
+    dropped = 0
+    if kind != "public":
+        dropped = _drop_profile_stamps("train", sorted(want))
     if problems:
         print(f"PROFILE [{kind}] расхождения ({len(problems)}):", flush=True)
         for line in problems[:30]:
             print(f"  {line}", flush=True)
     else:
+        note = (
+            "строки профиля пишет подсчёт"
+            if kind == "public"
+            else f"снимки профиля сброшены ({dropped})"
+        )
         print(
-            f"PROFILE [{kind}]: {len(want)} игроков, сумма и хронология сходятся, "
-            f"снимки профиля сброшены ({dropped})",
+            f"PROFILE [{kind}]: {len(want)} игроков, сумма и хронология сходятся, {note}",
             flush=True,
         )
 

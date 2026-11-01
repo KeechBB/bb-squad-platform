@@ -56,6 +56,22 @@ async function writeDisk(data: PublicRatingPagePayload): Promise<void> {
   await fs.rename(tmp, file);
 }
 
+function generationPath(): string {
+  return path.join(process.cwd(), "data", "cache", "public-rating-generation");
+}
+
+/** Scorer writes this when a match is published. Newer than builtAt means the snapshot is stale. */
+async function publishedNewerThan(data: PublicRatingPagePayload): Promise<boolean> {
+  try {
+    const raw = await fs.readFile(generationPath(), "utf8");
+    const published = Date.parse(raw.trim());
+    const built = Date.parse(data.builtAt);
+    return Number.isFinite(published) && Number.isFinite(built) && published > built;
+  } catch {
+    return false;
+  }
+}
+
 function ageMs(data: PublicRatingPagePayload): number {
   const t = Date.parse(data.builtAt);
   if (!Number.isFinite(t)) return Number.POSITIVE_INFINITY;
@@ -90,10 +106,75 @@ function kickRefresh(): void {
   });
 }
 
+function nickKey(n: string): string {
+  return String(n || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "");
+}
+
+/**
+ * Combat rows stay cached. The RP number is replaced from the database ladder
+ * and the table is ordered again, so /public matches home and the profile.
+ */
+async function withLiveRp(
+  data: PublicRatingPagePayload
+): Promise<PublicRatingPagePayload> {
+  try {
+    // Light board only — never loadPublicRpLadder() (13k × matchesJson OOMs → HTTP 500).
+    const { loadPublicRpTopFromDb, loadPublicRpUpdatedAt } = await import(
+      "@/lib/rpDbRead"
+    );
+    const need = Math.max(500, data.board.rows.length || 0);
+    const board = await loadPublicRpTopFromDb(need);
+    if (!board.length) return data;
+    const stamp = await loadPublicRpUpdatedAt();
+    const byNick = new Map(board.map((r) => [nickKey(r.nick), r]));
+    const rows = data.board.rows.map((row) => {
+      const live = byNick.get(nickKey(row.nick));
+      if (!live) return row;
+      return {
+        ...row,
+        rp: live.rp,
+        rankLabel: live.predatorPlace
+          ? `PREDATOR #${live.predatorPlace}`
+          : live.rankLabel,
+        rankKey: live.predatorPlace ? "predator" : live.rankKey,
+        predatorPlace: live.predatorPlace ?? null,
+      };
+    });
+    rows.sort((a, b) => {
+      const ar = a.rp == null ? -1e9 : a.rp;
+      const br = b.rp == null ? -1e9 : b.rp;
+      if (ar !== br) return br - ar;
+      const am = a.mvpMedic + a.mvpKiller + a.mvpArmor;
+      const bm = b.mvpMedic + b.mvpKiller + b.mvpArmor;
+      if (bm !== am) return bm - am;
+      if (b.days !== a.days) return b.days - a.days;
+      return a.nick.localeCompare(b.nick, "ru");
+    });
+    rows.forEach((r, i) => {
+      r.place = i + 1;
+    });
+    return {
+      ...data,
+      board: {
+        ...data.board,
+        rows,
+        updatedAt: stamp || data.board.updatedAt,
+      },
+    };
+  } catch (e) {
+    console.warn("[publicRatingPageCache] live rp overlay failed", e);
+    return data;
+  }
+}
+
 /** Оформление ника живёт отдельно от combat-кэша — всегда подмешиваем из БД. */
 async function withLiveNickPatches(
   data: PublicRatingPagePayload
 ): Promise<PublicRatingPagePayload> {
+  data = await withLiveRp(data);
   try {
     const { loadNickPatchBySteam } = await import("@/lib/nickPatchesCache");
     const map = await loadNickPatchBySteam();
@@ -124,12 +205,17 @@ export async function getPublicRatingPagePayload(opts?: {
     return withLiveNickPatches(await inflight);
   }
 
-  if (mem && Date.now() - mem.at < FRESH_MS && ageMs(mem.data) < FRESH_MS) {
+  if (
+    mem &&
+    Date.now() - mem.at < FRESH_MS &&
+    ageMs(mem.data) < FRESH_MS &&
+    !(await publishedNewerThan(mem.data))
+  ) {
     return withLiveNickPatches(mem.data);
   }
 
   const disk = await readDisk();
-  if (disk) {
+  if (disk && !(await publishedNewerThan(disk))) {
     const age = ageMs(disk);
     if (age < FRESH_MS) {
       mem = { at: Date.now(), data: disk };
