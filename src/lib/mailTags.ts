@@ -109,6 +109,7 @@ export function mailTagTone(tag: string): string {
 /** Разделы для кнопки «вставить ссылку» в письме. */
 export const MAIL_SECTION_LINKS: { path: string; label: string }[] = [
   { path: "/tournaments", label: "Турниры" },
+  { path: "/tournaments/bets", label: "Ставки" },
   { path: "/battle-pass", label: "Battle Pass" },
   { path: "/public", label: "Рейтинг паблика" },
   { path: "/cw", label: "Клановые войны" },
@@ -119,6 +120,27 @@ export const MAIL_SECTION_LINKS: { path: string; label: string }[] = [
   { path: "/map", label: "Карта" },
   { path: "/profile", label: "Профиль" },
   { path: "/", label: "Главная" },
+];
+
+/** Роли вкладки «Развитие». Кнопка в письме открывает лист этой роли. */
+export const MAIL_GROWTH_LINKS: { path: string; label: string }[] = [
+  { path: "/tm?tab=growth", label: "Развитие" },
+  { path: "/tm/rifleman", label: "Стрелок" },
+  { path: "/tm/squad-lead", label: "Командир отряда" },
+  { path: "/tm/medic", label: "Медик" },
+  { path: "/tm/lmg", label: "Легкий Пулемет" },
+  { path: "/tm/hmg", label: "Тяжелый Пулемет" },
+  { path: "/tm/engineer", label: "Сапер/Инженер" },
+  { path: "/tm/crew-lead", label: "Наводчик" },
+  { path: "/tm/crewman", label: "Мехвод" },
+  { path: "/tm/grenadier", label: "Гранатомет подствольный" },
+  { path: "/tm/lat", label: "Легкая Труба" },
+  { path: "/tm/hat", label: "Тандем" },
+  { path: "/tm/sniper", label: "Снайпер" },
+  { path: "/tm/marksman", label: "Марксман" },
+  { path: "/tm/scout", label: "Разведчик" },
+  { path: "/tm/raider", label: "Рейдер" },
+  { path: "/tm/pilot", label: "Пилот" },
 ];
 
 export function safeMailGoPath(path: string): string | null {

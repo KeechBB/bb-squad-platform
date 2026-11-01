@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { MailBody } from "@/components/MailBody";
 import { MailTags } from "@/components/MailTags";
 import {
+  MAIL_GROWTH_LINKS,
   MAIL_SECTION_LINKS,
   MAIL_TAG_MAX,
   MAIL_TAG_PRESETS,
@@ -292,6 +293,19 @@ export function AdminMailPanel() {
           <span className="muted">Вставить раздел (кнопка в письме):</span>
           <div className="admin-mail-section-btns">
             {MAIL_SECTION_LINKS.map((s) => (
+              <button
+                key={s.path}
+                type="button"
+                className="admin-mail-section-btn"
+                onClick={() => insertSection(s.path, s.label)}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+          <span className="muted">Развитие:</span>
+          <div className="admin-mail-section-btns">
+            {MAIL_GROWTH_LINKS.map((s) => (
               <button
                 key={s.path}
                 type="button"
