@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import {
-  nextCwAnnounces,
+  homeCwAnnounces,
   readyNicks,
   viewerGoing,
   viewerIsBlackberry,
+  type CwAnnounce,
 } from "@/lib/cwReady";
 
 export const runtime = "nodejs";
@@ -17,23 +18,17 @@ export async function GET() {
   if (!(await viewerIsBlackberry(userId))) {
     return NextResponse.json({ main: null, junior: null });
   }
-  const next = await nextCwAnnounces();
-  async function pack(
-    slot: Awaited<ReturnType<typeof nextCwAnnounces>>["main"]
-  ) {
-    if (!slot) return null;
+  const slots = await homeCwAnnounces();
+  async function pack(slot: CwAnnounce) {
     const [ready, going] = await Promise.all([
       readyNicks(slot.id),
       viewerGoing(slot.id, userId),
     ]);
     return { ...slot, ready, going };
   }
-  const [main, junior] = await Promise.all([
-    pack(next.main),
-    pack(next.junior),
-  ]);
+  const cards = await Promise.all(slots.map(pack));
   return NextResponse.json(
-    { main, junior },
+    { cards },
     { headers: { "Cache-Control": "no-store" } }
   );
 }

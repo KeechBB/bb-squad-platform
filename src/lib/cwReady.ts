@@ -303,6 +303,19 @@ export async function upcomingCwMeetings(): Promise<
   return upcomingBb();
 }
 
+/**
+ * Карточки главной: ближайший Junior и каждый ближайший Main.
+ * Второй мейн (Deadline после NS) тоже получает «буду» и состав.
+ */
+export async function homeCwAnnounces(): Promise<CwAnnounce[]> {
+  const rows = await upcomingBb();
+  const junior = rows.find((r) => r.stack === "Junior");
+  const mains = rows.filter((r) => r.stack === "Main");
+  const picked = [...(junior ? [junior] : []), ...mains];
+  picked.sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));
+  return picked.map((row) => asAnnounce(row)!);
+}
+
 export async function cwReadyState(
   matchId: string,
   userId: string

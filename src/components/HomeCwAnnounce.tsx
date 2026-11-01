@@ -18,32 +18,28 @@ export type HomeCwCard = {
 };
 
 type Props = {
-  main: HomeCwCard | null;
-  junior: HomeCwCard | null;
+  cards: HomeCwCard[];
 };
 
-export function HomeCwAnnounce({ main, junior }: Props) {
-  const [cards, setCards] = useState({ main, junior });
-  const [open, setOpen] = useState<"main" | "junior" | null>(null);
+export function HomeCwAnnounce({ cards: initial }: Props) {
+  const [cards, setCards] = useState(initial);
+  const [openId, setOpenId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    setCards({ main, junior });
-  }, [main, junior]);
+    setCards(initial);
+  }, [initial]);
 
-  // Подтягиваем актуальный слот с сервера (перенос даты / обнуление «буду»).
+  // Подтягиваем актуальные слоты с сервера (перенос даты / обнуление «буду»).
   useEffect(() => {
     let cancelled = false;
     async function pull() {
       try {
         const res = await fetch("/api/cw-announce", { cache: "no-store" });
         if (!res.ok || cancelled) return;
-        const data = (await res.json()) as {
-          main: HomeCwCard | null;
-          junior: HomeCwCard | null;
-        };
-        if (!cancelled) setCards({ main: data.main, junior: data.junior });
+        const data = (await res.json()) as { cards?: HomeCwCard[] };
+        if (!cancelled && Array.isArray(data.cards)) setCards(data.cards);
       } catch {
         /* keep SSR */
       }
@@ -57,13 +53,13 @@ export function HomeCwAnnounce({ main, junior }: Props) {
   }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!openId) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(null);
+      if (e.key === "Escape") setOpenId(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [openId]);
 
   async function toggle(card: HomeCwCard) {
     if (!card.id || busy) return;
@@ -91,19 +87,17 @@ export function HomeCwAnnounce({ main, junior }: Props) {
         setErr(data.error || "Не вышло записать");
         return;
       }
-      setCards((cur) => {
-        const next = { ...cur };
-        const key = card.stack === "Main" ? "main" : "junior";
-        const prev = next[key];
-        if (prev && prev.id === card.id) {
-          next[key] = {
-            ...prev,
-            going: Boolean(data.going),
-            ready: data.ready || [],
-          };
-        }
-        return next;
-      });
+      setCards((cur) =>
+        cur.map((prev) =>
+          prev.id === card.id
+            ? {
+                ...prev,
+                going: Boolean(data.going),
+                ready: data.ready || [],
+              }
+            : prev
+        )
+      );
     } catch {
       setErr("Нет связи");
     } finally {
@@ -111,32 +105,31 @@ export function HomeCwAnnounce({ main, junior }: Props) {
     }
   }
 
-  const opened =
-    open === "main" ? cards.main : open === "junior" ? cards.junior : null;
+  const opened = cards.find((card) => card.id === openId) || null;
 
   return (
     <div className="home-cw-pair" aria-label="Ближайшие клановые войны">
-      <CwFace
-        card={cards.main}
-        stack="Main"
-        busy={busy}
-        onOpen={() => setOpen("main")}
-        onToggle={toggle}
-      />
-      <CwFace
-        card={cards.junior}
-        stack="Junior"
-        busy={busy}
-        onOpen={() => setOpen("junior")}
-        onToggle={toggle}
-      />
+      {cards.length ? (
+        cards.map((card) => (
+          <CwFace
+            key={card.id}
+            card={card}
+            stack={card.stack}
+            busy={busy}
+            onOpen={() => setOpenId(card.id)}
+            onToggle={toggle}
+          />
+        ))
+      ) : (
+        <CwFace card={null} stack="Main" busy={null} onOpen={() => {}} onToggle={toggle} />
+      )}
       {err ? <p className="home-cw-err">{err}</p> : null}
-      {opened && open
+      {opened
         ? createPortal(
             <div
               className="home-cw-modal"
               role="presentation"
-              onClick={() => setOpen(null)}
+                onClick={() => setOpenId(null)}
             >
               <div
                 className="home-cw-modal-card"
@@ -147,7 +140,7 @@ export function HomeCwAnnounce({ main, junior }: Props) {
               >
                 <header>
                   <span>КВ · {opened.stack}</span>
-                  <button type="button" onClick={() => setOpen(null)}>
+                  <button type="button" onClick={() => setOpenId(null)}>
                     закрыть
                   </button>
                 </header>
@@ -213,6 +206,10 @@ function CwFace({
             <span className="home-cw-date">{card.dateLabel}</span>
             <span className="home-cw-time">{card.timeMsk}</span>
             <span className="home-cw-opp">против {card.opp}</span>
+            <span className="home-cw-map">
+              {card.map}
+              {card.size ? ` · ${card.size}` : ""}
+            </span>
           </div>
           <button type="button" className="home-cw-roster" onClick={onOpen}>
             Кто в составе

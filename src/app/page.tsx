@@ -9,7 +9,7 @@ import { HomeBattlePassTeaser } from "@/components/HomeBattlePassTeaser";
 import { HomeTournamentAnnounce } from "@/components/HomeTournamentAnnounce";
 import type { HomeCwCard } from "@/components/HomeCwAnnounce";
 import {
-  nextCwAnnounces,
+  homeCwAnnounces,
   readyNicks,
   viewerGoing,
   viewerIsBlackberry,
@@ -42,12 +42,12 @@ export default async function HomePage() {
   await syncTournamentEliminationMails();
   const userId = session?.user?.id || "";
   const showCw = await viewerIsBlackberry(userId);
-  let cwMain: HomeCwCard | null = null;
-  let cwJunior: HomeCwCard | null = null;
+  let cwCards: HomeCwCard[] = [];
   if (showCw) {
-    const next = await nextCwAnnounces();
-    cwMain = await toCard(next.main, userId);
-    cwJunior = await toCard(next.junior, userId);
+    const slots = await homeCwAnnounces();
+    cwCards = (
+      await Promise.all(slots.map((slot) => toCard(slot, userId)))
+    ).filter((card): card is HomeCwCard => Boolean(card));
   }
 
   return (
@@ -134,8 +134,7 @@ export default async function HomePage() {
             publicTop={publicTop}
             viewerNick={session?.user?.nick || null}
             showCw={showCw}
-            cwMain={cwMain}
-            cwJunior={cwJunior}
+            cwCards={cwCards}
           />
         </div>
 

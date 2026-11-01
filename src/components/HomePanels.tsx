@@ -16,8 +16,7 @@ type Props = {
   publicTop: HomePublicTopRow[];
   viewerNick?: string | null;
   /** Только для участника клана BlackBerry. */
-  cwMain?: HomeCwCard | null;
-  cwJunior?: HomeCwCard | null;
+  cwCards?: HomeCwCard[];
   showCw?: boolean;
 };
 
@@ -36,8 +35,7 @@ function isViewer(nick: string, viewerNick?: string | null) {
 export function HomePanels({
   publicTop,
   viewerNick = null,
-  cwMain = null,
-  cwJunior = null,
+  cwCards = [],
   showCw = false,
 }: Props) {
   return (
@@ -51,7 +49,7 @@ export function HomePanels({
           <PublicTop rows={publicTop} viewerNick={viewerNick} />
         </div>
       </section>
-      {showCw ? <HomeCwAnnounce main={cwMain} junior={cwJunior} /> : null}
+      {showCw ? <HomeCwAnnounce cards={cwCards} /> : null}
     </div>
   );
 }
