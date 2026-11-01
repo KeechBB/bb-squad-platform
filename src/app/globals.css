@@ -8423,11 +8423,44 @@ body:has(.home-page) {
   max-width: none;
   height: auto;
   margin: 0;
-  padding: 0;
+  padding: 0 8px 0 0;
   transform: none;
   display: flex;
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  gap: 18px;
+  overflow: visible;
+  max-width: none;
+}
+
+.home-layout > .home-hero .home-cw-pair,
+.home-layout > .home-hero .home-cw-card,
+.home-layout > .home-hero .home-cw-card button {
+  pointer-events: auto;
+}
+
+.home-layout > .home-hero .home-cw-pair {
+  flex: 1 1 auto;
+  align-self: center;
+  width: auto;
+  height: auto;
+  max-height: none;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 12px;
+  overflow: visible;
+}
+
+.home-layout > .home-hero .home-cw-card {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 168px;
+  max-width: 240px;
+  min-height: 240px;
+  height: auto;
 }
 
 .home-layout > .home-hero .home-hero-brand {

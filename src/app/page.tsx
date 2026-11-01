@@ -7,7 +7,7 @@ import { HomeFit } from "@/components/HomeFit";
 import { HomeLoginPrompt } from "@/components/HomeLoginPrompt";
 import { HomeBattlePassTeaser } from "@/components/HomeBattlePassTeaser";
 import { HomeTournamentAnnounce } from "@/components/HomeTournamentAnnounce";
-import type { HomeCwCard } from "@/components/HomeCwAnnounce";
+import { HomeCwAnnounce, type HomeCwCard } from "@/components/HomeCwAnnounce";
 import {
   homeCwAnnounces,
   readyNicks,
@@ -133,12 +133,11 @@ export default async function HomePage() {
           <HomePanels
             publicTop={publicTop}
             viewerNick={session?.user?.nick || null}
-            showCw={showCw}
-            cwCards={cwCards}
           />
         </div>
 
         <section className="home-hero" aria-label="BlackBerry">
+          {showCw ? <HomeCwAnnounce cards={cwCards} /> : null}
           <div className="home-hero-brand">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
