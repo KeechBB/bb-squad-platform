@@ -10,6 +10,11 @@
  * Full ledger is NEVER kept in process memory (JSON.parse residency blows RAM).
  */
 import { rpRankFromScore, type RpLeaderRow, type RpLedger, type RpPlayer } from "@/lib/trainRp";
+import {
+  loadPublicRpLadderFromDb,
+  loadPublicRpTopFromDb,
+  loadPublicRpUpdatedAt,
+} from "@/lib/rpDbRead";
 
 const FULL_PLAYER_TTL_MS = 120_000;
 /** Held only while RpMeta.updatedAt is unchanged. A new score bumps the stamp. */
@@ -69,7 +74,8 @@ async function loadCanonicalPublicJson(
  * and took /public down with HTTP 500. RP numbers on /public are overlaid from DB separately.
  */
 export async function loadPublicRpLadder(): Promise<RpLedger | null> {
-  const { loadPublicRpUpdatedAt } = await import("@/lib/rpDbRead");
+  // Static import — dynamic `import("@/lib/rpDbRead")` was resolving to a
+  // webpack chunk where named exports were not functions → HTTP 500 on /public.
   const stamp = await loadPublicRpUpdatedAt();
   if (ladderMem && stamp && ladderMem.stamp === stamp) return ladderMem.data;
 
@@ -87,7 +93,6 @@ export async function loadPublicRpLadder(): Promise<RpLedger | null> {
   }
 
   try {
-    const { loadPublicRpLadderFromDb } = await import("@/lib/rpDbRead");
     const fromDb = await loadPublicRpLadderFromDb();
     if (fromDb?.players && Object.keys(fromDb.players).length) {
       ladderMem = { stamp: stamp || fromDb.updatedAt || "", data: fromDb };
@@ -143,9 +148,6 @@ export async function buildPublicRpLeaderboard(): Promise<{
   available: boolean;
 }> {
   try {
-    const { loadPublicRpTopFromDb, loadPublicRpUpdatedAt } = await import(
-      "@/lib/rpDbRead"
-    );
     const [board, stamp] = await Promise.all([
       loadPublicRpTopFromDb(500),
       loadPublicRpUpdatedAt(),

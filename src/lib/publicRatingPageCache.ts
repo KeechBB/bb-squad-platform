@@ -11,6 +11,10 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { PublicCombatRow } from "@/lib/publicCombat";
 import type { PublicMatchRow } from "@/lib/publicMatches";
+import {
+  loadPublicRpTopFromDb,
+  loadPublicRpUpdatedAt,
+} from "@/lib/rpDbRead";
 
 export type PublicRatingPagePayload = {
   board: {
@@ -122,9 +126,7 @@ async function withLiveRp(
 ): Promise<PublicRatingPagePayload> {
   try {
     // Light board only — never loadPublicRpLadder() (13k × matchesJson OOMs → HTTP 500).
-    const { loadPublicRpTopFromDb, loadPublicRpUpdatedAt } = await import(
-      "@/lib/rpDbRead"
-    );
+    // Static import: dynamic chunk for rpDbRead had broken named exports after deploy.
     const need = Math.max(500, data.board.rows.length || 0);
     const board = await loadPublicRpTopFromDb(need);
     if (!board.length) return data;
