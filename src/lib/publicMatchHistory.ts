@@ -42,6 +42,7 @@ function mapSlugFromName(name: string): string {
 
 type ScoreHit = {
   slug: string;
+  endedMs: number;
   faction1: string;
   score1: number;
   faction2: string;
@@ -94,6 +95,7 @@ async function loadPublicScoresByDay(
     const list = out.get(ymd) || [];
     list.push({
       slug: mapSlugFromName(r.mapName || r.layerName || ""),
+      endedMs: r.endedAt.getTime(),
       faction1: r.faction1,
       score1: r.score1,
       faction2: r.faction2,
@@ -105,20 +107,40 @@ async function loadPublicScoresByDay(
   return out;
 }
 
+function addDay(ymd: string): string {
+  const t = Date.parse(`${ymd}T12:00:00+03:00`);
+  if (!Number.isFinite(t)) return ymd;
+  return new Date(t + 24 * 60 * 60 * 1000).toLocaleDateString("en-CA", {
+    timeZone: "Europe/Moscow",
+  });
+}
+
+/** Id clock is MSK start. Attach the round that ended soon after that start. */
 function pickScore(
   dayHits: ScoreHit[],
   mapSlug: string,
-  mapName: string
+  mapName: string,
+  startMs: number | null
 ): ScoreHit | null {
   if (!dayHits?.length) return null;
   const want = mapSlug || mapSlugFromName(mapName);
+  let pool = dayHits;
   if (want) {
-    const hit = dayHits.find(
-      (h) => h.slug.includes(want) || want.includes(h.slug)
+    const same = dayHits.filter(
+      (h) => h.slug && (h.slug.includes(want) || want.includes(h.slug))
     );
-    if (hit) return hit;
+    if (!same.length) return null;
+    pool = same;
   }
-  return dayHits.length === 1 ? dayHits[0] : null;
+  if (startMs == null) return pool.length === 1 ? pool[0] : null;
+  const near = pool.filter(
+    (h) => h.endedMs >= startMs - 20 * 60 * 1000 && h.endedMs <= startMs + 3 * 60 * 60 * 1000
+  );
+  if (!near.length) return null;
+  near.sort(
+    (a, b) => Math.abs(a.endedMs - startMs) - Math.abs(b.endedMs - startMs)
+  );
+  return near[0];
 }
 
 /** История PB1 матчей игрока с ΔRP (свежие сверху). */
@@ -178,12 +200,15 @@ export async function buildPlayerPublicMatchHistory(
     return ta.localeCompare(tb);
   });
 
-  const ymds = rows.map((r) => r.date);
+  const ymds = rows.flatMap((r) => [r.date, addDay(r.date)]);
   let scores = new Map<string, ScoreHit[]>();
-  try {
-    scores = await loadPublicScoresByDay(ymds);
-  } catch {
-    scores = new Map();
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      scores = await loadPublicScoresByDay(ymds);
+      break;
+    } catch {
+      scores = new Map();
+    }
   }
 
   const startRp = Number(ladder.startRp) || 1000;
@@ -209,11 +234,27 @@ export async function buildPlayerPublicMatchHistory(
       rpDelta = Math.round(m.net);
     }
 
+    const startMs = m.parsed
+      ? Date.parse(`${m.date}T${m.parsed.hm || "00:00"}:00+03:00`)
+      : NaN;
+    const dayHits = [
+      ...(scores.get(m.date) || []),
+      ...(scores.get(addDay(m.date)) || []),
+    ];
     const score = pickScore(
-      scores.get(m.date) || [],
+      dayHits,
       m.parsed?.mapSlug || "",
-      m.map
+      m.map,
+      Number.isFinite(startMs) ? startMs : null
     );
+    const metaScore = metaById.get(m.id) as
+      | {
+          score1?: number | null;
+          score2?: number | null;
+          faction1?: string;
+          faction2?: string;
+        }
+      | undefined;
 
     const dateLabel =
       m.parsed?.dateLabel ||
@@ -226,10 +267,22 @@ export async function buildPlayerPublicMatchHistory(
       dateLabel,
       timeLabel: m.parsed?.hm || "—",
       map: m.map || "—",
-      factionA: score ? String(score.faction1 || "—").toUpperCase() : "—",
-      ticketsA: score ? score.score1 : null,
-      factionB: score ? String(score.faction2 || "—").toUpperCase() : "—",
-      ticketsB: score ? score.score2 : null,
+      factionA: score
+        ? String(score.faction1 || "—").toUpperCase()
+        : String(metaScore?.faction1 || "—").toUpperCase(),
+      ticketsA: score
+        ? score.score1
+        : metaScore?.score1 == null
+          ? null
+          : Number(metaScore.score1),
+      factionB: score
+        ? String(score.faction2 || "—").toUpperCase()
+        : String(metaScore?.faction2 || "—").toUpperCase(),
+      ticketsB: score
+        ? score.score2
+        : metaScore?.score2 == null
+          ? null
+          : Number(metaScore.score2),
       team: "—",
       winner: score
         ? score.winnerTeam === 1

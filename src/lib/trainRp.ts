@@ -183,13 +183,12 @@ function nickKey(n: string) {
     .replace(/\s+/g, "");
 }
 
-/** 00:00–00:29 → 24:xx so a match after midnight stays after the evening ones. */
+/** Clock time HH:MM. 00:24 is the start of the day, not the end of it. */
 export function trainSortTime(raw?: string): string {
   const hm = /^(\d{1,2}):(\d{2})/.exec(String(raw || "").trim());
   if (!hm) return "";
-  let h = Number(hm[1]);
+  const h = Number(hm[1]);
   const mi = Number(hm[2]);
-  if (h === 0 && mi <= 29) h = 24;
   return `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
 }
 
@@ -424,21 +423,27 @@ export async function lookupPlayerTrainRp(
   const key = nickKey(nick);
   if (opts?.full) {
     const hit = fullPlayerMem.get(key);
-    if (hit && Date.now() - hit.at < FULL_PLAYER_TTL_MS) return hit.data;
+    if (hit && Date.now() - hit.at < FULL_PLAYER_TTL_MS && hit.data) return hit.data;
 
-    const ledger = await loadRpLedger();
-    if (!ledger) {
-      fullPlayerMem.set(key, { at: Date.now(), data: null });
-      return null;
-    }
-    let found: RpPlayer | null = ledger.players[key] || null;
-    if (!found) {
-      for (const p of Object.values(ledger.players)) {
-        if (nickKey(p.nick) === key) {
-          found = p;
-          break;
-        }
+    const { extractRpPlayerAt } = await import("@/lib/rpPlayerExtract");
+    const { access } = await import("fs/promises");
+    const path = await import("path");
+    const { kvLocalRoots } = await import("@/lib/kvLocal");
+    let found: RpPlayer | null = null;
+    for (const root of kvLocalRoots()) {
+      const full = path.join(root, "data", "training", "rp-ledger.json");
+      try {
+        await access(full);
+      } catch {
+        continue;
       }
+      found = await extractRpPlayerAt(full, key);
+      if (found) break;
+    }
+    if (!found) {
+      const ladder = await loadRpLadder();
+      const slim = ladder?.players?.[key];
+      if (slim) found = slimPlayerToRp(slim);
     }
     if (found?.matches?.length) {
       found = {
@@ -448,6 +453,7 @@ export async function lookupPlayerTrainRp(
         ),
       };
     }
+    if (!found) return null;
     fullPlayerMem.set(key, { at: Date.now(), data: found });
     if (fullPlayerMem.size > 200) {
       const drop = [...fullPlayerMem.entries()]

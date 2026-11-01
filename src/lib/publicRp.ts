@@ -1,18 +1,19 @@
 /**
  * Public (PB1) Respect Points — same ladder UI as train RP.
  *
- * Single source of truth (VPS):
- *   data/public/rp-ladder.json  — hot path (~1–2MB)
- *   data/public/rp-ledger.json  — drilldowns only (~80MB+)
+ * The public RP number lives in Postgres (`RpLadderPlayer` / `RpMeta`).
+ * Home, /public and the profile all read that row. The JSON ladder is only
+ * what the scorer writes before it copies the number into the database.
+ * Drilldown events still come from data/public/rp-ledger.json.
  *
  * Do NOT read kv-cache / KV / github.io mirrors — those caused Farvort-class desync.
  * Full ledger is NEVER kept in process memory (JSON.parse residency blows RAM).
  */
 import { rpRankFromScore, type RpLeaderRow, type RpLedger, type RpPlayer } from "@/lib/trainRp";
 
-const CACHE_TTL_MS = 5 * 60 * 1000;
 const FULL_PLAYER_TTL_MS = 120_000;
-let ladderMem: { at: number; data: RpLedger | null } | null = null;
+/** Held only while RpMeta.updatedAt is unchanged. A new score bumps the stamp. */
+let ladderMem: { stamp: string; data: RpLedger | null } | null = null;
 /** Per-nick drilldown extracts — do not keep full ledger resident. */
 const fullPlayerMem = new Map<string, { at: number; data: RpPlayer | null }>();
 
@@ -62,25 +63,41 @@ async function loadCanonicalPublicJson(
   return data;
 }
 
-/** Slim public ladder (~1MB) — rating table / aggregates. */
+/**
+ * Slim public ladder for combat / history.
+ * Prefer canonical JSON (~12MB) — loading 13k DB rows × matchesJson OOMs PM2 workers
+ * and took /public down with HTTP 500. RP numbers on /public are overlaid from DB separately.
+ */
 export async function loadPublicRpLadder(): Promise<RpLedger | null> {
-  const now = Date.now();
-  if (ladderMem && now - ladderMem.at < CACHE_TTL_MS) return ladderMem.data;
+  const { loadPublicRpUpdatedAt } = await import("@/lib/rpDbRead");
+  const stamp = await loadPublicRpUpdatedAt();
+  if (ladderMem && stamp && ladderMem.stamp === stamp) return ladderMem.data;
+
+  try {
+    const fromFile = await loadCanonicalPublicJson("rp-ladder.json");
+    if (fromFile?.players && Object.keys(fromFile.players).length) {
+      ladderMem = {
+        stamp: stamp || fromFile.updatedAt || "",
+        data: fromFile,
+      };
+      return fromFile;
+    }
+  } catch (e) {
+    console.warn("[publicRp] ladder file skip", e);
+  }
 
   try {
     const { loadPublicRpLadderFromDb } = await import("@/lib/rpDbRead");
     const fromDb = await loadPublicRpLadderFromDb();
     if (fromDb?.players && Object.keys(fromDb.players).length) {
-      ladderMem = { at: now, data: fromDb };
+      ladderMem = { stamp: stamp || fromDb.updatedAt || "", data: fromDb };
       return fromDb;
     }
-  } catch {
-    /* file fallback */
+  } catch (e) {
+    console.warn("[publicRp] ladder db skip", e);
   }
-
-  const data = await loadCanonicalPublicJson("rp-ladder.json");
-  ladderMem = { at: now, data };
-  return data;
+  ladderMem = null;
+  return null;
 }
 
 /** Cron/worker warm: touch slim ladder into process RAM (never full ledger). */
@@ -97,13 +114,27 @@ export async function warmPublicRpCaches(): Promise<{
 
 /**
  * Full ledger — drilldown only. No process-wide cache (file can be 80MB+ on disk;
- * JSON.parse residencies are several× that).
+ * JSON.parse residencies are several× that). Prefer {@link extractPublicRpPlayerFromLedger}.
  */
 export async function loadPublicRpLedger(): Promise<RpLedger | null> {
   return loadCanonicalPublicJson("rp-ledger.json");
 }
 
-/** Home / boards: slim ladder only — never pull full ledger. */
+/** One player from the public ledger. Never JSON.parse the whole file. */
+async function extractPublicRpPlayerFromLedger(
+  key: string
+): Promise<RpPlayer | null> {
+  const want = nickKey(key);
+  if (!want) return null;
+  const { join } = await import("path");
+  const { extractRpPlayerAt } = await import("@/lib/rpPlayerExtract");
+  return extractRpPlayerAt(
+    join(process.cwd(), "data", "public", "rp-ledger.json"),
+    want
+  );
+}
+
+/** Home / boards: light DB board first — never require full matchesJson ladder. */
 export async function buildPublicRpLeaderboard(): Promise<{
   rows: RpLeaderRow[];
   players: number;
@@ -111,6 +142,38 @@ export async function buildPublicRpLeaderboard(): Promise<{
   updatedAt: string;
   available: boolean;
 }> {
+  try {
+    const { loadPublicRpTopFromDb, loadPublicRpUpdatedAt } = await import(
+      "@/lib/rpDbRead"
+    );
+    const [board, stamp] = await Promise.all([
+      loadPublicRpTopFromDb(500),
+      loadPublicRpUpdatedAt(),
+    ]);
+    if (board.length) {
+      const rows: RpLeaderRow[] = board.map((r, i) => ({
+        nick: r.nick,
+        rp: r.rp,
+        rankLabel: r.predatorPlace
+          ? `PREDATOR #${r.predatorPlace}`
+          : r.rankLabel,
+        rankKey: r.predatorPlace ? "predator" : r.rankKey,
+        predatorPlace: r.predatorPlace ?? null,
+        place: i + 1,
+        games: 0,
+      }));
+      return {
+        rows,
+        players: rows.length,
+        matches: 0,
+        updatedAt: stamp || new Date().toISOString(),
+        available: true,
+      };
+    }
+  } catch (e) {
+    console.warn("[publicRp] light board skip", e);
+  }
+
   const ledger = await loadPublicRpLadder();
   if (!ledger?.leaderboard?.length) {
     return {
@@ -170,11 +233,48 @@ export async function lookupPlayerPublicRp(
     return null;
   };
 
+  const overlay = async (player: RpPlayer | null): Promise<RpPlayer | null> => {
+    const { loadPublicRpOneFromDb } = await import("@/lib/rpDbRead");
+    const live = await loadPublicRpOneFromDb(player?.nick || nick);
+    if (!live) return player;
+    const base: RpPlayer = player || {
+      nick: live.nick,
+      rp: live.rp,
+      rankLabel: live.rankLabel,
+      rankKey: live.rankKey,
+      predatorPlace: live.predatorPlace,
+      matches: [],
+    };
+    return {
+      ...base,
+      nick: live.nick || base.nick,
+      rp: live.rp,
+      rankLabel: live.rankLabel,
+      rankKey: live.rankKey,
+      predatorPlace: live.predatorPlace,
+    };
+  };
+
   if (opts?.full) {
     const hit = fullPlayerMem.get(key);
-    if (hit && Date.now() - hit.at < FULL_PLAYER_TTL_MS) return hit.data;
-    const found = pick(await loadPublicRpLedger());
-    fullPlayerMem.set(key, { at: Date.now(), data: found });
+    if (hit && Date.now() - hit.at < FULL_PLAYER_TTL_MS) return overlay(hit.data);
+
+    // Never JSON.parse the whole ledger (500MB+) — stream one player object.
+    let found = await extractPublicRpPlayerFromLedger(key);
+    if (!found) {
+      // Fallback: tiny chance ledger key ≠ nickKey(display); walk slim only for existence.
+      found = pick(await loadPublicRpLadder());
+      if (found) {
+        // Slim has counts, not kill arrays — still return so UI can say «нет детального разбора».
+        found = { ...found };
+      }
+    }
+
+    // Do not cache misses — a rewrite/race mid-read should retry next click.
+    if (found) {
+      found = (await overlay(found)) || found;
+      fullPlayerMem.set(key, { at: Date.now(), data: found });
+    }
     if (fullPlayerMem.size > 200) {
       const drop = [...fullPlayerMem.entries()]
         .sort((a, b) => a[1].at - b[1].at)
@@ -183,5 +283,5 @@ export async function lookupPlayerPublicRp(
     }
     return found;
   }
-  return pick(await loadPublicRpLadder());
+  return overlay(pick(await loadPublicRpLadder()));
 }

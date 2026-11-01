@@ -4,18 +4,22 @@ import { useEffect, useRef, useState } from "react";
 import type { TrainMatchHistoryRow } from "@/lib/homeTrainPwr";
 import type { RpPlayer, RpPlayerMatch } from "@/lib/trainRp";
 import { abbreviateFaction } from "@/lib/factionAbbrev";
+import { shortMapName } from "@/lib/shortMapName";
 import { RpHuntMatchBreakdown } from "@/components/RpHuntMatchBreakdown";
-import { ListPager, pageSlice } from "@/components/ListPager";
+import { ListPager } from "@/components/ListPager";
 import { useFitPageSize } from "@/hooks/useFitPageSize";
+import { useProfileHistoryPage } from "@/hooks/useProfileHistoryPage";
 
 type Props = {
   matchHistory?: TrainMatchHistoryRow[];
+  historyTotal?: number;
   highlightNick?: string;
   hideTitle?: boolean;
 };
 
 export function PublicMatchHistory({
   matchHistory = [],
+  historyTotal,
   highlightNick,
   hideTitle = false,
 }: Props) {
@@ -26,11 +30,23 @@ export function PublicMatchHistory({
   const [page, setPage] = useState(1);
   const tableWrapRef = useRef<HTMLDivElement | null>(null);
   const pageSize = useFitPageSize(tableWrapRef);
-  const sliced = pageSlice(matchHistory, page, pageSize);
+  const remote = useProfileHistoryPage<TrainMatchHistoryRow>(
+    highlightNick,
+    "public",
+    page,
+    pageSize,
+    { rows: matchHistory, total: historyTotal }
+  );
+  const sliced = {
+    page,
+    pageCount: remote.pageCount,
+    total: remote.total,
+    rows: remote.rows,
+  };
 
   useEffect(() => {
     setPage(1);
-  }, [matchHistory.length, pageSize]);
+  }, [highlightNick, matchHistory.length]);
 
   async function openRow(matchId: string) {
     const nick = (highlightNick || "").trim();
@@ -50,7 +66,11 @@ export function PublicMatchHistory({
           );
         }
         const j = (await r.json()) as { player: RpPlayer | null };
-        if (!j.player) throw new Error("Нет RP по этому нику");
+        if (!j.player) {
+          throw new Error(
+            "Не удалось загрузить детальный RP (ledger). История на месте — открой катку позже."
+          );
+        }
         player = j.player;
         setPlayerCache(player);
       }
@@ -76,17 +96,20 @@ export function PublicMatchHistory({
           {error}
         </p>
       ) : null}
-      {matchHistory.length === 0 ? (
+      <div
+        ref={tableWrapRef}
+        className="admin-table-wrap profile-hist-table-wrap"
+      >
+      {remote.failed && matchHistory.length === 0 ? (
+        <p className="muted" style={{ margin: "8px 0 0" }}>
+          История паблика временно недоступна.
+        </p>
+      ) : pageSize > 0 && sliced.total === 0 && !remote.loading ? (
         <p className="muted" style={{ margin: "8px 0 0" }}>
           Пока нет каток паблика (PB1) с этим ником в рейтинге — история
           появится после матчей с give-up киллами.
         </p>
       ) : (
-        <>
-        <div
-          ref={tableWrapRef}
-          className="admin-table-wrap profile-hist-table-wrap"
-        >
           <table className="admin-table training-sessions-table training-match-hist-table">
             <thead>
               <tr>
@@ -99,6 +122,13 @@ export function PublicMatchHistory({
               </tr>
             </thead>
             <tbody>
+              {remote.loading && sliced.rows.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="muted">
+                    Загрузка истории паблика…
+                  </td>
+                </tr>
+              ) : null}
               {sliced.rows.map((m) => {
                 const delta = m.rpDelta;
                 const deltaCls =
@@ -115,13 +145,13 @@ export function PublicMatchHistory({
                     : delta > 0
                       ? `+${delta}`
                       : String(delta);
-                const hasScore =
-                  m.ticketsA != null &&
-                  m.ticketsB != null &&
-                  m.factionA !== "—" &&
-                  m.factionB !== "—";
+                const hasScore = m.ticketsA != null && m.ticketsB != null;
+                const side = (name: string) =>
+                  name && name !== "—" ? `${abbreviateFaction(name)} ` : "";
+                const sideEnd = (name: string) =>
+                  name && name !== "—" ? ` ${abbreviateFaction(name)}` : "";
                 const score = hasScore
-                  ? `${abbreviateFaction(m.factionA)} ${m.ticketsA} : ${m.ticketsB} ${abbreviateFaction(m.factionB)}`
+                  ? `${side(m.factionA)}${m.ticketsA} : ${m.ticketsB}${sideEnd(m.factionB)}`
                   : "—";
                 const resultCls =
                   m.won === true
@@ -152,7 +182,7 @@ export function PublicMatchHistory({
                   >
                     <td>{m.dateLabel}</td>
                     <td title={m.map}>
-                      <span className="training-match-map">{m.map}</span>
+                      <span className="training-match-map">{shortMapName(m.map)}</span>
                     </td>
                     <td className="training-match-score" title={score}>
                       {score}
@@ -189,19 +219,20 @@ export function PublicMatchHistory({
               })}
             </tbody>
           </table>
-        </div>
+      )}
+      </div>
+      <div className="profile-hist-pager-slot">
         <ListPager
           page={sliced.page}
           pageCount={sliced.pageCount}
           total={sliced.total}
-          pageSize={pageSize}
+          pageSize={pageSize || 1}
           onChange={setPage}
           maxButtons={10}
           label="Страницы истории паблика"
           className="profile-hist-pager"
         />
-        </>
-      )}
+      </div>
       {openMatch ? (
         <RpHuntMatchBreakdown
           match={openMatch}

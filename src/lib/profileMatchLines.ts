@@ -33,6 +33,8 @@ type AnyRow = {
   map?: string;
   ticketsA?: number | null;
   ticketsB?: number | null;
+  factionA?: string;
+  factionB?: string;
   meeting?: string;
   kills?: number;
   deaths?: number;
@@ -58,6 +60,29 @@ export async function replaceProfileLines(
   const key = nickKey(nick);
   const clean = String(nick || "").trim();
   if (!key) return 0;
+  if (kind === "public") {
+    const prev = await prisma.profileMatchLine.findMany({
+      where: { kind, nickKey: key },
+      select: { matchId: true, payload: true },
+    });
+    const byId = new Map(prev.map((line) => [line.matchId, line.payload]));
+    for (const row of rows) {
+      if (row.ticketsA != null && row.ticketsB != null) continue;
+      const old = byId.get(row.matchId) as
+        | {
+            ticketsA?: number | null;
+            ticketsB?: number | null;
+            factionA?: string;
+            factionB?: string;
+          }
+        | undefined;
+      if (!old || old.ticketsA == null || old.ticketsB == null) continue;
+      row.ticketsA = old.ticketsA;
+      row.ticketsB = old.ticketsB;
+      if (old.factionA && old.factionA !== "—") row.factionA = old.factionA;
+      if (old.factionB && old.factionB !== "—") row.factionB = old.factionB;
+    }
+  }
   const data: Prisma.ProfileMatchLineCreateManyInput[] = [];
   const seen = new Set<string>();
   for (const row of rows) {
@@ -271,6 +296,7 @@ export async function pageProfileLines(
   page: number,
   pageSize: number
 ) {
+  await ensureProfileLines(nick, kind).catch(() => undefined);
   const ready = await readProfileLines(nick, kind, page, pageSize);
   if (kind === "public" && ready.page === 1 && ready.rows.length) {
     const { loadPublicRpOneFromDb } = await import("@/lib/rpDbRead");

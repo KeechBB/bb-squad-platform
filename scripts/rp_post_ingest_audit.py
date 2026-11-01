@@ -270,6 +270,101 @@ def _fix_train_note(ids: list[str]) -> None:
     print(f"FIX train queued → {note}: {merged}", flush=True)
 
 
+def _profile_nick_key(n: str) -> str:
+    return "".join(str(n or "").strip().lower().split())
+
+
+def _drop_profile_stamps(kind: str, keys: list[str]) -> int:
+    """Drop saved profile rows' freshness so the next open rebuilds them."""
+    if not keys:
+        return 0
+    url = (os.environ.get("DATABASE_URL") or "").strip()
+    if not url:
+        print("PROFILE stamp skip: no database url", flush=True)
+        return 0
+    try:
+        import psycopg2
+    except ImportError:
+        print("PROFILE stamp skip: psycopg2", flush=True)
+        return 0
+    conn = psycopg2.connect(url)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                'DELETE FROM "ProfileMatchStamp" WHERE kind = %s AND "nickKey" = ANY(%s)',
+                (kind, keys),
+            )
+            n = cur.rowcount or 0
+        conn.commit()
+        return int(n)
+    finally:
+        conn.close()
+
+
+def _sync_profile_after_ingest(
+    kind: str, blocks: list, players: dict | None
+) -> None:
+    """After a scored match: sum, chronology, and drop stale profile snapshots."""
+    touched: list[str] = []
+    new_ids: set[str] = set()
+    for block in blocks or []:
+        if not isinstance(block, dict):
+            continue
+        mid = str(block.get("id") or "")
+        if mid:
+            new_ids.add(mid)
+        for nick in block.get("netByNick") or {}:
+            if nick:
+                touched.append(str(nick))
+    want = {_profile_nick_key(n) for n in touched}
+    want.discard("")
+    problems: list[str] = []
+    for p in (players or {}).values():
+        if not isinstance(p, dict):
+            continue
+        nick = str(p.get("nick") or "")
+        if _profile_nick_key(nick) not in want:
+            continue
+        matches = [m for m in (p.get("matches") or []) if isinstance(m, dict)]
+        ids = [str(m.get("id") or "") for m in matches]
+        clean = [i for i in ids if i]
+        if len(clean) != len(set(clean)):
+            problems.append(f"{nick}: один матч записан дважды")
+        if clean and clean != sorted(clean) and clean != sorted(clean, reverse=True):
+            problems.append(f"{nick}: хронология матчей сломана")
+        if new_ids and not (set(clean) & new_ids):
+            problems.append(f"{nick}: свежий матч не попал в историю")
+        nets = 0.0
+        broken = False
+        for m in matches:
+            try:
+                nets += float(m.get("net") or 0)
+            except (TypeError, ValueError):
+                problems.append(f"{nick}: битая дельта RP")
+                broken = True
+                break
+        if not broken:
+            implied = round(1000 + nets, 1)
+            try:
+                got = round(float(p.get("rp") or 0), 1)
+            except (TypeError, ValueError):
+                got = 0.0
+            if abs(got - implied) > 1.5:
+                problems.append(f"{nick}: RP {got} не равен сумме матчей {implied}")
+    stamp_kind = "public" if kind == "public" else "train"
+    dropped = _drop_profile_stamps(stamp_kind, sorted(want))
+    if problems:
+        print(f"PROFILE [{kind}] расхождения ({len(problems)}):", flush=True)
+        for line in problems[:30]:
+            print(f"  {line}", flush=True)
+    else:
+        print(
+            f"PROFILE [{kind}]: {len(want)} игроков, сумма и хронология сходятся, "
+            f"снимки профиля сброшены ({dropped})",
+            flush=True,
+        )
+
+
 def run_audit_on_blocks(
     kind: str,
     blocks: list[dict],
@@ -298,6 +393,10 @@ def run_audit_on_blocks(
                 _fix_train_run(summary["badIds"])
     if kind == "public":
         summary["battlePass"] = _audit_battle_pass(last=5, fix=fix)
+    try:
+        _sync_profile_after_ingest(kind, blocks, players)
+    except Exception as e:
+        print(f"warn: profile sync skipped: {type(e).__name__}: {e}", flush=True)
     return summary
 
 

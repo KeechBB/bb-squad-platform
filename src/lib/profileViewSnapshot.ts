@@ -156,7 +156,11 @@ async function withLivePublicRp(
   name: string,
   data: ProfileViewPayload
 ): Promise<ProfileViewPayload> {
-  await ensureProfileLines(name, "public").catch(() => undefined);
+  await Promise.all(
+    (["public", "train", "cw"] as const).map((kind) =>
+      ensureProfileLines(name, kind).catch(() => undefined)
+    )
+  );
   const ready = await loadReadyHistories(name).catch(() => null);
   const prev =
     data.histories && typeof data.histories === "object"
@@ -165,8 +169,12 @@ async function withLivePublicRp(
   if (ready) {
     data.histories = {
       ...prev,
+      trainHistory: ready.trainHistory,
       publicHistory: ready.publicHistory,
+      cwHistory: ready.cwHistory,
+      trainTotal: ready.trainTotal,
       publicTotal: ready.publicTotal,
+      cwTotal: ready.cwTotal,
     };
   }
   const rp = await lookupPlayerPublicRp(name).catch(() => null);
