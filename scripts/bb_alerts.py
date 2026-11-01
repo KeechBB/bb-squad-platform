@@ -415,10 +415,12 @@ def map_ingested(
     lines = [f"карта: {map_name}", f"счёт: {score}", f"id: {match_id}"]
     if players is not None:
         lines.append(f"село: {players}")
-    if rp_ok is True:
-        lines.append("RP: пересчитан")
-    elif rp_ok is False:
-        lines.append("RP: ещё догоняется (очередь)")
+    # Тренировочный RP выключен. Строка «догоняется» только сбивала с толку.
+    if kind != "тренировка":
+        if rp_ok is True:
+            lines.append("RP: пересчитан")
+        elif rp_ok is False:
+            lines.append("RP: ещё догоняется (очередь)")
     return send(
         kind="выгрузка",
         title=f"Карта залита ({kind})",
@@ -444,6 +446,29 @@ def map_failed(
         lines=[reason],
         details={"id": match_id},
         force=True,
+    )
+
+
+def train_roster_gap(
+    *,
+    match_id: str,
+    map_name: str = "",
+    reason: str = "в календаре есть катка, нет players JSON",
+    healed: bool = False,
+) -> bool:
+    """Calendar row without roster — profile history stays empty until healed."""
+    lines = [reason, f"id: {match_id}"]
+    if map_name:
+        lines.append(f"карта: {map_name}")
+    lines.append("heal: ок" if healed else "heal: не удалось — проверь pinned-лог")
+    return send(
+        kind="выгрузка",
+        title="Тренировка без статы игроков",
+        level="ok" if healed else "warn",
+        server="TR1",
+        lines=lines,
+        force=True,
+        cooldown=120,
     )
 
 

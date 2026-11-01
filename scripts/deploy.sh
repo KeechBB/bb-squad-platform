@@ -361,4 +361,22 @@ EOF
 chmod 644 /etc/cron.d/bb-tournament-smoke
 bash scripts/smoke_tournament_hub.sh --alert || true
 
+echo "==> train roster heal audit cron (hourly :25 + nightly 03:40 MSK)"
+PY_COL="$ROOT/scripts/.venv-collector/bin/python"
+if [[ ! -x "$PY_COL" ]]; then
+  PY_COL="$(command -v python3)"
+fi
+cat >/etc/cron.d/bb-train-roster-heal <<EOF
+CRON_TZ=Europe/Moscow
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+25 * * * * root flock -n /tmp/bb-train-roster-heal.lock bash -lc 'cd $ROOT/scripts && BB_KV_PUBLIC=$ROOT/data/kv-cache KV_LOCAL_DIR=$ROOT/data/kv-cache $PY_COL audit_train_roster_heal.py --quiet' >>/var/log/bb-train-roster-heal.log 2>&1
+40 3 * * * root flock -n /tmp/bb-train-roster-heal.lock bash -lc 'cd $ROOT/scripts && BB_KV_PUBLIC=$ROOT/data/kv-cache KV_LOCAL_DIR=$ROOT/data/kv-cache $PY_COL audit_train_roster_heal.py' >>/var/log/bb-train-roster-heal.log 2>&1
+EOF
+chmod 644 /etc/cron.d/bb-train-roster-heal
+touch /var/log/bb-train-roster-heal.log
+chmod 644 /var/log/bb-train-roster-heal.log
+# Smoke once after deploy so gaps heal without waiting for :25
+(cd "$ROOT/scripts" && BB_KV_PUBLIC="$ROOT/data/kv-cache" KV_LOCAL_DIR="$ROOT/data/kv-cache" "$PY_COL" audit_train_roster_heal.py) || true
+
 echo "==> OK commit=$(git rev-parse --short HEAD) $(date -Is)"

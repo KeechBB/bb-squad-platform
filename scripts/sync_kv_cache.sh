@@ -231,6 +231,17 @@ fi
 # Always keep «Развитие» + other critical runtime after sync.
 bash "$ROOT/scripts/ensure_runtime_gold.sh" || true
 
+# Preserve contract: month calendar must still have players/ (+ combat/) after rsync+merge.
+# training/ is excluded from wipe; this verifies we did not leave orphan month rows.
+echo "==> verify train roster integrity (month ↔ players)"
+python3 "$ROOT/scripts/verify_train_roster_after_sync.py" "$DEST" || true
+if [[ -d "$DEST/data/training/combat" ]]; then
+  combat_n=$(find "$DEST/data/training/combat" -type f -name '*.json' 2>/dev/null | wc -l | tr -d ' ')
+  echo "  combat dumps kept: $combat_n"
+fi
+players_n=$(find "$DEST/data/training/players" -type f -name '*.json' 2>/dev/null | wc -l | tr -d ' ')
+echo "  players JSON kept: $players_n"
+
 # count JSON as sanity
 json_n=$(find "$DEST/data" -type f -name '*.json' 2>/dev/null | wc -l | tr -d ' ')
 echo "==> KV cache sync done (json files in data/: $json_n)"

@@ -575,18 +575,22 @@ def publish_live_mirrors() -> None:
         "data/training-index.json",
         "app.js",
     ]
-    # also newest player files referenced by month
-    try:
-        month = json.loads((TRAIN / "2026-10.json").read_text(encoding="utf-8"))
+    # all month JSON + every playersUrl they reference (not only 2026-10)
+    for path in TRAIN.glob("????-??.json"):
+        rels.append(f"data/training/{path.name}")
+        try:
+            month = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
         for m in month.get("matches") or []:
             pu = str(m.get("playersUrl") or "")
             if pu.startswith("data/"):
                 rels.append(pu)
-    except Exception:
-        pass
-    # all current-month training JSON if present
-    for path in TRAIN.glob("????-??.json"):
-        rels.append(f"data/training/{path.name}")
+    # combat dumps if present
+    combat_dir = TRAIN / "combat"
+    if combat_dir.is_dir():
+        for p in combat_dir.glob("*.json"):
+            rels.append(f"data/training/combat/{p.name}")
     def _ladder_ids(path: Path) -> set[str] | None:
         if not path.is_file():
             return None
@@ -1075,6 +1079,355 @@ def strip_ids_from_rp_files(drop_ids: set[str]) -> None:
         )
 
 
+def _players_path(mid: str) -> Path:
+    return PLAYERS / f"{mid}.json"
+
+
+def _players_file_ok(mid: str) -> bool:
+    """True when roster JSON exists and has a real team list."""
+    path = _players_path(mid)
+    if not path.is_file():
+        return False
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    return _players_doc_is_real(doc)
+
+
+def _nick_key(n: str) -> str:
+    return "".join(str(n or "").lower().split())
+
+
+def _invalidate_train_profile_lines(nicks: list[str]) -> int:
+    """Drop cached train history rows so profiles rebuild from players JSON."""
+    keys = sorted({_nick_key(n) for n in nicks if str(n or "").strip()})
+    if not keys:
+        return 0
+    try:
+        import psycopg2  # noqa: WPS433
+    except Exception as e:
+        print(f"profile invalidate skip (no psycopg2): {e}", flush=True)
+        return 0
+    dsn = (os.environ.get("DATABASE_URL") or "").strip()
+    if not dsn:
+        _load_collector_env()
+        dsn = (os.environ.get("DATABASE_URL") or "").strip()
+    if not dsn:
+        return 0
+    cleared = 0
+    try:
+        conn = psycopg2.connect(dsn)
+        cur = conn.cursor()
+        for key in keys:
+            cur.execute(
+                'DELETE FROM "ProfileMatchLine" WHERE kind=%s AND "nickKey"=%s',
+                ("train", key),
+            )
+            cleared += cur.rowcount or 0
+            cur.execute(
+                'DELETE FROM "ProfileMatchStamp" WHERE kind=%s AND "nickKey"=%s',
+                ("train", key),
+            )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"profile invalidate fail: {e}", flush=True)
+        return 0
+    # file snapshot cache (best-effort)
+    for root in (
+        HERE.parent / "data" / "cache" / "profiles" / "lines",
+        Path("/var/www/bb-squad-platform/data/cache/profiles/lines"),
+    ):
+        if not root.is_dir():
+            continue
+        for key in keys:
+            p = root / f"{key}.json"
+            try:
+                if p.is_file():
+                    p.unlink()
+            except OSError:
+                pass
+    return cleared
+
+
+def _write_players_doc(mid: str, players_doc: dict) -> Path:
+    """Atomic roster write — must succeed before calendar upsert."""
+    PLAYERS.mkdir(parents=True, exist_ok=True)
+    path = _players_path(mid)
+    _atomic_json_write(path, players_doc)
+    if not _players_file_ok(mid):
+        raise RuntimeError(f"players write invalid: {path}")
+    return path
+
+
+def rebuild_players_doc_from_log(
+    mid: str,
+    *,
+    log_path: Path,
+    start: datetime,
+    end: datetime,
+    layer: str,
+    row: dict | None,
+    aliases: dict[str, str],
+    server_key: str = "TR1",
+) -> dict | None:
+    """Rebuild teamA/teamB roster from a pinned (or live) log window."""
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=timezone.utc)
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=timezone.utc)
+    row = row or {}
+    try:
+        idx = R.index_log_combat(log_path, aliases)
+    except Exception as e:
+        print(f"heal index fail {mid}: {e}", flush=True)
+        return None
+    steam = dict(idx.get("steam_to_nick") or {})
+    discovered = R.discover_matches([log_path], min_sec=3 * 60)
+    hit = None
+    for m in discovered:
+        ms = m["start"]
+        if ms.tzinfo is None:
+            ms = ms.replace(tzinfo=timezone.utc)
+        if abs((ms - start).total_seconds()) <= 180:
+            hit = m
+            break
+    faction_to_team = (hit or {}).get("factionToTeam") or {}
+    if not faction_to_team:
+        faction_to_team = {
+            str(row.get("factionA") or "A"): "1",
+            str(row.get("factionB") or "B"): "2",
+        }
+    teams = R.teams_in_window(idx, start, end, faction_to_team)
+    dies, _ = R.dies_in_window(idx, start, end, steam, aliases)
+    wounds = R.wounds_in_window(idx, start, end, steam, aliases)
+    revives = R.revives_in_window(idx, start, end)
+    disp = {R.canon_key(n, aliases): n for n in steam.values()}
+    team_a, team_b = agg_players(dies, wounds, revives, teams, disp, aliases=aliases)
+    stamp_vehicle_kills(
+        team_a,
+        team_b,
+        idx=idx,
+        start=start,
+        end=end,
+        steam=steam,
+        aliases=aliases,
+        teams=teams,
+        disp=disp,
+        dies=dies,
+        wounds=wounds,
+        revives=revives,
+    )
+    if len(team_a) + len(team_b) < 12:
+        print(
+            f"heal thin roster {mid}: players={len(team_a)+len(team_b)} dies={len(dies)}",
+            flush=True,
+        )
+        return None
+    t1 = int(row.get("ticketsA") or (hit or {}).get("score1") or 0)
+    t2 = int(row.get("ticketsB") or (hit or {}).get("score2") or 0)
+    winner_team = str((hit or {}).get("winnerTeam") or "")
+    if not winner_team:
+        if t1 > t2:
+            winner_team = "1"
+        elif t2 > t1:
+            winner_team = "2"
+    f1 = next(
+        (f for f, t in faction_to_team.items() if str(t) == "1"),
+        str(row.get("factionA") or "A"),
+    )
+    f2 = next(
+        (f for f, t in faction_to_team.items() if str(t) == "2"),
+        str(row.get("factionB") or "B"),
+    )
+    winner = (
+        f1
+        if winner_team == "1"
+        else f2
+        if winner_team == "2"
+        else str(row.get("winner") or "—")
+    )
+    for p in team_a:
+        p["team"] = f1
+        p["won"] = winner_team == "1"
+    for p in team_b:
+        p["team"] = f2
+        p["won"] = winner_team == "2"
+    stamp_squad_creators(team_a, idx.get("squad_opens") or [], start, end, aliases)
+    stamp_squad_creators(team_b, idx.get("squad_opens") or [], start, end, aliases)
+    dur_sec = max(0, int((end - start).total_seconds()))
+    h, rem = divmod(dur_sec, 3600)
+    mi, s = divmod(rem, 60)
+    duration = f"{h:02d}:{mi:02d}:{s:02d}" if h else f"{mi:02d}:{s:02d}"
+    import bb_alerts as AL  # noqa: WPS433
+
+    server_label = AL.train_server_label(server_key) or f"BlackBerry ({server_key})"
+    return {
+        "matchId": mid,
+        "map": layer,
+        "mode": layer_mode(f"{layer} {mid}"),
+        "server": server_label,
+        "serverKey": server_key,
+        "duration": duration or str(row.get("duration") or "—"),
+        "winner": winner,
+        "sideA": {"name": f1, "tickets": t1},
+        "sideB": {"name": f2, "tickets": t2},
+        "note": f"Авто из логов {server_key} (heal roster)",
+        "source": f"{server_key.lower()}-logs-auto",
+        "teamA": team_a,
+        "teamB": team_b,
+    }
+
+
+def heal_missing_player_rosters(aliases: dict[str, str] | None = None) -> int:
+    """
+    Reverse orphan: month/auto says the match exists, but players/{id}.json is gone.
+    Rebuild roster from pinned log so profiles stop looking empty.
+    """
+    aliases = aliases or load_aliases()
+    auto_by_id: dict[str, dict] = {}
+    if AUTO_MATCHES.is_file():
+        try:
+            for am in json.loads(AUTO_MATCHES.read_text(encoding="utf-8")) or []:
+                mid0 = str(am.get("id") or "")
+                if mid0 and not am.get("skip"):
+                    auto_by_id[mid0] = am
+        except Exception:
+            pass
+
+    healed = 0
+    gaps = 0
+    for month_path in sorted(TRAIN.glob("????-??.json")):
+        try:
+            data = json.loads(month_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        changed = False
+        for row in data.get("matches") or []:
+            if not isinstance(row, dict):
+                continue
+            mid = str(row.get("id") or "").strip()
+            if not mid or mid.endswith("-skip"):
+                continue
+            status = str(row.get("status") or "done").lower()
+            if status in ("cancel", "move", "upcoming"):
+                continue
+            if _players_file_ok(mid):
+                if status in ("pending-stats", "pending"):
+                    row["status"] = "done"
+                    changed = True
+                continue
+
+            gaps += 1
+            am = auto_by_id.get(mid) or {}
+            log_name = str(am.get("log") or "")
+            log_path = CACHE / log_name if log_name else None
+            if log_path is None or not log_path.is_file():
+                cand = CACHE / f"TR1-{month_path.stem}-{mid}.log"
+                # also try serverKey prefix from row
+                sk = str(row.get("serverKey") or am.get("serverKey") or "TR1")
+                date_ymd = str(am.get("date") or "")
+                if not date_ymd and row.get("day"):
+                    date_ymd = f"{month_path.stem[:4]}-{month_path.stem[5:7]}-{int(row['day']):02d}"
+                alt = CACHE / f"{sk}-{date_ymd}-{mid}.log" if date_ymd else None
+                for c in (cand, alt):
+                    if c is not None and c.is_file():
+                        log_path = c
+                        break
+            start = end = None
+            try:
+                if am.get("start"):
+                    start = datetime.fromisoformat(str(am["start"]).replace("Z", "+00:00"))
+                elif row.get("startUtc"):
+                    start = datetime.fromisoformat(str(row["startUtc"]).replace("Z", "+00:00"))
+                if am.get("end"):
+                    end = datetime.fromisoformat(str(am["end"]).replace("Z", "+00:00"))
+                elif row.get("endUtc"):
+                    end = datetime.fromisoformat(str(row["endUtc"]).replace("Z", "+00:00"))
+            except Exception:
+                start = end = None
+            layer = str(am.get("map") or row.get("map") or "")
+            server_key = str(am.get("serverKey") or row.get("serverKey") or "TR1")
+            doc = None
+            if log_path and log_path.is_file() and start and end:
+                doc = rebuild_players_doc_from_log(
+                    mid,
+                    log_path=log_path,
+                    start=start,
+                    end=end,
+                    layer=layer,
+                    row=row,
+                    aliases=aliases,
+                    server_key=server_key,
+                )
+            if doc is None:
+                row["status"] = "pending-stats"
+                note = str(row.get("note") or "")
+                tag = "нет players JSON — ждём heal"
+                if tag not in note:
+                    row["note"] = f"{note} · {tag}".strip(" ·")
+                changed = True
+                try:
+                    import bb_alerts as AL  # noqa: WPS433
+
+                    AL.train_roster_gap(
+                        match_id=mid, map_name=layer, healed=False
+                    )
+                except Exception as e:
+                    print(f"alert roster gap skip: {e}", flush=True)
+                print(f"heal FAIL {mid}: no roster (log={log_path})", flush=True)
+                continue
+
+            try:
+                _write_players_doc(mid, doc)
+            except Exception as e:
+                print(f"heal write fail {mid}: {e}", flush=True)
+                continue
+            nicks = [
+                str(p.get("nick") or "")
+                for p in (doc.get("teamA") or []) + (doc.get("teamB") or [])
+            ]
+            _invalidate_train_profile_lines(nicks)
+            row["status"] = "done"
+            row["playersUrl"] = f"data/training/players/{mid}.json"
+            row["source"] = doc.get("source") or row.get("source") or "tr1-logs-auto"
+            changed = True
+            healed += 1
+            # re-publish canon for this row
+            try:
+                upsert_month(
+                    {"id": mid, "month": month_path.stem, "row": dict(row)}
+                )
+            except Exception as e:
+                print(f"heal upsert skip {mid}: {e}", flush=True)
+            try:
+                import bb_alerts as AL  # noqa: WPS433
+
+                AL.train_roster_gap(
+                    match_id=mid,
+                    map_name=layer,
+                    reason="восстановили players JSON из pinned-лога",
+                    healed=True,
+                )
+            except Exception:
+                pass
+            print(
+                f"heal OK {mid}: teamA={len(doc.get('teamA') or [])} "
+                f"teamB={len(doc.get('teamB') or [])}",
+                flush=True,
+            )
+        if changed:
+            # upsert_month already rewrote the month for healed ids; still dump
+            # pending-stats flags for failures in one pass.
+            data["matches"] = data.get("matches") or []
+            _atomic_json_write(month_path, data)
+
+    if gaps:
+        print(f"heal_missing_player_rosters: gaps={gaps} healed={healed}", flush=True)
+    return healed
+
+
 def reconcile_orphan_player_files() -> int:
     """
     If players/{id}.json exists but month JSON lost the row (rsync/github wipe),
@@ -1246,6 +1599,11 @@ def main() -> int:
     if n_rec:
         print(f"reconciled orphan player files: {n_rec}", flush=True)
         bump_cache_bust()
+    n_heal = heal_missing_player_rosters(aliases)
+    if n_heal:
+        print(f"healed missing player rosters: {n_heal}", flush=True)
+        bump_cache_bust()
+        publish_live_mirrors()
     logs = sync_tr1_logs_via_ssh()
     if not logs:
         if not CACHE.is_dir():
@@ -1363,7 +1721,27 @@ def main() -> int:
             known_starts.discard(start_iso)
 
         if start_iso in known_starts:
-            continue
+            # Calendar/auto already knows this start — only skip if roster is real.
+            am_hit = next(
+                (
+                    a
+                    for a in auto
+                    if str(a.get("start") or "") == start_iso and not a.get("skip")
+                ),
+                None,
+            )
+            mid_known = str((am_hit or {}).get("id") or "")
+            if mid_known and _players_file_ok(mid_known):
+                continue
+            if mid_known:
+                print(
+                    f"re-open {mid_known}: known start but missing players JSON",
+                    flush=True,
+                )
+                known_starts.discard(start_iso)
+                known_ids.discard(mid_known)
+            else:
+                continue
 
         msk = training_evening_msk(start)
         stem = _map_stem(layer)
@@ -1373,7 +1751,10 @@ def main() -> int:
 
         mid = match_id_for({**m, "start": start}, used_ids=known_ids)
         if mid in known_ids:
-            continue
+            if _players_file_ok(mid):
+                continue
+            print(f"re-open {mid}: id known but missing players JSON", flush=True)
+            known_ids.discard(mid)
 
         idx = R.index_log_combat(log_path, aliases)
         steam = dict(idx.get("steam_to_nick") or {})
@@ -1481,11 +1862,23 @@ def main() -> int:
             "teamA": team_a,
             "teamB": team_b,
         }
-        PLAYERS.mkdir(parents=True, exist_ok=True)
-        (PLAYERS / f"{mid}.json").write_text(
-            json.dumps(players_doc, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
+        # Atomic: roster file FIRST, calendar/auto only after it is valid.
+        try:
+            _write_players_doc(mid, players_doc)
+        except Exception as e:
+            print(f"skip calendar {mid}: players write failed: {e}", flush=True)
+            try:
+                import bb_alerts as AL  # noqa: WPS433
+
+                AL.train_roster_gap(
+                    match_id=mid,
+                    map_name=layer,
+                    reason=f"не записали players JSON: {e}",
+                    healed=False,
+                )
+            except Exception:
+                pass
+            continue
 
         row = {
             "id": mid,
@@ -1509,6 +1902,9 @@ def main() -> int:
             "endUtc": end.isoformat(),
         }
         upsert_month({"id": mid, "month": month, "row": row})
+        _invalidate_train_profile_lines(
+            [str(p.get("nick") or "") for p in team_a + team_b]
+        )
 
         # Always pin away from rotating live log → stable name for RP rebuild.
         import train_rp_guard as TRG  # noqa: WPS433
@@ -1615,9 +2011,15 @@ def main() -> int:
         except Exception as e:
             print(f"accuracy rebuild skip: {e}", flush=True)
 
+    # Post-ingest heal: catch anything written mid-run without a roster.
+    n_heal_end = heal_missing_player_rosters(aliases)
+    if n_heal_end:
+        print(f"post-ingest healed player rosters: {n_heal_end}", flush=True)
+        added = max(added, 1)
+
     # Тренировочный RP выключен с 26.10. Катку публикуем, очередь RP не трогаем.
     # Паблик считается своим путём.
-    if added:
+    if added or n_heal or n_heal_end:
         bump_cache_bust()
         publish_live_mirrors()
     return 0
