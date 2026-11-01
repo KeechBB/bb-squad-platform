@@ -305,15 +305,15 @@ export async function upcomingCwMeetings(): Promise<
 }
 
 /**
- * Карточки главной: ближайший Junior, каждый ближайший Main
- * и каждое общеклановое КВ (не Main и не Junior).
+ * Карточки главной: одна ближайшая КВ на состав.
+ * Junior, Main и «весь клан» — каждый показывает слот с самой ранней датой.
+ * Более поздний слот того же состава сюда не попадает, пока ближний впереди.
  */
 export async function homeCwAnnounces(): Promise<CwAnnounce[]> {
   const rows = await upcomingBb();
-  const junior = rows.find((r) => r.stack === "Junior");
-  const mains = rows.filter((r) => r.stack === "Main");
-  const clan = rows.filter((r) => r.stack === "Clan");
-  const picked = [...(junior ? [junior] : []), ...mains, ...clan];
+  const picked = (["Junior", "Main", "Clan"] as const)
+    .map((stack) => rows.find((row) => row.stack === stack))
+    .filter((row): row is CwAnnounce & { start: number } => Boolean(row));
   picked.sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));
   return picked.map((row) => asAnnounce(row)!);
 }
