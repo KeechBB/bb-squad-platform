@@ -106,11 +106,15 @@ export function HomeCwAnnounce({ cards: initial }: Props) {
   }
 
   const opened = cards.find((card) => card.id === openId) || null;
+  const clanAside = cards.some((card) => card.stack !== "Clan");
+  const column = clanAside ? cards.filter((card) => card.stack !== "Clan") : cards;
+  const clan = clanAside ? cards.filter((card) => card.stack === "Clan") : [];
 
   return (
+    <div className="home-cw-slot">
     <div className="home-cw-pair" aria-label="Ближайшие клановые войны">
-      {cards.length ? (
-        cards.map((card) => (
+      {column.length ? (
+        column.map((card) => (
           <CwFace
             key={card.id}
             card={card}
@@ -124,7 +128,22 @@ export function HomeCwAnnounce({ cards: initial }: Props) {
         <CwFace card={null} stack="Main" busy={null} onOpen={() => {}} onToggle={toggle} />
       )}
       {err ? <p className="home-cw-err">{err}</p> : null}
-      {opened
+    </div>
+    {clan.length ? (
+      <div className="home-cw-clan" aria-label="КВ всего клана">
+        {clan.map((card) => (
+          <CwFace
+            key={card.id}
+            card={card}
+            stack={card.stack}
+            busy={busy}
+            onOpen={() => setOpenId(card.id)}
+            onToggle={toggle}
+          />
+        ))}
+      </div>
+    ) : null}
+      {opened}
         ? createPortal(
             <div
               className="home-cw-modal"
