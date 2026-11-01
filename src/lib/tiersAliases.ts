@@ -39,6 +39,17 @@ export async function recordNickRenameAlias(
   if (nickKey(from) === nickKey(to)) {
     return { ok: true, written: [] };
   }
+  // Trix and Trixx are different people — never write a cross-alias again.
+  const split = new Set(["trix", "trixx"]);
+  if (split.has(nickKey(from)) || split.has(nickKey(to))) {
+    if (nickKey(from) !== nickKey(to)) {
+      return {
+        ok: false,
+        written: [],
+        error: "Trix и Trixx — разные игроки, alias запрещён",
+      };
+    }
+  }
 
   const written: string[] = [];
   let lastErr = "";
