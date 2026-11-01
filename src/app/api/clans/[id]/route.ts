@@ -14,6 +14,7 @@ import {
 import { clanLiveChannel, livePublish, userLiveChannel } from "@/lib/liveBus";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
 import { alertClanLeft } from "@/lib/bbAlerts";
+import { syncSoloSince } from "@/lib/soloClan";
 
 export const runtime = "nodejs";
 
@@ -276,6 +277,7 @@ export async function DELETE(req: Request, ctx: Ctx) {
   const clan = await clanBrief(clanId);
   const fromRole = target.role as ClanRole;
   await prisma.clanMember.delete({ where: { id: memberId } });
+  await syncSoloSince(clanId);
   const actorNick = personLabel(actor.user);
   const targetNick = personLabel(target.user);
   const clanLabel = clan ? `[${clan.tag}] ${clan.name}` : "[?]";

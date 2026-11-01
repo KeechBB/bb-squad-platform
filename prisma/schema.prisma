@@ -428,6 +428,8 @@ model Clan {
   leader    User     @relation("ClanLeader", fields: [leaderId], references: [id])
   /// Чужой клан с КВ (карточка с TR/скринов). Лидер = технический holder.
   isExternal Boolean @default(false)
+  /// Момент, когда в клане остался один участник. Пусто, если игроков больше.
+  soloSince DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

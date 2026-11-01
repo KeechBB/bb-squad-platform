@@ -6,6 +6,7 @@ import type { ClanRole } from "@/lib/clan";
 import { canReviewClanJoinRequests } from "@/lib/titles";
 import { clanLiveChannel, livePublish, userLiveChannel } from "@/lib/liveBus";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
+import { syncSoloSince } from "@/lib/soloClan";
 
 export const runtime = "nodejs";
 
@@ -281,6 +282,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
       data: { status: "CANCELLED" },
     }),
   ]);
+  await syncSoloSince(clanId);
 
   const applicant = await prisma.user.findUnique({
     where: { id: request.userId },

@@ -82,6 +82,7 @@ export async function POST(req: Request) {
       name,
       tag,
       leaderId: me.id,
+      soloSince: new Date(),
       members: {
         create: { userId: me.id, role: "LEADER" },
       },

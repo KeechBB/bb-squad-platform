@@ -306,6 +306,15 @@ chmod 644 /etc/cron.d/bb-attendance-hourly
 # Bootstrap snapshot so /home is not empty until next :00
 bash "$ROOT/scripts/publish_attendance_hourly.sh" >>/var/log/bb-attendance-hourly.log 2>&1 || true
 
+echo "==> solo clan purge (04:10 MSK, one member for 7 days)"
+cat >/etc/cron.d/bb-solo-clans <<EOF
+CRON_TZ=Europe/Moscow
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+10 4 * * * root python3 $ROOT/scripts/purge_solo_clans.py >>/var/log/bb-solo-clans.log 2>&1
+EOF
+chmod 644 /etc/cron.d/bb-solo-clans
+
 echo "==> BB train report cron (21:30 and 01:00 MSK)"
 cat >/etc/cron.d/bb-train-report <<EOF
 CRON_TZ=Europe/Moscow

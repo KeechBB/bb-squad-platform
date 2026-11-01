@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { clanLiveChannel, livePublish, userLiveChannel } from "@/lib/liveBus";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
+import { syncSoloSince } from "@/lib/soloClan";
 
 export const runtime = "nodejs";
 
@@ -108,6 +109,7 @@ export async function POST(req: Request) {
     where: { id: inviteId },
     data: { status: "ACCEPTED" },
   });
+  await syncSoloSince(invite.clanId);
 
   await writeActionLog({
     category: "clan",

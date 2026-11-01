@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { clanLiveChannel, livePublish, userLiveChannel } from "@/lib/liveBus";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
 import { alertClanLeft } from "@/lib/bbAlerts";
+import { syncSoloSince } from "@/lib/soloClan";
 
 export const runtime = "nodejs";
 
@@ -45,7 +46,7 @@ export async function POST(_req: Request, ctx: Ctx) {
       return NextResponse.json(
         {
           error:
-            "Глава не может выйти, пока в клане есть другие. Передай роль главы или распусти клан.",
+            "Передайте главу другому участнику — после этого сможете покинуть клан.",
         },
         { status: 403 }
       );
@@ -87,6 +88,7 @@ export async function POST(_req: Request, ctx: Ctx) {
   }
 
   await prisma.clanMember.delete({ where: { id: membership.id } });
+  await syncSoloSince(clanId);
 
   const clanLabel = clan ? `[${clan.tag}] ${clan.name}` : "клан";
   void alertClanLeft({ nick: meNick, clan: clanLabel, how: "вышел" }).catch((err) => {
