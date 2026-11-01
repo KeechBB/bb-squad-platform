@@ -1135,9 +1135,16 @@ def reconcile_orphan_player_files() -> int:
             except Exception:
                 pass
         if not month_key:
-            # fallback: newest month file
+            # fallback: newest month file. A day still in the future
+            # (29-… restored on 2 Nov) belongs to the previous month,
+            # not to the open one — otherwise the board shows 29.11.
             months = sorted(TRAIN.glob("????-??.json"), reverse=True)
             month_key = months[0].stem if months else None
+            if month_key:
+                today = datetime.now(timezone.utc) + timedelta(hours=3)
+                y, mo = map(int, month_key.split("-")[:2])
+                if (y, mo, day) > (today.year, today.month, today.day):
+                    month_key = f"{y - 1:04d}-12" if mo == 1 else f"{y:04d}-{mo - 1:02d}"
         if not month_key:
             continue
 
@@ -1168,6 +1175,28 @@ def reconcile_orphan_player_files() -> int:
 
         side_a = doc.get("sideA") or {}
         side_b = doc.get("sideB") or {}
+        # Same round already filed under another id (29-hotdropyehoriv and -3/-5).
+        target_path = TRAIN / f"{month_key}.json"
+        if target_path.is_file():
+            try:
+                already = json.loads(target_path.read_text(encoding="utf-8")).get("matches") or []
+            except Exception:
+                already = []
+            ta = int(side_a.get("tickets") or 0)
+            tb = int(side_b.get("tickets") or 0)
+            dur = str(doc.get("duration") or "")
+            layer_name = str(doc.get("map") or "")
+            if any(
+                str(row.get("id") or "") != mid
+                and int(row.get("day") or 0) == day
+                and str(row.get("map") or "") == layer_name
+                and int(row.get("ticketsA") or -1) == ta
+                and int(row.get("ticketsB") or -1) == tb
+                and str(row.get("duration") or "") == dur
+                for row in already
+            ):
+                print(f"reconcile skip duplicate {mid}", flush=True)
+                continue
         row = {
             "id": mid,
             "day": day,
