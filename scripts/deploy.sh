@@ -333,4 +333,24 @@ bash scripts/ensure_runtime_gold.sh || true
 echo "==> refresh runtime gold from live (known-good after successful deploy)"
 bash scripts/save_runtime_gold.sh || true
 
+echo "==> runtime gold cron (every 6h MSK)"
+cat >/etc/cron.d/bb-runtime-gold <<EOF
+CRON_TZ=Europe/Moscow
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+0 */6 * * * root flock -n /tmp/bb-runtime-gold.lock env BB_PLATFORM_ROOT=$ROOT bash $ROOT/scripts/save_runtime_gold.sh >>/var/log/bb-runtime-gold.log 2>&1
+EOF
+chmod 644 /etc/cron.d/bb-runtime-gold
+
+echo "==> tournament hub smoke cron (hourly) + post-deploy check"
+chmod +x "$ROOT/scripts/smoke_tournament_hub.sh" 2>/dev/null || true
+cat >/etc/cron.d/bb-tournament-smoke <<EOF
+CRON_TZ=Europe/Moscow
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+15 * * * * root flock -n /tmp/bb-tournament-smoke.lock env BB_PLATFORM_ROOT=$ROOT bash $ROOT/scripts/smoke_tournament_hub.sh --alert --quiet-ok >>/var/log/bb-tournament-smoke.log 2>&1
+EOF
+chmod 644 /etc/cron.d/bb-tournament-smoke
+bash scripts/smoke_tournament_hub.sh --alert || true
+
 echo "==> OK commit=$(git rev-parse --short HEAD) $(date -Is)"
