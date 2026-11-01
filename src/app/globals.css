@@ -292,7 +292,8 @@ body:has(.tm-sapper-page) {
   padding: 12px 12px 24px;
 }
 .tm-hub.is-matches {
-  min-height: 0;
+  /* Full viewport height even with 1–2 November games — empty pad rows fill the board. */
+  min-height: calc(100vh - 100px);
 }
 .cw-page-shell {
   padding: 12px 12px 32px;
