@@ -210,8 +210,16 @@ async function withLivePublicRp(
     const newest = rows?.[0];
     if (rows && newest && typeof newest === "object") {
       const first = { ...(newest as Record<string, unknown>) };
-      first.rpAfter = official;
-      first.pwrAfter = official;
+      const shown =
+        first.rpAfter == null || !Number.isFinite(Number(first.rpAfter))
+          ? null
+          : Math.round(Number(first.rpAfter));
+      // Align header RP only when history is already near it — otherwise a
+      // stale top match looks like a random +1000 spike.
+      if (shown == null || Math.abs(shown - official) <= 5) {
+        first.rpAfter = official;
+        first.pwrAfter = official;
+      }
       first.rankLabel = rp.rankLabel;
       first.rankKey = rp.rankKey;
       data.histories = { ...hist, publicHistory: [first, ...rows.slice(1)] };

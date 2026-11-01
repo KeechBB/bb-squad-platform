@@ -144,6 +144,8 @@ export async function buildPlayerPublicMatchHistory(
     won?: boolean | null;
     kills?: number | unknown;
     deaths?: number | unknown;
+    res?: number | unknown;
+    nok?: number | unknown;
     map?: string;
     date?: string;
   };
@@ -160,6 +162,10 @@ export async function buildPlayerPublicMatchHistory(
         net: Number(m.net),
         hasNet: m.net != null && Number.isFinite(Number(m.net)),
         won: m.won === true ? true : m.won === false ? false : null,
+        res: Number(m.res) || 0,
+        nok: Number(m.nok) || 0,
+        kills: Number(m.kills) || 0,
+        deaths: Number(m.deaths) || 0,
         parsed,
       };
     })
@@ -233,6 +239,10 @@ export async function buildPlayerPublicMatchHistory(
       server: "PB1",
       playersUrl: "", // паблик: разбор через RP ledger, не KV players
       won: m.won,
+      res: m.res,
+      nok: m.nok,
+      kills: m.kills,
+      deaths: m.deaths,
       rpAfter,
       rpDelta,
       pwrAfter: rpAfter != null ? rpAfter : 0,
@@ -240,6 +250,23 @@ export async function buildPlayerPublicMatchHistory(
       rankLabel,
       rankKey,
     });
+  }
+
+  // Align last row with official RP only when the running sum already matches.
+  // Otherwise a stale/partial history gets a fake +1000 spike on the newest card.
+  const official = Math.round(Number(player.rp));
+  if (history.length && Number.isFinite(official)) {
+    const last = history[history.length - 1];
+    const shown =
+      last.rpAfter == null || !Number.isFinite(Number(last.rpAfter))
+        ? null
+        : Math.round(Number(last.rpAfter));
+    if (shown == null || Math.abs(shown - official) <= 5) {
+      last.rpAfter = official;
+      last.pwrAfter = official;
+    }
+    if (player.rankLabel) last.rankLabel = player.rankLabel;
+    if (player.rankKey) last.rankKey = player.rankKey;
   }
 
   // RP running считали от старых к новым; витрина — свежие сверху.

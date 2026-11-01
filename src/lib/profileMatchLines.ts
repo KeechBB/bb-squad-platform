@@ -127,9 +127,39 @@ async function sourceRows(nick: string, kind: ProfileHistoryKind) {
 
 async function sourceChangedAt(kind: ProfileHistoryKind): Promise<number | null> {
   if (kind === "public") {
-    const { loadPublicRpUpdatedAt } = await import("@/lib/rpDbRead");
-    const stamp = await loadPublicRpUpdatedAt();
-    return stamp ? Date.parse(stamp) : null;
+    // RpMeta.updatedAt can lag behind the on-disk ladder (writer forgets to bump).
+    // Prefer the ladder JSON stamp / mtime so history rebuilds after new PB1 maps.
+    const stamps: number[] = [];
+    try {
+      const { loadPublicRpUpdatedAt } = await import("@/lib/rpDbRead");
+      const stamp = await loadPublicRpUpdatedAt();
+      if (stamp) {
+        const t = Date.parse(stamp);
+        if (Number.isFinite(t)) stamps.push(t);
+      }
+    } catch {
+      /* ignore */
+    }
+    try {
+      const { loadPublicRpLadder } = await import("@/lib/publicRp");
+      const ladder = await loadPublicRpLadder();
+      if (ladder?.updatedAt) {
+        const t = Date.parse(String(ladder.updatedAt));
+        if (Number.isFinite(t)) stamps.push(t);
+      }
+    } catch {
+      /* ignore */
+    }
+    try {
+      const { stat } = await import("fs/promises");
+      const { join } = await import("path");
+      const st = await stat(join(process.cwd(), "data", "public", "rp-ladder.json"));
+      stamps.push(st.mtimeMs);
+    } catch {
+      /* ignore */
+    }
+    if (!stamps.length) return null;
+    return Math.max(...stamps);
   }
   const latest = await prisma.canonMatch.findFirst({
     where: { kind: kind === "train" ? "TRAIN" : "CW" },
@@ -242,6 +272,27 @@ export async function pageProfileLines(
   pageSize: number
 ) {
   const ready = await readProfileLines(nick, kind, page, pageSize);
+  if (kind === "public" && ready.page === 1 && ready.rows.length) {
+    const { loadPublicRpOneFromDb } = await import("@/lib/rpDbRead");
+    const live = await loadPublicRpOneFromDb(nick).catch(() => null);
+    const first = ready.rows[0];
+    if (live && Number.isFinite(live.rp) && first && typeof first === "object") {
+      const official = Math.round(live.rp);
+      const row = { ...(first as Record<string, unknown>) };
+      const shown =
+        row.rpAfter == null || !Number.isFinite(Number(row.rpAfter))
+          ? null
+          : Math.round(Number(row.rpAfter));
+      // Never invent a +1000 jump on a stale top row: only align when close.
+      if (shown == null || Math.abs(shown - official) <= 5) {
+        row.rpAfter = official;
+        row.pwrAfter = official;
+      }
+      row.rankLabel = live.rankLabel;
+      row.rankKey = live.rankKey;
+      ready.rows = [row, ...ready.rows.slice(1)];
+    }
+  }
   if (ready.total > 0) return ready;
   const key = nickKey(nick);
   if (!key) return ready;
