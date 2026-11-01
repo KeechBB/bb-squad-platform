@@ -13,7 +13,7 @@ import { findBlackberryClanIds } from "@/lib/reserve";
 import { isBbHostMatch } from "@/lib/kvStats";
 import { loadKvJsonCached } from "@/lib/kvLocal";
 
-export type CwStack = "Main" | "Junior";
+export type CwStack = "Main" | "Junior" | "Clan";
 
 export type CwAnnounce = {
   id: string;
@@ -50,6 +50,7 @@ function stackOf(raw: unknown): CwStack | null {
     .toLowerCase();
   if (s === "main" || s === "bb main") return "Main";
   if (s === "junior" || s === "bb junior") return "Junior";
+  if (s === "clan" || s === "клан" || s === "all" || s === "весь клан") return "Clan";
   return null;
 }
 
@@ -304,14 +305,15 @@ export async function upcomingCwMeetings(): Promise<
 }
 
 /**
- * Карточки главной: ближайший Junior и каждый ближайший Main.
- * Второй мейн (Deadline после NS) тоже получает «буду» и состав.
+ * Карточки главной: ближайший Junior, каждый ближайший Main
+ * и каждое общеклановое КВ (не Main и не Junior).
  */
 export async function homeCwAnnounces(): Promise<CwAnnounce[]> {
   const rows = await upcomingBb();
   const junior = rows.find((r) => r.stack === "Junior");
   const mains = rows.filter((r) => r.stack === "Main");
-  const picked = [...(junior ? [junior] : []), ...mains];
+  const clan = rows.filter((r) => r.stack === "Clan");
+  const picked = [...(junior ? [junior] : []), ...mains, ...clan];
   picked.sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));
   return picked.map((row) => asAnnounce(row)!);
 }

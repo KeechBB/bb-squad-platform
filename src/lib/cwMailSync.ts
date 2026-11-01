@@ -12,12 +12,16 @@ function clanKey(raw: string): string {
 }
 
 function letterOf(match: CwAnnounce) {
+  const clan = match.stack === "Clan";
   const junior = match.stack === "Junior";
-  const side = junior ? "BB Junior" : "BlackBerry";
-  const note = junior
-    ? "Играет BB Junior."
-    : "Играет основной состав Main.";
-  const title = `КВ · ${match.stack} играет · против ${match.opp} · ${match.dateLabel} ${match.timeMsk}`.slice(
+  const side = clan ? "BlackBerry" : junior ? "BB Junior" : "BlackBerry";
+  const note = clan
+    ? "Играет весь клан: и Main, и Junior."
+    : junior
+      ? "Играет BB Junior."
+      : "Играет основной состав Main.";
+  const who = clan ? "весь клан" : match.stack;
+  const title = `КВ · ${who} играет · против ${match.opp} · ${match.dateLabel} ${match.timeMsk}`.slice(
     0,
     140
   );
@@ -33,7 +37,7 @@ function letterOf(match: CwAnnounce) {
     "",
     "Игроки BlackBerry отмечаются «буду на КВ» здесь и на главной. Состав один и тот же.",
   ].join("\n");
-  return { title, body, tags: ["КВ", match.stack] };
+  return { title, body, tags: ["КВ", clan ? "Клан" : match.stack] };
 }
 
 async function bbUserIds(): Promise<string[]> {

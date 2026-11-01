@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 
 export type HomeCwCard = {
   id: string;
-  stack: "Main" | "Junior";
+  stack: "Main" | "Junior" | "Clan";
   dateLabel: string;
   timeMsk: string;
   opp: string;
@@ -135,11 +135,11 @@ export function HomeCwAnnounce({ cards: initial }: Props) {
                 className="home-cw-modal-card"
                 role="dialog"
                 aria-modal="true"
-                aria-label={`КВ ${opened.stack}`}
+                aria-label={`КВ ${opened.stack === "Clan" ? "весь клан" : opened.stack}`}
                 onClick={(e) => e.stopPropagation()}
               >
                 <header>
-                  <span>КВ · {opened.stack}</span>
+                  <span>КВ · {opened.stack === "Clan" ? "весь клан" : opened.stack}</span>
                   <button type="button" onClick={() => setOpenId(null)}>
                     закрыть
                   </button>
@@ -192,14 +192,16 @@ function CwFace({
   onToggle,
 }: {
   card: HomeCwCard | null;
-  stack: "Main" | "Junior";
+  stack: "Main" | "Junior" | "Clan";
   busy: string | null;
   onOpen: () => void;
   onToggle: (card: HomeCwCard) => void;
 }) {
   return (
     <section className="home-cw-card">
-      <p className="home-cw-kicker">КВ · {stack}</p>
+      <p className="home-cw-kicker">
+        КВ · {stack === "Clan" ? "весь клан" : stack}
+      </p>
       {card ? (
         <>
           <div className="home-cw-open">
