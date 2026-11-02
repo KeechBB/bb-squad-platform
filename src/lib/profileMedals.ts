@@ -1,3 +1,5 @@
+import { promises as fs } from "fs";
+import path from "path";
 import { BP_REWARDS, type BpReward } from "@/lib/battlePass";
 import {
   hasBattlePassL20Reward,
@@ -31,6 +33,17 @@ const REGISTRATION_SIGN: ProfileMedalItem = {
   source: "site",
 };
 
+const FRUIT_STRIKE_MVP: ProfileMedalItem = {
+  id: "fruit-strike-mvp-v1",
+  name: "MVP Fruit Strike",
+  short: "MVP",
+  kind: "medal",
+  level: 0,
+  hover: "Больше всего убийств на Fruit Strike Squad Cup #01",
+  icon: "/awards/fruit-strike-mvp-v1.png",
+  source: "site",
+};
+
 const KEECH_FRUIT_STRIKE_TROPHY: ProfileMedalItem = {
   id: "keech-fruit-strike-place1-trophy-v1",
   name: "Кубок «Алый урожай»",
@@ -53,7 +66,7 @@ const KEECH_HALLOWEEN_TROPHY: ProfileMedalItem = {
   source: "site",
 };
 
-/** Превью/тест: медаль за лучшие прогнозы FSSC #1 (позже — всем с макс. верных). */
+/** Медаль лучшему прогнозеру FSSC #1. Keech видит её и как превью. */
 const KEECH_FSSC_PREDICTIONS_MEDAL: ProfileMedalItem = {
   id: "keech-fssc-predictions-medal-v1",
   name: "Медаль «Прогноз»",
@@ -76,6 +89,31 @@ const BP_ICONS: Record<string, string> = {
 
 function iconFor(r: BpReward): string {
   return BP_ICONS[r.id] || "/bp-previews/l20-medal.png";
+}
+
+async function fruitStrikeAwardIds(userId: string): Promise<{
+  trophy: boolean;
+  mvp: boolean;
+  prediction: boolean;
+}> {
+  try {
+    const raw = await fs.readFile(
+      path.join(process.cwd(), "data", "tournaments", "fruit-strike-s1-awards.json"),
+      "utf8"
+    );
+    const data = JSON.parse(raw) as {
+      trophyUserIds?: string[];
+      mvpUserIds?: string[];
+      predictionUserIds?: string[];
+    };
+    return {
+      trophy: (data.trophyUserIds || []).includes(userId),
+      mvp: (data.mvpUserIds || []).includes(userId),
+      prediction: (data.predictionUserIds || []).includes(userId),
+    };
+  } catch {
+    return { trophy: false, mvp: false, prediction: false };
+  }
 }
 
 /** Все награды, которые игрок открыл (инвентарь для кастомизации). */
@@ -112,14 +150,15 @@ export async function buildPlayerMedalInventory(
     select: { id: true },
   });
   const signs = registered ? [REGISTRATION_SIGN] : [];
-  const cups =
-    clean.toLowerCase() === "keech"
-      ? [
-          KEECH_FRUIT_STRIKE_TROPHY,
-          KEECH_HALLOWEEN_TROPHY,
-          KEECH_FSSC_PREDICTIONS_MEDAL,
-        ]
-      : [];
+  const award = registered
+    ? await fruitStrikeAwardIds(registered.id)
+    : { trophy: false, mvp: false, prediction: false };
+  const keech = clean.toLowerCase() === "keech";
+  const cups: ProfileMedalItem[] = [];
+  if (award.trophy || keech) cups.push(KEECH_FRUIT_STRIKE_TROPHY);
+  if (award.mvp) cups.push(FRUIT_STRIKE_MVP);
+  if (award.prediction || keech) cups.push(KEECH_FSSC_PREDICTIONS_MEDAL);
+  if (keech) cups.push(KEECH_HALLOWEEN_TROPHY);
   return [...cups, ...signs, ...bp].filter(isProfileShelfAward);
 }
 
