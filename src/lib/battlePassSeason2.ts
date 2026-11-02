@@ -229,12 +229,12 @@ export const BP_S2_REWARDS: BpReward[] = [
   {
     level: 15,
     id: "hw2-nick",
-    name: "Фиолетовая готика",
+    name: "Неоновая жатва",
     short: "Текст",
     kind: "nick",
     preview:
-      "Фиолетовый объёмный шрифт ника с кислотно-зелёной подсветкой для рейтингов",
-    hover: "Фиолетовая готика · ур. 15 Season 2 Halloween",
+      "Объёмный неоново-зелёный ник с каплями крови — без контура",
+    hover: "Неоновая жатва · ур. 15 Season 2 Halloween",
     image: "/bp-halloween/nick-v2.jpg",
   },
   {
