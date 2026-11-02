@@ -1532,6 +1532,8 @@ body:has(.tm-sapper-page) {
 .nick-patch-mark[data-patch-id="hw2-ak-pumpkin"] {
   width: 148px;
   height: 46px;
+  /* отдельный зелёный ореол на контейнере — не путать с золотом арта */
+  filter: drop-shadow(0 0 6px rgba(100, 200, 130, 0.55));
 }
 .home-dock-col .nick-patch-mark.home-nick-patch[data-patch-id="hw2-knife-hook"],
 .home-dock-col .nick-patch-mark.home-nick-patch[data-patch-id="hw2-ak-pumpkin"] {
@@ -1541,10 +1543,12 @@ body:has(.tm-sapper-page) {
 /* Halloween S2: нож/АК — читаемое бледно-зелёное (не золото, не кислота) */
 .nick-patch-mark[data-patch-id="hw2-knife-hook"] .nick-patch-mark-art,
 .nick-patch-mark[data-patch-id="hw2-ak-pumpkin"] .nick-patch-mark-art {
+  /* убираем любой тёплый/золотой filter от дефолта */
   filter:
-    drop-shadow(0 0 5px rgba(120, 210, 140, 0.72))
-    drop-shadow(0 0 12px rgba(90, 180, 120, 0.45))
-    drop-shadow(0 0 20px rgba(70, 160, 100, 0.28)) !important;
+    drop-shadow(0 0 2px rgba(180, 255, 200, 0.95))
+    drop-shadow(0 0 8px rgba(90, 210, 130, 0.85))
+    drop-shadow(0 0 16px rgba(60, 180, 110, 0.55))
+    drop-shadow(0 0 28px rgba(40, 140, 90, 0.35)) !important;
   animation: hw2-knife-pale-glow 3.4s ease-in-out infinite !important;
 }
 .nick-patch-mark[data-patch-id="hw2-knife-hook"]:hover .nick-patch-mark-art,
@@ -1556,27 +1560,37 @@ body:has(.tm-sapper-page) {
   animation: none !important;
   transform: scaleX(-1) scale(1.1);
   filter:
-    drop-shadow(0 4px 8px rgba(110, 200, 135, 0.7))
-    drop-shadow(0 0 14px rgba(120, 210, 140, 0.65))
-    drop-shadow(0 0 24px rgba(80, 170, 110, 0.4))
-    brightness(1.08)
-    saturate(1.05) !important;
+    drop-shadow(0 0 3px rgba(200, 255, 210, 1))
+    drop-shadow(0 0 10px rgba(100, 220, 140, 0.9))
+    drop-shadow(0 0 20px rgba(70, 190, 120, 0.6))
+    drop-shadow(0 6px 14px rgba(50, 150, 100, 0.4))
+    brightness(1.06) !important;
   opacity: 1;
+}
+.nick-patch-mark[data-patch-id="hw2-knife-hook"]:hover,
+.nick-patch-mark[data-patch-id="hw2-knife-hook"]:focus-visible,
+.nick-patch-mark[data-patch-id="hw2-knife-hook"].is-active,
+.nick-patch-mark[data-patch-id="hw2-ak-pumpkin"]:hover,
+.nick-patch-mark[data-patch-id="hw2-ak-pumpkin"]:focus-visible,
+.nick-patch-mark[data-patch-id="hw2-ak-pumpkin"].is-active {
+  filter: drop-shadow(0 0 10px rgba(90, 210, 130, 0.7));
 }
 @keyframes hw2-knife-pale-glow {
   0%,
   100% {
     filter:
-      drop-shadow(0 0 5px rgba(120, 210, 140, 0.62))
-      drop-shadow(0 0 12px rgba(90, 180, 120, 0.38))
-      drop-shadow(0 0 18px rgba(70, 160, 100, 0.22));
-    opacity: 0.94;
+      drop-shadow(0 0 2px rgba(180, 255, 200, 0.85))
+      drop-shadow(0 0 8px rgba(90, 210, 130, 0.72))
+      drop-shadow(0 0 16px rgba(60, 180, 110, 0.42))
+      drop-shadow(0 0 24px rgba(40, 140, 90, 0.28));
+    opacity: 0.95;
   }
   50% {
     filter:
-      drop-shadow(0 0 7px rgba(140, 220, 155, 0.82))
-      drop-shadow(0 0 16px rgba(100, 195, 130, 0.55))
-      drop-shadow(0 0 26px rgba(80, 170, 110, 0.32));
+      drop-shadow(0 0 3px rgba(200, 255, 215, 1))
+      drop-shadow(0 0 10px rgba(110, 225, 145, 0.9))
+      drop-shadow(0 0 20px rgba(70, 195, 120, 0.58))
+      drop-shadow(0 0 30px rgba(50, 160, 100, 0.38));
     opacity: 1;
   }
 }
