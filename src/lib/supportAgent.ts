@@ -19,6 +19,9 @@ const AGENTS = [
   "Инженер Сквад",
 ];
 
+/** Отдельное сообщение после ответа: ждём да/нет. */
+export const SUPPORT_HELP_CHECK = "Помог ли я вам с этим вопросом?";
+
 function pick<T>(list: readonly T[]): T {
   return list[Math.floor(Math.random() * list.length)]!;
 }
@@ -89,6 +92,22 @@ function escalate(name: string, already: boolean): string {
   ]);
 }
 
+function askCloseTicket(name: string): string {
+  return pick([
+    `${name}: рад, что помог. Закрой тикет кнопкой «Закрыть тикет» внизу окна — так очередь не засоряется.`,
+    `${name}: отлично. Нажми «Закрыть тикет» внизу чата, пожалуйста.`,
+    `${name}: принято. Если всё ясно — закрой тикет кнопкой внизу.`,
+  ]);
+}
+
+function askClarify(name: string): string {
+  return pick([
+    `${name}: понял, ещё не то. Напиши точнее: какую вкладку ищешь или что именно не получается на сайте?`,
+    `${name}: ок, копнём глубже. Скажи страницу/кнопку своими словами — попробую ещё раз.`,
+    `${name}: принял. Опиши вопрос чуть иначе (раздел меню или что хочешь найти) — отвечу снова.`,
+  ]);
+}
+
 function norm(raw: string): string {
   return raw
     .toLowerCase()
@@ -105,38 +124,26 @@ type Faq = {
 const FAQ: Faq[] = [
   {
     hits: (q) =>
-      score(q, ["резерв", "уйти в резерв", "заявк на резерв"]),
+      score(q, [
+        "где вкладк",
+        "какие вкладк",
+        "навигац",
+        "меню сайта",
+        "где что",
+        "карта сайта",
+        "разделы сайта",
+        "где найти",
+        "где смотреть",
+        "куда нажат",
+      ]),
     answer: (name) =>
-      `${name}: резерв — это заявка, не мгновенный статус. В профиле кнопка «Уйти в резерв»: дата от, дата до (от 4 дней) и причина из списка — армия, болезнь, учёба, работа, отпуск, семья или своя. HR принимает или отклоняет. Пока не приняли, ты не в резерве. Отказ приходит в колокольчик.`,
-  },
-  {
-    hits: (q) => score(q, ["выходн", "отгул", "дей офф", "day off"]),
-    answer: (name) =>
-      `${name}: выходной берётся в профиле, кнопка «Взять выходной». Это 1–3 дня, и он включается сразу. От 4 дней — уже заявка «Уйти в резерв».`,
-  },
-  {
-    hits: (q) =>
-      score(q, ["сменить ник", "поменять ник", "сменить никнейм", "никнейм", "свой ник"]),
-    answer: (name) =>
-      `${name}: ник меняется в своём профиле, в редактировании. Статистика тренировок и КВ переезжает со старого ника. Если цифры не сойдутся — напиши капитану.`,
-  },
-  {
-    hits: (q) =>
-      score(q, ["steam", "войти", "регистрац", "авториз", "зарегистр"]),
-    answer: (name) =>
-      `${name}: вход через Steam. Если анкета ещё пустая, сайт ведёт на регистрацию. Без входа разделы клана не открываются.`,
+      `${name}: коротко по верхнему меню. «Главная» — анонсы ближайших КВ и топы. «Рейтинг паблика» — публичный RP. «Кланы» → список кланов, «Клановые войны» (/cw) и «Поиск КВ». «Тренировка» → «Тренировочные матчи» (/tm) и «Тренировка стрельбы» (/aim). Дальше «Battle Pass» и «Турниры». Свой профиль — аватар справа вверху (почта, резерв, выходной, стата). Колокольчик — уведомления.`,
   },
   {
     hits: (q) =>
-      score(q, ["рейтинг паблика", "паблик", "публичн", " rp", "очки rp"]),
+      score(q, ["главн", "домашн", "на главн", "home"]),
     answer: (name) =>
-      `${name}: рейтинг паблика — пункт «Рейтинг паблика» сверху. История каток и счёт лежат в профиле: счёт берётся из уже посчитанного матча.`,
-  },
-  {
-    hits: (q) =>
-      score(q, ["трениров", "tr1", "тр1", "тр 1", "тренировочн"]),
-    answer: (name) =>
-      `${name}: тренировочные матчи — меню «Тренировка», пункт «Тренировочные матчи». Его видят участники клана. Стрельба отдельно: там же «Тренировка стрельбы».`,
+      `${name}: «Главная» — первая кнопка вверху слева (/). Там ближайшие КВ Main/Junior, топ паблика и сводки. Расписание ближайших слотов смотри справа на главной.`,
   },
   {
     hits: (q) =>
@@ -153,53 +160,132 @@ const FAQ: Faq[] = [
         "анонс кв",
       ]),
     answer: (name) =>
-      `${name}: расписание КВ смотри так. На главной справа — ближайшие встречи (Main / Junior) с картой и временем. Полный календарь — меню «Кланы» → «Клановые войны» (/cw). Поиск свободного слота — там же «Поиск КВ». Разделы только для тех, кто в клане.`,
+      `${name}: расписание КВ — на главной справа (ближайшие Main/Junior). Полный календарь: меню «Кланы» → «Клановые войны» (/cw). Свободный слот искать: «Кланы» → «Поиск КВ». Эти пункты видят участники клана.`,
   },
   {
     hits: (q) =>
       score(q, ["кланов войн", "поиск кв", " к в", " кв", "войн"]),
     answer: (name) =>
-      `${name}: клановые войны — меню «Кланы» → «Клановые войны». Поиск КВ — соседний пункт «Поиск КВ». Ближайшие слоты ещё на главной. Победитель встречи — по сумме тикетов двух раундов.`,
+      `${name}: клановые войны — «Кланы» → «Клановые войны». Поиск КВ — соседний пункт «Поиск КВ». Ближайшие слоты ещё на главной. Победитель встречи — по сумме тикетов двух раундов.`,
   },
   {
-    hits: (q) => score(q, ["battle pass", "батл пас", "баттл", "бп ", " бп"]),
+    hits: (q) =>
+      score(q, ["список кланов", "вступить в клан", "создать клан", "кланы"]),
     answer: (name) =>
-      `${name}: Battle Pass открывается одноимённой кнопкой в верхнем меню.`,
+      `${name}: список кланов — меню «Кланы» → «Список кланов» (/clans). Создать/вступить — оттуда же. КВ и поиск КВ — соседние пункты того же меню (для участников клана).`,
   },
   {
-    hits: (q) => score(q, ["турнир", "кубок", "fruit"]),
+    hits: (q) =>
+      score(q, [
+        "тренировочн матч",
+        "трениров",
+        "tr1",
+        "тр1",
+        "тр 1",
+        "tm ",
+        "/tm",
+        "явка",
+      ]),
     answer: (name) =>
-      `${name}: турниры — пункт «Турниры» сверху. Награды за места получают игроки из заявки команды. Кубок и знаки, если они твои, лежат в инвентаре профиля: на полку их ставят в слот.`,
+      `${name}: тренировочные матчи — меню «Тренировка» → «Тренировочные матчи» (/tm). Только для участников клана. Вкладки внутри: матчи, рейтинг, аналитика, развитие (роли). Стрельба — соседний пункт «Тренировка стрельбы».`,
   },
   {
-    hits: (q) => score(q, ["медал", "наград", "полк", "инвентар"]),
+    hits: (q) =>
+      score(q, [
+        "развити",
+        "роль стрел",
+        "роль медик",
+        "fit",
+        "тир фит",
+        "kit",
+        "кит ",
+      ]),
     answer: (name) =>
-      `${name}: награды в инвентаре своего профиля. Чтобы знак висел на полке, его нужно положить в слот и подтвердить. Пустой слот сам чужую награду не рисует.`,
+      `${name}: развитие по ролям — «Тренировка» → «Тренировочные матчи», вкладка «Развитие» (/tm?tab=growth). Оттуда же листы ролей: стрелок, медик, SL, пулемёты, сапёр, экипаж и т.д.`,
   },
   {
-    hits: (q) => score(q, ["стрельб", "аим", " aim"]),
+    hits: (q) => score(q, ["стрельб", "аим", " aim", "/aim"]),
     answer: (name) =>
-      `${name}: тренировка стрельбы — меню «Тренировка», пункт «Тренировка стрельбы».`,
+      `${name}: тренировка стрельбы — меню «Тренировка» → «Тренировка стрельбы» (/aim).`,
   },
   {
-    hits: (q) => score(q, ["список кланов", "вступить в клан", "кланы"]),
+    hits: (q) =>
+      score(q, ["рейтинг паблика", "паблик", "публичн", " rp", "очки rp", "/public"]),
     answer: (name) =>
-      `${name}: список кланов — меню «Кланы», пункт «Список кланов».`,
+      `${name}: рейтинг паблика — пункт «Рейтинг паблика» вверху (/public). История каток и RP в своём профиле; число RP берётся из уже посчитанного матча.`,
+  },
+  {
+    hits: (q) => score(q, ["battle pass", "батл пас", "баттл", "бп ", " бп", "/battle-pass"]),
+    answer: (name) =>
+      `${name}: Battle Pass — кнопка «Battle Pass» в верхнем меню (/battle-pass). Награды и кастомизация (патч/стиль ника) — через BP и профиль.`,
+  },
+  {
+    hits: (q) => score(q, ["турнир", "кубок", "fruit", "ставк", "бетс", "/tournaments"]),
+    answer: (name) =>
+      `${name}: турниры — пункт «Турниры» сверху (/tournaments). Ставки — /tournaments/bets. Награды за места получают игроки из заявки команды; кубки/знаки — в инвентаре профиля, на полку кладут в слот.`,
+  },
+  {
+    hits: (q) =>
+      score(q, ["резерв", "уйти в резерв", "заявк на резерв"]),
+    answer: (name) =>
+      `${name}: резерв — заявка, не мгновенный статус. Свой профиль → «Уйти в резерв»: дата от/до (от 4 дней) и причина. HR принимает или отклоняет. Отказ приходит в колокольчик.`,
+  },
+  {
+    hits: (q) => score(q, ["выходн", "отгул", "дей офф", "day off"]),
+    answer: (name) =>
+      `${name}: выходной — в своём профиле, «Взять выходной». Это 1–3 дня, включается сразу. От 4 дней — уже «Уйти в резерв».`,
+  },
+  {
+    hits: (q) =>
+      score(q, ["сменить ник", "поменять ник", "сменить никнейм", "никнейм", "свой ник"]),
+    answer: (name) =>
+      `${name}: ник меняется в своём профиле, в редактировании. Статистика тренировок и КВ переезжает. Если цифры не сойдутся — напиши капитану.`,
+  },
+  {
+    hits: (q) =>
+      score(q, ["steam", "войти", "регистрац", "авториз", "зарегистр", "логин"]),
+    answer: (name) =>
+      `${name}: вход через Steam (кнопка справа вверху). Если анкета пустая — сайт ведёт на регистрацию. Без входа разделы клана не открываются.`,
+  },
+  {
+    hits: (q) => score(q, ["медал", "наград", "полк", "инвентар", "патч", "стиль ник"]),
+    answer: (name) =>
+      `${name}: награды — инвентарь своего профиля. Чтобы знак висел на полке, положи его в слот и подтверди. Патч/стиль ника — кастомизация профиля (через Battle Pass).`,
   },
   {
     hits: (q) => score(q, ["колокольчик", "уведомлен"]),
     answer: (name) =>
-      `${name}: колокольчик в шапке. Туда падают важные сообщения, например отказ заявки на резерв.`,
+      `${name}: колокольчик в шапке справа. Туда падают важные сообщения (отказ резерва, инвайты и т.п.).`,
   },
   {
-    hits: (q) => score(q, ["профиль", "где мой", "моя страниц"]),
+    hits: (q) =>
+      score(q, ["почт", "письм", "входящ", "рассылк"]),
     answer: (name) =>
-      `${name}: свой профиль открывается после входа, с него же выходной и заявка в резерв. Чужой профиль — по нику в рейтинге.`,
+      `${name}: почта клана — в своём профиле, блок «Почта» слева. Там входящие, избранное и удалённые. Письма про КВ тоже приходят сюда.`,
+  },
+  {
+    hits: (q) => score(q, ["профиль", "где мой", "моя страниц", "/profile"]),
+    answer: (name) =>
+      `${name}: свой профиль — клик по нику/аватару справа вверху (/profile). Там почта, стата, выходной, резерв, инвентарь. Чужой профиль — по нику в рейтинге.`,
+  },
+  {
+    hits: (q) => score(q, ["карта клан", "карта игроков", "/map", "где живут"]),
+    answer: (name) =>
+      `${name}: карта игроков — /map (если видишь ссылку в письме или разделе клана). Точки ставят участники сами.`,
+  },
+  {
+    hits: (q) => score(q, ["репле", "replay", "/replays"]),
+    answer: (name) =>
+      `${name}: реплеи матчей — раздел /replays. Открывается с карточки матча, если реплей залит.`,
+  },
+  {
+    hits: (q) => score(q, ["тикет", "техподдерж", "саппорт", "помощник"]),
+    answer: (name) =>
+      `${name}: ты уже в техподдержке — это это окно. Базовые вопросы по меню я закрываю сам; если не справлюсь — позову оператора. Когда всё ясно — закрой тикет кнопкой внизу.`,
   },
 ];
 
 function score(q: string, keys: string[]): number {
-  // Strip punctuation so «кв?» / «кв.» still hit « кв».
   const soft = ` ${q.replace(/[?!.,:;…]+/g, " ").replace(/\s+/g, " ").trim()} `;
   let n = 0;
   for (const k of keys) {
@@ -210,26 +296,43 @@ function score(q: string, keys: string[]): number {
   return n;
 }
 
+function isYes(raw: string): boolean {
+  const q = norm(raw).replace(/[?!.,:;…]+/g, "").trim();
+  return /^(да|даа+|йес|yes|yep|ага|угу|ок|окей|okay|всё ясно|все ясно|помог|помогло|спасибо|спс|благодар|ясно|понял|понятно|норм|отлично|супер)$/i.test(
+    q
+  ) || /^(да|ага|угу|yes)[,!. ]/.test(q);
+}
+
+function isNo(raw: string): boolean {
+  const q = norm(raw).replace(/[?!.,:;…]+/g, "").trim();
+  return /^(нет|неа|нее+|no|nope|не то|не помог|не помогло|мимо|хз)$/i.test(q)
+    || /^(нет|неа|no)[,!. ]/.test(q);
+}
+
+function isGreeting(q: string): boolean {
+  return /^(привет|здравствуй|здравствуйте|хай|добрый день|добрый вечер|доброе утро|йо|ку)[.! ]*$/.test(
+    q.trim()
+  );
+}
+
 export function answerSupportQuestion(
   text: string,
   name: string,
   operatorAlreadyCalled: boolean
-): { answer: string; callOperator: boolean } {
+): { answer: string; callOperator: boolean; matched: boolean } {
   const q = ` ${norm(text)} `;
   if (q.trim().length < 2) {
     return {
       answer: escalate(name, operatorAlreadyCalled),
       callOperator: !operatorAlreadyCalled,
+      matched: false,
     };
   }
-  if (
-    /^(привет|здравствуй|здравствуйте|хай|добрый день|добрый вечер|доброе утро|йо|ку)[.! ]*$/.test(
-      q.trim()
-    )
-  ) {
+  if (isGreeting(q.trim())) {
     return {
       answer: `${name} на связи. Привет. Пиши вопрос по сайту или клану — отвечу, если это есть в уставе. Иначе позову оператора.`,
       callOperator: false,
+      matched: true,
     };
   }
   let best = 0;
@@ -245,9 +348,49 @@ export function answerSupportQuestion(
     return {
       answer: escalate(name, operatorAlreadyCalled),
       callOperator: !operatorAlreadyCalled,
+      matched: false,
     };
   }
-  return { answer: hit.answer(name), callOperator: false };
+  return { answer: hit.answer(name), callOperator: false, matched: true };
+}
+
+type MsgRow = { id: string; kind: string; body: string };
+
+function lastBotBeforeLastUser(messages: MsgRow[]): MsgRow | null {
+  const userMsgs = messages.filter((m) => m.kind === "USER");
+  const lastUser = userMsgs[userMsgs.length - 1];
+  if (!lastUser) return null;
+  const idx = messages.findIndex((m) => m.id === lastUser.id);
+  for (let i = idx - 1; i >= 0; i--) {
+    if (messages[i]?.kind === "BOT") return messages[i]!;
+  }
+  return null;
+}
+
+function helpCheckCount(messages: MsgRow[]): number {
+  return messages.filter(
+    (m) => m.kind === "BOT" && m.body.includes(SUPPORT_HELP_CHECK)
+  ).length;
+}
+
+function awaitingHelpCheck(messages: MsgRow[]): boolean {
+  const prevBot = lastBotBeforeLastUser(messages);
+  return Boolean(prevBot?.body.includes(SUPPORT_HELP_CHECK));
+}
+
+async function postBot(
+  ticketId: string,
+  body: string,
+  lagMs = 50
+): Promise<void> {
+  await prisma.supportMessage.create({
+    data: {
+      ticketId,
+      kind: "BOT",
+      body,
+      createdAt: new Date(Date.now() + lagMs),
+    },
+  });
 }
 
 /** После сообщения игрока: благодарность или ответ / вызов оператора. */
@@ -278,28 +421,83 @@ export async function afterUserSupportMessage(opts: {
   const name = ticket.agentName;
   const first = userMsgs.length <= 1;
 
-  let body: string;
-  let callOperator = false;
   if (topic === "suggestion") {
-    body = first ? thanksSuggestion(name) : ackMore(name);
-    callOperator = !ticket.needsOperator;
-  } else if (topic === "bug") {
-    body = first ? thanksBug(name) : ackMore(name);
-    callOperator = !ticket.needsOperator;
-  } else {
-    const decided = answerSupportQuestion(last.body, name, ticket.needsOperator);
-    body = decided.answer;
-    callOperator = decided.callOperator;
+    await postBot(ticket.id, first ? thanksSuggestion(name) : ackMore(name));
+    if (!ticket.needsOperator) {
+      await prisma.supportTicket.update({
+        where: { id: ticket.id },
+        data: { needsOperator: true },
+      });
+      return { alert: true };
+    }
+    return { alert: false };
   }
 
-  await prisma.supportMessage.create({
-    data: {
-      ticketId: ticket.id,
-      kind: "BOT",
-      body,
-      createdAt: new Date(Date.now() + 50),
-    },
-  });
+  if (topic === "bug") {
+    await postBot(ticket.id, first ? thanksBug(name) : ackMore(name));
+    if (!ticket.needsOperator) {
+      await prisma.supportTicket.update({
+        where: { id: ticket.id },
+        data: { needsOperator: true },
+      });
+      return { alert: true };
+    }
+    return { alert: false };
+  }
+
+  // ——— question ———
+  let callOperator = false;
+
+  if (awaitingHelpCheck(ticket.messages)) {
+    if (isYes(last.body)) {
+      await postBot(ticket.id, askCloseTicket(name));
+      return { alert: false };
+    }
+
+    const checks = helpCheckCount(ticket.messages);
+    // Уже спрашивали «помог?» 2+ раза и снова «нет» / без нового хита → оператор.
+    if (isNo(last.body) || checks >= 1) {
+      const decided = answerSupportQuestion(
+        last.body,
+        name,
+        ticket.needsOperator
+      );
+      // «нет» without new substance
+      if (isNo(last.body) && norm(last.body).replace(/[?!.,:;…]+/g, "").trim().length <= 12) {
+        if (checks >= 2 || ticket.needsOperator) {
+          await postBot(ticket.id, escalate(name, ticket.needsOperator));
+          callOperator = !ticket.needsOperator;
+        } else {
+          await postBot(ticket.id, askClarify(name));
+          await postBot(ticket.id, SUPPORT_HELP_CHECK, 120);
+        }
+      } else if (decided.matched && !decided.callOperator) {
+        await postBot(ticket.id, decided.answer);
+        await postBot(ticket.id, SUPPORT_HELP_CHECK, 120);
+      } else if (checks >= 2 || ticket.needsOperator) {
+        await postBot(ticket.id, escalate(name, ticket.needsOperator));
+        callOperator = !ticket.needsOperator;
+      } else {
+        await postBot(ticket.id, askClarify(name));
+        await postBot(ticket.id, SUPPORT_HELP_CHECK, 120);
+      }
+
+      if (callOperator) {
+        await prisma.supportTicket.update({
+          where: { id: ticket.id },
+          data: { needsOperator: true },
+        });
+      }
+      return { alert: callOperator };
+    }
+  }
+
+  const decided = answerSupportQuestion(last.body, name, ticket.needsOperator);
+  await postBot(ticket.id, decided.answer);
+  if (decided.matched && !decided.callOperator) {
+    await postBot(ticket.id, SUPPORT_HELP_CHECK, 120);
+  }
+  callOperator = decided.callOperator;
   if (callOperator && !ticket.needsOperator) {
     await prisma.supportTicket.update({
       where: { id: ticket.id },
