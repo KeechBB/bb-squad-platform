@@ -3690,9 +3690,9 @@ body:has(.profile-page) {
   width: min(280px, 72vw);
   padding: 10px;
   border-radius: 10px;
-  background: var(--panel, #120f1c);
-  border: 1px solid rgba(167, 139, 250, 0.35);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  background: #161222;
+  border: 1px solid rgba(196, 181, 253, 0.45);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.72);
   z-index: 20;
 }
 
