@@ -207,25 +207,18 @@ export async function getPublicRatingPagePayload(opts?: {
     return withLiveNickPatches(await inflight);
   }
 
-  if (
-    mem &&
-    Date.now() - mem.at < FRESH_MS &&
-    ageMs(mem.data) < FRESH_MS &&
-    !(await publishedNewerThan(mem.data))
-  ) {
+  if (mem && Date.now() - mem.at < FRESH_MS && ageMs(mem.data) < FRESH_MS) {
+    if (await publishedNewerThan(mem.data)) kickRefresh();
     return withLiveNickPatches(mem.data);
   }
 
   const disk = await readDisk();
-  if (disk && !(await publishedNewerThan(disk))) {
+  if (disk) {
     const age = ageMs(disk);
-    if (age < FRESH_MS) {
+    const published = await publishedNewerThan(disk);
+    if (age < STALE_MS || published) {
       mem = { at: Date.now(), data: disk };
-      return withLiveNickPatches(disk);
-    }
-    if (age < STALE_MS) {
-      mem = { at: Date.now(), data: disk };
-      kickRefresh();
+      if (age >= FRESH_MS || published) kickRefresh();
       return withLiveNickPatches(disk);
     }
   }

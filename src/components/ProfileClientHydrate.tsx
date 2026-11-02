@@ -96,6 +96,25 @@ type CwAtt = {
   >;
 } | null;
 
+function initialIsReady(data: ProfileViewBundle | null): boolean {
+  if (!data) return false;
+  const hist = data.histories as
+    | {
+        trainHistory?: unknown[];
+        publicHistory?: unknown[];
+        cwHistory?: unknown[];
+      }
+    | undefined;
+  const hasHead = data.publicSummary !== undefined || data.trainPwr !== undefined;
+  const hasHist = Boolean(
+    hist &&
+      (Array.isArray(hist.publicHistory) ||
+        Array.isArray(hist.trainHistory) ||
+        Array.isArray(hist.cwHistory))
+  );
+  return hasHead && hasHist;
+}
+
 function applyBundle(
   data: ProfileViewBundle | null,
   setters: {
@@ -192,6 +211,7 @@ export function ProfileClientHydrate({
       setLoading(true);
     }
 
+    if (!initialIsReady(peek)) {
     void loadProfileView(nick).then((data) => {
       if (cancelled) return;
       if (!data) {
@@ -211,6 +231,7 @@ export function ProfileClientHydrate({
       setFailed(false);
       setLoading(false);
     });
+    }
 
     return () => {
       cancelled = true;
@@ -363,6 +384,7 @@ export function ProfileClientHydrate({
       return (
         <ProfileKvMatchHistory
           matchHistory={histories.cwHistory}
+          historyTotal={histories.cwTotal}
           highlightNick={nick}
         />
       );
@@ -371,15 +393,17 @@ export function ProfileClientHydrate({
       return (
         <TrainingMatchHistory
           matchHistory={histories.trainHistory}
+          historyTotal={histories.trainTotal}
           highlightNick={nick}
         />
       );
     }
     return (
-      <PublicMatchHistory
-        matchHistory={histories.publicHistory}
-        highlightNick={nick}
-      />
+        <PublicMatchHistory
+          matchHistory={histories.publicHistory}
+          historyTotal={histories.publicTotal}
+          highlightNick={nick}
+        />
     );
   }
 
@@ -388,6 +412,7 @@ export function ProfileClientHydrate({
       <div className="profile-area-kv-hist">
         <ProfileKvMatchHistory
           matchHistory={histories.cwHistory}
+          historyTotal={histories.cwTotal}
           highlightNick={nick}
         />
       </div>
@@ -395,6 +420,8 @@ export function ProfileClientHydrate({
         <ProfileMatchHistoryTabs
           trainHistory={histories.trainHistory}
           publicHistory={histories.publicHistory}
+          trainTotal={histories.trainTotal}
+          publicTotal={histories.publicTotal}
           highlightNick={nick}
           defaultTab={defaultHistTab}
         />

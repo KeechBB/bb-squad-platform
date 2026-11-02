@@ -4,7 +4,7 @@ import { readSnapshot, snapshotFile, writeSnapshot } from "@/lib/diskSnapshot";
 import { loadUserTrainingStats } from "@/lib/trainingStats";
 import { loadUserPublicAttendanceStats } from "@/lib/publicAttendance";
 import { buildPlayerPublicCombatStats } from "@/lib/publicCombat";
-import { lookupPlayerPublicRp } from "@/lib/publicRp";
+import { loadPublicRpOneFromDb } from "@/lib/rpDbRead";
 import { lookupPlayerTrainPwr } from "@/lib/homeTrainPwr";
 import { loadPlayerProfileHeavy } from "@/lib/playerProfileHeavy";
 import { loadReadyHistories } from "@/lib/profileMatchLines";
@@ -97,7 +97,7 @@ export async function buildProfileViewPayload(
   const [trainPwr, rp, combat, training, publicAtt, cwAtt, heavy] =
     await Promise.all([
       lookupPlayerTrainPwr(nick).catch(() => null),
-      lookupPlayerPublicRp(nick).catch(() => null),
+      loadPublicRpOneFromDb(nick).catch(() => null),
       buildPlayerPublicCombatStats(nick).catch(() => null),
       loadUserTrainingStats(userId),
       loadUserPublicAttendanceStats(userId).catch(() => null),
@@ -147,6 +147,24 @@ function storedHistoryCount(hist: unknown): number {
   );
 }
 
+/** Снимок уже содержит готовые строки. Пустой файл таким не считается. */
+function historiesCovered(hist: unknown): boolean {
+  if (!hist || typeof hist !== "object") return false;
+  const row = hist as {
+    trainHistory?: unknown[];
+    publicHistory?: unknown[];
+    cwHistory?: unknown[];
+  };
+  if (
+    !Array.isArray(row.trainHistory) ||
+    !Array.isArray(row.publicHistory) ||
+    !Array.isArray(row.cwHistory)
+  ) {
+    return false;
+  }
+  return storedHistoryCount(hist) > 0;
+}
+
 /**
  * Шапка профиля берёт живое RP из базы. История уже лежит в строках,
  * их пишет подсчёт матча. Открытие только читает.
@@ -155,28 +173,41 @@ async function withLivePublicRp(
   name: string,
   data: ProfileViewPayload
 ): Promise<ProfileViewPayload> {
-  const ready = await loadReadyHistories(name).catch(() => null);
-  const prev =
-    data.histories && typeof data.histories === "object"
-      ? (data.histories as Record<string, unknown>)
-      : {};
-  if (ready) {
-    data.histories = {
-      ...prev,
-      trainHistory: ready.trainHistory,
-      publicHistory: ready.publicHistory,
-      cwHistory: ready.cwHistory,
-      trainTotal: ready.trainTotal,
-      publicTotal: ready.publicTotal,
-      cwTotal: ready.cwTotal,
-    };
+  if (!historiesCovered(data.histories)) {
+    const ready = await loadReadyHistories(name).catch(() => null);
+    const prev =
+      data.histories && typeof data.histories === "object"
+        ? (data.histories as Record<string, unknown>)
+        : {};
+    if (ready && storedHistoryCount(ready) > 0) {
+      data.histories = {
+        ...prev,
+        trainHistory: ready.trainHistory,
+        publicHistory: ready.publicHistory,
+        cwHistory: ready.cwHistory,
+        trainTotal: ready.trainTotal,
+        publicTotal: ready.publicTotal,
+        cwTotal: ready.cwTotal,
+      };
+    }
   }
-  const rp = await lookupPlayerPublicRp(name).catch(() => null);
+  const rp = await loadPublicRpOneFromDb(name).catch(() => null);
   if (rp && Number.isFinite(Number(rp.rp))) {
     const official = Math.round(Number(rp.rp));
     const combat = data.publicSummary?.combat;
+    const prevRp =
+      data.publicSummary?.rp && typeof data.publicSummary.rp === "object"
+        ? (data.publicSummary.rp as Record<string, unknown>)
+        : {};
     data.publicSummary = {
-      rp,
+      rp: {
+        ...prevRp,
+        nick: rp.nick,
+        rp: rp.rp,
+        rankLabel: rp.rankLabel,
+        rankKey: rp.rankKey,
+        predatorPlace: rp.predatorPlace,
+      },
       combat: combat
         ? {
             ...combat,
@@ -346,12 +377,6 @@ export async function readStoredProfileView(
   const hit = await readSnapshot<ProfileViewPayload>(fileFor(name));
   if (hit?.data && typeof hit.data === "object") {
     const data = present(hit.data);
-    if (storedHistoryCount(data.histories) === 0) {
-      const histories = await loadReadyHistories(name).catch(() => null);
-      if (histories && storedHistoryCount(histories) > 0) {
-        data.histories = histories;
-      }
-    }
     return withLivePublicRp(
       name,
       await withLiveCombatIfEmpty(
