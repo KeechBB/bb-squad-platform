@@ -1522,6 +1522,17 @@ body:has(.tm-sapper-page) {
     opacity: 1;
   }
 }
+/* Halloween S2: нож/АК — чуть крупнее (кровь даёт высокий кадр) */
+.nick-patch-mark[data-patch-id="hw2-knife-hook"],
+.nick-patch-mark[data-patch-id="hw2-ak-pumpkin"] {
+  width: 148px;
+  height: 46px;
+}
+.home-dock-col .nick-patch-mark.home-nick-patch[data-patch-id="hw2-knife-hook"],
+.home-dock-col .nick-patch-mark.home-nick-patch[data-patch-id="hw2-ak-pumpkin"] {
+  width: 72px;
+  height: 24px;
+}
 /* Halloween S2: нож — мягкое бледно-зелёное свечение */
 .nick-patch-mark[data-patch-id="hw2-knife-hook"] .nick-patch-mark-art {
   filter:
