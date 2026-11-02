@@ -186,12 +186,41 @@ async function sourceChangedAt(kind: ProfileHistoryKind): Promise<number | null>
     if (!stamps.length) return null;
     return Math.max(...stamps);
   }
+  const stamps: number[] = [];
   const latest = await prisma.canonMatch.findFirst({
     where: { kind: kind === "train" ? "TRAIN" : "CW" },
     orderBy: { updatedAt: "desc" },
     select: { updatedAt: true },
   });
-  return latest ? latest.updatedAt.getTime() : null;
+  if (latest) stamps.push(latest.updatedAt.getTime());
+  // Train sync often writes calendar/players JSON without bumping CanonMatch
+  // (short ids like 02-mutaha). Without mtime, stamps stay "fresh" and history
+  // never picks up the new evening matches.
+  if (kind === "train") {
+    try {
+      const { readdirSync, statSync } = await import("fs");
+      const { join } = await import("path");
+      const { kvLocalRoots } = await import("@/lib/kvLocal");
+      for (const root of kvLocalRoots()) {
+        const dir = join(root, "data", "training");
+        try {
+          for (const name of readdirSync(dir)) {
+            if (name === "rp-ladder.json" || /^\d{4}-\d{2}\.json$/.test(name)) {
+              stamps.push(statSync(join(dir, name)).mtimeMs);
+            }
+          }
+          stamps.push(statSync(join(root, "data", "training-index.json")).mtimeMs);
+          break;
+        } catch {
+          /* next root */
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  if (!stamps.length) return null;
+  return Math.max(...stamps);
 }
 
 async function linesAreFresh(
@@ -264,8 +293,13 @@ export async function readProfileLines(
 
 const READY_TAKE = 40;
 
-/** Первая страница, которая уже лежит в таблице. Её рисуем сразу. */
+/** Первая страница из таблицы. Сначала догоняем свежесть (sync только сносит кэш). */
 export async function loadReadyHistories(nick: string) {
+  await Promise.all([
+    ensureProfileLines(nick, "train"),
+    ensureProfileLines(nick, "public"),
+    ensureProfileLines(nick, "cw"),
+  ]);
   const [train, pub, cw] = await Promise.all([
     readProfileLines(nick, "train", 1, READY_TAKE),
     readProfileLines(nick, "public", 1, READY_TAKE),
@@ -346,6 +380,7 @@ export async function pageProfileLines(
   page: number,
   pageSize: number
 ) {
+  await ensureProfileLines(nick, kind);
   const ready = await attachPublicScores(
     kind,
     await readProfileLines(nick, kind, page, pageSize)
@@ -371,16 +406,7 @@ export async function pageProfileLines(
       ready.rows = [row, ...ready.rows.slice(1)];
     }
   }
-  if (ready.total > 0) return ready;
-  const key = nickKey(nick);
-  if (!key) return ready;
-  const stamp = await prisma.profileMatchStamp.findUnique({
-    where: { kind_nickKey: { kind, nickKey: key } },
-    select: { id: true },
-  });
-  if (stamp) return ready;
-  await ensureProfileLines(nick, kind);
-  return attachPublicScores(kind, await readProfileLines(nick, kind, page, pageSize));
+  return ready;
 }
 
 /** Public ladder only. Train and clan rows are built when that profile opens. */

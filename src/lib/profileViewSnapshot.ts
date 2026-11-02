@@ -133,63 +133,29 @@ export async function buildProfileViewPayload(
   };
 }
 
-function storedHistoryCount(hist: unknown): number {
-  if (!hist || typeof hist !== "object") return 0;
-  const row = hist as {
-    trainHistory?: unknown[];
-    publicHistory?: unknown[];
-    cwHistory?: unknown[];
-  };
-  return (
-    (row.trainHistory?.length || 0) +
-    (row.publicHistory?.length || 0) +
-    (row.cwHistory?.length || 0)
-  );
-}
-
-/** Снимок уже содержит готовые строки. Пустой файл таким не считается. */
-function historiesCovered(hist: unknown): boolean {
-  if (!hist || typeof hist !== "object") return false;
-  const row = hist as {
-    trainHistory?: unknown[];
-    publicHistory?: unknown[];
-    cwHistory?: unknown[];
-  };
-  if (
-    !Array.isArray(row.trainHistory) ||
-    !Array.isArray(row.publicHistory) ||
-    !Array.isArray(row.cwHistory)
-  ) {
-    return false;
-  }
-  return storedHistoryCount(hist) > 0;
-}
-
 /**
- * Шапка профиля берёт живое RP из базы. История уже лежит в строках,
- * их пишет подсчёт матча. Открытие только читает.
+ * Шапка профиля берёт живое RP из базы. История — из ProfileMatchLine
+ * (ensure на чтении: sync только сносит кэш, снимок на диске может отставать).
  */
 async function withLivePublicRp(
   name: string,
   data: ProfileViewPayload
 ): Promise<ProfileViewPayload> {
-  if (!historiesCovered(data.histories)) {
-    const ready = await loadReadyHistories(name).catch(() => null);
+  const ready = await loadReadyHistories(name).catch(() => null);
+  if (ready) {
     const prev =
       data.histories && typeof data.histories === "object"
         ? (data.histories as Record<string, unknown>)
         : {};
-    if (ready && storedHistoryCount(ready) > 0) {
-      data.histories = {
-        ...prev,
-        trainHistory: ready.trainHistory,
-        publicHistory: ready.publicHistory,
-        cwHistory: ready.cwHistory,
-        trainTotal: ready.trainTotal,
-        publicTotal: ready.publicTotal,
-        cwTotal: ready.cwTotal,
-      };
-    }
+    data.histories = {
+      ...prev,
+      trainHistory: ready.trainHistory,
+      publicHistory: ready.publicHistory,
+      cwHistory: ready.cwHistory,
+      trainTotal: ready.trainTotal,
+      publicTotal: ready.publicTotal,
+      cwTotal: ready.cwTotal,
+    };
   }
   const rp = await loadPublicRpOneFromDb(name).catch(() => null);
   if (rp && Number.isFinite(Number(rp.rp))) {

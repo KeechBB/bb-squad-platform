@@ -108,8 +108,16 @@ function overlayRow(
   fromCanon: Record<string, unknown>
 ): Record<string, unknown> {
   const out = { ...disk };
+  const diskStatus = String(disk.status || "").trim().toLowerCase();
+  // Календарный lifecycle на диске (отмена / перенос) не откатываем stale canon upcoming.
+  const diskLifecycleWins =
+    diskStatus === "cancel" || diskStatus === "move";
   for (const [k, v] of Object.entries(fromCanon)) {
     if (v === undefined || v === null || v === "") continue;
+    if (k === "status" && diskLifecycleWins) continue;
+    if (k === "note" && diskLifecycleWins && String(disk.note || "").trim()) {
+      continue;
+    }
     out[k] = v;
   }
   return out;
@@ -219,6 +227,26 @@ async function mergeCwMonth(
   return { ...base, matches: merged };
 }
 
+function diskHasTrainRoster(diskData: unknown | null): boolean {
+  if (!diskData || typeof diskData !== "object") return false;
+  const d = diskData as {
+    teamA?: unknown[];
+    teamB?: unknown[];
+    players?: unknown[];
+  };
+  return Boolean(
+    (d.teamA && d.teamA.length) ||
+      (d.teamB && d.teamB.length) ||
+      (d.players && d.players.length)
+  );
+}
+
+function diskHasCwRoster(diskData: unknown | null): boolean {
+  if (!diskData || typeof diskData !== "object") return false;
+  const d = diskData as { r1?: unknown[]; r2?: unknown[] };
+  return Boolean((d.r1 && d.r1.length) || (d.r2 && d.r2.length));
+}
+
 async function trainPlayersDoc(legacyId: string): Promise<object | null> {
   const m = await prisma.canonMatch.findFirst({
     where: { kind: "TRAIN", legacyId },
@@ -312,11 +340,16 @@ export async function resolveCanonKvJson(
     }
     m = rel.match(TRAIN_PLAYERS);
     if (m) {
+      // Short ids collide across months (02-mutaha = Oct AND Nov).
+      // Live sync writes disk players JSON; never replace a real roster
+      // with an older CanonMatch that happens to share legacyId.
+      if (diskHasTrainRoster(diskData)) return null;
       const doc = await trainPlayersDoc(m[1]);
       return doc ? { data: doc, fromCanon: true } : null;
     }
     m = rel.match(CW_PLAYERS);
     if (m) {
+      if (diskHasCwRoster(diskData)) return null;
       const doc = await cwPlayersDoc(m[1]);
       return doc ? { data: doc, fromCanon: true } : null;
     }
