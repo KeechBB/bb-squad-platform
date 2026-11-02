@@ -6,52 +6,202 @@
  */
 
 import type { BpLevel, BpReward } from "@/lib/battlePass";
-import { BP_LEVELS } from "@/lib/battlePass";
 
-const S2_TAIL: BpLevel[] = [
+/**
+ * Те же типы, что у сезона 1, но лестница до 25 и цифры ниже.
+ * Финал — 10 убийств за матч, без связки «20 киллов + ревы + 0 смертей».
+ */
+export const BP_S2_LEVELS: BpLevel[] = [
   {
-    level: 21,
-    title: "Жатва",
+    level: 1,
+    title: "Калитка",
+    task: "Сыграть 1 матч на Фруктовом Саде",
+    hint: "Зачёт только если провёл ≥80% матча. SEED не считается",
+    target: 1,
+    unit: "матч",
+  },
+  {
+    level: 2,
+    title: "Царапина",
+    task: "3 нока за один матч",
+    target: 3,
+    unit: "ноков",
+  },
+  {
+    level: 3,
+    title: "Три пули",
+    task: "3 убийства за один матч",
+    target: 3,
+    unit: "убийств",
+  },
+  {
+    level: 4,
+    title: "Бинт",
+    task: "3 ревайва за один матч",
+    target: 3,
+    unit: "ревайвов",
+  },
+  {
+    level: 5,
+    title: "Смена",
+    task: "Сыграть 2 матча (пока открыт этот уровень)",
+    hint: "Счётчик с открытия уровня · матч ≥80% времени в игре",
+    target: 2,
+    unit: "матчей",
+  },
+  {
+    level: 6,
+    title: "Нокаут",
+    task: "5 ноков за один матч",
+    target: 5,
+    unit: "ноков",
+  },
+  {
+    level: 7,
+    title: "Очередь",
+    task: "5 убийств за один матч",
+    target: 5,
+    unit: "убийств",
+  },
+  {
+    level: 8,
+    title: "Носилки",
+    task: "5 ревайвов за один матч",
+    target: 5,
+    unit: "ревайвов",
+  },
+  {
+    level: 9,
+    title: "Колесо",
+    task: "1 уничтоженная техника за один матч",
+    target: 1,
+    unit: "техники",
+  },
+  {
+    level: 10,
+    title: "Ночь",
     task: "Сыграть 3 матча (пока открыт этот уровень)",
-    hint: "Черновик Season 2",
+    hint: "Счётчик с открытия уровня · матч ≥80% времени в игре",
     target: 3,
     unit: "матчей",
   },
   {
-    level: 22,
-    title: "Тыквенный огонь",
-    task: "10 ноков за один матч",
-    target: 10,
+    level: 11,
+    title: "Громче",
+    task: "8 ноков за один матч",
+    target: 8,
     unit: "ноков",
   },
   {
-    level: 23,
-    title: "Ночной рейд",
-    task: "Сыграть 5 матчей (пока открыт этот уровень)",
-    target: 5,
+    level: 12,
+    title: "Mutaha",
+    task: "3 убийства на Mutaha за один матч",
+    target: 3,
+    unit: "убийств",
+  },
+  {
+    level: 13,
+    title: "Серия бинтов",
+    task: "≥5 ревайвов в каждом из 2 матчей подряд",
+    hint: "Срыв серии → сброс 0/2",
+    target: 2,
+    unit: "матчей серии",
+  },
+  {
+    level: 14,
+    title: "Танк",
+    task: "Уничтожить 1 танк (накопительно на уровне)",
+    target: 1,
+    unit: "танков",
+  },
+  {
+    level: 15,
+    title: "Марафон",
+    task: "Сыграть 4 матча (пока открыт этот уровень)",
+    hint: "Матч в зачёт только при ≥80% времени в игре",
+    target: 4,
     unit: "матчей",
   },
   {
-    level: 24,
-    title: "Безжалостный",
+    level: 16,
+    title: "Гараж",
+    task: "Уничтожить 2 единицы техники (накопительно на уровне)",
+    target: 2,
+    unit: "техники",
+  },
+  {
+    level: 17,
+    title: "Окно 15",
+    task: "Суммарно 15 убийств за 3 матча подряд",
+    hint: "После 3-го если меньше 15 — окно сбрасывается",
+    target: 15,
+    unit: "убийств",
+  },
+  {
+    level: 18,
+    title: "Две победы",
     task: "Победить 2 карты подряд",
+    hint: "Поражение → сброс. Смена команды после 5-й минуты → матч не в зачёт",
     target: 2,
     unit: "побед",
   },
   {
-    level: 25,
-    title: "Король сада",
-    task: "Закончить матч: >20 убийств, ≥10 ревайвов, 0 TK, 0 смертей",
+    level: 19,
+    title: "Небо",
+    task: "Взорвать 1 вертолёт (накопительно на уровне)",
+    target: 1,
+    unit: "вертолётов",
+  },
+  {
+    level: 20,
+    title: "Гринд",
+    task: "Сыграть 5 матчей (пока открыт этот уровень)",
+    hint: "Матч в зачёт только при ≥80% времени в игре",
+    target: 5,
+    unit: "матчей",
+  },
+  {
+    level: 21,
+    title: "Чистая катка",
+    task: "Закончить матч с ≥8 убийствами и ≤3 смертями",
     target: 1,
     unit: "матч",
   },
+  {
+    level: 22,
+    title: "MVP Killer",
+    task: "Заработать 1 MVP Убийца",
+    hint: "Существующие MVP Killer с матча",
+    target: 1,
+    unit: "MVP",
+  },
+  {
+    level: 23,
+    title: "Три в одном",
+    task: "За один матч: 5 ревайвов, 5 убийств и 1 уничтоженная техника",
+    target: 1,
+    unit: "матч",
+  },
+  {
+    level: 24,
+    title: "Разгром",
+    task: "Победить с разницей более 100 тикетов",
+    hint: "Смена команды после 5-й минуты → матч не в зачёт",
+    target: 1,
+    unit: "матч",
+  },
+  {
+    level: 25,
+    title: "Жатва",
+    task: "10 убийств за один матч",
+    target: 10,
+    unit: "убийств",
+  },
 ];
-
-export const BP_S2_LEVELS: BpLevel[] = [...BP_LEVELS, ...S2_TAIL];
 
 /**
  * Каждые 5 уровней — награда (канон схемы):
- * 5 нож · 10 фон · 15 текст · 20 пушка · 25 кубок
+ * 5 нож · 10 фон · 15 текст · 20 пушка · 25 статуэтка
  */
 export const BP_S2_REWARDS: BpReward[] = [
   {
@@ -101,13 +251,13 @@ export const BP_S2_REWARDS: BpReward[] = [
   {
     level: 25,
     id: "hw2-trophy",
-    name: "Кубок «Золотая тыква»",
-    short: "Кубок",
+    name: "Гранат «Кровавая жатва»",
+    short: "Статуэтка",
     kind: "medal",
     preview:
-      "Кубок за полное прохождение Season 2 — финальная награда на полке профиля",
-    hover: "Кубок «Золотая тыква» · ур. 25 Season 2 Halloween",
-    image: "/bp-halloween/trophy-v1-cutout.png",
+      "Статуэтка за полное прохождение Season 2 — финальная награда на полке профиля",
+    hover: "Гранат «Кровавая жатва» · ур. 25 Season 2 Halloween",
+    image: "/bp-halloween/pomegranate-relic-v1-cutout.png",
   },
 ];
 
@@ -122,7 +272,7 @@ export function s2RewardFullImage(reward: BpReward): string {
   if (reward.kind === "bg") return reward.image || BP_S2_IDLE_ART;
   if (reward.id === "hw2-knife") return "/bp-halloween/knife-hook-v2-cutout.png";
   if (reward.id === "hw2-gun") return "/bp-halloween/weapon-ak-v2-cutout.png";
-  if (reward.id === "hw2-trophy") return "/bp-halloween/trophy-v1-cutout.png";
+  if (reward.id === "hw2-trophy") return "/bp-halloween/pomegranate-relic-v1-cutout.png";
   if (reward.id === "hw2-nick") return "/bp-halloween/nick-v2-cutout.png";
   return reward.image || BP_S2_IDLE_ART;
 }
@@ -135,7 +285,7 @@ export function s2RewardMileImage(reward: BpReward): string {
   if (reward.kind === "bg") return reward.image || BP_S2_IDLE_ART;
   if (reward.id === "hw2-knife") return "/bp-halloween/knife-hook-v2-cutout.png";
   if (reward.id === "hw2-gun") return "/bp-halloween/weapon-ak-v2-cutout.png";
-  if (reward.id === "hw2-trophy") return "/bp-halloween/trophy-v1-cutout.png";
+  if (reward.id === "hw2-trophy") return "/bp-halloween/pomegranate-relic-v1-cutout.png";
   if (reward.id === "hw2-nick") return "/bp-halloween/nick-v2-cutout.png";
   return reward.image || BP_S2_IDLE_ART;
 }

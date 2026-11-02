@@ -393,7 +393,7 @@ export function Season2BattlePass({
                 <div
                   className={`bp-s2-side-preview-art${
                     sideReward.kind === "bg" ? " is-bg" : ""
-                  }`}
+                  }${sideReward.id === "hw2-trophy" ? " is-relic" : ""}`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={s2RewardFullImage(sideReward)} alt="" />

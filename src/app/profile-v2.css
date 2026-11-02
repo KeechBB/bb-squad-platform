@@ -380,6 +380,28 @@ body.has-profile-bg .shell:has(.profile-page) {
     brightness(1.27);
 }
 
+/* Гранат «Кровавая жатва» — красный неон снизу, как подсветка авто */
+.profile-page-v2
+  .profile-medal-item[data-medal-id="keech-halloween-s2-trophy"]:is(
+    :hover,
+    :focus-visible,
+    .is-active
+  )
+  img,
+.profile-page-v2
+  .profile-medal-item[data-medal-id="hw2-trophy"]:is(
+    :hover,
+    :focus-visible,
+    .is-active
+  )
+  img {
+  filter:
+    drop-shadow(0 10px 14px rgba(255, 32, 64, 0.95))
+    drop-shadow(0 18px 28px rgba(220, 20, 60, 0.75))
+    drop-shadow(0 0 10px rgba(255, 80, 60, 0.55))
+    brightness(1.22);
+}
+
 .profile-medal-tip {
   position: fixed;
   z-index: 500;

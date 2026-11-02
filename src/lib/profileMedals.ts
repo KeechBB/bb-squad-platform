@@ -57,12 +57,12 @@ const KEECH_FRUIT_STRIKE_TROPHY: ProfileMedalItem = {
 
 const KEECH_HALLOWEEN_TROPHY: ProfileMedalItem = {
   id: "keech-halloween-s2-trophy",
-  name: "Кубок «Золотая тыква»",
+  name: "Гранат «Кровавая жатва»",
   short: "S2 финал",
   kind: "medal",
   level: 0,
-  hover: "Кубок «Золотая тыква» · Финал Halloween Season 2",
-  icon: "/bp-halloween/trophy-v1.png",
+  hover: "Гранат «Кровавая жатва» · Финал Halloween Season 2",
+  icon: "/bp-halloween/pomegranate-relic-v1-cutout.png",
   source: "site",
 };
 
@@ -142,18 +142,24 @@ export async function buildPlayerMedalInventory(
       source: "bp" as const,
     }));
 
-  const registered = await prisma.user.findFirst({
-    where: {
-      nick: { equals: clean, mode: "insensitive" },
-      profileComplete: true,
-    },
-    select: { id: true },
-  });
+  // Exact nick first: angel ≠ Angel (два разных аккаунта).
+  const registered =
+    (await prisma.user.findFirst({
+      where: { nick: clean, profileComplete: true },
+      select: { id: true, nick: true },
+    })) ||
+    (await prisma.user.findFirst({
+      where: {
+        nick: { equals: clean, mode: "insensitive" },
+        profileComplete: true,
+      },
+      select: { id: true, nick: true },
+    }));
   const signs = registered ? [REGISTRATION_SIGN] : [];
   const award = registered
     ? await fruitStrikeAwardIds(registered.id)
     : { trophy: false, mvp: false, prediction: false };
-  const keech = clean.toLowerCase() === "keech";
+  const keech = (registered?.nick || clean).toLowerCase() === "keech";
   const cups: ProfileMedalItem[] = [];
   if (award.trophy || keech) cups.push(KEECH_FRUIT_STRIKE_TROPHY);
   if (award.mvp) cups.push(FRUIT_STRIKE_MVP);
