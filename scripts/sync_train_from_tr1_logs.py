@@ -1152,9 +1152,29 @@ def _invalidate_train_profile_lines(nicks: list[str]) -> int:
 
 
 def _write_players_doc(mid: str, players_doc: dict) -> Path:
-    """Atomic roster write — must succeed before calendar upsert."""
+    """Atomic roster write — must succeed before calendar upsert.
+
+    Refuse clobbering a live roster with a different map on the same short id
+    (e.g. Oct Mutaha RAAS vs Nov Mutaha Skirmish both as 02-mutaha).
+    """
     PLAYERS.mkdir(parents=True, exist_ok=True)
     path = _players_path(mid)
+    if path.is_file() and _players_file_ok(mid):
+        try:
+            old = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            old = None
+        if isinstance(old, dict):
+            old_map = str(old.get("map") or "").strip().lower()
+            new_map = str(players_doc.get("map") or "").strip().lower()
+            if old_map and new_map and old_map != new_map:
+                # Prefer Skirmish/calendar live over stale RAAS (or any other layer).
+                print(
+                    f"players write skip {mid}: keep existing map={old.get('map')!r}, "
+                    f"refuse {players_doc.get('map')!r}",
+                    flush=True,
+                )
+                return path
     _atomic_json_write(path, players_doc)
     if not _players_file_ok(mid):
         raise RuntimeError(f"players write invalid: {path}")
