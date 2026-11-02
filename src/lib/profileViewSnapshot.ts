@@ -258,7 +258,59 @@ async function withLivePublicRp(
       data.histories = { ...hist, publicHistory: [first, ...rows.slice(1)] };
     }
   }
+  data.histories = await fillPublicTicketScores(data.histories);
   return data;
+}
+
+/** Счёт катки уже лежит в RpScoredMatch. Снимок профиля его часто не содержит. */
+async function fillPublicTicketScores(histories: unknown): Promise<unknown> {
+  if (!histories || typeof histories !== "object") return histories;
+  const bag = histories as { publicHistory?: unknown[] };
+  const rows = bag.publicHistory;
+  if (!Array.isArray(rows) || rows.length === 0) return histories;
+  const need: string[] = [];
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    const item = row as {
+      matchId?: string;
+      ticketsA?: number | null;
+      ticketsB?: number | null;
+    };
+    if (item.ticketsA != null && item.ticketsB != null) continue;
+    const id = String(item.matchId || "").trim();
+    if (id) need.push(id);
+  }
+  if (!need.length) return histories;
+  const found = await prisma.rpScoredMatch
+    .findMany({
+      where: { scope: "PUBLIC", matchKey: { in: need.slice(0, 800) } },
+      select: { matchKey: true, rawJson: true },
+    })
+    .catch(() => []);
+  const byId = new Map<string, { a: number; b: number }>();
+  for (const row of found) {
+    const raw = row.rawJson as { score1?: unknown; score2?: unknown } | null;
+    const a = Number(raw?.score1);
+    const b = Number(raw?.score2);
+    if (!Number.isFinite(a) || !Number.isFinite(b)) continue;
+    byId.set(row.matchKey, { a, b });
+  }
+  if (!byId.size) return histories;
+  return {
+    ...bag,
+    publicHistory: rows.map((row) => {
+      if (!row || typeof row !== "object") return row;
+      const item = row as {
+        matchId?: string;
+        ticketsA?: number | null;
+        ticketsB?: number | null;
+      };
+      if (item.ticketsA != null && item.ticketsB != null) return row;
+      const hit = byId.get(String(item.matchId || ""));
+      if (!hit) return row;
+      return { ...item, ticketsA: hit.a, ticketsB: hit.b };
+    }),
+  };
 }
 
 function trainingPresentCount(training: unknown): number {

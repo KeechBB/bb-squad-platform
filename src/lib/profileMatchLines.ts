@@ -290,13 +290,66 @@ export function refreshProfileLinesBackground(nick: string) {
   }
 }
 
+async function attachPublicScores<T extends { rows: unknown[] }>(
+  kind: ProfileHistoryKind,
+  ready: T
+): Promise<T> {
+  if (kind !== "public" || ready.rows.length === 0) return ready;
+  const need: string[] = [];
+  for (const row of ready.rows) {
+    if (!row || typeof row !== "object") continue;
+    const item = row as {
+      matchId?: string;
+      ticketsA?: number | null;
+      ticketsB?: number | null;
+    };
+    if (item.ticketsA != null && item.ticketsB != null) continue;
+    const id = String(item.matchId || "").trim();
+    if (id) need.push(id);
+  }
+  if (!need.length) return ready;
+  const found = await prisma.rpScoredMatch
+    .findMany({
+      where: { scope: "PUBLIC", matchKey: { in: need } },
+      select: { matchKey: true, rawJson: true },
+    })
+    .catch(() => []);
+  const byId = new Map<string, { a: number; b: number }>();
+  for (const row of found) {
+    const raw = row.rawJson as { score1?: unknown; score2?: unknown } | null;
+    const a = Number(raw?.score1);
+    const b = Number(raw?.score2);
+    if (!Number.isFinite(a) || !Number.isFinite(b)) continue;
+    byId.set(row.matchKey, { a, b });
+  }
+  if (!byId.size) return ready;
+  return {
+    ...ready,
+    rows: ready.rows.map((row) => {
+      if (!row || typeof row !== "object") return row;
+      const item = row as {
+        matchId?: string;
+        ticketsA?: number | null;
+        ticketsB?: number | null;
+      };
+      if (item.ticketsA != null && item.ticketsB != null) return row;
+      const hit = byId.get(String(item.matchId || ""));
+      if (!hit) return row;
+      return { ...item, ticketsA: hit.a, ticketsB: hit.b };
+    }),
+  };
+}
+
 export async function pageProfileLines(
   nick: string,
   kind: ProfileHistoryKind,
   page: number,
   pageSize: number
 ) {
-  const ready = await readProfileLines(nick, kind, page, pageSize);
+  const ready = await attachPublicScores(
+    kind,
+    await readProfileLines(nick, kind, page, pageSize)
+  );
   if (kind === "public" && ready.page === 1 && ready.rows.length) {
     const { loadPublicRpOneFromDb } = await import("@/lib/rpDbRead");
     const live = await loadPublicRpOneFromDb(nick).catch(() => null);
@@ -327,7 +380,7 @@ export async function pageProfileLines(
   });
   if (stamp) return ready;
   await ensureProfileLines(nick, kind);
-  return readProfileLines(nick, kind, page, pageSize);
+  return attachPublicScores(kind, await readProfileLines(nick, kind, page, pageSize));
 }
 
 /** Public ladder only. Train and clan rows are built when that profile opens. */
