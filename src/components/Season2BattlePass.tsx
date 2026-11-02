@@ -336,6 +336,7 @@ export function Season2BattlePass({
                     "bp-s2-mile",
                     isBg ? "is-bg" : "is-clean",
                     r.id === "hw2-trophy" ? "is-relic" : "",
+                    r.id === "hw2-knife" || r.id === "hw2-gun" ? "is-blood" : "",
                     previewId === r.id ? "is-on" : "",
                     hoverId === r.id ? "is-hover" : "",
                   ]
@@ -394,7 +395,11 @@ export function Season2BattlePass({
                 <div
                   className={`bp-s2-side-preview-art${
                     sideReward.kind === "bg" ? " is-bg" : ""
-                  }${sideReward.id === "hw2-trophy" ? " is-relic" : ""}`}
+                  }${sideReward.id === "hw2-trophy" ? " is-relic" : ""}${
+                    sideReward.id === "hw2-knife" || sideReward.id === "hw2-gun"
+                      ? " is-blood"
+                      : ""
+                  }`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={s2RewardFullImage(sideReward)} alt="" />

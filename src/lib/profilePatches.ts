@@ -84,7 +84,10 @@ export function profilePatchUrl(
 ): string | null {
   if (!id) return null;
   const opt = BY_ID.get(id);
-  return opt ? `/bp-assets/${opt.file}` : null;
+  if (!opt) return null;
+  const bust =
+    id === "hw2-knife-hook" || id === "hw2-ak-pumpkin" ? "?v=blood1" : "";
+  return `/bp-assets/${opt.file}${bust}`;
 }
 
 export function profilePatchTip(id: ProfilePatchId): string {
@@ -103,6 +106,9 @@ export function profilePatchChoicesFor(opts: {
   return PROFILE_PATCH_OPTIONS.filter((opt) => {
     const gate = gateOf(opt);
     if (gate === "creator") {
+      if (opt.id === "creator-fruit-strike-ak-v2" && unlocks.has(opt.id)) {
+        return true;
+      }
       return opts.steamId === SITE_CREATOR_STEAM_ID;
     }
     if (gate === "bp-l15") {

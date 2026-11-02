@@ -213,7 +213,7 @@ export const BP_S2_REWARDS: BpReward[] = [
     preview:
       "Нашивка-крюк у ника в рейтингах. Ставится и снимается в «Кастомизация профиля»",
     hover: "Крюк «Жнец сада» · ур. 5 Season 2 Halloween",
-    image: "/bp-halloween/knife-hook-v2.png",
+    image: "/bp-halloween/knife-hook-v2.png?v=blood1",
   },
   {
     level: 10,
@@ -246,7 +246,7 @@ export const BP_S2_REWARDS: BpReward[] = [
     preview:
       "Нашивка АК у ника в рейтингах. Ставится и снимается в «Кастомизация профиля»",
     hover: "АК «Тыквенный магазин» · ур. 20 Season 2 Halloween",
-    image: "/bp-halloween/weapon-ak-v2.png",
+    image: "/bp-halloween/weapon-ak-v2.png?v=blood1",
   },
   {
     level: 25,
@@ -270,8 +270,8 @@ export const BP_S2_IDLE_ART = "/bp-halloween/gallows-animated.webp";
  */
 export function s2RewardFullImage(reward: BpReward): string {
   if (reward.kind === "bg") return reward.image || BP_S2_IDLE_ART;
-  if (reward.id === "hw2-knife") return "/bp-halloween/knife-hook-v2-cutout.png";
-  if (reward.id === "hw2-gun") return "/bp-halloween/weapon-ak-v2-cutout.png";
+  if (reward.id === "hw2-knife") return "/bp-halloween/knife-hook-v2-cutout.png?v=blood1";
+  if (reward.id === "hw2-gun") return "/bp-halloween/weapon-ak-v2-cutout.png?v=blood1";
   if (reward.id === "hw2-trophy") return "/bp-halloween/pomegranate-relic-v1-cutout.png?v=3";
   if (reward.id === "hw2-nick") return "/bp-halloween/nick-v2-cutout.png";
   return reward.image || BP_S2_IDLE_ART;
@@ -283,8 +283,8 @@ export function s2RewardFullImage(reward: BpReward): string {
  */
 export function s2RewardMileImage(reward: BpReward): string {
   if (reward.kind === "bg") return reward.image || BP_S2_IDLE_ART;
-  if (reward.id === "hw2-knife") return "/bp-halloween/knife-hook-v2-cutout.png";
-  if (reward.id === "hw2-gun") return "/bp-halloween/weapon-ak-v2-cutout.png";
+  if (reward.id === "hw2-knife") return "/bp-halloween/knife-hook-v2-cutout.png?v=blood1";
+  if (reward.id === "hw2-gun") return "/bp-halloween/weapon-ak-v2-cutout.png?v=blood1";
   if (reward.id === "hw2-trophy") return "/bp-halloween/pomegranate-relic-v1-cutout.png?v=3";
   if (reward.id === "hw2-nick") return "/bp-halloween/nick-v2-cutout.png";
   return reward.image || BP_S2_IDLE_ART;
