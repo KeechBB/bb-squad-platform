@@ -2602,12 +2602,13 @@ body.has-profile-bg .canvas-scale-host.is-profile.is-side-inset .canvas-scale-st
   min-width: 1.3em;
   padding: 0 6px;
   border-radius: 999px;
-  background: rgba(245, 215, 110, 0.9);
+  background: #ffe08a;
   color: #2a1c08;
   font-family: var(--font-body), Manrope, sans-serif;
   font-size: 0.72rem;
   font-weight: 800;
   line-height: 1.45;
+  animation: profile-mail-badge 0.7s steps(2, end) infinite;
 }
 
 .profile-mail-list {
@@ -2628,6 +2629,22 @@ body.has-profile-bg .canvas-scale-host.is-profile.is-side-inset .canvas-scale-st
   background: transparent;
   color: var(--ink);
   font-family: var(--font-body), Manrope, sans-serif;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 0 0;
+  text-align: left;
+}
+
+.profile-mail-row-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
   cursor: pointer;
   display: flex;
   flex-direction: row;
@@ -2636,6 +2653,33 @@ body.has-profile-bg .canvas-scale-host.is-profile.is-side-inset .canvas-scale-st
   gap: 10px;
   padding: 0 14px;
   text-align: left;
+}
+
+.profile-mail-restore {
+  flex: 0 0 auto;
+  border: 1px solid rgba(167, 139, 250, 0.45);
+  border-radius: 8px;
+  background: rgba(76, 29, 149, 0.35);
+  color: #f5f3ff;
+  font-family: var(--font-body), Manrope, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+  padding: 8px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.profile-mail-restore:hover:not(:disabled),
+.profile-mail-restore:focus-visible:not(:disabled) {
+  background: rgba(124, 58, 237, 0.5);
+  outline: none;
+}
+
+.profile-mail-restore:disabled {
+  opacity: 0.55;
+  cursor: wait;
 }
 
 .profile-mail-copy {
@@ -2734,14 +2778,117 @@ button.mail-tag {
 }
 
 .profile-mail-row:hover,
-.profile-mail-row:focus-visible {
+.profile-mail-row:focus-within {
   background: rgba(167, 139, 250, 0.12);
+}
+
+.profile-mail-row-main:focus-visible {
   outline: none;
 }
 
 .profile-mail-row.is-unread {
-  background: rgba(245, 215, 110, 0.1);
-  box-shadow: inset 3px 0 0 rgba(245, 215, 110, 0.9);
+  background: rgba(255, 214, 80, 0.55);
+  box-shadow:
+    inset 7px 0 0 #ffd24a,
+    0 0 22px rgba(255, 210, 74, 0.45);
+  animation: profile-mail-unread 0.7s steps(2, end) infinite;
+}
+
+.profile-mail-row.is-unread .profile-mail-title {
+  font-weight: 800;
+  animation: profile-mail-title 0.7s steps(2, end) infinite;
+}
+
+.profile-mail-row.is-unread .profile-mail-from {
+  animation: profile-mail-from 0.7s steps(2, end) infinite;
+}
+
+.profile-mail-row.is-unread:hover,
+.profile-mail-row.is-unread:focus-within {
+  animation-play-state: paused;
+  background: rgba(255, 214, 80, 0.32);
+  box-shadow: inset 7px 0 0 #ffd24a;
+}
+
+.profile-mail-row.is-unread:hover .profile-mail-title,
+.profile-mail-row.is-unread:focus-within .profile-mail-title,
+.profile-mail-row.is-unread:hover .profile-mail-from,
+.profile-mail-row.is-unread:focus-within .profile-mail-from {
+  animation-play-state: paused;
+  color: #ffe08a;
+}
+
+@keyframes profile-mail-unread {
+  0%,
+  49.9% {
+    background: rgba(255, 214, 80, 0.62);
+    box-shadow:
+      inset 7px 0 0 #fff1a8,
+      0 0 28px rgba(255, 210, 74, 0.65);
+  }
+  50%,
+  100% {
+    background: rgba(255, 214, 80, 0.06);
+    box-shadow:
+      inset 7px 0 0 rgba(255, 210, 74, 0.35),
+      0 0 0 transparent;
+  }
+}
+
+@keyframes profile-mail-title {
+  0%,
+  49.9% {
+    color: #fff6c2;
+    text-shadow: 0 0 12px rgba(255, 214, 80, 0.85);
+  }
+  50%,
+  100% {
+    color: #f8fafc;
+    text-shadow: none;
+  }
+}
+
+@keyframes profile-mail-from {
+  0%,
+  49.9% {
+    color: #ffe08a;
+  }
+  50%,
+  100% {
+    color: #ffffff;
+  }
+}
+
+@keyframes profile-mail-badge {
+  0%,
+  49.9% {
+    background: #fff1a8;
+    color: #2a1c08;
+    box-shadow: 0 0 12px rgba(255, 214, 80, 0.9);
+  }
+  50%,
+  100% {
+    background: #b45309;
+    color: #fff7ed;
+    box-shadow: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-mail-row.is-unread,
+  .profile-mail-row.is-unread .profile-mail-title,
+  .profile-mail-row.is-unread .profile-mail-from,
+  .profile-mail-badge {
+    animation: none;
+  }
+  .profile-mail-row.is-unread {
+    background: rgba(255, 214, 80, 0.4);
+    box-shadow: inset 7px 0 0 #ffd24a;
+  }
+}
+
+.profile-mail-row.is-trash .profile-mail-title {
+  opacity: 0.9;
 }
 
 .profile-mail-from {
