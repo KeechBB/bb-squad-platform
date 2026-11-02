@@ -233,7 +233,7 @@ export const BP_S2_REWARDS: BpReward[] = [
     short: "Текст",
     kind: "nick",
     preview:
-      "Объёмный неоново-зелёный ник с каплями крови — без контура",
+      "Яркий объёмный неоново-зелёный ник — без контура",
     hover: "Неоновая жатва · ур. 15 Season 2 Halloween",
     image: "/bp-halloween/nick-v2.jpg",
   },
