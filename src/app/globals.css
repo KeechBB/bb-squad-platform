@@ -1391,31 +1391,62 @@ body:has(.tm-sapper-page) {
 .public-rating-nick-label.is-halloween-gothic {
   position: relative;
   display: inline-block;
-  overflow: visible;
-  color: #FF2A2A;
-  background: none;
-  -webkit-text-fill-color: #FF2A2A;
-  -webkit-text-stroke: 0;
+  color: transparent;
+  background:
+    linear-gradient(
+      180deg,
+      #ffe8e8 0%,
+      #ff6b6b 32%,
+      #9b111e 57%,
+      #ff2a2a 78%,
+      #ffc9c9 100%
+    );
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 0.22px rgba(120, 12, 18, 0.9);
   font-family: var(--font-display), Oxanium, Manrope, sans-serif;
-  font-size: 1.28rem;
-  font-weight: 900;
-  letter-spacing: 0.03em;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.018em;
   line-height: 1.05;
   text-transform: none;
   text-shadow: none;
-  transition: color 0.16s ease;
+  transition: filter 0.16s ease;
 }
-.public-rating-nick-label.is-halloween-gothic::before,
-.public-rating-nick-label.is-halloween-gothic::after {
+.public-rating-nick-label.is-halloween-gothic::before {
   content: none;
+}
+.public-rating-nick-label.is-halloween-gothic::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: transparent;
+  background:
+    linear-gradient(
+      105deg,
+      transparent 22%,
+      rgba(255, 235, 235, 0.18) 39%,
+      rgba(255, 250, 250, 0.92) 48%,
+      rgba(255, 120, 120, 0.22) 57%,
+      transparent 72%
+    );
+  background-position: 145% 0;
+  background-size: 240% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  animation: aurum-clean-nick-shine 5.2s ease-in-out infinite;
 }
 .public-rating-nick-btn.has-custom-nick-style:hover
   .public-rating-nick-label.is-halloween-gothic,
 .public-rating-nick-btn.has-custom-nick-style:focus-visible
   .public-rating-nick-label.is-halloween-gothic {
-  color: #FF5555;
-  -webkit-text-fill-color: #FF5555;
-  text-shadow: none;
+  filter: brightness(1.15) saturate(1.08);
 }
 .nick-patch-mark,
 .public-rating-bp-patch-test {
@@ -10281,21 +10312,53 @@ body:has(.home-page) {
 .home-nick-label.is-halloween-gothic {
   position: relative;
   display: inline-block;
-  overflow: visible;
-  color: #FF2A2A;
-  background: none;
-  -webkit-text-fill-color: #FF2A2A;
-  -webkit-text-stroke: 0;
+  color: transparent;
+  background:
+    linear-gradient(
+      180deg,
+      #ffe8e8 0%,
+      #ff6b6b 32%,
+      #9b111e 57%,
+      #ff2a2a 78%,
+      #ffc9c9 100%
+    );
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 0.22px rgba(120, 12, 18, 0.9);
   font-family: var(--font-display), Oxanium, Manrope, sans-serif;
-  font-size: 1.28rem;
-  font-weight: 900;
-  letter-spacing: 0.03em;
+  font-weight: 800;
+  letter-spacing: 0.018em;
   text-shadow: none;
 }
 
-.home-nick-label.is-halloween-gothic::before,
-.home-nick-label.is-halloween-gothic::after {
+.home-nick-label.is-halloween-gothic::before {
   content: none;
+}
+
+.home-nick-label.is-halloween-gothic::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: transparent;
+  background:
+    linear-gradient(
+      105deg,
+      transparent 22%,
+      rgba(255, 235, 235, 0.18) 39%,
+      rgba(255, 250, 250, 0.92) 48%,
+      rgba(255, 120, 120, 0.22) 57%,
+      transparent 72%
+    );
+  background-position: 145% 0;
+  background-size: 240% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font: inherit;
+  letter-spacing: inherit;
+  animation: aurum-clean-nick-shine 5.2s ease-in-out infinite;
 }
 
 .home-dock-col .nick-patch-mark.home-nick-patch {
