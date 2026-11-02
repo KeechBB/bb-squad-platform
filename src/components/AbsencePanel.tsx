@@ -1,8 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { formatBirthDateInput } from "@/lib/validation";
+import { useEffect, useState } from "react";
+import { AbsenceFormFields } from "@/components/AbsenceFormFields";
+import {
+  ABSENCE_REASON_OTHER,
+  resolveAbsenceReason,
+  todayIsoLocal,
+} from "@/lib/absenceReasons";
+import { formatRuDate } from "@/lib/validation";
 
 type Mode = "idle" | "dayoff" | "reserve";
 
@@ -15,11 +20,24 @@ type Props = {
   dayOffReason: string | null;
   /** Компактный вид в календаре (без заголовка «Статус») */
   compact?: boolean;
+  /** @deprecated страница сама перезагружается после Ок */
+  onChanged?: () => void | Promise<void>;
 };
+
+function untilLabelFromIso(iso: string): string {
+  const t = String(iso || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
+    const [y, m, d] = t.split("-").map(Number);
+    return formatRuDate(new Date(Date.UTC(y, m - 1, d)));
+  }
+  const d = new Date(t);
+  if (!Number.isNaN(d.getTime())) return formatRuDate(d);
+  return t;
+}
 
 /**
  * Компактная панель выходной/резерв.
- * Форма открывается оверлеем — не раздвигает геометрию профиля.
+ * После успеха — alert «заявка принята» и перезагрузка страницы.
  */
 export function AbsencePanel({
   reserveActive,
@@ -30,20 +48,55 @@ export function AbsencePanel({
   dayOffReason,
   compact = false,
 }: Props) {
-  const router = useRouter();
   const [mode, setMode] = useState<Mode>("idle");
+  const [from, setFrom] = useState("");
   const [until, setUntil] = useState("");
-  const [why, setWhy] = useState("");
+  const [reasonPreset, setReasonPreset] = useState("Учёба");
+  const [reasonCustom, setReasonCustom] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [pending, setPending] = useState<{
+    fromLabel: string;
+    untilLabel: string;
+    reasonText: string;
+  } | null>(null);
+
+  useEffect(() => {
+    let stop = false;
+    fetch("/api/profile/reserve", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!stop && data?.pending) setPending(data.pending);
+      })
+      .catch(() => {});
+    return () => {
+      stop = true;
+    };
+  }, []);
 
   const active = reserveActive || dayOffActive;
   const openForm = mode !== "idle" && !active;
 
+  function resetForm() {
+    setFrom("");
+    setUntil("");
+    setReasonPreset("Учёба");
+    setReasonCustom("");
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (mode === "idle") return;
+    if (mode === "idle" || loading) return;
     setError("");
+    const reason = resolveAbsenceReason(reasonPreset, reasonCustom);
+    if (reasonPreset === ABSENCE_REASON_OTHER && reason.length < 3) {
+      setError("Напиши причину (от 3 символов)");
+      return;
+    }
+    if (!until || (mode === "reserve" && !from)) {
+      setError("Укажи даты");
+      return;
+    }
     setLoading(true);
     try {
       const url =
@@ -51,25 +104,40 @@ export function AbsencePanel({
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ until, reason: why }),
+        body: JSON.stringify(
+          mode === "reserve"
+            ? {
+                from,
+                until,
+                reasonKey: reasonPreset,
+                reasonText: reason,
+              }
+            : { until, reason }
+        ),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error || "Не удалось");
+        setLoading(false);
         return;
       }
-      setMode("idle");
-      setUntil("");
-      setWhy("");
-      router.refresh();
+      const untilRu = untilLabelFromIso(
+        data?.dayOff?.dayOffUntil || data?.reserve?.reserveUntil || until
+      );
+      const msg =
+        mode === "dayoff"
+          ? `Заявка принята. Отдыхай до ${untilRu}.`
+          : "Заявка отправлена. HR решит её в разделе «Резерв».";
+      window.alert(msg);
+      window.location.reload();
     } catch {
       setError("Сеть недоступна");
-    } finally {
       setLoading(false);
     }
   }
 
   async function exitCurrent() {
+    if (loading) return;
     setError("");
     setLoading(true);
     try {
@@ -80,12 +148,15 @@ export function AbsencePanel({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error || "Не удалось");
+        setLoading(false);
         return;
       }
-      router.refresh();
+      window.alert(
+        reserveActive ? "Ок, ты вышел из резерва." : "Ок, выходной снят."
+      );
+      window.location.reload();
     } catch {
       setError("Сеть недоступна");
-    } finally {
       setLoading(false);
     }
   }
@@ -144,35 +215,27 @@ export function AbsencePanel({
             <p className="muted reserve-panel-hint" style={{ marginBottom: 4 }}>
               {mode === "dayoff"
                 ? "Выходной: 1–3 дня"
-                : "Резерв: от 4 дней"}
+                : "Резерв: от 4 дней. Заявку смотрит HR."}
             </p>
-            <label className="field">
-              <span>Дата до</span>
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder="ДД.ММ.ГГГГ"
-                value={until}
-                onChange={(e) => setUntil(formatBirthDateInput(e.target.value))}
-                maxLength={10}
-                required
-              />
-            </label>
-            <label className="field">
-              <span>Причина</span>
-              <textarea
-                value={why}
-                onChange={(e) => setWhy(e.target.value)}
-                rows={2}
-                maxLength={300}
-                required
-                placeholder="Учёба, работа…"
-              />
-            </label>
+            <AbsenceFormFields
+              from={mode === "reserve" ? from : undefined}
+              onFrom={mode === "reserve" ? setFrom : undefined}
+              until={until}
+              onUntil={setUntil}
+              reasonPreset={reasonPreset}
+              onReasonPreset={setReasonPreset}
+              reasonCustom={reasonCustom}
+              onReasonCustom={setReasonCustom}
+              compact
+            />
             {error ? <p className="error">{error}</p> : null}
             <div className="avatar-actions">
               <button type="submit" className="btn primary" disabled={loading}>
-                {loading ? "…" : "Ок"}
+                {loading
+                  ? "…"
+                  : mode === "reserve"
+                    ? "Отправить заявку"
+                    : "Ок"}
               </button>
               <button
                 type="button"
@@ -181,6 +244,7 @@ export function AbsencePanel({
                 onClick={() => {
                   setMode("idle");
                   setError("");
+                  resetForm();
                 }}
               >
                 Отмена
@@ -190,22 +254,37 @@ export function AbsencePanel({
         </div>
       ) : (
         <div className="absence-panel-btns">
+          {pending ? (
+            <p className="reserve-status">
+              Заявка на резерв: <strong>{pending.fromLabel}</strong> —{" "}
+              <strong>{pending.untilLabel}</strong>
+              <br />
+              <span className="muted">{pending.reasonText}. Ждёт решения HR.</span>
+            </p>
+          ) : null}
           <button
             type="button"
             className="btn absence-btn-dayoff"
+            disabled={loading}
             onClick={() => setMode("dayoff")}
             title="Выходной 1–3 дня"
           >
             Взять выходной
           </button>
-          <button
-            type="button"
-            className="btn absence-btn-reserve"
-            onClick={() => setMode("reserve")}
-            title="Резерв от 4 дней"
-          >
-            Уйти в резерв
-          </button>
+          {pending ? null : (
+            <button
+              type="button"
+              className="btn absence-btn-reserve"
+              disabled={loading}
+              onClick={() => {
+                setFrom(todayIsoLocal());
+                setMode("reserve");
+              }}
+              title="Резерв от 4 дней"
+            >
+              Уйти в резерв
+            </button>
+          )}
         </div>
       )}
       {error && active ? <p className="error">{error}</p> : null}

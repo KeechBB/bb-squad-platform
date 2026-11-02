@@ -97,6 +97,8 @@ model User {
   reserveStints   ReserveStint[]
   reserveActionsAsActor ReserveStint[] @relation("ReserveActor")
   reserveExitsAsActor   ReserveStint[] @relation("ReserveExitActor")
+  reserveRequests       ReserveRequest[]
+  reserveRequestsReviewed ReserveRequest[] @relation("ReserveRequestReviewer")
   dayOffStints          DayOffStint[]
   dayOffActionsAsActor  DayOffStint[] @relation("DayOffActor")
   dayOffExitsAsActor    DayOffStint[] @relation("DayOffExitActor")
@@ -356,6 +358,28 @@ model ReserveStint {
   @@index([userId, enteredAt])
   @@index([exitedAt])
   @@index([untilAt])
+}
+
+/// Заявка «Уйти в резерв». В резерв попадает только после «Принять» в админке.
+model ReserveRequest {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fromAt       DateTime
+  untilAt      DateTime
+  /// Ключ из списка (Армия, Болезнь, …, Другое) — для статистики.
+  reasonKey    String
+  /// Текст для людей: пресет или своя причина.
+  reasonText   String
+  /// PENDING | ACCEPTED | REJECTED
+  status       String    @default("PENDING")
+  createdAt    DateTime  @default(now())
+  reviewedAt   DateTime?
+  reviewedById String?
+  reviewedBy   User?     @relation("ReserveRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([userId, status])
 }
 
 /// Короткий выходной 1–3 дня (не меняет роль в клане).

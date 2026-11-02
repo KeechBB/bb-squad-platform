@@ -34,6 +34,17 @@ type Player = {
   enteredLabel: string | null;
 };
 
+type ReserveRequestRow = {
+  id: string;
+  userId: string;
+  nick: string;
+  fromLabel: string;
+  untilLabel: string;
+  reasonKey: string;
+  reasonText: string;
+  createdAt: string;
+};
+
 type HistoryRow = {
   id: string;
   enteredAt: string;
@@ -72,6 +83,7 @@ function formatWhen(iso: string | null): string {
 export function AdminReservePanel() {
   const [kind, setKind] = useState<AbsenceKind>("reserve");
   const [players, setPlayers] = useState<Player[]>([]);
+  const [requests, setRequests] = useState<ReserveRequestRow[]>([]);
   const [inCount, setInCount] = useState(0);
   const [total, setTotal] = useState(0);
   const [q, setQ] = useState("");
@@ -119,6 +131,11 @@ export function AdminReservePanel() {
           }
         }
         setPlayers(list);
+        setRequests(
+          kind === "reserve"
+            ? ((json.requests || []) as ReserveRequestRow[])
+            : []
+        );
         setInCount(
           Number(
             kind === "reserve" ? json.inReserveCount : json.inDayOffCount
@@ -193,6 +210,25 @@ export function AdminReservePanel() {
     () => pageSlice(filtered, page, RESERVE_PAGE_SIZE),
     [filtered, page]
   );
+
+  async function reviewRequest(id: string, decision: "accept" | "reject") {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch("/api/admin/reserve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId: id, decision }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Не удалось");
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Ошибка");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   function closeModal() {
     setModalOpen(false);
@@ -592,6 +628,63 @@ export function AdminReservePanel() {
         {loading ? " · загрузка…" : ""}
       </p>
       {err && !modalOpen ? <p className="form-error">{err}</p> : null}
+
+      {kind === "reserve" ? (
+        <div className="admin-table-wrap" style={{ marginTop: 12 }}>
+          <p style={{ margin: "0 0 8px" }}>
+            Заявки на резерв: <strong>{requests.length}</strong>
+          </p>
+          {requests.length === 0 ? (
+            <p className="muted" style={{ marginTop: 0 }}>
+              Новых заявок нет.
+            </p>
+          ) : (
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Ник</th>
+                <th>От</th>
+                <th>До</th>
+                <th>Причина</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {requests.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.nick}</td>
+                  <td>{row.fromLabel}</td>
+                  <td>{row.untilLabel}</td>
+                  <td title={row.reasonKey}>
+                    {row.reasonKey === "Другое"
+                      ? `Другое — ${row.reasonText}`
+                      : row.reasonText}
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className="btn"
+                      disabled={busy}
+                      onClick={() => void reviewRequest(row.id, "accept")}
+                    >
+                      Принять
+                    </button>{" "}
+                    <button
+                      type="button"
+                      className="btn-ghost"
+                      disabled={busy}
+                      onClick={() => void reviewRequest(row.id, "reject")}
+                    >
+                      Отклонить
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          )}
+        </div>
+      ) : null}
 
       <ListPager
         page={slice.page}

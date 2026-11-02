@@ -3707,6 +3707,33 @@ body:has(.profile-page) {
   margin-top: 0;
 }
 
+.absence-reason-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.absence-reason-chip {
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  background: transparent;
+  color: inherit;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.absence-reason-chip.is-on {
+  background: rgba(167, 139, 250, 0.28);
+  border-color: rgba(196, 181, 253, 0.8);
+}
+
+.absence-reason-custom {
+  margin-top: 8px;
+  width: 100%;
+}
+
 .reserve-panel-compact h2 {
   font-size: 0.88rem;
   margin: 0 0 2px;

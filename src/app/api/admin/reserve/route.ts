@@ -13,6 +13,7 @@ import {
   parseRuCalendarDate,
   formatRuDate,
 } from "@/lib/validation";
+import { personLabel } from "@/lib/actionLog";
 import { getUserRole } from "@/lib/admin";
 import type { AppRole } from "@/lib/roles";
 
@@ -179,12 +180,31 @@ export async function GET(req: Request) {
     }));
   }
 
+  const pendingRows = await prisma.reserveRequest.findMany({
+    where: { status: "PENDING" },
+    orderBy: { createdAt: "asc" },
+    include: {
+      user: { select: { id: true, nick: true, name: true, steamName: true } },
+    },
+  });
+  const requests = pendingRows.map((row) => ({
+    id: row.id,
+    userId: row.userId,
+    nick: row.user.nick || row.user.name || row.user.steamName || "игрок",
+    fromLabel: formatRuDate(row.fromAt),
+    untilLabel: formatRuDate(row.untilAt),
+    reasonKey: row.reasonKey,
+    reasonText: row.reasonText,
+    createdAt: row.createdAt.toISOString(),
+  }));
+
   return NextResponse.json({
     clanIds,
     players: unique,
     inReserveCount: unique.filter((p) => p.inReserve).length,
     total: unique.length,
     history,
+    requests,
   });
 }
 
@@ -198,6 +218,65 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => null);
+  const requestId = String((body as { requestId?: string })?.requestId || "").trim();
+  const decision = String((body as { decision?: string })?.decision || "").trim();
+  if (requestId && (decision === "accept" || decision === "reject")) {
+    const reviewer = await prisma.user.findUnique({
+      where: { steamId: gate.session!.user.steamId || "" },
+      select: { id: true, nick: true, name: true, steamName: true, steamId: true },
+    });
+    if (!reviewer) {
+      return NextResponse.json({ error: "Не найден" }, { status: 404 });
+    }
+    const request = await prisma.reserveRequest.findUnique({
+      where: { id: requestId },
+    });
+    if (!request || request.status !== "PENDING") {
+      return NextResponse.json({ error: "Заявка уже разобрана" }, { status: 404 });
+    }
+    if (decision === "reject") {
+      await prisma.reserveRequest.update({
+        where: { id: request.id },
+        data: { status: "REJECTED", reviewedAt: new Date(), reviewedById: reviewer.id },
+      });
+      await prisma.userNotice.create({
+        data: {
+          userId: request.userId,
+          dedupeKey: `reserve-reject:${request.id}`,
+          kind: "reserve",
+          title: "Заявка на резерв отклонена",
+          body: "Ваша заявка на резерв отклонена. Проверьте данные или свяжитесь с HR для уточнения.",
+        },
+      });
+      return NextResponse.json({ ok: true, decision: "reject" });
+    }
+    const reason =
+      request.reasonKey === "Другое" ? request.reasonText : request.reasonKey;
+    try {
+      await enterReserve({
+        userId: request.userId,
+        until: request.untilAt,
+        reason,
+        source: "admin",
+        actor: reviewer,
+        enteredAt: request.fromAt,
+      });
+    } catch (e) {
+      if (e instanceof Error && e.message === "reserve_min_days") {
+        return NextResponse.json(
+          { error: "В заявке меньше 4 дней" },
+          { status: 400 }
+        );
+      }
+      throw e;
+    }
+    await prisma.reserveRequest.update({
+      where: { id: request.id },
+      data: { status: "ACCEPTED", reviewedAt: new Date(), reviewedById: reviewer.id },
+    });
+    return NextResponse.json({ ok: true, decision: "accept", who: personLabel(reviewer) });
+  }
+
   const userId = String((body as { userId?: string })?.userId || "").trim();
   const untilRaw = String((body as { until?: string })?.until || "").trim();
   const fromRaw = String((body as { from?: string })?.from || "").trim();
