@@ -62,7 +62,7 @@ const KEECH_HALLOWEEN_TROPHY: ProfileMedalItem = {
   kind: "medal",
   level: 0,
   hover: "Гранат «Кровавая жатва» · Финал Halloween Season 2",
-  icon: "/bp-halloween/pomegranate-relic-v1-cutout.png?v=2",
+  icon: "/bp-halloween/pomegranate-relic-v1-cutout.png?v=3",
   source: "site",
 };
 
