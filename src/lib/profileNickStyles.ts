@@ -12,8 +12,8 @@ export const PROFILE_NICK_STYLE_OPTIONS = [
   },
   {
     id: "hw2-violet-gothic",
-    label: "Неоновая жатва",
-    tip: "Яркий неоново-зелёный ник · Награда за 15 уровень Halloween Season 2",
+    label: "Алая жатва",
+    tip: "Ярко-алый неоновый ник · Награда за 15 уровень Halloween Season 2",
     cssClass: "is-halloween-gothic",
     gate: "creator" as const,
   },

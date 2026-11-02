@@ -229,13 +229,13 @@ export const BP_S2_REWARDS: BpReward[] = [
   {
     level: 15,
     id: "hw2-nick",
-    name: "Неоновая жатва",
+    name: "Алая жатва",
     short: "Текст",
     kind: "nick",
     preview:
-      "Яркий неоново-зелёный ник — плоские чёткие буквы",
-    hover: "Неоновая жатва · ур. 15 Season 2 Halloween",
-    image: "/bp-halloween/nick-v2.jpg?v=neon1",
+      "Ярко-алый неоновый ник — плоские чёткие буквы",
+    hover: "Алая жатва · ур. 15 Season 2 Halloween",
+    image: "/bp-halloween/nick-v2.jpg?v=scarlet1",
   },
   {
     level: 20,
@@ -273,7 +273,7 @@ export function s2RewardFullImage(reward: BpReward): string {
   if (reward.id === "hw2-knife") return "/bp-halloween/knife-hook-v2-cutout.png?v=blood1";
   if (reward.id === "hw2-gun") return "/bp-halloween/weapon-ak-v2-cutout.png?v=blood1";
   if (reward.id === "hw2-trophy") return "/bp-halloween/pomegranate-relic-v1-cutout.png?v=3";
-  if (reward.id === "hw2-nick") return "/bp-halloween/nick-v2-cutout.png?v=neon1";
+  if (reward.id === "hw2-nick") return "/bp-halloween/nick-v2-cutout.png?v=scarlet1";
   return reward.image || BP_S2_IDLE_ART;
 }
 
@@ -286,7 +286,7 @@ export function s2RewardMileImage(reward: BpReward): string {
   if (reward.id === "hw2-knife") return "/bp-halloween/knife-hook-v2-cutout.png?v=blood1";
   if (reward.id === "hw2-gun") return "/bp-halloween/weapon-ak-v2-cutout.png?v=blood1";
   if (reward.id === "hw2-trophy") return "/bp-halloween/pomegranate-relic-v1-cutout.png?v=3";
-  if (reward.id === "hw2-nick") return "/bp-halloween/nick-v2-cutout.png?v=neon1";
+  if (reward.id === "hw2-nick") return "/bp-halloween/nick-v2-cutout.png?v=scarlet1";
   return reward.image || BP_S2_IDLE_ART;
 }
 

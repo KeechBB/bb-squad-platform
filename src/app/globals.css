@@ -1392,9 +1392,9 @@ body:has(.tm-sapper-page) {
   position: relative;
   display: inline-block;
   overflow: visible;
-  color: #7CFF3A;
+  color: #FF2A2A;
   background: none;
-  -webkit-text-fill-color: #7CFF3A;
+  -webkit-text-fill-color: #FF2A2A;
   -webkit-text-stroke: 0;
   font-family: var(--font-display), Oxanium, Manrope, sans-serif;
   font-size: 1.28rem;
@@ -1402,10 +1402,10 @@ body:has(.tm-sapper-page) {
   letter-spacing: 0.03em;
   line-height: 1.05;
   text-transform: none;
-  /* яркий плоский неон, без объёма — буквы читаются */
+  /* ярко-алый плоский неон, без объёма */
   text-shadow:
-    0 0 6px rgba(124, 255, 58, 0.85),
-    0 0 14px rgba(57, 255, 20, 0.45);
+    0 0 6px rgba(255, 42, 42, 0.9),
+    0 0 14px rgba(255, 20, 20, 0.5);
   transition: text-shadow 0.16s ease, color 0.16s ease;
 }
 .public-rating-nick-label.is-halloween-gothic::before,
@@ -1416,11 +1416,11 @@ body:has(.tm-sapper-page) {
   .public-rating-nick-label.is-halloween-gothic,
 .public-rating-nick-btn.has-custom-nick-style:focus-visible
   .public-rating-nick-label.is-halloween-gothic {
-  color: #A8FF66;
-  -webkit-text-fill-color: #A8FF66;
+  color: #FF5555;
+  -webkit-text-fill-color: #FF5555;
   text-shadow:
-    0 0 8px rgba(168, 255, 102, 0.95),
-    0 0 18px rgba(124, 255, 58, 0.55);
+    0 0 8px rgba(255, 85, 85, 0.95),
+    0 0 18px rgba(255, 42, 42, 0.6);
 }
 .nick-patch-mark,
 .public-rating-bp-patch-test {
@@ -10287,17 +10287,17 @@ body:has(.home-page) {
   position: relative;
   display: inline-block;
   overflow: visible;
-  color: #7CFF3A;
+  color: #FF2A2A;
   background: none;
-  -webkit-text-fill-color: #7CFF3A;
+  -webkit-text-fill-color: #FF2A2A;
   -webkit-text-stroke: 0;
   font-family: var(--font-display), Oxanium, Manrope, sans-serif;
   font-size: 1.28rem;
   font-weight: 900;
   letter-spacing: 0.03em;
   text-shadow:
-    0 0 6px rgba(124, 255, 58, 0.85),
-    0 0 14px rgba(57, 255, 20, 0.45);
+    0 0 6px rgba(255, 42, 42, 0.9),
+    0 0 14px rgba(255, 20, 20, 0.5);
 }
 
 .home-nick-label.is-halloween-gothic::before,
