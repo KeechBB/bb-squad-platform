@@ -32,8 +32,6 @@ if has_growth "$SERVED"; then
   cp -a "$SERVED" "$GOLD"
   mkdir -p "$CACHE/public"
   cp -a "$SERVED" "$NESTED"
-  bust_script "$SERVED"
-  bust_script "$NESTED"
   echo "==> growth tab OK — saved gold backup → $GOLD"
   exit 0
 fi
@@ -43,13 +41,17 @@ echo "==> WARN: served index missing «Развитие» — restoring" >&2
 restore_from() {
   local src="$1"
   if has_growth "$src"; then
-    cp -a "$src" "$SERVED"
+    python3 "$ROOT/scripts/keep_live_edits.py" apply "$SERVED" "$src"
+    if ! has_growth "$SERVED"; then
+      echo "==> kept live index — warehouse copy would roll it back" >&2
+      return 1
+    fi
     mkdir -p "$CACHE/public"
-    cp -a "$src" "$NESTED"
-    cp -a "$src" "$GOLD"
+    cp -a "$SERVED" "$NESTED"
+    cp -a "$SERVED" "$GOLD"
     bust_script "$SERVED"
     bust_script "$NESTED"
-    echo "==> restored growth index from $src"
+    echo "==> growth index is $SERVED"
     return 0
   fi
   return 1

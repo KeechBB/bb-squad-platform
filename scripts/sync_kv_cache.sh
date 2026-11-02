@@ -126,6 +126,9 @@ if command -v rsync >/dev/null 2>&1; then
     --exclude '.github/'
     --exclude 'node_modules/'
     --exclude 'app-month.js'
+    --exclude 'index.html'
+    --exclude 'app.js'
+    --exclude 'styles.css'
     --exclude 'data/training/'
     --exclude 'data/training-index.json'
     --exclude 'data/players/'
@@ -140,21 +143,21 @@ if command -v rsync >/dev/null 2>&1; then
   fi
   rsync -a --delete "${RSYNC_EXCL[@]}" "$SRC/" "$DEST/"
 else
-  # no rsync: copy over without wiping first (safer)
-  cp -a "$SRC/." "$DEST/"
+  echo "==> ERROR: rsync is required — KEEP existing $DEST" >&2
+  exit 0
 fi
 
 # Ensure served root index always has «Развитие» if any copy does.
 if ! src_has_growth "$DEST"; then
   if src_has_growth "$SRC"; then
-    cp -a "$SRC/index.html" "$DEST/index.html"
-    echo "==> restored growth index from $SRC"
+    python3 "$ROOT/scripts/keep_live_edits.py" apply "$DEST/index.html" "$SRC/index.html"
+    echo "==> growth index checked against live copy"
   elif src_has_growth "$DEST/public"; then
-    cp -a "$DEST/public/index.html" "$DEST/index.html"
-    echo "==> restored growth index from $DEST/public"
+    python3 "$ROOT/scripts/keep_live_edits.py" apply "$DEST/index.html" "$DEST/public/index.html"
+    echo "==> growth index checked against nested copy"
   elif src_has_growth "$KV_REPO/public"; then
-    cp -a "$KV_REPO/public/index.html" "$DEST/index.html"
-    echo "==> restored growth index from $KV_REPO/public"
+    python3 "$ROOT/scripts/keep_live_edits.py" apply "$DEST/index.html" "$KV_REPO/public/index.html"
+    echo "==> growth index checked against warehouse"
   fi
 fi
 # Keep nested public/index in sync with served root when root is the good one.
@@ -227,6 +230,15 @@ if [[ -d "$DEST/data" ]]; then
     done
   echo "==> mirrored month JSON data/ → public/data/ (home + pages)"
 fi
+
+# Warehouse must not roll a plaza fix back. These files stay until the
+# warehouse copy is the one we mean to publish (keep_live_edits.py follow).
+for live_name in index.html app.js styles.css app-month.js; do
+  python3 "$ROOT/scripts/keep_live_edits.py" apply "$DEST/$live_name" "$SRC/$live_name" || true
+  if [[ -f "$SRC/public/$live_name" || -f "$DEST/public/$live_name" ]]; then
+    python3 "$ROOT/scripts/keep_live_edits.py" apply "$DEST/public/$live_name" "$SRC/public/$live_name" || true
+  fi
+done
 
 # Always keep «Развитие» + other critical runtime after sync.
 bash "$ROOT/scripts/ensure_runtime_gold.sh" || true

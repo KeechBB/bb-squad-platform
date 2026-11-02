@@ -20,9 +20,9 @@ done
 if [[ -z "$SRC" ]]; then
   echo "WARN: no KV UI source — only scrub local" >&2
 else
-  echo "==> copy UI only from $SRC (training untouched)"
-  cp -a "$SRC/index.html" "$DEST/index.html"
-  cp -a "$SRC/app.js" "$DEST/app.js"
+  echo "==> copy UI only from $SRC when it is not behind the live file"
+  python3 "$ROOT/scripts/keep_live_edits.py" apply "$DEST/index.html" "$SRC/index.html"
+  python3 "$ROOT/scripts/keep_live_edits.py" apply "$DEST/app.js" "$SRC/app.js"
   # Fill missing training files from warehouse, never replace richer live ones
   if [[ -d "$SRC/data/training" ]]; then
     python3 "$ROOT/scripts/merge_train_after_kv_sync.py" "$SRC/data/training" "$DEST" || true

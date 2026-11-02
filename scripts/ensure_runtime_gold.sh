@@ -25,10 +25,9 @@ echo "==> ensure runtime gold from $GOLD"
 if ! has_growth "$CACHE/index.html"; then
   if has_growth "$GOLD/kv-ui/index.html"; then
     mkdir -p "$CACHE" "$CACHE/public" "$ROOT/data/kv-ui-backup"
-    cp -a "$GOLD/kv-ui/index.html" "$CACHE/index.html"
-    cp -a "$GOLD/kv-ui/index.html" "$CACHE/public/index.html"
-    cp -a "$GOLD/kv-ui/index.html" "$ROOT/data/kv-ui-backup/index.html"
-    echo "  restored kv-ui/index.html (growth)"
+    python3 "$ROOT/scripts/keep_live_edits.py" apply "$CACHE/index.html" "$GOLD/kv-ui/index.html"
+    python3 "$ROOT/scripts/keep_live_edits.py" apply "$CACHE/public/index.html" "$GOLD/kv-ui/index.html"
+    echo "  growth index checked against live copy"
   fi
 fi
 for f in app.js app-month.js tfs-fit.js; do
