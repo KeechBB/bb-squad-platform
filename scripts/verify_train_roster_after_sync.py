@@ -40,7 +40,14 @@ def audit(dest: Path) -> list[str]:
             if not mid or mid.endswith("-skip"):
                 continue
             status = str(row.get("status") or "done").lower()
-            if status in ("cancel", "move", "upcoming", "pending-stats", "pending"):
+            if status in (
+                "cancel",
+                "move",
+                "upcoming",
+                "pending-stats",
+                "pending",
+                "no-stats",
+            ):
                 continue
             path = players / f"{mid}.json"
             if not path.is_file():

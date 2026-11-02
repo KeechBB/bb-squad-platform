@@ -461,14 +461,16 @@ def train_roster_gap(
     if map_name:
         lines.append(f"карта: {map_name}")
     lines.append("heal: ок" if healed else "heal: не удалось — проверь pinned-лог")
+    mid = str(match_id or "").strip() or "?"
+    # Per-match dedupe. force=True used to spam every heal cron tick.
     return send(
         kind="выгрузка",
-        title="Тренировка без статы игроков",
+        title=f"Тренировка без статы игроков · {mid}",
         level="ok" if healed else "warn",
         server="TR1",
         lines=lines,
-        force=True,
-        cooldown=120,
+        force=bool(healed),
+        cooldown=7 * 86400 if not healed else 600,
     )
 
 

@@ -1311,7 +1311,8 @@ def heal_missing_player_rosters(aliases: dict[str, str] | None = None) -> int:
             if not mid or mid.endswith("-skip"):
                 continue
             status = str(row.get("status") or "done").lower()
-            if status in ("cancel", "move", "upcoming"):
+            # no-stats = already tried, no pinned log — stop retry spam
+            if status in ("cancel", "move", "upcoming", "no-stats"):
                 continue
             if _players_file_ok(mid):
                 if status in ("pending-stats", "pending"):
@@ -1362,21 +1363,22 @@ def heal_missing_player_rosters(aliases: dict[str, str] | None = None) -> int:
                     server_key=server_key,
                 )
             if doc is None:
-                row["status"] = "pending-stats"
-                note = str(row.get("note") or "")
-                tag = "нет players JSON — ждём heal"
-                if tag not in note:
-                    row["note"] = f"{note} · {tag}".strip(" ·")
+                # No pinned log / window → permanently unhealable until log appears.
+                prev = status
+                row["status"] = "no-stats"
+                row["note"] = "нет players JSON и pinned-лога — стата недоступна"
                 changed = True
-                try:
-                    import bb_alerts as AL  # noqa: WPS433
+                # Alert once when we give up (not every cron tick).
+                if prev != "no-stats":
+                    try:
+                        import bb_alerts as AL  # noqa: WPS433
 
-                    AL.train_roster_gap(
-                        match_id=mid, map_name=layer, healed=False
-                    )
-                except Exception as e:
-                    print(f"alert roster gap skip: {e}", flush=True)
-                print(f"heal FAIL {mid}: no roster (log={log_path})", flush=True)
+                        AL.train_roster_gap(
+                            match_id=mid, map_name=layer, healed=False
+                        )
+                    except Exception as e:
+                        print(f"alert roster gap skip: {e}", flush=True)
+                print(f"heal FAIL {mid}: no roster → no-stats (log={log_path})", flush=True)
                 continue
 
             try:
@@ -1637,6 +1639,7 @@ def main() -> int:
 
     cw_windows = load_cw_slot_windows()
     added = 0
+    cw_new = 0
     for m in discovered:
         start: datetime = m["start"]
         end: datetime = m["end"]
@@ -1685,12 +1688,14 @@ def main() -> int:
             ]
             skip_id = f"cw-skip-{cw_hit.get('id') or 'slot'}-{start.strftime('%H%M%S')}"
             if not any(a.get("id") == skip_id for a in auto):
+                cw_new += 1
                 auto.append(
                     {
                         "id": skip_id,
                         "map": layer,
                         "date": (start + timedelta(hours=3)).strftime("%Y-%m-%d"),
                         "log": log_path.name,
+                        "serverKey": server_key,
                         "start": start_iso,
                         "end": end.isoformat(),
                         "skip": True,
@@ -2022,7 +2027,41 @@ def main() -> int:
     if added or n_heal or n_heal_end:
         bump_cache_bust()
         publish_live_mirrors()
+    if added or cw_new:
+        _kick_growth_ladders()
     return 0
+
+
+def _kick_growth_ladders() -> None:
+    """Стрелок, медик и лёгкая труба — сразу после заливки катки, не раз в час."""
+    import subprocess
+
+    script = Path("/var/www/bb-jobs/rebuild_growth_ladders.py")
+    if not script.is_file():
+        script = HERE / "rebuild_growth_ladders.py"
+    if not script.is_file():
+        print("growth ladders skip: script missing", flush=True)
+        return
+    log_path = Path("/var/log/bb-growth-ladders.log")
+    try:
+        log_fh = log_path.open("a", encoding="utf-8")
+    except OSError:
+        log_fh = open(os.devnull, "w", encoding="utf-8")
+    cwd = "/var/www/bb-squad-platform"
+    if not Path(cwd).is_dir():
+        cwd = str(HERE)
+    subprocess.Popen(
+        [sys.executable, "-u", str(script)],
+        stdout=log_fh,
+        stderr=subprocess.STDOUT,
+        stdin=subprocess.DEVNULL,
+        start_new_session=True,
+        cwd=cwd,
+    )
+    print(
+        "growth ladders queued",
+        flush=True,
+    )
 
 
 if __name__ == "__main__":
