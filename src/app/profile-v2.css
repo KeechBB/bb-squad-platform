@@ -2948,6 +2948,16 @@ button.mail-tag {
   max-height: min(78vh, 820px);
   font-family: var(--font-body), Manrope, sans-serif;
   color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Body + «Кто будет» scroll; actions stay pinned so Delete is never buried. */
+.profile-mail-reader-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
 }
 
 .profile-mail-modal-from {
@@ -3015,6 +3025,8 @@ button.mail-tag {
   columns: 2;
   font-size: 0.95rem;
   line-height: 1.45;
+  max-height: min(28vh, 240px);
+  overflow: auto;
 }
 
 .profile-mail-cw-empty,
@@ -3039,11 +3051,23 @@ button.mail-tag {
 }
 
 .profile-mail-modal-actions {
+  flex: 0 0 auto;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   padding: 12px 20px 16px;
   border-top: 1px solid rgba(167, 139, 250, 0.14);
+  background: rgba(10, 8, 18, 0.92);
+}
+
+.profile-mail-modal-actions .btn-danger-ghost {
+  border-color: rgba(248, 113, 113, 0.55);
+  color: #fecaca;
+}
+
+.profile-mail-modal-actions .btn-danger-ghost:hover {
+  background: rgba(127, 29, 29, 0.35);
+  border-color: #f87171;
 }
 
 .admin-mail {

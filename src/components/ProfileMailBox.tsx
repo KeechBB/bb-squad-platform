@@ -176,12 +176,27 @@ export function ProfileMailBox() {
                   ×
                 </button>
               </header>
-              <div className="profile-mail-modal-body">
-                <MailBody text={open.body} />
+              <div className="profile-mail-reader-scroll">
+                <div className="profile-mail-modal-body">
+                  <MailBody text={open.body} />
+                </div>
+                {open.cwMatchId ? <CwLetterReady matchId={open.cwMatchId} /> : null}
               </div>
-              {open.cwMatchId ? <CwLetterReady matchId={open.cwMatchId} /> : null}
               <div className="profile-mail-modal-actions">
-                {open.deleted ? null : open.favorite ? (
+                {open.deleted ? (
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={busy}
+                    onClick={() => {
+                      void act(open.id, "restore");
+                      setOpen(null);
+                      setFolder("inbox");
+                    }}
+                  >
+                    Восстановить
+                  </button>
+                ) : open.favorite ? (
                   <button
                     type="button"
                     className="btn"
@@ -209,7 +224,7 @@ export function ProfileMailBox() {
                 {open.deleted ? null : (
                   <button
                     type="button"
-                    className="btn"
+                    className="btn btn-danger-ghost"
                     disabled={busy}
                     onClick={() => {
                       void act(open.id, "delete");
@@ -258,27 +273,49 @@ export function ProfileMailBox() {
       <div className="profile-mail-list" ref={listRef}>
         {slice.length ? (
           slice.map((letter) => (
-            <button
+            <div
               key={letter.id}
-              type="button"
-              className={`profile-mail-row${letter.read ? "" : " is-unread"}`}
-              onClick={() => setOpen(letter)}
+              className={`profile-mail-row${letter.read ? "" : " is-unread"}${
+                letter.deleted ? " is-trash" : ""
+              }`}
             >
-              <span className="profile-mail-copy">
-                <span
-                  className={`profile-mail-from${
-                    letter.senderKind === "developer" ? " is-dev" : ""
-                  }`}
-                >
-                  от {letter.senderLabel}
+              <button
+                type="button"
+                className="profile-mail-row-main"
+                onClick={() => setOpen(letter)}
+              >
+                <span className="profile-mail-copy">
+                  <span
+                    className={`profile-mail-from${
+                      letter.senderKind === "developer" ? " is-dev" : ""
+                    }`}
+                  >
+                    от {letter.senderLabel}
+                  </span>
+                  <span className="profile-mail-title">{letter.title}</span>
+                  {letter.daysLeft != null ? (
+                    <span className="profile-mail-purge">
+                      {purgeLabel(letter.daysLeft)}
+                    </span>
+                  ) : null}
                 </span>
-                <span className="profile-mail-title">{letter.title}</span>
-                {letter.daysLeft != null ? (
-                  <span className="profile-mail-purge">{purgeLabel(letter.daysLeft)}</span>
-                ) : null}
-              </span>
-              <MailTags tags={letter.tags || []} />
-            </button>
+                <MailTags tags={letter.tags || []} />
+              </button>
+              {letter.deleted ? (
+                <button
+                  type="button"
+                  className="profile-mail-restore"
+                  disabled={busy}
+                  title="Вернуть во входящие"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void act(letter.id, "restore");
+                  }}
+                >
+                  восстановить
+                </button>
+              ) : null}
+            </div>
           ))
         ) : (
           <p className="profile-mail-empty">Писем нет</p>
