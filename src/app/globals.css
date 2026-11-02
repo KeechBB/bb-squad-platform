@@ -21389,6 +21389,32 @@ body:has(.profile-page) {
   object-fit: cover;
   filter: none;
 }
+/* L25 гранат: крупнее в круге + кислотно-зелёный ореол гнили */
+.bp-s2-mile.is-relic .bp-s2-mile-ring {
+  width: min(198px, 100%);
+  border-color: rgba(74, 222, 128, 0.72);
+  box-shadow:
+    0 0 18px rgba(57, 255, 20, 0.28),
+    inset 0 0 22px rgba(255, 32, 64, 0.12);
+}
+.bp-s2-mile.is-relic .bp-s2-mile-ring img {
+  width: 108%;
+  height: 108%;
+  filter:
+    brightness(1.14)
+    saturate(1.2)
+    drop-shadow(0 0 8px rgba(57, 255, 20, 0.55))
+    drop-shadow(0 8px 14px rgba(255, 32, 64, 0.35));
+}
+.bp-s2-mile.is-relic.is-on .bp-s2-mile-ring,
+.bp-s2-mile.is-relic.is-hover .bp-s2-mile-ring,
+.bp-s2-mile.is-relic:hover .bp-s2-mile-ring {
+  border-color: rgba(134, 239, 172, 0.95);
+  box-shadow:
+    0 0 24px rgba(57, 255, 20, 0.45),
+    0 0 18px rgba(255, 32, 64, 0.35),
+    inset 0 -10px 24px rgba(255, 24, 56, 0.18);
+}
 .bp-s2-mile-name {
   font-family: var(--font-display);
   font-size: 1.05rem;
@@ -21525,6 +21551,14 @@ body:has(.profile-page) {
     radial-gradient(ellipse 55% 40% at 50% 42%, rgba(120, 20, 40, 0.18), transparent 70%),
     #0c0a12;
   border-color: rgba(255, 64, 80, 0.35);
+}
+.bp-s2-side-preview-art.is-relic img {
+  width: 92%;
+  height: 92%;
+  filter:
+    brightness(1.12)
+    saturate(1.15)
+    drop-shadow(0 0 10px rgba(57, 255, 20, 0.35));
 }
 .bp-s2-side-preview-art.is-relic:hover {
   background:

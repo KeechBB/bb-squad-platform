@@ -335,6 +335,7 @@ export function Season2BattlePass({
                   className={[
                     "bp-s2-mile",
                     isBg ? "is-bg" : "is-clean",
+                    r.id === "hw2-trophy" ? "is-relic" : "",
                     previewId === r.id ? "is-on" : "",
                     hoverId === r.id ? "is-hover" : "",
                   ]

@@ -257,7 +257,7 @@ export const BP_S2_REWARDS: BpReward[] = [
     preview:
       "Статуэтка за полное прохождение Season 2 — финальная награда на полке профиля",
     hover: "Гранат «Кровавая жатва» · ур. 25 Season 2 Halloween",
-    image: "/bp-halloween/pomegranate-relic-v1-cutout.png",
+    image: "/bp-halloween/pomegranate-relic-v1-cutout.png?v=2",
   },
 ];
 
@@ -272,7 +272,7 @@ export function s2RewardFullImage(reward: BpReward): string {
   if (reward.kind === "bg") return reward.image || BP_S2_IDLE_ART;
   if (reward.id === "hw2-knife") return "/bp-halloween/knife-hook-v2-cutout.png";
   if (reward.id === "hw2-gun") return "/bp-halloween/weapon-ak-v2-cutout.png";
-  if (reward.id === "hw2-trophy") return "/bp-halloween/pomegranate-relic-v1-cutout.png";
+  if (reward.id === "hw2-trophy") return "/bp-halloween/pomegranate-relic-v1-cutout.png?v=2";
   if (reward.id === "hw2-nick") return "/bp-halloween/nick-v2-cutout.png";
   return reward.image || BP_S2_IDLE_ART;
 }
@@ -285,7 +285,7 @@ export function s2RewardMileImage(reward: BpReward): string {
   if (reward.kind === "bg") return reward.image || BP_S2_IDLE_ART;
   if (reward.id === "hw2-knife") return "/bp-halloween/knife-hook-v2-cutout.png";
   if (reward.id === "hw2-gun") return "/bp-halloween/weapon-ak-v2-cutout.png";
-  if (reward.id === "hw2-trophy") return "/bp-halloween/pomegranate-relic-v1-cutout.png";
+  if (reward.id === "hw2-trophy") return "/bp-halloween/pomegranate-relic-v1-cutout.png?v=2";
   if (reward.id === "hw2-nick") return "/bp-halloween/nick-v2-cutout.png";
   return reward.image || BP_S2_IDLE_ART;
 }
