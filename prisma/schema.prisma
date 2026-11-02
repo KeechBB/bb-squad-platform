@@ -848,6 +848,12 @@ model SupportTicket {
   id          String              @id @default(cuid())
   number      Int                 @unique @default(autoincrement())
   status      SupportTicketStatus @default(OPEN)
+  /// suggestion | bug | question
+  topic       String?
+  /// Имя бота техподдержки в этом тикете (капрал Харджу и т.п.)
+  agentName   String?
+  /// Ждёт живого оператора: баг, предложение или вопрос без ответа.
+  needsOperator Boolean           @default(false)
   userId      String
   user        User                @relation("SupportTicketUser", fields: [userId], references: [id], onDelete: Cascade)
   claimedById String?

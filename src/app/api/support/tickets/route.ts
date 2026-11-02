@@ -4,10 +4,16 @@ import { prisma } from "@/lib/prisma";
 import { getUserRole } from "@/lib/admin";
 import {
   canReplySupport,
-  SUPPORT_BOT_WAITING,
+  isSupportTopic,
   SUPPORT_DISPLAY_NAME,
   SUPPORT_WELCOME,
+  supportTopicLabel,
 } from "@/lib/support";
+import {
+  afterUserSupportMessage,
+  pickSupportAgentName,
+  supportIntro,
+} from "@/lib/supportAgent";
 import {
   livePublish,
   livePublishSupportStaff,
@@ -26,9 +32,10 @@ function publicMessage(
     createdAt: Date;
     author: { nick: string | null; steamName: string | null } | null;
   },
-  viewer: "user" | "staff"
+  viewer: "user" | "staff",
+  agentName?: string | null
 ) {
-  let from = SUPPORT_DISPLAY_NAME;
+  let from = agentName || SUPPORT_DISPLAY_NAME;
   if (m.kind === "USER") {
     from = m.author?.nick || m.author?.steamName || "Игрок";
   } else if (m.kind === "STAFF") {
@@ -36,6 +43,8 @@ function publicMessage(
       viewer === "staff"
         ? m.author?.nick || m.author?.steamName || SUPPORT_DISPLAY_NAME
         : SUPPORT_DISPLAY_NAME;
+  } else if (m.kind === "BOT") {
+    from = agentName || SUPPORT_DISPLAY_NAME;
   }
   return {
     id: m.id,
@@ -43,6 +52,38 @@ function publicMessage(
     body: m.body,
     from,
     createdAt: m.createdAt.toISOString(),
+  };
+}
+
+function packTicket(
+  ticket: {
+    id: string;
+    number: number;
+    status: string;
+    topic: string | null;
+    agentName: string | null;
+    user: { nick: string | null; steamName: string | null };
+    messages: Array<{
+      id: string;
+      kind: string;
+      body: string;
+      createdAt: Date;
+      author: { nick: string | null; steamName: string | null } | null;
+    }>;
+  },
+  viewer: "user" | "staff"
+) {
+  return {
+    id: ticket.id,
+    number: ticket.number,
+    status: ticket.status,
+    topic: ticket.topic,
+    topicLabel: supportTopicLabel(ticket.topic),
+    agentName: ticket.agentName,
+    userNick: ticket.user.nick || ticket.user.steamName || "Игрок",
+    messages: ticket.messages.map((m) =>
+      publicMessage(m, viewer, ticket.agentName)
+    ),
   };
 }
 
@@ -86,11 +127,15 @@ export async function GET() {
     updatedAt: string;
     preview: string;
     waiting: boolean;
+    topicLabel: string;
   }> = [];
 
   if (staff) {
     const open = await prisma.supportTicket.findMany({
-      where: { status: "OPEN" },
+      where: {
+        status: "OPEN",
+        messages: { some: { kind: "USER" } },
+      },
       orderBy: { updatedAt: "desc" },
       take: 40,
       include: {
@@ -112,8 +157,9 @@ export async function GET() {
       number: t.number,
       userNick: t.user.nick || t.user.steamName || "Игрок",
       updatedAt: t.updatedAt.toISOString(),
+      topicLabel: supportTopicLabel(t.topic),
       preview: t.messages[0]?.body?.slice(0, 80) || "",
-      waiting: t._count.messages === 0,
+      waiting: t.needsOperator && t._count.messages === 0,
     }));
   }
 
@@ -123,15 +169,7 @@ export async function GET() {
     staff,
     welcome: SUPPORT_WELCOME,
     myNick: user.nick || user.steamName || "Игрок",
-    ticket: mine
-      ? {
-          id: mine.id,
-          number: mine.number,
-          status: mine.status,
-          userNick: mine.user.nick || mine.user.steamName || "Игрок",
-          messages: mine.messages.map((m) => publicMessage(m, viewer)),
-        }
-      : null,
+    ticket: mine ? packTicket(mine, viewer) : null,
     inbox,
   });
 }
@@ -143,99 +181,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "auth" }, { status: 401 });
   }
 
-  const body = (await req.json().catch(() => ({}))) as { text?: string };
+  const body = (await req.json().catch(() => ({}))) as {
+    text?: string;
+    topic?: string;
+  };
   const text = String(body.text || "").trim().slice(0, 2000);
-  if (!text) {
-    return NextResponse.json(
-      { ok: false, error: "empty", message: "Напишите сообщение, чтобы открыть тикет" },
-      { status: 400 }
-    );
-  }
+  const topicRaw = String(body.topic || "").trim();
 
   const existing = await prisma.supportTicket.findFirst({
     where: { userId: user.id, status: "OPEN" },
-  });
-
-  if (existing) {
-    const msg = await prisma.$transaction(async (tx) => {
-      await tx.supportTicket.update({
-        where: { id: existing.id },
-        data: { updatedAt: new Date() },
-      });
-      return tx.supportMessage.create({
-        data: {
-          ticketId: existing.id,
-          kind: "USER",
-          authorId: user.id,
-          body: text,
-        },
-        include: {
-          author: { select: { nick: true, steamName: true } },
-        },
-      });
-    });
-
-    const ticket = await prisma.supportTicket.findUniqueOrThrow({
-      where: { id: existing.id },
-      include: {
-        messages: {
-          orderBy: { createdAt: "asc" },
-          include: {
-            author: { select: { nick: true, steamName: true } },
-          },
-        },
-        user: { select: { nick: true, steamName: true } },
-      },
-    });
-
-    const nick = personLabel(user);
-    const preview = text.length > 280 ? `${text.slice(0, 280)}…` : text;
-    await writeActionLog({
-      category: "support",
-      action: "ticket_message",
-      message: `${nick} написал в тикете #${ticket.number}: «${preview}»`,
-      actorId: user.id,
-      actorNick: nick,
-      targetId: user.id,
-      targetNick: nick,
-      meta: {
-        ticketId: ticket.id,
-        ticketNumber: ticket.number,
-        kind: "USER",
-        body: text,
-        messageId: msg.id,
-      },
-    });
-
-    livePublishSupportStaff({ type: "message", ticketId: ticket.id });
-    livePublish(
-      userLiveChannel(user.id),
-      JSON.stringify({ type: "support", ticketId: ticket.id })
-    );
-
-    return NextResponse.json({
-      ok: true,
-      created: false,
-      ticket: {
-        id: ticket.id,
-        number: ticket.number,
-        status: ticket.status,
-        userNick: ticket.user.nick || ticket.user.steamName || "Игрок",
-        messages: ticket.messages.map((m) => publicMessage(m, "user")),
-      },
-    });
-  }
-
-  const ticket = await prisma.supportTicket.create({
-    data: {
-      userId: user.id,
-      messages: {
-        create: [
-          { kind: "BOT", body: SUPPORT_BOT_WAITING },
-          { kind: "USER", authorId: user.id, body: text },
-        ],
-      },
-    },
     include: {
       messages: {
         orderBy: { createdAt: "asc" },
@@ -247,27 +201,108 @@ export async function POST(req: Request) {
     },
   });
 
-  livePublishSupportStaff({ type: "ticket", ticketId: ticket.id });
-  livePublish(
-    userLiveChannel(user.id),
-    JSON.stringify({ type: "support", ticketId: ticket.id })
-  );
+  if (existing && !text) {
+    return NextResponse.json({
+      ok: true,
+      created: false,
+      ticket: packTicket(existing, "user"),
+    });
+  }
+
+  if (!existing && isSupportTopic(topicRaw) && !text) {
+    const agentName = pickSupportAgentName();
+    const ticket = await prisma.supportTicket.create({
+      data: {
+        userId: user.id,
+        topic: topicRaw,
+        agentName,
+        messages: {
+          create: [{ kind: "BOT", body: supportIntro(topicRaw, agentName) }],
+        },
+      },
+      include: {
+        messages: {
+          orderBy: { createdAt: "asc" },
+          include: {
+            author: { select: { nick: true, steamName: true } },
+          },
+        },
+        user: { select: { nick: true, steamName: true } },
+      },
+    });
+    livePublishSupportStaff({ type: "ticket", ticketId: ticket.id });
+    livePublish(
+      userLiveChannel(user.id),
+      JSON.stringify({ type: "support", ticketId: ticket.id })
+    );
+    const nick = personLabel(user);
+    await writeActionLog({
+      category: "support",
+      action: "ticket_open",
+      message: `${nick} открыл тикет #${ticket.number} (${supportTopicLabel(topicRaw)})`,
+      actorId: user.id,
+      actorNick: nick,
+      targetId: user.id,
+      targetNick: nick,
+      meta: {
+        ticketId: ticket.id,
+        ticketNumber: ticket.number,
+        topic: topicRaw,
+        agentName,
+      },
+    });
+    return NextResponse.json({
+      ok: true,
+      created: true,
+      ticket: packTicket(ticket, "user"),
+    });
+  }
+
+  if (!text) {
+    return NextResponse.json(
+      { ok: false, error: "topic", message: "Сначала выберите тему тикета" },
+      { status: 400 }
+    );
+  }
+
+  if (!existing) {
+    return NextResponse.json(
+      { ok: false, error: "topic", message: "Сначала выберите тему тикета" },
+      { status: 400 }
+    );
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.supportTicket.update({
+      where: { id: existing.id },
+      data: { updatedAt: new Date() },
+    });
+    await tx.supportMessage.create({
+      data: {
+        ticketId: existing.id,
+        kind: "USER",
+        authorId: user.id,
+        body: text,
+      },
+    });
+  });
+
+  const follow = await afterUserSupportMessage({ ticketId: existing.id });
+  const ticket = await prisma.supportTicket.findUniqueOrThrow({
+    where: { id: existing.id },
+    include: {
+      messages: {
+        orderBy: { createdAt: "asc" },
+        include: {
+          author: { select: { nick: true, steamName: true } },
+        },
+      },
+      user: { select: { nick: true, steamName: true } },
+    },
+  });
 
   const nick = personLabel(user);
   const preview = text.length > 280 ? `${text.slice(0, 280)}…` : text;
-  await writeActionLog({
-    category: "support",
-    action: "ticket_open",
-    message: `${nick} открыл тикет #${ticket.number}`,
-    actorId: user.id,
-    actorNick: nick,
-    targetId: user.id,
-    targetNick: nick,
-    meta: { ticketId: ticket.id, ticketNumber: ticket.number },
-  });
-  void alertSupportTicket({ number: ticket.number, nick, preview }).catch((err) => {
-    console.error("telegram ticket alert failed", err);
-  });
   await writeActionLog({
     category: "support",
     action: "ticket_message",
@@ -283,16 +318,21 @@ export async function POST(req: Request) {
       body: text,
     },
   });
+  if (follow.alert) {
+    void alertSupportTicket({ number: ticket.number, nick, preview }).catch((err) => {
+      console.error("telegram ticket alert failed", err);
+    });
+  }
+
+  livePublishSupportStaff({ type: "message", ticketId: ticket.id });
+  livePublish(
+    userLiveChannel(user.id),
+    JSON.stringify({ type: "support", ticketId: ticket.id })
+  );
 
   return NextResponse.json({
     ok: true,
-    created: true,
-    ticket: {
-      id: ticket.id,
-      number: ticket.number,
-      status: ticket.status,
-      userNick: ticket.user.nick || ticket.user.steamName || "Игрок",
-      messages: ticket.messages.map((m) => publicMessage(m, "user")),
-    },
+    created: false,
+    ticket: packTicket(ticket, "user"),
   });
 }

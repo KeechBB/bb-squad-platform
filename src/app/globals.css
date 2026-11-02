@@ -15343,11 +15343,43 @@ body {
 }
 
 .support-msg-from {
-  display: block;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--violet);
   margin-bottom: 3px;
+}
+
+.support-msg-time {
+  font-weight: 500;
+  font-size: 0.68rem;
+  color: var(--muted, #9a93a8);
+  white-space: nowrap;
+}
+
+.support-topics {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.support-topic-btn {
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(167, 139, 250, 0.4);
+  background: rgba(167, 139, 250, 0.08);
+  color: inherit;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.support-topic-btn:hover:not(:disabled) {
+  background: rgba(167, 139, 250, 0.2);
 }
 
 .support-msg p {

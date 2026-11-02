@@ -23,6 +23,8 @@ type Ticket = {
   number: number;
   status: string;
   userNick: string;
+  topic?: string | null;
+  topicLabel?: string;
   messages: Msg[];
 };
 
@@ -33,6 +35,7 @@ type InboxItem = {
   updatedAt: string;
   preview: string;
   waiting: boolean;
+  topicLabel?: string;
 };
 
 type PanelMode = "closed" | "minimized" | "open";
@@ -47,8 +50,23 @@ type PanelGeom = {
 const WELCOME_FALLBACK =
   "Появились вопросы по навигации сайта? Задай — тебе ответят и помогут в короткие сроки.";
 
-const DRAFT_HINT =
-  "Напишите вопрос ниже — тикет откроется автоматически после первого сообщения.";
+const TOPICS = [
+  { id: "suggestion", label: "Предложения по улучшению" },
+  { id: "bug", label: "Нашел БАГ" },
+  { id: "question", label: "Вопросы" },
+] as const;
+
+function formatMsgTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat("ru-RU", {
+    timeZone: "Europe/Moscow",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(d);
+}
 
 const GEOM_KEY = "bb-support-chat-geom";
 const MIN_W = 280;
@@ -443,33 +461,32 @@ export function SupportChatWidget() {
       await sendToTicket(ticket.id, text.trim());
       return;
     }
-    // Первое сообщение пользователя → создаёт тикет
-    const body = text.trim();
-    setText("");
+    setError("Сначала выберите тему");
+    return;
+  }
+
+  async function pickTopic(topic: string) {
+    if (busy || !loggedIn) return;
     setBusy(true);
     setError(null);
     try {
       const res = await fetch("/api/support/tickets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: body }),
+        body: JSON.stringify({ topic }),
       });
       const data = (await res.json()) as {
         ok?: boolean;
         ticket?: Ticket;
-        error?: string;
       };
       if (!res.ok || !data.ok || !data.ticket) {
-        setError("Не отправилось");
-        setText(body);
+        setError("Не открылось");
         return;
       }
       setTicket(data.ticket);
       setView("chat");
-      await refresh();
     } catch {
       setError("Сеть недоступна");
-      setText(body);
     } finally {
       setBusy(false);
     }
@@ -648,7 +665,13 @@ export function SupportChatWidget() {
                     ? `Тикет #${activeTicket.number}`
                     : "Техподдержка"}
               </strong>
-              <p>{welcome}</p>
+              <p>
+                {activeTicket?.topicLabel
+                  ? activeTicket.topicLabel
+                  : activeTicket
+                    ? welcome
+                    : "Сначала выбери тему тикета."}
+              </p>
             </div>
             <div className="support-head-actions">
               {staff ? (
@@ -698,6 +721,9 @@ export function SupportChatWidget() {
                     <span className="support-inbox-top">
                       <b>#{item.number}</b>
                       <span>{item.userNick}</span>
+                      {item.topicLabel ? (
+                        <span className="muted">{item.topicLabel}</span>
+                      ) : null}
                       {item.waiting ? (
                         <em className="support-badge">ждёт</em>
                       ) : null}
@@ -728,9 +754,18 @@ export function SupportChatWidget() {
                   </div>
                 ) : null}
                 {showingUserDraft && loggedIn ? (
-                  <div className="support-msg support-msg-bot">
-                    <span className="support-msg-from">Тех. поддержка</span>
-                    <p>{DRAFT_HINT}</p>
+                  <div className="support-topics">
+                    {TOPICS.map((topic) => (
+                      <button
+                        key={topic.id}
+                        type="button"
+                        className="support-topic-btn"
+                        disabled={busy}
+                        onClick={() => void pickTopic(topic.id)}
+                      >
+                        {topic.label}
+                      </button>
+                    ))}
                   </div>
                 ) : null}
                 {(activeTicket?.messages || []).map((m) => (
@@ -738,7 +773,14 @@ export function SupportChatWidget() {
                     key={m.id}
                     className={`support-msg support-msg-${m.kind.toLowerCase()}`}
                   >
-                    <span className="support-msg-from">{m.from}</span>
+                    <span className="support-msg-from">
+                      <span>{m.from}</span>
+                      {m.createdAt ? (
+                        <time className="support-msg-time" dateTime={m.createdAt}>
+                          {formatMsgTime(m.createdAt)}
+                        </time>
+                      ) : null}
+                    </span>
                     <p>{m.body}</p>
                   </div>
                 ))}
@@ -755,7 +797,7 @@ export function SupportChatWidget() {
                     Войти через Steam
                   </button>
                 </div>
-              ) : (
+              ) : showingUserDraft ? null : (
               <form
                 className="support-compose"
                 onSubmit={(e) => {
@@ -769,9 +811,7 @@ export function SupportChatWidget() {
                   placeholder={
                     staff && staffTicket
                       ? "Ответ от Тех. поддержки…"
-                      : showingUserDraft
-                        ? "Напишите вопрос…"
-                        : "Ваш вопрос…"
+                      : "Напишите сообщение…"
                   }
                   maxLength={2000}
                   disabled={busy || (staff && view === "inbox" && !staffTicket)}

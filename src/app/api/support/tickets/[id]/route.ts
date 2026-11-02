@@ -5,7 +5,10 @@ import { getUserRole } from "@/lib/admin";
 import {
   canReplySupport,
   SUPPORT_DISPLAY_NAME,
+  supportTopicLabel,
 } from "@/lib/support";
+import { afterUserSupportMessage } from "@/lib/supportAgent";
+import { alertSupportTicket } from "@/lib/bbAlerts";
 import {
   livePublish,
   livePublishSupportStaff,
@@ -24,9 +27,10 @@ function publicMessage(
     createdAt: Date;
     author: { nick: string | null; steamName: string | null } | null;
   },
-  viewer: "user" | "staff"
+  viewer: "user" | "staff",
+  agentName?: string | null
 ) {
-  let from = SUPPORT_DISPLAY_NAME;
+  let from = agentName || SUPPORT_DISPLAY_NAME;
   if (m.kind === "USER") {
     from = m.author?.nick || m.author?.steamName || "Игрок";
   } else if (m.kind === "STAFF") {
@@ -34,6 +38,8 @@ function publicMessage(
       viewer === "staff"
         ? m.author?.nick || m.author?.steamName || SUPPORT_DISPLAY_NAME
         : SUPPORT_DISPLAY_NAME;
+  } else if (m.kind === "BOT") {
+    from = agentName || SUPPORT_DISPLAY_NAME;
   }
   return {
     id: m.id,
@@ -95,8 +101,13 @@ export async function GET(_req: Request, ctx: Ctx) {
       id: ticket.id,
       number: ticket.number,
       status: ticket.status,
+      topic: ticket.topic,
+      topicLabel: supportTopicLabel(ticket.topic),
+      agentName: ticket.agentName,
       userNick: ticket.user.nick || ticket.user.steamName || "Игрок",
-      messages: ticket.messages.map((m) => publicMessage(m, viewer)),
+      messages: ticket.messages.map((m) =>
+        publicMessage(m, viewer, ticket.agentName)
+      ),
     },
   });
 }
@@ -158,6 +169,12 @@ export async function POST(req: Request, ctx: Ctx) {
     });
   });
 
+  let followAlert = false;
+  if (msgKind === "USER") {
+    const follow = await afterUserSupportMessage({ ticketId: id });
+    followAlert = follow.alert;
+  }
+
   livePublish(
     supportTicketChannel(id),
     JSON.stringify({ type: "message", ticketId: id })
@@ -171,6 +188,15 @@ export async function POST(req: Request, ctx: Ctx) {
   const actorNick = personLabel(user);
   const ownerNick = personLabel(ticket.user);
   const preview = text.length > 280 ? `${text.slice(0, 280)}…` : text;
+  if (followAlert) {
+    void alertSupportTicket({
+      number: ticket.number,
+      nick: ownerNick,
+      preview,
+    }).catch((err) => {
+      console.error("telegram ticket alert failed", err);
+    });
+  }
   if (msgKind === "STAFF") {
     await writeActionLog({
       category: "support",
@@ -208,7 +234,7 @@ export async function POST(req: Request, ctx: Ctx) {
   const viewer = staff ? "staff" : "user";
   return NextResponse.json({
     ok: true,
-    message: publicMessage(msg, isOwner ? "user" : viewer),
+    message: publicMessage(msg, isOwner ? "user" : viewer, ticket.agentName),
   });
 }
 
