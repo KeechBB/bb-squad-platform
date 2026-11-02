@@ -1402,11 +1402,8 @@ body:has(.tm-sapper-page) {
   letter-spacing: 0.03em;
   line-height: 1.05;
   text-transform: none;
-  /* ярко-алый плоский неон, без объёма */
-  text-shadow:
-    0 0 6px rgba(255, 42, 42, 0.9),
-    0 0 14px rgba(255, 20, 20, 0.5);
-  transition: text-shadow 0.16s ease, color 0.16s ease;
+  text-shadow: none;
+  transition: color 0.16s ease;
 }
 .public-rating-nick-label.is-halloween-gothic::before,
 .public-rating-nick-label.is-halloween-gothic::after {
@@ -1418,9 +1415,7 @@ body:has(.tm-sapper-page) {
   .public-rating-nick-label.is-halloween-gothic {
   color: #FF5555;
   -webkit-text-fill-color: #FF5555;
-  text-shadow:
-    0 0 8px rgba(255, 85, 85, 0.95),
-    0 0 18px rgba(255, 42, 42, 0.6);
+  text-shadow: none;
 }
 .nick-patch-mark,
 .public-rating-bp-patch-test {
@@ -10295,9 +10290,7 @@ body:has(.home-page) {
   font-size: 1.28rem;
   font-weight: 900;
   letter-spacing: 0.03em;
-  text-shadow:
-    0 0 6px rgba(255, 42, 42, 0.9),
-    0 0 14px rgba(255, 20, 20, 0.5);
+  text-shadow: none;
 }
 
 .home-nick-label.is-halloween-gothic::before,
