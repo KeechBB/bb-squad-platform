@@ -119,9 +119,97 @@ function norm(raw: string): string {
 type Faq = {
   hits: (q: string) => number;
   answer: (name: string) => string;
+  /** Small-talk: answer only, no «помог?» loop. */
+  chitchat?: boolean;
 };
 
 const FAQ: Faq[] = [
+  {
+    hits: (q) =>
+      score(q, [
+        "как дела",
+        "как ты",
+        "че как",
+        "чё как",
+        "как жизнь",
+        "как сам",
+        "как пожива",
+        "how are you",
+        "whats up",
+        "what s up",
+      ]),
+    chitchat: true,
+    answer: (name) =>
+      pick([
+        `${name}: в строю, рация чистая. У тебя как? Если по сайту — спрашивай.`,
+        `${name}: нормально, на посту. Готов по меню и разделам — кидай вопрос.`,
+        `${name}: держусь, спасибо. Чем помочь по сайту или клану?`,
+      ]),
+  },
+  {
+    hits: (q) =>
+      score(q, [
+        "настроен",
+        "как настроен",
+        "что настроени",
+        "всё хорошо",
+        "все хорошо",
+        "всё ок",
+        "все ок",
+        "всё норм",
+        "все норм",
+      ]),
+    chitchat: true,
+    answer: (name) =>
+      pick([
+        `${name}: настроение боевое, спасибо. Если всё ок у тебя — можно и тикет закрыть, или спроси по сайту.`,
+        `${name}: у меня порядок. Рад слышать. Нужна вкладка или раздел — пиши.`,
+        `${name}: держу ровно. Хорошо, что у тебя тоже. Вопрос по меню — я тут.`,
+      ]),
+  },
+  {
+    hits: (q) =>
+      score(q, ["погод", "на улице", "дождь", "снег", "холодно", "жарко"]),
+    chitchat: true,
+    answer: (name) =>
+      pick([
+        `${name}: с рации погоды не видно — на сервере всегда ясно, в Squad смотря какая карта. По сайту могу точнее.`,
+        `${name}: прогноз не веду, только навигацию. На Mutaha песок, на Goose Bay зябко — а у тебя что нужно найти?`,
+        `${name}: погодой не заведую. Зато знаю, где КВ, ТМ и профиль. Спрашивай.`,
+      ]),
+  },
+  {
+    hits: (q) =>
+      score(q, [
+        "что делаешь",
+        "чем занят",
+        "ты тут",
+        "ты на связи",
+        "скучно",
+        "кто ты",
+        "ты бот",
+        "ты человек",
+        "живой",
+      ]),
+    chitchat: true,
+    answer: (name) =>
+      pick([
+        `${name}: на посту техподдержки BlackBerry. Базовые вопросы по сайту закрываю сам, сложное — зову оператора.`,
+        `${name}: я помощник на рации, не живой админ. Меню, вкладки, «где что» — ко мне. Если не справлюсь, позову человека.`,
+        `${name}: сижу на линии. Скучно не будет, если спросишь про раздел сайта.`,
+      ]),
+  },
+  {
+    hits: (q) =>
+      score(q, ["спасибо", "благодар", "респект", "красава", "молодец"]),
+    chitchat: true,
+    answer: (name) =>
+      pick([
+        `${name}: на связи. Если вопрос закрыт — нажми «Закрыть тикет» внизу.`,
+        `${name}: пожалуйста. Можно закрывать тикет кнопкой внизу, если всё ясно.`,
+        `${name}: принято. Закрой тикет, когда закончишь — так очередь короче.`,
+      ]),
+  },
   {
     hits: (q) =>
       score(q, [
@@ -319,7 +407,12 @@ export function answerSupportQuestion(
   text: string,
   name: string,
   operatorAlreadyCalled: boolean
-): { answer: string; callOperator: boolean; matched: boolean } {
+): {
+  answer: string;
+  callOperator: boolean;
+  matched: boolean;
+  chitchat?: boolean;
+} {
   const q = ` ${norm(text)} `;
   if (q.trim().length < 2) {
     return {
@@ -330,9 +423,14 @@ export function answerSupportQuestion(
   }
   if (isGreeting(q.trim())) {
     return {
-      answer: `${name} на связи. Привет. Пиши вопрос по сайту или клану — отвечу, если это есть в уставе. Иначе позову оператора.`,
+      answer: pick([
+        `${name} на связи. Привет. Как дела? По сайту и клану — спрашивай, отвечу или позову оператора.`,
+        `${name}: привет. Рация открыта. Нужна вкладка или просто поздороваться — я тут.`,
+        `${name} на посту. Здорово. Кидай вопрос по меню — или просто напиши, как сам.`,
+      ]),
       callOperator: false,
       matched: true,
+      chitchat: true,
     };
   }
   let best = 0;
@@ -351,7 +449,12 @@ export function answerSupportQuestion(
       matched: false,
     };
   }
-  return { answer: hit.answer(name), callOperator: false, matched: true };
+  return {
+    answer: hit.answer(name),
+    callOperator: false,
+    matched: true,
+    chitchat: Boolean(hit.chitchat),
+  };
 }
 
 type MsgRow = { id: string; kind: string; body: string };
@@ -473,7 +576,9 @@ export async function afterUserSupportMessage(opts: {
         }
       } else if (decided.matched && !decided.callOperator) {
         await postBot(ticket.id, decided.answer);
-        await postBot(ticket.id, SUPPORT_HELP_CHECK, 120);
+        if (!decided.chitchat) {
+          await postBot(ticket.id, SUPPORT_HELP_CHECK, 120);
+        }
       } else if (checks >= 2 || ticket.needsOperator) {
         await postBot(ticket.id, escalate(name, ticket.needsOperator));
         callOperator = !ticket.needsOperator;
@@ -494,7 +599,8 @@ export async function afterUserSupportMessage(opts: {
 
   const decided = answerSupportQuestion(last.body, name, ticket.needsOperator);
   await postBot(ticket.id, decided.answer);
-  if (decided.matched && !decided.callOperator) {
+  // Small-talk («как дела», погода) — без «помог?». Навигация — всегда спрашиваем.
+  if (decided.matched && !decided.callOperator && !decided.chitchat) {
     await postBot(ticket.id, SUPPORT_HELP_CHECK, 120);
   }
   callOperator = decided.callOperator;
