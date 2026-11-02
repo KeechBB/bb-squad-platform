@@ -1522,44 +1522,60 @@ body:has(.tm-sapper-page) {
     opacity: 1;
   }
 }
-/* Halloween S2: нож и АК в крови — красно-зелёный неон при наведении */
-.nick-patch-mark[data-patch-id="hw2-knife-hook"] .nick-patch-mark-art,
-.nick-patch-mark[data-patch-id="hw2-ak-pumpkin"] .nick-patch-mark-art {
+/* Halloween S2: нож — мягкое бледно-зелёное свечение */
+.nick-patch-mark[data-patch-id="hw2-knife-hook"] .nick-patch-mark-art {
   filter:
-    drop-shadow(0 0 3px rgba(255, 48, 64, 0.7))
-    drop-shadow(0 0 8px rgba(57, 255, 20, 0.45));
-  animation: hw2-blood-patch-glow 3.2s ease-in-out infinite;
+    drop-shadow(0 0 4px rgba(186, 220, 170, 0.42))
+    drop-shadow(0 0 10px rgba(168, 206, 152, 0.28));
+  animation: hw2-knife-pale-glow 3.4s ease-in-out infinite;
 }
 .nick-patch-mark[data-patch-id="hw2-knife-hook"]:hover .nick-patch-mark-art,
 .nick-patch-mark[data-patch-id="hw2-knife-hook"]:focus-visible .nick-patch-mark-art,
-.nick-patch-mark[data-patch-id="hw2-knife-hook"].is-active .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="hw2-knife-hook"].is-active .nick-patch-mark-art {
+  animation: none;
+  transform: scaleX(-1) scale(1.1);
+  filter:
+    drop-shadow(0 6px 10px rgba(170, 210, 155, 0.55))
+    drop-shadow(0 0 12px rgba(186, 220, 170, 0.48))
+    drop-shadow(0 0 22px rgba(152, 196, 140, 0.32))
+    brightness(1.12)
+    saturate(1.06);
+  opacity: 1;
+}
+@keyframes hw2-knife-pale-glow {
+  0%,
+  100% {
+    filter:
+      drop-shadow(0 0 4px rgba(186, 220, 170, 0.36))
+      drop-shadow(0 0 10px rgba(168, 206, 152, 0.22));
+    opacity: 0.92;
+  }
+  50% {
+    filter:
+      drop-shadow(0 0 6px rgba(198, 228, 182, 0.52))
+      drop-shadow(0 0 14px rgba(168, 206, 152, 0.34));
+    opacity: 1;
+  }
+}
+/* Halloween S2: АК — то же мягкое бледно-зелёное свечение */
+.nick-patch-mark[data-patch-id="hw2-ak-pumpkin"] .nick-patch-mark-art {
+  filter:
+    drop-shadow(0 0 4px rgba(186, 220, 170, 0.42))
+    drop-shadow(0 0 10px rgba(168, 206, 152, 0.28));
+  animation: hw2-knife-pale-glow 3.4s ease-in-out infinite;
+}
 .nick-patch-mark[data-patch-id="hw2-ak-pumpkin"]:hover .nick-patch-mark-art,
 .nick-patch-mark[data-patch-id="hw2-ak-pumpkin"]:focus-visible .nick-patch-mark-art,
 .nick-patch-mark[data-patch-id="hw2-ak-pumpkin"].is-active .nick-patch-mark-art {
   animation: none;
   transform: scaleX(-1) scale(1.1);
   filter:
-    drop-shadow(0 8px 12px rgba(255, 24, 56, 0.95))
-    drop-shadow(0 16px 26px rgba(220, 20, 60, 0.75))
-    drop-shadow(0 0 14px rgba(57, 255, 20, 0.7))
-    brightness(1.28)
-    saturate(1.15);
+    drop-shadow(0 6px 10px rgba(170, 210, 155, 0.55))
+    drop-shadow(0 0 12px rgba(186, 220, 170, 0.48))
+    drop-shadow(0 0 22px rgba(152, 196, 140, 0.32))
+    brightness(1.12)
+    saturate(1.06);
   opacity: 1;
-}
-@keyframes hw2-blood-patch-glow {
-  0%,
-  100% {
-    filter:
-      drop-shadow(0 0 3px rgba(255, 48, 64, 0.62))
-      drop-shadow(0 0 8px rgba(57, 255, 20, 0.38));
-    opacity: 0.9;
-  }
-  50% {
-    filter:
-      drop-shadow(0 0 6px rgba(255, 64, 80, 0.95))
-      drop-shadow(0 0 14px rgba(57, 255, 20, 0.65));
-    opacity: 1;
-  }
 }
 
 .nick-patch-mark[data-patch-id="creator-orange-phantom"] {
@@ -21429,7 +21445,53 @@ body:has(.profile-page) {
   object-fit: cover;
   filter: none;
 }
-/* L5/L20 нож и АК в крови — красно-зелёный ореол */
+/* L5 нож — мягкий бледно-зелёный ореол */
+.bp-s2-mile.is-blood-knife .bp-s2-mile-ring {
+  border-color: rgba(186, 220, 170, 0.48);
+  box-shadow:
+    0 0 14px rgba(168, 206, 152, 0.22),
+    0 0 8px rgba(186, 220, 170, 0.18);
+}
+.bp-s2-mile.is-blood-knife .bp-s2-mile-ring img {
+  filter:
+    brightness(1.06)
+    saturate(1.04)
+    drop-shadow(0 0 8px rgba(186, 220, 170, 0.4))
+    drop-shadow(0 0 12px rgba(152, 196, 140, 0.22));
+}
+.bp-s2-mile.is-blood-knife.is-on .bp-s2-mile-ring,
+.bp-s2-mile.is-blood-knife.is-hover .bp-s2-mile-ring,
+.bp-s2-mile.is-blood-knife:hover .bp-s2-mile-ring {
+  border-color: rgba(198, 228, 182, 0.72);
+  box-shadow:
+    0 0 18px rgba(168, 206, 152, 0.36),
+    0 0 12px rgba(186, 220, 170, 0.28),
+    inset 0 -8px 18px rgba(152, 196, 140, 0.1);
+}
+.bp-s2-side-preview-art.is-blood-knife img {
+  filter:
+    brightness(1.06)
+    saturate(1.04)
+    drop-shadow(0 8px 12px rgba(168, 206, 152, 0.35))
+    drop-shadow(0 0 10px rgba(186, 220, 170, 0.28));
+}
+.bp-s2-side-preview-art.is-blood-knife:hover {
+  background:
+    radial-gradient(ellipse 80% 58% at 50% 82%, rgba(152, 196, 140, 0.22), transparent 70%),
+    radial-gradient(ellipse 55% 40% at 50% 40%, rgba(186, 220, 170, 0.12), transparent 72%),
+    #0c0a12;
+  box-shadow:
+    0 0 20px rgba(168, 206, 152, 0.28),
+    inset 0 -18px 30px rgba(152, 196, 140, 0.08);
+}
+.bp-s2-side-preview-art.is-blood-knife:hover img {
+  filter:
+    brightness(1.1)
+    saturate(1.06)
+    drop-shadow(0 10px 14px rgba(168, 206, 152, 0.45))
+    drop-shadow(0 0 14px rgba(186, 220, 170, 0.38));
+}
+/* L20 АК в крови — красно-зелёный ореол */
 .bp-s2-mile.is-blood .bp-s2-mile-ring {
   border-color: rgba(255, 64, 80, 0.55);
   box-shadow:
