@@ -1364,20 +1364,10 @@ def heal_missing_player_rosters(aliases: dict[str, str] | None = None) -> int:
                 )
             if doc is None:
                 # No pinned log / window → permanently unhealable until log appears.
-                prev = status
+                # Silent: alerting here spammed Telegram for dozens of old October holes.
                 row["status"] = "no-stats"
                 row["note"] = "нет players JSON и pinned-лога — стата недоступна"
                 changed = True
-                # Alert once when we give up (not every cron tick).
-                if prev != "no-stats":
-                    try:
-                        import bb_alerts as AL  # noqa: WPS433
-
-                        AL.train_roster_gap(
-                            match_id=mid, map_name=layer, healed=False
-                        )
-                    except Exception as e:
-                        print(f"alert roster gap skip: {e}", flush=True)
                 print(f"heal FAIL {mid}: no roster → no-stats (log={log_path})", flush=True)
                 continue
 

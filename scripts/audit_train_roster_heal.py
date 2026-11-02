@@ -62,7 +62,7 @@ def audit_gaps(train: Path) -> list[dict]:
             if not mid or mid.endswith("-skip"):
                 continue
             status = str(row.get("status") or "done").lower()
-            if status in ("cancel", "move", "upcoming"):
+            if status in ("cancel", "move", "upcoming", "no-stats"):
                 continue
             if S._players_file_ok(mid):
                 continue
