@@ -272,7 +272,5 @@ export async function saveTournamentBet(userId: string, body: unknown) {
     create: { tournamentId: ACTIVE_TOURNAMENT.id, userId, ...data },
     update: data,
   });
-  const { kickTournamentBetArchive } = await import("@/lib/tournamentBetArchive");
-  kickTournamentBetArchive();
   return { ok: true as const };
 }
