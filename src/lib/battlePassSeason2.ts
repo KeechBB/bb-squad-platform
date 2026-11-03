@@ -240,7 +240,7 @@ export const BP_S2_REWARDS: BpReward[] = [
     preview:
       "Металлический алый ник — как Aurum, но в красных тонах",
     hover: "Алая жатва · ур. 15 Season 2 Halloween",
-    image: "/bp-halloween/nick-v2.jpg?v=scarlet4",
+    image: "/bp-halloween/nick-v2.jpg?v=scarlet5",
   },
   {
     level: 20,
@@ -278,7 +278,7 @@ export function s2RewardFullImage(reward: BpReward): string {
   if (reward.id === "hw2-knife") return "/bp-halloween/knife-hook-v2-cutout.png?v=blood1";
   if (reward.id === "hw2-gun") return "/bp-halloween/weapon-ak-v2-cutout.png?v=blood1";
   if (reward.id === "hw2-trophy") return "/bp-halloween/pomegranate-relic-v1-cutout.png?v=3";
-  if (reward.id === "hw2-nick") return "/bp-halloween/nick-v2-cutout.png?v=scarlet4";
+  if (reward.id === "hw2-nick") return "/bp-halloween/nick-v2-cutout.png?v=scarlet5";
   return reward.image || BP_S2_IDLE_ART;
 }
 
@@ -291,7 +291,7 @@ export function s2RewardMileImage(reward: BpReward): string {
   if (reward.id === "hw2-knife") return "/bp-halloween/knife-hook-v2-cutout.png?v=blood1";
   if (reward.id === "hw2-gun") return "/bp-halloween/weapon-ak-v2-cutout.png?v=blood1";
   if (reward.id === "hw2-trophy") return "/bp-halloween/pomegranate-relic-v1-cutout.png?v=3";
-  if (reward.id === "hw2-nick") return "/bp-halloween/nick-v2-cutout.png?v=scarlet4";
+  if (reward.id === "hw2-nick") return "/bp-halloween/nick-v2-cutout.png?v=scarlet5";
   return reward.image || BP_S2_IDLE_ART;
 }
 

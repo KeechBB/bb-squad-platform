@@ -382,6 +382,7 @@ export function Season2BattlePass({
                     "bp-s2-mile",
                     isBg ? "is-bg" : "is-clean",
                     r.id === "hw2-trophy" ? "is-relic" : "",
+                    r.id === "hw2-nick" ? "is-nick" : "",
                     r.id === "hw2-knife" || r.id === "hw2-gun"
                       ? "is-blood-knife"
                       : "",
