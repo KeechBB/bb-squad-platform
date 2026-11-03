@@ -22,6 +22,7 @@ import {
   type BetTeam,
   type BetsPayload,
 } from "@/lib/tournamentBetSlip";
+import { playerPath } from "@/lib/playerPath";
 
 const KEY_REL = path.join("data", "tournaments", "fruit-strike-s1-bet-key.json");
 
@@ -97,7 +98,7 @@ async function loadTeams(): Promise<BetTeam[]> {
     const players: BetPlayer[] = (entry?.players || []).map((p) => ({
       userId: p.user.id,
       nick: p.user.nick || p.user.steamId,
-      href: p.user.nick ? `/players/${encodeURIComponent(p.user.nick)}` : null,
+      href: p.user.steamId ? playerPath(p.user.steamId) : null,
       slot: p.slot === "SUB" ? "SUB" : "STARTER",
     }));
     return {
@@ -119,7 +120,9 @@ export async function tournamentBetsPayload(viewer: {
     loadTeams(),
     prisma.tournamentBet.findMany({
       where: { tournamentId: ACTIVE_TOURNAMENT.id },
-      include: { user: { select: { id: true, nick: true, steamName: true } } },
+      include: {
+        user: { select: { id: true, nick: true, steamName: true, steamId: true } },
+      },
     }),
     loadAnswerKey(),
     loadFruitStrikeLive(),
@@ -128,15 +131,15 @@ export async function tournamentBetsPayload(viewer: {
   const answerKey = reveal.open ? reveal.answers : null;
   const locked = betsClosed(ACTIVE_TOURNAMENT.playDate);
   const mineRow = viewer ? bets.find((b) => b.user.id === viewer.id) : undefined;
-  const graded = gradeBetSlip(EMPTY_BET_SLIP, answerKey).graded;
+  const graded = gradeBetSlip(EMPTY_BET_SLIP, answerKey, reveal.accept).graded;
   const board = bets
     .map((row) => {
       const slip = slipFromRow(row);
-      const score = gradeBetSlip(slip, answerKey);
+      const score = gradeBetSlip(slip, answerKey, reveal.accept);
       const nick = row.user.nick || row.user.steamName || "игрок";
       return {
         nick,
-        href: row.user.nick ? `/players/${encodeURIComponent(row.user.nick)}` : null,
+        href: row.user.steamId ? playerPath(row.user.steamId) : null,
         filled: betFilledCount(slip),
         correct: score.correct,
         points: score.correct * BET_POINTS,
@@ -269,5 +272,7 @@ export async function saveTournamentBet(userId: string, body: unknown) {
     create: { tournamentId: ACTIVE_TOURNAMENT.id, userId, ...data },
     update: data,
   });
+  const { kickTournamentBetArchive } = await import("@/lib/tournamentBetArchive");
+  kickTournamentBetArchive();
   return { ok: true as const };
 }

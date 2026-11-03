@@ -9,10 +9,11 @@ export function RegisterForm() {
   const router = useRouter();
   const { data: session, update } = useSession();
   const [name, setName] = useState("");
-  const [nick, setNick] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const steamNick = session?.user?.steamName || "";
 
   const previewAge = useMemo(
     () => (birthDate.length === 10 ? ageFromBirthDate(birthDate) : null),
@@ -29,7 +30,6 @@ export function RegisterForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
-          nick,
           birthDate,
         }),
       });
@@ -60,16 +60,11 @@ export function RegisterForm() {
         <input value={session?.user?.steamId || ""} readOnly disabled />
       </label>
       <label className="field">
-        <span>Ник</span>
-        <input
-          value={nick}
-          onChange={(e) => setNick(e.target.value)}
-          placeholder="Keech"
-          maxLength={24}
-          required
-        />
+        <span>Ник в Steam</span>
+        <input value={steamNick || "—"} readOnly disabled />
         <span className="field-hint">
-          Это ваш игровой никнейм. Буквы (латиница или кириллица), цифры, символы и пробелы, 2–24.
+          Берётся из Steam автоматически. Если сменишь ник в Steam — на сайте
+          обновится после следующего входа.
         </span>
       </label>
       <label className="field">

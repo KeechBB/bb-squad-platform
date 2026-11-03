@@ -123,6 +123,7 @@ export default async function ClanPage({ params }: Props) {
       name: string | null;
       avatarUrl: string | null;
       steamName: string | null;
+      steamId?: string | null;
     };
   }> = [];
 
@@ -163,6 +164,7 @@ export default async function ClanPage({ params }: Props) {
                 name: true,
                 avatarUrl: true,
                 steamName: true,
+                steamId: true,
               },
             },
           },

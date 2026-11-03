@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { notFound, redirect } from "next/navigation";
+import { notFound, permanentRedirect, redirect } from "next/navigation";
 import Link from "next/link";
 import { ProfilePageClient } from "@/components/ProfilePageClient";
 import { readStoredProfileView } from "@/lib/profileViewSnapshot";
@@ -30,39 +30,96 @@ export default async function PlayerProfilePage({ params }: Props) {
   if (!session.user.profileComplete) redirect("/register");
 
   const { nick: raw } = await params;
-  const nick = decodeURIComponent(raw).trim();
-  if (!nick) notFound();
+  const param = decodeURIComponent(raw).trim();
+  if (!param) notFound();
+
+  const { isSteamIdParam, playerPath } = await import("@/lib/playerPath");
+  const {
+    collisionBySiteNick,
+    resolveProfileAccountNick,
+  } = await import("@/lib/nickCollisions");
 
   // Синтетические «главы» чужих кланов (7656119900001…) — не живые аккаунты;
   // для них показываем guest-профиль со статуй с табло.
   const EXTERNAL_LEADER_STEAM_PREFIX = "7656119900001";
-  const user = await prisma.user.findFirst({
-    where: {
-      nick: { equals: nick, mode: "insensitive" },
-      profileComplete: true,
-      NOT: { steamId: { startsWith: EXTERNAL_LEADER_STEAM_PREFIX } },
-    },
-    include: {
-      clanMemberships: {
-        include: {
-          clan: {
-            select: {
-              id: true,
-              name: true,
-              tag: true,
-              logoUrl: true,
-              isExternal: true,
-            },
+  const userInclude = {
+    clanMemberships: {
+      include: {
+        clan: {
+          select: {
+            id: true,
+            name: true,
+            tag: true,
+            logoUrl: true,
+            isExternal: true,
           },
-          title: { select: { name: true } },
         },
+        title: { select: { name: true } },
       },
     },
-  });
+  } as const;
+
+  // Канон URL: /players/<steamId>. Старый /players/<nick> → 301 на steamId.
+  let user =
+    isSteamIdParam(param)
+      ? await prisma.user.findFirst({
+          where: {
+            steamId: param,
+            profileComplete: true,
+            NOT: { steamId: { startsWith: EXTERNAL_LEADER_STEAM_PREFIX } },
+          },
+          include: userInclude,
+        })
+      : null;
+
+  if (!user && !isSteamIdParam(param)) {
+    const collision = collisionBySiteNick(param);
+    const accountNick = resolveProfileAccountNick(param);
+    user =
+      (collision?.steamId
+        ? await prisma.user.findFirst({
+            where: {
+              steamId: collision.steamId,
+              profileComplete: true,
+              NOT: { steamId: { startsWith: EXTERNAL_LEADER_STEAM_PREFIX } },
+            },
+            include: userInclude,
+          })
+        : null) ||
+      (await prisma.user.findFirst({
+        where: {
+          nick: accountNick,
+          profileComplete: true,
+          NOT: { steamId: { startsWith: EXTERNAL_LEADER_STEAM_PREFIX } },
+        },
+        include: userInclude,
+      })) ||
+      (await prisma.user.findFirst({
+        where: {
+          nick: { equals: accountNick, mode: "insensitive" },
+          profileComplete: true,
+          NOT: { steamId: { startsWith: EXTERNAL_LEADER_STEAM_PREFIX } },
+        },
+        include: userInclude,
+      }));
+    if (user?.steamId) {
+      permanentRedirect(playerPath(user.steamId));
+    }
+  }
+
+  const nick = user?.nick || param;
 
   if (!user) {
-    const identity = await resolveGuestPlayerIdentity(nick);
-    const displayNick0 = identity.nick || nick;
+    const identity = await resolveGuestPlayerIdentity(param);
+    // Гость с известным Steam → канон URL тоже по steamId
+    if (
+      !isSteamIdParam(param) &&
+      identity.steamIds.length === 1 &&
+      identity.steamIds[0]
+    ) {
+      permanentRedirect(playerPath(identity.steamIds[0]));
+    }
+    const displayNick0 = identity.nick || param;
     const primarySteam = identity.steamIds[0] || null;
 
     const [enemy, training, hits] = await Promise.all([

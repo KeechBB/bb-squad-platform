@@ -5,14 +5,13 @@ import { prisma } from "@/lib/prisma";
 import {
   ageFromBirthDate,
   isValidName,
-  isValidNick,
-  normalizeNick,
   parseBirthDate,
 } from "@/lib/validation";
 import { assignRegNoIfNeeded } from "@/lib/regNo";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
 import { attachOpponentClanOnRegister } from "@/lib/opponentClan";
 import { alertNewRegistration } from "@/lib/bbAlerts";
+import { allocateUniqueSteamNick } from "@/lib/steamDisplayNick";
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -26,18 +25,8 @@ export async function POST(req: Request) {
   }
 
   const name = String((body as { name?: string }).name ?? "").trim();
-  const nick = normalizeNick(String((body as { nick?: string }).nick ?? ""));
   const birthRaw = String((body as { birthDate?: string }).birthDate ?? "").trim();
 
-  if (!isValidNick(nick)) {
-    return NextResponse.json(
-      {
-        error:
-          "Ник: буквы (лат/кирилл), цифры, символы и пробелы, длина 2–24 (это игровой никнейм)",
-      },
-      { status: 400 }
-    );
-  }
   if (!isValidName(name)) {
     return NextResponse.json(
       { error: "Имя: от 2 до 40 символов" },
@@ -57,24 +46,25 @@ export async function POST(req: Request) {
     );
   }
 
-  const taken = await prisma.user.findFirst({
-    where: {
-      nick,
-      NOT: { steamId: session.user.steamId },
+  const me = await prisma.user.findUnique({
+    where: { steamId: session.user.steamId },
+    select: {
+      id: true,
+      profileComplete: true,
+      steamName: true,
+      steamId: true,
     },
   });
-  if (taken) {
-    return NextResponse.json(
-      { error: "Этот ник уже занят" },
-      { status: 409 }
-    );
+  if (!me) {
+    return NextResponse.json({ error: "Пользователь не найден" }, { status: 404 });
   }
 
-  const existing = await prisma.user.findUnique({
-    where: { steamId: session.user.steamId },
-    select: { id: true, profileComplete: true },
-  });
-  const wasIncomplete = existing ? !existing.profileComplete : true;
+  const nick = await allocateUniqueSteamNick(
+    me.steamId,
+    me.steamName || session.user.steamName
+  );
+
+  const wasIncomplete = !me.profileComplete;
 
   const user = await prisma.user.update({
     where: { steamId: session.user.steamId },
@@ -100,7 +90,6 @@ export async function POST(req: Request) {
       meta: { regNo, steamId: user.steamId },
     });
 
-    // PB1-сессии, уже записанные до регистрации (userId null) → привязать к аккаунту.
     try {
       await prisma.squadServerSession.updateMany({
         where: { steamId: user.steamId, userId: null },
@@ -110,7 +99,6 @@ export async function POST(req: Request) {
       console.error("attach orphan sessions failed", err);
     }
 
-    // Дозалить посещаемость/сессии из логов за дни до регистрации (коллектор).
     try {
       const existingJob = await prisma.squadLogBackfillJob.findFirst({
         where: {
@@ -133,7 +121,6 @@ export async function POST(req: Request) {
       console.error("backfill enqueue failed", err);
     }
 
-    // Чужой клан с КВ: если ник/steam уже в pending — сразу в карточке клана.
     try {
       const joined = await attachOpponentClanOnRegister(user.id);
       if (joined.joined && joined.tag) {

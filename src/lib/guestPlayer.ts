@@ -36,7 +36,7 @@ function nickMatches(a: string, b: string): boolean {
   return Boolean(ca && cb && ca === cb);
 }
 
-/** Резолв ника → Steam(ы) + опциональный userId (не синтетический глава). */
+/** Резолв ника или steamId → Steam(ы) + опциональный userId (не синтетический глава). */
 export async function resolveGuestPlayerIdentity(
   nickRaw: string
 ): Promise<GuestPlayerIdentity> {
@@ -45,6 +45,37 @@ export async function resolveGuestPlayerIdentity(
   if (!nick) return empty;
 
   const steamSet = new Set<string>();
+
+  // Прямой steamId в URL
+  if (/^765\d{14,17}$/.test(nick)) {
+    const sid = normalizeSteamId(nick) || nick;
+    steamSet.add(sid);
+    const bySteam = await prisma.user.findFirst({
+      where: {
+        steamId: sid,
+        profileComplete: true,
+        NOT: { steamId: { startsWith: EXTERNAL_LEADER_STEAM_PREFIX } },
+      },
+      select: { id: true, steamId: true, nick: true },
+    });
+    if (bySteam) {
+      return {
+        nick: bySteam.nick || nick,
+        steamIds: [sid],
+        userId: bySteam.id,
+      };
+    }
+    const lastNick = await prisma.squadServerSession.findFirst({
+      where: { steamId: sid },
+      orderBy: { joinedAt: "desc" },
+      select: { nickAtJoin: true },
+    });
+    return {
+      nick: lastNick?.nickAtJoin || nick,
+      steamIds: [sid],
+      userId: null,
+    };
+  }
 
   const user = await prisma.user.findFirst({
     where: {

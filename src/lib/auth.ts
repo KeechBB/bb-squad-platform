@@ -44,6 +44,13 @@ const callbacks: NextAuthOptions["callbacks"] = {
           ...(builtinRole ? { role: builtinRole } : {}),
         },
       });
+      // Display nick = текущий Steam persona (у зарегистрированных).
+      try {
+        const { syncUserNickFromSteam } = await import("@/lib/steamDisplayNick");
+        await syncUserNickFromSteam(steamId);
+      } catch (syncErr) {
+        console.error("steam nick sync failed", syncErr);
+      }
     } catch (err) {
       // NextAuth кладёт текст ошибки в Location — перевод строки ломает Headers.set
       console.error("steam signIn upsert failed", err);

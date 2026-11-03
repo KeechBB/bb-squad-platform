@@ -1,9 +1,8 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { ageFromBirthDate, formatBirthDateInput } from "@/lib/validation";
 import {
   formatDiscordDisplay,
   formatTelegramDisplay,
@@ -13,9 +12,6 @@ import { ProfileAccountCard, type ProfileClanLink } from "@/components/ProfileAc
 type Props = {
   initial: {
     nick: string;
-    name: string;
-    birthDate: string | null;
-    age: number | null;
     discordTag: string | null;
     discordId: string | null;
     telegram: string | null;
@@ -28,23 +24,10 @@ type Props = {
   adminLink?: ReactNode;
 };
 
-function birthToInput(isoOrRu: string | null): string {
-  if (!isoOrRu) return "";
-  if (/^\d{2}\.\d{2}\.\d{4}$/.test(isoOrRu)) return isoOrRu;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(isoOrRu)) {
-    const [y, m, d] = isoOrRu.split("-");
-    return `${d}.${m}.${y}`;
-  }
-  return "";
-}
-
 export function ProfileEditForm({ initial, adminLink }: Props) {
   const router = useRouter();
   const { update } = useSession();
   const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(initial.name);
-  const [nick, setNick] = useState(initial.nick);
-  const [birthDate, setBirthDate] = useState(birthToInput(initial.birthDate));
   const [discord, setDiscord] = useState(
     formatDiscordDisplay(initial.discordTag, initial.discordId) ||
       (initial.discordId ? initial.discordId : "")
@@ -57,18 +40,10 @@ export function ProfileEditForm({ initial, adminLink }: Props) {
   const [ok, setOk] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const previewAge = useMemo(
-    () => (birthDate.length === 10 ? ageFromBirthDate(birthDate) : null),
-    [birthDate]
-  );
-
   function cancel() {
     setEditing(false);
     setError("");
     setOk("");
-    setName(saved.name);
-    setNick(saved.nick);
-    setBirthDate(birthToInput(saved.birthDate));
     setDiscord(
       formatDiscordDisplay(saved.discordTag, saved.discordId) ||
         (saved.discordId ? saved.discordId : "")
@@ -86,9 +61,6 @@ export function ProfileEditForm({ initial, adminLink }: Props) {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name,
-          nick,
-          birthDate,
           discord,
           telegram,
         }),
@@ -99,39 +71,23 @@ export function ProfileEditForm({ initial, adminLink }: Props) {
         return;
       }
       const next = {
-        nick: data.user.nick as string,
-        name: data.user.name as string,
-        birthDate: data.user.birthDate as string | null,
-        age: data.user.age as number | null,
+        nick: (data.user.nick as string) || saved.nick,
         discordTag: data.user.discordTag as string | null,
         discordId: data.user.discordId as string | null,
         telegram: data.user.telegram as string | null,
         steamId: saved.steamId,
         steamName: saved.steamName,
       };
-      setSaved(next);
-      setNick(next.nick);
-      setName(next.name);
-      setBirthDate(birthToInput(next.birthDate));
+      setSaved({ ...saved, ...next });
       setDiscord(
         formatDiscordDisplay(next.discordTag, next.discordId) ||
           (next.discordId ? next.discordId : "")
       );
       setTelegram(formatTelegramDisplay(next.telegram).replace(/^@/, "") || "");
       await update({
-        name: next.name,
         nick: next.nick,
-        age: next.age ?? undefined,
       });
-      if (data.nickChanged) {
-        setOk(
-          data.aliasOk === false
-            ? `Ник сменён на «${next.nick}». Статистика может подтянуть старый ник позже — напиши капитану, если цифры не сойдутся.`
-            : `Ник сменён на «${next.nick}». Статистика тренировок и КВ переедет со старого ника.`
-        );
-      } else {
-        setOk("Сохранено");
-      }
+      setOk("Сохранено");
       setEditing(false);
       router.refresh();
     } catch {
@@ -150,9 +106,6 @@ export function ProfileEditForm({ initial, adminLink }: Props) {
               nick: saved.nick,
               regNo: initial.regNo ?? null,
               siteRole: initial.siteRole || "Игрок",
-              name: saved.name,
-              age: saved.age,
-              birthDate: saved.birthDate,
               discordTag: saved.discordTag,
               discordId: saved.discordId,
               telegram: saved.telegram,
@@ -162,7 +115,7 @@ export function ProfileEditForm({ initial, adminLink }: Props) {
             }}
             headAction={
               <button type="button" className="btn ghost" onClick={() => setEditing(true)}>
-                Сменить ник / анкету
+                Изменить анкету
               </button>
             }
           />
@@ -176,43 +129,11 @@ export function ProfileEditForm({ initial, adminLink }: Props) {
           </div>
           <form className="form profile-edit-form" onSubmit={onSubmit}>
           <label className="field">
-            <span>Игровой ник</span>
-            <input
-              value={nick}
-              onChange={(e) => setNick(e.target.value)}
-              maxLength={24}
-              required
-              autoComplete="nickname"
-            />
+            <span>Игровой ник (Steam)</span>
+            <input value={saved.nick} readOnly disabled />
             <span className="field-hint">
-              Сменить можно в любой момент (2–24 символа). Старый ник останется
-              алиасом — стата и профиль не потеряются.
-            </span>
-          </label>
-          <label className="field">
-            <span>Имя</span>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              maxLength={40}
-              required
-            />
-          </label>
-          <label className="field">
-            <span>Дата рождения</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              autoComplete="bday"
-              placeholder="ДД.ММ.ГГГГ"
-              value={birthDate}
-              onChange={(e) => setBirthDate(formatBirthDateInput(e.target.value))}
-              maxLength={10}
-              required
-            />
-            <span className="field-hint">
-              ДД.ММ.ГГГГ
-              {previewAge != null ? ` · ${previewAge} лет` : " · возраст 14–99"}
+              Берётся из Steam. Чтобы сменить — поменяй persona name в Steam и
+              зайди на сайт заново.
             </span>
           </label>
           <label className="field">

@@ -34,6 +34,7 @@ import { ClanAvgHitmap } from "@/components/ClanAvgHitmap";
 import { ClanProfileEdit } from "@/components/ClanProfileEdit";
 import { SitePresenceBadge } from "@/components/SitePresenceBadge";
 import { subscribeLive } from "@/lib/liveClient";
+import { playerPathFromUser } from "@/lib/playerPath";
 
 type Member = {
   id: string;
@@ -46,6 +47,7 @@ type Member = {
     name: string | null;
     avatarUrl: string | null;
     steamName: string | null;
+    steamId?: string | null;
     reserveUntil?: string | null;
     reserveReason?: string | null;
     updatedAt?: string | null;
@@ -98,6 +100,7 @@ type JoinRequest = {
     name: string | null;
     avatarUrl: string | null;
     steamName: string | null;
+    steamId?: string | null;
   };
 };
 
@@ -1081,7 +1084,7 @@ export function ClanDetailClient({
                   {joinRequests.map((r) => (
                     <li key={r.id} className="invite-row">
                       <div>
-                        <Link href={`/players/${encodeURIComponent(r.user.nick || r.user.id)}`}>
+                        <Link href={playerPathFromUser(r.user)}>
                           {r.user.nick || r.user.steamName || "Игрок"}
                         </Link>
                         <span className="muted" style={{ marginLeft: 8 }}>
@@ -1290,7 +1293,7 @@ export function ClanDetailClient({
                               {m.user.nick ? (
                                 <Link
                                   className="player-nick-link"
-                                  href={`/players/${encodeURIComponent(m.user.nick)}`}
+                                  href={playerPathFromUser(m.user)}
                                 >
                                   {m.user.nick}
                                 </Link>
@@ -1735,7 +1738,7 @@ export function ClanDetailClient({
                               {m.user.nick ? (
                                 <Link
                                   className="player-nick-link"
-                                  href={`/players/${encodeURIComponent(m.user.nick)}`}
+                                  href={playerPathFromUser(m.user)}
                                 >
                                   {nick}
                                 </Link>

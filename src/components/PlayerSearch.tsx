@@ -29,11 +29,12 @@ export function PlayerSearch() {
   const [empty, setEmpty] = useState(false);
 
   const go = useCallback(
-    (nick: string) => {
+    (hit: Hit) => {
       setOpen(false);
       setQ("");
       setHits([]);
-      router.push(`/players/${encodeURIComponent(nick)}`);
+      const id = hit.steamId || hit.nick;
+      router.push(`/players/${encodeURIComponent(id)}`);
     },
     [router]
   );
@@ -108,7 +109,7 @@ export function PlayerSearch() {
     if (e.key === "Enter") {
       e.preventDefault();
       const pick = hits[active] || hits[0];
-      if (pick) go(pick.nick);
+      if (pick) go(pick);
     }
   };
 
@@ -158,7 +159,7 @@ export function PlayerSearch() {
                     : "player-search-item"
                 }
                 onMouseEnter={() => setActive(i)}
-                onClick={() => go(h.nick)}
+                onClick={() => go(h)}
               >
                 {h.avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element

@@ -5,13 +5,10 @@ import { prisma } from "@/lib/prisma";
 import {
   ageFromBirthDate,
   isValidName,
-  isValidNick,
-  normalizeNick,
   parseBirthDate,
 } from "@/lib/validation";
 import { parseDiscordInput, parseTelegramInput } from "@/lib/social";
 import { livePublish, userLiveChannel } from "@/lib/liveBus";
-import { recordNickRenameAlias } from "@/lib/tiersAliases";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,35 +33,34 @@ export async function PATCH(req: Request) {
 
   const b = body as {
     name?: string;
-    nick?: string;
     birthDate?: string;
     discord?: string;
     telegram?: string;
   };
 
-  const name = String(b.name ?? "").trim();
-  const nick = normalizeNick(String(b.nick ?? ""));
-  const birthRaw = String(b.birthDate ?? "").trim();
   const discordRaw = String(b.discord ?? "").trim();
   const telegramRaw = String(b.telegram ?? "").trim();
+  const nameRaw = b.name == null ? "" : String(b.name).trim();
+  const birthRaw = b.birthDate == null ? "" : String(b.birthDate).trim();
 
-  if (!isValidNick(nick)) {
-    return NextResponse.json(
-      { error: "Ник: буквы (лат/кирилл), цифры, символы и пробелы, 2–24" },
-      { status: 400 }
-    );
-  }
-  if (!isValidName(name)) {
-    return NextResponse.json({ error: "Имя: от 2 до 40 символов" }, { status: 400 });
-  }
-
-  const age = ageFromBirthDate(birthRaw);
-  const birthDate = parseBirthDate(birthRaw);
-  if (age == null || !birthDate) {
-    return NextResponse.json(
-      { error: "Дата рождения: ДД.ММ.ГГГГ, возраст 14–99" },
-      { status: 400 }
-    );
+  let name = me.name || "";
+  let age = me.age;
+  let birthDate = me.birthDate;
+  if (nameRaw || birthRaw) {
+    if (!isValidName(nameRaw)) {
+      return NextResponse.json({ error: "Имя: от 2 до 40 символов" }, { status: 400 });
+    }
+    const nextAge = ageFromBirthDate(birthRaw);
+    const nextBirth = parseBirthDate(birthRaw);
+    if (nextAge == null || !nextBirth) {
+      return NextResponse.json(
+        { error: "Дата рождения: ДД.ММ.ГГГГ, возраст 14–99" },
+        { status: 400 }
+      );
+    }
+    name = nameRaw;
+    age = nextAge;
+    birthDate = nextBirth;
   }
 
   const discord = parseDiscordInput(discordRaw);
@@ -76,26 +72,11 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: telegram.error }, { status: 400 });
   }
 
-  const nickTaken = await prisma.user.findFirst({
-    where: {
-      nick: { equals: nick, mode: "insensitive" },
-      NOT: { id: me.id },
-    },
-  });
-  if (nickTaken) {
-    return NextResponse.json({ error: "Этот ник уже занят" }, { status: 409 });
-  }
-
-  const prevNick = String(me.nick || "").trim();
-  const nickChanged =
-    Boolean(prevNick) &&
-    prevNick.localeCompare(nick, undefined, { sensitivity: "accent" }) !== 0;
-
+  // Ник только из Steam (см. syncUserNickFromSteam) — PATCH его не меняет.
   const user = await prisma.user.update({
     where: { id: me.id },
     data: {
       name,
-      nick,
       age,
       birthDate,
       discordTag: discord.tag,
@@ -104,29 +85,15 @@ export async function PATCH(req: Request) {
     },
   });
 
-  let aliasOk: boolean | null = null;
-  if (nickChanged) {
-    const alias = await recordNickRenameAlias(prevNick, nick);
-    aliasOk = alias.ok;
-    if (!alias.ok) {
-      console.warn("[profile] nick alias write failed:", alias.error, alias.written);
-    }
-  }
-
   livePublish(userLiveChannel(user.id), JSON.stringify({ type: "profile" }));
 
   return NextResponse.json({
     ok: true,
-    nickChanged,
-    aliasOk,
+    nickChanged: false,
+    aliasOk: null,
     user: {
       id: user.id,
-      name: user.name,
       nick: user.nick,
-      age: user.age,
-      birthDate: user.birthDate
-        ? `${String(user.birthDate.getUTCDate()).padStart(2, "0")}.${String(user.birthDate.getUTCMonth() + 1).padStart(2, "0")}.${user.birthDate.getUTCFullYear()}`
-        : null,
       discordTag: user.discordTag,
       discordId: user.discordId,
       telegram: user.telegram,
