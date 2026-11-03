@@ -1,50 +1,8 @@
 /** Варианты фона профиля (файлы в /public/profile-bgs/). */
 
 export const PROFILE_BG_OPTIONS = [
-  { id: "01", file: "variant-01.jpg", label: "Вариант 1" },
   { id: "02", file: "variant-02.jpg", label: "Вариант 2" },
-  { id: "03", file: "variant-03.jpg", label: "Вариант 3" },
-  { id: "04", file: "variant-04.jpg", label: "Вариант 4" },
-  { id: "05", file: "variant-05.jpg", label: "Вариант 5" },
   { id: "06", file: "variant-06.jpg", label: "Вариант 6" },
-  { id: "07", file: "variant-07.jpg", label: "Вариант 7" },
-  { id: "anime-01", file: "anime-squad-01.jpg", label: "Anime Squad 1" },
-  { id: "anime-02", file: "anime-squad-02.jpg", label: "Anime Squad 2" },
-  {
-    id: "girls-01",
-    file: "anime-squad-girls-01.jpg",
-    label: "Anime Squad Girls 1",
-  },
-  {
-    id: "girls-02",
-    file: "anime-squad-girls-02.jpg",
-    label: "Anime Squad Girls 2",
-  },
-  { id: "cats-01", file: "anime-cats-01.jpg", label: "Anime Cats" },
-  { id: "wolves-01", file: "anime-wolves-01.jpg", label: "Anime Wolves" },
-  {
-    id: "trucks-01",
-    file: "profile-bg-semi-trucks-01.jpg",
-    label: "Фуры",
-  },
-  {
-    id: "creator-keech",
-    file: "profile-bg-site-creator-keech.jpg",
-    label: "Создатель сайта",
-    gate: "creator",
-  },
-  {
-    id: "creator-tournament-01",
-    file: "profile-bg-keech-gold-tournament-01.jpg",
-    label: "Keech · Турнирное золото I",
-    gate: "creator",
-  },
-  {
-    id: "creator-tournament-03",
-    file: "profile-bg-keech-gold-tournament-03.jpg",
-    label: "Keech · Турнирное золото III",
-    gate: "creator",
-  },
   {
     id: "creator-royal-core",
     file: "profile-bg-keech-blackberry-royal-core.jpg",
@@ -61,6 +19,30 @@ export const PROFILE_BG_OPTIONS = [
     id: "hw2-night-harvest",
     file: "halloween-s2-night-harvest.jpg",
     label: "Halloween S2 · Ночной урожай",
+    gate: "creator",
+  },
+  {
+    id: "hw2-night-harvest-a",
+    file: "halloween-s2-night-harvest-opt-a.jpg",
+    label: "Halloween S2 · A · Тропа тыкв",
+    gate: "creator",
+  },
+  {
+    id: "hw2-night-harvest-b",
+    file: "halloween-s2-night-harvest-opt-b.jpg",
+    label: "Halloween S2 · B · Токсичный FOB",
+    gate: "creator",
+  },
+  {
+    id: "hw2-night-harvest-c",
+    file: "halloween-s2-night-harvest-opt-c.jpg",
+    label: "Halloween S2 · C · Алый урожай",
+    gate: "creator",
+  },
+  {
+    id: "hw2-night-harvest-d",
+    file: "halloween-s2-night-harvest-opt-d.jpg",
+    label: "Halloween S2 · D · Неоновое болото",
     gate: "creator",
   },
   {
@@ -98,7 +80,12 @@ export function profileBgChoicesFor(opts: {
   return PROFILE_BG_OPTIONS.filter((opt) => {
     const gate = gateOf(opt);
     if (gate === "public") return true;
-    if (gate === "creator") return opts.steamId === SITE_CREATOR_STEAM_ID;
+    if (gate === "creator") {
+      if (opt.id === "creator-fruit-strike-place3-v3" && unlocks.has(opt.id)) {
+        return true;
+      }
+      return opts.steamId === SITE_CREATOR_STEAM_ID;
+    }
     if (gate === "bp-l5") {
       return (
         unlocks.has(opt.id) ||
