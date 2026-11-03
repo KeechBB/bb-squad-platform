@@ -352,10 +352,7 @@ export function battlePassLeaderboardTop10(
 export function battlePassStatusNote(state: BpSeasonState | null): string {
   const base = "Участвуют только пользователи, прошедшие регистрацию.";
   if (isBattlePassSeason2State(state)) {
-    if (!state?.cutoverAfterMatchId) {
-      return `${base} Season 2 Halloween · подсчёт включается со следующей карты на Фруктовом Саде.`;
-    }
-    return `${base} Season 2 Halloween · 04.11–30.11 · 25 уровней. Считаем матчи после старта сезона.`;
+    return base;
   }
   const finale = state?.l20Finale;
   if (finale?.mode === "closest" && finale.nick) {
