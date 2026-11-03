@@ -22,30 +22,6 @@ export const PROFILE_BG_OPTIONS = [
     gate: "creator",
   },
   {
-    id: "hw2-night-harvest-a",
-    file: "halloween-s2-night-harvest-side-a.jpg",
-    label: "Halloween S2 · A · Боковые тыквы",
-    gate: "creator",
-  },
-  {
-    id: "hw2-night-harvest-b",
-    file: "halloween-s2-night-harvest-side-b.jpg",
-    label: "Halloween S2 · B · Алые края",
-    gate: "creator",
-  },
-  {
-    id: "hw2-night-harvest-c",
-    file: "halloween-s2-night-harvest-side-c.jpg",
-    label: "Halloween S2 · C · Туманный центр",
-    gate: "creator",
-  },
-  {
-    id: "hw2-night-harvest-d",
-    file: "halloween-s2-night-harvest-side-d.jpg",
-    label: "Halloween S2 · D · Болотная рамка",
-    gate: "creator",
-  },
-  {
     id: "bp-l5-gold",
     file: "profile-bg-keech-gold-tournament-02.jpg",
     label: "Турнирное золото II",
@@ -127,6 +103,11 @@ export function profileBgLabel(id: ProfileBgId): string {
 /** Старые id → актуальные (после смены награды L5). */
 const PROFILE_BG_ALIASES: Record<string, ProfileBgId> = {
   "creator-tournament-02": "bp-l5-gold",
+  // временные A–D → финальный «Туманный центр»
+  "hw2-night-harvest-a": "hw2-night-harvest",
+  "hw2-night-harvest-b": "hw2-night-harvest",
+  "hw2-night-harvest-c": "hw2-night-harvest",
+  "hw2-night-harvest-d": "hw2-night-harvest",
 };
 
 export function normalizeProfileBg(v: unknown): ProfileBgId | null {

@@ -8,8 +8,9 @@
 import type { BpLevel, BpReward } from "@/lib/battlePass";
 
 /**
- * Те же типы, что у сезона 1, но лестница до 25 и цифры ниже.
- * Финал — 10 убийств за матч, без связки «20 киллов + ревы + 0 смертей».
+ * Лестница до 25. Ур. 1–5 — мягкий вход; дальше гринды и техника нарастают.
+ * Пустыня (скор): Al Basrah / Mutaha / Tallil / Fallujah — в тексте задания
+ * конкретные карты не светим.
  */
 export const BP_S2_LEVELS: BpLevel[] = [
   {
@@ -52,30 +53,31 @@ export const BP_S2_LEVELS: BpLevel[] = [
   {
     level: 6,
     title: "Нокаут",
-    task: "5 ноков за один матч",
-    target: 5,
+    task: "6 ноков за один матч",
+    target: 6,
     unit: "ноков",
   },
   {
     level: 7,
     title: "Очередь",
-    task: "5 убийств за один матч",
-    target: 5,
+    task: "6 убийств за один матч",
+    target: 6,
     unit: "убийств",
   },
   {
     level: 8,
-    title: "Носилки",
-    task: "5 ревайвов за один матч",
+    title: "Пехотки",
+    task: "Уничтожить 5 пехоток (накопительно на уровне)",
+    hint: "Лёгкая техника: logi / транспорт / лёгкие вооружённые (не MRAP, не БТР/БМП, не танк)",
     target: 5,
-    unit: "ревайвов",
+    unit: "пехоток",
   },
   {
     level: 9,
-    title: "Колесо",
-    task: "1 уничтоженная техника за один матч",
-    target: 1,
-    unit: "техники",
+    title: "Носилки",
+    task: "6 ревайвов за один матч",
+    target: 6,
+    unit: "ревайвов",
   },
   {
     level: 10,
@@ -87,32 +89,34 @@ export const BP_S2_LEVELS: BpLevel[] = [
   },
   {
     level: 11,
-    title: "Громче",
-    task: "8 ноков за один матч",
-    target: 8,
-    unit: "ноков",
+    title: "Полевой госпиталь",
+    task: "50 ревайвов (накопительно на уровне)",
+    hint: "Сумма ревов со всех матчей, пока открыт уровень",
+    target: 50,
+    unit: "ревайвов",
   },
   {
     level: 12,
-    title: "Mutaha",
-    task: "3 убийства на Mutaha за один матч",
-    target: 3,
-    unit: "убийств",
+    title: "Пустыня",
+    task: "Сыграть 5 пустынных карт (накопительно на уровне)",
+    hint: "Скор: Al Basrah / Mutaha / Tallil / Fallujah · любая комбинация · матч ≥80%",
+    target: 5,
+    unit: "карт",
   },
   {
     level: 13,
-    title: "Серия бинтов",
-    task: "≥5 ревайвов в каждом из 2 матчей подряд",
-    hint: "Срыв серии → сброс 0/2",
-    target: 2,
-    unit: "матчей серии",
+    title: "MRAP",
+    task: "Уничтожить 3 MRAP (накопительно на уровне)",
+    hint: "Только класс MRAP (не пехотка и не БТР/БМП)",
+    target: 3,
+    unit: "MRAP",
   },
   {
     level: 14,
-    title: "Танк",
-    task: "Уничтожить 1 танк (накопительно на уровне)",
-    target: 1,
-    unit: "танков",
+    title: "Громче",
+    task: "10 убийств за один матч",
+    target: 10,
+    unit: "убийств",
   },
   {
     level: 15,
@@ -124,17 +128,18 @@ export const BP_S2_LEVELS: BpLevel[] = [
   },
   {
     level: 16,
-    title: "Гараж",
-    task: "Уничтожить 2 единицы техники (накопительно на уровне)",
+    title: "БТР",
+    task: "Уничтожить 2 БТР (накопительно на уровне)",
+    hint: "БТР/БМП (IFV/APC) · не MRAP и не танк",
     target: 2,
-    unit: "техники",
+    unit: "БТР",
   },
   {
     level: 17,
-    title: "Окно 15",
-    task: "Суммарно 15 убийств за 3 матча подряд",
-    hint: "После 3-го если меньше 15 — окно сбрасывается",
-    target: 15,
+    title: "Сотня",
+    task: "100 убийств (накопительно на уровне)",
+    hint: "Сумма киллов со всех матчей, пока открыт уровень",
+    target: 100,
     unit: "убийств",
   },
   {
@@ -147,10 +152,10 @@ export const BP_S2_LEVELS: BpLevel[] = [
   },
   {
     level: 19,
-    title: "Небо",
-    task: "Взорвать 1 вертолёт (накопительно на уровне)",
+    title: "Танк",
+    task: "Уничтожить 1 танк (накопительно на уровне)",
     target: 1,
-    unit: "вертолётов",
+    unit: "танков",
   },
   {
     level: 20,
@@ -163,7 +168,7 @@ export const BP_S2_LEVELS: BpLevel[] = [
   {
     level: 21,
     title: "Чистая катка",
-    task: "Закончить матч с ≥8 убийствами и ≤3 смертями",
+    task: "Закончить матч с ≥10 убийствами и ≤3 смертями",
     target: 1,
     unit: "матч",
   },
@@ -178,14 +183,14 @@ export const BP_S2_LEVELS: BpLevel[] = [
   {
     level: 23,
     title: "Три в одном",
-    task: "За один матч: 5 ревайвов, 5 убийств и 1 уничтоженная техника",
+    task: "За один матч: 8 ревайвов, 8 убийств и 1 уничтоженная техника",
     target: 1,
     unit: "матч",
   },
   {
     level: 24,
     title: "Разгром",
-    task: "Победить с разницей более 100 тикетов",
+    task: "Победить с разницей более 150 тикетов",
     hint: "Смена команды после 5-й минуты → матч не в зачёт",
     target: 1,
     unit: "матч",
@@ -193,8 +198,8 @@ export const BP_S2_LEVELS: BpLevel[] = [
   {
     level: 25,
     title: "Жатва",
-    task: "10 убийств за один матч",
-    target: 10,
+    task: "15 убийств за один матч",
+    target: 15,
     unit: "убийств",
   },
 ];
@@ -224,7 +229,7 @@ export const BP_S2_REWARDS: BpReward[] = [
     preview:
       "Фон профиля «Ночной урожай». Остаётся в списке фонов навсегда",
     hover: "Ночной урожай · ур. 10 Season 2 Halloween",
-    image: "/bp-halloween/profile-bg-v1.jpg",
+    image: "/bp-halloween/profile-bg-v1.jpg?v=fog1",
   },
   {
     level: 15,
@@ -235,7 +240,7 @@ export const BP_S2_REWARDS: BpReward[] = [
     preview:
       "Металлический алый ник — как Aurum, но в красных тонах",
     hover: "Алая жатва · ур. 15 Season 2 Halloween",
-    image: "/bp-halloween/nick-v2.jpg?v=scarlet3",
+    image: "/bp-halloween/nick-v2.jpg?v=scarlet4",
   },
   {
     level: 20,
@@ -273,7 +278,7 @@ export function s2RewardFullImage(reward: BpReward): string {
   if (reward.id === "hw2-knife") return "/bp-halloween/knife-hook-v2-cutout.png?v=blood1";
   if (reward.id === "hw2-gun") return "/bp-halloween/weapon-ak-v2-cutout.png?v=blood1";
   if (reward.id === "hw2-trophy") return "/bp-halloween/pomegranate-relic-v1-cutout.png?v=3";
-  if (reward.id === "hw2-nick") return "/bp-halloween/nick-v2-cutout.png?v=scarlet3";
+  if (reward.id === "hw2-nick") return "/bp-halloween/nick-v2-cutout.png?v=scarlet4";
   return reward.image || BP_S2_IDLE_ART;
 }
 
@@ -286,7 +291,7 @@ export function s2RewardMileImage(reward: BpReward): string {
   if (reward.id === "hw2-knife") return "/bp-halloween/knife-hook-v2-cutout.png?v=blood1";
   if (reward.id === "hw2-gun") return "/bp-halloween/weapon-ak-v2-cutout.png?v=blood1";
   if (reward.id === "hw2-trophy") return "/bp-halloween/pomegranate-relic-v1-cutout.png?v=3";
-  if (reward.id === "hw2-nick") return "/bp-halloween/nick-v2-cutout.png?v=scarlet3";
+  if (reward.id === "hw2-nick") return "/bp-halloween/nick-v2-cutout.png?v=scarlet4";
   return reward.image || BP_S2_IDLE_ART;
 }
 
