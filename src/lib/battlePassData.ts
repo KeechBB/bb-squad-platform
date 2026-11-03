@@ -286,6 +286,28 @@ export function battlePassLeaderboard(
   return sortBattlePassRows(state.leaderboard.map(normalizeBpRow));
 }
 
+/** Нашивки и шрифты ника — чтобы в рейтинге BP светились трофеи. */
+export async function withBattlePassNickCosmetics(
+  rows: BpPlayerProgress[]
+): Promise<BpPlayerProgress[]> {
+  if (!rows.length) return rows;
+  try {
+    const { loadNickPatchByNick } = await import("@/lib/nickPatchesCache");
+    const map = await loadNickPatchByNick();
+    return rows.map((r) => {
+      const key = String(r.nick || "").trim().toLowerCase();
+      const cos = key ? map.get(key) : null;
+      return {
+        ...r,
+        nickPatch: cos?.patchId || r.nickPatch || null,
+        nickStyle: cos?.styleId || r.nickStyle || null,
+      };
+    });
+  } catch {
+    return rows;
+  }
+}
+
 /** Топ-10 прохождения Battle Pass. */
 export function battlePassLeaderboardTop10(
   state: BpSeasonState | null

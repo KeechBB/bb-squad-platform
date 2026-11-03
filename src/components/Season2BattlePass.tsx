@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { BpLevel, BpPlayerProgress, BpReward } from "@/lib/battlePass";
 import { CanvasScaleStage } from "@/components/CanvasScaleStage";
+import { NickPatchMark } from "@/components/NickPatchMark";
 import {
   BP_S2_HERO_ART,
   BP_S2_IDLE_ART,
@@ -12,6 +13,10 @@ import {
   s2RewardFullImage,
   s2RewardMileImage,
 } from "@/lib/battlePassSeason2";
+import {
+  normalizeProfileNickStyle,
+  profileNickStyleCssClass,
+} from "@/lib/profileNickStyles";
 
 const PAGE_SIZE = 10;
 const TOP_CAP = 50;
@@ -103,12 +108,16 @@ export function Season2BattlePass({
     () => leaderboard.slice(0, TOP_CAP),
     [leaderboard]
   );
-  const pageCount = Math.max(1, Math.ceil(boardRows.length / PAGE_SIZE) || 1);
-  const pageSafe = Math.min(boardPage, pageCount - 1);
-  const pageSlice = boardRows.slice(
-    pageSafe * PAGE_SIZE,
-    pageSafe * PAGE_SIZE + PAGE_SIZE
-  );
+  // Сетка всегда Топ-50 / 10 — пустые слоты держат высоту, даже без игроков.
+  const pageCount = Math.max(1, Math.ceil(TOP_CAP / PAGE_SIZE));
+  const pageSafe = Math.min(Math.max(0, boardPage), pageCount - 1);
+  const pageSlots = useMemo(() => {
+    const start = pageSafe * PAGE_SIZE;
+    return Array.from({ length: PAGE_SIZE }, (_, i) => {
+      const row = boardRows[start + i];
+      return row || null;
+    });
+  }, [boardRows, pageSafe]);
 
   function openReward(r: BpReward) {
     setPreviewId(r.id);
@@ -225,100 +234,137 @@ export function Season2BattlePass({
               Топ-{TOP_CAP} · по {PAGE_SIZE} на странице
             </p>
             {boardRows.length === 0 ? (
-              <p className="bp-s2-board-empty">
+              <p className="bp-s2-board-empty bp-s2-board-empty-hint">
                 {scoringEnabled
-                  ? "Пока никого в рейтинге."
-                  : "Подсчёт ещё не стартовал."}
+                  ? "Рейтинг пуст — места ждут первых."
+                  : "Подсчёт ещё не стартовал — сетка готова."}
               </p>
-            ) : (
-              <>
-                <ol
-                  className="bp-board-list bp-s2-board-list"
-                  start={pageSafe * PAGE_SIZE + 1}
-                >
-                  {pageSlice.map((row, i) => {
-                    const place = pageSafe * PAGE_SIZE + i + 1;
-                    const me =
-                      selfNick.trim().toLowerCase() ===
-                      String(row.nick || "").trim().toLowerCase();
-                    return (
-                      <li
-                        key={row.nick}
-                        className={[
-                          "bp-board-row",
-                          "bp-s2-board-row",
-                          podiumClass(place),
-                          me ? "is-me" : "",
-                        ]
-                          .filter(Boolean)
-                          .join(" ")}
+            ) : null}
+            <ol
+              className="bp-board-list bp-s2-board-list"
+              start={pageSafe * PAGE_SIZE + 1}
+            >
+              {pageSlots.map((row, i) => {
+                const place = pageSafe * PAGE_SIZE + i + 1;
+                if (!row) {
+                  return (
+                    <li
+                      key={`empty-${place}`}
+                      className="bp-board-row bp-s2-board-row is-empty-slot"
+                      aria-label={`Место ${place} — пусто`}
+                    >
+                      <span className="bp-board-rank" aria-hidden>
+                        {place <= 3 ? (
+                          <span
+                            className={`home-podium-medal place-${place} is-ghost`}
+                          />
+                        ) : (
+                          place
+                        )}
+                      </span>
+                      <span className="bp-s2-board-player">
+                        <span className="bp-board-nick is-empty">—</span>
+                        <span className="bp-s2-board-patch" aria-hidden />
+                      </span>
+                      <span className="bp-board-lvl">
+                        Ур. <b className="bp-board-lvl-num">—</b>
+                      </span>
+                      <span className="bp-board-score">
+                        <b>—/—</b>
+                      </span>
+                    </li>
+                  );
+                }
+                const me =
+                  selfNick.trim().toLowerCase() ===
+                  String(row.nick || "").trim().toLowerCase();
+                const nickStyle = normalizeProfileNickStyle(row.nickStyle);
+                const nickStyleClass = profileNickStyleCssClass(nickStyle);
+                const hasCustomNickStyle = Boolean(nickStyleClass);
+                return (
+                  <li
+                    key={row.nick}
+                    className={[
+                      "bp-board-row",
+                      "bp-s2-board-row",
+                      podiumClass(place),
+                      me ? "is-me" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  >
+                    <span
+                      className={`bp-board-rank${
+                        place <= 3 ? " is-medal" : ""
+                      }`}
+                      aria-label={`${place} место`}
+                    >
+                      {place <= 3 ? (
+                        <span className={`home-podium-medal place-${place}`} />
+                      ) : (
+                        place
+                      )}
+                    </span>
+                    <span className="bp-s2-board-player">
+                      <Link
+                        className={`bp-board-nick${
+                          hasCustomNickStyle ? ` has-custom-nick-style` : ""
+                        }`}
+                        href={`/players/${encodeURIComponent(row.nick)}`}
+                        title={row.nick}
                       >
                         <span
-                          className={`bp-board-rank${
-                            place <= 3 ? " is-medal" : ""
+                          className={`bp-board-nick-label public-rating-nick-label${
+                            nickStyleClass ? ` ${nickStyleClass}` : ""
                           }`}
-                          aria-label={`${place} место`}
+                          data-text={
+                            hasCustomNickStyle ? row.nick : undefined
+                          }
                         >
-                          {place <= 3 ? (
-                            <span
-                              className={`home-podium-medal place-${place}`}
-                            />
-                          ) : (
-                            place
-                          )}
+                          {row.nick}
                         </span>
-                        <span className="bp-s2-board-player">
-                          <Link
-                            className="bp-board-nick"
-                            href={`/players/${encodeURIComponent(row.nick)}`}
-                            title={row.nick}
-                          >
-                            {row.nick}
-                          </Link>
-                          {/* Слот под нашивку — как в рейтингах КВ/ТМ */}
-                          <span
-                            className="bp-s2-board-patch"
-                            aria-hidden
-                          />
-                        </span>
-                        <span className="bp-board-lvl">
-                          Ур.{" "}
-                          <b className="bp-board-lvl-num">{row.currentLevel}</b>
-                        </span>
-                        <span className="bp-board-score">
-                          <b>
-                            {row.current}/{row.target}
-                          </b>
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ol>
-                {pageCount > 1 ? (
-                  <div className="bp-s2-board-pager">
-                    <button
-                      type="button"
-                      disabled={pageSafe <= 0}
-                      onClick={() => setBoardPage((p) => Math.max(0, p - 1))}
-                    >
-                      ←
-                    </button>
-                    <span>
-                      {pageSafe + 1}/{pageCount}
+                      </Link>
+                      <span className="bp-s2-board-patch">
+                        <NickPatchMark
+                          patchId={row.nickPatch}
+                          className="bp-s2-board-patch-mark"
+                        />
+                      </span>
                     </span>
-                    <button
-                      type="button"
-                      disabled={pageSafe >= pageCount - 1}
-                      onClick={() =>
-                        setBoardPage((p) => Math.min(pageCount - 1, p + 1))
-                      }
-                    >
-                      →
-                    </button>
-                  </div>
-                ) : null}
-              </>
-            )}
+                    <span className="bp-board-lvl">
+                      Ур.{" "}
+                      <b className="bp-board-lvl-num">{row.currentLevel}</b>
+                    </span>
+                    <span className="bp-board-score">
+                      <b>
+                        {row.current}/{row.target}
+                      </b>
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+            <div className="bp-s2-board-pager">
+              <button
+                type="button"
+                disabled={pageSafe <= 0}
+                onClick={() => setBoardPage((p) => Math.max(0, p - 1))}
+              >
+                ←
+              </button>
+              <span>
+                {pageSafe + 1}/{pageCount}
+              </span>
+              <button
+                type="button"
+                disabled={pageSafe >= pageCount - 1}
+                onClick={() =>
+                  setBoardPage((p) => Math.min(pageCount - 1, p + 1))
+                }
+              >
+                →
+              </button>
+            </div>
           </aside>
         </div>
 

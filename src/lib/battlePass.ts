@@ -259,6 +259,10 @@ export type BpPlayerProgress = {
   current: number;
   target: number;
   completedAt?: string | null;
+  /** Нашивка у ника в рейтинге BP (трофеи / Season 2) */
+  nickPatch?: string | null;
+  /** Стиль шрифта ника (Aurum / Halloween gothic и т.п.) */
+  nickStyle?: string | null;
 };
 
 export function emptySelfProgress(nick: string): BpPlayerProgress {

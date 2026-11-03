@@ -21282,15 +21282,32 @@ body:has(.profile-page) {
   color: var(--muted);
   font-size: 0.95rem;
 }
+.bp-s2-board-empty-hint:empty {
+  display: none;
+}
+.bp-s2-board-empty-hint {
+  margin: 0 0 6px;
+  min-height: 1.1em;
+  font-size: 0.82rem;
+}
 .bp-s2-board-list {
   flex: 1 1 auto;
   min-height: 0;
   gap: 7px;
 }
-/* ??? ??? BP1: ??????? ???/???????, ???? ??? ??????? */
 .bp-s2-board .bp-board-row {
   gap: 12px;
   padding: 10px 12px;
+}
+.bp-s2-board .bp-board-row.is-empty-slot {
+  opacity: 0.42;
+  background: transparent;
+  box-shadow: none;
+  outline: 1px dashed rgba(167, 139, 250, 0.18);
+}
+.bp-s2-board .bp-board-row.is-empty-slot .home-podium-medal.is-ghost {
+  opacity: 0.35;
+  filter: grayscale(0.6);
 }
 .bp-s2-board .bp-board-rank {
   flex-basis: 1.85rem;
@@ -21310,12 +21327,54 @@ body:has(.profile-page) {
   font-size: 1.08rem;
   font-weight: 700;
 }
+.bp-s2-board .bp-board-nick.is-empty {
+  color: rgba(226, 232, 240, 0.35);
+  font-weight: 600;
+  pointer-events: none;
+}
+.bp-s2-board .bp-board-nick.has-custom-nick-style {
+  text-decoration: none;
+}
+.bp-s2-board .bp-board-nick.has-custom-nick-style:hover
+  .public-rating-nick-label.is-halloween-gothic,
+.bp-s2-board .bp-board-nick.has-custom-nick-style:focus-visible
+  .public-rating-nick-label.is-halloween-gothic,
+.bp-s2-board .bp-board-nick.has-custom-nick-style:hover
+  .public-rating-nick-label.is-metallic-gold,
+.bp-s2-board .bp-board-nick.has-custom-nick-style:focus-visible
+  .public-rating-nick-label.is-metallic-gold {
+  filter: brightness(1.08);
+}
+.bp-s2-board .bp-board-nick-label {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
 .bp-s2-board-patch {
   flex: 0 0 auto;
   width: 88px;
   height: 28px;
   border-radius: 4px;
-  /* ?????? ???? ? ???? ??????? ??????? */
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+.bp-s2-board-patch-mark.nick-patch-mark {
+  width: 88px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.bp-s2-board-patch-mark .nick-patch-mark-art {
+  width: 88px;
+  height: 28px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: left center;
 }
 .bp-s2-board .bp-board-lvl {
   font-size: 0.88rem;
