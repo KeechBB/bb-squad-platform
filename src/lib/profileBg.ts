@@ -19,7 +19,7 @@ export const PROFILE_BG_OPTIONS = [
     id: "hw2-night-harvest",
     file: "halloween-s2-night-harvest.jpg",
     label: "Halloween S2 · Ночной урожай",
-    gate: "creator",
+    gate: "bp-hw2",
   },
   {
     id: "bp-l5-gold",
@@ -42,10 +42,10 @@ export const SITE_CREATOR_STEAM_ID = "76561198028435874";
 
 export const BP_L5_PROFILE_BG_ID = "bp-l5-gold" as const satisfies ProfileBgId;
 
-type ProfileBgGate = "public" | "creator" | "bp-l5";
+type ProfileBgGate = "public" | "creator" | "bp-l5" | "bp-hw2";
 
 function gateOf(opt: (typeof PROFILE_BG_OPTIONS)[number]): ProfileBgGate {
-  return "gate" in opt ? opt.gate : "public";
+  return "gate" in opt ? (opt.gate as ProfileBgGate) : "public";
 }
 
 export function profileBgChoicesFor(opts: {
@@ -67,6 +67,9 @@ export function profileBgChoicesFor(opts: {
         unlocks.has(opt.id) ||
         (opt.id === "bp-l5-gold" && unlocks.has("creator-tournament-02"))
       );
+    }
+    if (gate === "bp-hw2") {
+      return unlocks.has(opt.id) || opts.steamId === SITE_CREATOR_STEAM_ID;
     }
     return false;
   }).map((opt) => ({ id: opt.id, file: opt.file, label: opt.label }));

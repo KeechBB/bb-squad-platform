@@ -15,7 +15,7 @@ export const PROFILE_NICK_STYLE_OPTIONS = [
     label: "Алая жатва",
     tip: "Металлический алый ник · Награда за 15 уровень Halloween Season 2",
     cssClass: "is-halloween-gothic",
-    gate: "creator" as const,
+    gate: "bp-hw2" as const,
   },
 ] as const;
 
@@ -69,6 +69,9 @@ export function profileNickStyleChoicesFor(opts: {
   return PROFILE_NICK_STYLE_OPTIONS.filter((option) => {
     if (option.gate === "bp-l10") {
       return unlocks.has(option.id);
+    }
+    if (option.gate === "bp-hw2") {
+      return unlocks.has(option.id) || opts.steamId === SITE_CREATOR_STEAM_ID;
     }
     if (option.gate === "creator") {
       return opts.steamId === SITE_CREATOR_STEAM_ID;

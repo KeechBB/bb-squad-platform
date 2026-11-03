@@ -3,9 +3,12 @@ import path from "path";
 import { BP_REWARDS, type BpReward } from "@/lib/battlePass";
 import {
   hasBattlePassL20Reward,
+  isBattlePassSeason2State,
   loadBattlePassState,
   progressForNick,
+  type BpSeasonState,
 } from "@/lib/battlePassData";
+import { BP_S2_REWARDS } from "@/lib/battlePassSeason2";
 import { prisma } from "@/lib/prisma";
 import {
   isProfileShelfAward,
@@ -85,10 +88,24 @@ const BP_ICONS: Record<string, string> = {
   "pb1-profile-customize": "/bp-assets/keech-m4a1-gold-standard-v2.png",
   "pb1-best-tester": "/awards/bp-s1-l20-pink-strawberry.png",
   "pb1-gold-bg": "/bp-previews/l5-iskra.png",
+  "hw2-trophy": "/bp-halloween/pomegranate-relic-v1-cutout.png?v=3",
 };
 
 function iconFor(r: BpReward): string {
-  return BP_ICONS[r.id] || "/bp-previews/l20-medal.png";
+  return BP_ICONS[r.id] || r.image || "/bp-previews/l20-medal.png";
+}
+
+async function loadBattlePassS1Archive(): Promise<BpSeasonState | null> {
+  try {
+    const raw = await fs.readFile(
+      path.join(process.cwd(), "data", "public", "battle-pass-s1.json"),
+      "utf8"
+    );
+    const data = JSON.parse(raw) as BpSeasonState;
+    return data && typeof data === "object" ? data : null;
+  } catch {
+    return null;
+  }
 }
 
 async function fruitStrikeAwardIds(userId: string): Promise<{
@@ -122,35 +139,65 @@ export async function buildPlayerMedalInventory(
 ): Promise<ProfileMedalItem[]> {
   const clean = String(nick || "").trim();
   if (!clean) return [];
-  const state = await loadBattlePassState().catch(() => null);
-  const prog = progressForNick(state, clean);
-  const unlocked = (r: BpReward) => {
-    if (r.level === 20 && hasBattlePassL20Reward(state, clean)) return true;
-    return Boolean(prog.completedAt) || prog.currentLevel >= r.level;
+  const live = await loadBattlePassState().catch(() => null);
+  const s1 =
+    isBattlePassSeason2State(live)
+      ? await loadBattlePassS1Archive().catch(() => null)
+      : live;
+  const s2 = isBattlePassSeason2State(live) ? live : null;
+
+  const medalRows = (
+    state: BpSeasonState | null,
+    rewards: BpReward[],
+    finaleL20: boolean
+  ) => {
+    if (!state) return [] as ProfileMedalItem[];
+    const prog = progressForNick(state, clean);
+    return rewards
+      .filter((r) => r.kind === "medal")
+      .filter((r) => {
+        if (finaleL20 && r.level === 20 && hasBattlePassL20Reward(state, clean)) {
+          return true;
+        }
+        return Boolean(prog.completedAt) || prog.currentLevel >= r.level;
+      })
+      .map((r) => ({
+        id: r.id,
+        name: r.name,
+        short: r.short,
+        kind: r.kind,
+        level: r.level,
+        hover: r.hover || r.preview || r.name,
+        icon: iconFor(r),
+        source: "bp" as const,
+      }));
   };
 
-  const bp = BP_REWARDS.filter((r) => r.kind === "medal")
-    .filter(unlocked)
-    .map((r) => ({
-      id: r.id,
-      name: r.name,
-      short: r.short,
-      kind: r.kind,
-      level: r.level,
-      hover: r.hover || r.preview || r.name,
-      icon: iconFor(r),
-      source: "bp" as const,
-    }));
+  const bp = [
+    ...medalRows(s1, BP_REWARDS, true),
+    ...medalRows(s2, BP_S2_REWARDS, false),
+  ];
 
-  // Exact nick first: angel ≠ Angel (два разных аккаунта).
+  // Exact nick first: angel ≠ Angel. URL-слаг AngelBB → аккаунт angel.
+  const { collisionBySiteNick, resolveProfileAccountNick } = await import(
+    "@/lib/nickCollisions"
+  );
+  const collision = collisionBySiteNick(clean);
+  const accountNick = resolveProfileAccountNick(clean);
   const registered =
+    (collision?.steamId
+      ? await prisma.user.findFirst({
+          where: { steamId: collision.steamId, profileComplete: true },
+          select: { id: true, nick: true },
+        })
+      : null) ||
     (await prisma.user.findFirst({
-      where: { nick: clean, profileComplete: true },
+      where: { nick: accountNick, profileComplete: true },
       select: { id: true, nick: true },
     })) ||
     (await prisma.user.findFirst({
       where: {
-        nick: { equals: clean, mode: "insensitive" },
+        nick: { equals: accountNick, mode: "insensitive" },
         profileComplete: true,
       },
       select: { id: true, nick: true },
@@ -164,7 +211,10 @@ export async function buildPlayerMedalInventory(
   if (award.trophy || keech) cups.push(KEECH_FRUIT_STRIKE_TROPHY);
   if (award.mvp) cups.push(FRUIT_STRIKE_MVP);
   if (award.prediction || keech) cups.push(KEECH_FSSC_PREDICTIONS_MEDAL);
-  if (keech) cups.push(KEECH_HALLOWEEN_TROPHY);
+  const s2Prog = s2 ? progressForNick(s2, clean) : null;
+  const s2Finished =
+    Boolean(s2Prog?.completedAt) || (s2Prog?.currentLevel || 0) >= 25;
+  if (keech || s2Finished) cups.push(KEECH_HALLOWEEN_TROPHY);
   return [...cups, ...signs, ...bp].filter(isProfileShelfAward);
 }
 

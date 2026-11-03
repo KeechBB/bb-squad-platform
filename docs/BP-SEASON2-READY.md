@@ -1,30 +1,26 @@
-# Battle Pass Season 2 — готов, ждём старта
+# Battle Pass Season 2 — LIVE
 
-**Статус:** UI и контент Season 2 **заморожены** в скрытом превью. Живой `/battle-pass` пока = Season 1 (PB1).
+**Статус:** Season 2 Halloween **включён** на `/battle-pass` с **04.11.2026**.
 
 ## Ссылки
 
-- Превью (только Keech): https://bb-squad.ru/battle-pass/halloween-preview
+- Живой BP: https://bb-squad.ru/battle-pass
+- Превью (Keech): https://bb-squad.ru/battle-pass/halloween-preview
 - Код UI: `src/components/Season2BattlePass.tsx` + `.bp-s2-*` в `globals.css`
 - Награды / уровни / арт: `src/lib/battlePassSeason2.ts`, ассеты `/public/bp-halloween/`
-- Мок-рейтинг превью: `src/lib/battlePassSeason2Preview.ts`
-- Календарь / пауза: `src/lib/battlePassSchedule.ts`
+- Скор: `scripts/build_battle_pass.py` · `seasonId=hw2-2026-11`
+- Архив S1: `data/public/battle-pass-s1.json`
 
 ## Календарь (МСК)
 
 | Этап | Даты |
 |------|------|
-| Season 1 «Фруктовый Сад» | до **31.10.2026** |
-| Заглушка на `/battle-pass` | **01.11–03.11.2026** (3 дня) |
-| Season 2 Halloween live | с **04.11.2026** по **30.11.2026** |
+| Season 1 «Фруктовый Сад» | до **31.10.2026** (архив) |
+| Пауза | **01.11–03.11.2026** |
+| Season 2 Halloween live | **04.11.2026 — 30.11.2026** |
 
-Текст заглушки: «Скоро новый Battle Pass» + благодарность за сезон. Компонент: `BattlePassIntermission`.
+## Запуск (сделано 04.11)
 
-## Когда выкатывать Season 2 в прод
-
-1. Дождаться конца PB1 и паузы (или сдвинуть даты в `battlePassSchedule.ts`).
-2. На `/battle-pass` вместо заглушки отдать `layout="season2"` + реальные данные (не мок).
-3. Включить скорер / ledger для S2 season id.
-4. Превью `/battle-pass/halloween-preview` можно оставить Keech-only или убрать.
-
-До этой даты **не трогать** живой PB1 и не публиковать S2 всем.
+1. `/battle-pass` → `layout="season2"` + реальные данные.
+2. Скорер S2: 25 уровней, cutover = последний матч ledger на момент включения.
+3. S1 спрятан (архив JSON); медали S1 на полке читаются из `battle-pass-s1.json`.

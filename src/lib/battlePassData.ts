@@ -2,9 +2,11 @@ import { readFile, writeFile } from "fs/promises";
 import path from "path";
 import {
   BP_LEVELS,
+  type BpLevel,
   type BpPlayerProgress,
 } from "@/lib/battlePass";
 import { isBattlePassS1Ended } from "@/lib/battlePassSchedule";
+import { BP_S2_LEVELS } from "@/lib/battlePassSeason2";
 
 export type BpL20Finale = {
   mode: "closest" | "completed";
@@ -36,6 +38,20 @@ export type BpSeasonState = {
   l20Finale?: BpL20Finale | null;
 };
 
+export function isBattlePassSeason2State(
+  state: BpSeasonState | null | undefined
+): boolean {
+  return String(state?.seasonId || "").startsWith("hw2");
+}
+
+function levelsForState(state: BpSeasonState | null | undefined): BpLevel[] {
+  return isBattlePassSeason2State(state) ? BP_S2_LEVELS : BP_LEVELS;
+}
+
+function maxLevelForState(state: BpSeasonState | null | undefined): number {
+  return isBattlePassSeason2State(state) ? 25 : 20;
+}
+
 function bpPath(): string {
   return (
     process.env.BP_PATH ||
@@ -61,13 +77,16 @@ function nickKey(nick: string): string {
 }
 
 /** Прогресс-скор к финишу BP (finished = максимум). */
-function bpProgressScore(p: {
-  finished?: boolean;
-  currentLevel?: number;
-  current?: number;
-  target?: number;
-}): number {
-  if (p.finished) return 21;
+function bpProgressScore(
+  p: {
+    finished?: boolean;
+    currentLevel?: number;
+    current?: number;
+    target?: number;
+  },
+  maxLevel = 20
+): number {
+  if (p.finished) return maxLevel + 1;
   const lvl = Number(p.currentLevel) || 1;
   const tgt = Math.max(1, Number(p.target) || 1);
   const cur = Math.min(Number(p.current) || 0, tgt);
@@ -84,18 +103,20 @@ export type BpClosestRow = {
   score: number;
 };
 
-/** Ближайший к 20 ур. (или уже finished). */
+/** Ближайший к финалу сезона (или уже finished). */
 export function closestToBattlePassFinish(
   state: BpSeasonState | null
 ): BpClosestRow | null {
   if (!state?.players) return null;
+  const levels = levelsForState(state);
+  const maxLevel = maxLevelForState(state);
   const rows: BpClosestRow[] = [];
   for (const p of Object.values(state.players)) {
     if (!p?.nick) continue;
     const finished = Boolean(p.finished);
-    const lvl = finished ? 20 : Number(p.currentLevel) || 1;
+    const lvl = finished ? maxLevel : Number(p.currentLevel) || 1;
     const target =
-      BP_LEVELS.find((l) => l.level === lvl)?.target ||
+      levels.find((l) => l.level === lvl)?.target ||
       Number(p.target) ||
       1;
     const current = finished
@@ -108,12 +129,15 @@ export function closestToBattlePassFinish(
       current,
       target,
       finished,
-      score: bpProgressScore({
-        finished,
-        currentLevel: lvl,
-        current,
-        target,
-      }),
+      score: bpProgressScore(
+        {
+          finished,
+          currentLevel: lvl,
+          current,
+          target,
+        },
+        maxLevel
+      ),
     });
   }
   if (!rows.length) return null;
@@ -154,6 +178,7 @@ export async function ensureBattlePassL20Finale(
   state: BpSeasonState | null
 ): Promise<BpSeasonState | null> {
   if (!state?.enabled || !state.players) return state;
+  if (isBattlePassSeason2State(state)) return state;
   if (!isBattlePassS1Ended()) return state;
   if (state.l20Finale?.mode) return state;
 
@@ -218,25 +243,28 @@ export function progressForNick(
   state: BpSeasonState | null,
   nick: string
 ): BpPlayerProgress {
-  const L1 = BP_LEVELS[0];
+  const levels = levelsForState(state);
+  const maxLevel = maxLevelForState(state);
+  const L1 = levels[0];
   const fallback: BpPlayerProgress = {
     nick,
     currentLevel: 1,
     current: 0,
-    target: L1.target,
+    target: L1?.target || 1,
   };
   if (!state?.enabled) return fallback;
   const key = nickKey(nick);
   const players = state.players || {};
-  const l20FromFinale = hasBattlePassL20Reward(state, nick);
+  const l20FromFinale =
+    !isBattlePassSeason2State(state) && hasBattlePassL20Reward(state, nick);
 
   for (const p of Object.values(players)) {
     if (!p?.nick) continue;
     if (nickKey(p.nick) !== key) continue;
     const finished = Boolean(p.finished) || l20FromFinale;
-    const lvl = finished ? 20 : Number(p.currentLevel) || 1;
+    const lvl = finished ? maxLevel : Number(p.currentLevel) || 1;
     const target =
-      BP_LEVELS.find((l) => l.level === lvl)?.target || L1.target;
+      levels.find((l) => l.level === lvl)?.target || L1?.target || 1;
     return {
       nick: p.nick,
       steamId: p.steamId,
@@ -251,9 +279,13 @@ export function progressForNick(
   return fallback;
 }
 
-function normalizeBpRow(r: BpPlayerProgress): BpPlayerProgress {
+function normalizeBpRow(
+  r: BpPlayerProgress,
+  state: BpSeasonState | null = null
+): BpPlayerProgress {
+  const levels = levelsForState(state);
   const lvl = Number(r.currentLevel) || 1;
-  const target = BP_LEVELS.find((l) => l.level === lvl)?.target || 1;
+  const target = levels.find((l) => l.level === lvl)?.target || Number(r.target) || 1;
   return {
     nick: r.nick,
     steamId: r.steamId,
@@ -283,7 +315,9 @@ export function battlePassLeaderboard(
   state: BpSeasonState | null
 ): BpPlayerProgress[] {
   if (!state?.leaderboard?.length) return [];
-  return sortBattlePassRows(state.leaderboard.map(normalizeBpRow));
+  return sortBattlePassRows(
+    state.leaderboard.map((r) => normalizeBpRow(r, state))
+  );
 }
 
 /** Нашивки и шрифты ника — чтобы в рейтинге BP светились трофеи. */
@@ -317,6 +351,12 @@ export function battlePassLeaderboardTop10(
 
 export function battlePassStatusNote(state: BpSeasonState | null): string {
   const base = "Участвуют только пользователи, прошедшие регистрацию.";
+  if (isBattlePassSeason2State(state)) {
+    if (!state?.cutoverAfterMatchId) {
+      return `${base} Season 2 Halloween · подсчёт включается со следующей карты на Фруктовом Саде.`;
+    }
+    return `${base} Season 2 Halloween · 04.11–30.11 · 25 уровней. Считаем матчи после старта сезона.`;
+  }
   const finale = state?.l20Finale;
   if (finale?.mode === "closest" && finale.nick) {
     return `${base} Сезон закрыт: 20 ур. никто не взял — «Клубничный Импульс» у ${finale.nick} (ближайший к финишу).`;

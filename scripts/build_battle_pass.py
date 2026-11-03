@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """
-Battle Pass «Фруктовый Сад» — прогресс по матчам паблика (TPUB1/PB1).
+Battle Pass Season 2 · Halloween — прогресс по матчам паблика (TPUB1/PB1).
 
 Считает только матчи ПОСЛЕ cutoverAfterMatchId (со следующей карты после включения).
 Участники: User с profileComplete=true.
-«Сыграть матч» (ур. 1/6/11/16): ≥80% длительности в игре (Login/Remove + deploy fallback).
-Победа/поражение (ур. 14/19): смена стороны после 5-й минуты → матч не в зачёт.
-SEED / Jensen — не игра, в Battle Pass не идут (прогресс не пишем).
+«Сыграть матч»: ≥80% длительности в игре. SEED / Jensen — не в зачёт.
+S1 «Фруктовый Сад» архив: data/public/battle-pass-s1.json
 
 Запуск:
   python build_battle_pass.py              # sync cutover + heal дыр BP↔ledger
@@ -26,9 +25,12 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-# S1 ends 31.10.2026 23:59:59 Moscow — if nobody finished L20, medal → closest.
+# S1 ends 31.10.2026 23:59:59 Moscow — archive only.
+# S2 Halloween: 04.11.2026 — 30.11.2026.
 MSK = timezone(timedelta(hours=3))
 S1_END = datetime(2026, 10, 31, 23, 59, 59, tzinfo=MSK)
+S2_START = datetime(2026, 11, 4, 0, 0, 0, tzinfo=MSK)
+S2_END = datetime(2026, 11, 30, 23, 59, 59, tzinfo=MSK)
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -53,29 +55,40 @@ TIERS = Path(
 if not TIERS.is_file():
     TIERS = ROOT.parent / "KV" / "public" / "data" / "tiers.json"
 
-SEASON_ID = "pb1-2026-10"
+SEASON_ID = "hw2-2026-11"
+MAX_LEVEL = 25
 LEVEL_TARGETS = {
     1: 1,
-    2: 5,
-    3: 5,
-    4: 5,
+    2: 3,
+    3: 3,
+    4: 3,
     5: 2,
-    6: 3,
-    7: 5,
-    8: 2,
-    9: 1,
-    10: 1,
-    11: 5,
-    12: 30,
-    13: 1,
-    14: 3,
-    15: 1,
-    16: 5,
-    17: 1,
-    18: 1,
+    6: 6,
+    7: 6,
+    8: 5,
+    9: 6,
+    10: 3,
+    11: 50,
+    12: 5,
+    13: 3,
+    14: 10,
+    15: 4,
+    16: 2,
+    17: 100,
+    18: 2,
     19: 1,
-    20: 1,
+    20: 5,
+    21: 1,
+    22: 1,
+    23: 1,
+    24: 1,
+    25: 15,
 }
+_DESERT_RE = re.compile(r"basrah|mutaha|tallil|fallujah", re.I)
+_MRAP_RE = re.compile(
+    r"CPV|MRAP|MATV|M-?ATV|TAPV|M1151|RG-?31|COUGAR|HUSKY|MAXXPRO|BUSHMASTER",
+    re.I,
+)
 
 _HELI_RE = re.compile(
     r"(UH60|UH_60|MI8|MI_8|LOACH|CH146|RAVEN|MI17|MI24|KA52|AH.?64|AH.?1|"
@@ -191,6 +204,35 @@ def is_tank(vehicle: str, tickets: int | None, label: str = "") -> bool:
 
 def is_heli(vehicle: str) -> bool:
     return bool(_HELI_RE.search(str(vehicle or "")))
+
+
+def is_mrap(vehicle: str) -> bool:
+    return bool(_MRAP_RE.search(str(vehicle or "")))
+
+
+def classify_vehicle(vehicle: str, tickets: int | None, label: str = "") -> str:
+    """light | mrap | ifv | tank | heli | other — для заданий S2."""
+    a = str(vehicle or "")
+    if is_heli(a):
+        return "heli"
+    if is_tank(a, tickets, label):
+        return "tank"
+    t = None
+    try:
+        t = int(tickets) if tickets is not None else int(R.vehicle_tickets(a) or 0)
+    except (TypeError, ValueError):
+        t = int(R.vehicle_tickets(a) or 0)
+    if t >= 10:
+        return "ifv"
+    if is_mrap(a):
+        return "mrap"
+    if t <= 5:
+        return "light"
+    return "other"
+
+
+def is_desert_map(map_name: str) -> bool:
+    return bool(_DESERT_RE.search(str(map_name or "")))
 
 
 def empty_player(reg: dict) -> dict:
@@ -461,8 +503,25 @@ def save_state(state: dict) -> None:
 
 
 def ensure_cutover(state: dict, ledger: dict) -> dict:
-    """First run: cutover = last ledger match → считаем только следующие карты."""
+    """First run: cutover = last ledger match → считаем только следующие карты.
+
+    Если на диске ещё S1 (pb1-*) — сбрасываем в чистый Season 2.
+    """
+    sid = str(state.get("seasonId") or "")
+    if sid.startswith("pb1") or (sid and sid != SEASON_ID and not sid.startswith("hw2")):
+        print(f"BP: migrating season {sid!r} → {SEASON_ID}", flush=True)
+        state = {
+            "seasonId": SEASON_ID,
+            "enabled": True,
+            "cutoverAfterMatchId": None,
+            "scoredMatchIds": [],
+            "players": {},
+            "leaderboard": [],
+            "updatedAt": _utc_now(),
+        }
     if state.get("cutoverAfterMatchId"):
+        state["seasonId"] = SEASON_ID
+        state["enabled"] = True
         return state
     matches = ledger.get("matches") or []
     last_id = str(matches[-1]["id"]) if matches else ""
@@ -541,6 +600,9 @@ def per_player_stats(block: dict, aliases: dict) -> dict[str, dict]:
                 "vehicleKills": 0,
                 "tankKills": 0,
                 "heliKills": 0,
+                "lightKills": 0,
+                "mrapKills": 0,
+                "ifvKills": 0,
                 "dmg": 0,
             }
         return stats[nick]
@@ -582,10 +644,17 @@ def per_player_stats(block: dict, aliases: dict) -> dict[str, dict]:
                 except (TypeError, ValueError):
                     tix = None
                 label = str(e.get("label") or "")
-                if is_tank(veh, tix, label):
+                cls = classify_vehicle(veh, tix, label)
+                if cls == "tank":
                     r["tankKills"] += 1
-                if is_heli(veh):
+                elif cls == "heli":
                     r["heliKills"] += 1
+                elif cls == "mrap":
+                    r["mrapKills"] += 1
+                elif cls == "ifv":
+                    r["ifvKills"] += 1
+                elif cls == "light":
+                    r["lightKills"] += 1
 
     # MVP Killer / Medic (same rules as site pickMvps)
     pool = [
@@ -692,6 +761,9 @@ def per_player_stats(block: dict, aliases: dict) -> dict[str, dict]:
                     "vehicleKills": 0,
                     "tankKills": 0,
                     "heliKills": 0,
+                    "lightKills": 0,
+                    "mrapKills": 0,
+                    "ifvKills": 0,
                     "dmg": 0,
                 },
             )
@@ -700,10 +772,10 @@ def per_player_stats(block: dict, aliases: dict) -> dict[str, dict]:
 
 def advance_level(p: dict) -> None:
     lvl = int(p["currentLevel"])
-    if lvl >= 20:
+    if lvl >= MAX_LEVEL:
         p["finished"] = True
-        p["current"] = LEVEL_TARGETS[20]
-        p["target"] = LEVEL_TARGETS[20]
+        p["current"] = LEVEL_TARGETS[MAX_LEVEL]
+        p["target"] = LEVEL_TARGETS[MAX_LEVEL]
         return
     nxt = lvl + 1
     p["currentLevel"] = nxt
@@ -711,40 +783,39 @@ def advance_level(p: dict) -> None:
     p["target"] = LEVEL_TARGETS[nxt]
     p["streak"] = 0
     p["window"] = []
-    if nxt > 20:
-        p["currentLevel"] = 20
+    if nxt > MAX_LEVEL:
+        p["currentLevel"] = MAX_LEVEL
         p["finished"] = True
 
 
 def apply_level(p: dict, st: dict) -> bool:
-    """Apply one match to current level. Returns True if level completed."""
+    """Apply one match to current S2 level. Returns True if level completed."""
     lvl = int(p["currentLevel"])
-    if p.get("finished") or lvl < 1 or lvl > 20:
+    if p.get("finished") or lvl < 1 or lvl > MAX_LEVEL:
         return False
 
     kills = int(st.get("kills") or 0)
     noks = int(st.get("noks") or 0)
     revs = int(st.get("revives") or 0)
     deaths = int(st.get("deaths") or 0)
-    tk = int(st.get("tk") or 0)
     veh = int(st.get("vehicleKills") or 0)
     tanks = int(st.get("tankKills") or 0)
-    helis = int(st.get("heliKills") or 0)
+    light = int(st.get("lightKills") or 0)
+    mrap = int(st.get("mrapKills") or 0)
+    ifv = int(st.get("ifvKills") or 0)
     won = st.get("won")
     ticket_delta = st.get("ticketDelta")
     map_name = str(st.get("map") or "")
-    mutaha = "mutaha" in map_name.lower()
     played_ok = bool(st.get("playedOk", True))
+    desert = is_desert_map(map_name)
 
     done = False
 
     if lvl == 1:
-        # Сыграть матч: только при ≥80% времени в игре
         if played_ok:
             p["current"] = 1
             done = True
     elif lvl == 2:
-        # Best single-match progress (don't let a later weak game wipe a strong one)
         tgt = LEVEL_TARGETS[2]
         p["current"] = max(int(p.get("current") or 0), min(tgt, noks))
         done = p["current"] >= tgt
@@ -758,97 +829,98 @@ def apply_level(p: dict, st: dict) -> bool:
         done = p["current"] >= tgt
     elif lvl == 5:
         tgt = LEVEL_TARGETS[5]
-        p["current"] = max(int(p.get("current") or 0), min(tgt, veh))
-        done = p["current"] >= tgt
-    elif lvl == 6:
         if played_ok:
-            p["current"] = min(3, int(p["current"]) + 1)
-            done = p["current"] >= 3
-    elif lvl == 7:
-        if mutaha:
-            tgt = LEVEL_TARGETS[7]
-            p["current"] = max(int(p.get("current") or 0), min(tgt, kills))
+            p["current"] = min(tgt, int(p.get("current") or 0) + 1)
             done = p["current"] >= tgt
-        # иначе катка не Mutaha — прогресс не трогаем
-
+    elif lvl == 6:
+        tgt = LEVEL_TARGETS[6]
+        p["current"] = max(int(p.get("current") or 0), min(tgt, noks))
+        done = p["current"] >= tgt
+    elif lvl == 7:
+        tgt = LEVEL_TARGETS[7]
+        p["current"] = max(int(p.get("current") or 0), min(tgt, kills))
+        done = p["current"] >= tgt
     elif lvl == 8:
         tgt = LEVEL_TARGETS[8]
-        if revs >= 10:
-            p["streak"] = int(p.get("streak") or 0) + 1
-        else:
-            p["streak"] = 0
-        p["current"] = int(p["streak"])
-        done = p["streak"] >= tgt
+        p["current"] = min(tgt, int(p.get("current") or 0) + light)
+        done = p["current"] >= tgt
     elif lvl == 9:
         tgt = LEVEL_TARGETS[9]
-        p["current"] = min(tgt, int(p["current"]) + tanks)
+        p["current"] = max(int(p.get("current") or 0), min(tgt, revs))
         done = p["current"] >= tgt
     elif lvl == 10:
         tgt = LEVEL_TARGETS[10]
-        if st.get("mvpKiller"):
-            p["current"] = min(tgt, int(p["current"]) + 1)
-        done = p["current"] >= tgt
+        if played_ok:
+            p["current"] = min(tgt, int(p.get("current") or 0) + 1)
+            done = p["current"] >= tgt
     elif lvl == 11:
         tgt = LEVEL_TARGETS[11]
-        if played_ok:
-            p["current"] = min(tgt, int(p["current"]) + 1)
-            done = p["current"] >= tgt
+        p["current"] = min(tgt, int(p.get("current") or 0) + revs)
+        done = p["current"] >= tgt
     elif lvl == 12:
         tgt = LEVEL_TARGETS[12]
-        window = list(p.get("window") or [])
-        window.append(kills)
-        if len(window) > 5:
-            window = window[-5:]
-        p["window"] = window
-        total = sum(window)
-        p["current"] = min(tgt, total)
-        if len(window) >= 5:
-            if total >= tgt:
-                done = True
-            else:
-                p["window"] = []
-                p["current"] = 0
-        else:
-            done = total >= tgt
+        if desert and played_ok:
+            p["current"] = min(tgt, int(p.get("current") or 0) + 1)
+            done = p["current"] >= tgt
     elif lvl == 13:
         tgt = LEVEL_TARGETS[13]
-        p["current"] = min(tgt, int(p["current"]) + helis)
+        p["current"] = min(tgt, int(p.get("current") or 0) + mrap)
         done = p["current"] >= tgt
     elif lvl == 14:
-        # won is None: <80% / смена команды после 5 мин → матч не в зачёт
         tgt = LEVEL_TARGETS[14]
+        p["current"] = max(int(p.get("current") or 0), min(tgt, kills))
+        done = p["current"] >= tgt
+    elif lvl == 15:
+        tgt = LEVEL_TARGETS[15]
+        if played_ok:
+            p["current"] = min(tgt, int(p.get("current") or 0) + 1)
+            done = p["current"] >= tgt
+    elif lvl == 16:
+        tgt = LEVEL_TARGETS[16]
+        p["current"] = min(tgt, int(p.get("current") or 0) + ifv)
+        done = p["current"] >= tgt
+    elif lvl == 17:
+        tgt = LEVEL_TARGETS[17]
+        p["current"] = min(tgt, int(p.get("current") or 0) + kills)
+        done = p["current"] >= tgt
+    elif lvl == 18:
+        tgt = LEVEL_TARGETS[18]
         if won is True:
             p["streak"] = int(p.get("streak") or 0) + 1
         elif won is False:
             p["streak"] = 0
         p["current"] = int(p.get("streak") or 0)
         done = p["current"] >= tgt
-    elif lvl == 15:
-        tgt = LEVEL_TARGETS[15]
-        if st.get("mvpMedic"):
-            p["current"] = min(tgt, int(p["current"]) + 1)
-        done = p["current"] >= tgt
-    elif lvl == 16:
-        tgt = LEVEL_TARGETS[16]
-        if played_ok:
-            p["current"] = min(tgt, int(p["current"]) + 1)
-            done = p["current"] >= tgt
-    elif lvl == 17:
-        ok = kills >= 10 and deaths <= 1
-        p["current"] = 1 if ok else 0
-        done = ok
-    elif lvl == 18:
-        ok = revs >= 10 and kills >= 10 and veh >= 1
-        p["current"] = 1 if ok else 0
-        done = ok
     elif lvl == 19:
-        ok = won is True and ticket_delta is not None and int(ticket_delta) > 300
-        p["current"] = 1 if ok else 0
-        done = ok
+        tgt = LEVEL_TARGETS[19]
+        p["current"] = min(tgt, int(p.get("current") or 0) + tanks)
+        done = p["current"] >= tgt
     elif lvl == 20:
-        ok = kills > 20 and revs >= 10 and tk == 0 and deaths == 0
-        p["current"] = 1 if ok else 0
+        tgt = LEVEL_TARGETS[20]
+        if played_ok:
+            p["current"] = min(tgt, int(p.get("current") or 0) + 1)
+            done = p["current"] >= tgt
+    elif lvl == 21:
+        ok = kills >= 10 and deaths <= 3
+        p["current"] = 1 if ok else int(p.get("current") or 0)
         done = ok
+    elif lvl == 22:
+        tgt = LEVEL_TARGETS[22]
+        if st.get("mvpKiller"):
+            p["current"] = min(tgt, int(p.get("current") or 0) + 1)
+        done = p["current"] >= tgt
+    elif lvl == 23:
+        ok = revs >= 8 and kills >= 8 and veh >= 1
+        p["current"] = 1 if ok else int(p.get("current") or 0)
+        done = ok
+    elif lvl == 24:
+        ok = won is True and ticket_delta is not None and int(ticket_delta) > 150
+        p["current"] = 1 if ok else int(p.get("current") or 0)
+        done = ok
+    elif lvl == 25:
+        tgt = LEVEL_TARGETS[25]
+        p["current"] = max(int(p.get("current") or 0), min(tgt, kills))
+        done = p["current"] >= tgt
 
     p["target"] = LEVEL_TARGETS[lvl]
     p["updatedAt"] = _utc_now()
@@ -968,20 +1040,20 @@ def reconcile_level_targets(state: dict) -> int:
         if not isinstance(p, dict) or not p.get("nick"):
             continue
         if p.get("finished"):
-            p["currentLevel"] = 20
-            p["target"] = LEVEL_TARGETS[20]
-            p["current"] = LEVEL_TARGETS[20]
+            p["currentLevel"] = MAX_LEVEL
+            p["target"] = LEVEL_TARGETS[MAX_LEVEL]
+            p["current"] = LEVEL_TARGETS[MAX_LEVEL]
             continue
         guard = 0
-        while guard < 25:
+        while guard < 40:
             guard += 1
             lvl = int(p.get("currentLevel") or 1)
-            if lvl < 1 or lvl > 20:
+            if lvl < 1 or lvl > MAX_LEVEL:
                 break
             tgt = int(LEVEL_TARGETS.get(lvl, 1))
             p["target"] = tgt
             cur = int(p.get("current") or 0)
-            if cur >= tgt and lvl < 20:
+            if cur >= tgt and lvl < MAX_LEVEL:
                 advance_level(p)
                 advanced += 1
                 continue
@@ -1000,18 +1072,18 @@ def leaderboard_rows(state: dict) -> list[dict]:
             continue
         lvl = int(p.get("currentLevel") or 1)
         finished = bool(p.get("finished"))
-        tgt = int(LEVEL_TARGETS.get(20 if finished else lvl, 1))
+        tgt = int(LEVEL_TARGETS.get(MAX_LEVEL if finished else lvl, 1))
         cur = int(p.get("current") or 0)
         if not finished:
             cur = min(cur, tgt)
-        # sort key: finished first as 21, else level + fraction
-        score = 21 if finished else lvl + (cur / max(1, tgt)) * 0.99
+        # sort key: finished first as MAX+1, else level + fraction
+        score = (MAX_LEVEL + 1) if finished else lvl + (cur / max(1, tgt)) * 0.99
         rows.append(
             {
                 "nick": p.get("nick"),
                 "steamId": p.get("steamId"),
                 "avatarUrl": p.get("avatarUrl"),
-                "currentLevel": 20 if finished else lvl,
+                "currentLevel": MAX_LEVEL if finished else lvl,
                 "current": tgt if finished else cur,
                 "target": tgt,
                 "finished": finished,
@@ -1026,7 +1098,7 @@ def leaderboard_rows(state: dict) -> list[dict]:
 
 def _player_progress_score(p: dict) -> float:
     if p.get("finished"):
-        return 21.0
+        return float(MAX_LEVEL + 1)
     lvl = int(p.get("currentLevel") or 1)
     tgt = max(1, int(p.get("target") or LEVEL_TARGETS.get(lvl, 1)))
     cur = min(int(p.get("current") or 0), tgt)
@@ -1054,9 +1126,12 @@ def closest_to_l20(state: dict) -> dict | None:
 def maybe_award_l20_closest(state: dict, now: datetime | None = None) -> bool:
     """
     After S1 end: if nobody finished L20, grant finale medal to closest player.
-    Idempotent via state['l20Finale'].
+    Idempotent via state['l20Finale']. Only for archived S1 seasonId.
     Returns True if state changed.
     """
+    sid = str(state.get("seasonId") or "")
+    if not sid.startswith("pb1"):
+        return False
     now = now or datetime.now(MSK)
     if now < S1_END:
         return False
@@ -1121,6 +1196,92 @@ def maybe_award_l20_closest(state: dict, now: datetime | None = None) -> bool:
     return True
 
 
+def persist_s2_rewards(state: dict) -> None:
+    """Halloween S2 unlocks: L5 knife · L10 bg · L15 nick · L20 gun · L25 medal (shelf via BP state)."""
+    grants = [
+        (5, "unlockedNickPatches", "hw2-knife-hook"),
+        (10, "unlockedProfileBgs", "hw2-night-harvest"),
+        (15, "unlockedNickStyles", "hw2-violet-gothic"),
+        (20, "unlockedNickPatches", "hw2-ak-pumpkin"),
+    ]
+    db = (os.environ.get("DATABASE_URL") or "").strip().strip("'").strip('"')
+    if not db:
+        env_path = ROOT / ".env"
+        if env_path.is_file():
+            for line in env_path.read_text(encoding="utf-8").splitlines():
+                if line.startswith("DATABASE_URL="):
+                    db = line.split("=", 1)[1].strip().strip("'").strip('"')
+                    break
+    if not db:
+        print("BP S2: no DATABASE_URL — skip rewards", flush=True)
+        return
+    connect = None
+    try:
+        import psycopg2
+
+        connect = psycopg2.connect
+    except ImportError:
+        try:
+            import psycopg
+
+            connect = psycopg.connect
+        except ImportError:
+            print("BP S2: no psycopg — skip rewards", flush=True)
+            return
+    try:
+        conn = connect(_psycopg_dsn(db))
+        cur = conn.cursor()
+        for min_lvl, col, token in grants:
+            nicks: list[str] = []
+            steams: list[str] = []
+            for p in (state.get("players") or {}).values():
+                if not isinstance(p, dict):
+                    continue
+                lvl = MAX_LEVEL if p.get("finished") else int(p.get("currentLevel") or 1)
+                if lvl < min_lvl:
+                    continue
+                nick = str(p.get("nick") or "").strip()
+                steam = str(p.get("steamId") or "").strip()
+                if nick:
+                    nicks.append(nick.casefold())
+                if steam:
+                    steams.append(steam)
+            if not nicks and not steams:
+                continue
+            cur.execute(
+                f"""
+                update "User"
+                set "{col}" = array_append(
+                  coalesce("{col}", '{{}}'),
+                  %s
+                )
+                where not (%s = any(coalesce("{col}", '{{}}')))
+                  and (
+                    lower(nick) = any(%s)
+                    or "steamId" = any(%s)
+                  )
+                """,
+                (token, token, nicks or [""], steams or [""]),
+            )
+            print(
+                f"BP S2: granted {token} (L{min_lvl}+) to {cur.rowcount} accounts",
+                flush=True,
+            )
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as exc:
+        print(f"BP S2 rewards skip ({exc})", flush=True)
+
+
+def persist_season_rewards(state: dict) -> None:
+    sid = str(state.get("seasonId") or SEASON_ID)
+    if sid.startswith("hw2"):
+        persist_s2_rewards(state)
+    else:
+        persist_l5_backgrounds(state)
+
+
 def finalize(state: dict, registered: dict[str, dict] | None = None) -> dict:
     if registered is not None:
         ensure_all_registered(state, registered)
@@ -1151,7 +1312,7 @@ def apply_blocks(blocks: list[dict], aliases: dict | None = None) -> dict:
         total_adv += apply_match_to_players(state, b, registered, aliases)
     state = finalize(state, registered)
     save_state(state)
-    persist_l5_backgrounds(state)
+    persist_season_rewards(state)
     print(
         f"BP: blocks={len(blocks)} advanced_levels={total_adv} "
         f"players={len(state.get('players') or {})} "
@@ -1169,7 +1330,7 @@ def sync_cutover_only() -> dict:
     registered = load_registered()
     state = finalize(state, registered)
     save_state(state)
-    persist_l5_backgrounds(state)
+    persist_season_rewards(state)
     return state
 
 
@@ -1210,7 +1371,7 @@ def rebuild_from_ledger() -> dict:
         total_adv += apply_match_to_players(state, b, registered, aliases)
     state = finalize(state, registered)
     save_state(state)
-    persist_l5_backgrounds(state)
+    persist_season_rewards(state)
     print(
         f"BP: rebuild_from_ledger matches={len(blocks)} advanced_levels={total_adv} "
         f"players={len(state.get('players') or {})} "

@@ -29,14 +29,14 @@ export const PROFILE_PATCH_OPTIONS = [
     file: "halloween-s2-knife-hook.png",
     label: "Крюк «Жнец сада» · Halloween S2",
     tip: "Крюк «Жнец сада» · Награда за 5 уровень Halloween Season 2",
-    gate: "creator" as const,
+    gate: "bp-hw2" as const,
   },
   {
     id: "hw2-ak-pumpkin",
     file: "halloween-s2-ak-pumpkin.png",
     label: "АК «Тыквенный магазин» · Halloween S2",
     tip: "АК «Тыквенный магазин» · Награда за 20 уровень Halloween Season 2",
-    gate: "creator" as const,
+    gate: "bp-hw2" as const,
   },
   {
     id: "public-100-vehicles-t62",
@@ -60,10 +60,10 @@ export const BP_L15_PATCH_ID = "bp-l15-keech" as const satisfies ProfilePatchId;
 export const PUBLIC_100_VEHICLES_PATCH_ID =
   "public-100-vehicles-t62" as const satisfies ProfilePatchId;
 
-type PatchGate = "bp-l15" | "creator" | "public-vehicles-100";
+type PatchGate = "bp-l15" | "creator" | "public-vehicles-100" | "bp-hw2";
 
 function gateOf(opt: (typeof PROFILE_PATCH_OPTIONS)[number]): PatchGate {
-  return opt.gate;
+  return opt.gate as PatchGate;
 }
 
 const BY_ID = new Map(
@@ -117,6 +117,9 @@ export function profilePatchChoicesFor(opts: {
         unlocks.has("pb1-gold-nick") ||
         unlocks.has("pb1-profile-customize")
       );
+    }
+    if (gate === "bp-hw2") {
+      return unlocks.has(opt.id) || opts.steamId === SITE_CREATOR_STEAM_ID;
     }
     if (gate === "public-vehicles-100") {
       return unlocks.has(opt.id);
