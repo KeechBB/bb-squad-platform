@@ -405,7 +405,6 @@ export function Season2BattlePass({
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={iconSrc} alt="" />
                   </span>
-                  <span className="bp-s2-mile-name">{r.short}</span>
                 </button>
               );
             })}
