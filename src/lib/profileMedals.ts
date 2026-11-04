@@ -88,7 +88,7 @@ const KROASAWN_BDAY_MEDAL: ProfileMedalItem = {
   short: "ДР",
   kind: "medal",
   level: 0,
-  hover: "С Днем Рождения! (от Keech)",
+  hover: "С Днем Рождения! (от Keech 2026г.)",
   icon: "/awards/kroasawn-bday-medal-a.png",
   source: "site",
 };
