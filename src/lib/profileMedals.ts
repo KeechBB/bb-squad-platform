@@ -81,6 +81,51 @@ const KEECH_FSSC_PREDICTIONS_MEDAL: ProfileMedalItem = {
   source: "site",
 };
 
+/** ДР Kroasawn — варианты A–D на полке Keech для выбора подарка. */
+const KROASAWN_BDAY_HOVER = "С Днем Рождения! (от Keech)";
+const KROASAWN_BDAY_MEDALS: ProfileMedalItem[] = [
+  {
+    id: "kroasawn-bday-medal-a",
+    name: "ДР · Золотой круасан",
+    short: "ДР A",
+    kind: "medal",
+    level: 0,
+    hover: KROASAWN_BDAY_HOVER,
+    icon: "/awards/kroasawn-bday-medal-a.png",
+    source: "site",
+  },
+  {
+    id: "kroasawn-bday-medal-b",
+    name: "ДР · Космическая звезда",
+    short: "ДР B",
+    kind: "medal",
+    level: 0,
+    hover: KROASAWN_BDAY_HOVER,
+    icon: "/awards/kroasawn-bday-medal-b.png",
+    source: "site",
+  },
+  {
+    id: "kroasawn-bday-medal-c",
+    name: "ДР · Обсидиановый щит",
+    short: "ДР C",
+    kind: "medal",
+    level: 0,
+    hover: KROASAWN_BDAY_HOVER,
+    icon: "/awards/kroasawn-bday-medal-c.png",
+    source: "site",
+  },
+  {
+    id: "kroasawn-bday-medal-d",
+    name: "ДР · Аврора-круасан",
+    short: "ДР D",
+    kind: "medal",
+    level: 0,
+    hover: KROASAWN_BDAY_HOVER,
+    icon: "/awards/kroasawn-bday-medal-d.png",
+    source: "site",
+  },
+];
+
 const BP_ICONS: Record<string, string> = {
   "pb1-scout-spark": "/bp-previews/l5-iskra.png",
   "pb1-gold-nick": "/bp-previews/l15-gold-nick.png",
@@ -215,6 +260,8 @@ export async function buildPlayerMedalInventory(
   const s2Finished =
     Boolean(s2Prog?.completedAt) || (s2Prog?.currentLevel || 0) >= 25;
   if (keech || s2Finished) cups.push(KEECH_HALLOWEEN_TROPHY);
+  // Превью вариантов ДР-медали — только у Keech, пока не выберем подарок.
+  if (keech) cups.push(...KROASAWN_BDAY_MEDALS);
   return [...cups, ...signs, ...bp].filter(isProfileShelfAward);
 }
 
