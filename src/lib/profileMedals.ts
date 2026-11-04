@@ -81,50 +81,18 @@ const KEECH_FSSC_PREDICTIONS_MEDAL: ProfileMedalItem = {
   source: "site",
 };
 
-/** ДР Kroasawn — варианты A–D на полке Keech для выбора подарка. */
-const KROASAWN_BDAY_HOVER = "С Днем Рождения! (от Keech)";
-const KROASAWN_BDAY_MEDALS: ProfileMedalItem[] = [
-  {
-    id: "kroasawn-bday-medal-a",
-    name: "ДР · Золотой круасан",
-    short: "ДР A",
-    kind: "medal",
-    level: 0,
-    hover: KROASAWN_BDAY_HOVER,
-    icon: "/awards/kroasawn-bday-medal-a.png",
-    source: "site",
-  },
-  {
-    id: "kroasawn-bday-medal-b",
-    name: "ДР · Космическая звезда",
-    short: "ДР B",
-    kind: "medal",
-    level: 0,
-    hover: KROASAWN_BDAY_HOVER,
-    icon: "/awards/kroasawn-bday-medal-b.png",
-    source: "site",
-  },
-  {
-    id: "kroasawn-bday-medal-c",
-    name: "ДР · Обсидиановый щит",
-    short: "ДР C",
-    kind: "medal",
-    level: 0,
-    hover: KROASAWN_BDAY_HOVER,
-    icon: "/awards/kroasawn-bday-medal-c.png",
-    source: "site",
-  },
-  {
-    id: "kroasawn-bday-medal-d",
-    name: "ДР · Аврора-круасан",
-    short: "ДР D",
-    kind: "medal",
-    level: 0,
-    hover: KROASAWN_BDAY_HOVER,
-    icon: "/awards/kroasawn-bday-medal-d.png",
-    source: "site",
-  },
-];
+/** ДР-подарок Kroasawn от Keech — золотой круасан. */
+const KROASAWN_BDAY_MEDAL: ProfileMedalItem = {
+  id: "kroasawn-bday-medal-a",
+  name: "ДР · Золотой круасан",
+  short: "ДР",
+  kind: "medal",
+  level: 0,
+  hover: "С Днем Рождения! (от Keech)",
+  icon: "/awards/kroasawn-bday-medal-a.png",
+  source: "site",
+};
+const KROASAWN_BDAY_STEAM_ID = "76561198075145920";
 
 const BP_ICONS: Record<string, string> = {
   "pb1-scout-spark": "/bp-previews/l5-iskra.png",
@@ -233,25 +201,28 @@ export async function buildPlayerMedalInventory(
     (collision?.steamId
       ? await prisma.user.findFirst({
           where: { steamId: collision.steamId, profileComplete: true },
-          select: { id: true, nick: true },
+          select: { id: true, nick: true, steamId: true, medalShelfIds: true },
         })
       : null) ||
     (await prisma.user.findFirst({
       where: { nick: accountNick, profileComplete: true },
-      select: { id: true, nick: true },
+      select: { id: true, nick: true, steamId: true, medalShelfIds: true },
     })) ||
     (await prisma.user.findFirst({
       where: {
         nick: { equals: accountNick, mode: "insensitive" },
         profileComplete: true,
       },
-      select: { id: true, nick: true },
+      select: { id: true, nick: true, steamId: true, medalShelfIds: true },
     }));
   const signs = registered ? [REGISTRATION_SIGN] : [];
   const award = registered
     ? await fruitStrikeAwardIds(registered.id)
     : { trophy: false, mvp: false, prediction: false };
   const keech = (registered?.nick || clean).toLowerCase() === "keech";
+  const kroasawn =
+    registered?.steamId === KROASAWN_BDAY_STEAM_ID ||
+    (registered?.nick || clean).toLowerCase() === "kroasawn";
   const cups: ProfileMedalItem[] = [];
   if (award.trophy || keech) cups.push(KEECH_FRUIT_STRIKE_TROPHY);
   if (award.mvp) cups.push(FRUIT_STRIKE_MVP);
@@ -260,8 +231,7 @@ export async function buildPlayerMedalInventory(
   const s2Finished =
     Boolean(s2Prog?.completedAt) || (s2Prog?.currentLevel || 0) >= 25;
   if (keech || s2Finished) cups.push(KEECH_HALLOWEEN_TROPHY);
-  // Превью вариантов ДР-медали — только у Keech, пока не выберем подарок.
-  if (keech) cups.push(...KROASAWN_BDAY_MEDALS);
+  if (kroasawn) cups.push(KROASAWN_BDAY_MEDAL);
   return [...cups, ...signs, ...bp].filter(isProfileShelfAward);
 }
 
