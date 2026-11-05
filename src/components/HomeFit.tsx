@@ -64,15 +64,19 @@ export function HomeFit({
       }
 
       if (hub) {
-        // канва по центру экрана — сетка совпадает с дырой фона cover
+        // канва + фон оболочки в одном слое; cover заполняет экран без чёрных полей
         host.style.width = "100%";
         host.style.height = "100%";
+        host.style.overflow = "hidden";
       }
 
       const w = host.clientWidth;
       const h = host.clientHeight;
       if (w < 8 || h < 8) return;
-      const scale = Math.min(w / DESIGN_W, h / DESIGN_H);
+      // hub: max = cover (плитки и пазы всегда вместе); иначе min = contain
+      const scale = hub
+        ? Math.max(w / DESIGN_W, h / DESIGN_H)
+        : Math.min(w / DESIGN_W, h / DESIGN_H);
       if (!Number.isFinite(scale) || scale <= 0) return;
       board.style.setProperty("--home-scale", String(scale));
       board.style.setProperty("--home-hero-lift", "0px");

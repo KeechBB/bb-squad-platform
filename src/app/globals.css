@@ -7682,7 +7682,7 @@ html.bb-phone-pan .home-page.is-hub .home-fit {
 }
 
 html.bb-phone-pan .home-layout.is-hub {
-  --home-scale: min(calc(100vw / 1920px), calc((100dvh - 76px) / 1004px));
+  --home-scale: max(calc(100vw / 1920px), calc((100dvh - 76px) / 1004px));
   transform: scale(var(--home-scale));
   transform-origin: center center;
   width: 1920px;
@@ -22413,10 +22413,9 @@ body:has(.home-page.is-hub),
   background: #05040a;
 }
 
-/* Hub shell: public/home-hub/hub-poly-empty-shell.jpg — пустые слоты, без плиток */
+/* Stage без картинки: оболочка живёт на канве вместе с плитками (иначе cover≠scale → вылезают из пазов). */
 .home-page.is-hub .home-stage-photo {
-  background: url("/home-hub/hub-poly-empty-shell.jpg?v=1") center / cover no-repeat;
-  background-color: #05040a;
+  background: #05040a;
   transform: none;
   animation: none;
   filter: none;
@@ -22449,9 +22448,11 @@ body:has(.home-page.is-hub),
   grid-template-areas: "hub";
   padding: 0;
   column-gap: 0;
-  /* центр канвы = центр фона cover → сетка в дыре */
   transform-origin: center center;
   margin: 0;
+  /* фон оболочки на канве 1920×1004 — пазы и плитки в одной системе координат */
+  background: url("/home-hub/hub-poly-empty-shell.jpg?v=2") center / 100% 100% no-repeat;
+  background-color: #05040a;
 }
 
 .home-hub {
@@ -22467,7 +22468,6 @@ body:has(.home-page.is-hub),
   background: transparent;
 }
 
-/* на всю площадь канвы — тот же узор cover, сетка по центру */
 .home-hub-poly {
   position: relative;
   z-index: 2;
