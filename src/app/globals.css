@@ -22493,11 +22493,36 @@ body:has(.home-page.is-hub),
   background: transparent;
 }
 
-/* CW rail: свободные слоты по % канвы (как разделы) */
+/* CW rail на хабе */
 .home-hub-cw {
   position: absolute;
-  inset: 0;
   z-index: 3;
+  pointer-events: none;
+}
+
+/* обычный режим: плотный столбик у верхнего левого края */
+.home-hub-cw--stack {
+  top: 10px;
+  left: 12px;
+  width: 214px;
+  height: auto;
+  max-height: calc(100% - 20px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.home-hub-cw--stack .home-cw-slot,
+.home-hub-cw--stack .home-hub-cw-stubs {
+  pointer-events: auto;
+}
+
+/* режим расстановки: свободные слоты по % канвы */
+.home-hub-cw--free {
+  inset: 0;
   width: auto;
   height: auto;
   max-height: none;
@@ -22512,27 +22537,26 @@ body:has(.home-page.is-hub),
   display: flex;
   flex-direction: column;
   min-width: 0;
-  min-height: 0;
+  height: auto;
 }
 
 .home-hub-cw--free .home-hub-cw-item > .home-cw-slot,
 .home-hub-cw--free .home-hub-cw-item > .home-hub-cw-stub {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   width: 100%;
-  height: 100%;
-  min-height: 0;
-  overflow: auto;
+  height: auto;
+  overflow: visible;
 }
 
 .home-hub-cw--free .home-cw-slot--single {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: auto;
 }
 
 .home-hub-cw--free .home-cw-slot--single .home-cw-card {
-  flex: 1 1 auto;
-  height: 100%;
+  flex: 0 0 auto;
+  height: auto;
 }
 
 .home-hub-cw-item.is-editable {
@@ -22566,7 +22590,7 @@ body:has(.home-page.is-hub),
 .home-layout.is-hub .home-cw-slot {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
   height: auto;
   overflow: visible;
 }
@@ -22575,7 +22599,7 @@ body:has(.home-page.is-hub),
   flex: 0 0 auto;
   height: auto;
   min-height: 0;
-  gap: 8px;
+  gap: 7px;
   overflow: visible;
 }
 
@@ -22586,14 +22610,16 @@ body:has(.home-page.is-hub),
   top: auto;
   margin: 0;
   flex: 0 0 auto;
-  gap: 8px;
+  gap: 7px;
 }
 
 .home-layout.is-hub .home-cw-card {
   flex: 0 0 auto;
   min-height: 0;
+  height: auto;
   justify-content: flex-start;
-  padding: 9px 10px 8px;
+  gap: 4px;
+  padding: 7px 9px 6px;
   /* непрозрачный фон — текст не сливается с узором */
   background: linear-gradient(165deg, #1a1230 0%, #120c22 55%, #0e0a18 100%);
   border-color: rgba(240, 201, 135, 0.55);
@@ -22602,16 +22628,43 @@ body:has(.home-page.is-hub),
     0 10px 22px rgba(0, 0, 0, 0.55);
 }
 
+.home-layout.is-hub .home-cw-kicker {
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+}
+
+.home-layout.is-hub .home-cw-date {
+  font-size: 1.05rem;
+}
+
+.home-layout.is-hub .home-cw-time {
+  font-size: 0.82rem;
+}
+
+.home-layout.is-hub .home-cw-opp,
+.home-layout.is-hub .home-cw-map {
+  font-size: 0.72rem;
+  line-height: 1.2;
+}
+
+.home-layout.is-hub .home-cw-roster,
+.home-layout.is-hub .home-cw-go {
+  min-height: 24px;
+  margin: 1px 0 0;
+  padding: 4px 4px;
+  font-size: 0.64rem;
+}
+
 .home-layout.is-hub .home-cw-predict {
   flex: 0 0 auto;
-  min-height: 26px;
-  margin: 2px 0 0;
-  padding: 4px 4px;
+  min-height: 22px;
+  margin: 1px 0 0;
+  padding: 3px 4px;
   border: 1px dashed rgba(167, 139, 250, 0.55);
   border-radius: 8px;
   background: #1e1438;
   color: rgba(196, 181, 253, 0.9);
-  font-size: 0.66rem;
+  font-size: 0.6rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;

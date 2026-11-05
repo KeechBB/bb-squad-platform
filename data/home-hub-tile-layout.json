@@ -59,22 +59,22 @@
   },
   "previews": {
     "junior": {
-      "left": 1.15,
-      "top": 1.8,
+      "left": 0.65,
+      "top": 1.0,
       "width": 11.15,
-      "height": 29.5
+      "height": 20
     },
     "main": {
-      "left": 1.15,
-      "top": 32.2,
+      "left": 0.65,
+      "top": 22.0,
       "width": 11.15,
-      "height": 29.5
+      "height": 20
     },
     "clan": {
-      "left": 1.15,
-      "top": 62.6,
+      "left": 0.65,
+      "top": 43.0,
       "width": 11.15,
-      "height": 29.5
+      "height": 20
     }
   }
 }

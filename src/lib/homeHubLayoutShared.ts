@@ -30,9 +30,9 @@ export const DEFAULT_HUB_TILES: Record<string, HubTileBox> = {
   "my-faction": { left: 55.4, top: 59.0, width: 9.4, height: 17.0 },
 };
 
-/** ~214px × card stack on 1920×1004 canvas */
+/** Компактный столбик у верхнего левого края (~214px). */
 export const DEFAULT_HUB_PREVIEWS: Record<HubPreviewId, HubTileBox> = {
-  junior: { left: 1.15, top: 1.8, width: 11.15, height: 29.5 },
-  main: { left: 1.15, top: 32.2, width: 11.15, height: 29.5 },
-  clan: { left: 1.15, top: 62.6, width: 11.15, height: 29.5 },
+  junior: { left: 0.65, top: 1.0, width: 11.15, height: 20 },
+  main: { left: 0.65, top: 22.0, width: 11.15, height: 20 },
+  clan: { left: 0.65, top: 43.0, width: 11.15, height: 20 },
 };

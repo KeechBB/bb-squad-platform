@@ -45,7 +45,8 @@ function boxStyle(box: HubTileBox): CSSProperties {
     left: `${box.left}%`,
     top: `${box.top}%`,
     width: `${box.width}%`,
-    height: `${box.height}%`,
+    /* высота по контенту — иначе пустота под «в разработке» */
+    height: "auto",
   };
 }
 
@@ -250,11 +251,28 @@ export function HomeHubCwDock({
     );
   }
 
+  // Зафиксировано: плотный столбик сверху слева, без огромных слотов.
+  if (!editing) {
+    return (
+      <aside className="home-hub-cw home-hub-cw--stack" aria-label="Превью клановых войн">
+        {showCw ? (
+          <HomeCwAnnounce cards={cwCards} />
+        ) : (
+          <div className="home-hub-cw-stubs">
+            {HOME_HUB_PREVIEW_IDS.map((id) => (
+              <StubCard key={id} title={STUB_TITLES[id]} />
+            ))}
+          </div>
+        )}
+      </aside>
+    );
+  }
+
   return (
     <>
       {hint ? <div className="home-hub-cw-edit-hint">{hint}</div> : null}
       <aside
-        className={`home-hub-cw home-hub-cw--free${editing ? " is-editing" : ""}`}
+        className="home-hub-cw home-hub-cw--free is-editing"
         aria-label="Превью клановых войн"
         ref={hostRef}
       >
