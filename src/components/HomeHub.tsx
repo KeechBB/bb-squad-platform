@@ -45,14 +45,14 @@ export function HomeHub({ showCw, cwCards }: Props) {
             href={tile.href}
             className="home-hub-tile"
             title={tile.title}
+            aria-label={tile.title}
           >
             <span className="home-hub-tile-plate" aria-hidden="true" />
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={`${tile.image}?v=plate1`}
-              alt={tile.title}
-              width={280}
-              height={280}
+            {/* background вместо <img> — меньше всплывашек Яндекс/переводчика на картинках */}
+            <span
+              className="home-hub-tile-art"
+              aria-hidden="true"
+              style={{ backgroundImage: `url(${tile.image}?v=plate1)` }}
             />
           </Link>
         ))}

@@ -22562,14 +22562,14 @@ body:has(.not-found-page) .site-footer-note {
   outline: none;
 }
 
-.home-hub-tile img {
-  position: relative;
+.home-hub-tile-art {
+  position: absolute;
+  inset: 2px;
   z-index: 1;
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  padding: 2px;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  pointer-events: none;
 }
 
 .wip-stub-page {
