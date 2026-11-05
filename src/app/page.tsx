@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getHomeDashboardData } from "@/lib/homePageData";
 import { HomePanels } from "@/components/HomePanels";
 import { HomeFit } from "@/components/HomeFit";
+import { HomeHub } from "@/components/HomeHub";
 import { HomeLoginPrompt } from "@/components/HomeLoginPrompt";
 import { HomeBattlePassTeaser } from "@/components/HomeBattlePassTeaser";
 import { HomeTournamentAnnounce } from "@/components/HomeTournamentAnnounce";
@@ -18,6 +19,7 @@ import {
 import { syncCwMails } from "@/lib/cwMailSync";
 import { syncTournamentEliminationMails } from "@/lib/tournamentEliminationMail";
 import { isBattlePassIntermission } from "@/lib/battlePassSchedule";
+import { HOME_HUB_REBRAND } from "@/lib/homeHub";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +53,7 @@ export default async function HomePage() {
   }
 
   return (
-    <main className="home-page">
+    <main className={`home-page${HOME_HUB_REBRAND ? " is-hub" : ""}`}>
       <Suspense fallback={null}>
         <HomeLoginPrompt />
       </Suspense>
@@ -104,57 +106,65 @@ export default async function HomePage() {
         </svg>
       </div>
 
-      <HomeFit>
-        <div className="home-side">
-          <div className="home-info-row">
-            <aside className="home-welcome-plaque" aria-label="О платформе">
-              <p className="home-welcome-plaque-title">BLACKBERRY</p>
-              <p className="home-welcome-plaque-sub">
-                Автоматизированная игровая платформа
-              </p>
-              <p className="home-welcome-plaque-lead">
-                Добро пожаловать на официальный портал сообщества BlackBerry Squad.
-              </p>
-              <p className="home-welcome-plaque-body">
-                Здесь <strong>подробная</strong> аналитика. Игровые серверы полностью{" "}
-                <strong>синхронизированы</strong> с платформой:{" "}
-                <strong>каждый</strong> фраг, выстрел, время и другие показатели
-                фиксируются в <strong>реальном времени</strong> — объективная оценка
-                ваших навыков. Цель — прозрачная соревновательная экосистема для всех{" "}
-                <strong>игроков</strong> и участников <strong>кланов</strong>.
-              </p>
-            </aside>
-          </div>
-          {isBattlePassIntermission() ? (
-            <HomeBattlePassTeaser />
-          ) : (
-            <HomeTournamentAnnounce />
-          )}
-          <HomePanels
-            publicTop={publicTop}
-            viewerNick={session?.user?.nick || null}
-            showCw={showCw}
-            cwCards={cwCards}
-          />
-        </div>
+      <HomeFit hub={HOME_HUB_REBRAND}>
+        {HOME_HUB_REBRAND ? (
+          <HomeHub showCw={showCw} cwCards={cwCards} />
+        ) : (
+          <>
+            <div className="home-side">
+              <div className="home-info-row">
+                <aside className="home-welcome-plaque" aria-label="О платформе">
+                  <p className="home-welcome-plaque-title">BLACKBERRY</p>
+                  <p className="home-welcome-plaque-sub">
+                    Автоматизированная игровая платформа
+                  </p>
+                  <p className="home-welcome-plaque-lead">
+                    Добро пожаловать на официальный портал сообщества BlackBerry
+                    Squad.
+                  </p>
+                  <p className="home-welcome-plaque-body">
+                    Здесь <strong>подробная</strong> аналитика. Игровые серверы
+                    полностью <strong>синхронизированы</strong> с платформой:{" "}
+                    <strong>каждый</strong> фраг, выстрел, время и другие
+                    показатели фиксируются в <strong>реальном времени</strong> —
+                    объективная оценка ваших навыков. Цель — прозрачная
+                    соревновательная экосистема для всех <strong>игроков</strong>{" "}
+                    и участников <strong>кланов</strong>.
+                  </p>
+                </aside>
+              </div>
+              {isBattlePassIntermission() ? (
+                <HomeBattlePassTeaser />
+              ) : (
+                <HomeTournamentAnnounce />
+              )}
+              <HomePanels
+                publicTop={publicTop}
+                viewerNick={session?.user?.nick || null}
+                showCw={showCw}
+                cwCards={cwCards}
+              />
+            </div>
 
-        <section className="home-hero" aria-label="BlackBerry">
-          <div className="home-hero-brand">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              className="home-crest"
-              src="/blackberry.png"
-              alt=""
-              width={280}
-              height={280}
-            />
-            <p className="home-hero-kicker">Squad - Фруктовый сад</p>
-            <h1>BLACKBERRY</h1>
-            <p className="home-hero-tag">
-              Платформа клана BlackBerry — Рейтинг, Аналитика, статистика.
-            </p>
-          </div>
-        </section>
+            <section className="home-hero" aria-label="BlackBerry">
+              <div className="home-hero-brand">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  className="home-crest"
+                  src="/blackberry.png"
+                  alt=""
+                  width={280}
+                  height={280}
+                />
+                <p className="home-hero-kicker">Squad - Фруктовый сад</p>
+                <h1>BLACKBERRY</h1>
+                <p className="home-hero-tag">
+                  Платформа клана BlackBerry — Рейтинг, Аналитика, статистика.
+                </p>
+              </div>
+            </section>
+          </>
+        )}
       </HomeFit>
     </main>
   );

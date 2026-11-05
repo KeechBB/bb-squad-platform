@@ -7,7 +7,14 @@ import { isPhonePanCanvas } from "@/components/TouchCompact";
 const DESIGN_W = 1920;
 const DESIGN_H = 1004;
 
-export function HomeFit({ children }: { children: ReactNode }) {
+export function HomeFit({
+  children,
+  hub = false,
+}: {
+  children: ReactNode;
+  /** Hub rebrand: no hero-brand centering math. */
+  hub?: boolean;
+}) {
   const hostRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<HTMLDivElement>(null);
 
@@ -41,6 +48,7 @@ export function HomeFit({ children }: { children: ReactNode }) {
       board.style.setProperty("--home-hero-nudge-x", "0px");
       host.style.width = "";
       host.style.height = `${Math.round(DESIGN_H * scale)}px`;
+      if (hub) return;
       const brand = board.querySelector<HTMLElement>(".home-hero-brand");
       const side = board.querySelector<HTMLElement>(".home-side");
       if (brand && side) {
@@ -66,11 +74,11 @@ export function HomeFit({ children }: { children: ReactNode }) {
       ro.disconnect();
       window.removeEventListener("resize", fit);
     };
-  }, []);
+  }, [hub]);
 
   return (
     <div className="home-fit" ref={hostRef}>
-      <div className="home-layout" ref={boardRef}>
+      <div className={`home-layout${hub ? " is-hub" : ""}`} ref={boardRef}>
         {children}
       </div>
     </div>
