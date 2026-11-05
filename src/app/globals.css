@@ -22582,9 +22582,28 @@ body:has(.home-page.is-hub),
 }
 
 /*
- * Только иконка+текст ВНУТРИ слотов оболочки.
- * Золотая + синяя неоновая рамка — из фона hub-poly-empty-shell.
+ * 9 hex-разделов (картинки с рамками). Позиции — inline из layout JSON.
+ * Keech может таскать, пока layout.locked = false.
  */
+.home-hub-edit-hint {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  top: 10px;
+  translate: -50% 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  background: rgba(12, 8, 22, 0.82);
+  color: #fde68a;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
 .home-hub-grid {
   position: absolute;
   inset: 0;
@@ -22608,19 +22627,20 @@ body:has(.home-page.is-hub),
   outline: none;
   transition: none;
   pointer-events: auto;
-  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  /* left/top/width/height задаются inline из layout */
 }
 
-/* Только Турниры: строго внутри верхнего-левого бронзового слота оболочки */
-.home-hub-tile--tournaments { left: 37.422%; top: 20.867%; width: 6.094%; height: 13.596%; }
-.home-hub-tile--public { left: 47.500%; top: 20.120%; width: 6.562%; height: 14.492%; }
-.home-hub-tile--cw { left: 57.891%; top: 20.568%; width: 6.328%; height: 14.343%; }
-.home-hub-tile--training { left: 36.953%; top: 41.783%; width: 6.719%; height: 14.343%; }
-.home-hub-tile--battle-pass { left: 47.734%; top: 41.633%; width: 6.328%; height: 14.492%; }
-.home-hub-tile--marketplace { left: 57.891%; top: 41.633%; width: 6.641%; height: 14.492%; }
-.home-hub-tile--my-clan { left: 37.266%; top: 62.550%; width: 6.094%; height: 14.044%; }
-.home-hub-tile--my-team { left: 47.578%; top: 62.550%; width: 6.250%; height: 14.193%; }
-.home-hub-tile--my-faction { left: 57.812%; top: 62.400%; width: 6.641%; height: 14.343%; }
+.home-hub-tile.is-editable {
+  cursor: grab;
+  outline: 1px dashed rgba(251, 191, 36, 0.35);
+  outline-offset: 2px;
+}
+
+.home-hub-tile.is-dragging {
+  cursor: grabbing;
+  z-index: 4;
+  outline-color: rgba(56, 189, 248, 0.7);
+}
 
 .home-hub-tile-plate {
   position: absolute;

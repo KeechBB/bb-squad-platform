@@ -1,0 +1,15 @@
+{
+  "locked": false,
+  "updatedAt": null,
+  "tiles": {
+    "tournaments": { "left": 36.2, "top": 17.2, "width": 9.4, "height": 17.0 },
+    "public": { "left": 45.8, "top": 16.8, "width": 9.4, "height": 17.0 },
+    "cw": { "left": 55.4, "top": 17.2, "width": 9.4, "height": 17.0 },
+    "training": { "left": 36.0, "top": 38.2, "width": 9.4, "height": 17.0 },
+    "battle-pass": { "left": 45.8, "top": 38.0, "width": 9.4, "height": 17.0 },
+    "marketplace": { "left": 55.6, "top": 38.2, "width": 9.4, "height": 17.0 },
+    "my-clan": { "left": 36.2, "top": 59.0, "width": 9.4, "height": 17.0 },
+    "my-team": { "left": 45.8, "top": 59.0, "width": 9.4, "height": 17.0 },
+    "my-faction": { "left": 55.4, "top": 59.0, "width": 9.4, "height": 17.0 }
+  }
+}

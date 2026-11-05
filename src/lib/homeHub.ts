@@ -7,9 +7,8 @@ export const HOME_HUB_REBRAND = true;
  */
 export const HOME_HUB_BG_FILE = "/home-hub/hub-poly-empty-shell.jpg";
 
-/** Section tiles: only listed ids shown (rest stay empty shell slots). */
+/** All 9 section tiles on hub. Positions: data/home-hub-tile-layout.json */
 export const HOME_HUB_SHOW_TILES = true;
-export const HOME_HUB_VISIBLE_TILE_IDS = ["tournaments"] as const;
 
 export type HomeHubTile = {
   id: string;

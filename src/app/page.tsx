@@ -20,6 +20,8 @@ import { syncCwMails } from "@/lib/cwMailSync";
 import { syncTournamentEliminationMails } from "@/lib/tournamentEliminationMail";
 import { isBattlePassIntermission } from "@/lib/battlePassSchedule";
 import { HOME_HUB_REBRAND } from "@/lib/homeHub";
+import { isBuiltinSuperAdmin } from "@/lib/admin";
+import { readHubTileLayout } from "@/lib/homeHubLayout";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +46,8 @@ export default async function HomePage() {
   await syncTournamentEliminationMails();
   const userId = session?.user?.id || "";
   const showCw = await viewerIsBlackberry(userId);
+  const canEditTiles = isBuiltinSuperAdmin(session?.user?.steamId);
+  const tileLayout = await readHubTileLayout();
   let cwCards: HomeCwCard[] = [];
   if (showCw) {
     const slots = await homeCwAnnounces();
@@ -108,7 +112,12 @@ export default async function HomePage() {
 
       <HomeFit hub={HOME_HUB_REBRAND}>
         {HOME_HUB_REBRAND ? (
-          <HomeHub showCw={showCw} cwCards={cwCards} />
+          <HomeHub
+            showCw={showCw}
+            cwCards={cwCards}
+            canEditTiles={canEditTiles}
+            tileLayout={tileLayout}
+          />
         ) : (
           <>
             <div className="home-side">

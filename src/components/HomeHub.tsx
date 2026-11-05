@@ -1,22 +1,16 @@
-import Link from "next/link";
 import { HomeCwAnnounce, type HomeCwCard } from "@/components/HomeCwAnnounce";
-import {
-  HOME_HUB_SHOW_TILES,
-  HOME_HUB_TILES,
-  HOME_HUB_VISIBLE_TILE_IDS,
-} from "@/lib/homeHub";
+import { HomeHubTiles } from "@/components/HomeHubTiles";
+import { HOME_HUB_SHOW_TILES, HOME_HUB_TILES } from "@/lib/homeHub";
+import type { HubTileLayout } from "@/lib/homeHubLayout";
 
 type Props = {
   showCw: boolean;
   cwCards: HomeCwCard[];
+  canEditTiles: boolean;
+  tileLayout: HubTileLayout;
 };
 
-export function HomeHub({ showCw, cwCards }: Props) {
-  const visible = new Set<string>(HOME_HUB_VISIBLE_TILE_IDS);
-  const tiles = HOME_HUB_SHOW_TILES
-    ? HOME_HUB_TILES.filter((t) => visible.has(t.id))
-    : [];
-
+export function HomeHub({ showCw, cwCards, canEditTiles, tileLayout }: Props) {
   return (
     <div className="home-hub" aria-label="Разделы платформы">
       <aside className="home-hub-cw" aria-label="Превью клановых войн">
@@ -48,25 +42,12 @@ export function HomeHub({ showCw, cwCards }: Props) {
       </aside>
 
       <div className="home-hub-poly">
-        {tiles.length > 0 ? (
-          <nav className="home-hub-grid" aria-label="Быстрые разделы">
-            {tiles.map((tile) => (
-              <Link
-                key={tile.id}
-                href={tile.href}
-                className={`home-hub-tile home-hub-tile--${tile.id}`}
-                title={tile.title}
-                aria-label={tile.title}
-              >
-                <span className="home-hub-tile-plate" aria-hidden="true" />
-                <span
-                  className="home-hub-tile-art"
-                  aria-hidden="true"
-                  style={{ backgroundImage: `url(${tile.image}?v=tour1)` }}
-                />
-              </Link>
-            ))}
-          </nav>
+        {HOME_HUB_SHOW_TILES ? (
+          <HomeHubTiles
+            tiles={HOME_HUB_TILES}
+            initialLayout={tileLayout}
+            canEdit={canEditTiles}
+          />
         ) : null}
       </div>
     </div>
