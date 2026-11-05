@@ -108,15 +108,14 @@ export function Season2BattlePass({
     () => leaderboard.slice(0, TOP_CAP),
     [leaderboard]
   );
-  // Сетка всегда Топ-50 / 10 — пустые слоты держат высоту, даже без игроков.
-  const pageCount = Math.max(1, Math.ceil(TOP_CAP / PAGE_SIZE));
+  // Страницы только по реальным игрокам (не пустые «—» на 2/5).
+  const pageCount = Math.max(1, Math.ceil(boardRows.length / PAGE_SIZE));
   const pageSafe = Math.min(Math.max(0, boardPage), pageCount - 1);
   const pageSlots = useMemo(() => {
     const start = pageSafe * PAGE_SIZE;
-    return Array.from({ length: PAGE_SIZE }, (_, i) => {
-      const row = boardRows[start + i];
-      return row || null;
-    });
+    const slice = boardRows.slice(start, start + PAGE_SIZE);
+    // На последней неполной странице не добиваем пустыми слотами.
+    return slice;
   }, [boardRows, pageSafe]);
 
   function openReward(r: BpReward) {

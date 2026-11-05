@@ -4,6 +4,7 @@ import { BattlePassIntermission } from "@/components/BattlePassIntermission";
 import { emptySelfProgress } from "@/lib/battlePass";
 import {
   battlePassLeaderboardTop10,
+  battlePassLeaderboardTop50,
   battlePassStatusNote,
   ensureBattlePassL20Finale,
   loadBattlePassState,
@@ -43,7 +44,7 @@ export default async function BattlePassPage() {
         selfName=""
         selfAvatarUrl={avatarUrl}
         selfProgress={selfProgress}
-        leaderboard={battlePassLeaderboardTop10(state)}
+        leaderboard={battlePassLeaderboardTop50(state)}
         statusNote={battlePassStatusNote(state)}
         scoringEnabled={Boolean(state?.enabled && state.cutoverAfterMatchId)}
         layout="season2"

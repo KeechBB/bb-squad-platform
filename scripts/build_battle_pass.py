@@ -1093,7 +1093,8 @@ def leaderboard_rows(state: dict) -> list[dict]:
     rows.sort(key=lambda r: (-r["_sort"], str(r["nick"] or "").casefold()))
     for r in rows:
         r.pop("_sort", None)
-    return rows[:10]
+    # Season 2 UI = Топ-50 (5 страниц × 10). Раньше [:10] → стр. 2–5 пустые.
+    return rows[:50]
 
 
 def _player_progress_score(p: dict) -> float:

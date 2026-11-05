@@ -349,6 +349,21 @@ export function battlePassLeaderboardTop10(
   return battlePassLeaderboard(state).slice(0, 10);
 }
 
+/** Топ-50 для Season 2 (сетка 5×10). */
+export function battlePassLeaderboardTop50(
+  state: BpSeasonState | null
+): BpPlayerProgress[] {
+  const fromBoard = battlePassLeaderboard(state);
+  if (fromBoard.length >= 50) return fromBoard.slice(0, 50);
+  // fallback: если в json ещё старый топ-10 — собрать из players
+  const players = state?.players;
+  if (!players || typeof players !== "object") return fromBoard;
+  const rows = Object.values(players)
+    .filter((p): p is BpPlayerProgress => Boolean(p && typeof p === "object" && p.nick))
+    .map((r) => normalizeBpRow(r, state));
+  return sortBattlePassRows(rows).slice(0, 50);
+}
+
 export function battlePassStatusNote(state: BpSeasonState | null): string {
   const base = "Участвуют только пользователи, прошедшие регистрацию.";
   if (isBattlePassSeason2State(state)) {

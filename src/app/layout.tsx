@@ -9,6 +9,7 @@ import { isAnyClanMember } from "@/lib/clanAccess";
 import { getCurrentBetaLabel } from "@/lib/siteReleases";
 import { YandexMetrika } from "@/components/YandexMetrika";
 import { SiteFooter } from "@/components/SiteFooter";
+import { TouchCompact } from "@/components/TouchCompact";
 import "@fontsource/oxanium/400.css";
 import "@fontsource/oxanium/600.css";
 import "@fontsource/oxanium/700.css";
@@ -39,10 +40,16 @@ export const metadata: Metadata = {
     : {}),
 };
 
-/** ПК-канва: на телефоне та же вёрстка, свайп по горизонтали (без mobile-адаптации). */
+/**
+ * ПК-канва 1440 на телефоне 1:1 (не сжатая в экран).
+ * Без initialScale:1 Safari втискивает 1440 в ширину айфона — всё мелкое.
+ * С initialScale:1 виден кусок сайта как на мониторе, свайп пальцем + pinch.
+ */
 export const viewport: Viewport = {
   width: 1440,
   initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
   viewportFit: "cover",
 };
 
@@ -73,6 +80,7 @@ export default async function RootLayout({
     <html lang="ru">
       <body>
         <Providers>
+          <TouchCompact />
           <header className="site-top">
             <div className="site-top-inner">
               <div className="top-left">

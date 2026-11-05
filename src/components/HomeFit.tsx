@@ -1,6 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { isPhonePanCanvas } from "@/components/TouchCompact";
 
 /** Design canvas: the desktop 4-column home. Scaled to the live viewport. */
 const DESIGN_W = 1920;
@@ -16,14 +17,20 @@ export function HomeFit({ children }: { children: ReactNode }) {
     if (!host || !board) return;
 
     const fit = () => {
-      // Phones: keep the desktop 1920×1004 canvas and pan it with a finger.
-      if (window.matchMedia("(max-width: 899px)").matches) {
+      document.documentElement.classList.remove("bb-compact");
+      const pan = isPhonePanCanvas();
+      document.documentElement.classList.toggle("bb-phone-pan", pan);
+
+      // Телефон: канва 1920×1004 как на ПК, без сжатия — свайп по странице.
+      if (pan) {
         board.style.setProperty("--home-scale", "1");
         board.style.setProperty("--home-hero-lift", "0px");
         board.style.setProperty("--home-hero-nudge-x", "0px");
-        host.style.height = "";
+        host.style.height = `${DESIGN_H}px`;
+        host.style.width = `${DESIGN_W}px`;
         return;
       }
+
       const w = host.clientWidth;
       const h = host.clientHeight;
       if (w < 8 || h < 8) return;
@@ -32,7 +39,7 @@ export function HomeFit({ children }: { children: ReactNode }) {
       board.style.setProperty("--home-scale", String(scale));
       board.style.setProperty("--home-hero-lift", "0px");
       board.style.setProperty("--home-hero-nudge-x", "0px");
-      // Visual size after transform:scale — Safari has no CSS zoom.
+      host.style.width = "";
       host.style.height = `${Math.round(DESIGN_H * scale)}px`;
       const brand = board.querySelector<HTMLElement>(".home-hero-brand");
       const side = board.querySelector<HTMLElement>(".home-side");
@@ -54,7 +61,11 @@ export function HomeFit({ children }: { children: ReactNode }) {
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(host);
-    return () => ro.disconnect();
+    window.addEventListener("resize", fit);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", fit);
+    };
   }, []);
 
   return (

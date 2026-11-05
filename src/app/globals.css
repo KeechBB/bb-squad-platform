@@ -7612,57 +7612,51 @@ body:has(.home-page) {
   overflow: hidden;
 }
 
-@media (max-width: 899px) {
-  html:has(.home-page),
-  body:has(.home-page) {
-    height: 100%;
-    height: 100dvh;
-    overflow: hidden;
-  }
+/*
+ * Телефон: ПК-канва 1:1 + свайп (класс .bb-phone-pan с TouchCompact).
+ * Не ломаем сетку в одну колонку — только разрешаем pan вместо overflow:hidden.
+ */
+html.bb-phone-pan,
+html.bb-phone-pan body {
+  overflow: auto !important;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+}
 
-  body:has(.home-page) {
-    display: flex;
-    flex-direction: column;
-  }
+html.bb-phone-pan:has(.home-page),
+html.bb-phone-pan body:has(.home-page) {
+  height: auto !important;
+  min-height: 100%;
+  min-height: 100dvh;
+  overflow: auto !important;
+}
 
-  .shell:has(.home-page) {
-    overflow: hidden;
-    flex: 1 1 auto;
-    min-height: 0;
-    height: auto;
-    max-height: none;
-  }
+html.bb-phone-pan .shell:has(.home-page) {
+  overflow: visible;
+  height: auto;
+  max-height: none;
+}
 
-  .home-page {
-    overflow: hidden;
-    flex: 1 1 auto;
-    min-height: 0;
-    height: auto;
-    max-height: none;
-  }
+html.bb-phone-pan .home-page {
+  overflow: visible;
+  height: auto;
+  max-height: none;
+}
 
-  /* Same 1920×1004 home as desktop — swipe to pan, no reflow. */
-  .home-fit {
-    overflow: scroll;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
-    touch-action: pan-x pan-y;
-    flex: 1 1 auto;
-    min-height: 0;
-    width: 100%;
-    height: calc(100dvh - 76px);
-    max-height: calc(100dvh - 76px);
-    align-items: flex-start;
-    justify-content: flex-start;
-  }
+html.bb-phone-pan .home-fit {
+  overflow: visible;
+  width: 1920px;
+  height: 1004px;
+  max-height: none;
+  flex: none;
+}
 
-  .home-layout {
-    --home-scale: 1;
-    width: 1920px;
-    height: 1004px;
-    transform: none;
-    zoom: 1;
-  }
+html.bb-phone-pan .home-layout {
+  --home-scale: 1;
+  transform: scale(1);
+  width: 1920px;
+  height: 1004px;
 }
 
 body:has(.home-page) {
@@ -7891,6 +7885,17 @@ body:has(.home-page) {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* Планшет / узкий ПК: карточка «весь клан» не должна наезжать на логотип */
+@media (max-width: 1400px) {
+  .home-cw-clan {
+    position: static;
+    width: 100%;
+    left: auto;
+    top: auto;
+    margin-top: 10px;
+  }
 }
 
 .home-cw-card {
@@ -13766,14 +13771,27 @@ body:has(.home-page) {
     gap: 8px;
     min-width: 0;
     flex: 1 1 0;
-    overflow: visible;
+    overflow: hidden;
   }
 
   .top-nav {
-    gap: 0;
+    gap: 2px;
     flex: 1 1 auto;
     min-width: 0;
-    overflow: visible;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+
+  .top-nav a,
+  .top-nav button.nav-dd-trigger,
+  .top-nav button.nav-login-trigger {
+    flex: 0 0 auto;
+    min-height: 40px;
+    white-space: nowrap;
   }
 
   .nav-home-logo {
@@ -15053,7 +15071,7 @@ body {
   .reaction-board,
   .reaction-session,
   .reaction-chat {
-    max-height: 220px;
+    max-height: none;
   }
 
   .reaction-side-col {
@@ -15061,11 +15079,18 @@ body {
   }
 
   .reaction-attempts {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
   }
 
   .reaction-arena {
-    min-height: 280px;
+    min-height: min(52vh, 360px);
+  }
+
+  .reaction-tabs button,
+  .reaction-records button {
+    min-height: 44px;
+    font-size: 0.95rem;
   }
 }
 
@@ -22048,6 +22073,16 @@ body:has(.not-found-page) .site-footer-note {
   }
   .site-footer-meta {
     text-align: left;
+  }
+  .site-footer-nav {
+    gap: 8px 12px;
+    font-size: 0.78rem;
+  }
+  .site-footer-nav a {
+    padding: 8px 4px;
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
   }
 }
 
