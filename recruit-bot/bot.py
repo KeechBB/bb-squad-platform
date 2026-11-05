@@ -787,8 +787,10 @@ def forwarded_id(message) -> int | None:
     sender = getattr(origin, "sender_user", None) if origin else None
     if sender is not None:
         return int(sender.id)
-    if message.forward_from is not None:
-        return int(message.forward_from.id)
+    # PTB 21+: forward_from часто отсутствует — только через getattr
+    fwd = getattr(message, "forward_from", None)
+    if fwd is not None:
+        return int(fwd.id)
     return None
 
 
@@ -814,12 +816,16 @@ async def hr_capture(update, context, mode: str, text: str) -> None:
             chat = await context.bot.get_chat(text)
             tg_id = int(chat.id)
             note = text
-        except Exception:
+        except Exception as e:
+            logging.warning("hr get_chat %s: %s %s", text, type(e).__name__, e)
             tg_id = None
     if tg_id is None:
         await message.reply_text(
-            "Не вижу id. Пришли число, @username или перешли сообщение, "
-            "у которого не скрыт аккаунт."
+            "Не вижу id. Надёжнее так:\n"
+            "1) человек пишет боту /start;\n"
+            "2) перешли сюда любое его сообщение;\n"
+            "или пришли числовой Telegram id (через @userinfobot).\n"
+            "@username сработает только если человек уже писал этому боту."
         )
         context.user_data["hr_mode"] = "appoint"
         return
