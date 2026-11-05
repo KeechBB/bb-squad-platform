@@ -22370,6 +22370,34 @@ body:has(.not-found-page) .site-footer-note {
 }
 
 /* ===== Home hub rebrand (flag HOME_HUB_REBRAND) ===== */
+/* crystal-grove concept bg — пробный просмотр */
+.home-page.is-hub .home-stage-photo {
+  background:
+    url("/home-hub/hub-poly-bg-v4.jpg?v=1") center / cover no-repeat;
+  transform: scale(1.02);
+  animation: none;
+  filter: saturate(1.12) contrast(1.06) brightness(0.92);
+}
+
+.home-page.is-hub .home-stage-veil {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(5, 4, 10, 0.22) 0%,
+      rgba(5, 4, 10, 0.08) 40%,
+      rgba(5, 4, 10, 0.35) 100%
+    );
+}
+
+.home-page.is-hub .home-stage-topo,
+.home-page.is-hub .home-stage-rays,
+.home-page.is-hub .home-stage-scan,
+.home-page.is-hub .home-stage-grid,
+.home-page.is-hub .home-stage-dust {
+  opacity: 0;
+  visibility: hidden;
+}
+
 .home-layout.is-hub {
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas: "hub";
