@@ -22582,8 +22582,9 @@ body:has(.home-page.is-hub),
 }
 
 /*
- * Ровная 3×3 по разметке Alex (оранжевые линии).
- * Внутренние границы — прямые; внешний контур = полигон дыры.
+ * 3×3 по оранжевой разметке: прямые внутренние линии,
+ * внешний контур = полигон чёрной дыры (углы/бока разного формата).
+ * Картинки — кристальные рамки в цветах фона.
  */
 .home-hub-grid {
   position: absolute;
@@ -22591,18 +22592,18 @@ body:has(.home-page.is-hub),
   left: 50.5%;
   top: 49.7%;
   translate: -50% -50%;
-  width: 31%;
+  /* почти на всю дыру (~34% ширины арта) */
+  width: 33%;
   aspect-ratio: 1 / 1;
   height: auto;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-rows: repeat(3, minmax(0, 1fr));
-  gap: 3px;
+  gap: 2px;
   min-width: 0;
   min-height: 0;
   padding: 0;
   box-sizing: border-box;
-  /* внешний контур как у кристалла — углы ячеек по скосу */
   clip-path: polygon(
     50% 0%,
     100% 25%,
@@ -22620,7 +22621,7 @@ body:has(.home-page.is-hub),
   height: 100%;
   min-width: 0;
   min-height: 0;
-  background: #0a0b10;
+  background: #05060a;
   border: none;
   box-shadow: none;
   overflow: hidden;
