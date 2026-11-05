@@ -38,10 +38,7 @@ export function HomeHub({ showCw, cwCards }: Props) {
         )}
       </aside>
 
-      <div
-        className="home-hub-poly"
-        style={{ backgroundImage: "url(/home-hub/hub-poly-clean-v4.jpg?v=4)" }}
-      >
+      <div className="home-hub-poly">
         <nav className="home-hub-grid" aria-label="Быстрые разделы">
           {HOME_HUB_TILES.map((tile) => (
             <Link
