@@ -14,6 +14,7 @@ import {
   CLAN_ROLE_LABEL,
 } from "@/lib/clan";
 import { ClanCalendarPanel } from "@/components/ClanCalendarPanel";
+import { ClanFactionsPanel } from "@/components/ClanFactionsPanel";
 import { clanLogoUrl as ratingClanLogo } from "@/lib/clanLogo";
 import { formatRuDate, isActiveReserve } from "@/lib/validation";
 import { withAvatarCacheBust } from "@/lib/avatarUrl";
@@ -139,9 +140,10 @@ type Props = {
   joinRequests: JoinRequest[];
   assignableRoles: ClanRole[];
   tierEntries: Array<[string, 1 | 2 | 3]>;
+  showFactions?: boolean;
 };
 
-type Tab = "members" | "squads" | "stats" | "calendar";
+type Tab = "members" | "squads" | "stats" | "calendar" | "factions";
 
 type ClanPlayerAgg = {
   nick: string;
@@ -255,6 +257,7 @@ export function ClanDetailClient({
   joinRequests: initialJoinRequests,
   assignableRoles: initialAssignable,
   tierEntries,
+  showFactions = false,
 }: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("members");
@@ -1024,7 +1027,18 @@ export function ClanDetailClient({
             Карта игроков
           </Link>
         ) : null}
+        {showFactions ? (
+          <button
+            type="button"
+            className={`admin-tab${tab === "factions" ? " active" : ""}`}
+            onClick={() => setTab("factions")}
+          >
+            Фракции
+          </button>
+        ) : null}
       </div>
+
+      {tab === "factions" && showFactions ? <ClanFactionsPanel clanId={clan.id} /> : null}
 
       {tab === "members" ? (
         <section className="card">

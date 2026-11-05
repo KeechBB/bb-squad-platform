@@ -1,0 +1,10 @@
+{
+  "updatedAt": null,
+  "panes": {
+    "brand": { "left": 0, "top": 0, "width": 36, "height": 42 },
+    "controls": { "left": 36.8, "top": 0, "width": 30, "height": 24 },
+    "info": { "left": 36.8, "top": 24.8, "width": 30, "height": 17.2 },
+    "stats": { "left": 0, "top": 42.8, "width": 66.8, "height": 57.2 },
+    "roster": { "left": 67.6, "top": 0, "width": 32.4, "height": 100 }
+  }
+}
