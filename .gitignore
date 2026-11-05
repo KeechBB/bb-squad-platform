@@ -41,6 +41,10 @@ yarn-error.log*
 .env.*.local
 scripts/squad_collector_state.json
 scripts/.squad-collector.env
+recruit-bot/recruit-bot.env
+recruit-bot/data/
+recruit-bot/.venv/
+recruit-bot/__pycache__/
 
 # deploy maintenance flag (created on VPS during deploy.sh)
 /maintenance.on
@@ -57,6 +61,8 @@ scripts/.squad-collector.env
 !/storage/avatars/.gitkeep
 /storage/clans/*
 !/storage/clans/.gitkeep
+/storage/factions/*
+!/storage/factions/.gitkeep
 
 # prisma
 /prisma/*.db
