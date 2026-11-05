@@ -30,7 +30,11 @@ export async function POST(req: Request, ctx: Ctx) {
   if (!mime) {
     return NextResponse.json({ error: "Нужен PNG, JPG или WebP" }, { status: 400 });
   }
-  const logoUrl = await saveFactionLogo(loaded.view.id, buf, mime);
-  await prisma.faction.update({ where: { id: loaded.view.id }, data: { logoUrl } });
-  return NextResponse.json({ ok: true, logoUrl });
+  try {
+    const logoUrl = await saveFactionLogo(loaded.view.id, buf, mime);
+    await prisma.faction.update({ where: { id: loaded.view.id }, data: { logoUrl } });
+    return NextResponse.json({ ok: true, logoUrl });
+  } catch {
+    return NextResponse.json({ error: "Не удалось обработать картинку" }, { status: 500 });
+  }
 }

@@ -81,7 +81,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
     if (!view.canEditInfo) {
       return NextResponse.json({ error: "Нет прав" }, { status: 403 });
     }
-    data.info = body.info.trim().slice(0, 2000);
+    // JSON-док со стилем или простой текст
+    data.info = body.info.trim().slice(0, 4000);
   }
 
   if (body.leaderUserId) {

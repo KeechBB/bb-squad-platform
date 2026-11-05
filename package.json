@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "eslint",
     "db:push": "prisma db push",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test:smoke": "node scripts/qa/run_smoke.mjs",
+    "test:smoke:report": "python scripts/qa/render_smoke_report.py",
+    "test:auth:save": "node scripts/qa/save_auth.mjs"
   },
   "dependencies": {
     "@fontsource/manrope": "^5.3.0",
@@ -20,11 +23,13 @@
     "next-auth-steam": "^0.4.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "sharp": "^0.35.5",
     "three": "^0.186.1",
     "topojson-client": "^3.1.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@playwright/test": "^1.55.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

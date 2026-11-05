@@ -1,6 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
 import type { FactionView } from "@/lib/factions";
 import {
@@ -10,6 +19,14 @@ import {
   type FactionPaneBox,
   type FactionPaneId,
 } from "@/lib/factionPageLayoutShared";
+import {
+  FACTION_EMOJIS,
+  FACTION_INFO_COLORS,
+  FACTION_INFO_FONTS,
+  parseFactionInfo,
+  stringifyFactionInfo,
+  type FactionInfoDoc,
+} from "@/lib/factionInfoDoc";
 
 const TABS = [
   ["online", "онлайн"],
@@ -31,6 +48,10 @@ const TAB_NOTE: Record<TabId, string> = {
   analytics: "Статистика относительно других фракций появится здесь.",
 };
 
+/** Участник (не штаб): компактное лого слева, инфо справа. */
+const MEMBER_BRAND: FactionPaneBox = { left: 0, top: 0, width: 24, height: 52 };
+const MEMBER_INFO: FactionPaneBox = { left: 25.2, top: 0, width: 41.2, height: 52 };
+
 type ResizeMode = "move" | "e" | "s" | "se";
 
 type DragState = {
@@ -41,6 +62,8 @@ type DragState = {
   orig: FactionPaneBox;
 };
 
+type PoolPerson = { id: string; nick: string; name: string; steamId?: string };
+
 function boxStyle(box: FactionPaneBox): CSSProperties {
   return {
     left: `${box.left}%`,
@@ -48,6 +71,85 @@ function boxStyle(box: FactionPaneBox): CSSProperties {
     width: `${box.width}%`,
     height: `${box.height}%`,
   };
+}
+
+function PlayerSearchSelect({
+  people,
+  value,
+  onChange,
+  placeholder,
+}: {
+  people: PoolPerson[];
+  value: string;
+  onChange: (id: string) => void;
+  placeholder: string;
+}) {
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  const selected = people.find((p) => p.id === value) || null;
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return people.slice(0, 80);
+    return people
+      .filter((p) => {
+        const hay = `${p.nick} ${p.name} ${p.steamId || ""}`.toLowerCase();
+        return hay.includes(needle);
+      })
+      .slice(0, 80);
+  }, [people, q]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  return (
+    <div className="faction-player-search" ref={rootRef}>
+      <input
+        className="role-select"
+        value={open ? q : selected ? `${selected.nick}${selected.name ? ` (${selected.name})` : ""}` : q}
+        placeholder={placeholder}
+        onFocus={() => {
+          setOpen(true);
+          setQ("");
+        }}
+        onChange={(e) => {
+          setQ(e.target.value);
+          setOpen(true);
+          if (value) onChange("");
+        }}
+      />
+      {open ? (
+        <ul className="faction-player-search-list" role="listbox">
+          {filtered.length ? (
+            filtered.map((p) => (
+              <li key={p.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange(p.id);
+                    setQ("");
+                    setOpen(false);
+                  }}
+                >
+                  <span>{p.nick}{p.name ? ` (${p.name})` : ""}</span>
+                  {p.steamId ? <span className="muted">{p.steamId}</span> : null}
+                </button>
+              </li>
+            ))
+          ) : (
+            <li className="muted faction-player-search-empty">Никого не найдено</li>
+          )}
+        </ul>
+      ) : null}
+    </div>
+  );
 }
 
 export function FactionPageClient({
@@ -65,7 +167,7 @@ export function FactionPageClient({
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState(initial.name);
   const [tgUrl, setTgUrl] = useState(initial.tgUrl || "");
-  const [info, setInfo] = useState(initial.info);
+  const [infoDoc, setInfoDoc] = useState<FactionInfoDoc>(() => parseFactionInfo(initial.info));
   const [inviteId, setInviteId] = useState("");
   const [kickId, setKickId] = useState("");
   const [roleName, setRoleName] = useState("");
@@ -75,11 +177,14 @@ export function FactionPageClient({
   const [drag, setDrag] = useState<DragState | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const stageRef = useRef<HTMLDivElement | null>(null);
+  const infoAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
 
   const base = `/api/factions/${encodeURIComponent(view.slug)}`;
+  const canPlace = view.keech || view.canManage;
+  const memberView = !view.keech && !view.canManage;
 
   async function reload(href?: string) {
     if (href && href !== `/factions/${encodeURIComponent(view.slug)}`) {
@@ -92,7 +197,7 @@ export function FactionPageClient({
     setView(next);
     setName(next.name);
     setTgUrl(next.tgUrl || "");
-    setInfo(next.info);
+    setInfoDoc(parseFactionInfo(next.info));
     setInviteId("");
     setKickId("");
     setLeaderId("");
@@ -106,6 +211,7 @@ export function FactionPageClient({
       error?: string;
       href?: string;
       invited?: boolean;
+      logoUrl?: string;
     };
     setBusy(false);
     if (!res.ok) {
@@ -118,34 +224,41 @@ export function FactionPageClient({
         ? "Приглашение отправлено. Игрок примет или отклонит его в колокольчике."
         : ""
     );
+    if (data.logoUrl) {
+      setView((v) => ({ ...v, logoUrl: data.logoUrl || v.logoUrl }));
+    }
     await reload(data.href);
   }
 
-  const persist = useCallback(async (next: FactionPageLayout) => {
-    setSaveState("saving");
-    try {
-      const res = await fetch("/api/factions/page-layout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ panes: next.panes }),
-      });
-      if (!res.ok) throw new Error(`save ${res.status}`);
-      const saved = (await res.json()) as FactionPageLayout;
-      setLayout(saved);
-      setSaveState("saved");
-    } catch {
-      setSaveState("error");
-    }
-  }, []);
+  const persist = useCallback(
+    async (next: FactionPageLayout) => {
+      setSaveState("saving");
+      try {
+        const res = await fetch(`${base}/page-layout`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ panes: next.panes }),
+        });
+        if (!res.ok) throw new Error(`save ${res.status}`);
+        const saved = (await res.json()) as FactionPageLayout;
+        setLayout(saved);
+        setSaveState("saved");
+      } catch {
+        setSaveState("error");
+      }
+    },
+    [base]
+  );
 
   const scheduleSave = useCallback(
     (next: FactionPageLayout) => {
+      if (!canPlace) return;
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => {
         void persist(next);
       }, 350);
     },
-    [persist]
+    [canPlace, persist]
   );
 
   useEffect(() => {
@@ -203,8 +316,16 @@ export function FactionPageClient({
       mode,
       startX: e.clientX,
       startY: e.clientY,
-      orig: { ...layout.panes[id] },
+      orig: { ...paneBox(id) },
     });
+  }
+
+  function paneBox(id: FactionPaneId): FactionPaneBox {
+    if (memberView && !placing) {
+      if (id === "brand") return MEMBER_BRAND;
+      if (id === "info") return MEMBER_INFO;
+    }
+    return layout.panes[id];
   }
 
   const kickable = view.members.filter((m) => {
@@ -212,6 +333,12 @@ export function FactionPageClient({
     if (m.seat === "LEADER" && !view.keech) return false;
     return true;
   });
+
+  const kickPool: PoolPerson[] = kickable.map((m) => ({
+    id: m.userId,
+    nick: m.nick,
+    name: m.name,
+  }));
 
   const placeHint =
     saveState === "saving"
@@ -222,8 +349,25 @@ export function FactionPageClient({
           ? "не сохранилось"
           : "полоска — двигать · правый край — ширина · нижний — высота · угол — оба";
 
+  function insertEmoji(emoji: string) {
+    const el = infoAreaRef.current;
+    if (!el) {
+      setInfoDoc((d) => ({ ...d, text: `${d.text}${emoji}`.slice(0, 2000) }));
+      return;
+    }
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? start;
+    const next = `${el.value.slice(0, start)}${emoji}${el.value.slice(end)}`.slice(0, 2000);
+    setInfoDoc((d) => ({ ...d, text: next }));
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + emoji.length;
+      el.setSelectionRange(pos, pos);
+    });
+  }
+
   function pane(id: FactionPaneId, title: string, body: ReactNode) {
-    const box = layout.panes[id];
+    const box = paneBox(id);
     return (
       <section
         className={`card faction-pane faction-pane-${id}${drag?.id === id ? " is-dragging" : ""}`}
@@ -246,9 +390,18 @@ export function FactionPageClient({
     );
   }
 
+  const infoStyle: CSSProperties = {
+    fontFamily: infoDoc.font,
+    color: infoDoc.color,
+  };
+
   return (
-    <main className={`clan-page faction-page${placing ? " is-placing" : ""}`}>
-      {view.keech ? (
+    <main
+      className={`clan-page faction-page${placing ? " is-placing" : ""}${
+        memberView ? " is-member" : ""
+      }`}
+    >
+      {canPlace ? (
         <div className="faction-place-bar">
           <button type="button" className="btn primary" onClick={() => setPlacing((v) => !v)}>
             {placing ? "Готово" : "Разместить"}
@@ -316,7 +469,7 @@ export function FactionPageClient({
                   />
                 </label>
                 <label className="field">
-                  <span>Логотип, PNG / JPG / WebP</span>
+                  <span>Логотип, PNG / JPG / WebP (белый фон срежется)</span>
                   <input
                     type="file"
                     accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
@@ -345,19 +498,12 @@ export function FactionPageClient({
                 </button>
                 <label className="field">
                   <span>Сменить главу</span>
-                  <select
-                    className="role-select"
+                  <PlayerSearchSelect
+                    people={view.leaderPool}
                     value={leaderId}
-                    onChange={(e) => setLeaderId(e.target.value)}
-                  >
-                    <option value="">Выбери из клана</option>
-                    {view.leaderPool.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.nick}
-                        {p.name ? ` (${p.name})` : ""}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setLeaderId}
+                    placeholder="Ник или Steam ID"
+                  />
                 </label>
                 <button
                   type="button"
@@ -402,15 +548,12 @@ export function FactionPageClient({
                   <li>
                     <span>Пригласить во фракцию</span>
                     <div className="clan-invite-row">
-                      <select className="role-select" value={inviteId} onChange={(e) => setInviteId(e.target.value)}>
-                        <option value="">Игрок клана</option>
-                        {view.invitePool.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.nick}
-                            {p.name ? ` (${p.name})` : ""}
-                          </option>
-                        ))}
-                      </select>
+                      <PlayerSearchSelect
+                        people={view.invitePool}
+                        value={inviteId}
+                        onChange={setInviteId}
+                        placeholder="Ник или Steam ID"
+                      />
                       <button
                         type="button"
                         className="btn primary"
@@ -422,23 +565,21 @@ export function FactionPageClient({
                             body: JSON.stringify({ userId: inviteId }),
                           })
                         }
-                    >
-                      Пригласить
-                    </button>
-                  </div>
-                  {flash ? <p className="muted">{flash}</p> : null}
-                </li>
+                      >
+                        Пригласить
+                      </button>
+                    </div>
+                    {flash ? <p className="muted">{flash}</p> : null}
+                  </li>
                   <li>
                     <span>Исключить из фракции</span>
                     <div className="clan-invite-row">
-                      <select className="role-select" value={kickId} onChange={(e) => setKickId(e.target.value)}>
-                        <option value="">Ник</option>
-                        {kickable.map((m) => (
-                          <option key={m.userId} value={m.userId}>
-                            {m.nick}
-                          </option>
-                        ))}
-                      </select>
+                      <PlayerSearchSelect
+                        people={kickPool}
+                        value={kickId}
+                        onChange={setKickId}
+                        placeholder="Ник"
+                      />
                       <button
                         type="button"
                         className="btn"
@@ -511,15 +652,63 @@ export function FactionPageClient({
           "Информация для игроков",
           <div className="faction-info-box">
             <h2>Информация для игроков</h2>
-            <p className="muted faction-info-lead">Сюда глава пишет текст для состава.</p>
             {view.canEditInfo ? (
               <>
+                <div className="faction-info-toolbar">
+                  <label className="faction-info-tool">
+                    <span>Шрифт</span>
+                    <select
+                      value={infoDoc.font}
+                      onChange={(e) => setInfoDoc((d) => ({ ...d, font: e.target.value }))}
+                    >
+                      {FACTION_INFO_FONTS.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="faction-info-tool">
+                    <span>Цвет</span>
+                    <input
+                      type="color"
+                      value={infoDoc.color}
+                      onChange={(e) => setInfoDoc((d) => ({ ...d, color: e.target.value }))}
+                    />
+                  </label>
+                  <div className="faction-info-swatches" aria-label="Цвета">
+                    {FACTION_INFO_COLORS.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        className={`faction-info-swatch${infoDoc.color === c ? " is-on" : ""}`}
+                        style={{ background: c }}
+                        title={c}
+                        onClick={() => setInfoDoc((d) => ({ ...d, color: c }))}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="faction-emoji-row" aria-label="Смайлы">
+                  {FACTION_EMOJIS.map((e) => (
+                    <button
+                      key={e}
+                      type="button"
+                      className="faction-emoji-btn"
+                      onClick={() => insertEmoji(e)}
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
                 <textarea
+                  ref={infoAreaRef}
                   className="faction-info"
-                  value={info}
+                  style={infoStyle}
+                  value={infoDoc.text}
                   maxLength={2000}
                   placeholder="Текст для игроков фракции"
-                  onChange={(e) => setInfo(e.target.value)}
+                  onChange={(e) => setInfoDoc((d) => ({ ...d, text: e.target.value }))}
                 />
                 <button
                   type="button"
@@ -529,7 +718,7 @@ export function FactionPageClient({
                     void run(base, {
                       method: "PATCH",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ info }),
+                      body: JSON.stringify({ info: stringifyFactionInfo(infoDoc) }),
                     })
                   }
                 >
@@ -537,7 +726,9 @@ export function FactionPageClient({
                 </button>
               </>
             ) : (
-              <p className="faction-info-read">{view.info || "Пока пусто."}</p>
+              <p className="faction-info-read" style={infoStyle}>
+                {infoDoc.text || "Пока пусто."}
+              </p>
             )}
           </div>
         )}
@@ -590,7 +781,11 @@ export function FactionPageClient({
                         {view.canManage && m.seat !== "LEADER" ? (
                           <select
                             className="role-select"
-                            value={m.seat === "DEPUTY" ? view.roles.find((r) => r.isDeputy)?.id || "" : m.roleId || ""}
+                            value={
+                              m.seat === "DEPUTY"
+                                ? view.roles.find((r) => r.isDeputy)?.id || ""
+                                : m.roleId || ""
+                            }
                             onChange={(e) =>
                               void run(`${base}/members`, {
                                 method: "PATCH",
@@ -618,7 +813,6 @@ export function FactionPageClient({
                 </tbody>
               </table>
             </div>
-            <p className="muted">Номер — порядок вступления. Самим выйти нельзя.</p>
           </>
         )}
       </div>

@@ -88,8 +88,8 @@ export type FactionView = {
   mySeat: FactionSeat | null;
   myUserId: string | null;
   keech: boolean;
-  invitePool: { id: string; nick: string; name: string }[];
-  leaderPool: { id: string; nick: string; name: string }[];
+  invitePool: { id: string; nick: string; name: string; steamId: string }[];
+  leaderPool: { id: string; nick: string; name: string; steamId: string }[];
 };
 
 function visibleNick(u: MemberUser): string {
@@ -212,6 +212,7 @@ export async function loadFactionView(slug: string, steamId: string | null) {
         id: m.user.id,
         nick: m.user.nick || m.user.steamName || "—",
         name: m.user.name || "",
+        steamId: m.user.steamId || "",
       }));
     invitePool = pool;
     if (keech) {
@@ -222,6 +223,7 @@ export async function loadFactionView(slug: string, steamId: string | null) {
           id: m.user.id,
           nick: m.user.nick || m.user.steamName || "—",
           name: m.user.name || "",
+          steamId: m.user.steamId || "",
         }));
     }
   }

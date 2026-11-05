@@ -9,10 +9,11 @@ type Props = { params: Promise<{ slug: string }> };
 export default async function FactionPage({ params }: Props) {
   const { slug } = await params;
   const session = await getSession();
-  const [loaded, layout] = await Promise.all([
-    loadFactionView(decodeURIComponent(slug), session?.user?.steamId ?? null),
-    readFactionPageLayout(),
-  ]);
+  const loaded = await loadFactionView(
+    decodeURIComponent(slug),
+    session?.user?.steamId ?? null
+  );
   if (loaded.error || !loaded.view) notFound();
+  const layout = await readFactionPageLayout(loaded.view.id);
   return <FactionPageClient initial={loaded.view} initialLayout={layout} />;
 }

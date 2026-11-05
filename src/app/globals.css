@@ -23097,7 +23097,10 @@ body:has(.faction-page) .site-footer {
 
 /* Участники: только лого на всё окно brand, без главы/зама/ссылок */
 .faction-pane-brand:has(.faction-brand--logo-fill) {
-  padding: 8px;
+  padding: 6px;
+  background: transparent;
+  border-color: rgba(167, 139, 250, 0.2);
+  box-shadow: none;
 }
 
 .faction-pane-brand:has(.faction-brand--logo-fill) .faction-pane-body {
@@ -23112,6 +23115,7 @@ body:has(.faction-page) .site-footer {
   gap: 0;
   align-items: center;
   justify-content: center;
+  background: transparent;
 }
 
 .faction-logo--fill {
@@ -23123,6 +23127,128 @@ body:has(.faction-page) .site-footer {
   border-radius: 0;
   background: transparent !important;
   border: none;
+  /* JPG с белым фоном на тёмном UI */
+  mix-blend-mode: multiply;
+}
+
+.faction-page.is-member .faction-pane-brand {
+  background: transparent;
+}
+
+.faction-player-search {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.faction-player-search-list {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  max-height: 220px;
+  overflow: auto;
+  border-radius: 10px;
+  border: 1px solid rgba(167, 139, 250, 0.45);
+  background: #120c22;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
+}
+
+.faction-player-search-list button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  color: #f7f3ff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.faction-player-search-list button:hover {
+  background: rgba(124, 58, 237, 0.35);
+}
+
+.faction-player-search-empty {
+  padding: 10px;
+}
+
+.faction-info-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  margin-bottom: 8px;
+}
+
+.faction-info-tool {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.faction-info-tool select,
+.faction-info-tool input[type="color"] {
+  min-height: 32px;
+}
+
+.faction-info-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.faction-info-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  padding: 0;
+}
+
+.faction-info-swatch.is-on {
+  outline: 2px solid #a78bfa;
+  outline-offset: 1px;
+}
+
+.faction-emoji-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.faction-emoji-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(167, 139, 250, 0.28);
+  background: rgba(18, 12, 34, 0.9);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.faction-emoji-btn:hover {
+  border-color: rgba(240, 201, 135, 0.55);
+  background: rgba(60, 40, 100, 0.45);
+}
+
+.faction-info,
+.faction-info-read {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .faction-identity-form,
