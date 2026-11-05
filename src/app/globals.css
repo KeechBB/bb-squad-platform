@@ -22370,13 +22370,47 @@ body:has(.not-found-page) .site-footer-note {
 }
 
 /* ===== Home hub rebrand (flag HOME_HUB_REBRAND) ===== */
-/* узор не wallpaper: обычный stage, рамка — слой вокруг сетки */
+/* кристалл-сад = единственный фон на весь экран; старый ops-theater убран */
+body:has(.home-page.is-hub),
+.shell:has(.home-page.is-hub) {
+  background: #05040a;
+}
+
+.home-page.is-hub {
+  background: #05040a;
+}
+
+.home-page.is-hub .home-stage {
+  inset: 0;
+  z-index: 0;
+}
+
+.home-page.is-hub .home-stage-photo {
+  background: url("/home-hub/hub-poly-clean-v4.jpg?v=3") center / cover no-repeat;
+  background-color: #05040a;
+  transform: none;
+  animation: none;
+  filter: saturate(1.25) contrast(1.14) brightness(1.04);
+}
+
+.home-page.is-hub .home-stage-veil {
+  display: none !important;
+}
+
 .home-page.is-hub .home-stage-topo,
 .home-page.is-hub .home-stage-rays,
 .home-page.is-hub .home-stage-scan,
 .home-page.is-hub .home-stage-grid,
 .home-page.is-hub .home-stage-dust {
-  opacity: 0.35;
+  display: none !important;
+}
+
+.home-page.is-hub .home-fit {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
 }
 
 .home-layout.is-hub {
@@ -22384,16 +22418,6 @@ body:has(.not-found-page) .site-footer-note {
   grid-template-areas: "hub";
   padding: 0;
   column-gap: 0;
-}
-
-.home-page.is-hub .home-stage-veil {
-  background:
-    linear-gradient(
-      180deg,
-      rgba(5, 4, 10, 0.12) 0%,
-      rgba(5, 4, 10, 0.04) 45%,
-      rgba(5, 4, 10, 0.22) 100%
-    );
 }
 
 .home-hub {
@@ -22408,16 +22432,13 @@ body:has(.not-found-page) .site-footer-note {
   box-sizing: border-box;
 }
 
-/* узор на всю ширину/высоту главной */
+/* контейнер сетки — без своей картинки (фон уже на stage) */
 .home-hub-poly {
   position: relative;
   z-index: 2;
   width: 100%;
   height: 100%;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
-  filter: saturate(1.18) contrast(1.12) brightness(1.05);
+  background: none;
 }
 
 /* CW rail: угол слева, вне блока разделов */
@@ -22540,20 +22561,20 @@ body:has(.not-found-page) .site-footer-note {
   background: rgba(110, 35, 55, 0.55);
 }
 
-/* квадрат 3×3 строго внутри чёрного полигона (не обрезается рамкой) */
+/* квадрат как был (~34%), чуть уже на пару % — внутрь полигона */
 .home-hub-grid {
   position: absolute;
   z-index: 1;
   left: 50%;
   top: 50%;
   translate: -50% -50%;
-  width: min(26vw, 38vh, 340px);
+  width: 32.5%;
   aspect-ratio: 1 / 1;
   height: auto;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-rows: repeat(3, minmax(0, 1fr));
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
   min-height: 0;
 }
