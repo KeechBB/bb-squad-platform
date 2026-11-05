@@ -1,15 +1,60 @@
 {
-  "locked": false,
-  "updatedAt": null,
+  "locked": true,
+  "updatedAt": "2026-11-05T12:27:08.119Z",
   "tiles": {
-    "tournaments": { "left": 36.2, "top": 17.2, "width": 9.4, "height": 17.0 },
-    "public": { "left": 45.8, "top": 16.8, "width": 9.4, "height": 17.0 },
-    "cw": { "left": 55.4, "top": 17.2, "width": 9.4, "height": 17.0 },
-    "training": { "left": 36.0, "top": 38.2, "width": 9.4, "height": 17.0 },
-    "battle-pass": { "left": 45.8, "top": 38.0, "width": 9.4, "height": 17.0 },
-    "marketplace": { "left": 55.6, "top": 38.2, "width": 9.4, "height": 17.0 },
-    "my-clan": { "left": 36.2, "top": 59.0, "width": 9.4, "height": 17.0 },
-    "my-team": { "left": 45.8, "top": 59.0, "width": 9.4, "height": 17.0 },
-    "my-faction": { "left": 55.4, "top": 59.0, "width": 9.4, "height": 17.0 }
+    "tournaments": {
+      "left": 34.1123,
+      "top": 16.1062,
+      "width": 10.9967,
+      "height": 19.8876
+    },
+    "public": {
+      "left": 45.085,
+      "top": 15.3781,
+      "width": 11.4365,
+      "height": 20.6831
+    },
+    "cw": {
+      "left": 56.5153,
+      "top": 16.0515,
+      "width": 10.9967,
+      "height": 19.8876
+    },
+    "training": {
+      "left": 34.1697,
+      "top": 38.7469,
+      "width": 10.9791,
+      "height": 19.8558
+    },
+    "battle-pass": {
+      "left": 45.3424,
+      "top": 38.7657,
+      "width": 10.9967,
+      "height": 19.8876
+    },
+    "marketplace": {
+      "left": 56.6009,
+      "top": 38.7469,
+      "width": 10.9967,
+      "height": 19.8876
+    },
+    "my-clan": {
+      "left": 34.0551,
+      "top": 61.1876,
+      "width": 10.9791,
+      "height": 19.8558
+    },
+    "my-team": {
+      "left": 45.4568,
+      "top": 61.1329,
+      "width": 10.9791,
+      "height": 19.8558
+    },
+    "my-faction": {
+      "left": 56.4581,
+      "top": 61.1876,
+      "width": 10.9967,
+      "height": 19.8876
+    }
   }
 }
