@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { isBuiltinSuperAdmin } from "@/lib/admin";
 import {
+  HOME_HUB_PREVIEW_IDS,
   defaultHubTileLayout,
   readHubTileLayout,
   writeHubTileLayout,
@@ -44,6 +45,11 @@ export async function POST(req: Request) {
   for (const tile of HOME_HUB_TILES) {
     const box = (body.tiles?.[tile.id] ?? current.tiles[tile.id]) as HubTileBox;
     next.tiles[tile.id] = box;
+  }
+  for (const id of HOME_HUB_PREVIEW_IDS) {
+    const box = (body.previews?.[id] ??
+      current.previews[id]) as HubTileBox;
+    next.previews[id] = box;
   }
   await writeHubTileLayout(next);
   const saved = await readHubTileLayout();

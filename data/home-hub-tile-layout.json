@@ -56,5 +56,25 @@
       "width": 10.9967,
       "height": 19.8876
     }
+  },
+  "previews": {
+    "junior": {
+      "left": 1.15,
+      "top": 1.8,
+      "width": 11.15,
+      "height": 29.5
+    },
+    "main": {
+      "left": 1.15,
+      "top": 32.2,
+      "width": 11.15,
+      "height": 29.5
+    },
+    "clan": {
+      "left": 1.15,
+      "top": 62.6,
+      "width": 11.15,
+      "height": 29.5
+    }
   }
 }

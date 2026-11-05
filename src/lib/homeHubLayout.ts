@@ -9,10 +9,15 @@ export type HubTileBox = {
   height: number;
 };
 
+/** Fixed preview slots on hub (КВ Junior / Main / весь клан). */
+export const HOME_HUB_PREVIEW_IDS = ["junior", "main", "clan"] as const;
+export type HubPreviewId = (typeof HOME_HUB_PREVIEW_IDS)[number];
+
 export type HubTileLayout = {
   locked: boolean;
   updatedAt: string | null;
   tiles: Record<string, HubTileBox>;
+  previews: Record<string, HubTileBox>;
 };
 
 const LAYOUT_PATH = path.join(process.cwd(), "data", "home-hub-tile-layout.json");
@@ -29,17 +34,33 @@ const DEFAULT_TILES: Record<string, HubTileBox> = {
   "my-faction": { left: 55.4, top: 59.0, width: 9.4, height: 17.0 },
 };
 
+/** ~214px × card stack on 1920×1004 canvas */
+const DEFAULT_PREVIEWS: Record<HubPreviewId, HubTileBox> = {
+  junior: { left: 1.15, top: 1.8, width: 11.15, height: 29.5 },
+  main: { left: 1.15, top: 32.2, width: 11.15, height: 29.5 },
+  clan: { left: 1.15, top: 62.6, width: 11.15, height: 29.5 },
+};
+
 export function defaultHubTileLayout(): HubTileLayout {
   return {
     locked: false,
     updatedAt: null,
     tiles: { ...DEFAULT_TILES },
+    previews: { ...DEFAULT_PREVIEWS },
   };
 }
 
 function clampBox(box: HubTileBox): HubTileBox {
   const width = Math.min(28, Math.max(4, Number(box.width) || 9.4));
   const height = Math.min(40, Math.max(6, Number(box.height) || 17));
+  const left = Math.min(100 - width, Math.max(0, Number(box.left) || 0));
+  const top = Math.min(100 - height, Math.max(0, Number(box.top) || 0));
+  return { left, top, width, height };
+}
+
+function clampPreviewBox(box: HubTileBox): HubTileBox {
+  const width = Math.min(22, Math.max(6, Number(box.width) || 11.15));
+  const height = Math.min(48, Math.max(10, Number(box.height) || 29.5));
   const left = Math.min(100 - width, Math.max(0, Number(box.left) || 0));
   const top = Math.min(100 - height, Math.max(0, Number(box.top) || 0));
   return { left, top, width, height };
@@ -55,10 +76,16 @@ export async function readHubTileLayout(): Promise<HubTileLayout> {
       const src = parsed.tiles?.[tile.id];
       if (src) tiles[tile.id] = clampBox(src);
     }
+    const previews: Record<string, HubTileBox> = { ...base.previews };
+    for (const id of HOME_HUB_PREVIEW_IDS) {
+      const src = parsed.previews?.[id];
+      if (src) previews[id] = clampPreviewBox(src);
+    }
     return {
       locked: Boolean(parsed.locked),
       updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : null,
       tiles,
+      previews,
     };
   } catch {
     return defaultHubTileLayout();
@@ -70,10 +97,15 @@ export async function writeHubTileLayout(layout: HubTileLayout): Promise<void> {
     locked: Boolean(layout.locked),
     updatedAt: new Date().toISOString(),
     tiles: {},
+    previews: {},
   };
   for (const tile of HOME_HUB_TILES) {
     const box = layout.tiles[tile.id] ?? DEFAULT_TILES[tile.id];
     next.tiles[tile.id] = clampBox(box);
+  }
+  for (const id of HOME_HUB_PREVIEW_IDS) {
+    const box = layout.previews[id] ?? DEFAULT_PREVIEWS[id];
+    next.previews[id] = clampPreviewBox(box);
   }
   await fs.mkdir(path.dirname(LAYOUT_PATH), { recursive: true });
   await fs.writeFile(LAYOUT_PATH, `${JSON.stringify(next, null, 2)}\n`, "utf8");

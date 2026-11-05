@@ -19,9 +19,11 @@ export type HomeCwCard = {
 
 type Props = {
   cards: HomeCwCard[];
+  /** Хаб: одна превьюшка в свободной раскладке (junior/main/clan). */
+  singleStack?: "Main" | "Junior" | "Clan";
 };
 
-export function HomeCwAnnounce({ cards: initial }: Props) {
+export function HomeCwAnnounce({ cards: initial, singleStack }: Props) {
   const [cards, setCards] = useState(initial);
   const [openId, setOpenId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -39,7 +41,14 @@ export function HomeCwAnnounce({ cards: initial }: Props) {
         const res = await fetch("/api/cw-announce", { cache: "no-store" });
         if (!res.ok || cancelled) return;
         const data = (await res.json()) as { cards?: HomeCwCard[] };
-        if (!cancelled && Array.isArray(data.cards)) setCards(data.cards);
+        if (!cancelled && Array.isArray(data.cards)) {
+          if (singleStack) {
+            const one = data.cards.find((c) => c.stack === singleStack);
+            setCards(one ? [one] : []);
+          } else {
+            setCards(data.cards);
+          }
+        }
       } catch {
         /* keep SSR */
       }
@@ -50,7 +59,7 @@ export function HomeCwAnnounce({ cards: initial }: Props) {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, []);
+  }, [singleStack]);
 
   useEffect(() => {
     if (!openId) return;
@@ -109,6 +118,83 @@ export function HomeCwAnnounce({ cards: initial }: Props) {
   const clanAside = cards.some((card) => card.stack !== "Clan");
   const column = clanAside ? cards.filter((card) => card.stack !== "Clan") : cards;
   const clan = clanAside ? cards.filter((card) => card.stack === "Clan") : [];
+
+  if (singleStack) {
+    const card = cards.find((c) => c.stack === singleStack) || null;
+    return (
+      <div className="home-cw-slot home-cw-slot--single">
+        <CwFace
+          card={card}
+          stack={singleStack}
+          busy={busy}
+          onOpen={() => {
+            if (card) setOpenId(card.id);
+          }}
+          onToggle={toggle}
+        />
+        {err ? <p className="home-cw-err">{err}</p> : null}
+        {opened
+          ? createPortal(
+              <div
+                className="home-cw-modal"
+                role="presentation"
+                onClick={() => setOpenId(null)}
+              >
+                <div
+                  className="home-cw-modal-card"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label={`КВ ${opened.stack === "Clan" ? "весь клан" : opened.stack}`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <header>
+                    <span>
+                      КВ ·{" "}
+                      {opened.stack === "Clan" ? "весь клан" : opened.stack}
+                    </span>
+                    <button type="button" onClick={() => setOpenId(null)}>
+                      закрыть
+                    </button>
+                  </header>
+                  <p className="home-cw-modal-when">
+                    {opened.dateLabel} · {opened.timeMsk} · против {opened.opp}
+                  </p>
+                  <ul className="home-cw-facts">
+                    <li>
+                      <span>Карта</span>
+                      <b>{opened.map}</b>
+                    </li>
+                    <li>
+                      <span>Формат</span>
+                      <b>{opened.size}</b>
+                    </li>
+                    <li>
+                      <span>Сервер</span>
+                      <b>{opened.server}</b>
+                    </li>
+                    <li>
+                      <span>Правила</span>
+                      <b>{opened.rules}</b>
+                    </li>
+                  </ul>
+                  <p className="home-cw-ready-title">Кто будет</p>
+                  {opened.ready.length ? (
+                    <ol className="home-cw-ready-list">
+                      {opened.ready.map((nick, i) => (
+                        <li key={`${nick}-${i}`}>{nick}</li>
+                      ))}
+                    </ol>
+                  ) : (
+                    <p className="home-cw-ready-empty">Пока никто не отметился</p>
+                  )}
+                </div>
+              </div>,
+              document.body
+            )
+          : null}
+      </div>
+    );
+  }
 
   return (
     <div className="home-cw-slot">

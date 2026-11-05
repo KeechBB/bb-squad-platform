@@ -57,7 +57,7 @@ export function HomeHubTiles({ tiles, initialLayout, canEdit }: Props) {
       const res = await fetch("/api/home-hub-layout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tiles: next.tiles }),
+        body: JSON.stringify({ tiles: next.tiles, previews: next.previews }),
       });
       if (!res.ok) throw new Error(`save ${res.status}`);
       const saved = (await res.json()) as HubTileLayout;
