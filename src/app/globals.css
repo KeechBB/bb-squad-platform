@@ -22582,23 +22582,13 @@ body:has(.home-page.is-hub),
 }
 
 /*
- * Картинки ячеек — один overlay того же cover, что и shell → слоты 1:1.
- * Ссылки — невидимые hex hit-area поверх.
+ * Только иконка+текст ВНУТРИ слотов оболочки.
+ * Золотая + синяя неоновая рамка — из фона hub-poly-empty-shell.
  */
-.home-hub-cells-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
-  pointer-events: none;
-}
-
 .home-hub-grid {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: 1;
   display: block;
   margin: 0;
   padding: 0;
@@ -22621,15 +22611,15 @@ body:has(.home-page.is-hub),
   clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
 }
 
-.home-hub-tile--tournaments { left: 36.016%; top: 18.177%; width: 8.906%; height: 18.974%; }
-.home-hub-tile--public { left: 46.250%; top: 17.729%; width: 9.219%; height: 19.273%; }
-.home-hub-tile--cw { left: 56.641%; top: 18.177%; width: 8.828%; height: 19.124%; }
-.home-hub-tile--training { left: 35.625%; top: 39.392%; width: 9.297%; height: 19.124%; }
-.home-hub-tile--battle-pass { left: 46.484%; top: 39.243%; width: 8.828%; height: 19.273%; }
-.home-hub-tile--marketplace { left: 56.641%; top: 39.094%; width: 9.141%; height: 19.422%; }
-.home-hub-tile--my-clan { left: 35.625%; top: 59.711%; width: 9.219%; height: 19.273%; }
-.home-hub-tile--my-team { left: 46.172%; top: 59.711%; width: 9.219%; height: 19.422%; }
-.home-hub-tile--my-faction { left: 56.563%; top: 60.010%; width: 9.141%; height: 19.124%; }
+.home-hub-tile--tournaments { left: 37.266%; top: 20.568%; width: 6.406%; height: 14.193%; }
+.home-hub-tile--public { left: 47.500%; top: 20.120%; width: 6.562%; height: 14.492%; }
+.home-hub-tile--cw { left: 57.891%; top: 20.568%; width: 6.328%; height: 14.343%; }
+.home-hub-tile--training { left: 36.953%; top: 41.783%; width: 6.719%; height: 14.343%; }
+.home-hub-tile--battle-pass { left: 47.734%; top: 41.633%; width: 6.328%; height: 14.492%; }
+.home-hub-tile--marketplace { left: 57.891%; top: 41.633%; width: 6.641%; height: 14.492%; }
+.home-hub-tile--my-clan { left: 37.266%; top: 62.550%; width: 6.094%; height: 14.044%; }
+.home-hub-tile--my-team { left: 47.578%; top: 62.550%; width: 6.250%; height: 14.193%; }
+.home-hub-tile--my-faction { left: 57.812%; top: 62.400%; width: 6.641%; height: 14.343%; }
 
 .home-hub-tile-plate {
   position: absolute;
