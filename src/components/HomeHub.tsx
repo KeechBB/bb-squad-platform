@@ -38,25 +38,33 @@ export function HomeHub({ showCw, cwCards }: Props) {
         )}
       </aside>
 
-      <nav className="home-hub-grid" aria-label="Быстрые разделы">
-        {HOME_HUB_TILES.map((tile) => (
-          <Link
-            key={tile.id}
-            href={tile.href}
-            className="home-hub-tile"
-            title={tile.title}
-            aria-label={tile.title}
-          >
-            <span className="home-hub-tile-plate" aria-hidden="true" />
-            {/* background вместо <img> — меньше всплывашек Яндекс/переводчика на картинках */}
-            <span
-              className="home-hub-tile-art"
-              aria-hidden="true"
-              style={{ backgroundImage: `url(${tile.image}?v=plate7)` }}
-            />
-          </Link>
-        ))}
-      </nav>
+      {/* Узор-рамка: вкладки сидят В дыре полигона, не поверх всей картинки */}
+      <div className="home-hub-poly">
+        <div className="home-hub-poly-well" aria-hidden="true" />
+        <nav className="home-hub-grid" aria-label="Быстрые разделы">
+          {HOME_HUB_TILES.map((tile) => (
+            <Link
+              key={tile.id}
+              href={tile.href}
+              className="home-hub-tile"
+              title={tile.title}
+              aria-label={tile.title}
+            >
+              <span className="home-hub-tile-plate" aria-hidden="true" />
+              <span
+                className="home-hub-tile-art"
+                aria-hidden="true"
+                style={{ backgroundImage: `url(${tile.image}?v=plate7)` }}
+              />
+            </Link>
+          ))}
+        </nav>
+        <div
+          className="home-hub-poly-frame"
+          aria-hidden="true"
+          style={{ backgroundImage: "url(/home-hub/hub-poly-frame-v4.png?v=2)" }}
+        />
+      </div>
     </div>
   );
 }
