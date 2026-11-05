@@ -2,10 +2,13 @@
 export const HOME_HUB_REBRAND = true;
 
 /**
- * LOCKED background: `public/home-hub/hub-poly-clean-v4.jpg`
- * Do not regenerate / replace / recolor without Alex explicit OK.
+ * Hub background: `public/home-hub/hub-poly-empty-shell.jpg`
+ * Empty hex slots shell (gold octagon). Sections hidden until cells land.
  */
-export const HOME_HUB_BG_FILE = "/home-hub/hub-poly-clean-v4.jpg";
+export const HOME_HUB_BG_FILE = "/home-hub/hub-poly-empty-shell.jpg";
+
+/** Temporarily hide 3×3 section tiles while fitting the new background. */
+export const HOME_HUB_SHOW_TILES = false;
 
 export type HomeHubTile = {
   id: string;

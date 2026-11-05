@@ -22383,9 +22383,9 @@ body:has(.home-page.is-hub),
   background: #05040a;
 }
 
-/* LOCKED art: public/home-hub/hub-poly-clean-v4.jpg — не перегенерировать */
+/* Hub shell: public/home-hub/hub-poly-empty-shell.jpg — пустые слоты, без плиток */
 .home-page.is-hub .home-stage-photo {
-  background: url("/home-hub/hub-poly-clean-v4.jpg?v=5") center / cover no-repeat;
+  background: url("/home-hub/hub-poly-empty-shell.jpg?v=1") center / cover no-repeat;
   background-color: #05040a;
   transform: none;
   animation: none;

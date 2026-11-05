@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { HomeCwAnnounce, type HomeCwCard } from "@/components/HomeCwAnnounce";
-import { HOME_HUB_TILES } from "@/lib/homeHub";
+import { HOME_HUB_SHOW_TILES, HOME_HUB_TILES } from "@/lib/homeHub";
 
 type Props = {
   showCw: boolean;
@@ -39,25 +39,26 @@ export function HomeHub({ showCw, cwCards }: Props) {
       </aside>
 
       <div className="home-hub-poly">
-        {/* ровная 3×3 по разметке; внешний контур = полигон дыры */}
-        <nav className="home-hub-grid" aria-label="Быстрые разделы">
-          {HOME_HUB_TILES.map((tile) => (
-            <Link
-              key={tile.id}
-              href={tile.href}
-              className={`home-hub-tile home-hub-tile--${tile.id}`}
-              title={tile.title}
-              aria-label={tile.title}
-            >
-              <span className="home-hub-tile-plate" aria-hidden="true" />
-              <span
-                className="home-hub-tile-art"
-                aria-hidden="true"
-                style={{ backgroundImage: `url(${tile.image}?v=cell6)` }}
-              />
-            </Link>
-          ))}
-        </nav>
+        {HOME_HUB_SHOW_TILES ? (
+          <nav className="home-hub-grid" aria-label="Быстрые разделы">
+            {HOME_HUB_TILES.map((tile) => (
+              <Link
+                key={tile.id}
+                href={tile.href}
+                className={`home-hub-tile home-hub-tile--${tile.id}`}
+                title={tile.title}
+                aria-label={tile.title}
+              >
+                <span className="home-hub-tile-plate" aria-hidden="true" />
+                <span
+                  className="home-hub-tile-art"
+                  aria-hidden="true"
+                  style={{ backgroundImage: `url(${tile.image}?v=cell6)` }}
+                />
+              </Link>
+            ))}
+          </nav>
+        ) : null}
       </div>
     </div>
   );
