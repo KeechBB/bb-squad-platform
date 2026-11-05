@@ -121,6 +121,9 @@ model User {
   authoredProfileMail        ProfileMail[] @relation("ProfileMailAuthor")
   profileMail                ProfileMailRecipient[]
   tournamentBets             TournamentBet[]
+  factionMembership          FactionMember?
+  factionInvitesReceived     FactionInvite[] @relation("FactionInvitee")
+  factionInvitesSent         FactionInvite[] @relation("FactionInviter")
 }
 
 /// Тип матча в едином каноне plaza (фаза 1+).
@@ -466,6 +469,92 @@ model Clan {
   cwChallengesOut CwChallenge[] @relation("CwChallengerClan")
   cwChallengesIn  CwChallenge[] @relation("CwAcceptorClan")
   calendarEvents  ClanCalendarEvent[]
+  factions        Faction[]
+}
+
+/// Место в фракции. Глава один. Замов может быть несколько. Самим выйти нельзя.
+enum FactionSeat {
+  LEADER
+  DEPUTY
+  MEMBER
+}
+
+/// Фракция внутри клана BlackBerry. Список и карточки снаружи клана не светятся.
+model Faction {
+  id        String   @id @default(cuid())
+  clanId    String
+  clan      Clan     @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  name      String
+  /// Кусок адреса: /factions/[slug], из названия.
+  slug      String   @unique
+  logoUrl   String?
+  tgUrl     String?
+  info      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members FactionMember[]
+  roles   FactionRole[]
+  invites FactionInvite[]
+
+  @@index([clanId])
+}
+
+enum FactionInviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
+/// Приглашение во фракцию. В состав попадает только после «Принять» в колокольчике.
+model FactionInvite {
+  id        String              @id @default(cuid())
+  factionId String
+  userId    String
+  invitedBy String
+  status    FactionInviteStatus @default(PENDING)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  faction Faction @relation(fields: [factionId], references: [id], onDelete: Cascade)
+  user    User    @relation("FactionInvitee", fields: [userId], references: [id], onDelete: Cascade)
+  inviter User    @relation("FactionInviter", fields: [invitedBy], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([factionId, status])
+}
+
+model FactionRole {
+  id        String   @id @default(cuid())
+  factionId String
+  faction   Faction  @relation(fields: [factionId], references: [id], onDelete: Cascade)
+  name      String
+  /// Роль «Зам. Фракции» создаётся вместе с фракцией и не удаляется.
+  isDeputy  Boolean  @default(false)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  members FactionMember[]
+
+  @@unique([factionId, name])
+  @@index([factionId])
+}
+
+model FactionMember {
+  id        String      @id @default(cuid())
+  factionId String
+  faction   Faction     @relation(fields: [factionId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seat      FactionSeat @default(MEMBER)
+  roleId    String?
+  role      FactionRole? @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  joinedAt  DateTime    @default(now())
+
+  @@unique([userId])
+  @@unique([factionId, userId])
+  @@index([factionId, joinedAt])
 }
 
 /// Игроки соперника со скринов/логов КВ до регистрации на площадке.
