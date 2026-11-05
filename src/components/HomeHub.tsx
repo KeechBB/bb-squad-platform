@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { HomeCwAnnounce, type HomeCwCard } from "@/components/HomeCwAnnounce";
-import { HOME_HUB_SHOW_TILES, HOME_HUB_TILES } from "@/lib/homeHub";
+import {
+  HOME_HUB_SHOW_TILES,
+  HOME_HUB_TILES,
+  HOME_HUB_VISIBLE_TILE_IDS,
+} from "@/lib/homeHub";
 
 type Props = {
   showCw: boolean;
@@ -8,6 +12,11 @@ type Props = {
 };
 
 export function HomeHub({ showCw, cwCards }: Props) {
+  const visible = new Set<string>(HOME_HUB_VISIBLE_TILE_IDS);
+  const tiles = HOME_HUB_SHOW_TILES
+    ? HOME_HUB_TILES.filter((t) => visible.has(t.id))
+    : [];
+
   return (
     <div className="home-hub" aria-label="Разделы платформы">
       <aside className="home-hub-cw" aria-label="Превью клановых войн">
@@ -39,9 +48,9 @@ export function HomeHub({ showCw, cwCards }: Props) {
       </aside>
 
       <div className="home-hub-poly">
-        {HOME_HUB_SHOW_TILES ? (
+        {tiles.length > 0 ? (
           <nav className="home-hub-grid" aria-label="Быстрые разделы">
-            {HOME_HUB_TILES.map((tile) => (
+            {tiles.map((tile) => (
               <Link
                 key={tile.id}
                 href={tile.href}
@@ -53,7 +62,7 @@ export function HomeHub({ showCw, cwCards }: Props) {
                 <span
                   className="home-hub-tile-art"
                   aria-hidden="true"
-                  style={{ backgroundImage: `url(${tile.image}?v=inset2)` }}
+                  style={{ backgroundImage: `url(${tile.image}?v=tour1)` }}
                 />
               </Link>
             ))}

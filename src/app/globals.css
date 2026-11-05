@@ -22611,7 +22611,8 @@ body:has(.home-page.is-hub),
   clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
 }
 
-.home-hub-tile--tournaments { left: 37.266%; top: 20.568%; width: 6.406%; height: 14.193%; }
+/* Только Турниры: строго внутри верхнего-левого бронзового слота оболочки */
+.home-hub-tile--tournaments { left: 37.422%; top: 20.867%; width: 6.094%; height: 13.596%; }
 .home-hub-tile--public { left: 47.500%; top: 20.120%; width: 6.562%; height: 14.492%; }
 .home-hub-tile--cw { left: 57.891%; top: 20.568%; width: 6.328%; height: 14.343%; }
 .home-hub-tile--training { left: 36.953%; top: 41.783%; width: 6.719%; height: 14.343%; }

@@ -7,8 +7,9 @@ export const HOME_HUB_REBRAND = true;
  */
 export const HOME_HUB_BG_FILE = "/home-hub/hub-poly-empty-shell.jpg";
 
-/** Section tiles off — background shell only until icons are redone. */
-export const HOME_HUB_SHOW_TILES = false;
+/** Section tiles: only listed ids shown (rest stay empty shell slots). */
+export const HOME_HUB_SHOW_TILES = true;
+export const HOME_HUB_VISIBLE_TILE_IDS = ["tournaments"] as const;
 
 export type HomeHubTile = {
   id: string;
