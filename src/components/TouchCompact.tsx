@@ -13,6 +13,8 @@ export function isTouchCompact(): boolean {
 /** Узкий тач-экран: не сжимаем HomeFit, даём pan по 1920-канве. */
 export function isPhonePanCanvas(): boolean {
   if (typeof window === "undefined") return false;
+  // Хаб: целиком в экран (scale-to-fit), иначе 1:1 + свайп — отдалить нельзя.
+  if (document.querySelector(".home-page.is-hub")) return false;
   const touch = navigator.maxTouchPoints > 0 || window.matchMedia("(pointer: coarse)").matches;
   if (!touch) return false;
   const shortSide = Math.min(window.screen.width, window.screen.height);
