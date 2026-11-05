@@ -38,9 +38,10 @@ export function HomeHub({ showCw, cwCards }: Props) {
         )}
       </aside>
 
-      {/* Узор-рамка: вкладки сидят В дыре полигона, не поверх всей картинки */}
-      <div className="home-hub-poly">
-        <div className="home-hub-poly-well" aria-hidden="true" />
+      <div
+        className="home-hub-poly"
+        style={{ backgroundImage: "url(/home-hub/hub-poly-clean-v4.jpg?v=1)" }}
+      >
         <nav className="home-hub-grid" aria-label="Быстрые разделы">
           {HOME_HUB_TILES.map((tile) => (
             <Link
@@ -59,11 +60,6 @@ export function HomeHub({ showCw, cwCards }: Props) {
             </Link>
           ))}
         </nav>
-        <div
-          className="home-hub-poly-frame"
-          aria-hidden="true"
-          style={{ backgroundImage: "url(/home-hub/hub-poly-frame-v4.png?v=2)" }}
-        />
       </div>
     </div>
   );

@@ -22398,7 +22398,7 @@ body:has(.not-found-page) .site-footer-note {
   box-sizing: border-box;
 }
 
-/* оболочка 16:9 — узор с дырой + вкладки внутри дыры */
+/* чистый узор 16:9 — чёрный полигон в центре, вкладки внутри */
 .home-hub-poly {
   position: relative;
   z-index: 2;
@@ -22407,29 +22407,9 @@ body:has(.not-found-page) .site-footer-note {
   aspect-ratio: 16 / 9;
   max-width: 100%;
   max-height: 100%;
-}
-
-/* космос под вкладками в вырезе */
-.home-hub-poly-well {
-  position: absolute;
-  z-index: 0;
-  left: 31.6%;
-  top: 13.8%;
-  width: 38%;
-  height: 80%;
-  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-  background: #07080c;
-  pointer-events: none;
-}
-
-.home-hub-poly-frame {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
   background-position: center;
   background-repeat: no-repeat;
   background-size: 100% 100%;
-  pointer-events: none;
 }
 
 /* CW rail: угол слева, вне блока разделов */
@@ -22552,18 +22532,20 @@ body:has(.not-found-page) .site-footer-note {
   background: rgba(110, 35, 55, 0.55);
 }
 
-/* сетка ровно в дыре узора (доли от кадра 1280×720) */
+/* квадрат 3×3 по центру чёрного полигона */
 .home-hub-grid {
   position: absolute;
   z-index: 1;
-  left: 32.2%;
-  top: 15.2%;
-  width: 36.8%;
-  height: 77%;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  width: 34%;
+  aspect-ratio: 1 / 1;
+  height: auto;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-rows: repeat(3, minmax(0, 1fr));
-  gap: 5px;
+  gap: 4px;
   min-width: 0;
   min-height: 0;
 }
