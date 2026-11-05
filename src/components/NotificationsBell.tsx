@@ -38,6 +38,7 @@ export function NotificationsBell() {
   const { data: session, status } = useSession();
   const [open, setOpen] = useState(false);
   const [invites, setInvites] = useState<TeamInvite[]>([]);
+  const [factionInvites, setFactionInvites] = useState<FactionInvite[]>([]);
   const [notices, setNotices] = useState<SiteNoticeItem[]>([]);
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -46,12 +47,11 @@ export function NotificationsBell() {
   const reload = useCallback(async () => {
     if (!session?.user?.profileComplete) {
       setInvites([]);
+      setFactionInvites([]);
       return;
     }
     try {
       const res = await fetch("/api/tournaments/invites", { cache: "no-store" });
-      if (!res.ok) return;
-      const data = (await res.json()) as { invites?: TeamInvite[] };
       if (res.ok) {
         const data = (await res.json()) as { invites?: TeamInvite[] };
         setInvites(Array.isArray(data.invites) ? data.invites : []);
@@ -77,6 +77,8 @@ export function NotificationsBell() {
     } catch {
       /* ignore */
     }
+  }, [session?.user?.profileComplete]);
+
   useEffect(() => {
     if (status !== "authenticated" || !session?.user?.profileComplete) return;
     void reload();
@@ -148,6 +150,26 @@ export function NotificationsBell() {
 
   async function act(inviteId: string, action: "accept" | "decline") {
     setError("");
+    setLoading(inviteId);
+    try {
+      const res = await fetch("/api/tournaments/invites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inviteId, action }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setError(data.error || "Ошибка");
+        return;
+      }
+      setInvites((list) => list.filter((i) => i.id !== inviteId));
+    } catch {
+      setError("Сеть недоступна");
+    } finally {
+      setLoading(null);
+    }
+  }
+
   async function actFaction(inviteId: string, action: "accept" | "decline") {
     setError("");
     setLoading(inviteId);
@@ -170,33 +192,13 @@ export function NotificationsBell() {
     }
   }
 
-    setLoading(inviteId);
-    try {
-      const res = await fetch("/api/tournaments/invites", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ inviteId, action }),
-      });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) {
-        setError(data.error || "Ошибка");
-        return;
-      }
-      setInvites((list) => list.filter((i) => i.id !== inviteId));
-    } catch {
-      setError("Сеть недоступна");
-    } finally {
-      setLoading(null);
-    }
-  }
-
   if (status !== "authenticated" || !session?.user?.profileComplete) {
     return null;
   }
 
-  const count = invites.length + notices.length;
-  const alarm = unseenNotices.length > 0;
   const count = invites.length + factionInvites.length + notices.length;
+  const alarm = unseenNotices.length > 0;
+
   return (
     <div
       className={`notif-bell${open ? " is-open" : ""}${count ? " has-items" : ""}${alarm ? " has-unseen" : ""}`}
@@ -233,9 +235,9 @@ export function NotificationsBell() {
             <h3>Уведомления</h3>
           </header>
           {error ? <p className="notif-error">{error}</p> : null}
-          {notices.length === 0 && invites.length === 0 ? (
-            <p className="notif-empty">Пока пусто</p>
           {notices.length === 0 && invites.length === 0 && factionInvites.length === 0 ? (
+            <p className="notif-empty">Пока пусто</p>
+          ) : (
             <ul className="notif-list">
               {notices.map((n) => (
                 <li
@@ -268,8 +270,6 @@ export function NotificationsBell() {
                   </div>
                 </li>
               ))}
-              {invites.map((inv) => (
-                <li key={inv.id} className="notif-item">
               {factionInvites.map((inv) => (
                 <li key={inv.id} className="notif-item">
                   <div className="notif-item-text">
@@ -296,6 +296,8 @@ export function NotificationsBell() {
                   </div>
                 </li>
               ))}
+              {invites.map((inv) => (
+                <li key={inv.id} className="notif-item">
                   <div className="notif-item-text">
                     <strong>
                       Приглашение в [{inv.team.tag}] {inv.team.name}
