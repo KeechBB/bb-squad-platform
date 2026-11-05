@@ -494,18 +494,88 @@ def persist_l15_patches(state: dict) -> None:
         print(f"BP patch: inventory skip ({exc})", flush=True)
 
 
+def _match_id_dt(mid: str) -> datetime | None:
+    """Parse public match id `YYYYMMDD-HHMM-…` as MSK wall time."""
+    s = str(mid or "")
+    if len(s) >= 13 and s[:8].isdigit() and s[8] == "-":
+        try:
+            return datetime(
+                int(s[0:4]),
+                int(s[4:6]),
+                int(s[6:8]),
+                int(s[9:11]),
+                int(s[11:13]),
+                tzinfo=MSK,
+            )
+        except Exception:
+            return None
+    return None
+
+
+def cutover_before_s2(ledger: dict) -> str:
+    """Last ledger match strictly before Season 2 start (04.11.2026 00:00 MSK).
+
+    NEVER use ledger tip — that zeroes progress for every already-played S2 match.
+    """
+    before: list[str] = []
+    for m in ledger.get("matches") or []:
+        if not isinstance(m, dict):
+            continue
+        mid = str(m.get("id") or "")
+        dt = _match_id_dt(mid)
+        if dt is not None and dt < S2_START:
+            before.append(mid)
+    if before:
+        return before[-1]
+    return "0"
+
+
 def save_state(state: dict) -> None:
+    """Atomic write. Refuse to shrink scored history unless BP_FORCE_WIPE=1."""
     state["updatedAt"] = _utc_now()
     OUT.parent.mkdir(parents=True, exist_ok=True)
+    new_scored = len(state.get("scoredMatchIds") or [])
+    force = (os.environ.get("BP_FORCE_WIPE") or "").strip() in ("1", "true", "yes")
+    if OUT.is_file() and not force:
+        try:
+            prev = json.loads(OUT.read_text(encoding="utf-8"))
+            old_scored = len((prev or {}).get("scoredMatchIds") or [])
+            old_cut = str((prev or {}).get("cutoverAfterMatchId") or "")
+            new_cut = str(state.get("cutoverAfterMatchId") or "")
+            # Stub / wipe: progress gone, or cutover jumped forward orphaning S2.
+            if old_scored > 0 and new_scored < old_scored:
+                print(
+                    f"BP: REFUSE wipe scored {old_scored}→{new_scored} "
+                    f"(set BP_FORCE_WIPE=1 to override)",
+                    flush=True,
+                )
+                return
+            if (
+                old_cut
+                and new_cut
+                and new_cut > old_cut
+                and old_scored > 0
+                and new_scored == 0
+            ):
+                print(
+                    f"BP: REFUSE cutover advance {old_cut!r}→{new_cut!r} with empty score",
+                    flush=True,
+                )
+                return
+        except Exception as e:
+            print(f"BP: save guard skip ({e})", flush=True)
     text = json.dumps(state, ensure_ascii=False, indent=2) + "\n"
-    OUT.write_text(text, encoding="utf-8")
+    tmp = OUT.with_suffix(OUT.suffix + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(OUT)
     print(f"BP: wrote {OUT} ({OUT.stat().st_size} bytes)", flush=True)
 
 
 def ensure_cutover(state: dict, ledger: dict) -> dict:
-    """First run: cutover = last ledger match → считаем только следующие карты.
+    """Ensure Season 2 cutover = last match before S2_START.
 
-    Если на диске ещё S1 (pb1-*) — сбрасываем в чистый Season 2.
+    Git ships an empty stub (cutover null). Old logic set cutover to ledger tip
+    → rebuild scored 0 matches → everyone L1. Always pin to S2 start instead.
     """
     sid = str(state.get("seasonId") or "")
     if sid.startswith("pb1") or (sid and sid != SEASON_ID and not sid.startswith("hw2")):
@@ -519,20 +589,17 @@ def ensure_cutover(state: dict, ledger: dict) -> dict:
             "leaderboard": [],
             "updatedAt": _utc_now(),
         }
-    if state.get("cutoverAfterMatchId"):
-        state["seasonId"] = SEASON_ID
-        state["enabled"] = True
-        return state
-    matches = ledger.get("matches") or []
-    last_id = str(matches[-1]["id"]) if matches else ""
-    state["cutoverAfterMatchId"] = last_id or "0"
-    state["enabled"] = True
+    want = cutover_before_s2(ledger)
+    cur = str(state.get("cutoverAfterMatchId") or "").strip()
+    # Missing / stub / tip-of-ledger mistake → pin to S2 boundary.
+    if not cur or cur == "0" or (want and cur > want and not (state.get("scoredMatchIds") or [])):
+        state["cutoverAfterMatchId"] = want
+        print(
+            f"BP: cutoverAfterMatchId={want!r} (S2 starts {S2_START.isoformat()})",
+            flush=True,
+        )
     state["seasonId"] = SEASON_ID
-    print(
-        f"BP: cutoverAfterMatchId={state['cutoverAfterMatchId']!r} "
-        f"(next public match starts counting)",
-        flush=True,
-    )
+    state["enabled"] = True
     return state
 
 

@@ -134,10 +134,29 @@ fi
 # Some ops use reset --hard after fetch; restore preserved files either way.
 for f in "${PRESERVE_PUBLIC[@]}"; do
   if [[ -f "$f.deploybak" ]]; then
-    mv -f "$f.deploybak" "$f"
-    echo "==> restored $f"
+    # Prefer the larger bak — never let a concurrent deploy's stub overwrite live BP.
+    if [[ -f "$f" ]] && [[ "$(stat -c%s "$f.deploybak" 2>/dev/null || echo 0)" -lt "$(stat -c%s "$f" 2>/dev/null || echo 0)" ]]; then
+      echo "==> keep live $f (bigger than deploybak)"
+      rm -f "$f.deploybak"
+    else
+      mv -f "$f.deploybak" "$f"
+      echo "==> restored $f"
+    fi
   fi
 done
+# Battle Pass: git tracks an empty stub. If restore still left a stub, rebuild from ledger.
+BP_LIVE="data/public/battle-pass.json"
+if [[ -f "$BP_LIVE" ]]; then
+  BP_SIZE=$(stat -c%s "$BP_LIVE" 2>/dev/null || echo 0)
+  BP_CUT=$(python3 -c "import json; d=json.load(open('$BP_LIVE',encoding='utf-8')); print(d.get('cutoverAfterMatchId') or '')" 2>/dev/null || true)
+  BP_SCORED=$(python3 -c "import json; d=json.load(open('$BP_LIVE',encoding='utf-8')); print(len(d.get('scoredMatchIds') or []))" 2>/dev/null || echo 0)
+  if [[ "$BP_SIZE" -lt 1000 ]] || [[ -z "$BP_CUT" ]] || [[ "${BP_SCORED:-0}" -eq 0 ]]; then
+    echo "==> BP stub/empty detected (size=$BP_SIZE cut=${BP_CUT:-none} scored=${BP_SCORED:-0}) — rebuild from ledger"
+    (cd scripts && /usr/bin/python3 build_battle_pass.py --rebuild-from-ledger) || echo "==> WARN BP rebuild failed" >&2
+  else
+    echo "==> BP ok size=$BP_SIZE cut=$BP_CUT scored=$BP_SCORED"
+  fi
+fi
 if [[ -d /tmp/bb-replay-maps.bak ]]; then
   mkdir -p public/replay-maps
   # Keep git-tracked files; fill in any missing PNGs from backup.
