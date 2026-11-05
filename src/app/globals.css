@@ -22581,20 +22581,20 @@ body:has(.home-page.is-hub),
   background: rgba(110, 35, 55, 0.55);
 }
 
-/* вписанный квадрат строго в чёрную дыру */
+/* вписанный квадрат в чёрную дыру — чуть крупнее, без срезания щитов */
 .home-hub-grid {
   position: absolute;
   z-index: 1;
   left: 50.5%;
   top: 49.7%;
   translate: -50% -50%;
-  width: 24%;
+  width: 26.5%;
   aspect-ratio: 1 / 1;
   height: auto;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-rows: repeat(3, minmax(0, 1fr));
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
   min-height: 0;
   padding: 0;
@@ -22615,15 +22615,6 @@ body:has(.home-page.is-hub),
   overflow: visible;
   outline: none;
   transition: none;
-  /* клип всей плитки по щиту — квадрат не вылезает */
-  clip-path: polygon(
-    50% 2%,
-    95% 26.5%,
-    95% 73.5%,
-    50% 98%,
-    5% 73.5%,
-    5% 26.5%
-  );
 }
 
 .home-hub-tile-plate {
