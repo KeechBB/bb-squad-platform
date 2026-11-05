@@ -1,4 +1,9 @@
-/** Отдельный процесс. Не входит в ecosystem.config.cjs, коллектор не трогает. */
+/** Отдельный процесс. Не входит в ecosystem.config.cjs, коллектор не трогает.
+ *  На Plaza надёжный старт:
+ *  pm2 start bot.py --name bb-recruit-bot \
+ *    --interpreter /var/www/bb-squad-platform/recruit-bot/.venv/bin/python \
+ *    --cwd /var/www/bb-squad-platform/recruit-bot
+ */
 module.exports = {
   apps: [
     {

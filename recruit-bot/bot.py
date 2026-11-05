@@ -1021,7 +1021,15 @@ def main() -> None:
         filters,
     )
 
-    app = Application.builder().token(token).build()
+    # На Plaza api.telegram.org недоступен → TELEGRAM_API_BASE через CF Worker
+    # PTB склеивает: base_url + token + "/" + method
+    # Пример: https://bb-squad-alert.….workers.dev/s/{RELAY_SECRET}/bot
+    builder = Application.builder().token(token)
+    api_base = (os.environ.get("TELEGRAM_API_BASE") or "").strip().rstrip("/")
+    if api_base:
+        builder = builder.base_url(api_base)
+        logging.info("telegram api via relay base_url=%s…", api_base[:56])
+    app = builder.build()
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("menu", cmd_menu))
     app.add_handler(CallbackQueryHandler(on_callback))

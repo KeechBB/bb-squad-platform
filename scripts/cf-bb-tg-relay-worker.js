@@ -2,11 +2,29 @@
  * Cloudflare Worker: bb-squad-alert
  * Paste into Edit code → Deploy.
  *
- * Secrets (Settings → Variables → Encrypt):
- *   BOT_TOKEN, RELAY_SECRET, CHAT_ID
+ * Secrets / vars (Settings → Variables):
+ *   BOT_TOKEN        — алерт-бот (старый sendMessage)
+ *   RELAY_SECRET     — общий секрет
+ *   CHAT_ID          — дефолтный чат алертов
+ *   RECRUIT_BOT_TOKEN — токен bb_RecruitBot (прокси Bot API)
+ *
+ * Режимы:
+ * 1) GET  /  → health
+ * 2) POST /  → JSON {secret, chat_id, text} → sendMessage (алерты сайта)
+ * 3) ANY  /s/{RELAY_SECRET}/bot{TOKEN}/{method} → полный прокси api.telegram.org
+ *    (нужен VPS: TELEGRAM_API_BASE=https://…workers.dev/s/{secret}/bot)
  */
 export default {
   async fetch(request, env) {
+    const url = new URL(request.url);
+    const path = url.pathname;
+
+    // Полный Bot API proxy для recruit-bot (и др.)
+    const proxy = path.match(/^\/s\/([^/]+)\/bot(.+)\/([^/]+)$/);
+    if (proxy) {
+      return proxyTelegram(request, env, proxy[1], proxy[2], proxy[3], url.search);
+    }
+
     if (request.method === "GET") {
       return new Response(
         JSON.stringify({
@@ -15,6 +33,8 @@ export default {
           hasBot: Boolean(env.BOT_TOKEN),
           hasSecret: Boolean(env.RELAY_SECRET),
           hasChat: Boolean(env.CHAT_ID),
+          hasRecruit: Boolean(env.RECRUIT_BOT_TOKEN),
+          proxy: "/s/{RELAY_SECRET}/bot{TOKEN}/{method}",
         }),
         { status: 200, headers: { "content-type": "application/json" } }
       );
@@ -66,3 +86,35 @@ export default {
     });
   },
 };
+
+async function proxyTelegram(request, env, secret, token, method, search) {
+  const expected = String(env.RELAY_SECRET || "");
+  if (!expected || secret !== expected) {
+    return new Response("forbidden: bad RELAY_SECRET", { status: 403 });
+  }
+  const allowed = [env.BOT_TOKEN, env.RECRUIT_BOT_TOKEN]
+    .map((t) => String(t || "").trim())
+    .filter(Boolean);
+  if (allowed.length && !allowed.includes(token)) {
+    return new Response("forbidden: token not allowlisted", { status: 403 });
+  }
+  if (!/^[A-Za-z0-9_]+$/.test(method)) {
+    return new Response("bad method", { status: 400 });
+  }
+
+  const target = `https://api.telegram.org/bot${token}/${method}${search || ""}`;
+  const init = { method: request.method, headers: {} };
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    init.body = await request.arrayBuffer();
+    const ct = request.headers.get("content-type");
+    if (ct) init.headers["content-type"] = ct;
+  }
+  const tg = await fetch(target, init);
+  const buf = await tg.arrayBuffer();
+  return new Response(buf, {
+    status: tg.status,
+    headers: {
+      "content-type": tg.headers.get("content-type") || "application/json",
+    },
+  });
+}
