@@ -99,6 +99,15 @@ const callbacks: NextAuthOptions["callbacks"] = {
         token.steamAvatar = user.steamAvatar;
         token.avatarUrl = user.avatarUrl;
         token.profileComplete = user.profileComplete;
+      } else {
+        // Steam сменился / юзер удалён — не держим «зомби»-сессию
+        // (иначе /profile → «Не удалось загрузить профиль» при 404 shell).
+        token.id = "";
+        token.name = null;
+        token.nick = null;
+        token.age = null;
+        token.avatarUrl = null;
+        token.profileComplete = false;
       }
     }
     return token;

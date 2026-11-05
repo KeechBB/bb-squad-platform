@@ -4,6 +4,14 @@
  */
 import { prisma } from "@/lib/prisma";
 import { trainHistoryChronoKey } from "@/lib/homeTrainPwr";
+import {
+  collisionBySiteNick,
+  collisionBySteamId,
+  isCollidingAngelNick,
+  profileHistoryKey,
+  publicRpLookupNick,
+  type NickCollision,
+} from "@/lib/nickCollisions";
 import type { Prisma } from "@prisma/client";
 
 export type ProfileHistoryKind = "public" | "train" | "cw";
@@ -14,11 +22,30 @@ export function isProfileHistoryKind(v: string): v is ProfileHistoryKind {
   return KINDS.has(v as ProfileHistoryKind);
 }
 
-function nickKey(n: string) {
-  return String(n || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "");
+async function resolveCollision(nick: string): Promise<NickCollision | null> {
+  const clean = String(nick || "").trim();
+  const exact = collisionBySiteNick(clean);
+  if (exact) return exact;
+  if (!isCollidingAngelNick(clean)) return null;
+  const users = await prisma.user.findMany({
+    where: {
+      nick: { equals: clean, mode: "insensitive" },
+      profileComplete: true,
+    },
+    select: { nick: true, steamId: true },
+    take: 8,
+  });
+  const preferred =
+    users.find((u) => u.nick === clean) ||
+    users.find((u) => collisionBySteamId(u.steamId)) ||
+    users[0];
+  return collisionBySteamId(preferred?.steamId);
+}
+
+async function historyKeyFor(nick: string): Promise<string> {
+  const hit = await resolveCollision(nick);
+  if (hit) return hit.historyKey;
+  return profileHistoryKey(nick);
 }
 
 function playedOn(dateLabel: string): string {
@@ -57,8 +84,8 @@ export async function replaceProfileLines(
   kind: ProfileHistoryKind,
   rows: AnyRow[]
 ): Promise<number> {
-  const key = nickKey(nick);
   const clean = String(nick || "").trim();
+  const key = await historyKeyFor(clean);
   if (!key) return 0;
   if (kind === "public") {
     const prev = await prisma.profileMatchLine.findMany({
@@ -121,33 +148,38 @@ export async function replaceProfileLines(
     });
   }
 
-  await prisma.$transaction([
-    prisma.profileMatchLine.deleteMany({ where: { kind, nickKey: key } }),
-    ...(data.length
-      ? [prisma.profileMatchLine.createMany({ data })]
-      : []),
-    prisma.profileMatchStamp.upsert({
+  // skipDuplicates: 4 PM2 workers иначе гоняются delete→create и ловят P2002.
+  await prisma.$transaction(async (tx) => {
+    await tx.profileMatchLine.deleteMany({ where: { kind, nickKey: key } });
+    if (data.length) {
+      await tx.profileMatchLine.createMany({ data, skipDuplicates: true });
+    }
+    await tx.profileMatchStamp.upsert({
       where: { kind_nickKey: { kind, nickKey: key } },
       create: { kind, nickKey: key },
       update: { builtAt: new Date() },
-    }),
-  ]);
+    });
+  });
   return data.length;
 }
 
 async function sourceRows(nick: string, kind: ProfileHistoryKind) {
+  const clean = String(nick || "").trim();
+  const hit = await resolveCollision(clean);
+  const steamId = hit?.steamId || null;
+  const publicNick = publicRpLookupNick(clean, steamId);
   if (kind === "public") {
     const { buildPlayerPublicMatchHistory } = await import(
       "@/lib/publicMatchHistory"
     );
-    return buildPlayerPublicMatchHistory(nick);
+    return buildPlayerPublicMatchHistory(publicNick, { steamId });
   }
   if (kind === "train") {
     const { buildPlayerTrainMatchHistory } = await import("@/lib/homeTrainPwr");
-    return buildPlayerTrainMatchHistory(nick);
+    return buildPlayerTrainMatchHistory(clean, { steamId });
   }
   const { buildPlayerCwMatchHistory } = await import("@/lib/homeCwPwr");
-  return buildPlayerCwMatchHistory(nick);
+  return buildPlayerCwMatchHistory(clean, { steamId });
 }
 
 async function sourceChangedAt(kind: ProfileHistoryKind): Promise<number | null> {
@@ -223,16 +255,34 @@ async function sourceChangedAt(kind: ProfileHistoryKind): Promise<number | null>
   return Math.max(...stamps);
 }
 
+/** 00:18 записан как 24:18 и висит выше дневных каток. Паблик, ТМ и КВ. */
+async function clockSortStale(
+  nickKey: string,
+  kind: ProfileHistoryKind
+): Promise<boolean> {
+  const bad = await prisma.profileMatchLine.findFirst({
+    where: {
+      kind,
+      nickKey,
+      timeLabel: { startsWith: "00:" },
+      sortKey: { contains: "T24:" },
+    },
+    select: { id: true },
+  });
+  return Boolean(bad);
+}
+
 async function linesAreFresh(
   nick: string,
   kind: ProfileHistoryKind
 ): Promise<boolean> {
-  const key = nickKey(nick);
+  const key = await historyKeyFor(nick);
   const built = await prisma.profileMatchStamp.findUnique({
     where: { kind_nickKey: { kind, nickKey: key } },
     select: { builtAt: true },
   });
   if (!built) return false;
+  if (await clockSortStale(key, kind)) return false;
   const sourceAt = await sourceChangedAt(kind);
   if (sourceAt == null || Number.isNaN(sourceAt)) return true;
   return built.builtAt.getTime() + 1000 >= sourceAt;
@@ -242,7 +292,7 @@ export async function ensureProfileLines(
   nick: string,
   kind: ProfileHistoryKind
 ): Promise<void> {
-  const key = nickKey(nick);
+  const key = await historyKeyFor(nick);
   if (!key) return;
   const lock = `${kind}:${key}`;
   const pending = rebuilding.get(lock);
@@ -268,7 +318,7 @@ export async function readProfileLines(
   page: number,
   pageSize: number
 ) {
-  const key = nickKey(nick);
+  const key = await historyKeyFor(nick);
   const size = Math.min(40, Math.max(1, Math.floor(pageSize) || 15));
   const where = { kind, nickKey: key };
   const total = key ? await prisma.profileMatchLine.count({ where }) : 0;
@@ -387,7 +437,10 @@ export async function pageProfileLines(
   );
   if (kind === "public" && ready.page === 1 && ready.rows.length) {
     const { loadPublicRpOneFromDb } = await import("@/lib/rpDbRead");
-    const live = await loadPublicRpOneFromDb(nick).catch(() => null);
+    const hit = await resolveCollision(nick);
+    const live = await loadPublicRpOneFromDb(
+      publicRpLookupNick(nick, hit?.steamId)
+    ).catch(() => null);
     const first = ready.rows[0];
     if (live && Number.isFinite(live.rp) && first && typeof first === "object") {
       const official = Math.round(live.rp);
