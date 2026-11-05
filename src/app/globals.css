@@ -23172,8 +23172,14 @@ body:has(.faction-page) .site-footer {
   cursor: pointer;
 }
 
-.faction-player-search-list button:hover {
+.faction-player-search-list button:hover:not(:disabled) {
   background: rgba(124, 58, 237, 0.35);
+}
+
+.faction-player-search-list button.is-blocked,
+.faction-player-search-list button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .faction-player-search-empty {

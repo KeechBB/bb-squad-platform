@@ -62,7 +62,18 @@ type DragState = {
   orig: FactionPaneBox;
 };
 
-type PoolPerson = { id: string; nick: string; name: string; steamId?: string };
+type PoolPerson = {
+  id: string;
+  nick: string;
+  name: string;
+  steamId?: string;
+  steamName?: string;
+  blockedIn?: string | null;
+};
+
+function normQuery(s: string) {
+  return s.trim().toLowerCase().replace(/[-_\s]+/g, "");
+}
 
 function boxStyle(box: FactionPaneBox): CSSProperties {
   return {
@@ -90,14 +101,23 @@ function PlayerSearchSelect({
 
   const selected = people.find((p) => p.id === value) || null;
   const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    if (!needle) return people.slice(0, 80);
-    return people
-      .filter((p) => {
-        const hay = `${p.nick} ${p.name} ${p.steamId || ""}`.toLowerCase();
-        return hay.includes(needle);
-      })
-      .slice(0, 80);
+    const needle = normQuery(q);
+    const list = !needle
+      ? people
+      : people.filter((p) => {
+          const hay = normQuery(
+            `${p.nick} ${p.steamName || ""} ${p.name} ${p.steamId || ""}`
+          );
+          const raw = `${p.nick} ${p.steamName || ""} ${p.name} ${p.steamId || ""}`.toLowerCase();
+          return hay.includes(needle) || raw.includes(q.trim().toLowerCase());
+        });
+    // сначала свободные, потом занятые в других фракциях
+    return [...list].sort((a, b) => {
+      const ab = a.blockedIn ? 1 : 0;
+      const bb = b.blockedIn ? 1 : 0;
+      if (ab !== bb) return ab - bb;
+      return a.nick.localeCompare(b.nick, "ru");
+    });
   }, [people, q]);
 
   useEffect(() => {
@@ -132,14 +152,25 @@ function PlayerSearchSelect({
               <li key={p.id}>
                 <button
                   type="button"
+                  disabled={Boolean(p.blockedIn)}
+                  className={p.blockedIn ? "is-blocked" : undefined}
                   onClick={() => {
+                    if (p.blockedIn) return;
                     onChange(p.id);
                     setQ("");
                     setOpen(false);
                   }}
                 >
-                  <span>{p.nick}{p.name ? ` (${p.name})` : ""}</span>
-                  {p.steamId ? <span className="muted">{p.steamId}</span> : null}
+                  <span>
+                    {p.nick}
+                    {p.name ? ` (${p.name})` : ""}
+                    {p.steamName && p.steamName !== p.nick ? ` · ${p.steamName}` : ""}
+                  </span>
+                  {p.blockedIn ? (
+                    <span className="muted">уже: {p.blockedIn}</span>
+                  ) : p.steamId ? (
+                    <span className="muted">{p.steamId}</span>
+                  ) : null}
                 </button>
               </li>
             ))

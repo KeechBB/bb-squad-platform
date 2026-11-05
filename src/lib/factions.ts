@@ -88,8 +88,22 @@ export type FactionView = {
   mySeat: FactionSeat | null;
   myUserId: string | null;
   keech: boolean;
-  invitePool: { id: string; nick: string; name: string; steamId: string }[];
-  leaderPool: { id: string; nick: string; name: string; steamId: string }[];
+  invitePool: {
+    id: string;
+    nick: string;
+    name: string;
+    steamId: string;
+    steamName: string;
+    /** Уже состоит в другой фракции — в поиске виден, но пригласить нельзя. */
+    blockedIn?: string | null;
+  }[];
+  leaderPool: {
+    id: string;
+    nick: string;
+    name: string;
+    steamId: string;
+    steamName: string;
+  }[];
 };
 
 function visibleNick(u: MemberUser): string {
@@ -191,39 +205,61 @@ export async function loadFactionView(slug: string, steamId: string | null) {
       },
       orderBy: { user: { nick: "asc" } },
     });
-    const [taken, pendingHere] = await Promise.all([
+    const [taken, pendingHere, factionNames] = await Promise.all([
       prisma.factionMember.findMany({
-        select: { userId: true, factionId: true },
+        select: {
+          userId: true,
+          factionId: true,
+          faction: { select: { name: true } },
+        },
       }),
       prisma.factionInvite.findMany({
         where: { factionId: faction.id, status: "PENDING" },
         select: { userId: true },
       }),
+      prisma.faction.findMany({
+        where: { clanId: faction.clanId },
+        select: { id: true, name: true },
+      }),
     ]);
-    const takenOther = new Set(
-      taken.filter((t) => t.factionId !== faction.id).map((t) => t.userId)
-    );
+    const nameByFactionId = new Map(factionNames.map((f) => [f.id, f.name]));
+    const otherFactionByUser = new Map<string, string>();
+    for (const t of taken) {
+      if (t.factionId === faction.id) continue;
+      otherFactionByUser.set(
+        t.userId,
+        t.faction?.name || nameByFactionId.get(t.factionId) || "другая фракция"
+      );
+    }
     const inThis = new Set(listed.map((m) => m.userId));
     const pendingIds = new Set(pendingHere.map((p) => p.userId));
-    const pool = clanMembers
+    // Весь клан BB (кроме уже в этой фракции): поиск видит всех; чужая фракция — с пометкой.
+    invitePool = clanMembers
       .filter((m) => !isBuiltinSuperAdmin(m.user.steamId))
-      .filter((m) => !takenOther.has(m.user.id) && !inThis.has(m.user.id) && !pendingIds.has(m.user.id))
-      .map((m) => ({
-        id: m.user.id,
-        nick: m.user.nick || m.user.steamName || "—",
-        name: m.user.name || "",
-        steamId: m.user.steamId || "",
-      }));
-    invitePool = pool;
+      .filter((m) => !inThis.has(m.user.id))
+      .map((m) => {
+        const blocked =
+          otherFactionByUser.get(m.user.id) ||
+          (pendingIds.has(m.user.id) ? "приглашение уже отправлено" : null);
+        return {
+          id: m.user.id,
+          nick: m.user.nick || m.user.steamName || "—",
+          name: m.user.name || "",
+          steamId: m.user.steamId || "",
+          steamName: m.user.steamName || "",
+          blockedIn: blocked,
+        };
+      });
     if (keech) {
       leaderPool = clanMembers
         .filter((m) => !isBuiltinSuperAdmin(m.user.steamId))
-        .filter((m) => !takenOther.has(m.user.id))
+        .filter((m) => !otherFactionByUser.has(m.user.id))
         .map((m) => ({
           id: m.user.id,
           nick: m.user.nick || m.user.steamName || "—",
           name: m.user.name || "",
           steamId: m.user.steamId || "",
+          steamName: m.user.steamName || "",
         }));
     }
   }
