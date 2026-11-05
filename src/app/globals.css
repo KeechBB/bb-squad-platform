@@ -22582,9 +22582,8 @@ body:has(.home-page.is-hub),
 }
 
 /*
- * 3×3 по оранжевой разметке: прямые внутренние линии,
- * внешний контур = полигон чёрной дыры (углы/бока разного формата).
- * Картинки — кристальные рамки в цветах фона.
+ * 3×3 без чёрной плиты: только эмблемы (PNG с прозрачным фоном).
+ * Без clip-path — иначе углы превращаются в чёрный шестиугольник поверх кристалла.
  */
 .home-hub-grid {
   position: absolute;
@@ -22592,26 +22591,19 @@ body:has(.home-page.is-hub),
   left: 50.5%;
   top: 49.7%;
   translate: -50% -50%;
-  /* почти на всю дыру (~34% ширины арта) */
-  width: 33%;
+  width: 28%;
   aspect-ratio: 1 / 1;
   height: auto;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-rows: repeat(3, minmax(0, 1fr));
-  gap: 2px;
+  gap: 6px;
   min-width: 0;
   min-height: 0;
   padding: 0;
   box-sizing: border-box;
-  clip-path: polygon(
-    50% 0%,
-    100% 25%,
-    100% 75%,
-    50% 100%,
-    0% 75%,
-    0% 25%
-  );
+  background: transparent;
+  clip-path: none;
 }
 
 .home-hub-tile {
@@ -22621,8 +22613,7 @@ body:has(.home-page.is-hub),
   height: 100%;
   min-width: 0;
   min-height: 0;
-  /* без чёрной подложки — сквозь ячейки виден кристалл/дыра */
-  background: transparent;
+  background: transparent !important;
   border: none;
   box-shadow: none;
   overflow: visible;
