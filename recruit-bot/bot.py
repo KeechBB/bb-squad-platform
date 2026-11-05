@@ -9,7 +9,9 @@
 После входа в группу бот ставит игровой ник в тег участника.
 Дальше бот следит за сайтом и обоими чатами.
 
-Кадровики назначаются в боте. Алерты идут в ALERT_CHAT_ID.
+Кадровики назначаются в боте.
+Промежуточные алерты → ALERT_CHAT_ID (Bot для набора).
+Финал «Новый участник клана…» → ANNOUNCE_CHAT_ID (Основной).
 Своя база: data/recruit.sqlite, выгрузка двумя CSV.
 """
 from __future__ import annotations
@@ -101,12 +103,23 @@ def group_id() -> int | None:
 
 
 def alert_chat() -> int | None:
+    """HR-чат: шаги, алерты, кураторы (Bot для набора)."""
     return env_int("ALERT_CHAT_ID")
 
 
+def announce_chat() -> int | None:
+    """Публичный чат: только успешный финал регистрации (Основной)."""
+    return env_int("ANNOUNCE_CHAT_ID") or env_int("ALERT_CHAT_ID")
+
+
 def alert_thread() -> int | None:
-    """Топик форума (message_thread_id), например «Вход новые пользователи»."""
+    """Топик в HR-чате, если нужен."""
     return env_int("ALERT_THREAD_ID")
+
+
+def announce_thread() -> int | None:
+    """Топик в Основном (General можно не задавать)."""
+    return env_int("ANNOUNCE_THREAD_ID")
 
 
 def channel_title() -> str:
@@ -159,19 +172,29 @@ def nick_tag(nick: str) -> str:
     return tag[:16] if tag else "player"
 
 
-async def send_alert(bot, text: str) -> None:
-    logging.info("alert: %s", text.replace("\n", " | "))
-    chat = alert_chat()
-    if not chat:
+async def _send_chat(
+    bot, chat_id: int | None, text: str, thread_id: int | None, kind: str
+) -> None:
+    logging.info("%s: %s", kind, text.replace("\n", " | "))
+    if not chat_id:
         return
     kwargs = {}
-    thread = alert_thread()
-    if thread is not None:
-        kwargs["message_thread_id"] = thread
+    if thread_id is not None:
+        kwargs["message_thread_id"] = thread_id
     try:
-        await bot.send_message(chat, text, **kwargs)
+        await bot.send_message(chat_id, text, **kwargs)
     except Exception as e:
-        logging.warning("alert send: %s", type(e).__name__)
+        logging.warning("%s send: %s", kind, type(e).__name__)
+
+
+async def send_alert(bot, text: str) -> None:
+    """Промежуточные HR-алерты → Bot для набора."""
+    await _send_chat(bot, alert_chat(), text, alert_thread(), "alert")
+
+
+async def send_announce(bot, text: str) -> None:
+    """Только финал успешной регистрации → Основной."""
+    await _send_chat(bot, announce_chat(), text, announce_thread(), "announce")
 
 
 async def in_chat(bot, chat_id: int | None, user_id: int) -> bool:
@@ -458,10 +481,9 @@ async def check_one(bot, row) -> None:
         db.event(tg_id, "step4", nick)
         fresh = db.get_applicant(tg_id)
         await tell(bot, tg_id, accepted_text())
-        # В топик «Вход новые пользователи»: Ник (Имя) + tg юз
-        await send_alert(
+        await send_announce(
             bot,
-            f"новый пользователь: {db.label(fresh)} {tg_handle(fresh)}",
+            f"Новый участник клана {db.label(fresh)} {tg_handle(fresh)}",
         )
         return
 
@@ -602,6 +624,9 @@ async def cmd_start(update, context) -> None:
     message = update.message
     if user is None or message is None:
         return
+    # Регистрация и меню — только в личке, не в группах
+    if message.chat.type != "private":
+        return
     if db.is_hr(user.id):
         await message.reply_text("Кадровое меню.", reply_markup=hr_markup())
     row = db.get_applicant(user.id)
@@ -616,6 +641,8 @@ async def cmd_menu(update, context) -> None:
     message = update.message
     if user is None or message is None:
         return
+    if message.chat.type != "private":
+        return
     if not db.is_hr(user.id):
         await message.reply_text("Это меню только для кадровиков.")
         return
@@ -627,6 +654,9 @@ async def on_text(update, context) -> None:
     message = update.message
     user = update.effective_user
     if message is None or user is None or not message.text:
+        return
+    # В группах молчим — иначе отвечает на «пинг» в Основном
+    if message.chat.type != "private":
         return
     text = message.text.strip()
     if db.is_hr(user.id) and text in HR_BUTTONS:
