@@ -22564,11 +22564,12 @@ body:has(.not-found-page) .site-footer-note {
 
 .home-hub-tile-art {
   position: absolute;
-  inset: 0;
+  inset: 6px;
   z-index: 1;
   background-position: center;
   background-repeat: no-repeat;
-  background-size: 132%;
+  /* contain = целиком влезает, без обрезки текста/рамок */
+  background-size: contain;
   filter: contrast(1.12) saturate(1.08) brightness(1.04);
   pointer-events: none;
 }
