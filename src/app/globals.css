@@ -23064,6 +23064,205 @@ body:has(.faction-page) .site-footer {
   overflow: auto;
 }
 
+.faction-roster {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.faction-roster-fit {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.faction-roster-table th,
+.faction-roster-table td {
+  height: 44px;
+  padding: 6px 10px;
+}
+
+.faction-roster-table .role-select {
+  max-height: 32px;
+  padding: 4px 8px;
+}
+
+.faction-roster-sort {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
+.faction-roster-sort.is-on {
+  color: #f4f0e8;
+}
+
+.faction-roster-pager {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.faction-pane-roster .faction-pane-body {
+  overflow: hidden;
+}
+
+.faction-pane-stats .faction-pane-body {
+  overflow: hidden;
+}
+
+.faction-online {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.faction-online-hint {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.faction-online-search {
+  flex: 0 0 auto;
+  max-width: 280px;
+}
+
+.faction-online-fit {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.faction-online-table th,
+.faction-online-table td {
+  height: 44px;
+  padding: 4px 8px;
+  white-space: nowrap;
+  font-size: 0.82rem;
+}
+
+.faction-online-table th {
+  vertical-align: bottom;
+}
+
+.faction-online-wd {
+  display: block;
+  color: #f4f0e8;
+  font-weight: 700;
+  text-transform: lowercase;
+}
+
+.faction-online-date {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.faction-online-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 9.5rem;
+}
+
+.faction-stat-table th,
+.faction-stat-table td {
+  height: 44px;
+  padding: 4px 10px;
+  white-space: nowrap;
+  font-size: 0.86rem;
+}
+
+.faction-name-cell {
+  font-weight: 700;
+}
+
+.faction-best {
+  color: #f5c542;
+  font-weight: 800;
+}
+
+.faction-dyn-h {
+  cursor: help;
+}
+
+.faction-analytics {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.faction-analytics-bar {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.faction-analytics-week {
+  grid-column: 2;
+  margin: 0;
+  text-align: center;
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #f4f0e8;
+}
+
+.faction-analytics-pick {
+  grid-column: 3;
+  justify-self: end;
+}
+
+.faction-analytics-pick select {
+  max-width: 14rem;
+  font-weight: 800;
+  background: rgba(12, 10, 22, 0.72);
+  border: 1px solid rgba(244, 240, 232, 0.18);
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+
+.faction-analytics-stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.faction-analytics-donut {
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  aspect-ratio: 1;
+}
+
+.faction-analytics-pct {
+  fill: #f5f3ff;
+  font-weight: 800;
+}
+
+.faction-analytics-kit {
+  fill: rgba(196, 181, 253, 0.95);
+  font-weight: 700;
+}
+
 .faction-brand {
   display: flex;
   gap: 16px;
@@ -23133,6 +23332,42 @@ body:has(.faction-page) .site-footer {
 
 .faction-page.is-member .faction-pane-brand {
   background: transparent;
+}
+
+/* Участник: четыре окна сеткой, вплотную, без наезда. */
+.faction-page.is-member:not(.is-placing) .faction-stage {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.95fr) minmax(0, 1.2fr) minmax(280px, 0.9fr);
+  grid-template-rows: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  gap: 8px;
+  grid-template-areas:
+    "brand info roster"
+    "stats stats roster";
+}
+
+.faction-page.is-member:not(.is-placing) .faction-pane {
+  position: relative;
+  left: auto;
+  top: auto;
+  width: auto;
+  height: auto;
+  min-height: 0;
+}
+
+.faction-page.is-member:not(.is-placing) .faction-pane-brand {
+  grid-area: brand;
+}
+
+.faction-page.is-member:not(.is-placing) .faction-pane-info {
+  grid-area: info;
+}
+
+.faction-page.is-member:not(.is-placing) .faction-pane-stats {
+  grid-area: stats;
+}
+
+.faction-page.is-member:not(.is-placing) .faction-pane-roster {
+  grid-area: roster;
 }
 
 .faction-player-search {
@@ -23351,5 +23586,9 @@ body:has(.faction-page) .site-footer {
   }
   .faction-page:not(.is-placing) .faction-pane-roster {
     min-height: 360px;
+  }
+  .faction-page.is-member:not(.is-placing) .faction-stage {
+    display: flex;
+    grid-template-areas: none;
   }
 }

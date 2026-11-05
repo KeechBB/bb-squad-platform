@@ -28,6 +28,12 @@ type TeamInvite = {
   };
 };
 
+type FactionInvite = {
+  id: string;
+  factionName: string;
+  inviterNick: string;
+};
+
 export function NotificationsBell() {
   const { data: session, status } = useSession();
   const [open, setOpen] = useState(false);
@@ -46,20 +52,31 @@ export function NotificationsBell() {
       const res = await fetch("/api/tournaments/invites", { cache: "no-store" });
       if (!res.ok) return;
       const data = (await res.json()) as { invites?: TeamInvite[] };
-      setInvites(Array.isArray(data.invites) ? data.invites : []);
+      if (res.ok) {
+        const data = (await res.json()) as { invites?: TeamInvite[] };
+        setInvites(Array.isArray(data.invites) ? data.invites : []);
+      }
     } catch {
       /* ignore */
     }
     try {
       const res = await fetch("/api/notices", { cache: "no-store" });
-      if (!res.ok) return;
-      const data = (await res.json()) as { notices?: SiteNoticeItem[] };
-      setNotices(Array.isArray(data.notices) ? data.notices : []);
+      if (res.ok) {
+        const data = (await res.json()) as { notices?: SiteNoticeItem[] };
+        setNotices(Array.isArray(data.notices) ? data.notices : []);
+      }
     } catch {
       /* ignore */
     }
-  }, [session?.user?.profileComplete]);
-
+    try {
+      const res = await fetch("/api/factions/invites", { cache: "no-store" });
+      if (res.ok) {
+        const data = (await res.json()) as { invites?: FactionInvite[] };
+        setFactionInvites(Array.isArray(data.invites) ? data.invites : []);
+      }
+    } catch {
+      /* ignore */
+    }
   useEffect(() => {
     if (status !== "authenticated" || !session?.user?.profileComplete) return;
     void reload();
@@ -131,6 +148,28 @@ export function NotificationsBell() {
 
   async function act(inviteId: string, action: "accept" | "decline") {
     setError("");
+  async function actFaction(inviteId: string, action: "accept" | "decline") {
+    setError("");
+    setLoading(inviteId);
+    try {
+      const res = await fetch("/api/factions/invites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inviteId, action }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setError(data.error || "Ошибка");
+        return;
+      }
+      setFactionInvites((list) => list.filter((i) => i.id !== inviteId));
+    } catch {
+      setError("Сеть недоступна");
+    } finally {
+      setLoading(null);
+    }
+  }
+
     setLoading(inviteId);
     try {
       const res = await fetch("/api/tournaments/invites", {
@@ -157,7 +196,7 @@ export function NotificationsBell() {
 
   const count = invites.length + notices.length;
   const alarm = unseenNotices.length > 0;
-
+  const count = invites.length + factionInvites.length + notices.length;
   return (
     <div
       className={`notif-bell${open ? " is-open" : ""}${count ? " has-items" : ""}${alarm ? " has-unseen" : ""}`}
@@ -196,7 +235,7 @@ export function NotificationsBell() {
           {error ? <p className="notif-error">{error}</p> : null}
           {notices.length === 0 && invites.length === 0 ? (
             <p className="notif-empty">Пока пусто</p>
-          ) : (
+          {notices.length === 0 && invites.length === 0 && factionInvites.length === 0 ? (
             <ul className="notif-list">
               {notices.map((n) => (
                 <li
@@ -231,6 +270,32 @@ export function NotificationsBell() {
               ))}
               {invites.map((inv) => (
                 <li key={inv.id} className="notif-item">
+              {factionInvites.map((inv) => (
+                <li key={inv.id} className="notif-item">
+                  <div className="notif-item-text">
+                    <strong>Приглашение во фракцию «{inv.factionName}»</strong>
+                    <span>от {inv.inviterNick}</span>
+                  </div>
+                  <div className="notif-item-actions">
+                    <button
+                      type="button"
+                      className="notif-accept"
+                      disabled={loading === inv.id}
+                      onClick={() => void actFaction(inv.id, "accept")}
+                    >
+                      Принять
+                    </button>
+                    <button
+                      type="button"
+                      className="notif-decline"
+                      disabled={loading === inv.id}
+                      onClick={() => void actFaction(inv.id, "decline")}
+                    >
+                      Отклонить
+                    </button>
+                  </div>
+                </li>
+              ))}
                   <div className="notif-item-text">
                     <strong>
                       Приглашение в [{inv.team.tag}] {inv.team.name}

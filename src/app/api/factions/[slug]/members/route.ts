@@ -44,13 +44,19 @@ export async function POST(req: Request, ctx: Ctx) {
     where: { factionId: loaded.view.id, userId: user.id },
     orderBy: { createdAt: "desc" },
   });
-  if (existing?.status === "PENDING") {
-    return NextResponse.json({ error: "Приглашение уже отправлено" }, { status: 409 });
-  }
-  if (existing && (existing.status === "DECLINED" || existing.status === "CANCELLED")) {
+  if (existing) {
     await prisma.factionInvite.update({
       where: { id: existing.id },
       data: { status: "PENDING", invitedBy: loaded.me.id },
+    });
+    await prisma.factionInvite.updateMany({
+      where: {
+        factionId: loaded.view.id,
+        userId: user.id,
+        id: { not: existing.id },
+        status: { in: ["PENDING", "ACCEPTED"] },
+      },
+      data: { status: "CANCELLED" },
     });
   } else {
     await prisma.factionInvite.create({
@@ -125,6 +131,14 @@ export async function DELETE(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Главу исключить нельзя" }, { status: 403 });
   }
   await prisma.factionMember.delete({ where: { id: member.id } });
+  await prisma.factionInvite.updateMany({
+    where: {
+      factionId: loaded.view.id,
+      userId: member.userId,
+      status: { in: ["PENDING", "ACCEPTED"] },
+    },
+    data: { status: "CANCELLED" },
+  });
   await logFaction("kick", {
     actorId: loaded.me.id,
     actorNick: actorNick(loaded.me, loaded.view.keech),

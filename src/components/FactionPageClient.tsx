@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -27,13 +28,14 @@ import {
   stringifyFactionInfo,
   type FactionInfoDoc,
 } from "@/lib/factionInfoDoc";
+import { FactionOnline } from "@/components/FactionOnline";
+import { FactionAnalytics, FactionGrowthBoard, FactionWeekBoard } from "@/components/FactionBoards";
 
 const TABS = [
-  ["online", "онлайн"],
-  ["growth", "развитие"],
+  ["online", "Онлайн"],
+  ["growth", "Развитие"],
   ["train", "Тренировки"],
   ["cw", "Участие КВ"],
-  ["pb1", "Игра PB1"],
   ["analytics", "Аналитика"],
 ] as const;
 
@@ -44,13 +46,8 @@ const TAB_NOTE: Record<TabId, string> = {
   growth: "Развитие игроков фракции появится здесь.",
   train: "Тренировки игроков фракции появятся здесь.",
   cw: "Участие в клановых войнах появится здесь.",
-  pb1: "Игра на PB1 появится здесь.",
   analytics: "Статистика относительно других фракций появится здесь.",
 };
-
-/** Участник (не штаб): компактное лого слева, инфо справа. */
-const MEMBER_BRAND: FactionPaneBox = { left: 0, top: 0, width: 24, height: 52 };
-const MEMBER_INFO: FactionPaneBox = { left: 25.2, top: 0, width: 41.2, height: 52 };
 
 type ResizeMode = "move" | "e" | "s" | "se";
 
@@ -183,6 +180,180 @@ function PlayerSearchSelect({
   );
 }
 
+type RosterSortKey = "order" | "nick" | "name" | "kit" | "role";
+
+const ROSTER_COLUMNS: { key: RosterSortKey; label: string }[] = [
+  { key: "order", label: "№" },
+  { key: "nick", label: "Ник" },
+  { key: "name", label: "Имя" },
+  { key: "kit", label: "Основной кит" },
+  { key: "role", label: "Роль" },
+];
+
+function rosterValue(m: FactionView["members"][number], key: RosterSortKey): string | number {
+  if (key === "order") return m.order;
+  if (key === "nick") return m.nick;
+  if (key === "name") return m.name;
+  if (key === "kit") return m.mainKit;
+  return m.roleName;
+}
+
+function compareRoster(
+  a: FactionView["members"][number],
+  b: FactionView["members"][number],
+  key: RosterSortKey,
+  dir: "asc" | "desc"
+) {
+  const va = rosterValue(a, key);
+  const vb = rosterValue(b, key);
+  let cmp = 0;
+  if (typeof va === "number" && typeof vb === "number") cmp = va - vb;
+  else cmp = String(va).localeCompare(String(vb), "ru", { sensitivity: "base", numeric: true });
+  if (cmp === 0) cmp = a.order - b.order;
+  return dir === "asc" ? cmp : -cmp;
+}
+
+function FactionRoster({
+  members,
+  canManage,
+  roles,
+  base,
+  run,
+}: {
+  members: FactionView["members"];
+  canManage: boolean;
+  roles: FactionView["roles"];
+  base: string;
+  run: (path: string, init: RequestInit) => Promise<void>;
+}) {
+  const fitRef = useRef<HTMLDivElement | null>(null);
+  const [pageSize, setPageSize] = useState(8);
+  const [page, setPage] = useState(0);
+  const [sortKey, setSortKey] = useState<RosterSortKey>("order");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const sorted = useMemo(
+    () => [...members].sort((a, b) => compareRoster(a, b, sortKey, sortDir)),
+    [members, sortKey, sortDir]
+  );
+  const pageCount = Math.max(1, Math.ceil(sorted.length / Math.max(1, pageSize)));
+  const safePage = Math.min(page, pageCount - 1);
+  const visible = sorted.slice(safePage * pageSize, safePage * pageSize + pageSize);
+
+  useLayoutEffect(() => {
+    const el = fitRef.current;
+    if (!el) return;
+    const measure = () => {
+      const head = el.querySelector("thead")?.getBoundingClientRect().height ?? 44;
+      const sample = el.querySelector("tbody tr")?.getBoundingClientRect().height ?? 44;
+      const room = Math.max(0, el.clientHeight - head);
+      const next = Math.max(1, Math.floor(room / Math.max(sample, 1)));
+      setPageSize((prev) => (prev === next ? prev : next));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [sorted.length, safePage]);
+
+  function onSort(key: RosterSortKey) {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+    setPage(0);
+  }
+
+  return (
+    <div className="faction-roster">
+      <h2>Состав</h2>
+      <div className="faction-roster-fit" ref={fitRef}>
+        <table className="admin-table faction-roster-table">
+          <thead>
+            <tr>
+              {ROSTER_COLUMNS.map((col) => {
+                const on = sortKey === col.key;
+                return (
+                  <th key={col.key} aria-sort={on ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
+                    <button
+                      type="button"
+                      className={`faction-roster-sort${on ? " is-on" : ""}`}
+                      onClick={() => onSort(col.key)}
+                    >
+                      {col.label}
+                      {on ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
+                    </button>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((m) => (
+              <tr key={m.id}>
+                <td>{m.order}</td>
+                <td>{m.nick}</td>
+                <td>{m.name}</td>
+                <td>{m.mainKit}</td>
+                <td>
+                  {canManage && m.seat !== "LEADER" ? (
+                    <select
+                      className="role-select"
+                      value={
+                        m.seat === "DEPUTY"
+                          ? roles.find((r) => r.isDeputy)?.id || ""
+                          : m.roleId || ""
+                      }
+                      onChange={(e) =>
+                        void run(`${base}/members`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            userId: m.userId,
+                            roleId: e.target.value || null,
+                          }),
+                        })
+                      }
+                    >
+                      <option value="">Без роли</option>
+                      {roles.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    m.roleName
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {pageCount > 1 ? (
+        <div className="faction-roster-pager">
+          <button type="button" className="btn" disabled={safePage <= 0} onClick={() => setPage(safePage - 1)}>
+            Назад
+          </button>
+          <span className="muted">
+            {safePage + 1} / {pageCount}
+          </span>
+          <button
+            type="button"
+            className="btn"
+            disabled={safePage >= pageCount - 1}
+            onClick={() => setPage(safePage + 1)}
+          >
+            Дальше
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function FactionPageClient({
   initial,
   initialLayout,
@@ -193,6 +364,11 @@ export function FactionPageClient({
   const router = useRouter();
   const [view, setView] = useState(initial);
   const [tab, setTab] = useState<TabId>("online");
+  const [onlineKey, setOnlineKey] = useState(0);
+  const [growthKey, setGrowthKey] = useState(0);
+  const [trainKey, setTrainKey] = useState(0);
+  const [cwKey, setCwKey] = useState(0);
+  const [analyticsKey, setAnalyticsKey] = useState(0);
   const [error, setError] = useState("");
   const [flash, setFlash] = useState("");
   const [busy, setBusy] = useState(false);
@@ -352,10 +528,6 @@ export function FactionPageClient({
   }
 
   function paneBox(id: FactionPaneId): FactionPaneBox {
-    if (memberView && !placing) {
-      if (id === "brand") return MEMBER_BRAND;
-      if (id === "info") return MEMBER_INFO;
-    }
     return layout.panes[id];
   }
 
@@ -402,7 +574,7 @@ export function FactionPageClient({
     return (
       <section
         className={`card faction-pane faction-pane-${id}${drag?.id === id ? " is-dragging" : ""}`}
-        style={boxStyle(box)}
+        style={memberView && !placing ? undefined : boxStyle(box)}
       >
         {placing ? (
           <div className="faction-move" onPointerDown={(e) => beginDrag(id, "move", e)}>
@@ -775,76 +947,39 @@ export function FactionPageClient({
                   key={id}
                   type="button"
                   className={`admin-tab${tab === id ? " active" : ""}`}
-                  onClick={() => setTab(id)}
+                  onClick={() => {
+                    setTab(id);
+                    if (id === "online") setOnlineKey((n) => n + 1);
+                    if (id === "growth") setGrowthKey((n) => n + 1);
+                    if (id === "train") setTrainKey((n) => n + 1);
+                    if (id === "cw") setCwKey((n) => n + 1);
+                    if (id === "analytics") setAnalyticsKey((n) => n + 1);
+                  }}
                 >
                   {label}
                 </button>
               ))}
             </div>
-            <p className="muted faction-stat-note">{TAB_NOTE[tab]}</p>
+            {tab === "online" ? <FactionOnline slug={view.slug} loadKey={onlineKey} /> : null}
+            {tab === "growth" ? <FactionGrowthBoard slug={view.slug} loadKey={growthKey} /> : null}
+            {tab === "train" ? <FactionWeekBoard slug={view.slug} kind="train" loadKey={trainKey} /> : null}
+            {tab === "cw" ? <FactionWeekBoard slug={view.slug} kind="cw" loadKey={cwKey} /> : null}
+            {tab === "analytics" ? (
+              <FactionAnalytics slug={view.slug} loadKey={analyticsKey} />
+            ) : null}
           </>
         )}
 
         {pane(
           "roster",
           "Состав",
-          <>
-            <h2>Состав</h2>
-            <div className="admin-table-wrap">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>№</th>
-                    <th>Ник</th>
-                    <th>Имя</th>
-                    <th>Основной кит</th>
-                    <th>Роль</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {view.members.map((m) => (
-                    <tr key={m.id}>
-                      <td>{m.order}</td>
-                      <td>{m.nick}</td>
-                      <td>{m.name}</td>
-                      <td>{m.mainKit}</td>
-                      <td>
-                        {view.canManage && m.seat !== "LEADER" ? (
-                          <select
-                            className="role-select"
-                            value={
-                              m.seat === "DEPUTY"
-                                ? view.roles.find((r) => r.isDeputy)?.id || ""
-                                : m.roleId || ""
-                            }
-                            onChange={(e) =>
-                              void run(`${base}/members`, {
-                                method: "PATCH",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({
-                                  userId: m.userId,
-                                  roleId: e.target.value || null,
-                                }),
-                              })
-                            }
-                          >
-                            <option value="">Без роли</option>
-                            {view.roles.map((r) => (
-                              <option key={r.id} value={r.id}>
-                                {r.name}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          m.roleName
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
+          <FactionRoster
+            members={view.members}
+            canManage={view.canManage}
+            roles={view.roles}
+            base={base}
+            run={run}
+          />
         )}
       </div>
     </main>

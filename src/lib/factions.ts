@@ -205,17 +205,13 @@ export async function loadFactionView(slug: string, steamId: string | null) {
       },
       orderBy: { user: { nick: "asc" } },
     });
-    const [taken, pendingHere, factionNames] = await Promise.all([
+    const [taken, factionNames] = await Promise.all([
       prisma.factionMember.findMany({
         select: {
           userId: true,
           factionId: true,
           faction: { select: { name: true } },
         },
-      }),
-      prisma.factionInvite.findMany({
-        where: { factionId: faction.id, status: "PENDING" },
-        select: { userId: true },
       }),
       prisma.faction.findMany({
         where: { clanId: faction.clanId },
@@ -232,15 +228,12 @@ export async function loadFactionView(slug: string, steamId: string | null) {
       );
     }
     const inThis = new Set(listed.map((m) => m.userId));
-    const pendingIds = new Set(pendingHere.map((p) => p.userId));
     // Весь клан BB (кроме уже в этой фракции): поиск видит всех; чужая фракция — с пометкой.
     invitePool = clanMembers
       .filter((m) => !isBuiltinSuperAdmin(m.user.steamId))
       .filter((m) => !inThis.has(m.user.id))
       .map((m) => {
-        const blocked =
-          otherFactionByUser.get(m.user.id) ||
-          (pendingIds.has(m.user.id) ? "приглашение уже отправлено" : null);
+        const blocked = otherFactionByUser.get(m.user.id) || null;
         return {
           id: m.user.id,
           nick: m.user.nick || m.user.steamName || "—",
