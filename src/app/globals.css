@@ -22373,8 +22373,8 @@ body:has(.not-found-page) .site-footer-note {
 .home-layout.is-hub {
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas: "hub";
-  /* равные поля L/R, чуть уже к краям */
-  padding: 10px 36px 12px;
+  /* равные поля L/R, чуть шире от краёв (~+1см к 52) */
+  padding: 10px 70px 12px;
   column-gap: 0;
 }
 
