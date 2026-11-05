@@ -39,12 +39,13 @@ export function HomeHub({ showCw, cwCards }: Props) {
       </aside>
 
       <div className="home-hub-poly">
+        {/* ровная 3×3 по разметке; внешний контур = полигон дыры */}
         <nav className="home-hub-grid" aria-label="Быстрые разделы">
           {HOME_HUB_TILES.map((tile) => (
             <Link
               key={tile.id}
               href={tile.href}
-              className="home-hub-tile"
+              className={`home-hub-tile home-hub-tile--${tile.id}`}
               title={tile.title}
               aria-label={tile.title}
             >
@@ -52,15 +53,8 @@ export function HomeHub({ showCw, cwCards }: Props) {
               <span
                 className="home-hub-tile-art"
                 aria-hidden="true"
-                style={{ backgroundImage: `url(${tile.image}?v=plate9)` }}
+                style={{ backgroundImage: `url(${tile.image}?v=cell1)` }}
               />
-              <span className="home-hub-tile-label">
-                {tile.label.split("\n").map((line) => (
-                  <span key={line} className="home-hub-tile-label-line">
-                    {line}
-                  </span>
-                ))}
-              </span>
             </Link>
           ))}
         </nav>
