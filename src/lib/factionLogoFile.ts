@@ -28,7 +28,7 @@ export async function removeFactionLogo(id: string) {
   await clear(id);
 }
 
-/** Белый/почти белый фон → прозрачность, всегда PNG. */
+/** Белый / почти белый / шахматный серый фон → прозрачность, всегда PNG. */
 export async function stripLogoWhiteBackground(buf: Buffer): Promise<Buffer> {
   const { data, info } = await sharp(buf)
     .ensureAlpha()
@@ -39,7 +39,12 @@ export async function stripLogoWhiteBackground(buf: Buffer): Promise<Buffer> {
     const r = out[i];
     const g = out[i + 1];
     const b = out[i + 2];
-    // белый и светло-серый фон у JPG-маскотов
+    const chroma = Math.max(Math.abs(r - g), Math.abs(g - b), Math.abs(r - b));
+    // нейтральный светлый фон (белый JPG + flattened checkerboard ~225/255)
+    if (chroma <= 12 && r >= 200 && g >= 200 && b >= 200) {
+      out[i + 3] = 0;
+      continue;
+    }
     if (r >= 235 && g >= 235 && b >= 235) {
       out[i + 3] = 0;
     } else if (r >= 220 && g >= 220 && b >= 220) {
