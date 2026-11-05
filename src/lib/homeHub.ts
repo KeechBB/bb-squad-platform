@@ -71,6 +71,7 @@ export const HOME_HUB_TILES: HomeHubTile[] = [
     title: "Мой клан",
     label: "МОЙ КЛАН",
     image: "/home-hub/my-clan.png",
+    /** Fallback; page resolves to /clans/{id} for the viewer's clan. */
     href: "/clans",
   },
   {
@@ -78,8 +79,7 @@ export const HOME_HUB_TILES: HomeHubTile[] = [
     title: "Моя команда",
     label: "МОЯ\nКОМАНДА",
     image: "/home-hub/my-team.png",
-    href: "/wip/team",
-    stub: true,
+    href: "/tournaments?tab=teams&sub=my-team",
   },
   {
     id: "my-faction",
@@ -93,6 +93,29 @@ export const HOME_HUB_TILES: HomeHubTile[] = [
 
 export const HOME_HUB_WIP_TITLES: Record<string, string> = {
   marketplace: "Торговая Площадка",
-  team: "Моя команда",
   faction: "Моя фракция",
 };
+
+/** Personalize hub tile hrefs for the logged-in viewer. */
+export function withViewerHubHrefs(
+  tiles: HomeHubTile[],
+  opts: { clanId: string | null }
+): HomeHubTile[] {
+  return tiles.map((tile) => {
+    if (tile.id === "my-clan") {
+      return {
+        ...tile,
+        href: opts.clanId ? `/clans/${opts.clanId}` : "/clans",
+        stub: false,
+      };
+    }
+    if (tile.id === "my-team") {
+      return {
+        ...tile,
+        href: "/tournaments?tab=teams&sub=my-team",
+        stub: false,
+      };
+    }
+    return tile;
+  });
+}

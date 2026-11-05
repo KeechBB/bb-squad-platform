@@ -8,6 +8,7 @@ import {
   isRegistrationOpen,
   tournamentPhase,
   tournamentTabHref,
+  type TeamSubTabId,
   type TournamentTabId,
 } from "@/lib/tournaments";
 import type { TournamentHubState } from "@/lib/tournamentHubShared";
@@ -24,6 +25,7 @@ import { TournamentRegisterPanel } from "@/components/TournamentRegisterPanel";
 type Props = {
   viewerNick: string;
   initialTab?: TournamentTabId;
+  initialTeamsSub?: TeamSubTabId;
   hub: TournamentHubState;
 };
 
@@ -174,6 +176,7 @@ function TournamentsHomeTab() {
 export function TournamentsClient({
   viewerNick,
   initialTab = "tournaments",
+  initialTeamsSub = "overview",
   hub,
 }: Props) {
   const router = useRouter();
@@ -188,7 +191,12 @@ export function TournamentsClient({
         }
         return <TournamentsHomeTab />;
       case "teams":
-        return <TournamentTeamsTab viewerNick={viewerNick} />;
+        return (
+          <TournamentTeamsTab
+            viewerNick={viewerNick}
+            initialSub={initialTeamsSub}
+          />
+        );
       case "player-stats":
         return <TournamentPlayerStatsTab />;
       case "team-rating":
@@ -200,7 +208,7 @@ export function TournamentsClient({
       default:
         return null;
     }
-  }, [tab, viewerNick, hub]);
+  }, [tab, viewerNick, hub, initialTeamsSub]);
 
   return (
     <TournamentHubFrame

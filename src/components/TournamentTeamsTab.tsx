@@ -1200,8 +1200,15 @@ function MyTeamPanel({
   );
 }
 
-export function TournamentTeamsTab({ viewerNick }: { viewerNick: string }) {
+export function TournamentTeamsTab({
+  viewerNick,
+  initialSub = "overview",
+}: {
+  viewerNick: string;
+  initialSub?: TeamSubTabId;
+}) {
   void viewerNick;
+  const wantMyTeam = initialSub === "my-team";
   const [sub, setSub] = useState<TeamSubTabId>("overview");
   const [teams, setTeams] = useState<ApiTeam[]>([]);
   const [myTeamId, setMyTeamId] = useState<string | null>(null);
@@ -1238,16 +1245,18 @@ export function TournamentTeamsTab({ viewerNick }: { viewerNick: string }) {
             }))
           : []
       );
-      setMyTeamId(data.myTeamId || null);
+      const nextMyTeamId = data.myTeamId || null;
+      setMyTeamId(nextMyTeamId);
       setMyRole(data.myRole || null);
       setMyUserId(data.myUserId || null);
       setAuthed(Boolean(data.authed));
       setCanCreate(Boolean(data.canCreate));
       setBootError(null);
+      if (wantMyTeam && nextMyTeamId) setSub("my-team");
     } catch {
       setBootError("Сеть недоступна");
     }
-  }, []);
+  }, [wantMyTeam]);
 
   useEffect(() => {
     void reload();

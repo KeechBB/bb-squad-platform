@@ -1,6 +1,6 @@
 import { getSession } from "@/lib/auth";
 import { TournamentsClient } from "@/components/TournamentsClient";
-import { isTournamentTab } from "@/lib/tournaments";
+import { isTournamentTab, type TeamSubTabId } from "@/lib/tournaments";
 import { loadTournamentHubState } from "@/lib/tournamentHub";
 import "../tournaments.css";
 
@@ -9,16 +9,23 @@ export const metadata = {
   title: "Турниры · BlackBerry Squad",
 };
 
-type Props = { searchParams?: Promise<{ tab?: string }> };
+type Props = { searchParams?: Promise<{ tab?: string; sub?: string }> };
 
 export default async function TournamentsPage({ searchParams }: Props) {
   const session = await getSession();
   const nick = session?.user?.nick || session?.user?.steamName || "";
   const sp = searchParams ? await searchParams : {};
   const initialTab = isTournamentTab(sp.tab) ? sp.tab : "tournaments";
+  const initialTeamsSub: TeamSubTabId =
+    sp.sub === "my-team" ? "my-team" : "overview";
   const hub = await loadTournamentHubState();
 
   return (
-    <TournamentsClient viewerNick={nick} initialTab={initialTab} hub={hub} />
+    <TournamentsClient
+      viewerNick={nick}
+      initialTab={initialTab}
+      initialTeamsSub={initialTeamsSub}
+      hub={hub}
+    />
   );
 }

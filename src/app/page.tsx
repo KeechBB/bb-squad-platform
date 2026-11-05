@@ -19,9 +19,10 @@ import {
 import { syncCwMails } from "@/lib/cwMailSync";
 import { syncTournamentEliminationMails } from "@/lib/tournamentEliminationMail";
 import { isBattlePassIntermission } from "@/lib/battlePassSchedule";
-import { HOME_HUB_REBRAND } from "@/lib/homeHub";
+import { HOME_HUB_REBRAND, HOME_HUB_TILES, withViewerHubHrefs } from "@/lib/homeHub";
 import { isBuiltinSuperAdmin } from "@/lib/admin";
 import { readHubTileLayout } from "@/lib/homeHubLayout";
+import { getUserHomeClanId } from "@/lib/clanAccess";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,8 @@ export default async function HomePage() {
   const showCw = await viewerIsBlackberry(userId);
   const canEditTiles = isBuiltinSuperAdmin(session?.user?.steamId);
   const tileLayout = await readHubTileLayout();
+  const homeClanId = await getUserHomeClanId(session?.user?.steamId);
+  const hubTiles = withViewerHubHrefs(HOME_HUB_TILES, { clanId: homeClanId });
   let cwCards: HomeCwCard[] = [];
   if (showCw) {
     const slots = await homeCwAnnounces();
@@ -117,6 +120,7 @@ export default async function HomePage() {
             cwCards={cwCards}
             canEditTiles={canEditTiles}
             tileLayout={tileLayout}
+            tiles={hubTiles}
           />
         ) : (
           <>
