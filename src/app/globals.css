@@ -22487,6 +22487,12 @@ body:has(.home-page.is-hub),
   min-height: 0;
   justify-content: flex-start;
   padding: 9px 10px 8px;
+  /* непрозрачный фон — текст не сливается с узором */
+  background: linear-gradient(165deg, #1a1230 0%, #120c22 55%, #0e0a18 100%);
+  border-color: rgba(240, 201, 135, 0.55);
+  box-shadow:
+    0 0 0 1px rgba(240, 201, 135, 0.14),
+    0 10px 22px rgba(0, 0, 0, 0.55);
 }
 
 .home-layout.is-hub .home-cw-predict {
@@ -22494,16 +22500,25 @@ body:has(.home-page.is-hub),
   min-height: 26px;
   margin: 2px 0 0;
   padding: 4px 4px;
-  border: 1px dashed rgba(167, 139, 250, 0.4);
+  border: 1px dashed rgba(167, 139, 250, 0.55);
   border-radius: 8px;
-  background: rgba(76, 29, 149, 0.18);
-  color: rgba(196, 181, 253, 0.78);
+  background: #1e1438;
+  color: rgba(196, 181, 253, 0.9);
   font-size: 0.66rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   cursor: not-allowed;
-  opacity: 0.85;
+  opacity: 1;
+}
+
+.home-layout.is-hub .home-cw-roster {
+  background: #18102c;
+}
+
+.home-layout.is-hub .home-hub-cw-stub {
+  background: #161022;
+  border-color: rgba(167, 139, 250, 0.4);
 }
 
 .home-hub-cw-stubs {
