@@ -97,6 +97,9 @@ PRESERVE_PUBLIC=(
   "data/public/rp-ledger.json"
   "data/public/rp-ladder.json"
   "data/public/match-history.json"
+  # Live BP progress — git stub is empty; never wipe with reset/pull.
+  "data/public/battle-pass.json"
+  "data/public/battle-pass-s1.json"
 )
 for f in "${PRESERVE_PUBLIC[@]}"; do
   if [[ -f "$f" ]]; then
