@@ -7118,6 +7118,11 @@ body:has(.profile-page) {
   border-color: rgba(45, 212, 191, 0.28);
 }
 
+.journal-msg-cat-faction {
+  background: rgba(212, 175, 90, 0.12);
+  border-color: rgba(212, 175, 90, 0.32);
+}
+
 .journal-msg-meta {
   display: flex;
   flex-wrap: wrap;
@@ -22912,4 +22917,307 @@ body:has(.home-page.is-hub),
 
 .wip-stub-back:hover {
   background: rgba(124, 58, 237, 0.28);
+}
+
+body:has(.faction-page) {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+
+body:has(.faction-page) .site-footer {
+  display: none;
+}
+
+.shell:has(.faction-page) {
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 8px 12px 12px;
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.faction-page {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.faction-place-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  margin-bottom: 8px;
+}
+
+.faction-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+}
+
+.faction-pane {
+  position: absolute;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 14px 16px;
+  box-sizing: border-box;
+}
+
+.faction-pane h2 {
+  margin-top: 0;
+}
+
+.faction-page.is-placing .faction-pane {
+  outline: 1px dashed rgba(167, 139, 250, 0.75);
+  z-index: 1;
+}
+
+.faction-pane.is-dragging {
+  z-index: 3;
+}
+
+.faction-move {
+  flex: 0 0 auto;
+  margin: -14px -16px 8px;
+  padding: 6px 12px;
+  cursor: grab;
+  background: rgba(124, 58, 237, 0.4);
+  color: #f4f0e8;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  user-select: none;
+  touch-action: none;
+}
+
+.faction-pane-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.faction-resize {
+  position: absolute;
+  z-index: 4;
+  touch-action: none;
+}
+
+.faction-resize-e {
+  top: 18px;
+  right: 0;
+  bottom: 18px;
+  width: 10px;
+  cursor: ew-resize;
+}
+
+.faction-resize-s {
+  left: 18px;
+  right: 18px;
+  bottom: 0;
+  height: 10px;
+  cursor: ns-resize;
+}
+
+.faction-resize-se {
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 50%, rgba(196, 181, 253, 0.95) 50%);
+}
+
+.faction-pane-info .faction-info-box {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 8px;
+}
+
+.faction-info-lead {
+  margin: 0;
+}
+
+.faction-pane-roster .admin-table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.faction-brand {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.faction-brand h1 {
+  margin: 0 0 8px;
+  font-size: 1.8rem;
+}
+
+.faction-brand p {
+  margin: 0 0 6px;
+}
+
+.faction-logo {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  border-radius: 12px;
+  background: transparent;
+}
+
+.faction-logo-empty {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  background: transparent;
+}
+
+/* Участники: только лого на всё окно brand, без главы/зама/ссылок */
+.faction-pane-brand:has(.faction-brand--logo-fill) {
+  padding: 8px;
+}
+
+.faction-pane-brand:has(.faction-brand--logo-fill) .faction-pane-body {
+  overflow: hidden;
+}
+
+.faction-brand--logo-fill {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  gap: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.faction-logo--fill {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 0;
+  background: transparent !important;
+  border: none;
+}
+
+.faction-identity-form,
+.faction-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.faction-controls {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.faction-role-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.faction-info-box h3 {
+  margin: 12px 0 6px;
+  font-size: 0.95rem;
+}
+
+.faction-page select,
+.faction-page textarea,
+.faction-page input,
+.faction-page input[type="file"] {
+  background: #120e1c;
+  color: #f4f0e8;
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  color-scheme: dark;
+}
+
+.faction-page input[type="file"]::file-selector-button {
+  background: #2a2140;
+  color: #f4f0e8;
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-right: 10px;
+  cursor: pointer;
+}
+
+.faction-info {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 96px;
+  height: 100%;
+  margin: 0;
+  padding: 10px 12px;
+  resize: none;
+  box-sizing: border-box;
+  border-radius: 8px;
+}
+
+.faction-stat-note {
+  flex: 1 1 auto;
+  margin: 12px 0 0;
+}
+
+.faction-identity-form .field input,
+.faction-controls-card input,
+.faction-page .role-select {
+  padding: 7px 10px;
+}
+
+@media (max-width: 1100px) {
+  body:has(.faction-page) {
+    height: auto;
+    overflow: auto;
+  }
+  .faction-page:not(.is-placing) {
+    height: auto;
+    overflow: visible;
+  }
+  .faction-page:not(.is-placing) .faction-stage {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    height: auto;
+  }
+  .faction-page:not(.is-placing) .faction-pane {
+    position: relative;
+    left: auto !important;
+    top: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 180px;
+  }
+  .faction-page:not(.is-placing) .faction-pane-roster {
+    min-height: 360px;
+  }
 }

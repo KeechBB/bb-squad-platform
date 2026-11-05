@@ -7,6 +7,7 @@ export const CLAN_LOGO_MAX = 5 * 1024 * 1024;
 const TYPES = {
   "image/png": "png",
   "image/webp": "webp",
+  "image/jpeg": "jpg",
 } as const;
 
 export type ClanLogoMime = keyof typeof TYPES;
@@ -27,6 +28,9 @@ export function detectClanLogoMime(buf: Buffer): ClanLogoMime | null {
     buf.toString("ascii", 8, 12) === "WEBP"
   ) {
     return "image/webp";
+  }
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+    return "image/jpeg";
   }
   return null;
 }
