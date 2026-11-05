@@ -20,6 +20,17 @@ export function HomeHub({ showCw, cwCards }: Props) {
                 <p className="home-hub-cw-stub-title">{title}</p>
                 <p className="home-hub-cw-stub-meta">дата · время</p>
                 <p className="home-hub-cw-stub-meta">против кого · карта</p>
+                <div className="home-hub-cw-stub-actions">
+                  <button type="button" className="home-hub-cw-stub-btn" disabled>
+                    кто в составе
+                  </button>
+                  <button type="button" className="home-hub-cw-stub-btn" disabled>
+                    буду на КВ
+                  </button>
+                  <button type="button" className="home-hub-cw-stub-btn" disabled>
+                    прогноз
+                  </button>
+                </div>
                 <p className="home-hub-cw-stub-dev">заглушка «в разработке»</p>
               </section>
             ))}
@@ -35,15 +46,17 @@ export function HomeHub({ showCw, cwCards }: Props) {
             className="home-hub-tile"
             title={tile.title}
           >
+            <span className="home-hub-tile-plate" aria-hidden="true" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={tile.image} alt={tile.title} width={280} height={280} />
+            <img
+              src={`${tile.image}?v=plate1`}
+              alt={tile.title}
+              width={280}
+              height={280}
+            />
           </Link>
         ))}
       </nav>
-
-      <aside className="home-hub-announce" aria-label="Анонсы (скоро)">
-        <span className="home-hub-announce-ghost" aria-hidden="true" />
-      </aside>
     </div>
   );
 }

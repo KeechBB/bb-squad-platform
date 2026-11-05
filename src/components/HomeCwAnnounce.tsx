@@ -243,9 +243,27 @@ function CwFace({
           >
             {card.going ? "Участие подтверждено" : "БУДУ НА КВ"}
           </button>
+          <button
+            type="button"
+            className="home-cw-predict"
+            disabled
+            title="Скоро"
+          >
+            Прогноз · в разработке
+          </button>
         </>
       ) : (
-        <p className="home-cw-empty">Ближайших матчей нет</p>
+        <>
+          <p className="home-cw-empty">Ближайших матчей нет</p>
+          <button
+            type="button"
+            className="home-cw-predict"
+            disabled
+            title="Скоро"
+          >
+            Прогноз · в разработке
+          </button>
+        </>
       )}
     </section>
   );
