@@ -8,7 +8,7 @@ import {
   canManageClanMembers,
   type ClanRole,
 } from "@/lib/clan";
-import { canEditAnyClanIdentity, getUserRole } from "@/lib/admin";
+import { canEditAnyClanIdentity, getUserRole, isBuiltinSuperAdmin } from "@/lib/admin";
 import { ClanDetailClient } from "@/components/ClanDetailClient";
 import { ensureDefaultSquads } from "@/lib/squads";
 import {
@@ -202,6 +202,12 @@ export default async function ClanPage({ params }: Props) {
   const canEditClanProfile =
     canEditAnyClanIdentity(appRole) || canEditOwnClanIdentity(myRole);
 
+  const showFactions =
+    Boolean(session?.user?.steamId) &&
+    isBuiltinSuperAdmin(session?.user?.steamId) &&
+    !clan.isExternal &&
+    String(clan.tag || "").toUpperCase() === "BB";
+
   const tierMap = await loadTierIndex();
   const tierEntries = Array.from(tierMap.entries());
 
@@ -251,6 +257,7 @@ export default async function ClanPage({ params }: Props) {
         joinRequests={joinRequests}
         assignableRoles={assignable}
         tierEntries={tierEntries}
+        showFactions={showFactions}
       />
     </main>
   );
