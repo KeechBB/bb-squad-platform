@@ -22373,31 +22373,33 @@ body:has(.not-found-page) .site-footer-note {
 .home-layout.is-hub {
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas: "hub";
-  /* равные поля L/R, чуть шире от краёв (~+1см к 52) */
-  padding: 10px 70px 12px;
+  /* поля по бокам — место под фон */
+  padding: 10px 96px 12px;
   column-gap: 0;
 }
 
 .home-hub {
   grid-area: hub;
+  position: relative;
   display: grid;
-  grid-template-columns: 214px minmax(0, 1fr);
-  column-gap: 12px;
+  place-items: center;
   width: 100%;
   height: 100%;
   min-height: 0;
-  align-items: stretch;
 }
 
-/* CW rail: compact top-left */
+/* CW rail: compact top-left corner (over centered grid) */
 .home-hub-cw {
-  position: relative;
+  position: absolute;
+  top: 0;
+  left: 0;
   z-index: 3;
-  width: 100%;
+  width: 214px;
   height: auto;
   max-height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
+  pointer-events: auto;
 }
 
 .home-layout.is-hub .home-cw-slot {
@@ -22506,71 +22508,74 @@ body:has(.not-found-page) .site-footer-note {
   background: rgba(110, 35, 55, 0.55);
 }
 
-/* Сетка на всю высоту/ширину справа от КВ, плотные зазоры */
+/* Сетка по центру главной; по бокам остаётся фон */
 .home-hub-grid {
   position: relative;
   z-index: 2;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-rows: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-  width: 100%;
-  height: 100%;
+  gap: 10px;
+  width: min(78vh, 760px);
+  height: min(78vh, 760px);
+  max-width: calc(100% - 8px);
+  max-height: calc(100% - 8px);
   min-width: 0;
   min-height: 0;
-  align-self: stretch;
 }
 
 .home-hub-tile {
   position: relative;
-  display: block;
+  display: grid;
+  place-items: center;
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;
-  border-radius: 14px;
-  overflow: hidden;
-  border: 1px solid rgba(167, 139, 250, 0.32);
   background: transparent;
-  box-shadow:
-    0 0 0 1px rgba(124, 58, 237, 0.1),
-    0 10px 22px rgba(0, 0, 0, 0.38);
-  transition:
-    transform 0.18s ease,
-    border-color 0.18s ease,
-    box-shadow 0.18s ease;
+  border: none;
+  box-shadow: none;
+  overflow: visible;
+  transition: transform 0.18s ease;
 }
 
+/* рамка по квадрату эмблемы; снаружи щита прозрачно (виден фон сайта) */
 .home-hub-tile-plate {
   position: absolute;
   inset: 0;
   z-index: 0;
-  /* soft charcoal — not deep black, no purple wash */
-  background:
-    radial-gradient(115% 85% at 50% 20%, rgba(48, 52, 62, 0.55), transparent 62%),
-    linear-gradient(165deg, #1c1e26 0%, #14161c 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border-radius: 14px;
+  border: 1px solid rgba(167, 139, 250, 0.38);
+  background: transparent;
+  box-shadow:
+    0 0 0 1px rgba(124, 58, 237, 0.12),
+    0 10px 22px rgba(0, 0, 0, 0.34);
+  pointer-events: none;
 }
 
 .home-hub-tile:hover,
 .home-hub-tile:focus-visible {
   transform: translateY(-2px) scale(1.012);
-  border-color: rgba(167, 139, 250, 0.5);
-  box-shadow:
-    0 0 0 1px rgba(167, 139, 250, 0.18),
-    0 16px 32px rgba(0, 0, 0, 0.45);
   outline: none;
+}
+
+.home-hub-tile:hover .home-hub-tile-plate,
+.home-hub-tile:focus-visible .home-hub-tile-plate {
+  border-color: rgba(167, 139, 250, 0.62);
+  box-shadow:
+    0 0 0 1px rgba(167, 139, 250, 0.22),
+    0 14px 28px rgba(0, 0, 0, 0.42);
 }
 
 .home-hub-tile-art {
   position: absolute;
-  inset: 6px;
+  inset: 0;
   z-index: 1;
+  border-radius: 14px;
   background-position: center;
   background-repeat: no-repeat;
-  /* contain = целиком влезает, без обрезки текста/рамок */
   background-size: contain;
-  filter: contrast(1.12) saturate(1.08) brightness(1.04);
+  filter: contrast(1.1) saturate(1.06) brightness(1.03);
   pointer-events: none;
 }
 
