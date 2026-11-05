@@ -1014,6 +1014,20 @@ def _member_joined(old_status: str, new_status: str) -> bool:
     return old_status in leftish and new_status in inish
 
 
+def _member_left(old_status: str, new_status: str) -> bool:
+    leftish = {"left", "kicked", "banned"}
+    inish = {"member", "administrator", "creator", "owner", "restricted"}
+    return old_status in inish and new_status in leftish
+
+
+def _chat_place_name(chat_id: int) -> str:
+    if channel_id() and chat_id == channel_id():
+        return channel_title()
+    if group_id() and chat_id == group_id():
+        return group_title()
+    return str(chat_id)
+
+
 async def on_chat_member(update, context) -> None:
     cmu = update.chat_member
     if cmu is None:
@@ -1023,10 +1037,22 @@ async def on_chat_member(update, context) -> None:
         return
     user_id = int(cmu.new_chat_member.user.id)
     row = db.get_applicant(user_id)
-    if row is None:
+    if row is None or row["step"] == db.STEP_REMOVED:
         return
     old = str(getattr(cmu.old_chat_member.status, "value", cmu.old_chat_member.status)).lower()
     new = str(getattr(cmu.new_chat_member.status, "value", cmu.new_chat_member.status)).lower()
+
+    # Сразу алерт в Bot для набора при выходе из канала или группы
+    if _member_left(old, new):
+        place = _chat_place_name(cmu.chat.id)
+        how = "кикнут" if new in ("kicked", "banned") else "вышел"
+        await send_alert(
+            context.bot,
+            f"Алерт: {db.label(row)} {how} из «{place}».\n"
+            f"TG {tg_handle(row)} · {STEP_RU.get(row['step'], row['step'])}",
+        )
+        db.event(user_id, "left-chat", f"{place}:{new}")
+
     # После входа в Основной по ссылке — ник в тег участника
     if (
         group_id()
