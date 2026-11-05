@@ -40,7 +40,7 @@ export function HomeHub({ showCw, cwCards }: Props) {
 
       <div
         className="home-hub-poly"
-        style={{ backgroundImage: "url(/home-hub/hub-poly-clean-v4.jpg?v=1)" }}
+        style={{ backgroundImage: "url(/home-hub/hub-poly-clean-v4.jpg?v=2)" }}
       >
         <nav className="home-hub-grid" aria-label="Быстрые разделы">
           {HOME_HUB_TILES.map((tile) => (
@@ -55,7 +55,7 @@ export function HomeHub({ showCw, cwCards }: Props) {
               <span
                 className="home-hub-tile-art"
                 aria-hidden="true"
-                style={{ backgroundImage: `url(${tile.image}?v=plate7)` }}
+                style={{ backgroundImage: `url(${tile.image}?v=plate8)` }}
               />
             </Link>
           ))}
