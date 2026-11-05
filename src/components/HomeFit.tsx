@@ -63,8 +63,11 @@ export function HomeFit({
         return;
       }
 
+      const phoneHub = hub && isHubPhoneViewport();
+      document.documentElement.classList.toggle("bb-hub-phone", phoneHub);
+
       if (hub) {
-        // канва + фон оболочки в одном слое; cover заполняет экран без чёрных полей
+        // канва + фон оболочки в одном слое (пазы не разъезжаются)
         host.style.width = "100%";
         host.style.height = "100%";
         host.style.overflow = "hidden";
@@ -73,9 +76,11 @@ export function HomeFit({
       const w = host.clientWidth;
       const h = host.clientHeight;
       if (w < 8 || h < 8) return;
-      // hub: max = cover (плитки и пазы всегда вместе); иначе min = contain
+      // телефон: contain — весь октагон в экран; ПК: cover — без полей по краям
       const scale = hub
-        ? Math.max(w / DESIGN_W, h / DESIGN_H)
+        ? phoneHub
+          ? Math.min(w / DESIGN_W, h / DESIGN_H)
+          : Math.max(w / DESIGN_W, h / DESIGN_H)
         : Math.min(w / DESIGN_W, h / DESIGN_H);
       if (!Number.isFinite(scale) || scale <= 0) return;
       board.style.setProperty("--home-scale", String(scale));
@@ -120,6 +125,7 @@ export function HomeFit({
         meta.setAttribute("content", prevViewport);
       }
       document.documentElement.classList.remove("bb-phone-pan");
+      document.documentElement.classList.remove("bb-hub-phone");
     };
   }, [hub]);
 
