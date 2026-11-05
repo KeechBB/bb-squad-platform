@@ -22,7 +22,7 @@ import os
 from pathlib import Path
 
 import db
-import site
+import clan_site as site
 
 HERE = Path(__file__).resolve().parent
 PAGE = 6
