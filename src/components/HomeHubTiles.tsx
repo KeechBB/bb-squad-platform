@@ -11,7 +11,7 @@ import {
   type WheelEvent,
 } from "react";
 import type { HomeHubTile } from "@/lib/homeHub";
-import type { HubTileBox, HubTileLayout } from "@/lib/homeHubLayout";
+import type { HubTileBox, HubTileLayout } from "@/lib/homeHubLayoutShared";
 
 type Props = {
   tiles: HomeHubTile[];

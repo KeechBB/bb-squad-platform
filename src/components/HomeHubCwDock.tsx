@@ -16,7 +16,7 @@ import {
   type HubPreviewId,
   type HubTileBox,
   type HubTileLayout,
-} from "@/lib/homeHubLayout";
+} from "@/lib/homeHubLayoutShared";
 
 type Props = {
   showCw: boolean;

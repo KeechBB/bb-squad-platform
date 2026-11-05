@@ -2,7 +2,7 @@ import { type HomeCwCard } from "@/components/HomeCwAnnounce";
 import { HomeHubCwDock } from "@/components/HomeHubCwDock";
 import { HomeHubTiles } from "@/components/HomeHubTiles";
 import { HOME_HUB_SHOW_TILES, type HomeHubTile } from "@/lib/homeHub";
-import type { HubTileLayout } from "@/lib/homeHubLayout";
+import type { HubTileLayout } from "@/lib/homeHubLayoutShared";
 
 type Props = {
   showCw: boolean;
