@@ -23,6 +23,7 @@ import { HOME_HUB_REBRAND, HOME_HUB_TILES, withViewerHubHrefs } from "@/lib/home
 import { isBuiltinSuperAdmin } from "@/lib/admin";
 import { readHubTileLayout } from "@/lib/homeHubLayout";
 import { getUserHomeClanId } from "@/lib/clanAccess";
+import { factionSlugForSteam } from "@/lib/factions";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +51,11 @@ export default async function HomePage() {
   const canEditTiles = isBuiltinSuperAdmin(session?.user?.steamId);
   const tileLayout = await readHubTileLayout();
   const homeClanId = await getUserHomeClanId(session?.user?.steamId);
-  const hubTiles = withViewerHubHrefs(HOME_HUB_TILES, { clanId: homeClanId });
+  const homeFactionSlug = await factionSlugForSteam(session?.user?.steamId);
+  const hubTiles = withViewerHubHrefs(HOME_HUB_TILES, {
+    clanId: homeClanId,
+    factionSlug: homeFactionSlug,
+  });
   let cwCards: HomeCwCard[] = [];
   if (showCw) {
     const slots = await homeCwAnnounces();

@@ -86,20 +86,18 @@ export const HOME_HUB_TILES: HomeHubTile[] = [
     title: "Моя фракция",
     label: "МОЯ\nФРАКЦИЯ",
     image: "/home-hub/my-faction.png",
-    href: "/wip/faction",
-    stub: true,
+    href: "/factions/me",
   },
 ];
 
 export const HOME_HUB_WIP_TITLES: Record<string, string> = {
   marketplace: "Торговая Площадка",
-  faction: "Моя фракция",
 };
 
 /** Personalize hub tile hrefs for the logged-in viewer. */
 export function withViewerHubHrefs(
   tiles: HomeHubTile[],
-  opts: { clanId: string | null }
+  opts: { clanId: string | null; factionSlug?: string | null }
 ): HomeHubTile[] {
   return tiles.map((tile) => {
     if (tile.id === "my-clan") {
@@ -113,6 +111,15 @@ export function withViewerHubHrefs(
       return {
         ...tile,
         href: "/tournaments?tab=teams&sub=my-team",
+        stub: false,
+      };
+    }
+    if (tile.id === "my-faction") {
+      return {
+        ...tile,
+        href: opts.factionSlug
+          ? `/factions/${encodeURIComponent(opts.factionSlug)}`
+          : "/factions/me",
         stub: false,
       };
     }
