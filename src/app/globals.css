@@ -22406,7 +22406,12 @@ body:has(.home-page.is-hub),
   z-index: 1;
   flex: 1 1 auto;
   width: 100%;
+  height: 100%;
   min-height: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
 }
 
 .home-layout.is-hub {
@@ -22414,6 +22419,9 @@ body:has(.home-page.is-hub),
   grid-template-areas: "hub";
   padding: 0;
   column-gap: 0;
+  /* центр канвы = центр фона cover → сетка в дыре */
+  transform-origin: center center;
+  margin: 0;
 }
 
 .home-hub {
@@ -22573,20 +22581,20 @@ body:has(.home-page.is-hub),
   background: rgba(110, 35, 55, 0.55);
 }
 
-/* вписанный квадрат в чёрную дыру полигона (~27% img, с запасом) */
+/* вписанный квадрат строго в чёрную дыру */
 .home-hub-grid {
   position: absolute;
   z-index: 1;
-  left: 50%;
-  top: 50%;
+  left: 50.5%;
+  top: 49.7%;
   translate: -50% -50%;
-  width: 25.5%;
+  width: 24%;
   aspect-ratio: 1 / 1;
   height: auto;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-rows: repeat(3, minmax(0, 1fr));
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
   min-height: 0;
   padding: 0;
@@ -22607,12 +22615,20 @@ body:has(.home-page.is-hub),
   overflow: visible;
   outline: none;
   transition: none;
+  /* клип всей плитки по щиту — квадрат не вылезает */
+  clip-path: polygon(
+    50% 2%,
+    95% 26.5%,
+    95% 73.5%,
+    50% 98%,
+    5% 73.5%,
+    5% 26.5%
+  );
 }
 
-/* свечение только на hover, без квадратной подложки */
 .home-hub-tile-plate {
   position: absolute;
-  inset: 12%;
+  inset: 14%;
   z-index: 0;
   border: none;
   border-radius: 50%;
@@ -22645,7 +22661,6 @@ body:has(.home-page.is-hub),
   outline: none;
 }
 
-/* фон/арт строго по контуру щита (pointy hex) — без квадрата под ним */
 .home-hub-tile-art {
   position: absolute;
   inset: 0;
@@ -22658,23 +22673,43 @@ body:has(.home-page.is-hub),
   filter: none;
   pointer-events: none;
   transition: filter 0.22s ease;
-  clip-path: polygon(
-    50% 1.5%,
-    96% 26%,
-    96% 74%,
-    50% 98.5%,
-    4% 74%,
-    4% 26%
-  );
 }
 
 .home-hub-tile:hover .home-hub-tile-art,
 .home-hub-tile:focus-visible .home-hub-tile-art {
-  /* лёгкий soft glow как у наград, без изменения размера */
   filter:
     drop-shadow(0 0 8px rgba(167, 139, 250, 0.55))
     drop-shadow(0 0 16px rgba(196, 181, 253, 0.28))
     brightness(1.06);
+}
+
+.home-hub-tile-label {
+  position: absolute;
+  z-index: 2;
+  left: 10%;
+  right: 10%;
+  bottom: 11%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0;
+  pointer-events: none;
+  text-align: center;
+  line-height: 1.05;
+}
+
+.home-hub-tile-label-line {
+  display: block;
+  font-size: clamp(0.62rem, 0.95vw, 0.92rem);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #ffb21b;
+  text-shadow:
+    0 0 4px rgba(0, 0, 0, 0.95),
+    0 1px 2px rgba(0, 0, 0, 1),
+    0 0 10px rgba(255, 178, 27, 0.35);
 }
 
 .wip-stub-page {

@@ -46,9 +46,14 @@ export function HomeFit({
       board.style.setProperty("--home-scale", String(scale));
       board.style.setProperty("--home-hero-lift", "0px");
       board.style.setProperty("--home-hero-nudge-x", "0px");
+      if (hub) {
+        // канва по центру экрана — сетка совпадает с дырой фона cover
+        host.style.width = "100%";
+        host.style.height = "100%";
+        return;
+      }
       host.style.width = "";
       host.style.height = `${Math.round(DESIGN_H * scale)}px`;
-      if (hub) return;
       const brand = board.querySelector<HTMLElement>(".home-hero-brand");
       const side = board.querySelector<HTMLElement>(".home-side");
       if (brand && side) {

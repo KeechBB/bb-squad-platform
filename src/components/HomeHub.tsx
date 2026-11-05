@@ -52,8 +52,15 @@ export function HomeHub({ showCw, cwCards }: Props) {
               <span
                 className="home-hub-tile-art"
                 aria-hidden="true"
-                style={{ backgroundImage: `url(${tile.image}?v=plate8)` }}
+                style={{ backgroundImage: `url(${tile.image}?v=plate9)` }}
               />
+              <span className="home-hub-tile-label">
+                {tile.label.split("\n").map((line) => (
+                  <span key={line} className="home-hub-tile-label-line">
+                    {line}
+                  </span>
+                ))}
+              </span>
             </Link>
           ))}
         </nav>
