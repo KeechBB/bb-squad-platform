@@ -22383,6 +22383,7 @@ body:has(.home-page.is-hub),
   background: #05040a;
 }
 
+/* LOCKED art: public/home-hub/hub-poly-clean-v4.jpg — не перегенерировать */
 .home-page.is-hub .home-stage-photo {
   background: url("/home-hub/hub-poly-clean-v4.jpg?v=5") center / cover no-repeat;
   background-color: #05040a;
@@ -22572,20 +22573,20 @@ body:has(.home-page.is-hub),
   background: rgba(110, 35, 55, 0.55);
 }
 
-/* чуть ближе к краям полигона (шаг +2%), всё ещё с зазором */
+/* вписанный квадрат в чёрную дыру полигона (~27% img, с запасом) */
 .home-hub-grid {
   position: absolute;
   z-index: 1;
   left: 50%;
   top: 50%;
   translate: -50% -50%;
-  width: 31%;
+  width: 25.5%;
   aspect-ratio: 1 / 1;
   height: auto;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-rows: repeat(3, minmax(0, 1fr));
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
   min-height: 0;
   padding: 0;
@@ -22608,10 +22609,10 @@ body:has(.home-page.is-hub),
   transition: none;
 }
 
-/* без оранжевых рамок; на hover — мягкое свечение за эмблемой, без scale */
+/* свечение только на hover, без квадратной подложки */
 .home-hub-tile-plate {
   position: absolute;
-  inset: 8%;
+  inset: 12%;
   z-index: 0;
   border: none;
   border-radius: 50%;
@@ -22644,6 +22645,7 @@ body:has(.home-page.is-hub),
   outline: none;
 }
 
+/* фон/арт строго по контуру щита (pointy hex) — без квадрата под ним */
 .home-hub-tile-art {
   position: absolute;
   inset: 0;
@@ -22652,9 +22654,18 @@ body:has(.home-page.is-hub),
   background-position: center;
   background-repeat: no-repeat;
   background-size: contain;
+  background-color: transparent;
   filter: none;
   pointer-events: none;
   transition: filter 0.22s ease;
+  clip-path: polygon(
+    50% 1.5%,
+    96% 26%,
+    96% 74%,
+    50% 98.5%,
+    4% 74%,
+    4% 26%
+  );
 }
 
 .home-hub-tile:hover .home-hub-tile-art,

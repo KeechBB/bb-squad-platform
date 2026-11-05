@@ -1,6 +1,12 @@
 /** Home hub rebrand. Set false to restore classic homepage. */
 export const HOME_HUB_REBRAND = true;
 
+/**
+ * LOCKED background: `public/home-hub/hub-poly-clean-v4.jpg`
+ * Do not regenerate / replace / recolor without Alex explicit OK.
+ */
+export const HOME_HUB_BG_FILE = "/home-hub/hub-poly-clean-v4.jpg";
+
 export type HomeHubTile = {
   id: string;
   title: string;
