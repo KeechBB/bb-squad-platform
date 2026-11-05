@@ -22502,11 +22502,11 @@ body:has(.home-page.is-hub),
 
 /* обычный режим: плотный столбик у верхнего левого края */
 .home-hub-cw--stack {
-  top: 10px;
+  top: 28px;
   left: 12px;
   width: 214px;
   height: auto;
-  max-height: calc(100% - 20px);
+  max-height: calc(100% - 36px);
   overflow-x: hidden;
   overflow-y: auto;
   pointer-events: auto;
