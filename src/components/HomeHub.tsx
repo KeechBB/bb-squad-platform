@@ -53,7 +53,7 @@ export function HomeHub({ showCw, cwCards }: Props) {
               <span
                 className="home-hub-tile-art"
                 aria-hidden="true"
-                style={{ backgroundImage: `url(${tile.image}?v=cell2)` }}
+                style={{ backgroundImage: `url(${tile.image}?v=cell3)` }}
               />
             </Link>
           ))}
