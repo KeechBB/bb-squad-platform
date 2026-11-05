@@ -40,24 +40,27 @@ export function HomeHub({ showCw, cwCards }: Props) {
 
       <div className="home-hub-poly">
         {HOME_HUB_SHOW_TILES ? (
-          <nav className="home-hub-grid" aria-label="Быстрые разделы">
-            {HOME_HUB_TILES.map((tile) => (
-              <Link
-                key={tile.id}
-                href={tile.href}
-                className={`home-hub-tile home-hub-tile--${tile.id}`}
-                title={tile.title}
-                aria-label={tile.title}
-              >
-                <span className="home-hub-tile-plate" aria-hidden="true" />
-                <span
-                  className="home-hub-tile-art"
-                  aria-hidden="true"
-                  style={{ backgroundImage: `url(${tile.image}?v=hex1)` }}
-                />
-              </Link>
-            ))}
-          </nav>
+          <>
+            {/* pixel-aligned art: same cover math as shell background */}
+            <div
+              className="home-hub-cells-overlay"
+              aria-hidden="true"
+              style={{ backgroundImage: "url(/home-hub/hub-poly-cells-overlay.png?v=2)" }}
+            />
+            <nav className="home-hub-grid" aria-label="Быстрые разделы">
+              {HOME_HUB_TILES.map((tile) => (
+                <Link
+                  key={tile.id}
+                  href={tile.href}
+                  className={`home-hub-tile home-hub-tile--${tile.id}`}
+                  title={tile.title}
+                  aria-label={tile.title}
+                >
+                  <span className="home-hub-tile-plate" aria-hidden="true" />
+                </Link>
+              ))}
+            </nav>
+          </>
         ) : null}
       </div>
     </div>
