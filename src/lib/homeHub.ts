@@ -7,8 +7,8 @@ export const HOME_HUB_REBRAND = true;
  */
 export const HOME_HUB_BG_FILE = "/home-hub/hub-poly-empty-shell.jpg";
 
-/** Temporarily hide 3×3 section tiles while fitting the new background. */
-export const HOME_HUB_SHOW_TILES = false;
+/** Section hex tiles over empty-shell slots. */
+export const HOME_HUB_SHOW_TILES = true;
 
 export type HomeHubTile = {
   id: string;
