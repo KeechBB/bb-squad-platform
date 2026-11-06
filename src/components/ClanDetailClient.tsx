@@ -10,7 +10,6 @@ import {
   canInviteClanMembers,
   canKickClanMember,
   canManageClanMembers,
-  canDeleteClanSquad,
   CLAN_ROLE_LABEL,
 } from "@/lib/clan";
 import { ClanCalendarPanel } from "@/components/ClanCalendarPanel";
@@ -20,17 +19,9 @@ import { formatRuDate, isActiveReserve } from "@/lib/validation";
 import { withAvatarCacheBust } from "@/lib/avatarUrl";
 import {
   canAssignTitleToMember,
-  canAssignClanSquadMembers,
   canManageClanTitles,
   canReviewClanJoinRequests,
 } from "@/lib/titles";
-import {
-  classifyRosterMember,
-  ROSTER_BUCKET_COLOR,
-  ROSTER_BUCKET_LABEL,
-  tallyRosterBuckets,
-} from "@/lib/tiers";
-import { ClanRosterChart } from "@/components/ClanRosterChart";
 import { ClanAvgHitmap } from "@/components/ClanAvgHitmap";
 import { ClanProfileEdit } from "@/components/ClanProfileEdit";
 import { SitePresenceBadge } from "@/components/SitePresenceBadge";
@@ -67,23 +58,6 @@ type Squad = {
   name: string;
   sortOrder: number;
   members: SquadMember[];
-};
-
-type PlayedRow = {
-  nick: string;
-  main: number;
-  junior: number;
-  total: number;
-  tier: number;
-  stack: "Main" | "Junior";
-  tu: number | null;
-  userId: string | null;
-};
-
-type StackCommand = {
-  overallLead: string;
-  Main: { lead: string; assistant: string };
-  Junior: { lead: string; assistant: string };
 };
 
 type ClanTitle = {
@@ -139,11 +113,10 @@ type Props = {
   myPendingRequestId: string | null;
   joinRequests: JoinRequest[];
   assignableRoles: ClanRole[];
-  tierEntries: Array<[string, 1 | 2 | 3]>;
   showFactions?: boolean;
 };
 
-type Tab = "members" | "squads" | "stats" | "calendar" | "factions";
+type Tab = "members" | "stats" | "calendar" | "factions";
 
 type ClanPlayerAgg = {
   nick: string;
@@ -256,7 +229,6 @@ export function ClanDetailClient({
   myPendingRequestId: initialPendingRequestId,
   joinRequests: initialJoinRequests,
   assignableRoles: initialAssignable,
-  tierEntries,
   showFactions = false,
 }: Props) {
   const router = useRouter();
@@ -267,15 +239,6 @@ export function ClanDetailClient({
   const [myTitleName, setMyTitleName] = useState(initialMyTitleName);
   const [newTitle, setNewTitle] = useState("");
   const [squads, setSquads] = useState<Squad[]>([]);
-  const [autoStacks, setAutoStacks] = useState(
-    clan.tag.trim().toLowerCase() === "bb"
-  );
-  const [stackCommand, setStackCommand] = useState<StackCommand | null>(null);
-  const [playedRows, setPlayedRows] = useState<PlayedRow[]>([]);
-  const [rosterSort, setRosterSort] = useState<
-    Record<string, { key: "tier" | "nick" | "tu"; dir: "asc" | "desc" }>
-  >({});
-  const [newSquad, setNewSquad] = useState("");
   const [inviteNick, setInviteNick] = useState("");
   const [joinRequests, setJoinRequests] = useState(initialJoinRequests);
   const [myPendingRequestId, setMyPendingRequestId] = useState(
@@ -302,10 +265,6 @@ export function ClanDetailClient({
     myRole != null
       ? canManageClanTitles(myRole, myTitleName)
       : initialCanManageTitles;
-  const canAssignSquads =
-    myRole != null
-      ? canAssignClanSquadMembers(myRole, myTitleName)
-      : canManage;
   const canReviewJoins =
     myRole != null
       ? canReviewClanJoinRequests(myRole, myTitleName)
@@ -398,9 +357,6 @@ export function ClanDetailClient({
       if (!res.ok) return;
       const data = await res.json();
       setSquads(data.squads || []);
-      setPlayedRows(Array.isArray(data.played) ? data.played : []);
-      if (typeof data.autoStacks === "boolean") setAutoStacks(data.autoStacks);
-      setStackCommand((data.command as StackCommand | null) || null);
     } catch {
       /* ignore */
     }
@@ -749,89 +705,6 @@ export function ClanDetailClient({
     }
   }
 
-  async function createSquad() {
-    setError("");
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/clans/${clan.id}/squads`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newSquad }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(data.error || "Не удалось создать состав");
-        return;
-      }
-      setNewSquad("");
-      await refreshSquads();
-    } catch {
-      setError("Сеть недоступна");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function syncAutoStacks() {
-    setError("");
-    setOk("");
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/clans/${clan.id}/squads`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "sync" }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(data.error || data.message || "Не удалось пересчитать составы");
-        return;
-      }
-      setOk(
-        `Составы обновлены: Main ${data.main?.length ?? "—"} · Junior ${data.junior?.length ?? "—"}`
-      );
-      await refreshSquads();
-      await refreshMembers();
-    } catch {
-      setError("Сеть недоступна");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function setSquadMember(
-    squadId: string,
-    userId: string,
-    action: "add" | "remove"
-  ) {
-    setError("");
-    const res = await fetch(`/api/clans/${clan.id}/squads`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ squadId, userId, action }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setError(data.error || "Не удалось обновить состав");
-      return;
-    }
-    await refreshSquads();
-  }
-
-  async function deleteSquad(squadId: string) {
-    setError("");
-    const res = await fetch(
-      `/api/clans/${clan.id}/squads?squadId=${encodeURIComponent(squadId)}`,
-      { method: "DELETE" }
-    );
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setError(data.error || "Не удалось удалить");
-      return;
-    }
-    await refreshSquads();
-  }
-
   const maxGames = Math.max(...(stats?.maps.map((m) => m.games) || [1]), 1);
   const mapPoints = stats?.maps || [];
   const squadUserIds = useMemo(() => {
@@ -894,22 +767,6 @@ export function ClanDetailClient({
     if (memberSort !== key) return "";
     return memberOrder === "asc" ? " ↑" : " ↓";
   }
-
-  const tierMap = useMemo(() => new Map(tierEntries), [tierEntries]);
-
-  const rosterBuckets = useMemo(
-    () =>
-      tallyRosterBuckets(
-        members.map((m) => ({
-          nick: m.user.nick,
-          role: m.role,
-          reserveUntil: m.user.reserveUntil,
-          squadName: squadUserIds.get(m.user.id) || null,
-        })),
-        tierMap
-      ),
-    [members, squadUserIds, tierMap]
-  );
 
   const displayClanLogo =
     clan.logoUrl ||
@@ -1004,7 +861,6 @@ export function ClanDetailClient({
         {(
           [
             ["members", "Список игроков"],
-            ["squads", "Составы"],
             ["stats", "Статистика"],
             ["calendar", "Календарь"],
           ] as const
@@ -1045,8 +901,8 @@ export function ClanDetailClient({
           {clan.isExternal ? (
             <p className="muted" style={{ marginTop: 0 }}>
               Карточка соперника с КВ. Игроки с табло — ниже; после регистрации на
-              площадке попадают в клан. Глава может приглашать, кикать, создавать
-              роли и составы.
+              площадке попадают в клан. Глава может приглашать, кикать и назначать
+              роли.
             </p>
           ) : null}
 
@@ -1238,7 +1094,6 @@ export function ClanDetailClient({
                           Состав{memberSortMark("squad")}
                         </button>
                       </th>
-                      <th>Ранг</th>
                       <th>
                         <button
                           type="button"
@@ -1264,7 +1119,7 @@ export function ClanDetailClient({
                     {sorted.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={showKickCol ? 7 : 6}
+                          colSpan={showKickCol ? 6 : 5}
                           className="muted"
                           style={{ textAlign: "center", padding: "18px 8px" }}
                         >
@@ -1279,13 +1134,6 @@ export function ClanDetailClient({
                         m.user.avatarUrl,
                         m.user.updatedAt || m.user.avatarUrl
                       );
-                      const rankBucket = classifyRosterMember({
-                        nick: m.user.nick,
-                        role: m.role,
-                        reserveUntil: m.user.reserveUntil,
-                        squadName: squadUserIds.get(m.user.id) || null,
-                        tierMap,
-                      });
                       return (
                         <tr key={m.id}>
                           <td>{i + 1}</td>
@@ -1337,18 +1185,6 @@ export function ClanDetailClient({
                             </div>
                           </td>
                           <td>{squadUserIds.get(m.user.id) || "—"}</td>
-                          <td>
-                            <span
-                              className="roster-rank-badge"
-                              style={{
-                                color: ROSTER_BUCKET_COLOR[rankBucket],
-                                borderColor: `${ROSTER_BUCKET_COLOR[rankBucket]}55`,
-                                background: `${ROSTER_BUCKET_COLOR[rankBucket]}18`,
-                              }}
-                            >
-                              {ROSTER_BUCKET_LABEL[rankBucket]}
-                            </span>
-                          </td>
                           <td>
                             {canAssignRoles &&
                             myRole &&
@@ -1414,403 +1250,6 @@ export function ClanDetailClient({
                 </table>
               </div>
             </div>
-            <ClanRosterChart buckets={rosterBuckets} />
-          </div>
-        </section>
-      ) : null}
-
-      {tab === "squads" ? (
-        <section className="card">
-          {autoStacks ? (
-            <>
-              <p className="muted" style={{ marginTop: 0 }}>
-                Main и Junior собираются <strong>автоматически</strong> по сыгранным
-                КВ среди участников клана BlackBerry. Если играл и в Main, и в
-                Junior — остаётся там, где матчей больше. Тир на место не влияет.
-                Ручное добавление отключено.
-              </p>
-              {stackCommand ? (
-                <p style={{ marginTop: 8 }}>
-                  Оба состава — клан <strong>BlackBerry</strong>. Руководитель
-                  обоих: <strong>{stackCommand.overallLead}</strong>.
-                </p>
-              ) : null}
-              {canManage ? (
-                <div className="clan-invite-row" style={{ marginTop: 12 }}>
-                  <button
-                    type="button"
-                    className="btn primary"
-                    disabled={loading}
-                    onClick={() => void syncAutoStacks()}
-                  >
-                    Пересчитать составы по КВ
-                  </button>
-                </div>
-              ) : null}
-            </>
-          ) : (
-            <p className="muted" style={{ marginTop: 0 }}>
-              {clan.isExternal
-                ? "Создавай свои составы и раскидывай игроков клана. Составы видны в рейтинге КВ."
-                : "Создавай составы и раскидывай игроков клана. В рейтинге КВ появятся колонки «Клан» и «Состав»."}
-            </p>
-          )}
-          {!autoStacks && canManage ? (
-            <div className="clan-invite-row" style={{ marginTop: 12 }}>
-              <label className="field" style={{ flex: 1, margin: 0 }}>
-                <span>Новый состав</span>
-                <input
-                  value={newSquad}
-                  onChange={(e) => setNewSquad(e.target.value)}
-                  placeholder="Academy"
-                  maxLength={24}
-                />
-              </label>
-              <button
-                type="button"
-                className="btn primary"
-                disabled={loading || newSquad.trim().length < 2}
-                onClick={() => void createSquad()}
-              >
-                Создать
-              </button>
-            </div>
-          ) : null}
-          {error ? <p className="error">{error}</p> : null}
-          {!autoStacks && squads.length === 0 ? (
-            <p className="muted" style={{ marginTop: 16 }}>
-              Пока нет составов
-              {canManage ? " — создай первый выше." : "."}
-            </p>
-          ) : null}
-
-          <div className="squad-grid">
-            {squads.map((s) => {
-              const inSquad = new Set(s.members.map((m) => m.user.id));
-              const available = members.filter((m) => !inSquad.has(m.user.id));
-              // Main/Junior locked только у BB (autoStacks)
-              const locked =
-                autoStacks &&
-                ["main", "junior"].includes(s.name.toLowerCase());
-              const cmdKey =
-                s.name.toLowerCase() === "main"
-                  ? "Main"
-                  : s.name.toLowerCase() === "junior"
-                    ? "Junior"
-                    : null;
-              const cmd =
-                autoStacks && stackCommand && cmdKey
-                  ? stackCommand[cmdKey]
-                  : null;
-              const leadKey = cmd?.lead.trim().toLowerCase() || "";
-              const asstKey = cmd?.assistant.trim().toLowerCase() || "";
-              const ordered = [...s.members].sort((a, b) => {
-                const na = (a.user.nick || a.user.steamName || "").toLowerCase();
-                const nb = (b.user.nick || b.user.steamName || "").toLowerCase();
-                const rank = (n: string) =>
-                  n === leadKey ? 0 : n === asstKey ? 1 : 2;
-                const tuA = a.tu == null ? -1e9 : Number(a.tu);
-                const tuB = b.tu == null ? -1e9 : Number(b.tu);
-                return (
-                  rank(na) - rank(nb) ||
-                  tuB - tuA ||
-                  na.localeCompare(nb, "ru")
-                );
-              });
-              const compactNick = (n: string) =>
-                n.trim().toLowerCase().replace(/\s+/g, "");
-              const playedHere =
-                autoStacks && cmdKey
-                  ? playedRows
-                      .filter((r) => r.stack === cmdKey)
-                      .sort((a, b) => {
-                        const rank = (n: string) =>
-                          compactNick(n) === compactNick(leadKey)
-                            ? 0
-                            : compactNick(n) === compactNick(asstKey)
-                              ? 1
-                              : 2;
-                        const games = (r: PlayedRow) =>
-                          cmdKey === "Main" ? r.main : r.junior;
-                        return (
-                          rank(a.nick) - rank(b.nick) ||
-                          games(b) - games(a) ||
-                          a.nick.localeCompare(b.nick, "ru")
-                        );
-                      })
-                  : null;
-              const spec = rosterSort[s.id];
-              const dir = spec?.dir === "asc" ? 1 : -1;
-              if (playedHere && spec) {
-                playedHere.sort((a, b) => {
-                  if (spec.key === "nick") {
-                    return dir * a.nick.localeCompare(b.nick, "ru");
-                  }
-                  if (spec.key === "tier") {
-                    return (
-                      dir * ((Number(a.tier) || 4) - (Number(b.tier) || 4)) ||
-                      a.nick.localeCompare(b.nick, "ru")
-                    );
-                  }
-                  const ta = a.tu == null ? -1e9 : Number(a.tu);
-                  const tb = b.tu == null ? -1e9 : Number(b.tu);
-                  return dir * (ta - tb) || a.nick.localeCompare(b.nick, "ru");
-                });
-              }
-              if (!playedHere && spec) {
-                ordered.sort((a, b) => {
-                  const na = a.user.nick || a.user.steamName || "";
-                  const nb = b.user.nick || b.user.steamName || "";
-                  if (spec.key === "nick") return dir * na.localeCompare(nb, "ru");
-                  if (spec.key === "tier") {
-                    const ta = a.tier != null ? Number(a.tier) : 4;
-                    const tb = b.tier != null ? Number(b.tier) : 4;
-                    return dir * (ta - tb) || na.localeCompare(nb, "ru");
-                  }
-                  const tua = a.tu == null ? -1e9 : Number(a.tu);
-                  const tub = b.tu == null ? -1e9 : Number(b.tu);
-                  return dir * (tua - tub) || na.localeCompare(nb, "ru");
-                });
-              }
-              const headCount = playedHere ? playedHere.length : s.members.length;
-              const sortBtn = (key: "tier" | "nick" | "tu", label: string, title?: string) => {
-                const on = spec?.key === key;
-                return (
-                  <button
-                    type="button"
-                    className={`squad-sort${on ? " is-on" : ""}`}
-                    title={title}
-                    onClick={() =>
-                      setRosterSort((prev) => {
-                        const cur = prev[s.id];
-                        if (!cur || cur.key !== key) {
-                          return {
-                            ...prev,
-                            [s.id]: { key, dir: key === "nick" ? "asc" : "desc" },
-                          };
-                        }
-                        return {
-                          ...prev,
-                          [s.id]: { key, dir: cur.dir === "asc" ? "desc" : "asc" },
-                        };
-                      })
-                    }
-                  >
-                    {label}
-                    {on ? (spec.dir === "asc" ? " ↑" : " ↓") : ""}
-                  </button>
-                );
-              };
-              return (
-                <div key={s.id} className="squad-card">
-                  <div className="squad-card-head">
-                    <strong>{s.name}</strong>
-                    <span className="muted">{headCount} чел.</span>
-                    {!autoStacks &&
-                    canManage &&
-                    myRole &&
-                    canDeleteClanSquad(myRole) &&
-                    !locked ? (
-                      <button
-                        type="button"
-                        className="btn ghost"
-                        onClick={() => void deleteSquad(s.id)}
-                      >
-                        Удалить
-                      </button>
-                    ) : null}
-                  </div>
-                  {cmd ? (
-                    <p className="muted squad-cmd-line">
-                      Главный: <strong>{cmd.lead}</strong>
-                      {" · "}
-                      помощник: <strong>{cmd.assistant}</strong>
-                    </p>
-                  ) : null}
-                  <div className="squad-list-heads">
-                    <div className="squad-list-head">
-                      {sortBtn("tier", "Тир")}
-                      {sortBtn("nick", "Ник")}
-                      {sortBtn("tu", "TU", "TU — Ticket Utility")}
-                    </div>
-                    <div className="squad-list-head">
-                      {sortBtn("tier", "Тир")}
-                      {sortBtn("nick", "Ник")}
-                      {sortBtn("tu", "TU", "TU — Ticket Utility")}
-                    </div>
-                  </div>
-                  <ul
-                    className={`squad-list${
-                      (playedHere ? playedHere.length : ordered.length) > 12
-                        ? " squad-list-dense"
-                        : ""
-                    }`}
-                  >
-                    {playedHere ? (
-                      playedHere.length === 0 ? (
-                        <li className="muted squad-list-empty">
-                          Пока нет игроков с КВ-статой в этом составе
-                        </li>
-                      ) : (
-                        playedHere.map((r) => {
-                          const games = cmdKey === "Main" ? r.main : r.junior;
-                          const nk = r.nick.trim().toLowerCase();
-                          const badge =
-                            nk === leadKey
-                              ? "гл."
-                              : nk === asstKey
-                                ? "пом."
-                                : null;
-                          const tierNum = Number(r.tier) || 4;
-                          const tu = r.tu;
-                          const tuText =
-                            tu == null ? "—" : `${tu > 0 ? "+" : ""}${tu}`;
-                          const tuCls =
-                            tu == null
-                              ? ""
-                              : tu > 0
-                                ? "squad-tu-plus"
-                                : tu < 0
-                                  ? "squad-tu-minus"
-                                  : "";
-                          return (
-                            <li
-                              key={`${r.stack}-${r.nick}`}
-                              className="squad-list-row squad-list-row-metrics"
-                            >
-                              <span className={`squad-tier tier-${tierNum}`}>
-                                T{tierNum}
-                              </span>
-                              <span className="squad-nick">
-                                {r.userId ? (
-                                  <Link
-                                    className="player-nick-link"
-                                    href={`/players/${encodeURIComponent(r.nick)}`}
-                                  >
-                                    {r.nick}
-                                  </Link>
-                                ) : (
-                                  r.nick
-                                )}
-                                {badge ? (
-                                  <span className="muted"> · {badge}</span>
-                                ) : null}
-                                <span className="muted"> · {games} игр</span>
-                              </span>
-                              <span className={`squad-tu ${tuCls}`} title="TU">
-                                {tuText}
-                              </span>
-                            </li>
-                          );
-                        })
-                      )
-                    ) : ordered.length === 0 ? (
-                      <li className="muted squad-list-empty">
-                        {autoStacks
-                          ? "Пока нет игроков с КВ-статой в этом составе"
-                          : "Пока пусто — добавь игроков ниже"}
-                      </li>
-                    ) : (
-                      ordered.map((m) => {
-                        const nick = m.user.nick || m.user.steamName || "—";
-                        const nk = nick.toLowerCase();
-                        const badge =
-                          nk === leadKey
-                            ? "гл."
-                            : nk === asstKey
-                              ? "пом."
-                              : null;
-                        const tierNum =
-                          m.tier != null
-                            ? Number(m.tier)
-                            : (() => {
-                                const key = nick
-                                  .trim()
-                                  .toLowerCase()
-                                  .replace(/\s+/g, "");
-                                return tierMap.get(key) ?? 4;
-                              })();
-                        const tu = m.tu;
-                        const tuText =
-                          tu == null
-                            ? "—"
-                            : `${tu > 0 ? "+" : ""}${tu}`;
-                        const tuCls =
-                          tu == null
-                            ? ""
-                            : tu > 0
-                              ? "squad-tu-plus"
-                              : tu < 0
-                                ? "squad-tu-minus"
-                                : "";
-                        return (
-                          <li key={m.id} className="squad-list-row squad-list-row-metrics">
-                            <span className={`squad-tier tier-${tierNum}`}>
-                              T{tierNum}
-                            </span>
-                            <span className="squad-nick">
-                              {m.user.nick ? (
-                                <Link
-                                  className="player-nick-link"
-                                  href={playerPathFromUser(m.user)}
-                                >
-                                  {nick}
-                                </Link>
-                              ) : (
-                                nick
-                              )}
-                              {badge ? (
-                                <span className="muted"> · {badge}</span>
-                              ) : null}
-                              {!autoStacks && canAssignSquads ? (
-                                <button
-                                  type="button"
-                                  className="btn ghost squad-remove-btn"
-                                  onClick={() =>
-                                    void setSquadMember(s.id, m.user.id, "remove")
-                                  }
-                                >
-                                  Убрать
-                                </button>
-                              ) : null}
-                            </span>
-                            <span className={`squad-tu ${tuCls}`} title="TU">
-                              {tuText}
-                            </span>
-                          </li>
-                        );
-                      })
-                    )}
-                  </ul>
-                  {!autoStacks && canAssignSquads ? (
-                    <label className="field" style={{ marginTop: 8 }}>
-                      <span>Добавить в {s.name}</span>
-                      <select
-                        className="role-select"
-                        defaultValue=""
-                        onChange={(e) => {
-                          const uid = e.target.value;
-                          e.target.value = "";
-                          if (uid) void setSquadMember(s.id, uid, "add");
-                        }}
-                      >
-                        <option value="" disabled>
-                          Выбери игрока…
-                        </option>
-                        {available.map((m) => (
-                          <option key={m.user.id} value={m.user.id}>
-                            {m.user.nick || m.user.steamName || m.user.id}
-                            {squadUserIds.has(m.user.id)
-                              ? ` (сейчас ${squadUserIds.get(m.user.id)})`
-                              : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  ) : null}
-                </div>
-              );
-            })}
           </div>
         </section>
       ) : null}

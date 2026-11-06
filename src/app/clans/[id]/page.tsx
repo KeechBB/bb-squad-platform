@@ -16,7 +16,6 @@ import {
   canReviewClanJoinRequests,
   ensureDefaultTitles,
 } from "@/lib/titles";
-import { loadTierIndex } from "@/lib/loadTierIndex";
 import { listPendingForClan } from "@/lib/opponentClan";
 import { GuestSteamGate } from "@/components/GuestSteamGate";
 
@@ -208,9 +207,6 @@ export default async function ClanPage({ params }: Props) {
     !clan.isExternal &&
     String(clan.tag || "").toUpperCase() === "BB";
 
-  const tierMap = await loadTierIndex();
-  const tierEntries = Array.from(tierMap.entries());
-
   return (
     <main className="clan-page">
       <ClanDetailClient
@@ -256,7 +252,6 @@ export default async function ClanPage({ params }: Props) {
         myPendingRequestId={myPendingRequestId}
         joinRequests={joinRequests}
         assignableRoles={assignable}
-        tierEntries={tierEntries}
         showFactions={showFactions}
       />
     </main>
