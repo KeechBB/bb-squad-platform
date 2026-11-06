@@ -1,8 +1,6 @@
-import type { NextAuthOptions } from "next-auth";
-import type { JWT } from "next-auth/jwt";
+﻿import type { NextAuthOptions } from "next-auth";
 import type { NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
-import { cache } from "react";
 import SteamProvider from "next-auth-steam";
 import { prisma } from "@/lib/prisma";
 import {
@@ -147,115 +145,8 @@ export const authOptions: NextAuthOptions = {
 
 export function getAuthOptions(req: NextRequest): NextAuthOptions {
   return {
-/** Layout and the page share one decode per request. */
-export const getSession = cache(() => getServerSession(authOptions));
-
-const USER_FRESH_MS = 20_000;
-
-type UserPatch = {
-  id: string;
-  name: string | null;
-  nick: string | null;
-  age: number | null;
-  steamName: string | null;
-  steamAvatar: string | null;
-  avatarUrl: string | null;
-  profileComplete: boolean;
-  clanMember: boolean;
-};
-
-const userFresh = new Map<string, { at: number; patch: UserPatch | null }>();
-
-function applyUserPatch(token: JWT, patch: UserPatch | null) {
-  if (!patch) {
-    token.id = "";
-    token.name = null;
-    token.nick = null;
-    token.age = null;
-    token.avatarUrl = null;
-    token.profileComplete = false;
-    token.clanMember = false;
-    return;
-  }
-  token.id = patch.id;
-  token.name = patch.name;
-  token.nick = patch.nick;
-  token.age = patch.age;
-  token.steamName = patch.steamName;
-  token.steamAvatar = patch.steamAvatar;
-  token.avatarUrl = patch.avatarUrl;
-  token.profileComplete = patch.profileComplete;
-  token.clanMember = patch.clanMember;
-}
-
-function rememberUser(steamId: string, patch: UserPatch | null) {
-  userFresh.set(steamId, { at: Date.now(), patch });
-  if (userFresh.size <= 4000) return;
-  const now = Date.now();
-  for (const [key, row] of userFresh) {
-    if (now - row.at > USER_FRESH_MS) userFresh.delete(key);
-  }
-}
-
-/**
- * getServerSession runs the jwt callback on every page.
- * A full User row plus a clan lookup on each click is what filled the pool.
- * Fields stay in the cookie; the database is read at most once per 20s.
- */
-async function refreshTokenUser(token: JWT, opts: { force: boolean }) {
-  const steamId = token.steamId;
-  if (!steamId) return;
-  const now = Date.now();
-  if (!opts.force) {
-    const mem = userFresh.get(steamId);
-    if (mem && now - mem.at < USER_FRESH_MS) {
-      applyUserPatch(token, mem.patch);
-      token.dbAt = mem.at;
-      return;
-    }
-    if (
-      typeof token.clanMember === "boolean" &&
-      token.id &&
-      token.dbAt &&
-      now - Number(token.dbAt) < USER_FRESH_MS
-    ) {
-      return;
-    }
-  }
-  try {
-    const user = await prisma.user.findUnique({
-      where: { steamId },
-      select: {
-        id: true,
-        name: true,
-        nick: true,
-        age: true,
-        steamName: true,
-        steamAvatar: true,
-        avatarUrl: true,
-        profileComplete: true,
-        clanMemberships: { take: 1, select: { id: true } },
-      },
-    });
-    const patch: UserPatch | null = user
-      ? {
-          id: user.id,
-          name: user.name,
-          nick: user.nick,
-          age: user.age,
-          steamName: user.steamName,
-          steamAvatar: user.steamAvatar,
-          avatarUrl: user.avatarUrl,
-          profileComplete: user.profileComplete,
-          clanMember: Boolean(user.clanMemberships[0]),
-        }
-      : null;
-    applyUserPatch(token, patch);
-    token.dbAt = now;
-    rememberUser(steamId, patch);
-  } catch (err) {
-    console.error("session user refresh failed", err);
-  }
+    providers: [
+      SteamProvider(req, {
         clientSecret: process.env.STEAM_API_KEY!,
         callbackUrl: `${process.env.NEXTAUTH_URL}/api/auth/callback/steam`,
       }),
