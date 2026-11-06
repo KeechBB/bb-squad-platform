@@ -7,6 +7,7 @@ import { subscribeLive } from "@/lib/liveClient";
 import { setVisibleInterval } from "@/lib/visibleInterval";
 import { PlayerSearch } from "@/components/PlayerSearch";
 import { NotificationsBell } from "@/components/NotificationsBell";
+import { CwBookButton } from "@/components/CwBookButton";
 
 function DiscordHeaderLink() {
   return (
@@ -146,6 +147,7 @@ export function AuthBar() {
 
   return (
     <div className="auth-bar">
+      {admin && session.user.profileComplete ? <CwBookButton /> : null}
       {session.user.profileComplete ? <NotificationsBell /> : null}
       <DiscordHeaderLink />
       {session.user.profileComplete ? <PlayerSearch /> : null}

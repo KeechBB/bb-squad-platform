@@ -2524,7 +2524,216 @@ a.nav-discord:focus-visible {
     0 0 18px rgba(88, 101, 242, 0.75);
 }
 
-/* ??????????? (??????????? ? ????????? ???????) */
+/* Админ: Рега КВ — слева от колокольчика, яркая как Battle Pass */
+.cw-book-nav-btn {
+  appearance: none;
+  position: relative;
+  flex: 0 0 auto;
+  z-index: 40;
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(52, 211, 153, 0.9);
+  color: #ecfdf5;
+  font-weight: 800;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  text-shadow: 0 0 12px rgba(16, 185, 129, 0.55);
+  background:
+    linear-gradient(
+      120deg,
+      rgba(6, 78, 59, 0.95) 0%,
+      rgba(4, 120, 87, 0.85) 28%,
+      rgba(52, 211, 153, 0.55) 50%,
+      rgba(4, 120, 87, 0.85) 72%,
+      rgba(6, 78, 59, 0.95) 100%
+    );
+  background-size: 220% 100%;
+  box-shadow:
+    0 0 16px rgba(16, 185, 129, 0.55),
+    0 0 32px rgba(5, 150, 105, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  overflow: hidden;
+  isolation: isolate;
+  animation: cw-book-glow-flow 5.5s linear infinite;
+}
+.cw-book-nav-btn::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(236, 253, 245, 0.45) 50%,
+    transparent 60%,
+    transparent 100%
+  );
+  background-size: 240% 100%;
+  animation: cw-book-sheen-flow 4.2s ease-in-out infinite;
+  mix-blend-mode: soft-light;
+}
+.cw-book-nav-label {
+  position: relative;
+  z-index: 1;
+}
+.cw-book-nav-btn:hover,
+.cw-book-nav-btn:focus-visible {
+  color: #fff;
+  border-color: rgba(167, 243, 208, 0.98);
+  box-shadow:
+    0 0 22px rgba(52, 211, 153, 0.7),
+    0 0 42px rgba(16, 185, 129, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  outline: none;
+}
+@keyframes cw-book-glow-flow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+@keyframes cw-book-sheen-flow {
+  0% { background-position: 130% 0; }
+  100% { background-position: -30% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cw-book-nav-btn,
+  .cw-book-nav-btn::before {
+    animation: none;
+  }
+}
+
+.cw-book-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(5, 4, 10, 0.72);
+  backdrop-filter: blur(8px);
+}
+.cw-book-card {
+  position: relative;
+  width: min(440px, 100%);
+  padding: 22px 22px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  background:
+    radial-gradient(420px 180px at 12% -10%, rgba(16, 185, 129, 0.22), transparent 60%),
+    linear-gradient(180deg, rgba(14, 22, 18, 0.96), rgba(8, 12, 10, 0.98));
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+.cw-book-head {
+  margin-bottom: 14px;
+}
+.cw-book-eyebrow {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #6ee7b7;
+}
+.cw-book-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #f0fdf4;
+}
+.cw-book-sub,
+.cw-book-step {
+  margin: 6px 0 0;
+  color: #9ca3af;
+  font-size: 0.9rem;
+}
+.cw-book-step {
+  color: #6ee7b7;
+  font-weight: 700;
+}
+.cw-book-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 14px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  background: rgba(6, 12, 10, 0.85);
+  color: #ecfdf5;
+  font-size: 1rem;
+}
+.cw-book-input:focus {
+  outline: none;
+  border-color: rgba(110, 231, 183, 0.85);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.22);
+}
+.cw-book-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+.cw-book-summary {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.cw-book-summary li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(52, 211, 153, 0.18);
+}
+.cw-book-summary span {
+  color: #9ca3af;
+  font-size: 0.82rem;
+}
+.cw-book-summary b {
+  color: #ecfdf5;
+  text-align: right;
+  font-weight: 700;
+}
+.cw-book-done {
+  display: grid;
+  gap: 10px;
+}
+.cw-book-close {
+  appearance: none;
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #9ca3af;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.cw-book-close:hover {
+  color: #fff;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .notif-bell {
   position: relative;
   flex: 0 0 auto;
@@ -3725,6 +3934,49 @@ body:has(.profile-page) {
 .profile-page .lead {
   margin-top: 1px;
   font-size: 0.78rem;
+}
+
+.site-notice-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.site-notice-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  background: rgba(4, 3, 10, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+.site-notice-card {
+  position: relative;
+  z-index: 1;
+  width: min(420px, calc(100vw - 32px));
+  display: grid;
+  gap: 16px;
+  padding: 22px 22px 18px;
+  border: 1px solid rgba(167, 139, 250, 0.28);
+  border-radius: 18px;
+  background: rgba(14, 11, 24, 0.97);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.55);
+  animation: profile-match-modal-in 0.22s ease-out both;
+}
+
+.site-notice-card p {
+  margin: 0;
+  font-size: 1.02rem;
+  line-height: 1.45;
+}
+
+.site-notice-card .btn {
+  justify-self: end;
 }
 
 .reserve-panel-compact {
