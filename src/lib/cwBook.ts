@@ -7,10 +7,12 @@ import path from "node:path";
 import { clearKvMemCache, kvLocalRoots } from "@/lib/kvLocal";
 
 export type CwBookInput = {
-  /** Main | Junior */
-  stack: "Main" | "Junior";
+  /** Main | Junior | — (чужой КВ) */
+  stack: "Main" | "Junior" | "—";
   /** Тег соперника без скобок */
   opp: string;
+  /** Хост чужого КВ (NKLV / GRAD / …). Пусто = наша BB-встреча */
+  clan?: string;
   /** 8…40 */
   format: number;
   /** День месяца 1–31 */
@@ -26,6 +28,23 @@ export type CwBookInput = {
   /** SEC / FCL / CSL / HOTDROP / … */
   rules: string;
 };
+
+function isBbSide(raw: string): boolean {
+  const s = String(raw || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "");
+  if (!s) return false;
+  if (/^(bb|blackberry)(\s|$)/i.test(s)) return true;
+  if (/^(main|junior|jun)\b/i.test(s)) return true;
+  return false;
+}
+
+function cleanClanTag(raw: string): string {
+  return String(raw || "")
+    .replace(/^\[|\]$/g, "")
+    .trim();
+}
 
 export type CwBookResult = {
   ok: boolean;
@@ -74,10 +93,15 @@ export function parseDateDm(
   return { day, month, year };
 }
 
-/** "BB Main vs 20Royals" | "Main vs X" | "Junior - TAG" */
-export function parseTeamLine(
-  raw: string
-): { stack: "Main" | "Junior"; opp: string } | null {
+/**
+ * "BB Main vs 20Royals" | "Main vs X" | "Junior - TAG"
+ * чужой: "NKLV vs RA" | "GRAD - IMP"
+ */
+export function parseTeamLine(raw: string): {
+  stack: "Main" | "Junior" | "—";
+  opp: string;
+  clan?: string;
+} | null {
   const s = String(raw || "").trim();
   if (!s) return null;
   const vs = s.split(/\s+vs\.?\s+/i);
@@ -93,18 +117,26 @@ export function parseTeamLine(
       right = dash.slice(1).join(" - ").trim();
     }
   }
-  const blob = `${left} ${right}`.toLowerCase();
-  const stack: "Main" | "Junior" = /jun/i.test(blob) ? "Junior" : "Main";
-  let opp = right || left;
-  opp = opp
-    .replace(/^\[?\s*bb\s*(main|junior|jun)?\s*\]?/i, "")
-    .replace(/^blackberry\s*(main|junior|jun)?/i, "")
-    .replace(/^(main|junior|jun)\b/i, "")
-    .replace(/^\[|\]$/g, "")
-    .trim();
-  if (!opp && right) opp = right.replace(/^\[|\]$/g, "").trim();
-  if (!opp) return null;
-  return { stack, opp };
+  if (!right) return null;
+
+  const leftBb = isBbSide(left);
+  const rightBb = isBbSide(right);
+
+  // Наша встреча: BB/Main/Junior vs TAG (или наоборот)
+  if (leftBb || rightBb) {
+    const bbSide = leftBb ? left : right;
+    const oppSide = leftBb ? right : left;
+    const stack: "Main" | "Junior" = /jun/i.test(bbSide) ? "Junior" : "Main";
+    const opp = cleanClanTag(oppSide);
+    if (!opp || isBbSide(opp)) return null;
+    return { stack, opp };
+  }
+
+  // Чужой КВ: NKLV vs RA
+  const clan = cleanClanTag(left);
+  const opp = cleanClanTag(right);
+  if (!clan || !opp || clan.toLowerCase() === opp.toLowerCase()) return null;
+  return { stack: "—", clan, opp };
 }
 
 export function parseSize(raw: string): number | null {
@@ -195,6 +227,24 @@ function buildMatchMd(input: CwBookInput & {
   const ymd = `${input.year}-${String(input.month).padStart(2, "0")}-${String(input.day).padStart(2, "0")}`;
   const today = mskNowParts();
   const booked = `${String(today.day).padStart(2, "0")}.${String(today.month).padStart(2, "0")}.${today.year}`;
+  const foreign = Boolean(input.clan);
+  if (foreign) {
+    return [
+      `# ${ymd} — ${input.clan} vs ${input.opp}`,
+      ``,
+      `Чужой КВ. Ещё не сыграно. Заявка **${booked}** (${input.clan} vs ${input.opp}).`,
+      ``,
+      `- **${input.timeUtc} UTC** / **${input.timeMsk} МСК**`,
+      `- **${input.size}**`,
+      `- Карта: **${input.map}**`,
+      `- Сервер: **${input.server}**`,
+      `- Правила: **${input.rules}**`,
+      `- Состав: **чужой КВ**`,
+      ``,
+      `Заметки: [analytics.md](analytics.md).`,
+      ``,
+    ].join("\n");
+  }
   const stackRu = input.stack === "Junior" ? "junior-стак" : "мейн-стак";
   return [
     `# ${ymd} — ${input.opp} vs BlackBerry`,
@@ -325,29 +375,48 @@ export function buildBookRow(input: CwBookInput): {
   const timeMsk = `${msk.hh}:${msk.mm}`;
   const size = `${input.format}v${input.format}`;
   const rules = String(input.rules || "").trim().toUpperCase() || "SEC";
-  const opp = String(input.opp || "").replace(/^\[|\]$/g, "").trim();
-  const stack = input.stack;
+  const opp = cleanClanTag(input.opp);
+  const clan = cleanClanTag(input.clan || "");
+  const foreign = Boolean(clan);
+  const stack = foreign ? "—" : input.stack === "Junior" ? "Junior" : "Main";
   const map = String(input.map || "").trim();
   const server = String(input.server || "").trim();
-  const id = `${input.day}-${slugOpp(opp)}`;
-  const folder = `${String(input.day).padStart(2, "0")}-${folderSlug(opp)}`;
-  const note = [
-    stack,
-    rules,
-    map,
-    size,
-    timeMsk,
-    `сервер ${server}`,
-    "заявка (сайт · Рега КВ)",
-    "NO SCOUT",
-    "NO MEETINGS",
-  ].join(" · ");
+  const id = foreign
+    ? `${input.day}-${slugOpp(clan)}-${slugOpp(opp)}`
+    : `${input.day}-${slugOpp(opp)}`;
+  const folder = foreign
+    ? `${String(input.day).padStart(2, "0")}-${folderSlug(clan)}-${folderSlug(opp)}`
+    : `${String(input.day).padStart(2, "0")}-${folderSlug(opp)}`;
+  const note = foreign
+    ? [
+        "чужой КВ",
+        `${clan} vs ${opp}`,
+        map,
+        size,
+        rules,
+        server,
+        `заявка (сайт · Рега КВ)`,
+        "NO SCOUT",
+        "NO MEETINGS",
+      ].join(" · ")
+    : [
+        stack,
+        rules,
+        map,
+        size,
+        timeMsk,
+        `сервер ${server}`,
+        "заявка (сайт · Рега КВ)",
+        "NO SCOUT",
+        "NO MEETINGS",
+      ].join(" · ");
 
   const row: CalMatch = {
     id,
     day: input.day,
     timeMsk,
     timeUtc,
+    ...(foreign ? { clan } : {}),
     opp,
     map,
     size,

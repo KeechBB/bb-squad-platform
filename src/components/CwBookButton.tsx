@@ -17,7 +17,7 @@ const STEPS: { id: StepId; title: string; hint: string; placeholder: string }[] 
     {
       id: "team",
       title: "Кто играет?",
-      hint: "Состав BB и соперник",
+      hint: "BB Main/Junior vs TAG — или чужой: NKLV vs RA",
       placeholder: "BB Main vs 20Royals",
     },
     {

@@ -42,22 +42,34 @@ export async function POST(req: Request) {
     }).format(new Date())
   );
 
-  let stack: "Main" | "Junior" = "Main";
+  let stack: "Main" | "Junior" | "—" = "Main";
   let opp = String(body.opp || "").trim();
+  let clan = String(body.clan || "").trim();
   if (body.teamLine || body.team) {
     const parsed = parseTeamLine(String(body.teamLine || body.team || ""));
     if (!parsed) {
       return NextResponse.json(
-        { error: "team", hint: "Формат: BB Main vs 20Royals" },
+        {
+          error: "team",
+          hint: "BB: Main vs 20Royals · чужой: NKLV vs RA",
+        },
         { status: 400 }
       );
     }
     stack = parsed.stack;
     opp = parsed.opp;
+    clan = parsed.clan || "";
   } else if (body.stack) {
-    stack = /jun/i.test(String(body.stack)) ? "Junior" : "Main";
+    stack = /jun/i.test(String(body.stack))
+      ? "Junior"
+      : String(body.stack).trim() === "—"
+        ? "—"
+        : "Main";
   }
   if (!opp) {
+    return NextResponse.json({ error: "opp" }, { status: 400 });
+  }
+  if (clan && !opp) {
     return NextResponse.json({ error: "opp" }, { status: 400 });
   }
 
@@ -116,8 +128,9 @@ export async function POST(req: Request) {
   }
 
   const input: CwBookInput = {
-    stack,
+    stack: clan ? "—" : stack === "Junior" ? "Junior" : "Main",
     opp,
+    ...(clan ? { clan } : {}),
     format,
     day,
     month,
