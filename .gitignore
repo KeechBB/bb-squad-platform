@@ -63,6 +63,8 @@ recruit-bot/__pycache__/
 !/storage/clans/.gitkeep
 /storage/factions/*
 !/storage/factions/.gitkeep
+/storage/tournament-teams/*
+!/storage/tournament-teams/.gitkeep
 
 # prisma
 /prisma/*.db

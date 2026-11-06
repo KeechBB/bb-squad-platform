@@ -113,6 +113,12 @@ if [[ -d public/replay-maps ]]; then
   cp -a public/replay-maps /tmp/bb-replay-maps.bak
   echo "==> preserve public/replay-maps"
 fi
+# Tournament team logos live only on disk (not in git).
+if [[ -d storage/tournament-teams ]]; then
+  rm -rf /tmp/bb-tournament-teams.bak
+  cp -a storage/tournament-teams /tmp/bb-tournament-teams.bak
+  echo "==> preserve storage/tournament-teams"
+fi
 # CRITICAL: never stash-before-pull. Old deploy stashed SCP edits and never
 # popped them → "lost" BP L5 / calendar / RP / Predator CSS after every deploy.
 # Source of truth = GitHub. Dirty tree on VPS = abort (commit+push from PC first).
@@ -165,6 +171,12 @@ if [[ -d /tmp/bb-replay-maps.bak ]]; then
   rsync -a /tmp/bb-replay-maps.bak/ public/replay-maps/
   echo "==> restored public/replay-maps"
   rm -rf /tmp/bb-replay-maps.bak
+fi
+if [[ -d /tmp/bb-tournament-teams.bak ]]; then
+  mkdir -p storage/tournament-teams
+  rsync -a /tmp/bb-tournament-teams.bak/ storage/tournament-teams/
+  echo "==> restored storage/tournament-teams"
+  rm -rf /tmp/bb-tournament-teams.bak
 fi
 echo "==> HEAD=$(git rev-parse --short HEAD)"
 
