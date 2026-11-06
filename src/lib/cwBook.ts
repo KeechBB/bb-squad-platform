@@ -64,7 +64,7 @@ export function parseDateDm(
   fallbackYear: number
 ): { day: number; month: number; year: number } | null {
   const s = String(raw || "").trim();
-  let m = s.match(/^(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?$/);
+  const m = s.match(/^(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?$/);
   if (!m) return null;
   const day = Number(m[1]);
   const month = Number(m[2]);
