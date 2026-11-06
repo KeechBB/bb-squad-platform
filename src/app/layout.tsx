@@ -73,7 +73,7 @@ export default async function RootLayout({
   const showClanSections =
     Boolean(session?.user?.steamId) &&
     Boolean(session?.user?.profileComplete) &&
-    (await isAnyClanMember(session?.user?.steamId));
+    (await sessionIsClanMember(session));
   const betaLabel = getCurrentBetaLabel();
 
   return (
