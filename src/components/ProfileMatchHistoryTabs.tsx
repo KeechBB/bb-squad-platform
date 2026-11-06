@@ -10,6 +10,8 @@ export type MatchHistoryTab = "train" | "public";
 type Props = {
   trainHistory?: TrainMatchHistoryRow[];
   publicHistory?: TrainMatchHistoryRow[];
+  trainTotal?: number;
+  publicTotal?: number;
   highlightNick?: string;
   /** BlackBerry → train; иначе public */
   defaultTab?: MatchHistoryTab;
@@ -18,6 +20,8 @@ type Props = {
 export function ProfileMatchHistoryTabs({
   trainHistory = [],
   publicHistory = [],
+  trainTotal,
+  publicTotal,
   highlightNick,
   defaultTab = "train",
 }: Props) {
@@ -26,6 +30,8 @@ export function ProfileMatchHistoryTabs({
     [defaultTab]
   );
   const [tab, setTab] = useState<MatchHistoryTab>(initial);
+  const trainCount = trainTotal ?? trainHistory.length;
+  const publicCount = publicTotal ?? publicHistory.length;
 
   return (
     <div className="profile-match-hist-tabs">
@@ -42,8 +48,8 @@ export function ProfileMatchHistoryTabs({
           onClick={() => setTab("train")}
         >
           История матчей тренировок
-          {trainHistory.length > 0 ? (
-            <span className="profile-match-hist-count">{trainHistory.length}</span>
+          {trainCount > 0 ? (
+            <span className="profile-match-hist-count">{trainCount}</span>
           ) : null}
         </button>
         <button
@@ -54,8 +60,8 @@ export function ProfileMatchHistoryTabs({
           onClick={() => setTab("public")}
         >
           История матчей паблика
-          {publicHistory.length > 0 ? (
-            <span className="profile-match-hist-count">{publicHistory.length}</span>
+          {publicCount > 0 ? (
+            <span className="profile-match-hist-count">{publicCount}</span>
           ) : null}
         </button>
       </div>
@@ -63,6 +69,7 @@ export function ProfileMatchHistoryTabs({
       <div role="tabpanel" hidden={tab !== "train"}>
         <TrainingMatchHistory
           matchHistory={trainHistory}
+          historyTotal={trainTotal}
           highlightNick={highlightNick}
           hideTitle
         />
@@ -70,6 +77,7 @@ export function ProfileMatchHistoryTabs({
       <div role="tabpanel" hidden={tab !== "public"}>
         <PublicMatchHistory
           matchHistory={publicHistory}
+          historyTotal={publicTotal}
           highlightNick={highlightNick}
           hideTitle
         />

@@ -1,6 +1,6 @@
 import { getSession } from "@/lib/auth";
 import { notFound, redirect } from "next/navigation";
-import { isAnyClanMember } from "@/lib/clanAccess";
+import { sessionIsClanMember } from "@/lib/clanAccess";
 import { liveKvBust } from "@/lib/kvBust";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +34,7 @@ export default async function TmRolePage({ params }: Props) {
   const session = await getSession();
   if (!session?.user?.steamId) redirect("/?login=1");
   if (!session.user.profileComplete) redirect("/register");
-  if (!(await isAnyClanMember(session.user.steamId))) {
+  if (!(await sessionIsClanMember(session))) {
     redirect("/clans");
   }
 

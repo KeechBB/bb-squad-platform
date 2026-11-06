@@ -1,28 +1,24 @@
 import { NextResponse } from "next/server";
-import {
-  buildHomeTrainPwrBoard,
-  emptyHomeTrainPwrBoard,
-} from "@/lib/homeTrainPwr";
+import { getHomeDashboardData } from "@/lib/homePageData";
+import { emptyHomeTrainPwrBoard } from "@/lib/homeTrainPwr";
 
 export const dynamic = "force-dynamic";
 
+const hdr = {
+  "Cache-Control": "public, max-age=60, stale-while-revalidate=120",
+};
+
 export async function GET() {
   try {
-    const data = await buildHomeTrainPwrBoard();
-    return NextResponse.json(data, {
-      headers: {
-        // short browser/CDN cache — ledger is heavy; avoid stampede on every click
-        "Cache-Control": "public, max-age=30, s-maxage=45, stale-while-revalidate=120",
-      },
-    });
+    const data = await getHomeDashboardData();
+    return NextResponse.json(data.pwrBoard, { headers: hdr });
   } catch (e) {
-    const empty = emptyHomeTrainPwrBoard();
     return NextResponse.json(
       {
-        ...empty,
+        ...emptyHomeTrainPwrBoard(),
         error: String((e as Error)?.message || e),
       },
-      { status: 200 }
+      { status: 200, headers: hdr }
     );
   }
 }

@@ -7,7 +7,8 @@ export type ActionCategory =
   | "clan"
   | "profile"
   | "support"
-  | "tournament";
+  | "tournament"
+  | "faction";
 
 export type WriteActionLogInput = {
   category: ActionCategory;

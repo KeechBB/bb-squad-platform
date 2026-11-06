@@ -46,18 +46,44 @@ export async function GET(req: Request) {
     },
   };
 
-  const me = nickQ
-    ? await prisma.user.findFirst({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let me: any = null;
+  if (nickQ) {
+    const { collisionBySiteNick, resolveProfileAccountNick } = await import(
+      "@/lib/nickCollisions"
+    );
+    const collision = collisionBySiteNick(nickQ);
+    const accountNick = resolveProfileAccountNick(nickQ);
+    me =
+      (collision?.steamId
+        ? await prisma.user.findFirst({
+            where: {
+              steamId: collision.steamId,
+              profileComplete: true,
+            },
+            include,
+          })
+        : null) ||
+      (await prisma.user.findFirst({
         where: {
-          nick: { equals: nickQ, mode: "insensitive" },
+          nick: accountNick,
           profileComplete: true,
         },
         include,
-      })
-    : await prisma.user.findUnique({
-        where: { steamId: session.user.steamId },
+      })) ||
+      (await prisma.user.findFirst({
+        where: {
+          nick: { equals: accountNick, mode: "insensitive" },
+          profileComplete: true,
+        },
         include,
-      });
+      }));
+  } else {
+    me = await prisma.user.findUnique({
+      where: { steamId: session.user.steamId },
+      include,
+    });
+  }
   if (!me) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
@@ -133,7 +159,6 @@ export async function GET(req: Request) {
     {
       id: me.id,
       nick: me.nick,
-      name: me.name,
       avatarUrl: isSelf
         ? session.user.avatarUrl || me.avatarUrl
         : me.avatarUrl,
@@ -154,8 +179,6 @@ export async function GET(req: Request) {
       admin,
       isBb,
       kitsLane: isBb ? "TR1" : "PB1",
-      birthDate: me.birthDate ? formatRuDate(me.birthDate) : null,
-      age: me.age,
       discordTag: me.discordTag,
       discordId: me.discordId,
       telegram: me.telegram,

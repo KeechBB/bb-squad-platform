@@ -1,8 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { formatBirthDateInput } from "@/lib/validation";
+import { AbsenceFormFields } from "@/components/AbsenceFormFields";
+import { SiteNoticeModal } from "@/components/SiteNoticeModal";
+import {
+  ABSENCE_REASON_OTHER,
+  resolveAbsenceReason,
+} from "@/lib/absenceReasons";
 
 type Props = {
   active: boolean;
@@ -11,17 +15,38 @@ type Props = {
   compact?: boolean;
 };
 
-export function ReservePanel({ active, untilLabel, reason, compact = false }: Props) {
-  const router = useRouter();
+export function ReservePanel({
+  active,
+  untilLabel,
+  reason,
+  compact = false,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [until, setUntil] = useState("");
-  const [why, setWhy] = useState("");
+  const [reasonPreset, setReasonPreset] = useState("Учёба");
+  const [reasonCustom, setReasonCustom] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  function resetForm() {
+    setUntil("");
+    setReasonPreset("Учёба");
+    setReasonCustom("");
+  }
 
   async function enterReserve(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    const why = resolveAbsenceReason(reasonPreset, reasonCustom);
+    if (reasonPreset === ABSENCE_REASON_OTHER && why.length < 3) {
+      setError("Напиши причину (от 3 символов)");
+      return;
+    }
+    if (!until) {
+      setError("Укажи дату");
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/profile/reserve", {
@@ -32,15 +57,13 @@ export function ReservePanel({ active, untilLabel, reason, compact = false }: Pr
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error || "Не удалось");
+        setLoading(false);
         return;
       }
-      setOpen(false);
-      setUntil("");
-      setWhy("");
-      router.refresh();
+      setLoading(false);
+      setNotice("Заявка принята. Ты в резерве.");
     } catch {
       setError("Сеть недоступна");
-    } finally {
       setLoading(false);
     }
   }
@@ -53,12 +76,13 @@ export function ReservePanel({ active, untilLabel, reason, compact = false }: Pr
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error || "Не удалось");
+        setLoading(false);
         return;
       }
-      router.refresh();
+      setLoading(false);
+      setNotice("Ок, ты вышел из резерва.");
     } catch {
       setError("Сеть недоступна");
-    } finally {
       setLoading(false);
     }
   }
@@ -94,29 +118,15 @@ export function ReservePanel({ active, untilLabel, reason, compact = false }: Pr
         </>
       ) : openForm ? (
         <form className="form" onSubmit={enterReserve} style={{ marginTop: 6 }}>
-          <label className="field">
-            <span>Дата до</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              placeholder="ДД.ММ.ГГГГ"
-              value={until}
-              onChange={(e) => setUntil(formatBirthDateInput(e.target.value))}
-              maxLength={10}
-              required
-            />
-          </label>
-          <label className="field">
-            <span>Причина</span>
-            <textarea
-              value={why}
-              onChange={(e) => setWhy(e.target.value)}
-              rows={compact ? 2 : 3}
-              maxLength={300}
-              required
-              placeholder="Учёба, работа…"
-            />
-          </label>
+          <AbsenceFormFields
+            until={until}
+            onUntil={setUntil}
+            reasonPreset={reasonPreset}
+            onReasonPreset={setReasonPreset}
+            reasonCustom={reasonCustom}
+            onReasonCustom={setReasonCustom}
+            compact={compact}
+          />
           {error ? <p className="error">{error}</p> : null}
           <div className="avatar-actions">
             <button type="submit" className="btn primary" disabled={loading}>
@@ -129,6 +139,7 @@ export function ReservePanel({ active, untilLabel, reason, compact = false }: Pr
               onClick={() => {
                 setOpen(false);
                 setError("");
+                resetForm();
               }}
             >
               Отмена
@@ -139,7 +150,8 @@ export function ReservePanel({ active, untilLabel, reason, compact = false }: Pr
         <>
           {!compact ? (
             <p className="muted" style={{ marginTop: 4 }}>
-              Если не можешь играть какое-то время — уйди в резерв с датой и причиной.
+              Если не можешь играть какое-то время — уйди в резерв с датой и
+              причиной.
             </p>
           ) : (
             <p className="muted reserve-panel-hint">Не играешь — в резерв</p>
@@ -154,6 +166,12 @@ export function ReservePanel({ active, untilLabel, reason, compact = false }: Pr
         </>
       )}
       {error && active ? <p className="error">{error}</p> : null}
+      {notice ? (
+        <SiteNoticeModal
+          message={notice}
+          onClose={() => window.location.reload()}
+        />
+      ) : null}
     </section>
   );
 }

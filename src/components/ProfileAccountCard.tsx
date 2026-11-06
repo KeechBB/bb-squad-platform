@@ -22,9 +22,6 @@ export type ProfileAccountFields = {
   nick: string;
   regNo: number | null;
   siteRole: string;
-  name: string;
-  age: number | null;
-  birthDate?: string | null;
   discordTag: string | null;
   discordId: string | null;
   telegram: string | null;
@@ -104,17 +101,6 @@ export function ProfileAccountCard({ data, headAction }: Props) {
                 </Link>
               ))
             )}
-          </span>
-        </div>
-        <div className="meta-row">
-          <span>Имя</span>
-          <span>{data.name || "—"}</span>
-        </div>
-        <div className="meta-row">
-          <span>Возраст</span>
-          <span>
-            {data.age ?? "—"}
-            {data.birthDate ? ` (др. ${data.birthDate})` : ""}
           </span>
         </div>
         <div className="meta-row">

@@ -3,7 +3,6 @@ import { alertClanLeft } from "@/lib/bbAlerts";
 import { loadKvJsonCached } from "@/lib/kvLocal";
 import { loadTierIndex } from "@/lib/loadTierIndex";
 import { ensureDefaultSquads } from "@/lib/squads";
-import { TRAINING_SERVER_KEYS } from "@/lib/squadServers";
 
 export type BbStackName = "Main" | "Junior";
 
@@ -280,7 +279,8 @@ function isBbClan(tag: string, name: string): boolean {
 
 /**
  * Пересобрать Main/Junior BB по частоте КВ.
- * Состав = где сыграл больше. Зарегистрированные с КВ-статой / лиды → ClanMember BB.
+ * Состав = где сыграл больше среди уже существующих ClanMember BB.
+ * В клан никого не докидываем автоматически (только заявка / инвайт).
  */
 export async function syncBbSquadsFromKv(): Promise<{
   ok: boolean;
@@ -331,94 +331,7 @@ export async function syncBbSquadsFromKv(): Promise<{
   const byKey = new Map(freq.map((r) => [nickKey(r.nick), r]));
   const byCompact = new Map(freq.map((r) => [nickCompact(r.nick), r]));
 
-  // Ники с тренировок — тоже в клан (без заявок), если зарегистрированы
-  const trainKeys = new Set<string>();
-  const trainCompact = new Set<string>();
-  try {
-    const lad = await loadKvJsonCached<{
-      leaderboard?: Array<{ nick?: string }>;
-      players?: Record<string, { nick?: string }> | Array<{ nick?: string }>;
-    }>("data/training/rp-ladder.json");
-    for (const p of lad?.leaderboard || []) {
-      const n = String(p?.nick || "").trim();
-      if (!n) continue;
-      trainKeys.add(nickKey(n));
-      trainCompact.add(nickCompact(n));
-    }
-    const players = lad?.players;
-    if (Array.isArray(players)) {
-      for (const p of players) {
-        const n = String(p?.nick || "").trim();
-        if (!n) continue;
-        trainKeys.add(nickKey(n));
-        trainCompact.add(nickCompact(n));
-      }
-    } else if (players && typeof players === "object") {
-      for (const p of Object.values(players)) {
-        const n = String(p?.nick || "").trim();
-        if (!n) continue;
-        trainKeys.add(nickKey(n));
-        trainCompact.add(nickCompact(n));
-      }
-    }
-  } catch {
-    /* optional */
-  }
-
-  const users = await prisma.user.findMany({
-    where: { OR: [{ nick: { not: null } }, { steamName: { not: null } }] },
-    select: { id: true, nick: true, steamName: true },
-  });
-
-  // Докинуть в клан: лиды + КВ-стата + тренировки (если ещё ни в каком клане)
-  // + все, кто заходил на TR1/TR2 (по сессиям)
-  const sessionUserRows = await prisma.squadServerSession.findMany({
-    where: {
-      serverKey: { in: [...TRAINING_SERVER_KEYS] },
-      userId: { not: null },
-    },
-    distinct: ["userId"],
-    select: { userId: true },
-  });
-  const fromTrSessions = new Set(
-    sessionUserRows.map((r) => r.userId!).filter(Boolean)
-  );
-
-  const candidateIds: string[] = [];
-  for (const u of users) {
-    const label = (u.nick || u.steamName || "").trim();
-    if (!label || isBbDeparted(label)) continue;
-    const k = nickKey(label);
-    const kc = nickCompact(label);
-    const hit = byKey.get(k) || byCompact.get(kc);
-    const forced = forceOf(label);
-    const fromTrain = trainKeys.has(k) || trainCompact.has(kc);
-    const fromSession = fromTrSessions.has(u.id);
-    if (!hit && !forced && !fromTrain && !fromSession) continue;
-    if (hit && hit.total <= 0 && !forced && !fromTrain && !fromSession) continue;
-    candidateIds.push(u.id);
-  }
-  if (candidateIds.length) {
-    const memberships = await prisma.clanMember.findMany({
-      where: { userId: { in: candidateIds } },
-      select: { userId: true, clanId: true },
-    });
-    const inOtherClan = new Set(
-      memberships.filter((m) => m.clanId !== clan.id).map((m) => m.userId)
-    );
-    const ensureIds = candidateIds.filter((id) => !inOtherClan.has(id));
-    if (ensureIds.length) {
-      await prisma.clanMember.createMany({
-        data: ensureIds.map((userId) => ({
-          clanId: clan.id,
-          userId,
-          role: "MEMBER" as const,
-        })),
-        skipDuplicates: true,
-      });
-    }
-  }
-
+  // Только уже состоящие в ClanMember BB — никого не докидываем с TR/ladder.
   const members = await prisma.clanMember.findMany({
     where: { clanId: clan.id },
     select: {

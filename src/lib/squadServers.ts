@@ -1,6 +1,6 @@
-/** Training dedicated servers — same ingest/attendance semantics. */
+/** Training dedicated servers — same ingest/attendance semantics. TR3–TR5 are our arenas too. */
 
-export const TRAINING_SERVER_KEYS = ["TR1", "TR2"] as const;
+export const TRAINING_SERVER_KEYS = ["TR1", "TR2", "TR3", "TR4", "TR5"] as const;
 
 export type TrainingServerKey = (typeof TRAINING_SERVER_KEYS)[number];
 

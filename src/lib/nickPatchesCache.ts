@@ -97,7 +97,12 @@ function rowFromUser(u: {
   };
 }
 
-async function loadNickPatchUsers() {
+let nickPatchUsersMemo: {
+  at: number;
+  data: Awaited<ReturnType<typeof loadNickPatchUsersRaw>>;
+} | null = null;
+
+async function loadNickPatchUsersRaw() {
   return prisma.user.findMany({
     where: {
       profileComplete: true,
@@ -110,6 +115,15 @@ async function loadNickPatchUsers() {
       nickStyle: true,
     },
   });
+}
+
+async function loadNickPatchUsers() {
+  if (nickPatchUsersMemo && Date.now() - nickPatchUsersMemo.at < 30_000) {
+    return nickPatchUsersMemo.data;
+  }
+  const data = await loadNickPatchUsersRaw();
+  nickPatchUsersMemo = { at: Date.now(), data };
+  return data;
 }
 
 export async function loadNickPatchBySteam(): Promise<

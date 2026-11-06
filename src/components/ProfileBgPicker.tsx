@@ -22,6 +22,7 @@ import {
 } from "@/lib/profileNickStyles";
 import {
   MEDAL_SHELF_SLOTS,
+  isProfileShelfAward,
   normalizeMedalShelfIds,
   type ProfileMedalItem,
 } from "@/lib/profileMedalsShared";
@@ -65,7 +66,9 @@ export function ProfileBgPicker({
   const tiles = Array.isArray(options) ? options : [];
   const patches = Array.isArray(patchOptions) ? patchOptions : [];
   const nickStyles = Array.isArray(nickStyleOptions) ? nickStyleOptions : [];
-  const inventory = Array.isArray(medalInventory) ? medalInventory : [];
+  const inventory = (Array.isArray(medalInventory) ? medalInventory : []).filter(
+    isProfileShelfAward
+  );
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("awards");
   const [pick, setPick] = useState<ProfileBgId | null>(value);
@@ -298,8 +301,8 @@ export function ProfileBgPicker({
               {tab === "awards" ? (
                 <div className="profile-award-customize" aria-label="Полка наград">
                   <p className="profile-award-hint muted">
-                    Выбери слот, затем награду из инвентаря — на полке до{" "}
-                    {MEDAL_SHELF_SLOTS} мест.
+                    На полку только медали, кубки и знаки — до {MEDAL_SHELF_SLOTS}{" "}
+                    мест. Нашивки, фон и стиль ника ставятся в своих вкладках.
                   </p>
                   <div className="profile-award-slots" role="list">
                     {Array.from({ length: MEDAL_SHELF_SLOTS }, (_, i) => {
@@ -350,8 +353,7 @@ export function ProfileBgPicker({
                   </div>
                   {inventory.length === 0 ? (
                     <div className="profile-patch-empty" role="status">
-                      Пока нет открытых наград.
-                      <span>Регистрация и Battle Pass</span>
+                      Пока нет медалей, кубков и знаков.
                     </div>
                   ) : (
                     <div

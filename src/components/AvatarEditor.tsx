@@ -7,7 +7,6 @@ import { SitePresenceBadge } from "@/components/SitePresenceBadge";
 
 type Props = {
   nick: string;
-  name: string;
   initialAvatar: string | null;
   steamAvatar: string | null;
   adminLink?: ReactNode;
@@ -19,7 +18,6 @@ type Phase = "idle" | "chooser" | "pending";
 
 export function AvatarEditor({
   nick,
-  name,
   initialAvatar,
   steamAvatar,
   adminLink,
@@ -178,7 +176,6 @@ export function AvatarEditor({
             <SitePresenceBadge lastSeenAt={lastSeenAt} />
             {adminLink}
           </div>
-          <p className="lead">{name}</p>
         </div>
       </div>
 

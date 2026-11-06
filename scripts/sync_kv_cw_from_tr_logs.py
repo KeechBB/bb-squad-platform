@@ -227,6 +227,13 @@ def load_bb_nick_keys(aliases: dict[str, str]) -> set[str]:
                         keys.add(R.canon_key(n, aliases))
                     elif isinstance(n, dict) and n.get("nick"):
                         keys.add(R.canon_key(str(n["nick"]), aliases))
+        # Live tiers.json stores nicks under tier1..tier4, not "players"/"tiers".
+        for key in ("tier1", "tier2", "tier3", "tier4"):
+            for n in t.get(key) or []:
+                if isinstance(n, str) and n.strip():
+                    keys.add(R.canon_key(n, aliases))
+                elif isinstance(n, dict) and n.get("nick"):
+                    keys.add(R.canon_key(str(n["nick"]), aliases))
     return keys
 
 
@@ -287,9 +294,12 @@ def looks_opp_tag(nick: str, opp: str) -> bool:
     if not tag:
         return False
     lead = nick_leading_tag_token(n)
-    if lead.startswith(tag) or lead == tag:
+    # Exact tag token only. "Radislave" is not the clan RA.
+    if lead == tag:
         return True
-    if tag in re.sub(r"[^A-Z0-9]", "", u):
+    # Short tags (RA) must not match inside a nick (COBRA, Makar).
+    compact = re.sub(r"[^A-Z0-9]", "", u)
+    if len(tag) >= 3 and tag in compact:
         return True
     # common wrappers: ↯DCAI↯ 『DCAI』 [DCAI]
     if re.search(rf"[↯『\[\|\s]{re.escape(tag)}[↯』\]\|\s]", u):
@@ -401,7 +411,21 @@ def _mode_token(text: str) -> str | None:
     return None
 
 
+def _pack_token(text: str) -> str | None:
+    """FCL/CSL/SEC in the calendar must not swallow a vanilla layer of the same place."""
+    s = re.sub(r"[^a-z0-9]", "", (text or "").lower())
+    for pack in ("fcl", "csl", "sec"):
+        if pack in s:
+            return pack
+    return None
+
+
 def map_fuzzy_match(slot_map: str, layer: str) -> bool:
+    # FCL Mutaha is not Mutaha Skirmish. Pack tag has to be on both sides.
+    pack_a = _pack_token(slot_map)
+    pack_b = _pack_token(layer)
+    if pack_a and pack_a != pack_b:
+        return False
     # Mutaha PAAS (КВ) must not swallow Mutaha RAAS / Skirmish the same evening.
     mode_a = _mode_token(slot_map)
     mode_b = _mode_token(layer)
@@ -464,6 +488,39 @@ def split_bb_opp(
         bb_side = keep
         opp_side = list(opp_side) + dump
     return bb_side, opp_side, bb_is_team_a
+
+
+def _roster_keys(rows: list[dict]) -> set[str]:
+    out: set[str] = set()
+    for r in rows:
+        k = re.sub(r"[^a-z0-9]", "", str(r.get("nick") or "").lower())
+        if k:
+            out.add(k)
+    return out
+
+
+def align_round_to_previous(
+    bb_rows: list[dict],
+    opp_rows: list[dict],
+    prev_bb: list[dict],
+    prev_opp: list[dict],
+) -> tuple[list[dict], list[dict], bool]:
+    """Если «наши» этого раунда — это соперник прошлого, стороны перепутаны.
+
+    Индекс команды в логе между раундами меняется. Когда ники не распознались,
+    парсер оставляет team 1 как BB, и второй раунд садится не на ту сторону.
+    """
+    if not prev_bb and not prev_opp:
+        return bb_rows, opp_rows, False
+    bb = _roster_keys(bb_rows)
+    opp = _roster_keys(opp_rows)
+    prevb = _roster_keys(prev_bb)
+    prevo = _roster_keys(prev_opp)
+    stay = len(bb & prevb) + len(opp & prevo)
+    flip = len(bb & prevo) + len(opp & prevb)
+    if flip > stay:
+        return opp_rows, bb_rows, True
+    return bb_rows, opp_rows, False
 
 
 def split_match_sides(
@@ -766,6 +823,16 @@ def process_slot(
 
         bb_rows = attach_steam(bb_side, steam, aliases, vk_by_key)
         opp_rows = attach_steam(opp_side, steam, aliases, vk_by_key)
+        if bb_rounds and opp_rounds:
+            bb_rows, opp_rows, swapped = align_round_to_previous(
+                bb_rows, opp_rows, bb_rounds[-1], opp_rounds[-1]
+            )
+            if swapped:
+                bb_is_team_a = not bb_is_team_a
+                print(
+                    "  aligned round to previous roster (team index flipped)",
+                    flush=True,
+                )
         if len(bb_rows) + len(opp_rows) < MIN_ROUND_PLAYERS:
             print(
                 f"  skip sparse layer {m['layer']} BB={len(bb_rows)} opp={len(opp_rows)} "
@@ -918,9 +985,40 @@ def process_slot(
         "sum": f"{sum_bb}:{sum_opp}" if finalize else f"R1 {ticket_pairs[0][0]}:{ticket_pairs[0][1]}",
         "status": patch.get("status", slot.get("status")),
         "source": "tr-cw-auto",
+        "r1": f"{ticket_pairs[0][0]}:{ticket_pairs[0][1]}",
+        "r2": (
+            f"{ticket_pairs[1][0]}:{ticket_pairs[1][1]}"
+            if closed_rounds >= 2
+            else None
+        ),
     }
+    # Тот же R1 без R2 уже залит — не считаем «added» и не спамим Telegram
+    # (collector крутит CW sync каждые 3 мин в окне КВ).
+    prior_fp = None
+    if prior:
+        prior_fp = (
+            int(prior.get("rounds") or 0),
+            str(prior.get("sum") or ""),
+            str(prior.get("status") or ""),
+            str(prior.get("r1") or ""),
+            str(prior.get("r2") or ""),
+        )
+    new_fp = (
+        int(entry.get("rounds") or 0),
+        str(entry.get("sum") or ""),
+        str(entry.get("status") or ""),
+        str(entry.get("r1") or ""),
+        str(entry.get("r2") or ""),
+    )
+    unchanged = prior_fp is not None and prior_fp == new_fp
     # replace prior partial row for this match id
     auto[:] = [a for a in auto if a.get("id") != mid] + [entry]
+    if unchanged:
+        print(
+            f"OK CW {mid} vs {slot.get('opp')} {entry['sum']} (no change — skip alert)",
+            flush=True,
+        )
+        return False
     print(f"OK CW {mid} vs {slot.get('opp')} {entry['sum']}", flush=True)
     return entry
 
@@ -1001,16 +1099,29 @@ def main() -> int:
                 if rounds:
                     bit += f" · раундов {rounds}"
                 lines.append(bit)
+            # Без force: кулдаун bb_alerts режет дубли, если всё же проскочит.
+            # fingerprint в title — новый R1 / закрытие R2 = новое сообщение.
+            fp = "|".join(
+                f"{r.get('id')}:{r.get('sum')}:{r.get('rounds')}" for r in written
+            )
             AL.send(
                 kind="выгрузка",
-                title="КВ: залиты раунды",
+                title=f"КВ: залиты раунды · {fp[:80]}",
                 level="ok",
                 lines=lines,
-                force=True,
+                force=False,
+                cooldown=1800,
             )
         except Exception as e:
             print(f"alert cw skip: {e}", flush=True)
     print(f"done added={added}", flush=True)
+    if added:
+        try:
+            from growth_queue import kick_growth_and_accuracy
+
+            kick_growth_and_accuracy("cw ingest")
+        except Exception as e:
+            print(f"growth queue skip: {e}", flush=True)
     return 0
 
 

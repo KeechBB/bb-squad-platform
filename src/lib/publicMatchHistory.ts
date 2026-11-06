@@ -143,36 +143,66 @@ function pickScore(
   return near[0];
 }
 
+type SlimM = {
+  id?: string;
+  net?: number;
+  won?: boolean | null;
+  kills?: number | unknown;
+  deaths?: number | unknown;
+  res?: number | unknown;
+  nok?: number | unknown;
+  map?: string;
+  date?: string;
+};
+
 /** История PB1 матчей игрока с ΔRP (свежие сверху). */
 export async function buildPlayerPublicMatchHistory(
-  nick: string
+  nick: string,
+  opts?: { steamId?: string | null }
 ): Promise<TrainMatchHistoryRow[]> {
   const clean = String(nick || "").trim();
   if (!clean) return [];
 
+  const {
+    collisionBySiteNick,
+    collisionBySteamId,
+    loadSteamAngelPublicDays,
+    matchYmdAllowed,
+    publicRpLookupNick,
+  } = await import("@/lib/nickCollisions");
+  const collision =
+    collisionBySteamId(opts?.steamId) || collisionBySiteNick(clean);
+  const lookupNick = publicRpLookupNick(clean, collision?.steamId);
+  const publicDays = collision?.steamId
+    ? await loadSteamAngelPublicDays(collision.steamId)
+    : null;
+
   const ladder = await loadPublicRpLadder();
   if (!ladder) return [];
 
-  const player = await lookupPlayerPublicRp(clean);
-  if (!player?.matches?.length) return [];
+  const player = await lookupPlayerPublicRp(lookupNick);
+  const matchMap = new Map<string, SlimM>();
+  for (const m of (player?.matches || []) as SlimM[]) {
+    if (m?.id) matchMap.set(String(m.id), m);
+  }
+  // Алан часто играет plain "angel" без 🪽 — эти катки лежат в чужом ledger-ключе.
+  if (collision?.steamId === "76561198421145708") {
+    const plain = await lookupPlayerPublicRp("angel");
+    for (const m of (plain?.matches || []) as SlimM[]) {
+      if (!m?.id || matchMap.has(String(m.id))) continue;
+      const parsed = parseMatchId(String(m.id));
+      const date = String(m.date || parsed?.ymd || "");
+      if (!matchYmdAllowed(date, publicDays)) continue;
+      matchMap.set(String(m.id), m);
+    }
+  }
+  if (!matchMap.size) return [];
 
   const metaById = new Map(
     (ladder.matches || []).map((m) => [String(m.id), m] as const)
   );
 
-  type SlimM = {
-    id?: string;
-    net?: number;
-    won?: boolean | null;
-    kills?: number | unknown;
-    deaths?: number | unknown;
-    res?: number | unknown;
-    nok?: number | unknown;
-    map?: string;
-    date?: string;
-  };
-
-  const rows = (player.matches as SlimM[])
+  const rows = [...matchMap.values()]
     .filter((m) => m?.id)
     .map((m) => {
       const meta = metaById.get(String(m.id));
@@ -191,7 +221,8 @@ export async function buildPlayerPublicMatchHistory(
         parsed,
       };
     })
-    .filter((m) => m.date);
+    .filter((m) => m.date)
+    .filter((m) => matchYmdAllowed(m.date, publicDays));
 
   // хронология для running RP
   rows.sort((a, b) => {
@@ -214,7 +245,10 @@ export async function buildPlayerPublicMatchHistory(
   const startRp = Number(ladder.startRp) || 1000;
   const step = Number(ladder.step) || 150;
   const radiant3Max = Number(ladder.radiant3Max) || 4950;
+  // Лестница = старт + сумма сырых net. Округление на каждом шаге
+  // разъезжается с шапкой (у bambozy 7168 вместо 7161).
   let running = startRp;
+  let shownPrev = Math.round(startRp);
   const canRunRp = rows.every((r) => r.hasNet);
 
   const history: TrainMatchHistoryRow[] = [];
@@ -224,10 +258,12 @@ export async function buildPlayerPublicMatchHistory(
     let rankLabel = "—";
     let rankKey = "iron";
     if (canRunRp && m.hasNet) {
-      rpDelta = Math.round(m.net);
-      running = Math.round(running + m.net);
-      rpAfter = running;
-      const rk = rpRankFromScore(running, step, radiant3Max);
+      running += Number(m.net);
+      const shown = Math.round(running);
+      rpDelta = shown - shownPrev;
+      shownPrev = shown;
+      rpAfter = shown;
+      const rk = rpRankFromScore(shown, step, radiant3Max);
       rankLabel = rk.label;
       rankKey = rk.rankKey;
     } else if (m.hasNet) {

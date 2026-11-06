@@ -8,7 +8,9 @@ import {
   ProfileMatchStatsModal,
   type MatchStatsOpen,
 } from "@/components/ProfileMatchStatsModal";
-import { ListPager, pageSlice } from "@/components/ListPager";
+import { ListPager } from "@/components/ListPager";
+import { shortMapName } from "@/lib/shortMapName";
+import { useProfileHistoryPage } from "@/hooks/useProfileHistoryPage";
 import { useFitPageSize } from "@/hooks/useFitPageSize";
 import {
   ProfileCombatGrid,
@@ -40,35 +42,52 @@ type Props = {
 
 export function ProfileKvMatchHistory({
   matchHistory = [],
+  historyTotal,
   highlightNick,
 }: {
   matchHistory?: CwMatchHistoryRow[];
+  historyTotal?: number;
   highlightNick?: string;
 }) {
   const [open, setOpen] = useState<MatchStatsOpen | null>(null);
   const [page, setPage] = useState(1);
   const tableWrapRef = useRef<HTMLDivElement | null>(null);
   const pageSize = useFitPageSize(tableWrapRef);
-  const sliced = pageSlice(matchHistory, page, pageSize);
+  const remote = useProfileHistoryPage<CwMatchHistoryRow>(
+    highlightNick,
+    "cw",
+    page,
+    pageSize,
+    { rows: matchHistory, total: historyTotal }
+  );
+  const sliced = {
+    page,
+    pageCount: remote.pageCount,
+    total: remote.total,
+    rows: remote.rows,
+  };
 
   useEffect(() => {
     setPage(1);
-  }, [matchHistory.length, pageSize]);
+  }, [highlightNick, matchHistory.length]);
 
   return (
     <section className="card profile-hist-card profile-kv-hist-card profile-hist-paged">
       <h2 className="profile-hist-title">История матчей КВ</h2>
-      {matchHistory.length === 0 ? (
+      <div
+        ref={tableWrapRef}
+        className="admin-table-wrap profile-hist-table-wrap"
+      >
+      {remote.failed && matchHistory.length === 0 ? (
+        <p className="muted" style={{ margin: "8px 0 0" }}>
+          История КВ временно недоступна.
+        </p>
+      ) : pageSize > 0 && sliced.total === 0 && !remote.loading ? (
         <p className="muted" style={{ margin: "8px 0 0" }}>
           Пока нет КВ с ником в рейтинге — история появится после оцифровки
           табло.
         </p>
       ) : (
-        <>
-        <div
-          ref={tableWrapRef}
-          className="admin-table-wrap profile-hist-table-wrap"
-        >
           <table className="admin-table training-sessions-table training-match-hist-table">
             <thead>
               <tr>
@@ -80,6 +99,13 @@ export function ProfileKvMatchHistory({
               </tr>
             </thead>
             <tbody>
+              {remote.loading && sliced.rows.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="muted">
+                    Загрузка истории КВ…
+                  </td>
+                </tr>
+              ) : null}
               {sliced.rows.map((m) => {
                 const resultCls =
                   m.won === true
@@ -154,7 +180,7 @@ export function ProfileKvMatchHistory({
                       <span className="training-match-map">{m.opp}</span>
                     </td>
                     <td title={m.map}>
-                      <span className="training-match-map">{m.map}</span>
+                      <span className="training-match-map">{shortMapName(m.map)}</span>
                     </td>
                     <td className="training-match-score" title={m.meeting}>
                       {m.meeting}
@@ -167,19 +193,20 @@ export function ProfileKvMatchHistory({
               })}
             </tbody>
           </table>
-        </div>
+      )}
+      </div>
+      <div className="profile-hist-pager-slot">
         <ListPager
           page={sliced.page}
           pageCount={sliced.pageCount}
           total={sliced.total}
-          pageSize={pageSize}
+          pageSize={pageSize || 1}
           onChange={setPage}
           maxButtons={10}
           label="Страницы истории КВ"
           className="profile-hist-pager"
         />
-        </>
-      )}
+      </div>
       <ProfileMatchStatsModal open={open} onClose={() => setOpen(null)} />
     </section>
   );
@@ -291,7 +318,7 @@ export function ProfileKvStats({
                   <tr key={m.matchId}>
                     <td>{String(m.day).padStart(2, "0")}</td>
                     <td>{m.opp}</td>
-                    <td title={m.map}>{m.map}</td>
+                    <td title={m.map}>{shortMapName(m.map)}</td>
                     <td>{m.res}</td>
                     <td>{m.nok}</td>
                     <td>{m.kills}</td>

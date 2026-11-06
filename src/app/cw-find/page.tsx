@@ -1,6 +1,6 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { isAnyClanMember } from "@/lib/clanAccess";
+import { sessionIsClanMember } from "@/lib/clanAccess";
 import { ClanCwRegistrationPanel } from "@/components/ClanCwRegistrationPanel";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +9,7 @@ export default async function CwFindPage() {
   const session = await getSession();
   if (!session?.user?.steamId) redirect("/?login=1");
   if (!session.user.profileComplete) redirect("/register");
-  if (!(await isAnyClanMember(session.user.steamId))) {
+  if (!(await sessionIsClanMember(session))) {
     redirect("/clans");
   }
 

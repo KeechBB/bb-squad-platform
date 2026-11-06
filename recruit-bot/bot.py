@@ -7,7 +7,9 @@
 Шаг 3. Регистрация на сайте и приём в клан кадровиком
 Шаг 4. Подписка на канал и группу (личные одноразовые invite-ссылки)
 После входа в группу бот ставит игровой ник в тег участника.
-Дальше бот следит за сайтом и обоими чатами.
+Дальше бот следит за сайтом и обоими чатами: если человек пропал
+из чата — только алерт кадровикам (раз в час), автокика нет.
+Кик с сайта/чатов — только вручную из меню кадровика.
 
 Кадровики назначаются в боте.
 Промежуточные алерты → ALERT_CHAT_ID (Bot для набора).
@@ -26,7 +28,6 @@ import clan_site as site
 
 HERE = Path(__file__).resolve().parent
 PAGE = 6
-_purging: set[int] = set()
 
 ASK_NICK = (
     "Шаг 1 из 4.\n"
@@ -197,19 +198,29 @@ async def send_announce(bot, text: str) -> None:
     await _send_chat(bot, announce_chat(), text, announce_thread(), "announce")
 
 
-async def in_chat(bot, chat_id: int | None, user_id: int) -> bool:
+async def in_chat(bot, chat_id: int | None, user_id: int) -> bool | None:
+    """True / False / None (API не ответил — не считаем «вышел»)."""
     if not chat_id:
         return False
     try:
         member = await bot.get_chat_member(chat_id, user_id)
-    except Exception:
-        return False
+    except Exception as e:
+        logging.info("get_chat_member %s/%s: %s", chat_id, user_id, type(e).__name__)
+        return None
     name = str(getattr(member.status, "value", member.status)).lower()
     if name in ("member", "administrator", "creator", "owner"):
         return True
     if name == "restricted":
         return bool(getattr(member, "is_member", False))
     return False
+
+
+def gap_alert_cooldown_sec() -> int:
+    raw = (os.environ.get("GAP_ALERT_SEC") or "3600").strip() or "3600"
+    try:
+        return max(60, int(raw))
+    except ValueError:
+        return 3600
 
 
 async def bot_blocked(bot, user_id: int) -> bool:
@@ -379,9 +390,39 @@ async def subs_text(bot, row) -> str:
 def accepted_text() -> str:
     return (
         "Готово — ты принят в клан BlackBerry.\n\n"
-        "Дальше ничего жать не нужно. Бот сам следит за сайтом и чатами.\n"
-        "Если отпишешься от канала/группы или заблокируешь бота — "
-        "автоматически снимут с клана."
+        "Дальше ничего жать не нужно. Оставайся в канале и в основной группе."
+    )
+
+
+async def force_fresh_invites(bot, row) -> tuple[str, str]:
+    """Новые одноразовые ссылки (старые после кика/отзыва уже мёртвые)."""
+    await revoke_row_invites(bot, row)
+    fresh = db.get_applicant(int(row["tg_id"])) or row
+    return await ensure_invites(bot, fresh)
+
+
+async def done_status_text(bot, row) -> str:
+    """Принят на сайте: если нет в чатах — сразу выдать ссылки, без «кнопок регистрации»."""
+    tg_id = int(row["tg_id"])
+    in_channel = await in_chat(bot, channel_id(), tg_id)
+    in_group = await in_chat(bot, group_id(), tg_id)
+    missing = []
+    if in_channel is False:
+        missing.append(channel_title())
+    if in_group is False:
+        missing.append(group_title())
+    if not missing:
+        return accepted_text()
+    ch, gr = await force_fresh_invites(bot, row)
+    return (
+        "Ты уже в клане BlackBerry на сайте — заново регистрироваться не нужно.\n\n"
+        "Но тебя сейчас нет в: "
+        + ", ".join(missing)
+        + ".\n"
+        "Открой обе ссылки ниже и вступи (одноразовые, только для тебя):\n\n"
+        f"{channel_title()}:\n{ch}\n\n"
+        f"{group_title()}:\n{gr}\n\n"
+        "Кнопок нет — достаточно ссылок. Когда будешь в обоих чатах, всё ок."
     )
 
 
@@ -394,9 +435,12 @@ async def status_text(bot, row) -> str:
     if step == db.STEP_SUBS:
         return await subs_text(bot, row)
     if step == db.STEP_DONE:
-        return accepted_text()
+        return await done_status_text(bot, row)
     if step == db.STEP_REMOVED:
-        return "Регистрация закрыта: тебя снимали с клана. Напиши ник заново, если подаёшь заявку снова.\n" + ASK_NICK
+        return (
+            "Регистрация закрыта: тебя снимали с клана. "
+            "Напиши ник заново, если подаёшь заявку снова.\n" + ASK_NICK
+        )
     return ASK_NICK
 
 
@@ -414,7 +458,7 @@ async def check_one(bot, row) -> None:
     tg_id = int(row["tg_id"])
     nick = row["game_nick"] or ""
     steam_id = (row["steam_id"] or "").strip()
-    if not nick or not steam_id or tg_id in _purging:
+    if not nick or not steam_id:
         return
     try:
         info = await asyncio.to_thread(site.lookup_steam, steam_id, nick)
@@ -476,7 +520,13 @@ async def check_one(bot, row) -> None:
     blocked = await bot_blocked(bot, tg_id)
     on_site = bool(info.get("in_clan"))
 
-    if step == db.STEP_SUBS and in_channel and in_group and not blocked and on_site:
+    if (
+        step == db.STEP_SUBS
+        and in_channel is True
+        and in_group is True
+        and not blocked
+        and on_site
+    ):
         db.set_step(tg_id, db.STEP_DONE, accepted=True)
         db.event(tg_id, "step4", nick)
         fresh = db.get_applicant(tg_id)
@@ -487,11 +537,13 @@ async def check_one(bot, row) -> None:
         )
         return
 
-    if step == db.STEP_SUBS and not blocked and (in_channel or in_group or on_site):
+    if step == db.STEP_SUBS and not blocked and (
+        in_channel is True or in_group is True or on_site
+    ):
         # Ещё не оба чата. Сайт пропал — только алерт, чаты не трогаем.
         if not on_site:
             sig = "site-lost-subs"
-            if db.set_alert_sig(tg_id, sig):
+            if db.set_alert_sig(tg_id, sig, cooldown_sec=gap_alert_cooldown_sec()):
                 await send_alert(
                     bot,
                     f"Алерт: {db.label(row)} на шаге 4, в клане на сайте этого Steam уже нет.",
@@ -504,9 +556,10 @@ async def check_one(bot, row) -> None:
     missing = []
     if not on_site:
         missing.append("сайт")
-    if not in_channel:
+    # None = API не ответил → не считаем отпиской (иначе массовые ложные алерты)
+    if in_channel is False:
         missing.append(channel_title())
-    if not in_group:
+    if in_group is False:
         missing.append(group_title())
     if blocked:
         missing.append("бот заблокирован")
@@ -514,55 +567,18 @@ async def check_one(bot, row) -> None:
         db.set_alert_sig(tg_id, "ok")
         return
 
-    # Отписка или блок после приёма в клан снимает с клана.
-    # Пропажа только с сайта (чаты и бот живы) — алерт, чаты не кикаем.
-    auto = blocked or (step == db.STEP_DONE and (not in_channel or not in_group))
-    if auto:
-        reason = "блокировка бота" if blocked else "отписка от канала или группы"
-        await purge(bot, db.get_applicant(tg_id) or row, reason)
-        return
+    # Автокика нет — только алерт кадровикам, не чаще раза в час на одну дыру.
     sig = "gap:" + ",".join(missing)
-    if not db.set_alert_sig(tg_id, sig):
+    if not db.set_alert_sig(tg_id, sig, cooldown_sec=gap_alert_cooldown_sec()):
         return
+    db.event(tg_id, "gap-alert", sig)
     await send_alert(
         bot,
         "Алерт: "
         + db.label(row)
-        + " выпал из проверки.\n"
+        + " не в полном составе (кик не делаю).\n"
         + "\n".join(f"— {part}" for part in missing),
     )
-
-
-async def purge(bot, row, reason: str) -> None:
-    tg_id = int(row["tg_id"])
-    if tg_id in _purging:
-        return
-    current = db.get_applicant(tg_id)
-    if current is None or current["step"] == db.STEP_REMOVED:
-        return
-    _purging.add(tg_id)
-    try:
-        steam_id = (current["steam_id"] or "").strip()
-        site_line = "SteamID64 не записан"
-        if steam_id:
-            try:
-                site_line = await asyncio.to_thread(site.kick, steam_id, "бот регистрации")
-            except Exception as e:
-                site_line = f"сайт не ответил ({type(e).__name__})"
-        ch_line = await kick_chat(bot, channel_id(), tg_id)
-        gr_line = await kick_chat(bot, group_id(), tg_id)
-        await revoke_row_invites(bot, current)
-        db.mark_removed(tg_id)
-        db.event(tg_id, "purge", f"{reason}; {site_line}; {ch_line}; {gr_line}")
-        text = await checklist(bot, current, db_deleted=False, note=reason)
-        text = (
-            f"{channel_title()}: {ch_line}\n{group_title()}: {gr_line}\n"
-            f"Сайт: {site_line}\n\n{text}"
-        )
-        await send_alert(bot, text)
-        await tell(bot, tg_id, f"Ты исключён из клана BlackBerry. Причина: {reason}.")
-    finally:
-        _purging.discard(tg_id)
 
 
 async def checklist(bot, row, db_deleted: bool, note: str = "") -> str:
@@ -591,15 +607,23 @@ async def checklist(bot, row, db_deleted: bool, note: str = "") -> str:
         site_line = "в клане нет"
     else:
         site_line = "сайт не ответил"
+
+    def _chat_line(flag: bool | None) -> str:
+        if flag is True:
+            return "состоит"
+        if flag is False:
+            return "не состоит"
+        return "не удалось проверить"
+
     lines = [
         f"Игрок {db.label(row)} — чеклист удаления."
         + (f" Причина: {note}." if note else ""),
         f"Сайт: {site_line}",
-        f"{channel_title()}: {'состоит' if in_channel else 'не состоит'}",
-        f"{group_title()}: {'состоит' if in_group else 'не состоит'}",
+        f"{channel_title()}: {_chat_line(in_channel)}",
+        f"{group_title()}: {_chat_line(in_group)}",
         f"База бота: {db_line}",
     ]
-    chats_clear = on_site is False and not in_channel and not in_group
+    chats_clear = on_site is False and in_channel is False and in_group is False
     db_gone = db_deleted or fresh is None
     if chats_clear and db_gone:
         lines.append(f"Игрок {db.label(row)} удалён.")
@@ -1003,10 +1027,18 @@ async def on_my_member(update, context) -> None:
     row = db.get_applicant(cmu.chat.id)
     if row is None:
         return
+    tg_id = int(row["tg_id"])
+    db.event(tg_id, "block", row["step"])
+    # Автокика нет — только алерт (с hourly cooldown через check_one / sig)
     if row["step"] in (db.STEP_SUBS, db.STEP_DONE):
-        await purge(context.bot, row, "блокировка бота")
+        sig = "gap:бот заблокирован"
+        if db.set_alert_sig(tg_id, sig, cooldown_sec=gap_alert_cooldown_sec()):
+            await send_alert(
+                context.bot,
+                f"Алерт: {db.label(row)} заблокировал бота (кик не делаю).\n"
+                f"TG {tg_handle(row)} · {STEP_RU.get(row['step'], row['step'])}",
+            )
         return
-    db.event(int(row["tg_id"]), "block", row["step"])
     await send_alert(
         context.bot,
         f"Алерт: {db.label(row)} заблокировал бота на шаге «{STEP_RU.get(row['step'], row['step'])}». "
@@ -1048,15 +1080,9 @@ async def on_chat_member(update, context) -> None:
     old = str(getattr(cmu.old_chat_member.status, "value", cmu.old_chat_member.status)).lower()
     new = str(getattr(cmu.new_chat_member.status, "value", cmu.new_chat_member.status)).lower()
 
-    # Сразу алерт в Bot для набора при выходе из канала или группы
+    # Выход из чата — только лог; алерт раз в час шлёт poll/check_one
     if _member_left(old, new):
         place = _chat_place_name(cmu.chat.id)
-        how = "кикнут" if new in ("kicked", "banned") else "вышел"
-        await send_alert(
-            context.bot,
-            f"Алерт: {db.label(row)} {how} из «{place}».\n"
-            f"TG {tg_handle(row)} · {STEP_RU.get(row['step'], row['step'])}",
-        )
         db.event(user_id, "left-chat", f"{place}:{new}")
 
     # После входа в Основной по ссылке — ник в тег участника

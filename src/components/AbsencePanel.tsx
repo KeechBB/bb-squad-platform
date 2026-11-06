@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AbsenceFormFields } from "@/components/AbsenceFormFields";
+import { SiteNoticeModal } from "@/components/SiteNoticeModal";
 import {
   ABSENCE_REASON_OTHER,
   resolveAbsenceReason,
@@ -37,7 +38,7 @@ function untilLabelFromIso(iso: string): string {
 
 /**
  * Компактная панель выходной/резерв.
- * После успеха — alert «заявка принята» и перезагрузка страницы.
+ * После успеха — модалка сайта, затем перезагрузка страницы.
  */
 export function AbsencePanel({
   reserveActive,
@@ -55,6 +56,7 @@ export function AbsencePanel({
   const [reasonCustom, setReasonCustom] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [pending, setPending] = useState<{
     fromLabel: string;
     untilLabel: string;
@@ -128,8 +130,8 @@ export function AbsencePanel({
         mode === "dayoff"
           ? `Заявка принята. Отдыхай до ${untilRu}.`
           : "Заявка отправлена. HR решит её в разделе «Резерв».";
-      window.alert(msg);
-      window.location.reload();
+      setLoading(false);
+      setNotice(msg);
     } catch {
       setError("Сеть недоступна");
       setLoading(false);
@@ -151,10 +153,10 @@ export function AbsencePanel({
         setLoading(false);
         return;
       }
-      window.alert(
+      setLoading(false);
+      setNotice(
         reserveActive ? "Ок, ты вышел из резерва." : "Ок, выходной снят."
       );
-      window.location.reload();
     } catch {
       setError("Сеть недоступна");
       setLoading(false);
@@ -288,6 +290,12 @@ export function AbsencePanel({
         </div>
       )}
       {error && active ? <p className="error">{error}</p> : null}
+      {notice ? (
+        <SiteNoticeModal
+          message={notice}
+          onClose={() => window.location.reload()}
+        />
+      ) : null}
     </section>
   );
 }

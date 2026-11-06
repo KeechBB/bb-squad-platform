@@ -5,7 +5,7 @@ import {
   eventsForMatch,
   openKeechHuntMatches,
   readKeechHuntLive,
-  readKeechHuntMemory,
+  requestKeechHuntCombatReset,
   splitEvents,
   type KeechHuntMatch,
 } from "@/lib/keechHunt";
@@ -39,10 +39,7 @@ export async function GET() {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  const [live, memory] = await Promise.all([
-    readKeechHuntLive(),
-    readKeechHuntMemory(),
-  ]);
+  const live = await readKeechHuntLive();
   const matches = openKeechHuntMatches(live);
   // Right columns + live-log + NET: only current map (not PB1+TR1 merged).
   const primary = pickPrimary(live.match, matches);
@@ -56,6 +53,16 @@ export async function GET() {
     Math.round(
       events.reduce((s, e) => s + (Number(e.delta) || 0), 0) * 10
     ) / 10;
+
+  const combat = live.combat || {
+    shots: 0,
+    hits: 0,
+    accuracyPct: null,
+    suppressTotal: 0,
+    suppressNow: [],
+    healGiven: 0,
+    healTaken: 0,
+  };
 
   return NextResponse.json({
     updatedAt: live.updatedAt,
@@ -94,20 +101,25 @@ export async function GET() {
           net,
         }
       : null,
-    history: memory.map((m) => ({
-      id: m.id,
-      server: m.server,
-      layerShort: m.layerShort,
-      startAt: m.startAt,
-      endAt: m.endAt,
-      net: m.net,
-      noks: m.noks ?? (m.events || []).filter((e) => e.kind === "nok").length,
-      gotNoks:
-        m.gotNoks ??
-        (m.events || []).filter((e) => e.kind === "gotnok").length,
-      kills: m.kills,
-      deaths: m.deaths,
-      revives: m.revives,
-    })),
+    combat,
   });
+}
+
+export async function POST(req: Request) {
+  const session = await getSession();
+  const steamId = session?.user?.steamId;
+  if (!canAccessKeechHunt(steamId)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+  let body: { action?: string } = {};
+  try {
+    body = (await req.json()) as { action?: string };
+  } catch {
+    body = {};
+  }
+  if (body.action !== "resetCombat") {
+    return NextResponse.json({ error: "bad_action" }, { status: 400 });
+  }
+  await requestKeechHuntCombatReset();
+  return NextResponse.json({ ok: true });
 }

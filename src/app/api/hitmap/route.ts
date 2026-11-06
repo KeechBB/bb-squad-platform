@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { snapshotKey, snapshotOrBuild } from "@/lib/diskSnapshot";
 import { prisma } from "@/lib/prisma";
 import {
   bonesForUser,
@@ -40,63 +41,78 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "bad day" }, { status: 400 });
   }
 
+  const body = await snapshotOrBuild(
+    `queries/hitmap-${snapshotKey([userId, steamId, matchId || "", day || ""])}.json`,
+    60_000,
+    async () => {
   if (userId) {
     const target = await prisma.user.findFirst({
       where: { id: userId, profileComplete: true },
       select: { id: true },
     });
     if (!target) {
-      return NextResponse.json({ error: "not found" }, { status: 404 });
+      return { error: "not found", status: 404 as const };
     }
 
     if (matchId) {
       const stats = await bonesForUserMatch(userId, matchId);
       if (!stats) {
-        return NextResponse.json({ error: "match not found" }, { status: 404 });
+        return { error: "match not found", status: 404 as const };
       }
-      return NextResponse.json({
+      return {
         ok: true,
         matchId,
         day: null,
         bones: stats.bones,
         total: stats.total,
         lastBone: stats.lastBone,
-      });
+      };
     }
 
     const stats = await bonesForUser(userId, { dayYmd: day });
-    return NextResponse.json({
+    return {
       ok: true,
       matchId: null,
       day,
       bones: stats.bones,
       total: stats.total,
       lastBone: stats.lastBone,
-    });
+    };
   }
 
   if (matchId) {
     const stats = await bonesForSteamMatch([steamId], matchId);
     if (!stats) {
-      return NextResponse.json({ error: "match not found" }, { status: 404 });
+      return { error: "match not found", status: 404 as const };
     }
-    return NextResponse.json({
+    return {
       ok: true,
       matchId,
       day: null,
       bones: stats.bones,
       total: stats.total,
       lastBone: stats.lastBone,
-    });
+    };
   }
 
   const stats = await bonesForSteamIds([steamId], { dayYmd: day });
-  return NextResponse.json({
+  return {
     ok: true,
     matchId: null,
     day,
     bones: stats.bones,
     total: stats.total,
     lastBone: stats.lastBone,
+  };
+    }
+  );
+
+  if ("status" in body && body.status === 404) {
+    return NextResponse.json({ error: body.error }, { status: 404 });
+  }
+  return NextResponse.json(body, {
+    headers: {
+      "Cache-Control": "private, max-age=30, stale-while-revalidate=120",
+    },
   });
 }

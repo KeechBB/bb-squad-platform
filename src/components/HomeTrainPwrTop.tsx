@@ -38,7 +38,7 @@ export function HomeTrainPwrTop({ initial, viewerNick = null }: Props) {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch("/api/home-train-pwr", { cache: "no-store" });
+      const res = await fetch("/api/home-train-pwr");
       if (!res.ok) return;
       const next = (await res.json()) as HomeTrainPwrBoard;
       setData(next);

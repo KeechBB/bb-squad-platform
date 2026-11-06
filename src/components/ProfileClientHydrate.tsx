@@ -42,29 +42,21 @@ type PublicSummary = {
   } | null;
 } | null;
 
-type TrainingBundle = {
-  tr1: {
-    sessions: unknown[];
-    presentDays: string[];
-    lateDays: string[];
-    reserveDays: string[];
-    dayOffDays: string[];
-    visitBounds: Record<string, { joinHm: string; leaveHm: string | null }>;
-    minutes30d: number;
-    sessions30d: number;
-    openNow: boolean;
-  };
-  tr2: {
-    sessions: unknown[];
-    presentDays: string[];
-    lateDays: string[];
-    reserveDays: string[];
-    dayOffDays: string[];
-    visitBounds: Record<string, { joinHm: string; leaveHm: string | null }>;
-    minutes30d: number;
-    sessions30d: number;
-    openNow: boolean;
-  };
+type AttendanceLane = {
+  sessions: unknown[];
+  presentDays: string[];
+  lateDays: string[];
+  reserveDays: string[];
+  dayOffDays: string[];
+  visitBounds: Record<string, { joinHm: string; leaveHm: string | null }>;
+  minutes30d: number;
+  sessions30d: number;
+  openNow: boolean;
+};
+
+type TrainingBundle = Partial<AttendanceLane> & {
+  tr1: AttendanceLane;
+  tr2: AttendanceLane;
 };
 
 type PublicAtt = {
@@ -322,17 +314,19 @@ export function ProfileClientHydrate({
     };
     const preferredServer =
       mode === "public" ? "PB1" : mode === "train" ? "TR1" : undefined;
+    const main = Array.isArray(training.presentDays) ? training : training.tr1;
     return (
       <TrainingSessionsCard
-        sessions={training.tr1.sessions as never}
-        presentDays={training.tr1.presentDays}
-        lateDays={training.tr1.lateDays}
-        reserveDays={training.tr1.reserveDays}
-        dayOffDays={training.tr1.dayOffDays}
-        visitBounds={training.tr1.visitBounds}
-        minutes30d={training.tr1.minutes30d}
-        sessions30d={training.tr1.sessions30d}
-        openNow={training.tr1.openNow}
+        sessions={main.sessions as never}
+        presentDays={main.presentDays}
+        lateDays={main.lateDays}
+        reserveDays={main.reserveDays}
+        dayOffDays={main.dayOffDays}
+        visitBounds={main.visitBounds}
+        minutes30d={main.minutes30d}
+        sessions30d={main.sessions30d}
+        openNow={main.openNow}
+        allTraining
         includeMatchHistory={false}
         absenceSlot={absenceSlot}
         preferredServer={preferredServer}

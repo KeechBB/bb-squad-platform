@@ -122,8 +122,18 @@ class VehicleRpEngine:
                 continue
             if not R._is_component_pawn(hid):
                 continue
-            hn = R._veh_id_num(hid)
-            if hn is None or abs(hn - body_n) >= R._HULL_LINK_DIST:
+            fwd = R._forward_hull_dist(hid, body_vid)
+            if fwd is None:
+                continue
+            closer = False
+            for other, om in self.hulls.items():
+                if other == body_vid or om.get("absorbed") or R._is_component_pawn(other):
+                    continue
+                od = R._forward_hull_dist(hid, other)
+                if od is not None and od < fwd:
+                    closer = True
+                    break
+            if closer:
                 continue
             ha = str(h.get("asset") or "")
             if ha and not R._asset_same_vehicle(ha, body_asset):
@@ -134,6 +144,13 @@ class VehicleRpEngine:
                 if not key:
                     continue
                 seat_i = int(seat)
+                role = roles.get(seat, roles.get(seat_i)) or R.vehicle_seat_role(
+                    body_asset, seat_i, hid
+                )
+                if role not in ("driver", "gunner") and (
+                    body.get("seat_roles") or {}
+                ).get(seat_i) in ("driver", "gunner"):
+                    continue
                 body.setdefault("seats", {})[seat_i] = key
                 if seat in roles or seat_i in roles:
                     body.setdefault("seat_roles", {})[seat_i] = roles.get(
@@ -154,23 +171,23 @@ class VehicleRpEngine:
     def _resolve_hull_id(self, asset: str, instance: str, seat: int) -> str:
         if not instance:
             return ""
-        if seat == 0:
+        if seat == 0 or not R._is_component_pawn(instance):
             self.pawn_to_hull[instance] = instance
             return instance
         if instance in self.pawn_to_hull:
             return self.pawn_to_hull[instance]
-        inst_n = R._veh_id_num(instance)
         best, best_d = "", 10**18
         for hid, meta in self.hulls.items():
-            if asset and meta.get("asset") and meta["asset"] != asset:
+            if meta.get("dead") or meta.get("absorbed") or R._is_component_pawn(hid):
                 continue
-            hid_n = R._veh_id_num(hid)
-            if inst_n is None or hid_n is None:
+            meta_asset = str(meta.get("asset") or "")
+            if asset and meta_asset and not R._asset_same_vehicle(asset, meta_asset):
                 continue
-            d = abs(hid_n - inst_n)
-            if d < best_d and d < 500:
-                best_d = d
-                best = hid
+            d = R._forward_hull_dist(instance, hid)
+            if d is None or d >= best_d:
+                continue
+            best_d = d
+            best = hid
         if best:
             self.pawn_to_hull[instance] = best
             return best

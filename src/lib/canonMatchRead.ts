@@ -22,6 +22,33 @@ const CW_MONTH = /^data\/(\d{4}-\d{2})\.json$/i;
 const TRAIN_PLAYERS = /^data\/training\/players\/([^/]+)\.json$/i;
 const CW_PLAYERS = /^data\/players\/([^/]+)\.json$/i;
 
+/** Calendar row only. rawJson and the player table stay out of a menu open. */
+const MONTH_SELECT = {
+  legacyId: true,
+  day: true,
+  timeMsk: true,
+  mapName: true,
+  mode: true,
+  size: true,
+  serverLabel: true,
+  serverKey: true,
+  factionA: true,
+  ticketsA: true,
+  factionB: true,
+  ticketsB: true,
+  winner: true,
+  status: true,
+  source: true,
+  note: true,
+  verifiedAt: true,
+  opp: true,
+  rules: true,
+  stack: true,
+  meeting: true,
+  r1: true,
+  r2: true,
+} as const;
+
 export function isCanonKvRel(rel: string): boolean {
   const r = rel.replace(/^\/+/, "");
   return (
@@ -40,7 +67,17 @@ type MonthDoc = {
   [k: string]: unknown;
 };
 
-function playerPublic(p: CanonMatchPlayer): Record<string, unknown> {
+function playerPublic(p: {
+  nick: string;
+  kills: number;
+  deaths: number;
+  nok: number;
+  res: number;
+  dmg: number | null;
+  vehicleKills: number | null;
+  won: boolean | null;
+  rawJson: CanonMatchPlayer["rawJson"];
+}): Record<string, unknown> {
   const raw =
     p.rawJson && typeof p.rawJson === "object" && !Array.isArray(p.rawJson)
       ? (p.rawJson as Record<string, unknown>)
@@ -58,7 +95,33 @@ function playerPublic(p: CanonMatchPlayer): Record<string, unknown> {
   };
 }
 
-function trainRowFromCanon(m: CanonMatch): Record<string, unknown> {
+type MonthRow = {
+  legacyId: string | null;
+  day: number;
+  timeMsk: string | null;
+  mapName: string;
+  mode: string | null;
+  size: string | null;
+  serverLabel: string | null;
+  serverKey: string | null;
+  factionA: string | null;
+  ticketsA: number | null;
+  factionB: string | null;
+  ticketsB: number | null;
+  winner: string | null;
+  status: string | null;
+  source: CanonMatch["source"];
+  note: string | null;
+  verifiedAt: Date | null;
+  opp: string | null;
+  rules: string | null;
+  stack: string | null;
+  meeting: string | null;
+  r1: string | null;
+  r2: string | null;
+};
+
+function trainRowFromCanon(m: MonthRow): Record<string, unknown> {
   return {
     id: m.legacyId,
     day: m.day,
@@ -82,7 +145,7 @@ function trainRowFromCanon(m: CanonMatch): Record<string, unknown> {
   };
 }
 
-function cwRowFromCanon(m: CanonMatch): Record<string, unknown> {
+function cwRowFromCanon(m: MonthRow): Record<string, unknown> {
   return {
     id: m.legacyId,
     day: m.day,
@@ -131,6 +194,7 @@ async function mergeTrainMonth(
   const rows = await prisma.canonMatch.findMany({
     where: { kind: "TRAIN", year, month },
     orderBy: [{ day: "asc" }, { timeMsk: "asc" }],
+    select: MONTH_SELECT,
   });
   if (!rows.length) return disk;
 
@@ -186,6 +250,7 @@ async function mergeCwMonth(
   const rows = await prisma.canonMatch.findMany({
     where: { kind: "CW", year, month },
     orderBy: [{ day: "asc" }, { timeMsk: "asc" }],
+    select: MONTH_SELECT,
   });
   if (!rows.length) return disk;
 
@@ -247,11 +312,37 @@ function diskHasCwRoster(diskData: unknown | null): boolean {
   return Boolean((d.r1 && d.r1.length) || (d.r2 && d.r2.length));
 }
 
+const PLAYER_SELECT = {
+  side: true,
+  round: true,
+  nick: true,
+  kills: true,
+  deaths: true,
+  nok: true,
+  res: true,
+  dmg: true,
+  vehicleKills: true,
+  won: true,
+  rawJson: true,
+} as const;
+
 async function trainPlayersDoc(legacyId: string): Promise<object | null> {
   const m = await prisma.canonMatch.findFirst({
     where: { kind: "TRAIN", legacyId },
-    include: { players: true },
     orderBy: { updatedAt: "desc" },
+    select: {
+      mapName: true,
+      mode: true,
+      serverLabel: true,
+      serverKey: true,
+      winner: true,
+      factionA: true,
+      ticketsA: true,
+      factionB: true,
+      ticketsB: true,
+      note: true,
+      players: { select: PLAYER_SELECT },
+    },
   });
   if (!m || !m.players.length) return null;
   const teamA = m.players
@@ -279,8 +370,14 @@ async function trainPlayersDoc(legacyId: string): Promise<object | null> {
 async function cwPlayersDoc(legacyId: string): Promise<object | null> {
   const m = await prisma.canonMatch.findFirst({
     where: { kind: "CW", legacyId },
-    include: { players: true },
     orderBy: { updatedAt: "desc" },
+    select: {
+      opp: true,
+      note: true,
+      serverLabel: true,
+      mapName: true,
+      players: { select: PLAYER_SELECT },
+    },
   });
   if (!m || !m.players.length) return null;
   const pick = (round: number, side: string) =>
@@ -320,21 +417,11 @@ export async function resolveCanonKvJson(
   try {
     let m = rel.match(TRAIN_MONTH);
     if (m) {
-      const [year, month] = m[1].split("-").map(Number);
-      const n = await prisma.canonMatch.count({
-        where: { kind: "TRAIN", year, month },
-      });
-      if (!n) return null;
       const out = await mergeTrainMonth(m[1], (diskData as MonthDoc) || null);
       return out ? { data: out, fromCanon: true } : null;
     }
     m = rel.match(CW_MONTH);
     if (m) {
-      const [year, month] = m[1].split("-").map(Number);
-      const n = await prisma.canonMatch.count({
-        where: { kind: "CW", year, month },
-      });
-      if (!n) return null;
       const out = await mergeCwMonth(m[1], (diskData as MonthDoc) || null);
       return out ? { data: out, fromCanon: true } : null;
     }

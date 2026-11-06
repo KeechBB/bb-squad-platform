@@ -202,6 +202,9 @@ def empty_acc(nick: str) -> dict:
         "dmgFromVeh": 0.0,
         "noPen": 0,
         "zones": {z: 0.0 for z in ZONES},
+        # время в слотах тяжёлой (сек) — для роли мехвод/наводчик, в UI не показываем
+        "seatDriverSec": 0.0,
+        "seatGunnerSec": 0.0,
     }
 
 
@@ -211,9 +214,11 @@ def process_log(
     t1: datetime | None,
     acc: dict[str, dict],
 ) -> None:
-    seats: dict[str, tuple[str, int, str]] = {}
+    # key -> (asset, seat, role, entered_at)
+    seats: dict[str, tuple[str, int, str, datetime]] = {}
     pending: list[tuple[datetime, str, str, float]] = []
     recent_hitters: list[tuple[datetime, str]] = []
+    last_at: datetime | None = None
 
     def key_of(nick: str) -> str:
         n = strip_tag(nick)
@@ -225,11 +230,31 @@ def process_log(
             acc[k] = empty_acc(strip_tag(nick))
         return k
 
+    def credit_seat_time(k: str, asset: str, role: str, t_enter: datetime, t_leave: datetime) -> None:
+        if role not in ("driver", "gunner"):
+            return
+        if not R.is_train_armor_vehicle(asset):
+            return
+        sec = (t_leave - t_enter).total_seconds()
+        if sec <= 0 or sec > 6 * 3600:
+            return
+        if role == "driver":
+            acc[k]["seatDriverSec"] = float(acc[k].get("seatDriverSec") or 0) + sec
+        else:
+            acc[k]["seatGunnerSec"] = float(acc[k].get("seatGunnerSec") or 0) + sec
+
+    def leave_seat(k: str, at: datetime) -> None:
+        st = seats.pop(k, None)
+        if not st:
+            return
+        asset, _seat, role, t_enter = st
+        credit_seat_time(k, asset, role, t_enter, at)
+
     def in_armor_crew(k: str) -> bool:
         st = seats.get(k)
         if not st:
             return False
-        asset, _seat, role = st
+        asset, _seat, role, _t = st
         return role in ("driver", "gunner") and R.is_train_armor_vehicle(asset)
 
     def note_hitter(at: datetime, nick: str) -> None:
@@ -298,7 +323,11 @@ def process_log(
             if t0 and at < t0:
                 continue
             if t1 and at >= t1:
-                continue
+                # закрыть открытые слоты на границе матча
+                for k in list(seats.keys()):
+                    leave_seat(k, t1)
+                break
+            last_at = at
 
             em = R.ENTERED_VEH_RE.search(line)
             if em:
@@ -306,12 +335,15 @@ def process_log(
                 asset = (em.group("asset") or "").strip()
                 seat = int(em.group("seat") or 0)
                 k = ensure(nick)
+                # смена места / ре-энтер — сначала закрыть старый слот
+                if k in seats:
+                    leave_seat(k, at)
                 role = R.vehicle_seat_role(asset, seat, em.group("pawn") or "")
-                seats[k] = (asset, seat, role)
+                seats[k] = (asset, seat, role, at)
                 continue
             xm = R.EXITED_VEH_RE.search(line)
             if xm:
-                seats.pop(key_of(xm.group("nick")), None)
+                leave_seat(key_of(xm.group("nick")), at)
                 continue
 
             # Башня: Seat TakeDamage на turret-pawn
@@ -421,6 +453,11 @@ def process_log(
 
         # хвост: башни без пары damage-taken
         flush_turrets_by_time(None)
+        # кто остался в технике до конца куска лога
+        end_t = t1 or last_at
+        if end_t is not None:
+            for k in list(seats.keys()):
+                leave_seat(k, end_t)
 
 
 def main() -> int:
@@ -454,6 +491,26 @@ def main() -> int:
             z: (round(100.0 * float(zones.get(z) or 0) / zsum, 1) if zsum > 0 else 0.0)
             for z in ZONES
         }
+        dsec = float(v.get("seatDriverSec") or 0)
+        gsec = float(v.get("seatGunnerSec") or 0)
+        tsec = dsec + gsec
+        crew_role = None
+        crew_label = "—"
+        crew_score = 0.0
+        if tsec > 1:
+            # Больше половины времени в слоте — роль без процента.
+            if gsec > dsec:
+                crew_role = "gunner"
+                crew_label = "Наводчик"
+                crew_score = gsec / tsec
+            elif dsec > gsec:
+                crew_role = "driver"
+                crew_label = "Водитель"
+                crew_score = dsec / tsec
+            else:
+                crew_role = "split"
+                crew_label = "50/50"
+                crew_score = 0.5
         row = {
             "nick": nick,
             "dmgToVeh": round(float(v.get("dmgToVeh") or 0), 1),
@@ -461,6 +518,13 @@ def main() -> int:
             "noPen": int(v.get("noPen") or 0),
             "zones": {z: round(float(zones.get(z) or 0), 1) for z in ZONES},
             "zonePct": zone_pct,
+            "seatDriverSec": round(dsec, 1),
+            "seatGunnerSec": round(gsec, 1),
+            "crewRole": crew_role,
+            "crewRoleLabel": crew_label,
+            "crewRoleScore": round(crew_score, 3),
+            "crewDriverPct": round(100.0 * dsec / tsec, 1) if tsec > 1 else 0.0,
+            "crewGunnerPct": round(100.0 * gsec / tsec, 1) if tsec > 1 else 0.0,
         }
         by_nick[nick.lower()] = row
 

@@ -1,4 +1,4 @@
-import { readFile } from "fs/promises";
+import { mkdir, readFile, writeFile } from "fs/promises";
 import { join } from "path";
 import { isBuiltinSuperAdmin } from "@/lib/admin";
 import {
@@ -64,4 +64,15 @@ export async function readKeechHuntMatch(
   if (live.match?.id === want) return live.match;
   const mem = await readKeechHuntMemory();
   return mem.find((m) => m.id === want) || null;
+}
+
+/** Signal collector to zero combat measure (shots/hits/%/suppress + combat log). */
+export async function requestKeechHuntCombatReset(): Promise<void> {
+  const dir = huntDir();
+  await mkdir(dir, { recursive: true });
+  await writeFile(
+    join(dir, "reset-combat.flag"),
+    new Date().toISOString() + "\n",
+    "utf8"
+  );
 }

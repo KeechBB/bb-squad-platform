@@ -12,7 +12,7 @@ import {
   ProfileMatchStatsModal,
   type MatchStatsOpen,
 } from "@/components/ProfileMatchStatsModal";
-import { ListPager, pageSlice } from "@/components/ListPager";
+import { ListPager } from "@/components/ListPager";
 import { useProfileHistoryPage } from "@/hooks/useProfileHistoryPage";
 import { useFitPageSize } from "@/hooks/useFitPageSize";
 
@@ -108,6 +108,8 @@ type Props = AttendanceLaneProps & {
   >;
   /** Скрыть блок минут/вечеров — больше места под календарь */
   hideStatRow?: boolean;
+  /** Основная полоса — все тренировочные серверы, не только TR1. */
+  allTraining?: boolean;
 };
 
 type TrainServer = "TR1" | "TR2" | "PB1";
@@ -206,6 +208,39 @@ function dayMark(
   return "absent";
 }
 
+/** Если текущий месяц пуст — открыть месяц последней отметки (иначе после 1-го числа кажется, что данные «пропали»). */
+function monthFromMarkedDays(
+  days: Iterable<string>,
+  todayYmd: string
+): { y: number; m: number } {
+  const [ty, tm] = todayYmd.split("-").map(Number);
+  const curPrefix = todayYmd.slice(0, 7);
+  let latest: string | null = null;
+  for (const raw of days) {
+    const d = String(raw || "").slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || d > todayYmd) continue;
+    if (d.startsWith(curPrefix)) return { y: ty, m: tm };
+    if (!latest || d > latest) latest = d;
+  }
+  if (!latest) return { y: ty, m: tm };
+  const [y, m] = latest.split("-").map(Number);
+  return { y, m };
+}
+
+function collectMarkedDays(lane: {
+  presentDays?: string[];
+  lateDays?: string[];
+  reserveDays?: string[];
+  dayOffDays?: string[];
+}): string[] {
+  return [
+    ...(lane.presentDays || []),
+    ...(lane.lateDays || []),
+    ...(lane.reserveDays || []),
+    ...(lane.dayOffDays || []),
+  ];
+}
+
 function buildMonthGrid(year: number, month: number) {
   const first = new Date(Date.UTC(year, month - 1, 1));
   const startDow = first.getUTCDay();
@@ -222,11 +257,14 @@ function buildMonthGrid(year: number, month: number) {
 
 export function TrainingMatchHistory({
   matchHistory = [],
+  historyTotal,
   highlightNick,
   title = "История матчей тренировок",
   hideTitle = false,
 }: {
   matchHistory?: TrainMatchHistoryRow[];
+  /** Сколько матчей всего. Если не передано — длина уже пришедшего списка. */
+  historyTotal?: number;
   highlightNick?: string;
   title?: string;
   /** когда снаружи уже вкладки */
@@ -240,21 +278,19 @@ export function TrainingMatchHistory({
     highlightNick,
     "train",
     page,
-    pageSize
+    pageSize,
+    { rows: matchHistory, total: historyTotal }
   );
-  const local = pageSlice(matchHistory, page, pageSize);
-  const sliced = remote.active && !remote.failed
-    ? {
-        page,
-        pageCount: remote.pageCount,
-        total: remote.total,
-        rows: remote.rows,
-      }
-    : local;
+  const sliced = {
+    page,
+    pageCount: remote.pageCount,
+    total: remote.total,
+    rows: remote.rows,
+  };
 
   useEffect(() => {
     setPage(1);
-  }, [highlightNick, matchHistory.length, pageSize]);
+  }, [highlightNick]);
 
   return (
     <section className="card profile-hist-card profile-train-hist-card profile-hist-paged">
@@ -289,7 +325,7 @@ export function TrainingMatchHistory({
               </tr>
             </thead>
             <tbody>
-              {pageSize < 1 || (remote.active && remote.loading && sliced.rows.length === 0) ? (
+              {remote.loading && sliced.rows.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="muted">
                     Загрузка истории тренировок…
@@ -412,6 +448,7 @@ export function TrainingSessionsCard({
   cwMode = false,
   cwByDay = {},
   hideStatRow = false,
+  allTraining = false,
 }: Props) {
   const [server, setServer] = useState<TrainServer>(
     preferredServer || "TR1"
@@ -496,7 +533,9 @@ export function TrainingSessionsCard({
     ? "мин на PB1 / 30 дн"
     : isTr2
       ? "мин 21–00 / 30 дн · TR2"
-      : "мин 21–00 / 30 дн · TR1";
+      : allTraining
+        ? "мин 21–00 / 30 дн"
+        : "мин 21–00 / 30 дн · TR1";
   const avgLabel = isPb1 ? "сред. мин / день" : "сред. мин / вечер";
   const onlineLabel = isPb1
     ? "сейчас на PB1"
@@ -509,7 +548,9 @@ export function TrainingSessionsCard({
       ? "Календарь паблика (PB1)"
       : isTr2
         ? "Календарь тренировок (TR2)"
-        : "Календарь тренировок (TR1)";
+        : allTraining
+          ? "Календарь тренировок"
+          : "Календарь тренировок (TR1)";
 
   const cells = buildMonthGrid(viewY, viewM);
 

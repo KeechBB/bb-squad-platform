@@ -78,6 +78,7 @@ export function AttendEveningTiers() {
   }, [load]);
 
   useAutoRefresh(() => void load({ silent: true }), {
+    sse: true,
     intervalMs: 60_000,
     kinds: ["attendance"],
   });

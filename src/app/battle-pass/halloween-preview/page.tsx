@@ -29,7 +29,7 @@ export default async function HalloweenBattlePassPreviewPage() {
   return (
     <BattlePassClient
       selfNick={nick}
-      selfName={session.user.name || ""}
+      selfName=""
       selfAvatarUrl={session.user.avatarUrl || session.user.steamAvatar || null}
       selfProgress={mock.self}
       leaderboard={mock.board}

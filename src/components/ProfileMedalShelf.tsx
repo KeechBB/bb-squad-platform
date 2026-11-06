@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import {
   MEDAL_SHELF_SLOTS,
+  isProfileShelfAward,
   type ProfileMedalItem,
   type ProfileMedalSlot,
 } from "@/lib/profileMedalsShared";
@@ -20,13 +21,13 @@ function toSlots(
   slots: ProfileMedalSlot[] | undefined,
   items: ProfileMedalItem[] | undefined
 ): ProfileMedalSlot[] {
-  if (Array.isArray(slots) && slots.length) {
-    const out = slots.slice(0, MEDAL_SHELF_SLOTS);
-    while (out.length < MEDAL_SHELF_SLOTS) out.push(null);
-    return out;
-  }
-  const list = Array.isArray(items) ? items.slice(0, MEDAL_SHELF_SLOTS) : [];
-  const out: ProfileMedalSlot[] = [...list];
+  const list = (Array.isArray(items) ? items : []).filter(isProfileShelfAward);
+  const source = Array.isArray(slots) && slots.length
+    ? slots.slice(0, MEDAL_SHELF_SLOTS).map((slot) =>
+        slot && isProfileShelfAward(slot) ? slot : null
+      )
+    : list.slice(0, MEDAL_SHELF_SLOTS);
+  const out: ProfileMedalSlot[] = [...source];
   while (out.length < MEDAL_SHELF_SLOTS) out.push(null);
   return out;
 }
@@ -50,7 +51,7 @@ export function ProfileMedalShelf({ items, slots }: Props) {
         </span>
         {!hasAny ? (
           <p className="profile-medal-shelf-empty">
-            Полка пуста — выбери до 3 наград в «Кастомизация профиля → Награды».
+            Полка пуста — поставь до 3 медалей, кубков или знаков в «Кастомизация профиля → Награды».
           </p>
         ) : (
           <ul className="profile-medal-shelf-row">

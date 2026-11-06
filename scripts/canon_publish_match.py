@@ -55,6 +55,12 @@ def main() -> int:
         print("canon upsert failed / skipped", file=sys.stderr)
         return 2
     print(f"ok {args.kind.upper()} {args.legacy_id} → {cid}")
+    try:
+        from growth_queue import kick_growth_and_accuracy
+
+        kick_growth_and_accuracy(f"canon {args.kind.upper()} {args.legacy_id}")
+    except Exception as e:
+        print(f"growth queue skip: {e}", flush=True)
     # Phase 7: soft verify against siphon slice (never blocks publish)
     if os.environ.get("BB_VERIFY_AFTER_PUBLISH", "1").strip() not in ("0", "false", "no"):
         try:

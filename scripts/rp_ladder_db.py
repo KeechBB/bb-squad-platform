@@ -141,11 +141,27 @@ def upsert_ladder(scope: str, ladder: dict[str, Any]) -> dict[str, int]:
                 (scope_u,),
             )
             n_pl = 0
-            for _k, p in players.items():
+            seen_nk: set[str] = set()
+            # Highest RP wins if two player rows collapse to the same nickKey.
+            ordered = sorted(
+                players.items(),
+                key=lambda kv: (
+                    -float((kv[1] or {}).get("rp") or 0)
+                    if isinstance(kv[1], dict)
+                    else 0,
+                    -len((kv[1] or {}).get("matches") or [])
+                    if isinstance(kv[1], dict)
+                    else 0,
+                ),
+            )
+            for _k, p in ordered:
+                if not isinstance(p, dict):
+                    continue
                 nick = str(p.get("nick") or _k)
                 nk = nick_key(nick)
-                if not nk:
+                if not nk or nk in seen_nk:
                     continue
+                seen_nk.add(nk)
                 ms = p.get("matches") or []
                 cur.execute(
                     """

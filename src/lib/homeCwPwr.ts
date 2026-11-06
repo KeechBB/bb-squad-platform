@@ -612,7 +612,8 @@ export async function lookupPlayerCwPwr(
 }
 
 export async function buildPlayerCwMatchHistory(
-  nick: string
+  nick: string,
+  opts?: { steamId?: string | null }
 ): Promise<CwMatchHistoryRow[]> {
   const clean = String(nick || "").trim();
   if (!clean) return [];
@@ -628,6 +629,18 @@ export async function buildPlayerCwMatchHistory(
   const aliases = tiersRaw?.aliases || {};
   const resolveKey = (n: string) => resolveNickKeyShared(n, aliases);
   const want = resolveKey(clean);
+  const {
+    collisionBySiteNick,
+    collisionBySteamId,
+    loadSteamAngelTrainDays,
+    matchYmdAllowed,
+  } = await import("@/lib/nickCollisions");
+  const collision =
+    collisionBySteamId(opts?.steamId) || collisionBySiteNick(clean);
+  const steamDays =
+    collision?.steamId
+      ? await loadSteamAngelTrainDays(collision.steamId)
+      : null;
   const tierIndex = await loadTierIndex();
   const tier =
     tierIndex.get(want) || tierIndex.get(nickKey(clean)) || 4;
@@ -733,6 +746,8 @@ export async function buildPlayerCwMatchHistory(
     const match = matchMetas[mi];
     const players = playerDocs[mi];
     if (!players) continue;
+    const ymd = `${match.year}-${pad2(match.month)}-${pad2(match.day)}`;
+    if (!matchYmdAllowed(ymd, steamDays)) continue;
     const byNick = sumMeetingPlayersBothSides(players);
     let mine = byNick.get(want);
     if (!mine) {

@@ -257,6 +257,7 @@ function pickMvps(rows: PlayerRow[]): MvpBlock {
 }
 
 function kvUrl(path: string) {
+  if (path.startsWith("/api/")) return path;
   const clean = path.replace(/^\//, "");
   return `/kv-static/${clean}`;
 }
@@ -482,6 +483,20 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
             !hostRaw || /^(bb|blackberry)$/i.test(hostRaw) ? "BB" : hostRaw;
           const oppTag =
             String(json.opp || open.opp || "OPP").trim() || "OPP";
+          if (
+            !r1.length &&
+            !r2.length &&
+            !oppR1.length &&
+            !oppR2.length &&
+            String(open.playersUrl || "").includes("/api/tournaments/match/")
+          ) {
+            setError(
+              String(json.note || "").trim() ||
+                "Листа игроков по этой катке нет. Счёт встречи в шапке."
+            );
+            setLoading(false);
+            return;
+          }
           setData({
             total,
             bbTotal,

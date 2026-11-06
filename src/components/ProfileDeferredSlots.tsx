@@ -51,15 +51,16 @@ export async function ProfileTrainingSlot({ userId }: { userId: string }) {
 
   return (
     <TrainingSessionsCard
-      sessions={training.tr1.sessions}
-      presentDays={training.tr1.presentDays}
-      lateDays={training.tr1.lateDays}
-      reserveDays={training.tr1.reserveDays}
-      dayOffDays={training.tr1.dayOffDays}
-      visitBounds={training.tr1.visitBounds}
-      minutes30d={training.tr1.minutes30d}
-      sessions30d={training.tr1.sessions30d}
-      openNow={training.tr1.openNow}
+      sessions={training.sessions}
+      presentDays={training.presentDays}
+      lateDays={training.lateDays}
+      reserveDays={training.reserveDays}
+      dayOffDays={training.dayOffDays}
+      visitBounds={training.visitBounds}
+      minutes30d={training.minutes30d}
+      sessions30d={training.sessions30d}
+      openNow={training.openNow}
+      allTraining
       includeMatchHistory={false}
       tr2Lane={{
         sessions: training.tr2.sessions,

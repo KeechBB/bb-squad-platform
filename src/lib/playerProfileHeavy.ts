@@ -44,6 +44,8 @@ async function loadPlayerProfileHeavyUncached(
     };
   }
 
+  const { collisionBySiteNick } = await import("@/lib/nickCollisions");
+  const steamId = collisionBySiteNick(clean)?.steamId || null;
   const [kvBundle, trainCombat, publicCombat, ready] = await Promise.all([
     buildPlayerKvStats(clean)
       .then((stats) => ({ stats, error: null as string | null }))
@@ -51,7 +53,7 @@ async function loadPlayerProfileHeavyUncached(
         stats: null as PlayerKvStats | null,
         error: "Не удалось загрузить стату КВ" as string | null,
       })),
-    buildPlayerTrainCombatStats(clean).catch(() => null),
+    buildPlayerTrainCombatStats(clean, { steamId }).catch(() => null),
     buildPlayerPublicCombatStats(clean).catch(() => null),
     loadReadyHistories(clean).catch(() => null),
   ]);

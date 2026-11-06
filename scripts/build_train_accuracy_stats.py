@@ -243,8 +243,71 @@ def load_match_windows(train: Path, since: str) -> list[MatchWin]:
                     start=start_msk.astimezone(timezone.utc),
                 )
             )
+    out.extend(load_cw_windows(train, since, out))
     out.sort(key=lambda w: w.gte)
     return out
+
+
+def load_cw_windows(train: Path, since: str, train_wins: list[MatchWin]) -> list[MatchWin]:
+    """Clan-war rounds on our TR servers. Shots and hits count with training.
+
+    A round already covered by a training window is not added again. Vanilla
+    skirmish rows that were misfiled onto an FCL slot stay training-only.
+    Rounds under 8 minutes stay out, same as the growth ladders.
+    """
+    auto_path = train / "_auto_matches.json"
+    if not auto_path.is_file():
+        return []
+    try:
+        raw = json.loads(auto_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    items = raw if isinstance(raw, list) else list(raw.get("matches") or [])
+    extra: list[MatchWin] = []
+    for row in items:
+        if not isinstance(row, dict):
+            continue
+        mid = str(row.get("id") or "")
+        if "cw-skip" not in mid:
+            continue
+        bounds = iso_bounds(
+            {
+                "startUtc": row.get("startUtc") or row.get("start"),
+                "endUtc": row.get("endUtc") or row.get("end"),
+            }
+        )
+        if not bounds:
+            continue
+        start, end = bounds
+        if (end - start).total_seconds() < 8 * 60:
+            continue
+        msk_day = start.astimezone(MSK).strftime("%Y-%m-%d")
+        utc_day = start.astimezone(timezone.utc).strftime("%Y-%m-%d")
+        if msk_day < since and utc_day < since:
+            continue
+        layer = str(row.get("map") or row.get("layer") or "")
+        low = layer.lower()
+        if "skirmish" in low and not any(p in low for p in ("fcl", "csl", "sec")):
+            continue
+        overlaps = False
+        for w in train_wins:
+            if start < w.lt and w.start < end:
+                overlaps = True
+                break
+        if overlaps:
+            continue
+        extra.append(
+            MatchWin(
+                id=mid,
+                map=layer,
+                gte=(start - timedelta(seconds=PAD_START_SEC)).astimezone(timezone.utc),
+                lt=(end + timedelta(seconds=PAD_END_SEC)).astimezone(timezone.utc),
+                start=start.astimezone(timezone.utc),
+            )
+        )
+    if extra:
+        print(f"cw windows={len(extra)}", flush=True)
+    return extra
 
 
 def find_match(wins: list[MatchWin], ts: datetime) -> MatchWin | None:

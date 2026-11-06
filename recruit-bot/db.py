@@ -351,17 +351,54 @@ def delete_applicant(tg_id: int) -> bool:
         return cur.rowcount > 0
 
 
-def set_alert_sig(tg_id: int, sig: str) -> bool:
-    """True, если подпись новая и алерт надо послать."""
+def _split_alert_sig(raw: str | None) -> tuple[str, int]:
+    """alert_sig: plain или `sig|unix` для hourly cooldown."""
+    text = raw or ""
+    if "|" not in text:
+        return text, 0
+    base, _, ts = text.rpartition("|")
+    if ts.isdigit():
+        return base, int(ts)
+    return text, 0
+
+
+def set_alert_sig(tg_id: int, sig: str, *, cooldown_sec: int | None = None) -> bool:
+    """True, если алерт надо послать.
+
+    Без cooldown — один раз на подпись.
+    С cooldown — та же подпись снова не раньше чем через N секунд.
+    """
     with _lock:
         row = _c().execute(
             "SELECT alert_sig FROM applicants WHERE tg_id=?", (tg_id,)
         ).fetchone()
-        if row is None or row["alert_sig"] == sig:
+        if row is None:
             return False
+        raw = row["alert_sig"] or ""
+        prev_sig, prev_ts = _split_alert_sig(raw)
+        if raw == sig:
+            prev_sig = sig
+        now_ts = int(datetime.now(timezone.utc).timestamp())
+        if cooldown_sec is not None:
+            if prev_sig == sig:
+                if not prev_ts:
+                    # старый plain — зафиксировать время, не спамить сразу
+                    _c().execute(
+                        "UPDATE applicants SET alert_sig=?, updated_at=? WHERE tg_id=?",
+                        (f"{sig}|{now_ts}", now(), tg_id),
+                    )
+                    _c().commit()
+                    return False
+                if (now_ts - prev_ts) < cooldown_sec:
+                    return False
+            store = f"{sig}|{now_ts}"
+        else:
+            if prev_sig == sig or raw == sig:
+                return False
+            store = sig
         _c().execute(
             "UPDATE applicants SET alert_sig=?, updated_at=? WHERE tg_id=?",
-            (sig, now(), tg_id),
+            (store, now(), tg_id),
         )
         _c().commit()
         return True

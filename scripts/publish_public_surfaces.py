@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -101,7 +102,9 @@ def publish_match_rows(ladder: dict[str, Any], match_ids: set[str]) -> int:
             mid = str(m.get("id"))
             if mid not in want:
                 continue
-            if i == last_i and abs(running - official) <= 5:
+            # Top cell follows the badge. Rounding over a long history
+            # drifts by more than a point; a real missed map is far larger.
+            if i == last_i and abs(running - official) <= 25:
                 running = float(official)
             info = meta.get(mid) or {}
             played, date_label, time_label, sort_key = _labels(mid, info.get("date") or m.get("date"))
@@ -173,7 +176,7 @@ def publish_match_rows(ladder: dict[str, Any], match_ids: set[str]) -> int:
     return len(written)
 
 
-def _connect():
+def _connect(tries: int = 8):
     import sys
 
     sys.path.insert(0, str(HERE))
@@ -184,7 +187,16 @@ def _connect():
         raise RuntimeError("no database url")
     import psycopg2
 
-    return psycopg2.connect(db)
+    last: Exception | None = None
+    for i in range(tries):
+        try:
+            return psycopg2.connect(db, connect_timeout=10)
+        except Exception as e:
+            last = e
+            print(f"profile DB connect retry {i + 1}/{tries}: {e}", flush=True)
+            time.sleep(min(2 + i, 8))
+    assert last is not None
+    raise last
 
 
 def _write_rows(rows: list[tuple], stamps: set[str]) -> None:
@@ -256,6 +268,97 @@ def _write_rows(rows: list[tuple], stamps: set[str]) -> None:
         conn.close()
 
 
+def missing_profile_match_ids(ladder: dict[str, Any], tail: int = 40) -> list[str]:
+    """Recent ladder matches that never got a profile history row.
+
+    A later match can publish while an earlier one is still missing
+    (Yehorivka 20261102-0300: rating moved, history stayed on Fallujah).
+    Checking only the newest id hides that hole.
+    """
+    ids = [
+        str(m.get("id"))
+        for m in (ladder.get("matches") or [])
+        if isinstance(m, dict) and m.get("id")
+    ]
+    recent = ids[-tail:]
+    if not recent:
+        return []
+    conn = _connect()
+    try:
+        with conn.cursor() as cur:
+            # Only matches already stored in the ladder. A newer file can
+            # mention a map the rating has not committed yet.
+            cur.execute(
+                """
+                SELECT m."matchKey"
+                FROM "RpScoredMatch" m
+                WHERE m.scope = 'PUBLIC'
+                  AND m."matchKey" = ANY(%s)
+                  AND NOT EXISTS (
+                    SELECT 1 FROM "ProfileMatchLine" l
+                    WHERE l.kind = 'public' AND l."matchId" = m."matchKey"
+                  )
+                """,
+                (recent,),
+            )
+            missing = {row[0] for row in cur.fetchall()}
+    finally:
+        conn.close()
+    return [mid for mid in recent if mid in missing]
+
+
+def fill_profile_holes(ladder: dict[str, Any], tail: int = 40) -> int:
+    missing = missing_profile_match_ids(ladder, tail=tail)
+    if not missing:
+        return 0
+    print(f"profile holes: {missing}", flush=True)
+    return publish_match_rows(ladder, set(missing))
+
+
+def db_profile_holes(tail: int = 40) -> list[str]:
+    """Latest ladder matches that have no profile history row."""
+    conn = _connect(tries=2)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT m."matchKey"
+                FROM "RpScoredMatch" m
+                WHERE m.scope = 'PUBLIC'
+                  AND m."matchKey" IN (
+                    SELECT "matchKey" FROM "RpScoredMatch"
+                    WHERE scope = 'PUBLIC'
+                    ORDER BY "matchKey" DESC
+                    LIMIT %s
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1 FROM "ProfileMatchLine" l
+                    WHERE l.kind = 'public' AND l."matchId" = m."matchKey"
+                  )
+                ORDER BY m."matchKey"
+                """,
+                (tail,),
+            )
+            return [row[0] for row in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+def heal_recent_profile_holes(path: Path | None = None, tail: int = 40) -> int:
+    missing = db_profile_holes(tail=tail)
+    if not missing:
+        return 0
+    src = path or LADDER
+    if not src.is_file():
+        return 0
+    print(f"profile holes: {missing}", flush=True)
+    ladder = json.loads(src.read_text(encoding="utf-8"))
+    n = publish_match_rows(ladder, set(missing))
+    if n:
+        drop_rating_cache()
+    return n
+
+
 def catch_up(path: Path | None = None) -> None:
     """File already has the match, but the DB or the profile row might not."""
     src = path or LADDER
@@ -268,6 +371,7 @@ def catch_up(path: Path | None = None) -> None:
 
     ladder = json.loads(src.read_text(encoding="utf-8"))
     synced = False
+    sync_error: Exception | None = None
     try:
         meta_at = _meta_updated_at()
         file_at = src.stat().st_mtime
@@ -275,19 +379,17 @@ def catch_up(path: Path | None = None) -> None:
             RPDB.sync_required("PUBLIC", ladder)
             synced = True
     except Exception as e:
+        sync_error = e
         print(f"RP catch-up DB sync failed: {e}", flush=True)
-        raise
-    ids = [str(m.get("id")) for m in (ladder.get("matches") or []) if isinstance(m, dict) and m.get("id")]
-    if not ids:
-        if synced:
-            drop_rating_cache()
-        return
-    newest = sorted(ids)[-1]
-    if _profile_count(newest) == 0:
-        publish_match_rows(ladder, {newest})
-        synced = True
+    try:
+        if fill_profile_holes(ladder):
+            synced = True
+    except Exception as e:
+        print(f"profile hole fill failed: {e}", flush=True)
     if synced:
         drop_rating_cache()
+    if sync_error is not None:
+        raise sync_error
 
 
 def _meta_updated_at() -> float | None:

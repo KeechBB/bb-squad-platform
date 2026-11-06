@@ -12,6 +12,7 @@ declare module "next-auth" {
       nick?: string | null;
       age?: number | null;
       profileComplete: boolean;
+      clanMember?: boolean;
     } & DefaultSession["user"];
   }
 }

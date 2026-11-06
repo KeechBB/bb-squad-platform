@@ -98,12 +98,12 @@ def extract_window(log_path: Path, t0: datetime, t1: datetime, dest: Path) -> in
     n = 0
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_suffix(dest.suffix + ".tmp")
-    # Cap: skip extract if source huge and window long — still write meta+ref
+    # Stream the window even when the live log is large. Skipping here
+    # left match folders with extractedLines=0, so the detail card had
+    # no kills to show.
     try:
-        size = log_path.stat().st_size
+        log_path.stat().st_size
     except OSError:
-        return 0
-    if size > 80 * 1024 * 1024:
         return 0
     try:
         with log_path.open("r", encoding="utf-8", errors="replace") as inf, tmp.open(

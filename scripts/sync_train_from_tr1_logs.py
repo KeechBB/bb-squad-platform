@@ -1625,9 +1625,41 @@ def main() -> int:
     if not logs:
         print("no TR1 logs in cache", flush=True)
         return 0
+    # Discover only recent / live-ish logs. Старые 100–270MB «слайсы» (копии
+    # всего SquadGame.log под чужим именем) убивают cron на десятки минут и
+    # копят параллельные синки — карта уже сыграна, а в истории ещё пусто.
+    cutoff = datetime.now(timezone.utc) - timedelta(days=LOOKBACK_DAYS)
+    recent_logs: list[Path] = []
+    for p in logs:
+        name = p.name
+        try:
+            mtime = datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc)
+        except OSError:
+            continue
+        if name == "SquadGame.log" or name.startswith("SquadGame.log"):
+            recent_logs.append(p)
+            continue
+        # TR1-2026.11.04-04-albasrah.log → date in name
+        m = re.search(r"(20\d{2})[.\-](\d{2})[.\-](\d{2})", name)
+        if m:
+            try:
+                d0 = datetime(
+                    int(m.group(1)), int(m.group(2)), int(m.group(3)), tzinfo=timezone.utc
+                )
+            except ValueError:
+                d0 = None
+            if d0 and d0 >= cutoff - timedelta(days=1):
+                # skip bloated full-log copies pretending to be match pins
+                if p.stat().st_size > 80_000_000:
+                    continue
+                recent_logs.append(p)
+                continue
+        if mtime >= cutoff and p.stat().st_size <= 80_000_000:
+            recent_logs.append(p)
+    if recent_logs:
+        logs = sorted(set(recent_logs), key=lambda x: x.name)
     print(f"TR1 logs: {len(logs)} {[p.name for p in logs[:8]]}", flush=True)
 
-    cutoff = datetime.now(timezone.utc) - timedelta(days=LOOKBACK_DAYS)
     # 3 min, not the public 8 min floor: a full 8×8 after midnight can end
     # in 6–9 minutes. Smoke breaks still die on the roster check below.
     discovered = R.discover_matches(logs, min_sec=3 * 60)
@@ -1813,19 +1845,8 @@ def main() -> int:
             )
             continue
         if n_players < 12 or n_dies < 25:
-            auto.append(
-                {
-                    "id": f"{mid}-skip",
-                    "map": layer,
-                    "date": msk.strftime("%Y-%m-%d"),
-                    "log": log_path.name,
-                    "start": start_iso,
-                    "end": end.isoformat(),
-                    "skip": True,
-                    "note": f"авто-skip перекур/тонкая катка (players={n_players}, dies={n_dies})",
-                }
-            )
-            known_starts.add(start_iso)
+            # Не пишем в known_starts: при players=0 часто виноват неполный
+            # кэш лога / параллельный синк. Следующий прогон должен переоткрыть.
             print(
                 f"skip thin {layer} players={n_players} dies={n_dies} {start_iso}",
                 flush=True,
@@ -2007,25 +2028,6 @@ def main() -> int:
     except Exception as e:
         print(f"ensure_auto pins skip: {e}", flush=True)
 
-    if added:
-        # Точность рейтинга и «% точности» в профиле читают accuracy-stats.json.
-        # Без этого прогона новая катка в «Точн.» не появляется.
-        try:
-            import subprocess
-
-            rc = subprocess.call(
-                [
-                    sys.executable,
-                    str(HERE / "build_train_accuracy_stats.py"),
-                    "--since",
-                    "2026-10-20",
-                ],
-                cwd=str(HERE),
-            )
-            print(f"accuracy rebuild rc={rc}", flush=True)
-        except Exception as e:
-            print(f"accuracy rebuild skip: {e}", flush=True)
-
     # Post-ingest heal: catch anything written mid-run without a roster.
     n_heal_end = heal_missing_player_rosters(aliases)
     if n_heal_end:
@@ -2043,35 +2045,13 @@ def main() -> int:
 
 
 def _kick_growth_ladders() -> None:
-    """Стрелок, медик и лёгкая труба — сразу после заливки катки, не раз в час."""
-    import subprocess
-
-    script = Path("/var/www/bb-jobs/rebuild_growth_ladders.py")
-    if not script.is_file():
-        script = HERE / "rebuild_growth_ladders.py"
-    if not script.is_file():
-        print("growth ladders skip: script missing", flush=True)
-        return
-    log_path = Path("/var/log/bb-growth-ladders.log")
+    """Точность, попадания и лестницы — сразу после заливки, не раз в час."""
     try:
-        log_fh = log_path.open("a", encoding="utf-8")
-    except OSError:
-        log_fh = open(os.devnull, "w", encoding="utf-8")
-    cwd = "/var/www/bb-squad-platform"
-    if not Path(cwd).is_dir():
-        cwd = str(HERE)
-    subprocess.Popen(
-        [sys.executable, "-u", str(script)],
-        stdout=log_fh,
-        stderr=subprocess.STDOUT,
-        stdin=subprocess.DEVNULL,
-        start_new_session=True,
-        cwd=cwd,
-    )
-    print(
-        "growth ladders queued",
-        flush=True,
-    )
+        from growth_queue import kick_growth_and_accuracy
+
+        kick_growth_and_accuracy("train ingest")
+    except Exception as e:
+        print(f"growth queue skip: {e}", flush=True)
 
 
 if __name__ == "__main__":

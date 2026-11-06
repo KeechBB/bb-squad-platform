@@ -24,7 +24,7 @@ export function HomeCwPwrTop({ initial }: Props) {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch("/api/home-cw-pwr", { cache: "no-store" });
+      const res = await fetch("/api/home-cw-pwr");
       if (!res.ok) return;
       const next = (await res.json()) as HomeCwPwrBoard;
       setData(next);

@@ -38,7 +38,10 @@ export async function PATCH(req: Request) {
   } | null;
   const mailId = body?.id?.trim() || "";
   const action = body?.action || "";
-  if (!mailId || !["read", "favorite", "unfavorite", "delete"].includes(action)) {
+  if (
+    !mailId ||
+    !["read", "favorite", "unfavorite", "delete", "restore"].includes(action)
+  ) {
     return NextResponse.json({ error: "Некорректное письмо" }, { status: 400 });
   }
   const row = await prisma.profileMailRecipient.findUnique({
@@ -74,6 +77,13 @@ export async function PATCH(req: Request) {
         favoritedAt: null,
       },
     });
+  } else if (action === "restore") {
+    if (row.deletedAt) {
+      await prisma.profileMailRecipient.update({
+        where: { id: row.id },
+        data: { deletedAt: null },
+      });
+    }
   }
   const letters = await listMailForUser(userId);
   return NextResponse.json({ letters });

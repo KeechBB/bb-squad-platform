@@ -4,8 +4,10 @@ import { useEffect, useRef } from "react";
 import { subscribeLive } from "@/lib/liveClient";
 
 type Options = {
-  /** URL SSE (по умолчанию общий сайт-канал) */
+  /** URL SSE. Канал /api/live/site — только админка. */
   url?: string;
+  /** Открывать SSE. На публичных страницах выключено: канал модератора даёт 403. */
+  sse?: boolean;
   /** Fallback-поллинг, мс */
   intervalMs?: number;
   /** Доп. фильтр по типу события site (attendance | journal | …) */
@@ -23,6 +25,7 @@ export function useAutoRefresh(
 ) {
   const {
     url = "/api/live/site",
+    sse = false,
     intervalMs = 15000,
     kinds,
     enabled = true,
@@ -62,7 +65,9 @@ export function useAutoRefresh(
       debounce = window.setTimeout(run, 400);
     };
 
-    const unsub = subscribeLive(url, "site", (data) => schedule(data));
+    const unsub = sse
+      ? subscribeLive(url, "site", (data) => schedule(data))
+      : () => {};
 
     timer = window.setInterval(run, intervalMs);
 
@@ -78,5 +83,5 @@ export function useAutoRefresh(
       document.removeEventListener("visibilitychange", onVis);
       unsub();
     };
-  }, [url, intervalMs, enabled]);
+  }, [url, sse, intervalMs, enabled]);
 }

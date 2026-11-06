@@ -27,6 +27,19 @@ PLATFORM = HERE.parent
 OUT_DIR = PLATFORM / "data" / "keech-hunt"
 LIVE_PATH = OUT_DIR / "live.json"
 MEMORY_PATH = OUT_DIR / "memory.json"
+# Touched by admin UI «С нуля» — collector resets combat measure on next tick.
+RESET_COMBAT_PATH = OUT_DIR / "reset-combat.flag"
+_COMBAT_LOG_KINDS = frozenset(
+    {
+        "hit",
+        "gothit",
+        "suppress",
+        "gotsuppress",
+        "accuracy",
+        "heal",
+        "gotheal",
+    }
+)
 LEDGER_PATH = PLATFORM / "data" / "public" / "rp-ledger.json"
 TRAIN_LEDGER_PATHS = (
     PLATFORM / "data" / "kv-cache" / "data" / "training" / "rp-ledger.json",
@@ -82,6 +95,78 @@ HIT_RE = re.compile(
     r"Bone=<?(?P<bone>[^>\s]+)>?",
     re.I,
 )
+SHOT_LINE_RE = re.compile(r"BBAcuracy:\s*players?\s+shots:\s*(.+)$", re.I)
+SHOT_PAIR_RE = re.compile(
+    r'"player_id"\s*:\s*"([^"]+)"\s*,\s*"shots"\s*:\s*(\d+)', re.I
+)
+# Rare non-JSON dump (same shape as BB Suppression).
+SHOT_PAIR_LOOSE_RE = re.compile(
+    r"player_id:\s*([0-9a-fA-F]{8,32})\s+shots:\s*(\d+)", re.I
+)
+# BP_BBHealTracker (BBHitZoneLog) — medic HP given to another player.
+# Field names may vary slightly across mod builds; keep aliases.
+HEAL_LINE_RE = re.compile(
+    r"BBHealTracker:\s*"
+    r"(?:HealerEOS|MedicEOS|AttackerEOS|Healer|Medic)=<?(?P<healer>[0-9a-fA-F]{32}|none)>?\s+"
+    r"(?:PatientEOS|VictimEOS|TargetEOS|HealedEOS|Patient|Victim|Target)=<?(?P<patient>[0-9a-fA-F]{32}|none)>?\s+"
+    r"(?:Amount|Heal|HealAmount|HP|Value|Healed)=<?(?P<amount>[0-9]+(?:\.[0-9]+)?)>?",
+    re.I,
+)
+# Fallback: any BBHealTracker line with two 32-hex EOS + a number.
+HEAL_LOOSE_RE = re.compile(
+    r"BBHealTracker:[^\n]*?"
+    r"(?P<eos_a>[0-9a-fA-F]{32})[^\n]*?"
+    r"(?P<eos_b>[0-9a-fA-F]{32})[^\n]*?"
+    r"(?P<amount>[0-9]+(?:\.[0-9]+)?)",
+    re.I,
+)
+SUPPRESS_LINE_RE = re.compile(r"BB Suppression Inflicted:\s*\[(?P<body>.+)\]\s*$", re.I)
+SUPPRESS_PAIR_RE = re.compile(
+    r"player_id:\s*(?P<eos>[0-9a-fA-F]{0,32})\s+suppression:\s*(?P<sup>[0-9.]+)",
+    re.I,
+)
+ZONE_RU = {
+    "head": "голова",
+    "neck": "шея",
+    "uppertorso": "грудь",
+    "lowertorso": "живот",
+    "torso": "торс",
+    "abdomen": "живот",
+    "pelvis": "таз",
+    "limb": "конечность",
+    "arm": "рука",
+    "leg": "нога",
+}
+BONE_RU = {
+    "bip01_head": "голова",
+    "bip01_neck": "шея",
+    "bip01_spine2": "грудь",
+    "bip01_spine1": "торс",
+    "bip01_spine": "живот",
+    "bip01_pelvis": "таз",
+    "bip01_l_upperarm": "л. плечо",
+    "bip01_r_upperarm": "п. плечо",
+    "bip01_l_forearm": "л. предплечье",
+    "bip01_r_forearm": "п. предплечье",
+    "bip01_l_hand": "л. кисть",
+    "bip01_r_hand": "п. кисть",
+    "bip01_l_thigh": "л. бедро",
+    "bip01_r_thigh": "п. бедро",
+    "bip01_l_calf": "л. голень",
+    "bip01_r_calf": "п. голень",
+    "bip01_l_foot": "л. стопа",
+    "bip01_r_foot": "п. стопа",
+}
+# Plugin dumps the full suppress table rarely (tens of seconds). Hit→dump
+# must still attribute; fire-spray window covers near-misses without a hit.
+SUPPRESS_ATTRIB_SEC = 90.0
+# Infantry damage fallback when BBHitZone is silent (Jensen / some layers).
+INF_DMG_RE = re.compile(
+    r"TraceAndMessageClient\(\):\s*(?P<victim>.+?):\s*(?P<dmg>[\d.]+)\s+"
+    r"damage taken by causer\s+(?P<weapon>\S+).*?"
+    r"steam:\s*(?P<steam>7656\d+)",
+    re.I,
+)
 # Real spawn → kit (same filter as squad_log_collector DeployRole)
 DEPLOY_RE = re.compile(
     r"PC=(?P<nick>.+?)(?:\s+\(Online IDs:[^)]*\))?\s+"
@@ -114,9 +199,19 @@ def _layer_short(path: str) -> str:
     return p or "?"
 
 
+# Live Hunt: show Jensen/Seed too (testing). Memory archive still skips seed.
+HUNT_LIVE_ALLOW_SEED = True
+
+
 def _is_seed_layer(layer: str) -> bool:
-    """Jensen / Seed — не в Hunt-память и не в train RP."""
+    """Jensen / Seed — обычно не в память; live можно включить флагом."""
     return R.is_seed_layer(layer or "", "")
+
+
+def _block_live_seed(layer: str) -> bool:
+    if HUNT_LIVE_ALLOW_SEED:
+        return False
+    return _is_seed_layer(layer or "")
 
 
 def _norm_server(key: str) -> str:
@@ -153,16 +248,578 @@ class KeechHuntTracker:
         self._last_write = 0.0
         # Cache ledger RP maps — catchup was re-parsing ~300MB JSON per event.
         self._rp_map_cache: dict[str, tuple[float, dict[str, float], float]] = {}
+        # Live combat (shots / hits / suppress) for current Keech map.
+        self._combat_shots_total = 0
+        self._combat_shot_session_max = 0
+        self._combat_shot_prev = 0
+        self._combat_shot_started = False
+        self._combat_hits = 0
+        # True after at least one BBAcuracy row for Keech this measure/map.
+        self._combat_shots_known = False
+        self._combat_suppress_total = 0.0
+        self._suppress_last: dict[str, float] = {}
+        self._recent_hit_victims: dict[str, float] = {}  # eos -> unix ts (match)
+        self._recent_hit_nicks: dict[str, float] = {}  # nick_key -> unix ts
+        self._last_keech_fire_ts = 0.0  # last outgoing shot/hit
+        self._keech_suppress_on_me = 0.0
+        # eos credited for outgoing suppress this map (for chips + log)
+        self._suppress_credited: dict[str, float] = {}
+        self._last_acc_log_shots = 0  # throttle accuracy lines in LIVE LOG
+        # Medic heal (BBHealTracker): HP Keech gave / received this measure.
+        self._combat_heal_given = 0.0
+        self._combat_heal_taken = 0.0
+        # Measure-from-zero: count only BBAcuracy delta after admin reset.
+        self._measure_mode = False
+        self._measure_shot_base: int | None = None
+        self._combat_by_match: dict[str, dict[str, Any]] = {}
         OUT_DIR.mkdir(parents=True, exist_ok=True)
         self._hydrate_from_live()
         if not LIVE_PATH.is_file():
             self._write_live_empty()
+
+    def _keech_eos_id(self) -> str:
+        for e, s in self.eos_steam.items():
+            if s == KEECH_STEAM:
+                return (e or "").lower()
+        return ""
+
+    def _zone_label(self, zone: str, bone: str) -> str:
+        b = (bone or "").strip()
+        z = (zone or "").strip()
+        if b and b.lower() != "none":
+            ru = BONE_RU.get(b.lower())
+            if ru:
+                return ru
+            return b.replace("Bip01_", "").replace("_", " ")
+        if z and z.lower() != "none":
+            return ZONE_RU.get(z.lower(), z)
+        return "тело"
+
+    def _reset_combat_counters(self) -> None:
+        self._combat_shots_total = 0
+        self._combat_shot_session_max = 0
+        self._combat_shot_prev = 0
+        self._combat_shot_started = False
+        self._combat_hits = 0
+        self._combat_shots_known = False
+        self._combat_suppress_total = 0.0
+        self._suppress_last.clear()
+        self._recent_hit_victims.clear()
+        self._recent_hit_nicks.clear()
+        self._suppress_credited.clear()
+        self._last_keech_fire_ts = 0.0
+        self._keech_suppress_on_me = 0.0
+        self._last_acc_log_shots = 0
+        self._combat_heal_given = 0.0
+        self._combat_heal_taken = 0.0
+        self._measure_mode = False
+        self._measure_shot_base = None
+
+    def apply_combat_reset_if_needed(self) -> bool:
+        """Admin «С нуля»: zero combat counters + clear combat lines in LIVE LOG."""
+        if not RESET_COMBAT_PATH.is_file():
+            return False
+        try:
+            RESET_COMBAT_PATH.unlink(missing_ok=True)
+        except Exception:
+            try:
+                RESET_COMBAT_PATH.unlink()
+            except Exception:
+                return False
+        self._reset_combat_counters()
+        # Next BBAcuracy line becomes 0; until then shots stay 0.
+        self._measure_mode = True
+        self._measure_shot_base = None
+        # Strip combat noise from current open match(es); keep RP rows.
+        now = datetime.now(timezone.utc)
+        for srv, row in list(self.matches.items()):
+            if row.get("endAt"):
+                continue
+            evs = [
+                e
+                for e in (row.get("events") or [])
+                if (e.get("kind") or "") not in _COMBAT_LOG_KINDS
+            ]
+            row["events"] = evs
+            self.matches[srv] = row
+        # Marker in LIVE LOG
+        srv = self.keech_server or next(iter(self.matches), None) or "TR1"
+        self._add_event(
+            srv,
+            {
+                "id": f"acc-reset-{int(now.timestamp())}",
+                "kind": "accuracy",
+                "at": now.isoformat(),
+                "time": _msk_time(now),
+                "nick": "",
+                "delta": 0,
+                "oppWeight": 0,
+                "zone": "",
+                "bones": {},
+                "server": srv,
+                "label": "сброс замера · 0/0",
+                "shots": 0,
+                "hits": 0,
+                "accuracyPct": None,
+            },
+            now,
+        )
+        self._dirty = True
+        self._flush_if_needed(force=True)
+        return True
+
+    def _note_keech_shots(self, shots: int, at: datetime, server: str) -> None:
+        n = max(0, int(shots))
+        # After «С нуля» — take current plugin abs as zero baseline.
+        if self._measure_mode and (
+            self._measure_shot_base is None or not self._combat_shot_started
+        ):
+            self._measure_shot_base = n
+            self._combat_shot_prev = n
+            self._combat_shot_started = True
+            self._combat_shot_session_max = 0
+            self._combat_shots_total = 0
+            self._combat_shots_known = True
+            self._mark_keech_on(server)
+            self._dirty = True
+            return
+        grew = False
+        self._combat_shots_known = True
+        if self._measure_mode and self._measure_shot_base is not None:
+            base = int(self._measure_shot_base)
+            if n < self._combat_shot_prev:
+                # Counter wrap / reconnect — keep earned delta, new base at 0.
+                self._combat_shots_total += self._combat_shot_session_max
+                self._measure_shot_base = 0
+                self._combat_shot_session_max = n
+                self._combat_shot_prev = n
+                grew = n > 0
+            else:
+                new_delta = max(0, n - base)
+                grew = new_delta > self._combat_shot_session_max
+                self._combat_shot_session_max = new_delta
+                self._combat_shot_prev = n
+        elif not self._combat_shot_started:
+            self._combat_shot_session_max = n
+            self._combat_shot_prev = n
+            self._combat_shot_started = True
+            grew = n > 0
+        elif n < self._combat_shot_prev:
+            self._combat_shots_total += self._combat_shot_session_max
+            self._combat_shot_session_max = n
+            self._combat_shot_prev = n
+            grew = n > 0
+        else:
+            grew = n > self._combat_shot_prev
+            self._combat_shot_session_max = max(self._combat_shot_session_max, n)
+            self._combat_shot_prev = n
+        if grew:
+            self._last_keech_fire_ts = at.timestamp()
+            self._maybe_log_accuracy(at, server)
+        self._mark_keech_on(server)
+        self._dirty = True
+
+    def _shots_now(self) -> int:
+        """Only BBAcuracy plugin counts — never substitute hits (that faked 100%)."""
+        if not self._combat_shots_known:
+            return 0
+        total = self._combat_shots_total
+        if self._combat_shot_started:
+            total += self._combat_shot_session_max
+        return int(total)
+
+    def _accuracy_pct(self) -> float | None:
+        """hits / shots × 100. Need plugin shots ≥5; None if unknown/hits>shots."""
+        if not self._combat_shots_known:
+            return None
+        shots = self._shots_now()
+        hits = self._combat_hits
+        if shots < 5:
+            return None
+        if hits > shots:
+            return None
+        return round(min(100.0, (100.0 * hits) / shots), 1)
+
+    def _acc_fields(self) -> dict[str, Any]:
+        shots = self._shots_now()
+        hits = int(self._combat_hits)
+        pct = self._accuracy_pct()
+        return {
+            "shots": shots,
+            "hits": hits,
+            "accuracyPct": pct,
+            "shotsKnown": bool(self._combat_shots_known),
+        }
+
+    def _acc_label(self) -> str:
+        f = self._acc_fields()
+        shots, hits, pct = f["shots"], f["hits"], f["accuracyPct"]
+        if not f.get("shotsKnown"):
+            return f"хиты {hits} · выстрелы н/д (BBAcuracy пуст)"
+        if pct is None:
+            if shots < 5:
+                return f"{hits}/{shots} · ждём 5+ выстрелов"
+            return f"{hits}/{shots} · —"
+        return f"{hits}/{shots} = {pct}%"
+
+    def _maybe_log_accuracy(
+        self, at: datetime, server: str, *, force: bool = False
+    ) -> None:
+        """LIVE LOG line: хиты/выстрелы = %. Throttled on BBAcuracy growth."""
+        shots = self._shots_now()
+        if shots <= 0:
+            return
+        last = int(self._last_acc_log_shots or 0)
+        if not force and last > 0 and (shots - last) < 5:
+            return
+        if shots == last and not force:
+            return
+        self._last_acc_log_shots = shots
+        fields = self._acc_fields()
+        self._add_event(
+            server,
+            {
+                "id": f"acc-{server}-{int(at.timestamp())}-{shots}-{fields['hits']}",
+                "kind": "accuracy",
+                "at": at.isoformat(),
+                "time": _msk_time(at),
+                "nick": "",
+                "delta": 0,
+                "oppWeight": 0,
+                "zone": "",
+                "bones": {},
+                "server": server,
+                "label": self._acc_label(),
+                **fields,
+            },
+            at,
+        )
+
+    def _combat_payload(self) -> dict[str, Any]:
+        now_ts = time.time()
+        firing = (now_ts - self._last_keech_fire_ts) <= SUPPRESS_ATTRIB_SEC
+        top_clean: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for eos, val in sorted(self._suppress_last.items(), key=lambda kv: -kv[1]):
+            if val <= 0:
+                continue
+            credited = eos in self._suppress_credited or eos in self._recent_hit_victims
+            if not credited and not firing:
+                continue
+            nick = R.strip_tag(self.eos_nick.get(eos) or "") or eos[:8]
+            lk = R.nick_key(nick)
+            if not lk or lk in seen:
+                continue
+            seen.add(lk)
+            top_clean.append({"nick": nick, "value": int(val)})
+            if len(top_clean) >= 8:
+                break
+        return {
+            "shots": self._shots_now(),
+            "hits": int(self._combat_hits),
+            "accuracyPct": self._accuracy_pct(),
+            "shotsKnown": bool(self._combat_shots_known),
+            "suppressTotal": int(round(self._combat_suppress_total)),
+            "suppressNow": top_clean,
+            "suppressOnMe": int(round(self._keech_suppress_on_me)),
+            "healGiven": int(round(self._combat_heal_given)),
+            "healTaken": int(round(self._combat_heal_taken)),
+        }
+
+    def _feed_heal_line(self, line: str, at: datetime, server: str) -> None:
+        """Medic HP from BBHealTracker — Keech as healer or as patient."""
+        m = HEAL_LINE_RE.search(line)
+        healer = patient = ""
+        amount = 0.0
+        if m:
+            healer = (m.group("healer") or "").strip().lower()
+            patient = (m.group("patient") or "").strip().lower()
+            try:
+                amount = float(m.group("amount") or 0)
+            except Exception:
+                amount = 0.0
+        else:
+            lm = HEAL_LOOSE_RE.search(line)
+            if not lm:
+                return
+            healer = (lm.group("eos_a") or "").strip().lower()
+            patient = (lm.group("eos_b") or "").strip().lower()
+            try:
+                amount = float(lm.group("amount") or 0)
+            except Exception:
+                amount = 0.0
+        if amount <= 0 or healer in ("", "none") or patient in ("", "none"):
+            return
+        if healer == patient:
+            return  # self-heal — skip for now
+        keech_healer = self._is_keech_eos(healer)
+        keech_patient = self._is_keech_eos(patient)
+        if not keech_healer and not keech_patient:
+            return
+        self._mark_keech_on(server)
+        if keech_healer:
+            self._combat_heal_given += amount
+            nick = R.strip_tag(self.eos_nick.get(patient) or "") or patient[:8]
+            self._add_event(
+                server,
+                {
+                    "id": f"heal-{patient}-{at.timestamp():.3f}-{int(amount)}",
+                    "kind": "heal",
+                    "at": at.isoformat(),
+                    "time": _msk_time(at),
+                    "nick": nick,
+                    "delta": 0,
+                    "oppWeight": 0,
+                    "zone": "",
+                    "heal": amount,
+                    "bones": {},
+                    "server": server,
+                    "label": f"+{int(round(amount))} HP",
+                },
+                at,
+            )
+        elif keech_patient:
+            self._combat_heal_taken += amount
+            nick = R.strip_tag(self.eos_nick.get(healer) or "") or healer[:8]
+            self._add_event(
+                server,
+                {
+                    "id": f"gotheal-{healer}-{at.timestamp():.3f}-{int(amount)}",
+                    "kind": "gotheal",
+                    "at": at.isoformat(),
+                    "time": _msk_time(at),
+                    "nick": nick,
+                    "delta": 0,
+                    "oppWeight": 0,
+                    "zone": "",
+                    "heal": amount,
+                    "bones": {},
+                    "server": server,
+                    "label": f"+{int(round(amount))} HP",
+                },
+                at,
+            )
+
+    def _feed_shots_line(self, line: str, at: datetime, server: str) -> None:
+        sm = SHOT_LINE_RE.search(line)
+        if not sm:
+            return
+        body = (sm.group(1) or "").strip()
+        if not body or body == "{}":
+            return
+        keech_eos = self._keech_eos_id()
+        pairs = list(SHOT_PAIR_RE.finditer(body))
+        if not pairs:
+            pairs = list(SHOT_PAIR_LOOSE_RE.finditer(body))
+        for pm in pairs:
+            eos = (pm.group(1) or "").strip().lower()
+            shots = int(pm.group(2) or 0)
+            if not eos:
+                continue
+            if eos == keech_eos or self._is_keech_eos(eos):
+                self._note_keech_shots(shots, at, server)
+
+    def _feed_suppress_line(self, line: str, at: datetime, server: str) -> None:
+        sm = SUPPRESS_LINE_RE.search(line)
+        if not sm:
+            return
+        body = sm.group("body") or ""
+        if not body.strip() or body.strip() == "[]":
+            return
+        keech_eos = self._keech_eos_id()
+        now_ts = at.timestamp()
+        firing = (
+            self._last_keech_fire_ts > 0
+            and (now_ts - self._last_keech_fire_ts) <= SUPPRESS_ATTRIB_SEC
+        )
+        combat_active = firing or self._combat_hits > 0 or self._shots_now() > 0
+        for pm in SUPPRESS_PAIR_RE.finditer(body):
+            eos = (pm.group("eos") or "").strip().lower()
+            if not eos or len(eos) < 8:
+                continue
+            try:
+                val = float(pm.group("sup") or 0)
+            except Exception:
+                continue
+            prev = float(self._suppress_last.get(eos, 0.0) or 0.0)
+            self._suppress_last[eos] = val
+            on_me = eos == keech_eos or self._is_keech_eos(eos)
+            if on_me:
+                self._keech_suppress_on_me = val
+                # Log every rise on Keech — «всё, что касается».
+                if val > prev + 0.25:
+                    self._mark_keech_on(server)
+                    self._add_event(
+                        server,
+                        {
+                            "id": f"supme-{int(at.timestamp())}-{int(val)}",
+                            "kind": "gotsuppress",
+                            "at": at.isoformat(),
+                            "time": _msk_time(at),
+                            "nick": "ты",
+                            "delta": 0,
+                            "oppWeight": 0,
+                            "zone": "",
+                            "suppress": int(round(val)),
+                            "bones": {},
+                            "server": server,
+                            "label": f"на тебе · {int(round(val))}",
+                        },
+                        at,
+                    )
+                continue
+            if val <= prev + 0.25:
+                continue
+            # Hit this map (no time cap) OR fire-spray window OR Keech already
+            # in combat on this map (plugin dumps are sparse).
+            attributed = eos in self._recent_hit_victims or firing
+            if not attributed and combat_active and val >= 1.0:
+                attributed = True
+            if not attributed:
+                continue
+            delta = val - prev
+            self._combat_suppress_total += delta
+            self._suppress_credited[eos] = val
+            nick = R.strip_tag(self.eos_nick.get(eos) or "") or eos[:8]
+            self._mark_keech_on(server)
+            self._add_event(
+                server,
+                {
+                    "id": f"sup-{eos}-{int(at.timestamp())}-{int(val)}",
+                    "kind": "suppress",
+                    "at": at.isoformat(),
+                    "time": _msk_time(at),
+                    "nick": nick,
+                    "delta": 0,
+                    "oppWeight": 0,
+                    "zone": "",
+                    "suppress": int(round(val)),
+                    "bones": {},
+                    "server": server,
+                    "label": f"давишь · {int(round(val))}",
+                },
+                at,
+            )
+
+    def _emit_hit_event(
+        self,
+        *,
+        at: datetime,
+        server: str,
+        victim_eos: str,
+        zone: str,
+        bone: str,
+        damage: str,
+        nick: str | None = None,
+        count_shot: bool = False,  # unused; kept for call-site compat
+        incoming: bool = False,
+    ) -> None:
+        del count_shot  # shots come only from BBAcuracy, never from hits
+        disp = R.strip_tag(nick or "") or R.strip_tag(
+            self.eos_nick.get(victim_eos) or ""
+        ) or (victim_eos[:8] if victim_eos else "?")
+        where = self._zone_label(zone, bone)
+        if not incoming:
+            self._combat_hits += 1
+            self._last_keech_fire_ts = at.timestamp()
+            if victim_eos:
+                self._recent_hit_victims[victim_eos] = at.timestamp()
+            nk = R.nick_key(disp)
+            if nk:
+                self._recent_hit_nicks[nk] = at.timestamp()
+        else:
+            nk = R.nick_key(disp)
+        try:
+            dmg = float(damage)
+        except Exception:
+            dmg = 0.0
+        bones = {}
+        if bone and bone.lower() != "none":
+            bones[bone] = 1
+        kind = "gothit" if incoming else "hit"
+        ev: dict[str, Any] = {
+            "id": f"{kind}-{victim_eos or nk or disp}-{at.timestamp():.3f}-{bone or where}",
+            "kind": kind,
+            "at": at.isoformat(),
+            "time": _msk_time(at),
+            "nick": disp,
+            "delta": 0,
+            "oppWeight": 0,
+            "zone": where,
+            "damage": dmg,
+            "bones": bones,
+            "server": server,
+            "label": where,
+        }
+        if not incoming:
+            # На хите сразу видно, из чего сложилась точность.
+            ev.update(self._acc_fields())
+            ev["label"] = f"{where} · {self._acc_label()}"
+        self._add_event(server, ev, at)
+
+    def _feed_inf_damage_line(self, line: str, at: datetime, server: str) -> None:
+        """Fallback hit when BBHitZone is silent (common on Jensen)."""
+        m = INF_DMG_RE.search(line)
+        if not m:
+            return
+        steam = (m.group("steam") or "").strip()
+        victim = R.strip_tag(m.group("victim") or "")
+        if not victim:
+            return
+        # Incoming: someone damaged Keech.
+        if R.nick_key(victim) == "keech" and steam != KEECH_STEAM:
+            atk = ""
+            for e, s in self.eos_steam.items():
+                if s == steam:
+                    atk = self.eos_nick.get(e, "")
+                    break
+            if not atk:
+                atk = self.steam_nick.get(steam, "") or steam[-6:]
+            self._mark_keech_on(server)
+            self._emit_hit_event(
+                at=at,
+                server=server,
+                victim_eos="",
+                zone="Limb",
+                bone="",
+                damage=(m.group("dmg") or "").strip(),
+                nick=atk,
+                incoming=True,
+            )
+            return
+        # Outgoing: Keech damaged someone.
+        if steam != KEECH_STEAM:
+            return
+        if R.nick_key(victim) == "keech":
+            return
+        nk = R.nick_key(victim)
+        recent = self._recent_hit_nicks.get(nk)
+        if recent is not None and (at.timestamp() - recent) < 1.5:
+            return
+        veos = ""
+        for e, nick in self.eos_nick.items():
+            if R.nick_key(nick) == nk:
+                veos = e
+                break
+        self._mark_keech_on(server)
+        self._emit_hit_event(
+            at=at,
+            server=server,
+            victim_eos=veos,
+            zone="Limb",
+            bone="",
+            damage=(m.group("dmg") or "").strip(),
+            nick=victim,
+            count_shot=True,
+        )
 
     def _mark_keech_on(self, server: str) -> None:
         srv = _norm_server(server)
         if not srv:
             return
         if self.keech_server != srv:
+            if self.keech_server:
+                self._reset_combat_counters()
             self.keech_server = srv
             self._dirty = True
 
@@ -170,6 +827,7 @@ class KeechHuntTracker:
         srv = _norm_server(server)
         if self.keech_server == srv:
             self.keech_server = None
+            self._reset_combat_counters()
             self._dirty = True
 
     def _keech_here(self, server: str) -> bool:
@@ -214,9 +872,12 @@ class KeechHuntTracker:
 
     def _is_stale_open(self, m: dict[str, Any], *, now: datetime | None = None) -> bool:
         """Open bucket with no fresh events — finished map that missed WaitingPostMatch."""
-        if not m or m.get("endAt") or m.get("seed"):
+        if not m or m.get("endAt"):
             return True
-        if _is_seed_layer(str(m.get("layer") or m.get("layerShort") or "")):
+        layer = str(m.get("layer") or m.get("layerShort") or "")
+        if m.get("seed") and not HUNT_LIVE_ALLOW_SEED:
+            return True
+        if _block_live_seed(layer):
             return True
         ev = m.get("events") or []
         ref = now or datetime.now(timezone.utc)
@@ -228,14 +889,17 @@ class KeechHuntTracker:
                 if st.tzinfo is None:
                     st = st.replace(tzinfo=timezone.utc)
                 # Empty placeholder older than 3 min — not a live map
-                return (ref - st).total_seconds() > 3 * 60
+                # Seed/Jensen keep empty longer while testing.
+                empty_ttl = 30 * 60 if _is_seed_layer(layer) else 3 * 60
+                return (ref - st).total_seconds() > empty_ttl
             last = datetime.fromisoformat(
                 str(ev[-1].get("at") or m.get("startAt") or "").replace("Z", "+00:00")
             )
             if last.tzinfo is None:
                 last = last.replace(tzinfo=timezone.utc)
             # >8 min without combat while still "open" → treat as ended (UI must not show it)
-            return (ref - last).total_seconds() > 8 * 60
+            stale_ttl = 30 * 60 if _is_seed_layer(layer) else 8 * 60
+            return (ref - last).total_seconds() > stale_ttl
         except Exception:
             return False
 
@@ -247,13 +911,11 @@ class KeechHuntTracker:
         if not m:
             return None
         now = datetime.now(timezone.utc)
-        if (
-            m.get("endAt")
-            or m.get("seed")
-            or _is_seed_layer(str(m.get("layer") or m.get("layerShort") or ""))
-            or self._is_stale_open(m, now=now)
-            or not (m.get("events") or [])
-        ):
+        layer = str(m.get("layer") or m.get("layerShort") or "")
+        if m.get("endAt") or _block_live_seed(layer) or self._is_stale_open(m, now=now):
+            return None
+        # Allow empty seed/Jensen buckets so combat HUD still shows.
+        if not (m.get("events") or []) and not _is_seed_layer(layer):
             return None
         return m
 
@@ -799,18 +1461,15 @@ class KeechHuntTracker:
         """Open/rotate per-server match bucket. One layer = one bucket; never rename in place."""
         server = _norm_server(server)
         short = _layer_short(layer) if layer else "?"
-        # Jensen/Seed: close previous real map into memory, but do not open a seed bucket.
+        # Jensen/Seed: archive previous real map; open a live bucket (events allowed when flag on).
         if layer and short not in ("", "?") and _is_seed_layer(layer):
             cur = self.matches.get(server)
             if cur and not cur.get("endAt") and cur.get("events"):
                 prev = cur.get("layer") or cur.get("layerShort") or ""
                 if not _is_seed_layer(str(prev)):
                     self._archive_match(cur, ended=start)
-            self.matches.pop(server, None)
-            self._dirty = True
-            # Empty placeholder so callers have a dict; never archived / never scored.
             row = {
-                "id": f"{server}-seed",
+                "id": f"{server}-seed-{int(start.timestamp())}",
                 "server": server,
                 "layer": layer,
                 "layerShort": short,
@@ -826,6 +1485,7 @@ class KeechHuntTracker:
                 "seed": True,
             }
             self.matches[server] = row
+            self._dirty = True
             return row
 
         cur = self.matches.get(server)
@@ -968,6 +1628,7 @@ class KeechHuntTracker:
     def feed(self, line: str, server_key: str) -> None:
         if server_key not in SERVERS:
             return
+        self.apply_combat_reset_if_needed()
         server = _norm_server(server_key)
         tm = LINE_TS.match(line)
         if not tm:
@@ -1016,6 +1677,15 @@ class KeechHuntTracker:
 
         self._parse_deploy_kit(line)
 
+        if "BBAcuracy:" in line and "shots" in line.lower():
+            self._feed_shots_line(line, at, server)
+        if "BB Suppression Inflicted:" in line:
+            self._feed_suppress_line(line, at, server)
+        if "BBHealTracker:" in line:
+            self._feed_heal_line(line, at, server)
+        if "damage taken by causer" in line and "TraceAndMessageClient" in line:
+            self._feed_inf_damage_line(line, at, server)
+
         # Vehicle RP (enter/exit/dmg) — full crew state; emit only Keech rows.
         if self._veh_on(server, at) and (
             "Entered Vehicle" in line
@@ -1042,6 +1712,7 @@ class KeechHuntTracker:
                 self._last_wound_by_keech.clear()
                 self._kit_by_steam.clear()
                 self._kit_by_nick.clear()
+                self._reset_combat_counters()
                 self._reset_vehicle(server)
                 # Force-close previous live bucket before opening the next
                 # (covers missed WaitingPostMatch — finished map must leave live).
@@ -1173,6 +1844,7 @@ class KeechHuntTracker:
                 )
                 if is_keech_atk or is_keech_vic:
                     self._mark_keech_on(server)
+                    zone = (hm.group("zone") or "Limb").strip()
                     self._hits.append(
                         {
                             "at": at,
@@ -1184,12 +1856,37 @@ class KeechHuntTracker:
                             ),
                             "veos": veos,
                             "bone": bone,
-                            "zone": (hm.group("zone") or "Limb").strip(),
+                            "zone": zone,
                             "onKeech": is_keech_vic,
                         }
                     )
                     if len(self._hits) > 400:
                         self._hits = self._hits[-300:]
+                    if is_keech_atk and not is_keech_vic:
+                        self._emit_hit_event(
+                            at=at,
+                            server=server,
+                            victim_eos=veos,
+                            zone=zone,
+                            bone=bone,
+                            damage=(hm.group("damage") or "").strip(),
+                        )
+                    elif is_keech_vic and not is_keech_atk:
+                        atk_nick = ""
+                        if asteam:
+                            atk_nick = self.steam_nick.get(asteam, "")
+                        if not atk_nick and aeos not in ("", "none"):
+                            atk_nick = self.eos_nick.get(aeos, "")
+                        self._emit_hit_event(
+                            at=at,
+                            server=server,
+                            victim_eos=aeos if aeos not in ("", "none") else "",
+                            zone=zone,
+                            bone=bone,
+                            damage=(hm.group("damage") or "").strip(),
+                            nick=atk_nick or "?",
+                            incoming=True,
+                        )
 
         if "Wound():" in line:
             wm = R.WOUND_RE.search(line)
@@ -1507,23 +2204,18 @@ class KeechHuntTracker:
 
     def _add_event(self, server: str, ev: dict[str, Any], at: datetime) -> None:
         bucket = self._open_bucket(server, at)
-        if (
-            bucket.get("seed")
-            or bucket.get("endAt")
-            or bucket.get("pendingEnd")
-            or _is_seed_layer(
-                str(bucket.get("layer") or bucket.get("layerShort") or "")
-            )
-        ):
+        layer = str(bucket.get("layer") or bucket.get("layerShort") or "")
+        if bucket.get("endAt") or bucket.get("pendingEnd") or _block_live_seed(layer):
             return
         # Never append into a finished map that is still lingering open.
-        if self._is_stale_open(bucket, now=at):
+        if self._is_stale_open(bucket, now=at) and not (
+            HUNT_LIVE_ALLOW_SEED and _is_seed_layer(layer)
+        ):
             self._archive_match(bucket, ended=at)
             self.matches.pop(_norm_server(server), None)
             bucket = self._ensure_match(server, "?", at)
-            if bucket.get("seed") or _is_seed_layer(
-                str(bucket.get("layer") or bucket.get("layerShort") or "")
-            ):
+            layer = str(bucket.get("layer") or bucket.get("layerShort") or "")
+            if _block_live_seed(layer):
                 return
         ids = {e.get("id") for e in bucket["events"]}
         if ev["id"] in ids:
@@ -1619,6 +2311,17 @@ class KeechHuntTracker:
                     "matches": [],
                     "keechSteam": KEECH_STEAM,
                     "keechServer": None,
+                    "combat": {
+                        "shots": 0,
+                        "hits": 0,
+                        "accuracyPct": None,
+                        "shotsKnown": False,
+                        "suppressTotal": 0,
+                        "suppressNow": [],
+                        "suppressOnMe": 0,
+                        "healGiven": 0,
+                        "healTaken": 0,
+                    },
                 },
                 ensure_ascii=False,
                 indent=2,
@@ -1638,6 +2341,9 @@ class KeechHuntTracker:
         now_dt = datetime.now(timezone.utc)
         # Sweep stale "open" buckets into memory so live UI never shows a finished map.
         for srv, row in list(self.matches.items()):
+            layer = str(row.get("layer") or row.get("layerShort") or "")
+            if HUNT_LIVE_ALLOW_SEED and _is_seed_layer(layer) and not row.get("endAt"):
+                continue
             if self._is_stale_open(row, now=now_dt):
                 try:
                     ev = row.get("events") or []
@@ -1658,8 +2364,7 @@ class KeechHuntTracker:
                 for m in self.matches.values()
                 if m
                 and not m.get("endAt")
-                and not m.get("seed")
-                and not _is_seed_layer(
+                and not _block_live_seed(
                     str(m.get("layer") or m.get("layerShort") or "")
                 )
             ],
@@ -1682,10 +2387,22 @@ class KeechHuntTracker:
             "matches": open_list,
             "keechSteam": KEECH_STEAM,
             "keechServer": self.keech_server,
+            "combat": self._combat_payload() if self.keech_server else {
+                "shots": 0,
+                "hits": 0,
+                "accuracyPct": None,
+                "shotsKnown": False,
+                "suppressTotal": 0,
+                "suppressNow": [],
+                "suppressOnMe": 0,
+                "healGiven": 0,
+                "healTaken": 0,
+            },
         }
         LIVE_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     def flush(self) -> None:
+        self.apply_combat_reset_if_needed()
         self._flush_if_needed(force=True)
 
     def bootstrap_text(self, text: str, server_key: str) -> None:

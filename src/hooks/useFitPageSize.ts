@@ -1,59 +1,69 @@
 "use client";
 
-import { useEffect, useState, type RefObject } from "react";
+import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 
 /**
- * Сколько строк таблицы влезает в контейнер без скролла.
- * `wrapRef` — область таблицы (`.profile-hist-table-wrap`): высота thead
- * вычитается, высота строки берётся из первой tr (или fallback).
+ * Сколько целых строк влезает в карточку истории.
+ * Замер до отрисовки и только по высоте слота, не по строкам таблицы.
+ * Иначе число строк прыгает и карточка мигает «Загрузка».
  */
 export function useFitPageSize(
   wrapRef: RefObject<HTMLElement | null>,
   opts?: { rowPx?: number; chromePx?: number; min?: number; max?: number }
 ) {
-  const rowPxFallback = opts?.rowPx ?? 36;
-  const chromePx = opts?.chromePx ?? 0;
   const min = opts?.min ?? 1;
   const max = opts?.max ?? 40;
-  const [size, setSize] = useState(8);
+  const rowPxOpt = opts?.rowPx;
+  const chromePx = opts?.chromePx ?? 0;
+  const [size, setSize] = useState(12);
+  const locked = useRef(false);
+  const lastH = useRef(0);
 
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
+  useLayoutEffect(() => {
+    const root = wrapRef.current;
+    if (!root || typeof ResizeObserver === "undefined") return;
 
     const measure = () => {
-      const h = el.clientHeight;
-      if (h < 40) return;
+      const wrap = root.classList.contains("profile-hist-table-wrap")
+        ? root
+        : (root.querySelector(
+            ".profile-hist-table-wrap"
+          ) as HTMLElement | null);
+      const box = wrap ?? root;
+      const h = box.clientHeight;
+      if (h < 48) return;
+      // Мелкие колебания высоты (скроллбар/шрифт) — игнор.
+      if (lastH.current && Math.abs(h - lastH.current) < 24) return;
 
-      const thead = el.querySelector("thead");
-      const theadH = thead
-        ? Math.ceil((thead as HTMLElement).getBoundingClientRect().height)
-        : 32;
-      const rowEl = el.querySelector("tbody tr") as HTMLElement | null;
-      const rowH = rowEl
-        ? Math.max(
-            20,
-            Math.ceil(rowEl.getBoundingClientRect().height)
-          )
-        : rowPxFallback;
+      const fontPx = parseFloat(getComputedStyle(box).fontSize) || 16;
+      const thead = box.querySelector("thead") as HTMLElement | null;
+      const theadH = thead?.offsetHeight || Math.round(fontPx * 1.85);
+      const rowH = Math.max(22, rowPxOpt ?? theadH);
+      const avail = Math.floor(h - theadH - 6 - chromePx);
+      if (avail < rowH * 0.55) return;
 
-      // floor обычно оставляет почти целую пустую строку под таблицей —
-      // +1 заполняет это место (КВ / трени / паб).
-      const avail = h - theadH - chromePx;
-      const n = Math.floor(avail / rowH) + 1;
-      setSize(Math.min(max, Math.max(min, n >= 1 ? n : min)));
+      const count = Math.min(max, Math.max(min, Math.floor(avail / rowH)));
+      lastH.current = h;
+      setSize((prev) => {
+        if (prev === count) return prev;
+        // После первого стабильного замера не дёргать ±1 строку — это мерцание.
+        if (locked.current && Math.abs(prev - count) <= 1) return prev;
+        locked.current = true;
+        return count;
+      });
     };
 
     measure();
     const ro = new ResizeObserver(() => measure());
-    ro.observe(el);
-    // Строки могли подгрузиться позже — перемер после paint
-    const t = window.setTimeout(measure, 0);
+    ro.observe(root);
+    const wrap = root.querySelector(".profile-hist-table-wrap");
+    if (wrap && wrap !== root) ro.observe(wrap);
+    window.addEventListener("resize", measure);
     return () => {
       ro.disconnect();
-      window.clearTimeout(t);
+      window.removeEventListener("resize", measure);
     };
-  }, [wrapRef, rowPxFallback, chromePx, min, max]);
+  }, [wrapRef, min, max, rowPxOpt, chromePx]);
 
   return size;
 }

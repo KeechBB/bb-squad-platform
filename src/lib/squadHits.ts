@@ -637,9 +637,8 @@ function hitmapChronoKey(row: {
   const hm = /^(\d{1,2}):(\d{2})$/.exec(String(row.timeLabel || "").trim());
   let timeKey = "00:00";
   if (hm) {
-    let h = Number(hm[1]);
+    const h = Number(hm[1]);
     const mi = Number(hm[2]);
-    if (h === 0 && mi <= 29) h = 24;
     timeKey = `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
   }
   return `${iso}T${timeKey}-${row.matchId}`;

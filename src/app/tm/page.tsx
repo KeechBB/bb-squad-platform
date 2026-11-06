@@ -1,6 +1,6 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { isAnyClanMember } from "@/lib/clanAccess";
+import { sessionIsClanMember } from "@/lib/clanAccess";
 import { liveKvBust } from "@/lib/kvBust";
 import { KvAutoHeightFrame } from "@/components/KvAutoHeightFrame";
 
@@ -12,7 +12,7 @@ export default async function TrainingMatchesPage({ searchParams }: Props) {
   const session = await getSession();
   if (!session?.user?.steamId) redirect("/?login=1");
   if (!session.user.profileComplete) redirect("/register");
-  if (!(await isAnyClanMember(session.user.steamId))) {
+  if (!(await sessionIsClanMember(session))) {
     redirect("/clans");
   }
 

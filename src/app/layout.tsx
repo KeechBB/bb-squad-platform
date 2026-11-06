@@ -5,7 +5,7 @@ import { AuthBar } from "@/components/AuthBar";
 import { SiteNav } from "@/components/SiteNav";
 import { SiteOnlineBadge } from "@/components/SiteOnlineBadge";
 import { getSession } from "@/lib/auth";
-import { isAnyClanMember } from "@/lib/clanAccess";
+import { sessionIsClanMember } from "@/lib/clanAccess";
 import { getCurrentBetaLabel } from "@/lib/siteReleases";
 import { YandexMetrika } from "@/components/YandexMetrika";
 import { SiteFooter } from "@/components/SiteFooter";

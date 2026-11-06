@@ -71,7 +71,7 @@ export async function GET(req: Request) {
   );
   let toYmd = url.searchParams.get("to") || defaultTo;
 
-  // TR1/TR2 = тренировка, PB1/TPUB1 = паблик
+  // TR1–TR5 = тренировка, PB1/TPUB1 = паблик
   const serverRaw = (url.searchParams.get("server") || "TR1").trim().toUpperCase();
   const isPublic =
     serverRaw === "PB1" || serverRaw === "TPUB1" || serverRaw === "PUB";

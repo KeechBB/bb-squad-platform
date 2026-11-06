@@ -7,24 +7,11 @@ import {
   huntEventBody,
   serverLabel,
   splitEvents,
+  type KeechHuntCombat,
   type KeechHuntEvent,
   type KeechHuntEventKind,
   type KeechHuntMatch,
 } from "@/lib/keechHuntTypes";
-
-type HistRow = {
-  id: string;
-  server: string;
-  layerShort: string;
-  startAt: string;
-  endAt: string | null;
-  net: number;
-  noks: number;
-  gotNoks: number;
-  kills: number;
-  deaths: number;
-  revives: number;
-};
 
 type LiveMatchChip = {
   id: string;
@@ -52,7 +39,7 @@ type Feed = {
     revives: KeechHuntEvent[];
     net: number;
   } | null;
-  history: HistRow[];
+  combat?: KeechHuntCombat;
 };
 
 const KIND_LABEL: Record<KeechHuntEventKind, string> = {
@@ -66,6 +53,13 @@ const KIND_LABEL: Record<KeechHuntEventKind, string> = {
   vehicle_loss: "Потеря F2",
   vehicle_loss_driver: "Потеря мехвод",
   driver_share: "Мехвод 70%",
+  hit: "Хит",
+  gothit: "В тебя",
+  suppress: "Подавл.",
+  gotsuppress: "Давят",
+  accuracy: "Точность",
+  heal: "Хил",
+  gotheal: "Хилят",
 };
 
 function fmtDelta(n: number) {
@@ -249,10 +243,7 @@ export function AdminKeechHuntPanel() {
   const [data, setData] = useState<Feed | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [hitEv, setHitEv] = useState<KeechHuntEvent | null>(null);
-  const [detail, setDetail] = useState<{
-    match: KeechHuntMatch;
-    columns: NonNullable<Feed["columns"]>;
-  } | null>(null);
+  const [resetting, setResetting] = useState(false);
   const listRef = useRef<HTMLDivElement | null>(null);
   const stickTop = useRef(true);
   const prevTopId = useRef<string | null>(null);
@@ -272,9 +263,49 @@ export function AdminKeechHuntPanel() {
     }
   }, []);
 
+  const resetCombat = useCallback(async () => {
+    if (resetting) return;
+    setResetting(true);
+    try {
+      const r = await fetch("/api/admin/keech-hunt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "resetCombat" }),
+      });
+      if (r.status === 403) {
+        setErr("forbidden");
+        return;
+      }
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      // Optimistic zero while collector picks up the flag (~1–2с).
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              combat: {
+                shots: 0,
+                hits: 0,
+                accuracyPct: null,
+                suppressTotal: 0,
+                suppressNow: [],
+                suppressOnMe: 0,
+                healGiven: 0,
+                healTaken: 0,
+              },
+            }
+          : prev
+      );
+      window.setTimeout(() => void load(), 1200);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "fail");
+    } finally {
+      setResetting(false);
+    }
+  }, [load, resetting]);
+
   useEffect(() => {
     void load();
-    const t = setInterval(() => void load(), 5000);
+    const t = setInterval(() => void load(), 2000);
     return () => clearInterval(t);
   }, [load]);
 
@@ -318,17 +349,6 @@ export function AdminKeechHuntPanel() {
     stickTop.current = el.scrollTop < 48;
   }
 
-  const openMatch = async (id: string) => {
-    const r = await fetch(`/api/admin/keech-hunt/${encodeURIComponent(id)}`, {
-      cache: "no-store",
-    });
-    if (!r.ok) return;
-    setDetail((await r.json()) as {
-      match: KeechHuntMatch;
-      columns: NonNullable<Feed["columns"]>;
-    });
-  };
-
   if (err === "forbidden") {
     return <p className="muted">Нет доступа</p>;
   }
@@ -336,6 +356,15 @@ export function AdminKeechHuntPanel() {
   const cols = mapCols;
   const m = data?.match;
   const chips = data?.matches || [];
+  const combat = data?.combat || {
+    shots: 0,
+    hits: 0,
+    accuracyPct: null as number | null,
+    shotsKnown: false,
+    suppressTotal: 0,
+    suppressNow: [] as { nick: string; value: number }[],
+    suppressOnMe: 0,
+  };
 
   const activeChip =
     chips.find((c) => c.active) ||
@@ -363,7 +392,26 @@ export function AdminKeechHuntPanel() {
               .join(", ")}`
           : ""
       }`
-    : "Нет активной катки (PB1 / TR1)";
+    : "Нет активной катки (PB1 / TR)";
+
+  const shotsKnown = Boolean(combat.shotsKnown);
+  const shotsLabel = shotsKnown ? String(combat.shots) : "н/д";
+  const accLabel = !shotsKnown
+    ? "н/д · нет BBAcuracy"
+    : combat.shots > 0
+      ? combat.accuracyPct == null
+        ? `${combat.hits}/${combat.shots}${
+            combat.shots < 5 ? " · ждём 5+" : ""
+          }`
+        : `${combat.hits}/${combat.shots} = ${combat.accuracyPct}%`
+      : "—";
+  const suppressLine =
+    combat.suppressNow.length > 0
+      ? combat.suppressNow
+          .slice(0, 5)
+          .map((r) => `${r.nick} ${r.value}`)
+          .join(" · ")
+      : "—";
 
   return (
     <div className="keech-hunt-panel">
@@ -372,7 +420,7 @@ export function AdminKeechHuntPanel() {
           <strong>{statusLine}</strong>
           <span className="muted">
             {" "}
-            · обновл. {fmtWhen(data?.updatedAt)} · опрос 5с · текущая карта
+            · обновл. {fmtWhen(data?.updatedAt)} · LIVE · 2с
           </span>
         </div>
         <div className="keech-hunt-net">
@@ -391,16 +439,80 @@ export function AdminKeechHuntPanel() {
         </div>
       </div>
 
+      <div className="keech-hunt-combat card">
+        <div
+          className="keech-hunt-combat-stat"
+          title={
+            shotsKnown
+              ? "из BBAcuracy"
+              : "Плагин BBAcuracy пустой (часто на Jensen) — выстрелы не считаются"
+          }
+        >
+          <span>Выстрелы</span>
+          <strong>{shotsLabel}</strong>
+        </div>
+        <div className="keech-hunt-combat-stat">
+          <span>Попадания</span>
+          <strong>{combat.hits}</strong>
+        </div>
+        <div className="keech-hunt-combat-stat" title="попадания / выстрелы × 100">
+          <span>Точность · хиты/выстрелы</span>
+          <strong>{accLabel}</strong>
+        </div>
+        <div className="keech-hunt-combat-stat">
+          <span>Подавление Σ</span>
+          <strong>{combat.suppressTotal}</strong>
+        </div>
+        <div className="keech-hunt-combat-stat">
+          <span>На тебе</span>
+          <strong>{combat.suppressOnMe ?? 0}</strong>
+        </div>
+        <div
+          className="keech-hunt-combat-stat"
+          title="BBHealTracker: HP, которые ты залил другим"
+        >
+          <span>Хил отдал</span>
+          <strong>{combat.healGiven ?? 0}</strong>
+        </div>
+        <div
+          className="keech-hunt-combat-stat"
+          title="BBHealTracker: HP, которые залили тебе"
+        >
+          <span>Хил тебе</span>
+          <strong>{combat.healTaken ?? 0}</strong>
+        </div>
+        <div className="keech-hunt-combat-suppress">
+          <span>Сейчас давишь</span>
+          <strong title={suppressLine}>{suppressLine}</strong>
+        </div>
+        <button
+          type="button"
+          className="keech-hunt-reset-btn"
+          onClick={() => void resetCombat()}
+          disabled={resetting}
+          title="Сбросить выстрелы / хиты / точность / подавление и боевой LIVE LOG"
+        >
+          {resetting ? "…" : "С нуля"}
+        </button>
+      </div>
+      {!shotsKnown ? (
+        <p className="muted keech-hunt-combat-note">
+          Выстрелы н/д: на этой карте BBAcuracy шлёт пустой список. Хиты
+          считаются, точность — только когда плагин отдаст твои shots (на
+          боевых картах обычно есть).
+        </p>
+      ) : null}
+
       <div className="keech-hunt-split">
         <aside className="keech-hunt-left card">
           <div className="journal-window keech-hunt-chat-window">
             <div className="journal-window-head">
-              <span>Live-лог</span>
+              <span>LIVE LOG</span>
               <span className="muted">
                 {liveLog.length
                   ? `${liveLog.length} · ${serverLabel(m?.server)} · ${
                       m?.layerShort || "?"
-                    } · сверху новые`
+                    } · хиты / ноки / подавление`
                   : "пусто"}
               </span>
             </div>
@@ -413,8 +525,8 @@ export function AdminKeechHuntPanel() {
             >
               {liveLog.length === 0 ? (
                 <p className="journal-empty muted">
-                  Личная RP-считалка: пехота + техника (×12.5) + soft-cap.
-                  Лог и колонки справа — одни события. Новые сверху.
+                  LIVE: твои хиты и хиты в тебя, подавление (ты давишь / тебя
+                  давят), ноки/киллы. Новые сверху.
                 </p>
               ) : null}
               {liveLog.map(({ e, repeat }) => {
@@ -423,7 +535,18 @@ export function AdminKeechHuntPanel() {
                   e.kind === "nok" ||
                   e.kind === "gotnok" ||
                   e.kind === "kill" ||
-                  e.kind === "death";
+                  e.kind === "death" ||
+                  e.kind === "hit" ||
+                  e.kind === "gothit";
+                const showRpDelta = !(
+                  e.kind === "hit" ||
+                  e.kind === "gothit" ||
+                  e.kind === "suppress" ||
+                  e.kind === "gotsuppress" ||
+                  e.kind === "accuracy" ||
+                  e.kind === "heal" ||
+                  e.kind === "gotheal"
+                );
                 const body = huntEventBody(e);
                 return (
                   <article
@@ -438,13 +561,15 @@ export function AdminKeechHuntPanel() {
                       <span className="journal-msg-tag">
                         [{serverLabel(e.server)}]
                       </span>
-                      <span
-                        className={`keech-hunt-msg-delta ${
-                          plus ? "plus" : "minus"
-                        }`}
-                      >
-                        {fmtDelta(e.delta)}
-                      </span>
+                      {showRpDelta ? (
+                        <span
+                          className={`keech-hunt-msg-delta ${
+                            plus ? "plus" : "minus"
+                          }`}
+                        >
+                          {fmtDelta(e.delta)}
+                        </span>
+                      ) : null}
                       {canHit ? (
                         <button
                           type="button"
@@ -506,37 +631,6 @@ export function AdminKeechHuntPanel() {
               onHit={setHitEv}
             />
           </div>
-
-          <section className="card keech-hunt-history">
-            <h3>Память матчей</h3>
-            {(data?.history || []).length === 0 ? (
-              <p className="muted">Пока нет закрытых матчей</p>
-            ) : (
-              <ul className="keech-hunt-hist-list">
-                {(data?.history || []).map((h) => (
-                  <li key={h.id}>
-                    <button
-                      type="button"
-                      className="keech-hunt-hist-row"
-                      onClick={() => void openMatch(h.id)}
-                    >
-                      <span>
-                        {fmtWhen(h.startAt)} · {serverLabel(h.server)} ·{" "}
-                        {h.layerShort}
-                      </span>
-                      <span>
-                        N{h.noks}/GN{h.gotNoks ?? 0}/K{h.kills}/D{h.deaths}/R
-                        {h.revives}{" "}
-                        <b className={h.net >= 0 ? "plus" : "minus"}>
-                          {fmtDelta(h.net)}
-                        </b>
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
         </div>
       </div>
 
@@ -580,64 +674,6 @@ export function AdminKeechHuntPanel() {
         </div>
       ) : null}
 
-      {detail ? (
-        <div className="rp-breakdown-overlay" role="dialog" aria-modal="true">
-          <div className="rp-breakdown-panel hunt-wide">
-            <header className="rp-breakdown-head">
-              <div>
-                <h3>
-                  {serverLabel(detail.match.server)} · {detail.match.layerShort}{" "}
-                  · {fmtWhen(detail.match.startAt)}
-                </h3>
-                <p className="muted">
-                  NET {fmtDelta(detail.match.net)} · N {detail.match.noks ?? 0} /
-                  GN {detail.match.gotNoks ?? detail.columns.gotNoks?.length ?? 0}{" "}
-                  / K {detail.match.kills} / D {detail.match.deaths} / R{" "}
-                  {detail.match.revives}
-                </p>
-              </div>
-              <button
-                type="button"
-                className="rp-breakdown-close"
-                onClick={() => setDetail(null)}
-              >
-                ✕
-              </button>
-            </header>
-            <div className="keech-hunt-cols detail">
-              <Col
-                title={`ноки (${detail.columns.noks.length})`}
-                items={detail.columns.noks}
-                empty="—"
-                onHit={setHitEv}
-              />
-              <Col
-                title={`+ киллы (${detail.columns.kills.length})`}
-                items={detail.columns.kills}
-                empty="—"
-                onHit={setHitEv}
-              />
-              <Col
-                title={`− смерти (${detail.columns.deaths.length})`}
-                items={detail.columns.deaths}
-                empty="—"
-                onHit={setHitEv}
-              />
-              <Col
-                title={`+ ресы (${detail.columns.revives.length})`}
-                items={detail.columns.revives}
-                empty="—"
-              />
-              <Col
-                title={`Меня нокнул (${detail.columns.gotNoks?.length ?? 0})`}
-                items={detail.columns.gotNoks || []}
-                empty="—"
-                onHit={setHitEv}
-              />
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

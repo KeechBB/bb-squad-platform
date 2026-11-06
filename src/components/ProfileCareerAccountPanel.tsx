@@ -11,9 +11,6 @@ import {
 
 type AccountInitial = {
   nick: string;
-  name: string;
-  birthDate: string | null;
-  age: number | null;
   discordTag: string | null;
   discordId: string | null;
   telegram: string | null;

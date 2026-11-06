@@ -13,13 +13,17 @@ export const PROFILE_V2_REF_H = CANVAS_REF_H;
 type Props = {
   children: ReactNode;
   hasBg?: boolean;
-  contentWidth?: number;
+  contentWidth?: number | "full";
 };
 
 /** Профиль: сцена 2K, контент 1600px по центру — бока под фон. */
 export function ProfileV2ScaleStage({ children, hasBg = false, contentWidth = 1600 }: Props) {
   return (
-    <CanvasScaleStage hasBg={hasBg} contentWidth={contentWidth} className="is-profile">
+    <CanvasScaleStage
+      hasBg={hasBg}
+      contentWidth={contentWidth}
+      className={contentWidth === "full" ? "is-profile is-side-inset" : "is-profile"}
+    >
       {children}
     </CanvasScaleStage>
   );

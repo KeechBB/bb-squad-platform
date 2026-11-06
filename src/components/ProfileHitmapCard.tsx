@@ -205,9 +205,8 @@ export function ProfileHitmapCard({
       const hm = /^(\d{1,2}):(\d{2})$/.exec((m.timeLabel || "").trim());
       let time = "00:00";
       if (hm) {
-        let h = Number(hm[1]);
+        const h = Number(hm[1]);
         const mi = Number(hm[2]);
-        if (h === 0 && mi <= 29) h = 24;
         time = `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
       }
       return `${iso}T${time}-${m.matchId}`;

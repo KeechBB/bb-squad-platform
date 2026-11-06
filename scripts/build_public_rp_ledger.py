@@ -1261,6 +1261,10 @@ def main() -> None:
         raise SystemExit(1)
     new_ids = {str(b.get("id")) for b in match_blocks if b.get("id")}
     PUBLISH.publish_match_rows(slim, new_ids)
+    try:
+        PUBLISH.fill_profile_holes(slim)
+    except Exception as e:
+        print(f"warn: profile hole fill skipped: {type(e).__name__}: {e}", flush=True)
     PUBLISH.drop_rating_cache()
 
     print("TOP 10:")

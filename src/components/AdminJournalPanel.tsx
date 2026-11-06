@@ -20,7 +20,8 @@ type JournalCategory =
   | "clan"
   | "profile"
   | "support"
-  | "tournament";
+  | "tournament"
+  | "faction";
 
 const CATEGORY_LABEL: Record<string, string> = {
   admin: "Админ",
@@ -125,6 +126,7 @@ export function AdminJournalPanel({
   }, [load]);
 
   useAutoRefresh(() => load({ silent: true }), {
+    sse: true,
     intervalMs: 15000,
     kinds: ["journal"],
   });

@@ -31,6 +31,7 @@ export async function ProfileHeavySection({
       <div className="profile-area-kv-hist">
         <ProfileKvMatchHistory
           matchHistory={heavy.cwHistory}
+          historyTotal={heavy.cwTotal}
           highlightNick={nick}
         />
       </div>
@@ -38,6 +39,8 @@ export async function ProfileHeavySection({
         <ProfileMatchHistoryTabs
           trainHistory={heavy.trainHistory}
           publicHistory={heavy.publicHistory}
+          trainTotal={heavy.trainTotal}
+          publicTotal={heavy.publicTotal}
           highlightNick={nick}
           defaultTab={defaultHistTab}
         />

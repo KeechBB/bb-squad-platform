@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { snapshotKey, snapshotOrBuild } from "@/lib/diskSnapshot";
 import { prisma } from "@/lib/prisma";
 import { buildHitmapMatchOptions } from "@/lib/squadHits";
 import { normalizeSteamId } from "@/lib/squadSessions";
@@ -45,11 +46,23 @@ export async function GET(req: Request) {
   }
   if (steamId) steamIds.push(steamId);
 
-  const matches = await buildHitmapMatchOptions({
-    userId: userId || null,
-    steamIds,
-    nick: nick || null,
-  });
+  const matches = await snapshotOrBuild(
+    `queries/hitmap-matches-${snapshotKey([userId, steamIds.join(","), nick])}.json`,
+    60_000,
+    () =>
+      buildHitmapMatchOptions({
+        userId: userId || null,
+        steamIds,
+        nick: nick || null,
+      })
+  );
 
-  return NextResponse.json({ ok: true, matches });
+  return NextResponse.json(
+    { ok: true, matches },
+    {
+      headers: {
+        "Cache-Control": "private, max-age=30, stale-while-revalidate=120",
+      },
+    }
+  );
 }

@@ -276,222 +276,18 @@ BP_L15_CUSTOMIZE = "pb1-profile-customize"
 
 
 def persist_l5_backgrounds(state: dict) -> None:
-    """Золотой фон ур. 5 — в инвентарь навсегда. Повторный запуск ничего не снимает."""
-    nicks: list[str] = []
-    steams: list[str] = []
-    for p in (state.get("players") or {}).values():
-        if not isinstance(p, dict):
-            continue
-        lvl = 20 if p.get("finished") else int(p.get("currentLevel") or 1)
-        if lvl < 5:
-            continue
-        nick = str(p.get("nick") or "").strip()
-        steam = str(p.get("steamId") or "").strip()
-        if nick:
-            nicks.append(nick.casefold())
-        if steam:
-            steams.append(steam)
-    if not nicks and not steams:
-        print("BP bg: nobody at level 5+", flush=True)
-        return
-    db = (os.environ.get("DATABASE_URL") or "").strip().strip("'").strip('"')
-    if not db:
-        env_path = ROOT / ".env"
-        if env_path.is_file():
-            for line in env_path.read_text(encoding="utf-8").splitlines():
-                if line.startswith("DATABASE_URL="):
-                    db = line.split("=", 1)[1].strip().strip("'").strip('"')
-                    break
-    if not db:
-        print("BP bg: no DATABASE_URL — skip inventory", flush=True)
-        return
-    connect = None
-    try:
-        import psycopg2
-
-        connect = psycopg2.connect
-    except ImportError:
-        try:
-            import psycopg
-
-            connect = psycopg.connect
-        except ImportError:
-            print("BP bg: no psycopg — skip inventory", flush=True)
-            return
-    try:
-        conn = connect(_psycopg_dsn(db))
-        cur = conn.cursor()
-        cur.execute(
-            """
-            update "User"
-            set "unlockedProfileBgs" = array_append(
-              coalesce("unlockedProfileBgs", '{}'),
-              %s
-            )
-            where not (%s = any(coalesce("unlockedProfileBgs", '{}')))
-              and (
-                lower(nick) = any(%s)
-                or "steamId" = any(%s)
-              )
-            """,
-            (BP_L5_PROFILE_BG, BP_L5_PROFILE_BG, nicks or [""], steams or [""]),
-        )
-        print(f"BP bg: granted {BP_L5_PROFILE_BG} to {cur.rowcount} accounts", flush=True)
-        conn.commit()
-        cur.close()
-        conn.close()
-    except Exception as exc:
-        print(f"BP bg: inventory skip ({exc})", flush=True)
-    persist_l10_nick_styles(state)
-    persist_l15_patches(state)
+    """S1 «Фруктовый Сад» закрыт 31.10.2026. Награды больше не выдаются."""
+    print("BP S1 frozen: skip level rewards", flush=True)
 
 
 def persist_l10_nick_styles(state: dict) -> None:
-    """L10 Aurum Clean — стиль ника в инвентарь навсегда."""
-    nicks: list[str] = []
-    steams: list[str] = []
-    for p in (state.get("players") or {}).values():
-        if not isinstance(p, dict):
-            continue
-        lvl = 20 if p.get("finished") else int(p.get("currentLevel") or 1)
-        if lvl < 10:
-            continue
-        nick = str(p.get("nick") or "").strip()
-        steam = str(p.get("steamId") or "").strip()
-        if nick:
-            nicks.append(nick.casefold())
-        if steam:
-            steams.append(steam)
-    if not nicks and not steams:
-        print("BP nick style: nobody at level 10+", flush=True)
-        return
-    db = (os.environ.get("DATABASE_URL") or "").strip().strip("'").strip('"')
-    if not db:
-        env_path = ROOT / ".env"
-        if env_path.is_file():
-            for line in env_path.read_text(encoding="utf-8").splitlines():
-                if line.startswith("DATABASE_URL="):
-                    db = line.split("=", 1)[1].strip().strip("'").strip('"')
-                    break
-    if not db:
-        print("BP nick style: no DATABASE_URL — skip", flush=True)
-        return
-    connect = None
-    try:
-        import psycopg2
-
-        connect = psycopg2.connect
-    except ImportError:
-        try:
-            import psycopg
-
-            connect = psycopg.connect
-        except ImportError:
-            print("BP nick style: no psycopg — skip", flush=True)
-            return
-    try:
-        conn = connect(_psycopg_dsn(db))
-        cur = conn.cursor()
-        cur.execute(
-            """
-            update "User"
-            set "unlockedNickStyles" = array_append(
-              coalesce("unlockedNickStyles", '{}'),
-              %s
-            )
-            where not (%s = any(coalesce("unlockedNickStyles", '{}')))
-              and (
-                lower(nick) = any(%s)
-                or "steamId" = any(%s)
-              )
-            """,
-            (
-                BP_L10_NICK_STYLE,
-                BP_L10_NICK_STYLE,
-                nicks or [""],
-                steams or [""],
-            ),
-        )
-        print(
-            f"BP nick style: granted {BP_L10_NICK_STYLE} "
-            f"to {cur.rowcount} accounts",
-            flush=True,
-        )
-        conn.commit()
-        cur.close()
-        conn.close()
-    except Exception as exc:
-        print(f"BP nick style: inventory skip ({exc})", flush=True)
+    """S1 закрыт. Aurum Clean больше не выдаётся."""
+    print("BP S1 frozen: skip nick style", flush=True)
 
 
 def persist_l15_patches(state: dict) -> None:
-    """L15 кастомизация — нашивка в инвентарь навсегда."""
-    nicks: list[str] = []
-    steams: list[str] = []
-    for p in (state.get("players") or {}).values():
-        if not isinstance(p, dict):
-            continue
-        lvl = 20 if p.get("finished") else int(p.get("currentLevel") or 1)
-        if lvl < 15:
-            continue
-        nick = str(p.get("nick") or "").strip()
-        steam = str(p.get("steamId") or "").strip()
-        if nick:
-            nicks.append(nick.casefold())
-        if steam:
-            steams.append(steam)
-    if not nicks and not steams:
-        print("BP patch: nobody at level 15+", flush=True)
-        return
-    db = (os.environ.get("DATABASE_URL") or "").strip().strip("'").strip('"')
-    if not db:
-        env_path = ROOT / ".env"
-        if env_path.is_file():
-            for line in env_path.read_text(encoding="utf-8").splitlines():
-                if line.startswith("DATABASE_URL="):
-                    db = line.split("=", 1)[1].strip().strip("'").strip('"')
-                    break
-    if not db:
-        print("BP patch: no DATABASE_URL — skip", flush=True)
-        return
-    connect = None
-    try:
-        import psycopg2
-
-        connect = psycopg2.connect
-    except ImportError:
-        try:
-            import psycopg
-
-            connect = psycopg.connect
-        except ImportError:
-            print("BP patch: no psycopg — skip", flush=True)
-            return
-    try:
-        conn = connect(_psycopg_dsn(db))
-        cur = conn.cursor()
-        for token in (BP_L15_PATCH, BP_L15_CUSTOMIZE):
-            cur.execute(
-                """
-                update "User"
-                set "unlockedNickPatches" = array_append(
-                  coalesce("unlockedNickPatches", '{}'),
-                  %s
-                )
-                where not (%s = any(coalesce("unlockedNickPatches", '{}')))
-                  and (
-                    lower(nick) = any(%s)
-                    or "steamId" = any(%s)
-                  )
-                """,
-                (token, token, nicks or [""], steams or [""]),
-            )
-            print(f"BP patch: granted {token} to {cur.rowcount} accounts", flush=True)
-        conn.commit()
-        cur.close()
-        conn.close()
-    except Exception as exc:
-        print(f"BP patch: inventory skip ({exc})", flush=True)
+    """S1 закрыт. Нашивка 15 уровня больше не выдаётся."""
+    print("BP S1 frozen: skip patch", flush=True)
 
 
 def _match_id_dt(mid: str) -> datetime | None:
@@ -531,7 +327,16 @@ def cutover_before_s2(ledger: dict) -> str:
 
 
 def save_state(state: dict) -> None:
-    """Atomic write. Refuse to shrink scored history unless BP_FORCE_WIPE=1."""
+    """Atomic write. Refuse to shrink scored history unless BP_FORCE_WIPE=1.
+    Archive S1 is frozen: the scorer must never rewrite battle-pass-s1.json.
+    """
+    archive = (ROOT / "data" / "public" / "battle-pass-s1.json").resolve()
+    try:
+        if OUT.resolve() == archive:
+            print("BP: REFUSE write, S1 archive is frozen", flush=True)
+            return
+    except Exception:
+        pass
     state["updatedAt"] = _utc_now()
     OUT.parent.mkdir(parents=True, exist_ok=True)
     new_scored = len(state.get("scoredMatchIds") or [])
@@ -1007,6 +812,10 @@ def apply_match_to_players(
     cut = str(state.get("cutoverAfterMatchId") or "")
     if not match_after_cutover(mid, cut):
         return 0
+    # Первый сезон закрыт: матчи до 04.11.2026 в живой сезон не попадают.
+    played_at = _match_id_dt(mid)
+    if played_at is not None and played_at < S2_START:
+        return 0
     if is_seed_block(block):
         print(f"BP: skip SEED {mid}", flush=True)
         return 0
@@ -1346,8 +1155,8 @@ def persist_season_rewards(state: dict) -> None:
     sid = str(state.get("seasonId") or SEASON_ID)
     if sid.startswith("hw2"):
         persist_s2_rewards(state)
-    else:
-        persist_l5_backgrounds(state)
+        return
+    print(f"BP S1 frozen: skip rewards for season {sid!r}", flush=True)
 
 
 def finalize(state: dict, registered: dict[str, dict] | None = None) -> dict:
@@ -1356,7 +1165,6 @@ def finalize(state: dict, registered: dict[str, dict] | None = None) -> dict:
     n = reconcile_level_targets(state)
     if n:
         print(f"BP: reconciled targets, advanced={n}", flush=True)
-    maybe_award_l20_closest(state)
     state["leaderboard"] = leaderboard_rows(state)
     state["enabled"] = True
     state["seasonId"] = SEASON_ID
@@ -1811,29 +1619,8 @@ def main() -> None:
                         line.split("=", 1)[1].strip().strip("'").strip('"')
                     )
 
-    if "--grant-bgs-only" in sys.argv:
-        persist_l5_backgrounds(load_state())
-        return
-
-    if "--finalize-s1" in sys.argv:
-        state = load_state()
-        changed = maybe_award_l20_closest(state)
-        state = finalize(state)
-        save_state(state)
-        persist_l5_backgrounds(state)
-        print(
-            json.dumps(
-                {
-                    "changed": changed,
-                    "l20Finale": state.get("l20Finale"),
-                    "nowMsk": datetime.now(MSK).isoformat(),
-                    "s1End": S1_END.isoformat(),
-                },
-                ensure_ascii=False,
-                indent=2,
-            ),
-            flush=True,
-        )
+    if "--grant-bgs-only" in sys.argv or "--finalize-s1" in sys.argv:
+        print("BP S1 frozen: season ended 31.10.2026, rewards are not granted", flush=True)
         return
 
     if "--rebuild-from-ledger" in sys.argv:

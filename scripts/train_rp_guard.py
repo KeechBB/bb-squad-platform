@@ -524,6 +524,9 @@ def lag_minutes() -> int:
 
 
 def alert_stale_pending(data_dir: Path, *, kind: str = "train") -> list[str]:
+    # 26.10.2026: тренировочный RP выключен. Старая очередь не шлёт «отстаёт».
+    if kind == "train":
+        return []
     # Drop anything already on the ladder before enqueue/alert — avoids false
     # Telegram when warehouse pending lags a newer mirrored ladder (or vice versa).
     settle_pending(data_dir, kind=kind)

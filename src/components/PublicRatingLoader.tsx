@@ -12,11 +12,12 @@ type Payload = {
   matchHistory: PublicMatchRow[];
 };
 
-export function PublicRatingLoader() {
-  const [data, setData] = useState<Payload | null>(null);
+export function PublicRatingLoader({ initial }: { initial?: Payload | null }) {
+  const [data, setData] = useState<Payload | null>(initial || null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
+    if (initial) return;
     let cancelled = false;
     (async () => {
       try {
@@ -35,7 +36,7 @@ export function PublicRatingLoader() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initial]);
 
   if (err) {
     return (

@@ -4,9 +4,8 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { subscribeLive } from "@/lib/liveClient";
 
-/** Тихий router.refresh: общий SSE + редкий поллинг; в фоне вкладки не дергаем. */
+/** Тихий router.refresh только когда пришло живое событие, без поминутной пересборки страницы. */
 export function LivePageRefresh({
-  intervalMs = 60_000,
   sseUrl = "/api/live/me",
 }: {
   intervalMs?: number;
@@ -36,20 +35,18 @@ export function LivePageRefresh({
 
     const unsub = subscribeLive(sseUrl, "user", () => schedule());
 
-    const id = window.setInterval(refresh, intervalMs);
     const onVis = () => {
-      if (document.visibilityState === "visible") refresh();
+      if (document.visibilityState === "visible") schedule();
     };
     document.addEventListener("visibilitychange", onVis);
 
     return () => {
       cancelled = true;
-      window.clearInterval(id);
       if (debounce != null) window.clearTimeout(debounce);
       document.removeEventListener("visibilitychange", onVis);
       unsub();
     };
-  }, [router, intervalMs, sseUrl]);
+  }, [router, sseUrl]);
 
   return null;
 }

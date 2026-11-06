@@ -609,15 +609,24 @@ export async function buildPlayerPublicCombatStats(
 ): Promise<PlayerPublicCombatStats | null> {
   const clean = String(nick || "").trim();
   if (!clean) return null;
-  const want = nickKey(clean);
+  const { publicRpLookupNick, collisionBySiteNick } = await import(
+    "@/lib/nickCollisions"
+  );
+  const lookupNick = publicRpLookupNick(
+    clean,
+    collisionBySiteNick(clean)?.steamId
+  );
+  const want = nickKey(lookupNick);
 
   // Fast path: aggregate from slim ladder player.matches (no full-table rebuild).
   const { lookupPlayerPublicRp } = await import("@/lib/publicRp");
   const [player, att] = await Promise.all([
-    lookupPlayerPublicRp(clean).catch(() => null),
+    lookupPlayerPublicRp(lookupNick).catch(() => null),
     buildPublicAttendanceLeaderboard(500).catch(() => [] as { nick: string; days: number }[]),
   ]);
-  const days = att.find((a) => nickKey(a.nick) === want)?.days || 0;
+  const days =
+    att.find((a) => nickKey(a.nick) === want || nickKey(a.nick) === nickKey(clean))
+      ?.days || 0;
 
   type SlimM = {
     kills?: unknown;

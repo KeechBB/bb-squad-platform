@@ -12,7 +12,14 @@ export type KeechHuntEventKind =
   | "vehicle_kill"
   | "vehicle_loss"
   | "vehicle_loss_driver"
-  | "driver_share";
+  | "driver_share"
+  | "hit"
+  | "gothit"
+  | "suppress"
+  | "gotsuppress"
+  | "accuracy"
+  | "heal"
+  | "gotheal";
 
 export type KeechHuntEvent = {
   id: string;
@@ -29,13 +36,38 @@ export type KeechHuntEvent = {
   layerShort?: string;
   matchId?: string;
   teamkill?: boolean;
-  /** Human label for vehicle / driver_share rows. */
+  /** Human label for vehicle / driver_share / hit zone. */
   label?: string;
   vehicle?: string;
   tickets?: number | null;
   /** Soft-cap multiplier applied to this gain (Immortal…Predator). */
   gainCoef?: number | null;
   reason?: string;
+  /** Hit zone / bone label (RU). */
+  zone?: string;
+  damage?: number;
+  suppress?: number;
+  /** HP healed (BBHealTracker). */
+  heal?: number;
+  /** Running combat accuracy snapshot (hits / shots). */
+  shots?: number;
+  hits?: number;
+  accuracyPct?: number | null;
+};
+
+export type KeechHuntCombat = {
+  shots: number;
+  hits: number;
+  accuracyPct: number | null;
+  /** False when BBAcuracy never reported Keech (e.g. Jensen dumps {}). */
+  shotsKnown?: boolean;
+  suppressTotal: number;
+  suppressNow: { nick: string; value: number }[];
+  suppressOnMe?: number;
+  /** Σ HP Keech healed on others (BBHealTracker). */
+  healGiven?: number;
+  /** Σ HP others healed on Keech. */
+  healTaken?: number;
 };
 
 export type KeechHuntMatch = {
@@ -61,6 +93,8 @@ export type KeechHuntLive = {
   match: KeechHuntMatch | null;
   matches?: KeechHuntMatch[];
   keechSteam: string;
+  keechServer?: string | null;
+  combat?: KeechHuntCombat;
 };
 
 /** Keep only events that belong to this match/map (drop glued leftovers). */
@@ -133,6 +167,35 @@ export function mergeKeechHuntEvents(matches: KeechHuntMatch[]): KeechHuntEvent[
   return out.sort((a, b) => String(a.at).localeCompare(String(b.at)));
 }
 
+/** `3/28 = 10.7%` — same formula as combat header (hits / shots × 100). */
+export function formatAccSnap(e: {
+  shots?: number;
+  hits?: number;
+  accuracyPct?: number | null;
+  shotsKnown?: boolean;
+  label?: string;
+}): string {
+  const hits = e.hits != null ? Number(e.hits) : NaN;
+  if (e.shotsKnown === false || (e.label && /н\/д/.test(e.label))) {
+    if (Number.isFinite(hits)) return ` · хиты ${hits} · выстрелы н/д`;
+    return " · выстрелы н/д";
+  }
+  const shots = e.shots != null ? Number(e.shots) : NaN;
+  if (Number.isFinite(shots) && Number.isFinite(hits) && shots >= 0) {
+    if (e.accuracyPct != null && Number.isFinite(Number(e.accuracyPct))) {
+      return ` · ${hits}/${shots} = ${Number(e.accuracyPct)}%`;
+    }
+    if (shots < 5) {
+      return ` · ${hits}/${shots} (ждём 5+)`;
+    }
+    return ` · ${hits}/${shots}`;
+  }
+  if (e.label && /\d+\/\d+/.test(e.label)) {
+    return ` · ${e.label}`;
+  }
+  return "";
+}
+
 /** Live-log / column display: who / what this RP is for. */
 export function huntEventBody(e: KeechHuntEvent): {
   prefix: string;
@@ -175,5 +238,75 @@ export function huntEventBody(e: KeechHuntEvent): {
       nick: e.label || e.nick,
       suffix: ` · ${d} RP${soft}`,
     };
+  if (e.kind === "hit") {
+    const where = e.zone || "";
+    const dmg =
+      e.damage != null && Number(e.damage) > 0
+        ? ` · ${Math.round(Number(e.damage))} dmg`
+        : "";
+    const acc = formatAccSnap(e);
+    const zoneBit = where ? ` · ${where}` : "";
+    return {
+      prefix: "Попадание → ",
+      nick: e.nick,
+      suffix: `${zoneBit}${dmg}${acc}`,
+    };
+  }
+  if (e.kind === "accuracy") {
+    const acc = formatAccSnap(e) || (e.label ? ` · ${e.label}` : "");
+    return {
+      prefix: "Точность",
+      nick: null,
+      suffix: acc || " · —",
+    };
+  }
+  if (e.kind === "gothit") {
+    const where = e.zone || e.label || "";
+    const dmg =
+      e.damage != null && Number(e.damage) > 0
+        ? ` · ${Math.round(Number(e.damage))} dmg`
+        : "";
+    return {
+      prefix: "В тебя → ",
+      nick: e.nick,
+      suffix: where ? ` · ${where}${dmg}` : dmg,
+    };
+  }
+  if (e.kind === "suppress") {
+    const v =
+      e.suppress != null && Number(e.suppress) > 0
+        ? ` · ${Math.round(Number(e.suppress))}`
+        : "";
+    return { prefix: "Подавление → ", nick: e.nick, suffix: v };
+  }
+  if (e.kind === "gotsuppress") {
+    const v =
+      e.suppress != null && Number(e.suppress) > 0
+        ? String(Math.round(Number(e.suppress)))
+        : "";
+    return {
+      prefix: "Подавление на тебе",
+      nick: null,
+      suffix: v ? ` · ${v}` : "",
+    };
+  }
+  if (e.kind === "heal") {
+    const hp =
+      e.heal != null && Number(e.heal) > 0
+        ? ` · +${Math.round(Number(e.heal))} HP`
+        : e.label
+          ? ` · ${e.label}`
+          : "";
+    return { prefix: "Хил → ", nick: e.nick, suffix: hp };
+  }
+  if (e.kind === "gotheal") {
+    const hp =
+      e.heal != null && Number(e.heal) > 0
+        ? ` · +${Math.round(Number(e.heal))} HP`
+        : e.label
+          ? ` · ${e.label}`
+          : "";
+    return { prefix: "Хил тебе ← ", nick: e.nick, suffix: hp };
+  }
   return { prefix: `Сам · ${d} RP`, nick: null, suffix: "" };
 }

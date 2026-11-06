@@ -72,10 +72,24 @@ def _ended_ahead() -> bool:
     return end > published + LAG
 
 
+def _heal_profile_holes() -> None:
+    """Rating can move while one match never reaches profile history."""
+    sys.path.insert(0, str(HERE))
+    import publish_public_surfaces as PUBLISH  # noqa: WPS433
+
+    n = PUBLISH.heal_recent_profile_holes()
+    if n:
+        print(f"gap check: filled profile holes rows={n}", flush=True)
+
+
 def main() -> int:
     if _busy():
         print("gap check: scoring already running", flush=True)
         return 0
+    try:
+        _heal_profile_holes()
+    except Exception as e:
+        print(f"gap check: profile hole fill failed: {type(e).__name__}: {e}", flush=True)
     try:
         ahead = _ended_ahead()
     except Exception as e:

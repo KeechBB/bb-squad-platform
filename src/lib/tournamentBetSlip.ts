@@ -228,6 +228,8 @@ export type BetReveal = {
   champion: string | null;
   answers: Partial<BetSlip>;
   lines: Partial<Record<BetField, string>>;
+  /** Несколько верных ответов, если статистика поровну. */
+  accept?: Partial<Record<BetField, Array<string | boolean>>>;
 };
 
 export const BET_REVEAL_CLOSED: BetReveal = {
@@ -255,21 +257,28 @@ export type BetsPayload = {
 
 export function gradeBetSlip(
   slip: BetSlip,
-  key: Partial<BetSlip> | null
+  key: Partial<BetSlip> | null,
+  accept?: BetReveal["accept"]
 ): { correct: number; graded: number } {
   if (!key) return { correct: 0, graded: 0 };
   let correct = 0;
   let graded = 0;
   for (const q of BET_QUESTIONS) {
     const expected = key[q.field];
-    if (expected === undefined || expected === null || expected === "") continue;
+    const extras = accept?.[q.field] || [];
+    if (
+      (expected === undefined || expected === null || expected === "") &&
+      extras.length === 0
+    ) {
+      continue;
+    }
     graded += 1;
     const actual = slip[q.field];
     if (q.kind === "score") {
       const a = blowoutKey(String(actual ?? ""));
       const b = blowoutKey(String(expected ?? ""));
       if (a && b && a === b) correct += 1;
-    } else if (actual === expected) {
+    } else if (actual === expected || extras.includes(actual as string | boolean)) {
       correct += 1;
     }
   }

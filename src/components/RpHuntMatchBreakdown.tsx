@@ -28,19 +28,25 @@ function isDriverShareNok(e: RpMatchEvent): boolean {
   return e.kind === "driver_share" && e.reason === "nok";
 }
 
+function person(who: string, e: RpMatchEvent, vehicle: boolean): string {
+  if (vehicle) return who;
+  const how = String(e.weapon || "").trim();
+  if (!how) return who;
+  return `${who} · ${how}`;
+}
+
 function toNokRows(events: RpMatchEvent[]): Row[] {
   return (events || []).map((e, i) => {
     const tk = Boolean(e.teamkill);
     const mag = Math.abs(Number(e.delta) || 0);
     const vehicle = isVehicleRpEvent(e);
-    const nick = vehicle ? formatRpEventLabel(e, "kill") : e.victim;
+    const who = vehicle ? formatRpEventLabel(e, "kill") : e.victim;
+    const nick = person(who, e, vehicle);
     return {
       key: `n-${i}-${e.time}-${e.victim}-${e.kind || "nok"}`,
       time: e.time || "—",
       nick,
-      title: vehicle
-        ? `${nick} · ${fmtDelta(mag)} RP`
-        : e.victim,
+      title: nick,
       delta: tk ? -mag : mag,
     };
   });
@@ -49,14 +55,13 @@ function toNokRows(events: RpMatchEvent[]): Row[] {
 function toKillRows(events: RpMatchEvent[]): Row[] {
   return (events || []).map((e, i) => {
     const vehicle = isVehicleRpEvent(e);
-    const nick = vehicle ? formatRpEventLabel(e, "kill") : e.victim;
+    const who = vehicle ? formatRpEventLabel(e, "kill") : e.victim;
+    const nick = person(who, e, vehicle);
     return {
       key: `k-${i}-${e.time}-${e.victim}-${e.kind || "die"}`,
       time: e.time || "—",
       nick,
-      title: vehicle
-        ? `${nick} · ${fmtDelta(Math.abs(Number(e.delta) || 0))} RP`
-        : e.victim,
+      title: nick,
       delta:
         Math.abs(Number(e.delta) || 0) *
         (e.teamkill || e.kind === "tk" ? -1 : 1),
@@ -77,7 +82,8 @@ function victimLoss(e: RpMatchEvent): number {
 function toDeathRows(events: RpMatchEvent[]): Row[] {
   return (events || []).map((e, i) => {
     const vehicle = isVehicleRpEvent(e);
-    const nick = vehicle ? formatRpEventLabel(e, "death") : e.killer;
+    const who = vehicle ? formatRpEventLabel(e, "death") : e.killer;
+    const nick = person(who, e, vehicle);
     const mag =
       e.kind === "vehicle_loss" || e.kind === "vehicle_loss_driver"
         ? Math.abs(Number(e.delta) || 0)
@@ -107,10 +113,11 @@ function toReviveRows(events: RpMatchEvent[]): Row[] {
 function toGotNokRows(events: RpMatchEvent[]): Row[] {
   return (events || []).map((e, i) => {
     const mag = victimLoss(e);
+    const nick = person(e.killer, e, false);
     return {
       key: `gn-${i}-${e.time}-${e.killer}`,
       time: e.time || "—",
-      nick: e.killer,
+      nick,
       delta: -mag,
       arrow: true,
     };
@@ -121,10 +128,13 @@ function Col({
   title,
   rows,
   empty = "—",
+  hideRp = false,
 }: {
   title: string;
   rows: Row[];
   empty?: string;
+  /** Тренировки: лог без ±RP. */
+  hideRp?: boolean;
 }) {
   const list = newestFirst(rows);
   return (
@@ -137,14 +147,23 @@ function Col({
           {list.map((r) => (
             <li key={r.key} className="keech-hunt-row">
               <span className="keech-hunt-time">{r.time}</span>
-              <span className="keech-hunt-nick" title={r.title || r.nick}>
+              <span
+                className="keech-hunt-nick"
+                title={
+                  hideRp
+                    ? r.nick
+                    : r.title || r.nick
+                }
+              >
                 {r.arrow ? `← ${r.nick}` : r.nick}
               </span>
-              <span
-                className={`keech-hunt-delta ${r.delta >= 0 ? "plus" : "minus"}`}
-              >
-                {fmtDelta(r.delta)}
-              </span>
+              {hideRp ? null : (
+                <span
+                  className={`keech-hunt-delta ${r.delta >= 0 ? "plus" : "minus"}`}
+                >
+                  {fmtDelta(r.delta)}
+                </span>
+              )}
               <span className="keech-hunt-hit-spacer" />
             </li>
           ))}
@@ -159,6 +178,8 @@ type Props = {
   onClose: () => void;
   /** Вкладка внутри модалки матча — без своего оверлея. */
   embedded?: boolean;
+  /** Без итога/±RP в строках (тренировочный «Детальный разбор»). */
+  hideRp?: boolean;
 };
 
 function isDriverShareVehicleKill(e: RpMatchEvent): boolean {
@@ -260,7 +281,12 @@ export function useRpMatchColumns(match: RpPlayerMatch) {
 }
 
 /** Hunt-style 5-column match breakdown (ledger / post-match only). */
-export function RpHuntMatchBreakdown({ match, onClose, embedded }: Props) {
+export function RpHuntMatchBreakdown({
+  match,
+  onClose,
+  embedded,
+  hideRp = false,
+}: Props) {
   const cols = useRpMatchColumns(match);
   const dateShort = match.date?.slice(5)?.replace("-", ".") || match.date;
 
@@ -278,34 +304,66 @@ export function RpHuntMatchBreakdown({ match, onClose, embedded }: Props) {
     };
   }, [onClose, embedded]);
 
+  const countsMuted = (
+    <span className="muted">
+      ноки {cols.nokRows.length} · киллы {cols.killRows.length} · техника{" "}
+      {cols.vehicleGainRows.length}
+      {cols.vehicleLossRows.length ? `/−${cols.vehicleLossRows.length}` : ""} ·
+      смерти {cols.deathRows.length} · ресы {cols.reviveRows.length} · нокнули{" "}
+      {cols.gotRows.length}
+    </span>
+  );
+
   const board = (
     <>
       {embedded ? (
         <p className="profile-rp-detail-net">
-          Итог катки{" "}
-          <b className={cols.net >= 0 ? "plus" : "minus"}>{fmtDelta(cols.net)} RP</b>
-          <span className="muted">
-            {" "}
-            · ноки {cols.nokRows.length} · киллы {cols.killRows.length} · техника{" "}
-            {cols.vehicleGainRows.length}
-            {cols.vehicleLossRows.length ? `/−${cols.vehicleLossRows.length}` : ""} ·
-            смерти {cols.deathRows.length} · ресы {cols.reviveRows.length} · нокнули{" "}
-            {cols.gotRows.length}
-          </span>
+          {hideRp ? (
+            <>Итог катки · {countsMuted}</>
+          ) : (
+            <>
+              Итог катки{" "}
+              <b className={cols.net >= 0 ? "plus" : "minus"}>
+                {fmtDelta(cols.net)} RP
+              </b>{" "}
+              · {countsMuted}
+            </>
+          )}
         </p>
       ) : null}
       <div className="keech-hunt-cols detail rp-breakdown-cols-scroll">
-        <Col title={`ноки (${cols.nokRows.length})`} rows={cols.nokRows} />
-        <Col title={`+ киллы (${cols.killRows.length})`} rows={cols.killRows} />
+        <Col
+          title={`ноки (${cols.nokRows.length})`}
+          rows={cols.nokRows}
+          hideRp={hideRp}
+        />
+        <Col
+          title={`${hideRp ? "" : "+ "}киллы (${cols.killRows.length})`}
+          rows={cols.killRows}
+          hideRp={hideRp}
+        />
         <Col
           title={`техника (${cols.vehicleGainRows.length}${
             cols.vehicleLossRows.length ? `/−${cols.vehicleLossRows.length}` : ""
           })`}
           rows={cols.vehicleRows}
+          hideRp={hideRp}
         />
-        <Col title={`− смерти (${cols.deathRows.length})`} rows={cols.deathRows} />
-        <Col title={`+ ресы (${cols.reviveRows.length})`} rows={cols.reviveRows} />
-        <Col title={`Меня нокнул (${cols.gotRows.length})`} rows={cols.gotRows} />
+        <Col
+          title={`${hideRp ? "" : "− "}смерти (${cols.deathRows.length})`}
+          rows={cols.deathRows}
+          hideRp={hideRp}
+        />
+        <Col
+          title={`${hideRp ? "" : "+ "}ресы (${cols.reviveRows.length})`}
+          rows={cols.reviveRows}
+          hideRp={hideRp}
+        />
+        <Col
+          title={`Меня нокнул (${cols.gotRows.length})`}
+          rows={cols.gotRows}
+          hideRp={hideRp}
+        />
       </div>
     </>
   );
@@ -336,9 +394,9 @@ export function RpHuntMatchBreakdown({ match, onClose, embedded }: Props) {
                 {match.map} · {dateShort}
               </h3>
               <p className="muted">
-                NET {fmtDelta(cols.net)} · N {cols.nokRows.length} / GN {cols.gotRows.length} / K{" "}
-                {cols.killRows.length} / Т {cols.vehicleGainRows.length} / D {cols.deathRows.length} / R{" "}
-                {cols.reviveRows.length}
+                {hideRp
+                  ? `N ${cols.nokRows.length} / GN ${cols.gotRows.length} / K ${cols.killRows.length} / Т ${cols.vehicleGainRows.length} / D ${cols.deathRows.length} / R ${cols.reviveRows.length}`
+                  : `NET ${fmtDelta(cols.net)} · N ${cols.nokRows.length} / GN ${cols.gotRows.length} / K ${cols.killRows.length} / Т ${cols.vehicleGainRows.length} / D ${cols.deathRows.length} / R ${cols.reviveRows.length}`}
               </p>
             </div>
           </div>

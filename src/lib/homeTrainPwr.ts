@@ -9,6 +9,13 @@ import {
   isTrainStatsYmdOk,
   trainStatsSinceYmd,
 } from "@/lib/trainStatsSince";
+import {
+  collisionBySiteNick,
+  collisionBySteamId,
+  isCollidingAngelNick,
+  loadSteamAngelTrainDays,
+  matchYmdAllowed,
+} from "@/lib/nickCollisions";
 
 function nickKey(nick: string) {
   return nick.trim().toLowerCase().replace(/\s+/g, "");
@@ -670,9 +677,7 @@ async function loadTrainPlayerCorpus(): Promise<TrainPlayerCorpus> {
         : `99:${pad2(ord)}`;
       const hm = /^(\d{1,2}):(\d{2})/.exec(timeKey);
       if (hm) {
-        const h = Number(hm[1]);
-        const mi = Number(hm[2]);
-        if (h === 0 && mi <= 29) timeKey = `24:${pad2(mi)}`;
+        timeKey = `${pad2(Number(hm[1]))}:${pad2(Number(hm[2]))}`;
       }
       const day = match.day ?? 0;
       const inHistory = monthOk && Boolean(match.id) && match.day != null;
@@ -765,7 +770,8 @@ function aliasResolver(aliases: Record<string, string>) {
 
 /** История тренировок игрока с ΔRP после каждой катки (хронология). */
 export async function buildPlayerTrainMatchHistory(
-  nick: string
+  nick: string,
+  opts?: { steamId?: string | null }
 ): Promise<TrainMatchHistoryRow[]> {
   const clean = String(nick || "").trim();
   if (!clean) return [];
@@ -775,6 +781,14 @@ export async function buildPlayerTrainMatchHistory(
   const resolveKey = aliasResolver(corpus.aliases);
   const want = resolveKey(clean);
   const sinceYmd = trainStatsSinceYmd();
+  const collision =
+    collisionBySteamId(opts?.steamId) ||
+    collisionBySiteNick(clean) ||
+    (isCollidingAngelNick(clean) ? collisionBySteamId(opts?.steamId) : null);
+  const steamDays =
+    collision?.steamId
+      ? await loadSteamAngelTrainDays(collision.steamId)
+      : null;
 
   // Все катки календаря с 20.10, где ник есть в players — не только RP-ledger.
   // Иначе вечерние катки без RP «пропадают» из профиля (кейс Keech 26.10).
@@ -783,6 +797,7 @@ export async function buildPlayerTrainMatchHistory(
       if (!row.inHistory || !row.id || !row.doc) return false;
       const ymd = `${row.year}-${pad2(row.month)}-${pad2(row.day)}`;
       if (!isTrainStatsYmdOk(ymd) || ymd < sinceYmd) return false;
+      if (!matchYmdAllowed(ymd, steamDays)) return false;
       const list = (
         row.doc.players?.length
           ? row.doc.players
@@ -949,18 +964,17 @@ export function trainHistoryChronoKey(
   row: Pick<TrainMatchHistoryRow, "matchId" | "dateLabel" | "timeLabel">,
   metaSortKey?: string | null
 ): string {
-  if (metaSortKey) return metaSortKey;
   const d = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(String(row.dateLabel || "").trim());
   const iso = d ? `${d[3]}-${d[2]}-${d[1]}` : "0000-00-00";
   let timeKey = "23:59";
   const hm = /^(\d{1,2}):(\d{2})/.exec(String(row.timeLabel || "").trim());
   if (hm) {
-    let h = Number(hm[1]);
-    const mi = Number(hm[2]);
-    if (h === 0 && mi <= 29) h = 24;
-    timeKey = `${String(h).padStart(2, "0")}:${pad2(mi)}`;
+    timeKey = `${pad2(Number(hm[1]))}:${pad2(Number(hm[2]))}`;
   }
-  return `${iso}T${timeKey}-${row.matchId}`;
+  const clock = `${iso}T${timeKey}-${row.matchId}`;
+  // 00:18 — начало дня, не 24:18. Старый ключ календаря таким не пользуемся.
+  if (!metaSortKey || /T24:/.test(metaSortKey)) return clock;
+  return metaSortKey;
 }
 
 export function sortTrainHistoryNewestFirst(
@@ -1029,7 +1043,8 @@ export type PlayerTrainCombatStats = {
 
 /** Сводка боевой статы по тренировочным каткам (для вкладки профиля). */
 export async function buildPlayerTrainCombatStats(
-  nick: string
+  nick: string,
+  opts?: { steamId?: string | null }
 ): Promise<PlayerTrainCombatStats | null> {
   const clean = String(nick || "").trim();
   if (!clean) return null;
@@ -1072,6 +1087,12 @@ export async function buildPlayerTrainCombatStats(
   if (!corpus.hasIndex) return withTrainRp(emptyBase);
   const resolveKey = aliasResolver(corpus.aliases);
   const want = resolveKey(clean);
+  const collision =
+    collisionBySteamId(opts?.steamId) || collisionBySiteNick(clean);
+  const steamDays =
+    collision?.steamId
+      ? await loadSteamAngelTrainDays(collision.steamId)
+      : null;
   const vehIndex = await loadTrainVehicleKillIndex().catch(
     () => ({}) as Record<string, Record<string, number>>
   );
@@ -1122,6 +1143,7 @@ export async function buildPlayerTrainCombatStats(
       if (!mine.length) continue;
       const ymd = `${match.year}-${pad2(match.month)}-${pad2(match.day)}`;
       if (!isTrainStatsYmdOk(ymd)) continue;
+      if (!matchYmdAllowed(ymd, steamDays)) continue;
       if (mine[0]?.nick) displayNick = String(mine[0].nick);
       matches += 1;
       for (const p of mine) {

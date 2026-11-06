@@ -10,6 +10,10 @@ import { loadPlayerProfileHeavy } from "@/lib/playerProfileHeavy";
 import { loadReadyHistories } from "@/lib/profileMatchLines";
 import { buildPlayerCwAttendance } from "@/lib/homeCwPwr";
 import { takeStaleNicks } from "@/lib/profileViewQueue";
+import {
+  collisionBySiteNick,
+  publicRpLookupNick,
+} from "@/lib/nickCollisions";
 
 export type ProfileViewPayload = {
   trainPwr: unknown;
@@ -94,10 +98,14 @@ export async function buildProfileViewPayload(
   userId: string,
   nick: string
 ): Promise<ProfileViewPayload> {
+  const publicNick = publicRpLookupNick(
+    nick,
+    collisionBySiteNick(nick)?.steamId
+  );
   const [trainPwr, rp, combat, training, publicAtt, cwAtt, heavy] =
     await Promise.all([
       lookupPlayerTrainPwr(nick).catch(() => null),
-      loadPublicRpOneFromDb(nick).catch(() => null),
+      loadPublicRpOneFromDb(publicNick).catch(() => null),
       buildPlayerPublicCombatStats(nick).catch(() => null),
       loadUserTrainingStats(userId),
       loadUserPublicAttendanceStats(userId).catch(() => null),
