@@ -11,6 +11,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { FactionView } from "@/lib/factions";
 import {
@@ -300,7 +301,14 @@ function FactionRoster({
             {visible.map((m) => (
               <tr key={m.id}>
                 <td>{m.order}</td>
-                <td>{m.nick}</td>
+                <td>
+                  <Link
+                    className="player-nick-link"
+                    href={`/players/${encodeURIComponent(m.nick)}`}
+                  >
+                    {m.nick}
+                  </Link>
+                </td>
                 <td>{m.name}</td>
                 <td>{m.mainKit}</td>
                 <td>
