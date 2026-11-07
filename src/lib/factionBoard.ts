@@ -97,8 +97,8 @@ function hslToHex(h: number, s: number, l: number): string {
   return `#${hex(hue(p, q, h + 1 / 3))}${hex(hue(p, q, h))}${hex(hue(p, q, h - 1 / 3))}`;
 }
 
-/** Яркий цвет логотипа: оттенок фракции, светлость поднята, чтобы имя читалось. */
-export async function factionLogoColor(factionId: string): Promise<string> {
+/** Базовый оттенок логотипа (0..1) или null. */
+async function factionLogoHue(factionId: string): Promise<number | null> {
   const file = path.join(FACTION_LOGO_DIR, `${factionId}.png`);
   try {
     const { data } = await sharp(file)
@@ -129,12 +129,40 @@ export async function factionLogoColor(factionId: string): Promise<string> {
     for (const bucket of buckets.values()) {
       if (!best || bucket.score > best.score) best = bucket;
     }
-    if (!best || best.score <= 0) return "#f4f0e8";
-    const hsl = rgbToHsl(best.r / best.score, best.g / best.score, best.b / best.score);
-    return hslToHex(hsl.h, Math.max(0.78, Math.min(1, hsl.s)), 0.64);
+    if (!best || best.score <= 0) return null;
+    return rgbToHsl(best.r / best.score, best.g / best.score, best.b / best.score).h;
   } catch {
-    return "#f4f0e8";
+    return null;
   }
+}
+
+/** Яркий цвет логотипа: оттенок фракции, светлость поднята, чтобы имя читалось. */
+export async function factionLogoColor(factionId: string): Promise<string> {
+  const hue = await factionLogoHue(factionId);
+  if (hue == null) return "#f4f0e8";
+  return hslToHex(hue, 0.82, 0.64);
+}
+
+/**
+ * Выраженный цвет сектора на кольцах рейтингов.
+ * Берёт оттенок логотипа и разводит близкие оттенки по кругу, чтобы фракции не сливались.
+ */
+export async function factionRingColors(factionIds: string[]): Promise<string[]> {
+  const hues = await Promise.all(factionIds.map((id) => factionLogoHue(id)));
+  const n = Math.max(1, factionIds.length);
+  const used: number[] = [];
+  return factionIds.map((_, i) => {
+    let h = hues[i];
+    if (h == null) h = (i / n + 0.08) % 1;
+    for (const other of used) {
+      const d = Math.min(Math.abs(h - other), 1 - Math.abs(h - other));
+      if (d < 0.1) {
+        h = (h + 0.14 + i * 0.03) % 1;
+      }
+    }
+    used.push(h);
+    return hslToHex(h, 0.9, 0.56);
+  });
 }
 
 function roundTo(v: number, digits: number): number {
@@ -607,7 +635,7 @@ export async function factionRatingsBoard(clanId: string): Promise<{
     }
   }
 
-  const colors = await Promise.all(factions.map((f) => factionLogoColor(f.id)));
+  const colors = await factionRingColors(factions.map((f) => f.id));
   const base = factions.map((f, i) => ({
     factionId: f.id,
     name: f.name,
@@ -617,7 +645,7 @@ export async function factionRatingsBoard(clanId: string): Promise<{
   const charts: FactionRatingChart[] = [
     {
       id: "people",
-      title: "Люди на тренировках",
+      title: "Люди",
       total: base.reduce((s, f) => s + (people.get(f.factionId)?.size || 0), 0),
       slices: pctSlices(
         base.map((f) => ({ ...f, value: people.get(f.factionId)?.size || 0 }))
@@ -625,19 +653,19 @@ export async function factionRatingsBoard(clanId: string): Promise<{
     },
     {
       id: "kills",
-      title: "Убийства на тренировках",
+      title: "Убийства",
       total: base.reduce((s, f) => s + (kills.get(f.factionId) || 0), 0),
       slices: pctSlices(base.map((f) => ({ ...f, value: kills.get(f.factionId) || 0 }))),
     },
     {
       id: "deaths",
-      title: "Смерти на тренировках",
+      title: "Смерти",
       total: base.reduce((s, f) => s + (deaths.get(f.factionId) || 0), 0),
       slices: pctSlices(base.map((f) => ({ ...f, value: deaths.get(f.factionId) || 0 }))),
     },
     {
       id: "res",
-      title: "Ресы на тренировках",
+      title: "Ресы",
       total: base.reduce((s, f) => s + (res.get(f.factionId) || 0), 0),
       slices: pctSlices(base.map((f) => ({ ...f, value: res.get(f.factionId) || 0 }))),
     },

@@ -23618,33 +23618,36 @@ body:has(.faction-page) .site-footer {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .faction-ratings-grid {
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  gap: 10px 16px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: 1fr;
+  gap: 12px 18px;
+  align-items: stretch;
 }
 
 .faction-rating-card {
+  min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
 .faction-rating-title {
   margin: 0;
   flex: 0 0 auto;
   text-align: center;
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: rgba(244, 240, 232, 0.88);
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #f4f0e8;
 }
 
 .faction-rating-stage {
@@ -23654,6 +23657,22 @@ body:has(.faction-page) .site-footer {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.faction-rating-donut {
+  width: min(100%, 100%);
+  height: 100%;
+  max-height: 100%;
+  aspect-ratio: 1;
+}
+
+.faction-rating-pct {
+  fill: #f8fafc;
+  font-weight: 900;
+}
+
+.faction-rating-name {
+  font-weight: 800;
 }
 
 .faction-brand {

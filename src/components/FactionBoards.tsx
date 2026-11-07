@@ -611,11 +611,15 @@ function shareDonut(
 function RatingDonut({ chart, week }: { chart: RatingChart; week: string }) {
   const uid = useId().replace(/:/g, "");
   const [hover, setHover] = useState<string | null>(null);
-  const paths = useMemo(() => shareDonut(chart.slices, 60, 60, 54, 28), [chart.slices]);
+  const paths = useMemo(() => shareDonut(chart.slices, 60, 60, 56, 30), [chart.slices]);
   const active = paths.find((s) => s.id === hover) || paths[0] || null;
   const pct =
     active && (Number.isInteger(active.pct) ? `${active.pct}%` : `${active.pct.toFixed(1)}%`);
-  const label = active ? (active.name.length > 14 ? `${active.name.slice(0, 13)}…` : active.name) : "";
+  const label = active
+    ? active.name.length > 12
+      ? `${active.name.slice(0, 11)}…`
+      : active.name
+    : "";
 
   return (
     <div className="faction-rating-card">
@@ -625,14 +629,14 @@ function RatingDonut({ chart, week }: { chart: RatingChart; week: string }) {
       ) : (
         <div className="faction-rating-stage" onMouseLeave={() => setHover(null)}>
           <svg
-            className="faction-analytics-donut"
+            className="faction-rating-donut"
             viewBox="0 0 120 120"
             role="img"
             aria-label={active ? `${active.name} ${pct}` : chart.title}
           >
             <defs>
               <filter id={`faction-rate-${uid}`} x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation="0.6" result="b" />
+                <feGaussianBlur stdDeviation="0.55" result="b" />
                 <feMerge>
                   <feMergeNode in="b" />
                   <feMergeNode in="SourceGraphic" />
@@ -647,19 +651,26 @@ function RatingDonut({ chart, week }: { chart: RatingChart; week: string }) {
                   key={s.id}
                   d={s.d}
                   fill={s.color}
-                  opacity={dim ? 0.35 : 1}
+                  opacity={dim ? 0.32 : 1}
                   filter={`url(#faction-rate-${uid})`}
                   onMouseEnter={() => setHover(s.id)}
                 />
               );
             })}
-            <circle cx="60" cy="60" r="24" className="profile-kits-donut-hole" />
+            <circle cx="60" cy="60" r="26" className="profile-kits-donut-hole" />
             {active ? (
               <>
-                <text x="60" y="56" textAnchor="middle" fontSize="11" className="faction-analytics-pct">
+                <text x="60" y="54" textAnchor="middle" fontSize="18" className="faction-rating-pct">
                   {pct}
                 </text>
-                <text x="60" y="68" textAnchor="middle" fontSize="5.2" className="faction-analytics-kit">
+                <text
+                  x="60"
+                  y="70"
+                  textAnchor="middle"
+                  fontSize="8"
+                  className="faction-rating-name"
+                  fill={active.color}
+                >
                   {label}
                 </text>
               </>
