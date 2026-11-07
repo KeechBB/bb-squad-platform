@@ -33,10 +33,15 @@ function isBbSide(raw: string): boolean {
   const s = String(raw || "")
     .trim()
     .toLowerCase()
-    .replace(/^\[|\]$/g, "");
+    .replace(/^\[|\]$/g, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
   if (!s) return false;
-  if (/^(bb|blackberry)(\s|$)/i.test(s)) return true;
-  if (/^(main|junior|jun)\b/i.test(s)) return true;
+  // BB / BlackBerry / BB Main / B main / BMain / Main / Junior
+  if (/^(bb|blackberry)(\s|$)/.test(s)) return true;
+  if (/^b\s*(main|junior|jun)\b/.test(s)) return true;
+  if (/^(bb|blackberry)\s*(main|junior|jun)\b/.test(s)) return true;
+  if (/^(main|junior|jun)\b/.test(s)) return true;
   return false;
 }
 

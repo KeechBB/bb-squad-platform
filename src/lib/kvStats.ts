@@ -17,11 +17,18 @@ export type KvMatch = {
   playersUrl?: string;
 };
 
-/** Хост = BlackBerry, если clan не задан или BB/BlackBerry. */
+/** Хост = BlackBerry, если clan не задан или BB / B main / BB Main / … */
 export function isBbHostMatch(m: { clan?: string | null }): boolean {
-  const c = String(m.clan || "").trim();
+  const c = String(m.clan || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
   if (!c) return true;
-  return /^(bb|blackberry)$/i.test(c);
+  if (/^(bb|blackberry)$/.test(c)) return true;
+  if (/^(bb|blackberry|b)\s*(main|junior|jun)$/.test(c)) return true;
+  return false;
 }
 
 export function hostClanLabel(m: { clan?: string | null }): string {
