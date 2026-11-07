@@ -11,6 +11,7 @@ import { nickCompact } from "@/lib/nickIdentity";
 import { mskDayBoundsUtc } from "@/lib/squadHits";
 import { canonKitName } from "@/lib/squadKits";
 import { mskParts } from "@/lib/squadSessions";
+import { TRAINING_SERVER_KEYS } from "@/lib/squadServers";
 
 const LIVE_ROLE: Record<string, "rifleman" | "medic" | "lat"> = {
   Стрелок: "rifleman",
@@ -441,7 +442,7 @@ export type FactionRoleSlice = {
 };
 
 /**
- * Кольцо аналитики: у каждого игрока только ОСНОВНАЯ роль (кит с max временем на TR1/TR2),
+ * Кольцо аналитики: у каждого игрока только ОСНОВНАЯ роль (кит с max временем на TR1–TR5),
  * доля сегмента — по сумме этого времени. Без деплоев и без вторичных китов.
  */
 export async function factionRoleDonut(factionId: string): Promise<{
@@ -480,7 +481,7 @@ export async function factionRoleDonut(factionId: string): Promise<{
           ORDER BY "spawnedAt", "id"
         ) AS nxt
       FROM "SquadRoleEvent"
-      WHERE "serverKey" IN ('TR1', 'TR2')
+      WHERE "serverKey" IN (${Prisma.join([...TRAINING_SERVER_KEYS])})
         AND "spawnedAt" >= ${from.gte}
         AND "spawnedAt" < ${to.lt}
         AND ${whoSql}

@@ -516,7 +516,7 @@ export function FactionAnalytics({ slug, loadKey }: { slug: string; loadKey: num
       {error ? <p className="error">{error}</p> : null}
       {loading && slices.length === 0 ? <p className="muted">Считаю роли…</p> : null}
       {!loading && slices.length === 0 && !error ? (
-        <p className="muted faction-stat-note">За последние 7 дней на TR1 и TR2 ещё никто не играл.</p>
+        <p className="muted faction-stat-note">За последние 7 дней на TR1–TR5 ещё никто не играл.</p>
       ) : null}
       {slices.length > 0 ? (
         <div className="faction-analytics-stage" onMouseLeave={() => setHover(null)}>
