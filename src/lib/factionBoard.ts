@@ -639,7 +639,7 @@ export async function factionRatingsBoard(clanId: string): Promise<{
   const charts: FactionRatingChart[] = [
     {
       id: "people",
-      title: "Люди",
+      title: "Средний онлайн на тренировках",
       total: base.reduce((s, f) => s + (people.get(f.factionId)?.size || 0), 0),
       slices: pctSlices(
         base.map((f) => ({ ...f, value: people.get(f.factionId)?.size || 0 }))
