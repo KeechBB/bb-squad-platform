@@ -433,11 +433,12 @@ export async function clanFactionPicks(clanId: string) {
 
 export type FactionRoleSlice = {
   kit: string;
-  players: number;
+  /** Суммарные секунды фракции в этом ките (вес кольца). */
+  sec: number;
   pct: number;
 };
 
-/** Основная роль каждого игрока фракции — кит с наибольшим временем за последние 7 полных дней (МСК, сдвиг в 01:00). */
+/** Доля времени по ролям фракции за скользящие 7 дней МСК (включая сегодня). Не деплои и не «голоса» людей. */
 export async function factionRoleDonut(factionId: string): Promise<{
   week: string;
   total: number;
@@ -495,43 +496,24 @@ export async function factionRoleDonut(factionId: string): Promise<{
 
   const memberIds = new Set(userIds);
   const idBySteam = new Map(listed.filter((m) => m.user.steamId).map((m) => [m.user.steamId as string, m.userId]));
-  const byUser = new Map<string, Map<string, number>>();
+  const timeByKit = new Map<string, number>();
   for (const row of rows) {
     const userId = row.uid && memberIds.has(row.uid) ? row.uid : idBySteam.get(row.sid) || "";
     if (!userId) continue;
     const kit = String(canonKitName(row.kit) || "").trim();
     const sec = Number(row.sec) || 0;
     if (!kit || sec <= 0) continue;
-    let kits = byUser.get(userId);
-    if (!kits) {
-      kits = new Map();
-      byUser.set(userId, kits);
-    }
-    kits.set(kit, (kits.get(kit) || 0) + sec);
+    timeByKit.set(kit, (timeByKit.get(kit) || 0) + sec);
   }
 
-  const counts = new Map<string, number>();
-  for (const kits of byUser.values()) {
-    let bestKit = "";
-    let bestSec = -1;
-    for (const [kit, sec] of kits) {
-      if (sec > bestSec || (sec === bestSec && kit.localeCompare(bestKit, "ru") < 0)) {
-        bestKit = kit;
-        bestSec = sec;
-      }
-    }
-    if (!bestKit) continue;
-    counts.set(bestKit, (counts.get(bestKit) || 0) + 1);
-  }
-
-  const total = [...counts.values()].reduce((s, n) => s + n, 0);
-  const slices = [...counts.entries()]
-    .map(([kit, players]) => ({
+  const total = [...timeByKit.values()].reduce((s, n) => s + n, 0);
+  const slices = [...timeByKit.entries()]
+    .map(([kit, sec]) => ({
       kit,
-      players,
-      pct: total ? Math.round((players * 1000) / total) / 10 : 0,
+      sec,
+      pct: total ? Math.round((sec * 1000) / total) / 10 : 0,
     }))
-    .sort((a, b) => b.players - a.players || a.kit.localeCompare(b.kit, "ru"));
+    .sort((a, b) => b.sec - a.sec || a.kit.localeCompare(b.kit, "ru"));
   const drift = Math.round((100 - slices.reduce((s, r) => s + r.pct, 0)) * 10) / 10;
   if (slices.length && Math.abs(drift) >= 0.1 && total) {
     slices[0] = { ...slices[0], pct: Math.round((slices[0].pct + drift) * 10) / 10 };

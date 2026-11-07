@@ -362,7 +362,7 @@ export function FactionGrowthBoard({ slug, loadKey }: { slug: string; loadKey: n
   );
 }
 
-type RoleSlice = { kit: string; players: number; pct: number };
+type RoleSlice = { kit: string; sec?: number; players?: number; pct: number };
 
 function kitColor(kit: string): string {
   const i = (STANDARD_KITS as readonly string[]).indexOf(kit);
@@ -389,21 +389,28 @@ function ringSlice(cx: number, cy: number, rOuter: number, rInner: number, a0: n
   ].join(" ");
 }
 
+function roleWeight(row: RoleSlice): number {
+  if (typeof row.sec === "number" && row.sec > 0) return row.sec;
+  if (typeof row.players === "number" && row.players > 0) return row.players;
+  return Math.max(0, row.pct);
+}
+
 function roleDonut(
   rows: RoleSlice[],
   cx: number,
   cy: number,
   rOuter: number,
   rInner: number
-): { d: string; color: string; kit: string; pct: number; players: number }[] {
+): { d: string; color: string; kit: string; pct: number; weight: number }[] {
   if (!rows.length) return [];
-  const total = rows.reduce((s, r) => s + r.players, 0) || 1;
+  const total = rows.reduce((s, r) => s + roleWeight(r), 0) || 1;
   const full = Math.PI * 2;
   let angle = -Math.PI / 2;
   const gap = rows.length > 1 ? 0.035 : 0;
-  const out: { d: string; color: string; kit: string; pct: number; players: number }[] = [];
+  const out: { d: string; color: string; kit: string; pct: number; weight: number }[] = [];
   rows.forEach((row) => {
-    const sweep = Math.max(0.02, (row.players / total) * (full - gap * rows.length));
+    const w = roleWeight(row);
+    const sweep = Math.max(0.02, (w / total) * (full - gap * rows.length));
     const a0 = angle;
     angle += sweep + gap;
     // Дуга на полный оборот в SVG не рисуется: начало совпадает с концом.
@@ -416,7 +423,7 @@ function roleDonut(
       color: kitColor(row.kit),
       kit: row.kit,
       pct: row.pct,
-      players: row.players,
+      weight: w,
     });
   });
   return out;
@@ -517,7 +524,7 @@ export function FactionAnalytics({ slug, loadKey }: { slug: string; loadKey: num
             className="faction-analytics-donut"
             viewBox="0 0 120 120"
             role="img"
-            aria-label={active ? `${active.kit} ${pct}` : "Основные роли"}
+            aria-label={active ? `${active.kit} ${pct} по времени` : "Роли по времени"}
           >
             <defs>
               <filter id={`faction-donut-${uid}`} x="-20%" y="-20%" width="140%" height="140%">
