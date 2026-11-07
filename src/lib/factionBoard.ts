@@ -433,12 +433,17 @@ export async function clanFactionPicks(clanId: string) {
 
 export type FactionRoleSlice = {
   kit: string;
-  /** Суммарные секунды фракции в этом ките (вес кольца). */
+  /** Секунды только в основной роли игроков (вес кольца). */
   sec: number;
+  /** Сколько людей с этой основной ролью. */
+  players: number;
   pct: number;
 };
 
-/** Доля времени по ролям фракции за скользящие 7 дней МСК (включая сегодня). Не деплои и не «голоса» людей. */
+/**
+ * Кольцо аналитики: у каждого игрока только ОСНОВНАЯ роль (кит с max временем на TR1/TR2),
+ * доля сегмента — по сумме этого времени. Без деплоев и без вторичных китов.
+ */
 export async function factionRoleDonut(factionId: string): Promise<{
   week: string;
   total: number;
@@ -496,21 +501,43 @@ export async function factionRoleDonut(factionId: string): Promise<{
 
   const memberIds = new Set(userIds);
   const idBySteam = new Map(listed.filter((m) => m.user.steamId).map((m) => [m.user.steamId as string, m.userId]));
-  const timeByKit = new Map<string, number>();
+  const byUser = new Map<string, Map<string, number>>();
   for (const row of rows) {
     const userId = row.uid && memberIds.has(row.uid) ? row.uid : idBySteam.get(row.sid) || "";
     if (!userId) continue;
     const kit = String(canonKitName(row.kit) || "").trim();
     const sec = Number(row.sec) || 0;
     if (!kit || sec <= 0) continue;
-    timeByKit.set(kit, (timeByKit.get(kit) || 0) + sec);
+    let kits = byUser.get(userId);
+    if (!kits) {
+      kits = new Map();
+      byUser.set(userId, kits);
+    }
+    kits.set(kit, (kits.get(kit) || 0) + sec);
   }
 
-  const total = [...timeByKit.values()].reduce((s, n) => s + n, 0);
-  const slices = [...timeByKit.entries()]
+  const mainSec = new Map<string, number>();
+  const mainPlayers = new Map<string, number>();
+  for (const kits of byUser.values()) {
+    let bestKit = "";
+    let bestSec = -1;
+    for (const [kit, sec] of kits) {
+      if (sec > bestSec || (sec === bestSec && kit.localeCompare(bestKit, "ru") < 0)) {
+        bestKit = kit;
+        bestSec = sec;
+      }
+    }
+    if (!bestKit || bestSec <= 0) continue;
+    mainSec.set(bestKit, (mainSec.get(bestKit) || 0) + bestSec);
+    mainPlayers.set(bestKit, (mainPlayers.get(bestKit) || 0) + 1);
+  }
+
+  const total = [...mainSec.values()].reduce((s, n) => s + n, 0);
+  const slices = [...mainSec.entries()]
     .map(([kit, sec]) => ({
       kit,
       sec,
+      players: mainPlayers.get(kit) || 0,
       pct: total ? Math.round((sec * 1000) / total) / 10 : 0,
     }))
     .sort((a, b) => b.sec - a.sec || a.kit.localeCompare(b.kit, "ru"));

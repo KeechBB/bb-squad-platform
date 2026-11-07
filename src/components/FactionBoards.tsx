@@ -369,6 +369,12 @@ function kitColor(kit: string): string {
   return KIT_SLICE_COLORS[(i < 0 ? 0 : i) % KIT_SLICE_COLORS.length];
 }
 
+/** Вес кольца: только время основной роли (sec). Деплои / headcount не используем. */
+function roleWeight(row: RoleSlice): number {
+  if (typeof row.sec === "number" && row.sec > 0) return row.sec;
+  return Math.max(0, row.pct);
+}
+
 function ringSlice(cx: number, cy: number, rOuter: number, rInner: number, a0: number, a1: number): string {
   const sweep = a1 - a0;
   const large = sweep > Math.PI ? 1 : 0;
@@ -387,12 +393,6 @@ function ringSlice(cx: number, cy: number, rOuter: number, rInner: number, a0: n
     `A ${rInner} ${rInner} 0 ${large} 0 ${x1i} ${y1i}`,
     "Z",
   ].join(" ");
-}
-
-function roleWeight(row: RoleSlice): number {
-  if (typeof row.sec === "number" && row.sec > 0) return row.sec;
-  if (typeof row.players === "number" && row.players > 0) return row.players;
-  return Math.max(0, row.pct);
 }
 
 function roleDonut(
@@ -524,7 +524,9 @@ export function FactionAnalytics({ slug, loadKey }: { slug: string; loadKey: num
             className="faction-analytics-donut"
             viewBox="0 0 120 120"
             role="img"
-            aria-label={active ? `${active.kit} ${pct} по времени` : "Роли по времени"}
+            aria-label={
+              active ? `${active.kit} ${pct} · основная роль по времени` : "Основные роли по времени"
+            }
           >
             <defs>
               <filter id={`faction-donut-${uid}`} x="-20%" y="-20%" width="140%" height="140%">
