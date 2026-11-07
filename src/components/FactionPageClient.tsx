@@ -393,6 +393,8 @@ export function FactionPageClient({
   const [infoDoc, setInfoDoc] = useState<FactionInfoDoc>(() => parseFactionInfo(initial.info));
   const [inviteId, setInviteId] = useState("");
   const [kickId, setKickId] = useState("");
+  const [kickReason, setKickReason] = useState("");
+  const [kickOpen, setKickOpen] = useState(false);
   const [roleName, setRoleName] = useState("");
   const [leaderId, setLeaderId] = useState("");
   const [layout, setLayout] = useState<FactionPageLayout>(initialLayout);
@@ -423,6 +425,8 @@ export function FactionPageClient({
     setInfoDoc(parseFactionInfo(next.info));
     setInviteId("");
     setKickId("");
+    setKickReason("");
+    setKickOpen(false);
     setLeaderId("");
   }
 
@@ -803,11 +807,10 @@ export function FactionPageClient({
                         type="button"
                         className="btn"
                         disabled={busy || !kickId}
-                        onClick={() =>
-                          void run(`${base}/members?userId=${encodeURIComponent(kickId)}`, {
-                            method: "DELETE",
-                          })
-                        }
+                        onClick={() => {
+                          setKickReason("");
+                          setKickOpen(true);
+                        }}
                       >
                         Исключить
                       </button>
@@ -1000,6 +1003,85 @@ export function FactionPageClient({
           />
         )}
       </div>
+
+      {kickOpen ? (
+        <div
+          className="profile-match-modal"
+          role="presentation"
+          onClick={() => !busy && setKickOpen(false)}
+        >
+          <div className="profile-match-modal-backdrop" />
+          <div
+            className="profile-match-modal-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="faction-kick-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="profile-match-modal-head">
+              <div>
+                <h3 id="faction-kick-title">Причина исключения</h3>
+                <p className="profile-match-modal-sub muted">
+                  {kickPool.find((p) => p.id === kickId)?.nick || "игрок"} · без
+                  причины исключить нельзя — уйдёт в лог фракций
+                </p>
+              </div>
+              <button
+                type="button"
+                className="profile-match-modal-close"
+                disabled={busy}
+                onClick={() => setKickOpen(false)}
+              >
+                ×
+              </button>
+            </header>
+            <div className="profile-match-modal-body">
+              <label className="admin-tier-log-field admin-tier-log-field-wide">
+                <span>Причина</span>
+                <textarea
+                  value={kickReason}
+                  onChange={(e) => setKickReason(e.target.value)}
+                  rows={3}
+                  maxLength={400}
+                  placeholder="Например: не заходит на тренировки / по собственному"
+                  autoFocus
+                />
+              </label>
+              <div className="clan-invite-row" style={{ marginTop: 12 }}>
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={busy}
+                  onClick={() => setKickOpen(false)}
+                >
+                  Отмена
+                </button>
+                <button
+                  type="button"
+                  className="btn primary"
+                  disabled={busy || kickReason.trim().length < 3 || !kickId}
+                  onClick={() => {
+                    const reason = kickReason.trim();
+                    void run(
+                      `${base}/members?userId=${encodeURIComponent(kickId)}`,
+                      {
+                        method: "DELETE",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ reason }),
+                      }
+                    ).then(() => {
+                      setKickOpen(false);
+                      setKickReason("");
+                    });
+                  }}
+                >
+                  Исключить
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

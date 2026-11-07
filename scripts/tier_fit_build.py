@@ -193,7 +193,10 @@ def resolve(url: str) -> Path:
 
 
 def main() -> None:
-    tiers_data = load_json(DATA / "tiers.json")
+    # 07.11.2026 — подсчёт Fit/тиров выключен (Alex).
+    print("tier_fit_build DISABLED (07.11.2026) — skip")
+    return
+    tiers_data = load_json(DATA / "tiers.json")  # noqa: unreachable
     aliases = tiers_data.get("aliases") or {}
     orr = load_json(DATA / "orr.json")
     orr_by = {k.lower(): v for k, v in (orr.get("byNick") or {}).items()}

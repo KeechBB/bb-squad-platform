@@ -8,7 +8,7 @@ import { AdminJournalPanel } from "@/components/AdminJournalPanel";
 import { AdminVisitsPanel } from "@/components/AdminVisitsPanel";
 import { AdminReservePanel } from "@/components/AdminReservePanel";
 import { AdminUpdatesPanel } from "@/components/AdminUpdatesPanel";
-import { AdminTierLogPanel } from "@/components/AdminTierLogPanel";
+import { AdminFactionLogPanel } from "@/components/AdminFactionLogPanel";
 import { AdminKeechHuntPanel } from "@/components/AdminKeechHuntPanel";
 import { AdminLoadPanel } from "@/components/AdminLoadPanel";
 import { AdminMailPanel } from "@/components/AdminMailPanel";
@@ -34,7 +34,7 @@ type Tab =
   | "visits"
   | "reserve"
   | "updates"
-  | "tiers"
+  | "factions"
   | "hunt"
   | "load"
   | "mail";
@@ -53,8 +53,8 @@ const TAB_LEAD: Record<Tab, string> = {
     "Выходной (1–3 дня) и резерв (от 4 дней): состав BB, выдача/снятие задним числом, календарь, история.",
   updates:
     "Логи обновлений сайта: дата, Beta-версия и что добавили для игроков.",
-  tiers:
-    "История переводов по тирам: кто, когда, из какого в какой. Можно дописать вручную.",
+  factions:
+    "Лог фракций: кто кого добавил или исключил. При исключении — обязательная причина.",
   hunt:
     "Личный live-лог PB1+TR1: ноки / киллы / смерти / ресы и пробный ±RP. Только для тебя.",
   load: "Нагрузка plaza: CPU, RAM, NVMe. Фильтры Минуты / Часы / Дни.",
@@ -74,10 +74,11 @@ function readTab(
     t === "tournaments" ||
     t === "users" ||
     t === "updates" ||
-    t === "tiers" ||
+    t === "factions" ||
     t === "load"
   )
     return t;
+  if (t === "tiers") return "factions";
   if (t === "mail" && allowVisits) return "mail";
   if (t === "visits" && allowVisits) return "visits";
   if (t === "reserve" && allowReserve) return "reserve";
@@ -194,10 +195,10 @@ export function AdminShell({
           </button>
           <button
             type="button"
-            className={`admin-tab ${tab === "tiers" ? "active" : ""}`}
-            onClick={() => setTab("tiers")}
+            className={`admin-tab ${tab === "factions" ? "active" : ""}`}
+            onClick={() => setTab("factions")}
           >
-            Лог тиров
+            Лог фракций
           </button>
           <button
             type="button"
@@ -271,7 +272,7 @@ export function AdminShell({
           searchPlaceholder="Ник, тег команды, заявка…"
         />
       ) : null}
-      {tab === "tiers" ? <AdminTierLogPanel /> : null}
+      {tab === "factions" ? <AdminFactionLogPanel /> : null}
       {tab === "updates" ? <AdminUpdatesPanel /> : null}
       {tab === "mail" && showSiteVisits ? <AdminMailPanel /> : null}
       {tab === "visits" && showSiteVisits ? <AdminVisitsPanel /> : null}

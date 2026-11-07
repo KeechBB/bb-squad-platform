@@ -29,6 +29,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   profile: "Профиль",
   support: "Поддержка",
   tournament: "Турнир",
+  faction: "Фракция",
 };
 
 function formatWhen(iso: string): string {
@@ -211,6 +212,13 @@ export function AdminJournalPanel({
               onClick={() => setCategory("tournament")}
             >
               Турнир
+            </button>
+            <button
+              type="button"
+              className={category === "faction" ? "active" : ""}
+              onClick={() => setCategory("faction")}
+            >
+              Фракция
             </button>
           </div>
         ) : null}

@@ -25,6 +25,9 @@ from typing import Any
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 
+# 07.11.2026 — подсчёт / автофит тиров выключен (Alex).
+_TIERS_CALC_DISABLED = True
+
 
 def _resolve_kv_data() -> Path:
     import os
@@ -438,6 +441,9 @@ def run(apply: bool) -> dict[str, Any]:
 
 
 def main() -> None:
+    if _TIERS_CALC_DISABLED:
+        print("tier_autofit DISABLED (07.11.2026) — skip")
+        return
     ap = argparse.ArgumentParser()
     ap.add_argument("--apply", action="store_true", help="Execute matured strong/hard watches")
     args = ap.parse_args()

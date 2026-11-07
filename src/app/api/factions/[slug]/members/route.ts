@@ -113,6 +113,14 @@ export async function DELETE(req: Request, ctx: Ctx) {
   if (!loaded) return NextResponse.json({ error: "Нет доступа" }, { status: 404 });
   const url = new URL(req.url);
   const userId = url.searchParams.get("userId") || "";
+  const body = (await req.json().catch(() => null)) as { reason?: string } | null;
+  const reason = String(body?.reason || url.searchParams.get("reason") || "").trim();
+  if (reason.length < 3) {
+    return NextResponse.json(
+      { error: "Укажи причину исключения (минимум 3 символа)" },
+      { status: 400 }
+    );
+  }
   const member = await prisma.factionMember.findFirst({
     where: { factionId: loaded.view.id, userId },
     include: { user: { select: { id: true, nick: true, name: true, steamName: true, steamId: true } } },
@@ -146,6 +154,7 @@ export async function DELETE(req: Request, ctx: Ctx) {
     targetNick: personLabel(member.user),
     factionName: loaded.view.name,
     clanId: loaded.view.clanId,
+    reason,
   });
   return NextResponse.json({ ok: true });
 }

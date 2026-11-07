@@ -308,10 +308,15 @@ export async function logFaction(
     factionName: string;
     clanId: string;
     how?: string;
+    /** Обязательна при исключении (командир / зам / админ). */
+    reason?: string;
   }
 ) {
-  const verb = kind === "join" ? "вступил в фракцию" : "выкинут из фракции";
-  const tail = opts.how ? ` (${opts.how})` : "";
+  const verb = kind === "join" ? "вступил в фракцию" : "исключён из фракции";
+  const reason = (opts.reason || "").trim();
+  const how = (opts.how || "").trim();
+  const bits = [how, reason ? `причина: ${reason}` : ""].filter(Boolean);
+  const tail = bits.length ? ` (${bits.join("; ")})` : "";
   await writeActionLog({
     category: "faction",
     action: kind === "join" ? "faction_join" : "faction_kick",
@@ -322,7 +327,11 @@ export async function logFaction(
     targetNick: opts.targetNick,
     clanId: opts.clanId,
     clanTag: "BB",
-    meta: { faction: opts.factionName },
+    meta: {
+      faction: opts.factionName,
+      ...(reason ? { reason } : {}),
+      ...(how ? { how } : {}),
+    },
   });
 }
 
