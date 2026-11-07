@@ -35,6 +35,9 @@ const OPP_CANON: Record<string, { key: string; tag: string; name: string }> = {
   deadlegion: { key: "DL", tag: "DL", name: "Dead Legion" },
   "dead-legion": { key: "DL", tag: "DL", name: "Dead Legion" },
   grad: { key: "GRAD", tag: "GRAD", name: "GRAD" },
+  pohuy: { key: "POHUY", tag: "POHUY", name: "по✘уй" },
+  "похуй": { key: "POHUY", tag: "POHUY", name: "по✘уй" },
+  "по✘уй": { key: "POHUY", tag: "POHUY", name: "по✘уй" },
   "st-9": { key: "ST9", tag: "ST-9", name: "ST-9" },
   st9: { key: "ST9", tag: "ST-9", name: "ST-9" },
   ra: { key: "RA", tag: "RA", name: "Requiem Aeternam" },
@@ -75,6 +78,7 @@ const LOGO_EXT: Record<string, string> = {
   NS: ".png",
   DL: ".png",
   GRAD: ".png",
+  POHUY: ".png",
 };
 
 function normKey(raw: string): string {
@@ -110,6 +114,8 @@ const OPP_ID_ALIASES: Record<string, string> = {
   solid: "solid",
   /** DB card tag `[A]` / `A` vs KV `opp: "ALPHA"`. */
   a: "alpha",
+  похуй: "pohuy",
+  "по✘уй": "pohuy",
 };
 
 function idToken(raw: string): string {

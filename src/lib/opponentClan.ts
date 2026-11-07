@@ -36,6 +36,7 @@ const BRAND_LOGO_FILES: Record<string, string[]> = {
   NS: ["ns.png"],
   DL: ["dl.png"],
   GRAD: ["grad.png"],
+  POHUY: ["pohuy.png"],
 };
 
 function dbTag(raw: string): string {
