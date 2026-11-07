@@ -227,6 +227,34 @@ def upsert_nick(tg_id: int, username: str, first: str, nick: str, name: str) -> 
     return kind
 
 
+def hr_set_nick(tg_id: int, nick: str, name: str | None = None) -> str:
+    """Кадровик меняет игровой ник (и опционально имя). ok / missing / same."""
+    nick = (nick or "").strip()
+    if len(nick) < 2 or len(nick) > 32:
+        return "bad"
+    ts = now()
+    with _lock:
+        row = _c().execute("SELECT * FROM applicants WHERE tg_id=?", (tg_id,)).fetchone()
+        if row is None or row["step"] == STEP_REMOVED:
+            return "missing"
+        new_name = (name or "").strip() if name is not None else (row["real_name"] or "")
+        if name is not None and (len(new_name) < 2 or len(new_name) > 40):
+            return "bad"
+        if row["game_nick"] == nick and (row["real_name"] or "") == new_name:
+            return "same"
+        _c().execute(
+            """
+            UPDATE applicants
+            SET game_nick=?, real_name=?, alert_sig='', updated_at=?
+            WHERE tg_id=?
+            """,
+            (nick, new_name or row["real_name"], ts, tg_id),
+        )
+        _c().commit()
+    event(tg_id, "hr-nick", f"{nick} ({new_name or row['real_name'] or ''})")
+    return "ok"
+
+
 def set_steam(tg_id: int, steam_id: str) -> str:
     """ok — записан, same — тот же, taken — уже у другой заявки, missing — нет анкеты."""
     ts = now()

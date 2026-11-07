@@ -48,6 +48,7 @@ ASK_STEAM = (
 
 HR_BUTTONS = {
     "Удалить игрока",
+    "Сменить ник",
     "Кто на регистрации",
     "Назначить куратора",
     "Снять куратора",
@@ -270,9 +271,9 @@ def hr_markup():
 
     return ReplyKeyboardMarkup(
         [
-            ["Удалить игрока", "Кто на регистрации"],
+            ["Удалить игрока", "Сменить ник"],
+            ["Кто на регистрации", "Выгрузить базу"],
             ["Назначить куратора", "Снять куратора"],
-            ["Выгрузить базу"],
         ],
         resize_keyboard=True,
     )
@@ -730,6 +731,12 @@ async def on_text(update, context) -> None:
     if db.is_hr(user.id) and mode == "delete_pick":
         await hr_delete_search(update, context, text)
         return
+    if db.is_hr(user.id) and mode == "nick_pick":
+        await hr_nick_search(update, context, text)
+        return
+    if db.is_hr(user.id) and isinstance(mode, str) and mode.startswith("nick_edit:"):
+        await hr_nick_apply(update, context, mode, text)
+        return
     if db.is_hr(user.id) and mode in ("appoint", "revoke"):
         await hr_capture(update, context, mode, text)
         return
@@ -824,6 +831,14 @@ async def hr_button(update, context, text: str) -> None:
             reply_markup=InlineKeyboardMarkup(
                 [[InlineKeyboardButton("Листать всех", callback_data="pg:0")]]
             ),
+        )
+        return
+    if text == "Сменить ник":
+        context.user_data["hr_mode"] = "nick_pick"
+        await message.reply_text(
+            "Смена ника в базе бота.\n"
+            "Напиши текущий ник или имя — найду игрока.\n"
+            "Можно часть: Hanter, Владимир."
         )
         return
     if text == "Кто на регистрации":
@@ -981,6 +996,95 @@ async def hr_delete_search(update, context, text: str) -> None:
     )
 
 
+async def hr_nick_search(update, context, text: str) -> None:
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+    message = update.message
+    q = text.strip()
+    if len(q) < 2:
+        await message.reply_text("Минимум 2 символа. Пример: Hanter или Владимир.")
+        return
+    rows = db.find_applicants(q, limit=24)
+    if not rows:
+        await message.reply_text(f"По «{q}» никого нет. Другой ник или имя.")
+        return
+    if len(rows) == 1:
+        row = rows[0]
+        context.user_data["hr_mode"] = f"nick_edit:{int(row['tg_id'])}"
+        await message.reply_text(
+            f"Сейчас: {db.label(row)}.\n"
+            "Пришли новый ник как на сайте.\n"
+            "Можно только ник: HunterN7\n"
+            "Или с именем: HunterN7 (Владимир)"
+        )
+        return
+    buttons = [
+        [InlineKeyboardButton(db.label(r)[:48], callback_data=f"n:{r['tg_id']}")]
+        for r in rows
+    ]
+    await message.reply_text(
+        f"Нашёл {len(rows)} по «{q}». Выбери, кому менять ник.",
+        reply_markup=InlineKeyboardMarkup(buttons),
+    )
+
+
+async def hr_nick_apply(update, context, mode: str, text: str) -> None:
+    message = update.message
+    user = update.effective_user
+    raw_id = mode.split(":", 1)[1]
+    if not raw_id.isdigit():
+        context.user_data.pop("hr_mode", None)
+        await message.reply_text("Сбой режима. Нажми «Сменить ник» снова.")
+        return
+    tg_id = int(raw_id)
+    row = db.get_applicant(tg_id)
+    if row is None:
+        context.user_data.pop("hr_mode", None)
+        await message.reply_text("В базе бота этой строки уже нет.")
+        return
+    parsed = db.parse_nick(text)
+    if parsed:
+        nick, name = parsed
+    else:
+        nick = " ".join(text.split())
+        name = None
+        if len(nick) < 2 or len(nick) > 32 or "(" in nick or ")" in nick:
+            await message.reply_text(
+                "Нужен ник как на сайте, пример: HunterN7\n"
+                "Или с именем: HunterN7 (Владимир)"
+            )
+            return
+    old = db.label(row)
+    result = db.hr_set_nick(tg_id, nick, name)
+    if result == "missing":
+        context.user_data.pop("hr_mode", None)
+        await message.reply_text("В базе бота этой строки уже нет.")
+        return
+    if result == "bad":
+        await message.reply_text("Слишком короткий или длинный ник/имя. Попробуй ещё.")
+        return
+    if result == "same":
+        await message.reply_text(f"Уже так и было: {old}.")
+        return
+    context.user_data.pop("hr_mode", None)
+    fresh = db.get_applicant(tg_id)
+    new_label = db.label(fresh) if fresh else nick
+    db.event(user.id, "hr-nick-by", f"{tg_id} {old} → {new_label}")
+    await message.reply_text(f"Ник обновлён: {old} → {new_label}.")
+    await send_alert(
+        context.bot,
+        f"Кадровик {who(user)} сменил ник: {old} → {new_label}.",
+    )
+    await tell(
+        context.bot,
+        tg_id,
+        f"Кадровик поправил твой ник в регистрации на {nick} — как на сайте.\n"
+        "Дальше бот сам ведёт по шагам.",
+    )
+    if fresh is not None and fresh["step"] in (db.STEP_SITE, db.STEP_SUBS, db.STEP_DONE):
+        await check_one(context.bot, fresh)
+
+
 async def show_hr(message) -> None:
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -1044,6 +1148,20 @@ async def on_callback(update, context) -> None:
         await query.edit_message_text(
             f"{db.label(row)} — {STEP_RU.get(row['step'], row['step'])}.\nЧто снять.",
             reply_markup=player_actions(tg_id),
+        )
+        return
+    if data.startswith("n:"):
+        tg_id = int(data.split(":", 1)[1])
+        row = db.get_applicant(tg_id)
+        if row is None:
+            await query.edit_message_text("В базе бота этой строки уже нет.")
+            return
+        context.user_data["hr_mode"] = f"nick_edit:{tg_id}"
+        await query.edit_message_text(
+            f"Сейчас: {db.label(row)}.\n"
+            "Пришли новый ник как на сайте.\n"
+            "Можно только ник: HunterN7\n"
+            "Или с именем: HunterN7 (Владимир)"
         )
         return
     if data.startswith("uh:"):
