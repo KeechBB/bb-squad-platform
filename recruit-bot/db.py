@@ -418,6 +418,32 @@ def list_applicants(steps: tuple[str, ...] | None = None) -> list[sqlite3.Row]:
     )
 
 
+def find_applicants(query: str, limit: int = 24) -> list[sqlite3.Row]:
+    """Поиск по нику / имени / @username (подстрока, без регистра)."""
+    q = (query or "").strip()
+    if len(q) < 1:
+        return []
+    like = f"%{q}%"
+    prefix = f"{q}%"
+    return list(
+        _c()
+        .execute(
+            """
+            SELECT * FROM applicants
+            WHERE game_nick LIKE ? COLLATE NOCASE
+               OR IFNULL(real_name, '') LIKE ? COLLATE NOCASE
+               OR IFNULL(tg_username, '') LIKE ? COLLATE NOCASE
+            ORDER BY
+              CASE WHEN game_nick LIKE ? COLLATE NOCASE THEN 0 ELSE 1 END,
+              game_nick COLLATE NOCASE
+            LIMIT ?
+            """,
+            (like, like, like, prefix, limit),
+        )
+        .fetchall()
+    )
+
+
 def label(row: sqlite3.Row) -> str:
     nick = row["game_nick"] or "без ника"
     name = row["real_name"] or ""

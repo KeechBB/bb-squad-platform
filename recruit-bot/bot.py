@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 from pathlib import Path
 
 import db
@@ -28,6 +29,7 @@ import clan_site as site
 
 HERE = Path(__file__).resolve().parent
 PAGE = 6
+_last_done_poll = 0.0
 
 ASK_NICK = (
     "Шаг 1 из 4.\n"
@@ -63,6 +65,15 @@ STEP_RU = {
 
 
 def load_env() -> None:
+    # Ключи relay всегда берём из файла (PM2 иначе залипает на старом TELEGRAM_API_BASE).
+    force = {
+        "TELEGRAM_API_BASE",
+        "TELEGRAM_API_BASE_FALLBACK",
+        "TELEGRAM_API_BASE_CF",
+        "POLL_SEC",
+        "GAP_ALERT_SEC",
+        "BOT_TOKEN",
+    }
     for path in (HERE / "recruit-bot.env", HERE.parent / ".env"):
         if not path.is_file():
             continue
@@ -71,7 +82,12 @@ def load_env() -> None:
             if not line or line.startswith("#") or "=" not in line:
                 continue
             key, _, val = line.partition("=")
-            os.environ.setdefault(key.strip(), val.strip().strip('"').strip("'"))
+            key = key.strip()
+            val = val.strip().strip('"').strip("'")
+            if key in force:
+                os.environ[key] = val
+            else:
+                os.environ.setdefault(key, val)
 
 
 def env_int(name: str) -> int | None:
@@ -635,12 +651,35 @@ async def checklist(bot, row, db_deleted: bool, note: str = "") -> str:
 
 
 async def poll(context) -> None:
-    rows = db.list_applicants((db.STEP_SITE, db.STEP_SUBS, db.STEP_DONE))
-    for row in rows:
+    """Активная регистрация — часто; accepted (done) — раз в час, с паузами.
+
+    CF Worker на free tier падает (Error 1027), если getChatMember×N
+    уходит пачкой: бот тогда не отвечает даже на /start.
+    Выход из чата ловит ChatMemberHandler сразу; этот poll — страховка.
+    """
+    global _last_done_poll
+    active = db.list_applicants((db.STEP_SITE, db.STEP_SUBS))
+    for row in active:
         try:
             await check_one(context.bot, row)
         except Exception as e:
             logging.exception("check %s: %s", row["tg_id"], type(e).__name__)
+        await asyncio.sleep(0.2)
+
+    # done: совпадает с GAP_ALERT_SEC (по умолчанию час)
+    now = time.time()
+    done_every = float(gap_alert_cooldown_sec())
+    if now - _last_done_poll < done_every:
+        return
+    _last_done_poll = now
+    done = db.list_applicants((db.STEP_DONE,))
+    logging.info("poll done-batch size=%s interval=%ss", len(done), int(done_every))
+    for row in done:
+        try:
+            await check_one(context.bot, row)
+        except Exception as e:
+            logging.exception("check %s: %s", row["tg_id"], type(e).__name__)
+        await asyncio.sleep(0.35)
 
 
 async def cmd_start(update, context) -> None:
@@ -688,6 +727,9 @@ async def on_text(update, context) -> None:
         await hr_button(update, context, text)
         return
     mode = context.user_data.get("hr_mode")
+    if db.is_hr(user.id) and mode == "delete_pick":
+        await hr_delete_search(update, context, text)
+        return
     if db.is_hr(user.id) and mode in ("appoint", "revoke"):
         await hr_capture(update, context, mode, text)
         return
@@ -772,7 +814,17 @@ async def take_steam(update, context, row, steam_id: str) -> None:
 async def hr_button(update, context, text: str) -> None:
     message = update.message
     if text == "Удалить игрока":
-        await show_players(message, 0)
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+        context.user_data["hr_mode"] = "delete_pick"
+        await message.reply_text(
+            "Напиши ник или имя — найду в базе.\n"
+            "Можно часть: shu, Никол, Bugor.\n\n"
+            "Или листать весь список кнопкой ниже.",
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("Листать всех", callback_data="pg:0")]]
+            ),
+        )
         return
     if text == "Кто на регистрации":
         rows = db.list_applicants()
@@ -890,8 +942,41 @@ async def show_players(message, page: int) -> None:
         nav.append(InlineKeyboardButton("→", callback_data=f"pg:{page + 1}"))
     if nav:
         buttons.append(nav)
+    total = len(rows)
     await message.reply_text(
-        "Выбери ник.",
+        f"Листай список ({total}). Или снова «Удалить игрока» и напиши ник.",
+        reply_markup=InlineKeyboardMarkup(buttons),
+    )
+
+
+async def hr_delete_search(update, context, text: str) -> None:
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+    message = update.message
+    q = text.strip()
+    if len(q) < 2:
+        await message.reply_text("Минимум 2 символа. Пример: shu или Bugor.")
+        return
+    rows = db.find_applicants(q, limit=24)
+    if not rows:
+        await message.reply_text(
+            f"По «{q}» никого нет. Другой ник/имя или «Листать всех» через «Удалить игрока»."
+        )
+        return
+    if len(rows) == 1:
+        row = rows[0]
+        context.user_data.pop("hr_mode", None)
+        await message.reply_text(
+            f"{db.label(row)} — {STEP_RU.get(row['step'], row['step'])}.\nЧто снять.",
+            reply_markup=player_actions(int(row["tg_id"])),
+        )
+        return
+    buttons = [
+        [InlineKeyboardButton(db.label(r)[:48], callback_data=f"p:{r['tg_id']}")]
+        for r in rows
+    ]
+    await message.reply_text(
+        f"Нашёл {len(rows)} по «{q}». Выбери ник.",
         reply_markup=InlineKeyboardMarkup(buttons),
     )
 
@@ -955,6 +1040,7 @@ async def on_callback(update, context) -> None:
         if row is None:
             await query.edit_message_text("В базе бота этой строки уже нет.")
             return
+        context.user_data.pop("hr_mode", None)
         await query.edit_message_text(
             f"{db.label(row)} — {STEP_RU.get(row['step'], row['step'])}.\nЧто снять.",
             reply_markup=player_actions(tg_id),
@@ -1100,6 +1186,117 @@ async def on_chat_member(update, context) -> None:
     await check_one(context.bot, db.get_applicant(user_id) or row)
 
 
+def _relay_bases() -> list[str]:
+    """CF Worker (без ПК) + опциональный home ssh-tunnel как запас."""
+    primary = (os.environ.get("TELEGRAM_API_BASE") or "").strip().rstrip("/")
+    fallback = (os.environ.get("TELEGRAM_API_BASE_FALLBACK") or "").strip().rstrip("/")
+    # совместимость: старый комментарий # TELEGRAM_API_BASE_CF=...
+    cf = (os.environ.get("TELEGRAM_API_BASE_CF") or "").strip().rstrip("/")
+    bases: list[str] = []
+    for b in (primary, fallback, cf):
+        if b and b not in bases:
+            bases.append(b)
+    return bases
+
+
+def _make_failover_request(bases: list[str]):
+    """HTTPXRequest с переключением relay, если один отвечает 429/1027/сеть."""
+    import re
+    from telegram.error import NetworkError, TelegramError
+    from telegram.request import HTTPXRequest
+
+    class FailoverRequest(HTTPXRequest):
+        def __init__(self) -> None:
+            super().__init__(
+                connection_pool_size=4,
+                read_timeout=40,
+                write_timeout=40,
+                connect_timeout=20,
+                pool_timeout=20,
+            )
+            self._bases = bases
+            self._idx = 0
+
+        def _suffix(self, url: str) -> str | None:
+            for b in self._bases:
+                if url.startswith(b):
+                    return url[len(b) :]
+            m = re.search(r"/s/[^/]+/bot(.+)$", url)
+            return m.group(1) if m else None
+
+        async def do_request(
+            self,
+            url: str,
+            method: str,
+            request_data=None,
+            read_timeout=None,
+            write_timeout=None,
+            connect_timeout=None,
+            pool_timeout=None,
+        ):
+            from telegram.request import BaseRequest
+
+            if read_timeout is None:
+                read_timeout = BaseRequest.DEFAULT_NONE
+            if write_timeout is None:
+                write_timeout = BaseRequest.DEFAULT_NONE
+            if connect_timeout is None:
+                connect_timeout = BaseRequest.DEFAULT_NONE
+            if pool_timeout is None:
+                pool_timeout = BaseRequest.DEFAULT_NONE
+
+            if not self._bases:
+                return await super().do_request(
+                    url, method, request_data, read_timeout, write_timeout, connect_timeout, pool_timeout
+                )
+            suffix = self._suffix(url)
+            if suffix is None:
+                return await super().do_request(
+                    url, method, request_data, read_timeout, write_timeout, connect_timeout, pool_timeout
+                )
+            last: Exception | None = None
+            n = len(self._bases)
+            for off in range(n):
+                i = (self._idx + off) % n
+                try_url = self._bases[i] + suffix
+                try:
+                    result = await super().do_request(
+                        try_url,
+                        method,
+                        request_data,
+                        read_timeout,
+                        write_timeout,
+                        connect_timeout,
+                        pool_timeout,
+                    )
+                    code = result[0] if isinstance(result, tuple) else 0
+                    # CF 1027/429 отдаёт HTML — не JSON; сразу следующий relay
+                    if code >= 400:
+                        logging.info(
+                            "relay HTTP %s on %s — try next",
+                            code,
+                            self._bases[i][:40],
+                        )
+                        last = NetworkError(f"relay HTTP {code}")
+                        continue
+                    if off:
+                        logging.warning("telegram relay failover → %s…", self._bases[i][:48])
+                    self._idx = i
+                    return result
+                except (TelegramError, NetworkError, OSError) as e:
+                    last = e
+                    logging.info(
+                        "relay fail %s (%s) — try next",
+                        self._bases[i][:40],
+                        type(e).__name__,
+                    )
+                    continue
+            assert last is not None
+            raise last
+
+    return FailoverRequest()
+
+
 def main() -> None:
     load_env()
     logging.basicConfig(
@@ -1113,6 +1310,7 @@ def main() -> None:
     db.connect(data)
     db.bootstrap_hr(hr_ids())
     from telegram import Update
+    from telegram.error import TelegramError
     from telegram.ext import (
         Application,
         CallbackQueryHandler,
@@ -1122,14 +1320,21 @@ def main() -> None:
         filters,
     )
 
-    # На Plaza api.telegram.org недоступен → TELEGRAM_API_BASE через CF Worker
-    # PTB склеивает: base_url + token + "/" + method
-    # Пример: https://bb-squad-alert.….workers.dev/s/{RELAY_SECRET}/bot
+    # Plaza режет api.telegram.org → только relay.
+    # Основной: Cloudflare Worker (бот на Plaza, ПК не нужен).
+    # Запасной: ssh-tunnel на домашний ПК (если CF в 1027).
+    bases = _relay_bases()
+    request = _make_failover_request(bases) if bases else None
     builder = Application.builder().token(token)
-    api_base = (os.environ.get("TELEGRAM_API_BASE") or "").strip().rstrip("/")
-    if api_base:
-        builder = builder.base_url(api_base)
-        logging.info("telegram api via relay base_url=%s…", api_base[:56])
+    if request is not None:
+        builder = builder.request(request).get_updates_request(request)
+    if bases:
+        builder = builder.base_url(bases[0])
+        logging.info(
+            "telegram relays: primary=%s… (+%s fallback)",
+            bases[0][:56],
+            max(0, len(bases) - 1),
+        )
     app = builder.build()
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("menu", cmd_menu))
@@ -1137,12 +1342,26 @@ def main() -> None:
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))
     app.add_handler(ChatMemberHandler(on_my_member, ChatMemberHandler.MY_CHAT_MEMBER))
     app.add_handler(ChatMemberHandler(on_chat_member, ChatMemberHandler.CHAT_MEMBER))
-    poll_sec = int((os.environ.get("POLL_SEC") or "60").strip() or "60")
+    poll_sec = int((os.environ.get("POLL_SEC") or "120").strip() or "120")
     if app.job_queue is None:
         raise SystemExit("Нужен пакет python-telegram-bot[job-queue]")
-    app.job_queue.run_repeating(poll, interval=max(15, poll_sec), first=8)
+    app.job_queue.run_repeating(poll, interval=max(60, poll_sec), first=20)
     logging.info("recruit bot polling, db=%s", data)
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+
+    delay = 5
+    while True:
+        try:
+            app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=False)
+            break
+        except (TelegramError, OSError) as e:
+            logging.error(
+                "telegram relay unavailable (%s): %s — retry in %ss",
+                type(e).__name__,
+                e,
+                delay,
+            )
+            time.sleep(delay)
+            delay = min(120, delay * 2)
 
 
 if __name__ == "__main__":
