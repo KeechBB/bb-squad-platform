@@ -5,6 +5,7 @@ import { Prisma, type CanonMatchKind } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isBuiltinSuperAdmin } from "@/lib/admin";
 import { FACTION_LOGO_DIR } from "@/lib/factionLogoFile";
+import { factionCanonColor } from "@/lib/factionColors";
 import { mainKits } from "@/lib/factions";
 import { nickCompact } from "@/lib/nickIdentity";
 import { mskDayBoundsUtc } from "@/lib/squadHits";
@@ -136,33 +137,24 @@ async function factionLogoHue(factionId: string): Promise<number | null> {
   }
 }
 
-/** Яркий цвет логотипа: оттенок фракции, светлость поднята, чтобы имя читалось. */
-export async function factionLogoColor(factionId: string): Promise<string> {
+/** Цвет фракции для UI: канон по имени/slug, иначе оттенок логотипа. */
+export async function factionLogoColor(
+  factionId: string,
+  name?: string | null,
+  slug?: string | null
+): Promise<string> {
+  const canon = factionCanonColor(name, slug);
+  if (canon) return canon;
   const hue = await factionLogoHue(factionId);
   if (hue == null) return "#f4f0e8";
   return hslToHex(hue, 0.82, 0.64);
 }
 
-/**
- * Выраженный цвет сектора на кольцах рейтингов.
- * Берёт оттенок логотипа и разводит близкие оттенки по кругу, чтобы фракции не сливались.
- */
-export async function factionRingColors(factionIds: string[]): Promise<string[]> {
-  const hues = await Promise.all(factionIds.map((id) => factionLogoHue(id)));
-  const n = Math.max(1, factionIds.length);
-  const used: number[] = [];
-  return factionIds.map((_, i) => {
-    let h = hues[i];
-    if (h == null) h = (i / n + 0.08) % 1;
-    for (const other of used) {
-      const d = Math.min(Math.abs(h - other), 1 - Math.abs(h - other));
-      if (d < 0.1) {
-        h = (h + 0.14 + i * 0.03) % 1;
-      }
-    }
-    used.push(h);
-    return hslToHex(h, 0.9, 0.56);
-  });
+/** Цвета секторов рейтингов — только канон (или логотип для неизвестных фракций). */
+export async function factionRingColors(
+  factions: { id: string; name: string; slug: string }[]
+): Promise<string[]> {
+  return Promise.all(factions.map((f) => factionLogoColor(f.id, f.name, f.slug)));
 }
 
 function roundTo(v: number, digits: number): number {
@@ -290,7 +282,7 @@ export async function factionWeekBoard(
     }
   }
 
-  const colors = await Promise.all(factions.map((f) => factionLogoColor(f.id)));
+  const colors = await Promise.all(factions.map((f) => factionLogoColor(f.id, f.name, f.slug)));
   const rows: FactionWeekRow[] = factions.map((f, i) => {
     const kdMap = kills.get(f.id);
     const personal: number[] = [];
@@ -438,7 +430,7 @@ export async function clanFactionPicks(clanId: string) {
     orderBy: { name: "asc" },
     select: { id: true, slug: true, name: true },
   });
-  const colors = await Promise.all(factions.map((f) => factionLogoColor(f.id)));
+  const colors = await Promise.all(factions.map((f) => factionLogoColor(f.id, f.name, f.slug)));
   return factions.map((f, i) => ({ slug: f.slug, name: f.name, color: colors[i] }));
 }
 
@@ -635,7 +627,9 @@ export async function factionRatingsBoard(clanId: string): Promise<{
     }
   }
 
-  const colors = await factionRingColors(factions.map((f) => f.id));
+  const colors = await factionRingColors(
+    factions.map((f) => ({ id: f.id, name: f.name, slug: f.slug }))
+  );
   const base = factions.map((f, i) => ({
     factionId: f.id,
     name: f.name,
