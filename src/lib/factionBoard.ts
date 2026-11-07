@@ -45,14 +45,11 @@ function dateLabel(ymd: string): string {
 }
 
 /**
- * Скользящие 7 полных календарных дней по МСК.
- * До 01:00 «вчера» ещё не закрыт (данные догружаются) — конец окна = позавчера.
- * С 01:00 конец = вчера, окно сдвигается каждый день.
+ * Скользящие 7 календарных дней по МСК, включая сегодня.
+ * Залитая сегодняшняя катка сразу попадает в Тренировки / КВ / аналитику / рейтинги.
  */
 export function rollingLast7Days(now = new Date()): { days: string[]; label: string } {
-  const today = ymdMsk(now);
-  const hour = mskParts(now).h === 24 ? 0 : mskParts(now).h;
-  const end = addDays(today, hour < 1 ? -2 : -1);
+  const end = ymdMsk(now);
   const days = Array.from({ length: 7 }, (_, i) => addDays(end, i - 6));
   return { days, label: `${dateLabel(days[0])}–${dateLabel(days[6])}` };
 }
