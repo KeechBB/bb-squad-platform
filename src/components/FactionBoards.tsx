@@ -164,7 +164,7 @@ export function FactionWeekBoard({
       {error ? <p className="error">{error}</p> : null}
       {loading && rows.length === 0 ? <p className="muted">Считаю 7 дней…</p> : null}
       <div className="faction-online-fit" ref={page.fitRef}>
-        <table className="admin-table faction-stat-table">
+        <table className="admin-table faction-stat-table faction-week-table">
           <thead>
             <tr>
               <th>Фракция</th>

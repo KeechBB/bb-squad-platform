@@ -23535,6 +23535,27 @@ body:has(.faction-page) .site-footer {
   font-size: 0.86rem;
 }
 
+/* Тренировки + Участие КВ — крупнее и жирнее, места хватает */
+.faction-week-table th,
+.faction-week-table td {
+  height: 52px;
+  padding: 8px 14px;
+  font-size: 1.12rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.faction-week-table th {
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: rgba(244, 240, 232, 0.78);
+}
+
+.faction-week-table .faction-name-cell {
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
 .faction-name-cell {
   font-weight: 700;
 }
