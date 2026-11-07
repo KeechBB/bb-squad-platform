@@ -1107,16 +1107,26 @@ async def show_hr(message) -> None:
 def player_actions(tg_id: int):
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-    ch = channel_title()
-    gr = group_title()
-    second = f"2. Удалить из {ch} и {gr}"
-    if len(second) > 60:
-        second = "2. Удалить из обоих чатов"
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("1. Удалить с клана на сайте", callback_data=f"s:{tg_id}")],
-            [InlineKeyboardButton(second, callback_data=f"c:{tg_id}")],
-            [InlineKeyboardButton("3. Удалить с БД бота", callback_data=f"d:{tg_id}")],
+            [
+                InlineKeyboardButton(
+                    "1. Полный сброс → набор с 0",
+                    callback_data=f"c:{tg_id}",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "2. Только сайт (без чатов)",
+                    callback_data=f"s:{tg_id}",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "3. Только строка БД бота",
+                    callback_data=f"d:{tg_id}",
+                )
+            ],
         ]
     )
 
@@ -1191,25 +1201,27 @@ async def on_callback(update, context) -> None:
         ch_line = await kick_chat(context.bot, channel_id(), tg_id)
         gr_line = await kick_chat(context.bot, group_id(), tg_id)
         await revoke_row_invites(context.bot, row)
-        db.mark_removed(tg_id)
         try:
             site_line = await asyncio.to_thread(site.kick, steam_id, f"кадровик {who(user)}")
         except Exception as e:
             site_line = f"сайт не ответил ({type(e).__name__})"
-        db.event(tg_id, "hr-chats", f"{ch_line}; {gr_line}; {site_line}")
+        db.mark_removed(tg_id)
+        db.event(tg_id, "hr-reset0", f"{ch_line}; {gr_line}; {site_line}")
         text = (
+            f"Полный сброс под набор с 0.\n"
             f"{channel_title()}: {ch_line}\n{group_title()}: {gr_line}\nСайт: {site_line}\n\n"
             + await checklist(
                 context.bot,
                 row,
                 db_deleted=False,
-                note="снят с обоих чатов и с клана на сайте",
+                note="сайт+чаты+бот сброшены, можно принимать снова с 0",
             )
         )
         await tell(
             context.bot,
             tg_id,
-            "Тебя сняли с канала, группы и клана BlackBerry.",
+            "Тебя сняли с канала, группы и клана BlackBerry.\n"
+            "Можно снова написать /start и пройти набор с нуля.",
         )
     else:
         await revoke_row_invites(context.bot, row)

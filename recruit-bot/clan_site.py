@@ -140,7 +140,11 @@ def _cuid() -> str:
 
 
 def kick(steam_id: str, by: str) -> str:
-    """Снять с клана аккаунт с этим SteamID64."""
+    """Снять с клана аккаунт с этим SteamID64.
+
+    Чистый срез под повторный набор с нуля: клан, отряды, фракция,
+    резерв, висящие заявки на вступление. Аккаунт сайта не трогаем.
+    """
     info = lookup_steam(steam_id)
     if not (steam_id or "").strip():
         return "SteamID64 не записан"
@@ -174,6 +178,53 @@ def kick(steam_id: str, by: str) -> str:
         if cur.rowcount != 1:
             conn.rollback()
             return "строка участника уже исчезла"
+
+        # Фракция BB — иначе в составе фракции «призрак» без клана.
+        cur.execute(
+            """
+            DELETE FROM "FactionMember"
+            WHERE "userId" = %s
+              AND "factionId" IN (SELECT id FROM "Faction" WHERE "clanId" = %s)
+            """,
+            (user_id, target["id"]),
+        )
+
+        # Резерв закрыть, чтобы не блокировал повторный вход.
+        cur.execute(
+            """
+            UPDATE "ReserveStint"
+            SET "exitedAt" = NOW()
+            WHERE "userId" = %s AND "exitedAt" IS NULL
+            """,
+            (user_id,),
+        )
+        cur.execute(
+            """
+            UPDATE "User"
+            SET "reserveUntil" = NULL, "reserveReason" = NULL
+            WHERE id = %s
+            """,
+            (user_id,),
+        )
+
+        # Старые PENDING-заявки — чтобы снова можно было подать с нуля.
+        cur.execute(
+            """
+            UPDATE "ClanJoinRequest"
+            SET status = 'CANCELLED', "updatedAt" = NOW()
+            WHERE "userId" = %s AND "clanId" = %s AND status = 'PENDING'
+            """,
+            (user_id, target["id"]),
+        )
+        cur.execute(
+            """
+            UPDATE "ClanInvite"
+            SET status = 'DECLINED', "updatedAt" = NOW()
+            WHERE "userId" = %s AND "clanId" = %s AND status = 'PENDING'
+            """,
+            (user_id, target["id"]),
+        )
+
         cur.execute(
             """
             UPDATE "Clan"
@@ -188,7 +239,10 @@ def kick(steam_id: str, by: str) -> str:
             """,
             (target["id"], target["id"], target["id"]),
         )
-        msg = f"{by} кикнул {info['nick']} из [{target['tag']}] {target['name']} (бот регистрации)"
+        msg = (
+            f"{by} кикнул {info['nick']} из [{target['tag']}] {target['name']} "
+            f"(бот регистрации, сброс под набор с 0)"
+        )
         cur.execute(
             """
             INSERT INTO "ActionLog"(
@@ -208,7 +262,7 @@ def kick(steam_id: str, by: str) -> str:
             ),
         )
         conn.commit()
-        return "снят с клана на сайте"
+        return "снят с клана на сайте (можно набор с 0)"
     except Exception as e:
         conn.rollback()
         return f"сайт не снял: {type(e).__name__}"

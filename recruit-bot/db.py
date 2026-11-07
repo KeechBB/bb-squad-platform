@@ -323,9 +323,21 @@ def set_step(tg_id: int, step: str, site_user_id: str | None = None, accepted: b
 
 
 def mark_removed(tg_id: int) -> None:
+    """Снять с учёта так, чтобы /start снова открыл набор с нуля."""
     with _lock:
         _c().execute(
-            "UPDATE applicants SET step=?, updated_at=?, alert_sig='' WHERE tg_id=?",
+            """
+            UPDATE applicants
+            SET step=?,
+                steam_id=NULL,
+                site_user_id=NULL,
+                invite_channel=NULL,
+                invite_group=NULL,
+                alert_sig='',
+                accepted_at=NULL,
+                updated_at=?
+            WHERE tg_id=?
+            """,
             (STEP_REMOVED, now(), tg_id),
         )
         _c().commit()
