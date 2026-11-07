@@ -6,9 +6,9 @@ const FACTION_CANON_COLORS: Record<string, string> = {
   орда: "#ef4444",
   улей: "#facc15",
   сброд: "#22c55e",
-  легион: "#f97316",
+  легион: "#a855f7",
   стая: "#3b82f6",
-  табор: "#a855f7",
+  табор: "#f97316",
 };
 
 function colorKey(s: string): string {
