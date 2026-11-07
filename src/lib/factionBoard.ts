@@ -11,8 +11,6 @@ import { mskDayBoundsUtc } from "@/lib/squadHits";
 import { canonKitName } from "@/lib/squadKits";
 import { mskParts } from "@/lib/squadSessions";
 
-const WEEKDAY_MON = 1;
-
 const LIVE_ROLE: Record<string, "rifleman" | "medic" | "lat"> = {
   Стрелок: "rifleman",
   Медик: "medic",
@@ -41,22 +39,26 @@ function addDays(ymd: string, delta: number): string {
   return ymdFromParts(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
 }
 
-function weekday(ymd: string): number {
-  const [y, m, d] = ymd.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-}
-
 function dateLabel(ymd: string): string {
   return `${ymd.slice(8, 10)}.${ymd.slice(5, 7)}`;
 }
 
-export function currentWeek(now = new Date()): { days: string[]; label: string } {
+/**
+ * Скользящие 7 полных календарных дней по МСК.
+ * До 01:00 «вчера» ещё не закрыт (данные догружаются) — конец окна = позавчера.
+ * С 01:00 конец = вчера, окно сдвигается каждый день.
+ */
+export function rollingLast7Days(now = new Date()): { days: string[]; label: string } {
   const today = ymdMsk(now);
-  const dow = weekday(today);
-  const back = dow === 0 ? 6 : dow - WEEKDAY_MON;
-  const start = addDays(today, -back);
-  const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
+  const hour = mskParts(now).h === 24 ? 0 : mskParts(now).h;
+  const end = addDays(today, hour < 1 ? -2 : -1);
+  const days = Array.from({ length: 7 }, (_, i) => addDays(end, i - 6));
   return { days, label: `${dateLabel(days[0])}–${dateLabel(days[6])}` };
+}
+
+/** @deprecated имя оставлено для старых импортов — это уже не календарная неделя пн–вс */
+export function currentWeek(now = new Date()): { days: string[]; label: string } {
+  return rollingLast7Days(now);
 }
 
 function rgbToHsl(r: number, g: number, b: number) {
@@ -183,7 +185,7 @@ export async function factionWeekBoard(
   clanId: string,
   kind: "cw" | "train"
 ): Promise<{ week: string; rows: FactionWeekRow[] }> {
-  const week = currentWeek();
+  const week = rollingLast7Days();
   const factions = await prisma.faction.findMany({
     where: { clanId },
     orderBy: { name: "asc" },
@@ -418,13 +420,13 @@ export type FactionRoleSlice = {
   pct: number;
 };
 
-/** Основная роль каждого игрока фракции — кит, в котором он провёл больше всего времени за текущую неделю. */
+/** Основная роль каждого игрока фракции — кит с наибольшим временем за последние 7 полных дней (МСК, сдвиг в 01:00). */
 export async function factionRoleDonut(factionId: string): Promise<{
   week: string;
   total: number;
   slices: FactionRoleSlice[];
 }> {
-  const week = currentWeek();
+  const week = rollingLast7Days();
   const from = mskDayBoundsUtc(week.days[0]);
   const to = mskDayBoundsUtc(week.days[6]);
   const empty = { week: week.label, total: 0, slices: [] as FactionRoleSlice[] };
@@ -518,4 +520,128 @@ export async function factionRoleDonut(factionId: string): Promise<{
     slices[0] = { ...slices[0], pct: Math.round((slices[0].pct + drift) * 10) / 10 };
   }
   return { week: week.label, total, slices };
+}
+
+export type FactionRatingSlice = {
+  factionId: string;
+  name: string;
+  color: string;
+  value: number;
+  pct: number;
+};
+
+export type FactionRatingChart = {
+  id: "people" | "kills" | "deaths" | "res";
+  title: string;
+  total: number;
+  slices: FactionRatingSlice[];
+};
+
+function pctSlices(
+  rows: { factionId: string; name: string; color: string; value: number }[]
+): FactionRatingSlice[] {
+  const total = rows.reduce((s, r) => s + r.value, 0);
+  const live = rows.filter((r) => r.value > 0);
+  const slices = live
+    .map((r) => ({
+      ...r,
+      pct: total ? Math.round((r.value * 1000) / total) / 10 : 0,
+    }))
+    .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name, "ru"));
+  const drift = Math.round((100 - slices.reduce((s, r) => s + r.pct, 0)) * 10) / 10;
+  if (slices.length && Math.abs(drift) >= 0.1 && total) {
+    slices[0] = { ...slices[0], pct: Math.round((slices[0].pct + drift) * 10) / 10 };
+  }
+  return slices;
+}
+
+/**
+ * Доли фракций на тренировках за последние 7 полных дней (МСК, сдвиг в 01:00):
+ * люди / убийства / смерти / ресы.
+ */
+export async function factionRatingsBoard(clanId: string): Promise<{
+  week: string;
+  charts: FactionRatingChart[];
+}> {
+  const week = rollingLast7Days();
+  const factions = await prisma.faction.findMany({
+    where: { clanId },
+    orderBy: { name: "asc" },
+    include: {
+      members: {
+        include: {
+          user: { select: { nick: true, steamName: true, steamId: true } },
+        },
+      },
+    },
+  });
+  const byNick = indexMembers(factions);
+  const matches = await prisma.canonMatch.findMany({
+    where: {
+      kind: "TRAIN",
+      OR: week.days.map((ymd) => {
+        const [year, month, day] = ymd.split("-").map(Number);
+        return { year, month, day };
+      }),
+    },
+    select: {
+      players: { select: { nick: true, kills: true, deaths: true, res: true } },
+    },
+  });
+
+  const people = new Map<string, Set<string>>();
+  const kills = new Map<string, number>();
+  const deaths = new Map<string, number>();
+  const res = new Map<string, number>();
+
+  for (const match of matches) {
+    for (const pl of match.players) {
+      const ref = byNick.get(nickCompact(pl.nick));
+      if (!ref) continue;
+      const who = people.get(ref.factionId) || new Set<string>();
+      who.add(ref.key);
+      people.set(ref.factionId, who);
+      kills.set(ref.factionId, (kills.get(ref.factionId) || 0) + (pl.kills || 0));
+      deaths.set(ref.factionId, (deaths.get(ref.factionId) || 0) + (pl.deaths || 0));
+      res.set(ref.factionId, (res.get(ref.factionId) || 0) + (pl.res || 0));
+    }
+  }
+
+  const colors = await Promise.all(factions.map((f) => factionLogoColor(f.id)));
+  const base = factions.map((f, i) => ({
+    factionId: f.id,
+    name: f.name,
+    color: colors[i],
+  }));
+
+  const charts: FactionRatingChart[] = [
+    {
+      id: "people",
+      title: "Люди на тренировках",
+      total: base.reduce((s, f) => s + (people.get(f.factionId)?.size || 0), 0),
+      slices: pctSlices(
+        base.map((f) => ({ ...f, value: people.get(f.factionId)?.size || 0 }))
+      ),
+    },
+    {
+      id: "kills",
+      title: "Убийства на тренировках",
+      total: base.reduce((s, f) => s + (kills.get(f.factionId) || 0), 0),
+      slices: pctSlices(base.map((f) => ({ ...f, value: kills.get(f.factionId) || 0 }))),
+    },
+    {
+      id: "deaths",
+      title: "Смерти на тренировках",
+      total: base.reduce((s, f) => s + (deaths.get(f.factionId) || 0), 0),
+      slices: pctSlices(base.map((f) => ({ ...f, value: deaths.get(f.factionId) || 0 }))),
+    },
+    {
+      id: "res",
+      title: "Ресы на тренировках",
+      total: base.reduce((s, f) => s + (res.get(f.factionId) || 0), 0),
+      slices: pctSlices(base.map((f) => ({ ...f, value: res.get(f.factionId) || 0 }))),
+    },
+  ];
+
+  return { week: week.label, charts };
 }

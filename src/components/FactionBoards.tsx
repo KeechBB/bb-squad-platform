@@ -149,24 +149,26 @@ export function FactionWeekBoard({
   if (loadKey < 1) {
     return (
       <p className="muted faction-stat-note">
-        {kind === "cw" ? "Нажми «Участие КВ», чтобы загрузить неделю." : "Нажми «Тренировки», чтобы загрузить неделю."}
+        {kind === "cw"
+          ? "Нажми «Участие КВ», чтобы загрузить последние 7 дней."
+          : "Нажми «Тренировки», чтобы загрузить последние 7 дней."}
       </p>
     );
   }
 
   const avgTitle = kind === "cw" ? "На матч" : "На матч в день";
-  const peopleTitle = kind === "cw" ? "Людей на КВ" : "Людей за неделю";
+  const peopleTitle = kind === "cw" ? "Людей на КВ" : "Людей за 7 дней";
 
   return (
     <div className="faction-online">
       {error ? <p className="error">{error}</p> : null}
-      {loading && rows.length === 0 ? <p className="muted">Считаю неделю…</p> : null}
+      {loading && rows.length === 0 ? <p className="muted">Считаю 7 дней…</p> : null}
       <div className="faction-online-fit" ref={page.fitRef}>
         <table className="admin-table faction-stat-table">
           <thead>
             <tr>
               <th>Фракция</th>
-              <th>Неделя</th>
+              <th>7 дней</th>
               <th>{peopleTitle}</th>
               <th>{avgTitle}</th>
               <th>Средний KD</th>
@@ -507,7 +509,7 @@ export function FactionAnalytics({ slug, loadKey }: { slug: string; loadKey: num
       {error ? <p className="error">{error}</p> : null}
       {loading && slices.length === 0 ? <p className="muted">Считаю роли…</p> : null}
       {!loading && slices.length === 0 && !error ? (
-        <p className="muted faction-stat-note">За эту неделю на TR1 и TR2 ещё никто не играл.</p>
+        <p className="muted faction-stat-note">За последние 7 дней на TR1 и TR2 ещё никто не играл.</p>
       ) : null}
       {slices.length > 0 ? (
         <div className="faction-analytics-stage" onMouseLeave={() => setHover(null)}>
@@ -554,6 +556,175 @@ export function FactionAnalytics({ slug, loadKey }: { slug: string; loadKey: num
           </svg>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+type RatingSlice = {
+  factionId: string;
+  name: string;
+  color: string;
+  value: number;
+  pct: number;
+};
+
+type RatingChart = {
+  id: string;
+  title: string;
+  total: number;
+  slices: RatingSlice[];
+};
+
+function shareDonut(
+  rows: RatingSlice[],
+  cx: number,
+  cy: number,
+  rOuter: number,
+  rInner: number
+): { d: string; color: string; id: string; name: string; pct: number; value: number }[] {
+  if (!rows.length) return [];
+  const total = rows.reduce((s, r) => s + r.value, 0) || 1;
+  const full = Math.PI * 2;
+  let angle = -Math.PI / 2;
+  const gap = rows.length > 1 ? 0.035 : 0;
+  const out: { d: string; color: string; id: string; name: string; pct: number; value: number }[] = [];
+  rows.forEach((row) => {
+    const sweep = Math.max(0.02, (row.value / total) * (full - gap * rows.length));
+    const a0 = angle;
+    angle += sweep + gap;
+    const d =
+      sweep >= full - 0.001
+        ? `${ringSlice(cx, cy, rOuter, rInner, a0, a0 + Math.PI)} ${ringSlice(cx, cy, rOuter, rInner, a0 + Math.PI, a0 + full)}`
+        : ringSlice(cx, cy, rOuter, rInner, a0, a0 + sweep);
+    out.push({
+      d,
+      color: row.color,
+      id: row.factionId,
+      name: row.name,
+      pct: row.pct,
+      value: row.value,
+    });
+  });
+  return out;
+}
+
+function RatingDonut({ chart, week }: { chart: RatingChart; week: string }) {
+  const uid = useId().replace(/:/g, "");
+  const [hover, setHover] = useState<string | null>(null);
+  const paths = useMemo(() => shareDonut(chart.slices, 60, 60, 54, 28), [chart.slices]);
+  const active = paths.find((s) => s.id === hover) || paths[0] || null;
+  const pct =
+    active && (Number.isInteger(active.pct) ? `${active.pct}%` : `${active.pct.toFixed(1)}%`);
+  const label = active ? (active.name.length > 14 ? `${active.name.slice(0, 13)}…` : active.name) : "";
+
+  return (
+    <div className="faction-rating-card">
+      <p className="faction-rating-title">{chart.title}</p>
+      {chart.slices.length === 0 ? (
+        <p className="muted faction-stat-note">Нет данных за {week || "7 дней"}.</p>
+      ) : (
+        <div className="faction-rating-stage" onMouseLeave={() => setHover(null)}>
+          <svg
+            className="faction-analytics-donut"
+            viewBox="0 0 120 120"
+            role="img"
+            aria-label={active ? `${active.name} ${pct}` : chart.title}
+          >
+            <defs>
+              <filter id={`faction-rate-${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="0.6" result="b" />
+                <feMerge>
+                  <feMergeNode in="b" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+            {paths.map((s) => {
+              const on = hover === s.id;
+              const dim = hover != null && !on;
+              return (
+                <path
+                  key={s.id}
+                  d={s.d}
+                  fill={s.color}
+                  opacity={dim ? 0.35 : 1}
+                  filter={`url(#faction-rate-${uid})`}
+                  onMouseEnter={() => setHover(s.id)}
+                />
+              );
+            })}
+            <circle cx="60" cy="60" r="24" className="profile-kits-donut-hole" />
+            {active ? (
+              <>
+                <text x="60" y="56" textAnchor="middle" fontSize="11" className="faction-analytics-pct">
+                  {pct}
+                </text>
+                <text x="60" y="68" textAnchor="middle" fontSize="5.2" className="faction-analytics-kit">
+                  {label}
+                </text>
+              </>
+            ) : null}
+          </svg>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function FactionRatings({ slug, loadKey }: { slug: string; loadKey: number }) {
+  const [week, setWeek] = useState("");
+  const [charts, setCharts] = useState<RatingChart[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (loadKey < 1) return;
+    const ctrl = new AbortController();
+    setLoading(true);
+    setError("");
+    void (async () => {
+      try {
+        const res = await fetch(`/api/factions/${encodeURIComponent(slug)}/ratings`, {
+          cache: "no-store",
+          signal: ctrl.signal,
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          week?: string;
+          charts?: RatingChart[];
+        };
+        if (!res.ok) {
+          setError(data.error || "Не удалось загрузить рейтинги");
+          return;
+        }
+        setWeek(data.week || "");
+        setCharts(Array.isArray(data.charts) ? data.charts : []);
+      } catch (err) {
+        if ((err as { name?: string }).name === "AbortError") return;
+        setError("Сеть недоступна");
+      } finally {
+        if (!ctrl.signal.aborted) setLoading(false);
+      }
+    })();
+    return () => ctrl.abort();
+  }, [slug, loadKey]);
+
+  if (loadKey < 1) {
+    return <p className="muted faction-stat-note">Нажми «Рейтинги», чтобы загрузить доли фракций.</p>;
+  }
+
+  return (
+    <div className="faction-ratings">
+      <div className="faction-analytics-bar">
+        {week ? <p className="faction-analytics-week">{week}</p> : <span />}
+      </div>
+      {error ? <p className="error">{error}</p> : null}
+      {loading && charts.length === 0 ? <p className="muted">Считаю рейтинги…</p> : null}
+      <div className="faction-ratings-grid">
+        {charts.map((c) => (
+          <RatingDonut key={c.id} chart={c} week={week} />
+        ))}
+      </div>
     </div>
   );
 }

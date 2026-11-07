@@ -29,7 +29,12 @@ import {
   type FactionInfoDoc,
 } from "@/lib/factionInfoDoc";
 import { FactionOnline } from "@/components/FactionOnline";
-import { FactionAnalytics, FactionGrowthBoard, FactionWeekBoard } from "@/components/FactionBoards";
+import {
+  FactionAnalytics,
+  FactionGrowthBoard,
+  FactionRatings,
+  FactionWeekBoard,
+} from "@/components/FactionBoards";
 
 const TABS = [
   ["online", "Онлайн"],
@@ -37,6 +42,7 @@ const TABS = [
   ["train", "Тренировки"],
   ["cw", "Участие КВ"],
   ["analytics", "Аналитика"],
+  ["ratings", "Рейтинги"],
 ] as const;
 
 type TabId = (typeof TABS)[number][0];
@@ -47,6 +53,7 @@ const TAB_NOTE: Record<TabId, string> = {
   train: "Тренировки игроков фракции появятся здесь.",
   cw: "Участие в клановых войнах появится здесь.",
   analytics: "Статистика относительно других фракций появится здесь.",
+  ratings: "Доли фракций на тренировках за последние 7 дней.",
 };
 
 type ResizeMode = "move" | "e" | "s" | "se";
@@ -369,6 +376,7 @@ export function FactionPageClient({
   const [trainKey, setTrainKey] = useState(0);
   const [cwKey, setCwKey] = useState(0);
   const [analyticsKey, setAnalyticsKey] = useState(0);
+  const [ratingsKey, setRatingsKey] = useState(0);
   const [error, setError] = useState("");
   const [flash, setFlash] = useState("");
   const [busy, setBusy] = useState(false);
@@ -954,6 +962,7 @@ export function FactionPageClient({
                     if (id === "train") setTrainKey((n) => n + 1);
                     if (id === "cw") setCwKey((n) => n + 1);
                     if (id === "analytics") setAnalyticsKey((n) => n + 1);
+                    if (id === "ratings") setRatingsKey((n) => n + 1);
                   }}
                 >
                   {label}
@@ -967,6 +976,7 @@ export function FactionPageClient({
             {tab === "analytics" ? (
               <FactionAnalytics slug={view.slug} loadKey={analyticsKey} />
             ) : null}
+            {tab === "ratings" ? <FactionRatings slug={view.slug} loadKey={ratingsKey} /> : null}
           </>
         )}
 
