@@ -172,7 +172,14 @@ export async function loadFactionView(slug: string, steamId: string | null) {
     ? faction.members.find((m) => m.userId === me.id && !isBuiltinSuperAdmin(m.user.steamId))
     : undefined;
   const mySeat: FactionSeat | null = keech ? null : mine?.seat ?? null;
-  const canView = keech || Boolean(mine);
+  const bbClanMember = me
+    ? await prisma.clanMember.findFirst({
+        where: { userId: me.id, clanId: faction.clanId },
+        select: { id: true },
+      })
+    : null;
+  /** Keech, участник этой фракции или любой член BB — можно открыть страницу (управление только у состава/штаба). */
+  const canView = keech || Boolean(mine) || Boolean(bbClanMember);
   if (!canView) return { error: "notfound" as const };
 
   const staff = keech || mySeat === "LEADER" || mySeat === "DEPUTY";

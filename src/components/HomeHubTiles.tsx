@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
   type WheelEvent,
 } from "react";
 import type { HomeHubTile } from "@/lib/homeHub";
@@ -17,6 +18,15 @@ type Props = {
   tiles: HomeHubTile[];
   initialLayout: HubTileLayout;
   canEdit: boolean;
+};
+
+type FactionMenuItem = {
+  id: string;
+  name: string;
+  slug: string;
+  href: string;
+  logoUrl: string | null;
+  mine: boolean;
 };
 
 type DragState = {
@@ -43,11 +53,59 @@ export function HomeHubTiles({ tiles, initialLayout, canEdit }: Props) {
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">(
     "idle"
   );
+  const [factionOpen, setFactionOpen] = useState(false);
+  const [factionRows, setFactionRows] = useState<FactionMenuItem[]>([]);
+  const [factionLoading, setFactionLoading] = useState(false);
+  const [factionError, setFactionError] = useState("");
   const gridRef = useRef<HTMLElement | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressClick = useRef(false);
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
+
+  const loadFactions = useCallback(async () => {
+    setFactionLoading(true);
+    setFactionError("");
+    try {
+      const res = await fetch("/api/factions", { cache: "no-store" });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        factions?: FactionMenuItem[];
+      };
+      if (!res.ok) {
+        setFactionError(data.error || "Список недоступен");
+        setFactionRows([]);
+        return;
+      }
+      setFactionRows(Array.isArray(data.factions) ? data.factions : []);
+    } catch {
+      setFactionError("Сеть недоступна");
+      setFactionRows([]);
+    } finally {
+      setFactionLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!factionOpen) return;
+    void loadFactions();
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node | null;
+      if (!t) return;
+      const root = gridRef.current?.querySelector(".home-hub-tile--my-faction");
+      if (root && root.contains(t)) return;
+      setFactionOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setFactionOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [factionOpen, loadFactions]);
 
   const editing = canEdit && !layout.locked;
 
@@ -183,13 +241,106 @@ export function HomeHubTiles({ tiles, initialLayout, canEdit }: Props) {
           const box = layout.tiles[tile.id];
           if (!box) return null;
           const dragging = drag?.id === tile.id;
+          const isFaction = tile.id === "my-faction";
+          const className = `home-hub-tile home-hub-tile--${tile.id}${
+            editing ? " is-editable" : ""
+          }${dragging ? " is-dragging" : ""}${
+            isFaction && factionOpen ? " is-menu-open" : ""
+          }`;
+          const art = (
+            <>
+              <span className="home-hub-tile-plate" aria-hidden="true" />
+              <span
+                className="home-hub-tile-art"
+                aria-hidden="true"
+                style={{ backgroundImage: `url(${tile.image}?v=drag1)` }}
+              />
+            </>
+          );
+          const dragHandlers = {
+            onPointerDown: (e: ReactPointerEvent) => {
+              if (!editing || e.button !== 0) return;
+              e.preventDefault();
+              setDrag({
+                id: tile.id,
+                mode: e.altKey ? "scale" : "move",
+                startX: e.clientX,
+                startY: e.clientY,
+                orig: { ...box },
+                moved: false,
+              });
+            },
+            onWheel: (e: WheelEvent) => onWheelScale(tile.id, e),
+          };
+
+          if (isFaction && !editing) {
+            return (
+              <div
+                key={tile.id}
+                className={className}
+                title={tile.title}
+                aria-label={tile.title}
+                aria-expanded={factionOpen}
+                aria-haspopup="menu"
+                role="button"
+                tabIndex={0}
+                style={boxStyle(box)}
+                onClick={() => setFactionOpen((v) => !v)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setFactionOpen((v) => !v);
+                  }
+                }}
+              >
+                {art}
+                {factionOpen ? (
+                  <div
+                    className="home-hub-faction-menu"
+                    role="menu"
+                    aria-label="Фракции"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <p className="home-hub-faction-menu-title">Фракции</p>
+                    {factionLoading ? <p className="muted">Загружаю…</p> : null}
+                    {factionError ? <p className="error">{factionError}</p> : null}
+                    {!factionLoading && !factionError && factionRows.length === 0 ? (
+                      <p className="muted">Пока нет фракций.</p>
+                    ) : null}
+                    <ul className="home-hub-faction-menu-list">
+                      {factionRows.map((f) => (
+                        <li key={f.id}>
+                          <Link
+                            href={f.href}
+                            role="menuitem"
+                            className={`home-hub-faction-menu-item${f.mine ? " is-mine" : ""}`}
+                            onClick={() => setFactionOpen(false)}
+                          >
+                            {f.logoUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={f.logoUrl} alt="" className="home-hub-faction-menu-logo" />
+                            ) : (
+                              <span className="home-hub-faction-menu-logo is-empty" aria-hidden="true" />
+                            )}
+                            <span className="home-hub-faction-menu-name">{f.name}</span>
+                            {f.mine ? (
+                              <span className="home-hub-faction-menu-mine">моя</span>
+                            ) : null}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>
+            );
+          }
+
           return (
             <Link
               key={tile.id}
               href={tile.href}
-              className={`home-hub-tile home-hub-tile--${tile.id}${
-                editing ? " is-editable" : ""
-              }${dragging ? " is-dragging" : ""}`}
+              className={className}
               title={tile.title}
               aria-label={tile.title}
               style={boxStyle(box)}
@@ -201,30 +352,12 @@ export function HomeHubTiles({ tiles, initialLayout, canEdit }: Props) {
                     suppressClick.current = false;
                     return;
                   }
-                  // в режиме расстановки клик не уводит со страницы
                   e.preventDefault();
                 }
               }}
-              onPointerDown={(e) => {
-                if (!editing || e.button !== 0) return;
-                e.preventDefault();
-                setDrag({
-                  id: tile.id,
-                  mode: e.altKey ? "scale" : "move",
-                  startX: e.clientX,
-                  startY: e.clientY,
-                  orig: { ...box },
-                  moved: false,
-                });
-              }}
-              onWheel={(e) => onWheelScale(tile.id, e)}
+              {...dragHandlers}
             >
-              <span className="home-hub-tile-plate" aria-hidden="true" />
-              <span
-                className="home-hub-tile-art"
-                aria-hidden="true"
-                style={{ backgroundImage: `url(${tile.image}?v=drag1)` }}
-              />
+              {art}
             </Link>
           );
         })}

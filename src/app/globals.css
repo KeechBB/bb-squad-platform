@@ -23109,6 +23109,104 @@ body:has(.home-page.is-hub),
     brightness(1.06);
 }
 
+.home-hub-tile--my-faction {
+  cursor: pointer;
+}
+
+.home-hub-tile--my-faction.is-menu-open {
+  z-index: 6;
+}
+
+.home-hub-faction-menu {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  z-index: 7;
+  min-width: 12.5rem;
+  max-width: 16rem;
+  max-height: 18rem;
+  overflow: auto;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(196, 181, 253, 0.28);
+  background: rgba(10, 12, 24, 0.94);
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.45),
+    0 0 18px rgba(124, 58, 237, 0.2);
+  pointer-events: auto;
+}
+
+.home-hub-faction-menu-title {
+  margin: 0 4px 6px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(196, 181, 253, 0.85);
+}
+
+.home-hub-faction-menu-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.home-hub-faction-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  color: #f4f0e8;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.home-hub-faction-menu-item:hover,
+.home-hub-faction-menu-item:focus-visible {
+  background: rgba(124, 58, 237, 0.28);
+  outline: none;
+}
+
+.home-hub-faction-menu-item.is-mine {
+  background: rgba(56, 189, 248, 0.12);
+}
+
+.home-hub-faction-menu-logo {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: 0 0 auto;
+  background: rgba(244, 240, 232, 0.08);
+}
+
+.home-hub-faction-menu-logo.is-empty {
+  display: inline-block;
+}
+
+.home-hub-faction-menu-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-hub-faction-menu-mine {
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #7dd3fc;
+}
+
 .wip-stub-page {
   position: relative;
   z-index: 2;
