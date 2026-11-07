@@ -112,7 +112,7 @@ function visibleNick(u: MemberUser): string {
   return u.nick || u.steamName || "—";
 }
 
-/** Основной кит = топ профиля (TR1, 14 суток МСК, время в ките). */
+/** Основной кит = топ профиля (TR1–TR5, 14 суток МСК, время в ките). */
 export async function mainKits(userIds: string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   if (!userIds.length) return out;

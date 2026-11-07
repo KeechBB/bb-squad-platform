@@ -21,6 +21,7 @@ import {
   trainStatsSinceYmd,
 } from "@/lib/trainStatsSince";
 import { rollingMainRoleWindow } from "@/lib/mainRoleWindow";
+import { TRAINING_SERVER_KEYS } from "@/lib/squadServers";
 
 export type SquadRoleIngestEvent = {
   type: "role";
@@ -41,18 +42,18 @@ export type KitsForUserOpts = {
   /** Интервал МСК включительно: from..to */
   fromYmd?: string | null;
   toYmd?: string | null;
-  /** TR1 (+TR2) с окнами залитых матчей; PB1 — весь день без окна */
+  /** TR1–TR5 с окнами залитых матчей; PB1 — весь день без окна */
   lane?: KitsLane;
   /**
-   * TR1: true (default) — только залитые тренировочные матчи (не Jensens AFK).
-   * false — весь день на TR1/TR2 (гости/соперники).
+   * TR1–TR5: true (default) — только залитые тренировочные матчи (не Jensens AFK).
+   * false — весь день на TR1–TR5 (гости/соперники).
    */
   combatWindow?: boolean;
 };
 
 export function serverKeysForKitsLane(lane: KitsLane): string[] {
   if (lane === "PB1") return ["TPUB1", "PB1", "PUB"];
-  return ["TR1", "TR2", "TR3"];
+  return [...TRAINING_SERVER_KEYS];
 }
 
 /**
