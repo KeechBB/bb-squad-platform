@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { isBuiltinSuperAdmin } from "@/lib/admin";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
+import { rollingMainRoleWindow } from "@/lib/mainRoleWindow";
+import { kitsForUser } from "@/lib/squadRoles";
 import type { FactionSeat } from "@prisma/client";
 
 export const DEPUTY_ROLE_NAME = "Зам. Фракции";
@@ -110,23 +112,23 @@ function visibleNick(u: MemberUser): string {
   return u.nick || u.steamName || "—";
 }
 
+/** Основной кит = топ профиля (TR1, 14 суток МСК, время в ките). */
 export async function mainKits(userIds: string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   if (!userIds.length) return out;
-  const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
-  const rows = await prisma.squadRoleEvent.groupBy({
-    by: ["userId", "kit"],
-    where: { userId: { in: userIds }, spawnedAt: { gte: since } },
-    _count: { _all: true },
-  });
-  const best = new Map<string, { kit: string; n: number }>();
-  for (const row of rows) {
-    if (!row.userId) continue;
-    const n = row._count._all;
-    const prev = best.get(row.userId);
-    if (!prev || n > prev.n) best.set(row.userId, { kit: row.kit, n });
+  const { from, to } = rollingMainRoleWindow();
+  const uniq = [...new Set(userIds.filter(Boolean))];
+  // Последовательно: Neon pool маленький, kitsForUser сам тяжёлый.
+  for (const userId of uniq) {
+    const share = await kitsForUser(userId, {
+      fromYmd: from,
+      toYmd: to,
+      lane: "TR1",
+      combatWindow: true,
+    });
+    const top = share.kits[0]?.kit;
+    if (top) out.set(userId, top);
   }
-  for (const [id, v] of best) out.set(id, v.kit);
   return out;
 }
 
