@@ -3393,3 +3393,333 @@ button.mail-tag {
   padding: 0;
   font: inherit;
 }
+
+/* bb-phone-flow-980: телефон — колонка и скролл, без канвы 1440/1600/2560 */
+@media (max-width: 980px) {
+  html,
+  body {
+    min-width: 0 !important;
+    width: auto !important;
+    max-width: 100% !important;
+    height: auto !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+  .site-top {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+  }
+
+  .site-top-inner {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+  }
+
+  .top-left,
+  .auth-bar {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow: visible;
+  }
+
+  .top-nav {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .top-nav a,
+  .top-nav button,
+  .admin-tab,
+  .btn,
+  button {
+    touch-action: manipulation;
+  }
+
+  .player-search {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
+  .shell,
+  .shell:has(.home-page),
+  .shell:has(.bp-page),
+  .shell:has(.profile-page),
+  .shell:has(.profile-page-v2),
+  .shell:has(.faction-page) {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 10px 10px 28px !important;
+    box-sizing: border-box;
+  }
+
+  h1, h2, h3, p, li, label {
+    overflow-wrap: anywhere;
+  }
+
+  .admin-tabs,
+  .clan-tabs {
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+
+  .admin-tab {
+    min-height: 44px;
+  }
+
+  .admin-table-wrap,
+  .profile-hist-table-wrap,
+  .public-rating-table-wrap,
+  .public-match-table-wrap {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .canvas-scale-host,
+  .canvas-scale-slot,
+  .canvas-scale-stage,
+  .canvas-scale-inner,
+  .canvas-scale-inner.is-full {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    zoom: 1 !important;
+    transform: none !important;
+    overflow: visible !important;
+    position: relative !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  html:has(.home-page),
+  body:has(.home-page),
+  .home-page,
+  .home-fit,
+  .home-layout,
+  .home-layout.is-hub,
+  .home-hub,
+  .home-hub-poly {
+    height: auto !important;
+    max-height: none !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+  }
+
+  .home-layout,
+  .home-layout.is-hub {
+    display: block !important;
+    width: 100% !important;
+    transform: none !important;
+    zoom: 1 !important;
+    background-size: cover;
+    padding: 8px;
+  }
+
+  .home-hub {
+    display: flex !important;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .home-hub-cw,
+  .home-hub-cw--stack,
+  .home-hub-cw--free,
+  .home-hub-cw--free .home-hub-cw-item {
+    position: relative !important;
+    inset: auto !important;
+    top: auto !important;
+    left: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .home-hub-grid {
+    position: relative !important;
+    inset: auto !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    width: 100%;
+    pointer-events: auto;
+  }
+
+  .home-hub-tile {
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    aspect-ratio: 1.05;
+  }
+
+  .home-hub-tile-art {
+    background-size: contain;
+  }
+
+  body:has(.profile-page),
+  body:has(.profile-page-v2) {
+    min-width: 0 !important;
+    height: auto !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+  .profile-page,
+  .profile-page.profile-page-v2 {
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-columns: 1fr !important;
+    grid-template-rows: none !important;
+    grid-template-areas: none !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    gap: 12px !important;
+  }
+
+  .profile-v2-with-mail,
+  .profile-v2-with-mail > .profile-page-v2,
+  .profile-mail {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    flex: 1 1 auto !important;
+  }
+
+  .profile-v2-ident,
+  .profile-v2-career,
+  .profile-v2-attend,
+  .profile-v2-stats,
+  .profile-v2-history,
+  .profile-v2-roles,
+  .profile-v2-hits,
+  .profile-area-head,
+  .profile-area-account,
+  .profile-area-hitmap,
+  .profile-area-training,
+  .profile-area-kv-hist,
+  .profile-area-train-hist {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    position: relative !important;
+  }
+
+  .profile-head-cluster,
+  .profile-head-main {
+    flex-wrap: wrap !important;
+  }
+
+  .profile-page .hero,
+  .profile-head-main > .absence-panel,
+  .profile-head-main > .reserve-panel-compact,
+  .reserve-panel-compact,
+  .profile-head-main > .profile-pwr-card,
+  .profile-head-main > .profile-public-rating-card,
+  .profile-head-main > .profile-kits-card,
+  .profile-head-cluster > .profile-pwr-card,
+  .profile-head-cluster > .profile-kits-card,
+  .profile-head-cluster > .profile-career-card {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  html:has(.bp-page),
+  body:has(.bp-page),
+  .bp-page,
+  .bp-page.bp-s2 {
+    height: auto !important;
+    max-height: none !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+  }
+
+  .bp-page.bp-s2 {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+
+  .bp-s2-track {
+    display: flex !important;
+    width: 100% !important;
+    margin-top: 0 !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    gap: 8px;
+    padding-bottom: 8px;
+  }
+
+  .bp-s2-node {
+    flex: 0 0 64px;
+  }
+
+  .bp-s2-track-line {
+    display: none;
+  }
+
+  .bp-s2-stage,
+  .bp-s2-board,
+  .bp-s2-milestones,
+  .bp-s2-side,
+  .bp-s2-task {
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  body:has(.faction-page),
+  .faction-page,
+  .faction-stage {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    min-width: 0 !important;
+  }
+
+  .faction-page:not(.is-placing) .faction-stage {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    height: auto !important;
+  }
+
+  .faction-page:not(.is-placing) .faction-pane {
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+}

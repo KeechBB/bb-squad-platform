@@ -155,9 +155,9 @@ export function ProfilePageClient({
   const { data: session, status } = useSession();
   const router = useRouter();
   const readOnly = Boolean(subjectNick);
-  const [shell, setShell] = useState<Shell | null>(() =>
-    typeof window !== "undefined" && !subjectNick ? readShellCache() : null
-  );
+  // Keep the first client render identical to SSR, including on reloads with a
+  // cached shell. Restore browser-only state after hydration.
+  const [shell, setShell] = useState<Shell | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<ProfileMode>(() =>
     typeof window !== "undefined" && shell
@@ -180,6 +180,15 @@ export function ProfilePageClient({
 
   useEffect(() => {
     let cancelled = false;
+    const cached = !subjectNick ? readShellCache() : null;
+    if (cached) {
+      setShell(cached);
+      setMode(readMode(cached.isBb));
+      setSavedBg(normalizeProfileBg(cached.profileBg));
+      setPreviewBg(normalizeProfileBg(cached.profileBg));
+      setSavedPatch(normalizeProfilePatch(cached.nickPatch));
+      setSavedNickStyle(normalizeProfileNickStyle(cached.nickStyle));
+    }
     void (async () => {
       try {
         const res = await fetch(

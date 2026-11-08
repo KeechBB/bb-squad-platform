@@ -4089,8 +4089,9 @@
       "target": 3,
       "streak": 1,
       "window": [],
-      "finished": false,
-      "updatedAt": "2026-10-20T22:35:31.432315Z"
+      "finished": true,
+      "updatedAt": "2026-10-20T22:35:31.432315Z",
+      "finishedReason": "closest-at-season-end"
     },
     "76561198401989814": {
       "nick": "rrrena",
@@ -5082,5 +5083,15 @@
       "target": 15,
       "finished": false
     }
-  ]
+  ],
+  "l20Finale": {
+    "mode": "closest",
+    "awardedAt": "2026-10-31T20:59:59.000Z",
+    "nick": "bambozy",
+    "steamId": "76561199165379598",
+    "atLevel": 19,
+    "current": 0,
+    "target": 1,
+    "note": "Никто не достиг 20 ур. к 31.10 23:59 — «Клубничный Импульс» у bambozy (ближайший к финишу, был ур. 19)"
+  }
 }

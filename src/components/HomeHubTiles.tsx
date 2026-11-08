@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { isMobileLayout } from "@/lib/mobileLayout";
 import {
   useCallback,
   useEffect,
@@ -128,7 +129,7 @@ export function HomeHubTiles({ tiles, initialLayout, canEdit }: Props) {
 
   const scheduleSave = useCallback(
     (next: HubTileLayout) => {
-      if (!editing) return;
+      if (!editing || isMobileLayout()) return;
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => {
         void persist(next);
@@ -200,7 +201,7 @@ export function HomeHubTiles({ tiles, initialLayout, canEdit }: Props) {
 
   const onWheelScale = useCallback(
     (id: string, e: WheelEvent) => {
-      if (!editing) return;
+      if (!editing || isMobileLayout()) return;
       e.preventDefault();
       e.stopPropagation();
       setLayout((prev) => {
@@ -259,7 +260,7 @@ export function HomeHubTiles({ tiles, initialLayout, canEdit }: Props) {
           );
           const dragHandlers = {
             onPointerDown: (e: ReactPointerEvent) => {
-              if (!editing || e.button !== 0) return;
+              if (!editing || isMobileLayout() || e.button !== 0) return;
               e.preventDefault();
               setDrag({
                 id: tile.id,
@@ -346,7 +347,7 @@ export function HomeHubTiles({ tiles, initialLayout, canEdit }: Props) {
               style={boxStyle(box)}
               draggable={false}
               onClick={(e) => {
-                if (editing) {
+                if (editing && !isMobileLayout()) {
                   if (suppressClick.current) {
                     e.preventDefault();
                     suppressClick.current = false;

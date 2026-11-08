@@ -10,6 +10,7 @@ import {
   type ReactNode,
   type WheelEvent,
 } from "react";
+import { isMobileLayout } from "@/lib/mobileLayout";
 import { HomeCwAnnounce, type HomeCwCard } from "@/components/HomeCwAnnounce";
 import {
   HOME_HUB_PREVIEW_IDS,
@@ -109,7 +110,7 @@ export function HomeHubCwDock({
 
   const scheduleSave = useCallback(
     (next: HubTileLayout) => {
-      if (!editing) return;
+      if (!editing || isMobileLayout()) return;
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => {
         void persist(next);
@@ -183,7 +184,7 @@ export function HomeHubCwDock({
 
   const onWheelScale = useCallback(
     (id: HubPreviewId, e: WheelEvent) => {
-      if (!editing) return;
+      if (!editing || isMobileLayout()) return;
       e.preventDefault();
       e.stopPropagation();
       setLayout((prev) => {
@@ -230,7 +231,7 @@ export function HomeHubCwDock({
         }`}
         style={boxStyle(box)}
         onPointerDown={(e) => {
-          if (!editing || e.button !== 0) return;
+          if (!editing || isMobileLayout() || e.button !== 0) return;
           // не перехватываем клики по кнопкам внутри карточки
           const t = e.target as HTMLElement | null;
           if (t?.closest("button, a, input, textarea, select")) return;

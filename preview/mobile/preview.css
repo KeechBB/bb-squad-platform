@@ -1,0 +1,19 @@
+/* Preview controls only. Product layout comes entirely from src/app/*.css. */
+.preview-toolbar {
+  position: fixed;
+  z-index: 20000;
+  bottom: 8px;
+  left: 8px;
+  max-width: calc(100vw - 16px);
+  padding: 8px 12px;
+  border: 1px solid #a78bfa;
+  border-radius: 10px;
+  background: #100c1cf2;
+  color: #f2eefc;
+  font: 12px/1.5 sans-serif;
+}
+.preview-toolbar strong { color: #e9c46a; }
+.preview-toolbar summary { cursor: pointer; color: #e9c46a; }
+.preview-toolbar-controls { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 8px; }
+.preview-toolbar button, .preview-toolbar select { padding: 4px 8px; background: #241b3a; color: white; border: 1px solid #786492; border-radius: 4px; }
+.preview-placeholder { padding: 32px; max-width: 700px; }

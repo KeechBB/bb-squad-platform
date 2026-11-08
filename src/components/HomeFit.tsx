@@ -1,28 +1,11 @@
 "use client";
 
 import { useLayoutEffect, useRef, type ReactNode } from "react";
-import { isPhonePanCanvas } from "@/components/TouchCompact";
+import { isMobileLayout } from "@/lib/mobileLayout";
 
 /** Design canvas: the desktop 4-column home. Scaled to the live viewport. */
 const DESIGN_W = 1920;
 const DESIGN_H = 1004;
-
-const HUB_PHONE_VIEWPORT =
-  "width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover";
-
-function isHubPhoneViewport(): boolean {
-  if (typeof window === "undefined") return false;
-  const touch =
-    navigator.maxTouchPoints > 0 ||
-    window.matchMedia("(pointer: coarse)").matches;
-  if (!touch) return false;
-  const shortSide = Math.min(window.screen.width, window.screen.height);
-  return shortSide <= 900;
-}
-
-function getViewportMeta(): HTMLMetaElement | null {
-  return document.querySelector('meta[name="viewport"]');
-}
 
 export function HomeFit({
   children,
@@ -40,34 +23,20 @@ export function HomeFit({
     const board = boardRef.current;
     if (!host || !board) return;
 
-    const meta = getViewportMeta();
-    const prevViewport = meta?.getAttribute("content") ?? null;
-    const usePhoneFit = hub && isHubPhoneViewport();
-    if (usePhoneFit && meta) {
-      meta.setAttribute("content", HUB_PHONE_VIEWPORT);
-    }
-
     const fit = () => {
-      document.documentElement.classList.remove("bb-compact");
-      // Хаб на телефоне всегда scale-to-fit (весь октагон в экран).
-      const pan = !hub && isPhonePanCanvas();
-      document.documentElement.classList.toggle("bb-phone-pan", pan);
-
-      // Телефон (не хаб): канва 1920×1004 как на ПК — свайп по странице.
-      if (pan) {
-        board.style.setProperty("--home-scale", "1");
-        board.style.setProperty("--home-hero-lift", "0px");
-        board.style.setProperty("--home-hero-nudge-x", "0px");
-        host.style.height = `${DESIGN_H}px`;
-        host.style.width = `${DESIGN_W}px`;
+      document.documentElement.classList.remove("bb-compact", "bb-phone-flow", "bb-phone-pan", "bb-hub-phone");
+      if (isMobileLayout()) {
+        board.style.removeProperty("--home-scale");
+        board.style.transform = "none";
+        board.style.width = "";
+        board.style.height = "";
+        host.style.width = "";
+        host.style.height = "";
+        host.style.overflow = "";
         return;
       }
 
-      const phoneHub = hub && isHubPhoneViewport();
-      document.documentElement.classList.toggle("bb-hub-phone", phoneHub);
-
       if (hub) {
-        // канва + фон оболочки в одном слое (пазы не разъезжаются)
         host.style.width = "100%";
         host.style.height = "100%";
         host.style.overflow = "hidden";
@@ -76,11 +45,8 @@ export function HomeFit({
       const w = host.clientWidth;
       const h = host.clientHeight;
       if (w < 8 || h < 8) return;
-      // телефон: contain — весь октагон в экран; ПК: cover — без полей по краям
       const scale = hub
-        ? phoneHub
-          ? Math.min(w / DESIGN_W, h / DESIGN_H)
-          : Math.max(w / DESIGN_W, h / DESIGN_H)
+        ? Math.max(w / DESIGN_W, h / DESIGN_H)
         : Math.min(w / DESIGN_W, h / DESIGN_H);
       if (!Number.isFinite(scale) || scale <= 0) return;
       board.style.setProperty("--home-scale", String(scale));
@@ -121,11 +87,9 @@ export function HomeFit({
       ro.disconnect();
       window.removeEventListener("resize", fit);
       window.visualViewport?.removeEventListener("resize", fit);
-      if (usePhoneFit && meta && prevViewport != null) {
-        meta.setAttribute("content", prevViewport);
-      }
       document.documentElement.classList.remove("bb-phone-pan");
       document.documentElement.classList.remove("bb-hub-phone");
+      document.documentElement.classList.remove("bb-phone-flow");
     };
   }, [hub]);
 

@@ -489,6 +489,7 @@ export function TrainingSessionsCard({
   const [canonY, canonM] = ATTENDANCE_CANON_START_YMD.split("-").map(Number);
   const [viewY, setViewY] = useState(ty);
   const [viewM, setViewM] = useState(tm);
+  const [calendarDetails, setCalendarDetails] = useState<string | null>(null);
 
   const marks = useMemo(() => {
     if (lane.presentDays !== undefined) {
@@ -559,6 +560,7 @@ export function TrainingSessionsCard({
   const canNext = viewY < ty || (viewY === ty && viewM < tm);
 
   function shiftMonth(delta: number) {
+    setCalendarDetails(null);
     let m = viewM + delta;
     let y = viewY;
     if (m < 1) {
@@ -786,11 +788,12 @@ export function TrainingSessionsCard({
                 Boolean(timeLabel) &&
                 (mark === "present" || mark === "late" || mark === "absent");
               return (
-                <div
+                <button type="button"
                   key={c.ymd}
                   className={`training-cal-cell training-cal-cell-attend mark-${mark}${
                     c.ymd === today ? " is-today" : ""
                   }`}
+                  onClick={(event) => setCalendarDetails(`${c.ymd}: ${event.currentTarget.title}`)}
                   title={
                     mark === "present"
                       ? `Был${timeLabel ? ` · ${timeLabel}` : ""}`
@@ -826,10 +829,11 @@ export function TrainingSessionsCard({
                   ) : (
                     <span className="training-cal-dot muted">·</span>
                   )}
-                </div>
+                </button>
               );
             })}
           </div>
+          <p className="mobile-calendar-detail" role="status">{calendarDetails || "Нажми на день, чтобы увидеть время и статус посещения."}</p>
         </div>
       </div>
 

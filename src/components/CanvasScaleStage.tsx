@@ -7,6 +7,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
+import { isMobileLayout } from "@/lib/mobileLayout";
 
 /** Эталон — композиция на 2K (2560×1440 минус шапка ~76px). */
 export const CANVAS_REF_W = 2560;
@@ -69,6 +70,12 @@ export function CanvasScaleStage({
     if (!host || typeof ResizeObserver === "undefined") return;
 
     const measure = () => {
+      // Mobile content uses normal document flow, not a scaled desktop canvas.
+      if (isMobileLayout()) {
+        host.style.paddingLeft = "";
+        host.style.paddingRight = "";
+        return;
+      }
       const sideInset = host.classList.contains("is-side-inset");
       const hostW = host.clientWidth;
       const hostH = host.clientHeight;

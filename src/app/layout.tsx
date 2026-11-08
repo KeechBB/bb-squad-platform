@@ -19,6 +19,7 @@ import "@fontsource/manrope/600.css";
 import "@fontsource/manrope/700.css";
 import "./globals.css";
 import "./profile-v2.css";
+import "./mobile.css";
 
 const yandexVerification = (
   process.env.NEXT_PUBLIC_YANDEX_WEBMASTER_VERIFICATION || ""
@@ -40,13 +41,9 @@ export const metadata: Metadata = {
     : {}),
 };
 
-/**
- * ПК-канва 1440 на телефоне 1:1 (не сжатая в экран).
- * Без initialScale:1 Safari втискивает 1440 в ширину айфона — всё мелкое.
- * С initialScale:1 виден кусок сайта как на мониторе, свайп пальцем + pinch.
- */
+/** Ширина экрана телефона, не канва 1440. Иначе мобильные правила не включаются. */
 export const viewport: Viewport = {
-  width: 1440,
+  width: "device-width",
   initialScale: 1,
   maximumScale: 5,
   userScalable: true,

@@ -459,26 +459,40 @@ def list_applicants(steps: tuple[str, ...] | None = None) -> list[sqlite3.Row]:
 
 
 def find_applicants(query: str, limit: int = 24) -> list[sqlite3.Row]:
-    """Поиск по нику / имени / @username (подстрока, без регистра)."""
-    q = (query or "").strip()
+    """Поиск по нику / имени / @username / SteamID64 (подстрока, без регистра)."""
+    q = (query or "").strip().lstrip("@")
     if len(q) < 1:
         return []
     like = f"%{q}%"
     prefix = f"{q}%"
+    # без пробелов: "DARK KING" ↔ "DARKKING"
+    compact = re.sub(r"\s+", "", q)
+    like_c = f"%{compact}%" if compact and compact != q else None
+    params: list[object] = [like, like, like, like]
+    compact_sql = ""
+    if like_c:
+        compact_sql = """
+               OR REPLACE(IFNULL(game_nick, ''), ' ', '') LIKE ? COLLATE NOCASE
+               OR REPLACE(IFNULL(real_name, ''), ' ', '') LIKE ? COLLATE NOCASE
+        """
+        params.extend([like_c, like_c])
+    params.extend([prefix, limit])
     return list(
         _c()
         .execute(
-            """
+            f"""
             SELECT * FROM applicants
             WHERE game_nick LIKE ? COLLATE NOCASE
                OR IFNULL(real_name, '') LIKE ? COLLATE NOCASE
                OR IFNULL(tg_username, '') LIKE ? COLLATE NOCASE
+               OR IFNULL(steam_id, '') LIKE ?
+               {compact_sql}
             ORDER BY
               CASE WHEN game_nick LIKE ? COLLATE NOCASE THEN 0 ELSE 1 END,
               game_nick COLLATE NOCASE
             LIMIT ?
             """,
-            (like, like, like, prefix, limit),
+            params,
         )
         .fetchall()
     )

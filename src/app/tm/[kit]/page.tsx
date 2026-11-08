@@ -2,6 +2,7 @@ import { getSession } from "@/lib/auth";
 import { notFound, redirect } from "next/navigation";
 import { sessionIsClanMember } from "@/lib/clanAccess";
 import { liveKvBust } from "@/lib/kvBust";
+import { KvAutoHeightFrame } from "@/components/KvAutoHeightFrame";
 
 export const dynamic = "force-dynamic";
 
@@ -88,7 +89,7 @@ export default async function TmRolePage({ params }: Props) {
           background: #120e1c;
         }
       `}</style>
-      <iframe className="tm-role-frame" src={src} title={title} />
+      <KvAutoHeightFrame className="tm-role-embed" src={src} title={title} minHeight={0} scrolling="auto" />
     </div>
   );
 }

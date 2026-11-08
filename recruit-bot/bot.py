@@ -47,6 +47,8 @@ ASK_STEAM = (
 )
 
 HR_BUTTONS = {
+    "Поиск",
+    "Поиск по нику",
     "Удалить игрока",
     "Сменить ник",
     "Кто на регистрации",
@@ -271,11 +273,26 @@ def hr_markup():
 
     return ReplyKeyboardMarkup(
         [
-            ["Удалить игрока", "Сменить ник"],
-            ["Кто на регистрации", "Выгрузить базу"],
-            ["Назначить куратора", "Снять куратора"],
+            ["Поиск по нику", "Удалить игрока"],
+            ["Сменить ник", "Кто на регистрации"],
+            ["Выгрузить базу", "Назначить куратора"],
+            ["Снять куратора"],
         ],
         resize_keyboard=True,
+        is_persistent=True,
+    )
+
+
+def format_player_card(row) -> str:
+    """Карточка из базы бота: ник, TG, Steam, шаг."""
+    steam = (row["steam_id"] or "").strip() or "—"
+    uname = tg_handle(row)
+    return (
+        f"{db.label(row)}\n"
+        f"TG: {uname}\n"
+        f"tg_id: {int(row['tg_id'])}\n"
+        f"Steam: {steam}\n"
+        f"Шаг: {STEP_RU.get(row['step'], row['step'])}"
     )
 
 
@@ -723,11 +740,19 @@ async def on_text(update, context) -> None:
     if message.chat.type != "private":
         return
     text = message.text.strip()
+    # алиас без кнопки (старая клавиатура / набрали руками)
+    if db.is_hr(user.id) and text.lower() in ("поиск", "поиск по нику", "/search"):
+        context.user_data.pop("hr_mode", None)
+        await hr_button(update, context, "Поиск по нику")
+        return
     if db.is_hr(user.id) and text in HR_BUTTONS:
         context.user_data.pop("hr_mode", None)
         await hr_button(update, context, text)
         return
     mode = context.user_data.get("hr_mode")
+    if db.is_hr(user.id) and mode == "search_pick":
+        await hr_lookup_search(update, context, text)
+        return
     if db.is_hr(user.id) and mode == "delete_pick":
         await hr_delete_search(update, context, text)
         return
@@ -820,6 +845,15 @@ async def take_steam(update, context, row, steam_id: str) -> None:
 
 async def hr_button(update, context, text: str) -> None:
     message = update.message
+    if text in ("Поиск", "Поиск по нику"):
+        context.user_data["hr_mode"] = "search_pick"
+        await message.reply_text(
+            "Поиск по базе бота.\n"
+            "Напиши ник, имя, @username или SteamID64.\n"
+            "Можно часть: Varyag, Jester, DRAHKEL.",
+            reply_markup=hr_markup(),
+        )
+        return
     if text == "Удалить игрока":
         from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -832,32 +866,37 @@ async def hr_button(update, context, text: str) -> None:
                 [[InlineKeyboardButton("Листать всех", callback_data="pg:0")]]
             ),
         )
+        # клавиатура снизу тоже обновится следующим сообщением
+        await message.reply_text("Меню кадровика.", reply_markup=hr_markup())
         return
     if text == "Сменить ник":
         context.user_data["hr_mode"] = "nick_pick"
         await message.reply_text(
             "Смена ника в базе бота.\n"
             "Напиши текущий ник или имя — найду игрока.\n"
-            "Можно часть: Hanter, Владимир."
+            "Можно часть: Hanter, Владимир.",
+            reply_markup=hr_markup(),
         )
         return
     if text == "Кто на регистрации":
         rows = db.list_applicants()
         if not rows:
-            await message.reply_text("В базе бота никого нет.")
+            await message.reply_text("В базе бота никого нет.", reply_markup=hr_markup())
             return
         lines = [f"{db.label(r)} — {STEP_RU.get(r['step'], r['step'])}" for r in rows[:40]]
         extra = f"\n…ещё {len(rows) - 40}" if len(rows) > 40 else ""
-        await message.reply_text("\n".join(lines) + extra)
+        await message.reply_text("\n".join(lines) + extra, reply_markup=hr_markup())
         return
     if text == "Назначить куратора":
         context.user_data["hr_mode"] = "appoint"
         await message.reply_text(
-            "Пришли Telegram id числом, @username или перешли сюда сообщение человека."
+            "Пришли Telegram id числом, @username или перешли сюда сообщение человека.",
+            reply_markup=hr_markup(),
         )
         return
     if text == "Снять куратора":
         await show_hr(message)
+        await message.reply_text("Меню кадровика.", reply_markup=hr_markup())
         return
     if text == "Выгрузить базу":
         people, events = db.export_csv()
@@ -870,6 +909,11 @@ async def hr_button(update, context, text: str) -> None:
         await message.reply_document(
             InputFile(events, filename="recruit-events.csv"),
             caption="Журнал шагов и снятий.",
+            reply_markup=hr_markup(),
+        )
+        await message.reply_text(
+            "База выгружена. В меню сверху слева — «Поиск по нику».",
+            reply_markup=hr_markup(),
         )
 
 
@@ -962,6 +1006,45 @@ async def show_players(message, page: int) -> None:
         f"Листай список ({total}). Или снова «Удалить игрока» и напиши ник.",
         reply_markup=InlineKeyboardMarkup(buttons),
     )
+
+
+async def hr_lookup_search(update, context, text: str) -> None:
+    """Кадровик: поиск по нику → карточки с TG/Steam/шагом."""
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+    message = update.message
+    q = (text or "").strip()
+    if len(q) < 1:
+        await message.reply_text("Напиши ник, имя, @username или SteamID64.")
+        return
+    rows = db.find_applicants(q, limit=24)
+    if not rows:
+        await message.reply_text(
+            f"По «{q}» никого нет.\n"
+            "Другой ник/часть ника или проверь, что человек есть в боте."
+        )
+        return
+    # Одним сообщением, если коротко; иначе пачками
+    cards = [format_player_card(r) for r in rows]
+    body = f"Нашёл {len(rows)} по «{q}»:\n\n" + "\n\n".join(cards)
+    if len(body) <= 3500:
+        buttons = [
+            [InlineKeyboardButton(db.label(r)[:40], callback_data=f"i:{r['tg_id']}")]
+            for r in rows[:12]
+        ]
+        await message.reply_text(
+            body,
+            reply_markup=InlineKeyboardMarkup(buttons) if buttons else None,
+        )
+        return
+    await message.reply_text(f"Нашёл {len(rows)} по «{q}». Карточки ниже:")
+    for r in rows:
+        await message.reply_text(
+            format_player_card(r),
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("Действия", callback_data=f"i:{r['tg_id']}")]]
+            ),
+        )
 
 
 async def hr_delete_search(update, context, text: str) -> None:
@@ -1157,6 +1240,18 @@ async def on_callback(update, context) -> None:
         context.user_data.pop("hr_mode", None)
         await query.edit_message_text(
             f"{db.label(row)} — {STEP_RU.get(row['step'], row['step'])}.\nЧто снять.",
+            reply_markup=player_actions(tg_id),
+        )
+        return
+    if data.startswith("i:"):
+        tg_id = int(data.split(":", 1)[1])
+        row = db.get_applicant(tg_id)
+        if row is None:
+            await query.edit_message_text("В базе бота этой строки уже нет.")
+            return
+        context.user_data.pop("hr_mode", None)
+        await query.edit_message_text(
+            format_player_card(row) + "\n\nДействия кадровика:",
             reply_markup=player_actions(tg_id),
         )
         return
@@ -1466,8 +1561,20 @@ def main() -> None:
             max(0, len(bases) - 1),
         )
     app = builder.build()
+    async def cmd_search(update, context) -> None:
+        user = update.effective_user
+        message = update.message
+        if user is None or message is None or message.chat.type != "private":
+            return
+        if not db.is_hr(user.id):
+            await message.reply_text("Только для кадровиков.")
+            return
+        context.user_data.pop("hr_mode", None)
+        await hr_button(update, context, "Поиск по нику")
+
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("menu", cmd_menu))
+    app.add_handler(CommandHandler("search", cmd_search))
     app.add_handler(CallbackQueryHandler(on_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))
     app.add_handler(ChatMemberHandler(on_my_member, ChatMemberHandler.MY_CHAT_MEMBER))

@@ -21,6 +21,11 @@ export function HomeHub({
 }: Props) {
   return (
     <div className="home-hub" aria-label="Разделы платформы">
+      <header className="mobile-hub-heading">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/blackberry.png" alt="" width={64} height={64} />
+        <div><p>BLACKBERRY SQUAD</p><h1>Твой игровой штаб</h1><span>Матчи, команда и твой прогресс</span></div>
+      </header>
       <HomeHubCwDock
         showCw={showCw}
         cwCards={cwCards}
