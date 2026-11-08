@@ -379,6 +379,69 @@ function aggregateCombat(
   return map;
 }
 
+export type PublicMvpCounts = {
+  medic: number;
+  killer: number;
+  armor: number;
+};
+
+/** Медали паблика по всем игрокам. Таблица /public режет топ-500, профиль — нет. */
+async function buildPublicMvpIndex(): Promise<Record<string, PublicMvpCounts>> {
+  const bundles = await loadPublicMatchBundles();
+  const combat = aggregateCombat(bundles);
+  const out: Record<string, PublicMvpCounts> = {};
+  for (const [k, row] of combat) {
+    if (!row.mvpMedic && !row.mvpKiller && !row.mvpArmor) continue;
+    out[k] = {
+      medic: row.mvpMedic,
+      killer: row.mvpKiller,
+      armor: row.mvpArmor,
+    };
+  }
+  return out;
+}
+
+const cachedPublicMvpIndex = unstable_cache(
+  buildPublicMvpIndex,
+  ["public-mvp-index-v1"],
+  { revalidate: 120 }
+);
+
+let mvpIndexMem: { at: number; data: Record<string, PublicMvpCounts> } | null =
+  null;
+
+async function loadPublicMvpIndex(): Promise<Record<string, PublicMvpCounts>> {
+  try {
+    return await cachedPublicMvpIndex();
+  } catch {
+    if (mvpIndexMem && Date.now() - mvpIndexMem.at < 120_000) {
+      return mvpIndexMem.data;
+    }
+    const data = await buildPublicMvpIndex();
+    mvpIndexMem = { at: Date.now(), data };
+    return data;
+  }
+}
+
+export async function publicMvpCountsForNick(
+  nick: string
+): Promise<PublicMvpCounts> {
+  const empty: PublicMvpCounts = { medic: 0, killer: 0, armor: 0 };
+  const clean = String(nick || "").trim();
+  if (!clean) return empty;
+  const { publicRpLookupNick, collisionBySiteNick } = await import(
+    "@/lib/nickCollisions"
+  );
+  const lookupNick = publicRpLookupNick(
+    clean,
+    collisionBySiteNick(clean)?.steamId
+  );
+  const want = nickKey(lookupNick);
+  if (!want) return empty;
+  const idx = await loadPublicMvpIndex();
+  return idx[want] || empty;
+}
+
 async function buildPublicRatingTableUncached(
   limit = 500,
   clanTag = ""
@@ -658,6 +721,11 @@ export async function buildPlayerPublicCombatStats(
       else if (m.won === false) losses += 1;
     }
     const games = matches.length;
+    const mvp = await publicMvpCountsForNick(clean).catch(() => ({
+      medic: 0,
+      killer: 0,
+      armor: 0,
+    }));
     return {
       nick: player?.nick || clean,
       matches: games,
@@ -674,9 +742,9 @@ export async function buildPlayerPublicCombatStats(
       winrate: games ? Math.round((wins / games) * 1000) / 10 : 0,
       vehicleKills,
       mvpDamage: 0,
-      mvpKiller: 0,
-      mvpMedic: 0,
-      mvpArmor: 0,
+      mvpKiller: mvp.killer,
+      mvpMedic: mvp.medic,
+      mvpArmor: mvp.armor,
       days,
       rp: player?.rp ?? null,
       rankLabel: player?.rankLabel ?? null,

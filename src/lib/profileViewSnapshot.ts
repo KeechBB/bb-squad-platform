@@ -3,7 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { readSnapshot, snapshotFile, writeSnapshot } from "@/lib/diskSnapshot";
 import { loadUserTrainingStats } from "@/lib/trainingStats";
 import { loadUserPublicAttendanceStats } from "@/lib/publicAttendance";
-import { buildPlayerPublicCombatStats } from "@/lib/publicCombat";
+import {
+  buildPlayerPublicCombatStats,
+  publicMvpCountsForNick,
+} from "@/lib/publicCombat";
 import { loadPublicRpOneFromDb } from "@/lib/rpDbRead";
 import { lookupPlayerTrainPwr } from "@/lib/homeTrainPwr";
 import { loadPlayerProfileHeavy } from "@/lib/playerProfileHeavy";
@@ -139,6 +142,33 @@ export async function buildProfileViewPayload(
         }
       : base.histories,
   };
+}
+
+/** Снимок профиля хранил нули MVP. На чтении подставляем живой подсчёт паблика. */
+async function withLivePublicMvp(
+  name: string,
+  data: ProfileViewPayload
+): Promise<ProfileViewPayload> {
+  const mvp = await publicMvpCountsForNick(name).catch(() => null);
+  if (!mvp) return data;
+  const paint = (combat: unknown) => {
+    if (!combat || typeof combat !== "object") return combat;
+    return {
+      ...(combat as Record<string, unknown>),
+      mvpKiller: mvp.killer,
+      mvpMedic: mvp.medic,
+      mvpArmor: mvp.armor,
+    };
+  };
+  if (data.publicSummary && typeof data.publicSummary === "object") {
+    const summary = data.publicSummary as { combat?: unknown };
+    data.publicSummary = { ...summary, combat: paint(summary.combat) };
+  }
+  if (data.stats && typeof data.stats === "object") {
+    const stats = data.stats as { publicCombat?: unknown };
+    data.stats = { ...stats, publicCombat: paint(stats.publicCombat) };
+  }
+  return data;
 }
 
 /**
@@ -403,11 +433,14 @@ export async function readStoredProfileView(
   const hit = await readSnapshot<ProfileViewPayload>(fileFor(name));
   if (hit?.data && typeof hit.data === "object") {
     const data = present(hit.data);
-    return withLivePublicRp(
+    return withLivePublicMvp(
       name,
-      await withLiveCombatIfEmpty(
+      await withLivePublicRp(
         name,
-        await withLiveTrainingIfEmpty(name, data)
+        await withLiveCombatIfEmpty(
+          name,
+          await withLiveTrainingIfEmpty(name, data)
+        )
       )
     );
   }
@@ -418,11 +451,14 @@ export async function readStoredProfileView(
   void import("@/lib/profileViewQueue")
     .then((m) => m.markProfileViewStale(name))
     .catch(() => undefined);
-  return withLivePublicRp(
+  return withLivePublicMvp(
     name,
-    await withLiveCombatIfEmpty(
+    await withLivePublicRp(
       name,
-      await withLiveTrainingIfEmpty(name, base)
+      await withLiveCombatIfEmpty(
+        name,
+        await withLiveTrainingIfEmpty(name, base)
+      )
     )
   );
 }
