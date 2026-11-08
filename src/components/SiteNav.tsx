@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { SteamAuthModal } from "@/components/SteamAuthModal";
+import { isMobileLayout } from "@/lib/mobileLayout";
+import { PlayerSearch } from "@/components/PlayerSearch";
 
 type Props = {
   /** Полный доступ: КВ / Поиск КВ / ТМ — только если в клане */
@@ -81,8 +83,8 @@ function NavDropdown({
     <div
       ref={rootRef}
       className={`nav-dd${active ? " is-active" : ""}${open ? " is-open" : ""}`}
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
+      onPointerEnter={(e) => { if (e.pointerType === "mouse" && !isMobileLayout()) setOpen(true); }}
+      onPointerLeave={(e) => { if (e.pointerType === "mouse" && !isMobileLayout()) setOpen(false); }}
     >
       <button
         type="button"
@@ -110,6 +112,23 @@ export function SiteNav({ showClanSections }: Props) {
   const loading = status === "loading";
   const authed = Boolean(session?.user?.steamId);
   const complete = Boolean(session?.user?.profileComplete);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const menuRoot = useRef<HTMLDivElement>(null);
+  const [menuPath, setMenuPath] = useState(pathname);
+  if (menuPath !== pathname) { setMenuPath(pathname); setMenuOpen(false); }
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { setMenuOpen(false); menuButton.current?.focus(); }
+    };
+    const onPointer = (e: PointerEvent) => {
+      if (!menuRoot.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointer);
+    return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("pointerdown", onPointer); };
+  }, [menuOpen]);
   const [authModal, setAuthModal] = useState<{
     href: string;
     title: string;
@@ -193,7 +212,13 @@ export function SiteNav({ showClanSections }: Props) {
 
   return (
     <>
-      <nav className="top-nav" aria-label="Разделы">
+      <div ref={menuRoot} className={`site-navigation${menuOpen ? " is-open" : ""}`}>
+      <button ref={menuButton} type="button" className="mobile-menu-toggle" aria-expanded={menuOpen} aria-controls="site-navigation-menu" onClick={() => setMenuOpen((v) => !v)}>
+        <span aria-hidden="true">{menuOpen ? "✕" : "☰"}</span><span>{menuOpen ? "Закрыть" : "Меню"}</span>
+      </button>
+      <nav id="site-navigation-menu" className="top-nav" aria-label="Разделы" onClick={(e) => {
+        if ((e.target as HTMLElement).closest("a")) setMenuOpen(false);
+      }}>
         <NavLink
           href="/"
           full="Главная"
@@ -242,7 +267,14 @@ export function SiteNav({ showClanSections }: Props) {
           active={pathMatches(pathname, "/tournaments")}
         />
 
+        <div className="mobile-nav-extra">
+          {complete ? <div className="mobile-nav-search"><PlayerSearch /></div> : null}
+          {menuItem("/profile", "Мой профиль")}
+          {menuItem("/factions/me", "Моя фракция", { clanOnly: true })}
+          {menuItem("/map", "Карта сообщества", { clanOnly: true })}
+        </div>
       </nav>
+      </div>
       <SteamAuthModal
         open={Boolean(authModal)}
         onClose={() => setAuthModal(null)}

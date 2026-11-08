@@ -9,6 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { subscribeLive } from "@/lib/liveClient";
+import { isMobileLayout } from "@/lib/mobileLayout";
 
 type Msg = {
   id: string;
@@ -250,6 +251,7 @@ export function SupportChatWidget() {
   }, [mode]);
 
   function startDrag(kind: "move" | "resize" | "mini", e: ReactPointerEvent) {
+    if (isMobileLayout()) return;
     if (e.button !== 0) return;
     e.preventDefault();
     dragRef.current = {

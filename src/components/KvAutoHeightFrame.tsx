@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
+import { isMobileLayout } from "@/lib/mobileLayout";
 
 type Props = {
   src: string;
   title: string;
   className?: string;
   minHeight?: number;
+  scrolling?: "auto" | "no";
 };
 
 /**
@@ -19,6 +21,7 @@ export function KvAutoHeightFrame({
   title,
   className,
   minHeight = 420,
+  scrolling = "no",
 }: Props) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [devOpen, setDevOpen] = useState(false);
@@ -63,12 +66,45 @@ export function KvAutoHeightFrame({
     let ro: ResizeObserver | null = null;
     let poll: number | undefined;
     let slowPoll: number | undefined;
+    let slowPollTimer: number | undefined;
+    let mutations: MutationObserver | null = null;
+
+    const adaptTables = () => {
+      const doc = frame.contentDocument;
+      if (!doc?.body) return;
+      if (!isMobileLayout()) {
+        doc.querySelectorAll(".bb-mobile-table-scroll").forEach((wrap) => wrap.replaceWith(...wrap.childNodes));
+        return;
+      }
+      doc.querySelectorAll("table").forEach((table) => {
+        if (table.closest(".bb-mobile-table-scroll")) return;
+        const wrap = doc.createElement("div");
+        wrap.className = "bb-mobile-table-scroll";
+        wrap.tabIndex = 0;
+        wrap.setAttribute("role", "region");
+        wrap.setAttribute("aria-label", "Таблица — прокрутите по горизонтали");
+        table.before(wrap);
+        wrap.appendChild(table);
+      });
+    };
 
     const attach = () => {
       syncFromDoc();
       try {
         const doc = frame.contentDocument;
         if (!doc?.documentElement) return;
+        if (!doc.getElementById("bb-mobile-embed-css")) {
+          const link = doc.createElement("link");
+          link.id = "bb-mobile-embed-css";
+          link.rel = "stylesheet";
+          link.href = "/mobile-kv.css";
+          link.addEventListener("load", syncFromDoc, { once: true });
+          doc.head?.appendChild(link);
+        }
+        adaptTables();
+        mutations?.disconnect();
+        mutations = new MutationObserver(adaptTables);
+        if (doc.body) mutations.observe(doc.body, { childList: true, subtree: true });
         if (!doc.getElementById("bb-embed-clear-bg")) {
           const style = doc.createElement("style");
           style.id = "bb-embed-clear-bg";
@@ -95,7 +131,8 @@ export function KvAutoHeightFrame({
       window.clearInterval(slowPoll);
       // Быстрый опрос пока таблица подгружается, потом редкий — на случай дорисовки.
       poll = window.setInterval(syncFromDoc, 400);
-      window.setTimeout(() => {
+      window.clearTimeout(slowPollTimer);
+      slowPollTimer = window.setTimeout(() => {
         window.clearInterval(poll);
         slowPoll = window.setInterval(syncFromDoc, 2000);
       }, 20000);
@@ -137,6 +174,8 @@ export function KvAutoHeightFrame({
     };
 
     frame.addEventListener("load", onLoad);
+    const onResize = () => { try { adaptTables(); syncFromDoc(); } catch { /* same-origin only */ } };
+    window.addEventListener("resize", onResize);
     window.addEventListener("message", onMsg);
     if (frame.contentDocument?.readyState === "complete") onLoad();
 
@@ -144,6 +183,9 @@ export function KvAutoHeightFrame({
       frame.removeEventListener("load", onLoad);
       window.removeEventListener("message", onMsg);
       ro?.disconnect();
+      mutations?.disconnect();
+      window.removeEventListener("resize", onResize);
+      window.clearTimeout(slowPollTimer);
       window.clearInterval(poll);
       window.clearInterval(slowPoll);
     };
@@ -157,7 +199,7 @@ export function KvAutoHeightFrame({
         src={src}
         title={title}
         allow="fullscreen"
-        scrolling="no"
+        scrolling={scrolling}
         style={{ minHeight }}
       />
       {devOpen

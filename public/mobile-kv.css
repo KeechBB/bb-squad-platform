@@ -1,0 +1,20 @@
+/* Served by the platform and injected into the same-origin KV mirror by
+   KvAutoHeightFrame. No changes to the external KV data or business logic. */
+@media (max-width: 1023px) {
+  html, body { min-width: 0 !important; width: 100% !important; height: auto !important; overflow: visible !important; font-size: 14px; }
+  *, *::before, *::after { box-sizing: border-box; }
+  .wrap, .view, .cw-panel, .tm-role, .tm-role-body { width: 100% !important; max-width: 100% !important; min-width: 0 !important; height: auto !important; padding-inline: 0 !important; }
+  .topnav, .atmosphere { display: none !important; }
+  .cw-head, .controls, .filters, .toolbar, .cw-tools, .tm-tools { display: flex !important; flex-wrap: wrap !important; gap: 10px; min-width: 0; }
+  h1 { font-size: 26px !important; }
+  button, .btn, .nav-btn { min-height: 44px; white-space: normal; }
+  input, select, textarea { font-size: 16px !important; min-width: 0 !important; max-width: 100%; }
+  .bb-mobile-table-scroll { display: block; width: 100%; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+  .bb-mobile-table-scroll:focus-visible { outline: 2px solid #a78bfa; }
+  .bb-mobile-table-scroll table { min-width: 700px; width: 100%; font-size: 13px !important; }
+  th, td { padding: 10px 12px !important; }
+  .cw-tabs, .tm-tabs, .tabs, .subtabs { display: flex; flex-wrap: nowrap !important; max-width: 100%; overflow-x: auto; gap: 6px; }
+  .cw-tabs > *, .tm-tabs > *, .tabs > *, .subtabs > * { flex-shrink: 0; }
+  .tm-growth-grid, .analytics-grid, .stats-grid { grid-template-columns: minmax(0, 1fr) !important; }
+  [role="dialog"] { min-width: 0 !important; max-width: calc(100vw - 24px) !important; max-height: calc(100dvh - 32px) !important; overflow: auto !important; }
+}
