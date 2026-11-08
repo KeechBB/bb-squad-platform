@@ -1,0 +1,7 @@
+{
+  "name": "bb-mobile-preview",
+  "private": true,
+  "scripts": {
+    "dev": "node run.mjs"
+  }
+}

@@ -8,6 +8,7 @@ import { setVisibleInterval } from "@/lib/visibleInterval";
 import { PlayerSearch } from "@/components/PlayerSearch";
 import { NotificationsBell } from "@/components/NotificationsBell";
 import { CwBookButton } from "@/components/CwBookButton";
+import { isMobileLayout } from "@/lib/mobileLayout";
 
 function DiscordHeaderLink() {
   return (
@@ -154,8 +155,8 @@ export function AuthBar() {
       <div
         ref={menuRef}
         className={`auth-user-dd${menuOpen ? " is-open" : ""}`}
-        onMouseEnter={openMenu}
-        onMouseLeave={scheduleCloseMenu}
+        onPointerEnter={(e) => { if (e.pointerType === "mouse" && !isMobileLayout()) openMenu(); }}
+        onPointerLeave={(e) => { if (e.pointerType === "mouse" && !isMobileLayout()) scheduleCloseMenu(); }}
       >
         <button
           type="button"

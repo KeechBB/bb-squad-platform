@@ -1,42 +1,15 @@
 "use client";
 
 import { useEffect } from "react";
+import { isMobileLayout } from "@/lib/mobileLayout";
 
-/**
- * Телефон = ПК-канва 1:1 + свайп пальцем.
- * Компактный одноколоночный reflow отключён — он ломал «как на мониторе».
- */
-export function isTouchCompact(): boolean {
-  return false;
-}
-
-/** Узкий тач-экран: не сжимаем HomeFit, даём pan по 1920-канве. */
-export function isPhonePanCanvas(): boolean {
-  if (typeof window === "undefined") return false;
-  // Хаб: целиком в экран (scale-to-fit), иначе 1:1 + свайп — отдалить нельзя.
-  if (document.querySelector(".home-page.is-hub")) return false;
-  const touch = navigator.maxTouchPoints > 0 || window.matchMedia("(pointer: coarse)").matches;
-  if (!touch) return false;
-  const shortSide = Math.min(window.screen.width, window.screen.height);
-  return shortSide <= 900;
-}
+/** Compatibility exports; compact layout is now driven by CSS width. */
+export const isTouchCompact = isMobileLayout;
+export function isPhonePanCanvas(): boolean { return false; }
 
 export function TouchCompact() {
   useEffect(() => {
-    const root = document.documentElement;
-    const sync = () => {
-      root.classList.remove("bb-compact");
-      root.classList.toggle("bb-phone-pan", isPhonePanCanvas());
-    };
-    sync();
-    window.addEventListener("resize", sync);
-    window.visualViewport?.addEventListener("resize", sync);
-    return () => {
-      window.removeEventListener("resize", sync);
-      window.visualViewport?.removeEventListener("resize", sync);
-      root.classList.remove("bb-compact");
-      root.classList.remove("bb-phone-pan");
-    };
+    document.documentElement.classList.remove("bb-compact", "bb-phone-pan", "bb-hub-phone");
   }, []);
   return null;
 }

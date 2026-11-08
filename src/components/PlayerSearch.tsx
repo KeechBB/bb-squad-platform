@@ -20,6 +20,7 @@ type Hit = {
 export function PlayerSearch() {
   const router = useRouter();
   const listId = useId();
+  const inputId = `${listId}-input`;
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<Hit[]>([]);
@@ -117,11 +118,11 @@ export function PlayerSearch() {
 
   return (
     <div className="player-search" ref={wrapRef}>
-      <label className="visually-hidden" htmlFor="player-search-input">
+      <label className="visually-hidden" htmlFor={inputId}>
         Поиск игрока
       </label>
       <input
-        id="player-search-input"
+        id={inputId}
         className="player-search-input"
         type="search"
         role="combobox"

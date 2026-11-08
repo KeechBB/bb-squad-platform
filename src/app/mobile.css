@@ -1,0 +1,286 @@
+/* Mobile is normal document flow. Desktop compositions above 1023px are unchanged.
+   Loaded after the legacy desktop locks; !important is limited to those locks. */
+.mobile-menu-toggle, .mobile-nav-extra, .mobile-hub-heading { display: none; }
+.mobile-calendar-detail { display: none; }
+button.training-cal-cell-attend { font: inherit; color: inherit; text-align: inherit; cursor: pointer; }
+
+@media (min-width: 1024px) {
+  .tm-role-embed { flex: 1 1 auto; min-height: 0; width: 100%; height: 100%; display: flex; }
+  .tm-role-embed .cw-frame { height: 100% !important; min-height: 0 !important; flex: 1; border: 0; }
+}
+
+@media (max-width: 1023px) {
+  html:root { min-width: 0 !important; height: auto !important; overflow: visible !important; }
+  html:root body {
+    display: block !important;
+    min-width: 0 !important;
+    width: 100%;
+    height: auto !important;
+    min-height: 100dvh !important;
+    overflow: visible !important;
+    background-attachment: scroll;
+    font-size: 16px;
+    -webkit-text-size-adjust: 100%;
+  }
+  html:root body .shell {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 16px max(12px, env(safe-area-inset-right)) 32px max(12px, env(safe-area-inset-left)) !important;
+    overflow: visible !important;
+  }
+  .shell > *, main, section, form, .card { min-width: 0; max-width: 100%; }
+  h1 { font-size: clamp(24px, 6vw, 34px); overflow-wrap: anywhere; }
+  h2 { overflow-wrap: anywhere; }
+  .hero { flex-wrap: wrap; gap: 16px; margin-bottom: 20px; }
+  .lead { font-size: 15px; line-height: 1.6; }
+  button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+  button, .btn, [role="tab"], .nav-dd-item { min-height: 44px; }
+  button:focus-visible, a:focus-visible { outline: 2px solid var(--violet); outline-offset: 3px; }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea {
+    min-width: 0; max-width: 100%; font-size: 16px !important;
+  }
+  input[type="date"], input[type="datetime-local"] { color-scheme: dark; }
+  .field, .form-grid, .register-grid, .profile-form-grid { min-width: 0; }
+  .form-grid, .register-grid, .profile-form-grid { grid-template-columns: minmax(0, 1fr); }
+  .btn { white-space: normal; text-align: center; }
+  /* Header: disclosure navigation shares the same permissions and links as desktop. */
+  .site-top { position: sticky; top: 0; z-index: 50; padding-top: env(safe-area-inset-top); }
+  .site-top-inner { position: relative; width: 100%; min-width: 0; min-height: 64px; padding: 8px 12px; gap: 8px; flex-wrap: nowrap; }
+  .top-left { min-width: 0; flex: 0 0 auto; gap: 6px; }
+  .top-left > :not(.site-navigation) { display: none; }
+  .mobile-menu-toggle { display: inline-flex; align-items: center; gap: 8px; padding: 10px; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; font: 600 14px var(--font-body); }
+  .site-navigation > .top-nav { display: none; }
+  .site-navigation.is-open > .top-nav {
+    display: flex; position: absolute; top: 100%; left: 0; right: 0;
+    flex-direction: column; align-items: stretch; gap: 6px;
+    max-height: calc(100dvh - 80px - env(safe-area-inset-top)); overflow-y: auto;
+    padding: 12px; background: #100c1c; border: 1px solid var(--line); border-radius: 0 0 16px 16px; box-shadow: 0 20px 40px #0009;
+  }
+  .top-nav .nav-link { width: 100%; justify-content: space-between; text-align: left; padding: 12px; min-height: 44px; font-size: 14px; }
+  .top-nav .nav-full { display: inline; }
+  .top-nav .nav-short { display: none; }
+  .top-nav .nav-dd-menu { position: static; width: 100%; min-width: 0; box-shadow: none; margin-top: 6px; }
+  .nav-dd-menu[hidden] { display: none; }
+  .nav-dd-item { font-size: 14px; white-space: normal; }
+  .mobile-nav-extra { display: grid; border-top: 1px solid var(--line); padding-top: 8px; }
+  .mobile-nav-search { padding: 8px 0; }
+  .mobile-nav-search .player-search { width: 100%; max-width: none; }
+  .mobile-nav-search .player-search-list { position: static; min-width: 0; width: 100%; max-height: 240px; }
+  .auth-bar { min-width: 0; margin-left: auto; gap: 6px; flex-wrap: nowrap; }
+  .auth-bar .nav-discord { width: 44px; min-width: 44px; height: 44px; padding: 10px; }
+  .auth-bar .nav-discord span { display: none; }
+  .auth-bar .player-search { display: none; }
+  .auth-user-trigger { min-width: 0; max-width: 160px; padding: 6px 10px; }
+  .auth-user-nick { max-width: 95px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .auth-user-menu { right: 0; min-width: 200px; max-width: calc(100vw - 24px); }
+  .auth-user-item { min-height: 44px; padding: 12px; }
+  .notif-panel { position: fixed; top: calc(72px + env(safe-area-inset-top)); left: 12px; right: 12px; width: auto; max-width: none; max-height: calc(100dvh - 100px); overflow: auto; }
+  /* Home: full-size touch targets instead of a miniature 1920px board. */
+  html:root body .shell:has(.home-page) { padding-top: 0 !important; }
+  .home-page, .home-page.is-hub { display: block !important; position: relative !important; width: 100% !important; height: auto !important; min-height: 0 !important; overflow: visible !important; }
+  .home-page .home-fit, .home-page.is-hub .home-fit { display: block !important; width: 100% !important; height: auto !important; overflow: visible !important; }
+  .home-layout, .home-layout.is-hub { position: static !important; display: block !important; width: 100% !important; height: auto !important; min-height: 0 !important; padding: 0 !important; margin: 0 !important; transform: none !important; background: transparent !important; }
+  .home-hub { display: flex; flex-direction: column; height: auto; gap: 24px; padding-top: 24px; }
+  .mobile-hub-heading { display: flex; gap: 14px; align-items: center; padding: 8px 0 20px; border-bottom: 1px solid #d4a84b40; }
+  .mobile-hub-heading img { flex: 0 0 64px; }
+  .mobile-hub-heading p { margin: 0 0 6px; font: 600 11px var(--font-display); color: #e9c46a; letter-spacing: .16em; }
+  .mobile-hub-heading h1 { font: 700 clamp(22px, 5vw, 30px) var(--font-display); margin: 0 0 6px; }
+  .mobile-hub-heading span { font-size: 13px; color: var(--muted); }
+  .home-hub-poly { height: auto; }
+  .home-hub-grid { position: static !important; display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; height: auto !important; width: 100% !important; }
+  .home-hub-grid .home-hub-tile { position: relative !important; inset: auto !important; width: 100% !important; height: auto !important; aspect-ratio: 400 / 452; transform: none !important; touch-action: pan-y; }
+  .home-hub-tile-art { inset: 0; background-size: contain; background-position: center; background-repeat: no-repeat; transform: none !important; }
+  .home-hub-tile-plate { display: none; }
+  .home-hub-faction-menu { position: absolute; top: 100%; right: 0; left: auto; width: min(300px, calc(100vw - 24px)); max-height: 320px; overflow: auto; z-index: 10; }
+  .home-hub-cw { position: static !important; width: 100% !important; height: auto !important; max-height: none; order: 3; overflow: visible; pointer-events: auto; }
+  .home-hub-cw-item { position: static !important; width: 100% !important; }
+  .home-hub-cw-stubs, .home-hub-cw-edit-hint, .home-hub-edit-hint { display: none; }
+  .home-layout.is-hub .home-cw-card { padding: 16px; gap: 10px; font-size: 14px; }
+  .home-layout.is-hub .home-cw-card :is(p, span, button) { font-size: 13px; }
+  .home-layout.is-hub .home-cw-card button { padding: 8px 10px; }
+  .home-side, .home-panels, .home-hero { position: static !important; width: 100% !important; transform: none !important; }
+  /* Canvas-based profile and both battle-pass layouts become ordinary content. */
+  .canvas-scale-host, .canvas-scale-slot, .canvas-scale-stage, .canvas-scale-inner {
+    display: block !important; position: relative !important; width: 100% !important; max-width: 100% !important;
+    height: auto !important; min-height: 0 !important; overflow: visible !important;
+    padding: 0 !important; zoom: 1 !important; transform: none !important;
+  }
+  .profile-v2-with-mail { display: flex; flex-direction: column; width: 100% !important; height: auto !important; gap: 16px; }
+  .profile-v2-with-mail > .profile-page-v2 { flex: none; width: 100% !important; max-width: 100%; order: -1; }
+  .profile-page.profile-page-v2 {
+    display: grid !important; grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: none !important; grid-template-areas: "ident" "stats" "attend" "history" "career" "roles" "hits" !important;
+    gap: 16px !important; height: auto !important; max-height: none !important; overflow: visible !important;
+  }
+  .profile-page-v2 > :is(.profile-v2-ident, .profile-v2-career, .profile-v2-attend, .profile-v2-stats, .profile-v2-history, .profile-v2-roles, .profile-v2-hits) {
+    max-height: none !important; height: auto !important; overflow: visible !important;
+  }
+  .profile-page-v2 .card, .profile-page-v2 .profile-career-account { height: auto !important; max-height: none !important; min-height: 0 !important; padding: 14px; }
+  .profile-page-v2 .hero { padding: 0; gap: 12px !important; }
+  .profile-page-v2 .hero h1 { font-size: 26px !important; }
+  .profile-page-v2 .profile-avatar { width: 96px !important; height: 96px !important; flex: 0 0 96px; }
+  .profile-page-v2 .profile-head-row { width: 100%; min-width: 0; gap: 12px; }
+  .profile-page-v2 .profile-head-text { min-width: 0; flex: 1; }
+  .profile-page-v2 .profile-head-title-row { display: block; min-width: 0; }
+  .profile-page-v2 .hero-profile :is(h1, .profile-nick) { overflow-wrap: anywhere; word-break: normal; }
+  .profile-page-v2 .hero-profile { align-items: center; }
+  .profile-page-v2 .profile-kv-head { flex-wrap: wrap; gap: 8px; }
+  .profile-page-v2 .profile-kv-head :is(h2, h3) { font-size: 15px !important; }
+  .profile-page-v2 .profile-kv-grid-12 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; grid-template-rows: none !important; height: auto !important; gap: 8px; }
+  .profile-page-v2 .profile-kv-grid-12 > * { min-height: 94px !important; }
+  .profile-page-v2 .profile-kv-grid-12 > * { grid-column: auto !important; grid-row: auto !important; }
+  .profile-page-v2 .profile-kv-cell-label { font-size: 11px !important; }
+  .profile-page-v2 .profile-kv-grid-12 > .profile-role-split { grid-column: 1 / -1 !important; }
+  .profile-mode-switch { display: flex; flex-wrap: wrap; gap: 6px; }
+  .profile-mode-switch button { flex: 1; font-size: 12px; }
+  .profile-v2-attend > *, .profile-career-account-body, .profile-hist-paged { overflow: visible !important; height: auto !important; max-height: none !important; }
+  .profile-page-v2 .profile-hist-table-wrap { max-height: 480px !important; overflow: auto !important; }
+  .profile-page-v2 .training-sessions-card { min-height: 0 !important; }
+  .profile-page-v2 :is(.training-calendar, .training-calendar-grid) { min-width: 0; width: 100%; }
+  .profile-page-v2 .training-cal-grid { grid-auto-rows: minmax(56px, auto) !important; gap: 3px; }
+  .profile-page-v2 .training-cal-cell { min-height: 56px !important; height: auto !important; padding: 4px 2px !important; border-radius: 6px; }
+  .profile-page-v2 .training-cal-day { font-size: 12px !important; }
+  .profile-page-v2 .training-cal-times { display: none !important; }
+  .mobile-calendar-detail { display: block; color: var(--muted); font-size: 13px; line-height: 1.5; margin: 12px 0 0; min-height: 40px; }
+  .profile-page-v2 .training-cal-cell :is(.training-cal-label, .training-cal-times) { font-size: 9px !important; overflow-wrap: anywhere; }
+  .profile-page-v2 .training-cal-weekdays { font-size: 11px; }
+  .public-rp-scale { display: block; padding: 12px; }
+  .public-rp-scale-label { display: block; margin-bottom: 10px; }
+  .public-rp-scale-track { display: flex !important; flex-wrap: nowrap !important; justify-content: flex-start; width: 100%; max-width: 100%; overflow-x: auto; gap: 14px; padding-bottom: 10px; }
+  .public-rp-scale-step-wrap, .public-rp-scale-step { flex-shrink: 0; }
+  .profile-page-v2 .profile-kits-body-solo { min-height: 260px; }
+  .profile-page-v2 .profile-kits-body-solo .profile-kits-donut { flex: none; max-height: none; width: 240px; }
+  .profile-page-v2 .profile-hitmap-card { min-height: 350px !important; }
+  .profile-mail { flex: none; width: 100% !important; min-width: 0; max-width: 100%; height: auto; min-height: 300px; max-height: none; }
+  .profile-mail-list { min-height: 140px; max-height: 350px; overflow: auto; }
+  .profile-mail-tabs { overflow-x: auto; max-width: 100%; }
+  .profile-mail-tab { flex-shrink: 0; }
+  /* Tables scroll inside their own region, never by dragging the whole page. */
+  .admin-table-wrap, .profile-hist-table-wrap, .public-rating-table-wrap, .tn-table-wrap,
+  .faction-roster-fit, .faction-online-fit, .clan-table-wrap, .cross-rating-table-wrap {
+    display: block; width: 100%; max-width: 100%; min-width: 0;
+    overflow-x: auto !important; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch;
+  }
+  .admin-table, .profile-hist-table, .tn-table { font-size: 13px !important; }
+  .admin-table :is(th, td), .profile-hist-table :is(th, td) { padding: 10px 12px; }
+  .public-rating-card { min-width: 0; padding: 8px; }
+  .public-rating-filters, .public-match-filters { flex-wrap: wrap; gap: 12px; }
+  .public-rating-filters > *, .public-match-filters > * { min-width: 0; flex: 1 1 140px; }
+  .public-rating-search { width: 100%; }
+  .public-rating-glossary { width: 100%; min-width: 0; }
+  .public-rating-tabs, .admin-tabs, .tn-tabs, .clan-tabs, .faction-tabs {
+    display: flex !important; flex-wrap: nowrap !important; gap: 6px;
+    max-width: 100%; overflow-x: auto; padding: 4px 2px 8px; scrollbar-width: thin;
+  }
+  :is(.public-rating-tabs, .admin-tabs, .tn-tabs, .clan-tabs, .faction-tabs) > * { flex-shrink: 0; white-space: nowrap; }
+  /* Clan/faction controls remain available; personal desktop placement is ignored. */
+  .clan-detail, .clan-members-layout, .clan-profile-grid, .clan-stats-layout, .clan-calendar-grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .clan-hero, .clan-detail-header, .clans-hero, .clan-profile-head { flex-wrap: wrap; gap: 16px; }
+  .clan-roster-chart { position: static; max-width: 100%; }
+  .clan-row { padding: 14px; gap: 12px; }
+  .clan-row-body { min-width: 0; overflow-wrap: anywhere; }
+  .faction-page, .faction-stage { display: flex !important; flex-direction: column; gap: 16px; height: auto !important; overflow: visible !important; }
+  .faction-stage .faction-pane { position: static !important; inset: auto !important; width: 100% !important; height: auto !important; min-height: 0 !important; padding: 16px; overflow: visible; }
+  .faction-pane-body { overflow: visible !important; height: auto; }
+  .faction-pane-brand { order: 0; }
+  .faction-pane-info { order: 1; }
+  .faction-pane-roster { order: 2; }
+  .faction-pane-stats { order: 3; }
+  .faction-pane-controls { order: 4; }
+  .faction-roster-fit, .faction-online-fit { height: 400px; flex: none; overflow-y: auto !important; }
+  .faction-roster-fit table, .faction-online-fit table { min-width: 640px; }
+  .faction-place-bar, .faction-move, .faction-resize { display: none; }
+  .faction-analytics-stage, .faction-ratings { max-width: 100%; grid-template-columns: minmax(0, 1fr) !important; }
+  .faction-brand { min-height: 0; }
+  /* Battle pass: horizontally scrollable level track, stacked readable panels. */
+  .bp-page, .bp-page.bp-s2 { display: flex !important; flex-direction: column; gap: 16px; width: 100% !important; height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important; padding: 0 !important; }
+  .bp-s2-hero { padding: 20px 0; }
+  .bp-s2-hero-title { font-size: clamp(26px, 7vw, 40px) !important; }
+  .bp-s2-track { display: flex !important; width: 100%; overflow-x: auto !important; padding: 12px 4px 20px; margin-top: 0; flex: none; }
+  .bp-s2-node { flex: 0 0 64px; min-width: 64px; }
+  .bp-s2-mid, .bp-s2-bottom, .bp-main, .bp-layout { display: flex !important; flex-direction: column; width: 100%; height: auto !important; gap: 16px; }
+  .bp-s2-mid > *, .bp-s2-bottom > * { grid-area: auto !important; flex: none; width: 100%; min-width: 0; max-width: 100%; }
+  .bp-s2-stage, .bp-s2-board { height: auto !important; min-height: 300px; }
+  .bp-s2-board-list { width: 100%; min-width: 0; }
+  .bp-s2-board .bp-board-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 8px; min-width: 0; }
+  .bp-s2-board-player { min-width: 0; }
+  .bp-s2-board .bp-board-nick { flex: 1; min-width: 0; font-size: 15px; }
+  .bp-s2-board-patch { width: 32px; height: 20px; }
+  .bp-s2-board .bp-board-score { grid-column: 2 / 4; margin-left: 0; font-size: 12px; }
+  .bp-s2-task { width: 100%; padding: 16px; }
+  .bp-s2-task-art { position: relative; width: 100%; height: 220px; }
+  .bp-s2-milestones { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .bp-s2-mile { width: 100%; min-width: 0; height: auto; padding: 8px 0; }
+  .bp-s2-mile-ring { width: min(100%, 110px); height: auto; aspect-ratio: 1; }
+  .bp-s2-mile-lvl { font-size: 14px; }
+  .bp-s2-task-art { flex: none; }
+  .bp-s2-side-art { width: 100%; height: 300px; min-height: 0; }
+  /* Tournament, administration, registration, tools and visualizations. */
+  .tn-page { height: auto !important; min-height: 0 !important; overflow: visible !important; }
+  .tn-body { overflow: visible !important; }
+  .tn-home, .tn-home-left, .tn-home-right, .tn-teams-layout, .tn-team-grid, .tn-bets-layout { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; gap: 16px; }
+  .tn-prizes-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .tn-logo { max-width: min(100%, 280px); height: auto; }
+  .tn-bracket-scroll, .tn-bracket-viewport { max-width: 100%; overflow: auto; }
+  .admin-page { max-width: 100%; padding: 0; }
+  .admin-export-row, .admin-users-toolbar, .admin-filters, .admin-attend-toolbar { flex-wrap: wrap; gap: 10px; }
+  .admin-export-hint { max-width: 100%; }
+  .attend-stats-grid, .admin-load-grid, .bb-admin-report-grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .admin-load-head, .admin-load-filters, .attend-filters { flex-wrap: wrap; gap: 10px; }
+  .reaction-page { padding: 0; }
+  .reaction-layout, .reaction-body { grid-template-columns: minmax(0, 1fr) !important; }
+  .cross-rating-top { flex-wrap: wrap; gap: 12px; }
+  .cross-pwr-scale { max-width: 100%; overflow-x: auto; }
+  .cross-pwr-scale-track { flex-wrap: nowrap; width: max-content; }
+  .tier-fit-grid, .cw-registration-grid, .cw-find-grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .panelka-page { width: 100%; min-width: 0; padding: 0; }
+  .panelka-layout, .panelka-grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .reaction-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); flex: 1 1 100%; }
+  .reaction-stage { width: 100%; min-width: 0; min-height: 260px; max-height: 60dvh; }
+  .replay-viewer { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .replay-canvas-wrap { width: 100%; min-width: 0; height: min(65dvh, 480px); }
+  .replay-sidebar { width: 100%; max-height: 300px; overflow: auto; }
+  .replay-transport { flex-wrap: wrap; gap: 10px; }
+  .replay-scrub { min-width: 160px; flex: 1 1 60%; }
+  .clan-map-bar { position: relative; flex-wrap: wrap; padding: 12px; }
+  .clan-map-page { height: auto; min-height: 70dvh; }
+  .clan-map-stats { min-width: 0; max-width: 100%; }
+  .clan-map-stage { height: 65dvh; }
+  .cw-embed, .cw-frame, .cw-page-shell { width: 100% !important; min-width: 0 !important; max-width: 100%; }
+  .tm-role-page { display: block !important; height: auto !important; }
+  /* Portaled dialogs must fit above the virtual keyboard and safe areas. */
+  .profile-match-modal-panel, .home-cw-modal-card, .site-notice-card, .tn-modal,
+  .admin-absence-dialog, .panelka-modal, .clan-map-modal, .bb-auth-modal-card {
+    width: calc(100% - 24px) !important; min-width: 0 !important;
+    max-width: calc(100vw - 24px) !important; max-height: calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+    overflow-y: auto !important; padding: 16px !important;
+  }
+  .profile-match-modal-panel { left: 12px; right: 12px; top: max(16px, env(safe-area-inset-top)); transform: none; margin: 0; }
+  .profile-match-modal-body, .rp-breakdown-modal, .compare-modal { min-width: 0; max-width: 100%; overflow: auto; }
+  .rp-breakdown-overlay, .compare-overlay, .cw-book-modal, .cw-stack-modal { padding: 12px; }
+  .rp-breakdown-overlay > *, .compare-overlay > *, .cw-book-modal > *, .cw-stack-modal > * { min-width: 0; max-width: 100%; max-height: calc(100dvh - 32px); overflow: auto; }
+  .support-panel { position: fixed !important; inset: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom)) !important; width: auto !important; height: auto !important; max-width: none !important; min-width: 0 !important; }
+  .support-resize { display: none; }
+  .support-mini { inset: auto 12px max(84px, env(safe-area-inset-bottom)) auto !important; max-width: calc(100vw - 24px); }
+  .support-root { right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); }
+  .support-fab, .support-fab:hover { bottom: auto; right: auto; animation: none; transform: none; }
+  .support-head-drag { touch-action: pan-y; cursor: default; }
+  .support-icon-btn { width: 44px; height: 44px; }
+  .site-footer-inner { flex-wrap: wrap; gap: 16px; padding: 24px 12px max(24px, env(safe-area-inset-bottom)); }
+}
+
+@media (max-width: 359px) {
+  .auth-bar .nav-discord { display: none; }
+  .auth-user-trigger { max-width: 145px; }
+}
+
+@media (min-width: 600px) and (max-width: 1023px) {
+  .home-hub-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .profile-page.profile-page-v2 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; grid-template-areas: "ident career" "stats stats" "attend attend" "history history" "roles hits" !important; }
+}
