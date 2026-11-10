@@ -195,20 +195,40 @@ async function upsertRowInFile(
       }
       return "kept";
     }
-    matches[idx] = { ...cur, ...row, id: cur.id || row.id };
-    data.matches = matches;
-    await fs.writeFile(
-      filePath,
-      `${JSON.stringify(data, null, 2)}\n`,
-      "utf8"
-    );
-    return "updated";
+    // Тот же challengeId — обновляем. Тот же id, но другой слот — не затирать.
+    const sameChallenge =
+      Boolean(row.challengeId) &&
+      String(cur.challengeId || "") === String(row.challengeId);
+    const sameSlot =
+      String(cur.timeMsk || "") === String(row.timeMsk || "") &&
+      String(cur.map || "") === String(row.map || "") &&
+      String(cur.size || "") === String(row.size || "");
+    if (sameChallenge || sameSlot) {
+      matches[idx] = { ...cur, ...row, id: cur.id || row.id };
+      data.matches = matches;
+      await fs.writeFile(
+        filePath,
+        `${JSON.stringify(data, null, 2)}\n`,
+        "utf8"
+      );
+      return "updated";
+    }
   }
 
   // вставить по дню / времени
   const day = Number(row.day) || 0;
   let at = matches.findIndex((m) => Number(m.day) > day);
   if (at < 0) at = matches.length;
+  while (at < matches.length && Number(matches[at].day) === day) {
+    at += 1;
+  }
+  let id = String(row.id);
+  if (matches.some((m) => m.id === id)) {
+    let n = 2;
+    while (matches.some((m) => m.id === `${String(row.id)}-${n}`)) n += 1;
+    id = `${String(row.id)}-${n}`;
+    row = { ...row, id };
+  }
   matches.splice(at, 0, row);
   data.matches = matches;
   await fs.writeFile(

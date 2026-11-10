@@ -314,10 +314,17 @@ async function upsertCalendar(
     const cur = matches[byId];
     const st = String(cur.status || "");
     if (st === "win" || st === "lose" || st === "cancel") return "kept";
-    matches[byId] = { ...cur, ...row, id: cur.id || row.id };
-    data.matches = matches;
-    await fs.writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
-    return "updated";
+    // Тот же id, но другой слот (время/карта/размер) — не затирать, вставить как -2/-3.
+    const sameSlot =
+      String(cur.timeMsk || "") === String(row.timeMsk || "") &&
+      String(cur.map || "") === String(row.map || "") &&
+      String(cur.size || "") === String(row.size || "");
+    if (sameSlot) {
+      matches[byId] = { ...cur, ...row, id: cur.id || row.id };
+      data.matches = matches;
+      await fs.writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+      return "updated";
+    }
   }
   const day = Number(row.day) || 0;
   let at = matches.findIndex((m) => Number(m.day) > day);
@@ -329,10 +336,12 @@ async function upsertCalendar(
   ) {
     at += 1;
   }
-  // if colliding id somehow, uniquify
+  // уникальный id: 15-alpha, 15-alpha-2, …
   let id = String(row.id);
   if (matches.some((m) => m.id === id)) {
-    id = `${id}-2`;
+    let n = 2;
+    while (matches.some((m) => m.id === `${String(row.id)}-${n}`)) n += 1;
+    id = `${String(row.id)}-${n}`;
     row = { ...row, id };
   }
   matches.splice(at, 0, row);
@@ -471,10 +480,33 @@ export async function bookClanWar(input: CwBookInput): Promise<CwBookResult> {
       try {
         const r = await upsertCalendar(p, built.row);
         if (r !== "skip") calendarWrites.push(`${r}:${p}`);
+        // id мог стать …-2 после коллизии в календаре
+        if (r === "inserted" || r === "updated") {
+          try {
+            const raw = await fs.readFile(p, "utf8");
+            const data = JSON.parse(raw) as { matches?: CalMatch[] };
+            const hit = (data.matches || []).find(
+              (m) =>
+                String(m.day) === String(built.row.day) &&
+                String(m.timeMsk) === String(built.row.timeMsk) &&
+                String(m.map) === String(built.row.map) &&
+                String(m.opp) === String(built.row.opp)
+            );
+            if (hit?.id) built.row.id = hit.id;
+          } catch {
+            /* keep */
+          }
+        }
       } catch (e) {
         calendarWrites.push(`err:${p}:${e instanceof Error ? e.message : "x"}`);
       }
     }
+    // папка match.md = id слота (15-ALPHA / 15-ALPHA-2)
+    const folderFromId = String(built.row.id || built.folder)
+      .split("-")
+      .map((p, i) => (i === 0 ? p.padStart(2, "0") : p.toUpperCase()))
+      .join("-");
+    built.folder = folderFromId || built.folder;
 
     const matchMdWrites: string[] = [];
     for (const dir of matchMdRoots(built.year, built.month, built.folder)) {
