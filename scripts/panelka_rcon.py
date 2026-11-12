@@ -20,6 +20,9 @@ MODS = {
     "FCL": "3569460354",
     "CSL": "3294562930",
     "SEC": "3661196801",
+    # Steam Workshop ModLoader — layer ModLoader_v1 for HitZone / stats init
+    # https://steamcommunity.com/sharedfiles/filedetails/?id=3516838562
+    "LOADER": "3516838562",
 }
 
 REMOTE = r'''
@@ -468,6 +471,10 @@ def layers() -> dict:
         grouped[mode].append(layer)
     for name in grouped:
         grouped[name].sort()
+    # Prefer ModLoader_v1 (init for stats/HitZone) over ModLoaderInit (fireteam)
+    if "LOADER" in grouped and "ModLoader_v1" in grouped["LOADER"]:
+        rest = [x for x in grouped["LOADER"] if x != "ModLoader_v1"]
+        grouped["LOADER"] = ["ModLoader_v1", *rest]
     return {"ok": True, "modes": grouped}
 
 

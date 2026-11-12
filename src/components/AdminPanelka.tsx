@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PanelkaServer } from "@/lib/panelkaRcon";
 
-const MODES = ["FCL", "CSL", "SEC"] as const;
+const MODES = ["FCL", "CSL", "SEC", "LOADER"] as const;
 
 type ChatLine = {
   clock: string;
