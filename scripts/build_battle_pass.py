@@ -86,7 +86,8 @@ LEVEL_TARGETS = {
 }
 _DESERT_RE = re.compile(r"basrah|mutaha|tallil|fallujah", re.I)
 _MRAP_RE = re.compile(
-    r"CPV|MRAP|MATV|M-?ATV|TAPV|M1151|RG-?31|COUGAR|HUSKY|MAXXPRO|BUSHMASTER",
+    r"CPV|MRAP|MATV|M-?ATV|TAPV|M1151|M1117|RG-?31|COUGAR|HUSKY|MAXXPRO|"
+    r"BUSHMASTER|TIGR|CSK131|COBRA2?|KOZAK|LPPV|LUVW|PMV",
     re.I,
 )
 
@@ -213,6 +214,25 @@ def is_mrap(vehicle: str) -> bool:
 def classify_vehicle(vehicle: str, tickets: int | None, label: str = "") -> str:
     """light | mrap | ifv | tank | heli | other — для заданий S2."""
     a = str(vehicle or "")
+    # Canon class from squad_vehicle_tickets.json (fixes Tigr→MRAP etc.)
+    cls = None
+    try:
+        cls = R.vehicle_class(a)
+    except Exception:
+        cls = None
+    if cls:
+        if cls in ("MBT",):
+            return "tank"
+        if cls in ("AH", "UH"):
+            return "heli"
+        if cls in ("MRAP",):
+            return "mrap"
+        if cls in ("IFV", "APC", "MGS", "TD"):
+            return "ifv"
+        if cls in ("LOGI", "TRAN", "LTV", "ULTV"):
+            return "light"
+        # SPA / SPAA / RSV / MSV — не в заданиях S2
+        return "other"
     if is_heli(a):
         return "heli"
     if is_tank(a, tickets, label):

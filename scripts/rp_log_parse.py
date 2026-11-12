@@ -125,6 +125,7 @@ VEHICLE_DRIVER_SHARE = 0.7
 # Canon tickets: scripts/data/squad_vehicle_tickets.json (Squad v10.6.1 ticketValue).
 # Heuristics below are fallback only for unknown / future BP_ names.
 _VEH_TICKETS_BY_BP: dict[str, int] | None = None
+_VEH_CLASS_BY_BP: dict[str, str] | None = None
 _VEH_TANK_RE = re.compile(
     # 2A6/2A7 = Leopard (Squad asset often BP_2A6_* without "LEOPARD" in name)
     r"(T72|T62|T80|T90|M1A|LEOPARD|2A6|2A7|M60|CHALLENGER|MERKAVA|T14|ZTZ|TYPE99|TYPE96|FV4034|T64)",
@@ -375,10 +376,11 @@ def _is_unarmed_transport(asset: str) -> bool:
 
 
 def _load_vehicle_tickets_by_bp() -> dict[str, int]:
-    global _VEH_TICKETS_BY_BP
+    global _VEH_TICKETS_BY_BP, _VEH_CLASS_BY_BP
     if _VEH_TICKETS_BY_BP is not None:
         return _VEH_TICKETS_BY_BP
     out: dict[str, int] = {}
+    classes: dict[str, str] = {}
     try:
         path = Path(__file__).resolve().parent / "data" / "squad_vehicle_tickets.json"
         raw = json.loads(path.read_text(encoding="utf-8"))
@@ -389,11 +391,33 @@ def _load_vehicle_tickets_by_bp() -> dict[str, int]:
             try:
                 out[key] = int(meta.get("tickets"))
             except (TypeError, ValueError, AttributeError):
-                continue
+                pass
+            cls = str((meta or {}).get("class") or "").strip().upper()
+            if cls:
+                classes[key] = cls
     except Exception:
         out = {}
+        classes = {}
     _VEH_TICKETS_BY_BP = out
+    _VEH_CLASS_BY_BP = classes
     return out
+
+
+def _load_vehicle_class_by_bp() -> dict[str, str]:
+    global _VEH_CLASS_BY_BP
+    if _VEH_CLASS_BY_BP is None:
+        _load_vehicle_tickets_by_bp()
+    return _VEH_CLASS_BY_BP or {}
+
+
+def vehicle_class(asset: str) -> str | None:
+    """Squad vehicle class from tickets table: MRAP / IFV / MBT / LOGI / …"""
+    table = _load_vehicle_class_by_bp()
+    for key in _ticket_lookup_candidates(asset):
+        cls = table.get(key)
+        if cls:
+            return cls
+    return None
 
 
 def _asset_bp_key(asset: str) -> str:
