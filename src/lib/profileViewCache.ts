@@ -14,7 +14,7 @@ export type ProfileViewBundle = {
   histories?: unknown;
 };
 
-const SS_KEY = "bb_profile_view_v9";
+const SS_KEY = "bb_profile_view_v10";
 const inflight = new Map<string, Promise<ProfileViewBundle | null>>();
 const mem = new Map<string, { at: number; data: ProfileViewBundle }>();
 const MEM_TTL_MS = 90_000;

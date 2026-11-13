@@ -172,15 +172,19 @@ async function withLivePublicMvp(
 }
 
 /**
- * Шапка профиля берёт живое RP из базы. История — из ProfileMatchLine
- * (ensure на чтении: sync только сносит кэш, снимок на диске может отставать).
+ * Шапка профиля берёт живое RP из базы. История — уже записанные строки.
+ * Пустой ответ не затирает снимок: пересборка идёт в фоне и не держит экран.
  */
 async function withLivePublicRp(
   name: string,
   data: ProfileViewPayload
 ): Promise<ProfileViewPayload> {
   const ready = await loadReadyHistories(name).catch(() => null);
-  if (ready) {
+  const readyRows =
+    (ready?.trainHistory?.length || 0) +
+    (ready?.publicHistory?.length || 0) +
+    (ready?.cwHistory?.length || 0);
+  if (ready && readyRows > 0) {
     const prev =
       data.histories && typeof data.histories === "object"
         ? (data.histories as Record<string, unknown>)
@@ -332,6 +336,18 @@ function trainingPresentCount(training: unknown): number {
 }
 
 /**
+ * Календарь КВ всегда из живого билдера (клан игрока), не из устаревшего снимка «всегда BB».
+ */
+async function withLiveCwAtt(
+  nick: string,
+  data: ProfileViewPayload
+): Promise<ProfileViewPayload> {
+  const cwAtt = await buildPlayerCwAttendance(nick).catch(() => null);
+  if (cwAtt) data.cwAtt = cwAtt;
+  return data;
+}
+
+/**
  * Если кэш профиля стёрт — календарь не должен навсегда стать «не был».
  * Подтягиваем посещаемость из БД и ставим полный пересчёт файла в фон.
  */
@@ -437,9 +453,12 @@ export async function readStoredProfileView(
       name,
       await withLivePublicRp(
         name,
-        await withLiveCombatIfEmpty(
+        await withLiveCwAtt(
           name,
-          await withLiveTrainingIfEmpty(name, data)
+          await withLiveCombatIfEmpty(
+            name,
+            await withLiveTrainingIfEmpty(name, data)
+          )
         )
       )
     );
@@ -455,9 +474,12 @@ export async function readStoredProfileView(
     name,
     await withLivePublicRp(
       name,
-      await withLiveCombatIfEmpty(
+      await withLiveCwAtt(
         name,
-        await withLiveTrainingIfEmpty(name, base)
+        await withLiveCombatIfEmpty(
+          name,
+          await withLiveTrainingIfEmpty(name, base)
+        )
       )
     )
   );

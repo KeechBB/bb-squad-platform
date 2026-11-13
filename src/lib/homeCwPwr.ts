@@ -4,7 +4,8 @@ import {
   resolveNickKey as resolveNickKeyShared,
   stripClanDecorRaw,
 } from "@/lib/nickIdentity";
-import { resolveClanLogo } from "@/lib/clanLogo";
+import { clanLogoUrl, kvOppMatchesClan, resolveClanLogo } from "@/lib/clanLogo";
+import { isBbHostMatch } from "@/lib/kvStats";
 
 /** Тот же композитный PWR 0–1000, что у тренировок — для клановых войн. */
 export type HomeCwPwrRow = {
@@ -839,11 +840,100 @@ function isBbCalendarClan(clan: string): boolean {
   );
 }
 
+type PlayerCwHome = {
+  tag: string;
+  name: string;
+  logoUrl: string | null;
+  isBb: boolean;
+  /** Состав BB (Main/Junior), если игрок в скваде. */
+  stack: "Main" | "Junior" | null;
+};
+
+async function resolvePlayerCwHome(nick: string): Promise<PlayerCwHome | null> {
+  const { prisma } = await import("@/lib/prisma");
+  const user = await prisma.user.findFirst({
+    where: {
+      nick: { equals: nick, mode: "insensitive" },
+      profileComplete: true,
+    },
+    select: {
+      clanMemberships: {
+        select: {
+          clan: {
+            select: {
+              tag: true,
+              name: true,
+              logoUrl: true,
+              isExternal: true,
+            },
+          },
+        },
+      },
+      squadMemberships: {
+        select: {
+          squad: {
+            select: { name: true, clan: { select: { tag: true } } },
+          },
+        },
+      },
+    },
+  });
+  if (!user) return null;
+  const rows = user.clanMemberships || [];
+  const home = rows.find((m) => m.clan && !m.clan.isExternal) || rows[0];
+  if (!home?.clan) return null;
+  const tag = String(home.clan.tag || "").trim();
+  const name = String(home.clan.name || "").trim();
+  const isBb =
+    /^bb$/i.test(tag) || /blackberry/i.test(name) || /^blackberry$/i.test(tag);
+  let stack: "Main" | "Junior" | null = null;
+  if (isBb) {
+    const sq = (user.squadMemberships || []).find((s) =>
+      /^bb$/i.test(String(s.squad.clan?.tag || ""))
+    );
+    const sn = String(sq?.squad.name || "").trim();
+    if (/jun/i.test(sn)) stack = "Junior";
+    else if (/main/i.test(sn)) stack = "Main";
+  }
+  return {
+    tag,
+    name,
+    logoUrl: home.clan.logoUrl || null,
+    isBb,
+    stack,
+  };
+}
+
+function bbStackLabel(stack?: string | null): string {
+  const s = String(stack || "").trim();
+  if (!s) return "BB";
+  const low = s.toLowerCase();
+  if (low === "main") return "BB Main";
+  if (low === "junior") return "BB Junior";
+  return `BB ${s}`;
+}
+
+function matchStackNorm(stack?: string | null): "Main" | "Junior" | null {
+  const s = String(stack || "").trim().toLowerCase();
+  if (!s || s === "—" || s === "-") return null;
+  if (s.includes("jun")) return "Junior";
+  if (s.includes("main")) return "Main";
+  return null;
+}
+
+/**
+ * Календарь КВ профиля = расписание клана игрока (не «всегда BB»).
+ * BB: слоты Main/Junior; чужой клан: свои хосты + игры против BB/других.
+ */
 export async function buildPlayerCwAttendance(
   nick: string
 ): Promise<PlayerCwAttendance> {
   const clean = String(nick || "").trim();
   if (!clean) return { byDay: {} };
+
+  const home = await resolvePlayerCwHome(clean);
+  // Нет клана на сайте — пусто (раньше всем рисовали календарь BB).
+  if (!home) return { byDay: {} };
 
   const index = await loadFromKv<{
     months?: { year?: number; month?: number; url?: string }[];
@@ -856,6 +946,11 @@ export async function buildPlayerCwAttendance(
   const aliases = tiersRaw?.aliases || {};
   const resolveKey = (n: string) => resolveNickKeyShared(n, aliases);
   const want = resolveKey(clean);
+  const clanRef = {
+    tag: home.tag,
+    name: home.name,
+    logoUrl: home.logoUrl,
+  };
 
   type Meta = {
     id: string;
@@ -876,6 +971,7 @@ export async function buildPlayerCwAttendance(
         clan?: string;
         opp?: string;
         map?: string;
+        stack?: string;
         status?: string;
         playersUrl?: string;
       }[];
@@ -883,21 +979,48 @@ export async function buildPlayerCwAttendance(
     for (const match of monthData?.matches || []) {
       if (!match.playersUrl || !match.id || match.day == null) continue;
       const st = String(match.status || "").toLowerCase();
-      if (
-        st === "cancelled" ||
-        st === "cancel" ||
-        st === "upcoming"
-      ) {
+      if (st === "cancelled" || st === "cancel" || st === "upcoming") {
         continue;
       }
-      if (!isBbCalendarClan(String(match.clan || ""))) continue;
+
+      const ymd = `${m.year}-${pad2(m.month)}-${pad2(match.day)}`;
+      const map = match.map || "—";
+      const stackN = matchStackNorm(match.stack);
+
+      if (home.isBb) {
+        if (!isBbCalendarClan(String(match.clan || ""))) continue;
+        if (home.stack && stackN && stackN !== home.stack) continue;
+        metas.push({
+          id: match.id,
+          ymd,
+          opp: match.opp || "—",
+          map,
+          playersUrl: match.playersUrl,
+          status: st,
+        });
+        continue;
+      }
+
+      const bbHost = isBbHostMatch(match);
+      const asHost = !bbHost && kvOppMatchesClan(match.clan, clanRef);
+      const asOpp = kvOppMatchesClan(match.opp, clanRef);
+      if (!asHost && !asOpp) continue;
+
+      let opp = match.opp || "—";
+      let status = st;
+      if (asOpp && !asHost) {
+        opp = bbHost ? bbStackLabel(match.stack) : String(match.clan || "—");
+        if (status === "win") status = "lose";
+        else if (status === "lose") status = "win";
+      }
+
       metas.push({
         id: match.id,
-        ymd: `${m.year}-${pad2(m.month)}-${pad2(match.day)}`,
-        opp: match.opp || "—",
-        map: match.map || "—",
+        ymd,
+        opp,
+        map,
         playersUrl: match.playersUrl,
-        status: st,
+        status,
       });
     }
   }
@@ -941,7 +1064,10 @@ export async function buildPlayerCwAttendance(
       }
       present = Boolean(mine);
     }
-    const logoUrl = resolveClanLogo(match.opp);
+    const logoUrl =
+      resolveClanLogo(match.opp) ||
+      clanLogoUrl(match.opp) ||
+      null;
     const result: "win" | "lose" | null =
       match.status === "win"
         ? "win"
@@ -953,7 +1079,6 @@ export async function buildPlayerCwAttendance(
     if (prev?.present && !present) continue;
     byDay[match.ymd] = {
       present: prev?.present || present,
-      // результат берём у той встречи, которую оставляем в клетке
       result,
       opp: match.opp,
       logoUrl,
