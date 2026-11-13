@@ -9,6 +9,12 @@ import { personLabel, writeActionLog } from "@/lib/actionLog";
 import { logFaction } from "@/lib/factions";
 import { isActiveReserve } from "@/lib/validation";
 import { formatMskYmd } from "@/lib/squadHits";
+import {
+  formatDossierBlock,
+  hasNormalTgUsername,
+  loadRecruitDossierBySteam,
+  type RecruitDossier,
+} from "@/lib/recruitBotLookup";
 
 export const SRI_SENDER_KIND = "sri";
 export const SRI_SENDER_LABEL = "СРИ";
@@ -87,7 +93,7 @@ export async function listSriFactions() {
   }));
 }
 
-/** Шлак (ручной список Alex) — не автораздавать СРИ. */
+/** Ручной шлак Alex (липа TG и т.п.) + авто без нормального username. */
 export const SRI_SLAG_NICKS = new Set(["maskey", "alafolix", "ready"]);
 
 function isSlagNick(nick: string | null | undefined): boolean {
@@ -98,7 +104,23 @@ function isSlagNick(nick: string | null | undefined): boolean {
   return SRI_SLAG_NICKS.has(n);
 }
 
-/** Свободные агенты: BB · не RESERVE · нет фракции · не Keech · не шлак. */
+/**
+ * Шлак = ручной список Alex ИЛИ (есть анкета бота и нет нормального TG username).
+ * Без анкеты бота (старичок с резерва) — не шлак автоматически.
+ */
+export function isSlagCandidate(opts: {
+  nick?: string | null;
+  steamName?: string | null;
+  dossier: RecruitDossier | null;
+  /** Новичок после набора: без анкеты тоже шлак/блок. */
+  recruitFlow?: boolean;
+}): boolean {
+  if (isSlagNick(opts.nick) || isSlagNick(opts.steamName)) return true;
+  if (!opts.dossier) return Boolean(opts.recruitFlow);
+  return !hasNormalTgUsername(opts.dossier.tgUsername);
+}
+
+/** Свободные агенты: BB · не RESERVE · нет фракции · не Keech · не шлак · есть нормальный TG. */
 export async function listFreeAgents() {
   const bb = await prisma.clan.findFirst({
     where: { tag: "BB", isExternal: false },
@@ -134,7 +156,17 @@ export async function listFreeAgents() {
       if (isActiveReserve(u.reserveUntil)) return false;
       const nick = (u.nick || "").trim().toLowerCase();
       if (nick === "keech" || nick === "кич") return false;
-      if (isSlagNick(u.nick) || isSlagNick(u.steamName)) return false;
+      const dossier = loadRecruitDossierBySteam(u.steamId);
+      if (
+        isSlagCandidate({
+          nick: u.nick,
+          steamName: u.steamName,
+          dossier,
+          recruitFlow: Boolean(dossier),
+        })
+      ) {
+        return false;
+      }
       return true;
     })
     .map((u) => ({
@@ -157,22 +189,31 @@ function pickLightest(
 
 async function sendSriMail(opts: {
   authorId: string;
+  /** Строго: глава + зам(ы) + Keech. */
   recipientIds: string[];
   playerNick: string;
   factionName: string;
   reason: SriReason;
   when: Date;
   sourceKey: string;
+  dossier: RecruitDossier | null;
 }) {
   const ids = [...new Set(opts.recipientIds.filter(Boolean))];
   if (!ids.length) return null;
   const whenLabel = mskDateTimeLabel(opts.when);
+  const tgLabel = hasNormalTgUsername(opts.dossier?.tgUsername)
+    ? `@${String(opts.dossier?.tgUsername).replace(/^@+/, "")}`
+    : "—";
   const title = `СРИ · ${opts.playerNick} → ${opts.factionName}`;
   const body = [
-    `Игрок ${opts.playerNick} распределён в вашу фракцию «${opts.factionName}».`,
+    `Игрок ${opts.playerNick} (${tgLabel}) распределён в вашу фракцию «${opts.factionName}».`,
     "",
     `Дата и время: ${whenLabel} (МСК)`,
     `Обстоятельство: ${REASON_RU[opts.reason]}`,
+    "",
+    formatDossierBlock(opts.dossier, opts.playerNick),
+    "",
+    "Это письмо видят только глава фракции, зам. фракции и Keech.",
     "",
     "— Система Распределения Игроков (СРИ)",
   ].join("\n");
@@ -189,6 +230,46 @@ async function sendSriMail(opts: {
       recipients: {
         create: ids.map((userId) => ({ userId })),
       },
+    },
+    select: { id: true },
+  });
+  return mail.id;
+}
+
+/** Письмо только Keech: новичок = шлак (нет нормального TG). */
+async function sendSlagMailToKeech(opts: {
+  authorId: string;
+  keechId: string;
+  playerNick: string;
+  when: Date;
+  dossier: RecruitDossier | null;
+  reason: SriReason;
+}) {
+  const whenLabel = mskDateTimeLabel(opts.when);
+  const title = `СРИ · шлак · ${opts.playerNick}`;
+  const body = [
+    `Игрок ${opts.playerNick} получил категорию «шлак» — нет нормального Telegram username.`,
+    "Во фракцию СРИ его не распределяет (не свободный агент).",
+    "",
+    `Дата и время: ${whenLabel} (МСК)`,
+    `Обстоятельство: ${REASON_RU[opts.reason]}`,
+    "",
+    formatDossierBlock(opts.dossier, opts.playerNick),
+    "",
+    "Письмо только для Keech.",
+    "",
+    "— Система Распределения Игроков (СРИ)",
+  ].join("\n");
+  const mail = await prisma.profileMail.create({
+    data: {
+      title,
+      body,
+      senderKind: SRI_SENDER_KIND,
+      senderLabel: SRI_SENDER_LABEL,
+      tags: ["СРИ", "Шлак"],
+      sourceKey: `sri:slag:${opts.playerNick}:${opts.when.toISOString()}`,
+      authorId: opts.authorId,
+      recipients: { create: [{ userId: opts.keechId }] },
     },
     select: { id: true },
   });
@@ -241,9 +322,6 @@ export async function assignFreeAgent(opts: {
   if (user.clanMemberships[0].role === "RESERVE" || isActiveReserve(user.reserveUntil)) {
     return { ok: false, skipped: "in_reserve" };
   }
-  if (isSlagNick(user.nick) || isSlagNick(user.steamName)) {
-    return { ok: false, skipped: "slag" };
-  }
   if (user.factionMembership) {
     return {
       ok: false,
@@ -252,14 +330,50 @@ export async function assignFreeAgent(opts: {
     };
   }
 
+  const nick = personLabel(user);
+  const when = new Date();
+  const dossier = user.steamId ? loadRecruitDossierBySteam(user.steamId) : null;
+
+  // Нет нормального TG → шлак, не свободный агент
+  if (
+    isSlagCandidate({
+      nick: user.nick,
+      steamName: user.steamName,
+      dossier,
+      recruitFlow: opts.reason === "recruit",
+    })
+  ) {
+    try {
+      await sendSlagMailToKeech({
+        authorId: keech.id,
+        keechId: keech.id,
+        playerNick: nick,
+        when,
+        dossier,
+        reason: opts.reason,
+      });
+    } catch (e) {
+      console.error("sri slag mail failed", e);
+    }
+    await writeActionLog({
+      category: "admin",
+      action: "sri_slag",
+      message: `СРИ: ${nick} — шлак (нет нормального TG), во фракцию не распределён`,
+      actorId: keech.id,
+      actorNick: "СРИ",
+      targetId: user.id,
+      targetNick: nick,
+      meta: { reason: opts.reason, ymd: formatMskYmd(when) },
+    });
+    return { ok: false, skipped: "slag", userId: user.id, nick, reason: opts.reason };
+  }
+
   const factions = await listSriFactions();
   if (!factions.length) return { ok: false, skipped: "no_factions" };
   const target = pickLightest(factions.map((f) => ({ id: f.id, name: f.name, count: f.count })));
   if (!target) return { ok: false, skipped: "no_target" };
 
   const faction = factions.find((f) => f.id === target.id)!;
-  const nick = personLabel(user);
-  const when = new Date();
 
   await prisma.factionMember.create({
     data: {
@@ -273,6 +387,7 @@ export async function assignFreeAgent(opts: {
     data: { status: "CANCELLED" },
   });
 
+  // Журнал публичный — без TG/имени/возраста, только ник + фракция
   await logFaction("join", {
     actorId: keech.id,
     actorNick: "СРИ",
@@ -301,7 +416,8 @@ export async function assignFreeAgent(opts: {
     },
   });
 
-  const recipients = [...faction.leaderIds, ...faction.deputyIds, keech.id];
+  // Конфиденциально: только глава + зам(ы) + Keech
+  const recipients = [...new Set([...faction.leaderIds, ...faction.deputyIds, keech.id])];
   let mailId: string | null = null;
   try {
     mailId = await sendSriMail({
@@ -312,6 +428,7 @@ export async function assignFreeAgent(opts: {
       reason: opts.reason,
       when,
       sourceKey: `sri:assign:${user.id}:${when.toISOString()}`,
+      dossier,
     });
   } catch (e) {
     console.error("sri mail failed", e);

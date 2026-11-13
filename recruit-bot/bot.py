@@ -658,10 +658,19 @@ async def check_one(bot, row) -> None:
             bot,
             f"Новый участник клана {db.label(fresh)} {tg_handle(fresh)}",
         )
-        # СРИ: свободный агент → автораспределение во фракцию (баланс)
+        # СРИ: нормальный TG → свободный агент → фракция; иначе шлак
         try:
+            uname = (fresh["tg_username"] or "").strip().lstrip("@")
+            ok_tg = len(uname) >= 5 and uname.replace("_", "").isalnum()
+            if not ok_tg:
+                await send_alert(
+                    bot,
+                    f"ШЛАК: {db.label(fresh)} — нет нормального TG username, "
+                    f"СРИ во фракцию не сажает (категория шлак, не свободный агент).",
+                )
+                # всё равно дернём API — СРИ сама пометит шлак и напишет Keech
             sri = await asyncio.to_thread(site.sri_assign, steam_id, "recruit")
-            if not (isinstance(sri, dict) and sri.get("ok")):
+            if ok_tg and not (isinstance(sri, dict) and sri.get("ok")):
                 await send_alert(
                     bot,
                     f"СРИ не распределила {db.label(fresh)}: {sri}",
