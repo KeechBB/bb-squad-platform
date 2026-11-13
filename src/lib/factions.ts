@@ -109,7 +109,8 @@ export type FactionView = {
 };
 
 function visibleNick(u: MemberUser): string {
-  return u.nick || u.steamName || "—";
+  // Ник в Steam — маска для чтения. Кто это, решает steamId аккаунта.
+  return u.steamName || u.nick || "—";
 }
 
 /** Основной кит = топ профиля (TR1–TR5, 14 суток МСК, время в ките). */
@@ -335,6 +336,24 @@ export async function logFaction(
       ...(how ? { how } : {}),
     },
   });
+
+  // Кик → жёлтое письмо СРИ главе / заму / Keech (с досье; не в общий журнал)
+  if (kind === "kick") {
+    try {
+      const { notifyFactionKickMail } = await import("@/lib/sri");
+      await notifyFactionKickMail({
+        factionName: opts.factionName,
+        clanId: opts.clanId,
+        targetId: opts.targetId,
+        targetNick: opts.targetNick,
+        actorNick: opts.actorNick,
+        reason: reason || undefined,
+        how: how || undefined,
+      });
+    } catch (e) {
+      console.error("sri kick notify failed", e);
+    }
+  }
 }
 
 export function actorNick(u: { nick?: string | null; name?: string | null; steamName?: string | null } | null, keech: boolean) {

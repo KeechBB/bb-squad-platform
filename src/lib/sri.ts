@@ -236,6 +236,96 @@ async function sendSriMail(opts: {
   return mail.id;
 }
 
+/**
+ * Кик из фракции → жёлтое письмо СРИ главе / заму / Keech.
+ * Вызывать после удаления FactionMember (из logFaction).
+ */
+export async function notifyFactionKickMail(opts: {
+  factionName: string;
+  clanId: string;
+  targetId: string;
+  targetNick: string;
+  actorNick: string;
+  reason?: string;
+  how?: string;
+}): Promise<string | null> {
+  const keech = await keechUser();
+  if (!keech) return null;
+
+  const faction = await prisma.faction.findFirst({
+    where: { clanId: opts.clanId, name: opts.factionName },
+    select: {
+      id: true,
+      name: true,
+      members: {
+        where: { seat: { in: ["LEADER", "DEPUTY"] } },
+        select: { seat: true, userId: true },
+      },
+    },
+  });
+  if (!faction) return null;
+
+  const target = await prisma.user.findUnique({
+    where: { id: opts.targetId },
+    select: { id: true, nick: true, steamId: true, steamName: true, name: true },
+  });
+  const nick = opts.targetNick || (target ? personLabel(target) : "—");
+  const dossier = target?.steamId ? loadRecruitDossierBySteam(target.steamId) : null;
+  const when = new Date();
+  const whenLabel = mskDateTimeLabel(when);
+  const tgLabel = hasNormalTgUsername(dossier?.tgUsername)
+    ? `@${String(dossier?.tgUsername).replace(/^@+/, "")}`
+    : "—";
+  const reason = (opts.reason || "").trim();
+  const how = (opts.how || "").trim();
+
+  const leaderIds = faction.members.filter((m) => m.seat === "LEADER").map((m) => m.userId);
+  const deputyIds = faction.members.filter((m) => m.seat === "DEPUTY").map((m) => m.userId);
+  // Адресаты: глава + зам + Keech. Кикнутого не включаем.
+  const recipients = [...new Set([...leaderIds, ...deputyIds, keech.id])].filter(
+    (id) => id !== opts.targetId
+  );
+  if (!recipients.length) return null;
+
+  const title = `СРИ · кик · ${nick} ← ${faction.name}`;
+  const body = [
+    `Игрок ${nick} (${tgLabel}) исключён из фракции «${faction.name}».`,
+    "",
+    `Дата и время: ${whenLabel} (МСК)`,
+    `Кто: ${opts.actorNick || "—"}`,
+    how ? `Как: ${how}` : null,
+    reason ? `Причина: ${reason}` : null,
+    "",
+    formatDossierBlock(dossier, nick),
+    "",
+    "Это письмо видят только глава фракции, зам. фракции и Keech.",
+    "",
+    "— Система Распределения Игроков (СРИ)",
+  ]
+    .filter((line) => line != null)
+    .join("\n");
+
+  try {
+    const mail = await prisma.profileMail.create({
+      data: {
+        title,
+        body,
+        senderKind: SRI_SENDER_KIND,
+        senderLabel: SRI_SENDER_LABEL,
+        tags: ["СРИ", "Фракции", "Кик"],
+        sourceKey: `sri:kick:${opts.targetId}:${faction.id}:${when.toISOString()}`,
+        authorId: keech.id,
+        recipients: { create: recipients.map((userId) => ({ userId })) },
+      },
+      select: { id: true },
+    });
+    return mail.id;
+  } catch (e) {
+    console.error("sri kick mail failed", e);
+    return null;
+  }
+}
+
 /** Письмо только Keech: новичок = шлак (нет нормального TG). */
 async function sendSlagMailToKeech(opts: {
   authorId: string;
