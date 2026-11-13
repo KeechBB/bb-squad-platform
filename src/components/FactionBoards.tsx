@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { KIT_SLICE_COLORS, STANDARD_KITS } from "@/lib/squadKits";
+import { useFitTablePage } from "@/lib/useFitTablePage";
 
 type WeekRow = {
   factionId: string;
@@ -25,32 +26,6 @@ type GrowthRow = {
   yesterday: number | null;
 };
 
-function useFitPage(active: boolean, rowCount: number) {
-  const fitRef = useRef<HTMLDivElement | null>(null);
-  const [pageSize, setPageSize] = useState(8);
-  const [page, setPage] = useState(0);
-  const pageCount = Math.max(1, Math.ceil(rowCount / Math.max(1, pageSize)));
-  const safePage = Math.min(page, pageCount - 1);
-
-  useLayoutEffect(() => {
-    const el = fitRef.current;
-    if (!el || !active) return;
-    const measure = () => {
-      const head = el.querySelector("thead")?.getBoundingClientRect().height ?? 44;
-      const sample = el.querySelector("tbody tr")?.getBoundingClientRect().height ?? 44;
-      const room = Math.max(0, el.clientHeight - head);
-      const next = Math.max(1, Math.floor(room / Math.max(sample, 1)));
-      setPageSize((prev) => (prev === next ? prev : next));
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [active, rowCount, safePage]);
-
-  return { fitRef, pageCount, safePage, setPage, pageSize };
-}
-
 function fmt(v: number | null, digits: number): string {
   if (v == null || !Number.isFinite(v)) return "—";
   return v.toFixed(digits).replace(".", ",");
@@ -73,27 +48,24 @@ function isBest(v: number | null, best: number | null): boolean {
 function Pager({
   safePage,
   pageCount,
-  setPage,
+  goPrev,
+  goNext,
 }: {
   safePage: number;
   pageCount: number;
-  setPage: (n: number) => void;
+  goPrev: () => void;
+  goNext: () => void;
 }) {
   if (pageCount <= 1) return null;
   return (
     <div className="faction-roster-pager">
-      <button type="button" className="btn" disabled={safePage <= 0} onClick={() => setPage(safePage - 1)}>
+      <button type="button" className="btn" disabled={safePage <= 0} onClick={goPrev}>
         Назад
       </button>
       <span className="muted">
         {safePage + 1} / {pageCount}
       </span>
-      <button
-        type="button"
-        className="btn"
-        disabled={safePage >= pageCount - 1}
-        onClick={() => setPage(safePage + 1)}
-      >
+      <button type="button" className="btn" disabled={safePage >= pageCount - 1} onClick={goNext}>
         Дальше
       </button>
     </div>
@@ -112,7 +84,7 @@ export function FactionWeekBoard({
   const [rows, setRows] = useState<WeekRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const page = useFitPage(loadKey > 0 && !loading, rows.length);
+  const page = useFitTablePage(rows.length, loadKey > 0 && !loading);
   const visible = rows.slice(page.safePage * page.pageSize, page.safePage * page.pageSize + page.pageSize);
   const bestPeople = bestValue(rows, "people");
   const bestAvg = bestValue(rows, "perMatch");
@@ -196,7 +168,12 @@ export function FactionWeekBoard({
           </tbody>
         </table>
       </div>
-      <Pager safePage={page.safePage} pageCount={page.pageCount} setPage={page.setPage} />
+      <Pager
+        safePage={page.safePage}
+        pageCount={page.pageCount}
+        goPrev={page.goPrev}
+        goNext={page.goNext}
+      />
     </div>
   );
 }
@@ -260,7 +237,7 @@ export function FactionGrowthBoard({ slug, loadKey }: { slug: string; loadKey: n
     () => [...rows].sort((a, b) => growthCompare(a, b, sortKey, sortDir)),
     [rows, sortKey, sortDir]
   );
-  const page = useFitPage(loadKey > 0 && !loading, sorted.length);
+  const page = useFitTablePage(sorted.length, loadKey > 0 && !loading);
   const visible = sorted.slice(page.safePage * page.pageSize, page.safePage * page.pageSize + page.pageSize);
 
   function onSort(key: GrowthSortKey) {
@@ -357,7 +334,12 @@ export function FactionGrowthBoard({ slug, loadKey }: { slug: string; loadKey: n
           </tbody>
         </table>
       </div>
-      <Pager safePage={page.safePage} pageCount={page.pageCount} setPage={page.setPage} />
+      <Pager
+        safePage={page.safePage}
+        pageCount={page.pageCount}
+        goPrev={page.goPrev}
+        goNext={page.goNext}
+      />
     </div>
   );
 }

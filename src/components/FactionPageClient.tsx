@@ -3,7 +3,6 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -30,6 +29,7 @@ import {
   type FactionInfoDoc,
 } from "@/lib/factionInfoDoc";
 import { FactionOnline } from "@/components/FactionOnline";
+import { useFitTablePage } from "@/lib/useFitTablePage";
 import {
   FactionAnalytics,
   FactionGrowthBoard,
@@ -234,9 +234,6 @@ function FactionRoster({
   base: string;
   run: (path: string, init: RequestInit) => Promise<void>;
 }) {
-  const fitRef = useRef<HTMLDivElement | null>(null);
-  const [pageSize, setPageSize] = useState(8);
-  const [page, setPage] = useState(0);
   const [sortKey, setSortKey] = useState<RosterSortKey>("order");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
@@ -244,25 +241,11 @@ function FactionRoster({
     () => [...members].sort((a, b) => compareRoster(a, b, sortKey, sortDir)),
     [members, sortKey, sortDir]
   );
-  const pageCount = Math.max(1, Math.ceil(sorted.length / Math.max(1, pageSize)));
-  const safePage = Math.min(page, pageCount - 1);
-  const visible = sorted.slice(safePage * pageSize, safePage * pageSize + pageSize);
-
-  useLayoutEffect(() => {
-    const el = fitRef.current;
-    if (!el) return;
-    const measure = () => {
-      const head = el.querySelector("thead")?.getBoundingClientRect().height ?? 44;
-      const sample = el.querySelector("tbody tr")?.getBoundingClientRect().height ?? 44;
-      const room = Math.max(0, el.clientHeight - head);
-      const next = Math.max(1, Math.floor(room / Math.max(sample, 1)));
-      setPageSize((prev) => (prev === next ? prev : next));
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [sorted.length, safePage]);
+  const page = useFitTablePage(sorted.length);
+  const visible = sorted.slice(
+    page.safePage * page.pageSize,
+    page.safePage * page.pageSize + page.pageSize
+  );
 
   function onSort(key: RosterSortKey) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -270,13 +253,13 @@ function FactionRoster({
       setSortKey(key);
       setSortDir("asc");
     }
-    setPage(0);
+    page.setPage(0);
   }
 
   return (
     <div className="faction-roster">
       <h2>Состав</h2>
-      <div className="faction-roster-fit" ref={fitRef}>
+      <div className="faction-roster-fit" ref={page.fitRef}>
         <table className="admin-table faction-roster-table">
           <thead>
             <tr>
@@ -347,19 +330,19 @@ function FactionRoster({
           </tbody>
         </table>
       </div>
-      {pageCount > 1 ? (
+      {page.pageCount > 1 ? (
         <div className="faction-roster-pager">
-          <button type="button" className="btn" disabled={safePage <= 0} onClick={() => setPage(safePage - 1)}>
+          <button type="button" className="btn" disabled={page.safePage <= 0} onClick={page.goPrev}>
             Назад
           </button>
           <span className="muted">
-            {safePage + 1} / {pageCount}
+            {page.safePage + 1} / {page.pageCount}
           </span>
           <button
             type="button"
             className="btn"
-            disabled={safePage >= pageCount - 1}
-            onClick={() => setPage(safePage + 1)}
+            disabled={page.safePage >= page.pageCount - 1}
+            onClick={page.goNext}
           >
             Дальше
           </button>

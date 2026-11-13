@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useFitTablePage } from "@/lib/useFitTablePage";
 
 type OnlineDay = { ymd: string; weekday: string; date: string };
 type OnlineRow = {
@@ -15,14 +16,11 @@ function normQuery(s: string) {
 }
 
 export function FactionOnline({ slug, loadKey }: { slug: string; loadKey: number }) {
-  const fitRef = useRef<HTMLDivElement | null>(null);
   const [days, setDays] = useState<OnlineDay[]>([]);
   const [rows, setRows] = useState<OnlineRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [q, setQ] = useState("");
-  const [pageSize, setPageSize] = useState(8);
-  const [page, setPage] = useState(0);
 
   useEffect(() => {
     if (loadKey < 1) return;
@@ -46,7 +44,6 @@ export function FactionOnline({ slug, loadKey }: { slug: string; loadKey: number
         }
         setDays(Array.isArray(data.days) ? data.days : []);
         setRows(Array.isArray(data.rows) ? data.rows : []);
-        setPage(0);
       } catch (err) {
         if ((err as { name?: string }).name === "AbortError") return;
         setError("Сеть недоступна");
@@ -63,25 +60,16 @@ export function FactionOnline({ slug, loadKey }: { slug: string; loadKey: number
     return rows.filter((r) => normQuery(`${r.nick} ${r.name}`).includes(needle));
   }, [rows, q]);
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / Math.max(1, pageSize)));
-  const safePage = Math.min(page, pageCount - 1);
-  const visible = filtered.slice(safePage * pageSize, safePage * pageSize + pageSize);
+  const page = useFitTablePage(filtered.length, loadKey > 0 && !loading);
+  const visible = filtered.slice(
+    page.safePage * page.pageSize,
+    page.safePage * page.pageSize + page.pageSize
+  );
 
-  useLayoutEffect(() => {
-    const el = fitRef.current;
-    if (!el || loadKey < 1) return;
-    const measure = () => {
-      const head = el.querySelector("thead")?.getBoundingClientRect().height ?? 44;
-      const sample = el.querySelector("tbody tr")?.getBoundingClientRect().height ?? 44;
-      const room = Math.max(0, el.clientHeight - head);
-      const next = Math.max(1, Math.floor(room / Math.max(sample, 1)));
-      setPageSize((prev) => (prev === next ? prev : next));
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [loadKey, filtered.length, safePage, loading]);
+  useEffect(() => {
+    page.setPage(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- только сброс при фильтре / новой явке
+  }, [q, rows]);
 
   if (loadKey < 1) {
     return <p className="muted faction-stat-note">Нажми «Онлайн», чтобы загрузить явку.</p>;
@@ -97,13 +85,12 @@ export function FactionOnline({ slug, loadKey }: { slug: string; loadKey: number
           placeholder="Ник"
           onChange={(e) => {
             setQ(e.target.value);
-            setPage(0);
           }}
         />
       </label>
       {error ? <p className="error">{error}</p> : null}
       {loading && rows.length === 0 ? <p className="muted">Считаю явку…</p> : null}
-      <div className="faction-online-fit" ref={fitRef}>
+      <div className="faction-online-fit" ref={page.fitRef}>
         <table className="admin-table faction-online-table">
           <thead>
             <tr>
@@ -125,9 +112,7 @@ export function FactionOnline({ slug, loadKey }: { slug: string; loadKey: number
                 </td>
                 {days.map((d) => {
                   const text = r.cells[d.ymd] || "—";
-                  return (
-                    <td key={d.ymd}>{text}</td>
-                  );
+                  return <td key={d.ymd}>{text}</td>;
                 })}
               </tr>
             ))}
@@ -141,19 +126,19 @@ export function FactionOnline({ slug, loadKey }: { slug: string; loadKey: number
           </tbody>
         </table>
       </div>
-      {pageCount > 1 ? (
+      {page.pageCount > 1 ? (
         <div className="faction-roster-pager">
-          <button type="button" className="btn" disabled={safePage <= 0} onClick={() => setPage(safePage - 1)}>
+          <button type="button" className="btn" disabled={page.safePage <= 0} onClick={page.goPrev}>
             Назад
           </button>
           <span className="muted">
-            {safePage + 1} / {pageCount}
+            {page.safePage + 1} / {page.pageCount}
           </span>
           <button
             type="button"
             className="btn"
-            disabled={safePage >= pageCount - 1}
-            onClick={() => setPage(safePage + 1)}
+            disabled={page.safePage >= page.pageCount - 1}
+            onClick={page.goNext}
           >
             Дальше
           </button>
