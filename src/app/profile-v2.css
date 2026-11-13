@@ -2986,6 +2986,13 @@ button.mail-tag {
   font-weight: 700;
 }
 
+.profile-mail-from.is-sri,
+.admin-mail-preview .is-sri,
+.profile-mail-modal-from.is-sri {
+  color: #facc15;
+  font-weight: 700;
+}
+
 .profile-mail-purge {
   font-size: 1.05rem;
   font-weight: 800;

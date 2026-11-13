@@ -91,14 +91,8 @@ export async function enterReserve(opts: {
   }
   if (days < 1) throw new Error("reserve_min_days");
 
-  // Снять активный выходной — взаимоисключение
   if (me.dayOffUntil && isActiveReserve(me.dayOffUntil)) {
-    const { exitDayOff } = await import("@/lib/dayOff");
-    await exitDayOff({
-      userId: me.id,
-      source: opts.source,
-      actor: opts.actor,
-    });
+    throw new Error("absence_exclusive_dayoff");
   }
 
   // Закрыть висящий stint, если был
@@ -345,6 +339,14 @@ export async function exitReserve(opts: {
     targetNick: target,
     meta: { source: opts.source },
   });
+
+  // СРИ: после выхода с резерва → свободный агент → авто в фракцию (баланс)
+  try {
+    const { assignFreeAgent } = await import("@/lib/sri");
+    await assignFreeAgent({ userId: me.id, reason: "reserve_exit" });
+  } catch (e) {
+    console.error("sri after reserve_exit failed", e);
+  }
 
   return { user };
 }

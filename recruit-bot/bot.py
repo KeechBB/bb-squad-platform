@@ -3,9 +3,14 @@
 Бот регистрации в клан BlackBerry.
 
 Шаг 1. Ник (Имя), пример: Keech (Александр)
-Шаг 2. SteamID64 — по нему ищется аккаунт, с которым человек зашёл на сайт
-Шаг 3. Регистрация на сайте и приём в клан кадровиком
-Шаг 4. Подписка на канал и группу (личные одноразовые invite-ссылки)
+Шаг 2. SteamID64
+Шаг 3. Сколько часов в Squad
+Шаг 4. Бывали ли раньше в кланах Squad (каких)
+Шаг 5. Дата рождения (ДД.ММ.ГГГГ)
+→ заявка кадровикам (одобрить / отклонить)
+После одобрения:
+  — регистрация на сайте и приём в клан
+  — подписка на канал и группу (личные одноразовые invite-ссылки)
 После входа в группу бот ставит игровой ник в тег участника.
 Дальше бот следит за сайтом и обоими чатами: если человек пропал
 из чата — только алерт кадровикам (раз в час), автокика нет.
@@ -32,18 +37,41 @@ PAGE = 6
 _last_done_poll = 0.0
 
 ASK_NICK = (
-    "Шаг 1 из 4.\n"
+    "Шаг 1 из 5.\n"
     "Напиши ник как в игре и имя в скобках.\n"
     "Пример: Keech (Александр)\n\n"
     "Дальше бот сам ведёт тебя по шагам — ничего лишний раз жать не нужно."
 )
 
 ASK_STEAM = (
-    "Шаг 2 из 4.\n"
+    "Шаг 2 из 5.\n"
     "Пришли SteamID64: 17 цифр, начинается с 7656.\n"
     "Можно ссылкой: steamcommunity.com/profiles/7656…\n\n"
-    "Важно: это должен быть тот же Steam, с которым ты заходишь на сайт bb-squad.ru.\n"
-    "После отправки бот сам проверит сайт — ждать сообщение, не пиши сюда лишнего."
+    "Важно: это должен быть тот же Steam, с которым ты заходишь на сайт bb-squad.ru."
+)
+
+ASK_HOURS = (
+    "Шаг 3 из 5.\n"
+    "Сколько у тебя часов в Squad?\n"
+    "Можно примерно: 800, около 1200, 300+."
+)
+
+ASK_CLANS = (
+    "Шаг 4 из 5.\n"
+    "Бывал ли ты раньше в кланах в Squad?\n"
+    "Если да — напиши какие. Если нет — напиши «нет»."
+)
+
+ASK_AGE = (
+    "Шаг 5 из 5.\n"
+    "Напиши дату рождения в формате ДД.ММ.ГГГГ.\n"
+    "Пример: 15.03.2001"
+)
+
+ASK_REVIEW = (
+    "Анкету получил — отправил кадровикам.\n"
+    "Жди решения: одобрят или отклонят. "
+    "Сюда писать не нужно, бот сам напишет, когда будет ответ."
 )
 
 HR_BUTTONS = {
@@ -52,6 +80,7 @@ HR_BUTTONS = {
     "Удалить игрока",
     "Сменить ник",
     "Кто на регистрации",
+    "Заявки",
     "Назначить куратора",
     "Снять куратора",
     "Выгрузить базу",
@@ -60,8 +89,12 @@ HR_BUTTONS = {
 STEP_RU = {
     db.STEP_NICK: "шаг 1, ждёт ник",
     db.STEP_STEAM: "шаг 2, ждёт SteamID64",
-    db.STEP_SITE: "шаг 3, ждёт клан на сайте (автопроверка)",
-    db.STEP_SUBS: "шаг 4, ждёт подписки (автопроверка)",
+    db.STEP_HOURS: "шаг 3, ждёт часы в Squad",
+    db.STEP_CLANS: "шаг 4, ждёт опыт в кланах",
+    db.STEP_AGE: "шаг 5, ждёт дату рождения",
+    db.STEP_REVIEW: "заявка, ждёт одобрения",
+    db.STEP_SITE: "после одобрения: сайт",
+    db.STEP_SUBS: "после одобрения: подписки",
     db.STEP_DONE: "принят",
     db.STEP_REMOVED: "снят",
 }
@@ -193,7 +226,12 @@ def nick_tag(nick: str) -> str:
 
 
 async def _send_chat(
-    bot, chat_id: int | None, text: str, thread_id: int | None, kind: str
+    bot,
+    chat_id: int | None,
+    text: str,
+    thread_id: int | None,
+    kind: str,
+    reply_markup=None,
 ) -> None:
     logging.info("%s: %s", kind, text.replace("\n", " | "))
     if not chat_id:
@@ -201,15 +239,19 @@ async def _send_chat(
     kwargs = {}
     if thread_id is not None:
         kwargs["message_thread_id"] = thread_id
+    if reply_markup is not None:
+        kwargs["reply_markup"] = reply_markup
     try:
         await bot.send_message(chat_id, text, **kwargs)
     except Exception as e:
         logging.warning("%s send: %s", kind, type(e).__name__)
 
 
-async def send_alert(bot, text: str) -> None:
+async def send_alert(bot, text: str, reply_markup=None) -> None:
     """Промежуточные HR-алерты → Bot для набора."""
-    await _send_chat(bot, alert_chat(), text, alert_thread(), "alert")
+    await _send_chat(
+        bot, alert_chat(), text, alert_thread(), "alert", reply_markup=reply_markup
+    )
 
 
 async def send_announce(bot, text: str) -> None:
@@ -275,8 +317,8 @@ def hr_markup():
         [
             ["Поиск по нику", "Удалить игрока"],
             ["Сменить ник", "Кто на регистрации"],
-            ["Выгрузить базу", "Назначить куратора"],
-            ["Снять куратора"],
+            ["Заявки", "Выгрузить базу"],
+            ["Назначить куратора", "Снять куратора"],
         ],
         resize_keyboard=True,
         is_persistent=True,
@@ -284,31 +326,70 @@ def hr_markup():
 
 
 def format_player_card(row) -> str:
-    """Карточка из базы бота: ник, TG, Steam, шаг."""
+    """Карточка из базы бота: ник, TG, Steam, опрос, шаг."""
     steam = (row["steam_id"] or "").strip() or "—"
+    hours = (row["squad_hours"] or "").strip() or "—"
+    clans = (row["prior_clans"] or "").strip() or "—"
+    age = (row["applicant_age"] or "").strip() or "—"
     uname = tg_handle(row)
     return (
         f"{db.label(row)}\n"
         f"TG: {uname}\n"
         f"tg_id: {int(row['tg_id'])}\n"
         f"Steam: {steam}\n"
+        f"Часы в Squad: {hours}\n"
+        f"Кланы раньше: {clans}\n"
+        f"Дата рождения: {age}\n"
         f"Шаг: {STEP_RU.get(row['step'], row['step'])}"
+    )
+
+
+def format_application(row) -> str:
+    """Заявка на одобрение кадровиком."""
+    steam = (row["steam_id"] or "").strip() or "—"
+    hours = (row["squad_hours"] or "").strip() or "—"
+    clans = (row["prior_clans"] or "").strip() or "—"
+    age = (row["applicant_age"] or "").strip() or "—"
+    return (
+        f"Новая заявка в клан\n\n"
+        f"{db.label(row)}\n"
+        f"TG: {tg_handle(row)}\n"
+        f"tg_id: {int(row['tg_id'])}\n"
+        f"Steam: {steam}\n\n"
+        f"Часы в Squad: {hours}\n"
+        f"Были в кланах: {clans}\n"
+        f"Дата рождения: {age}\n\n"
+        f"Одобрить — пускаем на сайт и в каналы.\n"
+        f"Отклонить — регистрация закрывается."
+    )
+
+
+def application_actions(tg_id: int):
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("Одобрить", callback_data=f"ap:{tg_id}"),
+                InlineKeyboardButton("Отклонить", callback_data=f"rj:{tg_id}"),
+            ]
+        ]
     )
 
 
 async def site_text() -> str:
     url = await asyncio.to_thread(clans_url)
     return (
-        "Шаг 3 из 4 — сайт клана.\n\n"
+        "Заявку одобрили. Дальше — сайт клана.\n\n"
         "Если ты УЖЕ в BlackBerry на сайте с этим Steam — ничего делать не нужно. "
-        "Бот сам это увидит (обычно до минуты) и пришлёт шаг 4.\n\n"
+        "Бот сам это увидит (обычно до минуты) и пришлёт ссылки на каналы.\n\n"
         "Если ещё не в клане:\n"
         "1) зайди на сайт тем же Steam;\n"
         "2) зарегистрируйся при необходимости;\n"
         "3) вступи / подай заявку в BlackBerry:\n"
         f"{url}\n\n"
-        "Когда кадровик примет заявку (или если ты уже в клане) — "
-        "бот сам закроет этот шаг и напишет дальше. "
+        "Когда кадровик примет заявку на сайте (или если ты уже в клане) — "
+        "бот сам закроет этот шаг и пришлёт подписки. "
         "Не спамь сюда сообщениями — проверка автоматическая."
     )
 
@@ -410,8 +491,8 @@ async def apply_member_tag(bot, chat_id: int | None, user_id: int, nick: str) ->
 async def subs_text(bot, row) -> str:
     ch, gr = await ensure_invites(bot, row)
     return (
-        "Шаг 3 пройден: этот Steam в клане BlackBerry на сайте.\n\n"
-        "Шаг 4 из 4 — подписки.\n"
+        "На сайте ты уже в BlackBerry.\n\n"
+        "Последний шаг — два канала.\n"
         "Открой обе ссылки ниже и вступи. Ссылки одноразовые и только для тебя "
         "(другу не сработают).\n\n"
         f"{channel_title()}:\n{ch}\n\n"
@@ -464,6 +545,14 @@ async def status_text(bot, row) -> str:
     step = row["step"]
     if step == db.STEP_STEAM:
         return ASK_STEAM
+    if step == db.STEP_HOURS:
+        return ASK_HOURS
+    if step == db.STEP_CLANS:
+        return ASK_CLANS
+    if step == db.STEP_AGE:
+        return ASK_AGE
+    if step == db.STEP_REVIEW:
+        return ASK_REVIEW
     if step == db.STEP_SITE:
         return await site_text()
     if step == db.STEP_SUBS:
@@ -569,6 +658,16 @@ async def check_one(bot, row) -> None:
             bot,
             f"Новый участник клана {db.label(fresh)} {tg_handle(fresh)}",
         )
+        # СРИ: свободный агент → автораспределение во фракцию (баланс)
+        try:
+            sri = await asyncio.to_thread(site.sri_assign, steam_id, "recruit")
+            if not (isinstance(sri, dict) and sri.get("ok")):
+                await send_alert(
+                    bot,
+                    f"СРИ не распределила {db.label(fresh)}: {sri}",
+                )
+        except Exception as e:
+            await send_alert(bot, f"СРИ ошибка для {db.label(fresh)}: {type(e).__name__}")
         return
 
     if step == db.STEP_SUBS and not blocked and (
@@ -711,7 +810,16 @@ async def cmd_start(update, context) -> None:
     if db.is_hr(user.id):
         await message.reply_text("Кадровое меню.", reply_markup=hr_markup())
     row = db.get_applicant(user.id)
-    if row and row["step"] in (db.STEP_STEAM, db.STEP_SITE, db.STEP_SUBS, db.STEP_DONE):
+    if row and row["step"] in (
+        db.STEP_STEAM,
+        db.STEP_HOURS,
+        db.STEP_CLANS,
+        db.STEP_AGE,
+        db.STEP_REVIEW,
+        db.STEP_SITE,
+        db.STEP_SUBS,
+        db.STEP_DONE,
+    ):
         await message.reply_text(await status_text(context.bot, row))
         return
     await message.reply_text(ASK_NICK)
@@ -766,6 +874,18 @@ async def on_text(update, context) -> None:
         await hr_capture(update, context, mode, text)
         return
     row = db.get_applicant(user.id)
+    if row and row["step"] == db.STEP_HOURS:
+        await take_hours(update, context, text)
+        return
+    if row and row["step"] == db.STEP_CLANS:
+        await take_clans(update, context, text)
+        return
+    if row and row["step"] == db.STEP_AGE:
+        await take_age(update, context, text)
+        return
+    if row and row["step"] == db.STEP_REVIEW:
+        await message.reply_text(ASK_REVIEW)
+        return
     steam = db.parse_steam(text)
     parsed = db.parse_nick(text)
     if steam and not parsed and row and row["step"] in (
@@ -818,6 +938,57 @@ async def on_text(update, context) -> None:
     )
 
 
+async def take_hours(update, context, text: str) -> None:
+    message = update.message
+    user = update.effective_user
+    result = db.set_survey_hours(user.id, text)
+    if result == "bad":
+        await message.reply_text(
+            "Напиши число или короткую оценку часов (до 80 символов).\n\n" + ASK_HOURS
+        )
+        return
+    if result == "missing":
+        await message.reply_text(ASK_NICK)
+        return
+    await message.reply_text("Записал.\n\n" + ASK_CLANS)
+
+
+async def take_clans(update, context, text: str) -> None:
+    message = update.message
+    user = update.effective_user
+    result = db.set_survey_clans(user.id, text)
+    if result == "bad":
+        await message.reply_text(
+            "Ответ слишком короткий или длинный (до 200 символов).\n\n" + ASK_CLANS
+        )
+        return
+    if result == "missing":
+        await message.reply_text(ASK_NICK)
+        return
+    await message.reply_text("Записал.\n\n" + ASK_AGE)
+
+
+async def take_age(update, context, text: str) -> None:
+    message = update.message
+    user = update.effective_user
+    result = db.set_survey_age(user.id, text)
+    if result == "bad":
+        await message.reply_text(
+            "Нужна дата в формате ДД.ММ.ГГГГ.\nПример: 15.03.2001\n\n" + ASK_AGE
+        )
+        return
+    if result == "missing":
+        await message.reply_text(ASK_NICK)
+        return
+    fresh = db.get_applicant(user.id)
+    await send_alert(
+        context.bot,
+        format_application(fresh),
+        reply_markup=application_actions(int(fresh["tg_id"])),
+    )
+    await message.reply_text(ASK_REVIEW)
+
+
 async def take_steam(update, context, row, steam_id: str) -> None:
     message = update.message
     user = update.effective_user
@@ -836,7 +1007,13 @@ async def take_steam(update, context, row, steam_id: str) -> None:
             context.bot,
             f"Игрок {db.label(fresh)} — 2-й шаг пройден. SteamID64: {steam_id}.",
         )
-        await message.reply_text(f"Steam записан.\n\n" + await site_text())
+        # До заявки — опрос; после сайта — снова site_text
+        if fresh["step"] == db.STEP_HOURS:
+            await message.reply_text("Steam записан.\n\n" + ASK_HOURS)
+        else:
+            await message.reply_text(
+                "Steam записан.\n\n" + await status_text(context.bot, fresh)
+            )
         return
     await message.reply_text(
         "Этот SteamID64 уже записан.\n\n" + await status_text(context.bot, fresh)
@@ -886,6 +1063,24 @@ async def hr_button(update, context, text: str) -> None:
         lines = [f"{db.label(r)} — {STEP_RU.get(r['step'], r['step'])}" for r in rows[:40]]
         extra = f"\n…ещё {len(rows) - 40}" if len(rows) > 40 else ""
         await message.reply_text("\n".join(lines) + extra, reply_markup=hr_markup())
+        return
+    if text == "Заявки":
+        rows = db.list_applicants((db.STEP_REVIEW,))
+        if not rows:
+            await message.reply_text(
+                "Открытых заявок нет — никто не ждёт одобрения.",
+                reply_markup=hr_markup(),
+            )
+            return
+        await message.reply_text(
+            f"Открытых заявок: {len(rows)}. Карточки ниже.",
+            reply_markup=hr_markup(),
+        )
+        for row in rows[:20]:
+            await message.reply_text(
+                format_application(row),
+                reply_markup=application_actions(int(row["tg_id"])),
+            )
         return
     if text == "Назначить куратора":
         context.user_data["hr_mode"] = "appoint"
@@ -1275,6 +1470,56 @@ async def on_callback(update, context) -> None:
         db.event(user.id, "hr-revoke", f"{tg_id} {result}")
         await query.edit_message_text(f"{tg_id}: {result}")
         await send_alert(context.bot, f"Куратор {tg_id}: {result}. Снял {who(user)}.")
+        return
+    if data.startswith("ap:") or data.startswith("rj:"):
+        tg_id = int(data.split(":", 1)[1])
+        row = db.get_applicant(tg_id)
+        if row is None:
+            await query.edit_message_text("В базе бота этой строки уже нет.")
+            return
+        label = db.label(row)
+        if data.startswith("ap:"):
+            result = db.approve_application(tg_id)
+            if result == "ok":
+                await tell(context.bot, tg_id, await site_text())
+                await query.edit_message_text(
+                    f"Заявка одобрена: {label}.\nОдобрил {who(user)}.\n"
+                    "Игрок переведён на сайт и дальше на каналы."
+                )
+                await send_alert(
+                    context.bot,
+                    f"Заявка {label} одобрена ({who(user)}). Дальше — сайт и каналы.",
+                )
+            elif result == "wrong_step":
+                await query.edit_message_text(
+                    f"{label} уже не ждёт одобрения "
+                    f"(сейчас: {STEP_RU.get(row['step'], row['step'])})."
+                )
+            else:
+                await query.edit_message_text("Заявки уже нет.")
+            return
+        result = db.reject_application(tg_id)
+        if result == "ok":
+            await tell(
+                context.bot,
+                tg_id,
+                "Заявку отклонили. Регистрация закрыта.\n"
+                "Если захочешь попробовать снова — напиши /start.",
+            )
+            await query.edit_message_text(
+                f"Заявка отклонена: {label}.\nОтклонил {who(user)}."
+            )
+            await send_alert(
+                context.bot,
+                f"Заявка {label} отклонена ({who(user)}).",
+            )
+        elif result == "wrong_step":
+            await query.edit_message_text(
+                f"{label} уже не ждёт одобрения "
+                f"(сейчас: {STEP_RU.get(row['step'], row['step'])})."
+            )
+        else:
+            await query.edit_message_text("Заявки уже нет.")
         return
     kind, _, raw = data.partition(":")
     if kind not in ("s", "c", "d") or not raw.isdigit():

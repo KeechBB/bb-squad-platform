@@ -277,3 +277,42 @@ def still_in_clan(steam_id: str) -> bool | None:
         return bool(lookup_steam(steam_id).get("in_clan"))
     except Exception:
         return None
+
+
+def sri_assign(steam_id: str, reason: str = "recruit") -> dict[str, Any]:
+    """СРИ: свободный агент → фракция (баланс). POST на plaza."""
+    steam_id = (steam_id or "").strip()
+    if not steam_id:
+        return {"ok": False, "skipped": "no_steam"}
+    import json
+    import urllib.error
+    import urllib.request
+
+    base = (os.environ.get("PLAZA_URL") or os.environ.get("NEXTAUTH_URL") or "https://bb-squad.ru").strip()
+    base = base.rstrip("/")
+    if base.endswith("/clans"):
+        base = base[: -len("/clans")]
+    secret = (os.environ.get("SRI_SECRET") or os.environ.get("CRON_SECRET") or "").strip()
+    if not secret:
+        return {"ok": False, "skipped": "no_sri_secret"}
+    url = f"{base}/api/internal/sri/assign"
+    payload = json.dumps({"steamId": steam_id, "reason": reason}).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "x-sri-secret": secret,
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+            data = json.loads(raw) if raw else {}
+            return data if isinstance(data, dict) else {"ok": False, "raw": raw}
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")[:300]
+        return {"ok": False, "error": f"http_{e.code}", "body": body}
+    except Exception as e:
+        return {"ok": False, "error": type(e).__name__, "detail": str(e)[:200]}
