@@ -97,7 +97,23 @@ button.training-cal-cell-attend { font: inherit; color: inherit; text-align: inh
   .home-hub-grid .home-hub-tile { position: relative !important; inset: auto !important; width: 100% !important; height: auto !important; aspect-ratio: 400 / 452; transform: none !important; touch-action: pan-y; }
   .home-hub-tile-art { inset: 0; background-size: contain; background-position: center; background-repeat: no-repeat; transform: none !important; }
   .home-hub-tile-plate { display: none; }
-  .home-hub-faction-menu { position: absolute; top: 100%; right: 0; left: auto; width: min(300px, calc(100vw - 24px)); max-height: 320px; overflow: auto; z-index: 10; }
+  /* Desktop menu uses bottom+transform; leave those and the strip collapses under the tile. */
+  .home-hub-grid { overflow: visible !important; }
+  .home-hub-tile--my-faction.is-menu-open { z-index: 40; }
+  .home-hub-faction-menu {
+    position: absolute;
+    top: 100%;
+    bottom: auto;
+    left: 0;
+    right: auto;
+    transform: none;
+    width: min(300px, calc(100vw - 24px));
+    max-width: none;
+    max-height: min(320px, 50dvh);
+    overflow: auto;
+    z-index: 40;
+    -webkit-overflow-scrolling: touch;
+  }
   .home-hub-cw { position: static !important; width: 100% !important; height: auto !important; max-height: none; order: 3; overflow: visible; pointer-events: auto; }
   .home-hub-cw-item { position: static !important; width: 100% !important; }
   .home-hub-cw-stubs, .home-hub-cw-edit-hint, .home-hub-edit-hint { display: none; }

@@ -90,7 +90,7 @@ export function HomeHubTiles({ tiles, initialLayout, canEdit }: Props) {
   useEffect(() => {
     if (!factionOpen) return;
     void loadFactions();
-    const onDoc = (e: MouseEvent) => {
+    const onDoc = (e: Event) => {
       const t = e.target as Node | null;
       if (!t) return;
       const root = gridRef.current?.querySelector(".home-hub-tile--my-faction");
@@ -100,10 +100,11 @@ export function HomeHubTiles({ tiles, initialLayout, canEdit }: Props) {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setFactionOpen(false);
     };
-    document.addEventListener("mousedown", onDoc);
+    // pointerdown covers phone taps; mousedown alone is flaky in WebViews.
+    document.addEventListener("pointerdown", onDoc);
     window.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("pointerdown", onDoc);
       window.removeEventListener("keydown", onKey);
     };
   }, [factionOpen, loadFactions]);
