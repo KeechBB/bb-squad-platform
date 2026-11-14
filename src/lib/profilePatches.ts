@@ -25,24 +25,17 @@ export const PROFILE_PATCH_OPTIONS = [
     gate: "creator" as const,
   },
   {
-    id: "creator-event-pkm-harvest",
-    file: "event-day-pkm-harvest-thunder-v1.png",
-    label: "ПКМ «Громовой урожай» · Ивент дня",
-    tip: "ПКМ «Громовой урожай» · Предпросмотр награды «Ивент дня» (фруктовый сад)",
-    gate: "creator" as const,
-  },
-  {
     id: "creator-event-scar-lemon",
     file: "event-day-scar-lemon-squall-v1.png",
     label: "SCAR «Лимонный шквал» · Ивент дня",
-    tip: "SCAR «Лимонный шквал» · Вариант 2 «Ивент дня» (фруктовый сад)",
+    tip: "SCAR «Лимонный шквал» · Предпросмотр награды «Ивент дня» (фруктовый сад)",
     gate: "creator" as const,
   },
   {
     id: "creator-event-saiga-apple",
     file: "event-day-saiga-apple-spread-v1.png",
     label: "Сайга «Яблочный разброс» · Ивент дня",
-    tip: "Сайга «Яблочный разброс» · Вариант 3 «Ивент дня» (фруктовый сад)",
+    tip: "Сайга «Яблочный разброс» · Предпросмотр награды «Ивент дня» (фруктовый сад)",
     gate: "creator" as const,
   },
   {
@@ -97,6 +90,8 @@ export function isProfilePatchId(v: unknown): v is ProfilePatchId {
 
 export function normalizeProfilePatch(v: unknown): ProfilePatchId | null {
   if (v == null || v === "" || v === "none" || v === "default") return null;
+  // снятый ПКМ «Громовой урожай» — больше не в каталоге
+  if (v === "creator-event-pkm-harvest") return null;
   return isProfilePatchId(v) ? v : null;
 }
 
@@ -109,10 +104,8 @@ export function profilePatchUrl(
   const bust =
     id === "hw2-knife-hook" || id === "hw2-ak-pumpkin"
       ? "?v=blood1"
-      : id === "creator-event-pkm-harvest" ||
-          id === "creator-event-scar-lemon" ||
-          id === "creator-event-saiga-apple"
-        ? "?v=fix5"
+      : id === "creator-event-scar-lemon" || id === "creator-event-saiga-apple"
+        ? "?v=fix6"
         : "";
   return `/bp-assets/${opt.file}${bust}`;
 }

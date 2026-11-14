@@ -1498,43 +1498,6 @@ body.has-profile-bg .shell:has(.profile-page) {
   }
 }
 
-.profile-patch-tile[data-patch-id="creator-event-pkm-harvest"]
-  .profile-patch-tile-art {
-  width: 94%;
-  transform: scaleX(-1);
-  filter:
-    drop-shadow(0 0 3px rgba(220, 200, 255, 0.65))
-    drop-shadow(0 0 8px rgba(170, 100, 255, 0.45));
-  animation: event-pkm-harvest-tile-glow 3.2s ease-in-out infinite;
-  transition: filter 0.15s ease, transform 0.15s ease;
-}
-.profile-patch-tile[data-patch-id="creator-event-pkm-harvest"]:hover
-  .profile-patch-tile-art,
-.profile-patch-tile[data-patch-id="creator-event-pkm-harvest"]:focus-visible
-  .profile-patch-tile-art,
-.profile-patch-tile[data-patch-id="creator-event-pkm-harvest"].is-selected
-  .profile-patch-tile-art {
-  animation: none;
-  transform: scaleX(-1) scale(1.06);
-  filter:
-    drop-shadow(0 0 5px rgba(235, 220, 255, 0.85))
-    drop-shadow(0 0 12px rgba(180, 120, 255, 0.6))
-    brightness(1.06);
-}
-@keyframes event-pkm-harvest-tile-glow {
-  0%,
-  100% {
-    filter:
-      drop-shadow(0 0 3px rgba(220, 200, 255, 0.55))
-      drop-shadow(0 0 7px rgba(160, 95, 245, 0.36));
-  }
-  50% {
-    filter:
-      drop-shadow(0 0 4px rgba(235, 220, 255, 0.75))
-      drop-shadow(0 0 10px rgba(175, 110, 255, 0.5));
-  }
-}
-
 .profile-patch-tile[data-patch-id="creator-orange-phantom"]
   .profile-patch-tile-art {
   width: 94%;
