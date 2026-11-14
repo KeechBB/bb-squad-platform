@@ -25,6 +25,8 @@ type PatchCard = {
   deal?: "discount" | "markup" | "sellboost" | null;
 };
 
+type BgCard = PatchCard;
+
 type Tx = {
   id: string;
   delta: number;
@@ -52,6 +54,7 @@ export function MarketplaceClient({ loggedIn }: Props) {
   const [balance, setBalance] = useState<number | null>(null);
   const [packages, setPackages] = useState<Pack[]>([]);
   const [patches, setPatches] = useState<PatchCard[]>([]);
+  const [bgs, setBgs] = useState<BgCard[]>([]);
   const [txs, setTxs] = useState<Tx[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -74,6 +77,7 @@ export function MarketplaceClient({ loggedIn }: Props) {
       setBalance(data.balance);
       setPackages(data.packages || []);
       setPatches(data.patches || []);
+      setBgs(data.bgs || []);
       setTxs(data.txs || []);
       if (data.grantedNow > 0) {
         setMsg(`Зачислено ${data.grantedNow} BB Coins за прогнозы турнира.`);
@@ -135,6 +139,39 @@ export function MarketplaceClient({ loggedIn }: Props) {
         action === "buy"
           ? `Куплено (+1). У тебя: ${data.mine ?? "…"}`
           : `Продано (−1). У тебя: ${data.mine ?? "…"}`
+      );
+      await load();
+    } catch {
+      setErr("Сеть недоступна");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function bgAction(bgId: string, action: "buy" | "sell") {
+    setBusy(`${action}:bg:${bgId}`);
+    setErr(null);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/bb-coins/bgs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, bgId }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        const map: Record<string, string> = {
+          insufficient: "Не хватает BB Coins — пополни баланс",
+          not_owned: "Нечего продавать — нет копий в инвентаре",
+        };
+        setErr(map[data.error] || "Не удалось выполнить сделку");
+        return;
+      }
+      if (typeof data.balance === "number") setBalance(data.balance);
+      setMsg(
+        action === "buy"
+          ? `Фон куплен (+1). У тебя: ${data.mine ?? "…"}`
+          : `Фон продан (−1). У тебя: ${data.mine ?? "…"}`
       );
       await load();
     } catch {
@@ -303,12 +340,121 @@ export function MarketplaceClient({ loggedIn }: Props) {
           ) : null}
 
           {tab === "bg" ? (
-            <section className="market-soon" aria-label="Фоны профиля">
-              <h2>Фон</h2>
-              <p className="muted">
-                Каталог фонов профиля появится здесь — те же карточки купить /
-                продать, что у нашивок.
+            <section className="market-shop" aria-label="Каталог фонов">
+              <p className="muted market-packs-note">
+                Только зарабатываемые фоны (не бесплатные 02/06). Слева жёлтым —
+                сколько копий у тебя, справа — всего на площадке. Продать = 80%.
+                Каждый день в 00:00 МСК — скидка −20% / наценка +20% / продажа
+                +20%.
               </p>
+              <ul className="market-patch-grid market-bg-grid">
+                {bgs.map((p) => (
+                  <li
+                    key={p.id}
+                    className={`market-patch-card market-bg-card${
+                      p.mine > 0 ? " is-owned" : ""
+                    }${
+                      p.deal === "discount"
+                        ? " has-discount"
+                        : p.deal === "markup"
+                          ? " has-markup"
+                          : p.deal === "sellboost"
+                            ? " has-sellboost"
+                            : ""
+                    }`}
+                  >
+                    {p.deal === "discount" ? (
+                      <span className="market-deal-ribbon" aria-label="Скидка 20%">
+                        СКИДКА −20%
+                      </span>
+                    ) : null}
+                    {p.deal === "markup" ? (
+                      <span
+                        className="market-deal-ribbon market-deal-ribbon--up"
+                        aria-label="Наценка 20%"
+                      >
+                        НАЦЕНКА +20%
+                      </span>
+                    ) : null}
+                    {p.deal === "sellboost" ? (
+                      <span
+                        className="market-deal-ribbon market-deal-ribbon--sell"
+                        aria-label="Продажа плюс 20%"
+                      >
+                        ПРОДАЖА +20%
+                      </span>
+                    ) : null}
+                    <div className="market-patch-art market-bg-art">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={p.image} alt={p.title} />
+                    </div>
+                    <div className="market-patch-counts">
+                      <span className="market-patch-mine" tabIndex={0}>
+                        {p.mine}
+                        <span className="market-patch-tip" role="tooltip">
+                          У МЕНЯ
+                        </span>
+                      </span>
+                      <span className="market-patch-total" tabIndex={0}>
+                        {p.total}
+                        <span className="market-patch-tip" role="tooltip">
+                          всего у пользователей
+                        </span>
+                      </span>
+                    </div>
+                    <div className="market-patch-meta">
+                      <strong>{p.title}</strong>
+                      <span className="muted">{p.source}</span>
+                      {p.mine > 0 ? (
+                        <span className="market-owned-tag">
+                          у тебя ×{p.mine}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="market-patch-prices">
+                      <button
+                        type="button"
+                        className="market-price-buy"
+                        disabled={Boolean(busy)}
+                        onClick={() => void bgAction(p.id, "buy")}
+                      >
+                        <span className="muted">купить</span>
+                        <strong>
+                          {busy === `buy:bg:${p.id}` ? (
+                            "…"
+                          ) : p.deal && p.buyBase && p.buyBase !== p.buy ? (
+                            <>
+                              <span className="market-price-old">
+                                {p.buyBase}
+                              </span>{" "}
+                              {p.buy} BBC
+                            </>
+                          ) : (
+                            `${p.buy} BBC`
+                          )}
+                        </strong>
+                      </button>
+                      <button
+                        type="button"
+                        className="market-price-sell"
+                        disabled={Boolean(busy) || p.mine < 1}
+                        onClick={() => void bgAction(p.id, "sell")}
+                      >
+                        <span className="muted">продать</span>
+                        <strong
+                          className={
+                            p.deal === "sellboost" ? "is-sellboost" : undefined
+                          }
+                        >
+                          {busy === `sell:bg:${p.id}`
+                            ? "…"
+                            : `${p.sell} BBC`}
+                        </strong>
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </section>
           ) : null}
 

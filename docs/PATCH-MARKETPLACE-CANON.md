@@ -51,6 +51,21 @@
 | `creator-event-saiga-apple` | 500 | 400 |
 | `public-100-vehicles-t62` | 500 | 400 |
 
+## Фоны профиля (фаза 1.2)
+
+Только **зарабатываемые** id (не free `02` / `06`). Инвентарь: `ProfileBgStock` + sync `unlockedProfileBgs`. После продажи фон пропадает из кастомизации.
+
+| id | Фон | Купить BBC | Продать BBC (80%) |
+|----|-----|------------|-------------------|
+| `bp-l5-gold` | Турнирное золото II | 600 | 480 |
+| `hw2-night-harvest` | Ночной урожай | 900 | 720 |
+| `creator-fruit-strike-place3-v3` | Тактический урожай | 1200 | 960 |
+| `creator-royal-core` | BlackBerry Royal Core | 1800 | 1440 |
+
+Дневные акции фонов — отдельный сид `bb-market-bg-deal-v1:YYYY-MM-DD` (`bbCoinBgDailyDeals.ts`), те же −20% / +20% / sell +20%.
+
+Код: `marketBgIds.ts`, `bbCoinBgPrices.ts`, `bbCoinBgMarket.ts`, `api/bb-coins/bgs`.
+
 ## Код
 
 - `src/lib/bbCoins.ts`, `src/lib/bbCoinsTournament.ts`

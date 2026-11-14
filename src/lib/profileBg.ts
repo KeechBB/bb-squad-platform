@@ -1,5 +1,7 @@
 /** Варианты фона профиля (файлы в /public/profile-bgs/). */
 
+import { MARKET_BG_IDS } from "@/lib/marketBgIds";
+
 export const PROFILE_BG_OPTIONS = [
   { id: "02", file: "variant-02.jpg", label: "Вариант 2" },
   { id: "06", file: "variant-06.jpg", label: "Вариант 6" },
@@ -54,12 +56,13 @@ export function profileBgChoicesFor(opts: {
 }): ProfileBgChoice[] {
   const unlocks = new Set(opts.unlocks);
   return PROFILE_BG_OPTIONS.filter((opt) => {
+    // Каталог маркетплейса: после продажи пропадает (только явный id в unlocks).
+    if (MARKET_BG_IDS.has(opt.id)) {
+      return unlocks.has(opt.id);
+    }
     const gate = gateOf(opt);
     if (gate === "public") return true;
     if (gate === "creator") {
-      if (opt.id === "creator-fruit-strike-place3-v3" && unlocks.has(opt.id)) {
-        return true;
-      }
       return opts.steamId === SITE_CREATOR_STEAM_ID;
     }
     if (gate === "bp-l5") {

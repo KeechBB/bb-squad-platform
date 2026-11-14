@@ -6,6 +6,7 @@ import { isBuiltinSuperAdmin } from "@/lib/admin";
 import { BB_COIN_PACKAGES, getBbCoinBalance } from "@/lib/bbCoins";
 import { settleActiveTournamentBbCoins } from "@/lib/bbCoinsTournament";
 import { loadMarketPatchCatalog } from "@/lib/bbCoinPatchMarket";
+import { loadMarketBgCatalog } from "@/lib/bbCoinBgMarket";
 
 export const dynamic = "force-dynamic";
 
@@ -29,13 +30,14 @@ export async function GET() {
     granted: 0,
   }));
   const balance = await getBbCoinBalance(user.id);
-  const [txs, patches] = await Promise.all([
+  const [txs, patches, bgs] = await Promise.all([
     prisma.bbCoinTx.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
       take: 20,
     }),
     loadMarketPatchCatalog({ userId: user.id, steamId: user.steamId }),
+    loadMarketBgCatalog({ userId: user.id, steamId: user.steamId }),
   ]);
 
   return NextResponse.json({
@@ -44,6 +46,7 @@ export async function GET() {
     grantedNow: settled.granted || 0,
     packages: BB_COIN_PACKAGES,
     patches,
+    bgs,
     txs: txs.map((t) => ({
       id: t.id,
       delta: t.delta,

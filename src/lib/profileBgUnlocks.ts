@@ -45,6 +45,17 @@ export async function ensureBpL5ProfileBg(user: {
   const nick = String(user.nick || "").trim();
   if (!nick) return unlocks;
 
+  // После продажи на маркетплейсе L5 больше не выдаём автоматически.
+  const sold = await prisma.bbCoinTx.findFirst({
+    where: {
+      userId: user.id,
+      kind: "bg_sell",
+      note: { contains: BP_L5_PROFILE_BG_ID },
+    },
+    select: { id: true },
+  });
+  if (sold) return unlocks;
+
   const state = await loadBattlePassState().catch(() => null);
   const prog = progressForNick(state, nick);
   if (prog.currentLevel < 5 && !prog.completedAt) return unlocks;
@@ -54,6 +65,8 @@ export async function ensureBpL5ProfileBg(user: {
     where: { id: user.id },
     data: { unlockedProfileBgs: unlocks },
   });
+  const { addBgQty } = await import("@/lib/profileBgStock");
+  await addBgQty(user.id, BP_L5_PROFILE_BG_ID, 1).catch(() => undefined);
   await notifyRewardUnlock({
     userId: user.id,
     dedupeKey: `reward:bg:${BP_L5_PROFILE_BG_ID}`,
