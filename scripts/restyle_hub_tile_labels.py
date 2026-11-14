@@ -120,10 +120,14 @@ def erase_text(im: Image.Image) -> Image.Image:
 
 
 def fit_font(
-    draw: ImageDraw.ImageDraw, lines: list[str], max_w: int, max_h: int
+    draw: ImageDraw.ImageDraw,
+    lines: list[str],
+    max_w: int,
+    max_h: int,
+    gap_ratio: float,
 ) -> ImageFont.ImageFont:
-    size = 52
-    while size >= 18:
+    size = 42 if len(lines) > 1 else 52
+    while size >= 16:
         font = pick_font(size)
         widths = []
         heights = []
@@ -131,29 +135,43 @@ def fit_font(
             box = draw.textbbox((0, 0), line, font=font)
             widths.append(box[2] - box[0])
             heights.append(box[3] - box[1])
-        total_h = sum(heights) + max(0, len(lines) - 1) * int(size * 0.12)
+        gap = max(8, int(size * gap_ratio))
+        stroke = max(1, size // 20)
+        total_h = (
+            sum(heights)
+            + max(0, len(lines) - 1) * (gap + stroke * 2)
+            + stroke * 2
+        )
         if max(widths) <= max_w and total_h <= max_h:
             return font
         size -= 1
-    return pick_font(18)
+    return pick_font(16)
 
 
 def draw_gold_label(im: Image.Image, text: str) -> Image.Image:
     w, h = im.size
     lines = [ln.strip() for ln in text.split("\n") if ln.strip()]
     probe = ImageDraw.Draw(im)
-    max_w = int(w * 0.70)
-    max_h = int(h * 0.18)
-    font = fit_font(probe, lines, max_w, max_h)
+    max_w = int(w * 0.66)
+    # Двухстрочным — больше высоты блока и межстрочный зазор.
+    multiline = len(lines) > 1
+    gap_ratio = 0.48 if multiline else 0.12
+    max_h = int(h * (0.24 if multiline else 0.16))
+    font = fit_font(probe, lines, max_w, max_h, gap_ratio)
+    stroke_w = max(1, getattr(font, "size", 28) // 20)
 
     metrics = []
     for line in lines:
-        box = probe.textbbox((0, 0), line, font=font)
+        box = probe.textbbox((0, 0), line, font=font, stroke_width=stroke_w)
         metrics.append((line, box[2] - box[0], box[3] - box[1], -box[1]))
-    gap = max(2, int(getattr(font, "size", 28) * 0.1))
-    block_h = sum(m[2] for m in metrics) + gap * (len(metrics) - 1)
-    top = int(h * 0.735) - block_h // 2
-    top = max(int(h * 0.64), min(top, int(h * 0.80) - block_h))
+    gap = max(8, int(getattr(font, "size", 28) * gap_ratio))
+    step_extra = stroke_w * 2
+    block_h = sum(m[2] for m in metrics) + (gap + step_extra) * (
+        len(metrics) - 1
+    )
+    # Чуть ниже, чтобы не наезжать на иконку (шеврон / весы / щит).
+    top = int(h * (0.77 if multiline else 0.735)) - block_h // 2
+    top = max(int(h * 0.67), min(top, int(h * 0.86) - block_h))
 
     fill_color = (255, 224, 110, 255)
     stroke_color = (90, 50, 8, 230)
@@ -161,7 +179,7 @@ def draw_gold_label(im: Image.Image, text: str) -> Image.Image:
     y = top
     for line, tw, th, ascent in metrics:
         x = (w - tw) // 2
-        for rad, alpha in ((9, 28), (5, 50), (2, 85)):
+        for rad, alpha in ((6, 30), (3, 55), (1, 80)):
             glow = Image.new("RGBA", im.size, (0, 0, 0, 0))
             gd = ImageDraw.Draw(glow)
             gd.text(
@@ -179,11 +197,11 @@ def draw_gold_label(im: Image.Image, text: str) -> Image.Image:
             line,
             font=font,
             fill=fill_color,
-            stroke_width=max(1, getattr(font, "size", 28) // 20),
+            stroke_width=stroke_w,
             stroke_fill=stroke_color,
             anchor="lt",
         )
-        y += th + gap
+        y += th + gap + step_extra
     return im
 
 

@@ -255,7 +255,7 @@ export function HomeHubTiles({ tiles, initialLayout, canEdit }: Props) {
               <span
                 className="home-hub-tile-art"
                 aria-hidden="true"
-                style={{ backgroundImage: `url(${tile.image}?v=label2)` }}
+                style={{ backgroundImage: `url(${tile.image}?v=label4)` }}
               />
             </>
           );
