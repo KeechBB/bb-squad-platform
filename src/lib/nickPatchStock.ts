@@ -148,3 +148,15 @@ export async function migrateAllMarketUnlocksToStock() {
     await migrateUnlocksToStock(u.id);
   }
 }
+
+let allMigrateOnce: Promise<void> | null = null;
+/** Раз на процесс PM2 — чтобы «всего» совпадало с unlocks у всех игроков. */
+export function ensureAllMarketStockMigratedOnce() {
+  if (!allMigrateOnce) {
+    allMigrateOnce = migrateAllMarketUnlocksToStock().catch((e) => {
+      allMigrateOnce = null;
+      throw e;
+    });
+  }
+  return allMigrateOnce;
+}

@@ -24565,7 +24565,7 @@ body:has(.faction-page) .site-footer {
 .market-patch-total {
   position: absolute;
   top: 10px;
-  z-index: 2;
+  z-index: 3;
   min-width: 2rem;
   padding: 4px 10px;
   border-radius: 8px;
@@ -24574,6 +24574,7 @@ body:has(.faction-page) .site-footer {
   font-size: 1.25rem;
   text-align: center;
   font-variant-numeric: tabular-nums;
+  cursor: default;
 }
 .market-patch-mine {
   left: 12px;
@@ -24582,6 +24583,32 @@ body:has(.faction-page) .site-footer {
 .market-patch-total {
   right: 12px;
   color: #cfc7dd;
+}
+.market-patch-tip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #120e0a;
+  border: 1px solid #5a4820;
+  color: #e8c35a;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+}
+.market-patch-mine:hover .market-patch-tip,
+.market-patch-mine:focus-visible .market-patch-tip,
+.market-patch-total:hover .market-patch-tip,
+.market-patch-total:focus-visible .market-patch-tip {
+  opacity: 1;
 }
 .market-patch-art {
   display: flex;

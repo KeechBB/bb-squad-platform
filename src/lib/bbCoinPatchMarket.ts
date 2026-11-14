@@ -27,21 +27,6 @@ import {
 /** Маркер: стартовый инвентарь Keech уже выдан. */
 const KEECH_MARKET_SEED_FLAG = "__market_keech_seed_v1";
 
-async function ensureL15AliasMaterialized(userId: string, unlocks: string[]) {
-  const set = new Set(unlocks);
-  if (set.has("bp-l15-keech")) return unlocks;
-  if (!set.has("pb1-gold-nick") && !set.has("pb1-profile-customize")) {
-    return unlocks;
-  }
-  const next = [...unlocks, "bp-l15-keech"];
-  await prisma.user.update({
-    where: { id: userId },
-    data: { unlockedNickPatches: next },
-  });
-  await addPatchQty(userId, "bp-l15-keech", 1).catch(() => null);
-  return next;
-}
-
 /**
  * Keech: один раз +1 каждой нашивки каталога.
  * Продажа уменьшает qty; повторный seed не делается.
@@ -77,15 +62,11 @@ export async function loadMarketPatchCatalog(opts: {
   steamId: string;
 }): Promise<MarketPatchCard[]> {
   await ensureKeechMarketStarterInventory(opts.steamId);
+  const { ensureAllMarketStockMigratedOnce } = await import(
+    "@/lib/nickPatchStock"
+  );
+  await ensureAllMarketStockMigratedOnce();
   await migrateUnlocksToStock(opts.userId);
-
-  const me = await prisma.user.findUnique({
-    where: { id: opts.userId },
-    select: { id: true, unlockedNickPatches: true },
-  });
-  if (me) {
-    await ensureL15AliasMaterialized(me.id, me.unlockedNickPatches || []);
-  }
 
   const [mine, total] = await Promise.all([
     getPatchQtyMap(opts.userId, MARKET_PATCH_ORDER),

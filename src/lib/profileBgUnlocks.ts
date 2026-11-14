@@ -104,18 +104,38 @@ export async function ensureBpL15NickPatch(user: {
   unlockedNickPatches: string[];
 }): Promise<string[]> {
   const unlocks = [...(user.unlockedNickPatches || [])];
+  // Уже есть явный id — ок. Alias pb1-* больше НЕ возвращает нашивку после продажи.
+  if (unlocks.includes(BP_L15_PATCH_ID)) return unlocks;
   if (
-    unlocks.includes(BP_L15_PATCH_ID) ||
     unlocks.includes("pb1-profile-customize") ||
     unlocks.includes("pb1-gold-nick")
   ) {
-    if (!unlocks.includes(BP_L15_PATCH_ID)) {
+    // Разовая материализация alias → stock, только если копии ещё не было и не продавали.
+    const { getPatchQty, addPatchQty } = await import("@/lib/nickPatchStock");
+    const qty = await getPatchQty(user.id, BP_L15_PATCH_ID);
+    if (qty > 0) {
       unlocks.push(BP_L15_PATCH_ID);
       await prisma.user.update({
         where: { id: user.id },
         data: { unlockedNickPatches: unlocks },
       });
+      return unlocks;
     }
+    const sold = await prisma.bbCoinTx.findFirst({
+      where: {
+        userId: user.id,
+        kind: "patch_sell",
+        note: { contains: BP_L15_PATCH_ID },
+      },
+      select: { id: true },
+    });
+    if (sold) return unlocks;
+    unlocks.push(BP_L15_PATCH_ID);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { unlockedNickPatches: unlocks },
+    });
+    await addPatchQty(user.id, BP_L15_PATCH_ID, 1).catch(() => undefined);
     return unlocks;
   }
   const nick = String(user.nick || "").trim();

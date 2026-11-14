@@ -203,17 +203,17 @@ export function MarketplaceClient({ loggedIn }: Props) {
                     key={p.id}
                     className={`market-patch-card${p.mine > 0 ? " is-owned" : ""}`}
                   >
-                    <span
-                      className="market-patch-mine"
-                      title="Твои копии"
-                    >
+                    <span className="market-patch-mine" tabIndex={0}>
                       {p.mine}
+                      <span className="market-patch-tip" role="tooltip">
+                        У МЕНЯ
+                      </span>
                     </span>
-                    <span
-                      className="market-patch-total"
-                      title="Всего копий у игроков"
-                    >
+                    <span className="market-patch-total" tabIndex={0}>
                       {p.total}
+                      <span className="market-patch-tip" role="tooltip">
+                        всего у пользователей
+                      </span>
                     </span>
                     <div className="market-patch-art">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
