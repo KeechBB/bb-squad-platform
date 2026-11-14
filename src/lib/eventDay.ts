@@ -1,7 +1,7 @@
 /**
  * Ежедневный ивент дня (паблик «Фруктовый сад»).
- * Окно показа и подсчёта: 15:45–23:59 МСК. В 00:00 блок с главной скрыт.
- * Награды — нашивки навсегда.
+ * Окно показа и подсчёта: 00:00–23:59 МСК (весь день).
+ * Награды — нашивки (копии +1 за день при выполнении цели).
  */
 import { prisma } from "@/lib/prisma";
 import { profileHistoryKey } from "@/lib/nickCollisions";
@@ -19,18 +19,20 @@ export const EVENT_DAY_KILLS_GOAL = 100;
 export const EVENT_DAY_RES_GOAL = 50;
 
 /** Минуты от полуночи МСК: старт подсчёта / показа */
-export const EVENT_DAY_START_MIN = 15 * 60 + 45; // 15:45
+export const EVENT_DAY_START_MIN = 0; // 00:00
 /** Минуты от полуночи МСК: конец окна (включительно) */
 export const EVENT_DAY_END_MIN = 23 * 60 + 59; // 23:59
+
+export const EVENT_DAY_WINDOW_LABEL = "00:00–23:59";
 
 export type EventDayProgress = {
   /** YYYY-MM-DD МСК */
   day: string;
   /** «14.11.2026» */
   dayLabel: string;
-  /** «с 15:45 до 23:59 МСК 14.11.2026» */
+  /** «с 00:00 до 23:59 МСК 14.11.2026» */
   untilLabel: string;
-  /** Сейчас 15:45–23:59 МСК — блок на главной виден */
+  /** Сейчас 00:00–23:59 МСК — блок на главной виден */
   live: boolean;
   kills: number;
   res: number;
@@ -62,14 +64,14 @@ export function mskMinutesNow(d = new Date()): number {
   return h * 60 + mi;
 }
 
-/** Блок на главной только в окне 15:45–23:59 МСК. */
+/** Блок на главной только в окне 00:00–23:59 МСК. */
 export function isEventDayLive(d = new Date()): boolean {
   const min = mskMinutesNow(d);
   return min >= EVENT_DAY_START_MIN && min <= EVENT_DAY_END_MIN;
 }
 
 export function eventDayUntilLabel(ymd = mskYmd()): string {
-  return `с 15:45 до 23:59 МСК ${mskDayLabel(ymd)}`;
+  return `с 00:00 до 23:59 МСК ${mskDayLabel(ymd)}`;
 }
 
 function timeLabelMinutes(label: string): number | null {
@@ -81,7 +83,7 @@ function timeLabelMinutes(label: string): number | null {
   return h * 60 + mi;
 }
 
-/** Катка попала в окно ивента (15:45–23:59 МСК). */
+/** Катка попала в окно ивента (00:00–23:59 МСК). */
 export function isEventDayMatchTime(timeLabel: string): boolean {
   const min = timeLabelMinutes(timeLabel);
   if (min == null) return false;
@@ -151,14 +153,14 @@ export function eventDayRewardMeta(id: ProfilePatchId): {
   if (id === EVENT_DAY_SAIGA_PATCH_ID) {
     return {
       title: "АК-74 «Яблочный разброс»",
-      body: `Нашивка за ${EVENT_DAY_KILLS_GOAL} киллов в окне ивента дня (15:45–23:59 МСК) на паблике.`,
+      body: `Нашивка за ${EVENT_DAY_KILLS_GOAL} киллов в окне ивента дня (00:00–23:59 МСК) на паблике.`,
       imageUrl: profilePatchUrl(id),
     };
   }
   if (id === EVENT_DAY_SCAR_PATCH_ID) {
     return {
       title: "АК-74 «Лимонный шквал»",
-      body: `Нашивка за ${EVENT_DAY_RES_GOAL} ресов (подъёмы союзников из нока) в окне ивента дня (15:45–23:59 МСК) на паблике.`,
+      body: `Нашивка за ${EVENT_DAY_RES_GOAL} ресов (подъёмы союзников из нока) в окне ивента дня (00:00–23:59 МСК) на паблике.`,
       imageUrl: profilePatchUrl(id),
     };
   }

@@ -4,6 +4,7 @@ import {
   EVENT_DAY_RES_GOAL,
   EVENT_DAY_SAIGA_PATCH_ID,
   EVENT_DAY_SCAR_PATCH_ID,
+  EVENT_DAY_WINDOW_LABEL,
   type EventDayProgress,
 } from "@/lib/eventDay";
 import { profilePatchUrl } from "@/lib/profilePatches";
@@ -57,7 +58,8 @@ export function HomeEventDay({ progress, loggedIn }: Props) {
             <div className="home-event-day-copy">
               <h3>АК-74 «Яблочный разброс»</h3>
               <p>
-                <strong>{EVENT_DAY_KILLS_GOAL} киллов</strong> · 15:45–23:59
+                <strong>{EVENT_DAY_KILLS_GOAL} киллов</strong> ·{" "}
+                {EVENT_DAY_WINDOW_LABEL}
               </p>
               <div className="home-event-day-bar" aria-label="Прогресс киллов">
                 <span
@@ -92,8 +94,8 @@ export function HomeEventDay({ progress, loggedIn }: Props) {
             <div className="home-event-day-copy">
               <h3>АК-74 «Лимонный шквал»</h3>
               <p>
-                <strong>{EVENT_DAY_RES_GOAL} ресов</strong> (из нока) ·
-                15:45–23:59
+                <strong>{EVENT_DAY_RES_GOAL} ресов</strong> (из нока) ·{" "}
+                {EVENT_DAY_WINDOW_LABEL}
               </p>
               <div className="home-event-day-bar" aria-label="Прогресс ресов">
                 <span

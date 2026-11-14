@@ -63,9 +63,8 @@ export const HOME_HUB_TILES: HomeHubTile[] = [
     title: "Торговая Площадка",
     label: "ТОРГОВАЯ\nПЛОЩАДКА",
     image: "/home-hub/marketplace.png",
-    /** По умолчанию stub; Keech получает живой /marketplace в withViewerHubHrefs. */
-    href: "/wip/marketplace",
-    stub: true,
+    href: "/marketplace",
+    stub: false,
   },
   {
     id: "my-clan",
@@ -101,16 +100,13 @@ export function withViewerHubHrefs(
   opts: {
     clanId: string | null;
     factionSlug?: string | null;
-    /** Живая площадка пока только у Keech. */
+    /** @deprecated площадка открыта всем; флаг оставлен для совместимости. */
     marketplaceLive?: boolean;
   }
 ): HomeHubTile[] {
   return tiles.map((tile) => {
     if (tile.id === "marketplace") {
-      if (opts.marketplaceLive) {
-        return { ...tile, href: "/marketplace", stub: false };
-      }
-      return { ...tile, href: "/wip/marketplace", stub: true };
+      return { ...tile, href: "/marketplace", stub: false };
     }
     if (tile.id === "my-clan") {
       return {

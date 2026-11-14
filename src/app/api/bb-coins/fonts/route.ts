@@ -1,44 +1,17 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { isBuiltinSuperAdmin } from "@/lib/admin";
 import {
   buyMarketFont,
   loadMarketFontCatalog,
   sellMarketFont,
 } from "@/lib/bbCoinFontMarket";
+import { requireMarketUser } from "@/lib/bbCoinMarketAuth";
 
 export const dynamic = "force-dynamic";
 
-async function requireKeechUser() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.steamId) {
-    return { error: NextResponse.json({ ok: false, error: "auth" }, { status: 401 }) };
-  }
-  if (!isBuiltinSuperAdmin(session.user.steamId)) {
-    return {
-      error: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }),
-    };
-  }
-  const user = await prisma.user.findUnique({
-    where: { steamId: session.user.steamId },
-    select: { id: true, profileComplete: true, steamId: true },
-  });
-  if (!user?.profileComplete) {
-    return {
-      error: NextResponse.json({ ok: false, error: "profile" }, { status: 403 }),
-    };
-  }
-  return { user };
-}
-
 export async function GET() {
-  const gate = await requireKeechUser();
-  if ("error" in gate && gate.error) return gate.error;
-  const { user } = gate as {
-    user: { id: string; steamId: string; profileComplete: boolean };
-  };
+  const gate = await requireMarketUser();
+  if ("error" in gate) return gate.error;
+  const { user } = gate;
   const fonts = await loadMarketFontCatalog({
     userId: user.id,
     steamId: user.steamId,
@@ -47,11 +20,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const gate = await requireKeechUser();
-  if ("error" in gate && gate.error) return gate.error;
-  const { user } = gate as {
-    user: { id: string; steamId: string; profileComplete: boolean };
-  };
+  const gate = await requireMarketUser();
+  if ("error" in gate) return gate.error;
+  const { user } = gate;
 
   const body = (await req.json().catch(() => ({}))) as {
     action?: string;
