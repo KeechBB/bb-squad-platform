@@ -24586,9 +24586,7 @@ body:has(.faction-page) .site-footer {
 }
 .market-patch-tip {
   position: absolute;
-  left: 50%;
-  bottom: calc(100% + 8px);
-  transform: translateX(-50%);
+  top: 50%;
   white-space: nowrap;
   padding: 6px 10px;
   border-radius: 8px;
@@ -24603,6 +24601,19 @@ body:has(.faction-page) .site-footer {
   pointer-events: none;
   transition: opacity 0.12s ease;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+  z-index: 5;
+}
+/* Жёлтая (у меня) — подсказка справа */
+.market-patch-mine .market-patch-tip {
+  left: calc(100% + 8px);
+  right: auto;
+  transform: translateY(-50%);
+}
+/* Белая (всего) — подсказка слева */
+.market-patch-total .market-patch-tip {
+  right: calc(100% + 8px);
+  left: auto;
+  transform: translateY(-50%);
 }
 .market-patch-mine:hover .market-patch-tip,
 .market-patch-mine:focus-visible .market-patch-tip,
