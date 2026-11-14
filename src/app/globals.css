@@ -24370,10 +24370,20 @@ body:has(.faction-page) .site-footer {
 }
 
 /* —— Marketplace / BB Coins —— */
+/* Ширина как у профиля (1600): по краям остаётся фон страницы */
+.shell:has(.market-shell) {
+  width: 100%;
+  max-width: 1600px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: clamp(12px, 2vw, 28px);
+  padding-right: clamp(12px, 2vw, 28px);
+}
 .market-shell {
-  max-width: 1180px;
+  width: 100%;
+  max-width: none;
   margin: 0 auto;
-  padding: 28px 18px 80px;
+  padding: 28px 0 80px;
 }
 .market-kicker {
   letter-spacing: 0.08em;
