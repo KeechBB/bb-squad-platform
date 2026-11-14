@@ -58,6 +58,13 @@ if [[ -d "$ROOT/data/tournaments" ]]; then
     done
 fi
 
+# --- Tournament team logos (disk-only, not in git) ---
+if [[ -d "$ROOT/storage/tournament-teams" ]]; then
+  mkdir -p "$DEST/storage/tournament-teams"
+  rsync -a --delete "$ROOT/storage/tournament-teams/" "$DEST/storage/tournament-teams/"
+  echo "  tournament-teams logos: $(ls -1 "$DEST/storage/tournament-teams" 2>/dev/null | grep -cv '^\.' || echo 0)"
+fi
+
 # --- Small KV data that sync sometimes resets ---
 for f in training-index.json tiers.json cache-bust.json; do
   if [[ -f "$CACHE/data/$f" ]]; then

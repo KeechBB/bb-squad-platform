@@ -67,6 +67,25 @@ if [[ -d "$GOLD/tournaments" ]]; then
   done
 fi
 
+# Tournament team logos — restore any missing files from gold (never wipe live extras)
+if [[ -d "$GOLD/storage/tournament-teams" ]]; then
+  mkdir -p "$ROOT/storage/tournament-teams"
+  restored=0
+  for f in "$GOLD/storage/tournament-teams"/*; do
+    [[ -f "$f" ]] || continue
+    base="$(basename "$f")"
+    [[ "$base" == .* ]] && continue
+    live="$ROOT/storage/tournament-teams/$base"
+    if [[ ! -f "$live" ]] || [[ ! -s "$live" ]]; then
+      cp -a "$f" "$live"
+      restored=$((restored + 1))
+    fi
+  done
+  if [[ "$restored" -gt 0 ]]; then
+    echo "  restored tournament-teams logos: $restored"
+  fi
+fi
+
 # Training month calendars / index if wiped
 mkdir -p "$CACHE/data/training"
 if [[ -d "$GOLD/kv-data/training" ]]; then
