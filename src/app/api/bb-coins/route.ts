@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { isBuiltinSuperAdmin } from "@/lib/admin";
 import { BB_COIN_PACKAGES, getBbCoinBalance } from "@/lib/bbCoins";
 import { settleActiveTournamentBbCoins } from "@/lib/bbCoinsTournament";
+import { loadMarketPatchCatalog } from "@/lib/bbCoinPatchMarket";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export async function GET() {
   }
   const user = await prisma.user.findUnique({
     where: { steamId: session.user.steamId },
-    select: { id: true, profileComplete: true },
+    select: { id: true, profileComplete: true, steamId: true },
   });
   if (!user?.profileComplete) {
     return NextResponse.json({ ok: false, error: "profile" }, { status: 403 });
@@ -28,17 +29,21 @@ export async function GET() {
     granted: 0,
   }));
   const balance = await getBbCoinBalance(user.id);
-  const txs = await prisma.bbCoinTx.findMany({
-    where: { userId: user.id },
-    orderBy: { createdAt: "desc" },
-    take: 20,
-  });
+  const [txs, patches] = await Promise.all([
+    prisma.bbCoinTx.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    }),
+    loadMarketPatchCatalog({ userId: user.id, steamId: user.steamId }),
+  ]);
 
   return NextResponse.json({
     ok: true,
     balance,
     grantedNow: settled.granted || 0,
     packages: BB_COIN_PACKAGES,
+    patches,
     txs: txs.map((t) => ({
       id: t.id,
       delta: t.delta,
