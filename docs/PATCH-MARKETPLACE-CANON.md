@@ -60,7 +60,7 @@
 | `bp-l5-gold` | Турнирное золото II | 600 | 480 |
 | `hw2-night-harvest` | Ночной урожай | 900 | 720 |
 | `creator-fruit-strike-place3-v3` | Тактический урожай | 1200 | 960 |
-| `creator-royal-core` | BlackBerry Royal Core | 1800 | 1440 |
+| `creator-royal-core` | BlackBerry Royal Core | 2800 | 2240 |
 
 Дневные акции фонов — отдельный сид `bb-market-bg-deal-v1:YYYY-MM-DD` (`bbCoinBgDailyDeals.ts`), те же −20% / +20% / sell +20%.
 

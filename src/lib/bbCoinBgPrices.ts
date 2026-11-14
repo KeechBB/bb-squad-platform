@@ -28,7 +28,7 @@ export const BG_BUY_PRICES_BBC: Record<MarketBgId, number> = {
   "bp-l5-gold": 600,
   "hw2-night-harvest": 900,
   "creator-fruit-strike-place3-v3": 1200,
-  "creator-royal-core": 1800,
+  "creator-royal-core": 2800,
 };
 
 export function bgBuyPriceBbc(id: MarketBgId): number {
