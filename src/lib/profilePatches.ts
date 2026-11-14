@@ -25,6 +25,13 @@ export const PROFILE_PATCH_OPTIONS = [
     gate: "creator" as const,
   },
   {
+    id: "creator-event-pkm-harvest",
+    file: "event-day-pkm-harvest-thunder-v1.png",
+    label: "ПКМ «Громовой урожай» · Ивент дня",
+    tip: "ПКМ «Громовой урожай» · Предпросмотр награды «Ивент дня» (фруктовый сад)",
+    gate: "creator" as const,
+  },
+  {
     id: "hw2-knife-hook",
     file: "halloween-s2-knife-hook.png",
     label: "Крюк «Жнец сада» · Halloween S2",

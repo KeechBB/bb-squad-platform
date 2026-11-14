@@ -18,7 +18,7 @@ if (-not (Test-Path $key)) {
 }
 
 function Get-DeployPaths {
-  git status --porcelain -- src docs/CHANGELOG.md scripts/deploy.sh scripts/deploy_from_pc.ps1 package.json package-lock.json next.config.ts prisma 2>$null
+  git status --porcelain -- src docs/CHANGELOG.md scripts/deploy.sh scripts/deploy_from_pc.ps1 package.json package-lock.json next.config.ts prisma public/bp-assets public/profile-bgs 2>$null
 }
 
 Write-Host "==> platform root: $Root"
@@ -27,7 +27,7 @@ $dirty = @(Get-DeployPaths | Where-Object { $_ -and $_.Trim() })
 if (-not $SkipCommit -and $dirty.Count -gt 0) {
   Write-Host "==> commit deploy-relevant changes ($($dirty.Count) lines):"
   $dirty | ForEach-Object { Write-Host "  $_" }
-  git add -- src docs/CHANGELOG.md scripts/deploy.sh scripts/deploy_from_pc.ps1 package.json package-lock.json next.config.ts prisma
+  git add -- src docs/CHANGELOG.md scripts/deploy.sh scripts/deploy_from_pc.ps1 package.json package-lock.json next.config.ts prisma public/bp-assets public/profile-bgs
   if ([string]::IsNullOrWhiteSpace($Message)) {
     $Message = "Deploy $(Get-Date -Format 'yyyy-MM-dd HH:mm') · sync GitHub before VPS"
   }
