@@ -31,14 +31,21 @@ type Tx = {
   at: string;
 };
 
-type Tab = "shop" | "topup";
+/** Основные вкладки площадки + topup только с кнопки «Пополнить». */
+type Tab = "patches" | "bg" | "font" | "topup";
 
 type Props = {
   loggedIn: boolean;
 };
 
+const MAIN_TABS: { id: Exclude<Tab, "topup">; label: string }[] = [
+  { id: "patches", label: "Нашивки" },
+  { id: "bg", label: "Фон" },
+  { id: "font", label: "Шрифт" },
+];
+
 export function MarketplaceClient({ loggedIn }: Props) {
-  const [tab, setTab] = useState<Tab>("shop");
+  const [tab, setTab] = useState<Tab>("patches");
   const [balance, setBalance] = useState<number | null>(null);
   const [packages, setPackages] = useState<Pack[]>([]);
   const [patches, setPatches] = useState<PatchCard[]>([]);
@@ -135,11 +142,10 @@ export function MarketplaceClient({ loggedIn }: Props) {
     <div className="market-page">
       <header className="market-head">
         <p className="market-kicker">Торговая площадка</p>
-        <h1>Нашивки оружия</h1>
+        <h1>Магазин кастома</h1>
         <p className="market-lead">
-          Центробанк BlackBerry. Купить / продать за BB Coins. Продать ={" "}
-          <strong>80%</strong> от цены покупки. Курс пополнения:{" "}
-          <strong>2 BBC = 1 ₽</strong>.
+          Нашивки, фоны и шрифты за BB Coins. Продать = <strong>80%</strong> от
+          покупки. Курс пополнения: <strong>2 BBC = 1 ₽</strong>.
         </p>
       </header>
 
@@ -156,7 +162,7 @@ export function MarketplaceClient({ loggedIn }: Props) {
             </section>
             <button
               type="button"
-              className="market-topup-btn"
+              className={`market-topup-btn${tab === "topup" ? " is-active" : ""}`}
               onClick={() => setTab("topup")}
             >
               Пополнить баланс
@@ -164,26 +170,23 @@ export function MarketplaceClient({ loggedIn }: Props) {
           </div>
 
           <nav className="market-tabs" aria-label="Разделы площадки">
-            <button
-              type="button"
-              className={tab === "shop" ? "is-active" : undefined}
-              onClick={() => setTab("shop")}
-            >
-              Магазин нашивок
-            </button>
-            <button
-              type="button"
-              className={tab === "topup" ? "is-active" : undefined}
-              onClick={() => setTab("topup")}
-            >
-              Пополнить BBC
-            </button>
+            {MAIN_TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className={tab === t.id ? "is-active" : undefined}
+                aria-selected={tab === t.id}
+                onClick={() => setTab(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
           </nav>
 
           {msg ? <p className="market-ok">{msg}</p> : null}
           {err ? <p className="market-err">{err}</p> : null}
 
-          {tab === "shop" ? (
+          {tab === "patches" ? (
             <section className="market-shop" aria-label="Каталог нашивок">
               <p className="muted market-packs-note">
                 Жёлтое число — сколько экземпляров уже у игроков. Новые нашивки
@@ -195,7 +198,10 @@ export function MarketplaceClient({ loggedIn }: Props) {
                     key={p.id}
                     className={`market-patch-card${p.owned ? " is-owned" : ""}`}
                   >
-                    <span className="market-patch-supply" title="Экземпляров у игроков">
+                    <span
+                      className="market-patch-supply"
+                      title="Экземпляров у игроков"
+                    >
                       {p.supply}
                     </span>
                     <div className="market-patch-art">
@@ -237,7 +243,29 @@ export function MarketplaceClient({ loggedIn }: Props) {
                 ))}
               </ul>
             </section>
-          ) : (
+          ) : null}
+
+          {tab === "bg" ? (
+            <section className="market-soon" aria-label="Фоны профиля">
+              <h2>Фон</h2>
+              <p className="muted">
+                Каталог фонов профиля появится здесь — те же карточки купить /
+                продать, что у нашивок.
+              </p>
+            </section>
+          ) : null}
+
+          {tab === "font" ? (
+            <section className="market-soon" aria-label="Шрифты ника">
+              <h2>Шрифт</h2>
+              <p className="muted">
+                Каталог шрифтов ника появится здесь — те же карточки купить /
+                продать.
+              </p>
+            </section>
+          ) : null}
+
+          {tab === "topup" ? (
             <>
               <section className="market-packs" aria-label="Пакеты BB Coins">
                 <h2>Пополнить за рубли</h2>
@@ -298,7 +326,7 @@ export function MarketplaceClient({ loggedIn }: Props) {
                 )}
               </section>
             </>
-          )}
+          ) : null}
         </>
       )}
     </div>

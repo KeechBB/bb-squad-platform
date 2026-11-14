@@ -24438,25 +24438,50 @@ body:has(.faction-page) .site-footer {
 .market-topup-btn:hover {
   filter: brightness(1.06);
 }
+.market-topup-btn.is-active {
+  box-shadow: 0 0 0 2px #fff3, 0 8px 24px rgba(196, 146, 42, 0.35);
+  filter: brightness(1.08);
+}
 .market-tabs {
   display: flex;
-  gap: 8px;
-  margin: 0 0 16px;
+  gap: 10px;
+  margin: 0 0 18px;
   flex-wrap: wrap;
+  padding: 6px;
+  border-radius: 14px;
+  background: #0e0b14;
+  border: 1px solid #2a2438;
 }
 .market-tabs button {
-  border: 1px solid #2a2438;
-  background: #100c18;
-  color: #cfc7dd;
-  border-radius: 999px;
-  padding: 8px 16px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #9a93a8;
+  border-radius: 10px;
+  padding: 10px 20px;
   cursor: pointer;
-  font-size: 0.92rem;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.market-tabs button:hover {
+  color: #e8e2f2;
+  background: rgba(255, 255, 255, 0.04);
 }
 .market-tabs button.is-active {
   border-color: #c4922a;
-  color: #f0d48a;
-  background: #1a1408;
+  color: #1a1408;
+  background: linear-gradient(135deg, #e8c35a 0%, #c4922a 100%);
+  box-shadow: 0 4px 14px rgba(196, 146, 42, 0.35);
+}
+.market-soon {
+  padding: 28px 20px;
+  border: 1px dashed #3a3348;
+  border-radius: 14px;
+  background: #120e1a;
+}
+.market-soon h2 {
+  margin: 0 0 8px;
+  font-size: 1.2rem;
 }
 .market-ok { color: #7ddea0; }
 .market-err { color: #ff8f8f; }
