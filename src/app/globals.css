@@ -1471,6 +1471,8 @@ body:has(.tm-sapper-page) {
   background-position: center;
   background-size: contain;
   background-repeat: no-repeat;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: high-quality;
   filter:
     drop-shadow(0 0 3px rgba(255, 215, 88, 0.88))
     drop-shadow(0 0 8px rgba(255, 139, 20, 0.48));

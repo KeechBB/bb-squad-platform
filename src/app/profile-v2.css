@@ -1369,6 +1369,11 @@ body.has-profile-bg .shell:has(.profile-page) {
   bottom: 26%;
   width: auto;
   height: auto;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: high-quality;
   transform: scaleX(-1);
   background-position: center top;
   background-size: contain;
