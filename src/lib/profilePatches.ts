@@ -111,7 +111,10 @@ export function profilePatchUrl(
       ? "?v=blood1"
       : id === "creator-event-pkm-harvest"
         ? "?v=clean1"
-        : "";
+        : id === "creator-event-scar-lemon" ||
+            id === "creator-event-saiga-apple"
+          ? "?v=cut1"
+          : "";
   return `/bp-assets/${opt.file}${bust}`;
 }
 
