@@ -46,7 +46,7 @@
 | `creator-orange-phantom` | 4500 | 3600 |
 | `creator-fruit-strike-ak-v2` | 1800 | 1440 |
 | `hw2-knife-hook` | 300 | 240 |
-| `hw2-ak-pumpkin` | 600 | 480 |
+| `hw2-ak-pumpkin` | 1200 | 960 |
 | `creator-event-scar-lemon` | 500 | 400 |
 | `creator-event-saiga-apple` | 500 | 400 |
 | `public-100-vehicles-t62` | 500 | 400 |
@@ -72,8 +72,8 @@
 
 | id | Шрифт | Купить BBC | Продать BBC (80%) |
 |----|-------|------------|-------------------|
-| `bp-l10-aurum-clean` | Aurum Clean (золото) | 2000 | 1600 |
-| `hw2-violet-gothic` | Алая жатва (красный) | 1500 | 1200 |
+| `bp-l10-aurum-clean` | Aurum Clean (золото) | 3000 | 2400 |
+| `hw2-violet-gothic` | Алая жатва (красный) | 2500 | 2000 |
 
 Пока в каталоге **2** шрифта: ежедневно активны только **2 из 3** видов акций (`bbCoinFontDailyDeals.ts`, сид `bb-market-font-deal-v1:YYYY-MM-DD`); третий вид отпадает. Каждый шрифт получает ровно одну акцию (или без — если логика расширится).
 

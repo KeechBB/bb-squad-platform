@@ -42,7 +42,7 @@ export const PATCH_BUY_PRICES_BBC: Record<ProfilePatchId, number> = {
   "creator-orange-phantom": 4500,
   "creator-fruit-strike-ak-v2": 1800,
   "hw2-knife-hook": 300,
-  "hw2-ak-pumpkin": 600,
+  "hw2-ak-pumpkin": 1200,
   "creator-event-scar-lemon": 500,
   "creator-event-saiga-apple": 500,
   "public-100-vehicles-t62": 500,

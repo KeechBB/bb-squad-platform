@@ -23,8 +23,8 @@ export const FONT_MARKET_SOURCE: Record<MarketFontId, string> = {
 
 /** Цены купить. */
 export const FONT_BUY_PRICES_BBC: Record<MarketFontId, number> = {
-  "bp-l10-aurum-clean": 2000,
-  "hw2-violet-gothic": 1500,
+  "bp-l10-aurum-clean": 3000,
+  "hw2-violet-gothic": 2500,
 };
 
 export function fontBuyPriceBbc(id: MarketFontId): number {
