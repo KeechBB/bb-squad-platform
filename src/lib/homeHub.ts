@@ -63,8 +63,7 @@ export const HOME_HUB_TILES: HomeHubTile[] = [
     title: "Торговая Площадка",
     label: "ТОРГОВАЯ\nПЛОЩАДКА",
     image: "/home-hub/marketplace.png",
-    href: "/wip/marketplace",
-    stub: true,
+    href: "/marketplace",
   },
   {
     id: "my-clan",

@@ -73,6 +73,8 @@ model User {
   profileComplete Boolean  @default(false)
   /// Постоянный номер регистрации (1 = первый). Не пересчитывается при удалении других.
   regNo           Int?     @unique
+  /// Баланс BB Coins (бывш. BB Points с прогнозов + покупки за ₽)
+  bbCoins         Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   /// Последняя активность на сайте (heartbeat из браузера)
@@ -124,6 +126,54 @@ model User {
   factionMembership          FactionMember?
   factionInvitesReceived     FactionInvite[] @relation("FactionInvitee")
   factionInvitesSent         FactionInvite[] @relation("FactionInviter")
+  bbCoinTxs                  BbCoinTx[]
+  bbCoinOrders               BbCoinOrder[]
+}
+
+/// Журнал BB Coins. Плюс/минус + снимок баланса. ref+kind — идемпотентность.
+model BbCoinTx {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// +зачисление / −списание
+  delta        Int
+  balanceAfter Int
+  /// tournament_grant | purchase | admin | market | spend
+  kind         String
+  /// Ключ идемпотентности внутри kind (напр. tournamentId)
+  ref          String?
+  note         String?
+  createdAt    DateTime @default(now())
+
+  @@unique([userId, kind, ref])
+  @@index([userId, createdAt])
+  @@index([kind, createdAt])
+}
+
+enum BbCoinOrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+/// Покупка BB Coins за рубли (эквайринг подключим отдельно).
+model BbCoinOrder {
+  id                String            @id @default(cuid())
+  userId            String
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  packageId         String
+  rubles            Int
+  coins             Int
+  status            BbCoinOrderStatus @default(PENDING)
+  provider          String?
+  providerPaymentId String?
+  createdAt         DateTime          @default(now())
+  paidAt            DateTime?
+  cancelledAt       DateTime?
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([providerPaymentId])
 }
 
 /// Тип матча в едином каноне plaza (фаза 1+).

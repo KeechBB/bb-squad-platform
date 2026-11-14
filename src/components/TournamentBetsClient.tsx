@@ -294,11 +294,10 @@ export function TournamentBetsClient() {
         <aside className="tn-bets-side">
           <section className="tn-panel tn-bet-points">
             <FruitMark kind="berry" />
-            <h2 className="tn-panel-title">100 BB Points</h2>
+            <h2 className="tn-panel-title">100 BB Coins</h2>
             <p>
-              Каждый верный прогноз даёт 100 BB Points. На данный момент их
-              тратить некуда, в будущем будет торговая площадка, где можно будет
-              взять скины, фон, шрифт и прочие приколы.
+              Каждый верный прогноз даёт 100 BB Coins. Баланс — на торговой
+              площадке (/marketplace): покупка за рубли и траты на кастомизацию.
             </p>
             <p className="tn-bet-note">{data?.tournamentName || "Fruit Strike"}</p>
             <p className="tn-bet-note">
@@ -313,7 +312,7 @@ export function TournamentBetsClient() {
             </p>
             {mineRow ? (
               <p className="tn-bet-mine">
-                Твой прогноз: {mineRow.correct} верных · {mineRow.points} BB Points
+                Твой прогноз: {mineRow.correct} верных · {mineRow.points} BB Coins
               </p>
             ) : null}
             {data?.authed && !locked ? (
@@ -367,7 +366,7 @@ export function TournamentBetsClient() {
                       <th>Ник</th>
                       <th title="Сколько прогнозов сдано, максимум 11">Прогнозы</th>
                       <th title="Количество верных прогнозов">Верных</th>
-                      <th title="Количество BB Points">BB Points</th>
+                      <th title="Количество BB Coins">BB Coins</th>
                     </tr>
                   </thead>
                   <tbody>

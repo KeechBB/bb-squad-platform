@@ -24368,3 +24368,101 @@ body:has(.faction-page) .site-footer {
     grid-template-areas: none;
   }
 }
+
+/* —— Marketplace / BB Coins —— */
+.market-shell {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 28px 18px 64px;
+}
+.market-kicker {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  color: var(--muted, #9a93a8);
+  margin: 0 0 6px;
+}
+.market-head h1 {
+  margin: 0 0 10px;
+  font-size: clamp(1.8rem, 4vw, 2.4rem);
+}
+.market-lead {
+  margin: 0 0 22px;
+  line-height: 1.5;
+  color: var(--muted, #b7b0c4);
+  max-width: 62ch;
+}
+.market-balance {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  border: 1px solid var(--line, #2a2438);
+  border-radius: 14px;
+  background: #120e1a;
+  margin-bottom: 18px;
+}
+.market-balance strong {
+  font-size: 1.6rem;
+}
+.market-ok { color: #7ddea0; }
+.market-err { color: #ff8f8f; }
+.market-packs h2,
+.market-txs h2 {
+  margin: 22px 0 8px;
+  font-size: 1.15rem;
+}
+.market-packs-note { margin: 0 0 12px; line-height: 1.45; }
+.market-pack-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.market-pack {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid var(--line, #2a2438);
+  border-radius: 12px;
+  background: #100c18;
+}
+.market-badge {
+  margin-left: 8px;
+  font-size: 0.7rem;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #3a2a12;
+  color: #f0c56a;
+}
+.market-pack-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.market-tx-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.market-tx-list li {
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid #1c1726;
+  font-size: 0.92rem;
+}
+.market-plus { color: #7ddea0; font-variant-numeric: tabular-nums; }
+.market-minus { color: #ff9b9b; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .market-pack { flex-direction: column; align-items: stretch; }
+  .market-tx-list li { grid-template-columns: 64px 1fr; }
+  .market-tx-list li span:last-child { grid-column: 2; }
+}
