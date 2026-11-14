@@ -9,7 +9,7 @@
 | Источник | Как |
 |----------|-----|
 | Верный прогноз турнира | `correct × 100`, зачисление 1 раз на турнир (`BbCoinTx.kind=tournament_grant`) |
-| Покупка за ₽ | пакеты в `BB_COIN_PACKAGES`, заказ `BbCoinOrder` → после оплаты `purchase` |
+| Покупка за ₽ | курс **2 BB Coins = 1 ₽**; пакеты в `BB_COIN_PACKAGES`, заказ `BbCoinOrder` → после оплаты `purchase` |
 | Вывод в рубли | **нет** (закрытый контур) |
 
 Баланс: `User.bbCoins`. Журнал: `BbCoinTx`.

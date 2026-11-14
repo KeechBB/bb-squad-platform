@@ -9,12 +9,15 @@ import { BET_POINTS } from "@/lib/tournamentBetSlip";
 export const BB_COIN_NAME = "BB Coins";
 export const BB_COIN_NAME_SHORT = "BBC";
 
+/** Курс покупки: 2 BB Coins = 1 ₽. */
+export const BB_COINS_PER_RUBLE = 2;
+
 /** Пакеты покупки за рубли (эквайринг — следующим шагом). */
 export const BB_COIN_PACKAGES = [
-  { id: "bbc-100", rubles: 99, coins: 100, label: "100 BB Coins" },
-  { id: "bbc-500", rubles: 449, coins: 500, label: "500 BB Coins" },
-  { id: "bbc-1200", rubles: 999, coins: 1200, label: "1 200 BB Coins", badge: "выгодно" },
-  { id: "bbc-3000", rubles: 2299, coins: 3000, label: "3 000 BB Coins" },
+  { id: "bbc-200", rubles: 100, coins: 200, label: "200 BB Coins" },
+  { id: "bbc-500", rubles: 250, coins: 500, label: "500 BB Coins" },
+  { id: "bbc-1000", rubles: 500, coins: 1000, label: "1 000 BB Coins", badge: "выгодно" },
+  { id: "bbc-2000", rubles: 1000, coins: 2000, label: "2 000 BB Coins" },
 ] as const;
 
 export type BbCoinPackageId = (typeof BB_COIN_PACKAGES)[number]["id"];

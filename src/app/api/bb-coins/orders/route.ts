@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { bbCoinPackage, creditBbCoins } from "@/lib/bbCoins";
+import { bbCoinPackage } from "@/lib/bbCoins";
 import { isBuiltinSuperAdmin } from "@/lib/admin";
 
 export const dynamic = "force-dynamic";
@@ -26,8 +26,6 @@ export async function POST(req: Request) {
 
   const body = (await req.json().catch(() => ({}))) as {
     packageId?: string;
-    /** Только супер-админ: сразу зачислить (тест без эквайринга) */
-    testPay?: boolean;
   };
   const pack = bbCoinPackage(String(body.packageId || ""));
   if (!pack) {
@@ -45,41 +43,12 @@ export async function POST(req: Request) {
     },
   });
 
-  const testPay =
-    Boolean(body.testPay) && isBuiltinSuperAdmin(user.steamId);
-  if (testPay) {
-    const paid = await markOrderPaid(order.id, user.id, pack.coins);
-    return NextResponse.json({
-      ok: true,
-      orderId: order.id,
-      status: "PAID",
-      balance: paid.balance,
-      testPay: true,
-      message: "Тестовая оплата (только капитан). Эквайринг подключим отдельно.",
-    });
-  }
-
   return NextResponse.json({
     ok: true,
     orderId: order.id,
     status: "PENDING",
     package: pack,
     message:
-      "Заказ создан. Оплата картой/СБП появится после подключения кассы (ЮKassa и т.п.). Пока зачисление — через капитана.",
+      "Заказ создан. Оплата картой/СБП появится после подключения кассы (ЮKassa и т.п.).",
   });
-}
-
-async function markOrderPaid(orderId: string, userId: string, coins: number) {
-  await prisma.bbCoinOrder.update({
-    where: { id: orderId },
-    data: { status: "PAID", paidAt: new Date(), provider: "manual-test" },
-  });
-  const res = await creditBbCoins({
-    userId,
-    amount: coins,
-    kind: "purchase",
-    ref: orderId,
-    note: `Покупка пакета (${coins} BB Coins)`,
-  });
-  return { balance: res.ok ? res.balance : await prisma.user.findUnique({ where: { id: userId } }).then((u) => u?.bbCoins || 0) };
 }

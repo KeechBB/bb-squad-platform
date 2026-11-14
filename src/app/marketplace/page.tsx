@@ -16,7 +16,6 @@ export default async function MarketplacePage() {
     <main className="market-shell">
       <MarketplaceClient
         loggedIn={Boolean(steamId && session?.user?.profileComplete)}
-        isCaptain
       />
     </main>
   );

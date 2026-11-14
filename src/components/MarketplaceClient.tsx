@@ -22,10 +22,9 @@ type Tx = {
 
 type Props = {
   loggedIn: boolean;
-  isCaptain: boolean;
 };
 
-export function MarketplaceClient({ loggedIn, isCaptain }: Props) {
+export function MarketplaceClient({ loggedIn }: Props) {
   const [balance, setBalance] = useState<number | null>(null);
   const [packages, setPackages] = useState<Pack[]>([]);
   const [txs, setTxs] = useState<Tx[]>([]);
@@ -62,15 +61,15 @@ export function MarketplaceClient({ loggedIn, isCaptain }: Props) {
     void load();
   }, [load]);
 
-  async function buy(packageId: string, testPay: boolean) {
-    setBusy(packageId + (testPay ? ":test" : ""));
+  async function buy(packageId: string) {
+    setBusy(packageId);
     setErr(null);
     setMsg(null);
     try {
       const res = await fetch("/api/bb-coins/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ packageId, testPay }),
+        body: JSON.stringify({ packageId }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
@@ -78,7 +77,6 @@ export function MarketplaceClient({ loggedIn, isCaptain }: Props) {
         return;
       }
       setMsg(data.message || "Заказ создан");
-      if (typeof data.balance === "number") setBalance(data.balance);
       await load();
     } catch {
       setErr("Сеть недоступна");
@@ -93,9 +91,9 @@ export function MarketplaceClient({ loggedIn, isCaptain }: Props) {
         <p className="market-kicker">Торговая площадка</p>
         <h1>BB Coins</h1>
         <p className="market-lead">
-          Внутренняя валюта платформы. Раньше это были BB Points за прогнозы
-          турнира — теперь единый баланс. Нашивки и P2P подключим следом.
-          Вывода в рубли нет.
+          Внутренняя валюта платформы. Курс покупки:{" "}
+          <strong>2 BB Coins = 1 ₽</strong>. Раньше это были BB Points за
+          прогнозы турнира — теперь единый баланс. Вывода в рубли нет.
         </p>
       </header>
 
@@ -117,8 +115,7 @@ export function MarketplaceClient({ loggedIn, isCaptain }: Props) {
             <h2>Купить за рубли</h2>
             <p className="muted market-packs-note">
               Эквайринг (ЮKassa / чеки) подключим отдельно. Сейчас заказ
-              создаётся в статусе «ожидает оплаты»
-              {isCaptain ? "; у капитана есть тестовое зачисление." : "."}
+              создаётся в статусе «ожидает оплаты».
             </p>
             <ul className="market-pack-list">
               {packages.map((p) => (
@@ -133,21 +130,10 @@ export function MarketplaceClient({ loggedIn, isCaptain }: Props) {
                       type="button"
                       className="btn"
                       disabled={Boolean(busy)}
-                      onClick={() => void buy(p.id, false)}
+                      onClick={() => void buy(p.id)}
                     >
                       {busy === p.id ? "…" : "Заказать"}
                     </button>
-                    {isCaptain ? (
-                      <button
-                        type="button"
-                        className="btn ghost"
-                        disabled={Boolean(busy)}
-                        onClick={() => void buy(p.id, true)}
-                        title="Только для теста, без эквайринга"
-                      >
-                        {busy === `${p.id}:test` ? "…" : "Тест-оплата"}
-                      </button>
-                    ) : null}
                   </div>
                 </li>
               ))}
