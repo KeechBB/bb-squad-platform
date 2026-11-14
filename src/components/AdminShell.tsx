@@ -12,6 +12,7 @@ import { AdminFactionLogPanel } from "@/components/AdminFactionLogPanel";
 import { AdminKeechHuntPanel } from "@/components/AdminKeechHuntPanel";
 import { AdminLoadPanel } from "@/components/AdminLoadPanel";
 import { AdminMailPanel } from "@/components/AdminMailPanel";
+import { AdminMarketLogPanel } from "@/components/AdminMarketLogPanel";
 import type { AppRole } from "@/lib/roles";
 
 type Props = {
@@ -37,7 +38,8 @@ type Tab =
   | "factions"
   | "hunt"
   | "load"
-  | "mail";
+  | "mail"
+  | "market";
 
 const TAB_LEAD: Record<Tab, string> = {
   users: "Пользователи платформы. Кликни по нику — правка анкеты и аватара.",
@@ -59,6 +61,8 @@ const TAB_LEAD: Record<Tab, string> = {
     "Личный live-лог PB1+TR1: ноки / киллы / смерти / ресы и пробный ±RP. Только для тебя.",
   load: "Нагрузка plaza: CPU, RAM, NVMe. Фильтры Минуты / Часы / Дни.",
   mail: "Письмо в почту профиля: от разработчика, администрации, отдела кадров или со своей подписью.",
+  market:
+    "Лог торговой площадки: покупки и продажи нашивок, фонов и шрифтов — время, ник, цена BBC.",
 };
 
 function readTab(
@@ -75,7 +79,8 @@ function readTab(
     t === "users" ||
     t === "updates" ||
     t === "factions" ||
-    t === "load"
+    t === "load" ||
+    t === "market"
   )
     return t;
   if (t === "tiers") return "factions";
@@ -202,6 +207,13 @@ export function AdminShell({
           </button>
           <button
             type="button"
+            className={`admin-tab ${tab === "market" ? "active" : ""}`}
+            onClick={() => setTab("market")}
+          >
+            Лог магазина
+          </button>
+          <button
+            type="button"
             className={`admin-tab ${tab === "updates" ? "active" : ""}`}
             onClick={() => setTab("updates")}
           >
@@ -273,6 +285,7 @@ export function AdminShell({
         />
       ) : null}
       {tab === "factions" ? <AdminFactionLogPanel /> : null}
+      {tab === "market" ? <AdminMarketLogPanel /> : null}
       {tab === "updates" ? <AdminUpdatesPanel /> : null}
       {tab === "mail" && showSiteVisits ? <AdminMailPanel /> : null}
       {tab === "visits" && showSiteVisits ? <AdminVisitsPanel /> : null}
