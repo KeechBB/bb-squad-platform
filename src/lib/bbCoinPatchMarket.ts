@@ -1,17 +1,20 @@
 /**
  * Каталог и сделки центробанка нашивок за BB Coins.
+ * Продажа снимает id из unlockedNickPatches — нашивка пропадает из инвентаря
+ * (в т.ч. у Keech: без creator-bypass для market-id).
  */
 import { prisma } from "@/lib/prisma";
 import { isProfilePatchId, type ProfilePatchId } from "@/lib/profilePatches";
 import { creditBbCoins, debitBbCoins, getBbCoinBalance } from "@/lib/bbCoins";
 import {
-  MARKET_PATCH_ORDER,
   marketPatchMeta,
   patchBuyPriceBbc,
   patchSellPriceBbc,
   type MarketPatchCard,
 } from "@/lib/bbCoinPatchPrices";
+import { MARKET_PATCH_ORDER } from "@/lib/marketPatchIds";
 import { SITE_CREATOR_STEAM_ID } from "@/lib/profileBg";
+import { isBuiltinSuperAdmin } from "@/lib/admin";
 import { writeNickPatchesCache } from "@/lib/nickPatchesCache";
 
 async function supplyByPatchId(): Promise<Map<string, number>> {
@@ -32,39 +35,78 @@ async function supplyByPatchId(): Promise<Map<string, number>> {
   return new Map(rows.map((r) => [r.patch_id, Number(r.n) || 0]));
 }
 
-/** Keech по умолчанию владеет 1 шт каждой, если id ещё нет в его unlocks. */
-function keechDefaultExtra(
-  patchId: ProfilePatchId,
-  keechUnlocks: ReadonlySet<string>
-): number {
-  return keechUnlocks.has(patchId) ? 0 : 1;
+/**
+ * L15 раньше давали через alias pb1-* — переносим в явный bp-l15-keech,
+ * иначе после продажи через alias нашивка «возвращалась».
+ */
+async function ensureL15AliasMaterialized(userId: string, unlocks: string[]) {
+  const set = new Set(unlocks);
+  if (set.has("bp-l15-keech")) return unlocks;
+  if (!set.has("pb1-gold-nick") && !set.has("pb1-profile-customize")) {
+    return unlocks;
+  }
+  const next = [...unlocks, "bp-l15-keech"];
+  await prisma.user.update({
+    where: { id: userId },
+    data: { unlockedNickPatches: next },
+  });
+  return next;
+}
+
+/** Маркер: стартовый инвентарь Keech уже выдан (продажа не должна засеивать снова). */
+const KEECH_MARKET_SEED_FLAG = "__market_keech_seed_v1";
+
+/**
+ * Keech: один раз засеять каталог в инвентарь.
+ * После продажи id снимается и больше не возвращается (ни gate, ни повторный seed).
+ */
+export async function ensureKeechMarketStarterInventory(steamId: string) {
+  if (!isBuiltinSuperAdmin(steamId) && steamId !== SITE_CREATOR_STEAM_ID) {
+    return;
+  }
+  const u = await prisma.user.findUnique({
+    where: { steamId },
+    select: { id: true, unlockedNickPatches: true },
+  });
+  if (!u) return;
+  const list = u.unlockedNickPatches || [];
+  if (list.includes(KEECH_MARKET_SEED_FLAG)) return;
+
+  const set = new Set(list);
+  for (const id of MARKET_PATCH_ORDER) set.add(id);
+  set.add(KEECH_MARKET_SEED_FLAG);
+  await prisma.user.update({
+    where: { id: u.id },
+    data: { unlockedNickPatches: [...set] },
+  });
 }
 
 export async function loadMarketPatchCatalog(opts: {
   userId: string;
   steamId: string;
 }): Promise<MarketPatchCard[]> {
-  const me = await prisma.user.findUnique({
-    where: { id: opts.userId },
-    select: { unlockedNickPatches: true },
-  });
-  const myUnlocks = new Set(me?.unlockedNickPatches || []);
+  await ensureKeechMarketStarterInventory(opts.steamId);
 
-  const keech = await prisma.user.findUnique({
-    where: { steamId: SITE_CREATOR_STEAM_ID },
-    select: { unlockedNickPatches: true },
+  let me = await prisma.user.findUnique({
+    where: { id: opts.userId },
+    select: { id: true, unlockedNickPatches: true },
   });
-  const keechUnlocks = new Set(keech?.unlockedNickPatches || []);
+  if (me) {
+    const next = await ensureL15AliasMaterialized(
+      me.id,
+      me.unlockedNickPatches || []
+    );
+    me = { ...me, unlockedNickPatches: next };
+  }
+  const myUnlocks = new Set(me?.unlockedNickPatches || []);
 
   const supply = await supplyByPatchId();
 
   return MARKET_PATCH_ORDER.map((id) => {
     const meta = marketPatchMeta(id);
-    const base = supply.get(id) || 0;
-    const extra = keechDefaultExtra(id, keechUnlocks);
     return {
       ...meta,
-      supply: base + extra,
+      supply: supply.get(id) || 0,
       owned: myUnlocks.has(id),
     };
   });
@@ -157,7 +199,9 @@ export async function sellMarketPatch(opts: {
   });
   if (!user) return { ok: false, error: "user" };
 
-  const unlocks = user.unlockedNickPatches || [];
+  let unlocks = user.unlockedNickPatches || [];
+  unlocks = await ensureL15AliasMaterialized(user.id, unlocks);
+
   if (!unlocks.includes(patchId)) {
     return { ok: false, error: "not_owned" };
   }
@@ -165,6 +209,7 @@ export async function sellMarketPatch(opts: {
   const nextUnlocks = unlocks.filter((x) => x !== patchId);
   const clearEquip = user.nickPatch === patchId;
 
+  // Сначала списываем из инвентаря — нашивка сразу пропадает (даже у Keech).
   await prisma.user.update({
     where: { id: user.id },
     data: {
@@ -181,7 +226,6 @@ export async function sellMarketPatch(opts: {
     note: `Продажа нашивки ${patchId} (+${price} BBC)`,
   });
   if (!credited.ok) {
-    // откат unlocks
     await prisma.user.update({
       where: { id: user.id },
       data: {

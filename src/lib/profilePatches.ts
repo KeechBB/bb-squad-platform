@@ -9,6 +9,7 @@
  */
 
 import { SITE_CREATOR_STEAM_ID } from "@/lib/profileBg";
+import { MARKET_PATCH_IDS } from "@/lib/marketPatchIds";
 
 export const PROFILE_PATCH_OPTIONS = [
   {
@@ -138,6 +139,10 @@ export function profilePatchChoicesFor(opts: {
 }): ProfilePatchChoice[] {
   const unlocks = new Set(opts.unlocks);
   return PROFILE_PATCH_OPTIONS.filter((opt) => {
+    // Каталог маркетплейса: после продажи пропадает у всех, включая Keech.
+    if (MARKET_PATCH_IDS.has(opt.id)) {
+      return unlocks.has(opt.id);
+    }
     const gate = gateOf(opt);
     if (gate === "creator") {
       if (opt.id === "creator-fruit-strike-ak-v2" && unlocks.has(opt.id)) {

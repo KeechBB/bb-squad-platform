@@ -5,21 +5,12 @@
  */
 import type { ProfilePatchId } from "@/lib/profilePatches";
 import { PROFILE_PATCH_OPTIONS, profilePatchUrl } from "@/lib/profilePatches";
+import { MARKET_PATCH_ORDER } from "@/lib/marketPatchIds";
+
+export { MARKET_PATCH_ORDER } from "@/lib/marketPatchIds";
 
 /** Доля скупки от цены покупки. */
 export const PATCH_SELL_OF_BUY = 0.8;
-
-/** Порядок карточек на торговой площадке (новые — в конец). */
-export const MARKET_PATCH_ORDER: readonly ProfilePatchId[] = [
-  "bp-l15-keech",
-  "creator-orange-phantom",
-  "creator-fruit-strike-ak-v2",
-  "hw2-knife-hook",
-  "hw2-ak-pumpkin",
-  "creator-event-scar-lemon",
-  "creator-event-saiga-apple",
-  "public-100-vehicles-t62",
-] as const;
 
 /** Короткое имя на карточке (без источника). */
 export const PATCH_MARKET_TITLE: Record<ProfilePatchId, string> = {
