@@ -92,7 +92,8 @@ export function HomeEventDay({ progress, loggedIn }: Props) {
             <div className="home-event-day-copy">
               <h3>АК-74 «Лимонный шквал»</h3>
               <p>
-                <strong>{EVENT_DAY_RES_GOAL} ресов</strong> · 15:45–23:59
+                <strong>{EVENT_DAY_RES_GOAL} ресов</strong> (из нока) ·
+                15:45–23:59
               </p>
               <div className="home-event-day-bar" aria-label="Прогресс ресов">
                 <span

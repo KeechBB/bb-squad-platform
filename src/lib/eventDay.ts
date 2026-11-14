@@ -158,7 +158,7 @@ export function eventDayRewardMeta(id: ProfilePatchId): {
   if (id === EVENT_DAY_SCAR_PATCH_ID) {
     return {
       title: "АК-74 «Лимонный шквал»",
-      body: `Нашивка за ${EVENT_DAY_RES_GOAL} ресов в окне ивента дня (15:45–23:59 МСК) на паблике.`,
+      body: `Нашивка за ${EVENT_DAY_RES_GOAL} ресов (подъёмы союзников из нока) в окне ивента дня (15:45–23:59 МСК) на паблике.`,
       imageUrl: profilePatchUrl(id),
     };
   }
