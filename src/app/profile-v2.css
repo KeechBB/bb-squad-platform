@@ -1372,8 +1372,6 @@ body.has-profile-bg .shell:has(.profile-page) {
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
-  image-rendering: -webkit-optimize-contrast;
-  image-rendering: high-quality;
   transform: scaleX(-1);
   background-position: center top;
   background-size: contain;
@@ -1430,9 +1428,11 @@ body.has-profile-bg .shell:has(.profile-page) {
   width: 96%;
   /* канон: ствол влево */
   transform: scaleX(-1);
+  /* мягкий ореол поверх glow в PNG */
   filter:
-    drop-shadow(0 0 1px rgba(170, 120, 255, 0.35))
-    drop-shadow(0 0 3px rgba(255, 150, 55, 0.16));
+    drop-shadow(0 0 4px rgba(120, 200, 255, 0.45))
+    drop-shadow(0 0 8px rgba(180, 100, 255, 0.35))
+    drop-shadow(0 0 12px rgba(255, 140, 50, 0.22));
   animation: none;
   transition: filter 0.15s ease, transform 0.15s ease;
 }
@@ -1445,9 +1445,10 @@ body.has-profile-bg .shell:has(.profile-page) {
   animation: none;
   transform: scaleX(-1) scale(1.06);
   filter:
-    drop-shadow(0 0 2px rgba(190, 150, 255, 0.5))
-    drop-shadow(0 0 5px rgba(255, 160, 60, 0.26))
-    brightness(1.04);
+    drop-shadow(0 0 5px rgba(140, 210, 255, 0.55))
+    drop-shadow(0 0 10px rgba(190, 120, 255, 0.42))
+    drop-shadow(0 0 16px rgba(255, 150, 55, 0.3))
+    brightness(1.03);
 }
 
 .profile-patch-tile[data-patch-id="creator-orange-phantom"]

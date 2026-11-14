@@ -1471,8 +1471,6 @@ body:has(.tm-sapper-page) {
   background-position: center;
   background-size: contain;
   background-repeat: no-repeat;
-  image-rendering: -webkit-optimize-contrast;
-  image-rendering: high-quality;
   filter:
     drop-shadow(0 0 3px rgba(255, 215, 88, 0.88))
     drop-shadow(0 0 8px rgba(255, 139, 20, 0.48));
@@ -1605,10 +1603,11 @@ body:has(.tm-sapper-page) {
   .nick-patch-mark-art {
   transform: scaleX(-1);
   opacity: 1;
-  /* минимальный ореол — иначе мелкий арт «мылится» */
+  /* мягкое свечение как на референсе */
   filter:
-    drop-shadow(0 0 1px rgba(170, 120, 255, 0.4))
-    drop-shadow(0 0 3px rgba(255, 150, 55, 0.18)) !important;
+    drop-shadow(0 0 3px rgba(120, 200, 255, 0.5))
+    drop-shadow(0 0 6px rgba(180, 100, 255, 0.38))
+    drop-shadow(0 0 10px rgba(255, 140, 50, 0.22)) !important;
   animation: none !important;
 }
 .nick-patch-mark[data-patch-id="creator-event-pkm-harvest"]:hover
@@ -1620,9 +1619,10 @@ body:has(.tm-sapper-page) {
   animation: none !important;
   transform: scaleX(-1) scale(1.08);
   filter:
-    drop-shadow(0 0 2px rgba(190, 150, 255, 0.55))
-    drop-shadow(0 0 5px rgba(255, 160, 60, 0.28))
-    brightness(1.05) !important;
+    drop-shadow(0 0 4px rgba(140, 210, 255, 0.6))
+    drop-shadow(0 0 8px rgba(190, 120, 255, 0.45))
+    drop-shadow(0 0 12px rgba(255, 150, 55, 0.3))
+    brightness(1.04) !important;
   opacity: 1;
 }
 

@@ -96,7 +96,7 @@ export function profilePatchUrl(
     id === "hw2-knife-hook" || id === "hw2-ak-pumpkin"
       ? "?v=blood1"
       : id === "creator-event-pkm-harvest"
-        ? "?v=hires2x"
+        ? "?v=exact1"
         : "";
   return `/bp-assets/${opt.file}${bust}`;
 }
