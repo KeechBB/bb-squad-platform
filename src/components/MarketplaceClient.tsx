@@ -18,7 +18,8 @@ type PatchCard = {
   image: string;
   buy: number;
   sell: number;
-  supply: number;
+  mine: number;
+  total: number;
   owned: boolean;
 };
 
@@ -122,14 +123,17 @@ export function MarketplaceClient({ loggedIn }: Props) {
       if (!res.ok || !data.ok) {
         const map: Record<string, string> = {
           insufficient: "Не хватает BB Coins — пополни баланс",
-          owned: "Эта нашивка уже у тебя",
-          not_owned: "Нечего продавать — нашивки нет в инвентаре",
+          not_owned: "Нечего продавать — нет копий в инвентаре",
         };
         setErr(map[data.error] || "Не удалось выполнить сделку");
         return;
       }
       if (typeof data.balance === "number") setBalance(data.balance);
-      setMsg(action === "buy" ? "Нашивка куплена" : "Нашивка продана центробанку");
+      setMsg(
+        action === "buy"
+          ? `Куплено (+1). У тебя: ${data.mine ?? "…"}`
+          : `Продано (−1). У тебя: ${data.mine ?? "…"}`
+      );
       await load();
     } catch {
       setErr("Сеть недоступна");
@@ -189,20 +193,27 @@ export function MarketplaceClient({ loggedIn }: Props) {
           {tab === "patches" ? (
             <section className="market-shop" aria-label="Каталог нашивок">
               <p className="muted market-packs-note">
-                Жёлтое число — сколько экземпляров уже у игроков. Новые нашивки
-                появятся ниже — листай вниз.
+                Слева жёлтым — сколько у тебя копий. Справа — всего на площадке.
+                Можно купить несколько одной и той же; ивент дня тоже даёт +1 за
+                круг.
               </p>
               <ul className="market-patch-grid">
                 {patches.map((p) => (
                   <li
                     key={p.id}
-                    className={`market-patch-card${p.owned ? " is-owned" : ""}`}
+                    className={`market-patch-card${p.mine > 0 ? " is-owned" : ""}`}
                   >
                     <span
-                      className="market-patch-supply"
-                      title="Экземпляров у игроков"
+                      className="market-patch-mine"
+                      title="Твои копии"
                     >
-                      {p.supply}
+                      {p.mine}
+                    </span>
+                    <span
+                      className="market-patch-total"
+                      title="Всего копий у игроков"
+                    >
+                      {p.total}
                     </span>
                     <div className="market-patch-art">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -211,15 +222,17 @@ export function MarketplaceClient({ loggedIn }: Props) {
                     <div className="market-patch-meta">
                       <strong>{p.title}</strong>
                       <span className="muted">{p.source}</span>
-                      {p.owned ? (
-                        <span className="market-owned-tag">у тебя есть</span>
+                      {p.mine > 0 ? (
+                        <span className="market-owned-tag">
+                          у тебя ×{p.mine}
+                        </span>
                       ) : null}
                     </div>
                     <div className="market-patch-prices">
                       <button
                         type="button"
                         className="market-price-buy"
-                        disabled={Boolean(busy) || p.owned}
+                        disabled={Boolean(busy)}
                         onClick={() => void patchAction(p.id, "buy")}
                       >
                         <span className="muted">купить</span>
@@ -230,7 +243,7 @@ export function MarketplaceClient({ loggedIn }: Props) {
                       <button
                         type="button"
                         className="market-price-sell"
-                        disabled={Boolean(busy) || !p.owned}
+                        disabled={Boolean(busy) || p.mine < 1}
                         onClick={() => void patchAction(p.id, "sell")}
                       >
                         <span className="muted">продать</span>

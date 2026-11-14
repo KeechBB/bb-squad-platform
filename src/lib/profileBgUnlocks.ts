@@ -131,6 +131,8 @@ export async function ensureBpL15NickPatch(user: {
     where: { id: user.id },
     data: { unlockedNickPatches: unlocks },
   });
+  const { addPatchQty } = await import("@/lib/nickPatchStock");
+  await addPatchQty(user.id, BP_L15_PATCH_ID, 1).catch(() => undefined);
   await notifyRewardUnlock({
     userId: user.id,
     dedupeKey: `reward:patch:${BP_L15_PATCH_ID}`,
@@ -180,6 +182,10 @@ export async function ensurePublic100VehiclesNickPatch(user: {
     where: { id: user.id },
     data: { unlockedNickPatches: unlocks },
   });
+  const { addPatchQty } = await import("@/lib/nickPatchStock");
+  await addPatchQty(user.id, PUBLIC_100_VEHICLES_PATCH_ID, 1).catch(
+    () => undefined
+  );
   await notifyRewardUnlock({
     userId: user.id,
     dedupeKey: `reward:patch:${PUBLIC_100_VEHICLES_PATCH_ID}`,
@@ -202,7 +208,28 @@ export async function profileBgChoicesForUser(user: {
   return profileBgChoicesFor({ steamId: user.steamId, unlocks });
 }
 
-/** Ивент дня: 100 киллов → АК-74 яблоко, 50 ресов → АК-74 лимон (15:45–23:59 МСК). */
+/** Уже выдавали эту нашивку за этот день (МСК)? */
+async function eventDayGrantedToday(
+  userId: string,
+  patchId: string,
+  day: string
+): Promise<boolean> {
+  const row = await prisma.userNotice.findUnique({
+    where: {
+      userId_dedupeKey: {
+        userId,
+        dedupeKey: `reward:patch:${patchId}:${day}`,
+      },
+    },
+    select: { id: true },
+  });
+  return Boolean(row);
+}
+
+/**
+ * Ивент дня: 100 киллов → яблоко, 50 ресов → лимон.
+ * Каждый новый день (круг) даёт ещё +1 копию той же нашивки.
+ */
 export async function ensureEventDayNickPatches(user: {
   id: string;
   nick: string | null;
@@ -212,28 +239,23 @@ export async function ensureEventDayNickPatches(user: {
   const nick = String(user.nick || "").trim();
   if (!nick) return unlocks;
 
-  const needSaiga = !unlocks.includes(EVENT_DAY_SAIGA_PATCH_ID);
-  const needScar = !unlocks.includes(EVENT_DAY_SCAR_PATCH_ID);
-  if (!needSaiga && !needScar) return unlocks;
-
   const stats = await loadEventDayPublicStats(nick).catch(() => null);
   if (!stats) return unlocks;
 
+  const { addPatchQty } = await import("@/lib/nickPatchStock");
+
+  const candidates: string[] = [];
+  if (stats.kills >= EVENT_DAY_KILLS_GOAL) candidates.push(EVENT_DAY_SAIGA_PATCH_ID);
+  if (stats.res >= EVENT_DAY_RES_GOAL) candidates.push(EVENT_DAY_SCAR_PATCH_ID);
+
   const granted: string[] = [];
-  if (needSaiga && stats.kills >= EVENT_DAY_KILLS_GOAL) {
-    unlocks.push(EVENT_DAY_SAIGA_PATCH_ID);
-    granted.push(EVENT_DAY_SAIGA_PATCH_ID);
-  }
-  if (needScar && stats.res >= EVENT_DAY_RES_GOAL) {
-    unlocks.push(EVENT_DAY_SCAR_PATCH_ID);
-    granted.push(EVENT_DAY_SCAR_PATCH_ID);
+  for (const id of candidates) {
+    if (await eventDayGrantedToday(user.id, id, stats.day)) continue;
+    await addPatchQty(user.id, id, 1);
+    if (!unlocks.includes(id)) unlocks.push(id);
+    granted.push(id);
   }
   if (!granted.length) return unlocks;
-
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { unlockedNickPatches: unlocks },
-  });
 
   for (const id of granted) {
     const meta = eventDayRewardMeta(id as typeof EVENT_DAY_SAIGA_PATCH_ID);
@@ -242,9 +264,9 @@ export async function ensureEventDayNickPatches(user: {
       userId: user.id,
       dedupeKey: `reward:patch:${id}:${stats.day}`,
       title: meta.title,
-      body: meta.body,
-      href: "/profile",
-      linkLabel: "Открыть профиль",
+      body: `${meta.body} (+1 копия в инвентарь)`,
+      href: "/marketplace",
+      linkLabel: "Торговая площадка",
       imageUrl: meta.imageUrl || profilePatchUrl(id as typeof EVENT_DAY_SAIGA_PATCH_ID),
     }).catch(() => undefined);
   }
@@ -257,6 +279,8 @@ export async function profilePatchChoicesForUser(user: {
   nick: string | null;
   unlockedNickPatches: string[];
 }): Promise<ProfilePatchChoice[]> {
+  const { migrateUnlocksToStock } = await import("@/lib/nickPatchStock");
+  await migrateUnlocksToStock(user.id);
   let unlocks = await ensureBpL15NickPatch(user);
   unlocks = await ensurePublic100VehiclesNickPatch({
     ...user,

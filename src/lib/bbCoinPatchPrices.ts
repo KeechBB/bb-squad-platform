@@ -63,7 +63,10 @@ export type MarketPatchCard = {
   image: string;
   buy: number;
   sell: number;
-  supply: number;
+  /** Сколько копий у текущего игрока */
+  mine: number;
+  /** Сколько копий всего у всех на площадке */
+  total: number;
   owned: boolean;
 };
 
