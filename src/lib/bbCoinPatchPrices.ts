@@ -38,8 +38,8 @@ export const PATCH_MARKET_SOURCE: Record<ProfilePatchId, string> = {
 
 /** Цена «купить» (BBC) по id нашивки. */
 export const PATCH_BUY_PRICES_BBC: Record<ProfilePatchId, number> = {
-  "bp-l15-keech": 1000,
-  "creator-orange-phantom": 1500,
+  "bp-l15-keech": 2000,
+  "creator-orange-phantom": 2500,
   "creator-fruit-strike-ak-v2": 800,
   "hw2-knife-hook": 300,
   "hw2-ak-pumpkin": 600,

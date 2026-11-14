@@ -42,8 +42,8 @@
 
 | id | Купить BBC | Продать BBC |
 |----|------------|-------------|
-| `bp-l15-keech` | 1000 | 800 |
-| `creator-orange-phantom` | 1500 | 1200 |
+| `bp-l15-keech` | 2000 | 1600 |
+| `creator-orange-phantom` | 2500 | 2000 |
 | `creator-fruit-strike-ak-v2` | 800 | 640 |
 | `hw2-knife-hook` | 300 | 240 |
 | `hw2-ak-pumpkin` | 600 | 480 |
