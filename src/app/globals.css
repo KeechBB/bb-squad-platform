@@ -23452,6 +23452,41 @@ body:has(.home-page.is-hub),
     brightness(1.06);
 }
 
+/* Торговая площадка: лёгкое мигание — сигнал, что раздел живой */
+.home-hub-tile--marketplace .home-hub-tile-art {
+  animation: home-hub-market-pulse 2.4s ease-in-out infinite;
+}
+.home-hub-tile--marketplace:hover .home-hub-tile-art,
+.home-hub-tile--marketplace:focus-visible .home-hub-tile-art {
+  animation: none;
+  filter:
+    drop-shadow(0 0 12px rgba(56, 189, 248, 0.65))
+    drop-shadow(0 0 18px rgba(251, 191, 36, 0.5))
+    brightness(1.1);
+}
+@keyframes home-hub-market-pulse {
+  0%,
+  100% {
+    filter:
+      drop-shadow(0 0 6px rgba(56, 189, 248, 0.35))
+      drop-shadow(0 0 8px rgba(251, 191, 36, 0.25))
+      brightness(1);
+    opacity: 1;
+  }
+  50% {
+    filter:
+      drop-shadow(0 0 16px rgba(56, 189, 248, 0.75))
+      drop-shadow(0 0 22px rgba(251, 191, 36, 0.65))
+      brightness(1.14);
+    opacity: 0.92;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-hub-tile--marketplace .home-hub-tile-art {
+    animation: none;
+  }
+}
+
 .home-hub-tile--my-faction {
   cursor: pointer;
 }
