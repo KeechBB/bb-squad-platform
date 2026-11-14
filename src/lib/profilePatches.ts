@@ -93,7 +93,11 @@ export function profilePatchUrl(
   const opt = BY_ID.get(id);
   if (!opt) return null;
   const bust =
-    id === "hw2-knife-hook" || id === "hw2-ak-pumpkin" ? "?v=blood1" : "";
+    id === "hw2-knife-hook" || id === "hw2-ak-pumpkin"
+      ? "?v=blood1"
+      : id === "creator-event-pkm-harvest"
+        ? "?v=vis2"
+        : "";
   return `/bp-assets/${opt.file}${bust}`;
 }
 
