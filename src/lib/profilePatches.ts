@@ -32,6 +32,20 @@ export const PROFILE_PATCH_OPTIONS = [
     gate: "creator" as const,
   },
   {
+    id: "creator-event-scar-lemon",
+    file: "event-day-scar-lemon-squall-v1.png",
+    label: "SCAR «Лимонный шквал» · Ивент дня",
+    tip: "SCAR «Лимонный шквал» · Вариант 2 «Ивент дня» (фруктовый сад)",
+    gate: "creator" as const,
+  },
+  {
+    id: "creator-event-saiga-apple",
+    file: "event-day-saiga-apple-spread-v1.png",
+    label: "Сайга «Яблочный разброс» · Ивент дня",
+    tip: "Сайга «Яблочный разброс» · Вариант 3 «Ивент дня» (фруктовый сад)",
+    gate: "creator" as const,
+  },
+  {
     id: "hw2-knife-hook",
     file: "halloween-s2-knife-hook.png",
     label: "Крюк «Жнец сада» · Halloween S2",

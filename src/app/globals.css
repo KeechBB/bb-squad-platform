@@ -1626,6 +1626,72 @@ body:has(.tm-sapper-page) {
   opacity: 1;
 }
 
+.nick-patch-mark[data-patch-id="creator-event-scar-lemon"] {
+  width: 148px;
+  height: 46px;
+  filter: none;
+}
+.home-dock-col .nick-patch-mark.home-nick-patch[data-patch-id="creator-event-scar-lemon"] {
+  width: 72px;
+  height: 24px;
+}
+.nick-patch-mark[data-patch-id="creator-event-scar-lemon"]
+  .nick-patch-mark-art {
+  transform: scaleX(-1);
+  opacity: 1;
+  filter:
+    drop-shadow(0 0 3px rgba(220, 255, 90, 0.55))
+    drop-shadow(0 0 7px rgba(120, 200, 40, 0.35)) !important;
+  animation: none !important;
+}
+.nick-patch-mark[data-patch-id="creator-event-scar-lemon"]:hover
+  .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="creator-event-scar-lemon"]:focus-visible
+  .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="creator-event-scar-lemon"].is-active
+  .nick-patch-mark-art {
+  animation: none !important;
+  transform: scaleX(-1) scale(1.08);
+  filter:
+    drop-shadow(0 0 4px rgba(240, 255, 110, 0.65))
+    drop-shadow(0 0 10px rgba(140, 210, 50, 0.42))
+    brightness(1.04) !important;
+  opacity: 1;
+}
+
+.nick-patch-mark[data-patch-id="creator-event-saiga-apple"] {
+  width: 148px;
+  height: 46px;
+  filter: none;
+}
+.home-dock-col .nick-patch-mark.home-nick-patch[data-patch-id="creator-event-saiga-apple"] {
+  width: 72px;
+  height: 24px;
+}
+.nick-patch-mark[data-patch-id="creator-event-saiga-apple"]
+  .nick-patch-mark-art {
+  transform: scaleX(-1);
+  opacity: 1;
+  filter:
+    drop-shadow(0 0 3px rgba(255, 90, 90, 0.5))
+    drop-shadow(0 0 7px rgba(80, 180, 90, 0.35)) !important;
+  animation: none !important;
+}
+.nick-patch-mark[data-patch-id="creator-event-saiga-apple"]:hover
+  .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="creator-event-saiga-apple"]:focus-visible
+  .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="creator-event-saiga-apple"].is-active
+  .nick-patch-mark-art {
+  animation: none !important;
+  transform: scaleX(-1) scale(1.08);
+  filter:
+    drop-shadow(0 0 4px rgba(255, 110, 110, 0.6))
+    drop-shadow(0 0 10px rgba(90, 200, 100, 0.42))
+    brightness(1.04) !important;
+  opacity: 1;
+}
+
 .nick-patch-mark[data-patch-id="creator-orange-phantom"] {
   width: 132px;
 }
