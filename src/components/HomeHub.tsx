@@ -1,8 +1,10 @@
 import { type HomeCwCard } from "@/components/HomeCwAnnounce";
+import { HomeEventDay } from "@/components/HomeEventDay";
 import { HomeHubCwDock } from "@/components/HomeHubCwDock";
 import { HomeHubTiles } from "@/components/HomeHubTiles";
 import { HOME_HUB_SHOW_TILES, type HomeHubTile } from "@/lib/homeHub";
 import type { HubTileLayout } from "@/lib/homeHubLayoutShared";
+import type { EventDayProgress } from "@/lib/eventDay";
 
 type Props = {
   showCw: boolean;
@@ -10,6 +12,8 @@ type Props = {
   canEditTiles: boolean;
   tileLayout: HubTileLayout;
   tiles: HomeHubTile[];
+  eventDay: EventDayProgress;
+  eventDayLoggedIn: boolean;
 };
 
 export function HomeHub({
@@ -18,6 +22,8 @@ export function HomeHub({
   canEditTiles,
   tileLayout,
   tiles,
+  eventDay,
+  eventDayLoggedIn,
 }: Props) {
   return (
     <div className="home-hub" aria-label="Разделы платформы">
@@ -32,6 +38,8 @@ export function HomeHub({
         canEdit={canEditTiles}
         initialLayout={tileLayout}
       />
+
+      <HomeEventDay progress={eventDay} loggedIn={eventDayLoggedIn} />
 
       <div className="home-hub-poly">
         {HOME_HUB_SHOW_TILES ? (

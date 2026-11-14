@@ -28,15 +28,15 @@ export const PROFILE_PATCH_OPTIONS = [
     id: "creator-event-scar-lemon",
     file: "event-day-scar-lemon-squall-v1.png",
     label: "SCAR «Лимонный шквал» · Ивент дня",
-    tip: "SCAR «Лимонный шквал» · Предпросмотр награды «Ивент дня» (фруктовый сад)",
-    gate: "creator" as const,
+    tip: "SCAR «Лимонный шквал» · Ивент дня: 50 ресов за сутки на паблике «Фруктовый сад» (до 23:59 МСК)",
+    gate: "event-day-res" as const,
   },
   {
     id: "creator-event-saiga-apple",
     file: "event-day-saiga-apple-spread-v1.png",
     label: "Сайга «Яблочный разброс» · Ивент дня",
-    tip: "Сайга «Яблочный разброс» · Предпросмотр награды «Ивент дня» (фруктовый сад)",
-    gate: "creator" as const,
+    tip: "Сайга «Яблочный разброс» · Ивент дня: 100 киллов за сутки на паблике «Фруктовый сад» (до 23:59 МСК)",
+    gate: "event-day-kills" as const,
   },
   {
     id: "hw2-knife-hook",
@@ -74,7 +74,13 @@ export const BP_L15_PATCH_ID = "bp-l15-keech" as const satisfies ProfilePatchId;
 export const PUBLIC_100_VEHICLES_PATCH_ID =
   "public-100-vehicles-t62" as const satisfies ProfilePatchId;
 
-type PatchGate = "bp-l15" | "creator" | "public-vehicles-100" | "bp-hw2";
+type PatchGate =
+  | "bp-l15"
+  | "creator"
+  | "public-vehicles-100"
+  | "bp-hw2"
+  | "event-day-kills"
+  | "event-day-res";
 
 function gateOf(opt: (typeof PROFILE_PATCH_OPTIONS)[number]): PatchGate {
   return opt.gate as PatchGate;
@@ -143,6 +149,9 @@ export function profilePatchChoicesFor(opts: {
     }
     if (gate === "public-vehicles-100") {
       return unlocks.has(opt.id);
+    }
+    if (gate === "event-day-kills" || gate === "event-day-res") {
+      return unlocks.has(opt.id) || opts.steamId === SITE_CREATOR_STEAM_ID;
     }
     return false;
   }).map((opt) => ({

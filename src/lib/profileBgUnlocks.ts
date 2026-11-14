@@ -12,6 +12,14 @@ import {
   profilePatchUrl,
   type ProfilePatchChoice,
 } from "@/lib/profilePatches";
+import {
+  EVENT_DAY_KILLS_GOAL,
+  EVENT_DAY_RES_GOAL,
+  EVENT_DAY_SAIGA_PATCH_ID,
+  EVENT_DAY_SCAR_PATCH_ID,
+  eventDayRewardMeta,
+  loadEventDayPublicStats,
+} from "@/lib/eventDay";
 import { notifyRewardUnlock } from "@/lib/rewardNotice";
 import {
   BP_L10_NICK_STYLE_ID,
@@ -194,6 +202,55 @@ export async function profileBgChoicesForUser(user: {
   return profileBgChoicesFor({ steamId: user.steamId, unlocks });
 }
 
+/** Ивент дня: 100 киллов → Сайга, 50 ресов → SCAR (за текущие сутки МСК). */
+export async function ensureEventDayNickPatches(user: {
+  id: string;
+  nick: string | null;
+  unlockedNickPatches: string[];
+}): Promise<string[]> {
+  const unlocks = [...(user.unlockedNickPatches || [])];
+  const nick = String(user.nick || "").trim();
+  if (!nick) return unlocks;
+
+  const needSaiga = !unlocks.includes(EVENT_DAY_SAIGA_PATCH_ID);
+  const needScar = !unlocks.includes(EVENT_DAY_SCAR_PATCH_ID);
+  if (!needSaiga && !needScar) return unlocks;
+
+  const stats = await loadEventDayPublicStats(nick).catch(() => null);
+  if (!stats) return unlocks;
+
+  const granted: string[] = [];
+  if (needSaiga && stats.kills >= EVENT_DAY_KILLS_GOAL) {
+    unlocks.push(EVENT_DAY_SAIGA_PATCH_ID);
+    granted.push(EVENT_DAY_SAIGA_PATCH_ID);
+  }
+  if (needScar && stats.res >= EVENT_DAY_RES_GOAL) {
+    unlocks.push(EVENT_DAY_SCAR_PATCH_ID);
+    granted.push(EVENT_DAY_SCAR_PATCH_ID);
+  }
+  if (!granted.length) return unlocks;
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { unlockedNickPatches: unlocks },
+  });
+
+  for (const id of granted) {
+    const meta = eventDayRewardMeta(id as typeof EVENT_DAY_SAIGA_PATCH_ID);
+    if (!meta) continue;
+    await notifyRewardUnlock({
+      userId: user.id,
+      dedupeKey: `reward:patch:${id}:${stats.day}`,
+      title: meta.title,
+      body: meta.body,
+      href: "/profile",
+      linkLabel: "Открыть профиль",
+      imageUrl: meta.imageUrl || profilePatchUrl(id as typeof EVENT_DAY_SAIGA_PATCH_ID),
+    }).catch(() => undefined);
+  }
+  return unlocks;
+}
+
 export async function profilePatchChoicesForUser(user: {
   id: string;
   steamId: string;
@@ -202,6 +259,10 @@ export async function profilePatchChoicesForUser(user: {
 }): Promise<ProfilePatchChoice[]> {
   let unlocks = await ensureBpL15NickPatch(user);
   unlocks = await ensurePublic100VehiclesNickPatch({
+    ...user,
+    unlockedNickPatches: unlocks,
+  });
+  unlocks = await ensureEventDayNickPatches({
     ...user,
     unlockedNickPatches: unlocks,
   });

@@ -8,6 +8,7 @@ import { HomeHub } from "@/components/HomeHub";
 import { HomeLoginPrompt } from "@/components/HomeLoginPrompt";
 import { HomeBattlePassTeaser } from "@/components/HomeBattlePassTeaser";
 import { HomeTournamentAnnounce } from "@/components/HomeTournamentAnnounce";
+import { HomeEventDay } from "@/components/HomeEventDay";
 import type { HomeCwCard } from "@/components/HomeCwAnnounce";
 import {
   homeCwAnnounces,
@@ -24,6 +25,9 @@ import { isBuiltinSuperAdmin } from "@/lib/admin";
 import { readHubTileLayout } from "@/lib/homeHubLayout";
 import { getUserHomeClanId } from "@/lib/clanAccess";
 import { factionSlugForSteam } from "@/lib/factions";
+import { buildEventDayProgress } from "@/lib/eventDay";
+import { ensureEventDayNickPatches } from "@/lib/profileBgUnlocks";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +67,29 @@ export default async function HomePage() {
       await Promise.all(slots.map((slot) => toCard(slot, userId)))
     ).filter((card): card is HomeCwCard => Boolean(card));
   }
+
+  let eventUnlocks: string[] = [];
+  if (session?.user?.id) {
+    const me = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: {
+        id: true,
+        nick: true,
+        unlockedNickPatches: true,
+      },
+    });
+    if (me) {
+      eventUnlocks = await ensureEventDayNickPatches({
+        id: me.id,
+        nick: me.nick,
+        unlockedNickPatches: me.unlockedNickPatches || [],
+      }).catch(() => me.unlockedNickPatches || []);
+    }
+  }
+  const eventDay = await buildEventDayProgress({
+    nick: session?.user?.nick || null,
+    unlockedNickPatches: eventUnlocks,
+  });
 
   return (
     <main className={`home-page${HOME_HUB_REBRAND ? " is-hub" : ""}`}>
@@ -126,6 +153,8 @@ export default async function HomePage() {
             canEditTiles={canEditTiles}
             tileLayout={tileLayout}
             tiles={hubTiles}
+            eventDay={eventDay}
+            eventDayLoggedIn={Boolean(session?.user?.id)}
           />
         ) : (
           <>
@@ -151,6 +180,10 @@ export default async function HomePage() {
                   </p>
                 </aside>
               </div>
+              <HomeEventDay
+                progress={eventDay}
+                loggedIn={Boolean(session?.user?.id)}
+              />
               {isBattlePassIntermission() ? (
                 <HomeBattlePassTeaser />
               ) : (
