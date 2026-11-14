@@ -109,12 +109,11 @@ export function profilePatchUrl(
   const bust =
     id === "hw2-knife-hook" || id === "hw2-ak-pumpkin"
       ? "?v=blood1"
-      : id === "creator-event-pkm-harvest"
-        ? "?v=lemon1"
-        : id === "creator-event-scar-lemon" ||
-            id === "creator-event-saiga-apple"
-          ? "?v=lemon1"
-          : "";
+      : id === "creator-event-pkm-harvest" ||
+          id === "creator-event-scar-lemon" ||
+          id === "creator-event-saiga-apple"
+        ? "?v=glow2"
+        : "";
   return `/bp-assets/${opt.file}${bust}`;
 }
 
