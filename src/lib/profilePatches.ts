@@ -112,7 +112,7 @@ export function profilePatchUrl(
       : id === "creator-event-pkm-harvest" ||
           id === "creator-event-scar-lemon" ||
           id === "creator-event-saiga-apple"
-        ? "?v=glow2"
+        ? "?v=fix5"
         : "";
   return `/bp-assets/${opt.file}${bust}`;
 }

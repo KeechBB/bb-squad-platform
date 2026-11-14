@@ -1465,9 +1465,10 @@ body.has-profile-bg .shell:has(.profile-page) {
   .profile-patch-tile-art {
   width: 94%;
   transform: scaleX(-1);
+  /* мята по зелени — красный ореол замывал яблоки */
   filter:
-    drop-shadow(0 0 3px rgba(255, 200, 190, 0.65))
-    drop-shadow(0 0 8px rgba(220, 70, 70, 0.48));
+    drop-shadow(0 0 2px rgba(200, 255, 230, 0.38))
+    drop-shadow(0 0 6px rgba(90, 170, 120, 0.26));
   animation: event-saiga-apple-tile-glow 3.2s ease-in-out infinite;
   transition: filter 0.15s ease, transform 0.15s ease;
 }
@@ -1480,21 +1481,20 @@ body.has-profile-bg .shell:has(.profile-page) {
   animation: none;
   transform: scaleX(-1) scale(1.06);
   filter:
-    drop-shadow(0 0 5px rgba(255, 220, 210, 0.85))
-    drop-shadow(0 0 12px rgba(230, 80, 80, 0.62))
-    brightness(1.06);
+    drop-shadow(0 0 3px rgba(210, 255, 235, 0.55))
+    drop-shadow(0 0 9px rgba(100, 180, 130, 0.38));
 }
 @keyframes event-saiga-apple-tile-glow {
   0%,
   100% {
     filter:
-      drop-shadow(0 0 3px rgba(255, 200, 190, 0.55))
-      drop-shadow(0 0 7px rgba(210, 65, 65, 0.38));
+      drop-shadow(0 0 2px rgba(200, 255, 230, 0.3))
+      drop-shadow(0 0 5px rgba(85, 160, 115, 0.2));
   }
   50% {
     filter:
-      drop-shadow(0 0 4px rgba(255, 220, 210, 0.75))
-      drop-shadow(0 0 10px rgba(230, 80, 80, 0.52));
+      drop-shadow(0 0 3px rgba(210, 255, 235, 0.45))
+      drop-shadow(0 0 7px rgba(100, 180, 130, 0.32));
   }
 }
 
