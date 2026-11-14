@@ -236,11 +236,7 @@ export function MarketplaceClient({ loggedIn }: Props) {
     <div className="market-page">
       <header className="market-head">
         <p className="market-kicker">Торговая площадка</p>
-        <h1>Магазин кастома</h1>
-        <p className="market-lead">
-          Нашивки, фоны и шрифты за BB Coins. Продать = <strong>80%</strong> от
-          покупки. Курс пополнения: <strong>2 BBC = 1 ₽</strong>.
-        </p>
+        <h1>Магазин BlackBerry</h1>
       </header>
 
       {!loggedIn ? (
@@ -309,11 +305,6 @@ export function MarketplaceClient({ loggedIn }: Props) {
 
           {tab === "patches" ? (
             <section className="market-shop" aria-label="Каталог нашивок">
-              <p className="muted market-packs-note">
-                Слева жёлтым — сколько у тебя копий. Справа — всего на площадке.
-                Каждый день в 00:00 МСК — новые пушки: скидка −20% купить,
-                наценка +20% купить, зелёная лента — продать +20%.
-              </p>
               <ul className="market-patch-grid">
                 {patches.map((p) => (
                   <li
@@ -419,12 +410,6 @@ export function MarketplaceClient({ loggedIn }: Props) {
 
           {tab === "bg" ? (
             <section className="market-shop" aria-label="Каталог фонов">
-              <p className="muted market-packs-note">
-                Только зарабатываемые фоны (не бесплатные 02/06). Слева жёлтым —
-                сколько копий у тебя, справа — всего на площадке. Продать = 80%.
-                Каждый день в 00:00 МСК — скидка −20% / наценка +20% / продажа
-                +20%.
-              </p>
               <ul className="market-patch-grid market-bg-grid">
                 {bgs.map((p) => (
                   <li
@@ -538,11 +523,6 @@ export function MarketplaceClient({ loggedIn }: Props) {
 
           {tab === "font" ? (
             <section className="market-shop" aria-label="Каталог шрифтов">
-              <p className="muted market-packs-note">
-                Золотой и алый металлический ник. Пока в каталоге 2 шрифта —
-                каждый день активны только 2 из 3 акций (скидка / наценка /
-                продажа+), третья отпадает. Продать = 80%.
-              </p>
               <ul className="market-patch-grid market-font-grid">
                 {fonts.map((p) => (
                   <li
