@@ -1589,22 +1589,31 @@ body:has(.tm-sapper-page) {
   }
 }
 
-/* Канон: ствол влево (scaleX(-1) если арт смотрит вправо). Свечение слабое — рисунок читается. */
-.nick-patch-mark[data-patch-id="creator-event-pkm-harvest"] {
-  width: 148px;
-  height: 46px;
+/* Ивент дня: архитектура как у Оранжевого призрака + лимонное свечение */
+.nick-patch-mark[data-patch-id="creator-event-pkm-harvest"],
+.nick-patch-mark[data-patch-id="creator-event-scar-lemon"],
+.nick-patch-mark[data-patch-id="creator-event-saiga-apple"] {
+  width: 132px;
   filter: none;
 }
-.home-dock-col .nick-patch-mark.home-nick-patch[data-patch-id="creator-event-pkm-harvest"] {
+.home-dock-col .nick-patch-mark.home-nick-patch[data-patch-id="creator-event-pkm-harvest"],
+.home-dock-col .nick-patch-mark.home-nick-patch[data-patch-id="creator-event-scar-lemon"],
+.home-dock-col .nick-patch-mark.home-nick-patch[data-patch-id="creator-event-saiga-apple"] {
   width: 72px;
   height: 24px;
 }
 .nick-patch-mark[data-patch-id="creator-event-pkm-harvest"]
+  .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="creator-event-scar-lemon"]
+  .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="creator-event-saiga-apple"]
   .nick-patch-mark-art {
   transform: scaleX(-1);
   opacity: 1;
-  /* без свечения — чистый вырез */
-  filter: none !important;
+  filter:
+    drop-shadow(0 0 2px rgba(255, 245, 150, 0.7))
+    drop-shadow(0 0 5px rgba(220, 255, 80, 0.45))
+    drop-shadow(0 0 9px rgba(180, 220, 40, 0.28)) !important;
   animation: none !important;
 }
 .nick-patch-mark[data-patch-id="creator-event-pkm-harvest"]:hover
@@ -1612,32 +1621,7 @@ body:has(.tm-sapper-page) {
 .nick-patch-mark[data-patch-id="creator-event-pkm-harvest"]:focus-visible
   .nick-patch-mark-art,
 .nick-patch-mark[data-patch-id="creator-event-pkm-harvest"].is-active
-  .nick-patch-mark-art {
-  animation: none !important;
-  transform: scaleX(-1) scale(1.08);
-  filter: none !important;
-  opacity: 1;
-}
-
-.nick-patch-mark[data-patch-id="creator-event-scar-lemon"],
-.nick-patch-mark[data-patch-id="creator-event-saiga-apple"] {
-  width: 132px;
-  filter: none;
-}
-.home-dock-col .nick-patch-mark.home-nick-patch[data-patch-id="creator-event-scar-lemon"],
-.home-dock-col .nick-patch-mark.home-nick-patch[data-patch-id="creator-event-saiga-apple"] {
-  width: 72px;
-  height: 24px;
-}
-.nick-patch-mark[data-patch-id="creator-event-scar-lemon"]
   .nick-patch-mark-art,
-.nick-patch-mark[data-patch-id="creator-event-saiga-apple"]
-  .nick-patch-mark-art {
-  transform: scaleX(-1);
-  opacity: 1;
-  filter: none !important;
-  animation: none !important;
-}
 .nick-patch-mark[data-patch-id="creator-event-scar-lemon"]:hover
   .nick-patch-mark-art,
 .nick-patch-mark[data-patch-id="creator-event-scar-lemon"]:focus-visible
@@ -1652,7 +1636,11 @@ body:has(.tm-sapper-page) {
   .nick-patch-mark-art {
   animation: none !important;
   transform: scaleX(-1) scale(1.08);
-  filter: none !important;
+  filter:
+    drop-shadow(0 0 3px rgba(255, 250, 170, 0.95))
+    drop-shadow(0 0 7px rgba(230, 255, 90, 0.65))
+    drop-shadow(0 0 12px rgba(190, 230, 50, 0.4))
+    brightness(1.06) !important;
   opacity: 1;
 }
 

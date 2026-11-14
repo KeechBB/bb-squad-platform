@@ -110,10 +110,10 @@ export function profilePatchUrl(
     id === "hw2-knife-hook" || id === "hw2-ak-pumpkin"
       ? "?v=blood1"
       : id === "creator-event-pkm-harvest"
-        ? "?v=clean1"
+        ? "?v=lemon1"
         : id === "creator-event-scar-lemon" ||
             id === "creator-event-saiga-apple"
-          ? "?v=cut1"
+          ? "?v=lemon1"
           : "";
   return `/bp-assets/${opt.file}${bust}`;
 }
