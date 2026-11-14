@@ -9,8 +9,8 @@ import type { BpLevel, BpReward } from "@/lib/battlePass";
 
 /**
  * Лестница до 25. Ур. 1–5 — мягкий вход; дальше гринды и техника нарастают.
- * Пустыня (скор): Al Basrah / Mutaha / Tallil / Fallujah — в тексте задания
- * конкретные карты не светим.
+ * Пустыня (скор): Kokan / Chora / Mutaha / Al Basrah / Fallujah / Tallil.
+ * Любой режим на этих картах. В названии задания карты не перечисляем.
  */
 export const BP_S2_LEVELS: BpLevel[] = [
   {
@@ -90,25 +90,25 @@ export const BP_S2_LEVELS: BpLevel[] = [
   {
     level: 11,
     title: "Полевой госпиталь",
-    task: "50 ревайвов (накопительно на уровне)",
+    task: "20 ревайвов (накопительно на уровне)",
     hint: "Сумма ревов со всех матчей, пока открыт уровень",
-    target: 50,
+    target: 20,
     unit: "ревайвов",
   },
   {
     level: 12,
     title: "Пустыня",
-    task: "Сыграть 5 пустынных карт (накопительно на уровне)",
-    hint: "Скор: Al Basrah / Mutaha / Tallil / Fallujah · любая комбинация · матч ≥80%",
-    target: 5,
+    task: "Сыграть 2 пустынные карты (накопительно на уровне)",
+    hint: "Kokan, Chora, Mutaha, Al Basrah, Fallujah, Tallil · любой режим · матч ≥80%",
+    target: 2,
     unit: "карт",
   },
   {
     level: 13,
     title: "MRAP",
-    task: "Уничтожить 3 MRAP (накопительно на уровне)",
+    task: "Уничтожить 1 MRAP (накопительно на уровне)",
     hint: "Только класс MRAP (не пехотка и не БТР/БМП)",
-    target: 3,
+    target: 1,
     unit: "MRAP",
   },
   {
@@ -129,9 +129,9 @@ export const BP_S2_LEVELS: BpLevel[] = [
   {
     level: 16,
     title: "БТР",
-    task: "Уничтожить 2 БТР (накопительно на уровне)",
+    task: "Уничтожить 1 БТР (накопительно на уровне)",
     hint: "БТР/БМП (IFV/APC) · не MRAP и не танк",
-    target: 2,
+    target: 1,
     unit: "БТР",
   },
   {

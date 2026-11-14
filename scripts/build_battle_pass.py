@@ -68,12 +68,12 @@ LEVEL_TARGETS = {
     8: 5,
     9: 6,
     10: 3,
-    11: 50,
-    12: 5,
-    13: 3,
+    11: 20,
+    12: 2,
+    13: 1,
     14: 10,
     15: 4,
-    16: 2,
+    16: 1,
     17: 100,
     18: 2,
     19: 1,
@@ -84,7 +84,7 @@ LEVEL_TARGETS = {
     24: 1,
     25: 15,
 }
-_DESERT_RE = re.compile(r"basrah|mutaha|tallil|fallujah", re.I)
+_DESERT_RE = re.compile(r"basrah|mutaha|tallil|fallujah|kokan|chora", re.I)
 _MRAP_RE = re.compile(
     r"CPV|MRAP|MATV|M-?ATV|TAPV|M1151|M1117|RG-?31|COUGAR|HUSKY|MAXXPRO|"
     r"BUSHMASTER|TIGR|CSK131|COBRA2?|KOZAK|LPPV|LUVW|PMV",
