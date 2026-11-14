@@ -336,12 +336,25 @@ function trainingPresentCount(training: unknown): number {
 }
 
 /**
- * Календарь КВ всегда из живого билдера (клан игрока), не из устаревшего снимка «всегда BB».
+ * Календарь КВ: если в снимке уже есть дни — отдаём сразу (иначе каждый заход
+ * профиля читает все month JSON + players/*.json ≈ секунды). Живой пересчёт
+ * (актуальный клан игрока) — в фоне через очередь снимка.
  */
 async function withLiveCwAtt(
   nick: string,
   data: ProfileViewPayload
 ): Promise<ProfileViewPayload> {
+  const existing =
+    data.cwAtt && typeof data.cwAtt === "object"
+      ? (data.cwAtt as { byDay?: Record<string, unknown> })
+      : null;
+  const days = existing?.byDay ? Object.keys(existing.byDay).length : 0;
+  if (days > 0) {
+    void import("@/lib/profileViewQueue")
+      .then((m) => m.markProfileViewStale(nick))
+      .catch(() => undefined);
+    return data;
+  }
   const cwAtt = await buildPlayerCwAttendance(nick).catch(() => null);
   if (cwAtt) data.cwAtt = cwAtt;
   return data;

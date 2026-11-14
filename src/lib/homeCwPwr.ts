@@ -930,7 +930,15 @@ export async function buildPlayerCwAttendance(
 ): Promise<PlayerCwAttendance> {
   const clean = String(nick || "").trim();
   if (!clean) return { byDay: {} };
+  const { remember } = await import("@/lib/diskSnapshot");
+  return remember(`cw-att-v1:${clean.toLowerCase()}`, 90_000, () =>
+    buildPlayerCwAttendanceUncached(clean)
+  );
+}
 
+async function buildPlayerCwAttendanceUncached(
+  clean: string
+): Promise<PlayerCwAttendance> {
   const home = await resolvePlayerCwHome(clean);
   // Нет клана на сайте — пусто (раньше всем рисовали календарь BB).
   if (!home) return { byDay: {} };
