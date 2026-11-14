@@ -1602,11 +1602,12 @@ body:has(.tm-sapper-page) {
 .nick-patch-mark[data-patch-id="creator-event-pkm-harvest"]
   .nick-patch-mark-art {
   transform: scaleX(-1);
-  opacity: 0.96;
+  opacity: 1;
+  /* минимальный ореол — иначе мелкий арт «мылится» */
   filter:
-    drop-shadow(0 0 2px rgba(170, 120, 255, 0.55))
-    drop-shadow(0 0 6px rgba(255, 150, 55, 0.28)) !important;
-  animation: event-pkm-harvest-glow 3.6s ease-in-out infinite !important;
+    drop-shadow(0 0 1px rgba(170, 120, 255, 0.4))
+    drop-shadow(0 0 3px rgba(255, 150, 55, 0.18)) !important;
+  animation: none !important;
 }
 .nick-patch-mark[data-patch-id="creator-event-pkm-harvest"]:hover
   .nick-patch-mark-art,
@@ -1617,25 +1618,10 @@ body:has(.tm-sapper-page) {
   animation: none !important;
   transform: scaleX(-1) scale(1.08);
   filter:
-    drop-shadow(0 0 3px rgba(190, 150, 255, 0.75))
-    drop-shadow(0 0 9px rgba(255, 160, 60, 0.45))
-    brightness(1.08) !important;
+    drop-shadow(0 0 2px rgba(190, 150, 255, 0.55))
+    drop-shadow(0 0 5px rgba(255, 160, 60, 0.28))
+    brightness(1.05) !important;
   opacity: 1;
-}
-@keyframes event-pkm-harvest-glow {
-  0%,
-  100% {
-    filter:
-      drop-shadow(0 0 2px rgba(170, 120, 255, 0.48))
-      drop-shadow(0 0 5px rgba(255, 150, 55, 0.22));
-    opacity: 0.94;
-  }
-  50% {
-    filter:
-      drop-shadow(0 0 3px rgba(185, 140, 255, 0.62))
-      drop-shadow(0 0 7px rgba(255, 155, 55, 0.32));
-    opacity: 1;
-  }
 }
 
 .nick-patch-mark[data-patch-id="creator-orange-phantom"] {
