@@ -24585,6 +24585,18 @@ body:has(.faction-page) .site-footer {
   right: -36px;
   transform: rotate(42deg);
 }
+.market-deal-ribbon--sell {
+  left: 50%;
+  right: auto;
+  top: 10px;
+  width: auto;
+  min-width: 118px;
+  padding: 5px 12px;
+  border-radius: 4px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, #3ecf6a 0%, #1a8f3c 100%);
+  box-shadow: 0 2px 8px rgba(0, 80, 30, 0.4);
+}
 .market-price-old {
   text-decoration: line-through;
   opacity: 0.55;
@@ -24597,6 +24609,10 @@ body:has(.faction-page) .site-footer {
 }
 .market-patch-card.has-markup .market-price-buy strong {
   color: #ff9a4a;
+}
+.market-patch-card.has-sellboost .market-price-sell strong,
+.market-price-sell strong.is-sellboost {
+  color: #5dff8a;
 }
 .market-patch-mine,
 .market-patch-total {

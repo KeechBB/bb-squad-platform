@@ -1,8 +1,9 @@
 /**
- * Ежедневные акции центробанка (МСК-сутки):
- * — одно оружие: купить −20% (скидка)
- * — другое: купить +20% (наценка)
- * Выбор детерминированный от даты — у всех одинаково.
+ * Ежедневные акции центробанка (МСК, смена в 00:00):
+ * — одно оружие: купить −20% (скидка, красная лента)
+ * — другое: купить +20% (наценка, красная лента)
+ * — третье: продать +20% (зелёная лента)
+ * Три разных id, детерминированно от даты.
  */
 import { MARKET_PATCH_ORDER, type MarketPatchId } from "@/lib/marketPatchIds";
 import {
@@ -14,13 +15,15 @@ import { mskYmd } from "@/lib/eventDay";
 
 export const DAILY_DISCOUNT_MULT = 0.8;
 export const DAILY_MARKUP_MULT = 1.2;
+export const DAILY_SELL_BOOST_MULT = 1.2;
 
-export type DailyDealKind = "discount" | "markup" | null;
+export type DailyDealKind = "discount" | "markup" | "sellboost" | null;
 
 export type DailyMarketDeals = {
   day: string;
   discountId: MarketPatchId;
   markupId: MarketPatchId;
+  sellBoostId: MarketPatchId;
 };
 
 function hashYmd(ymd: string): number {
@@ -32,22 +35,37 @@ function hashYmd(ymd: string): number {
   return h >>> 0;
 }
 
-/** Два разных id из каталога на сутки МСК. */
+/** Три разных id из каталога на сутки МСК (ротация в 00:00). */
 export function dailyMarketDeals(day = mskYmd()): DailyMarketDeals {
-  const n = MARKET_PATCH_ORDER.length;
-  if (n < 2) {
-    const only = MARKET_PATCH_ORDER[0];
-    return { day, discountId: only, markupId: only };
+  const pool = [...MARKET_PATCH_ORDER];
+  const n = pool.length;
+  if (n === 0) {
+    throw new Error("empty market catalog");
   }
-  const h = hashYmd(`bb-market-deal:${day}`);
-  const i = h % n;
-  let j = (h >>> 8) % n;
-  if (j === i) j = (j + 1 + (h % (n - 1))) % n;
-  if (j === i) j = (i + 1) % n;
+  if (n === 1) {
+    const only = pool[0];
+    return { day, discountId: only, markupId: only, sellBoostId: only };
+  }
+
+  const h = hashYmd(`bb-market-deal-v2:${day}`);
+  // Fisher-Yates с сидом от хэша
+  let state = h;
+  const next = () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state;
+  };
+  for (let i = n - 1; i > 0; i--) {
+    const j = next() % (i + 1);
+    const tmp = pool[i];
+    pool[i] = pool[j];
+    pool[j] = tmp;
+  }
+
   return {
     day,
-    discountId: MARKET_PATCH_ORDER[i],
-    markupId: MARKET_PATCH_ORDER[j],
+    discountId: pool[0],
+    markupId: pool[1 % n],
+    sellBoostId: pool[Math.min(2, n - 1)],
   };
 }
 
@@ -58,25 +76,37 @@ export function dailyDealKindFor(
   const d = dailyMarketDeals(day);
   if (patchId === d.discountId) return "discount";
   if (patchId === d.markupId) return "markup";
+  if (patchId === d.sellBoostId) return "sellboost";
   return null;
 }
 
-/** Цена купить с учётом дневной акции. */
+/** Цена купить с учётом дневной акции (скидка/наценка). */
 export function patchBuyPriceBbcToday(
   id: ProfilePatchId,
   day = mskYmd()
 ): number {
   const base = patchBuyPriceBbc(id);
   const kind = dailyDealKindFor(id, day);
-  if (kind === "discount") return Math.max(1, Math.round(base * DAILY_DISCOUNT_MULT));
-  if (kind === "markup") return Math.max(1, Math.round(base * DAILY_MARKUP_MULT));
+  if (kind === "discount") {
+    return Math.max(1, Math.round(base * DAILY_DISCOUNT_MULT));
+  }
+  if (kind === "markup") {
+    return Math.max(1, Math.round(base * DAILY_MARKUP_MULT));
+  }
   return base;
 }
 
-/** Продать = 80% от сегодняшней цены купить. */
+/**
+ * Продать = 80% от сегодняшней цены купить;
+ * на оружии дня с зелёной лентой — ещё ×1.2.
+ */
 export function patchSellPriceBbcToday(
   id: ProfilePatchId,
   day = mskYmd()
 ): number {
-  return Math.max(1, Math.round(patchBuyPriceBbcToday(id, day) * PATCH_SELL_OF_BUY));
+  let sell = Math.round(patchBuyPriceBbcToday(id, day) * PATCH_SELL_OF_BUY);
+  if (dailyDealKindFor(id, day) === "sellboost") {
+    sell = Math.round(sell * DAILY_SELL_BOOST_MULT);
+  }
+  return Math.max(1, sell);
 }

@@ -119,7 +119,11 @@ export async function buyMarketPatch(opts: {
   if (bal < price) return { ok: false, error: "insufficient" };
 
   const dealNote =
-    deal === "discount" ? " · скидка −20%" : deal === "markup" ? " · наценка +20%" : "";
+    deal === "discount"
+      ? " · скидка −20%"
+      : deal === "markup"
+        ? " · наценка +20%"
+        : "";
   const debited = await debitBbCoins({
     userId: opts.userId,
     amount: price,
@@ -163,7 +167,13 @@ export async function sellMarketPatch(opts: {
   }
 
   const dealNote =
-    deal === "discount" ? " · скидка −20%" : deal === "markup" ? " · наценка +20%" : "";
+    deal === "discount"
+      ? " · скидка −20%"
+      : deal === "markup"
+        ? " · наценка +20%"
+        : deal === "sellboost"
+          ? " · продажа +20%"
+          : "";
   const credited = await creditBbCoins({
     userId: opts.userId,
     amount: price,

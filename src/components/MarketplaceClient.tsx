@@ -22,7 +22,7 @@ type PatchCard = {
   mine: number;
   total: number;
   owned: boolean;
-  deal?: "discount" | "markup" | null;
+  deal?: "discount" | "markup" | "sellboost" | null;
 };
 
 type Tx = {
@@ -196,8 +196,8 @@ export function MarketplaceClient({ loggedIn }: Props) {
             <section className="market-shop" aria-label="Каталог нашивок">
               <p className="muted market-packs-note">
                 Слева жёлтым — сколько у тебя копий. Справа — всего на площадке.
-                Каждый день (МСК) одно оружие со скидкой −20% на покупку, другое
-                с наценкой +20% — красная лента на карточке.
+                Каждый день в 00:00 МСК — новые пушки: скидка −20% купить,
+                наценка +20% купить, зелёная лента — продать +20%.
               </p>
               <ul className="market-patch-grid">
                 {patches.map((p) => (
@@ -208,7 +208,9 @@ export function MarketplaceClient({ loggedIn }: Props) {
                         ? " has-discount"
                         : p.deal === "markup"
                           ? " has-markup"
-                          : ""
+                          : p.deal === "sellboost"
+                            ? " has-sellboost"
+                            : ""
                     }`}
                   >
                     {p.deal === "discount" ? (
@@ -222,6 +224,14 @@ export function MarketplaceClient({ loggedIn }: Props) {
                         aria-label="Наценка 20%"
                       >
                         НАЦЕНКА +20%
+                      </span>
+                    ) : null}
+                    {p.deal === "sellboost" ? (
+                      <span
+                        className="market-deal-ribbon market-deal-ribbon--sell"
+                        aria-label="Продажа плюс 20%"
+                      >
+                        ПРОДАЖА +20%
                       </span>
                     ) : null}
                     <span className="market-patch-mine" tabIndex={0}>
@@ -279,7 +289,7 @@ export function MarketplaceClient({ loggedIn }: Props) {
                         onClick={() => void patchAction(p.id, "sell")}
                       >
                         <span className="muted">продать</span>
-                        <strong>
+                        <strong className={p.deal === "sellboost" ? "is-sellboost" : undefined}>
                           {busy === `sell:${p.id}` ? "…" : `${p.sell} BBC`}
                         </strong>
                       </button>

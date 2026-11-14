@@ -70,8 +70,8 @@ export type MarketPatchCard = {
   /** Сколько копий всего у всех на площадке */
   total: number;
   owned: boolean;
-  /** Дневная акция: скидка −20% купить / наценка +20% купить */
-  deal: "discount" | "markup" | null;
+  /** Дневная акция: скидка / наценка купить / бонус продажи */
+  deal: "discount" | "markup" | "sellboost" | null;
   dealDay?: string;
 };
 
