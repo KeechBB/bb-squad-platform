@@ -24592,6 +24592,8 @@ body:has(.faction-page) .site-footer {
   width: auto;
   height: auto;
   object-fit: contain;
+  /* Канон: ствол / дуло всегда влево (как в рейтинге и профиле) */
+  transform: scaleX(-1);
 }
 .market-patch-meta {
   display: flex;
