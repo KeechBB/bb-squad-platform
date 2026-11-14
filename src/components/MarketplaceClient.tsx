@@ -18,9 +18,11 @@ type PatchCard = {
   image: string;
   buy: number;
   sell: number;
+  buyBase?: number;
   mine: number;
   total: number;
   owned: boolean;
+  deal?: "discount" | "markup" | null;
 };
 
 type Tx = {
@@ -194,15 +196,34 @@ export function MarketplaceClient({ loggedIn }: Props) {
             <section className="market-shop" aria-label="Каталог нашивок">
               <p className="muted market-packs-note">
                 Слева жёлтым — сколько у тебя копий. Справа — всего на площадке.
-                Можно купить несколько одной и той же; ивент дня тоже даёт +1 за
-                круг.
+                Каждый день (МСК) одно оружие со скидкой −20% на покупку, другое
+                с наценкой +20% — красная лента на карточке.
               </p>
               <ul className="market-patch-grid">
                 {patches.map((p) => (
                   <li
                     key={p.id}
-                    className={`market-patch-card${p.mine > 0 ? " is-owned" : ""}`}
+                    className={`market-patch-card${p.mine > 0 ? " is-owned" : ""}${
+                      p.deal === "discount"
+                        ? " has-discount"
+                        : p.deal === "markup"
+                          ? " has-markup"
+                          : ""
+                    }`}
                   >
+                    {p.deal === "discount" ? (
+                      <span className="market-deal-ribbon" aria-label="Скидка 20%">
+                        СКИДКА −20%
+                      </span>
+                    ) : null}
+                    {p.deal === "markup" ? (
+                      <span
+                        className="market-deal-ribbon market-deal-ribbon--up"
+                        aria-label="Наценка 20%"
+                      >
+                        НАЦЕНКА +20%
+                      </span>
+                    ) : null}
                     <span className="market-patch-mine" tabIndex={0}>
                       {p.mine}
                       <span className="market-patch-tip" role="tooltip">
@@ -237,7 +258,18 @@ export function MarketplaceClient({ loggedIn }: Props) {
                       >
                         <span className="muted">купить</span>
                         <strong>
-                          {busy === `buy:${p.id}` ? "…" : `${p.buy} BBC`}
+                          {busy === `buy:${p.id}` ? (
+                            "…"
+                          ) : p.deal && p.buyBase && p.buyBase !== p.buy ? (
+                            <>
+                              <span className="market-price-old">
+                                {p.buyBase}
+                              </span>{" "}
+                              {p.buy} BBC
+                            </>
+                          ) : (
+                            `${p.buy} BBC`
+                          )}
                         </strong>
                       </button>
                       <button

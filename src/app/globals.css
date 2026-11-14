@@ -24561,6 +24561,43 @@ body:has(.faction-page) .site-footer {
 .market-patch-card.is-owned {
   outline: 1px solid rgba(232, 195, 90, 0.35);
 }
+.market-deal-ribbon {
+  position: absolute;
+  top: 18px;
+  left: -36px;
+  z-index: 4;
+  width: 140px;
+  padding: 5px 0;
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #fff;
+  background: linear-gradient(180deg, #e23b3b 0%, #b01010 100%);
+  box-shadow: 0 2px 8px rgba(120, 0, 0, 0.45);
+  transform: rotate(-42deg);
+  pointer-events: none;
+  text-transform: uppercase;
+}
+.market-deal-ribbon--up {
+  background: linear-gradient(180deg, #e25a2a 0%, #a02808 100%);
+  left: auto;
+  right: -36px;
+  transform: rotate(42deg);
+}
+.market-price-old {
+  text-decoration: line-through;
+  opacity: 0.55;
+  font-weight: 600;
+  margin-right: 4px;
+  font-size: 0.85em;
+}
+.market-patch-card.has-discount .market-price-buy strong {
+  color: #ff6b6b;
+}
+.market-patch-card.has-markup .market-price-buy strong {
+  color: #ff9a4a;
+}
 .market-patch-mine,
 .market-patch-total {
   position: absolute;

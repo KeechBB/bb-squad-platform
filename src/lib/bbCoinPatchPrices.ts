@@ -63,11 +63,16 @@ export type MarketPatchCard = {
   image: string;
   buy: number;
   sell: number;
+  /** Базовая цена купить без дневной акции */
+  buyBase: number;
   /** Сколько копий у текущего игрока */
   mine: number;
   /** Сколько копий всего у всех на площадке */
   total: number;
   owned: boolean;
+  /** Дневная акция: скидка −20% купить / наценка +20% купить */
+  deal: "discount" | "markup" | null;
+  dealDay?: string;
 };
 
 export function marketPatchMeta(id: ProfilePatchId) {
@@ -79,5 +84,6 @@ export function marketPatchMeta(id: ProfilePatchId) {
     image: profilePatchUrl(id) || (opt ? `/bp-assets/${opt.file}` : ""),
     buy: patchBuyPriceBbc(id),
     sell: patchSellPriceBbc(id),
+    buyBase: patchBuyPriceBbc(id),
   };
 }
