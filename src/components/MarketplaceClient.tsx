@@ -75,6 +75,7 @@ export function MarketplaceClient({ loggedIn }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [topupWipOpen, setTopupWipOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!loggedIn) return;
@@ -255,12 +256,39 @@ export function MarketplaceClient({ loggedIn }: Props) {
             </section>
             <button
               type="button"
-              className={`market-topup-btn${tab === "topup" ? " is-active" : ""}`}
-              onClick={() => setTab("topup")}
+              className="market-topup-btn"
+              onClick={() => setTopupWipOpen(true)}
             >
               Пополнить баланс
             </button>
           </div>
+
+          {topupWipOpen ? (
+            <div
+              className="market-wip-modal"
+              role="presentation"
+              onClick={() => setTopupWipOpen(false)}
+            >
+              <div
+                className="market-wip-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="market-wip-title"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <p id="market-wip-title" className="market-wip-title">
+                  На данный момент в разработке
+                </p>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setTopupWipOpen(false)}
+                >
+                  Понятно
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           <nav className="market-tabs" aria-label="Разделы площадки">
             {MAIN_TABS.map((t) => (
