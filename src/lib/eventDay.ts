@@ -150,14 +150,14 @@ export function eventDayRewardMeta(id: ProfilePatchId): {
 } | null {
   if (id === EVENT_DAY_SAIGA_PATCH_ID) {
     return {
-      title: "Сайга «Яблочный разброс»",
+      title: "АК-74 «Яблочный разброс»",
       body: `Нашивка за ${EVENT_DAY_KILLS_GOAL} киллов в окне ивента дня (15:45–23:59 МСК) на паблике.`,
       imageUrl: profilePatchUrl(id),
     };
   }
   if (id === EVENT_DAY_SCAR_PATCH_ID) {
     return {
-      title: "SCAR «Лимонный шквал»",
+      title: "АК-74 «Лимонный шквал»",
       body: `Нашивка за ${EVENT_DAY_RES_GOAL} ресов в окне ивента дня (15:45–23:59 МСК) на паблике.`,
       imageUrl: profilePatchUrl(id),
     };

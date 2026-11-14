@@ -1601,7 +1601,7 @@ body:has(.tm-sapper-page) {
   height: 24px;
 }
 
-/* SCAR — лимон / лайм */
+/* АК-74 лимон / лайм */
 .nick-patch-mark[data-patch-id="creator-event-scar-lemon"]
   .nick-patch-mark-art {
   transform: scaleX(-1);
@@ -1641,7 +1641,7 @@ body:has(.tm-sapper-page) {
   }
 }
 
-/* Сайга — мятный ореол по зелени ствола; НЕ красный (красный drop-shadow
+/* АК-74 яблоко — мятный ореол; НЕ красный (красный drop-shadow
    сливается с яблоками и «съедает» рисунок) */
 .nick-patch-mark[data-patch-id="creator-event-saiga-apple"]
   .nick-patch-mark-art {

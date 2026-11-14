@@ -55,7 +55,7 @@ export function HomeEventDay({ progress, loggedIn }: Props) {
               ) : null}
             </div>
             <div className="home-event-day-copy">
-              <h3>Сайга «Яблочный разброс»</h3>
+              <h3>АК-74 «Яблочный разброс»</h3>
               <p>
                 <strong>{EVENT_DAY_KILLS_GOAL} киллов</strong> · 15:45–23:59
               </p>
@@ -90,7 +90,7 @@ export function HomeEventDay({ progress, loggedIn }: Props) {
               ) : null}
             </div>
             <div className="home-event-day-copy">
-              <h3>SCAR «Лимонный шквал»</h3>
+              <h3>АК-74 «Лимонный шквал»</h3>
               <p>
                 <strong>{EVENT_DAY_RES_GOAL} ресов</strong> · 15:45–23:59
               </p>
