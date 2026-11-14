@@ -24614,27 +24614,32 @@ body:has(.faction-page) .site-footer {
 .market-price-sell strong.is-sellboost {
   color: #5dff8a;
 }
+.market-patch-counts {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 0;
+  position: relative;
+  z-index: 3;
+}
 .market-patch-mine,
 .market-patch-total {
-  position: absolute;
-  top: 10px;
-  z-index: 3;
+  position: relative;
   min-width: 2rem;
   padding: 4px 10px;
   border-radius: 8px;
   background: #0c0a08;
   font-weight: 800;
-  font-size: 1.25rem;
+  font-size: 1.15rem;
   text-align: center;
   font-variant-numeric: tabular-nums;
   cursor: default;
 }
 .market-patch-mine {
-  left: 12px;
   color: #ffd628;
 }
 .market-patch-total {
-  right: 12px;
   color: #cfc7dd;
 }
 .market-patch-tip {

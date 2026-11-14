@@ -234,21 +234,23 @@ export function MarketplaceClient({ loggedIn }: Props) {
                         ПРОДАЖА +20%
                       </span>
                     ) : null}
-                    <span className="market-patch-mine" tabIndex={0}>
-                      {p.mine}
-                      <span className="market-patch-tip" role="tooltip">
-                        У МЕНЯ
-                      </span>
-                    </span>
-                    <span className="market-patch-total" tabIndex={0}>
-                      {p.total}
-                      <span className="market-patch-tip" role="tooltip">
-                        всего у пользователей
-                      </span>
-                    </span>
                     <div className="market-patch-art">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={p.image} alt={p.title} />
+                    </div>
+                    <div className="market-patch-counts">
+                      <span className="market-patch-mine" tabIndex={0}>
+                        {p.mine}
+                        <span className="market-patch-tip" role="tooltip">
+                          У МЕНЯ
+                        </span>
+                      </span>
+                      <span className="market-patch-total" tabIndex={0}>
+                        {p.total}
+                        <span className="market-patch-tip" role="tooltip">
+                          всего у пользователей
+                        </span>
+                      </span>
                     </div>
                     <div className="market-patch-meta">
                       <strong>{p.title}</strong>
