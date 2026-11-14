@@ -202,7 +202,7 @@ export async function profileBgChoicesForUser(user: {
   return profileBgChoicesFor({ steamId: user.steamId, unlocks });
 }
 
-/** Ивент дня: 100 киллов → Сайга, 50 ресов → SCAR (за текущие сутки МСК). */
+/** Ивент дня: 100 киллов → Сайга, 50 ресов → SCAR (катки 15:45–23:59 МСК). */
 export async function ensureEventDayNickPatches(user: {
   id: string;
   nick: string | null;

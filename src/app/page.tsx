@@ -68,8 +68,11 @@ export default async function HomePage() {
     ).filter((card): card is HomeCwCard => Boolean(card));
   }
 
+  const eventDayLoggedIn = Boolean(
+    session?.user?.id && session.user.profileComplete && session.user.nick
+  );
   let eventUnlocks: string[] = [];
-  if (session?.user?.id) {
+  if (eventDayLoggedIn && session?.user?.id) {
     const me = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: {
@@ -87,7 +90,7 @@ export default async function HomePage() {
     }
   }
   const eventDay = await buildEventDayProgress({
-    nick: session?.user?.nick || null,
+    nick: eventDayLoggedIn ? session?.user?.nick : null,
     unlockedNickPatches: eventUnlocks,
   });
 
@@ -154,7 +157,7 @@ export default async function HomePage() {
             tileLayout={tileLayout}
             tiles={hubTiles}
             eventDay={eventDay}
-            eventDayLoggedIn={Boolean(session?.user?.id)}
+            eventDayLoggedIn={eventDayLoggedIn}
           />
         ) : (
           <>
@@ -182,7 +185,7 @@ export default async function HomePage() {
               </div>
               <HomeEventDay
                 progress={eventDay}
-                loggedIn={Boolean(session?.user?.id)}
+                loggedIn={eventDayLoggedIn}
               />
               {isBattlePassIntermission() ? (
                 <HomeBattlePassTeaser />

@@ -8683,12 +8683,12 @@ body:has(.home-page) {
 }
 .home-event-day-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px 14px;
+  grid-template-columns: 1fr;
+  gap: 10px;
 }
 .home-event-day-card {
   display: grid;
-  grid-template-columns: minmax(110px, 150px) minmax(0, 1fr);
+  grid-template-columns: minmax(100px, 140px) minmax(0, 1fr);
   gap: 8px 12px;
   align-items: center;
   min-width: 0;
@@ -8696,6 +8696,24 @@ body:has(.home-page) {
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(0, 0, 0, 0.28);
+}
+.home-event-day-stub {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(240, 201, 135, 0.28);
+  background: rgba(0, 0, 0, 0.32);
+  font-size: 0.88rem;
+  line-height: 1.4;
+  color: rgba(237, 230, 255, 0.9);
+}
+.home-event-day-stub a {
+  color: #f0c987;
+  font-weight: 700;
+  text-decoration: none;
+}
+.home-event-day-stub a:hover {
+  text-decoration: underline;
 }
 .home-event-day-art {
   display: flex;
@@ -8784,9 +8802,6 @@ body:has(.home-page) {
   text-decoration: underline;
 }
 @media (max-width: 820px) {
-  .home-event-day-grid {
-    grid-template-columns: 1fr;
-  }
   .home-event-day-until {
     margin-left: 0;
     width: 100%;
@@ -23010,32 +23025,71 @@ body:has(.home-page.is-hub),
   background: transparent;
 }
 
-/* Ивент дня на хабе — поверх оболочки, не ломает плитки */
+/* Ивент дня на хабе — правая колонка, карты друг под другом */
 .home-page.is-hub .home-event-day {
   position: absolute;
-  left: 50%;
-  bottom: 22px;
-  transform: translateX(-50%);
+  top: 50%;
+  right: 18px;
+  left: auto;
+  bottom: auto;
+  transform: translateY(-50%);
   z-index: 28;
-  width: min(940px, calc(100% - 40px));
+  width: min(360px, 30vw);
   margin-top: 0;
+  gap: 8px;
+  padding: 12px 12px 10px;
   backdrop-filter: blur(8px);
   background:
     linear-gradient(
-      125deg,
-      rgba(12, 8, 22, 0.88) 0%,
-      rgba(58, 24, 98, 0.62) 48%,
-      rgba(10, 6, 20, 0.9) 100%
+      160deg,
+      rgba(12, 8, 22, 0.9) 0%,
+      rgba(58, 24, 98, 0.64) 48%,
+      rgba(10, 6, 20, 0.92) 100%
     );
+}
+.home-page.is-hub .home-event-day-head {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px 0;
+}
+.home-page.is-hub .home-event-day-until {
+  margin-left: 0;
+  font-size: 0.74rem;
+}
+.home-page.is-hub .home-event-day-title {
+  font-size: 1.05rem;
+}
+.home-page.is-hub .home-event-day-grid {
+  grid-template-columns: 1fr;
+}
+.home-page.is-hub .home-event-day-card {
+  grid-template-columns: 1fr;
+  gap: 4px;
+  padding: 8px 10px 10px;
+}
+.home-page.is-hub .home-event-day-art {
+  min-height: 44px;
+}
+.home-page.is-hub .home-event-day-gun {
+  max-height: 48px;
+}
+@media (max-width: 1100px) {
+  .home-page.is-hub .home-event-day {
+    width: min(300px, 34vw);
+    right: 10px;
+  }
 }
 @media (max-width: 900px) {
   .home-page.is-hub .home-event-day {
+    top: auto;
     bottom: 10px;
-    width: calc(100% - 20px);
+    right: 10px;
+    left: 10px;
+    transform: none;
+    width: auto;
+    max-height: 46vh;
+    overflow: auto;
     padding: 10px 12px;
-  }
-  .home-page.is-hub .home-event-day-gun {
-    max-height: 44px;
   }
 }
 
