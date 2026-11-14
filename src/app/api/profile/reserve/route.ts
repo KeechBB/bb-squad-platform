@@ -25,6 +25,7 @@ async function meBySteam(steamId: string) {
       steamName: true,
       steamId: true,
       reserveUntil: true,
+      dayOffUntil: true,
     },
   });
 }
@@ -113,6 +114,12 @@ export async function POST(req: Request) {
   if (!me) return NextResponse.json({ error: "Не найден" }, { status: 404 });
   if (isActiveReserve(me.reserveUntil)) {
     return NextResponse.json({ error: "Ты уже в резерве" }, { status: 400 });
+  }
+  if (isActiveReserve(me.dayOffUntil)) {
+    return NextResponse.json(
+      { error: "Сначала сними выходной. Резерв и выходной вместе нельзя." },
+      { status: 409 }
+    );
   }
   const existing = await prisma.reserveRequest.findFirst({
     where: { userId: me.id, status: "PENDING" },

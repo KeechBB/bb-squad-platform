@@ -144,39 +144,48 @@ function readMode(isBb: boolean): ProfileMode {
 
 export function ProfilePageClient({
   subjectNick,
+  subjectSteamId,
   initialNick,
   initialView = null,
+  initialShell = null,
 }: {
   subjectNick?: string;
+  subjectSteamId?: string;
   initialNick?: string;
   initialView?: ProfileViewBundle | null;
+  initialShell?: Shell | null;
 } = {}) {
   if (initialNick && initialView) seedProfileView(initialNick, initialView);
   const { data: session, status } = useSession();
   const router = useRouter();
   const readOnly = Boolean(subjectNick);
-  // Keep the first client render identical to SSR, including on reloads with a
-  // cached shell. Restore browser-only state after hydration.
-  const [shell, setShell] = useState<Shell | null>(null);
+  // Чужой профиль приходит уже собранным с сервера — первый кадр не пустой.
+  const [shell, setShell] = useState<Shell | null>(initialShell ?? null);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<ProfileMode>(() =>
-    typeof window !== "undefined" && shell
-      ? readMode(shell.isBb)
-      : "train"
+  const [mode, setMode] = useState<ProfileMode>(
+    initialShell && !initialShell.isBb ? "public" : "train"
   );
   const [savedBg, setSavedBg] = useState<ProfileBgId | null>(() =>
-    normalizeProfileBg(shell?.profileBg)
+    normalizeProfileBg(initialShell?.profileBg)
   );
   const [previewBg, setPreviewBg] = useState<ProfileBgId | null>(() =>
-    normalizeProfileBg(shell?.profileBg)
+    normalizeProfileBg(initialShell?.profileBg)
   );
   const [savedPatch, setSavedPatch] = useState<ProfilePatchId | null>(() =>
-    normalizeProfilePatch(shell?.nickPatch)
+    normalizeProfilePatch(initialShell?.nickPatch)
   );
   const [savedNickStyle, setSavedNickStyle] =
     useState<ProfileNickStyleId | null>(() =>
-      normalizeProfileNickStyle(shell?.nickStyle)
+      normalizeProfileNickStyle(initialShell?.nickStyle)
     );
+
+  useEffect(() => {
+    if (!subjectSteamId) return;
+    const canon = `/players/${encodeURIComponent(subjectSteamId)}`;
+    if (window.location.pathname !== canon) {
+      window.history.replaceState(window.history.state, "", canon);
+    }
+  }, [subjectSteamId]);
 
   useEffect(() => {
     let cancelled = false;

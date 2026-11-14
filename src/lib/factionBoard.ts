@@ -7,7 +7,7 @@ import { isBuiltinSuperAdmin } from "@/lib/admin";
 import { FACTION_LOGO_DIR } from "@/lib/factionLogoFile";
 import { factionCanonColor } from "@/lib/factionColors";
 import { mainKits } from "@/lib/factions";
-import { nickCompact } from "@/lib/nickIdentity";
+import { nickCompact, nickMatchKey } from "@/lib/nickIdentity";
 import { mskDayBoundsUtc } from "@/lib/squadHits";
 import { canonKitName } from "@/lib/squadKits";
 import { mskParts } from "@/lib/squadSessions";
@@ -367,6 +367,16 @@ export type FactionGrowthRow = {
   yesterday: number | null;
 };
 
+function ladderLevel(ladder: Map<string, number>, names: string[]): number | null {
+  for (const name of names) {
+    const compact = nickCompact(name);
+    const match = nickMatchKey(name);
+    const level = ladder.get(compact) ?? (match ? ladder.get(match) : undefined);
+    if (level != null) return level;
+  }
+  return null;
+}
+
 export async function factionGrowthBoard(factionId: string): Promise<FactionGrowthRow[]> {
   const members = await prisma.factionMember.findMany({
     where: { factionId },
@@ -375,7 +385,41 @@ export async function factionGrowthBoard(factionId: string): Promise<FactionGrow
       user: { select: { id: true, nick: true, name: true, steamName: true, steamId: true } },
     },
   });
-  const listed = members.filter((m) => !isBuiltinSuperAdmin(m.user.steamId));
+  const bbClan = await prisma.clan.findFirst({
+    where: { tag: { equals: "BB", mode: "insensitive" }, isExternal: false },
+    select: { id: true },
+  });
+  const memberIds = members.map((m) => m.userId);
+  const bbIds = new Set(
+    bbClan && memberIds.length
+      ? (
+          await prisma.clanMember.findMany({
+            where: { clanId: bbClan.id, userId: { in: memberIds } },
+            select: { userId: true },
+          })
+        ).map((m) => m.userId)
+      : []
+  );
+  // Развитие: только клан BlackBerry. Кто это — steamId, не ник этой катки.
+  const listed = members.filter(
+    (m) => bbIds.has(m.userId) && !isBuiltinSuperAdmin(m.user.steamId)
+  );
+  const steams = [...new Set(listed.map((m) => m.user.steamId).filter(Boolean))];
+  const seenNicks = new Map<string, { nick: string; at: number }[]>();
+  if (steams.length) {
+    const spawns = await prisma.squadRoleEvent.groupBy({
+      by: ["steamId", "nickAtSpawn"],
+      where: { steamId: { in: steams }, nickAtSpawn: { not: null } },
+      _max: { spawnedAt: true },
+    });
+    for (const row of spawns) {
+      const nick = String(row.nickAtSpawn || "").trim();
+      if (!nick) continue;
+      const list = seenNicks.get(row.steamId) || [];
+      list.push({ nick, at: row._max.spawnedAt?.getTime() || 0 });
+      seenNicks.set(row.steamId, list);
+    }
+  }
   const kits = await mainKits(listed.map((m) => m.userId));
   const ladders = {
     rifleman: readLadder("rifleman"),
@@ -391,15 +435,23 @@ export async function factionGrowthBoard(factionId: string): Promise<FactionGrow
   const rows: FactionGrowthRow[] = listed.map((m, i) => {
     const role = kits.get(m.userId) || "—";
     const slug = LIVE_ROLE[role];
-    const key = nickCompact(m.user.nick || m.user.steamName || "");
-    const level = slug && key ? ladders[slug].get(key) ?? null : null;
-    if (slug && key && level != null) todaySnap[slug][key] = level;
-    const y = slug && key ? prev[slug]?.[key] : undefined;
+    const steamId = m.user.steamId;
+    const worn = (seenNicks.get(steamId) || [])
+      .sort((a, b) => b.at - a.at)
+      .map((x) => x.nick);
+    const names = [m.user.steamName || "", m.user.nick || "", ...worn].filter(Boolean);
+    const level = slug ? ladderLevel(ladders[slug], names) : null;
+    const nickKey = nickCompact(m.user.nick || m.user.steamName || "");
+    if (slug && steamId && level != null) todaySnap[slug][steamId] = level;
+    const y =
+      slug && steamId
+        ? prev[slug]?.[steamId] ?? (nickKey ? prev[slug]?.[nickKey] : undefined)
+        : undefined;
     const delta = level != null && y != null ? roundTo(level - y, 2) : null;
     return {
       order: i + 1,
       userId: m.userId,
-      nick: m.user.nick || m.user.steamName || "—",
+      nick: m.user.steamName || m.user.nick || "—",
       name: m.user.name || "",
       role,
       live: Boolean(slug),

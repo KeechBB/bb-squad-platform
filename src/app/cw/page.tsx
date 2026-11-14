@@ -23,7 +23,7 @@ export default async function CwPage({ searchParams }: Props) {
   const tab = sp.tab ? String(sp.tab) : "";
   const hash =
     tab === "rating" ? "#/cw/rating" : tab === "analytics" ? "#/cw/analytics" : "#/cw";
-  const bust = await liveKvBust("20261103-cw-map-all");
+  const bust = await liveKvBust("20261114-cw-all-time");
   const params = new URLSearchParams({ embed: "1", v: bust });
   if (clan) params.set("clan", clan);
   const q = `?${params.toString()}${hash}`;

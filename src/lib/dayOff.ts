@@ -11,7 +11,7 @@ import {
   todayUtcMidnight,
 } from "@/lib/absenceDays";
 import type { ReserveActor } from "@/lib/reserve";
-import { exitReserve, userInReserve } from "@/lib/reserve";
+import { userInReserve } from "@/lib/reserve";
 import { markProfileViewStale } from "@/lib/profileViewQueue";
 
 function addDaysYmd(ymd: string, delta: number): string {
@@ -109,13 +109,16 @@ export async function enterDayOff(opts: {
     throw new Error("day_off_range");
   }
 
-  // Взаимоисключение с резервом
+  // Резерв и выходной вместе нельзя: ни активный резерв, ни заявка на него.
   if (userInReserve(me)) {
-    await exitReserve({
-      userId: me.id,
-      source: opts.source,
-      actor: opts.actor,
-    });
+    throw new Error("absence_exclusive_reserve");
+  }
+  const pendingReserve = await prisma.reserveRequest.findFirst({
+    where: { userId: me.id, status: "PENDING" },
+    select: { id: true },
+  });
+  if (pendingReserve) {
+    throw new Error("absence_exclusive_reserve_pending");
   }
 
   const openPrev = await prisma.dayOffStint.findMany({

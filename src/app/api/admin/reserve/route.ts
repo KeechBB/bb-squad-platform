@@ -268,6 +268,12 @@ export async function POST(req: Request) {
           { status: 400 }
         );
       }
+      if (e instanceof Error && e.message === "absence_exclusive_dayoff") {
+        return NextResponse.json(
+          { error: "Игрок на выходном. Сначала сними выходной — резерв вместе с ним нельзя." },
+          { status: 409 }
+        );
+      }
       throw e;
     }
     await prisma.reserveRequest.update({
@@ -344,6 +350,12 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: "Дата «до» должна быть не раньше даты начала" },
         { status: 400 }
+      );
+    }
+    if (e instanceof Error && e.message === "absence_exclusive_dayoff") {
+      return NextResponse.json(
+        { error: "Игрок на выходном. Сначала сними выходной — резерв вместе с ним нельзя." },
+        { status: 409 }
       );
     }
     throw e;

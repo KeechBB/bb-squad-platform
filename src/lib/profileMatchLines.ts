@@ -343,18 +343,17 @@ export async function readProfileLines(
 
 const READY_TAKE = 40;
 
-/** Первая страница из таблицы. Сначала догоняем свежесть (sync только сносит кэш). */
+/**
+ * Первая страница из таблицы. Пересборка истории не блокирует открытие профиля:
+ * экран берёт уже записанные строки, свежесть догоняется после ответа.
+ */
 export async function loadReadyHistories(nick: string) {
-  await Promise.all([
-    ensureProfileLines(nick, "train"),
-    ensureProfileLines(nick, "public"),
-    ensureProfileLines(nick, "cw"),
-  ]);
   const [train, pub, cw] = await Promise.all([
     readProfileLines(nick, "train", 1, READY_TAKE),
     readProfileLines(nick, "public", 1, READY_TAKE),
     readProfileLines(nick, "cw", 1, READY_TAKE),
   ]);
+  refreshProfileLinesBackground(nick);
   return {
     trainHistory: train.rows,
     publicHistory: pub.rows,

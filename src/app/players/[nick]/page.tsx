@@ -5,6 +5,7 @@ import { notFound, permanentRedirect, redirect } from "next/navigation";
 import Link from "next/link";
 import { ProfilePageClient } from "@/components/ProfilePageClient";
 import { readStoredProfileView } from "@/lib/profileViewSnapshot";
+import { buildProfileShell, type ProfileShellUser } from "@/lib/profileShell";
 import { TrainingSessionsCard } from "@/components/TrainingSessionsCard";
 import { ProfileHitmapCard } from "@/components/ProfileHitmapCard";
 import { getEnemyPlayer } from "@/lib/crossRating";
@@ -102,8 +103,20 @@ export default async function PlayerProfilePage({ params }: Props) {
         },
         include: userInclude,
       }));
-    if (user?.steamId) {
-      permanentRedirect(playerPath(user.steamId));
+  }
+
+  if (!user && !isSteamIdParam(param)) {
+    const named = await prisma.user.findMany({
+      where: {
+        steamName: { equals: param, mode: "insensitive" },
+        profileComplete: true,
+        NOT: { steamId: { startsWith: EXTERNAL_LEADER_STEAM_PREFIX } },
+      },
+      include: userInclude,
+      take: 2,
+    });
+    if (named.length === 1 && named[0].steamId) {
+      permanentRedirect(playerPath(named[0].steamId));
     }
   }
 
@@ -268,12 +281,19 @@ export default async function PlayerProfilePage({ params }: Props) {
   if (isSelf) redirect("/profile");
 
   const shown = user.nick || nick;
-  const initialView = await readStoredProfileView(shown).catch(() => null);
+  const [initialView, initialShell] = await Promise.all([
+    readStoredProfileView(shown).catch(() => null),
+    buildProfileShell(user as ProfileShellUser, { isSelf: false }).catch(
+      () => null
+    ),
+  ]);
   return (
     <ProfilePageClient
       subjectNick={shown}
+      subjectSteamId={user.steamId || undefined}
       initialNick={shown}
       initialView={initialView}
+      initialShell={initialShell}
     />
   );
 }

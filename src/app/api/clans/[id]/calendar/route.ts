@@ -182,12 +182,22 @@ export async function GET(_req: Request, ctx: Ctx) {
     return "other";
   }
 
-  /** Один клан для дедупа: BB / BB Main / BB Junior — не два матча. */
+  /**
+   * Один клан для дедупа: BB / BB Main / BB Junior — не два матча.
+   * «BB Junior» не попадает в canon (ключ получается «BB JUNIOR», не BB).
+   */
+  function isBbSide(raw: string): boolean {
+    const c = canonOpp(raw);
+    if (c.key === "BB" || c.key === "BB-MAIN" || c.key === "BB-JUNIOR") return true;
+    const blob = `${c.key} ${c.tag} ${raw}`.toLowerCase().replace(/\s+/g, "");
+    return blob.startsWith("bbjunior") || blob.startsWith("bbmain") || blob.includes("blackberry");
+  }
+
   function sameClanSide(a: string, b: string): boolean {
     const ca = canonOpp(a);
     const cb = canonOpp(b);
     if (ca.key === cb.key) return true;
-    if (ca.tag === "BB" && cb.tag === "BB") return true;
+    if (isBbSide(a) && isBbSide(b)) return true;
     return false;
   }
 

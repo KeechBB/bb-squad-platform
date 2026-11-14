@@ -51,6 +51,17 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      // После общего no-store: картинки главной лежат в public/ без хэша в имени.
+      // Версия в адресе (?v=) сбрасывает кэш, когда арт меняют.
+      {
+        source: "/home-hub/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=2592000",
+          },
+        ],
+      },
     ];
   },
 };

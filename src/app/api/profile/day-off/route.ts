@@ -66,6 +66,18 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+    if (e instanceof Error && e.message === "absence_exclusive_reserve") {
+      return NextResponse.json(
+        { error: "Ты в резерве. Сначала выйди из него. Выходной вместе с резервом нельзя." },
+        { status: 409 }
+      );
+    }
+    if (e instanceof Error && e.message === "absence_exclusive_reserve_pending") {
+      return NextResponse.json(
+        { error: "Заявка на резерв ещё ждёт HR. Выходной вместе с ней нельзя." },
+        { status: 409 }
+      );
+    }
     throw e;
   }
 }

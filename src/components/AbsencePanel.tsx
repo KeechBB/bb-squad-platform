@@ -62,15 +62,20 @@ export function AbsencePanel({
     untilLabel: string;
     reasonText: string;
   } | null>(null);
+  const [pendingReady, setPendingReady] = useState(false);
 
   useEffect(() => {
     let stop = false;
     fetch("/api/profile/reserve", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (!stop && data?.pending) setPending(data.pending);
+        if (stop) return;
+        if (data?.pending) setPending(data.pending);
+        setPendingReady(true);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!stop) setPendingReady(true);
+      });
     return () => {
       stop = true;
     };
@@ -264,6 +269,7 @@ export function AbsencePanel({
               <span className="muted">{pending.reasonText}. Ждёт решения HR.</span>
             </p>
           ) : null}
+          {pendingReady && !pending ? (
           <button
             type="button"
             className="btn absence-btn-dayoff"
@@ -273,7 +279,8 @@ export function AbsencePanel({
           >
             Взять выходной
           </button>
-          {pending ? null : (
+          ) : null}
+          {pendingReady && !pending ? (
             <button
               type="button"
               className="btn absence-btn-reserve"
@@ -286,7 +293,7 @@ export function AbsencePanel({
             >
               Уйти в резерв
             </button>
-          )}
+          ) : null}
         </div>
       )}
       {error && active ? <p className="error">{error}</p> : null}

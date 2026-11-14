@@ -239,6 +239,18 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+    if (e instanceof Error && e.message === "absence_exclusive_reserve") {
+      return NextResponse.json(
+        { error: "Игрок в резерве. Сначала выведи его — выходной вместе с резервом нельзя." },
+        { status: 409 }
+      );
+    }
+    if (e instanceof Error && e.message === "absence_exclusive_reserve_pending") {
+      return NextResponse.json(
+        { error: "У игрока заявка на резерв ещё ждёт решения. Выходной вместе с ней нельзя." },
+        { status: 409 }
+      );
+    }
     throw e;
   }
 }

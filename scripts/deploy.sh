@@ -121,21 +121,18 @@ if [[ -d storage/tournament-teams ]]; then
 fi
 # CRITICAL: never stash-before-pull. Old deploy stashed SCP edits and never
 # popped them → "lost" BP L5 / calendar / RP / Predator CSS after every deploy.
-# Source of truth = GitHub. Dirty tree on VPS = abort (commit+push from PC first).
-# checkout -- . / reset --hard запрещены.
-mapfile -t DIRTY_PATHS < <(git status --porcelain -- src docs scripts package.json package-lock.json public 2>/dev/null | awk '{print $NF}' | grep -v '^public/replay-maps' || true)
-if [[ "${BB_DEPLOY_FORCE_CLEAN:-}" == "1" ]]; then
-  echo "==> BB_DEPLOY_FORCE_CLEAN=1 — fetch + reset --hard origin/main (only after GitHub has the truth)"
-  git fetch origin
-  git reset --hard origin/main
-elif [[ ${#DIRTY_PATHS[@]} -gt 0 ]]; then
-  echo "==> ABORT: dirty code on VPS (would be wiped by pull). Commit+push from PC, then redeploy." >&2
-  echo "==> dirty paths:" >&2
-  printf '  %s\n' "${DIRTY_PATHS[@]}" >&2
-  echo "==> or after GitHub is correct: BB_DEPLOY_FORCE_CLEAN=1 bash scripts/deploy.sh" >&2
-  exit 1
-else
-  git pull --ff-only
+# Source of truth = GitHub ONLY. Every deploy hard-resets to origin/main.
+# Edit on PC → commit+push (scripts/deploy_from_pc.ps1) → then this script.
+# Local VPS edits in src/docs/scripts/public are discarded on purpose.
+echo "==> fetch + reset --hard origin/main (GitHub is sole truth)"
+git fetch origin
+BEFORE="$(git rev-parse --short HEAD 2>/dev/null || echo '?')"
+git reset --hard origin/main
+AFTER="$(git rev-parse --short HEAD 2>/dev/null || echo '?')"
+echo "==> HEAD $BEFORE → $AFTER"
+if [[ -n "$(git status --porcelain -- src docs scripts package.json package-lock.json public 2>/dev/null | grep -v '^public/replay-maps' || true)" ]]; then
+  echo "==> WARN: still dirty after reset (unexpected paths):" >&2
+  git status --porcelain -- src docs scripts package.json package-lock.json public 2>/dev/null | grep -v '^public/replay-maps' >&2 || true
 fi
 # Some ops use reset --hard after fetch; restore preserved files either way.
 for f in "${PRESERVE_PUBLIC[@]}"; do
