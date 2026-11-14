@@ -1,6 +1,7 @@
 /** Стили ника в рейтингах (паблик / КВ / тренировки). */
 
 import { SITE_CREATOR_STEAM_ID } from "@/lib/profileBg";
+import { MARKET_FONT_IDS } from "@/lib/marketFontIds";
 
 export const PROFILE_NICK_STYLE_OPTIONS = [
   {
@@ -67,6 +68,10 @@ export function profileNickStyleChoicesFor(opts: {
 }): ProfileNickStyleChoice[] {
   const unlocks = new Set(opts.unlocks);
   return PROFILE_NICK_STYLE_OPTIONS.filter((option) => {
+    // Каталог маркетплейса: после продажи пропадает (только unlocks).
+    if (MARKET_FONT_IDS.has(option.id)) {
+      return unlocks.has(option.id);
+    }
     if (option.gate === "bp-l10") {
       return unlocks.has(option.id);
     }

@@ -66,6 +66,19 @@
 
 Код: `marketBgIds.ts`, `bbCoinBgPrices.ts`, `bbCoinBgMarket.ts`, `api/bb-coins/bgs`.
 
+## Шрифты ника (фаза 1.3)
+
+Инвентарь: `NickStyleStock` + sync `unlockedNickStyles`. После продажи стиль пропадает из кастомизации.
+
+| id | Шрифт | Купить BBC | Продать BBC (80%) |
+|----|-------|------------|-------------------|
+| `bp-l10-aurum-clean` | Aurum Clean (золото) | 2000 | 1600 |
+| `hw2-violet-gothic` | Алая жатва (красный) | 1500 | 1200 |
+
+Пока в каталоге **2** шрифта: ежедневно активны только **2 из 3** видов акций (`bbCoinFontDailyDeals.ts`, сид `bb-market-font-deal-v1:YYYY-MM-DD`); третий вид отпадает. Каждый шрифт получает ровно одну акцию (или без — если логика расширится).
+
+Код: `marketFontIds.ts`, `bbCoinFontPrices.ts`, `bbCoinFontMarket.ts`, `api/bb-coins/fonts`.
+
 ## Код
 
 - `src/lib/bbCoins.ts`, `src/lib/bbCoinsTournament.ts`

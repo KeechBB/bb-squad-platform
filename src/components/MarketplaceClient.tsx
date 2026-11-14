@@ -27,6 +27,21 @@ type PatchCard = {
 
 type BgCard = PatchCard;
 
+type FontCard = {
+  id: string;
+  title: string;
+  source: string;
+  cssClass: string;
+  sample: string;
+  buy: number;
+  sell: number;
+  buyBase?: number;
+  mine: number;
+  total: number;
+  owned: boolean;
+  deal?: "discount" | "markup" | "sellboost" | null;
+};
+
 type Tx = {
   id: string;
   delta: number;
@@ -55,6 +70,7 @@ export function MarketplaceClient({ loggedIn }: Props) {
   const [packages, setPackages] = useState<Pack[]>([]);
   const [patches, setPatches] = useState<PatchCard[]>([]);
   const [bgs, setBgs] = useState<BgCard[]>([]);
+  const [fonts, setFonts] = useState<FontCard[]>([]);
   const [txs, setTxs] = useState<Tx[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -78,6 +94,7 @@ export function MarketplaceClient({ loggedIn }: Props) {
       setPackages(data.packages || []);
       setPatches(data.patches || []);
       setBgs(data.bgs || []);
+      setFonts(data.fonts || []);
       setTxs(data.txs || []);
       if (data.grantedNow > 0) {
         setMsg(`Зачислено ${data.grantedNow} BB Coins за прогнозы турнира.`);
@@ -172,6 +189,39 @@ export function MarketplaceClient({ loggedIn }: Props) {
         action === "buy"
           ? `Фон куплен (+1). У тебя: ${data.mine ?? "…"}`
           : `Фон продан (−1). У тебя: ${data.mine ?? "…"}`
+      );
+      await load();
+    } catch {
+      setErr("Сеть недоступна");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function fontAction(styleId: string, action: "buy" | "sell") {
+    setBusy(`${action}:font:${styleId}`);
+    setErr(null);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/bb-coins/fonts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, styleId }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        const map: Record<string, string> = {
+          insufficient: "Не хватает BB Coins — пополни баланс",
+          not_owned: "Нечего продавать — нет копий в инвентаре",
+        };
+        setErr(map[data.error] || "Не удалось выполнить сделку");
+        return;
+      }
+      if (typeof data.balance === "number") setBalance(data.balance);
+      setMsg(
+        action === "buy"
+          ? `Шрифт куплен (+1). У тебя: ${data.mine ?? "…"}`
+          : `Шрифт продан (−1). У тебя: ${data.mine ?? "…"}`
       );
       await load();
     } catch {
@@ -459,12 +509,126 @@ export function MarketplaceClient({ loggedIn }: Props) {
           ) : null}
 
           {tab === "font" ? (
-            <section className="market-soon" aria-label="Шрифты ника">
-              <h2>Шрифт</h2>
-              <p className="muted">
-                Каталог шрифтов ника появится здесь — те же карточки купить /
-                продать.
+            <section className="market-shop" aria-label="Каталог шрифтов">
+              <p className="muted market-packs-note">
+                Золотой и алый металлический ник. Пока в каталоге 2 шрифта —
+                каждый день активны только 2 из 3 акций (скидка / наценка /
+                продажа+), третья отпадает. Продать = 80%.
               </p>
+              <ul className="market-patch-grid market-font-grid">
+                {fonts.map((p) => (
+                  <li
+                    key={p.id}
+                    className={`market-patch-card market-font-card${
+                      p.mine > 0 ? " is-owned" : ""
+                    }${
+                      p.deal === "discount"
+                        ? " has-discount"
+                        : p.deal === "markup"
+                          ? " has-markup"
+                          : p.deal === "sellboost"
+                            ? " has-sellboost"
+                            : ""
+                    }`}
+                  >
+                    {p.deal === "discount" ? (
+                      <span className="market-deal-ribbon" aria-label="Скидка 20%">
+                        СКИДКА −20%
+                      </span>
+                    ) : null}
+                    {p.deal === "markup" ? (
+                      <span
+                        className="market-deal-ribbon market-deal-ribbon--up"
+                        aria-label="Наценка 20%"
+                      >
+                        НАЦЕНКА +20%
+                      </span>
+                    ) : null}
+                    {p.deal === "sellboost" ? (
+                      <span
+                        className="market-deal-ribbon market-deal-ribbon--sell"
+                        aria-label="Продажа плюс 20%"
+                      >
+                        ПРОДАЖА +20%
+                      </span>
+                    ) : null}
+                    <div className="market-patch-art market-font-art">
+                      <span
+                        className={`public-rating-nick-label market-font-sample${
+                          p.cssClass ? ` ${p.cssClass}` : ""
+                        }`}
+                        data-text={p.sample || "Keech"}
+                      >
+                        {p.sample || "Keech"}
+                      </span>
+                    </div>
+                    <div className="market-patch-counts">
+                      <span className="market-patch-mine" tabIndex={0}>
+                        {p.mine}
+                        <span className="market-patch-tip" role="tooltip">
+                          У МЕНЯ
+                        </span>
+                      </span>
+                      <span className="market-patch-total" tabIndex={0}>
+                        {p.total}
+                        <span className="market-patch-tip" role="tooltip">
+                          всего у пользователей
+                        </span>
+                      </span>
+                    </div>
+                    <div className="market-patch-meta">
+                      <strong>{p.title}</strong>
+                      <span className="muted">{p.source}</span>
+                      {p.mine > 0 ? (
+                        <span className="market-owned-tag">
+                          у тебя ×{p.mine}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="market-patch-prices">
+                      <button
+                        type="button"
+                        className="market-price-buy"
+                        disabled={Boolean(busy)}
+                        onClick={() => void fontAction(p.id, "buy")}
+                      >
+                        <span className="muted">купить</span>
+                        <strong>
+                          {busy === `buy:font:${p.id}` ? (
+                            "…"
+                          ) : p.deal && p.buyBase && p.buyBase !== p.buy ? (
+                            <>
+                              <span className="market-price-old">
+                                {p.buyBase}
+                              </span>{" "}
+                              {p.buy} BBC
+                            </>
+                          ) : (
+                            `${p.buy} BBC`
+                          )}
+                        </strong>
+                      </button>
+                      <button
+                        type="button"
+                        className="market-price-sell"
+                        disabled={Boolean(busy) || p.mine < 1}
+                        onClick={() => void fontAction(p.id, "sell")}
+                      >
+                        <span className="muted">продать</span>
+                        <strong
+                          className={
+                            p.deal === "sellboost" ? "is-sellboost" : undefined
+                          }
+                        >
+                          {busy === `sell:font:${p.id}`
+                            ? "…"
+                            : `${p.sell} BBC`}
+                        </strong>
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </section>
           ) : null}
 

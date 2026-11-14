@@ -90,6 +90,17 @@ export async function ensureBpL10NickStyle(user: {
   const nick = String(user.nick || "").trim();
   if (!nick) return unlocks;
 
+  // После продажи на маркетплейсе L10 больше не выдаём автоматически.
+  const sold = await prisma.bbCoinTx.findFirst({
+    where: {
+      userId: user.id,
+      kind: "font_sell",
+      note: { contains: BP_L10_NICK_STYLE_ID },
+    },
+    select: { id: true },
+  });
+  if (sold) return unlocks;
+
   const state = await loadBattlePassState().catch(() => null);
   const prog = progressForNick(state, nick);
   if (prog.currentLevel < 10 && !prog.completedAt) return unlocks;
@@ -99,6 +110,8 @@ export async function ensureBpL10NickStyle(user: {
     where: { id: user.id },
     data: { unlockedNickStyles: unlocks },
   });
+  const { addFontQty } = await import("@/lib/nickStyleStock");
+  await addFontQty(user.id, BP_L10_NICK_STYLE_ID, 1).catch(() => undefined);
   await notifyRewardUnlock({
     userId: user.id,
     dedupeKey: `reward:font:${BP_L10_NICK_STYLE_ID}`,

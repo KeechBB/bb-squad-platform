@@ -24780,13 +24780,34 @@ body:has(.faction-page) .site-footer {
   transform: none;
 }
 
+/* Шрифты: превью металлического ника */
+.market-font-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 720px;
+}
+.market-font-card {
+  min-height: 280px;
+}
+.market-font-art {
+  height: 120px;
+  padding: 16px;
+}
+.market-font-sample {
+  font-size: 1.85rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+}
+
 @media (max-width: 1100px) {
   .market-patch-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .market-bg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .market-font-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 820px) {
   .market-patch-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .market-bg-grid { grid-template-columns: 1fr; }
+  .market-font-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
   .market-pack { flex-direction: column; align-items: stretch; }
@@ -24794,5 +24815,6 @@ body:has(.faction-page) .site-footer {
   .market-tx-list li span:last-child { grid-column: 2; }
   .market-patch-grid { grid-template-columns: 1fr; }
   .market-bg-grid { grid-template-columns: 1fr; }
+  .market-font-grid { grid-template-columns: 1fr; }
   .market-topup-btn { min-height: 60px; font-size: 1.05rem; }
 }

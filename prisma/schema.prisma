@@ -130,6 +130,7 @@ model User {
   bbCoinOrders               BbCoinOrder[]
   nickPatchStocks            NickPatchStock[]
   profileBgStocks            ProfileBgStock[]
+  nickStyleStocks            NickStyleStock[]
 }
 
 /// Количественный инвентарь нашивок (можно несколько копий одной).
@@ -159,6 +160,21 @@ model ProfileBgStock {
 
   @@unique([userId, bgId])
   @@index([bgId])
+  @@index([userId])
+}
+
+/// Количественный инвентарь шрифтов ника (зарабатываемые / маркет).
+model NickStyleStock {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  styleId   String
+  qty       Int      @default(0)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@unique([userId, styleId])
+  @@index([styleId])
   @@index([userId])
 }
 

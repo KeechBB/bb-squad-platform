@@ -7,6 +7,7 @@ import { BB_COIN_PACKAGES, getBbCoinBalance } from "@/lib/bbCoins";
 import { settleActiveTournamentBbCoins } from "@/lib/bbCoinsTournament";
 import { loadMarketPatchCatalog } from "@/lib/bbCoinPatchMarket";
 import { loadMarketBgCatalog } from "@/lib/bbCoinBgMarket";
+import { loadMarketFontCatalog } from "@/lib/bbCoinFontMarket";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,7 @@ export async function GET() {
     granted: 0,
   }));
   const balance = await getBbCoinBalance(user.id);
-  const [txs, patches, bgs] = await Promise.all([
+  const [txs, patches, bgs, fonts] = await Promise.all([
     prisma.bbCoinTx.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
@@ -38,6 +39,7 @@ export async function GET() {
     }),
     loadMarketPatchCatalog({ userId: user.id, steamId: user.steamId }),
     loadMarketBgCatalog({ userId: user.id, steamId: user.steamId }),
+    loadMarketFontCatalog({ userId: user.id, steamId: user.steamId }),
   ]);
 
   return NextResponse.json({
@@ -47,6 +49,7 @@ export async function GET() {
     packages: BB_COIN_PACKAGES,
     patches,
     bgs,
+    fonts,
     txs: txs.map((t) => ({
       id: t.id,
       delta: t.delta,
