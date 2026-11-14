@@ -336,20 +336,15 @@ function trainingPresentCount(training: unknown): number {
 }
 
 /**
- * Календарь КВ: если в снимке уже есть дни — отдаём сразу (иначе каждый заход
- * профиля читает все month JSON + players/*.json ≈ секунды). Живой пересчёт
- * (актуальный клан игрока) — в фоне через очередь снимка.
+ * Календарь КВ: если в снимке поле уже есть (даже пустой byDay) — отдаём сразу.
+ * Иначе каждый заход читает все month JSON + players/*.json. Живой пересчёт
+ * (актуальный клан) — в фоне через очередь снимка.
  */
 async function withLiveCwAtt(
   nick: string,
   data: ProfileViewPayload
 ): Promise<ProfileViewPayload> {
-  const existing =
-    data.cwAtt && typeof data.cwAtt === "object"
-      ? (data.cwAtt as { byDay?: Record<string, unknown> })
-      : null;
-  const days = existing?.byDay ? Object.keys(existing.byDay).length : 0;
-  if (days > 0) {
+  if (data.cwAtt && typeof data.cwAtt === "object") {
     void import("@/lib/profileViewQueue")
       .then((m) => m.markProfileViewStale(nick))
       .catch(() => undefined);
@@ -369,6 +364,9 @@ async function withLiveTrainingIfEmpty(
   data: ProfileViewPayload
 ): Promise<ProfileViewPayload> {
   if (trainingPresentCount(data.training) > 0) return data;
+  // Паблик-календарь уже в снимке — тренировки пустые легитимно, не долбим БД.
+  const pub = data.publicAtt as { presentDays?: unknown[] } | null;
+  if ((pub?.presentDays?.length || 0) > 0) return data;
   const user = await prisma.user.findFirst({
     where: {
       nick: { equals: nick, mode: "insensitive" },
@@ -390,58 +388,49 @@ async function withLiveTrainingIfEmpty(
   return data;
 }
 
-function trainCombatMatches(stats: unknown): number {
-  if (!stats || typeof stats !== "object") return 0;
-  const row = stats as { trainCombat?: { matches?: number } | null };
-  const n = row.trainCombat?.matches;
-  return Number.isFinite(n) ? Number(n) : 0;
-}
-
 /**
- * Сломанный warm (tsx без Next cache) писал trainCombat:null при живых катках.
- * На чтении поднимаем стату/историю и ставим полный rebuild в фон.
+ * Сломанный warm (tsx без Next cache) писал trainCombat:null.
+ * matches:0 у паблик-онли игрока — валидно; не гоняем heavy (~9с) на каждый заход.
  */
 async function withLiveCombatIfEmpty(
   nick: string,
   data: ProfileViewPayload
 ): Promise<ProfileViewPayload> {
-  const hist = data.histories as {
-    trainHistory?: unknown[];
-    trainTotal?: number;
-  } | null;
-  const needCombat = trainCombatMatches(data.stats) <= 0;
-  const needTrainHist = !(hist?.trainHistory && hist.trainHistory.length > 0);
-  if (!needCombat && !needTrainHist) return data;
+  const stats =
+    data.stats && typeof data.stats === "object"
+      ? (data.stats as { trainCombat?: unknown | null })
+      : null;
+  // null/undefined = битый warm; объект (в т.ч. matches:0) = снимок ок.
+  if (stats && stats.trainCombat != null) return data;
 
   const heavy = await loadPlayerProfileHeavy(nick).catch(() => null);
   if (!heavy) return data;
 
-  if (needCombat && (heavy.trainCombat?.matches || 0) > 0) {
-    const prev =
-      data.stats && typeof data.stats === "object"
-        ? (data.stats as Record<string, unknown>)
-        : {};
-    data.stats = {
-      ...prev,
-      kvStats: heavy.kvStats ?? prev.kvStats ?? null,
-      kvError: heavy.kvError ?? prev.kvError ?? null,
-      trainCombat: heavy.trainCombat,
-      publicCombat: heavy.publicCombat ?? prev.publicCombat ?? null,
-    };
-  }
-  if (needTrainHist && heavy.trainHistory.length > 0) {
-    const prev =
+  const prev =
+    data.stats && typeof data.stats === "object"
+      ? (data.stats as Record<string, unknown>)
+      : {};
+  data.stats = {
+    ...prev,
+    kvStats: heavy.kvStats ?? prev.kvStats ?? null,
+    kvError: heavy.kvError ?? prev.kvError ?? null,
+    // Пишем даже matches:0 — иначе следующий заход снова дернёт heavy.
+    trainCombat: heavy.trainCombat ?? { matches: 0 },
+    publicCombat: heavy.publicCombat ?? prev.publicCombat ?? null,
+  };
+  if (heavy.trainHistory.length > 0) {
+    const histPrev =
       data.histories && typeof data.histories === "object"
         ? (data.histories as Record<string, unknown>)
         : {};
     data.histories = {
-      ...prev,
+      ...histPrev,
       trainHistory: heavy.trainHistory,
       trainTotal: heavy.trainTotal || heavy.trainHistory.length,
-      publicHistory: prev.publicHistory ?? heavy.publicHistory,
-      cwHistory: prev.cwHistory ?? heavy.cwHistory,
-      publicTotal: prev.publicTotal ?? heavy.publicTotal,
-      cwTotal: prev.cwTotal ?? heavy.cwTotal,
+      publicHistory: histPrev.publicHistory ?? heavy.publicHistory,
+      cwHistory: histPrev.cwHistory ?? heavy.cwHistory,
+      publicTotal: histPrev.publicTotal ?? heavy.publicTotal,
+      cwTotal: histPrev.cwTotal ?? heavy.cwTotal,
     };
   }
 
