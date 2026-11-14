@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isBuiltinSuperAdmin } from "@/lib/admin";
 import { BB_COIN_PACKAGES, getBbCoinBalance } from "@/lib/bbCoins";
 import { settleActiveTournamentBbCoins } from "@/lib/bbCoinsTournament";
 
@@ -11,6 +12,9 @@ export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.steamId) {
     return NextResponse.json({ ok: false, error: "auth" }, { status: 401 });
+  }
+  if (!isBuiltinSuperAdmin(session.user.steamId)) {
+    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
   const user = await prisma.user.findUnique({
     where: { steamId: session.user.steamId },

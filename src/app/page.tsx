@@ -59,6 +59,7 @@ export default async function HomePage() {
   const hubTiles = withViewerHubHrefs(HOME_HUB_TILES, {
     clanId: homeClanId,
     factionSlug: homeFactionSlug,
+    marketplaceLive: canEditTiles,
   });
   let cwCards: HomeCwCard[] = [];
   if (showCw) {

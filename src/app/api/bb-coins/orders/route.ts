@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { bbCoinPackage, creditBbCoins } from "@/lib/bbCoins";
-import { isSuperAdmin } from "@/lib/admin";
+import { isBuiltinSuperAdmin } from "@/lib/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +12,9 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.steamId) {
     return NextResponse.json({ ok: false, error: "auth" }, { status: 401 });
+  }
+  if (!isBuiltinSuperAdmin(session.user.steamId)) {
+    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
   const user = await prisma.user.findUnique({
     where: { steamId: session.user.steamId },
@@ -43,7 +46,7 @@ export async function POST(req: Request) {
   });
 
   const testPay =
-    Boolean(body.testPay) && (await isSuperAdmin(user.steamId));
+    Boolean(body.testPay) && isBuiltinSuperAdmin(user.steamId);
   if (testPay) {
     const paid = await markOrderPaid(order.id, user.id, pack.coins);
     return NextResponse.json({

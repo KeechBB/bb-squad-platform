@@ -63,7 +63,9 @@ export const HOME_HUB_TILES: HomeHubTile[] = [
     title: "Торговая Площадка",
     label: "ТОРГОВАЯ\nПЛОЩАДКА",
     image: "/home-hub/marketplace.png",
-    href: "/marketplace",
+    /** По умолчанию stub; Keech получает живой /marketplace в withViewerHubHrefs. */
+    href: "/wip/marketplace",
+    stub: true,
   },
   {
     id: "my-clan",
@@ -96,9 +98,20 @@ export const HOME_HUB_WIP_TITLES: Record<string, string> = {
 /** Personalize hub tile hrefs for the logged-in viewer. */
 export function withViewerHubHrefs(
   tiles: HomeHubTile[],
-  opts: { clanId: string | null; factionSlug?: string | null }
+  opts: {
+    clanId: string | null;
+    factionSlug?: string | null;
+    /** Живая площадка пока только у Keech. */
+    marketplaceLive?: boolean;
+  }
 ): HomeHubTile[] {
   return tiles.map((tile) => {
+    if (tile.id === "marketplace") {
+      if (opts.marketplaceLive) {
+        return { ...tile, href: "/marketplace", stub: false };
+      }
+      return { ...tile, href: "/wip/marketplace", stub: true };
+    }
     if (tile.id === "my-clan") {
       return {
         ...tile,
