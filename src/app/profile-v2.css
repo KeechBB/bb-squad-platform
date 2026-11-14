@@ -1426,15 +1426,11 @@ body.has-profile-bg .shell:has(.profile-page) {
 .profile-patch-tile[data-patch-id="creator-event-pkm-harvest"]
   .profile-patch-tile-art {
   width: 96%;
-  /* канон: ствол влево */
+  /* канон: ствол влево; без свечения — чистый вырез */
   transform: scaleX(-1);
-  /* мягкий ореол поверх glow в PNG */
-  filter:
-    drop-shadow(0 0 4px rgba(120, 200, 255, 0.45))
-    drop-shadow(0 0 8px rgba(180, 100, 255, 0.35))
-    drop-shadow(0 0 12px rgba(255, 140, 50, 0.22));
+  filter: none;
   animation: none;
-  transition: filter 0.15s ease, transform 0.15s ease;
+  transition: transform 0.15s ease;
 }
 .profile-patch-tile[data-patch-id="creator-event-pkm-harvest"]:hover
   .profile-patch-tile-art,
@@ -1444,11 +1440,7 @@ body.has-profile-bg .shell:has(.profile-page) {
   .profile-patch-tile-art {
   animation: none;
   transform: scaleX(-1) scale(1.06);
-  filter:
-    drop-shadow(0 0 5px rgba(140, 210, 255, 0.55))
-    drop-shadow(0 0 10px rgba(190, 120, 255, 0.42))
-    drop-shadow(0 0 16px rgba(255, 150, 55, 0.3))
-    brightness(1.03);
+  filter: none;
 }
 
 .profile-patch-tile[data-patch-id="creator-event-scar-lemon"]

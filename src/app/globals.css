@@ -1603,11 +1603,8 @@ body:has(.tm-sapper-page) {
   .nick-patch-mark-art {
   transform: scaleX(-1);
   opacity: 1;
-  /* мягкое свечение как на референсе */
-  filter:
-    drop-shadow(0 0 3px rgba(120, 200, 255, 0.5))
-    drop-shadow(0 0 6px rgba(180, 100, 255, 0.38))
-    drop-shadow(0 0 10px rgba(255, 140, 50, 0.22)) !important;
+  /* без свечения — чистый вырез */
+  filter: none !important;
   animation: none !important;
 }
 .nick-patch-mark[data-patch-id="creator-event-pkm-harvest"]:hover
@@ -1618,11 +1615,7 @@ body:has(.tm-sapper-page) {
   .nick-patch-mark-art {
   animation: none !important;
   transform: scaleX(-1) scale(1.08);
-  filter:
-    drop-shadow(0 0 4px rgba(140, 210, 255, 0.6))
-    drop-shadow(0 0 8px rgba(190, 120, 255, 0.45))
-    drop-shadow(0 0 12px rgba(255, 150, 55, 0.3))
-    brightness(1.04) !important;
+  filter: none !important;
   opacity: 1;
 }
 
