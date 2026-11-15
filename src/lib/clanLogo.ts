@@ -39,6 +39,9 @@ const OPP_CANON: Record<string, { key: string; tag: string; name: string }> = {
   "похуй": { key: "POHUY", tag: "POHUY", name: "по✘уй" },
   "по✘уй": { key: "POHUY", tag: "POHUY", name: "по✘уй" },
   faq: { key: "FAQ", tag: "FAQ", name: "FAQ" },
+  aut: { key: "AUT", tag: "AuT", name: "Autistic Squad" },
+  "autistic": { key: "AUT", tag: "AuT", name: "Autistic Squad" },
+  "autisticsquad": { key: "AUT", tag: "AuT", name: "Autistic Squad" },
   "st-9": { key: "ST9", tag: "ST-9", name: "ST-9" },
   st9: { key: "ST9", tag: "ST-9", name: "ST-9" },
   ra: { key: "RA", tag: "RA", name: "Requiem Aeternam" },
@@ -81,6 +84,7 @@ const LOGO_EXT: Record<string, string> = {
   GRAD: ".png",
   POHUY: ".png",
   FAQ: ".png",
+  AUT: ".png",
 };
 
 function normKey(raw: string): string {
