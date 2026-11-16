@@ -293,9 +293,33 @@ export async function GET(_req: Request, ctx: Ctx) {
       createdAt: e.createdAt.toISOString(),
       label: `${e.amount > 0 ? "+" : ""}${e.amount} ${BD_MARK}`,
     })),
-    /** Открытые оферы всего рынка + успешные сделки своей фракции. */
+    /**
+     * «Сейчас открыты» = весь рынок: активные лоты на доске + pending-оферы.
+     * Успешные сделки — только своей фракции.
+     */
     deals: {
-      pending: allPendingOffers.map((o) => mapDealRow(o, dealSideFor(o))),
+      pending: [
+        ...enrichedBoard.map((row) => ({
+          id: `listing:${row.id}`,
+          side: row.isOwn ? ("out" as const) : ("open" as const),
+          status: "LISTED",
+          statusLabel: row.isOwn ? "Наш лот" : "На доске",
+          type: "LISTING",
+          typeLabel: "Выставлен",
+          cashAmount: row.askPrice,
+          askPrice: row.askPrice,
+          message: row.note,
+          createdAt: row.createdAt,
+          updatedAt: row.createdAt,
+          fromFaction: row.faction,
+          toFaction: { id: "market", name: "рынок", slug: "market" },
+          playerNick: row.player.nick,
+          playerUserId: row.player.id,
+          swapNick: null as string | null,
+          swapUserId: null as string | null,
+        })),
+        ...allPendingOffers.map((o) => mapDealRow(o, dealSideFor(o))),
+      ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
       closed: acceptedDeals.map((o) => mapDealRow(o, "done")),
     },
   });

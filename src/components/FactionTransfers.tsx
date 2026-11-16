@@ -762,7 +762,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
       {subTab === "deals" ? (
         <div className="xfer-tab-body xfer-tables xfer-deals-tab">
           <p className="muted xfer-hint">
-            Открытые оферы всего рынка (все фракции) и успешные сделки вашей фракции.
+            Весь рынок: лоты на доске и оферы всех фракций. Ниже — успешные сделки вашей фракции.
           </p>
 
           <h5 className="xfer-subhead">Сейчас открыты · весь рынок</h5>
@@ -800,7 +800,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
                   {!pendingDeals.length ? (
                     <tr>
                       <td colSpan={6} className="muted">
-                        На рынке пока нет открытых оферов.
+                        На рынке пока нет лотов и оферов.
                       </td>
                     </tr>
                   ) : null}
