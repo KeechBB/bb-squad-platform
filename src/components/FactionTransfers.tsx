@@ -36,6 +36,14 @@ type BoardRow = {
   stats?: PlayerStats | null;
 };
 
+type OfferPlayerCard = {
+  userId: string;
+  nick: string;
+  kit: string | null;
+  estimate: number;
+  stats: PlayerStats | null;
+};
+
 type OfferRow = {
   id: string;
   type: string;
@@ -48,6 +56,8 @@ type OfferRow = {
   askPrice: number;
   playerNick: string;
   playerUserId: string;
+  listedPlayer?: OfferPlayerCard | null;
+  swapPlayer?: OfferPlayerCard | null;
 };
 
 type Listable = {
@@ -119,9 +129,9 @@ function levelClass(level: string) {
 }
 
 function offerTypeLabel(t: string) {
-  if (t === "SWAP_CASH") return "Обмен + доплата";
+  if (t === "SWAP_CASH") return "Игрок + доплата";
   if (t === "SWAP") return "Обмен";
-  if (t === "BUY") return "Покупка";
+  if (t === "BUY") return "Покупка за B$";
   return t;
 }
 
@@ -182,11 +192,12 @@ export function FactionTransfers({ slug, canManage }: Props) {
   const [listUserId, setListUserId] = useState("");
   const [listPrice, setListPrice] = useState(25000);
   const [offerListingId, setOfferListingId] = useState<string | null>(null);
-  const [offerType, setOfferType] = useState<OfferType>("BUY");
+  const [offerType, setOfferType] = useState<OfferType>("SWAP_CASH");
   const [offerCash, setOfferCash] = useState(25000);
   const [offerSwap, setOfferSwap] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [analytics, setAnalytics] = useState<AnalyticsTarget | null>(null);
+  const [reviewOfferId, setReviewOfferId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setErr(null);
@@ -219,6 +230,11 @@ export function FactionTransfers({ slug, canManage }: Props) {
   const swapPlayer = useMemo(
     () => data?.listable.find((p) => p.userId === offerSwap) || null,
     [data, offerSwap],
+  );
+
+  const reviewOffer = useMemo(
+    () => data?.incomingOffers.find((o) => o.id === reviewOfferId) || null,
+    [data, reviewOfferId],
   );
 
   async function postJson(url: string, body: unknown) {
@@ -262,8 +278,13 @@ export function FactionTransfers({ slug, canManage }: Props) {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Ошибка");
-      setMsg(action === "accept" ? "Сделка закрыта. Игрок получил письмо." : "Офер отклонён.");
+      setMsg(
+        action === "accept"
+          ? "Сделка принята. Письма ушли участникам."
+          : "Сделка отклонена. Письма ушли участникам.",
+      );
       setOfferListingId(null);
+      setReviewOfferId(null);
       await load();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Ошибка");
@@ -309,8 +330,8 @@ export function FactionTransfers({ slug, canManage }: Props) {
             гринд только TR1–TR5
           </p>
           <p className="muted xfer-hint">
-            Типы сделок: <strong>покупка</strong>, <strong>обмен</strong>,{" "}
-            <strong>обмен + доплата</strong>. По игроку — кнопка «Аналитика».
+            Покупатель предлагает сделку (деньги / свой игрок / игрок + доплата) → у продавца
+            появляется входящая сделка: принять или отклонить. Всё с письмами.
           </p>
         </div>
         <div className={`xfer-window ${data.window.isOpen ? "is-open" : "is-closed"}`}>
@@ -421,9 +442,13 @@ export function FactionTransfers({ slug, canManage }: Props) {
         </section>
       ) : null}
 
-      {canManage && data.incomingOffers.length ? (
+      {canManage && data.canManage ? (
         <section className="xfer-section">
-          <h4>Входящие оферы</h4>
+          <h4>Входящие сделки</h4>
+          <p className="muted xfer-hint">
+            Предложения от других фракций по вашим игрокам на доске. Открой — посмотри детали —
+            подтверди или отклони.
+          </p>
           <ul className="xfer-list">
             {data.incomingOffers.map((o) => (
               <li key={o.id} className="xfer-card">
@@ -438,6 +463,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
                         <BdAmount n={o.cashAmount} />
                       </>
                     ) : null}
+                    {o.swapPlayer ? ` · + ${o.swapPlayer.nick}` : null}
                   </span>
                   {o.message ? <p className="muted">{o.message}</p> : null}
                 </div>
@@ -445,22 +471,16 @@ export function FactionTransfers({ slug, canManage }: Props) {
                   <button
                     type="button"
                     className="btn primary"
-                    disabled={busy}
-                    onClick={() => void patchOffer(o.id, "accept")}
+                    onClick={() => setReviewOfferId(o.id)}
                   >
-                    Принять
-                  </button>
-                  <button
-                    type="button"
-                    className="btn"
-                    disabled={busy}
-                    onClick={() => void patchOffer(o.id, "decline")}
-                  >
-                    Отклонить
+                    Открыть предложение
                   </button>
                 </div>
               </li>
             ))}
+            {!data.incomingOffers.length ? (
+              <li className="muted">Пока нет входящих предложений.</li>
+            ) : null}
           </ul>
         </section>
       ) : null}
@@ -502,12 +522,12 @@ export function FactionTransfers({ slug, canManage }: Props) {
                     className="btn primary"
                     onClick={() => {
                       setOfferListingId(row.id);
-                      setOfferCash(row.askPrice);
-                      setOfferType("BUY");
+                      setOfferCash(Math.max(5000, Math.round(row.askPrice * 0.25)));
+                      setOfferType("SWAP_CASH");
                       setOfferSwap("");
                     }}
                   >
-                    Сделать офер
+                    Предложить сделку
                   </button>
                 ) : null}
                 {canManage && row.isOwn ? (
@@ -565,9 +585,9 @@ export function FactionTransfers({ slug, canManage }: Props) {
             <div className="xfer-deal-types" role="tablist" aria-label="Тип сделки">
               {(
                 [
-                  ["BUY", "Покупка за B$"],
-                  ["SWAP", "Обмен игроками"],
-                  ["SWAP_CASH", "Обмен + доплата"],
+                  ["SWAP_CASH", "Игрок + доплата"],
+                  ["SWAP", "Только обмен"],
+                  ["BUY", "Только B$"],
                 ] as const
               ).map(([id, label]) => (
                 <button
@@ -704,6 +724,119 @@ export function FactionTransfers({ slug, canManage }: Props) {
                 onClick={() => openBoardAnalytics(offerTarget)}
               >
                 Аналитика игрока
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {reviewOffer && canManage ? (
+        <div
+          className="profile-match-modal"
+          role="presentation"
+          onClick={() => !busy && setReviewOfferId(null)}
+        >
+          <div
+            className="profile-match-modal-panel xfer-modal"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="profile-match-modal-head">
+              <div>
+                <p className="muted">Входящая сделка · {reviewOffer.fromFaction.name}</p>
+                <h2 className="profile-mail-modal-title">
+                  {offerTypeLabel(reviewOffer.type)}
+                </h2>
+                <p className="muted">
+                  Ваш игрок на доске: <strong>{reviewOffer.playerNick}</strong> · запрос{" "}
+                  <BdAmount n={reviewOffer.askPrice} />
+                </p>
+              </div>
+              <button
+                type="button"
+                className="profile-match-modal-close"
+                onClick={() => setReviewOfferId(null)}
+              >
+                ×
+              </button>
+            </header>
+
+            <div className="xfer-compare">
+              <div>
+                <div className="muted">Вы отдаёте</div>
+                <strong>{reviewOffer.listedPlayer?.nick || reviewOffer.playerNick}</strong>
+                <div className="muted">
+                  {reviewOffer.listedPlayer?.kit || "—"}
+                  {reviewOffer.listedPlayer ? (
+                    <>
+                      {" · оценка "}
+                      <BdAmount n={reviewOffer.listedPlayer.estimate} />
+                    </>
+                  ) : null}
+                </div>
+              </div>
+              <div className="xfer-compare-vs">↔</div>
+              <div>
+                <div className="muted">Вам предлагают</div>
+                {reviewOffer.type === "BUY" ? (
+                  <strong>
+                    <BdAmount n={reviewOffer.cashAmount} />
+                  </strong>
+                ) : (
+                  <>
+                    <strong>{reviewOffer.swapPlayer?.nick || "игрок"}</strong>
+                    <div className="muted">
+                      {reviewOffer.swapPlayer?.kit || "—"}
+                      {reviewOffer.swapPlayer ? (
+                        <>
+                          {" · оценка "}
+                          <BdAmount n={reviewOffer.swapPlayer.estimate} />
+                        </>
+                      ) : null}
+                    </div>
+                    {reviewOffer.type === "SWAP_CASH" ? (
+                      <div>
+                        + доплата <BdAmount n={reviewOffer.cashAmount} />
+                      </div>
+                    ) : null}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {reviewOffer.message ? (
+              <p className="xfer-hint-inline">Комментарий: {reviewOffer.message}</p>
+            ) : null}
+
+            <h4 style={{ margin: "0.75rem 0 0.35rem" }}>Ваш игрок</h4>
+            <StatsBlock stats={reviewOffer.listedPlayer?.stats || null} />
+            {reviewOffer.swapPlayer ? (
+              <>
+                <h4 style={{ margin: "0.75rem 0 0.35rem" }}>Их игрок на обмен</h4>
+                <StatsBlock stats={reviewOffer.swapPlayer.stats || null} />
+              </>
+            ) : null}
+
+            <div className="xfer-actions" style={{ marginTop: "1rem" }}>
+              <button
+                type="button"
+                className="btn primary"
+                disabled={busy}
+                onClick={() => void patchOffer(reviewOffer.id, "accept")}
+              >
+                Подтвердить сделку
+              </button>
+              <button
+                type="button"
+                className="btn"
+                disabled={busy}
+                onClick={() => void patchOffer(reviewOffer.id, "decline")}
+              >
+                Отклонить
+              </button>
+              <button type="button" className="btn" onClick={() => setReviewOfferId(null)}>
+                Закрыть
               </button>
             </div>
           </div>

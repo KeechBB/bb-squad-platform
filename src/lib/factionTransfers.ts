@@ -683,14 +683,28 @@ function offerTypeRu(type: string): string {
   return type;
 }
 
+async function factionStaffIds(factionId: string): Promise<string[]> {
+  const rows = await prisma.factionMember.findMany({
+    where: { factionId, seat: { in: ["LEADER", "DEPUTY"] } },
+    select: { userId: true },
+  });
+  return [...new Set(rows.map((r) => r.userId))];
+}
+
 async function sendSoftTransferMail(opts: {
-  toUserId: string;
+  toUserId?: string;
+  toUserIds?: string[];
   title: string;
   body: string;
   sourceKey?: string | null;
 }) {
   const authorId = await keechAuthorId();
-  if (!authorId || !opts.toUserId) return null;
+  const ids = [
+    ...new Set(
+      [...(opts.toUserIds || []), ...(opts.toUserId ? [opts.toUserId] : [])].filter(Boolean),
+    ),
+  ];
+  if (!authorId || !ids.length) return null;
   try {
     const mail = await prisma.profileMail.create({
       data: {
@@ -701,7 +715,7 @@ async function sendSoftTransferMail(opts: {
         tags: ["Трансфер"],
         sourceKey: opts.sourceKey || null,
         authorId,
-        recipients: { create: [{ userId: opts.toUserId }] },
+        recipients: { create: ids.map((userId) => ({ userId })) },
       },
       select: { id: true },
     });
@@ -762,9 +776,10 @@ export async function notifyWithdrawnMail(opts: {
   });
 }
 
-/** Пришёл офер на игрока (и на обменного, если есть). */
+/** Пришёл офер: игрок на доске, игрок на обмен, штаб продающей фракции. */
 export async function notifyOfferMail(opts: {
   listedPlayerId: string;
+  listedFactionId: string;
   listedFactionName: string;
   fromFactionName: string;
   type: string;
@@ -772,6 +787,7 @@ export async function notifyOfferMail(opts: {
   askPrice: number;
   offerId: string;
   swapUserId?: string | null;
+  swapNick?: string | null;
   message?: string | null;
 }) {
   const typeRu = offerTypeRu(opts.type);
@@ -779,11 +795,18 @@ export async function notifyOfferMail(opts: {
     opts.cashAmount > 0
       ? `Сумма / доплата: ${opts.cashAmount.toLocaleString("ru-RU")} ${BD_MARK}.`
       : "Без денежной части.";
+  const swapLine = opts.swapNick
+    ? `Взамен предлагают игрока: ${opts.swapNick}.`
+    : opts.swapUserId
+      ? "Взамен предлагают своего игрока."
+      : null;
+
   const listedBody = [
     `На тебя пришёл офер от фракции «${opts.fromFactionName}».`,
     `Тип: ${typeRu}.`,
     `Твоя фракция «${opts.listedFactionName}» выставила запрос ${opts.askPrice.toLocaleString("ru-RU")} ${BD_MARK}.`,
     money,
+    swapLine,
     opts.message ? `Сообщение к оферу: ${opts.message}` : null,
     `Решение принимает командир / зам. Пока офер не принят — ты остаёшься в «${opts.listedFactionName}».`,
   ]
@@ -810,6 +833,85 @@ export async function notifyOfferMail(opts: {
       title: "Тебя предложили в обмен",
       body: swapBody,
       sourceKey: `xfer:offer:${opts.offerId}:swap`,
+    });
+  }
+
+  const staff = (await factionStaffIds(opts.listedFactionId)).filter(
+    (id) => id !== opts.listedPlayerId,
+  );
+  if (staff.length) {
+    const staffBody = [
+      `Новое предложение по трансферу от «${opts.fromFactionName}».`,
+      `Игрок на доске: ваш выставленный боец (запрос ${opts.askPrice.toLocaleString("ru-RU")} ${BD_MARK}).`,
+      `Тип: ${typeRu}.`,
+      money,
+      swapLine,
+      opts.message ? `Комментарий: ${opts.message}` : null,
+      `Открой вкладку Трансферы → «Входящие сделки»: принять или отклонить.`,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    await sendSoftTransferMail({
+      toUserIds: staff,
+      title: "Входящая сделка по трансферу",
+      body: staffBody,
+      sourceKey: `xfer:offer:${opts.offerId}:staff`,
+    });
+  }
+}
+
+/** Офер отклонён — письма участникам. */
+export async function notifyOfferDeclinedMail(opts: {
+  offerId: string;
+  listedPlayerId: string;
+  listedFactionName: string;
+  fromFactionId: string;
+  fromFactionName: string;
+  type: string;
+  cashAmount: number;
+  swapUserId?: string | null;
+}) {
+  const typeRu = offerTypeRu(opts.type);
+  const money =
+    opts.cashAmount > 0
+      ? `Сумма / доплата в офере: ${opts.cashAmount.toLocaleString("ru-RU")} ${BD_MARK}.`
+      : null;
+  const common = [
+    `Офер отклонён штабом «${opts.listedFactionName}».`,
+    `Тип был: ${typeRu}.`,
+    money,
+    `Сделка не состоялась.`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  await sendSoftTransferMail({
+    toUserId: opts.listedPlayerId,
+    title: "Трансферный офер отклонён",
+    body: common,
+    sourceKey: `xfer:decline:${opts.offerId}:listed`,
+  });
+  if (opts.swapUserId) {
+    await sendSoftTransferMail({
+      toUserId: opts.swapUserId,
+      title: "Обмен по трансферу отклонён",
+      body: common,
+      sourceKey: `xfer:decline:${opts.offerId}:swap`,
+    });
+  }
+  const buyerStaff = await factionStaffIds(opts.fromFactionId);
+  if (buyerStaff.length) {
+    await sendSoftTransferMail({
+      toUserIds: buyerStaff,
+      title: "Ваш трансферный офер отклонён",
+      body: [
+        `«${opts.listedFactionName}» отклонили предложение от «${opts.fromFactionName}».`,
+        `Тип: ${typeRu}.`,
+        money,
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      sourceKey: `xfer:decline:${opts.offerId}:buyer_staff`,
     });
   }
 }

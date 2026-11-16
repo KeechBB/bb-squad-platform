@@ -8,6 +8,7 @@ import {
   assertFactionEligibleForTransfers,
   assertTransferWindowOpen,
   buildFactionKitScarcity,
+  notifyOfferDeclinedMail,
   notifyOfferMail,
   scarcityForDeal,
 } from "@/lib/factionTransfers";
@@ -108,8 +109,17 @@ export async function POST(req: Request, ctx: Ctx) {
       },
     });
 
+    let swapNick: string | null = null;
+    if (swapUserId) {
+      const swapUser = await prisma.user.findUnique({
+        where: { id: swapUserId },
+        select: { nick: true, steamName: true },
+      });
+      swapNick = swapUser?.nick || swapUser?.steamName || null;
+    }
     await notifyOfferMail({
       listedPlayerId: listing.playerUserId,
+      listedFactionId: listing.factionId,
       listedFactionName: listing.faction.name,
       fromFactionName: loaded.view.name,
       type,
@@ -117,6 +127,7 @@ export async function POST(req: Request, ctx: Ctx) {
       askPrice: listing.askPrice,
       offerId: offer.id,
       swapUserId: type === "BUY" ? null : swapUserId,
+      swapNick,
       message,
     }).catch((e) => console.error("offer mail", e));
 
@@ -168,6 +179,10 @@ export async function PATCH(req: Request, ctx: Ctx) {
         status: "PENDING",
         listing: { factionId: loaded.view.id },
       },
+      include: {
+        listing: { select: { playerUserId: true, askPrice: true } },
+        fromFaction: { select: { id: true, name: true } },
+      },
     });
     if (!offer) {
       return NextResponse.json({ error: "Офер не найден" }, { status: 404 });
@@ -176,6 +191,16 @@ export async function PATCH(req: Request, ctx: Ctx) {
       where: { id: offer.id },
       data: { status: "DECLINED" },
     });
+    await notifyOfferDeclinedMail({
+      offerId: offer.id,
+      listedPlayerId: offer.listing.playerUserId,
+      listedFactionName: loaded.view.name,
+      fromFactionId: offer.fromFaction.id,
+      fromFactionName: offer.fromFaction.name,
+      type: offer.type,
+      cashAmount: offer.cashAmount,
+      swapUserId: offer.swapUserId,
+    }).catch((e) => console.error("decline mail", e));
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json(

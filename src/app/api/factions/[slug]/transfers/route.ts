@@ -82,15 +82,48 @@ export async function GET(_req: Request, ctx: Ctx) {
   ]);
 
   const offerPlayerIds = [
-    ...new Set(incomingOffers.map((o) => o.listing.playerUserId)),
+    ...new Set([
+      ...incomingOffers.map((o) => o.listing.playerUserId),
+      ...incomingOffers.map((o) => o.swapUserId).filter(Boolean) as string[],
+    ]),
   ];
-  const offerUsers = await prisma.user.findMany({
-    where: { id: { in: offerPlayerIds } },
-    select: { id: true, nick: true, steamName: true },
-  });
+  const [offerUsers, offerPriceStats, offerKits] = await Promise.all([
+    prisma.user.findMany({
+      where: { id: { in: offerPlayerIds } },
+      select: { id: true, nick: true, steamName: true },
+    }),
+    loadPlayerPriceStats(offerPlayerIds),
+    mainKitByUserIds(offerPlayerIds),
+  ]);
   const nickById = Object.fromEntries(
     offerUsers.map((u) => [u.id, u.nick || u.steamName || "—"]),
   );
+  function offerPlayerCard(userId: string | null | undefined) {
+    if (!userId) return null;
+    const kit = offerKits.get(userId) || null;
+    const st = offerPriceStats.get(userId);
+    return {
+      userId,
+      nick: nickById[userId] || "—",
+      kit,
+      estimate: estimateWithKit(st, kit),
+      stats: st
+        ? {
+            trainDays14: st.trainDays14,
+            matches30: st.matches30,
+            kills30: st.kills30,
+            deaths30: st.deaths30,
+            res30: st.res30,
+            nok30: st.nok30,
+            kd:
+              st.deaths30 > 0
+                ? Math.round((st.kills30 / st.deaths30) * 100) / 100
+                : st.kills30,
+            lastSeenDaysAgo: st.lastSeenDaysAgo,
+          }
+        : null,
+    };
+  }
 
   // scarcity hints for board vs our faction
   const enrichedBoard = board.map((row) => {
@@ -180,6 +213,8 @@ export async function GET(_req: Request, ctx: Ctx) {
       askPrice: o.listing.askPrice,
       playerNick: nickById[o.listing.playerUserId] || "—",
       playerUserId: o.listing.playerUserId,
+      listedPlayer: offerPlayerCard(o.listing.playerUserId),
+      swapPlayer: offerPlayerCard(o.swapUserId),
     })),
     listable,
     ledger: ledger.map((e) => ({
