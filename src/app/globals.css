@@ -24939,10 +24939,6 @@ body:has(.faction-page) .site-footer {
   flex-direction: column;
   overflow: hidden;
 }
-.xfer-deals-tab .xfer-fit-half {
-  flex: 1 1 42%;
-  min-height: 100px;
-}
 .xfer-fit .xfer-table-wrap {
   flex: 1 1 auto;
   min-height: 0;

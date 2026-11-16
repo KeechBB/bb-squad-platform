@@ -5,19 +5,25 @@ import { BdAmount } from "@/components/BdMark";
 import { DraggableModal } from "@/components/DraggableModal";
 import { useFitTablePage } from "@/lib/useFitTablePage";
 
-type XferSubTab = "desk" | "ledger" | "deals";
+type XferSubTab = "desk" | "ledger" | "market" | "closed";
 
 function xferSubTabKey(slug: string, staff: boolean) {
   return `bb-xfer-subtab:${slug}:${staff ? "staff" : "member"}`;
+}
+
+function normalizeXferSubTab(v: string | null, staff: boolean): XferSubTab | null {
+  if (!v) return null;
+  if (v === "deals") return "market"; // старое имя вкладки
+  if (staff && (v === "desk" || v === "ledger" || v === "market" || v === "closed")) return v;
+  if (!staff && (v === "ledger" || v === "market" || v === "closed")) return v;
+  return null;
 }
 
 function readXferSubTab(slug: string, staff: boolean): XferSubTab {
   const fallback: XferSubTab = staff ? "desk" : "ledger";
   if (typeof window === "undefined") return fallback;
   try {
-    const v = window.localStorage.getItem(xferSubTabKey(slug, staff));
-    if (staff && (v === "desk" || v === "ledger" || v === "deals")) return v;
-    if (!staff && (v === "ledger" || v === "deals")) return v;
+    return normalizeXferSubTab(window.localStorage.getItem(xferSubTabKey(slug, staff)), staff) || fallback;
   } catch {
     /* ignore */
   }
@@ -405,8 +411,8 @@ export function FactionTransfers({ slug, canManage }: Props) {
   const pendingDeals = data?.deals?.pending ?? [];
   const closedDeals = data?.deals?.closed ?? [];
   const ledgerPage = useFitTablePage(ledgerRows.length, Boolean(data) && subTab === "ledger");
-  const pendingPage = useFitTablePage(pendingDeals.length, Boolean(data) && subTab === "deals");
-  const closedPage = useFitTablePage(closedDeals.length, Boolean(data) && subTab === "deals");
+  const pendingPage = useFitTablePage(pendingDeals.length, Boolean(data) && subTab === "market");
+  const closedPage = useFitTablePage(closedDeals.length, Boolean(data) && subTab === "closed");
 
   useEffect(() => {
     const next = readXferSubTab(slug, isStaff);
@@ -490,10 +496,17 @@ export function FactionTransfers({ slug, canManage }: Props) {
         </button>
         <button
           type="button"
-          className={`admin-tab${subTab === "deals" ? " active" : ""}`}
-          onClick={() => selectSubTab("deals")}
+          className={`admin-tab${subTab === "market" ? " active" : ""}`}
+          onClick={() => selectSubTab("market")}
         >
-          Оферы и сделки
+          Оферы · рынок
+        </button>
+        <button
+          type="button"
+          className={`admin-tab${subTab === "closed" ? " active" : ""}`}
+          onClick={() => selectSubTab("closed")}
+        >
+          Успешные сделки
         </button>
       </div>
 
@@ -759,14 +772,12 @@ export function FactionTransfers({ slug, canManage }: Props) {
         </div>
       ) : null}
 
-      {subTab === "deals" ? (
-        <div className="xfer-tab-body xfer-tables xfer-deals-tab">
+      {subTab === "market" ? (
+        <div className="xfer-tab-body xfer-tables">
           <p className="muted xfer-hint">
-            Весь рынок: лоты на доске и оферы всех фракций. Ниже — успешные сделки вашей фракции.
+            Весь рынок: лоты на доске и оферы всех фракций (BUY / обмен / игрок+доплата).
           </p>
-
-          <h5 className="xfer-subhead">Сейчас открыты · весь рынок</h5>
-          <div className="xfer-fit xfer-fit-half" ref={pendingPage.fitRef}>
+          <div className="xfer-fit" ref={pendingPage.fitRef}>
             <div className="xfer-table-wrap">
               <table className="xfer-table">
                 <thead>
@@ -809,9 +820,13 @@ export function FactionTransfers({ slug, canManage }: Props) {
             </div>
           </div>
           <XferPager page={pendingPage} total={pendingDeals.length} />
+        </div>
+      ) : null}
 
-          <h5 className="xfer-subhead">Успешные сделки</h5>
-          <div className="xfer-fit xfer-fit-half" ref={closedPage.fitRef}>
+      {subTab === "closed" ? (
+        <div className="xfer-tab-body xfer-tables">
+          <p className="muted xfer-hint">Успешные сделки вашей фракции.</p>
+          <div className="xfer-fit" ref={closedPage.fitRef}>
             <div className="xfer-table-wrap">
               <table className="xfer-table">
                 <thead>
