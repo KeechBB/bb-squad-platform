@@ -708,6 +708,30 @@ async function factionStaffIds(factionId: string): Promise<string[]> {
   return [...new Set(rows.map((r) => r.userId))];
 }
 
+/** Все участники фракций BB (для публичных алертов о сделках). */
+async function allBbFactionMemberIds(): Promise<string[]> {
+  const bb = await prisma.clan.findFirst({
+    where: { tag: "BB", isExternal: false },
+    select: { id: true },
+  });
+  if (!bb) return [];
+  const rows = await prisma.factionMember.findMany({
+    where: { faction: { clanId: bb.id } },
+    select: { userId: true },
+  });
+  return [...new Set(rows.map((r) => r.userId))];
+}
+
+async function nickOf(userId: string | null | undefined): Promise<string> {
+  if (!userId) return "—";
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { nick: true, name: true, steamName: true },
+  });
+  if (!u) return "—";
+  return (u.nick || u.steamName || u.name || "—").trim() || "—";
+}
+
 async function sendSoftTransferMail(opts: {
   toUserId?: string;
   toUserIds?: string[];
@@ -954,7 +978,7 @@ export async function notifyOfferDeclinedMail(opts: {
   }
 }
 
-/** Сделка закрыта — подробности покупки / обмена. */
+/** Сделка закрыта — письмо игроку(ам) + публичный алерт всем во фракциях BB. */
 async function notifyDealClosedMail(opts: {
   playerId: string;
   swapUserId: string | null;
@@ -970,6 +994,9 @@ async function notifyDealClosedMail(opts: {
     opts.cash > 0
       ? `По сделке прошло ${opts.cash.toLocaleString("ru-RU")} ${BD_MARK}.`
       : "Денежной части не было.";
+  const playerNick = await nickOf(opts.playerId);
+  const swapNick = opts.swapUserId ? await nickOf(opts.swapUserId) : null;
+
   const bodyMain = [
     `Сделка закрыта: ты переходишь из «${opts.fromFactionName}» в «${opts.toFactionName}».`,
     `Тип: ${typeRu}.`,
@@ -998,6 +1025,29 @@ async function notifyDealClosedMail(opts: {
       title: "Обмен между фракциями — сделка закрыта",
       body: swapBody,
       sourceKey: `xfer:deal:${opts.offerId}:swap`,
+    });
+  }
+
+  // Публично: все игроки во фракциях BB видят успешные сделки
+  const everyone = await allBbFactionMemberIds();
+  if (everyone.length) {
+    const publicLines = [
+      `Успешная сделка на трансферном рынке.`,
+      "",
+      `${playerNick}: «${opts.fromFactionName}» → «${opts.toFactionName}»`,
+      swapNick
+        ? `${swapNick}: «${opts.toFactionName}» → «${opts.fromFactionName}» (обмен)`
+        : null,
+      `Тип: ${typeRu}.`,
+      money,
+      "",
+      "Смотри вкладку «Успешные сделки» у своей фракции.",
+    ].filter((x): x is string => Boolean(x));
+    await sendSoftTransferMail({
+      toUserIds: everyone,
+      title: `Сделка · ${playerNick}: «${opts.fromFactionName}» → «${opts.toFactionName}»`,
+      body: publicLines.join("\n"),
+      sourceKey: `xfer:deal:${opts.offerId}:broadcast`,
     });
   }
 }
