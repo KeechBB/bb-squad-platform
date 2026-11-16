@@ -25057,6 +25057,15 @@ body:has(.faction-page) .site-footer {
 .xfer-table tr:last-child td { border-bottom: none; }
 .xfer-table .is-plus { color: #86efac; font-weight: 700; }
 .xfer-table .is-minus { color: #fca5a5; font-weight: 700; }
+.xfer-nick {
+  color: #facc15;
+  font-weight: 700;
+}
+.xfer-table .xfer-nick,
+.xfer-card .xfer-nick,
+.xfer-ledger-note .xfer-nick {
+  color: #facc15;
+}
 .xfer-pill {
   display: inline-block;
   padding: 0.15rem 0.45rem;

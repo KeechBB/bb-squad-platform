@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { BdAmount } from "@/components/BdMark";
 import { DraggableModal } from "@/components/DraggableModal";
 import { useFitTablePage } from "@/lib/useFitTablePage";
@@ -620,7 +620,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
               {data.incomingOffers.map((o) => (
                 <li key={o.id} className="xfer-card">
                   <div>
-                    <strong>{o.playerNick}</strong> ← {o.fromFaction.name}
+                    <strong className="xfer-nick">{o.playerNick}</strong> ← {o.fromFaction.name}
                     <span className="muted">
                       {" "}
                       · {offerTypeLabel(o.type)}
@@ -657,7 +657,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
               {data.board.map((row) => (
                 <li key={row.id} className={`xfer-card ${row.isOwn ? "is-own" : ""}`}>
                   <div className="xfer-card-main">
-                    <strong>{row.player.nick}</strong>
+                    <strong className="xfer-nick">{row.player.nick}</strong>
                     <span className="muted">
                       {" "}
                       · фракция {row.faction.name} · {row.player.kit || "—"} · запрос{" "}
@@ -741,7 +741,9 @@ export function FactionTransfers({ slug, canManage }: Props) {
                       <td className={e.amount >= 0 ? "is-plus" : "is-minus"}>
                         <BdAmount n={e.amount} signed />
                       </td>
-                      <td className="muted">{e.note || "—"}</td>
+                      <td className="muted">
+                        <LedgerNote note={e.note} />
+                      </td>
                     </tr>
                   ))}
                   {!ledgerRows.length ? (
@@ -782,8 +784,13 @@ export function FactionTransfers({ slug, canManage }: Props) {
                       </td>
                       <td>{d.typeLabel}</td>
                       <td>
-                        {d.playerNick}
-                        {d.swapNick ? ` ↔ ${d.swapNick}` : ""}
+                        <XferNick>{d.playerNick}</XferNick>
+                        {d.swapNick ? (
+                          <>
+                            {" ↔ "}
+                            <XferNick>{d.swapNick}</XferNick>
+                          </>
+                        ) : null}
                       </td>
                       <td className="muted">
                         {d.fromFaction.name} → {d.toFaction.name}
@@ -828,8 +835,13 @@ export function FactionTransfers({ slug, canManage }: Props) {
                         <span className="xfer-pill is-done">{d.typeLabel}</span>
                       </td>
                       <td>
-                        {d.playerNick}
-                        {d.swapNick ? ` ↔ ${d.swapNick}` : ""}
+                        <XferNick>{d.playerNick}</XferNick>
+                        {d.swapNick ? (
+                          <>
+                            {" ↔ "}
+                            <XferNick>{d.swapNick}</XferNick>
+                          </>
+                        ) : null}
                       </td>
                       <td className="muted">
                         {d.fromFaction.name} → {d.toFaction.name}
@@ -1206,4 +1218,24 @@ function ledgerKindRu(kind: string) {
   if (kind === "transfer_out") return "Сделка −";
   if (kind === "admin_adjust") return "Правка";
   return kind;
+}
+
+/** Комментарий гринда: «TR tr1 · Map · Nick» — ник жёлтым. */
+function LedgerNote({ note }: { note: string | null }) {
+  if (!note) return <>—</>;
+  const sep = " · ";
+  const i = note.lastIndexOf(sep);
+  if (i < 0) return <>{note}</>;
+  const head = note.slice(0, i + sep.length);
+  const nick = note.slice(i + sep.length);
+  return (
+    <span className="xfer-ledger-note">
+      {head}
+      <span className="xfer-nick">{nick}</span>
+    </span>
+  );
+}
+
+function XferNick({ children }: { children: ReactNode }) {
+  return <span className="xfer-nick">{children}</span>;
 }
