@@ -75,6 +75,7 @@ type Payload = {
   mark: string;
   minRoster: number;
   minAsk?: number;
+  minAskRatio?: number;
   estimateLabel?: string;
   estimateHint?: string;
   rosterSize: number;
@@ -247,6 +248,13 @@ export function FactionTransfers({ slug, canManage }: Props) {
     [data, listUserId],
   );
 
+  const listFloor = useMemo(() => {
+    if (!selectedListable) return data?.minAsk || 5000;
+    const ratio = data?.minAskRatio ?? 0.8;
+    const fromMarket = Math.ceil(selectedListable.estimate * ratio);
+    return Math.max(data?.minAsk || 5000, fromMarket);
+  }, [selectedListable, data?.minAsk, data?.minAskRatio]);
+
   const offerTarget = useMemo(
     () => data?.board.find((b) => b.id === offerListingId) || null,
     [data, offerListingId],
@@ -417,7 +425,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
               </select>
               <input
                 type="number"
-                min={data.minAsk || 5000}
+                min={listFloor}
                 step={500}
                 value={listPrice}
                 onChange={(e) => setListPrice(Number(e.target.value))}
@@ -445,7 +453,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
               <button
                 type="button"
                 className="btn primary"
-                disabled={busy || !listUserId}
+                disabled={busy || !listUserId || listPrice < listFloor}
                 onClick={() =>
                   void postJson(`/api/factions/${encodeURIComponent(slug)}/transfers`, {
                     action: "list",
@@ -462,6 +470,13 @@ export function FactionTransfers({ slug, canManage }: Props) {
             <p className="muted xfer-hint">
               {data.estimateLabel || "оценочная стоимость"}:{" "}
               <BdAmount n={selectedListable.estimate} />
+              {" · мин. цена (80%): "}
+              <BdAmount n={listFloor} />
+            </p>
+          ) : null}
+          {selectedListable && listPrice < listFloor ? (
+            <p className="xfer-warn">
+              Нельзя ниже 80% рыночной оценки — минимум <BdAmount n={listFloor} />.
             </p>
           ) : null}
           {selectedListable?.sellHints?.length ? (

@@ -14,7 +14,7 @@ export const BD_NAME = "Черничный Доллар";
 /** Подпись к расчётной цене на доске / при выставлении. */
 export const ESTIMATE_LABEL = "оценочная стоимость";
 export const ESTIMATE_HINT =
-  "Оценка по явке на TR1–TR5, киллам/ресам/KD за 30 дней и редкости роли. Не обязательная цена сделки — командир ставит свою.";
+  "Оценка по явке на TR1–TR5, киллам/ресам/KD за 30 дней и редкости роли. Цена на доске — не ниже 80% от оценки.";
 
 /** Минимальный состав фракции для участия в трансферах. */
 export const TRANSFER_MIN_ROSTER = 30;
@@ -24,6 +24,15 @@ export const TRANSFER_LOCK_DAYS = 14;
 
 /** Минимальная цена выставления / покупки. */
 export const TRANSFER_MIN_ASK = 5_000;
+
+/** Ниже этой доли от рыночной оценки выставлять нельзя. */
+export const TRANSFER_MIN_ASK_RATIO = 0.8;
+
+/** Минимальный ask от оценки (не ниже TRANSFER_MIN_ASK). */
+export function minAskFromEstimate(estimate: number): number {
+  const fromMarket = Math.ceil(Math.max(0, estimate) * TRANSFER_MIN_ASK_RATIO);
+  return Math.max(TRANSFER_MIN_ASK, fromMarket);
+}
 
 /** Пол для оценки / потолок. */
 export const ESTIMATE_FLOOR = 15_000;

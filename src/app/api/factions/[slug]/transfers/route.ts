@@ -23,8 +23,10 @@ import {
   ESTIMATE_HINT,
   ESTIMATE_LABEL,
   TRANSFER_MIN_ASK,
+  TRANSFER_MIN_ASK_RATIO,
   TRANSFER_MIN_ROSTER,
   formatBd,
+  minAskFromEstimate,
 } from "@/lib/blueberryDollar";
 import { mainKitByUserIds } from "@/lib/squadRoles";
 
@@ -260,6 +262,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     mark: BD_MARK,
     minRoster: TRANSFER_MIN_ROSTER,
     minAsk: TRANSFER_MIN_ASK,
+    minAskRatio: TRANSFER_MIN_ASK_RATIO,
     estimateLabel: ESTIMATE_LABEL,
     estimateHint: ESTIMATE_HINT,
     rosterSize: scarcity.rosterSize,
@@ -380,6 +383,17 @@ export async function POST(req: Request, ctx: Ctx) {
       const sellerLevel = scarcity.byKit.find((r) => r.kitKey === kitNorm)?.level;
       const [statsMap] = await Promise.all([loadPlayerPriceStats([userId])]);
       const estimate = estimateWithKit(statsMap.get(userId), kit, sellerLevel);
+      const floor = minAskFromEstimate(estimate);
+      if (askPrice < floor) {
+        return NextResponse.json(
+          {
+            error: `Цена не ниже 80% рыночной оценки (от ${floor.toLocaleString("ru-RU")} B$, оценка ${estimate.toLocaleString("ru-RU")} B$)`,
+            estimate,
+            minAsk: floor,
+          },
+          { status: 400 },
+        );
+      }
       const sellHints = scarcityForDeal({
         buyerScarcity: [],
         sellerScarcity: scarcity.byKit,
@@ -442,16 +456,28 @@ export async function POST(req: Request, ctx: Ctx) {
       }
       await assertTransferWindowOpen();
       const askPrice = Math.round(Number(body?.askPrice) || 0);
-      if (askPrice < TRANSFER_MIN_ASK) {
+      const kits = await mainKitByUserIds([listing.playerUserId]);
+      const kit = kits.get(listing.playerUserId) || "rifleman";
+      const scarcity = await buildFactionKitScarcity(loaded.view.id);
+      const kitNorm = normalizeKit(kit);
+      const sellerLevel = scarcity.byKit.find((r) => r.kitKey === kitNorm)?.level;
+      const statsMap = await loadPlayerPriceStats([listing.playerUserId]);
+      const estimate = estimateWithKit(statsMap.get(listing.playerUserId), kit, sellerLevel);
+      const floor = minAskFromEstimate(estimate);
+      if (askPrice < floor) {
         return NextResponse.json(
-          { error: `Цена от ${TRANSFER_MIN_ASK.toLocaleString("ru-RU")} B$` },
+          {
+            error: `Цена не ниже 80% рыночной оценки (от ${floor.toLocaleString("ru-RU")} B$)`,
+            estimate,
+            minAsk: floor,
+          },
           { status: 400 },
         );
       }
       await prisma.$transaction([
         prisma.transferListing.update({
           where: { id: listing.id },
-          data: { askPrice },
+          data: { askPrice, estimatePrice: estimate },
         }),
         prisma.transferPriceEvent.create({
           data: {
@@ -462,7 +488,7 @@ export async function POST(req: Request, ctx: Ctx) {
           },
         }),
       ]);
-      return NextResponse.json({ ok: true });
+      return NextResponse.json({ ok: true, estimate });
     }
 
     return NextResponse.json({ error: "Неизвестное действие" }, { status: 400 });

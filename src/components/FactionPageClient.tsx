@@ -51,6 +51,35 @@ const TABS = [
 
 type TabId = (typeof TABS)[number][0];
 
+const DEFAULT_TAB: TabId = "ratings";
+
+function factionTabStorageKey(slug: string) {
+  return `bb-faction-stats-tab:${slug}`;
+}
+
+function isTabId(v: string | null | undefined): v is TabId {
+  return Boolean(v && TABS.some(([id]) => id === v));
+}
+
+function readStoredFactionTab(slug: string): TabId {
+  if (typeof window === "undefined") return DEFAULT_TAB;
+  try {
+    const v = window.localStorage.getItem(factionTabStorageKey(slug));
+    if (isTabId(v)) return v;
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_TAB;
+}
+
+function writeStoredFactionTab(slug: string, tab: TabId) {
+  try {
+    window.localStorage.setItem(factionTabStorageKey(slug), tab);
+  } catch {
+    /* ignore */
+  }
+}
+
 const TAB_NOTE: Record<TabId, string> = {
   online: "Сводка онлайна игроков фракции появится здесь.",
   growth: "Развитие игроков фракции появится здесь.",
@@ -366,7 +395,7 @@ export function FactionPageClient({
 }) {
   const router = useRouter();
   const [view, setView] = useState(initial);
-  const [tab, setTab] = useState<TabId>("online");
+  const [tab, setTab] = useState<TabId>(DEFAULT_TAB);
   const [onlineKey, setOnlineKey] = useState(0);
   const [growthKey, setGrowthKey] = useState(0);
   const [trainKey, setTrainKey] = useState(0);
@@ -398,6 +427,28 @@ export function FactionPageClient({
   const base = `/api/factions/${encodeURIComponent(view.slug)}`;
   const canPlace = view.keech || view.canManage;
   const memberView = !view.keech && !view.canManage;
+
+  useEffect(() => {
+    const stored = readStoredFactionTab(view.slug);
+    setTab(stored);
+    if (stored === "online") setOnlineKey((n) => n + 1);
+    if (stored === "growth") setGrowthKey((n) => n + 1);
+    if (stored === "train") setTrainKey((n) => n + 1);
+    if (stored === "cw") setCwKey((n) => n + 1);
+    if (stored === "analytics") setAnalyticsKey((n) => n + 1);
+    if (stored === "ratings") setRatingsKey((n) => n + 1);
+  }, [view.slug]);
+
+  function selectStatsTab(id: TabId) {
+    setTab(id);
+    writeStoredFactionTab(view.slug, id);
+    if (id === "online") setOnlineKey((n) => n + 1);
+    if (id === "growth") setGrowthKey((n) => n + 1);
+    if (id === "train") setTrainKey((n) => n + 1);
+    if (id === "cw") setCwKey((n) => n + 1);
+    if (id === "analytics") setAnalyticsKey((n) => n + 1);
+    if (id === "ratings") setRatingsKey((n) => n + 1);
+  }
 
   async function reload(href?: string) {
     if (href && href !== `/factions/${encodeURIComponent(view.slug)}`) {
@@ -960,15 +1011,7 @@ export function FactionPageClient({
                   key={id}
                   type="button"
                   className={`admin-tab${tab === id ? " active" : ""}`}
-                  onClick={() => {
-                    setTab(id);
-                    if (id === "online") setOnlineKey((n) => n + 1);
-                    if (id === "growth") setGrowthKey((n) => n + 1);
-                    if (id === "train") setTrainKey((n) => n + 1);
-                    if (id === "cw") setCwKey((n) => n + 1);
-                    if (id === "analytics") setAnalyticsKey((n) => n + 1);
-                    if (id === "ratings") setRatingsKey((n) => n + 1);
-                  }}
+                  onClick={() => selectStatsTab(id)}
                 >
                   {label}
                 </button>
