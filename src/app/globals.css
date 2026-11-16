@@ -24955,6 +24955,19 @@ body:has(.faction-page) .site-footer {
 .bd-mark::after { top: 58%; }
 
 .xfer-modal { max-width: 640px; width: min(640px, 94vw); }
+.xfer-modal.is-draggable {
+  position: relative;
+  will-change: transform;
+  touch-action: none;
+}
+.xfer-modal .profile-match-modal-head[data-drag-handle],
+.xfer-modal .profile-match-modal-head {
+  cursor: grab;
+  user-select: none;
+}
+.xfer-modal .profile-match-modal-head:active {
+  cursor: grabbing;
+}
 .xfer-deal-types {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

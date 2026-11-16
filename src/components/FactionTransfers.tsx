@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BdAmount } from "@/components/BdMark";
+import { DraggableModal } from "@/components/DraggableModal";
 
 type ScarcityRow = {
   kitKey: string;
@@ -553,18 +554,12 @@ export function FactionTransfers({ slug, canManage }: Props) {
       </section>
 
       {offerListingId && offerTarget && canManage ? (
-        <div
-          className="profile-match-modal"
-          role="presentation"
-          onClick={() => !busy && setOfferListingId(null)}
+        <DraggableModal
+          open
+          closeOnBackdrop={!busy}
+          onClose={() => setOfferListingId(null)}
         >
-          <div
-            className="profile-match-modal-panel xfer-modal"
-            role="dialog"
-            aria-modal="true"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <header className="profile-match-modal-head">
+            <header className="profile-match-modal-head" data-drag-handle title="Перетащить окно">
               <div>
                 <p className="muted">Офер · {offerTarget.faction.name}</p>
                 <h2 className="profile-mail-modal-title">{offerTarget.player.nick}</h2>
@@ -726,23 +721,16 @@ export function FactionTransfers({ slug, canManage }: Props) {
                 Аналитика игрока
               </button>
             </div>
-          </div>
-        </div>
+        </DraggableModal>
       ) : null}
 
       {reviewOffer && canManage ? (
-        <div
-          className="profile-match-modal"
-          role="presentation"
-          onClick={() => !busy && setReviewOfferId(null)}
+        <DraggableModal
+          open
+          closeOnBackdrop={!busy}
+          onClose={() => setReviewOfferId(null)}
         >
-          <div
-            className="profile-match-modal-panel xfer-modal"
-            role="dialog"
-            aria-modal="true"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <header className="profile-match-modal-head">
+            <header className="profile-match-modal-head" data-drag-handle title="Перетащить окно">
               <div>
                 <p className="muted">Входящая сделка · {reviewOffer.fromFaction.name}</p>
                 <h2 className="profile-mail-modal-title">
@@ -839,23 +827,12 @@ export function FactionTransfers({ slug, canManage }: Props) {
                 Закрыть
               </button>
             </div>
-          </div>
-        </div>
+        </DraggableModal>
       ) : null}
 
       {analytics ? (
-        <div
-          className="profile-match-modal"
-          role="presentation"
-          onClick={() => setAnalytics(null)}
-        >
-          <div
-            className="profile-match-modal-panel xfer-modal"
-            role="dialog"
-            aria-modal="true"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <header className="profile-match-modal-head">
+        <DraggableModal open onClose={() => setAnalytics(null)}>
+            <header className="profile-match-modal-head" data-drag-handle title="Перетащить окно">
               <div>
                 <p className="muted">Аналитика трансфера</p>
                 <h2 className="profile-mail-modal-title">{analytics.nick}</h2>
@@ -909,8 +886,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
                 Закрыть
               </button>
             </div>
-          </div>
-        </div>
+        </DraggableModal>
       ) : null}
 
       <section className="xfer-section">
