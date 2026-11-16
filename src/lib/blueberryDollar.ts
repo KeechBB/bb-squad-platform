@@ -34,9 +34,10 @@ export function minAskFromEstimate(estimate: number): number {
   return Math.max(TRANSFER_MIN_ASK, fromMarket);
 }
 
-/** Пол для оценки / потолок. */
+/** Пол для оценки. Потолка нет — сильные игроки могут уходить выше. */
 export const ESTIMATE_FLOOR = 15_000;
-export const ESTIMATE_CEILING = 220_000;
+/** @deprecated потолок оценки снят; оставлено для совместимости импортов. */
+export const ESTIMATE_CEILING = Number.POSITIVE_INFINITY;
 
 export type ScarcityForPrice = "ok" | "thin" | "critical" | "surplus" | null | undefined;
 
@@ -129,7 +130,7 @@ export function estimatePlayerPrice(stats: Partial<PlayerPriceStats> & {
     freshness;
 
   const rounded = Math.round(raw / 500) * 500;
-  return clamp(rounded, ESTIMATE_FLOOR, ESTIMATE_CEILING);
+  return Math.max(ESTIMATE_FLOOR, rounded);
 }
 
 /** Гринд за TRAIN на TR1–TR5 → казна. Масштаб под цены в десятках тысяч. */
