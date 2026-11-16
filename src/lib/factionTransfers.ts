@@ -521,6 +521,7 @@ export async function loadPlayerPriceStats(
       nok30: 0,
       lastSeenDaysAgo: null,
       grindBroughtBd: 0,
+      grindAvgPerMatchBd: 0,
     });
   }
   if (!uniq.length) return out;
@@ -536,11 +537,16 @@ export async function loadPlayerPriceStats(
     by: ["userId"],
     where: { kind: "grind", userId: { in: uniq }, amount: { gt: 0 } },
     _sum: { amount: true },
+    _count: true,
   });
   for (const g of grindRows) {
     if (!g.userId) continue;
     const row = out.get(g.userId);
-    if (row) row.grindBroughtBd = g._sum.amount || 0;
+    if (!row) continue;
+    const sum = g._sum.amount || 0;
+    const n = g._count || 0;
+    row.grindBroughtBd = sum;
+    row.grindAvgPerMatchBd = n > 0 ? Math.round(sum / n) : 0;
   }
 
   const userByNickKey = new Map<string, string>();
@@ -623,6 +629,7 @@ export function estimateWithKit(
       nok30: 0,
       lastSeenDaysAgo: null,
       grindBroughtBd: 0,
+      grindAvgPerMatchBd: 0,
     }),
     kitKey,
     scarcityLevel: scarcityLevel ?? stats?.scarcityLevel,
@@ -696,6 +703,7 @@ export async function loadListingBoard(opts?: {
                 : st.kills30,
             lastSeenDaysAgo: st.lastSeenDaysAgo,
             grindBroughtBd: st.grindBroughtBd || 0,
+            grindAvgPerMatchBd: st.grindAvgPerMatchBd || 0,
           }
         : null,
     };

@@ -91,6 +91,8 @@ type PlayerStats = {
   kd: number;
   lastSeenDaysAgo?: number | null;
   grindBroughtBd?: number;
+  /** Средний гринд B$ за одну катку. */
+  grindAvgPerMatchBd?: number;
 };
 
 type BoardRow = {
@@ -1319,6 +1321,17 @@ export function FactionTransfers({ slug, canManage }: Props) {
                   </strong>
                 </div>
               ) : null}
+              <div>
+                <span className="muted">Среднее за игру</span>
+                <strong>
+                  {analytics.stats?.grindAvgPerMatchBd != null &&
+                  analytics.stats.grindAvgPerMatchBd > 0 ? (
+                    <BdAmount n={analytics.stats.grindAvgPerMatchBd} />
+                  ) : (
+                    "—"
+                  )}
+                </strong>
+              </div>
             </div>
             <StatsBlock stats={analytics.stats} />
             {analytics.hints.length ? (

@@ -59,6 +59,8 @@ export type PlayerPriceStats = {
    * К оценке плюсуется, округлённое до 1 000.
    */
   grindBroughtBd?: number;
+  /** Средний гринд за одну катку (сумма / число проводок grind). */
+  grindAvgPerMatchBd?: number;
 };
 
 function clamp(n: number, lo: number, hi: number) {
