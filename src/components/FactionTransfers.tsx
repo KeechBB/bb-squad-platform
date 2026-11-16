@@ -3,6 +3,64 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BdAmount } from "@/components/BdMark";
 import { DraggableModal } from "@/components/DraggableModal";
+import { useFitTablePage } from "@/lib/useFitTablePage";
+
+type XferSubTab = "desk" | "ledger" | "deals";
+
+function xferSubTabKey(slug: string, staff: boolean) {
+  return `bb-xfer-subtab:${slug}:${staff ? "staff" : "member"}`;
+}
+
+function readXferSubTab(slug: string, staff: boolean): XferSubTab {
+  const fallback: XferSubTab = staff ? "desk" : "ledger";
+  if (typeof window === "undefined") return fallback;
+  try {
+    const v = window.localStorage.getItem(xferSubTabKey(slug, staff));
+    if (staff && (v === "desk" || v === "ledger" || v === "deals")) return v;
+    if (!staff && (v === "ledger" || v === "deals")) return v;
+  } catch {
+    /* ignore */
+  }
+  return fallback;
+}
+
+function writeXferSubTab(slug: string, staff: boolean, tab: XferSubTab) {
+  try {
+    window.localStorage.setItem(xferSubTabKey(slug, staff), tab);
+  } catch {
+    /* ignore */
+  }
+}
+
+function XferPager({
+  page,
+  total,
+}: {
+  page: ReturnType<typeof useFitTablePage>;
+  total: number;
+}) {
+  if (page.pageCount <= 1) return null;
+  const from = total === 0 ? 0 : page.safePage * page.pageSize + 1;
+  const to = Math.min(total, (page.safePage + 1) * page.pageSize);
+  return (
+    <div className="faction-roster-pager xfer-pager">
+      <button type="button" className="btn" disabled={page.safePage <= 0} onClick={page.goPrev}>
+        Назад
+      </button>
+      <span className="muted">
+        {from}–{to} / {total} · стр. {page.safePage + 1}/{page.pageCount}
+      </span>
+      <button
+        type="button"
+        className="btn"
+        disabled={page.safePage >= page.pageCount - 1}
+        onClick={page.goNext}
+      >
+        Дальше
+      </button>
+    </div>
+  );
+}
 
 type ScarcityRow = {
   kitKey: string;
@@ -224,6 +282,9 @@ export function FactionTransfers({ slug, canManage }: Props) {
   const [msg, setMsg] = useState<string | null>(null);
   const [analytics, setAnalytics] = useState<AnalyticsTarget | null>(null);
   const [reviewOfferId, setReviewOfferId] = useState<string | null>(null);
+  const [subTab, setSubTab] = useState<XferSubTab>(() =>
+    readXferSubTab(slug, canManage),
+  );
 
   const load = useCallback(async () => {
     setErr(null);
@@ -339,6 +400,42 @@ export function FactionTransfers({ slug, canManage }: Props) {
     });
   }
 
+  const isStaff = Boolean(canManage && (data?.canManage ?? canManage));
+  const ledgerRows = data?.ledger ?? [];
+  const pendingDeals = data?.deals?.pending ?? [];
+  const closedDeals = data?.deals?.closed ?? [];
+  const ledgerPage = useFitTablePage(ledgerRows.length, Boolean(data) && subTab === "ledger");
+  const pendingPage = useFitTablePage(pendingDeals.length, Boolean(data) && subTab === "deals");
+  const closedPage = useFitTablePage(closedDeals.length, Boolean(data) && subTab === "deals");
+
+  useEffect(() => {
+    const next = readXferSubTab(slug, isStaff);
+    setSubTab(next);
+  }, [slug, isStaff]);
+
+  useEffect(() => {
+    if (!isStaff && subTab === "desk") setSubTab("ledger");
+  }, [isStaff, subTab]);
+
+  function selectSubTab(id: XferSubTab) {
+    if (!isStaff && id === "desk") return;
+    setSubTab(id);
+    writeXferSubTab(slug, isStaff, id);
+  }
+
+  const ledgerVisible = ledgerRows.slice(
+    ledgerPage.safePage * ledgerPage.pageSize,
+    ledgerPage.safePage * ledgerPage.pageSize + ledgerPage.pageSize,
+  );
+  const pendingVisible = pendingDeals.slice(
+    pendingPage.safePage * pendingPage.pageSize,
+    pendingPage.safePage * pendingPage.pageSize + pendingPage.pageSize,
+  );
+  const closedVisible = closedDeals.slice(
+    closedPage.safePage * closedPage.pageSize,
+    closedPage.safePage * closedPage.pageSize + closedPage.pageSize,
+  );
+
   if (err && !data) {
     return <p className="muted">{err}</p>;
   }
@@ -346,39 +443,65 @@ export function FactionTransfers({ slug, canManage }: Props) {
     return <p className="muted">Загрузка трансферной доски…</p>;
   }
 
-  const isStaff = Boolean(canManage && data.canManage);
-
   return (
     <div className={`xfer-panel${isStaff ? " is-staff" : " is-member"}`}>
-      {isStaff ? (
-        <div className="xfer-staff-ops">
-          <div className="xfer-head">
-            <div>
-              <h3 className="xfer-title">Трансферы</h3>
-              <p className="muted xfer-sub">
-                Казна:{" "}
-                <strong>
-                  <BdAmount n={data.treasury} />
-                </strong>
-                {" · "}
-                состав {data.rosterSize}/{data.minRoster}
-                {!data.eligible ? " — для сделок нужно ≥30" : ""}
-                {" · "}
-                гринд только TR1–TR5
-              </p>
-              <p className="muted xfer-hint">
-                Покупатель предлагает сделку (деньги / свой игрок / игрок + доплата) → у продавца
-                появляется входящая сделка: принять или отклонить. Всё с письмами.
-              </p>
-            </div>
-            <div className={`xfer-window ${data.window.isOpen ? "is-open" : "is-closed"}`}>
-              {data.window.isOpen ? "Окно открыто" : data.window.reason || "Окно закрыто"}
-            </div>
+      <div className="xfer-head">
+        <div>
+          <h3 className="xfer-title">Трансферы</h3>
+          {isStaff ? (
+            <p className="muted xfer-sub">
+              Казна:{" "}
+              <strong>
+                <BdAmount n={data.treasury} />
+              </strong>
+              {" · "}
+              состав {data.rosterSize}/{data.minRoster}
+              {!data.eligible ? " — для сделок нужно ≥30" : ""}
+              {" · "}
+              гринд только TR1–TR5
+            </p>
+          ) : (
+            <p className="muted xfer-hint">Движение казны и сделки вашей фракции.</p>
+          )}
+        </div>
+        {isStaff ? (
+          <div className={`xfer-window ${data.window.isOpen ? "is-open" : "is-closed"}`}>
+            {data.window.isOpen ? "Окно открыто" : data.window.reason || "Окно закрыто"}
           </div>
+        ) : null}
+      </div>
 
-          {msg ? <p className="xfer-msg">{msg}</p> : null}
-          {err ? <p className="xfer-err">{err}</p> : null}
+      <div className="admin-tabs clan-tabs xfer-subtabs" role="tablist">
+        {isStaff ? (
+          <button
+            type="button"
+            className={`admin-tab${subTab === "desk" ? " active" : ""}`}
+            onClick={() => selectSubTab("desk")}
+          >
+            Выставление
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className={`admin-tab${subTab === "ledger" ? " active" : ""}`}
+          onClick={() => selectSubTab("ledger")}
+        >
+          Движение казны
+        </button>
+        <button
+          type="button"
+          className={`admin-tab${subTab === "deals" ? " active" : ""}`}
+          onClick={() => selectSubTab("deals")}
+        >
+          Оферы и сделки
+        </button>
+      </div>
 
+      {msg ? <p className="xfer-msg">{msg}</p> : null}
+      {err && data ? <p className="xfer-err">{err}</p> : null}
+
+      {subTab === "desk" && isStaff ? (
+        <div className="xfer-tab-body xfer-staff-ops">
           <section className="xfer-section">
             <h4>Баланс ролей вашей фракции</h4>
             <p className="muted xfer-hint">
@@ -592,12 +715,145 @@ export function FactionTransfers({ slug, canManage }: Props) {
             </ul>
           </section>
         </div>
-      ) : (
-        <div className="xfer-head xfer-head-member">
-          <h3 className="xfer-title">Трансферы</h3>
-          <p className="muted xfer-hint">Движение казны и сделки вашей фракции.</p>
+      ) : null}
+
+      {subTab === "ledger" ? (
+        <div className="xfer-tab-body xfer-tables">
+          <p className="muted xfer-hint">
+            Баланс сейчас: <BdAmount n={data.treasury} />. Гринд TR1–TR5, сделки и правки.
+          </p>
+          <div className="xfer-fit" ref={ledgerPage.fitRef}>
+            <div className="xfer-table-wrap">
+              <table className="xfer-table">
+                <thead>
+                  <tr>
+                    <th>Когда</th>
+                    <th>Тип</th>
+                    <th>Сумма</th>
+                    <th>Комментарий</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ledgerVisible.map((e) => (
+                    <tr key={e.id}>
+                      <td>{formatWhen(e.createdAt)}</td>
+                      <td>{ledgerKindRu(e.kind)}</td>
+                      <td className={e.amount >= 0 ? "is-plus" : "is-minus"}>
+                        <BdAmount n={e.amount} signed />
+                      </td>
+                      <td className="muted">{e.note || "—"}</td>
+                    </tr>
+                  ))}
+                  {!ledgerRows.length ? (
+                    <tr>
+                      <td colSpan={4} className="muted">
+                        Пока пусто — гринд с TR1–TR5 пополнит казну.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <XferPager page={ledgerPage} total={ledgerRows.length} />
         </div>
-      )}
+      ) : null}
+
+      {subTab === "deals" ? (
+        <div className="xfer-tab-body xfer-tables xfer-deals-tab">
+          <p className="muted xfer-hint">
+            Входящие / исходящие предложения и закрытые сделки вашей фракции.
+          </p>
+
+          <h5 className="xfer-subhead">Сейчас открыты</h5>
+          <div className="xfer-fit xfer-fit-half" ref={pendingPage.fitRef}>
+            <div className="xfer-table-wrap">
+              <table className="xfer-table">
+                <thead>
+                  <tr>
+                    <th>Статус</th>
+                    <th>Тип</th>
+                    <th>Игрок</th>
+                    <th>От / Кому</th>
+                    <th>Деньги</th>
+                    <th>Когда</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingVisible.map((d) => (
+                    <tr key={d.id}>
+                      <td>
+                        <span className={`xfer-pill is-${d.side}`}>{d.statusLabel}</span>
+                      </td>
+                      <td>{d.typeLabel}</td>
+                      <td>
+                        {d.playerNick}
+                        {d.swapNick ? ` ↔ ${d.swapNick}` : ""}
+                      </td>
+                      <td className="muted">
+                        {d.fromFaction.name} → {d.toFaction.name}
+                      </td>
+                      <td>{d.cashAmount ? <BdAmount n={d.cashAmount} /> : "—"}</td>
+                      <td>{formatWhen(d.createdAt)}</td>
+                    </tr>
+                  ))}
+                  {!pendingDeals.length ? (
+                    <tr>
+                      <td colSpan={6} className="muted">
+                        Нет открытых оферов.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <XferPager page={pendingPage} total={pendingDeals.length} />
+
+          <h5 className="xfer-subhead">Успешные сделки</h5>
+          <div className="xfer-fit xfer-fit-half" ref={closedPage.fitRef}>
+            <div className="xfer-table-wrap">
+              <table className="xfer-table">
+                <thead>
+                  <tr>
+                    <th>Тип</th>
+                    <th>Игрок</th>
+                    <th>От / Кому</th>
+                    <th>Деньги</th>
+                    <th>Когда</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {closedVisible.map((d) => (
+                    <tr key={d.id}>
+                      <td>
+                        <span className="xfer-pill is-done">{d.typeLabel}</span>
+                      </td>
+                      <td>
+                        {d.playerNick}
+                        {d.swapNick ? ` ↔ ${d.swapNick}` : ""}
+                      </td>
+                      <td className="muted">
+                        {d.fromFaction.name} → {d.toFaction.name}
+                      </td>
+                      <td>{d.cashAmount ? <BdAmount n={d.cashAmount} /> : "—"}</td>
+                      <td>{formatWhen(d.updatedAt || d.createdAt)}</td>
+                    </tr>
+                  ))}
+                  {!closedDeals.length ? (
+                    <tr>
+                      <td colSpan={5} className="muted">
+                        Успешных сделок пока нет.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <XferPager page={closedPage} total={closedDeals.length} />
+        </div>
+      ) : null}
 
       {offerListingId && offerTarget && isStaff ? (
         <DraggableModal
@@ -935,134 +1191,6 @@ export function FactionTransfers({ slug, canManage }: Props) {
         </DraggableModal>
       ) : null}
 
-      <div className="xfer-tables-scroll">
-        <section className="xfer-section xfer-tables">
-          <h4>1. Движение казны</h4>
-          <p className="muted xfer-hint">
-            Баланс сейчас: <BdAmount n={data.treasury} />. Гринд TR1–TR5, сделки и правки.
-          </p>
-          <div className="xfer-table-wrap">
-            <table className="xfer-table">
-              <thead>
-                <tr>
-                  <th>Когда</th>
-                  <th>Тип</th>
-                  <th>Сумма</th>
-                  <th>Комментарий</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.ledger.map((e) => (
-                  <tr key={e.id}>
-                    <td>{formatWhen(e.createdAt)}</td>
-                    <td>{ledgerKindRu(e.kind)}</td>
-                    <td className={e.amount >= 0 ? "is-plus" : "is-minus"}>
-                      <BdAmount n={e.amount} signed />
-                    </td>
-                    <td className="muted">{e.note || "—"}</td>
-                  </tr>
-                ))}
-                {!data.ledger.length ? (
-                  <tr>
-                    <td colSpan={4} className="muted">
-                      Пока пусто — гринд с TR1–TR5 пополнит казну.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section className="xfer-section xfer-tables">
-          <h4>2. Текущие оферы и успешные сделки</h4>
-          <p className="muted xfer-hint">
-            Входящие / исходящие предложения и закрытые сделки вашей фракции.
-          </p>
-
-          <h5 className="xfer-subhead">Сейчас открыты</h5>
-          <div className="xfer-table-wrap">
-            <table className="xfer-table">
-              <thead>
-                <tr>
-                  <th>Статус</th>
-                  <th>Тип</th>
-                  <th>Игрок</th>
-                  <th>От / Кому</th>
-                  <th>Деньги</th>
-                  <th>Когда</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(data.deals?.pending || []).map((d) => (
-                  <tr key={d.id}>
-                    <td>
-                      <span className={`xfer-pill is-${d.side}`}>{d.statusLabel}</span>
-                    </td>
-                    <td>{d.typeLabel}</td>
-                    <td>
-                      {d.playerNick}
-                      {d.swapNick ? ` ↔ ${d.swapNick}` : ""}
-                    </td>
-                    <td className="muted">
-                      {d.fromFaction.name} → {d.toFaction.name}
-                    </td>
-                    <td>{d.cashAmount ? <BdAmount n={d.cashAmount} /> : "—"}</td>
-                    <td>{formatWhen(d.createdAt)}</td>
-                  </tr>
-                ))}
-                {!data.deals?.pending?.length ? (
-                  <tr>
-                    <td colSpan={6} className="muted">
-                      Нет открытых оферов.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-
-          <h5 className="xfer-subhead">Успешные сделки</h5>
-          <div className="xfer-table-wrap">
-            <table className="xfer-table">
-              <thead>
-                <tr>
-                  <th>Тип</th>
-                  <th>Игрок</th>
-                  <th>От / Кому</th>
-                  <th>Деньги</th>
-                  <th>Когда</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(data.deals?.closed || []).map((d) => (
-                  <tr key={d.id}>
-                    <td>
-                      <span className="xfer-pill is-done">{d.typeLabel}</span>
-                    </td>
-                    <td>
-                      {d.playerNick}
-                      {d.swapNick ? ` ↔ ${d.swapNick}` : ""}
-                    </td>
-                    <td className="muted">
-                      {d.fromFaction.name} → {d.toFaction.name}
-                    </td>
-                    <td>{d.cashAmount ? <BdAmount n={d.cashAmount} /> : "—"}</td>
-                    <td>{formatWhen(d.updatedAt || d.createdAt)}</td>
-                  </tr>
-                ))}
-                {!data.deals?.closed?.length ? (
-                  <tr>
-                    <td colSpan={5} className="muted">
-                      Успешных сделок пока нет.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </div>
     </div>
   );
 }
