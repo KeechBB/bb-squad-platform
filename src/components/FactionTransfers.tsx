@@ -463,12 +463,8 @@ export function FactionTransfers({ slug, canManage }: Props) {
               {" · "}
               состав {data.rosterSize}/{data.minRoster}
               {!data.eligible ? " — для сделок нужно ≥30" : ""}
-              {" · "}
-              гринд только TR1–TR5
             </p>
-          ) : (
-            <p className="muted xfer-hint">Движение казны и сделки вашей фракции.</p>
-          )}
+          ) : null}
         </div>
         {isStaff ? (
           <div className={`xfer-window ${data.window.isOpen ? "is-open" : "is-closed"}`}>
@@ -519,10 +515,6 @@ export function FactionTransfers({ slug, canManage }: Props) {
         <div className="xfer-tab-body xfer-staff-ops">
           <section className="xfer-section">
             <h4>Баланс ролей вашей фракции</h4>
-            <p className="muted xfer-hint">
-              Дефицит подсвечивается при покупке; при продаже редких ролей — предупреждение.
-              {data.estimateHint ? ` ${data.estimateHint}` : ""}
-            </p>
             <div className="xfer-scarce-grid">
               {data.scarcity.map((r) => (
                 <div key={r.kitKey} className={levelClass(r.level)} title={r.hint}>
@@ -624,10 +616,6 @@ export function FactionTransfers({ slug, canManage }: Props) {
 
           <section className="xfer-section">
             <h4>Входящие сделки</h4>
-            <p className="muted xfer-hint">
-              Предложения от других фракций по вашим игрокам на доске. Открой — посмотри детали —
-              подтверди или отклони.
-            </p>
             <ul className="xfer-list">
               {data.incomingOffers.map((o) => (
                 <li key={o.id} className="xfer-card">
@@ -734,9 +722,6 @@ export function FactionTransfers({ slug, canManage }: Props) {
 
       {subTab === "ledger" ? (
         <div className="xfer-tab-body xfer-tables">
-          <p className="muted xfer-hint">
-            Баланс сейчас: <BdAmount n={data.treasury} />. Гринд TR1–TR5, сделки и правки.
-          </p>
           <div className="xfer-fit" ref={ledgerPage.fitRef}>
             <div className="xfer-table-wrap">
               <table className="xfer-table">
@@ -776,9 +761,6 @@ export function FactionTransfers({ slug, canManage }: Props) {
 
       {subTab === "market" ? (
         <div className="xfer-tab-body xfer-tables">
-          <p className="muted xfer-hint">
-            Весь рынок: лоты на доске и оферы всех фракций (BUY / обмен / игрок+доплата).
-          </p>
           <div className="xfer-fit" ref={pendingPage.fitRef}>
             <div className="xfer-table-wrap">
               <table className="xfer-table">
@@ -827,7 +809,6 @@ export function FactionTransfers({ slug, canManage }: Props) {
 
       {subTab === "closed" ? (
         <div className="xfer-tab-body xfer-tables">
-          <p className="muted xfer-hint">Успешные сделки вашей фракции.</p>
           <div className="xfer-fit" ref={closedPage.fitRef}>
             <div className="xfer-table-wrap">
               <table className="xfer-table">

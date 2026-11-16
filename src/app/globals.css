@@ -24955,7 +24955,7 @@ body:has(.faction-page) .site-footer {
   overflow: hidden;
 }
 .xfer-fit .xfer-table {
-  height: 100%;
+  height: auto;
 }
 .xfer-pager {
   flex: 0 0 auto;

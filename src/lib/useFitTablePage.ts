@@ -24,9 +24,12 @@ export function useFitTablePage(rowCount: number, active = true) {
     if (!el || !active) return;
     const measure = () => {
       const head = el.querySelector("thead")?.getBoundingClientRect().height ?? 44;
-      const sample = el.querySelector("tbody tr")?.getBoundingClientRect().height ?? 44;
+      const sampleRaw = el.querySelector("tbody tr")?.getBoundingClientRect().height ?? 40;
       const room = Math.max(0, el.clientHeight - head);
-      const next = Math.max(1, Math.floor(room / Math.max(sample, 1)));
+      // Если строка растянута на весь контейнер — не верить sample, иначе pageSize=1.
+      const sample =
+        sampleRaw > Math.max(56, room * 0.4) ? 40 : Math.max(28, sampleRaw);
+      const next = Math.max(1, Math.floor(room / sample));
       setPageSize((prev) => (prev === next ? prev : next));
     };
     measure();
