@@ -52,7 +52,20 @@ export async function GET(_req: Request, ctx: Ctx) {
 
   const factionId = loaded.view.id;
 
-  const [window, board, myListings, incomingOffers, outgoingPending, acceptedDeals, ledger, priceStats] =
+  const offerInclude = {
+    fromFaction: { select: { id: true, name: true, slug: true } },
+    listing: {
+      select: {
+        id: true,
+        askPrice: true,
+        playerUserId: true,
+        status: true,
+        faction: { select: { id: true, name: true, slug: true } },
+      },
+    },
+  } as const;
+
+  const [window, board, myListings, allPendingOffers, acceptedDeals, ledger, priceStats] =
     await Promise.all([
       getTransferWindowState(),
       loadListingBoard({ buyerScarcityByKit: scarcityByKit }),
@@ -60,61 +73,22 @@ export async function GET(_req: Request, ctx: Ctx) {
         where: { factionId, status: "ACTIVE" },
         orderBy: { createdAt: "desc" },
       }),
+      /** Все открытые оферы рынка — видят игроки любой фракции. */
       prisma.transferOffer.findMany({
         where: {
           status: "PENDING",
-          listing: { factionId, status: "ACTIVE" },
+          listing: { status: "ACTIVE" },
         },
-        include: {
-          fromFaction: { select: { id: true, name: true, slug: true } },
-          listing: {
-            select: {
-              id: true,
-              askPrice: true,
-              playerUserId: true,
-              faction: { select: { id: true, name: true, slug: true } },
-            },
-          },
-        },
+        include: offerInclude,
         orderBy: { createdAt: "desc" },
-        take: 40,
-      }),
-      prisma.transferOffer.findMany({
-        where: {
-          status: "PENDING",
-          fromFactionId: factionId,
-        },
-        include: {
-          fromFaction: { select: { id: true, name: true, slug: true } },
-          listing: {
-            select: {
-              id: true,
-              askPrice: true,
-              playerUserId: true,
-              status: true,
-              faction: { select: { id: true, name: true, slug: true } },
-            },
-          },
-        },
-        orderBy: { createdAt: "desc" },
-        take: 40,
+        take: 120,
       }),
       prisma.transferOffer.findMany({
         where: {
           status: "ACCEPTED",
           OR: [{ fromFactionId: factionId }, { listing: { factionId } }],
         },
-        include: {
-          fromFaction: { select: { id: true, name: true, slug: true } },
-          listing: {
-            select: {
-              id: true,
-              askPrice: true,
-              playerUserId: true,
-              faction: { select: { id: true, name: true, slug: true } },
-            },
-          },
-        },
+        include: offerInclude,
         orderBy: { updatedAt: "desc" },
         take: 40,
       }),
@@ -126,7 +100,10 @@ export async function GET(_req: Request, ctx: Ctx) {
       loadPlayerPriceStats(loaded.view.members.map((m) => m.userId)),
     ]);
 
-  const allDealOffers = [...incomingOffers, ...outgoingPending, ...acceptedDeals];
+  /** Входящие по нашим листингам — для штабной панели. */
+  const incomingOffers = allPendingOffers.filter((o) => o.listing.faction.id === factionId);
+
+  const allDealOffers = [...allPendingOffers, ...acceptedDeals];
   const offerPlayerIds = [
     ...new Set(
       allDealOffers.flatMap((o) =>
@@ -152,15 +129,21 @@ export async function GET(_req: Request, ctx: Ctx) {
     if (t === "BUY") return "Покупка";
     return t;
   }
-  function dealStatusRu(s: string, side: "in" | "out" | "done") {
+  function dealSideFor(o: (typeof allPendingOffers)[number]): "in" | "out" | "open" {
+    if (o.listing.faction.id === factionId) return "in";
+    if (o.fromFaction.id === factionId) return "out";
+    return "open";
+  }
+  function dealStatusRu(s: string, side: "in" | "out" | "open" | "done") {
     if (side === "done" || s === "ACCEPTED") return "Успешно";
-    if (s === "PENDING" && side === "in") return "Входящий";
-    if (s === "PENDING" && side === "out") return "Исходящий";
+    if (s === "PENDING" && side === "in") return "К нам";
+    if (s === "PENDING" && side === "out") return "От нас";
+    if (s === "PENDING" && side === "open") return "Открыт";
     return s;
   }
   function mapDealRow(
     o: (typeof allDealOffers)[number],
-    side: "in" | "out" | "done",
+    side: "in" | "out" | "open" | "done",
   ) {
     return {
       id: o.id,
@@ -310,12 +293,9 @@ export async function GET(_req: Request, ctx: Ctx) {
       createdAt: e.createdAt.toISOString(),
       label: `${e.amount > 0 ? "+" : ""}${e.amount} ${BD_MARK}`,
     })),
-    /** Текущие оферы (вх/исх) + успешные сделки — для таблицы у всех игроков фракции. */
+    /** Открытые оферы всего рынка + успешные сделки своей фракции. */
     deals: {
-      pending: [
-        ...incomingOffers.map((o) => mapDealRow(o, "in")),
-        ...outgoingPending.map((o) => mapDealRow(o, "out")),
-      ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+      pending: allPendingOffers.map((o) => mapDealRow(o, dealSideFor(o))),
       closed: acceptedDeals.map((o) => mapDealRow(o, "done")),
     },
   });

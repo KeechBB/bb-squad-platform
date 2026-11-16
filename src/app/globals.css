@@ -25063,6 +25063,7 @@ body:has(.faction-page) .site-footer {
 }
 .xfer-pill.is-in { background: rgba(167, 139, 250, 0.28); color: #e9d5ff; }
 .xfer-pill.is-out { background: rgba(56, 189, 248, 0.22); color: #bae6fd; }
+.xfer-pill.is-open { background: rgba(148, 163, 184, 0.22); color: #e2e8f0; }
 .xfer-pill.is-done { background: rgba(34, 197, 94, 0.22); color: #bbf7d0; }
 
 /* Трансферные модалки — поверх всего (portal → body), таскаемые */

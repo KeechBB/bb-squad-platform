@@ -169,7 +169,7 @@ type Payload = {
 
 type DealRow = {
   id: string;
-  side: "in" | "out" | "done";
+  side: "in" | "out" | "open" | "done";
   status: string;
   statusLabel: string;
   type: string;
@@ -762,10 +762,10 @@ export function FactionTransfers({ slug, canManage }: Props) {
       {subTab === "deals" ? (
         <div className="xfer-tab-body xfer-tables xfer-deals-tab">
           <p className="muted xfer-hint">
-            Входящие / исходящие предложения и закрытые сделки вашей фракции.
+            Открытые оферы всего рынка (все фракции) и успешные сделки вашей фракции.
           </p>
 
-          <h5 className="xfer-subhead">Сейчас открыты</h5>
+          <h5 className="xfer-subhead">Сейчас открыты · весь рынок</h5>
           <div className="xfer-fit xfer-fit-half" ref={pendingPage.fitRef}>
             <div className="xfer-table-wrap">
               <table className="xfer-table">
@@ -800,7 +800,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
                   {!pendingDeals.length ? (
                     <tr>
                       <td colSpan={6} className="muted">
-                        Нет открытых оферов.
+                        На рынке пока нет открытых оферов.
                       </td>
                     </tr>
                   ) : null}
