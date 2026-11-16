@@ -48,44 +48,89 @@ export async function GET(_req: Request, ctx: Ctx) {
     scarcity.byKit.map((r) => [r.kitKey, r.level as "ok" | "thin" | "critical" | "surplus"]),
   );
 
-  const [window, board, myListings, incomingOffers, ledger, priceStats] = await Promise.all([
-    getTransferWindowState(),
-    loadListingBoard({ buyerScarcityByKit: scarcityByKit }),
-    prisma.transferListing.findMany({
-      where: { factionId: loaded.view.id, status: "ACTIVE" },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.transferOffer.findMany({
-      where: {
-        status: "PENDING",
-        listing: { factionId: loaded.view.id, status: "ACTIVE" },
-      },
-      include: {
-        fromFaction: { select: { id: true, name: true, slug: true } },
-        listing: {
-          select: {
-            id: true,
-            askPrice: true,
-            playerUserId: true,
+  const factionId = loaded.view.id;
+
+  const [window, board, myListings, incomingOffers, outgoingPending, acceptedDeals, ledger, priceStats] =
+    await Promise.all([
+      getTransferWindowState(),
+      loadListingBoard({ buyerScarcityByKit: scarcityByKit }),
+      prisma.transferListing.findMany({
+        where: { factionId, status: "ACTIVE" },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.transferOffer.findMany({
+        where: {
+          status: "PENDING",
+          listing: { factionId, status: "ACTIVE" },
+        },
+        include: {
+          fromFaction: { select: { id: true, name: true, slug: true } },
+          listing: {
+            select: {
+              id: true,
+              askPrice: true,
+              playerUserId: true,
+              faction: { select: { id: true, name: true, slug: true } },
+            },
           },
         },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 40,
-    }),
-    prisma.factionLedgerEntry.findMany({
-      where: { factionId: loaded.view.id },
-      orderBy: { createdAt: "desc" },
-      take: 30,
-    }),
-    loadPlayerPriceStats(loaded.view.members.map((m) => m.userId)),
-  ]);
+        orderBy: { createdAt: "desc" },
+        take: 40,
+      }),
+      prisma.transferOffer.findMany({
+        where: {
+          status: "PENDING",
+          fromFactionId: factionId,
+        },
+        include: {
+          fromFaction: { select: { id: true, name: true, slug: true } },
+          listing: {
+            select: {
+              id: true,
+              askPrice: true,
+              playerUserId: true,
+              status: true,
+              faction: { select: { id: true, name: true, slug: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 40,
+      }),
+      prisma.transferOffer.findMany({
+        where: {
+          status: "ACCEPTED",
+          OR: [{ fromFactionId: factionId }, { listing: { factionId } }],
+        },
+        include: {
+          fromFaction: { select: { id: true, name: true, slug: true } },
+          listing: {
+            select: {
+              id: true,
+              askPrice: true,
+              playerUserId: true,
+              faction: { select: { id: true, name: true, slug: true } },
+            },
+          },
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 40,
+      }),
+      prisma.factionLedgerEntry.findMany({
+        where: { factionId },
+        orderBy: { createdAt: "desc" },
+        take: 60,
+      }),
+      loadPlayerPriceStats(loaded.view.members.map((m) => m.userId)),
+    ]);
 
+  const allDealOffers = [...incomingOffers, ...outgoingPending, ...acceptedDeals];
   const offerPlayerIds = [
-    ...new Set([
-      ...incomingOffers.map((o) => o.listing.playerUserId),
-      ...incomingOffers.map((o) => o.swapUserId).filter(Boolean) as string[],
-    ]),
+    ...new Set(
+      allDealOffers.flatMap((o) =>
+        [o.listing.playerUserId, o.swapUserId].filter(Boolean) as string[],
+      ),
+    ),
   ];
   const [offerUsers, offerPriceStats, offerKits] = await Promise.all([
     prisma.user.findMany({
@@ -98,6 +143,43 @@ export async function GET(_req: Request, ctx: Ctx) {
   const nickById = Object.fromEntries(
     offerUsers.map((u) => [u.id, u.nick || u.steamName || "—"]),
   );
+
+  function dealTypeRu(t: string) {
+    if (t === "SWAP_CASH") return "Игрок + доплата";
+    if (t === "SWAP") return "Обмен";
+    if (t === "BUY") return "Покупка";
+    return t;
+  }
+  function dealStatusRu(s: string, side: "in" | "out" | "done") {
+    if (side === "done" || s === "ACCEPTED") return "Успешно";
+    if (s === "PENDING" && side === "in") return "Входящий";
+    if (s === "PENDING" && side === "out") return "Исходящий";
+    return s;
+  }
+  function mapDealRow(
+    o: (typeof allDealOffers)[number],
+    side: "in" | "out" | "done",
+  ) {
+    return {
+      id: o.id,
+      side,
+      status: o.status,
+      statusLabel: dealStatusRu(o.status, side),
+      type: o.type,
+      typeLabel: dealTypeRu(o.type),
+      cashAmount: o.cashAmount,
+      askPrice: o.listing.askPrice,
+      message: o.message,
+      createdAt: o.createdAt.toISOString(),
+      updatedAt: o.updatedAt.toISOString(),
+      fromFaction: o.fromFaction,
+      toFaction: o.listing.faction,
+      playerNick: nickById[o.listing.playerUserId] || "—",
+      playerUserId: o.listing.playerUserId,
+      swapNick: o.swapUserId ? nickById[o.swapUserId] || "—" : null,
+      swapUserId: o.swapUserId,
+    };
+  }
   function offerPlayerCard(userId: string | null | undefined) {
     if (!userId) return null;
     const kit = offerKits.get(userId) || null;
@@ -225,6 +307,14 @@ export async function GET(_req: Request, ctx: Ctx) {
       createdAt: e.createdAt.toISOString(),
       label: `${e.amount > 0 ? "+" : ""}${e.amount} ${BD_MARK}`,
     })),
+    /** Текущие оферы (вх/исх) + успешные сделки — для таблицы у всех игроков фракции. */
+    deals: {
+      pending: [
+        ...incomingOffers.map((o) => mapDealRow(o, "in")),
+        ...outgoingPending.map((o) => mapDealRow(o, "out")),
+      ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+      closed: acceptedDeals.map((o) => mapDealRow(o, "done")),
+    },
   });
 }
 

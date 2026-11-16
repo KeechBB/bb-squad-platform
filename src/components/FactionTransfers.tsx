@@ -102,6 +102,30 @@ type Payload = {
   incomingOffers: OfferRow[];
   listable: Listable[];
   ledger: { id: string; amount: number; kind: string; note: string | null; label: string; createdAt: string }[];
+  deals?: {
+    pending: DealRow[];
+    closed: DealRow[];
+  };
+};
+
+type DealRow = {
+  id: string;
+  side: "in" | "out" | "done";
+  status: string;
+  statusLabel: string;
+  type: string;
+  typeLabel: string;
+  cashAmount: number;
+  askPrice: number;
+  message: string | null;
+  createdAt: string;
+  updatedAt: string;
+  fromFaction: { id: string; name: string; slug: string };
+  toFaction: { id: string; name: string; slug: string };
+  playerNick: string;
+  playerUserId: string;
+  swapNick: string | null;
+  swapUserId: string | null;
 };
 
 type Props = {
@@ -889,26 +913,147 @@ export function FactionTransfers({ slug, canManage }: Props) {
         </DraggableModal>
       ) : null}
 
-      <section className="xfer-section">
-        <h4>Движения казны</h4>
-        <ul className="xfer-ledger">
-          {data.ledger.map((e) => (
-            <li key={e.id}>
-              <span className={e.amount >= 0 ? "is-plus" : "is-minus"}>
-                <BdAmount n={e.amount} signed />
-              </span>
-              <span className="muted">
-                {" "}
-                · {e.kind}
-                {e.note ? ` · ${e.note}` : ""}
-              </span>
-            </li>
-          ))}
-          {!data.ledger.length ? (
-            <li className="muted">Пока пусто — гринд с TR1–TR5 пополнит казну.</li>
-          ) : null}
-        </ul>
+      <section className="xfer-section xfer-tables">
+        <h4>1. Движение казны</h4>
+        <p className="muted xfer-hint">
+          Баланс сейчас: <BdAmount n={data.treasury} />. Гринд TR1–TR5, сделки и правки.
+        </p>
+        <div className="xfer-table-wrap">
+          <table className="xfer-table">
+            <thead>
+              <tr>
+                <th>Когда</th>
+                <th>Тип</th>
+                <th>Сумма</th>
+                <th>Комментарий</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.ledger.map((e) => (
+                <tr key={e.id}>
+                  <td>{formatWhen(e.createdAt)}</td>
+                  <td>{ledgerKindRu(e.kind)}</td>
+                  <td className={e.amount >= 0 ? "is-plus" : "is-minus"}>
+                    <BdAmount n={e.amount} signed />
+                  </td>
+                  <td className="muted">{e.note || "—"}</td>
+                </tr>
+              ))}
+              {!data.ledger.length ? (
+                <tr>
+                  <td colSpan={4} className="muted">
+                    Пока пусто — гринд с TR1–TR5 пополнит казну.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="xfer-section xfer-tables">
+        <h4>2. Текущие оферы и успешные сделки</h4>
+        <p className="muted xfer-hint">
+          Входящие / исходящие предложения и закрытые сделки вашей фракции.
+        </p>
+
+        <h5 className="xfer-subhead">Сейчас открыты</h5>
+        <div className="xfer-table-wrap">
+          <table className="xfer-table">
+            <thead>
+              <tr>
+                <th>Статус</th>
+                <th>Тип</th>
+                <th>Игрок</th>
+                <th>От / Кому</th>
+                <th>Деньги</th>
+                <th>Когда</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(data.deals?.pending || []).map((d) => (
+                <tr key={d.id}>
+                  <td>
+                    <span className={`xfer-pill is-${d.side}`}>{d.statusLabel}</span>
+                  </td>
+                  <td>{d.typeLabel}</td>
+                  <td>
+                    {d.playerNick}
+                    {d.swapNick ? ` ↔ ${d.swapNick}` : ""}
+                  </td>
+                  <td className="muted">
+                    {d.fromFaction.name} → {d.toFaction.name}
+                  </td>
+                  <td>{d.cashAmount ? <BdAmount n={d.cashAmount} /> : "—"}</td>
+                  <td>{formatWhen(d.createdAt)}</td>
+                </tr>
+              ))}
+              {!data.deals?.pending?.length ? (
+                <tr>
+                  <td colSpan={6} className="muted">
+                    Нет открытых оферов.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+
+        <h5 className="xfer-subhead">Успешные сделки</h5>
+        <div className="xfer-table-wrap">
+          <table className="xfer-table">
+            <thead>
+              <tr>
+                <th>Тип</th>
+                <th>Игрок</th>
+                <th>От / Кому</th>
+                <th>Деньги</th>
+                <th>Когда</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(data.deals?.closed || []).map((d) => (
+                <tr key={d.id}>
+                  <td>
+                    <span className="xfer-pill is-done">{d.typeLabel}</span>
+                  </td>
+                  <td>
+                    {d.playerNick}
+                    {d.swapNick ? ` ↔ ${d.swapNick}` : ""}
+                  </td>
+                  <td className="muted">
+                    {d.fromFaction.name} → {d.toFaction.name}
+                  </td>
+                  <td>{d.cashAmount ? <BdAmount n={d.cashAmount} /> : "—"}</td>
+                  <td>{formatWhen(d.updatedAt || d.createdAt)}</td>
+                </tr>
+              ))}
+              {!data.deals?.closed?.length ? (
+                <tr>
+                  <td colSpan={5} className="muted">
+                    Успешных сделок пока нет.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   );
+}
+
+function formatWhen(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function ledgerKindRu(kind: string) {
+  if (kind === "grind") return "Гринд TR";
+  if (kind === "transfer_in") return "Сделка +";
+  if (kind === "transfer_out") return "Сделка −";
+  if (kind === "admin_adjust") return "Правка";
+  return kind;
 }
