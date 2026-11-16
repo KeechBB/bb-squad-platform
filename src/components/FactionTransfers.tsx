@@ -338,54 +338,57 @@ export function FactionTransfers({ slug, canManage }: Props) {
     return <p className="muted">Загрузка трансферной доски…</p>;
   }
 
+  const isStaff = Boolean(canManage && data.canManage);
+
   return (
-    <div className="xfer-panel">
-      <div className="xfer-head">
-        <div>
-          <h3 className="xfer-title">Трансферы</h3>
-          <p className="muted xfer-sub">
-            Казна:{" "}
-            <strong>
-              <BdAmount n={data.treasury} />
-            </strong>
-            {" · "}
-            состав {data.rosterSize}/{data.minRoster}
-            {!data.eligible ? " — для сделок нужно ≥30" : ""}
-            {" · "}
-            гринд только TR1–TR5
-          </p>
-          <p className="muted xfer-hint">
-            Покупатель предлагает сделку (деньги / свой игрок / игрок + доплата) → у продавца
-            появляется входящая сделка: принять или отклонить. Всё с письмами.
-          </p>
-        </div>
-        <div className={`xfer-window ${data.window.isOpen ? "is-open" : "is-closed"}`}>
-          {data.window.isOpen ? "Окно открыто" : data.window.reason || "Окно закрыто"}
-        </div>
-      </div>
-
-      {msg ? <p className="xfer-msg">{msg}</p> : null}
-      {err ? <p className="xfer-err">{err}</p> : null}
-
-      <section className="xfer-section">
-        <h4>Баланс ролей вашей фракции</h4>
-        <p className="muted xfer-hint">
-          Дефицит подсвечивается при покупке; при продаже редких ролей — предупреждение.
-          {data.estimateHint ? ` ${data.estimateHint}` : ""}
-        </p>
-        <div className="xfer-scarce-grid">
-          {data.scarcity.map((r) => (
-            <div key={r.kitKey} className={levelClass(r.level)} title={r.hint}>
-              <span className="xfer-scarce-label">{r.label}</span>
-              <span className="xfer-scarce-count">{r.count}</span>
+    <div className={`xfer-panel${isStaff ? " is-staff" : " is-member"}`}>
+      {isStaff ? (
+        <div className="xfer-staff-ops">
+          <div className="xfer-head">
+            <div>
+              <h3 className="xfer-title">Трансферы</h3>
+              <p className="muted xfer-sub">
+                Казна:{" "}
+                <strong>
+                  <BdAmount n={data.treasury} />
+                </strong>
+                {" · "}
+                состав {data.rosterSize}/{data.minRoster}
+                {!data.eligible ? " — для сделок нужно ≥30" : ""}
+                {" · "}
+                гринд только TR1–TR5
+              </p>
+              <p className="muted xfer-hint">
+                Покупатель предлагает сделку (деньги / свой игрок / игрок + доплата) → у продавца
+                появляется входящая сделка: принять или отклонить. Всё с письмами.
+              </p>
             </div>
-          ))}
-          {!data.scarcity.length ? <span className="muted">Нет данных по китам</span> : null}
-        </div>
-      </section>
+            <div className={`xfer-window ${data.window.isOpen ? "is-open" : "is-closed"}`}>
+              {data.window.isOpen ? "Окно открыто" : data.window.reason || "Окно закрыто"}
+            </div>
+          </div>
 
-      {canManage && data.canManage ? (
-        <section className="xfer-section">
+          {msg ? <p className="xfer-msg">{msg}</p> : null}
+          {err ? <p className="xfer-err">{err}</p> : null}
+
+          <section className="xfer-section">
+            <h4>Баланс ролей вашей фракции</h4>
+            <p className="muted xfer-hint">
+              Дефицит подсвечивается при покупке; при продаже редких ролей — предупреждение.
+              {data.estimateHint ? ` ${data.estimateHint}` : ""}
+            </p>
+            <div className="xfer-scarce-grid">
+              {data.scarcity.map((r) => (
+                <div key={r.kitKey} className={levelClass(r.level)} title={r.hint}>
+                  <span className="xfer-scarce-label">{r.label}</span>
+                  <span className="xfer-scarce-count">{r.count}</span>
+                </div>
+              ))}
+              {!data.scarcity.length ? <span className="muted">Нет данных по китам</span> : null}
+            </div>
+          </section>
+
+          <section className="xfer-section">
           <h4>Выставить на продажу</h4>
           {!data.window.isOpen || !data.eligible ? (
             <p className="muted">
@@ -464,120 +467,124 @@ export function FactionTransfers({ slug, canManage }: Props) {
           {selectedListable?.sellHints?.length ? (
             <p className="xfer-warn">{selectedListable.sellHints.join(" ")}</p>
           ) : null}
-        </section>
-      ) : null}
+          </section>
 
-      {canManage && data.canManage ? (
-        <section className="xfer-section">
-          <h4>Входящие сделки</h4>
-          <p className="muted xfer-hint">
-            Предложения от других фракций по вашим игрокам на доске. Открой — посмотри детали —
-            подтверди или отклони.
-          </p>
-          <ul className="xfer-list">
-            {data.incomingOffers.map((o) => (
-              <li key={o.id} className="xfer-card">
-                <div>
-                  <strong>{o.playerNick}</strong> ← {o.fromFaction.name}
-                  <span className="muted">
-                    {" "}
-                    · {offerTypeLabel(o.type)}
-                    {o.cashAmount ? (
-                      <>
-                        {" · "}
-                        <BdAmount n={o.cashAmount} />
-                      </>
+          <section className="xfer-section">
+            <h4>Входящие сделки</h4>
+            <p className="muted xfer-hint">
+              Предложения от других фракций по вашим игрокам на доске. Открой — посмотри детали —
+              подтверди или отклони.
+            </p>
+            <ul className="xfer-list">
+              {data.incomingOffers.map((o) => (
+                <li key={o.id} className="xfer-card">
+                  <div>
+                    <strong>{o.playerNick}</strong> ← {o.fromFaction.name}
+                    <span className="muted">
+                      {" "}
+                      · {offerTypeLabel(o.type)}
+                      {o.cashAmount ? (
+                        <>
+                          {" · "}
+                          <BdAmount n={o.cashAmount} />
+                        </>
+                      ) : null}
+                      {o.swapPlayer ? ` · + ${o.swapPlayer.nick}` : null}
+                    </span>
+                    {o.message ? <p className="muted">{o.message}</p> : null}
+                  </div>
+                  <div className="xfer-actions">
+                    <button
+                      type="button"
+                      className="btn primary"
+                      onClick={() => setReviewOfferId(o.id)}
+                    >
+                      Открыть предложение
+                    </button>
+                  </div>
+                </li>
+              ))}
+              {!data.incomingOffers.length ? (
+                <li className="muted">Пока нет входящих предложений.</li>
+              ) : null}
+            </ul>
+          </section>
+
+          <section className="xfer-section">
+            <h4>Доска трансферов</h4>
+            <ul className="xfer-list">
+              {data.board.map((row) => (
+                <li key={row.id} className={`xfer-card ${row.isOwn ? "is-own" : ""}`}>
+                  <div className="xfer-card-main">
+                    <strong>{row.player.nick}</strong>
+                    <span className="muted">
+                      {" "}
+                      · фракция {row.faction.name} · {row.player.kit || "—"} · запрос{" "}
+                      <strong>
+                        <BdAmount n={row.askPrice} />
+                      </strong>
+                      {" · "}
+                      {data.estimateLabel || "оценочная стоимость"}{" "}
+                      <BdAmount n={row.estimatePrice} />
+                    </span>
+                    {row.stats ? (
+                      <p className="muted xfer-hint">
+                        явка {row.stats.trainDays14}/14 · KD {row.stats.kd} · {row.stats.kills30}{" "}
+                        kill · {row.stats.res30} res
+                      </p>
                     ) : null}
-                    {o.swapPlayer ? ` · + ${o.swapPlayer.nick}` : null}
-                  </span>
-                  {o.message ? <p className="muted">{o.message}</p> : null}
-                </div>
-                <div className="xfer-actions">
-                  <button
-                    type="button"
-                    className="btn primary"
-                    onClick={() => setReviewOfferId(o.id)}
-                  >
-                    Открыть предложение
-                  </button>
-                </div>
-              </li>
-            ))}
-            {!data.incomingOffers.length ? (
-              <li className="muted">Пока нет входящих предложений.</li>
-            ) : null}
-          </ul>
-        </section>
-      ) : null}
+                    {row.scarcityBuyHints.length ? (
+                      <p className="xfer-hint-inline">{row.scarcityBuyHints[0]}</p>
+                    ) : null}
+                  </div>
+                  <div className="xfer-actions">
+                    <button type="button" className="btn" onClick={() => openBoardAnalytics(row)}>
+                      Аналитика
+                    </button>
+                    {!row.isOwn && data.window.isOpen && data.eligible ? (
+                      <button
+                        type="button"
+                        className="btn primary"
+                        onClick={() => {
+                          setOfferListingId(row.id);
+                          setOfferCash(Math.max(5000, Math.round(row.askPrice * 0.25)));
+                          setOfferType("SWAP_CASH");
+                          setOfferSwap("");
+                        }}
+                      >
+                        Предложить сделку
+                      </button>
+                    ) : null}
+                    {row.isOwn ? (
+                      <button
+                        type="button"
+                        className="btn"
+                        disabled={busy}
+                        onClick={() =>
+                          void postJson(`/api/factions/${encodeURIComponent(slug)}/transfers`, {
+                            action: "withdraw",
+                            listingId: row.id,
+                          })
+                        }
+                      >
+                        Снять
+                      </button>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+              {!data.board.length ? <li className="muted">Пока никого нет на доске.</li> : null}
+            </ul>
+          </section>
+        </div>
+      ) : (
+        <div className="xfer-head xfer-head-member">
+          <h3 className="xfer-title">Трансферы</h3>
+          <p className="muted xfer-hint">Движение казны и сделки вашей фракции.</p>
+        </div>
+      )}
 
-      <section className="xfer-section">
-        <h4>Доска трансферов</h4>
-        <ul className="xfer-list">
-          {data.board.map((row) => (
-            <li key={row.id} className={`xfer-card ${row.isOwn ? "is-own" : ""}`}>
-              <div className="xfer-card-main">
-                <strong>{row.player.nick}</strong>
-                <span className="muted">
-                  {" "}
-                  · фракция {row.faction.name} · {row.player.kit || "—"} · запрос{" "}
-                  <strong>
-                    <BdAmount n={row.askPrice} />
-                  </strong>
-                  {" · "}
-                  {data.estimateLabel || "оценочная стоимость"}{" "}
-                  <BdAmount n={row.estimatePrice} />
-                </span>
-                {row.stats ? (
-                  <p className="muted xfer-hint">
-                    явка {row.stats.trainDays14}/14 · KD {row.stats.kd} · {row.stats.kills30} kill ·{" "}
-                    {row.stats.res30} res
-                  </p>
-                ) : null}
-                {row.scarcityBuyHints.length ? (
-                  <p className="xfer-hint-inline">{row.scarcityBuyHints[0]}</p>
-                ) : null}
-              </div>
-              <div className="xfer-actions">
-                <button type="button" className="btn" onClick={() => openBoardAnalytics(row)}>
-                  Аналитика
-                </button>
-                {canManage && data.canManage && !row.isOwn && data.window.isOpen && data.eligible ? (
-                  <button
-                    type="button"
-                    className="btn primary"
-                    onClick={() => {
-                      setOfferListingId(row.id);
-                      setOfferCash(Math.max(5000, Math.round(row.askPrice * 0.25)));
-                      setOfferType("SWAP_CASH");
-                      setOfferSwap("");
-                    }}
-                  >
-                    Предложить сделку
-                  </button>
-                ) : null}
-                {canManage && row.isOwn ? (
-                  <button
-                    type="button"
-                    className="btn"
-                    disabled={busy}
-                    onClick={() =>
-                      void postJson(`/api/factions/${encodeURIComponent(slug)}/transfers`, {
-                        action: "withdraw",
-                        listingId: row.id,
-                      })
-                    }
-                  >
-                    Снять
-                  </button>
-                ) : null}
-              </div>
-            </li>
-          ))}
-          {!data.board.length ? <li className="muted">Пока никого нет на доске.</li> : null}
-        </ul>
-      </section>
-
-      {offerListingId && offerTarget && canManage ? (
+      {offerListingId && offerTarget && isStaff ? (
         <DraggableModal
           open
           closeOnBackdrop={!busy}
@@ -748,7 +755,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
         </DraggableModal>
       ) : null}
 
-      {reviewOffer && canManage ? (
+      {reviewOffer && isStaff ? (
         <DraggableModal
           open
           closeOnBackdrop={!busy}
@@ -854,7 +861,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
         </DraggableModal>
       ) : null}
 
-      {analytics ? (
+      {analytics && isStaff ? (
         <DraggableModal open onClose={() => setAnalytics(null)}>
             <header className="profile-match-modal-head" data-drag-handle title="Перетащить окно">
               <div>
@@ -913,132 +920,134 @@ export function FactionTransfers({ slug, canManage }: Props) {
         </DraggableModal>
       ) : null}
 
-      <section className="xfer-section xfer-tables">
-        <h4>1. Движение казны</h4>
-        <p className="muted xfer-hint">
-          Баланс сейчас: <BdAmount n={data.treasury} />. Гринд TR1–TR5, сделки и правки.
-        </p>
-        <div className="xfer-table-wrap">
-          <table className="xfer-table">
-            <thead>
-              <tr>
-                <th>Когда</th>
-                <th>Тип</th>
-                <th>Сумма</th>
-                <th>Комментарий</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.ledger.map((e) => (
-                <tr key={e.id}>
-                  <td>{formatWhen(e.createdAt)}</td>
-                  <td>{ledgerKindRu(e.kind)}</td>
-                  <td className={e.amount >= 0 ? "is-plus" : "is-minus"}>
-                    <BdAmount n={e.amount} signed />
-                  </td>
-                  <td className="muted">{e.note || "—"}</td>
-                </tr>
-              ))}
-              {!data.ledger.length ? (
+      <div className="xfer-tables-scroll">
+        <section className="xfer-section xfer-tables">
+          <h4>1. Движение казны</h4>
+          <p className="muted xfer-hint">
+            Баланс сейчас: <BdAmount n={data.treasury} />. Гринд TR1–TR5, сделки и правки.
+          </p>
+          <div className="xfer-table-wrap">
+            <table className="xfer-table">
+              <thead>
                 <tr>
-                  <td colSpan={4} className="muted">
-                    Пока пусто — гринд с TR1–TR5 пополнит казну.
-                  </td>
+                  <th>Когда</th>
+                  <th>Тип</th>
+                  <th>Сумма</th>
+                  <th>Комментарий</th>
                 </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </section>
+              </thead>
+              <tbody>
+                {data.ledger.map((e) => (
+                  <tr key={e.id}>
+                    <td>{formatWhen(e.createdAt)}</td>
+                    <td>{ledgerKindRu(e.kind)}</td>
+                    <td className={e.amount >= 0 ? "is-plus" : "is-minus"}>
+                      <BdAmount n={e.amount} signed />
+                    </td>
+                    <td className="muted">{e.note || "—"}</td>
+                  </tr>
+                ))}
+                {!data.ledger.length ? (
+                  <tr>
+                    <td colSpan={4} className="muted">
+                      Пока пусто — гринд с TR1–TR5 пополнит казну.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </section>
 
-      <section className="xfer-section xfer-tables">
-        <h4>2. Текущие оферы и успешные сделки</h4>
-        <p className="muted xfer-hint">
-          Входящие / исходящие предложения и закрытые сделки вашей фракции.
-        </p>
+        <section className="xfer-section xfer-tables">
+          <h4>2. Текущие оферы и успешные сделки</h4>
+          <p className="muted xfer-hint">
+            Входящие / исходящие предложения и закрытые сделки вашей фракции.
+          </p>
 
-        <h5 className="xfer-subhead">Сейчас открыты</h5>
-        <div className="xfer-table-wrap">
-          <table className="xfer-table">
-            <thead>
-              <tr>
-                <th>Статус</th>
-                <th>Тип</th>
-                <th>Игрок</th>
-                <th>От / Кому</th>
-                <th>Деньги</th>
-                <th>Когда</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(data.deals?.pending || []).map((d) => (
-                <tr key={d.id}>
-                  <td>
-                    <span className={`xfer-pill is-${d.side}`}>{d.statusLabel}</span>
-                  </td>
-                  <td>{d.typeLabel}</td>
-                  <td>
-                    {d.playerNick}
-                    {d.swapNick ? ` ↔ ${d.swapNick}` : ""}
-                  </td>
-                  <td className="muted">
-                    {d.fromFaction.name} → {d.toFaction.name}
-                  </td>
-                  <td>{d.cashAmount ? <BdAmount n={d.cashAmount} /> : "—"}</td>
-                  <td>{formatWhen(d.createdAt)}</td>
-                </tr>
-              ))}
-              {!data.deals?.pending?.length ? (
+          <h5 className="xfer-subhead">Сейчас открыты</h5>
+          <div className="xfer-table-wrap">
+            <table className="xfer-table">
+              <thead>
                 <tr>
-                  <td colSpan={6} className="muted">
-                    Нет открытых оферов.
-                  </td>
+                  <th>Статус</th>
+                  <th>Тип</th>
+                  <th>Игрок</th>
+                  <th>От / Кому</th>
+                  <th>Деньги</th>
+                  <th>Когда</th>
                 </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {(data.deals?.pending || []).map((d) => (
+                  <tr key={d.id}>
+                    <td>
+                      <span className={`xfer-pill is-${d.side}`}>{d.statusLabel}</span>
+                    </td>
+                    <td>{d.typeLabel}</td>
+                    <td>
+                      {d.playerNick}
+                      {d.swapNick ? ` ↔ ${d.swapNick}` : ""}
+                    </td>
+                    <td className="muted">
+                      {d.fromFaction.name} → {d.toFaction.name}
+                    </td>
+                    <td>{d.cashAmount ? <BdAmount n={d.cashAmount} /> : "—"}</td>
+                    <td>{formatWhen(d.createdAt)}</td>
+                  </tr>
+                ))}
+                {!data.deals?.pending?.length ? (
+                  <tr>
+                    <td colSpan={6} className="muted">
+                      Нет открытых оферов.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
 
-        <h5 className="xfer-subhead">Успешные сделки</h5>
-        <div className="xfer-table-wrap">
-          <table className="xfer-table">
-            <thead>
-              <tr>
-                <th>Тип</th>
-                <th>Игрок</th>
-                <th>От / Кому</th>
-                <th>Деньги</th>
-                <th>Когда</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(data.deals?.closed || []).map((d) => (
-                <tr key={d.id}>
-                  <td>
-                    <span className="xfer-pill is-done">{d.typeLabel}</span>
-                  </td>
-                  <td>
-                    {d.playerNick}
-                    {d.swapNick ? ` ↔ ${d.swapNick}` : ""}
-                  </td>
-                  <td className="muted">
-                    {d.fromFaction.name} → {d.toFaction.name}
-                  </td>
-                  <td>{d.cashAmount ? <BdAmount n={d.cashAmount} /> : "—"}</td>
-                  <td>{formatWhen(d.updatedAt || d.createdAt)}</td>
-                </tr>
-              ))}
-              {!data.deals?.closed?.length ? (
+          <h5 className="xfer-subhead">Успешные сделки</h5>
+          <div className="xfer-table-wrap">
+            <table className="xfer-table">
+              <thead>
                 <tr>
-                  <td colSpan={5} className="muted">
-                    Успешных сделок пока нет.
-                  </td>
+                  <th>Тип</th>
+                  <th>Игрок</th>
+                  <th>От / Кому</th>
+                  <th>Деньги</th>
+                  <th>Когда</th>
                 </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </section>
+              </thead>
+              <tbody>
+                {(data.deals?.closed || []).map((d) => (
+                  <tr key={d.id}>
+                    <td>
+                      <span className="xfer-pill is-done">{d.typeLabel}</span>
+                    </td>
+                    <td>
+                      {d.playerNick}
+                      {d.swapNick ? ` ↔ ${d.swapNick}` : ""}
+                    </td>
+                    <td className="muted">
+                      {d.fromFaction.name} → {d.toFaction.name}
+                    </td>
+                    <td>{d.cashAmount ? <BdAmount n={d.cashAmount} /> : "—"}</td>
+                    <td>{formatWhen(d.updatedAt || d.createdAt)}</td>
+                  </tr>
+                ))}
+                {!data.deals?.closed?.length ? (
+                  <tr>
+                    <td colSpan={5} className="muted">
+                      Успешных сделок пока нет.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

@@ -24886,13 +24886,64 @@ body:has(.faction-page) .site-footer {
 }
 
 /* ЧЧ “рансферы фракций / „ерничный ƒоллар ЧЧ */
-.xfer-panel { display: flex; flex-direction: column; gap: 1.1rem; padding: 0.25rem 0 1rem; }
-.xfer-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.75rem; align-items: flex-start; }
+.xfer-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.25rem 0 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+.xfer-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.75rem; align-items: flex-start; flex: 0 0 auto; }
+.xfer-head-member { flex-direction: column; gap: 0.15rem; }
 .xfer-title { margin: 0; font-size: 1.15rem; }
 .xfer-sub { margin: 0.2rem 0 0; }
 .xfer-window { font-size: 0.85rem; font-weight: 700; padding: 0.35rem 0.7rem; border-radius: 6px; }
 .xfer-window.is-open { background: rgba(34, 197, 94, 0.18); color: #86efac; }
 .xfer-window.is-closed { background: rgba(239, 68, 68, 0.18); color: #fca5a5; }
+.xfer-staff-ops {
+  flex: 0 1 auto;
+  max-height: min(42vh, 380px);
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 0.95rem;
+  padding-right: 6px;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(168, 85, 247, 0.45) transparent;
+}
+.xfer-staff-ops::-webkit-scrollbar,
+.xfer-tables-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.xfer-staff-ops::-webkit-scrollbar-thumb,
+.xfer-tables-scroll::-webkit-scrollbar-thumb {
+  background: rgba(168, 85, 247, 0.4);
+  border-radius: 8px;
+}
+.xfer-tables-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 0 6px 0.6rem 0;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(168, 85, 247, 0.45) transparent;
+}
+.xfer-panel.is-member .xfer-tables-scroll {
+  padding-top: 0.15rem;
+}
 .xfer-section h4 { margin: 0 0 0.4rem; font-size: 0.95rem; }
 .xfer-hint { margin: 0 0 0.55rem; font-size: 0.85rem; }
 .xfer-scarce-grid { display: flex; flex-wrap: wrap; gap: 0.4rem; }
@@ -24960,10 +25011,16 @@ body:has(.faction-page) .site-footer {
   font-weight: 700;
 }
 .xfer-table-wrap {
-  overflow-x: auto;
+  overflow: auto;
+  max-height: min(36vh, 320px);
   border-radius: 10px;
   border: 1px solid rgba(148, 163, 184, 0.2);
   background: rgba(15, 23, 42, 0.4);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+}
+.xfer-panel.is-member .xfer-table-wrap {
+  max-height: min(48vh, 420px);
 }
 .xfer-table {
   width: 100%;
