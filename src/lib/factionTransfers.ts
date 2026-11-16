@@ -6,7 +6,7 @@ import {
   estimatePlayerPrice,
   grindAmountFromTrainStats,
   isGrindEligibleMatch,
-  GRIND_START_YMD,
+  GRIND_START_AT_MS,
   type PlayerPriceStats,
   type ScarcityForPrice,
 } from "@/lib/blueberryDollar";
@@ -280,6 +280,7 @@ export async function creditGrindFromCanonMatch(matchId: string): Promise<{ cred
       year: match.year,
       month: match.month,
       day: match.day,
+      timeMsk: match.timeMsk,
       publishedAt: match.publishedAt,
       startedAt: match.startedAt,
     })
@@ -366,21 +367,9 @@ export async function creditGrindRecentTrains(limit = 40): Promise<number> {
     where: {
       kind: "TRAIN",
       serverKey: { in: serverKeys },
-      publishedAt: { not: null },
       legacyId: { not: null },
-      // Грубый отсев до старта гринда (точный — в creditGrindFromCanonMatch).
-      OR: [
-        { year: { gt: Math.floor(GRIND_START_YMD / 10_000) } },
-        {
-          year: Math.floor(GRIND_START_YMD / 10_000),
-          month: { gt: Math.floor((GRIND_START_YMD % 10_000) / 100) },
-        },
-        {
-          year: Math.floor(GRIND_START_YMD / 10_000),
-          month: Math.floor((GRIND_START_YMD % 10_000) / 100),
-          day: { gte: GRIND_START_YMD % 100 },
-        },
-      ],
+      // publishedAt после старта Fool's — грубый отсев; точный — isGrindEligibleMatch.
+      publishedAt: { gte: new Date(GRIND_START_AT_MS) },
     },
     orderBy: { publishedAt: "desc" },
     take: limit,

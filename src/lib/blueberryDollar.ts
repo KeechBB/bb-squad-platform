@@ -141,33 +141,40 @@ export const GRIND_RATE_DMG = 0.12;
 export const GRIND_RATE_VEHICLE_KILL = 450;
 
 /**
- * Старт гринда B$: Fool's Road AAS 16.11.2026 (включительно).
- * Все TRAIN раньше этой календарной даты не капают в казну.
+ * Старт гринда B$: Fool's Road AAS 16.11.2026 21:33 МСК (включительно).
+ * Всё раньше этой катки не капает — даже другие карты того же дня.
  */
-export const GRIND_START_YMD = 2026_11_16;
 export const GRIND_START_LEGACY_ID = "16-foolsroad";
+/** 2026-11-16 21:33 MSK → UTC */
+export const GRIND_START_AT_MS = Date.parse("2026-11-16T18:33:00.000Z");
 
-/** YYYYMMDD из полей канон-матча / даты. */
-export function matchCalendarYmd(opts: {
+/** Момент матча (МСК календарь+timeMsk → UTC ms). */
+export function matchSortMs(opts: {
+  legacyId?: string | null;
   year?: number | null;
   month?: number | null;
   day?: number | null;
+  timeMsk?: string | null;
   publishedAt?: Date | string | null;
   startedAt?: Date | string | null;
 }): number | null {
+  if (opts.legacyId && String(opts.legacyId).toLowerCase() === GRIND_START_LEGACY_ID) {
+    return GRIND_START_AT_MS;
+  }
   const y = Number(opts.year) || 0;
   const m = Number(opts.month) || 0;
   const d = Number(opts.day) || 0;
   if (y >= 2020 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
-    return y * 10_000 + m * 100 + d;
+    const parts = String(opts.timeMsk || "00:00").split(":");
+    const hh = Number(parts[0]) || 0;
+    const mm = Number(parts[1]) || 0;
+    return Date.UTC(y, m - 1, d, hh - 3, mm, 0);
   }
   const raw = opts.startedAt || opts.publishedAt;
   if (!raw) return null;
   const dt = raw instanceof Date ? raw : new Date(raw);
   if (Number.isNaN(dt.getTime())) return null;
-  // Календарь тренировок в МСК
-  const msk = new Date(dt.getTime() + 3 * 60 * 60 * 1000);
-  return msk.getUTCFullYear() * 10_000 + (msk.getUTCMonth() + 1) * 100 + msk.getUTCDate();
+  return dt.getTime();
 }
 
 export function isGrindEligibleMatch(opts: {
@@ -175,15 +182,13 @@ export function isGrindEligibleMatch(opts: {
   year?: number | null;
   month?: number | null;
   day?: number | null;
+  timeMsk?: string | null;
   publishedAt?: Date | string | null;
   startedAt?: Date | string | null;
 }): boolean {
-  if (opts.legacyId && String(opts.legacyId).toLowerCase() === GRIND_START_LEGACY_ID) {
-    return true;
-  }
-  const ymd = matchCalendarYmd(opts);
-  if (ymd == null) return false;
-  return ymd >= GRIND_START_YMD;
+  const t = matchSortMs(opts);
+  if (t == null) return false;
+  return t >= GRIND_START_AT_MS;
 }
 
 /**
