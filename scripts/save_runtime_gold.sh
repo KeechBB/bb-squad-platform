@@ -92,6 +92,13 @@ for f in accuracy-stats.json rp-ladder.json rp-ledger.json; do
   fi
 done
 
+# Growth kit tile images
+if [[ -d "$CACHE/assets/kits" ]]; then
+  mkdir -p "$DEST/kv-ui/assets/kits"
+  rsync -a "$CACHE/assets/kits/" "$DEST/kv-ui/assets/kits/"
+  echo "  kit images: $(ls -1 "$DEST/kv-ui/assets/kits" 2>/dev/null | grep -cv '^\.' || echo 0)"
+fi
+
 # --- Manifest ---
 {
   echo "savedAt=$(date -Is)"

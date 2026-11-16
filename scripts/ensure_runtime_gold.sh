@@ -122,5 +122,25 @@ if [[ -d "$GOLD/kv-data" ]]; then
   done
 fi
 
+# Growth kit tile images (Развитие cards)
+if [[ -d "$GOLD/kv-ui/assets/kits" ]]; then
+  mkdir -p "$CACHE/assets/kits" "$CACHE/public/assets/kits"
+  restored=0
+  for f in "$GOLD/kv-ui/assets/kits"/*; do
+    [[ -f "$f" ]] || continue
+    base="$(basename "$f")"
+    [[ "$base" == .* ]] && continue
+    for dest in "$CACHE/assets/kits/$base" "$CACHE/public/assets/kits/$base"; do
+      if [[ ! -f "$dest" ]] || [[ ! -s "$dest" ]]; then
+        cp -a "$f" "$dest"
+        restored=$((restored + 1))
+      fi
+    done
+  done
+  if [[ "$restored" -gt 0 ]]; then
+    echo "  restored kit images: $restored"
+  fi
+fi
+
 bash "$ROOT/scripts/ensure_tm_growth_tab.sh" || true
 echo "==> ensure_runtime_gold done"
