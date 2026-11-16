@@ -268,6 +268,13 @@ export async function creditGrindFromCanonMatch(matchId: string): Promise<{ cred
   });
   if (!match || match.kind !== "TRAIN") return { credited: 0 };
   if (!isTrainingServerKey(match.serverKey)) return { credited: 0 };
+  // Только залитые в статистику тренировок (календарь/профиль), не сырой коллектор.
+  if (!match.legacyId || !match.publishedAt) return { credited: 0 };
+  const inTrainStats = await prisma.profileMatchLine.findFirst({
+    where: { kind: "train", matchId: match.legacyId },
+    select: { id: true },
+  });
+  if (!inTrainStats) return { credited: 0 };
 
   let credited = 0;
   for (const p of match.players) {
@@ -307,14 +314,20 @@ export async function creditGrindFromCanonMatch(matchId: string): Promise<{ cred
   return { credited };
 }
 
-/** Прогнать гринд по недавним TRAIN на TR1–TR5. */
+/** Прогнать гринд по недавним TRAIN на TR1–TR5 (ключ в БД часто lowercase). */
 export async function creditGrindRecentTrains(limit = 40): Promise<number> {
+  const serverKeys = [
+    ...TRAINING_SERVER_KEYS,
+    ...TRAINING_SERVER_KEYS.map((k) => k.toLowerCase()),
+  ];
   const rows = await prisma.canonMatch.findMany({
     where: {
       kind: "TRAIN",
-      serverKey: { in: [...TRAINING_SERVER_KEYS] },
+      serverKey: { in: serverKeys },
+      publishedAt: { not: null },
+      legacyId: { not: null },
     },
-    orderBy: { endedAt: "desc" },
+    orderBy: { publishedAt: "desc" },
     take: limit,
     select: { id: true },
   });
