@@ -104,7 +104,7 @@ export function AdminTransfersPanel() {
   return (
     <div className="admin-transfers">
       <p className="lead" style={{ marginTop: 0 }}>
-        Трансферное окно фракций (Черничный Доллар). Закрытие — флагом или датами.
+        Трансферное окно фракций (Черничный Доллар). Гринд только с TR1–TR5. Закрытие — флагом или датами.
       </p>
       {state ? (
         <p className="muted">
@@ -142,7 +142,7 @@ export function AdminTransfersPanel() {
             Сохранить окно
           </button>
           <button type="button" className="btn" disabled={busy} onClick={() => void runGrind()}>
-            Прогнать гринд с трён
+            Прогнать гринд TR1–TR5
           </button>
         </div>
       </div>

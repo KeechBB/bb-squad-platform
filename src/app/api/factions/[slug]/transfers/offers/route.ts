@@ -57,13 +57,13 @@ export async function POST(req: Request, ctx: Ctx) {
     const swapUserId = body?.swapUserId ? String(body.swapUserId).trim() : null;
 
     if (type === "BUY" && cashAmount < 40) {
-      return NextResponse.json({ error: "Сумма от 40 Ƅ$" }, { status: 400 });
+      return NextResponse.json({ error: "Сумма от 40 B$" }, { status: 400 });
     }
     if ((type === "SWAP" || type === "SWAP_CASH") && !swapUserId) {
       return NextResponse.json({ error: "Укажи игрока на обмен" }, { status: 400 });
     }
     if (type === "SWAP_CASH" && cashAmount < 1) {
-      return NextResponse.json({ error: "Укажи доплату в Ƅ$" }, { status: 400 });
+      return NextResponse.json({ error: "Укажи доплату в B$" }, { status: 400 });
     }
     if (cashAmount > 0 && loaded.view.blueberryBalance < cashAmount) {
       return NextResponse.json({ error: "Недостаточно в казне" }, { status: 400 });

@@ -24924,3 +24924,32 @@ body:has(.faction-page) .site-footer {
 .admin-transfers-form input:not([type]) { min-height: 36px; padding: 0.35rem 0.5rem; border-radius: 6px; border: 1px solid rgba(148,163,184,0.35); background: rgba(15,23,42,0.55); color: inherit; }
 .admin-transfers-check { flex-direction: row !important; align-items: center; gap: 0.5rem !important; }
 .admin-transfers-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+/* Черничный Доллар: фиолетовый $ с двумя косыми полосками */
+.bd-amount { white-space: nowrap; }
+.bd-mark {
+  position: relative;
+  display: inline-block;
+  font-weight: 800;
+  font-size: 1.05em;
+  line-height: 1;
+  color: #c084fc;
+  letter-spacing: 0.02em;
+  padding: 0 0.08em;
+  vertical-align: -0.05em;
+}
+.bd-mark::before,
+.bd-mark::after {
+  content: "";
+  position: absolute;
+  left: -8%;
+  width: 116%;
+  height: 0.12em;
+  background: linear-gradient(90deg, #e9d5ff 0%, #a855f7 45%, #7c3aed 100%);
+  border-radius: 1px;
+  transform: rotate(-32deg);
+  pointer-events: none;
+  box-shadow: 0 0 4px rgba(168, 85, 247, 0.45);
+}
+.bd-mark::before { top: 32%; }
+.bd-mark::after { top: 58%; }

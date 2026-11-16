@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BD_MARK } from "@/lib/blueberryDollar";
+import { BdAmount } from "@/components/BdMark";
 
 type ScarcityRow = {
   kitKey: string;
@@ -191,10 +191,15 @@ export function FactionTransfers({ slug, canManage }: Props) {
         <div>
           <h3 className="xfer-title">Трансферы</h3>
           <p className="muted xfer-sub">
-            Казна: <strong>{data.treasuryLabel}</strong>
+            Казна:{" "}
+            <strong>
+              <BdAmount n={data.treasury} />
+            </strong>
             {" · "}
             состав {data.rosterSize}/{data.minRoster}
             {!data.eligible ? " — для сделок нужно ≥30" : ""}
+            {" · "}
+            гринд только TR1–TR5
           </p>
         </div>
         <div className={`xfer-window ${data.window.isOpen ? "is-open" : "is-closed"}`}>
@@ -245,7 +250,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
                   .filter((p) => p.seat !== "LEADER")
                   .map((p) => (
                     <option key={p.userId} value={p.userId}>
-                      {p.nick} · {p.kit} · ≈{p.estimate} {BD_MARK}
+                      {p.nick} · {p.kit} · ≈{p.estimate} $
                     </option>
                   ))}
               </select>
@@ -289,7 +294,14 @@ export function FactionTransfers({ slug, canManage }: Props) {
                   <span className="muted">
                     {" "}
                     · {o.type}
-                    {o.cashAmount ? ` · ${o.cashAmount} ${BD_MARK}` : ""}
+                    {o.cashAmount ? (
+                      <>
+                        {" · "}
+                        <BdAmount n={o.cashAmount} />
+                      </>
+                    ) : (
+                      ""
+                    )}
                   </span>
                   {o.message ? <p className="muted">{o.message}</p> : null}
                 </div>
@@ -328,10 +340,10 @@ export function FactionTransfers({ slug, canManage }: Props) {
                   {" "}
                   · {row.faction.name} · {row.player.kit || "—"} · запрос{" "}
                   <strong>
-                    {row.askPrice} {BD_MARK}
+                    <BdAmount n={row.askPrice} />
                   </strong>
                   {" · оценка "}
-                  {row.estimatePrice} {BD_MARK}
+                  <BdAmount n={row.estimatePrice} />
                 </span>
                 {row.scarcityBuyHints.length ? (
                   <p className="xfer-hint-inline">{row.scarcityBuyHints[0]}</p>
@@ -379,7 +391,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
               <div className="muted">Они отдают</div>
               <strong>{offerTarget.player.nick}</strong>
               <div>
-                {offerTarget.player.kit || "—"} · {offerTarget.askPrice} {BD_MARK}
+                {offerTarget.player.kit || "—"} · <BdAmount n={offerTarget.askPrice} />
               </div>
             </div>
             <div className="xfer-compare-vs">↔</div>
@@ -387,10 +399,20 @@ export function FactionTransfers({ slug, canManage }: Props) {
               <div className="muted">Вы даёте</div>
               {offerType === "BUY" ? (
                 <strong>
-                  {offerCash} {BD_MARK}
+                  <BdAmount n={offerCash} />
                 </strong>
               ) : (
-                <strong>игрок + {offerType === "SWAP_CASH" ? `${offerCash} ${BD_MARK}` : "обмен"}</strong>
+                <strong>
+                  игрок
+                  {offerType === "SWAP_CASH" ? (
+                    <>
+                      {" + "}
+                      <BdAmount n={offerCash} />
+                    </>
+                  ) : (
+                    " · обмен"
+                  )}
+                </strong>
               )}
             </div>
           </div>
@@ -404,7 +426,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
               value={offerType}
               onChange={(e) => setOfferType(e.target.value as typeof offerType)}
             >
-              <option value="BUY">Покупка за Ƅ$</option>
+              <option value="BUY">Покупка за B$</option>
               <option value="SWAP">Обмен игроками</option>
               <option value="SWAP_CASH">Обмен + доплата</option>
             </select>
@@ -456,7 +478,9 @@ export function FactionTransfers({ slug, canManage }: Props) {
         <ul className="xfer-ledger">
           {data.ledger.map((e) => (
             <li key={e.id}>
-              <span className={e.amount >= 0 ? "is-plus" : "is-minus"}>{e.label}</span>
+              <span className={e.amount >= 0 ? "is-plus" : "is-minus"}>
+                <BdAmount n={e.amount} signed />
+              </span>
               <span className="muted">
                 {" "}
                 · {e.kind}
@@ -464,7 +488,9 @@ export function FactionTransfers({ slug, canManage }: Props) {
               </span>
             </li>
           ))}
-          {!data.ledger.length ? <li className="muted">Пока пусто — гринд с трён пополнит казну.</li> : null}
+          {!data.ledger.length ? (
+            <li className="muted">Пока пусто — гринд с TR1–TR5 пополнит казну.</li>
+          ) : null}
         </ul>
       </section>
     </div>

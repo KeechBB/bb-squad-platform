@@ -1,11 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import {
+  BD_MARK,
   TRANSFER_LOCK_DAYS,
   TRANSFER_MIN_ROSTER,
   estimatePlayerPrice,
   grindAmountFromTrainStats,
 } from "@/lib/blueberryDollar";
 import { mainKitByUserIds } from "@/lib/squadRoles";
+import { isTrainingServerKey, TRAINING_SERVER_KEYS } from "@/lib/squadServers";
 
 export type ScarcityLevel = "ok" | "thin" | "critical" | "surplus";
 
@@ -250,13 +252,14 @@ async function creditTreasury(
   });
 }
 
-/** Начислить гринд с TRAIN-матча в казны фракций игроков (идемпотентно). */
+/** Начислить гринд с TRAIN на TR1–TR5 (идемпотентно). Паблик/прочее — нет. */
 export async function creditGrindFromCanonMatch(matchId: string): Promise<{ credited: number }> {
   const match = await prisma.canonMatch.findUnique({
     where: { id: matchId },
     include: { players: true },
   });
   if (!match || match.kind !== "TRAIN") return { credited: 0 };
+  if (!isTrainingServerKey(match.serverKey)) return { credited: 0 };
 
   let credited = 0;
   for (const p of match.players) {
@@ -283,7 +286,7 @@ export async function creditGrindFromCanonMatch(matchId: string): Promise<{ cred
           amount,
           "grind",
           sourceKey,
-          `Трень ${match.mapName} · ${p.nick}`,
+          `TR ${match.serverKey} · ${match.mapName} · ${p.nick}`,
           p.userId,
           matchId,
         );
@@ -296,10 +299,13 @@ export async function creditGrindFromCanonMatch(matchId: string): Promise<{ cred
   return { credited };
 }
 
-/** Прогнать гринд по недавним TRAIN. */
+/** Прогнать гринд по недавним TRAIN на TR1–TR5. */
 export async function creditGrindRecentTrains(limit = 40): Promise<number> {
   const rows = await prisma.canonMatch.findMany({
-    where: { kind: "TRAIN" },
+    where: {
+      kind: "TRAIN",
+      serverKey: { in: [...TRAINING_SERVER_KEYS] },
+    },
     orderBy: { endedAt: "desc" },
     take: limit,
     select: { id: true },
@@ -540,7 +546,7 @@ async function sendTransferMails(opts: {
 
   const bodyMain = [
     `Командование решило: ты переходишь из «${opts.fromFactionName}» в «${opts.toFactionName}».`,
-    opts.cash > 0 ? `Сделка: ${opts.cash} Ƅ$ (${opts.type}).` : `Тип сделки: ${opts.type}.`,
+    opts.cash > 0 ? `Сделка: ${opts.cash} ${BD_MARK} (${opts.type}).` : `Тип сделки: ${opts.type}.`,
     `На ${TRANSFER_LOCK_DAYS} суток стоит трансферный лок — повторно выставить нельзя.`,
     `Это решение штаба. Если что-то непонятно — спроси командира.`,
   ].join("\n\n");

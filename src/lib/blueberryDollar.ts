@@ -1,9 +1,14 @@
 /**
- * Черничный Доллар (Ƅ$) — валюта трансферной системы фракций.
+ * Черничный Доллар — валюта трансферной системы фракций.
+ * В UI: фиолетовый $ с двумя косыми полосками (`BdMark`).
+ * В тексте/API/письмах: B$ (plain).
  * Не путать с BBC на платформе.
+ *
+ * Гринд только с TR1–TR5.
  */
 
-export const BD_MARK = "Ƅ$";
+/** Plain-text знак (письма, API). В интерфейсе — `<BdMark />`. */
+export const BD_MARK = "B$";
 export const BD_NAME = "Черничный Доллар";
 
 /** Минимальный состав фракции для участия в трансферах. */
@@ -35,7 +40,7 @@ export function estimatePlayerPrice(opts: {
   return Math.max(40, Math.round(raw / 5) * 5);
 }
 
-/** Гринд за тренировку: вклад игрока → Ƅ$ в казну фракции. */
+/** Гринд за тренировку (TR1–TR5): вклад игрока → B$ в казну фракции. */
 export function grindAmountFromTrainStats(opts: {
   kills: number;
   deaths: number;
@@ -54,6 +59,7 @@ export function grindAmountFromTrainStats(opts: {
   return Math.max(0, Math.min(45, Math.round(raw)));
 }
 
+/** Plain-text: «1 240 B$». В React предпочтительнее `<BdAmount />`. */
 export function formatBd(n: number): string {
   const v = Math.round(Number(n) || 0);
   return `${v.toLocaleString("ru-RU")} ${BD_MARK}`;

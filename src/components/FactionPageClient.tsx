@@ -37,7 +37,7 @@ import {
   FactionWeekBoard,
 } from "@/components/FactionBoards";
 import { FactionTransfers } from "@/components/FactionTransfers";
-import { formatBd } from "@/lib/blueberryDollar";
+import { BdAmount } from "@/components/BdMark";
 
 const TABS = [
   ["online", "Онлайн"],
@@ -656,7 +656,10 @@ export function FactionPageClient({
                     {view.deputyNicks.length ? view.deputyNicks.join(", ") : "не назначен"}
                   </p>
                   <p>
-                    Казна: <strong>{formatBd(view.blueberryBalance ?? 0)}</strong>
+                    Казна:{" "}
+                    <strong>
+                      <BdAmount n={view.blueberryBalance ?? 0} />
+                    </strong>
                   </p>
                   {view.tgUrl ? (
                     <p>

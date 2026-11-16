@@ -190,7 +190,7 @@ export async function POST(req: Request, ctx: Ctx) {
       const userId = String(body?.userId || "").trim();
       const askPrice = Math.round(Number(body?.askPrice) || 0);
       if (!userId || askPrice < 40) {
-        return NextResponse.json({ error: "Укажи игрока и цену (от 40 Ƅ$)" }, { status: 400 });
+        return NextResponse.json({ error: "Укажи игрока и цену (от 40 B$)" }, { status: 400 });
       }
       const member = loaded.view.members.find((m) => m.userId === userId);
       if (!member) {
@@ -265,7 +265,7 @@ export async function POST(req: Request, ctx: Ctx) {
       await assertTransferWindowOpen();
       const askPrice = Math.round(Number(body?.askPrice) || 0);
       if (askPrice < 40) {
-        return NextResponse.json({ error: "Цена от 40 Ƅ$" }, { status: 400 });
+        return NextResponse.json({ error: "Цена от 40 B$" }, { status: 400 });
       }
       await prisma.$transaction([
         prisma.transferListing.update({
