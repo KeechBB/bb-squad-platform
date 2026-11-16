@@ -962,52 +962,45 @@ export function FactionTransfers({ slug, canManage }: Props) {
 
       {grindMatchOpen ? (
         <DraggableModal open closeOnBackdrop onClose={() => setGrindMatchId(null)}>
-          <div className="xfer-modal profile-match-modal">
-            <div className="profile-match-modal-head" data-drag-handle>
-              <div>
-                <h3 style={{ margin: 0 }}>{grindMatchOpen.mapName}</h3>
-                <p className="muted" style={{ margin: "0.25rem 0 0" }}>
-                  {grindMatchOpen.dateLabel} · {grindMatchOpen.timeLabel}
-                  {grindMatchOpen.serverKey
-                    ? ` · ${String(grindMatchOpen.serverKey).toUpperCase()}`
-                    : ""}
-                </p>
-              </div>
-              <button type="button" className="btn" onClick={() => setGrindMatchId(null)}>
-                Закрыть
-              </button>
+          <header className="profile-match-modal-head" data-drag-handle title="Перетащить окно">
+            <div>
+              <p className="muted">Тренировочный матч · гринд B$</p>
+              <h2 className="profile-mail-modal-title">{grindMatchOpen.mapName}</h2>
+              <p className="muted">
+                {grindMatchOpen.dateLabel} · {grindMatchOpen.timeLabel}
+                {grindMatchOpen.serverKey
+                  ? ` · ${String(grindMatchOpen.serverKey).toUpperCase()}`
+                  : ""}
+              </p>
             </div>
-            <p className="muted" style={{ margin: "0 0 0.75rem" }}>
-              Кто больше заработал B$ в этой катке (все фракции)
-            </p>
-            <div className="xfer-table-wrap">
-              <table className="xfer-table">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Фракция</th>
-                    <th>Заработано</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {grindMatchOpen.factions.map((f, i) => (
-                    <tr key={f.factionId}>
-                      <td>{i + 1}</td>
-                      <td>
-                        <strong>{f.name}</strong>
-                      </td>
-                      <td className={f.amount > 0 ? "is-plus" : "muted"}>
-                        {f.amount > 0 ? <BdAmount n={f.amount} signed /> : "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <p className="muted" style={{ margin: "0.75rem 0 0" }}>
-              Всего по матчу: <BdAmount n={grindMatchOpen.total} />
-            </p>
-          </div>
+            <button
+              type="button"
+              className="profile-match-modal-close"
+              onClick={() => setGrindMatchId(null)}
+            >
+              ×
+            </button>
+          </header>
+
+          <p className="muted" style={{ margin: "0 0 0.65rem" }}>
+            Кто больше заработал в этой катке
+          </p>
+
+          <ol className="xfer-grind-rank">
+            {grindMatchOpen.factions.map((f, i) => (
+              <li key={f.factionId} className={f.amount > 0 ? "is-earn" : "is-zero"}>
+                <span className="xfer-grind-rank-n">{i + 1}</span>
+                <span className="xfer-grind-rank-name">{f.name}</span>
+                <span className={`xfer-grind-rank-sum${f.amount > 0 ? " is-plus" : ""}`}>
+                  {f.amount > 0 ? <BdAmount n={f.amount} signed /> : "—"}
+                </span>
+              </li>
+            ))}
+          </ol>
+
+          <p className="muted" style={{ margin: "0.85rem 0 0" }}>
+            Всего по матчу: <BdAmount n={grindMatchOpen.total} />
+          </p>
         </DraggableModal>
       ) : null}
 

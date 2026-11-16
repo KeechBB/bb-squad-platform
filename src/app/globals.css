@@ -25063,6 +25063,45 @@ body:has(.faction-page) .site-footer {
 .xfer-table tr.xfer-row-click:hover td {
   background: rgba(167, 139, 250, 0.1);
 }
+.xfer-grind-rank {
+  list-style: none;
+  margin: 0;
+  padding: 0 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.xfer-grind-rank li {
+  display: grid;
+  grid-template-columns: 2rem 1fr auto;
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+.xfer-grind-rank li.is-earn {
+  border-color: rgba(167, 139, 250, 0.35);
+}
+.xfer-grind-rank li.is-zero {
+  opacity: 0.55;
+}
+.xfer-grind-rank-n {
+  font-weight: 800;
+  color: #c4b5fd;
+}
+.xfer-grind-rank-name {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+.xfer-grind-rank-sum {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.xfer-grind-rank-sum.is-plus {
+  color: #86efac;
+}
 .xfer-nick {
   color: #facc15;
   font-weight: 700;
@@ -25134,6 +25173,7 @@ body:has(.faction-page) .site-footer {
 .xfer-modal .xfer-field,
 .xfer-modal .xfer-actions,
 .xfer-modal .xfer-hint-inline,
+.xfer-modal .xfer-grind-rank,
 .xfer-modal h4,
 .xfer-modal > p {
   padding-left: 1rem;
