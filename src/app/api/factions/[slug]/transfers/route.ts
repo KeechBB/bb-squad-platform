@@ -12,6 +12,7 @@ import {
   getTransferWindowState,
   getUserTransferLock,
   loadGrindMatchSummaries,
+  loadGrindPlayerSummaries,
   loadListingBoard,
   loadPlayerPriceStats,
   normalizeKit,
@@ -66,7 +67,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     },
   } as const;
 
-  const [window, board, myListings, allPendingOffers, acceptedDeals, ledger, priceStats, grindMatches] =
+  const [window, board, myListings, allPendingOffers, acceptedDeals, ledger, priceStats, grindMatches, grindPlayers] =
     await Promise.all([
       getTransferWindowState(),
       loadListingBoard({ buyerScarcityByKit: scarcityByKit }),
@@ -100,6 +101,7 @@ export async function GET(_req: Request, ctx: Ctx) {
       }),
       loadPlayerPriceStats(loaded.view.members.map((m) => m.userId)),
       loadGrindMatchSummaries(),
+      loadGrindPlayerSummaries(),
     ]);
 
   /** Входящие по нашим листингам — для штабной панели. */
@@ -300,6 +302,7 @@ export async function GET(_req: Request, ctx: Ctx) {
       label: `${e.amount > 0 ? "+" : ""}${e.amount} ${BD_MARK}`,
     })),
     grindMatches,
+    grindPlayers,
     /**
      * «Сейчас открыты» = весь рынок: активные лоты на доске + pending-оферы.
      * Успешные сделки — только своей фракции.

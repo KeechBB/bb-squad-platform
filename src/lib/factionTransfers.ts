@@ -462,18 +462,88 @@ export async function loadGrindMatchSummaries(): Promise<GrindMatchSummary[]> {
     });
   }
 
-  out.sort((a, b) => {
-    const ka = a.year * 1_000_000 + a.month * 10_000 + a.day * 100 + timeToMin(a.timeMsk);
-    const kb = b.year * 1_000_000 + b.month * 10_000 + b.day * 100 + timeToMin(b.timeMsk);
-    return kb - ka;
-  });
+  out.sort((a, b) => grindMatchChronoKey(b) - grindMatchChronoKey(a));
   return out;
 }
 
-function timeToMin(t: string | null | undefined): number {
+/** Минуты от полуночи МСК (для chrono-ключа матча). */
+export function timeToMin(t: string | null | undefined): number {
   if (!t) return 0;
   const [h, m] = String(t).split(":").map((x) => Number(x) || 0);
   return h * 60 + m;
+}
+
+/** Chrono-ключ: день * 10000 + минуты — чтобы 17.11 00:06 было новее 16.11 23:42. */
+export function grindMatchChronoKey(m: {
+  year: number;
+  month: number;
+  day: number;
+  timeMsk?: string | null;
+}): number {
+  return (
+    Number(m.year) * 1_000_000_000 +
+    Number(m.month) * 10_000_000 +
+    Number(m.day) * 10_000 +
+    timeToMin(m.timeMsk)
+  );
+}
+
+export type GrindPlayerSummary = {
+  userId: string;
+  nick: string;
+  total: number;
+  matches: number;
+  avgPerMatch: number;
+};
+
+/** Игроки с гриндом: ник / всего / игр / среднее за катку (убыв. по сумме). */
+export async function loadGrindPlayerSummaries(): Promise<GrindPlayerSummary[]> {
+  const entries = await prisma.factionLedgerEntry.findMany({
+    where: { kind: "grind", userId: { not: null }, amount: { gt: 0 } },
+    select: { userId: true, amount: true, matchId: true },
+  });
+  if (!entries.length) return [];
+
+  type Agg = { total: number; matches: Set<string> };
+  const byUser = new Map<string, Agg>();
+  for (const e of entries) {
+    const uid = e.userId!;
+    let cell = byUser.get(uid);
+    if (!cell) {
+      cell = { total: 0, matches: new Set() };
+      byUser.set(uid, cell);
+    }
+    cell.total += e.amount;
+    cell.matches.add(e.matchId || `row:${cell.matches.size}:${e.amount}`);
+  }
+
+  const userIds = [...byUser.keys()];
+  const users = await prisma.user.findMany({
+    where: { id: { in: userIds } },
+    select: { id: true, nick: true, steamName: true },
+  });
+  const nickById = new Map(
+    users.map((u) => [u.id, (u.nick || u.steamName || "—").trim() || "—"] as const),
+  );
+
+  const out: GrindPlayerSummary[] = userIds.map((userId) => {
+    const cell = byUser.get(userId)!;
+    const matches = cell.matches.size;
+    return {
+      userId,
+      nick: nickById.get(userId) || "—",
+      total: cell.total,
+      matches,
+      avgPerMatch: matches > 0 ? Math.round(cell.total / matches) : 0,
+    };
+  });
+  out.sort(
+    (a, b) =>
+      b.total - a.total ||
+      b.avgPerMatch - a.avgPerMatch ||
+      a.nick.localeCompare(b.nick, "ru"),
+  );
+  return out;
 }
 
 /** Прогнать гринд по недавним TRAIN на TR1–TR5 (ключ в БД часто lowercase). */

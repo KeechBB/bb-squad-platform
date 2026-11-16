@@ -25054,6 +25054,25 @@ body:has(.faction-page) .site-footer {
   color: rgba(226, 232, 240, 0.7);
   background: rgba(15, 23, 42, 0.55);
 }
+.xfer-sort {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+.xfer-sort:hover {
+  color: #f8fafc;
+}
+.xfer-sort.is-on {
+  color: #e9d5ff;
+}
 .xfer-table tr:last-child td { border-bottom: none; }
 .xfer-table .is-plus { color: #86efac; font-weight: 700; }
 .xfer-table .is-minus { color: #fca5a5; font-weight: 700; }

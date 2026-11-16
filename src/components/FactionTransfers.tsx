@@ -5,7 +5,8 @@ import { BdAmount } from "@/components/BdMark";
 import { DraggableModal } from "@/components/DraggableModal";
 import { useFitTablePage } from "@/lib/useFitTablePage";
 
-type XferSubTab = "desk" | "ledger" | "market" | "closed" | "trains";
+type XferSubTab = "desk" | "ledger" | "market" | "closed" | "trains" | "players";
+type SortDir = "asc" | "desc";
 
 function xferSubTabKey(slug: string, staff: boolean) {
   return `bb-xfer-subtab:${slug}:${staff ? "staff" : "member"}`;
@@ -14,14 +15,69 @@ function xferSubTabKey(slug: string, staff: boolean) {
 function normalizeXferSubTab(v: string | null, staff: boolean): XferSubTab | null {
   if (!v) return null;
   if (v === "deals") return "market"; // старое имя вкладки
-  if (
-    staff &&
-    (v === "desk" || v === "ledger" || v === "market" || v === "closed" || v === "trains")
-  ) {
-    return v;
+  const ok =
+    v === "desk" ||
+    v === "ledger" ||
+    v === "market" ||
+    v === "closed" ||
+    v === "trains" ||
+    v === "players";
+  if (!ok) return null;
+  if (!staff && v === "desk") return null;
+  return v;
+}
+
+function timeToMinUi(t: string | null | undefined): number {
+  if (!t) return 0;
+  const [h, m] = String(t).split(":").map((x) => Number(x) || 0);
+  return h * 60 + m;
+}
+
+function matchChronoKey(m: {
+  year?: number;
+  month?: number;
+  day?: number;
+  timeMsk?: string | null;
+  timeLabel?: string;
+  dateLabel?: string;
+}): number {
+  let y = Number(m.year) || 0;
+  let mo = Number(m.month) || 0;
+  let d = Number(m.day) || 0;
+  if ((!y || !mo || !d) && m.dateLabel) {
+    const parts = String(m.dateLabel).split(".");
+    if (parts.length >= 3) {
+      d = Number(parts[0]) || d;
+      mo = Number(parts[1]) || mo;
+      y = Number(parts[2]) || y;
+    }
   }
-  if (!staff && (v === "ledger" || v === "market" || v === "closed" || v === "trains")) return v;
-  return null;
+  return y * 1_000_000_000 + mo * 10_000_000 + d * 10_000 + timeToMinUi(m.timeMsk || m.timeLabel);
+}
+
+function cmpStr(a: string, b: string) {
+  return String(a || "").localeCompare(String(b || ""), "ru", { sensitivity: "base" });
+}
+
+function SortTh({
+  label,
+  active,
+  dir,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  dir: SortDir;
+  onClick: () => void;
+}) {
+  return (
+    <th aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : "none"}>
+      <button type="button" className={`xfer-sort${active ? " is-on" : ""}`} onClick={onClick}>
+        {label}
+        {active ? (dir === "asc" ? " ↑" : " ↓") : ""}
+      </button>
+    </th>
+  );
 }
 
 function readXferSubTab(slug: string, staff: boolean): XferSubTab {
@@ -176,6 +232,7 @@ type Payload = {
   listable: Listable[];
   ledger: { id: string; amount: number; kind: string; note: string | null; label: string; createdAt: string }[];
   grindMatches?: GrindMatchRow[];
+  grindPlayers?: GrindPlayerRow[];
   deals?: {
     pending: DealRow[];
     closed: DealRow[];
@@ -197,8 +254,20 @@ type GrindMatchRow = {
   serverKey: string;
   dateLabel: string;
   timeLabel: string;
+  year?: number;
+  month?: number;
+  day?: number;
+  timeMsk?: string | null;
   total: number;
   factions: GrindMatchFaction[];
+};
+
+type GrindPlayerRow = {
+  userId: string;
+  nick: string;
+  total: number;
+  matches: number;
+  avgPerMatch: number;
 };
 
 type DealRow = {
@@ -328,6 +397,26 @@ export function FactionTransfers({ slug, canManage }: Props) {
   const [subTab, setSubTab] = useState<XferSubTab>(() =>
     readXferSubTab(slug, canManage),
   );
+  const [ledgerSort, setLedgerSort] = useState<{ key: string; dir: SortDir }>({
+    key: "when",
+    dir: "desc",
+  });
+  const [marketSort, setMarketSort] = useState<{ key: string; dir: SortDir }>({
+    key: "when",
+    dir: "desc",
+  });
+  const [closedSort, setClosedSort] = useState<{ key: string; dir: SortDir }>({
+    key: "when",
+    dir: "desc",
+  });
+  const [trainsSort, setTrainsSort] = useState<{ key: string; dir: SortDir }>({
+    key: "date",
+    dir: "desc",
+  });
+  const [playersSort, setPlayersSort] = useState<{ key: string; dir: SortDir }>({
+    key: "total",
+    dir: "desc",
+  });
 
   const load = useCallback(async () => {
     setErr(null);
@@ -448,10 +537,91 @@ export function FactionTransfers({ slug, canManage }: Props) {
   const pendingDeals = data?.deals?.pending ?? [];
   const closedDeals = data?.deals?.closed ?? [];
   const grindMatches = data?.grindMatches ?? [];
-  const ledgerPage = useFitTablePage(ledgerRows.length, Boolean(data) && subTab === "ledger");
-  const pendingPage = useFitTablePage(pendingDeals.length, Boolean(data) && subTab === "market");
-  const closedPage = useFitTablePage(closedDeals.length, Boolean(data) && subTab === "closed");
-  const trainsPage = useFitTablePage(grindMatches.length, Boolean(data) && subTab === "trains");
+  const grindPlayers = data?.grindPlayers ?? [];
+
+  const ledgerSorted = useMemo(() => {
+    const rows = [...ledgerRows];
+    const dir = ledgerSort.dir === "asc" ? 1 : -1;
+    rows.sort((a, b) => {
+      let c = 0;
+      if (ledgerSort.key === "type") c = cmpStr(ledgerKindRu(a.kind), ledgerKindRu(b.kind));
+      else if (ledgerSort.key === "amount") c = a.amount - b.amount;
+      else if (ledgerSort.key === "note") c = cmpStr(a.note || "", b.note || "");
+      else c = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      return c * dir || cmpStr(a.id, b.id);
+    });
+    return rows;
+  }, [ledgerRows, ledgerSort]);
+
+  const pendingSorted = useMemo(() => {
+    const rows = [...pendingDeals];
+    const dir = marketSort.dir === "asc" ? 1 : -1;
+    rows.sort((a, b) => {
+      let c = 0;
+      if (marketSort.key === "status") c = cmpStr(a.statusLabel, b.statusLabel);
+      else if (marketSort.key === "type") c = cmpStr(a.typeLabel, b.typeLabel);
+      else if (marketSort.key === "player") c = cmpStr(a.playerNick, b.playerNick);
+      else if (marketSort.key === "factions")
+        c = cmpStr(`${a.fromFaction.name}${a.toFaction.name}`, `${b.fromFaction.name}${b.toFaction.name}`);
+      else if (marketSort.key === "cash") c = (a.cashAmount || 0) - (b.cashAmount || 0);
+      else c = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      return c * dir || cmpStr(a.id, b.id);
+    });
+    return rows;
+  }, [pendingDeals, marketSort]);
+
+  const closedSorted = useMemo(() => {
+    const rows = [...closedDeals];
+    const dir = closedSort.dir === "asc" ? 1 : -1;
+    rows.sort((a, b) => {
+      let c = 0;
+      if (closedSort.key === "type") c = cmpStr(a.typeLabel, b.typeLabel);
+      else if (closedSort.key === "player") c = cmpStr(a.playerNick, b.playerNick);
+      else if (closedSort.key === "factions")
+        c = cmpStr(`${a.fromFaction.name}${a.toFaction.name}`, `${b.fromFaction.name}${b.toFaction.name}`);
+      else if (closedSort.key === "cash") c = (a.cashAmount || 0) - (b.cashAmount || 0);
+      else {
+        const ta = new Date(a.updatedAt || a.createdAt).getTime();
+        const tb = new Date(b.updatedAt || b.createdAt).getTime();
+        c = ta - tb;
+      }
+      return c * dir || cmpStr(a.id, b.id);
+    });
+    return rows;
+  }, [closedDeals, closedSort]);
+
+  const trainsSorted = useMemo(() => {
+    const rows = [...grindMatches];
+    const dir = trainsSort.dir === "asc" ? 1 : -1;
+    rows.sort((a, b) => {
+      let c = 0;
+      if (trainsSort.key === "map") c = cmpStr(a.mapName, b.mapName);
+      else if (trainsSort.key === "time") c = timeToMinUi(a.timeLabel) - timeToMinUi(b.timeLabel);
+      else c = matchChronoKey(a) - matchChronoKey(b);
+      return c * dir || cmpStr(a.matchId, b.matchId);
+    });
+    return rows;
+  }, [grindMatches, trainsSort]);
+
+  const playersSorted = useMemo(() => {
+    const rows = [...grindPlayers];
+    const dir = playersSort.dir === "asc" ? 1 : -1;
+    rows.sort((a, b) => {
+      let c = 0;
+      if (playersSort.key === "nick") c = cmpStr(a.nick, b.nick);
+      else if (playersSort.key === "matches") c = a.matches - b.matches;
+      else if (playersSort.key === "avg") c = a.avgPerMatch - b.avgPerMatch;
+      else c = a.total - b.total;
+      return c * dir || cmpStr(a.userId, b.userId);
+    });
+    return rows;
+  }, [grindPlayers, playersSort]);
+
+  const ledgerPage = useFitTablePage(ledgerSorted.length, Boolean(data) && subTab === "ledger");
+  const pendingPage = useFitTablePage(pendingSorted.length, Boolean(data) && subTab === "market");
+  const closedPage = useFitTablePage(closedSorted.length, Boolean(data) && subTab === "closed");
+  const trainsPage = useFitTablePage(trainsSorted.length, Boolean(data) && subTab === "trains");
+  const playersPage = useFitTablePage(playersSorted.length, Boolean(data) && subTab === "players");
   const grindMatchOpen = useMemo(
     () => grindMatches.find((m) => m.matchId === grindMatchId) || null,
     [grindMatches, grindMatchId],
@@ -472,21 +642,36 @@ export function FactionTransfers({ slug, canManage }: Props) {
     writeXferSubTab(slug, isStaff, id);
   }
 
-  const ledgerVisible = ledgerRows.slice(
+  function toggleSort(
+    current: { key: string; dir: SortDir },
+    set: (v: { key: string; dir: SortDir }) => void,
+    key: string,
+    resetPage: (n: number) => void,
+  ) {
+    if (current.key === key) set({ key, dir: current.dir === "asc" ? "desc" : "asc" });
+    else set({ key, dir: key === "when" || key === "date" || key === "total" ? "desc" : "asc" });
+    resetPage(0);
+  }
+
+  const ledgerVisible = ledgerSorted.slice(
     ledgerPage.safePage * ledgerPage.pageSize,
     ledgerPage.safePage * ledgerPage.pageSize + ledgerPage.pageSize,
   );
-  const pendingVisible = pendingDeals.slice(
+  const pendingVisible = pendingSorted.slice(
     pendingPage.safePage * pendingPage.pageSize,
     pendingPage.safePage * pendingPage.pageSize + pendingPage.pageSize,
   );
-  const closedVisible = closedDeals.slice(
+  const closedVisible = closedSorted.slice(
     closedPage.safePage * closedPage.pageSize,
     closedPage.safePage * closedPage.pageSize + closedPage.pageSize,
   );
-  const trainsVisible = grindMatches.slice(
+  const trainsVisible = trainsSorted.slice(
     trainsPage.safePage * trainsPage.pageSize,
     trainsPage.safePage * trainsPage.pageSize + trainsPage.pageSize,
+  );
+  const playersVisible = playersSorted.slice(
+    playersPage.safePage * playersPage.pageSize,
+    playersPage.safePage * playersPage.pageSize + playersPage.pageSize,
   );
 
   if (err && !data) {
@@ -559,6 +744,13 @@ export function FactionTransfers({ slug, canManage }: Props) {
           onClick={() => selectSubTab("trains")}
         >
           Заработок фракций
+        </button>
+        <button
+          type="button"
+          className={`admin-tab${subTab === "players" ? " active" : ""}`}
+          onClick={() => selectSubTab("players")}
+        >
+          Заработок игроков
         </button>
       </div>
 
@@ -781,10 +973,32 @@ export function FactionTransfers({ slug, canManage }: Props) {
               <table className="xfer-table">
                 <thead>
                   <tr>
-                    <th>Когда</th>
-                    <th>Тип</th>
-                    <th>Сумма</th>
-                    <th>Комментарий</th>
+                    <SortTh
+                      label="Когда"
+                      active={ledgerSort.key === "when"}
+                      dir={ledgerSort.dir}
+                      onClick={() => toggleSort(ledgerSort, setLedgerSort, "when", ledgerPage.setPage)}
+                    />
+                    <SortTh
+                      label="Тип"
+                      active={ledgerSort.key === "type"}
+                      dir={ledgerSort.dir}
+                      onClick={() => toggleSort(ledgerSort, setLedgerSort, "type", ledgerPage.setPage)}
+                    />
+                    <SortTh
+                      label="Сумма"
+                      active={ledgerSort.key === "amount"}
+                      dir={ledgerSort.dir}
+                      onClick={() =>
+                        toggleSort(ledgerSort, setLedgerSort, "amount", ledgerPage.setPage)
+                      }
+                    />
+                    <SortTh
+                      label="Комментарий"
+                      active={ledgerSort.key === "note"}
+                      dir={ledgerSort.dir}
+                      onClick={() => toggleSort(ledgerSort, setLedgerSort, "note", ledgerPage.setPage)}
+                    />
                   </tr>
                 </thead>
                 <tbody>
@@ -800,7 +1014,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
                       </td>
                     </tr>
                   ))}
-                  {!ledgerRows.length ? (
+                  {!ledgerSorted.length ? (
                     <tr>
                       <td colSpan={4} className="muted">
                         Пока пусто — гринд с TR1–TR5 пополнит казну.
@@ -811,7 +1025,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
               </table>
             </div>
           </div>
-          <XferPager page={ledgerPage} total={ledgerRows.length} />
+          <XferPager page={ledgerPage} total={ledgerSorted.length} />
         </div>
       ) : null}
 
@@ -822,12 +1036,48 @@ export function FactionTransfers({ slug, canManage }: Props) {
               <table className="xfer-table">
                 <thead>
                   <tr>
-                    <th>Статус</th>
-                    <th>Тип</th>
-                    <th>Игрок</th>
-                    <th>От / Кому</th>
-                    <th>Деньги</th>
-                    <th>Когда</th>
+                    <SortTh
+                      label="Статус"
+                      active={marketSort.key === "status"}
+                      dir={marketSort.dir}
+                      onClick={() =>
+                        toggleSort(marketSort, setMarketSort, "status", pendingPage.setPage)
+                      }
+                    />
+                    <SortTh
+                      label="Тип"
+                      active={marketSort.key === "type"}
+                      dir={marketSort.dir}
+                      onClick={() => toggleSort(marketSort, setMarketSort, "type", pendingPage.setPage)}
+                    />
+                    <SortTh
+                      label="Игрок"
+                      active={marketSort.key === "player"}
+                      dir={marketSort.dir}
+                      onClick={() =>
+                        toggleSort(marketSort, setMarketSort, "player", pendingPage.setPage)
+                      }
+                    />
+                    <SortTh
+                      label="От / Кому"
+                      active={marketSort.key === "factions"}
+                      dir={marketSort.dir}
+                      onClick={() =>
+                        toggleSort(marketSort, setMarketSort, "factions", pendingPage.setPage)
+                      }
+                    />
+                    <SortTh
+                      label="Деньги"
+                      active={marketSort.key === "cash"}
+                      dir={marketSort.dir}
+                      onClick={() => toggleSort(marketSort, setMarketSort, "cash", pendingPage.setPage)}
+                    />
+                    <SortTh
+                      label="Когда"
+                      active={marketSort.key === "when"}
+                      dir={marketSort.dir}
+                      onClick={() => toggleSort(marketSort, setMarketSort, "when", pendingPage.setPage)}
+                    />
                   </tr>
                 </thead>
                 <tbody>
@@ -853,7 +1103,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
                       <td>{formatWhen(d.createdAt)}</td>
                     </tr>
                   ))}
-                  {!pendingDeals.length ? (
+                  {!pendingSorted.length ? (
                     <tr>
                       <td colSpan={6} className="muted">
                         На рынке пока нет лотов и оферов.
@@ -864,7 +1114,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
               </table>
             </div>
           </div>
-          <XferPager page={pendingPage} total={pendingDeals.length} />
+          <XferPager page={pendingPage} total={pendingSorted.length} />
         </div>
       ) : null}
 
@@ -875,11 +1125,40 @@ export function FactionTransfers({ slug, canManage }: Props) {
               <table className="xfer-table">
                 <thead>
                   <tr>
-                    <th>Тип</th>
-                    <th>Игрок</th>
-                    <th>От / Кому</th>
-                    <th>Деньги</th>
-                    <th>Когда</th>
+                    <SortTh
+                      label="Тип"
+                      active={closedSort.key === "type"}
+                      dir={closedSort.dir}
+                      onClick={() => toggleSort(closedSort, setClosedSort, "type", closedPage.setPage)}
+                    />
+                    <SortTh
+                      label="Игрок"
+                      active={closedSort.key === "player"}
+                      dir={closedSort.dir}
+                      onClick={() =>
+                        toggleSort(closedSort, setClosedSort, "player", closedPage.setPage)
+                      }
+                    />
+                    <SortTh
+                      label="От / Кому"
+                      active={closedSort.key === "factions"}
+                      dir={closedSort.dir}
+                      onClick={() =>
+                        toggleSort(closedSort, setClosedSort, "factions", closedPage.setPage)
+                      }
+                    />
+                    <SortTh
+                      label="Деньги"
+                      active={closedSort.key === "cash"}
+                      dir={closedSort.dir}
+                      onClick={() => toggleSort(closedSort, setClosedSort, "cash", closedPage.setPage)}
+                    />
+                    <SortTh
+                      label="Когда"
+                      active={closedSort.key === "when"}
+                      dir={closedSort.dir}
+                      onClick={() => toggleSort(closedSort, setClosedSort, "when", closedPage.setPage)}
+                    />
                   </tr>
                 </thead>
                 <tbody>
@@ -904,7 +1183,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
                       <td>{formatWhen(d.updatedAt || d.createdAt)}</td>
                     </tr>
                   ))}
-                  {!closedDeals.length ? (
+                  {!closedSorted.length ? (
                     <tr>
                       <td colSpan={5} className="muted">
                         Успешных сделок пока нет.
@@ -915,7 +1194,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
               </table>
             </div>
           </div>
-          <XferPager page={closedPage} total={closedDeals.length} />
+          <XferPager page={closedPage} total={closedSorted.length} />
         </div>
       ) : null}
 
@@ -926,9 +1205,24 @@ export function FactionTransfers({ slug, canManage }: Props) {
               <table className="xfer-table">
                 <thead>
                   <tr>
-                    <th>Дата</th>
-                    <th>Время</th>
-                    <th>Карта</th>
+                    <SortTh
+                      label="Дата"
+                      active={trainsSort.key === "date"}
+                      dir={trainsSort.dir}
+                      onClick={() => toggleSort(trainsSort, setTrainsSort, "date", trainsPage.setPage)}
+                    />
+                    <SortTh
+                      label="Время"
+                      active={trainsSort.key === "time"}
+                      dir={trainsSort.dir}
+                      onClick={() => toggleSort(trainsSort, setTrainsSort, "time", trainsPage.setPage)}
+                    />
+                    <SortTh
+                      label="Карта"
+                      active={trainsSort.key === "map"}
+                      dir={trainsSort.dir}
+                      onClick={() => toggleSort(trainsSort, setTrainsSort, "map", trainsPage.setPage)}
+                    />
                   </tr>
                 </thead>
                 <tbody>
@@ -948,7 +1242,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
                       </td>
                     </tr>
                   ))}
-                  {!grindMatches.length ? (
+                  {!trainsSorted.length ? (
                     <tr>
                       <td colSpan={3} className="muted">
                         Пока нет тренировок с гриндом B$.
@@ -959,7 +1253,78 @@ export function FactionTransfers({ slug, canManage }: Props) {
               </table>
             </div>
           </div>
-          <XferPager page={trainsPage} total={grindMatches.length} />
+          <XferPager page={trainsPage} total={trainsSorted.length} />
+        </div>
+      ) : null}
+
+      {subTab === "players" ? (
+        <div className="xfer-tab-body xfer-tables">
+          <div className="xfer-fit" ref={playersPage.fitRef}>
+            <div className="xfer-table-wrap">
+              <table className="xfer-table">
+                <thead>
+                  <tr>
+                    <SortTh
+                      label="Ник"
+                      active={playersSort.key === "nick"}
+                      dir={playersSort.dir}
+                      onClick={() =>
+                        toggleSort(playersSort, setPlayersSort, "nick", playersPage.setPage)
+                      }
+                    />
+                    <SortTh
+                      label="Всего"
+                      active={playersSort.key === "total"}
+                      dir={playersSort.dir}
+                      onClick={() =>
+                        toggleSort(playersSort, setPlayersSort, "total", playersPage.setPage)
+                      }
+                    />
+                    <SortTh
+                      label="Игр"
+                      active={playersSort.key === "matches"}
+                      dir={playersSort.dir}
+                      onClick={() =>
+                        toggleSort(playersSort, setPlayersSort, "matches", playersPage.setPage)
+                      }
+                    />
+                    <SortTh
+                      label="Среднее за игру"
+                      active={playersSort.key === "avg"}
+                      dir={playersSort.dir}
+                      onClick={() =>
+                        toggleSort(playersSort, setPlayersSort, "avg", playersPage.setPage)
+                      }
+                    />
+                  </tr>
+                </thead>
+                <tbody>
+                  {playersVisible.map((p) => (
+                    <tr key={p.userId}>
+                      <td>
+                        <XferNick>{p.nick}</XferNick>
+                      </td>
+                      <td className="is-plus">
+                        <BdAmount n={p.total} />
+                      </td>
+                      <td>{p.matches}</td>
+                      <td className="is-plus">
+                        <BdAmount n={p.avgPerMatch} />
+                      </td>
+                    </tr>
+                  ))}
+                  {!playersSorted.length ? (
+                    <tr>
+                      <td colSpan={4} className="muted">
+                        Пока никто не капнул гринд B$ в казну.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <XferPager page={playersPage} total={playersSorted.length} />
         </div>
       ) : null}
 
