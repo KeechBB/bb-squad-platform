@@ -24953,3 +24953,66 @@ body:has(.faction-page) .site-footer {
 }
 .bd-mark::before { top: 32%; }
 .bd-mark::after { top: 58%; }
+
+.xfer-modal { max-width: 640px; width: min(640px, 94vw); }
+.xfer-deal-types {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin: 0.75rem 0 1rem;
+}
+.xfer-deal-type {
+  min-height: 44px;
+  padding: 0.45rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(15, 23, 42, 0.55);
+  color: inherit;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.xfer-deal-type.is-on {
+  border-color: rgba(168, 85, 247, 0.7);
+  background: rgba(88, 28, 135, 0.35);
+  color: #e9d5ff;
+  box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.35);
+}
+.xfer-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  min-width: 160px;
+  flex: 1;
+}
+.xfer-analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 0.55rem;
+  margin: 0.75rem 0;
+}
+.xfer-analytics-grid > div {
+  padding: 0.45rem 0.55rem;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.xfer-analytics-grid strong { font-size: 1.05rem; }
+.xfer-analytics-prices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 0.35rem;
+}
+.xfer-analytics-prices > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+@media (max-width: 640px) {
+  .xfer-deal-types { grid-template-columns: 1fr; }
+}

@@ -25,9 +25,9 @@ export const TRANSFER_LOCK_DAYS = 14;
 /** Минимальная цена выставления / покупки. */
 export const TRANSFER_MIN_ASK = 5_000;
 
-/** Пол для оценки / потолок (десятки тысяч). */
-export const ESTIMATE_FLOOR = 8_000;
-export const ESTIMATE_CEILING = 95_000;
+/** Пол для оценки / потолок. */
+export const ESTIMATE_FLOOR = 15_000;
+export const ESTIMATE_CEILING = 220_000;
 
 export type ScarcityForPrice = "ok" | "thin" | "critical" | "surplus" | null | undefined;
 
@@ -53,33 +53,33 @@ function clamp(n: number, lo: number, hi: number) {
 function roleMult(kitKey?: string | null): number {
   const kit = String(kitKey || "").toLowerCase();
   if (!kit || kit === "unknown" || kit === "—") return 0.95;
-  if (kit === "sl" || kit.includes("squad lead")) return 1.35;
-  if (kit.includes("medic") || kit === "med") return 1.28;
-  if (kit.includes("hat") || kit === "lat" || kit === "at") return 1.22;
-  if (kit === "ar" || kit === "mg" || kit.includes("auto")) return 1.12;
-  if (kit.includes("eng") || kit.includes("crew") || kit.includes("sapper")) return 1.1;
+  if (kit === "sl" || kit.includes("squad lead")) return 1.55;
+  if (kit.includes("medic") || kit === "med") return 1.42;
+  if (kit.includes("hat") || kit === "lat" || kit === "at") return 1.35;
+  if (kit === "ar" || kit === "mg" || kit.includes("auto")) return 1.2;
+  if (kit.includes("eng") || kit.includes("crew") || kit.includes("sapper")) return 1.18;
   if (kit.includes("rifle")) return 1.0;
-  return 1.05;
+  return 1.08;
 }
 
 function scarcityMult(level: ScarcityForPrice): number {
-  if (level === "critical") return 1.28;
-  if (level === "thin") return 1.14;
-  if (level === "surplus") return 0.9;
+  if (level === "critical") return 1.45;
+  if (level === "thin") return 1.22;
+  if (level === "surplus") return 0.88;
   return 1;
 }
 
 /**
- * Оценочная стоимость игрока (десятки тысяч B$).
+ * Оценочная стоимость игрока (десятки–сотни тысяч B$).
  *
  * Состав:
- *   база 12k
- * + явка TR (до ~20k за 14/14 дней)
+ *   база 22k
+ * + явка TR (до ~40k за 14/14 дней)
  * + вклад в бою за 30д (киллы / ресы / ноки, с потолком)
  * × KD
  * × роль
  * × дефицит роли во фракции
- * + свежесть онлайна на сайте
+ * × свежесть онлайна на сайте
  */
 export function estimatePlayerPrice(stats: Partial<PlayerPriceStats> & {
   /** @deprecated leftover stub */
@@ -94,22 +94,22 @@ export function estimatePlayerPrice(stats: Partial<PlayerPriceStats> & {
   const lastSeenDaysAgo =
     stats.lastSeenDaysAgo == null ? null : Math.max(0, Number(stats.lastSeenDaysAgo));
 
-  const base = 12_000;
-  const onlineScore = (trainDays14 / 14) * 20_000;
-  const combatRaw = kills30 * 55 + res30 * 70 + nok30 * 30 + matches30 * 180;
-  const combatScore = clamp(combatRaw, 0, 42_000);
+  const base = 22_000;
+  const onlineScore = (trainDays14 / 14) * 40_000;
+  const combatRaw = kills30 * 95 + res30 * 120 + nok30 * 55 + matches30 * 320;
+  const combatScore = clamp(combatRaw, 0, 85_000);
 
   const kd = deaths30 > 0 ? kills30 / deaths30 : kills30 > 0 ? Math.min(kills30, 3) : 0.6;
-  const kdMult = clamp(0.78 + kd * 0.28, 0.75, 1.5);
+  const kdMult = clamp(0.8 + kd * 0.38, 0.75, 1.65);
 
   let freshness = 1;
   if (lastSeenDaysAgo != null) {
-    if (lastSeenDaysAgo <= 2) freshness = 1.06;
+    if (lastSeenDaysAgo <= 2) freshness = 1.1;
     else if (lastSeenDaysAgo <= 7) freshness = 1.0;
-    else if (lastSeenDaysAgo <= 21) freshness = 0.92;
-    else freshness = 0.82;
+    else if (lastSeenDaysAgo <= 21) freshness = 0.9;
+    else freshness = 0.78;
   } else if (trainDays14 === 0 && matches30 === 0) {
-    freshness = 0.8;
+    freshness = 0.75;
   }
 
   const raw =

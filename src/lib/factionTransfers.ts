@@ -462,12 +462,11 @@ export async function loadListingBoard(opts?: {
       kit,
       opts?.buyerScarcityByKit?.[kitNorm],
     );
-    // Всегда живая оценка (старый estimatePrice на листинге мог быть от черновика ~100).
-    const est = liveEst;
+    const st = priceStats.get(l.playerUserId);
     return {
       id: l.id,
       askPrice: l.askPrice,
-      estimatePrice: est,
+      estimatePrice: liveEst,
       note: l.note,
       createdAt: l.createdAt.toISOString(),
       faction: l.faction,
@@ -479,6 +478,21 @@ export async function loadListingBoard(opts?: {
             kit,
           }
         : { id: l.playerUserId, nick: "—", avatarUrl: null, kit },
+      stats: st
+        ? {
+            trainDays14: st.trainDays14,
+            matches30: st.matches30,
+            kills30: st.kills30,
+            deaths30: st.deaths30,
+            res30: st.res30,
+            nok30: st.nok30,
+            kd:
+              st.deaths30 > 0
+                ? Math.round((st.kills30 / st.deaths30) * 100) / 100
+                : st.kills30,
+            lastSeenDaysAgo: st.lastSeenDaysAgo,
+          }
+        : null,
     };
   });
 }
