@@ -14,6 +14,8 @@ import {
   loadListingBoard,
   loadPlayerPriceStats,
   normalizeKit,
+  notifyListedMail,
+  notifyWithdrawnMail,
   scarcityForDeal,
 } from "@/lib/factionTransfers";
 import {
@@ -259,6 +261,7 @@ export async function POST(req: Request, ctx: Ctx) {
         playerKit: kit,
       }).sellHints;
 
+      const note = String(body?.note || "").trim() || null;
       const listing = await prisma.transferListing.create({
         data: {
           factionId: loaded.view.id,
@@ -266,7 +269,7 @@ export async function POST(req: Request, ctx: Ctx) {
           listedByUserId: loaded.me.id,
           askPrice,
           estimatePrice: estimate,
-          note: String(body?.note || "").trim() || null,
+          note,
           priceEvents: {
             create: {
               askPrice,
@@ -276,6 +279,14 @@ export async function POST(req: Request, ctx: Ctx) {
           },
         },
       });
+      await notifyListedMail({
+        playerUserId: userId,
+        factionName: loaded.view.name,
+        askPrice,
+        estimatePrice: estimate,
+        listingId: listing.id,
+        note,
+      }).catch((e) => console.error("listed mail", e));
       return NextResponse.json({ ok: true, listingId: listing.id, sellHints, estimate });
     }
 
@@ -296,6 +307,12 @@ export async function POST(req: Request, ctx: Ctx) {
           where: { listingId: listing.id, status: "PENDING" },
           data: { status: "CANCELLED" },
         });
+        await notifyWithdrawnMail({
+          playerUserId: listing.playerUserId,
+          factionName: loaded.view.name,
+          listingId: listing.id,
+          askPrice: listing.askPrice,
+        }).catch((e) => console.error("withdrawn mail", e));
         return NextResponse.json({ ok: true });
       }
       await assertTransferWindowOpen();

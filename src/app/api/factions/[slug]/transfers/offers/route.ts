@@ -8,6 +8,7 @@ import {
   assertFactionEligibleForTransfers,
   assertTransferWindowOpen,
   buildFactionKitScarcity,
+  notifyOfferMail,
   scarcityForDeal,
 } from "@/lib/factionTransfers";
 import { mainKitByUserIds } from "@/lib/squadRoles";
@@ -94,6 +95,7 @@ export async function POST(req: Request, ctx: Ctx) {
       playerKit: kit,
     });
 
+    const message = String(body?.message || "").trim() || null;
     const offer = await prisma.transferOffer.create({
       data: {
         listingId: listing.id,
@@ -102,9 +104,21 @@ export async function POST(req: Request, ctx: Ctx) {
         type,
         cashAmount: type === "SWAP" ? 0 : cashAmount,
         swapUserId: type === "BUY" ? null : swapUserId,
-        message: String(body?.message || "").trim() || null,
+        message,
       },
     });
+
+    await notifyOfferMail({
+      listedPlayerId: listing.playerUserId,
+      listedFactionName: listing.faction.name,
+      fromFactionName: loaded.view.name,
+      type,
+      cashAmount: type === "SWAP" ? 0 : cashAmount,
+      askPrice: listing.askPrice,
+      offerId: offer.id,
+      swapUserId: type === "BUY" ? null : swapUserId,
+      message,
+    }).catch((e) => console.error("offer mail", e));
 
     return NextResponse.json({
       ok: true,

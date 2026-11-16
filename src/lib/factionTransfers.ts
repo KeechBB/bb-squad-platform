@@ -652,62 +652,203 @@ export async function acceptTransferOffer(opts: ExecOpts) {
     });
   });
 
-  await sendTransferMails({
+  const ask = offer.listing.askPrice;
+  await notifyDealClosedMail({
     playerId,
     swapUserId: offer.swapUserId,
     fromFactionName: offer.listing.faction.name,
     toFactionName: offer.fromFaction.name,
     cash,
     type: offer.type,
+    askPrice: ask,
+    offerId: offer.id,
   }).catch((e) => console.error("transfer mail failed", e));
 
   return { ok: true as const };
 }
 
-async function sendTransferMails(opts: {
+function offerTypeRu(type: string): string {
+  if (type === "SWAP_CASH") return "обмен + доплата";
+  if (type === "SWAP") return "обмен игроками";
+  if (type === "BUY") return "покупка";
+  return type;
+}
+
+async function sendSoftTransferMail(opts: {
+  toUserId: string;
+  title: string;
+  body: string;
+  sourceKey?: string | null;
+}) {
+  const authorId = await keechAuthorId();
+  if (!authorId || !opts.toUserId) return null;
+  try {
+    const mail = await prisma.profileMail.create({
+      data: {
+        title: opts.title,
+        body: opts.body,
+        senderKind: "transfer",
+        senderLabel: "Трансферный штаб",
+        tags: ["Трансфер"],
+        sourceKey: opts.sourceKey || null,
+        authorId,
+        recipients: { create: [{ userId: opts.toUserId }] },
+      },
+      select: { id: true },
+    });
+    return mail.id;
+  } catch (e) {
+    // unique sourceKey — уже слали
+    console.error("transfer soft mail failed", e);
+    return null;
+  }
+}
+
+/** Игрока выставили на доску. */
+export async function notifyListedMail(opts: {
+  playerUserId: string;
+  factionName: string;
+  askPrice: number;
+  estimatePrice: number;
+  listingId: string;
+  note?: string | null;
+}) {
+  const body = [
+    `Командование фракции «${opts.factionName}» выставило тебя на трансферную доску.`,
+    `Запрос продавца: ${opts.askPrice.toLocaleString("ru-RU")} ${BD_MARK}.`,
+    `Оценочная стоимость: ${opts.estimatePrice.toLocaleString("ru-RU")} ${BD_MARK}.`,
+    opts.note ? `Комментарий штаба: ${opts.note}` : null,
+    `Это ещё не переход — только объявление. Если офер примут, ты получишь отдельное письмо с деталями сделки.`,
+    `Вопросы — командиру или заму фракции.`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  return sendSoftTransferMail({
+    toUserId: opts.playerUserId,
+    title: "Тебя выставили на трансфер",
+    body,
+    sourceKey: `xfer:listed:${opts.listingId}`,
+  });
+}
+
+/** Сняли с доски. */
+export async function notifyWithdrawnMail(opts: {
+  playerUserId: string;
+  factionName: string;
+  listingId: string;
+  askPrice: number;
+}) {
+  const body = [
+    `Командование «${opts.factionName}» сняло тебя с трансферной доски.`,
+    `Последний запрос был ${opts.askPrice.toLocaleString("ru-RU")} ${BD_MARK}.`,
+    `Сейчас ты снова просто в составе фракции — переход не состоялся.`,
+  ].join("\n\n");
+
+  return sendSoftTransferMail({
+    toUserId: opts.playerUserId,
+    title: "Сняли с трансферной доски",
+    body,
+    sourceKey: `xfer:withdrawn:${opts.listingId}:${Date.now()}`,
+  });
+}
+
+/** Пришёл офер на игрока (и на обменного, если есть). */
+export async function notifyOfferMail(opts: {
+  listedPlayerId: string;
+  listedFactionName: string;
+  fromFactionName: string;
+  type: string;
+  cashAmount: number;
+  askPrice: number;
+  offerId: string;
+  swapUserId?: string | null;
+  message?: string | null;
+}) {
+  const typeRu = offerTypeRu(opts.type);
+  const money =
+    opts.cashAmount > 0
+      ? `Сумма / доплата: ${opts.cashAmount.toLocaleString("ru-RU")} ${BD_MARK}.`
+      : "Без денежной части.";
+  const listedBody = [
+    `На тебя пришёл офер от фракции «${opts.fromFactionName}».`,
+    `Тип: ${typeRu}.`,
+    `Твоя фракция «${opts.listedFactionName}» выставила запрос ${opts.askPrice.toLocaleString("ru-RU")} ${BD_MARK}.`,
+    money,
+    opts.message ? `Сообщение к оферу: ${opts.message}` : null,
+    `Решение принимает командир / зам. Пока офер не принят — ты остаёшься в «${opts.listedFactionName}».`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  await sendSoftTransferMail({
+    toUserId: opts.listedPlayerId,
+    title: "На тебя пришёл трансферный офер",
+    body: listedBody,
+    sourceKey: `xfer:offer:${opts.offerId}:listed`,
+  });
+
+  if (opts.swapUserId) {
+    const swapBody = [
+      `Командование «${opts.fromFactionName}» предлагает тебя в обмен за игрока из «${opts.listedFactionName}».`,
+      `Тип сделки: ${typeRu}.`,
+      money,
+      `Если офер примут — ты перейдёшь в «${opts.listedFactionName}». Пока это только предложение.`,
+      `Детали — у командира.`,
+    ].join("\n\n");
+    await sendSoftTransferMail({
+      toUserId: opts.swapUserId,
+      title: "Тебя предложили в обмен",
+      body: swapBody,
+      sourceKey: `xfer:offer:${opts.offerId}:swap`,
+    });
+  }
+}
+
+/** Сделка закрыта — подробности покупки / обмена. */
+async function notifyDealClosedMail(opts: {
   playerId: string;
   swapUserId: string | null;
   fromFactionName: string;
   toFactionName: string;
   cash: number;
   type: string;
+  askPrice: number;
+  offerId: string;
 }) {
-  const authorId = await keechAuthorId();
-  if (!authorId) return;
-
+  const typeRu = offerTypeRu(opts.type);
+  const money =
+    opts.cash > 0
+      ? `По сделке прошло ${opts.cash.toLocaleString("ru-RU")} ${BD_MARK}.`
+      : "Денежной части не было.";
   const bodyMain = [
-    `Командование решило: ты переходишь из «${opts.fromFactionName}» в «${opts.toFactionName}».`,
-    opts.cash > 0 ? `Сделка: ${opts.cash} ${BD_MARK} (${opts.type}).` : `Тип сделки: ${opts.type}.`,
-    `На ${TRANSFER_LOCK_DAYS} суток стоит трансферный лок — повторно выставить нельзя.`,
-    `Это решение штаба. Если что-то непонятно — спроси командира.`,
+    `Сделка закрыта: ты переходишь из «${opts.fromFactionName}» в «${opts.toFactionName}».`,
+    `Тип: ${typeRu}.`,
+    `Запрос на доске был ${opts.askPrice.toLocaleString("ru-RU")} ${BD_MARK}.`,
+    money,
+    `На ${TRANSFER_LOCK_DAYS} суток стоит трансферный лок — снова выставить на доску нельзя.`,
+    `Это решение штаба. Если что-то непонятно — спроси нового командира.`,
   ].join("\n\n");
 
-  await prisma.profileMail.create({
-    data: {
-      title: "Переход во фракцию",
-      body: bodyMain,
-      senderKind: "transfer",
-      senderLabel: "Трансферный штаб",
-      tags: ["Трансфер"],
-      authorId,
-      recipients: { create: [{ userId: opts.playerId }] },
-    },
+  await sendSoftTransferMail({
+    toUserId: opts.playerId,
+    title: "Переход во фракцию — сделка закрыта",
+    body: bodyMain,
+    sourceKey: `xfer:deal:${opts.offerId}:player`,
   });
 
   if (opts.swapUserId) {
-    await prisma.profileMail.create({
-      data: {
-        title: "Обмен между фракциями",
-        body: [
-          `Ты уходишь в «${opts.fromFactionName}» в рамках обмена с «${opts.toFactionName}».`,
-          `Лок ${TRANSFER_LOCK_DAYS} суток. Решение штаба — детали у командира.`,
-        ].join("\n\n"),
-        senderKind: "transfer",
-        senderLabel: "Трансферный штаб",
-        tags: ["Трансфер"],
-        authorId,
-        recipients: { create: [{ userId: opts.swapUserId }] },
-      },
+    const swapBody = [
+      `Сделка закрыта: ты переходишь из «${opts.toFactionName}» в «${opts.fromFactionName}» (обмен).`,
+      `Тип: ${typeRu}.`,
+      money,
+      `Лок ${TRANSFER_LOCK_DAYS} суток. Решение штаба — детали у командира.`,
+    ].join("\n\n");
+    await sendSoftTransferMail({
+      toUserId: opts.swapUserId,
+      title: "Обмен между фракциями — сделка закрыта",
+      body: swapBody,
+      sourceKey: `xfer:deal:${opts.offerId}:swap`,
     });
   }
 }
