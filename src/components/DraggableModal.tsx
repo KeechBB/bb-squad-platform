@@ -8,6 +8,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 
 type Props = {
   open: boolean;
@@ -20,8 +21,8 @@ type Props = {
 };
 
 /**
- * Оверлей + панель, которую можно таскать за шапку (`.profile-match-modal-head`
- * или элемент с `data-drag-handle`).
+ * Оверлей поверх всего сайта (portal → body) + панель,
+ * которую можно таскать за шапку (`.profile-match-modal-head` / `[data-drag-handle]`).
  */
 export function DraggableModal({
   open,
@@ -31,7 +32,7 @@ export function DraggableModal({
   panelClassName = "",
   children,
 }: Props) {
-  const panelRef = useRef<HTMLDivElement | null>(null);
+  const [mounted, setMounted] = useState(false);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const drag = useRef<{
     startX: number;
@@ -41,8 +42,26 @@ export function DraggableModal({
   } | null>(null);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
     if (!open) setOffset({ x: 0, y: 0 });
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [open, onClose]);
 
   const onPointerMove = useCallback((e: PointerEvent) => {
     if (!drag.current) return;
@@ -83,18 +102,17 @@ export function DraggableModal({
     };
   }, [onPointerMove, onPointerUp]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
-  return (
+  return createPortal(
     <div
-      className={`profile-match-modal ${className}`.trim()}
+      className={`profile-match-modal xfer-overlay ${className}`.trim()}
       role="presentation"
       onClick={() => {
         if (closeOnBackdrop) onClose();
       }}
     >
       <div
-        ref={panelRef}
         className={`profile-match-modal-panel xfer-modal is-draggable ${panelClassName}`.trim()}
         role="dialog"
         aria-modal="true"
@@ -106,6 +124,7 @@ export function DraggableModal({
       >
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

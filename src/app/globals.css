@@ -25056,19 +25056,68 @@ body:has(.faction-page) .site-footer {
 .xfer-pill.is-out { background: rgba(56, 189, 248, 0.22); color: #bae6fd; }
 .xfer-pill.is-done { background: rgba(34, 197, 94, 0.22); color: #bbf7d0; }
 
-.xfer-modal { max-width: 640px; width: min(640px, 94vw); }
+/* Трансферные модалки — поверх всего (portal → body), таскаемые */
+.profile-match-modal.xfer-overlay {
+  z-index: 13000;
+  background: rgba(4, 3, 10, 0.62);
+  backdrop-filter: blur(5px);
+  padding: 12px;
+  align-items: center;
+  justify-items: center;
+  overflow: hidden;
+}
+.xfer-modal {
+  max-width: 640px;
+  width: min(640px, 94vw);
+  max-height: min(88vh, 920px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(168, 85, 247, 0.45) transparent;
+  padding: 0 0 0.85rem;
+  box-sizing: border-box;
+}
 .xfer-modal.is-draggable {
   position: relative;
   will-change: transform;
   touch-action: none;
+  animation: none !important;
 }
 .xfer-modal .profile-match-modal-head[data-drag-handle],
 .xfer-modal .profile-match-modal-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   cursor: grab;
   user-select: none;
+  background: rgba(14, 11, 24, 0.98);
+  margin-bottom: 0.35rem;
 }
 .xfer-modal .profile-match-modal-head:active {
   cursor: grabbing;
+}
+.xfer-modal .xfer-compare,
+.xfer-modal .xfer-offer-box,
+.xfer-modal .xfer-analytics-grid,
+.xfer-modal .xfer-analytics-prices,
+.xfer-modal .xfer-deal-types,
+.xfer-modal .xfer-field,
+.xfer-modal .xfer-actions,
+.xfer-modal .xfer-hint-inline,
+.xfer-modal h4,
+.xfer-modal > p {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+.xfer-modal .xfer-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: 0.75rem !important;
+  padding-top: 0.75rem;
+  padding-bottom: 0.25rem;
+  background: linear-gradient(180deg, rgba(14, 11, 24, 0) 0%, rgba(14, 11, 24, 0.96) 28%, rgba(14, 11, 24, 0.98) 100%);
 }
 .xfer-deal-types {
   display: grid;
