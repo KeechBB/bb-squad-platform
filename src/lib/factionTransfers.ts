@@ -286,10 +286,9 @@ export async function creditGrindFromCanonMatch(matchId: string): Promise<{ cred
     if (!membership) continue;
     const amount = grindAmountFromTrainStats({
       kills: p.kills,
-      deaths: p.deaths,
-      nok: p.nok,
       res: p.res,
-      durationSec: match.durationSec,
+      dmg: p.dmg,
+      vehicleKills: p.vehicleKills,
     });
     if (amount <= 0) continue;
     const sourceKey = `grind:${matchId}:${p.userId}`;

@@ -133,24 +133,38 @@ export function estimatePlayerPrice(stats: Partial<PlayerPriceStats> & {
   return Math.max(ESTIMATE_FLOOR, rounded);
 }
 
-/** Гринд за TRAIN на TR1–TR5 → казна. Масштаб под цены в десятках тысяч. */
+/** Тарифы гринда → казна фракции. Линейно, без потолка за катку. */
+export const GRIND_RATE_KILL = 85;
+export const GRIND_RATE_RES = 110;
+/** B$ за единицу урона из статы матча (в т.ч. по технике). */
+export const GRIND_RATE_DMG = 0.12;
+export const GRIND_RATE_VEHICLE_KILL = 450;
+
+/**
+ * Гринд за TRAIN на TR1–TR5 → казна.
+ * Каждое действие платит отдельно: килл / рес / урон / уничтожение техники.
+ * Потолка нет — 50 киллов = 50 × тариф.
+ */
 export function grindAmountFromTrainStats(opts: {
   kills: number;
-  deaths: number;
-  nok: number;
   res: number;
+  dmg?: number | null;
+  vehicleKills?: number | null;
+  /** @deprecated не влияет на сумму; оставлено для совместимости вызовов */
+  deaths?: number;
+  nok?: number;
   durationSec?: number | null;
 }): number {
-  const k = Math.max(0, opts.kills | 0);
-  const d = Math.max(0, opts.deaths | 0);
-  const nok = Math.max(0, opts.nok | 0);
-  const res = Math.max(0, opts.res | 0);
-  const score = k * 2.2 + nok * 1.4 + res * 1.1 - d * 0.35;
-  const dur = opts.durationSec && opts.durationSec > 0 ? opts.durationSec : 3600;
-  const timeFactor = Math.min(1.35, Math.max(0.55, dur / 3600));
-  // ~200–2200 за катку при нормальной стате
-  const raw = score * 18 * timeFactor + 120;
-  return Math.max(0, Math.min(2_500, Math.round(raw / 10) * 10));
+  const k = Math.max(0, Math.floor(Number(opts.kills) || 0));
+  const res = Math.max(0, Math.floor(Number(opts.res) || 0));
+  const dmg = Math.max(0, Number(opts.dmg) || 0);
+  const veh = Math.max(0, Math.floor(Number(opts.vehicleKills) || 0));
+  const raw =
+    k * GRIND_RATE_KILL +
+    res * GRIND_RATE_RES +
+    dmg * GRIND_RATE_DMG +
+    veh * GRIND_RATE_VEHICLE_KILL;
+  return Math.max(0, Math.round(raw));
 }
 
 /** Plain-text: «1 240 B$». В React предпочтительнее `<BdAmount />`. */
