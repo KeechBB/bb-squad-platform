@@ -21,7 +21,10 @@ import {
   trainStatsSinceYmd,
 } from "@/lib/trainStatsSince";
 import { rollingMainRoleWindow } from "@/lib/mainRoleWindow";
-import { TRAINING_SERVER_KEYS } from "@/lib/squadServers";
+import {
+  PUBLIC_SERVER_KEYS,
+  TRAINING_SERVER_KEYS,
+} from "@/lib/squadServers";
 
 export type SquadRoleIngestEvent = {
   type: "role";
@@ -751,6 +754,121 @@ export async function kitRankAnalytics(): Promise<KitRankAnalytics> {
       rarestL1Kit: l1.length ? l1[l1.length - 1].kit : null,
     },
   };
+}
+
+/**
+ * Самый частый кит по времени (часы) за последние 14 суток МСК.
+ * Все доступные ленты: TR1–TR5 (тренировки/КВ на наших аренах) + PB1/TPUB1 (паблик).
+ * Один SQL на пачку userId — для таблицы состава клана.
+ */
+export async function mainKitByUserIds(
+  userIds: string[]
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const uniq = [...new Set(userIds.filter(Boolean))];
+  if (!uniq.length) return out;
+
+  const { from, to } = rollingMainRoleWindow();
+  const bounds = mskRangeBoundsUtc(from, to);
+  if (!bounds) return out;
+
+  const users = await prisma.user.findMany({
+    where: { id: { in: uniq } },
+    select: { id: true, steamId: true },
+  });
+  if (!users.length) return out;
+
+  const steamIds = users
+    .map((u) => normalizeSteamId(u.steamId || ""))
+    .filter(Boolean) as string[];
+  const idBySteam = new Map(
+    users
+      .map((u) => {
+        const sid = normalizeSteamId(u.steamId || "");
+        return sid ? ([sid, u.id] as const) : null;
+      })
+      .filter((x): x is readonly [string, string] => Boolean(x))
+  );
+  const memberIds = new Set(users.map((u) => u.id));
+
+  const keys = [
+    ...TRAINING_SERVER_KEYS,
+    ...PUBLIC_SERVER_KEYS,
+    "PUB",
+  ] as string[];
+
+  const whoSql = steamIds.length
+    ? Prisma.sql`("userId" IN (${Prisma.join(uniq)}) OR "steamId" IN (${Prisma.join(steamIds)}))`
+    : Prisma.sql`"userId" IN (${Prisma.join(uniq)})`;
+
+  const rows = await prisma.$queryRaw<
+    { uid: string | null; sid: string | null; kit: string; sec: bigint }[]
+  >`
+    WITH ev AS (
+      SELECT
+        "userId" AS uid,
+        "steamId" AS sid,
+        kit,
+        "spawnedAt",
+        LEAD("spawnedAt") OVER (
+          PARTITION BY COALESCE("userId", "steamId"), "serverKey"
+          ORDER BY "spawnedAt", "id"
+        ) AS nxt
+      FROM "SquadRoleEvent"
+      WHERE "serverKey" IN (${Prisma.join(keys)})
+        AND "spawnedAt" >= ${bounds.gte}
+        AND "spawnedAt" < ${bounds.lt}
+        AND ${whoSql}
+    )
+    SELECT uid, sid, kit,
+      SUM(LEAST(
+        2700,
+        GREATEST(0, EXTRACT(EPOCH FROM (
+          LEAST(
+            COALESCE(nxt, "spawnedAt" + INTERVAL '15 minutes'),
+            "spawnedAt" + INTERVAL '45 minutes'
+          ) - "spawnedAt"
+        )))
+      ))::bigint AS sec
+    FROM ev
+    GROUP BY uid, sid, kit
+  `;
+
+  const byUser = new Map<string, Map<string, number>>();
+  for (const row of rows) {
+    const userId =
+      row.uid && memberIds.has(row.uid)
+        ? row.uid
+        : row.sid
+          ? idBySteam.get(normalizeSteamId(row.sid) || "") || ""
+          : "";
+    if (!userId) continue;
+    const kit = String(canonKitName(row.kit) || "").trim();
+    const sec = Number(row.sec) || 0;
+    if (!kit || sec <= 0) continue;
+    let kits = byUser.get(userId);
+    if (!kits) {
+      kits = new Map();
+      byUser.set(userId, kits);
+    }
+    kits.set(kit, (kits.get(kit) || 0) + sec);
+  }
+
+  for (const [userId, kits] of byUser) {
+    let bestKit = "";
+    let bestSec = -1;
+    for (const [kit, sec] of kits) {
+      if (
+        sec > bestSec ||
+        (sec === bestSec && kit.localeCompare(bestKit, "ru") < 0)
+      ) {
+        bestKit = kit;
+        bestSec = sec;
+      }
+    }
+    if (bestKit) out.set(userId, bestKit);
+  }
+  return out;
 }
 
 export { kitFromDeployRole, formatMskYmd, normalizeEosId, normalizeSteamId };

@@ -207,6 +207,11 @@ export default async function ClanPage({ params }: Props) {
     !clan.isExternal &&
     String(clan.tag || "").toUpperCase() === "BB";
 
+  const { mainKitByUserIds } = await import("@/lib/squadRoles");
+  const mainKits = await mainKitByUserIds(
+    visibleMembers.map((m) => m.userId)
+  ).catch(() => new Map<string, string>());
+
   return (
     <main className="clan-page">
       <ClanDetailClient
@@ -223,6 +228,7 @@ export default async function ClanPage({ params }: Props) {
           role: m.role as ClanRole,
           joinedAt: m.joinedAt.toISOString(),
           title: m.title ? { id: m.title.id, name: m.title.name } : null,
+          mainKit: mainKits.get(m.userId) || "—",
           user: {
             ...m.user,
             reserveUntil: m.user.reserveUntil?.toISOString() ?? null,

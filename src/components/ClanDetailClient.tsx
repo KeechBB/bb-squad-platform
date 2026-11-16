@@ -33,6 +33,8 @@ type Member = {
   role: ClanRole;
   joinedAt: string;
   title: { id: string; name: string } | null;
+  /** Топ-кит по времени за 14 суток (паблик + трёна + КВ на наших серверах). */
+  mainKit?: string | null;
   user: {
     id: string;
     nick: string | null;
@@ -207,6 +209,7 @@ const STATUS_RU: Record<string, string> = {
   win: "победа",
   lose: "поражение",
   draw: "ничья",
+  r1: "раунд 1",
 };
 
 export function ClanDetailClient({
@@ -245,7 +248,7 @@ export function ClanDetailClient({
     initialPendingRequestId
   );
   const [memberSort, setMemberSort] = useState<
-    "player" | "squad" | "role" | "title"
+    "player" | "squad" | "role" | "kit" | "title"
   >("role");
   const [memberOrder, setMemberOrder] = useState<"asc" | "desc">("asc");
   const [memberQuery, setMemberQuery] = useState("");
@@ -740,6 +743,14 @@ export function ClanDetailClient({
           (ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role))
         );
       }
+      if (memberSort === "kit") {
+        const ak = a.mainKit || "";
+        const bk = b.mainKit || "";
+        return (
+          ak.localeCompare(bk, "ru", { sensitivity: "base" }) * dir ||
+          (ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role))
+        );
+      }
       if (memberSort === "title") {
         const at = a.title?.name || "";
         const bt = b.title?.name || "";
@@ -1107,6 +1118,16 @@ export function ClanDetailClient({
                         <button
                           type="button"
                           className="sort-btn"
+                          onClick={() => toggleMemberSort("kit")}
+                          title="Самый частый кит по времени за 14 суток (паблик + трёна + КВ)"
+                        >
+                          Кит{memberSortMark("kit")}
+                        </button>
+                      </th>
+                      <th>
+                        <button
+                          type="button"
+                          className="sort-btn"
                           onClick={() => toggleMemberSort("title")}
                         >
                           Должность{memberSortMark("title")}
@@ -1119,7 +1140,7 @@ export function ClanDetailClient({
                     {sorted.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={showKickCol ? 6 : 5}
+                          colSpan={showKickCol ? 7 : 6}
                           className="muted"
                           style={{ textAlign: "center", padding: "18px 8px" }}
                         >
@@ -1206,6 +1227,9 @@ export function ClanDetailClient({
                             ) : (
                               CLAN_ROLE_LABEL[m.role]
                             )}
+                          </td>
+                          <td title="Топ по времени в ките за 14 суток">
+                            {m.mainKit || "—"}
                           </td>
                           <td>
                             {canTitles &&
