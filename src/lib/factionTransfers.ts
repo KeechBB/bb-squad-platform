@@ -11,6 +11,7 @@ import {
 import { mainKitByUserIds } from "@/lib/squadRoles";
 import { isTrainingServerKey, TRAINING_SERVER_KEYS } from "@/lib/squadServers";
 import { profileHistoryKey } from "@/lib/nickCollisions";
+import { nickCompact } from "@/lib/nickIdentity";
 
 export type ScarcityLevel = "ok" | "thin" | "critical" | "surplus";
 
@@ -276,11 +277,38 @@ export async function creditGrindFromCanonMatch(matchId: string): Promise<{ cred
   });
   if (!inTrainStats) return { credited: 0 };
 
+  // Canon players often come without userId — резолвим по нику/steamName.
+  const needResolve = match.players.some((p) => !p.userId);
+  const nickToUserId = new Map<string, string>();
+  if (needResolve) {
+    const users = await prisma.user.findMany({
+      where: { OR: [{ nick: { not: null } }, { steamName: { not: null } }] },
+      select: { id: true, nick: true, steamName: true },
+    });
+    for (const u of users) {
+      if (u.nick) {
+        const k = nickCompact(u.nick);
+        if (k && !nickToUserId.has(k)) nickToUserId.set(k, u.id);
+      }
+      if (u.steamName) {
+        const k = nickCompact(u.steamName);
+        if (k && !nickToUserId.has(k)) nickToUserId.set(k, u.id);
+      }
+    }
+  }
+
   let credited = 0;
   for (const p of match.players) {
-    if (!p.userId) continue;
+    const userId = p.userId || nickToUserId.get(nickCompact(p.nick)) || null;
+    if (!userId) continue;
+    if (!p.userId) {
+      // backfill for next runs
+      await prisma.canonMatchPlayer
+        .update({ where: { id: p.id }, data: { userId } })
+        .catch(() => null);
+    }
     const membership = await prisma.factionMember.findFirst({
-      where: { userId: p.userId },
+      where: { userId },
       select: { factionId: true },
     });
     if (!membership) continue;
@@ -291,7 +319,7 @@ export async function creditGrindFromCanonMatch(matchId: string): Promise<{ cred
       vehicleKills: p.vehicleKills,
     });
     if (amount <= 0) continue;
-    const sourceKey = `grind:${matchId}:${p.userId}`;
+    const sourceKey = `grind:${matchId}:${userId}`;
     try {
       await prisma.$transaction(async (tx) => {
         await creditTreasury(
@@ -301,7 +329,7 @@ export async function creditGrindFromCanonMatch(matchId: string): Promise<{ cred
           "grind",
           sourceKey,
           `TR ${match.serverKey} · ${match.mapName} · ${p.nick}`,
-          p.userId,
+          userId,
           matchId,
         );
       });
