@@ -362,6 +362,8 @@ export type GrindMatchFactionRow = {
   name: string;
   slug: string;
   amount: number;
+  /** Сколько игроков капнуло гринд в эту катку за фракцию. */
+  players: number;
 };
 
 export type GrindMatchSummary = {
@@ -384,7 +386,7 @@ export async function loadGrindMatchSummaries(): Promise<GrindMatchSummary[]> {
   const [entries, factions] = await Promise.all([
     prisma.factionLedgerEntry.findMany({
       where: { kind: "grind", matchId: { not: null }, amount: { gt: 0 } },
-      select: { matchId: true, factionId: true, amount: true },
+      select: { matchId: true, factionId: true, amount: true, userId: true },
     }),
     prisma.faction.findMany({
       select: { id: true, name: true, slug: true },
@@ -409,25 +411,37 @@ export async function loadGrindMatchSummaries(): Promise<GrindMatchSummary[]> {
   });
   const byMatch = new Map(matches.map((m) => [m.id, m]));
 
-  type Agg = Map<string, number>;
+  type AggCell = { amount: number; users: Set<string> };
+  type Agg = Map<string, AggCell>;
   const perMatch = new Map<string, Agg>();
   for (const e of entries) {
     const mid = e.matchId!;
     if (!perMatch.has(mid)) perMatch.set(mid, new Map());
     const agg = perMatch.get(mid)!;
-    agg.set(e.factionId, (agg.get(e.factionId) || 0) + e.amount);
+    let cell = agg.get(e.factionId);
+    if (!cell) {
+      cell = { amount: 0, users: new Set() };
+      agg.set(e.factionId, cell);
+    }
+    cell.amount += e.amount;
+    if (e.userId) cell.users.add(e.userId);
+    else cell.users.add(`anon:${cell.users.size}`);
   }
 
   const out: GrindMatchSummary[] = [];
   for (const [matchId, agg] of perMatch) {
     const m = byMatch.get(matchId);
     if (!m) continue;
-    const factionRows: GrindMatchFactionRow[] = factions.map((f) => ({
-      factionId: f.id,
-      name: f.name,
-      slug: f.slug,
-      amount: agg.get(f.id) || 0,
-    }));
+    const factionRows: GrindMatchFactionRow[] = factions.map((f) => {
+      const cell = agg.get(f.id);
+      return {
+        factionId: f.id,
+        name: f.name,
+        slug: f.slug,
+        amount: cell?.amount || 0,
+        players: cell?.users.size || 0,
+      };
+    });
     factionRows.sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name, "ru"));
     const total = factionRows.reduce((s, r) => s + r.amount, 0);
     const dd = String(m.day).padStart(2, "0");

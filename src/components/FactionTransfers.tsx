@@ -185,6 +185,7 @@ type GrindMatchFaction = {
   name: string;
   slug: string;
   amount: number;
+  players: number;
 };
 
 type GrindMatchRow = {
@@ -991,6 +992,9 @@ export function FactionTransfers({ slug, canManage }: Props) {
               <li key={f.factionId} className={f.amount > 0 ? "is-earn" : "is-zero"}>
                 <span className="xfer-grind-rank-n">{i + 1}</span>
                 <span className="xfer-grind-rank-name">{f.name}</span>
+                <span className="xfer-grind-rank-people">
+                  {f.players > 0 ? `${f.players} чел.` : "—"}
+                </span>
                 <span className={`xfer-grind-rank-sum${f.amount > 0 ? " is-plus" : ""}`}>
                   {f.amount > 0 ? <BdAmount n={f.amount} signed /> : "—"}
                 </span>
