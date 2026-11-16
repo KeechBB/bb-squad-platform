@@ -555,7 +555,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
           className={`admin-tab${subTab === "trains" ? " active" : ""}`}
           onClick={() => selectSubTab("trains")}
         >
-          Тренировочные матчи
+          Заработок фракций
         </button>
       </div>
 
