@@ -141,6 +141,52 @@ export const GRIND_RATE_DMG = 0.12;
 export const GRIND_RATE_VEHICLE_KILL = 450;
 
 /**
+ * Старт гринда B$: Fool's Road AAS 16.11.2026 (включительно).
+ * Все TRAIN раньше этой календарной даты не капают в казну.
+ */
+export const GRIND_START_YMD = 2026_11_16;
+export const GRIND_START_LEGACY_ID = "16-foolsroad";
+
+/** YYYYMMDD из полей канон-матча / даты. */
+export function matchCalendarYmd(opts: {
+  year?: number | null;
+  month?: number | null;
+  day?: number | null;
+  publishedAt?: Date | string | null;
+  startedAt?: Date | string | null;
+}): number | null {
+  const y = Number(opts.year) || 0;
+  const m = Number(opts.month) || 0;
+  const d = Number(opts.day) || 0;
+  if (y >= 2020 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+    return y * 10_000 + m * 100 + d;
+  }
+  const raw = opts.startedAt || opts.publishedAt;
+  if (!raw) return null;
+  const dt = raw instanceof Date ? raw : new Date(raw);
+  if (Number.isNaN(dt.getTime())) return null;
+  // Календарь тренировок в МСК
+  const msk = new Date(dt.getTime() + 3 * 60 * 60 * 1000);
+  return msk.getUTCFullYear() * 10_000 + (msk.getUTCMonth() + 1) * 100 + msk.getUTCDate();
+}
+
+export function isGrindEligibleMatch(opts: {
+  legacyId?: string | null;
+  year?: number | null;
+  month?: number | null;
+  day?: number | null;
+  publishedAt?: Date | string | null;
+  startedAt?: Date | string | null;
+}): boolean {
+  if (opts.legacyId && String(opts.legacyId).toLowerCase() === GRIND_START_LEGACY_ID) {
+    return true;
+  }
+  const ymd = matchCalendarYmd(opts);
+  if (ymd == null) return false;
+  return ymd >= GRIND_START_YMD;
+}
+
+/**
  * Гринд за TRAIN на TR1–TR5 → казна.
  * Каждое действие платит отдельно: килл / рес / урон / уничтожение техники.
  * Потолка нет — 50 киллов = 50 × тариф.

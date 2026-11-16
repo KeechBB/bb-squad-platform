@@ -5,6 +5,8 @@ import {
   TRANSFER_MIN_ROSTER,
   estimatePlayerPrice,
   grindAmountFromTrainStats,
+  isGrindEligibleMatch,
+  GRIND_START_YMD,
   type PlayerPriceStats,
   type ScarcityForPrice,
 } from "@/lib/blueberryDollar";
@@ -271,6 +273,19 @@ export async function creditGrindFromCanonMatch(matchId: string): Promise<{ cred
   if (!isTrainingServerKey(match.serverKey)) return { credited: 0 };
   // Только залитые в статистику тренировок (календарь/профиль), не сырой коллектор.
   if (!match.legacyId || !match.publishedAt) return { credited: 0 };
+  // Старт экономики: Fool's Road 16.11.2026 — более ранние катки не считаем.
+  if (
+    !isGrindEligibleMatch({
+      legacyId: match.legacyId,
+      year: match.year,
+      month: match.month,
+      day: match.day,
+      publishedAt: match.publishedAt,
+      startedAt: match.startedAt,
+    })
+  ) {
+    return { credited: 0 };
+  }
   const inTrainStats = await prisma.profileMatchLine.findFirst({
     where: { kind: "train", matchId: match.legacyId },
     select: { id: true },
@@ -353,6 +368,19 @@ export async function creditGrindRecentTrains(limit = 40): Promise<number> {
       serverKey: { in: serverKeys },
       publishedAt: { not: null },
       legacyId: { not: null },
+      // Грубый отсев до старта гринда (точный — в creditGrindFromCanonMatch).
+      OR: [
+        { year: { gt: Math.floor(GRIND_START_YMD / 10_000) } },
+        {
+          year: Math.floor(GRIND_START_YMD / 10_000),
+          month: { gt: Math.floor((GRIND_START_YMD % 10_000) / 100) },
+        },
+        {
+          year: Math.floor(GRIND_START_YMD / 10_000),
+          month: Math.floor((GRIND_START_YMD % 10_000) / 100),
+          day: { gte: GRIND_START_YMD % 100 },
+        },
+      ],
     },
     orderBy: { publishedAt: "desc" },
     take: limit,
