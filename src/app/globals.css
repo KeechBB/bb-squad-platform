@@ -25138,6 +25138,10 @@ body:has(.faction-page) .site-footer {
 .xfer-ledger-note .xfer-nick {
   color: #facc15;
 }
+.xfer-faction-name {
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
 .xfer-pill {
   display: inline-block;
   padding: 0.15rem 0.45rem;

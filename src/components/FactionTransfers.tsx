@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { BdAmount } from "@/components/BdMark";
 import { DraggableModal } from "@/components/DraggableModal";
+import { factionUiColor } from "@/lib/factionColors";
 import { useFitTablePage } from "@/lib/useFitTablePage";
 
 type XferSubTab = "desk" | "ledger" | "market" | "closed" | "trains" | "players";
@@ -265,6 +266,9 @@ type GrindMatchRow = {
 type GrindPlayerRow = {
   userId: string;
   nick: string;
+  factionId?: string | null;
+  factionName?: string | null;
+  factionSlug?: string | null;
   total: number;
   matches: number;
   avgPerMatch: number;
@@ -609,6 +613,8 @@ export function FactionTransfers({ slug, canManage }: Props) {
     rows.sort((a, b) => {
       let c = 0;
       if (playersSort.key === "nick") c = cmpStr(a.nick, b.nick);
+      else if (playersSort.key === "faction")
+        c = cmpStr(a.factionName || "", b.factionName || "");
       else if (playersSort.key === "matches") c = a.matches - b.matches;
       else if (playersSort.key === "avg") c = a.avgPerMatch - b.avgPerMatch;
       else c = a.total - b.total;
@@ -1273,6 +1279,14 @@ export function FactionTransfers({ slug, canManage }: Props) {
                       }
                     />
                     <SortTh
+                      label="Фракция"
+                      active={playersSort.key === "faction"}
+                      dir={playersSort.dir}
+                      onClick={() =>
+                        toggleSort(playersSort, setPlayersSort, "faction", playersPage.setPage)
+                      }
+                    />
+                    <SortTh
                       label="Всего"
                       active={playersSort.key === "total"}
                       dir={playersSort.dir}
@@ -1304,6 +1318,20 @@ export function FactionTransfers({ slug, canManage }: Props) {
                       <td>
                         <XferNick>{p.nick}</XferNick>
                       </td>
+                      <td>
+                        {p.factionName ? (
+                          <span
+                            className="xfer-faction-name"
+                            style={{
+                              color: factionUiColor(p.factionName, p.factionSlug),
+                            }}
+                          >
+                            {p.factionName}
+                          </span>
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
                       <td className="is-plus">
                         <BdAmount n={p.total} />
                       </td>
@@ -1315,7 +1343,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
                   ))}
                   {!playersSorted.length ? (
                     <tr>
-                      <td colSpan={4} className="muted">
+                      <td colSpan={5} className="muted">
                         Пока никто не капнул гринд B$ в казну.
                       </td>
                     </tr>

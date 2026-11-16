@@ -491,12 +491,15 @@ export function grindMatchChronoKey(m: {
 export type GrindPlayerSummary = {
   userId: string;
   nick: string;
+  factionId: string | null;
+  factionName: string | null;
+  factionSlug: string | null;
   total: number;
   matches: number;
   avgPerMatch: number;
 };
 
-/** Игроки с гриндом: ник / всего / игр / среднее за катку (убыв. по сумме). */
+/** Игроки с гриндом: ник / фракция / всего / игр / среднее за катку (убыв. по сумме). */
 export async function loadGrindPlayerSummaries(): Promise<GrindPlayerSummary[]> {
   const entries = await prisma.factionLedgerEntry.findMany({
     where: { kind: "grind", userId: { not: null }, amount: { gt: 0 } },
@@ -518,20 +521,36 @@ export async function loadGrindPlayerSummaries(): Promise<GrindPlayerSummary[]> 
   }
 
   const userIds = [...byUser.keys()];
-  const users = await prisma.user.findMany({
-    where: { id: { in: userIds } },
-    select: { id: true, nick: true, steamName: true },
-  });
+  const [users, memberships] = await Promise.all([
+    prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, nick: true, steamName: true },
+    }),
+    prisma.factionMember.findMany({
+      where: { userId: { in: userIds } },
+      select: {
+        userId: true,
+        faction: { select: { id: true, name: true, slug: true } },
+      },
+    }),
+  ]);
   const nickById = new Map(
     users.map((u) => [u.id, (u.nick || u.steamName || "—").trim() || "—"] as const),
+  );
+  const factionByUser = new Map(
+    memberships.map((m) => [m.userId, m.faction] as const),
   );
 
   const out: GrindPlayerSummary[] = userIds.map((userId) => {
     const cell = byUser.get(userId)!;
     const matches = cell.matches.size;
+    const fac = factionByUser.get(userId) || null;
     return {
       userId,
       nick: nickById.get(userId) || "—",
+      factionId: fac?.id || null,
+      factionName: fac?.name || null,
+      factionSlug: fac?.slug || null,
       total: cell.total,
       matches,
       avgPerMatch: matches > 0 ? Math.round(cell.total / matches) : 0,
