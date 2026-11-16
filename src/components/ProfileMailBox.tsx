@@ -153,7 +153,9 @@ export function ProfileMailBox() {
                 <div>
                   <p
                     className={`profile-mail-modal-from${
-                      open.senderKind === "developer"
+                      open.senderKind === "transfer"
+                        ? " is-transfer"
+                        : open.senderKind === "developer"
                         ? " is-dev"
                         : open.senderKind === "sri"
                           ? " is-sri"
@@ -291,11 +293,13 @@ export function ProfileMailBox() {
                 <span className="profile-mail-copy">
                   <span
                     className={`profile-mail-from${
-                      letter.senderKind === "developer"
-                        ? " is-dev"
-                        : letter.senderKind === "sri"
-                          ? " is-sri"
-                          : ""
+                      letter.senderKind === "transfer"
+                        ? " is-transfer"
+                        : letter.senderKind === "developer"
+                          ? " is-dev"
+                          : letter.senderKind === "sri"
+                            ? " is-sri"
+                            : ""
                     }`}
                   >
                     от {letter.senderLabel}

@@ -3071,6 +3071,22 @@ button.mail-tag {
   font-weight: 700;
 }
 
+.profile-mail-from.is-transfer,
+.admin-mail-preview .is-transfer,
+.profile-mail-modal-from.is-transfer {
+  color: #c084fc;
+  font-weight: 700;
+}
+
+.profile-mail-row:has(.profile-mail-from.is-transfer) {
+  border-left: 3px solid #a855f7;
+  background: linear-gradient(90deg, rgba(168, 85, 247, 0.12), transparent 55%);
+}
+
+.profile-match-modal:has(.profile-mail-modal-from.is-transfer) .profile-match-modal-panel {
+  box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.45), 0 18px 40px rgba(88, 28, 135, 0.35);
+}
+
 .profile-mail-purge {
   font-size: 1.05rem;
   font-weight: 800;

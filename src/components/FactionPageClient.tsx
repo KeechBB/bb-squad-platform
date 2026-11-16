@@ -36,12 +36,15 @@ import {
   FactionRatings,
   FactionWeekBoard,
 } from "@/components/FactionBoards";
+import { FactionTransfers } from "@/components/FactionTransfers";
+import { formatBd } from "@/lib/blueberryDollar";
 
 const TABS = [
   ["online", "Онлайн"],
   ["growth", "Развитие"],
   ["train", "Тренировки"],
   ["cw", "Участие КВ"],
+  ["transfers", "Трансферы"],
   ["analytics", "Аналитика"],
   ["ratings", "Рейтинги"],
 ] as const;
@@ -53,6 +56,8 @@ const TAB_NOTE: Record<TabId, string> = {
   growth: "Развитие игроков фракции появится здесь.",
   train: "Тренировки игроков фракции появятся здесь.",
   cw: "Участие в клановых войнах появится здесь.",
+  transfers:
+    "Доска трансферов, казна Черничных Долларов, дефицит ролей и сделки между фракциями.",
   analytics: "Статистика относительно других фракций появится здесь.",
   ratings: "Доли фракций на тренировках за последние 7 дней.",
 };
@@ -650,6 +655,9 @@ export function FactionPageClient({
                     Зам:{" "}
                     {view.deputyNicks.length ? view.deputyNicks.join(", ") : "не назначен"}
                   </p>
+                  <p>
+                    Казна: <strong>{formatBd(view.blueberryBalance ?? 0)}</strong>
+                  </p>
                   {view.tgUrl ? (
                     <p>
                       <a href={view.tgUrl} target="_blank" rel="noreferrer">
@@ -967,6 +975,9 @@ export function FactionPageClient({
             {tab === "growth" ? <FactionGrowthBoard slug={view.slug} loadKey={growthKey} /> : null}
             {tab === "train" ? <FactionWeekBoard slug={view.slug} kind="train" loadKey={trainKey} /> : null}
             {tab === "cw" ? <FactionWeekBoard slug={view.slug} kind="cw" loadKey={cwKey} /> : null}
+            {tab === "transfers" ? (
+              <FactionTransfers slug={view.slug} canManage={view.canManage || view.keech} />
+            ) : null}
             {tab === "analytics" ? (
               <FactionAnalytics slug={view.slug} loadKey={analyticsKey} />
             ) : null}

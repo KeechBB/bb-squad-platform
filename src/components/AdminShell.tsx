@@ -13,6 +13,7 @@ import { AdminKeechHuntPanel } from "@/components/AdminKeechHuntPanel";
 import { AdminLoadPanel } from "@/components/AdminLoadPanel";
 import { AdminMailPanel } from "@/components/AdminMailPanel";
 import { AdminMarketLogPanel } from "@/components/AdminMarketLogPanel";
+import { AdminTransfersPanel } from "@/components/AdminTransfersPanel";
 import type { AppRole } from "@/lib/roles";
 
 type Props = {
@@ -39,7 +40,8 @@ type Tab =
   | "hunt"
   | "load"
   | "mail"
-  | "market";
+  | "market"
+  | "transfers";
 
 const TAB_LEAD: Record<Tab, string> = {
   users: "Пользователи платформы. Кликни по нику — правка анкеты и аватара.",
@@ -63,6 +65,8 @@ const TAB_LEAD: Record<Tab, string> = {
   mail: "Письмо в почту профиля: от разработчика, администрации, отдела кадров или со своей подписью.",
   market:
     "Лог торговой площадки: покупки и продажи нашивок, фонов и шрифтов — время, ник, цена BBC.",
+  transfers:
+    "Трансферное окно фракций: открыть/закрыть, даты паузы, прогон гринда Черничных Долларов с тренировок.",
 };
 
 function readTab(
@@ -80,7 +84,8 @@ function readTab(
     t === "updates" ||
     t === "factions" ||
     t === "load" ||
-    t === "market"
+    t === "market" ||
+    t === "transfers"
   )
     return t;
   if (t === "tiers") return "factions";
@@ -118,6 +123,10 @@ export function AdminShell({
       return;
     }
     if (tab === "hunt" && !showKeechHunt) {
+      setTab("users");
+      return;
+    }
+    if (tab === "transfers" && !showKeechHunt) {
       setTab("users");
       return;
     }
@@ -245,6 +254,15 @@ export function AdminShell({
           {showKeechHunt ? (
             <button
               type="button"
+              className={`admin-tab ${tab === "transfers" ? "active" : ""}`}
+              onClick={() => setTab("transfers")}
+            >
+              Трансферы
+            </button>
+          ) : null}
+          {showKeechHunt ? (
+            <button
+              type="button"
               className={`admin-tab ${tab === "hunt" ? "active" : ""}`}
               onClick={() => setTab("hunt")}
             >
@@ -289,6 +307,7 @@ export function AdminShell({
       {tab === "updates" ? <AdminUpdatesPanel /> : null}
       {tab === "mail" && showSiteVisits ? <AdminMailPanel /> : null}
       {tab === "visits" && showSiteVisits ? <AdminVisitsPanel /> : null}
+      {tab === "transfers" && showKeechHunt ? <AdminTransfersPanel /> : null}
       {tab === "hunt" && showKeechHunt ? <AdminKeechHuntPanel /> : null}
       {tab === "load" ? <AdminLoadPanel /> : null}
     </main>

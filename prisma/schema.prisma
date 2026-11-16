@@ -588,14 +588,135 @@ model Faction {
   logoUrl   String?
   tgUrl     String?
   info      String?
+  /// Казна Черничных Долларов (всё, что нагриндлили на трёнах + сделки).
+  blueberryBalance Int @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members FactionMember[]
-  roles   FactionRole[]
-  invites FactionInvite[]
+  members  FactionMember[]
+  roles    FactionRole[]
+  invites  FactionInvite[]
+  ledger   FactionLedgerEntry[]
+  listings TransferListing[] @relation("ListingFaction")
+  offers   TransferOffer[]   @relation("OfferFaction")
 
   @@index([clanId])
+}
+
+/// Движения казны фракции (гринд / сделки / правка Keech).
+model FactionLedgerEntry {
+  id        String   @id @default(cuid())
+  factionId String
+  faction   Faction  @relation(fields: [factionId], references: [id], onDelete: Cascade)
+  /// + в казну, − из казны
+  amount    Int
+  /// grind | transfer_in | transfer_out | admin_adjust
+  kind      String
+  /// Идемпотентность: grind:canonMatchId:userId и т.п.
+  sourceKey String   @unique
+  note      String?
+  userId    String?
+  matchId   String?
+  createdAt DateTime @default(now())
+
+  @@index([factionId, createdAt])
+  @@index([userId])
+}
+
+/// Глобальное трансферное окно (Keech в админке).
+model TransferWindowSetting {
+  id         String   @id @default("global")
+  open       Boolean  @default(true)
+  /// Закрыто с… по… (даты МСК, храним как UTC полночь границы)
+  closedFrom DateTime?
+  closedTo   DateTime?
+  note       String?
+  updatedBy  String?
+  updatedAt  DateTime @updatedAt
+}
+
+enum TransferListingStatus {
+  ACTIVE
+  WITHDRAWN
+  COMPLETED
+}
+
+enum TransferOfferType {
+  BUY
+  SWAP
+  SWAP_CASH
+}
+
+enum TransferOfferStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
+/// Игрок выставлен на трансфер.
+model TransferListing {
+  id             String                @id @default(cuid())
+  factionId      String
+  faction        Faction               @relation("ListingFaction", fields: [factionId], references: [id], onDelete: Cascade)
+  playerUserId   String
+  listedByUserId String
+  askPrice       Int
+  estimatePrice  Int?
+  status         TransferListingStatus @default(ACTIVE)
+  note           String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  offers       TransferOffer[]
+  priceEvents  TransferPriceEvent[]
+
+  @@index([status, createdAt])
+  @@index([factionId, status])
+  @@index([playerUserId, status])
+}
+
+model TransferPriceEvent {
+  id         String   @id @default(cuid())
+  listingId  String
+  listing    TransferListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  askPrice   Int
+  actorId    String
+  note       String?
+  createdAt  DateTime @default(now())
+
+  @@index([listingId, createdAt])
+}
+
+model TransferOffer {
+  id             String              @id @default(cuid())
+  listingId      String
+  listing        TransferListing     @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  fromFactionId  String
+  fromFaction    Faction             @relation("OfferFaction", fields: [fromFactionId], references: [id], onDelete: Cascade)
+  createdByUserId String
+  type           TransferOfferType
+  /// Сколько платит fromFaction листеру (для BUY / SWAP_CASH).
+  cashAmount     Int                 @default(0)
+  /// Кого предлагают взамен (SWAP / SWAP_CASH).
+  swapUserId     String?
+  status         TransferOfferStatus @default(PENDING)
+  message        String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@index([listingId, status])
+  @@index([fromFactionId, status])
+}
+
+/// Лок после трансфера (14 суток).
+model TransferLock {
+  userId          String   @id
+  until           DateTime
+  lastListingId   String?
+  note            String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 enum FactionInviteStatus {

@@ -80,6 +80,8 @@ export type FactionView = {
   logoUrl: string | null;
   tgUrl: string | null;
   info: string;
+  /** Казна Черничных Долларов */
+  blueberryBalance: number;
   leaderNick: string | null;
   deputyNicks: string[];
   roles: { id: string; name: string; isDeputy: boolean }[];
@@ -275,6 +277,7 @@ export async function loadFactionView(slug: string, steamId: string | null) {
     logoUrl: faction.logoUrl,
     tgUrl: faction.tgUrl,
     info: faction.info || "",
+    blueberryBalance: faction.blueberryBalance ?? 0,
     leaderNick: leader?.nick ?? null,
     deputyNicks: deputies,
     roles: faction.roles.map((r) => ({ id: r.id, name: r.name, isDeputy: r.isDeputy })),
