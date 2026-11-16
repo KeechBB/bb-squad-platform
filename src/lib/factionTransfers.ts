@@ -357,6 +357,111 @@ export async function creditGrindFromCanonMatch(matchId: string): Promise<{ cred
   return { credited };
 }
 
+export type GrindMatchFactionRow = {
+  factionId: string;
+  name: string;
+  slug: string;
+  amount: number;
+};
+
+export type GrindMatchSummary = {
+  matchId: string;
+  legacyId: string | null;
+  mapName: string;
+  serverKey: string;
+  dateLabel: string;
+  timeLabel: string;
+  year: number;
+  month: number;
+  day: number;
+  timeMsk: string | null;
+  total: number;
+  factions: GrindMatchFactionRow[];
+};
+
+/** Тренировки с гриндаом: дата / время / карта + заработок всех фракций (убыв.). */
+export async function loadGrindMatchSummaries(): Promise<GrindMatchSummary[]> {
+  const [entries, factions] = await Promise.all([
+    prisma.factionLedgerEntry.findMany({
+      where: { kind: "grind", matchId: { not: null }, amount: { gt: 0 } },
+      select: { matchId: true, factionId: true, amount: true },
+    }),
+    prisma.faction.findMany({
+      select: { id: true, name: true, slug: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+  if (!entries.length) return [];
+
+  const matchIds = [...new Set(entries.map((e) => e.matchId!).filter(Boolean))];
+  const matches = await prisma.canonMatch.findMany({
+    where: { id: { in: matchIds } },
+    select: {
+      id: true,
+      mapName: true,
+      serverKey: true,
+      legacyId: true,
+      year: true,
+      month: true,
+      day: true,
+      timeMsk: true,
+    },
+  });
+  const byMatch = new Map(matches.map((m) => [m.id, m]));
+
+  type Agg = Map<string, number>;
+  const perMatch = new Map<string, Agg>();
+  for (const e of entries) {
+    const mid = e.matchId!;
+    if (!perMatch.has(mid)) perMatch.set(mid, new Map());
+    const agg = perMatch.get(mid)!;
+    agg.set(e.factionId, (agg.get(e.factionId) || 0) + e.amount);
+  }
+
+  const out: GrindMatchSummary[] = [];
+  for (const [matchId, agg] of perMatch) {
+    const m = byMatch.get(matchId);
+    if (!m) continue;
+    const factionRows: GrindMatchFactionRow[] = factions.map((f) => ({
+      factionId: f.id,
+      name: f.name,
+      slug: f.slug,
+      amount: agg.get(f.id) || 0,
+    }));
+    factionRows.sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name, "ru"));
+    const total = factionRows.reduce((s, r) => s + r.amount, 0);
+    const dd = String(m.day).padStart(2, "0");
+    const mm = String(m.month).padStart(2, "0");
+    out.push({
+      matchId,
+      legacyId: m.legacyId,
+      mapName: m.mapName || "—",
+      serverKey: m.serverKey || "",
+      dateLabel: `${dd}.${mm}.${m.year}`,
+      timeLabel: m.timeMsk || "—",
+      year: m.year,
+      month: m.month,
+      day: m.day,
+      timeMsk: m.timeMsk,
+      total,
+      factions: factionRows,
+    });
+  }
+
+  out.sort((a, b) => {
+    const ka = a.year * 1_000_000 + a.month * 10_000 + a.day * 100 + timeToMin(a.timeMsk);
+    const kb = b.year * 1_000_000 + b.month * 10_000 + b.day * 100 + timeToMin(b.timeMsk);
+    return kb - ka;
+  });
+  return out;
+}
+
+function timeToMin(t: string | null | undefined): number {
+  if (!t) return 0;
+  const [h, m] = String(t).split(":").map((x) => Number(x) || 0);
+  return h * 60 + m;
+}
+
 /** Прогнать гринд по недавним TRAIN на TR1–TR5 (ключ в БД часто lowercase). */
 export async function creditGrindRecentTrains(limit = 40): Promise<number> {
   const serverKeys = [

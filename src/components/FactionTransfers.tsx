@@ -5,7 +5,7 @@ import { BdAmount } from "@/components/BdMark";
 import { DraggableModal } from "@/components/DraggableModal";
 import { useFitTablePage } from "@/lib/useFitTablePage";
 
-type XferSubTab = "desk" | "ledger" | "market" | "closed";
+type XferSubTab = "desk" | "ledger" | "market" | "closed" | "trains";
 
 function xferSubTabKey(slug: string, staff: boolean) {
   return `bb-xfer-subtab:${slug}:${staff ? "staff" : "member"}`;
@@ -14,8 +14,13 @@ function xferSubTabKey(slug: string, staff: boolean) {
 function normalizeXferSubTab(v: string | null, staff: boolean): XferSubTab | null {
   if (!v) return null;
   if (v === "deals") return "market"; // старое имя вкладки
-  if (staff && (v === "desk" || v === "ledger" || v === "market" || v === "closed")) return v;
-  if (!staff && (v === "ledger" || v === "market" || v === "closed")) return v;
+  if (
+    staff &&
+    (v === "desk" || v === "ledger" || v === "market" || v === "closed" || v === "trains")
+  ) {
+    return v;
+  }
+  if (!staff && (v === "ledger" || v === "market" || v === "closed" || v === "trains")) return v;
   return null;
 }
 
@@ -168,10 +173,29 @@ type Payload = {
   incomingOffers: OfferRow[];
   listable: Listable[];
   ledger: { id: string; amount: number; kind: string; note: string | null; label: string; createdAt: string }[];
+  grindMatches?: GrindMatchRow[];
   deals?: {
     pending: DealRow[];
     closed: DealRow[];
   };
+};
+
+type GrindMatchFaction = {
+  factionId: string;
+  name: string;
+  slug: string;
+  amount: number;
+};
+
+type GrindMatchRow = {
+  matchId: string;
+  legacyId: string | null;
+  mapName: string;
+  serverKey: string;
+  dateLabel: string;
+  timeLabel: string;
+  total: number;
+  factions: GrindMatchFaction[];
 };
 
 type DealRow = {
@@ -297,6 +321,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
   const [msg, setMsg] = useState<string | null>(null);
   const [analytics, setAnalytics] = useState<AnalyticsTarget | null>(null);
   const [reviewOfferId, setReviewOfferId] = useState<string | null>(null);
+  const [grindMatchId, setGrindMatchId] = useState<string | null>(null);
   const [subTab, setSubTab] = useState<XferSubTab>(() =>
     readXferSubTab(slug, canManage),
   );
@@ -419,9 +444,15 @@ export function FactionTransfers({ slug, canManage }: Props) {
   const ledgerRows = data?.ledger ?? [];
   const pendingDeals = data?.deals?.pending ?? [];
   const closedDeals = data?.deals?.closed ?? [];
+  const grindMatches = data?.grindMatches ?? [];
   const ledgerPage = useFitTablePage(ledgerRows.length, Boolean(data) && subTab === "ledger");
   const pendingPage = useFitTablePage(pendingDeals.length, Boolean(data) && subTab === "market");
   const closedPage = useFitTablePage(closedDeals.length, Boolean(data) && subTab === "closed");
+  const trainsPage = useFitTablePage(grindMatches.length, Boolean(data) && subTab === "trains");
+  const grindMatchOpen = useMemo(
+    () => grindMatches.find((m) => m.matchId === grindMatchId) || null,
+    [grindMatches, grindMatchId],
+  );
 
   useEffect(() => {
     const next = readXferSubTab(slug, isStaff);
@@ -449,6 +480,10 @@ export function FactionTransfers({ slug, canManage }: Props) {
   const closedVisible = closedDeals.slice(
     closedPage.safePage * closedPage.pageSize,
     closedPage.safePage * closedPage.pageSize + closedPage.pageSize,
+  );
+  const trainsVisible = grindMatches.slice(
+    trainsPage.safePage * trainsPage.pageSize,
+    trainsPage.safePage * trainsPage.pageSize + trainsPage.pageSize,
   );
 
   if (err && !data) {
@@ -514,6 +549,13 @@ export function FactionTransfers({ slug, canManage }: Props) {
           onClick={() => selectSubTab("closed")}
         >
           Успешные сделки
+        </button>
+        <button
+          type="button"
+          className={`admin-tab${subTab === "trains" ? " active" : ""}`}
+          onClick={() => selectSubTab("trains")}
+        >
+          Тренировочные матчи
         </button>
       </div>
 
@@ -872,6 +914,101 @@ export function FactionTransfers({ slug, canManage }: Props) {
           </div>
           <XferPager page={closedPage} total={closedDeals.length} />
         </div>
+      ) : null}
+
+      {subTab === "trains" ? (
+        <div className="xfer-tab-body xfer-tables">
+          <div className="xfer-fit" ref={trainsPage.fitRef}>
+            <div className="xfer-table-wrap">
+              <table className="xfer-table">
+                <thead>
+                  <tr>
+                    <th>Дата</th>
+                    <th>Время</th>
+                    <th>Карта</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {trainsVisible.map((m) => (
+                    <tr
+                      key={m.matchId}
+                      className="xfer-row-click"
+                      onClick={() => setGrindMatchId(m.matchId)}
+                    >
+                      <td>{m.dateLabel}</td>
+                      <td>{m.timeLabel}</td>
+                      <td>
+                        {m.mapName}
+                        {m.serverKey ? (
+                          <span className="muted"> · {String(m.serverKey).toUpperCase()}</span>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                  {!grindMatches.length ? (
+                    <tr>
+                      <td colSpan={3} className="muted">
+                        Пока нет тренировок с гриндом B$.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <XferPager page={trainsPage} total={grindMatches.length} />
+        </div>
+      ) : null}
+
+      {grindMatchOpen ? (
+        <DraggableModal open closeOnBackdrop onClose={() => setGrindMatchId(null)}>
+          <div className="xfer-modal profile-match-modal">
+            <div className="profile-match-modal-head" data-drag-handle>
+              <div>
+                <h3 style={{ margin: 0 }}>{grindMatchOpen.mapName}</h3>
+                <p className="muted" style={{ margin: "0.25rem 0 0" }}>
+                  {grindMatchOpen.dateLabel} · {grindMatchOpen.timeLabel}
+                  {grindMatchOpen.serverKey
+                    ? ` · ${String(grindMatchOpen.serverKey).toUpperCase()}`
+                    : ""}
+                </p>
+              </div>
+              <button type="button" className="btn" onClick={() => setGrindMatchId(null)}>
+                Закрыть
+              </button>
+            </div>
+            <p className="muted" style={{ margin: "0 0 0.75rem" }}>
+              Кто больше заработал B$ в этой катке (все фракции)
+            </p>
+            <div className="xfer-table-wrap">
+              <table className="xfer-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Фракция</th>
+                    <th>Заработано</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {grindMatchOpen.factions.map((f, i) => (
+                    <tr key={f.factionId}>
+                      <td>{i + 1}</td>
+                      <td>
+                        <strong>{f.name}</strong>
+                      </td>
+                      <td className={f.amount > 0 ? "is-plus" : "muted"}>
+                        {f.amount > 0 ? <BdAmount n={f.amount} signed /> : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="muted" style={{ margin: "0.75rem 0 0" }}>
+              Всего по матчу: <BdAmount n={grindMatchOpen.total} />
+            </p>
+          </div>
+        </DraggableModal>
       ) : null}
 
       {offerListingId && offerTarget && isStaff ? (
