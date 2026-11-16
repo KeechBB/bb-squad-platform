@@ -472,7 +472,9 @@ export function FactionTransfers({ slug, canManage }: Props) {
         </div>
         {isStaff ? (
           <div className={`xfer-window ${data.window.isOpen ? "is-open" : "is-closed"}`}>
-            {data.window.isOpen ? "Окно открыто" : data.window.reason || "Окно закрыто"}
+            {data.window.isOpen
+              ? "Трансферное окно открыто"
+              : data.window.reason || "Трансферное окно закрыто"}
           </div>
         ) : null}
       </div>
