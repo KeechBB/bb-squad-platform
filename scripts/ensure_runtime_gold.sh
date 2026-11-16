@@ -99,7 +99,9 @@ if [[ -d "$GOLD/kv-data/training" ]]; then
     fi
   done
 fi
-for f in training-index.json tiers.json index.json; do
+for f in training-index.json tiers.json index.json \
+  rifle-ladder.json medic-ladder.json lat-ladder.json \
+  mvp-ledger.json nick-patches.json factions.json; do
   if [[ -f "$GOLD/kv-data/$f" && ( ! -f "$CACHE/data/$f" || ! -s "$CACHE/data/$f" ) ]]; then
     mkdir -p "$CACHE/data"
     cp -a "$GOLD/kv-data/$f" "$CACHE/data/$f"

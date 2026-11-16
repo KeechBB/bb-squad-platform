@@ -226,8 +226,9 @@ def one_pass() -> int:
             if fresh:
                 scan.append(path)
         known = {}
+    missing = [p for p in LADDERS if not p.is_file() or p.stat().st_size < 32]
     ts, where = newest_finish(scan, known, after)
-    if ts is None:
+    if ts is None and not missing:
         save_state(now, sizes)
         print(
             "skip no new round since",
@@ -237,13 +238,20 @@ def one_pass() -> int:
         )
         return 0
 
-    print(
-        "new round",
-        ts.strftime("%Y-%m-%d %H:%M:%S"),
-        "UTC",
-        where,
-        flush=True,
-    )
+    if missing:
+        print(
+            "heal missing ladders",
+            ", ".join(p.name for p in missing),
+            flush=True,
+        )
+    if ts is not None:
+        print(
+            "new round",
+            ts.strftime("%Y-%m-%d %H:%M:%S"),
+            "UTC",
+            where,
+            flush=True,
+        )
     code = rebuild()
     if code != 0:
         print("stamp kept, next pour retries", flush=True)
