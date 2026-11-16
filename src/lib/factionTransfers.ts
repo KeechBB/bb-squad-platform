@@ -401,6 +401,7 @@ export async function loadPlayerPriceStats(
       res30: 0,
       nok30: 0,
       lastSeenDaysAgo: null,
+      grindBroughtBd: 0,
     });
   }
   if (!uniq.length) return out;
@@ -410,6 +411,18 @@ export async function loadPlayerPriceStats(
     where: { id: { in: uniq } },
     select: { id: true, nick: true, steamName: true, steamId: true, lastSeenAt: true },
   });
+
+  // Сколько B$ игрок принёс гриндаом в казны (все проводки grind по userId).
+  const grindRows = await prisma.factionLedgerEntry.groupBy({
+    by: ["userId"],
+    where: { kind: "grind", userId: { in: uniq }, amount: { gt: 0 } },
+    _sum: { amount: true },
+  });
+  for (const g of grindRows) {
+    if (!g.userId) continue;
+    const row = out.get(g.userId);
+    if (row) row.grindBroughtBd = g._sum.amount || 0;
+  }
 
   const userByNickKey = new Map<string, string>();
   for (const u of users) {
@@ -490,6 +503,7 @@ export function estimateWithKit(
       res30: 0,
       nok30: 0,
       lastSeenDaysAgo: null,
+      grindBroughtBd: 0,
     }),
     kitKey,
     scarcityLevel: scarcityLevel ?? stats?.scarcityLevel,
@@ -562,6 +576,7 @@ export async function loadListingBoard(opts?: {
                 ? Math.round((st.kills30 / st.deaths30) * 100) / 100
                 : st.kills30,
             lastSeenDaysAgo: st.lastSeenDaysAgo,
+            grindBroughtBd: st.grindBroughtBd || 0,
           }
         : null,
     };

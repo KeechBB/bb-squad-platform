@@ -187,6 +187,7 @@ export async function GET(_req: Request, ctx: Ctx) {
                 ? Math.round((st.kills30 / st.deaths30) * 100) / 100
                 : st.kills30,
             lastSeenDaysAgo: st.lastSeenDaysAgo,
+            grindBroughtBd: st.grindBroughtBd || 0,
           }
         : null,
     };
@@ -236,6 +237,7 @@ export async function GET(_req: Request, ctx: Ctx) {
               st.deaths30 > 0
                 ? Math.round((st.kills30 / st.deaths30) * 100) / 100
                 : st.kills30,
+            grindBroughtBd: st.grindBroughtBd || 0,
           }
         : null,
     };

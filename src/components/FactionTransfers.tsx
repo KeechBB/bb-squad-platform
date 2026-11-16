@@ -85,6 +85,7 @@ type PlayerStats = {
   nok30?: number;
   kd: number;
   lastSeenDaysAgo?: number | null;
+  grindBroughtBd?: number;
 };
 
 type BoardRow = {
@@ -268,6 +269,14 @@ function StatsBlock({ stats }: { stats: PlayerStats | null }) {
           <span className="muted">Был на сайте</span>
           <strong>
             {stats.lastSeenDaysAgo === 0 ? "сегодня" : `${stats.lastSeenDaysAgo} дн. назад`}
+          </strong>
+        </div>
+      ) : null}
+      {stats.grindBroughtBd != null && stats.grindBroughtBd > 0 ? (
+        <div>
+          <span className="muted">Гринд в казну</span>
+          <strong>
+            <BdAmount n={stats.grindBroughtBd} />
           </strong>
         </div>
       ) : null}

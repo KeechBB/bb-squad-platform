@@ -14,7 +14,7 @@ export const BD_NAME = "Черничный Доллар";
 /** Подпись к расчётной цене на доске / при выставлении. */
 export const ESTIMATE_LABEL = "оценочная стоимость";
 export const ESTIMATE_HINT =
-  "Оценка по явке на TR1–TR5, киллам/ресам/KD за 30 дней и редкости роли. Цена на доске — не ниже 80% от оценки.";
+  "Оценка по явке на TR1–TR5, киллам/ресам/KD, редкости роли + сколько B$ игрок принёс в казну гринда (до 1 000). Цена на доске — не ниже 80% от оценки.";
 
 /** Минимальный состав фракции для участия в трансферах. */
 export const TRANSFER_MIN_ROSTER = 30;
@@ -54,6 +54,11 @@ export type PlayerPriceStats = {
   nok30: number;
   /** Дней с lastSeenAt (если давно — штраф). */
   lastSeenDaysAgo: number | null;
+  /**
+   * Сколько B$ игрок капнул в казну гринда (сумма проводок kind=grind).
+   * К оценке плюсуется, округлённое до 1 000.
+   */
+  grindBroughtBd?: number;
 };
 
 function clamp(n: number, lo: number, hi: number) {
@@ -90,7 +95,13 @@ function scarcityMult(level: ScarcityForPrice): number {
  * × роль
  * × дефицит роли во фракции
  * × свежесть онлайна на сайте
+ * + гринд в казну (округление до 1 000)
  */
+export function roundGrindBonus(grindBroughtBd: number): number {
+  const n = Math.max(0, Number(grindBroughtBd) || 0);
+  return Math.round(n / 1_000) * 1_000;
+}
+
 export function estimatePlayerPrice(stats: Partial<PlayerPriceStats> & {
   /** @deprecated leftover stub */
   sri?: number | null;
@@ -130,7 +141,8 @@ export function estimatePlayerPrice(stats: Partial<PlayerPriceStats> & {
     freshness;
 
   const rounded = Math.round(raw / 500) * 500;
-  return Math.max(ESTIMATE_FLOOR, rounded);
+  const grindBonus = roundGrindBonus(Number(stats.grindBroughtBd) || 0);
+  return Math.max(ESTIMATE_FLOOR, rounded + grindBonus);
 }
 
 /** Тарифы гринда → казна фракции. Линейно, без потолка за катку. */
