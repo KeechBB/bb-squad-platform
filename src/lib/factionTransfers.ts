@@ -293,24 +293,48 @@ export async function creditGrindFromCanonMatch(matchId: string): Promise<{ cred
   });
   if (!inTrainStats) return { credited: 0 };
 
-  // Резолв ника → user. При коллизии (два FLEX) предпочитаем аккаунт во фракции.
+  // Резолв личности: Steam ID → User, иначе ник.
+  // При коллизии ников предпочитаем участника BB + фракции (не пустой дубль).
   const users = await prisma.user.findMany({
-    where: { OR: [{ nick: { not: null } }, { steamName: { not: null } }] },
+    where: {
+      OR: [
+        { nick: { not: null } },
+        { steamName: { not: null } },
+        { steamId: { not: "" } },
+      ],
+    },
     select: {
       id: true,
       nick: true,
       steamName: true,
+      steamId: true,
       factionMembership: { select: { factionId: true } },
+      clanMemberships: {
+        where: { clan: { tag: "BB", isExternal: false } },
+        select: { id: true },
+        take: 1,
+      },
     },
   });
+  const steamToUserId = new Map<string, string>();
+  const userIdToSteam = new Map<string, string>();
   const nickToUserId = new Map<string, string>();
   const nickToFactionUserId = new Map<string, string>();
+  const nickToBbFactionUserId = new Map<string, string>();
   for (const u of users) {
+    const sid = String(u.steamId || "").trim();
+    if (sid) {
+      steamToUserId.set(sid, u.id);
+      userIdToSteam.set(u.id, sid);
+    }
+    const inBb = (u.clanMemberships?.length || 0) > 0;
+    const inFaction = Boolean(u.factionMembership);
     const keys = [u.nick, u.steamName].map((x) => nickCompact(x || "")).filter(Boolean);
     for (const k of keys) {
       if (!nickToUserId.has(k)) nickToUserId.set(k, u.id);
-      if (u.factionMembership && !nickToFactionUserId.has(k)) {
-        nickToFactionUserId.set(k, u.id);
+      if (inFaction && !nickToFactionUserId.has(k)) nickToFactionUserId.set(k, u.id);
+      if (inBb && inFaction && !nickToBbFactionUserId.has(k)) {
+        nickToBbFactionUserId.set(k, u.id);
       }
     }
   }
@@ -318,16 +342,24 @@ export async function creditGrindFromCanonMatch(matchId: string): Promise<{ cred
   let credited = 0;
   for (const p of match.players) {
     const nickKey = nickCompact(p.nick);
-    let userId = p.userId || nickToFactionUserId.get(nickKey) || nickToUserId.get(nickKey) || null;
+    const steam = String(p.steamId || "").trim();
+    let userId =
+      (steam && steamToUserId.get(steam)) ||
+      nickToBbFactionUserId.get(nickKey) ||
+      nickToFactionUserId.get(nickKey) ||
+      p.userId ||
+      nickToUserId.get(nickKey) ||
+      null;
     if (!userId) continue;
 
     let membership = await prisma.factionMember.findFirst({
       where: { userId },
       select: { factionId: true },
     });
-    // Canon мог привязать «чужой» дубль ника без фракции — берём однофамильца во фракции.
+    // Canon / дубль ника без фракции — перекидываем на BB+фракцию или просто фракцию.
     if (!membership && nickKey) {
-      const alt = nickToFactionUserId.get(nickKey);
+      const alt =
+        nickToBbFactionUserId.get(nickKey) || nickToFactionUserId.get(nickKey) || null;
       if (alt && alt !== userId) {
         userId = alt;
         membership = await prisma.factionMember.findFirst({
@@ -338,9 +370,16 @@ export async function creditGrindFromCanonMatch(matchId: string): Promise<{ cred
     }
     if (!membership) continue;
 
-    if (p.userId !== userId) {
+    const resolvedSteam = steam || userIdToSteam.get(userId) || null;
+    if (p.userId !== userId || (resolvedSteam && p.steamId !== resolvedSteam)) {
       await prisma.canonMatchPlayer
-        .update({ where: { id: p.id }, data: { userId } })
+        .update({
+          where: { id: p.id },
+          data: {
+            userId,
+            ...(resolvedSteam ? { steamId: resolvedSteam } : {}),
+          },
+        })
         .catch(() => null);
     }
     const amount = grindAmountFromTrainStats({
