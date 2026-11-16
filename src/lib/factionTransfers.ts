@@ -10,6 +10,7 @@ import {
 } from "@/lib/blueberryDollar";
 import { mainKitByUserIds } from "@/lib/squadRoles";
 import { isTrainingServerKey, TRAINING_SERVER_KEYS } from "@/lib/squadServers";
+import { profileHistoryKey } from "@/lib/nickCollisions";
 
 export type ScarcityLevel = "ok" | "thin" | "critical" | "surplus";
 
@@ -320,7 +321,10 @@ export async function creditGrindRecentTrains(limit = 40): Promise<number> {
   return n;
 }
 
-/** Стата для оценочной стоимости: TR1–TR5, 14д явка / 30д бой + lastSeen. */
+/**
+ * Стата для оценочной стоимости / аналитики трансфера.
+ * Источник = личный профиль: ProfileMatchLine kind=train (как вкладка тренировок).
+ */
 export async function loadPlayerPriceStats(
   userIds: string[],
 ): Promise<Map<string, PlayerPriceStats>> {
@@ -342,56 +346,61 @@ export async function loadPlayerPriceStats(
   const now = Date.now();
   const users = await prisma.user.findMany({
     where: { id: { in: uniq } },
-    select: { id: true, lastSeenAt: true },
+    select: { id: true, nick: true, steamName: true, steamId: true, lastSeenAt: true },
   });
+
+  const userByNickKey = new Map<string, string>();
   for (const u of users) {
     const row = out.get(u.id)!;
     if (u.lastSeenAt) {
       row.lastSeenDaysAgo = Math.floor((now - u.lastSeenAt.getTime()) / 86_400_000);
     }
+    const nick = (u.nick || u.steamName || "").trim();
+    if (!nick) continue;
+    const key = profileHistoryKey(nick, u.steamId);
+    if (key) userByNickKey.set(key, u.id);
   }
 
+  const nickKeys = [...userByNickKey.keys()];
+  if (!nickKeys.length) return out;
+
   const since30 = new Date(now - 30 * 86_400_000);
-  const since14 = new Date(now - 14 * 86_400_000);
-  const rows = await prisma.canonMatchPlayer.findMany({
+  const ymd30 = since30.toISOString().slice(0, 10);
+  const ymd14 = new Date(now - 14 * 86_400_000).toISOString().slice(0, 10);
+
+  const lines = await prisma.profileMatchLine.findMany({
     where: {
-      userId: { in: uniq },
-      match: {
-        kind: "TRAIN",
-        serverKey: { in: [...TRAINING_SERVER_KEYS] },
-        OR: [{ endedAt: { gte: since30 } }, { endedAt: null, createdAt: { gte: since30 } }],
-      },
+      kind: "train",
+      nickKey: { in: nickKeys },
+      playedOn: { gte: ymd30 },
     },
     select: {
-      userId: true,
+      nickKey: true,
+      matchId: true,
+      playedOn: true,
       kills: true,
       deaths: true,
       res: true,
       nok: true,
-      match: { select: { id: true, endedAt: true, createdAt: true, day: true, month: true, year: true } },
     },
   });
 
   const days14 = new Map<string, Set<string>>();
   const matches30 = new Map<string, Set<string>>();
-  for (const r of rows) {
-    if (!r.userId) continue;
-    const row = out.get(r.userId);
+  for (const line of lines) {
+    const uid = userByNickKey.get(line.nickKey);
+    if (!uid) continue;
+    const row = out.get(uid);
     if (!row) continue;
-    const ended = r.match.endedAt || r.match.createdAt;
-    const ymd =
-      ended
-        ? ended.toISOString().slice(0, 10)
-        : `${r.match.year}-${String(r.match.month).padStart(2, "0")}-${String(r.match.day).padStart(2, "0")}`;
-    if (!matches30.has(r.userId)) matches30.set(r.userId, new Set());
-    matches30.get(r.userId)!.add(r.match.id);
-    row.kills30 += r.kills;
-    row.deaths30 += r.deaths;
-    row.res30 += r.res;
-    row.nok30 += r.nok;
-    if (ended && ended >= since14) {
-      if (!days14.has(r.userId)) days14.set(r.userId, new Set());
-      days14.get(r.userId)!.add(ymd);
+    if (!matches30.has(uid)) matches30.set(uid, new Set());
+    matches30.get(uid)!.add(line.matchId || `${line.playedOn}:${line.kills}:${line.deaths}`);
+    row.kills30 += line.kills;
+    row.deaths30 += line.deaths;
+    row.res30 += line.res;
+    row.nok30 += line.nok;
+    if (line.playedOn >= ymd14) {
+      if (!days14.has(uid)) days14.set(uid, new Set());
+      days14.get(uid)!.add(line.playedOn);
     }
   }
   for (const [uid, set] of days14) {
