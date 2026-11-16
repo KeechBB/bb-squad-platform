@@ -5,6 +5,8 @@ import {
   TRANSFER_MIN_ROSTER,
   estimatePlayerPrice,
   grindAmountFromTrainStats,
+  type PlayerPriceStats,
+  type ScarcityForPrice,
 } from "@/lib/blueberryDollar";
 import { mainKitByUserIds } from "@/lib/squadRoles";
 import { isTrainingServerKey, TRAINING_SERVER_KEYS } from "@/lib/squadServers";
@@ -318,7 +320,114 @@ export async function creditGrindRecentTrains(limit = 40): Promise<number> {
   return n;
 }
 
-export async function loadListingBoard() {
+/** Стата для оценочной стоимости: TR1–TR5, 14д явка / 30д бой + lastSeen. */
+export async function loadPlayerPriceStats(
+  userIds: string[],
+): Promise<Map<string, PlayerPriceStats>> {
+  const out = new Map<string, PlayerPriceStats>();
+  const uniq = [...new Set(userIds.filter(Boolean))];
+  for (const id of uniq) {
+    out.set(id, {
+      trainDays14: 0,
+      matches30: 0,
+      kills30: 0,
+      deaths30: 0,
+      res30: 0,
+      nok30: 0,
+      lastSeenDaysAgo: null,
+    });
+  }
+  if (!uniq.length) return out;
+
+  const now = Date.now();
+  const users = await prisma.user.findMany({
+    where: { id: { in: uniq } },
+    select: { id: true, lastSeenAt: true },
+  });
+  for (const u of users) {
+    const row = out.get(u.id)!;
+    if (u.lastSeenAt) {
+      row.lastSeenDaysAgo = Math.floor((now - u.lastSeenAt.getTime()) / 86_400_000);
+    }
+  }
+
+  const since30 = new Date(now - 30 * 86_400_000);
+  const since14 = new Date(now - 14 * 86_400_000);
+  const rows = await prisma.canonMatchPlayer.findMany({
+    where: {
+      userId: { in: uniq },
+      match: {
+        kind: "TRAIN",
+        serverKey: { in: [...TRAINING_SERVER_KEYS] },
+        OR: [{ endedAt: { gte: since30 } }, { endedAt: null, createdAt: { gte: since30 } }],
+      },
+    },
+    select: {
+      userId: true,
+      kills: true,
+      deaths: true,
+      res: true,
+      nok: true,
+      match: { select: { id: true, endedAt: true, createdAt: true, day: true, month: true, year: true } },
+    },
+  });
+
+  const days14 = new Map<string, Set<string>>();
+  const matches30 = new Map<string, Set<string>>();
+  for (const r of rows) {
+    if (!r.userId) continue;
+    const row = out.get(r.userId);
+    if (!row) continue;
+    const ended = r.match.endedAt || r.match.createdAt;
+    const ymd =
+      ended
+        ? ended.toISOString().slice(0, 10)
+        : `${r.match.year}-${String(r.match.month).padStart(2, "0")}-${String(r.match.day).padStart(2, "0")}`;
+    if (!matches30.has(r.userId)) matches30.set(r.userId, new Set());
+    matches30.get(r.userId)!.add(r.match.id);
+    row.kills30 += r.kills;
+    row.deaths30 += r.deaths;
+    row.res30 += r.res;
+    row.nok30 += r.nok;
+    if (ended && ended >= since14) {
+      if (!days14.has(r.userId)) days14.set(r.userId, new Set());
+      days14.get(r.userId)!.add(ymd);
+    }
+  }
+  for (const [uid, set] of days14) {
+    const row = out.get(uid);
+    if (row) row.trainDays14 = set.size;
+  }
+  for (const [uid, set] of matches30) {
+    const row = out.get(uid);
+    if (row) row.matches30 = set.size;
+  }
+  return out;
+}
+
+export function estimateWithKit(
+  stats: PlayerPriceStats | undefined,
+  kitKey: string | null | undefined,
+  scarcityLevel?: ScarcityForPrice,
+): number {
+  return estimatePlayerPrice({
+    ...(stats || {
+      trainDays14: 0,
+      matches30: 0,
+      kills30: 0,
+      deaths30: 0,
+      res30: 0,
+      nok30: 0,
+      lastSeenDaysAgo: null,
+    }),
+    kitKey,
+    scarcityLevel: scarcityLevel ?? stats?.scarcityLevel,
+  });
+}
+
+export async function loadListingBoard(opts?: {
+  buyerScarcityByKit?: Record<string, ScarcityForPrice>;
+}) {
   const listings = await prisma.transferListing.findMany({
     where: { status: "ACTIVE" },
     orderBy: { createdAt: "desc" },
@@ -339,14 +448,22 @@ export async function loadListingBoard() {
     },
   });
   const byId = Object.fromEntries(users.map((u) => [u.id, u]));
-  const kits = await mainKitByUserIds(userIds);
+  const [kits, priceStats] = await Promise.all([
+    mainKitByUserIds(userIds),
+    loadPlayerPriceStats(userIds),
+  ]);
 
   return listings.map((l) => {
     const u = byId[l.playerUserId];
     const kit = kits.get(l.playerUserId) || null;
-    const est =
-      l.estimatePrice ??
-      estimatePlayerPrice({ sri: 50, kitKey: kit });
+    const kitNorm = normalizeKit(kit);
+    const liveEst = estimateWithKit(
+      priceStats.get(l.playerUserId),
+      kit,
+      opts?.buyerScarcityByKit?.[kitNorm],
+    );
+    // Всегда живая оценка (старый estimatePrice на листинге мог быть от черновика ~100).
+    const est = liveEst;
     return {
       id: l.id,
       askPrice: l.askPrice,

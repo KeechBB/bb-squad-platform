@@ -45,11 +45,22 @@ type Listable = {
   kit: string;
   estimate: number;
   sellHints: string[];
+  stats?: {
+    trainDays14: number;
+    matches30: number;
+    kills30: number;
+    deaths30: number;
+    res30: number;
+    kd: number;
+  } | null;
 };
 
 type Payload = {
   mark: string;
   minRoster: number;
+  minAsk?: number;
+  estimateLabel?: string;
+  estimateHint?: string;
   rosterSize: number;
   eligible: boolean;
   treasury: number;
@@ -94,7 +105,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [listUserId, setListUserId] = useState("");
-  const [listPrice, setListPrice] = useState(100);
+  const [listPrice, setListPrice] = useState(15000);
   const [offerListingId, setOfferListingId] = useState<string | null>(null);
   const [offerType, setOfferType] = useState<"BUY" | "SWAP" | "SWAP_CASH">("BUY");
   const [offerCash, setOfferCash] = useState(100);
@@ -214,6 +225,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
         <h4>Баланс ролей</h4>
         <p className="muted xfer-hint">
           Система подмечает дефицит при покупке и предупреждает при продаже редких ролей.
+          {data.estimateHint ? ` ${data.estimateHint}` : ""}
         </p>
         <div className="xfer-scarce-grid">
           {data.scarcity.map((r) => (
@@ -250,14 +262,14 @@ export function FactionTransfers({ slug, canManage }: Props) {
                   .filter((p) => p.seat !== "LEADER")
                   .map((p) => (
                     <option key={p.userId} value={p.userId}>
-                      {p.nick} · {p.kit} · ≈{p.estimate} $
+                      {p.nick} · {p.kit} · оценка {p.estimate.toLocaleString("ru-RU")} B$
                     </option>
                   ))}
               </select>
               <input
                 type="number"
-                min={40}
-                step={5}
+                min={data.minAsk || 5000}
+                step={500}
                 value={listPrice}
                 onChange={(e) => setListPrice(Number(e.target.value))}
               />
@@ -277,6 +289,15 @@ export function FactionTransfers({ slug, canManage }: Props) {
               </button>
             </div>
           )}
+          {selectedListable ? (
+            <p className="muted xfer-hint">
+              {data.estimateLabel || "оценочная стоимость"}:{" "}
+              <BdAmount n={selectedListable.estimate} />
+              {selectedListable.stats
+                ? ` · явка ${selectedListable.stats.trainDays14}/14 дн · ${selectedListable.stats.matches30} матчей/30д · KD ${selectedListable.stats.kd} · ${selectedListable.stats.kills30} kill · ${selectedListable.stats.res30} res`
+                : ""}
+            </p>
+          ) : null}
           {selectedListable?.sellHints?.length ? (
             <p className="xfer-warn">{selectedListable.sellHints.join(" ")}</p>
           ) : null}
@@ -342,7 +363,8 @@ export function FactionTransfers({ slug, canManage }: Props) {
                   <strong>
                     <BdAmount n={row.askPrice} />
                   </strong>
-                  {" · оценка "}
+                  {" · "}
+                  {data.estimateLabel || "оценочная стоимость"}{" "}
                   <BdAmount n={row.estimatePrice} />
                 </span>
                 {row.scarcityBuyHints.length ? (

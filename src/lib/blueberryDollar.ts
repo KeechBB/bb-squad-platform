@@ -11,36 +11,119 @@
 export const BD_MARK = "B$";
 export const BD_NAME = "Черничный Доллар";
 
+/** Подпись к расчётной цене на доске / при выставлении. */
+export const ESTIMATE_LABEL = "оценочная стоимость";
+export const ESTIMATE_HINT =
+  "Оценка по явке на TR1–TR5, киллам/ресам/KD за 30 дней и редкости роли. Не обязательная цена сделки — командир ставит свою.";
+
 /** Минимальный состав фракции для участия в трансферах. */
 export const TRANSFER_MIN_ROSTER = 30;
 
 /** Лок после сделки (сутки). */
 export const TRANSFER_LOCK_DAYS = 14;
 
-/**
- * Оценка «рыночной» цены по SRI и роли (черновик ставок).
- * База 80 + SRI×1.2 + роль.
- */
-export function estimatePlayerPrice(opts: {
-  sri: number | null | undefined;
-  kitKey?: string | null;
-}): number {
-  const sri = Math.max(0, Number(opts.sri ?? 0) || 0);
-  const kit = String(opts.kitKey || "").toLowerCase();
-  let roleBonus = 20;
-  if (kit.includes("sl") || kit.includes("squad lead") || kit === "sl") roleBonus = 55;
-  else if (kit.includes("medic") || kit.includes("med")) roleBonus = 45;
-  else if (kit.includes("hat") || kit.includes("at") || kit.includes("lat") || kit.includes("hat"))
-    roleBonus = 40;
-  else if (kit.includes("ar") || kit.includes("mg") || kit.includes("autorifle")) roleBonus = 35;
-  else if (kit.includes("eng") || kit.includes("sapper") || kit.includes("crew")) roleBonus = 30;
-  else if (kit.includes("rifle") || kit.includes("rif")) roleBonus = 15;
+/** Минимальная цена выставления / покупки. */
+export const TRANSFER_MIN_ASK = 5_000;
 
-  const raw = 80 + sri * 1.2 + roleBonus;
-  return Math.max(40, Math.round(raw / 5) * 5);
+/** Пол для оценки / потолок (десятки тысяч). */
+export const ESTIMATE_FLOOR = 8_000;
+export const ESTIMATE_CEILING = 95_000;
+
+export type ScarcityForPrice = "ok" | "thin" | "critical" | "surplus" | null | undefined;
+
+export type PlayerPriceStats = {
+  kitKey?: string | null;
+  scarcityLevel?: ScarcityForPrice;
+  /** Уникальные дни с TRAIN на TR1–TR5 за 14 суток. */
+  trainDays14: number;
+  /** Матчи TR за 30 суток. */
+  matches30: number;
+  kills30: number;
+  deaths30: number;
+  res30: number;
+  nok30: number;
+  /** Дней с lastSeenAt (если давно — штраф). */
+  lastSeenDaysAgo: number | null;
+};
+
+function clamp(n: number, lo: number, hi: number) {
+  return Math.min(hi, Math.max(lo, n));
 }
 
-/** Гринд за тренировку (TR1–TR5): вклад игрока → B$ в казну фракции. */
+function roleMult(kitKey?: string | null): number {
+  const kit = String(kitKey || "").toLowerCase();
+  if (!kit || kit === "unknown" || kit === "—") return 0.95;
+  if (kit === "sl" || kit.includes("squad lead")) return 1.35;
+  if (kit.includes("medic") || kit === "med") return 1.28;
+  if (kit.includes("hat") || kit === "lat" || kit === "at") return 1.22;
+  if (kit === "ar" || kit === "mg" || kit.includes("auto")) return 1.12;
+  if (kit.includes("eng") || kit.includes("crew") || kit.includes("sapper")) return 1.1;
+  if (kit.includes("rifle")) return 1.0;
+  return 1.05;
+}
+
+function scarcityMult(level: ScarcityForPrice): number {
+  if (level === "critical") return 1.28;
+  if (level === "thin") return 1.14;
+  if (level === "surplus") return 0.9;
+  return 1;
+}
+
+/**
+ * Оценочная стоимость игрока (десятки тысяч B$).
+ *
+ * Состав:
+ *   база 12k
+ * + явка TR (до ~20k за 14/14 дней)
+ * + вклад в бою за 30д (киллы / ресы / ноки, с потолком)
+ * × KD
+ * × роль
+ * × дефицит роли во фракции
+ * + свежесть онлайна на сайте
+ */
+export function estimatePlayerPrice(stats: Partial<PlayerPriceStats> & {
+  /** @deprecated leftover stub */
+  sri?: number | null;
+} = {}): number {
+  const trainDays14 = clamp(Number(stats.trainDays14) || 0, 0, 14);
+  const matches30 = Math.max(0, Number(stats.matches30) || 0);
+  const kills30 = Math.max(0, Number(stats.kills30) || 0);
+  const deaths30 = Math.max(0, Number(stats.deaths30) || 0);
+  const res30 = Math.max(0, Number(stats.res30) || 0);
+  const nok30 = Math.max(0, Number(stats.nok30) || 0);
+  const lastSeenDaysAgo =
+    stats.lastSeenDaysAgo == null ? null : Math.max(0, Number(stats.lastSeenDaysAgo));
+
+  const base = 12_000;
+  const onlineScore = (trainDays14 / 14) * 20_000;
+  const combatRaw = kills30 * 55 + res30 * 70 + nok30 * 30 + matches30 * 180;
+  const combatScore = clamp(combatRaw, 0, 42_000);
+
+  const kd = deaths30 > 0 ? kills30 / deaths30 : kills30 > 0 ? Math.min(kills30, 3) : 0.6;
+  const kdMult = clamp(0.78 + kd * 0.28, 0.75, 1.5);
+
+  let freshness = 1;
+  if (lastSeenDaysAgo != null) {
+    if (lastSeenDaysAgo <= 2) freshness = 1.06;
+    else if (lastSeenDaysAgo <= 7) freshness = 1.0;
+    else if (lastSeenDaysAgo <= 21) freshness = 0.92;
+    else freshness = 0.82;
+  } else if (trainDays14 === 0 && matches30 === 0) {
+    freshness = 0.8;
+  }
+
+  const raw =
+    (base + onlineScore + combatScore) *
+    kdMult *
+    roleMult(stats.kitKey) *
+    scarcityMult(stats.scarcityLevel) *
+    freshness;
+
+  const rounded = Math.round(raw / 500) * 500;
+  return clamp(rounded, ESTIMATE_FLOOR, ESTIMATE_CEILING);
+}
+
+/** Гринд за TRAIN на TR1–TR5 → казна. Масштаб под цены в десятках тысяч. */
 export function grindAmountFromTrainStats(opts: {
   kills: number;
   deaths: number;
@@ -55,8 +138,9 @@ export function grindAmountFromTrainStats(opts: {
   const score = k * 2.2 + nok * 1.4 + res * 1.1 - d * 0.35;
   const dur = opts.durationSec && opts.durationSec > 0 ? opts.durationSec : 3600;
   const timeFactor = Math.min(1.35, Math.max(0.55, dur / 3600));
-  const raw = score * 0.45 * timeFactor;
-  return Math.max(0, Math.min(45, Math.round(raw)));
+  // ~200–2200 за катку при нормальной стате
+  const raw = score * 18 * timeFactor + 120;
+  return Math.max(0, Math.min(2_500, Math.round(raw / 10) * 10));
 }
 
 /** Plain-text: «1 240 B$». В React предпочтительнее `<BdAmount />`. */

@@ -8,14 +8,22 @@ import {
   assertTransferWindowOpen,
   buildFactionKitScarcity,
   creditGrindRecentTrains,
+  estimateWithKit,
   getTransferWindowState,
   getUserTransferLock,
   loadListingBoard,
-  scarcityForDeal,
-  estimatePlayerPrice,
+  loadPlayerPriceStats,
   normalizeKit,
+  scarcityForDeal,
 } from "@/lib/factionTransfers";
-import { BD_MARK, TRANSFER_MIN_ROSTER, formatBd } from "@/lib/blueberryDollar";
+import {
+  BD_MARK,
+  ESTIMATE_HINT,
+  ESTIMATE_LABEL,
+  TRANSFER_MIN_ASK,
+  TRANSFER_MIN_ROSTER,
+  formatBd,
+} from "@/lib/blueberryDollar";
 import { mainKitByUserIds } from "@/lib/squadRoles";
 
 export const runtime = "nodejs";
@@ -33,10 +41,14 @@ export async function GET(_req: Request, ctx: Ctx) {
   // тихий догон гринда с недавних трён (идемпотентно)
   void creditGrindRecentTrains(12).catch(() => null);
 
-  const [window, board, scarcity, myListings, incomingOffers, ledger] = await Promise.all([
+  const scarcity = await buildFactionKitScarcity(loaded.view.id);
+  const scarcityByKit = Object.fromEntries(
+    scarcity.byKit.map((r) => [r.kitKey, r.level as "ok" | "thin" | "critical" | "surplus"]),
+  );
+
+  const [window, board, myListings, incomingOffers, ledger, priceStats] = await Promise.all([
     getTransferWindowState(),
-    loadListingBoard(),
-    buildFactionKitScarcity(loaded.view.id),
+    loadListingBoard({ buyerScarcityByKit: scarcityByKit }),
     prisma.transferListing.findMany({
       where: { factionId: loaded.view.id, status: "ACTIVE" },
       orderBy: { createdAt: "desc" },
@@ -64,6 +76,7 @@ export async function GET(_req: Request, ctx: Ctx) {
       orderBy: { createdAt: "desc" },
       take: 30,
     }),
+    loadPlayerPriceStats(loaded.view.members.map((m) => m.userId)),
   ]);
 
   const offerPlayerIds = [
@@ -101,7 +114,8 @@ export async function GET(_req: Request, ctx: Ctx) {
       sellerScarcity: scarcity.byKit,
       playerKit: kit,
     }).sellHints;
-    const estimate = estimatePlayerPrice({ sri: 50, kitKey: kit });
+    const estimate = estimateWithKit(priceStats.get(m.userId), kit, scarcityByKit[kit]);
+    const st = priceStats.get(m.userId);
     return {
       userId: m.userId,
       nick: m.nick,
@@ -109,12 +123,28 @@ export async function GET(_req: Request, ctx: Ctx) {
       kit,
       estimate,
       sellHints,
+      stats: st
+        ? {
+            trainDays14: st.trainDays14,
+            matches30: st.matches30,
+            kills30: st.kills30,
+            deaths30: st.deaths30,
+            res30: st.res30,
+            kd:
+              st.deaths30 > 0
+                ? Math.round((st.kills30 / st.deaths30) * 100) / 100
+                : st.kills30,
+          }
+        : null,
     };
   });
 
   return NextResponse.json({
     mark: BD_MARK,
     minRoster: TRANSFER_MIN_ROSTER,
+    minAsk: TRANSFER_MIN_ASK,
+    estimateLabel: ESTIMATE_LABEL,
+    estimateHint: ESTIMATE_HINT,
     rosterSize: scarcity.rosterSize,
     eligible: scarcity.rosterSize >= TRANSFER_MIN_ROSTER,
     treasury: loaded.view.blueberryBalance,
@@ -189,8 +219,11 @@ export async function POST(req: Request, ctx: Ctx) {
       await assertFactionEligibleForTransfers(loaded.view.id);
       const userId = String(body?.userId || "").trim();
       const askPrice = Math.round(Number(body?.askPrice) || 0);
-      if (!userId || askPrice < 40) {
-        return NextResponse.json({ error: "Укажи игрока и цену (от 40 B$)" }, { status: 400 });
+      if (!userId || askPrice < TRANSFER_MIN_ASK) {
+        return NextResponse.json(
+          { error: `Укажи игрока и цену (от ${TRANSFER_MIN_ASK.toLocaleString("ru-RU")} B$)` },
+          { status: 400 },
+        );
       }
       const member = loaded.view.members.find((m) => m.userId === userId);
       if (!member) {
@@ -215,8 +248,11 @@ export async function POST(req: Request, ctx: Ctx) {
 
       const kits = await mainKitByUserIds([userId]);
       const kit = kits.get(userId) || member.mainKit;
-      const estimate = estimatePlayerPrice({ sri: 50, kitKey: kit });
       const scarcity = await buildFactionKitScarcity(loaded.view.id);
+      const kitNorm = normalizeKit(kit);
+      const sellerLevel = scarcity.byKit.find((r) => r.kitKey === kitNorm)?.level;
+      const [statsMap] = await Promise.all([loadPlayerPriceStats([userId])]);
+      const estimate = estimateWithKit(statsMap.get(userId), kit, sellerLevel);
       const sellHints = scarcityForDeal({
         buyerScarcity: [],
         sellerScarcity: scarcity.byKit,
@@ -264,8 +300,11 @@ export async function POST(req: Request, ctx: Ctx) {
       }
       await assertTransferWindowOpen();
       const askPrice = Math.round(Number(body?.askPrice) || 0);
-      if (askPrice < 40) {
-        return NextResponse.json({ error: "Цена от 40 B$" }, { status: 400 });
+      if (askPrice < TRANSFER_MIN_ASK) {
+        return NextResponse.json(
+          { error: `Цена от ${TRANSFER_MIN_ASK.toLocaleString("ru-RU")} B$` },
+          { status: 400 },
+        );
       }
       await prisma.$transaction([
         prisma.transferListing.update({

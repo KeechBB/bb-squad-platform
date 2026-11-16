@@ -11,6 +11,7 @@ import {
   scarcityForDeal,
 } from "@/lib/factionTransfers";
 import { mainKitByUserIds } from "@/lib/squadRoles";
+import { TRANSFER_MIN_ASK } from "@/lib/blueberryDollar";
 
 export const runtime = "nodejs";
 
@@ -56,8 +57,11 @@ export async function POST(req: Request, ctx: Ctx) {
     const cashAmount = Math.max(0, Math.round(Number(body?.cashAmount) || 0));
     const swapUserId = body?.swapUserId ? String(body.swapUserId).trim() : null;
 
-    if (type === "BUY" && cashAmount < 40) {
-      return NextResponse.json({ error: "Сумма от 40 B$" }, { status: 400 });
+    if (type === "BUY" && cashAmount < TRANSFER_MIN_ASK) {
+      return NextResponse.json(
+        { error: `Сумма от ${TRANSFER_MIN_ASK.toLocaleString("ru-RU")} B$` },
+        { status: 400 },
+      );
     }
     if ((type === "SWAP" || type === "SWAP_CASH") && !swapUserId) {
       return NextResponse.json({ error: "Укажи игрока на обмен" }, { status: 400 });
