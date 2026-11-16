@@ -2974,21 +2974,36 @@ button.mail-tag {
   color: #ffe08a;
 }
 
-/* Трансферные письма — мягкий фиолет, без жёлтого мигания */
+/* Трансферные письма — фиолетовое мигание (не жёлтое) */
+.profile-mail-row.is-unread.is-transfer,
 .profile-mail-row.is-unread:has(.profile-mail-from.is-transfer) {
-  background: rgba(167, 139, 250, 0.18);
-  box-shadow: inset 5px 0 0 rgba(167, 139, 250, 0.7);
-  animation: profile-mail-unread-transfer 2.8s ease-in-out infinite;
+  background: rgba(167, 139, 250, 0.22) !important;
+  box-shadow: inset 5px 0 0 rgba(167, 139, 250, 0.85) !important;
+  animation: profile-mail-unread-transfer 2.8s ease-in-out infinite !important;
 }
-.profile-mail-row.is-unread:has(.profile-mail-from.is-transfer) .profile-mail-title,
+.profile-mail-row.is-unread.is-transfer .profile-mail-title,
+.profile-mail-row.is-unread:has(.profile-mail-from.is-transfer) .profile-mail-title {
+  animation: profile-mail-title-transfer 2.8s ease-in-out infinite !important;
+  font-weight: 800;
+}
+.profile-mail-row.is-unread.is-transfer .profile-mail-from,
 .profile-mail-row.is-unread:has(.profile-mail-from.is-transfer) .profile-mail-from {
-  animation: none;
-  color: #e9d5ff;
+  animation: profile-mail-from-transfer 2.8s ease-in-out infinite !important;
 }
+.profile-mail-row.is-unread.is-transfer:hover,
+.profile-mail-row.is-unread.is-transfer:focus-within,
 .profile-mail-row.is-unread:has(.profile-mail-from.is-transfer):hover,
 .profile-mail-row.is-unread:has(.profile-mail-from.is-transfer):focus-within {
-  background: rgba(167, 139, 250, 0.24);
-  box-shadow: inset 5px 0 0 #c4b5fd;
+  background: rgba(167, 139, 250, 0.28) !important;
+  box-shadow: inset 5px 0 0 #c4b5fd !important;
+  animation-play-state: paused;
+}
+.profile-mail-row.is-unread.is-transfer:hover .profile-mail-title,
+.profile-mail-row.is-unread.is-transfer:focus-within .profile-mail-title,
+.profile-mail-row.is-unread.is-transfer:hover .profile-mail-from,
+.profile-mail-row.is-unread.is-transfer:focus-within .profile-mail-from {
+  animation-play-state: paused;
+  color: #e9d5ff !important;
 }
 
 @keyframes profile-mail-unread {
@@ -3006,12 +3021,32 @@ button.mail-tag {
 @keyframes profile-mail-unread-transfer {
   0%,
   100% {
-    background: rgba(167, 139, 250, 0.2);
-    box-shadow: inset 5px 0 0 rgba(167, 139, 250, 0.75);
+    background: rgba(167, 139, 250, 0.28);
+    box-shadow: inset 5px 0 0 rgba(196, 181, 253, 0.95);
   }
   50% {
-    background: rgba(167, 139, 250, 0.08);
-    box-shadow: inset 5px 0 0 rgba(167, 139, 250, 0.35);
+    background: rgba(167, 139, 250, 0.1);
+    box-shadow: inset 5px 0 0 rgba(167, 139, 250, 0.4);
+  }
+}
+
+@keyframes profile-mail-title-transfer {
+  0%,
+  100% {
+    color: #f3e8ff;
+  }
+  50% {
+    color: #c4b5fd;
+  }
+}
+
+@keyframes profile-mail-from-transfer {
+  0%,
+  100% {
+    color: #ddd6fe;
+  }
+  50% {
+    color: #a78bfa;
   }
 }
 
@@ -3054,11 +3089,16 @@ button.mail-tag {
   .profile-mail-row.is-unread .profile-mail-title,
   .profile-mail-row.is-unread .profile-mail-from,
   .profile-mail-badge {
-    animation: none;
+    animation: none !important;
   }
   .profile-mail-row.is-unread {
     background: rgba(255, 214, 80, 0.4);
     box-shadow: inset 7px 0 0 #ffd24a;
+  }
+  .profile-mail-row.is-unread.is-transfer,
+  .profile-mail-row.is-unread:has(.profile-mail-from.is-transfer) {
+    background: rgba(167, 139, 250, 0.28) !important;
+    box-shadow: inset 5px 0 0 #a78bfa !important;
   }
 }
 

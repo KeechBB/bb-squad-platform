@@ -109,25 +109,31 @@ export async function POST(req: Request, ctx: Ctx) {
       },
     });
 
-    let swapNick: string | null = null;
-    if (swapUserId) {
-      const swapUser = await prisma.user.findUnique({
-        where: { id: swapUserId },
-        select: { nick: true, steamName: true },
-      });
-      swapNick = swapUser?.nick || swapUser?.steamName || null;
-    }
+    const people = await prisma.user.findMany({
+      where: {
+        id: {
+          in: [listing.playerUserId, ...(swapUserId ? [swapUserId] : [])],
+        },
+      },
+      select: { id: true, nick: true, steamName: true },
+    });
+    const nickOf = (id: string) => {
+      const u = people.find((p) => p.id === id);
+      return u?.nick || u?.steamName || null;
+    };
     await notifyOfferMail({
       listedPlayerId: listing.playerUserId,
+      listedPlayerNick: nickOf(listing.playerUserId),
       listedFactionId: listing.factionId,
       listedFactionName: listing.faction.name,
+      fromFactionId: loaded.view.id,
       fromFactionName: loaded.view.name,
       type,
       cashAmount: type === "SWAP" ? 0 : cashAmount,
       askPrice: listing.askPrice,
       offerId: offer.id,
       swapUserId: type === "BUY" ? null : swapUserId,
-      swapNick,
+      swapNick: swapUserId ? nickOf(swapUserId) : null,
       message,
     }).catch((e) => console.error("offer mail", e));
 

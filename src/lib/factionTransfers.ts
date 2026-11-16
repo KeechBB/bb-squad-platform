@@ -81,7 +81,12 @@ async function keechAuthorId(): Promise<string | null> {
     where: { nick: { equals: "Keech", mode: "insensitive" } },
     select: { id: true },
   });
-  return byNick?.id ?? null;
+  if (byNick) return byNick.id;
+  const superAdmin = await prisma.user.findFirst({
+    where: { role: "SUPER_ADMIN" },
+    select: { id: true },
+  });
+  return superAdmin?.id ?? null;
 }
 
 /** Окно открыто? Учитывает open + даты closedFrom/closedTo. */
@@ -779,8 +784,10 @@ export async function notifyWithdrawnMail(opts: {
 /** Пришёл офер: игрок на доске, игрок на обмен, штаб продающей фракции. */
 export async function notifyOfferMail(opts: {
   listedPlayerId: string;
+  listedPlayerNick?: string | null;
   listedFactionId: string;
   listedFactionName: string;
+  fromFactionId: string;
   fromFactionName: string;
   type: string;
   cashAmount: number;
@@ -800,6 +807,7 @@ export async function notifyOfferMail(opts: {
     : opts.swapUserId
       ? "Взамен предлагают своего игрока."
       : null;
+  const listedNick = opts.listedPlayerNick || "игрок";
 
   const listedBody = [
     `На тебя пришёл офер от фракции «${opts.fromFactionName}».`,
@@ -836,13 +844,12 @@ export async function notifyOfferMail(opts: {
     });
   }
 
-  const staff = (await factionStaffIds(opts.listedFactionId)).filter(
-    (id) => id !== opts.listedPlayerId,
-  );
+  // Штаб продающей фракции (глава + замы)
+  const staff = await factionStaffIds(opts.listedFactionId);
   if (staff.length) {
     const staffBody = [
       `Новое предложение по трансферу от «${opts.fromFactionName}».`,
-      `Игрок на доске: ваш выставленный боец (запрос ${opts.askPrice.toLocaleString("ru-RU")} ${BD_MARK}).`,
+      `Игрок на доске: ${listedNick} (запрос ${opts.askPrice.toLocaleString("ru-RU")} ${BD_MARK}).`,
       `Тип: ${typeRu}.`,
       money,
       swapLine,
@@ -856,6 +863,25 @@ export async function notifyOfferMail(opts: {
       title: "Входящая сделка по трансферу",
       body: staffBody,
       sourceKey: `xfer:offer:${opts.offerId}:staff`,
+    });
+  }
+
+  // Подтверждение штабу покупателя
+  const buyerStaff = await factionStaffIds(opts.fromFactionId);
+  if (buyerStaff.length) {
+    await sendSoftTransferMail({
+      toUserIds: buyerStaff,
+      title: "Ваш трансферный офер отправлен",
+      body: [
+        `Офер ушёл в «${opts.listedFactionName}» по игроку ${listedNick}.`,
+        `Тип: ${typeRu}.`,
+        money,
+        swapLine,
+        `Ждите решения командира продающей фракции — придёт отдельное письмо.`,
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      sourceKey: `xfer:offer:${opts.offerId}:buyer_staff`,
     });
   }
 }

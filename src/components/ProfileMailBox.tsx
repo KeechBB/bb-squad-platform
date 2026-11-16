@@ -283,7 +283,7 @@ export function ProfileMailBox() {
               key={letter.id}
               className={`profile-mail-row${letter.read ? "" : " is-unread"}${
                 letter.deleted ? " is-trash" : ""
-              }`}
+              }${letter.senderKind === "transfer" ? " is-transfer" : ""}`}
             >
               <button
                 type="button"
