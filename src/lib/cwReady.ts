@@ -112,10 +112,51 @@ function parseMovedToDayMonth(note: string): { day: number; month: number } | nu
   return { day: Number(m[1]), month: Number(m[2]) };
 }
 
-async function loadCalendarMoveHops(): Promise<Map<string, string>> {
+type MonthMeta = { url: string; year: number; month: number };
+
+/** Index first; if wiped — probe current/near months on disk so hub doesn't go empty. */
+async function listCwMonthMetas(): Promise<MonthMeta[]> {
   const index = await loadKvJsonCached<{
     months?: { url?: string; year?: number; month?: number }[];
   }>("data/index.json");
+  const fromIndex: MonthMeta[] = [];
+  for (const meta of index?.months || []) {
+    if (!meta.url) continue;
+    const year = Number(meta.year) || 0;
+    const month = Number(meta.month) || 0;
+    if (!year || !month) continue;
+    fromIndex.push({ url: String(meta.url), year, month });
+  }
+  if (fromIndex.length) return fromIndex;
+
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth() + 1;
+  const candidates: { year: number; month: number }[] = [];
+  for (let i = -2; i <= 2; i++) {
+    let mm = m + i;
+    let yy = y;
+    while (mm < 1) {
+      mm += 12;
+      yy -= 1;
+    }
+    while (mm > 12) {
+      mm -= 12;
+      yy += 1;
+    }
+    candidates.push({ year: yy, month: mm });
+  }
+  const found: MonthMeta[] = [];
+  for (const c of candidates) {
+    const url = `data/${c.year}-${String(c.month).padStart(2, "0")}.json`;
+    const data = await loadKvJsonCached<MonthDisk>(url);
+    if (!data) continue;
+    found.push({ url, year: c.year, month: c.month });
+  }
+  return found;
+}
+
+async function loadCalendarMoveHops(): Promise<Map<string, string>> {
   const hops = new Map<string, string>();
   /** key: `MM-DD|OPP|Stack` → upcoming match id (год не важен для поиска цели переноса). */
   const upcomingByDayOppStack = new Map<string, string>();
@@ -127,8 +168,7 @@ async function loadCalendarMoveHops(): Promise<Map<string, string>> {
     movedTo: string;
   }[] = [];
 
-  for (const meta of index?.months || []) {
-    if (!meta.url) continue;
+  for (const meta of await listCwMonthMetas()) {
     const data = await loadKvJsonCached<MonthDisk>(meta.url);
     if (!data) continue;
     const month =
@@ -229,12 +269,8 @@ async function upcomingBb(): Promise<
   await ensureCwReadyMovesSynced();
   const moveHops = await loadCalendarMoveHops();
   const movedAway = new Set(moveHops.keys());
-  const index = await loadKvJsonCached<{
-    months?: { url?: string; year?: number; month?: number }[];
-  }>("data/index.json");
   const out: (CwAnnounce & { start: number })[] = [];
-  for (const meta of index?.months || []) {
-    if (!meta.url) continue;
+  for (const meta of await listCwMonthMetas()) {
     const data = await loadKvJsonCached<MonthDisk>(meta.url);
     if (!data) continue;
     const year = Number(meta.year) || Number(data.year) || 0;

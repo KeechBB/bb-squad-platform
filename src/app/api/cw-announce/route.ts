@@ -16,7 +16,11 @@ export async function GET() {
   const session = await getSession();
   const userId = session?.user?.id || "";
   if (!(await viewerIsBlackberry(userId))) {
-    return NextResponse.json({ main: null, junior: null });
+    // Без ключа cards — клиент не затирает SSR-карточки гостевым пустым массивом.
+    return NextResponse.json(
+      { main: null, junior: null },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   }
   const slots = await homeCwAnnounces();
   async function pack(slot: CwAnnounce) {
@@ -28,7 +32,11 @@ export async function GET() {
   }
   const cards = await Promise.all(slots.map(pack));
   return NextResponse.json(
-    { cards },
+    {
+      cards,
+      main: cards.find((c) => c.stack === "Main") || null,
+      junior: cards.find((c) => c.stack === "Junior") || null,
+    },
     { headers: { "Cache-Control": "no-store" } }
   );
 }

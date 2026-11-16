@@ -40,14 +40,28 @@ export function HomeCwAnnounce({ cards: initial, singleStack }: Props) {
       try {
         const res = await fetch("/api/cw-announce", { cache: "no-store" });
         if (!res.ok || cancelled) return;
-        const data = (await res.json()) as { cards?: HomeCwCard[] };
-        if (!cancelled && Array.isArray(data.cards)) {
-          if (singleStack) {
-            const one = data.cards.find((c) => c.stack === singleStack);
-            setCards(one ? [one] : []);
-          } else {
-            setCards(data.cards);
-          }
+        const data = (await res.json()) as {
+          cards?: HomeCwCard[];
+          main?: HomeCwCard | null;
+          junior?: HomeCwCard | null;
+        };
+        if (cancelled) return;
+        let next: HomeCwCard[] | null = null;
+        if (Array.isArray(data.cards)) {
+          next = data.cards;
+        } else {
+          // Старый ответ API без cards — собрать из main/junior.
+          const legacy = [data.main, data.junior].filter(
+            (c): c is HomeCwCard => Boolean(c && c.id)
+          );
+          if (legacy.length) next = legacy;
+        }
+        if (!next) return;
+        if (singleStack) {
+          const one = next.find((c) => c.stack === singleStack);
+          setCards(one ? [one] : []);
+        } else {
+          setCards(next);
         }
       } catch {
         /* keep SSR */

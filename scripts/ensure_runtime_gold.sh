@@ -99,13 +99,26 @@ if [[ -d "$GOLD/kv-data/training" ]]; then
     fi
   done
 fi
-for f in training-index.json tiers.json; do
+for f in training-index.json tiers.json index.json; do
   if [[ -f "$GOLD/kv-data/$f" && ( ! -f "$CACHE/data/$f" || ! -s "$CACHE/data/$f" ) ]]; then
     mkdir -p "$CACHE/data"
     cp -a "$GOLD/kv-data/$f" "$CACHE/data/$f"
     echo "  restored data/$f"
   fi
 done
+# CW month calendars (hub «ближайшие КВ» читает их через index.json)
+mkdir -p "$CACHE/data"
+if [[ -d "$GOLD/kv-data" ]]; then
+  for f in "$GOLD/kv-data"/20[0-9][0-9]-[0-9][0-9].json; do
+    [[ -f "$f" ]] || continue
+    base="$(basename "$f")"
+    live="$CACHE/data/$base"
+    if [[ ! -f "$live" ]] || [[ ! -s "$live" ]]; then
+      cp -a "$f" "$live"
+      echo "  restored data/$base"
+    fi
+  done
+fi
 
 bash "$ROOT/scripts/ensure_tm_growth_tab.sh" || true
 echo "==> ensure_runtime_gold done"

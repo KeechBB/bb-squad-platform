@@ -66,10 +66,16 @@ if [[ -d "$ROOT/storage/tournament-teams" ]]; then
 fi
 
 # --- Small KV data that sync sometimes resets ---
-for f in training-index.json tiers.json cache-bust.json; do
+for f in training-index.json tiers.json cache-bust.json index.json; do
   if [[ -f "$CACHE/data/$f" ]]; then
     cp -a "$CACHE/data/$f" "$DEST/kv-data/$f"
   fi
+done
+# CW month calendars (hub empty without these + index.json)
+for f in "$CACHE"/data/20[0-9][0-9]-[0-9][0-9].json; do
+  [[ -f "$f" ]] || continue
+  mkdir -p "$DEST/kv-data"
+  cp -a "$f" "$DEST/kv-data/$(basename "$f")"
 done
 # Current + previous training month calendars (not full players/)
 for f in "$CACHE"/data/training/20[0-9][0-9]-[0-9][0-9].json; do
