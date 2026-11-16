@@ -293,41 +293,56 @@ export async function creditGrindFromCanonMatch(matchId: string): Promise<{ cred
   });
   if (!inTrainStats) return { credited: 0 };
 
-  // Canon players often come without userId — резолвим по нику/steamName.
-  const needResolve = match.players.some((p) => !p.userId);
+  // Резолв ника → user. При коллизии (два FLEX) предпочитаем аккаунт во фракции.
+  const users = await prisma.user.findMany({
+    where: { OR: [{ nick: { not: null } }, { steamName: { not: null } }] },
+    select: {
+      id: true,
+      nick: true,
+      steamName: true,
+      factionMembership: { select: { factionId: true } },
+    },
+  });
   const nickToUserId = new Map<string, string>();
-  if (needResolve) {
-    const users = await prisma.user.findMany({
-      where: { OR: [{ nick: { not: null } }, { steamName: { not: null } }] },
-      select: { id: true, nick: true, steamName: true },
-    });
-    for (const u of users) {
-      if (u.nick) {
-        const k = nickCompact(u.nick);
-        if (k && !nickToUserId.has(k)) nickToUserId.set(k, u.id);
-      }
-      if (u.steamName) {
-        const k = nickCompact(u.steamName);
-        if (k && !nickToUserId.has(k)) nickToUserId.set(k, u.id);
+  const nickToFactionUserId = new Map<string, string>();
+  for (const u of users) {
+    const keys = [u.nick, u.steamName].map((x) => nickCompact(x || "")).filter(Boolean);
+    for (const k of keys) {
+      if (!nickToUserId.has(k)) nickToUserId.set(k, u.id);
+      if (u.factionMembership && !nickToFactionUserId.has(k)) {
+        nickToFactionUserId.set(k, u.id);
       }
     }
   }
 
   let credited = 0;
   for (const p of match.players) {
-    const userId = p.userId || nickToUserId.get(nickCompact(p.nick)) || null;
+    const nickKey = nickCompact(p.nick);
+    let userId = p.userId || nickToFactionUserId.get(nickKey) || nickToUserId.get(nickKey) || null;
     if (!userId) continue;
-    if (!p.userId) {
-      // backfill for next runs
+
+    let membership = await prisma.factionMember.findFirst({
+      where: { userId },
+      select: { factionId: true },
+    });
+    // Canon мог привязать «чужой» дубль ника без фракции — берём однофамильца во фракции.
+    if (!membership && nickKey) {
+      const alt = nickToFactionUserId.get(nickKey);
+      if (alt && alt !== userId) {
+        userId = alt;
+        membership = await prisma.factionMember.findFirst({
+          where: { userId },
+          select: { factionId: true },
+        });
+      }
+    }
+    if (!membership) continue;
+
+    if (p.userId !== userId) {
       await prisma.canonMatchPlayer
         .update({ where: { id: p.id }, data: { userId } })
         .catch(() => null);
     }
-    const membership = await prisma.factionMember.findFirst({
-      where: { userId },
-      select: { factionId: true },
-    });
-    if (!membership) continue;
     const amount = grindAmountFromTrainStats({
       kills: p.kills,
       res: p.res,
