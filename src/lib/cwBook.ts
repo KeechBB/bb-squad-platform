@@ -199,6 +199,8 @@ function calendarWritePaths(year: number, month: number): string[] {
   for (const base of [
     "/var/www/blackberry-kv",
     "/var/www/blackberry-kv/public",
+    "/var/www/KV",
+    "/var/www/KV/public",
   ]) {
     out.add(path.join(base, "data", file));
   }
@@ -562,4 +564,236 @@ export async function bookClanWar(input: CwBookInput): Promise<CwBookResult> {
       error: e instanceof Error ? e.message : "fail",
     };
   }
+}
+
+/** Статусы слота КВ в календаре / таблице матчей. */
+export const CW_MATCH_STATUSES = [
+  "upcoming",
+  "tba",
+  "win",
+  "lose",
+  "draw",
+  "cancel",
+  "move",
+  "r1",
+] as const;
+
+export type CwMatchStatus = (typeof CW_MATCH_STATUSES)[number];
+
+export type CwMatchPatchInput = {
+  id: string;
+  year: number;
+  month: number;
+  day?: number;
+  timeMsk?: string;
+  timeUtc?: string;
+  clan?: string;
+  opp?: string;
+  map?: string;
+  size?: string;
+  server?: string;
+  stack?: string;
+  rules?: string;
+  mode?: string;
+  status?: string;
+  r1?: string;
+  r2?: string;
+  meeting?: string;
+  note?: string;
+};
+
+export type CwMatchPatchResult = {
+  ok: boolean;
+  id: string;
+  row: Record<string, unknown>;
+  calendarWrites: string[];
+  error?: string;
+};
+
+function mskToUtcHm(timeMsk: string): string | null {
+  const t = parseTimeHm(timeMsk);
+  if (!t) return null;
+  const utcH = (t.hh - 3 + 24) % 24;
+  return `${String(utcH).padStart(2, "0")}:${String(t.mm).padStart(2, "0")}`;
+}
+
+function normalizeStatus(raw: string): CwMatchStatus | null {
+  const s = String(raw || "")
+    .trim()
+    .toLowerCase();
+  if (!s) return null;
+  if (s === "отмена" || s === "cancelled") return "cancel";
+  if (s === "перенос" || s === "moved") return "move";
+  if (s === "скоро" || s === "soon") return "upcoming";
+  if (
+    s === "уточняется" ||
+    s === "tba" ||
+    s === "tbd" ||
+    s === "pending" ||
+    s === "clarify"
+  ) {
+    return "tba";
+  }
+  if (s === "победа") return "win";
+  if (s === "поражение") return "lose";
+  if (s === "ничья") return "draw";
+  if ((CW_MATCH_STATUSES as readonly string[]).includes(s)) {
+    return s as CwMatchStatus;
+  }
+  return null;
+}
+
+/**
+ * Правка существующего слота КВ во всех копиях календаря месяца.
+ * Календари кланов читают тот же JSON — правки видны сразу после bust.
+ */
+export async function updateClanWarMatch(
+  input: CwMatchPatchInput
+): Promise<CwMatchPatchResult> {
+  const id = String(input.id || "").trim();
+  const year = Number(input.year);
+  const month = Number(input.month);
+  if (!id) {
+    return { ok: false, id: "", row: {}, calendarWrites: [], error: "id" };
+  }
+  if (!Number.isFinite(year) || year < 2020 || year > 2100) {
+    return { ok: false, id, row: {}, calendarWrites: [], error: "year" };
+  }
+  if (!Number.isFinite(month) || month < 1 || month > 12) {
+    return { ok: false, id, row: {}, calendarWrites: [], error: "month" };
+  }
+
+  const patch: Record<string, unknown> = {};
+  if (input.day != null) {
+    const day = Number(input.day);
+    if (!Number.isFinite(day) || day < 1 || day > 31) {
+      return { ok: false, id, row: {}, calendarWrites: [], error: "day" };
+    }
+    patch.day = day;
+  }
+  if (input.timeMsk != null) {
+    const hm = parseTimeHm(String(input.timeMsk));
+    if (!hm) {
+      return { ok: false, id, row: {}, calendarWrites: [], error: "timeMsk" };
+    }
+    patch.timeMsk = `${String(hm.hh).padStart(2, "0")}:${String(hm.mm).padStart(2, "0")}`;
+    if (input.timeUtc == null) {
+      const utc = mskToUtcHm(String(patch.timeMsk));
+      if (utc) patch.timeUtc = utc;
+    }
+  }
+  if (input.timeUtc != null) {
+    const hm = parseTimeHm(String(input.timeUtc).replace(/\s*UTC\s*$/i, ""));
+    if (!hm) {
+      return { ok: false, id, row: {}, calendarWrites: [], error: "timeUtc" };
+    }
+    patch.timeUtc = `${String(hm.hh).padStart(2, "0")}:${String(hm.mm).padStart(2, "0")}`;
+  }
+  if (input.clan != null) {
+    const clan = cleanClanTag(String(input.clan));
+    if (!clan || /^(bb|blackberry)$/i.test(clan)) {
+      patch.clan = undefined; // BB-слот: поля clan нет
+      patch._clearClan = true;
+    } else {
+      patch.clan = clan;
+    }
+  }
+  if (input.opp != null) patch.opp = cleanClanTag(String(input.opp)) || String(input.opp).trim();
+  if (input.map != null) patch.map = String(input.map).trim();
+  if (input.size != null) patch.size = String(input.size).trim();
+  if (input.server != null) patch.server = String(input.server).trim();
+  if (input.stack != null) patch.stack = String(input.stack).trim();
+  if (input.rules != null) {
+    const rules = String(input.rules).trim();
+    patch.rules = rules;
+    patch.mode = rules;
+  }
+  if (input.mode != null && input.rules == null) {
+    const mode = String(input.mode).trim();
+    patch.mode = mode;
+    patch.rules = mode;
+  }
+  if (input.status != null) {
+    const st = normalizeStatus(String(input.status));
+    if (!st) {
+      return { ok: false, id, row: {}, calendarWrites: [], error: "status" };
+    }
+    patch.status = st;
+  }
+  if (input.r1 != null) patch.r1 = String(input.r1).trim();
+  if (input.r2 != null) patch.r2 = String(input.r2).trim();
+  if (input.meeting != null) patch.meeting = String(input.meeting).trim();
+  if (input.note != null) patch.note = String(input.note).trim();
+
+  const paths = calendarWritePaths(year, month);
+  const calendarWrites: string[] = [];
+  let updatedRow: Record<string, unknown> | null = null;
+  let found = false;
+
+  for (const filePath of paths) {
+    let raw: string;
+    try {
+      raw = await fs.readFile(filePath, "utf8");
+    } catch {
+      calendarWrites.push(`skip:${filePath}`);
+      continue;
+    }
+    let data: { matches?: CalMatch[]; [k: string]: unknown };
+    try {
+      data = JSON.parse(raw) as { matches?: CalMatch[] };
+    } catch {
+      calendarWrites.push(`badjson:${filePath}`);
+      continue;
+    }
+    const matches = Array.isArray(data.matches) ? [...data.matches] : [];
+    const idx = matches.findIndex((m) => String(m.id || "") === id);
+    if (idx < 0) {
+      calendarWrites.push(`miss:${filePath}`);
+      continue;
+    }
+    found = true;
+    const cur = { ...matches[idx] } as CalMatch;
+    for (const [k, v] of Object.entries(patch)) {
+      if (k === "_clearClan") {
+        delete cur.clan;
+        continue;
+      }
+      if (v === undefined) {
+        delete (cur as Record<string, unknown>)[k];
+      } else {
+        (cur as Record<string, unknown>)[k] = v;
+      }
+    }
+    cur.id = id;
+    matches[idx] = cur;
+    data.matches = matches;
+    try {
+      await fs.writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+      calendarWrites.push(`updated:${filePath}`);
+      updatedRow = cur as Record<string, unknown>;
+    } catch (e) {
+      calendarWrites.push(
+        `err:${filePath}:${e instanceof Error ? e.message : "x"}`
+      );
+    }
+  }
+
+  if (!found || !updatedRow) {
+    return {
+      ok: false,
+      id,
+      row: {},
+      calendarWrites,
+      error: "not_found",
+    };
+  }
+
+  await bumpCacheBust(`edit ${id}`);
+  clearKvMemCache();
+  return {
+    ok: true,
+    id,
+    row: updatedRow,
+    calendarWrites,
+  };
 }

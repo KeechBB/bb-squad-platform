@@ -479,7 +479,7 @@ export async function buildUpcomingMatchPreviews(
   const { previews, source } = await buildCalendarMatches();
   return {
     previews: previews
-      .filter((m) => m.status === "upcoming")
+      .filter((m) => m.status === "upcoming" || m.status === "tba")
       .slice(0, limit),
     source,
   };

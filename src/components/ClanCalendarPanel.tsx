@@ -167,7 +167,9 @@ function statusLabel(status: string) {
   if (status === "lose") return "Поражение";
   if (status === "draw") return "Ничья";
   if (status === "upcoming") return "Скоро";
+  if (status === "tba") return "Уточняется";
   if (status === "cancel") return "Отмена";
+  if (status === "move") return "Перенос";
   if (status === "done") return "Сыграно";
   return "Матч";
 }
@@ -265,7 +267,9 @@ export function ClanCalendarPanel({
     const monthMatches = matches.filter(
       (m) => m.year === cursor.year && m.month === cursor.month
     );
-    const up = monthMatches.find((m) => m.status === "upcoming");
+    const up = monthMatches.find(
+      (m) => m.status === "upcoming" || m.status === "tba"
+    );
     return up || monthMatches[0] || null;
   }, [matches, selectedKey, cursor.year, cursor.month]);
 

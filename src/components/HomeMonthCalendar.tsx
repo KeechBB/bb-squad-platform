@@ -60,7 +60,9 @@ function statusLabel(status: string) {
   if (status === "lose") return "Поражение";
   if (status === "draw") return "Ничья";
   if (status === "upcoming") return "Скоро";
+  if (status === "tba") return "Уточняется";
   if (status === "cancel") return "Отмена";
+  if (status === "move") return "Перенос";
   return "Матч";
 }
 
