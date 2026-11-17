@@ -29,6 +29,43 @@ export const PROFILE_BG_OPTIONS = [
     label: "Турнирное золото II",
     gate: "bp-l5",
   },
+  // Превью фракционных фонов (B$) — пока только Keech
+  {
+    id: "bd-faction-uley-bg",
+    file: "bd-faction-uley-bg.jpg",
+    label: "Улей · Янтарный улей",
+    gate: "creator",
+  },
+  {
+    id: "bd-faction-orda-bg",
+    file: "bd-faction-orda-bg.jpg",
+    label: "Орда · Алая буря",
+    gate: "creator",
+  },
+  {
+    id: "bd-faction-staya-bg",
+    file: "bd-faction-staya-bg.jpg",
+    label: "Стая · Лунный вой",
+    gate: "creator",
+  },
+  {
+    id: "bd-faction-legion-bg",
+    file: "bd-faction-legion-bg.jpg",
+    label: "Легион · Имперский зал",
+    gate: "creator",
+  },
+  {
+    id: "bd-faction-sbord-bg",
+    file: "bd-faction-sbord-bg.jpg",
+    label: "Сброд · Неоновый разлом",
+    gate: "creator",
+  },
+  {
+    id: "bd-faction-tabor-bg",
+    file: "bd-faction-tabor-bg.jpg",
+    label: "Табор · Костёр каравана",
+    gate: "creator",
+  },
 ] as const;
 
 export type ProfileBgId = (typeof PROFILE_BG_OPTIONS)[number]["id"];
