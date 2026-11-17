@@ -13,10 +13,8 @@ export const MARKET_PATCH_ORDER = [
   "public-100-vehicles-t62",
   "bd-faction-legion-ak74",
   "bd-faction-orda-m4a1",
-  "bd-faction-sbord-scar",
-  "bd-faction-staya-svd",
+  // sbord / staya / uley — на тест у Keech, на площадку после апрува
   "bd-faction-tabor-m4",
-  "bd-faction-uley-pkm",
 ] as const;
 
 export type MarketPatchId = (typeof MARKET_PATCH_ORDER)[number];
