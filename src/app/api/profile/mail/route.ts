@@ -38,16 +38,13 @@ export async function PATCH(req: Request) {
   } | null;
   const mailId = body?.id?.trim() || "";
   const action = body?.action || "";
-  if (
-    !mailId ||
-    !["read", "favorite", "unfavorite", "delete", "restore"].includes(action)
-  ) {
+  if (!mailId || !["read", "favorite", "unfavorite", "delete"].includes(action)) {
     return NextResponse.json({ error: "Некорректное письмо" }, { status: 400 });
   }
   const row = await prisma.profileMailRecipient.findUnique({
     where: { mailId_userId: { mailId, userId } },
   });
-  if (!row) {
+  if (!row || row.deletedAt) {
     return NextResponse.json({ error: "Письмо не найдено" }, { status: 404 });
   }
   const now = new Date();
@@ -69,21 +66,10 @@ export async function PATCH(req: Request) {
       data: { favoritedAt: null },
     });
   } else if (action === "delete") {
-    await prisma.profileMailRecipient.update({
-      where: { id: row.id },
-      data: {
-        deletedAt: now,
-        readAt: row.readAt ?? now,
-        favoritedAt: null,
-      },
+    await prisma.profileMailRecipient.delete({ where: { id: row.id } });
+    await prisma.profileMail.deleteMany({
+      where: { id: mailId, recipients: { none: {} } },
     });
-  } else if (action === "restore") {
-    if (row.deletedAt) {
-      await prisma.profileMailRecipient.update({
-        where: { id: row.id },
-        data: { deletedAt: null },
-      });
-    }
   }
   const letters = await listMailForUser(userId);
   return NextResponse.json({ letters });

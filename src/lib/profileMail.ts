@@ -3,7 +3,8 @@ import { findBlackberryClanIds } from "@/lib/reserve";
 import { syncCwMails } from "@/lib/cwMailSync";
 import { syncTournamentEliminationMails } from "@/lib/tournamentEliminationMail";
 
-export const MAIL_KEEP_DELETED_MS = 30 * 24 * 60 * 60 * 1000;
+/** Раньше корзина 30 дней — теперь удаление сразу, константа для старых вызовов. */
+export const MAIL_KEEP_DELETED_MS = 0;
 
 export const SENDER_PRESETS = {
   developer: "Разработчик",
@@ -25,14 +26,13 @@ export type MailRow = {
   read: boolean;
   favorite: boolean;
   deleted: boolean;
-  /** Сколько дней письмо ещё лежит в удалённых. null, если не удалено. */
   daysLeft: number | null;
 };
 
 export async function purgeExpiredMail() {
-  const cutoff = new Date(Date.now() - MAIL_KEEP_DELETED_MS);
+  // Корзины нет: всё с deletedAt и осиротевшие письма — вон.
   await prisma.profileMailRecipient.deleteMany({
-    where: { deletedAt: { lt: cutoff } },
+    where: { deletedAt: { not: null } },
   });
   await prisma.profileMail.deleteMany({
     where: { recipients: { none: {} } },
@@ -44,7 +44,7 @@ export async function listMailForUser(userId: string): Promise<MailRow[]> {
   await syncTournamentEliminationMails();
   await purgeExpiredMail();
   const rows = await prisma.profileMailRecipient.findMany({
-    where: { userId },
+    where: { userId, deletedAt: null },
     orderBy: { mail: { createdAt: "desc" } },
     include: {
       mail: {
@@ -61,27 +61,20 @@ export async function listMailForUser(userId: string): Promise<MailRow[]> {
       },
     },
   });
-  return rows.map((row) => {
-    let daysLeft: number | null = null;
-    if (row.deletedAt) {
-      const msLeft = row.deletedAt.getTime() + MAIL_KEEP_DELETED_MS - Date.now();
-      daysLeft = Math.max(0, Math.ceil(msLeft / (24 * 60 * 60 * 1000)));
-    }
-    return {
-      id: row.mail.id,
-      title: row.mail.title,
-      body: row.mail.body,
-      senderKind: row.mail.senderKind,
-      senderLabel: row.mail.senderLabel,
-      tags: row.mail.tags,
-      cwMatchId: row.mail.cwMatchId,
-      createdAt: row.mail.createdAt.toISOString(),
-      read: Boolean(row.readAt),
-      favorite: Boolean(row.favoritedAt) && !row.deletedAt,
-      deleted: Boolean(row.deletedAt),
-      daysLeft,
-    };
-  });
+  return rows.map((row) => ({
+    id: row.mail.id,
+    title: row.mail.title,
+    body: row.mail.body,
+    senderKind: row.mail.senderKind,
+    senderLabel: row.mail.senderLabel,
+    tags: row.mail.tags,
+    cwMatchId: row.mail.cwMatchId,
+    createdAt: row.mail.createdAt.toISOString(),
+    read: Boolean(row.readAt),
+    favorite: Boolean(row.favoritedAt),
+    deleted: false,
+    daysLeft: null,
+  }));
 }
 
 export async function resolveSender(kind: string, custom: string) {

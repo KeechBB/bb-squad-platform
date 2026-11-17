@@ -2736,10 +2736,11 @@ body.has-profile-bg .canvas-scale-host.is-profile.is-side-inset .canvas-scale-st
 }
 
 .profile-mail {
-  flex: 0 0 480px;
-  width: 480px;
-  max-width: 480px;
-  min-width: 360px;
+  /* Было 480 с 3 вкладками; убрали «удаленные» (~147px) → больше фона по бокам. */
+  flex: 0 0 333px;
+  width: 333px;
+  max-width: 333px;
+  min-width: 300px;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -2768,7 +2769,7 @@ body.has-profile-bg .canvas-scale-host.is-profile.is-side-inset .canvas-scale-st
   border-radius: 10px;
   padding: 9px 6px;
   font-family: var(--font-display), Oxanium, sans-serif;
-  font-size: 1.1rem;
+  font-size: 0.95rem;
   font-weight: 800;
   letter-spacing: 0.01em;
   cursor: pointer;
@@ -2833,11 +2834,11 @@ body.has-profile-bg .canvas-scale-host.is-profile.is-side-inset .canvas-scale-st
   font: inherit;
   cursor: pointer;
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 0 14px;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 14px;
   text-align: left;
 }
 
@@ -2880,11 +2881,16 @@ body.has-profile-bg .canvas-scale-host.is-profile.is-side-inset .canvas-scale-st
 .mail-tags {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
   align-items: center;
   gap: 4px;
-  max-width: 48%;
-  flex: 0 1 auto;
+  max-width: 100%;
+  flex: 0 0 auto;
+}
+
+.profile-mail-row-main > .mail-tags {
+  order: -1;
+  width: 100%;
 }
 
 .mail-tag {

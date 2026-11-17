@@ -18,22 +18,11 @@ type Letter = {
   createdAt: string;
   read: boolean;
   favorite: boolean;
-  deleted: boolean;
-  daysLeft?: number | null;
 };
 
-type Folder = "inbox" | "star" | "trash";
+type Folder = "inbox" | "star";
 
 const ROW_H = 108;
-
-function purgeLabel(days: number) {
-  if (days <= 0) return "удалится сегодня";
-  const n = Math.abs(days) % 100;
-  const n1 = n % 10;
-  const word =
-    n > 10 && n < 20 ? "дней" : n1 === 1 ? "день" : n1 >= 2 && n1 <= 4 ? "дня" : "дней";
-  return `удалится через ${days} ${word}`;
-}
 
 function formatWhen(iso: string) {
   const d = new Date(iso);
@@ -82,12 +71,11 @@ export function ProfileMailBox() {
   }, [folder]);
 
   const visible = useMemo(() => {
-    if (folder === "trash") return letters.filter((l) => l.deleted);
-    if (folder === "star") return letters.filter((l) => l.favorite && !l.deleted);
-    return letters.filter((l) => !l.deleted);
+    if (folder === "star") return letters.filter((l) => l.favorite);
+    return letters;
   }, [letters, folder]);
 
-  const unread = letters.filter((l) => !l.deleted && !l.read).length;
+  const unread = letters.filter((l) => !l.read).length;
   const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
   const safePage = Math.min(page, pageCount);
   const slice = visible.slice((safePage - 1) * pageSize, safePage * pageSize);
@@ -156,10 +144,10 @@ export function ProfileMailBox() {
                       open.senderKind === "transfer"
                         ? " is-transfer"
                         : open.senderKind === "developer"
-                        ? " is-dev"
-                        : open.senderKind === "sri"
-                          ? " is-sri"
-                          : ""
+                          ? " is-dev"
+                          : open.senderKind === "sri"
+                            ? " is-sri"
+                            : ""
                     }`}
                   >
                     от {open.senderLabel}
@@ -168,9 +156,6 @@ export function ProfileMailBox() {
                   <p className="profile-match-modal-sub">
                     {formatWhen(open.createdAt)} МСК
                   </p>
-                  {open.daysLeft != null ? (
-                    <p className="profile-mail-purge">{purgeLabel(open.daysLeft)}</p>
-                  ) : null}
                   <MailTags tags={open.tags || []} />
                 </div>
                 <button
@@ -189,20 +174,7 @@ export function ProfileMailBox() {
                 {open.cwMatchId ? <CwLetterReady matchId={open.cwMatchId} /> : null}
               </div>
               <div className="profile-mail-modal-actions">
-                {open.deleted ? (
-                  <button
-                    type="button"
-                    className="btn"
-                    disabled={busy}
-                    onClick={() => {
-                      void act(open.id, "restore");
-                      setOpen(null);
-                      setFolder("inbox");
-                    }}
-                  >
-                    Восстановить
-                  </button>
-                ) : open.favorite ? (
+                {open.favorite ? (
                   <button
                     type="button"
                     className="btn"
@@ -227,19 +199,17 @@ export function ProfileMailBox() {
                     Добавить в избранное
                   </button>
                 )}
-                {open.deleted ? null : (
-                  <button
-                    type="button"
-                    className="btn btn-danger-ghost"
-                    disabled={busy}
-                    onClick={() => {
-                      void act(open.id, "delete");
-                      setOpen(null);
-                    }}
-                  >
-                    Удалить письмо
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="btn btn-danger-ghost"
+                  disabled={busy}
+                  onClick={() => {
+                    void act(open.id, "delete");
+                    setOpen(null);
+                  }}
+                >
+                  Удалить письмо
+                </button>
                 <button type="button" className="btn" onClick={() => void closeReader()}>
                   Закрыть
                 </button>
@@ -268,13 +238,6 @@ export function ProfileMailBox() {
         >
           избранное
         </button>
-        <button
-          type="button"
-          className={`profile-mail-tab${folder === "trash" ? " is-on" : ""}`}
-          onClick={() => setFolder("trash")}
-        >
-          удаленные
-        </button>
       </div>
       <div className="profile-mail-list" ref={listRef}>
         {slice.length ? (
@@ -282,14 +245,15 @@ export function ProfileMailBox() {
             <div
               key={letter.id}
               className={`profile-mail-row${letter.read ? "" : " is-unread"}${
-                letter.deleted ? " is-trash" : ""
-              }${letter.senderKind === "transfer" ? " is-transfer" : ""}`}
+                letter.senderKind === "transfer" ? " is-transfer" : ""
+              }`}
             >
               <button
                 type="button"
                 className="profile-mail-row-main"
                 onClick={() => setOpen(letter)}
               >
+                <MailTags tags={letter.tags || []} />
                 <span className="profile-mail-copy">
                   <span
                     className={`profile-mail-from${
@@ -305,28 +269,8 @@ export function ProfileMailBox() {
                     от {letter.senderLabel}
                   </span>
                   <span className="profile-mail-title">{letter.title}</span>
-                  {letter.daysLeft != null ? (
-                    <span className="profile-mail-purge">
-                      {purgeLabel(letter.daysLeft)}
-                    </span>
-                  ) : null}
                 </span>
-                <MailTags tags={letter.tags || []} />
               </button>
-              {letter.deleted ? (
-                <button
-                  type="button"
-                  className="profile-mail-restore"
-                  disabled={busy}
-                  title="Вернуть во входящие"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void act(letter.id, "restore");
-                  }}
-                >
-                  восстановить
-                </button>
-              ) : null}
             </div>
           ))
         ) : (
