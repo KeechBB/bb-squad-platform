@@ -1840,7 +1840,7 @@ body:has(.tm-sapper-page) {
     background-position: 100% 50%;
   }
 }
-/* B$ фракционные нашивки — тонкий фиолетовый rim, без размытия рисунка */
+/* B$ faction patches: static behind-glow, faction color, no flicker */
 .nick-patch-mark[data-patch-id="bd-faction-legion-ak74"],
 .nick-patch-mark[data-patch-id="bd-faction-orda-m4a1"],
 .nick-patch-mark[data-patch-id="bd-faction-sbord-scar"],
@@ -1848,6 +1848,42 @@ body:has(.tm-sapper-page) {
 .nick-patch-mark[data-patch-id="bd-faction-tabor-m4"],
 .nick-patch-mark[data-patch-id="bd-faction-uley-pkm"] {
   width: 132px;
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+}
+.nick-patch-mark[data-patch-id="bd-faction-legion-ak74"]::before,
+.nick-patch-mark[data-patch-id="bd-faction-orda-m4a1"]::before,
+.nick-patch-mark[data-patch-id="bd-faction-sbord-scar"]::before,
+.nick-patch-mark[data-patch-id="bd-faction-staya-svd"]::before,
+.nick-patch-mark[data-patch-id="bd-faction-tabor-m4"]::before,
+.nick-patch-mark[data-patch-id="bd-faction-uley-pkm"]::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 6px 10px 5px;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(7px);
+  opacity: 0.55;
+}
+.nick-patch-mark[data-patch-id="bd-faction-legion-ak74"]::before {
+  background: radial-gradient(ellipse, rgba(168, 85, 247, 0.55) 0%, rgba(212, 175, 55, 0.28) 55%, transparent 78%);
+}
+.nick-patch-mark[data-patch-id="bd-faction-orda-m4a1"]::before {
+  background: radial-gradient(ellipse, rgba(239, 68, 68, 0.55) 0%, rgba(249, 115, 22, 0.3) 55%, transparent 78%);
+}
+.nick-patch-mark[data-patch-id="bd-faction-sbord-scar"]::before {
+  background: radial-gradient(ellipse, rgba(163, 230, 53, 0.5) 0%, rgba(132, 204, 22, 0.28) 55%, transparent 78%);
+}
+.nick-patch-mark[data-patch-id="bd-faction-staya-svd"]::before {
+  background: radial-gradient(ellipse, rgba(56, 189, 248, 0.55) 0%, rgba(99, 102, 241, 0.28) 55%, transparent 78%);
+}
+.nick-patch-mark[data-patch-id="bd-faction-tabor-m4"]::before {
+  background: radial-gradient(ellipse, rgba(251, 146, 60, 0.55) 0%, rgba(245, 158, 11, 0.3) 55%, transparent 78%);
+}
+.nick-patch-mark[data-patch-id="bd-faction-uley-pkm"]::before {
+  background: radial-gradient(ellipse, rgba(251, 191, 36, 0.55) 0%, rgba(245, 158, 11, 0.28) 55%, transparent 78%);
 }
 .nick-patch-mark[data-patch-id="bd-faction-legion-ak74"] .nick-patch-mark-art,
 .nick-patch-mark[data-patch-id="bd-faction-orda-m4a1"] .nick-patch-mark-art,
@@ -1855,8 +1891,10 @@ body:has(.tm-sapper-page) {
 .nick-patch-mark[data-patch-id="bd-faction-staya-svd"] .nick-patch-mark-art,
 .nick-patch-mark[data-patch-id="bd-faction-tabor-m4"] .nick-patch-mark-art,
 .nick-patch-mark[data-patch-id="bd-faction-uley-pkm"] .nick-patch-mark-art {
-  filter: drop-shadow(0 0 1.5px rgba(210, 185, 255, 0.55));
-  animation: none;
+  position: relative;
+  z-index: 1;
+  filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.25));
+  animation: none !important;
   opacity: 1;
 }
 .nick-patch-mark[data-patch-id="bd-faction-legion-ak74"]:hover .nick-patch-mark-art,
@@ -1877,13 +1915,33 @@ body:has(.tm-sapper-page) {
 .nick-patch-mark[data-patch-id="bd-faction-uley-pkm"]:hover .nick-patch-mark-art,
 .nick-patch-mark[data-patch-id="bd-faction-uley-pkm"]:focus-visible .nick-patch-mark-art,
 .nick-patch-mark[data-patch-id="bd-faction-uley-pkm"].is-active .nick-patch-mark-art {
-  animation: none;
+  animation: none !important;
   transform: scaleX(-1) scale(1.06);
-  filter:
-    drop-shadow(0 0 2px rgba(230, 210, 255, 0.7))
-    drop-shadow(0 0 5px rgba(170, 130, 230, 0.28));
+  filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.35));
   opacity: 1;
 }
+.nick-patch-mark[data-patch-id="bd-faction-legion-ak74"]:hover::before,
+.nick-patch-mark[data-patch-id="bd-faction-legion-ak74"]:focus-visible::before,
+.nick-patch-mark[data-patch-id="bd-faction-legion-ak74"].is-active::before,
+.nick-patch-mark[data-patch-id="bd-faction-orda-m4a1"]:hover::before,
+.nick-patch-mark[data-patch-id="bd-faction-orda-m4a1"]:focus-visible::before,
+.nick-patch-mark[data-patch-id="bd-faction-orda-m4a1"].is-active::before,
+.nick-patch-mark[data-patch-id="bd-faction-sbord-scar"]:hover::before,
+.nick-patch-mark[data-patch-id="bd-faction-sbord-scar"]:focus-visible::before,
+.nick-patch-mark[data-patch-id="bd-faction-sbord-scar"].is-active::before,
+.nick-patch-mark[data-patch-id="bd-faction-staya-svd"]:hover::before,
+.nick-patch-mark[data-patch-id="bd-faction-staya-svd"]:focus-visible::before,
+.nick-patch-mark[data-patch-id="bd-faction-staya-svd"].is-active::before,
+.nick-patch-mark[data-patch-id="bd-faction-tabor-m4"]:hover::before,
+.nick-patch-mark[data-patch-id="bd-faction-tabor-m4"]:focus-visible::before,
+.nick-patch-mark[data-patch-id="bd-faction-tabor-m4"].is-active::before,
+.nick-patch-mark[data-patch-id="bd-faction-uley-pkm"]:hover::before,
+.nick-patch-mark[data-patch-id="bd-faction-uley-pkm"]:focus-visible::before,
+.nick-patch-mark[data-patch-id="bd-faction-uley-pkm"].is-active::before {
+  opacity: 0.72;
+  transform: scale(1.04);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .public-rating-nick-label.is-metallic-gold::after {
     animation: none;

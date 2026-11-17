@@ -68,19 +68,19 @@ export const PROFILE_PATCH_OPTIONS = [
     tip: "Т-62 «Неоновый урожай» · Награда за 100 уничтоженных единиц техники на паблике «Фруктовый сад»",
     gate: "public-vehicles-100" as const,
   },
-  // Превью B$ (Черничный доллар) — только SCAR, цвета фракций; размер как Orange Phantom
+  // Превью B$ — разные штурмовые Squad, цвета фракций; холст как Orange Phantom
   {
     id: "bd-faction-legion-ak74",
-    file: "bd-faction-legion-scar.png",
-    label: "SCAR «Орёл Легиона»",
-    tip: "SCAR «Орёл Легиона»",
+    file: "bd-faction-legion-m4.png",
+    label: "M4A1 «Орёл Легиона»",
+    tip: "M4A1 «Орёл Легиона»",
     gate: "creator" as const,
   },
   {
     id: "bd-faction-orda-m4a1",
-    file: "bd-faction-orda-scar.png",
-    label: "SCAR «Клык Орды»",
-    tip: "SCAR «Клык Орды»",
+    file: "bd-faction-orda-ak74.png",
+    label: "АК-74 «Клык Орды»",
+    tip: "АК-74 «Клык Орды»",
     gate: "creator" as const,
   },
   {
@@ -92,23 +92,23 @@ export const PROFILE_PATCH_OPTIONS = [
   },
   {
     id: "bd-faction-staya-svd",
-    file: "bd-faction-staya-scar.png",
-    label: "SCAR «Лунная Стая»",
-    tip: "SCAR «Лунная Стая»",
+    file: "bd-faction-staya-aug.png",
+    label: "AUG «Лунная Стая»",
+    tip: "AUG «Лунная Стая»",
     gate: "creator" as const,
   },
   {
     id: "bd-faction-tabor-m4",
-    file: "bd-faction-tabor-scar.png",
-    label: "SCAR «Золото Табора»",
-    tip: "SCAR «Золото Табора»",
+    file: "bd-faction-tabor-akm.png",
+    label: "AKM «Золото Табора»",
+    tip: "AKM «Золото Табора»",
     gate: "creator" as const,
   },
   {
     id: "bd-faction-uley-pkm",
-    file: "bd-faction-uley-scar.png",
-    label: "SCAR «Янтарь Улья»",
-    tip: "SCAR «Янтарь Улья»",
+    file: "bd-faction-uley-g36.png",
+    label: "G36 «Янтарь Улья»",
+    tip: "G36 «Янтарь Улья»",
     gate: "creator" as const,
   },
 ] as const;
@@ -165,7 +165,7 @@ export function profilePatchUrl(
       : id === "creator-event-scar-lemon" || id === "creator-event-saiga-apple"
         ? "?v=fs6"
         : id.startsWith("bd-faction-")
-          ? "?v=bd3"
+          ? "?v=bd4"
           : "";
   return `/bp-assets/${opt.file}${bust}`;
 }
