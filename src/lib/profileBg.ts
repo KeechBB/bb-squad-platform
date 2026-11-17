@@ -56,8 +56,8 @@ export const PROFILE_BG_OPTIONS = [
   },
   {
     id: "bd-faction-sbord-bg",
-    file: "bd-faction-sbord-bg.jpg",
-    label: "Сброд · Неоновый разлом",
+    file: "bd-faction-sbord-bg-v2.jpg",
+    label: "Сброд · Задний двор",
     gate: "creator",
   },
   {
