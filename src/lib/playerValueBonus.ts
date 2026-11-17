@@ -1,7 +1,7 @@
 /**
  * Бонусы к «Стоимости» в составе фракции:
- *  - победа КВ Main (участник) +10 000
- *  - победа КВ Junior (участник) +5 000
+ *  - победа КВ Main (участник) +10 000 — только с 17.11.2026
+ *  - победа КВ Junior (участник) +5 000 — только с 17.11.2026
  *  - разовый бонус стартовому Main-составу +50 000
  */
 import { prisma } from "@/lib/prisma";
@@ -15,6 +15,8 @@ import {
 export const CW_WIN_BONUS_MAIN = 10_000;
 export const CW_WIN_BONUS_JUNIOR = 5_000;
 export const MAIN_ROSTER_FOUNDING_BONUS = 50_000;
+/** Победы КВ в стоимость только с этой даты (включительно, YYYY-MM-DD МСК-календарь). */
+export const CW_VALUE_BONUS_FROM_YMD = "2026-11-17";
 
 /** Стартовый Main-состав — разовый +50k к стоимости. */
 export const MAIN_ROSTER_FOUNDING_NICKS = [
@@ -131,14 +133,19 @@ export async function loadPlayerValueBonuses(
   if (!nickKeys.length) return out;
 
   const lines = await prisma.profileMatchLine.findMany({
-    where: { kind: "cw", nickKey: { in: nickKeys } },
-    select: { nickKey: true, matchId: true, payload: true },
+    where: {
+      kind: "cw",
+      nickKey: { in: nickKeys },
+      playedOn: { gte: CW_VALUE_BONUS_FROM_YMD },
+    },
+    select: { nickKey: true, matchId: true, playedOn: true, payload: true },
   });
 
   const mainWins = new Map<string, Set<string>>();
   const juniorWins = new Map<string, Set<string>>();
 
   for (const line of lines) {
+    if (String(line.playedOn || "") < CW_VALUE_BONUS_FROM_YMD) continue;
     if (!payloadWon(line.payload)) continue;
     const stack = payloadStack(line.payload);
     if (!stack) continue;

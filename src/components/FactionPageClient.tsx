@@ -233,7 +233,7 @@ const ROSTER_COLUMNS: { key: RosterSortKey; label: string; title?: string }[] = 
     key: "value",
     label: "Стоимость",
     title:
-      "Рынок + гринд + КВ (Main +10 000 / Junior +5 000 за победу) + разовый Main-состав",
+      "Рынок + гринд + КВ с 17.11 (Main +10 000 / Junior +5 000 за победу) + разовый Main-состав",
   },
   { key: "role", label: "Роль" },
 ];
