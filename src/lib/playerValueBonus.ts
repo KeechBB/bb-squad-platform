@@ -34,6 +34,10 @@ export const MAIN_ROSTER_FOUNDING_NICKS = [
   "Lepurple",
   "Radislave",
   "Zensu",
+  "Hikkomaru",
+  "Pymba",
+  "Gadler",
+  "KuchenChips",
 ] as const;
 
 export type PlayerValueBonusBreakdown = {

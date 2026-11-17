@@ -1,3 +1,9 @@
+## v. 1.2.325 — 18.11.2026 · Стоимость: +4 к Main-составу
+
+В разовый бонус Main-состава (+50 000) добавлены **Hikkomaru, Pymba, Gadler, KuchenChips**.
+
+---
+
 ## v. 1.2.324 — 18.11.2026 · Стоимость: бонусы за победы КВ
 
 К стоимости в составе: **+10 000** за каждую победу КВ Main (если был в составе), **+5 000** за Junior. Стартовому Main-составу (ikeppa, Treppen, qop, JESTER, Diray, Angel, Lordwolf, Chidori, CAT, AkiN, Killreal, Runetik, S.M.P, Lepurple, Radislave, Zensu) — разовый **+50 000**.

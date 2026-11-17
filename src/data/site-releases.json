@@ -1,6 +1,14 @@
 {
-  "current": "1.2.324",
+  "current": "1.2.325",
   "releases": [
+    {
+      "version": "1.2.325",
+      "date": "2026-11-18",
+      "title": "Стоимость: +4 к Main-составу",
+      "bullets": [
+        "В разовый бонус Main +50 000 добавлены Hikkomaru, Pymba, Gadler, KuchenChips"
+      ]
+    },
     {
       "version": "1.2.324",
       "date": "2026-11-18",
