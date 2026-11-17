@@ -2751,7 +2751,8 @@ body.has-profile-bg .shell:has(.profile-page) {
 
 .canvas-scale-host.is-profile.is-side-inset.has-stage-bg,
 body.has-profile-bg .canvas-scale-host.is-profile.is-side-inset {
-  background: var(--profile-bg-image) center / cover no-repeat !important;
+  /* 100% 100%: не кропать бока (cover на ультрашироком съедал edge-art) */
+  background: var(--profile-bg-image) center / 100% 100% no-repeat !important;
   background-color: #07060c !important;
 }
 
