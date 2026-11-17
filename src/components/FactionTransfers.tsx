@@ -232,7 +232,17 @@ type Payload = {
   }[];
   incomingOffers: OfferRow[];
   listable: Listable[];
-  ledger: { id: string; amount: number; kind: string; note: string | null; label: string; createdAt: string }[];
+  ledger: {
+    id: string;
+    amount: number;
+    kind: string;
+    note: string | null;
+    label: string;
+    createdAt: string;
+    userId?: string | null;
+    nick?: string | null;
+    steamId?: string | null;
+  }[];
   grindMatches?: GrindMatchRow[];
   grindPlayers?: GrindPlayerRow[];
   deals?: {
@@ -432,6 +442,8 @@ export function FactionTransfers({ slug, canManage }: Props) {
     key: "total",
     dir: "desc",
   });
+  const [nickFilter, setNickFilter] = useState("");
+  const nickFilterKey = nickFilter.trim().toLowerCase();
 
   const load = useCallback(async () => {
     setErr(null);
@@ -555,7 +567,14 @@ export function FactionTransfers({ slug, canManage }: Props) {
   const grindPlayers = data?.grindPlayers ?? [];
 
   const ledgerSorted = useMemo(() => {
-    const rows = [...ledgerRows];
+    const q = nickFilterKey;
+    const rows = ledgerRows.filter((e) => {
+      if (!q) return true;
+      const nick = (e.nick || "").toLowerCase();
+      const steam = (e.steamId || "").toLowerCase();
+      const note = (e.note || "").toLowerCase();
+      return nick.includes(q) || steam.includes(q) || note.includes(q);
+    });
     const dir = ledgerSort.dir === "asc" ? 1 : -1;
     rows.sort((a, b) => {
       let c = 0;
@@ -566,7 +585,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
       return c * dir || cmpStr(a.id, b.id);
     });
     return rows;
-  }, [ledgerRows, ledgerSort]);
+  }, [ledgerRows, ledgerSort, nickFilterKey]);
 
   const pendingSorted = useMemo(() => {
     const rows = [...pendingDeals];
@@ -619,7 +638,15 @@ export function FactionTransfers({ slug, canManage }: Props) {
   }, [grindMatches, trainsSort]);
 
   const playersSorted = useMemo(() => {
-    const rows = [...grindPlayers];
+    const q = nickFilterKey;
+    const rows = grindPlayers.filter((p) => {
+      if (!q) return true;
+      return (
+        p.nick.toLowerCase().includes(q) ||
+        p.userId.toLowerCase().includes(q) ||
+        (p.factionName || "").toLowerCase().includes(q)
+      );
+    });
     const dir = playersSort.dir === "asc" ? 1 : -1;
     rows.sort((a, b) => {
       let c = 0;
@@ -632,13 +659,19 @@ export function FactionTransfers({ slug, canManage }: Props) {
       return c * dir || cmpStr(a.userId, b.userId);
     });
     return rows;
-  }, [grindPlayers, playersSort]);
+  }, [grindPlayers, playersSort, nickFilterKey]);
 
   const ledgerPage = useFitTablePage(ledgerSorted.length, Boolean(data) && subTab === "ledger");
   const pendingPage = useFitTablePage(pendingSorted.length, Boolean(data) && subTab === "market");
   const closedPage = useFitTablePage(closedSorted.length, Boolean(data) && subTab === "closed");
   const trainsPage = useFitTablePage(trainsSorted.length, Boolean(data) && subTab === "trains");
   const playersPage = useFitTablePage(playersSorted.length, Boolean(data) && subTab === "players");
+
+  useEffect(() => {
+    ledgerPage.setPage(0);
+    playersPage.setPage(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset pages when filter text changes
+  }, [nickFilterKey]);
   const grindMatchOpen = useMemo(
     () => grindMatches.find((m) => m.matchId === grindMatchId) || null,
     [grindMatches, grindMatchId],
@@ -1009,6 +1042,30 @@ export function FactionTransfers({ slug, canManage }: Props) {
 
       {subTab === "ledger" ? (
         <div className="xfer-tab-body xfer-tables">
+          <div className="xfer-nick-filter">
+            <label className="xfer-nick-filter-label" htmlFor="xfer-ledger-nick">
+              Ник / Steam ID
+            </label>
+            <input
+              id="xfer-ledger-nick"
+              className="xfer-nick-filter-input"
+              type="search"
+              value={nickFilter}
+              onChange={(e) => setNickFilter(e.target.value)}
+              placeholder="Например Bahus или 7656119…"
+              autoComplete="off"
+              spellCheck={false}
+            />
+            {nickFilterKey ? (
+              <button
+                type="button"
+                className="xfer-nick-filter-clear"
+                onClick={() => setNickFilter("")}
+              >
+                Сброс
+              </button>
+            ) : null}
+          </div>
           <div className="xfer-fit" ref={ledgerPage.fitRef}>
             <div className="xfer-table-wrap">
               <table className="xfer-table">
@@ -1058,7 +1115,9 @@ export function FactionTransfers({ slug, canManage }: Props) {
                   {!ledgerSorted.length ? (
                     <tr>
                       <td colSpan={4} className="muted">
-                        Пока пусто — гринд с TR1–TR5 пополнит казну.
+                        {nickFilterKey
+                          ? "Нет строк по этому нику / Steam ID."
+                          : "Пока пусто — гринд с TR1–TR5 пополнит казну."}
                       </td>
                     </tr>
                   ) : null}
@@ -1300,6 +1359,30 @@ export function FactionTransfers({ slug, canManage }: Props) {
 
       {subTab === "players" ? (
         <div className="xfer-tab-body xfer-tables">
+          <div className="xfer-nick-filter">
+            <label className="xfer-nick-filter-label" htmlFor="xfer-players-nick">
+              Ник / Steam ID
+            </label>
+            <input
+              id="xfer-players-nick"
+              className="xfer-nick-filter-input"
+              type="search"
+              value={nickFilter}
+              onChange={(e) => setNickFilter(e.target.value)}
+              placeholder="Например Bahus или 7656119…"
+              autoComplete="off"
+              spellCheck={false}
+            />
+            {nickFilterKey ? (
+              <button
+                type="button"
+                className="xfer-nick-filter-clear"
+                onClick={() => setNickFilter("")}
+              >
+                Сброс
+              </button>
+            ) : null}
+          </div>
           <div className="xfer-fit" ref={playersPage.fitRef}>
             <div className="xfer-table-wrap">
               <table className="xfer-table">
@@ -1379,7 +1462,9 @@ export function FactionTransfers({ slug, canManage }: Props) {
                   {!playersSorted.length ? (
                     <tr>
                       <td colSpan={5} className="muted">
-                        Пока никто не капнул гринд B$ в казну.
+                        {nickFilterKey
+                          ? "Нет игроков по этому нику / Steam ID."
+                          : "Пока никто не капнул гринд B$ в казну."}
                       </td>
                     </tr>
                   ) : null}

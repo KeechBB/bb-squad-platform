@@ -25176,6 +25176,53 @@ body:has(.faction-page) .site-footer {
 .bd-mark::before { top: 32%; }
 .bd-mark::after { top: 58%; }
 
+.xfer-nick-filter {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.65rem;
+}
+.xfer-nick-filter-label {
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.72);
+}
+.xfer-nick-filter-input {
+  flex: 1 1 12rem;
+  min-width: 10rem;
+  max-width: 22rem;
+  padding: 0.42rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.55);
+  color: #e2e8f0;
+  font-size: 0.9rem;
+  outline: none;
+}
+.xfer-nick-filter-input::placeholder {
+  color: rgba(148, 163, 184, 0.65);
+}
+.xfer-nick-filter-input:focus {
+  border-color: rgba(168, 85, 247, 0.55);
+  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.18);
+}
+.xfer-nick-filter-clear {
+  flex: 0 0 auto;
+  padding: 0.35rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(30, 41, 59, 0.65);
+  color: rgba(226, 232, 240, 0.88);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.xfer-nick-filter-clear:hover {
+  border-color: rgba(168, 85, 247, 0.45);
+  color: #fff;
+}
 .xfer-tables .xfer-subhead {
   margin: 0.85rem 0 0.4rem;
   font-size: 0.9rem;

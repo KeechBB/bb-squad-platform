@@ -100,12 +100,23 @@ export async function GET(_req: Request, ctx: Ctx) {
       prisma.factionLedgerEntry.findMany({
         where: { factionId },
         orderBy: { createdAt: "desc" },
-        take: 120,
+        take: 800,
       }),
       loadPlayerPriceStats(loaded.view.members.map((m) => m.userId)),
       loadGrindMatchSummaries(),
       loadGrindPlayerSummaries(),
     ]);
+
+  const ledgerUserIds = [
+    ...new Set(ledger.map((e) => e.userId).filter(Boolean) as string[]),
+  ];
+  const ledgerUsers = ledgerUserIds.length
+    ? await prisma.user.findMany({
+        where: { id: { in: ledgerUserIds } },
+        select: { id: true, nick: true, steamId: true, steamName: true },
+      })
+    : [];
+  const ledgerUserById = Object.fromEntries(ledgerUsers.map((u) => [u.id, u]));
 
   /** Входящие по нашим листингам — для штабной панели. */
   const incomingOffers = allPendingOffers.filter((o) => o.listing.faction.id === factionId);
@@ -297,14 +308,20 @@ export async function GET(_req: Request, ctx: Ctx) {
       swapPlayer: offerPlayerCard(o.swapUserId),
     })),
     listable,
-    ledger: ledger.map((e) => ({
-      id: e.id,
-      amount: e.amount,
-      kind: e.kind,
-      note: e.note,
-      createdAt: e.createdAt.toISOString(),
-      label: `${e.amount > 0 ? "+" : ""}${e.amount} ${BD_MARK}`,
-    })),
+    ledger: ledger.map((e) => {
+      const u = e.userId ? ledgerUserById[e.userId] : null;
+      return {
+        id: e.id,
+        amount: e.amount,
+        kind: e.kind,
+        note: e.note,
+        createdAt: e.createdAt.toISOString(),
+        label: `${e.amount > 0 ? "+" : ""}${e.amount} ${BD_MARK}`,
+        userId: e.userId || null,
+        nick: (u?.nick || u?.steamName || null) as string | null,
+        steamId: (u?.steamId || null) as string | null,
+      };
+    }),
     grindMatches,
     grindPlayers,
     /**
