@@ -12,6 +12,31 @@ import {
   type FactionMarketMember,
 } from "@/components/MarketBdBuyModal";
 
+/** Основные вкладки площадки + topup только с кнопки «Пополнить». */
+type Tab = "patches" | "bg" | "font" | "topup";
+type MainTab = Exclude<Tab, "topup">;
+
+const MARKET_TAB_KEY = "bb-market-tab";
+
+function readStoredMarketTab(): MainTab {
+  if (typeof window === "undefined") return "patches";
+  try {
+    const v = window.localStorage.getItem(MARKET_TAB_KEY);
+    if (v === "patches" || v === "bg" || v === "font") return v;
+  } catch {
+    /* ignore */
+  }
+  return "patches";
+}
+
+function writeStoredMarketTab(id: MainTab) {
+  try {
+    window.localStorage.setItem(MARKET_TAB_KEY, id);
+  } catch {
+    /* ignore */
+  }
+}
+
 type Pack = {
   id: BbCoinPackageId | string;
   rubles: number;
@@ -64,14 +89,11 @@ type Tx = {
   at: string;
 };
 
-/** Основные вкладки площадки + topup только с кнопки «Пополнить». */
-type Tab = "patches" | "bg" | "font" | "topup";
-
 type Props = {
   loggedIn: boolean;
 };
 
-const MAIN_TABS: { id: Exclude<Tab, "topup">; label: string }[] = [
+const MAIN_TABS: { id: MainTab; label: string }[] = [
   { id: "patches", label: "Нашивки" },
   { id: "bg", label: "Фон" },
   { id: "font", label: "Шрифт" },
@@ -150,6 +172,15 @@ export function MarketplaceClient({ loggedIn }: Props) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    setTab(readStoredMarketTab());
+  }, []);
+
+  function selectMainTab(id: MainTab) {
+    setTab(id);
+    writeStoredMarketTab(id);
+  }
 
   async function orderPack(packageId: string) {
     setBusy(`pack:${packageId}`);
@@ -476,7 +507,7 @@ export function MarketplaceClient({ loggedIn }: Props) {
                 type="button"
                 className={tab === t.id ? "is-active" : undefined}
                 aria-selected={tab === t.id}
-                onClick={() => setTab(t.id)}
+                onClick={() => selectMainTab(t.id)}
               >
                 {t.label}
               </button>

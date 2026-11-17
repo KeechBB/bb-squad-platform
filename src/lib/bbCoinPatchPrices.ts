@@ -3,9 +3,11 @@
  * Продать = 80% от купить (SELL_OF_BUY).
  * Канон: docs/PATCH-MARKETPLACE-CANON.md, .cursor/rules/bb-coins-patch-prices.mdc
  */
-import type { ProfilePatchId } from "@/lib/profilePatches";
 import { PROFILE_PATCH_OPTIONS, profilePatchUrl } from "@/lib/profilePatches";
-import { MARKET_PATCH_ORDER } from "@/lib/marketPatchIds";
+import {
+  MARKET_PATCH_ORDER,
+  type MarketPatchId,
+} from "@/lib/marketPatchIds";
 
 export { MARKET_PATCH_ORDER } from "@/lib/marketPatchIds";
 
@@ -13,7 +15,7 @@ export { MARKET_PATCH_ORDER } from "@/lib/marketPatchIds";
 export const PATCH_SELL_OF_BUY = 0.8;
 
 /** Короткое имя на карточке (без источника). */
-export const PATCH_MARKET_TITLE: Record<ProfilePatchId, string> = {
+export const PATCH_MARKET_TITLE: Record<MarketPatchId, string> = {
   "bp-l15-keech": "M4A1 «Золотой стандарт»",
   "creator-orange-phantom": "Протокол: Оранжевый призрак",
   "creator-fruit-strike-ak-v2": "АК «Цитрусовый шторм»",
@@ -22,10 +24,16 @@ export const PATCH_MARKET_TITLE: Record<ProfilePatchId, string> = {
   "creator-event-scar-lemon": "АК-74 «Лимонный шквал»",
   "creator-event-saiga-apple": "АК-74 «Яблочный разброс»",
   "public-100-vehicles-t62": "Т-62 «Неоновый урожай»",
+  "bd-faction-legion-ak74": "M4A1 «Орёл Легиона»",
+  "bd-faction-orda-m4a1": "АК-74 «Клык Орды»",
+  "bd-faction-sbord-scar": "SCAR «Скрап-протокол»",
+  "bd-faction-staya-svd": "AUG «Лунная Стая»",
+  "bd-faction-tabor-m4": "AKM «Золото Табора»",
+  "bd-faction-uley-pkm": "G36 «Янтарь Улья»",
 };
 
 /** Откуда награда (подпись под названием). */
-export const PATCH_MARKET_SOURCE: Record<ProfilePatchId, string> = {
+export const PATCH_MARKET_SOURCE: Record<MarketPatchId, string> = {
   "bp-l15-keech": "Battle Pass · L15",
   "creator-orange-phantom": "Скрытая награда",
   "creator-fruit-strike-ak-v2": "Турнир Fruit Strike · 2 место",
@@ -34,10 +42,16 @@ export const PATCH_MARKET_SOURCE: Record<ProfilePatchId, string> = {
   "creator-event-scar-lemon": "Ивент дня · 50 ресов",
   "creator-event-saiga-apple": "Ивент дня · 100 киллов",
   "public-100-vehicles-t62": "Паблик · 100 техники",
+  "bd-faction-legion-ak74": "$ · Фракция Легион",
+  "bd-faction-orda-m4a1": "$ · Фракция Орда",
+  "bd-faction-sbord-scar": "$ · Фракция Сброд",
+  "bd-faction-staya-svd": "$ · Фракция Стая",
+  "bd-faction-tabor-m4": "$ · Фракция Табор",
+  "bd-faction-uley-pkm": "$ · Фракция Улей",
 };
 
-/** Цена «купить» (BBC) по id нашивки. */
-export const PATCH_BUY_PRICES_BBC: Record<ProfilePatchId, number> = {
+/** Цена «купить» (BBC или $, см. patchDefaultCurrency). */
+export const PATCH_BUY_PRICES_BBC: Record<MarketPatchId, number> = {
   "bp-l15-keech": 4000,
   "creator-orange-phantom": 4500,
   "creator-fruit-strike-ak-v2": 1800,
@@ -46,18 +60,29 @@ export const PATCH_BUY_PRICES_BBC: Record<ProfilePatchId, number> = {
   "creator-event-scar-lemon": 500,
   "creator-event-saiga-apple": 500,
   "public-100-vehicles-t62": 500,
+  "bd-faction-legion-ak74": 10_000,
+  "bd-faction-orda-m4a1": 10_000,
+  "bd-faction-sbord-scar": 10_000,
+  "bd-faction-staya-svd": 10_000,
+  "bd-faction-tabor-m4": 10_000,
+  "bd-faction-uley-pkm": 10_000,
 };
 
-export function patchBuyPriceBbc(id: ProfilePatchId): number {
+/** Валюта по умолчанию: фракционные нашивки — казна ($). */
+export function patchDefaultCurrency(id: MarketPatchId): "BBC" | "BD" {
+  return id.startsWith("bd-faction-") ? "BD" : "BBC";
+}
+
+export function patchBuyPriceBbc(id: MarketPatchId): number {
   return PATCH_BUY_PRICES_BBC[id];
 }
 
-export function patchSellPriceBbc(id: ProfilePatchId): number {
+export function patchSellPriceBbc(id: MarketPatchId): number {
   return Math.round(patchBuyPriceBbc(id) * PATCH_SELL_OF_BUY);
 }
 
 export type MarketPatchCard = {
-  id: ProfilePatchId;
+  id: MarketPatchId;
   title: string;
   source: string;
   image: string;
@@ -77,7 +102,7 @@ export type MarketPatchCard = {
   currency: "BBC" | "BD";
 };
 
-export function marketPatchMeta(id: ProfilePatchId) {
+export function marketPatchMeta(id: MarketPatchId) {
   const opt = PROFILE_PATCH_OPTIONS.find((o) => o.id === id);
   return {
     id,

@@ -10,7 +10,6 @@ import {
   PATCH_SELL_OF_BUY,
   patchBuyPriceBbc,
 } from "@/lib/bbCoinPatchPrices";
-import type { ProfilePatchId } from "@/lib/profilePatches";
 import { mskYmd } from "@/lib/eventDay";
 
 export const DAILY_DISCOUNT_MULT = 0.8;
@@ -37,7 +36,8 @@ function hashYmd(ymd: string): number {
 
 /** Три разных id из каталога на сутки МСК (ротация в 00:00). */
 export function dailyMarketDeals(day = mskYmd()): DailyMarketDeals {
-  const pool = [...MARKET_PATCH_ORDER];
+  // Фракционные $ не крутим в дневных акциях BBC.
+  const pool = MARKET_PATCH_ORDER.filter((id) => !id.startsWith("bd-faction-"));
   const n = pool.length;
   if (n === 0) {
     throw new Error("empty market catalog");
@@ -82,7 +82,7 @@ export function dailyDealKindFor(
 
 /** Цена купить с учётом дневной акции (скидка/наценка). */
 export function patchBuyPriceBbcToday(
-  id: ProfilePatchId,
+  id: MarketPatchId,
   day = mskYmd()
 ): number {
   const base = patchBuyPriceBbc(id);
@@ -101,7 +101,7 @@ export function patchBuyPriceBbcToday(
  * на оружии дня с зелёной лентой — ещё ×1.2.
  */
 export function patchSellPriceBbcToday(
-  id: ProfilePatchId,
+  id: MarketPatchId,
   day = mskYmd()
 ): number {
   let sell = Math.round(patchBuyPriceBbcToday(id, day) * PATCH_SELL_OF_BUY);

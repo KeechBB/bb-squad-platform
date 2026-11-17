@@ -4,7 +4,10 @@
  */
 import { prisma } from "@/lib/prisma";
 import { isBuiltinSuperAdmin } from "@/lib/admin";
-import { PATCH_SELL_OF_BUY } from "@/lib/bbCoinPatchPrices";
+import {
+  PATCH_SELL_OF_BUY,
+  patchDefaultCurrency,
+} from "@/lib/bbCoinPatchPrices";
 import { SITE_CREATOR_STEAM_ID } from "@/lib/profileBg";
 import { MARKET_PATCH_ORDER } from "@/lib/marketPatchIds";
 import { patchBuyPriceBbc, patchSellPriceBbc } from "@/lib/bbCoinPatchPrices";
@@ -102,9 +105,9 @@ function codeDefaults(
     if (!(MARKET_PATCH_ORDER as readonly string[]).includes(itemId)) return null;
     const id = itemId as (typeof MARKET_PATCH_ORDER)[number];
     return {
-      buy: patchBuyPriceBbc(id as never),
-      sell: patchSellPriceBbc(id as never),
-      currency: "BBC",
+      buy: patchBuyPriceBbc(id),
+      sell: patchSellPriceBbc(id),
+      currency: patchDefaultCurrency(id),
     };
   }
   if (catalog === "bg") {
