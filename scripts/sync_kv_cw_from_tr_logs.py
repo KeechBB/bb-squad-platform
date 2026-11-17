@@ -37,8 +37,10 @@ KV_PUBLIC = _resolve_kv_public()
 CW_PLAYERS = KV_PUBLIC / "data" / "players"
 AUTO_CW = KV_PUBLIC / "data" / "_auto_cw_matches.json"
 LOOKBACK_DAYS = int(os.environ.get("CW_TR_LOOKBACK_DAYS", "5"))
-# Canon «≥10 мин»; 9.5 ловит округление/обрезку (напр. FAL R2 9.9 мин).
-MIN_LAYER_SEC = int(9.5 * 60)
+# Canon «≥10 мин» для обычных слоёв; FCL 8v8/Small часто закрываются за 8–9 мин
+# (напр. Junior vs NKLV 10.11: R2 Narva 8:41, Albasrah 8:08–8:52).
+# 7 мин ловит короткие FCL, warmup по-прежнему режется MIN_ROUND_PLAYERS.
+MIN_LAYER_SEC = int(os.environ.get("CW_TR_MIN_LAYER_SEC", str(7 * 60)))
 # Warmup / partial fill often lasts >MIN_LAYER_SEC but has a tiny roster (e.g. 3+2).
 MIN_ROUND_PLAYERS = 10  # bb_rows + opp_rows after side split
 TIME_SLACK_MIN = int(os.environ.get("CW_TR_TIME_SLACK_MIN", "45"))
@@ -420,6 +422,26 @@ def _pack_token(text: str) -> str | None:
     return None
 
 
+def _cw_place_key(text: str) -> str:
+    """Map place only. SEC_26_AlBasrah_AAS_v1 and «Al Basrah 26 v1» are the same place.
+
+    Underscores hide AAS from the word-boundary stem, and the 26-player token
+    sits in a different place in the calendar name than in the layer id.
+    """
+    s = (text or "").replace("_", " ")
+    s = re.sub(r"\b(sec|fcl|csl)\b", " ", s, flags=re.I)
+    s = re.sub(r"\bv\d+\b", " ", s, flags=re.I)
+    s = re.sub(r"\b\d{1,3}\b", " ", s)
+    s = re.sub(
+        r"\b(paas|raas|invasion|skirmish|insurgency|destruction|tc|aas)\b",
+        " ",
+        s,
+        flags=re.I,
+    )
+    s = _normalize_map_stem(s)
+    return re.sub(r"[^a-z0-9]+", "", s.lower())
+
+
 def map_fuzzy_match(slot_map: str, layer: str) -> bool:
     # FCL Mutaha is not Mutaha Skirmish. Pack tag has to be on both sides.
     pack_a = _pack_token(slot_map)
@@ -442,7 +464,10 @@ def map_fuzzy_match(slot_map: str, layer: str) -> bool:
     # HotDrop Narva vs Narva AAS …
     ta = re.sub(r"[^a-z0-9]", "", a)
     tb = re.sub(r"[^a-z0-9]", "", b)
-    return bool(ta and tb and (ta in tb or tb in ta))
+    if ta and tb and (ta in tb or tb in ta):
+        return True
+    pa, pb = _cw_place_key(slot_map), _cw_place_key(layer)
+    return bool(pa and pb and pa == pb)
 
 
 def split_bb_opp(
@@ -1082,7 +1107,9 @@ def main() -> int:
     AUTO_CW.write_text(json.dumps(auto, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     if added:
         bump_cache_bust()
-        publish_cw_live_mirrors(auto)
+        publish_cw_live_mirrors(
+            auto, only_ids={str(r.get("id") or "") for r in written}
+        )
         try:
             import bb_alerts as AL  # noqa: WPS433
 
@@ -1125,7 +1152,9 @@ def main() -> int:
     return 0
 
 
-def publish_cw_live_mirrors(auto: list[dict] | None = None) -> None:
+def publish_cw_live_mirrors(
+    auto: list[dict] | None = None, only_ids: set[str] | None = None
+) -> None:
     """Copy CW calendar + player files into platform kv-cache for immediate site."""
     import shutil
 
@@ -1194,7 +1223,7 @@ def publish_cw_live_mirrors(auto: list[dict] | None = None) -> None:
                 and dst.is_file()
             ):
                 try:
-                    merge_cw_month_preserve_final(src, dst)
+                    merge_cw_month_preserve_final(src, dst, only_ids=only_ids)
                     continue
                 except Exception as e:
                     print(f"merge {rel} failed ({e}), fallback copy", flush=True)
@@ -1202,8 +1231,14 @@ def publish_cw_live_mirrors(auto: list[dict] | None = None) -> None:
         print(f"mirrored CW data → {dest_root}", flush=True)
 
 
-def merge_cw_month_preserve_final(src: Path, dst: Path) -> None:
-    """Write src month JSON into dst, keeping finalized rows if src downgrades them."""
+def merge_cw_month_preserve_final(
+    src: Path, dst: Path, only_ids: set[str] | None = None
+) -> None:
+    """Write src month JSON into dst, keeping finalized rows if src downgrades them.
+
+    only_ids: this run's match ids. Other rows stay as the site already shows them,
+    so a stale copy of 04-avg / a cancel cannot ride along with the new result.
+    """
     incoming = json.loads(src.read_text(encoding="utf-8"))
     existing = json.loads(dst.read_text(encoding="utf-8"))
     by_id = {
@@ -1216,6 +1251,11 @@ def merge_cw_month_preserve_final(src: Path, dst: Path) -> None:
     for m in incoming.get("matches") or []:
         mid = str(m.get("id") or "")
         prev = by_id.get(mid)
+        if prev and only_ids is not None and mid not in only_ids:
+            out_matches.append(prev)
+            if mid:
+                seen.add(mid)
+            continue
         if (
             prev
             and str(prev.get("status") or "") in ("win", "lose")
@@ -1231,7 +1271,7 @@ def merge_cw_month_preserve_final(src: Path, dst: Path) -> None:
     for mid, prev in by_id.items():
         if mid in seen:
             continue
-        if str(prev.get("status") or "") in ("win", "lose"):
+        if str(prev.get("status") or "") in ("win", "lose", "cancel", "move"):
             print(f"mirror keep orphan finalized {mid}", flush=True)
             out_matches.append(prev)
     incoming["matches"] = out_matches
