@@ -86,15 +86,15 @@ export const PROFILE_PATCH_OPTIONS = [
   {
     id: "bd-faction-sbord-scar",
     file: "bd-faction-sbord-fal.png",
-    label: "SCAR «Скрап-протокол»",
-    tip: "SCAR «Скрап-протокол»",
+    label: "FN FAL «Скрап-протокол»",
+    tip: "FN FAL «Скрап-протокол»",
     gate: "creator" as const,
   },
   {
     id: "bd-faction-staya-svd",
     file: "bd-faction-staya-ak12.png",
-    label: "AUG «Лунная Стая»",
-    tip: "AUG «Лунная Стая»",
+    label: "AK-12 «Лунная Стая»",
+    tip: "AK-12 «Лунная Стая»",
     gate: "creator" as const,
   },
   {
@@ -107,8 +107,8 @@ export const PROFILE_PATCH_OPTIONS = [
   {
     id: "bd-faction-uley-pkm",
     file: "bd-faction-uley-qbz191.png",
-    label: "G36 «Янтарь Улья»",
-    tip: "G36 «Янтарь Улья»",
+    label: "QBZ-191 «Янтарь Улья»",
+    tip: "QBZ-191 «Янтарь Улья»",
     gate: "creator" as const,
   },
 ] as const;
@@ -165,7 +165,7 @@ export function profilePatchUrl(
       : id === "creator-event-scar-lemon" || id === "creator-event-saiga-apple"
         ? "?v=fs6"
         : id.startsWith("bd-faction-")
-          ? "?v=bd8"
+          ? "?v=bd9"
           : "";
   return `/bp-assets/${opt.file}${bust}`;
 }
