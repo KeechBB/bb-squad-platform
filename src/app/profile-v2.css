@@ -1403,8 +1403,9 @@ body.has-profile-bg .shell:has(.profile-page) {
   bottom: 34%;
   border-radius: 50%;
   pointer-events: none;
-  filter: blur(14px);
-  opacity: 0.5;
+  filter: blur(10px);
+  opacity: 0.2;
+  animation: none !important;
 }
 .profile-patch-tile[data-patch-id="bd-faction-legion-ak74"]::before {
   background: radial-gradient(ellipse, rgba(168, 85, 247, 0.7), rgba(212, 175, 55, 0.25), transparent 70%);
