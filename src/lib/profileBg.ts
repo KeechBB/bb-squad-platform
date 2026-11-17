@@ -32,37 +32,37 @@ export const PROFILE_BG_OPTIONS = [
   // Превью фракционных фонов (B$) — пока только Keech
   {
     id: "bd-faction-uley-bg",
-    file: "bd-faction-uley-bg.jpg",
+    file: "bd-faction-uley-bg-v3.jpg",
     label: "Улей · Янтарный улей",
     gate: "creator",
   },
   {
     id: "bd-faction-orda-bg",
-    file: "bd-faction-orda-bg.jpg",
+    file: "bd-faction-orda-bg-v3.jpg",
     label: "Орда · Алая буря",
     gate: "creator",
   },
   {
     id: "bd-faction-staya-bg",
-    file: "bd-faction-staya-bg.jpg",
+    file: "bd-faction-staya-bg-v3.jpg",
     label: "Стая · Лунный вой",
     gate: "creator",
   },
   {
     id: "bd-faction-legion-bg",
-    file: "bd-faction-legion-bg.jpg",
+    file: "bd-faction-legion-bg-v3.jpg",
     label: "Легион · Имперский зал",
     gate: "creator",
   },
   {
     id: "bd-faction-sbord-bg",
-    file: "bd-faction-sbord-bg-v2.jpg",
+    file: "bd-faction-sbord-bg-v3.jpg",
     label: "Сброд · Задний двор",
     gate: "creator",
   },
   {
     id: "bd-faction-tabor-bg",
-    file: "bd-faction-tabor-bg.jpg",
+    file: "bd-faction-tabor-bg-v3.jpg",
     label: "Табор · Костёр каравана",
     gate: "creator",
   },
