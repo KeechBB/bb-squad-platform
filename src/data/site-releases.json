@@ -1,6 +1,14 @@
 {
-  "current": "1.2.325",
+  "current": "1.2.326",
   "releases": [
+    {
+      "version": "1.2.326",
+      "date": "2026-11-18",
+      "title": "Стоимость: Angel = Саня BB",
+      "bullets": [
+        "В бонусе Main-состава Angel — Саня из BlackBerry, не Алан"
+      ]
+    },
     {
       "version": "1.2.325",
       "date": "2026-11-18",

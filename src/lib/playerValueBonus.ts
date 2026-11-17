@@ -60,10 +60,10 @@ function isFoundingMember(opts: {
   const nick = String(opts.nick || "").trim();
   const steamName = String(opts.steamName || "").trim();
   for (const listed of MAIN_ROSTER_FOUNDING_NICKS) {
-    // Angel в списке = Алан (siteNick Angel), не Саня BB (angel).
+    // Angel в списке = Саня BB (siteNick angel / AngelBB), не Алан.
     if (listed === "Angel") {
-      if (collisionBySteamId(opts.steamId)?.siteNick === "Angel") return true;
-      if (nick === "Angel") return true;
+      if (collisionBySteamId(opts.steamId)?.siteNick === "angel") return true;
+      if (nick === "angel" || nick.toLowerCase() === "angelbb") return true;
       continue;
     }
     if (nicksMatch(listed, nick) || (steamName && nicksMatch(listed, steamName))) {
