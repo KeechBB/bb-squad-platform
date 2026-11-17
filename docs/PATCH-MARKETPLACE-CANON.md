@@ -39,17 +39,18 @@
 4. Сделки атомарны (списание продавцу / зачисление покупателю).
 5. Рейтинг RP паблика за деньги не продаём.
 6. **Центробанк:** продать = **80%** от цены «купить» (`PATCH_SELL_OF_BUY`). Прайс — `src/lib/bbCoinPatchPrices.ts`.
+7. **Battle Pass age:** номинал в коде = **100% текущего** сезона. Предыдущий BP → **×2**, предпредыдущий → **×3**… (`marketBpEconomy.ts`). Плюс редкость: мало копий у игроков → до **×2** (референс 20 шт.).
 
-| id | Купить BBC | Продать BBC |
-|----|------------|-------------|
-| `bp-l15-keech` | 4000 | 3200 |
-| `creator-orange-phantom` | 4500 | 3600 |
-| `creator-fruit-strike-ak-v2` | 1800 | 1440 |
-| `hw2-knife-hook` | 300 | 240 |
-| `hw2-ak-pumpkin` | 1200 | 960 |
-| `creator-event-scar-lemon` | 500 | 400 |
-| `creator-event-saiga-apple` | 500 | 400 |
-| `public-100-vehicles-t62` | 500 | 400 |
+| id | Номинал BBC | Примечание |
+|----|-------------|------------|
+| `bp-l15-keech` | 4000 | classic → ×2 при текущем hw2 |
+| `creator-orange-phantom` | 4500 | не BP |
+| `creator-fruit-strike-ak-v2` | 1800 | не BP |
+| `hw2-knife-hook` | 300 | текущий BP ×1 |
+| `hw2-ak-pumpkin` | 1200 | текущий BP ×1 |
+| `creator-event-scar-lemon` | 500 | не BP |
+| `creator-event-saiga-apple` | 500 | не BP |
+| `public-100-vehicles-t62` | 500 | не BP |
 
 ## Фоны профиля (фаза 1.2)
 

@@ -34,6 +34,11 @@ import {
   dailyFontDealKindFor,
 } from "@/lib/bbCoinFontDailyDeals";
 import { mskYmd } from "@/lib/eventDay";
+import {
+  applyBpEconomy,
+  getBpItemSupply,
+  isBpMarketItem,
+} from "@/lib/marketBpEconomy";
 
 export type MarketCatalog = "patch" | "bg" | "font";
 export type MarketCurrency = "BBC" | "BD";
@@ -47,6 +52,10 @@ export type ResolvedListingPrice = {
   buyBase: number;
   sellBase: number;
   deal: "discount" | "markup" | "sellboost" | null;
+  /** Множитель возраста BP (1 = текущий, 2 = прошлый…). */
+  bpAgeMult?: number;
+  /** Множитель редкости по числу копий. */
+  bpScarcityMult?: number;
 };
 
 type OverrideRow = {
@@ -196,21 +205,38 @@ export async function resolveListingPrice(
   if (!base) return null;
   const map = await loadListingOverrides();
   const ov = map.get(`${catalog}:${itemId}`);
-  const buyBase = Math.max(1, Math.trunc(ov?.buyPrice ?? base.buy));
+  // Номинал «текущего BP» (код или правка Keech).
+  let buyNominal = Math.max(1, Math.trunc(ov?.buyPrice ?? base.buy));
+  let bpAgeMult = 1;
+  let bpScarcityMult = 1;
+  if (isBpMarketItem(itemId)) {
+    const supply = await getBpItemSupply(catalog, itemId);
+    const eco = applyBpEconomy({
+      itemId,
+      buyBase: buyNominal,
+      totalSupply: supply,
+    });
+    buyNominal = eco.buy;
+    bpAgeMult = eco.ageMult;
+    bpScarcityMult = eco.scarcityMult;
+  }
   // Продажа всегда 80% от покупки (канон площадки).
-  const sellBase = Math.max(1, Math.round(buyBase * PATCH_SELL_OF_BUY));
+  const sellBase = Math.max(1, Math.round(buyNominal * PATCH_SELL_OF_BUY));
   const currency: MarketCurrency =
     ov && isMarketCurrency(ov.currency) ? ov.currency : base.currency;
-  const dealt = applyDeal(catalog, itemId, buyBase, sellBase, day);
+  const dealt = applyDeal(catalog, itemId, buyNominal, sellBase, day);
   return {
     catalog,
     itemId,
     currency,
     buy: dealt.buy,
     sell: dealt.sell,
-    buyBase,
+    buyBase: buyNominal,
     sellBase,
     deal: dealt.deal,
+    ...(isBpMarketItem(itemId)
+      ? { bpAgeMult, bpScarcityMult }
+      : {}),
   };
 }
 
