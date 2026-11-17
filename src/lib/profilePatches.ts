@@ -165,7 +165,7 @@ export function profilePatchUrl(
       : id === "creator-event-scar-lemon" || id === "creator-event-saiga-apple"
         ? "?v=fs6"
         : id.startsWith("bd-faction-")
-          ? "?v=bd5"
+          ? "?v=bd6"
           : "";
   return `/bp-assets/${opt.file}${bust}`;
 }

@@ -25,6 +25,7 @@ export function NickPatchMark({ patchId, className }: Props) {
 
   if (!id || !url) return null;
   const tipText = profilePatchTip(id);
+  const bdFaction = id.startsWith("bd-faction-");
 
   function show(el: HTMLElement) {
     const r = el.getBoundingClientRect();
@@ -42,8 +43,8 @@ export function NickPatchMark({ patchId, className }: Props) {
       <button
         type="button"
         className={`nick-patch-mark${active ? " is-active" : ""}${
-          className ? ` ${className}` : ""
-        }`}
+          bdFaction ? " nick-patch-bd-faction" : ""
+        }${className ? ` ${className}` : ""}`}
         data-patch-id={id}
         aria-label={tipText}
         onMouseEnter={(e) => show(e.currentTarget)}
