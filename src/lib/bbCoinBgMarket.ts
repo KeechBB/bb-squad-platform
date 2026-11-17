@@ -38,15 +38,24 @@ export async function ensureKeechBgStarterInventory(steamId: string) {
   if (!u) return;
   await migrateBgUnlocksToStock(u.id);
   const list = u.unlockedProfileBgs || [];
-  if (list.includes(KEECH_BG_SEED_FLAG)) return;
-
   const set = new Set(list);
+  let changed = false;
   for (const id of MARKET_BG_ORDER) {
     const qty = await getBgQty(u.id, id);
-    if (qty < 1) await addBgQty(u.id, id, 1);
-    set.add(id);
+    if (qty < 1) {
+      await addBgQty(u.id, id, 1);
+      changed = true;
+    }
+    if (!set.has(id)) {
+      set.add(id);
+      changed = true;
+    }
   }
-  set.add(KEECH_BG_SEED_FLAG);
+  if (!set.has(KEECH_BG_SEED_FLAG)) {
+    set.add(KEECH_BG_SEED_FLAG);
+    changed = true;
+  }
+  if (!changed) return;
   await prisma.user.update({
     where: { id: u.id },
     data: { unlockedProfileBgs: [...set] },

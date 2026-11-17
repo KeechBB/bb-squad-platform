@@ -6,6 +6,12 @@ export const MARKET_BG_ORDER = [
   "hw2-night-harvest",
   "creator-fruit-strike-place3-v3",
   "creator-royal-core",
+  "bd-faction-uley-bg",
+  "bd-faction-orda-bg",
+  "bd-faction-staya-bg",
+  "bd-faction-legion-bg",
+  "bd-faction-sbord-bg",
+  "bd-faction-tabor-bg",
 ] as const;
 
 export type MarketBgId = (typeof MARKET_BG_ORDER)[number];

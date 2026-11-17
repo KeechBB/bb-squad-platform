@@ -29,42 +29,36 @@ export const PROFILE_BG_OPTIONS = [
     label: "Турнирное золото II",
     gate: "bp-l5",
   },
-  // Превью фракционных фонов (B$) — пока только Keech
+  // Фракционные фоны (B$) — каталог торговой площадки
   {
     id: "bd-faction-uley-bg",
     file: "bd-faction-uley-bg-v5.jpg",
     label: "Улей · Янтарный улей",
-    gate: "creator",
   },
   {
     id: "bd-faction-orda-bg",
     file: "bd-faction-orda-bg-v6.jpg",
     label: "Орда · Алая буря",
-    gate: "creator",
   },
   {
     id: "bd-faction-staya-bg",
     file: "bd-faction-staya-bg-v8.jpg",
     label: "Стая · Лунный вой",
-    gate: "creator",
   },
   {
     id: "bd-faction-legion-bg",
     file: "bd-faction-legion-bg-v5.jpg",
     label: "Легион · Имперский зал",
-    gate: "creator",
   },
   {
     id: "bd-faction-sbord-bg",
     file: "bd-faction-sbord-bg-v5.jpg",
     label: "Сброд · Задний двор",
-    gate: "creator",
   },
   {
     id: "bd-faction-tabor-bg",
     file: "bd-faction-tabor-bg-v5.jpg",
     label: "Табор · Костёр каравана",
-    gate: "creator",
   },
 ] as const;
 
