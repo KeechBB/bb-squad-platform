@@ -3,6 +3,12 @@ import { isBuiltinSuperAdmin } from "@/lib/admin";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
 import { rollingMainRoleWindow } from "@/lib/mainRoleWindow";
 import { kitsForUser } from "@/lib/squadRoles";
+import {
+  estimateWithKit,
+  loadPlayerPriceStats,
+  normalizeKit,
+} from "@/lib/factionTransfers";
+import type { ScarcityForPrice } from "@/lib/blueberryDollar";
 import type { FactionSeat } from "@prisma/client";
 
 export const DEPUTY_ROLE_NAME = "Зам. Фракции";
@@ -70,7 +76,23 @@ export type FactionMemberRow = {
   joinedAt: string;
   order: number;
   mainKit: string;
+  /** Рыночная оценка без гриндового бонуса. */
+  marketValue: number;
+  /** Сколько B$ игрок капнул в казны гринда. */
+  grindBroughtBd: number;
+  /** marketValue + grindBroughtBd. */
+  playerValue: number;
 };
+
+/** Как в трансферной scarcity — без второго прохода mainKits. */
+function rosterKitScarcity(count: number, rosterSize: number): ScarcityForPrice {
+  if (rosterSize < 8) return count <= 1 ? "critical" : "ok";
+  const share = count / Math.max(1, rosterSize);
+  if (count <= 1 || share < 0.04) return "critical";
+  if (count <= 2 || share < 0.08) return "thin";
+  if (share > 0.28) return "surplus";
+  return "ok";
+}
 
 export type FactionView = {
   id: string;
@@ -189,20 +211,46 @@ export async function loadFactionView(slug: string, steamId: string | null) {
 
   const staff = keech || mySeat === "LEADER" || mySeat === "DEPUTY";
   const listed = faction.members.filter((m) => !isBuiltinSuperAdmin(m.user.steamId));
-  const kits = await mainKits(listed.map((m) => m.userId));
+  const userIds = listed.map((m) => m.userId);
+  const [kits, priceStats] = await Promise.all([
+    mainKits(userIds),
+    loadPlayerPriceStats(userIds),
+  ]);
 
-  const members: FactionMemberRow[] = listed.map((m, i) => ({
-    id: m.id,
-    userId: m.userId,
-    nick: visibleNick(m.user),
-    name: m.user.name || "—",
-    seat: m.seat,
-    roleId: m.roleId,
-    roleName: roleLabel(m.seat, m.role?.name ?? null),
-    joinedAt: m.joinedAt.toISOString(),
-    order: i + 1,
-    mainKit: kits.get(m.userId) || "—",
-  }));
+  const kitCounts = new Map<string, number>();
+  for (const uid of userIds) {
+    const k = normalizeKit(kits.get(uid) || null);
+    kitCounts.set(k, (kitCounts.get(k) || 0) + 1);
+  }
+  const rosterSize = userIds.length;
+
+  const members: FactionMemberRow[] = listed.map((m, i) => {
+    const mainKit = kits.get(m.userId) || "—";
+    const kitKey = normalizeKit(mainKit);
+    const st = priceStats.get(m.userId);
+    const grindBroughtBd = Math.max(0, Math.round(st?.grindBroughtBd || 0));
+    const scarcity = rosterKitScarcity(kitCounts.get(kitKey) || 0, rosterSize);
+    const marketValue = estimateWithKit(
+      st ? { ...st, grindBroughtBd: 0 } : undefined,
+      mainKit,
+      scarcity,
+    );
+    return {
+      id: m.id,
+      userId: m.userId,
+      nick: visibleNick(m.user),
+      name: m.user.name || "—",
+      seat: m.seat,
+      roleId: m.roleId,
+      roleName: roleLabel(m.seat, m.role?.name ?? null),
+      joinedAt: m.joinedAt.toISOString(),
+      order: i + 1,
+      mainKit,
+      marketValue,
+      grindBroughtBd,
+      playerValue: marketValue + grindBroughtBd,
+    };
+  });
 
   const leader = members.find((m) => m.seat === "LEADER") || null;
   const deputies = members.filter((m) => m.seat === "DEPUTY").map((m) => m.nick);

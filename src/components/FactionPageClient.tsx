@@ -222,13 +222,18 @@ function PlayerSearchSelect({
   );
 }
 
-type RosterSortKey = "order" | "nick" | "name" | "kit" | "role";
+type RosterSortKey = "order" | "nick" | "name" | "kit" | "value" | "role";
 
-const ROSTER_COLUMNS: { key: RosterSortKey; label: string }[] = [
+const ROSTER_COLUMNS: { key: RosterSortKey; label: string; title?: string }[] = [
   { key: "order", label: "№" },
   { key: "nick", label: "Ник" },
   { key: "name", label: "Имя" },
   { key: "kit", label: "Основной кит" },
+  {
+    key: "value",
+    label: "Стоимость",
+    title: "Рыночная оценка + гринд в казну (B$)",
+  },
   { key: "role", label: "Роль" },
 ];
 
@@ -237,6 +242,7 @@ function rosterValue(m: FactionView["members"][number], key: RosterSortKey): str
   if (key === "nick") return m.nick;
   if (key === "name") return m.name;
   if (key === "kit") return m.mainKit;
+  if (key === "value") return m.playerValue ?? 0;
   return m.roleName;
 }
 
@@ -285,7 +291,7 @@ function FactionRoster({
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else {
       setSortKey(key);
-      setSortDir("asc");
+      setSortDir(key === "value" ? "desc" : "asc");
     }
     page.setPage(0);
   }
@@ -304,6 +310,7 @@ function FactionRoster({
                     <button
                       type="button"
                       className={`faction-roster-sort${on ? " is-on" : ""}`}
+                      title={col.title}
                       onClick={() => onSort(col.key)}
                     >
                       {col.label}
@@ -328,6 +335,12 @@ function FactionRoster({
                 </td>
                 <td>{m.name}</td>
                 <td>{m.mainKit}</td>
+                <td
+                  className="faction-roster-value"
+                  title={`Рынок ${Math.round(m.marketValue || 0).toLocaleString("ru-RU")} B$ + гринд ${Math.round(m.grindBroughtBd || 0).toLocaleString("ru-RU")} B$`}
+                >
+                  <BdAmount n={m.playerValue ?? 0} />
+                </td>
                 <td>
                   {canManage && m.seat !== "LEADER" ? (
                     <select

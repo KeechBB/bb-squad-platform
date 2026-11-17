@@ -23858,6 +23858,14 @@ body:has(.faction-page) .site-footer {
   overflow: hidden;
 }
 
+.faction-roster-table .faction-roster-value {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.faction-roster-table .faction-roster-value .bd-amount {
+  color: #c4b5fd;
+  font-weight: 650;
+}
 .faction-roster-table th,
 .faction-roster-table td {
   height: 44px;
