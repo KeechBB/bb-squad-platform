@@ -6,6 +6,7 @@ import {
   estimatePlayerPrice,
   grindAmountFromTrainStats,
   isGrindEligibleMatch,
+  listingFeeFromAsk,
   GRIND_START_AT_MS,
   type PlayerPriceStats,
   type ScarcityForPrice,
@@ -261,6 +262,83 @@ async function creditTreasury(
     where: { id: factionId },
     data: { blueberryBalance: { increment: amount } },
   });
+}
+
+/**
+ * Создать лот + списать 1% комиссии с казны (не возвращается при снятии).
+ */
+export async function createTransferListingWithFee(opts: {
+  factionId: string;
+  playerUserId: string;
+  listedByUserId: string;
+  askPrice: number;
+  estimatePrice: number;
+  note: string | null;
+}): Promise<
+  | { ok: true; listingId: string; fee: number; treasury: number }
+  | { ok: false; error: "insufficient_fee"; fee: number; treasury: number }
+> {
+  const fee = listingFeeFromAsk(opts.askPrice);
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const f = await tx.faction.findUnique({
+        where: { id: opts.factionId },
+        select: { blueberryBalance: true },
+      });
+      if (!f) throw new Error("faction");
+      const treasury = Math.max(0, f.blueberryBalance || 0);
+      if (treasury < fee) {
+        return {
+          ok: false as const,
+          error: "insufficient_fee" as const,
+          fee,
+          treasury,
+        };
+      }
+      const listing = await tx.transferListing.create({
+        data: {
+          factionId: opts.factionId,
+          playerUserId: opts.playerUserId,
+          listedByUserId: opts.listedByUserId,
+          askPrice: opts.askPrice,
+          estimatePrice: opts.estimatePrice,
+          note: opts.note,
+          priceEvents: {
+            create: {
+              askPrice: opts.askPrice,
+              actorId: opts.listedByUserId,
+              note: "первичная цена",
+            },
+          },
+        },
+      });
+      const next = treasury - fee;
+      await tx.factionLedgerEntry.create({
+        data: {
+          factionId: opts.factionId,
+          amount: -fee,
+          kind: "listing_fee",
+          sourceKey: `xfer:list_fee:${listing.id}`,
+          note: `Комиссия 1% за лот (${opts.askPrice.toLocaleString("ru-RU")} ${BD_MARK})`,
+          userId: opts.listedByUserId,
+        },
+      });
+      await tx.faction.update({
+        where: { id: opts.factionId },
+        data: { blueberryBalance: next },
+      });
+      return {
+        ok: true as const,
+        listingId: listing.id,
+        fee,
+        treasury: next,
+      };
+    });
+    return result;
+  } catch (e) {
+    console.error("createTransferListingWithFee", e);
+    throw e;
+  }
 }
 
 /** Начислить гринд с TRAIN на TR1–TR5 (идемпотентно). Паблик/прочее — нет. */

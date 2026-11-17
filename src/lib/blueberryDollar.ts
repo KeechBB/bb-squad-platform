@@ -28,10 +28,22 @@ export const TRANSFER_MIN_ASK = 5_000;
 /** Ниже этой доли от рыночной оценки выставлять нельзя. */
 export const TRANSFER_MIN_ASK_RATIO = 0.8;
 
+/**
+ * Комиссия казны за создание лота (удержание игрока на аукционе).
+ * Списывается сразу при выставлении, при снятии лота не возвращается.
+ */
+export const TRANSFER_LIST_FEE_RATIO = 0.01;
+
 /** Минимальный ask от оценки (не ниже TRANSFER_MIN_ASK). */
 export function minAskFromEstimate(estimate: number): number {
   const fromMarket = Math.ceil(Math.max(0, estimate) * TRANSFER_MIN_ASK_RATIO);
   return Math.max(TRANSFER_MIN_ASK, fromMarket);
+}
+
+/** Комиссия 1% от ask при создании лота (минимум 1 B$). */
+export function listingFeeFromAsk(askPrice: number): number {
+  const ask = Math.max(0, Math.round(Number(askPrice) || 0));
+  return Math.max(1, Math.round(ask * TRANSFER_LIST_FEE_RATIO));
 }
 
 /** Пол для оценки. Потолка нет — сильные игроки могут уходить выше. */

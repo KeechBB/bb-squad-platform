@@ -205,6 +205,7 @@ type Payload = {
   minRoster: number;
   minAsk?: number;
   minAskRatio?: number;
+  listFeeRatio?: number;
   estimateLabel?: string;
   estimateHint?: string;
   rosterSize: number;
@@ -854,6 +855,14 @@ export function FactionTransfers({ slug, canManage }: Props) {
               <BdAmount n={selectedListable.estimate} />
               {" · мин. цена (80%): "}
               <BdAmount n={listFloor} />
+              {" · комиссия 1% с казны: "}
+              <BdAmount
+                n={Math.max(
+                  1,
+                  Math.round(listPrice * (data.listFeeRatio ?? 0.01))
+                )}
+              />
+              {" (не возвращается)"}
             </p>
           ) : null}
           {selectedListable && listPrice < listFloor ? (
@@ -1765,6 +1774,7 @@ function ledgerKindRu(kind: string) {
   if (kind === "grind") return "Гринд TR";
   if (kind === "transfer_in") return "Сделка +";
   if (kind === "transfer_out") return "Сделка −";
+  if (kind === "listing_fee") return "Комиссия лота";
   if (kind === "admin_adjust") return "Правка";
   return kind;
 }

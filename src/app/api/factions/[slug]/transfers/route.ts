@@ -7,6 +7,7 @@ import {
   assertFactionEligibleForTransfers,
   assertTransferWindowOpen,
   buildFactionKitScarcity,
+  createTransferListingWithFee,
   creditGrindRecentTrains,
   estimateWithKit,
   getTransferWindowState,
@@ -24,9 +25,11 @@ import {
   BD_MARK,
   ESTIMATE_HINT,
   ESTIMATE_LABEL,
+  TRANSFER_LIST_FEE_RATIO,
   TRANSFER_MIN_ASK,
   TRANSFER_MIN_ASK_RATIO,
   TRANSFER_MIN_ROSTER,
+  listingFeeFromAsk,
   formatBd,
   minAskFromEstimate,
 } from "@/lib/blueberryDollar";
@@ -254,6 +257,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     minRoster: TRANSFER_MIN_ROSTER,
     minAsk: TRANSFER_MIN_ASK,
     minAskRatio: TRANSFER_MIN_ASK_RATIO,
+    listFeeRatio: TRANSFER_LIST_FEE_RATIO,
     estimateLabel: ESTIMATE_LABEL,
     estimateHint: ESTIMATE_HINT,
     rosterSize: scarcity.rosterSize,
@@ -415,32 +419,41 @@ export async function POST(req: Request, ctx: Ctx) {
       }).sellHints;
 
       const note = String(body?.note || "").trim() || null;
-      const listing = await prisma.transferListing.create({
-        data: {
-          factionId: loaded.view.id,
-          playerUserId: userId,
-          listedByUserId: loaded.me.id,
-          askPrice,
-          estimatePrice: estimate,
-          note,
-          priceEvents: {
-            create: {
-              askPrice,
-              actorId: loaded.me.id,
-              note: "первичная цена",
-            },
-          },
-        },
+      const created = await createTransferListingWithFee({
+        factionId: loaded.view.id,
+        playerUserId: userId,
+        listedByUserId: loaded.me.id,
+        askPrice,
+        estimatePrice: estimate,
+        note,
       });
+      if (!created.ok) {
+        const fee = created.fee || listingFeeFromAsk(askPrice);
+        return NextResponse.json(
+          {
+            error: `Не хватает ${fee.toLocaleString("ru-RU")} ${BD_MARK} в казне на комиссию 1% за лот (сейчас ${created.treasury.toLocaleString("ru-RU")} ${BD_MARK})`,
+            fee,
+            treasury: created.treasury,
+          },
+          { status: 400 },
+        );
+      }
       await notifyListedMail({
         playerUserId: userId,
         factionName: loaded.view.name,
         askPrice,
         estimatePrice: estimate,
-        listingId: listing.id,
+        listingId: created.listingId,
         note,
       }).catch((e) => console.error("listed mail", e));
-      return NextResponse.json({ ok: true, listingId: listing.id, sellHints, estimate });
+      return NextResponse.json({
+        ok: true,
+        listingId: created.listingId,
+        sellHints,
+        estimate,
+        fee: created.fee,
+        treasury: created.treasury,
+      });
     }
 
     if (action === "withdraw" || action === "reprice") {
