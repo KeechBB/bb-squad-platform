@@ -1378,17 +1378,22 @@ body.has-profile-bg .shell:has(.profile-page) {
   background-repeat: no-repeat;
   filter: drop-shadow(0 0 6px rgba(255, 180, 40, 0.55));
 }
-/* B$ фракции — мягкий фиолетовый ореол вместо жёлтого */
+/* B$ фракции — тонкий rim, без «мыльного» bloom */
+.profile-patch-tile[data-patch-id="bd-faction-legion-ak74"],
+.profile-patch-tile[data-patch-id="bd-faction-orda-m4a1"],
+.profile-patch-tile[data-patch-id="bd-faction-sbord-scar"],
+.profile-patch-tile[data-patch-id="bd-faction-staya-svd"],
+.profile-patch-tile[data-patch-id="bd-faction-tabor-m4"],
+.profile-patch-tile[data-patch-id="bd-faction-uley-pkm"] {
+  background: radial-gradient(circle at 50% 30%, rgba(28, 18, 42, 0.95), rgba(8, 6, 14, 0.98));
+}
 .profile-patch-tile[data-patch-id="bd-faction-legion-ak74"] .profile-patch-tile-art,
 .profile-patch-tile[data-patch-id="bd-faction-orda-m4a1"] .profile-patch-tile-art,
 .profile-patch-tile[data-patch-id="bd-faction-sbord-scar"] .profile-patch-tile-art,
 .profile-patch-tile[data-patch-id="bd-faction-staya-svd"] .profile-patch-tile-art,
 .profile-patch-tile[data-patch-id="bd-faction-tabor-m4"] .profile-patch-tile-art,
 .profile-patch-tile[data-patch-id="bd-faction-uley-pkm"] .profile-patch-tile-art {
-  filter:
-    drop-shadow(0 0 3px rgba(232, 210, 255, 0.5))
-    drop-shadow(0 0 10px rgba(168, 110, 230, 0.38))
-    drop-shadow(0 0 18px rgba(120, 70, 190, 0.2));
+  filter: drop-shadow(0 0 1.5px rgba(210, 185, 255, 0.5));
 }
 .profile-patch-tile[data-patch-id="bd-faction-legion-ak74"]:hover .profile-patch-tile-art,
 .profile-patch-tile[data-patch-id="bd-faction-legion-ak74"]:focus-visible .profile-patch-tile-art,
@@ -1408,12 +1413,10 @@ body.has-profile-bg .shell:has(.profile-page) {
 .profile-patch-tile[data-patch-id="bd-faction-uley-pkm"]:hover .profile-patch-tile-art,
 .profile-patch-tile[data-patch-id="bd-faction-uley-pkm"]:focus-visible .profile-patch-tile-art,
 .profile-patch-tile[data-patch-id="bd-faction-uley-pkm"].is-selected .profile-patch-tile-art {
-  transform: scaleX(-1) scale(1.06);
+  transform: scaleX(-1) scale(1.04);
   filter:
-    drop-shadow(0 0 4px rgba(245, 230, 255, 0.65))
-    drop-shadow(0 0 12px rgba(186, 130, 245, 0.48))
-    drop-shadow(0 0 20px rgba(140, 90, 220, 0.28))
-    brightness(1.06);
+    drop-shadow(0 0 2px rgba(230, 210, 255, 0.65))
+    drop-shadow(0 0 5px rgba(170, 130, 230, 0.25));
 }
 .profile-patch-tile .profile-bg-tile-label {
   z-index: 1;
