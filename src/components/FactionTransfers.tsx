@@ -241,12 +241,19 @@ type Payload = {
   };
 };
 
+type GrindMatchFactionMember = {
+  userId: string;
+  nick: string;
+  amount: number;
+};
+
 type GrindMatchFaction = {
   factionId: string;
   name: string;
   slug: string;
   amount: number;
   players: number;
+  members?: GrindMatchFactionMember[];
 };
 
 type GrindMatchRow = {
@@ -399,6 +406,9 @@ export function FactionTransfers({ slug, canManage }: Props) {
   const [analytics, setAnalytics] = useState<AnalyticsTarget | null>(null);
   const [reviewOfferId, setReviewOfferId] = useState<string | null>(null);
   const [grindMatchId, setGrindMatchId] = useState<string | null>(null);
+  const [grindMatchFactionId, setGrindMatchFactionId] = useState<string | null>(
+    null,
+  );
   const [subTab, setSubTab] = useState<XferSubTab>(() =>
     readXferSubTab(slug, canManage),
   );
@@ -633,6 +643,22 @@ export function FactionTransfers({ slug, canManage }: Props) {
     () => grindMatches.find((m) => m.matchId === grindMatchId) || null,
     [grindMatches, grindMatchId],
   );
+  const grindMatchFactionOpen = useMemo(() => {
+    if (!grindMatchOpen || !grindMatchFactionId) return null;
+    return (
+      grindMatchOpen.factions.find((f) => f.factionId === grindMatchFactionId) ||
+      null
+    );
+  }, [grindMatchOpen, grindMatchFactionId]);
+
+  function openGrindMatch(matchId: string) {
+    setGrindMatchFactionId(null);
+    setGrindMatchId(matchId);
+  }
+  function closeGrindMatch() {
+    setGrindMatchFactionId(null);
+    setGrindMatchId(null);
+  }
 
   useEffect(() => {
     const next = readXferSubTab(slug, isStaff);
@@ -1245,7 +1271,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
                     <tr
                       key={m.matchId}
                       className="xfer-row-click"
-                      onClick={() => setGrindMatchId(m.matchId)}
+                      onClick={() => openGrindMatch(m.matchId)}
                     >
                       <td>{m.dateLabel}</td>
                       <td>{m.timeLabel}</td>
@@ -1366,7 +1392,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
       ) : null}
 
       {grindMatchOpen ? (
-        <DraggableModal open closeOnBackdrop onClose={() => setGrindMatchId(null)}>
+        <DraggableModal open closeOnBackdrop onClose={closeGrindMatch}>
           <header className="profile-match-modal-head" data-drag-handle title="Перетащить окно">
             <div>
               <p className="muted">Тренировочный матч · гринд B$</p>
@@ -1381,34 +1407,107 @@ export function FactionTransfers({ slug, canManage }: Props) {
             <button
               type="button"
               className="profile-match-modal-close"
-              onClick={() => setGrindMatchId(null)}
+              onClick={closeGrindMatch}
             >
               ×
             </button>
           </header>
 
-          <p className="muted" style={{ margin: "0 0 0.65rem" }}>
-            Кто больше заработал в этой катке
-          </p>
+          {grindMatchFactionOpen ? (
+            <>
+              <div className="xfer-grind-drill-head">
+                <button
+                  type="button"
+                  className="xfer-grind-back"
+                  onClick={() => setGrindMatchFactionId(null)}
+                >
+                  ← Все фракции
+                </button>
+                <p className="muted" style={{ margin: 0 }}>
+                  {grindMatchFactionOpen.name} · приход по этой карте
+                </p>
+              </div>
 
-          <ol className="xfer-grind-rank">
-            {grindMatchOpen.factions.map((f, i) => (
-              <li key={f.factionId} className={f.amount > 0 ? "is-earn" : "is-zero"}>
-                <span className="xfer-grind-rank-n">{i + 1}</span>
-                <span className="xfer-grind-rank-name">{f.name}</span>
-                <span className="xfer-grind-rank-people">
-                  {f.players > 0 ? `${f.players} чел.` : "—"}
-                </span>
-                <span className={`xfer-grind-rank-sum${f.amount > 0 ? " is-plus" : ""}`}>
-                  {f.amount > 0 ? <BdAmount n={f.amount} signed /> : "—"}
-                </span>
-              </li>
-            ))}
-          </ol>
+              <ol className="xfer-grind-rank">
+                {(grindMatchFactionOpen.members || []).length ? (
+                  (grindMatchFactionOpen.members || []).map((p, i) => (
+                    <li key={p.userId} className="is-earn">
+                      <span className="xfer-grind-rank-n">{i + 1}</span>
+                      <span className="xfer-grind-rank-name">{p.nick}</span>
+                      <span className="xfer-grind-rank-people" aria-hidden="true" />
+                      <span className="xfer-grind-rank-sum is-plus">
+                        <BdAmount n={p.amount} signed />
+                      </span>
+                    </li>
+                  ))
+                ) : (
+                  <li className="is-zero">
+                    <span className="xfer-grind-rank-n">—</span>
+                    <span className="xfer-grind-rank-name">Нет игроков</span>
+                    <span className="xfer-grind-rank-people" />
+                    <span className="xfer-grind-rank-sum">—</span>
+                  </li>
+                )}
+              </ol>
 
-          <p className="muted" style={{ margin: "0.85rem 0 0" }}>
-            Всего по матчу: <BdAmount n={grindMatchOpen.total} />
-          </p>
+              <p className="muted" style={{ margin: "0.85rem 0 0" }}>
+                Итого {grindMatchFactionOpen.name}:{" "}
+                <BdAmount n={grindMatchFactionOpen.amount} />
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="muted" style={{ margin: "0 0 0.65rem" }}>
+                Кто больше заработал в этой катке · ткни фракцию
+              </p>
+
+              <ol className="xfer-grind-rank">
+                {grindMatchOpen.factions.map((f, i) => {
+                  const clickable = f.amount > 0 && (f.members?.length || f.players) > 0;
+                  return (
+                    <li
+                      key={f.factionId}
+                      className={`${f.amount > 0 ? "is-earn" : "is-zero"}${
+                        clickable ? " is-click" : ""
+                      }`}
+                      role={clickable ? "button" : undefined}
+                      tabIndex={clickable ? 0 : undefined}
+                      onClick={
+                        clickable
+                          ? () => setGrindMatchFactionId(f.factionId)
+                          : undefined
+                      }
+                      onKeyDown={
+                        clickable
+                          ? (e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                setGrindMatchFactionId(f.factionId);
+                              }
+                            }
+                          : undefined
+                      }
+                    >
+                      <span className="xfer-grind-rank-n">{i + 1}</span>
+                      <span className="xfer-grind-rank-name">{f.name}</span>
+                      <span className="xfer-grind-rank-people">
+                        {f.players > 0 ? `${f.players} чел.` : "—"}
+                      </span>
+                      <span
+                        className={`xfer-grind-rank-sum${f.amount > 0 ? " is-plus" : ""}`}
+                      >
+                        {f.amount > 0 ? <BdAmount n={f.amount} signed /> : "—"}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ol>
+
+              <p className="muted" style={{ margin: "0.85rem 0 0" }}>
+                Всего по матчу: <BdAmount n={grindMatchOpen.total} />
+              </p>
+            </>
+          )}
         </DraggableModal>
       ) : null}
 

@@ -489,6 +489,12 @@ export async function creditGrindFromCanonMatch(matchId: string): Promise<{ cred
   return { credited };
 }
 
+export type GrindMatchFactionMember = {
+  userId: string;
+  nick: string;
+  amount: number;
+};
+
 export type GrindMatchFactionRow = {
   factionId: string;
   name: string;
@@ -496,6 +502,8 @@ export type GrindMatchFactionRow = {
   amount: number;
   /** Сколько игроков капнуло гринд в эту катку за фракцию. */
   players: number;
+  /** Пехи этой фракции в катке — для клика по строке. */
+  members: GrindMatchFactionMember[];
 };
 
 export type GrindMatchSummary = {
@@ -543,22 +551,38 @@ export async function loadGrindMatchSummaries(): Promise<GrindMatchSummary[]> {
   });
   const byMatch = new Map(matches.map((m) => [m.id, m]));
 
-  type AggCell = { amount: number; users: Set<string> };
+  type AggCell = {
+    amount: number;
+    byUser: Map<string, number>;
+  };
   type Agg = Map<string, AggCell>;
   const perMatch = new Map<string, Agg>();
+  const allUserIds = new Set<string>();
   for (const e of entries) {
     const mid = e.matchId!;
     if (!perMatch.has(mid)) perMatch.set(mid, new Map());
     const agg = perMatch.get(mid)!;
     let cell = agg.get(e.factionId);
     if (!cell) {
-      cell = { amount: 0, users: new Set() };
+      cell = { amount: 0, byUser: new Map() };
       agg.set(e.factionId, cell);
     }
     cell.amount += e.amount;
-    if (e.userId) cell.users.add(e.userId);
-    else cell.users.add(`anon:${cell.users.size}`);
+    if (e.userId) {
+      allUserIds.add(e.userId);
+      cell.byUser.set(e.userId, (cell.byUser.get(e.userId) || 0) + e.amount);
+    }
   }
+
+  const users = allUserIds.size
+    ? await prisma.user.findMany({
+        where: { id: { in: [...allUserIds] } },
+        select: { id: true, nick: true, steamName: true },
+      })
+    : [];
+  const nickById = new Map(
+    users.map((u) => [u.id, (u.nick || u.steamName || "—").trim() || "—"] as const),
+  );
 
   const out: GrindMatchSummary[] = [];
   for (const [matchId, agg] of perMatch) {
@@ -566,12 +590,25 @@ export async function loadGrindMatchSummaries(): Promise<GrindMatchSummary[]> {
     if (!m) continue;
     const factionRows: GrindMatchFactionRow[] = factions.map((f) => {
       const cell = agg.get(f.id);
+      const members: GrindMatchFactionMember[] = cell
+        ? [...cell.byUser.entries()]
+            .map(([userId, amount]) => ({
+              userId,
+              nick: nickById.get(userId) || "—",
+              amount,
+            }))
+            .sort(
+              (a, b) =>
+                b.amount - a.amount || a.nick.localeCompare(b.nick, "ru"),
+            )
+        : [];
       return {
         factionId: f.id,
         name: f.name,
         slug: f.slug,
         amount: cell?.amount || 0,
-        players: cell?.users.size || 0,
+        players: members.length,
+        members,
       };
     });
     factionRows.sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name, "ru"));
