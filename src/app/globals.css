@@ -1842,8 +1842,10 @@ body:has(.tm-sapper-page) {
 }
 
 
-/* B$ faction: STATIC behind-glow, ~5x weaker, kills default yellow pulse */
-.nick-patch-mark.nick-patch-bd-faction {
+
+/* B$ faction: no yellow pulse; faint white smoke rim only */
+.nick-patch-mark.nick-patch-bd-faction,
+.nick-patch-mark[data-patch-id^="bd-faction-"] {
   width: 132px;
   position: relative;
   isolation: isolate;
@@ -1853,54 +1855,41 @@ body:has(.tm-sapper-page) {
 .nick-patch-mark.nick-patch-bd-faction:hover .nick-patch-mark-art,
 .nick-patch-mark.nick-patch-bd-faction:focus-visible .nick-patch-mark-art,
 .nick-patch-mark.nick-patch-bd-faction.is-active .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id^="bd-faction-"] .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id^="bd-faction-"]:hover .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id^="bd-faction-"]:focus-visible .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id^="bd-faction-"].is-active .nick-patch-mark-art,
 .home-dock-col .nick-patch-mark.home-nick-patch.nick-patch-bd-faction .nick-patch-mark-art,
+.home-dock-col .nick-patch-mark.home-nick-patch[data-patch-id^="bd-faction-"] .nick-patch-mark-art,
 .home-dock-col .nick-patch-mark.home-nick-patch.nick-patch-bd-faction:hover .nick-patch-mark-art,
-.home-dock-col .nick-patch-mark.home-nick-patch.nick-patch-bd-faction.is-active .nick-patch-mark-art {
+.home-dock-col .nick-patch-mark.home-nick-patch[data-patch-id^="bd-faction-"]:hover .nick-patch-mark-art,
+.home-dock-col .nick-patch-mark.home-nick-patch.nick-patch-bd-faction.is-active .nick-patch-mark-art,
+.home-dock-col .nick-patch-mark.home-nick-patch[data-patch-id^="bd-faction-"].is-active .nick-patch-mark-art {
   position: relative;
   z-index: 1;
   animation: none !important;
-  filter: none !important;
   opacity: 1 !important;
+  filter:
+    drop-shadow(0 0 1px rgba(255, 255, 255, 0.20))
+    drop-shadow(0 0 5px rgba(255, 255, 255, 0.08))
+    drop-shadow(0 1px 8px rgba(245, 248, 255, 0.05)) !important;
 }
 .nick-patch-mark.nick-patch-bd-faction:hover .nick-patch-mark-art,
 .nick-patch-mark.nick-patch-bd-faction:focus-visible .nick-patch-mark-art,
-.nick-patch-mark.nick-patch-bd-faction.is-active .nick-patch-mark-art {
+.nick-patch-mark.nick-patch-bd-faction.is-active .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id^="bd-faction-"]:hover .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id^="bd-faction-"]:focus-visible .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id^="bd-faction-"].is-active .nick-patch-mark-art {
   transform: scaleX(-1) scale(1.05);
+  filter:
+    drop-shadow(0 0 1px rgba(255, 255, 255, 0.28))
+    drop-shadow(0 0 6px rgba(255, 255, 255, 0.10))
+    drop-shadow(0 1px 10px rgba(245, 248, 255, 0.07)) !important;
 }
-.nick-patch-mark.nick-patch-bd-faction::before {
-  content: "";
-  position: absolute;
-  z-index: 0;
-  inset: 10px 16px 9px;
-  border-radius: 50%;
-  pointer-events: none;
-  filter: blur(4px);
-  opacity: 0.11;
-  animation: none !important;
-}
-.nick-patch-mark.nick-patch-bd-faction[data-patch-id="bd-faction-legion-ak74"]::before {
-  background: radial-gradient(ellipse, rgba(168, 85, 247, 0.55) 0%, transparent 75%);
-}
-.nick-patch-mark.nick-patch-bd-faction[data-patch-id="bd-faction-orda-m4a1"]::before {
-  background: radial-gradient(ellipse, rgba(239, 68, 68, 0.55) 0%, transparent 75%);
-}
-.nick-patch-mark.nick-patch-bd-faction[data-patch-id="bd-faction-sbord-scar"]::before {
-  background: radial-gradient(ellipse, rgba(163, 230, 53, 0.55) 0%, transparent 75%);
-}
-.nick-patch-mark.nick-patch-bd-faction[data-patch-id="bd-faction-staya-svd"]::before {
-  background: radial-gradient(ellipse, rgba(56, 189, 248, 0.55) 0%, transparent 75%);
-}
-.nick-patch-mark.nick-patch-bd-faction[data-patch-id="bd-faction-tabor-m4"]::before {
-  background: radial-gradient(ellipse, rgba(251, 146, 60, 0.55) 0%, transparent 75%);
-}
-.nick-patch-mark.nick-patch-bd-faction[data-patch-id="bd-faction-uley-pkm"]::before {
-  background: radial-gradient(ellipse, rgba(251, 191, 36, 0.55) 0%, transparent 75%);
-}
-.nick-patch-mark.nick-patch-bd-faction:hover::before,
-.nick-patch-mark.nick-patch-bd-faction:focus-visible::before,
-.nick-patch-mark.nick-patch-bd-faction.is-active::before {
-  opacity: 0.16;
-  animation: none !important;
+.nick-patch-mark.nick-patch-bd-faction::before,
+.nick-patch-mark[data-patch-id^="bd-faction-"]::before {
+  content: none !important;
+  display: none !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

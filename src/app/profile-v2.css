@@ -1378,84 +1378,32 @@ body.has-profile-bg .shell:has(.profile-page) {
   background-repeat: no-repeat;
   filter: drop-shadow(0 0 6px rgba(255, 180, 40, 0.55));
 }
-/* B$ faction tiles: static behind-glow in skin color */
-.profile-patch-tile[data-patch-id="bd-faction-legion-ak74"],
-.profile-patch-tile[data-patch-id="bd-faction-orda-m4a1"],
-.profile-patch-tile[data-patch-id="bd-faction-sbord-scar"],
-.profile-patch-tile[data-patch-id="bd-faction-staya-svd"],
-.profile-patch-tile[data-patch-id="bd-faction-tabor-m4"],
-.profile-patch-tile[data-patch-id="bd-faction-uley-pkm"] {
+/* B$ faction tiles: faint white smoke rim, no color glow */
+.profile-patch-tile[data-patch-id^="bd-faction-"] {
   background: radial-gradient(circle at 50% 30%, rgba(28, 18, 42, 0.95), rgba(8, 6, 14, 0.98));
   isolation: isolate;
 }
-.profile-patch-tile[data-patch-id="bd-faction-legion-ak74"]::before,
-.profile-patch-tile[data-patch-id="bd-faction-orda-m4a1"]::before,
-.profile-patch-tile[data-patch-id="bd-faction-sbord-scar"]::before,
-.profile-patch-tile[data-patch-id="bd-faction-staya-svd"]::before,
-.profile-patch-tile[data-patch-id="bd-faction-tabor-m4"]::before,
-.profile-patch-tile[data-patch-id="bd-faction-uley-pkm"]::before {
-  content: "";
-  position: absolute;
-  z-index: 0;
-  left: 12%;
-  right: 12%;
-  top: 10%;
-  bottom: 34%;
-  border-radius: 50%;
-  pointer-events: none;
-  filter: blur(6px);
-  opacity: 0.08;
-  animation: none !important;
+.profile-patch-tile[data-patch-id^="bd-faction-"]::before {
+  content: none !important;
+  display: none !important;
 }
-.profile-patch-tile[data-patch-id="bd-faction-legion-ak74"]::before {
-  background: radial-gradient(ellipse, rgba(168, 85, 247, 0.7), rgba(212, 175, 55, 0.25), transparent 70%);
-}
-.profile-patch-tile[data-patch-id="bd-faction-orda-m4a1"]::before {
-  background: radial-gradient(ellipse, rgba(239, 68, 68, 0.7), rgba(249, 115, 22, 0.28), transparent 70%);
-}
-.profile-patch-tile[data-patch-id="bd-faction-sbord-scar"]::before {
-  background: radial-gradient(ellipse, rgba(163, 230, 53, 0.65), rgba(132, 204, 22, 0.25), transparent 70%);
-}
-.profile-patch-tile[data-patch-id="bd-faction-staya-svd"]::before {
-  background: radial-gradient(ellipse, rgba(56, 189, 248, 0.7), rgba(99, 102, 241, 0.25), transparent 70%);
-}
-.profile-patch-tile[data-patch-id="bd-faction-tabor-m4"]::before {
-  background: radial-gradient(ellipse, rgba(251, 146, 60, 0.7), rgba(245, 158, 11, 0.28), transparent 70%);
-}
-.profile-patch-tile[data-patch-id="bd-faction-uley-pkm"]::before {
-  background: radial-gradient(ellipse, rgba(251, 191, 36, 0.7), rgba(245, 158, 11, 0.25), transparent 70%);
-}
-.profile-patch-tile[data-patch-id="bd-faction-legion-ak74"] .profile-patch-tile-art,
-.profile-patch-tile[data-patch-id="bd-faction-orda-m4a1"] .profile-patch-tile-art,
-.profile-patch-tile[data-patch-id="bd-faction-sbord-scar"] .profile-patch-tile-art,
-.profile-patch-tile[data-patch-id="bd-faction-staya-svd"] .profile-patch-tile-art,
-.profile-patch-tile[data-patch-id="bd-faction-tabor-m4"] .profile-patch-tile-art,
-.profile-patch-tile[data-patch-id="bd-faction-uley-pkm"] .profile-patch-tile-art {
+.profile-patch-tile[data-patch-id^="bd-faction-"] .profile-patch-tile-art {
   z-index: 1;
-  filter: none;
   animation: none !important;
+  filter:
+    drop-shadow(0 0 1px rgba(255, 255, 255, 0.18))
+    drop-shadow(0 0 5px rgba(255, 255, 255, 0.07))
+    drop-shadow(0 1px 8px rgba(245, 248, 255, 0.05));
 }
-.profile-patch-tile[data-patch-id="bd-faction-legion-ak74"]:hover .profile-patch-tile-art,
-.profile-patch-tile[data-patch-id="bd-faction-legion-ak74"]:focus-visible .profile-patch-tile-art,
-.profile-patch-tile[data-patch-id="bd-faction-legion-ak74"].is-selected .profile-patch-tile-art,
-.profile-patch-tile[data-patch-id="bd-faction-orda-m4a1"]:hover .profile-patch-tile-art,
-.profile-patch-tile[data-patch-id="bd-faction-orda-m4a1"]:focus-visible .profile-patch-tile-art,
-.profile-patch-tile[data-patch-id="bd-faction-orda-m4a1"].is-selected .profile-patch-tile-art,
-.profile-patch-tile[data-patch-id="bd-faction-sbord-scar"]:hover .profile-patch-tile-art,
-.profile-patch-tile[data-patch-id="bd-faction-sbord-scar"]:focus-visible .profile-patch-tile-art,
-.profile-patch-tile[data-patch-id="bd-faction-sbord-scar"].is-selected .profile-patch-tile-art,
-.profile-patch-tile[data-patch-id="bd-faction-staya-svd"]:hover .profile-patch-tile-art,
-.profile-patch-tile[data-patch-id="bd-faction-staya-svd"]:focus-visible .profile-patch-tile-art,
-.profile-patch-tile[data-patch-id="bd-faction-staya-svd"].is-selected .profile-patch-tile-art,
-.profile-patch-tile[data-patch-id="bd-faction-tabor-m4"]:hover .profile-patch-tile-art,
-.profile-patch-tile[data-patch-id="bd-faction-tabor-m4"]:focus-visible .profile-patch-tile-art,
-.profile-patch-tile[data-patch-id="bd-faction-tabor-m4"].is-selected .profile-patch-tile-art,
-.profile-patch-tile[data-patch-id="bd-faction-uley-pkm"]:hover .profile-patch-tile-art,
-.profile-patch-tile[data-patch-id="bd-faction-uley-pkm"]:focus-visible .profile-patch-tile-art,
-.profile-patch-tile[data-patch-id="bd-faction-uley-pkm"].is-selected .profile-patch-tile-art {
+.profile-patch-tile[data-patch-id^="bd-faction-"]:hover .profile-patch-tile-art,
+.profile-patch-tile[data-patch-id^="bd-faction-"]:focus-visible .profile-patch-tile-art,
+.profile-patch-tile[data-patch-id^="bd-faction-"].is-selected .profile-patch-tile-art {
   transform: scaleX(-1) scale(1.04);
-  filter: none;
   animation: none !important;
+  filter:
+    drop-shadow(0 0 1px rgba(255, 255, 255, 0.26))
+    drop-shadow(0 0 6px rgba(255, 255, 255, 0.09))
+    drop-shadow(0 1px 10px rgba(245, 248, 255, 0.06));
 }
 
 .profile-patch-tile .profile-bg-tile-label {
