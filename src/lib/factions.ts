@@ -8,6 +8,7 @@ import {
   loadPlayerPriceStats,
   normalizeKit,
 } from "@/lib/factionTransfers";
+import { loadPlayerValueBonuses } from "@/lib/playerValueBonus";
 import type { ScarcityForPrice } from "@/lib/blueberryDollar";
 import type { FactionSeat } from "@prisma/client";
 
@@ -80,7 +81,12 @@ export type FactionMemberRow = {
   marketValue: number;
   /** Сколько B$ игрок капнул в казны гринда. */
   grindBroughtBd: number;
-  /** marketValue + grindBroughtBd. */
+  /** Победы КВ Main / Junior × тариф + разовый Main-состав. */
+  cwValueBonus: number;
+  mainCwWins: number;
+  juniorCwWins: number;
+  foundingBonus: number;
+  /** marketValue + grindBroughtBd + cwValueBonus. */
   playerValue: number;
 };
 
@@ -212,9 +218,16 @@ export async function loadFactionView(slug: string, steamId: string | null) {
   const staff = keech || mySeat === "LEADER" || mySeat === "DEPUTY";
   const listed = faction.members.filter((m) => !isBuiltinSuperAdmin(m.user.steamId));
   const userIds = listed.map((m) => m.userId);
-  const [kits, priceStats] = await Promise.all([
+  const bonusMembers = listed.map((m) => ({
+    userId: m.userId,
+    nick: m.user.nick || m.user.steamName || visibleNick(m.user),
+    steamName: m.user.steamName,
+    steamId: m.user.steamId,
+  }));
+  const [kits, priceStats, valueBonuses] = await Promise.all([
     mainKits(userIds),
     loadPlayerPriceStats(userIds),
+    loadPlayerValueBonuses(bonusMembers),
   ]);
 
   const kitCounts = new Map<string, number>();
@@ -235,6 +248,8 @@ export async function loadFactionView(slug: string, steamId: string | null) {
       mainKit,
       scarcity,
     );
+    const bonus = valueBonuses.get(m.userId);
+    const cwValueBonus = bonus?.total || 0;
     return {
       id: m.id,
       userId: m.userId,
@@ -248,7 +263,11 @@ export async function loadFactionView(slug: string, steamId: string | null) {
       mainKit,
       marketValue,
       grindBroughtBd,
-      playerValue: marketValue + grindBroughtBd,
+      cwValueBonus,
+      mainCwWins: bonus?.mainWins || 0,
+      juniorCwWins: bonus?.juniorWins || 0,
+      foundingBonus: bonus?.foundingBonus || 0,
+      playerValue: marketValue + grindBroughtBd + cwValueBonus,
     };
   });
 

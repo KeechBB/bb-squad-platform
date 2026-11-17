@@ -232,7 +232,8 @@ const ROSTER_COLUMNS: { key: RosterSortKey; label: string; title?: string }[] = 
   {
     key: "value",
     label: "Стоимость",
-    title: "Рыночная оценка + гринд в казну (B$)",
+    title:
+      "Рынок + гринд + КВ (Main +10 000 / Junior +5 000 за победу) + разовый Main-состав",
   },
   { key: "role", label: "Роль" },
 ];
@@ -244,6 +245,24 @@ function rosterValue(m: FactionView["members"][number], key: RosterSortKey): str
   if (key === "kit") return m.mainKit;
   if (key === "value") return m.playerValue ?? 0;
   return m.roleName;
+}
+
+function rosterValueTip(m: FactionView["members"][number]): string {
+  const parts = [
+    `Рынок ${Math.round(m.marketValue || 0).toLocaleString("ru-RU")} B$`,
+    `гринд ${Math.round(m.grindBroughtBd || 0).toLocaleString("ru-RU")} B$`,
+  ];
+  const mainW = m.mainCwWins || 0;
+  const junW = m.juniorCwWins || 0;
+  if (mainW || junW) {
+    parts.push(
+      `КВ ${mainW ? `Main×${mainW}` : ""}${mainW && junW ? " + " : ""}${junW ? `Junior×${junW}` : ""} → +${Math.round((m.cwValueBonus || 0) - (m.foundingBonus || 0)).toLocaleString("ru-RU")}`,
+    );
+  }
+  if (m.foundingBonus) {
+    parts.push(`Main-состав +${Math.round(m.foundingBonus).toLocaleString("ru-RU")}`);
+  }
+  return parts.join(" · ");
 }
 
 function compareRoster(
@@ -337,7 +356,7 @@ function FactionRoster({
                 <td>{m.mainKit}</td>
                 <td
                   className="faction-roster-value"
-                  title={`Рынок ${Math.round(m.marketValue || 0).toLocaleString("ru-RU")} B$ + гринд ${Math.round(m.grindBroughtBd || 0).toLocaleString("ru-RU")} B$`}
+                  title={rosterValueTip(m)}
                 >
                   <BdAmount n={m.playerValue ?? 0} />
                 </td>
