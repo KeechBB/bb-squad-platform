@@ -6,6 +6,8 @@ import { loadMarketPatchCatalog } from "@/lib/bbCoinPatchMarket";
 import { loadMarketBgCatalog } from "@/lib/bbCoinBgMarket";
 import { loadMarketFontCatalog } from "@/lib/bbCoinFontMarket";
 import { requireMarketUser } from "@/lib/bbCoinMarketAuth";
+import { canEditMarketPrices } from "@/lib/marketListingPrices";
+import { getFactionPayCtx } from "@/lib/marketFactionPay";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +20,7 @@ export async function GET() {
     granted: 0,
   }));
   const balance = await getBbCoinBalance(user.id);
+  const faction = await getFactionPayCtx(user.id, user.steamId);
   const [txs, patches, bgs, fonts] = await Promise.all([
     prisma.bbCoinTx.findMany({
       where: { userId: user.id },
@@ -32,6 +35,10 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     balance,
+    factionBalance: faction?.balance ?? null,
+    factionName: faction?.factionName ?? null,
+    canSpendBd: Boolean(faction?.canSpend),
+    canEditPrices: canEditMarketPrices(user.steamId),
     grantedNow: settled.granted || 0,
     packages: BB_COIN_PACKAGES,
     patches,

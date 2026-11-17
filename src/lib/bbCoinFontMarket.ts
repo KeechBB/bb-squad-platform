@@ -3,14 +3,8 @@
  */
 import { prisma } from "@/lib/prisma";
 import { isProfileNickStyleId } from "@/lib/profileNickStyles";
-import { creditBbCoins, debitBbCoins, getBbCoinBalance } from "@/lib/bbCoins";
 import { marketFontMeta, type MarketFontCard } from "@/lib/bbCoinFontPrices";
-import {
-  dailyFontDealKindFor,
-  dailyFontDeals,
-  fontBuyPriceBbcToday,
-  fontSellPriceBbcToday,
-} from "@/lib/bbCoinFontDailyDeals";
+import { dailyFontDeals } from "@/lib/bbCoinFontDailyDeals";
 import { MARKET_FONT_ORDER, isMarketFontId } from "@/lib/marketFontIds";
 import { SITE_CREATOR_STEAM_ID } from "@/lib/profileBg";
 import { isBuiltinSuperAdmin } from "@/lib/admin";
@@ -24,6 +18,8 @@ import {
   sumFontSupply,
 } from "@/lib/nickStyleStock";
 import { mskYmd } from "@/lib/eventDay";
+import { resolveListingPrice } from "@/lib/marketListingPrices";
+import { chargeMarketBuy, creditMarketSell } from "@/lib/marketCharge";
 
 const KEECH_FONT_SEED_FLAG = "__market_keech_font_seed_v1";
 
@@ -68,107 +64,103 @@ export async function loadMarketFontCatalog(opts: {
   const day = mskYmd();
   const deals = dailyFontDeals(day);
 
-  return MARKET_FONT_ORDER.map((id) => {
+  const cards: MarketFontCard[] = [];
+  for (const id of MARKET_FONT_ORDER) {
     const meta = marketFontMeta(id);
     const myQty = mine.get(id) || 0;
-    return {
+    const price = await resolveListingPrice("font", id, day);
+    if (!price) continue;
+    cards.push({
       ...meta,
-      buy: fontBuyPriceBbcToday(id, day),
-      sell: fontSellPriceBbcToday(id, day),
-      buyBase: meta.buyBase,
+      buy: price.buy,
+      sell: price.sell,
+      buyBase: price.buyBase,
+      sellBase: price.sellBase,
       mine: myQty,
       total: total.get(id) || 0,
       owned: myQty > 0,
-      deal: dailyFontDealKindFor(id, day),
+      deal: price.deal,
       dealDay: deals.day,
-    };
-  });
+      currency: price.currency,
+    });
+  }
+  return cards;
 }
 
 export async function buyMarketFont(opts: {
   userId: string;
+  steamId: string;
   styleId: string;
 }): Promise<
-  | { ok: true; balance: number; mine: number; owned: true }
+  | { ok: true; balance: number; mine: number; owned: true; currency: "BBC" | "BD" }
   | { ok: false; error: string }
 > {
   if (!isProfileNickStyleId(opts.styleId) || !isMarketFontId(opts.styleId)) {
     return { ok: false, error: "font" };
   }
-  const styleId = opts.styleId;
-  const day = mskYmd();
-  const price = fontBuyPriceBbcToday(styleId, day);
-  const deal = dailyFontDealKindFor(styleId, day);
+  const price = await resolveListingPrice("font", opts.styleId);
+  if (!price) return { ok: false, error: "font" };
 
-  const bal = await getBbCoinBalance(opts.userId);
-  if (bal < price) return { ok: false, error: "insufficient" };
-
-  const dealNote =
-    deal === "discount"
-      ? " · скидка −20%"
-      : deal === "markup"
-        ? " · наценка +20%"
-        : "";
-  const debited = await debitBbCoins({
+  const charged = await chargeMarketBuy({
     userId: opts.userId,
-    amount: price,
+    steamId: opts.steamId,
+    price,
     kind: "font_buy",
-    ref: null,
-    note: `Покупка шрифта ${styleId} (−${price} BBC)${dealNote}`,
+    noteItem: `шрифта ${opts.styleId}`,
   });
-  if (!debited.ok) {
-    return {
-      ok: false,
-      error: debited.error === "insufficient" ? "insufficient" : "debit",
-    };
-  }
+  if (!charged.ok) return charged;
 
-  const mine = await addFontQty(opts.userId, styleId, 1);
-  return { ok: true, balance: debited.balance, mine, owned: true };
+  const mine = await addFontQty(opts.userId, opts.styleId, 1);
+  return {
+    ok: true,
+    balance: charged.balance,
+    mine,
+    owned: true,
+    currency: charged.currency,
+  };
 }
 
 export async function sellMarketFont(opts: {
   userId: string;
+  steamId: string;
   styleId: string;
 }): Promise<
-  | { ok: true; balance: number; mine: number; owned: boolean }
+  | {
+      ok: true;
+      balance: number;
+      mine: number;
+      owned: boolean;
+      currency: "BBC" | "BD";
+    }
   | { ok: false; error: string }
 > {
   if (!isProfileNickStyleId(opts.styleId) || !isMarketFontId(opts.styleId)) {
     return { ok: false, error: "font" };
   }
-  const styleId = opts.styleId;
-  const day = mskYmd();
-  const price = fontSellPriceBbcToday(styleId, day);
-  const deal = dailyFontDealKindFor(styleId, day);
+  const price = await resolveListingPrice("font", opts.styleId);
+  if (!price) return { ok: false, error: "font" };
 
   await migrateFontUnlocksToStock(opts.userId);
-  const removed = await removeFontQty(opts.userId, styleId, 1);
+  const removed = await removeFontQty(opts.userId, opts.styleId, 1);
   if (!removed.ok) return { ok: false, error: "not_owned" };
 
-  const dealNote =
-    deal === "sellboost"
-      ? " · продажа +20%"
-      : deal === "discount"
-        ? " · скидка −20%"
-        : deal === "markup"
-          ? " · наценка +20%"
-          : "";
-  const credited = await creditBbCoins({
+  const credited = await creditMarketSell({
     userId: opts.userId,
-    amount: price,
+    steamId: opts.steamId,
+    price,
     kind: "font_sell",
-    ref: `${styleId}:${Date.now()}`,
-    note: `Продажа шрифта ${styleId} (+${price} BBC)${dealNote}`,
+    noteItem: `шрифта ${opts.styleId}`,
+    rollback: async () => {
+      await addFontQty(opts.userId, opts.styleId, 1);
+    },
   });
-  if (!credited.ok) {
-    await addFontQty(opts.userId, styleId, 1);
-    return { ok: false, error: "credit" };
-  }
+  if (!credited.ok) return credited;
+
   return {
     ok: true,
     balance: credited.balance,
     mine: removed.qty,
     owned: removed.qty > 0,
+    currency: credited.currency,
   };
 }

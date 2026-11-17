@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { BbCoinPackageId } from "@/lib/bbCoins";
+import {
+  MarketPriceEditor,
+  moneyLabel,
+} from "@/components/MarketPriceEditor";
 
 type Pack = {
   id: BbCoinPackageId | string;
@@ -19,10 +23,12 @@ type PatchCard = {
   buy: number;
   sell: number;
   buyBase?: number;
+  sellBase?: number;
   mine: number;
   total: number;
   owned: boolean;
   deal?: "discount" | "markup" | "sellboost" | null;
+  currency?: "BBC" | "BD";
 };
 
 type BgCard = PatchCard;
@@ -36,10 +42,12 @@ type FontCard = {
   buy: number;
   sell: number;
   buyBase?: number;
+  sellBase?: number;
   mine: number;
   total: number;
   owned: boolean;
   deal?: "discount" | "markup" | "sellboost" | null;
+  currency?: "BBC" | "BD";
 };
 
 type Tx = {
@@ -67,6 +75,9 @@ const MAIN_TABS: { id: Exclude<Tab, "topup">; label: string }[] = [
 export function MarketplaceClient({ loggedIn }: Props) {
   const [tab, setTab] = useState<Tab>("patches");
   const [balance, setBalance] = useState<number | null>(null);
+  const [factionBalance, setFactionBalance] = useState<number | null>(null);
+  const [factionName, setFactionName] = useState<string | null>(null);
+  const [canEditPrices, setCanEditPrices] = useState(false);
   const [packages, setPackages] = useState<Pack[]>([]);
   const [patches, setPatches] = useState<PatchCard[]>([]);
   const [bgs, setBgs] = useState<BgCard[]>([]);
@@ -92,6 +103,13 @@ export function MarketplaceClient({ loggedIn }: Props) {
         return;
       }
       setBalance(data.balance);
+      setFactionBalance(
+        typeof data.factionBalance === "number" ? data.factionBalance : null
+      );
+      setFactionName(
+        typeof data.factionName === "string" ? data.factionName : null
+      );
+      setCanEditPrices(Boolean(data.canEditPrices));
       setPackages(data.packages || []);
       setPatches(data.patches || []);
       setBgs(data.bgs || []);
@@ -146,13 +164,19 @@ export function MarketplaceClient({ loggedIn }: Props) {
       const data = await res.json();
       if (!res.ok || !data.ok) {
         const map: Record<string, string> = {
-          insufficient: "Не хватает BB Coins — пополни баланс",
+          insufficient: "Не хватает BBC / B$ в казне",
           not_owned: "Нечего продавать — нет копий в инвентаре",
+          no_faction: "Нужна фракция для оплаты B$",
+          forbidden_seat: "B$ тратит только глава / зам",
         };
         setErr(map[data.error] || "Не удалось выполнить сделку");
         return;
       }
-      if (typeof data.balance === "number") setBalance(data.balance);
+      if (data.currency === "BD") {
+        if (typeof data.balance === "number") setFactionBalance(data.balance);
+      } else if (typeof data.balance === "number") {
+        setBalance(data.balance);
+      }
       setMsg(
         action === "buy"
           ? `Куплено (+1). У тебя: ${data.mine ?? "…"}`
@@ -179,13 +203,19 @@ export function MarketplaceClient({ loggedIn }: Props) {
       const data = await res.json();
       if (!res.ok || !data.ok) {
         const map: Record<string, string> = {
-          insufficient: "Не хватает BB Coins — пополни баланс",
+          insufficient: "Не хватает BBC / B$ в казне",
           not_owned: "Нечего продавать — нет копий в инвентаре",
+          no_faction: "Нужна фракция для оплаты B$",
+          forbidden_seat: "B$ тратит только глава / зам",
         };
         setErr(map[data.error] || "Не удалось выполнить сделку");
         return;
       }
-      if (typeof data.balance === "number") setBalance(data.balance);
+      if (data.currency === "BD") {
+        if (typeof data.balance === "number") setFactionBalance(data.balance);
+      } else if (typeof data.balance === "number") {
+        setBalance(data.balance);
+      }
       setMsg(
         action === "buy"
           ? `Фон куплен (+1). У тебя: ${data.mine ?? "…"}`
@@ -212,13 +242,19 @@ export function MarketplaceClient({ loggedIn }: Props) {
       const data = await res.json();
       if (!res.ok || !data.ok) {
         const map: Record<string, string> = {
-          insufficient: "Не хватает BB Coins — пополни баланс",
+          insufficient: "Не хватает BBC / B$ в казне",
           not_owned: "Нечего продавать — нет копий в инвентаре",
+          no_faction: "Нужна фракция для оплаты B$",
+          forbidden_seat: "B$ тратит только глава / зам",
         };
         setErr(map[data.error] || "Не удалось выполнить сделку");
         return;
       }
-      if (typeof data.balance === "number") setBalance(data.balance);
+      if (data.currency === "BD") {
+        if (typeof data.balance === "number") setFactionBalance(data.balance);
+      } else if (typeof data.balance === "number") {
+        setBalance(data.balance);
+      }
       setMsg(
         action === "buy"
           ? `Шрифт куплен (+1). У тебя: ${data.mine ?? "…"}`
@@ -249,6 +285,14 @@ export function MarketplaceClient({ loggedIn }: Props) {
               <strong>
                 {balance == null ? "…" : balance.toLocaleString("ru-RU")} BBC
               </strong>
+              {factionBalance != null ? (
+                <strong className="market-balance-bd">
+                  {factionBalance.toLocaleString("ru-RU")} B$
+                  {factionName ? (
+                    <span className="muted"> · {factionName}</span>
+                  ) : null}
+                </strong>
+              ) : null}
             </section>
             <button
               type="button"
@@ -383,10 +427,10 @@ export function MarketplaceClient({ loggedIn }: Props) {
                               <span className="market-price-old">
                                 {p.buyBase}
                               </span>{" "}
-                              {p.buy} BBC
+                              {p.buy} {moneyLabel(p.currency)}
                             </>
                           ) : (
-                            `${p.buy} BBC`
+                            `${p.buy} ${moneyLabel(p.currency)}`
                           )}
                         </strong>
                       </button>
@@ -398,10 +442,22 @@ export function MarketplaceClient({ loggedIn }: Props) {
                       >
                         <span className="muted">продать</span>
                         <strong className={p.deal === "sellboost" ? "is-sellboost" : undefined}>
-                          {busy === `sell:${p.id}` ? "…" : `${p.sell} BBC`}
+                          {busy === `sell:${p.id}`
+                            ? "…"
+                            : `${p.sell} ${moneyLabel(p.currency)}`}
                         </strong>
                       </button>
                     </div>
+                    {canEditPrices ? (
+                      <MarketPriceEditor
+                        catalog="patch"
+                        itemId={p.id}
+                        buy={p.buyBase ?? p.buy}
+                        sell={p.sellBase ?? p.sell}
+                        currency={p.currency || "BBC"}
+                        onSaved={() => void load()}
+                      />
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -490,10 +546,10 @@ export function MarketplaceClient({ loggedIn }: Props) {
                               <span className="market-price-old">
                                 {p.buyBase}
                               </span>{" "}
-                              {p.buy} BBC
+                              {p.buy} {moneyLabel(p.currency)}
                             </>
                           ) : (
-                            `${p.buy} BBC`
+                            `${p.buy} ${moneyLabel(p.currency)}`
                           )}
                         </strong>
                       </button>
@@ -511,10 +567,20 @@ export function MarketplaceClient({ loggedIn }: Props) {
                         >
                           {busy === `sell:bg:${p.id}`
                             ? "…"
-                            : `${p.sell} BBC`}
+                            : `${p.sell} ${moneyLabel(p.currency)}`}
                         </strong>
                       </button>
                     </div>
+                    {canEditPrices ? (
+                      <MarketPriceEditor
+                        catalog="bg"
+                        itemId={p.id}
+                        buy={p.buyBase ?? p.buy}
+                        sell={p.sellBase ?? p.sell}
+                        currency={p.currency || "BBC"}
+                        onSaved={() => void load()}
+                      />
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -609,10 +675,10 @@ export function MarketplaceClient({ loggedIn }: Props) {
                               <span className="market-price-old">
                                 {p.buyBase}
                               </span>{" "}
-                              {p.buy} BBC
+                              {p.buy} {moneyLabel(p.currency)}
                             </>
                           ) : (
-                            `${p.buy} BBC`
+                            `${p.buy} ${moneyLabel(p.currency)}`
                           )}
                         </strong>
                       </button>
@@ -630,10 +696,20 @@ export function MarketplaceClient({ loggedIn }: Props) {
                         >
                           {busy === `sell:font:${p.id}`
                             ? "…"
-                            : `${p.sell} BBC`}
+                            : `${p.sell} ${moneyLabel(p.currency)}`}
                         </strong>
                       </button>
                     </div>
+                    {canEditPrices ? (
+                      <MarketPriceEditor
+                        catalog="font"
+                        itemId={p.id}
+                        buy={p.buyBase ?? p.buy}
+                        sell={p.sellBase ?? p.sell}
+                        currency={p.currency || "BBC"}
+                        onSaved={() => void load()}
+                      />
+                    ) : null}
                   </li>
                 ))}
               </ul>

@@ -65,6 +65,7 @@ export type MarketPatchCard = {
   sell: number;
   /** Базовая цена купить без дневной акции */
   buyBase: number;
+  sellBase?: number;
   /** Сколько копий у текущего игрока */
   mine: number;
   /** Сколько копий всего у всех на площадке */
@@ -73,6 +74,7 @@ export type MarketPatchCard = {
   /** Дневная акция: скидка / наценка купить / бонус продажи */
   deal: "discount" | "markup" | "sellboost" | null;
   dealDay?: string;
+  currency: "BBC" | "BD";
 };
 
 export function marketPatchMeta(id: ProfilePatchId) {

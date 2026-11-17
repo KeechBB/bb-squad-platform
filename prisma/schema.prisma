@@ -178,6 +178,24 @@ model NickStyleStock {
   @@index([userId])
 }
 
+/// Живые цены торговой площадки (перебивают код). Валюта: BBC | BD.
+model MarketListingPrice {
+  id               String   @id @default(cuid())
+  /// patch | bg | font
+  catalog          String
+  itemId           String
+  /// BBC (личный) | BD (казна фракции B$)
+  currency         String   @default("BBC")
+  buyPrice         Int
+  sellPrice        Int
+  updatedBySteamId String?
+  updatedAt        DateTime @updatedAt
+  createdAt        DateTime @default(now())
+
+  @@unique([catalog, itemId])
+  @@index([catalog])
+}
+
 /// Журнал BB Coins. Плюс/минус + снимок баланса. ref+kind — идемпотентность.
 model BbCoinTx {
   id           String   @id @default(cuid())

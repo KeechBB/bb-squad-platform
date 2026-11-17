@@ -32,7 +32,11 @@ export async function POST(req: Request) {
   const bgId = String(body.bgId || "");
 
   if (action === "buy") {
-    const res = await buyMarketBg({ userId: user.id, bgId });
+    const res = await buyMarketBg({
+      userId: user.id,
+      steamId: user.steamId,
+      bgId,
+    });
     if (!res.ok) {
       const status = res.error === "insufficient" ? 402 : 400;
       return NextResponse.json(res, { status });
@@ -41,7 +45,11 @@ export async function POST(req: Request) {
   }
 
   if (action === "sell") {
-    const res = await sellMarketBg({ userId: user.id, bgId });
+    const res = await sellMarketBg({
+      userId: user.id,
+      steamId: user.steamId,
+      bgId,
+    });
     if (!res.ok) {
       const status = res.error === "not_owned" ? 409 : 400;
       return NextResponse.json(res, { status });

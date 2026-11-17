@@ -32,7 +32,11 @@ export async function POST(req: Request) {
   const styleId = String(body.styleId || "");
 
   if (action === "buy") {
-    const res = await buyMarketFont({ userId: user.id, styleId });
+    const res = await buyMarketFont({
+      userId: user.id,
+      steamId: user.steamId,
+      styleId,
+    });
     if (!res.ok) {
       const status = res.error === "insufficient" ? 402 : 400;
       return NextResponse.json(res, { status });
@@ -41,7 +45,11 @@ export async function POST(req: Request) {
   }
 
   if (action === "sell") {
-    const res = await sellMarketFont({ userId: user.id, styleId });
+    const res = await sellMarketFont({
+      userId: user.id,
+      steamId: user.steamId,
+      styleId,
+    });
     if (!res.ok) {
       const status = res.error === "not_owned" ? 409 : 400;
       return NextResponse.json(res, { status });

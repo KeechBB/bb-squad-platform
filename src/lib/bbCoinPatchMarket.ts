@@ -4,17 +4,11 @@
  */
 import { prisma } from "@/lib/prisma";
 import { isProfilePatchId } from "@/lib/profilePatches";
-import { creditBbCoins, debitBbCoins, getBbCoinBalance } from "@/lib/bbCoins";
 import {
   marketPatchMeta,
   type MarketPatchCard,
 } from "@/lib/bbCoinPatchPrices";
-import {
-  dailyDealKindFor,
-  dailyMarketDeals,
-  patchBuyPriceBbcToday,
-  patchSellPriceBbcToday,
-} from "@/lib/bbCoinDailyDeals";
+import { dailyMarketDeals } from "@/lib/bbCoinDailyDeals";
 import { MARKET_PATCH_ORDER } from "@/lib/marketPatchIds";
 import { SITE_CREATOR_STEAM_ID } from "@/lib/profileBg";
 import { isBuiltinSuperAdmin } from "@/lib/admin";
@@ -28,6 +22,8 @@ import {
   sumPatchSupply,
 } from "@/lib/nickPatchStock";
 import { mskYmd } from "@/lib/eventDay";
+import { resolveListingPrice } from "@/lib/marketListingPrices";
+import { chargeMarketBuy, creditMarketSell } from "@/lib/marketCharge";
 
 /** Маркер: стартовый инвентарь Keech уже выдан. */
 const KEECH_MARKET_SEED_FLAG = "__market_keech_seed_v1";
@@ -81,22 +77,27 @@ export async function loadMarketPatchCatalog(opts: {
   const day = mskYmd();
   const deals = dailyMarketDeals(day);
 
-  return MARKET_PATCH_ORDER.map((id) => {
+  const cards: MarketPatchCard[] = [];
+  for (const id of MARKET_PATCH_ORDER) {
     const meta = marketPatchMeta(id);
     const myQty = mine.get(id) || 0;
-    const deal = dailyDealKindFor(id, day);
-    return {
+    const price = await resolveListingPrice("patch", id, day);
+    if (!price) continue;
+    cards.push({
       ...meta,
-      buy: patchBuyPriceBbcToday(id, day),
-      sell: patchSellPriceBbcToday(id, day),
-      buyBase: meta.buyBase,
+      buy: price.buy,
+      sell: price.sell,
+      buyBase: price.buyBase,
+      sellBase: price.sellBase,
       mine: myQty,
       total: total.get(id) || 0,
       owned: myQty > 0,
-      deal,
+      deal: price.deal,
       dealDay: deals.day,
-    };
-  });
+      currency: price.currency,
+    });
+  }
+  return cards;
 }
 
 export async function buyMarketPatch(opts: {
@@ -104,43 +105,33 @@ export async function buyMarketPatch(opts: {
   steamId: string;
   patchId: string;
 }): Promise<
-  | { ok: true; balance: number; mine: number; owned: true }
+  | { ok: true; balance: number; mine: number; owned: true; currency: "BBC" | "BD" }
   | { ok: false; error: string }
 > {
   if (!isProfilePatchId(opts.patchId)) {
     return { ok: false, error: "patch" };
   }
-  const patchId = opts.patchId;
-  const day = mskYmd();
-  const price = patchBuyPriceBbcToday(patchId, day);
-  const deal = dailyDealKindFor(patchId, day);
+  const price = await resolveListingPrice("patch", opts.patchId);
+  if (!price) return { ok: false, error: "patch" };
 
-  const bal = await getBbCoinBalance(opts.userId);
-  if (bal < price) return { ok: false, error: "insufficient" };
-
-  const dealNote =
-    deal === "discount"
-      ? " · скидка −20%"
-      : deal === "markup"
-        ? " · наценка +20%"
-        : "";
-  const debited = await debitBbCoins({
+  const charged = await chargeMarketBuy({
     userId: opts.userId,
-    amount: price,
+    steamId: opts.steamId,
+    price,
     kind: "patch_buy",
-    ref: null,
-    note: `Покупка нашивки ${patchId} (−${price} BBC)${dealNote}`,
+    noteItem: `нашивки ${opts.patchId}`,
   });
-  if (!debited.ok) {
-    return {
-      ok: false,
-      error: debited.error === "insufficient" ? "insufficient" : "debit",
-    };
-  }
+  if (!charged.ok) return charged;
 
-  const mine = await addPatchQty(opts.userId, patchId, 1);
+  const mine = await addPatchQty(opts.userId, opts.patchId, 1);
   await writeNickPatchesCache().catch(() => null);
-  return { ok: true, balance: debited.balance, mine, owned: true };
+  return {
+    ok: true,
+    balance: charged.balance,
+    mine,
+    owned: true,
+    currency: charged.currency,
+  };
 }
 
 export async function sellMarketPatch(opts: {
@@ -148,43 +139,36 @@ export async function sellMarketPatch(opts: {
   steamId: string;
   patchId: string;
 }): Promise<
-  | { ok: true; balance: number; mine: number; owned: boolean }
+  | {
+      ok: true;
+      balance: number;
+      mine: number;
+      owned: boolean;
+      currency: "BBC" | "BD";
+    }
   | { ok: false; error: string }
 > {
   if (!isProfilePatchId(opts.patchId)) {
     return { ok: false, error: "patch" };
   }
-  const patchId = opts.patchId;
-  const day = mskYmd();
-  const price = patchSellPriceBbcToday(patchId, day);
-  const deal = dailyDealKindFor(patchId, day);
+  const price = await resolveListingPrice("patch", opts.patchId);
+  if (!price) return { ok: false, error: "patch" };
 
   await migrateUnlocksToStock(opts.userId);
+  const removed = await removePatchQty(opts.userId, opts.patchId, 1);
+  if (!removed.ok) return { ok: false, error: "not_owned" };
 
-  const removed = await removePatchQty(opts.userId, patchId, 1);
-  if (!removed.ok) {
-    return { ok: false, error: "not_owned" };
-  }
-
-  const dealNote =
-    deal === "discount"
-      ? " · скидка −20%"
-      : deal === "markup"
-        ? " · наценка +20%"
-        : deal === "sellboost"
-          ? " · продажа +20%"
-          : "";
-  const credited = await creditBbCoins({
+  const credited = await creditMarketSell({
     userId: opts.userId,
-    amount: price,
+    steamId: opts.steamId,
+    price,
     kind: "patch_sell",
-    ref: `${patchId}:${Date.now()}`,
-    note: `Продажа нашивки ${patchId} (+${price} BBC)${dealNote}`,
+    noteItem: `нашивки ${opts.patchId}`,
+    rollback: async () => {
+      await addPatchQty(opts.userId, opts.patchId, 1);
+    },
   });
-  if (!credited.ok) {
-    await addPatchQty(opts.userId, patchId, 1);
-    return { ok: false, error: "credit" };
-  }
+  if (!credited.ok) return credited;
 
   await writeNickPatchesCache().catch(() => null);
   return {
@@ -192,5 +176,6 @@ export async function sellMarketPatch(opts: {
     balance: credited.balance,
     mine: removed.qty,
     owned: removed.qty > 0,
+    currency: credited.currency,
   };
 }

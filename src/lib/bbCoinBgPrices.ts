@@ -65,11 +65,14 @@ export type MarketBgCard = {
   buy: number;
   sell: number;
   buyBase: number;
+  sellBase?: number;
   mine: number;
   total: number;
   owned: boolean;
   deal: "discount" | "markup" | "sellboost" | null;
   dealDay?: string;
+  /** BBC | BD — из живых цен / дефолта */
+  currency: "BBC" | "BD";
 };
 
 export function marketBgMeta(id: MarketBgId) {

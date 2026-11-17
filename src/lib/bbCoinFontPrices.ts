@@ -44,11 +44,13 @@ export type MarketFontCard = {
   buy: number;
   sell: number;
   buyBase: number;
+  sellBase?: number;
   mine: number;
   total: number;
   owned: boolean;
   deal: "discount" | "markup" | "sellboost" | null;
   dealDay?: string;
+  currency: "BBC" | "BD";
 };
 
 export function marketFontMeta(id: MarketFontId) {

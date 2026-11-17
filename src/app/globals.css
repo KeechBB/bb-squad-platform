@@ -24877,6 +24877,68 @@ body:has(.faction-page) .site-footer {
   background: rgba(255, 255, 255, 0.04);
 }
 
+.market-balance-bd {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.95rem;
+  color: #c4b5fd;
+}
+.market-price-editor {
+  border-top: 1px solid #373028;
+  padding: 8px 10px 10px;
+}
+.market-price-edit-btn {
+  width: 100%;
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  background: rgba(124, 58, 237, 0.15);
+  color: #e9d5ff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 6px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.market-price-edit-panel {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+.market-price-edit-panel label {
+  display: grid;
+  gap: 2px;
+  font-size: 0.72rem;
+  color: #a8a29e;
+}
+.market-price-edit-panel input,
+.market-price-edit-panel select {
+  background: #141018;
+  border: 1px solid #3f3a45;
+  color: #f5f5f4;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+.market-price-edit-panel button {
+  margin-top: 2px;
+  border: 0;
+  background: #7c3aed;
+  color: #fff;
+  font-weight: 700;
+  padding: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.market-price-edit-panel button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.market-price-edit-err {
+  color: #fca5a5;
+  font-size: 0.75rem;
+}
+
 /* Фоны: пейзажный превью без зеркала оружия */
 .market-bg-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
