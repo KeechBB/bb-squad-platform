@@ -44,7 +44,7 @@ export const PROFILE_BG_OPTIONS = [
   },
   {
     id: "bd-faction-staya-bg",
-    file: "bd-faction-staya-bg-v7.jpg",
+    file: "bd-faction-staya-bg-v8.jpg",
     label: "Стая · Лунный вой",
     gate: "creator",
   },
