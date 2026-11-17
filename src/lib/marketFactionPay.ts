@@ -195,9 +195,10 @@ export async function creditFactionBd(opts: {
 }
 
 export function bdPayErrorMessage(code: string): string {
-  if (code === "no_faction") return "Нужна фракция, чтобы платить B$";
+  if (code === "no_faction")
+    return "Нужна фракция: покупка/продажа за $ идёт через казну";
   if (code === "forbidden_seat")
-    return `B$ тратит только глава / зам фракции (${BD_MARK})`;
+    return `$ тратит только глава / зам фракции (${BD_MARK})`;
   if (code === "insufficient") return `Недостаточно ${BD_MARK} в казне фракции`;
-  return "Ошибка оплаты B$";
+  return "Ошибка оплаты $";
 }

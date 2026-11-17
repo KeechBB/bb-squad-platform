@@ -106,14 +106,12 @@ export async function creditMarketSell(opts: {
     return { ok: true, balance: credited.balance, currency: "BBC" };
   }
 
+  // Продажа за $: сумма всегда в казну фракции продавца (не на личный BBC).
+  // Купить мог только глава/зам, продать обратно в казну — любой член фракции.
   const ctx = await getFactionPayCtx(opts.userId, opts.steamId);
   if (!ctx) {
     await opts.rollback();
     return { ok: false, error: "no_faction" };
-  }
-  if (!ctx.canSpend) {
-    await opts.rollback();
-    return { ok: false, error: "forbidden_seat" };
   }
   const credited = await creditFactionBd({
     factionId: ctx.factionId,

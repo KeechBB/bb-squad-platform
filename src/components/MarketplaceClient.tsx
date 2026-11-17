@@ -207,10 +207,10 @@ export function MarketplaceClient({ loggedIn }: Props) {
   }
 
   const dealErr: Record<string, string> = {
-    insufficient: "Не хватает BBC / B$ в казне",
+    insufficient: "Не хватает BBC / $ в казне",
     not_owned: "Нечего продавать — нет копий в инвентаре",
-    no_faction: "Нужна фракция для оплаты B$",
-    forbidden_seat: "B$ тратит только глава / зам",
+    no_faction: "Нужна фракция: покупка/продажа за $ идёт через казну",
+    forbidden_seat: "$ тратит только глава / зам",
     gift_required: "Выбери, кому подарить предмет",
     gift_not_member: "Получатель должен быть из вашей фракции",
   };
@@ -339,10 +339,13 @@ export function MarketplaceClient({ loggedIn }: Props) {
       }
       if (data.currency === "BD") {
         if (typeof data.balance === "number") setFactionBalance(data.balance);
-      } else if (typeof data.balance === "number") {
-        setBalance(data.balance);
+        setMsg(
+          `Продано (−1). $ вернулись в казну фракции. У тебя: ${data.mine ?? "…"}`
+        );
+      } else {
+        if (typeof data.balance === "number") setBalance(data.balance);
+        setMsg(`Продано (−1). У тебя: ${data.mine ?? "…"}`);
       }
-      setMsg(`Продано (−1). У тебя: ${data.mine ?? "…"}`);
       await load();
     } catch {
       setErr("Сеть недоступна");
@@ -374,10 +377,13 @@ export function MarketplaceClient({ loggedIn }: Props) {
       }
       if (data.currency === "BD") {
         if (typeof data.balance === "number") setFactionBalance(data.balance);
-      } else if (typeof data.balance === "number") {
-        setBalance(data.balance);
+        setMsg(
+          `Фон продан (−1). $ вернулись в казну фракции. У тебя: ${data.mine ?? "…"}`
+        );
+      } else {
+        if (typeof data.balance === "number") setBalance(data.balance);
+        setMsg(`Фон продан (−1). У тебя: ${data.mine ?? "…"}`);
       }
-      setMsg(`Фон продан (−1). У тебя: ${data.mine ?? "…"}`);
       await load();
     } catch {
       setErr("Сеть недоступна");
@@ -409,10 +415,13 @@ export function MarketplaceClient({ loggedIn }: Props) {
       }
       if (data.currency === "BD") {
         if (typeof data.balance === "number") setFactionBalance(data.balance);
-      } else if (typeof data.balance === "number") {
-        setBalance(data.balance);
+        setMsg(
+          `Шрифт продан (−1). $ вернулись в казну фракции. У тебя: ${data.mine ?? "…"}`
+        );
+      } else {
+        if (typeof data.balance === "number") setBalance(data.balance);
+        setMsg(`Шрифт продан (−1). У тебя: ${data.mine ?? "…"}`);
       }
-      setMsg(`Шрифт продан (−1). У тебя: ${data.mine ?? "…"}`);
       await load();
     } catch {
       setErr("Сеть недоступна");
