@@ -27,15 +27,20 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
     action?: string;
     bgId?: string;
+    giftToUserId?: string;
   };
   const action = String(body.action || "");
   const bgId = String(body.bgId || "");
+  const giftToUserId = body.giftToUserId
+    ? String(body.giftToUserId)
+    : undefined;
 
   if (action === "buy") {
     const res = await buyMarketBg({
       userId: user.id,
       steamId: user.steamId,
       bgId,
+      giftToUserId,
     });
     if (!res.ok) {
       const status = res.error === "insufficient" ? 402 : 400;

@@ -6,6 +6,11 @@ import {
   MarketPriceEditor,
   moneyLabel,
 } from "@/components/MarketPriceEditor";
+import {
+  MarketBdBuyModal,
+  type BdBuyDraft,
+  type FactionMarketMember,
+} from "@/components/MarketBdBuyModal";
 
 type Pack = {
   id: BbCoinPackageId | string;
@@ -77,6 +82,11 @@ export function MarketplaceClient({ loggedIn }: Props) {
   const [balance, setBalance] = useState<number | null>(null);
   const [factionBalance, setFactionBalance] = useState<number | null>(null);
   const [factionName, setFactionName] = useState<string | null>(null);
+  const [canSpendBd, setCanSpendBd] = useState(false);
+  const [factionMembers, setFactionMembers] = useState<FactionMarketMember[]>(
+    []
+  );
+  const [myUserId, setMyUserId] = useState<string | null>(null);
   const [canEditPrices, setCanEditPrices] = useState(false);
   const [packages, setPackages] = useState<Pack[]>([]);
   const [patches, setPatches] = useState<PatchCard[]>([]);
@@ -87,6 +97,8 @@ export function MarketplaceClient({ loggedIn }: Props) {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [topupWipOpen, setTopupWipOpen] = useState(false);
+  const [bdBuyDraft, setBdBuyDraft] = useState<BdBuyDraft | null>(null);
+  const [giftToUserId, setGiftToUserId] = useState("");
 
   const load = useCallback(async () => {
     if (!loggedIn) return;
@@ -109,6 +121,18 @@ export function MarketplaceClient({ loggedIn }: Props) {
       setFactionName(
         typeof data.factionName === "string" ? data.factionName : null
       );
+      setCanSpendBd(Boolean(data.canSpendBd));
+      const members = Array.isArray(data.factionMembers)
+        ? (data.factionMembers as FactionMarketMember[])
+        : [];
+      setFactionMembers(members);
+      const me = typeof data.myUserId === "string" ? data.myUserId : null;
+      setMyUserId(me);
+      setGiftToUserId((prev) => {
+        if (prev && members.some((m) => m.userId === prev)) return prev;
+        if (me && members.some((m) => m.userId === me)) return me;
+        return members[0]?.userId || "";
+      });
       setCanEditPrices(Boolean(data.canEditPrices));
       setPackages(data.packages || []);
       setPatches(data.patches || []);
@@ -151,8 +175,124 @@ export function MarketplaceClient({ loggedIn }: Props) {
     }
   }
 
+  const dealErr: Record<string, string> = {
+    insufficient: "Не хватает BBC / B$ в казне",
+    not_owned: "Нечего продавать — нет копий в инвентаре",
+    no_faction: "Нужна фракция для оплаты B$",
+    forbidden_seat: "B$ тратит только глава / зам",
+    gift_required: "Выбери, кому подарить предмет",
+    gift_not_member: "Получатель должен быть из вашей фракции",
+  };
+
+  function openBdBuy(draft: BdBuyDraft) {
+    setErr(null);
+    setMsg(null);
+    if (canSpendBd && !giftToUserId) {
+      const me = myUserId && factionMembers.some((m) => m.userId === myUserId)
+        ? myUserId
+        : factionMembers[0]?.userId || "";
+      setGiftToUserId(me);
+    }
+    setBdBuyDraft(draft);
+  }
+
+  async function runBuy(opts: {
+    catalog: "patch" | "bg" | "font";
+    itemId: string;
+    giftToUserId?: string;
+  }) {
+    const key =
+      opts.catalog === "patch"
+        ? `buy:${opts.itemId}`
+        : opts.catalog === "bg"
+          ? `buy:bg:${opts.itemId}`
+          : `buy:font:${opts.itemId}`;
+    setBusy(key);
+    setErr(null);
+    setMsg(null);
+    try {
+      const url =
+        opts.catalog === "patch"
+          ? "/api/bb-coins/patches"
+          : opts.catalog === "bg"
+            ? "/api/bb-coins/bgs"
+            : "/api/bb-coins/fonts";
+      const body =
+        opts.catalog === "patch"
+          ? { action: "buy", patchId: opts.itemId, giftToUserId: opts.giftToUserId }
+          : opts.catalog === "bg"
+            ? { action: "buy", bgId: opts.itemId, giftToUserId: opts.giftToUserId }
+            : {
+                action: "buy",
+                styleId: opts.itemId,
+                giftToUserId: opts.giftToUserId,
+              };
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        setErr(dealErr[data.error] || "Не удалось выполнить сделку");
+        return;
+      }
+      if (data.currency === "BD") {
+        if (typeof data.balance === "number") setFactionBalance(data.balance);
+      } else if (typeof data.balance === "number") {
+        setBalance(data.balance);
+      }
+      const gifted = data.giftedToUserId
+        ? factionMembers.find((m) => m.userId === data.giftedToUserId)?.nick
+        : null;
+      setMsg(
+        gifted
+          ? `Куплено и подарено: ${gifted}`
+          : `Куплено (+1). У тебя: ${data.mine ?? "…"}`
+      );
+      setBdBuyDraft(null);
+      await load();
+    } catch {
+      setErr("Сеть недоступна");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function confirmBdBuy() {
+    if (!bdBuyDraft) return;
+    await runBuy({
+      catalog: bdBuyDraft.catalog,
+      itemId: bdBuyDraft.itemId,
+      giftToUserId: canSpendBd ? giftToUserId : undefined,
+    });
+  }
+
+  function requestBuy(
+    catalog: "patch" | "bg" | "font",
+    card: { id: string; title: string; buy: number; currency?: "BBC" | "BD" }
+  ) {
+    if (card.currency === "BD") {
+      openBdBuy({
+        catalog,
+        itemId: card.id,
+        title: card.title,
+        buy: card.buy,
+        currency: "BD",
+      });
+      return;
+    }
+    void runBuy({ catalog, itemId: card.id });
+  }
+
   async function patchAction(patchId: string, action: "buy" | "sell") {
-    setBusy(`${action}:${patchId}`);
+    if (action === "buy") {
+      const card = patches.find((p) => p.id === patchId);
+      if (!card) return;
+      requestBuy("patch", card);
+      return;
+    }
+    setBusy(`sell:${patchId}`);
     setErr(null);
     setMsg(null);
     try {
@@ -163,13 +303,7 @@ export function MarketplaceClient({ loggedIn }: Props) {
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
-        const map: Record<string, string> = {
-          insufficient: "Не хватает BBC / B$ в казне",
-          not_owned: "Нечего продавать — нет копий в инвентаре",
-          no_faction: "Нужна фракция для оплаты B$",
-          forbidden_seat: "B$ тратит только глава / зам",
-        };
-        setErr(map[data.error] || "Не удалось выполнить сделку");
+        setErr(dealErr[data.error] || "Не удалось выполнить сделку");
         return;
       }
       if (data.currency === "BD") {
@@ -177,11 +311,7 @@ export function MarketplaceClient({ loggedIn }: Props) {
       } else if (typeof data.balance === "number") {
         setBalance(data.balance);
       }
-      setMsg(
-        action === "buy"
-          ? `Куплено (+1). У тебя: ${data.mine ?? "…"}`
-          : `Продано (−1). У тебя: ${data.mine ?? "…"}`
-      );
+      setMsg(`Продано (−1). У тебя: ${data.mine ?? "…"}`);
       await load();
     } catch {
       setErr("Сеть недоступна");
@@ -191,7 +321,13 @@ export function MarketplaceClient({ loggedIn }: Props) {
   }
 
   async function bgAction(bgId: string, action: "buy" | "sell") {
-    setBusy(`${action}:bg:${bgId}`);
+    if (action === "buy") {
+      const card = bgs.find((p) => p.id === bgId);
+      if (!card) return;
+      requestBuy("bg", card);
+      return;
+    }
+    setBusy(`sell:bg:${bgId}`);
     setErr(null);
     setMsg(null);
     try {
@@ -202,13 +338,7 @@ export function MarketplaceClient({ loggedIn }: Props) {
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
-        const map: Record<string, string> = {
-          insufficient: "Не хватает BBC / B$ в казне",
-          not_owned: "Нечего продавать — нет копий в инвентаре",
-          no_faction: "Нужна фракция для оплаты B$",
-          forbidden_seat: "B$ тратит только глава / зам",
-        };
-        setErr(map[data.error] || "Не удалось выполнить сделку");
+        setErr(dealErr[data.error] || "Не удалось выполнить сделку");
         return;
       }
       if (data.currency === "BD") {
@@ -216,11 +346,7 @@ export function MarketplaceClient({ loggedIn }: Props) {
       } else if (typeof data.balance === "number") {
         setBalance(data.balance);
       }
-      setMsg(
-        action === "buy"
-          ? `Фон куплен (+1). У тебя: ${data.mine ?? "…"}`
-          : `Фон продан (−1). У тебя: ${data.mine ?? "…"}`
-      );
+      setMsg(`Фон продан (−1). У тебя: ${data.mine ?? "…"}`);
       await load();
     } catch {
       setErr("Сеть недоступна");
@@ -230,7 +356,13 @@ export function MarketplaceClient({ loggedIn }: Props) {
   }
 
   async function fontAction(styleId: string, action: "buy" | "sell") {
-    setBusy(`${action}:font:${styleId}`);
+    if (action === "buy") {
+      const card = fonts.find((p) => p.id === styleId);
+      if (!card) return;
+      requestBuy("font", card);
+      return;
+    }
+    setBusy(`sell:font:${styleId}`);
     setErr(null);
     setMsg(null);
     try {
@@ -241,13 +373,7 @@ export function MarketplaceClient({ loggedIn }: Props) {
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
-        const map: Record<string, string> = {
-          insufficient: "Не хватает BBC / B$ в казне",
-          not_owned: "Нечего продавать — нет копий в инвентаре",
-          no_faction: "Нужна фракция для оплаты B$",
-          forbidden_seat: "B$ тратит только глава / зам",
-        };
-        setErr(map[data.error] || "Не удалось выполнить сделку");
+        setErr(dealErr[data.error] || "Не удалось выполнить сделку");
         return;
       }
       if (data.currency === "BD") {
@@ -255,11 +381,7 @@ export function MarketplaceClient({ loggedIn }: Props) {
       } else if (typeof data.balance === "number") {
         setBalance(data.balance);
       }
-      setMsg(
-        action === "buy"
-          ? `Шрифт куплен (+1). У тебя: ${data.mine ?? "…"}`
-          : `Шрифт продан (−1). У тебя: ${data.mine ?? "…"}`
-      );
+      setMsg(`Шрифт продан (−1). У тебя: ${data.mine ?? "…"}`);
       await load();
     } catch {
       setErr("Сеть недоступна");
@@ -285,23 +407,40 @@ export function MarketplaceClient({ loggedIn }: Props) {
               <strong>
                 {balance == null ? "…" : balance.toLocaleString("ru-RU")} BBC
               </strong>
-              {factionBalance != null ? (
-                <strong className="market-balance-bd">
-                  {factionBalance.toLocaleString("ru-RU")} B$
-                  {factionName ? (
-                    <span className="muted"> · {factionName}</span>
-                  ) : null}
-                </strong>
-              ) : null}
+            </section>
+            <section className="market-balance market-balance--faction" aria-live="polite">
+              <span className="muted">
+                Казна фракции
+                {factionName ? ` · ${factionName}` : ""}
+              </span>
+              <strong>
+                {factionBalance == null
+                  ? "—"
+                  : `${factionBalance.toLocaleString("ru-RU")} B$`}
+              </strong>
             </section>
             <button
               type="button"
               className="market-topup-btn"
               onClick={() => setTopupWipOpen(true)}
             >
-              Пополнить баланс
+              Пополнить BBC
             </button>
           </div>
+
+          {bdBuyDraft ? (
+            <MarketBdBuyModal
+              draft={bdBuyDraft}
+              canSpendBd={canSpendBd}
+              members={factionMembers}
+              myUserId={myUserId}
+              giftToUserId={giftToUserId}
+              busy={Boolean(busy)}
+              onGiftChange={setGiftToUserId}
+              onClose={() => setBdBuyDraft(null)}
+              onConfirm={() => void confirmBdBuy()}
+            />
+          ) : null}
 
           {topupWipOpen ? (
             <div

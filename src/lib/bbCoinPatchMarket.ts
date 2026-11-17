@@ -24,6 +24,7 @@ import {
 import { mskYmd } from "@/lib/eventDay";
 import { resolveListingPrice } from "@/lib/marketListingPrices";
 import { chargeMarketBuy, creditMarketSell } from "@/lib/marketCharge";
+import { resolveBdGiftRecipient } from "@/lib/marketFactionPay";
 
 /** Маркер: стартовый инвентарь Keech уже выдан. */
 const KEECH_MARKET_SEED_FLAG = "__market_keech_seed_v1";
@@ -104,8 +105,16 @@ export async function buyMarketPatch(opts: {
   userId: string;
   steamId: string;
   patchId: string;
+  giftToUserId?: string | null;
 }): Promise<
-  | { ok: true; balance: number; mine: number; owned: true; currency: "BBC" | "BD" }
+  | {
+      ok: true;
+      balance: number;
+      mine: number;
+      owned: true;
+      currency: "BBC" | "BD";
+      giftedToUserId?: string;
+    }
   | { ok: false; error: string }
 > {
   if (!isProfilePatchId(opts.patchId)) {
@@ -114,23 +123,37 @@ export async function buyMarketPatch(opts: {
   const price = await resolveListingPrice("patch", opts.patchId);
   if (!price) return { ok: false, error: "patch" };
 
+  let recipientId = opts.userId;
+  if (price.currency === "BD") {
+    const gift = await resolveBdGiftRecipient({
+      buyerUserId: opts.userId,
+      buyerSteamId: opts.steamId,
+      giftToUserId: opts.giftToUserId,
+    });
+    if (!gift.ok) return gift;
+    recipientId = gift.recipientUserId;
+  }
+
   const charged = await chargeMarketBuy({
     userId: opts.userId,
     steamId: opts.steamId,
     price,
     kind: "patch_buy",
-    noteItem: `нашивки ${opts.patchId}`,
+    noteItem: `нашивки ${opts.patchId}${
+      recipientId !== opts.userId ? ` → gift:${recipientId}` : ""
+    }`,
   });
   if (!charged.ok) return charged;
 
-  const mine = await addPatchQty(opts.userId, opts.patchId, 1);
+  const mine = await addPatchQty(recipientId, opts.patchId, 1);
   await writeNickPatchesCache().catch(() => null);
   return {
     ok: true,
     balance: charged.balance,
-    mine,
+    mine: recipientId === opts.userId ? mine : await getPatchQty(opts.userId, opts.patchId),
     owned: true,
     currency: charged.currency,
+    giftedToUserId: recipientId !== opts.userId ? recipientId : undefined,
   };
 }
 

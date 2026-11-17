@@ -27,15 +27,20 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
     action?: string;
     patchId?: string;
+    giftToUserId?: string;
   };
   const action = String(body.action || "");
   const patchId = String(body.patchId || "");
+  const giftToUserId = body.giftToUserId
+    ? String(body.giftToUserId)
+    : undefined;
 
   if (action === "buy") {
     const res = await buyMarketPatch({
       userId: user.id,
       steamId: user.steamId,
       patchId,
+      giftToUserId,
     });
     if (!res.ok) {
       const status =

@@ -14,6 +14,12 @@ export type FactionPayCtx = {
   canSpend: boolean;
 };
 
+export type FactionMarketMember = {
+  userId: string;
+  nick: string;
+  seat: "LEADER" | "DEPUTY" | "MEMBER";
+};
+
 export async function getFactionPayCtx(
   userId: string,
   steamId: string
@@ -37,6 +43,58 @@ export async function getFactionPayCtx(
     seat: mem.seat,
     canSpend,
   };
+}
+
+/** Состав фракции для подарка с площадки (B$). */
+export async function listFactionMarketMembers(
+  factionId: string
+): Promise<FactionMarketMember[]> {
+  const rows = await prisma.factionMember.findMany({
+    where: { factionId },
+    select: {
+      userId: true,
+      seat: true,
+      user: { select: { nick: true, steamId: true } },
+    },
+    orderBy: [{ seat: "asc" }, { joinedAt: "asc" }],
+  });
+  const seatRank = { LEADER: 0, DEPUTY: 1, MEMBER: 2 } as const;
+  return rows
+    .filter((r) => !isBuiltinSuperAdmin(r.user.steamId))
+    .map((r) => ({
+      userId: r.userId,
+      nick: r.user.nick || "—",
+      seat: r.seat,
+    }))
+    .sort(
+      (a, b) =>
+        seatRank[a.seat] - seatRank[b.seat] ||
+        a.nick.localeCompare(b.nick, "ru")
+    );
+}
+
+/** Кому уйдёт предмет: для B$ — только член той же фракции. */
+export async function resolveBdGiftRecipient(opts: {
+  buyerUserId: string;
+  buyerSteamId: string;
+  giftToUserId: string | null | undefined;
+}): Promise<
+  | { ok: true; recipientUserId: string; factionId: string }
+  | { ok: false; error: string }
+> {
+  const ctx = await getFactionPayCtx(opts.buyerUserId, opts.buyerSteamId);
+  if (!ctx) return { ok: false, error: "no_faction" };
+  if (!ctx.canSpend) return { ok: false, error: "forbidden_seat" };
+  const giftTo = String(opts.giftToUserId || "").trim();
+  if (!giftTo) return { ok: false, error: "gift_required" };
+  const target = await prisma.factionMember.findUnique({
+    where: { userId: giftTo },
+    select: { factionId: true },
+  });
+  if (!target || target.factionId !== ctx.factionId) {
+    return { ok: false, error: "gift_not_member" };
+  }
+  return { ok: true, recipientUserId: giftTo, factionId: ctx.factionId };
 }
 
 export async function debitFactionBd(opts: {

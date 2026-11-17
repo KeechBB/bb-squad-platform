@@ -24504,13 +24504,21 @@ body:has(.faction-page) .site-footer {
   border: 1px solid var(--line, #2a2438);
   border-radius: 14px;
   background: #120e1a;
-  flex: 1 1 200px;
+  flex: 1 1 180px;
+  min-width: 160px;
+}
+.market-balance--faction {
+  border-color: rgba(167, 139, 250, 0.45);
+  background: linear-gradient(160deg, #1a1228 0%, #120e1a 70%);
+}
+.market-balance--faction strong {
+  color: #ddd6fe;
 }
 .market-balance strong {
   font-size: 1.6rem;
 }
 .market-topup-btn {
-  flex: 1 1 240px;
+  flex: 0 1 180px;
   min-height: 72px;
   border: 0;
   border-radius: 14px;
@@ -24877,11 +24885,43 @@ body:has(.faction-page) .site-footer {
   background: rgba(255, 255, 255, 0.04);
 }
 
-.market-balance-bd {
-  display: block;
-  margin-top: 4px;
+.market-bd-buy-dialog {
+  max-width: 420px;
+  text-align: left;
+}
+.market-bd-buy-text {
+  margin: 0 0 14px;
+  color: #d6d3d1;
+  line-height: 1.45;
   font-size: 0.95rem;
-  color: #c4b5fd;
+}
+.market-bd-gift-label {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+  font-size: 0.78rem;
+  color: #a8a29e;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.market-bd-gift-label select {
+  width: 100%;
+  background: #141018;
+  border: 1px solid #3f3a45;
+  color: #f5f5f4;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+.market-bd-buy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.market-bd-cancel {
+  background: transparent !important;
+  border: 1px solid #44403c !important;
+  color: #d6d3d1 !important;
 }
 .market-price-editor {
   border-top: 1px solid #373028;

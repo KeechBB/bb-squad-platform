@@ -20,6 +20,7 @@ import {
 import { mskYmd } from "@/lib/eventDay";
 import { resolveListingPrice } from "@/lib/marketListingPrices";
 import { chargeMarketBuy, creditMarketSell } from "@/lib/marketCharge";
+import { resolveBdGiftRecipient } from "@/lib/marketFactionPay";
 
 const KEECH_FONT_SEED_FLAG = "__market_keech_font_seed_v1";
 
@@ -91,8 +92,16 @@ export async function buyMarketFont(opts: {
   userId: string;
   steamId: string;
   styleId: string;
+  giftToUserId?: string | null;
 }): Promise<
-  | { ok: true; balance: number; mine: number; owned: true; currency: "BBC" | "BD" }
+  | {
+      ok: true;
+      balance: number;
+      mine: number;
+      owned: true;
+      currency: "BBC" | "BD";
+      giftedToUserId?: string;
+    }
   | { ok: false; error: string }
 > {
   if (!isProfileNickStyleId(opts.styleId) || !isMarketFontId(opts.styleId)) {
@@ -101,22 +110,37 @@ export async function buyMarketFont(opts: {
   const price = await resolveListingPrice("font", opts.styleId);
   if (!price) return { ok: false, error: "font" };
 
+  let recipientId = opts.userId;
+  if (price.currency === "BD") {
+    const gift = await resolveBdGiftRecipient({
+      buyerUserId: opts.userId,
+      buyerSteamId: opts.steamId,
+      giftToUserId: opts.giftToUserId,
+    });
+    if (!gift.ok) return gift;
+    recipientId = gift.recipientUserId;
+  }
+
   const charged = await chargeMarketBuy({
     userId: opts.userId,
     steamId: opts.steamId,
     price,
     kind: "font_buy",
-    noteItem: `шрифта ${opts.styleId}`,
+    noteItem: `шрифта ${opts.styleId}${
+      recipientId !== opts.userId ? ` → gift:${recipientId}` : ""
+    }`,
   });
   if (!charged.ok) return charged;
 
-  const mine = await addFontQty(opts.userId, opts.styleId, 1);
+  await addFontQty(recipientId, opts.styleId, 1);
+  const mine = await getFontQty(opts.userId, opts.styleId);
   return {
     ok: true,
     balance: charged.balance,
     mine,
     owned: true,
     currency: charged.currency,
+    giftedToUserId: recipientId !== opts.userId ? recipientId : undefined,
   };
 }
 
