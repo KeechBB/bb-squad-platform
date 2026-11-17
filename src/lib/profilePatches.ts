@@ -163,8 +163,10 @@ export function profilePatchUrl(
     id === "hw2-knife-hook" || id === "hw2-ak-pumpkin"
       ? "?v=blood1"
       : id === "creator-event-scar-lemon" || id === "creator-event-saiga-apple"
-        ? "?v=fix6"
-        : "";
+        ? "?v=fs6"
+        : id.startsWith("bd-faction-")
+          ? "?v=bd2"
+          : "";
   return `/bp-assets/${opt.file}${bust}`;
 }
 
