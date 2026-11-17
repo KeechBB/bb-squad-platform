@@ -11,6 +11,8 @@ import {
 import { loadPlayerValueBonuses } from "@/lib/playerValueBonus";
 import type { ScarcityForPrice } from "@/lib/blueberryDollar";
 import type { FactionSeat } from "@prisma/client";
+import { TRAINING_SERVER_KEYS } from "@/lib/squadServers";
+import { canonKitName } from "@/lib/squadKits";
 
 export const DEPUTY_ROLE_NAME = "Зам. Фракции";
 
@@ -159,6 +161,31 @@ export async function mainKits(userIds: string[]): Promise<Map<string, string>> 
     });
     const top = share.kits[0]?.kit;
     if (top) out.set(userId, top);
+  }
+
+  // Нет спавнов в окне 14д → последний известный кит на TR (иначе в «Развитии» роль «—»).
+  const missing = uniq.filter((id) => !out.has(id));
+  if (missing.length) {
+    const users = await prisma.user.findMany({
+      where: { id: { in: missing } },
+      select: { id: true, steamId: true },
+    });
+    for (const u of users) {
+      const last = await prisma.squadRoleEvent.findFirst({
+        where: {
+          OR: [
+            { userId: u.id },
+            ...(u.steamId ? [{ steamId: u.steamId }] : []),
+          ],
+          serverKey: { in: [...TRAINING_SERVER_KEYS] },
+          kit: { not: "" },
+        },
+        orderBy: { spawnedAt: "desc" },
+        select: { kit: true },
+      });
+      const kit = canonKitName(String(last?.kit || "").trim());
+      if (kit) out.set(u.id, kit);
+    }
   }
   return out;
 }

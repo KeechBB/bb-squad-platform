@@ -433,13 +433,26 @@ export async function factionGrowthBoard(factionId: string): Promise<FactionGrow
   const todaySnap: Snap = { rifleman: {}, medic: {}, lat: {} };
 
   const rows: FactionGrowthRow[] = listed.map((m, i) => {
-    const role = kits.get(m.userId) || "—";
-    const slug = LIVE_ROLE[role];
     const steamId = m.user.steamId;
     const worn = (seenNicks.get(steamId) || [])
       .sort((a, b) => b.at - a.at)
       .map((x) => x.nick);
     const names = [m.user.steamName || "", m.user.nick || "", ...worn].filter(Boolean);
+    let role = kits.get(m.userId) || "";
+    // Если кита нет — взять живую лестницу с лучшим уровнем (Freak в списке Стрелка).
+    if (!role || role === "—") {
+      const candidates: { role: string; level: number }[] = [];
+      for (const [label, key] of Object.entries(LIVE_ROLE) as [
+        string,
+        "rifleman" | "medic" | "lat",
+      ][]) {
+        const lv = ladderLevel(ladders[key], names);
+        if (lv != null) candidates.push({ role: label, level: lv });
+      }
+      candidates.sort((a, b) => b.level - a.level);
+      role = candidates[0]?.role || "—";
+    }
+    const slug = LIVE_ROLE[role];
     const level = slug ? ladderLevel(ladders[slug], names) : null;
     const nickKey = nickCompact(m.user.nick || m.user.steamName || "");
     if (slug && steamId && level != null) todaySnap[slug][steamId] = level;
