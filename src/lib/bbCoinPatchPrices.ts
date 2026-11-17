@@ -26,7 +26,10 @@ export const PATCH_MARKET_TITLE: Record<MarketPatchId, string> = {
   "public-100-vehicles-t62": "Т-62 «Неоновый урожай»",
   "bd-faction-legion-ak74": "M4A1 «Орёл Легиона»",
   "bd-faction-orda-m4a1": "АК-74 «Клык Орды»",
+  "bd-faction-sbord-scar": "FN FAL «Скрап-протокол»",
+  "bd-faction-staya-svd": "AK-12 «Лунная Стая»",
   "bd-faction-tabor-m4": "AKM «Золото Табора»",
+  "bd-faction-uley-pkm": "QBZ-191 «Янтарь Улья»",
 };
 
 /** Откуда награда (подпись под названием). */
@@ -41,7 +44,10 @@ export const PATCH_MARKET_SOURCE: Record<MarketPatchId, string> = {
   "public-100-vehicles-t62": "Паблик · 100 техники",
   "bd-faction-legion-ak74": "$ · Фракция Легион",
   "bd-faction-orda-m4a1": "$ · Фракция Орда",
+  "bd-faction-sbord-scar": "$ · Фракция Сброд",
+  "bd-faction-staya-svd": "$ · Фракция Стая",
   "bd-faction-tabor-m4": "$ · Фракция Табор",
+  "bd-faction-uley-pkm": "$ · Фракция Улей",
 };
 
 /** Цена «купить» (BBC или $, см. patchDefaultCurrency). */
@@ -56,7 +62,10 @@ export const PATCH_BUY_PRICES_BBC: Record<MarketPatchId, number> = {
   "public-100-vehicles-t62": 500,
   "bd-faction-legion-ak74": 10_000,
   "bd-faction-orda-m4a1": 10_000,
+  "bd-faction-sbord-scar": 10_000,
+  "bd-faction-staya-svd": 10_000,
   "bd-faction-tabor-m4": 10_000,
+  "bd-faction-uley-pkm": 10_000,
 };
 
 /** Валюта по умолчанию: фракционные нашивки — казна ($). */
