@@ -38,13 +38,13 @@ export const PROFILE_BG_OPTIONS = [
   },
   {
     id: "bd-faction-orda-bg",
-    file: "bd-faction-orda-bg-v5.jpg",
+    file: "bd-faction-orda-bg-v6.jpg",
     label: "Орда · Алая буря",
     gate: "creator",
   },
   {
     id: "bd-faction-staya-bg",
-    file: "bd-faction-staya-bg-v5.jpg",
+    file: "bd-faction-staya-bg-v6.jpg",
     label: "Стая · Лунный вой",
     gate: "creator",
   },
