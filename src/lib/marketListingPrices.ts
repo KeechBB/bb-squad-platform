@@ -4,6 +4,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { isBuiltinSuperAdmin } from "@/lib/admin";
+import { PATCH_SELL_OF_BUY } from "@/lib/bbCoinPatchPrices";
 import { SITE_CREATOR_STEAM_ID } from "@/lib/profileBg";
 import { MARKET_PATCH_ORDER } from "@/lib/marketPatchIds";
 import { patchBuyPriceBbc, patchSellPriceBbc } from "@/lib/bbCoinPatchPrices";
@@ -193,7 +194,8 @@ export async function resolveListingPrice(
   const map = await loadListingOverrides();
   const ov = map.get(`${catalog}:${itemId}`);
   const buyBase = Math.max(1, Math.trunc(ov?.buyPrice ?? base.buy));
-  const sellBase = Math.max(1, Math.trunc(ov?.sellPrice ?? base.sell));
+  // Продажа всегда 80% от покупки (канон площадки).
+  const sellBase = Math.max(1, Math.round(buyBase * PATCH_SELL_OF_BUY));
   const currency: MarketCurrency =
     ov && isMarketCurrency(ov.currency) ? ov.currency : base.currency;
   const dealt = applyDeal(catalog, itemId, buyBase, sellBase, day);
@@ -220,14 +222,10 @@ export async function upsertListingPrice(opts: {
   if (!canEditMarketPrices(opts.steamId)) return { ok: false, error: "forbidden" };
   if (!codeDefaults(opts.catalog, opts.itemId)) return { ok: false, error: "item" };
   const buy = Math.trunc(Number(opts.buyPrice));
-  const sell = Math.trunc(Number(opts.sellPrice));
   if (!Number.isFinite(buy) || buy < 1 || buy > 10_000_000) {
     return { ok: false, error: "buy" };
   }
-  if (!Number.isFinite(sell) || sell < 1 || sell > 10_000_000) {
-    return { ok: false, error: "sell" };
-  }
-  if (sell > buy) return { ok: false, error: "sell_gt_buy" };
+  const sell = Math.max(1, Math.round(buy * PATCH_SELL_OF_BUY));
   await prisma.marketListingPrice.upsert({
     where: {
       catalog_itemId: { catalog: opts.catalog, itemId: opts.itemId },
@@ -252,5 +250,5 @@ export async function upsertListingPrice(opts: {
 }
 
 export function currencyLabel(c: MarketCurrency): string {
-  return c === "BD" ? "B$" : "BBC";
+  return c === "BD" ? "$" : "BBC";
 }

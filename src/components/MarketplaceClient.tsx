@@ -416,7 +416,7 @@ export function MarketplaceClient({ loggedIn }: Props) {
               <strong>
                 {factionBalance == null
                   ? "—"
-                  : `${factionBalance.toLocaleString("ru-RU")} B$`}
+                  : `${factionBalance.toLocaleString("ru-RU")} $`}
               </strong>
             </section>
             <button

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { PATCH_SELL_OF_BUY } from "@/lib/bbCoinPatchPrices";
 
 type Props = {
   catalog: "patch" | "bg" | "font";
@@ -10,6 +11,12 @@ type Props = {
   currency: "BBC" | "BD";
   onSaved: () => void;
 };
+
+function sellFromBuy(buyRaw: string): string {
+  const n = Math.trunc(Number(buyRaw));
+  if (!Number.isFinite(n) || n < 1) return "";
+  return String(Math.max(1, Math.round(n * PATCH_SELL_OF_BUY)));
+}
 
 export function MarketPriceEditor({
   catalog,
@@ -21,10 +28,11 @@ export function MarketPriceEditor({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [buyVal, setBuyVal] = useState(String(buy));
-  const [sellVal, setSellVal] = useState(String(sell));
   const [cur, setCur] = useState<"BBC" | "BD">(currency);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  const sellVal = sellFromBuy(buyVal) || String(sell);
 
   async function save() {
     setBusy(true);
@@ -69,7 +77,6 @@ export function MarketPriceEditor({
         className="market-price-edit-btn"
         onClick={() => {
           setBuyVal(String(buy));
-          setSellVal(String(sell));
           setCur(currency);
           setOpen((v) => !v);
         }}
@@ -88,13 +95,8 @@ export function MarketPriceEditor({
             />
           </label>
           <label>
-            Продать
-            <input
-              type="number"
-              min={1}
-              value={sellVal}
-              onChange={(e) => setSellVal(e.target.value)}
-            />
+            Продать · авто 80%
+            <input type="number" min={1} value={sellVal} readOnly disabled />
           </label>
           <label>
             Валюта
@@ -103,7 +105,7 @@ export function MarketPriceEditor({
               onChange={(e) => setCur(e.target.value as "BBC" | "BD")}
             >
               <option value="BBC">BBC</option>
-              <option value="BD">B$ (казна фракции)</option>
+              <option value="BD">$ (казна фракции)</option>
             </select>
           </label>
           <button type="button" disabled={busy} onClick={() => void save()}>
@@ -117,5 +119,5 @@ export function MarketPriceEditor({
 }
 
 export function moneyLabel(currency: "BBC" | "BD" | undefined): string {
-  return currency === "BD" ? "B$" : "BBC";
+  return currency === "BD" ? "$" : "BBC";
 }
