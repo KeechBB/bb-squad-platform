@@ -1840,6 +1840,72 @@ body:has(.tm-sapper-page) {
     background-position: 100% 50%;
   }
 }
+/* B$ фракционные нашивки — мягкий фиолетовый ореол (не жёлтый дефолт) */
+.nick-patch-mark[data-patch-id="bd-faction-legion-ak74"],
+.nick-patch-mark[data-patch-id="bd-faction-orda-m4a1"],
+.nick-patch-mark[data-patch-id="bd-faction-sbord-scar"],
+.nick-patch-mark[data-patch-id="bd-faction-staya-svd"],
+.nick-patch-mark[data-patch-id="bd-faction-tabor-m4"],
+.nick-patch-mark[data-patch-id="bd-faction-uley-pkm"] {
+  width: 132px;
+}
+.nick-patch-mark[data-patch-id="bd-faction-legion-ak74"] .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="bd-faction-orda-m4a1"] .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="bd-faction-sbord-scar"] .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="bd-faction-staya-svd"] .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="bd-faction-tabor-m4"] .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="bd-faction-uley-pkm"] .nick-patch-mark-art {
+  filter:
+    drop-shadow(0 0 2px rgba(232, 210, 255, 0.55))
+    drop-shadow(0 0 7px rgba(168, 110, 230, 0.4))
+    drop-shadow(0 0 12px rgba(120, 70, 190, 0.22));
+  animation: bd-faction-patch-glow 3.5s ease-in-out infinite;
+  opacity: 0.96;
+}
+.nick-patch-mark[data-patch-id="bd-faction-legion-ak74"]:hover .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="bd-faction-legion-ak74"]:focus-visible .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="bd-faction-legion-ak74"].is-active .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="bd-faction-orda-m4a1"]:hover .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="bd-faction-orda-m4a1"]:focus-visible .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="bd-faction-orda-m4a1"].is-active .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="bd-faction-sbord-scar"]:hover .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="bd-faction-sbord-scar"]:focus-visible .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="bd-faction-sbord-scar"].is-active .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="bd-faction-staya-svd"]:hover .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="bd-faction-staya-svd"]:focus-visible .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="bd-faction-staya-svd"].is-active .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="bd-faction-tabor-m4"]:hover .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="bd-faction-tabor-m4"]:focus-visible .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="bd-faction-tabor-m4"].is-active .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="bd-faction-uley-pkm"]:hover .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="bd-faction-uley-pkm"]:focus-visible .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="bd-faction-uley-pkm"].is-active .nick-patch-mark-art {
+  animation: none;
+  transform: scaleX(-1) scale(1.08);
+  filter:
+    drop-shadow(0 0 3px rgba(245, 230, 255, 0.7))
+    drop-shadow(0 0 10px rgba(186, 130, 245, 0.55))
+    drop-shadow(0 0 16px rgba(140, 90, 220, 0.32))
+    brightness(1.08);
+  opacity: 1;
+}
+@keyframes bd-faction-patch-glow {
+  0%,
+  100% {
+    filter:
+      drop-shadow(0 0 2px rgba(232, 210, 255, 0.45))
+      drop-shadow(0 0 6px rgba(168, 110, 230, 0.32))
+      drop-shadow(0 0 11px rgba(120, 70, 190, 0.16));
+    opacity: 0.94;
+  }
+  50% {
+    filter:
+      drop-shadow(0 0 3px rgba(245, 230, 255, 0.62))
+      drop-shadow(0 0 9px rgba(186, 130, 245, 0.48))
+      drop-shadow(0 0 14px rgba(140, 90, 220, 0.26));
+    opacity: 1;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .public-rating-nick-label.is-metallic-gold::after {
     animation: none;
