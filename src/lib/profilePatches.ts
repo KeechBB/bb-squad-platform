@@ -68,6 +68,49 @@ export const PROFILE_PATCH_OPTIONS = [
     tip: "Т-62 «Неоновый урожай» · Награда за 100 уничтоженных единиц техники на паблике «Фруктовый сад»",
     gate: "public-vehicles-100" as const,
   },
+  // Превью B$ (Черничный доллар) — пока только Keech в кастомизации профиля
+  {
+    id: "bd-faction-legion-ak74",
+    file: "bd-faction-legion-ak74.png",
+    label: "АК-74 «Орёл легиона» · B$",
+    tip: "АК-74 «Орёл легиона» · Черничный доллар · купить сможет только командир / зам фракции (превью)",
+    gate: "creator" as const,
+  },
+  {
+    id: "bd-faction-orda-m4a1",
+    file: "bd-faction-orda-m4a1.png",
+    label: "M4A1 «Клык орды» · B$",
+    tip: "M4A1 «Клык орды» · Черничный доллар · купить сможет только командир / зам фракции (превью)",
+    gate: "creator" as const,
+  },
+  {
+    id: "bd-faction-sbord-scar",
+    file: "bd-faction-sbord-scar.png",
+    label: "SCAR «Скрап-протокол» · B$",
+    tip: "SCAR «Скрап-протокол» · Черничный доллар · купить сможет только командир / зам фракции (превью)",
+    gate: "creator" as const,
+  },
+  {
+    id: "bd-faction-staya-svd",
+    file: "bd-faction-staya-svd.png",
+    label: "SVD «Лунная стая» · B$",
+    tip: "SVD «Лунная стая» · Черничный доллар · купить сможет только командир / зам фракции (превью)",
+    gate: "creator" as const,
+  },
+  {
+    id: "bd-faction-tabor-m4",
+    file: "bd-faction-tabor-m4.png",
+    label: "M4 «Золото табора» · B$",
+    tip: "M4 «Золото табора» · Черничный доллар · купить сможет только командир / зам фракции (превью)",
+    gate: "creator" as const,
+  },
+  {
+    id: "bd-faction-uley-pkm",
+    file: "bd-faction-uley-pkm.png",
+    label: "PKM «Янтарь улья» · B$",
+    tip: "PKM «Янтарь улья» · Черничный доллар · купить сможет только командир / зам фракции (превью)",
+    gate: "creator" as const,
+  },
 ] as const;
 
 export type ProfilePatchId = (typeof PROFILE_PATCH_OPTIONS)[number]["id"];
