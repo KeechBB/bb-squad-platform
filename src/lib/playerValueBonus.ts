@@ -69,9 +69,10 @@ function isFoundingMember(opts: {
     // angel = только Саня BB (steam 76561198941350361), не Алан и не «angel ·8062».
     if (listed.toLowerCase() === "angel") {
       if (isBbAngelSteam(opts.steamId)) return true;
-      if (collisionBySteamId(opts.steamId)) return false;
+      if (collisionBySteamId(opts.steamId)) continue; // Алан и т.п.
       const fa = resolveFactionAngel(opts);
-      return Boolean(fa && fa.steamId === BB_ANGEL_STEAM_ID);
+      if (fa && fa.steamId === BB_ANGEL_STEAM_ID) return true;
+      continue;
     }
     if (nicksMatch(listed, nick) || (steamName && nicksMatch(listed, steamName))) {
       return true;
