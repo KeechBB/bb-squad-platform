@@ -7,9 +7,12 @@
 import { prisma } from "@/lib/prisma";
 import { nickCompact, nicksMatch } from "@/lib/nickIdentity";
 import {
+  BB_ANGEL_STEAM_ID,
   collisionBySteamId,
+  isBbAngelSteam,
   isCollidingAngelNick,
   profileHistoryKey,
+  resolveFactionAngel,
 } from "@/lib/nickCollisions";
 
 export const CW_WIN_BONUS_MAIN = 10_000;
@@ -25,7 +28,8 @@ export const MAIN_ROSTER_FOUNDING_NICKS = [
   "qop",
   "JESTER",
   "Diray",
-  "Angel",
+  /** Саня BB (steam закреплён в isFoundingMember). */
+  "angel",
   "Lordwolf",
   "Chidori",
   "CAT",
@@ -62,11 +66,12 @@ function isFoundingMember(opts: {
   const nick = String(opts.nick || "").trim();
   const steamName = String(opts.steamName || "").trim();
   for (const listed of MAIN_ROSTER_FOUNDING_NICKS) {
-    // Angel в списке = Саня BB (siteNick angel / AngelBB), не Алан.
-    if (listed === "Angel") {
-      if (collisionBySteamId(opts.steamId)?.siteNick === "angel") return true;
-      if (nick === "angel" || nick.toLowerCase() === "angelbb") return true;
-      continue;
+    // angel = только Саня BB (steam 76561198941350361), не Алан и не «angel ·8062».
+    if (listed.toLowerCase() === "angel") {
+      if (isBbAngelSteam(opts.steamId)) return true;
+      if (collisionBySteamId(opts.steamId)) return false;
+      const fa = resolveFactionAngel(opts);
+      return Boolean(fa && fa.steamId === BB_ANGEL_STEAM_ID);
     }
     if (nicksMatch(listed, nick) || (steamName && nicksMatch(listed, steamName))) {
       return true;
@@ -254,9 +259,21 @@ export async function loadMyValueReport(opts: {
   const grind = Math.max(0, Math.round(opts.grindBroughtBd || 0));
   const total = market + grind + bonus.total;
 
-  const hk = profileHistoryKey(opts.nick, opts.steamId);
+  const factionAngel = resolveFactionAngel({
+    nick: opts.nick,
+    steamName: opts.steamName,
+    steamId: opts.steamId,
+  });
+  const steamForHistory = factionAngel?.steamId || opts.steamId;
+  const nickForHistory = factionAngel?.siteNick || opts.nick;
+  const hk = profileHistoryKey(nickForHistory, steamForHistory);
   const keys = new Set<string>([hk].filter(Boolean));
-  if (!isCollidingAngelNick(opts.nick) && !collisionBySteamId(opts.steamId)) {
+  // Для angel никогда не подмешиваем plain «angel» без steam — иначе чужие КВ.
+  if (
+    !factionAngel &&
+    !isCollidingAngelNick(opts.nick) &&
+    !collisionBySteamId(opts.steamId)
+  ) {
     const plain = nickCompact(opts.nick);
     if (plain) keys.add(plain);
     const sn = nickCompact(opts.steamName || "");

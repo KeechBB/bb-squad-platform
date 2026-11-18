@@ -3,14 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { loadFactionView } from "@/lib/factions";
-import {
-  buildFactionKitScarcity,
-  estimateWithKit,
-  loadPlayerPriceStats,
-  normalizeKit,
-} from "@/lib/factionTransfers";
 import { loadMyValueReport } from "@/lib/playerValueBonus";
-import { mainKitByUserIds } from "@/lib/squadRoles";
+import { resolveFactionAngel } from "@/lib/nickCollisions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,38 +35,29 @@ export async function GET(_req: Request, ctx: Ctx) {
   }
 
   const userId = loaded.view.myUserId;
-  const [scarcity, priceStats, kits, user] = await Promise.all([
-    buildFactionKitScarcity(loaded.view.id),
-    loadPlayerPriceStats([userId]),
-    mainKitByUserIds([userId]),
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: { nick: true, steamName: true, steamId: true },
-    }),
-  ]);
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { nick: true, steamName: true, steamId: true },
+  });
 
-  const kit = kits.get(userId) || me.mainKit || null;
-  const kitKey = normalizeKit(kit);
-  const scarcityByKit = Object.fromEntries(
-    scarcity.byKit.map((r) => [r.kitKey, r.level as "ok" | "thin" | "critical" | "surplus"]),
-  );
-  const st = priceStats.get(userId);
-  const grindBroughtBd = Math.max(0, Math.round(st?.grindBroughtBd || 0));
-  const marketValue = estimateWithKit(
-    st ? { ...st, grindBroughtBd: 0 } : undefined,
-    kit,
-    scarcityByKit[kitKey],
-  );
-  const estimate = estimateWithKit(st, kit, scarcityByKit[kitKey]);
+  // Те же цифры/кит, что в колонке «Стоимость» состава — без второго расчёта кита.
+  const kit = me.mainKit && me.mainKit !== "—" ? me.mainKit : null;
+  const nick = user?.nick || me.nick;
+  const resolvedSteam = user?.steamId || steamId;
+  const factionAngel = resolveFactionAngel({
+    nick,
+    steamName: user?.steamName,
+    steamId: resolvedSteam,
+  });
 
   const report = await loadMyValueReport({
     userId,
-    nick: user?.nick || me.nick,
+    nick: factionAngel?.siteNick || nick,
     steamName: user?.steamName || null,
-    steamId: user?.steamId || steamId,
-    marketValue,
-    grindBroughtBd,
-    estimate,
+    steamId: factionAngel?.steamId || resolvedSteam,
+    marketValue: me.marketValue,
+    grindBroughtBd: me.grindBroughtBd,
+    estimate: me.playerValue,
     kit,
   });
 

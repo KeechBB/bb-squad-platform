@@ -10,6 +10,7 @@ import {
   normalizeKit,
 } from "@/lib/factionTransfers";
 import { loadPlayerValueBonuses } from "@/lib/playerValueBonus";
+import { resolveFactionAngel } from "@/lib/nickCollisions";
 import type { ScarcityForPrice } from "@/lib/blueberryDollar";
 import type { FactionSeat } from "@prisma/client";
 
@@ -236,12 +237,21 @@ export async function loadFactionView(slug: string, steamId: string | null) {
   const staff = keech || mySeat === "LEADER" || mySeat === "DEPUTY";
   const listed = faction.members.filter((m) => !isBuiltinSuperAdmin(m.user.steamId));
   const userIds = listed.map((m) => m.userId);
-  const bonusMembers = listed.map((m) => ({
-    userId: m.userId,
-    nick: m.user.nick || m.user.steamName || visibleNick(m.user),
-    steamName: m.user.steamName,
-    steamId: m.user.steamId,
-  }));
+  const bonusMembers = listed.map((m) => {
+    const nick = m.user.nick || m.user.steamName || visibleNick(m.user);
+    // Во фракциях angel = Саня BB (не Алан / не омонимы).
+    const fa = resolveFactionAngel({
+      nick,
+      steamName: m.user.steamName,
+      steamId: m.user.steamId,
+    });
+    return {
+      userId: m.userId,
+      nick: fa?.siteNick || nick,
+      steamName: m.user.steamName,
+      steamId: fa?.steamId || m.user.steamId,
+    };
+  });
   const [kits, priceStats, valueBonuses] = await Promise.all([
     mainKits(userIds),
     loadPlayerPriceStats(userIds),
