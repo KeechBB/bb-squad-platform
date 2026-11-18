@@ -144,7 +144,7 @@ function visibleNick(u: MemberUser): string {
   return u.steamName || u.nick || "—";
 }
 
-/** Основной кит = max часов на TR1–TR5 за 14 суток МСК (как аналитика фракции). */
+/** Основной кит = max часов только в залитых TR-матчах сайта за 14 суток МСК. */
 export async function mainKits(userIds: string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   if (!userIds.length) return out;

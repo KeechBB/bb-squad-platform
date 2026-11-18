@@ -765,8 +765,9 @@ export type UserKitHours = {
 };
 
 /**
- * Время в китах (сек) по TR1–TR5 за окно МСК.
- * Основной кит = max часов. Один SQL на пачку.
+ * Время в китах (сек) только внутри залитых тренировочных матчей сайта
+ * (окна TM в статистике) за последние 14 суток МСК. Пустые вечера / Jensens /
+ * незалитые слои не входят. Основной кит = max часов. Один SQL на пачку.
  */
 export async function trainingKitHoursByUserIds(
   userIds: string[],
@@ -781,6 +782,13 @@ export async function trainingKitHoursByUserIds(
   const to = opts?.toYmd || win.to;
   const bounds = mskRangeBoundsUtc(from, to);
   if (!bounds) return out;
+
+  const allSlices = await loadUploadedTrainingSlices();
+  const slices = allSlices.filter(
+    (s) => s.lt.getTime() > bounds.gte.getTime() && s.gte.getTime() < bounds.lt.getTime(),
+  );
+  if (!slices.length) return out;
+  const boundsSql = windowBoundsValuesSql(slices);
 
   const users = await prisma.user.findMany({
     where: { id: { in: uniq } },
@@ -806,15 +814,19 @@ export async function trainingKitHoursByUserIds(
     ? Prisma.sql`("userId" IN (${Prisma.join(uniq)}) OR "steamId" IN (${Prisma.join(steamIds)}))`
     : Prisma.sql`"userId" IN (${Prisma.join(uniq)})`;
 
+  // Как в профиле (combatWindow): только спавны внутри залитого матча,
+  // время обрывается на конце этого матча (не в паузу / следующую катку).
   const rows = await prisma.$queryRaw<
     { uid: string | null; sid: string | null; kit: string; sec: bigint }[]
   >`
-    WITH ev AS (
+    WITH bounds(gte, lt) AS ${boundsSql},
+    ev AS (
       SELECT
         "userId" AS uid,
         "steamId" AS sid,
         kit,
         "spawnedAt",
+        "serverKey",
         LEAD("spawnedAt") OVER (
           PARTITION BY COALESCE("userId", "steamId"), "serverKey"
           ORDER BY "spawnedAt", "id"
@@ -824,19 +836,25 @@ export async function trainingKitHoursByUserIds(
         AND "spawnedAt" >= ${bounds.gte}
         AND "spawnedAt" < ${bounds.lt}
         AND ${whoSql}
+        AND EXISTS (
+          SELECT 1 FROM bounds b
+          WHERE "SquadRoleEvent"."spawnedAt" >= b.gte
+            AND "SquadRoleEvent"."spawnedAt" < b.lt
+        )
     )
-    SELECT uid, sid, kit,
-      SUM(LEAST(
-        2700,
-        GREATEST(0, EXTRACT(EPOCH FROM (
-          LEAST(
-            COALESCE(nxt, "spawnedAt" + INTERVAL '15 minutes'),
-            "spawnedAt" + INTERVAL '45 minutes'
-          ) - "spawnedAt"
-        )))
-      ))::bigint AS sec
-    FROM ev
-    GROUP BY uid, sid, kit
+    SELECT e.uid, e.sid, e.kit,
+           ROUND(SUM(GREATEST(
+             0,
+             EXTRACT(EPOCH FROM (LEAST(COALESCE(e.nxt, b.lt), b.lt) - e."spawnedAt"))
+           )))::bigint AS sec
+    FROM ev e
+    JOIN LATERAL (
+      SELECT lt FROM bounds b
+      WHERE e."spawnedAt" >= b.gte AND e."spawnedAt" < b.lt
+      ORDER BY b.lt
+      LIMIT 1
+    ) b ON true
+    GROUP BY e.uid, e.sid, e.kit
   `;
 
   const byUser = new Map<string, Map<string, number>>();

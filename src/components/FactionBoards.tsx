@@ -563,7 +563,9 @@ export function FactionAnalytics({ slug, loadKey }: { slug: string; loadKey: num
               </>
             ) : null}
           </svg>
-          <p className="muted faction-analytics-hint">Клик по сегменту — кто на этой основной роли (14д) и часы</p>
+          <p className="muted faction-analytics-hint">
+            Только залитые TR-матчи за 14д · клик по сегменту — игроки и часы
+          </p>
         </div>
       ) : null}
 
@@ -573,7 +575,7 @@ export function FactionAnalytics({ slug, loadKey }: { slug: string; loadKey: num
             <div>
               <h2 className="profile-mail-modal-title">{openSlice.kit}</h2>
               <p className="muted">
-                Основная роль за {week || "14 дней"} · {openRoster.length}{" "}
+                Залитые TR за {week || "14 дней"} · {openRoster.length}{" "}
                 {openRoster.length === 1 ? "игрок" : openRoster.length < 5 ? "игрока" : "игроков"}
               </p>
             </div>
