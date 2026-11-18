@@ -110,11 +110,19 @@ fi
   echo "trainMonths=$(ls "$DEST/kv-data/training"/20*.json 2>/dev/null | wc -l | tr -d ' ')"
 } >"$DEST/meta/manifest.txt"
 
-# Keep last 8 stamps + latest symlink
+# Keep last 8 stamps + latest symlink.
+# Never rotate away pinned FROZEN_* snapshots or the frozen symlink target.
 ln -sfn "$DEST" "$GOLD_ROOT/latest"
 mapfile -t OLD < <(ls -1dt "$GOLD_ROOT"/20* 2>/dev/null | tail -n +9 || true)
 for d in "${OLD[@]:-}"; do
   [[ -n "$d" && -d "$d" ]] || continue
+  base="$(basename "$d")"
+  [[ "$base" == FROZEN_* ]] && continue
+  # Skip if this stamp is the current frozen pin
+  if [[ -L "$GOLD_ROOT/frozen" ]]; then
+    frozen_target="$(readlink -f "$GOLD_ROOT/frozen" 2>/dev/null || true)"
+    [[ -n "$frozen_target" && "$(readlink -f "$d")" == "$frozen_target" ]] && continue
+  fi
   rm -rf "$d"
 done
 
