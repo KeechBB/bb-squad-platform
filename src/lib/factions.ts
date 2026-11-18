@@ -12,8 +12,6 @@ import {
 import { loadPlayerValueBonuses } from "@/lib/playerValueBonus";
 import type { ScarcityForPrice } from "@/lib/blueberryDollar";
 import type { FactionSeat } from "@prisma/client";
-import { TRAINING_SERVER_KEYS } from "@/lib/squadServers";
-import { canonKitName } from "@/lib/squadKits";
 
 export const DEPUTY_ROLE_NAME = "Зам. Фракции";
 
