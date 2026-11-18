@@ -23865,6 +23865,16 @@ body:has(.faction-page) .site-footer {
 .faction-roster-table .faction-roster-value .bd-amount {
   color: #c4b5fd;
   font-weight: 650;
+  display: inline-block;
+  border-radius: 6px;
+  padding: 2px 6px;
+  margin: -2px -6px;
+  transition: color 0.15s ease, background-color 0.15s ease, text-shadow 0.15s ease;
+}
+.faction-roster-table .faction-roster-value:hover .bd-amount {
+  color: #ede9fe;
+  background: rgba(167, 139, 250, 0.18);
+  text-shadow: 0 0 10px rgba(196, 181, 253, 0.55);
 }
 .faction-roster-table th,
 .faction-roster-table td {

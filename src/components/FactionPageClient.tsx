@@ -229,12 +229,7 @@ const ROSTER_COLUMNS: { key: RosterSortKey; label: string; title?: string }[] = 
   { key: "nick", label: "Ник" },
   { key: "name", label: "Имя" },
   { key: "kit", label: "Основной кит" },
-  {
-    key: "value",
-    label: "Стоимость",
-    title:
-      "Рынок + гринд + КВ с 17.11 (Main +10 000 / Junior +5 000 за победу) + разовый Main-состав",
-  },
+  { key: "value", label: "Стоимость" },
   { key: "role", label: "Роль" },
 ];
 
@@ -245,24 +240,6 @@ function rosterValue(m: FactionView["members"][number], key: RosterSortKey): str
   if (key === "kit") return m.mainKit;
   if (key === "value") return m.playerValue ?? 0;
   return m.roleName;
-}
-
-function rosterValueTip(m: FactionView["members"][number]): string {
-  const parts = [
-    `Рынок ${Math.round(m.marketValue || 0).toLocaleString("ru-RU")} B$`,
-    `гринд ${Math.round(m.grindBroughtBd || 0).toLocaleString("ru-RU")} B$`,
-  ];
-  const mainW = m.mainCwWins || 0;
-  const junW = m.juniorCwWins || 0;
-  if (mainW || junW) {
-    parts.push(
-      `КВ ${mainW ? `Main×${mainW}` : ""}${mainW && junW ? " + " : ""}${junW ? `Junior×${junW}` : ""} → +${Math.round((m.cwValueBonus || 0) - (m.foundingBonus || 0)).toLocaleString("ru-RU")}`,
-    );
-  }
-  if (m.foundingBonus) {
-    parts.push(`Main-состав +${Math.round(m.foundingBonus).toLocaleString("ru-RU")}`);
-  }
-  return parts.join(" · ");
 }
 
 function compareRoster(
@@ -354,10 +331,7 @@ function FactionRoster({
                 </td>
                 <td>{m.name}</td>
                 <td>{m.mainKit}</td>
-                <td
-                  className="faction-roster-value"
-                  title={rosterValueTip(m)}
-                >
+                <td className="faction-roster-value">
                   <BdAmount n={m.playerValue ?? 0} />
                 </td>
                 <td>
