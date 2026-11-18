@@ -24051,15 +24051,40 @@ body:has(.faction-page) .site-footer {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0.45rem;
 }
 
 .faction-analytics-donut {
-  height: 100%;
+  height: calc(100% - 1.6rem);
   width: auto;
   max-width: 100%;
   aspect-ratio: 1;
+}
+
+.faction-analytics-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.faction-role-modal-body {
+  padding: 0.75rem 1rem 1rem;
+  max-height: min(60vh, 420px);
+  overflow: auto;
+}
+
+.faction-role-modal-table {
+  width: 100%;
+}
+
+.faction-role-modal-table th:last-child,
+.faction-role-modal-table td:last-child {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .faction-analytics-pct {

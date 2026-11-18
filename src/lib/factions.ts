@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { isBuiltinSuperAdmin } from "@/lib/admin";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
-import { rollingMainRoleWindow } from "@/lib/mainRoleWindow";
-import { kitsForUser } from "@/lib/squadRoles";
+import { trainingKitHoursByUserIds } from "@/lib/squadRoles";
+import { canonKitName } from "@/lib/squadKits";
+import { TRAINING_SERVER_KEYS } from "@/lib/squadServers";
 import {
   estimateWithKit,
   loadPlayerPriceStats,
@@ -145,22 +146,14 @@ function visibleNick(u: MemberUser): string {
   return u.steamName || u.nick || "—";
 }
 
-/** Основной кит = топ профиля (TR1–TR5, 14 суток МСК, время в ките). */
+/** Основной кит = max часов на TR1–TR5 за 14 суток МСК (как аналитика фракции). */
 export async function mainKits(userIds: string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   if (!userIds.length) return out;
-  const { from, to } = rollingMainRoleWindow();
   const uniq = [...new Set(userIds.filter(Boolean))];
-  // Последовательно: Neon pool маленький, kitsForUser сам тяжёлый.
-  for (const userId of uniq) {
-    const share = await kitsForUser(userId, {
-      fromYmd: from,
-      toYmd: to,
-      lane: "TR1",
-      combatWindow: true,
-    });
-    const top = share.kits[0]?.kit;
-    if (top) out.set(userId, top);
+  const hours = await trainingKitHoursByUserIds(uniq);
+  for (const [userId, row] of hours) {
+    if (row.mainKit) out.set(userId, row.mainKit);
   }
 
   // Нет спавнов в окне 14д → последний известный кит на TR (иначе в «Развитии» роль «—»).

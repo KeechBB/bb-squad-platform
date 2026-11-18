@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useId, useMemo, useState } from "react";
+import Link from "next/link";
 import { KIT_SLICE_COLORS, STANDARD_KITS } from "@/lib/squadKits";
 import { useFitTablePage } from "@/lib/useFitTablePage";
+import { DraggableModal } from "@/components/DraggableModal";
 
 type WeekRow = {
   factionId: string;
@@ -344,7 +346,14 @@ export function FactionGrowthBoard({ slug, loadKey }: { slug: string; loadKey: n
   );
 }
 
-type RoleSlice = { kit: string; sec?: number; players?: number; pct: number };
+type RolePlayer = { userId: string; nick: string; hours: number; sec: number };
+type RoleSlice = {
+  kit: string;
+  sec?: number;
+  players?: number;
+  pct: number;
+  roster?: RolePlayer[];
+};
 
 function kitColor(kit: string): string {
   const i = (STANDARD_KITS as readonly string[]).indexOf(kit);
@@ -422,9 +431,12 @@ export function FactionAnalytics({ slug, loadKey }: { slug: string; loadKey: num
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [hover, setHover] = useState<string | null>(null);
+  const [openKit, setOpenKit] = useState<string | null>(null);
   const paths = useMemo(() => roleDonut(slices, 60, 60, 54, 28), [slices]);
   const active = paths.find((s) => s.kit === hover) || paths[0] || null;
   const picked = factions.find((f) => f.slug === pick);
+  const openSlice = openKit ? slices.find((s) => s.kit === openKit) || null : null;
+  const openRoster = openSlice?.roster || [];
 
   useEffect(() => {
     setPick(slug);
@@ -457,6 +469,7 @@ export function FactionAnalytics({ slug, loadKey }: { slug: string; loadKey: num
         setSlices(Array.isArray(data.slices) ? data.slices : []);
         setFactions(Array.isArray(data.factions) ? data.factions : []);
         setHover(null);
+        setOpenKit(null);
       } catch (err) {
         if ((err as { name?: string }).name === "AbortError") return;
         setError("Сеть недоступна");
@@ -498,7 +511,7 @@ export function FactionAnalytics({ slug, loadKey }: { slug: string; loadKey: num
       {error ? <p className="error">{error}</p> : null}
       {loading && slices.length === 0 ? <p className="muted">Считаю роли…</p> : null}
       {!loading && slices.length === 0 && !error ? (
-        <p className="muted faction-stat-note">За последние 7 дней на TR1–TR5 ещё никто не играл.</p>
+        <p className="muted faction-stat-note">За последние 14 дней на TR1–TR5 ещё никто не играл.</p>
       ) : null}
       {slices.length > 0 ? (
         <div className="faction-analytics-stage" onMouseLeave={() => setHover(null)}>
@@ -507,7 +520,9 @@ export function FactionAnalytics({ slug, loadKey }: { slug: string; loadKey: num
             viewBox="0 0 120 120"
             role="img"
             aria-label={
-              active ? `${active.kit} ${pct} · основная роль по времени` : "Основные роли по времени"
+              active
+                ? `${active.kit} ${pct} · основная роль по часам · клик = список`
+                : "Основные роли по часам за 14 дней"
             }
           >
             <defs>
@@ -529,7 +544,10 @@ export function FactionAnalytics({ slug, loadKey }: { slug: string; loadKey: num
                   fill={s.color}
                   opacity={dim ? 0.35 : 1}
                   filter={`url(#faction-donut-${uid})`}
+                  className="faction-analytics-slice"
+                  style={{ cursor: "pointer" }}
                   onMouseEnter={() => setHover(s.kit)}
+                  onClick={() => setOpenKit(s.kit)}
                 />
               );
             })}
@@ -545,7 +563,56 @@ export function FactionAnalytics({ slug, loadKey }: { slug: string; loadKey: num
               </>
             ) : null}
           </svg>
+          <p className="muted faction-analytics-hint">Клик по сегменту — кто на этой основной роли (14д) и часы</p>
         </div>
+      ) : null}
+
+      {openSlice ? (
+        <DraggableModal open closeOnBackdrop onClose={() => setOpenKit(null)}>
+          <header className="profile-match-modal-head" data-drag-handle title="Перетащить окно">
+            <div>
+              <h2 className="profile-mail-modal-title">{openSlice.kit}</h2>
+              <p className="muted">
+                Основная роль за {week || "14 дней"} · {openRoster.length}{" "}
+                {openRoster.length === 1 ? "игрок" : openRoster.length < 5 ? "игрока" : "игроков"}
+              </p>
+            </div>
+            <button type="button" className="profile-mail-close" onClick={() => setOpenKit(null)}>
+              ×
+            </button>
+          </header>
+          <div className="faction-role-modal-body">
+            {openRoster.length ? (
+              <table className="admin-table faction-role-modal-table">
+                <thead>
+                  <tr>
+                    <th>№</th>
+                    <th>Ник</th>
+                    <th>Часы на роли</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {openRoster.map((p, i) => (
+                    <tr key={p.userId}>
+                      <td>{i + 1}</td>
+                      <td>
+                        <Link
+                          className="player-nick-link"
+                          href={`/players/${encodeURIComponent(p.nick)}`}
+                        >
+                          {p.nick}
+                        </Link>
+                      </td>
+                      <td>{p.hours.toLocaleString("ru-RU", { maximumFractionDigits: 1 })} ч</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="muted">Никого с этой основной ролью за 14 дней.</p>
+            )}
+          </div>
+        </DraggableModal>
       ) : null}
     </div>
   );

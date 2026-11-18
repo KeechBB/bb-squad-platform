@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
-import { Prisma, type CanonMatchKind } from "@prisma/client";
+import type { CanonMatchKind } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isBuiltinSuperAdmin } from "@/lib/admin";
 import { FACTION_LOGO_DIR } from "@/lib/factionLogoFile";
@@ -9,9 +9,9 @@ import { factionCanonColor } from "@/lib/factionColors";
 import { mainKits } from "@/lib/factions";
 import { nickCompact, nickMatchKey } from "@/lib/nickIdentity";
 import { mskDayBoundsUtc } from "@/lib/squadHits";
-import { canonKitName } from "@/lib/squadKits";
 import { mskParts } from "@/lib/squadSessions";
-import { TRAINING_SERVER_KEYS } from "@/lib/squadServers";
+import { rollingMainRoleWindow } from "@/lib/mainRoleWindow";
+import { trainingKitHoursByUserIds } from "@/lib/squadRoles";
 
 const LIVE_ROLE: Record<string, "rifleman" | "medic" | "lat"> = {
   Стрелок: "rifleman",
@@ -497,6 +497,14 @@ export async function clanFactionPicks(clanId: string) {
   return factions.map((f, i) => ({ slug: f.slug, name: f.name, color: colors[i] }));
 }
 
+export type FactionRolePlayer = {
+  userId: string;
+  nick: string;
+  /** Часы в основной роли за окно. */
+  hours: number;
+  sec: number;
+};
+
 export type FactionRoleSlice = {
   kit: string;
   /** Секунды только в основной роли игроков (вес кольца). */
@@ -504,10 +512,12 @@ export type FactionRoleSlice = {
   /** Сколько людей с этой основной ролью. */
   players: number;
   pct: number;
+  /** Игроки, у кого этот кит — основной за 14д. */
+  roster: FactionRolePlayer[];
 };
 
 /**
- * Кольцо аналитики: у каждого игрока только ОСНОВНАЯ роль (кит с max временем на TR1–TR5),
+ * Кольцо аналитики: у каждого игрока только ОСНОВНАЯ роль (кит с max часами на TR1–TR5 за 14д),
  * доля сегмента — по сумме этого времени. Без деплоев и без вторичных китов.
  */
 export async function factionRoleDonut(factionId: string): Promise<{
@@ -515,87 +525,52 @@ export async function factionRoleDonut(factionId: string): Promise<{
   total: number;
   slices: FactionRoleSlice[];
 }> {
-  const week = rollingLast7Days();
-  const from = mskDayBoundsUtc(week.days[0]);
-  const to = mskDayBoundsUtc(week.days[6]);
-  const empty = { week: week.label, total: 0, slices: [] as FactionRoleSlice[] };
-  if (!from || !to) return empty;
+  const win = rollingMainRoleWindow();
+  const label = `${dateLabel(win.from)}–${dateLabel(win.to)}`;
+  const empty = { week: label, total: 0, slices: [] as FactionRoleSlice[] };
 
   const members = await prisma.factionMember.findMany({
     where: { factionId },
-    include: { user: { select: { id: true, steamId: true } } },
+    include: {
+      user: { select: { id: true, steamId: true, nick: true, steamName: true } },
+    },
   });
   const listed = members.filter((m) => !isBuiltinSuperAdmin(m.user.steamId));
   const userIds = listed.map((m) => m.userId);
-  const steamIds = listed.map((m) => m.user.steamId).filter((s): s is string => Boolean(s));
   if (!userIds.length) return empty;
 
-  const whoSql = steamIds.length
-    ? Prisma.sql`("userId" IN (${Prisma.join(userIds)}) OR "steamId" IN (${Prisma.join(steamIds)}))`
-    : Prisma.sql`"userId" IN (${Prisma.join(userIds)})`;
+  const hours = await trainingKitHoursByUserIds(userIds, {
+    fromYmd: win.from,
+    toYmd: win.to,
+  });
 
-  const rows = await prisma.$queryRaw<{ uid: string | null; sid: string; kit: string; sec: bigint }[]>`
-    WITH ev AS (
-      SELECT
-        "userId" AS uid,
-        "steamId" AS sid,
-        kit,
-        "spawnedAt",
-        LEAD("spawnedAt") OVER (
-          PARTITION BY COALESCE("userId", "steamId"), "serverKey"
-          ORDER BY "spawnedAt", "id"
-        ) AS nxt
-      FROM "SquadRoleEvent"
-      WHERE "serverKey" IN (${Prisma.join([...TRAINING_SERVER_KEYS])})
-        AND "spawnedAt" >= ${from.gte}
-        AND "spawnedAt" < ${to.lt}
-        AND ${whoSql}
-    )
-    SELECT uid, sid, kit,
-      SUM(LEAST(
-        2700,
-        GREATEST(0, EXTRACT(EPOCH FROM (
-          LEAST(
-            COALESCE(nxt, "spawnedAt" + INTERVAL '15 minutes'),
-            "spawnedAt" + INTERVAL '45 minutes'
-          ) - "spawnedAt"
-        )))
-      ))::bigint AS sec
-    FROM ev
-    GROUP BY uid, sid, kit
-  `;
-
-  const memberIds = new Set(userIds);
-  const idBySteam = new Map(listed.filter((m) => m.user.steamId).map((m) => [m.user.steamId as string, m.userId]));
-  const byUser = new Map<string, Map<string, number>>();
-  for (const row of rows) {
-    const userId = row.uid && memberIds.has(row.uid) ? row.uid : idBySteam.get(row.sid) || "";
-    if (!userId) continue;
-    const kit = String(canonKitName(row.kit) || "").trim();
-    const sec = Number(row.sec) || 0;
-    if (!kit || sec <= 0) continue;
-    let kits = byUser.get(userId);
-    if (!kits) {
-      kits = new Map();
-      byUser.set(userId, kits);
-    }
-    kits.set(kit, (kits.get(kit) || 0) + sec);
-  }
+  const nickById = new Map(
+    listed.map((m) => {
+      const nick =
+        (m.user.steamName || m.user.nick || "—").trim() || "—";
+      return [m.userId, nick] as const;
+    }),
+  );
 
   const mainSec = new Map<string, number>();
-  const mainPlayers = new Map<string, number>();
-  for (const kits of byUser.values()) {
-    let bestKit = "";
-    let bestSec = -1;
-    for (const [kit, sec] of kits) {
-      if (sec > bestSec || (sec === bestSec && kit.localeCompare(bestKit, "ru") < 0)) {
-        bestKit = kit;
-        bestSec = sec;
-      }
-    }
-    if (!bestKit || bestSec <= 0) continue;
-    mainSec.set(bestKit, (mainSec.get(bestKit) || 0) + bestSec);
-    mainPlayers.set(bestKit, (mainPlayers.get(bestKit) || 0) + 1);
+  const rosterByKit = new Map<string, FactionRolePlayer[]>();
+  for (const [userId, row] of hours) {
+    if (!row.mainKit || row.mainSec <= 0) continue;
+    mainSec.set(row.mainKit, (mainSec.get(row.mainKit) || 0) + row.mainSec);
+    const list = rosterByKit.get(row.mainKit) || [];
+    list.push({
+      userId,
+      nick: nickById.get(userId) || "—",
+      sec: row.mainSec,
+      hours: Math.round((row.mainSec / 3600) * 10) / 10,
+    });
+    rosterByKit.set(row.mainKit, list);
+  }
+
+  for (const list of rosterByKit.values()) {
+    list.sort(
+      (a, b) => b.sec - a.sec || a.nick.localeCompare(b.nick, "ru", { sensitivity: "base" }),
+    );
   }
 
   const total = [...mainSec.values()].reduce((s, n) => s + n, 0);
@@ -603,15 +578,16 @@ export async function factionRoleDonut(factionId: string): Promise<{
     .map(([kit, sec]) => ({
       kit,
       sec,
-      players: mainPlayers.get(kit) || 0,
+      players: rosterByKit.get(kit)?.length || 0,
       pct: total ? Math.round((sec * 1000) / total) / 10 : 0,
+      roster: rosterByKit.get(kit) || [],
     }))
     .sort((a, b) => b.sec - a.sec || a.kit.localeCompare(b.kit, "ru"));
   const drift = Math.round((100 - slices.reduce((s, r) => s + r.pct, 0)) * 10) / 10;
   if (slices.length && Math.abs(drift) >= 0.1 && total) {
     slices[0] = { ...slices[0], pct: Math.round((slices[0].pct + drift) * 10) / 10 };
   }
-  return { week: week.label, total, slices };
+  return { week: label, total, slices };
 }
 
 export type FactionRatingSlice = {
