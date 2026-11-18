@@ -6,6 +6,91 @@ import { DraggableModal } from "@/components/DraggableModal";
 import { factionUiColor } from "@/lib/factionColors";
 import { useFitTablePage } from "@/lib/useFitTablePage";
 
+type MyValuePoint = {
+  day: string;
+  label: string;
+  market: number;
+  grind: number;
+  cw: number;
+  founding: number;
+  total: number;
+};
+
+type MyValueEvent = {
+  at: string;
+  day: string;
+  kind: "founding" | "grind" | "cw_main" | "cw_junior";
+  label: string;
+  delta: number;
+};
+
+type MyValueReport = {
+  nick: string;
+  kit: string | null;
+  marketValue: number;
+  grindBroughtBd: number;
+  estimate: number;
+  mainCwWins: number;
+  juniorCwWins: number;
+  cwBonus: number;
+  foundingBonus: number;
+  total: number;
+  series: MyValuePoint[];
+  events: MyValueEvent[];
+};
+
+function MyValueChart({ series }: { series: MyValuePoint[] }) {
+  if (!series.length) return null;
+  const w = 420;
+  const h = 132;
+  const padL = 8;
+  const padR = 8;
+  const padT = 10;
+  const padB = 22;
+  const vals = series.map((p) => p.total);
+  const minV = Math.min(...vals);
+  const maxV = Math.max(...vals);
+  const span = Math.max(1, maxV - minV);
+  const innerW = w - padL - padR;
+  const innerH = h - padT - padB;
+  const pts = series.map((p, i) => {
+    const x = padL + (series.length === 1 ? innerW / 2 : (i / (series.length - 1)) * innerW);
+    const y = padT + innerH - ((p.total - minV) / span) * innerH;
+    return { x, y, p };
+  });
+  const line = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+  const area =
+    `${line} L${pts[pts.length - 1]!.x.toFixed(1)} ${(padT + innerH).toFixed(1)} ` +
+    `L${pts[0]!.x.toFixed(1)} ${(padT + innerH).toFixed(1)} Z`;
+  const first = series[0]!;
+  const last = series[series.length - 1]!;
+  const mid = series[Math.floor(series.length / 2)]!;
+  return (
+    <svg className="xfer-myval-chart" viewBox={`0 0 ${w} ${h}`} role="img" aria-label="Динамика стоимости">
+      <defs>
+        <linearGradient id="xfer-myval-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="rgba(168,85,247,0.45)" />
+          <stop offset="100%" stopColor="rgba(168,85,247,0.02)" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill="url(#xfer-myval-fill)" />
+      <path d={line} fill="none" stroke="#c4b5fd" strokeWidth="2.2" strokeLinejoin="round" />
+      {pts.map((pt) => (
+        <circle key={pt.p.day} cx={pt.x} cy={pt.y} r="2.4" fill="#e9d5ff" />
+      ))}
+      <text x={padL} y={h - 6} className="xfer-myval-axis" textAnchor="start">
+        {first.label}
+      </text>
+      <text x={w / 2} y={h - 6} className="xfer-myval-axis" textAnchor="middle">
+        {mid.label}
+      </text>
+      <text x={w - padR} y={h - 6} className="xfer-myval-axis" textAnchor="end">
+        {last.label}
+      </text>
+    </svg>
+  );
+}
+
 type XferSubTab = "desk" | "ledger" | "market" | "closed" | "trains" | "players";
 type SortDir = "asc" | "desc";
 
@@ -444,6 +529,10 @@ export function FactionTransfers({ slug, canManage }: Props) {
   });
   const [nickFilter, setNickFilter] = useState("");
   const nickFilterKey = nickFilter.trim().toLowerCase();
+  const [myValueOpen, setMyValueOpen] = useState(false);
+  const [myValue, setMyValue] = useState<MyValueReport | null>(null);
+  const [myValueLoading, setMyValueLoading] = useState(false);
+  const [myValueErr, setMyValueErr] = useState("");
 
   const load = useCallback(async () => {
     setErr(null);
@@ -693,6 +782,29 @@ export function FactionTransfers({ slug, canManage }: Props) {
     setGrindMatchId(null);
   }
 
+  async function openMyValue() {
+    setMyValueOpen(true);
+    setMyValueErr("");
+    setMyValueLoading(true);
+    try {
+      const res = await fetch(`/api/factions/${encodeURIComponent(slug)}/transfers/my-value`, {
+        cache: "no-store",
+      });
+      const data = (await res.json().catch(() => ({}))) as MyValueReport & { error?: string };
+      if (!res.ok) {
+        setMyValue(null);
+        setMyValueErr(data.error || "Не удалось загрузить стоимость");
+        return;
+      }
+      setMyValue(data);
+    } catch {
+      setMyValue(null);
+      setMyValueErr("Сеть недоступна");
+    } finally {
+      setMyValueLoading(false);
+    }
+  }
+
   useEffect(() => {
     const next = readXferSubTab(slug, isStaff);
     setSubTab(next);
@@ -764,13 +876,18 @@ export function FactionTransfers({ slug, canManage }: Props) {
             </p>
           ) : null}
         </div>
-        {isStaff ? (
-          <div className={`xfer-window ${data.window.isOpen ? "is-open" : "is-closed"}`}>
-            {data.window.isOpen
-              ? "Трансферное окно открыто"
-              : data.window.reason || "Трансферное окно закрыто"}
-          </div>
-        ) : null}
+        <div className="xfer-head-aside">
+          <button type="button" className="xfer-my-value-btn" onClick={() => void openMyValue()}>
+            Изменения моей стоимости
+          </button>
+          {isStaff ? (
+            <div className={`xfer-window ${data.window.isOpen ? "is-open" : "is-closed"}`}>
+              {data.window.isOpen
+                ? "Трансферное окно открыто"
+                : data.window.reason || "Трансферное окно закрыто"}
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <div className="admin-tabs clan-tabs xfer-subtabs" role="tablist">
@@ -1940,6 +2057,93 @@ export function FactionTransfers({ slug, canManage }: Props) {
                 Закрыть
               </button>
             </div>
+        </DraggableModal>
+      ) : null}
+
+      {myValueOpen ? (
+        <DraggableModal
+          open
+          closeOnBackdrop
+          onClose={() => setMyValueOpen(false)}
+          className="xfer-myval-overlay"
+          panelClassName="xfer-myval-panel"
+        >
+          <div className="profile-match-modal-head" data-drag-handle>
+            <strong>Изменения моей стоимости</strong>
+            <button type="button" className="btn" onClick={() => setMyValueOpen(false)}>
+              Закрыть
+            </button>
+          </div>
+          {myValueLoading ? (
+            <p className="muted xfer-myval-msg">Считаем динамику…</p>
+          ) : myValueErr ? (
+            <p className="xfer-err xfer-myval-msg">{myValueErr}</p>
+          ) : myValue ? (
+            <div className="xfer-myval-body">
+              <div className="xfer-myval-total">
+                <span className="xfer-myval-total-label">
+                  {myValue.nick}
+                  {myValue.kit ? ` · ${myValue.kit}` : ""}
+                </span>
+                <strong className="xfer-myval-total-num">
+                  <BdAmount n={myValue.total} />
+                </strong>
+              </div>
+              <div className="xfer-myval-grid">
+                <div className="xfer-myval-stat">
+                  <span>Рынок</span>
+                  <strong>
+                    <BdAmount n={myValue.marketValue} />
+                  </strong>
+                </div>
+                <div className="xfer-myval-stat">
+                  <span>Гринд TR</span>
+                  <strong>
+                    <BdAmount n={myValue.grindBroughtBd} />
+                  </strong>
+                </div>
+                <div className="xfer-myval-stat">
+                  <span>КВ Main×{myValue.mainCwWins}</span>
+                  <strong>
+                    <BdAmount n={myValue.mainCwWins * 10000} />
+                  </strong>
+                </div>
+                <div className="xfer-myval-stat">
+                  <span>КВ Junior×{myValue.juniorCwWins}</span>
+                  <strong>
+                    <BdAmount n={myValue.juniorCwWins * 5000} />
+                  </strong>
+                </div>
+                {myValue.foundingBonus > 0 ? (
+                  <div className="xfer-myval-stat">
+                    <span>Стартовый Main</span>
+                    <strong>
+                      <BdAmount n={myValue.foundingBonus} />
+                    </strong>
+                  </div>
+                ) : null}
+              </div>
+              <MyValueChart series={myValue.series} />
+              <p className="muted xfer-myval-hint">14 дней · рынок + накопленный гринд/КВ</p>
+              {myValue.events.length ? (
+                <ul className="xfer-myval-events">
+                  {myValue.events.map((e, i) => (
+                    <li key={`${e.at}-${e.kind}-${i}`}>
+                      <span className="xfer-myval-ev-day">
+                        {e.day.slice(8, 10)}.{e.day.slice(5, 7)}
+                      </span>
+                      <span className="xfer-myval-ev-label">{e.label}</span>
+                      <strong className="xfer-myval-ev-delta">
+                        +<BdAmount n={e.delta} />
+                      </strong>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="muted xfer-myval-msg">Пока нет отдельных событий по гринду/КВ</p>
+              )}
+            </div>
+          ) : null}
         </DraggableModal>
       ) : null}
 
