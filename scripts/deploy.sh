@@ -372,14 +372,20 @@ bash scripts/ensure_runtime_gold.sh || true
 echo "==> refresh runtime gold from live (known-good after successful deploy)"
 bash scripts/save_runtime_gold.sh || true
 
-echo "==> runtime gold cron (every 6h MSK)"
+echo "==> runtime gold cron (every 6h MSK) + integrity watch (every 15m)"
+chmod +x "$ROOT/scripts/runtime_integrity_watch.sh" 2>/dev/null || true
+chmod +x "$ROOT/scripts/safe_json_replace.py" 2>/dev/null || true
+chmod +x "$ROOT/scripts/merge_month_calendar.py" 2>/dev/null || true
 cat >/etc/cron.d/bb-runtime-gold <<EOF
 CRON_TZ=Europe/Moscow
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 0 */6 * * * root flock -n /tmp/bb-runtime-gold.lock env BB_PLATFORM_ROOT=$ROOT bash $ROOT/scripts/save_runtime_gold.sh >>/var/log/bb-runtime-gold.log 2>&1
+*/15 * * * * root flock -n /tmp/bb-runtime-integrity.lock env BB_PLATFORM_ROOT=$ROOT bash $ROOT/scripts/runtime_integrity_watch.sh
 EOF
 chmod 644 /etc/cron.d/bb-runtime-gold
+# Run once now so gaps heal before next cron tick
+bash "$ROOT/scripts/runtime_integrity_watch.sh" || true
 
 echo "==> tournament hub smoke cron (hourly) + post-deploy check"
 chmod +x "$ROOT/scripts/smoke_tournament_hub.sh" 2>/dev/null || true

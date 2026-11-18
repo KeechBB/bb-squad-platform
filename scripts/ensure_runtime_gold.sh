@@ -101,7 +101,7 @@ if [[ -d "$GOLD/kv-data/training" ]]; then
 fi
 for f in training-index.json tiers.json index.json \
   rifle-ladder.json medic-ladder.json lat-ladder.json \
-  mvp-ledger.json nick-patches.json factions.json; do
+  mvp-ledger.json nick-patches.json factions.json orr.json; do
   if [[ -f "$GOLD/kv-data/$f" && ( ! -f "$CACHE/data/$f" || ! -s "$CACHE/data/$f" ) ]]; then
     mkdir -p "$CACHE/data"
     cp -a "$GOLD/kv-data/$f" "$CACHE/data/$f"
@@ -109,6 +109,7 @@ for f in training-index.json tiers.json index.json \
   fi
 done
 # CW month calendars (hub «ближайшие КВ» читает их через index.json)
+# Never replace a richer live calendar with a thinner gold copy.
 mkdir -p "$CACHE/data"
 if [[ -d "$GOLD/kv-data" ]]; then
   for f in "$GOLD/kv-data"/20[0-9][0-9]-[0-9][0-9].json; do
@@ -118,9 +119,39 @@ if [[ -d "$GOLD/kv-data" ]]; then
     if [[ ! -f "$live" ]] || [[ ! -s "$live" ]]; then
       cp -a "$f" "$live"
       echo "  restored data/$base"
+      continue
+    fi
+    # Guard: if live has fewer matches than gold, restore from gold
+    live_n=$(python3 -c "import json; d=json.load(open('$live')); print(len(d.get('matches') or []))" 2>/dev/null || echo 0)
+    gold_n=$(python3 -c "import json; d=json.load(open('$f')); print(len(d.get('matches') or []))" 2>/dev/null || echo 0)
+    if [[ "${live_n:-0}" -lt "${gold_n:-0}" ]]; then
+      cp -a "$live" "$live.bak-thin-$(date +%H%M%S)"
+      cp -a "$f" "$live"
+      echo "  restored thinner calendar $base live=$live_n gold=$gold_n"
     fi
   done
 fi
+# training-index must list current month; ladders must not be tiny stubs
+if [[ -f "$GOLD/kv-data/training-index.json" && -f "$CACHE/data/training-index.json" ]]; then
+  cur_ym=$(date +%Y-%m)
+  if ! grep -q "$cur_ym" "$CACHE/data/training-index.json"; then
+    cp -a "$CACHE/data/training-index.json" "$CACHE/data/training-index.json.bak-missing-month"
+    cp -a "$GOLD/kv-data/training-index.json" "$CACHE/data/training-index.json"
+    echo "  restored training-index (missing $cur_ym)"
+  fi
+fi
+for ladder in rifle-ladder.json medic-ladder.json lat-ladder.json; do
+  live="$CACHE/data/$ladder"
+  goldf="$GOLD/kv-data/$ladder"
+  [[ -f "$goldf" ]] || continue
+  live_n=$(python3 -c "import json; d=json.load(open('$live')); print(len(d.get('players') or d.get('ladder') or []))" 2>/dev/null || echo 0)
+  gold_n=$(python3 -c "import json; d=json.load(open('$goldf')); print(len(d.get('players') or d.get('ladder') or []))" 2>/dev/null || echo 0)
+  if [[ ! -f "$live" ]] || [[ "${live_n:-0}" -lt 5 && "${gold_n:-0}" -ge 5 ]]; then
+    [[ -f "$live" ]] && cp -a "$live" "$live.bak-stub"
+    cp -a "$goldf" "$live"
+    echo "  restored stub ladder $ladder live=$live_n gold=$gold_n"
+  fi
+done
 
 # Growth kit tile images (Развитие cards)
 if [[ -d "$GOLD/kv-ui/assets/kits" ]]; then

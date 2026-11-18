@@ -43,16 +43,32 @@ export const KIT_LABELS: Record<string, string> = {
 export function normalizeKit(raw: string | null | undefined): string {
   const s = String(raw || "").trim().toLowerCase();
   if (!s || s === "—") return "unknown";
-  if (s === "sl" || s.includes("squad lead") || s === "squadleader") return "sl";
-  if (s.includes("medic") || s === "med") return "medic";
-  if (s.includes("hat")) return "hat";
-  if (s === "lat" || s.includes("light anti")) return "lat";
+  if (s === "sl" || s.includes("squad lead") || s === "squadleader" || s.includes("командир отряда"))
+    return "sl";
+  if (s.includes("medic") || s === "med" || s.includes("медик")) return "medic";
+  // RU main-kit labels from role hours / roster
+  if (s.includes("тандем") || s.includes("hat")) return "hat";
+  if (
+    s === "lat" ||
+    s.includes("light anti") ||
+    s.includes("легкая труба") ||
+    s.includes("лёгкая труба")
+  )
+    return "lat";
   if (s === "at" || s.includes("anti-tank") || s.includes("antitank")) return "at";
-  if (s === "ar" || s.includes("auto rifle") || s.includes("autorifle")) return "ar";
-  if (s === "mg" || s.includes("machine")) return "mg";
-  if (s.includes("eng") || s.includes("sapper")) return "engineer";
-  if (s.includes("crew")) return "crewman";
-  if (s.includes("rifle")) return "rifleman";
+  if (
+    s === "ar" ||
+    s.includes("auto rifle") ||
+    s.includes("autorifle") ||
+    s.includes("легкий пулемет") ||
+    s.includes("лёгкий пулемет")
+  )
+    return "ar";
+  if (s === "mg" || s.includes("machine") || s.includes("пулемет")) return "mg";
+  if (s.includes("eng") || s.includes("sapper") || s.includes("сапер") || s.includes("инженер"))
+    return "engineer";
+  if (s.includes("crew") || s.includes("мехвод")) return "crewman";
+  if (s.includes("rifle") || s.includes("стрелок")) return "rifleman";
   return s.slice(0, 24);
 }
 

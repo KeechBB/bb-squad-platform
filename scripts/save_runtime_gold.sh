@@ -68,7 +68,7 @@ fi
 # --- Small KV data that sync sometimes resets ---
 for f in training-index.json tiers.json cache-bust.json index.json \
   rifle-ladder.json medic-ladder.json lat-ladder.json \
-  mvp-ledger.json nick-patches.json factions.json; do
+  mvp-ledger.json nick-patches.json factions.json orr.json; do
   if [[ -f "$CACHE/data/$f" ]]; then
     cp -a "$CACHE/data/$f" "$DEST/kv-data/$f"
   fi

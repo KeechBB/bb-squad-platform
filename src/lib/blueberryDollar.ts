@@ -82,12 +82,27 @@ function clamp(n: number, lo: number, hi: number) {
 function roleMult(kitKey?: string | null): number {
   const kit = String(kitKey || "").toLowerCase();
   if (!kit || kit === "unknown" || kit === "—") return 0.95;
-  if (kit === "sl" || kit.includes("squad lead")) return 1.55;
-  if (kit.includes("medic") || kit === "med") return 1.42;
-  if (kit.includes("hat") || kit === "lat" || kit === "at") return 1.35;
-  if (kit === "ar" || kit === "mg" || kit.includes("auto")) return 1.2;
-  if (kit.includes("eng") || kit.includes("crew") || kit.includes("sapper")) return 1.18;
-  if (kit.includes("rifle")) return 1.0;
+  if (kit === "sl" || kit.includes("squad lead") || kit.includes("командир")) return 1.55;
+  if (kit.includes("medic") || kit === "med" || kit.includes("медик")) return 1.42;
+  // hat / lat / at — EN keys after normalizeKit + RU labels if raw slipped through
+  if (
+    kit.includes("hat") ||
+    kit === "lat" ||
+    kit === "at" ||
+    kit.includes("тандем") ||
+    kit.includes("труба")
+  )
+    return 1.35;
+  if (kit === "ar" || kit === "mg" || kit.includes("auto") || kit.includes("пулемет")) return 1.2;
+  if (
+    kit.includes("eng") ||
+    kit.includes("crew") ||
+    kit.includes("sapper") ||
+    kit.includes("сапер") ||
+    kit.includes("мехвод")
+  )
+    return 1.18;
+  if (kit.includes("rifle") || kit.includes("стрелок")) return 1.0;
   return 1.08;
 }
 

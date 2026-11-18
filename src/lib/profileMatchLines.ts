@@ -148,12 +148,26 @@ export async function replaceProfileLines(
     });
   }
 
+  // Never replace a rich history with an empty rebuild (train/cw/public).
+  // Empty source + deleteMany wiped roster values after training-index mtime bumps.
+  if (data.length === 0) {
+    const existing = await prisma.profileMatchLine.count({ where: { kind, nickKey: key } });
+    if (existing > 0) {
+      return existing;
+    }
+    // Truly empty player: still stamp so we don't rebuild every request.
+    await prisma.profileMatchStamp.upsert({
+      where: { kind_nickKey: { kind, nickKey: key } },
+      create: { kind, nickKey: key },
+      update: { builtAt: new Date() },
+    });
+    return 0;
+  }
+
   // skipDuplicates: 4 PM2 workers иначе гоняются delete→create и ловят P2002.
   await prisma.$transaction(async (tx) => {
     await tx.profileMatchLine.deleteMany({ where: { kind, nickKey: key } });
-    if (data.length) {
-      await tx.profileMatchLine.createMany({ data, skipDuplicates: true });
-    }
+    await tx.profileMatchLine.createMany({ data, skipDuplicates: true });
     await tx.profileMatchStamp.upsert({
       where: { kind_nickKey: { kind, nickKey: key } },
       create: { kind, nickKey: key },
