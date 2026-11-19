@@ -75,6 +75,8 @@ model User {
   regNo           Int?     @unique
   /// Баланс BB Coins (бывш. BB Points с прогнозов + покупки за ₽)
   bbCoins         Int      @default(0)
+  /// Личный баланс Черничных Долларов (подарки из казны главы/зама и т.п.)
+  blueberryBalance Int     @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   /// Последняя активность на сайте (heartbeat из браузера)

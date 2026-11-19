@@ -11,6 +11,7 @@ import {
   type BdBuyDraft,
   type FactionMarketMember,
 } from "@/components/MarketBdBuyModal";
+import { MarketBdGiftModal } from "@/components/MarketBdGiftModal";
 import { MarketCasesPanel } from "@/components/MarketCasesPanel";
 
 /** Основные вкладки площадки + topup только с кнопки «Пополнить». */
@@ -108,8 +109,12 @@ export function MarketplaceClient({ loggedIn }: Props) {
   const [balance, setBalance] = useState<number | null>(null);
   const [infiniteWallet, setInfiniteWallet] = useState(false);
   const [factionBalance, setFactionBalance] = useState<number | null>(null);
+  const [personalBdBalance, setPersonalBdBalance] = useState<number | null>(
+    null
+  );
   const [factionName, setFactionName] = useState<string | null>(null);
   const [canSpendBd, setCanSpendBd] = useState(false);
+  const [bdGiftOpen, setBdGiftOpen] = useState(false);
   const [factionMembers, setFactionMembers] = useState<FactionMarketMember[]>(
     []
   );
@@ -148,6 +153,11 @@ export function MarketplaceClient({ loggedIn }: Props) {
       setInfiniteWallet(Boolean(data.infiniteWallet));
       setFactionBalance(
         typeof data.factionBalance === "number" ? data.factionBalance : null
+      );
+      setPersonalBdBalance(
+        typeof data.personalBdBalance === "number"
+          ? data.personalBdBalance
+          : null
       );
       setFactionName(
         typeof data.factionName === "string" ? data.factionName : null
@@ -461,7 +471,7 @@ export function MarketplaceClient({ loggedIn }: Props) {
         <>
           <div className="market-topbar">
             <section className="market-balance" aria-live="polite">
-              <span className="muted">Твой баланс</span>
+              <span className="muted">Мой баланс BBC</span>
               <strong>
                 {balance == null
                   ? "…"
@@ -470,7 +480,10 @@ export function MarketplaceClient({ loggedIn }: Props) {
                     : `${balance.toLocaleString("ru-RU")} BBC`}
               </strong>
             </section>
-            <section className="market-balance market-balance--faction" aria-live="polite">
+            <section
+              className="market-balance market-balance--faction"
+              aria-live="polite"
+            >
               <span className="muted">
                 Казна фракции
                 {factionName ? ` · ${factionName}` : ""}
@@ -483,6 +496,28 @@ export function MarketplaceClient({ loggedIn }: Props) {
                     : `${factionBalance.toLocaleString("ru-RU")} $`}
               </strong>
             </section>
+            <section
+              className="market-balance market-balance--personal-bd"
+              aria-live="polite"
+            >
+              <span className="muted">Мой баланс Черничного доллара</span>
+              <strong>
+                {infiniteWallet
+                  ? "∞ $"
+                  : personalBdBalance == null
+                    ? "…"
+                    : `${personalBdBalance.toLocaleString("ru-RU")} $`}
+              </strong>
+            </section>
+            {canSpendBd ? (
+              <button
+                type="button"
+                className="market-gift-bd-btn"
+                onClick={() => setBdGiftOpen(true)}
+              >
+                Подарить $
+              </button>
+            ) : null}
             <button
               type="button"
               className="market-topup-btn"
@@ -491,6 +526,60 @@ export function MarketplaceClient({ loggedIn }: Props) {
               Пополнить BBC
             </button>
           </div>
+
+          {bdGiftOpen ? (
+            <MarketBdGiftModal
+              members={factionMembers}
+              myUserId={myUserId}
+              factionName={factionName}
+              factionBalance={factionBalance}
+              infiniteWallet={infiniteWallet}
+              busy={busy === "gift-bd"}
+              onClose={() => setBdGiftOpen(false)}
+              onGift={async ({ toUserId, amount }) => {
+                setBusy("gift-bd");
+                setErr(null);
+                setMsg(null);
+                try {
+                  const res = await fetch("/api/bb-coins/gift-bd", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ toUserId, amount }),
+                  });
+                  const data = await res.json();
+                  if (!res.ok || !data.ok) {
+                    setErr(
+                      data.message ||
+                        (data.error === "insufficient"
+                          ? "Не хватает в казне"
+                          : data.error === "forbidden_seat"
+                            ? "Дарить может только глава / зам"
+                            : "Не удалось подарить")
+                    );
+                    return;
+                  }
+                  if (typeof data.factionBalance === "number") {
+                    setFactionBalance(data.factionBalance);
+                  }
+                  if (typeof data.personalBdBalance === "number") {
+                    setPersonalBdBalance(data.personalBdBalance);
+                  }
+                  const nick =
+                    factionMembers.find((m) => m.userId === toUserId)?.nick ||
+                    "игроку";
+                  setMsg(
+                    `Подарено ${Number(data.amount || amount).toLocaleString("ru-RU")} $ → ${nick}`
+                  );
+                  setBdGiftOpen(false);
+                  await load();
+                } catch {
+                  setErr("Сеть недоступна");
+                } finally {
+                  setBusy(null);
+                }
+              }}
+            />
+          ) : null}
 
           {bdBuyDraft ? (
             <MarketBdBuyModal

@@ -24762,8 +24762,31 @@ body:has(.faction-page) .site-footer {
 .market-balance--faction strong {
   color: #ddd6fe;
 }
+.market-balance--personal-bd {
+  border-color: rgba(196, 146, 255, 0.4);
+  background: linear-gradient(160deg, #1c1430 0%, #120e1a 72%);
+}
+.market-balance--personal-bd strong {
+  color: #e9d5ff;
+}
 .market-balance strong {
   font-size: 1.6rem;
+}
+.market-gift-bd-btn {
+  flex: 0 1 150px;
+  min-height: 72px;
+  border: 1px solid rgba(196, 146, 255, 0.55);
+  border-radius: 14px;
+  background: linear-gradient(135deg, #6d28d9 0%, #4c1d95 100%);
+  color: #f5f3ff;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(109, 40, 217, 0.28);
+}
+.market-gift-bd-btn:hover {
+  filter: brightness(1.08);
 }
 .market-topup-btn {
   flex: 0 1 180px;
@@ -26003,6 +26026,7 @@ body:has(.faction-page) .site-footer {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+.market-bd-gift-label input,
 .market-bd-gift-label select {
   width: 100%;
   background: #141018;

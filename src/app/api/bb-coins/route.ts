@@ -9,6 +9,7 @@ import { requireMarketUser } from "@/lib/bbCoinMarketAuth";
 import { canEditMarketPrices } from "@/lib/marketListingPrices";
 import {
   getFactionPayCtx,
+  getPersonalBdBalance,
   listFactionMarketMembers,
 } from "@/lib/marketFactionPay";
 import {
@@ -34,7 +35,7 @@ export async function GET() {
   const factionMembers = faction
     ? await listFactionMarketMembers(faction.factionId)
     : [];
-  const [txs, patches, bgs, fonts] = await Promise.all([
+  const [txs, patches, bgs, fonts, personalBdBalance] = await Promise.all([
     prisma.bbCoinTx.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
@@ -43,6 +44,9 @@ export async function GET() {
     loadMarketPatchCatalog({ userId: user.id, steamId: user.steamId }),
     loadMarketBgCatalog({ userId: user.id, steamId: user.steamId }),
     loadMarketFontCatalog({ userId: user.id, steamId: user.steamId }),
+    infinite
+      ? Promise.resolve(INFINITE_MARKET_BALANCE)
+      : getPersonalBdBalance(user.id),
   ]);
 
   return NextResponse.json({
@@ -52,6 +56,7 @@ export async function GET() {
     factionBalance: infinite
       ? INFINITE_MARKET_BALANCE
       : faction?.balance ?? null,
+    personalBdBalance,
     factionName: faction?.factionName ?? null,
     canSpendBd: infinite || Boolean(faction?.canSpend),
     factionMembers,
