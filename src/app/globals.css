@@ -250,11 +250,10 @@ body:has(.tm-sapper-page) {
   background: #07060c;
 }
 
-/* Рейтинг паблика: не давать странице уезжать вбок (фон fixed).
-   Горизонтальный скролл — только у .public-rating-table-wrap. */
+/* Рейтинг паблика: страница не шире окна; скролл вбок — только у таблицы. */
 html:has(.public-rating-page),
 body:has(.public-rating-page) {
-  overflow-x: clip;
+  overflow-x: hidden;
   max-width: 100%;
 }
 
@@ -263,7 +262,7 @@ body:has(.public-rating-page) {
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  overflow-x: clip;
+  overflow-x: hidden;
 }
 
 .shell:has(.clans-page),
@@ -1028,8 +1027,7 @@ body:has(.public-rating-page) {
   min-height: calc(100vh - 100px);
   padding: 0;
   border-radius: 16px;
-  overflow-x: clip;
-  overflow-y: visible;
+  overflow: visible;
   border: 1px solid var(--line);
   background: url("/public-rating-bg-concept-01.jpg") center top / cover fixed no-repeat, #07060c;
   box-sizing: border-box;
@@ -2069,6 +2067,14 @@ body:has(.public-rating-page) {
   border: 1px solid var(--line);
   border-radius: 14px;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-gutter: stable;
+}
+
+/* Последняя колонка не должна обрезаться у правого края карточки. */
+.public-rating-table-wrap table.admin-table th:last-child,
+.public-rating-table-wrap table.admin-table td:last-child {
+  padding-right: 18px;
 }
 
 .public-rating-pager {
@@ -2212,9 +2218,18 @@ body:has(.public-rating-page) {
 }
 
 .public-rating-table-wrap table {
-  width: 100%;
-  min-width: 1480px;
+  width: max-content;
+  min-width: 100%;
+  max-width: none;
   table-layout: auto;
+  border-collapse: collapse;
+}
+
+/* Уже ячейки — меньше шанс, что край MVP Armor упрётся в клип. */
+.public-rating-shell .public-rating-table-wrap table.admin-table th,
+.public-rating-shell .public-rating-table-wrap table.admin-table td {
+  padding-left: 10px;
+  padding-right: 10px;
 }
 
 .public-rating-table-wrap table.admin-table a.kv-link {
