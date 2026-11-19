@@ -63,8 +63,15 @@ export const CASE_GP_PATCH_ID =
   "creator-gp-drum-berry-lore" as const satisfies ProfilePatchId;
 export const CASE_RPG_PATCH_ID =
   "creator-rpg7-orchard-harvest" as const satisfies ProfilePatchId;
-/** Гарантия на N-й крутке кейса (pity) — только СВД. */
+/**
+ * Гарантия на N-й крутке кейса (pity):
+ * случайно СВД или ГП (раньше было только СВД → перекос).
+ */
 export const CASE_LEGENDARY_PITY = 100;
+export const CASE_PITY_PATCH_IDS = [
+  CASE_LEGENDARY_PATCH_ID,
+  CASE_GP_PATCH_ID,
+] as const;
 /** Цена для весов шанса (продажа / оценка). */
 export const CASE_LEGENDARY_SELL = 50_000;
 export const CASE_GP_SELL = 40_000;
@@ -520,9 +527,15 @@ export async function openMarketCase(opts: {
   const pityHit =
     CASE_LEGENDARY_PITY > 0 &&
     (opensBefore + 1) % CASE_LEGENDARY_PITY === 0;
-  const legendary = table.find((e) => e.itemId === CASE_LEGENDARY_PATCH_ID);
+  const pityPool = CASE_PITY_PATCH_IDS.map((id) =>
+    table.find((e) => e.itemId === id)
+  ).filter((e): e is CaseLootEntry => Boolean(e));
+  const pityPick =
+    pityPool.length > 0
+      ? pityPool[Math.floor(Math.random() * pityPool.length)]
+      : null;
   const result =
-    pityHit && legendary ? legendary : pickWeighted(table);
+    pityHit && pityPick ? pityPick : pickWeighted(table);
   const landIndex = 52;
   const strip = buildRouletteStrip(table, result, { length: 64, landIndex });
 
@@ -589,7 +602,12 @@ export async function openMarketCase(opts: {
       chancePct: result.chancePct,
       infiniteWallet: hasInfiniteMarketWallet(opts.steamId),
       paidFrom: charged.paidFrom || null,
-      pity: pityHit && result.itemId === CASE_LEGENDARY_PATCH_ID,
+      pity:
+        pityHit &&
+        Boolean(
+          result.itemId &&
+            (CASE_PITY_PATCH_IDS as readonly string[]).includes(result.itemId)
+        ),
       openIndex: opensBefore + 1,
     },
   });
