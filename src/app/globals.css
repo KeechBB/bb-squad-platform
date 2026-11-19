@@ -25520,6 +25520,36 @@ body:has(.faction-page) .site-footer {
     inset 0 0 18px rgba(59, 130, 246, 0.22),
     0 0 14px rgba(37, 99, 235, 0.2);
 }
+.market-case-roule-cell.kind-font,
+.market-case-loot-cell.kind-font {
+  border-color: rgba(250, 204, 21, 0.35);
+  background:
+    linear-gradient(
+      160deg,
+      rgba(55, 40, 12, 0.75) 0%,
+      rgba(24, 18, 10, 0.92) 100%
+    );
+}
+.market-case-font-sample {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  line-height: 1;
+  pointer-events: none;
+}
+.market-case-font-sample.is-sm {
+  font-size: 1.15rem;
+  min-height: 48px;
+}
+.market-case-font-sample.is-md {
+  font-size: 1.55rem;
+  min-height: 64px;
+}
+.market-case-font-sample.is-xl {
+  font-size: 2.4rem;
+  min-height: 96px;
+}
 .market-case-roule-cell.is-win {
   border-color: #fde047;
   box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.55), 0 0 24px rgba(250, 204, 21, 0.35);

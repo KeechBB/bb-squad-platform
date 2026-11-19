@@ -4,14 +4,17 @@
  */
 import { addBgQty } from "@/lib/profileBgStock";
 import { addPatchQty } from "@/lib/nickPatchStock";
+import { addFontQty } from "@/lib/nickStyleStock";
 import { writeNickPatchesCache } from "@/lib/nickPatchesCache";
 import { marketPatchMeta, patchDefaultCurrency } from "@/lib/bbCoinPatchPrices";
 import { marketBgMeta } from "@/lib/bbCoinBgPrices";
+import { marketFontMeta } from "@/lib/bbCoinFontPrices";
 import {
   isMarketSellOnlyPatch,
   MARKET_PATCH_ORDER,
 } from "@/lib/marketPatchIds";
 import { MARKET_BG_ORDER } from "@/lib/marketBgIds";
+import { MARKET_FONT_ORDER } from "@/lib/marketFontIds";
 import { resolveListingPrice } from "@/lib/marketListingPrices";
 import { chargeMarketBuy, hasInfiniteMarketWallet } from "@/lib/marketCharge";
 import { creditBbCoins } from "@/lib/bbCoins";
@@ -27,7 +30,7 @@ import { BD_MARK, BD_NAME } from "@/lib/blueberryDollar";
 
 export type MarketCaseId = "faction-sad" | "bbc-urozhay";
 
-export type CaseLootKind = "patch" | "bg" | "empty" | "currency";
+export type CaseLootKind = "patch" | "bg" | "empty" | "currency" | "font";
 
 export type CaseLootEntry = {
   key: string;
@@ -35,6 +38,8 @@ export type CaseLootEntry = {
   itemId: string | null;
   title: string;
   image: string | null;
+  /** Для шрифта — CSS-класс превью ника. */
+  cssClass?: string | null;
   /** Цена купить (для весов редкости). */
   price: number;
   /** Текущая цена продажи на площадке / номинал валютного дропа. */
@@ -75,6 +80,8 @@ export const CASE_RPG_PATCH_ID =
 export const CASE_LEGENDARY_SHARE = 0.0001;
 /** РПГ-7 «Урожайный удар» — только BD-кейс. */
 export const CASE_RPG_SHARE = 0.0005; // 0.05%
+/** Шрифты ника — только BBC-кейс, по 1.5% каждый. */
+export const CASE_FONT_SHARE = 0.015;
 /** Гарантия на N-й крутке кейса (pity) — только СВД. */
 export const CASE_LEGENDARY_PITY = 100;
 /** Оценка продажи для ROI в логе (ещё не в магазине). */
@@ -358,6 +365,25 @@ function rpgOrchardLootEntry(): CaseLootEntry {
   );
 }
 
+function fontCaseLootEntries(): CaseLootEntry[] {
+  const chancePct = Math.round(CASE_FONT_SHARE * 10000) / 100;
+  return MARKET_FONT_ORDER.map((id) => {
+    const meta = marketFontMeta(id);
+    return {
+      key: `font:${id}`,
+      kind: "font" as const,
+      itemId: id,
+      title: meta.title,
+      image: null,
+      cssClass: meta.cssClass || null,
+      price: meta.buy,
+      sellPrice: meta.sell,
+      sellCurrency: "BBC" as const,
+      chancePct,
+    };
+  });
+}
+
 function cashBbcLootEntry(): CaseLootEntry {
   const chancePct = Math.round(CASE_JACKPOT_SHARE * 10000) / 100;
   return {
@@ -399,7 +425,7 @@ export function injectCaseSpecials(
     legendaryLootEntry(),
     gpDrumLootEntry(),
     ...(currency === "BD" ? [rpgOrchardLootEntry()] : []),
-    ...(currency === "BBC" ? [cashBbcLootEntry()] : [cashBdLootEntry()]),
+    ...(currency === "BBC" ? [...fontCaseLootEntries(), cashBbcLootEntry()] : [cashBdLootEntry()]),
   ];
   const skip = new Set(specials.map((s) => s.itemId));
   const without = entries.filter((e) => !e.itemId || !skip.has(e.itemId));
@@ -569,6 +595,8 @@ export async function openMarketCase(opts: {
     await writeNickPatchesCache().catch(() => null);
   } else if (result.kind === "bg" && result.itemId) {
     await addBgQty(opts.userId, result.itemId, 1);
+  } else if (result.kind === "font" && result.itemId) {
+    await addFontQty(opts.userId, result.itemId, 1);
   } else if (result.kind === "currency") {
     const amt = Math.max(0, Math.trunc(result.amount || result.sellPrice || 0));
     if (amt > 0 && result.sellCurrency === "BBC") {

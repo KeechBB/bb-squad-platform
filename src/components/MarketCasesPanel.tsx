@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-type LootKind = "patch" | "bg" | "empty" | "currency";
+type LootKind = "patch" | "bg" | "empty" | "currency" | "font";
 
 type LootEntry = {
   key: string;
@@ -10,12 +10,31 @@ type LootEntry = {
   itemId: string | null;
   title: string;
   image: string | null;
+  cssClass?: string | null;
   price: number;
   sellPrice?: number;
   sellCurrency?: "BBC" | "BD" | null;
   amount?: number;
   chancePct: number;
 };
+
+function FontLootSample({
+  cssClass,
+  size = "md",
+}: {
+  cssClass?: string | null;
+  size?: "sm" | "md" | "xl";
+}) {
+  return (
+    <span
+      className={`public-rating-nick-label market-case-font-sample is-${size}${
+        cssClass ? ` ${cssClass}` : ""
+      }`}
+    >
+      Keech
+    </span>
+  );
+}
 
 /** Самая редкая категория кейса — Immortal (золотой фон). */
 const CASE_IMMORTAL_PATCH_IDS = new Set([
@@ -530,7 +549,9 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                               : ""
                           }`}
                         >
-                          {cell.image ? (
+                          {cell.kind === "font" ? (
+                            <FontLootSample cssClass={cell.cssClass} size="sm" />
+                          ) : cell.image ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={cell.image} alt="" />
                           ) : (
@@ -563,7 +584,9 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                     <p>Ничего не выпало</p>
                   ) : (
                     <>
-                      {result.image ? (
+                      {result.kind === "font" ? (
+                        <FontLootSample cssClass={result.cssClass} size="md" />
+                      ) : result.image ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={result.image} alt="" />
                       ) : null}
@@ -603,7 +626,9 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                     }
                     onClick={() => setInspect(e)}
                   >
-                    {e.image ? (
+                    {e.kind === "font" ? (
+                      <FontLootSample cssClass={e.cssClass} size="sm" />
+                    ) : e.image ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={e.image} alt="" />
                     ) : (
@@ -667,7 +692,9 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                 <div
                   className={`market-case-inspect-art ${lootCellClass(inspect)}`}
                 >
-                  {inspect.image ? (
+                  {inspect.kind === "font" ? (
+                    <FontLootSample cssClass={inspect.cssClass} size="xl" />
+                  ) : inspect.image ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={inspect.image}
@@ -694,6 +721,8 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                     ? "Пустой исход"
                     : inspect.kind === "bg"
                       ? "Фон профиля"
+                      : inspect.kind === "font"
+                        ? "Шрифт ника"
                       : inspect.kind === "currency"
                         ? "Валюта"
                         : lootRarityLabel(inspect) || "Нашивка"}
