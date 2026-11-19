@@ -11,6 +11,8 @@ type LootEntry = {
   title: string;
   image: string | null;
   price: number;
+  sellPrice?: number;
+  sellCurrency?: "BBC" | "BD" | null;
   chancePct: number;
 };
 
@@ -47,6 +49,9 @@ type OpenLogRow = {
   dropTitle: string;
   dropKind: LootKind;
   dropImage: string | null;
+  /** Текущая цена продажи дропа на площадке. */
+  dropSell: number;
+  dropSellCurrency: "BBC" | "BD" | null;
 };
 
 export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
@@ -161,6 +166,16 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
         setMsg(`Выпало: ${won.title}. Уже в инвентаре.`);
       }
       setOpenLog((prev) => {
+        const sell =
+          won.kind === "empty"
+            ? 0
+            : Math.max(0, Number(won.sellPrice) || 0);
+        const sellCur =
+          won.kind === "empty"
+            ? null
+            : won.sellCurrency === "BD" || won.sellCurrency === "BBC"
+              ? won.sellCurrency
+              : c.currency;
         const row: OpenLogRow = {
           id: `${Date.now()}-${prev.length + 1}`,
           n: prev.length + 1,
@@ -176,6 +191,8 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
           dropTitle: won.kind === "empty" ? "Пусто" : won.title,
           dropKind: won.kind,
           dropImage: won.image,
+          dropSell: sell,
+          dropSellCurrency: sellCur,
         };
         return [row, ...prev];
       });
@@ -201,15 +218,29 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
     const attempts = openLog.length;
     let spentBbc = 0;
     let spentBd = 0;
+    let dropSellBbc = 0;
+    let dropSellBd = 0;
     let wins = 0;
     let empties = 0;
     for (const row of openLog) {
       if (row.currency === "BBC") spentBbc += row.spent;
       else spentBd += row.spent;
       if (row.dropKind === "empty") empties += 1;
-      else wins += 1;
+      else {
+        wins += 1;
+        if (row.dropSellCurrency === "BBC") dropSellBbc += row.dropSell;
+        else if (row.dropSellCurrency === "BD") dropSellBd += row.dropSell;
+      }
     }
-    return { attempts, spentBbc, spentBd, wins, empties };
+    return {
+      attempts,
+      spentBbc,
+      spentBd,
+      dropSellBbc,
+      dropSellBd,
+      wins,
+      empties,
+    };
   }, [openLog]);
 
   if (err === "wip") {
@@ -318,6 +349,18 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                   <span className="muted">Потрачено $</span>
                   <strong>{logStats.spentBd.toLocaleString("ru-RU")}</strong>
                 </div>
+                <div>
+                  <span className="muted">Дроп → продажа BBC</span>
+                  <strong className="is-gain">
+                    {logStats.dropSellBbc.toLocaleString("ru-RU")}
+                  </strong>
+                </div>
+                <div>
+                  <span className="muted">Дроп → продажа $</span>
+                  <strong className="is-gain">
+                    {logStats.dropSellBd.toLocaleString("ru-RU")}
+                  </strong>
+                </div>
               </div>
               <div className="market-case-log-list" ref={logListRef}>
                 {openLog.length === 0 ? (
@@ -352,6 +395,12 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                             : row.dropTitle}
                         </span>
                       </div>
+                      {row.dropKind !== "empty" && row.dropSell > 0 ? (
+                        <p className="market-case-log-sell">
+                          продажа ≈ {row.dropSell.toLocaleString("ru-RU")}{" "}
+                          {row.dropSellCurrency === "BD" ? "$" : "BBC"}
+                        </p>
+                      ) : null}
                     </article>
                   ))
                 )}

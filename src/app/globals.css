@@ -25016,6 +25016,15 @@ body:has(.faction-page) .site-footer {
   font-size: 0.95rem;
   color: #fef9c3;
 }
+.market-case-log-stats strong.is-gain {
+  color: #86efac;
+}
+.market-case-log-sell {
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #86efac;
+}
 .market-case-log-list {
   flex: 1;
   min-height: 0;

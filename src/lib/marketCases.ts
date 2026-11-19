@@ -25,7 +25,12 @@ export type CaseLootEntry = {
   itemId: string | null;
   title: string;
   image: string | null;
+  /** Цена купить (для весов редкости). */
   price: number;
+  /** Текущая цена продажи на площадке. */
+  sellPrice: number;
+  /** Валюта продажи: BBC или BD ($). */
+  sellCurrency: MarketCurrency | null;
   chancePct: number;
 };
 
@@ -85,6 +90,8 @@ type RawItem = {
   title: string;
   image: string;
   price: number;
+  sellPrice: number;
+  sellCurrency: MarketCurrency;
 };
 
 async function loadCasePool(currency: MarketCurrency): Promise<RawItem[]> {
@@ -104,6 +111,8 @@ async function loadCasePool(currency: MarketCurrency): Promise<RawItem[]> {
       title: meta.title,
       image: meta.image,
       price: price?.buy ?? meta.buy,
+      sellPrice: price?.sell ?? meta.sell,
+      sellCurrency: cur,
     });
   }
   for (const id of MARKET_BG_ORDER) {
@@ -119,6 +128,8 @@ async function loadCasePool(currency: MarketCurrency): Promise<RawItem[]> {
       title: meta.title,
       image: meta.image,
       price: price?.buy ?? meta.buy,
+      sellPrice: price?.sell ?? meta.sell,
+      sellCurrency: cur,
     });
   }
   return out;
@@ -135,6 +146,8 @@ export function buildLootChances(pool: RawItem[]): CaseLootEntry[] {
         title: "Пусто",
         image: null,
         price: 0,
+        sellPrice: 0,
+        sellCurrency: null,
         chancePct: 100,
       },
     ];
@@ -162,6 +175,8 @@ export function buildLootChances(pool: RawItem[]): CaseLootEntry[] {
     title: "Пусто",
     image: null,
     price: 0,
+    sellPrice: 0,
+    sellCurrency: null,
     chancePct: Math.round(nothingShare * 10000) / 100,
   });
 
@@ -173,6 +188,8 @@ export function buildLootChances(pool: RawItem[]): CaseLootEntry[] {
       title: u.title,
       image: u.image,
       price: u.price,
+      sellPrice: u.sellPrice,
+      sellCurrency: u.sellCurrency,
       chancePct: Math.round(ultraEach * 10000) / 100,
     });
   }
@@ -187,6 +204,8 @@ export function buildLootChances(pool: RawItem[]): CaseLootEntry[] {
       title: p.title,
       image: p.image,
       price: p.price,
+      sellPrice: p.sellPrice,
+      sellCurrency: p.sellCurrency,
       chancePct: Math.round(share * 10000) / 100,
     });
   }
