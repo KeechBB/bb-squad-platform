@@ -1,6 +1,7 @@
 /**
- * Кейсы площадки: Сад Фракции (B$) и Урожай BlackBerry (BBC).
- * Шансы ∝ 1/цене; Эмка / Призрак < 1%; ~50% пусто.
+ * Кейсы площадки: Жатва Черники (B$) и Первый Плод (BBC).
+ * Правило для предметов: дороже цена → ниже шанс (∝ 1/цене) в обоих кейсах.
+ * Мелочь-филлеры и джекпот валюты — отдельно.
  */
 import { addBgQty } from "@/lib/profileBgStock";
 import { addPatchQty } from "@/lib/nickPatchStock";
@@ -9,10 +10,7 @@ import { writeNickPatchesCache } from "@/lib/nickPatchesCache";
 import { marketPatchMeta, patchDefaultCurrency } from "@/lib/bbCoinPatchPrices";
 import { marketBgMeta } from "@/lib/bbCoinBgPrices";
 import { marketFontMeta } from "@/lib/bbCoinFontPrices";
-import {
-  isMarketSellOnlyPatch,
-  MARKET_PATCH_ORDER,
-} from "@/lib/marketPatchIds";
+import { MARKET_PATCH_ORDER } from "@/lib/marketPatchIds";
 import { MARKET_BG_ORDER } from "@/lib/marketBgIds";
 import { MARKET_FONT_ORDER } from "@/lib/marketFontIds";
 import { resolveListingPrice } from "@/lib/marketListingPrices";
@@ -21,10 +19,7 @@ import { creditBbCoins } from "@/lib/bbCoins";
 import { creditPersonalBd } from "@/lib/marketFactionPay";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
 import { prisma } from "@/lib/prisma";
-import {
-  PROFILE_PATCH_OPTIONS,
-  type ProfilePatchId,
-} from "@/lib/profilePatches";
+import type { ProfilePatchId } from "@/lib/profilePatches";
 import type { MarketCurrency, ResolvedListingPrice } from "@/lib/marketListingPrices";
 import { BD_MARK, BD_NAME } from "@/lib/blueberryDollar";
 
@@ -61,44 +56,29 @@ export type MarketCaseDef = {
   image: string;
 };
 
-/** Эмка (M4 BP) и Оранжевый призрак — фиксированный шанс каждый. */
-export const CASE_ULTRA_ITEM_IDS = new Set([
-  "bp-l15-keech",
-  "creator-orange-phantom",
-]);
-/**
- * Суммарный шанс ультра (M4 + Призрак). Внутри — ∝ 1/цене:
- * дешевле → выше % (M4 4000 > Призрак 4500).
- */
-export const CASE_ULTRA_TOTAL_SHARE = 0.038;
-/** @deprecated равный шанс больше не используется */
-export const CASE_ULTRA_SHARE = CASE_ULTRA_TOTAL_SHARE / 2;
-
-/** Легендарки только в кейсах (не в магазине). */
+/** Легендарки / эксклюзивы кейса (в пуле по цене продажи → шанс ∝ 1/цене). */
 export const CASE_LEGENDARY_PATCH_ID =
   "creator-svd-faction-lord" as const satisfies ProfilePatchId;
 export const CASE_GP_PATCH_ID =
   "creator-gp-drum-berry-lore" as const satisfies ProfilePatchId;
 export const CASE_RPG_PATCH_ID =
   "creator-rpg7-orchard-harvest" as const satisfies ProfilePatchId;
-/** 0.01% базовый шанс. */
-export const CASE_LEGENDARY_SHARE = 0.0001;
-/** РПГ-7 «Урожайный удар» — только BD-кейс. */
-export const CASE_RPG_SHARE = 0.0005; // 0.05%
-/**
- * Шрифты ника — только BBC-кейс.
- * Дешевле → выше шанс: Алая жатва 2500 → 3.5%, Aurum 3000 → 3%.
- */
-export const CASE_FONT_SHARE_BY_ID: Record<string, number> = {
-  "hw2-violet-gothic": 0.035, // 3.5% · 2500 BBC
-  "bp-l10-aurum-clean": 0.03, // 3% · 3000 BBC
-};
 /** Гарантия на N-й крутке кейса (pity) — только СВД. */
 export const CASE_LEGENDARY_PITY = 100;
-/** Оценка продажи для ROI в логе (ещё не в магазине). */
+/** Цена для весов шанса (продажа / оценка). */
 export const CASE_LEGENDARY_SELL = 50_000;
 export const CASE_GP_SELL = 40_000;
 export const CASE_RPG_SELL = 35_000;
+/** @deprecated больше нет отдельного ультра-пула */
+export const CASE_ULTRA_ITEM_IDS = new Set([
+  "bp-l15-keech",
+  "creator-orange-phantom",
+]);
+export const CASE_ULTRA_SHARE = 0.019;
+export const CASE_ULTRA_TOTAL_SHARE = 0.038;
+export const CASE_LEGENDARY_SHARE = 0.0001;
+export const CASE_RPG_SHARE = 0.0005;
+export const CASE_FONT_SHARE_BY_ID: Record<string, number> = {};
 
 /** Валютные джекпоты (0.01%) — в кейсе своей валюты. */
 export const CASE_CASH_BBC_ID = "cash-bbc-200000";
@@ -171,10 +151,12 @@ export function canAccessMarketCases(
 
 type RawItem = {
   key: string;
-  kind: "patch" | "bg";
+  kind: "patch" | "bg" | "font";
   itemId: string;
   title: string;
-  image: string;
+  image: string | null;
+  cssClass?: string | null;
+  /** Цена для весов шанса (купить или оценка продажи). */
   price: number;
   sellPrice: number;
   sellCurrency: MarketCurrency;
@@ -183,24 +165,45 @@ type RawItem = {
 async function loadCasePool(currency: MarketCurrency): Promise<RawItem[]> {
   const out: RawItem[] = [];
   for (const id of MARKET_PATCH_ORDER) {
-    // Легендарки кейса — только через injectCaseSpecials (0.01%), не в общем пуле.
-    if (isMarketSellOnlyPatch(id)) continue;
+    // РПГ — только BD-кейс; остальные sell-only (СВД/РГ-6) — в оба.
+    if (id === CASE_RPG_PATCH_ID && currency !== "BD") continue;
     const price = await resolveListingPrice("patch", id);
-    // Фракционные нашивки всегда в кейсе казны, даже если листинг сдвинули.
     const cur = id.startsWith("bd-faction-")
       ? "BD"
-      : price?.currency ?? patchDefaultCurrency(id);
-    if (cur !== currency) continue;
+      : id === CASE_RPG_PATCH_ID
+        ? "BD"
+        : price?.currency ?? patchDefaultCurrency(id);
+    // Sell-only легендарки считаем доступными в обоих кейсах (BBC/BD),
+    // вес — по цене продажи.
+    const isExclusive =
+      id === CASE_LEGENDARY_PATCH_ID ||
+      id === CASE_GP_PATCH_ID ||
+      id === CASE_RPG_PATCH_ID;
+    if (!isExclusive && cur !== currency) continue;
+    if (isExclusive && id === CASE_RPG_PATCH_ID && currency !== "BD") continue;
     const meta = marketPatchMeta(id);
+    const buy = price?.buy ?? meta.buy;
+    const sell = price?.sell ?? meta.sell;
+    const weightPrice = isExclusive
+      ? id === CASE_LEGENDARY_PATCH_ID
+        ? CASE_LEGENDARY_SELL
+        : id === CASE_GP_PATCH_ID
+          ? CASE_GP_SELL
+          : CASE_RPG_SELL
+      : buy;
     out.push({
       key: `patch:${id}`,
       kind: "patch",
       itemId: id,
       title: meta.title,
       image: meta.image,
-      price: price?.buy ?? meta.buy,
-      sellPrice: price?.sell ?? meta.sell,
-      sellCurrency: cur,
+      price: weightPrice,
+      sellPrice: sell,
+      sellCurrency: isExclusive
+        ? id === CASE_RPG_PATCH_ID
+          ? "BD"
+          : currency
+        : cur,
     });
   }
   for (const id of MARKET_BG_ORDER) {
@@ -219,6 +222,23 @@ async function loadCasePool(currency: MarketCurrency): Promise<RawItem[]> {
       sellPrice: price?.sell ?? meta.sell,
       sellCurrency: cur,
     });
+  }
+  // Шрифты — только BBC-кейс, вес по цене купить.
+  if (currency === "BBC") {
+    for (const id of MARKET_FONT_ORDER) {
+      const meta = marketFontMeta(id);
+      out.push({
+        key: `font:${id}`,
+        kind: "font",
+        itemId: id,
+        title: meta.title,
+        image: null,
+        cssClass: meta.cssClass || null,
+        price: meta.buy,
+        sellPrice: meta.sell,
+        sellCurrency: "BBC",
+      });
+    }
   }
   return out;
 }
@@ -248,7 +268,7 @@ function fillerCashEntry(
   };
 }
 
-/** Собрать таблицу шансов (сумма ≈ 100). Без пустых — мелочь валюты вместо них. */
+/** Собрать таблицу шансов (сумма ≈ 100). Предметы: шанс ∝ 1/цене. */
 export function buildLootChances(
   pool: RawItem[],
   currency: MarketCurrency
@@ -262,7 +282,6 @@ export function buildLootChances(
   );
 
   if (pool.length === 0) {
-    // Только валюта — дотянуть до 100 на самый частый филлер.
     const sum = entries.reduce((a, e) => a + e.chancePct, 0);
     if (entries[0] && Math.abs(sum - 100) > 0.05) {
       entries[0].chancePct =
@@ -271,39 +290,13 @@ export function buildLootChances(
     return entries.sort((a, b) => b.chancePct - a.chancePct);
   }
 
-  const ultra = pool.filter((p) => CASE_ULTRA_ITEM_IDS.has(p.itemId));
-  const normal = pool.filter((p) => !CASE_ULTRA_ITEM_IDS.has(p.itemId));
-
-  // Ультра: общий пул, доли ∝ 1/цене (дешевле — выше).
-  const ultraWeights = ultra.map((p) => 1 / Math.max(1, p.price));
-  const ultraWeightSum = ultraWeights.reduce((a, b) => a + b, 0) || 1;
-  const ultraTotal = ultra.length ? CASE_ULTRA_TOTAL_SHARE : 0;
-  const itemsShare = Math.max(0.01, 1 - fillerShare - ultraTotal);
-
-  // Обычный пул: сильнее тянем к дешёвым (тыква дешевле цитруса → выше %).
-  const invWeights = normal.map(
-    (p) => 1 / Math.pow(Math.max(1, p.price), 1.35)
-  );
+  // Один пул на оба кейса: дороже цена → строго ниже шанс.
+  const itemsShare = Math.max(0.01, 1 - fillerShare);
+  const invWeights = pool.map((p) => 1 / Math.max(1, p.price));
   const invSum = invWeights.reduce((a, b) => a + b, 0) || 1;
 
-  for (let i = 0; i < ultra.length; i++) {
-    const u = ultra[i];
-    const share = ultraTotal * (ultraWeights[i] / ultraWeightSum);
-    entries.push({
-      key: u.key,
-      kind: u.kind,
-      itemId: u.itemId,
-      title: u.title,
-      image: u.image,
-      price: u.price,
-      sellPrice: u.sellPrice,
-      sellCurrency: u.sellCurrency,
-      chancePct: Math.round(share * 10000) / 100,
-    });
-  }
-
-  for (let i = 0; i < normal.length; i++) {
-    const p = normal[i];
+  for (let i = 0; i < pool.length; i++) {
+    const p = pool[i];
     const share = itemsShare * (invWeights[i] / invSum);
     entries.push({
       key: p.key,
@@ -311,6 +304,7 @@ export function buildLootChances(
       itemId: p.itemId,
       title: p.title,
       image: p.image,
+      cssClass: p.cssClass ?? null,
       price: p.price,
       sellPrice: p.sellPrice,
       sellCurrency: p.sellCurrency,
@@ -318,7 +312,7 @@ export function buildLootChances(
     });
   }
 
-  // Нормализация до 100 — на самый частый филлер (50 / 500).
+  // Нормализация на самый частый филлер.
   const sum = entries.reduce((a, e) => a + e.chancePct, 0);
   if (sum > 0 && Math.abs(sum - 100) > 0.05 && entries[0]) {
     entries[0].chancePct =
@@ -328,98 +322,21 @@ export function buildLootChances(
   return entries.sort((a, b) => b.chancePct - a.chancePct);
 }
 
-function caseExclusivePatchEntry(
-  patchId: ProfilePatchId,
-  sellPrice: number,
-  fallbackTitle: string,
-  fallbackFile: string,
-  opts?: {
-    share?: number;
-    sellCurrency?: MarketCurrency;
-  }
-): CaseLootEntry {
-  const opt = PROFILE_PATCH_OPTIONS.find((o) => o.id === patchId);
-  const title = opt?.label || fallbackTitle;
-  const file = opt?.file || fallbackFile;
-  const share = opts?.share ?? CASE_LEGENDARY_SHARE;
-  return {
-    key: `patch:${patchId}`,
-    kind: "patch",
-    itemId: patchId,
-    title,
-    image: `/bp-assets/${file}`,
-    price: sellPrice,
-    sellPrice,
-    sellCurrency: opts?.sellCurrency ?? "BBC",
-    chancePct: Math.round(share * 10000) / 100,
-  };
-}
-
-function legendaryLootEntry(): CaseLootEntry {
-  return caseExclusivePatchEntry(
-    CASE_LEGENDARY_PATCH_ID,
-    CASE_LEGENDARY_SELL,
-    "СВД «Повелитель фракций»",
-    "svd-faction-lord-v3.png"
-  );
-}
-
-function gpDrumLootEntry(): CaseLootEntry {
-  return caseExclusivePatchEntry(
-    CASE_GP_PATCH_ID,
-    CASE_GP_SELL,
-    "РГ-6 «Ягодный барабан»",
-    "gp-drum-berry-lore-v2.png"
-  );
-}
-
-function rpgOrchardLootEntry(): CaseLootEntry {
-  return caseExclusivePatchEntry(
-    CASE_RPG_PATCH_ID,
-    CASE_RPG_SELL,
-    "РПГ-7 «Урожайный удар»",
-    "rpg7-orchard-harvest-v2.png",
-    { share: CASE_RPG_SHARE, sellCurrency: "BD" }
-  );
-}
-
-function fontCaseLootEntries(): CaseLootEntry[] {
-  return MARKET_FONT_ORDER.map((id) => {
-    const meta = marketFontMeta(id);
-    const share = CASE_FONT_SHARE_BY_ID[id] ?? 0.03;
+function cashJackpotEntry(currency: MarketCurrency): CaseLootEntry {
+  if (currency === "BBC") {
     return {
-      key: `font:${id}`,
-      kind: "font" as const,
-      itemId: id,
-      title: meta.title,
-      image: null,
-      cssClass: meta.cssClass || null,
-      price: meta.buy,
-      sellPrice: meta.sell,
-      sellCurrency: "BBC" as const,
-      chancePct: Math.round(share * 10000) / 100,
+      key: `currency:${CASE_CASH_BBC_ID}`,
+      kind: "currency",
+      itemId: CASE_CASH_BBC_ID,
+      title: `${CASE_CASH_BBC_AMOUNT.toLocaleString("ru-RU")} BBC`,
+      image: "/market-cases/case-loot-bbc-20k.png",
+      price: CASE_CASH_BBC_AMOUNT,
+      sellPrice: CASE_CASH_BBC_AMOUNT,
+      sellCurrency: "BBC",
+      amount: CASE_CASH_BBC_AMOUNT,
+      chancePct: 0, // пересчитается вместе с предметами
     };
-  });
-}
-
-function cashBbcLootEntry(): CaseLootEntry {
-  const chancePct = Math.round(CASE_JACKPOT_SHARE * 10000) / 100;
-  return {
-    key: `currency:${CASE_CASH_BBC_ID}`,
-    kind: "currency",
-    itemId: CASE_CASH_BBC_ID,
-    title: `${CASE_CASH_BBC_AMOUNT.toLocaleString("ru-RU")} BBC`,
-    image: "/market-cases/case-loot-bbc-20k.png",
-    price: CASE_CASH_BBC_AMOUNT,
-    sellPrice: CASE_CASH_BBC_AMOUNT,
-    sellCurrency: "BBC",
-    amount: CASE_CASH_BBC_AMOUNT,
-    chancePct,
-  };
-}
-
-function cashBdLootEntry(): CaseLootEntry {
-  const chancePct = Math.round(CASE_JACKPOT_SHARE * 10000) / 100;
+  }
   return {
     key: `currency:${CASE_CASH_BD_ID}`,
     kind: "currency",
@@ -430,37 +347,38 @@ function cashBdLootEntry(): CaseLootEntry {
     sellPrice: CASE_CASH_BD_AMOUNT,
     sellCurrency: "BD",
     amount: CASE_CASH_BD_AMOUNT,
-    chancePct,
+    chancePct: 0,
   };
 }
 
-/** Легендарки в оба кейса; РПГ и валютный джекпот — по валюте кейса. */
+/**
+ * Джекпот валюты — в общий ценовой пул (200k / 1M → самый низкий шанс).
+ * Эксклюзивы и шрифты уже в loadCasePool.
+ */
 export function injectCaseSpecials(
   entries: CaseLootEntry[],
   currency: MarketCurrency
 ): CaseLootEntry[] {
-  const specials = [
-    legendaryLootEntry(),
-    gpDrumLootEntry(),
-    ...(currency === "BD" ? [rpgOrchardLootEntry()] : []),
-    ...(currency === "BBC" ? [...fontCaseLootEntries(), cashBbcLootEntry()] : [cashBdLootEntry()]),
-  ];
-  const skip = new Set(specials.map((s) => s.itemId));
-  const without = entries.filter((e) => !e.itemId || !skip.has(e.itemId));
-  const take = specials.reduce((a, s) => a + s.chancePct, 0);
-  // Списываем с самого частого филлера (100 BBC / 500 $), не с скинов.
-  const fillerIds = new Set(
-    (currency === "BBC" ? CASE_FILLER_BBC : CASE_FILLER_BD).map((f) => f.id)
+  const jackpot = cashJackpotEntry(currency);
+  const without = entries.filter((e) => e.itemId !== jackpot.itemId);
+  const fillers = without.filter(
+    (e) => e.kind === "currency" && isCaseFillerCash(e.itemId)
   );
-  const pad = without
-    .filter((e) => e.kind === "currency" && e.itemId && fillerIds.has(e.itemId))
-    .sort((a, b) => b.chancePct - a.chancePct)[0];
-  if (pad) {
-    pad.chancePct = Math.round((pad.chancePct - take) * 100) / 100;
-    if (pad.chancePct < 0.01) pad.chancePct = 0.01;
+  const priced = without.filter(
+    (e) => !(e.kind === "currency" && isCaseFillerCash(e.itemId))
+  );
+  const pool = [...priced, jackpot];
+  const fillerPct = fillers.reduce((a, e) => a + e.chancePct, 0);
+  const itemsShare = Math.max(0.01, 100 - fillerPct);
+  const weights = pool.map((p) => 1 / Math.max(1, p.price));
+  const wSum = weights.reduce((a, b) => a + b, 0) || 1;
+  for (let i = 0; i < pool.length; i++) {
+    pool[i].chancePct =
+      Math.round(((itemsShare * weights[i]) / wSum) * 100) / 100;
   }
-  const next = [...without, ...specials];
+  const next = [...fillers, ...pool];
   const sum = next.reduce((a, e) => a + e.chancePct, 0);
+  const pad = fillers.slice().sort((a, b) => b.chancePct - a.chancePct)[0];
   if (pad && Math.abs(sum - 100) > 0.05) {
     pad.chancePct = Math.round((pad.chancePct + (100 - sum)) * 100) / 100;
   }
