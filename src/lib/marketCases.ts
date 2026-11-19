@@ -65,7 +65,7 @@ export const CASE_RPG_PATCH_ID =
   "creator-rpg7-orchard-harvest" as const satisfies ProfilePatchId;
 /**
  * Гарантия на N-й крутке кейса (pity) для Immortal:
- * 100 → СВД, 200 → ГП, 300 → СВД, 400 → ГП… (по очереди оба).
+ * каждые 100 открытий — либо СВД, либо ГП (случайный выбор).
  */
 export const CASE_LEGENDARY_PITY = 100;
 export const CASE_PITY_PATCH_IDS = [
@@ -527,15 +527,14 @@ export async function openMarketCase(opts: {
   const openIndex = opensBefore + 1;
   const pityHit =
     CASE_LEGENDARY_PITY > 0 && openIndex % CASE_LEGENDARY_PITY === 0;
-  // 1-я гарантия → СВД, 2-я → ГП, 3-я → СВД…
-  const pityRound = Math.max(1, Math.floor(openIndex / CASE_LEGENDARY_PITY));
-  const pityTargetId =
-    CASE_PITY_PATCH_IDS[(pityRound - 1) % CASE_PITY_PATCH_IDS.length];
+  const pityPool = CASE_PITY_PATCH_IDS.map((id) =>
+    table.find((e) => e.itemId === id)
+  ).filter((e): e is CaseLootEntry => Boolean(e));
+  // Либо СВД, либо ГП — 50/50.
   const pityPick =
-    table.find((e) => e.itemId === pityTargetId) ||
-    table.find((e) => e.itemId === CASE_LEGENDARY_PATCH_ID) ||
-    table.find((e) => e.itemId === CASE_GP_PATCH_ID) ||
-    null;
+    pityPool.length > 0
+      ? pityPool[Math.floor(Math.random() * pityPool.length)]
+      : null;
   const result =
     pityHit && pityPick ? pityPick : pickWeighted(table);
   const landIndex = 52;
