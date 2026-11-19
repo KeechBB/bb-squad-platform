@@ -1762,8 +1762,8 @@ body:has(.public-rating-page) {
 .nick-patch-mark[data-patch-id="creator-svd-faction-lord"]
   .nick-patch-mark-art {
   filter:
-    drop-shadow(0 0 3px rgba(180, 255, 140, 0.75))
-    drop-shadow(0 0 8px rgba(212, 175, 55, 0.55));
+    drop-shadow(0 0 3px rgba(255, 210, 120, 0.75))
+    drop-shadow(0 0 8px rgba(220, 90, 40, 0.45));
 }
 .nick-patch-mark[data-patch-id="creator-svd-faction-lord"]:hover
   .nick-patch-mark-art,
@@ -1773,9 +1773,9 @@ body:has(.public-rating-page) {
   .nick-patch-mark-art {
   transform: scaleX(-1) scale(1.08);
   filter:
-    drop-shadow(0 0 5px rgba(200, 255, 160, 0.95))
-    drop-shadow(0 0 12px rgba(212, 175, 55, 0.72))
-    brightness(1.12)
+    drop-shadow(0 0 5px rgba(255, 230, 160, 0.95))
+    drop-shadow(0 0 12px rgba(230, 100, 40, 0.65))
+    brightness(1.1)
     saturate(1.08);
 }
 .nick-patch-mark[data-patch-id="bp-l15-keech"]:hover
