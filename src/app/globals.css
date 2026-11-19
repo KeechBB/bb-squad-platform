@@ -25250,11 +25250,13 @@ body:has(.faction-page) .site-footer {
 }
 .market-case-roulette {
   flex: 0 0 auto;
-  height: 152px;
+  height: auto;
+  min-height: 196px;
   margin: 8px 0 10px;
 }
 .market-case-roulette-window {
-  height: 140px;
+  height: auto;
+  min-height: 178px;
   box-sizing: border-box;
 }
 .market-case-roulette-placeholder {
@@ -25266,7 +25268,8 @@ body:has(.faction-page) .site-footer {
 }
 .market-case-result {
   flex: 0 0 auto;
-  height: 88px;
+  height: auto;
+  min-height: 112px;
   box-sizing: border-box;
   margin: 8px 0 10px;
 }
