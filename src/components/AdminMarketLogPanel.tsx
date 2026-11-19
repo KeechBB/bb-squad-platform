@@ -8,12 +8,14 @@ type Entry = {
   nick: string;
   steamId: string;
   side: "buy" | "sell";
-  catalog: "нашивка" | "фон" | "шрифт";
+  catalog: "нашивка" | "фон" | "шрифт" | "—";
   itemId: string;
   itemTitle: string;
-  priceBbc: number;
-  balanceAfter: number;
+  price: number;
+  currency: "BBC" | "B$";
+  balanceAfter: number | null;
   deal: string | null;
+  factionName: string | null;
 };
 
 function formatDate(iso: string): string {
@@ -71,8 +73,8 @@ export function AdminMarketLogPanel() {
         <div>
           <h2 className="admin-updates-title">Лог магазина</h2>
           <p className="muted admin-updates-lead">
-            Все покупки и продажи на торговой площадке: время (МСК), ник, предмет
-            и цена в BBC.
+            Все покупки и продажи на торговой площадке: BBC и казна фракции (B$),
+            время (МСК), ник, предмет и цена.
           </p>
         </div>
         <button
@@ -89,7 +91,7 @@ export function AdminMarketLogPanel() {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Поиск по нику / предмету"
+          placeholder="Поиск по нику / предмету / фракции"
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
@@ -152,6 +154,11 @@ export function AdminMarketLogPanel() {
                   <td className="admin-tier-log-date">{formatDate(e.at)}</td>
                   <td>
                     <strong>{e.nick}</strong>
+                    {e.factionName ? (
+                      <div className="muted" style={{ fontSize: "0.85em" }}>
+                        казна: {e.factionName}
+                      </div>
+                    ) : null}
                   </td>
                   <td>
                     {e.side === "buy" ? (
@@ -179,11 +186,13 @@ export function AdminMarketLogPanel() {
                   <td className="mono">
                     <strong>
                       {e.side === "buy" ? "−" : "+"}
-                      {e.priceBbc.toLocaleString("ru-RU")} BBC
+                      {e.price.toLocaleString("ru-RU")} {e.currency}
                     </strong>
                   </td>
                   <td className="mono muted">
-                    {e.balanceAfter.toLocaleString("ru-RU")}
+                    {e.balanceAfter == null
+                      ? "—"
+                      : `${e.balanceAfter.toLocaleString("ru-RU")} ${e.currency}`}
                   </td>
                 </tr>
               ))}
