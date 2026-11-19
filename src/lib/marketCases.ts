@@ -398,8 +398,8 @@ function pickWeighted(entries: CaseLootEntry[], rnd = Math.random()): CaseLootEn
 
 /**
  * Лента для анимации CS-рулетки (сервер отдаёт seed-результат).
- * Веса ленты ≠ реальные шансы дропа: валюту специально мелькаем чаще.
- * Победитель уже выбран pickWeighted / pity — лента только визуал.
+ * Веса ленты ≈ визуальное разнообразие оружия; валюту чуть подсвечиваем,
+ * но без «стены» одинаковых баксов. Реальный шанс дропа не меняется.
  */
 export function buildRouletteStrip(
   entries: CaseLootEntry[],
@@ -408,20 +408,21 @@ export function buildRouletteStrip(
 ): CaseLootEntry[] {
   const length = opts?.length ?? 64;
   const landIndex = opts?.landIndex ?? 52;
-  const cashPool = entries.filter((e) => e.kind === "currency");
-  /** Доля ячеек ленты с баксами (не влияет на шанс выпадения). */
-  const CASH_FLASH_RATE = 0.32;
 
   const weighted: CaseLootEntry[] = [];
   for (const e of entries) {
     let n = Math.max(1, Math.round(e.chancePct));
     if (e.kind === "currency") {
-      n = Math.max(28, n);
+      // Редко мелькают на ленте (~чуть чаще 0.01%, без доминации).
+      n = Math.max(4, n);
     } else if (
       e.itemId === CASE_LEGENDARY_PATCH_ID ||
       e.itemId === CASE_GP_PATCH_ID
     ) {
-      n = Math.max(5, n);
+      n = Math.max(3, n);
+    } else if (e.kind === "empty") {
+      // Чуть меньше пустоты на ленте → больше разного оружия.
+      n = Math.max(1, Math.round(n * 0.65));
     }
     for (let i = 0; i < n; i++) weighted.push(e);
   }
@@ -431,13 +432,6 @@ export function buildRouletteStrip(
   for (let i = 0; i < length; i++) {
     if (i === landIndex) {
       strip.push(winner);
-      continue;
-    }
-    if (
-      cashPool.length > 0 &&
-      (i % 3 === 0 || Math.random() < CASH_FLASH_RATE)
-    ) {
-      strip.push(cashPool[Math.floor(Math.random() * cashPool.length)]);
       continue;
     }
     strip.push(weighted[Math.floor(Math.random() * weighted.length)]);

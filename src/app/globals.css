@@ -25096,12 +25096,12 @@ body:has(.faction-page) .site-footer {
 .market-case-dialog {
   position: relative;
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: 260px minmax(0, 1fr);
   gap: 0;
-  width: min(1220px, calc(100vw - 24px));
-  height: min(900px, calc(100vh - 24px));
-  max-width: 1220px;
-  max-height: min(900px, calc(100vh - 24px));
+  width: min(1560px, calc(100vw - 20px));
+  height: min(940px, calc(100vh - 16px));
+  max-width: 1560px;
+  max-height: min(940px, calc(100vh - 16px));
   overflow: hidden;
   border-radius: 18px;
   border: 1px solid rgba(110, 231, 183, 0.35);
@@ -25307,19 +25307,26 @@ body:has(.faction-page) .site-footer {
   min-height: 1.3em;
   margin: 0 0 8px;
 }
-.market-case-loot-head,
+.market-case-loot-head {
+  flex: 0 0 auto;
+}
 .market-case-actions {
   flex: 0 0 auto;
+  margin-top: auto;
+  padding-top: 8px;
+  background: linear-gradient(180deg, transparent, rgba(13, 18, 16, 0.92) 30%);
 }
 .market-case-loot-scroll {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-height: 110px;
+  max-height: 170px;
 }
-@media (max-width: 860px) {
+@media (max-width: 980px) {
   .market-case-dialog {
     grid-template-columns: 1fr;
-    width: min(100vw - 16px, 640px);
-    height: min(92vh, 860px);
-    max-height: min(92vh, 860px);
+    width: min(100vw - 12px, 720px);
+    height: min(94vh, 900px);
+    max-height: min(94vh, 900px);
   }
   .market-case-log {
     border-right: none;
