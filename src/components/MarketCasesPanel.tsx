@@ -287,7 +287,7 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
           <h2>Кейсы Сада</h2>
           <p>
             Два ящика — фракционный за Черничный доллар и общий за BBC. Шансы
-            видны до открытия. Около половины круток — пусто.
+            видны до открытия. Вместо пустоты — мелкая валюта кейса.
           </p>
         </div>
       </div>
@@ -319,7 +319,7 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
               <span className="market-case-blurb">{c.blurb}</span>
               <span className="market-case-price">{priceLabel(c)}</span>
               <span className="market-case-hint">
-                Пусто ~{Math.round(c.nothingChancePct)}%
+                {c.currency === "BD" ? "мелочь 500–2000 $" : "мелочь 50–200 BBC"}
               </span>
             </button>
           </li>

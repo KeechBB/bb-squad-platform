@@ -216,6 +216,20 @@ export async function getPersonalBdBalance(userId: string): Promise<number> {
   return Math.max(0, u?.blueberryBalance || 0);
 }
 
+export async function creditPersonalBd(opts: {
+  userId: string;
+  amount: number;
+}): Promise<{ ok: true; balance: number } | { ok: false; error: string }> {
+  const amount = Math.trunc(opts.amount);
+  if (amount < 1) return { ok: false, error: "zero" };
+  const u = await prisma.user.update({
+    where: { id: opts.userId },
+    data: { blueberryBalance: { increment: amount } },
+    select: { blueberryBalance: true },
+  });
+  return { ok: true, balance: Math.max(0, u.blueberryBalance || 0) };
+}
+
 /**
  * Глава/зам дарит B$ участнику: списание с казны → на личный баланс.
  */

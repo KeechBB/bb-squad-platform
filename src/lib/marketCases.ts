@@ -15,10 +15,7 @@ import { MARKET_BG_ORDER } from "@/lib/marketBgIds";
 import { resolveListingPrice } from "@/lib/marketListingPrices";
 import { chargeMarketBuy, hasInfiniteMarketWallet } from "@/lib/marketCharge";
 import { creditBbCoins } from "@/lib/bbCoins";
-import {
-  creditFactionBd,
-  getFactionPayCtx,
-} from "@/lib/marketFactionPay";
+import { creditPersonalBd } from "@/lib/marketFactionPay";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
 import { prisma } from "@/lib/prisma";
 import {
@@ -78,14 +75,31 @@ export const CASE_LEGENDARY_PITY = 100;
 export const CASE_LEGENDARY_SELL = 50_000;
 export const CASE_GP_SELL = 40_000;
 
-/** Валютные джекпоты в обоих кейсах (0.01% каждый). */
+/** Валютные джекпоты (0.01%) — в кейсе своей валюты. */
 export const CASE_CASH_BBC_ID = "cash-bbc-20000";
 export const CASE_CASH_BBC_AMOUNT = 20_000;
 export const CASE_CASH_BD_ID = "cash-bd-1000000";
 export const CASE_CASH_BD_AMOUNT = 1_000_000;
 export const CASE_JACKPOT_SHARE = 0.0001; // 0.01%
 
-export const NOTHING_SHARE = 0.5;
+/**
+ * Вместо «пусто»: мелкие суммы валюты кейса.
+ * BBC: 50→50%, 100→30%, 200→15%. BD: 500→50%, 1000→30%, 2000→15%.
+ * Остаток ~5% — скины/фоны (+ ультра/immortal/джекпот поверх).
+ */
+export const CASE_FILLER_BBC: { id: string; amount: number; chancePct: number }[] =
+  [
+    { id: "cash-bbc-50", amount: 50, chancePct: 50 },
+    { id: "cash-bbc-100", amount: 100, chancePct: 30 },
+    { id: "cash-bbc-200", amount: 200, chancePct: 15 },
+  ];
+export const CASE_FILLER_BD: { id: string; amount: number; chancePct: number }[] =
+  [
+    { id: "cash-bd-500", amount: 500, chancePct: 50 },
+    { id: "cash-bd-1000", amount: 1000, chancePct: 30 },
+    { id: "cash-bd-2000", amount: 2000, chancePct: 15 },
+  ];
+
 /** Жёсткий потолок на ультра (< 1%). */
 export const ULTRA_MAX_SHARE = 0.009;
 
@@ -175,22 +189,52 @@ async function loadCasePool(currency: MarketCurrency): Promise<RawItem[]> {
   return out;
 }
 
-/** Собрать таблицу шансов (сумма ≈ 100). */
-export function buildLootChances(pool: RawItem[]): CaseLootEntry[] {
+function fillerCashEntry(
+  currency: MarketCurrency,
+  id: string,
+  amount: number,
+  chancePct: number
+): CaseLootEntry {
+  const isBbc = currency === "BBC";
+  return {
+    key: `currency:${id}`,
+    kind: "currency",
+    itemId: id,
+    title: isBbc
+      ? `${amount.toLocaleString("ru-RU")} BBC`
+      : `${amount.toLocaleString("ru-RU")} ${BD_MARK}`,
+    image: isBbc
+      ? "/market-cases/case-loot-bbc-20k.png"
+      : "/market-cases/case-loot-bd-1m.png",
+    price: amount,
+    sellPrice: amount,
+    sellCurrency: currency,
+    amount,
+    chancePct,
+  };
+}
+
+/** Собрать таблицу шансов (сумма ≈ 100). Без пустых — мелочь валюты вместо них. */
+export function buildLootChances(
+  pool: RawItem[],
+  currency: MarketCurrency
+): CaseLootEntry[] {
+  const fillers = currency === "BBC" ? CASE_FILLER_BBC : CASE_FILLER_BD;
+  const fillerPctSum = fillers.reduce((a, f) => a + f.chancePct, 0);
+  const fillerShare = fillerPctSum / 100;
+
+  const entries: CaseLootEntry[] = fillers.map((f) =>
+    fillerCashEntry(currency, f.id, f.amount, f.chancePct)
+  );
+
   if (pool.length === 0) {
-    return [
-      {
-        key: "empty",
-        kind: "empty",
-        itemId: null,
-        title: "Пусто",
-        image: null,
-        price: 0,
-        sellPrice: 0,
-        sellCurrency: null,
-        chancePct: 100,
-      },
-    ];
+    // Только валюта — дотянуть до 100 на самый частый филлер.
+    const sum = entries.reduce((a, e) => a + e.chancePct, 0);
+    if (entries[0] && Math.abs(sum - 100) > 0.05) {
+      entries[0].chancePct =
+        Math.round((entries[0].chancePct + (100 - sum)) * 100) / 100;
+    }
+    return entries.sort((a, b) => b.chancePct - a.chancePct);
   }
 
   const ultra = pool.filter((p) => CASE_ULTRA_ITEM_IDS.has(p.itemId));
@@ -198,27 +242,13 @@ export function buildLootChances(pool: RawItem[]): CaseLootEntry[] {
 
   const ultraEach = Math.min(
     ULTRA_MAX_SHARE,
-    ultra.length ? NOTHING_SHARE / (ultra.length + 2) : 0
+    ultra.length ? (1 - fillerShare) / (ultra.length + 4) : 0
   );
   const ultraTotal = ultraEach * ultra.length;
-  const itemsShare = Math.max(0.05, 1 - NOTHING_SHARE - ultraTotal);
-  const nothingShare = 1 - itemsShare - ultraTotal;
+  const itemsShare = Math.max(0.01, 1 - fillerShare - ultraTotal);
 
   const invWeights = normal.map((p) => 1 / Math.max(1, p.price));
   const invSum = invWeights.reduce((a, b) => a + b, 0) || 1;
-
-  const entries: CaseLootEntry[] = [];
-  entries.push({
-    key: "empty",
-    kind: "empty",
-    itemId: null,
-    title: "Пусто",
-    image: null,
-    price: 0,
-    sellPrice: 0,
-    sellCurrency: null,
-    chancePct: Math.round(nothingShare * 10000) / 100,
-  });
 
   for (const u of ultra) {
     entries.push({
@@ -250,11 +280,11 @@ export function buildLootChances(pool: RawItem[]): CaseLootEntry[] {
     });
   }
 
-  // Нормализация до 100 из‑за округления
+  // Нормализация до 100 — на самый частый филлер (50 / 500).
   const sum = entries.reduce((a, e) => a + e.chancePct, 0);
-  if (sum > 0 && Math.abs(sum - 100) > 0.05) {
-    const empty = entries.find((e) => e.kind === "empty");
-    if (empty) empty.chancePct = Math.round((empty.chancePct + (100 - sum)) * 100) / 100;
+  if (sum > 0 && Math.abs(sum - 100) > 0.05 && entries[0]) {
+    entries[0].chancePct =
+      Math.round((entries[0].chancePct + (100 - sum)) * 100) / 100;
   }
 
   return entries.sort((a, b) => b.chancePct - a.chancePct);
@@ -344,17 +374,22 @@ export function injectCaseSpecials(
   ];
   const skip = new Set(specials.map((s) => s.itemId));
   const without = entries.filter((e) => !e.itemId || !skip.has(e.itemId));
-  const empty = without.find((e) => e.kind === "empty");
   const take = specials.reduce((a, s) => a + s.chancePct, 0);
-  if (empty) {
-    empty.chancePct = Math.round((empty.chancePct - take) * 100) / 100;
-    if (empty.chancePct < 0.01) empty.chancePct = 0.01;
+  // Списываем с самого частого филлера (50 BBC / 500 $), не с скинов.
+  const fillerIds = new Set(
+    (currency === "BBC" ? CASE_FILLER_BBC : CASE_FILLER_BD).map((f) => f.id)
+  );
+  const pad = without
+    .filter((e) => e.kind === "currency" && e.itemId && fillerIds.has(e.itemId))
+    .sort((a, b) => b.chancePct - a.chancePct)[0];
+  if (pad) {
+    pad.chancePct = Math.round((pad.chancePct - take) * 100) / 100;
+    if (pad.chancePct < 0.01) pad.chancePct = 0.01;
   }
   const next = [...without, ...specials];
   const sum = next.reduce((a, e) => a + e.chancePct, 0);
-  if (empty && Math.abs(sum - 100) > 0.05) {
-    empty.chancePct =
-      Math.round((empty.chancePct + (100 - sum)) * 100) / 100;
+  if (pad && Math.abs(sum - 100) > 0.05) {
+    pad.chancePct = Math.round((pad.chancePct + (100 - sum)) * 100) / 100;
   }
   return next.sort((a, b) => b.chancePct - a.chancePct);
 }
@@ -363,7 +398,7 @@ export async function getCaseLootTable(caseId: MarketCaseId): Promise<CaseLootEn
   const def = getMarketCase(caseId);
   if (!def) return [];
   const pool = await loadCasePool(def.currency);
-  return injectCaseSpecials(buildLootChances(pool), def.currency);
+  return injectCaseSpecials(buildLootChances(pool, def.currency), def.currency);
 }
 
 async function countCaseOpens(userId: string, caseId: MarketCaseId): Promise<number> {
@@ -422,10 +457,6 @@ export function buildRouletteStrip(
       e.itemId === CASE_GP_PATCH_ID
     ) {
       n = Math.max(3, n);
-    } else if (e.kind === "empty") {
-      // Чуть меньше пустоты на ленте → больше разного оружия.
-      n = Math.max(1, Math.round(n * 0.65));
-    }
     for (let i = 0; i < n; i++) weighted.push(e);
   }
   if (!weighted.length) weighted.push(entries[0]);
@@ -501,27 +532,19 @@ export async function openMarketCase(opts: {
     await writeNickPatchesCache().catch(() => null);
   } else if (result.kind === "bg" && result.itemId) {
     await addBgQty(opts.userId, result.itemId, 1);
-  } else if (result.kind === "currency" && result.itemId) {
+  } else if (result.kind === "currency") {
     const amt = Math.max(0, Math.trunc(result.amount || result.sellPrice || 0));
-    if (result.itemId === CASE_CASH_BBC_ID && amt > 0) {
+    if (amt > 0 && result.sellCurrency === "BBC") {
       await creditBbCoins({
         userId: opts.userId,
         amount: amt,
         kind: "case_drop",
-        ref: `${def.id}:${CASE_CASH_BBC_ID}:${Date.now()}`,
+        ref: `${def.id}:${result.itemId || "bbc"}:${Date.now()}`,
         note: `Дроп из кейса «${def.name}»: +${amt.toLocaleString("ru-RU")} BBC`,
       });
-    } else if (result.itemId === CASE_CASH_BD_ID && amt > 0) {
-      const ctx = await getFactionPayCtx(opts.userId, opts.steamId);
-      if (ctx) {
-        await creditFactionBd({
-          factionId: ctx.factionId,
-          amount: amt,
-          userId: opts.userId,
-          note: `Дроп из кейса «${def.name}»: +${amt.toLocaleString("ru-RU")} ${BD_MARK}`,
-          sourceKey: `case_drop:${def.id}:${CASE_CASH_BD_ID}:${opts.userId}:${Date.now()}`,
-        });
-      }
+    } else if (amt > 0 && result.sellCurrency === "BD") {
+      // Мелочь и джекпот B$ — на личный баланс открывшего.
+      await creditPersonalBd({ userId: opts.userId, amount: amt });
     }
   }
 
@@ -587,7 +610,7 @@ export async function listMarketCasesPayload() {
     cases.push({
       ...def,
       loot,
-      nothingChancePct: loot.find((e) => e.kind === "empty")?.chancePct ?? 50,
+      nothingChancePct: 0,
     });
   }
   return cases;
