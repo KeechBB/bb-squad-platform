@@ -484,19 +484,20 @@ export function MarketplaceClient({ loggedIn }: Props) {
                     : `${factionBalance.toLocaleString("ru-RU")} $`}
               </strong>
             </section>
-            <section
-              className="market-balance market-balance--personal-bd"
-              aria-live="polite"
-            >
-              <span className="muted">Мой баланс Черничного доллара</span>
-              <strong>
-                {infiniteWallet
-                  ? "∞ $"
-                  : personalBdBalance == null
+            {/* Глава/зам тратят из казны — личный B$ им не показываем. */}
+            {!canSpendBd ? (
+              <section
+                className="market-balance market-balance--personal-bd"
+                aria-live="polite"
+              >
+                <span className="muted">Мой баланс Черничного доллара</span>
+                <strong>
+                  {personalBdBalance == null
                     ? "…"
                     : `${personalBdBalance.toLocaleString("ru-RU")} $`}
-              </strong>
-            </section>
+                </strong>
+              </section>
+            ) : null}
             {canSpendBd ? (
               <button
                 type="button"
