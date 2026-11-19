@@ -61,7 +61,7 @@ export const MARKET_CASES: MarketCaseDef[] = [
     blurb: "Серия I · фракционный ящик за Черничный доллар (казна)",
     currency: "BD",
     currencyLabel: `${BD_NAME} (${BD_MARK})`,
-    price: 3000,
+    price: 5000,
     image: "/market-cases/case-faction-sad.jpg",
   },
   {
