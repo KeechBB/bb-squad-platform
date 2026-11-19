@@ -30,7 +30,7 @@ export const PROFILE_PATCH_OPTIONS = [
     id: "creator-svd-faction-lord",
     file: "svd-faction-lord-v1.png",
     label: "СВД «Повелитель фракций»",
-    tip: "СВД «Повелитель фракций» · Легендарный скин · пока только у капитана",
+    tip: "СВД «Повелитель фракций» · Легендарный дроп из кейсов Сада (0.01%, pity 100)",
     gate: "creator" as const,
   },
   {
@@ -197,7 +197,11 @@ export function profilePatchChoicesFor(opts: {
     }
     const gate = gateOf(opt);
     if (gate === "creator") {
-      if (opt.id === "creator-fruit-strike-ak-v2" && unlocks.has(opt.id)) {
+      if (
+        (opt.id === "creator-fruit-strike-ak-v2" ||
+          opt.id === "creator-svd-faction-lord") &&
+        unlocks.has(opt.id)
+      ) {
         return true;
       }
       return opts.steamId === SITE_CREATOR_STEAM_ID;

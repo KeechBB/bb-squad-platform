@@ -6,7 +6,11 @@ import { prisma } from "@/lib/prisma";
 import { MARKET_PATCH_IDS, MARKET_PATCH_ORDER } from "@/lib/marketPatchIds";
 
 async function syncUnlockFlag(userId: string, patchId: string, qty: number) {
-  if (!MARKET_PATCH_IDS.has(patchId)) return;
+  // Маркет-id + легендарка из кейсов (не в магазине).
+  const caseOnly =
+    patchId === "creator-svd-faction-lord" ||
+    patchId === "creator-fruit-strike-ak-v2";
+  if (!MARKET_PATCH_IDS.has(patchId) && !caseOnly) return;
   const u = await prisma.user.findUnique({
     where: { id: userId },
     select: { unlockedNickPatches: true, nickPatch: true },

@@ -14,6 +14,10 @@ import { chargeMarketBuy, hasInfiniteMarketWallet } from "@/lib/marketCharge";
 import { isBuiltinSuperAdmin } from "@/lib/admin";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
 import { prisma } from "@/lib/prisma";
+import {
+  PROFILE_PATCH_OPTIONS,
+  type ProfilePatchId,
+} from "@/lib/profilePatches";
 import type { MarketCurrency, ResolvedListingPrice } from "@/lib/marketListingPrices";
 import { BD_MARK, BD_NAME } from "@/lib/blueberryDollar";
 
@@ -51,6 +55,16 @@ export const CASE_ULTRA_ITEM_IDS = new Set([
   "bp-l15-keech",
   "creator-orange-phantom",
 ]);
+
+/** Легендарка только в кейсах (не в магазине). */
+export const CASE_LEGENDARY_PATCH_ID =
+  "creator-svd-faction-lord" as const satisfies ProfilePatchId;
+/** 0.01% базовый шанс. */
+export const CASE_LEGENDARY_SHARE = 0.0001;
+/** Гарантия на N-й крутке кейса (pity). */
+export const CASE_LEGENDARY_PITY = 100;
+/** Оценка продажи для ROI в логе (ещё не в магазине). */
+export const CASE_LEGENDARY_SELL = 1_000_000;
 
 export const NOTHING_SHARE = 0.5;
 /** Жёсткий потолок на ультра (< 1%). */
@@ -222,11 +236,74 @@ export function buildLootChances(pool: RawItem[]): CaseLootEntry[] {
   return entries.sort((a, b) => b.chancePct - a.chancePct);
 }
 
+function legendaryLootEntry(currency: MarketCurrency): CaseLootEntry {
+  const opt = PROFILE_PATCH_OPTIONS.find(
+    (o) => o.id === CASE_LEGENDARY_PATCH_ID
+  );
+  const title = opt?.label || "СВД «Повелитель фракций»";
+  const file = opt?.file || "svd-faction-lord-v1.png";
+  return {
+    key: `patch:${CASE_LEGENDARY_PATCH_ID}`,
+    kind: "patch",
+    itemId: CASE_LEGENDARY_PATCH_ID,
+    title,
+    image: `/bp-assets/${file}`,
+    price: CASE_LEGENDARY_SELL,
+    sellPrice: CASE_LEGENDARY_SELL,
+    sellCurrency: currency,
+    chancePct: Math.round(CASE_LEGENDARY_SHARE * 10000) / 100,
+  };
+}
+
+/** Вшивает легендарку в оба кейса с фиксированным шансом 0.01%. */
+export function injectCaseLegendary(
+  entries: CaseLootEntry[],
+  currency: MarketCurrency
+): CaseLootEntry[] {
+  const legendary = legendaryLootEntry(currency);
+  const without = entries.filter((e) => e.itemId !== CASE_LEGENDARY_PATCH_ID);
+  const empty = without.find((e) => e.kind === "empty");
+  if (empty) {
+    empty.chancePct =
+      Math.round((empty.chancePct - legendary.chancePct) * 100) / 100;
+    if (empty.chancePct < 0.01) empty.chancePct = 0.01;
+  }
+  const next = [...without, legendary];
+  const sum = next.reduce((a, e) => a + e.chancePct, 0);
+  if (empty && Math.abs(sum - 100) > 0.05) {
+    empty.chancePct =
+      Math.round((empty.chancePct + (100 - sum)) * 100) / 100;
+  }
+  return next.sort((a, b) => b.chancePct - a.chancePct);
+}
+
 export async function getCaseLootTable(caseId: MarketCaseId): Promise<CaseLootEntry[]> {
   const def = getMarketCase(caseId);
   if (!def) return [];
   const pool = await loadCasePool(def.currency);
-  return buildLootChances(pool);
+  return injectCaseLegendary(buildLootChances(pool), def.currency);
+}
+
+async function countCaseOpens(userId: string, caseId: MarketCaseId): Promise<number> {
+  const rows = await prisma.actionLog.findMany({
+    where: {
+      category: "cases",
+      action: "case_open",
+      actorId: userId,
+    },
+    select: { meta: true },
+    take: 5000,
+    orderBy: { createdAt: "desc" },
+  });
+  let n = 0;
+  for (const r of rows) {
+    const meta =
+      r.meta && typeof r.meta === "object" && !Array.isArray(r.meta)
+        ? (r.meta as Record<string, unknown>)
+        : null;
+    if (meta?.caseId === caseId) n += 1;
+  }
+  return n;
 }
 
 function pickWeighted(entries: CaseLootEntry[], rnd = Math.random()): CaseLootEntry {
@@ -310,7 +387,13 @@ export async function openMarketCase(opts: {
   });
   if (!charged.ok) return charged;
 
-  const result = pickWeighted(table);
+  const opensBefore = await countCaseOpens(opts.userId, def.id);
+  const pityHit =
+    CASE_LEGENDARY_PITY > 0 &&
+    (opensBefore + 1) % CASE_LEGENDARY_PITY === 0;
+  const legendary = table.find((e) => e.itemId === CASE_LEGENDARY_PATCH_ID);
+  const result =
+    pityHit && legendary ? legendary : pickWeighted(table);
   const landIndex = 52;
   const strip = buildRouletteStrip(table, result, { length: 64, landIndex });
 
@@ -358,6 +441,8 @@ export async function openMarketCase(opts: {
       dropSellCurrency: result.sellCurrency,
       chancePct: result.chancePct,
       infiniteWallet: hasInfiniteMarketWallet(opts.steamId),
+      pity: pityHit && result.itemId === CASE_LEGENDARY_PATCH_ID,
+      openIndex: opensBefore + 1,
     },
   });
 
