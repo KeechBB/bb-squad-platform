@@ -9,7 +9,10 @@ import {
   type MarketPatchCard,
 } from "@/lib/bbCoinPatchPrices";
 import { dailyMarketDeals } from "@/lib/bbCoinDailyDeals";
-import { MARKET_PATCH_ORDER } from "@/lib/marketPatchIds";
+import {
+  isMarketSellOnlyPatch,
+  MARKET_PATCH_ORDER,
+} from "@/lib/marketPatchIds";
 import { SITE_CREATOR_STEAM_ID } from "@/lib/profileBg";
 import { isBuiltinSuperAdmin } from "@/lib/admin";
 import { writeNickPatchesCache } from "@/lib/nickPatchesCache";
@@ -93,9 +96,10 @@ export async function loadMarketPatchCatalog(opts: {
       mine: myQty,
       total: total.get(id) || 0,
       owned: myQty > 0,
-      deal: price.deal,
+      deal: isMarketSellOnlyPatch(id) ? null : price.deal,
       dealDay: deals.day,
       currency: price.currency,
+      buyDisabled: isMarketSellOnlyPatch(id),
     });
   }
   return cards;
@@ -119,6 +123,9 @@ export async function buyMarketPatch(opts: {
 > {
   if (!isProfilePatchId(opts.patchId)) {
     return { ok: false, error: "patch" };
+  }
+  if (isMarketSellOnlyPatch(opts.patchId)) {
+    return { ok: false, error: "buy_disabled" };
   }
   const price = await resolveListingPrice("patch", opts.patchId);
   if (!price) return { ok: false, error: "patch" };

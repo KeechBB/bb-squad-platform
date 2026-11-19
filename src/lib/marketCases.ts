@@ -7,7 +7,10 @@ import { addPatchQty } from "@/lib/nickPatchStock";
 import { writeNickPatchesCache } from "@/lib/nickPatchesCache";
 import { marketPatchMeta, patchDefaultCurrency } from "@/lib/bbCoinPatchPrices";
 import { marketBgMeta } from "@/lib/bbCoinBgPrices";
-import { MARKET_PATCH_ORDER } from "@/lib/marketPatchIds";
+import {
+  isMarketSellOnlyPatch,
+  MARKET_PATCH_ORDER,
+} from "@/lib/marketPatchIds";
 import { MARKET_BG_ORDER } from "@/lib/marketBgIds";
 import { resolveListingPrice } from "@/lib/marketListingPrices";
 import { chargeMarketBuy, hasInfiniteMarketWallet } from "@/lib/marketCharge";
@@ -130,6 +133,8 @@ type RawItem = {
 async function loadCasePool(currency: MarketCurrency): Promise<RawItem[]> {
   const out: RawItem[] = [];
   for (const id of MARKET_PATCH_ORDER) {
+    // Легендарки кейса — только через injectCaseSpecials (0.01%), не в общем пуле.
+    if (isMarketSellOnlyPatch(id)) continue;
     const price = await resolveListingPrice("patch", id);
     // Фракционные нашивки всегда в кейсе казны, даже если листинг сдвинули.
     const cur = id.startsWith("bd-faction-")

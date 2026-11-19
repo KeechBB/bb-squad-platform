@@ -25972,6 +25972,10 @@ body:has(.faction-page) .site-footer {
   opacity: 0.4;
   cursor: not-allowed;
 }
+.market-price-buy.is-buy-disabled {
+  opacity: 0.38;
+  filter: grayscale(0.35);
+}
 .market-price-buy:not(:disabled):hover,
 .market-price-sell:not(:disabled):hover {
   background: rgba(255, 255, 255, 0.04);

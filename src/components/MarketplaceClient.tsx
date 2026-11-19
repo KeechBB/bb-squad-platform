@@ -60,6 +60,8 @@ type PatchCard = {
   owned: boolean;
   deal?: "discount" | "markup" | "sellboost" | null;
   currency?: "BBC" | "BD";
+  /** Кейсовые легендарки: только продажа. */
+  buyDisabled?: boolean;
 };
 
 type BgCard = PatchCard;
@@ -647,9 +649,19 @@ export function MarketplaceClient({ loggedIn }: Props) {
                     <div className="market-patch-prices">
                       <button
                         type="button"
-                        className="market-price-buy"
-                        disabled={Boolean(busy)}
-                        onClick={() => void patchAction(p.id, "buy")}
+                        className={`market-price-buy${
+                          p.buyDisabled ? " is-buy-disabled" : ""
+                        }`}
+                        disabled={Boolean(busy) || Boolean(p.buyDisabled)}
+                        title={
+                          p.buyDisabled
+                            ? "Только из кейсов Сада — купить нельзя"
+                            : undefined
+                        }
+                        onClick={() => {
+                          if (p.buyDisabled) return;
+                          void patchAction(p.id, "buy");
+                        }}
                       >
                         <span className="muted">купить</span>
                         <strong>

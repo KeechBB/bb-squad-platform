@@ -19,6 +19,8 @@ export const PATCH_MARKET_TITLE: Record<MarketPatchId, string> = {
   "bp-l15-keech": "M4A1 «Золотой стандарт»",
   "creator-orange-phantom": "Протокол: Оранжевый призрак",
   "creator-fruit-strike-ak-v2": "АК «Цитрусовый шторм»",
+  "creator-svd-faction-lord": "СВД «Повелитель фракций»",
+  "creator-gp-drum-berry-lore": "РГ-6 «Ягодный барабан»",
   "hw2-knife-hook": "Крюк «Жнец сада»",
   "hw2-ak-pumpkin": "АК «Тыквенный магазин»",
   "creator-event-scar-lemon": "АК-74 «Лимонный шквал»",
@@ -37,6 +39,8 @@ export const PATCH_MARKET_SOURCE: Record<MarketPatchId, string> = {
   "bp-l15-keech": "Battle Pass · L15",
   "creator-orange-phantom": "Скрытая награда",
   "creator-fruit-strike-ak-v2": "Турнир Fruit Strike · 2 место",
+  "creator-svd-faction-lord": "Кейс Сада · 0.01%",
+  "creator-gp-drum-berry-lore": "Кейс Сада · 0.01%",
   "hw2-knife-hook": "Halloween BP S2 · L5",
   "hw2-ak-pumpkin": "Halloween BP S2 · L20",
   "creator-event-scar-lemon": "Ивент дня · 50 ресов",
@@ -50,11 +54,15 @@ export const PATCH_MARKET_SOURCE: Record<MarketPatchId, string> = {
   "bd-faction-uley-pkm": "$ · Фракция Улей",
 };
 
-/** Цена «купить» (BBC или $, см. patchDefaultCurrency). */
+/** Цена «купить» (BBC или $, см. patchDefaultCurrency). Sell = 80%. */
 export const PATCH_BUY_PRICES_BBC: Record<MarketPatchId, number> = {
   "bp-l15-keech": 4000,
   "creator-orange-phantom": 4500,
   "creator-fruit-strike-ak-v2": 1800,
+  /** Купить недоступно; sell = 50 000 BBC. */
+  "creator-svd-faction-lord": 62_500,
+  /** Купить недоступно; sell = 40 000 BBC. */
+  "creator-gp-drum-berry-lore": 50_000,
   "hw2-knife-hook": 300,
   "hw2-ak-pumpkin": 1200,
   "creator-event-scar-lemon": 500,
@@ -100,6 +108,8 @@ export type MarketPatchCard = {
   deal: "discount" | "markup" | "sellboost" | null;
   dealDay?: string;
   currency: "BBC" | "BD";
+  /** Только продажа — кнопка купить неактивна. */
+  buyDisabled?: boolean;
 };
 
 export function marketPatchMeta(id: MarketPatchId) {

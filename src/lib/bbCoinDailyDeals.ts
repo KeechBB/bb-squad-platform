@@ -5,7 +5,11 @@
  * — третье: продать +20% (зелёная лента)
  * Три разных id, детерминированно от даты.
  */
-import { MARKET_PATCH_ORDER, type MarketPatchId } from "@/lib/marketPatchIds";
+import {
+  MARKET_PATCH_ORDER,
+  MARKET_SELL_ONLY_PATCH_IDS,
+  type MarketPatchId,
+} from "@/lib/marketPatchIds";
 import {
   PATCH_SELL_OF_BUY,
   patchBuyPriceBbc,
@@ -36,8 +40,10 @@ function hashYmd(ymd: string): number {
 
 /** Три разных id из каталога на сутки МСК (ротация в 00:00). */
 export function dailyMarketDeals(day = mskYmd()): DailyMarketDeals {
-  // Фракционные $ не крутим в дневных акциях BBC.
-  const pool = MARKET_PATCH_ORDER.filter((id) => !id.startsWith("bd-faction-"));
+  // Фракционные $ и sell-only кейсовые не крутим в дневных акциях.
+  const pool = MARKET_PATCH_ORDER.filter(
+    (id) => !id.startsWith("bd-faction-") && !MARKET_SELL_ONLY_PATCH_IDS.has(id)
+  );
   const n = pool.length;
   if (n === 0) {
     throw new Error("empty market catalog");
