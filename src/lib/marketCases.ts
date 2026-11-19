@@ -450,13 +450,14 @@ export function buildRouletteStrip(
   for (const e of entries) {
     let n = Math.max(1, Math.round(e.chancePct));
     if (e.kind === "currency") {
-      // Редко мелькают на ленте (~чуть чаще 0.01%, без доминации).
-      n = Math.max(4, n);
+      // Филлеры (50/100/…) уже имеют большие % — на ленте по шансу.
+      n = Math.max(1, Math.round(e.chancePct));
     } else if (
       e.itemId === CASE_LEGENDARY_PATCH_ID ||
       e.itemId === CASE_GP_PATCH_ID
     ) {
       n = Math.max(3, n);
+    }
     for (let i = 0; i < n; i++) weighted.push(e);
   }
   if (!weighted.length) weighted.push(entries[0]);
