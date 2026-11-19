@@ -80,8 +80,11 @@ export const CASE_RPG_PATCH_ID =
 export const CASE_LEGENDARY_SHARE = 0.0001;
 /** РПГ-7 «Урожайный удар» — только BD-кейс. */
 export const CASE_RPG_SHARE = 0.0005; // 0.05%
-/** Шрифты ника — только BBC-кейс, по 1.5% каждый. */
-export const CASE_FONT_SHARE = 0.015;
+/** Шрифты ника — только BBC-кейс. Дороже → выше шанс. */
+export const CASE_FONT_SHARE_BY_ID: Record<string, number> = {
+  "bp-l10-aurum-clean": 0.035, // 3.5% · 3000 BBC
+  "hw2-violet-gothic": 0.03, // 3% · 2500 BBC
+};
 /** Гарантия на N-й крутке кейса (pity) — только СВД. */
 export const CASE_LEGENDARY_PITY = 100;
 /** Оценка продажи для ROI в логе (ещё не в магазине). */
@@ -366,9 +369,9 @@ function rpgOrchardLootEntry(): CaseLootEntry {
 }
 
 function fontCaseLootEntries(): CaseLootEntry[] {
-  const chancePct = Math.round(CASE_FONT_SHARE * 10000) / 100;
   return MARKET_FONT_ORDER.map((id) => {
     const meta = marketFontMeta(id);
+    const share = CASE_FONT_SHARE_BY_ID[id] ?? 0.03;
     return {
       key: `font:${id}`,
       kind: "font" as const,
@@ -379,7 +382,7 @@ function fontCaseLootEntries(): CaseLootEntry[] {
       price: meta.buy,
       sellPrice: meta.sell,
       sellCurrency: "BBC" as const,
-      chancePct,
+      chancePct: Math.round(share * 10000) / 100,
     };
   });
 }
