@@ -289,7 +289,7 @@ function gpDrumLootEntry(): CaseLootEntry {
     CASE_GP_PATCH_ID,
     CASE_GP_SELL,
     "РГ-6 «Ягодный барабан»",
-    "gp-drum-berry-lore-v1.png"
+    "gp-drum-berry-lore-v2.png"
   );
 }
 

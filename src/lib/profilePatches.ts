@@ -35,7 +35,7 @@ export const PROFILE_PATCH_OPTIONS = [
   },
   {
     id: "creator-gp-drum-berry-lore",
-    file: "gp-drum-berry-lore-v1.png",
+    file: "gp-drum-berry-lore-v2.png",
     label: "РГ-6 «Ягодный барабан»",
     tip: "РГ-6 «Ягодный барабан» · Легендарный дроп из кейсов Сада (0.01%) · продажа ≈ 40 000 BBC",
     gate: "creator" as const,
