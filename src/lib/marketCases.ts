@@ -64,14 +64,26 @@ export const CASE_GP_PATCH_ID =
 export const CASE_RPG_PATCH_ID =
   "creator-rpg7-orchard-harvest" as const satisfies ProfilePatchId;
 /**
- * Гарантия на N-й крутке кейса (pity) для Immortal:
- * каждые 100 открытий — либо СВД, либо ГП (случайный выбор).
+ * Pity Immortal (СВД / ГП): порог каждый раз рандом 80–150 открытий.
+ * Следующая цель пишется в meta.pityNextAt лога открытия.
  */
+export const CASE_PITY_GAP_MIN = 80;
+export const CASE_PITY_GAP_MAX = 150;
+/** @deprecated порог больше не фиксированный */
 export const CASE_LEGENDARY_PITY = 100;
 export const CASE_PITY_PATCH_IDS = [
   CASE_LEGENDARY_PATCH_ID,
   CASE_GP_PATCH_ID,
 ] as const;
+
+function rollPityGap(): number {
+  return (
+    CASE_PITY_GAP_MIN +
+    Math.floor(
+      Math.random() * (CASE_PITY_GAP_MAX - CASE_PITY_GAP_MIN + 1)
+    )
+  );
+}
 /** Цена для весов шанса (продажа / оценка). */
 export const CASE_LEGENDARY_SELL = 50_000;
 export const CASE_GP_SELL = 40_000;
@@ -421,6 +433,33 @@ async function countCaseOpens(userId: string, caseId: MarketCaseId): Promise<num
   return n;
 }
 
+/** Последний pityNextAt по этому кейсу (абсолютный номер открытия). */
+async function readPityNextAt(
+  userId: string,
+  caseId: MarketCaseId
+): Promise<number | null> {
+  const rows = await prisma.actionLog.findMany({
+    where: {
+      category: "cases",
+      action: "case_open",
+      actorId: userId,
+    },
+    select: { meta: true },
+    take: 80,
+    orderBy: { createdAt: "desc" },
+  });
+  for (const r of rows) {
+    const meta =
+      r.meta && typeof r.meta === "object" && !Array.isArray(r.meta)
+        ? (r.meta as Record<string, unknown>)
+        : null;
+    if (meta?.caseId !== caseId) continue;
+    const n = Number(meta.pityNextAt);
+    if (Number.isFinite(n) && n > 0) return Math.trunc(n);
+  }
+  return null;
+}
+
 function pickWeighted(entries: CaseLootEntry[], rnd = Math.random()): CaseLootEntry {
   const total = entries.reduce((a, e) => a + e.chancePct, 0);
   let r = rnd * total;
@@ -525,8 +564,12 @@ export async function openMarketCase(opts: {
 
   const opensBefore = await countCaseOpens(opts.userId, def.id);
   const openIndex = opensBefore + 1;
-  const pityHit =
-    CASE_LEGENDARY_PITY > 0 && openIndex % CASE_LEGENDARY_PITY === 0;
+  let pityNextAt = await readPityNextAt(opts.userId, def.id);
+  if (pityNextAt == null || pityNextAt <= opensBefore) {
+    // Первый круг или протухшая цель — новый рандомный зазор 80–150.
+    pityNextAt = opensBefore + rollPityGap();
+  }
+  const pityHit = openIndex >= pityNextAt;
   const pityPool = CASE_PITY_PATCH_IDS.map((id) =>
     table.find((e) => e.itemId === id)
   ).filter((e): e is CaseLootEntry => Boolean(e));
@@ -537,6 +580,10 @@ export async function openMarketCase(opts: {
       : null;
   const result =
     pityHit && pityPick ? pityPick : pickWeighted(table);
+  // После срабатывания — сразу новый случайный порог; иначе несём текущий.
+  const pityNextAtOut = pityHit
+    ? openIndex + rollPityGap()
+    : pityNextAt;
   const landIndex = 52;
   const strip = buildRouletteStrip(table, result, { length: 64, landIndex });
 
@@ -609,7 +656,9 @@ export async function openMarketCase(opts: {
           result.itemId &&
             (CASE_PITY_PATCH_IDS as readonly string[]).includes(result.itemId)
         ),
-      openIndex: opensBefore + 1,
+      openIndex,
+      pityNextAt: pityNextAtOut,
+      pityGapRolled: pityHit ? pityNextAtOut - openIndex : undefined,
     },
   });
 
