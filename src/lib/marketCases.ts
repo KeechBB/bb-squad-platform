@@ -66,8 +66,13 @@ export const CASE_ULTRA_ITEM_IDS = new Set([
   "bp-l15-keech",
   "creator-orange-phantom",
 ]);
-/** 1.9% на каждую ультра-нашивку (M4 / Призрак). */
-export const CASE_ULTRA_SHARE = 0.019;
+/**
+ * Суммарный шанс ультра (M4 + Призрак). Внутри — ∝ 1/цене:
+ * дешевле → выше % (M4 4000 > Призрак 4500).
+ */
+export const CASE_ULTRA_TOTAL_SHARE = 0.038;
+/** @deprecated равный шанс больше не используется */
+export const CASE_ULTRA_SHARE = CASE_ULTRA_TOTAL_SHARE / 2;
 
 /** Легендарки только в кейсах (не в магазине). */
 export const CASE_LEGENDARY_PATCH_ID =
@@ -80,10 +85,13 @@ export const CASE_RPG_PATCH_ID =
 export const CASE_LEGENDARY_SHARE = 0.0001;
 /** РПГ-7 «Урожайный удар» — только BD-кейс. */
 export const CASE_RPG_SHARE = 0.0005; // 0.05%
-/** Шрифты ника — только BBC-кейс. Дороже → выше шанс. */
+/**
+ * Шрифты ника — только BBC-кейс.
+ * Дешевле → выше шанс: Алая жатва 2500 → 3.5%, Aurum 3000 → 3%.
+ */
 export const CASE_FONT_SHARE_BY_ID: Record<string, number> = {
-  "bp-l10-aurum-clean": 0.035, // 3.5% · 3000 BBC
-  "hw2-violet-gothic": 0.03, // 3% · 2500 BBC
+  "hw2-violet-gothic": 0.035, // 3.5% · 2500 BBC
+  "bp-l10-aurum-clean": 0.03, // 3% · 3000 BBC
 };
 /** Гарантия на N-й крутке кейса (pity) — только СВД. */
 export const CASE_LEGENDARY_PITY = 100;
@@ -266,14 +274,21 @@ export function buildLootChances(
   const ultra = pool.filter((p) => CASE_ULTRA_ITEM_IDS.has(p.itemId));
   const normal = pool.filter((p) => !CASE_ULTRA_ITEM_IDS.has(p.itemId));
 
-  const ultraEach = ultra.length ? CASE_ULTRA_SHARE : 0;
-  const ultraTotal = ultraEach * ultra.length;
+  // Ультра: общий пул, доли ∝ 1/цене (дешевле — выше).
+  const ultraWeights = ultra.map((p) => 1 / Math.max(1, p.price));
+  const ultraWeightSum = ultraWeights.reduce((a, b) => a + b, 0) || 1;
+  const ultraTotal = ultra.length ? CASE_ULTRA_TOTAL_SHARE : 0;
   const itemsShare = Math.max(0.01, 1 - fillerShare - ultraTotal);
 
-  const invWeights = normal.map((p) => 1 / Math.max(1, p.price));
+  // Обычный пул: сильнее тянем к дешёвым (тыква дешевле цитруса → выше %).
+  const invWeights = normal.map(
+    (p) => 1 / Math.pow(Math.max(1, p.price), 1.35)
+  );
   const invSum = invWeights.reduce((a, b) => a + b, 0) || 1;
 
-  for (const u of ultra) {
+  for (let i = 0; i < ultra.length; i++) {
+    const u = ultra[i];
+    const share = ultraTotal * (ultraWeights[i] / ultraWeightSum);
     entries.push({
       key: u.key,
       kind: u.kind,
@@ -283,7 +298,7 @@ export function buildLootChances(
       price: u.price,
       sellPrice: u.sellPrice,
       sellCurrency: u.sellCurrency,
-      chancePct: Math.round(ultraEach * 10000) / 100,
+      chancePct: Math.round(share * 10000) / 100,
     });
   }
 
