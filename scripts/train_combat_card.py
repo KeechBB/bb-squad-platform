@@ -476,13 +476,29 @@ def main() -> None:
             doc = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
             doc = None
-        # Пустая заглушка (layer ещё не был / лог уехал) — не кэшируем навсегда.
         counts = (doc or {}).get("counts") if isinstance(doc, dict) else None
         players = (doc or {}).get("players") if isinstance(doc, dict) else None
-        if not isinstance(counts, dict) or int(counts.get("players") or 0) < 1 or not players:
-            doc = None
+        empty = (
+            not isinstance(counts, dict)
+            or int(counts.get("players") or 0) < 1
+            or not players
+        )
+        # Пустая заглушка при живом layer.log — пересобрать один раз.
+        # exhausted=true: лога уже нет / парсер пуст — не долбить диск на каждый клик.
+        if empty and not (isinstance(doc, dict) and doc.get("exhausted")):
+            layer_ok = False
+            found = find_slice(match_id)
+            if found:
+                layer = found[0] / "layer.log"
+                layer_ok = layer.is_file() and layer.stat().st_size >= 50_000
+            if layer_ok or force:
+                doc = None
     if doc is None:
         doc = build(match_id)
+        counts = doc.get("counts") or {}
+        if int(counts.get("players") or 0) < 1:
+            doc["exhausted"] = True
+            path.write_text(json.dumps(doc, ensure_ascii=False) + "\n", encoding="utf-8")
     if not nick:
         counts = doc.get("counts") or {}
         print(json.dumps({"ok": True, "id": match_id, "counts": counts}, ensure_ascii=False))
