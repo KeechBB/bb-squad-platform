@@ -24,6 +24,9 @@ const CASE_IMMORTAL_PATCH_IDS = new Set([
   "creator-rpg7-orchard-harvest",
 ]);
 
+/** РПГ: Immortal, но фон изумрудный — золотой сливается с узорами. */
+const CASE_ORCHARD_IMMORTAL_IDS = new Set(["creator-rpg7-orchard-harvest"]);
+
 /** Мелочь валюты (50/100/200 BBC · 500/1000/2000 $) — зелёный фон. */
 const CASE_FILLER_CASH_IDS = new Set([
   "cash-bbc-50",
@@ -40,6 +43,12 @@ function isImmortalLoot(e: Pick<LootEntry, "kind" | "itemId">): boolean {
   );
 }
 
+function isOrchardImmortalLoot(e: Pick<LootEntry, "kind" | "itemId">): boolean {
+  return Boolean(
+    e.kind === "patch" && e.itemId && CASE_ORCHARD_IMMORTAL_IDS.has(e.itemId)
+  );
+}
+
 function isFillerCashLoot(e: Pick<LootEntry, "kind" | "itemId">): boolean {
   return Boolean(
     e.kind === "currency" && e.itemId && CASE_FILLER_CASH_IDS.has(e.itemId)
@@ -49,6 +58,7 @@ function isFillerCashLoot(e: Pick<LootEntry, "kind" | "itemId">): boolean {
 function lootCellClass(e: Pick<LootEntry, "kind" | "itemId">): string {
   const extras = [
     isImmortalLoot(e) ? "is-immortal" : "",
+    isOrchardImmortalLoot(e) ? "is-orchard-immortal" : "",
     isFillerCashLoot(e) ? "is-filler-cash" : "",
   ]
     .filter(Boolean)
@@ -657,9 +667,7 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                   ×
                 </button>
                 <div
-                  className={`market-case-inspect-art kind-${inspect.kind}${
-                    isImmortalLoot(inspect) ? " is-immortal" : ""
-                  }`}
+                  className={`market-case-inspect-art ${lootCellClass(inspect)}`}
                 >
                   {inspect.image ? (
                     // eslint-disable-next-line @next/next/no-img-element
