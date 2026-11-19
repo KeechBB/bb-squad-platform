@@ -52,8 +52,8 @@ export const ULTRA_MAX_SHARE = 0.009;
 export const MARKET_CASES: MarketCaseDef[] = [
   {
     id: "faction-sad",
-    name: "Сад Фракции",
-    blurb: "Фракционный кейс · казна Черничного доллара",
+    name: "Жатва Черники · v1",
+    blurb: "Серия I · фракционный ящик за Черничный доллар (казна)",
     currency: "BD",
     currencyLabel: `${BD_NAME} (${BD_MARK})`,
     price: 3000,
@@ -61,8 +61,8 @@ export const MARKET_CASES: MarketCaseDef[] = [
   },
   {
     id: "bbc-urozhay",
-    name: "Урожай BlackBerry",
-    blurb: "Общий кейс · личные BB Coins",
+    name: "Первый Плод · v1",
+    blurb: "Серия I · общий ящик Сада за BB Coins",
     currency: "BBC",
     currencyLabel: "BBC",
     price: 500,
