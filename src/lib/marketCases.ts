@@ -91,14 +91,14 @@ export const CASE_JACKPOT_SHARE = 0.0001; // 0.01%
 
 /**
  * Вместо «пусто»: мелкие суммы валюты кейса (не стена баксов).
- * BBC: 50→18%, 100→10%, 200→7%. BD: 500→18%, 1000→10%, 2000→7%.
+ * BBC: 100→18%, 200→10%, 500→7%. BD: 500→18%, 1000→10%, 2000→7%.
  * Остаток ~65% — скины/фоны (+ ультра/immortal/джекпот поверх).
  */
 export const CASE_FILLER_BBC: { id: string; amount: number; chancePct: number }[] =
   [
-    { id: "cash-bbc-50", amount: 50, chancePct: 18 },
-    { id: "cash-bbc-100", amount: 100, chancePct: 10 },
-    { id: "cash-bbc-200", amount: 200, chancePct: 7 },
+    { id: "cash-bbc-100", amount: 100, chancePct: 18 },
+    { id: "cash-bbc-200", amount: 200, chancePct: 10 },
+    { id: "cash-bbc-500", amount: 500, chancePct: 7 },
   ];
 export const CASE_FILLER_BD: { id: string; amount: number; chancePct: number }[] =
   [
@@ -404,7 +404,7 @@ export function injectCaseSpecials(
   const skip = new Set(specials.map((s) => s.itemId));
   const without = entries.filter((e) => !e.itemId || !skip.has(e.itemId));
   const take = specials.reduce((a, s) => a + s.chancePct, 0);
-  // Списываем с самого частого филлера (50 BBC / 500 $), не с скинов.
+  // Списываем с самого частого филлера (100 BBC / 500 $), не с скинов.
   const fillerIds = new Set(
     (currency === "BBC" ? CASE_FILLER_BBC : CASE_FILLER_BD).map((f) => f.id)
   );

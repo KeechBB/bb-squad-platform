@@ -26,11 +26,11 @@ const CASE_IMMORTAL_PATCH_IDS = new Set([
 /** Rare — синий фон редкости (РПГ «Урожайный удар»). */
 const CASE_RARE_PATCH_IDS = new Set(["creator-rpg7-orchard-harvest"]);
 
-/** Мелочь валюты (50/100/200 BBC · 500/1000/2000 $) — зелёный фон. */
+/** Мелочь валюты (100/200/500 BBC · 500/1000/2000 $) — зелёный фон. */
 const CASE_FILLER_CASH_IDS = new Set([
-  "cash-bbc-50",
   "cash-bbc-100",
   "cash-bbc-200",
+  "cash-bbc-500",
   "cash-bd-500",
   "cash-bd-1000",
   "cash-bd-2000",
