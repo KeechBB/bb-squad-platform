@@ -354,7 +354,7 @@ function rpgOrchardLootEntry(): CaseLootEntry {
     CASE_RPG_PATCH_ID,
     CASE_RPG_SELL,
     "РПГ-7 «Урожайный удар»",
-    "rpg7-orchard-harvest-v1.png",
+    "rpg7-orchard-harvest-v2.png",
     { share: CASE_RPG_SHARE, sellCurrency: "BD" }
   );
 }

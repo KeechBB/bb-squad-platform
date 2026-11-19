@@ -42,7 +42,7 @@ export const PROFILE_PATCH_OPTIONS = [
   },
   {
     id: "creator-rpg7-orchard-harvest",
-    file: "rpg7-orchard-harvest-v1.png",
+    file: "rpg7-orchard-harvest-v2.png",
     label: "РПГ-7 «Урожайный удар»",
     tip: "РПГ-7 «Урожайный удар» · Кейс Жатва Черники · 0.05%",
     gate: "creator" as const,
@@ -186,7 +186,7 @@ export function profilePatchUrl(
       : id === "creator-event-scar-lemon" || id === "creator-event-saiga-apple"
         ? "?v=fs6"
         : id === "creator-rpg7-orchard-harvest"
-          ? "?v=orch2"
+          ? "?v=orch3"
         : id.startsWith("bd-faction-")
           ? "?v=bd9"
           : "";
