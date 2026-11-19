@@ -10,8 +10,10 @@ import { marketBgMeta } from "@/lib/bbCoinBgPrices";
 import { MARKET_PATCH_ORDER } from "@/lib/marketPatchIds";
 import { MARKET_BG_ORDER } from "@/lib/marketBgIds";
 import { resolveListingPrice } from "@/lib/marketListingPrices";
-import { chargeMarketBuy } from "@/lib/marketCharge";
+import { chargeMarketBuy, hasInfiniteMarketWallet } from "@/lib/marketCharge";
 import { isBuiltinSuperAdmin } from "@/lib/admin";
+import { personLabel, writeActionLog } from "@/lib/actionLog";
+import { prisma } from "@/lib/prisma";
 import type { MarketCurrency, ResolvedListingPrice } from "@/lib/marketListingPrices";
 import { BD_MARK, BD_NAME } from "@/lib/blueberryDollar";
 
@@ -318,6 +320,46 @@ export async function openMarketCase(opts: {
   } else if (result.kind === "bg" && result.itemId) {
     await addBgQty(opts.userId, result.itemId, 1);
   }
+
+  const actor = await prisma.user.findUnique({
+    where: { id: opts.userId },
+    select: { nick: true, steamName: true, steamId: true },
+  });
+  const nick = personLabel(actor || { steamId: opts.steamId });
+  const spendLabel = `${def.price.toLocaleString("ru-RU")} ${
+    def.currency === "BD" ? BD_MARK : "BBC"
+  }`;
+  const dropLabel =
+    result.kind === "empty"
+      ? "пусто"
+      : `${result.title}${
+          result.sellPrice > 0
+            ? ` (продажа ≈ ${result.sellPrice.toLocaleString("ru-RU")} ${
+                result.sellCurrency === "BD" ? BD_MARK : "BBC"
+              })`
+            : ""
+        }`;
+  await writeActionLog({
+    category: "cases",
+    action: "case_open",
+    message: `${nick} открыл «${def.name}» (−${spendLabel}) → ${dropLabel}`,
+    actorId: opts.userId,
+    actorNick: nick,
+    meta: {
+      caseId: def.id,
+      caseName: def.name,
+      currency: def.currency,
+      spent: def.price,
+      dropKind: result.kind,
+      dropItemId: result.itemId,
+      dropTitle: result.kind === "empty" ? "Пусто" : result.title,
+      dropImage: result.image,
+      dropSell: result.sellPrice,
+      dropSellCurrency: result.sellCurrency,
+      chancePct: result.chancePct,
+      infiniteWallet: hasInfiniteMarketWallet(opts.steamId),
+    },
+  });
 
   return {
     ok: true,
