@@ -784,15 +784,20 @@ export function TrainingSessionsCard({
                 bounds != null
                   ? `${bounds.joinHm}–${bounds.leaveHm ?? "…"}`
                   : null;
+              const reservePlayed =
+                mark === "reserve" && Boolean(timeLabel);
               const showTime =
                 Boolean(timeLabel) &&
-                (mark === "present" || mark === "late" || mark === "absent");
+                (mark === "present" ||
+                  mark === "late" ||
+                  mark === "absent" ||
+                  reservePlayed);
               return (
                 <button type="button"
                   key={c.ymd}
                   className={`training-cal-cell training-cal-cell-attend mark-${mark}${
-                    c.ymd === today ? " is-today" : ""
-                  }`}
+                    reservePlayed ? " reserve-played" : ""
+                  }${c.ymd === today ? " is-today" : ""}`}
                   onClick={(event) => setCalendarDetails(`${c.ymd}: ${event.currentTarget.title}`)}
                   title={
                     mark === "present"
@@ -804,7 +809,9 @@ export function TrainingSessionsCard({
                         : mark === "dayoff"
                           ? "Выходной (1–3 дня)"
                           : mark === "reserve"
-                            ? "Резерв (от 4 дней)"
+                            ? reservePlayed
+                              ? `Резерв, но был на трене · ${timeLabel}`
+                              : "Резерв (от 4 дней)"
                             : mark === "absent"
                               ? `Не был${timeLabel ? ` · ${timeLabel}` : ""}`
                               : mark === "pending"
