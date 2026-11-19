@@ -1476,14 +1476,19 @@ body:has(.public-rating-page) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 118px;
-  height: 36px;
+  /* Крупнее: ствол почти до линий строки; glow чуть вылезает */
+  width: 168px;
+  height: 52px;
   margin-left: 8px;
+  margin-top: -8px;
+  margin-bottom: -8px;
   padding: 0;
   border: 0;
   background: transparent;
   vertical-align: middle;
   cursor: help;
+  position: relative;
+  z-index: 2;
   transition: transform 0.15s ease;
 }
 .nick-patch-mark-art,
@@ -1545,11 +1550,11 @@ body:has(.public-rating-page) {
     opacity: 1;
   }
 }
-/* Halloween S2: нож/АК — чуть крупнее (кровь даёт высокий кадр) */
+/* Halloween S2: нож/АК — тот же кадр, зелёный ореол */
 .nick-patch-mark[data-patch-id="hw2-knife-hook"],
 .nick-patch-mark[data-patch-id="hw2-ak-pumpkin"] {
-  width: 148px;
-  height: 46px;
+  width: 176px;
+  height: 52px;
   /* отдельный зелёный ореол на контейнере — не путать с золотом арта */
   filter: drop-shadow(0 0 6px rgba(100, 200, 130, 0.55));
 }
@@ -1613,10 +1618,10 @@ body:has(.public-rating-page) {
   }
 }
 
-/* Ивент дня: размер как у Оранжевого призрака, свечение под цвет оружия (мягко) */
+/* Ивент дня: тот же кадр, свечение под цвет оружия (мягко) */
 .nick-patch-mark[data-patch-id="creator-event-scar-lemon"],
 .nick-patch-mark[data-patch-id="creator-event-saiga-apple"] {
-  width: 132px;
+  width: 172px;
   filter: none;
 }
 .home-dock-col .nick-patch-mark.home-nick-patch[data-patch-id="creator-event-scar-lemon"],
@@ -1746,7 +1751,7 @@ body:has(.public-rating-page) {
   }
 }
 .nick-patch-mark[data-patch-id="bp-l15-keech"] {
-  width: 132px;
+  width: 172px;
 }
 .nick-patch-mark[data-patch-id="bp-l15-keech"]
   .nick-patch-mark-art {
@@ -1757,7 +1762,7 @@ body:has(.public-rating-page) {
   animation: bp-l15-gold-standard-patch-glow 3.4s ease-in-out infinite;
 }
 .nick-patch-mark[data-patch-id="creator-svd-faction-lord"] {
-  width: 148px;
+  width: 180px;
 }
 .nick-patch-mark[data-patch-id="creator-svd-faction-lord"]
   .nick-patch-mark-art {
@@ -2213,6 +2218,24 @@ body:has(.public-rating-page) {
 .admin-table.rating-like-cw th.col-nick,
 .admin-table.rating-like-cw td.col-nick {
   text-align: left !important;
+  overflow: visible;
+}
+/* Свечение нашивок может чуть выходить за линии строки */
+.public-rating-table-wrap table.admin-table tbody tr,
+.cross-rating-table tbody tr,
+.admin-table.rating-like-cw tbody tr {
+  position: relative;
+  z-index: 0;
+}
+.public-rating-table-wrap table.admin-table tbody tr:hover,
+.cross-rating-table tbody tr:hover,
+.admin-table.rating-like-cw tbody tr:hover {
+  z-index: 3;
+}
+.public-rating-table-wrap table.admin-table td,
+.cross-rating-table td,
+.admin-table.rating-like-cw td {
+  overflow: visible;
 }
 
 .public-rating-shell .public-rating-table-wrap table.admin-table td.ctr {
@@ -11088,6 +11111,9 @@ body:has(.home-page) {
   width: 56px;
   height: 18px;
   margin-left: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+  z-index: auto;
 }
 
 .home-dock-col .home-attend-streaks-row.is-podium .home-nick-label.is-metallic-gold,
