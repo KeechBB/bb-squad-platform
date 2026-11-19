@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { requireMarketUser } from "@/lib/bbCoinMarketAuth";
 import {
   bdPayErrorMessage,
-  getFactionPayCtx,
   giftFactionBdToMember,
   getPersonalBdBalance,
 } from "@/lib/marketFactionPay";
@@ -17,6 +16,10 @@ import { BD_MARK } from "@/lib/blueberryDollar";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+/**
+ * Подарок B$: всегда казна фракции −amount → личный blueberryBalance получателя.
+ * ∞-кошелёк не обходит списание казны.
+ */
 export async function POST(req: Request) {
   const gate = await requireMarketUser();
   if ("error" in gate) return gate.error;
@@ -28,76 +31,6 @@ export async function POST(req: Request) {
   };
   const toUserId = String(body.toUserId || "").trim();
   const amount = Math.trunc(Number(body.amount) || 0);
-
-  const infinite = hasInfiniteMarketWallet(user.steamId);
-  if (infinite) {
-    // Keech ∞: зачисляем получателю без списания казны.
-    if (amount < 1) {
-      return NextResponse.json(
-        { ok: false, error: "amount", message: bdPayErrorMessage("amount") },
-        { status: 400 }
-      );
-    }
-    if (!toUserId || toUserId === user.id) {
-      const err = toUserId === user.id ? "gift_self" : "gift_required";
-      return NextResponse.json(
-        { ok: false, error: err, message: bdPayErrorMessage(err) },
-        { status: 400 }
-      );
-    }
-    const targetMem = await prisma.factionMember.findUnique({
-      where: { userId: toUserId },
-      select: { factionId: true },
-    });
-    const actorCtx = await getFactionPayCtx(user.id, user.steamId);
-    if (
-      actorCtx &&
-      targetMem &&
-      targetMem.factionId !== actorCtx.factionId
-    ) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "gift_not_member",
-          message: bdPayErrorMessage("gift_not_member"),
-        },
-        { status: 400 }
-      );
-    }
-    const target = await prisma.user.update({
-      where: { id: toUserId },
-      data: { blueberryBalance: { increment: amount } },
-      select: {
-        id: true,
-        nick: true,
-        steamName: true,
-        steamId: true,
-        blueberryBalance: true,
-      },
-    });
-    const actor = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: { nick: true, steamName: true, steamId: true },
-    });
-    await writeActionLog({
-      category: "faction",
-      action: "bd_gift",
-      message: `${personLabel(actor || user)} подарил ${amount.toLocaleString("ru-RU")} ${BD_MARK} → ${personLabel(target)} (∞)`,
-      actorId: user.id,
-      actorNick: personLabel(actor || user),
-      targetId: target.id,
-      targetNick: personLabel(target),
-      meta: { amount, infinite: true },
-    });
-    return NextResponse.json({
-      ok: true,
-      amount,
-      toUserId: target.id,
-      factionBalance: INFINITE_MARKET_BALANCE,
-      personalBdBalance: INFINITE_MARKET_BALANCE,
-      recipientPersonalBalance: Math.max(0, target.blueberryBalance || 0),
-    });
-  }
 
   const res = await giftFactionBdToMember({
     actorUserId: user.id,
@@ -143,11 +76,16 @@ export async function POST(req: Request) {
     },
   });
 
-  const personalBdBalance = await getPersonalBdBalance(user.id);
+  const infinite = hasInfiniteMarketWallet(user.steamId);
+  const personalBdBalance = infinite
+    ? INFINITE_MARKET_BALANCE
+    : await getPersonalBdBalance(user.id);
+
   return NextResponse.json({
     ok: true,
     amount: res.amount,
     toUserId: res.toUserId,
+    /** Реальный остаток казны после списания (даже если UI у Keech рисует ∞). */
     factionBalance: res.factionBalance,
     personalBdBalance,
     recipientPersonalBalance: res.recipientPersonalBalance,
