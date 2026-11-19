@@ -23,14 +23,36 @@ const CASE_IMMORTAL_PATCH_IDS = new Set([
   "creator-gp-drum-berry-lore",
 ]);
 
+/** Мелочь валюты (50/100/200 BBC · 500/1000/2000 $) — зелёный фон. */
+const CASE_FILLER_CASH_IDS = new Set([
+  "cash-bbc-50",
+  "cash-bbc-100",
+  "cash-bbc-200",
+  "cash-bd-500",
+  "cash-bd-1000",
+  "cash-bd-2000",
+]);
+
 function isImmortalLoot(e: Pick<LootEntry, "kind" | "itemId">): boolean {
   return Boolean(
     e.kind === "patch" && e.itemId && CASE_IMMORTAL_PATCH_IDS.has(e.itemId)
   );
 }
 
+function isFillerCashLoot(e: Pick<LootEntry, "kind" | "itemId">): boolean {
+  return Boolean(
+    e.kind === "currency" && e.itemId && CASE_FILLER_CASH_IDS.has(e.itemId)
+  );
+}
+
 function lootCellClass(e: Pick<LootEntry, "kind" | "itemId">): string {
-  return `kind-${e.kind}${isImmortalLoot(e) ? " is-immortal" : ""}`;
+  const extras = [
+    isImmortalLoot(e) ? "is-immortal" : "",
+    isFillerCashLoot(e) ? "is-filler-cash" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return `kind-${e.kind}${extras ? ` ${extras}` : ""}`;
 }
 
 /** Дольше крутим, чтобы успевать разглядеть скины на ленте. */

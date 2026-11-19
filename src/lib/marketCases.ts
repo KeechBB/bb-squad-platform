@@ -83,22 +83,31 @@ export const CASE_CASH_BD_AMOUNT = 1_000_000;
 export const CASE_JACKPOT_SHARE = 0.0001; // 0.01%
 
 /**
- * Вместо «пусто»: мелкие суммы валюты кейса.
- * BBC: 50→50%, 100→30%, 200→15%. BD: 500→50%, 1000→30%, 2000→15%.
- * Остаток ~5% — скины/фоны (+ ультра/immortal/джекпот поверх).
+ * Вместо «пусто»: мелкие суммы валюты кейса (не стена баксов).
+ * BBC: 50→18%, 100→10%, 200→7%. BD: 500→18%, 1000→10%, 2000→7%.
+ * Остаток ~65% — скины/фоны (+ ультра/immortal/джекпот поверх).
  */
 export const CASE_FILLER_BBC: { id: string; amount: number; chancePct: number }[] =
   [
-    { id: "cash-bbc-50", amount: 50, chancePct: 50 },
-    { id: "cash-bbc-100", amount: 100, chancePct: 30 },
-    { id: "cash-bbc-200", amount: 200, chancePct: 15 },
+    { id: "cash-bbc-50", amount: 50, chancePct: 18 },
+    { id: "cash-bbc-100", amount: 100, chancePct: 10 },
+    { id: "cash-bbc-200", amount: 200, chancePct: 7 },
   ];
 export const CASE_FILLER_BD: { id: string; amount: number; chancePct: number }[] =
   [
-    { id: "cash-bd-500", amount: 500, chancePct: 50 },
-    { id: "cash-bd-1000", amount: 1000, chancePct: 30 },
-    { id: "cash-bd-2000", amount: 2000, chancePct: 15 },
+    { id: "cash-bd-500", amount: 500, chancePct: 18 },
+    { id: "cash-bd-1000", amount: 1000, chancePct: 10 },
+    { id: "cash-bd-2000", amount: 2000, chancePct: 7 },
   ];
+
+export const CASE_FILLER_IDS = new Set([
+  ...CASE_FILLER_BBC.map((f) => f.id),
+  ...CASE_FILLER_BD.map((f) => f.id),
+]);
+
+export function isCaseFillerCash(itemId: string | null | undefined): boolean {
+  return Boolean(itemId && CASE_FILLER_IDS.has(itemId));
+}
 
 /** Жёсткий потолок на ультра (< 1%). */
 export const ULTRA_MAX_SHARE = 0.009;
@@ -435,8 +444,8 @@ function pickWeighted(entries: CaseLootEntry[], rnd = Math.random()): CaseLootEn
 
 /**
  * Лента для анимации CS-рулетки (сервер отдаёт seed-результат).
- * Веса ленты ≈ визуальное разнообразие оружия; валюту чуть подсвечиваем,
- * но без «стены» одинаковых баксов. Реальный шанс дропа не меняется.
+ * На барабане — в основном скины/фоны; мелочь валюты редкими вспышками.
+ * Реальный шанс дропа (chancePct) этим не меняется.
  */
 export function buildRouletteStrip(
   entries: CaseLootEntry[],
@@ -448,15 +457,20 @@ export function buildRouletteStrip(
 
   const weighted: CaseLootEntry[] = [];
   for (const e of entries) {
-    let n = Math.max(1, Math.round(e.chancePct));
-    if (e.kind === "currency") {
-      // Филлеры (50/100/…) уже имеют большие % — на ленте по шансу.
-      n = Math.max(1, Math.round(e.chancePct));
+    let n: number;
+    if (e.kind === "currency" && isCaseFillerCash(e.itemId)) {
+      // Филлеры: максимум 1 слот на тир — без стены баксов на ленте.
+      n = 1;
+    } else if (e.kind === "currency") {
+      n = 1; // джекпот
     } else if (
       e.itemId === CASE_LEGENDARY_PATCH_ID ||
       e.itemId === CASE_GP_PATCH_ID
     ) {
-      n = Math.max(3, n);
+      n = 5;
+    } else {
+      // Скины/фоны — основная масса барабана.
+      n = Math.max(3, Math.round(Math.sqrt(Math.max(e.chancePct, 0.05)) * 10));
     }
     for (let i = 0; i < n; i++) weighted.push(e);
   }
