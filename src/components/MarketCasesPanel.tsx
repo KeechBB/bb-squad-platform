@@ -66,6 +66,7 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
   const [result, setResult] = useState<LootEntry | null>(null);
   const [spinX, setSpinX] = useState(0);
   const [openLog, setOpenLog] = useState<OpenLogRow[]>([]);
+  const [inspect, setInspect] = useState<LootEntry | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const logListRef = useRef<HTMLDivElement>(null);
 
@@ -105,6 +106,7 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
     setResult(null);
     setSpinX(0);
     setMsg(null);
+    setInspect(null);
   }
 
   async function openCase(c: CaseCard) {
@@ -517,14 +519,20 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
 
               <div className="market-case-loot-head">
                 <h4>Содержимое</h4>
-                <p>Листай · шанс дропа у каждой ячейки</p>
+                <p>Нажми на скин · посмотреть крупно</p>
               </div>
               <div className="market-case-loot-scroll">
                 {lootSorted.map((e) => (
-                  <div
+                  <button
                     key={e.key}
+                    type="button"
                     className={`market-case-loot-cell kind-${e.kind}`}
-                    title={e.title}
+                    title={
+                      e.kind === "empty"
+                        ? "Пусто"
+                        : `Смотреть: ${e.title}`
+                    }
+                    onClick={() => setInspect(e)}
                   >
                     {e.image ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -538,7 +546,7 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                     <span className="market-case-loot-chance">
                       {e.chancePct.toFixed(2).replace(/\.?0+$/, "")}%
                     </span>
-                  </div>
+                  </button>
                 ))}
               </div>
 
@@ -556,6 +564,77 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
               </div>
             </div>
           </div>
+
+          {inspect ? (
+            <div
+              className="market-case-inspect"
+              role="dialog"
+              aria-modal="true"
+              aria-label={
+                inspect.kind === "empty" ? "Пусто" : inspect.title
+              }
+              onClick={(e) => {
+                e.stopPropagation();
+                setInspect(null);
+              }}
+            >
+              <div
+                className="market-case-inspect-card"
+                onClick={(ev) => ev.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  className="market-case-inspect-close"
+                  aria-label="Закрыть"
+                  onClick={() => setInspect(null)}
+                >
+                  ×
+                </button>
+                <div
+                  className={`market-case-inspect-art kind-${inspect.kind}`}
+                >
+                  {inspect.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={inspect.image}
+                      alt={inspect.title}
+                      className={
+                        inspect.kind === "patch"
+                          ? "is-patch"
+                          : inspect.kind === "bg"
+                            ? "is-bg"
+                            : undefined
+                      }
+                    />
+                  ) : (
+                    <span className="market-case-empty-glyph is-xl">∅</span>
+                  )}
+                </div>
+                <h4>
+                  {inspect.kind === "empty" ? "Пусто" : inspect.title}
+                </h4>
+                <p className="market-case-inspect-meta">
+                  {inspect.kind === "empty"
+                    ? "Пустой исход"
+                    : inspect.kind === "bg"
+                      ? "Фон профиля"
+                      : "Нашивка"}
+                  {" · "}
+                  шанс{" "}
+                  {inspect.chancePct.toFixed(2).replace(/\.?0+$/, "")}%
+                  {inspect.kind !== "empty" &&
+                  (inspect.sellPrice ?? 0) > 0 ? (
+                    <>
+                      {" · "}
+                      продажа ≈{" "}
+                      {(inspect.sellPrice || 0).toLocaleString("ru-RU")}{" "}
+                      {inspect.sellCurrency === "BD" ? "$" : "BBC"}
+                    </>
+                  ) : null}
+                </p>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </section>
