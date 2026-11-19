@@ -186,7 +186,7 @@ export function profilePatchUrl(
       : id === "creator-event-scar-lemon" || id === "creator-event-saiga-apple"
         ? "?v=fs6"
         : id === "creator-rpg7-orchard-harvest"
-          ? "?v=orch3"
+          ? "?v=orch4"
         : id.startsWith("bd-faction-")
           ? "?v=bd9"
           : "";
