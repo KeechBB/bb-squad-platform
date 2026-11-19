@@ -11,7 +11,7 @@ type Meta = {
   caseName?: string;
   currency?: "BBC" | "BD";
   spent?: number;
-  dropKind?: "patch" | "bg" | "empty";
+  dropKind?: "patch" | "bg" | "empty" | "currency";
   dropItemId?: string | null;
   dropTitle?: string;
   dropImage?: string | null;
@@ -64,7 +64,11 @@ export async function GET(req: Request) {
         caseName: m.caseName || "—",
         currency: (m.currency === "BD" ? "BD" : "BBC") as "BBC" | "BD",
         spent: Number(m.spent) || 0,
-        dropKind: (m.dropKind || "empty") as "patch" | "bg" | "empty",
+        dropKind: (m.dropKind || "empty") as
+          | "patch"
+          | "bg"
+          | "empty"
+          | "currency",
         dropItemId: m.dropItemId || null,
         dropTitle: m.dropTitle || (m.dropKind === "empty" ? "Пусто" : "—"),
         dropImage: m.dropImage || null,

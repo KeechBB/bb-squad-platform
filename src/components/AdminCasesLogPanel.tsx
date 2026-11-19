@@ -10,7 +10,7 @@ type Entry = {
   caseName: string;
   currency: "BBC" | "BD";
   spent: number;
-  dropKind: "patch" | "bg" | "empty";
+  dropKind: "patch" | "bg" | "empty" | "currency";
   dropItemId: string | null;
   dropTitle: string;
   dropImage: string | null;
@@ -222,7 +222,11 @@ export function AdminCasesLogPanel() {
                       <>
                         <strong>{e.dropTitle}</strong>
                         <div className="muted" style={{ fontSize: "0.85em" }}>
-                          {e.dropKind === "bg" ? "фон" : "нашивка"}
+                          {e.dropKind === "bg"
+                            ? "фон"
+                            : e.dropKind === "currency"
+                              ? "валюта"
+                              : "нашивка"}
                           {e.dropItemId ? ` · ${e.dropItemId}` : ""}
                           {e.chancePct
                             ? ` · ${e.chancePct.toLocaleString("ru-RU")}%`

@@ -25168,8 +25168,12 @@ body:has(.faction-page) .site-footer {
   border-color: rgba(148, 163, 184, 0.28);
 }
 .market-case-log-row.kind-patch,
-.market-case-log-row.kind-bg {
+.market-case-log-row.kind-bg,
+.market-case-log-row.kind-currency {
   border-color: rgba(110, 231, 183, 0.35);
+}
+.market-case-log-row.kind-currency {
+  border-color: rgba(250, 204, 21, 0.45);
 }
 .market-case-log-row header {
   display: flex;
@@ -25384,6 +25388,10 @@ body:has(.faction-page) .site-footer {
   background: rgba(30, 30, 36, 0.9);
   color: #9ca3af;
 }
+.market-case-roule-cell.kind-currency {
+  border-color: rgba(250, 204, 21, 0.45);
+  background: rgba(69, 46, 10, 0.55);
+}
 .market-case-roule-cell.is-win {
   border-color: #fde047;
   box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.55), 0 0 24px rgba(250, 204, 21, 0.35);
@@ -25402,6 +25410,10 @@ body:has(.faction-page) .site-footer {
 .market-case-result.kind-empty {
   border-color: rgba(148, 163, 184, 0.35);
   background: rgba(30, 41, 59, 0.45);
+}
+.market-case-result.kind-currency {
+  border-color: rgba(250, 204, 21, 0.55);
+  background: rgba(69, 46, 10, 0.4);
 }
 .market-case-result img {
   width: 72px;
@@ -25536,6 +25548,18 @@ body:has(.faction-page) .site-footer {
   max-height: 240px;
   object-fit: contain;
   border-radius: 10px;
+}
+.market-case-inspect-art img.is-currency {
+  width: min(100%, 380px);
+  max-height: 260px;
+  object-fit: contain;
+  filter:
+    drop-shadow(0 0 10px rgba(250, 204, 21, 0.4))
+    drop-shadow(0 8px 18px rgba(0, 0, 0, 0.35));
+}
+.market-case-loot-cell.kind-currency {
+  border-color: rgba(250, 204, 21, 0.4);
+  background: rgba(69, 46, 10, 0.35);
 }
 .market-case-inspect-card h4 {
   margin: 0 0 8px;

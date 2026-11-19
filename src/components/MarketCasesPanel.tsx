@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-type LootKind = "patch" | "bg" | "empty";
+type LootKind = "patch" | "bg" | "empty" | "currency";
 
 type LootEntry = {
   key: string;
@@ -13,6 +13,7 @@ type LootEntry = {
   price: number;
   sellPrice?: number;
   sellCurrency?: "BBC" | "BD" | null;
+  amount?: number;
   chancePct: number;
 };
 
@@ -164,6 +165,8 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
       const won = data.result as LootEntry;
       if (won.kind === "empty") {
         setMsg("Пусто — в этот раз сад ничего не отдал.");
+      } else if (won.kind === "currency") {
+        setMsg(`Выпало: ${won.title}. Зачислено на баланс.`);
       } else {
         setMsg(`Выпало: ${won.title}. Уже в инвентаре.`);
       }
@@ -399,7 +402,8 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                       </div>
                       {row.dropKind !== "empty" && row.dropSell > 0 ? (
                         <p className="market-case-log-sell">
-                          продажа ≈ {row.dropSell.toLocaleString("ru-RU")}{" "}
+                          {row.dropKind === "currency" ? "номинал" : "продажа ≈"}{" "}
+                          {row.dropSell.toLocaleString("ru-RU")}{" "}
                           {row.dropSellCurrency === "BD" ? "$" : "BBC"}
                         </p>
                       ) : null}
@@ -502,7 +506,11 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                       ) : null}
                       <div>
                         <strong>{result.title}</strong>
-                        <span>Уже в инвентаре</span>
+                        <span>
+                          {result.kind === "currency"
+                            ? "Зачислено на баланс"
+                            : "Уже в инвентаре"}
+                        </span>
                       </div>
                     </>
                   )
@@ -603,7 +611,9 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                           ? "is-patch"
                           : inspect.kind === "bg"
                             ? "is-bg"
-                            : undefined
+                            : inspect.kind === "currency"
+                              ? "is-currency"
+                              : undefined
                       }
                     />
                   ) : (
@@ -618,7 +628,9 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                     ? "Пустой исход"
                     : inspect.kind === "bg"
                       ? "Фон профиля"
-                      : "Нашивка"}
+                      : inspect.kind === "currency"
+                        ? "Валюта"
+                        : "Нашивка"}
                   {" · "}
                   шанс{" "}
                   {inspect.chancePct.toFixed(2).replace(/\.?0+$/, "")}%
@@ -626,7 +638,7 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                   (inspect.sellPrice ?? 0) > 0 ? (
                     <>
                       {" · "}
-                      продажа ≈{" "}
+                      {inspect.kind === "currency" ? "номинал" : "продажа ≈"}{" "}
                       {(inspect.sellPrice || 0).toLocaleString("ru-RU")}{" "}
                       {inspect.sellCurrency === "BD" ? "$" : "BBC"}
                     </>

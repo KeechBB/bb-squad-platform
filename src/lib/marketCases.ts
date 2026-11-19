@@ -11,6 +11,11 @@ import { MARKET_PATCH_ORDER } from "@/lib/marketPatchIds";
 import { MARKET_BG_ORDER } from "@/lib/marketBgIds";
 import { resolveListingPrice } from "@/lib/marketListingPrices";
 import { chargeMarketBuy, hasInfiniteMarketWallet } from "@/lib/marketCharge";
+import { creditBbCoins } from "@/lib/bbCoins";
+import {
+  creditFactionBd,
+  getFactionPayCtx,
+} from "@/lib/marketFactionPay";
 import { isBuiltinSuperAdmin } from "@/lib/admin";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
 import { prisma } from "@/lib/prisma";
@@ -23,7 +28,7 @@ import { BD_MARK, BD_NAME } from "@/lib/blueberryDollar";
 
 export type MarketCaseId = "faction-sad" | "bbc-urozhay";
 
-export type CaseLootKind = "patch" | "bg" | "empty";
+export type CaseLootKind = "patch" | "bg" | "empty" | "currency";
 
 export type CaseLootEntry = {
   key: string;
@@ -33,10 +38,12 @@ export type CaseLootEntry = {
   image: string | null;
   /** Цена купить (для весов редкости). */
   price: number;
-  /** Текущая цена продажи на площадке. */
+  /** Текущая цена продажи на площадке / номинал валютного дропа. */
   sellPrice: number;
-  /** Валюта продажи: BBC или BD ($). */
+  /** Валюта продажи / дропа: BBC или BD ($). */
   sellCurrency: MarketCurrency | null;
+  /** Для currency — сколько зачислить. */
+  amount?: number;
   chancePct: number;
 };
 
@@ -65,6 +72,13 @@ export const CASE_LEGENDARY_SHARE = 0.0001;
 export const CASE_LEGENDARY_PITY = 100;
 /** Оценка продажи для ROI в логе (ещё не в магазине). */
 export const CASE_LEGENDARY_SELL = 1_000_000;
+
+/** Валютные джекпоты в обоих кейсах (0.01% каждый). */
+export const CASE_CASH_BBC_ID = "cash-bbc-20000";
+export const CASE_CASH_BBC_AMOUNT = 20_000;
+export const CASE_CASH_BD_ID = "cash-bd-1000000";
+export const CASE_CASH_BD_AMOUNT = 1_000_000;
+export const CASE_JACKPOT_SHARE = 0.0001; // 0.01%
 
 export const NOTHING_SHARE = 0.5;
 /** Жёсткий потолок на ультра (< 1%). */
@@ -255,20 +269,57 @@ function legendaryLootEntry(currency: MarketCurrency): CaseLootEntry {
   };
 }
 
-/** Вшивает легендарку в оба кейса с фиксированным шансом 0.01%. */
-export function injectCaseLegendary(
+function cashBbcLootEntry(): CaseLootEntry {
+  const chancePct = Math.round(CASE_JACKPOT_SHARE * 10000) / 100;
+  return {
+    key: `currency:${CASE_CASH_BBC_ID}`,
+    kind: "currency",
+    itemId: CASE_CASH_BBC_ID,
+    title: `${CASE_CASH_BBC_AMOUNT.toLocaleString("ru-RU")} BBC`,
+    image: "/market-cases/case-loot-bbc-20k.png",
+    price: CASE_CASH_BBC_AMOUNT,
+    sellPrice: CASE_CASH_BBC_AMOUNT,
+    sellCurrency: "BBC",
+    amount: CASE_CASH_BBC_AMOUNT,
+    chancePct,
+  };
+}
+
+function cashBdLootEntry(): CaseLootEntry {
+  const chancePct = Math.round(CASE_JACKPOT_SHARE * 10000) / 100;
+  return {
+    key: `currency:${CASE_CASH_BD_ID}`,
+    kind: "currency",
+    itemId: CASE_CASH_BD_ID,
+    title: `${CASE_CASH_BD_AMOUNT.toLocaleString("ru-RU")} ${BD_MARK}`,
+    image: "/market-cases/case-loot-bd-1m.png",
+    price: CASE_CASH_BD_AMOUNT,
+    sellPrice: CASE_CASH_BD_AMOUNT,
+    sellCurrency: "BD",
+    amount: CASE_CASH_BD_AMOUNT,
+    chancePct,
+  };
+}
+
+/** Легендарка + валютные джекпоты в оба кейса (по 0.01%). */
+export function injectCaseSpecials(
   entries: CaseLootEntry[],
   currency: MarketCurrency
 ): CaseLootEntry[] {
-  const legendary = legendaryLootEntry(currency);
-  const without = entries.filter((e) => e.itemId !== CASE_LEGENDARY_PATCH_ID);
+  const specials = [
+    legendaryLootEntry(currency),
+    cashBbcLootEntry(),
+    cashBdLootEntry(),
+  ];
+  const skip = new Set(specials.map((s) => s.itemId));
+  const without = entries.filter((e) => !e.itemId || !skip.has(e.itemId));
   const empty = without.find((e) => e.kind === "empty");
+  const take = specials.reduce((a, s) => a + s.chancePct, 0);
   if (empty) {
-    empty.chancePct =
-      Math.round((empty.chancePct - legendary.chancePct) * 100) / 100;
+    empty.chancePct = Math.round((empty.chancePct - take) * 100) / 100;
     if (empty.chancePct < 0.01) empty.chancePct = 0.01;
   }
-  const next = [...without, legendary];
+  const next = [...without, ...specials];
   const sum = next.reduce((a, e) => a + e.chancePct, 0);
   if (empty && Math.abs(sum - 100) > 0.05) {
     empty.chancePct =
@@ -281,7 +332,7 @@ export async function getCaseLootTable(caseId: MarketCaseId): Promise<CaseLootEn
   const def = getMarketCase(caseId);
   if (!def) return [];
   const pool = await loadCasePool(def.currency);
-  return injectCaseLegendary(buildLootChances(pool), def.currency);
+  return injectCaseSpecials(buildLootChances(pool), def.currency);
 }
 
 async function countCaseOpens(userId: string, caseId: MarketCaseId): Promise<number> {
@@ -402,6 +453,28 @@ export async function openMarketCase(opts: {
     await writeNickPatchesCache().catch(() => null);
   } else if (result.kind === "bg" && result.itemId) {
     await addBgQty(opts.userId, result.itemId, 1);
+  } else if (result.kind === "currency" && result.itemId) {
+    const amt = Math.max(0, Math.trunc(result.amount || result.sellPrice || 0));
+    if (result.itemId === CASE_CASH_BBC_ID && amt > 0) {
+      await creditBbCoins({
+        userId: opts.userId,
+        amount: amt,
+        kind: "case_drop",
+        ref: `${def.id}:${CASE_CASH_BBC_ID}:${Date.now()}`,
+        note: `Дроп из кейса «${def.name}»: +${amt.toLocaleString("ru-RU")} BBC`,
+      });
+    } else if (result.itemId === CASE_CASH_BD_ID && amt > 0) {
+      const ctx = await getFactionPayCtx(opts.userId, opts.steamId);
+      if (ctx) {
+        await creditFactionBd({
+          factionId: ctx.factionId,
+          amount: amt,
+          userId: opts.userId,
+          note: `Дроп из кейса «${def.name}»: +${amt.toLocaleString("ru-RU")} ${BD_MARK}`,
+          sourceKey: `case_drop:${def.id}:${CASE_CASH_BD_ID}:${opts.userId}:${Date.now()}`,
+        });
+      }
+    }
   }
 
   const actor = await prisma.user.findUnique({
@@ -415,13 +488,15 @@ export async function openMarketCase(opts: {
   const dropLabel =
     result.kind === "empty"
       ? "пусто"
-      : `${result.title}${
-          result.sellPrice > 0
-            ? ` (продажа ≈ ${result.sellPrice.toLocaleString("ru-RU")} ${
-                result.sellCurrency === "BD" ? BD_MARK : "BBC"
-              })`
-            : ""
-        }`;
+      : result.kind === "currency"
+        ? `${result.title} (зачисление)`
+        : `${result.title}${
+            result.sellPrice > 0
+              ? ` (продажа ≈ ${result.sellPrice.toLocaleString("ru-RU")} ${
+                  result.sellCurrency === "BD" ? BD_MARK : "BBC"
+                })`
+              : ""
+          }`;
   await writeActionLog({
     category: "cases",
     action: "case_open",
