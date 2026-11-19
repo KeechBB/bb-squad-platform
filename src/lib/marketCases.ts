@@ -56,11 +56,13 @@ export type MarketCaseDef = {
   image: string;
 };
 
-/** Эмка (M4 BP) и Оранжевый призрак — ультра-редкие. */
+/** Эмка (M4 BP) и Оранжевый призрак — фиксированный шанс каждый. */
 export const CASE_ULTRA_ITEM_IDS = new Set([
   "bp-l15-keech",
   "creator-orange-phantom",
 ]);
+/** 1.9% на каждую ультра-нашивку (M4 / Призрак). */
+export const CASE_ULTRA_SHARE = 0.019;
 
 /** Легендарки только в кейсах (не в магазине). */
 export const CASE_LEGENDARY_PATCH_ID =
@@ -114,8 +116,8 @@ export function isCaseFillerCash(itemId: string | null | undefined): boolean {
   return Boolean(itemId && CASE_FILLER_IDS.has(itemId));
 }
 
-/** Жёсткий потолок на ультра (< 1%). */
-export const ULTRA_MAX_SHARE = 0.009;
+/** @deprecated используй CASE_ULTRA_SHARE */
+export const ULTRA_MAX_SHARE = CASE_ULTRA_SHARE;
 
 export const MARKET_CASES: MarketCaseDef[] = [
   {
@@ -254,10 +256,7 @@ export function buildLootChances(
   const ultra = pool.filter((p) => CASE_ULTRA_ITEM_IDS.has(p.itemId));
   const normal = pool.filter((p) => !CASE_ULTRA_ITEM_IDS.has(p.itemId));
 
-  const ultraEach = Math.min(
-    ULTRA_MAX_SHARE,
-    ultra.length ? (1 - fillerShare) / (ultra.length + 4) : 0
-  );
+  const ultraEach = ultra.length ? CASE_ULTRA_SHARE : 0;
   const ultraTotal = ultraEach * ultra.length;
   const itemsShare = Math.max(0.01, 1 - fillerShare - ultraTotal);
 
