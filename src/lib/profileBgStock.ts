@@ -55,9 +55,17 @@ export async function getBgQtyMap(
 export async function sumBgSupply(
   bgIds: readonly string[]
 ): Promise<Map<string, number>> {
+  const { economyStockUserFilter } = await import(
+    "@/lib/marketEconomyExclude"
+  );
+  const exclude = await economyStockUserFilter();
   const rows = await prisma.profileBgStock.groupBy({
     by: ["bgId"],
-    where: { bgId: { in: [...bgIds] }, qty: { gt: 0 } },
+    where: {
+      bgId: { in: [...bgIds] },
+      qty: { gt: 0 },
+      ...exclude,
+    },
     _sum: { qty: true },
   });
   const map = new Map(bgIds.map((id) => [id, 0]));

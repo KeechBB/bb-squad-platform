@@ -56,9 +56,17 @@ export async function getPatchQtyMap(
 export async function sumPatchSupply(
   patchIds: readonly string[]
 ): Promise<Map<string, number>> {
+  const { economyStockUserFilter } = await import(
+    "@/lib/marketEconomyExclude"
+  );
+  const exclude = await economyStockUserFilter();
   const rows = await prisma.nickPatchStock.groupBy({
     by: ["patchId"],
-    where: { patchId: { in: [...patchIds] }, qty: { gt: 0 } },
+    where: {
+      patchId: { in: [...patchIds] },
+      qty: { gt: 0 },
+      ...exclude,
+    },
     _sum: { qty: true },
   });
   const map = new Map(patchIds.map((id) => [id, 0]));

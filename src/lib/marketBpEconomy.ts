@@ -102,20 +102,24 @@ async function loadBpSupplyMap(
   for (const id of bpIds) byKey.set(cacheKey("bg", id), 0);
   for (const id of bpIds) byKey.set(cacheKey("font", id), 0);
 
+  const { economyStockUserFilter } = await import(
+    "@/lib/marketEconomyExclude"
+  );
+  const exclude = await economyStockUserFilter();
   const [patches, bgs, fonts] = await Promise.all([
     prisma.nickPatchStock.groupBy({
       by: ["patchId"],
-      where: { patchId: { in: bpIds }, qty: { gt: 0 } },
+      where: { patchId: { in: bpIds }, qty: { gt: 0 }, ...exclude },
       _sum: { qty: true },
     }),
     prisma.profileBgStock.groupBy({
       by: ["bgId"],
-      where: { bgId: { in: bpIds }, qty: { gt: 0 } },
+      where: { bgId: { in: bpIds }, qty: { gt: 0 }, ...exclude },
       _sum: { qty: true },
     }),
     prisma.nickStyleStock.groupBy({
       by: ["styleId"],
-      where: { styleId: { in: bpIds }, qty: { gt: 0 } },
+      where: { styleId: { in: bpIds }, qty: { gt: 0 }, ...exclude },
       _sum: { qty: true },
     }),
   ]);

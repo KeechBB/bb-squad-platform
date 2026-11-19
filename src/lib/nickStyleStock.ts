@@ -58,9 +58,17 @@ export async function getFontQtyMap(
 export async function sumFontSupply(
   styleIds: readonly string[]
 ): Promise<Map<string, number>> {
+  const { economyStockUserFilter } = await import(
+    "@/lib/marketEconomyExclude"
+  );
+  const exclude = await economyStockUserFilter();
   const rows = await prisma.nickStyleStock.groupBy({
     by: ["styleId"],
-    where: { styleId: { in: [...styleIds] }, qty: { gt: 0 } },
+    where: {
+      styleId: { in: [...styleIds] },
+      qty: { gt: 0 },
+      ...exclude,
+    },
     _sum: { qty: true },
   });
   const map = new Map(styleIds.map((id) => [id, 0]));
