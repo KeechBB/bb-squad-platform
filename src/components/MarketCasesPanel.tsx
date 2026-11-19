@@ -228,13 +228,6 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
       await new Promise((r) => setTimeout(r, SPIN_MS));
       setPhase("revealed");
       const won = data.result as LootEntry;
-      if (won.kind === "empty") {
-        setMsg("Пусто — в этот раз сад ничего не отдал.");
-      } else if (won.kind === "currency") {
-        setMsg(`Выпало: ${won.title}. Зачислено на баланс.`);
-      } else {
-        setMsg(`Выпало: ${won.title}. Уже в инвентаре.`);
-      }
       setOpenLog((prev) => {
         const sell =
           won.kind === "empty"
@@ -587,8 +580,6 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                   </p>
                 )}
               </div>
-
-              {msg ? <p className="market-ok market-case-msg">{msg}</p> : null}
 
               <div className="market-case-loot-head">
                 <h4>Содержимое</h4>

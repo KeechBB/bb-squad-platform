@@ -25120,10 +25120,14 @@ body:has(.faction-page) .site-footer {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
   gap: 0;
+  /* Фиксированный размер — не прыгает от длины текста дропа. */
   width: min(1760px, calc(100vw - 12px));
-  height: min(1080px, calc(100dvh - 8px));
-  max-width: 1760px;
-  max-height: min(1080px, calc(100dvh - 8px));
+  height: min(980px, calc(100dvh - 12px));
+  max-width: min(1760px, calc(100vw - 12px));
+  max-height: min(980px, calc(100dvh - 12px));
+  min-width: min(1760px, calc(100vw - 12px));
+  min-height: min(980px, calc(100dvh - 12px));
+  box-sizing: border-box;
   overflow: hidden;
   border-radius: 18px;
   border: 1px solid rgba(110, 231, 183, 0.35);
@@ -25312,11 +25316,13 @@ body:has(.faction-page) .site-footer {
   font-size: 0.9rem;
 }
 .market-case-result {
-  flex: 0 0 auto;
-  height: auto;
+  flex: 0 0 112px;
+  height: 112px;
   min-height: 112px;
+  max-height: 112px;
   box-sizing: border-box;
   margin: 8px 0 10px;
+  overflow: hidden;
 }
 .market-case-result.is-placeholder {
   border-style: dashed;
@@ -25325,9 +25331,7 @@ body:has(.faction-page) .site-footer {
   justify-content: center;
 }
 .market-case-msg {
-  flex: 0 0 auto;
-  min-height: 1.3em;
-  margin: 0 0 8px;
+  display: none;
 }
 .market-case-loot-head {
   flex: 0 0 auto;
