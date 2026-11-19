@@ -21,11 +21,10 @@ type LootEntry = {
 const CASE_IMMORTAL_PATCH_IDS = new Set([
   "creator-svd-faction-lord",
   "creator-gp-drum-berry-lore",
-  "creator-rpg7-orchard-harvest",
 ]);
 
-/** РПГ: Immortal, но фон изумрудный — золотой сливается с узорами. */
-const CASE_ORCHARD_IMMORTAL_IDS = new Set(["creator-rpg7-orchard-harvest"]);
+/** Rare — синий фон редкости (РПГ «Урожайный удар»). */
+const CASE_RARE_PATCH_IDS = new Set(["creator-rpg7-orchard-harvest"]);
 
 /** Мелочь валюты (50/100/200 BBC · 500/1000/2000 $) — зелёный фон. */
 const CASE_FILLER_CASH_IDS = new Set([
@@ -43,9 +42,9 @@ function isImmortalLoot(e: Pick<LootEntry, "kind" | "itemId">): boolean {
   );
 }
 
-function isOrchardImmortalLoot(e: Pick<LootEntry, "kind" | "itemId">): boolean {
+function isRareLoot(e: Pick<LootEntry, "kind" | "itemId">): boolean {
   return Boolean(
-    e.kind === "patch" && e.itemId && CASE_ORCHARD_IMMORTAL_IDS.has(e.itemId)
+    e.kind === "patch" && e.itemId && CASE_RARE_PATCH_IDS.has(e.itemId)
   );
 }
 
@@ -55,10 +54,16 @@ function isFillerCashLoot(e: Pick<LootEntry, "kind" | "itemId">): boolean {
   );
 }
 
+function lootRarityLabel(e: Pick<LootEntry, "kind" | "itemId">): string | null {
+  if (isImmortalLoot(e)) return "Immortal";
+  if (isRareLoot(e)) return "Rare";
+  return null;
+}
+
 function lootCellClass(e: Pick<LootEntry, "kind" | "itemId">): string {
   const extras = [
     isImmortalLoot(e) ? "is-immortal" : "",
-    isOrchardImmortalLoot(e) ? "is-orchard-immortal" : "",
+    isRareLoot(e) ? "is-rare" : "",
     isFillerCashLoot(e) ? "is-filler-cash" : "",
   ]
     .filter(Boolean)
@@ -604,8 +609,10 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                     ) : (
                       <span className="market-case-empty-glyph">∅</span>
                     )}
-                    {isImmortalLoot(e) ? (
-                      <span className="market-case-loot-rarity">Immortal</span>
+                    {lootRarityLabel(e) ? (
+                      <span className="market-case-loot-rarity">
+                        {lootRarityLabel(e)}
+                      </span>
                     ) : null}
                     <span className="market-case-loot-title">
                       {e.kind === "empty" ? "Пусто" : e.title}
@@ -689,9 +696,7 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                       ? "Фон профиля"
                       : inspect.kind === "currency"
                         ? "Валюта"
-                        : isImmortalLoot(inspect)
-                          ? "Immortal"
-                          : "Нашивка"}
+                        : lootRarityLabel(inspect) || "Нашивка"}
                   {" · "}
                   шанс{" "}
                   {inspect.chancePct.toFixed(2).replace(/\.?0+$/, "")}%

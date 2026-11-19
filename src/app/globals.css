@@ -25503,18 +25503,18 @@ body:has(.faction-page) .site-footer {
     inset 0 0 18px rgba(250, 204, 21, 0.22),
     0 0 14px rgba(250, 204, 21, 0.18);
 }
-.market-case-roule-cell.is-immortal.is-orchard-immortal {
-  border-color: rgba(52, 211, 153, 0.65);
+.market-case-roule-cell.is-rare {
+  border-color: rgba(96, 165, 250, 0.65);
   background:
     linear-gradient(
       155deg,
-      rgba(6, 40, 48, 0.95) 0%,
-      rgba(4, 28, 36, 0.98) 55%,
-      rgba(2, 16, 22, 1) 100%
+      rgba(37, 99, 235, 0.45) 0%,
+      rgba(30, 58, 138, 0.72) 55%,
+      rgba(15, 23, 42, 0.92) 100%
     );
   box-shadow:
-    inset 0 0 18px rgba(45, 212, 191, 0.2),
-    0 0 14px rgba(16, 185, 129, 0.22);
+    inset 0 0 18px rgba(59, 130, 246, 0.22),
+    0 0 14px rgba(37, 99, 235, 0.2);
 }
 .market-case-roule-cell.is-win {
   border-color: #fde047;
@@ -25628,31 +25628,32 @@ body:has(.faction-page) .site-footer {
       rgba(200, 140, 40, 0.55) 100%
     );
 }
-.market-case-loot-cell.is-immortal.is-orchard-immortal {
-  border-color: rgba(45, 212, 191, 0.6);
+.market-case-loot-cell.is-rare {
+  border-color: rgba(96, 165, 250, 0.6);
   background:
     linear-gradient(
       155deg,
-      rgba(6, 40, 48, 0.95) 0%,
-      rgba(4, 24, 32, 0.98) 100%
+      rgba(37, 99, 235, 0.42) 0%,
+      rgba(30, 58, 138, 0.7) 55%,
+      rgba(15, 23, 42, 0.9) 100%
     );
   box-shadow:
-    inset 0 0 16px rgba(45, 212, 191, 0.18),
-    0 0 12px rgba(16, 185, 129, 0.2);
+    inset 0 0 16px rgba(59, 130, 246, 0.2),
+    0 0 12px rgba(37, 99, 235, 0.18);
 }
-.market-case-loot-cell.is-immortal.is-orchard-immortal:hover,
-.market-case-loot-cell.is-immortal.is-orchard-immortal:focus-visible {
-  border-color: rgba(94, 234, 212, 0.85);
+.market-case-loot-cell.is-rare:hover,
+.market-case-loot-cell.is-rare:focus-visible {
+  border-color: rgba(147, 197, 253, 0.85);
   background:
     linear-gradient(
       155deg,
-      rgba(8, 55, 62, 0.98) 0%,
-      rgba(4, 30, 38, 1) 100%
+      rgba(59, 130, 246, 0.5) 0%,
+      rgba(37, 99, 235, 0.55) 100%
     );
 }
-.market-case-loot-cell.is-orchard-immortal .market-case-loot-rarity {
-  color: #5eead4;
-  text-shadow: 0 0 8px rgba(45, 212, 191, 0.45);
+.market-case-loot-cell.is-rare .market-case-loot-rarity {
+  color: #93c5fd;
+  text-shadow: 0 0 8px rgba(59, 130, 246, 0.45);
 }
 .market-case-loot-rarity {
   display: block;
@@ -25733,24 +25734,25 @@ body:has(.faction-page) .site-footer {
       rgba(120, 80, 20, 0.45) 100%
     );
 }
-.market-case-inspect-art.is-immortal.is-orchard-immortal {
-  border-color: rgba(45, 212, 191, 0.55);
+.market-case-inspect-art.is-rare {
+  border-color: rgba(96, 165, 250, 0.55);
   background:
     linear-gradient(
       160deg,
-      rgba(4, 32, 40, 0.98) 0%,
-      rgba(2, 18, 24, 1) 100%
+      rgba(30, 64, 175, 0.55) 0%,
+      rgba(15, 23, 42, 0.95) 100%
     );
-  box-shadow: inset 0 0 28px rgba(45, 212, 191, 0.12);
+  box-shadow: inset 0 0 28px rgba(59, 130, 246, 0.16);
 }
-.market-case-inspect-art.is-orchard-immortal img.is-patch {
+.market-case-inspect-art.is-rare img.is-patch {
   filter:
-    drop-shadow(0 0 8px rgba(167, 139, 250, 0.55))
-    drop-shadow(0 0 16px rgba(45, 212, 191, 0.35));
+    drop-shadow(0 0 8px rgba(147, 197, 253, 0.5))
+    drop-shadow(0 0 16px rgba(37, 99, 235, 0.35));
+  transform: scaleX(-1);
 }
-.market-case-result.is-immortal.is-orchard-immortal {
-  border-color: rgba(45, 212, 191, 0.55);
-  background: rgba(4, 32, 40, 0.55);
+.market-case-result.is-rare {
+  border-color: rgba(96, 165, 250, 0.55);
+  background: rgba(30, 58, 138, 0.45);
 }
 .market-case-inspect-art img.is-patch {
   width: min(100%, 520px);
