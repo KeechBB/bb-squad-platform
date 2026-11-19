@@ -17,6 +17,21 @@ type LootEntry = {
   chancePct: number;
 };
 
+const CASE_FLASH_PATCH_IDS = new Set([
+  "creator-svd-faction-lord",
+  "creator-gp-drum-berry-lore",
+]);
+
+function lootCellClass(e: Pick<LootEntry, "kind" | "itemId">): string {
+  const flash =
+    e.kind === "patch" && e.itemId && CASE_FLASH_PATCH_IDS.has(e.itemId)
+      ? " is-case-legend"
+      : "";
+  return `kind-${e.kind}${flash}`;
+}
+
+const SPIN_MS = 7200;
+
 type CaseCard = {
   id: string;
   name: string;
@@ -160,7 +175,7 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
         setSpinX(-Math.max(0, target));
       });
 
-      await new Promise((r) => setTimeout(r, 5200));
+      await new Promise((r) => setTimeout(r, SPIN_MS));
       setPhase("revealed");
       const won = data.result as LootEntry;
       if (won.kind === "empty") {
@@ -454,14 +469,14 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                         transform: `translate3d(${spinX}px,0,0)`,
                         transition:
                           phase === "spinning"
-                            ? "transform 5s cubic-bezier(0.12, 0.75, 0.08, 1)"
+                            ? `transform ${SPIN_MS / 1000}s cubic-bezier(0.08, 0.82, 0.05, 1)`
                             : "none",
                       }}
                     >
                       {strip.map((cell, i) => (
                         <div
                           key={`${cell.key}-${i}`}
-                          className={`market-case-roule-cell kind-${cell.kind}${
+                          className={`market-case-roule-cell ${lootCellClass(cell)}${
                             phase === "revealed" && i === landIndex
                               ? " is-win"
                               : ""
@@ -534,7 +549,7 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                   <button
                     key={e.key}
                     type="button"
-                    className={`market-case-loot-cell kind-${e.kind}`}
+                    className={`market-case-loot-cell ${lootCellClass(e)}`}
                     title={
                       e.kind === "empty"
                         ? "Пусто"
