@@ -28,9 +28,16 @@ export const PROFILE_PATCH_OPTIONS = [
   },
   {
     id: "creator-svd-faction-lord",
-    file: "svd-faction-lord-v1.png",
+    file: "svd-faction-lord-v2.png",
     label: "СВД «Повелитель фракций»",
-    tip: "СВД «Повелитель фракций» · Легендарный дроп из кейсов Сада (0.01%, pity 100)",
+    tip: "СВД «Повелитель фракций» · Легендарный дроп из кейсов Сада (0.01%, pity 100) · продажа ≈ 50 000 BBC",
+    gate: "creator" as const,
+  },
+  {
+    id: "creator-gp-drum-berry-lore",
+    file: "gp-drum-berry-lore-v1.png",
+    label: "РГ-6 «Ягодный барабан»",
+    tip: "РГ-6 «Ягодный барабан» · Легендарный дроп из кейсов Сада (0.01%) · продажа ≈ 40 000 BBC",
     gate: "creator" as const,
   },
   {
@@ -199,7 +206,8 @@ export function profilePatchChoicesFor(opts: {
     if (gate === "creator") {
       if (
         (opt.id === "creator-fruit-strike-ak-v2" ||
-          opt.id === "creator-svd-faction-lord") &&
+          opt.id === "creator-svd-faction-lord" ||
+          opt.id === "creator-gp-drum-berry-lore") &&
         unlocks.has(opt.id)
       ) {
         return true;

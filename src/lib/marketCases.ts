@@ -63,15 +63,18 @@ export const CASE_ULTRA_ITEM_IDS = new Set([
   "creator-orange-phantom",
 ]);
 
-/** Легендарка только в кейсах (не в магазине). */
+/** Легендарки только в кейсах (не в магазине). */
 export const CASE_LEGENDARY_PATCH_ID =
   "creator-svd-faction-lord" as const satisfies ProfilePatchId;
+export const CASE_GP_PATCH_ID =
+  "creator-gp-drum-berry-lore" as const satisfies ProfilePatchId;
 /** 0.01% базовый шанс. */
 export const CASE_LEGENDARY_SHARE = 0.0001;
-/** Гарантия на N-й крутке кейса (pity). */
+/** Гарантия на N-й крутке кейса (pity) — только СВД. */
 export const CASE_LEGENDARY_PITY = 100;
 /** Оценка продажи для ROI в логе (ещё не в магазине). */
-export const CASE_LEGENDARY_SELL = 1_000_000;
+export const CASE_LEGENDARY_SELL = 50_000;
+export const CASE_GP_SELL = 40_000;
 
 /** Валютные джекпоты в обоих кейсах (0.01% каждый). */
 export const CASE_CASH_BBC_ID = "cash-bbc-20000";
@@ -250,23 +253,44 @@ export function buildLootChances(pool: RawItem[]): CaseLootEntry[] {
   return entries.sort((a, b) => b.chancePct - a.chancePct);
 }
 
-function legendaryLootEntry(currency: MarketCurrency): CaseLootEntry {
-  const opt = PROFILE_PATCH_OPTIONS.find(
-    (o) => o.id === CASE_LEGENDARY_PATCH_ID
-  );
-  const title = opt?.label || "СВД «Повелитель фракций»";
-  const file = opt?.file || "svd-faction-lord-v1.png";
+function caseExclusivePatchEntry(
+  patchId: ProfilePatchId,
+  sellPrice: number,
+  fallbackTitle: string,
+  fallbackFile: string
+): CaseLootEntry {
+  const opt = PROFILE_PATCH_OPTIONS.find((o) => o.id === patchId);
+  const title = opt?.label || fallbackTitle;
+  const file = opt?.file || fallbackFile;
   return {
-    key: `patch:${CASE_LEGENDARY_PATCH_ID}`,
+    key: `patch:${patchId}`,
     kind: "patch",
-    itemId: CASE_LEGENDARY_PATCH_ID,
+    itemId: patchId,
     title,
     image: `/bp-assets/${file}`,
-    price: CASE_LEGENDARY_SELL,
-    sellPrice: CASE_LEGENDARY_SELL,
-    sellCurrency: currency,
+    price: sellPrice,
+    sellPrice,
+    sellCurrency: "BBC",
     chancePct: Math.round(CASE_LEGENDARY_SHARE * 10000) / 100,
   };
+}
+
+function legendaryLootEntry(): CaseLootEntry {
+  return caseExclusivePatchEntry(
+    CASE_LEGENDARY_PATCH_ID,
+    CASE_LEGENDARY_SELL,
+    "СВД «Повелитель фракций»",
+    "svd-faction-lord-v2.png"
+  );
+}
+
+function gpDrumLootEntry(): CaseLootEntry {
+  return caseExclusivePatchEntry(
+    CASE_GP_PATCH_ID,
+    CASE_GP_SELL,
+    "РГ-6 «Ягодный барабан»",
+    "gp-drum-berry-lore-v1.png"
+  );
 }
 
 function cashBbcLootEntry(): CaseLootEntry {
@@ -301,13 +325,14 @@ function cashBdLootEntry(): CaseLootEntry {
   };
 }
 
-/** Легендарка + валютные джекпоты в оба кейса (по 0.01%). */
+/** Легендарки + валютные джекпоты в оба кейса (по 0.01%). */
 export function injectCaseSpecials(
   entries: CaseLootEntry[],
-  currency: MarketCurrency
+  _currency: MarketCurrency
 ): CaseLootEntry[] {
   const specials = [
-    legendaryLootEntry(currency),
+    legendaryLootEntry(),
+    gpDrumLootEntry(),
     cashBbcLootEntry(),
     cashBdLootEntry(),
   ];

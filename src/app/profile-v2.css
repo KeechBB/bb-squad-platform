@@ -1473,6 +1473,28 @@ body.has-profile-bg .shell:has(.profile-page) {
     brightness(1.06);
 }
 
+.profile-patch-tile[data-patch-id="creator-gp-drum-berry-lore"]
+  .profile-patch-tile-art {
+  width: 94%;
+  transform: scaleX(-1);
+  filter:
+    drop-shadow(0 0 3px rgba(196, 140, 255, 0.7))
+    drop-shadow(0 0 8px rgba(255, 120, 40, 0.42));
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+.profile-patch-tile[data-patch-id="creator-gp-drum-berry-lore"]:hover
+  .profile-patch-tile-art,
+.profile-patch-tile[data-patch-id="creator-gp-drum-berry-lore"]:focus-visible
+  .profile-patch-tile-art,
+.profile-patch-tile[data-patch-id="creator-gp-drum-berry-lore"].is-selected
+  .profile-patch-tile-art {
+  transform: scaleX(-1) scale(1.06);
+  filter:
+    drop-shadow(0 0 5px rgba(220, 180, 255, 0.9))
+    drop-shadow(0 0 12px rgba(255, 140, 50, 0.6))
+    brightness(1.06);
+}
+
 /* Ивент дня — мягкое свечение под цвет оружия (как Оранжевый призрак) */
 .profile-patch-tile[data-patch-id="creator-event-scar-lemon"]
   .profile-patch-tile-art {

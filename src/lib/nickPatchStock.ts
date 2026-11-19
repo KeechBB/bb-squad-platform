@@ -9,6 +9,7 @@ async function syncUnlockFlag(userId: string, patchId: string, qty: number) {
   // Маркет-id + легендарка из кейсов (не в магазине).
   const caseOnly =
     patchId === "creator-svd-faction-lord" ||
+    patchId === "creator-gp-drum-berry-lore" ||
     patchId === "creator-fruit-strike-ak-v2";
   if (!MARKET_PATCH_IDS.has(patchId) && !caseOnly) return;
   const u = await prisma.user.findUnique({
