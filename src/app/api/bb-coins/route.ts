@@ -11,6 +11,10 @@ import {
   getFactionPayCtx,
   listFactionMarketMembers,
 } from "@/lib/marketFactionPay";
+import {
+  hasInfiniteMarketWallet,
+  INFINITE_MARKET_BALANCE,
+} from "@/lib/marketCharge";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +26,10 @@ export async function GET() {
   const settled = await settleActiveTournamentBbCoins(user.id).catch(() => ({
     granted: 0,
   }));
-  const balance = await getBbCoinBalance(user.id);
+  const infinite = hasInfiniteMarketWallet(user.steamId);
+  const balance = infinite
+    ? INFINITE_MARKET_BALANCE
+    : await getBbCoinBalance(user.id);
   const faction = await getFactionPayCtx(user.id, user.steamId);
   const factionMembers = faction
     ? await listFactionMarketMembers(faction.factionId)
@@ -41,9 +48,12 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     balance,
-    factionBalance: faction?.balance ?? null,
+    infiniteWallet: infinite,
+    factionBalance: infinite
+      ? INFINITE_MARKET_BALANCE
+      : faction?.balance ?? null,
     factionName: faction?.factionName ?? null,
-    canSpendBd: Boolean(faction?.canSpend),
+    canSpendBd: infinite || Boolean(faction?.canSpend),
     factionMembers,
     myUserId: user.id,
     canEditPrices: canEditMarketPrices(user.steamId),

@@ -104,6 +104,7 @@ const MAIN_TABS: { id: MainTab; label: string }[] = [
 export function MarketplaceClient({ loggedIn }: Props) {
   const [tab, setTab] = useState<Tab>("patches");
   const [balance, setBalance] = useState<number | null>(null);
+  const [infiniteWallet, setInfiniteWallet] = useState(false);
   const [factionBalance, setFactionBalance] = useState<number | null>(null);
   const [factionName, setFactionName] = useState<string | null>(null);
   const [canSpendBd, setCanSpendBd] = useState(false);
@@ -142,6 +143,7 @@ export function MarketplaceClient({ loggedIn }: Props) {
         return;
       }
       setBalance(data.balance);
+      setInfiniteWallet(Boolean(data.infiniteWallet));
       setFactionBalance(
         typeof data.factionBalance === "number" ? data.factionBalance : null
       );
@@ -459,7 +461,11 @@ export function MarketplaceClient({ loggedIn }: Props) {
             <section className="market-balance" aria-live="polite">
               <span className="muted">Твой баланс</span>
               <strong>
-                {balance == null ? "…" : balance.toLocaleString("ru-RU")} BBC
+                {balance == null
+                  ? "…"
+                  : infiniteWallet
+                    ? "∞ BBC"
+                    : `${balance.toLocaleString("ru-RU")} BBC`}
               </strong>
             </section>
             <section className="market-balance market-balance--faction" aria-live="polite">
@@ -468,9 +474,11 @@ export function MarketplaceClient({ loggedIn }: Props) {
                 {factionName ? ` · ${factionName}` : ""}
               </span>
               <strong>
-                {factionBalance == null
-                  ? "—"
-                  : `${factionBalance.toLocaleString("ru-RU")} $`}
+                {infiniteWallet
+                  ? "∞ $"
+                  : factionBalance == null
+                    ? "—"
+                    : `${factionBalance.toLocaleString("ru-RU")} $`}
               </strong>
             </section>
             <button

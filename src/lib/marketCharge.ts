@@ -1,6 +1,7 @@
 /**
  * Списание / зачисление на площадке: BBC (личный) или BD (казна фракции).
  */
+import { isBuiltinSuperAdmin } from "@/lib/admin";
 import { creditBbCoins, debitBbCoins, getBbCoinBalance } from "@/lib/bbCoins";
 import {
   creditFactionBd,
@@ -13,6 +14,15 @@ import {
   type ResolvedListingPrice,
 } from "@/lib/marketListingPrices";
 
+/** Капитан: бесконечный кошелёк на площадке (кейсы / покупки). */
+export const INFINITE_MARKET_BALANCE = 9_999_999;
+
+export function hasInfiniteMarketWallet(
+  steamId: string | null | undefined
+): boolean {
+  return isBuiltinSuperAdmin(steamId);
+}
+
 export async function chargeMarketBuy(opts: {
   userId: string;
   steamId: string;
@@ -24,6 +34,15 @@ export async function chargeMarketBuy(opts: {
   | { ok: false; error: string }
 > {
   const { price } = opts;
+
+  if (hasInfiniteMarketWallet(opts.steamId)) {
+    return {
+      ok: true,
+      balance: INFINITE_MARKET_BALANCE,
+      currency: price.currency,
+    };
+  }
+
   const cur = currencyLabel(price.currency);
   const dealNote =
     price.deal === "discount"
