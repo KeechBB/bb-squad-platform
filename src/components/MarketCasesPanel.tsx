@@ -544,9 +544,7 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
               <div
                 className={`market-case-result${
                   phase === "revealed" && result
-                    ? ` kind-${result.kind}${
-                        isImmortalLoot(result) ? " is-immortal" : ""
-                      }`
+                    ? ` ${lootCellClass(result)}`
                     : " is-placeholder"
                 }`}
                 role="status"
