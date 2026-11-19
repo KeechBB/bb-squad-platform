@@ -27,6 +27,13 @@ export const PROFILE_PATCH_OPTIONS = [
     gate: "creator" as const,
   },
   {
+    id: "creator-svd-faction-lord",
+    file: "svd-faction-lord-v1.png",
+    label: "СВД «Повелитель фракций»",
+    tip: "СВД «Повелитель фракций» · Легендарный скин · пока только у капитана",
+    gate: "creator" as const,
+  },
+  {
     id: "creator-fruit-strike-ak-v2",
     file: "fruit-strike-place2-ak-v2.png",
     label: "АК «Цитрусовый шторм» · Fruit Strike",

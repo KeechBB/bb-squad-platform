@@ -1756,6 +1756,28 @@ body:has(.public-rating-page) {
     drop-shadow(0 0 9px rgba(235, 165, 32, 0.78));
   animation: bp-l15-gold-standard-patch-glow 3.4s ease-in-out infinite;
 }
+.nick-patch-mark[data-patch-id="creator-svd-faction-lord"] {
+  width: 148px;
+}
+.nick-patch-mark[data-patch-id="creator-svd-faction-lord"]
+  .nick-patch-mark-art {
+  filter:
+    drop-shadow(0 0 3px rgba(180, 255, 140, 0.75))
+    drop-shadow(0 0 8px rgba(212, 175, 55, 0.55));
+}
+.nick-patch-mark[data-patch-id="creator-svd-faction-lord"]:hover
+  .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="creator-svd-faction-lord"]:focus-visible
+  .nick-patch-mark-art,
+.nick-patch-mark[data-patch-id="creator-svd-faction-lord"].is-active
+  .nick-patch-mark-art {
+  transform: scaleX(-1) scale(1.08);
+  filter:
+    drop-shadow(0 0 5px rgba(200, 255, 160, 0.95))
+    drop-shadow(0 0 12px rgba(212, 175, 55, 0.72))
+    brightness(1.12)
+    saturate(1.08);
+}
 .nick-patch-mark[data-patch-id="bp-l15-keech"]:hover
   .nick-patch-mark-art,
 .nick-patch-mark[data-patch-id="bp-l15-keech"]:focus-visible
