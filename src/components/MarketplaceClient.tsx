@@ -129,11 +129,8 @@ export function MarketplaceClient({ loggedIn }: Props) {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [topupWipOpen, setTopupWipOpen] = useState(false);
-  const [casesWipOpen, setCasesWipOpen] = useState(false);
   const [bdBuyDraft, setBdBuyDraft] = useState<BdBuyDraft | null>(null);
   const [giftToUserId, setGiftToUserId] = useState("");
-  /** Кейсы пока только капитану (canEditPrices = super-admin). */
-  const casesUnlocked = canEditPrices;
 
   const load = useCallback(async () => {
     if (!loggedIn) return;
@@ -193,19 +190,10 @@ export function MarketplaceClient({ loggedIn }: Props) {
   }, [load]);
 
   useEffect(() => {
-    const stored = readStoredMarketTab();
-    if (stored === "cases" && !canEditPrices) {
-      setTab("patches");
-      return;
-    }
-    setTab(stored);
-  }, [canEditPrices]);
+    setTab(readStoredMarketTab());
+  }, []);
 
   function selectMainTab(id: MainTab) {
-    if (id === "cases" && !casesUnlocked) {
-      setCasesWipOpen(true);
-      return;
-    }
     setTab(id);
     writeStoredMarketTab(id);
   }
@@ -622,36 +610,6 @@ export function MarketplaceClient({ loggedIn }: Props) {
             </div>
           ) : null}
 
-          {casesWipOpen ? (
-            <div
-              className="market-wip-modal"
-              role="presentation"
-              onClick={() => setCasesWipOpen(false)}
-            >
-              <div
-                className="market-wip-dialog market-cases-wip-dialog"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="market-cases-wip-title"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <p id="market-cases-wip-title" className="market-wip-title">
-                  Кейсы в разработке
-                </p>
-                <p className="muted" style={{ marginTop: 8 }}>
-                  Скоро откроем сад для всех. Пока вкладка закрыта.
-                </p>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setCasesWipOpen(false)}
-                >
-                  Понятно
-                </button>
-              </div>
-            </div>
-          ) : null}
-
           <nav className="market-tabs" aria-label="Разделы площадки">
             {MAIN_TABS.map((t) => (
               <button
@@ -1050,7 +1008,7 @@ export function MarketplaceClient({ loggedIn }: Props) {
             </section>
           ) : null}
 
-          {tab === "cases" && casesUnlocked ? (
+          {tab === "cases" ? (
             <MarketCasesPanel
               onBalances={({ currency, balance }) => {
                 if (currency === "BD") setFactionBalance(balance);

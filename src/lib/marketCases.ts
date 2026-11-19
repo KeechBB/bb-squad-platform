@@ -19,7 +19,6 @@ import {
   creditFactionBd,
   getFactionPayCtx,
 } from "@/lib/marketFactionPay";
-import { isBuiltinSuperAdmin } from "@/lib/admin";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
 import { prisma } from "@/lib/prisma";
 import {
@@ -115,8 +114,11 @@ export function getMarketCase(id: string): MarketCaseDef | null {
   return MARKET_CASES.find((c) => c.id === id) || null;
 }
 
-export function canAccessMarketCases(steamId: string | null | undefined): boolean {
-  return isBuiltinSuperAdmin(steamId);
+/** Кейсы открыты всем залогиненным; gate на API — requireMarketUser. */
+export function canAccessMarketCases(
+  steamId: string | null | undefined
+): boolean {
+  return Boolean(steamId && String(steamId).trim());
 }
 
 type RawItem = {
