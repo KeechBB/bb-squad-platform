@@ -391,7 +391,10 @@ function pickWeighted(entries: CaseLootEntry[], rnd = Math.random()): CaseLootEn
   return entries[entries.length - 1];
 }
 
-/** Лента для анимации CS-рулетки (клиент тоже может строить, сервер отдаёт seed-результат). */
+/**
+ * Лента для анимации CS-рулетки (сервер отдаёт seed-результат).
+ * Веса ленты ≠ реальные шансы: валюту/легендарки поднимаем, чтобы мелькали чаще.
+ */
 export function buildRouletteStrip(
   entries: CaseLootEntry[],
   winner: CaseLootEntry,
@@ -401,7 +404,16 @@ export function buildRouletteStrip(
   const landIndex = opts?.landIndex ?? 52;
   const weighted: CaseLootEntry[] = [];
   for (const e of entries) {
-    const n = Math.max(1, Math.round(e.chancePct));
+    let n = Math.max(1, Math.round(e.chancePct));
+    if (e.kind === "currency") {
+      // ~12 слотов в пуле — баксы часто мелькают на ленте (шанс дропа тот же 0.01%).
+      n = Math.max(12, n);
+    } else if (
+      e.itemId === CASE_LEGENDARY_PATCH_ID ||
+      e.itemId === CASE_GP_PATCH_ID
+    ) {
+      n = Math.max(5, n);
+    }
     for (let i = 0; i < n; i++) weighted.push(e);
   }
   if (!weighted.length) weighted.push(entries[0]);

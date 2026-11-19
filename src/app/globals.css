@@ -25372,33 +25372,33 @@ body:has(.faction-page) .site-footer {
 }
 .market-case-roulette-track {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   padding: 0 12px;
   width: max-content;
   will-change: transform;
 }
 .market-case-roule-cell {
-  flex: 0 0 108px;
-  width: 108px;
-  height: 120px;
-  border-radius: 12px;
+  flex: 0 0 140px;
+  width: 140px;
+  height: 158px;
+  border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(24, 20, 40, 0.95);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 6px;
+  gap: 6px;
+  padding: 8px;
   text-align: center;
 }
 .market-case-roule-cell img {
-  width: 64px;
-  height: 64px;
+  width: 96px;
+  height: 96px;
   object-fit: contain;
 }
 .market-case-roule-cell span {
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   line-height: 1.15;
   color: #ddd6fe;
   max-width: 100%;
@@ -25449,8 +25449,8 @@ body:has(.faction-page) .site-footer {
   background: rgba(69, 46, 10, 0.4);
 }
 .market-case-result img {
-  width: 72px;
-  height: 72px;
+  width: 96px;
+  height: 96px;
   object-fit: contain;
 }
 .market-case-result strong {
@@ -25486,12 +25486,12 @@ body:has(.faction-page) .site-footer {
   scroll-snap-type: x mandatory;
 }
 .market-case-loot-cell {
-  flex: 0 0 118px;
+  flex: 0 0 148px;
   scroll-snap-align: start;
-  border-radius: 12px;
+  border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(20, 16, 32, 0.9);
-  padding: 8px;
+  padding: 10px;
   text-align: center;
   color: inherit;
   font: inherit;
@@ -25528,10 +25528,10 @@ body:has(.faction-page) .site-footer {
     );
 }
 .market-case-loot-cell img {
-  width: 72px;
-  height: 72px;
+  width: 96px;
+  height: 96px;
   object-fit: contain;
-  margin: 0 auto 4px;
+  margin: 0 auto 6px;
   display: block;
 }
 .market-case-inspect {

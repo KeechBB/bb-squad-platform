@@ -30,7 +30,11 @@ function lootCellClass(e: Pick<LootEntry, "kind" | "itemId">): string {
   return `kind-${e.kind}${flash}`;
 }
 
-const SPIN_MS = 7200;
+/** Дольше крутим, чтобы успевать разглядеть скины на ленте. */
+const SPIN_MS = 11000;
+/** Ширина ячейки ленты — держать в синхроне с CSS `.market-case-roule-cell`. */
+const ROULE_CELL_PX = 140;
+const ROULE_GAP_PX = 12;
 
 type CaseCard = {
   id: string;
@@ -164,14 +168,17 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
       setResult(data.result as LootEntry);
       setPhase("spinning");
 
-      // Сдвиг ленты к выигрышной ячейке
+      // Сброс без transition, затем длинный прокрут к выигрышу
+      setSpinX(0);
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
       requestAnimationFrame(() => {
-        const cell = 108;
-        const gap = 10;
         const viewport = trackRef.current?.parentElement?.clientWidth || 640;
         const center = viewport / 2;
         const target =
-          land * (cell + gap) + cell / 2 - center + (Math.random() * 24 - 12);
+          land * (ROULE_CELL_PX + ROULE_GAP_PX) +
+          ROULE_CELL_PX / 2 -
+          center +
+          (Math.random() * 28 - 14);
         setSpinX(-Math.max(0, target));
       });
 
@@ -469,7 +476,7 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                         transform: `translate3d(${spinX}px,0,0)`,
                         transition:
                           phase === "spinning"
-                            ? `transform ${SPIN_MS / 1000}s cubic-bezier(0.08, 0.82, 0.05, 1)`
+                            ? `transform ${SPIN_MS / 1000}s cubic-bezier(0.05, 0.55, 0.08, 1)`
                             : "none",
                       }}
                     >
