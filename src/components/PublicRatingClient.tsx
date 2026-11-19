@@ -351,17 +351,6 @@ export function PublicRatingClient({
     setPage(1);
   }, [q, clan, sortKey, sortDir]);
 
-  // Широкая таблица не должна оставлять окно/обёртку проскроленными вбок.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.scrollTo({ left: 0 });
-    document
-      .querySelectorAll<HTMLElement>(".public-rating-table-wrap")
-      .forEach((wrap) => {
-        wrap.scrollLeft = 0;
-      });
-  }, [tab, pageSafe, pageCount]);
-
   useEffect(() => {
     setMPage(1);
   }, [mq, year, month, day, mSortKey, mSortDir]);
@@ -372,6 +361,17 @@ export function PublicRatingClient({
     const start = (pageSafe - 1) * PAGE_SIZE;
     return view.slice(start, start + PAGE_SIZE);
   }, [view, pageSafe]);
+
+  // Широкая таблица не должна оставлять окно/обёртку проскроленными вбок.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.scrollTo({ left: 0 });
+    document
+      .querySelectorAll<HTMLElement>(".public-rating-table-wrap")
+      .forEach((wrap) => {
+        wrap.scrollLeft = 0;
+      });
+  }, [tab, pageSafe, pageCount]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
