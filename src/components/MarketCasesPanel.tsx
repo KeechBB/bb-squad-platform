@@ -55,6 +55,7 @@ type Props = {
   onBalances?: (opts: {
     currency: "BBC" | "BD";
     balance: number;
+    paidFrom?: "treasury" | "personal" | "bbc" | "infinite";
   }) => void;
   onRefreshCatalog?: () => void;
 };
@@ -152,9 +153,11 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
       const data = await res.json();
       if (!res.ok || !data.ok) {
         const map: Record<string, string> = {
-          insufficient: "Не хватает средств",
+          insufficient:
+            "Не хватает средств (личный B$ или казна — смотря кто крутит)",
           no_faction: "Нужна фракция для кейса за $",
-          forbidden_seat: "$ из казны тратит глава / зам",
+          forbidden_seat:
+            "Покупку за казну делает глава / зам; кейсы можно крутить с личного B$",
           wip: "Кейсы пока в разработке",
         };
         setErr(map[data.error] || "Не удалось открыть кейс");
@@ -162,7 +165,11 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
         return;
       }
       if (typeof data.balance === "number" && data.currency) {
-        onBalances?.({ currency: data.currency, balance: data.balance });
+        onBalances?.({
+          currency: data.currency,
+          balance: data.balance,
+          paidFrom: data.paidFrom,
+        });
       }
       const nextStrip = (data.strip || []) as LootEntry[];
       const land = typeof data.landIndex === "number" ? data.landIndex : 52;

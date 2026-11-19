@@ -6,7 +6,9 @@ import { creditBbCoins, debitBbCoins, getBbCoinBalance } from "@/lib/bbCoins";
 import {
   creditFactionBd,
   debitFactionBd,
+  debitPersonalBd,
   getFactionPayCtx,
+  getPersonalBdBalance,
 } from "@/lib/marketFactionPay";
 import {
   currencyLabel,
@@ -30,7 +32,13 @@ export async function chargeMarketBuy(opts: {
   kind: string;
   noteItem: string;
 }): Promise<
-  | { ok: true; balance: number; currency: MarketCurrency }
+  | {
+      ok: true;
+      balance: number;
+      currency: MarketCurrency;
+      /** Откуда списали BD: казна или личный кошелёк. */
+      paidFrom?: "treasury" | "personal" | "bbc" | "infinite";
+    }
   | { ok: false; error: string }
 > {
   const { price } = opts;
@@ -40,6 +48,7 @@ export async function chargeMarketBuy(opts: {
       ok: true,
       balance: INFINITE_MARKET_BALANCE,
       currency: price.currency,
+      paidFrom: "infinite",
     };
   }
 
@@ -68,22 +77,53 @@ export async function chargeMarketBuy(opts: {
         error: debited.error === "insufficient" ? "insufficient" : "debit",
       };
     }
-    return { ok: true, balance: debited.balance, currency: "BBC" };
+    return {
+      ok: true,
+      balance: debited.balance,
+      currency: "BBC",
+      paidFrom: "bbc",
+    };
   }
 
   const ctx = await getFactionPayCtx(opts.userId, opts.steamId);
   if (!ctx) return { ok: false, error: "no_faction" };
-  if (!ctx.canSpend) return { ok: false, error: "forbidden_seat" };
-  if (ctx.balance < price.buy) return { ok: false, error: "insufficient" };
-  const debited = await debitFactionBd({
-    factionId: ctx.factionId,
-    amount: price.buy,
+
+  // Глава/зам — с казны. Обычный игрок — кейсы с личного B$ (если хватает).
+  if (ctx.canSpend) {
+    if (ctx.balance < price.buy) return { ok: false, error: "insufficient" };
+    const debited = await debitFactionBd({
+      factionId: ctx.factionId,
+      amount: price.buy,
+      userId: opts.userId,
+      note,
+      sourceKey: `market_buy:${opts.kind}:${opts.userId}:${price.itemId}:${Date.now()}`,
+    });
+    if (!debited.ok) return { ok: false, error: debited.error };
+    return {
+      ok: true,
+      balance: debited.balance,
+      currency: "BD",
+      paidFrom: "treasury",
+    };
+  }
+
+  if (opts.kind !== "case_open") {
+    return { ok: false, error: "forbidden_seat" };
+  }
+
+  const personal = await getPersonalBdBalance(opts.userId);
+  if (personal < price.buy) return { ok: false, error: "insufficient" };
+  const debited = await debitPersonalBd({
     userId: opts.userId,
-    note,
-    sourceKey: `market_buy:${opts.kind}:${opts.userId}:${price.itemId}:${Date.now()}`,
+    amount: price.buy,
   });
   if (!debited.ok) return { ok: false, error: debited.error };
-  return { ok: true, balance: debited.balance, currency: "BD" };
+  return {
+    ok: true,
+    balance: debited.balance,
+    currency: "BD",
+    paidFrom: "personal",
+  };
 }
 
 export async function creditMarketSell(opts: {

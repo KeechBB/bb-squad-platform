@@ -1011,9 +1011,13 @@ export function MarketplaceClient({ loggedIn }: Props) {
 
           {tab === "cases" ? (
             <MarketCasesPanel
-              onBalances={({ currency, balance }) => {
-                if (currency === "BD") setFactionBalance(balance);
-                else setBalance(balance);
+              onBalances={({ currency, balance, paidFrom }) => {
+                if (currency === "BD") {
+                  if (paidFrom === "personal") setPersonalBdBalance(balance);
+                  else setFactionBalance(balance);
+                } else {
+                  setBalance(balance);
+                }
               }}
               onRefreshCatalog={() => void load()}
             />

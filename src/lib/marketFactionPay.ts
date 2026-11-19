@@ -230,6 +230,36 @@ export async function creditPersonalBd(opts: {
   return { ok: true, balance: Math.max(0, u.blueberryBalance || 0) };
 }
 
+export async function debitPersonalBd(opts: {
+  userId: string;
+  amount: number;
+}): Promise<{ ok: true; balance: number } | { ok: false; error: string }> {
+  const amount = Math.trunc(opts.amount);
+  if (amount < 1) return { ok: false, error: "zero" };
+  try {
+    const balance = await prisma.$transaction(async (tx) => {
+      const u = await tx.user.findUnique({
+        where: { id: opts.userId },
+        select: { blueberryBalance: true },
+      });
+      if (!u) throw new Error("user");
+      const cur = Math.max(0, u.blueberryBalance || 0);
+      if (cur < amount) throw new Error("insufficient");
+      const next = cur - amount;
+      await tx.user.update({
+        where: { id: opts.userId },
+        data: { blueberryBalance: next },
+      });
+      return next;
+    });
+    return { ok: true, balance };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (msg === "insufficient") return { ok: false, error: "insufficient" };
+    return { ok: false, error: "debit" };
+  }
+}
+
 /**
  * Глава/зам дарит B$ участнику: списание с казны → на личный баланс.
  */

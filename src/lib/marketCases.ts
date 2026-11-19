@@ -483,6 +483,7 @@ export async function openMarketCase(opts: {
       caseId: MarketCaseId;
       currency: MarketCurrency;
       balance: number;
+      paidFrom?: "treasury" | "personal" | "bbc" | "infinite";
       result: CaseLootEntry;
       strip: CaseLootEntry[];
       landIndex: number;
@@ -588,16 +589,36 @@ export async function openMarketCase(opts: {
       dropSellCurrency: result.sellCurrency,
       chancePct: result.chancePct,
       infiniteWallet: hasInfiniteMarketWallet(opts.steamId),
+      paidFrom: charged.paidFrom || null,
       pity: pityHit && result.itemId === CASE_LEGENDARY_PATCH_ID,
       openIndex: opensBefore + 1,
     },
   });
 
+  // После дропа B$ на личный — отдать актуальный личный баланс.
+  let balanceOut = charged.balance;
+  if (
+    result.kind === "currency" &&
+    result.sellCurrency === "BD" &&
+    charged.paidFrom === "personal"
+  ) {
+    const { getPersonalBdBalance } = await import("@/lib/marketFactionPay");
+    balanceOut = await getPersonalBdBalance(opts.userId);
+  } else if (
+    result.kind === "currency" &&
+    result.sellCurrency === "BBC" &&
+    charged.currency === "BBC"
+  ) {
+    const { getBbCoinBalance } = await import("@/lib/bbCoins");
+    balanceOut = await getBbCoinBalance(opts.userId);
+  }
+
   return {
     ok: true,
     caseId: def.id,
     currency: charged.currency,
-    balance: charged.balance,
+    balance: balanceOut,
+    paidFrom: charged.paidFrom,
     result,
     strip,
     landIndex,
