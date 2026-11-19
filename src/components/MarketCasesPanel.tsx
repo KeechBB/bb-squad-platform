@@ -385,14 +385,13 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                 </p>
               </header>
 
-              {(phase === "spinning" || phase === "revealed") &&
-              strip.length > 0 ? (
-                <div
-                  className="market-case-roulette"
-                  aria-label="Прокрутка кейса"
-                >
-                  <div className="market-case-roulette-pointer" />
-                  <div className="market-case-roulette-window">
+              <div
+                className="market-case-roulette"
+                aria-label="Прокрутка кейса"
+              >
+                <div className="market-case-roulette-pointer" />
+                <div className="market-case-roulette-window">
+                  {strip.length > 0 ? (
                     <div
                       ref={trackRef}
                       className="market-case-roulette-track"
@@ -425,16 +424,24 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                         </div>
                       ))}
                     </div>
-                  </div>
+                  ) : (
+                    <div className="market-case-roulette-placeholder">
+                      Лента появится при открытии
+                    </div>
+                  )}
                 </div>
-              ) : null}
+              </div>
 
-              {phase === "revealed" && result ? (
-                <div
-                  className={`market-case-result kind-${result.kind}`}
-                  role="status"
-                >
-                  {result.kind === "empty" ? (
+              <div
+                className={`market-case-result${
+                  phase === "revealed" && result
+                    ? ` kind-${result.kind}`
+                    : " is-placeholder"
+                }`}
+                role="status"
+              >
+                {phase === "revealed" && result ? (
+                  result.kind === "empty" ? (
                     <p>Ничего не выпало</p>
                   ) : (
                     <>
@@ -447,11 +454,17 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                         <span>Уже в инвентаре</span>
                       </div>
                     </>
-                  )}
-                </div>
-              ) : null}
+                  )
+                ) : (
+                  <p className="muted">
+                    {phase === "opening" || phase === "spinning"
+                      ? "Крутим…"
+                      : "Результат появится здесь"}
+                  </p>
+                )}
+              </div>
 
-              {msg ? <p className="market-ok">{msg}</p> : null}
+              {msg ? <p className="market-ok market-case-msg">{msg}</p> : null}
 
               <div className="market-case-loot-head">
                 <h4>Содержимое</h4>
