@@ -351,6 +351,17 @@ export function PublicRatingClient({
     setPage(1);
   }, [q, clan, sortKey, sortDir]);
 
+  // Широкая таблица не должна оставлять окно/обёртку проскроленными вбок.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.scrollTo({ left: 0 });
+    document
+      .querySelectorAll<HTMLElement>(".public-rating-table-wrap")
+      .forEach((wrap) => {
+        wrap.scrollLeft = 0;
+      });
+  }, [tab, pageSafe, pageCount]);
+
   useEffect(() => {
     setMPage(1);
   }, [mq, year, month, day, mSortKey, mSortDir]);
@@ -384,9 +395,19 @@ export function PublicRatingClient({
     requestAnimationFrame(() => {
       const el = document.getElementById(id);
       if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+          inline: "nearest",
+        });
         el.classList.add("public-rating-row-flash");
       }
+      // Таблица широкая — не оставляем горизонтальный скролл «посередине».
+      document
+        .querySelectorAll<HTMLElement>(".public-rating-table-wrap")
+        .forEach((wrap) => {
+          wrap.scrollLeft = 0;
+        });
     });
   }, [rows, view]);
 

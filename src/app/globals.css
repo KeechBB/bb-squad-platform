@@ -250,6 +250,22 @@ body:has(.tm-sapper-page) {
   background: #07060c;
 }
 
+/* Рейтинг паблика: не давать странице уезжать вбок (фон fixed).
+   Горизонтальный скролл — только у .public-rating-table-wrap. */
+html:has(.public-rating-page),
+body:has(.public-rating-page) {
+  overflow-x: clip;
+  max-width: 100%;
+}
+
+.shell:has(.public-rating-page) {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-x: clip;
+}
+
 .shell:has(.clans-page),
 .shell:has(.cw-page-shell),
 .shell:has(.cw-find-page),
@@ -1006,13 +1022,17 @@ body:has(.tm-sapper-page) {
 .public-rating-page {
   position: relative;
   width: 100%;
-  margin: 0 -12px 24px;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0 0 24px;
   min-height: calc(100vh - 100px);
   padding: 0;
   border-radius: 16px;
-  overflow: visible;
+  overflow-x: clip;
+  overflow-y: visible;
   border: 1px solid var(--line);
   background: url("/public-rating-bg-concept-01.jpg") center top / cover fixed no-repeat, #07060c;
+  box-sizing: border-box;
 }
 
 .public-rating-shell {
@@ -1022,9 +1042,15 @@ body:has(.tm-sapper-page) {
   gap: 12px;
   width: 100%;
   max-width: min(1760px, 100%);
+  min-width: 0;
   margin: 0 auto;
   padding: 12px clamp(16px, 2.2vw, 24px) 48px;
   box-sizing: border-box;
+}
+
+.public-rating-shell > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .public-rating-top-label {
@@ -2023,8 +2049,10 @@ body:has(.tm-sapper-page) {
 
 .public-rating-card {
   width: 100%;
+  max-width: 100%;
   min-width: 0;
   padding: 14px;
+  box-sizing: border-box;
 }
 
 .public-rating-table-wrap {
@@ -2035,9 +2063,12 @@ body:has(.tm-sapper-page) {
   overflow-x: auto;
   overflow-y: visible;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   max-height: none;
   border: 1px solid var(--line);
   border-radius: 14px;
+  -webkit-overflow-scrolling: touch;
 }
 
 .public-rating-pager {
