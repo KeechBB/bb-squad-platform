@@ -41,6 +41,13 @@ export const PROFILE_PATCH_OPTIONS = [
     gate: "creator" as const,
   },
   {
+    id: "creator-rpg7-orchard-harvest",
+    file: "rpg7-orchard-harvest-v1.png",
+    label: "РПГ-7 «Урожайный удар»",
+    tip: "РПГ-7 «Урожайный удар» · Кейс Жатва Черники · 0.05%",
+    gate: "creator" as const,
+  },
+  {
     id: "creator-fruit-strike-ak-v2",
     file: "fruit-strike-place2-ak-v2.png",
     label: "АК «Цитрусовый шторм» · Fruit Strike",
@@ -207,7 +214,8 @@ export function profilePatchChoicesFor(opts: {
       if (
         (opt.id === "creator-fruit-strike-ak-v2" ||
           opt.id === "creator-svd-faction-lord" ||
-          opt.id === "creator-gp-drum-berry-lore") &&
+          opt.id === "creator-gp-drum-berry-lore" ||
+          opt.id === "creator-rpg7-orchard-harvest") &&
         unlocks.has(opt.id)
       ) {
         return true;

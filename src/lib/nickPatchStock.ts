@@ -10,6 +10,7 @@ async function syncUnlockFlag(userId: string, patchId: string, qty: number) {
   const caseOnly =
     patchId === "creator-svd-faction-lord" ||
     patchId === "creator-gp-drum-berry-lore" ||
+    patchId === "creator-rpg7-orchard-harvest" ||
     patchId === "creator-fruit-strike-ak-v2";
   if (!MARKET_PATCH_IDS.has(patchId) && !caseOnly) return;
   const u = await prisma.user.findUnique({

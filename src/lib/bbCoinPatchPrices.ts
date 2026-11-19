@@ -21,6 +21,7 @@ export const PATCH_MARKET_TITLE: Record<MarketPatchId, string> = {
   "creator-fruit-strike-ak-v2": "АК «Цитрусовый шторм»",
   "creator-svd-faction-lord": "СВД «Повелитель фракций»",
   "creator-gp-drum-berry-lore": "РГ-6 «Ягодный барабан»",
+  "creator-rpg7-orchard-harvest": "РПГ-7 «Урожайный удар»",
   "hw2-knife-hook": "Крюк «Жнец сада»",
   "hw2-ak-pumpkin": "АК «Тыквенный магазин»",
   "creator-event-scar-lemon": "АК-74 «Лимонный шквал»",
@@ -41,6 +42,7 @@ export const PATCH_MARKET_SOURCE: Record<MarketPatchId, string> = {
   "creator-fruit-strike-ak-v2": "Турнир Fruit Strike · 2 место",
   "creator-svd-faction-lord": "Кейс Сада · 0.01%",
   "creator-gp-drum-berry-lore": "Кейс Сада · 0.01%",
+  "creator-rpg7-orchard-harvest": "Кейс Жатва · 0.05%",
   "hw2-knife-hook": "Halloween BP S2 · L5",
   "hw2-ak-pumpkin": "Halloween BP S2 · L20",
   "creator-event-scar-lemon": "Ивент дня · 50 ресов",
@@ -63,6 +65,8 @@ export const PATCH_BUY_PRICES_BBC: Record<MarketPatchId, number> = {
   "creator-svd-faction-lord": 62_500,
   /** Купить недоступно; sell = 40 000 BBC. */
   "creator-gp-drum-berry-lore": 50_000,
+  /** Купить недоступно; sell = 35 000 $ (B$). */
+  "creator-rpg7-orchard-harvest": 43_750,
   "hw2-knife-hook": 300,
   "hw2-ak-pumpkin": 1200,
   "creator-event-scar-lemon": 500,
@@ -78,7 +82,10 @@ export const PATCH_BUY_PRICES_BBC: Record<MarketPatchId, number> = {
 
 /** Валюта по умолчанию: фракционные нашивки — казна ($). */
 export function patchDefaultCurrency(id: MarketPatchId): "BBC" | "BD" {
-  return id.startsWith("bd-faction-") ? "BD" : "BBC";
+  if (id.startsWith("bd-faction-") || id === "creator-rpg7-orchard-harvest") {
+    return "BD";
+  }
+  return "BBC";
 }
 
 export function patchBuyPriceBbc(id: MarketPatchId): number {

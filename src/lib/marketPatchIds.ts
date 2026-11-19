@@ -8,6 +8,7 @@ export const MARKET_PATCH_ORDER = [
   "creator-fruit-strike-ak-v2",
   "creator-svd-faction-lord",
   "creator-gp-drum-berry-lore",
+  "creator-rpg7-orchard-harvest",
   "hw2-knife-hook",
   "hw2-ak-pumpkin",
   "creator-event-scar-lemon",
@@ -29,6 +30,7 @@ export const MARKET_PATCH_IDS = new Set<string>(MARKET_PATCH_ORDER);
 export const MARKET_SELL_ONLY_PATCH_IDS = new Set<string>([
   "creator-svd-faction-lord",
   "creator-gp-drum-berry-lore",
+  "creator-rpg7-orchard-harvest",
 ]);
 
 export function isMarketPatchId(id: string): id is MarketPatchId {

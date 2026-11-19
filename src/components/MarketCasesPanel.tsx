@@ -21,6 +21,7 @@ type LootEntry = {
 const CASE_IMMORTAL_PATCH_IDS = new Set([
   "creator-svd-faction-lord",
   "creator-gp-drum-berry-lore",
+  "creator-rpg7-orchard-harvest",
 ]);
 
 /** Мелочь валюты (50/100/200 BBC · 500/1000/2000 $) — зелёный фон. */

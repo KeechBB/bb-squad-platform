@@ -67,13 +67,18 @@ export const CASE_LEGENDARY_PATCH_ID =
   "creator-svd-faction-lord" as const satisfies ProfilePatchId;
 export const CASE_GP_PATCH_ID =
   "creator-gp-drum-berry-lore" as const satisfies ProfilePatchId;
+export const CASE_RPG_PATCH_ID =
+  "creator-rpg7-orchard-harvest" as const satisfies ProfilePatchId;
 /** 0.01% базовый шанс. */
 export const CASE_LEGENDARY_SHARE = 0.0001;
+/** РПГ-7 «Урожайный удар» — только BD-кейс. */
+export const CASE_RPG_SHARE = 0.0005; // 0.05%
 /** Гарантия на N-й крутке кейса (pity) — только СВД. */
 export const CASE_LEGENDARY_PITY = 100;
 /** Оценка продажи для ROI в логе (ещё не в магазине). */
 export const CASE_LEGENDARY_SELL = 50_000;
 export const CASE_GP_SELL = 40_000;
+export const CASE_RPG_SELL = 35_000;
 
 /** Валютные джекпоты (0.01%) — в кейсе своей валюты. */
 export const CASE_CASH_BBC_ID = "cash-bbc-20000";
@@ -303,11 +308,16 @@ function caseExclusivePatchEntry(
   patchId: ProfilePatchId,
   sellPrice: number,
   fallbackTitle: string,
-  fallbackFile: string
+  fallbackFile: string,
+  opts?: {
+    share?: number;
+    sellCurrency?: MarketCurrency;
+  }
 ): CaseLootEntry {
   const opt = PROFILE_PATCH_OPTIONS.find((o) => o.id === patchId);
   const title = opt?.label || fallbackTitle;
   const file = opt?.file || fallbackFile;
+  const share = opts?.share ?? CASE_LEGENDARY_SHARE;
   return {
     key: `patch:${patchId}`,
     kind: "patch",
@@ -316,8 +326,8 @@ function caseExclusivePatchEntry(
     image: `/bp-assets/${file}`,
     price: sellPrice,
     sellPrice,
-    sellCurrency: "BBC",
-    chancePct: Math.round(CASE_LEGENDARY_SHARE * 10000) / 100,
+    sellCurrency: opts?.sellCurrency ?? "BBC",
+    chancePct: Math.round(share * 10000) / 100,
   };
 }
 
@@ -336,6 +346,16 @@ function gpDrumLootEntry(): CaseLootEntry {
     CASE_GP_SELL,
     "РГ-6 «Ягодный барабан»",
     "gp-drum-berry-lore-v2.png"
+  );
+}
+
+function rpgOrchardLootEntry(): CaseLootEntry {
+  return caseExclusivePatchEntry(
+    CASE_RPG_PATCH_ID,
+    CASE_RPG_SELL,
+    "РПГ-7 «Урожайный удар»",
+    "rpg7-orchard-harvest-v1.png",
+    { share: CASE_RPG_SHARE, sellCurrency: "BD" }
   );
 }
 
@@ -371,7 +391,7 @@ function cashBdLootEntry(): CaseLootEntry {
   };
 }
 
-/** Легендарки в оба кейса; валютный джекпот — только в кейсе своей валюты. */
+/** Легендарки в оба кейса; РПГ и валютный джекпот — по валюте кейса. */
 export function injectCaseSpecials(
   entries: CaseLootEntry[],
   currency: MarketCurrency
@@ -379,6 +399,7 @@ export function injectCaseSpecials(
   const specials = [
     legendaryLootEntry(),
     gpDrumLootEntry(),
+    ...(currency === "BD" ? [rpgOrchardLootEntry()] : []),
     ...(currency === "BBC" ? [cashBbcLootEntry()] : [cashBdLootEntry()]),
   ];
   const skip = new Set(specials.map((s) => s.itemId));
@@ -465,7 +486,8 @@ export function buildRouletteStrip(
       n = 1; // джекпот
     } else if (
       e.itemId === CASE_LEGENDARY_PATCH_ID ||
-      e.itemId === CASE_GP_PATCH_ID
+      e.itemId === CASE_GP_PATCH_ID ||
+      e.itemId === CASE_RPG_PATCH_ID
     ) {
       n = 5;
     } else {
