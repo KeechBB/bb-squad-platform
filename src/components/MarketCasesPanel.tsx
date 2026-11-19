@@ -74,7 +74,7 @@ function lootCellClass(e: Pick<LootEntry, "kind" | "itemId">): string {
 /** Дольше крутим, чтобы успевать разглядеть скины на ленте. */
 const SPIN_MS = 11000;
 /** Ширина ячейки ленты — держать в синхроне с CSS `.market-case-roule-cell`. */
-const ROULE_CELL_PX = 140;
+const ROULE_CELL_PX = 128;
 const ROULE_GAP_PX = 12;
 
 type CaseCard = {
