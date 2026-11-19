@@ -11,9 +11,10 @@ import {
   type BdBuyDraft,
   type FactionMarketMember,
 } from "@/components/MarketBdBuyModal";
+import { MarketCasesPanel } from "@/components/MarketCasesPanel";
 
 /** Основные вкладки площадки + topup только с кнопки «Пополнить». */
-type Tab = "patches" | "bg" | "font" | "topup";
+type Tab = "patches" | "bg" | "font" | "cases" | "topup";
 type MainTab = Exclude<Tab, "topup">;
 
 const MARKET_TAB_KEY = "bb-market-tab";
@@ -22,7 +23,7 @@ function readStoredMarketTab(): MainTab {
   if (typeof window === "undefined") return "patches";
   try {
     const v = window.localStorage.getItem(MARKET_TAB_KEY);
-    if (v === "patches" || v === "bg" || v === "font") return v;
+    if (v === "patches" || v === "bg" || v === "font" || v === "cases") return v;
   } catch {
     /* ignore */
   }
@@ -97,6 +98,7 @@ const MAIN_TABS: { id: MainTab; label: string }[] = [
   { id: "patches", label: "Нашивки" },
   { id: "bg", label: "Фон" },
   { id: "font", label: "Шрифт" },
+  { id: "cases", label: "Кейсы" },
 ];
 
 export function MarketplaceClient({ loggedIn }: Props) {
@@ -119,8 +121,11 @@ export function MarketplaceClient({ loggedIn }: Props) {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [topupWipOpen, setTopupWipOpen] = useState(false);
+  const [casesWipOpen, setCasesWipOpen] = useState(false);
   const [bdBuyDraft, setBdBuyDraft] = useState<BdBuyDraft | null>(null);
   const [giftToUserId, setGiftToUserId] = useState("");
+  /** Кейсы пока только капитану (canEditPrices = super-admin). */
+  const casesUnlocked = canEditPrices;
 
   const load = useCallback(async () => {
     if (!loggedIn) return;
@@ -174,10 +179,19 @@ export function MarketplaceClient({ loggedIn }: Props) {
   }, [load]);
 
   useEffect(() => {
-    setTab(readStoredMarketTab());
-  }, []);
+    const stored = readStoredMarketTab();
+    if (stored === "cases" && !canEditPrices) {
+      setTab("patches");
+      return;
+    }
+    setTab(stored);
+  }, [canEditPrices]);
 
   function selectMainTab(id: MainTab) {
+    if (id === "cases" && !casesUnlocked) {
+      setCasesWipOpen(true);
+      return;
+    }
     setTab(id);
     writeStoredMarketTab(id);
   }
@@ -431,7 +445,7 @@ export function MarketplaceClient({ loggedIn }: Props) {
   }
 
   return (
-    <div className="market-page">
+    <div className={`market-page${tab === "cases" ? " market-page--cases" : ""}`}>
       <header className="market-head">
         <p className="market-kicker">Торговая площадка</p>
         <h1>Магазин BlackBerry</h1>
@@ -509,12 +523,44 @@ export function MarketplaceClient({ loggedIn }: Props) {
             </div>
           ) : null}
 
+          {casesWipOpen ? (
+            <div
+              className="market-wip-modal"
+              role="presentation"
+              onClick={() => setCasesWipOpen(false)}
+            >
+              <div
+                className="market-wip-dialog market-cases-wip-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="market-cases-wip-title"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <p id="market-cases-wip-title" className="market-wip-title">
+                  Кейсы в разработке
+                </p>
+                <p className="muted" style={{ marginTop: 8 }}>
+                  Скоро откроем сад для всех. Пока вкладка закрыта.
+                </p>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setCasesWipOpen(false)}
+                >
+                  Понятно
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           <nav className="market-tabs" aria-label="Разделы площадки">
             {MAIN_TABS.map((t) => (
               <button
                 key={t.id}
                 type="button"
-                className={tab === t.id ? "is-active" : undefined}
+                className={`${t.id === "cases" ? "market-tab-cases" : ""}${
+                  tab === t.id ? " is-active" : ""
+                }`}
                 aria-selected={tab === t.id}
                 onClick={() => selectMainTab(t.id)}
               >
@@ -893,6 +939,16 @@ export function MarketplaceClient({ loggedIn }: Props) {
                 ))}
               </ul>
             </section>
+          ) : null}
+
+          {tab === "cases" && casesUnlocked ? (
+            <MarketCasesPanel
+              onBalances={({ currency, balance }) => {
+                if (currency === "BD") setFactionBalance(balance);
+                else setBalance(balance);
+              }}
+              onRefreshCatalog={() => void load()}
+            />
           ) : null}
 
           {tab === "topup" ? (

@@ -24706,6 +24706,494 @@ body:has(.faction-page) .site-footer {
   background: linear-gradient(135deg, #e8c35a 0%, #c4922a 100%);
   box-shadow: 0 4px 14px rgba(196, 146, 42, 0.35);
 }
+
+/* Вкладка «Кейсы» — акцент как Battle Pass */
+.market-tabs button.market-tab-cases {
+  position: relative;
+  margin-left: 4px;
+  padding: 10px 22px;
+  border-radius: 12px;
+  border: 1px solid rgba(167, 243, 208, 0.75);
+  color: #ecfdf5;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.92rem;
+  background:
+    linear-gradient(
+      120deg,
+      rgba(6, 78, 59, 0.95) 0%,
+      rgba(16, 185, 129, 0.7) 28%,
+      rgba(167, 243, 208, 0.45) 50%,
+      rgba(16, 185, 129, 0.7) 72%,
+      rgba(6, 78, 59, 0.95) 100%
+    );
+  background-size: 220% 100%;
+  box-shadow:
+    0 0 16px rgba(52, 211, 153, 0.45),
+    0 0 28px rgba(16, 185, 129, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  animation: market-cases-tab-flow 5.5s linear infinite;
+  overflow: hidden;
+}
+.market-tabs button.market-tab-cases::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(236, 253, 245, 0.4) 50%,
+    transparent 60%,
+    transparent 100%
+  );
+  background-size: 240% 100%;
+  animation: market-cases-tab-sheen 4.2s ease-in-out infinite;
+  mix-blend-mode: soft-light;
+}
+.market-tabs button.market-tab-cases.is-active,
+.market-tabs button.market-tab-cases:hover {
+  color: #fff;
+  border-color: rgba(209, 250, 229, 0.98);
+  box-shadow:
+    0 0 22px rgba(52, 211, 153, 0.6),
+    0 0 40px rgba(16, 185, 129, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+@keyframes market-cases-tab-flow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+@keyframes market-cases-tab-sheen {
+  0% { background-position: 130% 0; }
+  100% { background-position: -30% 0; }
+}
+
+.market-page--cases {
+  position: relative;
+}
+.market-page--cases::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 0%, rgba(74, 222, 128, 0.18), transparent 55%),
+    radial-gradient(ellipse 70% 45% at 90% 10%, rgba(168, 85, 247, 0.16), transparent 50%),
+    radial-gradient(ellipse 60% 40% at 50% 100%, rgba(251, 191, 36, 0.1), transparent 55%),
+    linear-gradient(180deg, #0a1210 0%, #12081a 45%, #0b0a12 100%);
+}
+
+.market-cases {
+  margin-top: 4px;
+}
+.market-cases-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid rgba(110, 231, 183, 0.35);
+  padding: 22px 24px 24px;
+  margin-bottom: 18px;
+  background:
+    linear-gradient(135deg, rgba(6, 78, 59, 0.55), rgba(88, 28, 135, 0.35)),
+    url("/market-cases/case-bbc-urozhay.jpg") center/cover;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+.market-cases-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    rgba(8, 14, 12, 0.88) 0%,
+    rgba(12, 10, 22, 0.72) 55%,
+    rgba(12, 10, 22, 0.4) 100%
+  );
+}
+.market-cases-hero-copy {
+  position: relative;
+  z-index: 1;
+  max-width: 36rem;
+}
+.market-cases-kicker {
+  margin: 0 0 6px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #6ee7b7;
+}
+.market-cases-hero h2 {
+  margin: 0 0 8px;
+  font-size: 1.65rem;
+  color: #f5f3ff;
+}
+.market-cases-hero p {
+  margin: 0;
+  color: #d1fae5;
+  line-height: 1.45;
+}
+
+.market-cases-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+.market-case-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  text-align: left;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  background: rgba(18, 14, 32, 0.88);
+  color: #efeaf8;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.market-case-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(110, 231, 183, 0.65);
+  box-shadow: 0 10px 28px rgba(16, 185, 129, 0.22);
+}
+.market-case-card.currency-bd {
+  border-color: rgba(192, 132, 252, 0.55);
+}
+.market-case-card.currency-bbc {
+  border-color: rgba(250, 204, 21, 0.45);
+}
+.market-case-badge {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  z-index: 2;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fef9c3;
+}
+.market-case-card.currency-bd .market-case-badge {
+  color: #f5d0fe;
+}
+.market-case-art {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 12px;
+  background: #0b0912;
+}
+.market-case-name {
+  margin-top: 6px;
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+.market-case-blurb {
+  font-size: 0.86rem;
+  color: #a7f3d0;
+  line-height: 1.35;
+}
+.market-case-price {
+  margin-top: 4px;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #fde68a;
+}
+.market-case-card.currency-bd .market-case-price {
+  color: #e9d5ff;
+}
+.market-case-hint {
+  font-size: 0.78rem;
+  color: #9ca3af;
+}
+
+.market-case-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(4, 6, 10, 0.72);
+  backdrop-filter: blur(6px);
+}
+.market-case-dialog {
+  position: relative;
+  width: min(920px, 100%);
+  max-height: min(92vh, 920px);
+  overflow: auto;
+  border-radius: 18px;
+  border: 1px solid rgba(110, 231, 183, 0.35);
+  background:
+    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(74, 222, 128, 0.12), transparent 55%),
+    linear-gradient(180deg, #14101f 0%, #0d1210 100%);
+  padding: 18px 18px 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+.market-case-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 3;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+.market-case-stage {
+  display: grid;
+  place-items: center;
+  margin: 4px 0 10px;
+  min-height: 160px;
+}
+.market-case-stage-art {
+  width: min(220px, 55vw);
+  border-radius: 14px;
+  transition: transform 0.7s ease, filter 0.7s ease, opacity 0.7s ease;
+  box-shadow: 0 0 40px rgba(168, 85, 247, 0.35);
+}
+.market-case-stage-art.is-opening {
+  transform: scale(1.08) rotate(-2deg);
+  filter: brightness(1.35) saturate(1.2);
+}
+.market-case-stage-art.is-open {
+  opacity: 0.35;
+  transform: scale(0.92);
+  filter: blur(1px);
+}
+.market-case-stage-label {
+  margin: 8px 0 0;
+  font-weight: 700;
+  color: #a7f3d0;
+}
+.market-case-dialog-head {
+  text-align: center;
+  margin-bottom: 10px;
+}
+.market-case-dialog-head h3 {
+  margin: 0 0 4px;
+  font-size: 1.45rem;
+}
+.market-case-dialog-price {
+  margin: 0;
+  color: #e7e2f4;
+}
+.market-case-dialog-price strong {
+  color: #fde68a;
+}
+
+.market-case-roulette {
+  position: relative;
+  margin: 12px 0 14px;
+}
+.market-case-roulette-pointer {
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  z-index: 2;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 12px solid #fde047;
+  filter: drop-shadow(0 0 6px rgba(250, 204, 21, 0.8));
+}
+.market-case-roulette-window {
+  overflow: hidden;
+  border-radius: 14px;
+  border: 1px solid rgba(250, 204, 21, 0.35);
+  background: rgba(0, 0, 0, 0.35);
+  padding: 10px 0;
+}
+.market-case-roulette-track {
+  display: flex;
+  gap: 10px;
+  padding: 0 12px;
+  width: max-content;
+  will-change: transform;
+}
+.market-case-roule-cell {
+  flex: 0 0 108px;
+  width: 108px;
+  height: 120px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(24, 20, 40, 0.95);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px;
+  text-align: center;
+}
+.market-case-roule-cell img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+}
+.market-case-roule-cell span {
+  font-size: 0.68rem;
+  line-height: 1.15;
+  color: #ddd6fe;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.market-case-roule-cell.kind-empty {
+  background: rgba(30, 30, 36, 0.9);
+  color: #9ca3af;
+}
+.market-case-roule-cell.is-win {
+  border-color: #fde047;
+  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.55), 0 0 24px rgba(250, 204, 21, 0.35);
+}
+
+.market-case-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(110, 231, 183, 0.4);
+  background: rgba(6, 78, 59, 0.35);
+}
+.market-case-result.kind-empty {
+  border-color: rgba(148, 163, 184, 0.35);
+  background: rgba(30, 41, 59, 0.45);
+}
+.market-case-result img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+}
+.market-case-result strong {
+  display: block;
+  font-size: 1.05rem;
+}
+.market-case-result span {
+  color: #a7f3d0;
+  font-size: 0.85rem;
+}
+
+.market-case-loot-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 8px 0 8px;
+}
+.market-case-loot-head h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+.market-case-loot-head p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+.market-case-loot-scroll {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 4px 2px 12px;
+  scroll-snap-type: x mandatory;
+}
+.market-case-loot-cell {
+  flex: 0 0 118px;
+  scroll-snap-align: start;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(20, 16, 32, 0.9);
+  padding: 8px;
+  text-align: center;
+}
+.market-case-loot-cell img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  margin: 0 auto 4px;
+  display: block;
+}
+.market-case-loot-title {
+  display: block;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  color: #e9e4f5;
+  min-height: 2.4em;
+}
+.market-case-loot-chance {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #86efac;
+}
+.market-case-loot-cell.kind-empty .market-case-loot-chance {
+  color: #94a3b8;
+}
+.market-case-empty-glyph {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 4px;
+  font-size: 1.6rem;
+  color: #64748b;
+}
+.market-case-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+}
+.market-case-open-btn {
+  border: 1px solid rgba(250, 204, 21, 0.75);
+  border-radius: 12px;
+  padding: 12px 28px;
+  font-weight: 800;
+  font-size: 1rem;
+  color: #1a1408;
+  cursor: pointer;
+  background: linear-gradient(135deg, #fde68a, #f59e0b);
+  box-shadow: 0 8px 22px rgba(245, 158, 11, 0.35);
+}
+.market-case-open-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.market-cases-wip-dialog {
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .market-tabs button.market-tab-cases,
+  .market-tabs button.market-tab-cases::before {
+    animation: none;
+  }
+  .market-case-roulette-track {
+    transition: none !important;
+  }
+}
+
 .market-soon {
   padding: 28px 20px;
   border: 1px dashed #3a3348;
