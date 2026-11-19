@@ -17,17 +17,20 @@ type LootEntry = {
   chancePct: number;
 };
 
-const CASE_FLASH_PATCH_IDS = new Set([
+/** Самая редкая категория кейса — Immortal (золотой фон). */
+const CASE_IMMORTAL_PATCH_IDS = new Set([
   "creator-svd-faction-lord",
   "creator-gp-drum-berry-lore",
 ]);
 
+function isImmortalLoot(e: Pick<LootEntry, "kind" | "itemId">): boolean {
+  return Boolean(
+    e.kind === "patch" && e.itemId && CASE_IMMORTAL_PATCH_IDS.has(e.itemId)
+  );
+}
+
 function lootCellClass(e: Pick<LootEntry, "kind" | "itemId">): string {
-  const flash =
-    e.kind === "patch" && e.itemId && CASE_FLASH_PATCH_IDS.has(e.itemId)
-      ? " is-case-legend"
-      : "";
-  return `kind-${e.kind}${flash}`;
+  return `kind-${e.kind}${isImmortalLoot(e) ? " is-immortal" : ""}`;
 }
 
 /** Дольше крутим, чтобы успевать разглядеть скины на ленте. */
@@ -512,7 +515,9 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
               <div
                 className={`market-case-result${
                   phase === "revealed" && result
-                    ? ` kind-${result.kind}`
+                    ? ` kind-${result.kind}${
+                        isImmortalLoot(result) ? " is-immortal" : ""
+                      }`
                     : " is-placeholder"
                 }`}
                 role="status"
@@ -570,6 +575,9 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                     ) : (
                       <span className="market-case-empty-glyph">∅</span>
                     )}
+                    {isImmortalLoot(e) ? (
+                      <span className="market-case-loot-rarity">Immortal</span>
+                    ) : null}
                     <span className="market-case-loot-title">
                       {e.kind === "empty" ? "Пусто" : e.title}
                     </span>
@@ -621,7 +629,9 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                   ×
                 </button>
                 <div
-                  className={`market-case-inspect-art kind-${inspect.kind}`}
+                  className={`market-case-inspect-art kind-${inspect.kind}${
+                    isImmortalLoot(inspect) ? " is-immortal" : ""
+                  }`}
                 >
                   {inspect.image ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -652,7 +662,9 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                       ? "Фон профиля"
                       : inspect.kind === "currency"
                         ? "Валюта"
-                        : "Нашивка"}
+                        : isImmortalLoot(inspect)
+                          ? "Immortal"
+                          : "Нашивка"}
                   {" · "}
                   шанс{" "}
                   {inspect.chancePct.toFixed(2).replace(/\.?0+$/, "")}%

@@ -25440,16 +25440,18 @@ body:has(.faction-page) .site-footer {
   border-color: rgba(250, 204, 21, 0.45);
   background: rgba(69, 46, 10, 0.55);
 }
-.market-case-roule-cell.is-case-legend {
-  border-color: rgba(232, 160, 210, 0.55);
+.market-case-roule-cell.is-immortal {
+  border-color: rgba(250, 204, 21, 0.55);
   background:
     linear-gradient(
       155deg,
-      rgba(255, 210, 235, 0.42) 0%,
-      rgba(210, 175, 245, 0.38) 55%,
-      rgba(160, 120, 210, 0.28) 100%
+      rgba(255, 214, 102, 0.42) 0%,
+      rgba(180, 120, 30, 0.5) 55%,
+      rgba(69, 46, 10, 0.62) 100%
     );
-  box-shadow: inset 0 0 18px rgba(255, 190, 230, 0.22);
+  box-shadow:
+    inset 0 0 18px rgba(250, 204, 21, 0.22),
+    0 0 14px rgba(250, 204, 21, 0.18);
 }
 .market-case-roule-cell.is-win {
   border-color: #fde047;
@@ -25470,7 +25472,8 @@ body:has(.faction-page) .site-footer {
   border-color: rgba(148, 163, 184, 0.35);
   background: rgba(30, 41, 59, 0.45);
 }
-.market-case-result.kind-currency {
+.market-case-result.kind-currency,
+.market-case-result.is-immortal {
   border-color: rgba(250, 204, 21, 0.55);
   background: rgba(69, 46, 10, 0.4);
 }
@@ -25532,26 +25535,39 @@ body:has(.faction-page) .site-footer {
   background: rgba(36, 28, 52, 0.98);
   transform: translateY(-2px);
 }
-.market-case-loot-cell.is-case-legend {
-  border-color: rgba(232, 160, 210, 0.55);
+.market-case-loot-cell.is-immortal {
+  border-color: rgba(250, 204, 21, 0.55);
   background:
     linear-gradient(
       155deg,
-      rgba(255, 210, 235, 0.4) 0%,
-      rgba(210, 175, 245, 0.36) 55%,
-      rgba(150, 110, 200, 0.26) 100%
+      rgba(255, 214, 102, 0.4) 0%,
+      rgba(180, 120, 30, 0.48) 55%,
+      rgba(69, 46, 10, 0.58) 100%
     );
-  box-shadow: inset 0 0 16px rgba(255, 190, 230, 0.2);
+  box-shadow:
+    inset 0 0 16px rgba(250, 204, 21, 0.2),
+    0 0 12px rgba(250, 204, 21, 0.16);
+  position: relative;
 }
-.market-case-loot-cell.is-case-legend:hover,
-.market-case-loot-cell.is-case-legend:focus-visible {
-  border-color: rgba(245, 190, 230, 0.75);
+.market-case-loot-cell.is-immortal:hover,
+.market-case-loot-cell.is-immortal:focus-visible {
+  border-color: rgba(253, 224, 71, 0.85);
   background:
     linear-gradient(
       155deg,
-      rgba(255, 220, 240, 0.5) 0%,
-      rgba(220, 190, 250, 0.42) 100%
+      rgba(255, 230, 140, 0.5) 0%,
+      rgba(200, 140, 40, 0.55) 100%
     );
+}
+.market-case-loot-rarity {
+  display: block;
+  margin: 0 0 2px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fde68a;
+  text-shadow: 0 0 8px rgba(250, 204, 21, 0.45);
 }
 .market-case-loot-cell img {
   width: 96px;
@@ -25612,6 +25628,15 @@ body:has(.faction-page) .site-footer {
   background: rgba(0, 0, 0, 0.28);
   border: 1px solid rgba(255, 255, 255, 0.08);
   padding: 18px;
+}
+.market-case-inspect-art.is-immortal {
+  border-color: rgba(250, 204, 21, 0.5);
+  background:
+    linear-gradient(
+      155deg,
+      rgba(255, 214, 102, 0.35) 0%,
+      rgba(120, 80, 20, 0.45) 100%
+    );
 }
 .market-case-inspect-art img.is-patch {
   width: min(100%, 520px);
