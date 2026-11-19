@@ -135,7 +135,7 @@ export const MARKET_CASES: MarketCaseDef[] = [
     blurb: "Серия I · общий ящик Сада за BB Coins",
     currency: "BBC",
     currencyLabel: "BBC",
-    price: 1000,
+    price: 750,
     image: "/market-cases/case-bbc-urozhay.jpg",
   },
 ];
