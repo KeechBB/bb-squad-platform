@@ -28,7 +28,7 @@ export const PROFILE_PATCH_OPTIONS = [
   },
   {
     id: "creator-svd-faction-lord",
-    file: "svd-faction-lord-v2.png",
+    file: "svd-faction-lord-v3.png",
     label: "СВД «Повелитель фракций»",
     tip: "СВД «Повелитель фракций»",
     gate: "creator" as const,

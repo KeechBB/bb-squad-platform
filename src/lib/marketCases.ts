@@ -285,7 +285,7 @@ function legendaryLootEntry(): CaseLootEntry {
     CASE_LEGENDARY_PATCH_ID,
     CASE_LEGENDARY_SELL,
     "СВД «Повелитель фракций»",
-    "svd-faction-lord-v2.png"
+    "svd-faction-lord-v3.png"
   );
 }
 
