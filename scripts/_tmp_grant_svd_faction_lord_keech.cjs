@@ -30,7 +30,7 @@ async function main() {
     where: { id: u.id },
     data: {
       unlockedNickPatches: list,
-      nickPatchId: PATCH,
+      nickPatch: PATCH,
     },
   });
 
