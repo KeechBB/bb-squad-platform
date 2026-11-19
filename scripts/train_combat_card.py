@@ -470,9 +470,18 @@ def main() -> None:
         raise SystemExit("need --id")
     path = CACHE / f"{match_id}.json"
     doc = None
-    if path.is_file() and "--rebuild" not in args:
-        doc = json.loads(path.read_text(encoding="utf-8"))
-    else:
+    force = "--rebuild" in args
+    if path.is_file() and not force:
+        try:
+            doc = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            doc = None
+        # Пустая заглушка (layer ещё не был / лог уехал) — не кэшируем навсегда.
+        counts = (doc or {}).get("counts") if isinstance(doc, dict) else None
+        players = (doc or {}).get("players") if isinstance(doc, dict) else None
+        if not isinstance(counts, dict) or int(counts.get("players") or 0) < 1 or not players:
+            doc = None
+    if doc is None:
         doc = build(match_id)
     if not nick:
         counts = doc.get("counts") or {}
