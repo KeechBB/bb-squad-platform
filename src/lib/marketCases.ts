@@ -81,8 +81,8 @@ export const CASE_GP_SELL = 40_000;
 export const CASE_RPG_SELL = 35_000;
 
 /** Валютные джекпоты (0.01%) — в кейсе своей валюты. */
-export const CASE_CASH_BBC_ID = "cash-bbc-20000";
-export const CASE_CASH_BBC_AMOUNT = 20_000;
+export const CASE_CASH_BBC_ID = "cash-bbc-200000";
+export const CASE_CASH_BBC_AMOUNT = 200_000;
 export const CASE_CASH_BD_ID = "cash-bd-1000000";
 export const CASE_CASH_BD_AMOUNT = 1_000_000;
 export const CASE_JACKPOT_SHARE = 0.0001; // 0.01%
