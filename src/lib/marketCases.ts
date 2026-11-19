@@ -325,16 +325,15 @@ function cashBdLootEntry(): CaseLootEntry {
   };
 }
 
-/** Легендарки + валютные джекпоты в оба кейса (по 0.01%). */
+/** Легендарки в оба кейса; валютный джекпот — только в кейсе своей валюты. */
 export function injectCaseSpecials(
   entries: CaseLootEntry[],
-  _currency: MarketCurrency
+  currency: MarketCurrency
 ): CaseLootEntry[] {
   const specials = [
     legendaryLootEntry(),
     gpDrumLootEntry(),
-    cashBbcLootEntry(),
-    cashBdLootEntry(),
+    ...(currency === "BBC" ? [cashBbcLootEntry()] : [cashBdLootEntry()]),
   ];
   const skip = new Set(specials.map((s) => s.itemId));
   const without = entries.filter((e) => !e.itemId || !skip.has(e.itemId));
