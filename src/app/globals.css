@@ -2214,31 +2214,99 @@ body:has(.public-rating-page) {
 .admin-table.rating-like-cw th.col-nick,
 .admin-table.rating-like-cw td.col-nick {
   text-align: left !important;
-  overflow: visible;
+  overflow: visible !important;
+  position: relative;
+  white-space: nowrap;
 }
-/* Единая высота строк во всех рейтингах + glow может чуть вылезать */
+/*
+ * Единая высота строк: в таблицах height = min-height, контент раздувает ряд.
+ * Нашивка не участвует в высоте (height:0), арт рисуется поверх — glow вылезает.
+ */
 .public-rating-table-wrap table.admin-table tbody tr,
 .cross-rating-table tbody tr,
 .admin-table.rating-like-cw tbody tr {
   position: relative;
   z-index: 0;
-  height: 56px;
+  height: 44px;
 }
 .public-rating-table-wrap table.admin-table tbody td,
 .cross-rating-table tbody td,
 .admin-table.rating-like-cw tbody td {
-  height: 56px;
-  max-height: 56px;
-  padding-top: 0;
-  padding-bottom: 0;
+  height: 44px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  line-height: 44px !important;
   box-sizing: border-box;
-  vertical-align: middle;
-  overflow: visible;
+  vertical-align: middle !important;
+  overflow: visible !important;
 }
 .public-rating-table-wrap table.admin-table tbody tr:hover,
 .cross-rating-table tbody tr:hover,
 .admin-table.rating-like-cw tbody tr:hover {
   z-index: 3;
+}
+.public-rating-table-wrap .nick-patch-mark,
+.public-rating-table-wrap .public-rating-bp-patch-test,
+.cross-rating-table .nick-patch-mark,
+.admin-table.rating-like-cw .nick-patch-mark {
+  display: inline-block;
+  width: 168px;
+  height: 0 !important;
+  margin: 0 0 0 8px;
+  padding: 0;
+  vertical-align: middle;
+  overflow: visible;
+  position: relative;
+  z-index: 2;
+}
+.public-rating-table-wrap .nick-patch-mark-art,
+.public-rating-table-wrap .public-rating-bp-patch-test-art,
+.cross-rating-table .nick-patch-mark-art,
+.admin-table.rating-like-cw .nick-patch-mark-art {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 168px;
+  height: 42px;
+  margin-top: -21px;
+  transform: scaleX(-1);
+}
+/* hover: сохранить зеркало + чуть увеличить, не сбрасывая центрирование */
+.public-rating-table-wrap .nick-patch-mark:hover .nick-patch-mark-art,
+.public-rating-table-wrap .nick-patch-mark:focus-visible .nick-patch-mark-art,
+.public-rating-table-wrap .nick-patch-mark.is-active .nick-patch-mark-art,
+.public-rating-table-wrap .public-rating-bp-patch-test:hover .public-rating-bp-patch-test-art,
+.public-rating-table-wrap .public-rating-bp-patch-test:focus-visible .public-rating-bp-patch-test-art,
+.public-rating-table-wrap .public-rating-bp-patch-test.is-active .public-rating-bp-patch-test-art,
+.cross-rating-table .nick-patch-mark:hover .nick-patch-mark-art,
+.cross-rating-table .nick-patch-mark:focus-visible .nick-patch-mark-art,
+.cross-rating-table .nick-patch-mark.is-active .nick-patch-mark-art,
+.admin-table.rating-like-cw .nick-patch-mark:hover .nick-patch-mark-art,
+.admin-table.rating-like-cw .nick-patch-mark:focus-visible .nick-patch-mark-art,
+.admin-table.rating-like-cw .nick-patch-mark.is-active .nick-patch-mark-art {
+  transform: scaleX(-1) scale(1.06);
+}
+/* M4 золото смотрит влево уже в файле — без scaleX(-1) */
+.public-rating-table-wrap .nick-patch-mark[data-patch-id="bp-l15-keech"] .nick-patch-mark-art,
+.cross-rating-table .nick-patch-mark[data-patch-id="bp-l15-keech"] .nick-patch-mark-art,
+.admin-table.rating-like-cw .nick-patch-mark[data-patch-id="bp-l15-keech"] .nick-patch-mark-art {
+  transform: none;
+}
+.public-rating-table-wrap .nick-patch-mark[data-patch-id="bp-l15-keech"]:hover .nick-patch-mark-art,
+.public-rating-table-wrap .nick-patch-mark[data-patch-id="bp-l15-keech"]:focus-visible .nick-patch-mark-art,
+.public-rating-table-wrap .nick-patch-mark[data-patch-id="bp-l15-keech"].is-active .nick-patch-mark-art,
+.cross-rating-table .nick-patch-mark[data-patch-id="bp-l15-keech"]:hover .nick-patch-mark-art,
+.cross-rating-table .nick-patch-mark[data-patch-id="bp-l15-keech"]:focus-visible .nick-patch-mark-art,
+.cross-rating-table .nick-patch-mark[data-patch-id="bp-l15-keech"].is-active .nick-patch-mark-art,
+.admin-table.rating-like-cw .nick-patch-mark[data-patch-id="bp-l15-keech"]:hover .nick-patch-mark-art,
+.admin-table.rating-like-cw .nick-patch-mark[data-patch-id="bp-l15-keech"]:focus-visible .nick-patch-mark-art,
+.admin-table.rating-like-cw .nick-patch-mark[data-patch-id="bp-l15-keech"].is-active .nick-patch-mark-art {
+  transform: scale(1.06);
+}
+.public-rating-table-wrap .nick-patch-mark[data-patch-id="public-100-vehicles-t62"] .nick-patch-mark-art,
+.cross-rating-table .nick-patch-mark[data-patch-id="public-100-vehicles-t62"] .nick-patch-mark-art,
+.admin-table.rating-like-cw .nick-patch-mark[data-patch-id="public-100-vehicles-t62"] .nick-patch-mark-art {
+  transform: none;
 }
 
 .public-rating-shell .public-rating-table-wrap table.admin-table td.ctr {
