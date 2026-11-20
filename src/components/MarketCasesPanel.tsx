@@ -332,7 +332,13 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
 
   if (err === "wip") {
     return (
-      <p className="market-note">Кейсы пока в разработке.</p>
+      <section className="market-cases market-cases-wip" aria-label="Кейсы">
+        <div className="market-cases-wip-dialog" role="status">
+          <p className="market-cases-kicker">Фруктовый сад</p>
+          <h2>Кейсы</h2>
+          <p className="market-note">В разработке</p>
+        </div>
+      </section>
     );
   }
 

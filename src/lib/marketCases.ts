@@ -161,11 +161,29 @@ export function getMarketCase(id: string): MarketCaseDef | null {
   return MARKET_CASES.find((c) => c.id === id) || null;
 }
 
-/** Кейсы открыты всем залогиненным; gate на API — requireMarketUser. */
-export function canAccessMarketCases(
+/**
+ * Орг. стримеры (не игроки BB) — кейсы только «в разработке».
+ * Канон: docs/BB-ORG-STREAMERS.md
+ */
+export const CASE_ORG_STREAMER_STEAM_IDS = new Set([
+  "76561199421997729", // Shmeliys
+]);
+
+/** Кейсы: только ClanMember [BB]; стримерам орг. — нет (заглушка WIP). */
+export async function canAccessMarketCases(
   steamId: string | null | undefined
-): boolean {
-  return Boolean(steamId && String(steamId).trim());
+): Promise<boolean> {
+  const sid = String(steamId || "").trim();
+  if (!sid) return false;
+  if (CASE_ORG_STREAMER_STEAM_IDS.has(sid)) return false;
+  const row = await prisma.clanMember.findFirst({
+    where: {
+      user: { steamId: sid },
+      clan: { tag: "BB", isExternal: false },
+    },
+    select: { id: true },
+  });
+  return Boolean(row);
 }
 
 type RawItem = {
@@ -533,7 +551,7 @@ export async function openMarketCase(opts: {
     }
   | { ok: false; error: string }
 > {
-  if (!canAccessMarketCases(opts.steamId)) {
+  if (!(await canAccessMarketCases(opts.steamId))) {
     return { ok: false, error: "wip" };
   }
   const def = getMarketCase(opts.caseId);

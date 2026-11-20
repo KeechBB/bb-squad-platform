@@ -24977,6 +24977,29 @@ body:has(.faction-page) .site-footer {
 .market-cases {
   margin-top: 4px;
 }
+.market-cases-wip {
+  display: grid;
+  place-items: center;
+  min-height: 280px;
+  padding: 32px 20px;
+}
+.market-cases-wip .market-cases-wip-dialog {
+  max-width: 360px;
+  padding: 28px 32px;
+  border-radius: 16px;
+  border: 1px solid rgba(110, 231, 183, 0.28);
+  background: rgba(8, 16, 14, 0.72);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+.market-cases-wip h2 {
+  margin: 4px 0 10px;
+  font-size: 1.55rem;
+}
+.market-cases-wip .market-note {
+  margin: 0;
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+}
 .market-cases-hero {
   position: relative;
   overflow: hidden;

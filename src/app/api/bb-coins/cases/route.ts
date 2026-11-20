@@ -14,7 +14,7 @@ export async function GET() {
   const gate = await requireMarketUser();
   if ("error" in gate) return gate.error;
   const { user } = gate;
-  const access = canAccessMarketCases(user.steamId);
+  const access = await canAccessMarketCases(user.steamId);
   if (!access) {
     return NextResponse.json({ ok: true, access: false, wip: true, cases: [] });
   }
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
   if ("error" in gate) return gate.error;
   const { user } = gate;
 
-  if (!canAccessMarketCases(user.steamId)) {
+  if (!(await canAccessMarketCases(user.steamId))) {
     return NextResponse.json({ ok: false, error: "wip" }, { status: 403 });
   }
 
