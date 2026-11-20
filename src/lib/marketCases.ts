@@ -25,6 +25,7 @@ import { BD_MARK, BD_NAME } from "@/lib/blueberryDollar";
 import {
   applyGroupBoost,
   caseBoostKindPrice,
+  CASE_JACKPOT_BTN_ADD,
   CASE_RED_IMMORTAL_ADD,
   CASE_RED_RARE_ADD,
   caseRedJackpotAdd,
@@ -548,9 +549,13 @@ function boostedRollTable(
   kind: CaseBoostKind,
   caseId: MarketCaseId
 ): CaseLootEntry[] {
-  void kind;
   const jackpotId =
     caseId === "bbc-urozhay" ? CASE_CASH_BBC_ID : CASE_CASH_BD_ID;
+  if (kind === "jackpot") {
+    return applyGroupBoost(table, [
+      { ids: new Set([CASE_CASH_BBC_ID]), addPct: CASE_JACKPOT_BTN_ADD, perItem: true },
+    ]);
+  }
   return applyGroupBoost(table, [
     { ids: new Set([CASE_RPG_PATCH_ID]), addPct: CASE_RED_RARE_ADD, perItem: true },
     { ids: new Set([jackpotId]), addPct: caseRedJackpotAdd(caseId), perItem: true },
@@ -563,7 +568,7 @@ function boostedRollTable(
 }
 
 function boostNote(kind: CaseBoostKind, caseId: MarketCaseId): string {
-  void kind;
+  if (kind === "jackpot") return "буст ДЖЕКПОТ, повышенный шанс";
   return `буст каждому: Rare +${CASE_RED_RARE_ADD}%, джекпот +${caseRedJackpotAdd(caseId)}%, Immortal +${CASE_RED_IMMORTAL_ADD}%`;
 }
 
@@ -717,9 +722,14 @@ export async function openMarketCase(opts: {
       chancePct: pityForced ? result.chancePct : rolledChance,
       boost: Boolean(boostKind),
       boostKind,
-      boostRareAddPct: boostKind ? CASE_RED_RARE_ADD : undefined,
-      boostJackpotAddPct: boostKind ? caseRedJackpotAdd(def.id) : undefined,
-      boostImmortalAddPct: boostKind ? CASE_RED_IMMORTAL_ADD : undefined,
+      boostRareAddPct: boostKind === "red" ? CASE_RED_RARE_ADD : undefined,
+      boostJackpotAddPct:
+        boostKind === "jackpot"
+          ? CASE_JACKPOT_BTN_ADD
+          : boostKind === "red"
+            ? caseRedJackpotAdd(def.id)
+            : undefined,
+      boostImmortalAddPct: boostKind === "red" ? CASE_RED_IMMORTAL_ADD : undefined,
       infiniteWallet: hasInfiniteMarketWallet(opts.steamId),
       paidFrom: charged.paidFrom || null,
       pity:

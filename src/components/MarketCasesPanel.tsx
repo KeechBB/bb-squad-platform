@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { primeCaseAudio, watchCaseReel } from "@/lib/caseSpinAudio";
 import {
   CASE_BOOST_KIND_PRICE,
+  CASE_JACKPOT_BTN_PRICE,
   CASE_RED_IMMORTAL_ADD,
   CASE_RED_JACKPOT_ADD_BBC,
   CASE_RED_JACKPOT_ADD,
@@ -192,8 +193,12 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
       : `${c.price.toLocaleString("ru-RU")} BBC`;
 
   const kindPriceLabel = (c: CaseCard, kind: CaseBoostKind) => {
-    const row = CASE_BOOST_KIND_PRICE[kind];
-    const n = c.id === "faction-sad" ? row["faction-sad"] : row["bbc-urozhay"];
+    const n =
+      kind === "jackpot"
+        ? CASE_JACKPOT_BTN_PRICE
+        : c.id === "faction-sad"
+          ? CASE_BOOST_KIND_PRICE.red["faction-sad"]
+          : CASE_BOOST_KIND_PRICE.red["bbc-urozhay"];
     return c.currency === "BD"
       ? `${n.toLocaleString("ru-RU")} $`
       : `${n.toLocaleString("ru-RU")} BBC`;
@@ -310,11 +315,13 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
           spent:
             typeof data.spent === "number"
               ? data.spent
-              : boostKind
-                ? CASE_BOOST_KIND_PRICE[boostKind][
-                    c.id === "faction-sad" ? "faction-sad" : "bbc-urozhay"
-                  ]
-                : c.price,
+              : boostKind === "jackpot"
+                ? CASE_JACKPOT_BTN_PRICE
+                : boostKind === "red"
+                  ? CASE_BOOST_KIND_PRICE.red[
+                      c.id === "faction-sad" ? "faction-sad" : "bbc-urozhay"
+                    ]
+                  : c.price,
           dropTitle: won.kind === "empty" ? "Пусто" : won.title,
           dropKind: won.kind,
           dropImage: won.image,
@@ -729,6 +736,21 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                   <span className="market-case-btn-effect">+{CASE_RED_IMMORTAL_ADD}% Immortal</span>
                   <span className="market-case-btn-price">{kindPriceLabel(active, "red")}</span>
                 </button>
+                {active.id === "bbc-urozhay" ? (
+                  <button
+                    type="button"
+                    className="market-case-boost-btn is-jackpot"
+                    disabled={busy || phase === "spinning" || phase === "opening"}
+                    title="Один прокрут. Повышенный шанс джекпота."
+                    onClick={() => void openCase(active, "jackpot")}
+                  >
+                    <span className="market-case-btn-effect">ДЖЕКПОТ</span>
+                    <span className="market-case-btn-effect">повышенный шанс</span>
+                    <span className="market-case-btn-price">
+                      {kindPriceLabel(active, "jackpot")}
+                    </span>
+                  </button>
+                ) : null}
               </div>
             </div>
           </div>

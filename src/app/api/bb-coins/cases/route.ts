@@ -43,8 +43,10 @@ export async function POST(req: Request) {
   }
   const boostKind: CaseBoostKind | null =
     body.boostKind === "red"
-      ? body.boostKind
-      : null;
+      ? "red"
+      : body.boostKind === "jackpot" && caseId === "bbc-urozhay"
+        ? "jackpot"
+        : null;
 
   const res = await openMarketCase({
     caseId,
