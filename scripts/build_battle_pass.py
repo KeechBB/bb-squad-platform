@@ -869,10 +869,29 @@ def apply_match_to_players(
 
     advanced = 0
     players = state.setdefault("players", {})
+    # angelSteams есть только у новых блоков. Старые матчи уже в scored и сюда не попадают.
+    angel_known = isinstance(block.get("angelSteams"), list)
+    angel_steams = {
+        str(s) for s in (block.get("angelSteams") or []) if str(s).startswith("7656")
+    }
+    angel_row = per_by_key.get("angel") or per_by_key.get(R.canon_key("angel", aliases))
     for nk, reg in registered.items():
+        steam = str(reg.get("steamId") or "")
+        plain_angel = R.nick_key(str(reg.get("nick") or "")) == "angel"
         st = per_by_key.get(nk) or per_by_key.get(
             R.canon_key(str(reg.get("nick") or ""), aliases)
         )
+        sole = bool(steam) and angel_steams == {steam}
+        if angel_known and sole:
+            # Единственный Steam под ником angel забирает эту строку, даже если сайт-ник с хвостом.
+            st = angel_row or st
+        elif angel_known and (st is angel_row or (plain_angel and st is not None and angel_row is not None and st == angel_row)):
+            # Чужой Steam или двое сразу — строку angel никому не пишем. Уже начисленные уровни не трогаем.
+            st = None
+        elif angel_known and plain_angel and st is not None:
+            own_key = R.canon_key(str(reg.get("nick") or ""), aliases)
+            if own_key == "angel" or nk == "angel":
+                st = None
         if not st:
             continue
         key = reg.get("steamId") or reg["nick"]
@@ -918,6 +937,15 @@ def ensure_all_registered(state: dict, registered: dict[str, dict]) -> None:
         key = by_steam.get(steam) or by_nick.get(R.nick_key(nick))
         if key and key in players:
             p = players[key]
+            existing_steam = str(p.get("steamId") or "")
+            if (
+                existing_steam
+                and steam
+                and existing_steam != steam
+                and R.nick_key(nick) == "angel"
+            ):
+                # Не переписывать прогресс BlackBerry Angel чужим Steam с тем же ником.
+                continue
             p["nick"] = nick or p.get("nick")
             p["steamId"] = steam or p.get("steamId")
             p["avatarUrl"] = reg.get("avatarUrl") or p.get("avatarUrl")
@@ -1094,12 +1122,16 @@ def maybe_award_l20_closest(state: dict, now: datetime | None = None) -> bool:
 
 
 def persist_s2_rewards(state: dict) -> None:
-    """Halloween S2 unlocks: L5 knife · L10 bg · L15 nick · L20 gun · L25 medal (shelf via BP state)."""
+    """Halloween S2 unlocks: L5 knife · L10 bg · L15 nick · L20 gun · L25 medal (shelf via BP state).
+
+    Не возвращаем награду, если игрок уже продал её в маркет (BbCoinTx *_sell).
+    Иначе «Жнец сада» и др. появляются снова после каждого rebuild BP.
+    """
     grants = [
-        (5, "unlockedNickPatches", "hw2-knife-hook"),
-        (10, "unlockedProfileBgs", "hw2-night-harvest"),
-        (15, "unlockedNickStyles", "hw2-violet-gothic"),
-        (20, "unlockedNickPatches", "hw2-ak-pumpkin"),
+        (5, "unlockedNickPatches", "hw2-knife-hook", "patch_sell"),
+        (10, "unlockedProfileBgs", "hw2-night-harvest", "bg_sell"),
+        (15, "unlockedNickStyles", "hw2-violet-gothic", "font_sell"),
+        (20, "unlockedNickPatches", "hw2-ak-pumpkin", "patch_sell"),
     ]
     db = (os.environ.get("DATABASE_URL") or "").strip().strip("'").strip('"')
     if not db:
@@ -1128,7 +1160,7 @@ def persist_s2_rewards(state: dict) -> None:
     try:
         conn = connect(_psycopg_dsn(db))
         cur = conn.cursor()
-        for min_lvl, col, token in grants:
+        for min_lvl, col, token, sell_kind in grants:
             nicks: list[str] = []
             steams: list[str] = []
             for p in (state.get("players") or {}).values():
@@ -1157,8 +1189,14 @@ def persist_s2_rewards(state: dict) -> None:
                     lower(nick) = any(%s)
                     or "steamId" = any(%s)
                   )
+                  and not exists (
+                    select 1 from "BbCoinTx" t
+                    where t."userId" = "User".id
+                      and t.kind = %s
+                      and t.note ilike '%%' || %s || '%%'
+                  )
                 """,
-                (token, token, nicks or [""], steams or [""]),
+                (token, token, nicks or [""], steams or [""], sell_kind, token),
             )
             print(
                 f"BP S2: granted {token} (L{min_lvl}+) to {cur.rowcount} accounts",

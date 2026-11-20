@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
-"""Rebuild Развитие ladders after a match is poured, only if a round finished.
+"""Rebuild Развитие ladders (rifle / medic / LAT).
 
-Looks at TR1–TR5 Squad logs. A round counts when a new "has won/lost the match"
-line appeared since the last check, or a new backup log landed. Chat and an
-unfinished round do not trigger a rebuild.
+Triggers:
+  • new finished round on TR1–TR5 (has won/lost the match)
+  • missing / empty ladder files
+  • any ladder older than MAX_STALE (rolling 14d window + roster drift)
+  • ladder JSON ``to`` behind yesterday MSK (calendar day rolled)
+  • ``--force``
 
-Rifle stays on /var/www/bb-jobs/build_rifle_ladder.py (the hourly job that
-still writes the minday column). Medic and LAT are the platform scripts.
+Hourly cron is the backstop; pour queue kicks this after train/CW ingest.
+Rifle builder lives in /var/www/bb-jobs/build_rifle_ladder.py;
+medic/LAT are platform scripts.
 """
 from __future__ import annotations
 
+import argparse
 import fcntl
 import json
 import os
@@ -33,8 +38,9 @@ MEDIC = Path("/var/www/bb-squad-platform/scripts/build_medic_ladder.py")
 LAT = Path("/var/www/bb-squad-platform/scripts/build_lat_ladder.py")
 
 TS = re.compile(r"\[(\d{4})\.(\d{2})\.(\d{2})-(\d{2})\.(\d{2})\.(\d{2}):(\d{3})\]")
-FINISH = ("has won the match", "has lost the match")
 TAIL = 6 * 1024 * 1024
+# Roster/kit-tiers and the 14-day window drift without a new pour — never sit stale overnight.
+MAX_STALE = timedelta(hours=3)
 
 
 def utcnow() -> datetime:
@@ -108,6 +114,7 @@ def save_state(checked_until: datetime, sizes: dict[str, int]) -> None:
     payload = {
         "checked_until": checked_until.strftime("%Y-%m-%dT%H:%M:%S+00:00"),
         "files": sizes,
+        "last_rebuild_at": checked_until.strftime("%Y-%m-%dT%H:%M:%S+00:00"),
     }
     tmp = STATE.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
@@ -146,7 +153,9 @@ def has_finish(path: Path, start: int, after: datetime) -> datetime | None:
     return found
 
 
-def newest_finish(files: list[Path], prev: dict[str, int], after: datetime) -> tuple[datetime | None, str]:
+def newest_finish(
+    files: list[Path], prev: dict[str, int], after: datetime
+) -> tuple[datetime | None, str]:
     best: datetime | None = None
     where = ""
     first = not prev
@@ -182,6 +191,40 @@ def ladder_floor() -> datetime:
     return min(times)
 
 
+def msk_yesterday(now: datetime) -> str:
+    msk = now + timedelta(hours=3)
+    return (msk.date() - timedelta(days=1)).isoformat()
+
+
+def ladders_need_refresh(now: datetime) -> list[str]:
+    """Reasons to rebuild even without a new finished round."""
+    reasons: list[str] = []
+    yesterday = msk_yesterday(now)
+    for path in LADDERS:
+        name = path.name
+        try:
+            st = path.stat()
+        except OSError:
+            reasons.append(f"missing:{name}")
+            continue
+        if st.st_size < 32:
+            reasons.append(f"empty:{name}")
+            continue
+        age = now - datetime.fromtimestamp(st.st_mtime, timezone.utc)
+        if age >= MAX_STALE:
+            hours = int(age.total_seconds() // 3600)
+            reasons.append(f"age:{name}:{hours}h")
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+            reasons.append(f"badjson:{name}")
+            continue
+        to_day = str(data.get("to") or "").strip()
+        if to_day and to_day < yesterday:
+            reasons.append(f"window:{name}:{to_day}<{yesterday}")
+    return reasons
+
+
 def rebuild() -> int:
     steps = [
         [sys.executable, str(RIFLE)],
@@ -197,7 +240,7 @@ def rebuild() -> int:
     return 0
 
 
-def one_pass() -> int:
+def one_pass(*, force: bool = False) -> int:
     """0 = nothing new, 1 = rebuilt, 2 = a builder failed."""
     now = utcnow()
     files = log_files(now)
@@ -227,9 +270,20 @@ def one_pass() -> int:
                 scan.append(path)
         known = {}
     missing = [p for p in LADDERS if not p.is_file() or p.stat().st_size < 32]
+    stale = ladders_need_refresh(now)
     ts, where = newest_finish(scan, known, after)
-    if ts is None and not missing:
-        save_state(now, sizes)
+    if ts is None and not missing and not stale and not force:
+        # Refresh file sizes for incremental scan; keep checked_until so a
+        # missed finish in an unchanged-size window is still findable.
+        STATE.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "checked_until": after.strftime("%Y-%m-%dT%H:%M:%S+00:00"),
+            "files": sizes,
+            "last_skip_at": now.strftime("%Y-%m-%dT%H:%M:%S+00:00"),
+        }
+        tmp = STATE.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        os.replace(tmp, STATE)
         print(
             "skip no new round since",
             after.strftime("%Y-%m-%d %H:%M:%S"),
@@ -238,12 +292,16 @@ def one_pass() -> int:
         )
         return 0
 
+    if force:
+        print("force rebuild", flush=True)
     if missing:
         print(
             "heal missing ladders",
             ", ".join(p.name for p in missing),
             flush=True,
         )
+    if stale:
+        print("refresh stale", ", ".join(stale[:12]), flush=True)
     if ts is not None:
         print(
             "new round",
@@ -261,7 +319,15 @@ def one_pass() -> int:
     return 1
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Rebuild rifle/medic/LAT growth ladders")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Rebuild even if no new round and ladders look fresh",
+    )
+    args = parser.parse_args(argv)
+
     LOCK.parent.mkdir(parents=True, exist_ok=True)
     with LOCK.open("a+") as lock:
         try:
@@ -271,8 +337,9 @@ def main() -> int:
             return 0
         # A round can end while the rebuild is still reading logs. One more
         # pass picks it up, so a second pour during the run is not lost.
-        for _ in range(4):
-            code = one_pass()
+        force_once = bool(args.force)
+        for i in range(4):
+            code = one_pass(force=force_once and i == 0)
             if code != 1:
                 return 0 if code == 0 else code
         print("stop after 4 rebuilds", flush=True)

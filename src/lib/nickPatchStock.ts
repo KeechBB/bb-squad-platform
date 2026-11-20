@@ -126,6 +126,8 @@ export async function removePatchQty(
 /**
  * Разовая миграция: market-id в unlockedNickPatches → stock qty=1,
  * если строки stock ещё нет.
+ * Если уже продавали в маркет — unlock снимаем, stock не создаём
+ * (иначе BP/ensure снова поднимает «проданные» нашивки).
  */
 export async function migrateUnlocksToStock(userId: string) {
   const u = await prisma.user.findUnique({
@@ -137,12 +139,38 @@ export async function migrateUnlocksToStock(userId: string) {
     MARKET_PATCH_IDS.has(id)
   );
   if (!unlocks.length) return;
+  const soldRows = await prisma.bbCoinTx.findMany({
+    where: {
+      userId,
+      kind: "patch_sell",
+      OR: unlocks.map((id) => ({ note: { contains: id } })),
+    },
+    select: { note: true },
+  });
+  const sold = new Set<string>();
+  for (const row of soldRows) {
+    const note = String(row.note || "");
+    for (const id of unlocks) {
+      if (note.includes(id)) sold.add(id);
+    }
+  }
+  if (sold.size) {
+    const next = (u.unlockedNickPatches || []).filter((id) => !sold.has(id));
+    if (next.length !== (u.unlockedNickPatches || []).length) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { unlockedNickPatches: next },
+      });
+    }
+  }
+  const keep = unlocks.filter((id) => !sold.has(id));
+  if (!keep.length) return;
   const existing = await prisma.nickPatchStock.findMany({
-    where: { userId, patchId: { in: unlocks } },
+    where: { userId, patchId: { in: keep } },
     select: { patchId: true },
   });
   const have = new Set(existing.map((r) => r.patchId));
-  for (const patchId of unlocks) {
+  for (const patchId of keep) {
     if (have.has(patchId)) continue;
     await prisma.nickPatchStock.create({
       data: { userId, patchId, qty: 1 },
