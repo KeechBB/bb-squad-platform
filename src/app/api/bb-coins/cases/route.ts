@@ -42,7 +42,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "case" }, { status: 400 });
   }
   const boostKind: CaseBoostKind | null =
-    body.boostKind === "red" || body.boostKind === "green"
+    body.boostKind === "red"
       ? body.boostKind
       : null;
 

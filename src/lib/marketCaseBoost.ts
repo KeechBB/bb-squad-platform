@@ -2,11 +2,11 @@
  * Платные бусты одного прокрута. Цена кнопки — вместо обычной цены кейса.
  * Прибавка в процентных пунктах к выбранной группе, остальное сжимается.
  */
-export type CaseBoostKind = "red" | "green";
+export type CaseBoostKind = "red";
 
 /** Красная кнопка: каждому предмету своей категории, целиком. */
 export const CASE_RED_RARE_ADD = 7;
-/** Джекпот красной кнопки: 5 000 BBC — 1,5 пункта, 20 000 $ — 3. */
+/** Джекпот красной кнопки: 7 500 BBC — 1,5 пункта, 20 000 $ — 3. */
 export const CASE_RED_JACKPOT_ADD_BBC = 1.5;
 export const CASE_RED_JACKPOT_ADD = 3;
 export const CASE_RED_IMMORTAL_ADD = 5;
@@ -14,9 +14,6 @@ export const CASE_RED_IMMORTAL_ADD = 5;
 export function caseRedJackpotAdd(caseId: string): number {
   return caseId === "bbc-urozhay" ? CASE_RED_JACKPOT_ADD_BBC : CASE_RED_JACKPOT_ADD;
 }
-/** Зелёная кнопка. */
-export const CASE_GREEN_IMMORTAL_ADD = 7;
-export const CASE_GREEN_JACKPOT_ADD = 2;
 
 export const CASE_IMMORTAL_BOOST_ADD_PCT = CASE_RED_IMMORTAL_ADD;
 
@@ -24,8 +21,7 @@ export const CASE_BOOST_KIND_PRICE: Record<
   CaseBoostKind,
   { "bbc-urozhay": number; "faction-sad": number }
 > = {
-  red: { "bbc-urozhay": 5_000, "faction-sad": 20_000 },
-  green: { "bbc-urozhay": 15_000, "faction-sad": 50_000 },
+  red: { "bbc-urozhay": 7_500, "faction-sad": 20_000 },
 };
 
 /** @deprecated цена красной кнопки. */

@@ -76,12 +76,37 @@ function tone(
 
 function playImmortal(audio: AudioContext): void {
   const t = audio.currentTime;
-  tone(audio, 82, t, 0.42, "sine", 0.26);
-  tone(audio, 164, t, 0.3, "triangle", 0.1);
-  [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
-    tone(audio, freq, t + 0.1 + i * 0.12, 0.62, "triangle", 0.1);
-  });
-  tone(audio, 1568, t + 0.58, 0.75, "sine", 0.05);
+  const dur = 2.1;
+  const frames = Math.floor(audio.sampleRate * dur);
+  const buffer = audio.createBuffer(1, frames, audio.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let c = 0; c < 90; c++) {
+    const start = Math.floor(Math.random() * frames * 0.82);
+    const len = Math.floor(audio.sampleRate * (0.028 + Math.random() * 0.04));
+    const amp = 0.65 + Math.random() * 0.35;
+    for (let i = 0; i < len && start + i < frames; i++) {
+      const env = Math.exp(-i / (audio.sampleRate * 0.011));
+      data[start + i] += (Math.random() * 2 - 1) * env * amp;
+    }
+  }
+  for (let i = 0; i < frames; i++) {
+    const bed = 0.12 * (1 - i / frames);
+    data[i] = Math.max(-1, Math.min(1, data[i] + (Math.random() * 2 - 1) * bed));
+  }
+  const src = audio.createBufferSource();
+  src.buffer = buffer;
+  const filter = audio.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.value = 1700;
+  filter.Q.value = 0.55;
+  const gain = audio.createGain();
+  gain.gain.setValueAtTime(0.9, t);
+  gain.gain.setValueAtTime(0.9, t + 1.35);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(filter);
+  filter.connect(gain);
+  gain.connect(audio.destination);
+  src.start(t);
 }
 
 function playJackpot(audio: AudioContext): void {
