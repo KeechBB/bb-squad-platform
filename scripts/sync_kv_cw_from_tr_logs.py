@@ -414,8 +414,11 @@ def _mode_token(text: str) -> str | None:
 
 
 def _pack_token(text: str) -> str | None:
-    """FCL/CSL/SEC in the calendar must not swallow a vanilla layer of the same place."""
+    """Mod pack in calendar/layer. LC_Fallujah ≡ LizardCup Fallujah, not vanilla Fallujah."""
     s = re.sub(r"[^a-z0-9]", "", (text or "").lower())
+    # lizardcup / LC_… (lc prefix) before fcl/csl/sec
+    if "lizardcup" in s or s.startswith("lc"):
+        return "lc"
     for pack in ("fcl", "csl", "sec"):
         if pack in s:
             return pack
@@ -429,7 +432,8 @@ def _cw_place_key(text: str) -> str:
     sits in a different place in the calendar name than in the layer id.
     """
     s = (text or "").replace("_", " ")
-    s = re.sub(r"\b(sec|fcl|csl)\b", " ", s, flags=re.I)
+    s = re.sub(r"\blizard\s*cup\b", " ", s, flags=re.I)
+    s = re.sub(r"\b(sec|fcl|csl|lc)\b", " ", s, flags=re.I)
     s = re.sub(r"\bv\d+\b", " ", s, flags=re.I)
     s = re.sub(r"\b\d{1,3}\b", " ", s)
     s = re.sub(
