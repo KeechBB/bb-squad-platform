@@ -28,8 +28,8 @@ import {
   CASE_GREEN_IMMORTAL_ADD,
   CASE_GREEN_JACKPOT_ADD,
   CASE_RED_IMMORTAL_ADD,
-  CASE_RED_JACKPOT_ADD,
   CASE_RED_RARE_ADD,
+  caseRedJackpotAdd,
   type CaseBoostKind,
 } from "@/lib/marketCaseBoost";
 
@@ -555,7 +555,7 @@ function boostedRollTable(
   if (kind === "red") {
     return applyGroupBoost(table, [
       { ids: new Set([CASE_RPG_PATCH_ID]), addPct: CASE_RED_RARE_ADD, perItem: true },
-      { ids: new Set([jackpotId]), addPct: CASE_RED_JACKPOT_ADD, perItem: true },
+      { ids: new Set([jackpotId]), addPct: caseRedJackpotAdd(caseId), perItem: true },
       {
         ids: new Set(CASE_PITY_PATCH_IDS),
         addPct: CASE_RED_IMMORTAL_ADD,
@@ -573,9 +573,9 @@ function boostedRollTable(
   ]);
 }
 
-function boostNote(kind: CaseBoostKind): string {
+function boostNote(kind: CaseBoostKind, caseId: MarketCaseId): string {
   if (kind === "red") {
-    return `буст каждому: Rare +${CASE_RED_RARE_ADD}%, джекпот +${CASE_RED_JACKPOT_ADD}%, Immortal +${CASE_RED_IMMORTAL_ADD}%`;
+    return `буст каждому: Rare +${CASE_RED_RARE_ADD}%, джекпот +${caseRedJackpotAdd(caseId)}%, Immortal +${CASE_RED_IMMORTAL_ADD}%`;
   }
   return `буст каждому: Immortal +${CASE_GREEN_IMMORTAL_ADD}%, джекпот +${CASE_GREEN_JACKPOT_ADD}%`;
 }
@@ -712,7 +712,7 @@ export async function openMarketCase(opts: {
     category: "cases",
     action: "case_open",
     message: boostKind
-      ? `${nick} открыл «${def.name}» с ${boostNote(boostKind)} (−${spendLabel}) → ${dropLabel}`
+      ? `${nick} открыл «${def.name}» с ${boostNote(boostKind, def.id)} (−${spendLabel}) → ${dropLabel}`
       : `${nick} открыл «${def.name}» (−${spendLabel}) → ${dropLabel}`,
     actorId: opts.userId,
     actorNick: nick,
@@ -733,7 +733,7 @@ export async function openMarketCase(opts: {
       boostRareAddPct: boostKind === "red" ? CASE_RED_RARE_ADD : undefined,
       boostJackpotAddPct:
         boostKind === "red"
-          ? CASE_RED_JACKPOT_ADD
+          ? caseRedJackpotAdd(def.id)
           : boostKind === "green"
             ? CASE_GREEN_JACKPOT_ADD
             : undefined,

@@ -6,8 +6,14 @@ export type CaseBoostKind = "red" | "green";
 
 /** Красная кнопка: каждому предмету своей категории, целиком. */
 export const CASE_RED_RARE_ADD = 7;
+/** Джекпот красной кнопки: 5 000 BBC — 1,5 пункта, 20 000 $ — 3. */
+export const CASE_RED_JACKPOT_ADD_BBC = 1.5;
 export const CASE_RED_JACKPOT_ADD = 3;
 export const CASE_RED_IMMORTAL_ADD = 5;
+
+export function caseRedJackpotAdd(caseId: string): number {
+  return caseId === "bbc-urozhay" ? CASE_RED_JACKPOT_ADD_BBC : CASE_RED_JACKPOT_ADD;
+}
 /** Зелёная кнопка. */
 export const CASE_GREEN_IMMORTAL_ADD = 7;
 export const CASE_GREEN_JACKPOT_ADD = 2;

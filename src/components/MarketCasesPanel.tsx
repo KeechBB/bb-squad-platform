@@ -6,6 +6,7 @@ import {
   CASE_GREEN_IMMORTAL_ADD,
   CASE_GREEN_JACKPOT_ADD,
   CASE_RED_IMMORTAL_ADD,
+  CASE_RED_JACKPOT_ADD_BBC,
   CASE_RED_JACKPOT_ADD,
   CASE_RED_RARE_ADD,
   type CaseBoostKind,
@@ -695,11 +696,21 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                   type="button"
                   className="market-case-boost-btn is-red"
                   disabled={busy || phase === "spinning" || phase === "opening"}
-                  title="Один прокрут. Каждому Rare +7%, каждому джекпоту +3%, каждому Immortal +5%."
+                  title={
+                    active.id === "bbc-urozhay"
+                      ? "Один прокрут. Каждому Rare +7%, джекпоту +1,5%, каждому Immortal +5%."
+                      : "Один прокрут. Каждому Rare +7%, джекпоту +3%, каждому Immortal +5%."
+                  }
                   onClick={() => void openCase(active, "red")}
                 >
                   <span className="market-case-btn-effect">+{CASE_RED_RARE_ADD}% Rare</span>
-                  <span className="market-case-btn-effect">+{CASE_RED_JACKPOT_ADD}% Джекпот</span>
+                  <span className="market-case-btn-effect">
+                    {`+${
+                      active.id === "bbc-urozhay"
+                        ? String(CASE_RED_JACKPOT_ADD_BBC).replace(".", ",")
+                        : CASE_RED_JACKPOT_ADD
+                    }% Джекпот`}
+                  </span>
                   <span className="market-case-btn-effect">+{CASE_RED_IMMORTAL_ADD}% Immortal</span>
                   <span className="market-case-btn-price">{kindPriceLabel(active, "red")}</span>
                 </button>

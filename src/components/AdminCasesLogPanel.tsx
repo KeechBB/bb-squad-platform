@@ -218,7 +218,9 @@ export function AdminCasesLogPanel() {
                       <div className="muted" style={{ fontSize: "0.85em" }}>
                         {e.boostKind === "green"
                           ? "каждому: Immortal +7% · джекпот +2%"
-                          : "каждому: Rare +7% · джекпот +3% · Immortal +5%"}
+                          : e.currency === "BBC"
+                            ? "каждому: Rare +7% · джекпот +1,5% · Immortal +5%"
+                            : "каждому: Rare +7% · джекпот +3% · Immortal +5%"}
                       </div>
                     ) : null}
                   </td>
