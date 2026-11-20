@@ -297,9 +297,26 @@ async function linesAreFresh(
   });
   if (!built) return false;
   if (await clockSortStale(key, kind)) return false;
+  // Пустая история при живом stamp — пересобираем (кейс Gadler: stamp без train-линий).
+  const lineCount = await prisma.profileMatchLine.count({
+    where: { kind, nickKey: key },
+  });
+  if (lineCount === 0) {
+    const ageMs = Date.now() - built.builtAt.getTime();
+    if (ageMs > 30 * 60_000) return false;
+  }
   const sourceAt = await sourceChangedAt(kind);
   if (sourceAt == null || Number.isNaN(sourceAt)) return true;
   return built.builtAt.getTime() + 1000 >= sourceAt;
+}
+
+/** Принудительная пересборка истории (игнор freshness). */
+export async function forceRebuildProfileLines(
+  nick: string,
+  kind: ProfileHistoryKind
+): Promise<number> {
+  const rows = await sourceRows(nick, kind);
+  return replaceProfileLines(nick, kind, rows);
 }
 
 export async function ensureProfileLines(

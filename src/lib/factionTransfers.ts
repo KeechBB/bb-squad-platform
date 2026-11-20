@@ -13,7 +13,6 @@ import {
 } from "@/lib/blueberryDollar";
 import { mainKitByUserIds } from "@/lib/squadRoles";
 import { isTrainingServerKey, TRAINING_SERVER_KEYS } from "@/lib/squadServers";
-import { profileHistoryKey } from "@/lib/nickCollisions";
 import { nickCompact } from "@/lib/nickIdentity";
 
 export type ScarcityLevel = "ok" | "thin" | "critical" | "surplus";
@@ -773,12 +772,38 @@ export async function creditGrindRecentTrains(limit = 40): Promise<number> {
     const res = await creditGrindFromCanonMatch(r.id);
     n += res.credited;
   }
+  if (n > 0) {
+    void import("@/lib/playerValueAudit")
+      .then((m) =>
+        m.auditFactionPlayerValues({
+          sendTelegram: true,
+          matchLabel: `grind×${n} / last ${rows.length} TRAIN`,
+        })
+      )
+      .catch((e) => console.warn("[value-audit] after grind", e));
+  }
   return n;
+}
+
+function pad2Ymd(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function matchYmdFromCanon(m: {
+  year: number;
+  month: number;
+  day: number;
+}): string | null {
+  const y = Number(m.year) || 0;
+  const mo = Number(m.month) || 0;
+  const d = Number(m.day) || 0;
+  if (y < 2020 || mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  return `${y}-${pad2Ymd(mo)}-${pad2Ymd(d)}`;
 }
 
 /**
  * Стата для оценочной стоимости / аналитики трансфера.
- * Источник = личный профиль: ProfileMatchLine kind=train (как вкладка тренировок).
+ * Источник правды по TR = CanonMatchPlayer (как гринд), не залипший ProfileMatchLine.
  */
 export async function loadPlayerPriceStats(
   userIds: string[],
@@ -823,58 +848,91 @@ export async function loadPlayerPriceStats(
     row.grindAvgPerMatchBd = n > 0 ? Math.round(sum / n) : 0;
   }
 
-  const userByNickKey = new Map<string, string>();
+  const steamToUser = new Map<string, string>();
   for (const u of users) {
     const row = out.get(u.id)!;
     if (u.lastSeenAt) {
       row.lastSeenDaysAgo = Math.floor((now - u.lastSeenAt.getTime()) / 86_400_000);
     }
-    const nick = (u.nick || u.steamName || "").trim();
-    if (!nick) continue;
-    const key = profileHistoryKey(nick, u.steamId);
-    if (key) userByNickKey.set(key, u.id);
+    const sid = String(u.steamId || "").trim();
+    if (sid) steamToUser.set(sid, u.id);
   }
 
-  const nickKeys = [...userByNickKey.keys()];
-  if (!nickKeys.length) return out;
-
-  const since30 = new Date(now - 30 * 86_400_000);
-  const ymd30 = since30.toISOString().slice(0, 10);
+  const ymd30 = new Date(now - 30 * 86_400_000).toISOString().slice(0, 10);
   const ymd14 = new Date(now - 14 * 86_400_000).toISOString().slice(0, 10);
+  const serverKeys = [
+    ...TRAINING_SERVER_KEYS,
+    ...TRAINING_SERVER_KEYS.map((k) => k.toLowerCase()),
+  ];
 
-  const lines = await prisma.profileMatchLine.findMany({
+  const sinceParts = ymd30.split("-").map((x) => Number(x) || 0);
+  const sinceY = sinceParts[0] || 2026;
+  const sinceM = sinceParts[1] || 1;
+  const sinceD = sinceParts[2] || 1;
+
+  const players = await prisma.canonMatchPlayer.findMany({
     where: {
-      kind: "train",
-      nickKey: { in: nickKeys },
-      playedOn: { gte: ymd30 },
+      OR: [
+        { userId: { in: uniq } },
+        ...(steamToUser.size
+          ? [{ steamId: { in: [...steamToUser.keys()] } }]
+          : []),
+      ],
+      match: {
+        kind: "TRAIN",
+        publishedAt: { not: null },
+        serverKey: { in: serverKeys },
+        OR: [
+          { year: { gt: sinceY } },
+          { year: sinceY, month: { gt: sinceM } },
+          { year: sinceY, month: sinceM, day: { gte: sinceD } },
+        ],
+      },
     },
     select: {
-      nickKey: true,
-      matchId: true,
-      playedOn: true,
+      userId: true,
+      steamId: true,
       kills: true,
       deaths: true,
       res: true,
       nok: true,
+      match: {
+        select: {
+          legacyId: true,
+          id: true,
+          year: true,
+          month: true,
+          day: true,
+        },
+      },
     },
   });
 
   const days14 = new Map<string, Set<string>>();
   const matches30 = new Map<string, Set<string>>();
-  for (const line of lines) {
-    const uid = userByNickKey.get(line.nickKey);
+  for (const p of players) {
+    const sid = String(p.steamId || "").trim();
+    const uid =
+      (p.userId && out.has(p.userId) ? p.userId : null) ||
+      (sid ? steamToUser.get(sid) : null) ||
+      null;
     if (!uid) continue;
     const row = out.get(uid);
     if (!row) continue;
+    const ymd = matchYmdFromCanon(p.match);
+    if (!ymd || ymd < ymd30) continue;
+    const matchKey =
+      p.match.legacyId || p.match.id || `${ymd}:${p.kills}:${p.deaths}`;
     if (!matches30.has(uid)) matches30.set(uid, new Set());
-    matches30.get(uid)!.add(line.matchId || `${line.playedOn}:${line.kills}:${line.deaths}`);
-    row.kills30 += line.kills;
-    row.deaths30 += line.deaths;
-    row.res30 += line.res;
-    row.nok30 += line.nok;
-    if (line.playedOn >= ymd14) {
+    if (matches30.get(uid)!.has(matchKey)) continue;
+    matches30.get(uid)!.add(matchKey);
+    row.kills30 += Math.max(0, p.kills || 0);
+    row.deaths30 += Math.max(0, p.deaths || 0);
+    row.res30 += Math.max(0, p.res || 0);
+    row.nok30 += Math.max(0, p.nok || 0);
+    if (ymd >= ymd14) {
       if (!days14.has(uid)) days14.set(uid, new Set());
-      days14.get(uid)!.add(line.playedOn);
+      days14.get(uid)!.add(ymd);
     }
   }
   for (const [uid, set] of days14) {
