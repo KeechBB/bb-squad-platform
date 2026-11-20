@@ -25439,6 +25439,9 @@ body:has(.faction-page) .site-footer {
 .market-case-loot-head {
   flex: 0 0 auto;
 }
+.market-case-dialog.is-x2 .market-case-main {
+  overflow-y: auto;
+}
 .market-case-dialog.is-x2 .market-case-stage {
   height: 64px;
 }
@@ -25449,11 +25452,8 @@ body:has(.faction-page) .site-footer {
 .market-case-dialog.is-x2 .market-case-roulette {
   margin: 2px 0 4px;
 }
-.market-case-dialog.is-x2 .market-case-loot-scroll {
-  flex-basis: 112px;
-  height: 112px;
-  min-height: 112px;
-  max-height: 112px;
+.market-case-dialog.is-x2 .market-case-mult {
+  margin-top: 14px;
 }
 .market-case-results {
   display: grid;
