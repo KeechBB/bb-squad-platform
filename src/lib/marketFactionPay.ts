@@ -227,7 +227,7 @@ export function bdPayErrorMessage(code: string): string {
     return "Получатель должен быть в вашей фракции";
   if (code === "gift_self") return "Нельзя перевести себе с личного на личный";
   if (code === "gift_officer")
-    return "Нельзя переводить $ другому главе или заму (себе из казны — можно)";
+    return "Из казны нельзя другому главе/заму (себе или рядовому — можно)";
   if (code === "gift_required") return "Выбери получателя";
   if (code === "amount") return "Укажи сумму больше 0";
   return "Ошибка оплаты $";
@@ -383,8 +383,8 @@ export async function giftFactionBdToMember(opts: {
 }
 
 /**
- * Перевод личного B$ другому игроку той же фракции.
- * Казна не участвует. Главе и заму переводить нельзя.
+ * Перевод личного B$ другому игроку той же фракции (любому seat, включая главу/зама).
+ * Казна не участвует.
  */
 export async function transferPersonalBd(opts: {
   actorUserId: string;
@@ -412,13 +412,10 @@ export async function transferPersonalBd(opts: {
 
   const target = await prisma.factionMember.findUnique({
     where: { userId: opts.toUserId },
-    select: { factionId: true, seat: true },
+    select: { factionId: true },
   });
   if (!target || target.factionId !== actorMember.factionId) {
     return { ok: false, error: "gift_not_member" };
-  }
-  if (target.seat === "LEADER" || target.seat === "DEPUTY") {
-    return { ok: false, error: "gift_officer" };
   }
 
   try {

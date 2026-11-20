@@ -26,9 +26,7 @@ export function MarketBdTransferModal({
   onClose,
   onTransfer,
 }: Props) {
-  const recipients = members.filter(
-    (m) => m.userId !== myUserId && m.seat === "MEMBER"
-  );
+  const recipients = members.filter((m) => m.userId !== myUserId);
   const [toUserId, setToUserId] = useState(recipients[0]?.userId || "");
   const [amountStr, setAmountStr] = useState("1000");
   const [localErr, setLocalErr] = useState<string | null>(null);
@@ -64,8 +62,8 @@ export function MarketBdTransferModal({
           Перевод Черничных долларов
         </p>
         <p className="market-bd-buy-text">
-          С личного баланса на личный баланс игрока твоей фракции. Главе и заму
-          переводить нельзя.
+          С личного баланса на личный баланс любого игрока твоей фракции (глава
+          и зам тоже).
           <br />
           У тебя:{" "}
           <strong>
