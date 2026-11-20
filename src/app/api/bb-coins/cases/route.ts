@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireMarketUser } from "@/lib/bbCoinMarketAuth";
+import type { CaseBoostKind } from "@/lib/marketCaseBoost";
 import {
   canAccessMarketCases,
   getMarketCase,
@@ -34,17 +35,26 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
     caseId?: string;
     boost?: boolean;
+    boostKind?: string;
   };
   const caseId = String(body.caseId || "") as MarketCaseId;
   if (!getMarketCase(caseId)) {
     return NextResponse.json({ ok: false, error: "case" }, { status: 400 });
   }
+  const boostKind: CaseBoostKind | null =
+    body.boostKind === "immortal" ||
+    body.boostKind === "rare" ||
+    body.boostKind === "drop"
+      ? body.boostKind
+      : body.boost === true
+        ? "immortal"
+        : null;
 
   const res = await openMarketCase({
     caseId,
     userId: user.id,
     steamId: user.steamId,
-    boost: body.boost === true,
+    boostKind,
   });
   if (!res.ok) {
     const status =

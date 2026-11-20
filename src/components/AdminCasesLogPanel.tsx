@@ -19,6 +19,7 @@ type Entry = {
   chancePct: number;
   infiniteWallet: boolean;
   boost: boolean;
+  boostKind?: string | null;
   currencyMark: string;
 };
 
@@ -215,7 +216,11 @@ export function AdminCasesLogPanel() {
                     −{e.spent.toLocaleString("ru-RU")} {e.currencyMark}
                     {e.boost ? (
                       <div className="muted" style={{ fontSize: "0.85em" }}>
-                        буст Immortal +5%
+                        {e.boostKind === "rare"
+                          ? "буст Rare +7% · джекпот +3%"
+                          : e.boostKind === "drop"
+                            ? "буст дропа +15%"
+                            : "буст Immortal +5%"}
                       </div>
                     ) : null}
                   </td>

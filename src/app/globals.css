@@ -25934,11 +25934,9 @@ body:has(.faction-page) .site-footer {
   color: #64748b;
 }
 .market-case-actions {
-  display: flex;
-  justify-content: center;
-  align-items: stretch;
-  gap: 10px;
-  flex-wrap: nowrap;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
   margin-top: 8px;
 }
 .market-case-open-btn {
@@ -25958,9 +25956,12 @@ body:has(.faction-page) .site-footer {
 }
 .market-case-open-btn,
 .market-case-boost-btn {
-  flex: 1 1 0;
-  max-width: 440px;
+  width: 100%;
+  max-width: none;
   min-width: 0;
+  font-size: 0.84rem;
+  line-height: 1.25;
+  text-align: center;
 }
 .market-case-boost-btn {
   border: 1px solid rgba(250, 204, 21, 0.9);
@@ -25978,11 +25979,52 @@ body:has(.faction-page) .site-footer {
   opacity: 0.55;
   cursor: default;
 }
+.market-case-boost-btn.is-rare {
+  border-color: rgba(244, 114, 182, 0.85);
+  color: #ffe4f3;
+  text-shadow: 0 0 12px rgba(236, 72, 153, 0.45);
+  background: linear-gradient(
+    120deg,
+    rgba(131, 24, 67, 0.96) 0%,
+    rgba(190, 24, 93, 0.82) 36%,
+    rgba(244, 114, 182, 0.62) 50%,
+    rgba(190, 24, 93, 0.82) 64%,
+    rgba(131, 24, 67, 0.96) 100%
+  );
+  box-shadow:
+    0 0 16px rgba(236, 72, 153, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+.market-case-boost-btn.is-drop {
+  border-color: rgba(52, 211, 153, 0.9);
+  color: #ecfdf5;
+  text-shadow: 0 0 12px rgba(16, 185, 129, 0.5);
+  background: linear-gradient(
+    120deg,
+    rgba(6, 78, 59, 0.97) 0%,
+    rgba(4, 120, 87, 0.9) 36%,
+    rgba(52, 211, 153, 0.58) 50%,
+    rgba(4, 120, 87, 0.9) 64%,
+    rgba(6, 78, 59, 0.97) 100%
+  );
+  box-shadow:
+    0 0 16px rgba(16, 185, 129, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
 @media (max-width: 980px) {
+  .market-case-loot-scroll {
+    flex-basis: 140px;
+    height: 140px;
+    min-height: 140px;
+    max-height: 140px;
+  }
+  .market-case-actions {
+    grid-template-columns: 1fr 1fr;
+  }
   .market-case-open-btn,
   .market-case-boost-btn {
-    padding: 10px 10px;
-    font-size: 0.82rem;
+    padding: 10px 8px;
+    font-size: 0.78rem;
   }
 }
 .market-cases-wip-dialog {

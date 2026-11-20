@@ -2,8 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  CASE_BOOST_PRICE,
+  CASE_BOOST_KIND_PRICE,
+  CASE_DROP_BOOST_ADD_PCT,
   CASE_IMMORTAL_BOOST_ADD_PCT,
+  CASE_JACKPOT_BOOST_ADD_PCT,
+  CASE_RARE_BOOST_ADD_PCT,
+  type CaseBoostKind,
 } from "@/lib/marketCaseBoost";
 
 type LootKind = "patch" | "bg" | "empty" | "currency" | "font";
@@ -183,11 +187,9 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
       ? `${c.price.toLocaleString("ru-RU")} $`
       : `${c.price.toLocaleString("ru-RU")} BBC`;
 
-  const boostPriceLabel = (c: CaseCard) => {
-    const n =
-      c.id === "faction-sad"
-        ? CASE_BOOST_PRICE["faction-sad"]
-        : CASE_BOOST_PRICE["bbc-urozhay"];
+  const kindPriceLabel = (c: CaseCard, kind: CaseBoostKind) => {
+    const row = CASE_BOOST_KIND_PRICE[kind];
+    const n = c.id === "faction-sad" ? row["faction-sad"] : row["bbc-urozhay"];
     return c.currency === "BD"
       ? `${n.toLocaleString("ru-RU")} $`
       : `${n.toLocaleString("ru-RU")} BBC`;
@@ -204,7 +206,7 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
     setInspect(null);
   }
 
-  async function openCase(c: CaseCard, boost = false) {
+  async function openCase(c: CaseCard, boostKind?: CaseBoostKind) {
     if (busy) return;
     setBusy(true);
     setErr(null);
@@ -219,7 +221,7 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
       const res = await fetch("/api/bb-coins/cases", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ caseId: c.id, boost }),
+        body: JSON.stringify({ caseId: c.id, boostKind }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
@@ -291,10 +293,10 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
           spent:
             typeof data.spent === "number"
               ? data.spent
-              : boost
-                ? c.id === "faction-sad"
-                  ? CASE_BOOST_PRICE["faction-sad"]
-                  : CASE_BOOST_PRICE["bbc-urozhay"]
+              : boostKind
+                ? CASE_BOOST_KIND_PRICE[boostKind][
+                    c.id === "faction-sad" ? "faction-sad" : "bbc-urozhay"
+                  ]
                 : c.price,
           dropTitle: won.kind === "empty" ? "Пусто" : won.title,
           dropKind: won.kind,
@@ -691,12 +693,28 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                   type="button"
                   className="market-case-boost-btn"
                   disabled={busy || phase === "spinning" || phase === "opening"}
-                  title={`Один прокрут за ${boostPriceLabel(active)}. Шанс Immortal +${CASE_IMMORTAL_BOOST_ADD_PCT}% на этот спин. Обычная цена кейса не списывается.`}
-                  onClick={() => void openCase(active, true)}
+                  title={`Один прокрут за ${kindPriceLabel(active, "immortal")}. Шанс Immortal +${CASE_IMMORTAL_BOOST_ADD_PCT}% на этот спин.`}
+                  onClick={() => void openCase(active, "immortal")}
                 >
-                  {phase === "revealed"
-                    ? `Ещё +${CASE_IMMORTAL_BOOST_ADD_PCT}% · ${boostPriceLabel(active)}`
-                    : `Immortal +${CASE_IMMORTAL_BOOST_ADD_PCT}% · ${boostPriceLabel(active)}`}
+                  {`Immortal +${CASE_IMMORTAL_BOOST_ADD_PCT}% · ${kindPriceLabel(active, "immortal")}`}
+                </button>
+                <button
+                  type="button"
+                  className="market-case-boost-btn is-rare"
+                  disabled={busy || phase === "spinning" || phase === "opening"}
+                  title={`Один прокрут за ${kindPriceLabel(active, "rare")}. Rare +${CASE_RARE_BOOST_ADD_PCT}% и джекпот 200 000 / 1 млн +${CASE_JACKPOT_BOOST_ADD_PCT}%.`}
+                  onClick={() => void openCase(active, "rare")}
+                >
+                  {`Rare +${CASE_RARE_BOOST_ADD_PCT}% · джекпот +${CASE_JACKPOT_BOOST_ADD_PCT}% · ${kindPriceLabel(active, "rare")}`}
+                </button>
+                <button
+                  type="button"
+                  className="market-case-boost-btn is-drop"
+                  disabled={busy || phase === "spinning" || phase === "opening"}
+                  title={`Один прокрут за ${kindPriceLabel(active, "drop")}. Шанс дропа (всё, кроме мелкой валюты) +${CASE_DROP_BOOST_ADD_PCT}%.`}
+                  onClick={() => void openCase(active, "drop")}
+                >
+                  {`Дроп +${CASE_DROP_BOOST_ADD_PCT}% · ${kindPriceLabel(active, "drop")}`}
                 </button>
               </div>
             </div>

@@ -23,9 +23,13 @@ import type { ProfilePatchId } from "@/lib/profilePatches";
 import type { MarketCurrency, ResolvedListingPrice } from "@/lib/marketListingPrices";
 import { BD_MARK, BD_NAME } from "@/lib/blueberryDollar";
 import {
-  applyImmortalBoost,
-  CASE_BOOST_PRICE,
+  applyGroupBoost,
+  caseBoostKindPrice,
+  CASE_DROP_BOOST_ADD_PCT,
   CASE_IMMORTAL_BOOST_ADD_PCT,
+  CASE_JACKPOT_BOOST_ADD_PCT,
+  CASE_RARE_BOOST_ADD_PCT,
+  type CaseBoostKind,
 } from "@/lib/marketCaseBoost";
 
 export type MarketCaseId = "faction-sad" | "bbc-urozhay";
@@ -540,12 +544,48 @@ export function buildRouletteStrip(
   return strip;
 }
 
+function boostedRollTable(
+  table: CaseLootEntry[],
+  kind: CaseBoostKind,
+  caseId: MarketCaseId
+): CaseLootEntry[] {
+  if (kind === "immortal") {
+    return applyGroupBoost(table, [
+      { ids: new Set(CASE_PITY_PATCH_IDS), addPct: CASE_IMMORTAL_BOOST_ADD_PCT },
+    ]);
+  }
+  if (kind === "rare") {
+    const jackpotId =
+      caseId === "bbc-urozhay" ? CASE_CASH_BBC_ID : CASE_CASH_BD_ID;
+    return applyGroupBoost(table, [
+      { ids: new Set([CASE_RPG_PATCH_ID]), addPct: CASE_RARE_BOOST_ADD_PCT },
+      { ids: new Set([jackpotId]), addPct: CASE_JACKPOT_BOOST_ADD_PCT },
+    ]);
+  }
+  const dropIds = new Set(
+    table
+      .map((e) => e.itemId)
+      .filter((id): id is string => Boolean(id) && !CASE_FILLER_IDS.has(id))
+  );
+  return applyGroupBoost(table, [
+    { ids: dropIds, addPct: CASE_DROP_BOOST_ADD_PCT },
+  ]);
+}
+
+function boostNote(kind: CaseBoostKind): string {
+  if (kind === "immortal") return `буст Immortal +${CASE_IMMORTAL_BOOST_ADD_PCT}%`;
+  if (kind === "rare") {
+    return `буст Rare +${CASE_RARE_BOOST_ADD_PCT}% и джекпот +${CASE_JACKPOT_BOOST_ADD_PCT}%`;
+  }
+  return `буст дропа +${CASE_DROP_BOOST_ADD_PCT}%`;
+}
+
 export async function openMarketCase(opts: {
   caseId: MarketCaseId;
   userId: string;
   steamId: string;
-  /** Один прокрут: цена буста, шанс Immortal +5 п.п. */
-  boost?: boolean;
+  /** Один прокрут по цене выбранного буста. */
+  boostKind?: CaseBoostKind | null;
 }): Promise<
   | {
       ok: true;
@@ -554,6 +594,7 @@ export async function openMarketCase(opts: {
       balance: number;
       spent: number;
       boost: boolean;
+      boostKind: CaseBoostKind | null;
       paidFrom?: "treasury" | "personal" | "bbc" | "infinite";
       result: CaseLootEntry;
       strip: CaseLootEntry[];
@@ -570,11 +611,11 @@ export async function openMarketCase(opts: {
   const table = await getCaseLootTable(def.id);
   if (!table.length) return { ok: false, error: "empty_pool" };
 
-  const boost = Boolean(opts.boost);
-  const pay = boost ? CASE_BOOST_PRICE[def.id] : def.price;
+  const boostKind = opts.boostKind || null;
+  const pay = boostKind ? caseBoostKindPrice(boostKind, def.id) : def.price;
   const price: ResolvedListingPrice = {
     catalog: "patch",
-    itemId: boost ? `case:${def.id}:immortal-boost` : `case:${def.id}`,
+    itemId: boostKind ? `case:${def.id}:${boostKind}-boost` : `case:${def.id}`,
     currency: def.currency,
     buy: pay,
     sell: 0,
@@ -588,8 +629,8 @@ export async function openMarketCase(opts: {
     steamId: opts.steamId,
     price,
     kind: "case_open",
-    noteItem: boost
-      ? `кейс «${def.name}» · буст Immortal +${CASE_IMMORTAL_BOOST_ADD_PCT}%`
+    noteItem: boostKind
+      ? `кейс «${def.name}» · ${boostNote(boostKind)}`
       : `кейс «${def.name}»`,
   });
   if (!charged.ok) return charged;
@@ -610,8 +651,8 @@ export async function openMarketCase(opts: {
     pityPool.length > 0
       ? pityPool[Math.floor(Math.random() * pityPool.length)]
       : null;
-  const rollTable = boost
-    ? applyImmortalBoost(table, new Set(CASE_PITY_PATCH_IDS))
+  const rollTable = boostKind
+    ? boostedRollTable(table, boostKind, def.id)
     : table;
   const pityForced = Boolean(pityHit && pityPick);
   const result = pityForced && pityPick ? pityPick : pickWeighted(rollTable);
@@ -670,8 +711,8 @@ export async function openMarketCase(opts: {
   await writeActionLog({
     category: "cases",
     action: "case_open",
-    message: boost
-      ? `${nick} открыл «${def.name}» с бустом Immortal +${CASE_IMMORTAL_BOOST_ADD_PCT}% (−${spendLabel}) → ${dropLabel}`
+    message: boostKind
+      ? `${nick} открыл «${def.name}» с ${boostNote(boostKind)} (−${spendLabel}) → ${dropLabel}`
       : `${nick} открыл «${def.name}» (−${spendLabel}) → ${dropLabel}`,
     actorId: opts.userId,
     actorNick: nick,
@@ -687,8 +728,18 @@ export async function openMarketCase(opts: {
       dropSell: result.sellPrice,
       dropSellCurrency: result.sellCurrency,
       chancePct: pityForced ? result.chancePct : rolledChance,
-      boost,
-      boostAddPct: boost ? CASE_IMMORTAL_BOOST_ADD_PCT : undefined,
+      boost: Boolean(boostKind),
+      boostKind,
+      boostAddPct:
+        boostKind === "immortal"
+          ? CASE_IMMORTAL_BOOST_ADD_PCT
+          : boostKind === "drop"
+            ? CASE_DROP_BOOST_ADD_PCT
+            : boostKind === "rare"
+              ? CASE_RARE_BOOST_ADD_PCT
+              : undefined,
+      boostJackpotAddPct:
+        boostKind === "rare" ? CASE_JACKPOT_BOOST_ADD_PCT : undefined,
       infiniteWallet: hasInfiniteMarketWallet(opts.steamId),
       paidFrom: charged.paidFrom || null,
       pity:
@@ -728,7 +779,8 @@ export async function openMarketCase(opts: {
     balance: balanceOut,
     paidFrom: charged.paidFrom,
     spent: pay,
-    boost,
+    boost: Boolean(boostKind),
+    boostKind,
     result,
     strip,
     landIndex,

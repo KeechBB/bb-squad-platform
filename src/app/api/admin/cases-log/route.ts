@@ -20,6 +20,7 @@ type Meta = {
   chancePct?: number;
   infiniteWallet?: boolean;
   boost?: boolean;
+  boostKind?: string | null;
 };
 
 function asMeta(raw: unknown): Meta {
@@ -81,6 +82,7 @@ export async function GET(req: Request) {
         chancePct: Number(m.chancePct) || 0,
         infiniteWallet: Boolean(m.infiniteWallet),
         boost: Boolean(m.boost),
+        boostKind: typeof m.boostKind === "string" ? m.boostKind : null,
         currencyMark: m.currency === "BD" ? BD_MARK : "BBC",
       };
     })
