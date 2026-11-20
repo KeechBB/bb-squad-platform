@@ -1571,6 +1571,31 @@ model CaseJackpotPool {
   updatedAt DateTime @default(now()) @updatedAt
 }
 
+/// Незавершённый прокрут кейса: списано, лут ещё не зачислен. Refresh/abort → откат.
+model CaseSpinPending {
+  id           String   @id @default(cuid())
+  userId       String
+  batchId      String
+  caseId       String
+  boostKind    String?
+  spent        Int
+  currency     String
+  paidFrom     String?
+  resultJson   Json
+  stripJson    Json
+  landIndex    Int
+  jackpotHit   Boolean  @default(false)
+  jackpotPaid  Int      @default(0)
+  openIndex    Int
+  pityNextAt   Int
+  pityForced   Boolean  @default(false)
+  rolledChance Float
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([batchId])
+}
+
 /// Прогноз на турнир. Один бланк на игрока. Верный ответ = 100 BB Points.
 model TournamentBet {
   id               String   @id @default(cuid())

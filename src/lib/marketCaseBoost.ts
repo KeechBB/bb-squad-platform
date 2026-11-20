@@ -1,21 +1,32 @@
 /**
  * Платные бусты одного прокрута. Цена кнопки — вместо обычной цены кейса.
  * Прибавка в процентных пунктах к выбранной группе, остальное сжимается.
+ * Джекпот красной кнопкой НЕ трогаем — всегда фиксированный CASE_JACKPOT_CHANCE_PCT.
  */
 export type CaseBoostKind = "red";
 
-/** Красная кнопка: каждому предмету своей категории, целиком. */
-export const CASE_RED_RARE_ADD = 7;
-/** Джекпот красной кнопки: 7 500 BBC — 1,5 пункта, 20 000 $ — 3. */
-export const CASE_RED_JACKPOT_ADD_BBC = 1.5;
-export const CASE_RED_JACKPOT_ADD = 3;
-export const CASE_RED_IMMORTAL_ADD = 5;
+/** Красная кнопка: Rare (РПГ) +2.5 п.п. каждому. */
+export const CASE_RED_RARE_ADD = 2.5;
+/** Красная кнопка: Immortal +1.5 п.п. каждому. */
+export const CASE_RED_IMMORTAL_ADD = 1.5;
 
-export function caseRedJackpotAdd(caseId: string): number {
-  return caseId === "bbc-urozhay" ? CASE_RED_JACKPOT_ADD_BBC : CASE_RED_JACKPOT_ADD;
+/** @deprecated джекпот больше не бустится. */
+export const CASE_RED_JACKPOT_ADD_BBC = 0;
+/** @deprecated джекпот больше не бустится. */
+export const CASE_RED_JACKPOT_ADD = 0;
+
+export function caseRedJackpotAdd(_caseId: string): number {
+  void _caseId;
+  return 0;
 }
 
 export const CASE_IMMORTAL_BOOST_ADD_PCT = CASE_RED_IMMORTAL_ADD;
+
+/** Длительность анимации рулетки — синхрон с UI и серверным confirm. */
+export const CASE_SPIN_MS = 11_000;
+
+/** Фиксированный шанс джекпота (%). Красная кнопка его не меняет. */
+export const CASE_JACKPOT_CHANCE_PCT = 0.02;
 
 export const CASE_BOOST_KIND_PRICE: Record<
   CaseBoostKind,
@@ -141,7 +152,7 @@ export function applyGroupBoost<T extends ChanceRow>(
   return scaled.sort((a, b) => b.chancePct - a.chancePct);
 }
 
-/** Каждому Immortal +addPct пунктов: 0,11 → 5,11 и 0,09 → 5,09. */
+/** Каждому Immortal +addPct пунктов. */
 export function applyImmortalBoost<T extends ChanceRow>(
   entries: T[],
   immortalIds: ReadonlySet<string>,

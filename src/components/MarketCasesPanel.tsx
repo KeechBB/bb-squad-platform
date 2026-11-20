@@ -4,10 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { primeCaseAudio, watchCaseReel } from "@/lib/caseSpinAudio";
 import {
   CASE_BOOST_KIND_PRICE,
+  CASE_JACKPOT_CHANCE_PCT,
   CASE_RED_IMMORTAL_ADD,
-  CASE_RED_JACKPOT_ADD_BBC,
-  CASE_RED_JACKPOT_ADD,
   CASE_RED_RARE_ADD,
+  CASE_SPIN_MS,
   type CaseBoostKind,
 } from "@/lib/marketCaseBoost";
 import { patchRarityClass, patchRarityLabel } from "@/lib/patchRarity";
@@ -96,7 +96,7 @@ function lootCellClass(e: Pick<LootEntry, "kind" | "itemId">): string {
 }
 
 /** Дольше крутим, чтобы успевать разглядеть скины на ленте. */
-const SPIN_MS = 11000;
+const SPIN_MS = CASE_SPIN_MS;
 /** Ширина ячейки ленты — держать в синхроне с CSS `.market-case-roule-cell`. */
 const ROULE_CELL_PX = 128;
 const ROULE_GAP_PX = 12;
@@ -163,6 +163,8 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
   const trackRef2 = useRef<HTMLDivElement>(null);
   const logListRef = useRef<HTMLDivElement>(null);
   const spinSoundStop = useRef<(() => void) | null>(null);
+  const pendingBatchRef = useRef<string | null>(null);
+  const confirmedBatchRef = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     setErr(null);
@@ -247,6 +249,37 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
     setInspect(null);
   }
 
+  function abortPendingBeacon(batchId: string | null) {
+    if (!batchId || confirmedBatchRef.current === batchId) return;
+    const body = JSON.stringify({ action: "abort", batchId });
+    try {
+      if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+        const blob = new Blob([body], { type: "application/json" });
+        navigator.sendBeacon("/api/bb-coins/cases", blob);
+        return;
+      }
+    } catch {
+      /* fall through */
+    }
+    void fetch("/api/bb-coins/cases", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      keepalive: true,
+    }).catch(() => null);
+  }
+
+  useEffect(() => {
+    const onHide = () => abortPendingBeacon(pendingBatchRef.current);
+    window.addEventListener("pagehide", onHide);
+    window.addEventListener("beforeunload", onHide);
+    return () => {
+      window.removeEventListener("pagehide", onHide);
+      window.removeEventListener("beforeunload", onHide);
+      abortPendingBeacon(pendingBatchRef.current);
+    };
+  }, []);
+
   async function openCase(c: CaseCard, boostKind?: CaseBoostKind) {
     if (busy) return;
     primeCaseAudio();
@@ -262,8 +295,8 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
     setPhase("opening");
     setResult(null);
     setResult2(null);
+    let batchId: string | null = null;
     try {
-      // Короткая анимация «открытия» крышки до запроса
       await new Promise((r) => setTimeout(r, 700));
       const res = await fetch("/api/bb-coins/cases", {
         method: "POST",
@@ -279,11 +312,16 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
           forbidden_seat:
             "Покупку за казну делает глава / зам; кейсы можно крутить с личного B$",
           wip: "Кейсы пока в разработке",
+          spin_in_progress:
+            "Досмотри прокрут до конца — обновление страницы откатывает попытку",
         };
         setErr(map[data.error] || "Не удалось открыть кейс");
         setPhase("idle");
         return;
       }
+      batchId = typeof data.batchId === "string" ? data.batchId : null;
+      pendingBatchRef.current = batchId;
+      confirmedBatchRef.current = null;
       if (data.jackpots?.BBC && data.jackpots?.BD) {
         setJackpots({ BBC: Number(data.jackpots.BBC), BD: Number(data.jackpots.BD) });
       }
@@ -323,7 +361,6 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
       setResult2(second?.result || null);
       setPhase("spinning");
 
-      // Сброс без transition, затем длинный прокрут к выигрышу
       setSpinX(0);
       setSpinX2(0);
       await new Promise((r) => requestAnimationFrame(() => r(null)));
@@ -356,6 +393,69 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
       });
 
       await new Promise((r) => setTimeout(r, SPIN_MS));
+
+      if (batchId) {
+        const confirmRes = await fetch("/api/bb-coins/cases", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "confirm", batchId }),
+        });
+        const confirmData = await confirmRes.json();
+        if (!confirmRes.ok || !confirmData.ok) {
+          if (confirmData.error === "too_early") {
+            await new Promise((r) => setTimeout(r, 1600));
+            const retry = await fetch("/api/bb-coins/cases", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "confirm", batchId }),
+            });
+            const retryData = await retry.json();
+            if (!retry.ok || !retryData.ok) {
+              setErr("Не удалось зафиксировать дроп — попытка откатится");
+              abortPendingBeacon(batchId);
+              pendingBatchRef.current = null;
+              setPhase("idle");
+              return;
+            }
+            if (retryData.jackpots?.BBC && retryData.jackpots?.BD) {
+              setJackpots({
+                BBC: Number(retryData.jackpots.BBC),
+                BD: Number(retryData.jackpots.BD),
+              });
+            }
+            if (typeof retryData.balance === "number" && retryData.currency) {
+              onBalances?.({
+                currency: retryData.currency,
+                balance: retryData.balance,
+                paidFrom: retryData.paidFrom,
+              });
+            }
+          } else {
+            setErr("Не удалось зафиксировать дроп — попытка откатится");
+            abortPendingBeacon(batchId);
+            pendingBatchRef.current = null;
+            setPhase("idle");
+            return;
+          }
+        } else {
+          if (confirmData.jackpots?.BBC && confirmData.jackpots?.BD) {
+            setJackpots({
+              BBC: Number(confirmData.jackpots.BBC),
+              BD: Number(confirmData.jackpots.BD),
+            });
+          }
+          if (typeof confirmData.balance === "number" && confirmData.currency) {
+            onBalances?.({
+              currency: confirmData.currency,
+              balance: confirmData.balance,
+              paidFrom: confirmData.paidFrom,
+            });
+          }
+        }
+        confirmedBatchRef.current = batchId;
+        pendingBatchRef.current = null;
+      }
+
       setPhase("revealed");
       const unitFallback =
         boostKind === "red" ? kindUnit(c, "red") : c.price;
@@ -394,6 +494,8 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
       });
       onRefreshCatalog?.();
     } catch {
+      if (batchId) abortPendingBeacon(batchId);
+      pendingBatchRef.current = null;
       setErr("Сеть недоступна");
       setPhase("idle");
     } finally {
@@ -851,22 +953,14 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                   type="button"
                   className="market-case-boost-btn is-red"
                   disabled={busy || phase === "spinning" || phase === "opening"}
-                  title={
-                    active.id === "bbc-urozhay"
-                      ? `${spinCount === 2 ? "Два прокрута" : "Один прокрут"}. Каждому Rare +7%, джекпоту +1,5%, каждому Immortal +5%.`
-                      : `${spinCount === 2 ? "Два прокрута" : "Один прокрут"}. Каждому Rare +7%, джекпоту +3%, каждому Immortal +5%.`
-                  }
+                  title={`${spinCount === 2 ? "Два прокрута" : "Один прокрут"}. Rare +${CASE_RED_RARE_ADD}%, Immortal +${CASE_RED_IMMORTAL_ADD}%. Джекпот всегда ${String(CASE_JACKPOT_CHANCE_PCT).replace(".", ",")}%, без буста.`}
                   onClick={() => void openCase(active, "red")}
                 >
                   <span className="market-case-btn-effect">+{CASE_RED_RARE_ADD}% Rare</span>
-                  <span className="market-case-btn-effect">
-                    {`+${
-                      active.id === "bbc-urozhay"
-                        ? String(CASE_RED_JACKPOT_ADD_BBC).replace(".", ",")
-                        : CASE_RED_JACKPOT_ADD
-                    }% Джекпот`}
-                  </span>
                   <span className="market-case-btn-effect">+{CASE_RED_IMMORTAL_ADD}% Immortal</span>
+                  <span className="market-case-btn-effect">
+                    JP {String(CASE_JACKPOT_CHANCE_PCT).replace(".", ",")}% фикс
+                  </span>
                   <span className="market-case-btn-price">
                     {moneyLabel(active, kindUnit(active, "red") * spinCount)}
                   </span>

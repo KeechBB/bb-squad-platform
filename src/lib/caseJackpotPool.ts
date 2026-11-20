@@ -108,3 +108,36 @@ export async function restoreCaseJackpotIfFloor(
     WHERE currency = ${currency} AND amount = ${floor}
   `;
 }
+
+/** Убрать из котла сумму траты (откат незавершённого прокрута). */
+export async function subtractCaseJackpot(
+  currency: CaseJackpotCurrency,
+  amount: number
+): Promise<void> {
+  const n = Math.trunc(amount);
+  if (n <= 0) return;
+  const floor = CASE_JACKPOT_FLOOR[currency];
+  await prisma.$executeRaw`
+    UPDATE "CaseJackpotPool"
+    SET amount = GREATEST(${floor}, amount - ${n}),
+        "updatedAt" = NOW()
+    WHERE currency = ${currency}
+  `;
+}
+
+/** Вернуть выплаченный джекпот в котёл (откат до confirm). */
+export async function returnCaseJackpotPayout(
+  currency: CaseJackpotCurrency,
+  payout: number
+): Promise<void> {
+  const floor = CASE_JACKPOT_FLOOR[currency];
+  const n = Math.trunc(payout);
+  if (n <= 0) return;
+  const extra = Math.max(0, n - floor);
+  await prisma.$executeRaw`
+    UPDATE "CaseJackpotPool"
+    SET amount = GREATEST(amount, ${floor}) + ${extra},
+        "updatedAt" = NOW()
+    WHERE currency = ${currency}
+  `;
+}

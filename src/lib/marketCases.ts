@@ -21,9 +21,12 @@ import {
   claimCaseJackpot,
   readCaseJackpots,
   restoreCaseJackpotIfFloor,
+  returnCaseJackpotPayout,
+  subtractCaseJackpot,
   type CaseJackpotPools,
 } from "@/lib/caseJackpotPool";
 import {
+  creditFactionBd,
   creditPersonalBd,
   getFactionPayCtx,
   getPersonalBdBalance,
@@ -36,11 +39,13 @@ import { BD_MARK, BD_NAME } from "@/lib/blueberryDollar";
 import {
   applyGroupBoost,
   caseBoostKindPrice,
+  CASE_JACKPOT_CHANCE_PCT,
   CASE_RED_IMMORTAL_ADD,
   CASE_RED_RARE_ADD,
-  caseRedJackpotAdd,
+  CASE_SPIN_MS,
   type CaseBoostKind,
 } from "@/lib/marketCaseBoost";
+import { randomBytes } from "crypto";
 
 export type MarketCaseId = "faction-sad" | "bbc-urozhay";
 
@@ -118,12 +123,14 @@ export const CASE_LEGENDARY_SHARE = 0.0001;
 export const CASE_RPG_SHARE = 0.0005;
 export const CASE_FONT_SHARE_BY_ID: Record<string, number> = {};
 
-/** Валютные джекпоты (0.01%) — в кейсе своей валюты. */
+/** Валютные джекпоты — в кейсе своей валюты. Шанс всегда фиксированный. */
 export const CASE_CASH_BBC_ID = "cash-bbc-200000";
 export const CASE_CASH_BBC_AMOUNT = 200_000;
 export const CASE_CASH_BD_ID = "cash-bd-1000000";
 export const CASE_CASH_BD_AMOUNT = 1_000_000;
-export const CASE_JACKPOT_SHARE = 0.0001; // 0.01%
+/** @deprecated используй CASE_JACKPOT_CHANCE_PCT из marketCaseBoost */
+export const CASE_JACKPOT_SHARE = CASE_JACKPOT_CHANCE_PCT / 100;
+export { CASE_JACKPOT_CHANCE_PCT };
 
 /**
  * Вместо «пусто»: мелкие суммы валюты кейса (не стена баксов).
@@ -434,6 +441,18 @@ export function injectCaseSpecials(
       Math.round(((itemsShare * weights[i]) / wSum) * 100) / 100;
   }
   const next = [...fillers, ...pool];
+  // Жёстко фиксируем джекпот: 0.02%, остальное пропорционально сжимаем.
+  const jpRow = next.find((e) => e.itemId === jackpot.itemId);
+  if (jpRow) {
+    const others = next.filter((e) => e !== jpRow);
+    const otherSum = others.reduce((a, e) => a + e.chancePct, 0) || 1;
+    const targetOthers = Math.max(0.01, 100 - CASE_JACKPOT_CHANCE_PCT);
+    for (const e of others) {
+      e.chancePct =
+        Math.round(((e.chancePct * targetOthers) / otherSum) * 100) / 100;
+    }
+    jpRow.chancePct = CASE_JACKPOT_CHANCE_PCT;
+  }
   const sum = next.reduce((a, e) => a + e.chancePct, 0);
   const pad = fillers.slice().sort((a, b) => b.chancePct - a.chancePct)[0];
   if (pad && Math.abs(sum - 100) > 0.05) {
@@ -580,11 +599,10 @@ function boostedRollTable(
   caseId: MarketCaseId
 ): CaseLootEntry[] {
   void kind;
-  const jackpotId =
-    caseId === "bbc-urozhay" ? CASE_CASH_BBC_ID : CASE_CASH_BD_ID;
+  void caseId;
+  // Джекпот вне буста — остаётся CASE_JACKPOT_CHANCE_PCT.
   return applyGroupBoost(table, [
     { ids: new Set([CASE_RPG_PATCH_ID]), addPct: CASE_RED_RARE_ADD, perItem: true },
-    { ids: new Set([jackpotId]), addPct: caseRedJackpotAdd(caseId), perItem: true },
     {
       ids: new Set(CASE_PITY_PATCH_IDS),
       addPct: CASE_RED_IMMORTAL_ADD,
@@ -595,7 +613,8 @@ function boostedRollTable(
 
 function boostNote(kind: CaseBoostKind, caseId: MarketCaseId): string {
   void kind;
-  return `буст каждому: Rare +${CASE_RED_RARE_ADD}%, джекпот +${caseRedJackpotAdd(caseId)}%, Immortal +${CASE_RED_IMMORTAL_ADD}%`;
+  void caseId;
+  return `буст каждому: Rare +${CASE_RED_RARE_ADD}%, Immortal +${CASE_RED_IMMORTAL_ADD}% (джекпот без буста ${CASE_JACKPOT_CHANCE_PCT}%)`;
 }
 
 /** Хватает ли баланса на несколько прокрутов сразу, до первого списания. */
@@ -627,12 +646,273 @@ export async function ensureCaseFunds(opts: {
   return { ok: true };
 }
 
+const SPIN_STALE_MS = CASE_SPIN_MS + 30_000;
+
+async function refundCaseSpend(opts: {
+  userId: string;
+  steamId: string;
+  spent: number;
+  currency: MarketCurrency;
+  paidFrom: string | null | undefined;
+  caseName: string;
+}): Promise<void> {
+  const spent = Math.max(0, Math.trunc(opts.spent));
+  if (!spent || opts.paidFrom === "infinite") return;
+  const note = `Откат прокрута «${opts.caseName}» (+${spent.toLocaleString("ru-RU")} ${
+    opts.currency === "BD" ? BD_MARK : "BBC"
+  })`;
+  if (opts.currency === "BBC" || opts.paidFrom === "bbc") {
+    await creditBbCoins({
+      userId: opts.userId,
+      amount: spent,
+      kind: "case_open_refund",
+      ref: `refund:${opts.userId}:${Date.now()}:${randomBytes(4).toString("hex")}`,
+      note,
+    });
+    return;
+  }
+  if (opts.paidFrom === "personal") {
+    await creditPersonalBd({ userId: opts.userId, amount: spent });
+    return;
+  }
+  if (opts.paidFrom === "treasury") {
+    const ctx = await getFactionPayCtx(opts.userId, opts.steamId);
+    if (!ctx) return;
+    await creditFactionBd({
+      factionId: ctx.factionId,
+      amount: spent,
+      userId: opts.userId,
+      note,
+      sourceKey: `case_open_refund:${opts.userId}:${Date.now()}`,
+    });
+  }
+}
+
+/** Откатить незавершённые прокруты (refresh / уход со страницы / протухший lock). */
+export async function abortPendingCaseSpins(opts: {
+  userId: string;
+  steamId: string;
+  batchId?: string;
+}): Promise<{ ok: true; aborted: number }> {
+  const rows = await prisma.caseSpinPending.findMany({
+    where: opts.batchId
+      ? { userId: opts.userId, batchId: opts.batchId }
+      : { userId: opts.userId },
+  });
+  if (!rows.length) return { ok: true, aborted: 0 };
+
+  for (const row of rows) {
+    const def = getMarketCase(row.caseId);
+    const caseName = def?.name || row.caseId;
+    const currency = (row.currency === "BD" ? "BD" : "BBC") as MarketCurrency;
+    if (row.paidFrom !== "infinite") {
+      await subtractCaseJackpot(currency, row.spent);
+    }
+    if (row.jackpotHit && row.jackpotPaid > 0) {
+      await returnCaseJackpotPayout(currency, row.jackpotPaid);
+    }
+    await refundCaseSpend({
+      userId: opts.userId,
+      steamId: opts.steamId,
+      spent: row.spent,
+      currency,
+      paidFrom: row.paidFrom,
+      caseName,
+    });
+  }
+  await prisma.caseSpinPending.deleteMany({
+    where: { id: { in: rows.map((r) => r.id) } },
+  });
+  return { ok: true, aborted: rows.length };
+}
+
+async function settlePendingSpin(
+  row: {
+    id: string;
+    userId: string;
+    caseId: string;
+    boostKind: string | null;
+    spent: number;
+    currency: string;
+    paidFrom: string | null;
+    resultJson: unknown;
+    jackpotHit: boolean;
+    jackpotPaid: number;
+    openIndex: number;
+    pityNextAt: number;
+    pityForced: boolean;
+    rolledChance: number;
+  },
+  steamId: string
+): Promise<{ balance: number; currency: MarketCurrency; paidFrom?: string }> {
+  const def = getMarketCase(row.caseId);
+  if (!def) throw new Error("case");
+  const result = row.resultJson as CaseLootEntry;
+  const boostKind = (row.boostKind === "red" ? "red" : null) as CaseBoostKind | null;
+  const currency = (row.currency === "BD" ? "BD" : "BBC") as MarketCurrency;
+  const jackpotHit = row.jackpotHit;
+  const jackpotPaid = row.jackpotPaid;
+
+  if (result.kind === "patch" && result.itemId) {
+    await addPatchQty(row.userId, result.itemId, 1);
+    await writeNickPatchesCache().catch(() => null);
+  } else if (result.kind === "bg" && result.itemId) {
+    await addBgQty(row.userId, result.itemId, 1);
+  } else if (result.kind === "font" && result.itemId) {
+    await addFontQty(row.userId, result.itemId, 1);
+  } else if (result.kind === "currency") {
+    const amt = Math.max(0, Math.trunc(result.amount || result.sellPrice || 0));
+    let credited = false;
+    if (amt > 0 && result.sellCurrency === "BBC") {
+      const creditedRes = await creditBbCoins({
+        userId: row.userId,
+        amount: amt,
+        kind: "case_drop",
+        ref: `${def.id}:${result.itemId || "bbc"}:${row.id}`,
+        note: jackpotHit
+          ? `Джекпот из кейса «${def.name}»: +${amt.toLocaleString("ru-RU")} BBC`
+          : `Дроп из кейса «${def.name}»: +${amt.toLocaleString("ru-RU")} BBC`,
+      });
+      credited = creditedRes.ok;
+    } else if (amt > 0 && result.sellCurrency === "BD") {
+      const creditedRes = await creditPersonalBd({ userId: row.userId, amount: amt });
+      credited = creditedRes.ok;
+    }
+    if (jackpotHit && !credited) {
+      await restoreCaseJackpotIfFloor(currency, jackpotPaid);
+    }
+  }
+
+  const actor = await prisma.user.findUnique({
+    where: { id: row.userId },
+    select: { nick: true, steamName: true, steamId: true },
+  });
+  const nick = personLabel(actor || { steamId });
+  const spendLabel = `${row.spent.toLocaleString("ru-RU")} ${
+    currency === "BD" ? BD_MARK : "BBC"
+  }`;
+  const dropLabel =
+    result.kind === "empty"
+      ? "пусто"
+      : result.kind === "currency"
+        ? `${result.title} (зачисление)`
+        : `${result.title}${
+            result.sellPrice > 0
+              ? ` (продажа ≈ ${result.sellPrice.toLocaleString("ru-RU")} ${
+                  result.sellCurrency === "BD" ? BD_MARK : "BBC"
+                })`
+              : ""
+          }`;
+  const pityHit = row.pityForced;
+  await writeActionLog({
+    category: "cases",
+    action: "case_open",
+    message: boostKind
+      ? `${nick} открыл «${def.name}» с ${boostNote(boostKind, def.id)} (−${spendLabel}) → ${dropLabel}`
+      : `${nick} открыл «${def.name}» (−${spendLabel}) → ${dropLabel}`,
+    actorId: row.userId,
+    actorNick: nick,
+    meta: {
+      caseId: def.id,
+      caseName: def.name,
+      currency,
+      spent: row.spent,
+      dropKind: result.kind,
+      dropItemId: result.itemId,
+      dropTitle: result.kind === "empty" ? "Пусто" : result.title,
+      dropImage: result.image,
+      dropSell: result.sellPrice,
+      dropSellCurrency: result.sellCurrency,
+      chancePct: pityHit ? result.chancePct : row.rolledChance,
+      boost: Boolean(boostKind),
+      boostKind,
+      boostRareAddPct: boostKind === "red" ? CASE_RED_RARE_ADD : undefined,
+      boostJackpotAddPct: undefined,
+      jackpotClaimed: jackpotHit,
+      jackpotPaid: jackpotHit ? jackpotPaid : undefined,
+      boostImmortalAddPct: boostKind === "red" ? CASE_RED_IMMORTAL_ADD : undefined,
+      infiniteWallet: hasInfiniteMarketWallet(steamId),
+      paidFrom: row.paidFrom || null,
+      pity:
+        pityHit &&
+        Boolean(
+          result.itemId &&
+            (CASE_PITY_PATCH_IDS as readonly string[]).includes(result.itemId)
+        ),
+      openIndex: row.openIndex,
+      pityNextAt: row.pityNextAt,
+      pityGapRolled: pityHit ? row.pityNextAt - row.openIndex : undefined,
+      spinPendingId: row.id,
+    },
+  });
+
+  await prisma.caseSpinPending.delete({ where: { id: row.id } }).catch(() => null);
+
+  let balanceOut =
+    currency === "BBC"
+      ? await getBbCoinBalance(row.userId)
+      : row.paidFrom === "personal"
+        ? await getPersonalBdBalance(row.userId)
+        : (await getFactionPayCtx(row.userId, steamId))?.balance ?? 0;
+  return {
+    balance: balanceOut,
+    currency,
+    paidFrom: row.paidFrom || undefined,
+  };
+}
+
+/** Подтвердить прокруты после анимации — зачислить лут. */
+export async function confirmPendingCaseSpins(opts: {
+  userId: string;
+  steamId: string;
+  batchId: string;
+}): Promise<
+  | {
+      ok: true;
+      balance: number;
+      currency: MarketCurrency;
+      paidFrom?: string;
+      jackpots: CaseJackpotPools;
+      count: number;
+    }
+  | { ok: false; error: string }
+> {
+  const rows = await prisma.caseSpinPending.findMany({
+    where: { userId: opts.userId, batchId: opts.batchId },
+    orderBy: { createdAt: "asc" },
+  });
+  if (!rows.length) return { ok: false, error: "no_pending" };
+  const oldest = rows[0].createdAt.getTime();
+  if (Date.now() < oldest + CASE_SPIN_MS - 1500) {
+    return { ok: false, error: "too_early" };
+  }
+  let lastBal = 0;
+  let lastCur: MarketCurrency = "BBC";
+  let lastPaid: string | undefined;
+  for (const row of rows) {
+    const settled = await settlePendingSpin(row, opts.steamId);
+    lastBal = settled.balance;
+    lastCur = settled.currency;
+    lastPaid = settled.paidFrom;
+  }
+  return {
+    ok: true,
+    balance: lastBal,
+    currency: lastCur,
+    paidFrom: lastPaid,
+    jackpots: await readCaseJackpots(),
+    count: rows.length,
+  };
+}
+
 export async function openMarketCase(opts: {
   caseId: MarketCaseId;
   userId: string;
   steamId: string;
   /** Один прокрут по цене выбранного буста. */
   boostKind?: CaseBoostKind | null;
+  /** Общий batch для x2 — один confirm/abort на пачку. */
+  batchId?: string;
 }): Promise<
   | {
       ok: true;
@@ -647,6 +927,10 @@ export async function openMarketCase(opts: {
       strip: CaseLootEntry[];
       landIndex: number;
       jackpots: CaseJackpotPools;
+      batchId: string;
+      spinId: string;
+      pending: true;
+      spinMs: number;
     }
   | { ok: false; error: string }
 > {
@@ -655,6 +939,24 @@ export async function openMarketCase(opts: {
   }
   const def = getMarketCase(opts.caseId);
   if (!def) return { ok: false, error: "case" };
+
+  const existing = await prisma.caseSpinPending.findMany({
+    where: { userId: opts.userId },
+    orderBy: { createdAt: "asc" },
+  });
+  if (existing.length) {
+    const age = Date.now() - existing[0].createdAt.getTime();
+    const sameBatch = Boolean(
+      opts.batchId && existing.every((e) => e.batchId === opts.batchId)
+    );
+    if (sameBatch) {
+      // x2: вторая крутка того же batch
+    } else if (age >= SPIN_STALE_MS) {
+      await abortPendingCaseSpins({ userId: opts.userId, steamId: opts.steamId });
+    } else {
+      return { ok: false, error: "spin_in_progress" };
+    }
+  }
 
   const table = await getCaseLootTable(def.id);
   if (!table.length) return { ok: false, error: "empty_pool" };
@@ -683,7 +985,6 @@ export async function openMarketCase(opts: {
   });
   if (!charged.ok) return charged;
 
-  // В котёл попадает только реально списанная сумма. Бесконечный кошелёк не кладёт.
   if (charged.paidFrom !== "infinite") {
     await addCaseJackpot(def.currency, pay);
   }
@@ -692,14 +993,12 @@ export async function openMarketCase(opts: {
   const openIndex = opensBefore + 1;
   let pityNextAt = await readPityNextAt(opts.userId, def.id);
   if (pityNextAt == null || pityNextAt <= opensBefore) {
-    // Первый круг или протухшая цель — новый рандомный зазор 80–150.
     pityNextAt = opensBefore + rollPityGap();
   }
   const pityHit = openIndex >= pityNextAt;
   const pityPool = CASE_PITY_PATCH_IDS.map((id) =>
     table.find((e) => e.itemId === id)
   ).filter((e): e is CaseLootEntry => Boolean(e));
-  // Либо СВД, либо ГП — 50/50.
   const pityPick =
     pityPool.length > 0
       ? pityPool[Math.floor(Math.random() * pityPool.length)]
@@ -725,128 +1024,37 @@ export async function openMarketCase(opts: {
     paintJackpotAmount(entry, def.currency, shownPool)
   );
   if (!jackpotHit) result = paintJackpotAmount(result, def.currency, shownPool);
-  // После срабатывания — сразу новый случайный порог; иначе несём текущий.
-  const pityNextAtOut = pityHit
-    ? openIndex + rollPityGap()
-    : pityNextAt;
+  const pityNextAtOut = pityHit ? openIndex + rollPityGap() : pityNextAt;
   const landIndex = 52;
   const strip = buildRouletteStrip(paintedTable, result, { length: 64, landIndex });
+  const batchId = opts.batchId || randomBytes(12).toString("hex");
 
-  if (result.kind === "patch" && result.itemId) {
-    await addPatchQty(opts.userId, result.itemId, 1);
-    await writeNickPatchesCache().catch(() => null);
-  } else if (result.kind === "bg" && result.itemId) {
-    await addBgQty(opts.userId, result.itemId, 1);
-  } else if (result.kind === "font" && result.itemId) {
-    await addFontQty(opts.userId, result.itemId, 1);
-  } else if (result.kind === "currency") {
-    const amt = Math.max(0, Math.trunc(result.amount || result.sellPrice || 0));
-    let credited = false;
-    if (amt > 0 && result.sellCurrency === "BBC") {
-      const creditedRes = await creditBbCoins({
-        userId: opts.userId,
-        amount: amt,
-        kind: "case_drop",
-        ref: `${def.id}:${result.itemId || "bbc"}:${Date.now()}`,
-        note: jackpotHit
-          ? `Джекпот из кейса «${def.name}»: +${amt.toLocaleString("ru-RU")} BBC`
-          : `Дроп из кейса «${def.name}»: +${amt.toLocaleString("ru-RU")} BBC`,
-      });
-      credited = creditedRes.ok;
-    } else if (amt > 0 && result.sellCurrency === "BD") {
-      // Мелочь и джекпот B$ — на личный баланс открывшего.
-      const creditedRes = await creditPersonalBd({ userId: opts.userId, amount: amt });
-      credited = creditedRes.ok;
-    }
-    if (jackpotHit && !credited) {
-      await restoreCaseJackpotIfFloor(def.currency, jackpotPaid);
-    }
-  }
-
-  const actor = await prisma.user.findUnique({
-    where: { id: opts.userId },
-    select: { nick: true, steamName: true, steamId: true },
-  });
-  const nick = personLabel(actor || { steamId: opts.steamId });
-  const spendLabel = `${pay.toLocaleString("ru-RU")} ${
-    def.currency === "BD" ? BD_MARK : "BBC"
-  }`;
-  const dropLabel =
-    result.kind === "empty"
-      ? "пусто"
-      : result.kind === "currency"
-        ? `${result.title} (зачисление)`
-        : `${result.title}${
-            result.sellPrice > 0
-              ? ` (продажа ≈ ${result.sellPrice.toLocaleString("ru-RU")} ${
-                  result.sellCurrency === "BD" ? BD_MARK : "BBC"
-                })`
-              : ""
-          }`;
-  await writeActionLog({
-    category: "cases",
-    action: "case_open",
-    message: boostKind
-      ? `${nick} открыл «${def.name}» с ${boostNote(boostKind, def.id)} (−${spendLabel}) → ${dropLabel}`
-      : `${nick} открыл «${def.name}» (−${spendLabel}) → ${dropLabel}`,
-    actorId: opts.userId,
-    actorNick: nick,
-    meta: {
+  const pending = await prisma.caseSpinPending.create({
+    data: {
+      userId: opts.userId,
+      batchId,
       caseId: def.id,
-      caseName: def.name,
-      currency: def.currency,
-      spent: pay,
-      dropKind: result.kind,
-      dropItemId: result.itemId,
-      dropTitle: result.kind === "empty" ? "Пусто" : result.title,
-      dropImage: result.image,
-      dropSell: result.sellPrice,
-      dropSellCurrency: result.sellCurrency,
-      chancePct: pityForced ? result.chancePct : rolledChance,
-      boost: Boolean(boostKind),
       boostKind,
-      boostRareAddPct: boostKind === "red" ? CASE_RED_RARE_ADD : undefined,
-      boostJackpotAddPct: boostKind === "red" ? caseRedJackpotAdd(def.id) : undefined,
-      jackpotClaimed: jackpotHit,
-      jackpotPaid: jackpotHit ? jackpotPaid : undefined,
-      boostImmortalAddPct: boostKind === "red" ? CASE_RED_IMMORTAL_ADD : undefined,
-      infiniteWallet: hasInfiniteMarketWallet(opts.steamId),
+      spent: pay,
+      currency: def.currency,
       paidFrom: charged.paidFrom || null,
-      pity:
-        pityHit &&
-        Boolean(
-          result.itemId &&
-            (CASE_PITY_PATCH_IDS as readonly string[]).includes(result.itemId)
-        ),
+      resultJson: result as object,
+      stripJson: strip as object[],
+      landIndex,
+      jackpotHit,
+      jackpotPaid,
       openIndex,
       pityNextAt: pityNextAtOut,
-      pityGapRolled: pityHit ? pityNextAtOut - openIndex : undefined,
+      pityForced,
+      rolledChance,
     },
   });
-
-  // После дропа B$ на личный — отдать актуальный личный баланс.
-  let balanceOut = charged.balance;
-  if (
-    result.kind === "currency" &&
-    result.sellCurrency === "BD" &&
-    charged.paidFrom === "personal"
-  ) {
-    const { getPersonalBdBalance } = await import("@/lib/marketFactionPay");
-    balanceOut = await getPersonalBdBalance(opts.userId);
-  } else if (
-    result.kind === "currency" &&
-    result.sellCurrency === "BBC" &&
-    charged.currency === "BBC"
-  ) {
-    const { getBbCoinBalance } = await import("@/lib/bbCoins");
-    balanceOut = await getBbCoinBalance(opts.userId);
-  }
 
   return {
     ok: true,
     caseId: def.id,
     currency: charged.currency,
-    balance: balanceOut,
+    balance: charged.balance,
     paidFrom: charged.paidFrom,
     spent: pay,
     boost: Boolean(boostKind),
@@ -855,6 +1063,10 @@ export async function openMarketCase(opts: {
     strip,
     landIndex,
     jackpots: await readCaseJackpots(),
+    batchId,
+    spinId: pending.id,
+    pending: true,
+    spinMs: CASE_SPIN_MS,
   };
 }
 
