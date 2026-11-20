@@ -465,7 +465,10 @@ export async function getCaseLootTable(caseId: MarketCaseId): Promise<CaseLootEn
   return injectCaseSpecials(buildLootChances(pool, def.currency), def.currency);
 }
 
-async function countCaseOpens(userId: string, caseId: MarketCaseId): Promise<number> {
+async function countSettledCaseOpens(
+  userId: string,
+  caseId: MarketCaseId
+): Promise<number> {
   const rows = await prisma.actionLog.findMany({
     where: {
       category: "cases",
@@ -487,11 +490,35 @@ async function countCaseOpens(userId: string, caseId: MarketCaseId): Promise<num
   return n;
 }
 
+/**
+ * Открытия с учётом pending (x2 / mid-spin).
+ * Без этого обе полоски x2 видят один openIndex → гарант на обеих.
+ */
+async function countCaseOpens(userId: string, caseId: MarketCaseId): Promise<number> {
+  const [settled, pending] = await Promise.all([
+    countSettledCaseOpens(userId, caseId),
+    prisma.caseSpinPending.count({ where: { userId, caseId } }),
+  ]);
+  return settled + pending;
+}
+
 /** Последний pityNextAt по этому кейсу (абсолютный номер открытия). */
 async function readPityNextAt(
   userId: string,
   caseId: MarketCaseId
 ): Promise<number | null> {
+  // Сначала pending: первая полоска x2 уже могла сжечь гарант и сдвинуть цель.
+  const pending = await prisma.caseSpinPending.findMany({
+    where: { userId, caseId },
+    select: { pityNextAt: true, openIndex: true },
+    orderBy: { createdAt: "desc" },
+    take: 8,
+  });
+  for (const p of pending) {
+    const n = Number(p.pityNextAt);
+    if (Number.isFinite(n) && n > 0) return Math.trunc(n);
+  }
+
   const rows = await prisma.actionLog.findMany({
     where: {
       category: "cases",
