@@ -25842,6 +25842,21 @@ body:has(.faction-page) .site-footer {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.market-case-roule-rarity {
+  display: none;
+  font-size: 0.58rem !important;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fde68a !important;
+}
+.market-case-roule-cell:hover .market-case-roule-rarity {
+  display: block;
+}
+.market-case-roule-cell.is-rare .market-case-roule-rarity { color: #93c5fd !important; }
+.market-case-roule-cell.is-excellent .market-case-roule-rarity { color: #e9d5ff !important; }
+.market-case-roule-cell.is-interesting .market-case-roule-rarity { color: #86efac !important; }
+.market-case-roule-cell.is-common .market-case-roule-rarity { color: #cbd5e1 !important; }
 .market-case-roule-cell.kind-empty {
   background: rgba(30, 30, 36, 0.9);
   color: #9ca3af;
@@ -26023,7 +26038,10 @@ body:has(.faction-page) .site-footer {
   background: rgba(36, 28, 52, 0.98);
   transform: translateY(-2px);
 }
-.market-case-loot-cell.is-immortal {
+.market-case-loot-cell.is-immortal,
+.market-case-roule-cell.is-immortal,
+.market-case-result.is-immortal,
+.market-case-inspect-art.is-immortal {
   border-color: rgba(250, 204, 21, 0.55);
   background:
     linear-gradient(
@@ -26047,7 +26065,10 @@ body:has(.faction-page) .site-footer {
       rgba(200, 140, 40, 0.55) 100%
     );
 }
-.market-case-loot-cell.is-rare {
+.market-case-loot-cell.is-rare,
+.market-case-roule-cell.is-rare,
+.market-case-result.is-rare,
+.market-case-inspect-art.is-rare {
   border-color: rgba(96, 165, 250, 0.6);
   background:
     linear-gradient(
@@ -26059,6 +26080,7 @@ body:has(.faction-page) .site-footer {
   box-shadow:
     inset 0 0 16px rgba(59, 130, 246, 0.2),
     0 0 12px rgba(37, 99, 235, 0.18);
+  position: relative;
 }
 .market-case-loot-cell.is-rare:hover,
 .market-case-loot-cell.is-rare:focus-visible {
@@ -26070,9 +26092,84 @@ body:has(.faction-page) .site-footer {
       rgba(37, 99, 235, 0.55) 100%
     );
 }
-.market-case-loot-cell.is-rare .market-case-loot-rarity {
-  color: #93c5fd;
-  text-shadow: 0 0 8px rgba(59, 130, 246, 0.45);
+.market-case-loot-cell.is-excellent,
+.market-case-roule-cell.is-excellent,
+.market-case-result.is-excellent,
+.market-case-inspect-art.is-excellent {
+  border-color: rgba(192, 132, 252, 0.65);
+  background:
+    linear-gradient(
+      155deg,
+      rgba(147, 51, 234, 0.42) 0%,
+      rgba(88, 28, 135, 0.72) 55%,
+      rgba(24, 12, 40, 0.92) 100%
+    );
+  box-shadow:
+    inset 0 0 16px rgba(168, 85, 247, 0.22),
+    0 0 12px rgba(147, 51, 234, 0.18);
+  position: relative;
+}
+.market-case-loot-cell.is-excellent:hover,
+.market-case-loot-cell.is-excellent:focus-visible {
+  border-color: rgba(216, 180, 254, 0.9);
+  background:
+    linear-gradient(
+      155deg,
+      rgba(168, 85, 247, 0.52) 0%,
+      rgba(126, 34, 206, 0.58) 100%
+    );
+}
+.market-case-loot-cell.is-interesting,
+.market-case-roule-cell.is-interesting,
+.market-case-result.is-interesting,
+.market-case-inspect-art.is-interesting {
+  border-color: rgba(74, 222, 128, 0.55);
+  background:
+    linear-gradient(
+      155deg,
+      rgba(22, 163, 74, 0.38) 0%,
+      rgba(20, 83, 45, 0.7) 55%,
+      rgba(12, 28, 18, 0.92) 100%
+    );
+  box-shadow:
+    inset 0 0 16px rgba(34, 197, 94, 0.18),
+    0 0 12px rgba(22, 163, 74, 0.14);
+  position: relative;
+}
+.market-case-loot-cell.is-interesting:hover,
+.market-case-loot-cell.is-interesting:focus-visible {
+  border-color: rgba(134, 239, 172, 0.85);
+  background:
+    linear-gradient(
+      155deg,
+      rgba(34, 197, 94, 0.48) 0%,
+      rgba(21, 128, 61, 0.55) 100%
+    );
+}
+.market-case-loot-cell.is-common,
+.market-case-roule-cell.is-common,
+.market-case-result.is-common,
+.market-case-inspect-art.is-common {
+  border-color: rgba(148, 163, 184, 0.45);
+  background:
+    linear-gradient(
+      155deg,
+      rgba(71, 85, 105, 0.4) 0%,
+      rgba(30, 41, 59, 0.75) 55%,
+      rgba(15, 18, 28, 0.92) 100%
+    );
+  box-shadow: inset 0 0 12px rgba(148, 163, 184, 0.1);
+  position: relative;
+}
+.market-case-loot-cell.is-common:hover,
+.market-case-loot-cell.is-common:focus-visible {
+  border-color: rgba(203, 213, 225, 0.75);
+  background:
+    linear-gradient(
+      155deg,
+      rgba(100, 116, 139, 0.48) 0%,
+      rgba(51, 65, 85, 0.55) 100%
+    );
 }
 .market-case-loot-rarity {
   display: block;
@@ -26083,7 +26180,48 @@ body:has(.faction-page) .site-footer {
   text-transform: uppercase;
   color: #fde68a;
   text-shadow: 0 0 8px rgba(250, 204, 21, 0.45);
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: opacity 0.15s ease, max-height 0.15s ease, margin 0.15s ease;
 }
+.market-case-loot-cell:hover .market-case-loot-rarity,
+.market-case-loot-cell:focus-visible .market-case-loot-rarity,
+.market-case-loot-cell.is-immortal .market-case-loot-rarity,
+.market-case-loot-cell.is-rare .market-case-loot-rarity {
+  opacity: 1;
+  max-height: 1.4em;
+  margin: 0 0 2px;
+}
+.market-case-loot-cell.is-rare .market-case-loot-rarity {
+  color: #93c5fd;
+  text-shadow: 0 0 8px rgba(59, 130, 246, 0.45);
+}
+.market-case-loot-cell.is-excellent .market-case-loot-rarity {
+  color: #e9d5ff;
+  text-shadow: 0 0 8px rgba(168, 85, 247, 0.45);
+}
+.market-case-loot-cell.is-interesting .market-case-loot-rarity {
+  color: #86efac;
+  text-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+}
+.market-case-loot-cell.is-common .market-case-loot-rarity {
+  color: #cbd5e1;
+  text-shadow: none;
+}
+.market-case-inspect-rarity {
+  margin: 0 0 6px;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #fde68a;
+}
+.market-case-inspect-rarity.is-rare { color: #93c5fd; }
+.market-case-inspect-rarity.is-excellent { color: #e9d5ff; }
+.market-case-inspect-rarity.is-interesting { color: #86efac; }
+.market-case-inspect-rarity.is-common { color: #cbd5e1; }
 .market-case-loot-cell img {
   width: 72px;
   height: 72px;

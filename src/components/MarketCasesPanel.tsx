@@ -10,6 +10,7 @@ import {
   CASE_RED_RARE_ADD,
   type CaseBoostKind,
 } from "@/lib/marketCaseBoost";
+import { patchRarityClass, patchRarityLabel } from "@/lib/patchRarity";
 
 type LootKind = "patch" | "bg" | "empty" | "currency" | "font";
 
@@ -45,15 +46,6 @@ function FontLootSample({
   );
 }
 
-/** Самая редкая категория кейса — Immortal (золотой фон). */
-const CASE_IMMORTAL_PATCH_IDS = new Set([
-  "creator-svd-faction-lord",
-  "creator-gp-drum-berry-lore",
-]);
-
-/** Rare — синий фон редкости (РПГ «Урожайный удар»). */
-const CASE_RARE_PATCH_IDS = new Set(["creator-rpg7-orchard-harvest"]);
-
 /** Мелочь валюты (100/200/500 BBC · 500/1000/2000 $) — зелёный фон. */
 const CASE_JACKPOT_BBC_ID = "cash-bbc-200000";
 const CASE_JACKPOT_BD_ID = "cash-bd-1000000";
@@ -66,18 +58,6 @@ const CASE_FILLER_CASH_IDS = new Set([
   "cash-bd-1000",
   "cash-bd-2000",
 ]);
-
-function isImmortalLoot(e: Pick<LootEntry, "kind" | "itemId">): boolean {
-  return Boolean(
-    e.kind === "patch" && e.itemId && CASE_IMMORTAL_PATCH_IDS.has(e.itemId)
-  );
-}
-
-function isRareLoot(e: Pick<LootEntry, "kind" | "itemId">): boolean {
-  return Boolean(
-    e.kind === "patch" && e.itemId && CASE_RARE_PATCH_IDS.has(e.itemId)
-  );
-}
 
 function isFillerCashLoot(e: Pick<LootEntry, "kind" | "itemId">): boolean {
   return Boolean(
@@ -99,15 +79,15 @@ function jackpotLiveTitle(e: Pick<LootEntry, "itemId" | "title">, pools: Jackpot
 }
 
 function lootRarityLabel(e: Pick<LootEntry, "kind" | "itemId">): string | null {
-  if (isImmortalLoot(e)) return "Immortal";
-  if (isRareLoot(e)) return "Rare";
-  return null;
+  if (e.kind !== "patch") return null;
+  return patchRarityLabel(e.itemId);
 }
 
 function lootCellClass(e: Pick<LootEntry, "kind" | "itemId">): string {
+  const rarity =
+    e.kind === "patch" ? patchRarityClass(e.itemId) : "";
   const extras = [
-    isImmortalLoot(e) ? "is-immortal" : "",
-    isRareLoot(e) ? "is-rare" : "",
+    rarity,
     isFillerCashLoot(e) ? "is-filler-cash" : "",
   ]
     .filter(Boolean)
@@ -713,6 +693,11 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                               ? " is-win"
                               : ""
                           }`}
+                          title={
+                            lootRarityLabel(cell)
+                              ? `${lootRarityLabel(cell)} · ${cell.title}`
+                              : cell.title
+                          }
                         >
                           {cell.kind === "font" ? (
                             <FontLootSample cssClass={cell.cssClass} size="sm" />
@@ -722,6 +707,11 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                           ) : (
                             <span className="market-case-empty-glyph">∅</span>
                           )}
+                          {lootRarityLabel(cell) ? (
+                            <span className="market-case-roule-rarity">
+                              {lootRarityLabel(cell)}
+                            </span>
+                          ) : null}
                           <span>
                             {cell.kind === "empty" ? "Пусто" : cell.title}
                           </span>
@@ -793,7 +783,12 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                     title={
                       e.kind === "empty"
                         ? "Пусто"
-                        : `Смотреть: ${jackpotLiveTitle(e, jackpots)}`
+                        : [
+                            lootRarityLabel(e),
+                            `Смотреть: ${jackpotLiveTitle(e, jackpots)}`,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")
                     }
                     onClick={() => setInspect(e)}
                   >
@@ -806,7 +801,7 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                       <span className="market-case-empty-glyph">∅</span>
                     )}
                     {lootRarityLabel(e) ? (
-                      <span className="market-case-loot-rarity">
+                      <span className="market-case-loot-rarity" aria-hidden="true">
                         {lootRarityLabel(e)}
                       </span>
                     ) : null}
@@ -934,6 +929,11 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                     ? "Пусто"
                     : jackpotLiveTitle(inspect, jackpots)}
                 </h4>
+                {lootRarityLabel(inspect) ? (
+                  <p className={`market-case-inspect-rarity ${lootCellClass(inspect)}`}>
+                    {lootRarityLabel(inspect)}
+                  </p>
+                ) : null}
                 <p className="market-case-inspect-meta">
                   {inspect.kind === "empty"
                     ? "Пустой исход"
@@ -941,9 +941,9 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                       ? "Фон профиля"
                       : inspect.kind === "font"
                         ? "Шрифт ника"
-                      : inspect.kind === "currency"
-                        ? "Валюта"
-                        : lootRarityLabel(inspect) || "Нашивка"}
+                        : inspect.kind === "currency"
+                          ? "Валюта"
+                          : "Нашивка"}
                   {" · "}
                   шанс{" "}
                   {inspect.chancePct.toFixed(2).replace(/\.?0+$/, "")}%
