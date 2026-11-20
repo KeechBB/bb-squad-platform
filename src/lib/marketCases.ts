@@ -848,7 +848,7 @@ async function settlePendingSpin(
 
   await prisma.caseSpinPending.delete({ where: { id: row.id } }).catch(() => null);
 
-  let balanceOut =
+  const balanceOut =
     currency === "BBC"
       ? await getBbCoinBalance(row.userId)
       : row.paidFrom === "personal"
