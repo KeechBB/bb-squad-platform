@@ -10,7 +10,6 @@ import {
   type BdBuyDraft,
   type FactionMarketMember,
 } from "@/components/MarketBdBuyModal";
-import { MarketBdGiftModal } from "@/components/MarketBdGiftModal";
 import { MarketBdTransferModal } from "@/components/MarketBdTransferModal";
 import { MarketCasesPanel } from "@/components/MarketCasesPanel";
 
@@ -96,7 +95,6 @@ export function MarketplaceClient({ loggedIn }: Props) {
   );
   const [factionName, setFactionName] = useState<string | null>(null);
   const [canSpendBd, setCanSpendBd] = useState(false);
-  const [bdGiftOpen, setBdGiftOpen] = useState(false);
   const [bdTransferOpen, setBdTransferOpen] = useState(false);
   const [exchangeWip, setExchangeWip] = useState(false);
   const [factionMembers, setFactionMembers] = useState<FactionMarketMember[]>(
@@ -467,15 +465,6 @@ export function MarketplaceClient({ loggedIn }: Props) {
             >
               Перевод $
             </button>
-            {canSpendBd ? (
-              <button
-                type="button"
-                className="market-gift-bd-btn"
-                onClick={() => setBdGiftOpen(true)}
-              >
-                Подарить $
-              </button>
-            ) : null}
           </div>
 
           {exchangeWip ? (
@@ -537,60 +526,6 @@ export function MarketplaceClient({ loggedIn }: Props) {
                     `Переведено ${Number(data.amount || amount).toLocaleString("ru-RU")} $ → ${nick}`
                   );
                   setBdTransferOpen(false);
-                  await load();
-                } catch {
-                  setErr("Сеть недоступна");
-                } finally {
-                  setBusy(null);
-                }
-              }}
-            />
-          ) : null}
-
-          {bdGiftOpen ? (
-            <MarketBdGiftModal
-              members={factionMembers}
-              myUserId={myUserId}
-              factionName={factionName}
-              factionBalance={factionBalance}
-              infiniteWallet={infiniteWallet}
-              busy={busy === "gift-bd"}
-              onClose={() => setBdGiftOpen(false)}
-              onGift={async ({ toUserId, amount }) => {
-                setBusy("gift-bd");
-                setErr(null);
-                setMsg(null);
-                try {
-                  const res = await fetch("/api/bb-coins/gift-bd", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ toUserId, amount }),
-                  });
-                  const data = await res.json();
-                  if (!res.ok || !data.ok) {
-                    setErr(
-                      data.message ||
-                        (data.error === "insufficient"
-                          ? "Не хватает в казне"
-                          : data.error === "forbidden_seat"
-                            ? "Дарить может только глава / зам"
-                            : "Не удалось подарить")
-                    );
-                    return;
-                  }
-                  if (typeof data.factionBalance === "number") {
-                    setFactionBalance(data.factionBalance);
-                  }
-                  if (typeof data.personalBdBalance === "number") {
-                    setPersonalBdBalance(data.personalBdBalance);
-                  }
-                  const nick =
-                    factionMembers.find((m) => m.userId === toUserId)?.nick ||
-                    "игроку";
-                  setMsg(
-                    `Подарено ${Number(data.amount || amount).toLocaleString("ru-RU")} $ → ${nick}`
-                  );
-                  setBdGiftOpen(false);
                   await load();
                 } catch {
                   setErr("Сеть недоступна");
