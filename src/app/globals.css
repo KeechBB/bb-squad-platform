@@ -266,15 +266,22 @@ body:has(.reaction-page) {
   background-attachment: fixed;
 }
 
-body:has(.public-rating-page),
 body:has(.tm-sapper-page) {
   background: #07060c;
 }
 
+/* Рейтинг паблика: вся картинка на окно. cover оставлял чёрную середину кадра. */
+body:has(.public-rating-page):not(.has-site-profile-bg) {
+  background-color: #07060c;
+  background-image: url("/public-rating-bg-concept-01.jpg");
+  background-position: center center;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
 /* Рейтинг паблика: страница не шире окна; скролл вбок — только у таблицы. */
-html:has(.public-rating-page),
-body:has(.public-rating-page) {
-  overflow-x: hidden;
+html:has(.public-rating-page) {
   max-width: 100%;
 }
 
@@ -1047,10 +1054,10 @@ body:has(.public-rating-page) {
   margin: 0 0 24px;
   min-height: calc(100vh - 100px);
   padding: 0;
-  border-radius: 16px;
+  border-radius: 0;
   overflow: visible;
-  border: 1px solid var(--line);
-  background: url("/public-rating-bg-concept-01.jpg") center top / cover fixed no-repeat, #07060c;
+  border: none;
+  background: transparent;
   box-sizing: border-box;
 }
 
