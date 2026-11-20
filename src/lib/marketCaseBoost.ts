@@ -45,10 +45,13 @@ function round2(n: number): number {
 export type ChanceBoostGroup = {
   ids: ReadonlySet<string>;
   addPct: number;
+  /** true: +addPct каждому предмету. Иначе +addPct к сумме группы. */
+  perItem?: boolean;
 };
 
 /**
- * Каждой группе добавляет addPct пунктов (делится пропорционально текущим шансам).
+ * Буст группы. perItem прибавляет пункты каждому предмету отдельно.
+ * Иначе прибавка одна на всю группу и делится пропорционально.
  * Пустая группа пропускается. Остальные исходы сжимаются, сумма остаётся 100.
  */
 export function applyGroupBoost<T extends ChanceRow>(
@@ -74,6 +77,7 @@ export function applyGroupBoost<T extends ChanceRow>(
   const active = groups
     .map((g, i) => ({
       addPct: g.addPct,
+      perItem: g.perItem === true,
       items: buckets[i],
       sum: buckets[i].reduce((a, e) => a + e.chancePct, 0),
     }))
@@ -85,17 +89,25 @@ export function applyGroupBoost<T extends ChanceRow>(
 
   const restSum = rest.reduce((a, e) => a + e.chancePct, 0);
   const total = entries.reduce((a, e) => a + e.chancePct, 0) || 100;
-  let addSum = active.reduce((a, g) => a + g.addPct, 0);
+  const addedOf = (g: (typeof active)[number]) =>
+    g.perItem ? g.addPct * g.items.length : g.addPct;
+  let addSum = active.reduce((a, g) => a + addedOf(g), 0);
   const maxAdd = Math.max(0, restSum - 0.5);
   if (addSum > maxAdd && addSum > 0) {
     const scale = maxAdd / addSum;
     for (const g of active) g.addPct *= scale;
-    addSum = maxAdd;
+    addSum = active.reduce((a, g) => a + addedOf(g), 0);
   }
 
-  const targetRest = total - active.reduce((a, g) => a + g.sum + g.addPct, 0);
+  const targetRest = total - active.reduce((a, g) => a + g.sum + addedOf(g), 0);
   const scaled: T[] = [];
   for (const g of active) {
+    if (g.perItem) {
+      for (const e of g.items) {
+        scaled.push({ ...e, chancePct: round2(e.chancePct + g.addPct) });
+      }
+      continue;
+    }
     const target = g.sum + g.addPct;
     for (const e of g.items) {
       scaled.push({
@@ -124,11 +136,11 @@ export function applyGroupBoost<T extends ChanceRow>(
   return scaled.sort((a, b) => b.chancePct - a.chancePct);
 }
 
-/** Поднимает суммарный шанс Immortal на addPct пунктов. */
+/** Каждому Immortal +addPct пунктов: 0,11 → 5,11 и 0,09 → 5,09. */
 export function applyImmortalBoost<T extends ChanceRow>(
   entries: T[],
   immortalIds: ReadonlySet<string>,
   addPct = CASE_IMMORTAL_BOOST_ADD_PCT
 ): T[] {
-  return applyGroupBoost(entries, [{ ids: immortalIds, addPct }]);
+  return applyGroupBoost(entries, [{ ids: immortalIds, addPct, perItem: true }]);
 }

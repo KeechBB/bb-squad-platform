@@ -551,7 +551,11 @@ function boostedRollTable(
 ): CaseLootEntry[] {
   if (kind === "immortal") {
     return applyGroupBoost(table, [
-      { ids: new Set(CASE_PITY_PATCH_IDS), addPct: CASE_IMMORTAL_BOOST_ADD_PCT },
+      {
+        ids: new Set(CASE_PITY_PATCH_IDS),
+        addPct: CASE_IMMORTAL_BOOST_ADD_PCT,
+        perItem: true,
+      },
     ]);
   }
   if (kind === "rare") {
