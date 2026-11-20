@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { primeCaseAudio, watchCaseReel } from "@/lib/caseSpinAudio";
 import {
   CASE_BOOST_KIND_PRICE,
-  CASE_JACKPOT_BTN_PRICE,
   CASE_RED_IMMORTAL_ADD,
   CASE_RED_JACKPOT_ADD_BBC,
   CASE_RED_JACKPOT_ADD,
@@ -56,6 +55,9 @@ const CASE_IMMORTAL_PATCH_IDS = new Set([
 const CASE_RARE_PATCH_IDS = new Set(["creator-rpg7-orchard-harvest"]);
 
 /** Мелочь валюты (100/200/500 BBC · 500/1000/2000 $) — зелёный фон. */
+const CASE_JACKPOT_BBC_ID = "cash-bbc-200000";
+const CASE_JACKPOT_BD_ID = "cash-bd-1000000";
+
 const CASE_FILLER_CASH_IDS = new Set([
   "cash-bbc-100",
   "cash-bbc-200",
@@ -81,6 +83,19 @@ function isFillerCashLoot(e: Pick<LootEntry, "kind" | "itemId">): boolean {
   return Boolean(
     e.kind === "currency" && e.itemId && CASE_FILLER_CASH_IDS.has(e.itemId)
   );
+}
+
+type JackpotPools = { BBC: number; BD: number };
+
+function jackpotLiveTitle(e: Pick<LootEntry, "itemId" | "title">, pools: JackpotPools | null): string {
+  if (!pools) return e.title;
+  if (e.itemId === CASE_JACKPOT_BBC_ID) {
+    return `${pools.BBC.toLocaleString("ru-RU")} BBC`;
+  }
+  if (e.itemId === CASE_JACKPOT_BD_ID) {
+    return `${pools.BD.toLocaleString("ru-RU")} $`;
+  }
+  return e.title;
 }
 
 function lootRarityLabel(e: Pick<LootEntry, "kind" | "itemId">): string | null {
@@ -158,6 +173,7 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
   const [spinX, setSpinX] = useState(0);
   const [openLog, setOpenLog] = useState<OpenLogRow[]>([]);
   const [inspect, setInspect] = useState<LootEntry | null>(null);
+  const [jackpots, setJackpots] = useState<JackpotPools | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const logListRef = useRef<HTMLDivElement>(null);
   const spinSoundStop = useRef<(() => void) | null>(null);
@@ -176,6 +192,9 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
         return;
       }
       setCases(Array.isArray(data.cases) ? data.cases : []);
+      if (data.jackpots?.BBC && data.jackpots?.BD) {
+        setJackpots({ BBC: Number(data.jackpots.BBC), BD: Number(data.jackpots.BD) });
+      }
     } catch {
       setErr("Сеть недоступна");
     }
@@ -185,6 +204,30 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    let stop = false;
+    const tick = async () => {
+      if (document.hidden) return;
+      try {
+        const res = await fetch("/api/bb-coins/case-jackpot", { cache: "no-store" });
+        const data = await res.json();
+        if (stop || !data.ok || !data.jackpots) return;
+        setJackpots({
+          BBC: Number(data.jackpots.BBC) || 0,
+          BD: Number(data.jackpots.BD) || 0,
+        });
+      } catch {
+        /* следующий тик */
+      }
+    };
+    void tick();
+    const timer = window.setInterval(tick, 2000);
+    return () => {
+      stop = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
   useEffect(() => () => spinSoundStop.current?.(), []);
 
   const priceLabel = (c: CaseCard) =>
@@ -193,12 +236,11 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
       : `${c.price.toLocaleString("ru-RU")} BBC`;
 
   const kindPriceLabel = (c: CaseCard, kind: CaseBoostKind) => {
+    void kind;
     const n =
-      kind === "jackpot"
-        ? CASE_JACKPOT_BTN_PRICE
-        : c.id === "faction-sad"
-          ? CASE_BOOST_KIND_PRICE.red["faction-sad"]
-          : CASE_BOOST_KIND_PRICE.red["bbc-urozhay"];
+      c.id === "faction-sad"
+        ? CASE_BOOST_KIND_PRICE.red["faction-sad"]
+        : CASE_BOOST_KIND_PRICE.red["bbc-urozhay"];
     return c.currency === "BD"
       ? `${n.toLocaleString("ru-RU")} $`
       : `${n.toLocaleString("ru-RU")} BBC`;
@@ -248,6 +290,9 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
         setErr(map[data.error] || "Не удалось открыть кейс");
         setPhase("idle");
         return;
+      }
+      if (data.jackpots?.BBC && data.jackpots?.BD) {
+        setJackpots({ BBC: Number(data.jackpots.BBC), BD: Number(data.jackpots.BD) });
       }
       if (typeof data.balance === "number" && data.currency) {
         onBalances?.({
@@ -315,13 +360,11 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
           spent:
             typeof data.spent === "number"
               ? data.spent
-              : boostKind === "jackpot"
-                ? CASE_JACKPOT_BTN_PRICE
-                : boostKind === "red"
-                  ? CASE_BOOST_KIND_PRICE.red[
-                      c.id === "faction-sad" ? "faction-sad" : "bbc-urozhay"
-                    ]
-                  : c.price,
+              : boostKind === "red"
+                ? CASE_BOOST_KIND_PRICE.red[
+                    c.id === "faction-sad" ? "faction-sad" : "bbc-urozhay"
+                  ]
+                : c.price,
           dropTitle: won.kind === "empty" ? "Пусто" : won.title,
           dropKind: won.kind,
           dropImage: won.image,
@@ -428,6 +471,14 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
               <span className="market-case-name">{c.name}</span>
               <span className="market-case-blurb">{c.blurb}</span>
               <span className="market-case-price">{priceLabel(c)}</span>
+              <span className="market-case-jackpot-live">
+                Джекпот{" "}
+                {jackpots
+                  ? c.currency === "BD"
+                    ? `${jackpots.BD.toLocaleString("ru-RU")} $`
+                    : `${jackpots.BBC.toLocaleString("ru-RU")} BBC`
+                  : "…"}
+              </span>
               <span className="market-case-hint">
                 {c.currency === "BD" ? "мелочь 500–2000 $" : "мелочь 50–200 BBC"}
               </span>
@@ -573,6 +624,16 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                 <p className="market-case-dialog-price">
                   Стоимость: <strong>{priceLabel(active)}</strong>
                 </p>
+                <p className="market-case-jackpot-live">
+                  Джекпот{" "}
+                  <strong>
+                    {jackpots
+                      ? active.currency === "BD"
+                        ? `${jackpots.BD.toLocaleString("ru-RU")} $`
+                        : `${jackpots.BBC.toLocaleString("ru-RU")} BBC`
+                      : "…"}
+                  </strong>
+                </p>
               </header>
 
               <div
@@ -675,7 +736,7 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                     title={
                       e.kind === "empty"
                         ? "Пусто"
-                        : `Смотреть: ${e.title}`
+                        : `Смотреть: ${jackpotLiveTitle(e, jackpots)}`
                     }
                     onClick={() => setInspect(e)}
                   >
@@ -693,7 +754,7 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                       </span>
                     ) : null}
                     <span className="market-case-loot-title">
-                      {e.kind === "empty" ? "Пусто" : e.title}
+                      {e.kind === "empty" ? "Пусто" : jackpotLiveTitle(e, jackpots)}
                     </span>
                     <span className="market-case-loot-chance">
                       {e.chancePct.toFixed(2).replace(/\.?0+$/, "")}%
@@ -736,21 +797,6 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                   <span className="market-case-btn-effect">+{CASE_RED_IMMORTAL_ADD}% Immortal</span>
                   <span className="market-case-btn-price">{kindPriceLabel(active, "red")}</span>
                 </button>
-                {active.id === "bbc-urozhay" ? (
-                  <button
-                    type="button"
-                    className="market-case-boost-btn is-jackpot"
-                    disabled={busy || phase === "spinning" || phase === "opening"}
-                    title="Один прокрут. Повышенный шанс джекпота."
-                    onClick={() => void openCase(active, "jackpot")}
-                  >
-                    <span className="market-case-btn-effect">ДЖЕКПОТ</span>
-                    <span className="market-case-btn-effect">повышенный шанс</span>
-                    <span className="market-case-btn-price">
-                      {kindPriceLabel(active, "jackpot")}
-                    </span>
-                  </button>
-                ) : null}
               </div>
             </div>
           </div>
@@ -761,7 +807,7 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
               role="dialog"
               aria-modal="true"
               aria-label={
-                inspect.kind === "empty" ? "Пусто" : inspect.title
+                inspect.kind === "empty" ? "Пусто" : jackpotLiveTitle(inspect, jackpots)
               }
               onClick={(e) => {
                 e.stopPropagation();
@@ -805,7 +851,9 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                   )}
                 </div>
                 <h4>
-                  {inspect.kind === "empty" ? "Пусто" : inspect.title}
+                  {inspect.kind === "empty"
+                    ? "Пусто"
+                    : jackpotLiveTitle(inspect, jackpots)}
                 </h4>
                 <p className="market-case-inspect-meta">
                   {inspect.kind === "empty"

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireMarketUser } from "@/lib/bbCoinMarketAuth";
 import type { CaseBoostKind } from "@/lib/marketCaseBoost";
+import { readCaseJackpots } from "@/lib/caseJackpotPool";
 import {
   canAccessMarketCases,
   getMarketCase,
@@ -19,8 +20,11 @@ export async function GET() {
   if (!access) {
     return NextResponse.json({ ok: true, access: false, wip: true, cases: [] });
   }
-  const cases = await listMarketCasesPayload();
-  return NextResponse.json({ ok: true, access: true, wip: false, cases });
+  const [cases, jackpots] = await Promise.all([
+    listMarketCasesPayload(),
+    readCaseJackpots(),
+  ]);
+  return NextResponse.json({ ok: true, access: true, wip: false, cases, jackpots });
 }
 
 export async function POST(req: Request) {
@@ -41,12 +45,7 @@ export async function POST(req: Request) {
   if (!getMarketCase(caseId)) {
     return NextResponse.json({ ok: false, error: "case" }, { status: 400 });
   }
-  const boostKind: CaseBoostKind | null =
-    body.boostKind === "red"
-      ? "red"
-      : body.boostKind === "jackpot" && caseId === "bbc-urozhay"
-        ? "jackpot"
-        : null;
+  const boostKind: CaseBoostKind | null = body.boostKind === "red" ? "red" : null;
 
   const res = await openMarketCase({
     caseId,

@@ -2,7 +2,7 @@
  * Платные бусты одного прокрута. Цена кнопки — вместо обычной цены кейса.
  * Прибавка в процентных пунктах к выбранной группе, остальное сжимается.
  */
-export type CaseBoostKind = "red" | "jackpot";
+export type CaseBoostKind = "red";
 
 /** Красная кнопка: каждому предмету своей категории, целиком. */
 export const CASE_RED_RARE_ADD = 7;
@@ -16,10 +16,6 @@ export function caseRedJackpotAdd(caseId: string): number {
 }
 
 export const CASE_IMMORTAL_BOOST_ADD_PCT = CASE_RED_IMMORTAL_ADD;
-
-/** Кнопка «ДЖЕКПОТ» только на Первом Плоде. Прибавка к текущему шансу джекпота. */
-export const CASE_JACKPOT_BTN_ADD = 0.1;
-export const CASE_JACKPOT_BTN_PRICE = 50_000;
 
 export const CASE_BOOST_KIND_PRICE: Record<
   CaseBoostKind,
@@ -42,7 +38,6 @@ export function caseBoostKindPrice(
   kind: CaseBoostKind,
   caseId: "bbc-urozhay" | "faction-sad"
 ): number {
-  if (kind === "jackpot") return CASE_JACKPOT_BTN_PRICE;
   return CASE_BOOST_KIND_PRICE.red[caseId];
 }
 

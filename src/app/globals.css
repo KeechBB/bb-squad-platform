@@ -25510,6 +25510,22 @@ body:has(.faction-page) .site-footer {
 .market-case-dialog-price strong {
   color: #fde68a;
 }
+.market-case-jackpot-live {
+  margin: 6px 0 0;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+  color: #fde68a;
+  text-shadow: 0 0 14px rgba(250, 204, 21, 0.4);
+}
+.market-case-dialog-head .market-case-jackpot-live {
+  font-size: 1.55rem;
+}
+.market-case-card .market-case-jackpot-live {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.95rem;
+}
 
 .market-case-roulette {
   position: relative;
@@ -26049,15 +26065,6 @@ body:has(.faction-page) .site-footer {
   box-shadow:
     0 0 16px rgba(239, 68, 68, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.18);
-}
-.market-case-boost-btn.is-jackpot {
-  border-color: #fde047;
-  color: #fde68a;
-  background: linear-gradient(180deg, #1a1206, #3f2e0a 55%, #120e06);
-  text-shadow: 0 0 12px rgba(250, 204, 21, 0.55);
-  box-shadow:
-    0 0 18px rgba(250, 204, 21, 0.35),
-    inset 0 1px 0 rgba(255, 236, 160, 0.25);
 }
 .market-case-boost-btn.is-green {
   border-color: rgba(167, 243, 208, 0.9);

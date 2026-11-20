@@ -16,6 +16,13 @@ import { MARKET_FONT_ORDER } from "@/lib/marketFontIds";
 import { resolveListingPrice } from "@/lib/marketListingPrices";
 import { chargeMarketBuy, hasInfiniteMarketWallet } from "@/lib/marketCharge";
 import { creditBbCoins } from "@/lib/bbCoins";
+import {
+  addCaseJackpot,
+  claimCaseJackpot,
+  readCaseJackpots,
+  restoreCaseJackpotIfFloor,
+  type CaseJackpotPools,
+} from "@/lib/caseJackpotPool";
 import { creditPersonalBd } from "@/lib/marketFactionPay";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
 import { prisma } from "@/lib/prisma";
@@ -25,7 +32,6 @@ import { BD_MARK, BD_NAME } from "@/lib/blueberryDollar";
 import {
   applyGroupBoost,
   caseBoostKindPrice,
-  CASE_JACKPOT_BTN_ADD,
   CASE_RED_IMMORTAL_ADD,
   CASE_RED_RARE_ADD,
   caseRedJackpotAdd,
@@ -544,18 +550,34 @@ export function buildRouletteStrip(
   return strip;
 }
 
+function jackpotItemId(currency: MarketCurrency): string {
+  return currency === "BBC" ? CASE_CASH_BBC_ID : CASE_CASH_BD_ID;
+}
+
+function paintJackpotAmount(
+  entry: CaseLootEntry,
+  currency: MarketCurrency,
+  amount: number
+): CaseLootEntry {
+  if (entry.itemId !== jackpotItemId(currency)) return entry;
+  const n = Math.max(0, Math.trunc(amount));
+  const mark = currency === "BD" ? BD_MARK : "BBC";
+  return {
+    ...entry,
+    amount: n,
+    sellPrice: n,
+    title: `${n.toLocaleString("ru-RU")} ${mark}`,
+  };
+}
+
 function boostedRollTable(
   table: CaseLootEntry[],
   kind: CaseBoostKind,
   caseId: MarketCaseId
 ): CaseLootEntry[] {
+  void kind;
   const jackpotId =
     caseId === "bbc-urozhay" ? CASE_CASH_BBC_ID : CASE_CASH_BD_ID;
-  if (kind === "jackpot") {
-    return applyGroupBoost(table, [
-      { ids: new Set([CASE_CASH_BBC_ID]), addPct: CASE_JACKPOT_BTN_ADD, perItem: true },
-    ]);
-  }
   return applyGroupBoost(table, [
     { ids: new Set([CASE_RPG_PATCH_ID]), addPct: CASE_RED_RARE_ADD, perItem: true },
     { ids: new Set([jackpotId]), addPct: caseRedJackpotAdd(caseId), perItem: true },
@@ -568,7 +590,7 @@ function boostedRollTable(
 }
 
 function boostNote(kind: CaseBoostKind, caseId: MarketCaseId): string {
-  if (kind === "jackpot") return "буст ДЖЕКПОТ, повышенный шанс";
+  void kind;
   return `буст каждому: Rare +${CASE_RED_RARE_ADD}%, джекпот +${caseRedJackpotAdd(caseId)}%, Immortal +${CASE_RED_IMMORTAL_ADD}%`;
 }
 
@@ -591,6 +613,7 @@ export async function openMarketCase(opts: {
       result: CaseLootEntry;
       strip: CaseLootEntry[];
       landIndex: number;
+      jackpots: CaseJackpotPools;
     }
   | { ok: false; error: string }
 > {
@@ -622,10 +645,15 @@ export async function openMarketCase(opts: {
     price,
     kind: "case_open",
     noteItem: boostKind
-      ? `кейс «${def.name}» · ${boostNote(boostKind)}`
+      ? `кейс «${def.name}» · ${boostNote(boostKind, def.id)}`
       : `кейс «${def.name}»`,
   });
   if (!charged.ok) return charged;
+
+  // В котёл попадает только реально списанная сумма. Бесконечный кошелёк не кладёт.
+  if (charged.paidFrom !== "infinite") {
+    await addCaseJackpot(def.currency, pay);
+  }
 
   const opensBefore = await countCaseOpens(opts.userId, def.id);
   const openIndex = opensBefore + 1;
@@ -647,15 +675,29 @@ export async function openMarketCase(opts: {
     ? boostedRollTable(table, boostKind, def.id)
     : table;
   const pityForced = Boolean(pityHit && pityPick);
-  const result = pityForced && pityPick ? pityPick : pickWeighted(rollTable);
+  let result = pityForced && pityPick ? pityPick : pickWeighted(rollTable);
   const rolledChance =
     rollTable.find((e) => e.key === result.key)?.chancePct ?? result.chancePct;
+  const jackpotHit =
+    result.kind === "currency" && result.itemId === jackpotItemId(def.currency);
+  let jackpotPaid = 0;
+  if (jackpotHit) {
+    jackpotPaid = await claimCaseJackpot(def.currency);
+    result = paintJackpotAmount(result, def.currency, jackpotPaid);
+  }
+  const shownPool = jackpotHit
+    ? jackpotPaid
+    : (await readCaseJackpots())[def.currency];
+  const paintedTable = rollTable.map((entry) =>
+    paintJackpotAmount(entry, def.currency, shownPool)
+  );
+  if (!jackpotHit) result = paintJackpotAmount(result, def.currency, shownPool);
   // После срабатывания — сразу новый случайный порог; иначе несём текущий.
   const pityNextAtOut = pityHit
     ? openIndex + rollPityGap()
     : pityNextAt;
   const landIndex = 52;
-  const strip = buildRouletteStrip(rollTable, result, { length: 64, landIndex });
+  const strip = buildRouletteStrip(paintedTable, result, { length: 64, landIndex });
 
   if (result.kind === "patch" && result.itemId) {
     await addPatchQty(opts.userId, result.itemId, 1);
@@ -666,17 +708,25 @@ export async function openMarketCase(opts: {
     await addFontQty(opts.userId, result.itemId, 1);
   } else if (result.kind === "currency") {
     const amt = Math.max(0, Math.trunc(result.amount || result.sellPrice || 0));
+    let credited = false;
     if (amt > 0 && result.sellCurrency === "BBC") {
-      await creditBbCoins({
+      const creditedRes = await creditBbCoins({
         userId: opts.userId,
         amount: amt,
         kind: "case_drop",
         ref: `${def.id}:${result.itemId || "bbc"}:${Date.now()}`,
-        note: `Дроп из кейса «${def.name}»: +${amt.toLocaleString("ru-RU")} BBC`,
+        note: jackpotHit
+          ? `Джекпот из кейса «${def.name}»: +${amt.toLocaleString("ru-RU")} BBC`
+          : `Дроп из кейса «${def.name}»: +${amt.toLocaleString("ru-RU")} BBC`,
       });
+      credited = creditedRes.ok;
     } else if (amt > 0 && result.sellCurrency === "BD") {
       // Мелочь и джекпот B$ — на личный баланс открывшего.
-      await creditPersonalBd({ userId: opts.userId, amount: amt });
+      const creditedRes = await creditPersonalBd({ userId: opts.userId, amount: amt });
+      credited = creditedRes.ok;
+    }
+    if (jackpotHit && !credited) {
+      await restoreCaseJackpotIfFloor(def.currency, jackpotPaid);
     }
   }
 
@@ -723,12 +773,9 @@ export async function openMarketCase(opts: {
       boost: Boolean(boostKind),
       boostKind,
       boostRareAddPct: boostKind === "red" ? CASE_RED_RARE_ADD : undefined,
-      boostJackpotAddPct:
-        boostKind === "jackpot"
-          ? CASE_JACKPOT_BTN_ADD
-          : boostKind === "red"
-            ? caseRedJackpotAdd(def.id)
-            : undefined,
+      boostJackpotAddPct: boostKind === "red" ? caseRedJackpotAdd(def.id) : undefined,
+      jackpotClaimed: jackpotHit,
+      jackpotPaid: jackpotHit ? jackpotPaid : undefined,
       boostImmortalAddPct: boostKind === "red" ? CASE_RED_IMMORTAL_ADD : undefined,
       infiniteWallet: hasInfiniteMarketWallet(opts.steamId),
       paidFrom: charged.paidFrom || null,
@@ -774,6 +821,7 @@ export async function openMarketCase(opts: {
     result,
     strip,
     landIndex,
+    jackpots: await readCaseJackpots(),
   };
 }
 
