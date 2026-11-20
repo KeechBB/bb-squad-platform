@@ -94,7 +94,12 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "locked" }, { status: 403 });
   }
 
-  const patchUnlocks = await ensureBpL15NickPatch(current);
+  const { syncUnlocksFromStock } = await import("@/lib/nickPatchStock");
+  const syncedPatches = await syncUnlocksFromStock(current.id);
+  const patchUnlocks = await ensureBpL15NickPatch({
+    ...current,
+    unlockedNickPatches: syncedPatches,
+  });
   const nextPatch =
     nickPatch === undefined
       ? normalizeProfilePatch(current.nickPatch)

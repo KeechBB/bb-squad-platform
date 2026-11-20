@@ -124,10 +124,56 @@ export async function removePatchQty(
 }
 
 /**
+ * Источник правды для маркета/кейсов: qty>0 → unlock есть.
+ * Чинит рассинхрон, когда копии на складе есть, а unlockedNickPatches пустой
+ * (после продажи всех копий unlock снимался, а после новой покупки/дропа
+ * migrateUnlocksToStock мог снова стереть флаг из‑за истории продаж).
+ */
+export async function syncUnlocksFromStock(userId: string): Promise<string[]> {
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { unlockedNickPatches: true, nickPatch: true },
+  });
+  if (!u) return [];
+  const stocks = await prisma.nickPatchStock.findMany({
+    where: { userId, qty: { gt: 0 } },
+    select: { patchId: true },
+  });
+  const inStock = new Set(stocks.map((r) => r.patchId));
+  const prev = u.unlockedNickPatches || [];
+  const keptAliases = prev.filter(
+    (id) =>
+      !MARKET_PATCH_IDS.has(id) &&
+      id !== "creator-svd-faction-lord" &&
+      id !== "creator-gp-drum-berry-lore" &&
+      id !== "creator-rpg7-orchard-harvest" &&
+      id !== "creator-fruit-strike-ak-v2"
+  );
+  const next = Array.from(
+    new Set([...keptAliases, ...Array.from(inStock)])
+  );
+  const same =
+    next.length === prev.length && next.every((id) => prev.includes(id));
+  if (!same) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        unlockedNickPatches: next,
+        ...(u.nickPatch && !inStock.has(u.nickPatch) && !keptAliases.includes(u.nickPatch)
+          ? { nickPatch: null }
+          : {}),
+      },
+    });
+  }
+  return next;
+}
+
+/**
  * Разовая миграция: market-id в unlockedNickPatches → stock qty=1,
  * если строки stock ещё нет.
- * Если уже продавали в маркет — unlock снимаем, stock не создаём
- * (иначе BP/ensure снова поднимает «проданные» нашивки).
+ * Unlock снимаем только если когда‑то продавали И сейчас qty=0
+ * (иначе BP/ensure снова поднимает «проданные» нашивки без копий).
+ * Если qty>0 — unlock оставляем / восстанавливаем через syncUnlocksFromStock.
  */
 export async function migrateUnlocksToStock(userId: string) {
   const u = await prisma.user.findUnique({
@@ -138,44 +184,59 @@ export async function migrateUnlocksToStock(userId: string) {
   const unlocks = (u.unlockedNickPatches || []).filter((id) =>
     MARKET_PATCH_IDS.has(id)
   );
-  if (!unlocks.length) return;
-  const soldRows = await prisma.bbCoinTx.findMany({
+  const stockRows = await prisma.nickPatchStock.findMany({
     where: {
       userId,
-      kind: "patch_sell",
-      OR: unlocks.map((id) => ({ note: { contains: id } })),
+      patchId: { in: [...MARKET_PATCH_ORDER] },
+      qty: { gt: 0 },
     },
-    select: { note: true },
+    select: { patchId: true },
   });
-  const sold = new Set<string>();
-  for (const row of soldRows) {
-    const note = String(row.note || "");
-    for (const id of unlocks) {
-      if (note.includes(id)) sold.add(id);
+  const haveStock = new Set(stockRows.map((r) => r.patchId));
+
+  if (unlocks.length) {
+    const soldRows = await prisma.bbCoinTx.findMany({
+      where: {
+        userId,
+        kind: "patch_sell",
+        OR: unlocks.map((id) => ({ note: { contains: id } })),
+      },
+      select: { note: true },
+    });
+    const sold = new Set<string>();
+    for (const row of soldRows) {
+      const note = String(row.note || "");
+      for (const id of unlocks) {
+        if (note.includes(id)) sold.add(id);
+      }
     }
-  }
-  if (sold.size) {
-    const next = (u.unlockedNickPatches || []).filter((id) => !sold.has(id));
-    if (next.length !== (u.unlockedNickPatches || []).length) {
-      await prisma.user.update({
-        where: { id: userId },
-        data: { unlockedNickPatches: next },
+    // Снимаем unlock только у реально пустых (продали всё и не докупили).
+    const strip = [...sold].filter((id) => !haveStock.has(id));
+    if (strip.length) {
+      const stripSet = new Set(strip);
+      const next = (u.unlockedNickPatches || []).filter((id) => !stripSet.has(id));
+      if (next.length !== (u.unlockedNickPatches || []).length) {
+        await prisma.user.update({
+          where: { id: userId },
+          data: { unlockedNickPatches: next },
+        });
+      }
+    }
+    const keep = unlocks.filter((id) => !sold.has(id) || haveStock.has(id));
+    const existing = await prisma.nickPatchStock.findMany({
+      where: { userId, patchId: { in: keep } },
+      select: { patchId: true },
+    });
+    const have = new Set(existing.map((r) => r.patchId));
+    for (const patchId of keep) {
+      if (have.has(patchId)) continue;
+      await prisma.nickPatchStock.create({
+        data: { userId, patchId, qty: 1 },
       });
     }
   }
-  const keep = unlocks.filter((id) => !sold.has(id));
-  if (!keep.length) return;
-  const existing = await prisma.nickPatchStock.findMany({
-    where: { userId, patchId: { in: keep } },
-    select: { patchId: true },
-  });
-  const have = new Set(existing.map((r) => r.patchId));
-  for (const patchId of keep) {
-    if (have.has(patchId)) continue;
-    await prisma.nickPatchStock.create({
-      data: { userId, patchId, qty: 1 },
-    });
-  }
+
+  await syncUnlocksFromStock(userId);
 }
 
 /** Глобальная миграция всех, у кого есть market unlock без stock. */

@@ -132,21 +132,24 @@ export async function ensureBpL15NickPatch(user: {
   const unlocks = [...(user.unlockedNickPatches || [])];
   // Уже есть явный id — ок. Alias pb1-* больше НЕ возвращает нашивку после продажи.
   if (unlocks.includes(BP_L15_PATCH_ID)) return unlocks;
+
+  const { getPatchQty, addPatchQty } = await import("@/lib/nickPatchStock");
+  // Копии на складе = можно ставить, даже если когда‑то продавали часть.
+  const stockQty = await getPatchQty(user.id, BP_L15_PATCH_ID);
+  if (stockQty > 0) {
+    unlocks.push(BP_L15_PATCH_ID);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { unlockedNickPatches: unlocks },
+    });
+    return unlocks;
+  }
+
   if (
     unlocks.includes("pb1-profile-customize") ||
     unlocks.includes("pb1-gold-nick")
   ) {
     // Разовая материализация alias → stock, только если копии ещё не было и не продавали.
-    const { getPatchQty, addPatchQty } = await import("@/lib/nickPatchStock");
-    const qty = await getPatchQty(user.id, BP_L15_PATCH_ID);
-    if (qty > 0) {
-      unlocks.push(BP_L15_PATCH_ID);
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { unlockedNickPatches: unlocks },
-      });
-      return unlocks;
-    }
     const sold = await prisma.bbCoinTx.findFirst({
       where: {
         userId: user.id,
@@ -177,7 +180,6 @@ export async function ensureBpL15NickPatch(user: {
     where: { id: user.id },
     data: { unlockedNickPatches: unlocks },
   });
-  const { addPatchQty } = await import("@/lib/nickPatchStock");
   await addPatchQty(user.id, BP_L15_PATCH_ID, 1).catch(() => undefined);
   await notifyRewardUnlock({
     userId: user.id,
@@ -200,6 +202,18 @@ export async function ensurePublic100VehiclesNickPatch(user: {
 }): Promise<string[]> {
   const unlocks = [...(user.unlockedNickPatches || [])];
   if (unlocks.includes(PUBLIC_100_VEHICLES_PATCH_ID)) return unlocks;
+
+  const { getPatchQty, addPatchQty } = await import("@/lib/nickPatchStock");
+  // Уже есть копии на складе — только вернуть unlock, без +1.
+  const stockQty = await getPatchQty(user.id, PUBLIC_100_VEHICLES_PATCH_ID);
+  if (stockQty > 0) {
+    unlocks.push(PUBLIC_100_VEHICLES_PATCH_ID);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { unlockedNickPatches: unlocks },
+    });
+    return unlocks;
+  }
 
   const steamId = String(user.steamId || "").trim();
   const nickKey = String(user.nick || "")
@@ -228,7 +242,6 @@ export async function ensurePublic100VehiclesNickPatch(user: {
     where: { id: user.id },
     data: { unlockedNickPatches: unlocks },
   });
-  const { addPatchQty } = await import("@/lib/nickPatchStock");
   await addPatchQty(user.id, PUBLIC_100_VEHICLES_PATCH_ID, 1).catch(
     () => undefined
   );
@@ -325,9 +338,15 @@ export async function profilePatchChoicesForUser(user: {
   nick: string | null;
   unlockedNickPatches: string[];
 }): Promise<ProfilePatchChoice[]> {
-  const { migrateUnlocksToStock } = await import("@/lib/nickPatchStock");
+  const { migrateUnlocksToStock, syncUnlocksFromStock } = await import(
+    "@/lib/nickPatchStock"
+  );
   await migrateUnlocksToStock(user.id);
-  let unlocks = await ensureBpL15NickPatch(user);
+  const synced = await syncUnlocksFromStock(user.id);
+  let unlocks = await ensureBpL15NickPatch({
+    ...user,
+    unlockedNickPatches: synced,
+  });
   unlocks = await ensurePublic100VehiclesNickPatch({
     ...user,
     unlockedNickPatches: unlocks,
