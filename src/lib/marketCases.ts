@@ -21,12 +21,9 @@ import {
   claimCaseJackpot,
   readCaseJackpots,
   restoreCaseJackpotIfFloor,
-  returnCaseJackpotPayout,
-  subtractCaseJackpot,
   type CaseJackpotPools,
 } from "@/lib/caseJackpotPool";
 import {
-  creditFactionBd,
   creditPersonalBd,
   getFactionPayCtx,
   getPersonalBdBalance,
@@ -643,84 +640,75 @@ export async function ensureCaseFunds(opts: {
   return { ok: true };
 }
 
-const SPIN_STALE_MS = CASE_SPIN_MS + 30_000;
+/** Минимальное время досмотра: раньше новый прокрут нельзя. */
+const SPIN_LOCK_MS = CASE_SPIN_MS - 1500;
 
-async function refundCaseSpend(opts: {
-  userId: string;
-  steamId: string;
-  spent: number;
-  currency: MarketCurrency;
-  paidFrom: string | null | undefined;
-  caseName: string;
-}): Promise<void> {
-  const spent = Math.max(0, Math.trunc(opts.spent));
-  if (!spent || opts.paidFrom === "infinite") return;
-  const note = `Откат прокрута «${opts.caseName}» (+${spent.toLocaleString("ru-RU")} ${
-    opts.currency === "BD" ? BD_MARK : "BBC"
-  })`;
-  if (opts.currency === "BBC" || opts.paidFrom === "bbc") {
-    await creditBbCoins({
-      userId: opts.userId,
-      amount: spent,
-      kind: "case_open_refund",
-      ref: `refund:${opts.userId}:${Date.now()}:${randomBytes(4).toString("hex")}`,
-      note,
-    });
-    return;
-  }
-  if (opts.paidFrom === "personal") {
-    await creditPersonalBd({ userId: opts.userId, amount: spent });
-    return;
-  }
-  if (opts.paidFrom === "treasury") {
-    const ctx = await getFactionPayCtx(opts.userId, opts.steamId);
-    if (!ctx) return;
-    await creditFactionBd({
-      factionId: ctx.factionId,
-      amount: spent,
-      userId: opts.userId,
-      note,
-      sourceKey: `case_open_refund:${opts.userId}:${Date.now()}`,
-    });
-  }
-}
-
-/** Откатить незавершённые прокруты (refresh / уход со страницы / протухший lock). */
-export async function abortPendingCaseSpins(opts: {
+/**
+ * Зачислить лут по pending. Оплата не возвращается — refresh/уход больше не сейвит баланс.
+ * force: игнор таймера анимации (уход со страницы / протухший lock).
+ */
+export async function settlePendingCaseSpins(opts: {
   userId: string;
   steamId: string;
   batchId?: string;
-}): Promise<{ ok: true; aborted: number }> {
+  force?: boolean;
+}): Promise<
+  | {
+      ok: true;
+      settled: number;
+      balance?: number;
+      currency?: MarketCurrency;
+      paidFrom?: string;
+      jackpots: CaseJackpotPools;
+    }
+  | { ok: false; error: string }
+> {
   const rows = await prisma.caseSpinPending.findMany({
     where: opts.batchId
       ? { userId: opts.userId, batchId: opts.batchId }
       : { userId: opts.userId },
+    orderBy: { createdAt: "asc" },
   });
-  if (!rows.length) return { ok: true, aborted: 0 };
-
-  for (const row of rows) {
-    const def = getMarketCase(row.caseId);
-    const caseName = def?.name || row.caseId;
-    const currency = (row.currency === "BD" ? "BD" : "BBC") as MarketCurrency;
-    if (row.paidFrom !== "infinite") {
-      await subtractCaseJackpot(currency, row.spent);
-    }
-    if (row.jackpotHit && row.jackpotPaid > 0) {
-      await returnCaseJackpotPayout(currency, row.jackpotPaid);
-    }
-    await refundCaseSpend({
-      userId: opts.userId,
-      steamId: opts.steamId,
-      spent: row.spent,
-      currency,
-      paidFrom: row.paidFrom,
-      caseName,
-    });
+  if (!rows.length) {
+    return { ok: true, settled: 0, jackpots: await readCaseJackpots() };
   }
-  await prisma.caseSpinPending.deleteMany({
-    where: { id: { in: rows.map((r) => r.id) } },
-  });
-  return { ok: true, aborted: rows.length };
+  if (!opts.force) {
+    const oldest = rows[0].createdAt.getTime();
+    if (Date.now() < oldest + SPIN_LOCK_MS) {
+      return { ok: false, error: "too_early" };
+    }
+  }
+  let lastBal = 0;
+  let lastCur: MarketCurrency | undefined;
+  let lastPaid: string | undefined;
+  for (const row of rows) {
+    const settled = await settlePendingSpin(row, opts.steamId);
+    lastBal = settled.balance;
+    lastCur = settled.currency;
+    lastPaid = settled.paidFrom;
+  }
+  return {
+    ok: true,
+    settled: rows.length,
+    balance: lastBal,
+    currency: lastCur,
+    paidFrom: lastPaid,
+    jackpots: await readCaseJackpots(),
+  };
+}
+
+/**
+ * Старый abort = force-settle (лут зачисляем, деньги не возвращаем).
+ * Нужен, чтобы кэш старого JS с beacon abort не возвращал оплату.
+ */
+export async function abortPendingCaseSpins(opts: {
+  userId: string;
+  steamId: string;
+  batchId?: string;
+}): Promise<{ ok: true; aborted: number; settled: number }> {
+  const res = await settlePendingCaseSpins({ ...opts, force: true });
+  const settled = res.ok ? res.settled : 0;
+  return { ok: true, aborted: settled, settled };
 }
 
 async function settlePendingSpin(
@@ -874,31 +862,21 @@ export async function confirmPendingCaseSpins(opts: {
     }
   | { ok: false; error: string }
 > {
-  const rows = await prisma.caseSpinPending.findMany({
-    where: { userId: opts.userId, batchId: opts.batchId },
-    orderBy: { createdAt: "asc" },
+  const res = await settlePendingCaseSpins({
+    userId: opts.userId,
+    steamId: opts.steamId,
+    batchId: opts.batchId,
+    force: false,
   });
-  if (!rows.length) return { ok: false, error: "no_pending" };
-  const oldest = rows[0].createdAt.getTime();
-  if (Date.now() < oldest + CASE_SPIN_MS - 1500) {
-    return { ok: false, error: "too_early" };
-  }
-  let lastBal = 0;
-  let lastCur: MarketCurrency = "BBC";
-  let lastPaid: string | undefined;
-  for (const row of rows) {
-    const settled = await settlePendingSpin(row, opts.steamId);
-    lastBal = settled.balance;
-    lastCur = settled.currency;
-    lastPaid = settled.paidFrom;
-  }
+  if (!res.ok) return res;
+  if (!res.settled) return { ok: false, error: "no_pending" };
   return {
     ok: true,
-    balance: lastBal,
-    currency: lastCur,
-    paidFrom: lastPaid,
-    jackpots: await readCaseJackpots(),
-    count: rows.length,
+    balance: res.balance ?? 0,
+    currency: res.currency ?? "BBC",
+    paidFrom: res.paidFrom,
+    jackpots: res.jackpots,
+    count: res.settled,
   };
 }
 
@@ -948,8 +926,13 @@ export async function openMarketCase(opts: {
     );
     if (sameBatch) {
       // x2: вторая крутка того же batch
-    } else if (age >= SPIN_STALE_MS) {
-      await abortPendingCaseSpins({ userId: opts.userId, steamId: opts.steamId });
+    } else if (age >= SPIN_LOCK_MS) {
+      // Протухший pending: лут зачисляем, оплату не возвращаем.
+      await settlePendingCaseSpins({
+        userId: opts.userId,
+        steamId: opts.steamId,
+        force: true,
+      });
     } else {
       return { ok: false, error: "spin_in_progress" };
     }

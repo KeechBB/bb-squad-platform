@@ -10,9 +10,12 @@ import {
   ensureCaseFunds,
   listMarketCasesPayload,
   openMarketCase,
+  settlePendingCaseSpins,
   type MarketCaseId,
 } from "@/lib/marketCases";
 import { randomBytes } from "crypto";
+import { CASE_SPIN_MS } from "@/lib/marketCaseBoost";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +26,22 @@ export async function GET() {
   const access = await canAccessMarketCases(user.steamId);
   if (!access) {
     return NextResponse.json({ ok: true, access: false, wip: true, cases: [] });
+  }
+  // Вернулся после F5: если анимация уже «должна была» кончиться — зачислить лут (без возврата $).
+  const pending = await prisma.caseSpinPending.findFirst({
+    where: { userId: user.id },
+    orderBy: { createdAt: "asc" },
+    select: { createdAt: true },
+  });
+  if (
+    pending &&
+    Date.now() - pending.createdAt.getTime() >= CASE_SPIN_MS - 1500
+  ) {
+    await settlePendingCaseSpins({
+      userId: user.id,
+      steamId: user.steamId,
+      force: true,
+    });
   }
   const [cases, jackpots] = await Promise.all([
     listMarketCasesPayload(),
@@ -49,7 +68,8 @@ export async function POST(req: Request) {
     batchId?: string;
   };
 
-  if (body.action === "abort") {
+  // abort = force-settle (старый клиент / beacon): лут зачисляем, деньги не возвращаем.
+  if (body.action === "abort" || body.action === "settle") {
     const res = await abortPendingCaseSpins({
       userId: user.id,
       steamId: user.steamId,

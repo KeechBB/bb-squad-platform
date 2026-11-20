@@ -249,37 +249,6 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
     setInspect(null);
   }
 
-  function abortPendingBeacon(batchId: string | null) {
-    if (!batchId || confirmedBatchRef.current === batchId) return;
-    const body = JSON.stringify({ action: "abort", batchId });
-    try {
-      if (typeof navigator !== "undefined" && navigator.sendBeacon) {
-        const blob = new Blob([body], { type: "application/json" });
-        navigator.sendBeacon("/api/bb-coins/cases", blob);
-        return;
-      }
-    } catch {
-      /* fall through */
-    }
-    void fetch("/api/bb-coins/cases", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body,
-      keepalive: true,
-    }).catch(() => null);
-  }
-
-  useEffect(() => {
-    const onHide = () => abortPendingBeacon(pendingBatchRef.current);
-    window.addEventListener("pagehide", onHide);
-    window.addEventListener("beforeunload", onHide);
-    return () => {
-      window.removeEventListener("pagehide", onHide);
-      window.removeEventListener("beforeunload", onHide);
-      abortPendingBeacon(pendingBatchRef.current);
-    };
-  }, []);
-
   async function openCase(c: CaseCard, boostKind?: CaseBoostKind) {
     if (busy) return;
     primeCaseAudio();
@@ -314,7 +283,7 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
             "Нет доступа к казне (для кейсов не нужна — плати личным $)",
           wip: "Кейсы пока в разработке",
           spin_in_progress:
-            "Досмотри прокрут до конца — обновление страницы откатывает попытку",
+            "Досмотри прокрут до конца — новый запуск заблокирован, оплата не вернётся",
         };
         setErr(map[data.error] || "Не удалось открыть кейс");
         setPhase("idle");
@@ -412,8 +381,9 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
             });
             const retryData = await retry.json();
             if (!retry.ok || !retryData.ok) {
-              setErr("Не удалось зафиксировать дроп — попытка откатится");
-              abortPendingBeacon(batchId);
+              setErr(
+                "Не удалось зафиксировать дроп — подожди и обнови: лут дойдёт, оплата не вернётся"
+              );
               pendingBatchRef.current = null;
               setPhase("idle");
               return;
@@ -432,8 +402,9 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
               });
             }
           } else {
-            setErr("Не удалось зафиксировать дроп — попытка откатится");
-            abortPendingBeacon(batchId);
+            setErr(
+              "Не удалось зафиксировать дроп — подожди и обнови: лут дойдёт, оплата не вернётся"
+            );
             pendingBatchRef.current = null;
             setPhase("idle");
             return;
@@ -495,9 +466,9 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
       });
       onRefreshCatalog?.();
     } catch {
-      if (batchId) abortPendingBeacon(batchId);
+      // Сеть mid-spin: pending на сервере остаётся, оплата не возвращается, новый спин locked.
       pendingBatchRef.current = null;
-      setErr("Сеть недоступна");
+      setErr("Сеть недоступна — прокрут уже оплачен; новый запуск после досмотра");
       setPhase("idle");
     } finally {
       setBusy(false);
