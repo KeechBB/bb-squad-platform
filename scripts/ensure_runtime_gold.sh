@@ -153,24 +153,15 @@ for ladder in rifle-ladder.json medic-ladder.json lat-ladder.json; do
   fi
 done
 
-# Growth kit tile images (Развитие cards)
+# Growth kit tile images (Развитие cards): flat jpgs + factions/{staya,legion,...}/
+# Earlier loop only copied files and skipped directories — factions/ vanished after deploy.
 if [[ -d "$GOLD/kv-ui/assets/kits" ]]; then
   mkdir -p "$CACHE/assets/kits" "$CACHE/public/assets/kits"
-  restored=0
-  for f in "$GOLD/kv-ui/assets/kits"/*; do
-    [[ -f "$f" ]] || continue
-    base="$(basename "$f")"
-    [[ "$base" == .* ]] && continue
-    for dest in "$CACHE/assets/kits/$base" "$CACHE/public/assets/kits/$base"; do
-      if [[ ! -f "$dest" ]] || [[ ! -s "$dest" ]]; then
-        cp -a "$f" "$dest"
-        restored=$((restored + 1))
-      fi
-    done
-  done
-  if [[ "$restored" -gt 0 ]]; then
-    echo "  restored kit images: $restored"
-  fi
+  before=$(find "$CACHE/assets/kits" -type f 2>/dev/null | wc -l | tr -d ' ')
+  rsync -a "$GOLD/kv-ui/assets/kits/" "$CACHE/assets/kits/"
+  rsync -a "$GOLD/kv-ui/assets/kits/" "$CACHE/public/assets/kits/"
+  after=$(find "$CACHE/assets/kits" -type f 2>/dev/null | wc -l | tr -d ' ')
+  echo "  restored kit images: ${before} → ${after} (incl. factions/)"
 fi
 
 bash "$ROOT/scripts/ensure_tm_growth_tab.sh" || true
