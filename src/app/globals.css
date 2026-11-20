@@ -25162,13 +25162,13 @@ body:has(.faction-page) .site-footer {
   z-index: 80;
   display: grid;
   place-items: center;
-  padding: 16px;
+  padding: 8px;
   background: rgba(4, 6, 10, 0.72);
   backdrop-filter: blur(6px);
 }
 .market-case-dialog {
-  --case-dialog-w: min(1680px, calc(100vw - 16px));
-  --case-dialog-h: min(860px, calc(100dvh - 16px));
+  --case-dialog-w: min(2400px, calc(100vw - 16px));
+  --case-dialog-h: min(1280px, calc(100dvh - 16px));
   position: relative;
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
@@ -25346,7 +25346,7 @@ body:has(.faction-page) .site-footer {
   min-height: 0;
   height: 100%;
   overflow: hidden;
-  padding: 14px 18px 14px;
+  padding: 16px 40px 28px;
   display: flex;
   flex-direction: column;
 }
@@ -25394,7 +25394,7 @@ body:has(.faction-page) .site-footer {
 .market-case-actions {
   flex: 0 0 auto;
   margin-top: auto;
-  padding-top: 8px;
+  padding: 12px 6px 4px;
   background: linear-gradient(180deg, transparent, rgba(13, 18, 16, 0.92) 30%);
 }
 .market-case-loot-scroll {
