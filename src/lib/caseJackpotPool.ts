@@ -21,10 +21,10 @@ function asAmount(value: unknown, fallback: number): number {
 
 export async function readCaseJackpots(): Promise<CaseJackpotPools> {
   await prisma.$executeRaw`
-    INSERT INTO "CaseJackpotPool" (currency, amount)
+    INSERT INTO "CaseJackpotPool" (currency, amount, "updatedAt")
     VALUES
-      ('BBC', ${CASE_JACKPOT_FLOOR.BBC}),
-      ('BD', ${CASE_JACKPOT_FLOOR.BD})
+      ('BBC', ${CASE_JACKPOT_FLOOR.BBC}, NOW()),
+      ('BD', ${CASE_JACKPOT_FLOOR.BD}, NOW())
     ON CONFLICT (currency) DO NOTHING
   `;
   const rows = await prisma.$queryRaw<Array<{ currency: string; amount: number }>>`
@@ -54,8 +54,8 @@ export async function addCaseJackpot(
     return pools[currency];
   }
   const rows = await prisma.$queryRaw<Array<{ amount: number }>>`
-    INSERT INTO "CaseJackpotPool" (currency, amount)
-    VALUES (${currency}, ${floor + n})
+    INSERT INTO "CaseJackpotPool" (currency, amount, "updatedAt")
+    VALUES (${currency}, ${floor + n}, NOW())
     ON CONFLICT (currency) DO UPDATE
     SET amount = "CaseJackpotPool".amount + ${n},
         "updatedAt" = NOW()
@@ -74,8 +74,8 @@ export async function claimCaseJackpot(
   const floor = CASE_JACKPOT_FLOOR[currency];
   return prisma.$transaction(async (tx) => {
     await tx.$executeRaw`
-      INSERT INTO "CaseJackpotPool" (currency, amount)
-      VALUES (${currency}, ${floor})
+      INSERT INTO "CaseJackpotPool" (currency, amount, "updatedAt")
+      VALUES (${currency}, ${floor}, NOW())
       ON CONFLICT (currency) DO NOTHING
     `;
     const rows = await tx.$queryRaw<Array<{ amount: number }>>`

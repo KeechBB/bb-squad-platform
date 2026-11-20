@@ -1568,7 +1568,7 @@ model ProfileMailRecipient {
 model CaseJackpotPool {
   currency  String   @id
   amount    BigInt   @default(0)
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 /// Прогноз на турнир. Один бланк на игрока. Верный ответ = 100 BB Points.
