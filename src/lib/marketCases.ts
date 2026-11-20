@@ -236,10 +236,11 @@ async function loadCasePool(currency: MarketCurrency): Promise<RawItem[]> {
       image: meta.image,
       price: weightPrice,
       sellPrice: sell,
+      // СВД / ГП всегда продаются за BBC (даже из BD-кейса); РПГ — только $.
       sellCurrency: isExclusive
         ? id === CASE_RPG_PATCH_ID
           ? "BD"
-          : currency
+          : "BBC"
         : cur,
     });
   }
