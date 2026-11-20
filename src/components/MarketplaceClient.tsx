@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { BbCoinPackageId } from "@/lib/bbCoins";
 import {
   MarketPriceEditor,
   moneyLabel,
@@ -14,9 +13,8 @@ import {
 import { MarketBdGiftModal } from "@/components/MarketBdGiftModal";
 import { MarketCasesPanel } from "@/components/MarketCasesPanel";
 
-/** Основные вкладки площадки + topup только с кнопки «Пополнить». */
-type Tab = "patches" | "bg" | "font" | "cases" | "topup";
-type MainTab = Exclude<Tab, "topup">;
+type Tab = "patches" | "bg" | "font" | "cases";
+type MainTab = Tab;
 
 const MARKET_TAB_KEY = "bb-market-tab";
 
@@ -38,14 +36,6 @@ function writeStoredMarketTab(id: MainTab) {
     /* ignore */
   }
 }
-
-type Pack = {
-  id: BbCoinPackageId | string;
-  rubles: number;
-  coins: number;
-  label: string;
-  badge?: string;
-};
 
 type PatchCard = {
   id: string;
@@ -84,15 +74,6 @@ type FontCard = {
   currency?: "BBC" | "BD";
 };
 
-type Tx = {
-  id: string;
-  delta: number;
-  balanceAfter: number;
-  kind: string;
-  note: string | null;
-  at: string;
-};
-
 type Props = {
   loggedIn: boolean;
 };
@@ -120,15 +101,12 @@ export function MarketplaceClient({ loggedIn }: Props) {
   );
   const [myUserId, setMyUserId] = useState<string | null>(null);
   const [canEditPrices, setCanEditPrices] = useState(false);
-  const [packages, setPackages] = useState<Pack[]>([]);
   const [patches, setPatches] = useState<PatchCard[]>([]);
   const [bgs, setBgs] = useState<BgCard[]>([]);
   const [fonts, setFonts] = useState<FontCard[]>([]);
-  const [txs, setTxs] = useState<Tx[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [topupWipOpen, setTopupWipOpen] = useState(false);
   const [bdBuyDraft, setBdBuyDraft] = useState<BdBuyDraft | null>(null);
   const [giftToUserId, setGiftToUserId] = useState("");
 
@@ -172,11 +150,9 @@ export function MarketplaceClient({ loggedIn }: Props) {
         return members[0]?.userId || "";
       });
       setCanEditPrices(Boolean(data.canEditPrices));
-      setPackages(data.packages || []);
       setPatches(data.patches || []);
       setBgs(data.bgs || []);
       setFonts(data.fonts || []);
-      setTxs(data.txs || []);
       if (data.grantedNow > 0) {
         setMsg(`Зачислено ${data.grantedNow} BB Coins за прогнозы турнира.`);
       }
@@ -196,30 +172,6 @@ export function MarketplaceClient({ loggedIn }: Props) {
   function selectMainTab(id: MainTab) {
     setTab(id);
     writeStoredMarketTab(id);
-  }
-
-  async function orderPack(packageId: string) {
-    setBusy(`pack:${packageId}`);
-    setErr(null);
-    setMsg(null);
-    try {
-      const res = await fetch("/api/bb-coins/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ packageId }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        setErr("Не удалось создать заказ");
-        return;
-      }
-      setMsg(data.message || "Заказ создан");
-      await load();
-    } catch {
-      setErr("Сеть недоступна");
-    } finally {
-      setBusy(null);
-    }
   }
 
   const dealErr: Record<string, string> = {
@@ -507,13 +459,6 @@ export function MarketplaceClient({ loggedIn }: Props) {
                 Подарить $
               </button>
             ) : null}
-            <button
-              type="button"
-              className="market-topup-btn"
-              onClick={() => setTopupWipOpen(true)}
-            >
-              Пополнить BBC
-            </button>
           </div>
 
           {bdGiftOpen ? (
@@ -582,33 +527,6 @@ export function MarketplaceClient({ loggedIn }: Props) {
               onClose={() => setBdBuyDraft(null)}
               onConfirm={() => void confirmBdBuy()}
             />
-          ) : null}
-
-          {topupWipOpen ? (
-            <div
-              className="market-wip-modal"
-              role="presentation"
-              onClick={() => setTopupWipOpen(false)}
-            >
-              <div
-                className="market-wip-dialog"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="market-wip-title"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <p id="market-wip-title" className="market-wip-title">
-                  На данный момент в разработке
-                </p>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setTopupWipOpen(false)}
-                >
-                  Понятно
-                </button>
-              </div>
-            </div>
           ) : null}
 
           <nav className="market-tabs" aria-label="Разделы площадки">
@@ -1021,69 +939,6 @@ export function MarketplaceClient({ loggedIn }: Props) {
               }}
               onRefreshCatalog={() => void load()}
             />
-          ) : null}
-
-          {tab === "topup" ? (
-            <>
-              <section className="market-packs" aria-label="Пакеты BB Coins">
-                <h2>Пополнить за рубли</h2>
-                <p className="muted market-packs-note">
-                  Эквайринг (ЮKassa / чеки) подключим отдельно. Сейчас заказ
-                  создаётся в статусе «ожидает оплаты». Курс: 2 BBC = 1 ₽.
-                </p>
-                <ul className="market-pack-list">
-                  {packages.map((p) => (
-                    <li key={p.id} className="market-pack">
-                      <div>
-                        <strong>{p.label}</strong>
-                        {p.badge ? (
-                          <span className="market-badge">{p.badge}</span>
-                        ) : null}
-                        <p className="muted">{p.rubles} ₽</p>
-                      </div>
-                      <div className="market-pack-actions">
-                        <button
-                          type="button"
-                          className="btn"
-                          disabled={Boolean(busy)}
-                          onClick={() => void orderPack(p.id)}
-                        >
-                          {busy === `pack:${p.id}` ? "…" : "Заказать"}
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-
-              <section className="market-txs" aria-label="История BB Coins">
-                <h2>История</h2>
-                {txs.length === 0 ? (
-                  <p className="muted">Пока пусто.</p>
-                ) : (
-                  <ul className="market-tx-list">
-                    {txs.map((t) => (
-                      <li key={t.id}>
-                        <span
-                          className={
-                            t.delta >= 0 ? "market-plus" : "market-minus"
-                          }
-                        >
-                          {t.delta >= 0 ? "+" : ""}
-                          {t.delta}
-                        </span>
-                        <span>{t.note || t.kind}</span>
-                        <span className="muted">
-                          {new Date(t.at).toLocaleString("ru-RU", {
-                            timeZone: "Europe/Moscow",
-                          })}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            </>
           ) : null}
         </>
       )}
