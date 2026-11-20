@@ -203,6 +203,7 @@ export function bdPayErrorMessage(code: string): string {
   if (code === "gift_not_member")
     return "Получатель должен быть в вашей фракции";
   if (code === "gift_self") return "Нельзя подарить себе";
+  if (code === "gift_officer") return "Нельзя переводить $ главе или заму";
   if (code === "gift_required") return "Выбери получателя";
   if (code === "amount") return "Укажи сумму больше 0";
   return "Ошибка оплаты $";
@@ -288,10 +289,13 @@ export async function giftFactionBdToMember(opts: {
 
   const target = await prisma.factionMember.findUnique({
     where: { userId: opts.toUserId },
-    select: { factionId: true },
+    select: { factionId: true, seat: true },
   });
   if (!target || target.factionId !== ctx.factionId) {
     return { ok: false, error: "gift_not_member" };
+  }
+  if (target.seat === "LEADER" || target.seat === "DEPUTY") {
+    return { ok: false, error: "gift_officer" };
   }
 
   const sourceKey = `member_gift:${ctx.factionId}:${opts.actorUserId}:${opts.toUserId}:${amount}:${Date.now()}`;

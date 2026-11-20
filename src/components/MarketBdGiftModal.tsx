@@ -33,7 +33,9 @@ export function MarketBdGiftModal({
   onClose,
   onGift,
 }: Props) {
-  const recipients = members.filter((m) => m.userId !== myUserId);
+  const recipients = members.filter(
+    (m) => m.userId !== myUserId && m.seat === "MEMBER"
+  );
   const [toUserId, setToUserId] = useState(recipients[0]?.userId || "");
   const [amountStr, setAmountStr] = useState("1000");
   const [localErr, setLocalErr] = useState<string | null>(null);
@@ -85,7 +87,7 @@ export function MarketBdGiftModal({
             </>
           ) : null}
           {" → "}
-          личный баланс участника.
+          личный баланс игрока. Главе и заму переводить нельзя.
           <br />
           В казне:{" "}
           <strong>
