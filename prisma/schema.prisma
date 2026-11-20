@@ -1500,6 +1500,13 @@ model ProfileMailRecipient {
   @@index([deletedAt])
 }
 
+/// Живой котёл кейса (BBC / BD). Таблица создана raw SQL; модель нужна, чтобы db push её не дропнул.
+model CaseJackpotPool {
+  currency  String   @id
+  amount    Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
 /// Прогноз на турнир. Один бланк на игрока. Верный ответ = 100 BB Points.
 model TournamentBet {
   id               String   @id @default(cuid())
