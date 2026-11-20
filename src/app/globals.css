@@ -25206,10 +25206,32 @@ body:has(.faction-page) .site-footer {
   overflow: hidden;
   border-radius: 18px;
   border: 1px solid rgba(110, 231, 183, 0.35);
-  background:
-    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(74, 222, 128, 0.12), transparent 55%),
-    linear-gradient(180deg, #14101f 0%, #0d1210 100%);
+  background: #0c1014;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+.market-case-dialog::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: var(--site-profile-bg-image, none);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.market-case-dialog::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(8, 6, 14, 0.62) 0%,
+    rgba(8, 6, 14, 0.34) 36%,
+    rgba(8, 6, 14, 0.22) 100%
+  );
 }
 .market-case-close {
   position: absolute;
@@ -25226,11 +25248,13 @@ body:has(.faction-page) .site-footer {
   cursor: pointer;
 }
 .market-case-log {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
   border-right: 1px solid rgba(110, 231, 183, 0.22);
-  background: rgba(6, 12, 10, 0.72);
+  background: rgba(6, 12, 10, 0.55);
   padding: 14px 12px 12px;
 }
 .market-case-log-head {
@@ -25364,6 +25388,8 @@ body:has(.faction-page) .site-footer {
   font-size: 1.1rem;
 }
 .market-case-main {
+  position: relative;
+  z-index: 1;
   min-width: 0;
   min-height: 0;
   height: 100%;
