@@ -9,8 +9,8 @@ export const CASE_RED_RARE_ADD = 7;
 export const CASE_RED_JACKPOT_ADD = 3;
 export const CASE_RED_IMMORTAL_ADD = 5;
 /** Зелёная кнопка. */
-export const CASE_GREEN_IMMORTAL_ADD = 15;
-export const CASE_GREEN_JACKPOT_ADD = 5;
+export const CASE_GREEN_IMMORTAL_ADD = 7;
+export const CASE_GREEN_JACKPOT_ADD = 2;
 
 export const CASE_IMMORTAL_BOOST_ADD_PCT = CASE_RED_IMMORTAL_ADD;
 

@@ -707,11 +707,11 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                   type="button"
                   className="market-case-boost-btn is-green"
                   disabled={busy || phase === "spinning" || phase === "opening"}
-                  title="Один прокрут. Каждому Immortal +15%, каждому джекпоту +5%."
+                  title="Один прокрут. Каждому Immortal +7%, каждому джекпоту +2%."
                   onClick={() => void openCase(active, "green")}
                 >
-                  <span className="market-case-btn-effect">+{CASE_GREEN_IMMORTAL_ADD}% Immortal</span>
                   <span className="market-case-btn-effect">+{CASE_GREEN_JACKPOT_ADD}% Джекпот</span>
+                  <span className="market-case-btn-effect">+{CASE_GREEN_IMMORTAL_ADD}% Immortal</span>
                   <span className="market-case-btn-price">{kindPriceLabel(active, "green")}</span>
                 </button>
               </div>
