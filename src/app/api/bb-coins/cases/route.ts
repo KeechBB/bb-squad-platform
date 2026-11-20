@@ -5,6 +5,7 @@ import { readCaseJackpots } from "@/lib/caseJackpotPool";
 import {
   canAccessMarketCases,
   getMarketCase,
+  ensureCaseFunds,
   listMarketCasesPayload,
   openMarketCase,
   type MarketCaseId,
@@ -40,29 +41,61 @@ export async function POST(req: Request) {
     caseId?: string;
     boost?: boolean;
     boostKind?: string;
+    count?: number;
   };
   const caseId = String(body.caseId || "") as MarketCaseId;
   if (!getMarketCase(caseId)) {
     return NextResponse.json({ ok: false, error: "case" }, { status: 400 });
   }
   const boostKind: CaseBoostKind | null = body.boostKind === "red" ? "red" : null;
-
-  const res = await openMarketCase({
-    caseId,
-    userId: user.id,
-    steamId: user.steamId,
-    boostKind,
-  });
-  if (!res.ok) {
-    const status =
-      res.error === "insufficient"
-        ? 402
-        : res.error === "wip"
-          ? 403
-          : res.error === "forbidden_seat" || res.error === "no_faction"
-            ? 403
-            : 400;
-    return NextResponse.json(res, { status });
+  const count = body.count === 2 ? 2 : 1;
+  if (count === 2) {
+    const funds = await ensureCaseFunds({
+      caseId,
+      userId: user.id,
+      steamId: user.steamId,
+      boostKind,
+      count,
+    });
+    if (!funds.ok) {
+      const status = funds.error === "insufficient" ? 402 : funds.error === "no_faction" ? 403 : 400;
+      return NextResponse.json(funds, { status });
+    }
   }
-  return NextResponse.json(res);
+
+  const spins = [];
+  for (let i = 0; i < count; i++) {
+    const res = await openMarketCase({
+      caseId,
+      userId: user.id,
+      steamId: user.steamId,
+      boostKind,
+    });
+    if (!res.ok) {
+      if (!spins.length) {
+        const status =
+          res.error === "insufficient"
+            ? 402
+            : res.error === "wip"
+              ? 403
+              : res.error === "forbidden_seat" || res.error === "no_faction"
+                ? 403
+                : 400;
+        return NextResponse.json(res, { status });
+      }
+      break;
+    }
+    spins.push(res);
+  }
+  const last = spins[spins.length - 1];
+  return NextResponse.json({
+    ...last,
+    count: spins.length,
+    spins: spins.map((spin) => ({
+      result: spin.result,
+      strip: spin.strip,
+      landIndex: spin.landIndex,
+      spent: spin.spent,
+    })),
+  });
 }

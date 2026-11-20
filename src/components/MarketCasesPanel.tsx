@@ -168,13 +168,19 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
   const [active, setActive] = useState<CaseCard | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [strip, setStrip] = useState<LootEntry[]>([]);
+  const [strip2, setStrip2] = useState<LootEntry[]>([]);
   const [landIndex, setLandIndex] = useState(52);
+  const [landIndex2, setLandIndex2] = useState(52);
   const [result, setResult] = useState<LootEntry | null>(null);
+  const [result2, setResult2] = useState<LootEntry | null>(null);
   const [spinX, setSpinX] = useState(0);
+  const [spinX2, setSpinX2] = useState(0);
+  const [spinCount, setSpinCount] = useState<1 | 2>(1);
   const [openLog, setOpenLog] = useState<OpenLogRow[]>([]);
   const [inspect, setInspect] = useState<LootEntry | null>(null);
   const [jackpots, setJackpots] = useState<JackpotPools | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
+  const trackRef2 = useRef<HTMLDivElement>(null);
   const logListRef = useRef<HTMLDivElement>(null);
   const spinSoundStop = useRef<(() => void) | null>(null);
 
@@ -235,15 +241,16 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
       ? `${c.price.toLocaleString("ru-RU")} $`
       : `${c.price.toLocaleString("ru-RU")} BBC`;
 
-  const kindPriceLabel = (c: CaseCard, kind: CaseBoostKind) => {
+  const moneyLabel = (c: CaseCard, amount: number) =>
+    c.currency === "BD"
+      ? `${amount.toLocaleString("ru-RU")} $`
+      : `${amount.toLocaleString("ru-RU")} BBC`;
+
+  const kindUnit = (c: CaseCard, kind: CaseBoostKind) => {
     void kind;
-    const n =
-      c.id === "faction-sad"
-        ? CASE_BOOST_KIND_PRICE.red["faction-sad"]
-        : CASE_BOOST_KIND_PRICE.red["bbc-urozhay"];
-    return c.currency === "BD"
-      ? `${n.toLocaleString("ru-RU")} $`
-      : `${n.toLocaleString("ru-RU")} BBC`;
+    return c.id === "faction-sad"
+      ? CASE_BOOST_KIND_PRICE.red["faction-sad"]
+      : CASE_BOOST_KIND_PRICE.red["bbc-urozhay"];
   };
 
   function closeDetail() {
@@ -251,8 +258,11 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
     setActive(null);
     setPhase("idle");
     setStrip([]);
+    setStrip2([]);
     setResult(null);
+    setResult2(null);
     setSpinX(0);
+    setSpinX2(0);
     setMsg(null);
     setInspect(null);
   }
@@ -266,16 +276,19 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
     setErr(null);
     setMsg(null);
     setSpinX(0);
+    setSpinX2(0);
     setStrip([]);
+    setStrip2([]);
     setPhase("opening");
     setResult(null);
+    setResult2(null);
     try {
       // Короткая анимация «открытия» крышки до запроса
       await new Promise((r) => setTimeout(r, 700));
       const res = await fetch("/api/bb-coins/cases", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ caseId: c.id, boostKind }),
+        body: JSON.stringify({ caseId: c.id, boostKind, count: spinCount }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
@@ -301,77 +314,103 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
           paidFrom: data.paidFrom,
         });
       }
-      const nextStrip = (data.strip || []) as LootEntry[];
-      const land = typeof data.landIndex === "number" ? data.landIndex : 52;
-      setStrip(nextStrip);
+      type SpinPayload = {
+        result: LootEntry;
+        strip: LootEntry[];
+        landIndex: number;
+        spent?: number;
+      };
+      const spins: SpinPayload[] =
+        Array.isArray(data.spins) && data.spins.length
+          ? (data.spins as SpinPayload[])
+          : [
+              {
+                result: data.result as LootEntry,
+                strip: (data.strip || []) as LootEntry[],
+                landIndex: typeof data.landIndex === "number" ? data.landIndex : 52,
+                spent: typeof data.spent === "number" ? data.spent : undefined,
+              },
+            ];
+      const first = spins[0];
+      const second = spins[1] || null;
+      const land = typeof first.landIndex === "number" ? first.landIndex : 52;
+      const land2 = second && typeof second.landIndex === "number" ? second.landIndex : 52;
+      setStrip(first.strip || []);
       setLandIndex(land);
-      setResult(data.result as LootEntry);
+      setResult(first.result);
+      setStrip2(second?.strip || []);
+      setLandIndex2(land2);
+      setResult2(second?.result || null);
       setPhase("spinning");
 
       // Сброс без transition, затем длинный прокрут к выигрышу
       setSpinX(0);
+      setSpinX2(0);
       await new Promise((r) => requestAnimationFrame(() => r(null)));
       requestAnimationFrame(() => {
-        const viewport = trackRef.current?.parentElement?.clientWidth || 640;
-        const center = viewport / 2;
-        const target =
-          land * (ROULE_CELL_PX + ROULE_GAP_PX) +
-          ROULE_CELL_PX / 2 -
-          center +
-          (Math.random() * 28 - 14);
-        setSpinX(-Math.max(0, target));
-        const track = trackRef.current;
-        const won = data.result as LootEntry;
-        const fanfare = isImmortalLoot(won)
+        const aim = (track: HTMLDivElement | null, landAt: number) => {
+          const viewport = track?.parentElement?.clientWidth || 640;
+          const center = viewport / 2;
+          const target =
+            landAt * (ROULE_CELL_PX + ROULE_GAP_PX) +
+            ROULE_CELL_PX / 2 -
+            center +
+            (Math.random() * 28 - 14);
+          return -Math.max(0, target);
+        };
+        setSpinX(aim(trackRef.current, land));
+        if (second) setSpinX2(aim(trackRef2.current, land2));
+        const wonList = spins.map((spin) => spin.result);
+        const fanfare = wonList.some((won) => isImmortalLoot(won))
           ? "immortal"
-          : won.kind === "currency" &&
-              won.itemId &&
-              !CASE_FILLER_CASH_IDS.has(won.itemId)
+          : wonList.some(
+                (won) =>
+                  won.kind === "currency" &&
+                  won.itemId &&
+                  !CASE_FILLER_CASH_IDS.has(won.itemId)
+              )
             ? "jackpot"
             : null;
+        const track = trackRef.current;
         if (track) spinSoundStop.current = watchCaseReel(track, SPIN_MS, fanfare);
       });
 
       await new Promise((r) => setTimeout(r, SPIN_MS));
       setPhase("revealed");
-      const won = data.result as LootEntry;
+      const unitFallback =
+        boostKind === "red" ? kindUnit(c, "red") : c.price;
       setOpenLog((prev) => {
-        const sell =
-          won.kind === "empty"
-            ? 0
-            : Math.max(0, Number(won.sellPrice) || 0);
-        const sellCur =
-          won.kind === "empty"
-            ? null
-            : won.sellCurrency === "BD" || won.sellCurrency === "BBC"
-              ? won.sellCurrency
-              : c.currency;
-        const row: OpenLogRow = {
-          id: `${Date.now()}-${prev.length + 1}`,
-          n: prev.length + 1,
-          at: new Date().toLocaleTimeString("ru-RU", {
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-          }),
-          caseId: c.id,
-          caseName: c.name,
-          currency: c.currency,
-          spent:
-            typeof data.spent === "number"
-              ? data.spent
-              : boostKind === "red"
-                ? CASE_BOOST_KIND_PRICE.red[
-                    c.id === "faction-sad" ? "faction-sad" : "bbc-urozhay"
-                  ]
-                : c.price,
-          dropTitle: won.kind === "empty" ? "Пусто" : won.title,
-          dropKind: won.kind,
-          dropImage: won.image,
-          dropSell: sell,
-          dropSellCurrency: sellCur,
-        };
-        return [row, ...prev];
+        const rows = spins.map((spin, index) => {
+          const won = spin.result;
+          const sell =
+            won.kind === "empty" ? 0 : Math.max(0, Number(won.sellPrice) || 0);
+          const sellCur =
+            won.kind === "empty"
+              ? null
+              : won.sellCurrency === "BD" || won.sellCurrency === "BBC"
+                ? won.sellCurrency
+                : c.currency;
+          const row: OpenLogRow = {
+            id: `${Date.now()}-${prev.length + index + 1}`,
+            n: prev.length + index + 1,
+            at: new Date().toLocaleTimeString("ru-RU", {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+            }),
+            caseId: c.id,
+            caseName: c.name,
+            currency: c.currency,
+            spent: typeof spin.spent === "number" ? spin.spent : unitFallback,
+            dropTitle: won.kind === "empty" ? "Пусто" : won.title,
+            dropKind: won.kind,
+            dropImage: won.image,
+            dropSell: sell,
+            dropSellCurrency: sellCur,
+          };
+          return row;
+        });
+        return [...rows].reverse().concat(prev);
       });
       onRefreshCatalog?.();
     } catch {
@@ -458,9 +497,12 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                 setActive(c);
                 setPhase("idle");
                 setStrip([]);
+                setStrip2([]);
                 setResult(null);
+                setResult2(null);
                 setMsg(null);
                 setSpinX(0);
+                setSpinX2(0);
               }}
             >
               <span className="market-case-badge">
@@ -494,7 +536,7 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
           onClick={closeDetail}
         >
           <div
-            className={`market-case-dialog phase-${phase}`}
+            className={`market-case-dialog phase-${phase}${spinCount === 2 ? " is-x2" : ""}`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="market-case-title"
@@ -636,29 +678,38 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                 </p>
               </header>
 
+              {(
+                [
+                  { cells: strip, land: landIndex, x: spinX, ref: trackRef },
+                  ...(spinCount === 2
+                    ? [{ cells: strip2, land: landIndex2, x: spinX2, ref: trackRef2 }]
+                    : []),
+                ] as const
+              ).map((reel, reelIndex) => (
               <div
+                key={reelIndex}
                 className="market-case-roulette"
-                aria-label="Прокрутка кейса"
+                aria-label={reelIndex === 0 ? "Прокрутка кейса" : "Вторая прокрутка"}
               >
                 <div className="market-case-roulette-pointer" />
                 <div className="market-case-roulette-window">
-                  {strip.length > 0 ? (
+                  {reel.cells.length > 0 ? (
                     <div
-                      ref={trackRef}
+                      ref={reel.ref}
                       className="market-case-roulette-track"
                       style={{
-                        transform: `translate3d(${spinX}px,0,0)`,
+                        transform: `translate3d(${reel.x}px,0,0)`,
                         transition:
                           phase === "spinning"
                             ? `transform ${SPIN_MS / 1000}s cubic-bezier(0.05, 0.55, 0.08, 1)`
                             : "none",
                       }}
                     >
-                      {strip.map((cell, i) => (
+                      {reel.cells.map((cell, i) => (
                         <div
-                          key={`${cell.key}-${i}`}
+                          key={`${cell.key}-${reelIndex}-${i}`}
                           className={`market-case-roule-cell ${lootCellClass(cell)}${
-                            phase === "revealed" && i === landIndex
+                            phase === "revealed" && i === reel.land
                               ? " is-win"
                               : ""
                           }`}
@@ -684,43 +735,49 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                   )}
                 </div>
               </div>
+              ))}
 
-              <div
-                className={`market-case-result${
-                  phase === "revealed" && result
-                    ? ` ${lootCellClass(result)}`
-                    : " is-placeholder"
-                }`}
-                role="status"
-              >
-                {phase === "revealed" && result ? (
-                  result.kind === "empty" ? (
-                    <p>Ничего не выпало</p>
-                  ) : (
-                    <>
-                      {result.kind === "font" ? (
-                        <FontLootSample cssClass={result.cssClass} size="md" />
-                      ) : result.image ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={result.image} alt="" />
-                      ) : null}
-                      <div>
-                        <strong>{result.title}</strong>
-                        <span>
-                          {result.kind === "currency"
-                            ? "Зачислено на баланс"
-                            : "Уже в инвентаре"}
-                        </span>
-                      </div>
-                    </>
-                  )
-                ) : (
-                  <p className="muted">
-                    {phase === "opening" || phase === "spinning"
-                      ? "Крутим…"
-                      : "Результат появится здесь"}
-                  </p>
-                )}
+              <div className="market-case-results">
+                {(spinCount === 2 ? [result, result2] : [result]).map((drop, dropIndex) => (
+                  <div
+                    key={dropIndex}
+                    className={`market-case-result${
+                      phase === "revealed" && drop
+                        ? ` ${lootCellClass(drop)}`
+                        : " is-placeholder"
+                    }`}
+                    role="status"
+                  >
+                    {phase === "revealed" && drop ? (
+                      drop.kind === "empty" ? (
+                        <p>Ничего не выпало</p>
+                      ) : (
+                        <>
+                          {drop.kind === "font" ? (
+                            <FontLootSample cssClass={drop.cssClass} size="md" />
+                          ) : drop.image ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={drop.image} alt="" />
+                          ) : null}
+                          <div>
+                            <strong>{drop.title}</strong>
+                            <span>
+                              {drop.kind === "currency"
+                                ? "Зачислено на баланс"
+                                : "Уже в инвентаре"}
+                            </span>
+                          </div>
+                        </>
+                      )
+                    ) : (
+                      <p className="muted">
+                        {phase === "opening" || phase === "spinning"
+                          ? "Крутим…"
+                          : "Результат появится здесь"}
+                      </p>
+                    )}
+                  </div>
+                ))}
               </div>
 
               <div className="market-case-loot-head">
@@ -763,6 +820,24 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                 ))}
               </div>
 
+              <div className="market-case-mult" role="group" aria-label="Сколько прокрутов">
+                <button
+                  type="button"
+                  className={spinCount === 1 ? "is-on" : ""}
+                  disabled={busy || phase === "spinning" || phase === "opening"}
+                  onClick={() => setSpinCount(1)}
+                >
+                  х1
+                </button>
+                <button
+                  type="button"
+                  className={spinCount === 2 ? "is-on" : ""}
+                  disabled={busy || phase === "spinning" || phase === "opening"}
+                  onClick={() => setSpinCount(2)}
+                >
+                  х2
+                </button>
+              </div>
               <div className="market-case-actions">
                 <button
                   type="button"
@@ -773,7 +848,9 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                   <span className="market-case-btn-effect">
                     {phase === "revealed" ? "Открыть ещё" : "Открыть"}
                   </span>
-                  <span className="market-case-btn-price">{priceLabel(active)}</span>
+                  <span className="market-case-btn-price">
+                    {moneyLabel(active, active.price * spinCount)}
+                  </span>
                 </button>
                 <button
                   type="button"
@@ -781,8 +858,8 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                   disabled={busy || phase === "spinning" || phase === "opening"}
                   title={
                     active.id === "bbc-urozhay"
-                      ? "Один прокрут. Каждому Rare +7%, джекпоту +1,5%, каждому Immortal +5%."
-                      : "Один прокрут. Каждому Rare +7%, джекпоту +3%, каждому Immortal +5%."
+                      ? `${spinCount === 2 ? "Два прокрута" : "Один прокрут"}. Каждому Rare +7%, джекпоту +1,5%, каждому Immortal +5%.`
+                      : `${spinCount === 2 ? "Два прокрута" : "Один прокрут"}. Каждому Rare +7%, джекпоту +3%, каждому Immortal +5%.`
                   }
                   onClick={() => void openCase(active, "red")}
                 >
@@ -795,7 +872,9 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                     }% Джекпот`}
                   </span>
                   <span className="market-case-btn-effect">+{CASE_RED_IMMORTAL_ADD}% Immortal</span>
-                  <span className="market-case-btn-price">{kindPriceLabel(active, "red")}</span>
+                  <span className="market-case-btn-price">
+                    {moneyLabel(active, kindUnit(active, "red") * spinCount)}
+                  </span>
                 </button>
               </div>
             </div>

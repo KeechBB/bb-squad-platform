@@ -15,7 +15,7 @@ import { MARKET_BG_ORDER } from "@/lib/marketBgIds";
 import { MARKET_FONT_ORDER } from "@/lib/marketFontIds";
 import { resolveListingPrice } from "@/lib/marketListingPrices";
 import { chargeMarketBuy, hasInfiniteMarketWallet } from "@/lib/marketCharge";
-import { creditBbCoins } from "@/lib/bbCoins";
+import { creditBbCoins, getBbCoinBalance } from "@/lib/bbCoins";
 import {
   addCaseJackpot,
   claimCaseJackpot,
@@ -23,7 +23,11 @@ import {
   restoreCaseJackpotIfFloor,
   type CaseJackpotPools,
 } from "@/lib/caseJackpotPool";
-import { creditPersonalBd } from "@/lib/marketFactionPay";
+import {
+  creditPersonalBd,
+  getFactionPayCtx,
+  getPersonalBdBalance,
+} from "@/lib/marketFactionPay";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
 import { prisma } from "@/lib/prisma";
 import type { ProfilePatchId } from "@/lib/profilePatches";
@@ -592,6 +596,35 @@ function boostedRollTable(
 function boostNote(kind: CaseBoostKind, caseId: MarketCaseId): string {
   void kind;
   return `буст каждому: Rare +${CASE_RED_RARE_ADD}%, джекпот +${caseRedJackpotAdd(caseId)}%, Immortal +${CASE_RED_IMMORTAL_ADD}%`;
+}
+
+/** Хватает ли баланса на несколько прокрутов сразу, до первого списания. */
+export async function ensureCaseFunds(opts: {
+  caseId: MarketCaseId;
+  userId: string;
+  steamId: string;
+  boostKind?: CaseBoostKind | null;
+  count: number;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (hasInfiniteMarketWallet(opts.steamId)) return { ok: true };
+  const def = getMarketCase(opts.caseId);
+  if (!def) return { ok: false, error: "case" };
+  const unit = opts.boostKind ? caseBoostKindPrice(opts.boostKind, def.id) : def.price;
+  const need = unit * Math.max(1, opts.count);
+  if (def.currency === "BBC") {
+    const bal = await getBbCoinBalance(opts.userId);
+    if (bal < need) return { ok: false, error: "insufficient" };
+    return { ok: true };
+  }
+  const ctx = await getFactionPayCtx(opts.userId, opts.steamId);
+  if (!ctx) return { ok: false, error: "no_faction" };
+  if (ctx.canSpend) {
+    if (ctx.balance < need) return { ok: false, error: "insufficient" };
+    return { ok: true };
+  }
+  const personal = await getPersonalBdBalance(opts.userId);
+  if (personal < need) return { ok: false, error: "insufficient" };
+  return { ok: true };
 }
 
 export async function openMarketCase(opts: {
