@@ -22,6 +22,11 @@ import { prisma } from "@/lib/prisma";
 import type { ProfilePatchId } from "@/lib/profilePatches";
 import type { MarketCurrency, ResolvedListingPrice } from "@/lib/marketListingPrices";
 import { BD_MARK, BD_NAME } from "@/lib/blueberryDollar";
+import {
+  applyImmortalBoost,
+  CASE_BOOST_PRICE,
+  CASE_IMMORTAL_BOOST_ADD_PCT,
+} from "@/lib/marketCaseBoost";
 
 export type MarketCaseId = "faction-sad" | "bbc-urozhay";
 
@@ -539,12 +544,16 @@ export async function openMarketCase(opts: {
   caseId: MarketCaseId;
   userId: string;
   steamId: string;
+  /** Один прокрут: цена буста, шанс Immortal +5 п.п. */
+  boost?: boolean;
 }): Promise<
   | {
       ok: true;
       caseId: MarketCaseId;
       currency: MarketCurrency;
       balance: number;
+      spent: number;
+      boost: boolean;
       paidFrom?: "treasury" | "personal" | "bbc" | "infinite";
       result: CaseLootEntry;
       strip: CaseLootEntry[];
@@ -561,13 +570,15 @@ export async function openMarketCase(opts: {
   const table = await getCaseLootTable(def.id);
   if (!table.length) return { ok: false, error: "empty_pool" };
 
+  const boost = Boolean(opts.boost);
+  const pay = boost ? CASE_BOOST_PRICE[def.id] : def.price;
   const price: ResolvedListingPrice = {
     catalog: "patch",
-    itemId: `case:${def.id}`,
+    itemId: boost ? `case:${def.id}:immortal-boost` : `case:${def.id}`,
     currency: def.currency,
-    buy: def.price,
+    buy: pay,
     sell: 0,
-    buyBase: def.price,
+    buyBase: pay,
     sellBase: 0,
     deal: null,
   };
@@ -577,7 +588,9 @@ export async function openMarketCase(opts: {
     steamId: opts.steamId,
     price,
     kind: "case_open",
-    noteItem: `кейс «${def.name}»`,
+    noteItem: boost
+      ? `кейс «${def.name}» · буст Immortal +${CASE_IMMORTAL_BOOST_ADD_PCT}%`
+      : `кейс «${def.name}»`,
   });
   if (!charged.ok) return charged;
 
@@ -597,14 +610,19 @@ export async function openMarketCase(opts: {
     pityPool.length > 0
       ? pityPool[Math.floor(Math.random() * pityPool.length)]
       : null;
-  const result =
-    pityHit && pityPick ? pityPick : pickWeighted(table);
+  const rollTable = boost
+    ? applyImmortalBoost(table, new Set(CASE_PITY_PATCH_IDS))
+    : table;
+  const pityForced = Boolean(pityHit && pityPick);
+  const result = pityForced && pityPick ? pityPick : pickWeighted(rollTable);
+  const rolledChance =
+    rollTable.find((e) => e.key === result.key)?.chancePct ?? result.chancePct;
   // После срабатывания — сразу новый случайный порог; иначе несём текущий.
   const pityNextAtOut = pityHit
     ? openIndex + rollPityGap()
     : pityNextAt;
   const landIndex = 52;
-  const strip = buildRouletteStrip(table, result, { length: 64, landIndex });
+  const strip = buildRouletteStrip(rollTable, result, { length: 64, landIndex });
 
   if (result.kind === "patch" && result.itemId) {
     await addPatchQty(opts.userId, result.itemId, 1);
@@ -634,7 +652,7 @@ export async function openMarketCase(opts: {
     select: { nick: true, steamName: true, steamId: true },
   });
   const nick = personLabel(actor || { steamId: opts.steamId });
-  const spendLabel = `${def.price.toLocaleString("ru-RU")} ${
+  const spendLabel = `${pay.toLocaleString("ru-RU")} ${
     def.currency === "BD" ? BD_MARK : "BBC"
   }`;
   const dropLabel =
@@ -652,21 +670,25 @@ export async function openMarketCase(opts: {
   await writeActionLog({
     category: "cases",
     action: "case_open",
-    message: `${nick} открыл «${def.name}» (−${spendLabel}) → ${dropLabel}`,
+    message: boost
+      ? `${nick} открыл «${def.name}» с бустом Immortal +${CASE_IMMORTAL_BOOST_ADD_PCT}% (−${spendLabel}) → ${dropLabel}`
+      : `${nick} открыл «${def.name}» (−${spendLabel}) → ${dropLabel}`,
     actorId: opts.userId,
     actorNick: nick,
     meta: {
       caseId: def.id,
       caseName: def.name,
       currency: def.currency,
-      spent: def.price,
+      spent: pay,
       dropKind: result.kind,
       dropItemId: result.itemId,
       dropTitle: result.kind === "empty" ? "Пусто" : result.title,
       dropImage: result.image,
       dropSell: result.sellPrice,
       dropSellCurrency: result.sellCurrency,
-      chancePct: result.chancePct,
+      chancePct: pityForced ? result.chancePct : rolledChance,
+      boost,
+      boostAddPct: boost ? CASE_IMMORTAL_BOOST_ADD_PCT : undefined,
       infiniteWallet: hasInfiniteMarketWallet(opts.steamId),
       paidFrom: charged.paidFrom || null,
       pity:
@@ -705,6 +727,8 @@ export async function openMarketCase(opts: {
     currency: charged.currency,
     balance: balanceOut,
     paidFrom: charged.paidFrom,
+    spent: pay,
+    boost,
     result,
     strip,
     landIndex,

@@ -19,6 +19,7 @@ type Meta = {
   dropSellCurrency?: "BBC" | "BD" | null;
   chancePct?: number;
   infiniteWallet?: boolean;
+  boost?: boolean;
 };
 
 function asMeta(raw: unknown): Meta {
@@ -79,6 +80,7 @@ export async function GET(req: Request) {
             : null,
         chancePct: Number(m.chancePct) || 0,
         infiniteWallet: Boolean(m.infiniteWallet),
+        boost: Boolean(m.boost),
         currencyMark: m.currency === "BD" ? BD_MARK : "BBC",
       };
     })

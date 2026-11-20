@@ -1,6 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  CASE_BOOST_PRICE,
+  CASE_IMMORTAL_BOOST_ADD_PCT,
+} from "@/lib/marketCaseBoost";
 
 type LootKind = "patch" | "bg" | "empty" | "currency" | "font";
 
@@ -179,6 +183,16 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
       ? `${c.price.toLocaleString("ru-RU")} $`
       : `${c.price.toLocaleString("ru-RU")} BBC`;
 
+  const boostPriceLabel = (c: CaseCard) => {
+    const n =
+      c.id === "faction-sad"
+        ? CASE_BOOST_PRICE["faction-sad"]
+        : CASE_BOOST_PRICE["bbc-urozhay"];
+    return c.currency === "BD"
+      ? `${n.toLocaleString("ru-RU")} $`
+      : `${n.toLocaleString("ru-RU")} BBC`;
+  };
+
   function closeDetail() {
     if (phase === "opening" || phase === "spinning") return;
     setActive(null);
@@ -190,7 +204,7 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
     setInspect(null);
   }
 
-  async function openCase(c: CaseCard) {
+  async function openCase(c: CaseCard, boost = false) {
     if (busy) return;
     setBusy(true);
     setErr(null);
@@ -205,7 +219,7 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
       const res = await fetch("/api/bb-coins/cases", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ caseId: c.id }),
+        body: JSON.stringify({ caseId: c.id, boost }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
@@ -274,7 +288,14 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
           caseId: c.id,
           caseName: c.name,
           currency: c.currency,
-          spent: c.price,
+          spent:
+            typeof data.spent === "number"
+              ? data.spent
+              : boost
+                ? c.id === "faction-sad"
+                  ? CASE_BOOST_PRICE["faction-sad"]
+                  : CASE_BOOST_PRICE["bbc-urozhay"]
+                : c.price,
           dropTitle: won.kind === "empty" ? "Пусто" : won.title,
           dropKind: won.kind,
           dropImage: won.image,
@@ -665,6 +686,17 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                   {phase === "revealed"
                     ? `Открыть ещё · ${priceLabel(active)}`
                     : `Открыть · ${priceLabel(active)}`}
+                </button>
+                <button
+                  type="button"
+                  className="market-case-boost-btn"
+                  disabled={busy || phase === "spinning" || phase === "opening"}
+                  title={`Один прокрут за ${boostPriceLabel(active)}. Шанс Immortal +${CASE_IMMORTAL_BOOST_ADD_PCT}% на этот спин. Обычная цена кейса не списывается.`}
+                  onClick={() => void openCase(active, true)}
+                >
+                  {phase === "revealed"
+                    ? `Ещё +${CASE_IMMORTAL_BOOST_ADD_PCT}% · ${boostPriceLabel(active)}`
+                    : `Immortal +${CASE_IMMORTAL_BOOST_ADD_PCT}% · ${boostPriceLabel(active)}`}
                 </button>
               </div>
             </div>

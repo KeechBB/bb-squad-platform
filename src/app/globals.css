@@ -25936,6 +25936,9 @@ body:has(.faction-page) .site-footer {
 .market-case-actions {
   display: flex;
   justify-content: center;
+  align-items: stretch;
+  gap: 10px;
+  flex-wrap: nowrap;
   margin-top: 8px;
 }
 .market-case-open-btn {
@@ -25952,6 +25955,35 @@ body:has(.faction-page) .site-footer {
 .market-case-open-btn:disabled {
   opacity: 0.55;
   cursor: default;
+}
+.market-case-open-btn,
+.market-case-boost-btn {
+  flex: 1 1 0;
+  max-width: 440px;
+  min-width: 0;
+}
+.market-case-boost-btn {
+  border: 1px solid rgba(250, 204, 21, 0.9);
+  border-radius: 12px;
+  padding: 12px 18px;
+  font-weight: 800;
+  font-size: 0.95rem;
+  line-height: 1.2;
+  color: #fff8dc;
+  cursor: pointer;
+  background: linear-gradient(135deg, #3a2a08, #8a6414 55%, #1a1408);
+  box-shadow: 0 8px 22px rgba(250, 204, 21, 0.28);
+}
+.market-case-boost-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+@media (max-width: 980px) {
+  .market-case-open-btn,
+  .market-case-boost-btn {
+    padding: 10px 10px;
+    font-size: 0.82rem;
+  }
 }
 .market-cases-wip-dialog {
   text-align: center;

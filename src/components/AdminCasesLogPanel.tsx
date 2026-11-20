@@ -18,6 +18,7 @@ type Entry = {
   dropSellCurrency: "BBC" | "BD" | null;
   chancePct: number;
   infiniteWallet: boolean;
+  boost: boolean;
   currencyMark: string;
 };
 
@@ -212,6 +213,11 @@ export function AdminCasesLogPanel() {
                   </td>
                   <td className="mono">
                     −{e.spent.toLocaleString("ru-RU")} {e.currencyMark}
+                    {e.boost ? (
+                      <div className="muted" style={{ fontSize: "0.85em" }}>
+                        буст Immortal +5%
+                      </div>
+                    ) : null}
                   </td>
                   <td>
                     {e.dropKind === "empty" ? (

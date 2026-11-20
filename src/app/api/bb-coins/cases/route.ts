@@ -31,7 +31,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "wip" }, { status: 403 });
   }
 
-  const body = (await req.json().catch(() => ({}))) as { caseId?: string };
+  const body = (await req.json().catch(() => ({}))) as {
+    caseId?: string;
+    boost?: boolean;
+  };
   const caseId = String(body.caseId || "") as MarketCaseId;
   if (!getMarketCase(caseId)) {
     return NextResponse.json({ ok: false, error: "case" }, { status: 400 });
@@ -41,6 +44,7 @@ export async function POST(req: Request) {
     caseId,
     userId: user.id,
     steamId: user.steamId,
+    boost: body.boost === true,
   });
   if (!res.ok) {
     const status =
