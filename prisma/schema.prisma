@@ -1567,7 +1567,7 @@ model ProfileMailRecipient {
 /// Живой котёл кейса (BBC / BD). Таблица создана raw SQL; модель нужна, чтобы db push её не дропнул.
 model CaseJackpotPool {
   currency  String   @id
-  amount    Int      @default(0)
+  amount    BigInt   @default(0)
   updatedAt DateTime @updatedAt
 }
 
