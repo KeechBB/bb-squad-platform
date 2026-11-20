@@ -33,6 +33,7 @@ import { useFitTablePage } from "@/lib/useFitTablePage";
 import {
   FactionAnalytics,
   FactionGrowthBoard,
+  FactionRaceBoard,
   FactionRatings,
   FactionWeekBoard,
 } from "@/components/FactionBoards";
@@ -47,6 +48,7 @@ const TABS = [
   ["transfers", "Трансферы"],
   ["analytics", "Аналитика"],
   ["ratings", "Рейтинги"],
+  ["race", "ГОНКА ФРАКЦИЙ"],
 ] as const;
 
 type TabId = (typeof TABS)[number][0];
@@ -89,6 +91,7 @@ const TAB_NOTE: Record<TabId, string> = {
     "Доска трансферов, казна Черничных Долларов, дефицит ролей и сделки между фракциями.",
   analytics: "Статистика относительно других фракций появится здесь.",
   ratings: "Доли фракций на тренировках за последние 7 дней.",
+  race: "Гринд казны фракций за окно 21.11–28.11 · цель 400 000 B$.",
 };
 
 type ResizeMode = "move" | "e" | "s" | "se";
@@ -408,6 +411,7 @@ export function FactionPageClient({
   const [cwKey, setCwKey] = useState(0);
   const [analyticsKey, setAnalyticsKey] = useState(0);
   const [ratingsKey, setRatingsKey] = useState(0);
+  const [raceKey, setRaceKey] = useState(0);
   const [error, setError] = useState("");
   const [flash, setFlash] = useState("");
   const [busy, setBusy] = useState(false);
@@ -443,6 +447,7 @@ export function FactionPageClient({
     if (stored === "cw") setCwKey((n) => n + 1);
     if (stored === "analytics") setAnalyticsKey((n) => n + 1);
     if (stored === "ratings") setRatingsKey((n) => n + 1);
+    if (stored === "race") setRaceKey((n) => n + 1);
   }, [view.slug]);
 
   function selectStatsTab(id: TabId) {
@@ -454,6 +459,7 @@ export function FactionPageClient({
     if (id === "cw") setCwKey((n) => n + 1);
     if (id === "analytics") setAnalyticsKey((n) => n + 1);
     if (id === "ratings") setRatingsKey((n) => n + 1);
+    if (id === "race") setRaceKey((n) => n + 1);
   }
 
   async function reload(href?: string) {
@@ -1016,7 +1022,9 @@ export function FactionPageClient({
                 <button
                   key={id}
                   type="button"
-                  className={`admin-tab${tab === id ? " active" : ""}`}
+                  className={`admin-tab${tab === id ? " active" : ""}${
+                    id === "race" ? " faction-race-tab" : ""
+                  }`}
                   onClick={() => selectStatsTab(id)}
                 >
                   {label}
@@ -1034,6 +1042,7 @@ export function FactionPageClient({
               <FactionAnalytics slug={view.slug} loadKey={analyticsKey} />
             ) : null}
             {tab === "ratings" ? <FactionRatings slug={view.slug} loadKey={ratingsKey} /> : null}
+            {tab === "race" ? <FactionRaceBoard slug={view.slug} loadKey={raceKey} /> : null}
           </>
         )}
 

@@ -799,3 +799,128 @@ export function FactionRatings({ slug, loadKey }: { slug: string; loadKey: numbe
     </div>
   );
 }
+
+type RaceRow = {
+  factionId: string;
+  name: string;
+  slug: string;
+  color: string;
+  font: string;
+  amount: number;
+  goal: number;
+  pct: number;
+};
+
+function fmtBd(n: number): string {
+  return Math.round(n || 0).toLocaleString("ru-RU");
+}
+
+export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: number }) {
+  const [label, setLabel] = useState("");
+  const [goal, setGoal] = useState(400_000);
+  const [rows, setRows] = useState<RaceRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (loadKey < 1) return;
+    const ctrl = new AbortController();
+    setLoading(true);
+    setError("");
+    void (async () => {
+      try {
+        const res = await fetch(`/api/factions/${encodeURIComponent(slug)}/race`, {
+          cache: "no-store",
+          signal: ctrl.signal,
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          label?: string;
+          goal?: number;
+          rows?: RaceRow[];
+        };
+        if (!res.ok) {
+          setError(data.error || "Не удалось загрузить гонку");
+          return;
+        }
+        setLabel(data.label || "");
+        setGoal(typeof data.goal === "number" ? data.goal : 400_000);
+        setRows(Array.isArray(data.rows) ? data.rows : []);
+      } catch (err) {
+        if ((err as { name?: string }).name === "AbortError") return;
+        setError("Сеть недоступна");
+      } finally {
+        if (!ctrl.signal.aborted) setLoading(false);
+      }
+    })();
+    return () => ctrl.abort();
+  }, [slug, loadKey]);
+
+  if (loadKey < 1) {
+    return (
+      <p className="muted faction-stat-note">
+        Нажми «ГОНКА ФРАКЦИЙ», чтобы загрузить прогресс за окно.
+      </p>
+    );
+  }
+
+  return (
+    <div className="faction-race">
+      <div className="faction-race-head">
+        <p className="faction-race-dates">{label || "21.11 00:00 — 28.11 00:00 МСК"}</p>
+        <p className="faction-race-goal muted">
+          Гринд казны фракции за окно · цель {fmtBd(goal)} B$
+        </p>
+      </div>
+      {error ? <p className="error">{error}</p> : null}
+      {loading && rows.length === 0 ? <p className="muted">Считаю гонку…</p> : null}
+      <div className="faction-race-table" role="table" aria-label="Гонка фракций">
+        <div className="faction-race-row faction-race-row--head" role="row">
+          <div className="faction-race-cell faction-race-name" role="columnheader">
+            Фракция
+          </div>
+          <div className="faction-race-cell faction-race-bar-cell" role="columnheader">
+            Прогресс
+          </div>
+        </div>
+        {rows.map((row) => {
+          const done = row.amount >= row.goal;
+          const fill = Math.max(0, Math.min(100, row.pct));
+          return (
+            <div
+              key={row.factionId}
+              className={`faction-race-row${done ? " is-done" : ""}`}
+              role="row"
+            >
+              <div className="faction-race-cell faction-race-name" role="cell">
+                <Link
+                  href={`/factions/${encodeURIComponent(row.slug)}`}
+                  className="faction-race-name-link"
+                  style={{ color: row.color, fontFamily: `"${row.font}", Oxanium, sans-serif` }}
+                >
+                  {row.name}
+                </Link>
+              </div>
+              <div className="faction-race-cell faction-race-bar-cell" role="cell">
+                <div
+                  className="faction-race-bar"
+                  style={{ ["--race-color" as string]: row.color }}
+                  title={`${fmtBd(row.amount)} / ${fmtBd(row.goal)}`}
+                >
+                  <div className="faction-race-bar-fill" style={{ width: `${fill}%` }} />
+                  <span className="faction-race-bar-label">
+                    {fmtBd(row.amount)} / {fmtBd(row.goal)}
+                    {done ? " · цель" : ""}
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {!loading && !error && rows.length === 0 ? (
+          <p className="muted">Нет фракций в гонке.</p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
