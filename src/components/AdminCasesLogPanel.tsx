@@ -216,11 +216,9 @@ export function AdminCasesLogPanel() {
                     −{e.spent.toLocaleString("ru-RU")} {e.currencyMark}
                     {e.boost ? (
                       <div className="muted" style={{ fontSize: "0.85em" }}>
-                        {e.boostKind === "rare"
-                          ? "буст Rare +7% · джекпот +3%"
-                          : e.boostKind === "drop"
-                            ? "буст дропа +15%"
-                            : "буст Immortal +5%"}
+                        {e.boostKind === "green"
+                          ? "каждому: Immortal +15% · джекпот +5%"
+                          : "каждому: Rare +7% · джекпот +3% · Immortal +5%"}
                       </div>
                     ) : null}
                   </td>

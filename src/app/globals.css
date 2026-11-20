@@ -25398,10 +25398,10 @@ body:has(.faction-page) .site-footer {
   background: linear-gradient(180deg, transparent, rgba(13, 18, 16, 0.92) 30%);
 }
 .market-case-loot-scroll {
-  flex: 0 0 188px;
-  height: 188px;
-  min-height: 188px;
-  max-height: 188px;
+  flex: 0 0 176px;
+  height: 176px;
+  min-height: 176px;
+  max-height: 176px;
 }
 @media (max-width: 980px) {
   .market-case-dialog {
@@ -25422,12 +25422,12 @@ body:has(.faction-page) .site-footer {
   display: grid;
   place-items: center;
   margin: 0 0 8px;
-  height: 140px;
+  height: 108px;
   flex: 0 0 auto;
 }
 .market-case-stage-art {
-  width: 120px;
-  height: 120px;
+  width: 92px;
+  height: 92px;
   object-fit: contain;
   border-radius: 14px;
   transition: transform 0.7s ease, filter 0.7s ease, opacity 0.7s ease;
@@ -25935,9 +25935,10 @@ body:has(.faction-page) .site-footer {
 }
 .market-case-actions {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: 0.85fr 1.15fr 1fr;
+  gap: 10px;
   margin-top: 8px;
+  align-items: stretch;
 }
 .market-case-open-btn {
   border: 1px solid rgba(250, 204, 21, 0.75);
@@ -25956,75 +25957,74 @@ body:has(.faction-page) .site-footer {
 }
 .market-case-open-btn,
 .market-case-boost-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
   width: 100%;
   max-width: none;
   min-width: 0;
-  font-size: 0.84rem;
+  min-height: 92px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
   line-height: 1.25;
   text-align: center;
+  white-space: nowrap;
+}
+.market-case-btn-effect,
+.market-case-btn-price {
+  display: block;
+  white-space: nowrap;
+}
+.market-case-btn-price {
+  margin-top: 4px;
+  font-size: 1rem;
 }
 .market-case-boost-btn {
-  border: 1px solid rgba(250, 204, 21, 0.9);
+  border: 1px solid rgba(248, 113, 113, 0.9);
   border-radius: 12px;
-  padding: 12px 18px;
   font-weight: 800;
-  font-size: 0.95rem;
-  line-height: 1.2;
-  color: #fff8dc;
+  color: #fff5f5;
   cursor: pointer;
-  background: linear-gradient(135deg, #3a2a08, #8a6414 55%, #1a1408);
-  box-shadow: 0 8px 22px rgba(250, 204, 21, 0.28);
+  background: linear-gradient(135deg, #7f1d1d, #dc2626 55%, #991b1b);
+  box-shadow: 0 8px 22px rgba(220, 38, 38, 0.35);
 }
 .market-case-boost-btn:disabled {
   opacity: 0.55;
   cursor: default;
 }
-.market-case-boost-btn.is-rare {
-  border-color: rgba(244, 114, 182, 0.85);
-  color: #ffe4f3;
-  text-shadow: 0 0 12px rgba(236, 72, 153, 0.45);
-  background: linear-gradient(
-    120deg,
-    rgba(131, 24, 67, 0.96) 0%,
-    rgba(190, 24, 93, 0.82) 36%,
-    rgba(244, 114, 182, 0.62) 50%,
-    rgba(190, 24, 93, 0.82) 64%,
-    rgba(131, 24, 67, 0.96) 100%
-  );
+.market-case-boost-btn.is-red {
+  border-color: rgba(254, 202, 202, 0.85);
+  color: #fff5f5;
+  background: linear-gradient(135deg, #7f1d1d, #ef4444 48%, #b91c1c);
   box-shadow:
-    0 0 16px rgba(236, 72, 153, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+    0 0 16px rgba(239, 68, 68, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
-.market-case-boost-btn.is-drop {
-  border-color: rgba(52, 211, 153, 0.9);
+.market-case-boost-btn.is-green {
+  border-color: rgba(167, 243, 208, 0.9);
   color: #ecfdf5;
-  text-shadow: 0 0 12px rgba(16, 185, 129, 0.5);
-  background: linear-gradient(
-    120deg,
-    rgba(6, 78, 59, 0.97) 0%,
-    rgba(4, 120, 87, 0.9) 36%,
-    rgba(52, 211, 153, 0.58) 50%,
-    rgba(4, 120, 87, 0.9) 64%,
-    rgba(6, 78, 59, 0.97) 100%
-  );
+  text-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
+  background: linear-gradient(135deg, #064e3b, #10b981 48%, #047857);
   box-shadow:
-    0 0 16px rgba(16, 185, 129, 0.5),
+    0 0 16px rgba(16, 185, 129, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 @media (max-width: 980px) {
   .market-case-loot-scroll {
-    flex-basis: 140px;
-    height: 140px;
-    min-height: 140px;
-    max-height: 140px;
+    flex-basis: 148px;
+    height: 148px;
+    min-height: 148px;
+    max-height: 148px;
   }
   .market-case-actions {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
   }
   .market-case-open-btn,
   .market-case-boost-btn {
-    padding: 10px 8px;
-    font-size: 0.78rem;
+    min-height: 0;
+    padding: 10px 12px;
   }
 }
 .market-cases-wip-dialog {

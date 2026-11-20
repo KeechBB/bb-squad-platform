@@ -42,13 +42,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "case" }, { status: 400 });
   }
   const boostKind: CaseBoostKind | null =
-    body.boostKind === "immortal" ||
-    body.boostKind === "rare" ||
-    body.boostKind === "drop"
+    body.boostKind === "red" || body.boostKind === "green"
       ? body.boostKind
-      : body.boost === true
-        ? "immortal"
-        : null;
+      : null;
 
   const res = await openMarketCase({
     caseId,

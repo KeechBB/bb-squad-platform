@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CASE_BOOST_KIND_PRICE,
-  CASE_DROP_BOOST_ADD_PCT,
-  CASE_IMMORTAL_BOOST_ADD_PCT,
-  CASE_JACKPOT_BOOST_ADD_PCT,
-  CASE_RARE_BOOST_ADD_PCT,
+  CASE_GREEN_IMMORTAL_ADD,
+  CASE_GREEN_JACKPOT_ADD,
+  CASE_RED_IMMORTAL_ADD,
+  CASE_RED_JACKPOT_ADD,
+  CASE_RED_RARE_ADD,
   type CaseBoostKind,
 } from "@/lib/marketCaseBoost";
 
@@ -685,36 +686,33 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
                   disabled={busy || phase === "spinning" || phase === "opening"}
                   onClick={() => void openCase(active)}
                 >
-                  {phase === "revealed"
-                    ? `Открыть ещё · ${priceLabel(active)}`
-                    : `Открыть · ${priceLabel(active)}`}
+                  <span className="market-case-btn-effect">
+                    {phase === "revealed" ? "Открыть ещё" : "Открыть"}
+                  </span>
+                  <span className="market-case-btn-price">{priceLabel(active)}</span>
                 </button>
                 <button
                   type="button"
-                  className="market-case-boost-btn"
+                  className="market-case-boost-btn is-red"
                   disabled={busy || phase === "spinning" || phase === "opening"}
-                  title={`Один прокрут за ${kindPriceLabel(active, "immortal")}. Шанс Immortal +${CASE_IMMORTAL_BOOST_ADD_PCT}% на этот спин.`}
-                  onClick={() => void openCase(active, "immortal")}
+                  title="Один прокрут. Каждому Rare +7%, каждому джекпоту +3%, каждому Immortal +5%."
+                  onClick={() => void openCase(active, "red")}
                 >
-                  {`Immortal +${CASE_IMMORTAL_BOOST_ADD_PCT}% · ${kindPriceLabel(active, "immortal")}`}
+                  <span className="market-case-btn-effect">+{CASE_RED_RARE_ADD}% Rare</span>
+                  <span className="market-case-btn-effect">+{CASE_RED_JACKPOT_ADD}% Джекпот</span>
+                  <span className="market-case-btn-effect">+{CASE_RED_IMMORTAL_ADD}% Immortal</span>
+                  <span className="market-case-btn-price">{kindPriceLabel(active, "red")}</span>
                 </button>
                 <button
                   type="button"
-                  className="market-case-boost-btn is-rare"
+                  className="market-case-boost-btn is-green"
                   disabled={busy || phase === "spinning" || phase === "opening"}
-                  title={`Один прокрут за ${kindPriceLabel(active, "rare")}. Rare +${CASE_RARE_BOOST_ADD_PCT}% и джекпот 200 000 / 1 млн +${CASE_JACKPOT_BOOST_ADD_PCT}%.`}
-                  onClick={() => void openCase(active, "rare")}
+                  title="Один прокрут. Каждому Immortal +15%, каждому джекпоту +5%."
+                  onClick={() => void openCase(active, "green")}
                 >
-                  {`Rare +${CASE_RARE_BOOST_ADD_PCT}% · джекпот +${CASE_JACKPOT_BOOST_ADD_PCT}% · ${kindPriceLabel(active, "rare")}`}
-                </button>
-                <button
-                  type="button"
-                  className="market-case-boost-btn is-drop"
-                  disabled={busy || phase === "spinning" || phase === "opening"}
-                  title={`Один прокрут за ${kindPriceLabel(active, "drop")}. Шанс дропа (всё, кроме мелкой валюты) +${CASE_DROP_BOOST_ADD_PCT}%.`}
-                  onClick={() => void openCase(active, "drop")}
-                >
-                  {`Дроп +${CASE_DROP_BOOST_ADD_PCT}% · ${kindPriceLabel(active, "drop")}`}
+                  <span className="market-case-btn-effect">+{CASE_GREEN_IMMORTAL_ADD}% Immortal</span>
+                  <span className="market-case-btn-effect">+{CASE_GREEN_JACKPOT_ADD}% Джекпот</span>
+                  <span className="market-case-btn-price">{kindPriceLabel(active, "green")}</span>
                 </button>
               </div>
             </div>

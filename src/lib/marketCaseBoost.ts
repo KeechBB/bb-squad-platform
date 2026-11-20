@@ -2,25 +2,28 @@
  * Платные бусты одного прокрута. Цена кнопки — вместо обычной цены кейса.
  * Прибавка в процентных пунктах к выбранной группе, остальное сжимается.
  */
-export type CaseBoostKind = "immortal" | "rare" | "drop";
+export type CaseBoostKind = "red" | "green";
 
-export const CASE_IMMORTAL_BOOST_ADD_PCT = 5;
-export const CASE_RARE_BOOST_ADD_PCT = 7;
-export const CASE_JACKPOT_BOOST_ADD_PCT = 3;
-export const CASE_DROP_BOOST_ADD_PCT = 15;
+/** Красная кнопка: каждому предмету своей категории, целиком. */
+export const CASE_RED_RARE_ADD = 7;
+export const CASE_RED_JACKPOT_ADD = 3;
+export const CASE_RED_IMMORTAL_ADD = 5;
+/** Зелёная кнопка. */
+export const CASE_GREEN_IMMORTAL_ADD = 15;
+export const CASE_GREEN_JACKPOT_ADD = 5;
+
+export const CASE_IMMORTAL_BOOST_ADD_PCT = CASE_RED_IMMORTAL_ADD;
 
 export const CASE_BOOST_KIND_PRICE: Record<
   CaseBoostKind,
   { "bbc-urozhay": number; "faction-sad": number }
 > = {
-  immortal: { "bbc-urozhay": 5_000, "faction-sad": 20_000 },
-  /** +7 Rare и +3 джекпот: та же цена за пункт, что у Immortal. */
-  rare: { "bbc-urozhay": 10_000, "faction-sad": 40_000 },
-  drop: { "bbc-urozhay": 15_000, "faction-sad": 50_000 },
+  red: { "bbc-urozhay": 5_000, "faction-sad": 20_000 },
+  green: { "bbc-urozhay": 15_000, "faction-sad": 50_000 },
 };
 
-/** @deprecated цена кнопки Immortal. Оставлена для старых вызовов. */
-export const CASE_BOOST_PRICE = CASE_BOOST_KIND_PRICE.immortal;
+/** @deprecated цена красной кнопки. */
+export const CASE_BOOST_PRICE = CASE_BOOST_KIND_PRICE.red;
 
 export function caseBoostPrice(caseId: string): number | null {
   if (caseId === "bbc-urozhay" || caseId === "faction-sad") {
