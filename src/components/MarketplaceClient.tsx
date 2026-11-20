@@ -11,6 +11,7 @@ import {
   type FactionMarketMember,
 } from "@/components/MarketBdBuyModal";
 import { MarketBdGiftModal } from "@/components/MarketBdGiftModal";
+import { MarketBdTransferModal } from "@/components/MarketBdTransferModal";
 import { MarketCasesPanel } from "@/components/MarketCasesPanel";
 
 type Tab = "patches" | "bg" | "font" | "cases";
@@ -96,6 +97,8 @@ export function MarketplaceClient({ loggedIn }: Props) {
   const [factionName, setFactionName] = useState<string | null>(null);
   const [canSpendBd, setCanSpendBd] = useState(false);
   const [bdGiftOpen, setBdGiftOpen] = useState(false);
+  const [bdTransferOpen, setBdTransferOpen] = useState(false);
+  const [exchangeWip, setExchangeWip] = useState(false);
   const [factionMembers, setFactionMembers] = useState<FactionMarketMember[]>(
     []
   );
@@ -450,6 +453,20 @@ export function MarketplaceClient({ loggedIn }: Props) {
                 </strong>
               </section>
             ) : null}
+            <button
+              type="button"
+              className="market-exchange-btn"
+              onClick={() => setExchangeWip(true)}
+            >
+              Обмен валюты
+            </button>
+            <button
+              type="button"
+              className="market-transfer-bd-btn"
+              onClick={() => setBdTransferOpen(true)}
+            >
+              Перевод $
+            </button>
             {canSpendBd ? (
               <button
                 type="button"
@@ -460,6 +477,75 @@ export function MarketplaceClient({ loggedIn }: Props) {
               </button>
             ) : null}
           </div>
+
+          {exchangeWip ? (
+            <div
+              className="market-wip-modal"
+              role="presentation"
+              onClick={() => setExchangeWip(false)}
+            >
+              <div
+                className="market-wip-dialog"
+                role="dialog"
+                aria-modal="true"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <p className="market-wip-title">Обмен валюты</p>
+                <p className="market-bd-buy-text">В разработке</p>
+                <div className="market-bd-buy-actions">
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => setExchangeWip(false)}
+                  >
+                    Закрыть
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {bdTransferOpen ? (
+            <MarketBdTransferModal
+              members={factionMembers}
+              myUserId={myUserId}
+              personalBdBalance={personalBdBalance}
+              busy={busy === "transfer-bd"}
+              onClose={() => setBdTransferOpen(false)}
+              onTransfer={async ({ toUserId, amount }) => {
+                setBusy("transfer-bd");
+                setErr(null);
+                setMsg(null);
+                try {
+                  const res = await fetch("/api/bb-coins/transfer-bd", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ toUserId, amount }),
+                  });
+                  const data = await res.json();
+                  if (!res.ok || !data.ok) {
+                    setErr(data.message || "Не удалось перевести");
+                    return;
+                  }
+                  if (typeof data.personalBdBalance === "number") {
+                    setPersonalBdBalance(data.personalBdBalance);
+                  }
+                  const nick =
+                    factionMembers.find((m) => m.userId === toUserId)?.nick ||
+                    "игроку";
+                  setMsg(
+                    `Переведено ${Number(data.amount || amount).toLocaleString("ru-RU")} $ → ${nick}`
+                  );
+                  setBdTransferOpen(false);
+                  await load();
+                } catch {
+                  setErr("Сеть недоступна");
+                } finally {
+                  setBusy(null);
+                }
+              }}
+            />
+          ) : null}
 
           {bdGiftOpen ? (
             <MarketBdGiftModal

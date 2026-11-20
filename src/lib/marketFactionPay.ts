@@ -200,9 +200,11 @@ export function bdPayErrorMessage(code: string): string {
   if (code === "forbidden_seat")
     return `$ тратит только глава / зам фракции (${BD_MARK})`;
   if (code === "insufficient") return `Недостаточно ${BD_MARK} в казне фракции`;
+  if (code === "insufficient_personal")
+    return `Недостаточно ${BD_MARK} на личном балансе`;
   if (code === "gift_not_member")
     return "Получатель должен быть в вашей фракции";
-  if (code === "gift_self") return "Нельзя подарить себе";
+  if (code === "gift_self") return "Нельзя перевести себе";
   if (code === "gift_officer") return "Нельзя переводить $ главе или заму";
   if (code === "gift_required") return "Выбери получателя";
   if (code === "amount") return "Укажи сумму больше 0";
@@ -344,6 +346,79 @@ export async function giftFactionBdToMember(opts: {
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
     if (msg === "insufficient") return { ok: false, error: "insufficient" };
+    return { ok: false, error: "debit" };
+  }
+}
+
+/**
+ * Перевод личного B$ другому игроку той же фракции.
+ * Казна не участвует. Главе и заму переводить нельзя.
+ */
+export async function transferPersonalBd(opts: {
+  actorUserId: string;
+  toUserId: string;
+  amount: number;
+}): Promise<
+  | {
+      ok: true;
+      personalBdBalance: number;
+      recipientPersonalBalance: number;
+      amount: number;
+      toUserId: string;
+    }
+  | { ok: false; error: string }
+> {
+  const amount = Math.trunc(Number(opts.amount) || 0);
+  if (amount < 1) return { ok: false, error: "amount" };
+  if (opts.toUserId === opts.actorUserId) return { ok: false, error: "gift_self" };
+
+  const actorMember = await prisma.factionMember.findUnique({
+    where: { userId: opts.actorUserId },
+    select: { factionId: true },
+  });
+  if (!actorMember) return { ok: false, error: "no_faction" };
+
+  const target = await prisma.factionMember.findUnique({
+    where: { userId: opts.toUserId },
+    select: { factionId: true, seat: true },
+  });
+  if (!target || target.factionId !== actorMember.factionId) {
+    return { ok: false, error: "gift_not_member" };
+  }
+  if (target.seat === "LEADER" || target.seat === "DEPUTY") {
+    return { ok: false, error: "gift_officer" };
+  }
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const sender = await tx.user.findUnique({
+        where: { id: opts.actorUserId },
+        select: { blueberryBalance: true },
+      });
+      if (!sender) throw new Error("user");
+      const cur = Math.max(0, sender.blueberryBalance || 0);
+      if (cur < amount) throw new Error("insufficient_personal");
+      const next = cur - amount;
+      await tx.user.update({
+        where: { id: opts.actorUserId },
+        data: { blueberryBalance: next },
+      });
+      const recipient = await tx.user.update({
+        where: { id: opts.toUserId },
+        data: { blueberryBalance: { increment: amount } },
+        select: { blueberryBalance: true },
+      });
+      return {
+        personalBdBalance: next,
+        recipientPersonalBalance: Math.max(0, recipient.blueberryBalance || 0),
+      };
+    });
+    return { ok: true, ...result, amount, toUserId: opts.toUserId };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (msg === "insufficient_personal") {
+      return { ok: false, error: "insufficient_personal" };
+    }
     return { ok: false, error: "debit" };
   }
 }

@@ -24822,17 +24822,39 @@ body:has(.faction-page) .site-footer {
 .market-balance strong {
   font-size: 1.6rem;
 }
+.market-exchange-btn,
+.market-transfer-bd-btn,
 .market-gift-bd-btn {
-  flex: 0 1 150px;
+  flex: 0 1 168px;
+  min-width: 148px;
   min-height: 72px;
-  border: 1px solid rgba(196, 146, 255, 0.55);
   border-radius: 14px;
-  background: linear-gradient(135deg, #6d28d9 0%, #4c1d95 100%);
-  color: #f5f3ff;
   font-size: 1.05rem;
   font-weight: 800;
   letter-spacing: 0.02em;
   cursor: pointer;
+  padding: 10px 14px;
+}
+.market-exchange-btn {
+  border: 1px solid rgba(253, 186, 116, 0.75);
+  background: linear-gradient(135deg, #ea580c 0%, #9a3412 100%);
+  color: #fff7ed;
+  box-shadow: 0 8px 24px rgba(234, 88, 12, 0.32);
+}
+.market-transfer-bd-btn {
+  border: 1px solid rgba(125, 211, 252, 0.75);
+  background: linear-gradient(135deg, #0284c7 0%, #075985 100%);
+  color: #f0f9ff;
+  box-shadow: 0 8px 24px rgba(2, 132, 199, 0.32);
+}
+.market-exchange-btn:hover,
+.market-transfer-bd-btn:hover {
+  filter: brightness(1.08);
+}
+.market-gift-bd-btn {
+  border: 1px solid rgba(196, 146, 255, 0.55);
+  background: linear-gradient(135deg, #6d28d9 0%, #4c1d95 100%);
+  color: #f5f3ff;
   box-shadow: 0 8px 24px rgba(109, 40, 217, 0.28);
 }
 .market-gift-bd-btn:hover {
