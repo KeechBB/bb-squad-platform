@@ -273,7 +273,15 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
           (Math.random() * 28 - 14);
         setSpinX(-Math.max(0, target));
         const track = trackRef.current;
-        if (track) spinSoundStop.current = watchCaseReel(track, SPIN_MS);
+        const won = data.result as LootEntry;
+        const fanfare = isImmortalLoot(won)
+          ? "immortal"
+          : won.kind === "currency" &&
+              won.itemId &&
+              !CASE_FILLER_CASH_IDS.has(won.itemId)
+            ? "jackpot"
+            : null;
+        if (track) spinSoundStop.current = watchCaseReel(track, SPIN_MS, fanfare);
       });
 
       await new Promise((r) => setTimeout(r, SPIN_MS));
