@@ -46,7 +46,7 @@ function FontLootSample({
   );
 }
 
-/** Мелочь валюты (100/200/500 BBC · 500/1000/2000 $) — зелёный фон. */
+/** Мелочь валюты (100/200/500 BBC · 500/1000/2000 $) — нейтральный стальной фон. */
 const CASE_JACKPOT_BBC_ID = "cash-bbc-200000";
 const CASE_JACKPOT_BD_ID = "cash-bd-1000000";
 
