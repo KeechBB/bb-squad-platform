@@ -4,12 +4,15 @@ import { Providers } from "@/components/Providers";
 import { AuthBar } from "@/components/AuthBar";
 import { SiteNav } from "@/components/SiteNav";
 import { SiteOnlineBadge } from "@/components/SiteOnlineBadge";
+import { SiteProfileBg } from "@/components/SiteProfileBg";
 import { getSession } from "@/lib/auth";
 import { sessionIsClanMember } from "@/lib/clanAccess";
 import { getCurrentBetaLabel } from "@/lib/siteReleases";
 import { YandexMetrika } from "@/components/YandexMetrika";
 import { SiteFooter } from "@/components/SiteFooter";
 import { TouchCompact } from "@/components/TouchCompact";
+import { prisma } from "@/lib/prisma";
+import { normalizeProfileBg } from "@/lib/profileBg";
 import "@fontsource/oxanium/400.css";
 import "@fontsource/oxanium/600.css";
 import "@fontsource/oxanium/700.css";
@@ -73,10 +76,20 @@ export default async function RootLayout({
     (await sessionIsClanMember(session));
   const betaLabel = getCurrentBetaLabel();
 
+  let siteProfileBgId: string | null = null;
+  if (session?.user?.steamId && session.user.profileComplete) {
+    const row = await prisma.user.findUnique({
+      where: { steamId: session.user.steamId },
+      select: { profileBg: true },
+    });
+    siteProfileBgId = normalizeProfileBg(row?.profileBg);
+  }
+
   return (
     <html lang="ru">
       <body>
         <Providers>
+          <SiteProfileBg initialBgId={siteProfileBgId} />
           <TouchCompact />
           <header className="site-top">
             <div className="site-top-inner">

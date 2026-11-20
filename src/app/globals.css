@@ -34,6 +34,27 @@ body {
   scrollbar-color: rgba(167, 139, 250, 0.62) rgba(16, 10, 28, 0.95);
 }
 
+/* Тест: фон профиля на всём сайте (кроме / и /battle-pass — класс снимает JS) */
+body.has-site-profile-bg {
+  background-color: #07060c !important;
+  background-image:
+    linear-gradient(180deg, rgba(7, 6, 12, 0.42) 0%, rgba(7, 6, 12, 0.55) 100%),
+    var(--site-profile-bg-image) !important;
+  background-size: cover !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  background-attachment: fixed !important;
+}
+body.has-site-profile-bg:has(.home-page),
+body.has-site-profile-bg:has(.bp-page) {
+  background-image: none !important;
+  background:
+    radial-gradient(900px 520px at 12% -8%, rgba(124, 58, 237, 0.38), transparent 60%),
+    radial-gradient(700px 480px at 92% 8%, rgba(217, 70, 239, 0.16), transparent 55%),
+    linear-gradient(180deg, #0b0914 0%, #07060c 100%) !important;
+  background-attachment: fixed !important;
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: rgba(167, 139, 250, 0.62) rgba(16, 10, 28, 0.95);

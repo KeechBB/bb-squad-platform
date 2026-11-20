@@ -19,6 +19,7 @@ import { ProfileBgPicker } from "@/components/ProfileBgPicker";
 import { ProfileMedalShelf } from "@/components/ProfileMedalShelf";
 import { ProfileV2ScaleStage } from "@/components/ProfileV2ScaleStage";
 import { ProfileMailBox } from "@/components/ProfileMailBox";
+import { broadcastSiteProfileBg } from "@/components/SiteProfileBg";
 import {
   prefetchProfileView,
   seedProfileView,
@@ -379,6 +380,7 @@ export function ProfilePageClient({
           onSaved={(bg) => {
             setSavedBg(bg);
             setPreviewBg(bg);
+            broadcastSiteProfileBg(bg);
             setShell((prev) => {
               if (!prev) return prev;
               const next = { ...prev, profileBg: bg };
