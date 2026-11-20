@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { primeCaseAudio, watchCaseReel } from "@/lib/caseSpinAudio";
 import {
   CASE_BOOST_KIND_PRICE,
   CASE_GREEN_IMMORTAL_ADD,
@@ -160,6 +161,7 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
   const [inspect, setInspect] = useState<LootEntry | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const logListRef = useRef<HTMLDivElement>(null);
+  const spinSoundStop = useRef<(() => void) | null>(null);
 
   const load = useCallback(async () => {
     setErr(null);
@@ -183,6 +185,8 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => () => spinSoundStop.current?.(), []);
 
   const priceLabel = (c: CaseCard) =>
     c.currency === "BD"
@@ -210,6 +214,9 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
 
   async function openCase(c: CaseCard, boostKind?: CaseBoostKind) {
     if (busy) return;
+    primeCaseAudio();
+    spinSoundStop.current?.();
+    spinSoundStop.current = null;
     setBusy(true);
     setErr(null);
     setMsg(null);
@@ -265,6 +272,8 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
           center +
           (Math.random() * 28 - 14);
         setSpinX(-Math.max(0, target));
+        const track = trackRef.current;
+        if (track) spinSoundStop.current = watchCaseReel(track, SPIN_MS);
       });
 
       await new Promise((r) => setTimeout(r, SPIN_MS));
