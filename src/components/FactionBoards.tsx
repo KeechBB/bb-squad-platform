@@ -809,15 +809,26 @@ type RaceRow = {
   amount: number;
   goal: number;
   pct: number;
+  status?: string;
+  graceEndsAt?: string | null;
+  met?: boolean | null;
 };
 
 function fmtBd(n: number): string {
   return Math.round(n || 0).toLocaleString("ru-RU");
 }
 
+function raceStatusRu(row: RaceRow): string {
+  if (row.status === "grace") return "штраф 24ч";
+  if (row.status === "exempt") return "спасены трансфером";
+  if (row.status === "forced") return "штраф исполнен";
+  if (row.status === "finalized" && row.met) return "план ✓";
+  if (row.amount >= row.goal) return "цель";
+  return "";
+}
+
 export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: number }) {
   const [label, setLabel] = useState("");
-  const [goal, setGoal] = useState(400_000);
   const [rows, setRows] = useState<RaceRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -836,7 +847,6 @@ export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: num
         const data = (await res.json().catch(() => ({}))) as {
           error?: string;
           label?: string;
-          goal?: number;
           rows?: RaceRow[];
         };
         if (!res.ok) {
@@ -844,7 +854,6 @@ export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: num
           return;
         }
         setLabel(data.label || "");
-        setGoal(typeof data.goal === "number" ? data.goal : 400_000);
         setRows(Array.isArray(data.rows) ? data.rows : []);
       } catch (err) {
         if ((err as { name?: string }).name === "AbortError") return;
@@ -869,7 +878,7 @@ export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: num
       <div className="faction-race-head">
         <p className="faction-race-dates">{label || "21.11 00:00 — 28.11 00:00 МСК"}</p>
         <p className="faction-race-goal muted">
-          Гринд казны фракции за окно · цель {fmtBd(goal)} B$
+          Гринд казны за окно · у каждой фракции своя цель (±5% после недели). Легион вне гонки.
         </p>
       </div>
       {error ? <p className="error">{error}</p> : null}
@@ -886,10 +895,13 @@ export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: num
         {rows.map((row) => {
           const done = row.amount >= row.goal;
           const fill = Math.max(0, Math.min(100, row.pct));
+          const badge = raceStatusRu(row);
           return (
             <div
               key={row.factionId}
-              className={`faction-race-row${done ? " is-done" : ""}`}
+              className={`faction-race-row${done ? " is-done" : ""}${
+                row.status === "grace" ? " is-grace" : ""
+              }`}
               role="row"
             >
               <div className="faction-race-cell faction-race-name" role="cell">
@@ -900,6 +912,7 @@ export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: num
                 >
                   {row.name}
                 </Link>
+                {badge ? <span className="faction-race-badge">{badge}</span> : null}
               </div>
               <div className="faction-race-cell faction-race-bar-cell" role="cell">
                 <div

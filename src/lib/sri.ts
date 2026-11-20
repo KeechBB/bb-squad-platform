@@ -22,12 +22,13 @@ export const SRI_SENDER_LABEL = "СРИ";
 /** Пехотные фракции для автобаланса. Легион — вне пула. */
 export const SRI_FACTION_NAMES = ["Орда", "Улей", "Сброд", "Стая", "Табор"] as const;
 
-export type SriReason = "recruit" | "reserve_exit" | "balance_batch";
+export type SriReason = "recruit" | "reserve_exit" | "balance_batch" | "race_force";
 
 const REASON_RU: Record<SriReason, string> = {
   recruit: "новичок после набора (recruit-bot: сайт + инфо + общий чат)",
   reserve_exit: "игрок после выхода с резерва",
   balance_batch: "разовая балансировка свободных агентов",
+  race_force: "автоштраф гонки фракций (план не выполнен)",
 };
 
 function mskDateTimeLabel(d = new Date()): string {
@@ -384,6 +385,8 @@ export type SriAssignResult = {
 export async function assignFreeAgent(opts: {
   userId: string;
   reason: SriReason;
+  /** Не класть в эти фракции (автоштраф гонки + СРИ-баны). */
+  excludeFactionIds?: string[];
 }): Promise<SriAssignResult> {
   const keech = await keechUser();
   if (!keech) return { ok: false, skipped: "keech_missing" };
@@ -458,7 +461,16 @@ export async function assignFreeAgent(opts: {
     return { ok: false, skipped: "slag", userId: user.id, nick, reason: opts.reason };
   }
 
-  const factions = await listSriFactions();
+  const banRows = await prisma.factionRaceSriBan.findMany({
+    where: { userId: user.id },
+    select: { factionId: true },
+  });
+  const exclude = new Set<string>([
+    ...(opts.excludeFactionIds || []),
+    ...banRows.map((b) => b.factionId),
+  ]);
+
+  const factions = (await listSriFactions()).filter((f) => !exclude.has(f.id));
   if (!factions.length) return { ok: false, skipped: "no_factions" };
   const target = pickLightest(factions.map((f) => ({ id: f.id, name: f.name, count: f.count })));
   if (!target) return { ok: false, skipped: "no_target" };

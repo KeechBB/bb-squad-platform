@@ -1,26 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { factionUiColor } from "@/lib/factionColors";
 import { parseFactionInfo } from "@/lib/factionInfoDoc";
-
-/** Гонка фракций: окно 21.11 00:00 → 28.11 00:00 МСК, цель 400 000 B$. */
-export const FACTION_RACE_GOAL = 400_000;
-
-/** 21.11.2026 00:00 МСК */
-export const FACTION_RACE_START = new Date("2026-11-20T21:00:00.000Z");
-/** 28.11.2026 00:00 МСК */
-export const FACTION_RACE_END = new Date("2026-11-27T21:00:00.000Z");
-
-export const FACTION_RACE_LABEL =
-  "21.11 00:00 — 28.11 00:00 МСК · цель 400 000 B$";
-
-/** Легион вне гонки (политика принуд. трансферов на него не распространяется). */
-function isRaceExcluded(name: string, slug: string): boolean {
-  const key = `${name} ${slug}`
-    .toLowerCase()
-    .replace(/ё/g, "е")
-    .replace(/[\s_-]+/g, "");
-  return key.includes("легион");
-}
+import {
+  RACE_BASE_GOAL,
+  RACE_EPOCH_START,
+  formatRaceWindowLabel,
+  raceWindowAt,
+  raceWindowByIndex,
+} from "@/lib/factionRaceCanon";
+import { listRacingFactions, tickFactionRace } from "@/lib/factionRaceEngine";
 
 export type FactionRaceRow = {
   factionId: string;
@@ -31,46 +19,82 @@ export type FactionRaceRow = {
   amount: number;
   goal: number;
   pct: number;
+  status: string;
+  graceEndsAt: string | null;
+  met: boolean | null;
 };
 
 export type FactionRaceBoard = {
   label: string;
   startIso: string;
   endIso: string;
-  goal: number;
+  epochIso: string;
   rows: FactionRaceRow[];
 };
 
 export async function factionRaceBoard(clanId: string): Promise<FactionRaceBoard> {
-  const factions = await prisma.faction.findMany({
-    where: { clanId },
-    select: { id: true, name: true, slug: true, info: true },
-    orderBy: { name: "asc" },
+  // Тихий тик — письма/финалы/grace (идемпотентно)
+  void tickFactionRace().catch((e) => console.error("faction race tick", e));
+
+  const now = new Date();
+  let bounds = raceWindowAt(now);
+  if (!bounds) {
+    // До старта эпохи — показываем первое окно
+    bounds = raceWindowByIndex(0);
+  }
+
+  const racing = (await listRacingFactions()).filter((f) => {
+    // listRacing уже без Легиона; на всякий случай сверим clan
+    return true;
   });
+  // Если вызвали с clanId — отфильтруем
+  const factions = racing.length
+    ? racing
+    : await prisma.faction.findMany({
+        where: { clanId },
+        select: { id: true, name: true, slug: true, clanId: true },
+      });
 
-  const racing = factions.filter((f) => !isRaceExcluded(f.name, f.slug));
-  const ids = racing.map((f) => f.id);
-
-  const grind =
+  const ids = factions.map((f) => f.id);
+  const [grind, states, results] = await Promise.all([
     ids.length === 0
-      ? []
-      : await prisma.factionLedgerEntry.groupBy({
+      ? Promise.resolve([])
+      : prisma.factionLedgerEntry.groupBy({
           by: ["factionId"],
           where: {
             factionId: { in: ids },
             kind: "grind",
             amount: { gt: 0 },
-            createdAt: { gte: FACTION_RACE_START, lt: FACTION_RACE_END },
+            createdAt: { gte: bounds.start, lt: bounds.end },
           },
           _sum: { amount: true },
-        });
+        }),
+    ids.length === 0
+      ? Promise.resolve([])
+      : prisma.factionRaceState.findMany({ where: { factionId: { in: ids } } }),
+    ids.length === 0
+      ? Promise.resolve([])
+      : prisma.factionRaceResult.findMany({
+          where: { windowId: bounds.id, factionId: { in: ids } },
+        }),
+  ]);
 
-  const byId = new Map(grind.map((g) => [g.factionId, Math.max(0, g._sum.amount || 0)]));
+  const amountBy = new Map(grind.map((g) => [g.factionId, Math.max(0, g._sum.amount || 0)]));
+  const goalBy = new Map(states.map((s) => [s.factionId, s.goal]));
+  const resultBy = new Map(results.map((r) => [r.factionId, r]));
 
-  const rows: FactionRaceRow[] = racing.map((f) => {
-    const amount = byId.get(f.id) || 0;
-    const info = parseFactionInfo(f.info);
-    const pct = Math.min(100, Math.round((amount / FACTION_RACE_GOAL) * 1000) / 10);
+  const infos = await prisma.faction.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, info: true },
+  });
+  const infoBy = new Map(infos.map((f) => [f.id, f.info]));
+
+  const rows: FactionRaceRow[] = factions.map((f) => {
+    const amount = amountBy.get(f.id) || 0;
+    const res = resultBy.get(f.id);
+    const goal = res?.goal || goalBy.get(f.id) || RACE_BASE_GOAL;
+    const pct = goal > 0 ? Math.min(100, Math.round((amount / goal) * 1000) / 10) : 0;
+    const info = parseFactionInfo(infoBy.get(f.id));
     return {
       factionId: f.id,
       name: f.name,
@@ -78,18 +102,21 @@ export async function factionRaceBoard(clanId: string): Promise<FactionRaceBoard
       color: factionUiColor(f.name, f.slug, info.color),
       font: info.font || "Oxanium",
       amount,
-      goal: FACTION_RACE_GOAL,
+      goal,
       pct,
+      status: res?.status || "open",
+      graceEndsAt: res?.graceEndsAt ? res.graceEndsAt.toISOString() : null,
+      met: res ? res.met : null,
     };
   });
 
   rows.sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name, "ru"));
 
   return {
-    label: FACTION_RACE_LABEL,
-    startIso: FACTION_RACE_START.toISOString(),
-    endIso: FACTION_RACE_END.toISOString(),
-    goal: FACTION_RACE_GOAL,
+    label: `${formatRaceWindowLabel(bounds.start, bounds.end)} · личные цели`,
+    startIso: bounds.start.toISOString(),
+    endIso: bounds.end.toISOString(),
+    epochIso: RACE_EPOCH_START.toISOString(),
     rows,
   };
 }

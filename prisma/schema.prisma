@@ -128,6 +128,7 @@ model User {
   factionMembership          FactionMember?
   factionInvitesReceived     FactionInvite[] @relation("FactionInvitee")
   factionInvitesSent         FactionInvite[] @relation("FactionInviter")
+  factionRaceSriBans         FactionRaceSriBan[]
   bbCoinTxs                  BbCoinTx[]
   bbCoinOrders               BbCoinOrder[]
   nickPatchStocks            NickPatchStock[]
@@ -619,8 +620,71 @@ model Faction {
   ledger   FactionLedgerEntry[]
   listings TransferListing[] @relation("ListingFaction")
   offers   TransferOffer[]   @relation("OfferFaction")
+  raceState FactionRaceState?
+  raceResults FactionRaceResult[]
+  raceSriBans FactionRaceSriBan[]
 
   @@index([clanId])
+}
+
+/// Личная цель гонки фракций (растёт/падает ±5% после каждого окна).
+model FactionRaceState {
+  factionId   String   @id
+  faction     Faction  @relation(fields: [factionId], references: [id], onDelete: Cascade)
+  /// Текущая цель на активное / следующее окно.
+  goal        Int      @default(400000)
+  updatedAt   DateTime @updatedAt
+}
+
+/// Недельное окно гонки (id = YMD старта МСК, напр. 2026-11-21).
+model FactionRaceWindow {
+  id        String   @id
+  startAt   DateTime
+  endAt     DateTime
+  createdAt DateTime @default(now())
+
+  results FactionRaceResult[]
+}
+
+/// Итог фракции за одно окно + grace / штраф.
+model FactionRaceResult {
+  id                   String    @id @default(cuid())
+  windowId             String
+  window               FactionRaceWindow @relation(fields: [windowId], references: [id], onDelete: Cascade)
+  factionId            String
+  faction              Faction   @relation(fields: [factionId], references: [id], onDelete: Cascade)
+  goal                 Int
+  amount               Int       @default(0)
+  met                  Boolean   @default(false)
+  /// open | finalized | grace | exempt | forced
+  status               String    @default("open")
+  graceEndsAt          DateTime?
+  /// userId, кто был в резерве на момент закрытия окна (честный резерв).
+  protectedReserveIds  String[]  @default([])
+  exemptAt             DateTime?
+  forcedUserId         String?
+  forcedAt             DateTime?
+  day1MailAt           DateTime?
+  midMailAt            DateTime?
+  finalMailAt          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([windowId, factionId])
+  @@index([factionId, status])
+  @@index([status, graceEndsAt])
+}
+
+/// Запрет возврата через СРИ после автоштрафа гонки (не в ту же фракцию).
+model FactionRaceSriBan {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  factionId String
+  faction   Faction  @relation(fields: [factionId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, factionId])
+  @@index([userId])
 }
 
 /// Движения казны фракции (гринд / сделки / правка Keech).

@@ -293,6 +293,14 @@ export async function createTransferListingWithFee(opts: {
   | { ok: true; listingId: string; fee: number; treasury: number }
   | { ok: false; error: "insufficient_fee"; fee: number; treasury: number }
 > {
+  {
+    const { isProtectedRaceReserve } = await import("@/lib/factionRaceEngine");
+    if (await isProtectedRaceReserve(opts.factionId, opts.playerUserId)) {
+      throw new Error(
+        "Игрок в честном резерве (до закрытия окна гонки) — выставлять на трансфер нельзя.",
+      );
+    }
+  }
   const fee = listingFeeFromAsk(opts.askPrice);
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -1208,6 +1216,27 @@ export async function acceptTransferOffer(opts: ExecOpts) {
     askPrice: ask,
     offerId: offer.id,
   }).catch((e) => console.error("transfer mail failed", e));
+
+  // Гонка фракций: исходящий уход во время grace → exempt
+  try {
+    const { tryExemptRaceGrace } = await import("@/lib/factionRaceEngine");
+    const playerNick = await nickOf(playerId);
+    await tryExemptRaceGrace({
+      factionId: listingFactionId,
+      playerUserId: playerId,
+      playerNick,
+    });
+    if (offer.swapUserId) {
+      const swapNick = await nickOf(offer.swapUserId);
+      await tryExemptRaceGrace({
+        factionId: buyerFactionId,
+        playerUserId: offer.swapUserId,
+        playerNick: swapNick,
+      });
+    }
+  } catch (e) {
+    console.error("race exempt hook failed", e);
+  }
 
   return { ok: true as const };
 }

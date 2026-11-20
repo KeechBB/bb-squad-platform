@@ -298,6 +298,12 @@ type Payload = {
   treasury: number;
   treasuryLabel: string;
   canManage: boolean;
+  raceGrace?: {
+    endsAt: string;
+    endsAtMs: number;
+    remainingMs: number;
+    windowId: string;
+  } | null;
   window: {
     isOpen: boolean;
     reason: string | null;
@@ -533,6 +539,7 @@ export function FactionTransfers({ slug, canManage }: Props) {
   const [myValue, setMyValue] = useState<MyValueReport | null>(null);
   const [myValueLoading, setMyValueLoading] = useState(false);
   const [myValueErr, setMyValueErr] = useState("");
+  const [graceNow, setGraceNow] = useState(() => Date.now());
 
   const load = useCallback(async () => {
     setErr(null);
@@ -551,6 +558,24 @@ export function FactionTransfers({ slug, canManage }: Props) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!data?.raceGrace?.endsAtMs) return;
+    const id = window.setInterval(() => setGraceNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [data?.raceGrace?.endsAtMs]);
+
+  const graceCountdown = useMemo(() => {
+    const ends = data?.raceGrace?.endsAtMs;
+    if (!ends) return null;
+    const left = Math.max(0, ends - graceNow);
+    const t = Math.floor(left / 1000);
+    const h = Math.floor(t / 3600);
+    const m = Math.floor((t % 3600) / 60);
+    const s = t % 60;
+    const pad = (n: number) => (n < 10 ? `0${n}` : String(n));
+    return `${pad(h)}:${pad(m)}:${pad(s)}`;
+  }, [data?.raceGrace?.endsAtMs, graceNow]);
 
   const selectedListable = useMemo(
     () => data?.listable.find((p) => p.userId === listUserId) || null,
@@ -873,6 +898,23 @@ export function FactionTransfers({ slug, canManage }: Props) {
               {" · "}
               состав {data.rosterSize}/{data.minRoster}
               {!data.eligible ? " — для сделок нужно ≥30" : ""}
+              {graceCountdown ? (
+                <>
+                  {" · "}
+                  <span
+                    className="xfer-race-grace"
+                    title="До автоштрафа гонки фракций: кик случайного участника, если не будет исходящего трансфера"
+                  >
+                    {graceCountdown}
+                  </span>
+                </>
+              ) : null}
+            </p>
+          ) : graceCountdown ? (
+            <p className="xfer-sub">
+              <span className="xfer-race-grace" title="До автоштрафа гонки фракций">
+                {graceCountdown}
+              </span>
             </p>
           ) : null}
         </div>

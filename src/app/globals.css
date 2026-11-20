@@ -24536,6 +24536,45 @@ body:has(.faction-page) .site-footer {
     0 0 14px color-mix(in srgb, var(--race-color) 35%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
+.faction-race-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  color: #fce7f3;
+  background: rgba(190, 24, 93, 0.35);
+  border: 1px solid rgba(244, 114, 182, 0.45);
+}
+.faction-race-row.is-grace .faction-race-badge {
+  color: #fecaca;
+  background: rgba(153, 27, 27, 0.45);
+  border-color: rgba(248, 113, 113, 0.65);
+  animation: xfer-race-grace-pulse 1.6s ease-in-out infinite;
+}
+
+.xfer-race-grace {
+  color: #f87171;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+  text-shadow: 0 0 10px rgba(248, 113, 113, 0.45);
+  animation: xfer-race-grace-pulse 1.6s ease-in-out infinite;
+}
+@keyframes xfer-race-grace-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.72; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .xfer-race-grace,
+  .faction-race-row.is-grace .faction-race-badge {
+    animation: none;
+  }
+}
 
 .faction-ratings-grid {
   flex: 1 1 auto;

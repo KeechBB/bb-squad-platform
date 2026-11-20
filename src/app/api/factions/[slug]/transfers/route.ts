@@ -50,6 +50,9 @@ export async function GET(_req: Request, ctx: Ctx) {
   // тихий догон гринда с недавних трён (идемпотентно)
   void creditGrindRecentTrains(12).catch(() => null);
 
+  const { getFactionRaceGrace } = await import("@/lib/factionRaceEngine");
+  const raceGrace = await getFactionRaceGrace(loaded.view.id);
+
   const scarcity = await buildFactionKitScarcity(loaded.view.id);
   const scarcityByKit = Object.fromEntries(
     scarcity.byKit.map((r) => [r.kitKey, r.level as "ok" | "thin" | "critical" | "surplus"]),
@@ -276,6 +279,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     treasury: loaded.view.blueberryBalance,
     treasuryLabel: formatBd(loaded.view.blueberryBalance),
     canManage: loaded.view.canManage || loaded.view.keech,
+    raceGrace,
     window,
     scarcity: scarcity.byKit,
     board: enrichedBoard,
