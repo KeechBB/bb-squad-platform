@@ -61,18 +61,23 @@ export async function POST(req: Request) {
       select: { nick: true, steamName: true, steamId: true },
     }),
   ]);
+  const actorLabel = personLabel(actor || user);
+  const targetLabel = personLabel(target || { steamId: res.toUserId });
   await writeActionLog({
     category: "faction",
-    action: "bd_gift",
-    message: `${personLabel(actor || user)} подарил ${res.amount.toLocaleString("ru-RU")} ${BD_MARK} → ${personLabel(target || { steamId: res.toUserId })}`,
+    action: res.toSelf ? "bd_withdraw" : "bd_gift",
+    message: res.toSelf
+      ? `${actorLabel} вывел ${res.amount.toLocaleString("ru-RU")} ${BD_MARK} из казны себе`
+      : `${actorLabel} подарил ${res.amount.toLocaleString("ru-RU")} ${BD_MARK} → ${targetLabel}`,
     actorId: user.id,
-    actorNick: personLabel(actor || user),
+    actorNick: actorLabel,
     targetId: res.toUserId,
-    targetNick: personLabel(target || { steamId: res.toUserId }),
+    targetNick: targetLabel,
     meta: {
       amount: res.amount,
       factionBalance: res.factionBalance,
       recipientPersonalBalance: res.recipientPersonalBalance,
+      toSelf: res.toSelf,
     },
   });
 

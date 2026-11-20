@@ -225,8 +225,9 @@ export function bdPayErrorMessage(code: string): string {
     return `Недостаточно ${BD_MARK} на личном балансе`;
   if (code === "gift_not_member")
     return "Получатель должен быть в вашей фракции";
-  if (code === "gift_self") return "Нельзя перевести себе";
-  if (code === "gift_officer") return "Нельзя переводить $ главе или заму";
+  if (code === "gift_self") return "Нельзя перевести себе с личного на личный";
+  if (code === "gift_officer")
+    return "Нельзя переводить $ другому главе или заму (себе из казны — можно)";
   if (code === "gift_required") return "Выбери получателя";
   if (code === "amount") return "Укажи сумму больше 0";
   return "Ошибка оплаты $";
@@ -285,7 +286,9 @@ export async function debitPersonalBd(opts: {
 }
 
 /**
- * Глава/зам дарит B$ участнику: списание с казны → на личный баланс.
+ * Глава/зам: казна → личный баланс.
+ * Можно себе (чтобы тратить на маркете) или рядовому игроку.
+ * Другому главе/заму — нельзя.
  */
 export async function giftFactionBdToMember(opts: {
   actorUserId: string;
@@ -299,17 +302,18 @@ export async function giftFactionBdToMember(opts: {
       recipientPersonalBalance: number;
       amount: number;
       toUserId: string;
+      toSelf: boolean;
     }
   | { ok: false; error: string }
 > {
   const amount = Math.trunc(Number(opts.amount) || 0);
   if (amount < 1) return { ok: false, error: "amount" };
-  if (opts.toUserId === opts.actorUserId) return { ok: false, error: "gift_self" };
 
   const ctx = await getFactionPayCtx(opts.actorUserId, opts.actorSteamId);
   if (!ctx) return { ok: false, error: "no_faction" };
   if (!ctx.canSpend) return { ok: false, error: "forbidden_seat" };
 
+  const toSelf = opts.toUserId === opts.actorUserId;
   const target = await prisma.factionMember.findUnique({
     where: { userId: opts.toUserId },
     select: { factionId: true, seat: true },
@@ -317,11 +321,17 @@ export async function giftFactionBdToMember(opts: {
   if (!target || target.factionId !== ctx.factionId) {
     return { ok: false, error: "gift_not_member" };
   }
-  if (target.seat === "LEADER" || target.seat === "DEPUTY") {
+  if (
+    !toSelf &&
+    (target.seat === "LEADER" || target.seat === "DEPUTY")
+  ) {
     return { ok: false, error: "gift_officer" };
   }
 
   const sourceKey = `member_gift:${ctx.factionId}:${opts.actorUserId}:${opts.toUserId}:${amount}:${Date.now()}`;
+  const note = toSelf
+    ? `Вывод ${amount.toLocaleString("ru-RU")} ${BD_MARK} из казны себе`
+    : `Подарок ${amount.toLocaleString("ru-RU")} ${BD_MARK} участнику`;
 
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -337,9 +347,9 @@ export async function giftFactionBdToMember(opts: {
         data: {
           factionId: ctx.factionId,
           amount: -amount,
-          kind: "member_gift",
+          kind: toSelf ? "officer_withdraw" : "member_gift",
           sourceKey,
-          note: `Подарок ${amount.toLocaleString("ru-RU")} ${BD_MARK} участнику`,
+          note,
           userId: opts.actorUserId,
         },
       });
@@ -363,6 +373,7 @@ export async function giftFactionBdToMember(opts: {
       recipientPersonalBalance: result.recipientPersonalBalance,
       amount,
       toUserId: opts.toUserId,
+      toSelf,
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";

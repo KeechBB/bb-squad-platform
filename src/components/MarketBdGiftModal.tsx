@@ -33,9 +33,11 @@ export function MarketBdGiftModal({
   onClose,
   onGift,
 }: Props) {
-  const recipients = members.filter(
+  const me = members.find((m) => m.userId === myUserId) || null;
+  const others = members.filter(
     (m) => m.userId !== myUserId && m.seat === "MEMBER"
   );
+  const recipients = me ? [me, ...others] : others;
   const [toUserId, setToUserId] = useState(recipients[0]?.userId || "");
   const [amountStr, setAmountStr] = useState("1000");
   const [localErr, setLocalErr] = useState<string | null>(null);
@@ -87,7 +89,8 @@ export function MarketBdGiftModal({
             </>
           ) : null}
           {" → "}
-          личный баланс игрока. Главе и заму переводить нельзя.
+          личный баланс. Себе — чтобы тратить на маркете; рядовому — подарок.
+          Другому главе/заму нельзя.
           <br />
           В казне:{" "}
           <strong>
@@ -100,7 +103,7 @@ export function MarketBdGiftModal({
         </p>
 
         {recipients.length === 0 ? (
-          <p className="market-bd-buy-text">В фракции пока некого дарить.</p>
+          <p className="market-bd-buy-text">Нет получателей.</p>
         ) : (
           <>
             <label className="market-bd-gift-label">
@@ -112,7 +115,9 @@ export function MarketBdGiftModal({
               >
                 {recipients.map((m) => (
                   <option key={m.userId} value={m.userId}>
-                    {m.nick} · {seatLabel(m.seat)}
+                    {m.userId === myUserId
+                      ? `${m.nick} · себе (личный баланс)`
+                      : `${m.nick} · ${seatLabel(m.seat)}`}
                   </option>
                 ))}
               </select>
