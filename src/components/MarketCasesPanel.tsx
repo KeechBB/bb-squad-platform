@@ -306,11 +306,12 @@ export function MarketCasesPanel({ onBalances, onRefreshCatalog }: Props) {
       const data = await res.json();
       if (!res.ok || !data.ok) {
         const map: Record<string, string> = {
-          insufficient:
-            "Не хватает средств (личный B$ или казна — смотря кто крутит)",
+          insufficient: "Не хватает BBC / $",
+          insufficient_personal:
+            "Не хватает на личном балансе $ (кейс не берёт казну)",
           no_faction: "Нужна фракция для кейса за $",
           forbidden_seat:
-            "Покупку за казну делает глава / зам; кейсы можно крутить с личного B$",
+            "Нет доступа к казне (для кейсов не нужна — плати личным $)",
           wip: "Кейсы пока в разработке",
           spin_in_progress:
             "Досмотри прокрут до конца — обновление страницы откатывает попытку",

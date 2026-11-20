@@ -637,10 +637,7 @@ export async function ensureCaseFunds(opts: {
   }
   const ctx = await getFactionPayCtx(opts.userId, opts.steamId);
   if (!ctx) return { ok: false, error: "no_faction" };
-  if (ctx.canSpend) {
-    if (ctx.balance < need) return { ok: false, error: "insufficient" };
-    return { ok: true };
-  }
+  // Кейсы за $ — только личный B$, казна не тратится.
   const personal = await getPersonalBdBalance(opts.userId);
   if (personal < need) return { ok: false, error: "insufficient" };
   return { ok: true };

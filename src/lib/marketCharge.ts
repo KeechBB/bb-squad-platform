@@ -1,5 +1,7 @@
 /**
- * Списание / зачисление на площадке: BBC (личный) или BD (казна фракции).
+ * Списание / зачисление на площадке: BBC (личный) или BD.
+ * B$ на маркете: покупка себе — только с личного баланса.
+ * Казна — лишь когда глава/зам явно дарит предмет другому игроку.
  */
 import { isBuiltinSuperAdmin } from "@/lib/admin";
 import { creditBbCoins, debitBbCoins, getBbCoinBalance } from "@/lib/bbCoins";
@@ -31,6 +33,11 @@ export async function chargeMarketBuy(opts: {
   price: ResolvedListingPrice;
   kind: string;
   noteItem: string;
+  /**
+   * Списать B$ с казны (только подарок другому).
+   * По умолчанию / себе — всегда личный B$.
+   */
+  spendTreasury?: boolean;
 }): Promise<
   | {
       ok: true;
@@ -88,8 +95,8 @@ export async function chargeMarketBuy(opts: {
   const ctx = await getFactionPayCtx(opts.userId, opts.steamId);
   if (!ctx) return { ok: false, error: "no_faction" };
 
-  // Глава/зам — с казны. Обычный игрок — кейсы с личного B$ (если хватает).
-  if (ctx.canSpend) {
+  if (opts.spendTreasury) {
+    if (!ctx.canSpend) return { ok: false, error: "forbidden_seat" };
     if (ctx.balance < price.buy) return { ok: false, error: "insufficient" };
     const debited = await debitFactionBd({
       factionId: ctx.factionId,
@@ -107,12 +114,8 @@ export async function chargeMarketBuy(opts: {
     };
   }
 
-  if (opts.kind !== "case_open") {
-    return { ok: false, error: "forbidden_seat" };
-  }
-
   const personal = await getPersonalBdBalance(opts.userId);
-  if (personal < price.buy) return { ok: false, error: "insufficient" };
+  if (personal < price.buy) return { ok: false, error: "insufficient_personal" };
   const debited = await debitPersonalBd({
     userId: opts.userId,
     amount: price.buy,
@@ -165,8 +168,7 @@ export async function creditMarketSell(opts: {
     return { ok: true, balance: credited.balance, currency: "BBC" };
   }
 
-  // Продажа за $: сумма всегда в казну фракции продавца (не на личный BBC).
-  // Купить мог только глава/зам, продать обратно в казну — любой член фракции.
+  // Продажа за $: сумма всегда в казну фракции продавца.
   const ctx = await getFactionPayCtx(opts.userId, opts.steamId);
   if (!ctx) {
     await opts.rollback();

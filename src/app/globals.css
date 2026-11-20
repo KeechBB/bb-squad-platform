@@ -26799,6 +26799,27 @@ body:has(.faction-page) .site-footer {
   line-height: 1.45;
   font-size: 0.95rem;
 }
+.market-bd-pay-modes {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.market-bd-pay-modes .market-bd-gift-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 0;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.9rem;
+  color: #d6d3d1;
+  cursor: pointer;
+}
+.market-bd-pay-modes .market-bd-gift-label input {
+  width: auto;
+  padding: 0;
+  accent-color: #a78bfa;
+}
 .market-bd-gift-label {
   display: grid;
   gap: 6px;

@@ -100,6 +100,7 @@ export async function buyMarketFont(opts: {
       mine: number;
       owned: true;
       currency: "BBC" | "BD";
+      paidFrom?: "treasury" | "personal" | "bbc" | "infinite";
       giftedToUserId?: string;
     }
   | { ok: false; error: string }
@@ -111,6 +112,7 @@ export async function buyMarketFont(opts: {
   if (!price) return { ok: false, error: "font" };
 
   let recipientId = opts.userId;
+  let spendTreasury = false;
   if (price.currency === "BD") {
     const gift = await resolveBdGiftRecipient({
       buyerUserId: opts.userId,
@@ -119,6 +121,7 @@ export async function buyMarketFont(opts: {
     });
     if (!gift.ok) return gift;
     recipientId = gift.recipientUserId;
+    spendTreasury = gift.spendTreasury;
   }
 
   const charged = await chargeMarketBuy({
@@ -129,6 +132,7 @@ export async function buyMarketFont(opts: {
     noteItem: `шрифта ${opts.styleId}${
       recipientId !== opts.userId ? ` → gift:${recipientId}` : ""
     }`,
+    spendTreasury,
   });
   if (!charged.ok) return charged;
 
@@ -140,6 +144,7 @@ export async function buyMarketFont(opts: {
     mine,
     owned: true,
     currency: charged.currency,
+    paidFrom: charged.paidFrom,
     giftedToUserId: recipientId !== opts.userId ? recipientId : undefined,
   };
 }

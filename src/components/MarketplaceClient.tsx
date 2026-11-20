@@ -110,6 +110,9 @@ export function MarketplaceClient({ loggedIn }: Props) {
   const [err, setErr] = useState<string | null>(null);
   const [bdBuyDraft, setBdBuyDraft] = useState<BdBuyDraft | null>(null);
   const [giftToUserId, setGiftToUserId] = useState("");
+  const [bdPayMode, setBdPayMode] = useState<"personal" | "treasury_gift">(
+    "personal"
+  );
 
   const load = useCallback(async () => {
     if (!loggedIn) return;
@@ -146,9 +149,9 @@ export function MarketplaceClient({ loggedIn }: Props) {
       const me = typeof data.myUserId === "string" ? data.myUserId : null;
       setMyUserId(me);
       setGiftToUserId((prev) => {
-        if (prev && members.some((m) => m.userId === prev)) return prev;
-        if (me && members.some((m) => m.userId === me)) return me;
-        return members[0]?.userId || "";
+        const others = members.filter((m) => m.userId !== me);
+        if (prev && others.some((m) => m.userId === prev)) return prev;
+        return others[0]?.userId || "";
       });
       setCanEditPrices(Boolean(data.canEditPrices));
       setPatches(data.patches || []);
@@ -177,9 +180,10 @@ export function MarketplaceClient({ loggedIn }: Props) {
 
   const dealErr: Record<string, string> = {
     insufficient: "Не хватает BBC / $ в казне",
+    insufficient_personal: "Не хватает на личном балансе $",
     not_owned: "Нечего продавать — нет копий в инвентаре",
-    no_faction: "Нужна фракция: покупка/продажа за $ идёт через казну",
-    forbidden_seat: "$ тратит только глава / зам",
+    no_faction: "Нужна фракция для покупок за $",
+    forbidden_seat: "Подарок из казны делает только глава / зам",
     gift_required: "Выбери, кому подарить предмет",
     gift_not_member: "Получатель должен быть из вашей фракции",
   };
@@ -187,11 +191,10 @@ export function MarketplaceClient({ loggedIn }: Props) {
   function openBdBuy(draft: BdBuyDraft) {
     setErr(null);
     setMsg(null);
-    if (canSpendBd && !giftToUserId) {
-      const me = myUserId && factionMembers.some((m) => m.userId === myUserId)
-        ? myUserId
-        : factionMembers[0]?.userId || "";
-      setGiftToUserId(me);
+    setBdPayMode("personal");
+    const others = factionMembers.filter((m) => m.userId !== myUserId);
+    if (!giftToUserId || !others.some((m) => m.userId === giftToUserId)) {
+      setGiftToUserId(others[0]?.userId || "");
     }
     setBdBuyDraft(draft);
   }
@@ -238,7 +241,10 @@ export function MarketplaceClient({ loggedIn }: Props) {
         return;
       }
       if (data.currency === "BD") {
-        if (typeof data.balance === "number") setFactionBalance(data.balance);
+        if (typeof data.balance === "number") {
+          if (data.paidFrom === "personal") setPersonalBdBalance(data.balance);
+          else setFactionBalance(data.balance);
+        }
       } else if (typeof data.balance === "number") {
         setBalance(data.balance);
       }
@@ -264,7 +270,8 @@ export function MarketplaceClient({ loggedIn }: Props) {
     await runBuy({
       catalog: bdBuyDraft.catalog,
       itemId: bdBuyDraft.itemId,
-      giftToUserId: canSpendBd ? giftToUserId : undefined,
+      giftToUserId:
+        canSpendBd && bdPayMode === "treasury_gift" ? giftToUserId : undefined,
     });
   }
 
@@ -437,20 +444,17 @@ export function MarketplaceClient({ loggedIn }: Props) {
                     : `${factionBalance.toLocaleString("ru-RU")} $`}
               </strong>
             </section>
-            {/* Глава/зам тратят из казны — личный B$ им не показываем. */}
-            {!canSpendBd ? (
-              <section
-                className="market-balance market-balance--personal-bd"
-                aria-live="polite"
-              >
-                <span className="muted">Мой баланс Черничного доллара</span>
-                <strong>
-                  {personalBdBalance == null
-                    ? "…"
-                    : `${personalBdBalance.toLocaleString("ru-RU")} $`}
-                </strong>
-              </section>
-            ) : null}
+            <section
+              className="market-balance market-balance--personal-bd"
+              aria-live="polite"
+            >
+              <span className="muted">Мой баланс Черничного доллара</span>
+              <strong>
+                {personalBdBalance == null
+                  ? "…"
+                  : `${personalBdBalance.toLocaleString("ru-RU")} $`}
+              </strong>
+            </section>
             <button
               type="button"
               className="market-exchange-btn"
@@ -542,8 +546,11 @@ export function MarketplaceClient({ loggedIn }: Props) {
               canSpendBd={canSpendBd}
               members={factionMembers}
               myUserId={myUserId}
+              payMode={bdPayMode}
               giftToUserId={giftToUserId}
+              personalBdBalance={personalBdBalance}
               busy={Boolean(busy)}
+              onPayModeChange={setBdPayMode}
               onGiftChange={setGiftToUserId}
               onClose={() => setBdBuyDraft(null)}
               onConfirm={() => void confirmBdBuy()}

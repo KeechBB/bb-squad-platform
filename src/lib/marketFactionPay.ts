@@ -73,20 +73,36 @@ export async function listFactionMarketMembers(
     );
 }
 
-/** Кому уйдёт предмет: для B$ — только член той же фракции. */
+/**
+ * Кому уйдёт предмет за B$.
+ * — без gift / gift=себе → себе, казна не нужна;
+ * — gift другому → только глава/зам, списание с казны.
+ */
 export async function resolveBdGiftRecipient(opts: {
   buyerUserId: string;
   buyerSteamId: string;
   giftToUserId: string | null | undefined;
 }): Promise<
-  | { ok: true; recipientUserId: string; factionId: string }
+  | {
+      ok: true;
+      recipientUserId: string;
+      factionId: string;
+      spendTreasury: boolean;
+    }
   | { ok: false; error: string }
 > {
   const ctx = await getFactionPayCtx(opts.buyerUserId, opts.buyerSteamId);
   if (!ctx) return { ok: false, error: "no_faction" };
-  if (!ctx.canSpend) return { ok: false, error: "forbidden_seat" };
   const giftTo = String(opts.giftToUserId || "").trim();
-  if (!giftTo) return { ok: false, error: "gift_required" };
+  if (!giftTo || giftTo === opts.buyerUserId) {
+    return {
+      ok: true,
+      recipientUserId: opts.buyerUserId,
+      factionId: ctx.factionId,
+      spendTreasury: false,
+    };
+  }
+  if (!ctx.canSpend) return { ok: false, error: "forbidden_seat" };
   const target = await prisma.factionMember.findUnique({
     where: { userId: giftTo },
     select: { factionId: true },
@@ -94,7 +110,12 @@ export async function resolveBdGiftRecipient(opts: {
   if (!target || target.factionId !== ctx.factionId) {
     return { ok: false, error: "gift_not_member" };
   }
-  return { ok: true, recipientUserId: giftTo, factionId: ctx.factionId };
+  return {
+    ok: true,
+    recipientUserId: giftTo,
+    factionId: ctx.factionId,
+    spendTreasury: true,
+  };
 }
 
 export async function debitFactionBd(opts: {
@@ -198,7 +219,7 @@ export function bdPayErrorMessage(code: string): string {
   if (code === "no_faction")
     return "Нужна фракция: покупка/продажа за $ идёт через казну";
   if (code === "forbidden_seat")
-    return `$ тратит только глава / зам фракции (${BD_MARK})`;
+    return `Подарок из казны делает только глава / зам фракции (${BD_MARK})`;
   if (code === "insufficient") return `Недостаточно ${BD_MARK} в казне фракции`;
   if (code === "insufficient_personal")
     return `Недостаточно ${BD_MARK} на личном балансе`;
