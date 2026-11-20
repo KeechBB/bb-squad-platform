@@ -514,9 +514,11 @@ export function MarketplaceClient({ loggedIn }: Props) {
               members={factionMembers}
               myUserId={myUserId}
               personalBdBalance={personalBdBalance}
+              canDepositTreasury={canSpendBd}
+              factionName={factionName}
               busy={busy === "transfer-bd"}
               onClose={() => setBdTransferOpen(false)}
-              onTransfer={async ({ toUserId, amount }) => {
+              onTransfer={async ({ toUserId, toTreasury, amount }) => {
                 setBusy("transfer-bd");
                 setErr(null);
                 setMsg(null);
@@ -524,7 +526,11 @@ export function MarketplaceClient({ loggedIn }: Props) {
                   const res = await fetch("/api/bb-coins/transfer-bd", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ toUserId, amount }),
+                    body: JSON.stringify(
+                      toTreasury
+                        ? { toTreasury: true, amount }
+                        : { toUserId, amount }
+                    ),
                   });
                   const data = await res.json();
                   if (!res.ok || !data.ok) {
@@ -534,12 +540,21 @@ export function MarketplaceClient({ loggedIn }: Props) {
                   if (typeof data.personalBdBalance === "number") {
                     setPersonalBdBalance(data.personalBdBalance);
                   }
-                  const nick =
-                    factionMembers.find((m) => m.userId === toUserId)?.nick ||
-                    "игроку";
-                  setMsg(
-                    `Переведено ${Number(data.amount || amount).toLocaleString("ru-RU")} $ → ${nick}`
-                  );
+                  if (typeof data.factionBalance === "number") {
+                    setFactionBalance(data.factionBalance);
+                  }
+                  if (data.toTreasury) {
+                    setMsg(
+                      `В казну внесено ${Number(data.amount || amount).toLocaleString("ru-RU")} $`
+                    );
+                  } else {
+                    const nick =
+                      factionMembers.find((m) => m.userId === toUserId)?.nick ||
+                      "игроку";
+                    setMsg(
+                      `Переведено ${Number(data.amount || amount).toLocaleString("ru-RU")} $ → ${nick}`
+                    );
+                  }
                   setBdTransferOpen(false);
                   await load();
                 } catch {

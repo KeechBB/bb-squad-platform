@@ -3,6 +3,8 @@
 import { useState } from "react";
 import type { FactionMarketMember } from "@/components/MarketBdBuyModal";
 
+export const BD_TRANSFER_TREASURY = "__treasury__";
+
 function seatLabel(seat: FactionMarketMember["seat"]): string {
   if (seat === "LEADER") return "глава";
   if (seat === "DEPUTY") return "зам";
@@ -13,23 +15,38 @@ type Props = {
   members: FactionMarketMember[];
   myUserId: string | null;
   personalBdBalance: number | null;
+  /** Глава/зам: можно вносить личные $ в казну. */
+  canDepositTreasury?: boolean;
+  factionName?: string | null;
   busy: boolean;
   onClose: () => void;
-  onTransfer: (opts: { toUserId: string; amount: number }) => Promise<void>;
+  onTransfer: (opts: {
+    toUserId?: string;
+    toTreasury?: boolean;
+    amount: number;
+  }) => Promise<void>;
 };
 
 export function MarketBdTransferModal({
   members,
   myUserId,
   personalBdBalance,
+  canDepositTreasury = false,
+  factionName = null,
   busy,
   onClose,
   onTransfer,
 }: Props) {
-  const recipients = members.filter((m) => m.userId !== myUserId);
-  const [toUserId, setToUserId] = useState(recipients[0]?.userId || "");
+  const people = members.filter((m) => m.userId !== myUserId);
+  const defaultTarget = canDepositTreasury
+    ? BD_TRANSFER_TREASURY
+    : people[0]?.userId || "";
+  const [toUserId, setToUserId] = useState(defaultTarget);
   const [amountStr, setAmountStr] = useState("1000");
   const [localErr, setLocalErr] = useState<string | null>(null);
+
+  const hasTargets = canDepositTreasury || people.length > 0;
+  const toTreasury = toUserId === BD_TRANSFER_TREASURY;
 
   async function submit() {
     setLocalErr(null);
@@ -44,6 +61,10 @@ export function MarketBdTransferModal({
     }
     if (typeof personalBdBalance === "number" && amount > personalBdBalance) {
       setLocalErr("Не хватает на личном балансе");
+      return;
+    }
+    if (toTreasury) {
+      await onTransfer({ toTreasury: true, amount });
       return;
     }
     await onTransfer({ toUserId, amount });
@@ -62,8 +83,8 @@ export function MarketBdTransferModal({
           Перевод Черничных долларов
         </p>
         <p className="market-bd-buy-text">
-          С личного баланса на личный баланс любого игрока твоей фракции (глава
-          и зам тоже).
+          С личного баланса — игроку фракции
+          {canDepositTreasury ? " или в казну (глава / зам)" : ""}.
           <br />
           У тебя:{" "}
           <strong>
@@ -73,7 +94,7 @@ export function MarketBdTransferModal({
           </strong>
         </p>
 
-        {recipients.length === 0 ? (
+        {!hasTargets ? (
           <p className="market-bd-buy-text">В фракции пока некому переводить.</p>
         ) : (
           <>
@@ -84,7 +105,13 @@ export function MarketBdTransferModal({
                 onChange={(e) => setToUserId(e.target.value)}
                 disabled={busy}
               >
-                {recipients.map((m) => (
+                {canDepositTreasury ? (
+                  <option value={BD_TRANSFER_TREASURY}>
+                    Казна фракции
+                    {factionName ? ` · ${factionName}` : ""}
+                  </option>
+                ) : null}
+                {people.map((m) => (
                   <option key={m.userId} value={m.userId}>
                     {m.nick} · {seatLabel(m.seat)}
                   </option>
@@ -111,10 +138,10 @@ export function MarketBdTransferModal({
           <button
             type="button"
             className="btn"
-            disabled={busy || recipients.length === 0}
+            disabled={busy || !hasTargets}
             onClick={() => void submit()}
           >
-            {busy ? "…" : "Перевести"}
+            {busy ? "…" : toTreasury ? "В казну" : "Перевести"}
           </button>
           <button type="button" className="btn" disabled={busy} onClick={onClose}>
             Отмена

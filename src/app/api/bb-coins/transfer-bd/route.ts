@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireMarketUser } from "@/lib/bbCoinMarketAuth";
-import { bdPayErrorMessage, transferPersonalBd } from "@/lib/marketFactionPay";
+import {
+  bdPayErrorMessage,
+  depositPersonalBdToTreasury,
+  transferPersonalBd,
+} from "@/lib/marketFactionPay";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
 import { prisma } from "@/lib/prisma";
 import { BD_MARK } from "@/lib/blueberryDollar";
@@ -8,7 +12,7 @@ import { BD_MARK } from "@/lib/blueberryDollar";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-/** Личный B$ отправителя → личный B$ игрока той же фракции. */
+/** Личный B$ → игрок фракции или (глава/зам) → казна. */
 export async function POST(req: Request) {
   const gate = await requireMarketUser();
   if ("error" in gate) return gate.error;
@@ -16,11 +20,57 @@ export async function POST(req: Request) {
 
   const body = (await req.json().catch(() => ({}))) as {
     toUserId?: string;
+    toTreasury?: boolean;
     amount?: number;
   };
-  const toUserId = String(body.toUserId || "").trim();
   const amount = Math.trunc(Number(body.amount) || 0);
+  const toTreasury = Boolean(body.toTreasury);
 
+  if (toTreasury) {
+    const res = await depositPersonalBdToTreasury({
+      actorUserId: user.id,
+      actorSteamId: user.steamId,
+      amount,
+    });
+    if (!res.ok) {
+      const status =
+        res.error === "insufficient_personal"
+          ? 402
+          : res.error === "forbidden_seat"
+            ? 403
+            : 400;
+      return NextResponse.json(
+        { ok: false, error: res.error, message: bdPayErrorMessage(res.error) },
+        { status }
+      );
+    }
+    const actor = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { nick: true, steamName: true, steamId: true },
+    });
+    const actorLabel = personLabel(actor || user);
+    await writeActionLog({
+      category: "faction",
+      action: "bd_deposit",
+      message: `${actorLabel} внёс ${res.amount.toLocaleString("ru-RU")} ${BD_MARK} в казну с личного`,
+      actorId: user.id,
+      actorNick: actorLabel,
+      meta: {
+        amount: res.amount,
+        personalBdBalance: res.personalBdBalance,
+        factionBalance: res.factionBalance,
+      },
+    });
+    return NextResponse.json({
+      ok: true,
+      toTreasury: true,
+      amount: res.amount,
+      personalBdBalance: res.personalBdBalance,
+      factionBalance: res.factionBalance,
+    });
+  }
+
+  const toUserId = String(body.toUserId || "").trim();
   const res = await transferPersonalBd({
     actorUserId: user.id,
     toUserId,

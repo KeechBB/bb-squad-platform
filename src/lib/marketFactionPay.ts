@@ -219,7 +219,7 @@ export function bdPayErrorMessage(code: string): string {
   if (code === "no_faction")
     return "Нужна фракция: покупка/продажа за $ идёт через казну";
   if (code === "forbidden_seat")
-    return `Подарок из казны делает только глава / зам фракции (${BD_MARK})`;
+    return `Казну (вывод / взнос) ведёт только глава / зам фракции (${BD_MARK})`;
   if (code === "insufficient") return `Недостаточно ${BD_MARK} в казне фракции`;
   if (code === "insufficient_personal")
     return `Недостаточно ${BD_MARK} на личном балансе`;
@@ -378,6 +378,75 @@ export async function giftFactionBdToMember(opts: {
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
     if (msg === "insufficient") return { ok: false, error: "insufficient" };
+    return { ok: false, error: "debit" };
+  }
+}
+
+/**
+ * Глава/зам: личный B$ → казна своей фракции.
+ */
+export async function depositPersonalBdToTreasury(opts: {
+  actorUserId: string;
+  actorSteamId: string;
+  amount: number;
+}): Promise<
+  | {
+      ok: true;
+      personalBdBalance: number;
+      factionBalance: number;
+      amount: number;
+    }
+  | { ok: false; error: string }
+> {
+  const amount = Math.trunc(Number(opts.amount) || 0);
+  if (amount < 1) return { ok: false, error: "amount" };
+
+  const ctx = await getFactionPayCtx(opts.actorUserId, opts.actorSteamId);
+  if (!ctx) return { ok: false, error: "no_faction" };
+  if (!ctx.canSpend) return { ok: false, error: "forbidden_seat" };
+
+  const sourceKey = `officer_deposit:${ctx.factionId}:${opts.actorUserId}:${amount}:${Date.now()}`;
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const sender = await tx.user.findUnique({
+        where: { id: opts.actorUserId },
+        select: { blueberryBalance: true },
+      });
+      if (!sender) throw new Error("user");
+      const personal = Math.max(0, sender.blueberryBalance || 0);
+      if (personal < amount) throw new Error("insufficient_personal");
+      const nextPersonal = personal - amount;
+      await tx.user.update({
+        where: { id: opts.actorUserId },
+        data: { blueberryBalance: nextPersonal },
+      });
+      const f = await tx.faction.update({
+        where: { id: ctx.factionId },
+        data: { blueberryBalance: { increment: amount } },
+        select: { blueberryBalance: true },
+      });
+      await tx.factionLedgerEntry.create({
+        data: {
+          factionId: ctx.factionId,
+          amount,
+          kind: "officer_deposit",
+          sourceKey,
+          note: `Взнос ${amount.toLocaleString("ru-RU")} ${BD_MARK} в казну с личного`,
+          userId: opts.actorUserId,
+        },
+      });
+      return {
+        personalBdBalance: nextPersonal,
+        factionBalance: Math.max(0, f.blueberryBalance || 0),
+      };
+    });
+    return { ok: true, ...result, amount };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (msg === "insufficient_personal") {
+      return { ok: false, error: "insufficient_personal" };
+    }
     return { ok: false, error: "debit" };
   }
 }
