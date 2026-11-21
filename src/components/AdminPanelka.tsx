@@ -915,9 +915,11 @@ function TeamColumn({
               <span>{squad.id}</span>
               <b>{squad.name}</b>
               {squad.createdClock || squad.creatorName ? (
-                <em className="panelka-squad-meta">
-                  {squad.createdClock ? `${squad.createdClock} ` : ""}
-                  {squad.creatorName ? `(${squad.creatorName})` : ""}
+                <em className="panelka-squad-meta" title="время создания и создатель">
+                  {squad.createdClock ? <span className="panelka-squad-time">{squad.createdClock}</span> : null}
+                  {squad.creatorName ? (
+                    <span className="panelka-squad-creator">({squad.creatorName})</span>
+                  ) : null}
                 </em>
               ) : null}
               <span>

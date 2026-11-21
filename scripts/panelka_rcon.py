@@ -231,7 +231,7 @@ def read_squad_creates(key):
     try:
         with open(log_path, "rb") as handle:
             handle.seek(0, 2)
-            handle.seek(max(0, handle.tell() - 4_000_000))
+            handle.seek(max(0, handle.tell() - 12_000_000))
             blob = handle.read().decode("utf-8", "replace")
     except Exception:
         return rows
@@ -254,7 +254,7 @@ def read_squad_creates(key):
             "clock": clock,
             "date": date,
         })
-    return rows[-200:]
+    return rows[-400:]
 
 def read_player_card(key, steam_id, name):
     import json, os, re
@@ -872,13 +872,17 @@ try:
         players_text = rcon(key, "ListPlayers")
         squads_text = rcon(key, "ListSquads")
         steams = re.findall(r"steam:\s*(7656\d{13})", players_text, re.I)
+        try:
+            creates = read_squad_creates(key)
+        except Exception:
+            creates = []
         print(json.dumps({
             "ok": True,
             "players": players_text,
             "squads": squads_text,
             "staff": read_staff_map(),
             "health": live_health_map(key, steams),
-            "squadCreates": read_squad_creates(key),
+            "squadCreates": creates,
         }, ensure_ascii=False))
     elif op == "layers":
         print(json.dumps({"ok": True, "text": rcon("TR1", "ListLayers")}, ensure_ascii=False))
@@ -1263,7 +1267,43 @@ def _norm_token(text: str) -> str:
     return re.sub(r"[^a-z0-9а-яё]+", "", (text or "").lower())
 
 
+def _faction_matches_team(faction: str, team_name: str) -> bool:
+    """Log faction is full English; ListSquads may be full or short."""
+    fac = _norm_token(faction)
+    team = _norm_token(team_name)
+    if not fac or not team:
+        return False
+    if team == fac or team in fac or fac in team:
+        return True
+    aliases = {
+        "westernprivatemilitarycontractors": ("wpmc", "чвк", "чвкстарое"),
+        "armedforcesofukraine": ("afu", "ukraine", "украина", "всy", "всу"),
+        "unitedstatesmarinecorps": ("usmc", "морскаяпехота"),
+        "unitedstatesarmy": ("usa", "америка", "usarmy"),
+        "russianairborneforces": ("vdv", "вдв"),
+        "russiangroundforces": ("rgf", "россия", "rfa"),
+        "britisharmedforces": ("baf", "england", "англия"),
+        "canadianarmedforces": ("caf", "канада"),
+        "australiandefenceforce": ("adf", "австралия"),
+        "peoplesliberationarmy": ("pla", "китай"),
+        "middleeasternalliance": ("mei", "талибы", "mea"),
+        "irregularmilitiaforces": ("imf", "сербы"),
+        "turkishlandforces": ("tlf", "турция"),
+        "groundforcesofiran": ("gfi", "иран"),
+        "canadianrebelforces": ("crf", "новаяканада"),
+    }
+    for full, shorts in aliases.items():
+        if fac == full or full in fac or fac in full:
+            if team in shorts or any(s in team for s in shorts):
+                return True
+        if team == full or any(team == s or s in team for s in shorts):
+            if fac == full or full in fac or fac in full or any(s in fac for s in shorts):
+                return True
+    return False
+
+
 def _attach_squad_creates(teams: dict[str, dict], creates: list) -> None:
+    """Attach create clock/nick. Name in log stays 'Squad N' after rename — match by team+id."""
     if not creates:
         for team in teams.values():
             for squad in team["squads"]:
@@ -1272,31 +1312,52 @@ def _attach_squad_creates(teams: dict[str, dict], creates: list) -> None:
                     squad["creatorName"] = lead["name"]
                     squad["createdClock"] = ""
         return
-    for team in teams.values():
-        team_tok = _norm_token(team.get("name") or "")
-        for squad in team["squads"]:
-            squad_tok = _norm_token(squad.get("name") or "")
+
+    # Latest create per (teamId, squadId), preferring stronger signals.
+    best_map: dict[tuple[str, str], tuple[int, dict]] = {}
+    for row in creates:
+        sid = str(row.get("id") or "")
+        if not sid:
+            continue
+        for team in teams.values():
+            team_id = str(team.get("id") or "")
+            squad = next((s for s in team["squads"] if str(s.get("id")) == sid), None)
+            if not squad:
+                continue
             steams = {p.get("steamId") for p in squad["players"] if p.get("steamId")}
-            best = None
-            for row in creates:
-                if str(row.get("id") or "") != str(squad.get("id") or ""):
-                    continue
-                fac_tok = _norm_token(str(row.get("faction") or ""))
-                name_tok = _norm_token(str(row.get("name") or ""))
-                faction_ok = (
-                    not team_tok
-                    or not fac_tok
-                    or team_tok in fac_tok
-                    or fac_tok in team_tok
-                )
-                name_ok = not name_tok or not squad_tok or name_tok == squad_tok
-                steam_ok = str(row.get("steamId") or "") in steams
-                if (faction_ok and name_ok) or steam_ok:
-                    best = row
-            if best:
-                squad["creatorName"] = str(best.get("nick") or "")[:48]
-                squad["createdClock"] = str(best.get("clock") or "")[:8]
-                squad["creatorSteamId"] = str(best.get("steamId") or "")[:32]
+            nicks = {(p.get("name") or "").strip().lower() for p in squad["players"]}
+            steam_ok = str(row.get("steamId") or "") in steams
+            nick_ok = (str(row.get("nick") or "").strip().lower() in nicks) if row.get("nick") else False
+            faction_ok = _faction_matches_team(str(row.get("faction") or ""), str(team.get("name") or ""))
+            if not (faction_ok or steam_ok or nick_ok):
+                continue
+            score = 1
+            if faction_ok:
+                score += 2
+            if steam_ok:
+                score += 3
+            if nick_ok:
+                score += 2
+            name_tok = _norm_token(str(row.get("name") or ""))
+            squad_tok = _norm_token(str(squad.get("name") or ""))
+            if name_tok and squad_tok and name_tok == squad_tok:
+                score += 1
+            key = (team_id, sid)
+            prev = best_map.get(key)
+            # Later log rows win on equal/higher score (creates are chronological).
+            if not prev or score >= prev[0]:
+                best_map[key] = (score, row)
+
+    for team in teams.values():
+        for squad in team["squads"]:
+            hit = best_map.get((str(team.get("id") or ""), str(squad.get("id") or "")))
+            if hit:
+                row = hit[1]
+                clock = str(row.get("clock") or "")
+                # Prefer HH:MM for the roster header.
+                squad["createdClock"] = clock[:5] if len(clock) >= 5 else clock
+                squad["creatorName"] = str(row.get("nick") or "")[:48]
+                squad["creatorSteamId"] = str(row.get("steamId") or "")[:32]
             else:
                 lead = next((p for p in squad["players"] if p.get("leader")), None)
                 if lead:

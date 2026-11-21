@@ -480,12 +480,25 @@ body:has(.panelka-page) .shell {
 .panelka-squad-meta {
   flex: 1 1 auto;
   min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
   font-style: normal;
   font-size: 0.86em;
   color: rgba(226, 197, 106, 0.88);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.panelka-squad-time {
+  color: #f0d78a;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.panelka-squad-creator {
+  color: rgba(226, 197, 106, 0.9);
 }
 
 .panelka-squad-actions {
