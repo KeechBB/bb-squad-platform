@@ -994,7 +994,7 @@ try:
         print(json.dumps({"ok": True, "text": rcon(job["key"], "ListPlayers")}, ensure_ascii=False))
     elif op == "roster":
         key = job["key"]
-        ensure_chat_listener()
+        # Chat owned by bb_panelka_agent — do not spawn legacy bb_panelka_chat.py
         players_text = rcon(key, "ListPlayers")
         squads_text = rcon(key, "ListSquads")
         steams = re.findall(r"steam:\s*(7656\d{13})", players_text, re.I)
