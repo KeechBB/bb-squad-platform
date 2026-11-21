@@ -801,19 +801,23 @@ def list_vips():
         if "//" in tail:
             comment = tail.split("//", 1)[1].strip()
         meta = VIP_META_RE.search(comment) if comment else None
+        note = ""
+        if "|" in comment:
+            note = comment.split("|", 1)[1].strip()[:160]
         rows.append({
             "steamId": steam,
             "group": VIP_GROUP,
             "until": meta.group("until") if meta else "",
             "byNick": meta.group("by") if meta else "",
             "grantedAt": meta.group("granted") if meta else "",
+            "note": note,
             "comment": comment[:160],
             "line": raw[:220],
         })
     rows.sort(key=lambda r: r.get("grantedAt") or r["steamId"], reverse=True)
     return {"ok": True, "vips": rows, "count": len(rows)}
 
-def vip_add(steam_id, by_nick="", until="", granted=""):
+def vip_add(steam_id, by_nick="", until="", granted="", note=""):
     if not re.fullmatch(r"7656\d{13}", steam_id or ""):
         return {"ok": False, "error": "bad steam"}
     try:
@@ -829,7 +833,10 @@ def vip_add(steam_id, by_nick="", until="", granted=""):
     by = re.sub(r"\s+", "_", (by_nick or "staff").strip())[:32] or "staff"
     until_s = (until or "forever").strip()[:32]
     granted_s = (granted or time.strftime("%Y-%m-%dT%H:%M:%S")).strip()[:32]
+    note_s = re.sub(r"\s+", " ", (note or "").strip())[:120]
     meta = " // bb-vip until=%s by=%s granted=%s" % (until_s, by, granted_s)
+    if note_s:
+        meta = "%s | %s" % (meta, note_s)
     new_line = "Admin=%s:%s%s" % (steam_id, VIP_GROUP, meta)
     if already:
         out = []
@@ -1280,6 +1287,7 @@ try:
             str(job.get("byNick") or ""),
             str(job.get("until") or ""),
             str(job.get("granted") or ""),
+            str(job.get("note") or ""),
         ), ensure_ascii=False))
     elif op == "vip-remove":
         print(json.dumps(vip_remove(str(job.get("steamId") or "")), ensure_ascii=False))
@@ -2461,7 +2469,13 @@ def vips_list() -> dict:
     return ssh_job({"op": "vips-list"}, timeout=25)
 
 
-def vip_add(steam_id: str, by_nick: str = "", until: str = "", granted: str = "") -> dict:
+def vip_add(
+    steam_id: str,
+    by_nick: str = "",
+    until: str = "",
+    granted: str = "",
+    note: str = "",
+) -> dict:
     return ssh_job(
         {
             "op": "vip-add",
@@ -2469,6 +2483,7 @@ def vip_add(steam_id: str, by_nick: str = "", until: str = "", granted: str = ""
             "byNick": by_nick,
             "until": until,
             "granted": granted,
+            "note": note,
         },
         timeout=25,
     )
@@ -2584,6 +2599,7 @@ def main() -> int:
                 str(extra.get("byNick") or ""),
                 str(extra.get("until") or ""),
                 str(extra.get("granted") or ""),
+                str(extra.get("note") or ""),
             )
         elif op == "vip-remove":
             steam_id = sys.argv[2] if len(sys.argv) > 2 else ""

@@ -152,6 +152,7 @@ export async function listPublicVips(): Promise<VipRow[]> {
       until?: string;
       byNick?: string;
       grantedAt?: string;
+      note?: string;
       comment?: string;
     }[];
     error?: string;
@@ -190,7 +191,7 @@ export async function listPublicVips(): Promise<VipRow[]> {
       termLabel: vipTermLabel({ forever, endsAt, untilRaw }),
       byNick: db?.byNick || v.byNick || "—",
       grantedAt: db?.createdAt?.toISOString() || v.grantedAt || null,
-      note: db?.note || null,
+      note: db?.note || (v.note || "").trim() || null,
       source: db ? "db" : "cfg",
       active: true,
     });
@@ -240,6 +241,7 @@ export async function grantPublicVip(opts: {
     byNick: opts.byNick,
     until,
     granted,
+    note: clean(opts.note || "", 120),
   })) as { ok?: boolean; error?: string };
   if (!cfg?.ok) return { ok: false, error: cfg?.error || "не удалось записать Admins.cfg" };
 

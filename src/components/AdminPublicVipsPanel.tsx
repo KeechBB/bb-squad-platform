@@ -32,7 +32,7 @@ type VipRow = {
   source: string;
 };
 
-type SortKey = "nick" | "steamId" | "startsAt" | "endsAt" | "byNick" | "grantedAt";
+type SortKey = "nick" | "steamId" | "startsAt" | "endsAt" | "byNick" | "grantedAt" | "note";
 
 function fmt(iso: string | null): string {
   if (!iso) return "—";
@@ -291,7 +291,7 @@ export function AdminPublicVipsPanel() {
           confirmLabel="Выдать"
           steamId={prefill.steamId}
           nick={prefill.nick}
-          reasonLabel="Заметка"
+          reasonLabel="Комментарий"
           placement="top"
           busy={busy}
           onClose={() => setGrantOpen(false)}
@@ -390,20 +390,25 @@ export function AdminPublicVipsPanel() {
                   Когда{sortMark("grantedAt")}
                 </button>
               </th>
+              <th>
+                <button type="button" className="admin-th-sort" onClick={() => toggleSort("note")}>
+                  Комментарий{sortMark("note")}
+                </button>
+              </th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="muted">
+                <td colSpan={8} className="muted">
                   Загрузка…
                 </td>
               </tr>
             ) : null}
             {!loading && pageRows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="muted">
+                <td colSpan={8} className="muted">
                   Действующих VIP нет{q.trim() ? ` по запросу «${q.trim()}»` : ""}.
                 </td>
               </tr>
@@ -425,6 +430,9 @@ export function AdminPublicVipsPanel() {
                 <td>{termCell(row)}</td>
                 <td>{row.byNick || "—"}</td>
                 <td>{fmt(row.grantedAt)}</td>
+                <td className={row.note ? undefined : "muted"} title={row.note || undefined}>
+                  {row.note || "—"}
+                </td>
                 <td>
                   <button
                     type="button"
