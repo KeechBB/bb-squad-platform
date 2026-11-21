@@ -400,12 +400,64 @@ body:has(.panelka-page) .shell {
   min-width: 0;
 }
 
+.panelka-live-roster {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(212, 168, 75, 0.22);
+}
+
+.panelka-live-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.panelka-live-head h3 {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.panelka-live-head button,
+.panelka-mod-actions button,
+.panelka-mod-form-actions button,
+.panelka-mod-durs button,
+.panelka-pager button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.panelka-live-head button {
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(212, 168, 75, 0.45);
+  background: rgba(20, 16, 28, 0.95);
+  color: #efe6d6;
+}
+
 .panelka-slot {
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) auto auto;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
   gap: 6px;
   align-items: center;
+  width: 100%;
   padding: 4px 8px 6px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.panelka-slot.is-click {
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.panelka-slot.is-click:hover {
+  background: rgba(226, 197, 106, 0.08);
 }
 
 .panelka-slot.is-lead b {
@@ -424,6 +476,11 @@ body:has(.panelka-page) .shell {
   font-weight: 600;
 }
 
+.panelka-slot-hint {
+  color: rgba(226, 197, 106, 0.72);
+  font-size: 0.74rem;
+}
+
 .panelka-slot button {
   padding: 3px 7px;
   border-radius: 6px;
@@ -435,8 +492,164 @@ body:has(.panelka-page) .shell {
   cursor: pointer;
 }
 
+.panelka-mod-card {
+  width: min(980px, 100%);
+}
+
+.panelka-mod-meta {
+  margin: 4px 0 0;
+  color: rgba(239, 230, 214, 0.62);
+  font-size: 0.86rem;
+}
+
+.panelka-mod-profile {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.panelka-mod-profile p {
+  margin: 0 0 6px;
+}
+
+.panelka-mod-link {
+  color: #e2c56a;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.panelka-mod-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.panelka-mod-actions button,
+.panelka-mod-form-actions button,
+.panelka-mod-durs button {
+  padding: 9px 11px;
+  border-radius: 8px;
+  border: 1px solid rgba(212, 168, 75, 0.45);
+  background: rgba(20, 16, 28, 0.95);
+  color: #efe6d6;
+}
+
+.panelka-mod-form {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #e2c56a;
+  background: rgba(226, 197, 106, 0.08);
+}
+
+.panelka-mod-form p {
+  margin: 0 0 8px;
+}
+
+.panelka-mod-form input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(212, 168, 75, 0.45);
+  background: rgba(0, 0, 0, 0.35);
+  color: #efe6d6;
+  font: inherit;
+}
+
+.panelka-mod-durs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.panelka-mod-durs button.is-on {
+  border-color: #e2c56a;
+  color: #e2c56a;
+}
+
+.panelka-mod-form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.panelka-mod-hist {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.panelka-mod-hist > section {
+  min-width: 0;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.28);
+  padding: 10px;
+}
+
+.panelka-mod-hist > section > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.panelka-mod-hist h4 {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.panelka-mod-hist ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.panelka-mod-hist li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+}
+
+.panelka-mod-hist li span {
+  color: rgba(239, 230, 214, 0.55);
+  font-size: 0.78rem;
+}
+
+.panelka-pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.panelka-pager button {
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(212, 168, 75, 0.35);
+  background: transparent;
+  color: #efe6d6;
+}
+
+.panelka-pager button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 @media (max-width: 800px) {
-  .panelka-roster {
+  .panelka-roster,
+  .panelka-mod-hist {
     grid-template-columns: 1fr;
   }
 }

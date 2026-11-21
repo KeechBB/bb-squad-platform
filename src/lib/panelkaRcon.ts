@@ -24,12 +24,20 @@ function pythonBin(): string {
   return path.join(process.cwd(), "scripts", ".venv-collector", "bin", "python");
 }
 
-export function runPanelka(args: string[], timeoutMs = 35000): Promise<unknown> {
+export function runPanelka(
+  args: string[],
+  timeoutMs = 35000,
+  extra?: Record<string, unknown>
+): Promise<unknown> {
   const script = path.join(process.cwd(), "scripts", "panelka_rcon.py");
   return new Promise((resolve, reject) => {
+    const env = { ...process.env };
+    if (extra && Object.keys(extra).length) {
+      env.PANELKA_JSON = JSON.stringify(extra);
+    }
     const child = spawn(pythonBin(), [script, ...args], {
       cwd: process.cwd(),
-      env: process.env,
+      env,
     });
     let out = "";
     let err = "";

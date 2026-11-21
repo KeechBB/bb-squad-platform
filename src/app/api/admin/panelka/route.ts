@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 import { requireSiteVisitsAccess } from "@/lib/requireAdmin";
 import { isPanelkaKey, runPanelka } from "@/lib/panelkaRcon";
 
@@ -11,9 +12,80 @@ const ACTIONS = new Set([
   "change-now",
   "change-next",
   "kick",
+  "ban",
   "team",
+  "unsquad",
+  "warn",
   "say",
 ]);
+
+const STEAM_RE = /^7656\d{13}$/;
+const DURATION_RE = /^(0|\d+[mhd])$/i;
+
+function cleanReason(raw: unknown, limit = 120): string {
+  return String(raw || "")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, limit);
+}
+
+function formatHours(totalMinutes: number): string {
+  const minutes = Math.max(0, Math.round(totalMinutes));
+  if (minutes < 60) return `${minutes} мин`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (rest === 0) return `${hours} ч`;
+  return `${hours} ч ${rest} мин`;
+}
+
+async function siteProfile(steamId: string) {
+  const user = await prisma.user.findFirst({
+    where: { steamId, profileComplete: true },
+    select: {
+      id: true,
+      nick: true,
+      steamId: true,
+      factionMembership: {
+        select: {
+          faction: { select: { name: true, slug: true } },
+        },
+      },
+    },
+  });
+
+  const sessions = await prisma.squadServerSession.findMany({
+    where: {
+      steamId,
+      leftAt: { not: null },
+      serverKey: { in: ["TPUB1", "PB1", "TPUB", "PUBLIC"] },
+    },
+    select: { joinedAt: true, leftAt: true },
+    orderBy: { joinedAt: "desc" },
+    take: 4000,
+  });
+
+  let totalMinutes = 0;
+  for (const row of sessions) {
+    if (!row.leftAt) continue;
+    totalMinutes += Math.max(
+      0,
+      (row.leftAt.getTime() - row.joinedAt.getTime()) / 60000
+    );
+  }
+
+  return {
+    found: Boolean(user),
+    nick: user?.nick || null,
+    steamId,
+    profileUrl: `/players/${encodeURIComponent(steamId)}`,
+    faction: user?.factionMembership?.faction?.name || null,
+    factionSlug: user?.factionMembership?.faction?.slug || null,
+    publicHoursLabel: formatHours(totalMinutes),
+    publicMinutes: Math.round(totalMinutes),
+    sessions: sessions.length,
+  };
+}
 
 export async function GET(req: Request) {
   const { error } = await requireSiteVisitsAccess();
@@ -45,6 +117,36 @@ export async function GET(req: Request) {
       const data = await runPanelka(["chat", key], 20000);
       return NextResponse.json(data);
     }
+    if (op === "player-card") {
+      const key = url.searchParams.get("key") || "";
+      const steamId = url.searchParams.get("steamId") || "";
+      const name = url.searchParams.get("name") || "";
+      if (!isPanelkaKey(key) || !STEAM_RE.test(steamId)) {
+        return NextResponse.json({ ok: false, error: "нет игрока" }, { status: 400 });
+      }
+      const [history, profile] = await Promise.all([
+        runPanelka(["player-card", key, steamId], 35000, { name }),
+        siteProfile(steamId),
+      ]);
+      const hist = history as {
+        ok?: boolean;
+        chat?: unknown[];
+        teamkills?: unknown[];
+        error?: string;
+      };
+      if (!hist?.ok) {
+        return NextResponse.json(
+          { ok: false, error: hist?.error || "карточка не пришла" },
+          { status: 502 }
+        );
+      }
+      return NextResponse.json({
+        ok: true,
+        profile,
+        chat: hist.chat || [],
+        teamkills: hist.teamkills || [],
+      });
+    }
     return NextResponse.json({ ok: false, error: "неизвестный запрос" }, { status: 400 });
   } catch (err) {
     const message = err instanceof Error ? err.message : "ошибка";
@@ -61,11 +163,19 @@ export async function POST(req: Request) {
     layer?: string;
     steamId?: string;
     message?: string;
+    reason?: string;
+    duration?: string;
   } | null;
   const key = body?.key || "";
   const action = body?.action || "";
-  const layer = action === "say" ? (body?.message || "").trim() : body?.layer || "";
+  const layer =
+    action === "say" || action === "warn"
+      ? cleanReason(body?.message || body?.reason || "", 160)
+      : body?.layer || "";
   const steamId = body?.steamId || "";
+  const reason = cleanReason(body?.reason || body?.message || "");
+  const duration = String(body?.duration || "").trim();
+
   if (!isPanelkaKey(key) || !ACTIONS.has(action)) {
     return NextResponse.json({ ok: false, error: "нельзя так" }, { status: 400 });
   }
@@ -75,14 +185,41 @@ export async function POST(req: Request) {
   ) {
     return NextResponse.json({ ok: false, error: "карта не из списка" }, { status: 400 });
   }
-  if ((action === "kick" || action === "team") && !/^7656\d{13}$/.test(steamId)) {
+  if (
+    (action === "kick" ||
+      action === "ban" ||
+      action === "team" ||
+      action === "unsquad" ||
+      action === "warn") &&
+    !STEAM_RE.test(steamId)
+  ) {
     return NextResponse.json({ ok: false, error: "нет Steam ID" }, { status: 400 });
   }
   if (action === "say" && (layer.length < 1 || layer.length > 160)) {
     return NextResponse.json({ ok: false, error: "напиши короткое сообщение" }, { status: 400 });
   }
+  if (action === "kick" && reason.length < 2) {
+    return NextResponse.json({ ok: false, error: "укажи причину кика" }, { status: 400 });
+  }
+  if (action === "ban") {
+    if (reason.length < 2) {
+      return NextResponse.json({ ok: false, error: "укажи причину бана" }, { status: 400 });
+    }
+    if (!DURATION_RE.test(duration)) {
+      return NextResponse.json(
+        { ok: false, error: "срок: 30m / 1h / 6h / 1d / 7d / 0" },
+        { status: 400 }
+      );
+    }
+  }
+  if (action === "warn" && reason.length < 1) {
+    return NextResponse.json({ ok: false, error: "напиши сообщение игроку" }, { status: 400 });
+  }
   try {
-    const data = await runPanelka(["cmd", key, action, layer, steamId]);
+    const data = await runPanelka(["cmd", key, action, layer, steamId], 35000, {
+      reason,
+      duration,
+    });
     return NextResponse.json(data);
   } catch (err) {
     const message = err instanceof Error ? err.message : "ошибка";

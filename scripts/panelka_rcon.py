@@ -131,6 +131,7 @@ def read_chat(key):
                 continue
             spoken.append({
                 "clock": row.get("clock") or "",
+                "date": row.get("date") or "",
                 "channel": row.get("channel") or "чат",
                 "name": (row.get("name") or "")[:48],
                 "text": (row.get("text") or "")[:240],
@@ -150,13 +151,133 @@ def read_chat(key):
                 continue
             clock_m = clock_re.search(line)
             clock = ""
+            date = ""
             if clock_m:
                 hour = (int(clock_m.group(2)) + 3) % 24
                 clock = f"{hour:02d}:{clock_m.group(3)}:{clock_m.group(4)}"
-            casts.append({"clock": clock, "channel": "всем", "name": "Админ", "text": cast.group(1).strip()})
+                date = clock_m.group(1).replace(".", "-")
+            casts.append({
+                "clock": clock,
+                "date": date,
+                "channel": "всем",
+                "name": "Админ",
+                "text": cast.group(1).strip(),
+            })
     except Exception:
         pass
     return (casts[-15:] + spoken[-60:])[-60:]
+
+def _msk_stamp(line):
+    import re
+    clock_re = re.compile(r"\[(\d{4}\.\d{2}\.\d{2})-(\d{2})\.(\d{2})\.(\d{2})")
+    clock_m = clock_re.search(line)
+    if not clock_m:
+        return "", ""
+    hour = (int(clock_m.group(2)) + 3) % 24
+    clock = f"{hour:02d}:{clock_m.group(3)}:{clock_m.group(4)}"
+    date = clock_m.group(1).replace(".", "-")
+    return date, clock
+
+def read_player_card(key, steam_id, name):
+    import json, os, re
+    ensure_chat_listener()
+    want_name = (name or "").strip().lower()
+    chat = []
+    path = "/home/squad/bb-panelka-chat.jsonl"
+    if os.path.isfile(path):
+        lines = open(path, encoding="utf-8", errors="replace").read().splitlines()[-2000:]
+        for line in lines:
+            try:
+                row = json.loads(line)
+            except Exception:
+                continue
+            if row.get("key") != key:
+                continue
+            row_name = (row.get("name") or "").strip()
+            if want_name and want_name not in row_name.lower() and row_name.lower() not in want_name:
+                continue
+            chat.append({
+                "date": row.get("date") or "",
+                "clock": row.get("clock") or "",
+                "channel": row.get("channel") or "чат",
+                "name": row_name[:48],
+                "text": (row.get("text") or "")[:240],
+            })
+    chat = chat[-120:]
+
+    teamkills = []
+    log_path = f"/home/squad/servers/{key}/SquadGame/Saved/Logs/SquadGame.log"
+    try:
+        with open(log_path, "rb") as handle:
+            handle.seek(0, 2)
+            handle.seek(max(0, handle.tell() - 5_000_000))
+            blob = handle.read().decode("utf-8", "replace")
+        possess_re = re.compile(
+            r"OnPossess\(\):\s*PC=(?P<nick>.+?)\s*\(Online IDs:.*?steam:\s*(?P<steam>7656\d+)\).*?"
+            r"(?:Pawn=|Possessed\s+)(?P<pawn>BP_[A-Za-z0-9_]+)",
+            re.I,
+        )
+        possess_alt = re.compile(
+            r"steam:\s*(?P<steam>7656\d+)\).*?(?P<nick>[^\]]+?)\s+has possessed \((?P<pawn>BP_[^\)]+)\)",
+            re.I,
+        )
+        die_re = re.compile(
+            r"Die\(\):\s*Player:(?P<victim>.+?)\s+KillingDamage=[-\d.]+\s+from\s+(?P<causer>\S+)\s+"
+            r"\(Online IDs:\s*EOS:\s*[0-9a-fA-F]+\s+steam:\s*(?P<vsteam>7656\d+)",
+            re.I,
+        )
+        squad_re = re.compile(
+            r"LogSquad:\s*(?P<nick>.+?)\s*\(Online IDs:\s*EOS:\s*[0-9a-fA-F]+\s+steam:\s*(?P<steam>7656\d+)\)\s+"
+            r"has created Squad\s+\d+\s+\(Squad Name:.*?\)\s+on\s+(?P<faction>.+)$",
+            re.I,
+        )
+        pawn_owner = {}
+        steam_faction = {}
+        steam_nick = {}
+        for line in blob.splitlines():
+            for rx in (possess_re, possess_alt):
+                pm = rx.search(line)
+                if pm:
+                    pawn = pm.group("pawn").split()[0].rstrip(",;")
+                    pawn_owner[pawn] = pm.group("steam")
+                    steam_nick[pm.group("steam")] = (pm.group("nick") or "").strip()[:48]
+            sm = squad_re.search(line)
+            if sm:
+                steam_faction[sm.group("steam")] = (sm.group("faction") or "").strip()
+                steam_nick[sm.group("steam")] = (sm.group("nick") or "").strip()[:48]
+            dm = die_re.search(line)
+            if not dm:
+                continue
+            causer = dm.group("causer")
+            killer_steam = pawn_owner.get(causer)
+            if not killer_steam:
+                base = causer.rsplit("_", 1)[0] if "_" in causer else causer
+                for pawn, owner in pawn_owner.items():
+                    if pawn.startswith(base) or causer.startswith(pawn.rsplit("_", 1)[0]):
+                        killer_steam = owner
+                        break
+            if killer_steam != steam_id:
+                continue
+            victim_steam = dm.group("vsteam")
+            if victim_steam == steam_id:
+                continue
+            kf = steam_faction.get(killer_steam)
+            vf = steam_faction.get(victim_steam)
+            if kf and vf and kf != vf:
+                continue
+            date, clock = _msk_stamp(line)
+            victim_name = (dm.group("victim") or "").strip()[:48]
+            teamkills.append({
+                "date": date,
+                "clock": clock,
+                "victim": victim_name or steam_nick.get(victim_steam) or victim_steam,
+                "victimSteamId": victim_steam,
+            })
+        teamkills = teamkills[-80:]
+    except Exception:
+        teamkills = []
+
+    return {"ok": True, "chat": chat, "teamkills": teamkills}
 
 def server_row(key):
     info = rcon(key, "ShowServerInfo")
@@ -193,6 +314,12 @@ try:
             print(json.dumps({"ok": False, "error": "нет такого сервера"}, ensure_ascii=False))
         else:
             print(json.dumps({"ok": True, "messages": read_chat(key)}, ensure_ascii=False))
+    elif op == "player-card":
+        key = job["key"]
+        if key not in ("TR1", "TR2", "TR3", "TR4", "TR5"):
+            print(json.dumps({"ok": False, "error": "нет такого сервера"}, ensure_ascii=False))
+        else:
+            print(json.dumps(read_player_card(key, job.get("steamId") or "", job.get("name") or ""), ensure_ascii=False))
     else:
         print(json.dumps({"ok": False, "error": "неизвестная команда"}, ensure_ascii=False))
 except Exception:
@@ -478,7 +605,27 @@ def layers() -> dict:
     return {"ok": True, "modes": grouped}
 
 
+def _clean_reason(raw: str, limit: int = 120) -> str:
+    text = re.sub(r"[\r\n\t]+", " ", raw or "")
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:limit]
+
+
+def _extra_payload() -> dict:
+    raw = os.environ.get("PANELKA_JSON") or ""
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
 def command(key: str, action: str, layer: str, steam_id: str) -> dict:
+    extra = _extra_payload()
+    reason = _clean_reason(str(extra.get("reason") or ""))
+    duration = str(extra.get("duration") or "").strip()
     if action == "restart":
         cmd = "AdminRestartMatch"
     elif action == "end":
@@ -488,13 +635,26 @@ def command(key: str, action: str, layer: str, steam_id: str) -> dict:
     elif action == "change-next":
         cmd = f"AdminSetNextLayer {layer}"
     elif action == "kick":
-        cmd = f"AdminKick {steam_id} panelka"
+        why = reason or "panelka"
+        cmd = f"AdminKick {steam_id} {why}"
+    elif action == "ban":
+        if not reason:
+            raise SystemExit("нужна причина")
+        if not re.fullmatch(r"0|\d+[mhd]", duration, re.I):
+            raise SystemExit("срок: 30m / 1h / 1d / 0")
+        cmd = f'AdminBan {steam_id} "{duration}" {reason}'
     elif action == "team":
         cmd = f"AdminForceTeamChange {steam_id}"
+    elif action == "unsquad":
+        cmd = f"AdminRemovePlayerFromSquad {steam_id}"
+    elif action == "warn":
+        msg = reason or _clean_reason(layer, 160)
+        if not msg:
+            raise SystemExit("напиши сообщение игроку")
+        cmd = f"AdminWarn {steam_id} {msg}"
     elif action == "say":
-        text = re.sub(r"[\r\n\t]+", " ", layer)
-        text = re.sub(r"\s+", " ", text).strip()
-        if not text or len(text) > 160:
+        text = _clean_reason(layer, 160)
+        if not text:
             raise SystemExit("напиши короткое сообщение")
         cmd = f"AdminBroadcast {text}"
     else:
@@ -504,6 +664,24 @@ def command(key: str, action: str, layer: str, steam_id: str) -> dict:
         return data
     reply = (data.get("text") or "").strip()
     return {"ok": True, "reply": reply or "команда ушла на сервер"}
+
+
+def player_card(key: str, steam_id: str, name: str) -> dict:
+    data = ssh_job(
+        {
+            "op": "player-card",
+            "key": key,
+            "steamId": steam_id,
+            "name": name,
+        }
+    )
+    if data.get("ok") is False:
+        return data
+    return {
+        "ok": True,
+        "chat": data.get("chat") or [],
+        "teamkills": data.get("teamkills") or [],
+    }
 
 
 def main() -> int:
@@ -531,6 +709,16 @@ def main() -> int:
             if key not in KEYS:
                 raise SystemExit("bad server")
             result = ssh_job({"op": "chat", "key": key})
+        elif op == "player-card":
+            key = sys.argv[2]
+            steam_id = sys.argv[3] if len(sys.argv) > 3 else ""
+            extra = _extra_payload()
+            name = str(extra.get("name") or "")
+            if key not in KEYS:
+                raise SystemExit("bad server")
+            if not re.fullmatch(r"7656\d{13}", steam_id):
+                raise SystemExit("bad steam")
+            result = player_card(key, steam_id, name)
         elif op == "cmd":
             key, action = sys.argv[2], sys.argv[3]
             layer = sys.argv[4] if len(sys.argv) > 4 else ""
@@ -539,7 +727,9 @@ def main() -> int:
                 raise SystemExit("bad server")
             if action in ("change-now", "change-next") and not re.fullmatch(r"[A-Za-z0-9_]+", layer):
                 raise SystemExit("bad layer")
-            if action in ("kick", "team") and not re.fullmatch(r"7656\d{13}", steam_id):
+            if action in ("kick", "ban", "team", "unsquad", "warn") and not re.fullmatch(
+                r"7656\d{13}", steam_id
+            ):
                 raise SystemExit("bad steam")
             result = command(key, action, layer, steam_id)
         else:
