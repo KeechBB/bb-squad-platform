@@ -173,34 +173,69 @@ def _chat_pids():
         return []
 
 def ensure_chat_listener():
-    """Exactly one chat listener. Reap duplicates that steal the RCON port."""
+    """Exactly one chat listener. Never thrash-restart under parallel panel polls."""
+    import fcntl
     pid_path = "/tmp/bb_panelka_chat.pid"
+    lock_path = "/tmp/bb_panelka_chat.lock"
     script = "/home/squad/bb_panelka_chat.py"
     if not os.path.isfile(script):
         return
+
+    def _write_pid(pid):
+        open(pid_path, "w", encoding="utf-8").write(str(pid))
+
     pids = _chat_pids()
     if len(pids) == 1:
-        open(pid_path, "w", encoding="utf-8").write(str(pids[0]))
+        _write_pid(pids[0])
         return
-    for pid in pids:
+    if len(pids) > 1:
+        # Keep oldest, kill extras — do NOT restart (avoids spawn storms).
+        keep = min(pids)
+        for pid in pids:
+            if pid == keep:
+                continue
+            try:
+                os.kill(pid, 9)
+            except Exception:
+                pass
+        _write_pid(keep)
+        return
+
+    # count == 0 — start under flock so parallel workers don't each spawn one
+    try:
+        lock_f = open(lock_path, "w")
+    except Exception:
+        return
+    try:
         try:
-            os.kill(pid, 15)
+            fcntl.flock(lock_f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            time.sleep(0.6)
+            pids = _chat_pids()
+            if pids:
+                _write_pid(min(pids))
+            return
+        pids = _chat_pids()
+        if pids:
+            _write_pid(min(pids))
+            return
+        proc = subprocess.Popen(
+            ["python3", script],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        _write_pid(proc.pid)
+        time.sleep(0.2)
+    finally:
+        try:
+            fcntl.flock(lock_f, fcntl.LOCK_UN)
         except Exception:
             pass
-    time.sleep(0.45)
-    for pid in _chat_pids():
         try:
-            os.kill(pid, 9)
+            lock_f.close()
         except Exception:
             pass
-    time.sleep(0.25)
-    proc = subprocess.Popen(
-        ["python3", script],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
-    )
-    open(pid_path, "w", encoding="utf-8").write(str(proc.pid))
 
 def read_chat(key):
     import json, re
@@ -1054,24 +1089,41 @@ def sync_chat_listener(force: bool = False) -> None:
                 remote_body = handle.read().decode("utf-8", "replace")
         except OSError:
             remote_body = ""
-        if remote_body != body:
+        need_restart = remote_body != body
+        if need_restart:
             with sftp.open(remote, "w") as handle:
                 handle.write(body.encode("utf-8"))
             try:
                 sftp.chmod(remote, 0o664)
             except OSError:
                 pass
-        # Always reap duplicate chat bots — they steal the single RCON port
-        # and multiply every chat line in the panel feed.
-        _stdin, stdout, _stderr = client.exec_command(
-            "pkill -f 'python3 /home/squad/bb_panelka_chat.py' 2>/dev/null || true; "
-            "sleep 0.5; "
-            "pkill -9 -f 'python3 /home/squad/bb_panelka_chat.py' 2>/dev/null || true; "
-            "sleep 0.3; "
-            f"nohup python3 {remote} >/dev/null 2>&1 & echo $! > {pid_path}; "
-            "pgrep -af 'python3 /home/squad/bb_panelka_chat.py' || true",
-            timeout=15,
-        )
+        # Reap duplicates; only full restart when script body changed.
+        if need_restart or force:
+            cmd = (
+                "pkill -f 'python3 /home/squad/bb_panelka_chat.py' 2>/dev/null || true; "
+                "sleep 0.5; "
+                "pkill -9 -f 'python3 /home/squad/bb_panelka_chat.py' 2>/dev/null || true; "
+                "sleep 0.35; "
+                f"nohup python3 {remote} >/dev/null 2>&1 & echo $! > {pid_path}; "
+                "sleep 0.3; "
+                "pgrep -af 'python3 /home/squad/bb_panelka_chat.py' || true"
+            )
+        else:
+            cmd = (
+                "pids=$(pgrep -f 'python3 /home/squad/bb_panelka_chat.py' || true); "
+                "n=$(echo \"$pids\" | wc -w); "
+                "if [ \"$n\" -gt 1 ]; then "
+                "keep=$(echo \"$pids\" | tr ' ' '\\n' | head -1); "
+                "for p in $pids; do [ \"$p\" = \"$keep\" ] || kill -9 $p 2>/dev/null; done; "
+                "echo $keep > " + pid_path + "; "
+                "elif [ \"$n\" -eq 0 ]; then "
+                f"nohup python3 {remote} >/dev/null 2>&1 & echo $! > {pid_path}; "
+                "elif [ \"$n\" -eq 1 ]; then "
+                "echo $pids > " + pid_path + "; "
+                "fi; "
+                "pgrep -af 'python3 /home/squad/bb_panelka_chat.py' || true"
+            )
+        _stdin, stdout, _stderr = client.exec_command(cmd, timeout=20)
         print("chat-sync", stdout.read().decode("utf-8", "replace").strip())
         sftp.close()
         _CHAT_SYNCED = True
