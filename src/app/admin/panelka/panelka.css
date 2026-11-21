@@ -521,10 +521,95 @@ body:has(.panelka-page) .shell {
   margin: 0 0 6px;
 }
 
-.panelka-mod-link {
+.panelka-mod-link,
+.panelka-mod-steam,
+.panelka-mod-steam-id {
   color: #e2c56a;
   font-weight: 700;
   text-decoration: none;
+}
+
+.panelka-mod-steam:hover,
+.panelka-mod-steam-id:hover,
+.panelka-mod-link:hover {
+  text-decoration: underline;
+}
+
+.panelka-mod-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.panelka-mod-tabs {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.panelka-mod-tabs button {
+  font: inherit;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(212, 168, 75, 0.35);
+  background: rgba(0, 0, 0, 0.28);
+  color: #efe6d6;
+}
+
+.panelka-mod-tabs button.is-on {
+  border-color: #e2c56a;
+  color: #e2c56a;
+  background: rgba(226, 197, 106, 0.1);
+}
+
+.panelka-mod-punish {
+  margin-top: 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.28);
+  padding: 10px;
+}
+
+.panelka-mod-punish > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.panelka-mod-punish h4 {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.panelka-mod-punish ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.panelka-mod-punish li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.panelka-mod-punish li span {
+  color: rgba(239, 230, 214, 0.55);
+  font-size: 0.78rem;
+}
+
+.panelka-mod-punish li em {
+  color: #e2c56a;
+  font-style: normal;
+  font-size: 0.86rem;
 }
 
 .panelka-mod-actions {

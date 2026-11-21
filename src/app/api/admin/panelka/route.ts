@@ -83,6 +83,7 @@ async function siteProfile(steamId: string) {
     nick: user?.nick || null,
     steamId,
     profileUrl: `/players/${encodeURIComponent(steamId)}`,
+    steamUrl: `https://steamcommunity.com/profiles/${encodeURIComponent(steamId)}`,
     faction: user?.factionMembership?.faction?.name || null,
     factionSlug: user?.factionMembership?.faction?.slug || null,
     publicHoursLabel: formatHours(totalMinutes),
@@ -136,6 +137,7 @@ export async function GET(req: Request) {
         ok?: boolean;
         chat?: unknown[];
         teamkills?: unknown[];
+        punishments?: unknown[];
         error?: string;
       };
       if (!hist?.ok) {
@@ -149,6 +151,7 @@ export async function GET(req: Request) {
         profile,
         chat: hist.chat || [],
         teamkills: hist.teamkills || [],
+        punishments: hist.punishments || [],
       });
     }
     if (op === "mods") {
@@ -167,7 +170,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const { error } = await requireSiteVisitsAccess();
+  const { session, error } = await requireSiteVisitsAccess();
   if (error) return error;
   const body = (await req.json().catch(() => null)) as {
     key?: string;
@@ -183,6 +186,7 @@ export async function POST(req: Request) {
     deck2?: string;
     mod?: string;
     modId?: string;
+    targetName?: string;
   } | null;
   const key = body?.key || "";
   const action = body?.action || "";
@@ -264,6 +268,8 @@ export async function POST(req: Request) {
       const data = await runPanelka(["mod-remove", key], 60000, { mod: modRaw });
       return NextResponse.json(data);
     }
+    const byNick =
+      cleanReason(session?.user?.nick || session?.user?.name || "панель", 32) || "панель";
     const data = await runPanelka(["cmd", key, action, layer, steamId], 35000, {
       reason,
       duration,
@@ -271,6 +277,9 @@ export async function POST(req: Request) {
       faction2,
       deck1,
       deck2,
+      byNick,
+      bySteamId: session?.user?.steamId || "",
+      targetName: cleanReason(body?.targetName || "", 48),
     });
     return NextResponse.json(data);
   } catch (err) {

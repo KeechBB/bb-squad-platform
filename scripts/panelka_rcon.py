@@ -274,6 +274,7 @@ def read_player_card(key, steam_id, name):
     chat = chat[-120:]
 
     teamkills = []
+    blob = ""
     log_path = f"/home/squad/servers/{host(key)}/SquadGame/Saved/Logs/SquadGame.log"
     try:
         with open(log_path, "rb") as handle:
@@ -345,7 +346,189 @@ def read_player_card(key, steam_id, name):
     except Exception:
         teamkills = []
 
-    return {"ok": True, "chat": chat, "teamkills": teamkills}
+    punishments = read_punishments(key, steam_id, name, blob)
+    return {"ok": True, "chat": chat, "teamkills": teamkills, "punishments": punishments}
+
+def _nick_key(raw):
+    text = (raw or "").strip().lower()
+    text = re.sub(r"\[[^\]]*\]", " ", text)
+    text = re.sub(r"[〔〕【】]", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+def _name_hit(want, candidate):
+    a = _nick_key(want)
+    b = _nick_key(candidate)
+    if not a or not b:
+        return False
+    return a in b or b in a
+
+def append_action_log(row):
+    path = "/home/squad/bb-panelka-actions.jsonl"
+    try:
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+        if os.path.getsize(path) > 2_000_000:
+            kept = open(path, encoding="utf-8", errors="replace").read().splitlines()[-800:]
+            open(path, "w", encoding="utf-8").write("\n".join(kept) + ("\n" if kept else ""))
+    except Exception:
+        pass
+
+def read_punishments(key, steam_id, name, log_blob=""):
+    rows = []
+    # 1) panelka own log — has who punished
+    act_path = "/home/squad/bb-panelka-actions.jsonl"
+    if os.path.isfile(act_path):
+        for line in open(act_path, encoding="utf-8", errors="replace").read().splitlines()[-1500:]:
+            try:
+                row = json.loads(line)
+            except Exception:
+                continue
+            if row.get("key") != key:
+                continue
+            if str(row.get("steamId") or "") != steam_id and not _name_hit(name, row.get("name") or ""):
+                continue
+            kind = str(row.get("kind") or "")
+            if kind not in ("kick", "ban", "warn", "report"):
+                continue
+            rows.append({
+                "kind": kind,
+                "date": row.get("date") or "",
+                "clock": row.get("clock") or "",
+                "reason": (row.get("reason") or "")[:200],
+                "duration": row.get("duration") or "",
+                "by": (row.get("byNick") or row.get("by") or "панель")[:48],
+                "source": "panelka",
+            })
+
+    # 2) player reports from chat (!r / !report) mentioning this nick
+    chat_path = "/home/squad/bb-panelka-chat.jsonl"
+    if os.path.isfile(chat_path):
+        for line in open(chat_path, encoding="utf-8", errors="replace").read().splitlines()[-2000:]:
+            try:
+                row = json.loads(line)
+            except Exception:
+                continue
+            if row.get("key") != key:
+                continue
+            text = (row.get("text") or "").strip()
+            low = text.lower()
+            if not (low.startswith("!r ") or low.startswith("!report ")):
+                continue
+            body = text.split(" ", 1)[1] if " " in text else ""
+            if not _name_hit(name, body) and not _name_hit(name, text):
+                continue
+            rows.append({
+                "kind": "report",
+                "date": row.get("date") or "",
+                "clock": row.get("clock") or "",
+                "reason": body[:200] or text[:200],
+                "duration": "",
+                "by": (row.get("name") or "игрок")[:48],
+                "source": "chat",
+            })
+
+    # 3) SquadGame.log kicks / warns / bans for this steam or nick
+    if not log_blob:
+        log_path = f"/home/squad/servers/{host(key)}/SquadGame/Saved/Logs/SquadGame.log"
+        try:
+            with open(log_path, "rb") as handle:
+                handle.seek(0, 2)
+                handle.seek(max(0, handle.tell() - 5_000_000))
+                log_blob = handle.read().decode("utf-8", "replace")
+        except Exception:
+            log_blob = ""
+    kick_re = re.compile(
+        r"Kicking player:\s*(?P<nick>.+?)\s*;\s*Reason\s*=\s*Kicked from the server:\s*(?P<reason>.*)$",
+        re.I,
+    )
+    kick_id_re = re.compile(
+        r"Kicked player\s+\d+\.\s*\[Online IDs=.*?steam:\s*(?P<steam>7656\d+)\].*?(?P<nick>.+?)\s+from RCON",
+        re.I,
+    )
+    warn_re = re.compile(
+        r"Remote admin has warned player\s+(?P<nick>.+?)\.\s*Message was\s+\"(?P<reason>.*)\"\s+from RCON",
+        re.I,
+    )
+    ban_re = re.compile(
+        r"(?:has banned|Banned player|ADMIN COMMAND:.*[Bb]an).*?(?:steam:\s*(?P<steam>7656\d+))?.*?(?P<nick>.+?)(?:\s+from RCON|$)",
+        re.I,
+    )
+    lines = log_blob.splitlines()
+    for i, line in enumerate(lines):
+        date, clock = _msk_stamp(line)
+        km = kick_re.search(line)
+        if km:
+            nick = km.group("nick").strip()
+            steam = ""
+            if i + 1 < len(lines):
+                im = kick_id_re.search(lines[i + 1])
+                if im:
+                    steam = im.group("steam")
+                    nick = im.group("nick").strip() or nick
+            if steam == steam_id or _name_hit(name, nick):
+                reason = (km.group("reason") or "").strip()[:200]
+                by = "бот/RCON"
+                m_by = re.search(r"\[([^\]]{2,32})\]", reason)
+                if m_by and m_by.group(1).upper() not in ("БАН", "АДМИН", "КИК", "BAN", "ADMIN", "KICK"):
+                    by = m_by.group(1)[:48]
+                elif "[АДМИН]" in reason or "[ADMIN]" in reason.upper():
+                    by = "админ (сайт/бот)"
+                rows.append({
+                    "kind": "ban" if ("[БАН]" in reason or "[BAN]" in reason.upper() or "Banned" in reason) else "kick",
+                    "date": date,
+                    "clock": clock,
+                    "reason": reason,
+                    "duration": "",
+                    "by": by,
+                    "source": "log",
+                })
+            continue
+        wm = warn_re.search(line)
+        if wm and _name_hit(name, wm.group("nick")):
+            reason = (wm.group("reason") or "").strip()[:200]
+            by = "бот/RCON"
+            m_by = re.search(r"^\[([^\]]{2,32})\]\s*", reason)
+            if m_by:
+                by = m_by.group(1)[:48]
+                reason = reason[m_by.end():].strip() or reason
+            rows.append({
+                "kind": "warn",
+                "date": date,
+                "clock": clock,
+                "reason": reason,
+                "duration": "",
+                "by": by,
+                "source": "log",
+            })
+            continue
+        if "Banned" in line or "has banned" in line.lower():
+            bm = ban_re.search(line)
+            if not bm:
+                continue
+            steam = bm.groupdict().get("steam") or ""
+            nick = (bm.groupdict().get("nick") or "").strip()
+            if steam == steam_id or _name_hit(name, nick):
+                rows.append({
+                    "kind": "ban",
+                    "date": date,
+                    "clock": clock,
+                    "reason": line.strip()[-180:],
+                    "duration": "",
+                    "by": "бот/RCON",
+                    "source": "log",
+                })
+
+    # de-dupe roughly by kind+clock+reason
+    seen = set()
+    out = []
+    for row in sorted(rows, key=lambda r: (r.get("date") or "", r.get("clock") or "")):
+        mark = (row.get("kind"), row.get("date"), row.get("clock"), (row.get("reason") or "")[:40])
+        if mark in seen:
+            continue
+        seen.add(mark)
+        out.append(row)
+    return out[-120:]
 
 def server_row(key):
     info = rcon(key, "ShowServerInfo")
@@ -525,7 +708,10 @@ try:
     elif op == "layers":
         print(json.dumps({"ok": True, "text": rcon("TR1", "ListLayers")}, ensure_ascii=False))
     elif op == "cmd":
-        print(json.dumps({"ok": True, "text": rcon(job["key"], job["command"])}, ensure_ascii=False))
+        text = rcon(job["key"], job["command"])
+        if job.get("actionLog") and isinstance(job.get("actionLog"), dict):
+            append_action_log(job["actionLog"])
+        print(json.dumps({"ok": True, "text": text}, ensure_ascii=False))
     elif op == "chat":
         key = job["key"]
         if key not in UI_KEYS:
@@ -917,6 +1103,10 @@ def command(key: str, action: str, layer: str, steam_id: str) -> dict:
     extra = _extra_payload()
     reason = _clean_reason(str(extra.get("reason") or ""))
     duration = str(extra.get("duration") or "").strip()
+    by_nick = _clean_reason(str(extra.get("byNick") or "панель"), 32)
+    by_steam = str(extra.get("bySteamId") or "")
+    target_name = _clean_reason(str(extra.get("targetName") or ""), 48)
+    action_log = None
     if action == "restart":
         cmd = "AdminRestartMatch"
     elif action == "end":
@@ -935,13 +1125,17 @@ def command(key: str, action: str, layer: str, steam_id: str) -> dict:
         cmd = " ".join([verb, *parts])
     elif action == "kick":
         why = reason or "panelka"
+        why = f"[{by_nick}] {why}"
         cmd = f"AdminKick {steam_id} {why}"
+        action_log = {"kind": "kick", "reason": why}
     elif action == "ban":
         if not reason:
             raise SystemExit("нужна причина")
         if not re.fullmatch(r"0|\d+[mhd]", duration, re.I):
             raise SystemExit("срок: 30m / 1h / 1d / 0")
-        cmd = f'AdminBan {steam_id} "{duration}" {reason}'
+        why = f"[{by_nick}] {reason}"
+        cmd = f'AdminBan {steam_id} "{duration}" {why}'
+        action_log = {"kind": "ban", "reason": why, "duration": duration}
     elif action == "team":
         cmd = f"AdminForceTeamChange {steam_id}"
     elif action == "unsquad":
@@ -950,7 +1144,9 @@ def command(key: str, action: str, layer: str, steam_id: str) -> dict:
         msg = reason or _clean_reason(layer, 160)
         if not msg:
             raise SystemExit("напиши сообщение игроку")
+        msg = f"[{by_nick}] {msg}"
         cmd = f"AdminWarn {steam_id} {msg}"
+        action_log = {"kind": "warn", "reason": msg}
     elif action == "say":
         text = _clean_reason(layer, 160)
         if not text:
@@ -958,7 +1154,23 @@ def command(key: str, action: str, layer: str, steam_id: str) -> dict:
         cmd = f"AdminBroadcast {text}"
     else:
         raise SystemExit("bad action")
-    data = ssh_job({"op": "cmd", "key": key, "command": cmd})
+    job: dict = {"op": "cmd", "key": key, "command": cmd}
+    if action_log:
+        from datetime import datetime, timedelta, timezone
+
+        msk = timezone(timedelta(hours=3))
+        now = datetime.now(msk)
+        job["actionLog"] = {
+            **action_log,
+            "key": key,
+            "steamId": steam_id,
+            "name": target_name,
+            "byNick": by_nick,
+            "bySteamId": by_steam,
+            "date": now.strftime("%Y-%m-%d"),
+            "clock": now.strftime("%H:%M:%S"),
+        }
+    data = ssh_job(job)
     if data.get("ok") is False:
         return data
     reply = (data.get("text") or "").strip()
@@ -980,6 +1192,7 @@ def player_card(key: str, steam_id: str, name: str) -> dict:
         "ok": True,
         "chat": data.get("chat") or [],
         "teamkills": data.get("teamkills") or [],
+        "punishments": data.get("punishments") or [],
     }
 
 

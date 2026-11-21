@@ -78,6 +78,7 @@ type PlayerProfile = {
   nick: string | null;
   steamId: string;
   profileUrl: string;
+  steamUrl?: string;
   faction: string | null;
   factionSlug: string | null;
   publicHoursLabel: string;
@@ -90,6 +91,16 @@ type TeamKillRow = {
   clock: string;
   victim: string;
   victimSteamId?: string;
+};
+
+type PunishmentRow = {
+  kind: "kick" | "ban" | "warn" | "report" | string;
+  date: string;
+  clock: string;
+  reason: string;
+  duration?: string;
+  by: string;
+  source?: string;
 };
 
 type ModAction = "team" | "kick" | "ban" | "unsquad" | "warn" | null;
@@ -252,6 +263,7 @@ export function AdminPanelka() {
       deck1?: string;
       deck2?: string;
       mod?: string;
+      targetName?: string;
     }
   ) {
     if (!selected) return false;
@@ -684,7 +696,11 @@ export function AdminPanelka() {
           busy={Boolean(busy)}
           onClose={() => setModPlayer(null)}
           onAction={async (action, payload) => {
-            const ok = await send(action, { steamId: modPlayer.steamId, ...payload });
+            const ok = await send(action, {
+              steamId: modPlayer.steamId,
+              targetName: modPlayer.name,
+              ...payload,
+            });
             if (ok && (action === "kick" || action === "ban" || action === "team" || action === "unsquad")) {
               setModPlayer(null);
             }
@@ -789,14 +805,17 @@ function PlayerModModal({
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
   const [chat, setChat] = useState<ChatLine[]>([]);
   const [teamkills, setTeamkills] = useState<TeamKillRow[]>([]);
+  const [punishments, setPunishments] = useState<PunishmentRow[]>([]);
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState<ModAction>(null);
   const [reason, setReason] = useState("");
   const [duration, setDuration] = useState("1h");
   const [warnText, setWarnText] = useState("");
+  const [tab, setTab] = useState<"chat" | "punish">("chat");
   const [chatPage, setChatPage] = useState(0);
   const [tkPage, setTkPage] = useState(0);
+  const [punishPage, setPunishPage] = useState(0);
 
   useEffect(() => {
     let stop = false;
@@ -805,8 +824,10 @@ function PlayerModModal({
     setPending(null);
     setReason("");
     setWarnText("");
+    setTab("chat");
     setChatPage(0);
     setTkPage(0);
+    setPunishPage(0);
     const url =
       `/api/admin/panelka?op=player-card&key=${encodeURIComponent(serverKey)}` +
       `&steamId=${encodeURIComponent(player.steamId)}` +
@@ -819,6 +840,7 @@ function PlayerModModal({
           profile?: PlayerProfile;
           chat?: ChatLine[];
           teamkills?: TeamKillRow[];
+          punishments?: PunishmentRow[];
           error?: string;
         }) => {
           if (stop) return;
@@ -829,6 +851,7 @@ function PlayerModModal({
           setProfile(data.profile || null);
           setChat(data.chat || []);
           setTeamkills(data.teamkills || []);
+          setPunishments(data.punishments || []);
         }
       )
       .catch(() => {
@@ -844,6 +867,7 @@ function PlayerModModal({
 
   const chatPages = Math.max(1, Math.ceil(chat.length / PAGE));
   const tkPages = Math.max(1, Math.ceil(teamkills.length / PAGE));
+  const punishPages = Math.max(1, Math.ceil(punishments.length / PAGE));
   const chatSlice = useMemo(() => {
     const start = chatPage * PAGE;
     return chat.slice(start, start + PAGE);
@@ -852,6 +876,12 @@ function PlayerModModal({
     const start = tkPage * PAGE;
     return teamkills.slice(start, start + PAGE);
   }, [teamkills, tkPage]);
+  const punishSlice = useMemo(() => {
+    const start = punishPage * PAGE;
+    return punishments.slice(start, start + PAGE);
+  }, [punishments, punishPage]);
+  const steamUrl =
+    profile?.steamUrl || `https://steamcommunity.com/profiles/${player.steamId}`;
 
   async function runPending() {
     if (!pending || busy) return;
@@ -893,10 +923,20 @@ function PlayerModModal({
       >
         <header>
           <div>
-            <h3>{player.name}</h3>
+            <h3>
+              <a className="panelka-mod-steam" href={steamUrl} target="_blank" rel="noreferrer">
+                {player.name}
+              </a>
+            </h3>
             <p className="panelka-mod-meta">
               {player.leader ? "СЛ · " : player.role ? `${player.role} · ` : ""}
-              {player.steamId}
+              <a className="panelka-mod-steam-id" href={steamUrl} target="_blank" rel="noreferrer">
+                {player.steamId}
+              </a>
+              {" · "}
+              <a className="panelka-mod-link" href={steamUrl} target="_blank" rel="noreferrer">
+                Steam
+              </a>
             </p>
           </div>
           <button type="button" onClick={onClose}>
@@ -923,9 +963,14 @@ function PlayerModModal({
                 Паблик: <b>{profile.publicHoursLabel}</b>
                 {profile.sessions ? ` · ${profile.sessions} сессий` : ""}
               </p>
-              <a className="panelka-mod-link" href={profile.profileUrl} target="_blank" rel="noreferrer">
-                Открыть профиль на сайте
-              </a>
+              <div className="panelka-mod-links">
+                <a className="panelka-mod-link" href={steamUrl} target="_blank" rel="noreferrer">
+                  Профиль Steam
+                </a>
+                <a className="panelka-mod-link" href={profile.profileUrl} target="_blank" rel="noreferrer">
+                  Профиль на сайте
+                </a>
+              </div>
             </>
           ) : null}
         </div>
@@ -1007,47 +1052,88 @@ function PlayerModModal({
           </div>
         ) : null}
 
-        <div className="panelka-mod-hist">
-          <section>
-            <header>
-              <h4>История чата</h4>
-              <Pager page={chatPage} pages={chatPages} onChange={setChatPage} />
-            </header>
-            {chatSlice.length ? (
-              <ul>
-                {chatSlice.map((line, index) => (
-                  <li key={`c-${chatPage}-${index}`}>
-                    <span>
-                      {[line.date, line.clock].filter(Boolean).join(" ") || "—"}
-                      {line.channel ? ` · ${line.channel}` : ""}
-                    </span>
-                    <b>{line.text}</b>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="panelka-chat-empty">Сообщений нет.</p>
-            )}
-          </section>
-          <section>
-            <header>
-              <h4>История тимкилов</h4>
-              <Pager page={tkPage} pages={tkPages} onChange={setTkPage} />
-            </header>
-            {tkSlice.length ? (
-              <ul>
-                {tkSlice.map((row, index) => (
-                  <li key={`t-${tkPage}-${index}`}>
-                    <span>{[row.date, row.clock].filter(Boolean).join(" ") || "—"}</span>
-                    <b>убил своего: {row.victim}</b>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="panelka-chat-empty">Тимкилов в логе не видно.</p>
-            )}
-          </section>
+        <div className="panelka-mod-tabs">
+          <button type="button" className={tab === "chat" ? "is-on" : ""} onClick={() => setTab("chat")}>
+            Чат
+          </button>
+          <button
+            type="button"
+            className={tab === "punish" ? "is-on" : ""}
+            onClick={() => setTab("punish")}
+          >
+            Наказания
+            {punishments.length ? ` (${punishments.length})` : ""}
+          </button>
         </div>
+
+        {tab === "chat" ? (
+          <div className="panelka-mod-hist">
+            <section>
+              <header>
+                <h4>История чата</h4>
+                <Pager page={chatPage} pages={chatPages} onChange={setChatPage} />
+              </header>
+              {chatSlice.length ? (
+                <ul>
+                  {chatSlice.map((line, index) => (
+                    <li key={`c-${chatPage}-${index}`}>
+                      <span>
+                        {[line.date, line.clock].filter(Boolean).join(" ") || "—"}
+                        {line.channel ? ` · ${line.channel}` : ""}
+                      </span>
+                      <b>{line.text}</b>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="panelka-chat-empty">Сообщений нет.</p>
+              )}
+            </section>
+            <section>
+              <header>
+                <h4>История тимкилов</h4>
+                <Pager page={tkPage} pages={tkPages} onChange={setTkPage} />
+              </header>
+              {tkSlice.length ? (
+                <ul>
+                  {tkSlice.map((row, index) => (
+                    <li key={`t-${tkPage}-${index}`}>
+                      <span>{[row.date, row.clock].filter(Boolean).join(" ") || "—"}</span>
+                      <b>убил своего: {row.victim}</b>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="panelka-chat-empty">Тимкилов в логе не видно.</p>
+              )}
+            </section>
+          </div>
+        ) : (
+          <div className="panelka-mod-punish">
+            <header>
+              <h4>Кик · бан · админ-сообщения · репорты игроков</h4>
+              <Pager page={punishPage} pages={punishPages} onChange={setPunishPage} />
+            </header>
+            {punishSlice.length ? (
+              <ul>
+                {punishSlice.map((row, index) => (
+                  <li key={`p-${punishPage}-${index}`}>
+                    <span>
+                      {[row.date, row.clock].filter(Boolean).join(" ") || "—"}
+                      {" · "}
+                      {punishLabel(row.kind)}
+                      {row.duration ? ` · срок ${row.duration}` : ""}
+                    </span>
+                    <b>{row.reason || "—"}</b>
+                    <em>кто: {row.by || "неизвестно"}</em>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="panelka-chat-empty">Наказаний и репортов пока нет.</p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1076,6 +1162,14 @@ function Pager({
       </button>
     </span>
   );
+}
+
+function punishLabel(kind: string): string {
+  if (kind === "kick") return "кик";
+  if (kind === "ban") return "бан";
+  if (kind === "warn") return "админ-сообщение";
+  if (kind === "report") return "репорт игрока";
+  return kind || "действие";
 }
 
 function formatUnix(ts: number): string {
