@@ -58,7 +58,15 @@ export function canAccessPanelka(role: AppRole | null | undefined): boolean {
   );
 }
 
-/** Только паблик-роли (без полного админского UI) */
+/** Только паблик-роли (урезанная админка) */
 export function isPublicPanelRole(role: AppRole | null | undefined): boolean {
   return role === "PUBLIC_ADMIN" || role === "PUBLIC_MOD";
+}
+
+/**
+ * Вкладки паблик-админа/модера:
+ * Пользователи · Журнал · Серверы · Заходы · Нагрузка
+ */
+export function publicStaffTabs(role: AppRole | null | undefined): boolean {
+  return isPublicPanelRole(role);
 }

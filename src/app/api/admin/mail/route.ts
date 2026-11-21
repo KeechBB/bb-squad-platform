@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireSiteVisitsAccess } from "@/lib/requireAdmin";
+import { requireMailAccess } from "@/lib/requireAdmin";
 import { recipientIds, resolveSender } from "@/lib/profileMail";
 import { cleanMailTags } from "@/lib/mailTags";
 
@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
-  const gate = await requireSiteVisitsAccess();
+  const gate = await requireMailAccess();
   if (gate.error) return gate.error;
   const url = new URL(req.url);
   const audience = url.searchParams.get("audience") || "";
@@ -38,7 +38,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const gate = await requireSiteVisitsAccess();
+  const gate = await requireMailAccess();
   if (gate.error) return gate.error;
   const steamId = gate.session?.user?.steamId || "";
   const author = await prisma.user.findUnique({

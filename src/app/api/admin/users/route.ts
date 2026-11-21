@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/requireAdmin";
+import { requireAdminOrPublicStaff } from "@/lib/requireAdmin";
 import type { Prisma } from "@prisma/client";
 
 export const runtime = "nodejs";
@@ -9,7 +9,7 @@ const SORT_FIELDS = ["regNo", "createdAt", "nick", "name", "age", "steamId"] as 
 type SortField = (typeof SORT_FIELDS)[number];
 
 export async function GET(req: Request) {
-  const { error } = await requireAdmin();
+  const { error } = await requireAdminOrPublicStaff();
   if (error) return error;
 
   const url = new URL(req.url);

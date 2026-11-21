@@ -21,12 +21,18 @@ type Props = {
   users: AdminUserRow[];
   roleOptions: AppRole[];
   actorRole: AppRole;
-  /** Заходы на сайт — Keech / Зам / HR */
+  /** Заходы на сайт — Keech / Зам / HR / паблик */
   showSiteVisits: boolean;
   /** Вкладка резерва — Keech / Зам / HR */
   showReserve: boolean;
+  /** Письмо — Keech / Зам / HR */
+  showMail: boolean;
+  /** Серверы (panelka) */
+  showServers: boolean;
   /** Личный hunt-лог — только Keech (builtin super) */
   showKeechHunt: boolean;
+  /** Админ/мод паблика: только users / journal / servers / visits / load */
+  publicLimited?: boolean;
 };
 
 type Tab =
@@ -73,13 +79,22 @@ const TAB_LEAD: Record<Tab, string> = {
     "Трансферное окно фракций: открыть/закрыть, даты паузы, прогон гринда Черничных Долларов с тренировок.",
 };
 
+const PUBLIC_TABS: Tab[] = ["users", "journal", "visits", "load"];
+
 function readTab(
   allowVisits: boolean,
   allowReserve: boolean,
-  allowHunt: boolean
+  allowHunt: boolean,
+  allowMail: boolean,
+  publicLimited: boolean
 ): Tab {
   if (typeof window === "undefined") return "users";
   const t = new URLSearchParams(window.location.search).get("tab");
+  if (publicLimited) {
+    if (t === "journal" || t === "users" || t === "load") return t;
+    if (t === "visits" && allowVisits) return "visits";
+    return "users";
+  }
   if (
     t === "attendance" ||
     t === "journal" ||
@@ -94,7 +109,7 @@ function readTab(
   )
     return t;
   if (t === "tiers") return "factions";
-  if (t === "mail" && allowVisits) return "mail";
+  if (t === "mail" && allowMail) return "mail";
   if (t === "visits" && allowVisits) return "visits";
   if (t === "reserve" && allowReserve) return "reserve";
   if (t === "hunt" && allowHunt) return "hunt";
@@ -107,18 +122,27 @@ export function AdminShell({
   actorRole,
   showSiteVisits,
   showReserve,
+  showMail,
+  showServers,
   showKeechHunt,
+  publicLimited = false,
 }: Props) {
   const [tab, setTab] = useState<Tab>("users");
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    setTab(readTab(showSiteVisits, showReserve, showKeechHunt));
+    setTab(
+      readTab(showSiteVisits, showReserve, showKeechHunt, showMail, publicLimited)
+    );
     setHydrated(true);
-  }, [showSiteVisits, showReserve, showKeechHunt]);
+  }, [showSiteVisits, showReserve, showKeechHunt, showMail, publicLimited]);
 
   useEffect(() => {
     if (!hydrated) return;
+    if (publicLimited && !PUBLIC_TABS.includes(tab)) {
+      setTab("users");
+      return;
+    }
     if (tab === "visits" && !showSiteVisits) {
       setTab("users");
       return;
@@ -135,7 +159,7 @@ export function AdminShell({
       setTab("users");
       return;
     }
-    if (tab === "mail" && !showSiteVisits) {
+    if (tab === "mail" && !showMail) {
       setTab("users");
       return;
     }
@@ -146,7 +170,15 @@ export function AdminShell({
       "",
       `${url.pathname}?${url.searchParams.toString()}`
     );
-  }, [tab, hydrated, showSiteVisits, showReserve, showKeechHunt]);
+  }, [
+    tab,
+    hydrated,
+    showSiteVisits,
+    showReserve,
+    showKeechHunt,
+    showMail,
+    publicLimited,
+  ]);
 
   return (
     <main
@@ -162,18 +194,20 @@ export function AdminShell({
         <p className="eyebrow">админ</p>
         <h1>Панель</h1>
         <p className="lead">{TAB_LEAD[tab]}</p>
-        <div className="admin-export-row">
-          <a
-            className="btn primary admin-export-btn"
-            href="/api/admin/users/export"
-            download
-          >
-            Выгрузить пользователей в Excel
-          </a>
-          <span className="muted admin-export-hint">
-            № · Ник · Имя · Steam ID · Резерв / не резерв
-          </span>
-        </div>
+        {!publicLimited ? (
+          <div className="admin-export-row">
+            <a
+              className="btn primary admin-export-btn"
+              href="/api/admin/users/export"
+              download
+            >
+              Выгрузить пользователей в Excel
+            </a>
+            <span className="muted admin-export-hint">
+              № · Ник · Имя · Steam ID · Резерв / не резерв
+            </span>
+          </div>
+        ) : null}
         <div className="admin-tabs" role="tablist">
           <button
             type="button"
@@ -182,14 +216,16 @@ export function AdminShell({
           >
             Пользователи
           </button>
-          <button
-            type="button"
-            className={`admin-tab ${tab === "attendance" ? "active" : ""}`}
-            onClick={() => setTab("attendance")}
-          >
-            Посещаемость тренировок
-          </button>
-          {showReserve ? (
+          {!publicLimited ? (
+            <button
+              type="button"
+              className={`admin-tab ${tab === "attendance" ? "active" : ""}`}
+              onClick={() => setTab("attendance")}
+            >
+              Посещаемость тренировок
+            </button>
+          ) : null}
+          {!publicLimited && showReserve ? (
             <button
               type="button"
               className={`admin-tab ${tab === "reserve" ? "active" : ""}`}
@@ -205,42 +241,52 @@ export function AdminShell({
           >
             Журнал действий
           </button>
-          <button
-            type="button"
-            className={`admin-tab ${tab === "tournaments" ? "active" : ""}`}
-            onClick={() => setTab("tournaments")}
-          >
-            Турниры
-          </button>
-          <button
-            type="button"
-            className={`admin-tab ${tab === "factions" ? "active" : ""}`}
-            onClick={() => setTab("factions")}
-          >
-            Лог фракций
-          </button>
-          <button
-            type="button"
-            className={`admin-tab ${tab === "market" ? "active" : ""}`}
-            onClick={() => setTab("market")}
-          >
-            Лог магазина
-          </button>
-          <button
-            type="button"
-            className={`admin-tab ${tab === "cases" ? "active" : ""}`}
-            onClick={() => setTab("cases")}
-          >
-            Лог кейсов
-          </button>
-          <button
-            type="button"
-            className={`admin-tab ${tab === "updates" ? "active" : ""}`}
-            onClick={() => setTab("updates")}
-          >
-            Логи обновлений
-          </button>
-          {showSiteVisits ? (
+          {!publicLimited ? (
+            <button
+              type="button"
+              className={`admin-tab ${tab === "tournaments" ? "active" : ""}`}
+              onClick={() => setTab("tournaments")}
+            >
+              Турниры
+            </button>
+          ) : null}
+          {!publicLimited ? (
+            <button
+              type="button"
+              className={`admin-tab ${tab === "factions" ? "active" : ""}`}
+              onClick={() => setTab("factions")}
+            >
+              Лог фракций
+            </button>
+          ) : null}
+          {!publicLimited ? (
+            <button
+              type="button"
+              className={`admin-tab ${tab === "market" ? "active" : ""}`}
+              onClick={() => setTab("market")}
+            >
+              Лог магазина
+            </button>
+          ) : null}
+          {!publicLimited ? (
+            <button
+              type="button"
+              className={`admin-tab ${tab === "cases" ? "active" : ""}`}
+              onClick={() => setTab("cases")}
+            >
+              Лог кейсов
+            </button>
+          ) : null}
+          {!publicLimited ? (
+            <button
+              type="button"
+              className={`admin-tab ${tab === "updates" ? "active" : ""}`}
+              onClick={() => setTab("updates")}
+            >
+              Логи обновлений
+            </button>
+          ) : null}
+          {!publicLimited && showMail ? (
             <button
               type="button"
               className={`admin-tab ${tab === "mail" ? "active" : ""}`}
@@ -249,8 +295,12 @@ export function AdminShell({
               Письмо
             </button>
           ) : null}
-          {showSiteVisits ? (
-            <Link href="/admin/panelka" className="admin-tab" style={{ textDecoration: "none", display: "inline-block" }}>
+          {showServers ? (
+            <Link
+              href="/admin/panelka"
+              className="admin-tab"
+              style={{ textDecoration: "none", display: "inline-block" }}
+            >
               Серверы
             </Link>
           ) : null}
@@ -263,7 +313,7 @@ export function AdminShell({
               Заходы на сайт
             </button>
           ) : null}
-          {showKeechHunt ? (
+          {!publicLimited && showKeechHunt ? (
             <button
               type="button"
               className={`admin-tab ${tab === "transfers" ? "active" : ""}`}
@@ -272,7 +322,7 @@ export function AdminShell({
               Трансферы
             </button>
           ) : null}
-          {showKeechHunt ? (
+          {!publicLimited && showKeechHunt ? (
             <button
               type="button"
               className={`admin-tab ${tab === "hunt" ? "active" : ""}`}
@@ -303,10 +353,12 @@ export function AdminShell({
           actorRole={actorRole}
         />
       ) : null}
-      {tab === "attendance" ? <AdminAttendancePanel /> : null}
-      {tab === "reserve" && showReserve ? <AdminReservePanel /> : null}
+      {!publicLimited && tab === "attendance" ? <AdminAttendancePanel /> : null}
+      {!publicLimited && tab === "reserve" && showReserve ? (
+        <AdminReservePanel />
+      ) : null}
       {tab === "journal" ? <AdminJournalPanel /> : null}
-      {tab === "tournaments" ? (
+      {!publicLimited && tab === "tournaments" ? (
         <AdminJournalPanel
           fixedCategory="tournament"
           title="Журнал турниров"
@@ -314,14 +366,18 @@ export function AdminShell({
           searchPlaceholder="Ник, тег команды, заявка…"
         />
       ) : null}
-      {tab === "factions" ? <AdminFactionLogPanel /> : null}
-      {tab === "market" ? <AdminMarketLogPanel /> : null}
-      {tab === "cases" ? <AdminCasesLogPanel /> : null}
-      {tab === "updates" ? <AdminUpdatesPanel /> : null}
-      {tab === "mail" && showSiteVisits ? <AdminMailPanel /> : null}
+      {!publicLimited && tab === "factions" ? <AdminFactionLogPanel /> : null}
+      {!publicLimited && tab === "market" ? <AdminMarketLogPanel /> : null}
+      {!publicLimited && tab === "cases" ? <AdminCasesLogPanel /> : null}
+      {!publicLimited && tab === "updates" ? <AdminUpdatesPanel /> : null}
+      {!publicLimited && tab === "mail" && showMail ? <AdminMailPanel /> : null}
       {tab === "visits" && showSiteVisits ? <AdminVisitsPanel /> : null}
-      {tab === "transfers" && showKeechHunt ? <AdminTransfersPanel /> : null}
-      {tab === "hunt" && showKeechHunt ? <AdminKeechHuntPanel /> : null}
+      {!publicLimited && tab === "transfers" && showKeechHunt ? (
+        <AdminTransfersPanel />
+      ) : null}
+      {!publicLimited && tab === "hunt" && showKeechHunt ? (
+        <AdminKeechHuntPanel />
+      ) : null}
       {tab === "load" ? <AdminLoadPanel /> : null}
     </main>
   );

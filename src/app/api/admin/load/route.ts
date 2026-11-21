@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/requireAdmin";
+import { requireAdminOrPublicStaff } from "@/lib/requireAdmin";
 import {
   querySysLoad,
   takeSysLoadSample,
@@ -16,7 +16,7 @@ function parseRange(raw: string | null): SysLoadRange {
 }
 
 export async function GET(req: Request) {
-  const gate = await requireAdmin();
+  const gate = await requireAdminOrPublicStaff();
   if (gate.error) return gate.error;
 
   const url = new URL(req.url);

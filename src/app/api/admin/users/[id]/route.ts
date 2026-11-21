@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/requireAdmin";
+import { requireAdmin, requireAdminOrPublicStaff } from "@/lib/requireAdmin";
 import {
   canEditProfile,
   canDeleteUser,
@@ -49,7 +49,7 @@ async function actorPerson(steamId: string) {
 }
 
 export async function GET(_req: Request, ctx: Ctx) {
-  const { error } = await requireAdmin();
+  const { error } = await requireAdminOrPublicStaff();
   if (error) return error;
   const { id } = await ctx.params;
 

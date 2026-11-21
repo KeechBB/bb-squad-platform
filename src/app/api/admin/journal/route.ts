@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/requireAdmin";
+import { requireAdminOrPublicStaff } from "@/lib/requireAdmin";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
-  const gate = await requireAdmin();
+  const gate = await requireAdminOrPublicStaff();
   if (gate.error) return gate.error;
 
   const url = new URL(req.url);

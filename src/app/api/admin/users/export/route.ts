@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/requireAdmin";
+import { requireAdminOrPublicStaff } from "@/lib/requireAdmin";
 import { userInReserve } from "@/lib/reserve";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ function cell(v: string | number): string {
 
 /** Выгрузка пользователей: № | Ник | Имя | Steam ID | Статус резерва */
 export async function GET() {
-  const gate = await requireAdmin();
+  const gate = await requireAdminOrPublicStaff();
   if (gate.error) return gate.error;
 
   const users = await prisma.user.findMany({

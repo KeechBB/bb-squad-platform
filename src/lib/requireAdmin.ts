@@ -10,7 +10,12 @@ import {
 } from "@/lib/admin";
 import { canAccessPanelka, type AppRole } from "@/lib/roles";
 
-export async function requireAdmin() {
+type GateOpts = {
+  /** Пускать Администратора/Модератора паблика (иначе только полный штаб) */
+  allowPublic?: boolean;
+};
+
+async function gateAdmin(opts?: GateOpts) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.steamId) {
     return {
@@ -25,15 +30,24 @@ export async function requireAdmin() {
       error: NextResponse.json({ error: "Нет доступа" }, { status: 403 }),
     };
   }
-  // Паблик-роли — только /admin/panelka, не полный админ-API
   const role = await getUserRole(session.user.steamId);
-  if (isPublicPanelRole(role)) {
+  if (isPublicPanelRole(role) && !opts?.allowPublic) {
     return {
       session: null,
       error: NextResponse.json({ error: "Нет доступа" }, { status: 403 }),
     };
   }
-  return { session, error: null };
+  return { session, error: null as null };
+}
+
+/** Полный админ-API (без паблик-ролей) */
+export async function requireAdmin() {
+  return gateAdmin({ allowPublic: false });
+}
+
+/** Журнал / пользователи / нагрузка — доступно и паблик-ролям */
+export async function requireAdminOrPublicStaff() {
+  return gateAdmin({ allowPublic: true });
 }
 
 /** Панель серверов: Keech / Зам / HR / Админ паблика / Модератор паблика */
@@ -75,8 +89,19 @@ export async function requireKeechOnly() {
   return { session, error: null };
 }
 
-/** Заходы на сайт: Keech + Зам + HR */
+/** Заходы на сайт: Keech / Зам / HR / Админ паблика / Модератор паблика */
 export function canViewSiteVisits(role: AppRole | null | undefined): boolean {
+  return (
+    role === "SUPER_ADMIN" ||
+    role === "DEPUTY" ||
+    role === "HR" ||
+    role === "PUBLIC_ADMIN" ||
+    role === "PUBLIC_MOD"
+  );
+}
+
+/** Письмо в профиль — только полный штаб, не паблик */
+export function canSendAdminMail(role: AppRole | null | undefined): boolean {
   return role === "SUPER_ADMIN" || role === "DEPUTY" || role === "HR";
 }
 
@@ -91,6 +116,25 @@ export async function requireSiteVisitsAccess() {
   await syncBuiltinAdmins();
   const role = await getUserRole(session.user.steamId);
   if (!canViewSiteVisits(role)) {
+    return {
+      session: null,
+      error: NextResponse.json({ error: "Нет доступа" }, { status: 403 }),
+    };
+  }
+  return { session, error: null };
+}
+
+export async function requireMailAccess() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.steamId) {
+    return {
+      session: null,
+      error: NextResponse.json({ error: "Нет доступа" }, { status: 403 }),
+    };
+  }
+  await syncBuiltinAdmins();
+  const role = await getUserRole(session.user.steamId);
+  if (!canSendAdminMail(role)) {
     return {
       session: null,
       error: NextResponse.json({ error: "Нет доступа" }, { status: 403 }),

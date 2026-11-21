@@ -1,6 +1,7 @@
 import { getSession } from "@/lib/auth";
 import {
   assignableRoles,
+  canAccessPanelka,
   canChangeRole,
   canDeleteUser,
   effectiveRole,
@@ -11,7 +12,10 @@ import {
   syncBuiltinAdmins,
   type AppRole,
 } from "@/lib/admin";
-import { canViewSiteVisits } from "@/lib/requireAdmin";
+import {
+  canSendAdminMail,
+  canViewSiteVisits,
+} from "@/lib/requireAdmin";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { AdminShell } from "@/components/AdminShell";
@@ -26,9 +30,12 @@ export default async function AdminPage() {
   if (!(await isAdmin(session.user.steamId))) redirect("/profile");
 
   const actorRole = (await getUserRole(session.user.steamId)) || "USER";
-  if (isPublicPanelRole(actorRole)) redirect("/admin/panelka");
+  const publicLimited = isPublicPanelRole(actorRole);
   const roleOptions = assignableRoles(actorRole);
-  const staffTabs = canViewSiteVisits(actorRole);
+  const showSiteVisits = canViewSiteVisits(actorRole);
+  const showMail = canSendAdminMail(actorRole);
+  const showReserve = showMail;
+  const showServers = canAccessPanelka(actorRole);
   const showKeechHunt = isBuiltinSuperAdmin(session.user.steamId);
 
   const users = await prisma.user.findMany({
@@ -79,9 +86,12 @@ export default async function AdminPage() {
       users={rows}
       roleOptions={roleOptions}
       actorRole={actorRole}
-      showSiteVisits={staffTabs}
-      showReserve={staffTabs}
+      showSiteVisits={showSiteVisits}
+      showReserve={showReserve}
+      showMail={showMail}
+      showServers={showServers}
       showKeechHunt={showKeechHunt}
+      publicLimited={publicLimited}
     />
   );
 }
