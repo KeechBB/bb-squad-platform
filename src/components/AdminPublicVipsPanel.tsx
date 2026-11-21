@@ -165,11 +165,12 @@ export function AdminPublicVipsPanel() {
             {filtered.map((row) => (
               <tr key={row.steamId}>
                 <td>{row.nick || "—"}</td>
-                <td>
+                <td className="mono admin-steam-id">
                   <a
                     href={`https://steamcommunity.com/profiles/${row.steamId}`}
                     target="_blank"
                     rel="noreferrer"
+                    title="Открыть Steam"
                   >
                     {row.steamId}
                   </a>

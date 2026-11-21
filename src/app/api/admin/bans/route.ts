@@ -55,7 +55,12 @@ export async function POST(req: Request) {
   try {
     if (action === "unban") {
       const targetId = String(body?.targetId || body?.steamId || "").trim();
-      const res = await unbanServerTarget({ targetId, byNick, bySteamId });
+      const unbanIds = Array.isArray((body as { unbanIds?: unknown })?.unbanIds)
+        ? ((body as { unbanIds: unknown[] }).unbanIds || [])
+            .map((x) => String(x || "").trim())
+            .filter(Boolean)
+        : undefined;
+      const res = await unbanServerTarget({ targetId, unbanIds, byNick, bySteamId });
       if (!res.ok) return NextResponse.json(res, { status: 400 });
       const bans = await listServerBans();
       return NextResponse.json({ ok: true, reply: "бан снят", bans });

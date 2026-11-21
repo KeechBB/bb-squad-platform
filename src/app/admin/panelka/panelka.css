@@ -1415,3 +1415,13 @@ button.mod-log-nick:hover {
   border-radius: 10px;
   border: 1px solid rgba(212, 168, 75, 0.2);
 }
+
+.admin-table td.admin-steam-id,
+.admin-table td.admin-steam-id a {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.86rem;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  color: #e2c56a;
+  font-weight: 600;
+}

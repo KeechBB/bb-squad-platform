@@ -8,6 +8,7 @@ type BanRow = {
   id: string;
   steamId: string;
   eosId: string;
+  unbanIds?: string[];
   forever: boolean;
   endsAt: string | null;
   comment: string;
@@ -86,7 +87,11 @@ export function AdminServerBansPanel() {
       const res = await fetch("/api/admin/bans", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "unban", targetId: row.id }),
+        body: JSON.stringify({
+          action: "unban",
+          targetId: row.steamId || row.id,
+          unbanIds: row.unbanIds?.length ? row.unbanIds : [row.id],
+        }),
       });
       const data = (await res.json()) as {
         ok?: boolean;
@@ -148,7 +153,7 @@ export function AdminServerBansPanel() {
           <thead>
             <tr>
               <th>Ник</th>
-              <th>ID</th>
+              <th>Steam ID</th>
               <th>Срок</th>
               <th>Причина</th>
               <th>Кто / когда</th>
@@ -164,23 +169,24 @@ export function AdminServerBansPanel() {
               </tr>
             ) : null}
             {filtered.map((row) => (
-              <tr key={`${row.id}-${row.line || ""}`}>
+              <tr key={`${row.steamId || row.id}-${row.eosId || ""}`}>
                 <td>{row.nick || "—"}</td>
-                <td>
+                <td className="mono admin-steam-id">
                   {row.steamId ? (
                     <a
                       href={`https://steamcommunity.com/profiles/${row.steamId}`}
                       target="_blank"
                       rel="noreferrer"
+                      title="Открыть Steam"
                     >
                       {row.steamId}
                     </a>
                   ) : (
-                    <code>{row.id}</code>
+                    <span className="muted">нет Steam ID</span>
                   )}
-                  {row.eosId && row.steamId ? (
+                  {row.eosId ? (
                     <div className="muted" style={{ fontSize: "0.78rem" }}>
-                      EOS {row.eosId.slice(0, 12)}…
+                      EOS {row.eosId}
                     </div>
                   ) : null}
                 </td>

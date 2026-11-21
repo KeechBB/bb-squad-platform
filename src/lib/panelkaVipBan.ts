@@ -17,9 +17,12 @@ export type VipRow = {
 };
 
 export type BanRow = {
+  /** Primary id for unban (prefer Steam). */
   id: string;
   steamId: string;
   eosId: string;
+  /** All cfg ids to strip on unban (steam + paired eos). */
+  unbanIds: string[];
   forever: boolean;
   endsAt: string | null;
   comment: string;
@@ -247,13 +250,75 @@ export async function listServerBans(): Promise<BanRow[]> {
   };
   if (!cfg?.ok) throw new Error(cfg?.error || "не удалось прочитать Bans.cfg");
   const bans = cfg.bans || [];
-  const steamIds = bans.map((b) => b.steamId || "").filter((s) => STEAM_RE.test(s));
+
+  // Collapse Steam + next EOS twin into one player row so Steam ID is always visible.
+  type Raw = (typeof bans)[number];
+  const merged: {
+    id: string;
+    steamId: string;
+    eosId: string;
+    unbanIds: string[];
+    forever: boolean;
+    endsAt: string;
+    comment: string;
+    line: string;
+  }[] = [];
+  for (let i = 0; i < bans.length; i += 1) {
+    const cur = bans[i] as Raw;
+    const steamId = cur.steamId || (STEAM_RE.test(cur.id) ? cur.id : "");
+    const eosId = cur.eosId || (!steamId && cur.id.length === 32 ? cur.id : "");
+    const next = bans[i + 1] as Raw | undefined;
+    const nextSteam = next?.steamId || (next && STEAM_RE.test(next.id) ? next.id : "");
+    const nextEos =
+      next?.eosId || (next && !nextSteam && next.id.length === 32 ? next.id : "");
+    if (steamId && nextEos && !nextSteam) {
+      merged.push({
+        id: steamId,
+        steamId,
+        eosId: nextEos,
+        unbanIds: [steamId, nextEos],
+        forever: Boolean(cur.forever),
+        endsAt: cur.endsAt || "",
+        comment: cur.comment || next?.comment || "",
+        line: cur.line || "",
+      });
+      i += 1;
+      continue;
+    }
+    if (eosId && !steamId && nextSteam) {
+      // eos then steam (rare) — still one row
+      merged.push({
+        id: nextSteam,
+        steamId: nextSteam,
+        eosId,
+        unbanIds: [eosId, nextSteam],
+        forever: Boolean(cur.forever ?? next?.forever),
+        endsAt: cur.endsAt || next?.endsAt || "",
+        comment: cur.comment || next?.comment || "",
+        line: next?.line || cur.line || "",
+      });
+      i += 1;
+      continue;
+    }
+    merged.push({
+      id: steamId || cur.id,
+      steamId,
+      eosId,
+      unbanIds: [cur.id],
+      forever: Boolean(cur.forever),
+      endsAt: cur.endsAt || "",
+      comment: cur.comment || "",
+      line: cur.line || "",
+    });
+  }
+
+  const steamIds = merged.map((b) => b.steamId).filter((s) => STEAM_RE.test(s));
   const nickMap = await resolveNicks(steamIds);
   const audits = await prisma.panelkaBanAudit.findMany({
     where: {
       action: "ban",
       OR: [
-        { targetId: { in: bans.map((b) => b.id) } },
+        { targetId: { in: merged.flatMap((b) => b.unbanIds) } },
         { steamId: { in: steamIds } },
       ],
     },
@@ -266,17 +331,20 @@ export async function listServerBans(): Promise<BanRow[]> {
     if (a.steamId && !auditByTarget.has(a.steamId)) auditByTarget.set(a.steamId, a);
   }
 
-  return bans.map((b) => {
-    const steamId = b.steamId || (STEAM_RE.test(b.id) ? b.id : "");
-    const audit = auditByTarget.get(b.id) || (steamId ? auditByTarget.get(steamId) : undefined);
+  return merged.map((b) => {
+    const audit =
+      auditByTarget.get(b.id) ||
+      (b.steamId ? auditByTarget.get(b.steamId) : undefined) ||
+      (b.eosId ? auditByTarget.get(b.eosId) : undefined);
     return {
       id: b.id,
-      steamId,
-      eosId: b.eosId || (!steamId ? b.id : ""),
-      forever: Boolean(b.forever),
+      steamId: b.steamId,
+      eosId: b.eosId,
+      unbanIds: b.unbanIds,
+      forever: b.forever,
       endsAt: b.endsAt || audit?.endsAt?.toISOString() || null,
       comment: b.comment || "",
-      nick: steamId ? nickMap.get(steamId) || null : null,
+      nick: b.steamId ? nickMap.get(b.steamId) || null : null,
       byNick: audit?.byNick || null,
       bannedAt: audit?.createdAt?.toISOString() || null,
       line: b.line || "",
@@ -286,20 +354,34 @@ export async function listServerBans(): Promise<BanRow[]> {
 
 export async function unbanServerTarget(opts: {
   targetId: string;
+  unbanIds?: string[];
   byNick: string;
   bySteamId?: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
-  const id = clean(opts.targetId, 64);
-  if (id.length < 10) return { ok: false, error: "плохой id" };
-  const cfg = (await runPanelka(["ban-remove", id], 25000)) as {
-    ok?: boolean;
-    error?: string;
-  };
-  if (!cfg?.ok) return { ok: false, error: cfg?.error || "не удалось снять бан" };
+  const ids = [
+    ...new Set(
+      (opts.unbanIds?.length ? opts.unbanIds : [opts.targetId])
+        .map((x) => clean(x, 64))
+        .filter((x) => x.length >= 10)
+    ),
+  ];
+  if (!ids.length) return { ok: false, error: "плохой id" };
+  let anyOk = false;
+  let lastErr = "";
+  for (const id of ids) {
+    const cfg = (await runPanelka(["ban-remove", id], 25000)) as {
+      ok?: boolean;
+      error?: string;
+    };
+    if (cfg?.ok) anyOk = true;
+    else lastErr = cfg?.error || lastErr;
+  }
+  if (!anyOk) return { ok: false, error: lastErr || "не удалось снять бан" };
+  const primary = ids.find((id) => STEAM_RE.test(id)) || ids[0];
   await prisma.panelkaBanAudit.create({
     data: {
-      targetId: id,
-      steamId: STEAM_RE.test(id) ? id : null,
+      targetId: primary,
+      steamId: STEAM_RE.test(primary) ? primary : null,
       action: "unban",
       byNick: clean(opts.byNick, 32) || "штаб",
       bySteamId: opts.bySteamId || null,
