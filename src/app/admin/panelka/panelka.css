@@ -1306,6 +1306,13 @@ button.mod-log-nick:hover {
   white-space: nowrap;
 }
 
+.panelka-mods-list-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .panelka-mods-list {
   display: flex;
   flex-direction: column;

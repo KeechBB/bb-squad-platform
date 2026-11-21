@@ -1200,7 +1200,8 @@ def install_mod(key, mod_id, meta):
         time.sleep(2)
     if not ok:
         return {"ok": False, "error": "SteamCMD не скачал мод", "raw": raw[-12:]}
-    if os.path.isdir(target):
+    was = os.path.isdir(target)
+    if was:
         shutil.rmtree(target, ignore_errors=True)
     if not os.path.isdir(workshop):
         return {"ok": False, "error": "скачалось, но папки мода нет", "raw": raw[-8:]}
@@ -1213,7 +1214,8 @@ def install_mod(key, mod_id, meta):
     if mod_id not in order:
         order.append(mod_id)
         write_mod_order(key, order)
-    return {"ok": True, "reply": f"мод {mod_id} установлен — нужен рестарт сервера", "modId": mod_id}
+    verb = "обновлён" if was else "установлен"
+    return {"ok": True, "reply": f"мод {mod_id} {verb} — нужен рестарт сервера", "modId": mod_id}
 
 def remove_mod(key, mod_id):
     target = f"{mods_root(key)}/{mod_id}"

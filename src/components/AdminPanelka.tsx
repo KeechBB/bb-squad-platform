@@ -772,21 +772,40 @@ export function AdminPanelka({
                           </span>
                           {mod.needsUpdate ? <em>есть новое обновление</em> : null}
                         </div>
-                        <button
-                          type="button"
-                          disabled={Boolean(busy)}
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                `Удалить мод ${mod.title} (${mod.id}) с ${current.key}?`
-                              )
-                            ) {
-                              void send("mod-remove", { mod: mod.id });
-                            }
-                          }}
-                        >
-                          Удалить
-                        </button>
+                        <div className="panelka-mods-list-actions">
+                          {mod.needsUpdate ? (
+                            <button
+                              type="button"
+                              disabled={Boolean(busy)}
+                              onClick={() => {
+                                if (
+                                  window.confirm(
+                                    `Обновить мод ${mod.title} (${mod.id}) с Workshop на ${current.key}? После этого нужен рестарт сервера.`
+                                  )
+                                ) {
+                                  void send("mod-install", { mod: mod.id });
+                                }
+                              }}
+                            >
+                              {busy === "mod-install" ? "Обновляю…" : "Обновить"}
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            disabled={Boolean(busy)}
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  `Удалить мод ${mod.title} (${mod.id}) с ${current.key}?`
+                                )
+                              ) {
+                                void send("mod-remove", { mod: mod.id });
+                              }
+                            }}
+                          >
+                            Удалить
+                          </button>
+                        </div>
                       </article>
                     ))
                   ) : (
