@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Keep Squad RCON open on the game host and append player chat lines.
 
-Answers !admins / admins with a private AdminWarn on the SAME RCON socket
-(Squad often allows only one RCON client per server port).
+Answers !admins / admins with a private AdminWarn.
+
+Squad RCON port allows one client: for Warn we briefly pause the chat
+listener on that server, send Source-RCON AdminWarn, then resume.
 """
 from __future__ import annotations
 
@@ -15,7 +17,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-CHAT_SCRIPT_VERSION = "2026-11-21-admins-v4"
+CHAT_SCRIPT_VERSION = "2026-11-21-admins-v5"
 
 KEYS = ("TR1", "TR2", "TR3", "TR4", "TR5", "PB1")
 HOST = {"PB1": "TPUB1"}
@@ -37,6 +39,12 @@ _last_admins: dict[str, float] = {}
 _last_admins_lock = threading.Lock()
 _seen_chat: dict[str, float] = {}
 _seen_lock = threading.Lock()
+
+# per-server: request pause / confirm paused / resume
+_pause_req: dict[str, threading.Event] = {k: threading.Event() for k in KEYS}
+_paused_ack: dict[str, threading.Event] = {k: threading.Event() for k in KEYS}
+_sock_breaker: dict[str, socket.socket | None] = {k: None for k in KEYS}
+_sock_lock = threading.Lock()
 
 ADMINS_REPLY_PARTS = (
     "Увидел нарушение? Зафиксируй откат! Создай тикет на сайте bb-squad.ru.",
@@ -104,28 +112,110 @@ def is_admins_command(text: str) -> bool:
     low = (text or "").strip().lower()
     if not low:
         return False
-    # !admins / admins / !admin / admin
     return low in ("!admins", "admins", "!admin", "admin") or low.startswith(
         ("!admins ", "admins ", "!admin ", "admin ")
     )
 
 
-def send_cmd(sock: socket.socket, counter: list[int], cmd: str) -> None:
-    """Execute RCON command on the already-authenticated Squad socket."""
-    counter[0] = (counter[0] + 1) & 0xFFFF
-    # type 2 = exec command (same family as auth response)
-    sock.sendall(encode(2, 1, counter[0], cmd))
+def source_rcon(key: str, cmd: str, timeout: float = 6.0, attempts: int = 4) -> str:
+    port, password = load_cfg(key)
+    last_err: Exception | None = None
+    for attempt in range(max(1, attempts)):
+        sock = None
+        try:
+            sock = socket.create_connection(("127.0.0.1", port), timeout=timeout)
+            sock.settimeout(timeout)
+
+            def send(req_id: int, req_type: int, body: str) -> None:
+                payload = (
+                    struct.pack("<ii", req_id, req_type) + body.encode("utf-8") + b"\x00\x00"
+                )
+                sock.sendall(struct.pack("<i", len(payload)) + payload)
+
+            def recvall(n: int) -> bytes:
+                buf = b""
+                while len(buf) < n:
+                    chunk = sock.recv(n - len(buf))
+                    if not chunk:
+                        raise RuntimeError("rcon closed")
+                    buf += chunk
+                return buf
+
+            def recv() -> tuple[int, int, str]:
+                size = struct.unpack("<i", recvall(4))[0]
+                if size < 10 or size > 4_000_000:
+                    raise RuntimeError("bad packet")
+                data = recvall(size)
+                req_id, req_type = struct.unpack("<ii", data[:8])
+                return req_id, req_type, data[8:-2].decode("utf-8", "replace")
+
+            send(1, 3, password)
+            while True:
+                req_id, req_type, _ = recv()
+                if req_type == 2:
+                    if req_id == -1:
+                        raise RuntimeError("rcon auth failed")
+                    break
+            send(2, 2, cmd)
+            parts: list[str] = []
+            sock.settimeout(1.5)
+            try:
+                while True:
+                    req_id, req_type, body = recv()
+                    if req_id == 2 and req_type == 0:
+                        parts.append(body)
+                        sock.settimeout(0.2)
+                        if len(parts) > 40:
+                            break
+                    elif req_id == -1:
+                        raise RuntimeError("rcon rejected")
+            except (socket.timeout, TimeoutError, RuntimeError):
+                pass
+            return "".join(parts)
+        except Exception as exc:
+            last_err = exc
+            time.sleep(0.4 * (attempt + 1))
+        finally:
+            if sock is not None:
+                try:
+                    sock.close()
+                except Exception:
+                    pass
+    raise RuntimeError(str(last_err) if last_err else "rcon failed")
 
 
-def reply_admins_on_socket(
-    key: str,
-    sock: socket.socket,
-    counter: list[int],
-    steam_id: str,
-    name: str,
-) -> None:
+def with_rcon_pause(key: str, fn) -> None:
+    """Pause chat listener on this server, run fn(), resume."""
+    req = _pause_req[key]
+    ack = _paused_ack[key]
+    ack.clear()
+    req.set()
+    # force-break blocking recv
+    with _sock_lock:
+        sock = _sock_breaker.get(key)
+    if sock is not None:
+        try:
+            sock.shutdown(socket.SHUT_RDWR)
+        except Exception:
+            pass
+        try:
+            sock.close()
+        except Exception:
+            pass
+    if not ack.wait(timeout=4.0):
+        _admins_log(f"{key} pause-timeout")
+    try:
+        fn()
+    finally:
+        req.clear()
+        ack.clear()
+
+
+def maybe_reply_admins(key: str, steam_id: str, name: str, text: str) -> None:
+    if not is_admins_command(text):
+        return
     if not steam_id:
-        _admins_log(f"{key} skip no-steam name={name!r}")
+        _admins_log(f"{key} skip no-steam name={name!r} text={text!r}")
         return
     now = time.time()
     with _last_admins_lock:
@@ -134,27 +224,30 @@ def reply_admins_on_socket(
             _admins_log(f"{key} cooldown steam={steam_id} name={name!r}")
             return
         _last_admins[steam_id] = now
-    try:
+
+    def _send() -> None:
         for part in ADMINS_REPLY_PARTS:
-            cmd = f"AdminWarn {steam_id} {part}"
-            send_cmd(sock, counter, cmd)
-            _admins_log(f"{key} warn-socket steam={steam_id} name={name!r} part={part[:48]!r}")
+            reply = source_rcon(key, f"AdminWarn {steam_id} {part}")
+            _admins_log(
+                f"{key} warn steam={steam_id} name={name!r} reply={reply[:160]!r}"
+            )
+            if "warned player" not in reply.lower():
+                alt = part.replace(" ", "_")
+                reply2 = source_rcon(key, f"AdminWarn {steam_id} {alt}")
+                _admins_log(f"{key} warn-fallback steam={steam_id} reply={reply2[:160]!r}")
             time.sleep(0.2)
+
+    try:
+        with_rcon_pause(key, _send)
     except Exception as exc:
         _admins_log(
-            f"{key} ERROR-socket steam={steam_id} name={name!r} err={type(exc).__name__}:{exc}"
+            f"{key} ERROR steam={steam_id} name={name!r} err={type(exc).__name__}:{exc}"
         )
         with _last_admins_lock:
             _last_admins.pop(steam_id, None)
-        raise
 
 
-def handle_chat(
-    key: str,
-    sock: socket.socket,
-    counter: list[int],
-    body: str,
-) -> None:
+def handle_chat(key: str, body: str) -> None:
     match = CHAT_RE.search(body.strip())
     if not match:
         return
@@ -164,7 +257,6 @@ def handle_chat(
     name = match.group(3).strip()[:48]
     text = match.group(4).strip()[:240]
 
-    # RCON иногда дублирует один и тот же пакет десятки раз
     dedupe_key = f"{key}|{steam_id}|{text.lower()}"
     now = time.time()
     with _seen_lock:
@@ -189,25 +281,33 @@ def handle_chat(
         }
     )
     if is_admins_command(text):
-        try:
-            reply_admins_on_socket(key, sock, counter, steam_id, name)
-        except Exception:
-            # сокет мог оборваться — listen() переподключится
-            raise
+        threading.Thread(
+            target=maybe_reply_admins,
+            args=(key, steam_id, name, text),
+            daemon=True,
+        ).start()
 
 
 def listen(key: str) -> None:
     port, password = load_cfg(key)
     while True:
+        # wait if pause requested before connecting
+        while _pause_req[key].is_set():
+            _paused_ack[key].set()
+            time.sleep(0.15)
+
         sock = None
         try:
             sock = socket.create_connection(("127.0.0.1", port), timeout=8)
             sock.settimeout(30)
+            with _sock_lock:
+                _sock_breaker[key] = sock
             buf = bytearray()
-            counter = [1]
 
             def pull() -> tuple[int, str] | None:
                 while True:
+                    if _pause_req[key].is_set():
+                        raise RuntimeError("pause")
                     if len(buf) >= 4:
                         size = struct.unpack_from("<i", buf, 0)[0]
                         if size < 10 or size > 65536:
@@ -230,7 +330,7 @@ def listen(key: str) -> None:
                         raise RuntimeError("closed")
                     buf.extend(chunk)
 
-            sock.sendall(encode(3, 2, counter[0], password))
+            sock.sendall(encode(3, 2, 1, password))
             while True:
                 packet = pull()
                 if packet and packet[0] == 2:
@@ -239,13 +339,23 @@ def listen(key: str) -> None:
                 try:
                     packet = pull()
                 except socket.timeout:
+                    if _pause_req[key].is_set():
+                        raise RuntimeError("pause")
                     continue
                 if packet and packet[0] == 1:
-                    handle_chat(key, sock, counter, packet[1])
+                    handle_chat(key, packet[1])
         except Exception as exc:
-            _admins_log(f"{key} listen-reconnect {type(exc).__name__}:{exc}")
-            time.sleep(2)
+            if "pause" in str(exc).lower() or _pause_req[key].is_set():
+                _paused_ack[key].set()
+                while _pause_req[key].is_set():
+                    time.sleep(0.1)
+            else:
+                _admins_log(f"{key} listen-reconnect {type(exc).__name__}:{exc}")
+                time.sleep(1.2)
         finally:
+            with _sock_lock:
+                if _sock_breaker.get(key) is sock:
+                    _sock_breaker[key] = None
             if sock is not None:
                 try:
                     sock.close()
