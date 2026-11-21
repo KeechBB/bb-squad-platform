@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireSiteVisitsAccess } from "@/lib/requireAdmin";
+import { requirePanelkaAccess } from "@/lib/requireAdmin";
 import { isPanelkaKey, runPanelka } from "@/lib/panelkaRcon";
 
 export const runtime = "nodejs";
@@ -93,7 +93,7 @@ async function siteProfile(steamId: string) {
 }
 
 export async function GET(req: Request) {
-  const { error } = await requireSiteVisitsAccess();
+  const { error } = await requirePanelkaAccess();
   if (error) return error;
   const url = new URL(req.url);
   const op = url.searchParams.get("op") || "status";
@@ -170,7 +170,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const { session, error } = await requireSiteVisitsAccess();
+  const { session, error } = await requirePanelkaAccess();
   if (error) return error;
   const body = (await req.json().catch(() => null)) as {
     key?: string;

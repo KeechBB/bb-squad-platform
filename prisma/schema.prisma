@@ -13,6 +13,10 @@ enum Role {
   HR
   DEPUTY
   SUPER_ADMIN
+  /// Администратор паблика — панель серверов (panelka)
+  PUBLIC_ADMIN
+  /// Модератор паблика — панель серверов (panelka)
+  PUBLIC_MOD
 }
 
 enum ClanRole {

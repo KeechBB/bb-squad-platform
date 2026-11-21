@@ -5,7 +5,13 @@ import {
 } from "@/lib/roles";
 
 export type { AppRole } from "@/lib/roles";
-export { roleLabel, parseRole, assignableRoles } from "@/lib/roles";
+export {
+  roleLabel,
+  parseRole,
+  assignableRoles,
+  canAccessPanelka,
+  isPublicPanelRole,
+} from "@/lib/roles";
 
 /** Главный админ — Keech */
 const BUILTIN_SUPER_ADMIN_STEAM_IDS = ["76561198028435874"] as const;
@@ -59,7 +65,7 @@ export async function getUserRole(
   return effectiveRole(steamId, u.role as AppRole);
 }
 
-/** Доступ в админку */
+/** Доступ в админку (включая роли паблика → только panelka) */
 export async function isAdmin(steamId: string | null | undefined): Promise<boolean> {
   if (!steamId) return false;
   const role = await getUserRole(steamId);
@@ -67,7 +73,9 @@ export async function isAdmin(steamId: string | null | undefined): Promise<boole
     role === "ADMIN" ||
     role === "HR" ||
     role === "DEPUTY" ||
-    role === "SUPER_ADMIN"
+    role === "SUPER_ADMIN" ||
+    role === "PUBLIC_ADMIN" ||
+    role === "PUBLIC_MOD"
   );
 }
 

@@ -1,8 +1,13 @@
 import { redirect } from "next/navigation";
 import { AdminPanelka } from "@/components/AdminPanelka";
 import { getSession } from "@/lib/auth";
-import { getUserRole, isAdmin, syncBuiltinAdmins } from "@/lib/admin";
-import { canViewSiteVisits } from "@/lib/requireAdmin";
+import {
+  getUserRole,
+  isAdmin,
+  isPublicPanelRole,
+  syncBuiltinAdmins,
+} from "@/lib/admin";
+import { canAccessPanelka } from "@/lib/roles";
 import "./panelka.css";
 
 export const dynamic = "force-dynamic";
@@ -17,10 +22,14 @@ export default async function PanelkaPage() {
   await syncBuiltinAdmins();
   if (!(await isAdmin(session.user.steamId))) redirect("/profile");
   const role = await getUserRole(session.user.steamId);
-  if (!canViewSiteVisits(role)) redirect("/admin");
+  if (!canAccessPanelka(role)) redirect("/admin");
+  const panelkaOnly = isPublicPanelRole(role);
   return (
     <main className="panelka-page">
-      <AdminPanelka />
+      <AdminPanelka
+        backHref={panelkaOnly ? "/profile" : "/admin"}
+        backLabel={panelkaOnly ? "В профиль" : "К админке"}
+      />
     </main>
   );
 }

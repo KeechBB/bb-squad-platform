@@ -117,7 +117,15 @@ type ServerMod = {
   inLoadOrder: boolean;
 };
 
-export function AdminPanelka() {
+type AdminPanelkaProps = {
+  backHref?: string;
+  backLabel?: string;
+};
+
+export function AdminPanelka({
+  backHref = "/admin",
+  backLabel = "К админке",
+}: AdminPanelkaProps = {}) {
   const [servers, setServers] = useState<PanelkaServer[]>([]);
   const [loadError, setLoadError] = useState("");
   const [selected, setSelected] = useState<string>("");
@@ -369,10 +377,13 @@ export function AdminPanelka() {
         <div>
           <p className="eyebrow">админ</p>
           <h1>Панель серверов</h1>
-          <p className="lead">TR1–TR5 и PB1. Карта, фракции, моды, рестарт. Доступ: ты, HR и зам.</p>
+          <p className="lead">
+            TR1–TR5 и PB1. Карта, фракции, моды, рестарт. Доступ: Keech, HR, зам,
+            администратор и модератор паблика.
+          </p>
         </div>
-        <a className="panelka-back" href="/admin">
-          К админке
+        <a className="panelka-back" href={backHref}>
+          {backLabel}
         </a>
       </header>
 

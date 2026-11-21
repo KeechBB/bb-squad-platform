@@ -5,9 +5,10 @@ import {
   getUserRole,
   isAdmin,
   isBuiltinSuperAdmin,
+  isPublicPanelRole,
   syncBuiltinAdmins,
 } from "@/lib/admin";
-import type { AppRole } from "@/lib/roles";
+import { canAccessPanelka, type AppRole } from "@/lib/roles";
 
 export async function requireAdmin() {
   const session = await getServerSession(authOptions);
@@ -19,6 +20,34 @@ export async function requireAdmin() {
   }
   await syncBuiltinAdmins();
   if (!(await isAdmin(session.user.steamId))) {
+    return {
+      session: null,
+      error: NextResponse.json({ error: "Нет доступа" }, { status: 403 }),
+    };
+  }
+  // Паблик-роли — только /admin/panelka, не полный админ-API
+  const role = await getUserRole(session.user.steamId);
+  if (isPublicPanelRole(role)) {
+    return {
+      session: null,
+      error: NextResponse.json({ error: "Нет доступа" }, { status: 403 }),
+    };
+  }
+  return { session, error: null };
+}
+
+/** Панель серверов: Keech / Зам / HR / Админ паблика / Модератор паблика */
+export async function requirePanelkaAccess() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.steamId) {
+    return {
+      session: null,
+      error: NextResponse.json({ error: "Нет доступа" }, { status: 403 }),
+    };
+  }
+  await syncBuiltinAdmins();
+  const role = await getUserRole(session.user.steamId);
+  if (!canAccessPanelka(role)) {
     return {
       session: null,
       error: NextResponse.json({ error: "Нет доступа" }, { status: 403 }),

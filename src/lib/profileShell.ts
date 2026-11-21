@@ -83,7 +83,9 @@ export async function buildProfileShell(
     (siteRoleKey === "ADMIN" ||
       siteRoleKey === "HR" ||
       siteRoleKey === "DEPUTY" ||
-      siteRoleKey === "SUPER_ADMIN");
+      siteRoleKey === "SUPER_ADMIN" ||
+      siteRoleKey === "PUBLIC_ADMIN" ||
+      siteRoleKey === "PUBLIC_MOD");
 
   const isBb = me.clanMemberships.some((m) => {
     const t = String(m.clan.tag || "").trim().toLowerCase();

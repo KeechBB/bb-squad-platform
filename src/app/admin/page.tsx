@@ -7,6 +7,7 @@ import {
   getUserRole,
   isAdmin,
   isBuiltinSuperAdmin,
+  isPublicPanelRole,
   syncBuiltinAdmins,
   type AppRole,
 } from "@/lib/admin";
@@ -25,6 +26,7 @@ export default async function AdminPage() {
   if (!(await isAdmin(session.user.steamId))) redirect("/profile");
 
   const actorRole = (await getUserRole(session.user.steamId)) || "USER";
+  if (isPublicPanelRole(actorRole)) redirect("/admin/panelka");
   const roleOptions = assignableRoles(actorRole);
   const staffTabs = canViewSiteVisits(actorRole);
   const showKeechHunt = isBuiltinSuperAdmin(session.user.steamId);
