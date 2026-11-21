@@ -420,7 +420,7 @@ export async function POST(req: Request) {
       const data = await runPanelka(["mod-remove", key], 60000, { mod: modRaw });
       return NextResponse.json(data);
     }
-    const data = await runPanelka(["cmd", key, action, layer, steamId], 35000, {
+    const data = (await runPanelka(["cmd", key, action, layer, steamId], 35000, {
       reason,
       duration,
       faction1,
@@ -433,7 +433,45 @@ export async function POST(req: Request) {
       teamId,
       squadId,
       squadName,
-    });
+    })) as { ok?: boolean; error?: string; reply?: string };
+
+    // Ban from player card / servers panel must land in Bans table enrichment too.
+    if (action === "ban" && data?.ok !== false && STEAM_RE.test(steamId)) {
+      const forever = duration === "0";
+      let endsAt: Date | null = null;
+      if (!forever && /^\d+d$/i.test(duration)) {
+        const days = Number(duration.slice(0, -1)) || 1;
+        endsAt = new Date(Date.now() + days * 86_400_000);
+      } else if (!forever && /^\d+h$/i.test(duration)) {
+        const hours = Number(duration.slice(0, -1)) || 1;
+        endsAt = new Date(Date.now() + hours * 3_600_000);
+      } else if (!forever && /^\d+m$/i.test(duration)) {
+        const mins = Number(duration.slice(0, -1)) || 1;
+        endsAt = new Date(Date.now() + mins * 60_000);
+      }
+      const { recordBanAudit } = await import("@/lib/panelkaVipBan");
+      await recordBanAudit({
+        steamId,
+        reason,
+        duration,
+        endsAt,
+        forever,
+        byNick,
+        bySteamId,
+      }).catch(() => null);
+      await runPanelka(["ban-annotate", steamId], 25000, {
+        until: forever
+          ? "forever"
+          : endsAt
+            ? endsAt.toISOString().slice(0, 19)
+            : "forever",
+        duration,
+        byNick,
+        reason,
+        at: new Date().toISOString().slice(0, 19),
+      }).catch(() => null);
+    }
+
     return NextResponse.json(data);
   } catch (err) {
     const message = err instanceof Error ? err.message : "ошибка";

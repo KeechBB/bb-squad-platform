@@ -89,6 +89,90 @@ function clean(raw: string, limit: number): string {
     .slice(0, limit);
 }
 
+/** Squad AdminBan comment: `[Keech] reason` or `[Навсегда] …` — not bb-ban meta. */
+const COMMENT_BRACKET_RE = /^\[([^\]]{1,48})\]\s*(.*)$/i;
+const NOT_BY_BRACKET_RE =
+  /^(навсегда|forever|perm|permanent|0|\d+\s*[mhd]|срок)$/i;
+
+export function parseBanComment(comment: string): {
+  byNick: string;
+  reason: string;
+  foreverHint: boolean;
+} {
+  const raw = clean(comment, 240);
+  const m = COMMENT_BRACKET_RE.exec(raw);
+  if (!m) return { byNick: "", reason: raw, foreverHint: false };
+  const tag = m[1].trim();
+  const rest = clean(m[2] || "", 200);
+  if (NOT_BY_BRACKET_RE.test(tag) || /навсегда|forever/i.test(tag)) {
+    return {
+      byNick: "",
+      reason: rest || raw,
+      foreverHint: true,
+    };
+  }
+  return { byNick: tag, reason: rest || raw, foreverHint: false };
+}
+
+function staffStampIso(date: string, clock: string): string | null {
+  const d = String(date || "").trim();
+  const c = String(clock || "").trim() || "00:00:00";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+  const t = new Date(`${d}T${c}+03:00`);
+  return Number.isNaN(t.getTime()) ? null : t.toISOString();
+}
+
+type StaffBanHit = {
+  steamId: string;
+  name: string;
+  reason: string;
+  duration: string;
+  byNick: string;
+  bannedAt: string | null;
+};
+
+async function loadStaffBanHits(): Promise<StaffBanHit[]> {
+  try {
+    const data = (await runPanelka(["staff-log"], 25000, { limit: 600 })) as {
+      ok?: boolean;
+      entries?: {
+        kind?: string;
+        date?: string;
+        clock?: string;
+        steamId?: string;
+        name?: string;
+        reason?: string;
+        duration?: string;
+        byNick?: string;
+      }[];
+    };
+    if (!data?.ok || !Array.isArray(data.entries)) return [];
+    const out: StaffBanHit[] = [];
+    for (const e of data.entries) {
+      if (e.kind !== "ban") continue;
+      const reason = clean(String(e.reason || ""), 200);
+      const parsed = parseBanComment(reason);
+      out.push({
+        steamId: STEAM_RE.test(String(e.steamId || ""))
+          ? String(e.steamId)
+          : "",
+        name: clean(String(e.name || ""), 64),
+        reason: parsed.reason || reason,
+        duration: clean(String(e.duration || ""), 16),
+        byNick: clean(String(e.byNick || parsed.byNick || ""), 32),
+        bannedAt: staffStampIso(String(e.date || ""), String(e.clock || "")),
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+function normReason(s: string): string {
+  return clean(s, 200).toLowerCase();
+}
+
 async function resolveNicks(steamIds: string[]): Promise<Map<string, string>> {
   const ids = [...new Set(steamIds.filter((s) => STEAM_RE.test(s)))];
   const map = new Map<string, string>();
@@ -394,53 +478,120 @@ export async function listServerBans(): Promise<BanRow[]> {
     });
   }
 
+  const staffHits = await loadStaffBanHits();
+  const staffBySteam = new Map<string, StaffBanHit>();
+  const staffByReasonBy: StaffBanHit[] = [];
+  for (const h of staffHits) {
+    if (h.steamId && !staffBySteam.has(h.steamId)) staffBySteam.set(h.steamId, h);
+    staffByReasonBy.push(h);
+  }
+
+  // Pull steam from staff onto EOS-only cfg rows (same reason + who).
+  for (const b of merged) {
+    if (b.steamId) continue;
+    const parsed = parseBanComment(b.comment);
+    const by = (b.byNick || parsed.byNick).toLowerCase();
+    const reason = normReason(parsed.reason || b.comment);
+    if (!reason) continue;
+    const hit = staffByReasonBy.find((h) => {
+      if (!h.steamId) return false;
+      if (by && h.byNick && h.byNick.toLowerCase() !== by) return false;
+      return normReason(h.reason) === reason || reason.includes(normReason(h.reason));
+    });
+    if (hit?.steamId) {
+      b.steamId = hit.steamId;
+      if (!b.unbanIds.includes(hit.steamId)) b.unbanIds.push(hit.steamId);
+      if (!b.id || b.id === b.eosId) b.id = hit.steamId;
+    }
+  }
+
   const steamIds = merged.map((b) => b.steamId).filter((s) => STEAM_RE.test(s));
   const nickMap = await resolveNicks(steamIds);
   const audits = await prisma.panelkaBanAudit.findMany({
-    where: {
-      action: "ban",
-      OR: [
-        { targetId: { in: merged.flatMap((b) => b.unbanIds) } },
-        ...(steamIds.length ? [{ steamId: { in: steamIds } }] : []),
-      ],
-    },
+    where: { action: "ban" },
     orderBy: { createdAt: "desc" },
-    take: 5000,
+    take: 3000,
   });
   const auditByTarget = new Map<string, (typeof audits)[number]>();
   for (const a of audits) {
     if (!auditByTarget.has(a.targetId)) auditByTarget.set(a.targetId, a);
-    if (a.steamId && !auditByTarget.has(a.steamId)) auditByTarget.set(a.steamId, a);
+    if (a.steamId && !auditByTarget.has(a.steamId)) {
+      auditByTarget.set(a.steamId, a);
+    }
   }
 
+  const usedStaff = new Set<string>();
   const rows: BanRow[] = merged.map((b) => {
+    const parsed = parseBanComment(b.comment);
     const audit =
       auditByTarget.get(b.id) ||
       (b.steamId ? auditByTarget.get(b.steamId) : undefined) ||
       (b.eosId ? auditByTarget.get(b.eosId) : undefined);
+    let staff =
+      (b.steamId && staffBySteam.get(b.steamId)) || undefined;
+    if (!staff) {
+      const by = (b.byNick || parsed.byNick || "").toLowerCase();
+      const reason = normReason(parsed.reason || b.comment);
+      staff = staffByReasonBy.find((h) => {
+        const key = `${h.steamId}|${h.bannedAt}|${h.reason}`;
+        if (usedStaff.has(key)) return false;
+        if (by && h.byNick && h.byNick.toLowerCase() !== by) return false;
+        const hr = normReason(h.reason);
+        return Boolean(reason) && (hr === reason || reason.includes(hr) || hr.includes(reason));
+      });
+    }
+    if (staff) {
+      usedStaff.add(`${staff.steamId}|${staff.bannedAt}|${staff.reason}`);
+    }
+
+    const steamId = b.steamId || staff?.steamId || "";
     const endsAt = b.endsAt || audit?.endsAt?.toISOString() || null;
-    const duration = (b.duration || audit?.duration || "").trim() || null;
-    const forever = Boolean(audit?.forever ?? b.forever);
-    const comment = b.comment || audit?.reason || "";
+    const duration =
+      (b.duration || staff?.duration || audit?.duration || "").trim() || null;
+    const forever = Boolean(
+      audit?.forever ?? b.forever ?? parsed.foreverHint
+    );
+    const reasonText =
+      clean(parsed.reason || "", 200) ||
+      clean(staff?.reason || "", 200) ||
+      clean(audit?.reason || "", 200) ||
+      clean(b.comment || "", 200);
     const bannedAt =
       audit?.createdAt?.toISOString() ||
+      staff?.bannedAt ||
       (b.bannedAt
         ? b.bannedAt.includes("T")
           ? b.bannedAt
           : `${b.bannedAt}T00:00:00`
         : null);
+    const byNick =
+      b.byNick ||
+      parsed.byNick ||
+      staff?.byNick ||
+      audit?.byNick ||
+      null;
+    const nick =
+      (steamId ? nickMap.get(steamId) : null) ||
+      staff?.name ||
+      null;
+
     return {
-      id: b.id,
-      steamId: b.steamId,
+      id: steamId || b.id,
+      steamId,
       eosId: b.eosId,
       unbanIds: b.unbanIds,
       forever,
       endsAt,
       duration,
-      termLabel: banTermLabel({ forever, endsAt, duration, comment }),
-      comment,
-      nick: b.steamId ? nickMap.get(b.steamId) || null : null,
-      byNick: b.byNick || audit?.byNick || null,
+      termLabel: banTermLabel({
+        forever,
+        endsAt,
+        duration,
+        comment: reasonText,
+      }),
+      comment: reasonText,
+      nick,
+      byNick,
       bannedAt,
       lineNo: b.lineNo || 0,
       line: b.line || "",

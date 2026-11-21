@@ -904,6 +904,18 @@ def list_bans():
         dur = (meta.group("dur") if meta else "").strip()
         by = (meta.group("by") if meta else "").replace("_", " ").strip()
         banned_at = (meta.group("at") if meta and meta.group("at") else "").strip()
+        # Squad native comment: //[Keech] reason  (not bb-ban meta)
+        if not by:
+            bm = re.match(r"\[([^\]]{1,48})\]\s*(.*)$", comment)
+            if bm:
+                tag = bm.group(1).strip()
+                if not re.match(
+                    r"^(навсегда|forever|perm|permanent|0|\d+\s*[mhd])$",
+                    tag,
+                    re.I,
+                ):
+                    by = tag
+                    comment = (bm.group(2) or "").strip() or comment
         ends_at = ""
         forever = False
         # Squad often writes :0 even for timed bans — never treat ttl=0 alone as forever.
