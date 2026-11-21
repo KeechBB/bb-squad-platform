@@ -133,30 +133,45 @@ export async function GET(req: Request) {
       if (!isPanelkaKey(key) || !STEAM_RE.test(steamId)) {
         return NextResponse.json({ ok: false, error: "нет игрока" }, { status: 400 });
       }
-      const [history, profile] = await Promise.all([
-        runPanelka(["player-card", key, steamId], 35000, { name }),
-        siteProfile(steamId),
-      ]);
-      const hist = history as {
-        ok?: boolean;
-        chat?: unknown[];
-        teamkills?: unknown[];
-        punishments?: unknown[];
-        error?: string;
-      };
-      if (!hist?.ok) {
-        return NextResponse.json(
-          { ok: false, error: hist?.error || "карточка не пришла" },
-          { status: 502 }
-        );
+      const profile = await siteProfile(steamId);
+      try {
+        const history = (await runPanelka(["player-card", key, steamId], 28000, {
+          name,
+        })) as {
+          ok?: boolean;
+          chat?: unknown[];
+          teamkills?: unknown[];
+          punishments?: unknown[];
+          error?: string;
+        };
+        if (!history?.ok) {
+          return NextResponse.json({
+            ok: true,
+            profile,
+            chat: [],
+            teamkills: [],
+            punishments: [],
+            warning: history?.error || "история с сервера не пришла",
+          });
+        }
+        return NextResponse.json({
+          ok: true,
+          profile,
+          chat: history.chat || [],
+          teamkills: history.teamkills || [],
+          punishments: history.punishments || [],
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "ошибка";
+        return NextResponse.json({
+          ok: true,
+          profile,
+          chat: [],
+          teamkills: [],
+          punishments: [],
+          warning: `история не успела: ${message.slice(0, 120)}`,
+        });
       }
-      return NextResponse.json({
-        ok: true,
-        profile,
-        chat: hist.chat || [],
-        teamkills: hist.teamkills || [],
-        punishments: hist.punishments || [],
-      });
     }
     if (op === "mods") {
       const key = url.searchParams.get("key") || "";

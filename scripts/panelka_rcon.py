@@ -366,12 +366,11 @@ def read_squad_creates(key):
 
 def read_player_card(key, steam_id, name):
     import json, os, re
-    ensure_chat_listener()
     want_name = (name or "").strip().lower()
     chat = []
     path = "/home/squad/bb-panelka-chat.jsonl"
     if os.path.isfile(path):
-        lines = open(path, encoding="utf-8", errors="replace").read().splitlines()[-2000:]
+        lines = open(path, encoding="utf-8", errors="replace").read().splitlines()[-1200:]
         for line in lines:
             try:
                 row = json.loads(line)
@@ -397,7 +396,7 @@ def read_player_card(key, steam_id, name):
     try:
         with open(log_path, "rb") as handle:
             handle.seek(0, 2)
-            handle.seek(max(0, handle.tell() - 5_000_000))
+            handle.seek(max(0, handle.tell() - 2_000_000))
             blob = handle.read().decode("utf-8", "replace")
         possess_re = re.compile(
             r"OnPossess\(\):\s*PC=(?P<nick>.+?)\s*\(Online IDs:.*?steam:\s*(?P<steam>7656\d+)\).*?"

@@ -1057,6 +1057,7 @@ export function PlayerModModal({
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState<ModAction>(null);
+  const [confirmKick, setConfirmKick] = useState(false);
   const [reason, setReason] = useState("");
   const [banUnit, setBanUnit] = useState<BanUnit>("d");
   const [banAmount, setBanAmount] = useState("1");
@@ -1077,32 +1078,45 @@ export function PlayerModModal({
         `/api/admin/panelka?op=player-card&key=${encodeURIComponent(serverKey)}` +
         `&steamId=${encodeURIComponent(player.steamId)}` +
         `&name=${encodeURIComponent(player.name)}`;
-      return fetch(url, { cache: "no-store" })
-        .then((res) => res.json())
-        .then(
-          (data: {
+      const ctrl = new AbortController();
+      const timer = window.setTimeout(() => ctrl.abort(), 45000);
+      return fetch(url, { cache: "no-store", signal: ctrl.signal })
+        .then(async (res) => {
+          const data = (await res.json().catch(() => null)) as {
             ok?: boolean;
             profile?: PlayerProfile;
             chat?: ChatLine[];
             teamkills?: TeamKillRow[];
             punishments?: PunishmentRow[];
             error?: string;
-          }) => {
-            if (!data.ok) {
-              if (!silent) setLoadError(data.error || "карточка не загрузилась");
-              return;
+            warning?: string;
+          } | null;
+          if (!res.ok || !data?.ok) {
+            if (!silent) {
+              setLoadError(data?.error || `карточка не загрузилась (${res.status})`);
             }
-            setProfile(data.profile || null);
-            setChat(data.chat || []);
-            setTeamkills(data.teamkills || []);
-            setPunishments(data.punishments || []);
-            setLoadError("");
+            if (data?.profile) setProfile(data.profile);
+            return;
           }
-        )
-        .catch(() => {
-          if (!silent) setLoadError("нет связи с сайтом");
+          setProfile(data.profile || null);
+          setChat(data.chat || []);
+          setTeamkills(data.teamkills || []);
+          setPunishments(data.punishments || []);
+          setLoadError(data.warning || "");
+        })
+        .catch((err: unknown) => {
+          if (!silent) {
+            const aborted =
+              err instanceof DOMException && err.name === "AbortError";
+            setLoadError(
+              aborted
+                ? "сервер долго отвечает, история не успела — действия работают"
+                : "нет связи с сайтом"
+            );
+          }
         })
         .finally(() => {
+          window.clearTimeout(timer);
           if (!silent) setLoading(false);
         });
     },
@@ -1111,6 +1125,7 @@ export function PlayerModModal({
 
   useEffect(() => {
     setPending(null);
+    setConfirmKick(false);
     setReason("");
     setBanUnit("d");
     setBanAmount("1");
@@ -1172,9 +1187,14 @@ export function PlayerModModal({
     const why = reason.trim();
     if (why.length < 2) return;
     if (pending === "kick") {
+      if (!confirmKick) {
+        setConfirmKick(true);
+        return;
+      }
       const ok = await onAction("kick", { reason: why });
       if (ok) {
         setPending(null);
+        setConfirmKick(false);
         setTab("punish");
         window.setTimeout(() => void loadCard({ silent: true }), 900);
       }
@@ -1189,6 +1209,15 @@ export function PlayerModModal({
         window.setTimeout(() => void loadCard({ silent: true }), 900);
       }
     }
+  }
+
+  function primaryLabel(): string {
+    if (pending === "kick") return confirmKick ? "Да, кикнуть" : "Кикнуть";
+    if (pending === "ban") return "Забанить";
+    if (pending === "warn") return "Отправить";
+    if (pending === "team") return "Перекинуть";
+    if (pending === "unsquad") return "Выгнать";
+    return "Сделать";
   }
 
   return (
@@ -1263,10 +1292,24 @@ export function PlayerModModal({
           <button type="button" disabled={busy} onClick={() => setPending("warn")}>
             Админ-сообщение
           </button>
-          <button type="button" disabled={busy} onClick={() => setPending("kick")}>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setConfirmKick(false);
+              setPending("kick");
+            }}
+          >
             Кикнуть
           </button>
-          <button type="button" disabled={busy} onClick={() => setPending("ban")}>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setConfirmKick(false);
+              setPending("ban");
+            }}
+          >
             Забанить
           </button>
         </div>
@@ -1286,13 +1329,23 @@ export function PlayerModModal({
                 />
               </>
             ) : null}
-            {pending === "kick" || pending === "ban" ? (
+            {pending === "kick" && confirmKick ? (
+              <p>
+                Точно кикнуть <b>{player.name}</b>?
+                <br />
+                Причина: <b>{reason.trim()}</b>
+              </p>
+            ) : null}
+            {(pending === "kick" && !confirmKick) || pending === "ban" ? (
               <>
                 <p>Укажи причину{pending === "ban" ? " и срок" : ""}:</p>
                 <input
                   value={reason}
                   maxLength={120}
-                  onChange={(event) => setReason(event.target.value)}
+                  onChange={(event) => {
+                    setReason(event.target.value);
+                    setConfirmKick(false);
+                  }}
                   placeholder="Причина обязательна"
                 />
                 {pending === "ban" ? (
@@ -1343,10 +1396,21 @@ export function PlayerModModal({
                 }
                 onClick={() => void runPending()}
               >
-                Сделать
+                {primaryLabel()}
               </button>
-              <button type="button" disabled={busy} onClick={() => setPending(null)}>
-                Отмена
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  if (pending === "kick" && confirmKick) {
+                    setConfirmKick(false);
+                    return;
+                  }
+                  setPending(null);
+                  setConfirmKick(false);
+                }}
+              >
+                {pending === "kick" && confirmKick ? "Назад" : "Отмена"}
               </button>
             </div>
           </div>
