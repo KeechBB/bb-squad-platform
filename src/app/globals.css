@@ -7458,8 +7458,127 @@ body:has(.profile-page) {
 
 .admin-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 18px;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-tab-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.admin-tab-caret {
+  margin-left: 6px;
+  opacity: 0.85;
+  font-size: 0.75em;
+}
+
+.admin-tab-group {
+  color: #fff !important;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.admin-tab-group--servers {
+  border-color: rgba(45, 212, 191, 0.65) !important;
+  background: linear-gradient(135deg, #0f766e 0%, #14b8a6 55%, #2dd4bf 100%) !important;
+  box-shadow: 0 6px 18px rgba(13, 148, 136, 0.35);
+}
+
+.admin-tab-group--servers:hover,
+.admin-tab-group--servers.active {
+  border-color: #99f6e4 !important;
+  filter: brightness(1.06);
+  box-shadow: 0 8px 22px rgba(13, 148, 136, 0.45);
+}
+
+.admin-tab-group--logs {
+  border-color: rgba(234, 179, 8, 0.7) !important;
+  background: linear-gradient(135deg, #92400e 0%, #ca8a04 50%, #eab308 100%) !important;
+  box-shadow: 0 6px 18px rgba(202, 138, 4, 0.35);
+  color: #1c1408 !important;
+}
+
+.admin-tab-group--logs:hover,
+.admin-tab-group--logs.active {
+  border-color: #fde68a !important;
+  filter: brightness(1.05);
+  box-shadow: 0 8px 22px rgba(202, 138, 4, 0.48);
+}
+
+.admin-tab-group--manage {
+  border-color: rgba(96, 165, 250, 0.7) !important;
+  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 55%, #60a5fa 100%) !important;
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.35);
+}
+
+.admin-tab-group--manage:hover,
+.admin-tab-group--manage.active {
+  border-color: #bfdbfe !important;
+  filter: brightness(1.06);
+  box-shadow: 0 8px 22px rgba(37, 99, 235, 0.48);
+}
+
+.admin-tab-dropdown {
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 220px;
+  max-width: min(320px, 90vw);
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(226, 197, 106, 0.35);
+  background: #16121a;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-tab-dropdown-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: #efe6d6;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 9px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.admin-tab-dropdown-item:hover,
+.admin-tab-dropdown-item:focus-visible {
+  background: rgba(226, 197, 106, 0.14);
+  outline: none;
+  color: #fff;
+}
+
+.admin-tab-dropdown-item.is-on {
+  background: rgba(167, 139, 250, 0.18);
+  color: #fff;
+}
+
+.admin-subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  justify-content: center;
+}
+
+.admin-subtab {
+  font-size: 0.82rem !important;
+  padding: 6px 11px !important;
 }
 
 .admin-tab {

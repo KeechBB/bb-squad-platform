@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { AdminUsersTable, type AdminUserRow } from "@/components/AdminUsersTable";
 import { AdminAttendancePanel } from "@/components/AdminAttendancePanel";
 import { AdminJournalPanel } from "@/components/AdminJournalPanel";
@@ -57,6 +63,10 @@ type Tab =
   | "vips"
   | "serverbans";
 
+type MenuItem =
+  | { kind: "tab"; tab: Tab; label: string }
+  | { kind: "link"; href: string; label: string };
+
 const TAB_LEAD: Record<Tab, string> = {
   users: "Пользователи платформы. Кликни по нику — правка анкеты и аватара.",
   attendance:
@@ -100,6 +110,17 @@ const PUBLIC_TABS: Tab[] = [
   "vips",
   "serverbans",
 ];
+
+const SERVER_TABS: Tab[] = ["vips", "modlog", "serverbans"];
+const LOG_TABS: Tab[] = [
+  "factions",
+  "cases",
+  "updates",
+  "tournaments",
+  "reserve",
+  "market",
+];
+const MANAGE_TABS: Tab[] = ["hunt", "load", "visits", "mail", "attendance"];
 
 function readTab(
   allowVisits: boolean,
@@ -145,6 +166,131 @@ function readTab(
   if (t === "reserve" && allowReserve) return "reserve";
   if (t === "hunt" && allowHunt) return "hunt";
   return "users";
+}
+
+function AdminTabMenu({
+  label,
+  tone,
+  active,
+  items,
+  currentTab,
+  onSelectTab,
+}: {
+  label: string;
+  tone: "servers" | "logs" | "manage";
+  active: boolean;
+  items: MenuItem[];
+  currentTab: Tab;
+  onSelectTab: (tab: Tab) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const menuId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  if (!items.length) return null;
+
+  return (
+    <div className={`admin-tab-menu ${open ? "is-open" : ""}`} ref={rootRef}>
+      <button
+        type="button"
+        className={`admin-tab admin-tab-group admin-tab-group--${tone}${
+          active ? " active" : ""
+        }`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={menuId}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {label}
+        <span className="admin-tab-caret" aria-hidden>
+          ▾
+        </span>
+      </button>
+      {open ? (
+        <div className="admin-tab-dropdown" id={menuId} role="menu">
+          {items.map((item) => {
+            if (item.kind === "link") {
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  role="menuitem"
+                  className="admin-tab-dropdown-item"
+                  onClick={() => setOpen(false)}
+                >
+                  {item.label}
+                </Link>
+              );
+            }
+            const isOn = currentTab === item.tab;
+            return (
+              <button
+                key={item.tab}
+                type="button"
+                role="menuitem"
+                className={`admin-tab-dropdown-item${isOn ? " is-on" : ""}`}
+                onClick={() => {
+                  onSelectTab(item.tab);
+                  setOpen(false);
+                }}
+              >
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SubTabs({
+  items,
+  currentTab,
+  onSelectTab,
+}: {
+  items: MenuItem[];
+  currentTab: Tab;
+  onSelectTab: (tab: Tab) => void;
+}) {
+  const tabItems = items.filter((i): i is Extract<MenuItem, { kind: "tab" }> => i.kind === "tab");
+  const linkItems = items.filter((i): i is Extract<MenuItem, { kind: "link" }> => i.kind === "link");
+  if (!tabItems.length && !linkItems.length) return null;
+  return (
+    <div className="admin-subtabs" role="tablist" aria-label="Подразделы">
+      {linkItems.map((item) => (
+        <Link key={item.href} href={item.href} className="admin-tab admin-subtab">
+          {item.label}
+        </Link>
+      ))}
+      {tabItems.map((item) => (
+        <button
+          key={item.tab}
+          type="button"
+          className={`admin-tab admin-subtab${currentTab === item.tab ? " active" : ""}`}
+          onClick={() => onSelectTab(item.tab)}
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 export function AdminShell({
@@ -211,6 +357,113 @@ export function AdminShell({
     publicLimited,
   ]);
 
+  const serversItems: MenuItem[] = showServers
+    ? [
+        { kind: "tab", tab: "vips", label: "Випки с паблика" },
+        { kind: "tab", tab: "modlog", label: "Лог модерации" },
+        { kind: "link", href: "/admin/panelka", label: "Серверы" },
+        { kind: "tab", tab: "serverbans", label: "Баны серверов" },
+      ]
+    : [];
+
+  const logsItems: MenuItem[] = !publicLimited
+    ? [
+        { kind: "tab", tab: "factions", label: "Лог фракций" },
+        { kind: "tab", tab: "cases", label: "Лог кейсов" },
+        { kind: "tab", tab: "updates", label: "Лог обновлений" },
+        { kind: "tab", tab: "tournaments", label: "Лог турниров" },
+        ...(showReserve
+          ? ([{ kind: "tab", tab: "reserve", label: "Лог резерва" }] as MenuItem[])
+          : []),
+        { kind: "tab", tab: "market", label: "Лог магазина" },
+      ]
+    : [];
+
+  const manageItems: MenuItem[] = [
+    ...(!publicLimited && showKeechHunt
+      ? ([{ kind: "tab", tab: "hunt", label: "Hunt" }] as MenuItem[])
+      : []),
+    { kind: "tab", tab: "load", label: "Нагрузка" },
+    ...(showSiteVisits
+      ? ([{ kind: "tab", tab: "visits", label: "Заходы на сайт" }] as MenuItem[])
+      : []),
+    ...(!publicLimited && showMail
+      ? ([{ kind: "tab", tab: "mail", label: "Письмо" }] as MenuItem[])
+      : []),
+    ...(!publicLimited
+      ? ([
+          { kind: "tab", tab: "attendance", label: "Посещаемость тренировок" },
+        ] as MenuItem[])
+      : []),
+  ];
+
+  const activeGroup: "servers" | "logs" | "manage" | null = SERVER_TABS.includes(tab)
+    ? "servers"
+    : LOG_TABS.includes(tab)
+      ? "logs"
+      : MANAGE_TABS.includes(tab)
+        ? "manage"
+        : null;
+
+  const activeGroupItems =
+    activeGroup === "servers"
+      ? serversItems
+      : activeGroup === "logs"
+        ? logsItems
+        : activeGroup === "manage"
+          ? manageItems
+          : [];
+
+  let content: ReactNode = null;
+  if (tab === "users") {
+    content = (
+      <AdminUsersTable
+        initialUsers={users}
+        roleOptions={roleOptions}
+        actorRole={actorRole}
+      />
+    );
+  } else if (!publicLimited && tab === "attendance") {
+    content = <AdminAttendancePanel />;
+  } else if (!publicLimited && tab === "reserve" && showReserve) {
+    content = <AdminReservePanel />;
+  } else if (tab === "journal") {
+    content = <AdminJournalPanel />;
+  } else if (!publicLimited && tab === "tournaments") {
+    content = (
+      <AdminJournalPanel
+        fixedCategory="tournament"
+        title="Журнал турниров"
+        emptyHint="Пока нет записей. Сюда попадают создание/роспуск команд, приглашения, роли, лого и заявки на кубок."
+        searchPlaceholder="Ник, тег команды, заявка…"
+      />
+    );
+  } else if (!publicLimited && tab === "factions") {
+    content = <AdminFactionLogPanel />;
+  } else if (!publicLimited && tab === "market") {
+    content = <AdminMarketLogPanel />;
+  } else if (!publicLimited && tab === "cases") {
+    content = <AdminCasesLogPanel />;
+  } else if (!publicLimited && tab === "updates") {
+    content = <AdminUpdatesPanel />;
+  } else if (!publicLimited && tab === "mail" && showMail) {
+    content = <AdminMailPanel />;
+  } else if (tab === "visits" && showSiteVisits) {
+    content = <AdminVisitsPanel />;
+  } else if (tab === "modlog" && showServers) {
+    content = <AdminModLogPanel />;
+  } else if (tab === "vips" && showServers) {
+    content = <AdminPublicVipsPanel />;
+  } else if (tab === "serverbans" && showServers) {
+    content = <AdminServerBansPanel />;
+  } else if (!publicLimited && tab === "transfers" && showKeechHunt) {
+    content = <AdminTransfersPanel />;
+  } else if (!publicLimited && tab === "hunt" && showKeechHunt) {
+    content = <AdminKeechHuntPanel />;
+  } else if (tab === "load") {
+    content = <AdminLoadPanel />;
+  }
+
   return (
     <main
       className={
@@ -247,24 +500,6 @@ export function AdminShell({
           >
             Пользователи
           </button>
-          {!publicLimited ? (
-            <button
-              type="button"
-              className={`admin-tab ${tab === "attendance" ? "active" : ""}`}
-              onClick={() => setTab("attendance")}
-            >
-              Посещаемость тренировок
-            </button>
-          ) : null}
-          {!publicLimited && showReserve ? (
-            <button
-              type="button"
-              className={`admin-tab ${tab === "reserve" ? "active" : ""}`}
-              onClick={() => setTab("reserve")}
-            >
-              Резерв
-            </button>
-          ) : null}
           <button
             type="button"
             className={`admin-tab ${tab === "journal" ? "active" : ""}`}
@@ -272,105 +507,6 @@ export function AdminShell({
           >
             Журнал действий
           </button>
-          {!publicLimited ? (
-            <button
-              type="button"
-              className={`admin-tab ${tab === "tournaments" ? "active" : ""}`}
-              onClick={() => setTab("tournaments")}
-            >
-              Турниры
-            </button>
-          ) : null}
-          {!publicLimited ? (
-            <button
-              type="button"
-              className={`admin-tab ${tab === "factions" ? "active" : ""}`}
-              onClick={() => setTab("factions")}
-            >
-              Лог фракций
-            </button>
-          ) : null}
-          {!publicLimited ? (
-            <button
-              type="button"
-              className={`admin-tab ${tab === "market" ? "active" : ""}`}
-              onClick={() => setTab("market")}
-            >
-              Лог магазина
-            </button>
-          ) : null}
-          {!publicLimited ? (
-            <button
-              type="button"
-              className={`admin-tab ${tab === "cases" ? "active" : ""}`}
-              onClick={() => setTab("cases")}
-            >
-              Лог кейсов
-            </button>
-          ) : null}
-          {!publicLimited ? (
-            <button
-              type="button"
-              className={`admin-tab ${tab === "updates" ? "active" : ""}`}
-              onClick={() => setTab("updates")}
-            >
-              Логи обновлений
-            </button>
-          ) : null}
-          {!publicLimited && showMail ? (
-            <button
-              type="button"
-              className={`admin-tab ${tab === "mail" ? "active" : ""}`}
-              onClick={() => setTab("mail")}
-            >
-              Письмо
-            </button>
-          ) : null}
-          {showServers ? (
-            <Link
-              href="/admin/panelka"
-              className="admin-tab"
-              style={{ textDecoration: "none", display: "inline-block" }}
-            >
-              Серверы
-            </Link>
-          ) : null}
-          {showServers ? (
-            <button
-              type="button"
-              className={`admin-tab ${tab === "modlog" ? "active" : ""}`}
-              onClick={() => setTab("modlog")}
-            >
-              Лог модерации
-            </button>
-          ) : null}
-          {showServers ? (
-            <button
-              type="button"
-              className={`admin-tab ${tab === "vips" ? "active" : ""}`}
-              onClick={() => setTab("vips")}
-            >
-              Випки с паблика
-            </button>
-          ) : null}
-          {showServers ? (
-            <button
-              type="button"
-              className={`admin-tab ${tab === "serverbans" ? "active" : ""}`}
-              onClick={() => setTab("serverbans")}
-            >
-              Баны серверов
-            </button>
-          ) : null}
-          {showSiteVisits ? (
-            <button
-              type="button"
-              className={`admin-tab ${tab === "visits" ? "active" : ""}`}
-              onClick={() => setTab("visits")}
-            >
-              Заходы на сайт
-            </button>
-          ) : null}
           {!publicLimited && showKeechHunt ? (
             <button
               type="button"
@@ -380,23 +516,35 @@ export function AdminShell({
               Трансферы
             </button>
           ) : null}
-          {!publicLimited && showKeechHunt ? (
-            <button
-              type="button"
-              className={`admin-tab ${tab === "hunt" ? "active" : ""}`}
-              onClick={() => setTab("hunt")}
-            >
-              Hunt
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className={`admin-tab ${tab === "load" ? "active" : ""}`}
-            onClick={() => setTab("load")}
-          >
-            Нагрузка
-          </button>
+
+          <AdminTabMenu
+            label="Панель Управления Серверами"
+            tone="servers"
+            active={activeGroup === "servers"}
+            items={serversItems}
+            currentTab={tab}
+            onSelectTab={setTab}
+          />
+          <AdminTabMenu
+            label="Логи BlackBerry"
+            tone="logs"
+            active={activeGroup === "logs"}
+            items={logsItems}
+            currentTab={tab}
+            onSelectTab={setTab}
+          />
+          <AdminTabMenu
+            label="Упр. BlackBerry"
+            tone="manage"
+            active={activeGroup === "manage"}
+            items={manageItems}
+            currentTab={tab}
+            onSelectTab={setTab}
+          />
         </div>
+        {activeGroup && activeGroupItems.length ? (
+          <SubTabs items={activeGroupItems} currentTab={tab} onSelectTab={setTab} />
+        ) : null}
         <p style={{ marginTop: 12 }}>
           <Link className="kv-link" href="/profile">
             ← В профиль
@@ -404,42 +552,7 @@ export function AdminShell({
         </p>
       </section>
 
-      {tab === "users" ? (
-        <AdminUsersTable
-          initialUsers={users}
-          roleOptions={roleOptions}
-          actorRole={actorRole}
-        />
-      ) : null}
-      {!publicLimited && tab === "attendance" ? <AdminAttendancePanel /> : null}
-      {!publicLimited && tab === "reserve" && showReserve ? (
-        <AdminReservePanel />
-      ) : null}
-      {tab === "journal" ? <AdminJournalPanel /> : null}
-      {!publicLimited && tab === "tournaments" ? (
-        <AdminJournalPanel
-          fixedCategory="tournament"
-          title="Журнал турниров"
-          emptyHint="Пока нет записей. Сюда попадают создание/роспуск команд, приглашения, роли, лого и заявки на кубок."
-          searchPlaceholder="Ник, тег команды, заявка…"
-        />
-      ) : null}
-      {!publicLimited && tab === "factions" ? <AdminFactionLogPanel /> : null}
-      {!publicLimited && tab === "market" ? <AdminMarketLogPanel /> : null}
-      {!publicLimited && tab === "cases" ? <AdminCasesLogPanel /> : null}
-      {!publicLimited && tab === "updates" ? <AdminUpdatesPanel /> : null}
-      {!publicLimited && tab === "mail" && showMail ? <AdminMailPanel /> : null}
-      {tab === "visits" && showSiteVisits ? <AdminVisitsPanel /> : null}
-      {tab === "modlog" && showServers ? <AdminModLogPanel /> : null}
-      {tab === "vips" && showServers ? <AdminPublicVipsPanel /> : null}
-      {tab === "serverbans" && showServers ? <AdminServerBansPanel /> : null}
-      {!publicLimited && tab === "transfers" && showKeechHunt ? (
-        <AdminTransfersPanel />
-      ) : null}
-      {!publicLimited && tab === "hunt" && showKeechHunt ? (
-        <AdminKeechHuntPanel />
-      ) : null}
-      {tab === "load" ? <AdminLoadPanel /> : null}
+      {content}
     </main>
   );
 }
