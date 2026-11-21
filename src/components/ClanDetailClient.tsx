@@ -1314,7 +1314,7 @@ export function ClanDetailClient({
                           {showVipCol ? (
                             <td>
                               {m.hasVip ? (
-                                <span className="muted" title="VIP уже активен на паблике">
+                                <span className="clan-vip-on" title="VIP уже активен на паблике">
                                   VIP ✓
                                 </span>
                               ) : m.user.steamId ? (
