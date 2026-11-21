@@ -10,6 +10,10 @@ import {
 } from "react";
 import { AdminTermRangeModal } from "@/components/AdminTermRangeModal";
 import {
+  PlayerModModal,
+  type RosterPerson,
+} from "@/components/AdminPanelka";
+import {
   ADMIN_PAGE_SIZE,
   compareLoose,
   fuzzyIncludes,
@@ -18,6 +22,9 @@ import {
   type SortDir,
 } from "@/lib/adminFuzzyList";
 import "@/app/admin/panelka/panelka.css";
+
+/** Баны с панели / PB1 — карточка как во вкладке «Серверы». */
+const BAN_CARD_SERVER = "PB1";
 
 type BanRow = {
   id: string;
@@ -88,6 +95,55 @@ export function AdminServerBansPanel() {
   const [page, setPage] = useState(1);
   const [suggestOpen, setSuggestOpen] = useState(false);
   const searchWrapRef = useRef<HTMLDivElement | null>(null);
+  const [card, setCard] = useState<{
+    serverKey: string;
+    player: RosterPerson;
+  } | null>(null);
+  const [cardBusy, setCardBusy] = useState(false);
+
+  function openCard(row: BanRow) {
+    if (!row.steamId) return;
+    setCard({
+      serverKey: BAN_CARD_SERVER,
+      player: {
+        id: 0,
+        name: row.nick || row.steamId,
+        steamId: row.steamId,
+        leader: false,
+        role: "",
+      },
+    });
+  }
+
+  async function onCardAction(
+    action: "team" | "kick" | "ban" | "unsquad" | "warn",
+    payload: { reason?: string; duration?: string; message?: string }
+  ): Promise<boolean> {
+    if (!card) return false;
+    setCardBusy(true);
+    try {
+      const res = await fetch("/api/admin/panelka", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: card.serverKey,
+          action,
+          steamId: card.player.steamId,
+          targetName: card.player.name,
+          reason: payload.reason || payload.message || "",
+          duration: payload.duration || "",
+        }),
+      });
+      const data = (await res.json()) as { ok?: boolean };
+      const ok = Boolean(res.ok && data.ok);
+      if (ok) window.setTimeout(() => void load({ silent: true }), 900);
+      return ok;
+    } catch {
+      return false;
+    } finally {
+      setCardBusy(false);
+    }
+  }
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) {
@@ -448,7 +504,20 @@ export function AdminServerBansPanel() {
                 <td className="mono" style={{ whiteSpace: "nowrap" }}>
                   {row.bannedAt ? fmt(row.bannedAt) : "—"}
                 </td>
-                <td>{row.nick || "—"}</td>
+                <td>
+                  {row.steamId ? (
+                    <button
+                      type="button"
+                      className="mod-log-nick"
+                      onClick={() => openCard(row)}
+                      title="Открыть карточку игрока"
+                    >
+                      {row.nick || row.steamId}
+                    </button>
+                  ) : (
+                    row.nick || "—"
+                  )}
+                </td>
                 <td className="mono admin-steam-id">
                   {row.steamId ? (
                     <a
@@ -511,6 +580,16 @@ export function AdminServerBansPanel() {
           </button>
         </div>
       </div>
+
+      {card ? (
+        <PlayerModModal
+          serverKey={card.serverKey}
+          player={card.player}
+          busy={busy || cardBusy}
+          onClose={() => setCard(null)}
+          onAction={onCardAction}
+        />
+      ) : null}
     </section>
   );
 }
