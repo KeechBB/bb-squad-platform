@@ -15,6 +15,7 @@ import {
 import { ClanCalendarPanel } from "@/components/ClanCalendarPanel";
 import { ClanFactionsPanel } from "@/components/ClanFactionsPanel";
 import { clanLogoUrl as ratingClanLogo } from "@/lib/clanLogo";
+import { clanMapColor } from "@/lib/clanMapColor";
 import { formatRuDate, isActiveReserve } from "@/lib/validation";
 import { withAvatarCacheBust } from "@/lib/avatarUrl";
 import {
@@ -783,10 +784,14 @@ export function ClanDetailClient({
     clan.logoUrl ||
     ratingClanLogo(clan.tag.toUpperCase() === "BB" ? "BB-MAIN" : clan.tag) ||
     null;
+  const clanAccent = clanMapColor(clan.id, clan.tag);
 
   return (
     <div className="clan-detail">
-      <section className="hero clan-detail-hero">
+      <section
+        className="hero clan-detail-hero"
+        style={{ borderColor: clanAccent, ["--clan-accent" as string]: clanAccent }}
+      >
         {displayClanLogo ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img className="clan-detail-logo" src={displayClanLogo} alt="" width={72} height={72} />

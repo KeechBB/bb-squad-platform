@@ -1,11 +1,28 @@
 /**
- * Стабильный цвет клана на карте игроков.
+ * Стабильный цвет клана (карта игроков, список кланов, карточка).
  * Известные теги — фиксированная палитра; остальные — по hash id/tag.
  */
 
 const KNOWN: Record<string, string> = {
+  // сайт /clans
+  ХУХ: "#c084fc",
+  HIVE: "#ffe600",
+  A: "#fbbf24",
+  ALPHA: "#fbbf24",
+  AUT: "#22d3ee",
   BB: "#a78bfa",
+  BLR: "#94a3b8",
   DCAI: "#ef4444",
+  DL: "#64748b",
+  GRAD: "#3b82f6",
+  IMP: "#991b1b",
+  NKLV: "#0ea5e9",
+  OCO: "#f97316",
+  POHUY: "#06b6d4",
+  RA: "#a855f7",
+  RPSS: "#84cc16",
+  YSKUT: "#ec4899",
+  // КВ / карта (внешние и старые)
   UKNOW: "#22d3ee",
   FOX: "#f97316",
   AVG: "#eab308",
@@ -18,8 +35,6 @@ const KNOWN: Record<string, string> = {
   IH: "#78716c",
   HQ: "#b91c1c",
   H1GH: "#ec4899",
-  ALPHA: "#fbbf24",
-  IMP: "#991b1b",
   OMEN: "#6366f1",
   FURY: "#ea580c",
   FAL: "#0ea5e9",
@@ -63,11 +78,16 @@ function hashStr(s: string): number {
   return h >>> 0;
 }
 
-export function clanMapColor(clanId: string, tag?: string | null): string {
-  const t = String(tag || "")
+/** Тег без скобок/точек: •HIVE• → HIVE, (ХУХ) → ХУХ */
+export function normalizeClanTag(tag?: string | null): string {
+  return String(tag || "")
     .trim()
     .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "");
+    .replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+export function clanMapColor(clanId: string, tag?: string | null): string {
+  const t = normalizeClanTag(tag);
   if (t && KNOWN[t]) return KNOWN[t];
   const key = clanId || t || "x";
   return PALETTE[hashStr(key) % PALETTE.length];
