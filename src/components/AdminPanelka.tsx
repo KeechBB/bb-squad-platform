@@ -5,14 +5,12 @@ import type { PanelkaServer } from "@/lib/panelkaRcon";
 
 const MODES = ["SQ", "FCL", "CSL", "SEC", "LOADER"] as const;
 const PAGE = 8;
-const BAN_DURATIONS = [
-  { value: "30m", label: "30 мин" },
-  { value: "1h", label: "1 час" },
-  { value: "6h", label: "6 часов" },
-  { value: "1d", label: "1 день" },
-  { value: "7d", label: "7 дней" },
+const BAN_UNITS = [
+  { value: "h", label: "часы" },
+  { value: "d", label: "дни" },
   { value: "0", label: "навсегда" },
 ] as const;
+type BanUnit = (typeof BAN_UNITS)[number]["value"];
 const FACTIONS = [
   { id: "WPMC", label: "ЧВК СТАРОЕ" },
   { id: "TLF", label: "Турция" },
@@ -903,7 +901,8 @@ export function PlayerModModal({
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState<ModAction>(null);
   const [reason, setReason] = useState("");
-  const [duration, setDuration] = useState("1h");
+  const [banUnit, setBanUnit] = useState<BanUnit>("d");
+  const [banAmount, setBanAmount] = useState("1");
   const [warnText, setWarnText] = useState("");
   const [tab, setTab] = useState<"chat" | "punish" | "tk">("chat");
   const [chatPage, setChatPage] = useState(0);
@@ -956,6 +955,8 @@ export function PlayerModModal({
   useEffect(() => {
     setPending(null);
     setReason("");
+    setBanUnit("d");
+    setBanAmount("1");
     setWarnText("");
     setTab("chat");
     setChatPage(0);
@@ -963,6 +964,13 @@ export function PlayerModModal({
     setPunishPage(0);
     void loadCard();
   }, [loadCard]);
+
+  const banDuration = useMemo(() => {
+    if (banUnit === "0") return "0";
+    const n = Number.parseInt(banAmount, 10);
+    if (!Number.isFinite(n) || n < 1 || n > 9999) return "";
+    return `${n}${banUnit}`;
+  }, [banUnit, banAmount]);
 
   const chatPages = Math.max(1, Math.ceil(chat.length / PAGE));
   const tkPages = Math.max(1, Math.ceil(teamkills.length / PAGE));
@@ -1016,7 +1024,8 @@ export function PlayerModModal({
       return;
     }
     if (pending === "ban") {
-      const ok = await onAction("ban", { reason: why, duration });
+      if (!banDuration) return;
+      const ok = await onAction("ban", { reason: why, duration: banDuration });
       if (ok) {
         setPending(null);
         setTab("punish");
@@ -1130,17 +1139,38 @@ export function PlayerModModal({
                   placeholder="Причина обязательна"
                 />
                 {pending === "ban" ? (
-                  <div className="panelka-mod-durs">
-                    {BAN_DURATIONS.map((item) => (
-                      <button
-                        key={item.value}
-                        type="button"
-                        className={duration === item.value ? "is-on" : ""}
-                        onClick={() => setDuration(item.value)}
-                      >
-                        {item.label}
-                      </button>
-                    ))}
+                  <div className="panelka-mod-ban-term">
+                    <div className="panelka-mod-durs">
+                      {BAN_UNITS.map((item) => (
+                        <button
+                          key={item.value}
+                          type="button"
+                          className={banUnit === item.value ? "is-on" : ""}
+                          onClick={() => setBanUnit(item.value)}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                    {banUnit !== "0" ? (
+                      <label className="panelka-mod-ban-amount">
+                        <span>Сколько</span>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min={1}
+                          max={9999}
+                          step={1}
+                          value={banAmount}
+                          onChange={(event) =>
+                            setBanAmount(event.target.value.replace(/[^\d]/g, "").slice(0, 4))
+                          }
+                          placeholder="число"
+                        />
+                      </label>
+                    ) : (
+                      <p className="panelka-mod-ban-forever">Бан без срока.</p>
+                    )}
                   </div>
                 ) : null}
               </>
@@ -1151,7 +1181,8 @@ export function PlayerModModal({
                 disabled={
                   busy ||
                   (pending === "warn" && !warnText.trim()) ||
-                  ((pending === "kick" || pending === "ban") && reason.trim().length < 2)
+                  ((pending === "kick" || pending === "ban") && reason.trim().length < 2) ||
+                  (pending === "ban" && !banDuration)
                 }
                 onClick={() => void runPending()}
               >

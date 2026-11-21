@@ -254,7 +254,7 @@ export async function POST(req: Request) {
     }
     if (!DURATION_RE.test(duration)) {
       return NextResponse.json(
-        { ok: false, error: "срок: 30m / 1h / 6h / 1d / 7d / 0" },
+        { ok: false, error: "срок: число+h / число+d / 0 (навсегда)" },
         { status: 400 }
       );
     }

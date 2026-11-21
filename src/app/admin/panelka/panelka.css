@@ -791,6 +791,37 @@ body:has(.panelka-page) .shell {
   color: #e2c56a;
 }
 
+.panelka-mod-ban-term {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.panelka-mod-ban-amount {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: rgba(239, 230, 214, 0.86);
+  font-size: 0.92rem;
+}
+
+.panelka-mod-ban-amount input {
+  width: 96px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(212, 168, 75, 0.45);
+  background: rgba(0, 0, 0, 0.35);
+  color: #efe6d6;
+  font: inherit;
+}
+
+.panelka-mod-ban-forever {
+  margin: 0;
+  color: rgba(239, 230, 214, 0.72);
+  font-size: 0.9rem;
+}
+
 .panelka-mod-form-actions {
   display: flex;
   gap: 8px;
