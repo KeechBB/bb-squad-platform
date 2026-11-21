@@ -173,6 +173,89 @@ function normReason(s: string): string {
   return clean(s, 200).toLowerCase();
 }
 
+function durationToMs(dur: string | null | undefined): number | null {
+  const m = /^(\d+)\s*([mhd])$/i.exec(String(dur || "").trim());
+  if (!m) return null;
+  const n = Number(m[1]);
+  if (!Number.isFinite(n) || n < 1) return null;
+  if (m[2].toLowerCase() === "m") return n * 60_000;
+  if (m[2].toLowerCase() === "h") return n * 3_600_000;
+  return n * 86_400_000;
+}
+
+/** Infer ban start from cfg endsAt + duration (Squad stores unix end in ttl). */
+function inferBanStartMs(
+  endsAt: string | null | undefined,
+  duration: string | null | undefined
+): number | null {
+  if (!endsAt) return null;
+  const end = Date.parse(endsAt);
+  if (!Number.isFinite(end)) return null;
+  const ms = durationToMs(duration);
+  if (ms) return end - ms;
+  // Timed cfg rows without dur often are 1d panel bans.
+  if (/^\d{4}-\d{2}-\d{2}T/.test(endsAt)) return end - 86_400_000;
+  return null;
+}
+
+function staffKey(h: StaffBanHit): string {
+  return `${h.steamId}|${h.bannedAt || ""}|${normReason(h.reason)}`;
+}
+
+function reasonsMatch(a: string, b: string): boolean {
+  const x = normReason(a);
+  const y = normReason(b);
+  if (!x || !y) return false;
+  return x === y || x.includes(y) || y.includes(x);
+}
+
+function pickStaffForBan(
+  opts: {
+    steamId: string;
+    byNick: string;
+    reason: string;
+    endsAt: string;
+    duration: string;
+  },
+  staffHits: StaffBanHit[],
+  used: Set<string>
+): StaffBanHit | undefined {
+  if (opts.steamId) {
+    const hit = staffHits.find(
+      (h) => h.steamId === opts.steamId && !used.has(staffKey(h))
+    );
+    if (hit) return hit;
+  }
+  const by = opts.byNick.toLowerCase();
+  const candidates = staffHits.filter((h) => {
+    if (used.has(staffKey(h))) return false;
+    if (by && h.byNick && h.byNick.toLowerCase() !== by) return false;
+    return reasonsMatch(opts.reason, h.reason);
+  });
+  if (!candidates.length) return undefined;
+  const inferred = inferBanStartMs(
+    opts.endsAt || null,
+    opts.duration || candidates[0]?.duration || null
+  );
+  if (inferred != null) {
+    let best: StaffBanHit | undefined;
+    let bestDelta = Infinity;
+    for (const h of candidates) {
+      if (!h.bannedAt) continue;
+      const t = Date.parse(h.bannedAt);
+      if (!Number.isFinite(t)) continue;
+      const delta = Math.abs(t - inferred);
+      if (delta < bestDelta) {
+        bestDelta = delta;
+        best = h;
+      }
+    }
+    // Same reason+who within 15 min of cfg start → correct player (not a later twin ban).
+    if (best && bestDelta <= 15 * 60_000) return best;
+  }
+  return candidates[0];
+}
+
 async function resolveNicks(steamIds: string[]): Promise<Map<string, string>> {
   const ids = [...new Set(steamIds.filter((s) => STEAM_RE.test(s)))];
   const map = new Map<string, string>();
@@ -486,27 +569,6 @@ export async function listServerBans(): Promise<BanRow[]> {
     staffByReasonBy.push(h);
   }
 
-  // Pull steam from staff onto EOS-only cfg rows (same reason + who).
-  for (const b of merged) {
-    if (b.steamId) continue;
-    const parsed = parseBanComment(b.comment);
-    const by = (b.byNick || parsed.byNick).toLowerCase();
-    const reason = normReason(parsed.reason || b.comment);
-    if (!reason) continue;
-    const hit = staffByReasonBy.find((h) => {
-      if (!h.steamId) return false;
-      if (by && h.byNick && h.byNick.toLowerCase() !== by) return false;
-      return normReason(h.reason) === reason || reason.includes(normReason(h.reason));
-    });
-    if (hit?.steamId) {
-      b.steamId = hit.steamId;
-      if (!b.unbanIds.includes(hit.steamId)) b.unbanIds.push(hit.steamId);
-      if (!b.id || b.id === b.eosId) b.id = hit.steamId;
-    }
-  }
-
-  const steamIds = merged.map((b) => b.steamId).filter((s) => STEAM_RE.test(s));
-  const nickMap = await resolveNicks(steamIds);
   const audits = await prisma.panelkaBanAudit.findMany({
     where: { action: "ban" },
     orderBy: { createdAt: "desc" },
@@ -521,28 +583,41 @@ export async function listServerBans(): Promise<BanRow[]> {
   }
 
   const usedStaff = new Set<string>();
-  const rows: BanRow[] = merged.map((b) => {
+  // First pass: attach correct staff (by steam, else reason+who+time from cfg endsAt).
+  const enriched = merged.map((b) => {
     const parsed = parseBanComment(b.comment);
+    const byNick0 = b.byNick || parsed.byNick || "";
+    const reason0 = parsed.reason || b.comment || "";
+    const staff = pickStaffForBan(
+      {
+        steamId: b.steamId,
+        byNick: byNick0,
+        reason: reason0,
+        endsAt: b.endsAt,
+        duration: b.duration,
+      },
+      staffByReasonBy,
+      usedStaff
+    );
+    if (staff) usedStaff.add(staffKey(staff));
+    if (staff?.steamId && !b.steamId) {
+      b.steamId = staff.steamId;
+      if (!b.unbanIds.includes(staff.steamId)) b.unbanIds.push(staff.steamId);
+      if (!b.id || b.id === b.eosId) b.id = staff.steamId;
+    }
+    return { b, parsed, staff };
+  });
+
+  const steamIds = enriched
+    .map((x) => x.b.steamId)
+    .filter((s) => STEAM_RE.test(s));
+  const nickMap = await resolveNicks(steamIds);
+
+  const rows: BanRow[] = enriched.map(({ b, parsed, staff }) => {
     const audit =
       auditByTarget.get(b.id) ||
       (b.steamId ? auditByTarget.get(b.steamId) : undefined) ||
       (b.eosId ? auditByTarget.get(b.eosId) : undefined);
-    let staff =
-      (b.steamId && staffBySteam.get(b.steamId)) || undefined;
-    if (!staff) {
-      const by = (b.byNick || parsed.byNick || "").toLowerCase();
-      const reason = normReason(parsed.reason || b.comment);
-      staff = staffByReasonBy.find((h) => {
-        const key = `${h.steamId}|${h.bannedAt}|${h.reason}`;
-        if (usedStaff.has(key)) return false;
-        if (by && h.byNick && h.byNick.toLowerCase() !== by) return false;
-        const hr = normReason(h.reason);
-        return Boolean(reason) && (hr === reason || reason.includes(hr) || hr.includes(reason));
-      });
-    }
-    if (staff) {
-      usedStaff.add(`${staff.steamId}|${staff.bannedAt}|${staff.reason}`);
-    }
 
     const steamId = b.steamId || staff?.steamId || "";
     const endsAt = b.endsAt || audit?.endsAt?.toISOString() || null;
@@ -556,9 +631,14 @@ export async function listServerBans(): Promise<BanRow[]> {
       clean(staff?.reason || "", 200) ||
       clean(audit?.reason || "", 200) ||
       clean(b.comment || "", 200);
+    const inferredIso = (() => {
+      const ms = inferBanStartMs(endsAt, duration || staff?.duration || null);
+      return ms != null ? new Date(ms).toISOString() : null;
+    })();
     const bannedAt =
       audit?.createdAt?.toISOString() ||
       staff?.bannedAt ||
+      inferredIso ||
       (b.bannedAt
         ? b.bannedAt.includes("T")
           ? b.bannedAt
@@ -597,6 +677,40 @@ export async function listServerBans(): Promise<BanRow[]> {
       line: b.line || "",
     };
   });
+
+  // Staff bans that never landed in Bans.cfg (RCON flake) — still show in table.
+  const presentSteam = new Set(
+    rows.map((r) => r.steamId).filter((s) => STEAM_RE.test(s))
+  );
+  for (const h of staffByReasonBy) {
+    if (!h.steamId || presentSteam.has(h.steamId)) continue;
+    if (usedStaff.has(staffKey(h))) continue;
+    const age = h.bannedAt ? Date.now() - Date.parse(h.bannedAt) : Infinity;
+    if (!Number.isFinite(age) || age > 7 * 86_400_000) continue;
+    presentSteam.add(h.steamId);
+    rows.push({
+      id: h.steamId,
+      steamId: h.steamId,
+      eosId: "",
+      unbanIds: [h.steamId],
+      forever: h.duration === "0",
+      endsAt: null,
+      duration: h.duration || null,
+      termLabel:
+        h.duration && h.duration !== "0"
+          ? `срок ${h.duration}`
+          : h.duration === "0"
+            ? "навсегда"
+            : "срок не указан",
+      comment: `${h.reason} · нет строки в Bans.cfg (проверь бан)`.slice(0, 200),
+      nick: h.name || nickMap.get(h.steamId) || null,
+      byNick: h.byNick || null,
+      bannedAt: h.bannedAt,
+      lineNo: 0,
+      line: "",
+    });
+  }
+
   // Newest first: bannedAt desc, then Bans.cfg line order (append = newer).
   rows.sort((a, b) => {
     const at = a.bannedAt ? Date.parse(a.bannedAt) : 0;
