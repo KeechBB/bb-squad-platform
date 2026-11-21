@@ -248,7 +248,7 @@ def ensure_chat_listener():
 
 def read_chat(key):
     import json, re
-    ensure_chat_listener()
+    # Do not ensure/restart chat bot on every 5s chat poll — that races with roster.
     spoken = []
     seen = set()
     path = "/home/squad/bb-panelka-chat.jsonl"
@@ -1109,9 +1109,10 @@ def sync_chat_listener(force: bool = False) -> None:
         # Unique start/reap via /proc cmdline (pgrep -f matches itself).
         restart_flag = "1" if (need_restart or force) else "0"
         cmd = f"""python3 - <<'PY'
-import os, time, subprocess
+import fcntl, os, time, subprocess
 remote = {remote!r}
 pid_path = {pid_path!r}
+lock_path = "/tmp/bb_panelka_chat.lock"
 restart = {restart_flag!r} == "1"
 
 def chat_pids():
@@ -1130,39 +1131,53 @@ def chat_pids():
             out.append(int(ent))
     return out
 
-pids = chat_pids()
-if restart or not pids:
-    for pid in pids:
-        try:
-            os.kill(pid, 9)
-        except Exception:
-            pass
-    time.sleep(0.45)
-    for pid in chat_pids():
-        try:
-            os.kill(pid, 9)
-        except Exception:
-            pass
-    time.sleep(0.25)
-    proc = subprocess.Popen(
-        ["python3", remote],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
-    )
-    open(pid_path, "w", encoding="utf-8").write(str(proc.pid))
-    print("started", proc.pid)
-else:
-    keep = min(pids)
-    for pid in pids:
-        if pid != keep:
+lock_f = open(lock_path, "w")
+fcntl.flock(lock_f, fcntl.LOCK_EX)
+try:
+    pids = chat_pids()
+    if restart or not pids:
+        for pid in pids:
             try:
                 os.kill(pid, 9)
             except Exception:
                 pass
-    open(pid_path, "w", encoding="utf-8").write(str(keep))
-    print("keep", keep, "killed_extras", max(0, len(pids) - 1))
-print("final", chat_pids())
+        time.sleep(0.5)
+        for pid in chat_pids():
+            try:
+                os.kill(pid, 9)
+            except Exception:
+                pass
+        time.sleep(0.3)
+        proc = subprocess.Popen(
+            ["python3", remote],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        open(pid_path, "w", encoding="utf-8").write(str(proc.pid))
+        time.sleep(0.25)
+        # reap anything else that raced in
+        for pid in chat_pids():
+            if pid != proc.pid:
+                try:
+                    os.kill(pid, 9)
+                except Exception:
+                    pass
+        print("started", proc.pid)
+    else:
+        keep = min(pids)
+        for pid in pids:
+            if pid != keep:
+                try:
+                    os.kill(pid, 9)
+                except Exception:
+                    pass
+        open(pid_path, "w", encoding="utf-8").write(str(keep))
+        print("keep", keep, "killed_extras", max(0, len(pids) - 1))
+    print("final", chat_pids())
+finally:
+    fcntl.flock(lock_f, fcntl.LOCK_UN)
+    lock_f.close()
 PY"""
         _stdin, stdout, _stderr = client.exec_command(cmd, timeout=25)
         print("chat-sync", stdout.read().decode("utf-8", "replace").strip())
