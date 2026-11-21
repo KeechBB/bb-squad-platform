@@ -472,9 +472,39 @@ body:has(.panelka-page) .shell {
   color: #f2d98a;
 }
 
+.panelka-slot.is-admin b,
+.panelka-slot.is-admin .panelka-slot-flags em.is-admin {
+  color: #ff6b6b;
+}
+
+.panelka-slot.is-mod b,
+.panelka-slot.is-mod .panelka-slot-flags em.is-mod {
+  color: #6eb6ff;
+}
+
+.panelka-slot.is-nok {
+  opacity: 0.92;
+}
+
+.panelka-slot.is-dead {
+  opacity: 0.72;
+}
+
+.panelka-slot.is-dead b {
+  text-decoration: line-through;
+  text-decoration-color: rgba(239, 230, 214, 0.45);
+}
+
 .panelka-role {
   color: rgba(239, 230, 214, 0.62);
   font-size: 0.82rem;
+}
+
+.panelka-slot-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .panelka-slot b {
@@ -482,6 +512,51 @@ body:has(.panelka-page) .shell {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 600;
+}
+
+.panelka-slot-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  min-width: 0;
+}
+
+.panelka-slot-flags em {
+  font-style: normal;
+  font-size: 0.72rem;
+  color: rgba(239, 230, 214, 0.55);
+  padding: 0 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panelka-slot-flags em.is-admin {
+  background: rgba(180, 40, 40, 0.28);
+  color: #ff8a8a;
+}
+
+.panelka-slot-flags em.is-mod {
+  background: rgba(40, 90, 180, 0.28);
+  color: #8ec4ff;
+}
+
+.panelka-slot-flags em.is-nok {
+  background: rgba(180, 120, 30, 0.28);
+  color: #f0c56a;
+}
+
+.panelka-slot-flags em.is-dead {
+  background: rgba(80, 80, 80, 0.45);
+  color: rgba(239, 230, 214, 0.7);
+}
+
+.panelka-slot-flags em.is-veh {
+  background: rgba(60, 100, 70, 0.3);
+  color: #9fd4a8;
 }
 
 .panelka-slot-hint {

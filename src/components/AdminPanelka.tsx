@@ -52,6 +52,9 @@ type RosterPerson = {
   steamId: string;
   leader: boolean;
   role: string;
+  vehicle?: string;
+  health?: "alive" | "nok" | "dead" | string;
+  rights?: "admin" | "moderator" | string;
 };
 
 type RosterSquad = {
@@ -772,15 +775,32 @@ function RosterRow({
   player: RosterPerson;
   onPick: (player: RosterPerson) => void;
 }) {
+  const rightsClass =
+    player.rights === "admin" ? " is-admin" : player.rights === "moderator" ? " is-mod" : "";
+  const health = player.health || "alive";
+  const classes = [
+    "panelka-slot",
+    "is-click",
+    player.leader ? "is-lead" : "",
+    rightsClass.trim(),
+    health === "nok" ? "is-nok" : "",
+    health === "dead" ? "is-dead" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   return (
-    <button
-      type="button"
-      className={player.leader ? "panelka-slot is-lead is-click" : "panelka-slot is-click"}
-      title={player.steamId}
-      onClick={() => onPick(player)}
-    >
+    <button type="button" className={classes} title={player.steamId} onClick={() => onPick(player)}>
       <span className="panelka-role">{player.leader ? "СЛ" : player.role || "—"}</span>
-      <b>{player.name}</b>
+      <span className="panelka-slot-main">
+        <b>{player.name}</b>
+        <span className="panelka-slot-flags">
+          {player.rights === "admin" ? <em className="is-admin">админ</em> : null}
+          {player.rights === "moderator" ? <em className="is-mod">мод</em> : null}
+          {health === "nok" ? <em className="is-nok">нок</em> : null}
+          {health === "dead" ? <em className="is-dead">мёртв</em> : null}
+          {player.vehicle ? <em className="is-veh">{player.vehicle}</em> : null}
+        </span>
+      </span>
       <span className="panelka-slot-hint">карточка</span>
     </button>
   );

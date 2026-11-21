@@ -535,6 +535,89 @@ def server_row(key):
     current = rcon(key, "ShowCurrentMap")
     return {"key": key, "info": info, "current": current}
 
+def read_staff_map():
+    path = "/home/squad/admins/Admins.cfg"
+    out = {}
+    try:
+        text = open(path, encoding="utf-8", errors="replace").read()
+    except Exception:
+        return out
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("//") or not line.startswith("Admin="):
+            continue
+        m = re.match(r"Admin=(7656\d+)\s*:\s*(\w+)", line, re.I)
+        if not m:
+            continue
+        group = m.group(2)
+        if group in ("Admin", "Cameraman"):
+            out[m.group(1)] = "admin"
+        elif group in ("Moderator", "Intern"):
+            out[m.group(1)] = "moderator"
+    return out
+
+def live_health_map(key, steam_ids):
+    want = set(steam_ids or [])
+    states = {sid: "alive" for sid in want}
+    if not want:
+        return states
+    log_path = f"/home/squad/servers/{host(key)}/SquadGame/Saved/Logs/SquadGame.log"
+    try:
+        with open(log_path, "rb") as handle:
+            handle.seek(0, 2)
+            handle.seek(max(0, handle.tell() - 3_500_000))
+            blob = handle.read().decode("utf-8", "replace")
+    except Exception:
+        return states
+    wound_re = re.compile(
+        r"Wound\(\):\s*Player:(?P<nick>.+?)\s+KillingDamage=.*?steam:\s*(?P<steam>7656\d+)",
+        re.I,
+    )
+    die_re = re.compile(
+        r"Die\(\):\s*Player:(?P<nick>.+?)\s+KillingDamage=.*?steam:\s*(?P<steam>7656\d+)",
+        re.I,
+    )
+    revive_re = re.compile(
+        r"has revived\s+(?P<patient>.+?)\.",
+        re.I,
+    )
+    possess_re = re.compile(
+        r"OnPossess\(\):\s*PC=(?P<nick>.+?)\s*\(Online IDs:.*?steam:\s*(?P<steam>7656\d+)\)",
+        re.I,
+    )
+    # nick -> steam for revive matching
+    nick_steam = {}
+    for line in blob.splitlines():
+        wm = wound_re.search(line)
+        if wm:
+            steam = wm.group("steam")
+            nick_steam[_nick_key(wm.group("nick"))] = steam
+            if steam in want:
+                states[steam] = "nok"
+            continue
+        dm = die_re.search(line)
+        if dm:
+            steam = dm.group("steam")
+            nick_steam[_nick_key(dm.group("nick"))] = steam
+            if steam in want:
+                states[steam] = "dead"
+            continue
+        if "has revived" in line:
+            rm = revive_re.search(line)
+            if rm:
+                patient = _nick_key(rm.group("patient"))
+                steam = nick_steam.get(patient)
+                if steam and steam in want:
+                    states[steam] = "alive"
+            continue
+        pm = possess_re.search(line)
+        if pm:
+            steam = pm.group("steam")
+            nick_steam[_nick_key(pm.group("nick"))] = steam
+            if steam in want:
+                states[steam] = "alive"
+    return states
+
 def mods_root(key):
     return f"/home/squad/servers/{host(key)}/SquadGame/Plugins/Mods"
 
@@ -700,10 +783,16 @@ try:
     elif op == "players":
         print(json.dumps({"ok": True, "text": rcon(job["key"], "ListPlayers")}, ensure_ascii=False))
     elif op == "roster":
+        key = job["key"]
+        players_text = rcon(key, "ListPlayers")
+        squads_text = rcon(key, "ListSquads")
+        steams = re.findall(r"steam:\s*(7656\d{13})", players_text, re.I)
         print(json.dumps({
             "ok": True,
-            "players": rcon(job["key"], "ListPlayers"),
-            "squads": rcon(job["key"], "ListSquads"),
+            "players": players_text,
+            "squads": squads_text,
+            "staff": read_staff_map(),
+            "health": live_health_map(key, steams),
         }, ensure_ascii=False))
     elif op == "layers":
         print(json.dumps({"ok": True, "text": rcon("TR1", "ListLayers")}, ensure_ascii=False))
@@ -907,8 +996,8 @@ def status() -> dict:
 
 
 PLAYER_RE = re.compile(
-    r"ID:\s*(?P<id>\d+)\s*\|\s*Online IDs:\s*(?P<ids>.*?)\s*\|\s*Name:\s*(?P<name>.*?)\s*\|\s*Team ID:\s*(?P<team>[^|]+)\|\s*Party ID:\s*[^|]*\|\s*Squad ID:\s*(?P<squad>[^|]+)\|\s*Is Leader:\s*(?P<leader>[^|]+)\|\s*Role:\s*(?P<role>[^|]+)",
-    re.I,
+    r"ID:\s*(?P<id>\d+)\s*\|\s*Online IDs:\s*(?P<ids>.*?)\s*\|\s*Name:\s*(?P<name>.*?)\s*\|\s*Team ID:\s*(?P<team>[^|]+)\|\s*Party ID:\s*[^|]*\|\s*Squad ID:\s*(?P<squad>[^|]+)\|\s*Is Leader:\s*(?P<leader>[^|]+)\|\s*Role:\s*(?P<role>[^|]+?)(?:\s*\|\s*Vehicle:\s*(?P<vehicle>.*?))?\s*$",
+    re.I | re.M,
 )
 SQUAD_TEAM_RE = re.compile(r"Team ID:\s*(\d+)\s*\((.+?)\)\s*-\s*Tickets:\s*(\d+)")
 SQUAD_ROW_RE = re.compile(
@@ -939,6 +1028,29 @@ def role_label(role: str) -> str:
     return ROLE_LABELS.get(kind, "")
 
 
+def short_vehicle(raw: str) -> str:
+    text = (raw or "").strip()
+    if not text or text.upper() in ("N/A", "NA", "NONE", "-"):
+        return ""
+    # "ZBD04A (Driver)" → "ZBD04A · вод"
+    seat_map = {
+        "driver": "вод",
+        "passenger": "пас",
+        "turret operator": "баш",
+        "gunner": "стрел",
+        "commander": "кмд",
+    }
+    seat = ""
+    m = re.search(r"\(([^)]+)\)\s*$", text)
+    if m:
+        seat = seat_map.get(m.group(1).strip().lower(), m.group(1).strip()[:8])
+        text = text[: m.start()].strip()
+    text = text.replace("BP_", "").replace("_C", "")
+    if len(text) > 18:
+        text = text[:18]
+    return f"{text} · {seat}" if seat else text
+
+
 def parse_player_rows(text: str) -> list[dict]:
     rows = []
     for match in PLAYER_RE.finditer(text):
@@ -949,6 +1061,7 @@ def parse_player_rows(text: str) -> list[dict]:
         team = match.group("team").strip()
         squad = match.group("squad").strip()
         role = match.group("role").strip()
+        vehicle_raw = (match.groupdict().get("vehicle") or "").strip()
         rows.append(
             {
                 "id": int(match.group("id")),
@@ -958,6 +1071,7 @@ def parse_player_rows(text: str) -> list[dict]:
                 "squad": squad if squad.isdigit() else "",
                 "leader": match.group("leader").strip().lower() == "true",
                 "role": role_label(role),
+                "vehicle": short_vehicle(vehicle_raw),
             }
         )
     rows.sort(key=lambda row: (row["team"] or "9", row["name"].lower()))
@@ -1000,6 +1114,8 @@ def roster(key: str) -> dict:
                     "players": [],
                 }
             )
+    staff = data.get("staff") if isinstance(data.get("staff"), dict) else {}
+    health = data.get("health") if isinstance(data.get("health"), dict) else {}
     by_squad = {(team["id"], squad["id"]): squad for team in teams.values() for squad in team["squads"]}
     for person in parse_player_rows(data.get("players") or ""):
         team = teams.get(person["team"])
@@ -1007,13 +1123,23 @@ def roster(key: str) -> dict:
             continue
         squad = by_squad.get((person["team"], person["squad"]))
         bucket = squad["players"] if squad else team["loose"]
+        sid = person["steamId"]
+        hp = str(health.get(sid) or "alive")
+        if hp not in ("alive", "nok", "dead"):
+            hp = "alive"
+        rights = str(staff.get(sid) or "")
+        if rights not in ("admin", "moderator"):
+            rights = ""
         bucket.append(
             {
                 "id": person["id"],
                 "name": person["name"],
-                "steamId": person["steamId"],
+                "steamId": sid,
                 "leader": person["leader"],
                 "role": person["role"],
+                "vehicle": person.get("vehicle") or "",
+                "health": hp,
+                "rights": rights,
             }
         )
     for team in teams.values():
