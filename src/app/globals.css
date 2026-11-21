@@ -13872,17 +13872,16 @@ body:has(.home-page) {
   gap: 14px;
   padding: 14px 16px;
   border-radius: 14px;
-  border: 1px solid var(--clan-accent, var(--line));
-  box-shadow: inset 3px 0 0 var(--clan-accent, transparent);
+  border: 1px solid var(--line);
   background: var(--panel);
   color: inherit;
   text-decoration: none;
-  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
 .clan-row:hover {
-  border-color: var(--clan-accent, rgba(167, 139, 250, 0.45));
-  background: color-mix(in srgb, var(--clan-accent, #a78bfa) 12%, var(--panel));
+  border-color: rgba(167, 139, 250, 0.45);
+  background: rgba(167, 139, 250, 0.08);
   color: inherit;
 }
 
@@ -13927,10 +13926,6 @@ body:has(.home-page) {
   display: flex;
   align-items: center;
   gap: 16px;
-  border: 1px solid var(--clan-accent, var(--line));
-  box-shadow: inset 4px 0 0 var(--clan-accent, transparent);
-  border-radius: 16px;
-  padding: 16px 18px;
 }
 
 .clan-detail-logo {

@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { clanMapColor } from "@/lib/clanMapColor";
 
 export type ClanListItem = {
   id: string;
@@ -66,41 +65,33 @@ export function ClansListClient({ clans }: Props) {
       </div>
 
       <div className="clan-list">
-        {sorted.map((c) => {
-          const accent = clanMapColor(c.id, c.tag);
-          return (
-            <Link
-              key={c.id}
-              className="clan-row"
-              href={`/clans/${c.id}`}
-              style={{ borderColor: accent, ["--clan-accent" as string]: accent }}
-            >
-              {c.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  className="clan-row-logo"
-                  src={c.logoUrl}
-                  alt=""
-                  width={48}
-                  height={48}
-                />
-              ) : (
-                <div className="clan-row-logo clan-row-logo-empty">
-                  {c.tag.slice(0, 2)}
-                </div>
-              )}
-              <div className="clan-row-body">
-                <strong>
-                  [{c.tag}] {c.name}
-                </strong>
-                <span className="muted">
-                  Глава: {c.leaderNick || "—"} · игроков: {c.members}
-                </span>
+        {sorted.map((c) => (
+          <Link key={c.id} className="clan-row" href={`/clans/${c.id}`}>
+            {c.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                className="clan-row-logo"
+                src={c.logoUrl}
+                alt=""
+                width={48}
+                height={48}
+              />
+            ) : (
+              <div className="clan-row-logo clan-row-logo-empty">
+                {c.tag.slice(0, 2)}
               </div>
-              <span className="clan-row-arrow">→</span>
-            </Link>
-          );
-        })}
+            )}
+            <div className="clan-row-body">
+              <strong>
+                [{c.tag}] {c.name}
+              </strong>
+              <span className="muted">
+                Глава: {c.leaderNick || "—"} · игроков: {c.members}
+              </span>
+            </div>
+            <span className="clan-row-arrow">→</span>
+          </Link>
+        ))}
       </div>
     </div>
   );
