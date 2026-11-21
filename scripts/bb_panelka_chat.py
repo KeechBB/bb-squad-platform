@@ -14,7 +14,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-CHAT_SCRIPT_VERSION = "2026-11-21-admins-v1"
+CHAT_SCRIPT_VERSION = "2026-11-21-admins-v2"
 
 KEYS = ("TR1", "TR2", "TR3", "TR4", "TR5", "PB1")
 HOST = {"PB1": "TPUB1"}
@@ -35,10 +35,12 @@ ADMINS_COOLDOWN_SEC = 45
 _last_admins: dict[str, float] = {}
 _last_admins_lock = threading.Lock()
 
-ADMINS_REPLY = (
-    "Увидел нарушение? Зафиксируй откат! Создай тикет на сайте bb-squad.ru. "
-    "Сервер работает в автоматическом режиме. Мы сразу разберёмся в ситуации."
+# Squad AdminWarn режет слишком длинные UTF-8 строки → шлём двумя Warn'ами
+ADMINS_REPLY_PARTS = (
+    "Увидел нарушение? Зафиксируй откат! Создай тикет на сайте bb-squad.ru.",
+    "Сервер работает в автоматическом режиме. Мы сразу разберёмся в ситуации.",
 )
+ADMINS_LOG = Path("/tmp/bb_panelka_admins.log")
 
 
 def _host(key: str) -> str:
@@ -142,21 +144,44 @@ def source_rcon(key: str, cmd: str, timeout: float = 6.0) -> str:
             pass
 
 
-def maybe_reply_admins(key: str, steam_id: str, text: str) -> None:
+def _admins_log(line: str) -> None:
+    try:
+        stamp = datetime.now(MSK).strftime("%Y-%m-%d %H:%M:%S")
+        with ADMINS_LOG.open("a", encoding="utf-8") as handle:
+            handle.write(f"{stamp} {line}\n")
+        if ADMINS_LOG.stat().st_size > 400_000:
+            kept = ADMINS_LOG.read_text(encoding="utf-8", errors="replace").splitlines()[-200:]
+            ADMINS_LOG.write_text("\n".join(kept) + ("\n" if kept else ""), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def maybe_reply_admins(key: str, steam_id: str, name: str, text: str) -> None:
     low = (text or "").strip().lower()
     if low != "!admins" and not low.startswith("!admins "):
         return
     if not steam_id:
+        _admins_log(f"{key} skip no-steam name={name!r} text={text!r}")
         return
     now = time.time()
     with _last_admins_lock:
         prev = _last_admins.get(steam_id, 0.0)
         if now - prev < ADMINS_COOLDOWN_SEC:
+            _admins_log(f"{key} cooldown steam={steam_id} name={name!r}")
             return
         _last_admins[steam_id] = now
     try:
-        source_rcon(key, f"AdminWarn {steam_id} {ADMINS_REPLY}")
-    except Exception:
+        for part in ADMINS_REPLY_PARTS:
+            reply = source_rcon(key, f"AdminWarn {steam_id} {part}")
+            _admins_log(f"{key} warn steam={steam_id} name={name!r} reply={reply[:160]!r}")
+            if "Missing argument" in reply or "warned player" not in reply.lower():
+                # fallback: без пробелов, если вдруг парсер снова споткнулся
+                alt = part.replace(" ", "_")
+                reply2 = source_rcon(key, f"AdminWarn {steam_id} {alt}")
+                _admins_log(f"{key} warn-fallback steam={steam_id} reply={reply2[:160]!r}")
+            time.sleep(0.25)
+    except Exception as exc:
+        _admins_log(f"{key} ERROR steam={steam_id} name={name!r} err={type(exc).__name__}:{exc}")
         with _last_admins_lock:
             _last_admins.pop(steam_id, None)
 
@@ -181,12 +206,11 @@ def record(key: str, body: str) -> None:
             "text": text,
         }
     )
-    if steam_id:
-        threading.Thread(
-            target=maybe_reply_admins,
-            args=(key, steam_id, text),
-            daemon=True,
-        ).start()
+    threading.Thread(
+        target=maybe_reply_admins,
+        args=(key, steam_id, name, text),
+        daemon=True,
+    ).start()
 
 
 def listen(key: str) -> None:

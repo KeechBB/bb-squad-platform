@@ -1410,6 +1410,9 @@ def command(key: str, action: str, layer: str, steam_id: str) -> dict:
         if not msg:
             raise SystemExit("напиши сообщение игроку")
         msg = f"[{by_nick}] {msg}"
+        # Squad AdminWarn ломается на слишком длинных UTF-8 строках
+        if len(msg.encode("utf-8")) > 140:
+            msg = msg.encode("utf-8")[:140].decode("utf-8", "ignore").rstrip()
         cmd = f"AdminWarn {steam_id} {msg}"
         action_log = {"kind": "warn", "reason": msg}
     elif action == "say":
