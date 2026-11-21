@@ -412,7 +412,7 @@ export function AdminPanelka({
         window.setTimeout(() => {
           void refreshOne(selected);
           void loadRoster(selected, true);
-          if (action === "mod-install" || action === "mod-remove") {
+          if (action === "mod-install" || action === "mod-remove" || action === "server-restart") {
             void loadMods(selected);
           }
         }, 1200);
@@ -602,6 +602,22 @@ export function AdminPanelka({
                 }}
               >
                 3. Закончить карту
+              </button>
+              <button
+                type="button"
+                disabled={!current || Boolean(busy)}
+                onClick={() => {
+                  if (
+                    current &&
+                    window.confirm(
+                      `Полный рестарт сервера ${current.key}?\nКикнет всех игроков. Нужен после установки/обновления модов.`
+                    )
+                  ) {
+                    void send("server-restart", {});
+                  }
+                }}
+              >
+                {busy === "server-restart" ? "Рестартую…" : "4. Рестарт сервера"}
               </button>
             </div>
             {busy ? <p className="panelka-notice">Жду сервер…</p> : null}

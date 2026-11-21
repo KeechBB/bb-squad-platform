@@ -31,6 +31,7 @@ const ACTIONS = new Set([
   "say",
   "mod-install",
   "mod-remove",
+  "server-restart",
 ]);
 const TEAM_ID_RE = /^[12]$/;
 const SQUAD_ID_RE = /^\d{1,3}$/;
@@ -418,6 +419,10 @@ export async function POST(req: Request) {
     }
     if (action === "mod-remove") {
       const data = await runPanelka(["mod-remove", key], 60000, { mod: modRaw });
+      return NextResponse.json(data);
+    }
+    if (action === "server-restart") {
+      const data = await runPanelka(["server-restart", key], 120000);
       return NextResponse.json(data);
     }
     const data = (await runPanelka(["cmd", key, action, layer, steamId], 35000, {

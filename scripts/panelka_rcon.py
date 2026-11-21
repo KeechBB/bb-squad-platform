@@ -1225,6 +1225,93 @@ def remove_mod(key, mod_id):
     write_mod_order(key, order)
     return {"ok": True, "reply": f"мод {mod_id} удалён — нужен рестарт сервера", "modId": mod_id}
 
+# UI key → startserverN.sh (PB1 = TPUB1 = startserver6)
+START_NUM = {"TR1": "1", "TR2": "2", "TR3": "3", "TR4": "4", "TR5": "5", "PB1": "6"}
+
+def game_pids(hk):
+    needle = f"/home/squad/servers/{hk}/SquadGame/Binaries/Linux/SquadGameServer"
+    pids = []
+    for name in os.listdir("/proc"):
+        if not name.isdigit():
+            continue
+        try:
+            exe = os.readlink(f"/proc/{name}/exe")
+        except OSError:
+            continue
+        if exe == needle or exe.startswith(needle):
+            pids.append(int(name))
+    return pids
+
+def restart_server(key):
+    """Kill SquadGameServer + screen, relaunch without steamcmd (mods apply)."""
+    if key not in UI_KEYS:
+        return {"ok": False, "error": "нет такого сервера"}
+    num = START_NUM.get(key)
+    if not num:
+        return {"ok": False, "error": "нет скрипта старта"}
+    hk = host(key)
+    script = f"/home/squad/servers/startserver{num}.sh"
+    if not os.path.isfile(script):
+        return {"ok": False, "error": f"нет {script}"}
+    body = open(script, encoding="utf-8", errors="replace").read()
+    launch = None
+    for part in re.split(r"[;\n]", body):
+        part = part.strip()
+        if "SquadGameServer.sh" in part:
+            launch = part
+    if not launch:
+        return {"ok": False, "error": "не нашёл команду запуска в startserver"}
+    before = game_pids(hk)
+    for pid in before:
+        try:
+            os.kill(pid, 15)
+        except OSError:
+            pass
+    deadline = time.time() + 25
+    while game_pids(hk) and time.time() < deadline:
+        time.sleep(0.3)
+    for pid in game_pids(hk):
+        try:
+            os.kill(pid, 9)
+        except OSError:
+            pass
+    ls = subprocess.run(["screen", "-ls"], capture_output=True, text=True)
+    for session in re.findall(rf"^\s*(\d+\.{re.escape(hk)})\s", ls.stdout or "", re.M):
+        subprocess.run(["screen", "-S", session, "-X", "quit"], capture_output=True)
+    time.sleep(0.4)
+    log = f"/tmp/bb-panelka-restart-{hk}.log"
+    proc = subprocess.run(
+        ["screen", "-L", "-Logfile", log, "-a", "-U", "-dmS", hk, "bash", "-lc", launch],
+        cwd="/home/squad/servers",
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        return {
+            "ok": False,
+            "error": "screen не стартовал",
+            "raw": ((proc.stderr or "") + (proc.stdout or ""))[-240:],
+        }
+    up = []
+    deadline = time.time() + 50
+    while time.time() < deadline:
+        up = game_pids(hk)
+        if up:
+            break
+        time.sleep(0.5)
+    if not up:
+        return {
+            "ok": False,
+            "error": f"процесс {key} не поднялся — лог {log}",
+            "before": before,
+        }
+    return {
+        "ok": True,
+        "reply": f"{key} перезапущен (PID {up[0]}) — подожди ~1 мин до входа",
+        "pid": up[0],
+        "before": before,
+    }
+
 op = job.get("op")
 try:
     if op == "status":
@@ -1299,6 +1386,12 @@ try:
             print(json.dumps({"ok": False, "error": "плохой мод или сервер"}, ensure_ascii=False))
         else:
             print(json.dumps(remove_mod(key, mid), ensure_ascii=False))
+    elif op == "server-restart":
+        key = job["key"]
+        if key not in UI_KEYS:
+            print(json.dumps({"ok": False, "error": "нет такого сервера"}, ensure_ascii=False))
+        else:
+            print(json.dumps(restart_server(key), ensure_ascii=False))
     elif op == "vips-list":
         print(json.dumps(list_vips(), ensure_ascii=False))
     elif op == "vip-add":
@@ -2486,6 +2579,10 @@ def mod_remove(key: str, raw: str) -> dict:
     return ssh_job({"op": "mod-remove", "key": key, "modId": mid}, timeout=40)
 
 
+def server_restart(key: str) -> dict:
+    return ssh_job({"op": "server-restart", "key": key}, timeout=90)
+
+
 def vips_list() -> dict:
     return ssh_job({"op": "vips-list"}, timeout=25)
 
@@ -2672,6 +2769,11 @@ def main() -> int:
             if key not in KEYS:
                 raise SystemExit("bad server")
             result = mod_remove(key, raw)
+        elif op == "server-restart":
+            key = sys.argv[2]
+            if key not in KEYS:
+                raise SystemExit("bad server")
+            result = server_restart(key)
         elif op == "cmd":
             key, action = sys.argv[2], sys.argv[3]
             layer = sys.argv[4] if len(sys.argv) > 4 else ""
