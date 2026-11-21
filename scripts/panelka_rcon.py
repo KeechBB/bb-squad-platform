@@ -1352,7 +1352,19 @@ try:
             start_new_session=True,
         )
         open(pid_path, "w").write(str(proc.pid))
-        time.sleep(0.6)
+        time.sleep(0.8)
+        # wipe legacy chat again after boot (agent also does this, belt+suspenders)
+        for ent in os.listdir("/proc"):
+            if not ent.isdigit():
+                continue
+            try:
+                raw = open(f"/proc/{{ent}}/cmdline", "rb").read()
+            except Exception:
+                continue
+            cmdl = raw.replace(b"\\x00", b" ").decode("utf-8", "replace")
+            if "bb_panelka_chat.py" in cmdl and "python" in cmdl:
+                try: os.kill(int(ent), 9)
+                except Exception: pass
         print("started", proc.pid, "final", agent_pids())
     else:
         keep = min(pids)
@@ -1361,6 +1373,18 @@ try:
                 try: os.kill(pid, 9)
                 except Exception: pass
         open(pid_path, "w").write(str(keep))
+        # never revive chat while agent alive
+        for ent in os.listdir("/proc"):
+            if not ent.isdigit():
+                continue
+            try:
+                raw = open(f"/proc/{{ent}}/cmdline", "rb").read()
+            except Exception:
+                continue
+            cmdl = raw.replace(b"\\x00", b" ").decode("utf-8", "replace")
+            if "bb_panelka_chat.py" in cmdl and "python" in cmdl:
+                try: os.kill(int(ent), 9)
+                except Exception: pass
         print("keep", keep, "final", agent_pids())
 finally:
     fcntl.flock(lock_f, fcntl.LOCK_UN)
