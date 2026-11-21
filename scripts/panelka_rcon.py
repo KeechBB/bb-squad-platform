@@ -768,7 +768,8 @@ VIP_META_RE = re.compile(
     re.I,
 )
 BB_BAN_META_RE = re.compile(
-    r"bb-ban\s+until=(?P<until>\S+)\s+dur=(?P<dur>\S+)\s+by=(?P<by>[^\s]+)",
+    r"bb-ban\s+until=(?P<until>\S+)\s+dur=(?P<dur>\S+)\s+by=(?P<by>[^\s]+)"
+    r"(?:\s+at=(?P<at>\S+))?",
     re.I,
 )
 BAN_LINE_RE = re.compile(
@@ -902,6 +903,7 @@ def list_bans():
         until = (meta.group("until") if meta else "").strip()
         dur = (meta.group("dur") if meta else "").strip()
         by = (meta.group("by") if meta else "").replace("_", " ").strip()
+        banned_at = (meta.group("at") if meta and meta.group("at") else "").strip()
         ends_at = ""
         forever = False
         # Squad often writes :0 even for timed bans — never treat ttl=0 alone as forever.
@@ -925,13 +927,16 @@ def list_bans():
             "endsAt": ends_at,
             "duration": dur,
             "byNick": by,
+            "bannedAt": banned_at,
             "comment": comment[:200],
             "lineNo": idx + 1,
             "line": raw[:260],
         })
+    # Newest lines first (Squad appends); UI can still re-sort by bannedAt.
+    rows.sort(key=lambda r: int(r.get("lineNo") or 0), reverse=True)
     return {"ok": True, "bans": rows, "count": len(rows)}
 
-def ban_annotate(target_id, until="", duration="", by_nick="", reason=""):
+def ban_annotate(target_id, until="", duration="", by_nick="", reason="", at=""):
     """Append bb-ban meta into Bans.cfg comment so timed bans survive :0 ttl."""
     target = (target_id or "").strip()
     if not target or len(target) < 10:
@@ -944,8 +949,9 @@ def ban_annotate(target_id, until="", duration="", by_nick="", reason=""):
     by = re.sub(r"\s+", "_", (by_nick or "staff").strip())[:32] or "staff"
     until_s = (until or "forever").strip()[:32]
     dur_s = (duration or "0").strip()[:16] or "0"
+    at_s = (at or time.strftime("%Y-%m-%dT%H:%M:%S")).strip()[:32]
     why = re.sub(r"\s+", " ", (reason or "").strip())[:120]
-    meta = "bb-ban until=%s dur=%s by=%s" % (until_s, dur_s, by)
+    meta = "bb-ban until=%s dur=%s by=%s at=%s" % (until_s, dur_s, by, at_s)
     if why:
         meta = "%s | %s" % (meta, why)
     updated = []
@@ -1300,6 +1306,7 @@ try:
             str(job.get("duration") or ""),
             str(job.get("byNick") or ""),
             str(job.get("reason") or ""),
+            str(job.get("at") or ""),
         ), ensure_ascii=False))
     elif op == "ban-remove":
         print(json.dumps(ban_remove(str(job.get("id") or job.get("steamId") or "")), ensure_ascii=False))
@@ -2507,6 +2514,7 @@ def ban_annotate(
     duration: str = "",
     by_nick: str = "",
     reason: str = "",
+    at: str = "",
 ) -> dict:
     return ssh_job(
         {
@@ -2516,6 +2524,7 @@ def ban_annotate(
             "duration": duration,
             "byNick": by_nick,
             "reason": reason,
+            "at": at,
         },
         timeout=25,
     )
@@ -2619,6 +2628,7 @@ def main() -> int:
                 str(extra.get("duration") or ""),
                 str(extra.get("byNick") or ""),
                 str(extra.get("reason") or ""),
+                str(extra.get("at") or ""),
             )
         elif op == "ban-remove":
             target = sys.argv[2] if len(sys.argv) > 2 else ""

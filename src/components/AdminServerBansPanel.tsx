@@ -32,9 +32,16 @@ type BanRow = {
   nick: string | null;
   byNick: string | null;
   bannedAt: string | null;
+  lineNo?: number;
 };
 
-type SortKey = "nick" | "steamId" | "endsAt" | "comment" | "byNick" | "bannedAt";
+type SortKey =
+  | "nick"
+  | "steamId"
+  | "endsAt"
+  | "comment"
+  | "byNick"
+  | "bannedAt";
 
 function fmt(iso: string | null): string {
   if (!iso) return "—";
@@ -126,6 +133,15 @@ export function AdminServerBansPanel() {
         const sb = fuzzyScore(rowHay(b), needle);
         if (sa !== sb) return sb - sa;
       }
+      if (sortKey === "bannedAt") {
+        const at = a.bannedAt ? Date.parse(a.bannedAt) : 0;
+        const bt = b.bannedAt ? Date.parse(b.bannedAt) : 0;
+        if (at !== bt) {
+          return sortDir === "desc" ? bt - at : at - bt;
+        }
+        const lineCmp = (b.lineNo || 0) - (a.lineNo || 0);
+        return sortDir === "desc" ? lineCmp : -lineCmp;
+      }
       const av =
         sortKey === "endsAt"
           ? a.forever
@@ -138,7 +154,10 @@ export function AdminServerBansPanel() {
             ? "9999"
             : b.endsAt || b.termLabel
           : b[sortKey];
-      return compareLoose(av, bv, sortDir);
+      const primary = compareLoose(av, bv, sortDir);
+      if (primary !== 0) return primary;
+      // Stable fallback: newer cfg lines first.
+      return (b.lineNo || 0) - (a.lineNo || 0);
     });
     return list;
   }, [rows, q, sortKey, sortDir]);
@@ -357,6 +376,15 @@ export function AdminServerBansPanel() {
           <thead>
             <tr>
               <th>
+                <button
+                  type="button"
+                  className="admin-th-sort"
+                  onClick={() => toggleSort("bannedAt")}
+                >
+                  Когда{sortMark("bannedAt")}
+                </button>
+              </th>
+              <th>
                 <button type="button" className="admin-th-sort" onClick={() => toggleSort("nick")}>
                   Ник{sortMark("nick")}
                 </button>
@@ -392,9 +420,9 @@ export function AdminServerBansPanel() {
                 <button
                   type="button"
                   className="admin-th-sort"
-                  onClick={() => toggleSort("bannedAt")}
+                  onClick={() => toggleSort("byNick")}
                 >
-                  Кто / когда{sortMark("bannedAt")}
+                  Кто{sortMark("byNick")}
                 </button>
               </th>
               <th></th>
@@ -403,20 +431,23 @@ export function AdminServerBansPanel() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="muted">
+                <td colSpan={7} className="muted">
                   Загрузка…
                 </td>
               </tr>
             ) : null}
             {!loading && pageRows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="muted">
+                <td colSpan={7} className="muted">
                   Банов нет{q.trim() ? ` по запросу «${q.trim()}»` : ""}.
                 </td>
               </tr>
             ) : null}
             {pageRows.map((row) => (
               <tr key={`${row.steamId || row.id}-${row.eosId || ""}`}>
+                <td className="mono" style={{ whiteSpace: "nowrap" }}>
+                  {row.bannedAt ? fmt(row.bannedAt) : "—"}
+                </td>
                 <td>{row.nick || "—"}</td>
                 <td className="mono admin-steam-id">
                   {row.steamId ? (
@@ -439,14 +470,7 @@ export function AdminServerBansPanel() {
                 </td>
                 <td>{termCell(row)}</td>
                 <td>{row.comment || "—"}</td>
-                <td>
-                  {row.byNick || "—"}
-                  {row.bannedAt ? (
-                    <div className="muted" style={{ fontSize: "0.78rem" }}>
-                      {fmt(row.bannedAt)}
-                    </div>
-                  ) : null}
-                </td>
+                <td>{row.byNick || "—"}</td>
                 <td>
                   <button
                     type="button"

@@ -33,6 +33,8 @@ export type BanRow = {
   nick: string | null;
   byNick: string | null;
   bannedAt: string | null;
+  /** Order in Bans.cfg (higher = newer append). */
+  lineNo: number;
   line: string;
 };
 
@@ -305,7 +307,9 @@ export async function listServerBans(): Promise<BanRow[]> {
       endsAt?: string;
       duration?: string;
       byNick?: string;
+      bannedAt?: string;
       comment?: string;
+      lineNo?: number;
       line?: string;
     }[];
     error?: string;
@@ -324,7 +328,9 @@ export async function listServerBans(): Promise<BanRow[]> {
     endsAt: string;
     duration: string;
     byNick: string;
+    bannedAt: string;
     comment: string;
+    lineNo: number;
     line: string;
   }[] = [];
   for (let i = 0; i < bans.length; i += 1) {
@@ -345,7 +351,9 @@ export async function listServerBans(): Promise<BanRow[]> {
         endsAt: cur.endsAt || "",
         duration: cur.duration || next?.duration || "",
         byNick: cur.byNick || next?.byNick || "",
+        bannedAt: cur.bannedAt || next?.bannedAt || "",
         comment: cur.comment || next?.comment || "",
+        lineNo: Math.max(cur.lineNo || 0, next?.lineNo || 0),
         line: cur.line || "",
       });
       i += 1;
@@ -362,7 +370,9 @@ export async function listServerBans(): Promise<BanRow[]> {
         endsAt: cur.endsAt || next?.endsAt || "",
         duration: cur.duration || next?.duration || "",
         byNick: cur.byNick || next?.byNick || "",
+        bannedAt: cur.bannedAt || next?.bannedAt || "",
         comment: cur.comment || next?.comment || "",
+        lineNo: Math.max(cur.lineNo || 0, next?.lineNo || 0),
         line: next?.line || cur.line || "",
       });
       i += 1;
@@ -377,7 +387,9 @@ export async function listServerBans(): Promise<BanRow[]> {
       endsAt: cur.endsAt || "",
       duration: cur.duration || "",
       byNick: cur.byNick || "",
+      bannedAt: cur.bannedAt || "",
       comment: cur.comment || "",
+      lineNo: cur.lineNo || 0,
       line: cur.line || "",
     });
   }
@@ -401,7 +413,7 @@ export async function listServerBans(): Promise<BanRow[]> {
     if (a.steamId && !auditByTarget.has(a.steamId)) auditByTarget.set(a.steamId, a);
   }
 
-  return merged.map((b) => {
+  const rows: BanRow[] = merged.map((b) => {
     const audit =
       auditByTarget.get(b.id) ||
       (b.steamId ? auditByTarget.get(b.steamId) : undefined) ||
@@ -410,6 +422,13 @@ export async function listServerBans(): Promise<BanRow[]> {
     const duration = (b.duration || audit?.duration || "").trim() || null;
     const forever = Boolean(audit?.forever ?? b.forever);
     const comment = b.comment || audit?.reason || "";
+    const bannedAt =
+      audit?.createdAt?.toISOString() ||
+      (b.bannedAt
+        ? b.bannedAt.includes("T")
+          ? b.bannedAt
+          : `${b.bannedAt}T00:00:00`
+        : null);
     return {
       id: b.id,
       steamId: b.steamId,
@@ -422,10 +441,19 @@ export async function listServerBans(): Promise<BanRow[]> {
       comment,
       nick: b.steamId ? nickMap.get(b.steamId) || null : null,
       byNick: b.byNick || audit?.byNick || null,
-      bannedAt: audit?.createdAt?.toISOString() || null,
+      bannedAt,
+      lineNo: b.lineNo || 0,
       line: b.line || "",
     };
   });
+  // Newest first: bannedAt desc, then Bans.cfg line order (append = newer).
+  rows.sort((a, b) => {
+    const at = a.bannedAt ? Date.parse(a.bannedAt) : 0;
+    const bt = b.bannedAt ? Date.parse(b.bannedAt) : 0;
+    if (at !== bt) return bt - at;
+    return (b.lineNo || 0) - (a.lineNo || 0);
+  });
+  return rows;
 }
 
 export async function unbanServerTarget(opts: {

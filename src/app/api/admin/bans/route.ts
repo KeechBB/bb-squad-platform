@@ -116,6 +116,7 @@ export async function POST(req: Request) {
         duration,
         byNick,
         reason,
+        at: new Date().toISOString().slice(0, 19),
       }).catch(() => null);
       const bans = await listServerBans();
       return NextResponse.json({
