@@ -136,18 +136,21 @@ export function AdminPanelka({
   backHref = "/admin",
   backLabel = "К админке",
 }: AdminPanelkaProps = {}) {
+  const initialPlace = useMemo(() => readPanelkaPlace(), []);
   const [servers, setServers] = useState<PanelkaServer[]>(() => placeholderServers());
   const [loadedKeys, setLoadedKeys] = useState<Record<string, boolean>>({});
   const [loadError, setLoadError] = useState("");
-  const [selected, setSelected] = useState<string>("");
+  const [selected, setSelected] = useState<string>(() => initialPlace.selected);
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
   const [teams, setTeams] = useState<RosterTeam[]>([]);
   const [rosterBusy, setRosterBusy] = useState(false);
   const [rosterOnce, setRosterOnce] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
-  const [mgmtOpen, setMgmtOpen] = useState(false);
-  const [modsOpen, setModsOpen] = useState(false);
+  const [mgmtOpen, setMgmtOpen] = useState(() => initialPlace.mgmtOpen);
+  const [modsOpen, setModsOpen] = useState(() => initialPlace.modsOpen);
+  const restoreScrollY = useRef(initialPlace.scrollY);
+  const didRestoreScroll = useRef(false);
   const [mode, setMode] = useState<ModeName | "">("");
   const [layers, setLayers] = useState<Record<string, string[]> | null>(null);
   const [pickedLayer, setPickedLayer] = useState("");
@@ -269,6 +272,36 @@ export function AdminPanelka({
     }
   }, []);
 
+  // Remember selected server + open folds across refresh
+  useEffect(() => {
+    writePanelkaPlace({
+      selected,
+      scrollY: typeof window !== "undefined" ? window.scrollY : 0,
+      mgmtOpen,
+      modsOpen,
+    });
+  }, [selected, mgmtOpen, modsOpen]);
+
+  useEffect(() => {
+    let tick = 0;
+    const onScroll = () => {
+      window.clearTimeout(tick);
+      tick = window.setTimeout(() => {
+        writePanelkaPlace({
+          selected,
+          scrollY: window.scrollY,
+          mgmtOpen,
+          modsOpen,
+        });
+      }, 120);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.clearTimeout(tick);
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, [selected, mgmtOpen, modsOpen]);
+
   useEffect(() => {
     setAskSend(false);
     setSentLine("");
@@ -302,6 +335,30 @@ export function AdminPanelka({
       window.clearInterval(chatTimer);
     };
   }, [selected, refreshOne, loadRoster, loadMods, loadChat]);
+
+  // After refresh: put viewport back where it was (once content is ready)
+  useEffect(() => {
+    if (didRestoreScroll.current) return;
+    if (!selected) {
+      didRestoreScroll.current = true;
+      return;
+    }
+    if (!rosterOnce && rosterBusy) return;
+    const y = restoreScrollY.current;
+    if (y <= 0) {
+      didRestoreScroll.current = true;
+      return;
+    }
+    const t1 = window.setTimeout(() => window.scrollTo(0, y), 40);
+    const t2 = window.setTimeout(() => {
+      window.scrollTo(0, y);
+      didRestoreScroll.current = true;
+    }, 280);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [selected, rosterOnce, rosterBusy]);
 
   useEffect(() => {
     const node = chatRef.current;
@@ -420,10 +477,16 @@ export function AdminPanelka({
   }
 
   function selectServer(key: string) {
+    const same = key === selected;
     setSelected(key);
-    window.setTimeout(() => {
-      rosterRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 50);
+    // Fresh click jumps to roster; refresh restore uses saved scrollY instead
+    if (!same) {
+      didRestoreScroll.current = true;
+      restoreScrollY.current = 0;
+      window.setTimeout(() => {
+        rosterRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 50);
+    }
   }
 
   return (
@@ -1710,4 +1773,49 @@ function placeholderServers(): PanelkaServer[] {
     queue: 0,
     error: null,
   }));
+}
+
+const PANELKA_PLACE_KEY = "panelka-place-v1";
+const PANELKA_KEYS = new Set(["TR1", "TR2", "TR3", "TR4", "TR5", "PB1"]);
+
+type PanelkaPlace = {
+  selected: string;
+  scrollY: number;
+  mgmtOpen: boolean;
+  modsOpen: boolean;
+};
+
+function readPanelkaPlace(): PanelkaPlace {
+  const empty: PanelkaPlace = {
+    selected: "",
+    scrollY: 0,
+    mgmtOpen: false,
+    modsOpen: false,
+  };
+  if (typeof window === "undefined") return empty;
+  try {
+    const raw = localStorage.getItem(PANELKA_PLACE_KEY);
+    if (!raw) return empty;
+    const data = JSON.parse(raw) as Partial<PanelkaPlace>;
+    const selected =
+      typeof data.selected === "string" && PANELKA_KEYS.has(data.selected)
+        ? data.selected
+        : "";
+    return {
+      selected,
+      scrollY: Math.max(0, Number(data.scrollY) || 0),
+      mgmtOpen: Boolean(data.mgmtOpen),
+      modsOpen: Boolean(data.modsOpen),
+    };
+  } catch {
+    return empty;
+  }
+}
+
+function writePanelkaPlace(place: PanelkaPlace) {
+  try {
+    localStorage.setItem(PANELKA_PLACE_KEY, JSON.stringify(place));
+  } catch {
+    /* ignore */
+  }
 }
