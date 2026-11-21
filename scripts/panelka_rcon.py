@@ -346,8 +346,45 @@ def read_player_card(key, steam_id, name):
     except Exception:
         teamkills = []
 
-    punishments = read_punishments(key, steam_id, name, blob)
+    punishments = [
+        row for row in read_punishments(key, steam_id, name, blob)
+        if not _is_tk_auto_msg(row.get("reason") or "")
+    ]
+    # В чат карточки — системные строки «кто кого наказал», чтобы модеру было видно рядом с репликами
+    kind_ru = {"kick": "кик", "ban": "бан", "warn": "админ-сообщение", "report": "репорт"}
+    whom = (name or "").strip() or steam_id
+    for row in punishments:
+        kind = str(row.get("kind") or "")
+        if kind not in ("kick", "ban", "warn"):
+            continue
+        label = kind_ru.get(kind, kind)
+        reason = (row.get("reason") or "").strip()
+        # убрать префикс [ник] из причины — ник уже в by
+        reason = re.sub(r"^\[[^\]]{1,32}\]\s*", "", reason).strip() or reason
+        dur = (row.get("duration") or "").strip()
+        text = f"{label} → {whom}"
+        if reason:
+            text = f"{text}: {reason}"
+        if dur:
+            text = f"{text} · срок {dur}"
+        chat.append({
+            "date": row.get("date") or "",
+            "clock": row.get("clock") or "",
+            "channel": "наказание",
+            "name": (row.get("by") or "панель")[:48],
+            "text": text[:240],
+        })
+    chat = sorted(chat, key=lambda r: (r.get("date") or "", r.get("clock") or ""))[-120:]
     return {"ok": True, "chat": chat, "teamkills": teamkills, "punishments": punishments}
+
+def _is_tk_auto_msg(reason):
+    low = (reason or "").lower()
+    return (
+        "убил свой" in low
+        or "teamkill" in low
+        or "team kill" in low
+        or "тимкил" in low
+    )
 
 def _nick_key(raw):
     text = (raw or "").strip().lower()
@@ -487,6 +524,9 @@ def read_punishments(key, steam_id, name, log_blob=""):
         wm = warn_re.search(line)
         if wm and _name_hit(name, wm.group("nick")):
             reason = (wm.group("reason") or "").strip()[:200]
+            # авто-варны про тимкил — не в историю наказаний (они во вкладке Тимкилы)
+            if _is_tk_auto_msg(reason):
+                continue
             by = "бот/RCON"
             m_by = re.search(r"^\[([^\]]{2,32})\]\s*", reason)
             if m_by:

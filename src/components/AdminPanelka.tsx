@@ -843,15 +843,55 @@ function PlayerModModal({
   const [reason, setReason] = useState("");
   const [duration, setDuration] = useState("1h");
   const [warnText, setWarnText] = useState("");
-  const [tab, setTab] = useState<"chat" | "punish">("chat");
+  const [tab, setTab] = useState<"chat" | "punish" | "tk">("chat");
   const [chatPage, setChatPage] = useState(0);
   const [tkPage, setTkPage] = useState(0);
   const [punishPage, setPunishPage] = useState(0);
 
+  const loadCard = useCallback(
+    (opts?: { silent?: boolean }) => {
+      const silent = Boolean(opts?.silent);
+      if (!silent) {
+        setLoading(true);
+        setLoadError("");
+      }
+      const url =
+        `/api/admin/panelka?op=player-card&key=${encodeURIComponent(serverKey)}` +
+        `&steamId=${encodeURIComponent(player.steamId)}` +
+        `&name=${encodeURIComponent(player.name)}`;
+      return fetch(url, { cache: "no-store" })
+        .then((res) => res.json())
+        .then(
+          (data: {
+            ok?: boolean;
+            profile?: PlayerProfile;
+            chat?: ChatLine[];
+            teamkills?: TeamKillRow[];
+            punishments?: PunishmentRow[];
+            error?: string;
+          }) => {
+            if (!data.ok) {
+              if (!silent) setLoadError(data.error || "карточка не загрузилась");
+              return;
+            }
+            setProfile(data.profile || null);
+            setChat(data.chat || []);
+            setTeamkills(data.teamkills || []);
+            setPunishments(data.punishments || []);
+            setLoadError("");
+          }
+        )
+        .catch(() => {
+          if (!silent) setLoadError("нет связи с сайтом");
+        })
+        .finally(() => {
+          if (!silent) setLoading(false);
+        });
+    },
+    [serverKey, player.steamId, player.name]
+  );
+
   useEffect(() => {
-    let stop = false;
-    setLoading(true);
-    setLoadError("");
     setPending(null);
     setReason("");
     setWarnText("");
@@ -859,42 +899,8 @@ function PlayerModModal({
     setChatPage(0);
     setTkPage(0);
     setPunishPage(0);
-    const url =
-      `/api/admin/panelka?op=player-card&key=${encodeURIComponent(serverKey)}` +
-      `&steamId=${encodeURIComponent(player.steamId)}` +
-      `&name=${encodeURIComponent(player.name)}`;
-    void fetch(url, { cache: "no-store" })
-      .then((res) => res.json())
-      .then(
-        (data: {
-          ok?: boolean;
-          profile?: PlayerProfile;
-          chat?: ChatLine[];
-          teamkills?: TeamKillRow[];
-          punishments?: PunishmentRow[];
-          error?: string;
-        }) => {
-          if (stop) return;
-          if (!data.ok) {
-            setLoadError(data.error || "карточка не загрузилась");
-            return;
-          }
-          setProfile(data.profile || null);
-          setChat(data.chat || []);
-          setTeamkills(data.teamkills || []);
-          setPunishments(data.punishments || []);
-        }
-      )
-      .catch(() => {
-        if (!stop) setLoadError("нет связи с сайтом");
-      })
-      .finally(() => {
-        if (!stop) setLoading(false);
-      });
-    return () => {
-      stop = true;
-    };
-  }, [serverKey, player.steamId, player.name]);
+    void loadCard();
+  }, [loadCard]);
 
   const chatPages = Math.max(1, Math.ceil(chat.length / PAGE));
   const tkPages = Math.max(1, Math.ceil(teamkills.length / PAGE));
@@ -918,7 +924,10 @@ function PlayerModModal({
     if (!pending || busy) return;
     if (pending === "team" || pending === "unsquad") {
       const ok = await onAction(pending, {});
-      if (ok) setPending(null);
+      if (ok) {
+        setPending(null);
+        window.setTimeout(() => void loadCard({ silent: true }), 900);
+      }
       return;
     }
     if (pending === "warn") {
@@ -928,6 +937,8 @@ function PlayerModModal({
       if (ok) {
         setPending(null);
         setWarnText("");
+        setTab("punish");
+        window.setTimeout(() => void loadCard({ silent: true }), 900);
       }
       return;
     }
@@ -935,12 +946,20 @@ function PlayerModModal({
     if (why.length < 2) return;
     if (pending === "kick") {
       const ok = await onAction("kick", { reason: why });
-      if (ok) setPending(null);
+      if (ok) {
+        setPending(null);
+        setTab("punish");
+        window.setTimeout(() => void loadCard({ silent: true }), 900);
+      }
       return;
     }
     if (pending === "ban") {
       const ok = await onAction("ban", { reason: why, duration });
-      if (ok) setPending(null);
+      if (ok) {
+        setPending(null);
+        setTab("punish");
+        window.setTimeout(() => void loadCard({ silent: true }), 900);
+      }
     }
   }
 
@@ -1092,57 +1111,46 @@ function PlayerModModal({
             className={tab === "punish" ? "is-on" : ""}
             onClick={() => setTab("punish")}
           >
-            Наказания
+            История наказаний
             {punishments.length ? ` (${punishments.length})` : ""}
+          </button>
+          <button type="button" className={tab === "tk" ? "is-on" : ""} onClick={() => setTab("tk")}>
+            Тимкилы
+            {teamkills.length ? ` (${teamkills.length})` : ""}
           </button>
         </div>
 
         {tab === "chat" ? (
-          <div className="panelka-mod-hist">
-            <section>
-              <header>
-                <h4>История чата</h4>
-                <Pager page={chatPage} pages={chatPages} onChange={setChatPage} />
-              </header>
-              {chatSlice.length ? (
-                <ul>
-                  {chatSlice.map((line, index) => (
-                    <li key={`c-${chatPage}-${index}`}>
-                      <span>
-                        {[line.date, line.clock].filter(Boolean).join(" ") || "—"}
-                        {line.channel ? ` · ${line.channel}` : ""}
-                      </span>
-                      <b>{line.text}</b>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="panelka-chat-empty">Сообщений нет.</p>
-              )}
-            </section>
-            <section>
-              <header>
-                <h4>История тимкилов</h4>
-                <Pager page={tkPage} pages={tkPages} onChange={setTkPage} />
-              </header>
-              {tkSlice.length ? (
-                <ul>
-                  {tkSlice.map((row, index) => (
-                    <li key={`t-${tkPage}-${index}`}>
-                      <span>{[row.date, row.clock].filter(Boolean).join(" ") || "—"}</span>
-                      <b>убил своего: {row.victim}</b>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="panelka-chat-empty">Тимкилов в логе не видно.</p>
-              )}
-            </section>
-          </div>
-        ) : (
           <div className="panelka-mod-punish">
             <header>
-              <h4>Кик · бан · админ-сообщения · репорты игроков</h4>
+              <h4>Сообщения игрока и наказания в ленте</h4>
+              <Pager page={chatPage} pages={chatPages} onChange={setChatPage} />
+            </header>
+            {chatSlice.length ? (
+              <ul>
+                {chatSlice.map((line, index) => (
+                  <li key={`c-${chatPage}-${index}`}>
+                    <span>
+                      {[line.date, line.clock].filter(Boolean).join(" ") || "—"}
+                      {line.channel ? ` · ${line.channel}` : ""}
+                    </span>
+                    <b>
+                      {line.name ? `${line.name}: ` : ""}
+                      {line.text}
+                    </b>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="panelka-chat-empty">Сообщений нет.</p>
+            )}
+          </div>
+        ) : null}
+
+        {tab === "punish" ? (
+          <div className="panelka-mod-punish">
+            <header>
+              <h4>Кик · бан · админ-сообщения · репорты · кто кого наказал</h4>
               <Pager page={punishPage} pages={punishPages} onChange={setPunishPage} />
             </header>
             {punishSlice.length ? (
@@ -1155,8 +1163,10 @@ function PlayerModModal({
                       {punishLabel(row.kind)}
                       {row.duration ? ` · срок ${row.duration}` : ""}
                     </span>
-                    <b>{row.reason || "—"}</b>
-                    <em>кто: {row.by || "неизвестно"}</em>
+                    <b>{stripActorPrefix(row.reason) || "—"}</b>
+                    <em>
+                      кто: {row.by || "неизвестно"} → кого: {player.name}
+                    </em>
                   </li>
                 ))}
               </ul>
@@ -1164,7 +1174,28 @@ function PlayerModModal({
               <p className="panelka-chat-empty">Наказаний и репортов пока нет.</p>
             )}
           </div>
-        )}
+        ) : null}
+
+        {tab === "tk" ? (
+          <div className="panelka-mod-punish">
+            <header>
+              <h4>Тимкилы этого игрока</h4>
+              <Pager page={tkPage} pages={tkPages} onChange={setTkPage} />
+            </header>
+            {tkSlice.length ? (
+              <ul>
+                {tkSlice.map((row, index) => (
+                  <li key={`t-${tkPage}-${index}`}>
+                    <span>{[row.date, row.clock].filter(Boolean).join(" ") || "—"}</span>
+                    <b>убил своего: {row.victim}</b>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="panelka-chat-empty">Тимкилов в логе не видно.</p>
+            )}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -1201,6 +1232,12 @@ function punishLabel(kind: string): string {
   if (kind === "warn") return "админ-сообщение";
   if (kind === "report") return "репорт игрока";
   return kind || "действие";
+}
+
+function stripActorPrefix(reason: string | undefined): string {
+  return String(reason || "")
+    .replace(/^\[[^\]]{1,32}\]\s*/, "")
+    .trim();
 }
 
 function formatUnix(ts: number): string {
