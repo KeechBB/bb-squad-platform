@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PanelkaServer } from "@/lib/panelkaRcon";
 
-const MODES = ["FCL", "CSL", "SEC", "LOADER"] as const;
+const MODES = ["SQ", "FCL", "CSL", "SEC", "LOADER"] as const;
 const PAGE = 8;
 const BAN_DURATIONS = [
   { value: "30m", label: "30 мин" },
@@ -12,6 +12,30 @@ const BAN_DURATIONS = [
   { value: "1d", label: "1 день" },
   { value: "7d", label: "7 дней" },
   { value: "0", label: "навсегда" },
+] as const;
+const FACTIONS = [
+  { id: "WPMC", label: "ЧВК СТАРОЕ" },
+  { id: "TLF", label: "Турция" },
+  { id: "USMC", label: "Морская Пехота" },
+  { id: "GFI", label: "Иран" },
+  { id: "USA", label: "Америка" },
+  { id: "RGF", label: "Россия" },
+  { id: "CRF", label: "Новая канада" },
+  { id: "VDV", label: "ВДВ" },
+  { id: "CAF", label: "Канада" },
+  { id: "MEI", label: "Талибы" },
+  { id: "BAF", label: "Англия" },
+  { id: "IMF", label: "Сербы" },
+  { id: "ADF", label: "Австралия" },
+  { id: "PLA", label: "Китай" },
+] as const;
+const DECKS = [
+  "AirAssault",
+  "Armored",
+  "LightInfantry",
+  "Mechanized",
+  "Motorized",
+  "Support",
 ] as const;
 
 type ChatLine = {
@@ -70,6 +94,15 @@ type TeamKillRow = {
 
 type ModAction = "team" | "kick" | "ban" | "unsquad" | "warn" | null;
 
+type ServerMod = {
+  id: string;
+  title: string;
+  localUpdated: number;
+  steamUpdated: number;
+  needsUpdate: boolean;
+  inLoadOrder: boolean;
+};
+
 export function AdminPanelka() {
   const [servers, setServers] = useState<PanelkaServer[]>([]);
   const [loadError, setLoadError] = useState("");
@@ -82,11 +115,18 @@ export function AdminPanelka() {
   const [mode, setMode] = useState<ModeName | "">("");
   const [layers, setLayers] = useState<Record<string, string[]> | null>(null);
   const [pickedLayer, setPickedLayer] = useState("");
+  const [faction1, setFaction1] = useState("");
+  const [faction2, setFaction2] = useState("");
+  const [deck1, setDeck1] = useState("");
+  const [deck2, setDeck2] = useState("");
   const [chat, setChat] = useState<ChatLine[]>([]);
   const [draft, setDraft] = useState("Команды, готовность?");
   const [askSend, setAskSend] = useState(false);
   const [sentLine, setSentLine] = useState("");
   const [modPlayer, setModPlayer] = useState<RosterPerson | null>(null);
+  const [serverMods, setServerMods] = useState<ServerMod[]>([]);
+  const [modsBusy, setModsBusy] = useState(false);
+  const [modDraft, setModDraft] = useState("");
   const chatRef = useRef<HTMLDivElement>(null);
   const rosterRef = useRef<HTMLDivElement>(null);
 
@@ -121,6 +161,23 @@ export function AdminPanelka() {
     }
   }, []);
 
+  const loadMods = useCallback(async (key: string) => {
+    setModsBusy(true);
+    try {
+      const res = await fetch(`/api/admin/panelka?op=mods&key=${encodeURIComponent(key)}`, {
+        cache: "no-store",
+      });
+      const data = (await res.json()) as { ok?: boolean; mods?: ServerMod[]; error?: string };
+      if (!data.ok) {
+        setNotice(data.error || "моды не прочитались");
+        return;
+      }
+      setServerMods(data.mods || []);
+    } finally {
+      setModsBusy(false);
+    }
+  }, []);
+
   useEffect(() => {
     try {
       const raw = localStorage.getItem("panelka-status-v1");
@@ -140,9 +197,12 @@ export function AdminPanelka() {
     setAskSend(false);
     setSentLine("");
     setModPlayer(null);
+    setMapOpen(false);
+    setModDraft("");
     if (!selected) {
       setChat([]);
       setTeams([]);
+      setServerMods([]);
       return;
     }
     let stop = false;
@@ -156,6 +216,7 @@ export function AdminPanelka() {
     };
     void pullChat();
     void loadRoster(selected);
+    void loadMods(selected);
     const chatTimer = window.setInterval(() => {
       void pullChat();
     }, 5000);
@@ -167,7 +228,7 @@ export function AdminPanelka() {
       window.clearInterval(chatTimer);
       window.clearInterval(rosterTimer);
     };
-  }, [selected, loadRoster]);
+  }, [selected, loadRoster, loadMods]);
 
   useEffect(() => {
     const node = chatRef.current;
@@ -186,6 +247,11 @@ export function AdminPanelka() {
       message?: string;
       reason?: string;
       duration?: string;
+      faction1?: string;
+      faction2?: string;
+      deck1?: string;
+      deck2?: string;
+      mod?: string;
     }
   ) {
     if (!selected) return false;
@@ -204,6 +270,9 @@ export function AdminPanelka() {
         window.setTimeout(() => {
           void refresh();
           void loadRoster(selected, true);
+          if (action === "mod-install" || action === "mod-remove") {
+            void loadMods(selected);
+          }
         }, 1200);
       }
       return ok;
@@ -237,8 +306,12 @@ export function AdminPanelka() {
   async function openMaps() {
     if (!selected) return;
     setMapOpen(true);
-    setMode("");
+    setMode("SQ");
     setPickedLayer("");
+    setFaction1("");
+    setFaction2("");
+    setDeck1("");
+    setDeck2("");
     if (layers) return;
     setBusy("layers");
     try {
@@ -259,6 +332,15 @@ export function AdminPanelka() {
     }
   }
 
+  function changeLayer(action: "change-now" | "change-next") {
+    if (!pickedLayer) return;
+    const extras =
+      faction1 && faction2
+        ? { faction1, faction2, deck1, deck2 }
+        : {};
+    void send(action, { layer: pickedLayer, ...extras });
+  }
+
   function selectServer(key: string) {
     setSelected(key);
     window.setTimeout(() => {
@@ -272,7 +354,7 @@ export function AdminPanelka() {
         <div>
           <p className="eyebrow">админ</p>
           <h1>Панель серверов</h1>
-          <p className="lead">TR1–TR5. Карта, рестарт и конец раунда. Доступ: ты, HR и зам.</p>
+          <p className="lead">TR1–TR5 и PB1. Карта, фракции, моды, рестарт. Доступ: ты, HR и зам.</p>
         </div>
         <a className="panelka-back" href="/admin">
           К админке
@@ -355,7 +437,7 @@ export function AdminPanelka() {
                     setPickedLayer("");
                   }}
                 >
-                  {item}
+                  {item === "SQ" ? "Ваниль SQ" : item}
                 </button>
               ))}
             </div>
@@ -374,24 +456,128 @@ export function AdminPanelka() {
               </div>
             ) : null}
             {pickedLayer ? (
-              <div className="panelka-confirm">
-                <p>{pickedLayer}</p>
-                <button
-                  type="button"
-                  disabled={Boolean(busy)}
-                  onClick={() => void send("change-now", { layer: pickedLayer })}
-                >
-                  Сменить сейчас
-                </button>
-                <button
-                  type="button"
-                  disabled={Boolean(busy)}
-                  onClick={() => void send("change-next", { layer: pickedLayer })}
-                >
-                  Сменить после конца раунда
-                </button>
+              <div className="panelka-layer-setup">
+                <p className="panelka-picked">
+                  Слой: <b>{pickedLayer}</b>. Фракции и деки — по желанию (обе команды сразу).
+                </p>
+                <div className="panelka-factions">
+                  <label>
+                    Команда 1
+                    <select value={faction1} onChange={(e) => setFaction1(e.target.value)}>
+                      <option value="">без выбора</option>
+                      {FACTIONS.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.id} — {item.label}
+                        </option>
+                      ))}
+                    </select>
+                    <select value={deck1} onChange={(e) => setDeck1(e.target.value)} disabled={!faction1}>
+                      <option value="">дека любая</option>
+                      {DECKS.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Команда 2
+                    <select value={faction2} onChange={(e) => setFaction2(e.target.value)}>
+                      <option value="">без выбора</option>
+                      {FACTIONS.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.id} — {item.label}
+                        </option>
+                      ))}
+                    </select>
+                    <select value={deck2} onChange={(e) => setDeck2(e.target.value)} disabled={!faction2}>
+                      <option value="">дека любая</option>
+                      {DECKS.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <div className="panelka-confirm">
+                  <button type="button" disabled={Boolean(busy)} onClick={() => changeLayer("change-now")}>
+                    Сменить сейчас
+                  </button>
+                  <button type="button" disabled={Boolean(busy)} onClick={() => changeLayer("change-next")}>
+                    Сменить после конца раунда
+                  </button>
+                </div>
               </div>
             ) : null}
+          </div>
+        ) : null}
+
+        {current ? (
+          <div className="panelka-mods">
+            <div className="panelka-live-head">
+              <h3>Моды {current.key}</h3>
+              <button
+                type="button"
+                disabled={modsBusy || Boolean(busy)}
+                onClick={() => void loadMods(current.key)}
+              >
+                {modsBusy ? "Читаю…" : "Обновить"}
+              </button>
+            </div>
+            <p className="panelka-picked">
+              ID или ссылка Steam Workshop. После установки/удаления нужен рестарт сервера.
+            </p>
+            <form
+              className="panelka-mods-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const value = modDraft.trim();
+                if (!value || busy) return;
+                void send("mod-install", { mod: value }).then((ok) => {
+                  if (ok) setModDraft("");
+                });
+              }}
+            >
+              <input
+                value={modDraft}
+                onChange={(event) => setModDraft(event.target.value)}
+                placeholder="3809872236 или https://steamcommunity.com/sharedfiles/filedetails/?id=…"
+              />
+              <button type="submit" disabled={!modDraft.trim() || Boolean(busy)}>
+                {busy === "mod-install" ? "Ставлю…" : "Установить"}
+              </button>
+            </form>
+            <div className="panelka-mods-list">
+              {serverMods.length ? (
+                serverMods.map((mod) => (
+                  <article key={mod.id} className={mod.needsUpdate ? "is-stale" : ""}>
+                    <div>
+                      <b>{mod.title}</b>
+                      <span>ID {mod.id}</span>
+                      <span>
+                        на сервере: {formatUnix(mod.localUpdated)} · в Workshop:{" "}
+                        {mod.steamUpdated ? formatUnix(mod.steamUpdated) : "—"}
+                      </span>
+                      {mod.needsUpdate ? <em>есть новое обновление</em> : null}
+                    </div>
+                    <button
+                      type="button"
+                      disabled={Boolean(busy)}
+                      onClick={() => {
+                        if (window.confirm(`Удалить мод ${mod.title} (${mod.id}) с ${current.key}?`)) {
+                          void send("mod-remove", { mod: mod.id });
+                        }
+                      }}
+                    >
+                      Удалить
+                    </button>
+                  </article>
+                ))
+              ) : (
+                <p className="panelka-chat-empty">{modsBusy ? "Читаю моды…" : "Модов нет."}</p>
+              )}
+            </div>
           </div>
         ) : null}
 
@@ -892,8 +1078,24 @@ function Pager({
   );
 }
 
+function formatUnix(ts: number): string {
+  if (!ts) return "—";
+  const value = ts > 10_000_000_000 ? ts : ts * 1000;
+  try {
+    return new Date(value).toLocaleString("ru-RU", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "—";
+  }
+}
+
 function placeholderServers(): PanelkaServer[] {
-  return ["TR1", "TR2", "TR3", "TR4", "TR5"].map((key) => ({
+  return ["TR1", "TR2", "TR3", "TR4", "TR5", "PB1"].map((key) => ({
     key,
     name: key,
     map: "читаю…",

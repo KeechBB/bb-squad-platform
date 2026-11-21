@@ -18,7 +18,7 @@ export type PanelkaPlayer = {
   team: string;
 };
 
-const KEYS = new Set(["TR1", "TR2", "TR3", "TR4", "TR5"]);
+const KEYS = new Set(["TR1", "TR2", "TR3", "TR4", "TR5", "PB1"]);
 
 function pythonBin(): string {
   return path.join(process.cwd(), "scripts", ".venv-collector", "bin", "python");

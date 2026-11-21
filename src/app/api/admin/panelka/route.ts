@@ -17,10 +17,14 @@ const ACTIONS = new Set([
   "unsquad",
   "warn",
   "say",
+  "mod-install",
+  "mod-remove",
 ]);
 
 const STEAM_RE = /^7656\d{13}$/;
 const DURATION_RE = /^(0|\d+[mhd])$/i;
+const FACTION_RE = /^(WPMC|TLF|USMC|GFI|USA|RGF|CRF|VDV|CAF|MEI|BAF|IMF|ADF|PLA)$/;
+const DECK_RE = /^(AirAssault|Armored|LightInfantry|Mechanized|Motorized|Support)$/;
 
 function cleanReason(raw: unknown, limit = 120): string {
   return String(raw || "")
@@ -94,7 +98,7 @@ export async function GET(req: Request) {
   const op = url.searchParams.get("op") || "status";
   try {
     if (op === "status") {
-      const data = await runPanelka(["status"], 40000);
+      const data = await runPanelka(["status"], 55000);
       return NextResponse.json(data);
     }
     if (op === "players" || op === "roster") {
@@ -147,6 +151,14 @@ export async function GET(req: Request) {
         teamkills: hist.teamkills || [],
       });
     }
+    if (op === "mods") {
+      const key = url.searchParams.get("key") || "";
+      if (!isPanelkaKey(key)) {
+        return NextResponse.json({ ok: false, error: "нет такого сервера" }, { status: 400 });
+      }
+      const data = await runPanelka(["mods", key], 45000);
+      return NextResponse.json(data);
+    }
     return NextResponse.json({ ok: false, error: "неизвестный запрос" }, { status: 400 });
   } catch (err) {
     const message = err instanceof Error ? err.message : "ошибка";
@@ -165,6 +177,12 @@ export async function POST(req: Request) {
     message?: string;
     reason?: string;
     duration?: string;
+    faction1?: string;
+    faction2?: string;
+    deck1?: string;
+    deck2?: string;
+    mod?: string;
+    modId?: string;
   } | null;
   const key = body?.key || "";
   const action = body?.action || "";
@@ -175,6 +193,11 @@ export async function POST(req: Request) {
   const steamId = body?.steamId || "";
   const reason = cleanReason(body?.reason || body?.message || "");
   const duration = String(body?.duration || "").trim();
+  const faction1 = String(body?.faction1 || "").trim().toUpperCase();
+  const faction2 = String(body?.faction2 || "").trim().toUpperCase();
+  const deck1 = String(body?.deck1 || "").trim();
+  const deck2 = String(body?.deck2 || "").trim();
+  const modRaw = String(body?.mod || body?.modId || "").trim();
 
   if (!isPanelkaKey(key) || !ACTIONS.has(action)) {
     return NextResponse.json({ ok: false, error: "нельзя так" }, { status: 400 });
@@ -184,6 +207,20 @@ export async function POST(req: Request) {
     !/^[A-Za-z0-9_]+$/.test(layer)
   ) {
     return NextResponse.json({ ok: false, error: "карта не из списка" }, { status: 400 });
+  }
+  if (action === "change-now" || action === "change-next") {
+    const anyFaction = Boolean(faction1 || faction2 || deck1 || deck2);
+    if (anyFaction) {
+      if (!FACTION_RE.test(faction1) || !FACTION_RE.test(faction2)) {
+        return NextResponse.json({ ok: false, error: "выбери фракции обеих команд" }, { status: 400 });
+      }
+      if (faction1 === faction2) {
+        return NextResponse.json({ ok: false, error: "фракции команд должны отличаться" }, { status: 400 });
+      }
+      if ((deck1 && !DECK_RE.test(deck1)) || (deck2 && !DECK_RE.test(deck2))) {
+        return NextResponse.json({ ok: false, error: "неизвестная дека" }, { status: 400 });
+      }
+    }
   }
   if (
     (action === "kick" ||
@@ -215,10 +252,25 @@ export async function POST(req: Request) {
   if (action === "warn" && reason.length < 1) {
     return NextResponse.json({ ok: false, error: "напиши сообщение игроку" }, { status: 400 });
   }
+  if ((action === "mod-install" || action === "mod-remove") && modRaw.length < 3) {
+    return NextResponse.json({ ok: false, error: "укажи ID мода или ссылку Workshop" }, { status: 400 });
+  }
   try {
+    if (action === "mod-install") {
+      const data = await runPanelka(["mod-install", key], 480000, { mod: modRaw });
+      return NextResponse.json(data);
+    }
+    if (action === "mod-remove") {
+      const data = await runPanelka(["mod-remove", key], 60000, { mod: modRaw });
+      return NextResponse.json(data);
+    }
     const data = await runPanelka(["cmd", key, action, layer, steamId], 35000, {
       reason,
       duration,
+      faction1,
+      faction2,
+      deck1,
+      deck2,
     });
     return NextResponse.json(data);
   } catch (err) {
