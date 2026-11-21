@@ -266,7 +266,7 @@ export async function loadSteamAngelSpawnMs(
 /**
  * Матч относится к этому Steam, если был спавн angel в широком окне катки.
  * Долгая сессия без респавна (смена кита) раньше выпадала при −20/+110 мин —
- * держим −4ч…+3ч от старта (MSK).
+ * держим −5ч…+3ч от старта (MSK).
  * spawns == null — фильтра нет. Пустой массив — ни одного его спавна.
  */
 export function spawnCoversMatch(
@@ -283,7 +283,7 @@ export function spawnCoversMatch(
   }
   const start = Date.parse(`${day}T${clock}:00+03:00`);
   if (!Number.isFinite(start)) return false;
-  const lo = start - 4 * 60 * 60 * 1000;
+  const lo = start - 5 * 60 * 60 * 1000;
   const hi = start + 3 * 60 * 60 * 1000;
   let loI = 0;
   let hiI = spawns.length - 1;
