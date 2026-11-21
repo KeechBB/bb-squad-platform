@@ -6,6 +6,12 @@ import {
   listSteamNickHistory,
   recordSteamNicks,
 } from "@/lib/steamNickHistory";
+import {
+  addPanelkaLabel,
+  addPanelkaNote,
+  listPanelkaMemos,
+  removePanelkaMemo,
+} from "@/lib/panelkaMemos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -174,6 +180,10 @@ export async function GET(req: Request) {
       }
       const profile = await siteProfile(steamId);
       const nickHistory = await listSteamNickHistory(steamId, name).catch(() => []);
+      const memos = await listPanelkaMemos(steamId).catch(() => ({
+        notes: [] as [],
+        labels: [] as [],
+      }));
       try {
         const history = (await runPanelka(["player-card", key, steamId], 28000, {
           name,
@@ -189,6 +199,8 @@ export async function GET(req: Request) {
             ok: true,
             profile,
             nickHistory,
+            notes: memos.notes,
+            labels: memos.labels,
             chat: [],
             teamkills: [],
             punishments: [],
@@ -199,6 +211,8 @@ export async function GET(req: Request) {
           ok: true,
           profile,
           nickHistory,
+          notes: memos.notes,
+          labels: memos.labels,
           chat: history.chat || [],
           teamkills: history.teamkills || [],
           punishments: history.punishments || [],
@@ -209,6 +223,8 @@ export async function GET(req: Request) {
           ok: true,
           profile,
           nickHistory,
+          notes: memos.notes,
+          labels: memos.labels,
           chat: [],
           teamkills: [],
           punishments: [],
@@ -258,6 +274,8 @@ export async function POST(req: Request) {
     teamId?: string;
     squadId?: string;
     squadName?: string;
+    noteId?: string;
+    memoId?: string;
   } | null;
   const key = body?.key || "";
   const action = body?.action || "";
@@ -276,6 +294,61 @@ export async function POST(req: Request) {
   const teamId = String(body?.teamId || "").trim();
   const squadId = String(body?.squadId || "").trim();
   const squadName = cleanReason(body?.squadName || "", 48);
+  const memoId = String(body?.memoId || body?.noteId || "").trim();
+
+  const byNick =
+    cleanReason(session?.user?.nick || session?.user?.name || "панель", 32) || "панель";
+  const bySteamId = session?.user?.steamId || "";
+  const byUserId = (session?.user as { id?: string } | undefined)?.id || null;
+
+  // Notes / labels — DB only, no RCON
+  if (
+    action === "note-add" ||
+    action === "label-add" ||
+    action === "note-remove" ||
+    action === "label-remove" ||
+    action === "memo-remove"
+  ) {
+    if (!STEAM_RE.test(steamId)) {
+      return NextResponse.json({ ok: false, error: "нет Steam ID" }, { status: 400 });
+    }
+    try {
+      if (action === "note-add") {
+        const res = await addPanelkaNote({
+          steamId,
+          text: String(body?.message || body?.reason || ""),
+          byNick,
+          byUserId,
+          bySteamId,
+        });
+        if (!res.ok) return NextResponse.json(res, { status: 400 });
+        const memos = await listPanelkaMemos(steamId);
+        return NextResponse.json({ ok: true, reply: "заметка сохранена", ...memos, row: res.row });
+      }
+      if (action === "label-add") {
+        const res = await addPanelkaLabel({
+          steamId,
+          text: String(body?.message || body?.reason || ""),
+          byNick,
+          byUserId,
+          bySteamId,
+        });
+        if (!res.ok) return NextResponse.json(res, { status: 400 });
+        const memos = await listPanelkaMemos(steamId);
+        return NextResponse.json({ ok: true, reply: "ярлык повешен", ...memos, row: res.row });
+      }
+      if (!memoId) {
+        return NextResponse.json({ ok: false, error: "нет id" }, { status: 400 });
+      }
+      const res = await removePanelkaMemo(memoId, steamId);
+      if (!res.ok) return NextResponse.json(res, { status: 400 });
+      const memos = await listPanelkaMemos(steamId);
+      return NextResponse.json({ ok: true, reply: "удалено", ...memos });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "ошибка";
+      return NextResponse.json({ ok: false, error: message }, { status: 502 });
+    }
+  }
 
   if (!isPanelkaKey(key) || !ACTIONS.has(action)) {
     return NextResponse.json({ ok: false, error: "нельзя так" }, { status: 400 });
@@ -347,8 +420,6 @@ export async function POST(req: Request) {
       const data = await runPanelka(["mod-remove", key], 60000, { mod: modRaw });
       return NextResponse.json(data);
     }
-    const byNick =
-      cleanReason(session?.user?.nick || session?.user?.name || "панель", 32) || "панель";
     const data = await runPanelka(["cmd", key, action, layer, steamId], 35000, {
       reason,
       duration,
@@ -357,7 +428,7 @@ export async function POST(req: Request) {
       deck1,
       deck2,
       byNick,
-      bySteamId: session?.user?.steamId || "",
+      bySteamId,
       targetName: cleanReason(body?.targetName || squadName || "", 48),
       teamId,
       squadId,

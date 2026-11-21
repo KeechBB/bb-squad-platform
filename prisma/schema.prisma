@@ -1027,6 +1027,25 @@ model SteamNickHistory {
   @@index([steamId, lastSeenAt])
 }
 
+/// Заметки и ярлыки модераторов/админов на карточке игрока в панеле серверов.
+/// kind=note — текстовая заметка; kind=label — короткий ярлык (до 3 слов) в шапке карточки.
+model PanelkaPlayerMemo {
+  id          String   @id @default(cuid())
+  steamId     String
+  /// note | label
+  kind        String
+  text        String
+  /// Для label — unique key
+  textKey     String   @default("")
+  byUserId    String?
+  byNick      String
+  bySteamId   String?
+  createdAt   DateTime @default(now())
+
+  @@index([steamId, kind, createdAt])
+  @@index([steamId, textKey])
+}
+
 /// Законченный матч паблика (PB1 / TPUB1). SEED не пишем.
 model PublicMatch {
   id           String   @id @default(cuid())

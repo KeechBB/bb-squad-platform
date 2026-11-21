@@ -99,6 +99,14 @@ type NickHistoryRow = {
   source: string;
 };
 
+type PlayerMemoRow = {
+  id: string;
+  kind: "note" | "label";
+  text: string;
+  byNick: string;
+  createdAt: string;
+};
+
 type TeamKillRow = {
   date: string;
   clock: string;
@@ -1198,6 +1206,11 @@ export function PlayerModModal({
 }) {
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
   const [nickHistory, setNickHistory] = useState<NickHistoryRow[]>([]);
+  const [notes, setNotes] = useState<PlayerMemoRow[]>([]);
+  const [labels, setLabels] = useState<PlayerMemoRow[]>([]);
+  const [noteDraft, setNoteDraft] = useState("");
+  const [labelDraft, setLabelDraft] = useState("");
+  const [memoBusy, setMemoBusy] = useState(false);
   const [chat, setChat] = useState<ChatLine[]>([]);
   const [teamkills, setTeamkills] = useState<TeamKillRow[]>([]);
   const [punishments, setPunishments] = useState<PunishmentRow[]>([]);
@@ -1233,6 +1246,8 @@ export function PlayerModModal({
             ok?: boolean;
             profile?: PlayerProfile;
             nickHistory?: NickHistoryRow[];
+            notes?: PlayerMemoRow[];
+            labels?: PlayerMemoRow[];
             chat?: ChatLine[];
             teamkills?: TeamKillRow[];
             punishments?: PunishmentRow[];
@@ -1245,10 +1260,14 @@ export function PlayerModModal({
             }
             if (data?.profile) setProfile(data.profile);
             if (data?.nickHistory) setNickHistory(data.nickHistory);
+            if (data?.notes) setNotes(data.notes);
+            if (data?.labels) setLabels(data.labels);
             return;
           }
           setProfile(data.profile || null);
           setNickHistory(data.nickHistory || []);
+          setNotes(data.notes || []);
+          setLabels(data.labels || []);
           setChat(data.chat || []);
           setTeamkills(data.teamkills || []);
           setPunishments(data.punishments || []);
@@ -1285,8 +1304,50 @@ export function PlayerModModal({
     setTkPage(0);
     setPunishPage(0);
     setNickHistory([]);
+    setNotes([]);
+    setLabels([]);
+    setNoteDraft("");
+    setLabelDraft("");
     void loadCard();
   }, [loadCard]);
+
+  async function postMemo(
+    action: "note-add" | "label-add" | "memo-remove",
+    extra: { message?: string; memoId?: string }
+  ) {
+    setMemoBusy(true);
+    try {
+      const res = await fetch("/api/admin/panelka", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: serverKey,
+          steamId: player.steamId,
+          action,
+          ...extra,
+        }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        notes?: PlayerMemoRow[];
+        labels?: PlayerMemoRow[];
+      };
+      if (!res.ok || !data.ok) {
+        setLoadError(data.error || "не вышло");
+        return false;
+      }
+      if (data.notes) setNotes(data.notes);
+      if (data.labels) setLabels(data.labels);
+      setLoadError("");
+      return true;
+    } catch {
+      setLoadError("нет связи с сайтом");
+      return false;
+    } finally {
+      setMemoBusy(false);
+    }
+  }
 
   const banDuration = useMemo(() => {
     if (banUnit === "0") return "0";
@@ -1379,8 +1440,8 @@ export function PlayerModModal({
         aria-modal="true"
         onClick={(event) => event.stopPropagation()}
       >
-        <header>
-          <div>
+        <header className="panelka-mod-head">
+          <div className="panelka-mod-head-main">
             <h3>
               <a className="panelka-mod-steam" href={steamUrl} target="_blank" rel="noreferrer">
                 {player.name}
@@ -1396,6 +1457,23 @@ export function PlayerModModal({
                 Steam
               </a>
             </p>
+          </div>
+          <div className="panelka-mod-labels" title="Ярлыки штаба">
+            {labels.map((lab) => (
+              <span key={lab.id} className="panelka-label-chip" title={`${lab.byNick} · ${formatNickSeen(lab.createdAt)}`}>
+                {lab.text}
+                <button
+                  type="button"
+                  className="panelka-label-x"
+                  disabled={memoBusy}
+                  aria-label={`снять ярлык ${lab.text}`}
+                  onClick={() => void postMemo("memo-remove", { memoId: lab.id })}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            {!labels.length ? <span className="panelka-label-empty">нет ярлыков</span> : null}
           </div>
           <button type="button" onClick={onClose}>
             Закрыть
@@ -1449,6 +1527,82 @@ export function PlayerModModal({
           ) : !loading ? (
             <p className="panelka-nick-hist-empty">История ников пока пуста — появится с заходов на сервер.</p>
           ) : null}
+
+          <div className="panelka-memos">
+            <div className="panelka-memo-block">
+              <p className="panelka-nick-hist-title">Ярлык (до 3 слов)</p>
+              <form
+                className="panelka-memo-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const text = labelDraft.trim();
+                  if (!text || memoBusy) return;
+                  void postMemo("label-add", { message: text }).then((ok) => {
+                    if (ok) setLabelDraft("");
+                  });
+                }}
+              >
+                <input
+                  value={labelDraft}
+                  maxLength={36}
+                  disabled={memoBusy}
+                  onChange={(event) => setLabelDraft(event.target.value)}
+                  placeholder="напр. токсик / афк фарм"
+                />
+                <button type="submit" disabled={memoBusy || !labelDraft.trim()}>
+                  Повесить
+                </button>
+              </form>
+            </div>
+            <div className="panelka-memo-block">
+              <p className="panelka-nick-hist-title">Заметки штаба</p>
+              <form
+                className="panelka-memo-form panelka-memo-form-note"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const text = noteDraft.trim();
+                  if (text.length < 2 || memoBusy) return;
+                  void postMemo("note-add", { message: text }).then((ok) => {
+                    if (ok) setNoteDraft("");
+                  });
+                }}
+              >
+                <input
+                  value={noteDraft}
+                  maxLength={500}
+                  disabled={memoBusy}
+                  onChange={(event) => setNoteDraft(event.target.value)}
+                  placeholder="текст заметки…"
+                />
+                <button type="submit" disabled={memoBusy || noteDraft.trim().length < 2}>
+                  Записать
+                </button>
+              </form>
+              {notes.length ? (
+                <ul className="panelka-notes-list">
+                  {notes.map((row) => (
+                    <li key={row.id}>
+                      <div>
+                        <p>{row.text}</p>
+                        <span>
+                          {formatNickSeen(row.createdAt)} · {row.byNick}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={memoBusy}
+                        onClick={() => void postMemo("memo-remove", { memoId: row.id })}
+                      >
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="panelka-nick-hist-empty">Заметок пока нет.</p>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="panelka-mod-actions">
