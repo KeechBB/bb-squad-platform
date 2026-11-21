@@ -72,7 +72,7 @@ export function AdminTermRangeModal({
   }
 
   return (
-    <div className="panelka-modal-bg" onClick={onClose} role="presentation">
+    <div className="panelka-modal-bg admin-term-backdrop" onClick={onClose} role="presentation">
       <div
         className="panelka-modal admin-term-modal"
         role="dialog"

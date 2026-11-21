@@ -1363,44 +1363,153 @@ button.mod-log-nick:hover {
   }
 }
 
+.admin-term-backdrop {
+  background: rgba(0, 0, 0, 0.82) !important;
+  backdrop-filter: blur(3px);
+}
+
 .admin-term-modal {
-  width: min(560px, 100%);
+  width: min(580px, 100%);
+  background: #1a141c !important;
+  border: 1px solid rgba(226, 197, 106, 0.55) !important;
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.75),
+    0 0 0 1px rgba(0, 0, 0, 0.4);
+  color: #f3ebe0;
+  color-scheme: dark;
+}
+
+.admin-term-modal > header h3 {
+  color: #f5e6c8;
+  font-size: 1.15rem;
+}
+
+.admin-term-modal .panelka-mod-meta {
+  color: rgba(243, 235, 224, 0.72) !important;
+}
+
+.admin-term-modal > header button {
+  border: 1px solid rgba(226, 197, 106, 0.45);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f3ebe0;
+  border-radius: 8px;
+  padding: 8px 12px;
 }
 
 .admin-term-body {
   display: grid;
-  gap: 10px;
-  margin-top: 8px;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.admin-term-modal .field {
+  align-items: stretch !important;
+  text-align: left !important;
+}
+
+.admin-term-modal .field span {
+  text-align: left !important;
+  width: auto !important;
+  color: #f0e6d4 !important;
+  font-size: 0.9rem !important;
+  font-weight: 700 !important;
+}
+
+.admin-term-modal .field input {
+  text-align: left !important;
+  background: #0e0b10 !important;
+  color: #fff8ee !important;
+  border: 1px solid rgba(226, 197, 106, 0.45) !important;
+  border-radius: 10px !important;
+  padding: 12px 14px !important;
+  font-size: 0.98rem !important;
+  color-scheme: dark;
+}
+
+.admin-term-modal .field input::placeholder {
+  color: rgba(255, 248, 238, 0.42);
+}
+
+.admin-term-modal .field input:disabled {
+  opacity: 0.55;
+  background: #161218 !important;
+}
+
+.admin-term-modal input[type="datetime-local"] {
+  color-scheme: dark;
+  min-height: 46px;
+}
+
+.admin-term-modal input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(1.4);
+  opacity: 0.9;
+  cursor: pointer;
 }
 
 .admin-term-presets {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
 }
 
 .admin-term-presets button {
-  padding: 6px 10px;
+  padding: 8px 12px;
   border-radius: 8px;
-  border: 1px solid rgba(212, 168, 75, 0.35);
-  background: rgba(0, 0, 0, 0.28);
-  color: #efe6d6;
+  border: 1px solid rgba(226, 197, 106, 0.4);
+  background: #121015;
+  color: #f3ebe0;
   font: inherit;
-  font-size: 0.85rem;
+  font-size: 0.88rem;
+  font-weight: 600;
   cursor: pointer;
 }
 
+.admin-term-presets button:hover {
+  border-color: rgba(226, 197, 106, 0.75);
+  background: #1e171f;
+}
+
 .admin-term-presets button.is-on {
-  border-color: rgba(226, 197, 106, 0.7);
-  background: rgba(180, 40, 40, 0.25);
-  color: #f0d78a;
-  font-weight: 700;
+  border-color: #e2c56a;
+  background: rgba(160, 40, 36, 0.55);
+  color: #ffe9a8;
+  font-weight: 800;
 }
 
 .admin-term-dates {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.admin-term-modal .muted {
+  color: rgba(243, 235, 224, 0.7) !important;
+}
+
+.admin-term-modal .panelka-mod-form-actions {
+  margin-top: 16px;
+  display: flex;
   gap: 10px;
+  flex-wrap: wrap;
+}
+
+.admin-term-modal .panelka-mod-form-actions .btn,
+.admin-term-modal .panelka-mod-form-actions .btn.primary {
+  min-height: 42px;
+  padding: 10px 16px;
+  font-weight: 700;
+}
+
+.admin-term-modal .panelka-mod-form-actions .btn.primary {
+  background: #c9a227;
+  color: #1a1208;
+  border-color: #e2c56a;
+}
+
+.admin-term-modal .panelka-mod-form-actions .btn.primary:disabled {
+  opacity: 0.45;
+  background: #5a4a28;
+  color: #d8c9a0;
 }
 
 @media (max-width: 560px) {
@@ -1409,11 +1518,40 @@ button.mod-log-nick:hover {
   }
 }
 
+.admin-page .journal-card:has(.admin-table-wrap) {
+  background: rgba(12, 10, 16, 0.92);
+  border: 1px solid rgba(226, 197, 106, 0.28);
+  border-radius: 14px;
+  padding: 14px 16px 18px;
+}
+
 .admin-table-wrap {
   overflow: auto;
   margin-top: 10px;
   border-radius: 10px;
-  border: 1px solid rgba(212, 168, 75, 0.2);
+  border: 1px solid rgba(226, 197, 106, 0.28);
+  background: #121015;
+}
+
+.admin-table-wrap .admin-table {
+  background: transparent;
+}
+
+.admin-table-wrap .admin-table th {
+  color: #f0e6d4 !important;
+  background: #1a151e;
+  font-weight: 700;
+  border-bottom: 1px solid rgba(226, 197, 106, 0.25);
+}
+
+.admin-table-wrap .admin-table td {
+  color: #efe6d6 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.admin-table-wrap .admin-table td.muted,
+.admin-table-wrap .admin-table .muted {
+  color: rgba(239, 230, 214, 0.55) !important;
 }
 
 .admin-table td.admin-steam-id,
@@ -1422,6 +1560,6 @@ button.mod-log-nick:hover {
   font-size: 0.86rem;
   letter-spacing: 0.01em;
   white-space: nowrap;
-  color: #e2c56a;
-  font-weight: 600;
+  color: #e2c56a !important;
+  font-weight: 700;
 }
