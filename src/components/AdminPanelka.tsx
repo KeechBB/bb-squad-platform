@@ -41,6 +41,7 @@ type ChatLine = {
   date?: string;
   channel: string;
   name: string;
+  steamId?: string;
   text: string;
 };
 
@@ -61,6 +62,9 @@ type RosterSquad = {
   size: number;
   locked: boolean;
   players: RosterPerson[];
+  createdClock?: string;
+  creatorName?: string;
+  creatorSteamId?: string;
 };
 
 type RosterTeam = {
@@ -711,14 +715,35 @@ export function AdminPanelka({
           </p>
           <div className="panelka-chat-log" ref={chatRef}>
             {chat.length ? (
-              chat.map((line, index) => (
-                <p key={`${line.clock}-${index}`}>
-                  <span>{line.date ? `${line.date} ` : ""}{line.clock}</span>
-                  <span>{line.channel}</span>
-                  <b>{line.name}</b>
-                  {line.text}
-                </p>
-              ))
+              chat.map((line, index) => {
+                const canOpen =
+                  Boolean(line.steamId) ||
+                  (line.name && line.name !== "Админ" && findRosterPerson(teams, line.name));
+                return (
+                  <p key={`${line.clock}-${index}`}>
+                    <span>
+                      {line.date ? `${line.date} ` : ""}
+                      {line.clock}
+                    </span>
+                    <span>{line.channel}</span>
+                    {canOpen ? (
+                      <button
+                        type="button"
+                        className="panelka-chat-nick"
+                        onClick={() => {
+                          const picked = pickChatPlayer(line, teams);
+                          if (picked) setModPlayer(picked);
+                        }}
+                      >
+                        {line.name}
+                      </button>
+                    ) : (
+                      <b>{line.name}</b>
+                    )}
+                    {line.text}
+                  </p>
+                );
+              })
             ) : (
               <p className="panelka-chat-empty">Пока пусто.</p>
             )}
@@ -786,6 +811,43 @@ export function AdminPanelka({
   );
 }
 
+function findRosterPerson(teams: RosterTeam[], name: string): RosterPerson | null {
+  const want = name.trim().toLowerCase();
+  if (!want) return null;
+  for (const team of teams) {
+    for (const squad of team.squads) {
+      for (const player of squad.players) {
+        if (player.name.toLowerCase() === want || player.name.toLowerCase().includes(want)) {
+          return player;
+        }
+      }
+    }
+    for (const player of team.loose) {
+      if (player.name.toLowerCase() === want || player.name.toLowerCase().includes(want)) {
+        return player;
+      }
+    }
+  }
+  return null;
+}
+
+function pickChatPlayer(line: ChatLine, teams: RosterTeam[]): RosterPerson | null {
+  if (line.steamId) {
+    const fromRoster = teams
+      .flatMap((team) => [...team.squads.flatMap((s) => s.players), ...team.loose])
+      .find((p) => p.steamId === line.steamId);
+    if (fromRoster) return fromRoster;
+    return {
+      id: 0,
+      name: line.name,
+      steamId: line.steamId,
+      leader: false,
+      role: "",
+    };
+  }
+  return findRosterPerson(teams, line.name);
+}
+
 function TeamColumn({
   team,
   side,
@@ -809,6 +871,12 @@ function TeamColumn({
           <div className="panelka-squad-head">
             <span>{squad.id}</span>
             <b>{squad.name}</b>
+            {squad.createdClock || squad.creatorName ? (
+              <em className="panelka-squad-meta">
+                {squad.createdClock ? `${squad.createdClock} ` : ""}
+                {squad.creatorName ? `(${squad.creatorName})` : ""}
+              </em>
+            ) : null}
             <span>
               {squad.size}
               {squad.locked ? " · закрыт" : ""}

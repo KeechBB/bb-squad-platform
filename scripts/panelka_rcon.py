@@ -176,6 +176,7 @@ def read_chat(key):
                 "date": row.get("date") or "",
                 "channel": row.get("channel") or "чат",
                 "name": (row.get("name") or "")[:48],
+                "steamId": (row.get("steamId") or "")[:32],
                 "text": (row.get("text") or "")[:240],
             })
     log_path = f"/home/squad/servers/{host(key)}/SquadGame/Saved/Logs/SquadGame.log"
@@ -219,6 +220,41 @@ def _msk_stamp(line):
     clock = f"{hour:02d}:{clock_m.group(3)}:{clock_m.group(4)}"
     date = clock_m.group(1).replace(".", "-")
     return date, clock
+
+def read_squad_creates(key):
+    """Latest squad create events from SquadGame.log for this round."""
+    import os, re
+    rows = []
+    log_path = f"/home/squad/servers/{host(key)}/SquadGame/Saved/Logs/SquadGame.log"
+    if not os.path.isfile(log_path):
+        return rows
+    try:
+        with open(log_path, "rb") as handle:
+            handle.seek(0, 2)
+            handle.seek(max(0, handle.tell() - 4_000_000))
+            blob = handle.read().decode("utf-8", "replace")
+    except Exception:
+        return rows
+    create_re = re.compile(
+        r"LogSquad:\s*(?P<nick>.+?)\s*\(Online IDs:\s*EOS:\s*[0-9a-fA-F]+\s+steam:\s*(?P<steam>7656\d+)\)\s+"
+        r"has created Squad\s+(?P<sid>\d+)\s+\(Squad Name:\s*(?P<sname>.*?)\)\s+on\s+(?P<faction>.+)$",
+        re.I,
+    )
+    for line in blob.splitlines():
+        m = create_re.search(line)
+        if not m:
+            continue
+        date, clock = _msk_stamp(line)
+        rows.append({
+            "id": m.group("sid"),
+            "name": (m.group("sname") or "").strip()[:64],
+            "nick": (m.group("nick") or "").strip()[:48],
+            "steamId": m.group("steam"),
+            "faction": (m.group("faction") or "").strip()[:80],
+            "clock": clock,
+            "date": date,
+        })
+    return rows[-200:]
 
 def read_player_card(key, steam_id, name):
     import json, os, re
@@ -842,6 +878,7 @@ try:
             "squads": squads_text,
             "staff": read_staff_map(),
             "health": live_health_map(key, steams),
+            "squadCreates": read_squad_creates(key),
         }, ensure_ascii=False))
     elif op == "layers":
         print(json.dumps({"ok": True, "text": rcon("TR1", "ListLayers")}, ensure_ascii=False))
@@ -1222,6 +1259,51 @@ def players(key: str) -> dict:
     return {"ok": True, "players": parse_player_rows(data.get("text") or "")}
 
 
+def _norm_token(text: str) -> str:
+    return re.sub(r"[^a-z0-9а-яё]+", "", (text or "").lower())
+
+
+def _attach_squad_creates(teams: dict[str, dict], creates: list) -> None:
+    if not creates:
+        for team in teams.values():
+            for squad in team["squads"]:
+                lead = next((p for p in squad["players"] if p.get("leader")), None)
+                if lead:
+                    squad["creatorName"] = lead["name"]
+                    squad["createdClock"] = ""
+        return
+    for team in teams.values():
+        team_tok = _norm_token(team.get("name") or "")
+        for squad in team["squads"]:
+            squad_tok = _norm_token(squad.get("name") or "")
+            steams = {p.get("steamId") for p in squad["players"] if p.get("steamId")}
+            best = None
+            for row in creates:
+                if str(row.get("id") or "") != str(squad.get("id") or ""):
+                    continue
+                fac_tok = _norm_token(str(row.get("faction") or ""))
+                name_tok = _norm_token(str(row.get("name") or ""))
+                faction_ok = (
+                    not team_tok
+                    or not fac_tok
+                    or team_tok in fac_tok
+                    or fac_tok in team_tok
+                )
+                name_ok = not name_tok or not squad_tok or name_tok == squad_tok
+                steam_ok = str(row.get("steamId") or "") in steams
+                if (faction_ok and name_ok) or steam_ok:
+                    best = row
+            if best:
+                squad["creatorName"] = str(best.get("nick") or "")[:48]
+                squad["createdClock"] = str(best.get("clock") or "")[:8]
+                squad["creatorSteamId"] = str(best.get("steamId") or "")[:32]
+            else:
+                lead = next((p for p in squad["players"] if p.get("leader")), None)
+                if lead:
+                    squad["creatorName"] = lead["name"]
+                    squad["createdClock"] = ""
+
+
 def roster(key: str) -> dict:
     data = ssh_job({"op": "roster", "key": key})
     if data.get("ok") is False:
@@ -1249,6 +1331,8 @@ def roster(key: str) -> dict:
                     "size": int(squad_m.group(3)),
                     "locked": squad_m.group(4).lower() == "true",
                     "players": [],
+                    "createdClock": "",
+                    "creatorName": "",
                 }
             )
     staff = data.get("staff") if isinstance(data.get("staff"), dict) else {}
@@ -1279,6 +1363,8 @@ def roster(key: str) -> dict:
                 "rights": rights,
             }
         )
+    creates = data.get("squadCreates") if isinstance(data.get("squadCreates"), list) else []
+    _attach_squad_creates(teams, creates)
     for team in teams.values():
         team["squads"].sort(key=lambda squad: int(squad["id"]))
         for squad in team["squads"]:

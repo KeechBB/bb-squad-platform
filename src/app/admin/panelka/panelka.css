@@ -275,6 +275,23 @@ body:has(.panelka-page) .shell {
   color: #e2c56a;
 }
 
+.panelka-chat-log button.panelka-chat-nick {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #e2c56a;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.panelka-chat-log button.panelka-chat-nick:hover {
+  color: #f3df9a;
+}
+
 .panelka-chat-empty {
   color: rgba(239, 230, 214, 0.55);
 }
@@ -456,8 +473,19 @@ body:has(.panelka-page) .shell {
 }
 
 .panelka-squad-head b {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.panelka-squad-meta {
   flex: 1 1 auto;
   min-width: 0;
+  font-style: normal;
+  font-size: 0.86em;
+  color: rgba(226, 197, 106, 0.88);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .panelka-live-roster {
