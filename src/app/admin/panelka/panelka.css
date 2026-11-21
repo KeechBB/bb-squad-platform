@@ -640,20 +640,6 @@ body:has(.panelka-page) .shell {
   background: rgba(226, 197, 106, 0.08);
 }
 
-.panelka-slot.is-lead b {
-  color: #f2d98a;
-}
-
-.panelka-slot.is-admin b,
-.panelka-slot.is-admin .panelka-slot-flags em.is-admin {
-  color: #ff6b6b;
-}
-
-.panelka-slot.is-mod b,
-.panelka-slot.is-mod .panelka-slot-flags em.is-mod {
-  color: #6eb6ff;
-}
-
 .panelka-slot.is-nok {
   opacity: 0.92;
 }
@@ -684,6 +670,26 @@ body:has(.panelka-page) .shell {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 600;
+  color: #ffffff;
+}
+
+.panelka-slot.is-admin b,
+.panelka-slot.is-admin .panelka-slot-flags em.is-admin {
+  color: #ff3b3b;
+}
+
+.panelka-slot.is-mod b,
+.panelka-slot.is-mod .panelka-slot-flags em.is-mod {
+  color: #ff8c2a;
+}
+
+.panelka-slot.is-camera b,
+.panelka-slot.is-camera .panelka-slot-flags em.is-camera {
+  color: #3b9eff;
+}
+
+.panelka-slot.is-clan b {
+  color: var(--clan-nick, #ffffff);
 }
 
 .panelka-slot-flags {
@@ -712,8 +718,13 @@ body:has(.panelka-page) .shell {
 }
 
 .panelka-slot-flags em.is-mod {
-  background: rgba(40, 90, 180, 0.28);
-  color: #8ec4ff;
+  background: rgba(180, 90, 20, 0.3);
+  color: #ffb06a;
+}
+
+.panelka-slot-flags em.is-camera {
+  background: rgba(30, 90, 180, 0.3);
+  color: #7ec0ff;
 }
 
 .panelka-slot-flags em.is-nok {

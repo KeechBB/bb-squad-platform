@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { PanelkaServer } from "@/lib/panelkaRcon";
 
 const MODES = ["SQ", "FCL", "CSL", "SEC", "LOADER"] as const;
@@ -53,7 +53,8 @@ export type RosterPerson = {
   role: string;
   vehicle?: string;
   health?: "alive" | "nok" | "dead" | string;
-  rights?: "admin" | "moderator" | string;
+  rights?: "admin" | "moderator" | "camera" | string;
+  clanColor?: string | null;
 };
 
 type RosterSquad = {
@@ -1192,8 +1193,17 @@ function RosterRow({
   player: RosterPerson;
   onPick: (player: RosterPerson) => void;
 }) {
+  const rights = player.rights || "";
   const rightsClass =
-    player.rights === "admin" ? " is-admin" : player.rights === "moderator" ? " is-mod" : "";
+    rights === "admin"
+      ? " is-admin"
+      : rights === "moderator"
+        ? " is-mod"
+        : rights === "camera"
+          ? " is-camera"
+          : player.clanColor
+            ? " is-clan"
+            : "";
   const health = player.health || "alive";
   const classes = [
     "panelka-slot",
@@ -1205,14 +1215,25 @@ function RosterRow({
   ]
     .filter(Boolean)
     .join(" ");
+  const nickStyle =
+    !rights && player.clanColor
+      ? ({ ["--clan-nick" as string]: player.clanColor } as CSSProperties)
+      : undefined;
   return (
-    <button type="button" className={classes} title={player.steamId} onClick={() => onPick(player)}>
+    <button
+      type="button"
+      className={classes}
+      style={nickStyle}
+      title={player.steamId}
+      onClick={() => onPick(player)}
+    >
       <span className="panelka-role">{player.leader ? "СЛ" : player.role || "—"}</span>
       <span className="panelka-slot-main">
         <b>{player.name}</b>
         <span className="panelka-slot-flags">
-          {player.rights === "admin" ? <em className="is-admin">админ</em> : null}
-          {player.rights === "moderator" ? <em className="is-mod">мод</em> : null}
+          {rights === "admin" ? <em className="is-admin">админ</em> : null}
+          {rights === "moderator" ? <em className="is-mod">мод</em> : null}
+          {rights === "camera" ? <em className="is-camera">камера</em> : null}
           {health === "nok" ? <em className="is-nok">нок</em> : null}
           {health === "dead" ? <em className="is-dead">мёртв</em> : null}
           {player.vehicle ? <em className="is-veh">{player.vehicle}</em> : null}

@@ -742,6 +742,7 @@ def server_row(key):
 def read_staff_map():
     path = "/home/squad/admins/Admins.cfg"
     out = {}
+    rank = {"admin": 3, "moderator": 2, "camera": 1}
     try:
         text = open(path, encoding="utf-8", errors="replace").read()
     except Exception:
@@ -754,10 +755,19 @@ def read_staff_map():
         if not m:
             continue
         group = m.group(2)
-        if group in ("Admin", "Cameraman"):
-            out[m.group(1)] = "admin"
+        right = ""
+        if group == "Cameraman":
+            right = "camera"
+        elif group == "Admin":
+            right = "admin"
         elif group in ("Moderator", "Intern"):
-            out[m.group(1)] = "moderator"
+            right = "moderator"
+        if not right:
+            continue
+        sid = m.group(1)
+        prev = out.get(sid)
+        if not prev or rank.get(right, 0) > rank.get(prev, 0):
+            out[sid] = right
     return out
 
 ADMINS_CFG = "/home/squad/admins/Admins.cfg"
@@ -2187,7 +2197,7 @@ def _parse_roster_payload(data: dict) -> dict:
         if hp not in ("alive", "nok", "dead"):
             hp = "alive"
         rights = str(staff.get(sid) or "")
-        if rights not in ("admin", "moderator"):
+        if rights not in ("admin", "moderator", "camera"):
             rights = ""
         bucket.append(
             {

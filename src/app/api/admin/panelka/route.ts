@@ -12,6 +12,7 @@ import {
   listPanelkaMemos,
   removePanelkaMemo,
 } from "@/lib/panelkaMemos";
+import { enrichPanelkaRosterPaint } from "@/lib/panelkaRosterPaint";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -130,14 +131,26 @@ export async function GET(req: Request) {
       if (!isPanelkaKey(key)) {
         return NextResponse.json({ ok: false, error: "нет такого сервера" }, { status: 400 });
       }
-      const data = (await runPanelka([op, key], 25000)) as {
+      let data = (await runPanelka([op, key], 25000)) as {
         ok?: boolean;
         teams?: {
-          squads?: { players?: { steamId?: string; name?: string }[] }[];
-          loose?: { steamId?: string; name?: string }[];
+          squads?: {
+            players?: {
+              steamId?: string;
+              name?: string;
+              rights?: string;
+              clanColor?: string | null;
+            }[];
+          }[];
+          loose?: {
+            steamId?: string;
+            name?: string;
+            rights?: string;
+            clanColor?: string | null;
+          }[];
         }[];
       };
-      // Passive nick history: every roster open remembers who played as whom
+      // Soft nick history: every roster open remembers who played as whom
       if (data?.ok && Array.isArray(data.teams)) {
         const sightings: { steamId: string; nick: string; source: string }[] = [];
         for (const team of data.teams) {
@@ -157,6 +170,7 @@ export async function GET(req: Request) {
         if (sightings.length) {
           void recordSteamNicks(sightings).catch(() => undefined);
         }
+        data = await enrichPanelkaRosterPaint(data);
       }
       return NextResponse.json(data);
     }
