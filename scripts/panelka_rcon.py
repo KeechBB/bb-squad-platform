@@ -139,37 +139,11 @@ def rcon(key, cmd):
     return "".join(parts)
 
 def ensure_chat_listener():
+    """Start chat listener if missing. Script body is synced from plaza (bb_panelka_chat.py)."""
     pid_path = "/tmp/bb_panelka_chat.pid"
     script = "/home/squad/bb_panelka_chat.py"
     if not os.path.isfile(script):
         return
-    body = open(script, encoding="utf-8", errors="replace").read()
-    changed = False
-    if 'PB1' not in body.split("KEYS", 1)[-1][:120]:
-        nl = chr(10)
-        body2 = body.replace(
-            'KEYS = ("TR1", "TR2", "TR3", "TR4", "TR5")',
-            'KEYS = ("TR1", "TR2", "TR3", "TR4", "TR5", "PB1")' + nl + 'HOST = {"PB1": "TPUB1"}' + nl + 'def _host(key):' + nl + '    return HOST.get(key, key)',
-        )
-        if body2 != body:
-            body = body2
-            changed = True
-    if 'def _host(' in body and '/servers/{key}/SquadGame/ServerConfig/Rcon.cfg' in body:
-        body = body.replace(
-            'f"/home/squad/servers/{key}/SquadGame/ServerConfig/Rcon.cfg"',
-            'f"/home/squad/servers/{_host(key)}/SquadGame/ServerConfig/Rcon.cfg"',
-        )
-        changed = True
-    if changed:
-        open(script, "w", encoding="utf-8").write(body)
-        if os.path.isfile(pid_path):
-            old = open(pid_path, encoding="utf-8").read().strip()
-            if old.isdigit():
-                try:
-                    os.kill(int(old), 15)
-                except Exception:
-                    pass
-                time.sleep(0.5)
     pid = ""
     if os.path.isfile(pid_path):
         pid = open(pid_path, encoding="utf-8").read().strip()
@@ -932,6 +906,79 @@ def load_env() -> None:
         os.environ.setdefault(k.strip(), v.strip().strip("'").strip('"'))
 
 
+_CHAT_SYNCED = False
+
+
+def sync_chat_listener(force: bool = False) -> None:
+    """Upload bb_panelka_chat.py to game host and restart if version changed."""
+    global _CHAT_SYNCED
+    if _CHAT_SYNCED and not force:
+        return
+    local = Path(__file__).resolve().parent / "bb_panelka_chat.py"
+    if not local.is_file():
+        return
+    load_env()
+    host = os.environ["SQUAD_SSH_HOST"]
+    port = int(os.environ.get("SQUAD_SSH_PORT") or 2022)
+    user = os.environ.get("SQUAD_SSH_USER") or "squad"
+    password = os.environ["SQUAD_SSH_PASSWORD"]
+    remote = "/home/squad/bb_panelka_chat.py"
+    pid_path = "/tmp/bb_panelka_chat.pid"
+    body = local.read_text(encoding="utf-8")
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    try:
+        client.connect(
+            host,
+            port=port,
+            username=user,
+            password=password,
+            timeout=20,
+            allow_agent=False,
+            look_for_keys=False,
+        )
+        sftp = client.open_sftp()
+        try:
+            with sftp.open(remote, "r") as handle:
+                remote_body = handle.read().decode("utf-8", "replace")
+        except OSError:
+            remote_body = ""
+        if remote_body != body:
+            with sftp.open(remote, "w") as handle:
+                handle.write(body.encode("utf-8"))
+            try:
+                sftp.chmod(remote, 0o664)
+            except OSError:
+                pass
+            try:
+                with sftp.open(pid_path, "r") as handle:
+                    old = handle.read().decode("utf-8", "replace").strip()
+                if old.isdigit():
+                    client.exec_command(f"kill {old} 2>/dev/null || true", timeout=10)
+                    time.sleep(0.4)
+            except OSError:
+                pass
+            client.exec_command(
+                f"nohup python3 {remote} >/dev/null 2>&1 & echo $! > {pid_path}",
+                timeout=10,
+            )
+        else:
+            _stdin, stdout, _stderr = client.exec_command(
+                f"pid=$(cat {pid_path} 2>/dev/null); "
+                f"if [ -n \"$pid\" ] && [ -d /proc/$pid ]; then echo ok; "
+                f"else nohup python3 {remote} >/dev/null 2>&1 & echo $! > {pid_path}; echo start; fi",
+                timeout=10,
+            )
+            stdout.read()
+        sftp.close()
+        _CHAT_SYNCED = True
+    finally:
+        try:
+            client.close()
+        except Exception:
+            pass
+
+
 def ssh_job(job: dict, timeout: int = 40) -> dict:
     load_env()
     host = os.environ["SQUAD_SSH_HOST"]
@@ -1512,6 +1559,10 @@ def main() -> int:
         return 1
     op = sys.argv[1]
     try:
+        try:
+            sync_chat_listener()
+        except Exception:
+            pass
         if op == "status":
             result = status()
         elif op == "players":
