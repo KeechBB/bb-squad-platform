@@ -6,6 +6,7 @@ Prints JSON to stdout. Passwords stay in Rcon.cfg on the game host.
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 import re
@@ -1193,6 +1194,9 @@ PY"""
             pass
 
 
+_REMOTE_DIGEST = hashlib.sha1(REMOTE.encode("utf-8")).hexdigest()
+
+
 def ssh_job(job: dict, timeout: int = 40) -> dict:
     load_env()
     host = os.environ["SQUAD_SSH_HOST"]
@@ -1215,8 +1219,18 @@ def ssh_job(job: dict, timeout: int = 40) -> dict:
     )
     try:
         sftp = client.open_sftp()
-        with sftp.file("/tmp/bb_panelka_rcon.py", "w") as handle:
-            handle.write(REMOTE)
+        marker = "/tmp/bb_panelka_rcon.sha1"
+        need_write = True
+        try:
+            with sftp.open(marker, "r") as handle:
+                need_write = handle.read().decode("ascii", "replace").strip() != _REMOTE_DIGEST
+        except OSError:
+            need_write = True
+        if need_write:
+            with sftp.file("/tmp/bb_panelka_rcon.py", "w") as handle:
+                handle.write(REMOTE)
+            with sftp.file(marker, "w") as handle:
+                handle.write(_REMOTE_DIGEST)
         sftp.close()
         _, stdout, stderr = client.exec_command(
             f"python3 /tmp/bb_panelka_rcon.py {payload}",
