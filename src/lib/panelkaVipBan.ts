@@ -562,12 +562,7 @@ export async function listServerBans(): Promise<BanRow[]> {
   }
 
   const staffHits = await loadStaffBanHits();
-  const staffBySteam = new Map<string, StaffBanHit>();
-  const staffByReasonBy: StaffBanHit[] = [];
-  for (const h of staffHits) {
-    if (h.steamId && !staffBySteam.has(h.steamId)) staffBySteam.set(h.steamId, h);
-    staffByReasonBy.push(h);
-  }
+  const staffByReasonBy: StaffBanHit[] = [...staffHits];
 
   const audits = await prisma.panelkaBanAudit.findMany({
     where: { action: "ban" },
