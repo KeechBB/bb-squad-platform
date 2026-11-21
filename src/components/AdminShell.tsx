@@ -16,6 +16,8 @@ import { AdminMarketLogPanel } from "@/components/AdminMarketLogPanel";
 import { AdminCasesLogPanel } from "@/components/AdminCasesLogPanel";
 import { AdminTransfersPanel } from "@/components/AdminTransfersPanel";
 import { AdminModLogPanel } from "@/components/AdminModLogPanel";
+import { AdminPublicVipsPanel } from "@/components/AdminPublicVipsPanel";
+import { AdminServerBansPanel } from "@/components/AdminServerBansPanel";
 import type { AppRole } from "@/lib/roles";
 
 type Props = {
@@ -51,7 +53,9 @@ type Tab =
   | "market"
   | "cases"
   | "transfers"
-  | "modlog";
+  | "modlog"
+  | "vips"
+  | "serverbans";
 
 const TAB_LEAD: Record<Tab, string> = {
   users: "Пользователи платформы. Кликни по нику — правка анкеты и аватара.",
@@ -81,9 +85,21 @@ const TAB_LEAD: Record<Tab, string> = {
     "Трансферное окно фракций: открыть/закрыть, даты паузы, прогон гринда Черничных Долларов с тренировок.",
   modlog:
     "Лог всех админов и модераторов паблика: кто кого кикнул/забанил/варнул и когда. Кликни ник — карточка игрока.",
+  vips:
+    "Випки паблика (QueuePriority): действующие приоритеты очереди, поиск, выдача со сроком и кто выдал.",
+  serverbans:
+    "Баны серверов из Bans.cfg: список, поиск, выдача со сроком и снятие бана.",
 };
 
-const PUBLIC_TABS: Tab[] = ["users", "journal", "visits", "load", "modlog"];
+const PUBLIC_TABS: Tab[] = [
+  "users",
+  "journal",
+  "visits",
+  "load",
+  "modlog",
+  "vips",
+  "serverbans",
+];
 
 function readTab(
   allowVisits: boolean,
@@ -95,7 +111,15 @@ function readTab(
   if (typeof window === "undefined") return "users";
   const t = new URLSearchParams(window.location.search).get("tab");
   if (publicLimited) {
-    if (t === "journal" || t === "users" || t === "load" || t === "modlog") return t;
+    if (
+      t === "journal" ||
+      t === "users" ||
+      t === "load" ||
+      t === "modlog" ||
+      t === "vips" ||
+      t === "serverbans"
+    )
+      return t;
     if (t === "visits" && allowVisits) return "visits";
     return "users";
   }
@@ -110,7 +134,9 @@ function readTab(
     t === "market" ||
     t === "cases" ||
     t === "transfers" ||
-    t === "modlog"
+    t === "modlog" ||
+    t === "vips" ||
+    t === "serverbans"
   )
     return t;
   if (t === "tiers") return "factions";
@@ -318,6 +344,24 @@ export function AdminShell({
               Лог модерации
             </button>
           ) : null}
+          {showServers ? (
+            <button
+              type="button"
+              className={`admin-tab ${tab === "vips" ? "active" : ""}`}
+              onClick={() => setTab("vips")}
+            >
+              Випки с паблика
+            </button>
+          ) : null}
+          {showServers ? (
+            <button
+              type="button"
+              className={`admin-tab ${tab === "serverbans" ? "active" : ""}`}
+              onClick={() => setTab("serverbans")}
+            >
+              Баны серверов
+            </button>
+          ) : null}
           {showSiteVisits ? (
             <button
               type="button"
@@ -387,6 +431,8 @@ export function AdminShell({
       {!publicLimited && tab === "mail" && showMail ? <AdminMailPanel /> : null}
       {tab === "visits" && showSiteVisits ? <AdminVisitsPanel /> : null}
       {tab === "modlog" && showServers ? <AdminModLogPanel /> : null}
+      {tab === "vips" && showServers ? <AdminPublicVipsPanel /> : null}
+      {tab === "serverbans" && showServers ? <AdminServerBansPanel /> : null}
       {!publicLimited && tab === "transfers" && showKeechHunt ? (
         <AdminTransfersPanel />
       ) : null}

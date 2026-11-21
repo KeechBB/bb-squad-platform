@@ -65,7 +65,7 @@ export function isPublicPanelRole(role: AppRole | null | undefined): boolean {
 
 /**
  * Вкладки паблик-админа/модера:
- * Пользователи · Журнал · Серверы · Заходы · Нагрузка
+ * Пользователи · Журнал · Серверы · Заходы · Нагрузка · Лог модерации · Випки · Баны
  */
 export function publicStaffTabs(role: AppRole | null | undefined): boolean {
   return isPublicPanelRole(role);

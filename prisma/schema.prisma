@@ -1027,6 +1027,50 @@ model SteamNickHistory {
   @@index([steamId, lastSeenAt])
 }
 
+/// Выдача VIP (QueuePriority) на паблик. Срок храним тут — в Admins.cfg комментарий + эта таблица.
+model PanelkaVipGrant {
+  id            String    @id @default(cuid())
+  steamId       String
+  nick          String?
+  startsAt      DateTime  @default(now())
+  /// null = бессрочно
+  endsAt        DateTime?
+  forever       Boolean   @default(false)
+  byNick        String
+  bySteamId     String?
+  byUserId      String?
+  note          String?
+  active        Boolean   @default(true)
+  revokedAt     DateTime?
+  revokedByNick String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([steamId, active])
+  @@index([endsAt, active])
+  @@index([active, createdAt])
+}
+
+/// Аудит банов/снятий через сайт (список активных — из Bans.cfg).
+model PanelkaBanAudit {
+  id        String   @id @default(cuid())
+  /// steam / eos id as in Bans.cfg
+  targetId  String
+  steamId   String?
+  action    String
+  reason    String?
+  duration  String?
+  endsAt    DateTime?
+  forever   Boolean  @default(false)
+  byNick    String
+  bySteamId String?
+  createdAt DateTime @default(now())
+
+  @@index([targetId, createdAt])
+  @@index([steamId, createdAt])
+  @@index([action, createdAt])
+}
+
 /// Заметки и ярлыки модераторов/админов на карточке игрока в панеле серверов.
 /// kind=note — текстовая заметка; kind=label — короткий ярлык (до 3 слов) в шапке карточки.
 model PanelkaPlayerMemo {

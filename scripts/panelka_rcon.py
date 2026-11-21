@@ -760,6 +760,174 @@ def read_staff_map():
             out[m.group(1)] = "moderator"
     return out
 
+ADMINS_CFG = "/home/squad/admins/Admins.cfg"
+BANS_CFG = "/home/squad/admins/Bans.cfg"
+VIP_GROUP = "QueuePriority"
+VIP_META_RE = re.compile(
+    r"bb-vip\s+until=(?P<until>\S+)\s+by=(?P<by>[^\s]+)\s+granted=(?P<granted>\S+)",
+    re.I,
+)
+BAN_LINE_RE = re.compile(
+    r"Banned:(?P<id>[0-9a-fA-F]+):(?P<ttl>\d+)\s*(?://\s*(?P<comment>.*))?$",
+    re.I,
+)
+
+def _atomic_write(path, text):
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as handle:
+        handle.write(text)
+    os.replace(tmp, path)
+
+def list_vips():
+    rows = []
+    try:
+        lines = open(ADMINS_CFG, encoding="utf-8", errors="replace").read().splitlines()
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    for line in lines:
+        raw = line.strip()
+        if not raw.startswith("Admin=") or VIP_GROUP not in raw:
+            continue
+        m = re.match(r"Admin=(7656\d+)\s*:\s*" + VIP_GROUP + r"\b(.*)$", raw, re.I)
+        if not m:
+            continue
+        steam = m.group(1)
+        tail = (m.group(2) or "").strip()
+        comment = ""
+        if "//" in tail:
+            comment = tail.split("//", 1)[1].strip()
+        meta = VIP_META_RE.search(comment) if comment else None
+        rows.append({
+            "steamId": steam,
+            "group": VIP_GROUP,
+            "until": meta.group("until") if meta else "",
+            "byNick": meta.group("by") if meta else "",
+            "grantedAt": meta.group("granted") if meta else "",
+            "comment": comment[:160],
+            "line": raw[:220],
+        })
+    rows.sort(key=lambda r: r.get("grantedAt") or r["steamId"], reverse=True)
+    return {"ok": True, "vips": rows, "count": len(rows)}
+
+def vip_add(steam_id, by_nick="", until="", granted=""):
+    if not re.fullmatch(r"7656\d{13}", steam_id or ""):
+        return {"ok": False, "error": "bad steam"}
+    try:
+        text = open(ADMINS_CFG, encoding="utf-8", errors="replace").read()
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    lines = text.splitlines()
+    already = False
+    for line in lines:
+        if re.match(r"Admin=%s\s*:\s*%s\b" % (steam_id, VIP_GROUP), line.strip(), re.I):
+            already = True
+            break
+    by = re.sub(r"\s+", "_", (by_nick or "staff").strip())[:32] or "staff"
+    until_s = (until or "forever").strip()[:32]
+    granted_s = (granted or time.strftime("%Y-%m-%dT%H:%M:%S")).strip()[:32]
+    meta = " // bb-vip until=%s by=%s granted=%s" % (until_s, by, granted_s)
+    new_line = "Admin=%s:%s%s" % (steam_id, VIP_GROUP, meta)
+    if already:
+        out = []
+        for line in lines:
+            if re.match(r"Admin=%s\s*:\s*%s\b" % (steam_id, VIP_GROUP), line.strip(), re.I):
+                out.append(new_line)
+            else:
+                out.append(line)
+        _atomic_write(ADMINS_CFG, "\n".join(out) + ("\n" if text.endswith("\n") else ""))
+        return {"ok": True, "reply": "випка обновлена", "steamId": steam_id, "updated": True}
+    # insert after last QueuePriority Admin line, else after Group= lines
+    insert_at = None
+    last_group = 0
+    for i, line in enumerate(lines):
+        s = line.strip()
+        if s.startswith("Group="):
+            last_group = i
+        if re.match(r"Admin=7656\d+\s*:\s*" + VIP_GROUP + r"\b", s, re.I):
+            insert_at = i + 1
+    if insert_at is None:
+        insert_at = last_group + 1
+    lines.insert(insert_at, new_line)
+    _atomic_write(ADMINS_CFG, "\n".join(lines) + "\n")
+    return {"ok": True, "reply": "випка выдана", "steamId": steam_id, "updated": False}
+
+def vip_remove(steam_id):
+    if not re.fullmatch(r"7656\d{13}", steam_id or ""):
+        return {"ok": False, "error": "bad steam"}
+    try:
+        text = open(ADMINS_CFG, encoding="utf-8", errors="replace").read()
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    lines = text.splitlines()
+    kept = []
+    removed = 0
+    for line in lines:
+        if re.match(r"Admin=%s\s*:\s*%s\b" % (steam_id, VIP_GROUP), line.strip(), re.I):
+            removed += 1
+            continue
+        kept.append(line)
+    if not removed:
+        return {"ok": False, "error": "випки нет в Admins.cfg"}
+    _atomic_write(ADMINS_CFG, "\n".join(kept) + ("\n" if text.endswith("\n") else ""))
+    return {"ok": True, "reply": "випка снята", "steamId": steam_id, "removed": removed}
+
+def list_bans():
+    rows = []
+    try:
+        lines = open(BANS_CFG, encoding="utf-8", errors="replace").read().splitlines()
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    for idx, line in enumerate(lines):
+        raw = line.strip()
+        if not raw or raw.startswith("//"):
+            continue
+        m = BAN_LINE_RE.search(raw)
+        if not m:
+            continue
+        pid = m.group("id")
+        ttl = int(m.group("ttl") or 0)
+        comment = (m.group("comment") or "").strip()
+        forever = ttl == 0
+        ends_at = ""
+        if not forever and ttl > 1_000_000_000:
+            # unix end timestamp used by some tools
+            ends_at = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(ttl))
+        rows.append({
+            "id": pid,
+            "steamId": pid if pid.startswith("7656") and len(pid) == 17 else "",
+            "eosId": pid if len(pid) == 32 else "",
+            "ttl": ttl,
+            "forever": forever,
+            "endsAt": ends_at,
+            "comment": comment[:200],
+            "lineNo": idx + 1,
+            "line": raw[:260],
+        })
+    return {"ok": True, "bans": rows, "count": len(rows)}
+
+def ban_remove(target_id):
+    target = (target_id or "").strip()
+    if not target or len(target) < 10:
+        return {"ok": False, "error": "bad id"}
+    try:
+        text = open(BANS_CFG, encoding="utf-8", errors="replace").read()
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    lines = text.splitlines()
+    kept = []
+    removed = []
+    for line in lines:
+        raw = line.strip()
+        m = BAN_LINE_RE.search(raw) if raw and not raw.startswith("//") else None
+        if m and m.group("id") == target:
+            removed.append(raw[:200])
+            continue
+        kept.append(line)
+    if not removed:
+        return {"ok": False, "error": "бан не найден"}
+    _atomic_write(BANS_CFG, "\n".join(kept) + ("\n" if text.endswith("\n") else ""))
+    return {"ok": True, "reply": "бан снят", "id": target, "removed": removed}
+
 def live_health_map(key, steam_ids):
     want = set(steam_ids or [])
     states = {sid: "alive" for sid in want}
@@ -1052,6 +1220,21 @@ try:
             print(json.dumps({"ok": False, "error": "плохой мод или сервер"}, ensure_ascii=False))
         else:
             print(json.dumps(remove_mod(key, mid), ensure_ascii=False))
+    elif op == "vips-list":
+        print(json.dumps(list_vips(), ensure_ascii=False))
+    elif op == "vip-add":
+        print(json.dumps(vip_add(
+            str(job.get("steamId") or ""),
+            str(job.get("byNick") or ""),
+            str(job.get("until") or ""),
+            str(job.get("granted") or ""),
+        ), ensure_ascii=False))
+    elif op == "vip-remove":
+        print(json.dumps(vip_remove(str(job.get("steamId") or "")), ensure_ascii=False))
+    elif op == "bans-list":
+        print(json.dumps(list_bans(), ensure_ascii=False))
+    elif op == "ban-remove":
+        print(json.dumps(ban_remove(str(job.get("id") or job.get("steamId") or "")), ensure_ascii=False))
     else:
         print(json.dumps({"ok": False, "error": "неизвестная команда"}, ensure_ascii=False))
 except Exception:
@@ -2214,6 +2397,35 @@ def mod_remove(key: str, raw: str) -> dict:
     return ssh_job({"op": "mod-remove", "key": key, "modId": mid}, timeout=40)
 
 
+def vips_list() -> dict:
+    return ssh_job({"op": "vips-list"}, timeout=25)
+
+
+def vip_add(steam_id: str, by_nick: str = "", until: str = "", granted: str = "") -> dict:
+    return ssh_job(
+        {
+            "op": "vip-add",
+            "steamId": steam_id,
+            "byNick": by_nick,
+            "until": until,
+            "granted": granted,
+        },
+        timeout=25,
+    )
+
+
+def vip_remove(steam_id: str) -> dict:
+    return ssh_job({"op": "vip-remove", "steamId": steam_id}, timeout=25)
+
+
+def bans_list() -> dict:
+    return ssh_job({"op": "bans-list"}, timeout=40)
+
+
+def ban_remove(target_id: str) -> dict:
+    return ssh_job({"op": "ban-remove", "id": target_id}, timeout=25)
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         print(json.dumps({"ok": False, "error": "нет команды"}))
@@ -2280,6 +2492,31 @@ def main() -> int:
             extra = _extra_payload()
             lim = int(extra.get("limit") or 400)
             result = ssh_job({"op": "staff-log", "limit": lim}, timeout=25)
+        elif op == "vips-list":
+            result = vips_list()
+        elif op == "vip-add":
+            extra = _extra_payload()
+            steam_id = sys.argv[2] if len(sys.argv) > 2 else str(extra.get("steamId") or "")
+            if not re.fullmatch(r"7656\d{13}", steam_id):
+                raise SystemExit("bad steam")
+            result = vip_add(
+                steam_id,
+                str(extra.get("byNick") or ""),
+                str(extra.get("until") or ""),
+                str(extra.get("granted") or ""),
+            )
+        elif op == "vip-remove":
+            steam_id = sys.argv[2] if len(sys.argv) > 2 else ""
+            if not re.fullmatch(r"7656\d{13}", steam_id):
+                raise SystemExit("bad steam")
+            result = vip_remove(steam_id)
+        elif op == "bans-list":
+            result = bans_list()
+        elif op == "ban-remove":
+            target = sys.argv[2] if len(sys.argv) > 2 else ""
+            if len(target) < 10:
+                raise SystemExit("bad id")
+            result = ban_remove(target)
         elif op == "mods":
             key = sys.argv[2]
             if key not in KEYS:
