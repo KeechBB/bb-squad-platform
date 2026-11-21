@@ -9,6 +9,8 @@ export type VipRow = {
   startsAt: string | null;
   endsAt: string | null;
   forever: boolean;
+  /** Human term for UI — never lie with «навсегда» if unknown */
+  termLabel: string;
   byNick: string;
   grantedAt: string | null;
   note: string | null;
@@ -25,12 +27,57 @@ export type BanRow = {
   unbanIds: string[];
   forever: boolean;
   endsAt: string | null;
+  duration: string | null;
+  termLabel: string;
   comment: string;
   nick: string | null;
   byNick: string | null;
   bannedAt: string | null;
   line: string;
 };
+
+function fmtMsk(iso: string | null | undefined): string {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso.length === 10 ? `${iso}T12:00:00` : iso);
+    if (Number.isNaN(d.getTime())) return String(iso);
+    return d.toLocaleString("ru-RU", {
+      timeZone: "Europe/Moscow",
+      day: "2-digit",
+      month: "2-digit",
+      year: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return String(iso);
+  }
+}
+
+function vipTermLabel(opts: {
+  forever: boolean;
+  endsAt: string | null;
+  untilRaw?: string;
+}): string {
+  if (opts.forever) return "навсегда";
+  if (opts.endsAt) return `до ${fmtMsk(opts.endsAt)}`;
+  if (opts.untilRaw && opts.untilRaw !== "forever") return `до ${opts.untilRaw}`;
+  return "срок не указан";
+}
+
+function banTermLabel(opts: {
+  forever: boolean;
+  endsAt: string | null;
+  duration: string | null;
+  comment: string;
+}): string {
+  if (opts.endsAt) return `до ${fmtMsk(opts.endsAt)}`;
+  if (opts.duration && opts.duration !== "0") return `срок ${opts.duration}`;
+  if (opts.forever) return "навсегда";
+  const c = opts.comment.toLowerCase();
+  if (c.includes("навсегда") || /\bforever\b/.test(c)) return "навсегда";
+  return "срок не указан";
+}
 
 function clean(raw: string, limit: number): string {
   return String(raw || "")
@@ -126,12 +173,21 @@ export async function listPublicVips(): Promise<VipRow[]> {
   for (const v of cfgList) {
     seen.add(v.steamId);
     const db = bySteam.get(v.steamId);
+    const untilRaw = (v.until || "").trim();
+    const endsAt =
+      db?.endsAt?.toISOString() ||
+      (untilRaw && untilRaw !== "forever" ? untilRaw : null);
+    // Only «навсегда» when DB/cfg explicitly says so — bare QueuePriority ≠ forever
+    const forever = db
+      ? db.forever
+      : untilRaw === "forever" || /навсегда|forever/i.test(v.comment || "");
     rows.push({
       steamId: v.steamId,
       nick: db?.nick || nickMap.get(v.steamId) || null,
       startsAt: db?.startsAt?.toISOString() || v.grantedAt || null,
-      endsAt: db?.endsAt?.toISOString() || (v.until && v.until !== "forever" ? v.until : null),
-      forever: db ? db.forever : !v.until || v.until === "forever",
+      endsAt,
+      forever,
+      termLabel: vipTermLabel({ forever, endsAt, untilRaw }),
       byNick: db?.byNick || v.byNick || "—",
       grantedAt: db?.createdAt?.toISOString() || v.grantedAt || null,
       note: db?.note || null,
@@ -142,12 +198,14 @@ export async function listPublicVips(): Promise<VipRow[]> {
   // DB active but missing from cfg (desync) — still show
   for (const db of dbActive) {
     if (seen.has(db.steamId)) continue;
+    const endsAt = db.endsAt?.toISOString() || null;
     rows.push({
       steamId: db.steamId,
       nick: db.nick || nickMap.get(db.steamId) || null,
       startsAt: db.startsAt.toISOString(),
-      endsAt: db.endsAt?.toISOString() || null,
+      endsAt,
       forever: db.forever,
+      termLabel: vipTermLabel({ forever: db.forever, endsAt }),
       byNick: db.byNick,
       grantedAt: db.createdAt.toISOString(),
       note: db.note,
@@ -243,6 +301,8 @@ export async function listServerBans(): Promise<BanRow[]> {
       eosId?: string;
       forever?: boolean;
       endsAt?: string;
+      duration?: string;
+      byNick?: string;
       comment?: string;
       line?: string;
     }[];
@@ -260,6 +320,8 @@ export async function listServerBans(): Promise<BanRow[]> {
     unbanIds: string[];
     forever: boolean;
     endsAt: string;
+    duration: string;
+    byNick: string;
     comment: string;
     line: string;
   }[] = [];
@@ -279,6 +341,8 @@ export async function listServerBans(): Promise<BanRow[]> {
         unbanIds: [steamId, nextEos],
         forever: Boolean(cur.forever),
         endsAt: cur.endsAt || "",
+        duration: cur.duration || next?.duration || "",
+        byNick: cur.byNick || next?.byNick || "",
         comment: cur.comment || next?.comment || "",
         line: cur.line || "",
       });
@@ -294,6 +358,8 @@ export async function listServerBans(): Promise<BanRow[]> {
         unbanIds: [eosId, nextSteam],
         forever: Boolean(cur.forever ?? next?.forever),
         endsAt: cur.endsAt || next?.endsAt || "",
+        duration: cur.duration || next?.duration || "",
+        byNick: cur.byNick || next?.byNick || "",
         comment: cur.comment || next?.comment || "",
         line: next?.line || cur.line || "",
       });
@@ -307,6 +373,8 @@ export async function listServerBans(): Promise<BanRow[]> {
       unbanIds: [cur.id],
       forever: Boolean(cur.forever),
       endsAt: cur.endsAt || "",
+      duration: cur.duration || "",
+      byNick: cur.byNick || "",
       comment: cur.comment || "",
       line: cur.line || "",
     });
@@ -319,11 +387,11 @@ export async function listServerBans(): Promise<BanRow[]> {
       action: "ban",
       OR: [
         { targetId: { in: merged.flatMap((b) => b.unbanIds) } },
-        { steamId: { in: steamIds } },
+        ...(steamIds.length ? [{ steamId: { in: steamIds } }] : []),
       ],
     },
     orderBy: { createdAt: "desc" },
-    take: 2000,
+    take: 5000,
   });
   const auditByTarget = new Map<string, (typeof audits)[number]>();
   for (const a of audits) {
@@ -336,16 +404,22 @@ export async function listServerBans(): Promise<BanRow[]> {
       auditByTarget.get(b.id) ||
       (b.steamId ? auditByTarget.get(b.steamId) : undefined) ||
       (b.eosId ? auditByTarget.get(b.eosId) : undefined);
+    const endsAt = b.endsAt || audit?.endsAt?.toISOString() || null;
+    const duration = (b.duration || audit?.duration || "").trim() || null;
+    const forever = Boolean(audit?.forever ?? b.forever);
+    const comment = b.comment || audit?.reason || "";
     return {
       id: b.id,
       steamId: b.steamId,
       eosId: b.eosId,
       unbanIds: b.unbanIds,
-      forever: b.forever,
-      endsAt: b.endsAt || audit?.endsAt?.toISOString() || null,
-      comment: b.comment || "",
+      forever,
+      endsAt,
+      duration,
+      termLabel: banTermLabel({ forever, endsAt, duration, comment }),
+      comment,
       nick: b.steamId ? nickMap.get(b.steamId) || null : null,
-      byNick: audit?.byNick || null,
+      byNick: b.byNick || audit?.byNick || null,
       bannedAt: audit?.createdAt?.toISOString() || null,
       line: b.line || "",
     };

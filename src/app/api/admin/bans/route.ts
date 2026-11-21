@@ -106,6 +106,17 @@ export async function POST(req: Request) {
         byNick,
         bySteamId,
       });
+      // Squad often stores :0 even for timed bans — stamp our meta into Bans.cfg.
+      await runPanelka(["ban-annotate", steamId], 25000, {
+        until: forever
+          ? "forever"
+          : endsAt
+            ? endsAt.toISOString().slice(0, 19)
+            : "forever",
+        duration,
+        byNick,
+        reason,
+      }).catch(() => null);
       const bans = await listServerBans();
       return NextResponse.json({
         ok: true,

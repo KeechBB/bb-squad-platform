@@ -767,6 +767,10 @@ VIP_META_RE = re.compile(
     r"bb-vip\s+until=(?P<until>\S+)\s+by=(?P<by>[^\s]+)\s+granted=(?P<granted>\S+)",
     re.I,
 )
+BB_BAN_META_RE = re.compile(
+    r"bb-ban\s+until=(?P<until>\S+)\s+dur=(?P<dur>\S+)\s+by=(?P<by>[^\s]+)",
+    re.I,
+)
 BAN_LINE_RE = re.compile(
     r"Banned:(?P<id>[0-9a-fA-F]+):(?P<ttl>\d+)\s*(?://\s*(?P<comment>.*))?$",
     re.I,
@@ -887,11 +891,24 @@ def list_bans():
         pid = m.group("id")
         ttl = int(m.group("ttl") or 0)
         comment = (m.group("comment") or "").strip()
-        forever = ttl == 0
+        meta = BB_BAN_META_RE.search(comment) if comment else None
+        until = (meta.group("until") if meta else "").strip()
+        dur = (meta.group("dur") if meta else "").strip()
+        by = (meta.group("by") if meta else "").replace("_", " ").strip()
         ends_at = ""
-        if not forever and ttl > 1_000_000_000:
-            # unix end timestamp used by some tools
+        forever = False
+        # Squad often writes :0 even for timed bans — never treat ttl=0 alone as forever.
+        if until == "forever" or re.search(r"навсегда|\bforever\b", comment, re.I):
+            forever = True
+        elif until:
+            ends_at = until
+        elif ttl > 1_000_000_000:
             ends_at = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(ttl))
+        elif ttl > 0:
+            ends_at = time.strftime(
+                "%Y-%m-%dT%H:%M:%S",
+                time.gmtime(time.time() + ttl),
+            )
         rows.append({
             "id": pid,
             "steamId": pid if pid.startswith("7656") and len(pid) == 17 else "",
@@ -899,11 +916,46 @@ def list_bans():
             "ttl": ttl,
             "forever": forever,
             "endsAt": ends_at,
+            "duration": dur,
+            "byNick": by,
             "comment": comment[:200],
             "lineNo": idx + 1,
             "line": raw[:260],
         })
     return {"ok": True, "bans": rows, "count": len(rows)}
+
+def ban_annotate(target_id, until="", duration="", by_nick="", reason=""):
+    """Append bb-ban meta into Bans.cfg comment so timed bans survive :0 ttl."""
+    target = (target_id or "").strip()
+    if not target or len(target) < 10:
+        return {"ok": False, "error": "bad id"}
+    try:
+        text = open(BANS_CFG, encoding="utf-8", errors="replace").read()
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    lines = text.splitlines()
+    by = re.sub(r"\s+", "_", (by_nick or "staff").strip())[:32] or "staff"
+    until_s = (until or "forever").strip()[:32]
+    dur_s = (duration or "0").strip()[:16] or "0"
+    why = re.sub(r"\s+", " ", (reason or "").strip())[:120]
+    meta = "bb-ban until=%s dur=%s by=%s" % (until_s, dur_s, by)
+    if why:
+        meta = "%s | %s" % (meta, why)
+    updated = []
+    changed = 0
+    for line in lines:
+        raw = line.strip()
+        m = BAN_LINE_RE.search(raw) if raw and not raw.startswith("//") else None
+        if m and m.group("id") == target:
+            ttl = m.group("ttl")
+            updated.append("Banned:%s:%s // %s" % (target, ttl, meta))
+            changed += 1
+        else:
+            updated.append(line)
+    if not changed:
+        return {"ok": False, "error": "бан не найден для аннотации"}
+    _atomic_write(BANS_CFG, "\n".join(updated) + ("\n" if text.endswith("\n") else ""))
+    return {"ok": True, "reply": "бан аннотирован", "id": target, "updated": changed}
 
 def ban_remove(target_id):
     target = (target_id or "").strip()
@@ -1233,6 +1285,14 @@ try:
         print(json.dumps(vip_remove(str(job.get("steamId") or "")), ensure_ascii=False))
     elif op == "bans-list":
         print(json.dumps(list_bans(), ensure_ascii=False))
+    elif op == "ban-annotate":
+        print(json.dumps(ban_annotate(
+            str(job.get("id") or job.get("steamId") or ""),
+            str(job.get("until") or ""),
+            str(job.get("duration") or ""),
+            str(job.get("byNick") or ""),
+            str(job.get("reason") or ""),
+        ), ensure_ascii=False))
     elif op == "ban-remove":
         print(json.dumps(ban_remove(str(job.get("id") or job.get("steamId") or "")), ensure_ascii=False))
     else:
@@ -2426,6 +2486,26 @@ def ban_remove(target_id: str) -> dict:
     return ssh_job({"op": "ban-remove", "id": target_id}, timeout=25)
 
 
+def ban_annotate(
+    target_id: str,
+    until: str = "",
+    duration: str = "",
+    by_nick: str = "",
+    reason: str = "",
+) -> dict:
+    return ssh_job(
+        {
+            "op": "ban-annotate",
+            "id": target_id,
+            "until": until,
+            "duration": duration,
+            "byNick": by_nick,
+            "reason": reason,
+        },
+        timeout=25,
+    )
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         print(json.dumps({"ok": False, "error": "нет команды"}))
@@ -2512,6 +2592,18 @@ def main() -> int:
             result = vip_remove(steam_id)
         elif op == "bans-list":
             result = bans_list()
+        elif op == "ban-annotate":
+            target = sys.argv[2] if len(sys.argv) > 2 else ""
+            if len(target) < 10:
+                raise SystemExit("bad id")
+            extra = _extra_payload()
+            result = ban_annotate(
+                target,
+                str(extra.get("until") or ""),
+                str(extra.get("duration") or ""),
+                str(extra.get("byNick") or ""),
+                str(extra.get("reason") or ""),
+            )
         elif op == "ban-remove":
             target = sys.argv[2] if len(sys.argv) > 2 else ""
             if len(target) < 10:
