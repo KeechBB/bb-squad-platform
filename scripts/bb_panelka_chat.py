@@ -3,12 +3,14 @@
 
 Answers !admins / admins with a private AdminWarn.
 
-Squad RCON port allows one client: for Warn we briefly pause the chat
-listener on that server, send Source-RCON AdminWarn, then resume.
+Squad RCON port allows one client:
+- panelka remotes pause us via /tmp/bb_panelka_pause_<KEY>
+- AdminWarn briefly pauses this process the same way
 """
 from __future__ import annotations
 
 import json
+import os
 import re
 import socket
 import struct
@@ -17,7 +19,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-CHAT_SCRIPT_VERSION = "2026-11-21-admins-v5"
+CHAT_SCRIPT_VERSION = "2026-11-21-admins-v6"
 
 KEYS = ("TR1", "TR2", "TR3", "TR4", "TR5", "PB1")
 HOST = {"PB1": "TPUB1"}
@@ -35,12 +37,12 @@ LABELS = {
 MSK = timezone(timedelta(hours=3))
 LOCK = threading.Lock()
 ADMINS_COOLDOWN_SEC = 30
+CHAT_DEDUPE_SEC = 4.0
 _last_admins: dict[str, float] = {}
 _last_admins_lock = threading.Lock()
 _seen_chat: dict[str, float] = {}
 _seen_lock = threading.Lock()
 
-# per-server: request pause / confirm paused / resume
 _pause_req: dict[str, threading.Event] = {k: threading.Event() for k in KEYS}
 _paused_ack: dict[str, threading.Event] = {k: threading.Event() for k in KEYS}
 _sock_breaker: dict[str, socket.socket | None] = {k: None for k in KEYS}
@@ -55,6 +57,24 @@ ADMINS_LOG = Path("/tmp/bb_panelka_admins.log")
 
 def _host(key: str) -> str:
     return HOST.get(key, key)
+
+
+def pause_file(key: str) -> Path:
+    return Path(f"/tmp/bb_panelka_pause_{key}")
+
+
+def external_pause_active(key: str) -> bool:
+    path = pause_file(key)
+    if not path.is_file():
+        return False
+    try:
+        return (time.time() - path.stat().st_mtime) < 20
+    except OSError:
+        return False
+
+
+def should_pause(key: str) -> bool:
+    return _pause_req[key].is_set() or external_pause_active(key)
 
 
 def load_cfg(key: str) -> tuple[int, str]:
@@ -112,12 +132,13 @@ def is_admins_command(text: str) -> bool:
     low = (text or "").strip().lower()
     if not low:
         return False
-    return low in ("!admins", "admins", "!admin", "admin") or low.startswith(
-        ("!admins ", "admins ", "!admin ", "admin ")
-    )
+    # tolerate punctuation / trailing junk: "!admins", "admins!!!", "!ADMINS"
+    low = re.sub(r"[!！]+", "!", low)
+    low = low.strip(" !?.…")
+    return low in ("admins", "admin") or low.startswith(("admins ", "admin "))
 
 
-def source_rcon(key: str, cmd: str, timeout: float = 6.0, attempts: int = 4) -> str:
+def source_rcon(key: str, cmd: str, timeout: float = 6.0, attempts: int = 5) -> str:
     port, password = load_cfg(key)
     last_err: Exception | None = None
     for attempt in range(max(1, attempts)):
@@ -174,7 +195,7 @@ def source_rcon(key: str, cmd: str, timeout: float = 6.0, attempts: int = 4) -> 
             return "".join(parts)
         except Exception as exc:
             last_err = exc
-            time.sleep(0.4 * (attempt + 1))
+            time.sleep(0.35 * (attempt + 1))
         finally:
             if sock is not None:
                 try:
@@ -184,31 +205,46 @@ def source_rcon(key: str, cmd: str, timeout: float = 6.0, attempts: int = 4) -> 
     raise RuntimeError(str(last_err) if last_err else "rcon failed")
 
 
+def _break_sock(key: str) -> None:
+    with _sock_lock:
+        sock = _sock_breaker.get(key)
+    if sock is None:
+        return
+    try:
+        sock.shutdown(socket.SHUT_RDWR)
+    except Exception:
+        pass
+    try:
+        sock.close()
+    except Exception:
+        pass
+
+
 def with_rcon_pause(key: str, fn) -> None:
     """Pause chat listener on this server, run fn(), resume."""
     req = _pause_req[key]
     ack = _paused_ack[key]
     ack.clear()
     req.set()
-    # force-break blocking recv
-    with _sock_lock:
-        sock = _sock_breaker.get(key)
-    if sock is not None:
-        try:
-            sock.shutdown(socket.SHUT_RDWR)
-        except Exception:
-            pass
-        try:
-            sock.close()
-        except Exception:
-            pass
+    pause_file(key).write_text(str(time.time()), encoding="utf-8")
+    _break_sock(key)
     if not ack.wait(timeout=4.0):
         _admins_log(f"{key} pause-timeout")
+        time.sleep(0.35)
     try:
         fn()
     finally:
         req.clear()
         ack.clear()
+        try:
+            pause_file(key).unlink(missing_ok=True)
+        except TypeError:
+            try:
+                pause_file(key).unlink()
+            except OSError:
+                pass
+        except OSError:
+            pass
 
 
 def maybe_reply_admins(key: str, steam_id: str, name: str, text: str) -> None:
@@ -228,21 +264,17 @@ def maybe_reply_admins(key: str, steam_id: str, name: str, text: str) -> None:
     def _send() -> None:
         for part in ADMINS_REPLY_PARTS:
             reply = source_rcon(key, f"AdminWarn {steam_id} {part}")
-            _admins_log(
-                f"{key} warn steam={steam_id} name={name!r} reply={reply[:160]!r}"
-            )
+            _admins_log(f"{key} warn steam={steam_id} name={name!r} reply={reply[:160]!r}")
             if "warned player" not in reply.lower():
                 alt = part.replace(" ", "_")
                 reply2 = source_rcon(key, f"AdminWarn {steam_id} {alt}")
                 _admins_log(f"{key} warn-fallback steam={steam_id} reply={reply2[:160]!r}")
-            time.sleep(0.2)
+            time.sleep(0.25)
 
     try:
         with_rcon_pause(key, _send)
     except Exception as exc:
-        _admins_log(
-            f"{key} ERROR steam={steam_id} name={name!r} err={type(exc).__name__}:{exc}"
-        )
+        _admins_log(f"{key} ERROR steam={steam_id} name={name!r} err={type(exc).__name__}:{exc}")
         with _last_admins_lock:
             _last_admins.pop(steam_id, None)
 
@@ -257,15 +289,15 @@ def handle_chat(key: str, body: str) -> None:
     name = match.group(3).strip()[:48]
     text = match.group(4).strip()[:240]
 
-    dedupe_key = f"{key}|{steam_id}|{text.lower()}"
+    dedupe_key = f"{key}|{steam_id or name}|{text.lower()}"
     now = time.time()
     with _seen_lock:
         prev = _seen_chat.get(dedupe_key, 0.0)
-        if now - prev < 1.5:
+        if now - prev < CHAT_DEDUPE_SEC:
             return
         _seen_chat[dedupe_key] = now
         if len(_seen_chat) > 4000:
-            cutoff = now - 60
+            cutoff = now - 90
             for old in [k for k, ts in _seen_chat.items() if ts < cutoff]:
                 _seen_chat.pop(old, None)
 
@@ -291,22 +323,21 @@ def handle_chat(key: str, body: str) -> None:
 def listen(key: str) -> None:
     port, password = load_cfg(key)
     while True:
-        # wait if pause requested before connecting
-        while _pause_req[key].is_set():
+        while should_pause(key):
             _paused_ack[key].set()
-            time.sleep(0.15)
+            time.sleep(0.12)
 
         sock = None
         try:
             sock = socket.create_connection(("127.0.0.1", port), timeout=8)
-            sock.settimeout(30)
+            sock.settimeout(8)
             with _sock_lock:
                 _sock_breaker[key] = sock
             buf = bytearray()
 
             def pull() -> tuple[int, str] | None:
                 while True:
-                    if _pause_req[key].is_set():
+                    if should_pause(key):
                         raise RuntimeError("pause")
                     if len(buf) >= 4:
                         size = struct.unpack_from("<i", buf, 0)[0]
@@ -339,19 +370,19 @@ def listen(key: str) -> None:
                 try:
                     packet = pull()
                 except socket.timeout:
-                    if _pause_req[key].is_set():
+                    if should_pause(key):
                         raise RuntimeError("pause")
                     continue
                 if packet and packet[0] == 1:
                     handle_chat(key, packet[1])
         except Exception as exc:
-            if "pause" in str(exc).lower() or _pause_req[key].is_set():
+            if "pause" in str(exc).lower() or should_pause(key):
                 _paused_ack[key].set()
-                while _pause_req[key].is_set():
+                while should_pause(key):
                     time.sleep(0.1)
             else:
                 _admins_log(f"{key} listen-reconnect {type(exc).__name__}:{exc}")
-                time.sleep(1.2)
+                time.sleep(1.0)
         finally:
             with _sock_lock:
                 if _sock_breaker.get(key) is sock:
@@ -364,6 +395,7 @@ def listen(key: str) -> None:
 
 
 def main() -> None:
+    _admins_log(f"boot {CHAT_SCRIPT_VERSION} pid={os.getpid()}")
     for key in KEYS:
         threading.Thread(target=listen, args=(key,), daemon=True).start()
     while True:

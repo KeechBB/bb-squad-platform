@@ -68,10 +68,14 @@ from concurrent.futures import ThreadPoolExecutor
 job = json.loads(base64.b64decode(sys.argv[1]).decode("utf-8"))
 HOST={"PB1":"TPUB1"}
 UI_KEYS=("TR1","TR2","TR3","TR4","TR5","PB1")
+_HEALTH_CACHE = {}
+_CREATES_CACHE = {}
 def host(key):
     return HOST.get(key, key)
 
-def rcon(key, cmd):
+def rcon(key, cmd, attempts=4):
+    """Source RCON. Pauses chat listener via /tmp/bb_panelka_pause_<key> first."""
+    import time as _time
     hk = host(key)
     cfg_path = f"/home/squad/servers/{hk}/SquadGame/ServerConfig/Rcon.cfg"
     text = open(cfg_path, encoding="utf-8", errors="replace").read()
@@ -85,70 +89,111 @@ def rcon(key, cmd):
         m = re.match(r"Password\s*=\s*(.+)", line, re.I)
         if m:
             pw = m.group(1).strip().strip('"').strip("'")
-    s = socket.create_connection(("127.0.0.1", port), timeout=8)
-    s.settimeout(8)
-
-    def send(i, t, b):
-        p = struct.pack("<ii", i, t) + b.encode("utf-8") + b"\x00\x00"
-        s.sendall(struct.pack("<i", len(p)) + p)
-
-    def recvall(n):
-        buf = b""
-        while len(buf) < n:
-            chunk = s.recv(n - len(buf))
-            if not chunk:
-                raise RuntimeError("rcon closed")
-            buf += chunk
-        return buf
-
-    def recv():
-        n = struct.unpack("<i", recvall(4))[0]
-        if n < 10 or n > 4_000_000:
-            raise RuntimeError("bad packet")
-        d = recvall(n)
-        i, t = struct.unpack("<ii", d[:8])
-        return i, t, d[8:-2].decode("utf-8", "replace")
-
-    send(1, 3, pw)
-    while True:
-        i, t, _b = recv()
-        if t == 2:
-            if i == -1:
-                raise RuntimeError("rcon auth failed")
-            break
-    send(2, 2, cmd)
-    parts = []
-    s.settimeout(2.0)
+    pause = f"/tmp/bb_panelka_pause_{key}"
+    open(pause, "w").write(str(_time.time()))
+    last_err = None
     try:
-        while True:
-            i, t, b = recv()
-            if i == 2 and t == 0:
-                parts.append(b)
-                s.settimeout(0.15)
-                if len(parts) > 200:
-                    break
-            elif i == -1:
-                raise RuntimeError("rcon rejected")
-    except (socket.timeout, TimeoutError, RuntimeError):
-        if not parts:
-            raise
+        _time.sleep(0.35)
+        for attempt in range(max(1, attempts)):
+            s = None
+            try:
+                s = socket.create_connection(("127.0.0.1", port), timeout=8)
+                s.settimeout(8)
+
+                def send(i, t, b):
+                    p = struct.pack("<ii", i, t) + b.encode("utf-8") + b"\x00\x00"
+                    s.sendall(struct.pack("<i", len(p)) + p)
+
+                def recvall(n):
+                    buf = b""
+                    while len(buf) < n:
+                        chunk = s.recv(n - len(buf))
+                        if not chunk:
+                            raise RuntimeError("rcon closed")
+                        buf += chunk
+                    return buf
+
+                def recv():
+                    n = struct.unpack("<i", recvall(4))[0]
+                    if n < 10 or n > 4_000_000:
+                        raise RuntimeError("bad packet")
+                    d = recvall(n)
+                    i, t = struct.unpack("<ii", d[:8])
+                    return i, t, d[8:-2].decode("utf-8", "replace")
+
+                send(1, 3, pw)
+                while True:
+                    i, t, _b = recv()
+                    if t == 2:
+                        if i == -1:
+                            raise RuntimeError("rcon auth failed")
+                        break
+                send(2, 2, cmd)
+                parts = []
+                s.settimeout(2.0)
+                try:
+                    while True:
+                        i, t, b = recv()
+                        if i == 2 and t == 0:
+                            parts.append(b)
+                            s.settimeout(0.15)
+                            if len(parts) > 200:
+                                break
+                        elif i == -1:
+                            raise RuntimeError("rcon rejected")
+                except (socket.timeout, TimeoutError, RuntimeError):
+                    if not parts:
+                        raise
+                return "".join(parts)
+            except Exception as exc:
+                last_err = exc
+                _time.sleep(0.35 * (attempt + 1))
+            finally:
+                if s is not None:
+                    try:
+                        s.close()
+                    except Exception:
+                        pass
+        raise RuntimeError(str(last_err) if last_err else "rcon failed")
+    finally:
+        try:
+            os.remove(pause)
+        except Exception:
+            pass
+
+def _chat_pids():
     try:
-        s.close()
+        out = subprocess.check_output(
+            ["pgrep", "-f", "python3 /home/squad/bb_panelka_chat.py"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+        return [int(x) for x in out.split() if x.isdigit()]
     except Exception:
-        pass
-    return "".join(parts)
+        return []
 
 def ensure_chat_listener():
-    """Start chat listener if missing. Script body is synced from plaza (bb_panelka_chat.py)."""
+    """Exactly one chat listener. Reap duplicates that steal the RCON port."""
     pid_path = "/tmp/bb_panelka_chat.pid"
     script = "/home/squad/bb_panelka_chat.py"
     if not os.path.isfile(script):
         return
-    pid = ""
-    if os.path.isfile(pid_path):
-        pid = open(pid_path, encoding="utf-8").read().strip()
-    if pid.isdigit() and os.path.isdir(f"/proc/{pid}"):
+    pids = _chat_pids()
+    if len(pids) == 1:
+        open(pid_path, "w", encoding="utf-8").write(str(pids[0]))
         return
+    for pid in pids:
+        try:
+            os.kill(pid, 15)
+        except Exception:
+            pass
+    time.sleep(0.45)
+    for pid in _chat_pids():
+        try:
+            os.kill(pid, 9)
+        except Exception:
+            pass
+    time.sleep(0.25)
     proc = subprocess.Popen(
         ["python3", script],
         stdout=subprocess.DEVNULL,
@@ -161,6 +206,7 @@ def read_chat(key):
     import json, re
     ensure_chat_listener()
     spoken = []
+    seen = set()
     path = "/home/squad/bb-panelka-chat.jsonl"
     if os.path.isfile(path):
         lines = open(path, encoding="utf-8", errors="replace").read().splitlines()[-500:]
@@ -171,20 +217,31 @@ def read_chat(key):
                 continue
             if row.get("key") != key:
                 continue
-            spoken.append({
+            item = {
                 "clock": row.get("clock") or "",
                 "date": row.get("date") or "",
                 "channel": row.get("channel") or "чат",
                 "name": (row.get("name") or "")[:48],
                 "steamId": (row.get("steamId") or "")[:32],
                 "text": (row.get("text") or "")[:240],
-            })
+            }
+            dedupe = (
+                item["date"],
+                item["clock"],
+                item["channel"],
+                item["name"],
+                item["text"].lower(),
+            )
+            if dedupe in seen:
+                continue
+            seen.add(dedupe)
+            spoken.append(item)
     log_path = f"/home/squad/servers/{host(key)}/SquadGame/Saved/Logs/SquadGame.log"
     casts = []
     try:
         with open(log_path, "rb") as handle:
             handle.seek(0, 2)
-            handle.seek(max(0, handle.tell() - 2_000_000))
+            handle.seek(max(0, handle.tell() - 1_000_000))
             blob = handle.read().decode("utf-8", "replace")
         cast_re = re.compile(r"Message broadcasted <(.*)> from RCON")
         clock_re = re.compile(r"\[(\d{4}\.\d{2}\.\d{2})-(\d{2})\.(\d{2})\.(\d{2})")
@@ -224,6 +281,10 @@ def _msk_stamp(line):
 def read_squad_creates(key):
     """Latest squad create events from SquadGame.log for this round."""
     import os, re
+    now = time.time()
+    cached = _CREATES_CACHE.get(key)
+    if cached and now - cached[0] < 10:
+        return cached[1]
     rows = []
     log_path = f"/home/squad/servers/{host(key)}/SquadGame/Saved/Logs/SquadGame.log"
     if not os.path.isfile(log_path):
@@ -231,7 +292,7 @@ def read_squad_creates(key):
     try:
         with open(log_path, "rb") as handle:
             handle.seek(0, 2)
-            handle.seek(max(0, handle.tell() - 12_000_000))
+            handle.seek(max(0, handle.tell() - 4_000_000))
             blob = handle.read().decode("utf-8", "replace")
     except Exception:
         return rows
@@ -254,7 +315,9 @@ def read_squad_creates(key):
             "clock": clock,
             "date": date,
         })
-    return rows[-400:]
+    rows = rows[-400:]
+    _CREATES_CACHE[key] = (now, rows)
+    return rows
 
 def read_player_card(key, steam_id, name):
     import json, os, re
@@ -646,11 +709,16 @@ def live_health_map(key, steam_ids):
     states = {sid: "alive" for sid in want}
     if not want:
         return states
+    now = time.time()
+    cached = _HEALTH_CACHE.get(key)
+    if cached and now - cached[0] < 8:
+        base = cached[1]
+        return {sid: base.get(sid, "alive") for sid in want}
     log_path = f"/home/squad/servers/{host(key)}/SquadGame/Saved/Logs/SquadGame.log"
     try:
         with open(log_path, "rb") as handle:
             handle.seek(0, 2)
-            handle.seek(max(0, handle.tell() - 3_500_000))
+            handle.seek(max(0, handle.tell() - 1_800_000))
             blob = handle.read().decode("utf-8", "replace")
     except Exception:
         return states
@@ -701,6 +769,7 @@ def live_health_map(key, steam_ids):
             nick_steam[_nick_key(pm.group("nick"))] = steam
             if steam in want:
                 states[steam] = "alive"
+    _HEALTH_CACHE[key] = (now, dict(states))
     return states
 
 def mods_root(key):
@@ -869,6 +938,7 @@ try:
         print(json.dumps({"ok": True, "text": rcon(job["key"], "ListPlayers")}, ensure_ascii=False))
     elif op == "roster":
         key = job["key"]
+        ensure_chat_listener()
         players_text = rcon(key, "ListPlayers")
         squads_text = rcon(key, "ListSquads")
         steams = re.findall(r"steam:\s*(7656\d{13})", players_text, re.I)
@@ -991,26 +1061,18 @@ def sync_chat_listener(force: bool = False) -> None:
                 sftp.chmod(remote, 0o664)
             except OSError:
                 pass
-            try:
-                with sftp.open(pid_path, "r") as handle:
-                    old = handle.read().decode("utf-8", "replace").strip()
-                if old.isdigit():
-                    client.exec_command(f"kill {old} 2>/dev/null || true", timeout=10)
-                    time.sleep(0.4)
-            except OSError:
-                pass
-            client.exec_command(
-                f"nohup python3 {remote} >/dev/null 2>&1 & echo $! > {pid_path}",
-                timeout=10,
-            )
-        else:
-            _stdin, stdout, _stderr = client.exec_command(
-                f"pid=$(cat {pid_path} 2>/dev/null); "
-                f"if [ -n \"$pid\" ] && [ -d /proc/$pid ]; then echo ok; "
-                f"else nohup python3 {remote} >/dev/null 2>&1 & echo $! > {pid_path}; echo start; fi",
-                timeout=10,
-            )
-            stdout.read()
+        # Always reap duplicate chat bots — they steal the single RCON port
+        # and multiply every chat line in the panel feed.
+        _stdin, stdout, _stderr = client.exec_command(
+            "pkill -f 'python3 /home/squad/bb_panelka_chat.py' 2>/dev/null || true; "
+            "sleep 0.5; "
+            "pkill -9 -f 'python3 /home/squad/bb_panelka_chat.py' 2>/dev/null || true; "
+            "sleep 0.3; "
+            f"nohup python3 {remote} >/dev/null 2>&1 & echo $! > {pid_path}; "
+            "pgrep -af 'python3 /home/squad/bb_panelka_chat.py' || true",
+            timeout=15,
+        )
+        print("chat-sync", stdout.read().decode("utf-8", "replace").strip())
         sftp.close()
         _CHAT_SYNCED = True
     finally:
