@@ -117,7 +117,7 @@ export function AdminServerBansPanel() {
 
   const filtered = useMemo(() => {
     const needle = q.trim();
-    let list = needle
+    const list = needle
       ? rows.filter((r) => fuzzyIncludes(rowHay(r), needle))
       : [...rows];
     list.sort((a, b) => {
