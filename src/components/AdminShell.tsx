@@ -464,16 +464,17 @@ export function AdminShell({
     content = <AdminLoadPanel />;
   }
 
+  const pageClass =
+    tab === "attendance"
+      ? "admin-page admin-attendance-page"
+      : tab === "hunt"
+        ? "admin-page admin-keech-hunt-page"
+        : SERVER_TABS.includes(tab)
+          ? "admin-page admin-panelka-wide-page"
+          : "admin-page";
+
   return (
-    <main
-      className={
-        tab === "attendance"
-          ? "admin-page admin-attendance-page"
-          : tab === "hunt"
-            ? "admin-page admin-keech-hunt-page"
-            : "admin-page"
-      }
-    >
+    <main className={pageClass}>
       <section className="hero">
         <p className="eyebrow">админ</p>
         <h1>Панель</h1>

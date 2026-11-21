@@ -7434,6 +7434,29 @@ body:has(.profile-page) {
   padding-right: clamp(8px, 1.2vw, 20px);
 }
 
+/* ВИПы / лог модерации / баны серверов — шире 1100, как panelka */
+.shell:has(.admin-panelka-wide-page) {
+  max-width: min(1760px, 100%);
+  width: 100%;
+  padding-left: clamp(12px, 2vw, 28px);
+  padding-right: clamp(12px, 2vw, 28px);
+}
+
+.admin-page.admin-panelka-wide-page {
+  max-width: none;
+  width: 100%;
+}
+
+.admin-panelka-wide-page .hero {
+  max-width: 1100px;
+}
+
+.admin-panelka-wide-page .card,
+.admin-panelka-wide-page .journal-card {
+  max-width: none;
+  width: 100%;
+}
+
 /* ???????????? ? ???? ??????? ??????? (?????????? max-width ????) */
 .shell:has(.admin-attendance-page) {
   max-width: none;

@@ -368,8 +368,11 @@ body:has(.panelka-page) .shell {
   inset: 0;
   z-index: 80;
   display: grid;
-  place-items: center;
-  padding: 20px;
+  justify-items: center;
+  align-content: start;
+  align-items: start;
+  padding: 16px 20px 40px;
+  overflow: auto;
   background: rgba(0, 0, 0, 0.72);
 }
 
