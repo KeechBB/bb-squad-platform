@@ -488,6 +488,82 @@ body:has(.panelka-page) .shell {
   text-overflow: ellipsis;
 }
 
+.panelka-squad-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 8px 8px;
+}
+
+.panelka-squad-actions button {
+  margin: 0;
+  padding: 4px 8px;
+  border: 1px solid rgba(226, 197, 106, 0.35);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.25);
+  color: #e2c56a;
+  font: inherit;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.panelka-squad-actions button:hover:not(:disabled) {
+  border-color: rgba(226, 197, 106, 0.7);
+  background: rgba(226, 197, 106, 0.12);
+}
+
+.panelka-squad-actions button.is-danger {
+  border-color: rgba(214, 110, 90, 0.45);
+  color: #e8a090;
+}
+
+.panelka-squad-actions button.is-danger:hover:not(:disabled) {
+  border-color: rgba(214, 110, 90, 0.8);
+  background: rgba(214, 110, 90, 0.14);
+}
+
+.panelka-squad-actions button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.panelka-squad-ask {
+  margin: 0 8px 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(226, 197, 106, 0.22);
+}
+
+.panelka-squad-ask p {
+  margin: 0 0 8px;
+  color: rgba(239, 230, 214, 0.9);
+  font-size: 0.86rem;
+}
+
+.panelka-squad-ask div {
+  display: flex;
+  gap: 8px;
+}
+
+.panelka-squad-ask button {
+  margin: 0;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(226, 197, 106, 0.4);
+  background: rgba(226, 197, 106, 0.12);
+  color: #efe6d6;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.panelka-squad-ask button:last-child {
+  background: transparent;
+  border-color: rgba(239, 230, 214, 0.25);
+}
+
 .panelka-live-roster {
   margin-top: 18px;
   padding-top: 14px;

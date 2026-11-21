@@ -15,11 +15,15 @@ const ACTIONS = new Set([
   "ban",
   "team",
   "unsquad",
+  "disband-squad",
+  "rename-squad",
   "warn",
   "say",
   "mod-install",
   "mod-remove",
 ]);
+const TEAM_ID_RE = /^[12]$/;
+const SQUAD_ID_RE = /^\d{1,3}$/;
 
 const STEAM_RE = /^7656\d{13}$/;
 const DURATION_RE = /^(0|\d+[mhd])$/i;
@@ -193,6 +197,9 @@ export async function POST(req: Request) {
     mod?: string;
     modId?: string;
     targetName?: string;
+    teamId?: string;
+    squadId?: string;
+    squadName?: string;
   } | null;
   const key = body?.key || "";
   const action = body?.action || "";
@@ -208,6 +215,9 @@ export async function POST(req: Request) {
   const deck1 = String(body?.deck1 || "").trim();
   const deck2 = String(body?.deck2 || "").trim();
   const modRaw = String(body?.mod || body?.modId || "").trim();
+  const teamId = String(body?.teamId || "").trim();
+  const squadId = String(body?.squadId || "").trim();
+  const squadName = cleanReason(body?.squadName || "", 48);
 
   if (!isPanelkaKey(key) || !ACTIONS.has(action)) {
     return NextResponse.json({ ok: false, error: "нельзя так" }, { status: 400 });
@@ -262,6 +272,11 @@ export async function POST(req: Request) {
   if (action === "warn" && reason.length < 1) {
     return NextResponse.json({ ok: false, error: "напиши сообщение игроку" }, { status: 400 });
   }
+  if (action === "disband-squad" || action === "rename-squad") {
+    if (!TEAM_ID_RE.test(teamId) || !SQUAD_ID_RE.test(squadId)) {
+      return NextResponse.json({ ok: false, error: "укажи отряд" }, { status: 400 });
+    }
+  }
   if ((action === "mod-install" || action === "mod-remove") && modRaw.length < 3) {
     return NextResponse.json({ ok: false, error: "укажи ID мода или ссылку Workshop" }, { status: 400 });
   }
@@ -285,7 +300,10 @@ export async function POST(req: Request) {
       deck2,
       byNick,
       bySteamId: session?.user?.steamId || "",
-      targetName: cleanReason(body?.targetName || "", 48),
+      targetName: cleanReason(body?.targetName || squadName || "", 48),
+      teamId,
+      squadId,
+      squadName,
     });
     return NextResponse.json(data);
   } catch (err) {

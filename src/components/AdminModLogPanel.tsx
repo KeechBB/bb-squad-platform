@@ -27,6 +27,8 @@ const KIND_LABEL: Record<string, string> = {
   warn: "Админ-сообщение",
   team: "Смена команды",
   unsquad: "Выгон с отряда",
+  disband: "Роспуск отряда",
+  rename: "Сброс имени отряда",
   report: "Репорт",
 };
 
@@ -169,7 +171,9 @@ export function AdminModLogPanel() {
               ["ban", "Бан"],
               ["warn", "Сообщение"],
               ["team", "Команда"],
-              ["unsquad", "Отряд"],
+              ["unsquad", "Выгон"],
+              ["disband", "Роспуск"],
+              ["rename", "Имя"],
             ] as const
           ).map(([value, label]) => (
             <button

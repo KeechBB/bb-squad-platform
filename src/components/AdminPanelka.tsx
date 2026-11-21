@@ -279,6 +279,9 @@ export function AdminPanelka({
       deck2?: string;
       mod?: string;
       targetName?: string;
+      teamId?: string;
+      squadId?: string;
+      squadName?: string;
     }
   ) {
     if (!selected) return false;
@@ -684,20 +687,39 @@ export function AdminPanelka({
               </button>
             </div>
             <p className="panelka-picked">
-              Слева команда 1, справа команда 2. Нажми игрока — профиль паблика и действия модератора.
+              Слева команда 1, справа команда 2. Нажми игрока — карточка. У отряда: сбросить имя или
+              распустить.
             </p>
             <div className="panelka-roster">
               <TeamColumn
                 team={teamA}
                 side="a"
                 emptyLabel="Команда 1 пуста"
+                busy={Boolean(busy)}
                 onPick={setModPlayer}
+                onSquadAction={(kind, squad) =>
+                  void send(kind === "disband" ? "disband-squad" : "rename-squad", {
+                    teamId: teamA?.id || "1",
+                    squadId: squad.id,
+                    squadName: squad.name,
+                    targetName: squad.name,
+                  })
+                }
               />
               <TeamColumn
                 team={teamB}
                 side="b"
                 emptyLabel="Команда 2 пуста"
+                busy={Boolean(busy)}
                 onPick={setModPlayer}
+                onSquadAction={(kind, squad) =>
+                  void send(kind === "disband" ? "disband-squad" : "rename-squad", {
+                    teamId: teamB?.id || "2",
+                    squadId: squad.id,
+                    squadName: squad.name,
+                    targetName: squad.name,
+                  })
+                }
               />
             </div>
             {!teamA && !teamB && !rosterBusy ? (
@@ -848,17 +870,36 @@ function pickChatPlayer(line: ChatLine, teams: RosterTeam[]): RosterPerson | nul
   return findRosterPerson(teams, line.name);
 }
 
+function isDefaultSquadName(id: string, name: string): boolean {
+  const n = name.trim().toLowerCase();
+  return (
+    n === `squad ${id}` ||
+    n === `отряд ${id}` ||
+    n === `squad${id}` ||
+    n === id
+  );
+}
+
 function TeamColumn({
   team,
   side,
   emptyLabel,
+  busy,
   onPick,
+  onSquadAction,
 }: {
   team: RosterTeam | null;
   side: "a" | "b";
   emptyLabel: string;
+  busy: boolean;
   onPick: (player: RosterPerson) => void;
+  onSquadAction: (kind: "disband" | "rename", squad: RosterSquad) => void;
 }) {
+  const [ask, setAsk] = useState<{
+    kind: "disband" | "rename";
+    squad: RosterSquad;
+  } | null>(null);
+
   return (
     <section className={side === "a" ? "is-a" : "is-b"}>
       <header>
@@ -866,27 +907,73 @@ function TeamColumn({
         <span>{team?.count ?? 0}</span>
         {team ? <span>{team.tickets} тикетов</span> : null}
       </header>
-      {(team?.squads || []).map((squad) => (
-        <div key={squad.id} className="panelka-squad">
-          <div className="panelka-squad-head">
-            <span>{squad.id}</span>
-            <b>{squad.name}</b>
-            {squad.createdClock || squad.creatorName ? (
-              <em className="panelka-squad-meta">
-                {squad.createdClock ? `${squad.createdClock} ` : ""}
-                {squad.creatorName ? `(${squad.creatorName})` : ""}
-              </em>
+      {(team?.squads || []).map((squad) => {
+        const canRename = !isDefaultSquadName(squad.id, squad.name);
+        return (
+          <div key={squad.id} className="panelka-squad">
+            <div className="panelka-squad-head">
+              <span>{squad.id}</span>
+              <b>{squad.name}</b>
+              {squad.createdClock || squad.creatorName ? (
+                <em className="panelka-squad-meta">
+                  {squad.createdClock ? `${squad.createdClock} ` : ""}
+                  {squad.creatorName ? `(${squad.creatorName})` : ""}
+                </em>
+              ) : null}
+              <span>
+                {squad.size}
+                {squad.locked ? " · закрыт" : ""}
+              </span>
+            </div>
+            <div className="panelka-squad-actions">
+              {canRename ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setAsk({ kind: "rename", squad })}
+                >
+                  Сбросить имя
+                </button>
+              ) : null}
+              <button
+                type="button"
+                disabled={busy}
+                className="is-danger"
+                onClick={() => setAsk({ kind: "disband", squad })}
+              >
+                Распустить
+              </button>
+            </div>
+            {ask && ask.squad.id === squad.id ? (
+              <div className="panelka-squad-ask">
+                <p>
+                  {ask.kind === "disband"
+                    ? `Распустить отряд «${squad.name}» полностью?`
+                    : `Сбросить имя «${squad.name}» до Squad ${squad.id}?`}
+                </p>
+                <div>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => {
+                      onSquadAction(ask.kind, squad);
+                      setAsk(null);
+                    }}
+                  >
+                    Да
+                  </button>
+                  <button type="button" disabled={busy} onClick={() => setAsk(null)}>
+                    Отмена
+                  </button>
+                </div>
+              </div>
             ) : null}
-            <span>
-              {squad.size}
-              {squad.locked ? " · закрыт" : ""}
-            </span>
+            {squad.players.map((player) => (
+              <RosterRow key={`${player.steamId}-${player.id}`} player={player} onPick={onPick} />
+            ))}
           </div>
-          {squad.players.map((player) => (
-            <RosterRow key={`${player.steamId}-${player.id}`} player={player} onPick={onPick} />
-          ))}
-        </div>
-      ))}
+        );
+      })}
       {team?.loose?.length ? (
         <div className="panelka-squad">
           <div className="panelka-squad-head">

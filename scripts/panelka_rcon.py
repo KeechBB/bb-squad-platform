@@ -433,7 +433,7 @@ def read_staff_actions_log(limit=400):
         except Exception:
             continue
         kind = str(row.get("kind") or "")
-        if kind not in ("kick", "ban", "warn", "team", "unsquad", "report"):
+        if kind not in ("kick", "ban", "warn", "team", "unsquad", "report", "disband", "rename"):
             continue
         reason = (row.get("reason") or "").strip()
         reason = re.sub(r"^\[[^\]]{1,32}\]\s*", "", reason).strip() or reason
@@ -1491,6 +1491,28 @@ def command(key: str, action: str, layer: str, steam_id: str) -> dict:
     elif action == "unsquad":
         cmd = f"AdminRemovePlayerFromSquad {steam_id}"
         action_log = {"kind": "unsquad", "reason": "выгнал с отряда"}
+    elif action in ("disband-squad", "rename-squad"):
+        team_id = str(extra.get("teamId") or "").strip()
+        squad_id = str(extra.get("squadId") or "").strip()
+        squad_name = _clean_reason(str(extra.get("squadName") or ""), 48)
+        if team_id not in ("1", "2") or not re.fullmatch(r"\d{1,3}", squad_id):
+            raise SystemExit("укажи команду и номер отряда")
+        if action == "disband-squad":
+            cmd = f"AdminDisbandSquad {team_id} {squad_id}"
+            action_log = {
+                "kind": "disband",
+                "reason": f"распустил отряд {squad_id}"
+                + (f" «{squad_name}»" if squad_name else ""),
+            }
+        else:
+            cmd = f"AdminRenameSquad {team_id} {squad_id}"
+            action_log = {
+                "kind": "rename",
+                "reason": f"сбросил имя отряда {squad_id}"
+                + (f" «{squad_name}»" if squad_name else ""),
+            }
+        if not target_name:
+            target_name = squad_name or f"Squad {squad_id}"
     elif action == "warn":
         msg = reason or _clean_reason(layer, 160)
         if not msg:
@@ -1720,6 +1742,12 @@ def main() -> int:
                 r"7656\d{13}", steam_id
             ):
                 raise SystemExit("bad steam")
+            if action in ("disband-squad", "rename-squad"):
+                extra = _extra_payload()
+                team_id = str(extra.get("teamId") or "").strip()
+                squad_id = str(extra.get("squadId") or "").strip()
+                if team_id not in ("1", "2") or not re.fullmatch(r"\d{1,3}", squad_id):
+                    raise SystemExit("bad squad")
             result = command(key, action, layer, steam_id)
         else:
             raise SystemExit("bad op")
