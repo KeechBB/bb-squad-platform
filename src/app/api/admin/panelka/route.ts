@@ -103,6 +103,14 @@ export async function GET(req: Request) {
   const op = url.searchParams.get("op") || "status";
   try {
     if (op === "status") {
+      const key = url.searchParams.get("key") || "";
+      if (key) {
+        if (!isPanelkaKey(key)) {
+          return NextResponse.json({ ok: false, error: "нет такого сервера" }, { status: 400 });
+        }
+        const data = await runPanelka(["status", key], 25000);
+        return NextResponse.json(data);
+      }
       const data = await runPanelka(["status"], 55000);
       return NextResponse.json(data);
     }

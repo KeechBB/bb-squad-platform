@@ -1491,8 +1491,48 @@ def _info_int(info: dict, *keys: str) -> int:
     return 0
 
 
-def status() -> dict:
-    if STATUS_CACHE.is_file():
+def _status_row(row: dict) -> dict:
+    key = row.get("key")
+    if row.get("error"):
+        return {
+            "key": key,
+            "name": key,
+            "map": "нет ответа",
+            "layer": "",
+            "players": 0,
+            "maxPlayers": 100,
+            "queue": 0,
+            "error": row["error"],
+        }
+    info = parse_info(row.get("info") or "")
+    map_name, layer = pretty_map(row.get("current") or "", info)
+    players = _info_int(info, "PlayerCount_I", "PlayerCount")
+    max_players = _info_int(info, "MaxPlayers") or 100
+    queue = _info_int(info, "PublicQueue_I", "PublicQueue") + _info_int(
+        info, "ReservedQueue_I", "ReservedQueue"
+    )
+    label = str(info.get("ServerName_s") or key).strip() or key
+    if key == "PB1" and label in ("PB1", "TPUB1", ""):
+        label = "PB1 · BlackBerry Public"
+    return {
+        "key": key,
+        "name": label,
+        "map": map_name,
+        "layer": layer,
+        "players": players,
+        "maxPlayers": max_players,
+        "queue": queue,
+        "error": None,
+    }
+
+
+def status(only_key: str | None = None) -> dict:
+    """Full grid or one server. UI loads per-key on click — avoid RCON storm."""
+    want = [only_key] if only_key else list(KEYS)
+    if only_key and only_key not in KEYS:
+        return {"ok": False, "error": "bad server"}
+    # Cache only for full grid (legacy); single-key always fresh
+    if not only_key and STATUS_CACHE.is_file():
         age = time.time() - STATUS_CACHE.stat().st_mtime
         if age < 12:
             try:
@@ -1506,48 +1546,21 @@ def status() -> dict:
                 and len(cached.get("servers") or []) == len(KEYS)
             ):
                 return cached
-    data = ssh_job({"op": "status", "keys": list(KEYS)}, timeout=50)
-    servers = []
-    for row in data.get("rows") or []:
-        key = row.get("key")
-        if row.get("error"):
-            servers.append(
-                {
-                    "key": key,
-                    "name": key,
-                    "map": "нет ответа",
-                    "layer": "",
-                    "players": 0,
-                    "maxPlayers": 100,
-                    "queue": 0,
-                    "error": row["error"],
-                }
-            )
-            continue
-        info = parse_info(row.get("info") or "")
-        map_name, layer = pretty_map(row.get("current") or "", info)
-        players = _info_int(info, "PlayerCount_I", "PlayerCount")
-        max_players = _info_int(info, "MaxPlayers") or 100
-        queue = _info_int(info, "PublicQueue_I", "PublicQueue") + _info_int(
-            info, "ReservedQueue_I", "ReservedQueue"
-        )
-        label = str(info.get("ServerName_s") or key).strip() or key
-        if key == "PB1" and label in ("PB1", "TPUB1", ""):
-            label = "PB1 · BlackBerry Public"
-        servers.append(
-            {
-                "key": key,
-                "name": label,
-                "map": map_name,
-                "layer": layer,
-                "players": players,
-                "maxPlayers": max_players,
-                "queue": queue,
-                "error": None,
-            }
-        )
-    # Keep UI order even if SSH rows shuffle
+    data = ssh_job({"op": "status", "keys": want}, timeout=50 if not only_key else 25)
+    servers = [_status_row(row) for row in (data.get("rows") or [])]
     by_key = {row["key"]: row for row in servers if row.get("key")}
+    if only_key:
+        row = by_key.get(only_key) or {
+            "key": only_key,
+            "name": only_key,
+            "map": "нет ответа",
+            "layer": "",
+            "players": 0,
+            "maxPlayers": 100,
+            "queue": 0,
+            "error": "нет ответа",
+        }
+        return {"ok": True, "servers": [row], "key": only_key}
     ordered = [by_key[k] for k in KEYS if k in by_key]
     for k in KEYS:
         if k not in by_key:
@@ -2228,7 +2241,10 @@ def main() -> int:
         elif op == "agent-metrics":
             result = agent_request("GET", "/metrics", timeout=10)
         elif op == "status":
-            result = status()
+            only = sys.argv[2] if len(sys.argv) > 2 else ""
+            if only and only not in KEYS:
+                raise SystemExit("bad server")
+            result = status(only or None)
         elif op == "players":
             key = sys.argv[2]
             if key not in KEYS:

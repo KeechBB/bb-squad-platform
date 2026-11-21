@@ -128,7 +128,8 @@ export function AdminPanelka({
   backHref = "/admin",
   backLabel = "К админке",
 }: AdminPanelkaProps = {}) {
-  const [servers, setServers] = useState<PanelkaServer[]>([]);
+  const [servers, setServers] = useState<PanelkaServer[]>(() => placeholderServers());
+  const [loadedKeys, setLoadedKeys] = useState<Record<string, boolean>>({});
   const [loadError, setLoadError] = useState("");
   const [selected, setSelected] = useState<string>("");
   const [busy, setBusy] = useState("");
@@ -157,21 +158,40 @@ export function AdminPanelka({
   const chatRef = useRef<HTMLDivElement>(null);
   const rosterRef = useRef<HTMLDivElement>(null);
 
-  const refresh = useCallback(async () => {
-    const res = await fetch("/api/admin/panelka?op=status", { cache: "no-store" });
-    const data = (await res.json()) as { ok?: boolean; servers?: PanelkaServer[]; error?: string };
-    if (!res.ok || !data.ok || !data.servers) {
-      setLoadError(data.error || "не удалось прочитать серверы");
-      return;
-    }
-    setLoadError("");
-    setServers(data.servers);
+  const mergeServer = useCallback((row: PanelkaServer) => {
+    setServers((prev) => {
+      const base = prev.length ? prev : placeholderServers();
+      return base.map((s) => (s.key === row.key ? { ...s, ...row } : s));
+    });
+    setLoadedKeys((prev) => ({ ...prev, [row.key]: true }));
     try {
-      localStorage.setItem("panelka-status-v1", JSON.stringify(data.servers));
+      const raw = localStorage.getItem("panelka-status-v1");
+      const saved = raw ? (JSON.parse(raw) as PanelkaServer[]) : placeholderServers();
+      const next = (Array.isArray(saved) && saved.length ? saved : placeholderServers()).map((s) =>
+        s.key === row.key ? { ...s, ...row } : s
+      );
+      localStorage.setItem("panelka-status-v1", JSON.stringify(next));
     } catch {
       /* ignore */
     }
   }, []);
+
+  const refreshOne = useCallback(
+    async (key: string) => {
+      const res = await fetch(`/api/admin/panelka?op=status&key=${encodeURIComponent(key)}`, {
+        cache: "no-store",
+      });
+      const data = (await res.json()) as { ok?: boolean; servers?: PanelkaServer[]; error?: string };
+      if (!res.ok || !data.ok || !data.servers?.[0]) {
+        setLoadError(data.error || "не удалось прочитать сервер");
+        return false;
+      }
+      setLoadError("");
+      mergeServer(data.servers[0]);
+      return true;
+    },
+    [mergeServer]
+  );
 
   const loadRoster = useCallback(async (key: string, quiet = false) => {
     if (!quiet) setRosterBusy(true);
@@ -212,20 +232,34 @@ export function AdminPanelka({
     }
   }, []);
 
+  const loadChat = useCallback(async (key: string) => {
+    const res = await fetch(`/api/admin/panelka?op=chat&key=${key}`, { cache: "no-store" });
+    const data = (await res.json()) as { ok?: boolean; messages?: ChatLine[] };
+    if (data.ok && data.messages) setChat(data.messages);
+  }, []);
+
+  // No auto status/roster for all servers — only after click on a card.
   useEffect(() => {
     try {
       const raw = localStorage.getItem("panelka-status-v1");
       const saved = raw ? (JSON.parse(raw) as PanelkaServer[]) : null;
-      if (Array.isArray(saved) && saved.length) setServers(saved);
+      if (Array.isArray(saved) && saved.length) {
+        setServers(placeholderServers().map((ph) => {
+          const hit = saved.find((s) => s.key === ph.key);
+          return hit && hit.map && hit.map !== "нажми" ? { ...ph, ...hit } : ph;
+        }));
+        const marks: Record<string, boolean> = {};
+        for (const row of saved) {
+          if (row?.key && row.map && row.map !== "нажми" && row.map !== "читаю…") {
+            marks[row.key] = true;
+          }
+        }
+        setLoadedKeys(marks);
+      }
     } catch {
       /* ignore */
     }
-    void refresh();
-    const timer = window.setInterval(() => {
-      void refresh();
-    }, 20000);
-    return () => window.clearInterval(timer);
-  }, [refresh]);
+  }, []);
 
   useEffect(() => {
     setAskSend(false);
@@ -241,30 +275,23 @@ export function AdminPanelka({
       return;
     }
     setRosterOnce(false);
+    setTeams([]);
     let stop = false;
-    const pullChat = async () => {
-      const res = await fetch(`/api/admin/panelka?op=chat&key=${selected}`, { cache: "no-store" });
-      const data = (await res.json()) as { ok?: boolean; messages?: ChatLine[] };
-      if (!stop && data.ok && data.messages) setChat(data.messages);
+    const boot = async () => {
+      await refreshOne(selected);
+      if (stop) return;
+      await Promise.all([loadRoster(selected), loadMods(selected), loadChat(selected)]);
     };
-    const pullRoster = async () => {
-      if (!stop) await loadRoster(selected, true);
-    };
-    void pullChat();
-    void loadRoster(selected);
-    void loadMods(selected);
+    void boot();
+    // Soft chat poll only for the opened server (file read, no RCON storm)
     const chatTimer = window.setInterval(() => {
-      void pullChat();
-    }, 12000);
-    const rosterTimer = window.setInterval(() => {
-      void pullRoster();
-    }, 8000);
+      if (!stop) void loadChat(selected);
+    }, 15000);
     return () => {
       stop = true;
       window.clearInterval(chatTimer);
-      window.clearInterval(rosterTimer);
     };
-  }, [selected, loadRoster, loadMods]);
+  }, [selected, refreshOne, loadRoster, loadMods, loadChat]);
 
   useEffect(() => {
     const node = chatRef.current;
@@ -308,7 +335,7 @@ export function AdminPanelka({
       setNotice(ok ? data.reply || "готово" : data.error || "не вышло");
       if (ok) {
         window.setTimeout(() => {
-          void refresh();
+          void refreshOne(selected);
           void loadRoster(selected, true);
           if (action === "mod-install" || action === "mod-remove") {
             void loadMods(selected);
@@ -408,30 +435,38 @@ export function AdminPanelka({
       {loadError ? <p className="panelka-notice">{loadError}</p> : null}
 
       <div className="panelka-grid">
-        {(servers.length ? servers : placeholderServers()).map((server) => (
-          <article
-            key={server.key}
-            className={`panelka-card${selected === server.key ? " is-on" : ""}`}
-          >
-            <button type="button" className="panelka-card-main" onClick={() => selectServer(server.key)}>
-              <b>{server.name}</b>
-              <span>{server.map || "карта неизвестна"}</span>
-            </button>
-            <button
-              type="button"
-              className="panelka-count"
-              onClick={() => selectServer(server.key)}
-              disabled={!servers.length}
+        {servers.map((server) => {
+          const ready = Boolean(loadedKeys[server.key]);
+          return (
+            <article
+              key={server.key}
+              className={`panelka-card${selected === server.key ? " is-on" : ""}`}
             >
-              <span>
-                {server.players} / {server.maxPlayers || 100}
-              </span>
-              <span className="panelka-queue">
-                очередь {typeof server.queue === "number" ? server.queue : 0}
-              </span>
-            </button>
-          </article>
-        ))}
+              <button type="button" className="panelka-card-main" onClick={() => selectServer(server.key)}>
+                <b>{ready ? server.name : server.key}</b>
+                <span>{ready ? server.map || "карта неизвестна" : "нажми, чтобы загрузить"}</span>
+              </button>
+              <button
+                type="button"
+                className="panelka-count"
+                onClick={() => selectServer(server.key)}
+              >
+                {ready ? (
+                  <>
+                    <span>
+                      {server.players} / {server.maxPlayers || 100}
+                    </span>
+                    <span className="panelka-queue">
+                      очередь {typeof server.queue === "number" ? server.queue : 0}
+                    </span>
+                  </>
+                ) : (
+                  <span>не загружен</span>
+                )}
+              </button>
+            </article>
+          );
+        })}
       </div>
 
       <section className="panelka-desk">
@@ -1618,7 +1653,7 @@ function placeholderServers(): PanelkaServer[] {
   return ["TR1", "TR2", "TR3", "TR4", "TR5", "PB1"].map((key) => ({
     key,
     name: key,
-    map: "читаю…",
+    map: "нажми",
     layer: "",
     players: 0,
     maxPlayers: 100,
