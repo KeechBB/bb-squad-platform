@@ -135,6 +135,7 @@ export function AdminPanelka({
   const [notice, setNotice] = useState("");
   const [teams, setTeams] = useState<RosterTeam[]>([]);
   const [rosterBusy, setRosterBusy] = useState(false);
+  const [rosterOnce, setRosterOnce] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [mgmtOpen, setMgmtOpen] = useState(false);
   const [modsOpen, setModsOpen] = useState(false);
@@ -176,12 +177,19 @@ export function AdminPanelka({
     if (!quiet) setRosterBusy(true);
     try {
       const res = await fetch(`/api/admin/panelka?op=roster&key=${key}`, { cache: "no-store" });
-      const data = (await res.json()) as { ok?: boolean; teams?: RosterTeam[]; error?: string };
+      const data = (await res.json()) as {
+        ok?: boolean;
+        teams?: RosterTeam[];
+        error?: string;
+        ms?: number;
+        cached?: boolean;
+      };
       if (!data.ok || !data.teams) {
         if (!quiet) setNotice(data.error || "список игроков не пришёл");
         return;
       }
       setTeams(data.teams);
+      setRosterOnce(true);
     } finally {
       if (!quiet) setRosterBusy(false);
     }
@@ -229,8 +237,10 @@ export function AdminPanelka({
       setChat([]);
       setTeams([]);
       setServerMods([]);
+      setRosterOnce(false);
       return;
     }
+    setRosterOnce(false);
     let stop = false;
     const pullChat = async () => {
       const res = await fetch(`/api/admin/panelka?op=chat&key=${selected}`, { cache: "no-store" });
@@ -245,10 +255,10 @@ export function AdminPanelka({
     void loadMods(selected);
     const chatTimer = window.setInterval(() => {
       void pullChat();
-    }, 5000);
+    }, 12000);
     const rosterTimer = window.setInterval(() => {
       void pullRoster();
-    }, 12000);
+    }, 8000);
     return () => {
       stop = true;
       window.clearInterval(chatTimer);
@@ -722,7 +732,10 @@ export function AdminPanelka({
                 }
               />
             </div>
-            {!teamA && !teamB && !rosterBusy ? (
+            {rosterBusy && !rosterOnce ? (
+              <p className="panelka-chat-empty">Гружу список игроков… обычно до 5 сек.</p>
+            ) : null}
+            {!teamA && !teamB && rosterOnce && !rosterBusy ? (
               <p className="panelka-chat-empty">На сервере никого нет.</p>
             ) : null}
           </div>
@@ -823,6 +836,31 @@ export function AdminPanelka({
               ...payload,
             });
             if (ok && (action === "kick" || action === "ban" || action === "team" || action === "unsquad")) {
+              if (action === "kick" || action === "ban") {
+                // Optimistic: remove player from local roster immediately
+                const sid = modPlayer.steamId;
+                setTeams((prev) =>
+                  prev.map((team) => ({
+                    ...team,
+                    squads: team.squads.map((squad) => ({
+                      ...squad,
+                      players: squad.players.filter((p) => p.steamId !== sid),
+                      size: Math.max(
+                        0,
+                        squad.players.filter((p) => p.steamId !== sid).length
+                      ),
+                    })),
+                    loose: team.loose.filter((p) => p.steamId !== sid),
+                    count: Math.max(
+                      0,
+                      team.squads.reduce(
+                        (n, s) => n + s.players.filter((p) => p.steamId !== sid).length,
+                        0
+                      ) + team.loose.filter((p) => p.steamId !== sid).length
+                    ),
+                  }))
+                );
+              }
               setModPlayer(null);
             }
             return ok;

@@ -11,12 +11,17 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 from pathlib import Path
+from typing import Any
 
 import paramiko
 
 KEYS = ("TR1", "TR2", "TR3", "TR4", "TR5", "PB1")
+AGENT_PORT = 18765
+AGENT_REMOTE = "/home/squad/bb_panelka_agent.py"
+AGENT_PID = "/tmp/bb_panelka_agent.pid"
 # UI key PB1 → game-host folder TPUB1
 HOST_DIR = {"PB1": "TPUB1"}
 MODS = {
@@ -183,8 +188,15 @@ def _chat_pids():
     return real
 
 def ensure_chat_listener():
-    """Exactly one chat listener. Never thrash-restart under parallel panel polls."""
+    """Exactly one chat listener. Never thrash-restart under parallel panel polls.
+    If panelka agent is alive, do NOT start legacy chat bot (agent owns RCON+chat)."""
     import fcntl
+    try:
+        ap = open("/tmp/bb_panelka_agent.pid", encoding="utf-8").read().strip()
+        if ap.isdigit() and os.path.isdir("/proc/%s" % ap):
+            return
+    except Exception:
+        pass
     pid_path = "/tmp/bb_panelka_chat.pid"
     lock_path = "/tmp/bb_panelka_chat.lock"
     script = "/home/squad/bb_panelka_chat.py"
@@ -1194,30 +1206,213 @@ PY"""
 
 
 _REMOTE_DIGEST = hashlib.sha1(REMOTE.encode("utf-8")).hexdigest()
+_AGENT_DIGEST = ""
+_ssh_lock = threading.Lock()
+_ssh_client: paramiko.SSHClient | None = None
+_ssh_last = 0.0
+_roster_inflight: dict[str, threading.Event] = {}
+_roster_inflight_lock = threading.Lock()
+_roster_inflight_result: dict[str, dict] = {}
+_AGENT_SYNCED = False
 
 
-def ssh_job(job: dict, timeout: int = 40) -> dict:
+def _ssh_connect() -> paramiko.SSHClient:
+    """Stage C: reuse one SSH session (keepalive) instead of connect-per-call."""
+    global _ssh_client, _ssh_last
     load_env()
     host = os.environ["SQUAD_SSH_HOST"]
     port = int(os.environ.get("SQUAD_SSH_PORT") or 2022)
     user = os.environ.get("SQUAD_SSH_USER") or "squad"
     password = os.environ["SQUAD_SSH_PASSWORD"]
-    payload = base64.b64encode(json.dumps(job).encode("utf-8")).decode("ascii")
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(
-        host,
-        port=port,
-        username=user,
-        password=password,
-        timeout=20,
-        banner_timeout=20,
-        auth_timeout=20,
-        allow_agent=False,
-        look_for_keys=False,
-    )
+    with _ssh_lock:
+        transport = _ssh_client.get_transport() if _ssh_client else None
+        if _ssh_client and transport and transport.is_active() and time.time() - _ssh_last < 90:
+            _ssh_last = time.time()
+            return _ssh_client
+        if _ssh_client:
+            try:
+                _ssh_client.close()
+            except Exception:
+                pass
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        client.connect(
+            host,
+            port=port,
+            username=user,
+            password=password,
+            timeout=20,
+            banner_timeout=20,
+            auth_timeout=20,
+            allow_agent=False,
+            look_for_keys=False,
+        )
+        transport = client.get_transport()
+        if transport:
+            transport.set_keepalive(20)
+        _ssh_client = client
+        _ssh_last = time.time()
+        return client
+
+
+def _ssh_exec(command: str, timeout: int = 40) -> tuple[str, str]:
+    client = _ssh_connect()
     try:
-        sftp = client.open_sftp()
+        _, stdout, stderr = client.exec_command(command, timeout=timeout)
+        out = stdout.read().decode("utf-8", "replace").strip()
+        err = stderr.read().decode("utf-8", "replace").strip()
+        with _ssh_lock:
+            global _ssh_last
+            _ssh_last = time.time()
+        return out, err
+    except Exception:
+        with _ssh_lock:
+            global _ssh_client
+            try:
+                if _ssh_client:
+                    _ssh_client.close()
+            except Exception:
+                pass
+            _ssh_client = None
+        raise
+
+
+def sync_panelka_agent(force: bool = False) -> None:
+    """Upload/start game-host agent (owns RCON + chat). Safe: never touches Squad binary."""
+    global _AGENT_SYNCED, _AGENT_DIGEST
+    if _AGENT_SYNCED and not force:
+        return
+    local = Path(__file__).resolve().parent / "bb_panelka_agent.py"
+    if not local.is_file():
+        return
+    body = local.read_text(encoding="utf-8")
+    digest = hashlib.sha1(body.encode("utf-8")).hexdigest()
+    client = _ssh_connect()
+    sftp = client.open_sftp()
+    code_changed = False
+    try:
+        remote_body = ""
+        try:
+            with sftp.open(AGENT_REMOTE, "r") as handle:
+                remote_body = handle.read().decode("utf-8", "replace")
+        except OSError:
+            remote_body = ""
+        code_changed = remote_body != body
+        if code_changed or force:
+            with sftp.open(AGENT_REMOTE, "w") as handle:
+                handle.write(body.encode("utf-8"))
+            try:
+                sftp.chmod(AGENT_REMOTE, 0o755)
+            except OSError:
+                pass
+    finally:
+        sftp.close()
+    # Start unique agent; stop legacy chat bots inside agent boot.
+    # Restart when code changed so new agent binary is actually running.
+    force_py = "True" if (force or code_changed) else "False"
+    cmd = f"""python3 - <<'PY'
+import fcntl, os, time, subprocess
+remote = {AGENT_REMOTE!r}
+pid_path = {AGENT_PID!r}
+lock_path = "/tmp/bb_panelka_agent.lock"
+force = {force_py}
+
+def agent_pids():
+    out = []
+    for ent in os.listdir("/proc"):
+        if not ent.isdigit():
+            continue
+        try:
+            raw = open(f"/proc/{{ent}}/cmdline", "rb").read()
+        except Exception:
+            continue
+        cmd = raw.replace(b"\\x00", b" ").decode("utf-8", "replace")
+        if "bb_panelka_agent.py" in cmd and "python" in cmd:
+            out.append(int(ent))
+    return out
+
+lock_f = open(lock_path, "w")
+fcntl.flock(lock_f, fcntl.LOCK_EX)
+try:
+    pids = agent_pids()
+    need = force or not pids
+    if need:
+        for pid in pids:
+            try: os.kill(pid, 9)
+            except Exception: pass
+        time.sleep(0.45)
+        for pid in agent_pids():
+            try: os.kill(pid, 9)
+            except Exception: pass
+        time.sleep(0.25)
+        proc = subprocess.Popen(
+            ["python3", remote],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        open(pid_path, "w").write(str(proc.pid))
+        time.sleep(0.6)
+        print("started", proc.pid, "final", agent_pids())
+    else:
+        keep = min(pids)
+        for pid in pids:
+            if pid != keep:
+                try: os.kill(pid, 9)
+                except Exception: pass
+        open(pid_path, "w").write(str(keep))
+        print("keep", keep, "final", agent_pids())
+finally:
+    fcntl.flock(lock_f, fcntl.LOCK_UN)
+    lock_f.close()
+# health
+import urllib.request
+try:
+    print("health", urllib.request.urlopen("http://127.0.0.1:{AGENT_PORT}/health", timeout=3).read().decode())
+except Exception as e:
+    print("health-fail", e)
+PY"""
+    out, err = _ssh_exec(cmd, timeout=30)
+    print("agent-sync", out)
+    if err:
+        print("agent-sync-err", err[:300])
+    _AGENT_DIGEST = digest
+    _AGENT_SYNCED = True
+
+
+def agent_request(
+    method: str,
+    path: str,
+    payload: dict | None = None,
+    timeout: int = 25,
+) -> dict:
+    """Call local agent over SSH (curl to 127.0.0.1). Falls back raises."""
+    sync_panelka_agent(force=False)
+    if method.upper() == "GET":
+        cmd = (
+            f"curl -sS --max-time {max(3, timeout - 2)} "
+            f"'http://127.0.0.1:{AGENT_PORT}{path}'"
+        )
+    else:
+        body = json.dumps(payload or {}, ensure_ascii=False)
+        # base64 to avoid shell quoting issues
+        b64 = base64.b64encode(body.encode("utf-8")).decode("ascii")
+        cmd = (
+            f"echo {b64} | base64 -d | curl -sS --max-time {max(3, timeout - 2)} "
+            f"-H 'Content-Type: application/json' "
+            f"--data-binary @- 'http://127.0.0.1:{AGENT_PORT}{path}'"
+        )
+    out, err = _ssh_exec(cmd, timeout=timeout)
+    if not out:
+        raise RuntimeError(err or "agent empty")
+    return json.loads(out)
+
+
+def ssh_job(job: dict, timeout: int = 40) -> dict:
+    payload = base64.b64encode(json.dumps(job).encode("utf-8")).decode("ascii")
+    client = _ssh_connect()
+    sftp = client.open_sftp()
+    try:
         marker = "/tmp/bb_panelka_rcon.sha1"
         need_write = True
         try:
@@ -1230,15 +1425,9 @@ def ssh_job(job: dict, timeout: int = 40) -> dict:
                 handle.write(REMOTE)
             with sftp.file(marker, "w") as handle:
                 handle.write(_REMOTE_DIGEST)
-        sftp.close()
-        _, stdout, stderr = client.exec_command(
-            f"python3 /tmp/bb_panelka_rcon.py {payload}",
-            timeout=timeout,
-        )
-        out = stdout.read().decode("utf-8", "replace").strip()
-        err = stderr.read().decode("utf-8", "replace").strip()
     finally:
-        client.close()
+        sftp.close()
+    out, err = _ssh_exec(f"python3 /tmp/bb_panelka_rcon.py {payload}", timeout=timeout)
     if not out:
         raise RuntimeError(err or "empty rcon reply")
     return json.loads(out)
@@ -1551,8 +1740,7 @@ def _attach_squad_creates(teams: dict[str, dict], creates: list) -> None:
                     squad["createdClock"] = ""
 
 
-def roster(key: str) -> dict:
-    data = ssh_job({"op": "roster", "key": key})
+def _parse_roster_payload(data: dict) -> dict:
     if data.get("ok") is False:
         return data
     teams: dict[str, dict] = {}
@@ -1619,7 +1807,46 @@ def roster(key: str) -> dict:
         team["loose"].sort(key=lambda person: person["name"].lower())
         team["count"] = sum(len(squad["players"]) for squad in team["squads"]) + len(team["loose"])
     ordered = [teams[key_id] for key_id in ("1", "2") if key_id in teams]
-    return {"ok": True, "teams": ordered}
+    return {
+        "ok": True,
+        "teams": ordered,
+        "ms": data.get("ms"),
+        "cached": bool(data.get("cached")),
+        "via": data.get("via") or "legacy",
+    }
+
+
+def roster(key: str) -> dict:
+    """Fast path: game-host agent. Dedup parallel polls from PM2 workers."""
+    with _roster_inflight_lock:
+        ev = _roster_inflight.get(key)
+        if ev is not None:
+            waiter = ev
+        else:
+            waiter = None
+            _roster_inflight[key] = threading.Event()
+    if waiter is not None:
+        waiter.wait(timeout=25)
+        cached = _roster_inflight_result.get(key)
+        if cached:
+            return cached
+    try:
+        try:
+            raw = agent_request("GET", f"/roster?key={key}&light=1", timeout=22)
+            raw["via"] = "agent"
+            result = _parse_roster_payload(raw)
+        except Exception as agent_err:
+            # fallback legacy REMOTE (still safe)
+            data = ssh_job({"op": "roster", "key": key})
+            data["via"] = f"legacy:{type(agent_err).__name__}"
+            result = _parse_roster_payload(data)
+        _roster_inflight_result[key] = result
+        return result
+    finally:
+        with _roster_inflight_lock:
+            done = _roster_inflight.pop(key, None)
+            if done:
+                done.set()
 
 
 def layers() -> dict:
@@ -1777,27 +2004,65 @@ def command(key: str, action: str, layer: str, steam_id: str) -> dict:
         cmd = f"AdminBroadcast {text}"
     else:
         raise SystemExit("bad action")
-    job: dict = {"op": "cmd", "key": key, "command": cmd}
-    if action_log:
-        from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta, timezone
 
-        msk = timezone(timedelta(hours=3))
-        now = datetime.now(msk)
-        job["actionLog"] = {
-            **action_log,
-            "key": key,
-            "steamId": steam_id,
-            "name": target_name,
-            "byNick": by_nick,
-            "bySteamId": by_steam,
-            "date": now.strftime("%Y-%m-%d"),
-            "clock": now.strftime("%H:%M:%S"),
-        }
-    data = ssh_job(job)
-    if data.get("ok") is False:
-        return data
-    reply = (data.get("text") or "").strip()
-    return {"ok": True, "reply": reply or "команда ушла на сервер"}
+    msk = timezone(timedelta(hours=3))
+    now = datetime.now(msk)
+    # Prefer agent P0 queue for instant moderation commands.
+    try:
+        data = agent_request(
+            "POST",
+            "/cmd",
+            {"key": key, "command": cmd},
+            timeout=22,
+        )
+        if data.get("ok") is False:
+            raise RuntimeError(data.get("error") or "agent cmd fail")
+        reply = (data.get("text") or "").strip()
+        via = "agent"
+    except Exception:
+        job: dict = {"op": "cmd", "key": key, "command": cmd}
+        if action_log:
+            job["actionLog"] = {
+                **action_log,
+                "key": key,
+                "steamId": steam_id,
+                "name": target_name,
+                "byNick": by_nick,
+                "bySteamId": by_steam,
+                "date": now.strftime("%Y-%m-%d"),
+                "clock": now.strftime("%H:%M:%S"),
+            }
+        data = ssh_job(job)
+        if data.get("ok") is False:
+            return data
+        reply = (data.get("text") or "").strip()
+        via = "legacy"
+        action_log = None  # already logged by REMOTE
+    if action_log and via == "agent":
+        # Best-effort staff log via legacy append on game host
+        try:
+            ssh_job(
+                {
+                    "op": "cmd",
+                    "key": key,
+                    "command": "ShowCurrentMap",
+                    "actionLog": {
+                        **action_log,
+                        "key": key,
+                        "steamId": steam_id,
+                        "name": target_name,
+                        "byNick": by_nick,
+                        "bySteamId": by_steam,
+                        "date": now.strftime("%Y-%m-%d"),
+                        "clock": now.strftime("%H:%M:%S"),
+                    },
+                },
+                timeout=15,
+            )
+        except Exception:
+            pass
+    return {"ok": True, "reply": reply or "команда ушла на сервер", "via": via, "ms": data.get("ms")}
 
 
 def player_card(key: str, steam_id: str, name: str) -> dict:
@@ -1918,10 +2183,27 @@ def main() -> int:
     op = sys.argv[1]
     try:
         try:
-            sync_chat_listener()
-        except Exception:
-            pass
-        if op == "status":
+            sync_panelka_agent(force=False)
+        except Exception as sync_err:
+            # Do not revive legacy chat bots while migrating to agent — that steals RCON.
+            print(f"agent-sync-softfail:{type(sync_err).__name__}", file=sys.stderr)
+        if op == "sync-agent":
+            sync_panelka_agent(force=True)
+            result = {"ok": True, "reply": "agent synced"}
+        elif op == "sim":
+            key = sys.argv[2] if len(sys.argv) > 2 else "PB1"
+            if key not in KEYS:
+                raise SystemExit("bad server")
+            # Safe: only List*/ShowCurrentMap via agent /sim — never mutates match
+            result = agent_request(
+                "POST",
+                "/sim",
+                {"key": key, "rounds": 3},
+                timeout=45,
+            )
+        elif op == "agent-metrics":
+            result = agent_request("GET", "/metrics", timeout=10)
+        elif op == "status":
             result = status()
         elif op == "players":
             key = sys.argv[2]
@@ -1939,7 +2221,10 @@ def main() -> int:
             key = sys.argv[2]
             if key not in KEYS:
                 raise SystemExit("bad server")
-            result = ssh_job({"op": "chat", "key": key})
+            try:
+                result = agent_request("GET", f"/chat?key={key}", timeout=12)
+            except Exception:
+                result = ssh_job({"op": "chat", "key": key})
         elif op == "player-card":
             key = sys.argv[2]
             steam_id = sys.argv[3] if len(sys.argv) > 3 else ""
