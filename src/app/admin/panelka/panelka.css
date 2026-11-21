@@ -111,6 +111,16 @@ body:has(.panelka-page) .shell {
   border: 1px solid rgba(212, 168, 75, 0.45);
   background: rgba(0, 0, 0, 0.35);
   color: #efe6d6;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.panelka-queue {
+  color: rgba(245, 210, 122, 0.92);
+  font-size: 0.82rem;
+  font-weight: 600;
 }
 
 .panelka-desk {
@@ -125,6 +135,48 @@ body:has(.panelka-page) .shell {
   font-size: 1rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.panelka-fold-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.panelka-fold-head h2,
+.panelka-fold-head h3 {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.panelka-fold-head > span {
+  color: rgba(245, 210, 122, 0.9);
+  font-size: 0.86rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.panelka-fold-head.is-open > span {
+  color: rgba(239, 230, 214, 0.72);
+}
+
+.panelka-fold-body {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .panelka-picked {
@@ -847,9 +899,14 @@ button.mod-log-nick:hover {
   gap: 10px;
 }
 
-.panelka-mods {
+.panelka-mods,
+.panelka-mods-fold {
   padding-top: 14px;
   border-top: 1px solid rgba(212, 168, 75, 0.22);
+}
+
+.panelka-mods-fold {
+  gap: 0;
 }
 
 .panelka-factions {

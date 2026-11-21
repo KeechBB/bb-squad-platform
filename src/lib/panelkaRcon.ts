@@ -8,6 +8,8 @@ export type PanelkaServer = {
   layer: string;
   players: number;
   maxPlayers: number;
+  /** Очередь входа (PublicQueue + ReservedQueue) */
+  queue: number;
   error: string | null;
 };
 

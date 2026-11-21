@@ -989,7 +989,19 @@ def parse_info(raw: str) -> dict:
     return obj if isinstance(obj, dict) else {}
 
 
-STATUS_CACHE = Path("/tmp/bb-panelka-status-v2.json")
+STATUS_CACHE = Path("/tmp/bb-panelka-status-v3.json")
+
+
+def _info_int(info: dict, *keys: str) -> int:
+    for key in keys:
+        raw = info.get(key)
+        if raw is None or raw == "":
+            continue
+        try:
+            return max(0, int(raw))
+        except (TypeError, ValueError):
+            continue
+    return 0
 
 
 def status() -> dict:
@@ -1020,20 +1032,18 @@ def status() -> dict:
                     "layer": "",
                     "players": 0,
                     "maxPlayers": 100,
+                    "queue": 0,
                     "error": row["error"],
                 }
             )
             continue
         info = parse_info(row.get("info") or "")
         map_name, layer = pretty_map(row.get("current") or "", info)
-        try:
-            players = int(info.get("PlayerCount_I") or 0)
-        except (TypeError, ValueError):
-            players = 0
-        try:
-            max_players = int(info.get("MaxPlayers") or 100)
-        except (TypeError, ValueError):
-            max_players = 100
+        players = _info_int(info, "PlayerCount_I", "PlayerCount")
+        max_players = _info_int(info, "MaxPlayers") or 100
+        queue = _info_int(info, "PublicQueue_I", "PublicQueue") + _info_int(
+            info, "ReservedQueue_I", "ReservedQueue"
+        )
         label = str(info.get("ServerName_s") or key).strip() or key
         if key == "PB1" and label in ("PB1", "TPUB1", ""):
             label = "PB1 · BlackBerry Public"
@@ -1045,6 +1055,7 @@ def status() -> dict:
                 "layer": layer,
                 "players": players,
                 "maxPlayers": max_players,
+                "queue": queue,
                 "error": None,
             }
         )
@@ -1061,6 +1072,7 @@ def status() -> dict:
                     "layer": "",
                     "players": 0,
                     "maxPlayers": 100,
+                    "queue": 0,
                     "error": "нет ответа",
                 }
             )

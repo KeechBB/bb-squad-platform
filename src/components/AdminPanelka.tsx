@@ -134,6 +134,8 @@ export function AdminPanelka({
   const [teams, setTeams] = useState<RosterTeam[]>([]);
   const [rosterBusy, setRosterBusy] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
+  const [mgmtOpen, setMgmtOpen] = useState(false);
+  const [modsOpen, setModsOpen] = useState(false);
   const [mode, setMode] = useState<ModeName | "">("");
   const [layers, setLayers] = useState<Record<string, string[]> | null>(null);
   const [pickedLayer, setPickedLayer] = useState("");
@@ -328,6 +330,7 @@ export function AdminPanelka({
 
   async function openMaps() {
     if (!selected) return;
+    setMgmtOpen(true);
     setMapOpen(true);
     setMode("SQ");
     setPickedLayer("");
@@ -405,205 +408,264 @@ export function AdminPanelka({
               onClick={() => selectServer(server.key)}
               disabled={!servers.length}
             >
-              {server.players} / {server.maxPlayers || 100}
+              <span>
+                {server.players} / {server.maxPlayers || 100}
+              </span>
+              <span className="panelka-queue">
+                очередь {typeof server.queue === "number" ? server.queue : 0}
+              </span>
             </button>
           </article>
         ))}
       </div>
 
       <section className="panelka-desk">
-        <h2>Управление</h2>
-        {current ? (
-          <p className="panelka-picked">
-            Выбран {current.key}: {current.name}
-          </p>
-        ) : (
-          <p className="panelka-picked">Сначала нажми один из серверов сверху.</p>
-        )}
-        <div className="panelka-actions">
-          <button type="button" disabled={!current || Boolean(busy)} onClick={() => void openMaps()}>
-            1. Смена карты
-          </button>
-          <button
-            type="button"
-            disabled={!current || Boolean(busy)}
-            onClick={() => {
-              if (current && window.confirm(`Рестарт матча на ${current.key}?`)) {
-                void send("restart", {});
-              }
-            }}
-          >
-            2. Рестарт матча
-          </button>
-          <button
-            type="button"
-            disabled={!current || Boolean(busy)}
-            onClick={() => {
-              if (current && window.confirm(`Закончить текущую карту на ${current.key}?`)) {
-                void send("end", {});
-              }
-            }}
-          >
-            3. Закончить карту
-          </button>
-        </div>
-        {busy ? <p className="panelka-notice">Жду сервер…</p> : null}
-        {notice ? <p className="panelka-notice">{notice}</p> : null}
-
-        {mapOpen && current ? (
-          <div className="panelka-maps">
-            <div className="panelka-modes">
-              {MODES.map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  className={mode === item ? "is-on" : ""}
-                  onClick={() => {
-                    setMode(item);
-                    setPickedLayer("");
-                  }}
-                >
-                  {item === "SQ" ? "Ваниль SQ" : item}
-                </button>
-              ))}
+        <button
+          type="button"
+          className={`panelka-fold-head${mgmtOpen ? " is-open" : ""}`}
+          onClick={() => setMgmtOpen((v) => !v)}
+          aria-expanded={mgmtOpen}
+        >
+          <h2>Управление</h2>
+          <span>{mgmtOpen ? "свернуть" : "открыть"}</span>
+        </button>
+        {mgmtOpen ? (
+          <div className="panelka-fold-body">
+            {current ? (
+              <p className="panelka-picked">
+                Выбран {current.key}: {current.name}
+                {" · "}
+                {current.players}/{current.maxPlayers || 100}
+                {" · очередь "}
+                {typeof current.queue === "number" ? current.queue : 0}
+              </p>
+            ) : (
+              <p className="panelka-picked">Сначала нажми один из серверов сверху.</p>
+            )}
+            <div className="panelka-actions">
+              <button
+                type="button"
+                disabled={!current || Boolean(busy)}
+                onClick={() => void openMaps()}
+              >
+                1. Смена карты
+              </button>
+              <button
+                type="button"
+                disabled={!current || Boolean(busy)}
+                onClick={() => {
+                  if (current && window.confirm(`Рестарт матча на ${current.key}?`)) {
+                    void send("restart", {});
+                  }
+                }}
+              >
+                2. Рестарт матча
+              </button>
+              <button
+                type="button"
+                disabled={!current || Boolean(busy)}
+                onClick={() => {
+                  if (current && window.confirm(`Закончить текущую карту на ${current.key}?`)) {
+                    void send("end", {});
+                  }
+                }}
+              >
+                3. Закончить карту
+              </button>
             </div>
-            {mode && layers ? (
-              <div className="panelka-layer-list">
-                {(layers[mode] || []).map((layer) => (
-                  <button
-                    key={layer}
-                    type="button"
-                    className={pickedLayer === layer ? "is-on" : ""}
-                    onClick={() => setPickedLayer(layer)}
-                  >
-                    {layer}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-            {pickedLayer ? (
-              <div className="panelka-layer-setup">
-                <p className="panelka-picked">
-                  Слой: <b>{pickedLayer}</b>. Фракции и деки — по желанию (обе команды сразу).
-                </p>
-                <div className="panelka-factions">
-                  <label>
-                    Команда 1
-                    <select value={faction1} onChange={(e) => setFaction1(e.target.value)}>
-                      <option value="">без выбора</option>
-                      {FACTIONS.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.id} — {item.label}
-                        </option>
-                      ))}
-                    </select>
-                    <select value={deck1} onChange={(e) => setDeck1(e.target.value)} disabled={!faction1}>
-                      <option value="">дека любая</option>
-                      {DECKS.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Команда 2
-                    <select value={faction2} onChange={(e) => setFaction2(e.target.value)}>
-                      <option value="">без выбора</option>
-                      {FACTIONS.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.id} — {item.label}
-                        </option>
-                      ))}
-                    </select>
-                    <select value={deck2} onChange={(e) => setDeck2(e.target.value)} disabled={!faction2}>
-                      <option value="">дека любая</option>
-                      {DECKS.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+            {busy ? <p className="panelka-notice">Жду сервер…</p> : null}
+            {notice ? <p className="panelka-notice">{notice}</p> : null}
+
+            {mapOpen && current ? (
+              <div className="panelka-maps">
+                <div className="panelka-modes">
+                  {MODES.map((item) => (
+                    <button
+                      key={item}
+                      type="button"
+                      className={mode === item ? "is-on" : ""}
+                      onClick={() => {
+                        setMode(item);
+                        setPickedLayer("");
+                      }}
+                    >
+                      {item === "SQ" ? "Ваниль SQ" : item}
+                    </button>
+                  ))}
                 </div>
-                <div className="panelka-confirm">
-                  <button type="button" disabled={Boolean(busy)} onClick={() => changeLayer("change-now")}>
-                    Сменить сейчас
-                  </button>
-                  <button type="button" disabled={Boolean(busy)} onClick={() => changeLayer("change-next")}>
-                    Сменить после конца раунда
-                  </button>
-                </div>
+                {mode && layers ? (
+                  <div className="panelka-layer-list">
+                    {(layers[mode] || []).map((layer) => (
+                      <button
+                        key={layer}
+                        type="button"
+                        className={pickedLayer === layer ? "is-on" : ""}
+                        onClick={() => setPickedLayer(layer)}
+                      >
+                        {layer}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                {pickedLayer ? (
+                  <div className="panelka-layer-setup">
+                    <p className="panelka-picked">
+                      Слой: <b>{pickedLayer}</b>. Фракции и деки — по желанию (обе команды сразу).
+                    </p>
+                    <div className="panelka-factions">
+                      <label>
+                        Команда 1
+                        <select value={faction1} onChange={(e) => setFaction1(e.target.value)}>
+                          <option value="">без выбора</option>
+                          {FACTIONS.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.id} — {item.label}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={deck1}
+                          onChange={(e) => setDeck1(e.target.value)}
+                          disabled={!faction1}
+                        >
+                          <option value="">дека любая</option>
+                          {DECKS.map((item) => (
+                            <option key={item} value={item}>
+                              {item}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        Команда 2
+                        <select value={faction2} onChange={(e) => setFaction2(e.target.value)}>
+                          <option value="">без выбора</option>
+                          {FACTIONS.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.id} — {item.label}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={deck2}
+                          onChange={(e) => setDeck2(e.target.value)}
+                          disabled={!faction2}
+                        >
+                          <option value="">дека любая</option>
+                          {DECKS.map((item) => (
+                            <option key={item} value={item}>
+                              {item}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                    <div className="panelka-confirm">
+                      <button
+                        type="button"
+                        disabled={Boolean(busy)}
+                        onClick={() => changeLayer("change-now")}
+                      >
+                        Сменить сейчас
+                      </button>
+                      <button
+                        type="button"
+                        disabled={Boolean(busy)}
+                        onClick={() => changeLayer("change-next")}
+                      >
+                        Сменить после конца раунда
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>
         ) : null}
 
         {current ? (
-          <div className="panelka-mods">
-            <div className="panelka-live-head">
-              <h3>Моды {current.key}</h3>
-              <button
-                type="button"
-                disabled={modsBusy || Boolean(busy)}
-                onClick={() => void loadMods(current.key)}
-              >
-                {modsBusy ? "Читаю…" : "Обновить"}
-              </button>
-            </div>
-            <p className="panelka-picked">
-              ID или ссылка Steam Workshop. После установки/удаления нужен рестарт сервера.
-            </p>
-            <form
-              className="panelka-mods-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const value = modDraft.trim();
-                if (!value || busy) return;
-                void send("mod-install", { mod: value }).then((ok) => {
-                  if (ok) setModDraft("");
-                });
-              }}
+          <div className="panelka-mods panelka-mods-fold">
+            <button
+              type="button"
+              className={`panelka-fold-head${modsOpen ? " is-open" : ""}`}
+              onClick={() => setModsOpen((v) => !v)}
+              aria-expanded={modsOpen}
             >
-              <input
-                value={modDraft}
-                onChange={(event) => setModDraft(event.target.value)}
-                placeholder="3809872236 или https://steamcommunity.com/sharedfiles/filedetails/?id=…"
-              />
-              <button type="submit" disabled={!modDraft.trim() || Boolean(busy)}>
-                {busy === "mod-install" ? "Ставлю…" : "Установить"}
-              </button>
-            </form>
-            <div className="panelka-mods-list">
-              {serverMods.length ? (
-                serverMods.map((mod) => (
-                  <article key={mod.id} className={mod.needsUpdate ? "is-stale" : ""}>
-                    <div>
-                      <b>{mod.title}</b>
-                      <span>ID {mod.id}</span>
-                      <span>
-                        на сервере: {formatUnix(mod.localUpdated)} · в Workshop:{" "}
-                        {mod.steamUpdated ? formatUnix(mod.steamUpdated) : "—"}
-                      </span>
-                      {mod.needsUpdate ? <em>есть новое обновление</em> : null}
-                    </div>
-                    <button
-                      type="button"
-                      disabled={Boolean(busy)}
-                      onClick={() => {
-                        if (window.confirm(`Удалить мод ${mod.title} (${mod.id}) с ${current.key}?`)) {
-                          void send("mod-remove", { mod: mod.id });
-                        }
-                      }}
-                    >
-                      Удалить
-                    </button>
-                  </article>
-                ))
-              ) : (
-                <p className="panelka-chat-empty">{modsBusy ? "Читаю моды…" : "Модов нет."}</p>
-              )}
-            </div>
+              <h3>Моды {current.key}</h3>
+              <span>{modsOpen ? "свернуть" : "открыть"}</span>
+            </button>
+            {modsOpen ? (
+              <div className="panelka-fold-body">
+                <div className="panelka-live-head">
+                  <p className="panelka-picked" style={{ margin: 0 }}>
+                    ID или ссылка Steam Workshop. После установки/удаления нужен рестарт сервера.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={modsBusy || Boolean(busy)}
+                    onClick={() => void loadMods(current.key)}
+                  >
+                    {modsBusy ? "Читаю…" : "Обновить"}
+                  </button>
+                </div>
+                <form
+                  className="panelka-mods-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const value = modDraft.trim();
+                    if (!value || busy) return;
+                    void send("mod-install", { mod: value }).then((ok) => {
+                      if (ok) setModDraft("");
+                    });
+                  }}
+                >
+                  <input
+                    value={modDraft}
+                    onChange={(event) => setModDraft(event.target.value)}
+                    placeholder="3809872236 или https://steamcommunity.com/sharedfiles/filedetails/?id=…"
+                  />
+                  <button type="submit" disabled={!modDraft.trim() || Boolean(busy)}>
+                    {busy === "mod-install" ? "Ставлю…" : "Установить"}
+                  </button>
+                </form>
+                <div className="panelka-mods-list">
+                  {serverMods.length ? (
+                    serverMods.map((mod) => (
+                      <article key={mod.id} className={mod.needsUpdate ? "is-stale" : ""}>
+                        <div>
+                          <b>{mod.title}</b>
+                          <span>ID {mod.id}</span>
+                          <span>
+                            на сервере: {formatUnix(mod.localUpdated)} · в Workshop:{" "}
+                            {mod.steamUpdated ? formatUnix(mod.steamUpdated) : "—"}
+                          </span>
+                          {mod.needsUpdate ? <em>есть новое обновление</em> : null}
+                        </div>
+                        <button
+                          type="button"
+                          disabled={Boolean(busy)}
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                `Удалить мод ${mod.title} (${mod.id}) с ${current.key}?`
+                              )
+                            ) {
+                              void send("mod-remove", { mod: mod.id });
+                            }
+                          }}
+                        >
+                          Удалить
+                        </button>
+                      </article>
+                    ))
+                  ) : (
+                    <p className="panelka-chat-empty">
+                      {modsBusy ? "Читаю моды…" : "Модов нет."}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -1270,6 +1332,7 @@ function placeholderServers(): PanelkaServer[] {
     layer: "",
     players: 0,
     maxPlayers: 100,
+    queue: 0,
     error: null,
   }));
 }
