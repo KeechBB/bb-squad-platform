@@ -300,6 +300,58 @@ export function AdminServerBansPanel() {
       {err ? <p style={{ color: "#fca5a5" }}>{err}</p> : null}
       {notice ? <p className="muted">{notice}</p> : null}
 
+      {banOpen ? (
+        <AdminTermRangeModal
+          title="Выдать бан"
+          confirmLabel="Забанить"
+          steamId=""
+          nick=""
+          reasonLabel="Причина"
+          reasonRequired
+          placement="top"
+          busy={busy}
+          onClose={() => setBanOpen(false)}
+          onConfirm={(payload) => {
+            void (async () => {
+              setBusy(true);
+              setErr(null);
+              try {
+                const res = await fetch("/api/admin/bans", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    action: "ban",
+                    steamId: payload.steamId,
+                    nick: payload.nick,
+                    reason: payload.reason,
+                    startsAt: new Date(payload.startsAt).toISOString(),
+                    endsAt: payload.forever
+                      ? null
+                      : new Date(payload.endsAt).toISOString(),
+                    forever: payload.forever,
+                  }),
+                });
+                const data = (await res.json()) as {
+                  ok?: boolean;
+                  error?: string;
+                  bans?: BanRow[];
+                  reply?: string;
+                };
+                if (!res.ok || !data.ok) {
+                  setErr(data.error || "бан не выдан");
+                  return;
+                }
+                if (data.bans) setRows(data.bans);
+                setNotice(data.reply || "забанено");
+                setBanOpen(false);
+              } finally {
+                setBusy(false);
+              }
+            })();
+          }}
+        />
+      ) : null}
+
       <div className="admin-table-wrap">
         <table className="admin-table">
           <thead>
@@ -435,57 +487,6 @@ export function AdminServerBansPanel() {
           </button>
         </div>
       </div>
-
-      {banOpen ? (
-        <AdminTermRangeModal
-          title="Выдать бан"
-          confirmLabel="Забанить"
-          steamId=""
-          nick=""
-          reasonLabel="Причина"
-          reasonRequired
-          busy={busy}
-          onClose={() => setBanOpen(false)}
-          onConfirm={(payload) => {
-            void (async () => {
-              setBusy(true);
-              setErr(null);
-              try {
-                const res = await fetch("/api/admin/bans", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    action: "ban",
-                    steamId: payload.steamId,
-                    nick: payload.nick,
-                    reason: payload.reason,
-                    startsAt: new Date(payload.startsAt).toISOString(),
-                    endsAt: payload.forever
-                      ? null
-                      : new Date(payload.endsAt).toISOString(),
-                    forever: payload.forever,
-                  }),
-                });
-                const data = (await res.json()) as {
-                  ok?: boolean;
-                  error?: string;
-                  bans?: BanRow[];
-                  reply?: string;
-                };
-                if (!res.ok || !data.ok) {
-                  setErr(data.error || "бан не выдан");
-                  return;
-                }
-                if (data.bans) setRows(data.bans);
-                setNotice(data.reply || "забанено");
-                setBanOpen(false);
-              } finally {
-                setBusy(false);
-              }
-            })();
-          }}
-        />
-      ) : null}
     </section>
   );
 }

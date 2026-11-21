@@ -1379,6 +1379,21 @@ button.mod-log-nick:hover {
   color-scheme: dark;
 }
 
+/* Under toolbar («Выдать VIP» / «Выдать бан»), not viewport center */
+.admin-term-inline {
+  position: relative;
+  z-index: 5;
+  width: min(640px, 100%);
+  max-width: 100%;
+  max-height: none;
+  margin: 10px 0 14px;
+  margin-left: auto;
+  overflow: visible;
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
 .admin-term-modal > header h3 {
   color: #f5e6c8;
   font-size: 1.15rem;

@@ -285,6 +285,57 @@ export function AdminPublicVipsPanel() {
       {err ? <p style={{ color: "#fca5a5" }}>{err}</p> : null}
       {notice ? <p className="muted">{notice}</p> : null}
 
+      {grantOpen ? (
+        <AdminTermRangeModal
+          title="Выдать VIP (приоритет очереди)"
+          confirmLabel="Выдать"
+          steamId={prefill.steamId}
+          nick={prefill.nick}
+          reasonLabel="Заметка"
+          placement="top"
+          busy={busy}
+          onClose={() => setGrantOpen(false)}
+          onConfirm={(payload) => {
+            void (async () => {
+              setBusy(true);
+              setErr(null);
+              try {
+                const res = await fetch("/api/admin/vips", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    action: "grant",
+                    steamId: payload.steamId,
+                    nick: payload.nick,
+                    note: payload.reason,
+                    startsAt: new Date(payload.startsAt).toISOString(),
+                    endsAt: payload.forever
+                      ? null
+                      : new Date(payload.endsAt).toISOString(),
+                    forever: payload.forever,
+                  }),
+                });
+                const data = (await res.json()) as {
+                  ok?: boolean;
+                  error?: string;
+                  vips?: VipRow[];
+                  reply?: string;
+                };
+                if (!res.ok || !data.ok) {
+                  setErr(data.error || "не выдалось");
+                  return;
+                }
+                if (data.vips) setRows(data.vips);
+                setNotice(data.reply || "выдано");
+                setGrantOpen(false);
+              } finally {
+                setBusy(false);
+              }
+            })();
+          }}
+        />
+      ) : null}
+
       <div className="admin-table-wrap">
         <table className="admin-table">
           <thead>
@@ -414,56 +465,6 @@ export function AdminPublicVipsPanel() {
           </button>
         </div>
       </div>
-
-      {grantOpen ? (
-        <AdminTermRangeModal
-          title="Выдать VIP (приоритет очереди)"
-          confirmLabel="Выдать"
-          steamId={prefill.steamId}
-          nick={prefill.nick}
-          reasonLabel="Заметка"
-          busy={busy}
-          onClose={() => setGrantOpen(false)}
-          onConfirm={(payload) => {
-            void (async () => {
-              setBusy(true);
-              setErr(null);
-              try {
-                const res = await fetch("/api/admin/vips", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    action: "grant",
-                    steamId: payload.steamId,
-                    nick: payload.nick,
-                    note: payload.reason,
-                    startsAt: new Date(payload.startsAt).toISOString(),
-                    endsAt: payload.forever
-                      ? null
-                      : new Date(payload.endsAt).toISOString(),
-                    forever: payload.forever,
-                  }),
-                });
-                const data = (await res.json()) as {
-                  ok?: boolean;
-                  error?: string;
-                  vips?: VipRow[];
-                  reply?: string;
-                };
-                if (!res.ok || !data.ok) {
-                  setErr(data.error || "не выдалось");
-                  return;
-                }
-                if (data.vips) setRows(data.vips);
-                setNotice(data.reply || "выдано");
-                setGrantOpen(false);
-              } finally {
-                setBusy(false);
-              }
-            })();
-          }}
-        />
-      ) : null}
     </section>
   );
 }
