@@ -277,15 +277,17 @@ export function AdminPanelka({
     setRosterOnce(false);
     setTeams([]);
     let stop = false;
+    const key = selected;
     const boot = async () => {
-      await refreshOne(selected);
+      // Parallel: status card + roster — don't block players behind status
+      void refreshOne(key);
+      await Promise.all([loadRoster(key), loadMods(key), loadChat(key)]);
       if (stop) return;
-      await Promise.all([loadRoster(selected), loadMods(selected), loadChat(selected)]);
     };
     void boot();
     // Soft chat poll only for the opened server (file read, no RCON storm)
     const chatTimer = window.setInterval(() => {
-      if (!stop) void loadChat(selected);
+      if (!stop) void loadChat(key);
     }, 15000);
     return () => {
       stop = true;

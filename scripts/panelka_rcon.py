@@ -1397,9 +1397,10 @@ except Exception as e:
     print("health-fail", e)
 PY"""
     out, err = _ssh_exec(cmd, timeout=30)
-    print("agent-sync", out)
+    # stderr only — stdout must stay pure JSON for Next.js runPanelka
+    print("agent-sync", out, file=sys.stderr)
     if err:
-        print("agent-sync-err", err[:300])
+        print("agent-sync-err", err[:300], file=sys.stderr)
     _AGENT_DIGEST = digest
     _AGENT_SYNCED = True
 

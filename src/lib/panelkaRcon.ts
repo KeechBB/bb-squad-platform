@@ -66,9 +66,22 @@ export function runPanelka(
       }
       try {
         resolve(JSON.parse(text));
+        return;
       } catch {
-        reject(new Error(text.slice(0, 240)));
+        /* agent-sync noise may precede JSON — take last object line */
       }
+      const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      for (let i = lines.length - 1; i >= 0; i -= 1) {
+        const line = lines[i];
+        if (!line.startsWith("{")) continue;
+        try {
+          resolve(JSON.parse(line));
+          return;
+        } catch {
+          /* keep looking */
+        }
+      }
+      reject(new Error(text.slice(0, 240)));
     });
   });
 }
