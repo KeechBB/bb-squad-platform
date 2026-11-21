@@ -24,7 +24,8 @@ export function useProfileHistoryPage<T>(
   kind: "public" | "train" | "cw",
   page: number,
   pageSize: number,
-  ready?: ReadyHistory<T>
+  ready?: ReadyHistory<T>,
+  steamId?: string | null
 ): Page<T> & { active: boolean } {
   const readyRows = ready?.rows ?? [];
   const readyTotal = Math.max(ready?.total ?? 0, readyRows.length);
@@ -60,6 +61,7 @@ export function useProfileHistoryPage<T>(
       page: String(page),
       pageSize: String(pageSize),
     });
+    if (steamId) q.set("steamId", steamId);
     fetch(`/api/profile/history?${q}`, { cache: "no-store" })
       .then(async (r) => {
         if (!r.ok) throw new Error(String(r.status));
@@ -92,7 +94,7 @@ export function useProfileHistoryPage<T>(
     return () => {
       cancelled = true;
     };
-  }, [nick, kind, page, pageSize, covered]);
+  }, [nick, kind, page, pageSize, covered, steamId]);
 
   if (covered) {
     return {

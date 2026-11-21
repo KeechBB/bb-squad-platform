@@ -259,6 +259,7 @@ export function TrainingMatchHistory({
   matchHistory = [],
   historyTotal,
   highlightNick,
+  steamId,
   title = "История матчей тренировок",
   hideTitle = false,
 }: {
@@ -266,6 +267,7 @@ export function TrainingMatchHistory({
   /** Сколько матчей всего. Если не передано — длина уже пришедшего списка. */
   historyTotal?: number;
   highlightNick?: string;
+  steamId?: string | null;
   title?: string;
   /** когда снаружи уже вкладки */
   hideTitle?: boolean;
@@ -279,7 +281,8 @@ export function TrainingMatchHistory({
     "train",
     page,
     pageSize,
-    { rows: matchHistory, total: historyTotal }
+    { rows: matchHistory, total: historyTotal },
+    steamId
   );
   const sliced = {
     page,

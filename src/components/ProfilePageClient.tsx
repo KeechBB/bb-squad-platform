@@ -281,6 +281,7 @@ export function ProfilePageClient({
               <div className="profile-v2-attend">
                 <ProfileClientHydrate
                   nick={initialNick}
+                  steamId={subjectSteamId}
                   slot="training"
                   mode="train"
                   initial={initialView}
@@ -289,6 +290,7 @@ export function ProfilePageClient({
               <div className="profile-v2-stats">
                 <ProfileClientHydrate
                   nick={initialNick}
+                  steamId={subjectSteamId}
                   slot="stats"
                   mode="train"
                   initial={initialView}
@@ -297,6 +299,7 @@ export function ProfilePageClient({
               <div className="profile-v2-history">
                 <ProfileClientHydrate
                   nick={initialNick}
+                  steamId={subjectSteamId}
                   slot="history"
                   mode="train"
                   initial={initialView}
@@ -461,6 +464,7 @@ export function ProfilePageClient({
       <div className="profile-v2-attend">
         <ProfileClientHydrate
           nick={nickForKv || shell.nick || ""}
+          steamId={subjectSteamId || shell.steamId}
           slot="training"
           mode={mode}
           initial={initialView}
@@ -484,6 +488,7 @@ export function ProfilePageClient({
         {nickForKv ? (
           <ProfileClientHydrate
             nick={nickForKv}
+            steamId={subjectSteamId || shell.steamId}
             slot="stats"
             mode={mode}
             initial={initialView}
@@ -495,6 +500,7 @@ export function ProfilePageClient({
         {nickForKv ? (
           <ProfileClientHydrate
             nick={nickForKv}
+            steamId={subjectSteamId || shell.steamId}
             slot="history"
             mode={mode}
             defaultHistTab={shell.isBb ? "train" : "public"}

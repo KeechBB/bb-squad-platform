@@ -13,6 +13,7 @@ type Props = {
   trainTotal?: number;
   publicTotal?: number;
   highlightNick?: string;
+  steamId?: string | null;
   /** BlackBerry → train; иначе public */
   defaultTab?: MatchHistoryTab;
 };
@@ -23,6 +24,7 @@ export function ProfileMatchHistoryTabs({
   trainTotal,
   publicTotal,
   highlightNick,
+  steamId,
   defaultTab = "train",
 }: Props) {
   const initial = useMemo<MatchHistoryTab>(
@@ -71,6 +73,7 @@ export function ProfileMatchHistoryTabs({
           matchHistory={trainHistory}
           historyTotal={trainTotal}
           highlightNick={highlightNick}
+          steamId={steamId}
           hideTitle
         />
       </div>
@@ -79,6 +82,7 @@ export function ProfileMatchHistoryTabs({
           matchHistory={publicHistory}
           historyTotal={publicTotal}
           highlightNick={highlightNick}
+          steamId={steamId}
           hideTitle
         />
       </div>

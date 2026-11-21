@@ -44,10 +44,12 @@ export function ProfileKvMatchHistory({
   matchHistory = [],
   historyTotal,
   highlightNick,
+  steamId,
 }: {
   matchHistory?: CwMatchHistoryRow[];
   historyTotal?: number;
   highlightNick?: string;
+  steamId?: string | null;
 }) {
   const [open, setOpen] = useState<MatchStatsOpen | null>(null);
   const [page, setPage] = useState(1);
@@ -58,7 +60,8 @@ export function ProfileKvMatchHistory({
     "cw",
     page,
     pageSize,
-    { rows: matchHistory, total: historyTotal }
+    { rows: matchHistory, total: historyTotal },
+    steamId
   );
   const sliced = {
     page,

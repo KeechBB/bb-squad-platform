@@ -71,6 +71,7 @@ type PublicAtt = {
 
 type Props = {
   nick: string;
+  steamId?: string | null;
   defaultHistTab?: "train" | "public";
   slot: "head" | "stats" | "training" | "histories" | "history";
   /** Режим профиля v2 — фильтрует стату/историю */
@@ -145,6 +146,7 @@ function applyBundle(
 
 export function ProfileClientHydrate({
   nick,
+  steamId = null,
   defaultHistTab = "train",
   slot,
   mode,
@@ -380,6 +382,7 @@ export function ProfileClientHydrate({
           matchHistory={histories.cwHistory}
           historyTotal={histories.cwTotal}
           highlightNick={nick}
+          steamId={steamId}
         />
       );
     }
@@ -389,6 +392,7 @@ export function ProfileClientHydrate({
           matchHistory={histories.trainHistory}
           historyTotal={histories.trainTotal}
           highlightNick={nick}
+          steamId={steamId}
         />
       );
     }
@@ -397,6 +401,7 @@ export function ProfileClientHydrate({
           matchHistory={histories.publicHistory}
           historyTotal={histories.publicTotal}
           highlightNick={nick}
+          steamId={steamId}
         />
     );
   }
@@ -408,6 +413,7 @@ export function ProfileClientHydrate({
           matchHistory={histories.cwHistory}
           historyTotal={histories.cwTotal}
           highlightNick={nick}
+          steamId={steamId}
         />
       </div>
       <div className="profile-area-train-hist">
@@ -417,6 +423,7 @@ export function ProfileClientHydrate({
           trainTotal={histories.trainTotal}
           publicTotal={histories.publicTotal}
           highlightNick={nick}
+          steamId={steamId}
           defaultTab={defaultHistTab}
         />
       </div>

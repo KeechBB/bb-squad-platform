@@ -101,10 +101,16 @@ export async function buildProfileViewPayload(
   userId: string,
   nick: string
 ): Promise<ProfileViewPayload> {
-  const publicNick = publicRpLookupNick(
-    nick,
-    collisionBySiteNick(nick)?.steamId
-  );
+  const steamForNick =
+    collisionBySiteNick(nick)?.steamId ||
+    (await prisma.user
+      .findFirst({
+        where: { id: userId },
+        select: { steamId: true },
+      })
+      .then((u) => u?.steamId || null)
+      .catch(() => null));
+  const publicNick = publicRpLookupNick(nick, steamForNick);
   const [trainPwr, rp, combat, training, publicAtt, cwAtt, heavy] =
     await Promise.all([
       lookupPlayerTrainPwr(nick).catch(() => null),
@@ -179,7 +185,8 @@ async function withLivePublicRp(
   name: string,
   data: ProfileViewPayload
 ): Promise<ProfileViewPayload> {
-  const ready = await loadReadyHistories(name).catch(() => null);
+  const steamId = collisionBySiteNick(name)?.steamId || null;
+  const ready = await loadReadyHistories(name, steamId).catch(() => null);
   const readyRows =
     (ready?.trainHistory?.length || 0) +
     (ready?.publicHistory?.length || 0) +
@@ -465,7 +472,10 @@ export async function readStoredProfileView(
       )
     );
   }
-  const histories = await loadReadyHistories(name).catch(() => null);
+  const histories = await loadReadyHistories(
+    name,
+    collisionBySiteNick(name)?.steamId || null
+  ).catch(() => null);
   const base = emptyPayload();
   if (histories) base.histories = histories;
   // Нет файла — сразу восстановим посещаемость из БД; полный файл — в фон/cron.

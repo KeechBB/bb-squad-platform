@@ -29,12 +29,21 @@ export const ANGEL_COLLISIONS: readonly NickCollision[] = [
   },
   {
     steamId: "76561198421145708",
-    siteNick: "Angel",
+    // Алан менял декор ника — все варианты ведут на его Steam.
+    siteNick: "✝︎Angel✝︎🪽",
     profileSlug: "Angel",
     historyKey: "angel#76561198421145708",
     publicNick: "Angel 🪽",
   },
 ] as const;
+
+/** «angel» после снятия декора / эмодзи — одинаковый игровой ярлык у разных Steam. */
+export function isPlainAngelLabel(nick: string | null | undefined): boolean {
+  const s = String(nick || "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "");
+  return s === "angel";
+}
 
 /** Саня [BB] — канон для фракций / стоимости / гринда. */
 export const BB_ANGEL = ANGEL_COLLISIONS[0]!;
@@ -70,7 +79,15 @@ export function isBbAngelSteam(steamId: string | null | undefined): boolean {
 }
 
 const bySteam = new Map(ANGEL_COLLISIONS.map((c) => [c.steamId, c]));
-const bySiteNickExact = new Map(ANGEL_COLLISIONS.map((c) => [c.siteNick, c]));
+const bySiteNickExact = new Map(
+  [
+    ...ANGEL_COLLISIONS.map((c) => [c.siteNick, c] as const),
+    // Старые/альтернативные ярлыки Алана
+    ["Angel", ANGEL_COLLISIONS[1]!] as const,
+    ["Angel 🪽", ANGEL_COLLISIONS[1]!] as const,
+    ["✝︎Angel✝︎🪽", ANGEL_COLLISIONS[1]!] as const,
+  ].filter((pair) => Boolean(pair[0]))
+);
 /** Только URL-слаги (AngelBB), без lower(siteNick) — иначе Angel/angel схлопнутся. */
 const bySlugLower = new Map(
   ANGEL_COLLISIONS.map((c) => [c.profileSlug.toLowerCase(), c])
@@ -83,19 +100,28 @@ export function collisionBySteamId(
   return s ? bySteam.get(s) || null : null;
 }
 
-/** По никку аккаунта или URL-слагу. */
+/** По никку аккаунта или URL-слагу. Без Steam не угадываем чужой scoreboard «angel». */
 export function collisionBySiteNick(
   nick: string | null | undefined
 ): NickCollision | null {
   const n = String(nick || "").trim();
   if (!n) return null;
-  return (
-    bySiteNickExact.get(n) || bySlugLower.get(n.toLowerCase()) || null
-  );
+  const exact = bySiteNickExact.get(n);
+  if (exact) return exact;
+  const slug = bySlugLower.get(n.toLowerCase());
+  if (slug) return slug;
+  // Сайт-ник Сани — строго lowercase angel без декора.
+  if (n === "angel") return BB_ANGEL;
+  // Декор Алана (крылья / кресты / Title Case) → Алан.
+  if (isPlainAngelLabel(n) && (/[🪽✝†]/.test(n) || n !== n.toLowerCase())) {
+    return ANGEL_COLLISIONS[1]!;
+  }
+  return null;
 }
 
 export function isCollidingAngelNick(nick: string): boolean {
-  return Boolean(collisionBySiteNick(nick));
+  if (collisionBySiteNick(nick)) return true;
+  return isPlainAngelLabel(nick);
 }
 
 /**
@@ -123,8 +149,17 @@ export function profileHistoryKey(
 ): string {
   const bySteamHit = collisionBySteamId(steamId);
   if (bySteamHit) return bySteamHit.historyKey;
+  // Steam ID в слоте ника (канон URL /players/<steamId>)
+  if (/^7656\d{13}$/.test(String(nick || "").trim())) {
+    const hit = collisionBySteamId(String(nick).trim());
+    if (hit) return hit.historyKey;
+  }
   const byNick = collisionBySiteNick(nick);
   if (byNick) return byNick.historyKey;
+  // Общий ярлык «angel» без Steam — никогда не пишем в общий ключ.
+  if (isPlainAngelLabel(nick)) {
+    return BB_ANGEL.historyKey;
+  }
   return String(nick || "")
     .trim()
     .toLowerCase()

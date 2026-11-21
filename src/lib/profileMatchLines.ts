@@ -22,30 +22,43 @@ export function isProfileHistoryKind(v: string): v is ProfileHistoryKind {
   return KINDS.has(v as ProfileHistoryKind);
 }
 
-async function resolveCollision(nick: string): Promise<NickCollision | null> {
+async function resolveCollision(
+  nick: string,
+  steamId?: string | null
+): Promise<NickCollision | null> {
   const clean = String(nick || "").trim();
+  const bySteam =
+    collisionBySteamId(steamId) ||
+    (/^7656\d{13}$/.test(clean) ? collisionBySteamId(clean) : null);
+  if (bySteam) return bySteam;
   const exact = collisionBySiteNick(clean);
   if (exact) return exact;
   if (!isCollidingAngelNick(clean)) return null;
   const users = await prisma.user.findMany({
     where: {
-      nick: { equals: clean, mode: "insensitive" },
+      OR: [
+        { nick: { equals: clean, mode: "insensitive" } },
+        { steamId: clean },
+      ],
       profileComplete: true,
     },
     select: { nick: true, steamId: true },
     take: 8,
   });
   const preferred =
+    users.find((u) => u.steamId && collisionBySteamId(u.steamId)) ||
     users.find((u) => u.nick === clean) ||
-    users.find((u) => collisionBySteamId(u.steamId)) ||
     users[0];
   return collisionBySteamId(preferred?.steamId);
 }
 
-async function historyKeyFor(nick: string): Promise<string> {
-  const hit = await resolveCollision(nick);
+async function historyKeyFor(
+  nick: string,
+  steamId?: string | null
+): Promise<string> {
+  const hit = await resolveCollision(nick, steamId);
   if (hit) return hit.historyKey;
-  return profileHistoryKey(nick);
+  return profileHistoryKey(nick, steamId);
 }
 
 function playedOn(dateLabel: string): string {
@@ -82,10 +95,11 @@ const rebuilding = new Map<string, Promise<void>>();
 export async function replaceProfileLines(
   nick: string,
   kind: ProfileHistoryKind,
-  rows: AnyRow[]
+  rows: AnyRow[],
+  steamId?: string | null
 ): Promise<number> {
   const clean = String(nick || "").trim();
-  const key = await historyKeyFor(clean);
+  const key = await historyKeyFor(clean, steamId);
   if (!key) return 0;
   if (kind === "public") {
     const prev = await prisma.profileMatchLine.findMany({
@@ -167,6 +181,12 @@ export async function replaceProfileLines(
   // skipDuplicates: 4 PM2 workers иначе гоняются delete→create и ловят P2002.
   await prisma.$transaction(async (tx) => {
     await tx.profileMatchLine.deleteMany({ where: { kind, nickKey: key } });
+    // Старый общий ключ «angel» больше не используем — иначе чужие катки всплывают.
+    if (key.startsWith("angel#")) {
+      await tx.profileMatchLine.deleteMany({
+        where: { kind, nickKey: { in: ["angel", "angelbb"] } },
+      });
+    }
     await tx.profileMatchLine.createMany({ data, skipDuplicates: true });
     await tx.profileMatchStamp.upsert({
       where: { kind_nickKey: { kind, nickKey: key } },
@@ -177,10 +197,14 @@ export async function replaceProfileLines(
   return data.length;
 }
 
-async function sourceRows(nick: string, kind: ProfileHistoryKind) {
+async function sourceRows(
+  nick: string,
+  kind: ProfileHistoryKind,
+  steamIdHint?: string | null
+) {
   const clean = String(nick || "").trim();
-  const hit = await resolveCollision(clean);
-  const steamId = hit?.steamId || null;
+  const hit = await resolveCollision(clean, steamIdHint);
+  const steamId = hit?.steamId || steamIdHint || null;
   const publicNick = publicRpLookupNick(clean, steamId);
   if (kind === "public") {
     const { buildPlayerPublicMatchHistory } = await import(
@@ -288,9 +312,10 @@ async function clockSortStale(
 
 async function linesAreFresh(
   nick: string,
-  kind: ProfileHistoryKind
+  kind: ProfileHistoryKind,
+  steamId?: string | null
 ): Promise<boolean> {
-  const key = await historyKeyFor(nick);
+  const key = await historyKeyFor(nick, steamId);
   const built = await prisma.profileMatchStamp.findUnique({
     where: { kind_nickKey: { kind, nickKey: key } },
     select: { builtAt: true },
@@ -313,17 +338,19 @@ async function linesAreFresh(
 /** Принудительная пересборка истории (игнор freshness). */
 export async function forceRebuildProfileLines(
   nick: string,
-  kind: ProfileHistoryKind
+  kind: ProfileHistoryKind,
+  steamId?: string | null
 ): Promise<number> {
-  const rows = await sourceRows(nick, kind);
-  return replaceProfileLines(nick, kind, rows);
+  const rows = await sourceRows(nick, kind, steamId);
+  return replaceProfileLines(nick, kind, rows, steamId);
 }
 
 export async function ensureProfileLines(
   nick: string,
-  kind: ProfileHistoryKind
+  kind: ProfileHistoryKind,
+  steamId?: string | null
 ): Promise<void> {
-  const key = await historyKeyFor(nick);
+  const key = await historyKeyFor(nick, steamId);
   if (!key) return;
   const lock = `${kind}:${key}`;
   const pending = rebuilding.get(lock);
@@ -332,9 +359,9 @@ export async function ensureProfileLines(
     return;
   }
   const job = (async () => {
-    if (await linesAreFresh(nick, kind)) return;
-    const rows = await sourceRows(nick, kind);
-    await replaceProfileLines(nick, kind, rows);
+    if (await linesAreFresh(nick, kind, steamId)) return;
+    const rows = await sourceRows(nick, kind, steamId);
+    await replaceProfileLines(nick, kind, rows, steamId);
   })().finally(() => {
     rebuilding.delete(lock);
   });
@@ -347,9 +374,10 @@ export async function readProfileLines(
   nick: string,
   kind: ProfileHistoryKind,
   page: number,
-  pageSize: number
+  pageSize: number,
+  steamId?: string | null
 ) {
-  const key = await historyKeyFor(nick);
+  const key = await historyKeyFor(nick, steamId);
   const size = Math.min(40, Math.max(1, Math.floor(pageSize) || 15));
   const where = { kind, nickKey: key };
   const total = key ? await prisma.profileMatchLine.count({ where }) : 0;
@@ -378,13 +406,16 @@ const READY_TAKE = 40;
  * Первая страница из таблицы. Пересборка истории не блокирует открытие профиля:
  * экран берёт уже записанные строки, свежесть догоняется после ответа.
  */
-export async function loadReadyHistories(nick: string) {
+export async function loadReadyHistories(
+  nick: string,
+  steamId?: string | null
+) {
   const [train, pub, cw] = await Promise.all([
-    readProfileLines(nick, "train", 1, READY_TAKE),
-    readProfileLines(nick, "public", 1, READY_TAKE),
-    readProfileLines(nick, "cw", 1, READY_TAKE),
+    readProfileLines(nick, "train", 1, READY_TAKE, steamId),
+    readProfileLines(nick, "public", 1, READY_TAKE, steamId),
+    readProfileLines(nick, "cw", 1, READY_TAKE, steamId),
   ]);
-  refreshProfileLinesBackground(nick);
+  refreshProfileLinesBackground(nick, steamId);
   return {
     trainHistory: train.rows,
     publicHistory: pub.rows,
@@ -396,11 +427,14 @@ export async function loadReadyHistories(nick: string) {
 }
 
 /** Свежесть догоняем после ответа, экран на это не ждёт. */
-export function refreshProfileLinesBackground(nick: string) {
+export function refreshProfileLinesBackground(
+  nick: string,
+  steamId?: string | null
+) {
   const clean = String(nick || "").trim();
   if (!clean) return;
   for (const kind of ["train", "public", "cw"] as const) {
-    void ensureProfileLines(clean, kind).catch(() => {});
+    void ensureProfileLines(clean, kind, steamId).catch(() => {});
   }
 }
 
@@ -458,16 +492,17 @@ export async function pageProfileLines(
   nick: string,
   kind: ProfileHistoryKind,
   page: number,
-  pageSize: number
+  pageSize: number,
+  steamId?: string | null
 ) {
-  await ensureProfileLines(nick, kind);
+  await ensureProfileLines(nick, kind, steamId);
   const ready = await attachPublicScores(
     kind,
-    await readProfileLines(nick, kind, page, pageSize)
+    await readProfileLines(nick, kind, page, pageSize, steamId)
   );
   if (kind === "public" && ready.page === 1 && ready.rows.length) {
     const { loadPublicRpOneFromDb } = await import("@/lib/rpDbRead");
-    const hit = await resolveCollision(nick);
+    const hit = await resolveCollision(nick, steamId);
     const live = await loadPublicRpOneFromDb(
       publicRpLookupNick(nick, hit?.steamId)
     ).catch(() => null);

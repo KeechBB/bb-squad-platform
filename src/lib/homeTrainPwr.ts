@@ -13,8 +13,10 @@ import {
   collisionBySiteNick,
   collisionBySteamId,
   isCollidingAngelNick,
+  loadSteamAngelSpawnMs,
   loadSteamAngelTrainDays,
   matchYmdAllowed,
+  spawnCoversMatch,
 } from "@/lib/nickCollisions";
 
 function nickKey(nick: string) {
@@ -789,6 +791,16 @@ export async function buildPlayerTrainMatchHistory(
     collision?.steamId
       ? await loadSteamAngelTrainDays(collision.steamId)
       : null;
+  // Два angel на табло без Steam в JSON — режем по спавну этого Steam в окне катки.
+  const angelSpawns = collision?.steamId
+    ? await loadSteamAngelSpawnMs(collision.steamId)
+    : null;
+  const angelBySpawn = Boolean(angelSpawns && angelSpawns.length);
+  const angelMatchOk = (ymd: string, hm: string | null | undefined) => {
+    if (!collision?.steamId) return true;
+    if (angelBySpawn && hm) return spawnCoversMatch(angelSpawns, ymd, hm);
+    return matchYmdAllowed(ymd, steamDays);
+  };
 
   // Все катки календаря с 20.10, где ник есть в players — не только RP-ledger.
   // Иначе вечерние катки без RP «пропадают» из профиля (кейс Keech 26.10).
@@ -797,7 +809,8 @@ export async function buildPlayerTrainMatchHistory(
       if (!row.inHistory || !row.id || !row.doc) return false;
       const ymd = `${row.year}-${pad2(row.month)}-${pad2(row.day)}`;
       if (!isTrainStatsYmdOk(ymd) || ymd < sinceYmd) return false;
-      if (!matchYmdAllowed(ymd, steamDays)) return false;
+      const hm = String(row.timeMsk || "").trim().slice(0, 5) || null;
+      if (!angelMatchOk(ymd, hm)) return false;
       const list = (
         row.doc.players?.length
           ? row.doc.players
@@ -1093,6 +1106,15 @@ export async function buildPlayerTrainCombatStats(
     collision?.steamId
       ? await loadSteamAngelTrainDays(collision.steamId)
       : null;
+  const angelSpawns = collision?.steamId
+    ? await loadSteamAngelSpawnMs(collision.steamId)
+    : null;
+  const angelBySpawn = Boolean(angelSpawns && angelSpawns.length);
+  const angelMatchOk = (ymd: string, hm: string | null | undefined) => {
+    if (!collision?.steamId) return true;
+    if (angelBySpawn && hm) return spawnCoversMatch(angelSpawns, ymd, hm);
+    return matchYmdAllowed(ymd, steamDays);
+  };
   const vehIndex = await loadTrainVehicleKillIndex().catch(
     () => ({}) as Record<string, Record<string, number>>
   );
@@ -1143,7 +1165,8 @@ export async function buildPlayerTrainCombatStats(
       if (!mine.length) continue;
       const ymd = `${match.year}-${pad2(match.month)}-${pad2(match.day)}`;
       if (!isTrainStatsYmdOk(ymd)) continue;
-      if (!matchYmdAllowed(ymd, steamDays)) continue;
+      const hm = String(match.timeMsk || "").trim().slice(0, 5) || null;
+      if (!angelMatchOk(ymd, hm)) continue;
       if (mine[0]?.nick) displayNick = String(mine[0].nick);
       matches += 1;
       for (const p of mine) {

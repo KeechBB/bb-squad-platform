@@ -14,6 +14,7 @@ type Props = {
   matchHistory?: TrainMatchHistoryRow[];
   historyTotal?: number;
   highlightNick?: string;
+  steamId?: string | null;
   hideTitle?: boolean;
 };
 
@@ -21,6 +22,7 @@ export function PublicMatchHistory({
   matchHistory = [],
   historyTotal,
   highlightNick,
+  steamId,
   hideTitle = false,
 }: Props) {
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -35,7 +37,8 @@ export function PublicMatchHistory({
     "public",
     page,
     pageSize,
-    { rows: matchHistory, total: historyTotal }
+    { rows: matchHistory, total: historyTotal },
+    steamId
   );
   const sliced = {
     page,

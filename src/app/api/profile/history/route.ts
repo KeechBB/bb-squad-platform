@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const nick = url.searchParams.get("nick")?.trim() || "";
+  const steamId = url.searchParams.get("steamId")?.trim() || "";
   const kind = url.searchParams.get("kind")?.trim() || "";
   const page = Number(url.searchParams.get("page") || "1");
   const pageSize = Number(url.searchParams.get("pageSize") || "15");
@@ -20,7 +21,13 @@ export async function GET(req: Request) {
     );
   }
   try {
-    const data = await pageProfileLines(nick, kind, page, pageSize);
+    const data = await pageProfileLines(
+      nick,
+      kind,
+      page,
+      pageSize,
+      steamId || null
+    );
     return NextResponse.json(data, {
       headers: { "Cache-Control": "private, max-age=30" },
     });

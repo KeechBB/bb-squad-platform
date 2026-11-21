@@ -109,6 +109,41 @@ function nickKey(nick: string) {
   return nickMatchKey(nick);
 }
 
+/** Наша сторона и сторона соперника с ником angel — разные люди, не суммировать. */
+function meetingBucket(raw: string, asOpp: boolean): string {
+  const key = nickKey(raw);
+  const plain =
+    key === "angel" ||
+    String(raw || "")
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, "") === "angel";
+  if (plain) return asOpp ? "angel|opp" : "angel|bb";
+  return key;
+}
+
+function pickMeetingRow(
+  byNick: Map<string, MeetingPlayerAgg>,
+  want: string,
+  resolveKey: (n: string) => string,
+  collision: { siteNick: string; steamId?: string } | null
+): MeetingPlayerAgg | undefined {
+  // Саня BB vs Алан — всегда по Steam, не по регистру ника.
+  if (collision?.steamId === "76561198941350361") {
+    return byNick.get("angel|bb");
+  }
+  if (collision?.steamId === "76561198421145708") {
+    return byNick.get("angel|opp");
+  }
+  if (collision?.siteNick === "angel") return byNick.get("angel|bb");
+  const direct = byNick.get(want);
+  if (direct) return direct;
+  for (const [k, v] of byNick) {
+    if (k === "angel|bb" || k === "angel|opp") continue;
+    if (resolveKey(v.nick) === want) return v;
+  }
+  return undefined;
+}
+
 function softSat(x: number, mid: number) {
   const v = Math.max(0, x);
   const m = mid || 1;
@@ -316,7 +351,7 @@ function addLinesToMeetingMap(
   for (const p of lines || []) {
     const raw = String(p?.nick || "").trim();
     if (!raw) continue;
-    const key = nickKey(raw);
+    const key = meetingBucket(raw, asOpp);
     if (!out.has(key)) {
       out.set(key, {
         nick: stripClanDecorRaw(raw) || raw,
@@ -485,13 +520,16 @@ export async function buildCwPwrLeaderboard(): Promise<CwPwrLeaderboard> {
     const bbWon =
       status === "win" ? true : status === "lose" ? false : null;
 
-    for (const [, p] of byNick) {
+    for (const [bucket, p] of byNick) {
       const rawKey = nickKey(p.nick);
       if (RATING_EXCLUDE.has(rawKey)) continue;
-      const key = resolveKey(p.nick);
+      const oppAngel = bucket === "angel|opp";
+      const key = oppAngel ? "angel|opp" : resolveKey(p.nick);
       if (!map.has(key)) {
         map.set(key, {
-          nick: accountNickByKey.get(key) || displayNick(p.nick),
+          nick: oppAngel
+            ? "Angel"
+            : accountNickByKey.get(key) || displayNick(p.nick),
           games: 0,
           wins: 0,
           res: 0,
@@ -750,15 +788,7 @@ export async function buildPlayerCwMatchHistory(
     const ymd = `${match.year}-${pad2(match.month)}-${pad2(match.day)}`;
     if (!matchYmdAllowed(ymd, steamDays)) continue;
     const byNick = sumMeetingPlayersBothSides(players);
-    let mine = byNick.get(want);
-    if (!mine) {
-      for (const [k, v] of byNick) {
-        if (resolveKey(v.nick) === want) {
-          mine = v;
-          break;
-        }
-      }
-    }
+    const mine = pickMeetingRow(byNick, want, resolveKey, collision);
     if (!mine) continue;
 
     const status = match.status.toLowerCase();
@@ -954,6 +984,7 @@ async function buildPlayerCwAttendanceUncached(
   const aliases = tiersRaw?.aliases || {};
   const resolveKey = (n: string) => resolveNickKeyShared(n, aliases);
   const want = resolveKey(clean);
+  const { collisionBySiteNick } = await import("@/lib/nickCollisions");
   const clanRef = {
     tag: home.tag,
     name: home.name,
@@ -1061,15 +1092,12 @@ async function buildPlayerCwAttendanceUncached(
     let present = false;
     if (players) {
       const byNick = sumMeetingPlayersBothSides(players);
-      let mine = byNick.get(want);
-      if (!mine) {
-        for (const [, v] of byNick) {
-          if (resolveKey(v.nick) === want) {
-            mine = v;
-            break;
-          }
-        }
-      }
+      const mine = pickMeetingRow(
+        byNick,
+        want,
+        resolveKey,
+        collisionBySiteNick(clean)
+      );
       present = Boolean(mine);
     }
     const logoUrl =
