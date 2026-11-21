@@ -162,15 +162,24 @@ def rcon(key, cmd, attempts=4):
             pass
 
 def _chat_pids():
+    """Real python chat-bot PIDs only (pgrep -f also matches the pgrep/bash line)."""
+    real = []
     try:
-        out = subprocess.check_output(
-            ["pgrep", "-f", "python3 /home/squad/bb_panelka_chat.py"],
-            text=True,
-            stderr=subprocess.DEVNULL,
-        )
-        return [int(x) for x in out.split() if x.isdigit()]
+        for ent in os.listdir("/proc"):
+            if not ent.isdigit():
+                continue
+            try:
+                raw = open(f"/proc/{ent}/cmdline", "rb").read()
+            except Exception:
+                continue
+            if not raw:
+                continue
+            cmd = raw.replace(b"\x00", b" ").decode("utf-8", "replace")
+            if "bb_panelka_chat.py" in cmd and "python" in cmd:
+                real.append(int(ent))
     except Exception:
         return []
+    return real
 
 def ensure_chat_listener():
     """Exactly one chat listener. Never thrash-restart under parallel panel polls."""
@@ -1097,34 +1106,69 @@ def sync_chat_listener(force: bool = False) -> None:
                 sftp.chmod(remote, 0o664)
             except OSError:
                 pass
-        # Reap duplicates; only full restart when script body changed.
-        if need_restart or force:
-            cmd = (
-                "pkill -f 'python3 /home/squad/bb_panelka_chat.py' 2>/dev/null || true; "
-                "sleep 0.5; "
-                "pkill -9 -f 'python3 /home/squad/bb_panelka_chat.py' 2>/dev/null || true; "
-                "sleep 0.35; "
-                f"nohup python3 {remote} >/dev/null 2>&1 & echo $! > {pid_path}; "
-                "sleep 0.3; "
-                "pgrep -af 'python3 /home/squad/bb_panelka_chat.py' || true"
-            )
-        else:
-            cmd = (
-                "pids=$(pgrep -f 'python3 /home/squad/bb_panelka_chat.py' || true); "
-                "n=$(echo \"$pids\" | wc -w); "
-                "if [ \"$n\" -gt 1 ]; then "
-                "keep=$(echo \"$pids\" | tr ' ' '\\n' | head -1); "
-                "for p in $pids; do [ \"$p\" = \"$keep\" ] || kill -9 $p 2>/dev/null; done; "
-                "echo $keep > " + pid_path + "; "
-                "elif [ \"$n\" -eq 0 ]; then "
-                f"nohup python3 {remote} >/dev/null 2>&1 & echo $! > {pid_path}; "
-                "elif [ \"$n\" -eq 1 ]; then "
-                "echo $pids > " + pid_path + "; "
-                "fi; "
-                "pgrep -af 'python3 /home/squad/bb_panelka_chat.py' || true"
-            )
-        _stdin, stdout, _stderr = client.exec_command(cmd, timeout=20)
+        # Unique start/reap via /proc cmdline (pgrep -f matches itself).
+        restart_flag = "1" if (need_restart or force) else "0"
+        cmd = f"""python3 - <<'PY'
+import os, time, subprocess
+remote = {remote!r}
+pid_path = {pid_path!r}
+restart = {restart_flag!r} == "1"
+
+def chat_pids():
+    out = []
+    for ent in os.listdir("/proc"):
+        if not ent.isdigit():
+            continue
+        try:
+            raw = open(f"/proc/{{ent}}/cmdline", "rb").read()
+        except Exception:
+            continue
+        if not raw:
+            continue
+        cmd = raw.replace(b"\\x00", b" ").decode("utf-8", "replace")
+        if "bb_panelka_chat.py" in cmd and "python" in cmd:
+            out.append(int(ent))
+    return out
+
+pids = chat_pids()
+if restart or not pids:
+    for pid in pids:
+        try:
+            os.kill(pid, 9)
+        except Exception:
+            pass
+    time.sleep(0.45)
+    for pid in chat_pids():
+        try:
+            os.kill(pid, 9)
+        except Exception:
+            pass
+    time.sleep(0.25)
+    proc = subprocess.Popen(
+        ["python3", remote],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    open(pid_path, "w", encoding="utf-8").write(str(proc.pid))
+    print("started", proc.pid)
+else:
+    keep = min(pids)
+    for pid in pids:
+        if pid != keep:
+            try:
+                os.kill(pid, 9)
+            except Exception:
+                pass
+    open(pid_path, "w", encoding="utf-8").write(str(keep))
+    print("keep", keep, "killed_extras", max(0, len(pids) - 1))
+print("final", chat_pids())
+PY"""
+        _stdin, stdout, _stderr = client.exec_command(cmd, timeout=25)
         print("chat-sync", stdout.read().decode("utf-8", "replace").strip())
+        err = _stderr.read().decode("utf-8", "replace").strip()
+        if err:
+            print("chat-sync-err", err[:400])
         sftp.close()
         _CHAT_SYNCED = True
     finally:
