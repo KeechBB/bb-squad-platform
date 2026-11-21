@@ -668,18 +668,38 @@ export async function buildPublicRatingTable(
 }
 
 export async function buildPlayerPublicCombatStats(
-  nick: string
+  nick: string,
+  opts?: { steamId?: string | null }
 ): Promise<PlayerPublicCombatStats | null> {
   const clean = String(nick || "").trim();
   if (!clean) return null;
-  const { publicRpLookupNick, collisionBySiteNick } = await import(
-    "@/lib/nickCollisions"
-  );
-  const lookupNick = publicRpLookupNick(
-    clean,
-    collisionBySiteNick(clean)?.steamId
-  );
+  const {
+    publicRpLookupNick,
+    collisionBySiteNick,
+    collisionBySteamId,
+    loadSteamAngelPublicDays,
+    loadSteamAngelSpawnMs,
+    matchYmdAllowed,
+    spawnCoversMatch,
+  } = await import("@/lib/nickCollisions");
+  const collision =
+    collisionBySteamId(opts?.steamId) || collisionBySiteNick(clean);
+  const lookupNick = publicRpLookupNick(clean, collision?.steamId);
   const want = nickKey(lookupNick);
+  const publicDays = collision?.steamId
+    ? await loadSteamAngelPublicDays(collision.steamId)
+    : null;
+  const angelSpawns = collision?.steamId
+    ? await loadSteamAngelSpawnMs(collision.steamId, "TPUB")
+    : null;
+  const angelBySpawn = Boolean(angelSpawns && angelSpawns.length);
+  const angelMatchOk = (date: string, hm: string | null | undefined) => {
+    if (!collision?.steamId) return true;
+    if (angelBySpawn && hm && spawnCoversMatch(angelSpawns, date, hm)) {
+      return true;
+    }
+    return matchYmdAllowed(date, publicDays);
+  };
 
   // Fast path: aggregate from slim ladder player.matches (no full-table rebuild).
   const { lookupPlayerPublicRp } = await import("@/lib/publicRp");
@@ -692,6 +712,8 @@ export async function buildPlayerPublicCombatStats(
       ?.days || 0;
 
   type SlimM = {
+    id?: string;
+    date?: string;
     kills?: unknown;
     deaths?: unknown;
     revives?: unknown;
@@ -700,7 +722,20 @@ export async function buildPlayerPublicCombatStats(
     vehicleKills?: number;
     won?: boolean | null;
   };
-  const matches = (player?.matches || []) as SlimM[];
+  const rawMatches = (player?.matches || []) as SlimM[];
+  const matches = collision?.steamId
+    ? rawMatches.filter((m) => {
+        const id = String(m.id || "");
+        const parsed = /^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})-/.exec(id);
+        const date =
+          String(m.date || "").slice(0, 10) ||
+          (parsed
+            ? `${parsed[1]}-${parsed[2]}-${parsed[3]}`
+            : "");
+        const hm = parsed ? `${parsed[4]}:${parsed[5]}` : null;
+        return date ? angelMatchOk(date, hm) : false;
+      })
+    : rawMatches;
   if (matches.length) {
     let kills = 0;
     let deaths = 0;

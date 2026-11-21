@@ -793,7 +793,7 @@ export async function buildPlayerTrainMatchHistory(
       : null;
   // Два angel на табло без Steam в JSON — режем по спавну этого Steam в окне катки.
   const angelSpawns = collision?.steamId
-    ? await loadSteamAngelSpawnMs(collision.steamId)
+    ? await loadSteamAngelSpawnMs(collision.steamId, "TR")
     : null;
   const angelBySpawn = Boolean(angelSpawns && angelSpawns.length);
   const angelMatchOk = (ymd: string, hm: string | null | undefined) => {
@@ -1107,7 +1107,7 @@ export async function buildPlayerTrainCombatStats(
       ? await loadSteamAngelTrainDays(collision.steamId)
       : null;
   const angelSpawns = collision?.steamId
-    ? await loadSteamAngelSpawnMs(collision.steamId)
+    ? await loadSteamAngelSpawnMs(collision.steamId, "TR")
     : null;
   const angelBySpawn = Boolean(angelSpawns && angelSpawns.length);
   const angelMatchOk = (ymd: string, hm: string | null | undefined) => {

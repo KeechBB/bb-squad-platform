@@ -59,7 +59,7 @@ async function loadPlayerProfileHeavyUncached(
         error: "Не удалось загрузить стату КВ" as string | null,
       })),
     buildPlayerTrainCombatStats(clean, { steamId }).catch(() => null),
-    buildPlayerPublicCombatStats(clean).catch(() => null),
+    buildPlayerPublicCombatStats(clean, { steamId }).catch(() => null),
     loadReadyHistories(clean, steamId).catch(() => null),
   ]);
 
