@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canDeleteClan, type ClanRole } from "@/lib/clan";
+import { canDeleteClan } from "@/lib/clan";
+import { resolveClanActor } from "@/lib/clanActor";
 import { clanLiveChannel, livePublish, userLiveChannel } from "@/lib/liveBus";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
 
@@ -17,25 +18,17 @@ export async function POST(_req: Request, ctx: Ctx) {
   }
 
   const { id: clanId } = await ctx.params;
-  const me = await prisma.user.findUnique({
-    where: { steamId: session.user.steamId },
-  });
-  if (!me) {
-    return NextResponse.json({ error: "Не найден" }, { status: 404 });
-  }
-
-  const membership = await prisma.clanMember.findUnique({
-    where: { clanId_userId: { clanId, userId: me.id } },
-  });
-  if (!membership) {
+  const actor = await resolveClanActor(clanId, session.user.steamId);
+  if (!actor) {
     return NextResponse.json({ error: "Ты не в этом клане" }, { status: 404 });
   }
-  if (!canDeleteClan(membership.role as ClanRole)) {
+  if (!canDeleteClan(actor.member.role)) {
     return NextResponse.json(
       { error: "Только глава может удалить клан" },
       { status: 403 }
     );
   }
+  const me = actor.user;
 
   const clan = await prisma.clan.findUnique({
     where: { id: clanId },

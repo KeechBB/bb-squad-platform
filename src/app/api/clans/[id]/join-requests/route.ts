@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { ClanRole } from "@/lib/clan";
+import { resolveClanActor } from "@/lib/clanActor";
 import { canReviewClanJoinRequests } from "@/lib/titles";
 import { clanLiveChannel, livePublish, userLiveChannel } from "@/lib/liveBus";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
@@ -13,14 +14,11 @@ export const runtime = "nodejs";
 type Ctx = { params: Promise<{ id: string }> };
 
 async function actorInClan(clanId: string, steamId: string) {
+  const resolved = await resolveClanActor(clanId, steamId);
+  if (resolved) return { user: resolved.user, member: resolved.member };
   const user = await prisma.user.findUnique({ where: { steamId } });
   if (!user) return null;
-  const member = await prisma.clanMember.findUnique({
-    where: { clanId_userId: { clanId, userId: user.id } },
-    include: { title: { select: { name: true } } },
-  });
-  if (!member) return { user, member: null };
-  return { user, member };
+  return { user, member: null };
 }
 
 export async function GET(_req: Request, ctx: Ctx) {

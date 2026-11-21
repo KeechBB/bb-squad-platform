@@ -11,6 +11,7 @@ import {
   CLAN_ROLE_LABEL,
   type ClanRole,
 } from "@/lib/clan";
+import { resolveClanActor } from "@/lib/clanActor";
 import { clanLiveChannel, livePublish, userLiveChannel } from "@/lib/liveBus";
 import { personLabel, writeActionLog } from "@/lib/actionLog";
 import { alertClanLeft } from "@/lib/bbAlerts";
@@ -21,14 +22,7 @@ export const runtime = "nodejs";
 type Ctx = { params: Promise<{ id: string }> };
 
 async function actorMembership(clanId: string, steamId: string) {
-  const user = await prisma.user.findUnique({ where: { steamId } });
-  if (!user) return null;
-  const member = await prisma.clanMember.findUnique({
-    where: { clanId_userId: { clanId, userId: user.id } },
-    include: { title: { select: { name: true } } },
-  });
-  if (!member) return null;
-  return { user, member };
+  return resolveClanActor(clanId, steamId);
 }
 
 async function clanBrief(clanId: string) {

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canManageClanMembers, canDeleteClanSquad, type ClanRole } from "@/lib/clan";
+import { resolveClanActor } from "@/lib/clanActor";
 import { ensureDefaultSquads } from "@/lib/squads";
 import {
   BB_STACK_COMMAND,
@@ -34,14 +35,7 @@ function isBbClan(tag: string, name: string): boolean {
 }
 
 async function actorMembership(clanId: string, steamId: string) {
-  const user = await prisma.user.findUnique({ where: { steamId } });
-  if (!user) return null;
-  const member = await prisma.clanMember.findUnique({
-    where: { clanId_userId: { clanId, userId: user.id } },
-    include: { title: { select: { name: true } } },
-  });
-  if (!member) return null;
-  return { user, member };
+  return resolveClanActor(clanId, steamId);
 }
 
 export async function GET(_req: Request, ctx: Ctx) {

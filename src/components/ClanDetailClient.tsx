@@ -36,6 +36,8 @@ type Member = {
   title: { id: string; name: string } | null;
   /** Топ-кит по времени за 14 суток (паблик + трёна + КВ на наших серверах). */
   mainKit?: string | null;
+  /** Активная VIP (QueuePriority) на паблике */
+  hasVip?: boolean;
   user: {
     id: string;
     nick: string | null;
@@ -104,6 +106,8 @@ type Props = {
   myUserId: string | null;
   myRole: ClanRole | null;
   myTitleName: string | null;
+  /** Владелец платформы с правами главы, но не в составе этого клана */
+  platformOwnerAccess?: boolean;
   canManage: boolean;
   canManageTitles: boolean;
   canReviewJoins: boolean;
@@ -117,6 +121,7 @@ type Props = {
   joinRequests: JoinRequest[];
   assignableRoles: ClanRole[];
   showFactions?: boolean;
+  showVipCol?: boolean;
 };
 
 type Tab = "members" | "stats" | "calendar" | "factions";
@@ -221,6 +226,7 @@ export function ClanDetailClient({
   myUserId,
   myRole: initialMyRole,
   myTitleName: initialMyTitleName,
+  platformOwnerAccess = false,
   canManage: initialCanManage,
   canManageTitles: initialCanManageTitles,
   canReviewJoins: initialCanReviewJoins,
@@ -234,6 +240,7 @@ export function ClanDetailClient({
   joinRequests: initialJoinRequests,
   assignableRoles: initialAssignable,
   showFactions = false,
+  showVipCol = false,
 }: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("members");
@@ -274,7 +281,7 @@ export function ClanDetailClient({
       ? canReviewClanJoinRequests(myRole, myTitleName)
       : initialCanReviewJoins;
   const canDisband = myRole ? myRole === "LEADER" : initialCanDisband;
-  const canApply = !myRole && initialCanApply;
+  const canApply = !myRole && !platformOwnerAccess && initialCanApply;
   const assignableRoles = myRole
     ? assignableClanRoles(myRole, myTitleName)
     : initialAssignable;
@@ -283,6 +290,41 @@ export function ClanDetailClient({
       ? canAssignClanMemberRoles(myRole, myTitleName)
       : assignableRoles.length > 0;
   const showKickCol = canInvite;
+  const colCount = 6 + (showKickCol ? 1 : 0) + (showVipCol ? 1 : 0);
+
+  async function grantVip(member: Member) {
+    const nick = member.user.nick || member.user.steamName || "игрок";
+    if (
+      !window.confirm(
+        `Выдать VIP игроку ${nick}?\n\nНа паблике: вход без очереди и смена команды без ограничений по балансу.`
+      )
+    ) {
+      return;
+    }
+    setLoading(true);
+    setError("");
+    setOk("");
+    try {
+      const res = await fetch(`/api/clans/${clan.id}/vip`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: member.id }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string; reply?: string };
+      if (!res.ok || !data.ok) {
+        setError(data.error || "VIP не выдан");
+        return;
+      }
+      setOk(data.reply || "VIP выдан");
+      setMembers((prev) =>
+        prev.map((m) => (m.id === member.id ? { ...m, hasVip: true } : m))
+      );
+    } catch {
+      setError("нет связи");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const refreshMembers = useCallback(async () => {
     try {
@@ -819,7 +861,17 @@ export function ClanDetailClient({
               />
             </div>
           ) : null}
-          {myRole ? (
+          {platformOwnerAccess ? (
+            <p className="muted">
+              Доступ владельца платформы (права главы)
+              {liveOk ? (
+                <span className="live-dot" title="Обновления в реальном времени">
+                  {" "}
+                  · live
+                </span>
+              ) : null}
+            </p>
+          ) : myRole ? (
             <p className="muted">
               Твоя роль: {CLAN_ROLE_LABEL[myRole]}
               {myTitleName ? ` · должность: ${myTitleName}` : ""}
@@ -1138,6 +1190,7 @@ export function ClanDetailClient({
                           Должность{memberSortMark("title")}
                         </button>
                       </th>
+                      {showVipCol ? <th>VIP</th> : null}
                       {showKickCol ? <th></th> : null}
                     </tr>
                   </thead>
@@ -1145,7 +1198,7 @@ export function ClanDetailClient({
                     {sorted.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={showKickCol ? 7 : 6}
+                          colSpan={colCount}
                           className="muted"
                           style={{ textAlign: "center", padding: "18px 8px" }}
                         >
@@ -1258,6 +1311,26 @@ export function ClanDetailClient({
                               m.title?.name || "—"
                             )}
                           </td>
+                          {showVipCol ? (
+                            <td>
+                              {m.hasVip ? (
+                                <span className="muted" title="VIP уже активен на паблике">
+                                  VIP ✓
+                                </span>
+                              ) : m.user.steamId ? (
+                                <button
+                                  type="button"
+                                  className="btn ghost"
+                                  disabled={loading}
+                                  onClick={() => void grantVip(m)}
+                                >
+                                  Выдать VIP
+                                </button>
+                              ) : (
+                                <span className="muted">—</span>
+                              )}
+                            </td>
+                          ) : null}
                           {showKickCol ? (
                             <td>
                               {myRole &&
@@ -1532,7 +1605,7 @@ export function ClanDetailClient({
       ) : null}
 
       <p style={{ marginTop: 16 }} className="clan-footer-actions">
-        {myRole ? (
+        {myRole && !platformOwnerAccess ? (
           <button
             type="button"
             className="btn ghost leave-clan-btn"
