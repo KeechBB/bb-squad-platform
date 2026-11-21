@@ -14,7 +14,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-CHAT_SCRIPT_VERSION = "2026-11-21-admins-v2"
+CHAT_SCRIPT_VERSION = "2026-11-21-admins-v3"
 
 KEYS = ("TR1", "TR2", "TR3", "TR4", "TR5", "PB1")
 HOST = {"PB1": "TPUB1"}
@@ -86,62 +86,72 @@ def append(row: dict) -> None:
             OUT.write_text("\n".join(kept) + ("\n" if kept else ""), encoding="utf-8")
 
 
-def source_rcon(key: str, cmd: str, timeout: float = 6.0) -> str:
+def source_rcon(key: str, cmd: str, timeout: float = 6.0, attempts: int = 3) -> str:
     """Short-lived Source-style RCON (same as panelka) for AdminWarn."""
     port, password = load_cfg(key)
-    sock = socket.create_connection(("127.0.0.1", port), timeout=timeout)
-    sock.settimeout(timeout)
-
-    def send(req_id: int, req_type: int, body: str) -> None:
-        payload = struct.pack("<ii", req_id, req_type) + body.encode("utf-8") + b"\x00\x00"
-        sock.sendall(struct.pack("<i", len(payload)) + payload)
-
-    def recvall(n: int) -> bytes:
-        buf = b""
-        while len(buf) < n:
-            chunk = sock.recv(n - len(buf))
-            if not chunk:
-                raise RuntimeError("rcon closed")
-            buf += chunk
-        return buf
-
-    def recv() -> tuple[int, int, str]:
-        size = struct.unpack("<i", recvall(4))[0]
-        if size < 10 or size > 4_000_000:
-            raise RuntimeError("bad packet")
-        data = recvall(size)
-        req_id, req_type = struct.unpack("<ii", data[:8])
-        return req_id, req_type, data[8:-2].decode("utf-8", "replace")
-
-    try:
-        send(1, 3, password)
-        while True:
-            req_id, req_type, _ = recv()
-            if req_type == 2:
-                if req_id == -1:
-                    raise RuntimeError("rcon auth failed")
-                break
-        send(2, 2, cmd)
-        parts: list[str] = []
-        sock.settimeout(1.5)
+    last_err: Exception | None = None
+    for attempt in range(max(1, attempts)):
+        sock = None
         try:
+            sock = socket.create_connection(("127.0.0.1", port), timeout=timeout)
+            sock.settimeout(timeout)
+
+            def send(req_id: int, req_type: int, body: str) -> None:
+                payload = (
+                    struct.pack("<ii", req_id, req_type) + body.encode("utf-8") + b"\x00\x00"
+                )
+                sock.sendall(struct.pack("<i", len(payload)) + payload)
+
+            def recvall(n: int) -> bytes:
+                buf = b""
+                while len(buf) < n:
+                    chunk = sock.recv(n - len(buf))
+                    if not chunk:
+                        raise RuntimeError("rcon closed")
+                    buf += chunk
+                return buf
+
+            def recv() -> tuple[int, int, str]:
+                size = struct.unpack("<i", recvall(4))[0]
+                if size < 10 or size > 4_000_000:
+                    raise RuntimeError("bad packet")
+                data = recvall(size)
+                req_id, req_type = struct.unpack("<ii", data[:8])
+                return req_id, req_type, data[8:-2].decode("utf-8", "replace")
+
+            send(1, 3, password)
             while True:
-                req_id, req_type, body = recv()
-                if req_id == 2 and req_type == 0:
-                    parts.append(body)
-                    sock.settimeout(0.2)
-                    if len(parts) > 40:
-                        break
-                elif req_id == -1:
-                    raise RuntimeError("rcon rejected")
-        except (socket.timeout, TimeoutError, RuntimeError):
-            pass
-        return "".join(parts)
-    finally:
-        try:
-            sock.close()
-        except Exception:
-            pass
+                req_id, req_type, _ = recv()
+                if req_type == 2:
+                    if req_id == -1:
+                        raise RuntimeError("rcon auth failed")
+                    break
+            send(2, 2, cmd)
+            parts: list[str] = []
+            sock.settimeout(1.5)
+            try:
+                while True:
+                    req_id, req_type, body = recv()
+                    if req_id == 2 and req_type == 0:
+                        parts.append(body)
+                        sock.settimeout(0.2)
+                        if len(parts) > 40:
+                            break
+                    elif req_id == -1:
+                        raise RuntimeError("rcon rejected")
+            except (socket.timeout, TimeoutError, RuntimeError):
+                pass
+            return "".join(parts)
+        except Exception as exc:
+            last_err = exc
+            time.sleep(0.35 * (attempt + 1))
+        finally:
+            if sock is not None:
+                try:
+                    sock.close()
+                except Exception:
+                    pass
+    raise RuntimeError(str(last_err) if last_err else "rcon failed")
 
 
 def _admins_log(line: str) -> None:
