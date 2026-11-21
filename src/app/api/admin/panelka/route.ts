@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePanelkaAccess } from "@/lib/requireAdmin";
 import { isPanelkaKey, runPanelka } from "@/lib/panelkaRcon";
+import {
+  listSteamNickHistory,
+  recordSteamNicks,
+} from "@/lib/steamNickHistory";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -119,7 +123,34 @@ export async function GET(req: Request) {
       if (!isPanelkaKey(key)) {
         return NextResponse.json({ ok: false, error: "нет такого сервера" }, { status: 400 });
       }
-      const data = await runPanelka([op, key], 25000);
+      const data = (await runPanelka([op, key], 25000)) as {
+        ok?: boolean;
+        teams?: {
+          squads?: { players?: { steamId?: string; name?: string }[] }[];
+          loose?: { steamId?: string; name?: string }[];
+        }[];
+      };
+      // Passive nick history: every roster open remembers who played as whom
+      if (data?.ok && Array.isArray(data.teams)) {
+        const sightings: { steamId: string; nick: string; source: string }[] = [];
+        for (const team of data.teams) {
+          for (const squad of team.squads || []) {
+            for (const p of squad.players || []) {
+              if (p.steamId && p.name) {
+                sightings.push({ steamId: p.steamId, nick: p.name, source: "panelka" });
+              }
+            }
+          }
+          for (const p of team.loose || []) {
+            if (p.steamId && p.name) {
+              sightings.push({ steamId: p.steamId, nick: p.name, source: "panelka" });
+            }
+          }
+        }
+        if (sightings.length) {
+          void recordSteamNicks(sightings).catch(() => undefined);
+        }
+      }
       return NextResponse.json(data);
     }
     if (op === "layers") {
@@ -142,6 +173,7 @@ export async function GET(req: Request) {
         return NextResponse.json({ ok: false, error: "нет игрока" }, { status: 400 });
       }
       const profile = await siteProfile(steamId);
+      const nickHistory = await listSteamNickHistory(steamId, name).catch(() => []);
       try {
         const history = (await runPanelka(["player-card", key, steamId], 28000, {
           name,
@@ -156,6 +188,7 @@ export async function GET(req: Request) {
           return NextResponse.json({
             ok: true,
             profile,
+            nickHistory,
             chat: [],
             teamkills: [],
             punishments: [],
@@ -165,6 +198,7 @@ export async function GET(req: Request) {
         return NextResponse.json({
           ok: true,
           profile,
+          nickHistory,
           chat: history.chat || [],
           teamkills: history.teamkills || [],
           punishments: history.punishments || [],
@@ -174,6 +208,7 @@ export async function GET(req: Request) {
         return NextResponse.json({
           ok: true,
           profile,
+          nickHistory,
           chat: [],
           teamkills: [],
           punishments: [],

@@ -91,6 +91,14 @@ type PlayerProfile = {
   sessions: number;
 };
 
+type NickHistoryRow = {
+  nick: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  seenCount: number;
+  source: string;
+};
+
 type TeamKillRow = {
   date: string;
   clock: string;
@@ -1126,6 +1134,7 @@ export function PlayerModModal({
   ) => Promise<boolean>;
 }) {
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
+  const [nickHistory, setNickHistory] = useState<NickHistoryRow[]>([]);
   const [chat, setChat] = useState<ChatLine[]>([]);
   const [teamkills, setTeamkills] = useState<TeamKillRow[]>([]);
   const [punishments, setPunishments] = useState<PunishmentRow[]>([]);
@@ -1160,6 +1169,7 @@ export function PlayerModModal({
           const data = (await res.json().catch(() => null)) as {
             ok?: boolean;
             profile?: PlayerProfile;
+            nickHistory?: NickHistoryRow[];
             chat?: ChatLine[];
             teamkills?: TeamKillRow[];
             punishments?: PunishmentRow[];
@@ -1171,9 +1181,11 @@ export function PlayerModModal({
               setLoadError(data?.error || `карточка не загрузилась (${res.status})`);
             }
             if (data?.profile) setProfile(data.profile);
+            if (data?.nickHistory) setNickHistory(data.nickHistory);
             return;
           }
           setProfile(data.profile || null);
+          setNickHistory(data.nickHistory || []);
           setChat(data.chat || []);
           setTeamkills(data.teamkills || []);
           setPunishments(data.punishments || []);
@@ -1209,6 +1221,7 @@ export function PlayerModModal({
     setChatPage(0);
     setTkPage(0);
     setPunishPage(0);
+    setNickHistory([]);
     void loadCard();
   }, [loadCard]);
 
@@ -1354,6 +1367,24 @@ export function PlayerModModal({
                 </a>
               </div>
             </>
+          ) : null}
+          {nickHistory.length ? (
+            <div className="panelka-nick-hist">
+              <p className="panelka-nick-hist-title">История ников (сайт, не Steam)</p>
+              <ul>
+                {nickHistory.slice(0, 16).map((row) => (
+                  <li key={`${row.nick}-${row.lastSeenAt}`}>
+                    <b>{row.nick}</b>
+                    <span>
+                      {formatNickSeen(row.lastSeenAt)}
+                      {row.seenCount > 1 ? ` · ×${row.seenCount}` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : !loading ? (
+            <p className="panelka-nick-hist-empty">История ников пока пуста — появится с заходов на сервер.</p>
           ) : null}
         </div>
 
@@ -1617,6 +1648,23 @@ function Pager({
       </button>
     </span>
   );
+}
+
+function formatNickSeen(iso: string): string {
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleString("ru-RU", {
+      timeZone: "Europe/Moscow",
+      day: "2-digit",
+      month: "2-digit",
+      year: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
 }
 
 function punishLabel(kind: string): string {

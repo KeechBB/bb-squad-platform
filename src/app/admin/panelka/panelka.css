@@ -786,6 +786,53 @@ body:has(.panelka-page) .shell {
   margin-top: 4px;
 }
 
+.panelka-nick-hist {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(226, 197, 106, 0.18);
+}
+
+.panelka-nick-hist-title {
+  margin: 0 0 6px !important;
+  font-size: 0.82rem;
+  color: rgba(239, 230, 214, 0.72);
+}
+
+.panelka-nick-hist ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  max-height: 140px;
+  overflow: auto;
+}
+
+.panelka-nick-hist li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.88rem;
+}
+
+.panelka-nick-hist li b {
+  color: #efe6d6;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.panelka-nick-hist li span {
+  flex: 0 0 auto;
+  color: rgba(239, 230, 214, 0.55);
+  font-size: 0.78rem;
+}
+
+.panelka-nick-hist-empty {
+  margin: 8px 0 0 !important;
+  font-size: 0.8rem;
+  color: rgba(239, 230, 214, 0.5);
+}
+
 .panelka-mod-tabs {
   display: flex;
   gap: 8px;
