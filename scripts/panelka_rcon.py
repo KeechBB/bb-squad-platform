@@ -411,6 +411,38 @@ def append_action_log(row):
     except Exception:
         pass
 
+def read_staff_actions_log(limit=400):
+    """Все действия админов/модов с панели серверов (кик/бан/варн/команда/отряд)."""
+    path = "/home/squad/bb-panelka-actions.jsonl"
+    rows = []
+    if not os.path.isfile(path):
+        return {"ok": True, "entries": []}
+    for line in open(path, encoding="utf-8", errors="replace").read().splitlines()[-2500:]:
+        try:
+            row = json.loads(line)
+        except Exception:
+            continue
+        kind = str(row.get("kind") or "")
+        if kind not in ("kick", "ban", "warn", "team", "unsquad", "report"):
+            continue
+        reason = (row.get("reason") or "").strip()
+        reason = re.sub(r"^\[[^\]]{1,32}\]\s*", "", reason).strip() or reason
+        rows.append({
+            "id": f"{row.get('date')}-{row.get('clock')}-{row.get('steamId')}-{kind}-{len(rows)}",
+            "kind": kind,
+            "date": row.get("date") or "",
+            "clock": row.get("clock") or "",
+            "key": row.get("key") or "",
+            "steamId": str(row.get("steamId") or ""),
+            "name": (row.get("name") or "")[:48],
+            "reason": reason[:200],
+            "duration": row.get("duration") or "",
+            "byNick": (row.get("byNick") or row.get("by") or "панель")[:48],
+            "bySteamId": str(row.get("bySteamId") or ""),
+        })
+    rows.reverse()
+    return {"ok": True, "entries": rows[: max(20, min(800, int(limit) or 400))]}
+
 def read_punishments(key, steam_id, name, log_blob=""):
     rows = []
     # 1) panelka own log — has who punished
@@ -426,13 +458,16 @@ def read_punishments(key, steam_id, name, log_blob=""):
             if str(row.get("steamId") or "") != steam_id and not _name_hit(name, row.get("name") or ""):
                 continue
             kind = str(row.get("kind") or "")
-            if kind not in ("kick", "ban", "warn", "report"):
+            if kind not in ("kick", "ban", "warn", "report", "team", "unsquad"):
                 continue
+            reason = (row.get("reason") or "").strip()
+            if kind in ("kick", "ban") and not reason:
+                reason = "причина не указана"
             rows.append({
                 "kind": kind,
                 "date": row.get("date") or "",
                 "clock": row.get("clock") or "",
-                "reason": (row.get("reason") or "")[:200],
+                "reason": reason[:200],
                 "duration": row.get("duration") or "",
                 "by": (row.get("byNick") or row.get("by") or "панель")[:48],
                 "source": "panelka",
@@ -853,6 +888,9 @@ try:
             print(json.dumps({"ok": False, "error": "нет такого сервера"}, ensure_ascii=False))
         else:
             print(json.dumps(read_player_card(key, job.get("steamId") or "", job.get("name") or ""), ensure_ascii=False))
+    elif op == "staff-log":
+        lim = job.get("limit") or 400
+        print(json.dumps(read_staff_actions_log(lim), ensure_ascii=False))
     elif op == "mods":
         key = job["key"]
         if key not in UI_KEYS:
@@ -1304,8 +1342,10 @@ def command(key: str, action: str, layer: str, steam_id: str) -> dict:
         action_log = {"kind": "ban", "reason": why, "duration": duration}
     elif action == "team":
         cmd = f"AdminForceTeamChange {steam_id}"
+        action_log = {"kind": "team", "reason": "перекинул команду"}
     elif action == "unsquad":
         cmd = f"AdminRemovePlayerFromSquad {steam_id}"
+        action_log = {"kind": "unsquad", "reason": "выгнал с отряда"}
     elif action == "warn":
         msg = reason or _clean_reason(layer, 160)
         if not msg:
@@ -1489,6 +1529,10 @@ def main() -> int:
             if not re.fullmatch(r"7656\d{13}", steam_id):
                 raise SystemExit("bad steam")
             result = player_card(key, steam_id, name)
+        elif op == "staff-log":
+            extra = _extra_payload()
+            lim = int(extra.get("limit") or 400)
+            result = ssh_job({"op": "staff-log", "limit": lim}, timeout=25)
         elif op == "mods":
             key = sys.argv[2]
             if key not in KEYS:

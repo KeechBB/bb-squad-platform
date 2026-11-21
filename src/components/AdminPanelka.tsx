@@ -46,7 +46,7 @@ type ChatLine = {
   text: string;
 };
 
-type RosterPerson = {
+export type RosterPerson = {
   id: number;
   name: string;
   steamId: string;
@@ -817,7 +817,7 @@ function RosterRow({
   );
 }
 
-function PlayerModModal({
+export function PlayerModModal({
   serverKey,
   player,
   busy,
@@ -1163,7 +1163,11 @@ function PlayerModModal({
                       {punishLabel(row.kind)}
                       {row.duration ? ` · срок ${row.duration}` : ""}
                     </span>
-                    <b>{stripActorPrefix(row.reason) || "—"}</b>
+                    <b>
+                      {row.kind === "kick" || row.kind === "ban"
+                        ? `причина: ${stripActorPrefix(row.reason) || "не указана"}`
+                        : stripActorPrefix(row.reason) || "—"}
+                    </b>
                     <em>
                       кто: {row.by || "неизвестно"} → кого: {player.name}
                     </em>
@@ -1231,6 +1235,8 @@ function punishLabel(kind: string): string {
   if (kind === "ban") return "бан";
   if (kind === "warn") return "админ-сообщение";
   if (kind === "report") return "репорт игрока";
+  if (kind === "team") return "смена команды";
+  if (kind === "unsquad") return "выгон с отряда";
   return kind || "действие";
 }
 

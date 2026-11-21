@@ -815,6 +815,23 @@ body:has(.panelka-page) .shell {
   cursor: default;
 }
 
+button.mod-log-nick {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #f5d27a;
+  font: inherit;
+  font-weight: 700;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+button.mod-log-nick:hover {
+  color: #ffe6a8;
+}
+
 @media (max-width: 800px) {
   .panelka-roster,
   .panelka-mod-hist {

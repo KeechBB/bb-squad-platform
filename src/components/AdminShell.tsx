@@ -15,6 +15,7 @@ import { AdminMailPanel } from "@/components/AdminMailPanel";
 import { AdminMarketLogPanel } from "@/components/AdminMarketLogPanel";
 import { AdminCasesLogPanel } from "@/components/AdminCasesLogPanel";
 import { AdminTransfersPanel } from "@/components/AdminTransfersPanel";
+import { AdminModLogPanel } from "@/components/AdminModLogPanel";
 import type { AppRole } from "@/lib/roles";
 
 type Props = {
@@ -31,7 +32,7 @@ type Props = {
   showServers: boolean;
   /** Личный hunt-лог — только Keech (builtin super) */
   showKeechHunt: boolean;
-  /** Админ/мод паблика: только users / journal / servers / visits / load */
+  /** Админ/мод паблика: только users / journal / servers / visits / load / modlog */
   publicLimited?: boolean;
 };
 
@@ -49,7 +50,8 @@ type Tab =
   | "mail"
   | "market"
   | "cases"
-  | "transfers";
+  | "transfers"
+  | "modlog";
 
 const TAB_LEAD: Record<Tab, string> = {
   users: "Пользователи платформы. Кликни по нику — правка анкеты и аватара.",
@@ -77,9 +79,11 @@ const TAB_LEAD: Record<Tab, string> = {
     "Лог кейсов Сада: открытия, списания BBC/$, дроп и оценка продажи с площадки.",
   transfers:
     "Трансферное окно фракций: открыть/закрыть, даты паузы, прогон гринда Черничных Долларов с тренировок.",
+  modlog:
+    "Лог всех админов и модераторов паблика: кто кого кикнул/забанил/варнул и когда. Кликни ник — карточка игрока.",
 };
 
-const PUBLIC_TABS: Tab[] = ["users", "journal", "visits", "load"];
+const PUBLIC_TABS: Tab[] = ["users", "journal", "visits", "load", "modlog"];
 
 function readTab(
   allowVisits: boolean,
@@ -91,7 +95,7 @@ function readTab(
   if (typeof window === "undefined") return "users";
   const t = new URLSearchParams(window.location.search).get("tab");
   if (publicLimited) {
-    if (t === "journal" || t === "users" || t === "load") return t;
+    if (t === "journal" || t === "users" || t === "load" || t === "modlog") return t;
     if (t === "visits" && allowVisits) return "visits";
     return "users";
   }
@@ -105,7 +109,8 @@ function readTab(
     t === "load" ||
     t === "market" ||
     t === "cases" ||
-    t === "transfers"
+    t === "transfers" ||
+    t === "modlog"
   )
     return t;
   if (t === "tiers") return "factions";
@@ -304,6 +309,15 @@ export function AdminShell({
               Серверы
             </Link>
           ) : null}
+          {showServers ? (
+            <button
+              type="button"
+              className={`admin-tab ${tab === "modlog" ? "active" : ""}`}
+              onClick={() => setTab("modlog")}
+            >
+              Лог модерации
+            </button>
+          ) : null}
           {showSiteVisits ? (
             <button
               type="button"
@@ -372,6 +386,7 @@ export function AdminShell({
       {!publicLimited && tab === "updates" ? <AdminUpdatesPanel /> : null}
       {!publicLimited && tab === "mail" && showMail ? <AdminMailPanel /> : null}
       {tab === "visits" && showSiteVisits ? <AdminVisitsPanel /> : null}
+      {tab === "modlog" && showServers ? <AdminModLogPanel /> : null}
       {!publicLimited && tab === "transfers" && showKeechHunt ? (
         <AdminTransfersPanel />
       ) : null}

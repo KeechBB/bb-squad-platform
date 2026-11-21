@@ -162,6 +162,12 @@ export async function GET(req: Request) {
       const data = await runPanelka(["mods", key], 45000);
       return NextResponse.json(data);
     }
+    if (op === "staff-log") {
+      const limitRaw = Number(url.searchParams.get("limit") || "400");
+      const limit = Math.min(800, Math.max(50, Number.isFinite(limitRaw) ? limitRaw : 400));
+      const data = await runPanelka(["staff-log"], 25000, { limit });
+      return NextResponse.json(data);
+    }
     return NextResponse.json({ ok: false, error: "неизвестный запрос" }, { status: 400 });
   } catch (err) {
     const message = err instanceof Error ? err.message : "ошибка";
