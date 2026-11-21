@@ -420,7 +420,7 @@ export async function factionGrowthBoard(factionId: string): Promise<FactionGrow
       seenNicks.set(row.steamId, list);
     }
   }
-  const kits = await mainKits(listed.map((m) => m.userId));
+    const kits = await mainKits(listed.map((m) => m.userId));
   const ladders = {
     rifleman: readLadder("rifleman"),
     medic: readLadder("medic"),
@@ -432,6 +432,20 @@ export async function factionGrowthBoard(factionId: string): Promise<FactionGrow
   const prev = snap[yesterday] || {};
   const todaySnap: Snap = { rifleman: {}, medic: {}, lat: {} };
 
+  const bestLiveRole = (names: string[]) => {
+    const candidates: { role: string; slug: "rifleman" | "medic" | "lat"; level: number }[] =
+      [];
+    for (const [label, key] of Object.entries(LIVE_ROLE) as [
+      string,
+      "rifleman" | "medic" | "lat",
+    ][]) {
+      const lv = ladderLevel(ladders[key], names);
+      if (lv != null) candidates.push({ role: label, slug: key, level: lv });
+    }
+    candidates.sort((a, b) => b.level - a.level);
+    return candidates[0] || null;
+  };
+
   const rows: FactionGrowthRow[] = listed.map((m, i) => {
     const steamId = m.user.steamId;
     const worn = (seenNicks.get(steamId) || [])
@@ -439,21 +453,20 @@ export async function factionGrowthBoard(factionId: string): Promise<FactionGrow
       .map((x) => x.nick);
     const names = [m.user.steamName || "", m.user.nick || "", ...worn].filter(Boolean);
     let role = kits.get(m.userId) || "";
-    // Если кита нет — взять живую лестницу с лучшим уровнем (Freak в списке Стрелка).
-    if (!role || role === "—") {
-      const candidates: { role: string; level: number }[] = [];
-      for (const [label, key] of Object.entries(LIVE_ROLE) as [
-        string,
-        "rifleman" | "medic" | "lat",
-      ][]) {
-        const lv = ladderLevel(ladders[key], names);
-        if (lv != null) candidates.push({ role: label, level: lv });
+    let slug = LIVE_ROLE[role] as "rifleman" | "medic" | "lat" | undefined;
+    let level = slug ? ladderLevel(ladders[slug], names) : null;
+    // Нет кита / кит без лестницы (angel: LAT в спавне, уровень только у Стрелка) —
+    // берём живую роль с лучшим уровнем, иначе в «Развитии» пусто.
+    if (!role || role === "—" || level == null) {
+      const best = bestLiveRole(names);
+      if (best) {
+        role = best.role;
+        slug = best.slug;
+        level = best.level;
+      } else if (!role) {
+        role = "—";
       }
-      candidates.sort((a, b) => b.level - a.level);
-      role = candidates[0]?.role || "—";
     }
-    const slug = LIVE_ROLE[role];
-    const level = slug ? ladderLevel(ladders[slug], names) : null;
     const nickKey = nickCompact(m.user.nick || m.user.steamName || "");
     if (slug && steamId && level != null) todaySnap[slug][steamId] = level;
     const y =

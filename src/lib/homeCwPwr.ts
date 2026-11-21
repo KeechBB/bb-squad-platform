@@ -48,6 +48,11 @@ export type CwMatchHistoryRow = {
   r2?: string;
   playersUrl: string;
   won: boolean | null;
+  res: number;
+  nok: number;
+  kills: number;
+  deaths: number;
+  dmg: number;
   pwrAfter: number;
   pwrDelta: number;
   rankLabel: string;
@@ -671,15 +676,10 @@ export async function buildPlayerCwMatchHistory(
   const {
     collisionBySiteNick,
     collisionBySteamId,
-    loadSteamAngelTrainDays,
-    matchYmdAllowed,
   } = await import("@/lib/nickCollisions");
   const collision =
     collisionBySteamId(opts?.steamId) || collisionBySiteNick(clean);
-  const steamDays =
-    collision?.steamId
-      ? await loadSteamAngelTrainDays(collision.steamId)
-      : null;
+  // КВ не фильтруем по TR-спавнам: табло КВ само делит angel|bb vs angel|opp.
   const tierIndex = await loadTierIndex();
   const tier =
     tierIndex.get(want) || tierIndex.get(nickKey(clean)) || 4;
@@ -785,8 +785,6 @@ export async function buildPlayerCwMatchHistory(
     const match = matchMetas[mi];
     const players = playerDocs[mi];
     if (!players) continue;
-    const ymd = `${match.year}-${pad2(match.month)}-${pad2(match.day)}`;
-    if (!matchYmdAllowed(ymd, steamDays)) continue;
     const byNick = sumMeetingPlayersBothSides(players);
     const mine = pickMeetingRow(byNick, want, resolveKey, collision);
     if (!mine) continue;
@@ -830,6 +828,11 @@ export async function buildPlayerCwMatchHistory(
       r2: match.r2,
       playersUrl: match.playersUrl,
       won,
+      res: mine.res,
+      nok: mine.nok,
+      kills: mine.kills,
+      deaths: mine.deaths,
+      dmg: mine.dmg,
       pwrAfter: pwr,
       pwrDelta,
       rankLabel: label,

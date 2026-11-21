@@ -52,7 +52,7 @@ async function loadPlayerProfileHeavyUncached(
     collisionBySiteNick(clean)?.steamId ||
     null;
   const [kvBundle, trainCombat, publicCombat, ready] = await Promise.all([
-    buildPlayerKvStats(clean)
+    buildPlayerKvStats(clean, { steamId })
       .then((stats) => ({ stats, error: null as string | null }))
       .catch(() => ({
         stats: null as PlayerKvStats | null,

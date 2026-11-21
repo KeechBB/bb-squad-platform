@@ -846,10 +846,33 @@ function getKvPlayerCorpus(): Promise<KvPlayerCorpus> {
 }
 
 /** Личная стата игрока по раундам из data/players + mvp-ledger */
-export async function buildPlayerKvStats(nick: string): Promise<PlayerKvStats> {
-  const want = nick.trim();
+export async function buildPlayerKvStats(
+  nick: string,
+  opts?: { steamId?: string | null }
+): Promise<PlayerKvStats> {
+  let want = nick.trim();
   const { source, jobs, docs, matchMeta, ledger } = await getKvPlayerCorpus();
   const rounds: PlayerKvRound[] = [];
+  // angel BB vs angel на стороне соперника — разные Steam; не склеивать.
+  let angelSide: "bb" | "opp" | null = null;
+  try {
+    const {
+      collisionBySteamId,
+      collisionBySiteNick,
+      BB_ANGEL_STEAM_ID,
+      ALAN_ANGEL_STEAM_ID,
+    } = await import("@/lib/nickCollisions");
+    const hit =
+      collisionBySteamId(opts?.steamId) || collisionBySiteNick(want);
+    if (hit) {
+      // На табло КВ у обоих «angel» — матчим игровой ярлык, не slug AngelBB.
+      want = "angel";
+      if (hit.steamId === BB_ANGEL_STEAM_ID) angelSide = "bb";
+      else if (hit.steamId === ALAN_ANGEL_STEAM_ID) angelSide = "opp";
+    }
+  } catch {
+    /* ignore */
+  }
 
   for (let i = 0; i < jobs.length; i++) {
     const { m, mid } = jobs[i];
@@ -866,6 +889,8 @@ export async function buildPlayerKvStats(nick: string): Promise<PlayerKvStats> {
       { key: "r2", rows: data.oppR2, asOpp: true },
     ];
     for (const side of sides) {
+      if (angelSide === "bb" && side.asOpp) continue;
+      if (angelSide === "opp" && !side.asOpp) continue;
       for (const row of side.rows || []) {
         if (!nickEq(String(row?.nick || ""), want)) continue;
         const status = side.asOpp
