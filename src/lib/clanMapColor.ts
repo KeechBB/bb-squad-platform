@@ -4,8 +4,8 @@
  */
 
 const KNOWN: Record<string, string> = {
-  // сайт /clans
-  ХУХ: "#c084fc",
+  // сайт /clans — фиолетовый только у BB; красный/оранжевый/синий оставляем где уже стоят
+  ХУХ: "#14b8a6",
   HIVE: "#ffe600",
   A: "#fbbf24",
   ALPHA: "#fbbf24",
@@ -18,8 +18,8 @@ const KNOWN: Record<string, string> = {
   IMP: "#991b1b",
   NKLV: "#0ea5e9",
   OCO: "#f97316",
-  POHUY: "#06b6d4",
-  RA: "#a855f7",
+  POHUY: "#2dd4bf",
+  RA: "#f472b6",
   RPSS: "#84cc16",
   YSKUT: "#ec4899",
   // КВ / карта (внешние и старые)
@@ -28,14 +28,14 @@ const KNOWN: Record<string, string> = {
   AVG: "#eab308",
   HELL: "#dc2626",
   TWO: "#84cc16",
-  "20R": "#c026d3",
+  "20R": "#a3e635",
   "44TH": "#f59e0b",
   GM: "#64748b",
   SPH: "#facc15",
   IH: "#78716c",
   HQ: "#b91c1c",
   H1GH: "#ec4899",
-  OMEN: "#6366f1",
+  OMEN: "#2dd4bf",
   FURY: "#ea580c",
   FAL: "#0ea5e9",
   SOLID: "#16a34a",
