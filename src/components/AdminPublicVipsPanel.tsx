@@ -187,7 +187,11 @@ export function AdminPublicVipsPanel() {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else {
       setSortKey(key);
-      setSortDir(key === "nick" || key === "steamId" || key === "byNick" ? "asc" : "desc");
+      setSortDir(
+        key === "nick" || key === "steamId" || key === "byNick" || key === "note"
+          ? "asc"
+          : "desc"
+      );
     }
   }
 
