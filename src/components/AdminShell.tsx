@@ -117,10 +117,9 @@ const LOG_TABS: Tab[] = [
   "cases",
   "updates",
   "tournaments",
-  "reserve",
   "market",
 ];
-const MANAGE_TABS: Tab[] = ["hunt", "load", "visits", "mail", "attendance"];
+const MANAGE_TABS: Tab[] = ["hunt", "load", "visits", "mail", "attendance", "reserve"];
 
 function readTab(
   allowVisits: boolean,
@@ -372,9 +371,6 @@ export function AdminShell({
         { kind: "tab", tab: "cases", label: "Лог кейсов" },
         { kind: "tab", tab: "updates", label: "Лог обновлений" },
         { kind: "tab", tab: "tournaments", label: "Лог турниров" },
-        ...(showReserve
-          ? ([{ kind: "tab", tab: "reserve", label: "Лог резерва" }] as MenuItem[])
-          : []),
         { kind: "tab", tab: "market", label: "Лог магазина" },
       ]
     : [];
@@ -394,6 +390,9 @@ export function AdminShell({
       ? ([
           { kind: "tab", tab: "attendance", label: "Посещаемость тренировок" },
         ] as MenuItem[])
+      : []),
+    ...(showReserve
+      ? ([{ kind: "tab", tab: "reserve", label: "Резерв" }] as MenuItem[])
       : []),
   ];
 
