@@ -253,7 +253,9 @@ async function buildClanMapStats(
   if (!ledger?.matches?.length || !ledger.players) return [];
 
   type Pm = { id: string; won?: boolean | null };
-  const presence = new Map<string, { any: boolean; won: boolean }>();
+  // Per match: how many clan members played / how many were on the winning side.
+  // Clan win = more members won than lost (avoids inflating WR when BB sits on both teams).
+  const presence = new Map<string, { members: number; winners: number }>();
 
   for (const p of Object.values(ledger.players)) {
     const nick = String(p.nick || "").trim();
@@ -261,9 +263,9 @@ async function buildClanMapStats(
     if (!k || !want.has(k)) continue;
     for (const m of (p.matches || []) as Pm[]) {
       if (!m?.id) continue;
-      const cur = presence.get(m.id) || { any: false, won: false };
-      cur.any = true;
-      if (m.won === true) cur.won = true;
+      const cur = presence.get(m.id) || { members: 0, winners: 0 };
+      cur.members += 1;
+      if (m.won === true) cur.winners += 1;
       presence.set(m.id, cur);
     }
   }
@@ -271,11 +273,12 @@ async function buildClanMapStats(
   const byMap = new Map<string, { games: number; wins: number }>();
   for (const m of ledger.matches) {
     const hit = presence.get(m.id);
-    if (!hit?.any) continue;
+    if (!hit || hit.members <= 0) continue;
     const map = String((m as { map?: string }).map || "").trim() || "—";
     const row = byMap.get(map) || { games: 0, wins: 0 };
     row.games += 1;
-    if (hit.won) row.wins += 1;
+    const losers = hit.members - hit.winners;
+    if (hit.winners > losers) row.wins += 1;
     byMap.set(map, row);
   }
 
