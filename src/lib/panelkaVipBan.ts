@@ -314,6 +314,8 @@ export async function expireVipsNow(): Promise<number> {
 
 export async function listPublicVips(): Promise<VipRow[]> {
   await expireVipsNow().catch(() => 0);
+  // Heal: active DB grants must exist as QueuePriority in Admins.cfg
+  await syncMissingVipsToCfg().catch(() => 0);
   const cfg = (await runPanelka(["vips-list"], 25000)) as {
     ok?: boolean;
     vips?: {
@@ -387,6 +389,95 @@ export async function listPublicVips(): Promise<VipRow[]> {
   return rows;
 }
 
+/** Write QueuePriority into Admins.cfg and confirm the line is really there. */
+async function writeVipToAdminsCfg(opts: {
+  steamId: string;
+  byNick: string;
+  until: string;
+  granted: string;
+  note: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const payload = {
+    byNick: opts.byNick,
+    until: opts.until,
+    granted: opts.granted,
+    note: opts.note,
+  };
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const cfg = (await runPanelka(["vip-add", opts.steamId], 25000, payload)) as {
+      ok?: boolean;
+      steamId?: string;
+      error?: string;
+      reply?: string;
+    };
+    // Require steamId echo — plain {ok:true} from noise must not count as written
+    if (!cfg?.ok || cfg.steamId !== opts.steamId) {
+      if (attempt === 1) {
+        return {
+          ok: false,
+          error: cfg?.error || "не удалось записать Admins.cfg",
+        };
+      }
+      continue;
+    }
+    const check = (await runPanelka(["vips-list"], 25000)) as {
+      ok?: boolean;
+      vips?: { steamId?: string }[];
+      error?: string;
+    };
+    const present =
+      check?.ok &&
+      Array.isArray(check.vips) &&
+      check.vips.some((v) => v.steamId === opts.steamId);
+    if (present) return { ok: true };
+    if (attempt === 1) {
+      return {
+        ok: false,
+        error: "Admins.cfg не принял VIP — строка QueuePriority не появилась",
+      };
+    }
+  }
+  return { ok: false, error: "не удалось записать Admins.cfg" };
+}
+
+/** Push active DB grants that are missing from Admins.cfg (heal desync). */
+export async function syncMissingVipsToCfg(): Promise<number> {
+  const cfg = (await runPanelka(["vips-list"], 25000)) as {
+    ok?: boolean;
+    vips?: { steamId?: string }[];
+  };
+  if (!cfg?.ok) return 0;
+  const inCfg = new Set(
+    (cfg.vips || []).map((v) => v.steamId).filter((s): s is string => Boolean(s))
+  );
+  const dbActive = await prisma.panelkaVipGrant.findMany({
+    where: { active: true },
+    orderBy: { createdAt: "desc" },
+  });
+  let n = 0;
+  for (const row of dbActive) {
+    if (inCfg.has(row.steamId)) continue;
+    const until = row.forever
+      ? "forever"
+      : row.endsAt
+        ? row.endsAt.toISOString().slice(0, 10)
+        : "forever";
+    const granted = row.startsAt.toISOString().slice(0, 19);
+    const res = await writeVipToAdminsCfg({
+      steamId: row.steamId,
+      byNick: row.byNick || "resync",
+      until,
+      granted,
+      note: clean(row.note || "db-resync", 120),
+    });
+    if (res.ok) {
+      inCfg.add(row.steamId);
+      n += 1;
+    }
+  }
+  return n;
+}
+
 export async function grantPublicVip(opts: {
   steamId: string;
   nick?: string;
@@ -406,13 +497,15 @@ export async function grantPublicVip(opts: {
     ? "forever"
     : opts.endsAt!.toISOString().slice(0, 10);
   const granted = opts.startsAt.toISOString().slice(0, 19);
-  const cfg = (await runPanelka(["vip-add", opts.steamId], 25000, {
-    byNick: opts.byNick,
+  // DB only after Admins.cfg really has QueuePriority for this Steam
+  const written = await writeVipToAdminsCfg({
+    steamId: opts.steamId,
+    byNick: clean(opts.byNick, 32) || "штаб",
     until,
     granted,
     note: clean(opts.note || "", 120),
-  })) as { ok?: boolean; error?: string };
-  if (!cfg?.ok) return { ok: false, error: cfg?.error || "не удалось записать Admins.cfg" };
+  });
+  if (!written.ok) return written;
 
   // deactivate previous active grants for same steam
   await prisma.panelkaVipGrant.updateMany({
