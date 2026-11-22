@@ -35,12 +35,6 @@ type DragState = {
   moved: boolean;
 };
 
-const STUB_TITLES: Record<HubPreviewId, string> = {
-  junior: "КВ Junior",
-  main: "КВ основа",
-  clan: "КВ весь клан",
-};
-
 function boxStyle(box: HubTileBox): CSSProperties {
   return {
     left: `${box.left}%`,
@@ -49,28 +43,6 @@ function boxStyle(box: HubTileBox): CSSProperties {
     /* высота по контенту — иначе пустота под «в разработке» */
     height: "auto",
   };
-}
-
-function StubCard({ title }: { title: string }) {
-  return (
-    <section className="home-hub-cw-stub">
-      <p className="home-hub-cw-stub-title">{title}</p>
-      <p className="home-hub-cw-stub-meta">дата · время</p>
-      <p className="home-hub-cw-stub-meta">против кого · карта</p>
-      <div className="home-hub-cw-stub-actions">
-        <button type="button" className="home-hub-cw-stub-btn" disabled>
-          кто в составе
-        </button>
-        <button type="button" className="home-hub-cw-stub-btn" disabled>
-          буду на КВ
-        </button>
-        <button type="button" className="home-hub-cw-stub-btn" disabled>
-          прогноз
-        </button>
-      </div>
-      <p className="home-hub-cw-stub-dev">заглушка «в разработке»</p>
-    </section>
-  );
 }
 
 export function HomeHubCwDock({
