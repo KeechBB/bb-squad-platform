@@ -128,6 +128,11 @@ export async function POST(req: Request) {
     nick: me.nick || me.steamId,
   });
 
+  const { invalidateClanPublicStats } = await import(
+    "@/lib/clanPublicStatsCache"
+  );
+  invalidateClanPublicStats(invite.clanId, invite.clan.tag);
+
   livePublish(clanLiveChannel(invite.clanId), JSON.stringify({ type: "join" }));
   livePublish(userLiveChannel(me.id), JSON.stringify({ type: "join" }));
 

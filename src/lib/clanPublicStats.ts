@@ -10,6 +10,13 @@ import { PUBLIC_SERVER_KEYS } from "@/lib/squadServers";
 import { normalizeSteamId } from "@/lib/squadSessions";
 import { canonKitName } from "@/lib/squadKits";
 import { normalizeClanTag } from "@/lib/clanMapColor";
+import {
+  collisionBySiteNick,
+  publicRpLookupNick,
+} from "@/lib/nickCollisions";
+
+/** Сколько главных ролей показывать на диаграмме (самые популярные). */
+const POPULAR_ROLE_LIMIT = 6;
 
 function nickKey(n: string) {
   return String(n || "")
@@ -279,7 +286,8 @@ async function buildClanMapStats(
       wins: v.wins,
       winPct: v.games > 0 ? Math.round((1000 * v.wins) / v.games) / 10 : 0,
     }))
-    .sort((a, b) => b.winPct - a.winPct || b.games - a.games);
+    // Default: most games first
+    .sort((a, b) => b.games - a.games || b.winPct - a.winPct);
 }
 
 export async function buildClanPublicStats(opts: {
@@ -312,29 +320,65 @@ export async function buildClanPublicStats(opts: {
     .map((m) => m.user.nick || m.user.steamName || "")
     .filter(Boolean);
 
+  // Full public table (not tag-filtered) — match by Steam/nick/collision
   const [table, rolesByUser, sessionSec] = await Promise.all([
-    buildPublicRatingTable(2000, tag),
+    buildPublicRatingTable(5000, ""),
     publicMainRolesByUserIds(userIds),
     bounds
       ? avgSessionSecForSteams(steamIds, bounds.gte, bounds.lt)
       : Promise.resolve(0),
   ]);
 
-  // Prefer site membership filter — rating table clan tag can lag
-  const nickSet = new Set(memberNicks.map(nickKey));
-  const combatRows: PublicCombatRow[] = table.rows.filter(
-    (r) => nickSet.has(nickKey(r.nick)) || (tag && r.clan.toUpperCase() === tag.toUpperCase())
-  );
-
-  // Dedupe by nick
-  const byNick = new Map<string, PublicCombatRow>();
-  for (const r of combatRows) {
+  const combatByNick = new Map<string, PublicCombatRow>();
+  const combatBySteam = new Map<string, PublicCombatRow>();
+  for (const r of table.rows) {
     const k = nickKey(r.nick);
-    if (!k) continue;
-    const prev = byNick.get(k);
-    if (!prev || r.games > prev.games) byNick.set(k, r);
+    if (k) {
+      const prev = combatByNick.get(k);
+      if (!prev || r.games > prev.games) combatByNick.set(k, r);
+    }
+    if (r.steamId) {
+      const prev = combatBySteam.get(r.steamId);
+      if (!prev || r.games > prev.games) combatBySteam.set(r.steamId, r);
+    }
   }
-  const playersCombat = [...byNick.values()];
+
+  function combatForMember(m: {
+    nick: string | null;
+    steamName: string | null;
+    steamId: string | null;
+  }): PublicCombatRow | null {
+    if (m.steamId && combatBySteam.has(m.steamId)) {
+      return combatBySteam.get(m.steamId)!;
+    }
+    const siteNick = (m.nick || m.steamName || "").trim();
+    if (!siteNick) return null;
+    const col = collisionBySiteNick(siteNick);
+    const lookup = publicRpLookupNick(siteNick, m.steamId || col?.steamId);
+    const keys = [nickKey(lookup), nickKey(siteNick), nickKey(col?.publicNick || "")];
+    for (const k of keys) {
+      if (k && combatByNick.has(k)) return combatByNick.get(k)!;
+    }
+    return null;
+  }
+
+  type MemberCombat = {
+    nick: string;
+    steamId: string | null;
+    row: PublicCombatRow | null;
+  };
+  const memberCombat: MemberCombat[] = members.map((m) => {
+    const nick = (m.user.nick || m.user.steamName || "игрок").trim();
+    return {
+      nick,
+      steamId: m.user.steamId,
+      row: combatForMember(m.user),
+    };
+  });
+
+  const playersCombat = memberCombat
+    .map((m) => m.row)
+    .filter((r): r is PublicCombatRow => Boolean(r && r.games > 0));
 
   const n = playersCombat.length;
   const sum = (fn: (r: PublicCombatRow) => number) =>
@@ -379,8 +423,7 @@ export async function buildClanPublicStats(opts: {
     });
     roleBuckets.set(row.kit, bucket);
   }
-  const totalRoleSec = [...roleBuckets.values()].reduce((a, b) => a + b.sec, 0);
-  const roles: ClanPublicRoleSlice[] = [...roleBuckets.entries()]
+  const rolesAll: ClanPublicRoleSlice[] = [...roleBuckets.entries()]
     .map(([kit, b]) => {
       b.members.sort((a, c) => c.sec - a.sec || a.nick.localeCompare(c.nick, "ru"));
       return {
@@ -388,37 +431,68 @@ export async function buildClanPublicStats(opts: {
         players: b.members.length,
         hours: Math.round((b.sec / 3600) * 10) / 10,
         hoursLabel: fmtHours(b.sec),
-        pct: totalRoleSec
-          ? Math.round((1000 * b.sec) / totalRoleSec) / 10
-          : 0,
+        pct: 0,
         members: b.members,
       };
     })
-    .sort((a, b) => b.hours - a.hours || a.kit.localeCompare(b.kit, "ru"));
+    // Popular = most players with this main role, then hours
+    .sort(
+      (a, b) =>
+        b.players - a.players ||
+        b.hours - a.hours ||
+        a.kit.localeCompare(b.kit, "ru")
+    );
+  const rolesPopular = rolesAll.slice(0, POPULAR_ROLE_LIMIT);
+  const popularSec = rolesPopular.reduce(
+    (a, r) => a + r.members.reduce((s, m) => s + m.sec, 0),
+    0
+  );
+  const roles: ClanPublicRoleSlice[] = rolesPopular.map((r) => {
+    const sec = r.members.reduce((s, m) => s + m.sec, 0);
+    return {
+      ...r,
+      pct: popularSec ? Math.round((1000 * sec) / popularSec) / 10 : 0,
+    };
+  });
 
-  const players: ClanPublicPlayerRow[] = playersCombat
-    .map((r) => ({
-      nick: r.nick,
-      steamId: r.steamId,
-      nok: r.nok,
-      kills: r.kills,
-      deaths: r.deaths,
-      res: r.res,
-      kd: r.kd,
-      winPct: r.winPct,
-      games: r.games,
-      mvpKiller: r.mvpKiller,
-      mvpMedic: r.mvpMedic,
-    }))
-    .sort((a, b) => b.kills - a.kills || a.nick.localeCompare(b.nick, "ru"));
+  // Every clan member — siphon stats or zeros
+  const players: ClanPublicPlayerRow[] = memberCombat
+    .map((m) => {
+      const r = m.row;
+      return {
+        nick: m.nick,
+        steamId: m.steamId || r?.steamId || null,
+        nok: r?.nok || 0,
+        kills: r?.kills || 0,
+        deaths: r?.deaths || 0,
+        res: r?.res || 0,
+        kd: r?.kd || 0,
+        winPct: r?.winPct ?? null,
+        games: r?.games || 0,
+        mvpKiller: r?.mvpKiller || 0,
+        mvpMedic: r?.mvpMedic || 0,
+      };
+    })
+    .sort(
+      (a, b) =>
+        b.games - a.games ||
+        b.kills - a.kills ||
+        a.nick.localeCompare(b.nick, "ru")
+    );
 
-  const maps = await buildClanMapStats(memberNicks);
+  const lookupNicks = memberCombat.flatMap((m) => {
+    const site = m.nick;
+    const col = collisionBySiteNick(site);
+    const lookup = publicRpLookupNick(site, m.steamId || col?.steamId);
+    return [site, lookup, col?.publicNick || ""].filter(Boolean);
+  });
+  const maps = await buildClanMapStats(lookupNicks);
 
   return {
     windowDays: win.days,
     from: win.from,
     to: win.to,
-    playersWithCombat: players.length,
+    playersWithCombat: playersCombat.length,
     membersTotal: members.length,
     averages,
     roles,

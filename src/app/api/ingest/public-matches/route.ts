@@ -154,5 +154,11 @@ export async function POST(req: Request) {
     }
   }
 
+  if (accepted > 0) {
+    void import("@/lib/clanPublicStatsCache")
+      .then((m) => m.invalidateAllClanPublicStats())
+      .catch(() => {});
+  }
+
   return NextResponse.json({ ok: true, accepted, skipped });
 }

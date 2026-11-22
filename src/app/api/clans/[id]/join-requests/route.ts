@@ -315,6 +315,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
     });
   }
 
+  const { invalidateClanPublicStats } = await import(
+    "@/lib/clanPublicStatsCache"
+  );
+  invalidateClanPublicStats(clanId, clan?.tag);
+
   livePublish(clanLiveChannel(clanId), JSON.stringify({ type: "join" }));
   livePublish(userLiveChannel(request.userId), JSON.stringify({ type: "join" }));
   return NextResponse.json({ ok: true });

@@ -36,7 +36,8 @@ type PlayerSortKey =
   | "deaths"
   | "res"
   | "kd"
-  | "winPct";
+  | "winPct"
+  | "games";
 
 type MapSortKey = "map" | "winPct" | "games";
 
@@ -194,11 +195,11 @@ export function ClanPublicStatsPanel({ clanId }: Props) {
   const [hoverKit, setHoverKit] = useState<string | null>(null);
   const [pickedKit, setPickedKit] = useState<string | null>(null);
 
-  const [pSort, setPSort] = useState<PlayerSortKey>("kills");
+  const [pSort, setPSort] = useState<PlayerSortKey>("games");
   const [pDir, setPDir] = useState<"asc" | "desc">("desc");
   const [pPage, setPPage] = useState(0);
 
-  const [mSort, setMSort] = useState<MapSortKey>("winPct");
+  const [mSort, setMSort] = useState<MapSortKey>("games");
   const [mDir, setMDir] = useState<"asc" | "desc">("desc");
   const [mPage, setMPage] = useState(0);
 
@@ -244,6 +245,45 @@ export function ClanPublicStatsPanel({ clanId }: Props) {
     () => data?.roles.find((r) => r.kit === pickedKit) || null,
     [data, pickedKit]
   );
+
+  const records = useMemo(() => {
+    const rows = data?.players || [];
+    const maxOf = (fn: (r: ClanPublicPlayerRow) => number) =>
+      rows.reduce((m, r) => Math.max(m, fn(r)), 0);
+    return {
+      nok: maxOf((r) => r.nok),
+      kills: maxOf((r) => r.kills),
+      deaths: maxOf((r) => r.deaths),
+      res: maxOf((r) => r.res),
+      kd: maxOf((r) => r.kd),
+      games: maxOf((r) => r.games),
+    };
+  }, [data]);
+
+  /** Players + averages: >70 green, >60 yellow (no red). */
+  function winTone(pct: number | null | undefined): string {
+    if (pct == null) return "";
+    if (pct > 70) return "is-wr-green";
+    if (pct > 60) return "is-wr-yellow";
+    return "";
+  }
+
+  /** Maps: same highs + below 50% red. */
+  function mapWinTone(pct: number | null | undefined): string {
+    if (pct == null) return "";
+    if (pct > 70) return "is-wr-green";
+    if (pct > 60) return "is-wr-yellow";
+    if (pct < 50) return "is-wr-red";
+    return "";
+  }
+
+  function isRecord(
+    key: keyof typeof records,
+    value: number
+  ): boolean {
+    const top = records[key];
+    return top > 0 && value === top;
+  }
 
   const playersSorted = useMemo(() => {
     const rows = [...(data?.players || [])];
@@ -414,24 +454,25 @@ export function ClanPublicStatsPanel({ clanId }: Props) {
               <div className="clan-pub-avg-grid">
                 {(
                   [
-                    ["Килов в среднем", avg?.avgKills],
-                    ["Уничт. тех в среднем", avg?.avgVehicleKills],
-                    ["средний KDA", avg?.avgKd],
+                    ["Килов в среднем", avg?.avgKills, ""],
+                    ["Уничт. тех в среднем", avg?.avgVehicleKills, ""],
+                    ["средний KDA", avg?.avgKd, ""],
                     [
                       "винрейт в среднем",
                       avg?.avgWinrate != null ? `${avg.avgWinrate}%` : "—",
+                      winTone(avg?.avgWinrate),
                     ],
-                    ["MVP ресы", avg?.mvpMedicTotal],
-                    ["Ноков в среднем", avg?.avgNok],
-                    ["Ресов в среднем", avg?.avgRes],
-                    ["В среднем сессия", avg?.avgSessionLabel],
-                    ["смертей в среднем", avg?.avgDeaths],
-                    ["всего MVP убийца", avg?.mvpKillerTotal],
+                    ["MVP ресы", avg?.mvpMedicTotal, ""],
+                    ["Ноков в среднем", avg?.avgNok, ""],
+                    ["Ресов в среднем", avg?.avgRes, ""],
+                    ["В среднем сессия", avg?.avgSessionLabel, ""],
+                    ["смертей в среднем", avg?.avgDeaths, ""],
+                    ["всего MVP убийца", avg?.mvpKillerTotal, ""],
                   ] as const
-                ).map(([label, value]) => (
+                ).map(([label, value, tone]) => (
                   <div key={label} className="clan-pub-avg-cell">
                     <span>{label}</span>
-                    <strong>{value ?? "—"}</strong>
+                    <strong className={tone}>{value ?? "—"}</strong>
                   </div>
                 ))}
               </div>
@@ -448,6 +489,7 @@ export function ClanPublicStatsPanel({ clanId }: Props) {
                       {(
                         [
                           ["nick", "Ник"],
+                          ["games", "Игр"],
                           ["nok", "Ноки"],
                           ["kills", "Килы"],
                           ["deaths", "Смерти"],
@@ -472,7 +514,7 @@ export function ClanPublicStatsPanel({ clanId }: Props) {
                   <tbody>
                     {pSlice.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="muted">
+                        <td colSpan={8} className="muted">
                           Пока нет боёв на PB1
                         </td>
                       </tr>
@@ -480,12 +522,27 @@ export function ClanPublicStatsPanel({ clanId }: Props) {
                       pSlice.map((r: ClanPublicPlayerRow) => (
                         <tr key={r.nick}>
                           <td>{r.nick}</td>
-                          <td>{r.nok}</td>
-                          <td>{r.kills}</td>
-                          <td>{r.deaths}</td>
-                          <td>{r.res}</td>
-                          <td>{r.kd}</td>
-                          <td>{r.winPct != null ? `${r.winPct}%` : "—"}</td>
+                          <td className={isRecord("games", r.games) ? "is-record" : ""}>
+                            {r.games}
+                          </td>
+                          <td className={isRecord("nok", r.nok) ? "is-record" : ""}>
+                            {r.nok}
+                          </td>
+                          <td className={isRecord("kills", r.kills) ? "is-record" : ""}>
+                            {r.kills}
+                          </td>
+                          <td className={isRecord("deaths", r.deaths) ? "is-record" : ""}>
+                            {r.deaths}
+                          </td>
+                          <td className={isRecord("res", r.res) ? "is-record" : ""}>
+                            {r.res}
+                          </td>
+                          <td className={isRecord("kd", r.kd) ? "is-record" : ""}>
+                            {r.kd}
+                          </td>
+                          <td className={winTone(r.winPct)}>
+                            {r.winPct != null ? `${r.winPct}%` : "—"}
+                          </td>
                         </tr>
                       ))
                     )}
@@ -556,7 +613,7 @@ export function ClanPublicStatsPanel({ clanId }: Props) {
                       mSlice.map((r: ClanPublicMapRow) => (
                         <tr key={r.map}>
                           <td>{r.map}</td>
-                          <td>{r.winPct}%</td>
+                          <td className={mapWinTone(r.winPct)}>{r.winPct}%</td>
                           <td>{r.games}</td>
                         </tr>
                       ))

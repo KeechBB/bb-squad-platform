@@ -537,6 +537,14 @@ export async function attachOpponentClanOnRegister(userId: string): Promise<{
   } catch (err) {
     console.error("[attachOpponentClanOnRegister] backfill", err);
   }
+  try {
+    const { invalidateClanPublicStats } = await import(
+      "@/lib/clanPublicStatsCache"
+    );
+    invalidateClanPublicStats(pending.clanId, pending.clan.tag);
+  } catch {
+    /* ignore */
+  }
 
   return {
     joined: true,

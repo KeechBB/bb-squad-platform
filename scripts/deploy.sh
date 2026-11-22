@@ -316,6 +316,15 @@ curl -sk --max-time 120 -H 'Host: bb-squad.ru' \
   --resolve bb-squad.ru:443:127.0.0.1 \
   "https://127.0.0.1/api/warm/public-rating" || true
 
+echo "==> warm clan public stats cache (BB first, then all in background)"
+curl -sk --max-time 180 -H 'Host: bb-squad.ru' \
+  --resolve bb-squad.ru:443:127.0.0.1 \
+  "https://127.0.0.1/api/warm/clan-public-stats?tag=BB" || true
+nohup curl -sk --max-time 600 -H 'Host: bb-squad.ru' \
+  --resolve bb-squad.ru:443:127.0.0.1 \
+  "https://127.0.0.1/api/warm/clan-public-stats" \
+  >/var/log/bb-warm-clan-public-stats.log 2>&1 &
+
 # Keep /public hot every minute (shared disk snapshot across cluster workers)
 if [[ ! -f /etc/cron.d/bb-squad-warm-public ]]; then
   cat >/etc/cron.d/bb-squad-warm-public <<'EOF'

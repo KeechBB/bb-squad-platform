@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { buildClanKvStats } from "@/lib/kvStats";
 import { hitmapAverageForClan } from "@/lib/squadHits";
-import { buildClanPublicStats } from "@/lib/clanPublicStats";
+import { getClanPublicStatsCached } from "@/lib/clanPublicStatsCache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,15 +38,14 @@ export async function GET(req: Request, ctx: Ctx) {
 
   if (lane === "public") {
     try {
-      const publicStats = await buildClanPublicStats({
-        clanId: id,
-        tag: clan.tag,
-      });
+      const snap = await getClanPublicStatsCached(id, clan.tag);
       return NextResponse.json({
         ok: true,
         lane: "public",
         clan: { tag: clan.tag, name: clan.name },
-        public: publicStats,
+        public: snap.public,
+        builtAt: snap.builtAt,
+        cached: true,
       });
     } catch (e) {
       return NextResponse.json(

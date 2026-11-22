@@ -27814,20 +27814,33 @@ body:has(.faction-page) .site-footer {
   border-bottom: 1px solid rgba(255,255,255,0.04);
 }
 .clan-pub-hint { margin: 8px 0 0; font-size: 0.8rem; }
+.clan-pub-avgs,
+.clan-pub-roles,
+.clan-pub-players,
+.clan-pub-maps {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
 .clan-pub-avg-grid {
+  width: 100%;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
+  justify-items: stretch;
 }
 .clan-pub-avg-cell {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  width: 100%;
+  min-width: 0;
   min-height: 64px;
   padding: 8px 9px;
   border-radius: 10px;
   border: 1px solid rgba(167, 139, 250, 0.18);
   background: rgba(20, 14, 34, 0.55);
+  box-sizing: border-box;
 }
 .clan-pub-avg-cell span {
   font-size: 0.68rem;
@@ -27837,6 +27850,21 @@ body:has(.faction-page) .site-footer {
 .clan-pub-avg-cell strong {
   font-size: 1.05rem;
   font-variant-numeric: tabular-nums;
+}
+.clan-pub-table td.is-record,
+.clan-pub-avg-cell strong.is-wr-yellow,
+.clan-pub-table td.is-wr-yellow {
+  color: #fbbf24;
+  font-weight: 700;
+}
+.clan-pub-avg-cell strong.is-wr-green,
+.clan-pub-table td.is-wr-green {
+  color: #34d399;
+  font-weight: 700;
+}
+.clan-pub-table td.is-wr-red {
+  color: #f87171;
+  font-weight: 700;
 }
 .clan-pub-table-wrap { overflow: auto; max-height: 420px; }
 .clan-pub-table {
