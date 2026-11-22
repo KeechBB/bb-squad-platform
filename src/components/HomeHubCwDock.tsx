@@ -252,19 +252,14 @@ export function HomeHubCwDock({
     );
   }
 
+  // Только участники [BB]. Остальным блок полностью скрыт (не заглушки).
+  if (!showCw) return null;
+
   // Зафиксировано: плотный столбик сверху слева, без огромных слотов.
   if (!editing) {
     return (
       <aside className="home-hub-cw home-hub-cw--stack" aria-label="Превью клановых войн">
-        {showCw ? (
-          <HomeCwAnnounce cards={cwCards} />
-        ) : (
-          <div className="home-hub-cw-stubs">
-            {HOME_HUB_PREVIEW_IDS.map((id) => (
-              <StubCard key={id} title={STUB_TITLES[id]} />
-            ))}
-          </div>
-        )}
+        <HomeCwAnnounce cards={cwCards} />
       </aside>
     );
   }
@@ -277,21 +272,17 @@ export function HomeHubCwDock({
         aria-label="Превью клановых войн"
         ref={hostRef}
       >
-        {showCw
-          ? HOME_HUB_PREVIEW_IDS.map((id) =>
-              shell(
-                id,
-                <HomeCwAnnounce
-                  cards={cwCards}
-                  singleStack={
-                    id === "junior" ? "Junior" : id === "main" ? "Main" : "Clan"
-                  }
-                />
-              )
-            )
-          : HOME_HUB_PREVIEW_IDS.map((id) =>
-              shell(id, <StubCard title={STUB_TITLES[id]} />)
-            )}
+        {HOME_HUB_PREVIEW_IDS.map((id) =>
+          shell(
+            id,
+            <HomeCwAnnounce
+              cards={cwCards}
+              singleStack={
+                id === "junior" ? "Junior" : id === "main" ? "Main" : "Clan"
+              }
+            />
+          )
+        )}
       </aside>
     </>
   );
