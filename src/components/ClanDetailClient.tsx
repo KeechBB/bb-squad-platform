@@ -335,42 +335,54 @@ export function ClanDetailClient({
         role: ClanRole;
         joinedAt: string;
         userId?: string;
+        hasVip?: boolean;
+        mainKit?: string | null;
         title?: { id: string; name: string } | null;
         user: Member["user"] & {
+          steamId?: string | null;
           reserveUntil?: string | Date | null;
           updatedAt?: string | Date | null;
         };
       }>;
-      setMembers(
-        list.map((m) => ({
-          id: m.id,
-          role: m.role,
-          joinedAt:
-            typeof m.joinedAt === "string"
-              ? m.joinedAt
-              : new Date(m.joinedAt).toISOString(),
-          title: m.title ? { id: m.title.id, name: m.title.name } : null,
-          user: {
-            ...m.user,
-            reserveUntil: m.user.reserveUntil
-              ? typeof m.user.reserveUntil === "string"
-                ? m.user.reserveUntil
-                : new Date(m.user.reserveUntil).toISOString()
-              : null,
-            reserveReason: m.user.reserveReason ?? null,
-            updatedAt: m.user.updatedAt
-              ? typeof m.user.updatedAt === "string"
-                ? m.user.updatedAt
-                : new Date(m.user.updatedAt).toISOString()
-              : null,
-            lastSeenAt: m.user.lastSeenAt
-              ? typeof m.user.lastSeenAt === "string"
-                ? m.user.lastSeenAt
-                : new Date(m.user.lastSeenAt).toISOString()
-              : null,
-          },
-        }))
-      );
+      setMembers((prev) => {
+        const prevById = new Map(prev.map((m) => [m.id, m]));
+        return list.map((m) => {
+          const was = prevById.get(m.id);
+          return {
+            id: m.id,
+            role: m.role,
+            joinedAt:
+              typeof m.joinedAt === "string"
+                ? m.joinedAt
+                : new Date(m.joinedAt).toISOString(),
+            title: m.title ? { id: m.title.id, name: m.title.name } : null,
+            // live GET may omit kits — keep last known
+            mainKit: m.mainKit ?? was?.mainKit ?? null,
+            hasVip:
+              typeof m.hasVip === "boolean" ? m.hasVip : Boolean(was?.hasVip),
+            user: {
+              ...m.user,
+              steamId: m.user.steamId ?? was?.user.steamId ?? null,
+              reserveUntil: m.user.reserveUntil
+                ? typeof m.user.reserveUntil === "string"
+                  ? m.user.reserveUntil
+                  : new Date(m.user.reserveUntil).toISOString()
+                : null,
+              reserveReason: m.user.reserveReason ?? null,
+              updatedAt: m.user.updatedAt
+                ? typeof m.user.updatedAt === "string"
+                  ? m.user.updatedAt
+                  : new Date(m.user.updatedAt).toISOString()
+                : null,
+              lastSeenAt: m.user.lastSeenAt
+                ? typeof m.user.lastSeenAt === "string"
+                  ? m.user.lastSeenAt
+                  : new Date(m.user.lastSeenAt).toISOString()
+                : null,
+            },
+          };
+        });
+      });
       if (myUserId) {
         const mine = list.find((m) => m.user.id === myUserId || m.userId === myUserId);
         if (mine) {

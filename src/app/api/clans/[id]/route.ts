@@ -46,6 +46,7 @@ export async function GET(_req: Request, ctx: Ctx) {
               name: true,
               avatarUrl: true,
               steamName: true,
+              steamId: true,
               reserveUntil: true,
               reserveReason: true,
               updatedAt: true,
@@ -62,7 +63,29 @@ export async function GET(_req: Request, ctx: Ctx) {
   if (!clan) {
     return NextResponse.json({ error: "Клан не найден" }, { status: 404 });
   }
-  return NextResponse.json({ clan });
+
+  // VIP flags for live refresh (clan page column)
+  const steams = clan.members
+    .map((m) => m.user.steamId)
+    .filter((s): s is string => Boolean(s));
+  const vipSet = new Set<string>();
+  if (steams.length) {
+    const grants = await prisma.panelkaVipGrant.findMany({
+      where: { steamId: { in: steams }, active: true },
+      select: { steamId: true },
+    });
+    for (const g of grants) vipSet.add(g.steamId);
+  }
+
+  return NextResponse.json({
+    clan: {
+      ...clan,
+      members: clan.members.map((m) => ({
+        ...m,
+        hasVip: m.user.steamId ? vipSet.has(m.user.steamId) : false,
+      })),
+    },
+  });
 }
 
 export async function POST(req: Request, ctx: Ctx) {
