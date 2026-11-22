@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { buildClanKvStats } from "@/lib/kvStats";
 import { hitmapAverageForClan } from "@/lib/squadHits";
+import { buildClanPublicStats } from "@/lib/clanPublicStats";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,8 +12,10 @@ type Ctx = { params: Promise<{ id: string }> };
 const HOLDER_STEAM = "76561199000000001";
 const EXTERNAL_LEADER_STEAM_PREFIX = "7656119900001";
 
-export async function GET(_req: Request, ctx: Ctx) {
+export async function GET(req: Request, ctx: Ctx) {
   const { id } = await ctx.params;
+  const lane = new URL(req.url).searchParams.get("lane") || "public";
+
   const clan = await prisma.clan.findUnique({
     where: { id },
     select: {
@@ -31,6 +34,29 @@ export async function GET(_req: Request, ctx: Ctx) {
   });
   if (!clan) {
     return NextResponse.json({ error: "Клан не найден" }, { status: 404 });
+  }
+
+  if (lane === "public") {
+    try {
+      const publicStats = await buildClanPublicStats({
+        clanId: id,
+        tag: clan.tag,
+      });
+      return NextResponse.json({
+        ok: true,
+        lane: "public",
+        clan: { tag: clan.tag, name: clan.name },
+        public: publicStats,
+      });
+    } catch (e) {
+      return NextResponse.json(
+        {
+          error: "Не удалось загрузить паблик",
+          detail: e instanceof Error ? e.message : String(e),
+        },
+        { status: 502 }
+      );
+    }
   }
 
   try {
@@ -57,6 +83,7 @@ export async function GET(_req: Request, ctx: Ctx) {
 
     return NextResponse.json({
       ok: true,
+      lane: "cw",
       clan: { tag: clan.tag, name: clan.name },
       stats: {
         ...stats,

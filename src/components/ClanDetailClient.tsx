@@ -22,8 +22,8 @@ import {
   canManageClanTitles,
   canReviewClanJoinRequests,
 } from "@/lib/titles";
-import { ClanAvgHitmap } from "@/components/ClanAvgHitmap";
 import { ClanProfileEdit } from "@/components/ClanProfileEdit";
+import { ClanPublicStatsPanel } from "@/components/ClanPublicStatsPanel";
 import { SitePresenceBadge } from "@/components/SitePresenceBadge";
 import { subscribeLive } from "@/lib/liveClient";
 import { playerPathFromUser } from "@/lib/playerPath";
@@ -125,82 +125,6 @@ type Props = {
 
 type Tab = "members" | "stats" | "calendar" | "factions";
 
-type ClanPlayerAgg = {
-  nick: string;
-  kills: number;
-  deaths: number;
-  dmg: number;
-  res: number;
-  games: number;
-  kd: number;
-};
-
-type ClanStatsData = {
-  total: number;
-  played: number;
-  upcoming: number;
-  cancelled?: number;
-  wins: number;
-  draws: number;
-  losses: number;
-  winrate: number;
-  byStack: {
-    name: string;
-    played: number;
-    wins: number;
-    draws: number;
-    losses: number;
-    winrate: number;
-  }[];
-  maps: {
-    map: string;
-    full: string;
-    games: number;
-    wins: number;
-    losses: number;
-    draws: number;
-  }[];
-  recent: {
-    day: number;
-    opp: string;
-    map: string;
-    stack: string;
-    status: string;
-    meeting: string;
-  }[];
-  combat: {
-    kills: number;
-    deaths: number;
-    dmg: number;
-    res: number;
-    nok: number;
-    kd: number;
-    avgKills: number;
-    avgDeaths: number;
-    avgDmg: number;
-    avgRes: number;
-    avgKillsPerPlayer: number;
-    avgDmgPerPlayer: number;
-    matchesWithStats: number;
-    players: number;
-  } | null;
-  tops: {
-    kills: ClanPlayerAgg[];
-    kd: ClanPlayerAgg[];
-    dmg: ClanPlayerAgg[];
-    res: ClanPlayerAgg[];
-    mvpKills: { nick: string; n: number }[];
-    mvpDmg: { nick: string; n: number }[];
-    mvpRes: { nick: string; n: number }[];
-  } | null;
-  hitmap: {
-    players: number;
-    totalHits: number;
-    bonePct: Record<string, number>;
-    bones: Record<string, number>;
-  } | null;
-};
-
 const ROLE_ORDER: ClanRole[] = [
   "LEADER",
   "DEPUTY",
@@ -210,12 +134,14 @@ const ROLE_ORDER: ClanRole[] = [
   "MEMBER",
 ];
 
-const STATUS_RU: Record<string, string> = {
-  win: "победа",
-  lose: "поражение",
-  draw: "ничья",
-  r1: "раунд 1",
-};
+const TAB_IDS = new Set<Tab>(["members", "stats", "calendar", "factions"]);
+
+function readClanTab(): Tab {
+  if (typeof window === "undefined") return "members";
+  const t = new URLSearchParams(window.location.search).get("tab");
+  if (t && TAB_IDS.has(t as Tab)) return t as Tab;
+  return "members";
+}
 
 export function ClanDetailClient({
   clan,
@@ -242,7 +168,21 @@ export function ClanDetailClient({
   showVipCol = false,
 }: Props) {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("members");
+  const [tab, setTab] = useState<Tab>(() => readClanTab());
+
+  function goTab(next: Tab) {
+    setTab(next);
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", next);
+    window.history.replaceState(null, "", `${url.pathname}?${url.searchParams.toString()}`);
+  }
+
+  useEffect(() => {
+    const onPop = () => setTab(readClanTab());
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
   const [members, setMembers] = useState(initialMembers);
   const [titles, setTitles] = useState(initialTitles);
   const [myRole, setMyRole] = useState(initialMyRole);
@@ -262,8 +202,6 @@ export function ClanDetailClient({
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
   const [loading, setLoading] = useState(false);
-  const [stats, setStats] = useState<ClanStatsData | null>(null);
-  const [statsError, setStatsError] = useState("");
   const [liveOk, setLiveOk] = useState(false);
 
   const canManage = myRole ? canManageClanMembers(myRole) : initialCanManage;
@@ -433,28 +371,9 @@ export function ClanDetailClient({
     }
   }, [clan.id]);
 
-  const refreshStats = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/clans/${clan.id}/stats`, { cache: "no-store" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setStatsError(data.error || "Стата недоступна");
-        return;
-      }
-      setStatsError("");
-      setStats(data.stats as ClanStatsData);
-    } catch {
-      setStatsError("Не удалось загрузить стату КВ");
-    }
-  }, [clan.id]);
-
   useEffect(() => {
     void refreshSquads();
   }, [refreshSquads]);
-
-  useEffect(() => {
-    if (tab === "stats") void refreshStats();
-  }, [tab, refreshStats]);
 
   useEffect(() => {
     const sync = () => {
@@ -462,7 +381,6 @@ export function ClanDetailClient({
       void refreshSquads();
       void refreshTitles();
       void refreshJoinRequests();
-      if (tab === "stats") void refreshStats();
     };
 
     const unsubs: Array<() => void> = [];
@@ -489,7 +407,7 @@ export function ClanDetailClient({
       window.clearInterval(poll);
       window.removeEventListener("focus", onFocus);
     };
-  }, [clan.id, refreshMembers, refreshSquads, refreshTitles, refreshJoinRequests, refreshStats, tab]);
+  }, [clan.id, refreshMembers, refreshSquads, refreshTitles, refreshJoinRequests]);
 
   useEffect(() => {
     void refreshTitles();
@@ -762,8 +680,6 @@ export function ClanDetailClient({
     }
   }
 
-  const maxGames = Math.max(...(stats?.maps.map((m) => m.games) || [1]), 1);
-  const mapPoints = stats?.maps || [];
   const squadUserIds = useMemo(() => {
     const map = new Map<string, string>();
     for (const s of squads) {
@@ -944,7 +860,7 @@ export function ClanDetailClient({
             key={id}
             type="button"
             className={`admin-tab${tab === id ? " active" : ""}`}
-            onClick={() => setTab(id)}
+            onClick={() => goTab(id)}
           >
             {label}
           </button>
@@ -962,7 +878,7 @@ export function ClanDetailClient({
           <button
             type="button"
             className={`admin-tab${tab === "factions" ? " active" : ""}`}
-            onClick={() => setTab("factions")}
+            onClick={() => goTab("factions")}
           >
             Фракции
           </button>
@@ -1363,244 +1279,7 @@ export function ClanDetailClient({
         </section>
       ) : null}
 
-      {tab === "stats" ? (
-        <section className="card clan-stats clan-stats-dense">
-          {statsError ? <p className="error">{statsError}</p> : null}
-          {!stats && !statsError ? (
-            <p className="muted">Считаем стату из КВ…</p>
-          ) : null}
-          {stats ? (
-            <>
-              <div className="clan-metric-strip">
-                <div>
-                  <span>W–D–L</span>
-                  <strong>
-                    {stats.wins}–{stats.draws}–{stats.losses}
-                  </strong>
-                </div>
-                <div className="stat-winrate">
-                  <span>WR</span>
-                  <strong>{stats.winrate}%</strong>
-                </div>
-                <div>
-                  <span>Матчи</span>
-                  <strong>
-                    {stats.played}
-                    <em>/{stats.total}</em>
-                  </strong>
-                </div>
-                {stats.combat ? (
-                  <>
-                    <div>
-                      <span>K / D</span>
-                      <strong>
-                        {stats.combat.kills} / {stats.combat.deaths}
-                      </strong>
-                    </div>
-                    <div>
-                      <span>KD</span>
-                      <strong>{stats.combat.kd}</strong>
-                    </div>
-                    <div>
-                      <span>DMG</span>
-                      <strong>
-                        {stats.combat.dmg.toLocaleString("ru-RU")}
-                      </strong>
-                    </div>
-                    <div>
-                      <span>RES</span>
-                      <strong>{stats.combat.res}</strong>
-                    </div>
-                    <div>
-                      <span>ср.K/матч</span>
-                      <strong>{stats.combat.avgKills}</strong>
-                    </div>
-                    <div>
-                      <span>ср.D/матч</span>
-                      <strong>{stats.combat.avgDeaths}</strong>
-                    </div>
-                    <div>
-                      <span>ср.DMG</span>
-                      <strong>{stats.combat.avgDmg}</strong>
-                    </div>
-                    <div>
-                      <span>K/игрок</span>
-                      <strong>{stats.combat.avgKillsPerPlayer}</strong>
-                    </div>
-                    <div>
-                      <span>игроков</span>
-                      <strong>{stats.combat.players}</strong>
-                    </div>
-                  </>
-                ) : null}
-              </div>
-
-              {!clan.isExternal && stats.byStack.length > 0 ? (
-                <div className="clan-stack-inline">
-                  {stats.byStack.map((s) => (
-                    <span key={s.name} className="clan-stack-chip">
-                      <b>{s.name}</b> {s.played} · {s.wins}W/{s.losses}L ·{" "}
-                      {s.winrate}%
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-
-              <div className="clan-stats-mid">
-                <div className="clan-tops-grid">
-                  {(
-                    [
-                      ["Убийства", stats.tops?.kills, "kills"],
-                      ["KD", stats.tops?.kd, "kd"],
-                      ["Урон", stats.tops?.dmg, "dmg"],
-                      ["Ресы", stats.tops?.res, "res"],
-                    ] as const
-                  ).map(([title, rows, key]) => (
-                    <div key={title} className="clan-top-card">
-                      <h3 className="stats-h3">{title}</h3>
-                      {!rows?.length ? (
-                        <p className="muted" style={{ margin: 0, fontSize: "0.8rem" }}>
-                          —
-                        </p>
-                      ) : (
-                        <ol className="clan-top-list">
-                          {rows.map((p, i) => (
-                            <li key={`${key}-${p.nick}`}>
-                              <span className="clan-top-i">{i + 1}</span>
-                              <Link
-                                className="player-nick-link"
-                                href={`/players/${encodeURIComponent(p.nick)}`}
-                              >
-                                {p.nick}
-                              </Link>
-                              <span className="clan-top-v">
-                                {key === "kd"
-                                  ? p.kd
-                                  : key === "kills"
-                                    ? p.kills
-                                    : key === "dmg"
-                                      ? p.dmg.toLocaleString("ru-RU")
-                                      : p.res}
-                              </span>
-                            </li>
-                          ))}
-                        </ol>
-                      )}
-                    </div>
-                  ))}
-                  {(
-                    [
-                      ["MVP килл", stats.tops?.mvpKills],
-                      ["MVP урон", stats.tops?.mvpDmg],
-                      ["MVP рес", stats.tops?.mvpRes],
-                    ] as const
-                  ).map(([title, rows]) => (
-                    <div key={title} className="clan-top-card">
-                      <h3 className="stats-h3">{title}</h3>
-                      {!rows?.length ? (
-                        <p className="muted" style={{ margin: 0, fontSize: "0.8rem" }}>
-                          —
-                        </p>
-                      ) : (
-                        <ol className="clan-top-list">
-                          {rows.map((p, i) => (
-                            <li key={`${title}-${p.nick}`}>
-                              <span className="clan-top-i">{i + 1}</span>
-                              <Link
-                                className="player-nick-link"
-                                href={`/players/${encodeURIComponent(p.nick)}`}
-                              >
-                                {p.nick}
-                              </Link>
-                              <span className="clan-top-v">×{p.n}</span>
-                            </li>
-                          ))}
-                        </ol>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {stats.hitmap ? (
-                  <ClanAvgHitmap data={stats.hitmap} />
-                ) : (
-                  <div className="clan-avg-hitmap clan-avg-hitmap-empty">
-                    <strong>Средние попадания</strong>
-                    <p className="muted" style={{ margin: "6px 0 0", fontSize: "0.82rem" }}>
-                      Пока нет данных по хитам игроков клана
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="clan-stats-bottom">
-                <div>
-                  <h3 className="stats-h3">Карты</h3>
-                  <ul className="map-bars map-bars-dense">
-                    {mapPoints.length === 0 ? (
-                      <li className="muted">Пока нет</li>
-                    ) : (
-                      mapPoints.slice(0, 8).map((m) => (
-                        <li key={m.map}>
-                          <div className="map-bar-head">
-                            <span title={m.full}>{m.map}</span>
-                            <span className="map-bar-nums">
-                              {m.games} · {m.wins}W/{m.losses}L
-                            </span>
-                          </div>
-                          <div className="map-bar-track">
-                            <div
-                              className="map-bar-fill"
-                              style={{
-                                width: `${(m.games / maxGames) * 100}%`,
-                              }}
-                            />
-                          </div>
-                        </li>
-                      ))
-                    )}
-                  </ul>
-                </div>
-                {stats.recent.length > 0 ? (
-                  <div>
-                    <h3 className="stats-h3">Последние</h3>
-                    <div className="admin-table-wrap">
-                      <table className="admin-table clan-recent-dense">
-                        <thead>
-                          <tr>
-                            <th>#</th>
-                            <th>{clan.isExternal ? "против" : "vs"}</th>
-                            <th>карта</th>
-                            <th>счёт</th>
-                            <th></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {stats.recent.slice(0, 10).map((m, i) => (
-                            <tr key={`${m.day}-${m.opp}-${m.stack}-${i}`}>
-                              <td>{String(m.day).padStart(2, "0")}</td>
-                              <td title={m.stack !== "—" ? m.stack : undefined}>
-                                {m.opp}
-                              </td>
-                              <td>{m.map}</td>
-                              <td>{m.meeting}</td>
-                              <td>
-                                <span className={`status-chip ${m.status}`}>
-                                  {STATUS_RU[m.status] || m.status}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </>
-          ) : null}
-        </section>
-      ) : null}
+      {tab === "stats" ? <ClanPublicStatsPanel clanId={clan.id} /> : null}
 
       {tab === "calendar" ? (
         <ClanCalendarPanel
