@@ -78,6 +78,10 @@ export function TournamentHistoryTab({ hub }: { hub: TournamentHubState }) {
                 <b>{cup.name}</b>
                 <small>Дата: {formatTourDay(cup.playDate)}</small>
               </span>
+              <span className="tn-cup-row-prize">
+                <em>Призовые</em>
+                <strong>{cup.prizePoolLabel || "—"}</strong>
+              </span>
               <span className="tn-cup-row-winner">
                 <em>Победитель</em>
                 <strong>{winner || "—"}</strong>

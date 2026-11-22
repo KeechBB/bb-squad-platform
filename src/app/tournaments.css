@@ -3175,7 +3175,7 @@ a.tn-bet-save {
 
 .tn-cup-row {
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) auto;
+  grid-template-columns: 48px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 0.9rem;
   width: 100%;
@@ -3252,15 +3252,17 @@ a.tn-bet-save {
   font-size: 0.82rem;
 }
 
+.tn-cup-row-prize,
 .tn-cup-row-winner {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 0.15rem;
   text-align: right;
-  min-width: 8rem;
+  min-width: 7.5rem;
 }
 
+.tn-cup-row-prize em,
 .tn-cup-row-winner em {
   font-style: normal;
   font-size: 0.68rem;
@@ -3269,9 +3271,15 @@ a.tn-bet-save {
   color: var(--tn-gold, #e2c56a);
 }
 
+.tn-cup-row-prize strong,
 .tn-cup-row-winner strong {
   font-size: 0.95rem;
   color: #f4f0e6;
+}
+
+.tn-cup-row-prize strong {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 @media (max-width: 900px) {
@@ -3284,6 +3292,7 @@ a.tn-bet-save {
     grid-template-columns: 40px minmax(0, 1fr);
   }
 
+  .tn-cup-row-prize,
   .tn-cup-row-winner {
     grid-column: 2;
     align-items: flex-start;

@@ -34,6 +34,8 @@ export type TournamentCupRecord = {
   bracketHref: string;
   /** Чемпион для списка истории; null пока GF не сыгран. */
   winnerLabel?: string | null;
+  /** Сумма призовых для колонки в истории (готовая строка). */
+  prizePoolLabel?: string | null;
 };
 
 /** Каталог кубков для вкладки «История турниров». */
@@ -48,6 +50,7 @@ export const TOURNAMENT_CUP_CATALOG: TournamentCupRecord[] = [
     bracketHref: "/tournaments/bracket?cup=fruit-strike-s1",
     // GF done — keep winner even if hub surface flips idle.
     winnerLabel: "[PX] PHOENIX",
+    prizePoolLabel: "10 000 ₽",
   },
 ];
 
