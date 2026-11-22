@@ -195,7 +195,7 @@ export function ClanPublicStatsPanel({ clanId }: Props) {
   const [hoverKit, setHoverKit] = useState<string | null>(null);
   const [pickedKit, setPickedKit] = useState<string | null>(null);
 
-  const [pSort, setPSort] = useState<PlayerSortKey>("games");
+  const [pSort, setPSort] = useState<PlayerSortKey>("kd");
   const [pDir, setPDir] = useState<"asc" | "desc">("desc");
   const [pPage, setPPage] = useState(0);
 
@@ -285,6 +285,20 @@ export function ClanPublicStatsPanel({ clanId }: Props) {
     return top > 0 && value === top;
   }
 
+  /** Stable KD ladder place (#1 = best KD), independent of current column sort. */
+  const kdRankByNick = useMemo(() => {
+    const rows = [...(data?.players || [])].sort(
+      (a, b) =>
+        b.kd - a.kd ||
+        b.kills - a.kills ||
+        b.games - a.games ||
+        a.nick.localeCompare(b.nick, "ru")
+    );
+    const map = new Map<string, number>();
+    rows.forEach((r, i) => map.set(r.nick, i + 1));
+    return map;
+  }, [data]);
+
   const playersSorted = useMemo(() => {
     const rows = [...(data?.players || [])];
     const mul = pDir === "asc" ? 1 : -1;
@@ -294,6 +308,13 @@ export function ClanPublicStatsPanel({ clanId }: Props) {
         const av = a.winPct ?? -1;
         const bv = b.winPct ?? -1;
         return mul * (av - bv);
+      }
+      if (pSort === "kd") {
+        return (
+          mul * (a.kd - b.kd) ||
+          mul * (a.kills - b.kills) ||
+          a.nick.localeCompare(b.nick, "ru")
+        );
       }
       return mul * ((a[pSort] as number) - (b[pSort] as number));
     });
@@ -451,28 +472,71 @@ export function ClanPublicStatsPanel({ clanId }: Props) {
 
             <div className="clan-pub-avgs card-inset">
               <h3 className="stats-h3">Средние по клану</h3>
-              <div className="clan-pub-avg-grid">
+              <div className="clan-pub-avg-grid" role="list">
                 {(
                   [
-                    ["Килов в среднем", avg?.avgKills, ""],
-                    ["Уничт. тех в среднем", avg?.avgVehicleKills, ""],
-                    ["средний KDA", avg?.avgKd, ""],
-                    [
-                      "винрейт в среднем",
-                      avg?.avgWinrate != null ? `${avg.avgWinrate}%` : "—",
-                      winTone(avg?.avgWinrate),
-                    ],
-                    ["MVP ресы", avg?.mvpMedicTotal, ""],
-                    ["Ноков в среднем", avg?.avgNok, ""],
-                    ["Ресов в среднем", avg?.avgRes, ""],
-                    ["В среднем сессия", avg?.avgSessionLabel, ""],
-                    ["смертей в среднем", avg?.avgDeaths, ""],
-                    ["всего MVP убийца", avg?.mvpKillerTotal, ""],
+                    {
+                      label: "Килов в среднем",
+                      value: avg?.avgKills ?? "—",
+                      tone: "",
+                    },
+                    {
+                      label: "Ноков в среднем",
+                      value: avg?.avgNok ?? "—",
+                      tone: "",
+                    },
+                    {
+                      label: "средний KD",
+                      value: avg?.avgKd ?? "—",
+                      tone: "",
+                    },
+                    {
+                      label: "винрейт в среднем",
+                      value:
+                        avg?.avgWinrate != null ? `${avg.avgWinrate}%` : "—",
+                      tone: winTone(avg?.avgWinrate),
+                    },
+                    {
+                      label: "Уничт. тех в среднем",
+                      value: avg?.avgVehicleKills ?? "—",
+                      tone: "",
+                    },
+                    {
+                      label: "Ресов в среднем",
+                      value: avg?.avgRes ?? "—",
+                      tone: "",
+                    },
+                    {
+                      label: "смертей в среднем",
+                      value: avg?.avgDeaths ?? "—",
+                      tone: "",
+                    },
+                    {
+                      label: "В среднем сессия",
+                      value: avg?.avgSessionLabel ?? "—",
+                      tone: "",
+                    },
+                    {
+                      label: "MVP Killer",
+                      value: avg?.mvpKillerTotal ?? 0,
+                      tone: "tone-mvp-killer",
+                    },
+                    {
+                      label: "MVP Medic",
+                      value: avg?.mvpMedicTotal ?? 0,
+                      tone: "tone-mvp-medic",
+                    },
                   ] as const
-                ).map(([label, value, tone]) => (
-                  <div key={label} className="clan-pub-avg-cell">
-                    <span>{label}</span>
-                    <strong className={tone}>{value ?? "—"}</strong>
+                ).map((cell) => (
+                  <div
+                    key={cell.label}
+                    role="listitem"
+                    className={`clan-pub-avg-cell${cell.tone ? ` ${cell.tone}` : ""}`}
+                  >
+                    <span className="clan-pub-avg-label">{cell.label}</span>
+                    <strong className={cell.tone.startsWith("is-wr") ? cell.tone : ""}>
+                      {cell.value}
+                    </strong>
                   </div>
                 ))}
               </div>
@@ -486,6 +550,7 @@ export function ClanPublicStatsPanel({ clanId }: Props) {
                 <table className="clan-pub-table">
                   <thead>
                     <tr>
+                      <th className="clan-pub-rank-th">#</th>
                       {(
                         [
                           ["nick", "Ник"],
@@ -514,37 +579,67 @@ export function ClanPublicStatsPanel({ clanId }: Props) {
                   <tbody>
                     {pSlice.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="muted">
+                        <td colSpan={9} className="muted">
                           Пока нет боёв на PB1
                         </td>
                       </tr>
                     ) : (
-                      pSlice.map((r: ClanPublicPlayerRow) => (
-                        <tr key={r.nick}>
-                          <td>{r.nick}</td>
-                          <td className={isRecord("games", r.games) ? "is-record" : ""}>
-                            {r.games}
-                          </td>
-                          <td className={isRecord("nok", r.nok) ? "is-record" : ""}>
-                            {r.nok}
-                          </td>
-                          <td className={isRecord("kills", r.kills) ? "is-record" : ""}>
-                            {r.kills}
-                          </td>
-                          <td className={isRecord("deaths", r.deaths) ? "is-record" : ""}>
-                            {r.deaths}
-                          </td>
-                          <td className={isRecord("res", r.res) ? "is-record" : ""}>
-                            {r.res}
-                          </td>
-                          <td className={isRecord("kd", r.kd) ? "is-record" : ""}>
-                            {r.kd}
-                          </td>
-                          <td className={winTone(r.winPct)}>
-                            {r.winPct != null ? `${r.winPct}%` : "—"}
-                          </td>
-                        </tr>
-                      ))
+                      pSlice.map((r: ClanPublicPlayerRow) => {
+                        const place = kdRankByNick.get(r.nick) || 0;
+                        return (
+                          <tr key={r.nick}>
+                            <td className="clan-pub-rank">
+                              {place > 0 ? place : "—"}
+                            </td>
+                            <td>{r.nick}</td>
+                            <td
+                              className={
+                                isRecord("games", r.games) ? "is-record" : ""
+                              }
+                            >
+                              {r.games}
+                            </td>
+                            <td
+                              className={
+                                isRecord("nok", r.nok) ? "is-record" : ""
+                              }
+                            >
+                              {r.nok}
+                            </td>
+                            <td
+                              className={
+                                isRecord("kills", r.kills) ? "is-record" : ""
+                              }
+                            >
+                              {r.kills}
+                            </td>
+                            <td
+                              className={
+                                isRecord("deaths", r.deaths) ? "is-record" : ""
+                              }
+                            >
+                              {r.deaths}
+                            </td>
+                            <td
+                              className={
+                                isRecord("res", r.res) ? "is-record" : ""
+                              }
+                            >
+                              {r.res}
+                            </td>
+                            <td
+                              className={
+                                isRecord("kd", r.kd) ? "is-record" : ""
+                              }
+                            >
+                              {r.kd}
+                            </td>
+                            <td className={winTone(r.winPct)}>
+                              {r.winPct != null ? `${r.winPct}%` : "—"}
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>

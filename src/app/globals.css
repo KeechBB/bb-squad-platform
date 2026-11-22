@@ -27717,14 +27717,20 @@ body:has(.faction-page) .site-footer {
   margin: 0 0 14px;
 }
 .clan-pub-window { margin: 0 0 12px; font-size: 0.82rem; }
-.clan-pub-top,
-.clan-pub-bottom {
+.clan-pub-top {
   display: grid;
-  grid-template-columns: 1.05fr 1fr;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.4fr);
   gap: 14px;
   margin-bottom: 14px;
+  align-items: stretch;
 }
-.clan-pub-bottom { align-items: start; }
+.clan-pub-bottom {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 14px;
+  margin-bottom: 14px;
+  align-items: start;
+}
 .card-inset {
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -27822,34 +27828,85 @@ body:has(.faction-page) .site-footer {
   min-width: 0;
   box-sizing: border-box;
 }
+.clan-pub-avgs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 .clan-pub-avg-grid {
   width: 100%;
+  flex: 1 1 auto;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: minmax(72px, 1fr);
   gap: 8px;
   justify-items: stretch;
+  align-content: stretch;
 }
 .clan-pub-avg-cell {
   display: flex;
   flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
   gap: 4px;
   width: 100%;
   min-width: 0;
-  min-height: 64px;
-  padding: 8px 9px;
-  border-radius: 10px;
+  min-height: 72px;
+  padding: 10px 12px;
+  border-radius: 12px;
   border: 1px solid rgba(167, 139, 250, 0.18);
-  background: rgba(20, 14, 34, 0.55);
+  background: rgba(12, 10, 22, 0.5);
   box-sizing: border-box;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
-.clan-pub-avg-cell span {
-  font-size: 0.68rem;
+.clan-pub-avg-label {
+  font-size: 0.64rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--muted);
   line-height: 1.25;
+  opacity: 0.85;
 }
 .clan-pub-avg-cell strong {
-  font-size: 1.05rem;
+  font-size: 1.14rem;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
+  color: #fff;
+  line-height: 1.12;
+}
+.clan-pub-avg-cell.tone-mvp-killer {
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.55);
+  background: linear-gradient(
+    145deg,
+    rgba(220, 38, 38, 0.42),
+    rgba(127, 29, 29, 0.38),
+    rgba(12, 10, 22, 0.5)
+  );
+}
+.clan-pub-avg-cell.tone-mvp-medic {
+  color: #bbf7d0;
+  border-color: rgba(74, 222, 128, 0.55);
+  background: linear-gradient(
+    145deg,
+    rgba(22, 163, 74, 0.42),
+    rgba(20, 83, 45, 0.38),
+    rgba(12, 10, 22, 0.5)
+  );
+}
+.clan-pub-avg-cell.tone-mvp-killer strong,
+.clan-pub-avg-cell.tone-mvp-medic strong {
+  color: inherit;
+}
+.clan-pub-rank-th,
+.clan-pub-rank {
+  width: 2.2rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  font-weight: 700;
 }
 .clan-pub-table td.is-record,
 .clan-pub-avg-cell strong.is-wr-yellow,
@@ -27931,8 +27988,10 @@ body:has(.faction-page) .site-footer {
 }
 @media (max-width: 980px) {
   .clan-pub-top,
-  .clan-pub-bottom,
-  .clan-pub-avg-grid {
+  .clan-pub-bottom {
     grid-template-columns: 1fr;
+  }
+  .clan-pub-avg-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

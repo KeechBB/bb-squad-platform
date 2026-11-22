@@ -478,8 +478,9 @@ export async function buildClanPublicStats(opts: {
     })
     .sort(
       (a, b) =>
-        b.games - a.games ||
+        b.kd - a.kd ||
         b.kills - a.kills ||
+        b.games - a.games ||
         a.nick.localeCompare(b.nick, "ru")
     );
 
