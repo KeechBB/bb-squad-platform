@@ -526,6 +526,11 @@ export function ClanPublicStatsPanel({ clanId }: Props) {
                       value: avg?.mvpMedicTotal ?? 0,
                       tone: "tone-mvp-medic",
                     },
+                    {
+                      label: "MVP Armor",
+                      value: avg?.mvpArmorTotal ?? 0,
+                      tone: "tone-mvp-armor",
+                    },
                   ] as const
                 ).map((cell) => (
                   <div

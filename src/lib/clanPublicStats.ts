@@ -69,6 +69,7 @@ export type ClanPublicPlayerRow = {
   games: number;
   mvpKiller: number;
   mvpMedic: number;
+  mvpArmor: number;
 };
 
 export type ClanPublicMapRow = {
@@ -89,6 +90,7 @@ export type ClanPublicAverages = {
   avgVehicleKills: number;
   mvpMedicTotal: number;
   mvpKillerTotal: number;
+  mvpArmorTotal: number;
 };
 
 export type ClanPublicStats = {
@@ -408,6 +410,7 @@ export async function buildClanPublicStats(opts: {
     avgVehicleKills: avg((r) => (r.games ? r.vehicleKills / r.games : 0)),
     mvpMedicTotal: sum((r) => r.mvpMedic),
     mvpKillerTotal: sum((r) => r.mvpKiller),
+    mvpArmorTotal: sum((r) => r.mvpArmor),
   };
 
   const roleBuckets = new Map<
@@ -474,6 +477,7 @@ export async function buildClanPublicStats(opts: {
         games: r?.games || 0,
         mvpKiller: r?.mvpKiller || 0,
         mvpMedic: r?.mvpMedic || 0,
+        mvpArmor: r?.mvpArmor || 0,
       };
     })
     .sort(
