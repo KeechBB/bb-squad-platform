@@ -9,7 +9,6 @@ import {
   type ReactNode,
 } from "react";
 import { AdminUsersTable, type AdminUserRow } from "@/components/AdminUsersTable";
-import { AdminAttendancePanel } from "@/components/AdminAttendancePanel";
 import { AdminJournalPanel } from "@/components/AdminJournalPanel";
 import { AdminVisitsPanel } from "@/components/AdminVisitsPanel";
 import { AdminReservePanel } from "@/components/AdminReservePanel";
@@ -47,7 +46,6 @@ type Props = {
 
 type Tab =
   | "users"
-  | "attendance"
   | "journal"
   | "tournaments"
   | "visits"
@@ -71,8 +69,6 @@ type MenuItem =
 
 const TAB_LEAD: Record<Tab, string> = {
   users: "Пользователи платформы. Кликни по нику — правка анкеты и аватара.",
-  attendance:
-    "Посещаемость: таблица явки (BB / PB1) и статистика — динамика вечера TR1+TR2 + стрики пропусков/явки.",
   journal:
     "Накопительный журнал: роли, клан, профиль, тикеты поддержки и турниры.",
   tournaments:
@@ -124,7 +120,7 @@ const LOG_TABS: Tab[] = [
   "tournaments",
   "market",
 ];
-const MANAGE_TABS: Tab[] = ["hunt", "load", "visits", "mail", "attendance", "reserve"];
+const MANAGE_TABS: Tab[] = ["hunt", "load", "visits", "mail", "reserve"];
 
 function readTab(
   allowVisits: boolean,
@@ -150,7 +146,6 @@ function readTab(
     return "users";
   }
   if (
-    t === "attendance" ||
     t === "journal" ||
     t === "tournaments" ||
     t === "users" ||
@@ -394,11 +389,6 @@ export function AdminShell({
     ...(!publicLimited && showMail
       ? ([{ kind: "tab", tab: "mail", label: "Письмо" }] as MenuItem[])
       : []),
-    ...(!publicLimited
-      ? ([
-          { kind: "tab", tab: "attendance", label: "Посещаемость тренировок" },
-        ] as MenuItem[])
-      : []),
     ...(showReserve
       ? ([{ kind: "tab", tab: "reserve", label: "Резерв" }] as MenuItem[])
       : []),
@@ -430,8 +420,6 @@ export function AdminShell({
         actorRole={actorRole}
       />
     );
-  } else if (!publicLimited && tab === "attendance") {
-    content = <AdminAttendancePanel />;
   } else if (!publicLimited && tab === "reserve" && showReserve) {
     content = <AdminReservePanel />;
   } else if (tab === "journal") {
@@ -476,9 +464,7 @@ export function AdminShell({
   const pageClass =
     tab === "users"
       ? "admin-page admin-users-wide-page"
-      : tab === "attendance"
-        ? "admin-page admin-attendance-page"
-        : tab === "hunt"
+      : tab === "hunt"
           ? "admin-page admin-keech-hunt-page"
           : SERVER_TABS.includes(tab)
             ? "admin-page admin-panelka-wide-page"
