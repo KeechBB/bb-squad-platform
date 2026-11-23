@@ -33,6 +33,7 @@ const ACTIONS = new Set([
   "mod-install",
   "mod-remove",
   "server-restart",
+  "camera-add",
 ]);
 const TEAM_ID_RE = /^[12]$/;
 const SQUAD_ID_RE = /^\d{1,3}$/;
@@ -393,7 +394,8 @@ export async function POST(req: Request) {
       action === "ban" ||
       action === "team" ||
       action === "unsquad" ||
-      action === "warn") &&
+      action === "warn" ||
+      action === "camera-add") &&
     !STEAM_RE.test(steamId)
   ) {
     return NextResponse.json({ ok: false, error: "нет Steam ID" }, { status: 400 });
@@ -437,6 +439,17 @@ export async function POST(req: Request) {
     }
     if (action === "server-restart") {
       const data = await runPanelka(["server-restart", key], 120000);
+      return NextResponse.json(data);
+    }
+    if (action === "camera-add") {
+      const data = await runPanelka(["camera-add", steamId], 30000, {
+        byNick,
+        bySteamId,
+        key,
+        name: cleanReason(body?.targetName || "", 48),
+        note: reason || "",
+        granted: new Date().toISOString().slice(0, 19),
+      });
       return NextResponse.json(data);
     }
     const data = (await runPanelka(["cmd", key, action, layer, steamId], 35000, {

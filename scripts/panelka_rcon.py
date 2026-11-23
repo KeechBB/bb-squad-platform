@@ -552,7 +552,7 @@ def read_staff_actions_log(limit=400):
         except Exception:
             continue
         kind = str(row.get("kind") or "")
-        if kind not in ("kick", "ban", "warn", "team", "unsquad", "report", "disband", "rename"):
+        if kind not in ("kick", "ban", "warn", "team", "unsquad", "report", "disband", "rename", "camera"):
             continue
         reason = (row.get("reason") or "").strip()
         reason = re.sub(r"^\[[^\]]{1,32}\]\s*", "", reason).strip() or reason
@@ -587,11 +587,13 @@ def read_punishments(key, steam_id, name, log_blob=""):
             if str(row.get("steamId") or "") != steam_id and not _name_hit(name, row.get("name") or ""):
                 continue
             kind = str(row.get("kind") or "")
-            if kind not in ("kick", "ban", "warn", "report", "team", "unsquad"):
+            if kind not in ("kick", "ban", "warn", "report", "team", "unsquad", "camera"):
                 continue
             reason = (row.get("reason") or "").strip()
             if kind in ("kick", "ban") and not reason:
                 reason = "причина не указана"
+            if kind == "camera" and not reason:
+                reason = "выдана камера"
             rows.append({
                 "kind": kind,
                 "date": row.get("date") or "",
@@ -892,6 +894,131 @@ def vip_remove(steam_id):
         return {"ok": False, "error": "випки нет в Admins.cfg"}
     _atomic_write(ADMINS_CFG, "\n".join(kept) + ("\n" if text.endswith("\n") else ""))
     return {"ok": True, "reply": "випка снята", "steamId": steam_id, "removed": removed}
+
+CAMERA_GROUP = "Cameraman"
+
+def camera_has(steam_id):
+    if not re.fullmatch(r"7656\d{13}", steam_id or ""):
+        return {"ok": False, "error": "неверный Steam ID", "has": False}
+    try:
+        text = open(ADMINS_CFG, encoding="utf-8", errors="replace").read()
+    except Exception as e:
+        return {"ok": False, "error": str(e), "has": False}
+    has = False
+    staff = ""
+    for line in text.splitlines():
+        m = re.match(r"Admin=%s\s*:\s*(\w+)" % steam_id, line.strip(), re.I)
+        if not m:
+            continue
+        group = m.group(1)
+        if group == CAMERA_GROUP:
+            has = True
+        elif group in ("Admin", "Moderator") and not staff:
+            staff = group
+    return {
+        "ok": True,
+        "has": has,
+        "staff": staff,
+        "steamId": steam_id,
+        "canFly": has or bool(staff),
+    }
+
+def camera_add(steam_id, by_nick="", granted="", note="", key="", name=""):
+    if not re.fullmatch(r"7656\d{13}", steam_id or ""):
+        return {"ok": False, "error": "неверный Steam ID"}
+    try:
+        text = open(ADMINS_CFG, encoding="utf-8", errors="replace").read()
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    lines = text.splitlines()
+    already = False
+    staff = ""
+    for line in lines:
+        m = re.match(r"Admin=%s\s*:\s*(\w+)" % steam_id, line.strip(), re.I)
+        if not m:
+            continue
+        group = m.group(1)
+        if group == CAMERA_GROUP:
+            already = True
+        elif group in ("Admin", "Moderator") and not staff:
+            staff = group
+    if staff:
+        return {
+            "ok": True,
+            "reply": "у игрока уже есть права камеры (%s)" % staff,
+            "steamId": steam_id,
+            "alreadyStaff": True,
+        }
+    by = re.sub(r"\s+", "_", (by_nick or "staff").strip())[:32] or "staff"
+    granted_s = (granted or time.strftime("%Y-%m-%dT%H:%M:%S")).strip()[:32]
+    note_s = re.sub(r"\s+", " ", (note or "").strip())[:120]
+    meta = " // bb-camera by=%s granted=%s" % (by, granted_s)
+    if note_s:
+        meta = "%s | %s" % (meta, note_s)
+    new_line = "Admin=%s:%s%s" % (steam_id, CAMERA_GROUP, meta)
+    if already:
+        out = []
+        for line in lines:
+            if re.match(r"Admin=%s\s*:\s*%s\b" % (steam_id, CAMERA_GROUP), line.strip(), re.I):
+                out.append(new_line)
+            else:
+                out.append(line)
+        _atomic_write(ADMINS_CFG, "\n".join(out) + ("\n" if text.endswith("\n") else ""))
+        return {
+            "ok": True,
+            "reply": "камера уже была — запись обновлена, пусть перезайдёт",
+            "steamId": steam_id,
+            "updated": True,
+        }
+    insert_at = None
+    last_group = 0
+    for i, line in enumerate(lines):
+        s = line.strip()
+        if s.startswith("Group="):
+            last_group = i
+        if re.match(r"Admin=7656\d+\s*:\s*" + CAMERA_GROUP + r"\b", s, re.I):
+            insert_at = i + 1
+    if insert_at is None:
+        insert_at = last_group + 1
+    lines.insert(insert_at, new_line)
+    _atomic_write(ADMINS_CFG, "\n".join(lines) + "\n")
+    append_action_log({
+        "kind": "camera",
+        "key": (key or "")[:8],
+        "steamId": steam_id,
+        "name": (name or "")[:48],
+        "reason": "выдана камера (Cameraman)",
+        "byNick": (by_nick or by)[:48],
+        "bySteamId": "",
+        "date": time.strftime("%Y-%m-%d"),
+        "clock": time.strftime("%H:%M:%S"),
+    })
+    return {
+        "ok": True,
+        "reply": "камера выдана в Admins.cfg — игроку нужно перезайти",
+        "steamId": steam_id,
+        "updated": False,
+    }
+
+def camera_remove(steam_id):
+    if not re.fullmatch(r"7656\d{13}", steam_id or ""):
+        return {"ok": False, "error": "неверный Steam ID"}
+    try:
+        text = open(ADMINS_CFG, encoding="utf-8", errors="replace").read()
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    lines = text.splitlines()
+    kept = []
+    removed = 0
+    for line in lines:
+        if re.match(r"Admin=%s\s*:\s*%s\b" % (steam_id, CAMERA_GROUP), line.strip(), re.I):
+            removed += 1
+            continue
+        kept.append(line)
+    if not removed:
+        return {"ok": False, "error": "камеры нет в Admins.cfg"}
+    _atomic_write(ADMINS_CFG, "\n".join(kept) + ("\n" if text.endswith("\n") else ""))
+    return {"ok": True, "reply": "камера снята", "steamId": steam_id, "removed": removed}
 
 def list_bans():
     rows = []
@@ -1414,6 +1541,19 @@ try:
         ), ensure_ascii=False))
     elif op == "vip-remove":
         print(json.dumps(vip_remove(str(job.get("steamId") or "")), ensure_ascii=False))
+    elif op == "camera-has":
+        print(json.dumps(camera_has(str(job.get("steamId") or "")), ensure_ascii=False))
+    elif op == "camera-add":
+        print(json.dumps(camera_add(
+            str(job.get("steamId") or ""),
+            str(job.get("byNick") or ""),
+            str(job.get("granted") or ""),
+            str(job.get("note") or ""),
+            str(job.get("key") or ""),
+            str(job.get("name") or ""),
+        ), ensure_ascii=False))
+    elif op == "camera-remove":
+        print(json.dumps(camera_remove(str(job.get("steamId") or "")), ensure_ascii=False))
     elif op == "bans-list":
         print(json.dumps(list_bans(), ensure_ascii=False))
     elif op == "ban-annotate":
@@ -2621,6 +2761,36 @@ def vip_remove(steam_id: str) -> dict:
     return ssh_job({"op": "vip-remove", "steamId": steam_id}, timeout=25)
 
 
+def camera_has(steam_id: str) -> dict:
+    return ssh_job({"op": "camera-has", "steamId": steam_id}, timeout=25)
+
+
+def camera_add(
+    steam_id: str,
+    by_nick: str = "",
+    granted: str = "",
+    note: str = "",
+    key: str = "",
+    name: str = "",
+) -> dict:
+    return ssh_job(
+        {
+            "op": "camera-add",
+            "steamId": steam_id,
+            "byNick": by_nick,
+            "granted": granted,
+            "note": note,
+            "key": key,
+            "name": name,
+        },
+        timeout=25,
+    )
+
+
+def camera_remove(steam_id: str) -> dict:
+    return ssh_job({"op": "camera-remove", "steamId": steam_id}, timeout=25)
+
+
 def bans_list() -> dict:
     return ssh_job({"op": "bans-list"}, timeout=40)
 
@@ -2736,6 +2906,29 @@ def main() -> int:
             if not re.fullmatch(r"7656\d{13}", steam_id):
                 raise SystemExit("bad steam")
             result = vip_remove(steam_id)
+        elif op == "camera-has":
+            steam_id = sys.argv[2] if len(sys.argv) > 2 else ""
+            if not re.fullmatch(r"7656\d{13}", steam_id):
+                raise SystemExit("bad steam")
+            result = camera_has(steam_id)
+        elif op == "camera-add":
+            extra = _extra_payload()
+            steam_id = sys.argv[2] if len(sys.argv) > 2 else str(extra.get("steamId") or "")
+            if not re.fullmatch(r"7656\d{13}", steam_id):
+                raise SystemExit("bad steam")
+            result = camera_add(
+                steam_id,
+                str(extra.get("byNick") or ""),
+                str(extra.get("granted") or ""),
+                str(extra.get("note") or ""),
+                str(extra.get("key") or ""),
+                str(extra.get("name") or extra.get("targetName") or ""),
+            )
+        elif op == "camera-remove":
+            steam_id = sys.argv[2] if len(sys.argv) > 2 else ""
+            if not re.fullmatch(r"7656\d{13}", steam_id):
+                raise SystemExit("bad steam")
+            result = camera_remove(steam_id)
         elif op == "bans-list":
             result = bans_list()
         elif op == "ban-annotate":

@@ -125,7 +125,7 @@ type PunishmentRow = {
   source?: string;
 };
 
-type ModAction = "team" | "kick" | "ban" | "unsquad" | "warn" | null;
+type ModAction = "team" | "kick" | "ban" | "unsquad" | "warn" | "camera" | null;
 
 type ServerMod = {
   id: string;
@@ -1256,7 +1256,7 @@ export function PlayerModModal({
   busy: boolean;
   onClose: () => void;
   onAction: (
-    action: "team" | "kick" | "ban" | "unsquad" | "warn",
+    action: "team" | "kick" | "ban" | "unsquad" | "warn" | "camera-add",
     payload: { reason?: string; duration?: string; message?: string }
   ) => Promise<boolean>;
 }) {
@@ -1440,6 +1440,15 @@ export function PlayerModModal({
       }
       return;
     }
+    if (pending === "camera") {
+      const ok = await onAction("camera-add", {});
+      if (ok) {
+        setPending(null);
+        setTab("punish");
+        window.setTimeout(() => void loadCard({ silent: true }), 900);
+      }
+      return;
+    }
     if (pending === "warn") {
       const text = warnText.trim();
       if (!text) return;
@@ -1480,6 +1489,7 @@ export function PlayerModModal({
   }
 
   function primaryLabel(): string {
+    if (pending === "camera") return "Да, выдать камеру";
     if (pending === "kick") return confirmKick ? "Да, кикнуть" : "Кикнуть";
     if (pending === "ban") return "Забанить";
     if (pending === "warn") return "Отправить";
@@ -1662,13 +1672,34 @@ export function PlayerModModal({
         </div>
 
         <div className="panelka-mod-actions">
-          <button type="button" disabled={busy} onClick={() => setPending("team")}>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setConfirmKick(false);
+              setPending("team");
+            }}
+          >
             Перекинуть команду
           </button>
-          <button type="button" disabled={busy} onClick={() => setPending("unsquad")}>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setConfirmKick(false);
+              setPending("unsquad");
+            }}
+          >
             Выгнать с отряда
           </button>
-          <button type="button" disabled={busy} onClick={() => setPending("warn")}>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setConfirmKick(false);
+              setPending("warn");
+            }}
+          >
             Админ-сообщение
           </button>
           <button
@@ -1697,6 +1728,13 @@ export function PlayerModModal({
           <div className="panelka-mod-form">
             {pending === "team" ? <p>Перекинуть {player.name} в другую команду?</p> : null}
             {pending === "unsquad" ? <p>Выгнать {player.name} из текущего отряда?</p> : null}
+            {pending === "camera" ? (
+              <p>
+                Точно выдать камеру <b>{player.name}</b>?
+                <br />
+                Запишем Group=Cameraman в Admins.cfg — freecam после перезахода.
+              </p>
+            ) : null}
             {pending === "warn" ? (
               <>
                 <p>Сообщение игроку (видит только он):</p>
@@ -1810,6 +1848,17 @@ export function PlayerModModal({
           <button type="button" className={tab === "tk" ? "is-on" : ""} onClick={() => setTab("tk")}>
             Тимкилы
             {teamkills.length ? ` (${teamkills.length})` : ""}
+          </button>
+          <button
+            type="button"
+            className="panelka-camera-grant"
+            disabled={busy}
+            onClick={() => {
+              setConfirmKick(false);
+              setPending("camera");
+            }}
+          >
+            Выдать камеру
           </button>
         </div>
 
@@ -1944,6 +1993,7 @@ function punishLabel(kind: string): string {
   if (kind === "kick") return "кик";
   if (kind === "ban") return "бан";
   if (kind === "warn") return "админ-сообщение";
+  if (kind === "camera") return "камера";
   if (kind === "report") return "репорт игрока";
   if (kind === "team") return "смена команды";
   if (kind === "unsquad") return "выгон с отряда";
