@@ -367,16 +367,6 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 EOF
 chmod 644 /etc/cron.d/bb-solo-clans
 
-echo "==> BB train report cron (21:30 and 01:00 MSK)"
-cat >/etc/cron.d/bb-train-report <<EOF
-CRON_TZ=Europe/Moscow
-SHELL=/bin/bash
-PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-30 21 * * * root cd $ROOT && python3 scripts/tr1_yavka_report.py data/BB-schedule-visits.xlsx --write-db --slot 2130 >>/var/log/bb-train-report.log 2>&1
-0 1 * * * root cd $ROOT && python3 scripts/tr1_yavka_report.py data/BB-schedule-visits.xlsx --write-db --slot 0100 >>/var/log/bb-train-report.log 2>&1
-EOF
-chmod 644 /etc/cron.d/bb-train-report
-
 echo "==> profile view files (separate process, a few players per minute)"
 chmod +x "$ROOT/scripts/warm-profile-views.sh" 2>/dev/null || true
 cat >/etc/cron.d/bb-profile-warm <<EOF
