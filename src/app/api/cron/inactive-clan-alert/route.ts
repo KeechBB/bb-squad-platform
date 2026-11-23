@@ -35,8 +35,11 @@ async function handle(req: NextRequest) {
   const dryRun =
     url.searchParams.get("dry") === "1" ||
     url.searchParams.get("dryRun") === "1";
+  const force =
+    url.searchParams.get("force") === "1" ||
+    url.searchParams.get("resend") === "1";
   try {
-    const report = await runInactiveClanAlerts({ dryRun });
+    const report = await runInactiveClanAlerts({ dryRun, force });
     return NextResponse.json(report);
   } catch (e) {
     return NextResponse.json(

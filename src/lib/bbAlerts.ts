@@ -1,7 +1,11 @@
 /**
  * Telegram alerts via Cloudflare Worker relay (VPS cannot reach api.telegram.org).
  * Env: BB_TG_RELAY_URL, BB_TG_RELAY_SECRET, BB_TG_CHAT_ID
+ * HR/clan bot chat: BB_TG_CLAN_CHAT_ID or recruit-bot.env ALERT_CHAT_ID
  */
+import fs from "node:fs";
+import path from "node:path";
+
 function mskStamp(): string {
   return new Intl.DateTimeFormat("ru-RU", {
     timeZone: "Europe/Moscow",
@@ -15,10 +19,47 @@ function mskStamp(): string {
   }).format(new Date()) + " МСК";
 }
 
-export async function sendBbAlert(text: string): Promise<boolean> {
+function readEnvFileValue(filePath: string, key: string): string {
+  try {
+    if (!fs.existsSync(filePath)) return "";
+    for (const line of fs.readFileSync(filePath, "utf8").split(/\r?\n/)) {
+      const t = line.trim();
+      if (!t || t.startsWith("#") || !t.includes("=")) continue;
+      const i = t.indexOf("=");
+      if (t.slice(0, i).trim() !== key) continue;
+      return t
+        .slice(i + 1)
+        .trim()
+        .replace(/^["']|["']$/g, "");
+    }
+  } catch {
+    /* ignore */
+  }
+  return "";
+}
+
+/** Чат кадровиков / бота набора (не ops BB_TG_CHAT_ID). */
+export function resolveClanHrChatId(): string {
+  const fromEnv = (process.env.BB_TG_CLAN_CHAT_ID || "").trim();
+  if (fromEnv) return fromEnv;
+  const candidates = [
+    path.join(process.cwd(), "recruit-bot", "recruit-bot.env"),
+    "/var/www/bb-squad-platform/recruit-bot/recruit-bot.env",
+  ];
+  for (const p of candidates) {
+    const v = readEnvFileValue(p, "ALERT_CHAT_ID");
+    if (v) return v;
+  }
+  return "";
+}
+
+export async function sendBbAlert(
+  text: string,
+  opts?: { chatId?: string | null }
+): Promise<boolean> {
   const relay = (process.env.BB_TG_RELAY_URL || "").trim().replace(/\/$/, "");
   const secret = (process.env.BB_TG_RELAY_SECRET || "").trim();
-  const chat = (process.env.BB_TG_CHAT_ID || "").trim();
+  const chat = (opts?.chatId || process.env.BB_TG_CHAT_ID || "").trim();
   if (!relay || !secret || !chat) {
     console.warn("bbAlerts: relay env missing — skip");
     return false;
@@ -44,6 +85,16 @@ export async function sendBbAlert(text: string): Promise<boolean> {
     console.error("bbAlerts error", e);
     return false;
   }
+}
+
+/** Алерты в HR-чат бота набора / бота клана. */
+export async function sendClanHrAlert(text: string): Promise<boolean> {
+  const chatId = resolveClanHrChatId();
+  if (!chatId) {
+    console.warn("bbAlerts: clan HR chat missing — skip");
+    return false;
+  }
+  return sendBbAlert(text, { chatId });
 }
 
 export async function alertNewRegistration(opts: {

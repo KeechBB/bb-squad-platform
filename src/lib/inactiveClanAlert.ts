@@ -5,9 +5,9 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
-import { sendBbAlert } from "@/lib/bbAlerts";
+import { sendClanHrAlert } from "@/lib/bbAlerts";
+import { loadRecruitDossierBySteam } from "@/lib/recruitBotLookup";
 import {
-  addDaysYmd,
   attendanceAnchorYmd,
   missStreakEndingAt,
   lastPresentYmd,
@@ -134,11 +134,21 @@ function formatMissPhrase(missDays: number, exact: boolean): string {
   return `не проявлял активность ${n} ${unit} подряд`;
 }
 
+/** Есть ли запись в recruit-bot (не removed) — «в телеграм-боте клана». */
+export function inClanTelegramBot(steamId: string): boolean {
+  const d = loadRecruitDossierBySteam(steamId);
+  if (!d?.tgId) return false;
+  const step = (d.step || "").trim().toLowerCase();
+  if (!step || step === "removed") return false;
+  return true;
+}
+
 export function buildInactiveAlertText(opts: {
   nick: string;
   steamId: string;
   missDays: number;
   repeat: boolean;
+  inTgBot: boolean;
 }): string {
   const title = opts.repeat
     ? "🔁 Повторный алерт: нет активности"
@@ -164,6 +174,7 @@ export function buildInactiveAlertText(opts: {
     `• отсутствие: ${formatMissPhrase(opts.missDays, opts.repeat)}`,
     "• статус: в резерве не состоит",
     "• требование: провести расследование, что с данным игроком!",
+    `• есть ли в телеграмм боте клана: ${opts.inTgBot ? "ДА" : "НЕТ"}`,
   ].join("\n");
 }
 
@@ -282,11 +293,14 @@ export async function listInactiveClanCandidates(
 
 export async function runInactiveClanAlerts(opts?: {
   dryRun?: boolean;
+  /** Игнор 10-дневного кулдауна (разовый пересыл в правильный чат). */
+  force?: boolean;
   /** Пауза между Telegram-сообщениями */
   delayMs?: number;
   now?: Date;
 }): Promise<InactiveAlertRunReport> {
   const dryRun = Boolean(opts?.dryRun);
+  const force = Boolean(opts?.force);
   const delayMs = Math.max(0, opts?.delayMs ?? 700);
   const now = opts?.now || new Date();
   const { anchorYmd, candidates } = await listInactiveClanCandidates(now);
@@ -316,7 +330,7 @@ export async function runInactiveClanAlerts(opts?: {
 
   for (const c of candidates) {
     const prev = state.byUserId[c.userId];
-    const isRepeat = Boolean(prev?.lastAlertAt);
+    const isRepeat = Boolean(prev?.lastAlertAt) && !force;
     if (isRepeat) {
       const since = daysBetweenUtc(prev!.lastAlertAt, now);
       if (since < INACTIVE_ALERT_REPEAT_DAYS) {
@@ -332,12 +346,15 @@ export async function runInactiveClanAlerts(opts?: {
       }
     }
 
-    const kind = isRepeat ? "repeat" : "first";
+    const kind = force ? "first" : isRepeat ? "repeat" : "first";
+    const inTgBot = inClanTelegramBot(c.steamId);
     const text = buildInactiveAlertText({
       nick: c.nick,
       steamId: c.steamId,
       missDays: c.missDays,
-      repeat: isRepeat,
+      // Force-resend to HR chat still uses «больше 30 дней» wording once.
+      repeat: force ? false : isRepeat,
+      inTgBot,
     });
 
     if (dryRun) {
@@ -351,7 +368,7 @@ export async function runInactiveClanAlerts(opts?: {
       continue;
     }
 
-    const ok = await sendBbAlert(text);
+    const ok = await sendClanHrAlert(text);
     if (!ok) {
       report.errors += 1;
       report.items.push({
@@ -368,10 +385,10 @@ export async function runInactiveClanAlerts(opts?: {
     state.byUserId[c.userId] = {
       nick: c.nick,
       steamId: c.steamId,
-      firstAlertAt: prev?.firstAlertAt || iso,
+      firstAlertAt: force ? iso : prev?.firstAlertAt || iso,
       lastAlertAt: iso,
       lastMissDays: c.missDays,
-      alertCount: (prev?.alertCount || 0) + 1,
+      alertCount: force ? 1 : (prev?.alertCount || 0) + 1,
     };
     report.sent += 1;
     report.items.push({

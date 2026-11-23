@@ -1,12 +1,19 @@
 #!/usr/bin/env bash
 # Daily inactive BB clan alerts (MSK). Cron: TZ=Europe/Moscow
-# Usage: bash inactive_clan_alert.sh [--dry]
+# Usage: bash inactive_clan_alert.sh [--dry] [--force]
 set -euo pipefail
 ROOT="${BB_PLATFORM_ROOT:-/var/www/bb-squad-platform}"
 cd "$ROOT"
 URL="${INACTIVE_ALERT_URL:-http://127.0.0.1:3000/api/cron/inactive-clan-alert}"
-if [[ "${1:-}" == "--dry" || "${1:-}" == "dry" ]]; then
-  URL="${URL}?dry=1"
+QS=()
+for arg in "$@"; do
+  case "$arg" in
+    --dry|dry) QS+=("dry=1") ;;
+    --force|force|resend) QS+=("force=1") ;;
+  esac
+done
+if ((${#QS[@]})); then
+  URL="${URL}?$(IFS='&'; echo "${QS[*]}")"
 fi
 HDR=(-H "x-bb-inactive-cron: 1" -H "Host: 127.0.0.1:3000")
 if [[ -n "${CRON_SECRET:-}" ]]; then
