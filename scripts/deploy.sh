@@ -346,6 +346,18 @@ chmod 644 /etc/cron.d/bb-attendance-hourly
 # Bootstrap snapshot so /home is not empty until next :00
 bash "$ROOT/scripts/publish_attendance_hourly.sh" >>/var/log/bb-attendance-hourly.log 2>&1 || true
 
+echo "==> inactive BB clan alert cron (12:15 MSK daily)"
+chmod +x "$ROOT/scripts/inactive_clan_alert.sh" 2>/dev/null || true
+cat >/etc/cron.d/bb-inactive-clan <<EOF
+CRON_TZ=Europe/Moscow
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+15 12 * * * root flock -n /tmp/bb-inactive-clan.lock env BB_PLATFORM_ROOT=$ROOT bash $ROOT/scripts/inactive_clan_alert.sh >>/var/log/bb-inactive-clan.log 2>&1
+EOF
+chmod 644 /etc/cron.d/bb-inactive-clan
+touch /var/log/bb-inactive-clan.log
+chmod 644 /var/log/bb-inactive-clan.log
+
 echo "==> solo clan purge (04:10 MSK, one member for 7 days)"
 cat >/etc/cron.d/bb-solo-clans <<EOF
 CRON_TZ=Europe/Moscow
