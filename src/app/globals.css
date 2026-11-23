@@ -7426,6 +7426,28 @@ body:has(.profile-page) {
   max-width: 1100px;
 }
 
+/* Пользователи: чуть шире 1100, чтобы влезали Роль + Удалить */
+.shell:has(.admin-users-wide-page) {
+  max-width: min(1480px, 100%);
+  width: 100%;
+  padding-left: clamp(12px, 2vw, 28px);
+  padding-right: clamp(12px, 2vw, 28px);
+}
+
+.admin-page.admin-users-wide-page {
+  max-width: none;
+  width: 100%;
+}
+
+.admin-users-wide-page .hero {
+  max-width: 1100px;
+}
+
+.admin-users-wide-page .card {
+  max-width: none;
+  width: 100%;
+}
+
 /* Hunt: ширина как у рейтинга паблика (иначе .shell:has(.admin-page) жмёт до 1100) */
 .shell:has(.admin-keech-hunt-page) {
   max-width: none;

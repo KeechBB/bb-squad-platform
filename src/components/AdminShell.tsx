@@ -464,13 +464,15 @@ export function AdminShell({
   }
 
   const pageClass =
-    tab === "attendance"
-      ? "admin-page admin-attendance-page"
-      : tab === "hunt"
-        ? "admin-page admin-keech-hunt-page"
-        : SERVER_TABS.includes(tab)
-          ? "admin-page admin-panelka-wide-page"
-          : "admin-page";
+    tab === "users"
+      ? "admin-page admin-users-wide-page"
+      : tab === "attendance"
+        ? "admin-page admin-attendance-page"
+        : tab === "hunt"
+          ? "admin-page admin-keech-hunt-page"
+          : SERVER_TABS.includes(tab)
+            ? "admin-page admin-panelka-wide-page"
+            : "admin-page";
 
   return (
     <main className={pageClass}>
