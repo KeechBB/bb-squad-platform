@@ -22,6 +22,21 @@ import { loadUploadedTrainingSlices } from "@/lib/uploadedMatchWindows";
 /** Канон-кит SL в SquadRoleEvent.kit */
 const GRIND_SL_KIT = "Командир отряда";
 
+/** Naive UTC wall для SquadRoleEvent.spawnedAt (timestamp without time zone). */
+function naiveUtcTimestampSql(d: Date): Prisma.Sql {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mm = String(d.getUTCMinutes()).padStart(2, "0");
+  const ss = String(d.getUTCSeconds()).padStart(2, "0");
+  const wall = `${y}-${m}-${day} ${hh}:${mm}:${ss}`;
+  if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(wall)) {
+    return Prisma.sql`TIMESTAMP '1970-01-01 00:00:00'::timestamp`;
+  }
+  return Prisma.raw(`TIMESTAMP '${wall}'::timestamp`);
+}
+
 export type ScarcityLevel = "ok" | "thin" | "critical" | "surplus";
 
 export type KitScarcityRow = {
@@ -444,6 +459,11 @@ async function slKitSecInMatchWindow(opts: {
   ];
   if (!userIds.length && !steamIds.length) return { byUser, bySteam };
 
+  const serverKey = String(opts.serverKey || "").trim().toUpperCase();
+  if (!serverKey) return { byUser, bySteam };
+  const gteSql = naiveUtcTimestampSql(opts.gte);
+  const ltSql = naiveUtcTimestampSql(opts.lt);
+
   const whoSql =
     userIds.length && steamIds.length
       ? Prisma.sql`("userId" IN (${Prisma.join(userIds)}) OR "steamId" IN (${Prisma.join(steamIds)}))`
@@ -464,16 +484,16 @@ async function slKitSecInMatchWindow(opts: {
           ORDER BY "spawnedAt", "id"
         ) AS nxt
       FROM "SquadRoleEvent"
-      WHERE "serverKey" = ${opts.serverKey}
+      WHERE upper("serverKey") = ${serverKey}
         AND kit = ${GRIND_SL_KIT}
-        AND "spawnedAt" >= ${opts.gte}
-        AND "spawnedAt" < ${opts.lt}
+        AND "spawnedAt" >= ${gteSql}
+        AND "spawnedAt" < ${ltSql}
         AND ${whoSql}
     )
     SELECT e.uid, e.sid,
            ROUND(SUM(GREATEST(
              0,
-             EXTRACT(EPOCH FROM (LEAST(COALESCE(e.nxt, ${opts.lt}), ${opts.lt}) - e."spawnedAt"))
+             EXTRACT(EPOCH FROM (LEAST(COALESCE(e.nxt, ${ltSql}), ${ltSql}) - e."spawnedAt"))
            )))::bigint AS sec
     FROM ev e
     GROUP BY e.uid, e.sid
