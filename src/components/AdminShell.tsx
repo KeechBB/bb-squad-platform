@@ -23,6 +23,7 @@ import { AdminCasesLogPanel } from "@/components/AdminCasesLogPanel";
 import { AdminTransfersPanel } from "@/components/AdminTransfersPanel";
 import { AdminModLogPanel } from "@/components/AdminModLogPanel";
 import { AdminPublicVipsPanel } from "@/components/AdminPublicVipsPanel";
+import { AdminPublicCamerasPanel } from "@/components/AdminPublicCamerasPanel";
 import { AdminServerBansPanel } from "@/components/AdminServerBansPanel";
 import type { AppRole } from "@/lib/roles";
 
@@ -61,6 +62,7 @@ type Tab =
   | "transfers"
   | "modlog"
   | "vips"
+  | "cameras"
   | "serverbans";
 
 type MenuItem =
@@ -97,6 +99,8 @@ const TAB_LEAD: Record<Tab, string> = {
     "Лог всех админов и модераторов паблика: кто кого кикнул/забанил/варнул и когда. Кликни ник — карточка игрока.",
   vips:
     "Випки паблика (QueuePriority): действующие приоритеты очереди, поиск, выдача со сроком и кто выдал.",
+  cameras:
+    "Камеры (Cameraman): кто получил freecam, кто выдал, поиск и снятие из Admins.cfg.",
   serverbans:
     "Баны серверов из Bans.cfg: список, поиск, выдача со сроком и снятие бана.",
 };
@@ -108,10 +112,11 @@ const PUBLIC_TABS: Tab[] = [
   "load",
   "modlog",
   "vips",
+  "cameras",
   "serverbans",
 ];
 
-const SERVER_TABS: Tab[] = ["vips", "modlog", "serverbans"];
+const SERVER_TABS: Tab[] = ["vips", "cameras", "modlog", "serverbans"];
 const LOG_TABS: Tab[] = [
   "factions",
   "cases",
@@ -137,6 +142,7 @@ function readTab(
       t === "load" ||
       t === "modlog" ||
       t === "vips" ||
+      t === "cameras" ||
       t === "serverbans"
     )
       return t;
@@ -156,6 +162,7 @@ function readTab(
     t === "transfers" ||
     t === "modlog" ||
     t === "vips" ||
+    t === "cameras" ||
     t === "serverbans"
   )
     return t;
@@ -359,6 +366,7 @@ export function AdminShell({
   const serversItems: MenuItem[] = showServers
     ? [
         { kind: "tab", tab: "vips", label: "Випки с паблика" },
+        { kind: "tab", tab: "cameras", label: "Камеры (лог)" },
         { kind: "tab", tab: "modlog", label: "Лог модерации" },
         { kind: "link", href: "/admin/panelka", label: "Серверы" },
         { kind: "tab", tab: "serverbans", label: "Баны серверов" },
@@ -453,6 +461,8 @@ export function AdminShell({
     content = <AdminModLogPanel />;
   } else if (tab === "vips" && showServers) {
     content = <AdminPublicVipsPanel />;
+  } else if (tab === "cameras" && showServers) {
+    content = <AdminPublicCamerasPanel />;
   } else if (tab === "serverbans" && showServers) {
     content = <AdminServerBansPanel />;
   } else if (!publicLimited && tab === "transfers" && showKeechHunt) {

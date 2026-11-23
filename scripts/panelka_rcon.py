@@ -896,6 +896,44 @@ def vip_remove(steam_id):
     return {"ok": True, "reply": "випка снята", "steamId": steam_id, "removed": removed}
 
 CAMERA_GROUP = "Cameraman"
+CAMERA_META_RE = re.compile(
+    r"bb-camera\s+by=(?P<by>[^\s]+)\s+granted=(?P<granted>\S+)",
+    re.I,
+)
+
+def list_cameras():
+    rows = []
+    try:
+        lines = open(ADMINS_CFG, encoding="utf-8", errors="replace").read().splitlines()
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    for line in lines:
+        raw = line.strip()
+        if not raw.startswith("Admin=") or CAMERA_GROUP not in raw:
+            continue
+        m = re.match(r"Admin=(7656\d+)\s*:\s*" + CAMERA_GROUP + r"\b(.*)$", raw, re.I)
+        if not m:
+            continue
+        steam = m.group(1)
+        tail = (m.group(2) or "").strip()
+        comment = ""
+        if "//" in tail:
+            comment = tail.split("//", 1)[1].strip()
+        meta = CAMERA_META_RE.search(comment) if comment else None
+        note = ""
+        if "|" in comment:
+            note = comment.split("|", 1)[1].strip()[:160]
+        rows.append({
+            "steamId": steam,
+            "group": CAMERA_GROUP,
+            "byNick": meta.group("by") if meta else "",
+            "grantedAt": meta.group("granted") if meta else "",
+            "note": note,
+            "comment": comment[:160],
+            "line": raw[:220],
+        })
+    rows.sort(key=lambda r: r.get("grantedAt") or r["steamId"], reverse=True)
+    return {"ok": True, "cameras": rows, "count": len(rows)}
 
 def camera_has(steam_id):
     if not re.fullmatch(r"7656\d{13}", steam_id or ""):
@@ -1541,6 +1579,8 @@ try:
         ), ensure_ascii=False))
     elif op == "vip-remove":
         print(json.dumps(vip_remove(str(job.get("steamId") or "")), ensure_ascii=False))
+    elif op == "cameras-list":
+        print(json.dumps(list_cameras(), ensure_ascii=False))
     elif op == "camera-has":
         print(json.dumps(camera_has(str(job.get("steamId") or "")), ensure_ascii=False))
     elif op == "camera-add":
@@ -2761,6 +2801,10 @@ def vip_remove(steam_id: str) -> dict:
     return ssh_job({"op": "vip-remove", "steamId": steam_id}, timeout=25)
 
 
+def cameras_list() -> dict:
+    return ssh_job({"op": "cameras-list"}, timeout=25)
+
+
 def camera_has(steam_id: str) -> dict:
     return ssh_job({"op": "camera-has", "steamId": steam_id}, timeout=25)
 
@@ -2906,6 +2950,8 @@ def main() -> int:
             if not re.fullmatch(r"7656\d{13}", steam_id):
                 raise SystemExit("bad steam")
             result = vip_remove(steam_id)
+        elif op == "cameras-list":
+            result = cameras_list()
         elif op == "camera-has":
             steam_id = sys.argv[2] if len(sys.argv) > 2 else ""
             if not re.fullmatch(r"7656\d{13}", steam_id):
