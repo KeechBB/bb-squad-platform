@@ -42,7 +42,7 @@ export default async function Page({ params }: { params: Promise<{ path: string[
   if (route === "tournaments/bets") return <TournamentBetsClient />;
   if (route === "aim") return <main><ReactionTrainingClient /></main>;
   if (route === "register") return <main><h1>Регистрация</h1><RegisterForm /></main>;
-  if (route === "admin") return <AdminShell users={empty ? [] : adminUsers} actorRole="HR" roleOptions={["USER"]} showSiteVisits showReserve showKeechHunt={false} />;
+  if (route === "admin") return <AdminShell users={empty ? [] : adminUsers} actorRole="HR" roleOptions={["USER"]} showSiteVisits showReserve showTransfers={false} />;
   if (route === "cw" || route === "tm") return <KvAutoHeightFrame src={`/kv-static/index.html?kind=${route}`} title={route === "cw" ? "Клановые войны" : "Тренировочные матчи"} />;
   if (route === "tm/sapper") return <TmSapperRatingClient />;
   if (route.startsWith("tm/")) return <div className="tm-role-page"><KvAutoHeightFrame className="tm-role-embed" src="/kv-static/index.html?kind=tm" title="Статистика роли" minHeight={0} scrolling="auto" /></div>;

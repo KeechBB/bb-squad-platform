@@ -36,7 +36,7 @@ export default async function AdminPage() {
   const showMail = canSendAdminMail(actorRole);
   const showReserve = showMail;
   const showServers = canAccessPanelka(actorRole);
-  const showKeechHunt = isBuiltinSuperAdmin(session.user.steamId);
+  const showTransfers = isBuiltinSuperAdmin(session.user.steamId);
 
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "desc" },
@@ -90,7 +90,7 @@ export default async function AdminPage() {
       showReserve={showReserve}
       showMail={showMail}
       showServers={showServers}
-      showKeechHunt={showKeechHunt}
+      showTransfers={showTransfers}
       publicLimited={publicLimited}
     />
   );

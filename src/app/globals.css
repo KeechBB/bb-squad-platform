@@ -237,8 +237,7 @@ body:has(.bp-page) {
 .shell:has(.tm-hub),
 .shell:has(.cross-rating-page),
 .shell:has(.public-rating-page),
-.shell:has(.tm-sapper-page),
-.shell:has(.admin-keech-hunt-page) {
+.shell:has(.tm-sapper-page) {
   max-width: none;
   padding: 12px 12px 0;
 }
@@ -7446,14 +7445,6 @@ body:has(.profile-page) {
 .admin-users-wide-page .card {
   max-width: none;
   width: 100%;
-}
-
-/* Hunt: ширина как у рейтинга паблика (иначе .shell:has(.admin-page) жмёт до 1100) */
-.shell:has(.admin-keech-hunt-page) {
-  max-width: none;
-  width: 100%;
-  padding-left: clamp(8px, 1.2vw, 20px);
-  padding-right: clamp(8px, 1.2vw, 20px);
 }
 
 /* ВИПы / лог модерации / баны серверов — шире 1100, как panelka */

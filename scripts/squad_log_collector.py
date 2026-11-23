@@ -687,16 +687,27 @@ class Collector:
         if not kit_from_role(role):
             return None
         nick = clean_nick(dm.group("nick") or "")
+        # Steam с join (Login) надёжнее Online IDs на DeployRole:
+        # у части игроков (family share / рассинхрон) в Possess другой steam —
+        # роли тогда отвязываются от профиля (как freak/Varyag/COBRA).
+        join_steam = (
+            self.nick_steam.get(nick_compact(nick), "") if nick else ""
+        )
         sm = STEAM_EOS_RE.search(line)
         eos = ""
-        steam = ""
+        line_steam = ""
         if sm:
             eos = (sm.group("eos") or sm.group("eos2") or "").lower()
-            steam = self._valid_steam(sm.group("steam") or sm.group("steam2") or "") or ""
-            if eos and steam:
-                self.eos_steam[eos] = steam
-            if steam and nick:
-                self._remember_nick_steam(nick, steam)
+            line_steam = (
+                self._valid_steam(sm.group("steam") or sm.group("steam2") or "")
+                or ""
+            )
+            if eos and line_steam:
+                self.eos_steam[eos] = line_steam
+            # Не перетираем join→steam чужим Online ID с Possess.
+            if line_steam and nick and not join_steam:
+                self._remember_nick_steam(nick, line_steam)
+        steam = join_steam or line_steam
         if not steam and eos:
             steam = self.eos_steam.get(eos, "")
         if not steam and nick:
@@ -850,35 +861,12 @@ class Collector:
                 self._match_buf.pop(old_key, None)
         return None
 
-    def _keech_tracker(self):
-        if getattr(self, "_keech_hunt", None) is None:
-            try:
-                from keech_hunt_tracker import KeechHuntTracker
-
-                self._keech_hunt = KeechHuntTracker()
-            except Exception as e:
-                _safe_print("keech hunt init fail", type(e).__name__, e, file=sys.stderr)
-                self._keech_hunt = False  # type: ignore
-        return self._keech_hunt if self._keech_hunt is not False else None
-
     def _handle_line(
         self,
         line: str,
         server_key: str,
-        *,
-        feed_keech: bool = True,
     ) -> list[dict[str, Any]]:
         events: list[dict[str, Any]] = []
-        # Backup catchup must NOT feed Hunt — it replays hours of BBHitZone and
-        # blocks live poll (collector pegged at 100% CPU, live.json frozen).
-        # Hunt is bootstrapped from live tail + live _poll_one only.
-        if feed_keech:
-            kt = self._keech_tracker()
-            if kt is not None:
-                try:
-                    kt.feed(line, server_key)
-                except Exception as e:
-                    _safe_print("keech hunt feed", type(e).__name__, e, file=sys.stderr)
         hit = self._parse_hit(line, server_key)
         if hit:
             events.append(hit)
@@ -1040,7 +1028,7 @@ class Collector:
                 continue
             n = 0
             for line in text.splitlines():
-                ev = self._handle_line(line, server_key, feed_keech=False)
+                ev = self._handle_line(line, server_key)
                 if ev:
                     batch.extend(ev)
                     n += 1
@@ -1289,12 +1277,6 @@ class Collector:
             self.maybe_sync_cw_tr()
             self.maybe_sync_tournament()
             self.maybe_rp_lag_alerts()
-            kt = self._keech_tracker()
-            if kt is not None:
-                try:
-                    kt.flush()
-                except Exception as e:
-                    _safe_print("keech hunt flush", type(e).__name__, e, file=sys.stderr)
             self._save_state()
         finally:
             try:
@@ -1768,56 +1750,6 @@ class Collector:
             except Exception as e:
                 _safe_print("backfill complete fail", type(e).__name__, e, file=sys.stderr)
 
-    def _bootstrap_keech_hunt(self) -> None:
-        """One-shot: rebuild open Keech matches from public + every TR log tail."""
-        kt = self._keech_tracker()
-        if kt is None:
-            return
-        public = {"TPUB1", "PB1", "PUB"}
-        targets = [
-            (k, p)
-            for k, p in self.targets
-            if k.upper() in public
-            or (k.upper().startswith("TR") and k[2:].isdigit())
-        ]
-        # Prefer one public + training; skip dupes after normalize inside tracker
-        if not targets:
-            return
-        try:
-            client = self._ssh()
-        except Exception as e:
-            _safe_print("keech bootstrap ssh", type(e).__name__, e, file=sys.stderr)
-            return
-        try:
-            for server_key, log_path in targets:
-                try:
-                    cmd = (
-                        f"python3 - <<'PY'\n"
-                        f"from pathlib import Path\n"
-                        f"p=Path({log_path!r})\n"
-                        f"raw=p.read_bytes()\n"
-                        f"if len(raw)>12*1024*1024: raw=raw[-12*1024*1024:]\n"
-                        f"print(raw.decode('utf-8','replace'), end='')\n"
-                        f"PY"
-                    )
-                    _i, out, _e = client.exec_command(cmd, timeout=180)
-                    text = out.read().decode("utf-8", "replace")
-                    kt.bootstrap_text(text, server_key)
-                    _safe_print("keech hunt bootstrap ok", server_key, flush=True)
-                except Exception as e:
-                    _safe_print(
-                        "keech bootstrap fail",
-                        server_key,
-                        type(e).__name__,
-                        e,
-                        file=sys.stderr,
-                    )
-        finally:
-            try:
-                client.close()
-            except Exception:
-                pass
-
     def run(self) -> None:
         _safe_print(
             "collector start",
@@ -1842,10 +1774,6 @@ class Collector:
             self.maybe_rebuild_public_rp(force=True, full=False)
         except Exception as e:
             _safe_print("public RP boot rebuild", type(e).__name__, e, file=sys.stderr)
-        try:
-            self._bootstrap_keech_hunt()
-        except Exception as e:
-            _safe_print("keech bootstrap", type(e).__name__, e, file=sys.stderr)
         ticks = 0
         # Раз в час снова дочитать свежие backup (пропуск leave в live / рестарт).
         rebackup_every = max(1, int(3600 / max(self.poll_sec, 1)))

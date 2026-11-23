@@ -14,7 +14,6 @@ import { AdminVisitsPanel } from "@/components/AdminVisitsPanel";
 import { AdminReservePanel } from "@/components/AdminReservePanel";
 import { AdminUpdatesPanel } from "@/components/AdminUpdatesPanel";
 import { AdminFactionLogPanel } from "@/components/AdminFactionLogPanel";
-import { AdminKeechHuntPanel } from "@/components/AdminKeechHuntPanel";
 import { AdminLoadPanel } from "@/components/AdminLoadPanel";
 import { AdminMailPanel } from "@/components/AdminMailPanel";
 import { AdminMarketLogPanel } from "@/components/AdminMarketLogPanel";
@@ -38,8 +37,8 @@ type Props = {
   showMail: boolean;
   /** Серверы (panelka) */
   showServers: boolean;
-  /** Личный hunt-лог — только Keech (builtin super) */
-  showKeechHunt: boolean;
+  /** Трансферы фракций — только Keech (builtin super) */
+  showTransfers: boolean;
   /** Админ/мод паблика: только users / journal / servers / visits / load / modlog */
   publicLimited?: boolean;
 };
@@ -52,7 +51,6 @@ type Tab =
   | "reserve"
   | "updates"
   | "factions"
-  | "hunt"
   | "load"
   | "mail"
   | "market"
@@ -81,8 +79,6 @@ const TAB_LEAD: Record<Tab, string> = {
     "Логи обновлений сайта: дата, Beta-версия и что добавили для игроков.",
   factions:
     "Лог фракций: кто кого добавил или исключил. При исключении — обязательная причина.",
-  hunt:
-    "Личный live-лог PB1+TR1: ноки / киллы / смерти / ресы и пробный ±RP. Только для тебя.",
   load: "Нагрузка plaza: CPU, RAM, NVMe. Фильтры Минуты / Часы / Дни.",
   mail: "Письмо в почту профиля: от разработчика, администрации, отдела кадров или со своей подписью.",
   market:
@@ -120,12 +116,12 @@ const LOG_TABS: Tab[] = [
   "tournaments",
   "market",
 ];
-const MANAGE_TABS: Tab[] = ["hunt", "load", "visits", "mail", "reserve"];
+const MANAGE_TABS: Tab[] = ["load", "visits", "mail", "reserve"];
 
 function readTab(
   allowVisits: boolean,
   allowReserve: boolean,
-  allowHunt: boolean,
+  allowTransfers: boolean,
   allowMail: boolean,
   publicLimited: boolean
 ): Tab {
@@ -154,7 +150,6 @@ function readTab(
     t === "load" ||
     t === "market" ||
     t === "cases" ||
-    t === "transfers" ||
     t === "modlog" ||
     t === "vips" ||
     t === "cameras" ||
@@ -165,7 +160,8 @@ function readTab(
   if (t === "mail" && allowMail) return "mail";
   if (t === "visits" && allowVisits) return "visits";
   if (t === "reserve" && allowReserve) return "reserve";
-  if (t === "hunt" && allowHunt) return "hunt";
+  if (t === "transfers" && allowTransfers) return "transfers";
+  if (t === "hunt") return "users";
   return "users";
 }
 
@@ -302,7 +298,7 @@ export function AdminShell({
   showReserve,
   showMail,
   showServers,
-  showKeechHunt,
+  showTransfers,
   publicLimited = false,
 }: Props) {
   const [tab, setTab] = useState<Tab>("users");
@@ -310,10 +306,10 @@ export function AdminShell({
 
   useEffect(() => {
     setTab(
-      readTab(showSiteVisits, showReserve, showKeechHunt, showMail, publicLimited)
+      readTab(showSiteVisits, showReserve, showTransfers, showMail, publicLimited)
     );
     setHydrated(true);
-  }, [showSiteVisits, showReserve, showKeechHunt, showMail, publicLimited]);
+  }, [showSiteVisits, showReserve, showTransfers, showMail, publicLimited]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -329,11 +325,7 @@ export function AdminShell({
       setTab("users");
       return;
     }
-    if (tab === "hunt" && !showKeechHunt) {
-      setTab("users");
-      return;
-    }
-    if (tab === "transfers" && !showKeechHunt) {
+    if (tab === "transfers" && !showTransfers) {
       setTab("users");
       return;
     }
@@ -353,7 +345,7 @@ export function AdminShell({
     hydrated,
     showSiteVisits,
     showReserve,
-    showKeechHunt,
+    showTransfers,
     showMail,
     publicLimited,
   ]);
@@ -379,9 +371,6 @@ export function AdminShell({
     : [];
 
   const manageItems: MenuItem[] = [
-    ...(!publicLimited && showKeechHunt
-      ? ([{ kind: "tab", tab: "hunt", label: "Hunt" }] as MenuItem[])
-      : []),
     { kind: "tab", tab: "load", label: "Нагрузка" },
     ...(showSiteVisits
       ? ([{ kind: "tab", tab: "visits", label: "Заходы на сайт" }] as MenuItem[])
@@ -453,10 +442,8 @@ export function AdminShell({
     content = <AdminPublicCamerasPanel />;
   } else if (tab === "serverbans" && showServers) {
     content = <AdminServerBansPanel />;
-  } else if (!publicLimited && tab === "transfers" && showKeechHunt) {
+  } else if (!publicLimited && tab === "transfers" && showTransfers) {
     content = <AdminTransfersPanel />;
-  } else if (!publicLimited && tab === "hunt" && showKeechHunt) {
-    content = <AdminKeechHuntPanel />;
   } else if (tab === "load") {
     content = <AdminLoadPanel />;
   }
@@ -464,11 +451,9 @@ export function AdminShell({
   const pageClass =
     tab === "users"
       ? "admin-page admin-users-wide-page"
-      : tab === "hunt"
-          ? "admin-page admin-keech-hunt-page"
-          : SERVER_TABS.includes(tab)
-            ? "admin-page admin-panelka-wide-page"
-            : "admin-page";
+      : SERVER_TABS.includes(tab)
+        ? "admin-page admin-panelka-wide-page"
+        : "admin-page";
 
   return (
     <main className={pageClass}>
@@ -505,7 +490,7 @@ export function AdminShell({
           >
             Журнал действий
           </button>
-          {!publicLimited && showKeechHunt ? (
+          {!publicLimited && showTransfers ? (
             <button
               type="button"
               className={`admin-tab ${tab === "transfers" ? "active" : ""}`}
