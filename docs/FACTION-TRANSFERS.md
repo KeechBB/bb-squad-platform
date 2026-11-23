@@ -34,12 +34,16 @@
 | Рес | **+110** |
 | Урон (стата `dmg`, в т.ч. по технике) | **+0,12** / ед. |
 | Уничтожение техники | **+450** |
+| Командир отряда (SL) | **+1000**, если кит SL **>70%** длительности матча |
 
 ```
 B$ = kills·85 + res·110 + dmg·0.12 + vehicleKills·450
+    + (slKitSec / matchDurationSec > 0.7 ? 1000 : 0)
 ```
 
-Константы: `GRIND_RATE_*`, `GRIND_START_AT_MS`, `isGrindEligibleMatch()`.
+Бонус SL — за смелость взять роль на катку. Доля считается от **длины матча**, не от личного онлайна (короткий заход на SL не капает). Источник времени: `SquadRoleEvent` (кит «Командир отряда»). Идемпотентность: `grind:{matchId}:{userId}` + отдельно `grind-sl:{matchId}:{userId}`.
+
+Константы: `GRIND_RATE_*`, `GRIND_RATE_SL`, `GRIND_SL_MIN_FRAC`, `GRIND_START_AT_MS`, `isGrindEligibleMatch()`, `grindSlBonusFromKitTime()`.
 
 ---
 

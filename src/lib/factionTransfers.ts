@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   BD_MARK,
@@ -5,6 +6,7 @@ import {
   TRANSFER_MIN_ROSTER,
   estimatePlayerPrice,
   grindAmountFromTrainStats,
+  grindSlBonusFromKitTime,
   isGrindEligibleMatch,
   listingFeeFromAsk,
   GRIND_START_AT_MS,
@@ -14,6 +16,11 @@ import {
 import { mainKitByUserIds } from "@/lib/squadRoles";
 import { isTrainingServerKey, TRAINING_SERVER_KEYS } from "@/lib/squadServers";
 import { nickCompact } from "@/lib/nickIdentity";
+import { normalizeSteamId } from "@/lib/squadSessions";
+import { loadUploadedTrainingSlices } from "@/lib/uploadedMatchWindows";
+
+/** Канон-кит SL в SquadRoleEvent.kit */
+const GRIND_SL_KIT = "Командир отряда";
 
 export type ScarcityLevel = "ok" | "thin" | "critical" | "surplus";
 
@@ -364,6 +371,118 @@ export async function createTransferListingWithFee(opts: {
   }
 }
 
+/** Окно матча для SL-времени + длительность катки (знаменатель порога). */
+async function grindMatchWindow(match: {
+  legacyId: string | null;
+  startedAt: Date | null;
+  endedAt: Date | null;
+  durationSec: number | null;
+}): Promise<{ gte: Date; lt: Date; durationSec: number } | null> {
+  const lid = String(match.legacyId || "").trim();
+  let gte: Date | null = null;
+  let lt: Date | null = null;
+  if (lid) {
+    const slices = await loadUploadedTrainingSlices();
+    const slice = slices.find((s) => String(s.id || "").trim() === lid) || null;
+    if (slice) {
+      gte = slice.gte;
+      lt = slice.lt;
+    }
+  }
+  if ((!gte || !lt) && match.startedAt && match.endedAt) {
+    const a = match.startedAt.getTime();
+    const b = match.endedAt.getTime();
+    if (Number.isFinite(a) && Number.isFinite(b) && b > a) {
+      gte = new Date(a - 2 * 60_000);
+      lt = new Date(b + 5 * 60_000);
+    }
+  }
+  if (!gte || !lt || lt.getTime() <= gte.getTime()) return null;
+
+  let durationSec = Math.max(0, Number(match.durationSec) || 0);
+  if (durationSec < 60 && match.startedAt && match.endedAt) {
+    durationSec = Math.floor(
+      (match.endedAt.getTime() - match.startedAt.getTime()) / 1000,
+    );
+  }
+  if (durationSec < 60) {
+    // окно со pad −2/+5 мин → вычитаем pad, чтобы порог не раздувался
+    durationSec = Math.max(
+      60,
+      Math.floor((lt.getTime() - gte.getTime()) / 1000) - 7 * 60,
+    );
+  }
+  return { gte, lt, durationSec };
+}
+
+/**
+ * Секунды на ките «Командир отряда» в окне матча.
+ * Ключ: userId (если есть) и/или steamId.
+ */
+async function slKitSecInMatchWindow(opts: {
+  serverKey: string;
+  gte: Date;
+  lt: Date;
+  userIds: string[];
+  steamIds: string[];
+}): Promise<{ byUser: Map<string, number>; bySteam: Map<string, number> }> {
+  const byUser = new Map<string, number>();
+  const bySteam = new Map<string, number>();
+  const userIds = [...new Set(opts.userIds.filter(Boolean))];
+  const steamIds = [
+    ...new Set(
+      opts.steamIds
+        .map((s) => normalizeSteamId(s) || String(s || "").trim())
+        .filter(Boolean),
+    ),
+  ];
+  if (!userIds.length && !steamIds.length) return { byUser, bySteam };
+
+  const whoSql =
+    userIds.length && steamIds.length
+      ? Prisma.sql`("userId" IN (${Prisma.join(userIds)}) OR "steamId" IN (${Prisma.join(steamIds)}))`
+      : userIds.length
+        ? Prisma.sql`"userId" IN (${Prisma.join(userIds)})`
+        : Prisma.sql`"steamId" IN (${Prisma.join(steamIds)})`;
+
+  const rows = await prisma.$queryRaw<
+    { uid: string | null; sid: string | null; sec: bigint }[]
+  >`
+    WITH ev AS (
+      SELECT
+        "userId" AS uid,
+        "steamId" AS sid,
+        "spawnedAt",
+        LEAD("spawnedAt") OVER (
+          PARTITION BY COALESCE("userId", "steamId"), "serverKey"
+          ORDER BY "spawnedAt", "id"
+        ) AS nxt
+      FROM "SquadRoleEvent"
+      WHERE "serverKey" = ${opts.serverKey}
+        AND kit = ${GRIND_SL_KIT}
+        AND "spawnedAt" >= ${opts.gte}
+        AND "spawnedAt" < ${opts.lt}
+        AND ${whoSql}
+    )
+    SELECT e.uid, e.sid,
+           ROUND(SUM(GREATEST(
+             0,
+             EXTRACT(EPOCH FROM (LEAST(COALESCE(e.nxt, ${opts.lt}), ${opts.lt}) - e."spawnedAt"))
+           )))::bigint AS sec
+    FROM ev e
+    GROUP BY e.uid, e.sid
+  `;
+
+  for (const row of rows) {
+    const sec = Number(row.sec) || 0;
+    if (sec <= 0) continue;
+    if (row.uid) byUser.set(row.uid, (byUser.get(row.uid) || 0) + sec);
+    const sid = normalizeSteamId(row.sid || "") || String(row.sid || "").trim();
+    if (sid) bySteam.set(sid, (bySteam.get(sid) || 0) + sec);
+  }
+  return { byUser, bySteam };
+}
+
 /** Начислить гринд с TRAIN на TR1–TR5 (идемпотентно). Паблик/прочее — нет. */
 export async function creditGrindFromCanonMatch(matchId: string): Promise<{ credited: number }> {
   const match = await prisma.canonMatch.findUnique({
@@ -440,6 +559,33 @@ export async function creditGrindFromCanonMatch(matchId: string): Promise<{ cred
     }
   }
 
+  const matchWindow = await grindMatchWindow({
+    legacyId: match.legacyId,
+    startedAt: match.startedAt,
+    endedAt: match.endedAt,
+    durationSec: match.durationSec,
+  });
+  const playerSteamIds = match.players
+    .map((p) => String(p.steamId || "").trim())
+    .filter(Boolean);
+  const playerUserIds = [
+    ...match.players.map((p) => p.userId).filter((id): id is string => Boolean(id)),
+    ...playerSteamIds.map((s) => steamToUserId.get(s)).filter((id): id is string => Boolean(id)),
+  ];
+  const slSecs =
+    matchWindow && match.serverKey
+      ? await slKitSecInMatchWindow({
+          serverKey: match.serverKey,
+          gte: matchWindow.gte,
+          lt: matchWindow.lt,
+          userIds: playerUserIds,
+          steamIds: playerSteamIds,
+        }).catch(() => ({
+          byUser: new Map<string, number>(),
+          bySteam: new Map<string, number>(),
+        }))
+      : { byUser: new Map<string, number>(), bySteam: new Map<string, number>() };
+
   let credited = 0;
   for (const p of match.players) {
     const nickKey = nickCompact(p.nick);
@@ -483,31 +629,65 @@ export async function creditGrindFromCanonMatch(matchId: string): Promise<{ cred
         })
         .catch(() => null);
     }
-    const amount = grindAmountFromTrainStats({
+
+    const slKitSec =
+      slSecs.byUser.get(userId) ||
+      (resolvedSteam ? slSecs.bySteam.get(resolvedSteam) : 0) ||
+      (steam ? slSecs.bySteam.get(steam) : 0) ||
+      0;
+    const slBonus = grindSlBonusFromKitTime({
+      slKitSec,
+      matchDurationSec: matchWindow?.durationSec ?? 0,
+    });
+    const baseAmount = grindAmountFromTrainStats({
       kills: p.kills,
       res: p.res,
       dmg: p.dmg,
       vehicleKills: p.vehicleKills,
     });
-    if (amount <= 0) continue;
-    const sourceKey = `grind:${matchId}:${userId}`;
-    try {
-      await prisma.$transaction(async (tx) => {
-        await creditTreasury(
-          tx,
-          membership.factionId,
-          amount,
-          "grind",
-          sourceKey,
-          `TR ${match.serverKey} · ${match.mapName} · ${p.nick}`,
-          userId,
-          matchId,
-        );
-      });
-      credited += 1;
-    } catch {
-      // unique sourceKey — уже начислено
+    if (baseAmount <= 0 && slBonus <= 0) continue;
+
+    const noteBase = `TR ${match.serverKey} · ${match.mapName} · ${p.nick}`;
+    let wrote = false;
+    if (baseAmount > 0) {
+      try {
+        await prisma.$transaction(async (tx) => {
+          await creditTreasury(
+            tx,
+            membership.factionId,
+            baseAmount,
+            "grind",
+            `grind:${matchId}:${userId}`,
+            noteBase,
+            userId,
+            matchId,
+          );
+        });
+        wrote = true;
+      } catch {
+        // unique sourceKey — уже начислено
+      }
     }
+    if (slBonus > 0) {
+      try {
+        await prisma.$transaction(async (tx) => {
+          await creditTreasury(
+            tx,
+            membership.factionId,
+            slBonus,
+            "grind",
+            `grind-sl:${matchId}:${userId}`,
+            `${noteBase} · SL`,
+            userId,
+            matchId,
+          );
+        });
+        wrote = true;
+      } catch {
+        // unique sourceKey — SL уже начислен
+      }
+    }
+    if (wrote) credited += 1;
   }
   return { credited };
 }

@@ -180,6 +180,12 @@ export const GRIND_RATE_RES = 110;
 /** B$ за единицу урона из статы матча (в т.ч. по технике). */
 export const GRIND_RATE_DMG = 0.12;
 export const GRIND_RATE_VEHICLE_KILL = 450;
+/**
+ * Бонус за кит «Командир отряда» на TRAIN: >70% длительности матча на SL.
+ * Доля от длины катки (не от личного онлайна) — анти-абуз коротким заходом.
+ */
+export const GRIND_RATE_SL = 1000;
+export const GRIND_SL_MIN_FRAC = 0.7;
 
 /**
  * Старт гринда B$: Fool's Road AAS 16.11.2026 21:33 МСК (включительно).
@@ -233,8 +239,24 @@ export function isGrindEligibleMatch(opts: {
 }
 
 /**
+ * +1000 B$ если время на ките «Командир отряда» > 70% длины матча.
+ * `matchDurationSec` — длительность катки; `slKitSec` — секунды на SL в окне матча.
+ */
+export function grindSlBonusFromKitTime(opts: {
+  slKitSec?: number | null;
+  matchDurationSec?: number | null;
+}): number {
+  const dur = Math.max(0, Number(opts.matchDurationSec) || 0);
+  const sl = Math.max(0, Number(opts.slKitSec) || 0);
+  if (dur < 60 || sl <= 0) return 0;
+  if (sl / dur > GRIND_SL_MIN_FRAC) return GRIND_RATE_SL;
+  return 0;
+}
+
+/**
  * Гринд за TRAIN на TR1–TR5 → казна.
  * Каждое действие платит отдельно: килл / рес / урон / уничтожение техники.
+ * Плюс бонус SL (>70% длины матча на ките командира отряда).
  * Потолка нет — 50 киллов = 50 × тариф.
  */
 export function grindAmountFromTrainStats(opts: {
@@ -242,6 +264,10 @@ export function grindAmountFromTrainStats(opts: {
   res: number;
   dmg?: number | null;
   vehicleKills?: number | null;
+  /** Секунды на ките «Командир отряда» в окне матча. */
+  slKitSec?: number | null;
+  /** Длительность матча (сек) — знаменатель для порога SL. */
+  matchDurationSec?: number | null;
   /** @deprecated не влияет на сумму; оставлено для совместимости вызовов */
   deaths?: number;
   nok?: number;
@@ -256,7 +282,11 @@ export function grindAmountFromTrainStats(opts: {
     res * GRIND_RATE_RES +
     dmg * GRIND_RATE_DMG +
     veh * GRIND_RATE_VEHICLE_KILL;
-  return Math.max(0, Math.round(raw));
+  const sl = grindSlBonusFromKitTime({
+    slKitSec: opts.slKitSec,
+    matchDurationSec: opts.matchDurationSec ?? opts.durationSec,
+  });
+  return Math.max(0, Math.round(raw) + sl);
 }
 
 /** Plain-text: «1 240 B$». В React предпочтительнее `<BdAmount />`. */
