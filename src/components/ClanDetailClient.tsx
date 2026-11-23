@@ -1279,7 +1279,10 @@ export function ClanDetailClient({
         </section>
       ) : null}
 
-      {tab === "stats" ? <ClanPublicStatsPanel clanId={clan.id} /> : null}
+      {/* Keep mounted so public stats prefetch while user is on another tab */}
+      <div hidden={tab !== "stats"}>
+        <ClanPublicStatsPanel clanId={clan.id} />
+      </div>
 
       {tab === "calendar" ? (
         <ClanCalendarPanel

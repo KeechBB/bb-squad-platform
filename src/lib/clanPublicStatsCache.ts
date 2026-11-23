@@ -15,7 +15,6 @@ export type ClanPublicStatsSnapshot = {
 };
 
 const FRESH_MS = Number(process.env.CLAN_PUBLIC_STATS_FRESH_MS || 120_000);
-const STALE_MS = Number(process.env.CLAN_PUBLIC_STATS_STALE_MS || 900_000);
 
 const mem = new Map<string, { at: number; data: ClanPublicStatsSnapshot }>();
 const inflight = new Map<string, Promise<ClanPublicStatsSnapshot>>();
@@ -113,7 +112,8 @@ function kickRebuild(clanId: string, tag?: string): void {
 /**
  * Instant path: return disk/mem snapshot if present.
  * Rebuild in background when stale / public ladder bumped.
- * Only blocks when no snapshot exists yet.
+ * Never block the click when a snapshot already exists (stale-while-revalidate).
+ * Only awaits rebuild on cold miss (no file yet).
  */
 export async function getClanPublicStatsCached(
   clanId: string,
@@ -127,13 +127,7 @@ export async function getClanPublicStatsCached(
     if (age > FRESH_MS || genNewer) {
       kickRebuild(clanId, tag);
     }
-    if (age <= STALE_MS || !genNewer) {
-      return hit;
-    }
-    // very stale + gen bump: wait for rebuild once
-    const waiting = inflight.get(clanId);
-    if (waiting) return waiting;
-    return rebuildOne(clanId, tag);
+    return hit;
   }
 
   const waiting = inflight.get(clanId);

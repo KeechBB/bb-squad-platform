@@ -14,6 +14,9 @@ type Props = {
   clanId: string;
 };
 
+/** Browser-side snap so tab remount / soft refresh stays instant. */
+const clientSnap = new Map<string, ClanPublicStats>();
+
 const PAGE = 12;
 
 const ROLE_COLORS = [
@@ -204,7 +207,13 @@ export function ClanPublicStatsPanel({ clanId }: Props) {
   const [mPage, setMPage] = useState(0);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    const warm = clientSnap.get(clanId);
+    if (warm) {
+      setData(warm);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     setError("");
     try {
       const res = await fetch(`/api/clans/${clanId}/stats?lane=public`, {
@@ -216,14 +225,19 @@ export function ClanPublicStatsPanel({ clanId }: Props) {
         public?: ClanPublicStats;
       };
       if (!res.ok || !json.ok || !json.public) {
-        setError(json.error || "Не удалось загрузить");
-        setData(null);
+        if (!warm) {
+          setError(json.error || "Не удалось загрузить");
+          setData(null);
+        }
         return;
       }
+      clientSnap.set(clanId, json.public);
       setData(json.public);
     } catch {
-      setError("нет связи");
-      setData(null);
+      if (!warm) {
+        setError("нет связи");
+        setData(null);
+      }
     } finally {
       setLoading(false);
     }
