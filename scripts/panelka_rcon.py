@@ -739,10 +739,35 @@ def read_punishments(key, steam_id, name, log_blob=""):
         out.append(row)
     return out[-120:]
 
+def process_uptime_sec(pid):
+    """Секунды с старта процесса (рестарт SquadGameServer)."""
+    try:
+        with open(f"/proc/{pid}/stat", encoding="utf-8", errors="replace") as f:
+            st = f.read()
+        rparen = st.rfind(")")
+        fields = st[rparen + 2 :].split()
+        startticks = int(fields[19])
+        with open("/proc/uptime", encoding="utf-8") as f:
+            uptime_sys = float(f.read().split()[0])
+        clk = os.sysconf("SC_CLK_TCK")
+        return max(0, int(uptime_sys - (startticks / float(clk))))
+    except Exception:
+        return None
+
 def server_row(key):
     info = rcon(key, "ShowServerInfo")
     current = rcon(key, "ShowCurrentMap")
-    return {"key": key, "info": info, "current": current}
+    uptime = None
+    try:
+        for pid in game_pids(host(key)):
+            u = process_uptime_sec(pid)
+            if u is None:
+                continue
+            if uptime is None or u > uptime:
+                uptime = u
+    except Exception:
+        uptime = None
+    return {"key": key, "info": info, "current": current, "uptimeSec": uptime}
 
 def read_staff_map():
     path = "/home/squad/admins/Admins.cfg"
@@ -2211,7 +2236,7 @@ def parse_info(raw: str) -> dict:
     return obj if isinstance(obj, dict) else {}
 
 
-STATUS_CACHE = Path("/tmp/bb-panelka-status-v3.json")
+STATUS_CACHE = Path("/tmp/bb-panelka-status-v4.json")
 
 
 def _info_int(info: dict, *keys: str) -> int:
@@ -2237,6 +2262,7 @@ def _status_row(row: dict) -> dict:
             "players": 0,
             "maxPlayers": 100,
             "queue": 0,
+            "uptimeSec": None,
             "error": row["error"],
         }
     info = parse_info(row.get("info") or "")
@@ -2246,6 +2272,13 @@ def _status_row(row: dict) -> dict:
     queue = _info_int(info, "PublicQueue_I", "PublicQueue") + _info_int(
         info, "ReservedQueue_I", "ReservedQueue"
     )
+    uptime_raw = row.get("uptimeSec")
+    try:
+        uptime_sec = int(uptime_raw) if uptime_raw is not None else None
+        if uptime_sec is not None and uptime_sec < 0:
+            uptime_sec = None
+    except (TypeError, ValueError):
+        uptime_sec = None
     label = str(info.get("ServerName_s") or key).strip() or key
     if key == "PB1" and label in ("PB1", "TPUB1", ""):
         label = "PB1 · BlackBerry Public"
@@ -2257,6 +2290,7 @@ def _status_row(row: dict) -> dict:
         "players": players,
         "maxPlayers": max_players,
         "queue": queue,
+        "uptimeSec": uptime_sec,
         "error": None,
     }
 
@@ -2293,6 +2327,7 @@ def status(only_key: str | None = None) -> dict:
             "players": 0,
             "maxPlayers": 100,
             "queue": 0,
+            "uptimeSec": None,
             "error": "нет ответа",
         }
         return {"ok": True, "servers": [row], "key": only_key}
@@ -2308,6 +2343,7 @@ def status(only_key: str | None = None) -> dict:
                     "players": 0,
                     "maxPlayers": 100,
                     "queue": 0,
+                    "uptimeSec": None,
                     "error": "нет ответа",
                 }
             )

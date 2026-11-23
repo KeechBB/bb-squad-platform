@@ -10,6 +10,8 @@ export type PanelkaServer = {
   maxPlayers: number;
   /** Очередь входа (PublicQueue + ReservedQueue) */
   queue: number;
+  /** Секунды с рестарта процесса SquadGameServer */
+  uptimeSec?: number | null;
   error: string | null;
 };
 

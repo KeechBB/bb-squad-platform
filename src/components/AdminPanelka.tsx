@@ -599,6 +599,11 @@ export function AdminPanelka({
               <button type="button" className="panelka-card-main" onClick={() => selectServer(server.key)}>
                 <b>{ready ? server.name : server.key}</b>
                 <span>{ready ? server.map || "карта неизвестна" : "нажми, чтобы загрузить"}</span>
+                {ready ? (
+                  <span className="panelka-uptime">
+                    {formatUptimeSec(server.uptimeSec) || "рестарт: нет данных"}
+                  </span>
+                ) : null}
               </button>
               <button
                 type="button"
@@ -2184,6 +2189,19 @@ function formatUnix(ts: number): string {
   } catch {
     return "—";
   }
+}
+
+/** Сколько прошло после рестарта SquadGameServer. */
+function formatUptimeSec(sec: number | null | undefined): string {
+  if (sec == null || !Number.isFinite(sec) || sec < 0) return "";
+  const s = Math.floor(sec);
+  const days = Math.floor(s / 86400);
+  const hours = Math.floor((s % 86400) / 3600);
+  const mins = Math.floor((s % 3600) / 60);
+  if (days > 0) return `после рестарта ${days}д ${hours}ч`;
+  if (hours > 0) return `после рестарта ${hours}ч ${mins}м`;
+  if (mins > 0) return `после рестарта ${mins}м`;
+  return `после рестарта ${s}с`;
 }
 
 function placeholderServers(): PanelkaServer[] {

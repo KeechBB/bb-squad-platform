@@ -104,6 +104,14 @@ body:has(.panelka-page) .shell {
   font-size: 0.92rem;
 }
 
+.panelka-uptime {
+  margin-top: 2px;
+  color: rgba(212, 168, 75, 0.88) !important;
+  font-size: 0.8rem !important;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
 .panelka-count {
   margin: 0 12px 12px;
   padding: 8px 10px;
