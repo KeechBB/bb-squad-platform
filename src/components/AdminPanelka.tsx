@@ -136,6 +136,14 @@ type ServerMod = {
   inLoadOrder: boolean;
 };
 
+type LeaveRow = {
+  at: string;
+  steamId: string;
+  nick: string;
+  steamUrl: string;
+  source?: string;
+};
+
 type AdminPanelkaProps = {
   backHref?: string;
   backLabel?: string;
@@ -158,8 +166,13 @@ export function AdminPanelka({
   const [mapOpen, setMapOpen] = useState(false);
   const [mgmtOpen, setMgmtOpen] = useState(() => initialPlace.mgmtOpen);
   const [modsOpen, setModsOpen] = useState(() => initialPlace.modsOpen);
+  const [leavesOpen, setLeavesOpen] = useState(true);
+  const [leaves, setLeaves] = useState<LeaveRow[]>([]);
   const restoreScrollY = useRef(initialPlace.scrollY);
   const didRestoreScroll = useRef(false);
+  const paintCacheRef = useRef<Map<string, { rights?: string; clanColor?: string | null }>>(
+    new Map()
+  );
   const [mode, setMode] = useState<ModeName | "">("");
   const [layers, setLayers] = useState<Record<string, string[]> | null>(null);
   const [pickedLayer, setPickedLayer] = useState("");
@@ -216,7 +229,10 @@ export function AdminPanelka({
   const loadRoster = useCallback(async (key: string, quiet = false) => {
     if (!quiet) setRosterBusy(true);
     try {
-      const res = await fetch(`/api/admin/panelka?op=roster&key=${key}`, { cache: "no-store" });
+      const q = quiet ? "&quiet=1" : "";
+      const res = await fetch(`/api/admin/panelka?op=roster&key=${encodeURIComponent(key)}${q}`, {
+        cache: "no-store",
+      });
       const data = (await res.json()) as {
         ok?: boolean;
         teams?: RosterTeam[];
@@ -228,7 +244,43 @@ export function AdminPanelka({
         if (!quiet) setNotice(data.error || "список игроков не пришёл");
         return;
       }
-      setTeams(data.teams);
+      let next = data.teams;
+      if (quiet) {
+        // Тихий полл без paint — подмешиваем кэш прав/цвета с прошлого полного ответа
+        const paint = paintCacheRef.current;
+        next = data.teams.map((team) => ({
+          ...team,
+          squads: (team.squads || []).map((sq) => ({
+            ...sq,
+            players: (sq.players || []).map((p) => {
+              const hit = paint.get(p.steamId);
+              return hit
+                ? { ...p, rights: hit.rights ?? p.rights, clanColor: hit.clanColor ?? p.clanColor }
+                : p;
+            }),
+          })),
+          loose: (team.loose || []).map((p) => {
+            const hit = paint.get(p.steamId);
+            return hit
+              ? { ...p, rights: hit.rights ?? p.rights, clanColor: hit.clanColor ?? p.clanColor }
+              : p;
+          }),
+        }));
+      } else {
+        const paint = new Map<string, { rights?: string; clanColor?: string | null }>();
+        for (const team of data.teams) {
+          for (const sq of team.squads || []) {
+            for (const p of sq.players || []) {
+              if (p.steamId) paint.set(p.steamId, { rights: p.rights, clanColor: p.clanColor });
+            }
+          }
+          for (const p of team.loose || []) {
+            if (p.steamId) paint.set(p.steamId, { rights: p.rights, clanColor: p.clanColor });
+          }
+        }
+        paintCacheRef.current = paint;
+      }
+      setTeams(next);
       setRosterOnce(true);
     } finally {
       if (!quiet) setRosterBusy(false);
@@ -253,9 +305,19 @@ export function AdminPanelka({
   }, []);
 
   const loadChat = useCallback(async (key: string) => {
-    const res = await fetch(`/api/admin/panelka?op=chat&key=${key}`, { cache: "no-store" });
+    const res = await fetch(`/api/admin/panelka?op=chat&key=${encodeURIComponent(key)}`, {
+      cache: "no-store",
+    });
     const data = (await res.json()) as { ok?: boolean; messages?: ChatLine[] };
     if (data.ok && data.messages) setChat(data.messages);
+  }, []);
+
+  const loadLeaves = useCallback(async (key: string) => {
+    const res = await fetch(`/api/admin/panelka?op=leaves&key=${encodeURIComponent(key)}`, {
+      cache: "no-store",
+    });
+    const data = (await res.json()) as { ok?: boolean; leaves?: LeaveRow[] };
+    if (data.ok && Array.isArray(data.leaves)) setLeaves(data.leaves);
   }, []);
 
   // No auto status/roster for all servers — only after click on a card.
@@ -321,29 +383,39 @@ export function AdminPanelka({
       setChat([]);
       setTeams([]);
       setServerMods([]);
+      setLeaves([]);
       setRosterOnce(false);
       return;
     }
     setRosterOnce(false);
     setTeams([]);
+    setLeaves([]);
+    setServerMods([]);
+    paintCacheRef.current = new Map();
     let stop = false;
     const key = selected;
     const boot = async () => {
-      // Parallel: status card + roster — don't block players behind status
+      // Быстрый первый кадр: статус + игроки + чат + выходы. Моды — отдельно (медленнее).
       void refreshOne(key);
-      await Promise.all([loadRoster(key), loadMods(key), loadChat(key)]);
+      await Promise.all([loadRoster(key), loadChat(key), loadLeaves(key)]);
       if (stop) return;
+      void loadMods(key);
     };
     void boot();
-    // Soft chat poll only for the opened server (file read, no RCON storm)
-    const chatTimer = window.setInterval(() => {
-      if (!stop) void loadChat(key);
-    }, 15000);
+    // Пока открыта эта панель — раз в 10с тихо обновляем актуальные блоки
+    const pollTimer = window.setInterval(() => {
+      if (stop) return;
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      void refreshOne(key);
+      void loadRoster(key, true);
+      void loadChat(key);
+      void loadLeaves(key);
+    }, 10000);
     return () => {
       stop = true;
-      window.clearInterval(chatTimer);
+      window.clearInterval(pollTimer);
     };
-  }, [selected, refreshOne, loadRoster, loadMods, loadChat]);
+  }, [selected, refreshOne, loadRoster, loadMods, loadChat, loadLeaves]);
 
   // After refresh: put viewport back where it was (once content is ready)
   useEffect(() => {
@@ -837,6 +909,55 @@ export function AdminPanelka({
         ) : null}
 
         {current ? (
+          <div className="panelka-leaves panelka-mods-fold">
+            <button
+              type="button"
+              className={`panelka-fold-head${leavesOpen ? " is-open" : ""}`}
+              onClick={() => setLeavesOpen((v) => !v)}
+              aria-expanded={leavesOpen}
+            >
+              <h3>Вышедшие игроки {current.key}</h3>
+              <span>{leavesOpen ? "свернуть" : "открыть"}</span>
+            </button>
+            {leavesOpen ? (
+              <div className="panelka-fold-body">
+                <div className="panelka-live-head">
+                  <p className="panelka-picked" style={{ margin: 0 }}>
+                    Кто вышел с сервера. Ник — ссылка в Steam (профиль по Steam ID).
+                  </p>
+                  <button type="button" onClick={() => void loadLeaves(current.key)}>
+                    Обновить
+                  </button>
+                </div>
+                <div className="panelka-leaves-log" role="log" aria-live="polite">
+                  {leaves.length ? (
+                    leaves.map((row) => (
+                      <p key={`${row.steamId}-${row.at}`}>
+                        <span>{row.at}</span>
+                        <a
+                          className="panelka-leaves-nick"
+                          href={row.steamUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={row.steamId}
+                        >
+                          {row.nick}
+                        </a>
+                        <span className="panelka-leaves-sid">{row.steamId}</span>
+                      </p>
+                    ))
+                  ) : (
+                    <p className="panelka-chat-empty">
+                      Пока пусто — появятся после следующего обновления списка игроков.
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {current ? (
           <div className="panelka-live-roster" ref={rosterRef}>
             <div className="panelka-live-head">
               <h3>Игроки на {current.key}</h3>
@@ -850,7 +971,7 @@ export function AdminPanelka({
             </div>
             <p className="panelka-picked">
               Слева команда 1, справа команда 2. Нажми игрока — карточка. У отряда: сбросить имя или
-              распустить.
+              распустить. Список обновляется сам раз в 10 сек.
             </p>
             <div className="panelka-roster">
               <TeamColumn

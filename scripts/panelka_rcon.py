@@ -2567,6 +2567,146 @@ def _parse_roster_payload(data: dict) -> dict:
     }
 
 
+ONLINE_SNAP = Path("/tmp/bb-panelka-online")
+LEAVES_LOG = Path("/tmp/bb-panelka-leaves")
+_leaves_lock = threading.Lock()
+
+
+def _people_from_roster(result: dict) -> dict[str, str]:
+    """steamId → nick from parsed roster teams."""
+    out: dict[str, str] = {}
+    for team in result.get("teams") or []:
+        if not isinstance(team, dict):
+            continue
+        for squad in team.get("squads") or []:
+            for person in (squad or {}).get("players") or []:
+                sid = str((person or {}).get("steamId") or "").strip()
+                nick = str((person or {}).get("name") or "").strip()
+                if re.fullmatch(r"7656\d{13}", sid) and nick:
+                    out[sid] = nick
+        for person in team.get("loose") or []:
+            sid = str((person or {}).get("steamId") or "").strip()
+            nick = str((person or {}).get("name") or "").strip()
+            if re.fullmatch(r"7656\d{13}", sid) and nick:
+                out[sid] = nick
+    return out
+
+
+def _track_roster_leaves(key: str, result: dict) -> None:
+    """Diff online set → append leave rows. First snapshot = baseline, no leaves."""
+    if not result.get("ok"):
+        return
+    now_map = _people_from_roster(result)
+    # Empty roster while rcon died — don't mark the whole server as left.
+    if not now_map and result.get("via", "").startswith("legacy"):
+        err = str(result.get("error") or "")
+        if "rcon" in err.lower() or "closed" in err.lower():
+            return
+    ONLINE_SNAP.mkdir(parents=True, exist_ok=True)
+    LEAVES_LOG.mkdir(parents=True, exist_ok=True)
+    snap_path = ONLINE_SNAP / f"{key}.json"
+    log_path = LEAVES_LOG / f"{key}.jsonl"
+    with _leaves_lock:
+        prev: dict[str, str] = {}
+        if snap_path.is_file():
+            try:
+                raw = json.loads(snap_path.read_text(encoding="utf-8"))
+                if isinstance(raw, dict):
+                    prev = {
+                        str(k): str(v)
+                        for k, v in raw.items()
+                        if re.fullmatch(r"7656\d{13}", str(k))
+                    }
+            except Exception:
+                prev = {}
+        # First successful sighting — seed only.
+        if not prev:
+            try:
+                snap_path.write_text(json.dumps(now_map, ensure_ascii=False), encoding="utf-8")
+            except OSError:
+                pass
+            return
+        left_ids = [sid for sid in prev if sid not in now_map]
+        if left_ids:
+            from datetime import datetime, timedelta, timezone
+
+            stamp = datetime.now(timezone(timedelta(hours=3))).strftime("%Y-%m-%d %H:%M:%S")
+            try:
+                with log_path.open("a", encoding="utf-8") as handle:
+                    for sid in left_ids:
+                        handle.write(
+                            json.dumps(
+                                {
+                                    "at": stamp,
+                                    "steamId": sid,
+                                    "nick": prev.get(sid) or sid,
+                                    "source": "roster",
+                                },
+                                ensure_ascii=False,
+                            )
+                            + "\n"
+                        )
+            except OSError:
+                pass
+            # Trim log to last ~120 lines
+            try:
+                lines = log_path.read_text(encoding="utf-8").splitlines()
+                if len(lines) > 120:
+                    log_path.write_text("\n".join(lines[-120:]) + "\n", encoding="utf-8")
+            except OSError:
+                pass
+        try:
+            snap_path.write_text(json.dumps(now_map, ensure_ascii=False), encoding="utf-8")
+        except OSError:
+            pass
+
+
+def leaves(key: str, limit: int = 80) -> dict:
+    """Recent disconnects from roster diffs (newest first)."""
+    LEAVES_LOG.mkdir(parents=True, exist_ok=True)
+    log_path = LEAVES_LOG / f"{key}.jsonl"
+    rows: list[dict] = []
+    if log_path.is_file():
+        try:
+            for line in log_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                except Exception:
+                    continue
+                if not isinstance(row, dict):
+                    continue
+                sid = str(row.get("steamId") or "").strip()
+                if not re.fullmatch(r"7656\d{13}", sid):
+                    continue
+                rows.append(
+                    {
+                        "at": str(row.get("at") or ""),
+                        "steamId": sid,
+                        "nick": str(row.get("nick") or sid)[:64],
+                        "steamUrl": f"https://steamcommunity.com/profiles/{sid}",
+                        "source": str(row.get("source") or "roster"),
+                    }
+                )
+        except OSError:
+            rows = []
+    rows.reverse()
+    # de-dupe consecutive same steam (spam from flaky rcon)
+    out: list[dict] = []
+    last = ""
+    for row in rows:
+        key_d = f"{row['steamId']}|{row['at'][:16]}"
+        if key_d == last:
+            continue
+        last = key_d
+        out.append(row)
+        if len(out) >= limit:
+            break
+    return {"ok": True, "leaves": out, "key": key}
+
+
 def roster(key: str) -> dict:
     """Fast path: game-host agent. Dedup parallel polls from PM2 workers."""
     with _roster_inflight_lock:
@@ -2591,6 +2731,11 @@ def roster(key: str) -> dict:
             data = ssh_job({"op": "roster", "key": key})
             data["via"] = f"legacy:{type(agent_err).__name__}"
             result = _parse_roster_payload(data)
+        if result.get("ok"):
+            try:
+                _track_roster_leaves(key, result)
+            except Exception:
+                pass
         _roster_inflight_result[key] = result
         return result
     finally:
@@ -3069,6 +3214,11 @@ def main() -> int:
             if key not in KEYS:
                 raise SystemExit("bad server")
             result = roster(key)
+        elif op == "leaves":
+            key = sys.argv[2]
+            if key not in KEYS:
+                raise SystemExit("bad server")
+            result = leaves(key)
         elif op == "layers":
             result = layers()
         elif op == "chat":
