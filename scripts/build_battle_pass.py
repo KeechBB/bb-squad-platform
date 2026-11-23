@@ -211,6 +211,25 @@ def is_mrap(vehicle: str) -> bool:
     return bool(_MRAP_RE.search(str(vehicle or "")))
 
 
+def is_logi(vehicle: str, label: str = "") -> bool:
+    """Сопля = logi-грузовик с припасами (не квад/лодка/техинка)."""
+    a = str(vehicle or "")
+    try:
+        if R.vehicle_class(a) == "LOGI":
+            # мини-logi / ATV не считаем «соплей»
+            if re.search(r"MINSK|QUAD|RHIB|M-?GATOR|LYNX|TECHNICAL|LUVW", a, re.I):
+                return False
+            return True
+    except Exception:
+        pass
+    if re.search(r"LOGI", a, re.I):
+        if re.search(r"MINSK|QUAD|RHIB|M-?GATOR|LYNX|TECHNICAL|LUVW", a, re.I):
+            return False
+        return True
+    low = str(label or "").lower()
+    return "logi" in low or "сопл" in low
+
+
 def classify_vehicle(vehicle: str, tickets: int | None, label: str = "") -> str:
     """light | mrap | ifv | tank | heli | other — для заданий S2."""
     a = str(vehicle or "")
@@ -494,6 +513,7 @@ def per_player_stats(block: dict, aliases: dict) -> dict[str, dict]:
                 "heliKills": 0,
                 "lightKills": 0,
                 "mrapKills": 0,
+                "logiKills": 0,
                 "ifvKills": 0,
                 "dmg": 0,
             }
@@ -547,6 +567,8 @@ def per_player_stats(block: dict, aliases: dict) -> dict[str, dict]:
                     r["ifvKills"] += 1
                 elif cls == "light":
                     r["lightKills"] += 1
+                if is_logi(veh, label):
+                    r["logiKills"] += 1
 
     # MVP Killer / Medic (same rules as site pickMvps)
     pool = [
@@ -655,6 +677,7 @@ def per_player_stats(block: dict, aliases: dict) -> dict[str, dict]:
                     "heliKills": 0,
                     "lightKills": 0,
                     "mrapKills": 0,
+                    "logiKills": 0,
                     "ifvKills": 0,
                     "dmg": 0,
                 },
@@ -693,7 +716,7 @@ def apply_level(p: dict, st: dict) -> bool:
     veh = int(st.get("vehicleKills") or 0)
     tanks = int(st.get("tankKills") or 0)
     light = int(st.get("lightKills") or 0)
-    mrap = int(st.get("mrapKills") or 0)
+    logi = int(st.get("logiKills") or 0)
     ifv = int(st.get("ifvKills") or 0)
     won = st.get("won")
     ticket_delta = st.get("ticketDelta")
@@ -756,7 +779,8 @@ def apply_level(p: dict, st: dict) -> bool:
             done = p["current"] >= tgt
     elif lvl == 13:
         tgt = LEVEL_TARGETS[13]
-        p["current"] = min(tgt, int(p.get("current") or 0) + mrap)
+        # Сопля = logi-грузовик с припасами (раньше было MRAP)
+        p["current"] = min(tgt, int(p.get("current") or 0) + logi)
         done = p["current"] >= tgt
     elif lvl == 14:
         tgt = LEVEL_TARGETS[14]
