@@ -38,19 +38,58 @@ function readEnvFileValue(filePath: string, key: string): string {
   return "";
 }
 
-/** Чат кадровиков / бота набора (не ops BB_TG_CHAT_ID). */
-export function resolveClanHrChatId(): string {
-  const fromEnv = (process.env.BB_TG_CLAN_CHAT_ID || "").trim();
-  if (fromEnv) return fromEnv;
+function recruitBotEnvPath(): string | null {
   const candidates = [
     path.join(process.cwd(), "recruit-bot", "recruit-bot.env"),
     "/var/www/bb-squad-platform/recruit-bot/recruit-bot.env",
   ];
   for (const p of candidates) {
-    const v = readEnvFileValue(p, "ALERT_CHAT_ID");
-    if (v) return v;
+    try {
+      if (fs.existsSync(p)) return p;
+    } catch {
+      /* ignore */
+    }
   }
-  return "";
+  return null;
+}
+
+/** Чат кадровиков / бота набора (не ops BB_TG_CHAT_ID). */
+export function resolveClanHrChatId(): string {
+  const fromEnv = (process.env.BB_TG_CLAN_CHAT_ID || "").trim();
+  if (fromEnv) return fromEnv;
+  const envPath = recruitBotEnvPath();
+  if (!envPath) return "";
+  return readEnvFileValue(envPath, "ALERT_CHAT_ID");
+}
+
+type RecruitBotSendCreds = {
+  token: string;
+  apiBase: string;
+  chatId: string;
+};
+
+function resolveRecruitBotSendCreds(): RecruitBotSendCreds | null {
+  const envPath = recruitBotEnvPath();
+  if (!envPath) return null;
+  const token =
+    (process.env.BB_TG_CLAN_BOT_TOKEN || "").trim() ||
+    readEnvFileValue(envPath, "BOT_TOKEN") ||
+    readEnvFileValue(envPath, "TELEGRAM_BOT_TOKEN");
+  const apiBase = (
+    (process.env.BB_TG_CLAN_API_BASE || "").trim() ||
+    readEnvFileValue(envPath, "TELEGRAM_API_BASE") ||
+    "https://api.telegram.org/bot"
+  ).replace(/\/$/, "");
+  const chatId = resolveClanHrChatId();
+  if (!token || !chatId) return null;
+  // TELEGRAM_API_BASE ends with `/bot` → `${base}${token}/sendMessage`
+  // Standard Telegram → `https://api.telegram.org/bot${token}/sendMessage`
+  const base = apiBase.endsWith("/bot")
+    ? apiBase
+    : apiBase.includes("/bot")
+      ? apiBase
+      : `${apiBase.replace(/\/$/, "")}/bot`;
+  return { token, apiBase: base, chatId };
 }
 
 export async function sendBbAlert(
@@ -87,14 +126,40 @@ export async function sendBbAlert(
   }
 }
 
-/** Алерты в HR-чат бота набора / бота клана. */
+/**
+ * Алерты в HR-чат бота набора / бота клана.
+ * Идёт через BOT_TOKEN recruit-bot (ops-бот в этом чате не состоит → chat not found).
+ */
 export async function sendClanHrAlert(text: string): Promise<boolean> {
-  const chatId = resolveClanHrChatId();
-  if (!chatId) {
-    console.warn("bbAlerts: clan HR chat missing — skip");
+  const creds = resolveRecruitBotSendCreds();
+  if (!creds) {
+    console.warn("bbAlerts: recruit-bot HR creds missing — skip");
     return false;
   }
-  return sendBbAlert(text, { chatId });
+  const url = `${creds.apiBase}${creds.token}/sendMessage`;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "user-agent": "Mozilla/5.0 (compatible; BB-Squad-Alert/1.0)",
+      },
+      body: JSON.stringify({
+        chat_id: creds.chatId,
+        text: text.slice(0, 3900),
+      }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      console.error("bbAlerts clan HR fail", res.status, body.slice(0, 200));
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error("bbAlerts clan HR error", e);
+    return false;
+  }
 }
 
 export async function alertNewRegistration(opts: {
