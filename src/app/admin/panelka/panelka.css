@@ -1042,6 +1042,23 @@ body:has(.panelka-page) .shell {
   cursor: wait;
 }
 
+.panelka-mod-tabs button.panelka-camera-grant.is-done {
+  background: linear-gradient(180deg, #86efac 0%, #22c55e 55%, #16a34a 100%);
+  border-color: rgba(34, 197, 94, 0.7);
+  box-shadow: 0 0 0 1px rgba(22, 163, 74, 0.35), 0 6px 16px rgba(22, 163, 74, 0.22);
+}
+
+.panelka-camera-notice {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  background: rgba(14, 165, 233, 0.12);
+  color: #e0f2fe;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
 .panelka-mod-punish {
   margin-top: 12px;
   border-radius: 10px;

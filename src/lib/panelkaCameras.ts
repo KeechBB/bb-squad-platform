@@ -10,6 +10,7 @@ export type CameraRow = {
   grantedAt: string | null;
   note: string | null;
   source: "cfg";
+  panelka?: boolean;
 };
 
 async function resolveNicks(steamIds: string[]): Promise<Map<string, string>> {
@@ -49,6 +50,8 @@ export async function listPublicCameras(): Promise<CameraRow[]> {
       byNick?: string;
       grantedAt?: string;
       note?: string;
+      name?: string;
+      panelka?: boolean;
     }[];
     error?: string;
   };
@@ -57,11 +60,15 @@ export async function listPublicCameras(): Promise<CameraRow[]> {
   const nickMap = await resolveNicks(list.map((c) => c.steamId));
   return list.map((c) => ({
     steamId: c.steamId,
-    nick: nickMap.get(c.steamId) || null,
+    nick:
+      (c.name || "").replace(/_/g, " ").trim() ||
+      nickMap.get(c.steamId) ||
+      null,
     byNick: (c.byNick || "").replace(/_/g, " ") || "—",
     grantedAt: c.grantedAt || null,
     note: (c.note || "").trim() || null,
     source: "cfg" as const,
+    panelka: Boolean(c.panelka),
   }));
 }
 

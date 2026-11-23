@@ -896,17 +896,115 @@ def vip_remove(steam_id):
     return {"ok": True, "reply": "випка снята", "steamId": steam_id, "removed": removed}
 
 CAMERA_GROUP = "Cameraman"
+CAMERA_STORE = "/home/squad/admins/bb-cameras.json"
 CAMERA_META_RE = re.compile(
     r"bb-camera\s+by=(?P<by>[^\s]+)\s+granted=(?P<granted>\S+)",
     re.I,
 )
 
+def _camera_store_load():
+    try:
+        data = json.loads(open(CAMERA_STORE, encoding="utf-8").read())
+        if isinstance(data, list):
+            return data
+    except Exception:
+        pass
+    return []
+
+def _camera_store_save(rows):
+    tmp = CAMERA_STORE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as handle:
+        handle.write(json.dumps(rows, ensure_ascii=False, indent=2))
+    os.replace(tmp, CAMERA_STORE)
+
+def _camera_line(steam_id, by_nick="", granted="", note="", name=""):
+    by = re.sub(r"\s+", "_", (by_nick or "staff").strip())[:32] or "staff"
+    granted_s = (granted or time.strftime("%Y-%m-%dT%H:%M:%S")).strip()[:32]
+    note_s = re.sub(r"\s+", " ", (note or "").strip())[:120]
+    name_s = re.sub(r"\s+", "_", (name or "").strip())[:40]
+    meta = " // bb-camera by=%s granted=%s" % (by, granted_s)
+    if name_s:
+        meta = "%s name=%s" % (meta, name_s)
+    if note_s:
+        meta = "%s | %s" % (meta, note_s)
+    return "Admin=%s:%s%s" % (steam_id, CAMERA_GROUP, meta)
+
+def _camera_upsert_store(steam_id, by_nick="", granted="", note="", name=""):
+    rows = _camera_store_load()
+    out = []
+    found = False
+    row = {
+        "steamId": steam_id,
+        "byNick": (by_nick or "staff").strip()[:48] or "staff",
+        "grantedAt": (granted or time.strftime("%Y-%m-%dT%H:%M:%S")).strip()[:32],
+        "note": re.sub(r"\s+", " ", (note or "").strip())[:120],
+        "name": (name or "").strip()[:48],
+    }
+    for old in rows:
+        if str(old.get("steamId") or "") == steam_id:
+            out.append(row)
+            found = True
+        else:
+            out.append(old)
+    if not found:
+        out.append(row)
+    _camera_store_save(out)
+    return row
+
+def _camera_remove_store(steam_id):
+    rows = _camera_store_load()
+    kept = [r for r in rows if str(r.get("steamId") or "") != steam_id]
+    _camera_store_save(kept)
+    return len(rows) - len(kept)
+
+def heal_bb_cameras():
+    """Sqstat bot rewrites Admins.cfg every ~5m — re-append panelka cameras from JSON."""
+    store = _camera_store_load()
+    if not store:
+        return {"ok": True, "healed": 0}
+    try:
+        text = open(ADMINS_CFG, encoding="utf-8", errors="replace").read()
+    except Exception as e:
+        return {"ok": False, "error": str(e), "healed": 0}
+    lines = text.splitlines()
+    healed = 0
+    for row in store:
+        sid = str(row.get("steamId") or "")
+        if not re.fullmatch(r"7656\d{13}", sid):
+            continue
+        present = False
+        staff = False
+        for line in lines:
+            m = re.match(r"Admin=%s\s*:\s*(\w+)" % sid, line.strip(), re.I)
+            if not m:
+                continue
+            if m.group(1) == CAMERA_GROUP:
+                present = True
+            elif m.group(1) in ("Admin", "Moderator"):
+                staff = True
+        if present or staff:
+            continue
+        lines.append(_camera_line(
+            sid,
+            str(row.get("byNick") or ""),
+            str(row.get("grantedAt") or ""),
+            str(row.get("note") or ""),
+            str(row.get("name") or ""),
+        ))
+        healed += 1
+    if healed:
+        _atomic_write(ADMINS_CFG, "\n".join(lines) + "\n")
+    return {"ok": True, "healed": healed}
+
 def list_cameras():
+    heal_bb_cameras()
     rows = []
+    store = {str(r.get("steamId") or ""): r for r in _camera_store_load()}
     try:
         lines = open(ADMINS_CFG, encoding="utf-8", errors="replace").read().splitlines()
     except Exception as e:
         return {"ok": False, "error": str(e)}
+    seen = set()
     for line in lines:
         raw = line.strip()
         if not raw.startswith("Admin=") or CAMERA_GROUP not in raw:
@@ -915,6 +1013,7 @@ def list_cameras():
         if not m:
             continue
         steam = m.group(1)
+        seen.add(steam)
         tail = (m.group(2) or "").strip()
         comment = ""
         if "//" in tail:
@@ -923,14 +1022,33 @@ def list_cameras():
         note = ""
         if "|" in comment:
             note = comment.split("|", 1)[1].strip()[:160]
+        st = store.get(steam) or {}
+        name_m = re.search(r"\bname=([^\s|]+)", comment or "")
         rows.append({
             "steamId": steam,
             "group": CAMERA_GROUP,
-            "byNick": meta.group("by") if meta else "",
-            "grantedAt": meta.group("granted") if meta else "",
-            "note": note,
+            "byNick": (meta.group("by") if meta else "") or str(st.get("byNick") or ""),
+            "grantedAt": (meta.group("granted") if meta else "") or str(st.get("grantedAt") or ""),
+            "note": note or str(st.get("note") or ""),
+            "name": (name_m.group(1).replace("_", " ") if name_m else "") or str(st.get("name") or ""),
             "comment": comment[:160],
             "line": raw[:220],
+            "panelka": bool(meta) or steam in store,
+        })
+    # store-only rows (cfg briefly wiped before heal)
+    for sid, st in store.items():
+        if sid in seen or not re.fullmatch(r"7656\d{13}", sid):
+            continue
+        rows.append({
+            "steamId": sid,
+            "group": CAMERA_GROUP,
+            "byNick": str(st.get("byNick") or ""),
+            "grantedAt": str(st.get("grantedAt") or ""),
+            "note": str(st.get("note") or ""),
+            "name": str(st.get("name") or ""),
+            "comment": "",
+            "line": "",
+            "panelka": True,
         })
     rows.sort(key=lambda r: r.get("grantedAt") or r["steamId"], reverse=True)
     return {"ok": True, "cameras": rows, "count": len(rows)}
@@ -938,6 +1056,7 @@ def list_cameras():
 def camera_has(steam_id):
     if not re.fullmatch(r"7656\d{13}", steam_id or ""):
         return {"ok": False, "error": "неверный Steam ID", "has": False}
+    heal_bb_cameras()
     try:
         text = open(ADMINS_CFG, encoding="utf-8", errors="replace").read()
     except Exception as e:
@@ -953,12 +1072,14 @@ def camera_has(steam_id):
             has = True
         elif group in ("Admin", "Moderator") and not staff:
             staff = group
+    in_store = any(str(r.get("steamId") or "") == steam_id for r in _camera_store_load())
     return {
         "ok": True,
-        "has": has,
+        "has": has or in_store,
         "staff": staff,
         "steamId": steam_id,
-        "canFly": has or bool(staff),
+        "canFly": has or bool(staff) or in_store,
+        "inStore": in_store,
     }
 
 def camera_add(steam_id, by_nick="", granted="", note="", key="", name=""):
@@ -989,11 +1110,8 @@ def camera_add(steam_id, by_nick="", granted="", note="", key="", name=""):
         }
     by = re.sub(r"\s+", "_", (by_nick or "staff").strip())[:32] or "staff"
     granted_s = (granted or time.strftime("%Y-%m-%dT%H:%M:%S")).strip()[:32]
-    note_s = re.sub(r"\s+", " ", (note or "").strip())[:120]
-    meta = " // bb-camera by=%s granted=%s" % (by, granted_s)
-    if note_s:
-        meta = "%s | %s" % (meta, note_s)
-    new_line = "Admin=%s:%s%s" % (steam_id, CAMERA_GROUP, meta)
+    _camera_upsert_store(steam_id, by_nick or by, granted_s, note, name)
+    new_line = _camera_line(steam_id, by_nick or by, granted_s, note, name)
     if already:
         out = []
         for line in lines:
@@ -1002,9 +1120,20 @@ def camera_add(steam_id, by_nick="", granted="", note="", key="", name=""):
             else:
                 out.append(line)
         _atomic_write(ADMINS_CFG, "\n".join(out) + ("\n" if text.endswith("\n") else ""))
+        append_action_log({
+            "kind": "camera",
+            "key": (key or "")[:8],
+            "steamId": steam_id,
+            "name": (name or "")[:48],
+            "reason": "камера обновлена (Cameraman)",
+            "byNick": (by_nick or by)[:48],
+            "bySteamId": "",
+            "date": time.strftime("%Y-%m-%d"),
+            "clock": time.strftime("%H:%M:%S"),
+        })
         return {
             "ok": True,
-            "reply": "камера уже была — запись обновлена, пусть перезайдёт",
+            "reply": "камера уже была — запись обновлена (держится после синка Sqstat)",
             "steamId": steam_id,
             "updated": True,
         }
@@ -1020,6 +1149,13 @@ def camera_add(steam_id, by_nick="", granted="", note="", key="", name=""):
         insert_at = last_group + 1
     lines.insert(insert_at, new_line)
     _atomic_write(ADMINS_CFG, "\n".join(lines) + "\n")
+    # confirm write stuck (Sqstat may race; store keeps it)
+    try:
+        check = open(ADMINS_CFG, encoding="utf-8", errors="replace").read()
+        if not re.search(r"Admin=%s\s*:\s*%s\b" % (steam_id, CAMERA_GROUP), check, re.I):
+            heal_bb_cameras()
+    except Exception:
+        pass
     append_action_log({
         "kind": "camera",
         "key": (key or "")[:8],
@@ -1031,16 +1167,30 @@ def camera_add(steam_id, by_nick="", granted="", note="", key="", name=""):
         "date": time.strftime("%Y-%m-%d"),
         "clock": time.strftime("%H:%M:%S"),
     })
+    live = False
+    if key in UI_KEYS:
+        try:
+            rcon(key, "AdminAddCameraman %s" % steam_id, attempts=2)
+            live = True
+        except Exception:
+            live = False
+    reply = "камера выдана (запись защищена от синка Sqstat)"
+    if live:
+        reply += " — freecam уже активен на сервере"
+    else:
+        reply += " — пусть перезайдёт для freecam"
     return {
         "ok": True,
-        "reply": "камера выдана в Admins.cfg — игроку нужно перезайти",
+        "reply": reply,
         "steamId": steam_id,
         "updated": False,
+        "live": live,
     }
 
 def camera_remove(steam_id):
     if not re.fullmatch(r"7656\d{13}", steam_id or ""):
         return {"ok": False, "error": "неверный Steam ID"}
+    store_removed = _camera_remove_store(steam_id)
     try:
         text = open(ADMINS_CFG, encoding="utf-8", errors="replace").read()
     except Exception as e:
@@ -1053,10 +1203,16 @@ def camera_remove(steam_id):
             removed += 1
             continue
         kept.append(line)
-    if not removed:
+    if not removed and not store_removed:
         return {"ok": False, "error": "камеры нет в Admins.cfg"}
-    _atomic_write(ADMINS_CFG, "\n".join(kept) + ("\n" if text.endswith("\n") else ""))
-    return {"ok": True, "reply": "камера снята", "steamId": steam_id, "removed": removed}
+    if removed:
+        _atomic_write(ADMINS_CFG, "\n".join(kept) + ("\n" if text.endswith("\n") else ""))
+    return {
+        "ok": True,
+        "reply": "камера снята",
+        "steamId": steam_id,
+        "removed": removed or store_removed,
+    }
 
 def list_bans():
     rows = []
@@ -1581,6 +1737,8 @@ try:
         print(json.dumps(vip_remove(str(job.get("steamId") or "")), ensure_ascii=False))
     elif op == "cameras-list":
         print(json.dumps(list_cameras(), ensure_ascii=False))
+    elif op == "cameras-heal":
+        print(json.dumps(heal_bb_cameras(), ensure_ascii=False))
     elif op == "camera-has":
         print(json.dumps(camera_has(str(job.get("steamId") or "")), ensure_ascii=False))
     elif op == "camera-add":
@@ -2805,6 +2963,10 @@ def cameras_list() -> dict:
     return ssh_job({"op": "cameras-list"}, timeout=25)
 
 
+def cameras_heal() -> dict:
+    return ssh_job({"op": "cameras-heal"}, timeout=25)
+
+
 def camera_has(steam_id: str) -> dict:
     return ssh_job({"op": "camera-has", "steamId": steam_id}, timeout=25)
 
@@ -2952,6 +3114,8 @@ def main() -> int:
             result = vip_remove(steam_id)
         elif op == "cameras-list":
             result = cameras_list()
+        elif op == "cameras-heal":
+            result = cameras_heal()
         elif op == "camera-has":
             steam_id = sys.argv[2] if len(sys.argv) > 2 else ""
             if not re.fullmatch(r"7656\d{13}", steam_id):

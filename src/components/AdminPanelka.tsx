@@ -1278,6 +1278,8 @@ export function PlayerModModal({
   const [banUnit, setBanUnit] = useState<BanUnit>("d");
   const [banAmount, setBanAmount] = useState("1");
   const [warnText, setWarnText] = useState("");
+  const [actionNotice, setActionNotice] = useState("");
+  const [hasCamera, setHasCamera] = useState(false);
   const [tab, setTab] = useState<"chat" | "punish" | "tk">("chat");
   const [chatPage, setChatPage] = useState(0);
   const [tkPage, setTkPage] = useState(0);
@@ -1355,6 +1357,8 @@ export function PlayerModModal({
     setBanUnit("d");
     setBanAmount("1");
     setWarnText("");
+    setActionNotice("");
+    setHasCamera(false);
     setTab("chat");
     setChatPage(0);
     setTkPage(0);
@@ -1366,6 +1370,34 @@ export function PlayerModModal({
     setLabelDraft("");
     void loadCard();
   }, [loadCard]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(
+      `/api/admin/cameras?steamId=${encodeURIComponent(player.steamId)}`,
+      { cache: "no-store" }
+    )
+      .then(async (res) => {
+        const data = (await res.json().catch(() => null)) as {
+          ok?: boolean;
+          cameras?: { steamId?: string }[];
+          has?: boolean;
+        } | null;
+        if (cancelled) return;
+        if (typeof data?.has === "boolean") {
+          setHasCamera(data.has);
+          return;
+        }
+        const hit = (data?.cameras || []).some((c) => c.steamId === player.steamId);
+        setHasCamera(hit);
+      })
+      .catch(() => {
+        if (!cancelled) setHasCamera(Boolean(player.rights === "camera"));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [player.steamId, player.rights]);
 
   async function postMemo(
     action: "note-add" | "label-add" | "memo-remove",
@@ -1441,11 +1473,16 @@ export function PlayerModModal({
       return;
     }
     if (pending === "camera") {
+      setActionNotice("");
       const ok = await onAction("camera-add", {});
       if (ok) {
+        setHasCamera(true);
+        setActionNotice("Камера выдана и сохранена. Если игрок онлайн — freecam уже должен работать, иначе пусть перезайдёт.");
         setPending(null);
         setTab("punish");
         window.setTimeout(() => void loadCard({ silent: true }), 900);
+      } else {
+        setActionNotice("Не удалось выдать камеру — смотри красный статус сверху панели серверов.");
       }
       return;
     }
@@ -1732,7 +1769,7 @@ export function PlayerModModal({
               <p>
                 Точно выдать камеру <b>{player.name}</b>?
                 <br />
-                Запишем Group=Cameraman в Admins.cfg — freecam после перезахода.
+                Запишем Cameraman в Admins.cfg и в постоянный лог (Sqstat больше не сотрёт).
               </p>
             ) : null}
             {pending === "warn" ? (
@@ -1833,6 +1870,10 @@ export function PlayerModModal({
           </div>
         ) : null}
 
+        {actionNotice ? (
+          <p className="panelka-camera-notice">{actionNotice}</p>
+        ) : null}
+
         <div className="panelka-mod-tabs">
           <button type="button" className={tab === "chat" ? "is-on" : ""} onClick={() => setTab("chat")}>
             Чат
@@ -1851,14 +1892,15 @@ export function PlayerModModal({
           </button>
           <button
             type="button"
-            className="panelka-camera-grant"
+            className={`panelka-camera-grant${hasCamera ? " is-done" : ""}`}
             disabled={busy}
             onClick={() => {
               setConfirmKick(false);
+              setActionNotice("");
               setPending("camera");
             }}
           >
-            Выдать камеру
+            {hasCamera ? "Камера есть / обновить" : "Выдать камеру"}
           </button>
         </div>
 

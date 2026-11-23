@@ -12,11 +12,21 @@ export const dynamic = "force-dynamic";
 
 const STEAM_RE = /^7656\d{13}$/;
 
-export async function GET() {
+export async function GET(req: Request) {
   const { error } = await requirePanelkaAccess();
   if (error) return error;
   try {
+    const steamId = new URL(req.url).searchParams.get("steamId") || "";
     const cameras = await listPublicCameras();
+    if (STEAM_RE.test(steamId)) {
+      return NextResponse.json({
+        ok: true,
+        cameras,
+        count: cameras.length,
+        has: cameras.some((c) => c.steamId === steamId),
+        steamId,
+      });
+    }
     return NextResponse.json({ ok: true, cameras, count: cameras.length });
   } catch (err) {
     const message = err instanceof Error ? err.message : "ошибка";
