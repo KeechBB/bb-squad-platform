@@ -279,6 +279,51 @@ def still_in_clan(steam_id: str) -> bool | None:
         return None
 
 
+_SRI_SKIP_RU = {
+    "in_reserve": "в резерве",
+    "already_in_faction": "уже во фракции",
+    "not_in_bb": "не состоит в клане BB",
+    "slag": "шлак (нет нормального TG) — во фракцию не сажаем",
+    "user_not_found": "нет аккаунта на сайте",
+    "keech_or_admin": "Keech/админ — СРИ не распределяет",
+    "keech_missing": "в базе нет Keech (СРИ некому писать)",
+    "no_factions": "нет фракций для баланса (Орда/Улей/Сброд/Стая/Табор)",
+    "no_target": "не удалось выбрать фракцию",
+    "no_steam": "нет SteamID64",
+    "no_sri_secret": "на боте нет SRI_SECRET",
+}
+
+
+def sri_result_payload(data: dict[str, Any] | None) -> dict[str, Any]:
+    """API отдаёт {ok, result:{...}}; локальные ошибки — плоско."""
+    if not isinstance(data, dict):
+        return {}
+    inner = data.get("result")
+    if isinstance(inner, dict):
+        return inner
+    return data
+
+
+def format_sri_skip(data: dict[str, Any] | None) -> str:
+    """Человекочитаемая причина, почему СРИ не распределила."""
+    payload = sri_result_payload(data)
+    skipped = str(payload.get("skipped") or "").strip()
+    if skipped:
+        base = _SRI_SKIP_RU.get(skipped, f"код «{skipped}»")
+        if skipped == "already_in_faction" and payload.get("faction"):
+            return f"{base} «{payload['faction']}»"
+        return base
+    err = str((data or {}).get("error") or payload.get("error") or "").strip()
+    if err.startswith("http_"):
+        return f"ошибка HTTP {err[5:]}"
+    if err:
+        detail = str((data or {}).get("detail") or (data or {}).get("body") or "").strip()
+        return f"{err}" + (f": {detail[:120]}" if detail else "")
+    if (data or {}).get("ok") is False:
+        return "неизвестная причина"
+    return "ок"
+
+
 def sri_assign(steam_id: str, reason: str = "recruit") -> dict[str, Any]:
     """СРИ: свободный агент → фракция (баланс). POST на plaza."""
     steam_id = (steam_id or "").strip()
