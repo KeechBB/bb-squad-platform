@@ -182,77 +182,9 @@ export async function GET(req: Request) {
       if (!isPanelkaKey(key)) {
         return NextResponse.json({ ok: false, error: "нет такого сервера" }, { status: 400 });
       }
-      type LeaveRow = {
-        at: string;
-        steamId: string;
-        nick: string;
-        steamUrl: string;
-        source: string;
-      };
-      const fromRcon = (await runPanelka(["leaves", key], 8000).catch(() => null)) as {
-        ok?: boolean;
-        leaves?: LeaveRow[];
-      } | null;
-      const sessionKeys =
-        key === "PB1" ? ["TPUB1", "PB1", "TPUB", "PUBLIC"] : [key, key.toLowerCase()];
-      const since = new Date(Date.now() - 4 * 60 * 60 * 1000);
-      const dbRows = await prisma.squadServerSession
-        .findMany({
-          where: {
-            serverKey: { in: sessionKeys },
-            leftAt: { not: null, gte: since },
-          },
-          orderBy: { leftAt: "desc" },
-          take: 80,
-          select: { steamId: true, nickAtJoin: true, leftAt: true },
-        })
-        .catch(() => []);
-      const fmtMsk = (d: Date) => {
-        const parts = new Intl.DateTimeFormat("en-GB", {
-          timeZone: "Europe/Moscow",
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-          hourCycle: "h23",
-        }).formatToParts(d);
-        const g = (t: string) => parts.find((p) => p.type === t)?.value || "";
-        return `${g("year")}-${g("month")}-${g("day")} ${g("hour")}:${g("minute")}:${g("second")}`;
-      };
-      const merged = new Map<string, LeaveRow>();
-      for (const row of fromRcon?.leaves || []) {
-        const sid = String(row.steamId || "").trim();
-        if (!STEAM_RE.test(sid)) continue;
-        const at = String(row.at || "").trim();
-        const dedupe = `${sid}|${at.slice(0, 16)}`;
-        merged.set(dedupe, {
-          at,
-          steamId: sid,
-          nick: String(row.nick || sid).slice(0, 64),
-          steamUrl: `https://steamcommunity.com/profiles/${sid}`,
-          source: String(row.source || "roster"),
-        });
-      }
-      for (const row of dbRows) {
-        const sid = String(row.steamId || "").trim();
-        if (!STEAM_RE.test(sid) || !row.leftAt) continue;
-        const at = fmtMsk(row.leftAt);
-        const dedupe = `${sid}|${at.slice(0, 16)}`;
-        if (merged.has(dedupe)) continue;
-        merged.set(dedupe, {
-          at,
-          steamId: sid,
-          nick: String(row.nickAtJoin || sid).slice(0, 64),
-          steamUrl: `https://steamcommunity.com/profiles/${sid}`,
-          source: "session",
-        });
-      }
-      const leaves = [...merged.values()]
-        .sort((a, b) => String(b.at).localeCompare(String(a.at)))
-        .slice(0, 80);
-      return NextResponse.json({ ok: true, leaves, key });
+      // Только живой лог-запись (roster-diff), TTL 30 мин. Без пересборки из БД.
+      const data = await runPanelka(["leaves", key], 8000);
+      return NextResponse.json(data);
     }
     if (op === "layers") {
       const data = await runPanelka(["layers"], 45000);

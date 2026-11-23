@@ -923,7 +923,8 @@ export function AdminPanelka({
               <div className="panelka-fold-body">
                 <div className="panelka-live-head">
                   <p className="panelka-picked" style={{ margin: 0 }}>
-                    Кто вышел с сервера. Ник — ссылка в Steam (профиль по Steam ID).
+                    Живой лог выходов. Ник — ссылка в Steam. Записи старше 30 мин сами
+                    пропадают.
                   </p>
                   <button type="button" onClick={() => void loadLeaves(current.key)}>
                     Обновить
@@ -948,7 +949,7 @@ export function AdminPanelka({
                     ))
                   ) : (
                     <p className="panelka-chat-empty">
-                      Пока пусто — появятся после следующего обновления списка игроков.
+                      Пока пусто — выходы пишутся в лог, когда кто-то уходит с сервера.
                     </p>
                   )}
                 </div>

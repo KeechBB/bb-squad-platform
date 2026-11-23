@@ -2569,6 +2569,8 @@ def _parse_roster_payload(data: dict) -> dict:
 
 ONLINE_SNAP = Path("/tmp/bb-panelka-online")
 LEAVES_LOG = Path("/tmp/bb-panelka-leaves")
+# Жизнь записи в логе вышедших — 30 минут, потом строка вычищается.
+LEAVES_TTL_SEC = 30 * 60
 _leaves_lock = threading.Lock()
 
 
@@ -2590,6 +2592,80 @@ def _people_from_roster(result: dict) -> dict[str, str]:
             if re.fullmatch(r"7656\d{13}", sid) and nick:
                 out[sid] = nick
     return out
+
+
+def _leave_row_ts(row: dict) -> float:
+    """Epoch seconds from ts field or MSK `at` stamp."""
+    from datetime import datetime, timedelta, timezone
+
+    raw_ts = row.get("ts")
+    try:
+        ts = float(raw_ts)
+        if ts > 1_000_000_000:
+            return ts
+    except (TypeError, ValueError):
+        pass
+    at = str(row.get("at") or "").strip()
+    if not at:
+        return 0.0
+    msk = timezone(timedelta(hours=3))
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            return datetime.strptime(at, fmt).replace(tzinfo=msk).timestamp()
+        except ValueError:
+            continue
+    return 0.0
+
+
+def _read_leave_rows(log_path: Path) -> list[dict]:
+    if not log_path.is_file():
+        return []
+    try:
+        lines = log_path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    rows: list[dict] = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+        except Exception:
+            continue
+        if not isinstance(row, dict):
+            continue
+        sid = str(row.get("steamId") or "").strip()
+        if not re.fullmatch(r"7656\d{13}", sid):
+            continue
+        rows.append(row)
+    return rows
+
+
+def _purge_leave_rows(rows: list[dict], now_ts: float | None = None) -> list[dict]:
+    """Keep only entries younger than LEAVES_TTL_SEC."""
+    cutoff = (now_ts if now_ts is not None else time.time()) - LEAVES_TTL_SEC
+    kept: list[dict] = []
+    for row in rows:
+        ts = _leave_row_ts(row)
+        if ts <= 0 or ts < cutoff:
+            continue
+        kept.append(row)
+    return kept
+
+
+def _write_leave_rows(log_path: Path, rows: list[dict]) -> None:
+    try:
+        if not rows:
+            if log_path.is_file():
+                log_path.write_text("", encoding="utf-8")
+            return
+        log_path.write_text(
+            "\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + "\n",
+            encoding="utf-8",
+        )
+    except OSError:
+        pass
 
 
 def _track_roster_leaves(key: str, result: dict) -> None:
@@ -2625,36 +2701,28 @@ def _track_roster_leaves(key: str, result: dict) -> None:
                 snap_path.write_text(json.dumps(now_map, ensure_ascii=False), encoding="utf-8")
             except OSError:
                 pass
+            # всё равно подчистим протухший лог
+            _write_leave_rows(log_path, _purge_leave_rows(_read_leave_rows(log_path)))
             return
         left_ids = [sid for sid in prev if sid not in now_map]
-        if left_ids:
-            from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta, timezone
 
-            stamp = datetime.now(timezone(timedelta(hours=3))).strftime("%Y-%m-%d %H:%M:%S")
-            try:
-                with log_path.open("a", encoding="utf-8") as handle:
-                    for sid in left_ids:
-                        handle.write(
-                            json.dumps(
-                                {
-                                    "at": stamp,
-                                    "steamId": sid,
-                                    "nick": prev.get(sid) or sid,
-                                    "source": "roster",
-                                },
-                                ensure_ascii=False,
-                            )
-                            + "\n"
-                        )
-            except OSError:
-                pass
-            # Trim log to last ~120 lines
-            try:
-                lines = log_path.read_text(encoding="utf-8").splitlines()
-                if len(lines) > 120:
-                    log_path.write_text("\n".join(lines[-120:]) + "\n", encoding="utf-8")
-            except OSError:
-                pass
+        now = time.time()
+        msk = timezone(timedelta(hours=3))
+        stamp = datetime.now(msk).strftime("%Y-%m-%d %H:%M:%S")
+        rows = _purge_leave_rows(_read_leave_rows(log_path), now)
+        if left_ids:
+            for sid in left_ids:
+                rows.append(
+                    {
+                        "at": stamp,
+                        "ts": now,
+                        "steamId": sid,
+                        "nick": prev.get(sid) or sid,
+                        "source": "roster",
+                    }
+                )
+        _write_leave_rows(log_path, rows)
         try:
             snap_path.write_text(json.dumps(now_map, ensure_ascii=False), encoding="utf-8")
         except OSError:
@@ -2662,49 +2730,37 @@ def _track_roster_leaves(key: str, result: dict) -> None:
 
 
 def leaves(key: str, limit: int = 80) -> dict:
-    """Recent disconnects from roster diffs (newest first)."""
+    """Запись вышедших за последние 30 мин (newest first). Не пересобирается из БД."""
     LEAVES_LOG.mkdir(parents=True, exist_ok=True)
     log_path = LEAVES_LOG / f"{key}.jsonl"
-    rows: list[dict] = []
-    if log_path.is_file():
-        try:
-            for line in log_path.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    row = json.loads(line)
-                except Exception:
-                    continue
-                if not isinstance(row, dict):
-                    continue
-                sid = str(row.get("steamId") or "").strip()
-                if not re.fullmatch(r"7656\d{13}", sid):
-                    continue
-                rows.append(
-                    {
-                        "at": str(row.get("at") or ""),
-                        "steamId": sid,
-                        "nick": str(row.get("nick") or sid)[:64],
-                        "steamUrl": f"https://steamcommunity.com/profiles/{sid}",
-                        "source": str(row.get("source") or "roster"),
-                    }
-                )
-        except OSError:
-            rows = []
-    rows.reverse()
-    # de-dupe consecutive same steam (spam from flaky rcon)
+    with _leaves_lock:
+        raw_rows = _read_leave_rows(log_path)
+        kept = _purge_leave_rows(raw_rows)
+        if len(kept) != len(raw_rows):
+            _write_leave_rows(log_path, kept)
+    # newest first
+    kept_sorted = sorted(kept, key=_leave_row_ts, reverse=True)
     out: list[dict] = []
     last = ""
-    for row in rows:
-        key_d = f"{row['steamId']}|{row['at'][:16]}"
+    for row in kept_sorted:
+        sid = str(row.get("steamId") or "").strip()
+        at = str(row.get("at") or "")
+        key_d = f"{sid}|{at[:16]}"
         if key_d == last:
             continue
         last = key_d
-        out.append(row)
+        out.append(
+            {
+                "at": at,
+                "steamId": sid,
+                "nick": str(row.get("nick") or sid)[:64],
+                "steamUrl": f"https://steamcommunity.com/profiles/{sid}",
+                "source": str(row.get("source") or "roster"),
+            }
+        )
         if len(out) >= limit:
             break
-    return {"ok": True, "leaves": out, "key": key}
+    return {"ok": True, "leaves": out, "key": key, "ttlMin": 30}
 
 
 def roster(key: str) -> dict:
