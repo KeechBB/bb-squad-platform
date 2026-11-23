@@ -1679,7 +1679,25 @@ try:
             "squadCreates": creates,
         }, ensure_ascii=False))
     elif op == "layers":
-        print(json.dumps({"ok": True, "text": rcon("TR1", "ListLayers")}, ensure_ascii=False))
+        # Merge ListLayers across servers — моды могут быть не на всех (напр. HotDrop только TR5).
+        chunks: list[str] = []
+        seen_line: set[str] = set()
+        for sk in UI_KEYS:
+            try:
+                text = rcon(sk, "ListLayers")
+            except Exception as exc:
+                chunks.append(f"# {sk} error: {exc}")
+                continue
+            chunks.append(f"# {sk}")
+            for ln in (text or "").splitlines():
+                raw = ln.strip()
+                if not raw or raw.lower().startswith("list of"):
+                    continue
+                if raw in seen_line:
+                    continue
+                seen_line.add(raw)
+                chunks.append(raw)
+        print(json.dumps({"ok": True, "text": "\n".join(chunks)}, ensure_ascii=False))
     elif op == "cmd":
         text = rcon(job["key"], job["command"])
         if job.get("actionLog") and isinstance(job.get("actionLog"), dict):
