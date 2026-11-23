@@ -471,6 +471,8 @@ async function slKitSecInMatchWindow(opts: {
         ? Prisma.sql`"userId" IN (${Prisma.join(userIds)})`
         : Prisma.sql`"steamId" IN (${Prisma.join(steamIds)})`;
 
+  // Важно: LEAD по ВСЕМ китам, иначе один спавн SL без смены кита
+  // растягивается до конца окна матча (создал отряд → «удалил» → всё равно >70%).
   const rows = await prisma.$queryRaw<
     { uid: string | null; sid: string | null; sec: bigint }[]
   >`
@@ -478,6 +480,7 @@ async function slKitSecInMatchWindow(opts: {
       SELECT
         "userId" AS uid,
         "steamId" AS sid,
+        kit,
         "spawnedAt",
         LEAD("spawnedAt") OVER (
           PARTITION BY COALESCE("userId", "steamId"), "serverKey"
@@ -485,7 +488,6 @@ async function slKitSecInMatchWindow(opts: {
         ) AS nxt
       FROM "SquadRoleEvent"
       WHERE upper("serverKey") = ${serverKey}
-        AND kit = ${GRIND_SL_KIT}
         AND "spawnedAt" >= ${gteSql}
         AND "spawnedAt" < ${ltSql}
         AND ${whoSql}
@@ -496,6 +498,7 @@ async function slKitSecInMatchWindow(opts: {
              EXTRACT(EPOCH FROM (LEAST(COALESCE(e.nxt, ${ltSql}), ${ltSql}) - e."spawnedAt"))
            )))::bigint AS sec
     FROM ev e
+    WHERE e.kit = ${GRIND_SL_KIT}
     GROUP BY e.uid, e.sid
   `;
 
