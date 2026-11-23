@@ -9,8 +9,10 @@
 Шаг 5. Дата рождения (ДД.ММ.ГГГГ)
 → заявка кадровикам (одобрить / отклонить)
 После одобрения:
-  — регистрация на сайте и приём в клан
+  — сверка Steam с сайтом: если аккаунт уже есть — сразу каналы;
+    если нет — ждём регистрацию по ссылке, потом каналы
   — подписка на канал и группу (личные одноразовые invite-ссылки)
+  — финал «принят» — когда в обоих чатах и в ClanMember BB (или орг. исключение)
 После входа в группу бот ставит игровой ник в тег участника.
 Дальше бот следит за сайтом и обоими чатами: если человек пропал
 из чата — только алерт кадровикам (раз в час), автокика нет.
@@ -26,11 +28,13 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import time
 from pathlib import Path
 
 import db
 import clan_site as site
+import org_exemptions
 
 HERE = Path(__file__).resolve().parent
 PAGE = 6
@@ -81,6 +85,7 @@ HR_BUTTONS = {
     "Сменить ник",
     "Кто на регистрации",
     "Заявки",
+    "Шлак",
     "Назначить куратора",
     "Снять куратора",
     "Выгрузить базу",
@@ -317,11 +322,67 @@ def hr_markup():
         [
             ["Поиск по нику", "Удалить игрока"],
             ["Сменить ник", "Кто на регистрации"],
-            ["Заявки", "Выгрузить базу"],
+            ["Заявки", "Шлак"],
+            ["Выгрузить базу"],
             ["Назначить куратора", "Снять куратора"],
         ],
         resize_keyboard=True,
         is_persistent=True,
+    )
+
+
+def format_slag_card(item: dict) -> str:
+    """Карточка шлака для HR."""
+    nick = (item.get("game_nick") or "").strip() or "—"
+    name = (item.get("real_name") or "").strip()
+    label = f"{nick} ({name})" if name else nick
+    uname = (item.get("tg_username") or "").strip()
+    tg = f"@{uname.lstrip('@')}" if uname else "— (нет username)"
+    steam = (item.get("steam_id") or "").strip() or "—"
+    hours = (item.get("squad_hours") or "").strip() or "—"
+    clans = (item.get("prior_clans") or "").strip() or "—"
+    age = (item.get("applicant_age") or "").strip() or "—"
+    step = STEP_RU.get(item.get("step") or "", item.get("step") or "?")
+    why = (item.get("why") or item.get("slag_note") or "шлак").strip()
+    src = item.get("slag_source") or "auto"
+    return (
+        f"ШЛАК · {label}\n"
+        f"Почему: {why} ({src})\n"
+        f"TG: {tg}\n"
+        f"tg_id: {int(item['tg_id'])}\n"
+        f"Steam: {steam}\n"
+        f"Часы в Squad: {hours}\n"
+        f"Кланы раньше: {clans}\n"
+        f"Дата рождения: {age}\n"
+        f"Шаг: {step}\n"
+        f"Связь: по tg_id (бот / tg://user?id={int(item['tg_id'])})"
+    )
+
+
+def slag_actions(tg_id: int):
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "Снять со шлака",
+                    callback_data=f"sg:clr:{tg_id}",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "Задать @username",
+                    callback_data=f"sg:tg:{tg_id}",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "Действия (сброс/сайт)",
+                    callback_data=f"i:{tg_id}",
+                )
+            ],
+        ]
     )
 
 
@@ -341,6 +402,20 @@ def format_player_card(row) -> str:
         f"Кланы раньше: {clans}\n"
         f"Дата рождения: {age}\n"
         f"Шаг: {STEP_RU.get(row['step'], row['step'])}"
+    )
+
+
+def format_site_pending(row) -> str:
+    """Уже одобрен в боте, ждёт приёма заявки на сайте."""
+    steam = (row["steam_id"] or "").strip() or "—"
+    return (
+        f"Ждёт приёма на сайте\n\n"
+        f"{db.label(row)}\n"
+        f"TG: {tg_handle(row)}\n"
+        f"tg_id: {int(row['tg_id'])}\n"
+        f"Steam: {steam}\n\n"
+        f"В боте уже одобрен. Прими заявку на сайте:\n"
+        f"Кланы → BlackBerry → Заявки на вступление."
     )
 
 
@@ -380,17 +455,13 @@ def application_actions(tg_id: int):
 async def site_text() -> str:
     url = await asyncio.to_thread(clans_url)
     return (
-        "Заявку одобрили. Дальше — сайт клана.\n\n"
-        "Если ты УЖЕ в BlackBerry на сайте с этим Steam — ничего делать не нужно. "
-        "Бот сам это увидит (обычно до минуты) и пришлёт ссылки на каналы.\n\n"
-        "Если ещё не в клане:\n"
-        "1) зайди на сайт тем же Steam;\n"
-        "2) зарегистрируйся при необходимости;\n"
-        "3) вступи / подай заявку в BlackBerry:\n"
+        "Заявку одобрили. Дальше — регистрация на сайте.\n\n"
+        "На этом Steam аккаунта на bb-squad.ru ещё нет. "
+        "Нужно зайти и зарегистрироваться:\n"
         f"{url}\n\n"
-        "Когда кадровик примет заявку на сайте (или если ты уже в клане) — "
-        "бот сам закроет этот шаг и пришлёт подписки. "
-        "Не спамь сюда сообщениями — проверка автоматическая."
+        "Важно: тот же Steam, что указал в анкете.\n"
+        "Когда аккаунт появится — бот сам это увидит и пришлёт ссылки на каналы. "
+        "Сюда писать «готово» не нужно."
     )
 
 
@@ -491,7 +562,8 @@ async def apply_member_tag(bot, chat_id: int | None, user_id: int, nick: str) ->
 async def subs_text(bot, row) -> str:
     ch, gr = await ensure_invites(bot, row)
     return (
-        "На сайте ты уже в BlackBerry.\n\n"
+        "Аккаунт на сайте с этим Steam уже есть — "
+        "заново регистрироваться и жать ссылку на сайт не нужно.\n\n"
         "Последний шаг — два канала.\n"
         "Открой обе ссылки ниже и вступи. Ссылки одноразовые и только для тебя "
         "(другу не сработают).\n\n"
@@ -500,6 +572,78 @@ async def subs_text(bot, row) -> str:
         "Когда будешь в обоих чатах — бот сам это увидит и напишет «принят». "
         "Ждать, не писать сюда «готово»."
     )
+
+
+def site_has_account(info: dict, steam_id: str) -> bool:
+    """Есть User на сайте по Steam — достаточно, чтобы дать каналы (не ждать ссылку)."""
+    if org_exemptions.is_clan_exempt(steam_id):
+        return True
+    if info.get("other_clan"):
+        return False
+    return bool(info.get("found") or info.get("in_clan"))
+
+
+async def advance_to_channels(bot, row, info: dict, *, reason: str) -> bool:
+    """STEP_SITE → STEP_SUBS: выдать invite-ссылки. True если перевели."""
+    tg_id = int(row["tg_id"])
+    nick = row["game_nick"] or ""
+    if row["step"] != db.STEP_SITE:
+        return False
+    db.set_step(tg_id, db.STEP_SUBS, site_user_id=info.get("user_id"))
+    db.event(tg_id, "step3", nick or reason)
+    fresh = db.get_applicant(tg_id)
+    await tell(bot, tg_id, await subs_text(bot, fresh or row))
+    await send_alert(
+        bot,
+        f"Игрок {db.label(fresh or row)} — аккаунт на сайте есть "
+        f"({reason}), выдал ссылки на каналы.",
+    )
+    again = db.get_applicant(tg_id)
+    if again is not None:
+        await check_one(bot, again)
+    return True
+
+
+async def try_skip_site_if_registered(bot, row) -> bool:
+    """Сразу после одобрения: Steam уже на сайте → каналы, без ожидания ссылки."""
+    if row is None or row["step"] != db.STEP_SITE:
+        return False
+    steam_id = (row["steam_id"] or "").strip()
+    nick = row["game_nick"] or ""
+    if not steam_id:
+        return False
+    try:
+        info = await asyncio.to_thread(site.lookup_steam, steam_id, nick)
+    except Exception as e:
+        logging.warning("lookup after approve %s: %s", row["tg_id"], type(e).__name__)
+        return False
+    if info.get("found") and not info.get("nick_match") and nick:
+        site_nick = info.get("nick") or "без ника"
+        sig = "nick:" + site_nick
+        if db.set_alert_sig(int(row["tg_id"]), sig):
+            await tell(
+                bot,
+                int(row["tg_id"]),
+                f"Этот Steam на сайте зашёл как {site_nick}. "
+                f"В анкете указан {nick}.",
+            )
+            await send_alert(
+                bot,
+                f"Алерт: {db.label(row)} указал ник {nick}, "
+                f"а Steam на сайте зарегистрирован как {site_nick}.",
+            )
+    if info.get("other_clan"):
+        sig = "other:" + str(info["other_clan"])
+        if db.set_alert_sig(int(row["tg_id"]), sig):
+            await send_alert(
+                bot,
+                f"Игрок {db.label(row)}: аккаунт этого Steam состоит в "
+                f"{info['other_clan']}, не в BlackBerry — ссылки на каналы не выдаю.",
+            )
+        return False
+    if not site_has_account(info, steam_id):
+        return False
+    return await advance_to_channels(bot, row, info, reason="сразу после одобрения")
 
 
 def accepted_text() -> str:
@@ -574,11 +718,143 @@ async def tell(bot, tg_id: int, text: str) -> None:
         logging.info("dm %s: %s", tg_id, type(e).__name__)
 
 
+def _norm_uname(username: str | None) -> str:
+    return (username or "").strip().lstrip("@")
+
+
+async def live_tg_profile(bot, user_id: int) -> tuple[str, str] | None:
+    """Актуальные @username и first_name из Telegram. None — не удалось узнать."""
+    from telegram.error import Forbidden
+
+    try:
+        chat = await bot.get_chat(user_id)
+        return (_norm_uname(getattr(chat, "username", None)), (chat.first_name or "").strip())
+    except Forbidden:
+        return None
+    except Exception as e:
+        logging.info("live_tg_profile %s: %s", user_id, type(e).__name__)
+        return None
+
+
+async def apply_username_change(
+    bot,
+    row,
+    new_username: str | None,
+    *,
+    first: str | None = None,
+    source: str = "auto",
+) -> str:
+    """
+    Синк @username → шлак / выход из шлака + СРИ.
+    Возвращает: same / updated / slag_in / slag_out / missing.
+    """
+    if row is None:
+        return "missing"
+    tg_id = int(row["tg_id"])
+    old_u = _norm_uname(row["tg_username"])
+    new_u = _norm_uname(new_username)
+    result = db.set_tg_username(tg_id, new_u, first)
+    if result == "missing":
+        return "missing"
+    if result == "same":
+        # даже без смены строки — если done и нет нормального @, держим шлак
+        if row["step"] == db.STEP_DONE and not db.has_normal_tg_username(new_u):
+            if not db.is_slag(tg_id):
+                db.mark_slag(tg_id, "нет нормального TG username", source="auto", by=None)
+                return "slag_in"
+        return "same"
+
+    fresh = db.get_applicant(tg_id) or row
+    label = db.label(fresh)
+    old_ok = db.has_normal_tg_username(old_u)
+    new_ok = db.has_normal_tg_username(new_u)
+    step = fresh["step"]
+
+    # Для незавершённых — только обновили @ в базе
+    if step != db.STEP_DONE:
+        if old_u != new_u:
+            await send_alert(
+                bot,
+                f"TG username обновлён: {label} "
+                f"{('@' + old_u) if old_u else '—'} → {('@' + new_u) if new_u else '—'} "
+                f"({source}, шаг ещё не done).",
+            )
+        return "updated"
+
+    # done: шлак ↔ свободный агент
+    if new_ok and not old_ok:
+        if db.is_slag(tg_id):
+            db.clear_slag(tg_id, by=None)
+        steam_id = (fresh["steam_id"] or "").strip()
+        sri_line = ""
+        if steam_id:
+            try:
+                sri = await asyncio.to_thread(site.sri_assign, steam_id, "recruit")
+                if isinstance(sri, dict) and sri.get("ok"):
+                    payload = site.sri_result_payload(sri)
+                    fac = payload.get("faction") or "?"
+                    sri_line = f" СРИ → «{fac}»."
+                else:
+                    sri_line = f" СРИ: {site.format_sri_skip(sri if isinstance(sri, dict) else None)}."
+            except Exception as e:
+                sri_line = f" СРИ сбой ({type(e).__name__})."
+        await send_alert(
+            bot,
+            f"Шлак снят авто: {label} завёл нормальный TG "
+            f"{('@' + new_u) if new_u else '—'}.{sri_line} "
+            f"Статус: свободный агент → фракция (если СРИ смогла).",
+        )
+        return "slag_out"
+
+    if not new_ok and old_ok:
+        db.mark_slag(
+            tg_id,
+            "снял / нет нормального TG username",
+            source="auto",
+            by=None,
+        )
+        await send_alert(
+            bot,
+            f"ШЛАК авто: {label} убрал нормальный TG "
+            f"({('@' + old_u) if old_u else '—'} → {('@' + new_u) if new_u else '—'}). "
+            f"СРИ во фракцию не сажает. Список: кадровое меню → «Шлак».",
+        )
+        return "slag_in"
+
+    if old_u != new_u:
+        await send_alert(
+            bot,
+            f"TG username: {label} "
+            f"{('@' + old_u) if old_u else '—'} → {('@' + new_u) if new_u else '—'} ({source}).",
+        )
+    if not new_ok and not db.is_slag(tg_id):
+        db.mark_slag(tg_id, "нет нормального TG username", source="auto", by=None)
+        return "slag_in"
+    return "updated"
+
+
+async def sync_username_from_telegram(bot, row, *, source: str = "auto") -> str:
+    """Подтянуть @ из Telegram API и применить шлак/СРИ."""
+    if row is None:
+        return "missing"
+    live = await live_tg_profile(bot, int(row["tg_id"]))
+    if live is None:
+        return "unknown"
+    uname, first = live
+    return await apply_username_change(bot, row, uname, first=first, source=source)
+
+
 async def check_one(bot, row) -> None:
     step = row["step"]
     if step not in (db.STEP_SITE, db.STEP_SUBS, db.STEP_DONE):
         return
     tg_id = int(row["tg_id"])
+    # Свежий @username из TG (если бот видит чат) → шлак / СРИ
+    try:
+        await sync_username_from_telegram(bot, row, source="poll")
+        row = db.get_applicant(tg_id) or row
+    except Exception as e:
+        logging.info("username sync %s: %s", tg_id, type(e).__name__)
     nick = row["game_nick"] or ""
     steam_id = (row["steam_id"] or "").strip()
     if not nick or not steam_id:
@@ -598,50 +874,34 @@ async def check_one(bot, row) -> None:
                     bot,
                     tg_id,
                     f"Этот Steam на сайте зашёл как {site_nick}. "
-                    f"В анкете указан {nick}. В клан должен вступить аккаунт {site_nick}.",
+                    f"В анкете указан {nick}. Дальше ведём аккаунт {site_nick}.",
                 )
                 await send_alert(
                     bot,
                     f"Алерт: {db.label(row)} указал ник {nick}, "
                     f"а Steam на сайте зарегистрирован как {site_nick}.",
                 )
-        if info.get("in_clan"):
-            db.set_step(tg_id, db.STEP_SUBS, site_user_id=info.get("user_id"))
-            db.event(tg_id, "step3", nick)
-            fresh = db.get_applicant(tg_id)
-            await tell(bot, tg_id, await subs_text(bot, fresh or row))
-            await send_alert(
-                bot,
-                f"Игрок {db.label(fresh)} — 3-й шаг пройден (принят в клан).",
-            )
-            again = db.get_applicant(tg_id)
-            if again is not None:
-                await check_one(bot, again)
-            return
-        if info.get("join_pending"):
-            sig = "join-pending"
-            if db.set_alert_sig(tg_id, sig):
-                await tell(
-                    bot,
-                    tg_id,
-                    "Заявка в клан на сайте уже есть — ждём приёма кадровиком.\n"
-                    "Бот сам увидит, когда тебя примут, и пришлёт шаг 4. "
-                    "Сюда писать не нужно.",
-                )
-        elif info.get("other_clan"):
+        if info.get("other_clan"):
             sig = "other:" + str(info["other_clan"])
             if db.set_alert_sig(tg_id, sig):
                 await send_alert(
                     bot,
                     f"Игрок {db.label(row)}: аккаунт этого Steam состоит в "
-                    f"{info['other_clan']}, не в BlackBerry.",
+                    f"{info['other_clan']}, не в BlackBerry — ссылки на каналы не выдаю.",
                 )
+            return
+        # Уже есть User на сайте по Steam → сразу каналы (не ждать клик по ссылке).
+        if site_has_account(info, steam_id):
+            await advance_to_channels(bot, row, info, reason="poll: аккаунт на сайте")
+            return
         return
 
     in_channel = await in_chat(bot, channel_id(), tg_id)
     in_group = await in_chat(bot, group_id(), tg_id)
     blocked = await bot_blocked(bot, tg_id)
-    on_site = bool(info.get("in_clan"))
+    # Стримеры / орг. исключения: аккаунт на сайте есть, ClanMember BB не нужен.
+    clan_exempt = org_exemptions.is_clan_exempt(steam_id)
+    on_site = bool(info.get("in_clan")) or clan_exempt
 
     if (
         step == db.STEP_SUBS
@@ -661,22 +921,33 @@ async def check_one(bot, row) -> None:
         # СРИ: нормальный TG → свободный агент → фракция; иначе шлак
         try:
             uname = (fresh["tg_username"] or "").strip().lstrip("@")
-            ok_tg = len(uname) >= 5 and uname.replace("_", "").isalnum()
+            ok_tg = db.has_normal_tg_username(uname)
             if not ok_tg:
+                db.mark_slag(
+                    tg_id,
+                    "нет нормального TG username",
+                    source="auto",
+                    by=None,
+                )
                 await send_alert(
                     bot,
                     f"ШЛАК: {db.label(fresh)} — нет нормального TG username, "
-                    f"СРИ во фракцию не сажает (категория шлак, не свободный агент).",
+                    f"СРИ во фракцию не сажает (категория шлак, не свободный агент).\n"
+                    f"Список: кадровое меню → «Шлак».",
                 )
-                # всё равно дернём API — СРИ сама пометит шлак и напишет Keech
+                # всё равно дернём API — СРИ сама напишет Keech
             sri = await asyncio.to_thread(site.sri_assign, steam_id, "recruit")
             if ok_tg and not (isinstance(sri, dict) and sri.get("ok")):
+                why = site.format_sri_skip(sri if isinstance(sri, dict) else None)
                 await send_alert(
                     bot,
-                    f"СРИ не распределила {db.label(fresh)}: {sri}",
+                    f"СРИ не распределила {db.label(fresh)}: {why}.",
                 )
         except Exception as e:
-            await send_alert(bot, f"СРИ ошибка для {db.label(fresh)}: {type(e).__name__}")
+            await send_alert(
+                bot,
+                f"СРИ ошибка для {db.label(fresh)}: сбой запроса ({type(e).__name__}).",
+            )
         return
 
     if step == db.STEP_SUBS and not blocked and (
@@ -696,7 +967,8 @@ async def check_one(bot, row) -> None:
         return
 
     missing = []
-    if not on_site:
+    # «сайт» = нет в ClanMember BB. Орг. стримеры — исключение (см. org_exemptions).
+    if not on_site and not clan_exempt:
         missing.append("сайт")
     # None = API не ответил → не считаем отпиской (иначе массовые ложные алерты)
     if in_channel is False:
@@ -879,10 +1151,26 @@ async def on_text(update, context) -> None:
     if db.is_hr(user.id) and isinstance(mode, str) and mode.startswith("nick_edit:"):
         await hr_nick_apply(update, context, mode, text)
         return
+    if db.is_hr(user.id) and isinstance(mode, str) and mode.startswith("tg_edit:"):
+        await hr_tg_apply(update, context, mode, text)
+        return
     if db.is_hr(user.id) and mode in ("appoint", "revoke"):
         await hr_capture(update, context, mode, text)
         return
     row = db.get_applicant(user.id)
+    # Любое сообщение игрока → подтянуть актуальный @ из профиля TG
+    if row is not None and row["step"] != db.STEP_REMOVED:
+        try:
+            await apply_username_change(
+                context.bot,
+                row,
+                user.username or "",
+                first=user.first_name or "",
+                source="message",
+            )
+            row = db.get_applicant(user.id) or row
+        except Exception:
+            pass
     if row and row["step"] == db.STEP_HOURS:
         await take_hours(update, context, text)
         return
@@ -1074,22 +1362,64 @@ async def hr_button(update, context, text: str) -> None:
         await message.reply_text("\n".join(lines) + extra, reply_markup=hr_markup())
         return
     if text == "Заявки":
-        rows = db.list_applicants((db.STEP_REVIEW,))
-        if not rows:
+        review = db.list_applicants((db.STEP_REVIEW,))
+        # PENDING на сайте: и кто ещё на шаге «сайт», и кто уже на каналах
+        # (аккаунт был, ClanMember ещё не приняли).
+        site_rows = db.list_applicants((db.STEP_SITE, db.STEP_SUBS))
+        pending_site = []
+        for row in site_rows:
+            steam = (row["steam_id"] or "").strip()
+            if not steam:
+                continue
+            try:
+                info = await asyncio.to_thread(site.lookup_steam, steam, row["game_nick"] or "")
+            except Exception:
+                info = {}
+            if info.get("join_pending") and not info.get("in_clan"):
+                pending_site.append(row)
+        if not review and not pending_site:
             await message.reply_text(
                 "Открытых заявок нет — никто не ждёт одобрения.",
                 reply_markup=hr_markup(),
             )
             return
+        parts = []
+        if review:
+            parts.append(f"в боте: {len(review)}")
+        if pending_site:
+            parts.append(f"на сайте: {len(pending_site)}")
         await message.reply_text(
-            f"Открытых заявок: {len(rows)}. Карточки ниже.",
+            "Открытых заявок: " + ", ".join(parts) + ". Карточки ниже.",
             reply_markup=hr_markup(),
         )
-        for row in rows[:20]:
+        for row in review[:20]:
             await message.reply_text(
                 format_application(row),
                 reply_markup=application_actions(int(row["tg_id"])),
             )
+        for row in pending_site[:20]:
+            await message.reply_text(format_site_pending(row), reply_markup=hr_markup())
+        return
+    if text == "Шлак":
+        items = db.list_slag()
+        if not items:
+            await message.reply_text(
+                "Шлака нет — все принятые с нормальным @username.",
+                reply_markup=hr_markup(),
+            )
+            return
+        await message.reply_text(
+            f"Шлак: {len(items)} чел.\n"
+            "Нет нормального TG / пометка HR. Отрабатывайте и жмите «Снять со шлака».",
+            reply_markup=hr_markup(),
+        )
+        for item in items[:30]:
+            await message.reply_text(
+                format_slag_card(item),
+                reply_markup=slag_actions(int(item["tg_id"])),
+            )
+        if len(items) > 30:
+            await message.reply_text(f"…ещё {len(items) - 30}, листай позже.")
         return
     if text == "Назначить куратора":
         context.user_data["hr_mode"] = "appoint"
@@ -1315,6 +1645,48 @@ async def hr_nick_search(update, context, text: str) -> None:
     )
 
 
+async def hr_tg_apply(update, context, mode: str, text: str) -> None:
+    """HR вручную задаёт @username → тот же пайплайн шлак/СРИ."""
+    message = update.message
+    user = update.effective_user
+    raw_id = mode.split(":", 1)[1]
+    if not raw_id.isdigit():
+        context.user_data.pop("hr_mode", None)
+        await message.reply_text("Сбой режима. Открой карточку снова.")
+        return
+    tg_id = int(raw_id)
+    row = db.get_applicant(tg_id)
+    if row is None:
+        context.user_data.pop("hr_mode", None)
+        await message.reply_text("В базе бота этой строки уже нет.")
+        return
+    raw = (text or "").strip()
+    if raw in ("-", "нет", "удалить", "clear", "none"):
+        new_u = ""
+    else:
+        new_u = _norm_uname(raw)
+        if new_u and not re.fullmatch(r"[A-Za-z0-9_]{5,}", new_u):
+            await message.reply_text(
+                "Нужен нормальный @username: 5+ символов, только латиница/цифры/_.\n"
+                "Или «нет» / «-» чтобы очистить."
+            )
+            return
+    context.user_data.pop("hr_mode", None)
+    old = _norm_uname(row["tg_username"])
+    outcome = await apply_username_change(
+        context.bot,
+        row,
+        new_u,
+        source=f"hr:{who(user)}",
+    )
+    fresh = db.get_applicant(tg_id)
+    label = db.label(fresh) if fresh else str(tg_id)
+    await message.reply_text(
+        f"TG {label}: {('@' + old) if old else '—'} → "
+        f"{('@' + new_u) if new_u else '—'} ({outcome})."
+    )
+
+
 async def hr_nick_apply(update, context, mode: str, text: str) -> None:
     message = update.message
     user = update.effective_user
@@ -1394,6 +1766,11 @@ async def show_hr(message) -> None:
 def player_actions(tg_id: int):
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+    slag_btn = (
+        InlineKeyboardButton("Снять со шлака", callback_data=f"sg:clr:{tg_id}")
+        if db.is_slag(tg_id)
+        else InlineKeyboardButton("В шлак", callback_data=f"sg:add:{tg_id}")
+    )
     return InlineKeyboardMarkup(
         [
             [
@@ -1412,6 +1789,13 @@ def player_actions(tg_id: int):
                 InlineKeyboardButton(
                     "3. Только строка БД бота",
                     callback_data=f"d:{tg_id}",
+                )
+            ],
+            [slag_btn],
+            [
+                InlineKeyboardButton(
+                    "Задать @username",
+                    callback_data=f"sg:tg:{tg_id}",
                 )
             ],
         ]
@@ -1480,6 +1864,70 @@ async def on_callback(update, context) -> None:
         await query.edit_message_text(f"{tg_id}: {result}")
         await send_alert(context.bot, f"Куратор {tg_id}: {result}. Снял {who(user)}.")
         return
+    if data.startswith("sg:"):
+        # sg:add:ID | sg:clr:ID | sg:tg:ID
+        parts = data.split(":")
+        if len(parts) != 3 or parts[1] not in ("add", "clr", "tg") or not parts[2].isdigit():
+            return
+        tg_id = int(parts[2])
+        row = db.get_applicant(tg_id)
+        label = db.label(row) if row is not None else str(tg_id)
+        if parts[1] == "tg":
+            if row is None:
+                await query.edit_message_text("В базе бота этой строки уже нет.")
+                return
+            context.user_data["hr_mode"] = f"tg_edit:{tg_id}"
+            cur = _norm_uname(row["tg_username"])
+            await query.edit_message_text(
+                f"{label}\nСейчас TG: {('@' + cur) if cur else '—'}.\n"
+                "Пришли новый @username (латиница/цифры/_, от 5 символов).\n"
+                "Или «нет» / «-» чтобы очистить."
+            )
+            return
+        if parts[1] == "add":
+            result = db.mark_slag(
+                tg_id,
+                "пометка HR",
+                source="hr",
+                by=user.id,
+            )
+            if result == "not_found":
+                await query.edit_message_text("В базе бота этой строки уже нет.")
+                return
+            await query.edit_message_text(
+                f"{label} → шлак (пометил {who(user)}).",
+                reply_markup=slag_actions(tg_id) if row is not None else None,
+            )
+            await send_alert(context.bot, f"Шлак: {label} (пометил {who(user)}).")
+            return
+        result = db.clear_slag(tg_id, by=user.id)
+        if result == "not_slag":
+            await query.edit_message_text(f"{label} уже не в шлаке.")
+            return
+        sri_line = ""
+        if row is not None and db.has_normal_tg_username(row["tg_username"]):
+            steam_id = (row["steam_id"] or "").strip()
+            if steam_id:
+                try:
+                    sri = await asyncio.to_thread(site.sri_assign, steam_id, "recruit")
+                    if isinstance(sri, dict) and sri.get("ok"):
+                        fac = site.sri_result_payload(sri).get("faction") or "?"
+                        sri_line = f" СРИ → «{fac}»."
+                    else:
+                        sri_line = (
+                            f" СРИ: {site.format_sri_skip(sri if isinstance(sri, dict) else None)}."
+                        )
+                except Exception as e:
+                    sri_line = f" СРИ сбой ({type(e).__name__})."
+        await query.edit_message_text(
+            f"{label} снят со шлака ({who(user)}).{sri_line}",
+            reply_markup=slag_actions(tg_id) if row is not None else None,
+        )
+        await send_alert(
+            context.bot,
+            f"Шлак снят: {label} ({who(user)}).{sri_line}",
+        )
+        return
     if data.startswith("ap:") or data.startswith("rj:"):
         tg_id = int(data.split(":", 1)[1])
         row = db.get_applicant(tg_id)
@@ -1490,15 +1938,29 @@ async def on_callback(update, context) -> None:
         if data.startswith("ap:"):
             result = db.approve_application(tg_id)
             if result == "ok":
-                await tell(context.bot, tg_id, await site_text())
-                await query.edit_message_text(
-                    f"Заявка одобрена: {label}.\nОдобрил {who(user)}.\n"
-                    "Игрок переведён на сайт и дальше на каналы."
-                )
-                await send_alert(
-                    context.bot,
-                    f"Заявка {label} одобрена ({who(user)}). Дальше — сайт и каналы.",
-                )
+                fresh = db.get_applicant(tg_id)
+                skipped = await try_skip_site_if_registered(context.bot, fresh)
+                if skipped:
+                    await query.edit_message_text(
+                        f"Заявка одобрена: {label}.\nОдобрил {who(user)}.\n"
+                        "Steam уже есть на сайте — сразу выдал ссылки на каналы."
+                    )
+                    await send_alert(
+                        context.bot,
+                        f"Заявка {label} одобрена ({who(user)}). "
+                        "Аккаунт на сайте уже был — шаг сайта пропущен, каналы.",
+                    )
+                else:
+                    await tell(context.bot, tg_id, await site_text())
+                    await query.edit_message_text(
+                        f"Заявка одобрена: {label}.\nОдобрил {who(user)}.\n"
+                        "На сайте аккаунта ещё нет — ждём регистрацию, потом каналы."
+                    )
+                    await send_alert(
+                        context.bot,
+                        f"Заявка {label} одобрена ({who(user)}). "
+                        "На сайте аккаунта нет — ждём регистрацию по ссылке.",
+                    )
             elif result == "wrong_step":
                 await query.edit_message_text(
                     f"{label} уже не ждёт одобрения "
@@ -1650,6 +2112,20 @@ async def on_chat_member(update, context) -> None:
         place = _chat_place_name(cmu.chat.id)
         db.event(user_id, "left-chat", f"{place}:{new}")
 
+    # @username из события чата (дешевле, чем getChat)
+    try:
+        u = cmu.new_chat_member.user
+        await apply_username_change(
+            context.bot,
+            row,
+            getattr(u, "username", None) or "",
+            first=getattr(u, "first_name", None) or "",
+            source="chat_member",
+        )
+        row = db.get_applicant(user_id) or row
+    except Exception:
+        pass
+
     # После входа в Основной по ссылке — ник в тег участника
     if (
         group_id()
@@ -1787,6 +2263,20 @@ def main() -> None:
         raise SystemExit("В recruit-bot.env нет BOT_TOKEN")
     data = Path(os.environ.get("DB_PATH") or (HERE / "data" / "recruit.sqlite"))
     db.connect(data)
+    # Сиды шлака (липа TG / без @) — чтобы HR сразу видели в «Шлак»
+    for nick, note in (
+        ("READY", "TG username липа — Alex"),
+        ("Maskey", "нет TG username"),
+        ("Alafolix", "нет TG username"),
+    ):
+        rows = db.find_applicants(nick, limit=5)
+        for r in rows:
+            if (r["game_nick"] or "").strip().lower() == nick.lower() or (
+                nick.lower() in (r["game_nick"] or "").lower()
+            ):
+                if not db.is_slag(int(r["tg_id"])):
+                    db.mark_slag(int(r["tg_id"]), note, source="hr", by=None)
+                break
     db.bootstrap_hr(hr_ids())
     from telegram import Update
     from telegram.error import TelegramError
