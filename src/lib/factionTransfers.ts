@@ -267,8 +267,13 @@ async function creditTreasury(
   note?: string,
   userId?: string | null,
   matchId?: string | null,
-) {
-  if (!amount) return;
+): Promise<boolean> {
+  if (!amount) return false;
+  const existing = await tx.factionLedgerEntry.findUnique({
+    where: { sourceKey },
+    select: { id: true },
+  });
+  if (existing) return false;
   await tx.factionLedgerEntry.create({
     data: {
       factionId,
@@ -284,6 +289,7 @@ async function creditTreasury(
     where: { id: factionId },
     data: { blueberryBalance: { increment: amount } },
   });
+  return true;
 }
 
 /**
@@ -651,8 +657,8 @@ export async function creditGrindFromCanonMatch(matchId: string): Promise<{ cred
     let wrote = false;
     if (baseAmount > 0) {
       try {
-        await prisma.$transaction(async (tx) => {
-          await creditTreasury(
+        const ok = await prisma.$transaction(async (tx) =>
+          creditTreasury(
             tx,
             membership.factionId,
             baseAmount,
@@ -661,17 +667,17 @@ export async function creditGrindFromCanonMatch(matchId: string): Promise<{ cred
             noteBase,
             userId,
             matchId,
-          );
-        });
-        wrote = true;
+          ),
+        );
+        if (ok) wrote = true;
       } catch {
-        // unique sourceKey — уже начислено
+        // гонка unique sourceKey
       }
     }
     if (slBonus > 0) {
       try {
-        await prisma.$transaction(async (tx) => {
-          await creditTreasury(
+        const ok = await prisma.$transaction(async (tx) =>
+          creditTreasury(
             tx,
             membership.factionId,
             slBonus,
@@ -680,11 +686,11 @@ export async function creditGrindFromCanonMatch(matchId: string): Promise<{ cred
             `${noteBase} · SL`,
             userId,
             matchId,
-          );
-        });
-        wrote = true;
+          ),
+        );
+        if (ok) wrote = true;
       } catch {
-        // unique sourceKey — SL уже начислен
+        // гонка unique sourceKey
       }
     }
     if (wrote) credited += 1;
