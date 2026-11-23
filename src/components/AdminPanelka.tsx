@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { PanelkaServer } from "@/lib/panelkaRcon";
 
-const MODES = ["SQ", "FCL", "CSL", "SEC", "LOADER"] as const;
+const MODES = ["SQ", "FCL", "CSL", "SEC", "HOTDROP", "LOADER"] as const;
 const PAGE = 8;
 const BAN_UNITS = [
   { value: "h", label: "часы" },
@@ -709,7 +709,7 @@ export function AdminPanelka({
                         setPickedLayer("");
                       }}
                     >
-                      {item === "SQ" ? "Ваниль SQ" : item}
+                      {item === "SQ" ? "Ваниль SQ" : item === "HOTDROP" ? "HotDrop" : item}
                     </button>
                   ))}
                 </div>

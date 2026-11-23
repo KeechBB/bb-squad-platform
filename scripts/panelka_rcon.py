@@ -28,6 +28,9 @@ MODS = {
     "FCL": "3569460354",
     "CSL": "3294562930",
     "SEC": "3661196801",
+    # HotDrop Tournament Maps — HD_* / HotDrop_* layers
+    # https://steamcommunity.com/sharedfiles/filedetails/?id=3686670558
+    "HOTDROP": "3686670558",
     # Steam Workshop ModLoader — layer ModLoader_v1 for HitZone / stats init
     # https://steamcommunity.com/sharedfiles/filedetails/?id=3516838562
     "LOADER": "3516838562",
