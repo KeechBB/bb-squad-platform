@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ProfileCareerCard } from "@/components/ProfileCareerCard";
 import { ProfileEditForm } from "@/components/ProfileEditForm";
+import { ProfileAccountCard } from "@/components/ProfileAccountCard";
 import {
   ProfileBpLevelPanel,
   bpTier,
@@ -30,11 +31,13 @@ type AccountInitial = {
 type Props = {
   nick: string;
   account: AccountInitial;
+  /** Чужой профиль — только просмотр анкеты, без «Изменить». */
+  readOnly?: boolean;
 };
 
 type Panel = "career" | "account" | "bp";
 
-export function ProfileCareerAccountPanel({ nick, account }: Props) {
+export function ProfileCareerAccountPanel({ nick, account, readOnly = false }: Props) {
   const [panel, setPanel] = useState<Panel>("career");
   const [bp, setBp] = useState<ProfileBpView | null>(null);
 
@@ -64,7 +67,7 @@ export function ProfileCareerAccountPanel({ nick, account }: Props) {
           className={panel === "career" ? "is-active" : ""}
           onClick={() => setPanel("career")}
         >
-          Моя карьера
+          {readOnly ? "Карьера" : "Моя карьера"}
         </button>
         <button
           type="button"
@@ -88,9 +91,25 @@ export function ProfileCareerAccountPanel({ nick, account }: Props) {
       </div>
       <div className="profile-career-account-body">
         {panel === "career" ? (
-          <ProfileCareerCard nick={nick} self embedded />
+          <ProfileCareerCard nick={nick} self={!readOnly} embedded />
         ) : panel === "account" ? (
-          <ProfileEditForm initial={account} />
+          readOnly ? (
+            <ProfileAccountCard
+              data={{
+                nick: account.nick,
+                regNo: account.regNo,
+                siteRole: account.siteRole || "Игрок",
+                discordTag: account.discordTag,
+                discordId: account.discordId,
+                telegram: account.telegram,
+                steamId: account.steamId,
+                steamName: account.steamName,
+                clans: account.clans,
+              }}
+            />
+          ) : (
+            <ProfileEditForm initial={account} />
+          )
         ) : (
           <ProfileBpLevelPanel bp={bp} />
         )}

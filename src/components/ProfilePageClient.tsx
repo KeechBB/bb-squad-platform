@@ -446,6 +446,7 @@ export function ProfilePageClient({
         {nickForKv ? (
           <ProfileCareerAccountPanel
             nick={nickForKv}
+            readOnly={readOnly}
             account={{
               nick: shell.nick || "",
               discordTag: shell.discordTag,
