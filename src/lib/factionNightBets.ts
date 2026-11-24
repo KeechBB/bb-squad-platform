@@ -540,11 +540,13 @@ export async function nightBetBoard(opts: {
     })
     .sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name, "ru"));
 
-  const winnerIds = settled
-    ? win?.winnerFactionIds || []
-    : phase === "locked" || phase === "settled"
-      ? pickWinners(grindMap)
-      : [];
+  // Победитель гринда фиксируется только после 01:00 (settle), не по ходу каток.
+  let winnerIds: string[] = [];
+  if (settled) {
+    winnerIds = win?.winnerFactionIds?.length
+      ? win.winnerFactionIds
+      : pickWinners(grindMap);
+  }
   const winners = winnerIds
     .map((id) => {
       const f = grindFactions.find((x) => x.id === id);

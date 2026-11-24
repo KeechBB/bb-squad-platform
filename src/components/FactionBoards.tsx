@@ -1247,21 +1247,31 @@ export function FactionNightBetsBoard({
             ) : null}
           </div>
 
-          {data.status === "settled" &&
-          (data.winners.length > 0 || data.payouts.length > 0) ? (
+          {data.status !== "settled" ? (
+            <p className="faction-night-bets-settle-note">
+              Итог в 01:00 МСК — победит фракция с наибольшим гриндом за
+              тренировку.
+            </p>
+          ) : null}
+
+          {data.status === "settled" ? (
             <div className="faction-night-bets-result">
               {data.winners.length > 0 ? (
                 <p className="faction-night-bets-winners">
-                  Победитель:{" "}
+                  Итог 01:00 · победитель гринда:{" "}
                   {data.winners.map((w, i) => (
                     <span key={w.factionId}>
                       {i > 0 ? ", " : ""}
                       <strong style={{ color: w.color }}>{w.name}</strong>
-                      {` (${fmtBd(w.grindAmount)} B$)`}
+                      {` · ${fmtBd(w.grindAmount)} B$`}
                     </span>
                   ))}
                 </p>
-              ) : null}
+              ) : (
+                <p className="faction-night-bets-winners">
+                  Итог 01:00 · никто не нагриндлил — ставки возвращены.
+                </p>
+              )}
               {data.payouts.length > 0 ? (
                 <ul className="faction-night-bets-payouts">
                   {data.payouts.map((p) => (
@@ -1277,7 +1287,14 @@ export function FactionNightBetsBoard({
 
           <div className="faction-night-bets-cards" role="list">
             {data.grind.map((row) => {
-              const lead = maxGrind > 0 && row.amount === maxGrind && row.amount > 0;
+              const isWinner =
+                data.status === "settled" &&
+                data.winners.some((w) => w.factionId === row.factionId);
+              const liveLead =
+                data.status !== "settled" &&
+                maxGrind > 0 &&
+                row.amount === maxGrind &&
+                row.amount > 0;
               const isSel = pickId === row.factionId;
               const isMine = myPickIds.has(row.factionId);
               return (
@@ -1287,7 +1304,7 @@ export function FactionNightBetsBoard({
                   role="listitem"
                   className={`faction-night-bets-card${isSel ? " is-selected" : ""}${
                     isMine ? " is-mine" : ""
-                  }${lead ? " is-lead" : ""}`}
+                  }${liveLead ? " is-lead" : ""}${isWinner ? " is-winner" : ""}`}
                   style={{ ["--nb-color" as string]: row.color }}
                   disabled={!data.canBet}
                   onClick={() => {
@@ -1304,7 +1321,8 @@ export function FactionNightBetsBoard({
                     >
                       {row.name}
                     </span>
-                    {lead ? <em>лидер</em> : null}
+                    {isWinner ? <em className="is-winner-tag">победитель</em> : null}
+                    {liveLead && !isWinner ? <em>впереди</em> : null}
                     {isMine ? <em className="is-mine-tag">ваша</em> : null}
                   </div>
                   <div className="faction-night-bets-card-metrics">

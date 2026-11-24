@@ -24699,6 +24699,19 @@ body:has(.faction-page) .site-footer {
 .faction-night-bets-card.is-lead {
   background: rgba(6, 78, 59, 0.18);
 }
+.faction-night-bets-card.is-winner {
+  border-color: rgba(251, 191, 36, 0.85);
+  box-shadow:
+    0 0 0 1px rgba(251, 191, 36, 0.45),
+    0 0 22px rgba(245, 158, 11, 0.28);
+  background:
+    linear-gradient(
+      105deg,
+      rgba(120, 53, 15, 0.35) 0%,
+      rgba(6, 78, 59, 0.22) 55%,
+      rgba(8, 12, 22, 0.55) 100%
+    );
+}
 .faction-night-bets-card-name {
   display: flex;
   align-items: center;
@@ -24721,6 +24734,17 @@ body:has(.faction-page) .site-footer {
 .faction-night-bets-card-name em.is-mine-tag {
   background: rgba(251, 191, 36, 0.22);
   color: #fde68a;
+}
+.faction-night-bets-card-name em.is-winner-tag {
+  background: rgba(251, 191, 36, 0.35);
+  color: #fef3c7;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.35);
+}
+.faction-night-bets-settle-note {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #a7f3d0;
 }
 .faction-night-bets-card-metrics {
   display: grid;
@@ -24780,10 +24804,6 @@ body:has(.faction-page) .site-footer {
   min-width: 160px;
   font-weight: 800;
 }
-.faction-night-bets-winners {
-  margin: 0;
-  font-size: 0.95rem;
-}
 .faction-night-bets-list {
   margin-top: 4px;
 }
@@ -24803,13 +24823,24 @@ body:has(.faction-page) .site-footer {
   line-height: 1.35;
 }
 .faction-night-bets-result {
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(52, 211, 153, 0.35);
-  background: rgba(6, 78, 59, 0.28);
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(251, 191, 36, 0.55);
+  background:
+    linear-gradient(
+      120deg,
+      rgba(120, 53, 15, 0.4) 0%,
+      rgba(6, 78, 59, 0.32) 100%
+    );
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+.faction-night-bets-winners {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #fef3c7;
 }
 .faction-night-bets-payouts {
   margin: 0;

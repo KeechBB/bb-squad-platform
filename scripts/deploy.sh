@@ -427,4 +427,16 @@ chmod 644 /var/log/bb-train-roster-heal.log
 # Smoke once after deploy so gaps heal without waiting for :25
 (cd "$ROOT/scripts" && BB_KV_PUBLIC="$ROOT/data/kv-cache" KV_LOCAL_DIR="$ROOT/data/kv-cache" "$PY_COL" audit_train_roster_heal.py) || true
 
+echo "==> night bets settle cron (01:02 MSK)"
+chmod +x "$ROOT/scripts/settle_night_bets_cron.sh" || true
+cat >/etc/cron.d/bb-night-bets-settle <<EOF
+CRON_TZ=Europe/Moscow
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+2 1 * * * root flock -n /tmp/bb-night-bets-settle.lock bash $ROOT/scripts/settle_night_bets_cron.sh >>/var/log/bb-night-bets-settle.log 2>&1
+EOF
+chmod 644 /etc/cron.d/bb-night-bets-settle
+touch /var/log/bb-night-bets-settle.log
+chmod 644 /var/log/bb-night-bets-settle.log
+
 echo "==> OK commit=$(git rev-parse --short HEAD) $(date -Is)"
