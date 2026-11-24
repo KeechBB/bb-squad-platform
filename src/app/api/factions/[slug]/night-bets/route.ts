@@ -43,11 +43,7 @@ export async function GET(req: Request, ctx: Ctx) {
 
   const url = new URL(req.url);
   if (url.searchParams.get("history") === "1") {
-    const rows = await nightBetHistory(
-      keech && userId
-        ? { personalUserId: userId }
-        : { fromFactionId: view.id }
-    );
+    const rows = await nightBetHistory();
     return NextResponse.json({ rows });
   }
 

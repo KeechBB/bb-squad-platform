@@ -740,7 +740,8 @@ export async function nightBetBoard(opts: {
 }
 
 /** История ставок фракции или личных ставок Keech. */
-export async function nightBetHistory(opts: {
+/** Общая книга ставок (все фракции + личные Keech), не только «свои». */
+export async function nightBetHistory(_opts?: {
   fromFactionId?: string | null;
   personalUserId?: string | null;
 }): Promise<
@@ -748,43 +749,60 @@ export async function nightBetHistory(opts: {
     id: string;
     windowId: string;
     label: string;
+    fromName: string;
+    fromColor: string;
     pickName: string;
     pickColor: string;
     amount: number;
     status: string;
     payout: number;
+    placedByNick: string;
   }[]
 > {
   const rows = await prisma.factionNightBet.findMany({
-    where: opts.personalUserId
-      ? {
-          isPersonal: true,
-          placedByUserId: opts.personalUserId,
-          status: { in: ["won", "lost", "refunded", "pending"] },
-        }
-      : {
-          fromFactionId: opts.fromFactionId || undefined,
-          isPersonal: false,
-          status: { in: ["won", "lost", "refunded", "pending"] },
-        },
+    where: { status: { in: ["won", "lost", "refunded", "pending"] } },
     include: {
-      pickFaction: { select: { name: true, slug: true } },
+      pickFaction: { select: { name: true, slug: true, info: true } },
+      fromFaction: { select: { name: true, slug: true, info: true } },
+      placedBy: { select: { nick: true, steamName: true, name: true } },
       window: { select: { id: true, status: true } },
     },
     orderBy: [{ windowId: "desc" }, { createdAt: "desc" }],
-    take: 300,
+    take: 400,
   });
   return rows.map((r) => {
     const bounds = nightBetBoundsForDay(r.windowId);
+    const fromInfo = r.fromFaction ? parseFactionInfo(r.fromFaction.info) : null;
+    const pickInfo = parseFactionInfo(r.pickFaction.info);
+    const fromName = r.isPersonal
+      ? KEECH_BET_NAME
+      : r.fromFaction?.name || "—";
+    const fromColor = r.isPersonal
+      ? KEECH_BET_COLOR
+      : r.fromFaction
+        ? factionUiColor(r.fromFaction.name, r.fromFaction.slug, fromInfo?.color)
+        : "#94a3b8";
+    const placedByNick =
+      (r.placedBy.nick && r.placedBy.nick.trim()) ||
+      (r.placedBy.steamName && r.placedBy.steamName.trim()) ||
+      (r.placedBy.name && r.placedBy.name.trim()) ||
+      "—";
     return {
       id: r.id,
       windowId: r.windowId,
       label: bounds ? formatNightBetDayLabel(bounds) : r.windowId,
+      fromName,
+      fromColor,
       pickName: r.pickFaction.name,
-      pickColor: factionUiColor(r.pickFaction.name, r.pickFaction.slug),
+      pickColor: factionUiColor(
+        r.pickFaction.name,
+        r.pickFaction.slug,
+        pickInfo.color
+      ),
       amount: r.amount,
       status: r.status,
       payout: r.payout,
+      placedByNick,
     };
   });
 }

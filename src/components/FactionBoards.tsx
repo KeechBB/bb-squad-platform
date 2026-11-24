@@ -1022,11 +1022,14 @@ type NightHistoryRow = {
   id: string;
   windowId: string;
   label: string;
+  fromName: string;
+  fromColor: string;
   pickName: string;
   pickColor: string;
   amount: number;
   status: string;
   payout: number;
+  placedByNick: string;
 };
 
 export function FactionNightBetsBoard({
@@ -1533,6 +1536,10 @@ export function FactionNightBetsBoard({
                   <ul>
                     {day.rows.map((r) => (
                       <li key={r.id}>
+                        <strong style={{ color: r.fromColor }}>
+                          {r.fromName || "—"}
+                        </strong>
+                        {` (${r.placedByNick || "—"}) → `}
                         <strong style={{ color: r.pickColor }}>{r.pickName}</strong>
                         {` · ${fmtBd(r.amount)} B$ · ${betStatusRu(r.status)}`}
                         {r.payout > 0 ? ` · +${fmtBd(r.payout)} B$` : ""}
