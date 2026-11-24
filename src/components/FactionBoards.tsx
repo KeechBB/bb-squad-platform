@@ -971,6 +971,7 @@ type NightBetBoardData = {
   canBet: boolean;
   myTreasury: number;
   balanceLabel?: string;
+  infiniteBalance?: boolean;
   isPersonalBettor?: boolean;
   pot: number;
   minBet: number;

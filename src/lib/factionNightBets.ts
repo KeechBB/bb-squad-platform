@@ -348,10 +348,8 @@ export async function settleNightBetWindow(
             ? `Возврат ставки ${pay.toLocaleString("ru-RU")} ${BD_MARK} (ночь ${bounds.id})`
             : `Выигрыш ставки ${pay.toLocaleString("ru-RU")} ${BD_MARK} (ночь ${bounds.id})`;
         if (b.isPersonal || !b.fromFactionId) {
-          await tx.user.update({
-            where: { id: b.placedByUserId },
-            data: { blueberryBalance: { increment: pay } },
-          });
+          // Личная/Keech-ставка: выигрыш в пуле уже учтён; безлимитной казне
+          // Кича кошелёк не трогаем (ставки не списывались).
         } else {
           await tx.factionLedgerEntry.create({
             data: {
@@ -395,10 +393,12 @@ export type NightBetBoard = {
   status: NightBetPhase;
   canBet: boolean;
   myFactionId: string | null;
-  /** Казна фракции или личный B$ Keech. */
+  /** Казна фракции или казна Keech. */
   myTreasury: number;
-  /** Подпись баланса: «Казна фракции» / «Личный B$». */
+  /** Подпись баланса. */
   balanceLabel: string;
+  /** Keech: баланс не ограничен. */
+  infiniteBalance: boolean;
   isPersonalBettor: boolean;
   pot: number;
   minBet: number;
@@ -562,31 +562,43 @@ export async function nightBetBoard(opts: {
     ? bettors.find((f) => f.id === opts.viewerFactionId) || null
     : null;
 
-  // Всегда казна фракции этой страницы (не личный B$).
-  let myTreasury = Math.max(0, myFaction?.blueberryBalance || 0);
-  if (opts.viewerFactionId && !myFaction) {
-    const f = await prisma.faction.findUnique({
-      where: { id: opts.viewerFactionId },
-      select: { blueberryBalance: true },
-    });
-    myTreasury = Math.max(0, f?.blueberryBalance || 0);
-  }
-  const balanceLabel = "Казна фракции";
+  let myTreasury = 0;
+  let balanceLabel = "Казна фракции";
+  let infiniteBalance = false;
 
-  const myBetRows = opts.viewerFactionId
-    ? bets.filter(
-        (b) => !b.isPersonal && b.fromFactionId === opts.viewerFactionId
-      )
-    : [];
+  if (isKeech) {
+    // Своя «казна» Кича — безлимит, ставки не списывают реальный B$.
+    balanceLabel = "Казна фракции";
+    infiniteBalance = true;
+    myTreasury = 0;
+  } else {
+    myTreasury = Math.max(0, myFaction?.blueberryBalance || 0);
+    if (opts.viewerFactionId && !myFaction) {
+      const f = await prisma.faction.findUnique({
+        where: { id: opts.viewerFactionId },
+        select: { blueberryBalance: true },
+      });
+      myTreasury = Math.max(0, f?.blueberryBalance || 0);
+    }
+  }
+
+  const myBetRows =
+    isKeech && opts.viewerUserId
+      ? bets.filter(
+          (b) => b.isPersonal && b.placedByUserId === opts.viewerUserId
+        )
+      : opts.viewerFactionId
+        ? bets.filter(
+            (b) => !b.isPersonal && b.fromFactionId === opts.viewerFactionId
+          )
+        : [];
 
   const canBet =
     phase === "open" &&
     !settled &&
-    Boolean(
-      opts.canPlace &&
-        opts.viewerFactionId &&
-        (isKeech || myFaction)
-    );
+    (isKeech
+      ? Boolean(opts.canPlace && opts.viewerUserId)
+      : Boolean(opts.canPlace && opts.viewerFactionId && myFaction));
 
   const betRows = activeBets.map((b) => {
     const odds = decimalOdds(pot, stakes.get(b.pickFactionId) || 0);
@@ -642,7 +654,8 @@ export async function nightBetBoard(opts: {
     myFactionId: opts.viewerFactionId,
     myTreasury,
     balanceLabel,
-    isPersonalBettor: false,
+    infiniteBalance,
+    isPersonalBettor: isKeech,
     pot,
     minBet: NIGHT_BET_MIN,
     grind,
@@ -719,8 +732,9 @@ export async function nightBetHistory(opts: {
 }
 
 /**
- * Поставить на любой исход или додепнуть уже стоящую — всегда из казны фракции страницы.
- * Keech может ставить за любую фракцию (как глава). Отмена запрещена.
+ * Поставить / додеп. Глава/зам — из казны фракции.
+ * Keech — своя безлимитная казна (isPersonal, без списания B$).
+ * Отмена запрещена.
  */
 export async function placeNightBet(opts: {
   actorUserId: string;
@@ -765,16 +779,10 @@ export async function placeNightBet(opts: {
   const pick = grindFactions.find((f) => f.id === opts.pickFactionId);
   if (!pick) return { ok: false, error: "bad_pick" };
 
-  const bettors = await listBettorFactions();
-  const from = bettors.find((f) => f.id === opts.fromFactionId);
-  if (!from && !keech) return { ok: false, error: "bad_faction" };
-  // Keech может ставить со страницы любой BB-фракции, даже вне списка bettors.
-  if (!from && keech) {
-    const f = await prisma.faction.findUnique({
-      where: { id: opts.fromFactionId },
-      select: { id: true },
-    });
-    if (!f) return { ok: false, error: "bad_faction" };
+  if (!keech) {
+    const bettors = await listBettorFactions();
+    const from = bettors.find((f) => f.id === opts.fromFactionId);
+    if (!from) return { ok: false, error: "bad_faction" };
   }
 
   await ensureWindow(bounds);
@@ -783,70 +791,102 @@ export async function placeNightBet(opts: {
   });
   if (!win || win.status === "settled") return { ok: false, error: "window_closed" };
 
-  const existing = await prisma.factionNightBet.findFirst({
-    where: {
-      windowId: bounds.id,
-      fromFactionId: opts.fromFactionId,
-      pickFactionId: opts.pickFactionId,
-      isPersonal: false,
-      status: "pending",
-    },
-  });
+  const existing = keech
+    ? await prisma.factionNightBet.findFirst({
+        where: {
+          windowId: bounds.id,
+          isPersonal: true,
+          placedByUserId: opts.actorUserId,
+          pickFactionId: opts.pickFactionId,
+          status: "pending",
+        },
+      })
+    : await prisma.factionNightBet.findFirst({
+        where: {
+          windowId: bounds.id,
+          fromFactionId: opts.fromFactionId,
+          pickFactionId: opts.pickFactionId,
+          isPersonal: false,
+          status: "pending",
+        },
+      });
 
   const mode: "place" | "topup" = existing ? "topup" : "place";
 
   try {
     await prisma.$transaction(async (tx) => {
-      const f = await tx.faction.findUnique({
-        where: { id: opts.fromFactionId },
-        select: { blueberryBalance: true },
-      });
-      if (!f) throw new Error("faction");
-      const treasury = Math.max(0, f.blueberryBalance || 0);
-      if (treasury < amount) throw new Error("insufficient");
-
-      if (mode === "topup" && existing) {
-        await tx.factionNightBet.update({
-          where: { id: existing.id },
-          data: { amount: existing.amount + amount },
-        });
-        await tx.factionLedgerEntry.create({
-          data: {
-            factionId: opts.fromFactionId,
-            amount: -amount,
-            kind: "night_bet",
-            sourceKey: `night_bet_topup:${bounds.id}:${existing.id}:${Date.now()}`,
-            note: `Додеп ${amount.toLocaleString("ru-RU")} ${BD_MARK} на «${pick.name}» (ночь ${bounds.id})`,
-            userId: opts.actorUserId,
-          },
-        });
+      if (keech) {
+        // Безлимит: только учёт ставки в пуле, без списания кошелька.
+        if (mode === "topup" && existing) {
+          await tx.factionNightBet.update({
+            where: { id: existing.id },
+            data: { amount: existing.amount + amount },
+          });
+        } else {
+          await tx.factionNightBet.create({
+            data: {
+              windowId: bounds.id,
+              fromFactionId: null,
+              pickFactionId: opts.pickFactionId,
+              amount,
+              placedByUserId: opts.actorUserId,
+              isPersonal: true,
+              status: "pending",
+            },
+          });
+        }
       } else {
-        const bet = await tx.factionNightBet.create({
-          data: {
-            windowId: bounds.id,
-            fromFactionId: opts.fromFactionId,
-            pickFactionId: opts.pickFactionId,
-            amount,
-            placedByUserId: opts.actorUserId,
-            isPersonal: false,
-            status: "pending",
-          },
+        const f = await tx.faction.findUnique({
+          where: { id: opts.fromFactionId },
+          select: { blueberryBalance: true },
         });
-        await tx.factionLedgerEntry.create({
-          data: {
-            factionId: opts.fromFactionId,
-            amount: -amount,
-            kind: "night_bet",
-            sourceKey: `night_bet:${bounds.id}:${bet.id}`,
-            note: `Ставка ${amount.toLocaleString("ru-RU")} ${BD_MARK} на «${pick.name}» (ночь ${bounds.id})`,
-            userId: opts.actorUserId,
-          },
+        if (!f) throw new Error("faction");
+        const treasury = Math.max(0, f.blueberryBalance || 0);
+        if (treasury < amount) throw new Error("insufficient");
+
+        if (mode === "topup" && existing) {
+          await tx.factionNightBet.update({
+            where: { id: existing.id },
+            data: { amount: existing.amount + amount },
+          });
+          await tx.factionLedgerEntry.create({
+            data: {
+              factionId: opts.fromFactionId,
+              amount: -amount,
+              kind: "night_bet",
+              sourceKey: `night_bet_topup:${bounds.id}:${existing.id}:${Date.now()}`,
+              note: `Додеп ${amount.toLocaleString("ru-RU")} ${BD_MARK} на «${pick.name}» (ночь ${bounds.id})`,
+              userId: opts.actorUserId,
+            },
+          });
+        } else {
+          const bet = await tx.factionNightBet.create({
+            data: {
+              windowId: bounds.id,
+              fromFactionId: opts.fromFactionId,
+              pickFactionId: opts.pickFactionId,
+              amount,
+              placedByUserId: opts.actorUserId,
+              isPersonal: false,
+              status: "pending",
+            },
+          });
+          await tx.factionLedgerEntry.create({
+            data: {
+              factionId: opts.fromFactionId,
+              amount: -amount,
+              kind: "night_bet",
+              sourceKey: `night_bet:${bounds.id}:${bet.id}`,
+              note: `Ставка ${amount.toLocaleString("ru-RU")} ${BD_MARK} на «${pick.name}» (ночь ${bounds.id})`,
+              userId: opts.actorUserId,
+            },
+          });
+        }
+        await tx.faction.update({
+          where: { id: opts.fromFactionId },
+          data: { blueberryBalance: treasury - amount },
         });
       }
-      await tx.faction.update({
-        where: { id: opts.fromFactionId },
-        data: { blueberryBalance: treasury - amount },
-      });
 
       const all = await tx.factionNightBet.findMany({
         where: { windowId: bounds.id, status: "pending" },
