@@ -1165,7 +1165,10 @@ export function FactionNightBetsBoard({
   return (
     <div className="faction-night-bets">
       <div className="faction-night-bets-top">
-        <p className="faction-night-bets-dates">{data?.label || "Тренировка"}</p>
+        <p className="faction-night-bets-dates">
+          {data?.label ||
+            "Ставка на тренировку, кто из фракций больше всего заработает Долларов за тренировку."}
+        </p>
         <button type="button" className="btn" onClick={() => void openHistory()}>
           История побед
         </button>

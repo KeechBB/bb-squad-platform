@@ -57,13 +57,9 @@ export function nightBetWindowAt(now = new Date()): NightBetWindowBounds {
   return nightBetBoundsForDay(id) || nightBetBoundsForDay("2026-11-24")!;
 }
 
-/** «Тренировка 24.11» — дата обновляется каждый день по окну. */
-export function formatNightBetLabel(bounds: NightBetWindowBounds): string {
-  const p = parseYmd(bounds.id);
-  if (!p) return `Тренировка ${bounds.id}`;
-  const dd = p.d < 10 ? `0${p.d}` : String(p.d);
-  const mm = p.m < 10 ? `0${p.m}` : String(p.m);
-  return `Тренировка ${dd}.${mm}`;
+/** Заголовок вкладки ставок (дата тренировки — в bounds.id). */
+export function formatNightBetLabel(_bounds: NightBetWindowBounds): string {
+  return "Ставка на тренировку, кто из фракций больше всего заработает Долларов за тренировку.";
 }
 
 type FactionLite = {
