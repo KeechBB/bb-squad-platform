@@ -374,6 +374,82 @@ async function bumpCacheBust(note: string) {
   }
 }
 
+const MONTH_LABEL_RU = [
+  "",
+  "Январь",
+  "Февраль",
+  "Март",
+  "Апрель",
+  "Май",
+  "Июнь",
+  "Июль",
+  "Август",
+  "Сентябрь",
+  "Октябрь",
+  "Ноябрь",
+  "Декабрь",
+];
+
+function indexWritePaths(): string[] {
+  const out = new Set<string>();
+  for (const root of kvLocalRoots()) {
+    out.add(path.join(root, "data", "index.json"));
+  }
+  for (const base of [
+    "/var/www/blackberry-kv",
+    "/var/www/blackberry-kv/public",
+    "/var/www/KV",
+    "/var/www/KV/public",
+  ]) {
+    out.add(path.join(base, "data", "index.json"));
+  }
+  out.add(path.resolve(process.cwd(), "..", "KV", "public", "data", "index.json"));
+  out.add(path.resolve(process.cwd(), "..", "KV", "data", "index.json"));
+  return [...out];
+}
+
+/** Чтобы новый месяц появился в графике /cw (иначе файл календаря есть, а в index его нет). */
+async function ensureMonthInIndex(year: number, month: number): Promise<string[]> {
+  const id = `${year}-${String(month).padStart(2, "0")}`;
+  const entry = {
+    id,
+    year,
+    month,
+    label: `${MONTH_LABEL_RU[month] || id} ${year}`,
+    url: `data/${id}.json`,
+  };
+  const writes: string[] = [];
+  for (const filePath of indexWritePaths()) {
+    try {
+      let data: { months?: Array<Record<string, unknown>> } = { months: [] };
+      try {
+        data = JSON.parse(await fs.readFile(filePath, "utf8")) as typeof data;
+      } catch {
+        /* new / missing */
+      }
+      const months = Array.isArray(data.months) ? [...data.months] : [];
+      if (months.some((m) => String(m?.id || "") === id)) {
+        writes.push(`skip:${filePath}`);
+        continue;
+      }
+      months.push(entry);
+      months.sort((a, b) => {
+        const ay = Number(a.year) || 0;
+        const by = Number(b.year) || 0;
+        if (by !== ay) return by - ay;
+        return (Number(b.month) || 0) - (Number(a.month) || 0);
+      });
+      data.months = months;
+      await fs.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+      writes.push(`ok:${filePath}`);
+    } catch (e) {
+      writes.push(`err:${filePath}:${e instanceof Error ? e.message : "x"}`);
+    }
+  }
+  return writes;
+}
+
 export function buildBookRow(input: CwBookInput): {
   row: CalMatch;
   year: number;
@@ -542,6 +618,8 @@ export async function bookClanWar(input: CwBookInput): Promise<CwBookResult> {
       }
     }
 
+    const indexWrites = await ensureMonthInIndex(built.year, built.month);
+
     if (calendarWrites.some((r) => r.startsWith("inserted") || r.startsWith("updated"))) {
       await bumpCacheBust(`book ${built.row.id} vs ${input.opp}`);
       clearKvMemCache();
@@ -551,7 +629,7 @@ export async function bookClanWar(input: CwBookInput): Promise<CwBookResult> {
       ok: calendarWrites.some((r) => r.startsWith("inserted") || r.startsWith("updated")),
       id: String(built.row.id),
       row: built.row,
-      calendarWrites,
+      calendarWrites: [...calendarWrites, ...indexWrites.map((w) => `index:${w}`)],
       matchMdWrites,
     };
   } catch (e) {
