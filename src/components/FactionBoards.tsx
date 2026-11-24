@@ -1044,6 +1044,8 @@ export function FactionNightBetsBoard({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyRows, setHistoryRows] = useState<NightHistoryRow[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyPage, setHistoryPage] = useState(0);
+  const HISTORY_DAYS_PER_PAGE = 5;
 
   const reload = async (signal?: AbortSignal) => {
     setLoading(true);
@@ -1123,6 +1125,7 @@ export function FactionNightBetsBoard({
 
   async function openHistory() {
     setHistoryOpen(true);
+    setHistoryPage(0);
     setHistoryLoading(true);
     try {
       const res = await fetch(
@@ -1145,6 +1148,35 @@ export function FactionNightBetsBoard({
       setHistoryLoading(false);
     }
   }
+
+  const historyDays = useMemo(() => {
+    if (!historyRows?.length) return [] as { day: string; windowId: string; rows: NightHistoryRow[] }[];
+    const map = new Map<string, NightHistoryRow[]>();
+    const order: string[] = [];
+    for (const r of historyRows) {
+      const key = r.windowId || r.label;
+      if (!map.has(key)) {
+        map.set(key, []);
+        order.push(key);
+      }
+      map.get(key)!.push(r);
+    }
+    return order.map((windowId) => ({
+      windowId,
+      day: map.get(windowId)![0]?.label || windowId,
+      rows: map.get(windowId)!,
+    }));
+  }, [historyRows]);
+
+  const historyPageCount = Math.max(
+    1,
+    Math.ceil(historyDays.length / HISTORY_DAYS_PER_PAGE)
+  );
+  const historyPageSafe = Math.min(historyPage, historyPageCount - 1);
+  const historyPageDays = historyDays.slice(
+    historyPageSafe * HISTORY_DAYS_PER_PAGE,
+    historyPageSafe * HISTORY_DAYS_PER_PAGE + HISTORY_DAYS_PER_PAGE
+  );
 
   if (loadKey < 1) {
     return null;
@@ -1169,8 +1201,12 @@ export function FactionNightBetsBoard({
           {data?.label ||
             "Ставка на тренировку, кто из фракций больше всего заработает Долларов за тренировку. Окно ставок с 12:00, приём до 21:30."}
         </p>
-        <button type="button" className="btn" onClick={() => void openHistory()}>
-          История побед
+        <button
+          type="button"
+          className="btn faction-night-bets-history-btn"
+          onClick={() => void openHistory()}
+        >
+          История ставок
         </button>
       </div>
       {error ? <p className="error">{error}</p> : null}
@@ -1348,14 +1384,11 @@ export function FactionNightBetsBoard({
         open={historyOpen}
         closeOnBackdrop
         onClose={() => setHistoryOpen(false)}
+        panelClassName="faction-night-bets-history-modal"
       >
-        <header
-          className="profile-match-modal-head"
-          data-drag-handle
-          title="Перетащить окно"
-        >
+        <header className="profile-match-modal-head" data-drag-handle>
           <div>
-            <h2 className="profile-mail-modal-title">История побед</h2>
+            <h2 className="profile-mail-modal-title">История ставок</h2>
           </div>
           <button
             type="button"
@@ -1367,21 +1400,49 @@ export function FactionNightBetsBoard({
         </header>
         <div className="faction-night-bets-history">
           {historyLoading ? <p>Загрузка…</p> : null}
-          {!historyLoading && historyRows && historyRows.length === 0 ? (
-            <p>Пока пусто.</p>
-          ) : null}
-          {!historyLoading && historyRows && historyRows.length > 0 ? (
-            <ul>
-              {historyRows.map((r) => (
-                <li key={r.id}>
-                  <span>{r.label}</span>
-                  {" · "}
-                  <strong style={{ color: r.pickColor }}>{r.pickName}</strong>
-                  {` · ${fmtBd(r.amount)} B$ · ${betStatusRu(r.status)}`}
-                  {r.payout > 0 ? ` · +${fmtBd(r.payout)} B$` : ""}
-                </li>
+          {!historyLoading && historyDays.length === 0 ? <p>Пока пусто.</p> : null}
+          {!historyLoading && historyPageDays.length > 0 ? (
+            <>
+              {historyPageDays.map((day) => (
+                <section key={day.windowId} className="faction-night-bets-history-day">
+                  <h3>{day.day}</h3>
+                  <ul>
+                    {day.rows.map((r) => (
+                      <li key={r.id}>
+                        <strong style={{ color: r.pickColor }}>{r.pickName}</strong>
+                        {` · ${fmtBd(r.amount)} B$ · ${betStatusRu(r.status)}`}
+                        {r.payout > 0 ? ` · +${fmtBd(r.payout)} B$` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
               ))}
-            </ul>
+              {historyPageCount > 1 ? (
+                <div className="faction-night-bets-history-pager">
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={historyPageSafe <= 0}
+                    onClick={() => setHistoryPage((p) => Math.max(0, p - 1))}
+                  >
+                    ← Назад
+                  </button>
+                  <span>
+                    {historyPageSafe + 1} / {historyPageCount}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={historyPageSafe >= historyPageCount - 1}
+                    onClick={() =>
+                      setHistoryPage((p) => Math.min(historyPageCount - 1, p + 1))
+                    }
+                  >
+                    Вперёд →
+                  </button>
+                </div>
+              ) : null}
+            </>
           ) : null}
         </div>
       </DraggableModal>

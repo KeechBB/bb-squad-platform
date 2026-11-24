@@ -62,6 +62,15 @@ export function formatNightBetLabel(_bounds: NightBetWindowBounds): string {
   return "Ставка на тренировку, кто из фракций больше всего заработает Долларов за тренировку. Окно ставок с 12:00, приём до 21:30.";
 }
 
+/** Короткая дата дня для истории: «24.11.2026». */
+export function formatNightBetDayLabel(bounds: NightBetWindowBounds): string {
+  const p = parseYmd(bounds.id);
+  if (!p) return bounds.id;
+  const dd = p.d < 10 ? `0${p.d}` : String(p.d);
+  const mm = p.m < 10 ? `0${p.m}` : String(p.m);
+  return `${dd}.${mm}.${p.y}`;
+}
+
 type FactionLite = {
   id: string;
   name: string;
@@ -703,15 +712,15 @@ export async function nightBetHistory(opts: {
       pickFaction: { select: { name: true, slug: true } },
       window: { select: { id: true, status: true } },
     },
-    orderBy: { createdAt: "desc" },
-    take: 60,
+    orderBy: [{ windowId: "desc" }, { createdAt: "desc" }],
+    take: 300,
   });
   return rows.map((r) => {
     const bounds = nightBetBoundsForDay(r.windowId);
     return {
       id: r.id,
       windowId: r.windowId,
-      label: bounds ? formatNightBetLabel(bounds) : `Тренировка ${r.windowId}`,
+      label: bounds ? formatNightBetDayLabel(bounds) : r.windowId,
       pickName: r.pickFaction.name,
       pickColor: factionUiColor(r.pickFaction.name, r.pickFaction.slug),
       amount: r.amount,

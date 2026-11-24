@@ -24584,19 +24584,25 @@ body:has(.faction-page) .site-footer {
 }
 .faction-night-bets-top {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px 16px;
-  align-items: center;
+  flex-wrap: nowrap;
+  gap: 12px 16px;
+  align-items: flex-start;
   justify-content: space-between;
 }
 .faction-night-bets-dates {
   margin: 0;
-  flex: 1 1 220px;
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: 0.98rem;
   font-weight: 800;
   letter-spacing: 0.02em;
   line-height: 1.35;
   color: #d1fae5;
+}
+.faction-night-bets-history-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  align-self: flex-start;
 }
 .faction-night-bets-pot {
   display: flex;
@@ -24791,19 +24797,38 @@ body:has(.faction-page) .site-footer {
   flex-direction: column;
   gap: 4px;
 }
-.faction-night-bets-history {
-  min-width: min(420px, 92vw);
+.xfer-modal.faction-night-bets-history-modal {
+  width: min(520px, 94vw);
   max-width: 520px;
-  padding: 4px 2px;
+  max-height: min(82vh, 720px);
 }
-.faction-night-bets-history ul {
+.faction-night-bets-history {
+  padding: 8px 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: min(64vh, 560px);
+  overflow: auto;
+}
+.faction-night-bets-history-day h3 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  color: #a7f3d0;
+}
+.faction-night-bets-history-day ul {
   margin: 0;
   padding-left: 1.1rem;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  max-height: 60vh;
-  overflow: auto;
+  gap: 5px;
+}
+.faction-night-bets-history-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(52, 211, 153, 0.25);
 }
 @media (max-width: 640px) {
   .faction-night-bets-card-metrics {
