@@ -135,22 +135,11 @@ async function listBettorFactions(): Promise<FactionLite[]> {
   return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, "ru"));
 }
 
-function matchOverlapsWindow(
-  startedAt: Date | null,
-  endedAt: Date | null,
-  start: Date,
-  end: Date
-): boolean {
-  const a = (startedAt || endedAt)?.getTime();
-  const b = (endedAt || startedAt)?.getTime();
-  if (a == null || b == null || !Number.isFinite(a) || !Number.isFinite(b)) {
-    return false;
-  }
-  const endPad = end.getTime() + 15 * 60_000;
-  return a < endPad && b >= start.getTime();
-}
-
-/** Сумма гринда за ночь (CanonMatch в окне 21:00–01:00). */
+/**
+ * Сумма гринда за ночь (21:00–01:00 МСК).
+ * Считаем по factionLedgerEntry.createdAt — у TRAIN в CanonMatch
+ * startedAt/endedAt часто null, а кредиты пишутся в момент оцифровки карты.
+ */
 export async function nightGrindSums(
   factionIds: string[],
   bounds: NightBetWindowBounds
@@ -158,50 +147,13 @@ export async function nightGrindSums(
   const out = new Map<string, number>(factionIds.map((id) => [id, 0]));
   if (!factionIds.length) return out;
 
-  const matches = await prisma.canonMatch.findMany({
-    where: {
-      kind: "TRAIN",
-      OR: [
-        {
-          startedAt: {
-            gte: new Date(bounds.grindStart.getTime() - 60 * 60_000),
-            lt: new Date(bounds.grindEnd.getTime() + 2 * 60 * 60_000),
-          },
-        },
-        {
-          endedAt: {
-            gte: new Date(bounds.grindStart.getTime() - 60 * 60_000),
-            lt: new Date(bounds.grindEnd.getTime() + 2 * 60 * 60_000),
-          },
-        },
-      ],
-    },
-    select: { id: true, startedAt: true, endedAt: true },
-  });
-
-  const matchIds = matches
-    .filter((m) => {
-      const t = m.startedAt || m.endedAt;
-      if (!t) return false;
-      if (trainingDayYmd(t) !== bounds.id) return false;
-      return matchOverlapsWindow(
-        m.startedAt,
-        m.endedAt,
-        bounds.grindStart,
-        bounds.grindEnd
-      );
-    })
-    .map((m) => m.id);
-
-  if (!matchIds.length) return out;
-
   const agg = await prisma.factionLedgerEntry.groupBy({
     by: ["factionId"],
     where: {
       factionId: { in: factionIds },
       kind: "grind",
       amount: { gt: 0 },
-      matchId: { in: matchIds },
+      createdAt: { gte: bounds.grindStart, lt: bounds.grindEnd },
     },
     _sum: { amount: true },
   });
