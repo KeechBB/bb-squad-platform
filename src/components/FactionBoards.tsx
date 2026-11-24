@@ -1144,13 +1144,15 @@ export function FactionNightBetsBoard({
   }
 
   const maxGrind = data?.grind.reduce((m, r) => Math.max(m, r.amount), 0) || 0;
+  const selected = data?.grind.find((g) => g.factionId === pickId) || null;
+  const myPick = data?.myBet
+    ? data.grind.find((g) => g.factionId === data.myBet!.pickFactionId) || null
+    : null;
 
   return (
     <div className="faction-night-bets">
       <div className="faction-night-bets-top">
-        <p className="faction-night-bets-dates">
-          {data?.label || "Тренировка"}
-        </p>
+        <p className="faction-night-bets-dates">{data?.label || "Тренировка"}</p>
         <button type="button" className="btn" onClick={() => void openHistory()}>
           История побед
         </button>
@@ -1161,12 +1163,23 @@ export function FactionNightBetsBoard({
       {data ? (
         <>
           <div className="faction-night-bets-pot">
-            <span>
-              Банк: <strong>{fmtBd(data.pot)}</strong> B$
-            </span>
-            <span>
-              Казна фракции: <strong>{fmtBd(data.myTreasury)}</strong> B$
-            </span>
+            <div className="faction-night-bets-stat">
+              <span className="faction-night-bets-stat-label">Банк</span>
+              <strong>{fmtBd(data.pot)} B$</strong>
+            </div>
+            <div className="faction-night-bets-stat">
+              <span className="faction-night-bets-stat-label">Казна фракции</span>
+              <strong>{fmtBd(data.myTreasury)} B$</strong>
+            </div>
+            {myPick && data.myBet ? (
+              <div className="faction-night-bets-stat faction-night-bets-stat--mine">
+                <span className="faction-night-bets-stat-label">Ваша ставка</span>
+                <strong style={{ color: myPick.color }}>
+                  {myPick.name} · {fmtBd(data.myBet.amount)} B$ ·{" "}
+                  {fmtOdds(data.myBet.odds)}
+                </strong>
+              </div>
+            ) : null}
           </div>
 
           {data.status === "settled" &&
@@ -1197,139 +1210,97 @@ export function FactionNightBetsBoard({
             </div>
           ) : null}
 
-          <div className="faction-race-table" role="table" aria-label="Гринд и кэфы">
-            <div
-              className="faction-race-row faction-race-row--head faction-night-bets-row"
-              role="row"
-            >
-              <div className="faction-race-cell faction-race-name" role="columnheader">
-                Фракция
-              </div>
-              <div className="faction-night-bets-odds-col" role="columnheader">
-                Ставки / кэф
-              </div>
-              <div
-                className="faction-race-cell faction-race-bar-cell"
-                role="columnheader"
-              >
-                Гринд
-              </div>
-            </div>
+          <div className="faction-night-bets-cards" role="list">
             {data.grind.map((row) => {
-              const fill =
-                maxGrind > 0
-                  ? Math.max(0, Math.min(100, (row.amount / maxGrind) * 100))
-                  : 0;
-              const lead = maxGrind > 0 && row.amount === maxGrind;
+              const lead = maxGrind > 0 && row.amount === maxGrind && row.amount > 0;
+              const isSel = pickId === row.factionId;
+              const isMine = data.myBet?.pickFactionId === row.factionId;
               return (
-                <div
+                <button
                   key={row.factionId}
-                  className={`faction-race-row faction-night-bets-row${lead ? " is-done" : ""}`}
-                  role="row"
+                  type="button"
+                  role="listitem"
+                  className={`faction-night-bets-card${isSel ? " is-selected" : ""}${
+                    isMine ? " is-mine" : ""
+                  }${lead ? " is-lead" : ""}`}
+                  style={{ ["--nb-color" as string]: row.color }}
+                  disabled={!data.canBet}
+                  onClick={() => {
+                    if (!data.canBet) return;
+                    setPickId(row.factionId);
+                  }}
                 >
-                  <div className="faction-race-cell faction-race-name" role="cell">
-                    <Link
-                      href={`/factions/${encodeURIComponent(row.slug)}`}
-                      className="faction-race-name-link"
+                  <div className="faction-night-bets-card-name">
+                    <span
                       style={{
                         color: row.color,
                         fontFamily: `"${row.font}", Oxanium, sans-serif`,
                       }}
                     >
                       {row.name}
-                    </Link>
-                    {lead && row.amount > 0 ? (
-                      <span className="faction-race-badge">лидер</span>
-                    ) : null}
-                  </div>
-                  <div className="faction-night-bets-odds-col" role="cell">
-                    <span className="faction-night-bets-stake">
-                      {fmtBd(row.stakeOn)} B$
                     </span>
-                    <span className="faction-night-bets-odds">{fmtOdds(row.odds)}</span>
+                    {lead ? <em>лидер</em> : null}
+                    {isMine ? <em className="is-mine-tag">ваша</em> : null}
                   </div>
-                  <div className="faction-race-cell faction-race-bar-cell" role="cell">
-                    <div
-                      className="faction-race-bar"
-                      style={{ ["--race-color" as string]: row.color }}
-                    >
-                      <div
-                        className="faction-race-bar-fill"
-                        style={{ width: `${fill}%` }}
-                      />
-                      <span className="faction-race-bar-label">
-                        {fmtBd(row.amount)} B$
-                      </span>
+                  <div className="faction-night-bets-card-metrics">
+                    <div>
+                      <span className="faction-night-bets-stat-label">Гринд</span>
+                      <strong>{fmtBd(row.amount)} B$</strong>
+                    </div>
+                    <div>
+                      <span className="faction-night-bets-stat-label">В пуле</span>
+                      <strong>{fmtBd(row.stakeOn)} B$</strong>
+                    </div>
+                    <div>
+                      <span className="faction-night-bets-stat-label">Кэф</span>
+                      <strong className="faction-night-bets-odds">
+                        {fmtOdds(row.odds)}
+                      </strong>
                     </div>
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
 
           {data.canBet ? (
-            <div className="faction-night-bets-form">
-              <label className="faction-night-bets-field">
-                <span>На кого</span>
-                <select
-                  value={pickId}
-                  onChange={(e) => setPickId(e.target.value)}
-                  disabled={busy}
-                >
-                  <option value="">— фракция —</option>
-                  {data.grind.map((r) => (
-                    <option key={r.factionId} value={r.factionId}>
-                      {r.name}
-                      {r.odds != null ? ` · ${fmtOdds(r.odds)}` : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="faction-night-bets-field">
-                <span>Сумма B$</span>
+            <div className="faction-night-bets-place">
+              <div className="faction-night-bets-place-pick">
+                {selected ? (
+                  <>
+                    Ставка на{" "}
+                    <strong style={{ color: selected.color }}>{selected.name}</strong>
+                    {selected.odds != null ? ` · ${fmtOdds(selected.odds)}` : ""}
+                  </>
+                ) : (
+                  <>Выбери фракцию сверху</>
+                )}
+              </div>
+              <div className="faction-night-bets-place-row">
                 <input
                   type="text"
                   inputMode="numeric"
-                  placeholder={`от ${fmtBd(data.minBet)}`}
+                  className="faction-night-bets-amount"
+                  placeholder={`Сумма от ${fmtBd(data.minBet)}`}
                   value={amountStr}
                   onChange={(e) => setAmountStr(e.target.value)}
-                  disabled={busy}
+                  disabled={busy || !selected}
                 />
-              </label>
-              <button
-                type="button"
-                className="btn"
-                disabled={busy || !pickId}
-                onClick={() => void submitBet()}
-              >
-                {data.myBet ? "Заменить ставку" : "Поставить"}
-              </button>
+                <button
+                  type="button"
+                  className="btn faction-night-bets-place-btn"
+                  disabled={busy || !selected}
+                  onClick={() => void submitBet()}
+                >
+                  {data.myBet ? "Заменить ставку" : "Поставить"}
+                </button>
+              </div>
             </div>
-          ) : null}
-
-          {data.myBet ? (
-            <p className="faction-night-bets-mine">
-              Ставка:{" "}
-              <strong
-                style={{
-                  color: data.grind.find(
-                    (g) => g.factionId === data.myBet!.pickFactionId
-                  )?.color,
-                }}
-              >
-                {data.grind.find((g) => g.factionId === data.myBet!.pickFactionId)
-                  ?.name || "—"}
-              </strong>{" "}
-              · {fmtBd(data.myBet.amount)} B$ · {fmtOdds(data.myBet.odds)}
-              {data.myBet.payout > 0
-                ? ` · +${fmtBd(data.myBet.payout)} B$`
-                : ` · ${betStatusRu(data.myBet.status)}`}
-            </p>
           ) : null}
 
           {data.bets.length > 0 ? (
             <div className="faction-night-bets-list">
-              <p className="faction-night-bets-list-title">Ставки</p>
+              <p className="faction-night-bets-list-title">Кто поставил</p>
               <ul>
                 {data.bets.map((b) => (
                   <li key={b.id}>

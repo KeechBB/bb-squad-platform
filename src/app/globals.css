@@ -24599,66 +24599,158 @@ body:has(.faction-page) .site-footer {
 .faction-night-bets-pot {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px 24px;
-  align-items: baseline;
-  font-size: 0.98rem;
-  color: #ecfdf5;
+  gap: 10px 14px;
+  align-items: stretch;
 }
-.faction-night-bets-pot strong {
-  color: #6ee7b7;
-  font-variant-numeric: tabular-nums;
-}
-.faction-night-bets-history {
-  min-width: min(420px, 92vw);
-  max-width: 520px;
-  padding: 4px 2px;
-}
-.faction-night-bets-history h3 {
-  margin: 0 0 10px;
-  font-size: 1.1rem;
-}
-.faction-night-bets-history ul {
-  margin: 0;
-  padding-left: 1.1rem;
+.faction-night-bets-stat {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  max-height: 60vh;
-  overflow: auto;
+  gap: 2px;
+  min-width: 140px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(52, 211, 153, 0.28);
+  background: rgba(6, 78, 59, 0.28);
+  color: #ecfdf5;
 }
-.faction-night-bets-form {
+.faction-night-bets-stat--mine {
+  border-color: rgba(251, 191, 36, 0.45);
+  background: rgba(120, 53, 15, 0.28);
+}
+.faction-night-bets-stat-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #a7f3d0;
+}
+.faction-night-bets-stat strong {
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+.faction-night-bets-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.faction-night-bets-card {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px 14px;
-  align-items: flex-end;
-  padding: 10px 12px;
-  border: 1px solid rgba(52, 211, 153, 0.28);
-  border-radius: 10px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(8, 12, 22, 0.55);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.faction-night-bets-card:disabled {
+  cursor: default;
+  opacity: 1;
+}
+.faction-night-bets-card:not(:disabled):hover {
+  border-color: color-mix(in srgb, var(--nb-color, #34d399) 55%, transparent);
+  background: rgba(8, 12, 22, 0.75);
+}
+.faction-night-bets-card.is-selected {
+  border-color: var(--nb-color, #34d399);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--nb-color, #34d399) 55%, transparent);
   background: rgba(6, 78, 59, 0.22);
 }
-.faction-night-bets-field {
+.faction-night-bets-card.is-mine {
+  border-color: rgba(251, 191, 36, 0.55);
+}
+.faction-night-bets-card.is-lead {
+  background: rgba(6, 78, 59, 0.18);
+}
+.faction-night-bets-card-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 120px;
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+.faction-night-bets-card-name em {
+  font-style: normal;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(52, 211, 153, 0.2);
+  color: #a7f3d0;
+}
+.faction-night-bets-card-name em.is-mine-tag {
+  background: rgba(251, 191, 36, 0.22);
+  color: #fde68a;
+}
+.faction-night-bets-card-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(88px, 1fr));
+  gap: 8px 14px;
+  flex: 1 1 280px;
+}
+.faction-night-bets-card-metrics > div {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-width: 140px;
+  gap: 2px;
 }
-.faction-night-bets-field span {
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: rgba(209, 250, 229, 0.72);
+.faction-night-bets-card-metrics strong {
+  font-size: 1.02rem;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
 }
-.faction-night-bets-field select,
-.faction-night-bets-field input {
-  min-height: 36px;
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(52, 211, 153, 0.35);
-  background: rgba(2, 20, 16, 0.65);
+.faction-night-bets-odds {
+  color: #6ee7b7 !important;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.faction-night-bets-place {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  background: rgba(6, 78, 59, 0.32);
+}
+.faction-night-bets-place-pick {
+  font-size: 1rem;
+  font-weight: 700;
   color: #ecfdf5;
-  font: inherit;
 }
-.faction-night-bets-mine,
+.faction-night-bets-place-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.faction-night-bets-amount {
+  flex: 1 1 160px;
+  min-height: 42px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  background: rgba(2, 20, 16, 0.75);
+  color: #fff;
+  font: inherit;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+.faction-night-bets-place-btn {
+  min-height: 42px;
+  min-width: 160px;
+  font-weight: 800;
+}
 .faction-night-bets-winners {
   margin: 0;
   font-size: 0.95rem;
@@ -24681,25 +24773,6 @@ body:has(.faction-page) .site-footer {
 .faction-night-bets-list li {
   line-height: 1.35;
 }
-.faction-night-bets-row {
-  grid-template-columns: minmax(110px, 0.9fr) minmax(100px, 0.7fr) minmax(180px, 2.2fr);
-}
-.faction-night-bets-odds-col {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  justify-content: center;
-  font-variant-numeric: tabular-nums;
-  font-size: 0.88rem;
-}
-.faction-night-bets-stake {
-  color: rgba(209, 250, 229, 0.85);
-}
-.faction-night-bets-odds {
-  color: #6ee7b7;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-}
 .faction-night-bets-result {
   padding: 10px 12px;
   border-radius: 10px;
@@ -24716,14 +24789,24 @@ body:has(.faction-page) .site-footer {
   flex-direction: column;
   gap: 4px;
 }
-.faction-night-bets-hint {
-  flex: 1 1 100%;
-  margin: 0;
-  font-size: 0.85rem;
+.faction-night-bets-history {
+  min-width: min(420px, 92vw);
+  max-width: 520px;
+  padding: 4px 2px;
 }
-@media (max-width: 720px) {
-  .faction-night-bets-row {
-    grid-template-columns: 1fr;
+.faction-night-bets-history ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 60vh;
+  overflow: auto;
+}
+@media (max-width: 640px) {
+  .faction-night-bets-card-metrics {
+    grid-template-columns: repeat(3, 1fr);
+    width: 100%;
   }
 }
 
