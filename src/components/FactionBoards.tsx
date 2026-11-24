@@ -1047,6 +1047,15 @@ export function FactionNightBetsBoard({
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyPage, setHistoryPage] = useState(0);
   const HISTORY_DAYS_PER_PAGE = 5;
+  const [grindDetailOpen, setGrindDetailOpen] = useState(false);
+  const [grindDetailLoading, setGrindDetailLoading] = useState(false);
+  const [grindDetail, setGrindDetail] = useState<{
+    factionId: string;
+    factionName: string;
+    color: string;
+    total: number;
+    players: { userId: string | null; nick: string; amount: number }[];
+  } | null>(null);
 
   const reload = async (signal?: AbortSignal) => {
     setLoading(true);
@@ -1121,6 +1130,44 @@ export function FactionNightBetsBoard({
       setError("Сеть недоступна");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function openGrindPlayers(factionId: string) {
+    if (data?.canBet) setPickId(factionId);
+    setGrindDetailOpen(true);
+    setGrindDetailLoading(true);
+    setGrindDetail(null);
+    try {
+      const res = await fetch(
+        `/api/factions/${encodeURIComponent(slug)}/night-bets?grindPlayers=${encodeURIComponent(factionId)}`,
+        { cache: "no-store" }
+      );
+      const json = (await res.json().catch(() => ({}))) as {
+        factionId?: string;
+        factionName?: string;
+        color?: string;
+        total?: number;
+        players?: { userId: string | null; nick: string; amount: number }[];
+        error?: string;
+      };
+      if (!res.ok) {
+        setError(json.error || "Не удалось загрузить гринд");
+        setGrindDetailOpen(false);
+        return;
+      }
+      setGrindDetail({
+        factionId: String(json.factionId || factionId),
+        factionName: String(json.factionName || ""),
+        color: String(json.color || "#94a3b8"),
+        total: Math.max(0, Number(json.total) || 0),
+        players: Array.isArray(json.players) ? json.players : [],
+      });
+    } catch {
+      setError("Сеть недоступна");
+      setGrindDetailOpen(false);
+    } finally {
+      setGrindDetailLoading(false);
     }
   }
 
@@ -1323,10 +1370,8 @@ export function FactionNightBetsBoard({
                     isMine ? " is-mine" : ""
                   }${liveLead ? " is-lead" : ""}${isWinner ? " is-winner" : ""}`}
                   style={{ ["--nb-color" as string]: row.color }}
-                  disabled={!data.canBet}
                   onClick={() => {
-                    if (!data.canBet) return;
-                    setPickId(row.factionId);
+                    void openGrindPlayers(row.factionId);
                   }}
                 >
                   <span className="faction-night-bets-rank" aria-label={`Место ${place}`}>
@@ -1405,6 +1450,59 @@ export function FactionNightBetsBoard({
 
         </>
       ) : null}
+
+      <DraggableModal
+        open={grindDetailOpen}
+        closeOnBackdrop
+        onClose={() => setGrindDetailOpen(false)}
+        panelClassName="faction-night-bets-grind-modal"
+      >
+        <header className="profile-match-modal-head" data-drag-handle>
+          <div>
+            <h2 className="profile-mail-modal-title">
+              {grindDetail ? (
+                <>
+                  <span style={{ color: grindDetail.color }}>
+                    {grindDetail.factionName}
+                  </span>
+                  {" · гринд за тренировку"}
+                </>
+              ) : (
+                "Гринд за тренировку"
+              )}
+            </h2>
+            {grindDetail ? (
+              <p className="faction-night-bets-grind-total">
+                Всего {fmtBd(grindDetail.total)} B$
+              </p>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            className="profile-mail-close"
+            onClick={() => setGrindDetailOpen(false)}
+          >
+            ×
+          </button>
+        </header>
+        <div className="faction-night-bets-grind-body">
+          {grindDetailLoading ? <p>Загрузка…</p> : null}
+          {!grindDetailLoading && grindDetail && grindDetail.players.length === 0 ? (
+            <p>Пока никто не нафармил.</p>
+          ) : null}
+          {!grindDetailLoading && grindDetail && grindDetail.players.length > 0 ? (
+            <ol className="faction-night-bets-grind-list">
+              {grindDetail.players.map((p, i) => (
+                <li key={p.userId || `x-${p.nick}-${i}`}>
+                  <span className="faction-night-bets-grind-place">{i + 1}</span>
+                  <span className="faction-night-bets-grind-nick">{p.nick}</span>
+                  <strong>{fmtBd(p.amount)} B$</strong>
+                </li>
+              ))}
+            </ol>
+          ) : null}
+        </div>
+      </DraggableModal>
 
       <DraggableModal
         open={historyOpen}

@@ -163,6 +163,110 @@ export async function nightGrindSums(
   return out;
 }
 
+export type NightGrindPlayerRow = {
+  userId: string | null;
+  nick: string;
+  amount: number;
+};
+
+/** Ник из note вида «TR tr1 · Harju RAAS v2 · Durik» / «… · ZoZo · SL». */
+function nickFromGrindNote(note: string | null | undefined): string | null {
+  const raw = String(note || "").trim();
+  if (!raw) return null;
+  const parts = raw.split("·").map((p) => p.trim()).filter(Boolean);
+  if (parts.length < 2) return null;
+  const roleTok = /^(SL|LAT|HAT|AR|MED|ENG|CREW|PILOT|CMD|RL)$/i;
+  let seg = parts[parts.length - 1]!;
+  if (roleTok.test(seg.split(/\s+/)[0] || "") && parts.length >= 3) {
+    seg = parts[parts.length - 2]!;
+  }
+  const nick = seg.split(/\s+/)[0]?.trim();
+  return nick || null;
+}
+
+/** Кто сколько нафармил в казну фракции за окно гринда. */
+export async function nightGrindPlayers(
+  factionId: string,
+  bounds?: NightBetWindowBounds
+): Promise<{
+  factionId: string;
+  factionName: string;
+  color: string;
+  total: number;
+  players: NightGrindPlayerRow[];
+} | null> {
+  const id = String(factionId || "").trim();
+  if (!id) return null;
+  const factions = await listGrindFactions();
+  const faction = factions.find((f) => f.id === id);
+  if (!faction) return null;
+  const win = bounds || nightBetWindowAt();
+
+  const entries = await prisma.factionLedgerEntry.findMany({
+    where: {
+      factionId: id,
+      kind: "grind",
+      amount: { gt: 0 },
+      createdAt: { gte: win.grindStart, lt: win.grindEnd },
+    },
+    select: { userId: true, amount: true, note: true },
+  });
+
+  const byUser = new Map<string, { amount: number; noteNick: string | null }>();
+  let orphan = 0;
+  for (const e of entries) {
+    const amt = Math.max(0, e.amount || 0);
+    if (!amt) continue;
+    if (!e.userId) {
+      orphan += amt;
+      continue;
+    }
+    const prev = byUser.get(e.userId) || {
+      amount: 0,
+      noteNick: null as string | null,
+    };
+    prev.amount += amt;
+    if (!prev.noteNick) prev.noteNick = nickFromGrindNote(e.note);
+    byUser.set(e.userId, prev);
+  }
+
+  const userIds = [...byUser.keys()];
+  const users = userIds.length
+    ? await prisma.user.findMany({
+        where: { id: { in: userIds } },
+        select: { id: true, nick: true, steamName: true, name: true },
+      })
+    : [];
+  const userBy = new Map(users.map((u) => [u.id, u]));
+
+  const players: NightGrindPlayerRow[] = [];
+  for (const [uid, row] of byUser) {
+    const u = userBy.get(uid);
+    const nick =
+      (u?.nick && String(u.nick).trim()) ||
+      (u?.steamName && String(u.steamName).trim()) ||
+      (u?.name && String(u.name).trim()) ||
+      row.noteNick ||
+      "Игрок";
+    players.push({ userId: uid, nick, amount: row.amount });
+  }
+  if (orphan > 0) {
+    players.push({ userId: null, nick: "Без привязки", amount: orphan });
+  }
+  players.sort(
+    (a, b) => b.amount - a.amount || a.nick.localeCompare(b.nick, "ru")
+  );
+  const total = players.reduce((s, p) => s + p.amount, 0);
+  const info = parseFactionInfo(faction.info);
+  return {
+    factionId: faction.id,
+    factionName: faction.name,
+    color: factionUiColor(faction.name, faction.slug, info.color),
+    total,
+    players,
+  };
+}
+
 async function ensureWindow(bounds: NightBetWindowBounds) {
   return prisma.factionNightBetWindow.upsert({
     where: { id: bounds.id },

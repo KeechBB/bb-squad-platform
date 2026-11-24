@@ -5,6 +5,7 @@ import { loadFactionView } from "@/lib/factions";
 import {
   nightBetBoard,
   nightBetHistory,
+  nightGrindPlayers,
   placeNightBet,
 } from "@/lib/factionNightBets";
 import { prisma } from "@/lib/prisma";
@@ -48,6 +49,15 @@ export async function GET(req: Request, ctx: Ctx) {
         : { fromFactionId: view.id }
     );
     return NextResponse.json({ rows });
+  }
+
+  const grindFactionId = String(url.searchParams.get("grindPlayers") || "").trim();
+  if (grindFactionId) {
+    const detail = await nightGrindPlayers(grindFactionId);
+    if (!detail) {
+      return NextResponse.json({ error: "Фракция не найдена" }, { status: 404 });
+    }
+    return NextResponse.json(detail);
   }
 
   const canPlace = isOfficerSeat(view.mySeat) || keech;
