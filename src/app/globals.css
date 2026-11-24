@@ -24591,9 +24591,11 @@ body:has(.faction-page) .site-footer {
 }
 .faction-night-bets-dates {
   margin: 0;
-  font-size: 1.05rem;
+  flex: 1 1 220px;
+  font-size: 0.98rem;
   font-weight: 800;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
+  line-height: 1.35;
   color: #d1fae5;
 }
 .faction-night-bets-pot {
