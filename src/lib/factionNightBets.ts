@@ -708,13 +708,18 @@ export async function nightBetHistory(opts: {
   });
 }
 
+/**
+ * Поставить / додеп / сменить исход до 21:30.
+ * Тот же pick + уже есть ставка → додеп (прибавить сумму).
+ * Другой pick → сменить (возврат старой + новая).
+ */
 export async function placeNightBet(opts: {
   actorUserId: string;
   actorSteamId: string | null;
   fromFactionId: string;
   pickFactionId: string;
   amount: number;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
+}): Promise<{ ok: true; mode: "place" | "topup" | "replace" } | { ok: false; error: string }> {
   const amount = Math.trunc(Number(opts.amount) || 0);
   if (amount < NIGHT_BET_MIN) return { ok: false, error: "min_bet" };
 
@@ -769,6 +774,7 @@ export async function placeNightBet(opts: {
           windowId: bounds.id,
           isPersonal: true,
           placedByUserId: opts.actorUserId,
+          status: "pending",
         },
       })
     : await prisma.factionNightBet.findFirst({
@@ -776,8 +782,15 @@ export async function placeNightBet(opts: {
           windowId: bounds.id,
           fromFactionId: opts.fromFactionId,
           isPersonal: false,
+          status: "pending",
         },
       });
+
+  const mode: "place" | "topup" | "replace" = !existing
+    ? "place"
+    : existing.pickFactionId === opts.pickFactionId
+      ? "topup"
+      : "replace";
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -787,90 +800,115 @@ export async function placeNightBet(opts: {
           select: { blueberryBalance: true },
         });
         if (!u) throw new Error("user");
-        let bal = Math.max(0, u.blueberryBalance || 0);
+        const bal = Math.max(0, u.blueberryBalance || 0);
+        if (bal < amount) throw new Error("insufficient");
 
-        if (existing && existing.status === "pending") {
-          bal += existing.amount;
+        if (mode === "topup" && existing) {
+          await tx.factionNightBet.update({
+            where: { id: existing.id },
+            data: { amount: existing.amount + amount },
+          });
           await tx.user.update({
             where: { id: opts.actorUserId },
-            data: { blueberryBalance: bal },
+            data: { blueberryBalance: bal - amount },
           });
-          await tx.factionNightBet.delete({ where: { id: existing.id } });
+        } else {
+          if (existing) {
+            await tx.user.update({
+              where: { id: opts.actorUserId },
+              data: { blueberryBalance: bal + existing.amount },
+            });
+            await tx.factionNightBet.delete({ where: { id: existing.id } });
+          }
+          const bal2 = existing ? bal + existing.amount : bal;
+          if (bal2 < amount) throw new Error("insufficient");
+          await tx.factionNightBet.create({
+            data: {
+              windowId: bounds.id,
+              fromFactionId: null,
+              pickFactionId: opts.pickFactionId,
+              amount,
+              placedByUserId: opts.actorUserId,
+              isPersonal: true,
+              status: "pending",
+            },
+          });
+          await tx.user.update({
+            where: { id: opts.actorUserId },
+            data: { blueberryBalance: bal2 - amount },
+          });
         }
-
-        if (bal < amount) throw new Error("insufficient");
-        const next = bal - amount;
-
-        const bet = await tx.factionNightBet.create({
-          data: {
-            windowId: bounds.id,
-            fromFactionId: null,
-            pickFactionId: opts.pickFactionId,
-            amount,
-            placedByUserId: opts.actorUserId,
-            isPersonal: true,
-            status: "pending",
-          },
-        });
-
-        await tx.user.update({
-          where: { id: opts.actorUserId },
-          data: { blueberryBalance: next },
-        });
-
-        void bet;
       } else {
         const f = await tx.faction.findUnique({
           where: { id: opts.fromFactionId },
           select: { blueberryBalance: true },
         });
         if (!f) throw new Error("faction");
-        let treasury = Math.max(0, f.blueberryBalance || 0);
+        const treasury = Math.max(0, f.blueberryBalance || 0);
+        if (treasury < amount) throw new Error("insufficient");
 
-        if (existing && existing.status === "pending") {
-          treasury += existing.amount;
+        if (mode === "topup" && existing) {
+          await tx.factionNightBet.update({
+            where: { id: existing.id },
+            data: { amount: existing.amount + amount },
+          });
           await tx.factionLedgerEntry.create({
             data: {
               factionId: opts.fromFactionId,
-              amount: existing.amount,
-              kind: "night_bet_refund",
-              sourceKey: `night_bet_replace_refund:${bounds.id}:${existing.id}`,
-              note: `Замена ставки: возврат ${existing.amount.toLocaleString("ru-RU")} ${BD_MARK}`,
+              amount: -amount,
+              kind: "night_bet",
+              sourceKey: `night_bet_topup:${bounds.id}:${existing.id}:${Date.now()}`,
+              note: `Додеп ${amount.toLocaleString("ru-RU")} ${BD_MARK} на «${pick.name}» (ночь ${bounds.id})`,
               userId: opts.actorUserId,
             },
           });
-          await tx.factionNightBet.delete({ where: { id: existing.id } });
+          await tx.faction.update({
+            where: { id: opts.fromFactionId },
+            data: { blueberryBalance: treasury - amount },
+          });
+        } else {
+          let bal = treasury;
+          if (existing) {
+            bal += existing.amount;
+            await tx.factionLedgerEntry.create({
+              data: {
+                factionId: opts.fromFactionId,
+                amount: existing.amount,
+                kind: "night_bet_refund",
+                sourceKey: `night_bet_replace_refund:${bounds.id}:${existing.id}`,
+                note: `Смена ставки: возврат ${existing.amount.toLocaleString("ru-RU")} ${BD_MARK}`,
+                userId: opts.actorUserId,
+              },
+            });
+            await tx.factionNightBet.delete({ where: { id: existing.id } });
+          }
+          if (bal < amount) throw new Error("insufficient");
+          const bet = await tx.factionNightBet.create({
+            data: {
+              windowId: bounds.id,
+              fromFactionId: opts.fromFactionId,
+              pickFactionId: opts.pickFactionId,
+              amount,
+              placedByUserId: opts.actorUserId,
+              isPersonal: false,
+              status: "pending",
+            },
+          });
+          await tx.factionLedgerEntry.create({
+            data: {
+              factionId: opts.fromFactionId,
+              amount: -amount,
+              kind: "night_bet",
+              sourceKey: `night_bet:${bounds.id}:${bet.id}`,
+              note: `Ставка ${amount.toLocaleString("ru-RU")} ${BD_MARK} на «${pick.name}» (ночь ${bounds.id})`,
+              userId: opts.actorUserId,
+            },
+          });
+          await tx.faction.update({
+            where: { id: opts.fromFactionId },
+            data: { blueberryBalance: bal - amount },
+          });
         }
-
-        if (treasury < amount) throw new Error("insufficient");
-        const next = treasury - amount;
-
-        const bet = await tx.factionNightBet.create({
-          data: {
-            windowId: bounds.id,
-            fromFactionId: opts.fromFactionId,
-            pickFactionId: opts.pickFactionId,
-            amount,
-            placedByUserId: opts.actorUserId,
-            isPersonal: false,
-            status: "pending",
-          },
-        });
-
-        await tx.factionLedgerEntry.create({
-          data: {
-            factionId: opts.fromFactionId,
-            amount: -amount,
-            kind: "night_bet",
-            sourceKey: `night_bet:${bounds.id}:${bet.id}`,
-            note: `Ставка ${amount.toLocaleString("ru-RU")} ${BD_MARK} на «${pick.name}» (ночь ${bounds.id})`,
-            userId: opts.actorUserId,
-          },
-        });
-        await tx.faction.update({
-          where: { id: opts.fromFactionId },
-          data: { blueberryBalance: next },
-        });
       }
 
       const all = await tx.factionNightBet.findMany({
@@ -889,5 +927,5 @@ export async function placeNightBet(opts: {
     return { ok: false, error: "debit" };
   }
 
-  return { ok: true };
+  return { ok: true, mode };
 }

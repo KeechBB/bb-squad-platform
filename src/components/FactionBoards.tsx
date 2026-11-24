@@ -1272,9 +1272,16 @@ export function FactionNightBetsBoard({
               <div className="faction-night-bets-place-pick">
                 {selected ? (
                   <>
-                    Ставка на{" "}
+                    {data.myBet && data.myBet.pickFactionId === selected.factionId
+                      ? "Додеп на "
+                      : data.myBet
+                        ? "Сменить на "
+                        : "Ставка на "}
                     <strong style={{ color: selected.color }}>{selected.name}</strong>
                     {selected.odds != null ? ` · ${fmtOdds(selected.odds)}` : ""}
+                    {data.myBet && data.myBet.pickFactionId === selected.factionId
+                      ? ` · уже ${fmtBd(data.myBet.amount)} B$`
+                      : ""}
                   </>
                 ) : (
                   <>Выбери фракцию сверху</>
@@ -1296,7 +1303,11 @@ export function FactionNightBetsBoard({
                   disabled={busy || !selected}
                   onClick={() => void submitBet()}
                 >
-                  {data.myBet ? "Заменить ставку" : "Поставить"}
+                  {!data.myBet
+                    ? "Поставить"
+                    : selected && data.myBet.pickFactionId === selected.factionId
+                      ? "Додеп"
+                      : "Сменить ставку"}
                 </button>
               </div>
             </div>
