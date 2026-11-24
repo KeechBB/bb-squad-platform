@@ -1329,7 +1329,7 @@ export function FactionNightBetsBoard({
                     setPickId(row.factionId);
                   }}
                 >
-                  <span className="faction-night-bets-place" aria-label={`Место ${place}`}>
+                  <span className="faction-night-bets-rank" aria-label={`Место ${place}`}>
                     {place}
                   </span>
                   <div className="faction-night-bets-card-name">
