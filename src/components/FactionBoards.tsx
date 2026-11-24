@@ -970,6 +970,8 @@ type NightBetBoardData = {
   status: "upcoming" | "open" | "locked" | "settled";
   canBet: boolean;
   myTreasury: number;
+  balanceLabel?: string;
+  isPersonalBettor?: boolean;
   pot: number;
   minBet: number;
   grind: NightGrindRow[];
@@ -1168,7 +1170,9 @@ export function FactionNightBetsBoard({
               <strong>{fmtBd(data.pot)} B$</strong>
             </div>
             <div className="faction-night-bets-stat">
-              <span className="faction-night-bets-stat-label">Казна фракции</span>
+              <span className="faction-night-bets-stat-label">
+                {data.balanceLabel || "Казна фракции"}
+              </span>
               <strong>{fmtBd(data.myTreasury)} B$</strong>
             </div>
             {myPick && data.myBet ? (

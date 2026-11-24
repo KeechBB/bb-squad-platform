@@ -8,6 +8,7 @@ import {
   placeNightBet,
 } from "@/lib/factionNightBets";
 import { prisma } from "@/lib/prisma";
+import { isBuiltinSuperAdmin } from "@/lib/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,28 +19,43 @@ function isOfficerSeat(seat: string | null | undefined): boolean {
   return seat === "LEADER" || seat === "DEPUTY";
 }
 
+async function sessionUserId(steamId: string): Promise<string | null> {
+  const user = await prisma.user.findFirst({
+    where: { steamId },
+    select: { id: true },
+  });
+  return user?.id || null;
+}
+
 export async function GET(req: Request, ctx: Ctx) {
   const session = await getServerSession(authOptions);
   const { slug } = await ctx.params;
-  const loaded = await loadFactionView(
-    decodeURIComponent(slug),
-    session?.user?.steamId ?? null
-  );
+  const steamId = session?.user?.steamId ?? null;
+  const loaded = await loadFactionView(decodeURIComponent(slug), steamId);
   if (loaded.error || !loaded.view) {
     return NextResponse.json({ error: "Нет доступа" }, { status: 404 });
   }
 
   const view = loaded.view;
+  const keech = Boolean(steamId && isBuiltinSuperAdmin(steamId));
+  const userId = steamId ? await sessionUserId(steamId) : null;
+
   const url = new URL(req.url);
   if (url.searchParams.get("history") === "1") {
-    const rows = await nightBetHistory(view.id);
+    const rows = await nightBetHistory(
+      keech && userId
+        ? { personalUserId: userId }
+        : { fromFactionId: view.id }
+    );
     return NextResponse.json({ rows });
   }
 
-  const canPlace = isOfficerSeat(view.mySeat);
+  const canPlace = isOfficerSeat(view.mySeat) || keech;
   const board = await nightBetBoard({
     viewerFactionId: view.id,
+    viewerUserId: userId,
     canPlace,
+    isKeech: keech,
   });
   return NextResponse.json(board);
 }
@@ -58,7 +74,8 @@ export async function POST(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Нет доступа" }, { status: 404 });
   }
   const view = loaded.view;
-  if (!isOfficerSeat(view.mySeat)) {
+  const keech = isBuiltinSuperAdmin(session.user.steamId);
+  if (!keech && !isOfficerSeat(view.mySeat)) {
     return NextResponse.json(
       { error: "Ставить может только глава или зам фракции" },
       { status: 403 }
@@ -75,16 +92,13 @@ export async function POST(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Укажи фракцию и сумму" }, { status: 400 });
   }
 
-  const user = await prisma.user.findFirst({
-    where: { steamId: session.user.steamId },
-    select: { id: true },
-  });
-  if (!user) {
+  const userId = await sessionUserId(session.user.steamId);
+  if (!userId) {
     return NextResponse.json({ error: "Нет пользователя" }, { status: 401 });
   }
 
   const result = await placeNightBet({
-    actorUserId: user.id,
+    actorUserId: userId,
     actorSteamId: session.user.steamId,
     fromFactionId: view.id,
     pickFactionId,
@@ -100,7 +114,9 @@ export async function POST(req: Request, ctx: Ctx) {
       window_closed: "Приём ставок закрыт",
       bad_faction: "Эта фракция не может ставить",
       bad_pick: "Нельзя ставить на эту фракцию",
-      insufficient: "В казне не хватает B$",
+      insufficient: keech
+        ? "Не хватает личного B$"
+        : "В казне не хватает B$",
       debit: "Не удалось списать ставку",
     };
     return NextResponse.json(
@@ -111,7 +127,9 @@ export async function POST(req: Request, ctx: Ctx) {
 
   const board = await nightBetBoard({
     viewerFactionId: view.id,
+    viewerUserId: userId,
     canPlace: true,
+    isKeech: keech,
   });
   return NextResponse.json({ ok: true, ...board });
 }

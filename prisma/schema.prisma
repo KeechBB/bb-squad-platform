@@ -710,28 +710,31 @@ model FactionNightBetWindow {
   bets FactionNightBet[]
 }
 
-/// Ставка казны фракции на то, кто наберёт больше всего B$ за тренировку.
+/// Ставка на гринд: из казны фракции или личная ставка Keech (isPersonal).
 model FactionNightBet {
   id             String   @id @default(cuid())
   windowId       String
   window         FactionNightBetWindow @relation(fields: [windowId], references: [id], onDelete: Cascade)
-  fromFactionId  String
-  fromFaction    Faction  @relation("NightBetFrom", fields: [fromFactionId], references: [id], onDelete: Cascade)
+  /// null + isPersonal = личная ставка Keech (личный B$).
+  fromFactionId  String?
+  fromFaction    Faction? @relation("NightBetFrom", fields: [fromFactionId], references: [id], onDelete: Cascade)
   pickFactionId  String
   pickFaction    Faction  @relation("NightBetPick", fields: [pickFactionId], references: [id], onDelete: Cascade)
   amount         Int
   placedByUserId String
   placedBy       User     @relation(fields: [placedByUserId], references: [id], onDelete: Cascade)
+  /// Личная ставка Keech (не из казны фракции).
+  isPersonal     Boolean  @default(false)
   /// pending | won | lost | refunded
   status         String   @default("pending")
   payout         Int      @default(0)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  @@unique([windowId, fromFactionId])
   @@index([windowId])
   @@index([pickFactionId])
   @@index([fromFactionId])
+  @@index([placedByUserId, windowId])
 }
 
 /// Движения казны фракции (гринд / сделки / правка Keech).
