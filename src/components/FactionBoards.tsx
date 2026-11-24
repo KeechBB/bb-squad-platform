@@ -945,6 +945,8 @@ type NightGrindRow = {
   color: string;
   font: string;
   amount: number;
+  stakeOn: number;
+  odds: number | null;
 };
 
 type NightBetRow = {
@@ -956,6 +958,7 @@ type NightBetRow = {
   pickName: string;
   pickColor: string;
   amount: number;
+  odds: number | null;
   status: string;
   payout: number;
   placedByNick: string;
@@ -964,7 +967,7 @@ type NightBetRow = {
 type NightBetBoardData = {
   label: string;
   windowId: string;
-  status: "upcoming" | "live" | "settled";
+  status: "upcoming" | "open" | "locked" | "settled";
   canBet: boolean;
   myTreasury: number;
   pot: number;
@@ -974,16 +977,30 @@ type NightBetBoardData = {
   myBet: {
     pickFactionId: string;
     amount: number;
+    odds: number | null;
     status: string;
     payout: number;
   } | null;
-  winners: { factionId: string; name: string; color: string }[];
+  winners: {
+    factionId: string;
+    name: string;
+    color: string;
+    grindAmount: number;
+  }[];
+  payouts: {
+    fromFactionId: string;
+    fromName: string;
+    fromColor: string;
+    amount: number;
+    payout: number;
+  }[];
 };
 
 function nightStatusRu(status: NightBetBoardData["status"]): string {
-  if (status === "live") return "идёт тренировка";
-  if (status === "upcoming") return "ставки открыты · до 21:00";
-  return "окно закрыто";
+  if (status === "open") return "приём ставок до 21:30";
+  if (status === "locked") return "ставки закрыты · идёт тренировка";
+  if (status === "upcoming") return "ставки откроются в 12:00";
+  return "итоги · следующее окно с 12:00";
 }
 
 function betStatusRu(s: string): string {
@@ -991,6 +1008,11 @@ function betStatusRu(s: string): string {
   if (s === "lost") return "проигрыш";
   if (s === "refunded") return "возврат";
   return "в игре";
+}
+
+function fmtOdds(o: number | null | undefined): string {
+  if (o == null || !Number.isFinite(o)) return "—";
+  return `×${o.toFixed(2).replace(".", ",")}`;
 }
 
 export function FactionNightBetsBoard({
@@ -1101,44 +1123,77 @@ export function FactionNightBetsBoard({
   }
 
   const maxGrind = data?.grind.reduce((m, r) => Math.max(m, r.amount), 0) || 0;
+  const pickPreview = data?.grind.find((g) => g.factionId === pickId) || null;
 
   return (
     <div className="faction-night-bets">
       <div className="faction-race-head">
         <p className="faction-night-bets-dates">
-          {data?.label || "21:00 — 01:00 МСК · ночной гринд"}
+          {data?.label || "ставки 12:00–21:30 · гринд 21:00–01:00 МСК"}
         </p>
         <p className="faction-race-goal muted">
-          Кто за тренировку наберёт больше всего B$ в казну. Ставят глава/зам из
-          казны · банк делится между угадавшими (пари-мутель). Легион вне пула.
+          Букмекерский пул: крутятся только поставленные B$ (казино сайта не
+          платит). Кэф = банк ÷ ставка на исход. Глава/зам ставят из казны;
+          Легион — только со стороны. Выплата в казну сразу после 01:00.
           {data ? ` · ${nightStatusRu(data.status)}` : ""}
         </p>
       </div>
       {error ? <p className="error">{error}</p> : null}
       {flash ? <p className="ok">{flash}</p> : null}
-      {loading && !data ? <p className="muted">Считаю ночной гринд…</p> : null}
+      {loading && !data ? <p className="muted">Считаю ночной пул…</p> : null}
 
       {data ? (
         <>
           <div className="faction-night-bets-pot">
             <span>
-              Банк: <strong>{fmtBd(data.pot)}</strong> B$
+              Банк пула: <strong>{fmtBd(data.pot)}</strong> B$
             </span>
             <span className="muted">
               Казна твоей фракции: {fmtBd(data.myTreasury)} B$
             </span>
           </div>
 
-          <div className="faction-race-table" role="table" aria-label="Гринд за ночь">
+          {data.status === "settled" && data.winners.length > 0 ? (
+            <div className="faction-night-bets-result">
+              <p className="faction-night-bets-winners">
+                Победитель гринда:{" "}
+                {data.winners.map((w, i) => (
+                  <span key={w.factionId}>
+                    {i > 0 ? ", " : ""}
+                    <strong style={{ color: w.color }}>{w.name}</strong>
+                    {` (${fmtBd(w.grindAmount)} B$)`}
+                  </span>
+                ))}
+              </p>
+              {data.payouts.length > 0 ? (
+                <ul className="faction-night-bets-payouts">
+                  {data.payouts.map((p) => (
+                    <li key={`${p.fromFactionId}-${p.payout}`}>
+                      <span style={{ color: p.fromColor }}>{p.fromName}</span>
+                      {`: ставка ${fmtBd(p.amount)} → в казну `}
+                      <strong>+{fmtBd(p.payout)} B$</strong>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="muted">Никто не угадал — ставки возвращены.</p>
+              )}
+            </div>
+          ) : null}
+
+          <div className="faction-race-table" role="table" aria-label="Гринд и кэфы">
             <div className="faction-race-row faction-race-row--head" role="row">
               <div className="faction-race-cell faction-race-name" role="columnheader">
                 Фракция
+              </div>
+              <div className="faction-night-bets-odds-col" role="columnheader">
+                Ставки / кэф
               </div>
               <div
                 className="faction-race-cell faction-race-bar-cell"
                 role="columnheader"
               >
-                Заработано за тренировку
+                Гринд за тренировку
               </div>
             </div>
             {data.grind.map((row) => {
@@ -1150,7 +1205,7 @@ export function FactionNightBetsBoard({
               return (
                 <div
                   key={row.factionId}
-                  className={`faction-race-row${lead ? " is-done" : ""}`}
+                  className={`faction-race-row faction-night-bets-row${lead ? " is-done" : ""}`}
                   role="row"
                 >
                   <div className="faction-race-cell faction-race-name" role="cell">
@@ -1167,6 +1222,12 @@ export function FactionNightBetsBoard({
                     {lead && row.amount > 0 ? (
                       <span className="faction-race-badge">лидер</span>
                     ) : null}
+                  </div>
+                  <div className="faction-night-bets-odds-col" role="cell">
+                    <span className="faction-night-bets-stake">
+                      {fmtBd(row.stakeOn)} B$
+                    </span>
+                    <span className="faction-night-bets-odds">{fmtOdds(row.odds)}</span>
                   </div>
                   <div className="faction-race-cell faction-race-bar-cell" role="cell">
                     <div
@@ -1201,6 +1262,7 @@ export function FactionNightBetsBoard({
                   {data.grind.map((r) => (
                     <option key={r.factionId} value={r.factionId}>
                       {r.name}
+                      {r.odds != null ? ` · ${fmtOdds(r.odds)}` : ""}
                     </option>
                   ))}
                 </select>
@@ -1224,41 +1286,57 @@ export function FactionNightBetsBoard({
               >
                 {data.myBet ? "Заменить ставку" : "Поставить из казны"}
               </button>
+              {pickPreview ? (
+                <p className="muted faction-night-bets-hint">
+                  Сейчас на «{pickPreview.name}»: {fmtBd(pickPreview.stakeOn)} B$ · кэф{" "}
+                  {fmtOdds(pickPreview.odds)}
+                  {pickPreview.odds != null && Number(amountStr.replace(/\s/g, "")) > 0
+                    ? ` · ориентир выплаты ~${fmtBd(
+                        Math.floor(
+                          Number(String(amountStr).replace(/\s/g, "")) *
+                            pickPreview.odds
+                        )
+                      )} B$ (пересчитается после ставки)`
+                    : ""}
+                </p>
+              ) : null}
             </div>
           ) : (
             <p className="muted faction-stat-note">
               {data.status === "settled"
-                ? "Окно закрыто — ставки не принимаются."
-                : "Ставить могут только глава и зам этой фракции."}
+                ? "Итоги до 12:00 — дальше откроется новое окно ставок."
+                : data.status === "locked"
+                  ? "Приём закрыт в 21:30. Ждём итог гринда после ~01:00."
+                  : data.status === "upcoming"
+                    ? "Ставки откроются в 12:00 МСК."
+                    : "Ставить могут только глава и зам этой фракции."}
             </p>
           )}
 
           {data.myBet ? (
             <p className="faction-night-bets-mine">
               Ваша ставка:{" "}
-              <strong style={{ color: data.grind.find((g) => g.factionId === data.myBet!.pickFactionId)?.color }}>
-                {data.grind.find((g) => g.factionId === data.myBet!.pickFactionId)?.name || "—"}
+              <strong
+                style={{
+                  color: data.grind.find(
+                    (g) => g.factionId === data.myBet!.pickFactionId
+                  )?.color,
+                }}
+              >
+                {data.grind.find((g) => g.factionId === data.myBet!.pickFactionId)
+                  ?.name || "—"}
               </strong>{" "}
-              · {fmtBd(data.myBet.amount)} B$ · {betStatusRu(data.myBet.status)}
-              {data.myBet.payout > 0 ? ` · выплата ${fmtBd(data.myBet.payout)} B$` : ""}
-            </p>
-          ) : null}
-
-          {data.winners.length > 0 && data.status === "settled" ? (
-            <p className="faction-night-bets-winners">
-              Победитель гринда:{" "}
-              {data.winners.map((w, i) => (
-                <span key={w.factionId}>
-                  {i > 0 ? ", " : ""}
-                  <strong style={{ color: w.color }}>{w.name}</strong>
-                </span>
-              ))}
+              · {fmtBd(data.myBet.amount)} B$ · кэф {fmtOdds(data.myBet.odds)} ·{" "}
+              {betStatusRu(data.myBet.status)}
+              {data.myBet.payout > 0
+                ? ` · в казну +${fmtBd(data.myBet.payout)} B$`
+                : ""}
             </p>
           ) : null}
 
           {data.bets.length > 0 ? (
             <div className="faction-night-bets-list">
-              <p className="faction-night-bets-list-title">Ставки ночи</p>
+              <p className="faction-night-bets-list-title">Ставки пула</p>
               <ul>
                 {data.bets.map((b) => (
                   <li key={b.id}>
@@ -1268,7 +1346,8 @@ export function FactionNightBetsBoard({
                     {`: ${fmtBd(b.amount)} B$`}
                     <span className="muted">
                       {" "}
-                      · {b.placedByNick} · {betStatusRu(b.status)}
+                      · {fmtOdds(b.odds)} · {b.placedByNick} ·{" "}
+                      {betStatusRu(b.status)}
                       {b.payout > 0 ? ` · +${fmtBd(b.payout)}` : ""}
                     </span>
                   </li>

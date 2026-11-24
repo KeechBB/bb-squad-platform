@@ -24655,6 +24655,51 @@ body:has(.faction-page) .site-footer {
 .faction-night-bets-list li {
   line-height: 1.35;
 }
+.faction-night-bets-row {
+  grid-template-columns: minmax(110px, 0.9fr) minmax(100px, 0.7fr) minmax(180px, 2.2fr);
+}
+.faction-night-bets-odds-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.88rem;
+}
+.faction-night-bets-stake {
+  color: rgba(209, 250, 229, 0.85);
+}
+.faction-night-bets-odds {
+  color: #6ee7b7;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.faction-night-bets-result {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  background: rgba(6, 78, 59, 0.28);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.faction-night-bets-payouts {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.faction-night-bets-hint {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 0.85rem;
+}
+@media (max-width: 720px) {
+  .faction-night-bets-row {
+    grid-template-columns: 1fr;
+  }
+}
 
 /* ГОНКА ФРАКЦИЙ — вкладка в стиле «рейтинг паблика» */
 .clan-tabs .admin-tab.faction-race-tab {

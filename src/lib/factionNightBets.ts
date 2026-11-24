@@ -1,7 +1,10 @@
 /**
- * Ставки фракций на ночной гринд B$ (тренировка ~21:00–01:00 МСК).
- * Окно = training-day YMD: вечер 24.11 + ночь до ~01:00 25.11 → id 2026-11-24.
- * Пари-мутель: казны ставят на фракцию-лидера гринда; победители делят банк.
+ * Ставки фракций на ночной гринд B$ (как букмекер / пари-мутель).
+ *
+ * День окна = training-day YMD (вечер 24.11 + ночь до ~01:00 25.11 → id 2026-11-24).
+ * Приём ставок: 12:00–21:30 МСК. Учёт гринда: 21:00–01:00 МСК.
+ * Банк = только поставленные B$; выплата пропорциональна доле ставки на победителя.
+ * Легион может ставить со стороны, в забеге гринда не участвует.
  */
 import { prisma } from "@/lib/prisma";
 import { factionUiColor } from "@/lib/factionColors";
@@ -18,13 +21,15 @@ export const NIGHT_BET_MIN = 1_000;
 
 export type NightBetWindowBounds = {
   id: string;
-  start: Date;
-  end: Date;
+  /** 12:00 МСК */
+  betsOpen: Date;
+  /** 21:30 МСК */
+  betsClose: Date;
+  /** 21:00 МСК */
+  grindStart: Date;
+  /** 01:00 МСК след. календарного дня */
+  grindEnd: Date;
 };
-
-function pad2(n: number) {
-  return n < 10 ? `0${n}` : String(n);
-}
 
 function parseYmd(ymd: string): { y: number; m: number; d: number } | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd || "").trim());
@@ -32,49 +37,61 @@ function parseYmd(ymd: string): { y: number; m: number; d: number } | null {
   return { y: Number(m[1]), m: Number(m[2]), d: Number(m[3]) };
 }
 
-/** Границы ночной тренировки: 21:00 МСК → 01:00 МСК след. календарного дня. */
+/** Границы дня: ставки 12:00–21:30, гринд 21:00–01:00 МСК. */
 export function nightBetBoundsForDay(ymd: string): NightBetWindowBounds | null {
   const p = parseYmd(ymd);
   if (!p) return null;
-  // 21:00 МСК = 18:00 UTC; 01:00 МСК след. дня = 22:00 UTC того же UTC-дня YMD
-  const start = new Date(Date.UTC(p.y, p.m - 1, p.d, 18, 0, 0));
-  const end = new Date(Date.UTC(p.y, p.m - 1, p.d, 22, 0, 0));
-  return { id: ymd, start, end };
+  // МСК = UTC+3
+  const betsOpen = new Date(Date.UTC(p.y, p.m - 1, p.d, 9, 0, 0)); // 12:00
+  const grindStart = new Date(Date.UTC(p.y, p.m - 1, p.d, 18, 0, 0)); // 21:00
+  const betsClose = new Date(Date.UTC(p.y, p.m - 1, p.d, 18, 30, 0)); // 21:30
+  const grindEnd = new Date(Date.UTC(p.y, p.m - 1, p.d, 22, 0, 0)); // 01:00 след.
+  return { id: ymd, betsOpen, betsClose, grindStart, grindEnd };
 }
 
-/** Текущее/ближайшее окно по training-day (после полуночи до полудня — вчерашняя ночь). */
+/** Текущее окно по training-day (до 12:00 МСК — вчерашняя ночь / итоги). */
 export function nightBetWindowAt(now = new Date()): NightBetWindowBounds {
   const id = trainingDayYmd(now);
-  const bounds = nightBetBoundsForDay(id);
-  if (!bounds) {
-    // fallback — сегодняшняя дата МСК через trainingDayYmd всегда валидна
-    const fallback = nightBetBoundsForDay("2026-11-24")!;
-    return fallback;
-  }
-  return bounds;
+  return nightBetBoundsForDay(id) || nightBetBoundsForDay("2026-11-24")!;
+}
+
+function fmtMsk(d: Date): string {
+  return new Intl.DateTimeFormat("ru-RU", {
+    timeZone: "Europe/Moscow",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
 }
 
 export function formatNightBetLabel(bounds: NightBetWindowBounds): string {
-  const fmt = (d: Date) =>
-    new Intl.DateTimeFormat("ru-RU", {
-      timeZone: "Europe/Moscow",
-      day: "2-digit",
-      month: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(d);
-  return `${fmt(bounds.start)} — ${fmt(bounds.end)} МСК · ночной гринд`;
+  return `ставки ${fmtMsk(bounds.betsOpen)}–${fmtMsk(bounds.betsClose).slice(-5)} · гринд ${fmtMsk(bounds.grindStart).slice(-5)}–${fmtMsk(bounds.grindEnd)} МСК`;
 }
 
-async function listBetFactions() {
+type FactionLite = {
+  id: string;
+  name: string;
+  slug: string;
+  blueberryBalance: number;
+  info: string | null;
+};
+
+async function listBbClanId(): Promise<string | null> {
   const bb = await prisma.clan.findFirst({
     where: { tag: "BB", isExternal: false },
     select: { id: true },
   });
-  if (!bb) return [];
+  return bb?.id || null;
+}
+
+/** Фракции забега (без Легиона) — на них ставят и по ним считают гринд. */
+async function listGrindFactions(): Promise<FactionLite[]> {
+  const clanId = await listBbClanId();
+  if (!clanId) return [];
   const all = await prisma.faction.findMany({
-    where: { clanId: bb.id, name: { in: [...RACE_FACTION_NAMES] } },
+    where: { clanId, name: { in: [...RACE_FACTION_NAMES] } },
     select: {
       id: true,
       name: true,
@@ -85,6 +102,36 @@ async function listBetFactions() {
     orderBy: { name: "asc" },
   });
   return all.filter((f) => !isRaceExcludedName(f.name, f.slug));
+}
+
+/** Кто может ставить: забег + Легион. */
+async function listBettorFactions(): Promise<FactionLite[]> {
+  const clanId = await listBbClanId();
+  if (!clanId) return [];
+  const all = await prisma.faction.findMany({
+    where: {
+      clanId,
+      OR: [
+        { name: { in: [...RACE_FACTION_NAMES] } },
+        { name: { equals: "Легион", mode: "insensitive" } },
+        { slug: { contains: "legion", mode: "insensitive" } },
+        { slug: { contains: "legiyon", mode: "insensitive" } },
+      ],
+    },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      blueberryBalance: true,
+      info: true,
+    },
+    orderBy: { name: "asc" },
+  });
+  const grind = all.filter((f) => !isRaceExcludedName(f.name, f.slug));
+  const legion = all.filter((f) => isRaceExcludedName(f.name, f.slug));
+  const byId = new Map<string, FactionLite>();
+  for (const f of [...grind, ...legion]) byId.set(f.id, f);
+  return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, "ru"));
 }
 
 function matchOverlapsWindow(
@@ -98,12 +145,11 @@ function matchOverlapsWindow(
   if (a == null || b == null || !Number.isFinite(a) || !Number.isFinite(b)) {
     return false;
   }
-  // +15 мин к концу: катка, закончившаяся ~01:00–01:15, остаётся в этой ночи
   const endPad = end.getTime() + 15 * 60_000;
   return a < endPad && b >= start.getTime();
 }
 
-/** Сумма гринда фракции за ночное окно (по CanonMatch, не по createdAt ledger). */
+/** Сумма гринда за ночь (CanonMatch в окне 21:00–01:00). */
 export async function nightGrindSums(
   factionIds: string[],
   bounds: NightBetWindowBounds
@@ -117,14 +163,14 @@ export async function nightGrindSums(
       OR: [
         {
           startedAt: {
-            gte: new Date(bounds.start.getTime() - 60 * 60_000),
-            lt: new Date(bounds.end.getTime() + 2 * 60 * 60_000),
+            gte: new Date(bounds.grindStart.getTime() - 60 * 60_000),
+            lt: new Date(bounds.grindEnd.getTime() + 2 * 60 * 60_000),
           },
         },
         {
           endedAt: {
-            gte: new Date(bounds.start.getTime() - 60 * 60_000),
-            lt: new Date(bounds.end.getTime() + 2 * 60 * 60_000),
+            gte: new Date(bounds.grindStart.getTime() - 60 * 60_000),
+            lt: new Date(bounds.grindEnd.getTime() + 2 * 60 * 60_000),
           },
         },
       ],
@@ -137,7 +183,12 @@ export async function nightGrindSums(
       const t = m.startedAt || m.endedAt;
       if (!t) return false;
       if (trainingDayYmd(t) !== bounds.id) return false;
-      return matchOverlapsWindow(m.startedAt, m.endedAt, bounds.start, bounds.end);
+      return matchOverlapsWindow(
+        m.startedAt,
+        m.endedAt,
+        bounds.grindStart,
+        bounds.grindEnd
+      );
     })
     .map((m) => m.id);
 
@@ -164,14 +215,14 @@ async function ensureWindow(bounds: NightBetWindowBounds) {
     where: { id: bounds.id },
     create: {
       id: bounds.id,
-      startAt: bounds.start,
-      endAt: bounds.end,
+      startAt: bounds.betsOpen,
+      endAt: bounds.grindEnd,
       status: "open",
       pot: 0,
     },
     update: {
-      startAt: bounds.start,
-      endAt: bounds.end,
+      startAt: bounds.betsOpen,
+      endAt: bounds.grindEnd,
     },
   });
 }
@@ -185,7 +236,23 @@ function pickWinners(grind: Map<string, number>): string[] {
   return [...grind.entries()].filter(([, v]) => v === best).map(([id]) => id);
 }
 
-/** Пари-мутель: победители делят банк пропорционально ставкам. */
+/** Десятичный кэф: банк / сумма ставок на исход. Все на одну → ~1.00 */
+export function decimalOdds(pot: number, stakeOnPick: number): number | null {
+  if (pot <= 0 || stakeOnPick <= 0) return null;
+  return Math.round((pot / stakeOnPick) * 100) / 100;
+}
+
+function stakeByPick(
+  bets: { pickFactionId: string; amount: number }[]
+): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const b of bets) {
+    m.set(b.pickFactionId, (m.get(b.pickFactionId) || 0) + b.amount);
+  }
+  return m;
+}
+
+/** Пари-мутель: весь банк делится между угадавшими пропорционально их ставкам. */
 function calcPayouts(
   bets: { id: string; amount: number; pickFactionId: string }[],
   winnerIds: string[],
@@ -194,7 +261,6 @@ function calcPayouts(
   const payouts = new Map<string, number>();
   if (!bets.length) return payouts;
   if (!winnerIds.length || pot <= 0) {
-    // пуш — возврат
     for (const b of bets) payouts.set(b.id, b.amount);
     return payouts;
   }
@@ -231,11 +297,11 @@ export async function settleNightBetWindow(
   bounds: NightBetWindowBounds,
   now = new Date()
 ): Promise<void> {
-  if (now.getTime() < bounds.end.getTime()) return;
+  if (now.getTime() < bounds.grindEnd.getTime()) return;
   const win = await ensureWindow(bounds);
   if (win.status === "settled") return;
 
-  const factions = await listBetFactions();
+  const factions = await listGrindFactions();
   const ids = factions.map((f) => f.id);
   const grind = await nightGrindSums(ids, bounds);
   const winnerIds = pickWinners(grind);
@@ -309,17 +375,22 @@ export async function settleNightBetWindow(
   });
 }
 
+export type NightBetPhase = "upcoming" | "open" | "locked" | "settled";
+
 export type NightBetBoard = {
   label: string;
   windowId: string;
-  startIso: string;
-  endIso: string;
-  status: "upcoming" | "live" | "settled";
+  betsOpenIso: string;
+  betsCloseIso: string;
+  grindStartIso: string;
+  grindEndIso: string;
+  status: NightBetPhase;
   canBet: boolean;
   myFactionId: string | null;
   myTreasury: number;
   pot: number;
   minBet: number;
+  /** Только фракции забега + ставка/кэф на каждую. */
   grind: {
     factionId: string;
     name: string;
@@ -327,6 +398,8 @@ export type NightBetBoard = {
     color: string;
     font: string;
     amount: number;
+    stakeOn: number;
+    odds: number | null;
   }[];
   bets: {
     id: string;
@@ -337,6 +410,7 @@ export type NightBetBoard = {
     pickName: string;
     pickColor: string;
     amount: number;
+    odds: number | null;
     status: string;
     payout: number;
     placedByNick: string;
@@ -344,11 +418,36 @@ export type NightBetBoard = {
   myBet: {
     pickFactionId: string;
     amount: number;
+    odds: number | null;
     status: string;
     payout: number;
   } | null;
-  winners: { factionId: string; name: string; color: string }[];
+  winners: {
+    factionId: string;
+    name: string;
+    color: string;
+    grindAmount: number;
+  }[];
+  /** Сколько каждая ставка-победитель забрала в казну. */
+  payouts: {
+    fromFactionId: string;
+    fromName: string;
+    fromColor: string;
+    amount: number;
+    payout: number;
+  }[];
 };
+
+function phaseAt(
+  bounds: NightBetWindowBounds,
+  now: Date,
+  settled: boolean
+): NightBetPhase {
+  if (settled || now.getTime() >= bounds.grindEnd.getTime()) return "settled";
+  if (now.getTime() < bounds.betsOpen.getTime()) return "upcoming";
+  if (now.getTime() < bounds.betsClose.getTime()) return "open";
+  return "locked";
+}
 
 export async function nightBetBoard(opts: {
   viewerFactionId: string | null;
@@ -359,7 +458,7 @@ export async function nightBetBoard(opts: {
   const bounds = nightBetWindowAt(now);
   await ensureWindow(bounds);
 
-  if (now.getTime() >= bounds.end.getTime()) {
+  if (now.getTime() >= bounds.grindEnd.getTime()) {
     await settleNightBetWindow(bounds, now).catch((e) =>
       console.error("night bet settle", e)
     );
@@ -368,18 +467,13 @@ export async function nightBetBoard(opts: {
   const win = await prisma.factionNightBetWindow.findUnique({
     where: { id: bounds.id },
   });
-  const factions = await listBetFactions();
-  const ids = factions.map((f) => f.id);
-  const grindMap = await nightGrindSums(ids, bounds);
+  const grindFactions = await listGrindFactions();
+  const bettors = await listBettorFactions();
+  const grindIds = grindFactions.map((f) => f.id);
+  const grindMap = await nightGrindSums(grindIds, bounds);
 
-  const phase: NightBetBoard["status"] =
-    win?.status === "settled"
-      ? "settled"
-      : now.getTime() < bounds.start.getTime()
-        ? "upcoming"
-        : now.getTime() < bounds.end.getTime()
-          ? "live"
-          : "settled";
+  const settled = win?.status === "settled";
+  const phase = phaseAt(bounds, now, settled);
 
   const bets = await prisma.factionNightBet.findMany({
     where: { windowId: bounds.id },
@@ -391,14 +485,22 @@ export async function nightBetBoard(opts: {
     orderBy: { createdAt: "asc" },
   });
 
+  const activeBets = bets.filter((b) =>
+    settled ? true : b.status === "pending" || b.status === "won" || b.status === "lost" || b.status === "refunded"
+  );
+  const potBets = settled
+    ? bets
+    : bets.filter((b) => b.status === "pending");
   const pot =
-    win?.status === "settled"
+    settled && win
       ? win.pot
-      : bets.reduce((s, b) => s + b.amount, 0);
+      : potBets.reduce((s, b) => s + b.amount, 0);
+  const stakes = stakeByPick(potBets);
 
-  const grind = factions
+  const grind = grindFactions
     .map((f) => {
       const info = parseFactionInfo(f.info);
+      const stakeOn = stakes.get(f.id) || 0;
       return {
         factionId: f.id,
         name: f.name,
@@ -406,51 +508,55 @@ export async function nightBetBoard(opts: {
         color: factionUiColor(f.name, f.slug),
         font: info.font || "Oxanium",
         amount: grindMap.get(f.id) || 0,
+        stakeOn,
+        odds: decimalOdds(pot, stakeOn),
       };
     })
     .sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name, "ru"));
 
-  const winnerIds =
-    win?.status === "settled"
-      ? win.winnerFactionIds
-      : pickWinners(grindMap);
+  const winnerIds = settled
+    ? win?.winnerFactionIds || []
+    : phase === "locked" || phase === "settled"
+      ? pickWinners(grindMap)
+      : [];
   const winners = winnerIds
     .map((id) => {
-      const f = factions.find((x) => x.id === id);
+      const f = grindFactions.find((x) => x.id === id);
       if (!f) return null;
       return {
         factionId: f.id,
         name: f.name,
         color: factionUiColor(f.name, f.slug),
+        grindAmount: grindMap.get(f.id) || 0,
       };
     })
     .filter(Boolean) as NightBetBoard["winners"];
 
   const myFaction = opts.viewerFactionId
-    ? factions.find((f) => f.id === opts.viewerFactionId)
+    ? bettors.find((f) => f.id === opts.viewerFactionId) || null
     : null;
+  // казна: если viewer не в bettors-листе — всё равно подтянуть баланс
+  let myTreasury = Math.max(0, myFaction?.blueberryBalance || 0);
+  if (opts.viewerFactionId && !myFaction) {
+    const f = await prisma.faction.findUnique({
+      where: { id: opts.viewerFactionId },
+      select: { blueberryBalance: true },
+    });
+    myTreasury = Math.max(0, f?.blueberryBalance || 0);
+  }
+
   const myBetRow = opts.viewerFactionId
     ? bets.find((b) => b.fromFactionId === opts.viewerFactionId)
     : null;
 
   const canBet =
     Boolean(opts.canPlace && opts.viewerFactionId && myFaction) &&
-    (win?.status || "open") !== "settled" &&
-    now.getTime() < bounds.end.getTime();
+    phase === "open" &&
+    !settled;
 
-  return {
-    label: formatNightBetLabel(bounds),
-    windowId: bounds.id,
-    startIso: bounds.start.toISOString(),
-    endIso: bounds.end.toISOString(),
-    status: phase,
-    canBet,
-    myFactionId: opts.viewerFactionId,
-    myTreasury: Math.max(0, myFaction?.blueberryBalance || 0),
-    pot,
-    minBet: NIGHT_BET_MIN,
-    grind,
-    bets: bets.map((b) => ({
+  const betRows = activeBets.map((b) => {
+    const odds = decimalOdds(pot, stakes.get(b.pickFactionId) || 0);
+    return {
       id: b.id,
       fromFactionId: b.fromFactionId,
       fromName: b.fromFaction.name,
@@ -459,20 +565,52 @@ export async function nightBetBoard(opts: {
       pickName: b.pickFaction.name,
       pickColor: factionUiColor(b.pickFaction.name, b.pickFaction.slug),
       amount: b.amount,
+      odds,
       status: b.status,
       payout: b.payout,
       placedByNick:
         b.placedBy.nick || b.placedBy.steamName || b.placedBy.name || "—",
-    })),
+    };
+  });
+
+  const payouts = settled
+    ? bets
+        .filter((b) => b.payout > 0)
+        .map((b) => ({
+          fromFactionId: b.fromFactionId,
+          fromName: b.fromFaction.name,
+          fromColor: factionUiColor(b.fromFaction.name, b.fromFaction.slug),
+          amount: b.amount,
+          payout: b.payout,
+        }))
+    : [];
+
+  return {
+    label: formatNightBetLabel(bounds),
+    windowId: bounds.id,
+    betsOpenIso: bounds.betsOpen.toISOString(),
+    betsCloseIso: bounds.betsClose.toISOString(),
+    grindStartIso: bounds.grindStart.toISOString(),
+    grindEndIso: bounds.grindEnd.toISOString(),
+    status: phase,
+    canBet,
+    myFactionId: opts.viewerFactionId,
+    myTreasury,
+    pot,
+    minBet: NIGHT_BET_MIN,
+    grind,
+    bets: betRows,
     myBet: myBetRow
       ? {
           pickFactionId: myBetRow.pickFactionId,
           amount: myBetRow.amount,
+          odds: decimalOdds(pot, stakes.get(myBetRow.pickFactionId) || 0),
           status: myBetRow.status,
           payout: myBetRow.payout,
         }
       : null,
     winners,
+    payouts,
   };
 }
 
@@ -482,7 +620,7 @@ export async function placeNightBet(opts: {
   fromFactionId: string;
   pickFactionId: string;
   amount: number;
-}): Promise<{ ok: true; boardHint?: string } | { ok: false; error: string }> {
+}): Promise<{ ok: true } | { ok: false; error: string }> {
   const amount = Math.trunc(Number(opts.amount) || 0);
   if (amount < NIGHT_BET_MIN) return { ok: false, error: "min_bet" };
 
@@ -504,15 +642,22 @@ export async function placeNightBet(opts: {
 
   const bounds = nightBetWindowAt();
   const now = new Date();
-  if (now.getTime() >= bounds.end.getTime()) {
-    await settleNightBetWindow(bounds, now).catch(() => {});
+  if (now.getTime() < bounds.betsOpen.getTime()) {
+    return { ok: false, error: "bets_not_open" };
+  }
+  if (now.getTime() >= bounds.betsClose.getTime()) {
+    if (now.getTime() >= bounds.grindEnd.getTime()) {
+      await settleNightBetWindow(bounds, now).catch(() => {});
+    }
     return { ok: false, error: "window_closed" };
   }
 
-  const factions = await listBetFactions();
-  const from = factions.find((f) => f.id === opts.fromFactionId);
-  const pick = factions.find((f) => f.id === opts.pickFactionId);
-  if (!from || !pick) return { ok: false, error: "bad_faction" };
+  const grindFactions = await listGrindFactions();
+  const bettors = await listBettorFactions();
+  const from = bettors.find((f) => f.id === opts.fromFactionId);
+  const pick = grindFactions.find((f) => f.id === opts.pickFactionId);
+  if (!from) return { ok: false, error: "bad_faction" };
+  if (!pick) return { ok: false, error: "bad_pick" };
 
   await ensureWindow(bounds);
   const win = await prisma.factionNightBetWindow.findUnique({
@@ -539,7 +684,6 @@ export async function placeNightBet(opts: {
       let treasury = Math.max(0, f.blueberryBalance || 0);
 
       if (existing && existing.status === "pending") {
-        // вернуть старую ставку в казну, затем списать новую
         treasury += existing.amount;
         await tx.factionLedgerEntry.create({
           data: {
@@ -600,11 +744,4 @@ export async function placeNightBet(opts: {
   }
 
   return { ok: true };
-}
-
-/** Для отладки / отчёта — не экспортировать лишнее в UI. */
-export function nightBetDebugLabel(ymd: string) {
-  const b = nightBetBoundsForDay(ymd);
-  if (!b) return ymd;
-  return `${b.id} ${pad2(b.start.getUTCHours())}:${pad2(b.start.getUTCMinutes())}Z→${pad2(b.end.getUTCHours())}:${pad2(b.end.getUTCMinutes())}Z`;
 }
