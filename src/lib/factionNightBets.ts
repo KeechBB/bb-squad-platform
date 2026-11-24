@@ -59,7 +59,7 @@ export function nightBetWindowAt(now = new Date()): NightBetWindowBounds {
 
 /** Заголовок вкладки ставок (дата тренировки — в bounds.id). */
 export function formatNightBetLabel(_bounds: NightBetWindowBounds): string {
-  return "Ставка на тренировку, кто из фракций больше всего заработает Долларов за тренировку.";
+  return "Ставка на тренировку, кто из фракций больше всего заработает Долларов за тренировку. Окно ставок с 12:00, приём до 21:30.";
 }
 
 type FactionLite = {
