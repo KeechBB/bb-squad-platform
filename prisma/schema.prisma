@@ -133,6 +133,7 @@ model User {
   factionInvitesReceived     FactionInvite[] @relation("FactionInvitee")
   factionInvitesSent         FactionInvite[] @relation("FactionInviter")
   factionRaceSriBans         FactionRaceSriBan[]
+  factionNightBets           FactionNightBet[]
   bbCoinTxs                  BbCoinTx[]
   bbCoinOrders               BbCoinOrder[]
   nickPatchStocks            NickPatchStock[]
@@ -627,6 +628,8 @@ model Faction {
   raceState FactionRaceState?
   raceResults FactionRaceResult[]
   raceSriBans FactionRaceSriBan[]
+  nightBetsFrom FactionNightBet[] @relation("NightBetFrom")
+  nightBetsPick FactionNightBet[] @relation("NightBetPick")
 
   @@index([clanId])
 }
@@ -689,6 +692,46 @@ model FactionRaceSriBan {
 
   @@id([userId, factionId])
   @@index([userId])
+}
+
+/// Ночное окно ставок фракций (id = training-day YMD, 21:00→01:00 МСК).
+model FactionNightBetWindow {
+  id               String   @id
+  startAt          DateTime
+  endAt            DateTime
+  /// open | settled
+  status           String   @default("open")
+  pot              Int      @default(0)
+  winnerFactionIds String[] @default([])
+  settledAt        DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  bets FactionNightBet[]
+}
+
+/// Ставка казны фракции на то, кто наберёт больше всего B$ за тренировку.
+model FactionNightBet {
+  id             String   @id @default(cuid())
+  windowId       String
+  window         FactionNightBetWindow @relation(fields: [windowId], references: [id], onDelete: Cascade)
+  fromFactionId  String
+  fromFaction    Faction  @relation("NightBetFrom", fields: [fromFactionId], references: [id], onDelete: Cascade)
+  pickFactionId  String
+  pickFaction    Faction  @relation("NightBetPick", fields: [pickFactionId], references: [id], onDelete: Cascade)
+  amount         Int
+  placedByUserId String
+  placedBy       User     @relation(fields: [placedByUserId], references: [id], onDelete: Cascade)
+  /// pending | won | lost | refunded
+  status         String   @default("pending")
+  payout         Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([windowId, fromFactionId])
+  @@index([windowId])
+  @@index([pickFactionId])
+  @@index([fromFactionId])
 }
 
 /// Движения казны фракции (гринд / сделки / правка Keech).

@@ -33,6 +33,7 @@ import { useFitTablePage } from "@/lib/useFitTablePage";
 import {
   FactionAnalytics,
   FactionGrowthBoard,
+  FactionNightBetsBoard,
   FactionRaceBoard,
   FactionRatings,
   FactionWeekBoard,
@@ -49,6 +50,7 @@ const TABS = [
   ["analytics", "Аналитика"],
   ["ratings", "Рейтинги"],
   ["race", "ГОНКА ФРАКЦИЙ"],
+  ["nightbets", "Ставки фракций"],
 ] as const;
 
 type TabId = (typeof TABS)[number][0];
@@ -92,6 +94,8 @@ const TAB_NOTE: Record<TabId, string> = {
   analytics: "Статистика относительно других фракций появится здесь.",
   ratings: "Доли фракций на тренировках за последние 7 дней.",
   race: "Гринд казны фракций за окно 21.11–28.11 · цель 400 000 B$.",
+  nightbets:
+    "Ночной гринд B$ (21:00–01:00 МСК) · ставки глав/замов из казны на лидера вечера.",
 };
 
 type ResizeMode = "move" | "e" | "s" | "se";
@@ -412,6 +416,7 @@ export function FactionPageClient({
   const [analyticsKey, setAnalyticsKey] = useState(0);
   const [ratingsKey, setRatingsKey] = useState(0);
   const [raceKey, setRaceKey] = useState(0);
+  const [nightBetsKey, setNightBetsKey] = useState(0);
   const [error, setError] = useState("");
   const [flash, setFlash] = useState("");
   const [busy, setBusy] = useState(false);
@@ -448,6 +453,7 @@ export function FactionPageClient({
     if (stored === "analytics") setAnalyticsKey((n) => n + 1);
     if (stored === "ratings") setRatingsKey((n) => n + 1);
     if (stored === "race") setRaceKey((n) => n + 1);
+    if (stored === "nightbets") setNightBetsKey((n) => n + 1);
   }, [view.slug]);
 
   function selectStatsTab(id: TabId) {
@@ -460,6 +466,7 @@ export function FactionPageClient({
     if (id === "analytics") setAnalyticsKey((n) => n + 1);
     if (id === "ratings") setRatingsKey((n) => n + 1);
     if (id === "race") setRaceKey((n) => n + 1);
+    if (id === "nightbets") setNightBetsKey((n) => n + 1);
   }
 
   async function reload(href?: string) {
@@ -1024,7 +1031,7 @@ export function FactionPageClient({
                   type="button"
                   className={`admin-tab${tab === id ? " active" : ""}${
                     id === "race" ? " faction-race-tab" : ""
-                  }`}
+                  }${id === "nightbets" ? " faction-night-bets-tab" : ""}`}
                   onClick={() => selectStatsTab(id)}
                 >
                   {label}
@@ -1043,6 +1050,9 @@ export function FactionPageClient({
             ) : null}
             {tab === "ratings" ? <FactionRatings slug={view.slug} loadKey={ratingsKey} /> : null}
             {tab === "race" ? <FactionRaceBoard slug={view.slug} loadKey={raceKey} /> : null}
+            {tab === "nightbets" ? (
+              <FactionNightBetsBoard slug={view.slug} loadKey={nightBetsKey} />
+            ) : null}
           </>
         )}
 

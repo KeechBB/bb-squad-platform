@@ -937,3 +937,347 @@ export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: num
     </div>
   );
 }
+
+type NightGrindRow = {
+  factionId: string;
+  name: string;
+  slug: string;
+  color: string;
+  font: string;
+  amount: number;
+};
+
+type NightBetRow = {
+  id: string;
+  fromFactionId: string;
+  fromName: string;
+  fromColor: string;
+  pickFactionId: string;
+  pickName: string;
+  pickColor: string;
+  amount: number;
+  status: string;
+  payout: number;
+  placedByNick: string;
+};
+
+type NightBetBoardData = {
+  label: string;
+  windowId: string;
+  status: "upcoming" | "live" | "settled";
+  canBet: boolean;
+  myTreasury: number;
+  pot: number;
+  minBet: number;
+  grind: NightGrindRow[];
+  bets: NightBetRow[];
+  myBet: {
+    pickFactionId: string;
+    amount: number;
+    status: string;
+    payout: number;
+  } | null;
+  winners: { factionId: string; name: string; color: string }[];
+};
+
+function nightStatusRu(status: NightBetBoardData["status"]): string {
+  if (status === "live") return "идёт тренировка";
+  if (status === "upcoming") return "ставки открыты · до 21:00";
+  return "окно закрыто";
+}
+
+function betStatusRu(s: string): string {
+  if (s === "won") return "выигрыш";
+  if (s === "lost") return "проигрыш";
+  if (s === "refunded") return "возврат";
+  return "в игре";
+}
+
+export function FactionNightBetsBoard({
+  slug,
+  loadKey,
+}: {
+  slug: string;
+  loadKey: number;
+}) {
+  const [data, setData] = useState<NightBetBoardData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [pickId, setPickId] = useState("");
+  const [amountStr, setAmountStr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [flash, setFlash] = useState("");
+
+  const reload = async (signal?: AbortSignal) => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(
+        `/api/factions/${encodeURIComponent(slug)}/night-bets`,
+        { cache: "no-store", signal }
+      );
+      const json = (await res.json().catch(() => ({}))) as NightBetBoardData & {
+        error?: string;
+      };
+      if (!res.ok) {
+        setError(json.error || "Не удалось загрузить ставки");
+        return;
+      }
+      setData(json);
+      if (!pickId && json.myBet?.pickFactionId) {
+        setPickId(json.myBet.pickFactionId);
+      }
+      if (!amountStr && json.myBet?.amount) {
+        setAmountStr(String(json.myBet.amount));
+      }
+    } catch (err) {
+      if ((err as { name?: string }).name === "AbortError") return;
+      setError("Сеть недоступна");
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (loadKey < 1) return;
+    const ctrl = new AbortController();
+    void reload(ctrl.signal);
+    const t = window.setInterval(() => {
+      void reload(ctrl.signal);
+    }, 30_000);
+    return () => {
+      ctrl.abort();
+      window.clearInterval(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload by loadKey only
+  }, [slug, loadKey]);
+
+  async function submitBet() {
+    if (!data?.canBet) return;
+    const amount = Math.trunc(Number(String(amountStr).replace(/\s/g, "")) || 0);
+    if (!pickId) {
+      setError("Выбери фракцию");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setFlash("");
+    try {
+      const res = await fetch(
+        `/api/factions/${encodeURIComponent(slug)}/night-bets`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pickFactionId: pickId, amount }),
+        }
+      );
+      const json = (await res.json().catch(() => ({}))) as NightBetBoardData & {
+        error?: string;
+        ok?: boolean;
+      };
+      if (!res.ok) {
+        setError(json.error || "Ставка не принята");
+        return;
+      }
+      setData(json);
+      setFlash(
+        data.myBet
+          ? "Ставка обновлена — казна списана заново"
+          : "Ставка принята из казны фракции"
+      );
+    } catch {
+      setError("Сеть недоступна");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (loadKey < 1) {
+    return (
+      <p className="muted faction-stat-note">
+        Нажми «Ставки фракций», чтобы открыть ночной пул.
+      </p>
+    );
+  }
+
+  const maxGrind = data?.grind.reduce((m, r) => Math.max(m, r.amount), 0) || 0;
+
+  return (
+    <div className="faction-night-bets">
+      <div className="faction-race-head">
+        <p className="faction-night-bets-dates">
+          {data?.label || "21:00 — 01:00 МСК · ночной гринд"}
+        </p>
+        <p className="faction-race-goal muted">
+          Кто за тренировку наберёт больше всего B$ в казну. Ставят глава/зам из
+          казны · банк делится между угадавшими (пари-мутель). Легион вне пула.
+          {data ? ` · ${nightStatusRu(data.status)}` : ""}
+        </p>
+      </div>
+      {error ? <p className="error">{error}</p> : null}
+      {flash ? <p className="ok">{flash}</p> : null}
+      {loading && !data ? <p className="muted">Считаю ночной гринд…</p> : null}
+
+      {data ? (
+        <>
+          <div className="faction-night-bets-pot">
+            <span>
+              Банк: <strong>{fmtBd(data.pot)}</strong> B$
+            </span>
+            <span className="muted">
+              Казна твоей фракции: {fmtBd(data.myTreasury)} B$
+            </span>
+          </div>
+
+          <div className="faction-race-table" role="table" aria-label="Гринд за ночь">
+            <div className="faction-race-row faction-race-row--head" role="row">
+              <div className="faction-race-cell faction-race-name" role="columnheader">
+                Фракция
+              </div>
+              <div
+                className="faction-race-cell faction-race-bar-cell"
+                role="columnheader"
+              >
+                Заработано за тренировку
+              </div>
+            </div>
+            {data.grind.map((row) => {
+              const fill =
+                maxGrind > 0
+                  ? Math.max(0, Math.min(100, (row.amount / maxGrind) * 100))
+                  : 0;
+              const lead = maxGrind > 0 && row.amount === maxGrind;
+              return (
+                <div
+                  key={row.factionId}
+                  className={`faction-race-row${lead ? " is-done" : ""}`}
+                  role="row"
+                >
+                  <div className="faction-race-cell faction-race-name" role="cell">
+                    <Link
+                      href={`/factions/${encodeURIComponent(row.slug)}`}
+                      className="faction-race-name-link"
+                      style={{
+                        color: row.color,
+                        fontFamily: `"${row.font}", Oxanium, sans-serif`,
+                      }}
+                    >
+                      {row.name}
+                    </Link>
+                    {lead && row.amount > 0 ? (
+                      <span className="faction-race-badge">лидер</span>
+                    ) : null}
+                  </div>
+                  <div className="faction-race-cell faction-race-bar-cell" role="cell">
+                    <div
+                      className="faction-race-bar"
+                      style={{ ["--race-color" as string]: row.color }}
+                      title={`${fmtBd(row.amount)} B$`}
+                    >
+                      <div
+                        className="faction-race-bar-fill"
+                        style={{ width: `${fill}%` }}
+                      />
+                      <span className="faction-race-bar-label">
+                        {fmtBd(row.amount)} B$
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {data.canBet ? (
+            <div className="faction-night-bets-form">
+              <label className="faction-night-bets-field">
+                <span>На кого</span>
+                <select
+                  value={pickId}
+                  onChange={(e) => setPickId(e.target.value)}
+                  disabled={busy}
+                >
+                  <option value="">— фракция —</option>
+                  {data.grind.map((r) => (
+                    <option key={r.factionId} value={r.factionId}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="faction-night-bets-field">
+                <span>Сумма B$</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder={`от ${fmtBd(data.minBet)}`}
+                  value={amountStr}
+                  onChange={(e) => setAmountStr(e.target.value)}
+                  disabled={busy}
+                />
+              </label>
+              <button
+                type="button"
+                className="btn"
+                disabled={busy || !pickId}
+                onClick={() => void submitBet()}
+              >
+                {data.myBet ? "Заменить ставку" : "Поставить из казны"}
+              </button>
+            </div>
+          ) : (
+            <p className="muted faction-stat-note">
+              {data.status === "settled"
+                ? "Окно закрыто — ставки не принимаются."
+                : "Ставить могут только глава и зам этой фракции."}
+            </p>
+          )}
+
+          {data.myBet ? (
+            <p className="faction-night-bets-mine">
+              Ваша ставка:{" "}
+              <strong style={{ color: data.grind.find((g) => g.factionId === data.myBet!.pickFactionId)?.color }}>
+                {data.grind.find((g) => g.factionId === data.myBet!.pickFactionId)?.name || "—"}
+              </strong>{" "}
+              · {fmtBd(data.myBet.amount)} B$ · {betStatusRu(data.myBet.status)}
+              {data.myBet.payout > 0 ? ` · выплата ${fmtBd(data.myBet.payout)} B$` : ""}
+            </p>
+          ) : null}
+
+          {data.winners.length > 0 && data.status === "settled" ? (
+            <p className="faction-night-bets-winners">
+              Победитель гринда:{" "}
+              {data.winners.map((w, i) => (
+                <span key={w.factionId}>
+                  {i > 0 ? ", " : ""}
+                  <strong style={{ color: w.color }}>{w.name}</strong>
+                </span>
+              ))}
+            </p>
+          ) : null}
+
+          {data.bets.length > 0 ? (
+            <div className="faction-night-bets-list">
+              <p className="faction-night-bets-list-title">Ставки ночи</p>
+              <ul>
+                {data.bets.map((b) => (
+                  <li key={b.id}>
+                    <span style={{ color: b.fromColor }}>{b.fromName}</span>
+                    {" → "}
+                    <span style={{ color: b.pickColor }}>{b.pickName}</span>
+                    {`: ${fmtBd(b.amount)} B$`}
+                    <span className="muted">
+                      {" "}
+                      · {b.placedByNick} · {betStatusRu(b.status)}
+                      {b.payout > 0 ? ` · +${fmtBd(b.payout)}` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </>
+      ) : null}
+    </div>
+  );
+}

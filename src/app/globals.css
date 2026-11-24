@@ -24532,6 +24532,130 @@ body:has(.faction-page) .site-footer {
   gap: 8px;
 }
 
+/* Ставки фракций — вкладка рядом с гонкой */
+.clan-tabs .admin-tab.faction-night-bets-tab {
+  position: relative;
+  border: 1px solid rgba(52, 211, 153, 0.72);
+  color: #d1fae5;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+  background:
+    linear-gradient(
+      120deg,
+      rgba(6, 78, 59, 0.78) 0%,
+      rgba(4, 120, 87, 0.55) 28%,
+      rgba(52, 211, 153, 0.38) 50%,
+      rgba(4, 120, 87, 0.55) 72%,
+      rgba(6, 78, 59, 0.78) 100%
+    );
+  background-size: 220% 100%;
+  box-shadow:
+    0 0 12px rgba(16, 185, 129, 0.35),
+    0 0 24px rgba(5, 150, 105, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+  isolation: isolate;
+  animation: nav-public-glow-flow 5.5s linear infinite;
+}
+.clan-tabs .admin-tab.faction-night-bets-tab:hover,
+.clan-tabs .admin-tab.faction-night-bets-tab:focus-visible,
+.clan-tabs .admin-tab.faction-night-bets-tab.active {
+  color: #fff;
+  border-color: rgba(167, 243, 208, 0.95);
+  box-shadow:
+    0 0 16px rgba(52, 211, 153, 0.5),
+    0 0 32px rgba(16, 185, 129, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+@media (prefers-reduced-motion: reduce) {
+  .clan-tabs .admin-tab.faction-night-bets-tab {
+    animation: none;
+  }
+}
+
+.faction-night-bets {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: auto;
+}
+.faction-night-bets-dates {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #d1fae5;
+}
+.faction-night-bets-pot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  align-items: baseline;
+  font-size: 0.98rem;
+}
+.faction-night-bets-pot strong {
+  color: #6ee7b7;
+  font-variant-numeric: tabular-nums;
+}
+.faction-night-bets-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: flex-end;
+  padding: 10px 12px;
+  border: 1px solid rgba(52, 211, 153, 0.28);
+  border-radius: 10px;
+  background: rgba(6, 78, 59, 0.22);
+}
+.faction-night-bets-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+}
+.faction-night-bets-field span {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(209, 250, 229, 0.72);
+}
+.faction-night-bets-field select,
+.faction-night-bets-field input {
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  background: rgba(2, 20, 16, 0.65);
+  color: #ecfdf5;
+  font: inherit;
+}
+.faction-night-bets-mine,
+.faction-night-bets-winners {
+  margin: 0;
+  font-size: 0.95rem;
+}
+.faction-night-bets-list {
+  margin-top: 4px;
+}
+.faction-night-bets-list-title {
+  margin: 0 0 6px;
+  font-weight: 700;
+  color: #a7f3d0;
+}
+.faction-night-bets-list ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.faction-night-bets-list li {
+  line-height: 1.35;
+}
+
 /* ГОНКА ФРАКЦИЙ — вкладка в стиле «рейтинг паблика» */
 .clan-tabs .admin-tab.faction-race-tab {
   position: relative;
