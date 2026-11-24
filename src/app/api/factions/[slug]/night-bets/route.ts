@@ -42,11 +42,7 @@ export async function GET(req: Request, ctx: Ctx) {
 
   const url = new URL(req.url);
   if (url.searchParams.get("history") === "1") {
-    const rows = await nightBetHistory(
-      keech && userId
-        ? { personalUserId: userId }
-        : { fromFactionId: view.id }
-    );
+    const rows = await nightBetHistory({ fromFactionId: view.id });
     return NextResponse.json({ rows });
   }
 
@@ -114,9 +110,7 @@ export async function POST(req: Request, ctx: Ctx) {
       window_closed: "Приём ставок закрыт",
       bad_faction: "Эта фракция не может ставить",
       bad_pick: "Нельзя ставить на эту фракцию",
-      insufficient: keech
-        ? "Не хватает личного B$"
-        : "В казне не хватает B$",
+      insufficient: "В казне не хватает B$",
       debit: "Не удалось списать ставку",
     };
     return NextResponse.json(
