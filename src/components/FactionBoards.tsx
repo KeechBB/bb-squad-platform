@@ -1224,7 +1224,9 @@ export function FactionNightBetsBoard({
               <span className="faction-night-bets-stat-label">
                 {data.balanceLabel || "Казна фракции"}
               </span>
-              <strong>{fmtBd(data.myTreasury)} B$</strong>
+              <strong>
+                {data.infiniteBalance ? "∞" : `${fmtBd(data.myTreasury)} B$`}
+              </strong>
             </div>
             {myBets.length > 0 ? (
               <div className="faction-night-bets-stat faction-night-bets-stat--mine">
