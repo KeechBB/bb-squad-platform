@@ -24668,7 +24668,7 @@ body:has(.faction-page) .site-footer {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 10px 16px;
+  gap: 10px 14px;
   width: 100%;
   text-align: left;
   padding: 12px 14px;
@@ -24679,6 +24679,27 @@ body:has(.faction-page) .site-footer {
   font: inherit;
   cursor: pointer;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.faction-night-bets-place {
+  flex: 0 0 2rem;
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 1.05rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: #ecfdf5;
+  background: rgba(52, 211, 153, 0.18);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+}
+.faction-night-bets-card.is-lead .faction-night-bets-place,
+.faction-night-bets-card.is-winner .faction-night-bets-place {
+  background: rgba(251, 191, 36, 0.28);
+  border-color: rgba(251, 191, 36, 0.55);
+  color: #fef3c7;
 }
 .faction-night-bets-card:disabled {
   cursor: default;

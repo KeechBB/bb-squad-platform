@@ -1286,7 +1286,24 @@ export function FactionNightBetsBoard({
           ) : null}
 
           <div className="faction-night-bets-cards" role="list">
-            {data.grind.map((row) => {
+            {[...data.grind]
+              .sort(
+                (a, b) =>
+                  b.amount - a.amount || a.name.localeCompare(b.name, "ru")
+              )
+              .map((row, idx, ranked) => {
+              const place =
+                idx > 0 && ranked[idx - 1]!.amount === row.amount
+                  ? // то же место при равной сумме
+                    (() => {
+                      let p = idx + 1;
+                      for (let j = idx - 1; j >= 0; j--) {
+                        if (ranked[j]!.amount === row.amount) p = j + 1;
+                        else break;
+                      }
+                      return p;
+                    })()
+                  : idx + 1;
               const isWinner =
                 data.status === "settled" &&
                 data.winners.some((w) => w.factionId === row.factionId);
@@ -1312,6 +1329,9 @@ export function FactionNightBetsBoard({
                     setPickId(row.factionId);
                   }}
                 >
+                  <span className="faction-night-bets-place" aria-label={`Место ${place}`}>
+                    {place}
+                  </span>
                   <div className="faction-night-bets-card-name">
                     <span
                       style={{
@@ -1327,7 +1347,9 @@ export function FactionNightBetsBoard({
                   </div>
                   <div className="faction-night-bets-card-metrics">
                     <div>
-                      <span className="faction-night-bets-stat-label">Гринд</span>
+                      <span className="faction-night-bets-stat-label">
+                        Собрано за тренировку
+                      </span>
                       <strong>{fmtBd(row.amount)} B$</strong>
                     </div>
                     <div>
