@@ -976,6 +976,13 @@ type NightBetBoardData = {
   minBet: number;
   grind: NightGrindRow[];
   bets: NightBetRow[];
+  myBets?: {
+    pickFactionId: string;
+    amount: number;
+    odds: number | null;
+    status: string;
+    payout: number;
+  }[];
   myBet: {
     pickFactionId: string;
     amount: number;
@@ -1054,11 +1061,9 @@ export function FactionNightBetsBoard({
         return;
       }
       setData(json);
-      if (!pickId && json.myBet?.pickFactionId) {
-        setPickId(json.myBet.pickFactionId);
-      }
-      if (!amountStr && json.myBet?.amount) {
-        setAmountStr(String(json.myBet.amount));
+      const firstMine = json.myBets?.[0] || json.myBet;
+      if (!pickId && firstMine?.pickFactionId) {
+        setPickId(firstMine.pickFactionId);
       }
     } catch (err) {
       if ((err as { name?: string }).name === "AbortError") return;
@@ -1147,9 +1152,15 @@ export function FactionNightBetsBoard({
 
   const maxGrind = data?.grind.reduce((m, r) => Math.max(m, r.amount), 0) || 0;
   const selected = data?.grind.find((g) => g.factionId === pickId) || null;
-  const myPick = data?.myBet
-    ? data.grind.find((g) => g.factionId === data.myBet!.pickFactionId) || null
+  const myBets = data?.myBets?.length
+    ? data.myBets
+    : data?.myBet
+      ? [data.myBet]
+      : [];
+  const myOnSelected = selected
+    ? myBets.find((b) => b.pickFactionId === selected.factionId) || null
     : null;
+  const myPickIds = new Set(myBets.map((b) => b.pickFactionId));
 
   return (
     <div className="faction-night-bets">
@@ -1175,12 +1186,20 @@ export function FactionNightBetsBoard({
               </span>
               <strong>{fmtBd(data.myTreasury)} B$</strong>
             </div>
-            {myPick && data.myBet ? (
+            {myBets.length > 0 ? (
               <div className="faction-night-bets-stat faction-night-bets-stat--mine">
-                <span className="faction-night-bets-stat-label">Ваша ставка</span>
-                <strong style={{ color: myPick.color }}>
-                  {myPick.name} · {fmtBd(data.myBet.amount)} B$ ·{" "}
-                  {fmtOdds(data.myBet.odds)}
+                <span className="faction-night-bets-stat-label">Ваши ставки</span>
+                <strong>
+                  {myBets.map((b, i) => {
+                    const g = data.grind.find((x) => x.factionId === b.pickFactionId);
+                    return (
+                      <span key={b.pickFactionId}>
+                        {i > 0 ? " · " : ""}
+                        <span style={{ color: g?.color }}>{g?.name || "?"}</span>
+                        {` ${fmtBd(b.amount)}`}
+                      </span>
+                    );
+                  })}
                 </strong>
               </div>
             ) : null}
@@ -1218,7 +1237,7 @@ export function FactionNightBetsBoard({
             {data.grind.map((row) => {
               const lead = maxGrind > 0 && row.amount === maxGrind && row.amount > 0;
               const isSel = pickId === row.factionId;
-              const isMine = data.myBet?.pickFactionId === row.factionId;
+              const isMine = myPickIds.has(row.factionId);
               return (
                 <button
                   key={row.factionId}
@@ -1272,16 +1291,10 @@ export function FactionNightBetsBoard({
               <div className="faction-night-bets-place-pick">
                 {selected ? (
                   <>
-                    {data.myBet && data.myBet.pickFactionId === selected.factionId
-                      ? "Додеп на "
-                      : data.myBet
-                        ? "Сменить на "
-                        : "Ставка на "}
+                    {myOnSelected ? "Додеп на " : "Ставка на "}
                     <strong style={{ color: selected.color }}>{selected.name}</strong>
                     {selected.odds != null ? ` · ${fmtOdds(selected.odds)}` : ""}
-                    {data.myBet && data.myBet.pickFactionId === selected.factionId
-                      ? ` · уже ${fmtBd(data.myBet.amount)} B$`
-                      : ""}
+                    {myOnSelected ? ` · уже ${fmtBd(myOnSelected.amount)} B$` : ""}
                   </>
                 ) : (
                   <>Выбери фракцию сверху</>
@@ -1303,11 +1316,7 @@ export function FactionNightBetsBoard({
                   disabled={busy || !selected}
                   onClick={() => void submitBet()}
                 >
-                  {!data.myBet
-                    ? "Поставить"
-                    : selected && data.myBet.pickFactionId === selected.factionId
-                      ? "Додеп"
-                      : "Сменить ставку"}
+                  {myOnSelected ? "Додеп" : "Поставить"}
                 </button>
               </div>
             </div>

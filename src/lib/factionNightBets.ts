@@ -423,6 +423,15 @@ export type NightBetBoard = {
     payout: number;
     placedByNick: string;
   }[];
+  /** Все ставки этой стороны на разные исходы (отмена запрещена). */
+  myBets: {
+    pickFactionId: string;
+    amount: number;
+    odds: number | null;
+    status: string;
+    payout: number;
+  }[];
+  /** Совместимость: первая / выбранная ставка. */
   myBet: {
     pickFactionId: string;
     amount: number;
@@ -568,15 +577,16 @@ export async function nightBetBoard(opts: {
     }
   }
 
-  const myBetRow = isKeech && opts.viewerUserId
-    ? bets.find(
-        (b) => b.isPersonal && b.placedByUserId === opts.viewerUserId
-      ) || null
-    : opts.viewerFactionId
-      ? bets.find(
-          (b) => !b.isPersonal && b.fromFactionId === opts.viewerFactionId
-        ) || null
-      : null;
+  const myBetRows =
+    isKeech && opts.viewerUserId
+      ? bets.filter(
+          (b) => b.isPersonal && b.placedByUserId === opts.viewerUserId
+        )
+      : opts.viewerFactionId
+        ? bets.filter(
+            (b) => !b.isPersonal && b.fromFactionId === opts.viewerFactionId
+          )
+        : [];
 
   const canBet =
     phase === "open" &&
@@ -644,13 +654,20 @@ export async function nightBetBoard(opts: {
     minBet: NIGHT_BET_MIN,
     grind,
     bets: betRows,
-    myBet: myBetRow
+    myBets: myBetRows.map((b) => ({
+      pickFactionId: b.pickFactionId,
+      amount: b.amount,
+      odds: decimalOdds(pot, stakes.get(b.pickFactionId) || 0),
+      status: b.status,
+      payout: b.payout,
+    })),
+    myBet: myBetRows[0]
       ? {
-          pickFactionId: myBetRow.pickFactionId,
-          amount: myBetRow.amount,
-          odds: decimalOdds(pot, stakes.get(myBetRow.pickFactionId) || 0),
-          status: myBetRow.status,
-          payout: myBetRow.payout,
+          pickFactionId: myBetRows[0].pickFactionId,
+          amount: myBetRows[0].amount,
+          odds: decimalOdds(pot, stakes.get(myBetRows[0].pickFactionId) || 0),
+          status: myBetRows[0].status,
+          payout: myBetRows[0].payout,
         }
       : null,
     winners,
@@ -709,9 +726,8 @@ export async function nightBetHistory(opts: {
 }
 
 /**
- * Поставить / додеп / сменить исход до 21:30.
- * Тот же pick + уже есть ставка → додеп (прибавить сумму).
- * Другой pick → сменить (возврат старой + новая).
+ * Поставить на любой исход или додепнуть уже стоящую.
+ * Отмена / смена с возвратом запрещены — только новая ставка на другой pick или додеп.
  */
 export async function placeNightBet(opts: {
   actorUserId: string;
@@ -719,7 +735,7 @@ export async function placeNightBet(opts: {
   fromFactionId: string;
   pickFactionId: string;
   amount: number;
-}): Promise<{ ok: true; mode: "place" | "topup" | "replace" } | { ok: false; error: string }> {
+}): Promise<{ ok: true; mode: "place" | "topup" } | { ok: false; error: string }> {
   const amount = Math.trunc(Number(opts.amount) || 0);
   if (amount < NIGHT_BET_MIN) return { ok: false, error: "min_bet" };
 
@@ -768,12 +784,14 @@ export async function placeNightBet(opts: {
   });
   if (!win || win.status === "settled") return { ok: false, error: "window_closed" };
 
+  // Ставка именно на этот pick (можно иметь несколько picks одновременно).
   const existing = keech
     ? await prisma.factionNightBet.findFirst({
         where: {
           windowId: bounds.id,
           isPersonal: true,
           placedByUserId: opts.actorUserId,
+          pickFactionId: opts.pickFactionId,
           status: "pending",
         },
       })
@@ -781,16 +799,13 @@ export async function placeNightBet(opts: {
         where: {
           windowId: bounds.id,
           fromFactionId: opts.fromFactionId,
+          pickFactionId: opts.pickFactionId,
           isPersonal: false,
           status: "pending",
         },
       });
 
-  const mode: "place" | "topup" | "replace" = !existing
-    ? "place"
-    : existing.pickFactionId === opts.pickFactionId
-      ? "topup"
-      : "replace";
+  const mode: "place" | "topup" = existing ? "topup" : "place";
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -808,20 +823,7 @@ export async function placeNightBet(opts: {
             where: { id: existing.id },
             data: { amount: existing.amount + amount },
           });
-          await tx.user.update({
-            where: { id: opts.actorUserId },
-            data: { blueberryBalance: bal - amount },
-          });
         } else {
-          if (existing) {
-            await tx.user.update({
-              where: { id: opts.actorUserId },
-              data: { blueberryBalance: bal + existing.amount },
-            });
-            await tx.factionNightBet.delete({ where: { id: existing.id } });
-          }
-          const bal2 = existing ? bal + existing.amount : bal;
-          if (bal2 < amount) throw new Error("insufficient");
           await tx.factionNightBet.create({
             data: {
               windowId: bounds.id,
@@ -833,11 +835,11 @@ export async function placeNightBet(opts: {
               status: "pending",
             },
           });
-          await tx.user.update({
-            where: { id: opts.actorUserId },
-            data: { blueberryBalance: bal2 - amount },
-          });
         }
+        await tx.user.update({
+          where: { id: opts.actorUserId },
+          data: { blueberryBalance: bal - amount },
+        });
       } else {
         const f = await tx.faction.findUnique({
           where: { id: opts.fromFactionId },
@@ -862,27 +864,7 @@ export async function placeNightBet(opts: {
               userId: opts.actorUserId,
             },
           });
-          await tx.faction.update({
-            where: { id: opts.fromFactionId },
-            data: { blueberryBalance: treasury - amount },
-          });
         } else {
-          let bal = treasury;
-          if (existing) {
-            bal += existing.amount;
-            await tx.factionLedgerEntry.create({
-              data: {
-                factionId: opts.fromFactionId,
-                amount: existing.amount,
-                kind: "night_bet_refund",
-                sourceKey: `night_bet_replace_refund:${bounds.id}:${existing.id}`,
-                note: `Смена ставки: возврат ${existing.amount.toLocaleString("ru-RU")} ${BD_MARK}`,
-                userId: opts.actorUserId,
-              },
-            });
-            await tx.factionNightBet.delete({ where: { id: existing.id } });
-          }
-          if (bal < amount) throw new Error("insufficient");
           const bet = await tx.factionNightBet.create({
             data: {
               windowId: bounds.id,
@@ -904,11 +886,11 @@ export async function placeNightBet(opts: {
               userId: opts.actorUserId,
             },
           });
-          await tx.faction.update({
-            where: { id: opts.fromFactionId },
-            data: { blueberryBalance: bal - amount },
-          });
         }
+        await tx.faction.update({
+          where: { id: opts.fromFactionId },
+          data: { blueberryBalance: treasury - amount },
+        });
       }
 
       const all = await tx.factionNightBet.findMany({
