@@ -10,6 +10,33 @@ export const RACE_GOAL_DOWN = 0.95;
 
 export const RACE_FACTION_NAMES = ["Орда", "Улей", "Сброд", "Стая", "Табор"] as const;
 
+/**
+ * Что идёт в прогресс гонки: гринд плюс ночные ставки.
+ * Ставка (night_bet, −) вычитается из гонки; выигрыш/возврат (night_bet_win / refund, +) добавляется.
+ * Легион вне гонки — его проводки сюда не попадают через listRacingFactions.
+ */
+export const RACE_PROGRESS_BET_KINDS = [
+  "night_bet",
+  "night_bet_win",
+  "night_bet_refund",
+] as const;
+
+/** Фильтр ledger для суммы прогресса гонки за окно. */
+export function raceProgressLedgerWhere(
+  factionId: string | { in: string[] },
+  start: Date,
+  end: Date
+) {
+  return {
+    factionId,
+    createdAt: { gte: start, lt: end },
+    OR: [
+      { kind: "grind", amount: { gt: 0 } },
+      { kind: { in: [...RACE_PROGRESS_BET_KINDS] } },
+    ],
+  };
+}
+
 export function isRaceExcludedName(...parts: (string | null | undefined)[]): boolean {
   const key = parts
     .filter(Boolean)

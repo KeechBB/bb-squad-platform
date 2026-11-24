@@ -4,6 +4,7 @@ import { logFaction } from "@/lib/factions";
 import { isActiveReserve } from "@/lib/validation";
 import {
   RACE_BASE_GOAL,
+  raceProgressLedgerWhere,
   RACE_FACTION_NAMES,
   RACE_GRACE_MS,
   formatRaceWindowLabel,
@@ -54,12 +55,7 @@ async function ensureRaceStates(factionIds: string[]) {
 
 async function grindSum(factionId: string, start: Date, end: Date): Promise<number> {
   const agg = await prisma.factionLedgerEntry.aggregate({
-    where: {
-      factionId,
-      kind: "grind",
-      amount: { gt: 0 },
-      createdAt: { gte: start, lt: end },
-    },
+    where: raceProgressLedgerWhere(factionId, start, end),
     _sum: { amount: true },
   });
   return Math.max(0, agg._sum.amount || 0);

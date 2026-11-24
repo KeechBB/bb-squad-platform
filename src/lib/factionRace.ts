@@ -5,6 +5,7 @@ import {
   RACE_BASE_GOAL,
   RACE_EPOCH_START,
   formatRaceWindowLabel,
+  raceProgressLedgerWhere,
   raceWindowAt,
   raceWindowByIndex,
 } from "@/lib/factionRaceCanon";
@@ -61,12 +62,7 @@ export async function factionRaceBoard(clanId: string): Promise<FactionRaceBoard
       ? Promise.resolve([])
       : prisma.factionLedgerEntry.groupBy({
           by: ["factionId"],
-          where: {
-            factionId: { in: ids },
-            kind: "grind",
-            amount: { gt: 0 },
-            createdAt: { gte: bounds.start, lt: bounds.end },
-          },
+          where: raceProgressLedgerWhere({ in: ids }, bounds.start, bounds.end),
           _sum: { amount: true },
         }),
     ids.length === 0
