@@ -1342,7 +1342,6 @@ export function FactionNightBetsBoard({
                       {row.name}
                     </span>
                     {isWinner ? <em className="is-winner-tag">победитель</em> : null}
-                    {liveLead && !isWinner ? <em>впереди</em> : null}
                     {isMine ? <em className="is-mine-tag">ваша</em> : null}
                   </div>
                   <div className="faction-night-bets-card-metrics">
