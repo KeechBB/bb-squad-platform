@@ -24603,6 +24603,27 @@ body:has(.faction-page) .site-footer {
   flex: 0 0 auto;
   white-space: nowrap;
   align-self: flex-start;
+  border: 1px solid rgba(52, 211, 153, 0.75) !important;
+  color: #ecfdf5 !important;
+  font-weight: 800 !important;
+  background:
+    linear-gradient(
+      120deg,
+      rgba(6, 78, 59, 0.92) 0%,
+      rgba(4, 120, 87, 0.78) 40%,
+      rgba(52, 211, 153, 0.45) 100%
+    ) !important;
+  box-shadow:
+    0 0 12px rgba(16, 185, 129, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+.faction-night-bets-history-btn:hover,
+.faction-night-bets-history-btn:focus-visible {
+  border-color: rgba(167, 243, 208, 0.95) !important;
+  color: #fff !important;
+  box-shadow:
+    0 0 16px rgba(52, 211, 153, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 .faction-night-bets-pot {
   display: flex;

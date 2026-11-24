@@ -1361,22 +1361,6 @@ export function FactionNightBetsBoard({
             </div>
           ) : null}
 
-          {data.bets.length > 0 ? (
-            <div className="faction-night-bets-list">
-              <p className="faction-night-bets-list-title">Кто поставил</p>
-              <ul>
-                {data.bets.map((b) => (
-                  <li key={b.id}>
-                    <span style={{ color: b.fromColor }}>{b.fromName}</span>
-                    {" → "}
-                    <span style={{ color: b.pickColor }}>{b.pickName}</span>
-                    {`: ${fmtBd(b.amount)} B$ · ${fmtOdds(b.odds)}`}
-                    {b.payout > 0 ? ` · +${fmtBd(b.payout)}` : ""}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
         </>
       ) : null}
 
