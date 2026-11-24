@@ -24582,6 +24582,13 @@ body:has(.faction-page) .site-footer {
   gap: 12px;
   overflow: auto;
 }
+.faction-night-bets-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+  justify-content: space-between;
+}
 .faction-night-bets-dates {
   margin: 0;
   font-size: 1.05rem;
@@ -24595,10 +24602,29 @@ body:has(.faction-page) .site-footer {
   gap: 12px 24px;
   align-items: baseline;
   font-size: 0.98rem;
+  color: #ecfdf5;
 }
 .faction-night-bets-pot strong {
   color: #6ee7b7;
   font-variant-numeric: tabular-nums;
+}
+.faction-night-bets-history {
+  min-width: min(420px, 92vw);
+  max-width: 520px;
+  padding: 4px 2px;
+}
+.faction-night-bets-history h3 {
+  margin: 0 0 10px;
+  font-size: 1.1rem;
+}
+.faction-night-bets-history ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 60vh;
+  overflow: auto;
 }
 .faction-night-bets-form {
   display: flex;

@@ -14,7 +14,6 @@ import {
   isRaceExcludedName,
 } from "@/lib/factionRaceCanon";
 import { trainingDayYmd } from "@/lib/squadSessions";
-import { isBuiltinSuperAdmin } from "@/lib/admin";
 import { BD_MARK } from "@/lib/blueberryDollar";
 
 export const NIGHT_BET_MIN = 1_000;
@@ -55,19 +54,13 @@ export function nightBetWindowAt(now = new Date()): NightBetWindowBounds {
   return nightBetBoundsForDay(id) || nightBetBoundsForDay("2026-11-24")!;
 }
 
-function fmtMsk(d: Date): string {
-  return new Intl.DateTimeFormat("ru-RU", {
-    timeZone: "Europe/Moscow",
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(d);
-}
-
+/** «Тренировка 24.11» — дата обновляется каждый день по окну. */
 export function formatNightBetLabel(bounds: NightBetWindowBounds): string {
-  return `ставки ${fmtMsk(bounds.betsOpen)}–${fmtMsk(bounds.betsClose).slice(-5)} · гринд ${fmtMsk(bounds.grindStart).slice(-5)}–${fmtMsk(bounds.grindEnd)} МСК`;
+  const p = parseYmd(bounds.id);
+  if (!p) return `Тренировка ${bounds.id}`;
+  const dd = p.d < 10 ? `0${p.d}` : String(p.d);
+  const mm = p.m < 10 ? `0${p.m}` : String(p.m);
+  return `Тренировка ${dd}.${mm}`;
 }
 
 type FactionLite = {
@@ -614,6 +607,46 @@ export async function nightBetBoard(opts: {
   };
 }
 
+/** История ставок фракции (на кого / сумма / результат). */
+export async function nightBetHistory(fromFactionId: string): Promise<
+  {
+    id: string;
+    windowId: string;
+    label: string;
+    pickName: string;
+    pickColor: string;
+    amount: number;
+    status: string;
+    payout: number;
+  }[]
+> {
+  const rows = await prisma.factionNightBet.findMany({
+    where: {
+      fromFactionId,
+      status: { in: ["won", "lost", "refunded", "pending"] },
+    },
+    include: {
+      pickFaction: { select: { name: true, slug: true } },
+      window: { select: { id: true, status: true } },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 60,
+  });
+  return rows.map((r) => {
+    const bounds = nightBetBoundsForDay(r.windowId);
+    return {
+      id: r.id,
+      windowId: r.windowId,
+      label: bounds ? formatNightBetLabel(bounds) : `Тренировка ${r.windowId}`,
+      pickName: r.pickFaction.name,
+      pickColor: factionUiColor(r.pickFaction.name, r.pickFaction.slug),
+      amount: r.amount,
+      status: r.status,
+      payout: r.payout,
+    };
+  });
+}
+
 export async function placeNightBet(opts: {
   actorUserId: string;
   actorSteamId: string | null;
@@ -624,20 +657,16 @@ export async function placeNightBet(opts: {
   const amount = Math.trunc(Number(opts.amount) || 0);
   if (amount < NIGHT_BET_MIN) return { ok: false, error: "min_bet" };
 
-  const keech = Boolean(
-    opts.actorSteamId && isBuiltinSuperAdmin(opts.actorSteamId)
-  );
+  // Только глава / зам этой фракции.
   const mem = await prisma.factionMember.findUnique({
     where: { userId: opts.actorUserId },
     select: { factionId: true, seat: true },
   });
-  if (!keech) {
-    if (!mem || mem.factionId !== opts.fromFactionId) {
-      return { ok: false, error: "not_member" };
-    }
-    if (mem.seat !== "LEADER" && mem.seat !== "DEPUTY") {
-      return { ok: false, error: "forbidden_seat" };
-    }
+  if (!mem || mem.factionId !== opts.fromFactionId) {
+    return { ok: false, error: "not_member" };
+  }
+  if (mem.seat !== "LEADER" && mem.seat !== "DEPUTY") {
+    return { ok: false, error: "forbidden_seat" };
   }
 
   const bounds = nightBetWindowAt();

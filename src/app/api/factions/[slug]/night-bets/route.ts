@@ -2,16 +2,23 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { loadFactionView } from "@/lib/factions";
-import { nightBetBoard, placeNightBet } from "@/lib/factionNightBets";
+import {
+  nightBetBoard,
+  nightBetHistory,
+  placeNightBet,
+} from "@/lib/factionNightBets";
 import { prisma } from "@/lib/prisma";
-import { isBuiltinSuperAdmin } from "@/lib/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ slug: string }> };
 
-export async function GET(_req: Request, ctx: Ctx) {
+function isOfficerSeat(seat: string | null | undefined): boolean {
+  return seat === "LEADER" || seat === "DEPUTY";
+}
+
+export async function GET(req: Request, ctx: Ctx) {
   const session = await getServerSession(authOptions);
   const { slug } = await ctx.params;
   const loaded = await loadFactionView(
@@ -23,7 +30,13 @@ export async function GET(_req: Request, ctx: Ctx) {
   }
 
   const view = loaded.view;
-  const canPlace = Boolean(view.keech || view.canManage);
+  const url = new URL(req.url);
+  if (url.searchParams.get("history") === "1") {
+    const rows = await nightBetHistory(view.id);
+    return NextResponse.json({ rows });
+  }
+
+  const canPlace = isOfficerSeat(view.mySeat);
   const board = await nightBetBoard({
     viewerFactionId: view.id,
     canPlace,
@@ -45,8 +58,7 @@ export async function POST(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Нет доступа" }, { status: 404 });
   }
   const view = loaded.view;
-  const keech = isBuiltinSuperAdmin(session.user.steamId);
-  if (!keech && !view.canManage) {
+  if (!isOfficerSeat(view.mySeat)) {
     return NextResponse.json(
       { error: "Ставить может только глава или зам фракции" },
       { status: 403 }
@@ -84,10 +96,10 @@ export async function POST(req: Request, ctx: Ctx) {
       min_bet: "Минимальная ставка — 1 000 B$",
       not_member: "Ты не в этой фракции",
       forbidden_seat: "Ставить может только глава или зам",
-      bets_not_open: "Ставки откроются в 12:00 МСК",
-      window_closed: "Приём ставок закрыт в 21:30 МСК",
+      bets_not_open: "Ставки ещё не открыты",
+      window_closed: "Приём ставок закрыт",
       bad_faction: "Эта фракция не может ставить",
-      bad_pick: "Нельзя ставить на эту фракцию (в забеге только 5 гоночных)",
+      bad_pick: "Нельзя ставить на эту фракцию",
       insufficient: "В казне не хватает B$",
       debit: "Не удалось списать ставку",
     };

@@ -996,13 +996,6 @@ type NightBetBoardData = {
   }[];
 };
 
-function nightStatusRu(status: NightBetBoardData["status"]): string {
-  if (status === "open") return "приём ставок до 21:30";
-  if (status === "locked") return "ставки закрыты · идёт тренировка";
-  if (status === "upcoming") return "ставки откроются в 12:00";
-  return "итоги · следующее окно с 12:00";
-}
-
 function betStatusRu(s: string): string {
   if (s === "won") return "выигрыш";
   if (s === "lost") return "проигрыш";
@@ -1014,6 +1007,17 @@ function fmtOdds(o: number | null | undefined): string {
   if (o == null || !Number.isFinite(o)) return "—";
   return `×${o.toFixed(2).replace(".", ",")}`;
 }
+
+type NightHistoryRow = {
+  id: string;
+  windowId: string;
+  label: string;
+  pickName: string;
+  pickColor: string;
+  amount: number;
+  status: string;
+  payout: number;
+};
 
 export function FactionNightBetsBoard({
   slug,
@@ -1028,7 +1032,9 @@ export function FactionNightBetsBoard({
   const [pickId, setPickId] = useState("");
   const [amountStr, setAmountStr] = useState("");
   const [busy, setBusy] = useState(false);
-  const [flash, setFlash] = useState("");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyRows, setHistoryRows] = useState<NightHistoryRow[] | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const reload = async (signal?: AbortSignal) => {
     setLoading(true);
@@ -1083,7 +1089,6 @@ export function FactionNightBetsBoard({
     }
     setBusy(true);
     setError("");
-    setFlash("");
     try {
       const res = await fetch(
         `/api/factions/${encodeURIComponent(slug)}/night-bets`,
@@ -1102,11 +1107,6 @@ export function FactionNightBetsBoard({
         return;
       }
       setData(json);
-      setFlash(
-        data.myBet
-          ? "Ставка обновлена — казна списана заново"
-          : "Ставка принята из казны фракции"
-      );
     } catch {
       setError("Сеть недоступна");
     } finally {
@@ -1114,75 +1114,94 @@ export function FactionNightBetsBoard({
     }
   }
 
+  async function openHistory() {
+    setHistoryOpen(true);
+    setHistoryLoading(true);
+    try {
+      const res = await fetch(
+        `/api/factions/${encodeURIComponent(slug)}/night-bets?history=1`,
+        { cache: "no-store" }
+      );
+      const json = (await res.json().catch(() => ({}))) as {
+        rows?: NightHistoryRow[];
+        error?: string;
+      };
+      if (!res.ok) {
+        setError(json.error || "Не удалось загрузить историю");
+        setHistoryRows([]);
+        return;
+      }
+      setHistoryRows(Array.isArray(json.rows) ? json.rows : []);
+    } catch {
+      setHistoryRows([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
   if (loadKey < 1) {
-    return (
-      <p className="muted faction-stat-note">
-        Нажми «Ставки фракций», чтобы открыть ночной пул.
-      </p>
-    );
+    return null;
   }
 
   const maxGrind = data?.grind.reduce((m, r) => Math.max(m, r.amount), 0) || 0;
-  const pickPreview = data?.grind.find((g) => g.factionId === pickId) || null;
 
   return (
     <div className="faction-night-bets">
-      <div className="faction-race-head">
+      <div className="faction-night-bets-top">
         <p className="faction-night-bets-dates">
-          {data?.label || "ставки 12:00–21:30 · гринд 21:00–01:00 МСК"}
+          {data?.label || "Тренировка"}
         </p>
-        <p className="faction-race-goal muted">
-          Букмекерский пул: крутятся только поставленные B$ (казино сайта не
-          платит). Кэф = банк ÷ ставка на исход. Глава/зам ставят из казны;
-          Легион — только со стороны. Выплата в казну сразу после 01:00.
-          {data ? ` · ${nightStatusRu(data.status)}` : ""}
-        </p>
+        <button type="button" className="btn" onClick={() => void openHistory()}>
+          История побед
+        </button>
       </div>
       {error ? <p className="error">{error}</p> : null}
-      {flash ? <p className="ok">{flash}</p> : null}
-      {loading && !data ? <p className="muted">Считаю ночной пул…</p> : null}
+      {loading && !data ? <p className="muted">Загрузка…</p> : null}
 
       {data ? (
         <>
           <div className="faction-night-bets-pot">
             <span>
-              Банк пула: <strong>{fmtBd(data.pot)}</strong> B$
+              Банк: <strong>{fmtBd(data.pot)}</strong> B$
             </span>
-            <span className="muted">
-              Казна твоей фракции: {fmtBd(data.myTreasury)} B$
+            <span>
+              Казна фракции: <strong>{fmtBd(data.myTreasury)}</strong> B$
             </span>
           </div>
 
-          {data.status === "settled" && data.winners.length > 0 ? (
+          {data.status === "settled" &&
+          (data.winners.length > 0 || data.payouts.length > 0) ? (
             <div className="faction-night-bets-result">
-              <p className="faction-night-bets-winners">
-                Победитель гринда:{" "}
-                {data.winners.map((w, i) => (
-                  <span key={w.factionId}>
-                    {i > 0 ? ", " : ""}
-                    <strong style={{ color: w.color }}>{w.name}</strong>
-                    {` (${fmtBd(w.grindAmount)} B$)`}
-                  </span>
-                ))}
-              </p>
+              {data.winners.length > 0 ? (
+                <p className="faction-night-bets-winners">
+                  Победитель:{" "}
+                  {data.winners.map((w, i) => (
+                    <span key={w.factionId}>
+                      {i > 0 ? ", " : ""}
+                      <strong style={{ color: w.color }}>{w.name}</strong>
+                      {` (${fmtBd(w.grindAmount)} B$)`}
+                    </span>
+                  ))}
+                </p>
+              ) : null}
               {data.payouts.length > 0 ? (
                 <ul className="faction-night-bets-payouts">
                   {data.payouts.map((p) => (
                     <li key={`${p.fromFactionId}-${p.payout}`}>
                       <span style={{ color: p.fromColor }}>{p.fromName}</span>
-                      {`: ставка ${fmtBd(p.amount)} → в казну `}
-                      <strong>+{fmtBd(p.payout)} B$</strong>
+                      {`: ${fmtBd(p.amount)} → +${fmtBd(p.payout)} B$`}
                     </li>
                   ))}
                 </ul>
-              ) : (
-                <p className="muted">Никто не угадал — ставки возвращены.</p>
-              )}
+              ) : null}
             </div>
           ) : null}
 
           <div className="faction-race-table" role="table" aria-label="Гринд и кэфы">
-            <div className="faction-race-row faction-race-row--head faction-night-bets-row" role="row">
+            <div
+              className="faction-race-row faction-race-row--head faction-night-bets-row"
+              role="row"
+            >
               <div className="faction-race-cell faction-race-name" role="columnheader">
                 Фракция
               </div>
@@ -1193,7 +1212,7 @@ export function FactionNightBetsBoard({
                 className="faction-race-cell faction-race-bar-cell"
                 role="columnheader"
               >
-                Гринд за тренировку
+                Гринд
               </div>
             </div>
             {data.grind.map((row) => {
@@ -1233,7 +1252,6 @@ export function FactionNightBetsBoard({
                     <div
                       className="faction-race-bar"
                       style={{ ["--race-color" as string]: row.color }}
-                      title={`${fmtBd(row.amount)} B$`}
                     >
                       <div
                         className="faction-race-bar-fill"
@@ -1284,38 +1302,14 @@ export function FactionNightBetsBoard({
                 disabled={busy || !pickId}
                 onClick={() => void submitBet()}
               >
-                {data.myBet ? "Заменить ставку" : "Поставить из казны"}
+                {data.myBet ? "Заменить ставку" : "Поставить"}
               </button>
-              {pickPreview ? (
-                <p className="muted faction-night-bets-hint">
-                  Сейчас на «{pickPreview.name}»: {fmtBd(pickPreview.stakeOn)} B$ · кэф{" "}
-                  {fmtOdds(pickPreview.odds)}
-                  {pickPreview.odds != null && Number(amountStr.replace(/\s/g, "")) > 0
-                    ? ` · ориентир выплаты ~${fmtBd(
-                        Math.floor(
-                          Number(String(amountStr).replace(/\s/g, "")) *
-                            pickPreview.odds
-                        )
-                      )} B$ (пересчитается после ставки)`
-                    : ""}
-                </p>
-              ) : null}
             </div>
-          ) : (
-            <p className="muted faction-stat-note">
-              {data.status === "settled"
-                ? "Итоги до 12:00 — дальше откроется новое окно ставок."
-                : data.status === "locked"
-                  ? "Приём закрыт в 21:30. Ждём итог гринда после ~01:00."
-                  : data.status === "upcoming"
-                    ? "Ставки откроются в 12:00 МСК."
-                    : "Ставить могут только глава и зам этой фракции."}
-            </p>
-          )}
+          ) : null}
 
           {data.myBet ? (
             <p className="faction-night-bets-mine">
-              Ваша ставка:{" "}
+              Ставка:{" "}
               <strong
                 style={{
                   color: data.grind.find(
@@ -1326,30 +1320,24 @@ export function FactionNightBetsBoard({
                 {data.grind.find((g) => g.factionId === data.myBet!.pickFactionId)
                   ?.name || "—"}
               </strong>{" "}
-              · {fmtBd(data.myBet.amount)} B$ · кэф {fmtOdds(data.myBet.odds)} ·{" "}
-              {betStatusRu(data.myBet.status)}
+              · {fmtBd(data.myBet.amount)} B$ · {fmtOdds(data.myBet.odds)}
               {data.myBet.payout > 0
-                ? ` · в казну +${fmtBd(data.myBet.payout)} B$`
-                : ""}
+                ? ` · +${fmtBd(data.myBet.payout)} B$`
+                : ` · ${betStatusRu(data.myBet.status)}`}
             </p>
           ) : null}
 
           {data.bets.length > 0 ? (
             <div className="faction-night-bets-list">
-              <p className="faction-night-bets-list-title">Ставки пула</p>
+              <p className="faction-night-bets-list-title">Ставки</p>
               <ul>
                 {data.bets.map((b) => (
                   <li key={b.id}>
                     <span style={{ color: b.fromColor }}>{b.fromName}</span>
                     {" → "}
                     <span style={{ color: b.pickColor }}>{b.pickName}</span>
-                    {`: ${fmtBd(b.amount)} B$`}
-                    <span className="muted">
-                      {" "}
-                      · {fmtOdds(b.odds)} · {b.placedByNick} ·{" "}
-                      {betStatusRu(b.status)}
-                      {b.payout > 0 ? ` · +${fmtBd(b.payout)}` : ""}
-                    </span>
+                    {`: ${fmtBd(b.amount)} B$ · ${fmtOdds(b.odds)}`}
+                    {b.payout > 0 ? ` · +${fmtBd(b.payout)}` : ""}
                   </li>
                 ))}
               </ul>
@@ -1357,6 +1345,48 @@ export function FactionNightBetsBoard({
           ) : null}
         </>
       ) : null}
+
+      <DraggableModal
+        open={historyOpen}
+        closeOnBackdrop
+        onClose={() => setHistoryOpen(false)}
+      >
+        <header
+          className="profile-match-modal-head"
+          data-drag-handle
+          title="Перетащить окно"
+        >
+          <div>
+            <h2 className="profile-mail-modal-title">История побед</h2>
+          </div>
+          <button
+            type="button"
+            className="profile-mail-close"
+            onClick={() => setHistoryOpen(false)}
+          >
+            ×
+          </button>
+        </header>
+        <div className="faction-night-bets-history">
+          {historyLoading ? <p>Загрузка…</p> : null}
+          {!historyLoading && historyRows && historyRows.length === 0 ? (
+            <p>Пока пусто.</p>
+          ) : null}
+          {!historyLoading && historyRows && historyRows.length > 0 ? (
+            <ul>
+              {historyRows.map((r) => (
+                <li key={r.id}>
+                  <span>{r.label}</span>
+                  {" · "}
+                  <strong style={{ color: r.pickColor }}>{r.pickName}</strong>
+                  {` · ${fmtBd(r.amount)} B$ · ${betStatusRu(r.status)}`}
+                  {r.payout > 0 ? ` · +${fmtBd(r.payout)} B$` : ""}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      </DraggableModal>
     </div>
   );
 }
