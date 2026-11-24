@@ -1182,7 +1182,7 @@ export function FactionNightBetsBoard({
           ) : null}
 
           <div className="faction-race-table" role="table" aria-label="Гринд и кэфы">
-            <div className="faction-race-row faction-race-row--head" role="row">
+            <div className="faction-race-row faction-race-row--head faction-night-bets-row" role="row">
               <div className="faction-race-cell faction-race-name" role="columnheader">
                 Фракция
               </div>
