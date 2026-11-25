@@ -150,7 +150,29 @@ export async function PATCH(req: Request, ctx: Ctx) {
       targetNick,
       meta: { from: existingRole, to: nextRole },
     });
-    return NextResponse.json({ ok: true, user });
+    // PUBLIC_ADMIN / PUBLIC_MOD → бессрочный QueuePriority в Admins.cfg
+    let queueSync: { action?: string; error?: string } | null = null;
+    if (nextRole !== existingRole) {
+      try {
+        const { syncStaffQueuePriorityForUser } = await import(
+          "@/lib/panelkaVipBan"
+        );
+        const sync = await syncStaffQueuePriorityForUser({
+          steamId: existing.steamId,
+          role: nextRole,
+          nick: targetNick,
+          byNick: actor.nick,
+        });
+        queueSync = sync.ok
+          ? { action: sync.action }
+          : { error: sync.error };
+      } catch (err) {
+        queueSync = {
+          error: err instanceof Error ? err.message : "queue sync fail",
+        };
+      }
+    }
+    return NextResponse.json({ ok: true, user, queueSync });
   }
 
   if (!mayEditProfile) {
@@ -266,6 +288,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
         console.warn("[admin] nick alias write failed:", alias.error);
       }
     }
+    let queueSync: { action?: string; error?: string } | null = null;
     if (locked !== existingRole) {
       notifyRoleChange(user.id, locked);
       await writeActionLog({
@@ -278,6 +301,24 @@ export async function PATCH(req: Request, ctx: Ctx) {
         targetNick,
         meta: { from: existingRole, to: locked },
       });
+      try {
+        const { syncStaffQueuePriorityForUser } = await import(
+          "@/lib/panelkaVipBan"
+        );
+        const sync = await syncStaffQueuePriorityForUser({
+          steamId: user.steamId,
+          role: locked,
+          nick: nick || targetNick,
+          byNick: actor.nick,
+        });
+        queueSync = sync.ok
+          ? { action: sync.action }
+          : { error: sync.error };
+      } catch (err) {
+        queueSync = {
+          error: err instanceof Error ? err.message : "queue sync fail",
+        };
+      }
     }
     await writeActionLog({
       category: "admin",
@@ -288,7 +329,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
       targetId: existing.id,
       targetNick: nick || targetNick,
     });
-    return NextResponse.json({ ok: true, user, nickChanged });
+    return NextResponse.json({ ok: true, user, nickChanged, queueSync });
   } catch {
     return NextResponse.json({ error: "Не удалось сохранить" }, { status: 500 });
   }

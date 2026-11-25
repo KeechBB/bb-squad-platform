@@ -118,11 +118,29 @@ export async function POST(req: Request) {
         reason,
         at: new Date().toISOString().slice(0, 19),
       }).catch(() => null);
+      const { verifyPanelkaCfgs } = await import("@/lib/panelkaCfgVerify");
+      const check = await verifyPanelkaCfgs({
+        focusSteamId: steamId,
+        kind: "ban",
+      });
+      if (!check.ok) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              check.error ||
+              "бан ушёл, но строки в Bans.cfg нет — проверь cfg",
+            verify: check,
+          },
+          { status: 502 }
+        );
+      }
       const bans = await listServerBans();
       return NextResponse.json({
         ok: true,
         reply: data.reply || "бан выдан",
         bans,
+        verify: check,
       });
     }
     return NextResponse.json({ ok: false, error: "неизвестное действие" }, { status: 400 });

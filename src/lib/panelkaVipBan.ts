@@ -3,6 +3,19 @@ import { runPanelka } from "@/lib/panelkaRcon";
 
 const STEAM_RE = /^7656\d{13}$/;
 
+/** Site roles that keep forever QueuePriority while assigned. */
+export const STAFF_QUEUE_ROLES = ["PUBLIC_ADMIN", "PUBLIC_MOD"] as const;
+export type StaffQueueRole = (typeof STAFF_QUEUE_ROLES)[number];
+export const ROLE_QUEUE_NOTE_PREFIX = "role-queue:";
+
+export function isStaffQueueRole(role: string | null | undefined): role is StaffQueueRole {
+  return STAFF_QUEUE_ROLES.includes(String(role || "") as StaffQueueRole);
+}
+
+export function roleQueueNote(role: StaffQueueRole): string {
+  return `${ROLE_QUEUE_NOTE_PREFIX}${role}`;
+}
+
 export type VipRow = {
   steamId: string;
   nick: string | null;
@@ -530,7 +543,105 @@ export async function grantPublicVip(opts: {
       active: true,
     },
   });
+  // Post-grant cfg health check (VIP line + recent bans/cameras spot)
+  try {
+    const { verifyPanelkaCfgs } = await import("@/lib/panelkaCfgVerify");
+    const check = await verifyPanelkaCfgs({ focusSteamId: opts.steamId, kind: "vip" });
+    if (!check.ok) {
+      console.error("[panelka] VIP cfg verify failed", check);
+      return {
+        ok: false,
+        error:
+          check.error ||
+          "VIP записан, но проверка cfg не прошла — смотри Admins.cfg",
+      };
+    }
+  } catch (err) {
+    console.error("[panelka] VIP cfg verify error", err);
+    return {
+      ok: false,
+      error: "VIP записан, но скрипт проверки cfg упал",
+    };
+  }
   return { ok: true };
+}
+
+/**
+ * While user has PUBLIC_ADMIN / PUBLIC_MOD — forever QueuePriority in Admins.cfg.
+ * On demotion from those roles — revoke only grants tagged role-queue:*.
+ */
+export async function syncStaffQueuePriorityForUser(opts: {
+  steamId: string;
+  role: string;
+  nick?: string | null;
+  byNick?: string;
+}): Promise<{ ok: true; action: "granted" | "revoked" | "noop" } | { ok: false; error: string }> {
+  if (!STEAM_RE.test(opts.steamId)) {
+    return { ok: false, error: "плохой Steam ID" };
+  }
+  const byNick = clean(opts.byNick || "role-sync", 32) || "role-sync";
+  if (isStaffQueueRole(opts.role)) {
+    const res = await grantPublicVip({
+      steamId: opts.steamId,
+      nick: opts.nick || undefined,
+      startsAt: new Date(),
+      endsAt: null,
+      forever: true,
+      byNick,
+      note: roleQueueNote(opts.role),
+    });
+    if (!res.ok) return res;
+    return { ok: true, action: "granted" };
+  }
+
+  const active = await prisma.panelkaVipGrant.findFirst({
+    where: { steamId: opts.steamId, active: true },
+    orderBy: { createdAt: "desc" },
+  });
+  if (active?.note && active.note.startsWith(ROLE_QUEUE_NOTE_PREFIX)) {
+    const res = await revokePublicVip({ steamId: opts.steamId, byNick });
+    if (!res.ok) return res;
+    return { ok: true, action: "revoked" };
+  }
+  return { ok: true, action: "noop" };
+}
+
+/** One-shot / heal: all PUBLIC_ADMIN + PUBLIC_MOD get forever QueuePriority. */
+export async function syncAllStaffQueuePriority(opts?: {
+  byNick?: string;
+}): Promise<{
+  ok: boolean;
+  granted: number;
+  failed: { steamId: string; nick: string; error: string }[];
+  total: number;
+}> {
+  const staff = await prisma.user.findMany({
+    where: { role: { in: [...STAFF_QUEUE_ROLES] } },
+    select: { steamId: true, nick: true, steamName: true, role: true },
+    orderBy: [{ role: "asc" }, { nick: "asc" }],
+  });
+  const failed: { steamId: string; nick: string; error: string }[] = [];
+  let granted = 0;
+  for (const u of staff) {
+    const nick = (u.nick || u.steamName || "").trim() || u.steamId;
+    const res = await syncStaffQueuePriorityForUser({
+      steamId: u.steamId,
+      role: u.role,
+      nick,
+      byNick: opts?.byNick || "role-sync",
+    });
+    if (!res.ok) {
+      failed.push({ steamId: u.steamId, nick, error: res.error });
+      continue;
+    }
+    if (res.action === "granted") granted += 1;
+  }
+  return {
+    ok: failed.length === 0,
+    granted,
+    failed,
+    total: staff.length,
+  };
 }
 
 export async function revokePublicVip(opts: {

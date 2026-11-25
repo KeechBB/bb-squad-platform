@@ -92,6 +92,25 @@ export async function grantPublicCamera(opts: {
   if (res?.ok === false) {
     return { ok: false, error: res.error || "не выдалось" };
   }
+  try {
+    const { verifyPanelkaCfgs } = await import("@/lib/panelkaCfgVerify");
+    const check = await verifyPanelkaCfgs({
+      focusSteamId: opts.steamId,
+      kind: "camera",
+    });
+    if (!check.ok) {
+      console.error("[panelka] camera cfg verify failed", check);
+      return {
+        ok: false,
+        error:
+          check.error ||
+          "камера записана, но проверка Admins.cfg не прошла",
+      };
+    }
+  } catch (err) {
+    console.error("[panelka] camera cfg verify error", err);
+    return { ok: false, error: "камера записана, но скрипт проверки cfg упал" };
+  }
   return { ok: true };
 }
 
