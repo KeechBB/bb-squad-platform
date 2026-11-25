@@ -92,6 +92,35 @@ type PlayerProfile = {
   sessions: number;
 };
 
+type Pb1VisitBar = {
+  ymd: string;
+  label: string;
+  minutes: number;
+  hours: number;
+};
+
+type PlayerPb1Stats = {
+  hoursLabel: string;
+  publicMinutes: number;
+  sessions: number;
+  kd: number | null;
+  winsPct: number | null;
+  matches: number;
+  favoriteKit: string | null;
+  visitDays: number;
+  visitBars: Pb1VisitBar[];
+  visitMaxHours: number;
+  location: {
+    country: string | null;
+    region: string | null;
+    city: string | null;
+    offsetFromMsk: number | null;
+    offsetLabel: string | null;
+    ip: string | null;
+    source: "geoip" | "none";
+  };
+};
+
 type NickHistoryRow = {
   nick: string;
   firstSeenAt: string;
@@ -1388,6 +1417,8 @@ export function PlayerModModal({
   ) => Promise<boolean>;
 }) {
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
+  const [pb1Stats, setPb1Stats] = useState<PlayerPb1Stats | null>(null);
+  const [visitHover, setVisitHover] = useState<string | null>(null);
   const [nickHistory, setNickHistory] = useState<NickHistoryRow[]>([]);
   const [notes, setNotes] = useState<PlayerMemoRow[]>([]);
   const [labels, setLabels] = useState<PlayerMemoRow[]>([]);
@@ -1430,6 +1461,7 @@ export function PlayerModModal({
           const data = (await res.json().catch(() => null)) as {
             ok?: boolean;
             profile?: PlayerProfile;
+            pb1Stats?: PlayerPb1Stats | null;
             nickHistory?: NickHistoryRow[];
             notes?: PlayerMemoRow[];
             labels?: PlayerMemoRow[];
@@ -1444,12 +1476,14 @@ export function PlayerModModal({
               setLoadError(data?.error || `карточка не загрузилась (${res.status})`);
             }
             if (data?.profile) setProfile(data.profile);
+            if (data?.pb1Stats) setPb1Stats(data.pb1Stats);
             if (data?.nickHistory) setNickHistory(data.nickHistory);
             if (data?.notes) setNotes(data.notes);
             if (data?.labels) setLabels(data.labels);
             return;
           }
           setProfile(data.profile || null);
+          setPb1Stats(data.pb1Stats || null);
           setNickHistory(data.nickHistory || []);
           setNotes(data.notes || []);
           setLabels(data.labels || []);
@@ -1493,6 +1527,8 @@ export function PlayerModModal({
     setNickHistory([]);
     setNotes([]);
     setLabels([]);
+    setPb1Stats(null);
+    setVisitHover(null);
     setNoteDraft("");
     setLabelDraft("");
     void loadCard();
@@ -1726,9 +1762,31 @@ export function PlayerModModal({
                 )}
               </p>
               <p>
-                Паблик: <b>{profile.publicHoursLabel}</b>
-                {profile.sessions ? ` · ${profile.sessions} сессий` : ""}
+                Паблик:{" "}
+                <b>{pb1Stats?.hoursLabel || profile.publicHoursLabel}</b>
+                {(pb1Stats?.sessions ?? profile.sessions)
+                  ? ` · ${pb1Stats?.sessions ?? profile.sessions} сессий`
+                  : ""}
               </p>
+              {pb1Stats?.location?.country || pb1Stats?.location?.offsetLabel ? (
+                <p className="panelka-pb1-loc" title={pb1Stats.location.ip || undefined}>
+                  Локация:{" "}
+                  <b>
+                    {[
+                      pb1Stats.location.country,
+                      pb1Stats.location.region,
+                      pb1Stats.location.city,
+                    ]
+                      .filter(Boolean)
+                      .join(", ") || "—"}
+                  </b>
+                  {pb1Stats.location.offsetLabel
+                    ? ` · (${pb1Stats.location.offsetLabel})`
+                    : ""}
+                </p>
+              ) : pb1Stats && !loading ? (
+                <p className="panelka-pb1-loc muted">Локация: нет IP в свежих логах</p>
+              ) : null}
               <div className="panelka-mod-links">
                 <a className="panelka-mod-link" href={steamUrl} target="_blank" rel="noreferrer">
                   Профиль Steam
@@ -1738,6 +1796,92 @@ export function PlayerModModal({
                 </a>
               </div>
             </>
+          ) : null}
+
+          {pb1Stats ? (
+            <div className="panelka-pb1-stats" aria-label="Статистика PB1 (только админка)">
+              <div className="panelka-pb1-cards">
+                <div className="panelka-pb1-card">
+                  <span>Онлайн PB1</span>
+                  <strong>{pb1Stats.hoursLabel}</strong>
+                </div>
+                <div className="panelka-pb1-card">
+                  <span>Побед</span>
+                  <strong>
+                    {pb1Stats.winsPct != null ? `${pb1Stats.winsPct}%` : "—"}
+                  </strong>
+                  {pb1Stats.matches ? (
+                    <em>{pb1Stats.matches} матчей</em>
+                  ) : null}
+                </div>
+                <div className="panelka-pb1-card">
+                  <span>Кит</span>
+                  <strong>{pb1Stats.favoriteKit || "—"}</strong>
+                </div>
+                <div className="panelka-pb1-card">
+                  <span>К/Д</span>
+                  <strong>
+                    {pb1Stats.kd != null ? pb1Stats.kd.toFixed(2) : "—"}
+                  </strong>
+                </div>
+              </div>
+              <div className="panelka-pb1-chart">
+                <div className="panelka-pb1-chart-head">
+                  <span>График заходов · 90 дней · PB1</span>
+                  <span className="muted">
+                    {pb1Stats.visitDays} дн. с онлайном
+                  </span>
+                </div>
+                <div
+                  className="panelka-pb1-bars"
+                  role="img"
+                  aria-label="Минуты на PB1 по дням"
+                >
+                  {pb1Stats.visitBars.map((b) => {
+                    const pct =
+                      (b.hours / Math.max(pb1Stats.visitMaxHours, 0.25)) * 100;
+                    const active = visitHover === b.ymd;
+                    return (
+                      <button
+                        key={b.ymd}
+                        type="button"
+                        className={`panelka-pb1-bar${active ? " is-on" : ""}${b.hours > 0 ? "" : " is-empty"}`}
+                        style={{
+                          ["--h" as string]: `${Math.max(pct, b.hours > 0 ? 4 : 0)}%`,
+                        }}
+                        title={`${b.label}: ${b.hours} ч (${Math.round(b.minutes)} мин)`}
+                        onMouseEnter={() => setVisitHover(b.ymd)}
+                        onMouseLeave={() => setVisitHover(null)}
+                        onFocus={() => setVisitHover(b.ymd)}
+                        onBlur={() => setVisitHover(null)}
+                      >
+                        <span className="panelka-pb1-bar-fill" />
+                      </button>
+                    );
+                  })}
+                </div>
+                {visitHover ? (
+                  <div className="panelka-pb1-tip">
+                    {(() => {
+                      const hit =
+                        pb1Stats.visitBars.find((x) => x.ymd === visitHover) ||
+                        null;
+                      if (!hit) return null;
+                      return (
+                        <>
+                          <strong>{hit.label}</strong>
+                          {` · ${hit.hours} ч · ${Math.round(hit.minutes)} мин`}
+                        </>
+                      );
+                    })()}
+                  </div>
+                ) : (
+                  <div className="panelka-pb1-tip muted">
+                    Наведи на день — сколько часов на PB1
+                  </div>
+                )}
+              </div>
+            </div>
           ) : null}
           {nickHistory.length ? (
             <div className="panelka-nick-hist">

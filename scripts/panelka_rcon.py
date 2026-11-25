@@ -509,6 +509,55 @@ def read_player_card(key, steam_id, name):
     chat = sorted(chat, key=lambda r: (r.get("date") or "", r.get("clock") or ""))[-120:]
     return {"ok": True, "chat": chat, "teamkills": teamkills, "punishments": punishments}
 
+def player_ip(steam_id):
+    """Best-effort last IP for Steam from PB1/TPUB1 SquadGame.log (admin geo)."""
+    if not re.fullmatch(r"7656\d{13}", steam_id or ""):
+        return {"ok": False, "error": "bad steam"}
+    # IP near steam in PostLogin / Join / LogNet lines
+    ip_re = re.compile(
+        r"(?:IP|IpAddr|Address)[=:\s]+(?P<ip>\d{1,3}(?:\.\d{1,3}){3}).{0,220}?steam:\s*"
+        + re.escape(steam_id),
+        re.I,
+    )
+    ip_re_rev = re.compile(
+        r"steam:\s*"
+        + re.escape(steam_id)
+        + r".{0,220}?(?:IP|IpAddr|Address)[=:\s]+(?P<ip>\d{1,3}(?:\.\d{1,3}){3})",
+        re.I,
+    )
+    # Also: (IP: x.x.x.x | Online IDs: ... steam: ...)
+    ip_paren = re.compile(
+        r"\(IP:\s*(?P<ip>\d{1,3}(?:\.\d{1,3}){3})\s*\|[^)]*steam:\s*"
+        + re.escape(steam_id)
+        + r"\)",
+        re.I,
+    )
+    found = ""
+    for hk in ("TPUB1", "PB1"):
+        log_path = f"/home/squad/servers/{hk}/SquadGame/Saved/Logs/SquadGame.log"
+        try:
+            with open(log_path, "rb") as handle:
+                handle.seek(0, 2)
+                handle.seek(max(0, handle.tell() - 4_000_000))
+                blob = handle.read().decode("utf-8", "replace")
+        except Exception:
+            continue
+        for line in reversed(blob.splitlines()):
+            if steam_id not in line:
+                continue
+            for rx in (ip_paren, ip_re, ip_re_rev):
+                m = rx.search(line)
+                if m:
+                    found = m.group("ip")
+                    break
+            if found:
+                break
+        if found:
+            break
+    if not found:
+        return {"ok": True, "ip": "", "steamId": steam_id}
+    return {"ok": True, "ip": found, "steamId": steam_id}
+
 def _is_tk_auto_msg(reason):
     low = (reason or "").lower()
     return (
@@ -1845,6 +1894,8 @@ try:
             print(json.dumps({"ok": False, "error": "нет такого сервера"}, ensure_ascii=False))
         else:
             print(json.dumps(read_player_card(key, job.get("steamId") or "", job.get("name") or ""), ensure_ascii=False))
+    elif op == "player-ip":
+        print(json.dumps(player_ip(str(job.get("steamId") or "")), ensure_ascii=False))
     elif op == "staff-log":
         lim = job.get("limit") or 400
         print(json.dumps(read_staff_actions_log(lim), ensure_ascii=False))
@@ -3200,6 +3251,10 @@ def player_card(key: str, steam_id: str, name: str) -> dict:
     }
 
 
+def player_ip_lookup(steam_id: str) -> dict:
+    return ssh_job({"op": "player-ip", "steamId": steam_id}, timeout=25)
+
+
 def parse_mod_id(raw: str) -> str:
     text = (raw or "").strip()
     match = re.search(r"(?:[?&]id=|/filedetails/\?id=)(\d{5,12})", text, re.I)
@@ -3463,6 +3518,11 @@ def main() -> int:
             if not re.fullmatch(r"7656\d{13}", steam_id):
                 raise SystemExit("bad steam")
             result = player_card(key, steam_id, name)
+        elif op == "player-ip":
+            steam_id = sys.argv[2] if len(sys.argv) > 2 else ""
+            if not re.fullmatch(r"7656\d{13}", steam_id):
+                raise SystemExit("bad steam")
+            result = player_ip_lookup(steam_id)
         elif op == "staff-log":
             extra = _extra_payload()
             lim = int(extra.get("limit") or 400)

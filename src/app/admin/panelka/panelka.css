@@ -1009,6 +1009,130 @@ body:has(.panelka-page) .shell {
   margin-top: 4px;
 }
 
+.panelka-pb1-loc {
+  font-size: 0.9rem;
+}
+
+.panelka-pb1-stats {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(226, 197, 106, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panelka-pb1-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.panelka-pb1-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 10px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(8, 12, 22, 0.45);
+  min-width: 0;
+}
+
+.panelka-pb1-card span {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(239, 230, 214, 0.55);
+}
+
+.panelka-pb1-card strong {
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+  color: #efe6d6;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+.panelka-pb1-card em {
+  font-style: normal;
+  font-size: 0.72rem;
+  color: rgba(239, 230, 214, 0.45);
+}
+
+.panelka-pb1-chart {
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(8, 12, 22, 0.4);
+}
+
+.panelka-pb1-chart-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+  font-size: 0.82rem;
+  color: rgba(239, 230, 214, 0.78);
+}
+
+.panelka-pb1-bars {
+  display: grid;
+  grid-template-columns: repeat(90, minmax(0, 1fr));
+  gap: 1px;
+  align-items: end;
+  height: 120px;
+  width: 100%;
+}
+
+.panelka-pb1-bar {
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.panelka-pb1-bar-fill {
+  display: block;
+  width: 100%;
+  height: var(--h, 0%);
+  border-radius: 2px 2px 0 0;
+  background: #3ecf5b;
+  transition: filter 0.12s ease, box-shadow 0.12s ease;
+}
+
+.panelka-pb1-bar.is-on .panelka-pb1-bar-fill {
+  filter: brightness(1.25);
+  box-shadow: 0 0 0 1px rgba(62, 207, 91, 0.65);
+}
+
+.panelka-pb1-bar.is-empty .panelka-pb1-bar-fill {
+  opacity: 0.15;
+  background: rgba(255, 255, 255, 0.25);
+  min-height: 2px;
+  height: 2px;
+}
+
+.panelka-pb1-tip {
+  margin-top: 8px;
+  min-height: 1.2em;
+  font-size: 0.86rem;
+}
+
+@media (max-width: 720px) {
+  .panelka-pb1-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .panelka-pb1-bars {
+    height: 96px;
+  }
+}
+
 .panelka-nick-hist {
   margin-top: 10px;
   padding-top: 8px;

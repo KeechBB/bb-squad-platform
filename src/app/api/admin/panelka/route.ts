@@ -211,6 +211,13 @@ export async function GET(req: Request) {
         notes: [] as [],
         labels: [] as [],
       }));
+      const { buildPanelkaPlayerPb1Stats } = await import(
+        "@/lib/panelkaPlayerPb1Stats"
+      );
+      const pb1Stats = await buildPanelkaPlayerPb1Stats({
+        steamId,
+        nick: profile.nick || name || null,
+      }).catch(() => null);
       try {
         const history = (await runPanelka(["player-card", key, steamId], 28000, {
           name,
@@ -225,6 +232,7 @@ export async function GET(req: Request) {
           return NextResponse.json({
             ok: true,
             profile,
+            pb1Stats,
             nickHistory,
             notes: memos.notes,
             labels: memos.labels,
@@ -237,6 +245,7 @@ export async function GET(req: Request) {
         return NextResponse.json({
           ok: true,
           profile,
+          pb1Stats,
           nickHistory,
           notes: memos.notes,
           labels: memos.labels,
@@ -249,6 +258,7 @@ export async function GET(req: Request) {
         return NextResponse.json({
           ok: true,
           profile,
+          pb1Stats,
           nickHistory,
           notes: memos.notes,
           labels: memos.labels,
