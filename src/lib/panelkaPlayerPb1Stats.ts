@@ -582,7 +582,7 @@ export async function buildPanelkaPlayerPb1Stats(opts: {
         : location;
 
   let steamMinutes = steamPlay.minutesForever;
-  let steam2Weeks = steamPlay.minutes2Weeks;
+  const steam2Weeks = steamPlay.minutes2Weeks;
   let steamPlayStatus = steamPlay.status;
   // Keep last known Steam hours if profile temporarily private / API flake
   if (
