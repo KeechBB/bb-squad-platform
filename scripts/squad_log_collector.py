@@ -702,14 +702,17 @@ class Collector:
                 self._valid_steam(sm.group("steam") or sm.group("steam2") or "")
                 or ""
             )
+            # EOS→steam from Possess — ок для карты EOS.
+            # Ник→steam с Possess НЕ пишем: family share / чужой Online ID
+            # отвязывают роли от профиля (Angel BB → чужой steam, а сессия своя).
             if eos and line_steam:
                 self.eos_steam[eos] = line_steam
-            # Не перетираем join→steam чужим Online ID с Possess.
-            if line_steam and nick and not join_steam:
-                self._remember_nick_steam(nick, line_steam)
-        steam = join_steam or line_steam
-        if not steam and eos:
-            steam = self.eos_steam.get(eos, "")
+        # Приоритет: EOS с логина → ник с Login → Possess steam
+        steam = ""
+        if eos:
+            steam = self.eos_steam.get(eos, "") or ""
+        if not steam:
+            steam = join_steam or line_steam
         if not steam and nick:
             steam = self.nick_steam.get(nick_compact(nick), "")
         if not steam and not eos and not nick:
@@ -898,6 +901,8 @@ class Collector:
             at = parse_ts(lm.group("ts"))
             steam = self.eos_steam.get(eos)
             if steam:
+                # Login — канон для nick→steam (иначе DeployRole цепляет чужой Possess).
+                self._remember_nick_steam(nick, steam)
                 events.append(
                     {
                         "type": "join",
