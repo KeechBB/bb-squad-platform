@@ -690,14 +690,17 @@ export async function warmPanelkaPb1StatsBatch(opts?: {
     fromCache: true,
   }));
   const ipMap = readPlazaIpMap();
-  // Patch geo into already-cached players that still have source=none
+  // Patch geo into cached players missing location (prefer those with IP in map)
   let geoPatched = 0;
-  // ip-api free limit ~45/min — patch a modest batch each warm
-  for (const steamId of Object.keys(ipMap).slice(0, 35)) {
+  const missingGeo = listCachedPb1SteamIds(2000).filter((steamId) => {
+    if (!ipMap[steamId]) return false;
     const cached = readPb1StatsCache(steamId);
-    if (!cached || cached.stats.location?.source === "geoip") continue;
+    return Boolean(cached && cached.stats.location?.source !== "geoip");
+  });
+  for (const steamId of missingGeo.slice(0, 40)) {
+    const cached = readPb1StatsCache(steamId);
     const ip = ipMap[steamId];
-    if (!ip) continue;
+    if (!cached || !ip) continue;
     try {
       const loc = await geoFromIp(ip);
       if (loc.source !== "geoip") continue;
