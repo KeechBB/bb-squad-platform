@@ -677,28 +677,20 @@ export async function buildPlayerPublicCombatStats(
     publicRpLookupNick,
     collisionBySiteNick,
     collisionBySteamId,
-    loadSteamAngelPublicDays,
     loadSteamAngelSpawnMs,
-    matchYmdAllowed,
-    spawnCoversMatch,
+    angelSteamOwnsMatch,
+    ALAN_ANGEL_STEAM_ID,
   } = await import("@/lib/nickCollisions");
   const collision =
     collisionBySteamId(opts?.steamId) || collisionBySiteNick(clean);
   const lookupNick = publicRpLookupNick(clean, collision?.steamId);
   const want = nickKey(lookupNick);
-  const publicDays = collision?.steamId
-    ? await loadSteamAngelPublicDays(collision.steamId)
-    : null;
   const angelSpawns = collision?.steamId
     ? await loadSteamAngelSpawnMs(collision.steamId, "TPUB")
     : null;
-  const angelBySpawn = Boolean(angelSpawns && angelSpawns.length);
   const angelMatchOk = (date: string, hm: string | null | undefined) => {
     if (!collision?.steamId) return true;
-    if (angelBySpawn && hm && spawnCoversMatch(angelSpawns, date, hm)) {
-      return true;
-    }
-    return matchYmdAllowed(date, publicDays);
+    return angelSteamOwnsMatch(angelSpawns, date, hm);
   };
 
   // Fast path: aggregate from slim ladder player.matches (no full-table rebuild).
@@ -722,7 +714,19 @@ export async function buildPlayerPublicCombatStats(
     vehicleKills?: number;
     won?: boolean | null;
   };
-  const rawMatches = (player?.matches || []) as SlimM[];
+  const matchById = new Map<string, SlimM>();
+  for (const m of (player?.matches || []) as SlimM[]) {
+    if (m?.id) matchById.set(String(m.id), m);
+  }
+  // Алан часто в ledger как plain «angel» — подмешиваем и режем по его Steam.
+  if (collision?.steamId === ALAN_ANGEL_STEAM_ID) {
+    const plain = await lookupPlayerPublicRp("angel").catch(() => null);
+    for (const m of (plain?.matches || []) as SlimM[]) {
+      if (!m?.id || matchById.has(String(m.id))) continue;
+      matchById.set(String(m.id), m);
+    }
+  }
+  const rawMatches = [...matchById.values()];
   const matches = collision?.steamId
     ? rawMatches.filter((m) => {
         const id = String(m.id || "");

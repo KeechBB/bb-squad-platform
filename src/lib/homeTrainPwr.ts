@@ -10,13 +10,12 @@ import {
   trainStatsSinceYmd,
 } from "@/lib/trainStatsSince";
 import {
+  angelScoreboardNickOk,
+  angelSteamOwnsMatch,
   collisionBySiteNick,
   collisionBySteamId,
   isCollidingAngelNick,
   loadSteamAngelSpawnMs,
-  loadSteamAngelTrainDays,
-  matchYmdAllowed,
-  spawnCoversMatch,
 } from "@/lib/nickCollisions";
 
 function nickKey(nick: string) {
@@ -787,20 +786,16 @@ export async function buildPlayerTrainMatchHistory(
     collisionBySteamId(opts?.steamId) ||
     collisionBySiteNick(clean) ||
     (isCollidingAngelNick(clean) ? collisionBySteamId(opts?.steamId) : null);
-  const steamDays =
-    collision?.steamId
-      ? await loadSteamAngelTrainDays(collision.steamId)
-      : null;
-  // Два angel на табло без Steam в JSON — режем по спавну этого Steam в окне катки.
+  // Два angel на табло без Steam в JSON — строго окно спавна этого Steam.
   const angelSpawns = collision?.steamId
     ? await loadSteamAngelSpawnMs(collision.steamId, "TR")
     : null;
-  const angelBySpawn = Boolean(angelSpawns && angelSpawns.length);
   const angelMatchOk = (ymd: string, hm: string | null | undefined) => {
     if (!collision?.steamId) return true;
-    if (angelBySpawn && hm) return spawnCoversMatch(angelSpawns, ymd, hm);
-    return matchYmdAllowed(ymd, steamDays);
+    return angelSteamOwnsMatch(angelSpawns, ymd, hm);
   };
+  const nickOnBoard = (pNick: string) =>
+    collision ? angelScoreboardNickOk(pNick) : resolveKey(pNick) === want;
 
   // Все катки календаря с 20.10, где ник есть в players — не только RP-ledger.
   // Иначе вечерние катки без RP «пропадают» из профиля (кейс Keech 26.10).
@@ -816,7 +811,7 @@ export async function buildPlayerTrainMatchHistory(
           ? row.doc.players
           : [...(row.doc.teamA || []), ...(row.doc.teamB || [])]
       ) as TrainPlayerLine[];
-      return list.some((p) => p?.nick && resolveKey(p.nick) === want);
+      return list.some((p) => p?.nick && nickOnBoard(p.nick));
     })
     .sort((a, b) => a.sortKey.localeCompare(b.sortKey));
 
@@ -911,7 +906,7 @@ export async function buildPlayerTrainMatchHistory(
         ? playersDoc.players
         : [...(playersDoc.teamA || []), ...(playersDoc.teamB || [])]
     ) as TrainPlayerLine[];
-    const mine = list.filter((p) => p?.nick && resolveKey(p.nick) === want);
+    const mine = list.filter((p) => p?.nick && nickOnBoard(p.nick));
     if (!mine.length) continue;
     const resolved = resolveTrainWon(mine, playersDoc, {
       winner,
@@ -1102,19 +1097,17 @@ export async function buildPlayerTrainCombatStats(
   const want = resolveKey(clean);
   const collision =
     collisionBySteamId(opts?.steamId) || collisionBySiteNick(clean);
-  const steamDays =
-    collision?.steamId
-      ? await loadSteamAngelTrainDays(collision.steamId)
-      : null;
   const angelSpawns = collision?.steamId
     ? await loadSteamAngelSpawnMs(collision.steamId, "TR")
     : null;
-  const angelBySpawn = Boolean(angelSpawns && angelSpawns.length);
   const angelMatchOk = (ymd: string, hm: string | null | undefined) => {
     if (!collision?.steamId) return true;
-    if (angelBySpawn && hm) return spawnCoversMatch(angelSpawns, ymd, hm);
-    return matchYmdAllowed(ymd, steamDays);
+    return angelSteamOwnsMatch(angelSpawns, ymd, hm);
   };
+  const nickOnBoard = (pNick: string) =>
+    collision ? angelScoreboardNickOk(pNick) : resolveKey(pNick) === want;
+  const nickIn = (list: string[] | undefined) =>
+    (list || []).some((n) => nickOnBoard(n));
   const vehIndex = await loadTrainVehicleKillIndex().catch(
     () => ({}) as Record<string, Record<string, number>>
   );
@@ -1148,9 +1141,6 @@ export async function buildPlayerTrainCombatStats(
     armor: [] as NonNullable<PlayerTrainCombatStats["mvpHits"]>["armor"],
   };
 
-  const nickIn = (list: string[] | undefined) =>
-    (list || []).some((n) => resolveKey(n) === want);
-
   for (const match of corpus.rows) {
     if (!match.playersUrl || match.status === "upcoming") continue;
     const players = match.doc;
@@ -1161,7 +1151,7 @@ export async function buildPlayerTrainCombatStats(
           ? players.players
           : [...(players.teamA || []), ...(players.teamB || [])]
       ) as TrainPlayerLine[];
-      const mine = list.filter((p) => p?.nick && resolveKey(p.nick) === want);
+      const mine = list.filter((p) => p?.nick && nickOnBoard(p.nick));
       if (!mine.length) continue;
       const ymd = `${match.year}-${pad2(match.month)}-${pad2(match.day)}`;
       if (!isTrainStatsYmdOk(ymd)) continue;

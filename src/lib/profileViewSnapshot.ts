@@ -115,7 +115,9 @@ export async function buildProfileViewPayload(
     await Promise.all([
       lookupPlayerTrainPwr(nick).catch(() => null),
       loadPublicRpOneFromDb(publicNick).catch(() => null),
-      buildPlayerPublicCombatStats(nick).catch(() => null),
+      buildPlayerPublicCombatStats(nick, { steamId: steamForNick }).catch(
+        () => null
+      ),
       loadUserTrainingStats(userId),
       loadUserPublicAttendanceStats(userId).catch(() => null),
       buildPlayerCwAttendance(nick).catch(() => ({ byDay: {} })),

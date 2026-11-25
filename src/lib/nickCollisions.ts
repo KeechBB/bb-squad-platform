@@ -223,6 +223,30 @@ export function matchYmdAllowed(
 }
 
 /**
+ * Катка с общим ярлыком «angel» принадлежит этому Steam ТОЛЬКО если
+ * есть его спавн в окне старта. Дневной fallback запрещён: Саня зашёл
+ * утром на PB1 → иначе все вечерние катки Алана попадали ему в профиль.
+ * Без времени старта — не угадываем.
+ */
+export function angelSteamOwnsMatch(
+  spawns: number[] | null | undefined,
+  ymd: string,
+  hm: string | null | undefined
+): boolean {
+  if (!spawns || !spawns.length) return false;
+  const clock = String(hm || "").trim().slice(0, 5);
+  if (!/^\d{2}:\d{2}$/.test(clock)) return false;
+  return spawnCoversMatch(spawns, ymd, clock);
+}
+
+/** На табло оба играют как plain angel — матчим ярлык, не сайт-ник с декором. */
+export function angelScoreboardNickOk(
+  scoreboardNick: string | null | undefined
+): boolean {
+  return isPlainAngelLabel(scoreboardNick);
+}
+
+/**
  * Спавны этого Steam под ником angel/Angel, мс.
  * server: TR = тренировки, TPUB = паблик — не смешивать (TR-спавн не «покрывает» PB1).
  */

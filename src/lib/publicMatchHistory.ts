@@ -166,29 +166,21 @@ export async function buildPlayerPublicMatchHistory(
   const {
     collisionBySiteNick,
     collisionBySteamId,
-    loadSteamAngelPublicDays,
     loadSteamAngelSpawnMs,
-    matchYmdAllowed,
     publicRpLookupNick,
-    spawnCoversMatch,
+    angelSteamOwnsMatch,
   } = await import("@/lib/nickCollisions");
   const collision =
     collisionBySteamId(opts?.steamId) || collisionBySiteNick(clean);
   const lookupNick = publicRpLookupNick(clean, collision?.steamId);
-  const publicDays = collision?.steamId
-    ? await loadSteamAngelPublicDays(collision.steamId)
-    : null;
-  // Только TPUB-спавны: TR вечером не должен открывать чужие PB1 катки Алана.
+  // Только TPUB-спавны этого Steam. Без дневного fallback — иначе общий
+  // ledger «angel» отдаёт катки Алана Сане (и наоборот) в тот же день.
   const angelSpawns = collision?.steamId
     ? await loadSteamAngelSpawnMs(collision.steamId, "TPUB")
     : null;
-  const angelBySpawn = Boolean(angelSpawns && angelSpawns.length);
   const angelMatchOk = (date: string, hm: string | null | undefined) => {
     if (!collision?.steamId) return true;
-    if (angelBySpawn && hm && spawnCoversMatch(angelSpawns, date, hm)) {
-      return true;
-    }
-    return matchYmdAllowed(date, publicDays);
+    return angelSteamOwnsMatch(angelSpawns, date, hm);
   };
 
   const ladder = await loadPublicRpLadder();
@@ -236,11 +228,7 @@ export async function buildPlayerPublicMatchHistory(
       };
     })
     .filter((m) => m.date)
-    .filter((m) =>
-      collision
-        ? angelMatchOk(m.date, m.parsed?.hm)
-        : matchYmdAllowed(m.date, publicDays)
-    );
+    .filter((m) => (collision ? angelMatchOk(m.date, m.parsed?.hm) : true));
 
   // хронология для running RP
   rows.sort((a, b) => {
