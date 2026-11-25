@@ -111,10 +111,13 @@ export async function buildProfileViewPayload(
       .then((u) => u?.steamId || null)
       .catch(() => null));
   const publicNick = publicRpLookupNick(nick, steamForNick);
-  const [trainPwr, rp, combat, training, publicAtt, cwAtt, heavy] =
+  const collision = collisionBySiteNick(nick);
+  const [trainPwr, rpDb, combat, training, publicAtt, cwAtt, heavy] =
     await Promise.all([
       lookupPlayerTrainPwr(nick).catch(() => null),
-      loadPublicRpOneFromDb(publicNick).catch(() => null),
+      collision?.steamId
+        ? Promise.resolve(null)
+        : loadPublicRpOneFromDb(publicNick).catch(() => null),
       buildPlayerPublicCombatStats(nick, { steamId: steamForNick }).catch(
         () => null
       ),
@@ -124,10 +127,35 @@ export async function buildProfileViewPayload(
       loadPlayerProfileHeavy(nick).catch(() => null),
     ]);
 
+  // Саня/Алан: RP только из Steam-фильтрованного combat, не из общего ledger.
+  const ownedCombat =
+    (heavy?.publicCombat as {
+      rp?: number | null;
+      rankLabel?: string | null;
+      rankKey?: string | null;
+      predatorPlace?: number | null;
+    } | null) ||
+    (combat as {
+      rp?: number | null;
+      rankLabel?: string | null;
+      rankKey?: string | null;
+      predatorPlace?: number | null;
+    } | null);
+  const rp =
+    collision?.steamId && ownedCombat?.rp != null
+      ? {
+          nick: publicNick,
+          rp: ownedCombat.rp,
+          rankLabel: ownedCombat.rankLabel,
+          rankKey: ownedCombat.rankKey,
+          predatorPlace: ownedCombat.predatorPlace ?? null,
+        }
+      : rpDb;
+
   const base = emptyPayload();
   return {
     trainPwr,
-    publicSummary: { rp, combat },
+    publicSummary: { rp, combat: ownedCombat || combat },
     training: training ?? base.training,
     publicAtt: publicAtt ?? base.publicAtt,
     cwAtt: cwAtt ?? base.cwAtt,
