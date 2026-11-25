@@ -706,6 +706,7 @@ export async function buildPlayerPublicCombatStats(
   type SlimM = {
     id?: string;
     date?: string;
+    net?: unknown;
     kills?: unknown;
     deaths?: unknown;
     revives?: unknown;
@@ -749,6 +750,8 @@ export async function buildPlayerPublicCombatStats(
     let vehicleKills = 0;
     let wins = 0;
     let losses = 0;
+    let netSum = 0;
+    let netHits = 0;
     for (const m of matches) {
       kills += countStat(m.kills);
       deaths += countStat(m.deaths);
@@ -758,6 +761,10 @@ export async function buildPlayerPublicCombatStats(
       vehicleKills += Math.max(0, Math.floor(Number(m.vehicleKills) || 0));
       if (m.won === true) wins += 1;
       else if (m.won === false) losses += 1;
+      if (m.net != null && Number.isFinite(Number(m.net))) {
+        netSum += Number(m.net);
+        netHits += 1;
+      }
     }
     const games = matches.length;
     const mvp = await publicMvpCountsForNick(clean).catch(() => ({
@@ -765,6 +772,21 @@ export async function buildPlayerPublicCombatStats(
       killer: 0,
       armor: 0,
     }));
+    // Colliding «angel»: RP только из каток этого Steam, не из общего ledger.
+    let rpVal: number | null = player?.rp ?? null;
+    let rankLabel: string | null = player?.rankLabel ?? null;
+    let rankKey: string | null = player?.rankKey ?? null;
+    if (collision?.steamId && netHits > 0) {
+      const { loadPublicRpLadder } = await import("@/lib/publicRp");
+      const ladder = await loadPublicRpLadder().catch(() => null);
+      const startRp = Number(ladder?.startRp) || 1000;
+      const step = Number(ladder?.step) || 150;
+      const radiant3Max = Number(ladder?.radiant3Max) || 4950;
+      rpVal = Math.round((startRp + netSum) * 10) / 10;
+      const rk = rpRankFromScore(rpVal, step, radiant3Max);
+      rankLabel = rk.label;
+      rankKey = rk.rankKey;
+    }
     return {
       nick: player?.nick || clean,
       matches: games,
@@ -785,9 +807,9 @@ export async function buildPlayerPublicCombatStats(
       mvpMedic: mvp.medic,
       mvpArmor: mvp.armor,
       days,
-      rp: player?.rp ?? null,
-      rankLabel: player?.rankLabel ?? null,
-      rankKey: player?.rankKey ?? null,
+      rp: rpVal,
+      rankLabel,
+      rankKey,
       predatorPlace: player?.predatorPlace ?? null,
     };
   }

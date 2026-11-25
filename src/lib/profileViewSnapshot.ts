@@ -208,6 +208,47 @@ async function withLivePublicRp(
       cwTotal: ready.cwTotal,
     };
   }
+  // Саня/Алан: общий DB-ledger «angel» смешанный — не перетираем Steam-RP.
+  // Берём уже посчитанный publicCombat.rp (катки только этого Steam).
+  const collision = collisionBySiteNick(name);
+  if (collision?.steamId) {
+    const stats = data.stats as {
+      publicCombat?: {
+        rp?: number | null;
+        rankLabel?: string | null;
+        rankKey?: string | null;
+        predatorPlace?: number | null;
+      } | null;
+    } | null;
+    const owned = stats?.publicCombat;
+    if (owned && owned.rp != null && Number.isFinite(Number(owned.rp))) {
+      const official = Math.round(Number(owned.rp));
+      const combat = data.publicSummary?.combat;
+      const prevRp =
+        data.publicSummary?.rp && typeof data.publicSummary.rp === "object"
+          ? (data.publicSummary.rp as Record<string, unknown>)
+          : {};
+      data.publicSummary = {
+        rp: {
+          ...prevRp,
+          nick: publicRpLookupNick(name, collision.steamId),
+          rp: owned.rp,
+          rankLabel: owned.rankLabel,
+          rankKey: owned.rankKey,
+          predatorPlace: owned.predatorPlace ?? null,
+        },
+        combat: combat
+          ? {
+              ...(combat as object),
+              rp: official,
+              rankLabel: owned.rankLabel,
+              rankKey: owned.rankKey,
+              predatorPlace: owned.predatorPlace ?? null,
+            }
+          : combat ?? null,
+      };
+    }
+  } else {
   const rp = await loadPublicRpOneFromDb(name).catch(() => null);
   if (rp && Number.isFinite(Number(rp.rp))) {
     const official = Math.round(Number(rp.rp));
@@ -275,6 +316,7 @@ async function withLivePublicRp(
       data.histories = { ...hist, publicHistory: [first, ...rows.slice(1)] };
     }
   }
+  } // else: non-colliding nick — live RP from shared DB ledger
   data.histories = await fillPublicTicketScores(data.histories);
   return data;
 }
