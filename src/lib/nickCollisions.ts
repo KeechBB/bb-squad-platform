@@ -18,7 +18,10 @@ export type NickCollision = {
   publicNick: string;
 };
 
-/** Два Angel на сайте: Саня [BB] и Алан. */
+/**
+ * Три Angel с одним игровым ярлыком «angel» на табло:
+ * Саня [BB], Алан, angel ·8062 [ALPHA].
+ */
 export const ANGEL_COLLISIONS: readonly NickCollision[] = [
   {
     steamId: "76561198941350361",
@@ -35,6 +38,13 @@ export const ANGEL_COLLISIONS: readonly NickCollision[] = [
     historyKey: "angel#76561198421145708",
     publicNick: "Angel 🪽",
   },
+  {
+    steamId: "76561198730638062",
+    siteNick: "angel ·8062",
+    profileSlug: "angel-8062",
+    historyKey: "angel#76561198730638062",
+    publicNick: "angel ·8062",
+  },
 ] as const;
 
 /** «angel» после снятия декора / эмодзи — одинаковый игровой ярлык у разных Steam. */
@@ -49,10 +59,12 @@ export function isPlainAngelLabel(nick: string | null | undefined): boolean {
 export const BB_ANGEL = ANGEL_COLLISIONS[0]!;
 export const BB_ANGEL_STEAM_ID = BB_ANGEL.steamId;
 export const ALAN_ANGEL_STEAM_ID = ANGEL_COLLISIONS[1]!.steamId;
+export const ALPHA_ANGEL_STEAM_ID = ANGEL_COLLISIONS[2]!.steamId;
+export const ALL_ANGEL_STEAM_IDS = ANGEL_COLLISIONS.map((c) => c.steamId);
 
 /**
- * Во фракциях всё про «angel» = Саня BB, не Алан и не омонимы вроде «angel ·8062».
- * Явный Steam Алана распознаётся; без Steam только точные ник/слаг BB → Саня.
+ * Во фракциях всё про «angel» = Саня BB, не Алан и не ALPHA «angel ·8062».
+ * Явный Steam распознаётся; steamName «angel» один у нескольких — не угадываем.
  */
 export function resolveFactionAngel(opts: {
   nick?: string | null;
@@ -63,13 +75,9 @@ export function resolveFactionAngel(opts: {
   if (bySteam) return bySteam;
 
   const rawNick = String(opts.nick || "").trim();
-  const rawSteamName = String(opts.steamName || "").trim();
   const lower = (s: string) => s.toLowerCase();
-  const exactBb =
-    rawNick === "angel" ||
-    lower(rawNick) === "angelbb" ||
-    rawSteamName === "angel";
-  // Омонимы («angel ·8062») и Алан без steam сюда не попадают.
+  // Только сайт-ник/слаг BB. steamName «angel» есть и у ALPHA ·8062.
+  const exactBb = rawNick === "angel" || lower(rawNick) === "angelbb";
   if (exactBb && !/·|\d{3,}/.test(rawNick)) return BB_ANGEL;
   return null;
 }
@@ -86,6 +94,9 @@ const bySiteNickExact = new Map(
     ["Angel", ANGEL_COLLISIONS[1]!] as const,
     ["Angel 🪽", ANGEL_COLLISIONS[1]!] as const,
     ["✝︎Angel✝︎🪽", ANGEL_COLLISIONS[1]!] as const,
+    // ALPHA ·8062
+    ["angel ·8062", ANGEL_COLLISIONS[2]!] as const,
+    ["angel·8062", ANGEL_COLLISIONS[2]!] as const,
   ].filter((pair) => Boolean(pair[0]))
 );
 /** Только URL-слаги (AngelBB), без lower(siteNick) — иначе Angel/angel схлопнутся. */
@@ -237,6 +248,46 @@ export function angelSteamOwnsMatch(
   const clock = String(hm || "").trim().slice(0, 5);
   if (!/^\d{2}:\d{2}$/.test(clock)) return false;
   return spawnCoversMatch(spawns, ymd, clock);
+}
+
+function nearestSpawnAbsMs(spawns: number[], startMs: number): number {
+  let best = Number.POSITIVE_INFINITY;
+  for (const t of spawns) {
+    const d = Math.abs(t - startMs);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+/**
+ * На табло один ряд «angel», а Steam несколько (BB / Алан / ALPHA ·8062).
+ * Катка — у того, чей спавн ближе к старту; широкое окно (−5ч) не должно
+ * отдавать чужой вечер соседу по нику.
+ */
+export function angelSteamOwnsMatchExclusive(
+  steamId: string,
+  mySpawns: number[] | null | undefined,
+  ymd: string,
+  hm: string | null | undefined,
+  rivals: ReadonlyArray<{ steamId: string; spawns: number[] }>
+): boolean {
+  if (!angelSteamOwnsMatch(mySpawns, ymd, hm)) return false;
+  const clock = String(hm || "").trim().slice(0, 5);
+  const day = String(ymd || "").slice(0, 10);
+  const start = Date.parse(`${day}T${clock}:00+03:00`);
+  if (!Number.isFinite(start)) return false;
+  const myDist = nearestSpawnAbsMs(mySpawns!, start);
+  const me = String(steamId || "").trim();
+  for (const r of rivals) {
+    const other = String(r.steamId || "").trim();
+    if (!other || other === me) continue;
+    if (!angelSteamOwnsMatch(r.spawns, ymd, hm)) continue;
+    const d = nearestSpawnAbsMs(r.spawns, start);
+    if (d < myDist) return false;
+    // ничья по времени — стабильный tie-break, чтобы не дублировать катку
+    if (d === myDist && other < me) return false;
+  }
+  return true;
 }
 
 /** На табло оба играют как plain angel — матчим ярлык, не сайт-ник с декором. */

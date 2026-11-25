@@ -678,7 +678,8 @@ export async function buildPlayerPublicCombatStats(
     collisionBySiteNick,
     collisionBySteamId,
     loadSteamAngelSpawnMs,
-    angelSteamOwnsMatch,
+    angelSteamOwnsMatchExclusive,
+    ALL_ANGEL_STEAM_IDS,
     ALAN_ANGEL_STEAM_ID,
   } = await import("@/lib/nickCollisions");
   const collision =
@@ -688,9 +689,25 @@ export async function buildPlayerPublicCombatStats(
   const angelSpawns = collision?.steamId
     ? await loadSteamAngelSpawnMs(collision.steamId, "TPUB")
     : null;
+  const angelRivals = collision?.steamId
+    ? await Promise.all(
+        ALL_ANGEL_STEAM_IDS.filter((sid) => sid !== collision.steamId).map(
+          async (sid) => ({
+            steamId: sid,
+            spawns: await loadSteamAngelSpawnMs(sid, "TPUB"),
+          })
+        )
+      )
+    : [];
   const angelMatchOk = (date: string, hm: string | null | undefined) => {
     if (!collision?.steamId) return true;
-    return angelSteamOwnsMatch(angelSpawns, date, hm);
+    return angelSteamOwnsMatchExclusive(
+      collision.steamId,
+      angelSpawns,
+      date,
+      hm,
+      angelRivals
+    );
   };
 
   // Fast path: aggregate from slim ladder player.matches (no full-table rebuild).

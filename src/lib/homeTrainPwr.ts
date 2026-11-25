@@ -10,8 +10,9 @@ import {
   trainStatsSinceYmd,
 } from "@/lib/trainStatsSince";
 import {
+  ALL_ANGEL_STEAM_IDS,
   angelScoreboardNickOk,
-  angelSteamOwnsMatch,
+  angelSteamOwnsMatchExclusive,
   collisionBySiteNick,
   collisionBySteamId,
   isCollidingAngelNick,
@@ -786,13 +787,29 @@ export async function buildPlayerTrainMatchHistory(
     collisionBySteamId(opts?.steamId) ||
     collisionBySiteNick(clean) ||
     (isCollidingAngelNick(clean) ? collisionBySteamId(opts?.steamId) : null);
-  // Два angel на табло без Steam в JSON — строго окно спавна этого Steam.
+  // Несколько Steam с ярлыком «angel» на табло — катка у ближайшего спавна.
   const angelSpawns = collision?.steamId
     ? await loadSteamAngelSpawnMs(collision.steamId, "TR")
     : null;
+  const angelRivals = collision?.steamId
+    ? await Promise.all(
+        ALL_ANGEL_STEAM_IDS.filter((sid) => sid !== collision.steamId).map(
+          async (sid) => ({
+            steamId: sid,
+            spawns: await loadSteamAngelSpawnMs(sid, "TR"),
+          })
+        )
+      )
+    : [];
   const angelMatchOk = (ymd: string, hm: string | null | undefined) => {
     if (!collision?.steamId) return true;
-    return angelSteamOwnsMatch(angelSpawns, ymd, hm);
+    return angelSteamOwnsMatchExclusive(
+      collision.steamId,
+      angelSpawns,
+      ymd,
+      hm,
+      angelRivals
+    );
   };
   const nickOnBoard = (pNick: string) =>
     collision ? angelScoreboardNickOk(pNick) : resolveKey(pNick) === want;
@@ -1100,9 +1117,25 @@ export async function buildPlayerTrainCombatStats(
   const angelSpawns = collision?.steamId
     ? await loadSteamAngelSpawnMs(collision.steamId, "TR")
     : null;
+  const angelRivals = collision?.steamId
+    ? await Promise.all(
+        ALL_ANGEL_STEAM_IDS.filter((sid) => sid !== collision.steamId).map(
+          async (sid) => ({
+            steamId: sid,
+            spawns: await loadSteamAngelSpawnMs(sid, "TR"),
+          })
+        )
+      )
+    : [];
   const angelMatchOk = (ymd: string, hm: string | null | undefined) => {
     if (!collision?.steamId) return true;
-    return angelSteamOwnsMatch(angelSpawns, ymd, hm);
+    return angelSteamOwnsMatchExclusive(
+      collision.steamId,
+      angelSpawns,
+      ymd,
+      hm,
+      angelRivals
+    );
   };
   const nickOnBoard = (pNick: string) =>
     collision ? angelScoreboardNickOk(pNick) : resolveKey(pNick) === want;

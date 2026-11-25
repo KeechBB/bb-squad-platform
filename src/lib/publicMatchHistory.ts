@@ -164,23 +164,39 @@ export async function buildPlayerPublicMatchHistory(
   if (!clean) return [];
 
   const {
+    ALL_ANGEL_STEAM_IDS,
     collisionBySiteNick,
     collisionBySteamId,
     loadSteamAngelSpawnMs,
     publicRpLookupNick,
-    angelSteamOwnsMatch,
+    angelSteamOwnsMatchExclusive,
   } = await import("@/lib/nickCollisions");
   const collision =
     collisionBySteamId(opts?.steamId) || collisionBySiteNick(clean);
   const lookupNick = publicRpLookupNick(clean, collision?.steamId);
-  // Только TPUB-спавны этого Steam. Без дневного fallback — иначе общий
-  // ledger «angel» отдаёт катки Алана Сане (и наоборот) в тот же день.
+  // Только TPUB-спавны. BB / Алан / ALPHA ·8062 — катка у ближайшего спавна.
   const angelSpawns = collision?.steamId
     ? await loadSteamAngelSpawnMs(collision.steamId, "TPUB")
     : null;
+  const angelRivals = collision?.steamId
+    ? await Promise.all(
+        ALL_ANGEL_STEAM_IDS.filter((sid) => sid !== collision.steamId).map(
+          async (sid) => ({
+            steamId: sid,
+            spawns: await loadSteamAngelSpawnMs(sid, "TPUB"),
+          })
+        )
+      )
+    : [];
   const angelMatchOk = (date: string, hm: string | null | undefined) => {
     if (!collision?.steamId) return true;
-    return angelSteamOwnsMatch(angelSpawns, date, hm);
+    return angelSteamOwnsMatchExclusive(
+      collision.steamId,
+      angelSpawns,
+      date,
+      hm,
+      angelRivals
+    );
   };
 
   const ladder = await loadPublicRpLadder();
