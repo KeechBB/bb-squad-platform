@@ -427,6 +427,19 @@ chmod 644 /var/log/bb-train-roster-heal.log
 # Smoke once after deploy so gaps heal without waiting for :25
 (cd "$ROOT/scripts" && BB_KV_PUBLIC="$ROOT/data/kv-cache" KV_LOCAL_DIR="$ROOT/data/kv-cache" "$PY_COL" audit_train_roster_heal.py) || true
 
+echo "==> angel Steam split verify cron (00:45 + 01:45 MSK after TR nights)"
+chmod +x "$ROOT/scripts/verify_angel_steam_split.sh" || true
+cat >/etc/cron.d/bb-angel-steam-verify <<EOF
+CRON_TZ=Europe/Moscow
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+45 0 * * * root flock -n /tmp/bb-angel-steam-verify.lock env BB_PLATFORM_ROOT=$ROOT bash $ROOT/scripts/verify_angel_steam_split.sh --fix
+45 1 * * * root flock -n /tmp/bb-angel-steam-verify.lock env BB_PLATFORM_ROOT=$ROOT bash $ROOT/scripts/verify_angel_steam_split.sh --fix
+EOF
+chmod 644 /etc/cron.d/bb-angel-steam-verify
+touch /var/log/bb-angel-steam-verify.log
+chmod 644 /var/log/bb-angel-steam-verify.log
+
 echo "==> night bets settle cron (01:02 MSK)"
 chmod +x "$ROOT/scripts/settle_night_bets_cron.sh" || true
 cat >/etc/cron.d/bb-night-bets-settle <<EOF
