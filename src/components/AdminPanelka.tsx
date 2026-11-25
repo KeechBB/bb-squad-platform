@@ -1461,20 +1461,35 @@ export function PlayerModModal({
         `&name=${encodeURIComponent(player.name)}`;
       const keyQ = `key=${encodeURIComponent(serverKey)}&${q}`;
 
-      // 1) Disk PB1 — paint stats immediately
-      void fetch(`/api/admin/panelka?op=player-pb1-stats&${q}`, {
-        cache: "no-store",
-      })
-        .then(async (res) => {
-          const data = (await res.json().catch(() => null)) as {
-            ok?: boolean;
-            pb1Stats?: PlayerPb1Stats | null;
-          } | null;
-          if (res.ok && data?.ok && data.pb1Stats) {
-            setPb1Stats(data.pb1Stats);
-          }
+      // 1) Disk/build PB1 — works without site registration (steamId + nick)
+      const pullPb1 = () =>
+        fetch(`/api/admin/panelka?op=player-pb1-stats&${q}`, {
+          cache: "no-store",
         })
-        .catch(() => null);
+          .then(async (res) => {
+            const data = (await res.json().catch(() => null)) as {
+              ok?: boolean;
+              pb1Stats?: PlayerPb1Stats | null;
+              pb1StatsMeta?: { building?: boolean };
+            } | null;
+            if (res.ok && data?.ok && data.pb1Stats) {
+              setPb1Stats(data.pb1Stats);
+              return true;
+            }
+            return false;
+          })
+          .catch(() => false);
+      void pullPb1().then((ok) => {
+        if (ok || silent) return;
+        // First open / warm miss — retry while backend builds
+        let n = 0;
+        const timer = window.setInterval(() => {
+          n += 1;
+          void pullPb1().then((got) => {
+            if (got || n >= 8) window.clearInterval(timer);
+          });
+        }, 1500);
+      });
 
       // 2) Fast shell: profile / memos / nick history (no RCON)
       const shellCtrl = new AbortController();
@@ -1829,18 +1844,42 @@ export function PlayerModModal({
           {profile ? (
             <>
               <p>
+                Сейчас:{" "}
+                <b>
+                  онлайн
+                  {player.role ? ` · ${player.role}` : ""}
+                  {player.leader ? " · СЛ" : ""}
+                </b>
+              </p>
+              <p>
                 {profile.found ? (
                   <>
                     На сайте: <b>{profile.nick || "без ника"}</b>
                     {profile.faction ? <> · фракция {profile.faction}</> : null}
                   </>
                 ) : (
-                  <>На сайте не зарегистрирован</>
+                  <>
+                    На сайте не зарегистрирован
+                    {player.name ? (
+                      <>
+                        {" "}
+                        · в игре <b>{player.name}</b>
+                      </>
+                    ) : null}
+                  </>
                 )}
               </p>
               <p>
                 Паблик:{" "}
-                <b>{pb1Stats?.hoursLabel || profile.publicHoursLabel}</b>
+                <b>
+                  {pb1Stats?.hoursLabel ||
+                    (profile.publicHoursLabel !== "—" &&
+                    profile.publicHoursLabel !== "…"
+                      ? profile.publicHoursLabel
+                      : loading
+                        ? "…"
+                        : "—")}
+                </b>
                 {(pb1Stats?.sessions ?? profile.sessions)
                   ? ` · ${pb1Stats?.sessions ?? profile.sessions} сессий`
                   : ""}
@@ -1852,7 +1891,9 @@ export function PlayerModModal({
                     ? pb1Stats.steamHoursLabel
                     : pb1Stats?.steamPlayStatus === "private"
                       ? "скрыто"
-                      : "—"}
+                      : loading && !pb1Stats
+                        ? "…"
+                        : "—"}
                 </b>
                 {pb1Stats?.steam2WeeksLabel
                   ? ` · за 2 нед. ${pb1Stats.steam2WeeksLabel}`
@@ -1881,9 +1922,13 @@ export function PlayerModModal({
                 <a className="panelka-mod-link" href={steamUrl} target="_blank" rel="noreferrer">
                   Профиль Steam
                 </a>
-                <a className="panelka-mod-link" href={profile.profileUrl} target="_blank" rel="noreferrer">
-                  Профиль на сайте
-                </a>
+                {profile.found ? (
+                  <a className="panelka-mod-link" href={profile.profileUrl} target="_blank" rel="noreferrer">
+                    Профиль на сайте
+                  </a>
+                ) : (
+                  <span className="muted">Профиля на сайте нет</span>
+                )}
               </div>
             </>
           ) : null}

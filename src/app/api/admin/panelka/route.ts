@@ -181,6 +181,7 @@ export async function GET(req: Request) {
         readPb1StatsCache,
         getPanelkaPlayerPb1Stats,
         ensureSteamHoursInCache,
+        rebuildAndCachePb1Stats,
       } = await import("@/lib/panelkaPlayerPb1Stats");
       let disk = readPb1StatsCache(steamId);
       const [profile, nickHistory, memos] = await Promise.all([
@@ -191,12 +192,21 @@ export async function GET(req: Request) {
           labels: [] as [],
         })),
       ]);
-      if (
-        disk &&
-        (disk.stats.steamMinutes == null || !disk.stats.steamHoursLabel)
+      // Nick for combat/KD: site nick OR roster/Steam name — registration not required
+      const nickForStats = profile.nick || name || null;
+      // Miss: build now (unregistered players too) so card is not empty
+      if (!disk) {
+        disk = await rebuildAndCachePb1Stats({
+          steamId,
+          nick: nickForStats,
+          skipLiveIp: false,
+        }).catch(() => null);
+      } else if (
+        disk.stats.steamMinutes == null ||
+        !disk.stats.steamHoursLabel
       ) {
-        disk =
-          (await ensureSteamHoursInCache(steamId).catch(() => null)) || disk;
+        // Steam hours in background — do not block card paint
+        void ensureSteamHoursInCache(steamId).catch(() => null);
       }
       const pb1Stats = disk?.stats || null;
       const pb1Meta = {
@@ -204,7 +214,6 @@ export async function GET(req: Request) {
         updatedAt: disk?.updatedAt || null,
       };
       if (pb1Stats) {
-        // Fill hours into light profile from cache
         profile.publicHoursLabel = pb1Stats.hoursLabel;
         profile.publicMinutes = pb1Stats.publicMinutes;
         profile.sessions = pb1Stats.sessions;
@@ -212,15 +221,9 @@ export async function GET(req: Request) {
         if (Number.isFinite(age) && age > 6 * 3600_000) {
           void getPanelkaPlayerPb1Stats({
             steamId,
-            nick: profile.nick || name || null,
+            nick: nickForStats,
           }).catch(() => null);
         }
-      } else {
-        // Miss: rebuild in background, do not block card open
-        void getPanelkaPlayerPb1Stats({
-          steamId,
-          nick: profile.nick || name || null,
-        }).catch(() => null);
       }
       return NextResponse.json({
         ok: true,
@@ -290,16 +293,12 @@ export async function GET(req: Request) {
         getPanelkaPlayerPb1Stats,
         readPb1StatsCache,
         ensureSteamHoursInCache,
+        rebuildAndCachePb1Stats,
       } = await import("@/lib/panelkaPlayerPb1Stats");
       let disk = readPb1StatsCache(steamId);
       if (disk) {
-        // One Steam API call if lifetime hours not yet in cache
-        if (
-          disk.stats.steamMinutes == null ||
-          !disk.stats.steamHoursLabel
-        ) {
-          disk =
-            (await ensureSteamHoursInCache(steamId).catch(() => null)) || disk;
+        if (disk.stats.steamMinutes == null || !disk.stats.steamHoursLabel) {
+          void ensureSteamHoursInCache(steamId).catch(() => null);
         }
         const age = Date.now() - Date.parse(disk.updatedAt);
         if (Number.isFinite(age) && age < 48 * 3600_000) {
@@ -316,11 +315,22 @@ export async function GET(req: Request) {
           });
         }
       }
-      // Miss: do not block — warm async
-      void getPanelkaPlayerPb1Stats({
+      // Miss: build now so unregistered / first-open still get KD/hours/geo
+      const built = await rebuildAndCachePb1Stats({
         steamId,
         nick: name || null,
+        skipLiveIp: false,
       }).catch(() => null);
+      if (built) {
+        return NextResponse.json({
+          ok: true,
+          pb1Stats: built.stats,
+          pb1StatsMeta: {
+            fromCache: false,
+            updatedAt: built.updatedAt,
+          },
+        });
+      }
       return NextResponse.json({
         ok: true,
         pb1Stats: null,
