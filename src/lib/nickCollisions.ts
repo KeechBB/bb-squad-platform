@@ -261,8 +261,9 @@ function nearestSpawnAbsMs(spawns: number[], startMs: number): number {
 
 /**
  * На табло один ряд «angel», а Steam несколько (BB / Алан / ALPHA ·8062).
- * Катка — у того, чей спавн ближе к старту; широкое окно (−5ч) не должно
- * отдавать чужой вечер соседу по нику.
+ * Ближайший спавн = кому можно брать цифры со scoreboard / общий ledger RP,
+ * когда нет combat-карточки angel#steam. В историю катка идёт у ВСЕХ, кто
+ * был на сервере (angelSteamOwnsMatch) — стата у каждого своя из лога.
  */
 export function angelSteamOwnsMatchExclusive(
   steamId: string,
@@ -284,7 +285,7 @@ export function angelSteamOwnsMatchExclusive(
     if (!angelSteamOwnsMatch(r.spawns, ymd, hm)) continue;
     const d = nearestSpawnAbsMs(r.spawns, start);
     if (d < myDist) return false;
-    // ничья по времени — стабильный tie-break, чтобы не дублировать катку
+    // ничья по времени — стабильный tie-break для scoreboard/ledger
     if (d === myDist && other < me) return false;
   }
   return true;

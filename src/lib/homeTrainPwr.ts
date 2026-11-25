@@ -12,12 +12,22 @@ import {
 import {
   ALL_ANGEL_STEAM_IDS,
   angelScoreboardNickOk,
+  angelSteamOwnsMatch,
   angelSteamOwnsMatchExclusive,
   collisionBySiteNick,
   collisionBySteamId,
   isCollidingAngelNick,
   loadSteamAngelSpawnMs,
 } from "@/lib/nickCollisions";
+
+export type AngelSteamCombatLineStats = {
+  kills: number;
+  deaths: number;
+  res: number;
+  nok: number;
+  vehicleKills: number;
+  dmg: number;
+};
 
 function nickKey(nick: string) {
   return nick.trim().toLowerCase().replace(/\s+/g, "");
@@ -276,6 +286,50 @@ function calcTrainPwr(row: Agg & { tier: number; winPct: number | null; kd: numb
 async function loadFromKv<T>(path: string): Promise<T | null> {
   const { loadKvJsonCached } = await import("@/lib/kvLocal");
   return loadKvJsonCached<T>(path.replace(/^\//, ""));
+}
+
+/** Стата angel из combat-карточки по Steam — не с общей строки табло. */
+async function loadAngelSteamCombatStats(
+  matchId: string,
+  steamId: string
+): Promise<AngelSteamCombatLineStats | null> {
+  const id = String(matchId || "").trim();
+  const sid = String(steamId || "").trim();
+  if (!id || !sid) return null;
+  const doc = await loadFromKv<{
+    players?: Record<
+      string,
+      {
+        kills?: Array<{ dmg?: number; kind?: string }>;
+        deaths?: unknown[];
+        noks?: Array<{ dmg?: number }>;
+        revives?: unknown[];
+        vehicles?: unknown[];
+      }
+    >;
+  }>(`data/training/combat/${id}.json`);
+  const card = doc?.players?.[`angel#${sid}`];
+  if (!card) return null;
+  const killsArr = Array.isArray(card.kills) ? card.kills : [];
+  const deathsArr = Array.isArray(card.deaths) ? card.deaths : [];
+  const noksArr = Array.isArray(card.noks) ? card.noks : [];
+  const revArr = Array.isArray(card.revives) ? card.revives : [];
+  const vehArr = Array.isArray(card.vehicles) ? card.vehicles : [];
+  let dmg = 0;
+  for (const e of [...killsArr, ...noksArr]) {
+    dmg += Number(e?.dmg) || 0;
+  }
+  const vehicleKills =
+    vehArr.length ||
+    killsArr.filter((e) => e?.kind === "vehicle_kill").length;
+  return {
+    kills: killsArr.length,
+    deaths: deathsArr.length,
+    res: revArr.length,
+    nok: noksArr.length,
+    vehicleKills,
+    dmg: Math.round(dmg),
+  };
 }
 
 export function emptyHomeTrainPwrBoard(): HomeTrainPwrBoard {
@@ -787,7 +841,8 @@ export async function buildPlayerTrainMatchHistory(
     collisionBySteamId(opts?.steamId) ||
     collisionBySiteNick(clean) ||
     (isCollidingAngelNick(clean) ? collisionBySteamId(opts?.steamId) : null);
-  // Несколько Steam с ярлыком «angel» на табло — катка у ближайшего спавна.
+  // Несколько Steam с ярлыком «angel»: катка у каждого, кто был на сервере.
+  // Цифры — из combat angel#steam; scoreboard/ledger — только ближайшему спавну.
   const angelSpawns = collision?.steamId
     ? await loadSteamAngelSpawnMs(collision.steamId, "TR")
     : null;
@@ -801,7 +856,11 @@ export async function buildPlayerTrainMatchHistory(
         )
       )
     : [];
-  const angelMatchOk = (ymd: string, hm: string | null | undefined) => {
+  const angelPresent = (ymd: string, hm: string | null | undefined) => {
+    if (!collision?.steamId) return true;
+    return angelSteamOwnsMatch(angelSpawns, ymd, hm);
+  };
+  const angelBoardOwner = (ymd: string, hm: string | null | undefined) => {
     if (!collision?.steamId) return true;
     return angelSteamOwnsMatchExclusive(
       collision.steamId,
@@ -822,7 +881,7 @@ export async function buildPlayerTrainMatchHistory(
       const ymd = `${row.year}-${pad2(row.month)}-${pad2(row.day)}`;
       if (!isTrainStatsYmdOk(ymd) || ymd < sinceYmd) return false;
       const hm = String(row.timeMsk || "").trim().slice(0, 5) || null;
-      if (!angelMatchOk(ymd, hm)) return false;
+      if (!angelPresent(ymd, hm)) return false;
       const list = (
         row.doc.players?.length
           ? row.doc.players
@@ -870,6 +929,18 @@ export async function buildPlayerTrainMatchHistory(
   const startRp = Number(ladder?.startRp) || 1000;
   const step = Number(ladder?.step) || 150;
   const radiant3Max = Number(ladder?.radiant3Max) || 4950;
+
+  // Общий ledger «angel» — RP только владельцу строки табло (ближайший спавн).
+  if (collision?.steamId) {
+    for (const meta of matchMetas) {
+      const ymd = `${meta.year}-${pad2(meta.month)}-${pad2(meta.day)}`;
+      const hm = String(meta.timeMsk || "").trim().slice(0, 5) || null;
+      if (!angelBoardOwner(ymd, hm)) {
+        rpNetByMatch.delete(meta.id);
+        ratedIds.delete(meta.id);
+      }
+    }
+  }
 
   // Кумулятив RP только по каткам, которые реально в ledger (есть net).
   const rpAfterByMatch = new Map<string, number>();
@@ -934,12 +1005,25 @@ export async function buildPlayerTrainMatchHistory(
     });
     teamU = resolved.team || "—";
     won = resolved.won;
-    for (const p of mine) {
-      res += Number(p.res) || 0;
-      nok += Number(p.nok) || 0;
-      kills += Number(p.kills) || 0;
-      deaths += Number(p.deaths) || 0;
+    const ymd = `${meta.year}-${pad2(meta.month)}-${pad2(meta.day)}`;
+    const hm = String(meta.timeMsk || "").trim().slice(0, 5) || null;
+    const steamStats = collision?.steamId
+      ? await loadAngelSteamCombatStats(meta.id, collision.steamId)
+      : null;
+    if (steamStats) {
+      kills = steamStats.kills;
+      deaths = steamStats.deaths;
+      res = steamStats.res;
+      nok = steamStats.nok;
+    } else if (!collision?.steamId || angelBoardOwner(ymd, hm)) {
+      for (const p of mine) {
+        res += Number(p.res) || 0;
+        nok += Number(p.nok) || 0;
+        kills += Number(p.kills) || 0;
+        deaths += Number(p.deaths) || 0;
+      }
     }
+    // иначе оба angel на катке, карточки ещё нет — 0, не чужие цифры с табло
     const dateLabel = `${pad2(meta.day)}.${pad2(meta.month)}.${meta.year}`;
     const timeRaw = String(meta.timeMsk || "").trim();
     const hasRp = rpAfterByMatch.has(meta.id);
@@ -1127,7 +1211,11 @@ export async function buildPlayerTrainCombatStats(
         )
       )
     : [];
-  const angelMatchOk = (ymd: string, hm: string | null | undefined) => {
+  const angelPresent = (ymd: string, hm: string | null | undefined) => {
+    if (!collision?.steamId) return true;
+    return angelSteamOwnsMatch(angelSpawns, ymd, hm);
+  };
+  const angelBoardOwner = (ymd: string, hm: string | null | undefined) => {
     if (!collision?.steamId) return true;
     return angelSteamOwnsMatchExclusive(
       collision.steamId,
@@ -1189,24 +1277,36 @@ export async function buildPlayerTrainCombatStats(
       const ymd = `${match.year}-${pad2(match.month)}-${pad2(match.day)}`;
       if (!isTrainStatsYmdOk(ymd)) continue;
       const hm = String(match.timeMsk || "").trim().slice(0, 5) || null;
-      if (!angelMatchOk(ymd, hm)) continue;
+      if (!angelPresent(ymd, hm)) continue;
       if (mine[0]?.nick) displayNick = String(mine[0].nick);
       matches += 1;
-      for (const p of mine) {
-        kills += Number(p.kills) || 0;
-        deaths += Number(p.deaths) || 0;
-        dmg += Number(p.dmg) || 0;
-        res += Number(p.res) || 0;
-        nok += Number(p.nok) || 0;
+      const steamStats = collision?.steamId
+        ? await loadAngelSteamCombatStats(match.id, collision.steamId)
+        : null;
+      if (steamStats) {
+        kills += steamStats.kills;
+        deaths += steamStats.deaths;
+        dmg += steamStats.dmg;
+        res += steamStats.res;
+        nok += steamStats.nok;
+        vehicleKills += steamStats.vehicleKills;
+      } else if (!collision?.steamId || angelBoardOwner(ymd, hm)) {
+        for (const p of mine) {
+          kills += Number(p.kills) || 0;
+          deaths += Number(p.deaths) || 0;
+          dmg += Number(p.dmg) || 0;
+          res += Number(p.res) || 0;
+          nok += Number(p.nok) || 0;
+        }
+        const fromRows = mine.reduce(
+          (s, p) => s + (Number(p.vehicleKills) || 0),
+          0
+        );
+        vehicleKills += Math.max(
+          fromRows,
+          vehOfNick(match.id, String(mine[0]?.nick || ""), 0)
+        );
       }
-      const fromRows = mine.reduce(
-        (s, p) => s + (Number(p.vehicleKills) || 0),
-        0
-      );
-      vehicleKills += Math.max(
-        fromRows,
-        vehOfNick(match.id, String(mine[0]?.nick || ""), 0)
-      );
       const { won } = resolveTrainWon(mine, players, match);
       if (won === true) wins += 1;
       else if (won === false) losses += 1;
@@ -1238,29 +1338,32 @@ export async function buildPlayerTrainCombatStats(
         sub: match.timeMsk ? `${match.timeMsk} МСК` : undefined,
         playersUrl: match.playersUrl || null,
       };
-      // War-Score на тренировках не считаем (боевой счёт недостоверен)
-      if (nickIn(mvp.killer)) {
+      // War-Score на тренировках не считаем (боевой счёт недостоверен).
+      // MVP с табло «angel» — только владельцу строки (ближайший спавн).
+      const boardMvp =
+        !collision?.steamId || angelBoardOwner(ymd, hm);
+      if (boardMvp && nickIn(mvp.killer)) {
         mvpKiller += 1;
         mvpHits.killer.push({
           id: `${match.id}-killer`,
           ...hitBase,
         });
       }
-      if (nickIn(mvp.medic)) {
+      if (boardMvp && nickIn(mvp.medic)) {
         mvpMedic += 1;
         mvpHits.medic.push({
           id: `${match.id}-medic`,
           ...hitBase,
         });
       }
-      if (nickIn(armorNicks)) {
+      if (boardMvp && nickIn(armorNicks)) {
         mvpArmor += 1;
         mvpHits.armor.push({
           id: `${match.id}-armor`,
           ...hitBase,
         });
       }
-      if (nickIn(mvp.antiDeath)) antiDeath += 1;
+      if (boardMvp && nickIn(mvp.antiDeath)) antiDeath += 1;
     }
   }
 
