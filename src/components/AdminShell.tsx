@@ -23,6 +23,7 @@ import { AdminModLogPanel } from "@/components/AdminModLogPanel";
 import { AdminPublicVipsPanel } from "@/components/AdminPublicVipsPanel";
 import { AdminPublicCamerasPanel } from "@/components/AdminPublicCamerasPanel";
 import { AdminServerBansPanel } from "@/components/AdminServerBansPanel";
+import { AdminPb1AnalyticsPanel } from "@/components/AdminPb1AnalyticsPanel";
 import type { AppRole } from "@/lib/roles";
 
 type Props = {
@@ -59,7 +60,8 @@ type Tab =
   | "modlog"
   | "vips"
   | "cameras"
-  | "serverbans";
+  | "serverbans"
+  | "analytics";
 
 type MenuItem =
   | { kind: "tab"; tab: Tab; label: string }
@@ -95,6 +97,8 @@ const TAB_LEAD: Record<Tab, string> = {
     "Камеры (Cameraman): кто получил freecam, кто выдал, поиск и снятие из Admins.cfg.",
   serverbans:
     "Баны серверов из Bans.cfg: список, поиск, выдача со сроком и снятие бана.",
+  analytics:
+    "Аналитика PB1: онлайн по часам, уникальные и новые Steam ID, средний подъём сервера.",
 };
 
 const PUBLIC_TABS: Tab[] = [
@@ -106,9 +110,16 @@ const PUBLIC_TABS: Tab[] = [
   "vips",
   "cameras",
   "serverbans",
+  "analytics",
 ];
 
-const SERVER_TABS: Tab[] = ["vips", "cameras", "modlog", "serverbans"];
+const SERVER_TABS: Tab[] = [
+  "vips",
+  "cameras",
+  "modlog",
+  "serverbans",
+  "analytics",
+];
 const LOG_TABS: Tab[] = [
   "factions",
   "cases",
@@ -135,7 +146,8 @@ function readTab(
       t === "modlog" ||
       t === "vips" ||
       t === "cameras" ||
-      t === "serverbans"
+      t === "serverbans" ||
+      t === "analytics"
     )
       return t;
     if (t === "visits" && allowVisits) return "visits";
@@ -153,7 +165,8 @@ function readTab(
     t === "modlog" ||
     t === "vips" ||
     t === "cameras" ||
-    t === "serverbans"
+    t === "serverbans" ||
+    t === "analytics"
   )
     return t;
   if (t === "tiers") return "factions";
@@ -357,6 +370,7 @@ export function AdminShell({
         { kind: "tab", tab: "modlog", label: "Лог модерации" },
         { kind: "link", href: "/admin/panelka", label: "Серверы" },
         { kind: "tab", tab: "serverbans", label: "Баны серверов" },
+        { kind: "tab", tab: "analytics", label: "Аналитика" },
       ]
     : [];
 
@@ -442,6 +456,8 @@ export function AdminShell({
     content = <AdminPublicCamerasPanel />;
   } else if (tab === "serverbans" && showServers) {
     content = <AdminServerBansPanel />;
+  } else if (tab === "analytics" && showServers) {
+    content = <AdminPb1AnalyticsPanel />;
   } else if (!publicLimited && tab === "transfers" && showTransfers) {
     content = <AdminTransfersPanel />;
   } else if (tab === "load") {

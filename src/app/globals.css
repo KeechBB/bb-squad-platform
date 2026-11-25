@@ -28449,3 +28449,195 @@ body:has(.faction-page) .site-footer {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* —— Admin PB1 Analytics —— */
+.pb1a {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.pb1a-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pb1a-title {
+  margin: 0;
+  font-size: 1.35rem;
+}
+.pb1a-sub { margin: 4px 0 0; }
+.pb1a-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  align-items: flex-end;
+}
+.pb1a-scope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pb1a-scope-btn { min-height: 36px; }
+.pb1a-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: var(--muted, #94a3b8);
+}
+.pb1a-field input,
+.pb1a-field select {
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(8,12,22,0.65);
+  color: inherit;
+}
+.pb1a-month-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+}
+.pb1a-chip {
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(8,12,22,0.45);
+  color: inherit;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.pb1a-chip.is-on {
+  border-color: rgba(45, 212, 191, 0.55);
+  background: rgba(45, 212, 191, 0.18);
+}
+.pb1a-chip:disabled { opacity: 0.35; cursor: default; }
+.pb1a-period-line { font-size: 0.95rem; }
+.pb1a-block-title {
+  margin: 8px 0 0;
+  font-size: 1.05rem;
+}
+.pb1a-chart {
+  width: 100%;
+  padding: 14px 12px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(8, 12, 22, 0.55);
+}
+.pb1a-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 0.85rem;
+}
+.pb1a-leg::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+.pb1a-leg-player::before { background: #64748b; }
+.pb1a-leg-staff::before { background: #ef4444; }
+.pb1a-chart-mode { margin-left: auto; color: var(--muted, #94a3b8); }
+.pb1a-chart-bars {
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  gap: 4px;
+  align-items: end;
+  height: 280px;
+  width: 100%;
+}
+.pb1a-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  min-width: 0;
+}
+.pb1a-bar-num {
+  font-size: 0.68rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #e2e8f0;
+  line-height: 1;
+}
+.pb1a-bar-stack {
+  width: 100%;
+  height: var(--bar-h, 0%);
+  min-height: 0;
+  display: flex;
+  flex-direction: column-reverse;
+  border-radius: 6px 6px 2px 2px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.04);
+  transition: box-shadow 0.15s ease, filter 0.15s ease;
+}
+.pb1a-bar-player { display: block; width: 100%; background: #64748b; }
+.pb1a-bar-staff { display: block; width: 100%; background: #ef4444; }
+.pb1a-bar.is-hover .pb1a-bar-stack {
+  box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.65);
+  filter: brightness(1.15);
+}
+.pb1a-bar-label {
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+  color: #94a3b8;
+}
+.pb1a-chart-tip {
+  margin-top: 10px;
+  min-height: 1.4em;
+  font-size: 0.92rem;
+}
+.pb1a-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+.pb1a-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(8, 12, 22, 0.55);
+}
+.pb1a-stat-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+.pb1a-stat-value {
+  font-size: 1.35rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #f8fafc;
+}
+.pb1a-stat-hint {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+@media (max-width: 900px) {
+  .pb1a-chart-bars { height: 220px; gap: 2px; }
+  .pb1a-bar-num { font-size: 0.55rem; }
+  .pb1a-bar-label { font-size: 0.5rem; }
+}
