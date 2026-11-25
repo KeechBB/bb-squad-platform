@@ -1430,6 +1430,7 @@ export function PlayerModModal({
   const [punishments, setPunishments] = useState<PunishmentRow[]>([]);
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [pending, setPending] = useState<ModAction>(null);
   const [confirmKick, setConfirmKick] = useState(false);
   const [reason, setReason] = useState("");
@@ -1448,33 +1449,36 @@ export function PlayerModModal({
       const silent = Boolean(opts?.silent);
       if (!silent) {
         setLoading(true);
+        setHistoryLoading(true);
         setLoadError("");
       }
-      // Instant paint from disk cache (parallel with full card)
-      if (!silent) {
-        const fastUrl =
-          `/api/admin/panelka?op=player-pb1-stats` +
-          `&steamId=${encodeURIComponent(player.steamId)}` +
-          `&name=${encodeURIComponent(player.name)}`;
-        void fetch(fastUrl, { cache: "no-store" })
-          .then(async (res) => {
-            const data = (await res.json().catch(() => null)) as {
-              ok?: boolean;
-              pb1Stats?: PlayerPb1Stats | null;
-            } | null;
-            if (res.ok && data?.ok && data.pb1Stats) {
-              setPb1Stats((prev) => prev || data.pb1Stats || null);
-            }
-          })
-          .catch(() => null);
-      }
-      const url =
-        `/api/admin/panelka?op=player-card&key=${encodeURIComponent(serverKey)}` +
-        `&steamId=${encodeURIComponent(player.steamId)}` +
+      const q =
+        `steamId=${encodeURIComponent(player.steamId)}` +
         `&name=${encodeURIComponent(player.name)}`;
-      const ctrl = new AbortController();
-      const timer = window.setTimeout(() => ctrl.abort(), 45000);
-      return fetch(url, { cache: "no-store", signal: ctrl.signal })
+      const keyQ = `key=${encodeURIComponent(serverKey)}&${q}`;
+
+      // 1) Disk PB1 — paint stats immediately
+      void fetch(`/api/admin/panelka?op=player-pb1-stats&${q}`, {
+        cache: "no-store",
+      })
+        .then(async (res) => {
+          const data = (await res.json().catch(() => null)) as {
+            ok?: boolean;
+            pb1Stats?: PlayerPb1Stats | null;
+          } | null;
+          if (res.ok && data?.ok && data.pb1Stats) {
+            setPb1Stats(data.pb1Stats);
+          }
+        })
+        .catch(() => null);
+
+      // 2) Fast shell: profile / memos / nick history (no RCON)
+      const shellCtrl = new AbortController();
+      const shellTimer = window.setTimeout(() => shellCtrl.abort(), 12000);
+      const shellPromise = fetch(
+        `/api/admin/panelka?op=player-card&${keyQ}`,
+        { cache: "no-store", signal: shellCtrl.signal }
+      )
         .then(async (res) => {
           const data = (await res.json().catch(() => null)) as {
             ok?: boolean;
@@ -1483,11 +1487,7 @@ export function PlayerModModal({
             nickHistory?: NickHistoryRow[];
             notes?: PlayerMemoRow[];
             labels?: PlayerMemoRow[];
-            chat?: ChatLine[];
-            teamkills?: TeamKillRow[];
-            punishments?: PunishmentRow[];
             error?: string;
-            warning?: string;
           } | null;
           if (!res.ok || !data?.ok) {
             if (!silent) {
@@ -1505,10 +1505,44 @@ export function PlayerModModal({
           setNickHistory(data.nickHistory || []);
           setNotes(data.notes || []);
           setLabels(data.labels || []);
+        })
+        .catch((err: unknown) => {
+          if (!silent) {
+            const aborted =
+              err instanceof DOMException && err.name === "AbortError";
+            setLoadError(
+              aborted ? "профиль долго отвечает" : "нет связи с сайтом"
+            );
+          }
+        })
+        .finally(() => {
+          window.clearTimeout(shellTimer);
+          if (!silent) setLoading(false);
+        });
+
+      // 3) Slow history: chat / bans / TK — does not block profile
+      const histCtrl = new AbortController();
+      const histTimer = window.setTimeout(() => histCtrl.abort(), 45000);
+      void fetch(`/api/admin/panelka?op=player-history&${keyQ}`, {
+        cache: "no-store",
+        signal: histCtrl.signal,
+      })
+        .then(async (res) => {
+          const data = (await res.json().catch(() => null)) as {
+            ok?: boolean;
+            chat?: ChatLine[];
+            teamkills?: TeamKillRow[];
+            punishments?: PunishmentRow[];
+            warning?: string;
+          } | null;
+          if (!res.ok || !data?.ok) {
+            if (!silent && data?.warning) setLoadError(data.warning);
+            return;
+          }
           setChat(data.chat || []);
           setTeamkills(data.teamkills || []);
           setPunishments(data.punishments || []);
-          setLoadError(data.warning || "");
+          if (data.warning) setLoadError(data.warning);
         })
         .catch((err: unknown) => {
           if (!silent) {
@@ -1516,15 +1550,17 @@ export function PlayerModModal({
               err instanceof DOMException && err.name === "AbortError";
             setLoadError(
               aborted
-                ? "сервер долго отвечает, история не успела — действия работают"
-                : "нет связи с сайтом"
+                ? "история не успела — действия работают"
+                : "история: нет связи"
             );
           }
         })
         .finally(() => {
-          window.clearTimeout(timer);
-          if (!silent) setLoading(false);
+          window.clearTimeout(histTimer);
+          setHistoryLoading(false);
         });
+
+      return shellPromise;
     },
     [serverKey, player.steamId, player.name]
   );
@@ -1545,12 +1581,29 @@ export function PlayerModModal({
     setNickHistory([]);
     setNotes([]);
     setLabels([]);
+    setChat([]);
+    setTeamkills([]);
+    setPunishments([]);
     setPb1Stats(null);
     setVisitHover(null);
     setNoteDraft("");
     setLabelDraft("");
+    setHistoryLoading(true);
+    // Instant stub so header block is never empty
+    setProfile({
+      found: false,
+      nick: null,
+      steamId: player.steamId,
+      profileUrl: `/players/${encodeURIComponent(player.steamId)}`,
+      steamUrl: `https://steamcommunity.com/profiles/${encodeURIComponent(player.steamId)}`,
+      faction: null,
+      factionSlug: null,
+      publicHoursLabel: "…",
+      publicMinutes: 0,
+      sessions: 0,
+    });
     void loadCard();
-  }, [loadCard]);
+  }, [loadCard, player.steamId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1765,7 +1818,9 @@ export function PlayerModModal({
         </header>
 
         <div className="panelka-mod-profile">
-          {loading ? <p>Читаю профиль и историю…</p> : null}
+          {loading && !pb1Stats ? (
+            <p className="muted">Подгружаю профиль…</p>
+          ) : null}
           {loadError ? <p className="panelka-notice">{loadError}</p> : null}
           {profile ? (
             <>
@@ -2229,7 +2284,9 @@ export function PlayerModModal({
                 ))}
               </ul>
             ) : (
-              <p className="panelka-chat-empty">Сообщений нет.</p>
+              <p className="panelka-chat-empty">
+                {historyLoading ? "Подгружаю чат…" : "Сообщений нет."}
+              </p>
             )}
           </div>
         ) : null}
@@ -2262,7 +2319,11 @@ export function PlayerModModal({
                 ))}
               </ul>
             ) : (
-              <p className="panelka-chat-empty">Наказаний и репортов пока нет.</p>
+              <p className="panelka-chat-empty">
+                {historyLoading
+                  ? "Подгружаю наказания…"
+                  : "Наказаний и репортов пока нет."}
+              </p>
             )}
           </div>
         ) : null}
@@ -2283,7 +2344,9 @@ export function PlayerModModal({
                 ))}
               </ul>
             ) : (
-              <p className="panelka-chat-empty">Тимкилов в логе не видно.</p>
+              <p className="panelka-chat-empty">
+                {historyLoading ? "Подгружаю тимкилы…" : "Тимкилов в логе не видно."}
+              </p>
             )}
           </div>
         ) : null}

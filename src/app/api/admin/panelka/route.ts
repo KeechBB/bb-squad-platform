@@ -60,7 +60,8 @@ function formatHours(totalMinutes: number): string {
   return `${hours} ч ${rest} мин`;
 }
 
-async function siteProfile(steamId: string) {
+/** Fast card shell: user + faction only (hours come from PB1 disk cache). */
+async function siteProfileLight(steamId: string) {
   const user = await prisma.user.findFirst({
     where: { steamId, profileComplete: true },
     select: {
@@ -75,6 +76,22 @@ async function siteProfile(steamId: string) {
     },
   });
 
+  return {
+    found: Boolean(user),
+    nick: user?.nick || null,
+    steamId,
+    profileUrl: `/players/${encodeURIComponent(steamId)}`,
+    steamUrl: `https://steamcommunity.com/profiles/${encodeURIComponent(steamId)}`,
+    faction: user?.factionMembership?.faction?.name || null,
+    factionSlug: user?.factionMembership?.faction?.slug || null,
+    publicHoursLabel: "—",
+    publicMinutes: 0,
+    sessions: 0,
+  };
+}
+
+async function siteProfile(steamId: string) {
+  const base = await siteProfileLight(steamId);
   const sessions = await prisma.squadServerSession.findMany({
     where: {
       steamId,
@@ -96,13 +113,7 @@ async function siteProfile(steamId: string) {
   }
 
   return {
-    found: Boolean(user),
-    nick: user?.nick || null,
-    steamId,
-    profileUrl: `/players/${encodeURIComponent(steamId)}`,
-    steamUrl: `https://steamcommunity.com/profiles/${encodeURIComponent(steamId)}`,
-    faction: user?.factionMembership?.faction?.name || null,
-    factionSlug: user?.factionMembership?.faction?.slug || null,
+    ...base,
     publicHoursLabel: formatHours(totalMinutes),
     publicMinutes: Math.round(totalMinutes),
     sessions: sessions.length,
@@ -198,31 +209,70 @@ export async function GET(req: Request) {
       const data = await runPanelka(["chat", key], 20000);
       return NextResponse.json(data);
     }
+    // Fast shell: profile + memos + nickHistory + disk PB1. No RCON.
     if (op === "player-card") {
+      const steamId = url.searchParams.get("steamId") || "";
+      const name = url.searchParams.get("name") || "";
+      if (!STEAM_RE.test(steamId)) {
+        return NextResponse.json({ ok: false, error: "нет игрока" }, { status: 400 });
+      }
+      const { readPb1StatsCache, getPanelkaPlayerPb1Stats } = await import(
+        "@/lib/panelkaPlayerPb1Stats"
+      );
+      const disk = readPb1StatsCache(steamId);
+      const [profile, nickHistory, memos] = await Promise.all([
+        siteProfileLight(steamId),
+        listSteamNickHistory(steamId, name).catch(() => []),
+        listPanelkaMemos(steamId).catch(() => ({
+          notes: [] as [],
+          labels: [] as [],
+        })),
+      ]);
+      let pb1Stats = disk?.stats || null;
+      let pb1Meta = {
+        fromCache: Boolean(disk),
+        updatedAt: disk?.updatedAt || null,
+      };
+      if (pb1Stats) {
+        // Fill hours into light profile from cache
+        profile.publicHoursLabel = pb1Stats.hoursLabel;
+        profile.publicMinutes = pb1Stats.publicMinutes;
+        profile.sessions = pb1Stats.sessions;
+        const age = Date.now() - Date.parse(disk!.updatedAt);
+        if (Number.isFinite(age) && age > 6 * 3600_000) {
+          void getPanelkaPlayerPb1Stats({
+            steamId,
+            nick: profile.nick || name || null,
+          }).catch(() => null);
+        }
+      } else {
+        // Miss: rebuild in background, do not block card open
+        void getPanelkaPlayerPb1Stats({
+          steamId,
+          nick: profile.nick || name || null,
+        }).catch(() => null);
+      }
+      return NextResponse.json({
+        ok: true,
+        profile,
+        pb1Stats,
+        pb1StatsMeta: pb1Meta,
+        nickHistory,
+        notes: memos.notes,
+        labels: memos.labels,
+        chat: [],
+        teamkills: [],
+        punishments: [],
+      });
+    }
+    // Slow: chat / punishments / teamkills from server logs (RCON helper)
+    if (op === "player-history") {
       const key = url.searchParams.get("key") || "";
       const steamId = url.searchParams.get("steamId") || "";
       const name = url.searchParams.get("name") || "";
       if (!isPanelkaKey(key) || !STEAM_RE.test(steamId)) {
         return NextResponse.json({ ok: false, error: "нет игрока" }, { status: 400 });
       }
-      const profile = await siteProfile(steamId);
-      const nickHistory = await listSteamNickHistory(steamId, name).catch(() => []);
-      const memos = await listPanelkaMemos(steamId).catch(() => ({
-        notes: [] as [],
-        labels: [] as [],
-      }));
-      const { getPanelkaPlayerPb1Stats } = await import(
-        "@/lib/panelkaPlayerPb1Stats"
-      );
-      const pb1Hit = await getPanelkaPlayerPb1Stats({
-        steamId,
-        nick: profile.nick || name || null,
-      }).catch(() => ({
-        stats: null,
-        fromCache: false,
-        updatedAt: null as string | null,
-      }));
-      const pb1Stats = pb1Hit.stats;
       try {
         const history = (await runPanelka(["player-card", key, steamId], 28000, {
           name,
@@ -236,15 +286,6 @@ export async function GET(req: Request) {
         if (!history?.ok) {
           return NextResponse.json({
             ok: true,
-            profile,
-            pb1Stats,
-            pb1StatsMeta: {
-              fromCache: pb1Hit.fromCache,
-              updatedAt: pb1Hit.updatedAt,
-            },
-            nickHistory,
-            notes: memos.notes,
-            labels: memos.labels,
             chat: [],
             teamkills: [],
             punishments: [],
@@ -253,15 +294,6 @@ export async function GET(req: Request) {
         }
         return NextResponse.json({
           ok: true,
-          profile,
-          pb1Stats,
-          pb1StatsMeta: {
-            fromCache: pb1Hit.fromCache,
-            updatedAt: pb1Hit.updatedAt,
-          },
-          nickHistory,
-          notes: memos.notes,
-          labels: memos.labels,
           chat: history.chat || [],
           teamkills: history.teamkills || [],
           punishments: history.punishments || [],
@@ -270,15 +302,6 @@ export async function GET(req: Request) {
         const message = err instanceof Error ? err.message : "ошибка";
         return NextResponse.json({
           ok: true,
-          profile,
-          pb1Stats,
-          pb1StatsMeta: {
-            fromCache: pb1Hit.fromCache,
-            updatedAt: pb1Hit.updatedAt,
-          },
-          nickHistory,
-          notes: memos.notes,
-          labels: memos.labels,
           chat: [],
           teamkills: [],
           punishments: [],
@@ -286,7 +309,7 @@ export async function GET(req: Request) {
         });
       }
     }
-    // Fast path: only cached PB1 stats (for instant card paint)
+    // Disk-only PB1 stats (instant paint)
     if (op === "player-pb1-stats") {
       const steamId = url.searchParams.get("steamId") || "";
       const name = url.searchParams.get("name") || "";
@@ -296,7 +319,6 @@ export async function GET(req: Request) {
       const { getPanelkaPlayerPb1Stats, readPb1StatsCache } = await import(
         "@/lib/panelkaPlayerPb1Stats"
       );
-      // Prefer pure disk read first (no DB) for max speed
       const disk = readPb1StatsCache(steamId);
       if (disk) {
         const age = Date.now() - Date.parse(disk.updatedAt);
@@ -314,17 +336,15 @@ export async function GET(req: Request) {
           });
         }
       }
-      const hit = await getPanelkaPlayerPb1Stats({
+      // Miss: do not block — warm async
+      void getPanelkaPlayerPb1Stats({
         steamId,
         nick: name || null,
-      });
+      }).catch(() => null);
       return NextResponse.json({
         ok: true,
-        pb1Stats: hit.stats,
-        pb1StatsMeta: {
-          fromCache: hit.fromCache,
-          updatedAt: hit.updatedAt,
-        },
+        pb1Stats: null,
+        pb1StatsMeta: { fromCache: false, updatedAt: null, building: true },
       });
     }
     if (op === "mods") {
