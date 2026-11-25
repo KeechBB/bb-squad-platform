@@ -1832,6 +1832,11 @@ export function PlayerModModal({
                     {pb1Stats.visitDays} дн. с онлайном
                   </span>
                 </div>
+                <div className="panelka-pb1-legend" aria-hidden>
+                  <span className="is-online">Онлайн</span>
+                  <span className="is-boost">Буст</span>
+                  <span className="is-queue">Очередь</span>
+                </div>
                 <div
                   className="panelka-pb1-bars"
                   role="img"
@@ -1841,6 +1846,9 @@ export function PlayerModModal({
                     const pct =
                       (b.hours / Math.max(pb1Stats.visitMaxHours, 0.25)) * 100;
                     const active = visitHover === b.ymd;
+                    const onlineMin = Math.max(0, Math.round(b.minutes));
+                    const boostMin = 0;
+                    const queueMin = 0;
                     return (
                       <button
                         key={b.ymd}
@@ -1849,35 +1857,41 @@ export function PlayerModModal({
                         style={{
                           ["--h" as string]: `${Math.max(pct, b.hours > 0 ? 4 : 0)}%`,
                         }}
-                        title={`${b.label}: ${b.hours} ч (${Math.round(b.minutes)} мин)`}
                         onMouseEnter={() => setVisitHover(b.ymd)}
                         onMouseLeave={() => setVisitHover(null)}
                         onFocus={() => setVisitHover(b.ymd)}
                         onBlur={() => setVisitHover(null)}
                       >
-                        <span className="panelka-pb1-bar-fill" />
+                        <span className="panelka-pb1-bar-stack">
+                          <span className="panelka-pb1-bar-online" />
+                        </span>
+                        {active ? (
+                          <span className="panelka-pb1-float" role="tooltip">
+                            <strong className="panelka-pb1-float-date">
+                              {b.ymd}
+                            </strong>
+                            <span className="panelka-pb1-float-row is-online">
+                              Онлайн: {formatPlayDuration(onlineMin)}
+                            </span>
+                            <span className="panelka-pb1-float-row is-boost">
+                              Буст: {formatPlayDuration(boostMin)}
+                            </span>
+                            <span className="panelka-pb1-float-row is-queue">
+                              Очередь: {formatPlayDuration(queueMin)}
+                            </span>
+                          </span>
+                        ) : null}
                       </button>
                     );
                   })}
                 </div>
-                {visitHover ? (
-                  <div className="panelka-pb1-tip">
-                    {(() => {
-                      const hit =
-                        pb1Stats.visitBars.find((x) => x.ymd === visitHover) ||
-                        null;
-                      if (!hit) return null;
-                      return (
-                        <>
-                          <strong>{hit.label}</strong>
-                          {` · ${hit.hours} ч · ${Math.round(hit.minutes)} мин`}
-                        </>
-                      );
-                    })()}
+                {!visitHover ? (
+                  <div className="panelka-pb1-tip muted">
+                    Наведи на день — онлайн / буст / очередь
                   </div>
                 ) : (
-                  <div className="panelka-pb1-tip muted">
-                    Наведи на день — сколько часов на PB1
+                  <div className="panelka-pb1-tip" aria-hidden>
+                    {"\u00a0"}
                   </div>
                 )}
               </div>
@@ -2283,6 +2297,16 @@ function Pager({
       </button>
     </span>
   );
+}
+
+/** 236 мин → «3ч 56м»; 12 → «12м»; 0 → «0с» */
+function formatPlayDuration(totalMinutes: number): string {
+  const m = Math.max(0, Math.round(totalMinutes));
+  if (m <= 0) return "0с";
+  if (m < 60) return `${m}м`;
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return mm ? `${h}ч ${mm}м` : `${h}ч`;
 }
 
 function formatNickSeen(iso: string): string {
