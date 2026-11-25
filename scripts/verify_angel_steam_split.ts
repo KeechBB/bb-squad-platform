@@ -392,15 +392,27 @@ async function verifyHistories(
       const pubHist = await buildPlayerPublicMatchHistory(w.siteNick, {
         steamId: w.steamId,
       });
-      const pub = await buildPlayerPublicCombatStats(w.siteNick, {
-        steamId: w.steamId,
-      });
+      let pubMatches: number | null = null;
+      let pubRp: number | string = "—";
+      try {
+        const pub = await buildPlayerPublicCombatStats(w.siteNick, {
+          steamId: w.steamId,
+        });
+        pubMatches = pub?.matches ?? 0;
+        pubRp = pub?.rp ?? "—";
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        // CLI/tsx без Next runtime — unstable_cache недоступен.
+        if (!/incrementalCache|unstable_cache/i.test(msg)) throw e;
+        pubMatches = null;
+        pubRp = "skip-cache";
+      }
       add(
         checks,
         true,
         "public-tabs",
         w.label,
-        `hist=${pubHist.length} combatMatches=${pub?.matches ?? 0} rp=${pub?.rp ?? "—"}`
+        `hist=${pubHist.length} combatMatches=${pubMatches ?? "n/a"} rp=${pubRp}`
       );
     } catch (e) {
       add(
