@@ -1,61 +1,61 @@
 /**
- * PB1 (TPUB*) online analytics: hour timeline, uniques, new Steam IDs, wake time.
- * Calendar MSK day/week/month/year. Day rollups cached on disk.
+ * PB1 analytics: concurrent online (not unique-per-hour).
+ * Day = hours 0–23; week = days Mon–Sun; month = days of calendar month.
+ * Staff = SUPER_ADMIN + PUBLIC_ADMIN + PUBLIC_MOD (Keech + паблик админ/мод).
+ * Queue (yellow) from live RCON + light sample cache.
  */
 import fs from "fs";
 import path from "path";
 import { prisma } from "@/lib/prisma";
+import { runPanelka, type PanelkaServer } from "@/lib/panelkaRcon";
 
 export const PB1_SERVER_KEYS = ["TPUB1", "PB1", "TPUB", "PUBLIC"] as const;
 
-const STAFF_ROLES = [
-  "SUPER_ADMIN",
-  "ADMIN",
-  "PUBLIC_ADMIN",
-  "DEPUTY",
-  "HR",
-] as const;
-
-/** Онлайн > 50 = сервер «поднялся» (после SEED). */
+const STAFF_ROLES = ["SUPER_ADMIN", "PUBLIC_ADMIN", "PUBLIC_MOD"] as const;
 const WAKE_MIN_CONCURRENT = 51;
-const WAKE_FROM_HOUR_MSK = 8; // ignore overnight leftovers
+const WAKE_FROM_HOUR_MSK = 8;
+const SAMPLE_STEP_MS = 10 * 60_000;
 const CACHE_DIR = path.join(process.cwd(), "data", "cache", "pb1-analytics");
-const MEM_TTL_MS = 5 * 60_000;
+const QUEUE_SAMPLES_PATH = path.join(CACHE_DIR, "queue-samples.jsonl");
+const MEM_TTL_MS = 2 * 60_000;
 
-type HourBucket = {
-  hour: number;
-  total: number;
+export type Pb1Bar = {
+  key: string;
+  label: string;
+  /** средний concurrent игроков (не staff) */
+  players: number;
+  /** средний concurrent staff */
+  staff: number;
+  /** средний размер очереди (если есть сэмплы) */
+  queue: number;
+  /** players + staff */
+  online: number;
+};
+
+export type Pb1LiveNow = {
+  online: number;
   players: number;
   staff: number;
+  queue: number;
+  map: string;
+  layer: string;
+  at: string;
 };
 
-export type Pb1DayRollup = {
-  ymd: string;
-  hours: HourBucket[];
-  uniqueSteamIds: number;
-  newSteamIds: number;
-  peakHourUnique: number;
-  peakHour: number;
-  playerHours: number;
-  /** минуты от 00:00 МСК, когда онлайн впервые ≥ порога */
-  wakeMskMinutes: number | null;
-  sessionCount: number;
-};
-
-export type Pb1AnalyticsScope = "day" | "week" | "month" | "year";
+export type Pb1AnalyticsScope = "day" | "week" | "month";
 
 export type Pb1AnalyticsPayload = {
   scope: Pb1AnalyticsScope;
-  /** Календарный якорь: день / любой день недели / YYYY-MM / YYYY */
   key: string;
   label: string;
   range: { fromYmd: string; toYmd: string };
-  timeline: HourBucket[];
-  /** для day — абсолют; для week/month/year — среднее по дням с данными */
-  timelineMode: "absolute" | "average";
-  daysWithData: number;
+  bars: Pb1Bar[];
+  live: Pb1LiveNow | null;
+  /** календарь / пресеты для UI */
+  dayChoices: string[];
+  weekChoices: { key: string; label: string; fromYmd: string; toYmd: string }[];
+  monthChoices: { key: string; label: string }[];
   stats: {
-    uniqueSteamIds: number;
     uniqueSteamIdsDay: number;
     uniqueSteamIdsWeek: number;
     uniqueSteamIdsMonth: number;
@@ -64,20 +64,26 @@ export type Pb1AnalyticsPayload = {
     newSteamIdsMonth: number;
     wakeAvgWeek: string | null;
     wakeAvgMonth: string | null;
-    peakHourUnique: number;
-    peakHour: number;
+    peakOnline: number;
     playerHours: number;
-    avgSessionMin: number | null;
-    busyHour: number;
-    quietHour: number;
   };
   updatedAt: string;
 };
 
-type SessionLite = {
-  steamId: string;
-  joinedAt: Date;
-  leftAt: Date | null;
+type SessionLite = { steamId: string; joinedAt: Date; leftAt: Date | null };
+
+type DayRollup = {
+  ymd: string;
+  hours: Pb1Bar[];
+  avgOnline: number;
+  avgPlayers: number;
+  avgStaff: number;
+  avgQueue: number;
+  uniqueSteamIds: number;
+  newSteamIds: number;
+  peakOnline: number;
+  playerHours: number;
+  wakeMskMinutes: number | null;
 };
 
 const mem = new Map<string, { at: number; data: unknown }>();
@@ -91,7 +97,6 @@ function memGet<T>(key: string): T | null {
   }
   return hit.data as T;
 }
-
 function memSet(key: string, data: unknown) {
   mem.set(key, { at: Date.now(), data });
 }
@@ -104,7 +109,7 @@ function pad2(n: number) {
   return n < 10 ? `0${n}` : String(n);
 }
 
-export function mskYmd(d: Date): string {
+export function mskYmd(d: Date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Moscow",
     year: "numeric",
@@ -113,7 +118,6 @@ export function mskYmd(d: Date): string {
   }).format(d);
 }
 
-/** MSK calendar day → [start, end) UTC */
 export function mskDayBounds(ymd: string): { start: Date; end: Date } {
   const [y, m, d] = ymd.split("-").map(Number);
   const start = new Date(Date.UTC(y, m - 1, d, -3, 0, 0));
@@ -124,9 +128,7 @@ export function mskDayBounds(ymd: string): { start: Date; end: Date } {
 function addDaysYmd(ymd: string, delta: number): string {
   const [y, m, d] = ymd.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d + delta));
-  return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(
-    dt.getUTCDate()
-  )}`;
+  return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`;
 }
 
 function daysInclusive(fromYmd: string, toYmd: string): string[] {
@@ -140,10 +142,8 @@ function daysInclusive(fromYmd: string, toYmd: string): string[] {
   return out;
 }
 
-/** Понедельник–воскресенье недели, содержащей ymd (календарь МСК). */
 export function weekBoundsFromYmd(ymd: string): { fromYmd: string; toYmd: string } {
   const [y, m, d] = ymd.split("-").map(Number);
-  // noon UTC ≈ safe for weekday in MSK
   const noon = new Date(Date.UTC(y, m - 1, d, 9, 0, 0));
   const wd = new Intl.DateTimeFormat("en-US", {
     timeZone: "Europe/Moscow",
@@ -160,22 +160,13 @@ export function weekBoundsFromYmd(ymd: string): { fromYmd: string; toYmd: string
   };
   const offset = map[wd] ?? 0;
   const fromYmd = addDaysYmd(ymd, -offset);
-  const toYmd = addDaysYmd(fromYmd, 6);
-  return { fromYmd, toYmd };
+  return { fromYmd, toYmd: addDaysYmd(fromYmd, 6) };
 }
 
-export function monthBounds(year: number, month: number): {
-  fromYmd: string;
-  toYmd: string;
-} {
+export function monthBounds(year: number, month: number) {
   const fromYmd = `${year}-${pad2(month)}-01`;
   const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  const toYmd = `${year}-${pad2(month)}-${pad2(last)}`;
-  return { fromYmd, toYmd };
-}
-
-export function yearBounds(year: number): { fromYmd: string; toYmd: string } {
-  return { fromYmd: `${year}-01-01`, toYmd: `${year}-12-31` };
+  return { fromYmd, toYmd: `${year}-${pad2(month)}-${pad2(last)}` };
 }
 
 function fmtMskHm(mins: number | null): string | null {
@@ -184,21 +175,70 @@ function fmtMskHm(mins: number | null): string | null {
   return `${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`;
 }
 
+function monthNameRu(month: number): string {
+  return (
+    [
+      "",
+      "Январь",
+      "Февраль",
+      "Март",
+      "Апрель",
+      "Май",
+      "Июнь",
+      "Июль",
+      "Август",
+      "Сентябрь",
+      "Октябрь",
+      "Ноябрь",
+      "Декабрь",
+    ][month] || String(month)
+  );
+}
+
+function weekdayRu(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const noon = new Date(Date.UTC(y, m - 1, d, 9, 0, 0));
+  return new Intl.DateTimeFormat("ru-RU", {
+    timeZone: "Europe/Moscow",
+    weekday: "short",
+  }).format(noon);
+}
+
+function fmtDotShort(ymd: string): string {
+  const [, m, d] = ymd.split("-");
+  return `${d}.${m}`;
+}
+
 async function loadStaffSteamSet(): Promise<Set<string>> {
-  const cached = memGet<string[]>("staff-steams");
+  const cached = memGet<string[]>("staff-steams-v2");
   if (cached) return new Set(cached);
   const rows = await prisma.user.findMany({
     where: { role: { in: [...STAFF_ROLES] } },
     select: { steamId: true },
   });
   const ids = rows.map((r) => r.steamId).filter(Boolean);
-  memSet("staff-steams", ids);
+  memSet("staff-steams-v2", ids);
   return new Set(ids);
+}
+
+async function loadFirstSeenMap(): Promise<Map<string, string>> {
+  const cached = memGet<[string, string][]>("first-seen-v2");
+  if (cached) return new Map(cached);
+  const rows = await prisma.$queryRaw<{ steamId: string; firstAt: Date }[]>`
+    SELECT "steamId", MIN("joinedAt") AS "firstAt"
+    FROM "SquadServerSession"
+    WHERE "serverKey" IN ('TPUB1','PB1','TPUB','PUBLIC')
+    GROUP BY "steamId"`;
+  const pairs: [string, string][] = rows.map((r) => [
+    r.steamId,
+    mskYmd(new Date(r.firstAt)),
+  ]);
+  memSet("first-seen-v2", pairs);
+  return new Map(pairs);
 }
 
 async function loadSessionsForDay(ymd: string): Promise<SessionLite[]> {
   const { start, end } = mskDayBounds(ymd);
-  // sessions that can overlap the day
   const padStart = new Date(start.getTime() - 12 * 3600_000);
   const rows = await prisma.squadServerSession.findMany({
     where: {
@@ -209,19 +249,19 @@ async function loadSessionsForDay(ymd: string): Promise<SessionLite[]> {
     select: { steamId: true, joinedAt: true, leftAt: true },
   });
   const now = Date.now();
-  const dayEnd = end.getTime();
   const dayStart = start.getTime();
+  const dayEnd = end.getTime();
   return rows
-    .map((r) => {
-      const left = r.leftAt ? r.leftAt.getTime() : now;
-      // cap open sessions at day end for historical days
-      const leftCap = Math.min(left, Math.max(now, dayEnd));
-      return {
-        steamId: r.steamId,
-        joinedAt: r.joinedAt,
-        leftAt: new Date(Math.min(leftCap, dayEnd + 12 * 3600_000)),
-      };
-    })
+    .map((r) => ({
+      steamId: r.steamId,
+      joinedAt: r.joinedAt,
+      leftAt: new Date(
+        Math.min(
+          r.leftAt ? r.leftAt.getTime() : Math.max(now, dayEnd),
+          dayEnd + 6 * 3600_000
+        )
+      ),
+    }))
     .filter((r) => {
       const a = r.joinedAt.getTime();
       const b = r.leftAt!.getTime();
@@ -229,148 +269,188 @@ async function loadSessionsForDay(ymd: string): Promise<SessionLite[]> {
     });
 }
 
-function overlapMs(a0: number, a1: number, b0: number, b1: number): number {
-  const s = Math.max(a0, b0);
-  const e = Math.min(a1, b1);
-  return Math.max(0, e - s);
+/** queue samples: {t:ms, queue:n} */
+function readQueueSamples(dayStart: number, dayEnd: number): { t: number; queue: number }[] {
+  try {
+    if (!fs.existsSync(QUEUE_SAMPLES_PATH)) return [];
+    const lines = fs.readFileSync(QUEUE_SAMPLES_PATH, "utf8").split(/\r?\n/);
+    const out: { t: number; queue: number }[] = [];
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        const o = JSON.parse(line) as { t?: number; queue?: number };
+        const t = Number(o.t) || 0;
+        if (t >= dayStart && t < dayEnd) {
+          out.push({ t, queue: Math.max(0, Number(o.queue) || 0) });
+        }
+      } catch {
+        /* skip */
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+function appendQueueSample(queue: number) {
+  try {
+    ensureCacheDir();
+    const line = JSON.stringify({ t: Date.now(), queue: Math.max(0, queue) }) + "\n";
+    fs.appendFileSync(QUEUE_SAMPLES_PATH, line);
+  } catch {
+    /* ignore */
+  }
+}
+
+function concurrentAt(
+  sessions: SessionLite[],
+  staff: Set<string>,
+  t: number
+): { players: number; staff: number; online: number } {
+  let players = 0;
+  let st = 0;
+  for (const s of sessions) {
+    const a = s.joinedAt.getTime();
+    const b = (s.leftAt || new Date()).getTime();
+    if (a <= t && b > t) {
+      if (staff.has(s.steamId)) st++;
+      else players++;
+    }
+  }
+  return { players, staff: st, online: players + st };
+}
+
+function avgQueueInWindow(
+  samples: { t: number; queue: number }[],
+  a: number,
+  b: number
+): number {
+  const hit = samples.filter((s) => s.t >= a && s.t < b);
+  if (!hit.length) return 0;
+  return hit.reduce((s, x) => s + x.queue, 0) / hit.length;
 }
 
 function buildDayRollup(
   ymd: string,
   sessions: SessionLite[],
   staff: Set<string>,
-  firstSeen: Map<string, string>
-): Pb1DayRollup {
+  firstSeen: Map<string, string>,
+  queueSamples: { t: number; queue: number }[]
+): DayRollup {
   const { start, end } = mskDayBounds(ymd);
   const dayStart = start.getTime();
   const dayEnd = end.getTime();
-  const hours: HourBucket[] = Array.from({ length: 24 }, (_, hour) => ({
-    hour,
-    total: 0,
-    players: 0,
-    staff: 0,
-  }));
+  const now = Date.now();
+  const sampleUntil = Math.min(dayEnd, Math.max(now, dayStart));
 
-  const uniques = new Set<string>();
-  let playerHours = 0;
-  let sessionCount = 0;
+  const hours: Pb1Bar[] = [];
+  const allSamples: { online: number; players: number; staff: number; queue: number }[] = [];
+  let peakOnline = 0;
+  let wakeMskMinutes: number | null = null;
 
-  for (const s of sessions) {
-    const a = s.joinedAt.getTime();
-    const b = (s.leftAt || new Date()).getTime();
-    const ov = overlapMs(a, b, dayStart, dayEnd);
-    if (ov <= 0) continue;
-    sessionCount++;
-    uniques.add(s.steamId);
-    playerHours += ov / 3600_000;
-    for (let hour = 0; hour < 24; hour++) {
-      const h0 = dayStart + hour * 3600_000;
-      const h1 = h0 + 3600_000;
-      if (overlapMs(a, b, h0, h1) > 0) {
-        // counted per unique below
-      }
-    }
-  }
-
-  // unique per hour
   for (let hour = 0; hour < 24; hour++) {
     const h0 = dayStart + hour * 3600_000;
     const h1 = h0 + 3600_000;
-    const setP = new Set<string>();
-    const setS = new Set<string>();
-    for (const s of sessions) {
-      const a = s.joinedAt.getTime();
-      const b = (s.leftAt || new Date()).getTime();
-      if (overlapMs(a, b, h0, h1) <= 0) continue;
-      if (staff.has(s.steamId)) setS.add(s.steamId);
-      else setP.add(s.steamId);
+    if (h0 >= sampleUntil && ymd === mskYmd()) {
+      // future hour today
+      hours.push({
+        key: String(hour),
+        label: pad2(hour),
+        players: 0,
+        staff: 0,
+        queue: 0,
+        online: 0,
+      });
+      continue;
     }
-    hours[hour] = {
-      hour,
-      players: setP.size,
-      staff: setS.size,
-      total: setP.size + setS.size,
-    };
+    const endSamp = Math.min(h1, sampleUntil);
+    let sumP = 0;
+    let sumS = 0;
+    let sumO = 0;
+    let n = 0;
+    for (let t = h0; t < endSamp; t += SAMPLE_STEP_MS) {
+      const c = concurrentAt(sessions, staff, t);
+      sumP += c.players;
+      sumS += c.staff;
+      sumO += c.online;
+      n++;
+      if (c.online > peakOnline) peakOnline = c.online;
+      if (
+        wakeMskMinutes == null &&
+        hour * 60 >= WAKE_FROM_HOUR_MSK * 60 &&
+        c.online > WAKE_MIN_CONCURRENT - 1
+      ) {
+        wakeMskMinutes = Math.round((t - dayStart) / 60000);
+      }
+    }
+    const queue = avgQueueInWindow(queueSamples, h0, h1);
+    const players = n ? Math.round((sumP / n) * 10) / 10 : 0;
+    const st = n ? Math.round((sumS / n) * 10) / 10 : 0;
+    const online = n ? Math.round((sumO / n) * 10) / 10 : 0;
+    if (n) allSamples.push({ online, players, staff: st, queue });
+    hours.push({
+      key: String(hour),
+      label: pad2(hour),
+      players,
+      staff: st,
+      queue: Math.round(queue * 10) / 10,
+      online,
+    });
   }
 
-  let peakHourUnique = 0;
-  let peakHour = 0;
-  for (const h of hours) {
-    if (h.total > peakHourUnique) {
-      peakHourUnique = h.total;
-      peakHour = h.hour;
-    }
-  }
-
-  // wake: sample every 10 min from 08:00, first concurrent >= threshold
-  let wakeMskMinutes: number | null = null;
-  for (let mins = WAKE_FROM_HOUR_MSK * 60; mins < 22 * 60; mins += 10) {
-    const t = dayStart + mins * 60_000;
-    let conc = 0;
-    for (const s of sessions) {
-      const a = s.joinedAt.getTime();
-      const b = (s.leftAt || new Date()).getTime();
-      if (a <= t && b > t) conc++;
-    }
-    if (conc >= WAKE_MIN_CONCURRENT) {
-      wakeMskMinutes = mins;
-      break;
-    }
-  }
-
+  const uniques = new Set(sessions.map((s) => s.steamId));
   let newSteamIds = 0;
   for (const sid of uniques) {
-    const first = firstSeen.get(sid);
-    if (first === ymd) newSteamIds++;
+    if (firstSeen.get(sid) === ymd) newSteamIds++;
   }
+
+  let playerHours = 0;
+  for (const s of sessions) {
+    const a = Math.max(s.joinedAt.getTime(), dayStart);
+    const b = Math.min((s.leftAt || new Date()).getTime(), dayEnd);
+    if (b > a) playerHours += (b - a) / 3600_000;
+  }
+
+  const avgOnline = allSamples.length
+    ? allSamples.reduce((s, x) => s + x.online, 0) / allSamples.length
+    : 0;
+  const avgPlayers = allSamples.length
+    ? allSamples.reduce((s, x) => s + x.players, 0) / allSamples.length
+    : 0;
+  const avgStaff = allSamples.length
+    ? allSamples.reduce((s, x) => s + x.staff, 0) / allSamples.length
+    : 0;
+  const avgQueue = allSamples.length
+    ? allSamples.reduce((s, x) => s + x.queue, 0) / allSamples.length
+    : 0;
 
   return {
     ymd,
     hours,
+    avgOnline: Math.round(avgOnline * 10) / 10,
+    avgPlayers: Math.round(avgPlayers * 10) / 10,
+    avgStaff: Math.round(avgStaff * 10) / 10,
+    avgQueue: Math.round(avgQueue * 10) / 10,
     uniqueSteamIds: uniques.size,
     newSteamIds,
-    peakHourUnique,
-    peakHour,
+    peakOnline,
     playerHours: Math.round(playerHours * 10) / 10,
     wakeMskMinutes,
-    sessionCount,
   };
 }
 
-async function loadFirstSeenMap(): Promise<Map<string, string>> {
-  const cached = memGet<[string, string][]>("first-seen");
-  if (cached) return new Map(cached);
-
-  const rows = await prisma.$queryRaw<
-    { steamId: string; firstAt: Date }[]
-  >`SELECT "steamId", MIN("joinedAt") AS "firstAt"
-    FROM "SquadServerSession"
-    WHERE "serverKey" IN ('TPUB1','PB1','TPUB','PUBLIC')
-    GROUP BY "steamId"`;
-
-  const pairs: [string, string][] = rows.map((r) => [
-    r.steamId,
-    mskYmd(new Date(r.firstAt)),
-  ]);
-  memSet("first-seen", pairs);
-  return new Map(pairs);
-}
-
-function dayCachePath(ymd: string) {
-  return path.join(CACHE_DIR, `day-${ymd}.json`);
-}
-
-export async function getDayRollup(ymd: string): Promise<Pb1DayRollup> {
-  const memKey = `day:${ymd}`;
-  const hit = memGet<Pb1DayRollup>(memKey);
+async function getDayRollup(ymd: string): Promise<DayRollup> {
+  const memKey = `day-v3:${ymd}`;
+  const hit = memGet<DayRollup>(memKey);
   if (hit) return hit;
 
   ensureCacheDir();
-  const fp = dayCachePath(ymd);
-  const today = mskYmd(new Date());
+  const today = mskYmd();
+  const fp = path.join(CACHE_DIR, `day-v3-${ymd}.json`);
   if (ymd < today && fs.existsSync(fp)) {
     try {
-      const parsed = JSON.parse(fs.readFileSync(fp, "utf8")) as Pb1DayRollup;
+      const parsed = JSON.parse(fs.readFileSync(fp, "utf8")) as DayRollup;
       memSet(memKey, parsed);
       return parsed;
     } catch {
@@ -378,12 +458,14 @@ export async function getDayRollup(ymd: string): Promise<Pb1DayRollup> {
     }
   }
 
+  const { start, end } = mskDayBounds(ymd);
   const [sessions, staff, firstSeen] = await Promise.all([
     loadSessionsForDay(ymd),
     loadStaffSteamSet(),
     loadFirstSeenMap(),
   ]);
-  const rollup = buildDayRollup(ymd, sessions, staff, firstSeen);
+  const queueSamples = readQueueSamples(start.getTime(), end.getTime());
+  const rollup = buildDayRollup(ymd, sessions, staff, firstSeen, queueSamples);
   memSet(memKey, rollup);
   if (ymd < today) {
     try {
@@ -395,241 +477,6 @@ export async function getDayRollup(ymd: string): Promise<Pb1DayRollup> {
   return rollup;
 }
 
-async function averageTimeline(days: Pb1DayRollup[]): Promise<HourBucket[]> {
-  const withData = days.filter((d) => d.uniqueSteamIds > 0);
-  const n = withData.length || 1;
-  return Array.from({ length: 24 }, (_, hour) => {
-    let total = 0;
-    let players = 0;
-    let staff = 0;
-    for (const d of withData) {
-      const h = d.hours[hour]!;
-      total += h.total;
-      players += h.players;
-      staff += h.staff;
-    }
-    return {
-      hour,
-      total: Math.round((total / n) * 10) / 10,
-      players: Math.round((players / n) * 10) / 10,
-      staff: Math.round((staff / n) * 10) / 10,
-    };
-  });
-}
-
-function avgWake(days: Pb1DayRollup[]): number | null {
-  const vals = days
-    .map((d) => d.wakeMskMinutes)
-    .filter((v): v is number => v != null);
-  if (!vals.length) return null;
-  return vals.reduce((a, b) => a + b, 0) / vals.length;
-}
-
-function monthNameRu(month: number): string {
-  const names = [
-    "",
-    "Январь",
-    "Февраль",
-    "Март",
-    "Апрель",
-    "Май",
-    "Июнь",
-    "Июль",
-    "Август",
-    "Сентябрь",
-    "Октябрь",
-    "Ноябрь",
-    "Декабрь",
-  ];
-  return names[month] || String(month);
-}
-
-export async function buildPb1Analytics(opts: {
-  scope: Pb1AnalyticsScope;
-  /** day: YYYY-MM-DD; week: YYYY-MM-DD (any day in week); month: YYYY-MM; year: YYYY */
-  key: string;
-}): Promise<Pb1AnalyticsPayload> {
-  const scope = opts.scope;
-  let key = String(opts.key || "").trim();
-  const today = mskYmd(new Date());
-
-  let fromYmd = today;
-  let toYmd = today;
-  let label = today;
-
-  if (scope === "day") {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) key = today;
-    fromYmd = key;
-    toYmd = key;
-    label = key.split("-").reverse().join(".");
-  } else if (scope === "week") {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) key = today;
-    const w = weekBoundsFromYmd(key);
-    fromYmd = w.fromYmd;
-    toYmd = w.toYmd;
-    label = `неделя ${fromYmd.split("-").reverse().join(".")}–${toYmd
-      .split("-")
-      .reverse()
-      .join(".")}`;
-  } else if (scope === "month") {
-    if (!/^\d{4}-\d{2}$/.test(key)) key = today.slice(0, 7);
-    const [y, m] = key.split("-").map(Number);
-    const b = monthBounds(y, m);
-    fromYmd = b.fromYmd;
-    toYmd = b.toYmd;
-    label = `${monthNameRu(m)} ${y}`;
-  } else {
-    if (!/^\d{4}$/.test(key)) key = today.slice(0, 4);
-    const y = Number(key);
-    const b = yearBounds(y);
-    fromYmd = b.fromYmd;
-    toYmd = b.toYmd;
-    label = String(y);
-  }
-
-  // clamp future
-  if (toYmd > today) toYmd = today;
-  if (fromYmd > today) fromYmd = today;
-
-  const cacheKey = `payload:${scope}:${key}:${fromYmd}:${toYmd}`;
-  const cached = memGet<Pb1AnalyticsPayload>(cacheKey);
-  if (cached) return cached;
-
-  const ymds = daysInclusive(fromYmd, toYmd);
-  const rollups: Pb1DayRollup[] = [];
-  // modest parallelism — day rollups are disk/mem cached after first build
-  const CONC = 4;
-  for (let i = 0; i < ymds.length; i += CONC) {
-    const chunk = ymds.slice(i, i + CONC);
-    const part = await Promise.all(chunk.map((ymd) => getDayRollup(ymd)));
-    rollups.push(...part);
-  }
-
-  const withData = rollups.filter((d) => d.uniqueSteamIds > 0);
-  const timeline =
-    scope === "day"
-      ? rollups[0]?.hours ||
-        Array.from({ length: 24 }, (_, hour) => ({
-          hour,
-          total: 0,
-          players: 0,
-          staff: 0,
-        }))
-      : await averageTimeline(rollups);
-
-  // period uniques / new — union across days from firstSeen + sessions is heavy;
-  // use rollup sums carefully for new (sum of daily new is correct if first-seen day);
-  // for unique need re-query or approximate.
-  const uniqueExact = await countUniqueInRange(fromYmd, toYmd);
-  const newExact = await countNewInRange(fromYmd, toYmd);
-
-  // contextual day/week/month cards relative to selected anchor
-  const anchorDay = scope === "day" ? fromYmd : toYmd;
-  const weekB = weekBoundsFromYmd(anchorDay);
-  const [ay, am] = anchorDay.split("-").map(Number);
-  const monthB = monthBounds(ay, am);
-
-  const [
-    uniqueDay,
-    uniqueWeek,
-    uniqueMonth,
-    newDay,
-    newWeek,
-    newMonth,
-  ] = await Promise.all([
-    countUniqueInRange(anchorDay, anchorDay),
-    countUniqueInRange(weekB.fromYmd, weekB.toYmd > today ? today : weekB.toYmd),
-    countUniqueInRange(monthB.fromYmd, monthB.toYmd > today ? today : monthB.toYmd),
-    countNewInRange(anchorDay, anchorDay),
-    countNewInRange(weekB.fromYmd, weekB.toYmd > today ? today : weekB.toYmd),
-    countNewInRange(monthB.fromYmd, monthB.toYmd > today ? today : monthB.toYmd),
-  ]);
-
-  const wakeWeek = avgWake(
-    (
-      await Promise.all(
-        daysInclusive(
-          weekB.fromYmd,
-          weekB.toYmd > today ? today : weekB.toYmd
-        ).map((d) => getDayRollup(d))
-      )
-    )
-  );
-  const wakeMonth = avgWake(
-    (
-      await Promise.all(
-        daysInclusive(
-          monthB.fromYmd,
-          monthB.toYmd > today ? today : monthB.toYmd
-        ).map((d) => getDayRollup(d))
-      )
-    )
-  );
-
-  const playerHours = Math.round(
-    withData.reduce((s, d) => s + d.playerHours, 0) * 10
-  ) / 10;
-  const sessions = withData.reduce((s, d) => s + d.sessionCount, 0);
-  const avgSessionMin =
-    sessions > 0
-      ? Math.round((playerHours * 60) / sessions)
-      : null;
-
-  let busyHour = 0;
-  let quietHour = 0;
-  let busyVal = -1;
-  let quietVal = Infinity;
-  for (const h of timeline) {
-    if (h.total > busyVal) {
-      busyVal = h.total;
-      busyHour = h.hour;
-    }
-    if (h.total < quietVal) {
-      quietVal = h.total;
-      quietHour = h.hour;
-    }
-  }
-
-  const peak = withData.reduce(
-    (best, d) =>
-      d.peakHourUnique > best.peakHourUnique
-        ? { peakHourUnique: d.peakHourUnique, peakHour: d.peakHour }
-        : best,
-    { peakHourUnique: 0, peakHour: 0 }
-  );
-
-  const payload: Pb1AnalyticsPayload = {
-    scope,
-    key,
-    label,
-    range: { fromYmd, toYmd },
-    timeline,
-    timelineMode: scope === "day" ? "absolute" : "average",
-    daysWithData: withData.length,
-    stats: {
-      uniqueSteamIds: uniqueExact,
-      uniqueSteamIdsDay: uniqueDay,
-      uniqueSteamIdsWeek: uniqueWeek,
-      uniqueSteamIdsMonth: uniqueMonth,
-      newSteamIdsDay: newDay,
-      newSteamIdsWeek: newWeek,
-      newSteamIdsMonth: newMonth,
-      wakeAvgWeek: fmtMskHm(wakeWeek),
-      wakeAvgMonth: fmtMskHm(wakeMonth),
-      peakHourUnique: peak.peakHourUnique,
-      peakHour: peak.peakHour,
-      playerHours,
-      avgSessionMin,
-      busyHour,
-      quietHour,
-    },
-    updatedAt: new Date().toISOString(),
-  };
-
-  memSet(cacheKey, payload);
-  return payload;
-}
-
 async function countUniqueInRange(fromYmd: string, toYmd: string): Promise<number> {
   const { start } = mskDayBounds(fromYmd);
   const { end } = mskDayBounds(toYmd);
@@ -638,8 +485,7 @@ async function countUniqueInRange(fromYmd: string, toYmd: string): Promise<numbe
     FROM "SquadServerSession"
     WHERE "serverKey" IN ('TPUB1','PB1','TPUB','PUBLIC')
       AND "joinedAt" < ${end}
-      AND ( "leftAt" IS NULL OR "leftAt" > ${start} )
-  `;
+      AND ( "leftAt" IS NULL OR "leftAt" > ${start} )`;
   return Number(rows[0]?.c || 0);
 }
 
@@ -653,15 +499,298 @@ async function countNewInRange(fromYmd: string, toYmd: string): Promise<number> 
       WHERE "serverKey" IN ('TPUB1','PB1','TPUB','PUBLIC')
       GROUP BY "steamId"
       HAVING MIN("joinedAt") >= ${start} AND MIN("joinedAt") < ${end}
-    ) t
-  `;
+    ) t`;
   return Number(rows[0]?.c || 0);
 }
 
-/** Warm recent days (cron / first open). */
-export async function warmPb1AnalyticsDays(daysBack = 14) {
-  const today = mskYmd(new Date());
-  for (let i = 0; i <= daysBack; i++) {
-    await getDayRollup(addDaysYmd(today, -i));
+async function fetchLiveNow(): Promise<Pb1LiveNow | null> {
+  try {
+    const [statusData, playersData, staff] = await Promise.all([
+      runPanelka(["status", "PB1"], 20000) as Promise<{
+        ok?: boolean;
+        servers?: PanelkaServer[];
+        server?: PanelkaServer;
+      }>,
+      runPanelka(["players", "PB1"], 20000).catch(() => null) as Promise<{
+        players?: { steamId?: string }[];
+      } | null>,
+      loadStaffSteamSet(),
+    ]);
+    const server =
+      statusData.server ||
+      (statusData.servers || []).find((s) => s.key === "PB1") ||
+      (statusData.servers || [])[0];
+    if (!server) return null;
+
+    const roster = Array.isArray(playersData?.players) ? playersData!.players! : [];
+    let staffN = 0;
+    for (const p of roster) {
+      const sid = String(p.steamId || "");
+      if (sid && staff.has(sid)) staffN++;
+    }
+    let playersN: number;
+    if (roster.length) {
+      playersN = Math.max(0, roster.length - staffN);
+    } else {
+      const now = Date.now();
+      const open = await prisma.squadServerSession.findMany({
+        where: {
+          serverKey: { in: [...PB1_SERVER_KEYS] },
+          leftAt: null,
+          joinedAt: { gte: new Date(now - 12 * 3600_000) },
+        },
+        select: { steamId: true },
+      });
+      staffN = open.filter((o) => staff.has(o.steamId)).length;
+      playersN = Math.max(0, open.length - staffN);
+      if (!open.length && server.players > 0) {
+        playersN = server.players;
+        staffN = 0;
+      }
+    }
+    const queue = Math.max(0, Number(server.queue) || 0);
+    appendQueueSample(queue);
+    return {
+      online: playersN + staffN,
+      players: playersN,
+      staff: staffN,
+      queue,
+      map: server.map || "",
+      layer: server.layer || "",
+      at: new Date().toISOString(),
+    };
+  } catch {
+    return null;
   }
+}
+
+function weeksInMonth(year: number, month: number, today: string) {
+  const { fromYmd, toYmd } = monthBounds(year, month);
+  const out: { key: string; label: string; fromYmd: string; toYmd: string }[] = [];
+  // start from Monday on/before 1st
+  let cur = weekBoundsFromYmd(fromYmd).fromYmd;
+  while (cur <= toYmd) {
+    const w = weekBoundsFromYmd(cur);
+    // include week if intersects month
+    if (w.toYmd >= fromYmd && w.fromYmd <= toYmd) {
+      const clipFrom = w.fromYmd < fromYmd ? fromYmd : w.fromYmd;
+      const clipTo = w.toYmd > toYmd ? toYmd : w.toYmd;
+      if (clipFrom <= today) {
+        out.push({
+          key: w.fromYmd,
+          label: `${fmtDotShort(clipFrom)}–${fmtDotShort(clipTo)}`,
+          fromYmd: w.fromYmd,
+          toYmd: w.toYmd,
+        });
+      }
+    }
+    cur = addDaysYmd(w.toYmd, 1);
+    if (out.length > 8) break;
+  }
+  return out;
+}
+
+function dayChoicesInMonth(year: number, month: number, today: string): string[] {
+  const { fromYmd, toYmd } = monthBounds(year, month);
+  return daysInclusive(fromYmd, toYmd <= today ? toYmd : today);
+}
+
+function monthChoices(year: number, today: string) {
+  const maxMonth =
+    Number(today.slice(0, 4)) === year ? Number(today.slice(5, 7)) : 12;
+  const out: { key: string; label: string }[] = [];
+  for (let m = 1; m <= maxMonth; m++) {
+    out.push({ key: `${year}-${pad2(m)}`, label: monthNameRu(m) });
+  }
+  return out;
+}
+
+function avgWake(days: DayRollup[]): number | null {
+  const vals = days
+    .map((d) => d.wakeMskMinutes)
+    .filter((v): v is number => v != null);
+  if (!vals.length) return null;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+export async function buildPb1Analytics(opts: {
+  scope: Pb1AnalyticsScope;
+  key: string;
+}): Promise<Pb1AnalyticsPayload> {
+  const scope = opts.scope;
+  const today = mskYmd();
+  let key = String(opts.key || "").trim();
+
+  let fromYmd = today;
+  let toYmd = today;
+  let label = today;
+  const yearNow = Number(today.slice(0, 4));
+  const monthNow = Number(today.slice(5, 7));
+
+  if (scope === "day") {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) key = today;
+    fromYmd = key;
+    toYmd = key;
+    label = `${fmtDotShort(key)}.${key.slice(0, 4)}`;
+  } else if (scope === "week") {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) key = weekBoundsFromYmd(today).fromYmd;
+    const w = weekBoundsFromYmd(key);
+    fromYmd = w.fromYmd;
+    toYmd = w.toYmd > today ? today : w.toYmd;
+    label = `${fmtDotShort(w.fromYmd)}–${fmtDotShort(w.toYmd)}`;
+    key = w.fromYmd;
+  } else {
+    if (!/^\d{4}-\d{2}$/.test(key)) key = today.slice(0, 7);
+    const [y, m] = key.split("-").map(Number);
+    const b = monthBounds(y, m);
+    fromYmd = b.fromYmd;
+    toYmd = b.toYmd > today ? today : b.toYmd;
+    label = `${monthNameRu(m)} ${y}`;
+  }
+
+  const ymds = daysInclusive(fromYmd, scope === "day" ? fromYmd : toYmd);
+  const rollups: DayRollup[] = [];
+  const CONC = 4;
+  for (let i = 0; i < ymds.length; i += CONC) {
+    const chunk = ymds.slice(i, i + CONC);
+    rollups.push(...(await Promise.all(chunk.map((d) => getDayRollup(d)))));
+  }
+
+  let bars: Pb1Bar[] = [];
+  if (scope === "day") {
+    bars = rollups[0]?.hours || [];
+  } else if (scope === "week") {
+    // full Mon–Sun of selected week (even if future days empty)
+    const w = weekBoundsFromYmd(key);
+    const allDays = daysInclusive(w.fromYmd, w.toYmd);
+    const byYmd = new Map(rollups.map((r) => [r.ymd, r]));
+    bars = allDays.map((ymd) => {
+      const r = byYmd.get(ymd);
+      const future = ymd > today;
+      return {
+        key: ymd,
+        label: `${weekdayRu(ymd)} ${fmtDotShort(ymd)}`,
+        players: future ? 0 : r?.avgPlayers || 0,
+        staff: future ? 0 : r?.avgStaff || 0,
+        queue: future ? 0 : r?.avgQueue || 0,
+        online: future ? 0 : r?.avgOnline || 0,
+      };
+    });
+  } else {
+    const [y, m] = key.split("-").map(Number);
+    const b = monthBounds(y, m);
+    const allDays = daysInclusive(b.fromYmd, b.toYmd);
+    const byYmd = new Map(rollups.map((r) => [r.ymd, r]));
+    bars = allDays.map((ymd) => {
+      const r = byYmd.get(ymd);
+      const future = ymd > today;
+      return {
+        key: ymd,
+        label: ymd.slice(8, 10),
+        players: future ? 0 : r?.avgPlayers || 0,
+        staff: future ? 0 : r?.avgStaff || 0,
+        queue: future ? 0 : r?.avgQueue || 0,
+        online: future ? 0 : r?.avgOnline || 0,
+      };
+    });
+  }
+
+  const live =
+    scope === "day" && fromYmd === today ? await fetchLiveNow() : null;
+
+  // If viewing today, patch current hour with live concurrent
+  if (live && scope === "day" && fromYmd === today) {
+    const hour = Number(
+      new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Europe/Moscow",
+        hour: "2-digit",
+        hourCycle: "h23",
+      }).format(new Date())
+    );
+    const bar = bars.find((b) => Number(b.key) === hour);
+    if (bar) {
+      bar.players = live.players;
+      bar.staff = live.staff;
+      bar.queue = live.queue;
+      bar.online = live.online;
+    }
+  }
+
+  const weekB = weekBoundsFromYmd(scope === "week" ? key : toYmd);
+  const [ay, am] = toYmd.split("-").map(Number);
+  const monthB = monthBounds(ay, am);
+
+  const weekRollups = await Promise.all(
+    daysInclusive(
+      weekB.fromYmd,
+      weekB.toYmd > today ? today : weekB.toYmd
+    ).map((d) => getDayRollup(d))
+  );
+  const monthRollups = await Promise.all(
+    daysInclusive(
+      monthB.fromYmd,
+      monthB.toYmd > today ? today : monthB.toYmd
+    ).map((d) => getDayRollup(d))
+  );
+
+  const [
+    uniqueDay,
+    uniqueWeek,
+    uniqueMonth,
+    newDay,
+    newWeek,
+    newMonth,
+  ] = await Promise.all([
+    countUniqueInRange(toYmd, toYmd),
+    countUniqueInRange(
+      weekB.fromYmd,
+      weekB.toYmd > today ? today : weekB.toYmd
+    ),
+    countUniqueInRange(
+      monthB.fromYmd,
+      monthB.toYmd > today ? today : monthB.toYmd
+    ),
+    countNewInRange(toYmd, toYmd),
+    countNewInRange(weekB.fromYmd, weekB.toYmd > today ? today : weekB.toYmd),
+    countNewInRange(
+      monthB.fromYmd,
+      monthB.toYmd > today ? today : monthB.toYmd
+    ),
+  ]);
+
+  const peakOnline = Math.max(
+    0,
+    ...rollups.map((r) => r.peakOnline),
+    live?.online || 0
+  );
+  const playerHours =
+    Math.round(rollups.reduce((s, r) => s + r.playerHours, 0) * 10) / 10;
+
+  const uiYear = scope === "month" ? Number(key.slice(0, 4)) : yearNow;
+  const uiMonth = scope === "month" ? Number(key.slice(5, 7)) : monthNow;
+
+  return {
+    scope,
+    key,
+    label,
+    range: { fromYmd, toYmd },
+    bars,
+    live,
+    dayChoices: dayChoicesInMonth(uiYear, uiMonth, today),
+    weekChoices: weeksInMonth(yearNow, monthNow, today),
+    monthChoices: monthChoices(uiYear || yearNow, today),
+    stats: {
+      uniqueSteamIdsDay: uniqueDay,
+      uniqueSteamIdsWeek: uniqueWeek,
+      uniqueSteamIdsMonth: uniqueMonth,
+      newSteamIdsDay: newDay,
+      newSteamIdsWeek: newWeek,
+      newSteamIdsMonth: newMonth,
+      wakeAvgWeek: fmtMskHm(avgWake(weekRollups)),
+      wakeAvgMonth: fmtMskHm(avgWake(monthRollups)),
+      peakOnline,
+      playerHours,
+    },
+    updatedAt: new Date().toISOString(),
+  };
 }

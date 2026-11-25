@@ -2,25 +2,36 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-type HourBucket = {
-  hour: number;
-  total: number;
+type Pb1Bar = {
+  key: string;
+  label: string;
   players: number;
   staff: number;
+  queue: number;
+  online: number;
 };
 
-type Scope = "day" | "week" | "month" | "year";
+type Scope = "day" | "week" | "month";
 
 type Payload = {
   scope: Scope;
   key: string;
   label: string;
   range: { fromYmd: string; toYmd: string };
-  timeline: HourBucket[];
-  timelineMode: "absolute" | "average";
-  daysWithData: number;
+  bars: Pb1Bar[];
+  live: {
+    online: number;
+    players: number;
+    staff: number;
+    queue: number;
+    map: string;
+    layer: string;
+    at: string;
+  } | null;
+  dayChoices: string[];
+  weekChoices: { key: string; label: string; fromYmd: string; toYmd: string }[];
+  monthChoices: { key: string; label: string }[];
   stats: {
-    uniqueSteamIds: number;
     uniqueSteamIdsDay: number;
     uniqueSteamIdsWeek: number;
     uniqueSteamIdsMonth: number;
@@ -29,12 +40,8 @@ type Payload = {
     newSteamIdsMonth: number;
     wakeAvgWeek: string | null;
     wakeAvgMonth: string | null;
-    peakHourUnique: number;
-    peakHour: number;
+    peakOnline: number;
     playerHours: number;
-    avgSessionMin: number | null;
-    busyHour: number;
-    quietHour: number;
   };
   updatedAt: string;
 };
@@ -52,20 +59,14 @@ function pad2(n: number) {
   return n < 10 ? `0${n}` : String(n);
 }
 
-const MONTHS_RU = [
-  "Январь",
-  "Февраль",
-  "Март",
-  "Апрель",
-  "Май",
-  "Июнь",
-  "Июль",
-  "Август",
-  "Сентябрь",
-  "Октябрь",
-  "Ноябрь",
-  "Декабрь",
-];
+function weekdayShort(ymd: string) {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const noon = new Date(Date.UTC(y, m - 1, d, 9, 0, 0));
+  return new Intl.DateTimeFormat("ru-RU", {
+    timeZone: "Europe/Moscow",
+    weekday: "short",
+  }).format(noon);
+}
 
 function StatCard({
   label,
@@ -85,45 +86,68 @@ function StatCard({
   );
 }
 
-function TimelineChart({
-  hours,
-  mode,
+function ConcurrentChart({
+  bars,
+  scope,
 }: {
-  hours: HourBucket[];
-  mode: "absolute" | "average";
+  bars: Pb1Bar[];
+  scope: Scope;
 }) {
-  const [hover, setHover] = useState<number | null>(null);
-  const max = Math.max(1, ...hours.map((h) => h.total));
+  const [hover, setHover] = useState<string | null>(null);
+  const max = Math.max(
+    1,
+    ...bars.map((b) => b.players + b.staff + b.queue)
+  );
+  const tip = bars.find((b) => b.key === hover) || null;
 
   return (
     <div className="pb1a-chart">
       <div className="pb1a-chart-legend">
         <span className="pb1a-leg pb1a-leg-player">игроки</span>
         <span className="pb1a-leg pb1a-leg-staff">админы / моды</span>
+        <span className="pb1a-leg pb1a-leg-queue">очередь</span>
         <span className="pb1a-chart-mode">
-          {mode === "average" ? "среднее по дням периода" : "уникальные за час"}
+          {scope === "day"
+            ? "concurrent по часам МСК"
+            : "средний concurrent по дням"}
         </span>
       </div>
-      <div className="pb1a-chart-bars" role="img" aria-label="Онлайн по часам МСК">
-        {hours.map((h) => {
-          const pct = (h.total / max) * 100;
-          const staffPct = h.total > 0 ? (h.staff / h.total) * 100 : 0;
-          const playerPct = 100 - staffPct;
-          const active = hover === h.hour;
+      <div
+        className={`pb1a-chart-bars pb1a-chart-bars--${scope}`}
+        role="img"
+        aria-label="Онлайн PB1"
+        style={{ ["--cols" as string]: String(Math.max(bars.length, 1)) }}
+      >
+        {bars.map((b) => {
+          const total = b.players + b.staff + b.queue;
+          const pct = (total / max) * 100;
+          const stack = total > 0 ? total : 1;
+          const playerPct = total > 0 ? (b.players / stack) * 100 : 0;
+          const staffPct = total > 0 ? (b.staff / stack) * 100 : 0;
+          const queuePct = total > 0 ? (b.queue / stack) * 100 : 0;
+          const active = hover === b.key;
           return (
             <button
-              key={h.hour}
+              key={b.key}
               type="button"
-              className={`pb1a-bar${active ? " is-hover" : ""}`}
-              style={{ ["--bar-h" as string]: `${Math.max(pct, h.total > 0 ? 4 : 0)}%` }}
-              onMouseEnter={() => setHover(h.hour)}
+              className={`pb1a-bar${active ? " is-hover" : ""}${total > 0 ? "" : " is-empty"}`}
+              style={{
+                ["--bar-h" as string]: `${Math.max(pct, total > 0 ? 4 : 0)}%`,
+              }}
+              onMouseEnter={() => setHover(b.key)}
               onMouseLeave={() => setHover(null)}
-              onFocus={() => setHover(h.hour)}
+              onFocus={() => setHover(b.key)}
               onBlur={() => setHover(null)}
-              title={`${pad2(h.hour)}:00 — всего ${h.total}, игроки ${h.players}, staff ${h.staff}`}
+              title={`${b.label}: онлайн ${Math.round(b.online)}, игроки ${b.players}, staff ${b.staff}, очередь ${b.queue}`}
             >
-              <span className="pb1a-bar-num">{Math.round(h.total)}</span>
+              <span className="pb1a-bar-num">
+                {total > 0 ? Math.round(b.online) : ""}
+              </span>
               <span className="pb1a-bar-stack">
+                <span
+                  className="pb1a-bar-queue"
+                  style={{ height: `${queuePct}%` }}
+                />
                 <span
                   className="pb1a-bar-staff"
                   style={{ height: `${staffPct}%` }}
@@ -133,26 +157,98 @@ function TimelineChart({
                   style={{ height: `${playerPct}%` }}
                 />
               </span>
-              <span className="pb1a-bar-label">{pad2(h.hour)}</span>
+              <span className="pb1a-bar-label">{b.label}</span>
             </button>
           );
         })}
       </div>
-      {hover != null ? (
+      {tip ? (
         <div className="pb1a-chart-tip">
-          <strong>{pad2(hover)}:00–{pad2(hover)}:59 МСК</strong>
-          {" · всего "}
-          {hours[hover]?.total ?? 0}
+          <strong>{tip.label}</strong>
+          {" · онлайн "}
+          {Math.round(tip.online * 10) / 10}
           {" · игроки "}
-          {hours[hover]?.players ?? 0}
+          {Math.round(tip.players * 10) / 10}
           {" · админы/моды "}
-          {hours[hover]?.staff ?? 0}
+          {Math.round(tip.staff * 10) / 10}
+          {" · очередь "}
+          {Math.round(tip.queue * 10) / 10}
         </div>
       ) : (
         <div className="pb1a-chart-tip muted">
-          Наведи на час — подсветка и разбивка
+          Наведи на столбец — подсветка и разбивка
         </div>
       )}
+    </div>
+  );
+}
+
+function DayCalendar({
+  days,
+  selected,
+  today,
+  onPick,
+}: {
+  days: string[];
+  selected: string;
+  today: string;
+  onPick: (ymd: string) => void;
+}) {
+  const byDay = useMemo(() => new Map(days.map((d) => [d, true])), [days]);
+  const anchor = days[0] || today;
+  const [y, m] = anchor.split("-").map(Number);
+  const firstWd = (() => {
+    const noon = new Date(Date.UTC(y, m - 1, 1, 9, 0, 0));
+    const wd = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Europe/Moscow",
+      weekday: "short",
+    }).format(noon);
+    const map: Record<string, number> = {
+      Mon: 0,
+      Tue: 1,
+      Wed: 2,
+      Thu: 3,
+      Fri: 4,
+      Sat: 5,
+      Sun: 6,
+    };
+    return map[wd] ?? 0;
+  })();
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const cells: (string | null)[] = [];
+  for (let i = 0; i < firstWd; i++) cells.push(null);
+  for (let d = 1; d <= last; d++) {
+    cells.push(`${y}-${pad2(m)}-${pad2(d)}`);
+  }
+  while (cells.length % 7) cells.push(null);
+
+  return (
+    <div className="pb1a-cal">
+      <div className="pb1a-cal-head" aria-hidden>
+        {["пн", "вт", "ср", "чт", "пт", "сб", "вс"].map((w) => (
+          <span key={w}>{w}</span>
+        ))}
+      </div>
+      <div className="pb1a-cal-grid">
+        {cells.map((ymd, i) => {
+          if (!ymd) return <span key={`e${i}`} className="pb1a-cal-empty" />;
+          const enabled = Boolean(byDay.get(ymd));
+          const isOn = selected === ymd;
+          const isToday = ymd === today;
+          return (
+            <button
+              key={ymd}
+              type="button"
+              className={`pb1a-cal-day${isOn ? " is-on" : ""}${isToday ? " is-today" : ""}`}
+              disabled={!enabled}
+              onClick={() => onPick(ymd)}
+              title={enabled ? `${weekdayShort(ymd)} ${ymd}` : "нет данных"}
+            >
+              {Number(ymd.slice(8, 10))}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -161,6 +257,7 @@ export function AdminPb1AnalyticsPanel() {
   const today = useMemo(() => mskTodayYmd(), []);
   const [scope, setScope] = useState<Scope>("day");
   const [dayKey, setDayKey] = useState(today);
+  const [weekKey, setWeekKey] = useState("");
   const [monthKey, setMonthKey] = useState(today.slice(0, 7));
   const [yearKey, setYearKey] = useState(today.slice(0, 4));
   const [data, setData] = useState<Payload | null>(null);
@@ -169,9 +266,9 @@ export function AdminPb1AnalyticsPanel() {
 
   const requestKey = useMemo(() => {
     if (scope === "month") return monthKey;
-    if (scope === "year") return yearKey;
+    if (scope === "week") return weekKey || today;
     return dayKey;
-  }, [scope, dayKey, monthKey, yearKey]);
+  }, [scope, dayKey, weekKey, monthKey, today]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -190,13 +287,20 @@ export function AdminPb1AnalyticsPanel() {
         return;
       }
       setData(json);
+      if (json.scope === "week" && json.key) setWeekKey(json.key);
+      if (json.weekChoices?.length && !weekKey) {
+        const cur = json.weekChoices.find(
+          (w) => w.fromYmd <= today && w.toYmd >= today
+        );
+        if (cur && scope === "week") setWeekKey(cur.key);
+      }
     } catch {
       setError("Сеть недоступна");
       setData(null);
     } finally {
       setLoading(false);
     }
-  }, [scope, requestKey]);
+  }, [scope, requestKey, weekKey, today]);
 
   useEffect(() => {
     void load();
@@ -204,8 +308,12 @@ export function AdminPb1AnalyticsPanel() {
 
   const years = useMemo(() => {
     const y = Number(today.slice(0, 4));
-    return [y, y - 1, y - 2];
+    return [y, y - 1];
   }, [today]);
+
+  const weekChoices = data?.weekChoices || [];
+  const monthChoices = data?.monthChoices || [];
+  const dayChoices = data?.dayChoices || [];
 
   return (
     <section className="pb1a">
@@ -213,10 +321,16 @@ export function AdminPb1AnalyticsPanel() {
         <div>
           <h2 className="pb1a-title">Аналитика PB1</h2>
           <p className="muted pb1a-sub">
-            Онлайн паблика (TPUB1/PB1), календарь МСК. Админы/моды сайта — красным.
+            Concurrent на сервере (не уникальные за час). Админы/моды сайта —
+            красным, очередь — жёлтым.
           </p>
         </div>
-        <button type="button" className="btn" disabled={loading} onClick={() => void load()}>
+        <button
+          type="button"
+          className="btn"
+          disabled={loading}
+          onClick={() => void load()}
+        >
           {loading ? "Считаю…" : "Обновить"}
         </button>
       </header>
@@ -228,7 +342,6 @@ export function AdminPb1AnalyticsPanel() {
               ["day", "День"],
               ["week", "Неделя"],
               ["month", "Месяц"],
-              ["year", "Год"],
             ] as const
           ).map(([id, lab]) => (
             <button
@@ -241,37 +354,50 @@ export function AdminPb1AnalyticsPanel() {
             </button>
           ))}
         </div>
+      </div>
 
-        {scope === "day" || scope === "week" ? (
-          <label className="pb1a-field">
-            <span>{scope === "week" ? "День в неделе" : "Дата"}</span>
-            <input
-              type="date"
-              value={dayKey}
-              max={today}
-              onChange={(e) => setDayKey(e.target.value || today)}
-            />
-          </label>
-        ) : null}
+      {scope === "day" ? (
+        <DayCalendar
+          days={dayChoices.length ? dayChoices : [today]}
+          selected={dayKey}
+          today={today}
+          onPick={setDayKey}
+        />
+      ) : null}
 
-        {scope === "month" ? (
-          <label className="pb1a-field">
-            <span>Месяц</span>
-            <input
-              type="month"
-              value={monthKey}
-              max={today.slice(0, 7)}
-              onChange={(e) => setMonthKey(e.target.value || today.slice(0, 7))}
-            />
-          </label>
-        ) : null}
+      {scope === "week" ? (
+        <div className="pb1a-week-presets" role="group" aria-label="Недели месяца">
+          {weekChoices.map((w) => (
+            <button
+              key={w.key}
+              type="button"
+              className={`pb1a-chip${(weekKey || data?.key) === w.key ? " is-on" : ""}`}
+              onClick={() => setWeekKey(w.key)}
+              title={`${w.fromYmd} → ${w.toYmd}`}
+            >
+              {w.label}
+            </button>
+          ))}
+          {!weekChoices.length && loading ? (
+            <span className="muted">Загружаю недели…</span>
+          ) : null}
+        </div>
+      ) : null}
 
-        {scope === "year" ? (
-          <label className="pb1a-field">
+      {scope === "month" ? (
+        <div className="pb1a-month-picker">
+          <label className="pb1a-field pb1a-year-field">
             <span>Год</span>
             <select
               value={yearKey}
-              onChange={(e) => setYearKey(e.target.value)}
+              onChange={(e) => {
+                const y = e.target.value;
+                setYearKey(y);
+                const next = `${y}-${monthKey.slice(5, 7)}`;
+                const capped =
+                  next > today.slice(0, 7) ? today.slice(0, 7) : next;
+                setMonthKey(capped);
+              }}
             >
               {years.map((y) => (
                 <option key={y} value={String(y)}>
@@ -280,54 +406,82 @@ export function AdminPb1AnalyticsPanel() {
               ))}
             </select>
           </label>
-        ) : null}
-
-        {scope === "month" ? (
           <div className="pb1a-month-chips">
-            {MONTHS_RU.map((name, i) => {
-              const ym = `${yearKey || today.slice(0, 4)}-${pad2(i + 1)}`;
-              const disabled = ym > today.slice(0, 7);
-              return (
-                <button
-                  key={name}
-                  type="button"
-                  className={`pb1a-chip${monthKey === ym ? " is-on" : ""}`}
-                  disabled={disabled}
-                  onClick={() => {
-                    setYearKey(ym.slice(0, 4));
-                    setMonthKey(ym);
-                    setScope("month");
-                  }}
-                >
-                  {name}
-                </button>
-              );
-            })}
+            {(monthChoices.length
+              ? monthChoices
+              : Array.from({ length: Number(today.slice(5, 7)) }, (_, i) => ({
+                  key: `${yearKey}-${pad2(i + 1)}`,
+                  label: String(i + 1),
+                }))
+            ).map((m) => (
+              <button
+                key={m.key}
+                type="button"
+                className={`pb1a-chip${monthKey === m.key ? " is-on" : ""}`}
+                disabled={m.key > today.slice(0, 7)}
+                onClick={() => {
+                  setYearKey(m.key.slice(0, 4));
+                  setMonthKey(m.key);
+                }}
+              >
+                {m.label}
+              </button>
+            ))}
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {error ? <p className="error">{error}</p> : null}
 
       {data ? (
         <>
+          {data.live ? (
+            <div className="pb1a-live" aria-live="polite">
+              <div className="pb1a-live-main">
+                <span className="pb1a-live-dot" aria-hidden />
+                <strong>Сейчас на PB1</strong>
+                <span className="pb1a-live-map muted">
+                  {data.live.map || "—"}
+                  {data.live.layer ? ` · ${data.live.layer}` : ""}
+                </span>
+              </div>
+              <div className="pb1a-live-nums">
+                <div className="pb1a-live-card">
+                  <span>Онлайн</span>
+                  <strong>{data.live.online}</strong>
+                </div>
+                <div className="pb1a-live-card">
+                  <span>Игроки</span>
+                  <strong>{data.live.players}</strong>
+                </div>
+                <div className="pb1a-live-card is-staff">
+                  <span>Админы / моды</span>
+                  <strong>{data.live.staff}</strong>
+                </div>
+                <div className="pb1a-live-card is-queue">
+                  <span>Очередь</span>
+                  <strong>{data.live.queue}</strong>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <div className="pb1a-period-line">
             <strong>{data.label}</strong>
             <span className="muted">
               {" "}
-              · {data.range.fromYmd} → {data.range.toYmd} · дней с онлайном:{" "}
-              {data.daysWithData}
+              · {data.range.fromYmd} → {data.range.toYmd}
             </span>
           </div>
 
-          <TimelineChart hours={data.timeline} mode={data.timelineMode} />
+          <ConcurrentChart bars={data.bars} scope={data.scope} />
 
           <h3 className="pb1a-block-title">Уникальные и новые Steam ID</h3>
           <div className="pb1a-stats" role="list">
             <StatCard
               label="Уникальных за день"
               value={data.stats.uniqueSteamIdsDay}
-              hint="календарный день якоря"
+              hint="календарный день"
             />
             <StatCard
               label="Уникальных за неделю"
@@ -337,13 +491,8 @@ export function AdminPb1AnalyticsPanel() {
             <StatCard
               label="Уникальных за месяц"
               value={data.stats.uniqueSteamIdsMonth}
-              hint="календарный месяц"
             />
-            <StatCard
-              label="Новых за день"
-              value={data.stats.newSteamIdsDay}
-              hint="первый заход на PB1"
-            />
+            <StatCard label="Новых за день" value={data.stats.newSteamIdsDay} />
             <StatCard
               label="Новых за неделю"
               value={data.stats.newSteamIdsWeek}
@@ -354,7 +503,7 @@ export function AdminPb1AnalyticsPanel() {
             />
           </div>
 
-          <h3 className="pb1a-block-title">Подъём сервера и нагрузка</h3>
+          <h3 className="pb1a-block-title">Подъём и нагрузка</h3>
           <div className="pb1a-stats" role="list">
             <StatCard
               label="Средний подъём · неделя"
@@ -364,37 +513,15 @@ export function AdminPb1AnalyticsPanel() {
             <StatCard
               label="Средний подъём · месяц"
               value={data.stats.wakeAvgMonth || "—"}
-              hint="SEED → AAS/RAAS (по всплеску онлайна)"
             />
             <StatCard
-              label="Пик уникальных / час"
-              value={`${data.stats.peakHourUnique} · ${pad2(data.stats.peakHour)}:00`}
+              label="Пик concurrent"
+              value={data.stats.peakOnline}
+              hint="максимум одновременно"
             />
             <StatCard
               label="Человеко-часы периода"
               value={data.stats.playerHours}
-            />
-            <StatCard
-              label="Средняя сессия"
-              value={
-                data.stats.avgSessionMin != null
-                  ? `${data.stats.avgSessionMin} мин`
-                  : "—"
-              }
-            />
-            <StatCard
-              label="Самый жирный / тихий час"
-              value={`${pad2(data.stats.busyHour)}:00 / ${pad2(data.stats.quietHour)}:00`}
-              hint={
-                data.timelineMode === "average"
-                  ? "по среднему профилю"
-                  : "по выбранному дню"
-              }
-            />
-            <StatCard
-              label="Уникальных в выбранном периоде"
-              value={data.stats.uniqueSteamIds}
-              hint={data.label}
             />
           </div>
         </>
