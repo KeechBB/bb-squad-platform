@@ -39,10 +39,11 @@ export async function POST(req: Request) {
       grindEndIso: bounds.grindEnd.toISOString(),
     });
   }
-  await settleNightBetWindow(bounds, now);
+  const result = await settleNightBetWindow(bounds, now);
   return NextResponse.json({
     ok: true,
-    settled: true,
+    settled: result.settled,
+    reason: result.reason,
     windowId: bounds.id,
   });
 }

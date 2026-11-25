@@ -352,11 +352,15 @@ function calcPayouts(
 
 export async function settleNightBetWindow(
   bounds: NightBetWindowBounds,
-  now = new Date()
-): Promise<void> {
-  if (now.getTime() < bounds.grindEnd.getTime()) return;
+  now = new Date(),
+  opts?: { force?: boolean }
+): Promise<{ settled: boolean; reason?: string }> {
+  // Обычный cron — только после 01:00. force — ручное «закрыть тренировку» (Keech).
+  if (!opts?.force && now.getTime() < bounds.grindEnd.getTime()) {
+    return { settled: false, reason: "before_01:00" };
+  }
   const win = await ensureWindow(bounds);
-  if (win.status === "settled") return;
+  if (win.status === "settled") return { settled: false, reason: "already_settled" };
 
   const factions = await listGrindFactions();
   const ids = factions.map((f) => f.id);
@@ -435,6 +439,30 @@ export async function settleNightBetWindow(
       },
     });
   });
+  return { settled: true };
+}
+
+/**
+ * Досрочный итог тренировки (только Keech): сразу считает ставки по текущему гринду,
+ * не дожидаясь 01:00 МСК.
+ */
+export async function forceCloseNightTraining(now = new Date()): Promise<{
+  ok: true;
+  windowId: string;
+  alreadySettled?: boolean;
+} | { ok: false; error: string }> {
+  const bounds = nightBetWindowAt(now);
+  if (now.getTime() < bounds.grindStart.getTime()) {
+    return { ok: false, error: "grind_not_started" };
+  }
+  const result = await settleNightBetWindow(bounds, now, { force: true });
+  if (!result.settled && result.reason === "already_settled") {
+    return { ok: true, windowId: bounds.id, alreadySettled: true };
+  }
+  if (!result.settled) {
+    return { ok: false, error: result.reason || "settle_failed" };
+  }
+  return { ok: true, windowId: bounds.id };
 }
 
 export type NightBetPhase = "upcoming" | "open" | "locked" | "settled";
@@ -448,6 +476,8 @@ export type NightBetBoard = {
   grindEndIso: string;
   status: NightBetPhase;
   canBet: boolean;
+  /** Keech: кнопка «Закрыть тренировку» (досрочный итог ставок). */
+  canCloseTraining: boolean;
   myFactionId: string | null;
   /** Казна фракции или казна Keech. */
   myTreasury: number;
@@ -658,6 +688,12 @@ export async function nightBetBoard(opts: {
       ? Boolean(opts.canPlace && opts.viewerUserId)
       : Boolean(opts.canPlace && opts.viewerFactionId && myFaction));
 
+  // Только Кич, после старта гринда (21:00), пока окно не закрыто.
+  const canCloseTraining =
+    isKeech &&
+    !settled &&
+    now.getTime() >= bounds.grindStart.getTime();
+
   const betRows = activeBets.map((b) => {
     const odds = decimalOdds(pot, stakes.get(b.pickFactionId) || 0);
     const personal = b.isPersonal || !b.fromFaction;
@@ -709,6 +745,7 @@ export async function nightBetBoard(opts: {
     grindEndIso: bounds.grindEnd.toISOString(),
     status: phase,
     canBet,
+    canCloseTraining,
     myFactionId: opts.viewerFactionId,
     myTreasury,
     balanceLabel,

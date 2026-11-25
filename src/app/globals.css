@@ -24599,13 +24599,24 @@ body:has(.faction-page) .site-footer {
   line-height: 1.35;
   color: #d1fae5;
 }
-.faction-night-bets-history-btn {
+.faction-night-bets-top-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  justify-content: flex-end;
+}
+.faction-night-bets-history-btn,
+.faction-night-bets-close-btn {
   flex: 0 0 auto;
   white-space: nowrap;
   align-self: flex-start;
+  font-weight: 800 !important;
+}
+.faction-night-bets-history-btn {
   border: 1px solid rgba(52, 211, 153, 0.75) !important;
   color: #ecfdf5 !important;
-  font-weight: 800 !important;
   background:
     linear-gradient(
       120deg,
@@ -24624,6 +24635,32 @@ body:has(.faction-page) .site-footer {
   box-shadow:
     0 0 16px rgba(52, 211, 153, 0.5),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+.faction-night-bets-close-btn {
+  border: 1px solid rgba(251, 191, 36, 0.8) !important;
+  color: #fffbeb !important;
+  background:
+    linear-gradient(
+      120deg,
+      rgba(120, 53, 15, 0.95) 0%,
+      rgba(180, 83, 9, 0.85) 45%,
+      rgba(251, 191, 36, 0.5) 100%
+    ) !important;
+  box-shadow:
+    0 0 12px rgba(245, 158, 11, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+.faction-night-bets-close-btn:hover,
+.faction-night-bets-close-btn:focus-visible {
+  border-color: rgba(253, 230, 138, 0.95) !important;
+  color: #fff !important;
+  box-shadow:
+    0 0 16px rgba(251, 191, 36, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+.faction-night-bets-close-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
 }
 .faction-night-bets-pot {
   display: flex;

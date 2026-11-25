@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { loadFactionView } from "@/lib/factions";
 import {
+  forceCloseNightTraining,
   nightBetBoard,
   nightBetHistory,
   nightGrindPlayers,
@@ -81,6 +82,48 @@ export async function POST(req: Request, ctx: Ctx) {
   }
   const view = loaded.view;
   const keech = isBuiltinSuperAdmin(session.user.steamId);
+
+  const body = (await req.json().catch(() => ({}))) as {
+    action?: string;
+    pickFactionId?: string;
+    amount?: number;
+  };
+
+  const userId = await sessionUserId(session.user.steamId);
+  if (!userId) {
+    return NextResponse.json({ error: "Нет пользователя" }, { status: 401 });
+  }
+
+  // Досрочный итог тренировки — только Keech (кнопка только у него).
+  if (String(body.action || "").trim() === "closeTraining") {
+    if (!keech) {
+      return NextResponse.json({ error: "Нет доступа" }, { status: 403 });
+    }
+    const closed = await forceCloseNightTraining();
+    if (!closed.ok) {
+      const map: Record<string, string> = {
+        grind_not_started: "Гринд ещё не начался (после 21:00 МСК)",
+        settle_failed: "Не удалось закрыть тренировку",
+      };
+      return NextResponse.json(
+        { error: map[closed.error] || "Ошибка закрытия" },
+        { status: 400 }
+      );
+    }
+    const board = await nightBetBoard({
+      viewerFactionId: view.id,
+      viewerUserId: userId,
+      canPlace: true,
+      isKeech: true,
+    });
+    return NextResponse.json({
+      ok: true,
+      closed: true,
+      alreadySettled: Boolean(closed.alreadySettled),
+      ...board,
+    });
+  }
+
   if (!keech && !isOfficerSeat(view.mySeat)) {
     return NextResponse.json(
       { error: "Ставить может только глава или зам фракции" },
@@ -88,19 +131,10 @@ export async function POST(req: Request, ctx: Ctx) {
     );
   }
 
-  const body = (await req.json().catch(() => ({}))) as {
-    pickFactionId?: string;
-    amount?: number;
-  };
   const pickFactionId = String(body.pickFactionId || "").trim();
   const amount = Math.trunc(Number(body.amount) || 0);
   if (!pickFactionId || amount < 1) {
     return NextResponse.json({ error: "Укажи фракцию и сумму" }, { status: 400 });
-  }
-
-  const userId = await sessionUserId(session.user.steamId);
-  if (!userId) {
-    return NextResponse.json({ error: "Нет пользователя" }, { status: 401 });
   }
 
   const result = await placeNightBet({

@@ -969,6 +969,7 @@ type NightBetBoardData = {
   windowId: string;
   status: "upcoming" | "open" | "locked" | "settled";
   canBet: boolean;
+  canCloseTraining?: boolean;
   myTreasury: number;
   balanceLabel?: string;
   infiniteBalance?: boolean;
@@ -1045,6 +1046,7 @@ export function FactionNightBetsBoard({
   const [pickId, setPickId] = useState("");
   const [amountStr, setAmountStr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [closing, setClosing] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyRows, setHistoryRows] = useState<NightHistoryRow[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -1174,6 +1176,39 @@ export function FactionNightBetsBoard({
     }
   }
 
+  async function closeTraining() {
+    if (!data?.canCloseTraining || closing) return;
+    const ok = window.confirm(
+      "Закрыть тренировку сейчас?\n\nСразу посчитаются ставки по текущему гринду — ждать 01:00 не нужно. Отменить потом нельзя."
+    );
+    if (!ok) return;
+    setClosing(true);
+    setError("");
+    try {
+      const res = await fetch(
+        `/api/factions/${encodeURIComponent(slug)}/night-bets`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "closeTraining" }),
+        }
+      );
+      const json = (await res.json().catch(() => ({}))) as NightBetBoardData & {
+        error?: string;
+        ok?: boolean;
+      };
+      if (!res.ok) {
+        setError(json.error || "Не удалось закрыть тренировку");
+        return;
+      }
+      setData(json);
+    } catch {
+      setError("Сеть недоступна");
+    } finally {
+      setClosing(false);
+    }
+  }
+
   async function openHistory() {
     setHistoryOpen(true);
     setHistoryPage(0);
@@ -1252,13 +1287,25 @@ export function FactionNightBetsBoard({
           {data?.label ||
             "Ставка на тренировку, кто из фракций больше всего заработает Долларов за тренировку. Окно ставок с 12:00, приём до 21:30."}
         </p>
-        <button
-          type="button"
-          className="btn faction-night-bets-history-btn"
-          onClick={() => void openHistory()}
-        >
-          История ставок
-        </button>
+        <div className="faction-night-bets-top-actions">
+          {data?.canCloseTraining ? (
+            <button
+              type="button"
+              className="btn faction-night-bets-close-btn"
+              disabled={closing}
+              onClick={() => void closeTraining()}
+            >
+              {closing ? "Закрываю…" : "Закрыть тренировку"}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="btn faction-night-bets-history-btn"
+            onClick={() => void openHistory()}
+          >
+            История ставок
+          </button>
+        </div>
       </div>
       {error ? <p className="error">{error}</p> : null}
       {loading && !data ? <p className="muted">Загрузка…</p> : null}
@@ -1308,7 +1355,7 @@ export function FactionNightBetsBoard({
             <div className="faction-night-bets-result">
               {data.winners.length > 0 ? (
                 <p className="faction-night-bets-winners">
-                  Итог 01:00 · победитель гринда:{" "}
+                  Итог · победитель гринда:{" "}
                   {data.winners.map((w, i) => (
                     <span key={w.factionId}>
                       {i > 0 ? ", " : ""}
@@ -1319,7 +1366,7 @@ export function FactionNightBetsBoard({
                 </p>
               ) : (
                 <p className="faction-night-bets-winners">
-                  Итог 01:00 · никто не нагриндлил — ставки возвращены.
+                  Итог · никто не нагриндлил — ставки возвращены.
                 </p>
               )}
               {data.payouts.length > 0 ? (
