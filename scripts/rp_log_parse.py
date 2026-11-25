@@ -812,15 +812,35 @@ def score_match_rp(
         net[key] = round(net.get(key, 0.0) + signed, 2)
         return signed
 
-    def same_team(a: str, b: str, at: datetime | None = None) -> bool:
+    def _side_key(nick_key: str, steam: str | None = None) -> str:
+        """angel + Steam → angel#steam, чтобы два angel не делили одну сторону."""
+        st = str(steam or "").strip()
+        if nick_key == "angel" and st and f"angel#{st}" in teams:
+            return f"angel#{st}"
+        return nick_key
+
+    def same_team(
+        a: str,
+        b: str,
+        at: datetime | None = None,
+        steam_a: str | None = None,
+        steam_b: str | None = None,
+    ) -> bool:
         # Accumulator: majority side for the whole match.
         # If a player swaps mid-game, kills against the other majority side stay
         # enemy RP — they must not flip to TK (and back) with each deploy.
-        if a in teams and b in teams:
-            return teams[a] == teams[b]
+        # Два Steam с ником angel — сторона по Steam, не по общему ключу.
+        ka = _side_key(a, steam_a)
+        kb = _side_key(b, steam_b)
+        if ka in teams and kb in teams:
+            return teams[ka] == teams[kb]
         if team_timeline is not None:
-            ta = team_at(team_timeline, a, at)
-            tb = team_at(team_timeline, b, at)
+            ta = team_at(team_timeline, ka, at)
+            if ta is None and ka != a:
+                ta = team_at(team_timeline, a, at)
+            tb = team_at(team_timeline, kb, at)
+            if tb is None and kb != b:
+                tb = team_at(team_timeline, b, at)
             if ta is not None and tb is not None:
                 return ta == tb
         return False
@@ -1533,7 +1553,13 @@ def score_match_rp(
         vk = ensure(vk, d.get("victim") or vk)
         n, pk, pv = n_base(kk, vk)
         at_ev = d.get("at_dt") or d.get("at")
-        tk = same_team(kk, vk, at_ev if isinstance(at_ev, datetime) else None)
+        tk = same_team(
+            kk,
+            vk,
+            at_ev if isinstance(at_ev, datetime) else None,
+            steam_a=str(d.get("killerSteam") or d.get("steam") or "") or None,
+            steam_b=str(d.get("victimSteam") or "") or None,
+        )
 
         if kind == "wound":
             last_wound_by[vk] = kk
@@ -2615,6 +2641,90 @@ def teams_in_window(
             # tie → first side (usually the one they fought on)
             out[kk] = seq[0][1]
     return out
+
+
+def _angel_steam_at_sighting(
+    sightings: list, at: datetime | None
+) -> str:
+    if at is None:
+        return ""
+    best = ""
+    best_t: datetime | None = None
+    for row in sightings or []:
+        if len(row) < 2:
+            continue
+        sat, steam = row[0], str(row[1] or "")
+        nk = str(row[2] if len(row) > 2 else "angel")
+        if nk != "angel" or not steam:
+            continue
+        if sat <= at and (best_t is None or sat >= best_t):
+            best_t = sat
+            best = steam
+    return best
+
+
+def expand_angel_steam_sides(
+    idx: dict,
+    t0: datetime,
+    t1: datetime,
+    faction_to_team: dict[str, str],
+    teams: dict[str, str],
+    team_timeline: dict[str, list[tuple[datetime, str]]],
+) -> None:
+    """Добавить angel#steam → сторона. Два angel на разных командах не склеивать."""
+    sightings = idx.get("angel_sightings") or []
+    if not sightings:
+        return
+    faction_norm, prefix_team = _prefix_team_maps(faction_to_team)
+    t1x = match_window_end_exclusive(t1)
+    raw: list[tuple[datetime, str, str]] = []  # at, steam, team
+
+    def add(at: datetime, steam: str, team: str) -> None:
+        if steam and team in ("1", "2"):
+            raw.append((at, steam, team))
+
+    for at, kk, faction in idx.get("squads") or []:
+        if kk != "angel" or at < t0 - timedelta(minutes=5) or at >= t1x:
+            continue
+        team = _faction_team_lookup(faction, faction_norm)
+        steam = _angel_steam_at_sighting(sightings, at)
+        if team in ("1", "2") and steam:
+            add(at, steam, team)
+
+    for at, kk, pref in idx.get("deploys") or []:
+        if kk != "angel" or at < t0 - timedelta(minutes=5) or at >= t1x:
+            continue
+        team = prefix_team.get(pref)
+        steam = _angel_steam_at_sighting(sightings, at)
+        if team in ("1", "2") and steam:
+            add(at, steam, team)
+
+    raw.sort(key=lambda x: x[0])
+    by_steam: dict[str, list[tuple[datetime, str]]] = {}
+    for at, steam, team in raw:
+        seq = by_steam.setdefault(steam, [])
+        if seq and seq[-1][1] == team:
+            continue
+        seq.append((at, team))
+
+    for steam, seq in by_steam.items():
+        key = f"angel#{steam}"
+        team_timeline[key] = seq
+        if len(seq) == 1:
+            teams[key] = seq[0][1]
+            continue
+        dur = {"1": 0.0, "2": 0.0}
+        for i, (at, team) in enumerate(seq):
+            end = seq[i + 1][0] if i + 1 < len(seq) else t1
+            start = max(at, t0)
+            if end > start:
+                dur[team] = dur.get(team, 0.0) + (end - start).total_seconds()
+        if dur["1"] > dur["2"]:
+            teams[key] = "1"
+        elif dur["2"] > dur["1"]:
+            teams[key] = "2"
+        else:
+            teams[key] = seq[0][1]
 
 
 def parse_dies(

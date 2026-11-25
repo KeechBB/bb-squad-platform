@@ -491,6 +491,10 @@ def build(match_id: str) -> dict:
                     nickp = str((prow or {}).get("nick") or "").strip()
                     if nickp:
                         teams[R.canon_key(nickp, aliases)] = side
+    # Два angel на разных сторонах — team/timeline по Steam, иначе киллы → TK.
+    R.expand_angel_steam_sides(
+        idx, t0, t1, faction_to_team, teams, team_timeline
+    )
     rp: dict[str, float] = {}
     disp: dict[str, str] = {}
     events, _net, die_n, tk_n, rev_n, nok_n = R.score_match_rp(
