@@ -359,7 +359,7 @@ export function AdminPb1AnalyticsPanel() {
             <StatCard
               label="Средний подъём · неделя"
               value={data.stats.wakeAvgWeek || "—"}
-              hint={`онлайн ≥ ${18} после 08:00 МСК`}
+              hint="онлайн > 50 после 08:00 МСК"
             />
             <StatCard
               label="Средний подъём · месяц"

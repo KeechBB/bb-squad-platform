@@ -16,7 +16,8 @@ const STAFF_ROLES = [
   "HR",
 ] as const;
 
-const WAKE_MIN_CONCURRENT = 18;
+/** Онлайн > 50 = сервер «поднялся» (после SEED). */
+const WAKE_MIN_CONCURRENT = 51;
 const WAKE_FROM_HOUR_MSK = 8; // ignore overnight leftovers
 const CACHE_DIR = path.join(process.cwd(), "data", "cache", "pb1-analytics");
 const MEM_TTL_MS = 5 * 60_000;
