@@ -524,6 +524,9 @@ def build(match_id: str) -> dict:
         # иначе два Steam снова склеятся при чтении без --steam.
         if key.startswith("angel#"):
             out_players[key] = body
+        elif key == "angel" or R.nick_key(nick) == "angel":
+            # События без Steam (редкий vehicle) — не в общий ключ.
+            continue
         else:
             out_players[R.nick_key(nick)] = body
             out_players[key] = body
