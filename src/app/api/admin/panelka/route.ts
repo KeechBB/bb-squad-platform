@@ -295,7 +295,7 @@ export async function GET(req: Request) {
         ensureSteamHoursInCache,
         rebuildAndCachePb1Stats,
       } = await import("@/lib/panelkaPlayerPb1Stats");
-      let disk = readPb1StatsCache(steamId);
+      const disk = readPb1StatsCache(steamId);
       if (disk) {
         if (disk.stats.steamMinutes == null || !disk.stats.steamHoursLabel) {
           void ensureSteamHoursInCache(steamId).catch(() => null);
