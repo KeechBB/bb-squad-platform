@@ -451,4 +451,8 @@ touch /var/log/bb-panelka-cfg-heal.log
 chmod 644 /var/log/bb-panelka-cfg-heal.log
 bash "$ROOT/scripts/heal_panelka_cfgs_cron.sh" >/tmp/bb-panelka-cfg-heal-boot.log 2>&1 || true
 
+echo "==> nginx security headers (F-01…F-05)"
+chmod +x "$ROOT/scripts/apply_nginx_security_headers.sh" || true
+bash "$ROOT/scripts/apply_nginx_security_headers.sh" || echo "WARN: security headers apply skipped"
+
 echo "==> OK commit=$(git rev-parse --short HEAD) $(date -Is)"
