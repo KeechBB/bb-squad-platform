@@ -18,10 +18,18 @@ const STEAM_RE = /^7656\d{13}$/;
 const MSK_OFFSET_HOURS = 3;
 const CACHE_DIR = path.join(process.cwd(), "data", "cache", "panelka-pb1-stats");
 const INDEX_PATH = path.join(CACHE_DIR, "_index.json");
+const IP_MAP_PATH = path.join(
+  process.cwd(),
+  "data",
+  "cache",
+  "panelka-player-ips.json"
+);
 /** Serve cache as fresh for this long. */
 const CACHE_FRESH_MS = 6 * 3600_000;
 /** Still serve stale cache while refreshing in background. */
 const CACHE_STALE_OK_MS = 48 * 3600_000;
+/** Refresh plaza IP map from game host at most this often. */
+const IP_MAP_FRESH_MS = 30 * 60_000;
 
 export type Pb1VisitBar = {
   ymd: string;
@@ -303,9 +311,78 @@ async function geoFromIp(ip: string): Promise<PanelkaPlayerPb1Stats["location"]>
   }
 }
 
+function readPlazaIpMap(): Record<string, string> {
+  try {
+    if (!fs.existsSync(IP_MAP_PATH)) return {};
+    const parsed = JSON.parse(fs.readFileSync(IP_MAP_PATH, "utf8")) as {
+      ips?: Record<string, string>;
+    };
+    return parsed?.ips && typeof parsed.ips === "object" ? parsed.ips : {};
+  } catch {
+    return {};
+  }
+}
+
+function writePlazaIpMap(ips: Record<string, string>) {
+  ensureCacheDir();
+  const dir = path.dirname(IP_MAP_PATH);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const tmp = IP_MAP_PATH + ".tmp";
+  fs.writeFileSync(
+    tmp,
+    JSON.stringify({
+      updatedAt: new Date().toISOString(),
+      count: Object.keys(ips).length,
+      ips,
+    })
+  );
+  fs.renameSync(tmp, IP_MAP_PATH);
+}
+
+/** Pull steam→IP map from game-host PostLogin scan (cached on plaza). */
+export async function refreshPanelkaPlayerIpMap(opts?: {
+  force?: boolean;
+}): Promise<{ ok: boolean; count: number; fromCache: boolean }> {
+  try {
+    if (!opts?.force && fs.existsSync(IP_MAP_PATH)) {
+      const age = Date.now() - fs.statSync(IP_MAP_PATH).mtimeMs;
+      if (Number.isFinite(age) && age < IP_MAP_FRESH_MS) {
+        return {
+          ok: true,
+          count: Object.keys(readPlazaIpMap()).length,
+          fromCache: true,
+        };
+      }
+    }
+    const res = (await runPanelka(["player-ips-rebuild"], 90000)) as {
+      ok?: boolean;
+      count?: number;
+      ips?: Record<string, string>;
+    };
+    const ips =
+      res?.ips && typeof res.ips === "object"
+        ? Object.fromEntries(
+            Object.entries(res.ips).filter(
+              ([sid, ip]) =>
+                STEAM_RE.test(sid) && /^\d{1,3}(\.\d{1,3}){3}$/.test(String(ip))
+            )
+          )
+        : {};
+    writePlazaIpMap(ips);
+    return { ok: Boolean(res?.ok), count: Object.keys(ips).length, fromCache: false };
+  } catch {
+    return {
+      ok: false,
+      count: Object.keys(readPlazaIpMap()).length,
+      fromCache: true,
+    };
+  }
+}
+
 async function lookupGeoBySteam(
   steamId: string,
-  prevIp?: string | null
+  prevIp?: string | null,
+  knownIp?: string | null
 ): Promise<PanelkaPlayerPb1Stats["location"]> {
   const empty: PanelkaPlayerPb1Stats["location"] = {
     country: null,
@@ -317,15 +394,21 @@ async function lookupGeoBySteam(
     ip: null,
     source: "none",
   };
-  let ip = "";
-  try {
-    const ipRes = (await runPanelka(["player-ip", steamId], 12000)) as {
-      ok?: boolean;
-      ip?: string;
-    };
-    ip = String(ipRes?.ip || "").trim();
-  } catch {
-    /* no live IP */
+  let ip = String(knownIp || "").trim();
+  if (!ip) {
+    const mapIp = readPlazaIpMap()[steamId];
+    if (mapIp) ip = mapIp;
+  }
+  if (!ip) {
+    try {
+      const ipRes = (await runPanelka(["player-ip", steamId], 20000)) as {
+        ok?: boolean;
+        ip?: string;
+      };
+      ip = String(ipRes?.ip || "").trim();
+    } catch {
+      /* no live IP */
+    }
   }
   if (!ip && prevIp) ip = prevIp;
   if (!ip) return empty;
@@ -336,17 +419,24 @@ async function lookupGeoBySteam(
 export async function buildPanelkaPlayerPb1Stats(opts: {
   steamId: string;
   nick?: string | null;
-  /** Skip live IP RCON (faster warm). Still uses previous cached IP for geo. */
+  /** Skip live IP RCON (faster warm). Still uses map / previous cached IP for geo. */
   skipLiveIp?: boolean;
   prevLocation?: PanelkaPlayerPb1Stats["location"] | null;
+  /** Known IP from plaza map (warm path). */
+  knownIp?: string | null;
 }): Promise<PanelkaPlayerPb1Stats | null> {
   if (!STEAM_RE.test(opts.steamId)) return null;
   const nick = String(opts.nick || "").trim();
   const prevLoc = opts.prevLocation || null;
+  const mapIp =
+    opts.knownIp ||
+    readPlazaIpMap()[opts.steamId] ||
+    prevLoc?.ip ||
+    null;
 
   const locationPromise = opts.skipLiveIp
-    ? prevLoc?.ip
-      ? geoFromIp(prevLoc.ip)
+    ? mapIp
+      ? geoFromIp(mapIp)
       : Promise.resolve(
           prevLoc || {
             country: null,
@@ -359,7 +449,7 @@ export async function buildPanelkaPlayerPb1Stats(opts: {
             source: "none" as const,
           }
         )
-    : lookupGeoBySteam(opts.steamId, prevLoc?.ip || null);
+    : lookupGeoBySteam(opts.steamId, prevLoc?.ip || null, mapIp);
 
   const [visits, kit, combat, location] = await Promise.all([
     buildVisitBars(opts.steamId, 90),
@@ -417,6 +507,7 @@ export async function rebuildAndCachePb1Stats(opts: {
   steamId: string;
   nick?: string | null;
   skipLiveIp?: boolean;
+  knownIp?: string | null;
 }): Promise<PanelkaPb1StatsCacheEntry | null> {
   const prev = readPb1StatsCache(opts.steamId);
   const nick =
@@ -441,6 +532,7 @@ export async function rebuildAndCachePb1Stats(opts: {
     nick,
     skipLiveIp: opts.skipLiveIp,
     prevLocation: prev?.stats.location || null,
+    knownIp: opts.knownIp,
   });
   if (!stats) return null;
   const entry: PanelkaPb1StatsCacheEntry = {
@@ -526,7 +618,7 @@ export async function listRecentPb1SteamIds(
 
 /**
  * Warm batch: rebuild next `limit` players after cursor.
- * skipLiveIp=true keeps warm fast; geo reused from previous cache IP.
+ * skipLiveIp=true keeps warm fast; geo from plaza IP map (PostLogin).
  */
 export async function warmPanelkaPb1StatsBatch(opts?: {
   limit?: number;
@@ -538,9 +630,38 @@ export async function warmPanelkaPb1StatsBatch(opts?: {
   failCount: number;
   cursor: string;
   totalRecent: number;
+  ipMapCount: number;
+  geoPatched: number;
 }> {
   const limit = Math.max(1, Math.min(120, opts?.limit ?? 40));
   const skipLiveIp = opts?.skipLiveIp !== false;
+  const ipRefresh = await refreshPanelkaPlayerIpMap().catch(() => ({
+    ok: false,
+    count: Object.keys(readPlazaIpMap()).length,
+    fromCache: true,
+  }));
+  const ipMap = readPlazaIpMap();
+  // Patch geo into already-cached players that still have source=none
+  let geoPatched = 0;
+  // ip-api free limit ~45/min — patch a modest batch each warm
+  for (const steamId of Object.keys(ipMap).slice(0, 35)) {
+    const cached = readPb1StatsCache(steamId);
+    if (!cached || cached.stats.location?.source === "geoip") continue;
+    const ip = ipMap[steamId];
+    if (!ip) continue;
+    try {
+      const loc = await geoFromIp(ip);
+      if (loc.source !== "geoip") continue;
+      writePb1StatsCache({
+        ...cached,
+        updatedAt: new Date().toISOString(),
+        stats: { ...cached.stats, location: loc },
+      });
+      geoPatched += 1;
+    } catch {
+      /* ignore */
+    }
+  }
   const ids = await listRecentPb1SteamIds(45, 8000);
   const idx = readIndex();
   let start = 0;
@@ -562,6 +683,7 @@ export async function warmPanelkaPb1StatsBatch(opts?: {
         steamId,
         nick,
         skipLiveIp,
+        knownIp: ipMap[steamId] || null,
       });
       if (entry) okCount += 1;
       else failCount += 1;
@@ -583,6 +705,8 @@ export async function warmPanelkaPb1StatsBatch(opts?: {
     failCount,
     cursor: wrapped ? "" : nextCursor,
     totalRecent: ids.length,
+    ipMapCount: ipRefresh.count || Object.keys(ipMap).length,
+    geoPatched,
   };
 }
 
