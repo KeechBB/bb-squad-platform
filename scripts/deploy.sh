@@ -439,4 +439,16 @@ chmod 644 /etc/cron.d/bb-night-bets-settle
 touch /var/log/bb-night-bets-settle.log
 chmod 644 /var/log/bb-night-bets-settle.log
 
+echo "==> panelka VIP/camera cfg heal cron (every 2 min, Sqstat wipe)"
+chmod +x "$ROOT/scripts/heal_panelka_cfgs_cron.sh" || true
+cat >/etc/cron.d/bb-panelka-cfg-heal <<EOF
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+*/2 * * * * root flock -n /tmp/bb-panelka-cfg-heal.lock bash $ROOT/scripts/heal_panelka_cfgs_cron.sh >>/var/log/bb-panelka-cfg-heal.log 2>&1
+EOF
+chmod 644 /etc/cron.d/bb-panelka-cfg-heal
+touch /var/log/bb-panelka-cfg-heal.log
+chmod 644 /var/log/bb-panelka-cfg-heal.log
+bash "$ROOT/scripts/heal_panelka_cfgs_cron.sh" >/tmp/bb-panelka-cfg-heal-boot.log 2>&1 || true
+
 echo "==> OK commit=$(git rev-parse --short HEAD) $(date -Is)"

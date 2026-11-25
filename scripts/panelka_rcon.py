@@ -803,6 +803,7 @@ def read_staff_map():
 ADMINS_CFG = "/home/squad/admins/Admins.cfg"
 BANS_CFG = "/home/squad/admins/Bans.cfg"
 VIP_GROUP = "QueuePriority"
+VIP_STORE = "/home/squad/admins/bb-vips.json"
 VIP_META_RE = re.compile(
     r"bb-vip\s+until=(?P<until>\S+)\s+by=(?P<by>[^\s]+)\s+granted=(?P<granted>\S+)",
     re.I,
@@ -823,7 +824,110 @@ def _atomic_write(path, text):
         handle.write(text)
     os.replace(tmp, path)
 
+def _vip_store_load():
+    try:
+        data = json.loads(open(VIP_STORE, encoding="utf-8").read())
+        if isinstance(data, list):
+            return data
+    except Exception:
+        pass
+    return []
+
+def _vip_store_save(rows):
+    tmp = VIP_STORE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as handle:
+        handle.write(json.dumps(rows, ensure_ascii=False, indent=2))
+    os.replace(tmp, VIP_STORE)
+
+def _vip_line(steam_id, by_nick="", until="", granted="", note=""):
+    by = re.sub(r"\s+", "_", (by_nick or "staff").strip())[:32] or "staff"
+    until_s = (until or "forever").strip()[:32]
+    granted_s = (granted or time.strftime("%Y-%m-%dT%H:%M:%S")).strip()[:32]
+    note_s = re.sub(r"\s+", " ", (note or "").strip())[:120]
+    meta = " // bb-vip until=%s by=%s granted=%s" % (until_s, by, granted_s)
+    if note_s:
+        meta = "%s | %s" % (meta, note_s)
+    return "Admin=%s:%s%s" % (steam_id, VIP_GROUP, meta)
+
+def _vip_upsert_store(steam_id, by_nick="", until="", granted="", note=""):
+    rows = _vip_store_load()
+    out = []
+    found = False
+    row = {
+        "steamId": steam_id,
+        "byNick": (by_nick or "staff").strip()[:48] or "staff",
+        "until": (until or "forever").strip()[:32] or "forever",
+        "grantedAt": (granted or time.strftime("%Y-%m-%dT%H:%M:%S")).strip()[:32],
+        "note": re.sub(r"\s+", " ", (note or "").strip())[:120],
+    }
+    for old in rows:
+        if str(old.get("steamId") or "") == steam_id:
+            out.append(row)
+            found = True
+        else:
+            out.append(old)
+    if not found:
+        out.append(row)
+    _vip_store_save(out)
+    return row
+
+def _vip_remove_store(steam_id):
+    rows = _vip_store_load()
+    kept = [r for r in rows if str(r.get("steamId") or "") != steam_id]
+    _vip_store_save(kept)
+    return len(rows) - len(kept)
+
+def heal_bb_vips():
+    """Sqstat bot rewrites Admins.cfg every ~5m — re-append panelka VIPs from JSON."""
+    store = _vip_store_load()
+    if not store:
+        return {"ok": True, "healed": 0}
+    try:
+        text = open(ADMINS_CFG, encoding="utf-8", errors="replace").read()
+    except Exception as e:
+        return {"ok": False, "error": str(e), "healed": 0}
+    lines = text.splitlines()
+    present = set()
+    for line in lines:
+        m = re.match(r"Admin=(7656\d+)\s*:\s*" + VIP_GROUP + r"\b", line.strip(), re.I)
+        if m:
+            present.add(m.group(1))
+    healed = 0
+    insert_at = None
+    last_group = 0
+    for i, line in enumerate(lines):
+        s = line.strip()
+        if s.startswith("Group="):
+            last_group = i
+        if re.match(r"Admin=7656\d+\s*:\s*" + VIP_GROUP + r"\b", s, re.I):
+            insert_at = i + 1
+    if insert_at is None:
+        insert_at = last_group + 1
+    for row in store:
+        sid = str(row.get("steamId") or "")
+        if not re.fullmatch(r"7656\d{13}", sid):
+            continue
+        if sid in present:
+            continue
+        lines.insert(
+            insert_at,
+            _vip_line(
+                sid,
+                str(row.get("byNick") or ""),
+                str(row.get("until") or "forever"),
+                str(row.get("grantedAt") or ""),
+                str(row.get("note") or ""),
+            ),
+        )
+        insert_at += 1
+        present.add(sid)
+        healed += 1
+    if healed:
+        _atomic_write(ADMINS_CFG, "\n".join(lines) + "\n")
+    return {"ok": True, "healed": healed}
+
 def list_vips():
+    heal_bb_vips()
     rows = []
     try:
         lines = open(ADMINS_CFG, encoding="utf-8", errors="replace").read().splitlines()
@@ -861,6 +965,11 @@ def list_vips():
 def vip_add(steam_id, by_nick="", until="", granted="", note=""):
     if not re.fullmatch(r"7656\d{13}", steam_id or ""):
         return {"ok": False, "error": "bad steam"}
+    by = re.sub(r"\s+", "_", (by_nick or "staff").strip())[:32] or "staff"
+    until_s = (until or "forever").strip()[:32]
+    granted_s = (granted or time.strftime("%Y-%m-%dT%H:%M:%S")).strip()[:32]
+    note_s = re.sub(r"\s+", " ", (note or "").strip())[:120]
+    _vip_upsert_store(steam_id, by, until_s, granted_s, note_s)
     try:
         text = open(ADMINS_CFG, encoding="utf-8", errors="replace").read()
     except Exception as e:
@@ -871,14 +980,7 @@ def vip_add(steam_id, by_nick="", until="", granted="", note=""):
         if re.match(r"Admin=%s\s*:\s*%s\b" % (steam_id, VIP_GROUP), line.strip(), re.I):
             already = True
             break
-    by = re.sub(r"\s+", "_", (by_nick or "staff").strip())[:32] or "staff"
-    until_s = (until or "forever").strip()[:32]
-    granted_s = (granted or time.strftime("%Y-%m-%dT%H:%M:%S")).strip()[:32]
-    note_s = re.sub(r"\s+", " ", (note or "").strip())[:120]
-    meta = " // bb-vip until=%s by=%s granted=%s" % (until_s, by, granted_s)
-    if note_s:
-        meta = "%s | %s" % (meta, note_s)
-    new_line = "Admin=%s:%s%s" % (steam_id, VIP_GROUP, meta)
+    new_line = _vip_line(steam_id, by, until_s, granted_s, note_s)
     if already:
         out = []
         for line in lines:
@@ -906,6 +1008,7 @@ def vip_add(steam_id, by_nick="", until="", granted="", note=""):
 def vip_remove(steam_id):
     if not re.fullmatch(r"7656\d{13}", steam_id or ""):
         return {"ok": False, "error": "bad steam"}
+    store_removed = _vip_remove_store(steam_id)
     try:
         text = open(ADMINS_CFG, encoding="utf-8", errors="replace").read()
     except Exception as e:
@@ -918,10 +1021,11 @@ def vip_remove(steam_id):
             removed += 1
             continue
         kept.append(line)
-    if not removed:
+    if not removed and not store_removed:
         return {"ok": False, "error": "випки нет в Admins.cfg"}
-    _atomic_write(ADMINS_CFG, "\n".join(kept) + ("\n" if text.endswith("\n") else ""))
-    return {"ok": True, "reply": "випка снята", "steamId": steam_id, "removed": removed}
+    if removed:
+        _atomic_write(ADMINS_CFG, "\n".join(kept) + ("\n" if text.endswith("\n") else ""))
+    return {"ok": True, "reply": "випка снята", "steamId": steam_id, "removed": removed or store_removed}
 
 CAMERA_GROUP = "Cameraman"
 CAMERA_STORE = "/home/squad/admins/bb-cameras.json"
@@ -987,9 +1091,10 @@ def _camera_remove_store(steam_id):
 
 def heal_bb_cameras():
     """Sqstat bot rewrites Admins.cfg every ~5m — re-append panelka cameras from JSON."""
+    vip_heal = heal_bb_vips()
     store = _camera_store_load()
     if not store:
-        return {"ok": True, "healed": 0}
+        return {"ok": True, "healed": 0, "vipsHealed": vip_heal.get("healed", 0)}
     try:
         text = open(ADMINS_CFG, encoding="utf-8", errors="replace").read()
     except Exception as e:
@@ -1022,7 +1127,7 @@ def heal_bb_cameras():
         healed += 1
     if healed:
         _atomic_write(ADMINS_CFG, "\n".join(lines) + "\n")
-    return {"ok": True, "healed": healed}
+    return {"ok": True, "healed": healed, "vipsHealed": vip_heal.get("healed", 0)}
 
 def list_cameras():
     heal_bb_cameras()
@@ -1771,6 +1876,8 @@ try:
             print(json.dumps(restart_server(key), ensure_ascii=False))
     elif op == "vips-list":
         print(json.dumps(list_vips(), ensure_ascii=False))
+    elif op == "vips-heal":
+        print(json.dumps(heal_bb_vips(), ensure_ascii=False))
     elif op == "vip-add":
         print(json.dumps(vip_add(
             str(job.get("steamId") or ""),
@@ -3193,6 +3300,10 @@ def vips_list() -> dict:
     return ssh_job({"op": "vips-list"}, timeout=25)
 
 
+def vips_heal() -> dict:
+    return ssh_job({"op": "vips-heal"}, timeout=25)
+
+
 def vip_add(
     steam_id: str,
     by_nick: str = "",
@@ -3358,6 +3469,8 @@ def main() -> int:
             result = ssh_job({"op": "staff-log", "limit": lim}, timeout=25)
         elif op == "vips-list":
             result = vips_list()
+        elif op == "vips-heal":
+            result = vips_heal()
         elif op == "vip-add":
             extra = _extra_payload()
             steam_id = sys.argv[2] if len(sys.argv) > 2 else str(extra.get("steamId") or "")
