@@ -783,9 +783,21 @@ def score_match_rp(
     def ensure(key: str, nick: str) -> str:
         ck = aliases.get(key, key)
         if ck not in disp:
-            disp[ck] = nick
+            # angel#steam → отображаем как angel, ключ RP/team разный
+            if ck.startswith("angel#"):
+                disp[ck] = "angel"
+            else:
+                disp[ck] = nick
         rp.setdefault(ck, START_RP)
         return ck
+
+    def player_key(nick_key: str, steam: str | None, nick: str) -> str:
+        """Два Steam с ником angel — разные ключи angel#steam."""
+        st = str(steam or "").strip()
+        nk = aliases.get(nick_key, nick_key)
+        if nk == "angel" and st:
+            return ensure(f"angel#{st}", nick or "angel")
+        return ensure(nk, nick)
 
     def n_base(actor: str, other: str) -> tuple[float, float, float]:
         pmax = max(rp.values()) if rp else START_RP
@@ -813,7 +825,9 @@ def score_match_rp(
         return signed
 
     def _side_key(nick_key: str, steam: str | None = None) -> str:
-        """angel + Steam → angel#steam, чтобы два angel не делили одну сторону."""
+        """angel / angel#steam — сторона по Steam, не по общему нику."""
+        if nick_key.startswith("angel#"):
+            return nick_key
         st = str(steam or "").strip()
         if nick_key == "angel" and st and f"angel#{st}" in teams:
             return f"angel#{st}"
@@ -1549,16 +1563,21 @@ def score_match_rp(
         kk, vk = d.get("killerKey"), d.get("victimKey")
         if not kk or not vk or kk == vk or str(kk).startswith("?"):
             continue
-        kk = ensure(kk, d.get("killer") or kk)
-        vk = ensure(vk, d.get("victim") or vk)
+        ks = str(d.get("killerSteam") or d.get("steam") or "") or None
+        vs = str(d.get("victimSteam") or "") or None
+        # Сначала steam-id ключ, потом ensure — два angel не схлопываются.
+        kk = player_key(kk, ks, str(d.get("killer") or kk))
+        vk = player_key(vk, vs, str(d.get("victim") or vk))
+        if kk == vk:
+            continue
         n, pk, pv = n_base(kk, vk)
         at_ev = d.get("at_dt") or d.get("at")
         tk = same_team(
             kk,
             vk,
             at_ev if isinstance(at_ev, datetime) else None,
-            steam_a=str(d.get("killerSteam") or d.get("steam") or "") or None,
-            steam_b=str(d.get("victimSteam") or "") or None,
+            steam_a=ks,
+            steam_b=vs,
         )
 
         if kind == "wound":
@@ -2542,7 +2561,10 @@ def team_timeline_in_window(
     t1: datetime,
     faction_to_team: dict[str, str],
 ) -> dict[str, list[tuple[datetime, str]]]:
-    """nick_key → [(at, team), ...] chronological side assignments in the match."""
+    """nick_key → [(at, team), ...] chronological side assignments in the match.
+
+    Несколько Steam с ником angel → ключи angel#steam, общий «angel» убирается.
+    """
     faction_norm, prefix_team = _prefix_team_maps(faction_to_team)
     raw: list[tuple[datetime, str, str]] = []
     t1x = match_window_end_exclusive(t1)
@@ -2566,6 +2588,10 @@ def team_timeline_in_window(
         if seq and seq[-1][1] == team:
             continue
         seq.append((at, team))
+    teams_probe: dict[str, str] = {
+        kk: seq[-1][1] for kk, seq in out.items() if seq
+    }
+    expand_angel_steam_sides(idx, t0, t1, faction_to_team, teams_probe, out)
     return out
 
 
@@ -2611,38 +2637,6 @@ def team_switch_late_keys(
     return late
 
 
-def teams_in_window(
-    idx: dict,
-    t0: datetime,
-    t1: datetime,
-    faction_to_team: dict[str, str],
-) -> dict[str, str]:
-    """nick_key → '1'|'2'. Majority side by time (not last deploy) — team-switch safe."""
-    timeline = team_timeline_in_window(idx, t0, t1, faction_to_team)
-    out: dict[str, str] = {}
-    for kk, seq in timeline.items():
-        if not seq:
-            continue
-        if len(seq) == 1:
-            out[kk] = seq[0][1]
-            continue
-        # duration on each side until match end
-        dur = {"1": 0.0, "2": 0.0}
-        for i, (at, team) in enumerate(seq):
-            end = seq[i + 1][0] if i + 1 < len(seq) else t1
-            start = max(at, t0)
-            if end > start:
-                dur[team] = dur.get(team, 0.0) + (end - start).total_seconds()
-        if dur["1"] > dur["2"]:
-            out[kk] = "1"
-        elif dur["2"] > dur["1"]:
-            out[kk] = "2"
-        else:
-            # tie → first side (usually the one they fought on)
-            out[kk] = seq[0][1]
-    return out
-
-
 def _angel_steam_at_sighting(
     sightings: list, at: datetime | None
 ) -> str:
@@ -2661,6 +2655,39 @@ def _angel_steam_at_sighting(
             best_t = sat
             best = steam
     return best
+
+
+def annotate_angel_steam(
+    rows: list[dict],
+    idx: dict,
+    aliases: dict[str, str],
+    *,
+    killer_from_steam_field: bool,
+) -> None:
+    """Проставить killerSteam/victimSteam — два angel считаются разными."""
+    sightings = idx.get("angel_sightings") or []
+    for e in rows:
+        at = e.get("at_dt") or e.get("at")
+        kk = str(e.get("killerKey") or canon_key(str(e.get("killer") or ""), aliases))
+        vk = str(e.get("victimKey") or canon_key(str(e.get("victim") or ""), aliases))
+        ks = ""
+        if killer_from_steam_field:
+            ks = str(e.get("steam") or "")
+        if kk == "angel" and not ks:
+            ks = _angel_steam_at_sighting(
+                sightings, at if isinstance(at, datetime) else None
+            )
+        vs = ""
+        if vk == "angel":
+            vs = _angel_steam_at_sighting(
+                sightings, at if isinstance(at, datetime) else None
+            )
+        e["killerSteam"] = ks
+        e["victimSteam"] = vs
+        if kk == "angel" and not e.get("killerKey"):
+            e["killerKey"] = kk
+        if vk == "angel" and not e.get("victimKey"):
+            e["victimKey"] = vk
 
 
 def expand_angel_steam_sides(
@@ -2725,6 +2752,46 @@ def expand_angel_steam_sides(
             teams[key] = "2"
         else:
             teams[key] = seq[0][1]
+
+    # Общий ключ «angel» больше не используем — только angel#steam.
+    if any(k.startswith("angel#") for k in teams):
+        teams.pop("angel", None)
+        team_timeline.pop("angel", None)
+
+
+def teams_in_window(
+    idx: dict,
+    t0: datetime,
+    t1: datetime,
+    faction_to_team: dict[str, str],
+) -> dict[str, str]:
+    """nick_key → '1'|'2'. Majority side by time (not last deploy) — team-switch safe.
+
+    При нескольких Steam с ником angel — ключи angel#steam, без общего «angel».
+    """
+    timeline = team_timeline_in_window(idx, t0, t1, faction_to_team)
+    out: dict[str, str] = {}
+    for kk, seq in timeline.items():
+        if not seq:
+            continue
+        if len(seq) == 1:
+            out[kk] = seq[0][1]
+            continue
+        # duration on each side until match end
+        dur = {"1": 0.0, "2": 0.0}
+        for i, (at, team) in enumerate(seq):
+            end = seq[i + 1][0] if i + 1 < len(seq) else t1
+            start = max(at, t0)
+            if end > start:
+                dur[team] = dur.get(team, 0.0) + (end - start).total_seconds()
+        if dur["1"] > dur["2"]:
+            out[kk] = "1"
+        elif dur["2"] > dur["1"]:
+            out[kk] = "2"
+        else:
+            # tie → first side (usually the one they fought on)
+            out[kk] = seq[0][1]
+    return out
 
 
 def parse_dies(

@@ -63,60 +63,12 @@ def slim(e: dict) -> dict:
     return out
 
 
-def _angel_steam_at(
-    sightings: list[tuple], at: datetime | None
-) -> str:
-    """Последний Online/Inactive sighting «angel» на/до события."""
-    if at is None:
-        return ""
-    best = ""
-    best_t: datetime | None = None
-    for row in sightings or []:
-        if len(row) < 2:
-            continue
-        sat, steam = row[0], str(row[1] or "")
-        nk = str(row[2] if len(row) > 2 else "angel")
-        if nk != "angel" or not steam:
-            continue
-        if sat <= at and (best_t is None or sat >= best_t):
-            best_t = sat
-            best = steam
-    return best
-
-
 def _bucket_key(nick_key: str, steam: str) -> str:
+    if nick_key.startswith("angel#"):
+        return nick_key
     if nick_key == "angel" and steam and steam in ANGEL_STEAMS:
         return f"angel#{steam}"
     return nick_key
-
-
-def annotate_angel_steam(
-    rows: list[dict],
-    idx: dict,
-    aliases: dict[str, str],
-    *,
-    killer_from_steam_field: bool,
-) -> None:
-    """Проставить killerSteam/victimSteam для разделения двух angel."""
-    sightings = idx.get("angel_sightings") or []
-    for e in rows:
-        at = e.get("at_dt") or e.get("at")
-        kk = str(e.get("killerKey") or R.canon_key(str(e.get("killer") or ""), aliases))
-        vk = str(e.get("victimKey") or R.canon_key(str(e.get("victim") or ""), aliases))
-        ks = ""
-        if killer_from_steam_field:
-            ks = str(e.get("steam") or "")
-        if kk == "angel" and not ks:
-            ks = _angel_steam_at(sightings, at if isinstance(at, datetime) else None)
-        vs = ""
-        if vk == "angel":
-            vs = _angel_steam_at(sightings, at if isinstance(at, datetime) else None)
-        e["killerSteam"] = ks
-        e["victimSteam"] = vs
-        if kk == "angel" and not e.get("killerKey"):
-            e["killerKey"] = kk
-        if vk == "angel" and not e.get("victimKey"):
-            e["victimKey"] = vk
 
 
 def _verify_dirs_for_match(match_id: str) -> list[Path]:
@@ -471,15 +423,17 @@ def build(match_id: str) -> dict:
             noks.append(d)
     revives = R.revives_in_window(idx, t0, t1)
     vehicle_ops = R.vehicle_ops_in_window(idx, t0, t1, steam_to_nick, aliases)
-    annotate_angel_steam(dies, idx, aliases, killer_from_steam_field=True)
-    annotate_angel_steam(noks, idx, aliases, killer_from_steam_field=True)
-    annotate_angel_steam(revives, idx, aliases, killer_from_steam_field=False)
+    R.annotate_angel_steam(dies, idx, aliases, killer_from_steam_field=True)
+    R.annotate_angel_steam(noks, idx, aliases, killer_from_steam_field=True)
+    R.annotate_angel_steam(revives, idx, aliases, killer_from_steam_field=False)
     for op in vehicle_ops:
         steam = str(op.get("steam") or "")
         nk = str(op.get("nickKey") or op.get("killerKey") or "")
         if nk == "angel" and steam:
             op["killerSteam"] = steam
             op["victimSteam"] = ""
+            op["nickKey"] = f"angel#{steam}"
+            op["killerKey"] = f"angel#{steam}"
     team_timeline = R.team_timeline_in_window(idx, t0, t1, faction_to_team)
     teams = R.teams_in_window(idx, t0, t1, faction_to_team)
     if not teams:
@@ -491,10 +445,6 @@ def build(match_id: str) -> dict:
                     nickp = str((prow or {}).get("nick") or "").strip()
                     if nickp:
                         teams[R.canon_key(nickp, aliases)] = side
-    # Два angel на разных сторонах — team/timeline по Steam, иначе киллы → TK.
-    R.expand_angel_steam_sides(
-        idx, t0, t1, faction_to_team, teams, team_timeline
-    )
     rp: dict[str, float] = {}
     disp: dict[str, str] = {}
     events, _net, die_n, tk_n, rev_n, nok_n = R.score_match_rp(

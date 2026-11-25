@@ -1020,6 +1020,9 @@ def main() -> None:
                 idx, m["start"], m["end"], steam_to_nick, aliases
             )
             revives = R.revives_in_window(idx, m["start"], m["end"])
+            R.annotate_angel_steam(dies, idx, aliases, killer_from_steam_field=True)
+            R.annotate_angel_steam(wounds, idx, aliases, killer_from_steam_field=True)
+            R.annotate_angel_steam(revives, idx, aliases, killer_from_steam_field=False)
 
         new_f = R.use_new_rp_formula(m["date"])
         match_date = str(m.get("date") or "")
@@ -1034,6 +1037,21 @@ def main() -> None:
             if idx is not None and R.use_rp_vehicle(match_date, mid, at=start_at)
             else []
         )
+        # teams from players JSON may still have plain «angel» — дополним steam-стороны из лога.
+        team_timeline = None
+        if idx is not None:
+            faction_to_team: dict[str, str] = {}
+            team_timeline = R.team_timeline_in_window(
+                idx, m["start"], m["end"], faction_to_team
+            )
+            log_teams = R.teams_in_window(
+                idx, m["start"], m["end"], faction_to_team
+            )
+            for k, v in log_teams.items():
+                if k.startswith("angel#"):
+                    teams[k] = v
+            if any(k.startswith("angel#") for k in teams):
+                teams.pop("angel", None)
         events, net, die_n, tk_n, rev_n, _ = R.score_match_rp(
             dies=dies,
             wounds=wounds,
@@ -1048,7 +1066,25 @@ def main() -> None:
             match_id=mid,
             vehicle_ops=vehicle_ops,
             cutover_at=start_at,
+            team_timeline=team_timeline,
         )
+        # angel#steam → отдельные ключи (BB / Алан / ALPHA), не общий angel.
+        _angel_fold = {
+            "76561198941350361": ("angel", "angel"),
+            "76561198421145708": ("angel🪽", "Angel 🪽"),
+            "76561198730638062": ("angel·8062", "angel ·8062"),
+        }
+        for ck in list(net.keys()):
+            if not str(ck).startswith("angel#"):
+                continue
+            steam = str(ck).split("#", 1)[-1]
+            fold_key, fold_nick = _angel_fold.get(steam, (ck, "angel"))
+            val = float(net.pop(ck) or 0.0)
+            net[fold_key] = round(float(net.get(fold_key) or 0.0) + val, 2)
+            if ck in rp:
+                rp[ck] = float(rp.get(ck, START_RP)) - val
+            rp[fold_key] = float(rp.get(fold_key, START_RP)) + val
+            disp.setdefault(fold_key, fold_nick)
         print(
             f"{m['id']}: Die={die_n} TK={tk_n} rev={rev_n} formula={'v2' if new_f else 'legacy'}",
             flush=True,

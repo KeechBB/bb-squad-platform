@@ -486,6 +486,13 @@ def process_match(
 
     steam_to_nick.update(idx["steam_to_nick"])
     t0, t1 = m["start"], m["end"]
+    # Кто именно сидел под ником angel в этом окне. Пустой список = смотрели и никого нет.
+    angel_steams: set[str] = set()
+    for at, steam, nk in idx.get("angel_sightings") or []:
+        if nk != "angel" or not steam:
+            continue
+        if (t0 - timedelta(minutes=20)) <= at <= t1:
+            angel_steams.add(str(steam))
     faction_to_team = m.get("factionToTeam") or {}
     team_timeline = R.team_timeline_in_window(idx, t0, t1, faction_to_team)
     teams = R.teams_in_window(idx, t0, t1, faction_to_team)
@@ -514,9 +521,25 @@ def process_match(
         if not skip:
             noks.append(d)
     revives = R.revives_in_window(idx, t0, t1)
+    R.annotate_angel_steam(dies, idx, aliases, killer_from_steam_field=True)
+    R.annotate_angel_steam(noks, idx, aliases, killer_from_steam_field=True)
+    R.annotate_angel_steam(revives, idx, aliases, killer_from_steam_field=False)
 
     dmg_by: dict[str, float] = {}
     combatants: set[str] = set()
+
+    def _id_key(kk: str, steam: str) -> str:
+        st = str(steam or "").strip()
+        if kk == "angel" and st:
+            return f"angel#{st}"
+        return kk
+
+    def _same_side(ka: str, kb: str, at_ev) -> bool:
+        if ka in teams and kb in teams:
+            return teams[ka] == teams[kb]
+        ta = R.team_at(team_timeline, ka, at_ev)
+        tb = R.team_at(team_timeline, kb, at_ev)
+        return bool(ta is not None and tb is not None and ta == tb)
 
     def wound_covers_kill(kk: str, vk: str, kill_at) -> bool:
         if kill_at is None:
@@ -537,34 +560,24 @@ def process_match(
         kk, vk = d["killerKey"], d["victimKey"]
         if not kk or not vk or kk == vk or kk.startswith("?"):
             continue
-        combatants.add(aliases.get(kk, kk))
-        combatants.add(aliases.get(vk, vk))
-        at_ev = d.get("at_dt")
-        ta = R.team_at(team_timeline, kk, at_ev)
-        tb = R.team_at(team_timeline, vk, at_ev)
-        same_team = (
-            ta is not None and tb is not None and ta == tb
-            if (ta is not None or tb is not None)
-            else (kk in teams and vk in teams and teams[kk] == teams[vk])
-        )
-        if not same_team:
-            dmg_by[kk] = round(dmg_by.get(kk, 0.0) + float(d.get("dmg") or 0))
+        ka = _id_key(kk, str(d.get("killerSteam") or d.get("steam") or ""))
+        kb = _id_key(vk, str(d.get("victimSteam") or ""))
+        combatants.add(aliases.get(ka, ka))
+        combatants.add(aliases.get(kb, kb))
+        if not _same_side(ka, kb, d.get("at_dt")):
+            dmg_by[ka] = round(dmg_by.get(ka, 0.0) + float(d.get("dmg") or 0))
     for d in dies:
         kk, vk = d["killerKey"], d["victimKey"]
         if not kk or not vk or kk == vk or kk.startswith("?"):
             continue
-        combatants.add(aliases.get(kk, kk))
-        combatants.add(aliases.get(vk, vk))
-        at_ev = d.get("at_dt")
-        ta = R.team_at(team_timeline, kk, at_ev)
-        tb = R.team_at(team_timeline, vk, at_ev)
-        same_team = (
-            ta is not None and tb is not None and ta == tb
-            if (ta is not None or tb is not None)
-            else (kk in teams and vk in teams and teams[kk] == teams[vk])
-        )
-        if not same_team and not wound_covers_kill(kk, vk, d.get("at_dt")):
-            dmg_by[kk] = round(dmg_by.get(kk, 0.0) + float(d.get("dmg") or 0))
+        ka = _id_key(kk, str(d.get("killerSteam") or d.get("steam") or ""))
+        kb = _id_key(vk, str(d.get("victimSteam") or ""))
+        combatants.add(aliases.get(ka, ka))
+        combatants.add(aliases.get(kb, kb))
+        if not _same_side(ka, kb, d.get("at_dt")) and not wound_covers_kill(
+            kk, vk, d.get("at_dt")
+        ):
+            dmg_by[ka] = round(dmg_by.get(ka, 0.0) + float(d.get("dmg") or 0))
 
     new_f = R.use_new_rp_formula(str(m.get("date") or ""))
     match_date = str(m.get("date") or "")
@@ -628,6 +641,32 @@ def process_match(
         if ck not in disp:
             disp[ck] = k
 
+    # angel#steam → канон-ник сайта (два angel — разные строки рейтинга).
+    _angel_fold = {
+        "76561198941350361": ("angel", "angel"),
+        "76561198421145708": ("angel🪽", "Angel 🪽"),
+        "76561198730638062": ("angel·8062", "angel ·8062"),
+    }
+    for ck in list(net.keys()):
+        if not str(ck).startswith("angel#"):
+            continue
+        steam = str(ck).split("#", 1)[-1]
+        fold_key, fold_nick = _angel_fold.get(steam, (ck, "angel"))
+        val = float(net.pop(ck) or 0.0)
+        net[fold_key] = round(float(net.get(fold_key) or 0.0) + val, 2)
+        rp[fold_key] = float(rp.get(fold_key, R.START_RP)) + val
+        # снять промежуточный angel#steam из live rp
+        if ck in rp:
+            rp[ck] = float(rp.get(ck, R.START_RP)) - val
+        disp.setdefault(fold_key, fold_nick)
+        combatants.discard(ck)
+        combatants.add(fold_key)
+    if "angel" in net and angel_steams and "76561198941350361" not in angel_steams:
+        # старый общий ключ без steam-split — не оставлять чужой net у BB
+        orphan = float(net.pop("angel") or 0.0)
+        rp["angel"] = float(rp.get("angel", R.START_RP)) - orphan
+        combatants.discard("angel")
+
     nok_n = sum(1 for e in events if e.get("kind") == "nok")
     print(
         f"{m['id']}: {die_n} Die, {tk_n} TK, {rev_n} rev, nok={nok_n}, "
@@ -658,6 +697,7 @@ def process_match(
         "presenceByKey": {k: round(v, 4) for k, v in presence_by_key.items()},
         "teamSwitchLateKeys": sorted(team_switch_late),
         "matchDurationSec": int((t1 - t0).total_seconds()),
+        "angelSteams": sorted(angel_steams),
     }
 
 
@@ -855,6 +895,22 @@ def main() -> None:
         for x in str(args.rescore_ids or "").split(",")
         if x.strip()
     }
+
+    # Always snapshot the live ledger before a destructive full rebuild.
+    # --full keeps only matches discoverable in the current log window and
+    # would otherwise wipe older history (e.g. Moisha 9932 → 7092).
+    if force_full and OUT_PRIMARY.is_file():
+        from datetime import datetime as _dt
+        import shutil
+
+        stamp = _dt.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        bak_dir = OUT_PRIMARY.parent / f"_bak_full_rescore_{stamp}"
+        bak_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(OUT_PRIMARY, bak_dir / "rp-ledger.json")
+        slim = OUT_PRIMARY.parent / "rp-ladder.json"
+        if slim.is_file():
+            shutil.copy2(slim, bak_dir / "rp-ladder.json")
+        print(f"backup before --full → {bak_dir}", flush=True)
 
     aliases = load_alias_keys()
     log_paths = resolve_log_paths(local_only=args.local_only)
@@ -1251,6 +1307,17 @@ def main() -> None:
     OUT_LADDER_PRIMARY.parent.mkdir(parents=True, exist_ok=True)
     OUT_LADDER_PRIMARY.write_text(slim_text, encoding="utf-8")
     print(f"Wrote slim {OUT_LADDER_PRIMARY} ({OUT_LADDER_PRIMARY.stat().st_size} bytes)")
+    # Invalidate clan PB1 stats caches (Next reads this stamp on GET)
+    try:
+        gen = PLATFORM / "data" / "cache" / "public-rating-generation"
+        gen.parent.mkdir(parents=True, exist_ok=True)
+        gen.write_text(
+            datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            encoding="utf-8",
+        )
+        print(f"bumped {gen}", flush=True)
+    except Exception as e:
+        print(f"clan-stats gen bump failed: {e}", flush=True)
     import publish_public_surfaces as PUBLISH  # noqa: WPS433
     import rp_ladder_db as RPDB  # noqa: WPS433
 
