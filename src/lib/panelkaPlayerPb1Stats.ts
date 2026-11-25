@@ -16,6 +16,8 @@ import { runPanelka } from "@/lib/panelkaRcon";
 const PB1_KEYS = ["TPUB1", "PB1", "TPUB", "PUBLIC"] as const;
 const STEAM_RE = /^7656\d{13}$/;
 const MSK_OFFSET_HOURS = 3;
+/** Squad on Steam */
+const SQUAD_APP_ID = 393380;
 const CACHE_DIR = path.join(process.cwd(), "data", "cache", "panelka-pb1-stats");
 const INDEX_PATH = path.join(CACHE_DIR, "_index.json");
 const IP_MAP_PATH = path.join(
@@ -49,6 +51,11 @@ export type PanelkaPlayerPb1Stats = {
   visitDays: number;
   visitBars: Pb1VisitBar[];
   visitMaxHours: number;
+  /** Lifetime Squad hours from Steam (GetOwnedGames app 393380). */
+  steamHoursLabel: string | null;
+  steamMinutes: number | null;
+  steam2WeeksLabel: string | null;
+  steamPlayStatus: "ok" | "private" | "error" | "no_key" | "unknown";
   location: {
     country: string | null;
     region: string | null;
@@ -105,6 +112,58 @@ function formatOffsetFromMsk(offsetHours: number): string {
   if (offsetHours === 0) return "МСК";
   const sign = offsetHours > 0 ? "+" : "−";
   return `МСК${sign}${Math.abs(offsetHours)}`;
+}
+
+async function fetchSteamSquadPlaytime(steamId: string): Promise<{
+  minutesForever: number | null;
+  minutes2Weeks: number | null;
+  status: PanelkaPlayerPb1Stats["steamPlayStatus"];
+}> {
+  const key = (
+    process.env.STEAM_API_KEY ||
+    process.env.STEAM_WEB_API_KEY ||
+    process.env.STEAM_KEY ||
+    ""
+  ).trim();
+  if (!key) {
+    return { minutesForever: null, minutes2Weeks: null, status: "no_key" };
+  }
+  try {
+    const url =
+      `https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/` +
+      `?key=${encodeURIComponent(key)}` +
+      `&steamid=${encodeURIComponent(steamId)}` +
+      `&include_appinfo=0&include_played_free_games=1` +
+      `&appids_filter[0]=${SQUAD_APP_ID}`;
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 8000);
+    const res = await fetch(url, {
+      signal: ac.signal,
+      cache: "no-store",
+    }).finally(() => clearTimeout(timer));
+    if (!res.ok) {
+      return { minutesForever: null, minutes2Weeks: null, status: "error" };
+    }
+    const json = (await res.json().catch(() => null)) as {
+      response?: { games?: { appid?: number; playtime_forever?: number; playtime_2weeks?: number }[] };
+    } | null;
+    const games = json?.response?.games;
+    if (!Array.isArray(games)) {
+      // empty / private inventory
+      return { minutesForever: null, minutes2Weeks: null, status: "private" };
+    }
+    const hit = games.find((g) => Number(g.appid) === SQUAD_APP_ID);
+    if (!hit) {
+      return { minutesForever: null, minutes2Weeks: null, status: "private" };
+    }
+    return {
+      minutesForever: Math.max(0, Number(hit.playtime_forever) || 0),
+      minutes2Weeks: Math.max(0, Number(hit.playtime_2weeks) || 0),
+      status: "ok",
+    };
+  } catch {
+    return { minutesForever: null, minutes2Weeks: null, status: "error" };
+  }
 }
 
 function ensureCacheDir() {
@@ -471,12 +530,14 @@ export async function buildPanelkaPlayerPb1Stats(opts: {
   /** Skip live IP RCON (faster warm). Still uses map / previous cached IP for geo. */
   skipLiveIp?: boolean;
   prevLocation?: PanelkaPlayerPb1Stats["location"] | null;
+  prevStats?: PanelkaPlayerPb1Stats | null;
   /** Known IP from plaza map (warm path). */
   knownIp?: string | null;
 }): Promise<PanelkaPlayerPb1Stats | null> {
   if (!STEAM_RE.test(opts.steamId)) return null;
   const nick = String(opts.nick || "").trim();
   const prevLoc = opts.prevLocation || null;
+  const prev = opts.prevStats || null;
   const mapIp =
     opts.knownIp ||
     readPlazaIpMap()[opts.steamId] ||
@@ -500,7 +561,7 @@ export async function buildPanelkaPlayerPb1Stats(opts: {
         )
     : lookupGeoBySteam(opts.steamId, prevLoc?.ip || null, mapIp);
 
-  const [visits, kit, combat, location] = await Promise.all([
+  const [visits, kit, combat, location, steamPlay] = await Promise.all([
     buildVisitBars(opts.steamId, 90),
     favoriteKitBySteam(opts.steamId).catch(() => null),
     nick
@@ -509,6 +570,7 @@ export async function buildPanelkaPlayerPb1Stats(opts: {
         )
       : Promise.resolve(null),
     locationPromise,
+    fetchSteamSquadPlaytime(opts.steamId),
   ]);
 
   // Keep previous geo if live lookup failed
@@ -518,6 +580,19 @@ export async function buildPanelkaPlayerPb1Stats(opts: {
       : prevLoc?.source === "geoip"
         ? prevLoc
         : location;
+
+  let steamMinutes = steamPlay.minutesForever;
+  let steam2Weeks = steamPlay.minutes2Weeks;
+  let steamPlayStatus = steamPlay.status;
+  // Keep last known Steam hours if profile temporarily private / API flake
+  if (
+    steamPlayStatus !== "ok" &&
+    prev?.steamPlayStatus === "ok" &&
+    prev.steamMinutes != null
+  ) {
+    steamMinutes = prev.steamMinutes;
+    steamPlayStatus = "ok";
+  }
 
   const life = await prisma.squadServerSession.findMany({
     where: {
@@ -548,6 +623,14 @@ export async function buildPanelkaPlayerPb1Stats(opts: {
     visitDays: visits.bars.filter((b) => b.minutes > 0).length,
     visitBars: visits.bars,
     visitMaxHours,
+    steamHoursLabel:
+      steamMinutes != null ? formatHours(steamMinutes) : null,
+    steamMinutes,
+    steam2WeeksLabel:
+      steam2Weeks != null && steam2Weeks > 0
+        ? formatHours(steam2Weeks)
+        : null,
+    steamPlayStatus,
     location: loc,
   };
 }
@@ -581,6 +664,7 @@ export async function rebuildAndCachePb1Stats(opts: {
     nick,
     skipLiveIp: opts.skipLiveIp,
     prevLocation: prev?.stats.location || null,
+    prevStats: prev?.stats || null,
     knownIp: opts.knownIp,
   });
   if (!stats) return null;
@@ -592,6 +676,43 @@ export async function rebuildAndCachePb1Stats(opts: {
   };
   writePb1StatsCache(entry);
   return entry;
+}
+
+/** Fill Steam Squad lifetime into an existing cache entry (fast, one API call). */
+export async function ensureSteamHoursInCache(
+  steamId: string
+): Promise<PanelkaPb1StatsCacheEntry | null> {
+  const cached = readPb1StatsCache(steamId);
+  if (!cached) return null;
+  const st = cached.stats;
+  if (
+    st.steamPlayStatus === "ok" &&
+    st.steamMinutes != null &&
+    st.steamHoursLabel
+  ) {
+    return cached;
+  }
+  if (st.steamPlayStatus === "private" || st.steamPlayStatus === "no_key") {
+    return cached;
+  }
+  const steam = await fetchSteamSquadPlaytime(steamId);
+  const next: PanelkaPb1StatsCacheEntry = {
+    ...cached,
+    updatedAt: new Date().toISOString(),
+    stats: {
+      ...st,
+      steamMinutes: steam.minutesForever,
+      steamHoursLabel:
+        steam.minutesForever != null ? formatHours(steam.minutesForever) : null,
+      steam2WeeksLabel:
+        steam.minutes2Weeks != null && steam.minutes2Weeks > 0
+          ? formatHours(steam.minutes2Weeks)
+          : null,
+      steamPlayStatus: steam.status,
+    },
+  };
+  writePb1StatsCache(next);
+  return next;
 }
 
 /**
@@ -609,7 +730,15 @@ export async function getPanelkaPlayerPb1Stats(opts: {
   if (!STEAM_RE.test(opts.steamId)) {
     return { stats: null, fromCache: false, updatedAt: null };
   }
-  const cached = readPb1StatsCache(opts.steamId);
+  let cached = readPb1StatsCache(opts.steamId);
+  if (
+    cached &&
+    (cached.stats.steamMinutes == null || !cached.stats.steamHoursLabel) &&
+    cached.stats.steamPlayStatus !== "private" &&
+    cached.stats.steamPlayStatus !== "no_key"
+  ) {
+    cached = (await ensureSteamHoursInCache(opts.steamId)) || cached;
+  }
   const age = cached ? Date.now() - Date.parse(cached.updatedAt) : Infinity;
 
   if (cached && Number.isFinite(age) && age < CACHE_FRESH_MS) {

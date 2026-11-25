@@ -110,6 +110,10 @@ type PlayerPb1Stats = {
   visitDays: number;
   visitBars: Pb1VisitBar[];
   visitMaxHours: number;
+  steamHoursLabel?: string | null;
+  steamMinutes?: number | null;
+  steam2WeeksLabel?: string | null;
+  steamPlayStatus?: "ok" | "private" | "error" | "no_key" | "unknown";
   location: {
     country: string | null;
     region: string | null;
@@ -1841,6 +1845,19 @@ export function PlayerModModal({
                   ? ` · ${pb1Stats?.sessions ?? profile.sessions} сессий`
                   : ""}
               </p>
+              <p>
+                Steam Squad:{" "}
+                <b>
+                  {pb1Stats?.steamHoursLabel
+                    ? pb1Stats.steamHoursLabel
+                    : pb1Stats?.steamPlayStatus === "private"
+                      ? "скрыто"
+                      : "—"}
+                </b>
+                {pb1Stats?.steam2WeeksLabel
+                  ? ` · за 2 нед. ${pb1Stats.steam2WeeksLabel}`
+                  : ""}
+              </p>
               {pb1Stats?.location?.country || pb1Stats?.location?.offsetLabel ? (
                 <p className="panelka-pb1-loc" title={pb1Stats.location.ip || undefined}>
                   Локация:{" "}
@@ -1874,6 +1891,19 @@ export function PlayerModModal({
           {pb1Stats ? (
             <div className="panelka-pb1-stats" aria-label="Статистика PB1 (только админка)">
               <div className="panelka-pb1-cards">
+                <div className="panelka-pb1-card">
+                  <span>Steam Squad</span>
+                  <strong>
+                    {pb1Stats.steamHoursLabel
+                      ? pb1Stats.steamHoursLabel
+                      : pb1Stats.steamPlayStatus === "private"
+                        ? "скрыто"
+                        : "—"}
+                  </strong>
+                  {pb1Stats.steam2WeeksLabel ? (
+                    <em>2 нед. {pb1Stats.steam2WeeksLabel}</em>
+                  ) : null}
+                </div>
                 <div className="panelka-pb1-card">
                   <span>Онлайн PB1</span>
                   <strong>{pb1Stats.hoursLabel}</strong>

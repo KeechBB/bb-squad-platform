@@ -177,10 +177,12 @@ export async function GET(req: Request) {
       if (!STEAM_RE.test(steamId)) {
         return NextResponse.json({ ok: false, error: "нет игрока" }, { status: 400 });
       }
-      const { readPb1StatsCache, getPanelkaPlayerPb1Stats } = await import(
-        "@/lib/panelkaPlayerPb1Stats"
-      );
-      const disk = readPb1StatsCache(steamId);
+      const {
+        readPb1StatsCache,
+        getPanelkaPlayerPb1Stats,
+        ensureSteamHoursInCache,
+      } = await import("@/lib/panelkaPlayerPb1Stats");
+      let disk = readPb1StatsCache(steamId);
       const [profile, nickHistory, memos] = await Promise.all([
         siteProfileLight(steamId),
         listSteamNickHistory(steamId, name).catch(() => []),
@@ -189,6 +191,13 @@ export async function GET(req: Request) {
           labels: [] as [],
         })),
       ]);
+      if (
+        disk &&
+        (disk.stats.steamMinutes == null || !disk.stats.steamHoursLabel)
+      ) {
+        disk =
+          (await ensureSteamHoursInCache(steamId).catch(() => null)) || disk;
+      }
       const pb1Stats = disk?.stats || null;
       const pb1Meta = {
         fromCache: Boolean(disk),
@@ -277,11 +286,21 @@ export async function GET(req: Request) {
       if (!STEAM_RE.test(steamId)) {
         return NextResponse.json({ ok: false, error: "нет игрока" }, { status: 400 });
       }
-      const { getPanelkaPlayerPb1Stats, readPb1StatsCache } = await import(
-        "@/lib/panelkaPlayerPb1Stats"
-      );
-      const disk = readPb1StatsCache(steamId);
+      const {
+        getPanelkaPlayerPb1Stats,
+        readPb1StatsCache,
+        ensureSteamHoursInCache,
+      } = await import("@/lib/panelkaPlayerPb1Stats");
+      let disk = readPb1StatsCache(steamId);
       if (disk) {
+        // One Steam API call if lifetime hours not yet in cache
+        if (
+          disk.stats.steamMinutes == null ||
+          !disk.stats.steamHoursLabel
+        ) {
+          disk =
+            (await ensureSteamHoursInCache(steamId).catch(() => null)) || disk;
+        }
         const age = Date.now() - Date.parse(disk.updatedAt);
         if (Number.isFinite(age) && age < 48 * 3600_000) {
           if (age > 6 * 3600_000) {
