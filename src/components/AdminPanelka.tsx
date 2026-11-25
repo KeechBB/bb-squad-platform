@@ -1450,6 +1450,24 @@ export function PlayerModModal({
         setLoading(true);
         setLoadError("");
       }
+      // Instant paint from disk cache (parallel with full card)
+      if (!silent) {
+        const fastUrl =
+          `/api/admin/panelka?op=player-pb1-stats` +
+          `&steamId=${encodeURIComponent(player.steamId)}` +
+          `&name=${encodeURIComponent(player.name)}`;
+        void fetch(fastUrl, { cache: "no-store" })
+          .then(async (res) => {
+            const data = (await res.json().catch(() => null)) as {
+              ok?: boolean;
+              pb1Stats?: PlayerPb1Stats | null;
+            } | null;
+            if (res.ok && data?.ok && data.pb1Stats) {
+              setPb1Stats((prev) => prev || data.pb1Stats || null);
+            }
+          })
+          .catch(() => null);
+      }
       const url =
         `/api/admin/panelka?op=player-card&key=${encodeURIComponent(serverKey)}` +
         `&steamId=${encodeURIComponent(player.steamId)}` +
@@ -1483,7 +1501,7 @@ export function PlayerModModal({
             return;
           }
           setProfile(data.profile || null);
-          setPb1Stats(data.pb1Stats || null);
+          if (data.pb1Stats) setPb1Stats(data.pb1Stats);
           setNickHistory(data.nickHistory || []);
           setNotes(data.notes || []);
           setLabels(data.labels || []);

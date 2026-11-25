@@ -211,13 +211,18 @@ export async function GET(req: Request) {
         notes: [] as [],
         labels: [] as [],
       }));
-      const { buildPanelkaPlayerPb1Stats } = await import(
+      const { getPanelkaPlayerPb1Stats } = await import(
         "@/lib/panelkaPlayerPb1Stats"
       );
-      const pb1Stats = await buildPanelkaPlayerPb1Stats({
+      const pb1Hit = await getPanelkaPlayerPb1Stats({
         steamId,
         nick: profile.nick || name || null,
-      }).catch(() => null);
+      }).catch(() => ({
+        stats: null,
+        fromCache: false,
+        updatedAt: null as string | null,
+      }));
+      const pb1Stats = pb1Hit.stats;
       try {
         const history = (await runPanelka(["player-card", key, steamId], 28000, {
           name,
@@ -233,6 +238,10 @@ export async function GET(req: Request) {
             ok: true,
             profile,
             pb1Stats,
+            pb1StatsMeta: {
+              fromCache: pb1Hit.fromCache,
+              updatedAt: pb1Hit.updatedAt,
+            },
             nickHistory,
             notes: memos.notes,
             labels: memos.labels,
@@ -246,6 +255,10 @@ export async function GET(req: Request) {
           ok: true,
           profile,
           pb1Stats,
+          pb1StatsMeta: {
+            fromCache: pb1Hit.fromCache,
+            updatedAt: pb1Hit.updatedAt,
+          },
           nickHistory,
           notes: memos.notes,
           labels: memos.labels,
@@ -259,6 +272,10 @@ export async function GET(req: Request) {
           ok: true,
           profile,
           pb1Stats,
+          pb1StatsMeta: {
+            fromCache: pb1Hit.fromCache,
+            updatedAt: pb1Hit.updatedAt,
+          },
           nickHistory,
           notes: memos.notes,
           labels: memos.labels,
@@ -268,6 +285,47 @@ export async function GET(req: Request) {
           warning: `история не успела: ${message.slice(0, 120)}`,
         });
       }
+    }
+    // Fast path: only cached PB1 stats (for instant card paint)
+    if (op === "player-pb1-stats") {
+      const steamId = url.searchParams.get("steamId") || "";
+      const name = url.searchParams.get("name") || "";
+      if (!STEAM_RE.test(steamId)) {
+        return NextResponse.json({ ok: false, error: "нет игрока" }, { status: 400 });
+      }
+      const { getPanelkaPlayerPb1Stats, readPb1StatsCache } = await import(
+        "@/lib/panelkaPlayerPb1Stats"
+      );
+      // Prefer pure disk read first (no DB) for max speed
+      const disk = readPb1StatsCache(steamId);
+      if (disk) {
+        const age = Date.now() - Date.parse(disk.updatedAt);
+        if (Number.isFinite(age) && age < 48 * 3600_000) {
+          if (age > 6 * 3600_000) {
+            void getPanelkaPlayerPb1Stats({
+              steamId,
+              nick: disk.nick || name || null,
+            }).catch(() => null);
+          }
+          return NextResponse.json({
+            ok: true,
+            pb1Stats: disk.stats,
+            pb1StatsMeta: { fromCache: true, updatedAt: disk.updatedAt },
+          });
+        }
+      }
+      const hit = await getPanelkaPlayerPb1Stats({
+        steamId,
+        nick: name || null,
+      });
+      return NextResponse.json({
+        ok: true,
+        pb1Stats: hit.stats,
+        pb1StatsMeta: {
+          fromCache: hit.fromCache,
+          updatedAt: hit.updatedAt,
+        },
+      });
     }
     if (op === "mods") {
       const key = url.searchParams.get("key") || "";

@@ -1,3 +1,9 @@
+## v. 1.2.442 — 25.11.2026 · Панелька · кэш PB1-статистики игроков
+
+Часы / K/Д / кит / победы / график 90д / гео считаются на бекенде в `data/cache/panelka-pb1-stats/` (cron каждые 10 мин). Карточка открывает готовые данные с диска, без ожидания пересчёта. Проверка: `node scripts/verify_panelka_pb1_stats.cjs`.
+
+---
+
 ## v. 1.2.441 — 25.11.2026 · Security headers F-01…F-05
 
 Заголовки: запрет чужого iframe (`frame-ancestors 'self'` / SAMEORIGIN), CSP Report-Only, HSTS, nosniff, скрыты версии nginx/Next. Свои iframe /cw /tm не ломаем. Откат: убрать include snippet + headers в next.config.

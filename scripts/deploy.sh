@@ -451,6 +451,24 @@ touch /var/log/bb-panelka-cfg-heal.log
 chmod 644 /var/log/bb-panelka-cfg-heal.log
 bash "$ROOT/scripts/heal_panelka_cfgs_cron.sh" >/tmp/bb-panelka-cfg-heal-boot.log 2>&1 || true
 
+echo "==> panelka PB1 player-card stats warm cron (every 10 min)"
+chmod +x "$ROOT/scripts/warm_panelka_pb1_stats_cron.sh" || true
+cat >/etc/cron.d/bb-panelka-pb1-stats-warm <<EOF
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+*/10 * * * * root flock -n /tmp/bb-panelka-pb1-stats-warm.lock bash $ROOT/scripts/warm_panelka_pb1_stats_cron.sh >>/var/log/bb-panelka-pb1-stats-warm.log 2>&1
+EOF
+chmod 644 /etc/cron.d/bb-panelka-pb1-stats-warm
+touch /var/log/bb-panelka-pb1-stats-warm.log
+chmod 644 /var/log/bb-panelka-pb1-stats-warm.log
+# Kick off first warm batches in background (do not block deploy)
+(
+  for _i in 1 2 3 4 5 6; do
+    bash "$ROOT/scripts/warm_panelka_pb1_stats_cron.sh" || true
+    sleep 8
+  done
+) >/tmp/bb-panelka-pb1-stats-warm-boot.log 2>&1 &
+
 echo "==> nginx security headers (F-01…F-05)"
 chmod +x "$ROOT/scripts/apply_nginx_security_headers.sh" || true
 bash "$ROOT/scripts/apply_nginx_security_headers.sh" || echo "WARN: security headers apply skipped"
