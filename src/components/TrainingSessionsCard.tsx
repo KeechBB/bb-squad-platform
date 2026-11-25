@@ -379,6 +379,7 @@ export function TrainingMatchHistory({
                         winner: m.winner,
                         duration: m.duration,
                         highlightNick,
+                        steamId,
                       });
                     }}
                     onKeyDown={(e) => {

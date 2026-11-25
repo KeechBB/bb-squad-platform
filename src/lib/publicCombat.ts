@@ -680,7 +680,6 @@ export async function buildPlayerPublicCombatStats(
     loadSteamAngelSpawnMs,
     angelSteamOwnsMatchExclusive,
     ALL_ANGEL_STEAM_IDS,
-    ALAN_ANGEL_STEAM_ID,
   } = await import("@/lib/nickCollisions");
   const collision =
     collisionBySteamId(opts?.steamId) || collisionBySiteNick(clean);
@@ -736,8 +735,12 @@ export async function buildPlayerPublicCombatStats(
   for (const m of (player?.matches || []) as SlimM[]) {
     if (m?.id) matchById.set(String(m.id), m);
   }
-  // Алан часто в ledger как plain «angel» — подмешиваем и режем по его Steam.
-  if (collision?.steamId === ALAN_ANGEL_STEAM_ID) {
+  // BB / Алан / ALPHA ·8062 на табло все plain «angel» — общий ledger, режем по Steam.
+  if (
+    collision?.steamId &&
+    ALL_ANGEL_STEAM_IDS.includes(collision.steamId) &&
+    lookupNick.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "") !== "angel"
+  ) {
     const plain = await lookupPlayerPublicRp("angel").catch(() => null);
     for (const m of (plain?.matches || []) as SlimM[]) {
       if (!m?.id || matchById.has(String(m.id))) continue;

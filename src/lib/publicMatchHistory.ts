@@ -207,8 +207,12 @@ export async function buildPlayerPublicMatchHistory(
   for (const m of (player?.matches || []) as SlimM[]) {
     if (m?.id) matchMap.set(String(m.id), m);
   }
-  // Алан часто играет plain "angel" без 🪽 — эти катки лежат в чужом ledger-ключе.
-  if (collision?.steamId === "76561198421145708") {
+  // BB / Алан / ALPHA ·8062 на табло plain «angel» — катки в общем ledger-ключе.
+  if (
+    collision?.steamId &&
+    ALL_ANGEL_STEAM_IDS.includes(collision.steamId) &&
+    lookupNick.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "") !== "angel"
+  ) {
     const plain = await lookupPlayerPublicRp("angel");
     for (const m of (plain?.matches || []) as SlimM[]) {
       if (!m?.id || matchMap.has(String(m.id))) continue;

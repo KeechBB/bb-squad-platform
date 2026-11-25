@@ -132,14 +132,18 @@ function pickMeetingRow(
   resolveKey: (n: string) => string,
   collision: { siteNick: string; steamId?: string } | null
 ): MeetingPlayerAgg | undefined {
-  // Саня BB vs Алан — всегда по Steam, не по регистру ника.
+  // Саня BB vs Алан / ALPHA ·8062 — всегда по Steam, не по регистру ника.
   if (collision?.steamId === "76561198941350361") {
     return byNick.get("angel|bb");
   }
-  if (collision?.steamId === "76561198421145708") {
+  if (
+    collision?.steamId === "76561198421145708" ||
+    collision?.steamId === "76561198730638062"
+  ) {
     return byNick.get("angel|opp");
   }
   if (collision?.siteNick === "angel") return byNick.get("angel|bb");
+  if (collision?.siteNick === "angel ·8062") return byNick.get("angel|opp");
   const direct = byNick.get(want);
   if (direct) return direct;
   for (const [k, v] of byNick) {

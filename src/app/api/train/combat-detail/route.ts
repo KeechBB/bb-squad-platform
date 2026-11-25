@@ -23,16 +23,20 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const nick = url.searchParams.get("nick")?.trim() || "";
   const matchId = safeId(url.searchParams.get("matchId") || "");
+  const steamRaw = url.searchParams.get("steamId")?.trim() || "";
+  const steamId = /^7656\d{13}$/.test(steamRaw) ? steamRaw : "";
   if (!nick || !matchId) {
     return NextResponse.json({ error: "nick and matchId required" }, { status: 400 });
   }
 
   const root = process.cwd();
   const script = path.join(root, "scripts", "train_combat_card.py");
+  const pyArgs = [script, "--id", matchId, "--nick", nick];
+  if (steamId) pyArgs.push("--steam", steamId);
   const match = await new Promise<unknown>((resolve) => {
     const child = spawn(
       "python3",
-      [script, "--id", matchId, "--nick", nick],
+      pyArgs,
       { cwd: root, env: process.env }
     );
     let out = "";

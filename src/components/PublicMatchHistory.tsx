@@ -59,10 +59,11 @@ export function PublicMatchHistory({
     try {
       let player = playerCache;
       if (!player) {
-        const r = await fetch(
-          `/api/public/rp-player?nick=${encodeURIComponent(nick)}`,
-          { cache: "no-store" }
-        );
+        const q = new URLSearchParams({ nick });
+        if (steamId) q.set("steamId", steamId);
+        const r = await fetch(`/api/public/rp-player?${q}`, {
+          cache: "no-store",
+        });
         if (!r.ok) {
           throw new Error(
             (await r.json().catch(() => ({}))).error || r.statusText

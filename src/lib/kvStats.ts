@@ -861,6 +861,7 @@ export async function buildPlayerKvStats(
       collisionBySiteNick,
       BB_ANGEL_STEAM_ID,
       ALAN_ANGEL_STEAM_ID,
+      ALPHA_ANGEL_STEAM_ID,
     } = await import("@/lib/nickCollisions");
     const hit =
       collisionBySteamId(opts?.steamId) || collisionBySiteNick(want);
@@ -868,7 +869,13 @@ export async function buildPlayerKvStats(
       // На табло КВ у обоих «angel» — матчим игровой ярлык, не slug AngelBB.
       want = "angel";
       if (hit.steamId === BB_ANGEL_STEAM_ID) angelSide = "bb";
-      else if (hit.steamId === ALAN_ANGEL_STEAM_ID) angelSide = "opp";
+      // Алан и ALPHA ·8062 — сторона соперника (не BB).
+      else if (
+        hit.steamId === ALAN_ANGEL_STEAM_ID ||
+        hit.steamId === ALPHA_ANGEL_STEAM_ID
+      ) {
+        angelSide = "opp";
+      }
     }
   } catch {
     /* ignore */

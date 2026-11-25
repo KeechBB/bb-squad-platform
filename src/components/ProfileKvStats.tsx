@@ -166,6 +166,7 @@ export function ProfileKvMatchHistory({
                         r1Tickets: m.r1,
                         r2Tickets: m.r2,
                         highlightNick,
+                        steamId,
                       });
                     }}
                     onKeyDown={(e) => {

@@ -225,12 +225,13 @@ def strip_tag(n: str) -> str:
     # [BB], 〔 A 〕, 【x】, etc.
     n = re.sub(r"^[\[\(\{〔【「『][^\]\)\}〕】」』]{0,16}[\]\)\}〕】」』]\s*", "", n).strip()
     n = re.sub(r"^\[[^\]]+\]\s*", "", n).strip()
-    # Clan prefix without brackets: "H1GH Nick" (ALLCAPS / digits). Keep "Gastone Gambara", "DarK Knight".
+    # Clan prefix without brackets: "H1GH Nick" (ALLCAPS, optional digits).
+    # Only ALLCAPS first token — not "4uy Lan" / "DarK Knight" (digit≠tag if mixed case).
     parts = n.split()
     if len(parts) >= 2 and re.fullmatch(r"[A-Za-z0-9_\-]{2,10}", parts[0] or ""):
         first = parts[0]
         rest = " ".join(parts[1:])
-        if len(rest) >= 3 and (first.isupper() or re.search(r"\d", first)):
+        if len(rest) >= 3 and first.isupper():
             n = rest
     return n.strip()
 
@@ -752,7 +753,9 @@ def score_match_rp(
     new_formula=True: canon 05.10.2026 (N×coefs). Weight = current RP always.
     From 17.10.2026 01:00 MSK: soft-cap on gains; vehicle tickets×12.5.
     cutover_at: match start (for train-style ids without YYYYMMDD-HHMM).
-    team_timeline: optional per-event side lookup (fixes late team-switch TK false positives).
+    team_timeline: fallback only when majority side is unknown for a key.
+      TK/enemy uses match majority side (accumulator) — mid-match team switches
+      must not flip kill↔TK for the same pair.
 
     Returns: events, net, die_n, tk_n, rev_n, nok_rp_n
     """
@@ -810,12 +813,17 @@ def score_match_rp(
         return signed
 
     def same_team(a: str, b: str, at: datetime | None = None) -> bool:
+        # Accumulator: majority side for the whole match.
+        # If a player swaps mid-game, kills against the other majority side stay
+        # enemy RP — they must not flip to TK (and back) with each deploy.
+        if a in teams and b in teams:
+            return teams[a] == teams[b]
         if team_timeline is not None:
             ta = team_at(team_timeline, a, at)
             tb = team_at(team_timeline, b, at)
             if ta is not None and tb is not None:
                 return ta == tb
-        return a in teams and b in teams and teams[a] == teams[b]
+        return False
 
     def _ensure_hull(hid: str, asset: str) -> dict:
         h = hulls.get(hid)
@@ -956,7 +964,11 @@ def score_match_rp(
         return ("vehicle", asset or None, tickets, role)
 
     def _annotate_crew_tracks(
-        ev: dict, *, killer_key: str | None = None, victim_key: str | None = None
+        ev: dict,
+        *,
+        killer_key: str | None = None,
+        victim_key: str | None = None,
+        src: dict | None = None,
     ) -> dict:
         """Stamp track / victimTrack (+ vehicle meta) for infantry|vehicle rating."""
         if killer_key:
@@ -979,6 +991,14 @@ def score_match_rp(
                 ev["vehicle"] = vasset
             if vtickets is not None and ev.get("tickets") is None:
                 ev["tickets"] = vtickets
+        if src:
+            ks = str(src.get("killerSteam") or src.get("steam") or "")
+            vs = str(src.get("victimSteam") or "")
+            if ks:
+                ev["killerSteam"] = ks
+                ev["steam"] = ks
+            if vs:
+                ev["victimSteam"] = vs
         return ev
 
     def _track_for_asset(asset: str) -> str:
@@ -1489,6 +1509,9 @@ def score_match_rp(
                 "victimKey": canon_key(d.get("victim") or "", aliases),
                 "at_msk": at_msk,
                 "at_dt": at_dt,
+                "killerSteam": d.get("killerSteam") or "",
+                "victimSteam": d.get("victimSteam") or "",
+                "steam": d.get("steam") or d.get("killerSteam") or "",
             }
         )
     if do_vehicle:
@@ -1533,6 +1556,7 @@ def score_match_rp(
                         },
                         killer_key=kk,
                         victim_key=vk,
+                        src=d,
                     )
                 )
             else:
@@ -1559,6 +1583,7 @@ def score_match_rp(
                         },
                         killer_key=kk,
                         victim_key=vk,
+                        src=d,
                     )
                 )
                 if do_vehicle:
@@ -1588,6 +1613,7 @@ def score_match_rp(
                         },
                         killer_key=kk,
                         victim_key=vk,
+                        src=d,
                     )
                 )
                 tk_n += 1
@@ -1615,6 +1641,7 @@ def score_match_rp(
                         },
                         killer_key=kk,
                         victim_key=vk,
+                        src=d,
                     )
                 )
                 if do_vehicle:
@@ -1644,6 +1671,7 @@ def score_match_rp(
                     },
                     killer_key=kk,
                     victim_key=vk,
+                    src=d,
                 )
             )
             rev_n += 1
@@ -1758,6 +1786,8 @@ def index_log_combat(log_path: Path, aliases: dict[str, str]) -> dict:
     squad_opens: list[dict] = []  # at, key, num, name, faction
     deploys: list[tuple[datetime, str, str]] = []  # at, nick_key, prefix
     raw_vehicle_ops: list[dict] = []
+    # (at, steam, nick_key) только для голого ника angel — двое Steam не склеивать.
+    angel_sightings: list[tuple[datetime, str, str]] = []
     eos_to_nick: dict[str, str] = {}
     logins: list[tuple[datetime, str, str]] = []  # at, eos, nick
     removes: list[tuple[datetime, str]] = []  # at, eos
@@ -1775,6 +1805,8 @@ def index_log_combat(log_path: Path, aliases: dict[str, str]) -> dict:
                     if nick and "LogSquad" not in nick and "ChangeState" not in nick:
                         steam_to_nick[m.group("steam")] = nick
                         victim_steam[canon_key(nick, aliases)] = m.group("steam")
+                        if nick_key(nick) == "angel":
+                            angel_sightings.append((at, m.group("steam"), "angel"))
                         eos = (m.group("eos") or "").lower()
                         if eos:
                             eos_to_nick[eos] = nick
@@ -1783,6 +1815,8 @@ def index_log_combat(log_path: Path, aliases: dict[str, str]) -> dict:
                     if nick and "LogSquad" not in nick and len(nick) < 64:
                         steam_to_nick[m.group("steam")] = nick
                         victim_steam[canon_key(nick, aliases)] = m.group("steam")
+                        if nick_key(nick) == "angel":
+                            angel_sightings.append((at, m.group("steam"), "angel"))
                         eos = (m.group("eos") or "").lower()
                         if eos:
                             eos_to_nick[eos] = nick
@@ -1807,6 +1841,8 @@ def index_log_combat(log_path: Path, aliases: dict[str, str]) -> dict:
                     nick = strip_tag(im.group("nick"))
                     steam = im.group("steam")
                     inactive_by_nick.setdefault(nick_key(nick), []).append(at)
+                    if nick_key(nick) == "angel" and steam:
+                        angel_sightings.append((at, steam, "angel"))
                     inactive_by_steam.setdefault(steam, []).append(at)
 
             if "Wound():" in line:
@@ -1995,6 +2031,7 @@ def index_log_combat(log_path: Path, aliases: dict[str, str]) -> dict:
 
     return {
         "steam_to_nick": steam_to_nick,
+        "angel_sightings": angel_sightings,
         "inactive_by_nick": inactive_by_nick,
         "inactive_by_steam": inactive_by_steam,
         "victim_steam": victim_steam,

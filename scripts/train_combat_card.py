@@ -30,6 +30,8 @@ DROP = {
     "gainCoef",
     "formula",
     "steam",
+    "killerSteam",
+    "victimSteam",
     "killerKey",
     "victimKey",
     "at_dt",
@@ -38,6 +40,13 @@ DROP = {
     "track",
     "victimTrack",
     "crewRole",
+}
+
+# Три Steam с игровым ярлыком «angel» — в combat-карте ключ angel#steamId.
+ANGEL_STEAMS = {
+    "76561198941350361",  # Саня BB
+    "76561198421145708",  # Алан
+    "76561198730638062",  # ALPHA ·8062
 }
 
 
@@ -52,6 +61,62 @@ def slim(e: dict) -> dict:
     out["delta"] = 0
     out.pop("victimDelta", None)
     return out
+
+
+def _angel_steam_at(
+    sightings: list[tuple], at: datetime | None
+) -> str:
+    """Последний Online/Inactive sighting «angel» на/до события."""
+    if at is None:
+        return ""
+    best = ""
+    best_t: datetime | None = None
+    for row in sightings or []:
+        if len(row) < 2:
+            continue
+        sat, steam = row[0], str(row[1] or "")
+        nk = str(row[2] if len(row) > 2 else "angel")
+        if nk != "angel" or not steam:
+            continue
+        if sat <= at and (best_t is None or sat >= best_t):
+            best_t = sat
+            best = steam
+    return best
+
+
+def _bucket_key(nick_key: str, steam: str) -> str:
+    if nick_key == "angel" and steam and steam in ANGEL_STEAMS:
+        return f"angel#{steam}"
+    return nick_key
+
+
+def annotate_angel_steam(
+    rows: list[dict],
+    idx: dict,
+    aliases: dict[str, str],
+    *,
+    killer_from_steam_field: bool,
+) -> None:
+    """Проставить killerSteam/victimSteam для разделения двух angel."""
+    sightings = idx.get("angel_sightings") or []
+    for e in rows:
+        at = e.get("at_dt") or e.get("at")
+        kk = str(e.get("killerKey") or R.canon_key(str(e.get("killer") or ""), aliases))
+        vk = str(e.get("victimKey") or R.canon_key(str(e.get("victim") or ""), aliases))
+        ks = ""
+        if killer_from_steam_field:
+            ks = str(e.get("steam") or "")
+        if kk == "angel" and not ks:
+            ks = _angel_steam_at(sightings, at if isinstance(at, datetime) else None)
+        vs = ""
+        if vk == "angel":
+            vs = _angel_steam_at(sightings, at if isinstance(at, datetime) else None)
+        e["killerSteam"] = ks
+        e["victimSteam"] = vs
+        if kk == "angel" and not e.get("killerKey"):
+            e["killerKey"] = kk
+        if vk == "angel" and not e.get("victimKey"):
+            e["victimKey"] = vk
 
 
 def _verify_dirs_for_match(match_id: str) -> list[Path]:
@@ -281,6 +346,20 @@ def bucket(events: list[dict], aliases: dict[str, str]) -> dict[str, dict]:
             by[key] = row
         return row
 
+    def add_killer(kk: str, e: dict, bucket_name: str) -> None:
+        if not kk:
+            return
+        steam = str(e.get("killerSteam") or e.get("steam") or "")
+        key = _bucket_key(kk, steam)
+        card(key, str(e.get("killer") or kk))[bucket_name].append(slim(e))
+
+    def add_victim(vk: str, e: dict, bucket_name: str) -> None:
+        if not vk:
+            return
+        steam = str(e.get("victimSteam") or "")
+        key = _bucket_key(vk, steam)
+        card(key, str(e.get("victim") or vk))[bucket_name].append(slim(e))
+
     for e in events:
         kind = str(e.get("kind") or "")
         kk = R.canon_key(str(e.get("killer") or ""), aliases)
@@ -290,27 +369,34 @@ def bucket(events: list[dict], aliases: dict[str, str]) -> dict[str, dict]:
             kind == "tk" and kk
         ):
             if kind == "driver_share" and e.get("reason") == "nok":
-                if kk:
-                    card(kk, str(e.get("killer") or kk))["noks"].append(slim_e)
+                add_killer(kk, e, "noks")
             elif kk and kind != "tk":
-                card(kk, str(e.get("killer") or kk))["kills"].append(slim_e)
+                add_killer(kk, e, "kills")
             elif kk and kind == "tk":
-                card(kk, str(e.get("killer") or kk))["teamkills"].append(slim_e)
+                add_killer(kk, e, "teamkills")
         if kind in ("die", "tk") and vk:
-            card(vk, str(e.get("victim") or vk))["deaths"].append(slim_e)
+            add_victim(vk, e, "deaths")
         if kind in ("vehicle_loss", "vehicle_loss_driver") and vk:
-            card(vk, str(e.get("victim") or vk))["deaths"].append(slim_e)
+            add_victim(vk, e, "deaths")
         if kind == "nok" and kk:
-            card(kk, str(e.get("killer") or kk))["noks"].append(slim_e)
+            add_killer(kk, e, "noks")
         if kind == "nok" and vk:
-            card(vk, str(e.get("victim") or vk))["gotNoks"].append(slim_e)
+            add_victim(vk, e, "gotNoks")
         if kind == "revive" and kk:
-            card(kk, str(e.get("killer") or kk))["revives"].append(slim_e)
+            add_killer(kk, e, "revives")
         if kind in ("vehicle_kill", "vehicle_loss", "vehicle_loss_driver"):
             who = kk if kind == "vehicle_kill" else vk
-            nick = str(e.get("killer") if kind == "vehicle_kill" else e.get("victim") or who)
+            nick = str(
+                e.get("killer") if kind == "vehicle_kill" else e.get("victim") or who
+            )
             if who:
-                card(who, nick)["vehicles"].append(slim_e)
+                steam = str(
+                    (e.get("killerSteam") if kind == "vehicle_kill" else e.get("victimSteam"))
+                    or e.get("steam")
+                    or ""
+                )
+                key = _bucket_key(who, steam)
+                card(key, nick)["vehicles"].append(slim_e)
     return by
 
 
@@ -385,6 +471,15 @@ def build(match_id: str) -> dict:
             noks.append(d)
     revives = R.revives_in_window(idx, t0, t1)
     vehicle_ops = R.vehicle_ops_in_window(idx, t0, t1, steam_to_nick, aliases)
+    annotate_angel_steam(dies, idx, aliases, killer_from_steam_field=True)
+    annotate_angel_steam(noks, idx, aliases, killer_from_steam_field=True)
+    annotate_angel_steam(revives, idx, aliases, killer_from_steam_field=False)
+    for op in vehicle_ops:
+        steam = str(op.get("steam") or "")
+        nk = str(op.get("nickKey") or op.get("killerKey") or "")
+        if nk == "angel" and steam:
+            op["killerSteam"] = steam
+            op["victimSteam"] = ""
     team_timeline = R.team_timeline_in_window(idx, t0, t1, faction_to_team)
     teams = R.teams_in_window(idx, t0, t1, faction_to_team)
     if not teams:
@@ -425,13 +520,19 @@ def build(match_id: str) -> dict:
             "net": 0,
             **card,
         }
-        out_players[R.nick_key(nick)] = body
-        out_players[key] = body
+        # Steam-ключи angel#… — канон. Plain nick_key не пишем для angel,
+        # иначе два Steam снова склеятся при чтении без --steam.
+        if key.startswith("angel#"):
+            out_players[key] = body
+        else:
+            out_players[R.nick_key(nick)] = body
+            out_players[key] = body
     doc = {
         "id": match_id,
         "map": map_name,
         "date": date,
         "time": time_s,
+        "steamSplit": True,
         "counts": {
             "players": len(players),
             "dies": die_n,
@@ -451,9 +552,31 @@ def build(match_id: str) -> dict:
     return doc
 
 
+def _lookup_player(doc: dict, nick: str, steam: str) -> dict | None:
+    players = doc.get("players") or {}
+    steam = str(steam or "").strip()
+    key = R.nick_key(nick)
+    plain_angel = key == "angel" or (
+        "".join(ch for ch in key if ch.isalnum()) == "angel"
+        or key.startswith("angel")
+    )
+    if steam and steam in ANGEL_STEAMS:
+        hit = players.get(f"angel#{steam}")
+        if hit is not None:
+            return hit
+    hit = players.get(key)
+    if hit is not None:
+        return hit
+    # Без Steam не отдаём общий «angel» омонимам (·8062 / Алан).
+    if plain_angel and not steam:
+        return players.get("angel")
+    return None
+
+
 def main() -> None:
     match_id = ""
     nick = ""
+    steam = ""
     args = sys.argv[1:]
     i = 0
     while i < len(args):
@@ -465,12 +588,17 @@ def main() -> None:
             nick = args[i + 1]
             i += 2
             continue
+        if args[i] == "--steam" and i + 1 < len(args):
+            steam = args[i + 1].strip()
+            i += 2
+            continue
         i += 1
     if not match_id or not all(c.isalnum() or c in "-_" for c in match_id):
         raise SystemExit("need --id")
     path = CACHE / f"{match_id}.json"
     doc = None
     force = "--rebuild" in args
+    need_steam_split = bool(steam and steam in ANGEL_STEAMS)
     if path.is_file() and not force:
         try:
             doc = json.loads(path.read_text(encoding="utf-8"))
@@ -483,6 +611,18 @@ def main() -> None:
             or int(counts.get("players") or 0) < 1
             or not players
         )
+        # Старый кэш без steamSplit — два angel склеены; пересобрать.
+        if (
+            need_steam_split
+            and isinstance(doc, dict)
+            and not doc.get("steamSplit")
+            and isinstance(players, dict)
+            and (
+                f"angel#{steam}" not in players
+                or "angel" in players
+            )
+        ):
+            doc = None
         # Пустая заглушка при живом layer.log — пересобрать один раз.
         # exhausted=true: лога уже нет / парсер пуст — не долбить диск на каждый клик.
         if empty and not (isinstance(doc, dict) and doc.get("exhausted")):
@@ -503,8 +643,7 @@ def main() -> None:
         counts = doc.get("counts") or {}
         print(json.dumps({"ok": True, "id": match_id, "counts": counts}, ensure_ascii=False))
         return
-    key = R.nick_key(nick)
-    player = (doc.get("players") or {}).get(key)
+    player = _lookup_player(doc, nick, steam)
     if player is None:
         print(json.dumps({"ok": True, "match": None}, ensure_ascii=False))
         return

@@ -25,6 +25,7 @@ export type MatchStatsOpen =
       r1Tickets?: string;
       r2Tickets?: string;
       highlightNick?: string;
+      steamId?: string | null;
     }
   | {
       kind: "train";
@@ -39,6 +40,7 @@ export type MatchStatsOpen =
       winner?: string;
       duration?: string;
       highlightNick?: string;
+      steamId?: string | null;
     }
   | {
       kind: "public";
@@ -52,6 +54,7 @@ export type MatchStatsOpen =
       factionB: string;
       ticketsB: number | null;
       highlightNick?: string;
+      steamId?: string | null;
     };
 
 type PlayerRow = {
@@ -292,6 +295,7 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
     if (!open || open.kind !== "train" || tab !== "rpDetail") return;
     const nick = (open.highlightNick || "").trim();
     if (!nick) return;
+    const steam = (open.steamId || "").trim();
     let cancelled = false;
     setRpLoading(true);
     setRpMatch(null);
@@ -305,11 +309,17 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
 
     (async () => {
       // Канон для профиля: карточка из лога (combat-detail), не RP-лестница.
+      // steamId обязателен для angel BB / ALPHA ·8062 / Алан — иначе разбор склеится.
       try {
-        const res = await fetch(
-          `/api/train/combat-detail?nick=${encodeURIComponent(nick)}&matchId=${encodeURIComponent(open.matchId)}`,
-          { cache: "no-store", credentials: "same-origin" }
-        );
+        const q = new URLSearchParams({
+          nick,
+          matchId: open.matchId,
+        });
+        if (steam) q.set("steamId", steam);
+        const res = await fetch(`/api/train/combat-detail?${q}`, {
+          cache: "no-store",
+          credentials: "same-origin",
+        });
         if (res.ok) {
           const json = (await res.json()) as { match?: RpPlayerMatch | null };
           if (json.match && lineCount(json.match) > 0) {
@@ -812,6 +822,19 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
         : [];
 
   const highlight = (open.highlightNick || "").trim().toLowerCase();
+  const highlightIsAngel = (() => {
+    const s = (open.highlightNick || "")
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, "");
+    return s === "angel";
+  })();
+  const rowIsHighlight = (scoreboardNick: string) => {
+    const a = scoreboardNick.trim().toLowerCase();
+    if (!highlight) return false;
+    if (a === highlight) return true;
+    if (!highlightIsAngel) return false;
+    return a.replace(/[^\p{L}\p{N}]+/gu, "") === "angel";
+  };
 
   const modal = (
     <div className="profile-match-modal" role="presentation">
@@ -1022,9 +1045,7 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
                   <tbody>
                     {sorted.map((p, i) => {
                       const medals = medalCounts(p.nick);
-                      const isMe =
-                        highlight &&
-                        p.nick.trim().toLowerCase() === highlight;
+                      const isMe = rowIsHighlight(p.nick);
                       const delta = pwrDeltas[p.nick.trim().toLowerCase()];
                       const deltaCls =
                         delta == null
