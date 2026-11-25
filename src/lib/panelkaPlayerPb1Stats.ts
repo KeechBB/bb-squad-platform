@@ -279,30 +279,79 @@ async function geoFromIp(ip: string): Promise<PanelkaPlayerPb1Stats["location"]>
   if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) {
     return { ...empty, ip: null };
   }
+  // ip-api.com is often blocked from VPS — use ipwho.is, then geojs.io
   try {
     const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), 6000);
+    const timer = setTimeout(() => ac.abort(), 7000);
+    const res = await fetch(`https://ipwho.is/${encodeURIComponent(ip)}`, {
+      signal: ac.signal,
+      cache: "no-store",
+    }).finally(() => clearTimeout(timer));
+    const data = (await res.json().catch(() => null)) as {
+      success?: boolean;
+      country?: string;
+      region?: string;
+      city?: string;
+      timezone?: { offset?: number; utc?: string; id?: string };
+    } | null;
+    if (data?.success) {
+      const utcOffsetHours = Math.round((Number(data.timezone?.offset) || 0) / 3600);
+      const offsetFromMsk = utcOffsetHours - MSK_OFFSET_HOURS;
+      return {
+        country: data.country || null,
+        region: data.region || null,
+        city: data.city || null,
+        flag: null,
+        offsetFromMsk,
+        offsetLabel: formatOffsetFromMsk(offsetFromMsk),
+        ip,
+        source: "geoip",
+      };
+    }
+  } catch {
+    /* try fallback */
+  }
+  try {
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 7000);
     const res = await fetch(
-      `http://ip-api.com/json/${encodeURIComponent(ip)}?lang=ru&fields=status,country,regionName,city,offset,query`,
+      `https://get.geojs.io/v1/ip/geo/${encodeURIComponent(ip)}.json`,
       { signal: ac.signal, cache: "no-store" }
     ).finally(() => clearTimeout(timer));
     const data = (await res.json().catch(() => null)) as {
-      status?: string;
       country?: string;
-      regionName?: string;
+      region?: string;
       city?: string;
-      offset?: number;
+      timezone?: string;
     } | null;
-    if (!data || data.status !== "success") return empty;
-    const utcOffsetHours = Math.round((Number(data.offset) || 0) / 3600);
-    const offsetFromMsk = utcOffsetHours - MSK_OFFSET_HOURS;
+    if (!data?.country) return empty;
+    // Approximate offset via Intl if timezone id present
+    let offsetFromMsk: number | null = null;
+    if (data.timezone) {
+      try {
+        const fmt = new Intl.DateTimeFormat("en-US", {
+          timeZone: data.timezone,
+          timeZoneName: "shortOffset",
+        });
+        const parts = fmt.formatToParts(new Date());
+        const raw = parts.find((p) => p.type === "timeZoneName")?.value || "";
+        const m = raw.match(/GMT([+-]\d+)(?::(\d+))?/i);
+        if (m) {
+          const h = Number(m[1]);
+          offsetFromMsk = h - MSK_OFFSET_HOURS;
+        }
+      } catch {
+        offsetFromMsk = null;
+      }
+    }
     return {
       country: data.country || null,
-      region: data.regionName || null,
+      region: data.region || null,
       city: data.city || null,
       flag: null,
       offsetFromMsk,
-      offsetLabel: formatOffsetFromMsk(offsetFromMsk),
+      offsetLabel:
+        offsetFromMsk != null ? formatOffsetFromMsk(offsetFromMsk) : null,
       ip,
       source: "geoip",
     };
