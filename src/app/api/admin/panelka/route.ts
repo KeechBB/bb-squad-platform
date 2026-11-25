@@ -51,15 +51,6 @@ function cleanReason(raw: unknown, limit = 120): string {
     .slice(0, limit);
 }
 
-function formatHours(totalMinutes: number): string {
-  const minutes = Math.max(0, Math.round(totalMinutes));
-  if (minutes < 60) return `${minutes} мин`;
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  if (rest === 0) return `${hours} ч`;
-  return `${hours} ч ${rest} мин`;
-}
-
 /** Fast card shell: user + faction only (hours come from PB1 disk cache). */
 async function siteProfileLight(steamId: string) {
   const user = await prisma.user.findFirst({
@@ -87,36 +78,6 @@ async function siteProfileLight(steamId: string) {
     publicHoursLabel: "—",
     publicMinutes: 0,
     sessions: 0,
-  };
-}
-
-async function siteProfile(steamId: string) {
-  const base = await siteProfileLight(steamId);
-  const sessions = await prisma.squadServerSession.findMany({
-    where: {
-      steamId,
-      leftAt: { not: null },
-      serverKey: { in: ["TPUB1", "PB1", "TPUB", "PUBLIC"] },
-    },
-    select: { joinedAt: true, leftAt: true },
-    orderBy: { joinedAt: "desc" },
-    take: 4000,
-  });
-
-  let totalMinutes = 0;
-  for (const row of sessions) {
-    if (!row.leftAt) continue;
-    totalMinutes += Math.max(
-      0,
-      (row.leftAt.getTime() - row.joinedAt.getTime()) / 60000
-    );
-  }
-
-  return {
-    ...base,
-    publicHoursLabel: formatHours(totalMinutes),
-    publicMinutes: Math.round(totalMinutes),
-    sessions: sessions.length,
   };
 }
 
@@ -228,8 +189,8 @@ export async function GET(req: Request) {
           labels: [] as [],
         })),
       ]);
-      let pb1Stats = disk?.stats || null;
-      let pb1Meta = {
+      const pb1Stats = disk?.stats || null;
+      const pb1Meta = {
         fromCache: Boolean(disk),
         updatedAt: disk?.updatedAt || null,
       };
