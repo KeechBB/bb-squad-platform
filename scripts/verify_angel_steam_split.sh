@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Постматчевая / cron сверка angel BB vs Алан vs ALPHA ·8062 по Steam.
+# --fix также чинит табло: [BB] angel / 〔 A 〕 angel на своих сторонах.
 set -uo pipefail
 ROOT="${BB_PLATFORM_ROOT:-/var/www/bb-squad-platform}"
 cd "$ROOT"

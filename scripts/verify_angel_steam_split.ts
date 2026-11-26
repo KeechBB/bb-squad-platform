@@ -1,6 +1,10 @@
 /**
  * Постматчевая сверка: angel BB / Алан / ALPHA ·8062 строго по Steam.
  *
+ * Проверяет combat-карточки, историю, фракции/рост, публичные вкладки
+ * и табло teamA/teamB: у каждого свой Steam + клан-тег ([BB] / 〔 A 〕),
+ * не один plain «angel» на чужой стороне.
+ *
  * Usage:
  *   npx tsx scripts/verify_angel_steam_split.ts
  *   npx tsx scripts/verify_angel_steam_split.ts --since 2026-11-25
@@ -8,6 +12,7 @@
  *   npx tsx scripts/verify_angel_steam_split.ts --fix
  *   npx tsx scripts/verify_angel_steam_split.ts --json
  *
+ * --fix: пересобрать combat + heal_angel_scoreboard_sides.py (теги/стороны).
  * Exit 0 = OK, 1 = FAIL (для cron / post-match).
  */
 import { spawnSync } from "node:child_process";
@@ -46,6 +51,8 @@ type AngelWho = {
   label: string;
   steamId: string;
   siteNick: string;
+  /** Ожидаемый clanTag на табло после heal (пусто = не требуем). */
+  clanTag: string;
 };
 
 const WHO: AngelWho[] = [
@@ -53,16 +60,19 @@ const WHO: AngelWho[] = [
     label: "BB-Sanya",
     steamId: BB_ANGEL_STEAM_ID,
     siteNick: ANGEL_COLLISIONS[0]!.siteNick,
+    clanTag: "BB",
   },
   {
     label: "Alan",
     steamId: ALAN_ANGEL_STEAM_ID,
     siteNick: ANGEL_COLLISIONS[1]!.siteNick,
+    clanTag: "",
   },
   {
     label: "ALPHA-8062",
     steamId: ALPHA_ANGEL_STEAM_ID,
     siteNick: ANGEL_COLLISIONS[2]!.siteNick,
+    clanTag: "A",
   },
 ];
 
@@ -242,8 +252,22 @@ function healScoreboardSides(matchId: string): boolean {
 
 function readPlayersDoc(matchId: string): {
   angelSteamSplit?: boolean;
-  teamA?: Array<{ nick?: string; steamId?: string; clanTag?: string }>;
-  teamB?: Array<{ nick?: string; steamId?: string; clanTag?: string }>;
+  teamA?: Array<{
+    nick?: string;
+    steamId?: string;
+    clanTag?: string;
+    kills?: number;
+    deaths?: number;
+    res?: number;
+  }>;
+  teamB?: Array<{
+    nick?: string;
+    steamId?: string;
+    clanTag?: string;
+    kills?: number;
+    deaths?: number;
+    res?: number;
+  }>;
 } | null {
   const p = kvPlayersPath(matchId);
   if (!fs.existsSync(p)) return null;
@@ -362,42 +386,105 @@ async function verifyMatch(
     }
   }
 
-  // Табло: у каждого Steam своя строка с тегом, не один plain angel.
-  let players = readPlayersDoc(m.id);
-  if (doFix && present.length >= 2) {
+  // Табло teamA/B: Steam + клан-тег ([BB] / 〔 A 〕), не один plain angel.
+  if (doFix) {
     healScoreboardSides(m.id);
-    players = readPlayersDoc(m.id);
   }
-  if (players && present.length >= 2) {
-    const rows = [...(players.teamA || []), ...(players.teamB || [])];
-    const bySteam = new Map(
-      rows
-        .filter((r) => r.steamId)
-        .map((r) => [String(r.steamId), r] as const)
-    );
-    const missing = present.filter((w) => !bySteam.has(w.steamId));
-    const plainOnly = rows.filter((r) => {
-      const n = String(r.nick || "")
-        .toLowerCase()
-        .replace(/[^\p{L}\p{N}]+/gu, "");
-      return n === "angel" && !r.steamId;
-    });
+  const players = readPlayersDoc(m.id);
+  if (!players) {
+    add(checks, false, "scoreboard-sides", "—", `${m.id}: нет players JSON`);
+    return;
+  }
+  const rows = [...(players.teamA || []), ...(players.teamB || [])];
+  const bySteam = new Map(
+    rows
+      .filter((r) => r.steamId)
+      .map((r) => [String(r.steamId), r] as const)
+  );
+  const plainOnly = rows.filter((r) => {
+    let n = String(r.nick || "").trim();
+    n = n.replace(/^[\[【〔][^\]】〕]*[\]】〕]\s*/u, "");
+    n = n.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+    return n === "angel" && !r.steamId;
+  });
+  if (plainOnly.length) {
     add(
       checks,
-      missing.length === 0 && plainOnly.length === 0,
+      false,
       "scoreboard-sides",
-      present.map((p) => p.label).join("+"),
-      missing.length || plainOnly.length
-        ? `${m.id}: missing=${missing.map((x) => x.label).join(",") || "—"} plain=${plainOnly.length} split=${Boolean(players.angelSteamSplit)}`
-        : `${m.id}: ${present
-            .map((w) => {
-              const r = bySteam.get(w.steamId)!;
-              const onA = (players.teamA || []).some(
-                (x) => String(x.steamId || "") === w.steamId
-              );
-              return `${w.label}@${onA ? "A" : "B"}/${r.clanTag || "?"}`;
-            })
-            .join(" ")}`
+      "plain",
+      `${m.id}: ${plainOnly.length} plain angel без steamId (нужен heal)`
+    );
+  }
+
+  const sideOf = (steamId: string): "A" | "B" | "?" => {
+    if ((players.teamA || []).some((x) => String(x.steamId || "") === steamId))
+      return "A";
+    if ((players.teamB || []).some((x) => String(x.steamId || "") === steamId))
+      return "B";
+    return "?";
+  };
+
+  for (const w of present) {
+    const row = bySteam.get(w.steamId);
+    if (!row) {
+      add(
+        checks,
+        false,
+        "scoreboard-sides",
+        w.label,
+        `${m.id}: нет строки табло со steamId=${w.steamId}`
+      );
+      continue;
+    }
+    const side = sideOf(w.steamId);
+    const tag = String(row.clanTag || "").trim();
+    const tagOk = !w.clanTag || tag === w.clanTag;
+    add(
+      checks,
+      tagOk && side !== "?",
+      "scoreboard-sides",
+      w.label,
+      tagOk && side !== "?"
+        ? `${m.id}: @${side} nick=${row.nick} tag=${tag || "—"}`
+        : `${m.id}: @${side} nick=${row.nick} tag=${tag || "—"} wantTag=${w.clanTag || "—"}`
+    );
+
+    // Цифры на табло = combat angel#steam (k/d/res).
+    const st = cardStats(card, w.steamId);
+    if (st) {
+      const tk = Number(row.kills) || 0;
+      const td = Number(row.deaths) || 0;
+      const tr = Number(row.res) || 0;
+      const okStats =
+        tk === st.kills && td === st.deaths && tr === st.res;
+      add(
+        checks,
+        okStats,
+        "scoreboard-vs-combat",
+        w.label,
+        okStats
+          ? `${m.id}: tablo=combat k${st.kills}/d${st.deaths}/r${st.res}`
+          : `${m.id}: tablo k${tk}/d${td}/r${tr} ≠ combat k${st.kills}/d${st.deaths}/r${st.res}`
+      );
+    }
+  }
+
+  // BB и ALPHA на одной катке — обязательно разные стороны (как в логе по тегам).
+  const bb = present.find((w) => w.steamId === BB_ANGEL_STEAM_ID);
+  const alpha = present.find((w) => w.steamId === ALPHA_ANGEL_STEAM_ID);
+  if (bb && alpha && bySteam.has(bb.steamId) && bySteam.has(alpha.steamId)) {
+    const sBb = sideOf(bb.steamId);
+    const sAlpha = sideOf(alpha.steamId);
+    const splitOk = sBb !== "?" && sAlpha !== "?" && sBb !== sAlpha;
+    add(
+      checks,
+      splitOk,
+      "scoreboard-opposite",
+      "BB/ALPHA",
+      splitOk
+        ? `${m.id}: BB@${sBb} vs ALPHA@${sAlpha} (теги разные, стороны разные)`
+        : `${m.id}: BB@${sBb} ALPHA@${sAlpha} — должны быть на разных сторонах`
     );
   }
 }
