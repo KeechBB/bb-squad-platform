@@ -104,13 +104,11 @@ def iter_log_files(server: str, since: str) -> list[Path]:
             month_start = datetime(int(y), int(m), 1)
         except Exception:
             continue
+        # only months that can contain rows on/after --since
         if month_start.year < since_dt.year or (
             month_start.year == since_dt.year and month_start.month < since_dt.month
         ):
-            # still include if month overlaps (e.g. Oct backups ending Nov 1)
-            if not (month_start.year == since_dt.year and month_start.month == since_dt.month - 1):
-                if month_start < since_dt.replace(day=1):
-                    continue
+            continue
         for p in sorted(month_dir.glob("*.log")):
             out.append(p)
     # dedupe by resolve
@@ -141,7 +139,15 @@ def parse_file(
     steam_faction: dict[str, str] = {}
     steam_team: dict[str, str] = {}
     steam_nick: dict[str, str] = {}
+    nick_steam: dict[str, str] = {}  # clean_nick lower → steam
     added = 0
+
+    def remember_nick(steam: str, nick: str) -> None:
+        n = clean_nick(nick)
+        if not steam or not n:
+            return
+        steam_nick[steam] = n
+        nick_steam[n.lower()] = steam
 
     try:
         fh = path.open("r", encoding="utf-8", errors="replace", buffering=1024 * 1024)
@@ -152,8 +158,8 @@ def parse_file(
     with fh:
         for line in fh:
             ymd, clock, disp = msk_stamp(line)
-            if ymd and ymd < since:
-                continue
+            # Keep identity maps even before --since (needed for early-Nov dies).
+            # Only skip Die attribution when ymd < since.
 
             pl = POSTLOGIN_RE.search(line)
             if pl:
@@ -166,9 +172,7 @@ def parse_file(
                 pawn = pm.group("pawn").split()[0].rstrip(",;")
                 steam = pm.group("steam")
                 pawn_owner[pawn] = steam
-                nick = clean_nick(pm.group("nick"))
-                if nick:
-                    steam_nick[steam] = nick
+                remember_nick(steam, pm.group("nick"))
                 mfac = re.search(r"BP_Soldier_([A-Za-z0-9]+)_", pawn)
                 if mfac:
                     steam_faction[steam] = mfac.group(1).upper()
@@ -177,37 +181,41 @@ def parse_file(
             if sm:
                 steam = sm.group("steam")
                 steam_faction[steam] = (sm.group("faction") or "").strip()
-                nick = clean_nick(sm.group("nick"))
-                if nick:
-                    steam_nick[steam] = nick
+                remember_nick(steam, sm.group("nick"))
 
             tm = TEAM_MARK_RE.search(line)
             if tm:
                 steam = tm.group("steam")
                 steam_team[steam] = tm.group("team")
-                nick = clean_nick(tm.group("nick"))
-                if nick:
-                    steam_nick[steam] = nick
+                remember_nick(steam, tm.group("nick"))
 
             dm = DIE_RE.search(line)
             if not dm:
                 continue
+            if ymd and ymd < since:
+                continue
+
+            # Squad Die Online IDs steam = KILLER (same as controller owner),
+            # not victim — see rp_log_parse._resolve_combat_row.
             causer = dm.group("causer").rstrip(",;")
-            killer_steam = ctrl_owner.get(causer) or pawn_owner.get(causer)
-            if not killer_steam:
-                # BP_PlayerController_C_123 → match by id suffix
+            killer_steam = dm.group("vsteam")  # misnamed group: killer steam
+            if causer.lower() in ("nullptr", "none", "null"):
+                continue
+            ctrl_steam = ctrl_owner.get(causer) or pawn_owner.get(causer)
+            if not ctrl_steam:
                 mcid = re.search(r"BP_PlayerController_C_(\d+)", causer)
                 if mcid:
-                    killer_steam = ctrl_owner.get(f"BP_PlayerController_C_{mcid.group(1)}")
-            if not killer_steam:
-                base = causer.rsplit("_", 1)[0] if "_" in causer else causer
-                for pawn, owner in pawn_owner.items():
-                    if pawn.startswith(base) or causer.startswith(pawn.rsplit("_", 1)[0]):
-                        killer_steam = owner
-                        break
+                    ctrl_steam = ctrl_owner.get(f"BP_PlayerController_C_{mcid.group(1)}")
+            if ctrl_steam:
+                killer_steam = ctrl_steam
             if not killer_steam:
                 continue
-            victim_steam = dm.group("vsteam")
+
+            victim_name = clean_nick(dm.group("victim"))
+            victim_steam = nick_steam.get(victim_name.lower()) if victim_name else None
+            if not victim_steam:
+                # last resort: ignore — cannot attribute victim
+                continue
             if victim_steam == killer_steam:
                 continue
 
@@ -227,9 +235,8 @@ def parse_file(
             if not same:
                 continue
 
-            victim_name = clean_nick(dm.group("victim")) or steam_nick.get(
-                victim_steam, victim_steam
-            )
+            if not victim_name:
+                victim_name = steam_nick.get(victim_steam, victim_steam)
             if not ymd:
                 ymd, clock, disp = msk_stamp(line)
             row = {
