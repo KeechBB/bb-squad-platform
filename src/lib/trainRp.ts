@@ -10,6 +10,7 @@ import {
   sortRpMatchesNewestFirst,
   sortRpMatchesOldestFirst,
 } from "@/lib/rpMatchSort";
+import { formatYmdShort } from "@/lib/formatYmd";
 
 export {
   rpMatchSortKey,
@@ -515,7 +516,7 @@ export async function listRpTrainingMatches(): Promise<RpMatchListItem[]> {
   return sortRpMatchesNewestFirst(ledger.matches).map((m) => {
     const date = String(m.date || "");
     const map = String(m.map || m.id);
-    const short = date.length >= 10 ? date.slice(5).replace("-", ".") : date;
+    const short = formatYmdShort(date) || date;
     return {
       id: String(m.id),
       map,

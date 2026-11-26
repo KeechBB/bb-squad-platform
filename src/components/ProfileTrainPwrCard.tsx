@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import type { HomeTrainPwrRow } from "@/lib/homeTrainPwr";
 import type { RpPlayer, RpPlayerMatch } from "@/lib/trainRp";
 import { sortRpMatchesNewestFirst } from "@/lib/rpMatchSort";
+import { formatYmdShort } from "@/lib/formatYmd";
 import { ProfileCompareCard } from "@/components/ProfileCompareCard";
 import { RpHuntMatchBreakdown } from "@/components/RpHuntMatchBreakdown";
 
@@ -166,7 +167,7 @@ export function ProfileTrainPwrCard({ stats, compareNick }: Props) {
                     onClick={() => setMatchOpen(m)}
                   >
                     <span className="rp-maps-date">
-                      {m.date?.slice(5)?.replace("-", ".") || m.date}
+                      {formatYmdShort(m.date) || m.date}
                     </span>
                     <span className="rp-maps-map">{m.map}</span>
                     <span

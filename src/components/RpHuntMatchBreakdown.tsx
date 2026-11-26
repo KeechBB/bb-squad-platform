@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import type { RpMatchEvent, RpPlayerMatch } from "@/lib/trainRp";
+import { formatYmdShort } from "@/lib/formatYmd";
 import { formatRpEventLabel, isVehicleRpEvent } from "@/lib/rpVehicleLabels";
 
 function fmtDelta(n: number) {
@@ -288,7 +289,7 @@ export function RpHuntMatchBreakdown({
   hideRp = false,
 }: Props) {
   const cols = useRpMatchColumns(match);
-  const dateShort = match.date?.slice(5)?.replace("-", ".") || match.date;
+  const dateShort = formatYmdShort(match.date) || match.date;
 
   useEffect(() => {
     if (embedded) return;

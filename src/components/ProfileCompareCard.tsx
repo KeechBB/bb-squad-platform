@@ -8,6 +8,7 @@ import type {
   RpMatchListItem,
 } from "@/lib/playerCompare";
 import type { RpMatchEvent, RpPlayerMatch } from "@/lib/trainRp";
+import { formatYmdShort } from "@/lib/formatYmd";
 import { formatRpEventLabel, isVehicleRpEvent } from "@/lib/rpVehicleLabels";
 import { HitmapSilhouette } from "@/components/HitmapSilhouette";
 
@@ -343,10 +344,7 @@ function MatchCompareBlock({
   leftNick: string;
   rightNick: string;
 }) {
-  const dateShort =
-    match.date.length >= 10
-      ? match.date.slice(5).replace("-", ".")
-      : match.date;
+  const dateShort = formatYmdShort(match.date) || match.date;
   return (
     <div className="compare-match-block">
       <div className="compare-match-title">

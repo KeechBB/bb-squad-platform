@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { RpPlayer, RpPlayerMatch } from "@/lib/trainRp";
 import { sortRpMatchesNewestFirst } from "@/lib/rpMatchSort";
+import { formatYmdShort } from "@/lib/formatYmd";
 import { RpHuntMatchBreakdown } from "@/components/RpHuntMatchBreakdown";
 
 function fmtDelta(n: number) {
@@ -146,7 +147,7 @@ export function RpPlayerDrilldown({ nick, open, onClose, player: prefetched }: P
                     onClick={() => setMatchOpen(m)}
                   >
                     <span className="rp-maps-date">
-                      {m.date?.slice(5)?.replace("-", ".") || m.date}
+                      {formatYmdShort(m.date) || m.date}
                     </span>
                     <span className="rp-maps-map">{m.map}</span>
                     <span
