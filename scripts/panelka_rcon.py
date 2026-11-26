@@ -892,6 +892,17 @@ ADMINS_CFG = "/home/squad/admins/Admins.cfg"
 BANS_CFG = "/home/squad/admins/Bans.cfg"
 VIP_GROUP = "QueuePriority"
 VIP_STORE = "/home/squad/admins/bb-vips.json"
+# QueuePriority / VIP live only on public PB1 — always reload that server after cfg write.
+VIP_LIVE_KEY = "PB1"
+
+
+def _vip_reload_pb1():
+    """Push Admins.cfg into the running PB1 process (no reconnect needed)."""
+    try:
+        text = rcon(VIP_LIVE_KEY, "AdminReloadServerConfig", attempts=2)
+        return {"ok": True, "key": VIP_LIVE_KEY, "text": (text or "").strip()[:240]}
+    except Exception as e:
+        return {"ok": False, "key": VIP_LIVE_KEY, "error": str(e)}
 VIP_META_RE = re.compile(
     r"bb-vip\s+until=(?P<until>\S+)\s+by=(?P<by>[^\s]+)\s+granted=(?P<granted>\S+)",
     re.I,
@@ -1012,7 +1023,9 @@ def heal_bb_vips():
         healed += 1
     if healed:
         _atomic_write(ADMINS_CFG, "\n".join(lines) + "\n")
-    return {"ok": True, "healed": healed}
+        reload = _vip_reload_pb1()
+        return {"ok": True, "healed": healed, "reloaded": reload}
+    return {"ok": True, "healed": 0}
 
 def list_vips():
     heal_bb_vips()
@@ -1069,6 +1082,7 @@ def vip_add(steam_id, by_nick="", until="", granted="", note=""):
             already = True
             break
     new_line = _vip_line(steam_id, by, until_s, granted_s, note_s)
+    updated = False
     if already:
         out = []
         for line in lines:
@@ -1077,21 +1091,36 @@ def vip_add(steam_id, by_nick="", until="", granted="", note=""):
             else:
                 out.append(line)
         _atomic_write(ADMINS_CFG, "\n".join(out) + ("\n" if text.endswith("\n") else ""))
-        return {"ok": True, "reply": "випка обновлена", "steamId": steam_id, "updated": True}
-    # insert after last QueuePriority Admin line, else after Group= lines
-    insert_at = None
-    last_group = 0
-    for i, line in enumerate(lines):
-        s = line.strip()
-        if s.startswith("Group="):
-            last_group = i
-        if re.match(r"Admin=7656\d+\s*:\s*" + VIP_GROUP + r"\b", s, re.I):
-            insert_at = i + 1
-    if insert_at is None:
-        insert_at = last_group + 1
-    lines.insert(insert_at, new_line)
-    _atomic_write(ADMINS_CFG, "\n".join(lines) + "\n")
-    return {"ok": True, "reply": "випка выдана", "steamId": steam_id, "updated": False}
+        updated = True
+    else:
+        # insert after last QueuePriority Admin line, else after Group= lines
+        insert_at = None
+        last_group = 0
+        for i, line in enumerate(lines):
+            s = line.strip()
+            if s.startswith("Group="):
+                last_group = i
+            if re.match(r"Admin=7656\d+\s*:\s*" + VIP_GROUP + r"\b", s, re.I):
+                insert_at = i + 1
+        if insert_at is None:
+            insert_at = last_group + 1
+        lines.insert(insert_at, new_line)
+        _atomic_write(ADMINS_CFG, "\n".join(lines) + "\n")
+    reload = _vip_reload_pb1()
+    reply = "випка обновлена" if updated else "випка выдана"
+    if reload.get("ok"):
+        reply += " — PB1 config reload"
+    else:
+        reply += " — cfg записан, PB1 reload не прошёл (%s)" % (
+            reload.get("error") or "timeout"
+        )
+    return {
+        "ok": True,
+        "reply": reply,
+        "steamId": steam_id,
+        "updated": updated,
+        "reloaded": reload,
+    }
 
 def vip_remove(steam_id):
     if not re.fullmatch(r"7656\d{13}", steam_id or ""):
@@ -1113,7 +1142,21 @@ def vip_remove(steam_id):
         return {"ok": False, "error": "випки нет в Admins.cfg"}
     if removed:
         _atomic_write(ADMINS_CFG, "\n".join(kept) + ("\n" if text.endswith("\n") else ""))
-    return {"ok": True, "reply": "випка снята", "steamId": steam_id, "removed": removed or store_removed}
+    reload = _vip_reload_pb1()
+    reply = "випка снята"
+    if reload.get("ok"):
+        reply += " — PB1 config reload"
+    else:
+        reply += " — cfg обновлён, PB1 reload не прошёл (%s)" % (
+            reload.get("error") or "timeout"
+        )
+    return {
+        "ok": True,
+        "reply": reply,
+        "steamId": steam_id,
+        "removed": removed or store_removed,
+        "reloaded": reload,
+    }
 
 CAMERA_GROUP = "Cameraman"
 CAMERA_STORE = "/home/squad/admins/bb-cameras.json"
