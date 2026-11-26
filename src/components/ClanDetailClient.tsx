@@ -263,6 +263,40 @@ export function ClanDetailClient({
     }
   }
 
+  async function revokeVip(member: Member) {
+    const nick = member.user.nick || member.user.steamName || "игрок";
+    if (
+      !window.confirm(
+        `Снять VIP с ${nick}?\n\nПропадёт приоритет очереди и смена команды без баланса на паблике.`
+      )
+    ) {
+      return;
+    }
+    setLoading(true);
+    setError("");
+    setOk("");
+    try {
+      const res = await fetch(`/api/clans/${clan.id}/vip`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: member.id }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string; reply?: string };
+      if (!res.ok || !data.ok) {
+        setError(data.error || "VIP не снят");
+        return;
+      }
+      setOk(data.reply || "VIP снят");
+      setMembers((prev) =>
+        prev.map((m) => (m.id === member.id ? { ...m, hasVip: false } : m))
+      );
+    } catch {
+      setError("нет связи");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const refreshMembers = useCallback(async () => {
     try {
       const res = await fetch(`/api/clans/${clan.id}`, { cache: "no-store" });
@@ -1237,9 +1271,15 @@ export function ClanDetailClient({
                           {showVipCol ? (
                             <td>
                               {m.hasVip ? (
-                                <span className="clan-vip-on" title="VIP уже активен на паблике">
+                                <button
+                                  type="button"
+                                  className="clan-vip-on clan-vip-revoke"
+                                  title="VIP активен — нажми, чтобы снять"
+                                  disabled={loading}
+                                  onClick={() => void revokeVip(m)}
+                                >
                                   VIP ✓
-                                </span>
+                                </button>
                               ) : m.user.steamId ? (
                                 <button
                                   type="button"

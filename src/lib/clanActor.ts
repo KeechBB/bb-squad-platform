@@ -3,8 +3,12 @@ import { isBuiltinSuperAdmin } from "@/lib/admin";
 import { normalizeClanTag } from "@/lib/clanMapColor";
 import type { ClanRole } from "@/lib/clan";
 
-/** Кланы с кнопкой «Выдать VIP» главе/заму. */
+/** Кланы с кнопкой VIP главе/заму (QueuePriority на паблике). */
 const VIP_CLAN_TAGS = new Set(["BB", "DL", "A", "HIVE"]);
+
+export function vipClanTags(): string[] {
+  return [...VIP_CLAN_TAGS];
+}
 
 export function isPlatformClanOwner(steamId: string | null | undefined): boolean {
   return isBuiltinSuperAdmin(steamId);
