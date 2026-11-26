@@ -76,7 +76,7 @@ async function main() {
       byNick: true,
       note: true,
     },
-    orderBy: { grantedAt: "desc" },
+    orderBy: { createdAt: "desc" },
   });
 
   const missing = db.filter((g) => !cfgSet.has(g.steamId));
