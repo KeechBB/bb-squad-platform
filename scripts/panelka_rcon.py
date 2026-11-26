@@ -1303,6 +1303,30 @@ def camera_has(steam_id):
         "inStore": in_store,
     }
 
+def _camera_live_targets(steam_id, key=""):
+    """Servers to push live freecam: explicit key, else wherever the Steam is online."""
+    if key in UI_KEYS:
+        return [key]
+    hits = []
+    for k in UI_KEYS:
+        try:
+            text = rcon(k, "ListPlayers", attempts=1)
+        except Exception:
+            continue
+        if steam_id and steam_id in (text or ""):
+            hits.append(k)
+    return hits
+
+def _camera_live_grant(steam_id, key=""):
+    live_on = []
+    for k in _camera_live_targets(steam_id, key):
+        try:
+            rcon(k, "AdminAddCameraman %s" % steam_id, attempts=2)
+            live_on.append(k)
+        except Exception:
+            pass
+    return live_on
+
 def camera_add(steam_id, by_nick="", granted="", note="", key="", name=""):
     if not re.fullmatch(r"7656\d{13}", steam_id or ""):
         return {"ok": False, "error": "неверный Steam ID"}
@@ -1352,11 +1376,19 @@ def camera_add(steam_id, by_nick="", granted="", note="", key="", name=""):
             "date": time.strftime("%Y-%m-%d"),
             "clock": time.strftime("%H:%M:%S"),
         })
+        live_on = _camera_live_grant(steam_id, key)
+        reply = "камера уже была — запись обновлена (держится после синка Sqstat)"
+        if live_on:
+            reply += " — freecam запушен на %s (если нет — пусть перезайдёт)" % ",".join(live_on)
+        else:
+            reply += " — пусть перезайдёт для freecam"
         return {
             "ok": True,
-            "reply": "камера уже была — запись обновлена (держится после синка Sqstat)",
+            "reply": reply,
             "steamId": steam_id,
             "updated": True,
+            "live": bool(live_on),
+            "liveOn": live_on,
         }
     insert_at = None
     last_group = 0
@@ -1388,16 +1420,10 @@ def camera_add(steam_id, by_nick="", granted="", note="", key="", name=""):
         "date": time.strftime("%Y-%m-%d"),
         "clock": time.strftime("%H:%M:%S"),
     })
-    live = False
-    if key in UI_KEYS:
-        try:
-            rcon(key, "AdminAddCameraman %s" % steam_id, attempts=2)
-            live = True
-        except Exception:
-            live = False
+    live_on = _camera_live_grant(steam_id, key)
     reply = "камера выдана (запись защищена от синка Sqstat)"
-    if live:
-        reply += " — freecam уже активен на сервере"
+    if live_on:
+        reply += " — freecam запушен на %s" % ",".join(live_on)
     else:
         reply += " — пусть перезайдёт для freecam"
     return {
@@ -1405,7 +1431,8 @@ def camera_add(steam_id, by_nick="", granted="", note="", key="", name=""):
         "reply": reply,
         "steamId": steam_id,
         "updated": False,
-        "live": live,
+        "live": bool(live_on),
+        "liveOn": live_on,
     }
 
 def camera_remove(steam_id):

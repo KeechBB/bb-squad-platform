@@ -307,7 +307,7 @@ export function AdminPublicCamerasPanel() {
       {grantOpen ? (
         <div className="card-inset" style={{ marginBottom: 12, padding: 12 }}>
           <p style={{ marginTop: 0 }}>
-            Запись <code>Admin=…:Cameraman</code> в Admins.cfg — freecam после перезахода.
+            Запись <code>Admin=…:Cameraman</code> в Admins.cfg. Если игрок онлайн — freecam пушим сразу; иначе после перезахода.
           </p>
           <div
             style={{
