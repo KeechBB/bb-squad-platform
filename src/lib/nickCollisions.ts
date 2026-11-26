@@ -47,11 +47,12 @@ export const ANGEL_COLLISIONS: readonly NickCollision[] = [
   },
 ] as const;
 
-/** «angel» после снятия декора / эмодзи — одинаковый игровой ярлык у разных Steam. */
+/** «angel» после снятия тега клана / декора — одинаковый игровой ярлык у разных Steam. */
 export function isPlainAngelLabel(nick: string | null | undefined): boolean {
-  const s = String(nick || "")
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, "");
+  let s = String(nick || "").trim();
+  // [BB] angel / 〔 A 〕 angel — тег снимаем, иначе «bbangel» не матчится.
+  s = s.replace(/^[\[【〔][^\]】〕]*[\]】〕]\s*/u, "");
+  s = s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
   return s === "angel";
 }
 

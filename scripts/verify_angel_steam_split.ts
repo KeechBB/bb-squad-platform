@@ -224,6 +224,36 @@ function rebuildCombat(matchId: string): boolean {
   return r.status === 0;
 }
 
+function healScoreboardSides(matchId: string): boolean {
+  const r = spawnSync(
+    "python3",
+    ["scripts/heal_angel_scoreboard_sides.py", "--id", matchId],
+    { cwd: process.cwd(), encoding: "utf8", timeout: 180_000 }
+  );
+  if (r.status !== 0) {
+    console.warn(
+      "[heal-scoreboard]",
+      matchId,
+      r.stderr?.slice(-400) || r.stdout?.slice(-400)
+    );
+  }
+  return r.status === 0;
+}
+
+function readPlayersDoc(matchId: string): {
+  angelSteamSplit?: boolean;
+  teamA?: Array<{ nick?: string; steamId?: string; clanTag?: string }>;
+  teamB?: Array<{ nick?: string; steamId?: string; clanTag?: string }>;
+} | null {
+  const p = kvPlayersPath(matchId);
+  if (!fs.existsSync(p)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(p, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
 function add(
   checks: Check[],
   ok: boolean,
@@ -253,7 +283,10 @@ async function verifyMatch(
     `${m.id} ${m.ymd} ${m.timeMsk} ${m.map}`
   );
 
-  if (doFix) rebuildCombat(m.id);
+  if (doFix) {
+    rebuildCombat(m.id);
+    healScoreboardSides(m.id);
+  }
   let card = readCombatCard(m.id);
   if (!card?.steamSplit || !card.players) {
     if (doFix && rebuildCombat(m.id)) card = readCombatCard(m.id);
@@ -327,6 +360,45 @@ async function verifyMatch(
           : `${m.id}: статы разные OK`
       );
     }
+  }
+
+  // Табло: у каждого Steam своя строка с тегом, не один plain angel.
+  let players = readPlayersDoc(m.id);
+  if (doFix && present.length >= 2) {
+    healScoreboardSides(m.id);
+    players = readPlayersDoc(m.id);
+  }
+  if (players && present.length >= 2) {
+    const rows = [...(players.teamA || []), ...(players.teamB || [])];
+    const bySteam = new Map(
+      rows
+        .filter((r) => r.steamId)
+        .map((r) => [String(r.steamId), r] as const)
+    );
+    const missing = present.filter((w) => !bySteam.has(w.steamId));
+    const plainOnly = rows.filter((r) => {
+      const n = String(r.nick || "")
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}]+/gu, "");
+      return n === "angel" && !r.steamId;
+    });
+    add(
+      checks,
+      missing.length === 0 && plainOnly.length === 0,
+      "scoreboard-sides",
+      present.map((p) => p.label).join("+"),
+      missing.length || plainOnly.length
+        ? `${m.id}: missing=${missing.map((x) => x.label).join(",") || "—"} plain=${plainOnly.length} split=${Boolean(players.angelSteamSplit)}`
+        : `${m.id}: ${present
+            .map((w) => {
+              const r = bySteam.get(w.steamId)!;
+              const onA = (players.teamA || []).some(
+                (x) => String(x.steamId || "") === w.steamId
+              );
+              return `${w.label}@${onA ? "A" : "B"}/${r.clanTag || "?"}`;
+            })
+            .join(" ")}`
+    );
   }
 }
 

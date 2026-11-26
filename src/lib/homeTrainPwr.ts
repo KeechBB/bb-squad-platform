@@ -54,6 +54,9 @@ type TrainPlayerLine = {
   vehicleKills?: number;
   team?: string;
   won?: boolean;
+  /** После heal_angel_scoreboard_sides — свой Steam у [BB]/〔 A 〕 angel. */
+  steamId?: string;
+  clanTag?: string;
 };
 
 type TrainPlayersDoc = {
@@ -872,6 +875,18 @@ export async function buildPlayerTrainMatchHistory(
   };
   const nickOnBoard = (pNick: string) =>
     collision ? angelScoreboardNickOk(pNick) : resolveKey(pNick) === want;
+  const rowIsMine = (p: TrainPlayerLine) => {
+    if (!p?.nick) return false;
+    const rowSteam = String(p.steamId || "").trim();
+    if (collision?.steamId && rowSteam) return rowSteam === collision.steamId;
+    return nickOnBoard(p.nick);
+  };
+  const boardHasMe = (list: TrainPlayerLine[]) =>
+    list.some((p) => {
+      const rowSteam = String(p.steamId || "").trim();
+      if (collision?.steamId && rowSteam) return rowSteam === collision.steamId;
+      return Boolean(p?.nick && nickOnBoard(p.nick));
+    });
 
   // Все катки календаря с 20.10, где ник есть в players — не только RP-ledger.
   // Иначе вечерние катки без RP «пропадают» из профиля (кейс Keech 26.10).
@@ -887,7 +902,7 @@ export async function buildPlayerTrainMatchHistory(
           ? row.doc.players
           : [...(row.doc.teamA || []), ...(row.doc.teamB || [])]
       ) as TrainPlayerLine[];
-      return list.some((p) => p?.nick && nickOnBoard(p.nick));
+      return boardHasMe(list);
     })
     .sort((a, b) => a.sortKey.localeCompare(b.sortKey));
 
@@ -994,7 +1009,8 @@ export async function buildPlayerTrainMatchHistory(
         ? playersDoc.players
         : [...(playersDoc.teamA || []), ...(playersDoc.teamB || [])]
     ) as TrainPlayerLine[];
-    const mine = list.filter((p) => p?.nick && nickOnBoard(p.nick));
+    // Два angel на табло ([BB] / 〔 A 〕) — только свой Steam, иначе W/L склеится.
+    const mine = list.filter(rowIsMine);
     if (!mine.length) continue;
     const resolved = resolveTrainWon(mine, playersDoc, {
       winner,
@@ -1227,6 +1243,12 @@ export async function buildPlayerTrainCombatStats(
   };
   const nickOnBoard = (pNick: string) =>
     collision ? angelScoreboardNickOk(pNick) : resolveKey(pNick) === want;
+  const rowIsMine = (p: TrainPlayerLine) => {
+    if (!p?.nick) return false;
+    const rowSteam = String(p.steamId || "").trim();
+    if (collision?.steamId && rowSteam) return rowSteam === collision.steamId;
+    return nickOnBoard(p.nick);
+  };
   const nickIn = (list: string[] | undefined) =>
     (list || []).some((n) => nickOnBoard(n));
   const vehIndex = await loadTrainVehicleKillIndex().catch(
@@ -1272,7 +1294,7 @@ export async function buildPlayerTrainCombatStats(
           ? players.players
           : [...(players.teamA || []), ...(players.teamB || [])]
       ) as TrainPlayerLine[];
-      const mine = list.filter((p) => p?.nick && nickOnBoard(p.nick));
+      const mine = list.filter(rowIsMine);
       if (!mine.length) continue;
       const ymd = `${match.year}-${pad2(match.month)}-${pad2(match.day)}`;
       if (!isTrainStatsYmdOk(ymd)) continue;

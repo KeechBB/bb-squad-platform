@@ -72,6 +72,8 @@ type PlayerRow = {
   squad?: number;
   squadName?: string;
   squadSide?: string;
+  steamId?: string;
+  clanTag?: string;
 };
 
 type MvpBlock = {
@@ -178,6 +180,8 @@ function enrich(rows: unknown[]): PlayerRow[] {
       squad: Number(p.squad) > 0 ? Number(p.squad) : undefined,
       squadName: p.squadName ? String(p.squadName) : undefined,
       squadSide: p.squadSide ? String(p.squadSide) : undefined,
+      steamId: p.steamId ? String(p.steamId) : undefined,
+      clanTag: p.clanTag ? String(p.clanTag) : undefined,
     };
   });
 }
@@ -822,13 +826,17 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
         : [];
 
   const highlight = (open.highlightNick || "").trim().toLowerCase();
+  const highlightSteam = (open.steamId || "").trim();
   const highlightIsAngel = (() => {
     const s = (open.highlightNick || "")
       .toLowerCase()
       .replace(/[^\p{L}\p{N}]+/gu, "");
     return s === "angel";
   })();
-  const rowIsHighlight = (scoreboardNick: string) => {
+  const rowIsHighlight = (scoreboardNick: string, rowSteam?: string) => {
+    const steam = String(rowSteam || "").trim();
+    // Два angel ([BB] / 〔 A 〕) — подсветка только своего Steam.
+    if (highlightSteam && steam) return steam === highlightSteam;
     const a = scoreboardNick.trim().toLowerCase();
     if (!highlight) return false;
     if (a === highlight) return true;
@@ -1045,7 +1053,7 @@ export function ProfileMatchStatsModal({ open, onClose }: Props) {
                   <tbody>
                     {sorted.map((p, i) => {
                       const medals = medalCounts(p.nick);
-                      const isMe = rowIsHighlight(p.nick);
+                      const isMe = rowIsHighlight(p.nick, p.steamId);
                       const delta = pwrDeltas[p.nick.trim().toLowerCase()];
                       const deltaCls =
                         delta == null
