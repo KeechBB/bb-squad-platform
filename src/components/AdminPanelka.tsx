@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import type { PanelkaServer } from "@/lib/panelkaRcon";
 
 const MODES = ["SQ", "FCL", "CSL", "SEC", "HOTDROP", "LOADER"] as const;
-const PAGE = 8;
+const PAGE = 10;
 const BAN_UNITS = [
   { value: "h", label: "часы" },
   { value: "d", label: "дни" },
@@ -146,6 +146,7 @@ type TeamKillRow = {
   clock: string;
   victim: string;
   victimSteamId?: string;
+  server?: string;
 };
 
 type PunishmentRow = {
@@ -1506,6 +1507,7 @@ export function PlayerModModal({
             nickHistory?: NickHistoryRow[];
             notes?: PlayerMemoRow[];
             labels?: PlayerMemoRow[];
+            teamkills?: TeamKillRow[];
             error?: string;
           } | null;
           if (!res.ok || !data?.ok) {
@@ -1517,6 +1519,7 @@ export function PlayerModModal({
             if (data?.nickHistory) setNickHistory(data.nickHistory);
             if (data?.notes) setNotes(data.notes);
             if (data?.labels) setLabels(data.labels);
+            if (data?.teamkills?.length) setTeamkills(data.teamkills);
             return;
           }
           setProfile(data.profile || null);
@@ -1524,6 +1527,8 @@ export function PlayerModModal({
           setNickHistory(data.nickHistory || []);
           setNotes(data.notes || []);
           setLabels(data.labels || []);
+          // Тимкилы с диска — сразу, без ожидания RCON history.
+          if (data.teamkills) setTeamkills(data.teamkills);
         })
         .catch((err: unknown) => {
           if (!silent) {
@@ -1559,7 +1564,10 @@ export function PlayerModModal({
             return;
           }
           setChat(data.chat || []);
-          setTeamkills(data.teamkills || []);
+          // Не затирать диск-кэш пустым ответом RCON.
+          if (data.teamkills && data.teamkills.length) {
+            setTeamkills(data.teamkills);
+          }
           setPunishments(data.punishments || []);
           if (data.warning) setLoadError(data.warning);
         })
@@ -2406,21 +2414,26 @@ export function PlayerModModal({
         {tab === "tk" ? (
           <div className="panelka-mod-punish">
             <header>
-              <h4>Тимкилы этого игрока</h4>
+              <h4>Тимкилы этого игрока · с 01.11</h4>
               <Pager page={tkPage} pages={tkPages} onChange={setTkPage} />
             </header>
             {tkSlice.length ? (
               <ul>
                 {tkSlice.map((row, index) => (
                   <li key={`t-${tkPage}-${index}`}>
-                    <span>{[row.date, row.clock].filter(Boolean).join(" ") || "—"}</span>
+                    <span>
+                      {[row.date, row.clock].filter(Boolean).join(" ") || "—"}
+                      {row.server ? ` · ${row.server}` : ""}
+                    </span>
                     <b>убил своего: {row.victim}</b>
                   </li>
                 ))}
               </ul>
             ) : (
               <p className="panelka-chat-empty">
-                {historyLoading ? "Подгружаю тимкилы…" : "Тимкилов в логе не видно."}
+                {loading || historyLoading
+                  ? "Подгружаю тимкилы…"
+                  : "Тимкилов с 01.11 в логах не видно."}
               </p>
             )}
           </div>

@@ -482,6 +482,25 @@ chmod 644 /var/log/bb-panelka-pb1-stats-warm.log
   done
 ) >/tmp/bb-panelka-pb1-stats-warm-boot.log 2>&1 &
 
+echo "==> panelka teamkills cache cron (every 15 min, since 2026-11-01)"
+chmod +x "$ROOT/scripts/warm_panelka_teamkills_cron.sh" || true
+chmod +x "$ROOT/scripts/build_panelka_teamkills.py" || true
+cat >/etc/cron.d/bb-panelka-teamkills <<EOF
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+*/15 * * * * root flock -n /tmp/bb-panelka-teamkills.lock env BB_PLATFORM_ROOT=$ROOT bash $ROOT/scripts/warm_panelka_teamkills_cron.sh
+EOF
+chmod 644 /etc/cron.d/bb-panelka-teamkills
+touch /var/log/bb-panelka-teamkills.log
+chmod 644 /var/log/bb-panelka-teamkills.log
+# First full backfill in background (Nov+) — do not block deploy
+(
+  env BB_PLATFORM_ROOT="$ROOT" "$ROOT/scripts/.venv-collector/bin/python" \
+    "$ROOT/scripts/build_panelka_teamkills.py" --since 2026-11-01 \
+    || python3 "$ROOT/scripts/build_panelka_teamkills.py" --since 2026-11-01 \
+    || true
+) >/tmp/bb-panelka-teamkills-boot.log 2>&1 &
+
 echo "==> nginx security headers (F-01…F-05)"
 chmod +x "$ROOT/scripts/apply_nginx_security_headers.sh" || true
 bash "$ROOT/scripts/apply_nginx_security_headers.sh" || echo "WARN: security headers apply skipped"

@@ -225,6 +225,9 @@ export async function GET(req: Request) {
           }).catch(() => null);
         }
       }
+      const { panelkaTeamkillsForCard } = await import("@/lib/panelkaTeamkills");
+      const key = url.searchParams.get("key") || "";
+      const teamkills = panelkaTeamkillsForCard(steamId, key || null);
       return NextResponse.json({
         ok: true,
         profile,
@@ -234,11 +237,11 @@ export async function GET(req: Request) {
         notes: memos.notes,
         labels: memos.labels,
         chat: [],
-        teamkills: [],
+        teamkills,
         punishments: [],
       });
     }
-    // Slow: chat / punishments / teamkills from server logs (RCON helper)
+    // Slow: chat / punishments from server logs (RCON). Teamkills — disk cache.
     if (op === "player-history") {
       const key = url.searchParams.get("key") || "";
       const steamId = url.searchParams.get("steamId") || "";
@@ -246,6 +249,8 @@ export async function GET(req: Request) {
       if (!isPanelkaKey(key) || !STEAM_RE.test(steamId)) {
         return NextResponse.json({ ok: false, error: "нет игрока" }, { status: 400 });
       }
+      const { panelkaTeamkillsForCard } = await import("@/lib/panelkaTeamkills");
+      const cachedTk = panelkaTeamkillsForCard(steamId, key);
       try {
         const history = (await runPanelka(["player-card", key, steamId], 28000, {
           name,
@@ -260,7 +265,7 @@ export async function GET(req: Request) {
           return NextResponse.json({
             ok: true,
             chat: [],
-            teamkills: [],
+            teamkills: cachedTk,
             punishments: [],
             warning: history?.error || "история с сервера не пришла",
           });
@@ -268,7 +273,8 @@ export async function GET(req: Request) {
         return NextResponse.json({
           ok: true,
           chat: history.chat || [],
-          teamkills: history.teamkills || [],
+          // Кэш с 01.11 — канон; RCON хвост лога не подменяет.
+          teamkills: cachedTk.length ? cachedTk : history.teamkills || [],
           punishments: history.punishments || [],
         });
       } catch (err) {
@@ -276,7 +282,7 @@ export async function GET(req: Request) {
         return NextResponse.json({
           ok: true,
           chat: [],
-          teamkills: [],
+          teamkills: cachedTk,
           punishments: [],
           warning: `история не успела: ${message.slice(0, 120)}`,
         });
