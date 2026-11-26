@@ -635,6 +635,32 @@ export async function buildPanelkaPlayerPb1Stats(opts: {
   };
 }
 
+async function resolveNickForSteam(
+  steamId: string,
+  hint?: string | null
+): Promise<string | null> {
+  const fromHint = String(hint || "").trim();
+  if (fromHint) return fromHint;
+  const hist = await prisma.steamNickHistory.findFirst({
+    where: { steamId },
+    orderBy: { lastSeenAt: "desc" },
+    select: { nick: true },
+  });
+  if (hist?.nick?.trim()) return hist.nick.trim();
+  const site = await prisma.user.findFirst({
+    where: { steamId },
+    select: { nick: true, steamName: true },
+  });
+  if (site?.nick?.trim()) return site.nick.trim();
+  if (site?.steamName?.trim()) return site.steamName.trim();
+  const sess = await prisma.squadServerSession.findFirst({
+    where: { steamId, nickAtJoin: { not: null } },
+    orderBy: { joinedAt: "desc" },
+    select: { nickAtJoin: true },
+  });
+  return sess?.nickAtJoin?.trim() || null;
+}
+
 export async function rebuildAndCachePb1Stats(opts: {
   steamId: string;
   nick?: string | null;
@@ -643,20 +669,7 @@ export async function rebuildAndCachePb1Stats(opts: {
 }): Promise<PanelkaPb1StatsCacheEntry | null> {
   const prev = readPb1StatsCache(opts.steamId);
   const nick =
-    opts.nick ||
-    prev?.nick ||
-    (
-      await prisma.user.findFirst({
-        where: { steamId: opts.steamId },
-        select: { nick: true, steamName: true },
-      })
-    )?.nick ||
-    (
-      await prisma.user.findFirst({
-        where: { steamId: opts.steamId },
-        select: { steamName: true },
-      })
-    )?.steamName ||
+    (await resolveNickForSteam(opts.steamId, opts.nick || prev?.nick || null)) ||
     null;
 
   const stats = await buildPanelkaPlayerPb1Stats({

@@ -16,6 +16,8 @@ function nickKey(n: string) {
     .replace(/\s+/g, "");
 }
 
+const STEAM_RE_LOCAL = /^7656\d{13}$/;
+
 async function loadFromKv<T>(rel: string): Promise<T | null> {
   const { loadKvJsonCached } = await import("@/lib/kvLocal");
   return loadKvJsonCached<T>(rel.replace(/^\//, ""));
@@ -667,6 +669,12 @@ export async function buildPublicRatingTable(
   return cached();
 }
 
+function stripLeadingClanTag(nick: string): string {
+  return String(nick || "")
+    .replace(/^[\[【〔][^\]】〕]*[\]】〕]\s*/u, "")
+    .trim();
+}
+
 export async function buildPlayerPublicCombatStats(
   nick: string,
   opts?: { steamId?: string | null }
@@ -709,15 +717,53 @@ export async function buildPlayerPublicCombatStats(
     );
   };
 
+  // Aliases: current nick + stripped tag + Steam nick history (unregistered change nicks a lot).
+  const aliasNicks = new Set<string>();
+  const addAlias = (n: string) => {
+    const raw = String(n || "").trim();
+    if (!raw) return;
+    aliasNicks.add(raw);
+    const stripped = stripLeadingClanTag(raw);
+    if (stripped) aliasNicks.add(stripped);
+  };
+  addAlias(clean);
+  addAlias(lookupNick);
+  if (opts?.steamId && STEAM_RE_LOCAL.test(opts.steamId)) {
+    try {
+      const { listSteamNickHistory } = await import("@/lib/steamNickHistory");
+      const hist = await listSteamNickHistory(opts.steamId, clean);
+      for (const row of hist) addAlias(row.nick);
+    } catch {
+      /* ignore */
+    }
+  }
+
   // Fast path: aggregate from slim ladder player.matches (no full-table rebuild).
   const { lookupPlayerPublicRp } = await import("@/lib/publicRp");
-  const [player, att] = await Promise.all([
-    lookupPlayerPublicRp(lookupNick).catch(() => null),
+  const [playersByAlias, att] = await Promise.all([
+    Promise.all(
+      [...aliasNicks].map(async (alias) => {
+        const key = publicRpLookupNick(alias, collision?.steamId || opts?.steamId);
+        return lookupPlayerPublicRp(key).catch(() => null);
+      })
+    ),
     buildPublicAttendanceLeaderboard(500).catch(() => [] as { nick: string; days: number }[]),
   ]);
+  const player =
+    playersByAlias.find((p) => p && nickKey(p.nick) === want) ||
+    playersByAlias.find((p) => p) ||
+    null;
   const days =
-    att.find((a) => nickKey(a.nick) === want || nickKey(a.nick) === nickKey(clean))
-      ?.days || 0;
+    att.find((a) => {
+      const ak = nickKey(a.nick);
+      if (ak === want || ak === nickKey(clean)) return true;
+      for (const alias of aliasNicks) {
+        if (ak === nickKey(alias) || ak === nickKey(stripLeadingClanTag(alias))) {
+          return true;
+        }
+      }
+      return false;
+    })?.days || 0;
 
   type SlimM = {
     id?: string;
@@ -732,8 +778,10 @@ export async function buildPlayerPublicCombatStats(
     won?: boolean | null;
   };
   const matchById = new Map<string, SlimM>();
-  for (const m of (player?.matches || []) as SlimM[]) {
-    if (m?.id) matchById.set(String(m.id), m);
+  for (const p of playersByAlias) {
+    for (const m of (p?.matches || []) as SlimM[]) {
+      if (m?.id) matchById.set(String(m.id), m);
+    }
   }
   // BB / Алан / ALPHA ·8062 на табло все plain «angel» — общий ledger, режем по Steam.
   if (

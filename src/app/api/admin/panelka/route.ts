@@ -194,13 +194,14 @@ export async function GET(req: Request) {
       ]);
       // Nick for combat/KD: site nick OR roster/Steam name — registration not required
       const nickForStats = profile.nick || name || null;
-      // Miss: build now (unregistered players too) so card is not empty
-      if (!disk) {
+      // Miss or warm-cache without nick (hours OK, KD skipped) → rebuild
+      const needRebuild = !disk || (!disk.nick && Boolean(nickForStats));
+      if (needRebuild) {
         disk = await rebuildAndCachePb1Stats({
           steamId,
           nick: nickForStats,
           skipLiveIp: false,
-        }).catch(() => null);
+        }).catch(() => disk);
       } else if (
         disk.stats.steamMinutes == null ||
         !disk.stats.steamHoursLabel
