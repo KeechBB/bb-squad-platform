@@ -135,12 +135,6 @@ def parse_file(
     by_steam: dict[str, list[dict]],
 ) -> int:
     """Parse one log; append TK rows. Returns count added."""
-    try:
-        text = path.read_text(encoding="utf-8", errors="replace")
-    except Exception as e:
-        print(f"  skip {path}: {e}", file=sys.stderr)
-        return 0
-
     # BP_PlayerController_C_<id> → steam
     ctrl_owner: dict[str, str] = {}
     pawn_owner: dict[str, str] = {}
@@ -149,98 +143,105 @@ def parse_file(
     steam_nick: dict[str, str] = {}
     added = 0
 
-    for line in text.splitlines():
-        ymd, clock, disp = msk_stamp(line)
-        if ymd and ymd < since:
-            continue
+    try:
+        fh = path.open("r", encoding="utf-8", errors="replace", buffering=1024 * 1024)
+    except Exception as e:
+        print(f"  skip {path}: {e}", file=sys.stderr)
+        return 0
 
-        pl = POSTLOGIN_RE.search(line)
-        if pl:
-            ctrl_owner[f"BP_PlayerController_C_{pl.group('cid')}"] = pl.group("steam")
-
-        for rx in (POSSESS_RE, POSSESS_ALT):
-            pm = rx.search(line)
-            if not pm:
-                continue
-            pawn = pm.group("pawn").split()[0].rstrip(",;")
-            steam = pm.group("steam")
-            pawn_owner[pawn] = steam
-            nick = clean_nick(pm.group("nick"))
-            if nick:
-                steam_nick[steam] = nick
-            mfac = re.search(r"BP_Soldier_([A-Za-z0-9]+)_", pawn)
-            if mfac:
-                steam_faction[steam] = mfac.group(1).upper()
-
-        sm = SQUAD_RE.search(line)
-        if sm:
-            steam = sm.group("steam")
-            steam_faction[steam] = (sm.group("faction") or "").strip()
-            nick = clean_nick(sm.group("nick"))
-            if nick:
-                steam_nick[steam] = nick
-
-        tm = TEAM_MARK_RE.search(line)
-        if tm:
-            steam = tm.group("steam")
-            steam_team[steam] = tm.group("team")
-            nick = clean_nick(tm.group("nick"))
-            if nick:
-                steam_nick[steam] = nick
-
-        dm = DIE_RE.search(line)
-        if not dm:
-            continue
-        causer = dm.group("causer").rstrip(",;")
-        killer_steam = ctrl_owner.get(causer) or pawn_owner.get(causer)
-        if not killer_steam:
-            # BP_PlayerController_C_123 → match by id suffix
-            mcid = re.search(r"BP_PlayerController_C_(\d+)", causer)
-            if mcid:
-                killer_steam = ctrl_owner.get(f"BP_PlayerController_C_{mcid.group(1)}")
-        if not killer_steam:
-            base = causer.rsplit("_", 1)[0] if "_" in causer else causer
-            for pawn, owner in pawn_owner.items():
-                if pawn.startswith(base) or causer.startswith(pawn.rsplit("_", 1)[0]):
-                    killer_steam = owner
-                    break
-        if not killer_steam:
-            continue
-        victim_steam = dm.group("vsteam")
-        if victim_steam == killer_steam:
-            continue
-
-        same = False
-        kt = steam_team.get(killer_steam)
-        vt = steam_team.get(victim_steam)
-        if kt and vt:
-            same = kt == vt
-        else:
-            kf = steam_faction.get(killer_steam)
-            vf = steam_faction.get(victim_steam)
-            if kf and vf:
-                same = kf == vf
-            else:
-                continue
-
-        if not same:
-            continue
-
-        victim_name = clean_nick(dm.group("victim")) or steam_nick.get(
-            victim_steam, victim_steam
-        )
-        if not ymd:
+    with fh:
+        for line in fh:
             ymd, clock, disp = msk_stamp(line)
-        row = {
-            "date": disp or ymd,
-            "ymd": ymd,
-            "clock": clock,
-            "victim": victim_name,
-            "victimSteamId": victim_steam,
-            "server": server,
-        }
-        by_steam[killer_steam].append(row)
-        added += 1
+            if ymd and ymd < since:
+                continue
+
+            pl = POSTLOGIN_RE.search(line)
+            if pl:
+                ctrl_owner[f"BP_PlayerController_C_{pl.group('cid')}"] = pl.group("steam")
+
+            for rx in (POSSESS_RE, POSSESS_ALT):
+                pm = rx.search(line)
+                if not pm:
+                    continue
+                pawn = pm.group("pawn").split()[0].rstrip(",;")
+                steam = pm.group("steam")
+                pawn_owner[pawn] = steam
+                nick = clean_nick(pm.group("nick"))
+                if nick:
+                    steam_nick[steam] = nick
+                mfac = re.search(r"BP_Soldier_([A-Za-z0-9]+)_", pawn)
+                if mfac:
+                    steam_faction[steam] = mfac.group(1).upper()
+
+            sm = SQUAD_RE.search(line)
+            if sm:
+                steam = sm.group("steam")
+                steam_faction[steam] = (sm.group("faction") or "").strip()
+                nick = clean_nick(sm.group("nick"))
+                if nick:
+                    steam_nick[steam] = nick
+
+            tm = TEAM_MARK_RE.search(line)
+            if tm:
+                steam = tm.group("steam")
+                steam_team[steam] = tm.group("team")
+                nick = clean_nick(tm.group("nick"))
+                if nick:
+                    steam_nick[steam] = nick
+
+            dm = DIE_RE.search(line)
+            if not dm:
+                continue
+            causer = dm.group("causer").rstrip(",;")
+            killer_steam = ctrl_owner.get(causer) or pawn_owner.get(causer)
+            if not killer_steam:
+                # BP_PlayerController_C_123 → match by id suffix
+                mcid = re.search(r"BP_PlayerController_C_(\d+)", causer)
+                if mcid:
+                    killer_steam = ctrl_owner.get(f"BP_PlayerController_C_{mcid.group(1)}")
+            if not killer_steam:
+                base = causer.rsplit("_", 1)[0] if "_" in causer else causer
+                for pawn, owner in pawn_owner.items():
+                    if pawn.startswith(base) or causer.startswith(pawn.rsplit("_", 1)[0]):
+                        killer_steam = owner
+                        break
+            if not killer_steam:
+                continue
+            victim_steam = dm.group("vsteam")
+            if victim_steam == killer_steam:
+                continue
+
+            same = False
+            kt = steam_team.get(killer_steam)
+            vt = steam_team.get(victim_steam)
+            if kt and vt:
+                same = kt == vt
+            else:
+                kf = steam_faction.get(killer_steam)
+                vf = steam_faction.get(victim_steam)
+                if kf and vf:
+                    same = kf == vf
+                else:
+                    continue
+
+            if not same:
+                continue
+
+            victim_name = clean_nick(dm.group("victim")) or steam_nick.get(
+                victim_steam, victim_steam
+            )
+            if not ymd:
+                ymd, clock, disp = msk_stamp(line)
+            row = {
+                "date": disp or ymd,
+                "ymd": ymd,
+                "clock": clock,
+                "victim": victim_name,
+                "victimSteamId": victim_steam,
+                "server": server,
+            }
+            by_steam[killer_steam].append(row)
+            added += 1
 
     return added
 
@@ -366,10 +367,11 @@ def main() -> int:
             if args.incremental and state.get("files", {}).get(key) == sig:
                 continue
             size_kb = (st.st_size // 1024) if st else 0
-            print(f"parse {server} {path.name} ({size_kb}KB)")
+            print(f"parse {server} {path.name} ({size_kb}KB)", flush=True)
             n = parse_file(path, server, since, by_steam)
             added += n
             files_n += 1
+            print(f"  +{n} tk (running={added})", flush=True)
             if sig:
                 state.setdefault("files", {})[key] = sig
 
@@ -379,7 +381,8 @@ def main() -> int:
     save_state(state)
     print(
         f"done files={files_n} newTk={added} playersWritten={written} "
-        f"sec={time.time() - t0:.1f}"
+        f"sec={time.time() - t0:.1f}",
+        flush=True,
     )
     return 0
 
