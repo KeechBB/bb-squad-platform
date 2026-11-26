@@ -1,12 +1,12 @@
 /**
  * Списание / зачисление на площадке: BBC (личный) или BD.
- * B$ на маркете: покупка себе — только с личного баланса.
+ * B$ на маркете: покупка себе и продажа — личный баланс.
  * Казна — лишь когда глава/зам явно дарит предмет другому игроку.
  */
 import { isBuiltinSuperAdmin } from "@/lib/admin";
 import { creditBbCoins, debitBbCoins, getBbCoinBalance } from "@/lib/bbCoins";
 import {
-  creditFactionBd,
+  creditPersonalBd,
   debitFactionBd,
   debitPersonalBd,
   getFactionPayCtx,
@@ -168,18 +168,15 @@ export async function creditMarketSell(opts: {
     return { ok: true, balance: credited.balance, currency: "BBC" };
   }
 
-  // Продажа за $: сумма всегда в казну фракции продавца.
+  // Продажа за $: на личный баланс (покупка себе тоже с личного; казна — только подарок).
   const ctx = await getFactionPayCtx(opts.userId, opts.steamId);
   if (!ctx) {
     await opts.rollback();
     return { ok: false, error: "no_faction" };
   }
-  const credited = await creditFactionBd({
-    factionId: ctx.factionId,
-    amount: price.sell,
+  const credited = await creditPersonalBd({
     userId: opts.userId,
-    note,
-    sourceKey: `market_sell:${opts.kind}:${opts.userId}:${price.itemId}:${Date.now()}`,
+    amount: price.sell,
   });
   if (!credited.ok) {
     await opts.rollback();

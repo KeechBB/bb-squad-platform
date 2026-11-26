@@ -318,7 +318,7 @@ export function MarketplaceClient({ loggedIn }: Props) {
       if (data.currency === "BD") {
         if (typeof data.balance === "number") setFactionBalance(data.balance);
         setMsg(
-          `Продано (−1). $ вернулись в казну фракции. У тебя: ${data.mine ?? "…"}`
+          `Продано (−1). $ на личный баланс. У тебя: ${data.mine ?? "…"}`
         );
       } else {
         if (typeof data.balance === "number") setBalance(data.balance);
@@ -356,7 +356,7 @@ export function MarketplaceClient({ loggedIn }: Props) {
       if (data.currency === "BD") {
         if (typeof data.balance === "number") setFactionBalance(data.balance);
         setMsg(
-          `Фон продан (−1). $ вернулись в казну фракции. У тебя: ${data.mine ?? "…"}`
+          `Фон продан (−1). $ на личный баланс. У тебя: ${data.mine ?? "…"}`
         );
       } else {
         if (typeof data.balance === "number") setBalance(data.balance);
@@ -394,7 +394,7 @@ export function MarketplaceClient({ loggedIn }: Props) {
       if (data.currency === "BD") {
         if (typeof data.balance === "number") setFactionBalance(data.balance);
         setMsg(
-          `Шрифт продан (−1). $ вернулись в казну фракции. У тебя: ${data.mine ?? "…"}`
+          `Шрифт продан (−1). $ на личный баланс. У тебя: ${data.mine ?? "…"}`
         );
       } else {
         if (typeof data.balance === "number") setBalance(data.balance);
