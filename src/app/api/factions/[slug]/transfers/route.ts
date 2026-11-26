@@ -178,8 +178,10 @@ export async function GET(_req: Request, ctx: Ctx) {
       message: o.message,
       createdAt: o.createdAt.toISOString(),
       updatedAt: o.updatedAt.toISOString(),
-      fromFaction: o.fromFaction,
-      toFaction: o.listing.faction,
+      // «От / Кому» = путь игрока: листер (откуда ушёл) → офер (куда купили).
+      // o.fromFaction = покупатель; o.listing.faction = продавец.
+      fromFaction: o.listing.faction,
+      toFaction: o.fromFaction,
       playerNick: nickById[o.listing.playerUserId] || "—",
       playerUserId: o.listing.playerUserId,
       swapNick: o.swapUserId ? nickById[o.swapUserId] || "—" : null,
