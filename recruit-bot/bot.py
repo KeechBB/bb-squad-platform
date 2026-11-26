@@ -953,14 +953,18 @@ async def check_one(bot, row) -> None:
     if step == db.STEP_SUBS and not blocked and (
         in_channel is True or in_group is True or on_site
     ):
-        # Ещё не оба чата. Сайт пропал — только алерт, чаты не трогаем.
+        # Ещё не оба чата. Нет в клане — один алерт, не каждый час.
+        # Заявка на вступление ещё висит — это не «вылетел», кадровикам не ноем.
         if not on_site:
-            sig = "site-lost-subs"
-            if db.set_alert_sig(tg_id, sig, cooldown_sec=gap_alert_cooldown_sec()):
-                await send_alert(
-                    bot,
-                    f"Алерт: {db.label(row)} на шаге 4, в клане на сайте этого Steam уже нет.",
-                )
+            if not info.get("join_pending"):
+                sig = "site-lost-subs"
+                if db.set_alert_sig(tg_id, sig):
+                    await send_alert(
+                        bot,
+                        f"Алерт: {db.label(row)} на шаге 4, в клане на сайте этого Steam нет.",
+                    )
+        elif (row["alert_sig"] or "").startswith("site-lost-subs"):
+            db.set_alert_sig(tg_id, "subs-in-clan")
         return
 
     if step not in (db.STEP_SUBS, db.STEP_DONE):
