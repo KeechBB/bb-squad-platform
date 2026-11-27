@@ -121,16 +121,29 @@ async function ensureWindow(bounds: RaceWindowBounds) {
   const goalBy = new Map(states.map((s) => [s.factionId, s.goal]));
 
   for (const f of factions) {
-    await prisma.factionRaceResult.upsert({
+    const goal = goalBy.get(f.id) || RACE_BASE_GOAL;
+    const existing = await prisma.factionRaceResult.findUnique({
       where: { windowId_factionId: { windowId: bounds.id, factionId: f.id } },
-      create: {
-        windowId: bounds.id,
-        factionId: f.id,
-        goal: goalBy.get(f.id) || RACE_BASE_GOAL,
-        status: "open",
-      },
-      update: {},
+      select: { id: true, status: true },
     });
+    if (!existing) {
+      await prisma.factionRaceResult.create({
+        data: {
+          windowId: bounds.id,
+          factionId: f.id,
+          goal,
+          status: "open",
+        },
+      });
+      continue;
+    }
+    // Open-строка должна следовать актуальной цели штаба (после сброса на 800k и т.п.)
+    if (existing.status === "open") {
+      await prisma.factionRaceResult.update({
+        where: { id: existing.id },
+        data: { goal },
+      });
+    }
   }
 
   return { window: bounds, factions };
