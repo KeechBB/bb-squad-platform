@@ -290,10 +290,11 @@ export function FactionManagementClient({
                       className={`faction-mgmt-nav-btn${active ? " is-active" : ""}${
                         !b.ready ? " is-soon" : ""
                       }`}
+                      data-mgmt-n={b.id}
                       disabled={!b.ready}
                       onClick={() => openPanel(b.panel)}
                     >
-                      <span className="faction-mgmt-nav-num">{b.id}</span>
+                      <span className="faction-mgmt-nav-num">{String(b.id).padStart(2, "0")}</span>
                       <span className="faction-mgmt-nav-label">
                         {b.ready ? b.label : "Скоро"}
                       </span>

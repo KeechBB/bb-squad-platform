@@ -29279,6 +29279,12 @@ body:has(.faction-mgmt-denied-page) .site-footer {
 }
 
 .faction-mgmt-nav {
+  --mgmt-nav-ink: #f1f5f9;
+  --mgmt-nav-muted: #94a3b8;
+  --mgmt-nav-accent: #38bdf8;
+  --mgmt-nav-accent-deep: #0ea5e9;
+  --mgmt-nav-amber: #fbbf24;
+  --mgmt-nav-surface: rgba(8, 16, 32, 0.78);
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -29289,49 +29295,168 @@ body:has(.faction-mgmt-denied-page) .site-footer {
   min-height: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  grid-auto-rows: minmax(52px, 1fr);
-  gap: 8px;
+  grid-template-rows: repeat(5, minmax(0, 1fr));
+  gap: 10px;
 }
 .faction-mgmt-nav-btn {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
-  gap: 2px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(100, 116, 139, 0.45);
-  background: rgba(15, 23, 42, 0.72);
-  color: #e2e8f0;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 12px 14px 12px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background:
+    linear-gradient(
+      155deg,
+      rgba(30, 41, 59, 0.55) 0%,
+      var(--mgmt-nav-surface) 48%,
+      rgba(2, 12, 28, 0.9) 100%
+    );
+  color: var(--mgmt-nav-ink);
   cursor: pointer;
   text-align: left;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  overflow: hidden;
+  isolation: isolate;
+  font-family: var(--font-display), Oxanium, sans-serif;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease,
+    transform 0.18s ease,
+    color 0.18s ease;
+}
+.faction-mgmt-nav-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    var(--mgmt-nav-accent) 20%,
+    var(--mgmt-nav-amber) 80%,
+    transparent
+  );
+  opacity: 0.55;
+  transition: opacity 0.18s ease, width 0.18s ease;
+}
+.faction-mgmt-nav-btn::after {
+  content: "";
+  position: absolute;
+  inset: -40% -20% auto auto;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(56, 189, 248, 0.16),
+    transparent 68%
+  );
+  pointer-events: none;
+  opacity: 0.55;
+  transition: opacity 0.18s ease, transform 0.18s ease;
 }
 .faction-mgmt-nav-btn:hover:not(:disabled) {
-  border-color: rgba(56, 189, 248, 0.65);
-  background: rgba(12, 74, 110, 0.35);
+  border-color: rgba(56, 189, 248, 0.55);
+  background:
+    linear-gradient(
+      155deg,
+      rgba(14, 116, 144, 0.38) 0%,
+      rgba(8, 28, 48, 0.88) 55%,
+      rgba(2, 12, 28, 0.95) 100%
+    );
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(2, 8, 20, 0.35);
+}
+.faction-mgmt-nav-btn:hover:not(:disabled)::before {
+  opacity: 1;
+  width: 4px;
+}
+.faction-mgmt-nav-btn:hover:not(:disabled)::after {
+  opacity: 0.9;
+  transform: scale(1.08);
 }
 .faction-mgmt-nav-btn.is-active {
-  border-color: rgba(56, 189, 248, 0.9);
-  background: rgba(3, 105, 161, 0.42);
-  box-shadow: 0 0 16px rgba(14, 165, 233, 0.28);
+  border-color: rgba(56, 189, 248, 0.85);
+  background:
+    linear-gradient(
+      155deg,
+      rgba(14, 165, 233, 0.42) 0%,
+      rgba(8, 47, 73, 0.88) 42%,
+      rgba(3, 18, 36, 0.96) 100%
+    );
+  box-shadow:
+    0 0 0 1px rgba(125, 211, 252, 0.18) inset,
+    0 12px 28px rgba(2, 12, 28, 0.45);
+  color: #f8fafc;
+}
+.faction-mgmt-nav-btn.is-active::before {
+  opacity: 1;
+  width: 4px;
+  background: linear-gradient(
+    180deg,
+    var(--mgmt-nav-amber),
+    var(--mgmt-nav-accent-deep)
+  );
+}
+.faction-mgmt-nav-btn.is-active::after {
+  opacity: 1;
+  background: radial-gradient(
+    circle,
+    rgba(251, 191, 36, 0.18),
+    rgba(56, 189, 248, 0.12) 42%,
+    transparent 70%
+  );
 }
 .faction-mgmt-nav-btn.is-soon,
 .faction-mgmt-nav-btn:disabled {
-  opacity: 0.45;
+  opacity: 0.42;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 .faction-mgmt-nav-num {
-  font-size: 0.72rem;
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.55rem;
+  height: 1.2rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
-  color: #7dd3fc;
-  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  color: #e0f2fe;
+  background: rgba(14, 165, 233, 0.22);
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  font-variant-numeric: tabular-nums;
+}
+.faction-mgmt-nav-btn.is-active .faction-mgmt-nav-num {
+  color: #0f172a;
+  background: linear-gradient(135deg, #fde68a, #38bdf8);
+  border-color: transparent;
 }
 .faction-mgmt-nav-label {
-  font-size: 0.88rem;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-height: 2.4em;
+  display: flex;
+  align-items: center;
+  font-size: 0.92rem;
   font-weight: 700;
+  letter-spacing: 0.02em;
   line-height: 1.2;
+  color: inherit;
 }
 
 .faction-mgmt-main-head {
