@@ -25063,7 +25063,8 @@ body:has(.faction-page) .site-footer {
 }
 
 .faction-race-penalty,
-.faction-race-weeks {
+.faction-race-weeks,
+.faction-race-howto {
   margin-top: 14px;
   padding: 12px 14px;
   border-radius: 12px;
@@ -25075,9 +25076,30 @@ body:has(.faction-page) .site-footer {
   min-width: 0;
 }
 .faction-race-penalty h4,
-.faction-race-weeks-head h4 {
+.faction-race-weeks-head h4,
+.faction-race-howto h4 {
   margin: 0;
   font-size: 1rem;
+}
+.faction-race-howto-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #e2e8f0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+.faction-race-howto-list li::marker {
+  color: #fbbf24;
+  font-weight: 700;
+}
+.faction-race-howto-note {
+  margin: 0;
+  padding-top: 4px;
+  border-top: 1px solid rgba(148, 163, 184, 0.15);
+  font-size: 0.88rem;
 }
 .faction-race-penalty-actions {
   display: flex;

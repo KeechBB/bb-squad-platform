@@ -1247,6 +1247,44 @@ export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: num
         ) : null}
       </section>
 
+      <section className="faction-race-howto" aria-label="Если норму не выполнили">
+        <h4>Если норму не выполнили</h4>
+        <p className="muted">
+          После закрытия окна (01:00 МСК) фракции ниже цели получают{" "}
+          <mark className="faction-guide-hi">24 часа grace</mark>. Штаб решает, кого
+          отпустить — или спасается трансфером.
+        </p>
+        <ol className="faction-race-howto-list">
+          <li>
+            На вкладке <strong>Трансферы</strong> появится красный таймер grace.
+            Глава и зам выбирают <strong>MEMBER</strong> на аукцион (глава/зам не
+            уходят).
+          </li>
+          <li>
+            Цена лота — рыночная:{" "}
+            <mark className="faction-guide-hi">20 000 + весь гринд</mark> игрока.
+            Кнопка выбора — прямо в блоке штрафа на этой странице гонки.
+          </li>
+          <li>
+            Не выбрали до конца grace — система сама выставит{" "}
+            <strong>случайного MEMBER</strong> на аукцион.
+          </li>
+          <li>
+            Спасение без аукциона: любой{" "}
+            <mark className="faction-guide-hi">успешный исходящий трансфер</mark>{" "}
+            (игрок ушёл из состава) → штраф снимается (exempt).
+          </li>
+          <li>
+            Резерв <strong>до</strong> 01:00 защищает от автоштрафа; уход в резерв{" "}
+            <strong>после</strong> закрытия — уже не спасает.
+          </li>
+        </ol>
+        <p className="faction-race-howto-note muted">
+          Лучше добрать гринд или осознанно выбрать, кого отпустить, чем ждать
+          автовыбор.
+        </p>
+      </section>
+
       {weekDetail ? (
         <div
           className="profile-match-modal"
