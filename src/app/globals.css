@@ -29720,6 +29720,33 @@ body:has(.faction-mgmt-denied-page) .site-footer {
 }
 
 /* Стоимость игроков (кнопка 6) */
+.faction-values-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: flex-end;
+  margin: 0 0 12px;
+}
+.faction-values-filters .xfer-nick-filter {
+  margin: 0;
+}
+.faction-values-faction-select {
+  min-width: 11rem;
+  cursor: pointer;
+}
+.faction-values-count {
+  margin-left: auto;
+  font-size: 0.92rem;
+  align-self: center;
+}
+.faction-values-pager {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: center;
+  justify-content: center;
+  margin: 12px 0 4px;
+}
 .faction-values {
   flex: 1 1 auto;
   min-height: 0;

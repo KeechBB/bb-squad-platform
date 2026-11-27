@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BdAmount } from "@/components/BdMark";
 
+const PAGE_SIZE = 50;
+
 type ValueRow = {
   order: number;
   userId: string;
@@ -15,6 +17,17 @@ type ValueRow = {
   daysInFaction: number;
   hasContract: boolean;
   salaryPct: number;
+  factionId?: string;
+  factionName?: string;
+  factionSlug?: string;
+  factionColor?: string;
+};
+
+type FactionOpt = {
+  id: string;
+  name: string;
+  slug: string;
+  color: string;
 };
 
 type DayRow = { day: string; amount: number };
@@ -25,6 +38,8 @@ type DetailPayload = {
   base: number;
   grindBroughtBd: number;
   playerValue: number;
+  factionName?: string;
+  factionColor?: string;
   days: DayRow[];
 };
 
@@ -35,7 +50,8 @@ type SortKey =
   | "value"
   | "avg"
   | "contract"
-  | "salary";
+  | "salary"
+  | "faction";
 type SortDir = "asc" | "desc";
 
 function fmtJoined(iso: string) {
@@ -87,12 +103,15 @@ function SortTh({
 
 export function FactionPlayerValuesPanel({ slug }: { slug: string }) {
   const [rows, setRows] = useState<ValueRow[]>([]);
+  const [factions, setFactions] = useState<FactionOpt[]>([]);
   const [base, setBase] = useState(20_000);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<DetailPayload | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [nickFilter, setNickFilter] = useState("");
+  const [factionFilter, setFactionFilter] = useState("");
+  const [page, setPage] = useState(0);
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
     key: "value",
     dir: "desc",
@@ -103,24 +122,28 @@ export function FactionPlayerValuesPanel({ slug }: { slug: string }) {
     setErr("");
     try {
       const res = await fetch(
-        `/api/factions/${encodeURIComponent(slug)}/player-values`,
+        `/api/factions/${encodeURIComponent(slug)}/player-values?all=1`,
         { cache: "no-store" },
       );
       const json = (await res.json()) as {
         error?: string;
         base?: number;
         rows?: ValueRow[];
+        factions?: FactionOpt[];
       };
       if (!res.ok) {
         setErr(json.error || "Не удалось загрузить");
         setRows([]);
+        setFactions([]);
         return;
       }
       setBase(json.base ?? 20_000);
       setRows(json.rows || []);
+      setFactions(json.factions || []);
     } catch {
       setErr("Сеть недоступна");
       setRows([]);
+      setFactions([]);
     } finally {
       setLoading(false);
     }
@@ -130,16 +153,26 @@ export function FactionPlayerValuesPanel({ slug }: { slug: string }) {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    setPage(0);
+  }, [nickFilter, factionFilter, sort]);
+
   const nickKey = nickFilter.trim().toLowerCase();
 
   const sorted = useMemo(() => {
-    const filtered = !nickKey
-      ? [...rows]
-      : rows.filter((r) => r.nick.toLowerCase().includes(nickKey));
+    let filtered = [...rows];
+    if (factionFilter) {
+      filtered = filtered.filter((r) => r.factionId === factionFilter);
+    }
+    if (nickKey) {
+      filtered = filtered.filter((r) => r.nick.toLowerCase().includes(nickKey));
+    }
     const dir = sort.dir === "asc" ? 1 : -1;
     filtered.sort((a, b) => {
       let c = 0;
       if (sort.key === "nick") c = cmpStr(a.nick, b.nick);
+      else if (sort.key === "faction")
+        c = cmpStr(a.factionName || "", b.factionName || "");
       else if (sort.key === "joined")
         c = new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime();
       else if (sort.key === "value") c = a.playerValue - b.playerValue;
@@ -151,7 +184,14 @@ export function FactionPlayerValuesPanel({ slug }: { slug: string }) {
       return c * dir || cmpStr(a.nick, b.nick) || cmpStr(a.userId, b.userId);
     });
     return filtered;
-  }, [rows, nickKey, sort]);
+  }, [rows, nickKey, factionFilter, sort]);
+
+  const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const pageSafe = Math.min(page, pageCount - 1);
+  const pageRows = sorted.slice(
+    pageSafe * PAGE_SIZE,
+    pageSafe * PAGE_SIZE + PAGE_SIZE,
+  );
 
   function toggleSort(key: SortKey) {
     setSort((prev) => {
@@ -169,7 +209,7 @@ export function FactionPlayerValuesPanel({ slug }: { slug: string }) {
     setErr("");
     try {
       const res = await fetch(
-        `/api/factions/${encodeURIComponent(slug)}/player-values?userId=${encodeURIComponent(userId)}`,
+        `/api/factions/${encodeURIComponent(slug)}/player-values?all=1&userId=${encodeURIComponent(userId)}`,
         { cache: "no-store" },
       );
       const json = (await res.json()) as DetailPayload & { error?: string };
@@ -194,35 +234,64 @@ export function FactionPlayerValuesPanel({ slug }: { slug: string }) {
       <div className="faction-values-head">
         <h3 className="xfer-title">Стоимость игроков</h3>
         <p className="muted xfer-sub">
-          Формула: <strong>{base.toLocaleString("ru-RU")}</strong> + весь гринд в
-          казну. Кликни строку — заработок по дням.
+          Все фракции · формула: <strong>{base.toLocaleString("ru-RU")}</strong> +
+          весь гринд в казну. Кликни строку — заработок по дням.
         </p>
       </div>
       {err ? <p className="xfer-err">{err}</p> : null}
 
-      <div className="xfer-nick-filter">
-        <label className="xfer-nick-filter-label" htmlFor="faction-values-nick">
-          Ник
-        </label>
-        <input
-          id="faction-values-nick"
-          className="xfer-nick-filter-input"
-          type="search"
-          value={nickFilter}
-          onChange={(e) => setNickFilter(e.target.value)}
-          placeholder="Например Varyag…"
-          autoComplete="off"
-          spellCheck={false}
-        />
-        {nickFilter ? (
+      <div className="faction-values-filters">
+        <div className="xfer-nick-filter">
+          <label className="xfer-nick-filter-label" htmlFor="faction-values-nick">
+            Ник
+          </label>
+          <input
+            id="faction-values-nick"
+            className="xfer-nick-filter-input"
+            type="search"
+            value={nickFilter}
+            onChange={(e) => setNickFilter(e.target.value)}
+            placeholder="Например Varyag…"
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </div>
+        <div className="xfer-nick-filter">
+          <label
+            className="xfer-nick-filter-label"
+            htmlFor="faction-values-faction"
+          >
+            Фракция
+          </label>
+          <select
+            id="faction-values-faction"
+            className="xfer-nick-filter-input faction-values-faction-select"
+            value={factionFilter}
+            onChange={(e) => setFactionFilter(e.target.value)}
+          >
+            <option value="">Все фракции</option>
+            {factions.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        {nickFilter || factionFilter ? (
           <button
             type="button"
             className="xfer-nick-filter-clear"
-            onClick={() => setNickFilter("")}
+            onClick={() => {
+              setNickFilter("");
+              setFactionFilter("");
+            }}
           >
             Сброс
           </button>
         ) : null}
+        <span className="muted faction-values-count">
+          {sorted.length.toLocaleString("ru-RU")} игр.
+        </span>
       </div>
 
       <div className="xfer-table-wrap">
@@ -240,6 +309,12 @@ export function FactionPlayerValuesPanel({ slug }: { slug: string }) {
                 active={sort.key === "nick"}
                 dir={sort.dir}
                 onClick={() => toggleSort("nick")}
+              />
+              <SortTh
+                label="Фракция"
+                active={sort.key === "faction"}
+                dir={sort.dir}
+                onClick={() => toggleSort("faction")}
               />
               <SortTh
                 label="Вступил"
@@ -274,17 +349,22 @@ export function FactionPlayerValuesPanel({ slug }: { slug: string }) {
             </tr>
           </thead>
           <tbody>
-            {sorted.map((r, i) => (
+            {pageRows.map((r, i) => (
               <tr
-                key={r.userId}
+                key={`${r.factionId || "f"}-${r.userId}`}
                 className="xfer-row-click"
                 onClick={() => void openDetail(r.userId)}
               >
                 <td className="faction-mgmt-roster-num">
-                  {sort.key === "order" && !nickKey ? r.order : i + 1}
+                  {pageSafe * PAGE_SIZE + i + 1}
                 </td>
                 <td>
                   <strong className="xfer-nick">{r.nick}</strong>
+                </td>
+                <td>
+                  <strong style={{ color: r.factionColor || undefined }}>
+                    {r.factionName || "—"}
+                  </strong>
                 </td>
                 <td className="muted">{fmtJoined(r.joinedAt)}</td>
                 <td>
@@ -309,16 +389,44 @@ export function FactionPlayerValuesPanel({ slug }: { slug: string }) {
                 </td>
               </tr>
             ))}
-            {!sorted.length ? (
+            {!pageRows.length ? (
               <tr>
-                <td colSpan={7} className="muted">
-                  {nickKey ? "Нет игроков по этому нику." : "Состав пуст."}
+                <td colSpan={8} className="muted">
+                  {nickKey || factionFilter
+                    ? "Нет игроков по фильтру."
+                    : "Состав пуст."}
                 </td>
               </tr>
             ) : null}
           </tbody>
         </table>
       </div>
+
+      {sorted.length > PAGE_SIZE ? (
+        <div className="faction-values-pager">
+          <button
+            type="button"
+            className="btn"
+            disabled={pageSafe <= 0}
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+          >
+            ← Назад
+          </button>
+          <span className="muted">
+            {pageSafe * PAGE_SIZE + 1}–
+            {Math.min(sorted.length, pageSafe * PAGE_SIZE + PAGE_SIZE)} /{" "}
+            {sorted.length} · стр. {pageSafe + 1}/{pageCount}
+          </span>
+          <button
+            type="button"
+            className="btn"
+            disabled={pageSafe >= pageCount - 1}
+            onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+          >
+            Вперёд →
+          </button>
+        </div>
+      ) : null}
 
       {detailLoading ? <p className="muted">Загрузка дней…</p> : null}
 
@@ -339,6 +447,14 @@ export function FactionPlayerValuesPanel({ slug }: { slug: string }) {
               <div>
                 <h3>
                   <span className="xfer-nick">{detail.nick}</span>
+                  {detail.factionName ? (
+                    <>
+                      {" · "}
+                      <span style={{ color: detail.factionColor || undefined }}>
+                        {detail.factionName}
+                      </span>
+                    </>
+                  ) : null}
                 </h3>
                 <p className="profile-match-modal-sub muted">
                   Стоимость <BdAmount n={detail.playerValue} />
