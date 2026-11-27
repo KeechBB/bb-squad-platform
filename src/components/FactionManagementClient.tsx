@@ -15,6 +15,7 @@ import { FactionPlayerValuesPanel } from "@/components/FactionPlayerValuesPanel"
 import { FactionAuctionPanel } from "@/components/FactionAuctionPanel";
 import { FactionSeasonsPanel } from "@/components/FactionSeasonsPanel";
 import { FactionFaqPanel } from "@/components/FactionFaqPanel";
+import { FactionBalancesPanel } from "@/components/FactionBalancesPanel";
 import { BdAmount } from "@/components/BdMark";
 
 function formatJoinedAt(iso: string) {
@@ -36,6 +37,7 @@ type MgmtPanel =
   | "values"
   | "auction"
   | "seasons"
+  | "balances"
   | "faq"
   | null;
 
@@ -55,7 +57,7 @@ const NAV_BUTTONS: NavBtn[] = [
   { id: 6, label: "Стоимость игроков", panel: "values", ready: true },
   { id: 7, label: "Аукцион", panel: "auction", ready: true },
   { id: 8, label: "Сезоны", panel: "seasons", ready: true },
-  { id: 9, label: "Кнопка 9", panel: null, ready: false },
+  { id: 9, label: "Балансы", panel: "balances", ready: true },
   { id: 10, label: "FAQ", panel: "faq", ready: true },
 ];
 
@@ -346,6 +348,9 @@ export function FactionManagementClient({
                 ) : null}
                 {panel === "seasons" ? (
                   <FactionSeasonsPanel slug={view.slug} />
+                ) : null}
+                {panel === "balances" ? (
+                  <FactionBalancesPanel slug={view.slug} />
                 ) : null}
                 {panel === "faq" ? <FactionFaqPanel /> : null}
                 {!panel ? (
