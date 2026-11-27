@@ -11,12 +11,15 @@ export type FactionLedgerSlim = {
   createdAt: Date | string;
 };
 
-export type FactionDayMinusItem = {
+export type FactionDayItem = {
   kind: string;
   kindLabel: string;
   note: string | null;
   amount: number;
 };
+
+/** @deprecated alias */
+export type FactionDayMinusItem = FactionDayItem;
 
 export type FactionDayEconomy = {
   ymd: string;
@@ -27,31 +30,33 @@ export type FactionDayEconomy = {
   fromPlayers: number;
   /** Выигрыши / возвраты ставок (+). */
   fromBets: number;
-  /** Прочий плюс (сделки, правки…). */
+  /** Прочий плюс (сделки, правки…) — сумма. */
   otherPlus: number;
+  /** Расшифровка прочего плюса (не гринд / не ставки). */
+  plusItems: FactionDayItem[];
   /** Сумма всех минусов (отрицательное число или 0). */
   minusTotal: number;
-  minusItems: FactionDayMinusItem[];
+  minusItems: FactionDayItem[];
 };
 
 const BET_PLUS_KINDS = new Set(["night_bet_win", "night_bet_refund"]);
 
 export function ledgerKindLabelRu(kind: string): string {
   if (kind === "grind") return "Гринд TR";
-  if (kind === "transfer_in") return "Сделка +";
-  if (kind === "transfer_out") return "Сделка −";
+  if (kind === "transfer_in") return "Продажа игрока (приход в казну)";
+  if (kind === "transfer_out") return "Покупка игрока (списание с казны)";
   if (kind === "listing_fee") return "Комиссия лота";
-  if (kind === "admin_adjust") return "Правка";
-  if (kind === "contract_fee") return "Контракт";
-  if (kind === "salary_out") return "Зарплата";
-  if (kind === "night_bet") return "Ставка";
-  if (kind === "night_bet_win") return "Выигрыш ставки";
-  if (kind === "night_bet_refund") return "Возврат ставки";
-  if (kind === "auction_bid") return "Ставка аукциона";
-  if (kind === "auction_refund") return "Возврат аукциона";
-  if (kind === "market_buy") return "Маркет −";
-  if (kind === "market_sell") return "Маркет +";
-  if (kind === "officer_deposit") return "Взнос";
+  if (kind === "admin_adjust") return "Ручная правка казны";
+  if (kind === "contract_fee") return "Оплата контракта";
+  if (kind === "salary_out") return "Выплата зарплаты";
+  if (kind === "night_bet") return "Ставка на ночь";
+  if (kind === "night_bet_win") return "Выигрыш ночной ставки";
+  if (kind === "night_bet_refund") return "Возврат ночной ставки";
+  if (kind === "auction_bid") return "Ставка на аукционе рекрута";
+  if (kind === "auction_refund") return "Возврат ставки аукциона";
+  if (kind === "market_buy") return "Покупка на маркете";
+  if (kind === "market_sell") return "Продажа на маркете";
+  if (kind === "officer_deposit") return "Взнос в казну";
   return kind;
 }
 
@@ -71,8 +76,9 @@ export function buildFactionDayEconomy(
       fromPlayers: number;
       fromBets: number;
       otherPlus: number;
+      plusItems: FactionDayItem[];
       minusTotal: number;
-      minusItems: FactionDayMinusItem[];
+      minusItems: FactionDayItem[];
     }
   >();
 
@@ -88,6 +94,7 @@ export function buildFactionDayEconomy(
         fromPlayers: 0,
         fromBets: 0,
         otherPlus: 0,
+        plusItems: [],
         minusTotal: 0,
         minusItems: [],
       };
@@ -98,7 +105,15 @@ export function buildFactionDayEconomy(
     if (amt > 0) {
       if (e.kind === "grind") row.fromPlayers += amt;
       else if (BET_PLUS_KINDS.has(e.kind)) row.fromBets += amt;
-      else row.otherPlus += amt;
+      else {
+        row.otherPlus += amt;
+        row.plusItems.push({
+          kind: e.kind,
+          kindLabel: ledgerKindLabelRu(e.kind),
+          note: e.note,
+          amount: amt,
+        });
+      }
     } else if (amt < 0) {
       row.minusTotal += amt;
       row.minusItems.push({
@@ -118,6 +133,7 @@ export function buildFactionDayEconomy(
       fromPlayers: row.fromPlayers,
       fromBets: row.fromBets,
       otherPlus: row.otherPlus,
+      plusItems: row.plusItems.sort((a, b) => b.amount - a.amount),
       minusTotal: row.minusTotal,
       minusItems: row.minusItems.sort((a, b) => a.amount - b.amount),
     }))

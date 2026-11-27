@@ -28048,6 +28048,9 @@ body:has(.faction-page) .site-footer {
   border: 1px solid rgba(248, 113, 113, 0.18);
   font-variant-numeric: tabular-nums;
 }
+.xfer-day-plus li {
+  border-color: rgba(74, 222, 128, 0.22);
+}
 .xfer-day-minus-note {
   margin: 0.2rem 0 0;
   font-size: 0.86rem;

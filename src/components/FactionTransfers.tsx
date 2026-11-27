@@ -351,6 +351,13 @@ type Payload = {
   };
 };
 
+type DailyEconomyItem = {
+  kind: string;
+  kindLabel: string;
+  note: string | null;
+  amount: number;
+};
+
 type DailyEconomyRow = {
   ymd: string;
   dateLabel: string;
@@ -358,13 +365,9 @@ type DailyEconomyRow = {
   fromPlayers: number;
   fromBets: number;
   otherPlus: number;
+  plusItems?: DailyEconomyItem[];
   minusTotal: number;
-  minusItems: {
-    kind: string;
-    kindLabel: string;
-    note: string | null;
-    amount: number;
-  }[];
+  minusItems: DailyEconomyItem[];
 };
 
 type GrindMatchFactionMember = {
@@ -1903,7 +1906,7 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
               </li>
               {dayOpen.otherPlus > 0 ? (
                 <li>
-                  <span>Прочий плюс</span>
+                  <span>Другие поступления</span>
                   <span className="is-plus">
                     <BdAmount n={dayOpen.otherPlus} signed />
                   </span>
@@ -1916,6 +1919,33 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
                 </span>
               </li>
             </ul>
+
+            <h4 className="faction-hr-sub">Поступления · за что</h4>
+            {(dayOpen.plusItems?.length || 0) > 0 ? (
+              <ul className="xfer-day-minus xfer-day-plus">
+                {(dayOpen.plusItems || []).map((item, i) => (
+                  <li key={`plus-${item.kind}-${i}-${item.amount}`}>
+                    <div>
+                      <strong>{item.kindLabel}</strong>
+                      {item.note ? (
+                        <p className="muted xfer-day-minus-note">{item.note}</p>
+                      ) : (
+                        <p className="muted xfer-day-minus-note">
+                          Без комментария в проводке · тип «{item.kind}»
+                        </p>
+                      )}
+                    </div>
+                    <span className="is-plus">
+                      <BdAmount n={item.amount} signed />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="muted">
+                Кроме гринда и ставок других поступлений не было.
+              </p>
+            )}
 
             <h4 className="faction-hr-sub">Минусы · за что</h4>
             {dayOpen.minusItems.length ? (
@@ -2508,20 +2538,20 @@ function formatWhen(iso: string) {
 
 function ledgerKindRu(kind: string) {
   if (kind === "grind") return "Гринд TR";
-  if (kind === "transfer_in") return "Сделка +";
-  if (kind === "transfer_out") return "Сделка −";
+  if (kind === "transfer_in") return "Продажа игрока (приход)";
+  if (kind === "transfer_out") return "Покупка игрока (списание)";
   if (kind === "listing_fee") return "Комиссия лота";
-  if (kind === "admin_adjust") return "Правка";
-  if (kind === "contract_fee") return "Контракт";
-  if (kind === "salary_out") return "Зарплата";
-  if (kind === "night_bet") return "Ставка";
-  if (kind === "night_bet_win") return "Выигрыш ставки";
-  if (kind === "night_bet_refund") return "Возврат ставки";
-  if (kind === "auction_bid") return "Ставка аукциона";
-  if (kind === "auction_refund") return "Возврат аукциона";
-  if (kind === "market_buy") return "Маркет −";
-  if (kind === "market_sell") return "Маркет +";
-  if (kind === "officer_deposit") return "Взнос";
+  if (kind === "admin_adjust") return "Ручная правка казны";
+  if (kind === "contract_fee") return "Оплата контракта";
+  if (kind === "salary_out") return "Выплата зарплаты";
+  if (kind === "night_bet") return "Ставка на ночь";
+  if (kind === "night_bet_win") return "Выигрыш ночной ставки";
+  if (kind === "night_bet_refund") return "Возврат ночной ставки";
+  if (kind === "auction_bid") return "Ставка на аукционе рекрута";
+  if (kind === "auction_refund") return "Возврат ставки аукциона";
+  if (kind === "market_buy") return "Покупка на маркете";
+  if (kind === "market_sell") return "Продажа на маркете";
+  if (kind === "officer_deposit") return "Взнос в казну";
   return kind;
 }
 
