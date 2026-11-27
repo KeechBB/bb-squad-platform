@@ -29945,6 +29945,44 @@ body:has(.faction-mgmt-denied-page) .site-footer {
   flex-direction: column;
   gap: 0.65rem;
 }
+.faction-balances-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  align-items: flex-end;
+}
+.faction-balances-faction-select {
+  min-width: 11rem;
+  cursor: pointer;
+}
+.faction-balances-faction-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.faction-balances-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.45);
+  color: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.faction-balances-chip:hover {
+  border-color: color-mix(in srgb, var(--fb-accent, #94a3b8) 55%, transparent);
+}
+.faction-balances-chip.is-on {
+  border-color: color-mix(in srgb, var(--fb-accent, #a78bfa) 70%, transparent);
+  background: color-mix(in srgb, var(--fb-accent, #7c3aed) 22%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fb-accent, #c4b5fd) 35%, transparent);
+}
+.faction-balances-chip .faction-balances-logo {
+  border-radius: 5px;
+}
 .faction-balances-table tbody tr.faction-balances-player-row {
   cursor: pointer;
 }

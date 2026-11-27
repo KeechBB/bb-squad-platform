@@ -101,6 +101,7 @@ export function FactionBalancesPanel({ slug }: { slug: string }) {
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
   const [nickFilter, setNickFilter] = useState("");
+  const [factionFilter, setFactionFilter] = useState<string>("all");
 
   const [factionOpen, setFactionOpen] = useState<FactionRow | null>(null);
   const [factionDays, setFactionDays] = useState<FactionDay[]>([]);
@@ -152,13 +153,15 @@ export function FactionBalancesPanel({ slug }: { slug: string }) {
 
   const filteredPlayers = useMemo(() => {
     const q = nickFilter.trim().toLowerCase();
-    if (!q) return players;
-    return players.filter(
-      (p) =>
+    return players.filter((p) => {
+      if (factionFilter !== "all" && p.factionId !== factionFilter) return false;
+      if (!q) return true;
+      return (
         p.nick.toLowerCase().includes(q) ||
-        p.factionName.toLowerCase().includes(q),
-    );
-  }, [players, nickFilter]);
+        p.factionName.toLowerCase().includes(q)
+      );
+    });
+  }, [players, nickFilter, factionFilter]);
 
   async function openFaction(f: FactionRow) {
     setFactionOpen(f);
@@ -295,20 +298,74 @@ export function FactionBalancesPanel({ slug }: { slug: string }) {
 
       {tab === "players" && !loading ? (
         <div className="faction-balances-players">
-          <div className="xfer-nick-filter">
-            <label className="xfer-nick-filter-label" htmlFor="bal-nick">
-              Поиск
-            </label>
-            <input
-              id="bal-nick"
-              className="xfer-nick-filter-input"
-              type="search"
-              value={nickFilter}
-              onChange={(e) => setNickFilter(e.target.value)}
-              placeholder="Ник или фракция…"
-              autoComplete="off"
-              spellCheck={false}
-            />
+          <div className="faction-balances-filters">
+            <div className="xfer-nick-filter">
+              <label className="xfer-nick-filter-label" htmlFor="bal-nick">
+                Поиск
+              </label>
+              <input
+                id="bal-nick"
+                className="xfer-nick-filter-input"
+                type="search"
+                value={nickFilter}
+                onChange={(e) => setNickFilter(e.target.value)}
+                placeholder="Ник…"
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </div>
+            <div className="xfer-nick-filter">
+              <label className="xfer-nick-filter-label" htmlFor="bal-faction">
+                Фракция
+              </label>
+              <select
+                id="bal-faction"
+                className="xfer-nick-filter-input faction-balances-faction-select"
+                value={factionFilter}
+                onChange={(e) => setFactionFilter(e.target.value)}
+              >
+                <option value="all">Все фракции</option>
+                {factions.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div
+            className="faction-balances-faction-chips"
+            role="group"
+            aria-label="Быстрый фильтр фракции"
+          >
+            <button
+              type="button"
+              className={`faction-balances-chip${
+                factionFilter === "all" ? " is-on" : ""
+              }`}
+              onClick={() => setFactionFilter("all")}
+            >
+              Все
+            </button>
+            {factions.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                className={`faction-balances-chip${
+                  factionFilter === f.id ? " is-on" : ""
+                }`}
+                style={{ ["--fb-accent" as string]: f.color }}
+                onClick={() => setFactionFilter(f.id)}
+              >
+                <FactionLogo
+                  url={f.logoUrl}
+                  name={f.name}
+                  color={f.color}
+                  size={18}
+                />
+                {f.name}
+              </button>
+            ))}
           </div>
           <div className="xfer-table-wrap">
             <table className="xfer-table faction-balances-table">
