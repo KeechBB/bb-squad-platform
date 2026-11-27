@@ -5,6 +5,7 @@ import Link from "next/link";
 import { KIT_SLICE_COLORS, STANDARD_KITS } from "@/lib/squadKits";
 import { useFitTablePage } from "@/lib/useFitTablePage";
 import { DraggableModal } from "@/components/DraggableModal";
+import { BdAmount } from "@/components/BdMark";
 
 type WeekRow = {
   factionId: string;
@@ -827,43 +828,145 @@ function raceStatusRu(row: RaceRow): string {
   return "";
 }
 
+type RacePenalty = {
+  active: boolean;
+  resultId: string;
+  windowId: string;
+  graceEndsAt: string | null;
+  amount: number;
+  goal: number;
+  candidates: {
+    userId: string;
+    nick: string;
+    playerValue: number;
+    grindBroughtBd: number;
+  }[];
+};
+
+type RaceWeek = {
+  windowId: string;
+  label: string;
+  winnerName: string | null;
+  winnerAmount: number;
+  winnerGoal: number;
+  rows: {
+    factionId: string;
+    name: string;
+    slug: string;
+    color: string;
+    amount: number;
+    goal: number;
+    pct: number;
+    met: boolean;
+    status: string;
+    isWinner: boolean;
+  }[];
+};
+
 export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: number }) {
   const [label, setLabel] = useState("");
   const [rows, setRows] = useState<RaceRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [penalty, setPenalty] = useState<RacePenalty | null>(null);
+  const [canNominate, setCanNominate] = useState(false);
+  const [weeks, setWeeks] = useState<RaceWeek[]>([]);
+  const [pickUserId, setPickUserId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [weekOpen, setWeekOpen] = useState<string | null>(null);
+  const [weekSort, setWeekSort] = useState<{ key: string; dir: "asc" | "desc" }>({
+    key: "date",
+    dir: "desc",
+  });
+  const [weekPage, setWeekPage] = useState(0);
+  const WEEKS_PER_PAGE = 6;
+
+  const reload = async (signal?: AbortSignal) => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/factions/${encodeURIComponent(slug)}/race`, {
+        cache: "no-store",
+        signal,
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        label?: string;
+        rows?: RaceRow[];
+        penalty?: RacePenalty | null;
+        canNominate?: boolean;
+        weeks?: RaceWeek[];
+      };
+      if (!res.ok) {
+        setError(data.error || "Не удалось загрузить гонку");
+        return;
+      }
+      setLabel(data.label || "");
+      setRows(Array.isArray(data.rows) ? data.rows : []);
+      setPenalty(data.penalty || null);
+      setCanNominate(Boolean(data.canNominate));
+      setWeeks(Array.isArray(data.weeks) ? data.weeks : []);
+    } catch (err) {
+      if ((err as { name?: string }).name === "AbortError") return;
+      setError("Сеть недоступна");
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (loadKey < 1) return;
     const ctrl = new AbortController();
-    setLoading(true);
-    setError("");
-    void (async () => {
-      try {
-        const res = await fetch(`/api/factions/${encodeURIComponent(slug)}/race`, {
-          cache: "no-store",
-          signal: ctrl.signal,
-        });
-        const data = (await res.json().catch(() => ({}))) as {
-          error?: string;
-          label?: string;
-          rows?: RaceRow[];
-        };
-        if (!res.ok) {
-          setError(data.error || "Не удалось загрузить гонку");
-          return;
-        }
-        setLabel(data.label || "");
-        setRows(Array.isArray(data.rows) ? data.rows : []);
-      } catch (err) {
-        if ((err as { name?: string }).name === "AbortError") return;
-        setError("Сеть недоступна");
-      } finally {
-        if (!ctrl.signal.aborted) setLoading(false);
-      }
-    })();
+    void reload(ctrl.signal);
     return () => ctrl.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, loadKey]);
+
+  const weeksSorted = useMemo(() => {
+    const list = [...weeks];
+    const dir = weekSort.dir === "asc" ? 1 : -1;
+    list.sort((a, b) => {
+      let c = 0;
+      if (weekSort.key === "winner")
+        c = String(a.winnerName || "").localeCompare(String(b.winnerName || ""), "ru");
+      else if (weekSort.key === "amount") c = a.winnerAmount - b.winnerAmount;
+      else c = a.windowId.localeCompare(b.windowId);
+      return c * dir || a.windowId.localeCompare(b.windowId);
+    });
+    return list;
+  }, [weeks, weekSort]);
+
+  const weekPageCount = Math.max(1, Math.ceil(weeksSorted.length / WEEKS_PER_PAGE));
+  const weekPageSafe = Math.min(weekPage, weekPageCount - 1);
+  const weeksVisible = weeksSorted.slice(
+    weekPageSafe * WEEKS_PER_PAGE,
+    weekPageSafe * WEEKS_PER_PAGE + WEEKS_PER_PAGE,
+  );
+  const weekDetail = weeks.find((w) => w.windowId === weekOpen) || null;
+
+  async function nominate() {
+    if (!pickUserId || !canNominate) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/factions/${encodeURIComponent(slug)}/race`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ op: "nominate_penalty", userId: pickUserId }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setError(json.error || "Не удалось выставить");
+        return;
+      }
+      setPickUserId("");
+      await reload();
+    } catch {
+      setError("Сеть недоступна");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (loadKey < 1) {
     return (
@@ -879,6 +982,8 @@ export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: num
         <p className="faction-race-dates">{label || "21.11 00:00 — 28.11 00:00 МСК"}</p>
         <p className="faction-race-goal muted">
           Гринд казны за окно · у каждой фракции своя цель (±5% после недели). Легион вне гонки.
+          После дедлайна фракции без квоты выбирают игрока на{" "}
+          <mark className="faction-guide-hi">аукцион по рыночной стоимости</mark>.
         </p>
       </div>
       {error ? <p className="error">{error}</p> : null}
@@ -934,6 +1039,296 @@ export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: num
           <p className="muted">Нет фракций в гонке.</p>
         ) : null}
       </div>
+
+      {penalty?.active ? (
+        <section className="faction-race-penalty">
+          <h4>Штраф окна · выставить игрока на аукцион</h4>
+          <p className="muted">
+            Квота не набрана:{" "}
+            <mark className="faction-guide-hi">
+              {fmtBd(penalty.amount)} / {fmtBd(penalty.goal)}
+            </mark>
+            . Выберите участника — он уйдёт на аукцион по рыночной цене (
+            <mark className="faction-guide-hi">20 000 + весь гринд</mark>
+            ). Другие фракции будут торговаться. Если не выберете до конца grace
+            {penalty.graceEndsAt
+              ? ` (${new Date(penalty.graceEndsAt).toLocaleString("ru-RU")})`
+              : ""}
+            — система выставит случайного сама.
+          </p>
+          {!canNominate ? (
+            <p className="muted">Выбор доступен только штабу фракции.</p>
+          ) : (
+            <>
+              <div className="xfer-table-wrap">
+                <table className="xfer-table">
+                  <thead>
+                    <tr>
+                      <th>Игрок</th>
+                      <th>Рынок</th>
+                      <th>Гринд</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {penalty.candidates.map((c) => (
+                      <tr
+                        key={c.userId}
+                        className={pickUserId === c.userId ? "is-cur-season" : undefined}
+                      >
+                        <td>
+                          <strong className="xfer-nick">{c.nick}</strong>
+                        </td>
+                        <td>
+                          <BdAmount n={c.playerValue} />
+                        </td>
+                        <td className="muted">
+                          <BdAmount n={c.grindBroughtBd} />
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className={`btn${pickUserId === c.userId ? " primary" : ""}`}
+                            disabled={busy}
+                            onClick={() => setPickUserId(c.userId)}
+                          >
+                            {pickUserId === c.userId ? "Выбран" : "Выбрать"}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {!penalty.candidates.length ? (
+                      <tr>
+                        <td colSpan={4} className="muted">
+                          Нет подходящих кандидатов (только обычные участники).
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+              <div className="faction-race-penalty-actions">
+                <button
+                  type="button"
+                  className="btn primary"
+                  disabled={busy || !pickUserId}
+                  onClick={() => void nominate()}
+                >
+                  Отправить на аукцион
+                </button>
+              </div>
+            </>
+          )}
+        </section>
+      ) : null}
+
+      <section className="faction-race-weeks">
+        <div className="faction-race-weeks-head">
+          <h4>Результаты по неделям</h4>
+          <p className="muted">
+            Кто набрал больше всех за окно. Ткни неделю — результаты всех фракций.
+          </p>
+          <div className="faction-race-weeks-sort">
+            <button
+              type="button"
+              className={`xfer-sort${weekSort.key === "date" ? " is-on" : ""}`}
+              onClick={() => {
+                setWeekPage(0);
+                setWeekSort((s) =>
+                  s.key === "date"
+                    ? { key: "date", dir: s.dir === "asc" ? "desc" : "asc" }
+                    : { key: "date", dir: "desc" },
+                );
+              }}
+            >
+              Дата{weekSort.key === "date" ? (weekSort.dir === "asc" ? " ↑" : " ↓") : ""}
+            </button>
+            <button
+              type="button"
+              className={`xfer-sort${weekSort.key === "winner" ? " is-on" : ""}`}
+              onClick={() => {
+                setWeekPage(0);
+                setWeekSort((s) =>
+                  s.key === "winner"
+                    ? { key: "winner", dir: s.dir === "asc" ? "desc" : "asc" }
+                    : { key: "winner", dir: "asc" },
+                );
+              }}
+            >
+              Победитель
+              {weekSort.key === "winner" ? (weekSort.dir === "asc" ? " ↑" : " ↓") : ""}
+            </button>
+            <button
+              type="button"
+              className={`xfer-sort${weekSort.key === "amount" ? " is-on" : ""}`}
+              onClick={() => {
+                setWeekPage(0);
+                setWeekSort((s) =>
+                  s.key === "amount"
+                    ? { key: "amount", dir: s.dir === "asc" ? "desc" : "asc" }
+                    : { key: "amount", dir: "desc" },
+                );
+              }}
+            >
+              Результат
+              {weekSort.key === "amount" ? (weekSort.dir === "asc" ? " ↑" : " ↓") : ""}
+            </button>
+          </div>
+        </div>
+        <div className="xfer-table-wrap">
+          <table className="xfer-table">
+            <thead>
+              <tr>
+                <th>Неделя</th>
+                <th>Победитель</th>
+                <th>Результат</th>
+              </tr>
+            </thead>
+            <tbody>
+              {weeksVisible.map((w) => (
+                <tr
+                  key={w.windowId}
+                  className="xfer-row-click"
+                  onClick={() => setWeekOpen(w.windowId)}
+                >
+                  <td>{w.label}</td>
+                  <td>
+                    {w.winnerName ? (
+                      <mark className="faction-guide-hi">{w.winnerName}</mark>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
+                  <td className="is-plus">
+                    {w.winnerAmount > 0 ? (
+                      <>
+                        {fmtBd(w.winnerAmount)} / {fmtBd(w.winnerGoal)}
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {!weeksVisible.length ? (
+                <tr>
+                  <td colSpan={3} className="muted">
+                    Закрытых недель пока нет.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+        {weeksSorted.length > WEEKS_PER_PAGE ? (
+          <div className="faction-night-bets-dayhist-pager">
+            <button
+              type="button"
+              className="btn"
+              disabled={weekPageSafe <= 0}
+              onClick={() => setWeekPage((p) => Math.max(0, p - 1))}
+            >
+              Назад
+            </button>
+            <span className="muted">
+              стр. {weekPageSafe + 1}/{weekPageCount}
+            </span>
+            <button
+              type="button"
+              className="btn"
+              disabled={weekPageSafe >= weekPageCount - 1}
+              onClick={() =>
+                setWeekPage((p) => Math.min(weekPageCount - 1, p + 1))
+              }
+            >
+              Дальше
+            </button>
+          </div>
+        ) : null}
+      </section>
+
+      {weekDetail ? (
+        <div
+          className="profile-match-modal"
+          role="presentation"
+          onClick={() => setWeekOpen(null)}
+        >
+          <div className="profile-match-modal-backdrop" />
+          <div
+            className="profile-match-modal-panel faction-race-week-modal"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="profile-match-modal-head">
+              <div>
+                <h3>{weekDetail.label}</h3>
+                <p className="muted">
+                  Победитель:{" "}
+                  {weekDetail.winnerName ? (
+                    <mark className="faction-guide-hi">{weekDetail.winnerName}</mark>
+                  ) : (
+                    "—"
+                  )}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="profile-match-modal-close"
+                onClick={() => setWeekOpen(null)}
+              >
+                ×
+              </button>
+            </header>
+            <div className="profile-match-modal-body">
+              <div className="xfer-table-wrap">
+                <table className="xfer-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Фракция</th>
+                      <th>Факт</th>
+                      <th>Цель</th>
+                      <th>%</th>
+                      <th>Статус</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {weekDetail.rows.map((r, i) => (
+                      <tr
+                        key={r.factionId}
+                        className={r.isWinner ? "is-cur-season" : undefined}
+                      >
+                        <td>{i + 1}</td>
+                        <td>
+                          <strong style={{ color: r.color }}>{r.name}</strong>
+                          {r.isWinner ? (
+                            <mark className="faction-guide-hi"> ★</mark>
+                          ) : null}
+                        </td>
+                        <td>{fmtBd(r.amount)}</td>
+                        <td className="muted">{fmtBd(r.goal)}</td>
+                        <td>{r.pct}%</td>
+                        <td className="muted">
+                          {r.met
+                            ? "план ✓"
+                            : r.status === "grace"
+                              ? "штраф"
+                              : r.status === "exempt"
+                                ? "спасены"
+                                : r.status === "forced"
+                                  ? "штраф исполнен"
+                                  : r.status}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

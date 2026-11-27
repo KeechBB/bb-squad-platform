@@ -990,7 +990,7 @@ model AuctionBank {
   updatedAt        DateTime @updatedAt
 }
 
-/// Лот аукциона на новичка (16ч после приёма).
+/// Лот аукциона: рекрут после бота или штраф гонки.
 model FactionAuctionLot {
   id              String   @id @default(cuid())
   userId          String
@@ -1003,6 +1003,13 @@ model FactionAuctionLot {
   winningBidBd    Int?
   /// 10% победившей ставки → личный B$ рекрута
   recruitCutBd    Int?
+  /// recruit | race_penalty
+  lotKind         String   @default("recruit")
+  /// Минимальная ставка (рыночная стоимость при штрафе гонки).
+  minBidBd        Int?
+  /// Фракция, откуда ушёл игрок (штраф гонки).
+  sourceFactionId String?
+  raceWindowId    String?
   note            String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -1011,6 +1018,7 @@ model FactionAuctionLot {
 
   @@index([status, endsAt])
   @@index([userId, status])
+  @@index([lotKind, status])
 }
 
 model FactionAuctionBid {

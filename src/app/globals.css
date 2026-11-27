@@ -25021,6 +25021,37 @@ body:has(.faction-page) .site-footer {
   border-top: 1px solid rgba(52, 211, 153, 0.25);
 }
 
+.faction-race-penalty,
+.faction-race-weeks {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(7, 9, 16, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.faction-race-penalty h4,
+.faction-race-weeks-head h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+.faction-race-penalty-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.faction-race-weeks-sort {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.faction-race-week-modal {
+  max-width: min(780px, 94vw);
+}
+
 .faction-night-bets-dayhist {
   margin-top: 14px;
   padding-top: 12px;

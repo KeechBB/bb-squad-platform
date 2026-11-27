@@ -259,6 +259,9 @@ export async function placeAuctionBid(opts: {
     return { ok: false, error: "faction_not_allowed" };
   }
 
+  const minBid = Math.max(0, Math.round(Number(lot.minBidBd) || 0));
+  if (minBid > 0 && amount < minBid) return { ok: false, error: "below_min" };
+
   const existing = lot.bids.find((b) => b.factionId === opts.factionId);
   const prev = existing && existing.status === "ACTIVE" ? existing.amountBd : 0;
   if (amount <= prev) return { ok: false, error: "not_higher" };
@@ -639,6 +642,10 @@ export async function listAuctionBoard(opts?: { factionId?: string }) {
         winningBidBd: l.winningBidBd,
         recruitCutBd: l.recruitCutBd,
         winnerFactionId: l.winnerFactionId,
+        lotKind: l.lotKind || "recruit",
+        minBidBd: l.minBidBd ?? null,
+        sourceFactionId: l.sourceFactionId ?? null,
+        raceWindowId: l.raceWindowId ?? null,
         topBid: top
           ? {
               amountBd: top.amountBd,
@@ -658,5 +665,167 @@ export async function listAuctionBoard(opts?: { factionId?: string }) {
         })),
       };
     }),
+  };
+}
+
+/**
+ * Штраф гонки: игрок уходит из фракции на аукцион.
+ * Стартовая / мин. ставка = рыночная стоимость (20 000 + весь гринд).
+ */
+export async function openRacePenaltyAuction(opts: {
+  factionId: string;
+  userId: string;
+  raceWindowId: string;
+  actorUserId: string;
+  /** true = автоштраф по истечении grace */
+  auto?: boolean;
+}): Promise<
+  | { ok: true; lotId: string; nick: string; minBidBd: number; endsAt: string }
+  | { ok: false; error: string }
+> {
+  const { estimatePlayerPrice, ESTIMATE_BASE } = await import(
+    "@/lib/blueberryDollar"
+  );
+  const keech = await keechUser();
+  if (!keech) return { ok: false, error: "no_keech" };
+
+  const member = await prisma.factionMember.findFirst({
+    where: { factionId: opts.factionId, userId: opts.userId },
+    include: {
+      user: {
+        select: {
+          id: true,
+          nick: true,
+          name: true,
+          steamName: true,
+          steamId: true,
+        },
+      },
+      faction: { select: { id: true, name: true, clanId: true } },
+    },
+  });
+  if (!member) return { ok: false, error: "not_member" };
+  if (member.seat !== "MEMBER") return { ok: false, error: "not_member_seat" };
+
+  const openLot = await prisma.factionAuctionLot.findFirst({
+    where: { userId: opts.userId, status: "OPEN" },
+  });
+  if (openLot) return { ok: false, error: "already_on_auction" };
+
+  const grindRows = await prisma.factionLedgerEntry.groupBy({
+    by: ["userId"],
+    where: { userId: opts.userId, kind: "grind", amount: { gt: 0 } },
+    _sum: { amount: true },
+  });
+  const grindBroughtBd = Math.max(0, Math.round(grindRows[0]?._sum.amount || 0));
+  const minBidBd = estimatePlayerPrice({ grindBroughtBd });
+  const nick = personLabel(member.user);
+  const startsAt = new Date();
+  const endsAt = auctionEndsAt(startsAt);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.factionMember.deleteMany({
+      where: { factionId: opts.factionId, userId: opts.userId },
+    });
+    await tx.factionInvite.updateMany({
+      where: { userId: opts.userId, status: { in: ["PENDING", "ACCEPTED"] } },
+      data: { status: "CANCELLED" },
+    });
+    await tx.transferListing.updateMany({
+      where: { playerUserId: opts.userId, status: "ACTIVE" },
+      data: { status: "WITHDRAWN" },
+    });
+    await tx.factionAuctionLot.create({
+      data: {
+        userId: opts.userId,
+        status: "OPEN",
+        startsAt,
+        endsAt,
+        lotKind: "race_penalty",
+        minBidBd,
+        sourceFactionId: opts.factionId,
+        raceWindowId: opts.raceWindowId,
+        note: opts.auto
+          ? `race_penalty_auto:${opts.raceWindowId}`
+          : `race_penalty:${opts.raceWindowId}`,
+      },
+    });
+  });
+
+  const lot = await prisma.factionAuctionLot.findFirst({
+    where: { userId: opts.userId, status: "OPEN", lotKind: "race_penalty" },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!lot) return { ok: false, error: "lot_failed" };
+
+  await logFaction("kick", {
+    actorId: opts.actorUserId || keech.id,
+    actorNick: opts.auto ? "Гонка фракций" : "Штаб · гонка",
+    targetId: opts.userId,
+    targetNick: nick,
+    factionName: member.faction.name,
+    clanId: member.faction.clanId,
+    how: "аукцион (штраф гонки)",
+    reason: opts.auto
+      ? "план не выполнен, штаб не выставил игрока вовремя"
+      : "фракция не набрала квоту — игрок выставлен на аукцион",
+  });
+
+  try {
+    const { tryExemptRaceGrace } = await import("@/lib/factionRaceEngine");
+    await tryExemptRaceGrace({
+      factionId: opts.factionId,
+      playerUserId: opts.userId,
+      playerNick: nick,
+    });
+  } catch (e) {
+    console.error("race penalty exempt", e);
+  }
+
+  const recipients = await staffIdsForAuctionFactions();
+  await mailAuction({
+    authorId: keech.id,
+    recipientIds: [...recipients, opts.userId],
+    title: `Аукцион · штраф гонки · ${nick}`,
+    body: [
+      `Игрок ${nick} выставлен на аукцион из «${member.faction.name}» (штраф гонки).`,
+      "",
+      `Рыночная стоимость / мин. ставка: ${minBidBd.toLocaleString("ru-RU")} ${BD_MARK}`,
+      `(база ${ESTIMATE_BASE.toLocaleString("ru-RU")} + гринд ${grindBroughtBd.toLocaleString("ru-RU")}).`,
+      `Торги: ${AUCTION_HOURS} ч · до ${mskDateTimeLabel(endsAt)} (МСК).`,
+      opts.auto ? "Выставление автоматическое — штаб не выбрал игрока вовремя." : null,
+      "",
+      "Ставки — в Менеджмент → Аукцион.",
+      "",
+      "— Аукцион",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    sourceKey: `auction:race:${lot.id}`,
+  });
+
+  await writeActionLog({
+    category: "faction",
+    action: opts.auto ? "faction_race_auction_auto" : "faction_race_auction",
+    message: `Гонка: ${nick} с «${member.faction.name}» → аукцион (мин. ${minBidBd} ${BD_MARK}).`,
+    actorId: opts.actorUserId || keech.id,
+    targetId: opts.userId,
+    targetNick: nick,
+    clanId: member.faction.clanId,
+    clanTag: "BB",
+    meta: {
+      lotId: lot.id,
+      minBidBd,
+      raceWindowId: opts.raceWindowId,
+      auto: Boolean(opts.auto),
+    },
+  });
+
+  return {
+    ok: true,
+    lotId: lot.id,
+    nick,
+    minBidBd,
+    endsAt: endsAt.toISOString(),
   };
 }

@@ -257,14 +257,19 @@ async function finalizeWindow(bounds: RaceWindowBounds, now: Date) {
       const ids = await memberUserIds(r.factionId);
       await sendRaceMail({
         toUserIds: ids,
-        title: `План не выполнен · 24 часа на трансфер`,
-        body: finalFailBody(r.faction.name, amount, r.goal, nextGoal),
+        title: `План не выполнен · выберите игрока на аукцион`,
+        body: [
+          finalFailBody(r.faction.name, amount, r.goal, nextGoal),
+          "",
+          "Что делать: в Менеджмент → Гонка выберите игрока на аукцион по рыночной стоимости (20 000 + весь гринд).",
+          "Если не выберете до конца grace — система выставит случайного сама.",
+        ].join("\n"),
         sourceKey: `race:final:${bounds.id}:${r.factionId}`,
       });
       await writeActionLog({
         category: "faction",
         action: "faction_race_fail",
-        message: `Гонка: «${r.faction.name}» не набрала ${r.goal} (факт ${amount}). Grace до ${graceEndsAt.toISOString()}.`,
+        message: `Гонка: «${r.faction.name}» не набрала ${r.goal} (факт ${amount}). Grace до ${graceEndsAt.toISOString()} — выбрать игрока на аукцион.`,
         clanId: r.faction.clanId,
         clanTag: "BB",
         meta: {
@@ -288,7 +293,7 @@ function pickRandom<T>(arr: T[]): T | null {
   return arr[Math.floor(Math.random() * arr.length)]!;
 }
 
-async function eligibleForceCandidates(
+export async function eligibleForceCandidates(
   factionId: string,
   protectedReserveIds: string[],
 ): Promise<{ userId: string; nick: string }[]> {
@@ -368,31 +373,28 @@ async function executeForce(resultId: string, now: Date) {
     select: { id: true },
   });
 
-  await prisma.factionMember.deleteMany({
-    where: { factionId: r.factionId, userId: victim.userId },
-  });
-  await prisma.factionInvite.updateMany({
-    where: { userId: victim.userId, status: { in: ["PENDING", "ACCEPTED"] } },
-    data: { status: "CANCELLED" },
-  });
-  await prisma.transferListing.updateMany({
-    where: { playerUserId: victim.userId, status: "ACTIVE" },
-    data: { status: "WITHDRAWN" },
-  });
-
-  await logFaction("kick", {
-    actorId: keech?.id || null,
-    actorNick: "Гонка фракций",
-    targetId: victim.userId,
-    targetNick: victim.nick,
-    factionName: r.faction.name,
-    clanId: r.faction.clanId,
-    how: "автоштраф гонки",
-    reason:
-      "фракция не выполнила недельный план гринда и не сделала самостоятельный трансфер за 24 часа",
-  });
-
-  await addSriBanAndMaybeReset(victim.userId, r.factionId);
+  try {
+    const { openRacePenaltyAuction } = await import("@/lib/factionAuction");
+    const auc = await openRacePenaltyAuction({
+      factionId: r.factionId,
+      userId: victim.userId,
+      raceWindowId: r.windowId,
+      actorUserId: keech?.id || victim.userId,
+      auto: true,
+    });
+    if (!auc.ok) throw new Error(auc.error);
+  } catch (e) {
+    console.error("race force auction failed", e);
+    await writeActionLog({
+      category: "faction",
+      action: "faction_race_force_auction_fail",
+      message: `Гонка: автоаукцион «${r.faction.name}» / ${victim.nick} не удался: ${String(e)}`,
+      clanId: r.faction.clanId,
+      clanTag: "BB",
+      meta: { windowId: r.windowId, factionId: r.factionId },
+    });
+    return;
+  }
 
   await prisma.factionRaceResult.update({
     where: { id: r.id },
@@ -406,33 +408,19 @@ async function executeForce(resultId: string, now: Date) {
   const rosterIds = await memberUserIds(r.factionId);
   await sendRaceMail({
     toUserIds: [...rosterIds, victim.userId],
-    title: `Потеря товарища · «${r.faction.name}»`,
-    body: lostComradeBody(r.faction.name, victim.nick),
+    title: `Штраф гонки · аукцион · «${r.faction.name}»`,
+    body: [
+      `План не выполнен, штаб не выбрал игрока вовремя.`,
+      `${victim.nick} автоматически выставлен на аукцион по рыночной стоимости.`,
+      `Фракции могут выкупить его в Менеджмент → Аукцион.`,
+    ].join("\n"),
     sourceKey: `race:lost:${r.windowId}:${r.factionId}`,
   });
-  await sendRaceMail({
-    toUserIds: [victim.userId],
-    title: `Исключение · гонка фракций`,
-    body: victimKickBody(r.faction.name),
-    sourceKey: `race:victim:${r.windowId}:${r.factionId}:${victim.userId}`,
-  });
-
-  // СРИ: свободный агент → другая фракция с учётом банов
-  try {
-    const { assignFreeAgent } = await import("@/lib/sri");
-    await assignFreeAgent({
-      userId: victim.userId,
-      reason: "race_force",
-      excludeFactionIds: [r.factionId],
-    });
-  } catch (e) {
-    console.error("race force SRI failed", e);
-  }
 
   await writeActionLog({
     category: "faction",
     action: "faction_race_forced",
-    message: `Гонка: автоштраф «${r.faction.name}» — ${victim.nick} → свободный агент / СРИ.`,
+    message: `Гонка: автоштраф «${r.faction.name}» — ${victim.nick} → аукцион.`,
     actorNick: "Гонка фракций",
     targetId: victim.userId,
     targetNick: victim.nick,

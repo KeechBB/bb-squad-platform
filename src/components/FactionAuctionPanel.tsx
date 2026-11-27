@@ -22,6 +22,8 @@ type Lot = {
   userId: string;
   winningBidBd: number | null;
   recruitCutBd: number | null;
+  lotKind?: string;
+  minBidBd?: number | null;
   topBid: {
     amountBd: number;
     factionName: string;
@@ -199,6 +201,9 @@ export function FactionAuctionPanel({
                 <div className="faction-auction-lot-who">
                   <strong className="xfer-nick">{l.nick}</strong>
                   <span className="muted"> · {l.steamId || "—"}</span>
+                  {l.lotKind === "race_penalty" ? (
+                    <span className="xfer-pill is-sell"> штраф гонки</span>
+                  ) : null}
                 </div>
                 <span className="xfer-pill is-buy">
                   ещё {fmtRemain(l.remainingMs)}
@@ -209,6 +214,12 @@ export function FactionAuctionPanel({
                 <div className="faction-auction-lot-meta">
                   <p className="muted">
                     До {fmtWhen(l.endsAt)} МСК
+                    {l.minBidBd ? (
+                      <>
+                        {" · мин. "}
+                        <BdAmount n={l.minBidBd} />
+                      </>
+                    ) : null}
                     {l.topBid
                       ? ` · лидер: ${l.topBid.factionName}`
                       : " · ставок нет"}

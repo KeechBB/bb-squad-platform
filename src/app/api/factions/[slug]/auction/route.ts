@@ -72,6 +72,7 @@ export async function POST(req: Request, ctx: Ctx) {
         treasury_low: "В казне не хватает B$",
         not_higher: "Ставка должна быть выше вашей текущей",
         below_leader: "Ставка должна быть выше лидера торгов",
+        below_min: "Ставка ниже рыночного минимума лота",
         lot_closed: "Лот уже закрыт",
         lot_ended: "Время лота вышло",
         faction_not_allowed: "Эта фракция не участвует в аукционе",
