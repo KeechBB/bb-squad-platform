@@ -472,19 +472,36 @@ export async function forceCloseNightTraining(now = new Date()): Promise<{
   ok: true;
   windowId: string;
   alreadySettled?: boolean;
+  raceFinalized?: boolean;
 } | { ok: false; error: string }> {
   const bounds = nightBetWindowAt(now);
   if (now.getTime() < bounds.grindStart.getTime()) {
     return { ok: false, error: "grind_not_started" };
   }
   const result = await settleNightBetWindow(bounds, now, { force: true });
-  if (!result.settled && result.reason === "already_settled") {
-    return { ok: true, windowId: bounds.id, alreadySettled: true };
-  }
-  if (!result.settled) {
+  const alreadySettled = !result.settled && result.reason === "already_settled";
+  if (!result.settled && !alreadySettled) {
     return { ok: false, error: result.reason || "settle_failed" };
   }
-  return { ok: true, windowId: bounds.id };
+
+  // Последняя TR недели гонки (пт→сб) — закрываем гонку вместе с тренировкой.
+  let raceFinalized = false;
+  try {
+    const { finalizeRaceIfLastTrainingClosed } = await import(
+      "@/lib/factionRaceEngine"
+    );
+    const race = await finalizeRaceIfLastTrainingClosed(bounds.id, now);
+    raceFinalized = race.finalized;
+  } catch (e) {
+    console.error("race finalize on training close", e);
+  }
+
+  return {
+    ok: true,
+    windowId: bounds.id,
+    alreadySettled: alreadySettled || undefined,
+    raceFinalized: raceFinalized || undefined,
+  };
 }
 
 export type NightBetPhase = "upcoming" | "open" | "locked" | "settled";

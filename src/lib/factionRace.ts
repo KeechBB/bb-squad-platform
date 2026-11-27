@@ -136,8 +136,11 @@ export async function factionRaceBoard(clanId: string): Promise<FactionRaceBoard
   const infoBy = new Map(infos.map((f) => [f.id, f.info]));
 
   const rows: FactionRaceRow[] = factions.map((f) => {
-    const amount = amountBy.get(f.id) || 0;
     const res = resultBy.get(f.id);
+    const locked = Boolean(res && res.status !== "open");
+    const amount = locked
+      ? Math.max(0, res!.amount || 0)
+      : amountBy.get(f.id) || 0;
     const goal = res?.goal || goalBy.get(f.id) || RACE_BASE_GOAL;
     const pct = goal > 0 ? Math.min(100, Math.round((amount / goal) * 1000) / 10) : 0;
     const info = parseFactionInfo(infoBy.get(f.id));
@@ -158,7 +161,8 @@ export async function factionRaceBoard(clanId: string): Promise<FactionRaceBoard
 
   rows.sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name, "ru"));
 
-  const windowEnded = now >= bounds.end;
+  const anyOpen = rows.some((r) => r.status === "open");
+  const windowEnded = !anyOpen || now >= bounds.end;
   const weeks = await factionRaceWeekHistory({ take: 24 });
 
   return {

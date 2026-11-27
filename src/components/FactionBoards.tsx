@@ -1250,7 +1250,8 @@ export function FactionRaceBoard({ slug, loadKey }: { slug: string; loadKey: num
       <section className="faction-race-howto" aria-label="Если норму не выполнили">
         <h4>Если норму не выполнили</h4>
         <p className="muted">
-          После закрытия окна (01:00 МСК) фракции ниже цели получают{" "}
+          После закрытия окна (в субботу вместе с «Закрыть тренировку», иначе в
+          01:00 МСК) фракции ниже цели получают{" "}
           <mark className="faction-guide-hi">24 часа отсрочки</mark>. Штаб решает,
           кого отпустить — или спасается трансфером.
         </p>
@@ -1686,7 +1687,7 @@ export function FactionNightBetsBoard({
   async function closeTraining() {
     if (!data?.canCloseTraining || closing) return;
     const ok = window.confirm(
-      "Закрыть тренировку сейчас?\n\nСразу посчитаются ставки по текущему гринду — ждать 01:00 не нужно. Отменить потом нельзя."
+      "Закрыть тренировку сейчас?\n\nСразу посчитаются ставки по текущему гринду — ждать 01:00 не нужно.\nЕсли это последняя тренировка недели гонки — закроется и гонка фракций.\nОтменить потом нельзя."
     );
     if (!ok) return;
     setClosing(true);

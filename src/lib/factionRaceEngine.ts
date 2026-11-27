@@ -11,6 +11,7 @@ import {
   formatRaceWindowLabel,
   mskWeekday,
   nextRaceGoal,
+  lastRaceTrainingDayYmd,
   raceWindowAt,
   raceWindowByIndex,
   type RaceWindowBounds,
@@ -208,6 +209,13 @@ async function sendMidIfNeeded(bounds: RaceWindowBounds, now: Date) {
  */
 async function reopenIfPrematureFinalize(bounds: RaceWindowBounds, now: Date) {
   if (now >= bounds.end) return false;
+  // Досрочное «Закрыть тренировку» укоротило endAt — не откатывать итог.
+  const win = await prisma.factionRaceWindow.findUnique({
+    where: { id: bounds.id },
+    select: { endAt: true },
+  });
+  if (win?.endAt && win.endAt.getTime() < bounds.end.getTime()) return false;
+
   const rows = await prisma.factionRaceResult.findMany({
     where: {
       windowId: bounds.id,
@@ -250,8 +258,13 @@ async function reopenIfPrematureFinalize(bounds: RaceWindowBounds, now: Date) {
   return true;
 }
 
-async function finalizeWindow(bounds: RaceWindowBounds, now: Date) {
-  if (now < bounds.end) return;
+async function finalizeWindow(
+  bounds: RaceWindowBounds,
+  now: Date,
+  opts?: { force?: boolean },
+) {
+  const force = Boolean(opts?.force);
+  if (!force && now < bounds.end) return;
 
   const results = await prisma.factionRaceResult.findMany({
     where: { windowId: bounds.id, status: "open" },
@@ -259,8 +272,23 @@ async function finalizeWindow(bounds: RaceWindowBounds, now: Date) {
   });
   if (!results.length) return;
 
+  // Досрочное закрытие: режем прогресс на «сейчас» (+буфер под свежие night_bet_win).
+  const progressEnd =
+    force && now < bounds.end
+      ? new Date(now.getTime() + 10_000)
+      : bounds.end;
+  const closedAt = force && now < bounds.end ? now : bounds.end;
+
+  if (force && closedAt.getTime() < bounds.end.getTime()) {
+    await prisma.factionRaceWindow.upsert({
+      where: { id: bounds.id },
+      create: { id: bounds.id, startAt: bounds.start, endAt: closedAt },
+      update: { endAt: closedAt },
+    });
+  }
+
   for (const r of results) {
-    const amount = await grindSum(r.factionId, bounds.start, bounds.end);
+    const amount = await grindSum(r.factionId, bounds.start, progressEnd);
     const met = amount >= r.goal;
     // После окна с ×2 гринда — всем 800k; дальше снова ±5% от личной цели.
     const nextGoal =
@@ -269,7 +297,7 @@ async function finalizeWindow(bounds: RaceWindowBounds, now: Date) {
         : nextRaceGoal(r.goal, met);
     const protectedReserveIds = met
       ? []
-      : await snapshotProtectedReserveIds(r.factionId, bounds.end);
+      : await snapshotProtectedReserveIds(r.factionId, closedAt);
 
     await prisma.factionRaceState.upsert({
       where: { factionId: r.factionId },
@@ -295,7 +323,7 @@ async function finalizeWindow(bounds: RaceWindowBounds, now: Date) {
         sourceKey: `race:final:${bounds.id}:${r.factionId}`,
       });
     } else {
-      const graceEndsAt = new Date(bounds.end.getTime() + RACE_GRACE_MS);
+      const graceEndsAt = new Date(closedAt.getTime() + RACE_GRACE_MS);
       await prisma.factionRaceResult.update({
         where: { id: r.id },
         data: {
@@ -331,6 +359,7 @@ async function finalizeWindow(bounds: RaceWindowBounds, now: Date) {
           goal: r.goal,
           amount,
           graceEndsAt: graceEndsAt.toISOString(),
+          forceClose: force,
         },
       });
     }
@@ -339,6 +368,31 @@ async function finalizeWindow(bounds: RaceWindowBounds, now: Date) {
   // Следующее окно сразу
   const next = raceWindowByIndex(bounds.index + 1);
   await ensureWindow(next);
+}
+
+/**
+ * После «Закрыть тренировку» в последнюю ночь окна гонки — сразу финализируем гонку,
+ * не дожидаясь 01:00 МСК.
+ */
+export async function finalizeRaceIfLastTrainingClosed(
+  nightTrainingYmd: string,
+  now = new Date(),
+): Promise<{ finalized: boolean; windowId: string | null }> {
+  const race = raceWindowAt(now);
+  if (!race) return { finalized: false, windowId: null };
+  if (lastRaceTrainingDayYmd(race) !== nightTrainingYmd) {
+    return { finalized: false, windowId: race.id };
+  }
+  await ensureWindow(race);
+  await finalizeWindow(race, now, { force: true });
+  await writeActionLog({
+    category: "faction",
+    action: "faction_race_force_close",
+    message: `Гонка: окно ${race.id} закрыто вместе с тренировкой ${nightTrainingYmd} (до 01:00).`,
+    clanTag: "BB",
+    meta: { windowId: race.id, nightTrainingYmd },
+  });
+  return { finalized: true, windowId: race.id };
 }
 
 function pickRandom<T>(arr: T[]): T | null {

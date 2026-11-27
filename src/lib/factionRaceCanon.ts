@@ -125,6 +125,16 @@ export function raceWindowAt(at: Date = new Date()): RaceWindowBounds | null {
   return raceWindowByIndex(index);
 }
 
+/**
+ * День последней тренировки окна гонки (YMD МСК) =
+ * календарный день перед субботним 00:00 закрытия (пт. вечер → сб. 01:00).
+ */
+export function lastRaceTrainingDayYmd(bounds: RaceWindowBounds): string {
+  const calendarEnd = new Date(bounds.end.getTime() - RACE_TRAIN_TAIL_MS);
+  const prev = new Date(calendarEnd.getTime() - 24 * 60 * 60 * 1000);
+  return raceMskYmd(prev);
+}
+
 /** Подпись: «21.11 00:00 — 28.11 01:00 МСК» (конец = после последней TR). */
 export function formatRaceWindowLabel(start: Date, end: Date): string {
   const fmt = (d: Date) => {
