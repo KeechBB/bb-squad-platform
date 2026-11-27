@@ -9,6 +9,8 @@ export type FactionLedgerSlim = {
   kind: string;
   note: string | null;
   createdAt: Date | string;
+  /** Ник игрока сделки (продажа / покупка), если известен. */
+  playerNick?: string | null;
 };
 
 export type FactionDayItem = {
@@ -16,7 +18,28 @@ export type FactionDayItem = {
   kindLabel: string;
   note: string | null;
   amount: number;
+  playerNick?: string | null;
 };
+
+function transferDisplayNote(
+  kind: string,
+  note: string | null,
+  playerNick?: string | null,
+): string | null {
+  const nick = String(playerNick || "").trim();
+  const raw = String(note || "").trim();
+  if (!nick) return raw || null;
+  if (
+    !raw ||
+    raw === "Поступление с трансфера" ||
+    raw === "Оплата трансфера"
+  ) {
+    if (kind === "transfer_in") return `Продажа ${nick}`;
+    if (kind === "transfer_out") return `Покупка ${nick}`;
+  }
+  if (!raw.includes(nick)) return `${raw} · ${nick}`;
+  return raw;
+}
 
 /** @deprecated alias */
 export type FactionDayMinusItem = FactionDayItem;
@@ -110,8 +133,9 @@ export function buildFactionDayEconomy(
         row.plusItems.push({
           kind: e.kind,
           kindLabel: ledgerKindLabelRu(e.kind),
-          note: e.note,
+          note: transferDisplayNote(e.kind, e.note, e.playerNick),
           amount: amt,
+          playerNick: e.playerNick || null,
         });
       }
     } else if (amt < 0) {
@@ -119,8 +143,9 @@ export function buildFactionDayEconomy(
       row.minusItems.push({
         kind: e.kind,
         kindLabel: ledgerKindLabelRu(e.kind),
-        note: e.note,
+        note: transferDisplayNote(e.kind, e.note, e.playerNick),
         amount: amt,
+        playerNick: e.playerNick || null,
       });
     }
   }

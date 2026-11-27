@@ -356,6 +356,7 @@ type DailyEconomyItem = {
   kindLabel: string;
   note: string | null;
   amount: number;
+  playerNick?: string | null;
 };
 
 type DailyEconomyRow = {
@@ -1926,7 +1927,15 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
                 {(dayOpen.plusItems || []).map((item, i) => (
                   <li key={`plus-${item.kind}-${i}-${item.amount}`}>
                     <div>
-                      <strong>{item.kindLabel}</strong>
+                      <strong>
+                        {item.kindLabel}
+                        {item.playerNick ? (
+                          <>
+                            {" · "}
+                            <span className="xfer-nick">{item.playerNick}</span>
+                          </>
+                        ) : null}
+                      </strong>
                       {item.note ? (
                         <p className="muted xfer-day-minus-note">{item.note}</p>
                       ) : (
@@ -1953,7 +1962,15 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
                 {dayOpen.minusItems.map((item, i) => (
                   <li key={`${item.kind}-${i}-${item.amount}`}>
                     <div>
-                      <strong>{item.kindLabel}</strong>
+                      <strong>
+                        {item.kindLabel}
+                        {item.playerNick ? (
+                          <>
+                            {" · "}
+                            <span className="xfer-nick">{item.playerNick}</span>
+                          </>
+                        ) : null}
+                      </strong>
                       {item.note ? (
                         <p className="muted xfer-day-minus-note">{item.note}</p>
                       ) : null}

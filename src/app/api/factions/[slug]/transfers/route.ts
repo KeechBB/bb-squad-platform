@@ -107,13 +107,70 @@ export async function GET(_req: Request, ctx: Ctx) {
       /** Все проводки фракции для дневных итогов (без лимита ленты). */
       prisma.factionLedgerEntry.findMany({
         where: { factionId },
-        select: { amount: true, kind: true, note: true, createdAt: true },
+        select: {
+          amount: true,
+          kind: true,
+          note: true,
+          createdAt: true,
+          sourceKey: true,
+        },
         orderBy: { createdAt: "desc" },
       }),
       loadPlayerPriceStats(loaded.view.members.map((m) => m.userId)),
       loadGrindMatchSummaries(),
       loadGrindPlayerSummaries(),
     ]);
+
+  const xferOfferIds = [
+    ...new Set(
+      dayLedger
+        .map((e) => {
+          const m = String(e.sourceKey || "").match(/^xfer_(?:in|out):(.+)$/);
+          return m?.[1] || null;
+        })
+        .filter(Boolean) as string[],
+    ),
+  ];
+  const xferOffers =
+    xferOfferIds.length > 0
+      ? await prisma.transferOffer.findMany({
+          where: { id: { in: xferOfferIds } },
+          select: {
+            id: true,
+            listing: { select: { playerUserId: true } },
+          },
+        })
+      : [];
+  const xferPlayerIds = [
+    ...new Set(xferOffers.map((o) => o.listing.playerUserId)),
+  ];
+  const xferPlayers =
+    xferPlayerIds.length > 0
+      ? await prisma.user.findMany({
+          where: { id: { in: xferPlayerIds } },
+          select: { id: true, nick: true, steamName: true },
+        })
+      : [];
+  const xferNickByUser = Object.fromEntries(
+    xferPlayers.map((u) => [u.id, u.nick || u.steamName || "игрок"]),
+  );
+  const xferNickByOffer = Object.fromEntries(
+    xferOffers.map((o) => [
+      o.id,
+      xferNickByUser[o.listing.playerUserId] || null,
+    ]),
+  );
+  const dayLedgerForEconomy = dayLedger.map((e) => {
+    const m = String(e.sourceKey || "").match(/^xfer_(?:in|out):(.+)$/);
+    const playerNick = m?.[1] ? xferNickByOffer[m[1]] || null : null;
+    return {
+      amount: e.amount,
+      kind: e.kind,
+      note: e.note,
+      createdAt: e.createdAt,
+      playerNick,
+    };
+  });
 
   const ledgerUserIds = [
     ...new Set(ledger.map((e) => e.userId).filter(Boolean) as string[]),
@@ -346,7 +403,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     }),
     grindMatches,
     grindPlayers,
-    dailyEconomy: buildFactionDayEconomy(dayLedger),
+    dailyEconomy: buildFactionDayEconomy(dayLedgerForEconomy),
     /**
      * «Сейчас открыты» = весь рынок: активные лоты на доске + pending-оферы.
      * Успешные сделки — только своей фракции.

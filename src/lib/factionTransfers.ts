@@ -1338,7 +1338,7 @@ export async function acceptTransferOffer(opts: ExecOpts) {
         "transfer_out",
         `xfer_out:${offer.id}`,
         `Покупка ${soldNick} у «${sellerName}» (−${cash.toLocaleString("ru-RU")} B$)`,
-        opts.actorUserId,
+        playerId,
         null,
       );
       await creditTreasury(
@@ -1348,7 +1348,7 @@ export async function acceptTransferOffer(opts: ExecOpts) {
         "transfer_in",
         `xfer_in:${offer.id}`,
         `Продажа ${soldNick} → «${buyerName}» (+${cash.toLocaleString("ru-RU")} B$)`,
-        opts.actorUserId,
+        playerId,
         null,
       );
     }
