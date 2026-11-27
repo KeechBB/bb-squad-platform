@@ -428,26 +428,29 @@ type DealRow = {
   swapUserId: string | null;
 };
 
-export type FactionTransfersScope = "full" | "deals" | "economy";
+export type FactionTransfersScope = "full" | "deals" | "economy" | "playerEarn";
 
 type Props = {
   slug: string;
   canManage: boolean;
-  /** full — всё; deals — сделки; economy — казна + заработки. */
+  /** full — всё; deals — сделки; economy — казна; playerEarn — заработок игроков (окно 5). */
   scope?: FactionTransfersScope;
 };
 
 const DEAL_TABS: XferSubTab[] = ["desk", "market", "closed"];
-const ECONOMY_TABS: XferSubTab[] = ["ledger", "days", "trains", "players"];
+const ECONOMY_TABS: XferSubTab[] = ["ledger", "days", "trains"];
+const PLAYER_EARN_TABS: XferSubTab[] = ["players"];
 
 function tabsForScope(scope: FactionTransfersScope): XferSubTab[] | null {
   if (scope === "deals") return DEAL_TABS;
   if (scope === "economy") return ECONOMY_TABS;
+  if (scope === "playerEarn") return PLAYER_EARN_TABS;
   return null;
 }
 
 function defaultSubTab(scope: FactionTransfersScope, staff: boolean): XferSubTab {
   if (scope === "economy") return "ledger";
+  if (scope === "playerEarn") return "players";
   if (scope === "deals") return staff ? "desk" : "market";
   return staff ? "desk" : "ledger";
 }
@@ -1002,56 +1005,65 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
     return <p className="muted">Загрузка трансферной доски…</p>;
   }
 
-  return (
-    <div className={`xfer-panel${isStaff ? " is-staff" : " is-member"}`}>
-      <div className="xfer-head">
-        <div>
-          <h3 className="xfer-title">
-            {scope === "economy" ? "Экономика фракции" : "Трансферы"}
-          </h3>
-          {isStaff ? (
-            <p className="muted xfer-sub">
-              Казна:{" "}
-              <strong>
-                <BdAmount n={data.treasury} />
-              </strong>
-              {" · "}
-              состав {data.rosterSize}/{data.minRoster}
-              {!data.eligible ? " — для сделок нужно ≥30" : ""}
-              {graceCountdown ? (
-                <>
-                  {" · "}
-                  <span
-                    className="xfer-race-grace"
-                    title="До автоштрафа гонки фракций: кик случайного участника, если не будет исходящего трансфера"
-                  >
-                    {graceCountdown}
-                  </span>
-                </>
-              ) : null}
-            </p>
-          ) : graceCountdown ? (
-            <p className="xfer-sub">
-              <span className="xfer-race-grace" title="До автоштрафа гонки фракций">
-                {graceCountdown}
-              </span>
-            </p>
-          ) : null}
-        </div>
-        <div className="xfer-head-aside">
-          <button type="button" className="xfer-my-value-btn" onClick={() => void openMyValue()}>
-            Изменения моей стоимости
-          </button>
-          {isStaff ? (
-            <div className={`xfer-window ${data.window.isOpen ? "is-open" : "is-closed"}`}>
-              {data.window.isOpen
-                ? "Трансферное окно открыто"
-                : data.window.reason || "Трансферное окно закрыто"}
-            </div>
-          ) : null}
-        </div>
-      </div>
+  const embedPlayerEarn = scope === "playerEarn";
 
+  return (
+    <div
+      className={`xfer-panel${isStaff ? " is-staff" : " is-member"}${
+        embedPlayerEarn ? " is-embed" : ""
+      }`}
+    >
+      {!embedPlayerEarn ? (
+        <div className="xfer-head">
+          <div>
+            <h3 className="xfer-title">
+              {scope === "economy" ? "Экономика фракции" : "Трансферы"}
+            </h3>
+            {isStaff ? (
+              <p className="muted xfer-sub">
+                Казна:{" "}
+                <strong>
+                  <BdAmount n={data.treasury} />
+                </strong>
+                {" · "}
+                состав {data.rosterSize}/{data.minRoster}
+                {!data.eligible ? " — для сделок нужно ≥30" : ""}
+                {graceCountdown ? (
+                  <>
+                    {" · "}
+                    <span
+                      className="xfer-race-grace"
+                      title="До автоштрафа гонки фракций: кик случайного участника, если не будет исходящего трансфера"
+                    >
+                      {graceCountdown}
+                    </span>
+                  </>
+                ) : null}
+              </p>
+            ) : graceCountdown ? (
+              <p className="xfer-sub">
+                <span className="xfer-race-grace" title="До автоштрафа гонки фракций">
+                  {graceCountdown}
+                </span>
+              </p>
+            ) : null}
+          </div>
+          <div className="xfer-head-aside">
+            <button type="button" className="xfer-my-value-btn" onClick={() => void openMyValue()}>
+              Изменения моей стоимости
+            </button>
+            {isStaff ? (
+              <div className={`xfer-window ${data.window.isOpen ? "is-open" : "is-closed"}`}>
+                {data.window.isOpen
+                  ? "Трансферное окно открыто"
+                  : data.window.reason || "Трансферное окно закрыто"}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {!embedPlayerEarn ? (
       <div className="admin-tabs clan-tabs xfer-subtabs" role="tablist">
         {showTab("desk") ? (
           <button
@@ -1107,16 +1119,8 @@ export function FactionTransfers({ slug, canManage, scope = "full" }: Props) {
             Заработок фракций
           </button>
         ) : null}
-        {showTab("players") ? (
-          <button
-            type="button"
-            className={`admin-tab${subTab === "players" ? " active" : ""}`}
-            onClick={() => selectSubTab("players")}
-          >
-            Заработок игроков
-          </button>
-        ) : null}
       </div>
+      ) : null}
 
       {msg ? <p className="xfer-msg">{msg}</p> : null}
       {err && data ? <p className="xfer-err">{err}</p> : null}

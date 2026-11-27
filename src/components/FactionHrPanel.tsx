@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BdAmount } from "@/components/BdMark";
 import { useFitTablePage } from "@/lib/useFitTablePage";
+import { FactionTransfers } from "@/components/FactionTransfers";
 
 type HrMember = {
   userId: string;
@@ -48,7 +49,7 @@ type HrPayload = {
   error?: string;
 };
 
-type HrTab = "contracts" | "salaries" | "history";
+type HrTab = "contracts" | "salaries" | "history" | "players";
 
 function fmtDate(iso: string) {
   const d = new Date(iso);
@@ -215,6 +216,13 @@ export function FactionHrPanel({
           onClick={() => setTab("history")}
         >
           История выплат
+        </button>
+        <button
+          type="button"
+          className={`admin-tab${tab === "players" ? " active" : ""}`}
+          onClick={() => setTab("players")}
+        >
+          Заработок игроков
         </button>
       </div>
 
@@ -501,6 +509,15 @@ export function FactionHrPanel({
               </button>
             </div>
           ) : null}
+        </div>
+      ) : null}
+
+      {tab === "players" ? (
+        <div className="xfer-tab-body faction-hr-players">
+          <p className="muted faction-hr-hint">
+            Сколько B$ игроки принесли гриндом в казны. Фильтр по фракции и нику.
+          </p>
+          <FactionTransfers slug={slug} canManage={canManage} scope="playerEarn" />
         </div>
       ) : null}
     </div>
