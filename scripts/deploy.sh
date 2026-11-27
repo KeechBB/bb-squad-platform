@@ -476,7 +476,9 @@ touch /var/log/bb-panelka-pb1-stats-warm.log
 chmod 644 /var/log/bb-panelka-pb1-stats-warm.log
 # One warm batch in background (do not block deploy). Old 6× loop piled up
 # with overlapping deploys and ate CPU while Next was already hot.
+# Close deploy flock FD 9 so a hung curl cannot pin /tmp/bb-deploy.lock forever.
 (
+  exec 9>&-
   flock -n /tmp/bb-panelka-pb1-stats-warm.lock \
     ionice -c3 nice -n 15 bash "$ROOT/scripts/warm_panelka_pb1_stats_cron.sh" \
     || echo "pb1 stats warm boot skipped (lock busy or warm failed)"
@@ -497,6 +499,7 @@ chmod 644 /var/log/bb-panelka-teamkills.log
 # stack 3×100% CPU across overlapping deploys and starve Next (site hang /
 # Ctrl+F5). Cron every 15m already covers freshness.
 (
+  exec 9>&-
   flock -n /tmp/bb-panelka-teamkills.lock \
     ionice -c3 nice -n 15 env BB_PLATFORM_ROOT="$ROOT" \
     bash "$ROOT/scripts/warm_panelka_teamkills_cron.sh" \
